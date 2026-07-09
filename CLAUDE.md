@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Claude Code plugin marketplace** (not a runtime codebase). It packages personal skills as installable plugins consumed by Claude Code itself. There is no build step, no test suite, no package manager — content is plain Markdown + JSON, discovered by Claude Code via the marketplace/plugin manifest chain.
 
+## Plugins registered here
+
+Two plugins are declared in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json):
+
+1. **`mattpocock-skills`** — vendored as a **git submodule** at [mattpocock-skills/](mattpocock-skills/) tracking `https://github.com/mattpocock/skills.git` (see [.gitmodules](.gitmodules)). Do **not** edit files under this directory in-tree; changes belong upstream. To update the pinned revision, run `git submodule update --remote mattpocock-skills` and commit the pointer bump with a `chore:` message. Fresh clones need `git submodule update --init` before Claude Code can resolve `mattpocock-skills:*` skill references (e.g. `grilling`, `tdd`, `to-issues`) that the overrides delegate to.
+2. **`mattpocock-superpowers`** — first-party, edited in-tree. This is where new override skills go.
+
 ## Marketplace → plugin → skill chain
 
 Three levels of manifest wire everything together; changing a skill's location means updating one file at each level:
@@ -25,7 +32,7 @@ The [mattpocock-superpowers](mattpocock-superpowers/) plugin's whole purpose is 
 - Body closes with `## Red Flags` (thoughts that should stop you) and `## Common Rationalizations` (excuse → reality table). Both are load-bearing — the override is designed to catch drift, so removing these sections defeats the point.
 - New rules go **inside** the override skill as `Rule N`, never in the user's global `~/.claude/CLAUDE.md`. The HTML comment `<!-- Additional rules … -->` marks the insertion point.
 
-The user's global `~/.claude/CLAUDE.md` (personal, outside this repo) maps each upstream skill to its override here, and instructs Claude Code to invoke the override via the Skill tool rather than reading its SKILL.md directly. Preserve that invocation model when adding overrides — never inline the override's rules into the upstream skill's flow.
+The user's global `~/.claude/CLAUDE.md` (personal, outside this repo) maps each upstream skill to its override here, and instructs Claude Code to invoke the override via the Skill tool rather than reading its SKILL.md directly. The canonical form of that mapping block lives in [README.md](README.md) under "System prompt wiring" — treat it as the source of truth when adding a new override (bump the table there in the same commit). Preserve the Skill-tool invocation model — never inline the override's rules into the upstream skill's flow.
 
 ## Cross-cutting: subagent-lifecycle
 

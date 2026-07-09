@@ -1,0 +1,9 @@
+{
+  "name": "mattpocock-superpowers",
+  "skills": [
+    "./skills/brainstorming-overrides",
+    "./skills/writing-plans-overrides",
+    "./skills/subagent-driven-development-overrides",
+    "./skills/subagent-lifecycle"
+  ]
+}

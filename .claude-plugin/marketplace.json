@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "oscaner-skills",
+  "metadata": {
+    "description": "Personal skill collection: superpowers/mattpocock-skills overrides and standalone skills."
+  },
+  "owner": {
+    "name": "Oscaner Miao"
+  },
+  "plugins": [
+    {
+      "name": "mattpocock-superpowers",
+      "description": "Personal overrides for the superpowers plugin that force delegation to mattpocock-skills:grilling and fresh-subagent self-review.",
+      "version": "0.1.0",
+      "author": { "name": "Oscaner Miao" },
+      "source": "./mattpocock-superpowers",
+      "category": "workflow",
+      "tags": ["superpowers", "overrides", "subagents"]
+    }
+  ]
+}

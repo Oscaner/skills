@@ -1,6 +1,6 @@
 ---
 name: writing-plans-overrides
-description: MUST invoke BEFORE superpowers:writing-plans — trigger when the user asks to write an implementation plan, break work into tasks/tickets/issues, draft a plan document, plan a feature build-out, or types `/writing-plans`. Applies personal overrides (section-by-section writes; fresh subagent review passes; delegates issue breakdown to mattpocock-skills:/to-issues).
+description: MUST invoke BEFORE superpowers:writing-plans as your FIRST tool call this turn — trigger on ANY of: (1) user types `/writing-plans` or `/superpowers:writing-plans`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:writing-plans skill body appears in the current turn's system context; (4) user asks in natural language to write an implementation plan, break work into tasks/tickets/issues, draft a plan document, or plan a feature build-out. Applies personal overrides (section-by-section writes; fresh subagent review passes; delegates issue breakdown to mattpocock-skills:/to-issues).
 ---
 
 # Writing-Plans Overrides

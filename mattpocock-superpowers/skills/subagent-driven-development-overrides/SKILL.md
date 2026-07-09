@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development-overrides
-description: MUST invoke BEFORE superpowers:subagent-driven-development — trigger when the user asks to dispatch subagents, run multi-agent work, delegate implementation to subagents, orchestrate reviewers, or types `/subagent-driven-development`. Applies personal overrides (complexity-based review rounds; token-efficient dispatch; implementer subagents delegate to mattpocock-skills:tdd).
+description: MUST invoke BEFORE superpowers:subagent-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/subagent-driven-development` or `/superpowers:subagent-driven-development`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:subagent-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to dispatch subagents, run multi-agent work, delegate implementation to subagents, or orchestrate reviewers. Applies personal overrides (complexity-based review rounds; token-efficient dispatch; implementer subagents delegate to mattpocock-skills:tdd).
 ---
 
 # Subagent-Driven Development Overrides

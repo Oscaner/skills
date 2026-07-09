@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development-overrides
-description: Use whenever the superpowers:subagent-driven-development skill is active — applies personal overrides and additional rules that customize its default behavior.
+description: MUST invoke BEFORE superpowers:subagent-driven-development — trigger when the user asks to dispatch subagents, run multi-agent work, delegate implementation to subagents, orchestrate reviewers, or types `/subagent-driven-development`. Applies personal overrides (complexity-based review rounds; token-efficient dispatch; implementer subagents delegate to mattpocock-skills:tdd).
 ---
 
 # Subagent-Driven Development Overrides

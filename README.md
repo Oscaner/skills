@@ -31,7 +31,7 @@ Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/ma
 
 ### [mattpocock-superpowers](mattpocock-superpowers/)
 
-Personal overrides for the upstream [`superpowers`](https://github.com/obra/superpowers) plugin. Each override skill activates the moment its target `superpowers:*` skill activates, and either **replaces** its default behavior or **delegates** to a [`mattpocock-skills`](https://github.com/mattpocock/skills) skill.
+Personal overrides for the upstream [`superpowers`](https://github.com/obra/superpowers) plugin. Each override skill's own `description` declares its trigger — typically **"MUST invoke BEFORE `superpowers:<target>`"** — so Claude Code's Skill matcher selects the override from the user's prompt semantics, not from an unobservable "target skill is active" condition. The override then either **replaces** the upstream skill's default behavior or **delegates** to a [`mattpocock-skills`](https://github.com/mattpocock/skills) skill.
 
 | Override skill | Overrides | What it does |
 |---|---|---|
@@ -58,30 +58,35 @@ Every level's manifest must reference the level below it. A SKILL.md that exists
 
 ## System prompt wiring
 
-Installing the plugin makes the override skills *available*, but Claude Code still needs to be told to prefer them over the upstream `superpowers:*` skills. Add the following block to your global `~/.claude/CLAUDE.md` (or the equivalent system-level instructions for your setup):
+Installing the plugin makes the override skills discoverable by Claude Code's Skill matcher — no extra CLAUDE.md wiring is required to trigger them, because each override's own `description` names the user-facing scenarios (`brainstorm`, `write a plan`, `dispatch subagents`, …) the matcher looks for. What CLAUDE.md still adds is a **discoverable index**: a short block telling the model these overrides exist and which upstream skill each one shadows. Add the following to your global `~/.claude/CLAUDE.md` (or the equivalent system-level instructions for your setup):
 
 ```markdown
 ## Skills
 
 Check for a relevant skill before any task; if there's a >1% chance one applies, invoke it.
 
-Each upstream `superpowers:*` skill has a personal override skill — invoke it via the Skill tool (not by reading its `SKILL.md`) the moment its target is active. New personal rules go inside the override skill, not this file. Overrides may delegate further to `mattpocock/skills` — details in each override.
+Personal override skills sit in front of upstream `superpowers:*` skills — each override's own `description` states when to invoke it (typically **before** its upstream target fires). New personal rules go inside the override skill, not this file. Overrides may delegate further to `mattpocock/skills` — details in each override.
 
-| Override skill (invoke via Skill tool) | Target |
+| Override skill | Target |
 |---|---|
 | `brainstorming-overrides` | `superpowers:brainstorming` |
 | `writing-plans-overrides` | `superpowers:writing-plans` |
 | `subagent-driven-development-overrides` | `superpowers:subagent-driven-development` |
-| `subagent-lifecycle` | Cross-cutting — any subagent dispatch |
+| `subagent-lifecycle` | Cross-cutting — any subagent/Agent dispatch |
 ```
 
-Without this mapping, Claude Code will read each upstream `SKILL.md` directly and bypass the override — the overrides are opt-in, not automatic.
+The mapping block is advisory (Claude reads it, may or may not act on it); the reliable trigger is the `description` on each SKILL.md, which Claude Code's Skill tool matches against every user turn.
 
 ## Contributing to your own fork
 
 New rules for an existing override go **inside** that override skill as `Rule N` — never in your global `~/.claude/CLAUDE.md`. Each override marks the insertion point with `<!-- Additional rules … -->`.
 
-New override skills follow the fixed shape: frontmatter `description` starting with "Use whenever the `superpowers:<target>` skill is active", body opening with `## Rules`, closing with `## Red Flags` and `## Common Rationalizations`. See [CLAUDE.md](CLAUDE.md) for the full pattern.
+New override skills follow the fixed shape:
+
+- **Frontmatter `description`** — starts with `MUST invoke BEFORE superpowers:<target>` and then enumerates the user-facing scenarios that should trigger the match ("when the user asks to …", the corresponding `/slash-command`, keyword synonyms in whatever languages the user works in). Avoid framing the trigger around "when target skill is active" — the matcher cannot observe that condition and will never select the override.
+- **Body** — opens with `## Rules`, closes with `## Red Flags` and `## Common Rationalizations`.
+
+See [CLAUDE.md](CLAUDE.md) for the full pattern.
 
 ## License
 

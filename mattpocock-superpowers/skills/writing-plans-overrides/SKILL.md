@@ -1,6 +1,6 @@
 ---
 name: writing-plans-overrides
-description: Use whenever the superpowers:writing-plans skill is active — applies personal overrides and additional rules that customize its default behavior.
+description: MUST invoke BEFORE superpowers:writing-plans — trigger when the user asks to write an implementation plan, break work into tasks/tickets/issues, draft a plan document, plan a feature build-out, or types `/writing-plans`. Applies personal overrides (section-by-section writes; fresh subagent review passes; delegates issue breakdown to mattpocock-skills:/to-issues).
 ---
 
 # Writing-Plans Overrides

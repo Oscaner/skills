@@ -1,6 +1,6 @@
 ---
 name: brainstorming-overrides
-description: Use whenever the superpowers:brainstorming skill is active — applies personal overrides and additional rules that customize its default behavior.
+description: MUST invoke BEFORE superpowers:brainstorming — trigger when the user asks to brainstorm, design a feature, plan new functionality, write a spec, explore an idea, discuss requirements, or types `/brainstorming`. Applies personal overrides that customize brainstorming's default behavior (delegates clarifying questions to mattpocock-skills:grilling; replaces self-review with fresh subagent passes).
 ---
 
 # Brainstorming Overrides

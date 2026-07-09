@@ -1,6 +1,6 @@
 ---
 name: subagent-lifecycle
-description: Use whenever a subagent is dispatched — governs whether passes run concurrently or serially, and forbids reusing a subagent across tasks or review passes.
+description: MUST invoke BEFORE dispatching any Agent/subagent — trigger when about to call the Agent tool, spawn reviewers, run parallel review passes, or coordinate multi-round subagent work. Governs concurrent-vs-serial dispatch and forbids reusing a subagent across tasks or review passes.
 ---
 
 # Subagent Lifecycle

@@ -12,7 +12,7 @@
       "name": "mattpocock-skills",
       "source": "./mattpocock-skills",
       "description": "Matt Pocock's agent skills for real engineering",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "author": {
         "name": "Matt Pocock",
         "url": "https://github.com/mattpocock"
@@ -33,7 +33,7 @@
     {
       "name": "mattpocock-superpowers",
       "description": "Personal overrides for the superpowers plugin that force delegation to mattpocock-skills:grilling and fresh-subagent self-review.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": { "name": "Oscaner Miao" },
       "source": "./mattpocock-superpowers",
       "category": "workflow",

@@ -38,7 +38,7 @@ Precedence is enforced by three coordinated mechanisms — each override's `desc
 | Override skill | Overrides | What it does |
 |---|---|---|
 | `brainstorming-overrides` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
-| `writing-plans-overrides` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates issue breakdown to `/to-issues` with a hard user-approval gate. |
+| `writing-plans-overrides` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates issue breakdown to `/to-issues` with a hard user-approval gate, then publishes each slice as a Markdown file under `docs/superpowers/issues/` (sibling to `specs/` and `plans/`) — no remote tracker. |
 | `subagent-driven-development-overrides` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
 | `subagent-lifecycle` | *cross-cutting* | Referenced by every other override's review-pass rule. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. |
 
@@ -112,7 +112,7 @@ New override skills follow the fixed shape:
 
 - **Frontmatter `description`** — starts with `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn` and then enumerates all four trigger sources explicitly: (1) the `/<slash-command>` (both bare and `superpowers:`-prefixed forms), (2) `<command-name>` tags naming either form, (3) the upstream skill body appearing in the current turn's system context, (4) natural-language scenarios (verbs, keyword synonyms in whatever languages the user works in). Precedence-critical: describe the trigger via **user-turn-observable** signals, and require the override as the *first* tool call — never phrase it as "when target skill is active" (unobservable) or "typically before" (soft).
 - **CLAUDE.md wiring** — add a row to the override-precedence table in [System prompt wiring](#system-prompt-wiring) in the same commit. The `description` alone is not enough; without the CLAUDE.md row the model will still follow the upstream skill's first-move instructions.
-- **Body** — opens with `## Rules`, closes with `## Red Flags` and `## Common Rationalizations`.
+- **Body** — opens with `## Rules`, closes with `## Red Flags` and `## Common Rationalizations`. Each rule takes one of three shapes: **replaces** (upstream default → your behavior), **delegates** (route the step to a `mattpocock-skills:*` skill), or **partial-delegate** (wrap the upstream skill's Steps 0–K unchanged, override Step K+1 locally — `writing-plans-overrides` Rule 3 is the canonical example, delegating `/to-issues` Steps 1–4 verbatim and overriding Step 5's publish target). When a single rule needs multiple enforcement mechanisms (locate, redirect, structure the user-quiz…), decompose it into sub-rules `Rule Na` / `Rule Nb` / `Rule Nc` under one umbrella heading rather than as sibling top-level rules.
 
 See [CLAUDE.md](CLAUDE.md) for the full pattern.
 

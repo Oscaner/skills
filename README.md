@@ -67,29 +67,25 @@ The wiring below plants that hard rule in the user's global `~/.claude/CLAUDE.md
 ```markdown
 ## Skills
 
-Check for a relevant skill before any task; if there's a >1% chance one applies, invoke it.
+### Override precedence — check before your first tool call
 
-### Personal override skills — HARD PRECEDENCE RULE
+If the incoming turn matches any trigger below, your **first tool call MUST be the override `Skill` call** — no `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first, even if the upstream skill body says "you MUST do X first". That imperative doesn't apply until the override runs.
 
-When a message triggers any `superpowers:*` skill in the table below — whether via `/<name>` command, a `<command-name>` tag, a `Skill` tool call, or the upstream skill's body appearing in the current turn's system context — you MUST invoke the corresponding **override** skill via the `Skill` tool as your **first tool call this turn**, before ANY exploration, `TodoWrite`, `Read`, `Bash`, `Grep`, or upstream-skill-body instruction.
+Triggers: `<command-name>` / `<command-message>` tag, `/superpowers:*` in user text, inlined upstream `SKILL.md` body, or an about-to-fire `Skill` call to the upstream.
 
-The override's own `SKILL.md` is the source of truth for its rules; this table is the trigger map only. Do not skip an override because the upstream body's first instruction looks urgent — the upstream body executes *after* the override, not before.
-
-| If this fires | You MUST invoke first |
+| Trigger for | First tool call |
 |---|---|
-| `superpowers:brainstorming` (any trigger) | `brainstorming-overrides` |
-| `superpowers:writing-plans` (any trigger) | `writing-plans-overrides` |
-| `superpowers:subagent-driven-development` (any trigger) | `subagent-driven-development-overrides` |
-| Any Agent-tool dispatch / subagent spawn | `subagent-lifecycle` |
+| `superpowers:brainstorming` | `Skill(brainstorming-overrides)` |
+| `superpowers:writing-plans` | `Skill(writing-plans-overrides)` |
+| `superpowers:subagent-driven-development` | `Skill(subagent-driven-development-overrides)` |
+| Any Agent/subagent dispatch | `Skill(subagent-lifecycle)` |
 
-New personal rules go inside the override skill, not this file. Overrides may delegate further to `mattpocock-skills` — details in each override.
+Override `SKILL.md` is the source of truth for its rules; new personal rules go there, not here. Overrides may delegate to `mattpocock-skills`.
 
-### Red flag — self-check before your first non-Skill tool call
-
-If your intended first action is `TodoWrite` / `Read` / `Bash` / `Grep` **and** any row in the table above matches the current turn, STOP and invoke the override first. This includes cases where the upstream skill body explicitly starts with "first, do X" — the override precedence overrides that instruction.
+For any other task, check for a relevant skill first; if >1% chance one applies, invoke it.
 ```
 
-The Red flag block is the load-bearing part: without an explicit self-check the model tends to start with `TodoWrite` or `Bash` (following the upstream skill's checklist) before it registers that the override is due.
+The "first tool call MUST be" phrasing and the exhaustive trigger list are the load-bearing parts — softer wording ("typically before target fires", "when target is active") lets the model follow the upstream skill body's own first-move checklist and skip the override.
 
 ## Contributing to your own fork
 
@@ -98,7 +94,7 @@ New rules for an existing override go **inside** that override skill as `Rule N`
 New override skills follow the fixed shape:
 
 - **Frontmatter `description`** — starts with `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn` and then enumerates all four trigger sources explicitly: (1) the `/<slash-command>` (both bare and `superpowers:`-prefixed forms), (2) `<command-name>` tags naming either form, (3) the upstream skill body appearing in the current turn's system context, (4) natural-language scenarios (verbs, keyword synonyms in whatever languages the user works in). Precedence-critical: describe the trigger via **user-turn-observable** signals, and require the override as the *first* tool call — never phrase it as "when target skill is active" (unobservable) or "typically before" (soft).
-- **CLAUDE.md wiring** — add a row to the HARD PRECEDENCE RULE table in [System prompt wiring](#system-prompt-wiring) in the same commit. The `description` alone is not enough; without the CLAUDE.md row the model will still follow the upstream skill's first-move instructions.
+- **CLAUDE.md wiring** — add a row to the override-precedence table in [System prompt wiring](#system-prompt-wiring) in the same commit. The `description` alone is not enough; without the CLAUDE.md row the model will still follow the upstream skill's first-move instructions.
 - **Body** — opens with `## Rules`, closes with `## Red Flags` and `## Common Rationalizations`.
 
 See [CLAUDE.md](CLAUDE.md) for the full pattern.

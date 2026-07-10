@@ -35,7 +35,7 @@ The [mattpocock-superpowers](mattpocock-superpowers/) plugin's whole purpose is 
 Precedence is enforced by **two coordinated mechanisms**, not one:
 
 1. The four-trigger `description` above (SKILL.md side).
-2. A **HARD PRECEDENCE RULE** block in the user's global `~/.claude/CLAUDE.md` (personal, outside this repo) that maps each upstream skill to its override and requires the override as the first tool call whenever the upstream fires. The canonical form lives in [README.md](README.md) under "System prompt wiring" — treat it as the source of truth. When adding a new override, bump the table there **in the same commit** as the new SKILL.md; a description-only change is not enough, because the upstream skill body's own first-move instructions will otherwise win.
+2. An **override-precedence block** in the user's global `~/.claude/CLAUDE.md` (personal, outside this repo) that maps each upstream skill to its override and requires the override as the first tool call whenever the upstream fires. The canonical form lives in [README.md](README.md) under "System prompt wiring" — treat it as the source of truth. When adding a new override, bump the table there **in the same commit** as the new SKILL.md; a description-only change is not enough, because the upstream skill body's own first-move instructions will otherwise win.
 
 ## Cross-cutting: subagent-lifecycle
 

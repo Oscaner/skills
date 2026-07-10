@@ -5,6 +5,7 @@
     "./skills/writing-plans-overrides",
     "./skills/subagent-driven-development-overrides",
     "./skills/subagent-lifecycle",
-    "./skills/token-efficient-review-dispatch"
+    "./skills/token-efficient-review-dispatch",
+    "./skills/using-git-worktrees-overrides"
   ]
 }

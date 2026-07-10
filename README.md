@@ -27,7 +27,7 @@ To bump the pinned `mattpocock-skills` revision later: `git submodule update --r
 
 ### [mattpocock-skills](mattpocock-skills/)
 
-Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/mattpocock/skills). Not edited in-tree — this marketplace just re-exports it so the overrides below can delegate to `mattpocock-skills:grilling`, `mattpocock-skills:tdd`, and `mattpocock-skills:to-issues`.
+Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/mattpocock/skills). Not edited in-tree — this marketplace just re-exports it so the overrides below can delegate to `mattpocock-skills:grilling`, `mattpocock-skills:tdd`, and `mattpocock-skills:to-tickets`.
 
 ### [mattpocock-superpowers](mattpocock-superpowers/)
 
@@ -38,15 +38,12 @@ Precedence is enforced by three coordinated mechanisms — each override's `desc
 | Override skill | Overrides | What it does |
 |---|---|---|
 | `brainstorming-overrides` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
-| `writing-plans-overrides` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates issue breakdown to `/to-issues` with a hard user-approval gate, then publishes each slice as a Markdown file under `docs/superpowers/issues/` (sibling to `specs/` and `plans/`) — no remote tracker. |
+| `writing-plans-overrides` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates ticket breakdown to `/to-tickets` with a hard user-approval gate, then publishes as a single `docs/superpowers/issues/YYYY-MM-DD-<feature>-tickets.md` (sibling to `specs/` and `plans/`) — no remote tracker. |
 | `subagent-driven-development-overrides` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
-| `subagent-lifecycle` | *cross-cutting* | Referenced by every other override's review-pass rule. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. |
+| `subagent-lifecycle` | *cross-cutting* | Invoked by reference from every review override. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. Never a slash command. |
+| `token-efficient-review-dispatch` | *cross-cutting* | Invoked by reference from every review override. Defines the three dispatch mechanisms (D1 escalate-on-finding, D2 delta review, D3 findings-only output) in one place — overrides cite instead of copy-paste. Never a slash command. |
 
-All multi-pass overrides share a token-efficient dispatch discipline:
-
-- **D1 escalate-on-finding** — Pass 1 runs alone; passes 2 & 3 skipped iff Pass 1 returns zero findings.
-- **D2 delta review** — Later passes receive only changed sections + a diff summary, except the final global-coherence pass.
-- **D3 findings-only output** — Reviewers return `{findings: [...]}` — no summaries, no positive commentary, empty array means approve.
+Both cross-cutting skills exist to prevent copy-paste drift across overrides: `subagent-lifecycle` owns the "fresh + concurrent-iff-independent" invariant, `token-efficient-review-dispatch` owns the D1/D2/D3 mechanisms. Each review override cites both by link rather than repeating their content — when the invariants change, one edit propagates.
 
 ## Repository layout
 
@@ -112,7 +109,7 @@ New override skills follow the fixed shape:
 
 - **Frontmatter `description`** — starts with `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn` and then enumerates all four trigger sources explicitly: (1) the `/<slash-command>` (both bare and `superpowers:`-prefixed forms), (2) `<command-name>` tags naming either form, (3) the upstream skill body appearing in the current turn's system context, (4) natural-language scenarios (verbs, keyword synonyms in whatever languages the user works in). Precedence-critical: describe the trigger via **user-turn-observable** signals, and require the override as the *first* tool call — never phrase it as "when target skill is active" (unobservable) or "typically before" (soft).
 - **CLAUDE.md wiring** — add a row to the override-precedence table in [System prompt wiring](#system-prompt-wiring) in the same commit. The `description` alone is not enough; without the CLAUDE.md row the model will still follow the upstream skill's first-move instructions.
-- **Body** — opens with `## Rules`, closes with `## Red Flags` and `## Common Rationalizations`. Each rule takes one of three shapes: **replaces** (upstream default → your behavior), **delegates** (route the step to a `mattpocock-skills:*` skill), or **partial-delegate** (wrap the upstream skill's Steps 0–K unchanged, override Step K+1 locally — `writing-plans-overrides` Rule 3 is the canonical example, delegating `/to-issues` Steps 1–4 verbatim and overriding Step 5's publish target). When a single rule needs multiple enforcement mechanisms (locate, redirect, structure the user-quiz…), decompose it into sub-rules `Rule Na` / `Rule Nb` / `Rule Nc` under one umbrella heading rather than as sibling top-level rules.
+- **Body** — opens with `## Rules`, closes with `## Red Flags` and `## Common Rationalizations`. Each rule takes one of three shapes: **replaces** (upstream default → your behavior), **delegates** (route the step to a `mattpocock-skills:*` skill), or **partial-delegate** (wrap the upstream skill's Steps 0–K unchanged, override Step K+1 locally — `writing-plans-overrides` Rule 3 is the canonical example, delegating `/to-tickets` Steps 1–4 verbatim and overriding Step 5's publish target). When a single rule needs multiple enforcement mechanisms (locate, redirect, structure the user-quiz…), decompose it into sub-rules `Rule Na` / `Rule Nb` / `Rule Nc` under one umbrella heading rather than as sibling top-level rules.
 
 See [CLAUDE.md](CLAUDE.md) for the full pattern.
 

@@ -4,6 +4,7 @@
     "./skills/brainstorming-overrides",
     "./skills/writing-plans-overrides",
     "./skills/subagent-driven-development-overrides",
-    "./skills/subagent-lifecycle"
+    "./skills/subagent-lifecycle",
+    "./skills/token-efficient-review-dispatch"
   ]
 }

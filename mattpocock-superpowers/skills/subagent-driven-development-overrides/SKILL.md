@@ -18,7 +18,7 @@ Classify each task first:
 | Requires design judgment or architectural decisions | **Complex** |
 | User explicitly requested thoroughness | **Complex** |
 
-When in doubt, classify **Complex**. Every reviewer dispatch is a **fresh** subagent per [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) — never reuse across rounds.
+When in doubt, classify **Complex**. Every reviewer dispatch is a **fresh** subagent — see [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 2.
 
 **Simple tasks — 1 round each:** spec-compliance (all requirements met, nothing extra) + code-quality (basic correctness & maintainability). Both approve → proceed.
 
@@ -27,14 +27,10 @@ When in doubt, classify **Complex**. Every reviewer dispatch is a **fresh** suba
 | Round | Spec compliance | Code quality |
 |-------|-----------------|--------------|
 | 1 | Completeness — every requirement covered | Correctness & bugs |
-| 2 | Extra work & over-engineering | Security & reliability |
-| 3 | Misunderstandings — semantic mismatches | Maintainability & readability |
+| 2 (delta) | Extra work & over-engineering | Security & reliability |
+| 3 (full diff) | Misunderstandings — semantic mismatches | Maintainability & readability |
 
-**Token-efficient dispatch for Complex tasks — always apply:**
-
-- **Escalate-on-finding (D1).** Round 1 runs standalone first. If it returns **zero findings** AND its output enumerates every checklist item it actually scanned, rounds 2 & 3 are **skipped for that axis**. Otherwise fix and run 2 & 3 concurrently.
-- **Delta review (D2).** Round 2 receives only the files/hunks changed after Round 1's fix plus a diff summary — its lens fires locally. Round 3 receives the **full diff** — Misunderstandings / Maintainability need global visibility.
-- **Findings-only output (D3).** Reviewer prompts must specify: no summaries, no positive commentary, no meta. Output schema `{findings: [{lens, severity, file, line, summary, fix}]}` — an empty array means approve.
+Dispatch discipline (D1 escalate-on-finding, D2 delta review, D3 findings-only output) governed by [`token-efficient-review-dispatch`](../token-efficient-review-dispatch/SKILL.md). D1 applies **per axis** — spec-compliance and code-quality skip independently.
 
 ### Rule 2 — Related simple tasks are batched and upgraded to Complex
 
@@ -50,7 +46,7 @@ When dispatching an **implementer** subagent to write code, delegate implementat
 
 1. Instruct each implementer dispatch to invoke `mattpocock-skills:tdd` via the Skill tool and follow its red-green-refactor loop.
 2. Confirm the seams under test with the user before the implementer writes tests (the skill's own precondition).
-3. Exemption: pure-mechanical edits with no behavioral change (renames, formatting, config-only tweaks) may skip it. When in doubt, use it.
+3. Exemption: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt — they can silently change behavior. When in doubt, use TDD.
 
 <!-- Additional rules for subagent-driven-development go below as Rule 5, Rule 6, … -->
 

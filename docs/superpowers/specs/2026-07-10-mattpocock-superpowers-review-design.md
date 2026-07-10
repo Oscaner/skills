@@ -127,12 +127,12 @@ cross-cutting 引用者从 5 个降到 3 个（brainstorming / writing-plans / s
 
 ## 验收标准
 
-1. `mattpocock-superpowers/skills/` 只剩 8 个子目录（当前 10 减 2）。
+1. `mattpocock-superpowers/skills/` 只剩 8 个子目录（6 个 override + 2 个 cross-cutting；当前 10 减 2）。
 2. `plugin.json` 的 `skills[]` 只有 8 项。
-3. `README.md` 的 override 表和触发表都是 8 行（不含 fallback 行）。
-4. 剩余 5 个 override 的 SKILL.md 中：
+3. `README.md` 的 override 描述表 6 行（不含 2 个 cross-cutting 行），系统 prompt 触发表 6 行（不含 fallback 行）。
+4. 剩余 6 个 override 中，以下 3 个的 SKILL.md 满足：
    - `using-git-worktrees-overrides` 无 Rule 3
    - `finishing-a-development-branch-overrides` 无 Rule 4，Red Flags 和 Rationalizations 中相应条目也删了
    - `executing-plans-overrides` 无 Rule 5，Red Flags 和 Rationalizations 中相应条目也删了
-5. `brainstorming-overrides`、`writing-plans-overrides`、`subagent-driven-development-overrides`、`subagent-lifecycle`、`token-efficient-review-dispatch` 的 SKILL.md 与本次开始时 byte-identical。
+5. 5 个 skill —— `brainstorming-overrides`、`writing-plans-overrides`、`subagent-driven-development-overrides`、`subagent-lifecycle`、`token-efficient-review-dispatch` —— 的 SKILL.md 与本次开始时 byte-identical。
 6. 用户拿到明确的 `~/.claude/CLAUDE.md` 修改指令（触发表删两行）。

@@ -33,7 +33,7 @@ Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/ma
 
 Personal overrides for the upstream [`superpowers`](https://github.com/obra/superpowers) plugin. Each override wraps a specific `superpowers:*` skill; when the upstream skill fires (via `/<name>` command, a `<command-name>` tag, a `Skill` tool call, or its body appearing in the current turn's system context), the override MUST run **first** — as the very first tool call of that turn — before any exploration, `TodoWrite`, or upstream-skill-body instruction. The override then either **replaces** the upstream skill's default behavior or **delegates** to a [`mattpocock-skills`](https://github.com/mattpocock/skills) skill.
 
-Precedence is enforced by two coordinated mechanisms — each override's `description` (which lists all four trigger sources verbatim and specifies "FIRST tool call this turn"), and a HARD PRECEDENCE RULE block in the user's global `~/.claude/CLAUDE.md` (see [System prompt wiring](#system-prompt-wiring) below). Neither is optional; the two together are what keep the model from being dragged into the upstream skill's checklist before the override has a chance to reshape the flow.
+Precedence is enforced by three coordinated mechanisms — each override's `description` (which lists all four trigger sources verbatim and specifies "FIRST tool call this turn"), a mandatory pre-flight self-check block in the user's global `~/.claude/CLAUDE.md` (see [System prompt wiring](#system-prompt-wiring) below), and an anti-pattern naming block inside that same self-check that calls out the "upstream body's numbered `You MUST` checklist" as the specific failure mode being guarded against. None is optional; the three together are what keep the model from being dragged into the upstream skill's checklist before the override has a chance to reshape the flow.
 
 | Override skill | Overrides | What it does |
 |---|---|---|
@@ -67,25 +67,40 @@ The wiring below plants that hard rule in the user's global `~/.claude/CLAUDE.md
 ```markdown
 ## Skills
 
-### Override precedence — check before your first tool call
+### Before your first tool call in ANY turn — mandatory self-check
 
-If the incoming turn matches any trigger below, your **first tool call MUST be the override `Skill` call** — no `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first, even if the upstream skill body says "you MUST do X first". That imperative doesn't apply until the override runs.
+Before selecting your first tool, run this check — no exceptions:
 
-Triggers: `<command-name>` / `<command-message>` tag, `/superpowers:*` in user text, inlined upstream `SKILL.md` body, or an about-to-fire `Skill` call to the upstream.
+1. Scan the turn for any of: `<command-name>` tag, `<command-message>` tag, `/superpowers:*` in user text, an inlined upstream `SKILL.md` body, or an about-to-fire `Skill` call to an upstream skill.
+2. If any is present → your **first tool call is the matching `Skill(<X>-overrides)`**. Full stop. No `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first.
+3. Only after the override has run may you follow the upstream skill's instructions.
 
-| Trigger for | First tool call |
+**The upstream skill's "you MUST do X first" does NOT apply until the override has run.** If you find yourself about to call `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` as the first action of a turn where a trigger is present, that is the exact bug this rule guards against — stop and invoke the override.
+
+**Anti-pattern (name it to catch it):** upstream `SKILL.md` bodies frequently open with "You MUST create a task for each of these items and complete them in order" or a similar numbered checklist. Reading that and starting to execute it is the failure mode. Its strong imperative is not more authoritative than this rule — it is the trigger *for* this rule. When two "MUST"s conflict, the one in this file wins because it runs first.
+
+### Override trigger table
+
+| Trigger | First tool call |
 |---|---|
 | `superpowers:brainstorming` | `Skill(brainstorming-overrides)` |
 | `superpowers:writing-plans` | `Skill(writing-plans-overrides)` |
 | `superpowers:subagent-driven-development` | `Skill(subagent-driven-development-overrides)` |
+| Any other `superpowers:<X>` where `<X>-overrides` exists | `Skill(<X>-overrides)` |
 | Any Agent/subagent dispatch | `Skill(subagent-lifecycle)` |
+
+If a matching `<X>-overrides` skill does not exist, proceed with the upstream skill directly.
 
 Override `SKILL.md` is the source of truth for its rules; new personal rules go there, not here. Overrides may delegate to `mattpocock-skills`.
 
 For any other task, check for a relevant skill first; if >1% chance one applies, invoke it.
 ```
 
-The "first tool call MUST be" phrasing and the exhaustive trigger list are the load-bearing parts — softer wording ("typically before target fires", "when target is active") lets the model follow the upstream skill body's own first-move checklist and skip the override.
+Three load-bearing parts, all necessary:
+
+1. **The mandatory self-check** — a numbered pre-flight before the first tool call, not a background rule. This is what promotes the override from "knowledge I have" to "action I take". Softer wording ("typically before target fires", "when target is active") lets the model follow the upstream skill body's own first-move checklist and skip the override.
+2. **The anti-pattern naming** — upstream `SKILL.md` bodies open with a numbered "You MUST" checklist so consistently that the pattern needs an explicit name; without it the model reads the checklist and starts executing it, treating both "MUST"s as equally authoritative. Naming the pattern turns it into a stop signal instead of an imperative.
+3. **The exhaustive trigger list** — every entry point (command tag, slash command, inlined body, about-to-fire `Skill` call) enumerated verbatim, plus a fallback row for `superpowers:<X>` overrides not individually listed. Missing any entry point creates a hole the model will find.
 
 ## Contributing to your own fork
 

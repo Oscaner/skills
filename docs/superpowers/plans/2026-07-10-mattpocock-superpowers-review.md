@@ -44,6 +44,29 @@
 
 Task 顺序按依赖设计 —— 先删 skill 目录，同一 commit 里同步更新 `plugin.json`（避免 manifest 悬空）；再依次删单条 rule；最后更新 README + 输出用户全局 CLAUDE.md 指令。
 
+## Pre-Task 0: Capture baseline ref for A5 assertion
+
+在跑 Task 1 之前，必须捕获一个基线 commit ref —— 因为本 plan 会在 `main` 上直接提交，`main` 成为移动的 HEAD 不再是基线。A5 断言（5 个 skill byte-identical）依赖这个基线 ref 来做 diff。
+
+- [ ] **Step 1: 记录 baseline ref**
+
+```bash
+cd /Users/oscaner/Projects/oscaner-skills
+git rev-parse HEAD > /tmp/review-baseline-ref
+cat /tmp/review-baseline-ref
+# Expected: 一个 40 字符的 commit SHA（当前是 4b607fc... 或之后的 HEAD）
+```
+
+- [ ] **Step 2: 验证 baseline commit 存在且可访问**
+
+```bash
+git cat-file -e "$(cat /tmp/review-baseline-ref)" && echo "baseline commit exists"
+# Expected: baseline commit exists
+```
+
+不做 commit（未修改仓库）。
+
+
 ---
 
 ### Task 1: 删除 test-driven-development-overrides 与 dispatching-parallel-agents-overrides（含 plugin.json 同步）
@@ -85,6 +108,22 @@ rm -rf /Users/oscaner/Projects/oscaner-skills/mattpocock-superpowers/skills/disp
 
 - [ ] **Step 5: 修改 plugin.json，从 `skills[]` 数组移除两个引用**
 
+用 Edit tool 一次替换 3 行为 1 行 —— 这样同时移除两个 skill 引用 + 恢复 `finishing-a-development-branch-overrides` 作为最后一项时应有的无尾逗号状态：
+
+`old_string`:
+
+````
+    "./skills/finishing-a-development-branch-overrides",
+    "./skills/test-driven-development-overrides",
+    "./skills/dispatching-parallel-agents-overrides"
+````
+
+`new_string`:
+
+````
+    "./skills/finishing-a-development-branch-overrides"
+````
+
 修改后 `plugin.json` 完整内容应为：
 
 ```json
@@ -102,8 +141,6 @@ rm -rf /Users/oscaner/Projects/oscaner-skills/mattpocock-superpowers/skills/disp
   ]
 }
 ```
-
-用 Edit tool 精准替换：把包含 `"./skills/test-driven-development-overrides",` 和 `"./skills/dispatching-parallel-agents-overrides"` 的两行删除，同时去掉上一行 `"./skills/finishing-a-development-branch-overrides",` 的行尾逗号（因为它变成了 `skills[]` 数组的最后一项）。
 
 - [ ] **Step 6: 验证 —— skill 目录数、plugin.json 数组长度、JSON 合法性**
 
@@ -377,27 +414,39 @@ Upstream Step 3 says `superpowers:finishing-a-development-branch` is a **REQUIRE
 <!-- Additional rules for the executing-plans skill go below as Rule 5, Rule 6, … -->
 ````
 
-- [ ] **Step 3: 从 Red Flags 删除引用 Rule 5 的条目**
+- [ ] **Step 3: 从 Red Flags 删除引用 Rule 5 的条目（不留孤儿空行）**
+
+把待删 bullet 与它的前一行 bullet 一起放进 `old_string`，`new_string` 只保留前一行 —— 这样删除后不留空行。
 
 `old_string`:
 
 ````
+- "Committing after each task fragments history — I'll squash into one at the end."
 - "`finishing-a-development-branch` is a sub-skill of this one, so its overrides don't need to fire."
 ````
 
-`new_string`: 空字符串 —— 该 bullet 完全移除。
+`new_string`:
 
-如果 Edit tool 不接受空 `new_string`，改为把它连同上一行的换行一起删（即将 old_string 扩展为上一 bullet 尾部换行 + 该 bullet）。
+````
+- "Committing after each task fragments history — I'll squash into one at the end."
+````
 
-- [ ] **Step 4: 从 Common Rationalizations 删除引用 Rule 5 的行**
+- [ ] **Step 4: 从 Common Rationalizations 删除引用 Rule 5 的行（不留孤儿空行）**
+
+同 Step 3 的模式：连带前一行做 anchor。
 
 `old_string`:
 
 ````
+| "One squashed commit is cleaner history" | User's CLAUDE.md picked per-task commits. Cleanliness is their call, not the model's. |
 | "The handoff to finishing-a-development-branch is inside this flow, so the override precedence pauses" | CLAUDE.md's handoff-continuation rationalization block explicitly names this failure mode. Each turn is scanned independently. |
 ````
 
-`new_string`: 空字符串。若不接受，同上处理换行。
+`new_string`:
+
+````
+| "One squashed commit is cleaner history" | User's CLAUDE.md picked per-task commits. Cleanliness is their call, not the model's. |
+````
 
 - [ ] **Step 5: 验证 —— Rule 5 消失、两个引用条目消失、Rule 1-4 都在**
 
@@ -449,27 +498,41 @@ grep -c '`superpowers:test-driven-development`\|`superpowers:dispatching-paralle
 # Expected: 2  (在触发表)
 ```
 
-- [ ] **Step 2: 从 override 描述表删两行**
+- [ ] **Step 2: 从 override 描述表删两行 + 修正保留行的 "refuses force-push" 描述（不留孤儿空行）**
 
-`old_string`（严格用完整两行文本，防止误配）:
+Task 3 删除 `finishing-a-development-branch-overrides` 的 Rule 4（force-push 禁令），所以保留行末尾的 "refuses force-push" 描述与实际行为不再一致。本步骤同时：(a) 删除待删两行；(b) 从保留的 `finishing-a-development-branch-overrides` 行末尾去掉 "; refuses force-push"。
+
+`old_string`（三行完整，避免误配）:
 
 ````
+| `finishing-a-development-branch-overrides` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies; refuses force-push. |
 | `test-driven-development-overrides` | `superpowers:test-driven-development` | Delegates to `mattpocock-skills:tdd` so every TDD entry point (direct, via sdd Rule 4, via executing-plans Rule 3) routes to the same discipline — seam-confirmation, vertical slicing, refactor outside the loop. |
 | `dispatching-parallel-agents-overrides` | `superpowers:dispatching-parallel-agents` | Routes concurrency + freshness discipline to cross-cutting `subagent-lifecycle` (no data dependency = independent) and `token-efficient-review-dispatch` (D1/D2/D3 for review dispatches); upstream's prompt-structure section remains authoritative for prompt content. |
 ````
 
-`new_string`: 空字符串。
+`new_string`（保留 finishing 那行但去掉 "; refuses force-push"）:
 
-- [ ] **Step 3: 从触发表删两行**
+````
+| `finishing-a-development-branch-overrides` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies. |
+````
+
+- [ ] **Step 3: 从触发表删两行（不留孤儿空行）**
+
+同 Step 2 的模式。
 
 `old_string`:
 
 ````
+| `superpowers:finishing-a-development-branch` | `Skill(finishing-a-development-branch-overrides)` |
 | `superpowers:test-driven-development` | `Skill(test-driven-development-overrides)` |
 | `superpowers:dispatching-parallel-agents` | `Skill(dispatching-parallel-agents-overrides)` |
 ````
 
-`new_string`: 空字符串。
+`new_string`:
+
+````
+| `superpowers:finishing-a-development-branch` | `Skill(finishing-a-development-branch-overrides)` |
+````
 
 - [ ] **Step 4: 验证 —— 两处引用全消失、fallback 行仍在**
 
@@ -582,12 +645,14 @@ grep -c '^### Rule ' mattpocock-superpowers/skills/executing-plans-overrides/SKI
 # Expected: 4
 ```
 
-- [ ] **A5: 5 个不动 skill 的 SKILL.md 与 main 分支基线 byte-identical**
+- [ ] **A5: 5 个不动 skill 的 SKILL.md 与本 review 开始前的基线 byte-identical**
+
+前置：Pre-Task 0 已经把 baseline ref 写入 `/tmp/review-baseline-ref`。
 
 ```bash
-# main 是本 review 开始前的基线。执行前先确认本分支尚未 push 出去、main 未被别的 branch 更新。
+BASELINE=$(cat /tmp/review-baseline-ref)
 for skill in brainstorming-overrides writing-plans-overrides subagent-driven-development-overrides subagent-lifecycle token-efficient-review-dispatch; do
-  if git diff --exit-code main -- "mattpocock-superpowers/skills/$skill/SKILL.md"; then
+  if git diff --exit-code "$BASELINE" -- "mattpocock-superpowers/skills/$skill/SKILL.md"; then
     echo "A5 $skill: identical"
   else
     echo "A5 $skill: DIVERGED (this is a bug — investigate)"
@@ -595,6 +660,8 @@ for skill in brainstorming-overrides writing-plans-overrides subagent-driven-dev
   fi
 done
 ```
+
+如果 `/tmp/review-baseline-ref` 丢失（例如跨会话），改用手动指定：把 baseline ref 替换为 `git log --oneline` 里本 review 开始前最后一个 commit 的 SHA。
 
 - [ ] **A6: 用户已确认完成外部 `~/.claude/CLAUDE.md` 修改**
 

@@ -35,18 +35,11 @@ Enforce on both surfaces this skill produces:
 2. **PR body** (Option 2): upstream's template (L128-135) has just `## Summary` and `## Test Plan`. Keep those two sections; **do NOT append any attribution paragraph** (`🤖 Generated with Claude Code`, `Co-Authored-By: Claude`, etc.). If the `gh` CLI or a hook adds one automatically, strip it and re-post.
 3. **PR title**: conventional-commit shape (`feat: <summary>`, `fix: <summary>`, …), not free-form prose.
 
-### Rule 4 — Never force-push, never `-f`
-
-Upstream Red Flags (L239) says "Force-push without explicit request" is forbidden. Restate here so it's local, not just inherited:
-
-1. `git push` only. Never `git push -f` / `git push --force` / `git push --force-with-lease` unless the user explicitly requested it in the current turn.
-2. If push is rejected (non-fast-forward), stop and hand back to the user with the reject reason. Don't silently rebase or force.
-
-### Rule 5 — Option 4 (Discard) confirmation stays typed, not multiple-choice
+### Rule 4 — Option 4 (Discard) confirmation stays typed, not multiple-choice
 
 Upstream Step 5 Option 4 requires the user to type "discard" literally. Do NOT convert this to `AskUserQuestion` — the typed-string requirement is intentional friction against accidental data loss. Present the confirmation block verbatim as upstream specifies, wait for exact-string input.
 
-<!-- Additional rules for the finishing-a-development-branch skill go below as Rule 6, Rule 7, … -->
+<!-- Additional rules for the finishing-a-development-branch skill go below as Rule 5, Rule 6, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
@@ -54,7 +47,6 @@ Upstream Step 5 Option 4 requires the user to type "discard" literally. Do NOT c
 - "Step 6's `git worktree remove` will just no-op on a normal repo, safe to keep."
 - "The PR body template I know includes a Claude attribution — I'll add it since it's standard."
 - "`gh pr create` added a co-author trailer automatically, that's fine."
-- "Push was rejected, I'll --force-with-lease since it's safer than --force."
 - "Option 4 confirmation is annoying — I'll offer 'yes/no' via AskUserQuestion instead."
 
 ## Common Rationalizations
@@ -64,5 +56,4 @@ Upstream Step 5 Option 4 requires the user to type "discard" literally. Do NOT c
 | "Running the detection block is passive, no worktree gets touched" | Passive checks still fork the menu logic. Collapse the branch at the source. |
 | "Step 6 no-ops on a normal repo" | It also runs `git worktree prune`, which touches the worktree registry. Skip the step, don't rely on empty side effects. |
 | "Attribution trailers are standard practice from git tooling" | CLAUDE.md says none, trailers/footers/inline mentions all forbidden. Strip whatever the tooling added. |
-| "Force-push-with-lease is safe" | The ban is on force in any form without explicit user ask. `--force-with-lease` is still force. |
 | "Typed 'discard' is user-hostile" | It's user-protective. Friction is the point when the action is permanent. |

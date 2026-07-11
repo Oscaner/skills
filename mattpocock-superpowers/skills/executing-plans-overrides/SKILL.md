@@ -39,11 +39,7 @@ User's global `~/.claude/CLAUDE.md` states:
 
 Enforce this literally: after each task's Step 2.4 "Mark as completed", **before** advancing TodoWrite to the next task's `in_progress`, produce a conventional commit (`feat:` / `fix:` / `refactor:` / etc.) with a subject line matching the plan task and no attribution trailer / co-author / AI-generation line. If the commit would fail (lint hook, uncommitted unrelated changes), surface the failure to the user, don't force-add and don't rebase.
 
-### Rule 5 — Handoff to finishing-a-development-branch keeps override precedence
-
-Upstream Step 3 says `superpowers:finishing-a-development-branch` is a **REQUIRED SUB-SKILL**. That handoff **is** a trigger for [`finishing-a-development-branch-overrides`](../finishing-a-development-branch-overrides/SKILL.md) — per the CLAUDE.md "handoff-continuation rationalization" anti-pattern block, the self-check fires on this handoff just like any other trigger. Do not proceed to the upstream finishing skill's steps without first invoking the overrides.
-
-<!-- Additional rules for the executing-plans skill go below as Rule 6, Rule 7, … -->
+<!-- Additional rules for the executing-plans skill go below as Rule 5, Rule 6, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
@@ -51,7 +47,6 @@ Upstream Step 3 says `superpowers:finishing-a-development-branch` is a **REQUIRE
 - "I'll run `using-git-worktrees` anyway since upstream marks it required."
 - "The plan step doesn't say TDD, so I'll write code first and add tests after."
 - "Committing after each task fragments history — I'll squash into one at the end."
-- "`finishing-a-development-branch` is a sub-skill of this one, so its overrides don't need to fire."
 
 ## Common Rationalizations
 
@@ -61,4 +56,3 @@ Upstream Step 3 says `superpowers:finishing-a-development-branch` is a **REQUIRE
 | "`using-git-worktrees` is marked REQUIRED in Integration" | CLAUDE.md forbids that skill entirely — see using-git-worktrees-overrides. Required by upstream ≠ required by user. |
 | "Each plan step is small, TDD adds overhead" | mattpocock-skills:tdd handles that — small steps still get seams + red-green. The overhead is the discipline that keeps small steps from silently drifting. |
 | "One squashed commit is cleaner history" | User's CLAUDE.md picked per-task commits. Cleanliness is their call, not the model's. |
-| "The handoff to finishing-a-development-branch is inside this flow, so the override precedence pauses" | CLAUDE.md's handoff-continuation rationalization block explicitly names this failure mode. Each turn is scanned independently. |

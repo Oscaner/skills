@@ -42,9 +42,7 @@ Precedence is enforced by three coordinated mechanisms — each override's `desc
 | `subagent-driven-development-overrides` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
 | `using-git-worktrees-overrides` | `superpowers:using-git-worktrees` | Refuses worktree creation entirely (per user policy in `~/.claude/CLAUDE.md`); offers branch-based isolation (`git checkout -b`, `git stash`) instead; propagates refusal back to caller skills (writing-plans, executing-plans, sdd, finishing-a-development-branch) that request worktree setup as a sub-step. |
 | `executing-plans-overrides` | `superpowers:executing-plans` | Redirects to `subagent-driven-development` when subagents are available (upstream itself recommends this); routes worktree sub-step through `using-git-worktrees-overrides` (refuse); delegates task implementation to `mattpocock-skills:tdd`; enforces per-task conventional commits per user CLAUDE.md. |
-| `finishing-a-development-branch-overrides` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies; refuses force-push. |
-| `test-driven-development-overrides` | `superpowers:test-driven-development` | Delegates to `mattpocock-skills:tdd` so every TDD entry point (direct, via sdd Rule 4, via executing-plans Rule 3) routes to the same discipline — seam-confirmation, vertical slicing, refactor outside the loop. |
-| `dispatching-parallel-agents-overrides` | `superpowers:dispatching-parallel-agents` | Routes concurrency + freshness discipline to cross-cutting `subagent-lifecycle` (no data dependency = independent) and `token-efficient-review-dispatch` (D1/D2/D3 for review dispatches); upstream's prompt-structure section remains authoritative for prompt content. |
+| `finishing-a-development-branch-overrides` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies. |
 | `subagent-lifecycle` | *cross-cutting* | Invoked by reference from every review override and every parallel-agent dispatch. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. Never a slash command. |
 | `token-efficient-review-dispatch` | *cross-cutting* | Invoked by reference from every review override. Defines the three dispatch mechanisms (D1 escalate-on-finding, D2 delta review, D3 findings-only output) in one place — overrides cite instead of copy-paste. Never a slash command. |
 
@@ -93,8 +91,6 @@ Before selecting your first tool, run this check — no exceptions:
 | `superpowers:using-git-worktrees` | `Skill(using-git-worktrees-overrides)` |
 | `superpowers:executing-plans` | `Skill(executing-plans-overrides)` |
 | `superpowers:finishing-a-development-branch` | `Skill(finishing-a-development-branch-overrides)` |
-| `superpowers:test-driven-development` | `Skill(test-driven-development-overrides)` |
-| `superpowers:dispatching-parallel-agents` | `Skill(dispatching-parallel-agents-overrides)` |
 | Any other `superpowers:<X>` where `<X>-overrides` exists | `Skill(<X>-overrides)` |
 | Any Agent/subagent dispatch | `Skill(subagent-lifecycle)` |
 

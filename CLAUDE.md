@@ -48,6 +48,80 @@ Two skills in `mattpocock-superpowers` are **not** overrides — they hold invar
 
 When editing any override that dispatches review passes, cite these skills rather than paraphrasing them — paraphrases drift; citations don't. When adding a new invariant that applies to multiple overrides, add a new rule to the appropriate cross-cutting skill and cite it, don't inline it across the overrides.
 
+## `docs/superpowers/` conventions
+
+The skill flow `brainstorming → writing-plans → subagent-driven-development` produces documents under three sibling directories:
+
+- [docs/superpowers/specs/](docs/superpowers/specs/) — `YYYY-MM-DD-<feature>-design.md`, output of the brainstorming skill (spec doc, reviewed via `brainstorming-overrides` Rule 1).
+- [docs/superpowers/plans/](docs/superpowers/plans/) — `YYYY-MM-DD-<feature>.md`, output of the writing-plans skill (implementation plan, reviewed via `writing-plans-overrides` Rule 2).
+- `docs/superpowers/tickets/` — `YYYY-MM-DD-<feature>-tickets.md`, output of the `/to-tickets` publish step when the writing-plans-overrides Rule 3c quiz picks "publish to local file" (the directory is created on first use).
+
+The three share the same date + feature slug so a spec, its plan, and its tickets sort together. `writing-plans-overrides` Rule 3b hard-codes the tickets path; don't publish tickets anywhere else, and don't write these docs at repo root.
+
+## Common operations
+
+There is no `npm test` here — content is plain Markdown + JSON, discovered by Claude Code at runtime. The genuine day-to-day operations are:
+
+**Bump the vendored `mattpocock-skills` submodule to its latest tip:**
+```bash
+git submodule update --remote mattpocock-skills
+git commit mattpocock-skills -m "chore: bump mattpocock-skills submodule"
+```
+Use `chore:` (not `feat:`) — the change is a pointer bump, not a feature.
+
+**Fresh-clone bootstrap (before Claude Code can resolve `mattpocock-skills:*` delegates):**
+```bash
+git submodule update --init
+```
+
+**Add a new override skill to `mattpocock-superpowers`** — three manifests must change together in one commit, or the skill is invisible:
+1. Create `mattpocock-superpowers/skills/<name>-overrides/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-mattpocock-superpowers)).
+2. Add `"./skills/<name>-overrides"` to `skills[]` in [mattpocock-superpowers/.claude-plugin/plugin.json](mattpocock-superpowers/.claude-plugin/plugin.json).
+3. Add a row to the override-trigger table in the [README.md](README.md) "System prompt wiring" block (which is the source of truth for what users must paste into their global `~/.claude/CLAUDE.md`).
+
+Missing any one → the model won't fire the override on trigger.
+
+## Verifying a change didn't break the marketplace
+
+Since there is no test suite, "does the manifest chain still resolve" IS the test. Run these three assertions after any structural edit (adding / removing / renaming a skill, editing `plugin.json`, editing `marketplace.json`):
+
+**1. `plugin.json` parses AND every entry maps to an existing directory:**
+```bash
+cd /path/to/oscaner-skills
+python3 -c '
+import json, os
+p = "mattpocock-superpowers/.claude-plugin/plugin.json"
+d = json.load(open(p))
+skills = d["skills"]
+missing = [s for s in skills if not os.path.isdir(os.path.join("mattpocock-superpowers", s.lstrip("./")))]
+assert not missing, f"skills[] points to missing dirs: {missing}"
+print(f"OK — {len(skills)} skills, all resolve")
+'
+```
+(Bind `skills` to a local first; Python 3.11 rejects `f"{d[\"skills\"]}"` with `SyntaxError: f-string expression part cannot include a backslash`.)
+
+**2. Every skill dir has a `SKILL.md`:**
+```bash
+for d in mattpocock-superpowers/skills/*/; do
+  [ -f "$d/SKILL.md" ] || { echo "MISSING: $d/SKILL.md"; exit 1; }
+done && echo "OK — all skill dirs have SKILL.md"
+```
+
+**3. No skill on disk is missing from `plugin.json`** (the reverse breakage — file exists but manifest doesn't list it, so Claude Code won't find it):
+```bash
+python3 -c '
+import json, os
+d = json.load(open("mattpocock-superpowers/.claude-plugin/plugin.json"))
+declared = {s.lstrip("./") for s in d["skills"]}
+on_disk  = {f"skills/{n}" for n in os.listdir("mattpocock-superpowers/skills")}
+orphans  = on_disk - declared
+assert not orphans, f"skill dirs not in plugin.json skills[]: {orphans}"
+print("OK — no orphan skill dirs")
+'
+```
+
+All three pass → the marketplace still resolves.
+
 ## Git conventions for this repo
 
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`).

@@ -8,8 +8,6 @@
     "./skills/token-efficient-review-dispatch",
     "./skills/using-git-worktrees-overrides",
     "./skills/executing-plans-overrides",
-    "./skills/finishing-a-development-branch-overrides",
-    "./skills/test-driven-development-overrides",
-    "./skills/dispatching-parallel-agents-overrides"
+    "./skills/finishing-a-development-branch-overrides"
   ]
 }

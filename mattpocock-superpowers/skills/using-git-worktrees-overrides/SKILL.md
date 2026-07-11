@@ -45,17 +45,7 @@ This override's job is to **stop the upstream skill from running** and hand cont
 2. Return control to the caller skill / override with the outcome (which branch you're on, whether stash happened).
 3. The caller MUST NOT retry worktree creation. If a caller's upstream body contains "You MUST create a worktree first," that MUST does not survive this override — same precedence logic as CLAUDE.md's anti-pattern block.
 
-### Rule 3 — Ensure global CLAUDE.md registers this override
-
-For the override to fire on triggers (1)–(3), the user's global `~/.claude/CLAUDE.md` override-trigger table needs a row:
-
-| Trigger | First tool call |
-|---|---|
-| `superpowers:using-git-worktrees` | `Skill(using-git-worktrees-overrides)` |
-
-If that row is missing when this skill is first invoked, notify the user once: "Consider adding `using-git-worktrees` to `~/.claude/CLAUDE.md`'s override-trigger table so this refusal fires automatically." Then proceed with Rule 1 for the current turn. Do not silently succeed — the `Any other superpowers:<X> where <X>-overrides exists` fallback row in CLAUDE.md already covers this case, but explicit is better than fallback for a hard ban.
-
-<!-- Additional rules for the using-git-worktrees skill go below as Rule 4, Rule 5, … -->
+<!-- Additional rules for the using-git-worktrees skill go below as Rule 3, Rule 4, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 

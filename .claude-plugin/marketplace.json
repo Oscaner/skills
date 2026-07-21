@@ -33,7 +33,7 @@
     {
       "name": "mattpocock-superpowers",
       "description": "Personal overrides for the superpowers plugin that force delegation to mattpocock-skills:grilling and fresh-subagent self-review.",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "author": { "name": "Oscaner Miao" },
       "source": "./mattpocock-superpowers",
       "category": "workflow",

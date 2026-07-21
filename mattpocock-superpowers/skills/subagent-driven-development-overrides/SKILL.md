@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development-overrides
-description: MUST invoke BEFORE superpowers:subagent-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/subagent-driven-development` or `/superpowers:subagent-driven-development`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:subagent-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to dispatch subagents, run multi-agent work, delegate implementation to subagents, or orchestrate reviewers. Applies personal overrides (complexity-based review rounds; token-efficient dispatch; implementer subagents delegate to mattpocock-skills:tdd).
+description: MUST invoke BEFORE superpowers:subagent-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/subagent-driven-development` or `/superpowers:subagent-driven-development`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:subagent-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to dispatch or orchestrate subagents, delegate implementation, or run multi-agent work. Applies personal overrides (complexity-based review rounds; token-efficient dispatch; implementer subagents delegate to mattpocock-skills:tdd; cheap model for implementers when spec and plan are complete).
 ---
 
 # Subagent-Driven Development Overrides
@@ -48,7 +48,24 @@ When dispatching an **implementer** subagent to write code, delegate implementat
 2. Confirm the seams under test with the user before the implementer writes tests (the skill's own precondition).
 3. Exemption: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt — they can silently change behavior. When in doubt, use TDD.
 
-<!-- Additional rules for subagent-driven-development go below as Rule 5, Rule 6, … -->
+### Rule 5 — Use cheaper models for implementers when spec and plan are complete
+
+When both a spec doc and an implementation plan exist and satisfy ALL of:
+
+1. No TBD / "to be decided" items in the spec.
+2. Plan steps are concrete enough to execute without inferring intent.
+3. No open design questions (auth, data models, API shapes all resolved).
+
+…then implementer subagents MUST use the cheapest capable model available in the current environment:
+
+- **Claude Code** — check environment variables or session config for the available model tier; pick the lowest tier that can follow the plan.
+- **Cursor** — use Composer (it is already a cheaper-model interface by default).
+
+Reviewer subagents stay on the default model — review requires judgment.
+
+**Before first dispatch in each session:** confirm — "Spec and plan look complete — I'll use a cheaper model for implementers. OK?"
+
+<!-- Additional rules for subagent-driven-development go below as Rule 6, Rule 7, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
@@ -60,13 +77,17 @@ When dispatching an **implementer** subagent to write code, delegate implementat
 - "The reviewer's positive commentary is signal, keep it."
 - "The implementer can just write the code directly; TDD is overhead."
 - "I'll skip confirming seams — pick reasonable ones silently."
+- "The spec has a TBD section but it's minor — use the cheaper model anyway."
+- "Reviewers are just checking output; they can use the cheap model too."
 
 ## Common Rationalizations
 
 | Excuse | Reality |
 |--------|---------|
 | "Rounds are wasteful" | Each round catches a distinct class of defect — but only runs when D1 says needed. |
-| "3 files is a soft boundary" | Hard boundary. Complex = up to 3 rounds. |
+| "3 files is a soft boundary" | Hard boundary — 3+ files means Complex, no exceptions. |
 | "Rounds 2 and 3 always find something" | If they do, D1 correctly runs them. If they don't, they cost 4N tokens for nothing. |
 | "Writing tests first is slower" | Slower to write, faster to verify. `mattpocock-skills:tdd` closes the executor's feedback loop. |
 | "Seams are obvious, skip the confirmation" | Silent seams = tests against the wrong interface. Confirm them. |
+| "The plan looks complete to me" | All three criteria (Rule 5) must pass — if one is missing, keep the default model. |
+| "Reviewers just read output; cheaper is fine" | Reviewers make judgment calls (security, maintainability) — keep them on the default. |

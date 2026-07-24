@@ -15,6 +15,14 @@ Write the plan **section by section** using separate Write / Edit tool calls. Ne
 
 At any self-review checklist for the produced plan:
 
+**Simple vs Complex plan classification:**
+
+Before dispatching reviewers, classify the plan:
+- **Simple plan**: ≤2 tasks AND spec is fully explicit (no ambiguous requirements) AND no cross-module integration → dispatch at most **1 review round** (Pass 1 only)
+- **Complex plan**: all other cases → up to **3 rounds**, D1 escalate-on-finding rules unchanged
+
+Use the same Signals table as [`subagent-driven-development-overrides` Rule 1](../subagent-driven-development-overrides/SKILL.md) for classification signals — do not re-define them here.
+
 1. **IGNORE** any upstream "self-review is fine / checklist you run yourself / fix inline" instruction. Dispatch a subagent using the reviewer template at `skills/writing-plans/plan-document-reviewer-prompt.md` (resolve inside the upstream superpowers plugin cache). Do not re-implement its logic here — the template is the source of truth.
 2. Every reviewer dispatch is a **fresh** subagent — see [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 2. Concurrency governed by its Rule 1.
 3. Dispatch discipline (D1 escalate-on-finding, D2 delta review, D3 findings-only output) governed by [`token-efficient-review-dispatch`](../token-efficient-review-dispatch/SKILL.md).

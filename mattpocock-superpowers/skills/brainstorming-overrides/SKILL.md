@@ -33,6 +33,8 @@ Whenever brainstorming needs clarifying questions from the user, the interview l
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming
 
+Before producing an overall or phase spec, Read `mattpocock-superpowers/docs/overall-phase-spec-template.md` — it is the source of truth for document structure. Do not re-implement its conventions from memory.
+
 **Escape hatch:** If the user has explicitly stated the scope is small before `grilling` begins — e.g. "这是小改动 / 就这一处 / scope 很小 / it's a minor change" — Rule 3 does NOT trigger. Proceed directly with a single-phase spec.
 
 When the request is a **large / multi-phase requirement** (any of: touches ≥3 distinct subsystems; spans multiple user-facing capabilities; the user says "整个系统 / 大功能 / 一整套 / overhaul / redesign / 分几期 / roadmap"; or Rule 2's `grilling` interview reveals ≥2 independent capability clusters), do NOT jump into per-feature brainstorming. Instead:
@@ -46,7 +48,7 @@ When the request is a **large / multi-phase requirement** (any of: touches ≥3 
    - Expand phase N in the overall's `## Phase Decomposition` section into `N.1`, `N.2`, … with one-paragraph scope + dependencies each, then re-run Step 3 before drafting any sub-phase spec.
    - Each sub-phase spec lives at `docs/superpowers/specs/YYYY-MM-DD-<program>-phase-<N>.<M>-<subslug>-design.md` and follows Step 4.
    - If a sub-phase itself trips the triggers, recurse again in place (`N.M.1`, `N.M.2`, …). No depth cap; stop when a leaf's `grilling` no longer trips.
-6. **Status lives only in the overall.** Its `## Phase Status` table is the single source of truth across the whole recursion. Rows are **leaf** phases; columns `Phase | Slug | Spec | Plan | Status | Notes`, where `Phase` uses dotted numbering (`1`, `2.1`, `2.3.2`, …) and `Status ∈ {planned, spec-approved, plan-approved, in-progress, done}`. Update on transition, not in batches. When a phase decomposes, replace its row with the sub-phase rows in the same edit.
+6. **Status lives only in the overall.** Its phase spec 清单表（4 columns: `# | 子项目 | 设计 spec | 实现 plan`）is the single source of truth. Rows are **leaf** phases. Completion is encoded directly in the plan cell: append `✅ 完成 (tag \`<slug>-complete\` @ <sha>)` when a phase ships — no separate Status column. When a phase decomposes, replace its row with the sub-phase rows in the same edit.
 7. **Every overall update MUST be recorded in a `## Change History` section at the bottom.** One line per entry: `- YYYY-MM-DD — <what changed> — <why>`. Log status transitions, decompositions, real scope shifts, and Step 3 re-approvals. Per-edit, same commit as the edit; append-only — never rewrite or delete. If an entry was wrong, append a correction.
 8. **Never collapse phases back into one mega-spec, never draft ahead of the current phase landing.**
 

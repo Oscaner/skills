@@ -22,7 +22,7 @@ If neither is present, **refuse to output a fix proposal**. Instead, instruct th
 The full diagnosis loop is delegated to [`mattpocock-skills:diagnosing-bugs`](https://github.com/mattpocock/skills/blob/main/skills/engineering/diagnosing-bugs/SKILL.md). This **replaces** any upstream diagnostic phases from `superpowers:systematic-debugging`. Its rules live in that skill — do not re-implement here.
 
 1. Invoke it via the Skill tool the moment diagnosis begins.
-2. If it fails to load (skill not installed, Skill tool error), **surface the exact error to the user** and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `diagnosing-bugs`'s rules from memory.
+2. If it fails to load (Skill tool error — i.e. plugin is installed but skill fails to load), **surface the exact error to the user** and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `diagnosing-bugs`'s rules from memory.
 3. `diagnosing-bugs` is a hard dependency. If `mattpocock-skills` is not installed, the entire override degrades silently to upstream `systematic-debugging` behavior — this is an explicit design decision, not a bug.
 
 <!-- Additional rules for the systematic-debugging skill go below as Rule 3, Rule 4, … -->

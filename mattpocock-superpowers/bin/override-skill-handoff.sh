@@ -16,6 +16,7 @@ case "$tool_name" in
   superpowers:executing-plans)                override="executing-plans-overrides" ;;
   superpowers:finishing-a-development-branch) override="finishing-a-development-branch-overrides" ;;
   superpowers:using-git-worktrees)            override="using-git-worktrees-overrides" ;;
+  superpowers:systematic-debugging)           override="systematic-debugging-overrides" ;;
   *) exit 0 ;;
 esac
 

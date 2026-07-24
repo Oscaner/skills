@@ -4,6 +4,7 @@
     "./skills/brainstorming-overrides",
     "./skills/writing-plans-overrides",
     "./skills/subagent-driven-development-overrides",
+    "./skills/systematic-debugging-overrides",
     "./skills/subagent-lifecycle",
     "./skills/token-efficient-review-dispatch",
     "./skills/using-git-worktrees-overrides",

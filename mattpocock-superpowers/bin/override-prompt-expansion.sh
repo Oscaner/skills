@@ -18,6 +18,7 @@ case "$command_name" in
   superpowers:using-git-worktrees)            override="using-git-worktrees-overrides" ;;
   superpowers:systematic-debugging)           override="systematic-debugging-overrides" ;;
   superpowers:test-driven-development)        override="test-driven-development-overrides" ;;
+  superpowers:verification-before-completion) override="verification-before-completion-overrides" ;;
   *) exit 0 ;;
 esac
 

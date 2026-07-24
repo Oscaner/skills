@@ -43,7 +43,7 @@ Once the plan passes Rule 2, breakdown into independently-grabbable work items f
 
 1. `/to-tickets` is user-invoked (`disable-model-invocation: true`) so the Skill tool can't trigger it. **Locate via Glob `~/.claude/plugins/cache/mattpocock-skills/**/skills/engineering/to-tickets/SKILL.md`, Read it, follow its Steps 1–4 (Gather → Explore → Draft → Quiz) as written.** The upstream SKILL.md is the source of truth for vertical-slicing rules, wide-refactor exceptions, and every template — do not paraphrase them here.
 2. Step 4's user approval is a **hard gate** — do not proceed to Rule 3b (Publish) without explicit approval.
-3. If Glob returns nothing (plugin not installed), **surface the failure to the user** — request permission to proceed manually per the upstream skill's discipline, or wait for the user to install/repair the plugin. Do not paraphrase `/to-tickets`'s rules from memory as a silent fallback.
+3. If the Skill tool returns an error (plugin is installed but skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `/to-tickets`'s rules from memory. If Glob returns nothing (`mattpocock-skills` is not installed), degrade silently — skip the ticket breakdown step and offer to proceed with the plan document as the sole artifact.
 
 **Rule 3b — Redirect Step 5 publish target to a single local file:**
 

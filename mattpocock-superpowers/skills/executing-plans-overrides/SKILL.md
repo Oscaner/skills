@@ -30,6 +30,7 @@ Upstream Step 2 (Execute Tasks) says "Follow each step exactly" but is unopinion
 1. Before writing production code for a task, invoke `mattpocock-skills:tdd` via the Skill tool and follow its red-green loop.
 2. Confirm seams with the user before writing tests (the skill's own precondition).
 3. Exemption: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt. When in doubt, use TDD. (Same wording as `subagent-driven-development-overrides` Rule 4.3.)
+4. If `mattpocock-skills:tdd` fails to load (Skill tool error — i.e. plugin is installed but skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `tdd`'s rules from memory. If `mattpocock-skills` is not installed, degrade silently — proceed with the task's steps without the red-green loop.
 
 ### Rule 4 — Commit after each completed task
 

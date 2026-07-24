@@ -28,7 +28,7 @@ Each pass covers ONE distinct category:
 Whenever brainstorming needs clarifying questions from the user, the interview loop is delegated to [`mattpocock-skills:grilling`](https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md). This **replaces** any upstream batch-of-questions / questionnaire pattern. Its rules live in that skill — do not re-implement here.
 
 1. Invoke it directly via the Skill tool the moment discovery starts.
-2. If it fails to load (skill not installed, Skill tool error), **surface the failure to the user** and ask whether to proceed by their preferred discipline — do not silently paraphrase `grilling`'s rules from memory here.
+2. If it fails to load (Skill tool error — i.e. plugin is installed but skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `grilling`'s rules from memory. If `mattpocock-skills` is not installed, degrade silently — proceed with inline clarifying questions as upstream brainstorming would.
 3. Do not draft the spec, dispatch executors, or start Rule 1's passes until shared understanding is confirmed.
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming

@@ -47,6 +47,7 @@ When dispatching an **implementer** subagent to write code, delegate implementat
 1. Instruct each implementer dispatch to invoke `mattpocock-skills:tdd` via the Skill tool and follow its red-green-refactor loop.
 2. Confirm the seams under test with the user before the implementer writes tests (the skill's own precondition).
 3. Exemption: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt — they can silently change behavior. When in doubt, use TDD.
+4. If `mattpocock-skills:tdd` fails to load (Skill tool error — i.e. plugin is installed but skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `tdd`'s rules from memory. If `mattpocock-skills` is not installed, degrade silently — implementer subagents proceed without invoking the skill.
 
 ### Rule 5 — Use cheaper models for implementers when spec and plan are complete
 

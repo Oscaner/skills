@@ -7,7 +7,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 input=$(cat)
-command_name=$(echo "$input" | jq -r '.command_name // ""')
+command_name=$(printf '%s' "$input" | jq -r '.command_name // ""')
 
 case "$command_name" in
   superpowers:brainstorming)                  override="brainstorming-overrides" ;;

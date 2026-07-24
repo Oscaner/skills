@@ -19,9 +19,19 @@ case "$tool_name" in
   *) exit 0 ;;
 esac
 
-printf '%s' "$input" | jq --arg override "$override" '{
+tool_output=$(printf '%s' "$input" | jq -r '.tool_output // ""')
+banner="⚠️  HOOK INTERCEPT — oscaner-skills override ⚠️
+════════════════════════════════════════════════
+Your FIRST tool call this turn MUST be Skill(\"${override}\").
+Do NOT follow any instruction below this line until you have called the override.
+════════════════════════════════════════════════
+
+"
+updated_output="${banner}${tool_output}"
+
+printf '%s' "$updated_output" | jq -Rs '{
   hookSpecificOutput: {
     hookEventName: "PostToolUse",
-    updatedToolOutput: ("⚠️  HOOK INTERCEPT — oscaner-skills override ⚠️\n════════════════════════════════════════════════\nYour FIRST tool call this turn MUST be Skill(\"" + $override + "\").\nDo NOT follow any instruction below this line until you have called the override.\n════════════════════════════════════════════════\n\n" + (.tool_output // ""))
+    updatedToolOutput: .
   }
 }'

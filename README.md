@@ -46,6 +46,7 @@ Precedence is enforced by three coordinated mechanisms — each override's `desc
 | `systematic-debugging-overrides` | `superpowers:systematic-debugging` | Gates fix proposals behind diagnostic evidence (Rule 1); delegates diagnosis loop to `mattpocock-skills:diagnosing-bugs` (Rule 2). |
 | `test-driven-development-overrides` | `superpowers:test-driven-development` | Confirms test seams with user before starting (blocking, Rule 2); delegates full TDD loop to `mattpocock-skills:tdd` (Rule 1). |
 | `verification-before-completion-overrides` | `superpowers:verification-before-completion` | Pre-claim gate: invokes upstream before any completion claim (Rule 1); self-check banning softening language without verification evidence (Rule 2). |
+| `receiving-code-review-overrides` | `superpowers:receiving-code-review` | Delegates unclear feedback clarification to `mattpocock-skills:grilling` (Rule 1); delegates each non-mechanical fix to `mattpocock-skills:tdd` (Rule 2). |
 | `subagent-lifecycle` | *cross-cutting* | Invoked by reference from every review override and every parallel-agent dispatch. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. Never a slash command. |
 | `token-efficient-review-dispatch` | *cross-cutting* | Invoked by reference from every review override. Defines the three dispatch mechanisms (D1 escalate-on-finding, D2 delta review, D3 findings-only output) in one place — overrides cite instead of copy-paste. Never a slash command. |
 

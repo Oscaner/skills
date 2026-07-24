@@ -19,6 +19,7 @@ case "$tool_name" in
   superpowers:systematic-debugging)           override="systematic-debugging-overrides" ;;
   superpowers:test-driven-development)        override="test-driven-development-overrides" ;;
   superpowers:verification-before-completion) override="verification-before-completion-overrides" ;;
+  superpowers:receiving-code-review)          override="receiving-code-review-overrides" ;;
   *) exit 0 ;;
 esac
 

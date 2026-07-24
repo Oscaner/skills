@@ -19,7 +19,7 @@ Three levels of manifest wire everything together; changing a skill's location m
 
 1. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — top-level `oscaner-skills` marketplace. Registers plugins by relative `source` path. Adding a new plugin means adding an entry to `plugins[]` here.
 2. `<plugin>/.claude-plugin/plugin.json` — e.g. [mattpocock-superpowers/.claude-plugin/plugin.json](mattpocock-superpowers/.claude-plugin/plugin.json). Registers skills by relative directory path. Adding a new skill to a plugin means adding its directory to `skills[]` here.
-3. `<plugin>/skills/<skill-name>/SKILL.md` — the skill itself. Frontmatter (`name`, `description`) is what Claude Code loads into system context on every user turn. For override skills, `description` is one half of the precedence enforcement (the other half is the mandatory self-check in the user's global `~/.claude/CLAUDE.md` — see [The overrides pattern](#the-overrides-pattern-mattpocock-superpowers) below). Write it as `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn — trigger on ANY of: (1) /<slash-command> (bare or superpowers:-prefixed); (2) <command-name> tag; (3) upstream skill body in system context; (4) natural-language <verbs>`. Framings like "Use whenever <other skill> is active" or "typically before target fires" do not work — the model reads the upstream skill body's own first-move instructions and starts executing them; only a hard "FIRST tool call this turn" phrasing paired with the CLAUDE.md rule reliably preempts that.
+3. `<plugin>/skills/<skill-name>/SKILL.md` — the skill itself. Frontmatter (`name`, `description`) is what Claude Code loads into system context on every user turn. For override skills, `description` documents the trigger intent. Write it as `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn — trigger on ANY of: (1) /<slash-command> (bare or superpowers:-prefixed); (2) <command-name> tag; (3) upstream skill body in system context; (4) natural-language <verbs>`. The hard precedence is enforced by the plugin-bundled hooks (see [The overrides pattern](#the-overrides-pattern-mattpocock-superpowers) below) — but the SKILL.md description's "FIRST tool call this turn" phrasing remains load-bearing as a fallback signal.
 
 If a skill's SKILL.md exists on disk but is not listed in the plugin's `skills[]`, Claude Code will not find it. This is the most common breakage.
 
@@ -35,9 +35,9 @@ The [mattpocock-superpowers](mattpocock-superpowers/) plugin's whole purpose is 
 
 Precedence is enforced by **three coordinated mechanisms**, not one:
 
-1. The four-trigger `description` above (SKILL.md side).
-2. A **mandatory self-check block** in the user's global `~/.claude/CLAUDE.md` (personal, outside this repo) that requires a pre-flight scan for triggers before the first tool call of every turn, and maps each upstream skill to its override. The canonical form lives in [README.md](README.md) under "System prompt wiring" — treat it as the source of truth. When adding a new override, bump the table there **in the same commit** as the new SKILL.md; a description-only change is not enough, because the upstream skill body's own first-move instructions will otherwise win.
-3. An **anti-pattern naming block** inside that same self-check, calling out two failure modes side-by-side: (a) upstream `SKILL.md` bodies routinely open with numbered "You MUST" checklists — and reading such a checklist and starting to execute it *is* the failure mode this rule guards against; (b) the **handoff-continuation rationalization** — when the upstream body arrives as the tool result of a prior `Skill(...)` call (a skill-to-skill handoff, e.g. brainstorming → writing-plans), the model treats it as a natural next step of a flow it's already inside and skips the self-check. Without the explicit naming of both, the model either treats two "MUST"s as equally authoritative and picks the one nearest to its action point (the upstream body, because it's inlined last), or excuses the whole self-check as "not applicable inside an ongoing flow". Name each pattern to turn it into a stop signal instead of an imperative or a permission slip.
+1. The four-trigger `description` above (SKILL.md side) — documents every entry point verbatim; serves as fallback when hooks are unavailable.
+2. **Plugin-bundled hooks** in `mattpocock-superpowers/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands; `PostToolUse` (matcher `Skill`) intercepts skill handoffs. Handlers in `mattpocock-superpowers/bin/` inject `additionalContext` or prepend a banner to `updatedToolOutput`, forcing the override as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
+3. An **anti-pattern naming block** injected by the hooks' `additionalContext`, calling out two failure modes side-by-side: (a) upstream `SKILL.md` bodies routinely open with numbered "You MUST" checklists — reading such a checklist and starting to execute it *is* the failure mode this rule guards against; (b) the **handoff-continuation rationalization** — when the upstream body arrives as the tool result of a prior `Skill(...)` call, the model treats it as a natural next step of a flow it's already inside and skips the override. Without naming both, the model either treats two "MUST"s as equally authoritative, or excuses the whole self-check as "not applicable inside an ongoing flow".
 
 ## Cross-cutting skills
 
@@ -74,12 +74,13 @@ Use `chore:` (not `feat:`) — the change is a pointer bump, not a feature.
 git submodule update --init
 ```
 
-**Add a new override skill to `mattpocock-superpowers`** — three manifests must change together in one commit, or the skill is invisible:
+**Add a new override skill to `mattpocock-superpowers`** — four things must change together in one commit, or the skill is invisible or won't auto-trigger:
 1. Create `mattpocock-superpowers/skills/<name>-overrides/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-mattpocock-superpowers)).
 2. Add `"./skills/<name>-overrides"` to `skills[]` in [mattpocock-superpowers/.claude-plugin/plugin.json](mattpocock-superpowers/.claude-plugin/plugin.json).
-3. Add a row to the override-trigger table in the [README.md](README.md) "System prompt wiring" block (which is the source of truth for what users must paste into their global `~/.claude/CLAUDE.md`).
+3. Add a `case` branch to both `mattpocock-superpowers/bin/override-prompt-expansion.sh` and `mattpocock-superpowers/bin/override-skill-handoff.sh` — pattern `superpowers:<slug>)  override="<slug>-overrides" ;;`.
+4. Add a row to the override table in [README.md](README.md) for discoverability.
 
-Missing any one → the model won't fire the override on trigger.
+Missing step 1 or 2 → the skill is invisible to Claude Code. Missing step 3 → hooks won't intercept the trigger, override won't auto-fire.
 
 ## Verifying a change didn't break the marketplace
 
@@ -121,6 +122,13 @@ print("OK — no orphan skill dirs")
 ```
 
 All three pass → the marketplace still resolves.
+
+**4. Hooks and bin scripts exist and are executable** (run after adding or renaming hook handlers):
+```bash
+[ -f mattpocock-superpowers/hooks/hooks.json ] && echo "OK — hooks.json"
+[ -x mattpocock-superpowers/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
+[ -x mattpocock-superpowers/bin/override-skill-handoff.sh ] && echo "OK — skill-handoff executable"
+```
 
 ## Git conventions for this repo
 

@@ -33,6 +33,8 @@ Whenever brainstorming needs clarifying questions from the user, the interview l
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming
 
+**Escape hatch:** If the user has explicitly stated the scope is small before `grilling` begins — e.g. "这是小改动 / 就这一处 / scope 很小 / it's a minor change" — Rule 3 does NOT trigger. Proceed directly with a single-phase spec.
+
 When the request is a **large / multi-phase requirement** (any of: touches ≥3 distinct subsystems; spans multiple user-facing capabilities; the user says "整个系统 / 大功能 / 一整套 / overhaul / redesign / 分几期 / roadmap"; or Rule 2's `grilling` interview reveals ≥2 independent capability clusters), do NOT jump into per-feature brainstorming. Instead:
 
 1. **Produce an overall spec first** — a single top-level document at `docs/superpowers/specs/YYYY-MM-DD-<program>-overall.md` capturing: (a) goal and non-goals; (b) phases with one-paragraph scope each; (c) dependencies and sequencing; (d) cross-cutting constraints (data model, auth, deployment). Scope-only — no per-feature requirements, no acceptance criteria, no implementation detail.

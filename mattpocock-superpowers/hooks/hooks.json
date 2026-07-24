@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "^superpowers:",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-prompt-expansion.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-skill-handoff.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

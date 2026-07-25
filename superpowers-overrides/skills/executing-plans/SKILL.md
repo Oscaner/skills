@@ -21,7 +21,7 @@ The upstream skill's own author considers `subagent-driven-development` strictly
 
 Upstream's Integration section (L67-68) lists `superpowers:using-git-worktrees` as a **required workflow skill**. Delegate that requirement to [`using-git-worktrees`](../using-git-worktrees/SKILL.md) — which refuses worktree creation per user policy and offers branch-based isolation instead.
 
-Practical effect: when this skill would normally set up a worktree before Step 1, invoke `Skill(using-git-worktrees)` first. The user picks a branch (or stays on current); no worktree is created. Then proceed to Step 1 (Load and Review Plan) with the branch chosen.
+Practical effect: when this skill would normally set up a worktree before Step 1, invoke `Skill(superpowers-overrides:using-git-worktrees)` first. The user picks a branch (or stays on current); no worktree is created. Then proceed to Step 1 (Load and Review Plan) with the branch chosen.
 
 ### Rule 3 — Implementer discipline delegates to `mattpocock-skills:tdd`
 

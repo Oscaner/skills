@@ -1,17 +1,17 @@
 {
   "name": "superpowers-overrides",
   "skills": [
-    "./skills/brainstorming-overrides",
-    "./skills/writing-plans-overrides",
-    "./skills/subagent-driven-development-overrides",
-    "./skills/systematic-debugging-overrides",
-    "./skills/test-driven-development-overrides",
-    "./skills/verification-before-completion-overrides",
-    "./skills/receiving-code-review-overrides",
+    "./skills/brainstorming",
+    "./skills/writing-plans",
+    "./skills/subagent-driven-development",
+    "./skills/systematic-debugging",
+    "./skills/test-driven-development",
+    "./skills/verification-before-completion",
+    "./skills/receiving-code-review",
     "./skills/subagent-lifecycle",
     "./skills/token-efficient-review-dispatch",
-    "./skills/using-git-worktrees-overrides",
-    "./skills/executing-plans-overrides",
-    "./skills/finishing-a-development-branch-overrides"
+    "./skills/using-git-worktrees",
+    "./skills/executing-plans",
+    "./skills/finishing-a-development-branch"
   ]
 }

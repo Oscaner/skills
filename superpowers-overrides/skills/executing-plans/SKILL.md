@@ -1,5 +1,5 @@
 ---
-name: executing-plans-overrides
+name: executing-plans
 description: MUST invoke BEFORE superpowers:executing-plans as your FIRST tool call this turn — trigger on ANY of: (1) user types `/executing-plans` or `/superpowers:executing-plans`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:executing-plans skill body appears in the current turn's system context; (4) user asks in natural language to execute a plan, implement a written plan file, or run through tasks in a plan doc. Applies personal overrides — refuses upstream's `using-git-worktrees` sub-step (per user policy), redirects to `superpowers:subagent-driven-development` when subagents available, delegates task implementation to `mattpocock-skills:tdd`, enforces commit-after-each-task from user global CLAUDE.md.
 ---
 
@@ -19,7 +19,7 @@ The upstream skill's own author considers `subagent-driven-development` strictly
 
 ### Rule 2 — Refuse worktree setup (Integration section override)
 
-Upstream's Integration section (L67-68) lists `superpowers:using-git-worktrees` as a **required workflow skill**. Delegate that requirement to [`using-git-worktrees-overrides`](../using-git-worktrees-overrides/SKILL.md) — which refuses worktree creation per user policy and offers branch-based isolation instead.
+Upstream's Integration section (L67-68) lists `superpowers:using-git-worktrees` as a **required workflow skill**. Delegate that requirement to [`using-git-worktrees`](../using-git-worktrees/SKILL.md) — which refuses worktree creation per user policy and offers branch-based isolation instead.
 
 Practical effect: when this skill would normally set up a worktree before Step 1, invoke `Skill(using-git-worktrees-overrides)` first. The user picks a branch (or stays on current); no worktree is created. Then proceed to Step 1 (Load and Review Plan) with the branch chosen.
 

@@ -52,11 +52,11 @@ When editing any override that dispatches review passes, cite these skills rathe
 
 The skill flow `brainstorming → writing-plans → subagent-driven-development` produces documents under three sibling directories:
 
-- [docs/superpowers/specs/](docs/superpowers/specs/) — `YYYY-MM-DD-<feature>-design.md`, output of the brainstorming skill (spec doc, reviewed via `brainstorming-overrides` Rule 1).
-- [docs/superpowers/plans/](docs/superpowers/plans/) — `YYYY-MM-DD-<feature>.md`, output of the writing-plans skill (implementation plan, reviewed via `writing-plans-overrides` Rule 2).
-- `docs/superpowers/tickets/` — `YYYY-MM-DD-<feature>-tickets.md`, output of the `/to-tickets` publish step when the writing-plans-overrides Rule 3c quiz picks "publish to local file" (the directory is created on first use).
+- [docs/superpowers/specs/](docs/superpowers/specs/) — `YYYY-MM-DD-<feature>-design.md`, output of the brainstorming skill (spec doc, reviewed via `brainstorming` Rule 1).
+- [docs/superpowers/plans/](docs/superpowers/plans/) — `YYYY-MM-DD-<feature>.md`, output of the writing-plans skill (implementation plan, reviewed via `writing-plans` Rule 2).
+- `docs/superpowers/tickets/` — `YYYY-MM-DD-<feature>-tickets.md`, output of the `/to-tickets` publish step when the writing-plans Rule 3c quiz picks "publish to local file" (the directory is created on first use).
 
-The three share the same date + feature slug so a spec, its plan, and its tickets sort together. `writing-plans-overrides` Rule 3b hard-codes the tickets path; don't publish tickets anywhere else, and don't write these docs at repo root.
+The three share the same date + feature slug so a spec, its plan, and its tickets sort together. `writing-plans` Rule 3b hard-codes the tickets path; don't publish tickets anywhere else, and don't write these docs at repo root.
 
 ## Common operations
 
@@ -75,9 +75,9 @@ git submodule update --init
 ```
 
 **Add a new override skill to `superpowers-overrides`** — four things must change together in one commit, or the skill is invisible or won't auto-trigger:
-1. Create `superpowers-overrides/skills/<name>-overrides/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
-2. Add `"./skills/<name>-overrides"` to `skills[]` in [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json).
-3. Add a `case` branch to both `superpowers-overrides/bin/override-prompt-expansion.sh` and `superpowers-overrides/bin/override-skill-handoff.sh` — pattern `superpowers:<slug>)  override="<slug>-overrides" ;;`.
+1. Create `superpowers-overrides/skills/<name>/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
+2. Add `"./skills/<name>"` to `skills[]` in [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json).
+3. Add a `case` branch to both `superpowers-overrides/bin/override-prompt-expansion.sh` and `superpowers-overrides/bin/override-skill-handoff.sh` — pattern `superpowers:<slug>)  override="<slug>" ;;`.
 4. Add a row to the override table in [README.md](README.md) for discoverability.
 
 Missing step 1 or 2 → the skill is invisible to Claude Code. Missing step 3 → hooks won't intercept the trigger, override won't auto-fire.

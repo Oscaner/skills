@@ -10,16 +10,16 @@ input=$(cat)
 command_name=$(printf '%s' "$input" | jq -r '.command_name // ""')
 
 case "$command_name" in
-  superpowers:brainstorming)                  override="brainstorming-overrides" ;;
-  superpowers:writing-plans)                  override="writing-plans-overrides" ;;
-  superpowers:subagent-driven-development)    override="subagent-driven-development-overrides" ;;
-  superpowers:executing-plans)                override="executing-plans-overrides" ;;
-  superpowers:finishing-a-development-branch) override="finishing-a-development-branch-overrides" ;;
-  superpowers:using-git-worktrees)            override="using-git-worktrees-overrides" ;;
-  superpowers:systematic-debugging)           override="systematic-debugging-overrides" ;;
-  superpowers:test-driven-development)        override="test-driven-development-overrides" ;;
-  superpowers:verification-before-completion) override="verification-before-completion-overrides" ;;
-  superpowers:receiving-code-review)          override="receiving-code-review-overrides" ;;
+  superpowers:brainstorming)                  override="brainstorming" ;;
+  superpowers:writing-plans)                  override="writing-plans" ;;
+  superpowers:subagent-driven-development)    override="subagent-driven-development" ;;
+  superpowers:executing-plans)                override="executing-plans" ;;
+  superpowers:finishing-a-development-branch) override="finishing-a-development-branch" ;;
+  superpowers:using-git-worktrees)            override="using-git-worktrees" ;;
+  superpowers:systematic-debugging)           override="systematic-debugging" ;;
+  superpowers:test-driven-development)        override="test-driven-development" ;;
+  superpowers:verification-before-completion) override="verification-before-completion" ;;
+  superpowers:receiving-code-review)          override="receiving-code-review" ;;
   *) exit 0 ;;
 esac
 

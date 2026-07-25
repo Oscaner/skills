@@ -1,5 +1,5 @@
 ---
-name: receiving-code-review-overrides
+name: receiving-code-review
 description: MUST invoke BEFORE superpowers:receiving-code-review as your FIRST tool call this turn — trigger on ANY of: (1) user types `/receiving-code-review` or `/superpowers:receiving-code-review`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:receiving-code-review skill body appears in the current turn's system context; (4) user shares code review feedback or asks to address review comments. Applies personal overrides: delegates unclear feedback clarification to mattpocock-skills:grilling (Rule 1); delegates each fix implementation to mattpocock-skills:tdd with mechanical-change exemption (Rule 2).
 ---
 

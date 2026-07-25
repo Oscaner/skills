@@ -1,5 +1,5 @@
 ---
-name: finishing-a-development-branch-overrides
+name: finishing-a-development-branch
 description: MUST invoke BEFORE superpowers:finishing-a-development-branch as your FIRST tool call this turn — trigger on ANY of: (1) user types `/finishing-a-development-branch` or `/superpowers:finishing-a-development-branch`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:finishing-a-development-branch skill body appears in the current turn's system context; (4) another skill (executing-plans, subagent-driven-development) hands off to it as a sub-step; (5) user asks in natural language to finish a branch, merge/PR the work, wrap up implementation, or complete development. Applies personal overrides — collapses worktree branches to normal-repo only (per user's git-worktree ban), enforces conventional commits, forbids attribution trailers in commits AND PR bodies, drops upstream Step 6 (Cleanup Workspace) entirely.
 ---
 
@@ -9,7 +9,7 @@ description: MUST invoke BEFORE superpowers:finishing-a-development-branch as yo
 
 ### Rule 1 — Environment detection collapses to normal-repo only
 
-Upstream Step 2 detects `GIT_DIR != GIT_COMMON` to identify worktree environments and branches menu shape by that. Under user policy ([using-git-worktrees-overrides](../using-git-worktrees-overrides/SKILL.md)), no worktrees exist — every repo is treated as a normal repo.
+Upstream Step 2 detects `GIT_DIR != GIT_COMMON` to identify worktree environments and branches menu shape by that. Under user policy ([using-git-worktrees](../using-git-worktrees/SKILL.md)), no worktrees exist — every repo is treated as a normal repo.
 
 1. Skip the `GIT_DIR` / `GIT_COMMON` detection block entirely. It has no branches to distinguish.
 2. Use the **Standard 4 options menu** unconditionally (Step 4's normal-repo / named-branch-worktree variant). Never present the "detached HEAD (3 options)" variant.

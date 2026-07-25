@@ -1,5 +1,5 @@
 ---
-name: writing-plans-overrides
+name: writing-plans
 description: MUST invoke BEFORE superpowers:writing-plans as your FIRST tool call this turn — trigger on ANY of: (1) user types `/writing-plans` or `/superpowers:writing-plans`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:writing-plans skill body appears in the current turn's system context; (4) user asks in natural language to write an implementation plan, break work into tasks/tickets/issues, draft a plan document, or plan a feature build-out. Applies personal overrides (section-by-section writes; fresh subagent review passes; delegates ticket breakdown to mattpocock-skills:/to-tickets but redirects Step 5 publish target from repo-root `tickets.md` to `docs/superpowers/tickets/<date>-<feature>-tickets.md`).
 ---
 
@@ -21,7 +21,7 @@ Before dispatching reviewers, classify the plan:
 - **Simple plan**: ≤2 tasks AND spec is fully explicit (no ambiguous requirements) AND no cross-module integration → dispatch at most **1 review round** (Pass 1 only)
 - **Complex plan**: all other cases → up to **3 rounds**, D1 escalate-on-finding rules unchanged
 
-Use the same Signals table as [`subagent-driven-development-overrides` Rule 1](../subagent-driven-development-overrides/SKILL.md) for classification signals — do not re-define them here.
+Use the same Signals table as [`subagent-driven-development` Rule 1](../subagent-driven-development/SKILL.md) for classification signals — do not re-define them here.
 
 1. **IGNORE** any upstream "self-review is fine / checklist you run yourself / fix inline" instruction. Dispatch a subagent using the reviewer template at `skills/writing-plans/plan-document-reviewer-prompt.md` (resolve inside the upstream superpowers plugin cache). Do not re-implement its logic here — the template is the source of truth.
 2. Every reviewer dispatch is a **fresh** subagent — see [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 2. Concurrency governed by its Rule 1.

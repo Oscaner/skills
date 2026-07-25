@@ -10,7 +10,7 @@ Add this marketplace to Claude Code, then install any plugin from it:
 # In Claude Code
 /plugin marketplace add oscaner/oscaner-skills
 /plugin install mattpocock-skills@oscaner-skills
-/plugin install mattpocock-superpowers@oscaner-skills
+/plugin install superpowers-overrides@oscaner-skills
 ```
 
 Cloning this repo directly (rather than installing via the marketplace) requires initializing the `mattpocock-skills` submodule:
@@ -29,7 +29,7 @@ To bump the pinned `mattpocock-skills` revision later: `git submodule update --r
 
 Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/mattpocock/skills). Not edited in-tree — this marketplace just re-exports it so the overrides below can delegate to `mattpocock-skills:grilling`, `mattpocock-skills:tdd`, and `mattpocock-skills:to-tickets`.
 
-### [mattpocock-superpowers](mattpocock-superpowers/)
+### [superpowers-overrides](superpowers-overrides/)
 
 Personal overrides for the upstream [`superpowers`](https://github.com/obra/superpowers) plugin. Each override wraps a specific `superpowers:*` skill; when the upstream skill fires (via `/<name>` command, a `<command-name>` tag, a `Skill` tool call, or its body appearing in the current turn's system context), the override MUST run **first** — as the very first tool call of that turn — before any exploration, `TodoWrite`, or upstream-skill-body instruction. The override then either **replaces** the upstream skill's default behavior or **delegates** to a [`mattpocock-skills`](https://github.com/mattpocock/skills) skill.
 
@@ -74,7 +74,7 @@ Every level's manifest must reference the level below it. A SKILL.md that exists
 
 While hooks now handle auto-triggering, understanding the three-part mechanism is useful for contributors:
 
-1. **Hook-based interception** — The hook registrations in `mattpocock-superpowers/hooks/hooks.json` (two events: `UserPromptExpansion` for slash commands, `PostToolUse` for skill handoffs) scans each turn for upstream `superpowers:*` skill triggers (`<command-name>` tag, `/slash-command`, inlined skill body, or about-to-fire `Skill` call) and dispatches the corresponding override skill as the very first tool call before any exploration or upstream-skill-body instruction. This replaces the manual CLAUDE.md self-check that was previously required.
+1. **Hook-based interception** — The hook registrations in `superpowers-overrides/hooks/hooks.json` (two events: `UserPromptExpansion` for slash commands, `PostToolUse` for skill handoffs) scans each turn for upstream `superpowers:*` skill triggers (`<command-name>` tag, `/slash-command`, inlined skill body, or about-to-fire `Skill` call) and dispatches the corresponding override skill as the very first tool call before any exploration or upstream-skill-body instruction. This replaces the manual CLAUDE.md self-check that was previously required.
 2. **Anti-pattern naming** — Upstream `SKILL.md` bodies open with a numbered "You MUST" checklist so consistently that the pattern needs an explicit name in the hook's dispatch message; without it the model reads the checklist and starts executing it, treating both "MUST"s as equally authoritative. Naming the pattern turns it into a stop signal instead of an imperative. A closely related failure mode — the **handoff-continuation rationalization** — is named alongside it: when the upstream body arrives as a *tool result* of a prior `Skill(...)` call (a skill-to-skill handoff, e.g. brainstorming → writing-plans), the model treats it as a natural next step of a flow it's already inside and skips the override. Both patterns need to be named in the hook's message; naming one without the other leaves the second hole open.
 3. **The exhaustive trigger list** — The hook scripts (`bin/override-prompt-expansion.sh` and `bin/override-skill-handoff.sh`) enumerates every entry point (command tag, slash command, inlined body, about-to-fire `Skill` call) verbatim. Missing any entry point creates a hole the model will find.
 

@@ -31,7 +31,7 @@ User's global `~/.claude/CLAUDE.md`:
 
 Enforce on both surfaces this skill produces:
 
-1. **Merge commit** (Option 1): `git merge <feature-branch>` uses the branch's own commits. Ensure those commits were conventional to begin with (executing-plans-overrides Rule 4). If `--no-ff` produces a merge commit, its subject follows conventional-commit shape too. Never add `Co-Authored-By:` / `Generated with:` / any similar trailer.
+1. **Merge commit** (Option 1): `git merge <feature-branch>` uses the branch's own commits. Ensure those commits were conventional to begin with (executing-plans Rule 4). If `--no-ff` produces a merge commit, its subject follows conventional-commit shape too. Never add `Co-Authored-By:` / `Generated with:` / any similar trailer.
 2. **PR body** (Option 2): upstream's template (L128-135) has just `## Summary` and `## Test Plan`. Keep those two sections; **do NOT append any attribution paragraph** (`🤖 Generated with Claude Code`, `Co-Authored-By: Claude`, etc.). If the `gh` CLI or a hook adds one automatically, strip it and re-post.
 3. **PR title**: conventional-commit shape (`feat: <summary>`, `fix: <summary>`, …), not free-form prose.
 

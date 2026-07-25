@@ -33,55 +33,33 @@ Whenever brainstorming needs clarifying questions from the user, the interview l
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming
 
-Before producing an overall or phase spec, Read `superpowers-overrides/skills/brainstorming/overall-phase-spec-template.md` — it is the source of truth for document structure. Do not re-implement its conventions from memory.
+Before producing an overall or phase spec, Read `superpowers-overrides/skills/brainstorming/overall-phase-spec-template.md` — it is the source of truth for document structure, serial execution rules, completion signals, and dynamic decomposition. Do not re-implement its conventions from memory.
 
 **Escape hatch:** If the user has explicitly stated the scope is small before `grilling` begins — e.g. "这是小改动 / 就这一处 / scope 很小 / it's a minor change" — Rule 3 does NOT trigger. Proceed directly with a single-phase spec.
 
-When the request is a **large / multi-phase requirement** (any of: touches ≥3 distinct subsystems; spans multiple user-facing capabilities; the user says "整个系统 / 大功能 / 一整套 / overhaul / redesign / 分几期 / roadmap"; or Rule 2's `grilling` interview reveals ≥2 independent capability clusters), do NOT jump into per-feature brainstorming. Instead:
+When the request is a **large / multi-phase requirement** (any of: touches ≥3 distinct subsystems; spans multiple user-facing capabilities; the user says "整个系统 / 大功能 / 一整套 / overhaul / redesign / 分几期 / roadmap"; or Rule 2's `grilling` interview reveals ≥2 independent capability clusters), follow the overall-phase-spec-template:
 
-1. **Produce an overall spec first** — a single top-level document at `docs/superpowers/specs/YYYY-MM-DD-<program>-overall.md` capturing: (a) goal and non-goals; (b) phases with one-paragraph scope each; (c) dependencies and sequencing; (d) cross-cutting constraints (data model, auth, deployment). Scope-only — no per-feature requirements, no acceptance criteria, no implementation detail.
-2. **Run Rule 1's fresh-subagent review passes on the overall** before any phase brainstorming starts.
-3. **Get explicit user approval on the phase decomposition** before proceeding. Ask: "Overall lists phases A → B → C with dependencies X → Y. Approve, or adjust?" Silence is not approval — require an affirmative answer.
-4. **Then take one phase at a time, all the way through spec → plan → development, before starting the next phase's spec.** Phase N's `grilling` + Rule 1 review + `writing-plans` + `executing-plans` must all land before phase N+1's brainstorming begins. Later phases routinely shift based on earlier phases' *shipped* outcomes, not just their approved specs. Never pre-draft phase N+1 in parallel.
-5. **Recursive decomposition — a phase that turns out to still be too large re-decomposes IN PLACE inside the overall.** When phase N's `grilling` trips the largeness triggers (≥3 subsystems / ≥2 independent clusters / user signals "still too big"), STOP drafting phase N as a single spec. Instead:
-   - Do **NOT** create a sub-overall file. Exactly one overall per program.
-   - Expand phase N in the overall's `## Phase Decomposition` section into `N.1`, `N.2`, … with one-paragraph scope + dependencies each, then re-run Step 3 before drafting any sub-phase spec.
-   - Each sub-phase spec lives at `docs/superpowers/specs/YYYY-MM-DD-<program>-phase-<N>.<M>-<subslug>-design.md` and follows Step 4.
-   - If a sub-phase itself trips the triggers, recurse again in place (`N.M.1`, `N.M.2`, …). No depth cap; stop when a leaf's `grilling` no longer trips.
-6. **Status lives only in the overall.** Its phase spec 清单表（4 columns: `# | 子项目 | 设计 spec | 实现 plan`）is the single source of truth. Rows are **leaf** phases. Completion is encoded directly in the plan cell: append `✅ 完成 (tag \`<slug>-complete\` @ <sha>)` when a phase ships — no separate Status column. When a phase decomposes, replace its row with the sub-phase rows in the same edit.
-7. **Every overall update MUST be recorded in a `## Change History` section at the bottom.** One line per entry: `- YYYY-MM-DD — <what changed> — <why>`. Log status transitions, decompositions, real scope shifts, and Step 3 re-approvals. Per-edit, same commit as the edit; append-only — never rewrite or delete. If an entry was wrong, append a correction.
-8. **Never collapse phases back into one mega-spec, never draft ahead of the current phase landing.**
+1. **Produce an overall spec first.** Scope-only — no per-feature requirements, no acceptance criteria.
+2. **Run Rule 1's review passes on the overall** before any phase brainstorming starts.
+3. **Get explicit user approval on the phase decomposition.** Silence is not approval.
+4. **Take one phase at a time: spec → plan → development → shipped** before starting the next phase's brainstorming. Never pre-draft phase N+1 while N is in flight.
+5. **Recursive decomposition in-place.** Never create a sub-overall file. Expand the too-large phase in the overall's table into sub-phases, re-run Step 3.
 
 <!-- Additional rules for the brainstorming skill go below as Rule 4, Rule 5, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
-- "Pass 1 was clean but I'll run 2 & 3 anyway to be safe."
-- "Skipping a pass to save time."
-- "Pass 2 needs to reread the whole doc."
-- "The reviewer's positive commentary is signal, keep it."
 - "I'll ask the clarifying questions inline instead of invoking `mattpocock-skills:grilling`."
 - "grilling failed to load, I'll paraphrase its one-question-at-a-time rule from memory and keep going."
 - "This large requirement is clear enough — I'll skip the overall and go straight to per-feature specs."
 - "I'll write the overall AND phase 1 spec in one pass to save a round-trip."
 - "User didn't reply to the decomposition-approval question, but silence probably means yes."
-- "Phases are obviously independent, I can brainstorm them in parallel."
-- "Phase N is in `executing-plans`, I can start drafting phase N+1's spec in parallel to save wall time."
-- "Phase N's spec surfaced a scope shift for N+1, but I'll just remember it — no need to edit the overall now."
-- "Phase N turned out huge, but I've already started drafting the design doc — I'll push through."
-- "I'll spin up a sub-overall file for phase N — it's cleaner than editing the overall in place."
-- "I'll batch Phase Status / Change History updates at the end of the day."
-- "This overall edit is small (typo, rewording) — Change History would be noise."
-- "Change History got messy, I'll rewrite it to be cleaner."
+- "Phase N is in executing-plans, I can start drafting phase N+1's spec in parallel to save wall time."
 
 ## Common Rationalizations
 
 | Excuse | Reality |
 |--------|---------|
-| "Spec is trivial" | Trivial specs still hide placeholders. Pass 1 catches them; if clean, done. |
-| "Passes 2 and 3 always find something" | If they do, D1 correctly runs them. If they don't, they cost 4N tokens for nothing. |
-| "Spec is short so fresh reviewers are overkill" | Length isn't the signal. Even a 20-line spec can hide a placeholder or a scope contradiction. |
-| "D1 says skip 2 & 3 when Pass 1 is clean, so I can skip Pass 1 too when the spec looks obviously simple" | Pass 1 is the entry gate — D1 skips *later* passes based on its findings. Skipping Pass 1 breaks the mechanism entirely. |
 | "I can gather requirements faster myself than through grilling" | Faster for you, not the user. Invoke the skill. |
 | "grilling feels synchronous and slow" | One-question-at-a-time aligns understanding before drafting. The alternative is rework. |
 | "Requirement is large but I already see the phases, overall is ceremony" | The overall isn't for you — it's the artifact the user approves before per-phase drafting starts. Skipping it means phase 2's `grilling` may invalidate phase 1's spec. |

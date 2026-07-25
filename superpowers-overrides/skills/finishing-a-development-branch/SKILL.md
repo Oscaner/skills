@@ -7,22 +7,15 @@ description: MUST invoke BEFORE superpowers:finishing-a-development-branch as yo
 
 ## Rules
 
-### Rule 1 — Environment detection collapses to normal-repo only
+### Rule 1 — Skip worktree detection and cleanup entirely
 
-Upstream Step 2 detects `GIT_DIR != GIT_COMMON` to identify worktree environments and branches menu shape by that. Under user policy ([using-git-worktrees](../using-git-worktrees/SKILL.md)), no worktrees exist — every repo is treated as a normal repo.
+Under user policy ([using-git-worktrees](../using-git-worktrees/SKILL.md)), no worktrees exist.
 
-1. Skip the `GIT_DIR` / `GIT_COMMON` detection block entirely. It has no branches to distinguish.
-2. Use the **Standard 4 options menu** unconditionally (Step 4's normal-repo / named-branch-worktree variant). Never present the "detached HEAD (3 options)" variant.
-3. If detection unexpectedly returns `GIT_DIR != GIT_COMMON` (i.e. the ban was bypassed and a worktree exists), **stop and alert the user** — the ban was violated somewhere upstream and needs their attention before finishing.
+1. Skip the `GIT_DIR` / `GIT_COMMON` detection block (upstream Step 2). Use the **Standard 4 options menu** (Step 4's normal-repo variant) unconditionally. Never present the "detached HEAD (3 options)" variant.
+2. Skip upstream Step 6 (`git worktree remove` / `git worktree prune`) unconditionally. Options 1 and 4's branch deletion (`git branch -d` / `-D`) still applies — only the worktree-removal block is gone.
+3. If detection unexpectedly returns `GIT_DIR != GIT_COMMON` (worktree ban was bypassed upstream), **stop and alert the user** before proceeding.
 
-### Rule 2 — Drop Step 6 (Cleanup Workspace) entirely
-
-Upstream Step 6 is dedicated to `git worktree remove` / `git worktree prune`. With no worktrees, it has nothing to do.
-
-1. Skip Step 6 unconditionally, regardless of which Option (1/2/4) is chosen.
-2. Options 1 and 4's branch deletion (`git branch -d` / `git branch -D`) still applies — do NOT skip that; only the worktree-removal block is gone.
-
-### Rule 3 — Conventional commit + no attribution, applies to merge commits and PR bodies
+### Rule 2 — Conventional commit + no attribution, applies to merge commits and PR bodies
 
 User's global `~/.claude/CLAUDE.md`:
 
@@ -35,11 +28,11 @@ Enforce on both surfaces this skill produces:
 2. **PR body** (Option 2): upstream's template (L128-135) has just `## Summary` and `## Test Plan`. Keep those two sections; **do NOT append any attribution paragraph** (`🤖 Generated with Claude Code`, `Co-Authored-By: Claude`, etc.). If the `gh` CLI or a hook adds one automatically, strip it and re-post.
 3. **PR title**: conventional-commit shape (`feat: <summary>`, `fix: <summary>`, …), not free-form prose.
 
-### Rule 4 — Option 4 (Discard) confirmation stays typed, not multiple-choice
+### Rule 3 — Option 4 (Discard) confirmation stays typed, not multiple-choice
 
 Upstream Step 5 Option 4 requires the user to type "discard" literally. Do NOT convert this to `AskUserQuestion` — the typed-string requirement is intentional friction against accidental data loss. Present the confirmation block verbatim as upstream specifies, wait for exact-string input.
 
-<!-- Additional rules for the finishing-a-development-branch skill go below as Rule 5, Rule 6, … -->
+<!-- Additional rules for the finishing-a-development-branch skill go below as Rule 4, Rule 5, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 

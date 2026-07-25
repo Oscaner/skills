@@ -32,15 +32,13 @@ When in doubt, classify **Complex**. Every reviewer dispatch is a **fresh** suba
 
 Dispatch discipline (D1 escalate-on-finding, D2 delta review, D3 findings-only output) governed by [`token-efficient-review-dispatch`](../token-efficient-review-dispatch/SKILL.md). D1 applies **per axis** — spec-compliance and code-quality skip independently.
 
-### Rule 2 — Related simple tasks are batched and upgraded to Complex
+**Batching:** When multiple simple tasks share the same feature area or shared files, batch them as a single **Complex** block (up to 3 rounds each, subject to D1).
 
-When multiple **simple** tasks share the same feature area or shared files: batch into a single spec-review + single code-quality-review sequence, and treat the batch as **Complex** (up to 3 rounds each, subject to D1).
-
-### Rule 3 — Rounds iterate until approved before advancing
+### Rule 2 — Rounds iterate until approved before advancing
 
 A round that finds issues → implementer fixes → **same round's** reviewer re-reviews until approved → only then advance (subject to D1). Do not proceed past a round with unresolved findings.
 
-### Rule 4 — Implementer subagents delegate to `mattpocock-skills:tdd`
+### Rule 3 — Implementer subagents delegate to `mattpocock-skills:tdd`
 
 When dispatching an **implementer** subagent to write code, delegate implementation discipline to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md). This fills the gap where the upstream skill specifies *how to review* but leaves *how to implement* unopinionated. Its rules live in that skill — do not re-implement here.
 
@@ -49,7 +47,7 @@ When dispatching an **implementer** subagent to write code, delegate implementat
 3. Exemption: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt — they can silently change behavior. When in doubt, use TDD.
 4. If `mattpocock-skills:tdd` fails to load (Skill tool error — i.e. plugin is installed but skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `tdd`'s rules from memory. If `mattpocock-skills` is not installed, degrade silently — implementer subagents proceed without invoking the skill.
 
-### Rule 5 — Use cheaper models for implementers when spec and plan are complete
+### Rule 4 — Use cheaper models for implementers when spec and plan are complete
 
 When both a spec doc and an implementation plan exist and satisfy ALL of:
 
@@ -66,16 +64,12 @@ Reviewer subagents stay on the default model — review requires judgment.
 
 **Before first dispatch in each session:** confirm — "Spec and plan look complete — I'll use a cheaper model for implementers. OK?"
 
-<!-- Additional rules for subagent-driven-development go below as Rule 6, Rule 7, … -->
+<!-- Additional rules for subagent-driven-development go below as Rule 5, Rule 6, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
 - "It's basically simple, I'll do 1 round even though it touches 3 files."
-- "Round 1 was clean but I'll run 2 & 3 anyway to be safe."
-- "Skipping a round to save time."
 - "Batched simple tasks are still simple, 1 round is fine."
-- "Round 2 needs to reread every file."
-- "The reviewer's positive commentary is signal, keep it."
 - "The implementer can just write the code directly; TDD is overhead."
 - "I'll skip confirming seams — pick reasonable ones silently."
 - "The spec has a TBD section but it's minor — use the cheaper model anyway."
@@ -85,10 +79,8 @@ Reviewer subagents stay on the default model — review requires judgment.
 
 | Excuse | Reality |
 |--------|---------|
-| "Rounds are wasteful" | Each round catches a distinct class of defect — but only runs when D1 says needed. |
 | "3 files is a soft boundary" | Hard boundary — 3+ files means Complex, no exceptions. |
-| "Rounds 2 and 3 always find something" | If they do, D1 correctly runs them. If they don't, they cost 4N tokens for nothing. |
 | "Writing tests first is slower" | Slower to write, faster to verify. `mattpocock-skills:tdd` closes the executor's feedback loop. |
 | "Seams are obvious, skip the confirmation" | Silent seams = tests against the wrong interface. Confirm them. |
-| "The plan looks complete to me" | All three criteria (Rule 5) must pass — if one is missing, keep the default model. |
+| "The plan looks complete to me" | All three criteria (Rule 4) must pass — if one is missing, keep the default model. |
 | "Reviewers just read output; cheaper is fine" | Reviewers make judgment calls (security, maintainability) — keep them on the default. |

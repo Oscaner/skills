@@ -71,10 +71,6 @@ Only proceed to Rule 3b (Publish) after the user picks a publish option that isn
 ## Red Flags — STOP if you catch yourself thinking any of these
 
 - "Just write the whole plan in one Write call."
-- "Pass 1 was clean but I'll run 2 & 3 anyway to be safe."
-- "Skipping a pass to save time."
-- "Pass 2 needs to reread the whole plan."
-- "The reviewer's positive commentary is signal, keep it."
 - "I'll enumerate the tickets inline instead of reading `/to-tickets`'s SKILL.md."
 - "I'll publish tickets without waiting for user approval — Step 4 is optional."
 - "I'll publish to GitHub / the remote tracker."
@@ -88,8 +84,6 @@ Only proceed to Rule 3b (Publish) after the user picks a publish option that isn
 | Excuse | Reality |
 |--------|---------|
 | "Section-by-section is slower" | Single-call plans hide errors. Section writes are diffable. |
-| "The plan is obvious" | Obvious plans still miss task boundaries. Pass 1 catches them; if clean, done. |
-| "Passes 2 and 3 always find something" | If they do, D1 correctly runs them. If they don't, they cost 4N tokens for nothing. |
 | "Slicing into tickets is trivial, I can do it inline from memory" | The on-disk `/to-tickets` SKILL.md is the current source of truth. Read it. |
 | "`/to-tickets` says publish to the tracker, so I should use GitHub / Linear" | Rule 3b redirects Step 5 to a single local file under `docs/superpowers/tickets/`. |
 | "Upstream local-files mode writes `tickets.md` at repo root, so that's where it goes" | Rule 3b redirects the path only — into `docs/superpowers/tickets/` with date + feature slug. Single-file shape is preserved. |

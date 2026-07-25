@@ -25,7 +25,7 @@ Practical effect: when this skill would normally set up a worktree before Step 1
 
 ### Rule 3 — Implementer discipline delegates to `mattpocock-skills:tdd`
 
-Same delegation, exemption, and failure handling as [`subagent-driven-development`](../subagent-driven-development/SKILL.md) Rule 4 — follow that rule verbatim. Both entry points route to the same implementation discipline.
+Same delegation, exemption, and failure handling as [`subagent-driven-development`](../subagent-driven-development/SKILL.md) Rule 3 — follow that rule verbatim. Both entry points route to the same implementation discipline.
 
 ### Rule 4 — Commit after each completed task
 

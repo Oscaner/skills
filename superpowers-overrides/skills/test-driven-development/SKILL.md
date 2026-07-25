@@ -12,8 +12,7 @@ description: MUST invoke BEFORE superpowers:test-driven-development as your FIRS
 The entire TDD implementation loop is delegated to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md). This **replaces** the upstream `superpowers:test-driven-development` flow. Do not re-implement any TDD rules here — seams, red-green-refactor, anti-patterns, and mocking constraints all live in that skill.
 
 1. After seams are confirmed (Rule 2), invoke `mattpocock-skills:tdd` via the Skill tool and follow its loop.
-2. If it fails to load (Skill tool error — i.e. plugin is installed but skill fails to load), **surface the exact error to the user** and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `tdd`'s rules from memory.
-3. If `mattpocock-skills` is not installed, the override degrades silently to upstream `test-driven-development` behavior — this is an explicit design decision, not a bug.
+2. On load failure, follow [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 3.
 
 ### Rule 2 — Confirm seams before delegating (blocking)
 
@@ -30,8 +29,7 @@ Before invoking `mattpocock-skills:tdd`, confirm the test boundaries (seams) wit
 - "Seams are obvious, I'll skip the confirmation and just start."
 - "User said 'do TDD', that's implicit approval for my seam choices."
 - "I'll run mattpocock-skills:tdd first and confirm seams inside it."
-- "mattpocock-skills:tdd failed to load, I'll just do TDD from memory."
-- "I'll paraphrase the red-green-refactor rules since I know them."
+- "tdd failed to load / I know the rules — I'll proceed from memory."
 - "User hasn't replied but probably agrees, I'll proceed."
 
 ## Common Rationalizations

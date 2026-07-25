@@ -13,24 +13,21 @@ During the upstream UNDERSTAND step of the Response Pattern (READ→UNDERSTAND�
 
 1. Delegate to [`mattpocock-skills:grilling`](https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md) to clarify each unclear item — do not guess or infer intent
 2. All unclear items must reach shared understanding before proceeding to VERIFY. Do not proceed with partial clarity.
-3. If grilling fails to load (Skill tool error — plugin installed but skill fails to load), **surface the exact error to the user** and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `grilling`'s rules from memory.
-4. If `mattpocock-skills` is not installed, degrade silently: proceed without grilling, relying on upstream UNDERSTAND step behavior.
+3. On load failure, follow [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 3.
 
 ### Rule 2 — IMPLEMENT step: delegate each fix to `mattpocock-skills:tdd`
 
 During the upstream IMPLEMENT step: for each fix item, delegate implementation to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md) and follow its red-green loop:
 
 1. Invoke `mattpocock-skills:tdd` via the Skill tool for each fix, one at a time
-2. **Exemption**: purely mechanical changes with no behavioral impact are exempt from TDD — this includes: pure renames, whitespace/formatting adjustments, comment-only changes. Judgment criterion: if the fix cannot change any observable behavior, it is exempt.
-3. If tdd fails to load (Skill tool error — plugin installed but skill fails to load), **surface the exact error to the user** and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `tdd`'s rules from memory.
-4. If `mattpocock-skills` is not installed, degrade silently: proceed without tdd delegation, relying on upstream IMPLEMENT step behavior.
+2. **Exemption**: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt. When in doubt, use TDD.
+3. On load failure, follow [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 3.
 
 <!-- Additional rules for the receiving-code-review skill go below as Rule 3, Rule 4, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
-- "I think I understand what they mean, I'll just implement it."
-- "The feedback is probably asking for X, I'll proceed."
+- "I understand / can probably infer what they mean — I'll implement without clarifying."
 - "Asking for clarification will slow things down."
 - "This fix is small, TDD is overkill."
 - "I'll rename this variable and also refactor the logic — it's all one fix."

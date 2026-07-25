@@ -25,12 +25,7 @@ Practical effect: when this skill would normally set up a worktree before Step 1
 
 ### Rule 3 — Implementer discipline delegates to `mattpocock-skills:tdd`
 
-Upstream Step 2 (Execute Tasks) says "Follow each step exactly" but is unopinionated on **how** to implement each step. Fill that gap by delegating to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md) — same delegation `subagent-driven-development` Rule 4 already applies, kept consistent so both entry points route to the same implementation discipline.
-
-1. Before writing production code for a task, invoke `mattpocock-skills:tdd` via the Skill tool and follow its red-green loop.
-2. Confirm seams with the user before writing tests (the skill's own precondition).
-3. Exemption: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt. When in doubt, use TDD. (Same wording as `subagent-driven-development` Rule 4.3.)
-4. If `mattpocock-skills:tdd` fails to load (Skill tool error — i.e. plugin is installed but skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `tdd`'s rules from memory. If `mattpocock-skills` is not installed, degrade silently — proceed with the task's steps without the red-green loop.
+Same delegation, exemption, and failure handling as [`subagent-driven-development`](../subagent-driven-development/SKILL.md) Rule 4 — follow that rule verbatim. Both entry points route to the same implementation discipline.
 
 ### Rule 4 — Commit after each completed task
 

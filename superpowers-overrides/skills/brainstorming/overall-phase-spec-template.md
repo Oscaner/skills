@@ -1,6 +1,6 @@
 # Overall + Phase Spec Organization Template
 
-Reference doc for `brainstorming-overrides` Rule 3. Read this when producing an overall or phase spec — do not re-implement these conventions from memory.
+Reference doc for `brainstorming` Rule 3. Read this when producing an overall or phase spec — do not re-implement these conventions from memory.
 
 ---
 

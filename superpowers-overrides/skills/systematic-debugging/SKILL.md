@@ -23,7 +23,6 @@ The full diagnosis loop is delegated to [`mattpocock-skills:diagnosing-bugs`](ht
 
 1. Invoke it via the Skill tool the moment diagnosis begins.
 2. On load failure, follow [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 3.
-3. `diagnosing-bugs` is a hard dependency. If `mattpocock-skills` is not installed, the entire override degrades silently to upstream `systematic-debugging` behavior — this is an explicit design decision, not a bug.
 
 <!-- Additional rules for the systematic-debugging skill go below as Rule 3, Rule 4, … -->
 

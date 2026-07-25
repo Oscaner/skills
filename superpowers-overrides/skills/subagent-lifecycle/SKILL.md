@@ -24,12 +24,20 @@ Every task, every review pass, every round within a stage = a **fresh** subagent
 
 <!-- Additional lifecycle rules go below as Rule 3, Rule 4, … -->
 
+### Rule 3 — Plugin-failure protocol for delegated skills
+
+When invoking any `mattpocock-skills:*` skill via the Skill tool, handle load failures consistently:
+
+- **Skill tool error** (plugin is installed but the skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase the skill's rules from memory.
+- **Plugin not installed** (`mattpocock-skills` absent): degrade silently to the upstream default behavior for that step. Do not surface an error; do not paraphrase the missing skill's rules.
+
+Every skill that delegates to `mattpocock-skills:*` cites this rule instead of re-stating it.
+
 ## Red Flags — STOP if you catch yourself thinking any of these
 
 - "Let me ask the same reviewer to also check X."
 - "Pass 2 builds on pass 1's mindset, reuse the same agent."
-- "Both passes are review passes so they're independent — dispatch concurrent."
-- "Pass 2 reviews the fix from Pass 1, but I'll still dispatch concurrent since the categories differ."
+- "These passes are in different categories / are both review passes, so dispatch concurrent." (Both excuses confuse category-independence with data-independence.)
 
 ## Common Rationalizations
 

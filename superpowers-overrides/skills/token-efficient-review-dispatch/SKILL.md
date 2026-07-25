@@ -42,16 +42,16 @@ Reviewer prompts MUST specify: no summaries, no positive commentary, no meta-obs
 
 An empty `findings` array means approve. No prose narration around the JSON.
 
-## Why these three, together
-
-D1 alone under-uses passes 2..N (they run when they shouldn't). D2 alone wastes global-coherence signal (final pass misses cross-section inconsistencies). D3 alone gives clean output but doesn't cut token count. Together they scale review cost to defect density: a clean pass 1 pays for one pass, a messy pass 1 pays for three deltas and one full-doc sweep. No override should paraphrase these — they reference this skill.
-
 ## Red Flags — STOP if you catch yourself thinking any of these
 
 - "D1 says skip 2 & 3 but Pass 1 didn't list what it scanned — I'll accept the empty findings anyway."
 - "The final pass is delta too, since Pass N-1 already covered globals."
 - "I'll let the reviewer narrate its reasoning around the findings JSON — more context is better."
 - "One axis found nothing so the other axis should skip too — save tokens."
+- "Pass 1 was clean but I'll run 2 & 3 anyway to be safe."
+- "Skipping a pass to save time."
+- "Pass 2 needs to reread the whole doc / plan / diff."
+- "The reviewer's positive commentary is signal, keep it."
 
 ## Common Rationalizations
 
@@ -60,3 +60,4 @@ D1 alone under-uses passes 2..N (they run when they shouldn't). D2 alone wastes 
 | "Enumerating scanned items is bureaucratic" | Without it, zero-findings is indistinguishable from a lazy reviewer that read three sections and stopped. |
 | "Delta review misses cross-section bugs" | That's what the final full-doc pass is for. Middle passes are supposed to fire locally. |
 | "Findings-only feels curt to the reviewer" | The reviewer is a subagent, not a colleague. Positive commentary costs tokens and dilutes the findings signal. |
+| "Passes 2 and 3 always find something" | If they do, D1 correctly runs them. If they don't, they cost 4N tokens for nothing. |

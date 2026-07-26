@@ -4,3 +4,6 @@
 [submodule "superpowers"]
 	path = superpowers
 	url = https://github.com/obra/superpowers.git
+[submodule "impeccable"]
+	path = impeccable
+	url = https://github.com/pbakaus/impeccable.git

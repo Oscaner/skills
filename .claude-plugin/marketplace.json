@@ -29,6 +29,26 @@
       ]
     },
     {
+      "name": "impeccable",
+      "description": "Design fluency for frontend development. 1 skill with 23 commands (/impeccable polish, /impeccable audit, /impeccable critique, etc.) and curated anti-pattern detection.",
+      "version": "4.0.2",
+      "author": {
+        "name": "Paul Bakaus",
+        "email": "paul@paulbakaus.com"
+      },
+      "source": "./impeccable/plugin",
+      "category": "design",
+      "homepage": "https://impeccable.style",
+      "tags": [
+        "design",
+        "frontend",
+        "ui",
+        "ux",
+        "skills",
+        "commands"
+      ]
+    },
+    {
       "name": "superpowers",
       "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques",
       "version": "6.2.0",

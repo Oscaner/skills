@@ -16,9 +16,12 @@ Write the override self-check rules into the current project's CLAUDE.md.
 
 2. Check if the override block already exists (search for `superpowers-overrides self-check`). If found, report "already initialized" and stop.
 
-3. Write the block to the file:
-   - If the file is **empty or does not exist**: write the block as the entire file content.
-   - If the file **already has content**: prepend the block at the very top, followed by a blank line, then the existing content. Do NOT append to the end.
+3. Find the right insertion point — read the existing file first:
+   - If the file **does not exist**: stop. Tell the user to run `/init` first to generate the project's `CLAUDE.md`, then re-run `/superpowers-overrides:init` afterwards.
+   - If there is a section about Skills, AI behavior, Claude, or agent configuration (e.g. `## Skills`, `## AI`, `## Claude`, `## Agent`, `## Workflow`): insert the block inside or immediately after that section.
+   - Otherwise: insert immediately after the top-level title line (e.g. `# CLAUDE.md`), before the first section heading. Do NOT insert before the title.
+
+4. Write the following block at the chosen location (blank line separators around it):
 
 ```markdown
 ## superpowers-overrides self-check
@@ -52,4 +55,4 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 | Any other `superpowers:<slug>` where `superpowers-overrides:<slug>` exists | `Skill(superpowers-overrides:<slug>)` |
 ```
 
-4. Report the path where the block was written and instruct the user to run `/reload-mcp` or restart the session for the rules to take effect.
+4. Report the exact path and section where the block was written. Remind the user that **CLAUDE.md rules take effect on the next session** — start a new Claude Code session (or run `/reload-plugins`) for the self-check to activate.

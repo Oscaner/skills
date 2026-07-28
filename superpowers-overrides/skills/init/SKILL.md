@@ -9,9 +9,10 @@ Write the override self-check rules into the current project's CLAUDE.md.
 
 ## Steps
 
-1. Locate the project CLAUDE.md:
-   - Prefer `.claude/CLAUDE.md` if `.claude/` directory exists
-   - Otherwise use `CLAUDE.md` at project root (create if missing)
+1. Locate the target CLAUDE.md:
+   - **Default**: use `CLAUDE.md` at the project root (the current working directory). Create if missing.
+   - **Only if the user explicitly says** "add to global" or "add to system prompt" or "~/.claude/CLAUDE.md": use `~/.claude/CLAUDE.md` instead.
+   - Do NOT use `.claude/CLAUDE.md` — project-root `CLAUDE.md` is the standard location.
 
 2. Check if the override block already exists (search for `superpowers-overrides self-check`). If found, report "already initialized" and stop.
 

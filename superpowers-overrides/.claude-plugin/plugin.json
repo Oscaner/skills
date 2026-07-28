@@ -1,6 +1,7 @@
 {
   "name": "superpowers-overrides",
   "skills": [
+    "./skills/init",
     "./skills/brainstorming",
     "./skills/writing-plans",
     "./skills/subagent-driven-development",

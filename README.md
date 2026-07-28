@@ -71,6 +71,38 @@ Every level's manifest must reference the level below it. A SKILL.md that exists
 
 **Upgrading from global config:** If you previously added the override trigger table to `~/.claude/CLAUDE.md`, you can remove it and run `init` in each project instead.
 
+## Usage
+
+### First-time setup per project
+
+After installing the plugin, run this once in each project where you want overrides to be enforced:
+
+```
+/superpowers-overrides:init
+```
+
+This prepends the override trigger table to the project's `CLAUDE.md`. From then on, `/superpowers:brainstorming` (and all other `superpowers:*` skills) will automatically invoke their override counterpart first.
+
+To add to the global `~/.claude/CLAUDE.md` instead (applies to all projects):
+
+```
+/superpowers-overrides:init    # then tell the AI: "add to global"
+```
+
+### Using overrides
+
+Once `init` has run, use the upstream skill commands as normal — overrides fire automatically:
+
+| You type | What runs first | Then |
+|---|---|---|
+| `/superpowers:brainstorming` | `superpowers-overrides:brainstorming` | delegates clarifying questions to `mattpocock-skills:grilling` |
+| `/superpowers:writing-plans` | `superpowers-overrides:writing-plans` | section-by-section writes, subagent review passes |
+| `/superpowers:subagent-driven-development` | `superpowers-overrides:subagent-driven-development` | complexity-based review rounds |
+| `/superpowers:systematic-debugging` | `superpowers-overrides:systematic-debugging` | gates fix proposals behind diagnostic evidence |
+| `/superpowers:test-driven-development` | `superpowers-overrides:test-driven-development` | seams confirmation before delegating to `mattpocock-skills:tdd` |
+
+All other `superpowers:*` skills follow the same pattern — see the override table above.
+
 ### How the override system works
 
 While hooks now handle auto-triggering, understanding the three-part mechanism is useful for contributors:

@@ -36,8 +36,8 @@ The [superpowers-overrides](superpowers-overrides/) plugin's whole purpose is to
 Precedence is enforced by **three coordinated mechanisms**, not one:
 
 1. The four-trigger `description` above (SKILL.md side) — documents every entry point verbatim; serves as fallback when hooks are unavailable.
-2. **Plugin-bundled hooks** in `superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands; `PostToolUse` (matcher `Skill`) intercepts skill handoffs. Handlers in `superpowers-overrides/bin/` inject `additionalContext` or prepend a banner to `updatedToolOutput`, forcing the override as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
-3. An **anti-pattern naming block** injected by the hooks' `additionalContext`, calling out two failure modes side-by-side: (a) upstream `SKILL.md` bodies routinely open with numbered "You MUST" checklists — reading such a checklist and starting to execute it *is* the failure mode this rule guards against; (b) the **handoff-continuation rationalization** — when the upstream body arrives as the tool result of a prior `Skill(...)` call, the model treats it as a natural next step of a flow it's already inside and skips the override. Without naming both, the model either treats two "MUST"s as equally authoritative, or excuses the whole self-check as "not applicable inside an ongoing flow".
+2. **Plugin-bundled hooks** in `superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `superpowers-overrides/bin/override-prompt-expansion.sh` injects `additionalContext`, reinforcing the override as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
+3. **Project-level CLAUDE.md self-check** — written by `superpowers-overrides:init`. Run `/superpowers-overrides:init` once per project to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
 
 ## Cross-cutting skills
 
@@ -74,13 +74,13 @@ Use `chore:` (not `feat:`) — the change is a pointer bump, not a feature.
 git submodule update --init
 ```
 
-**Add a new override skill to `superpowers-overrides`** — four things must change together in one commit, or the skill is invisible or won't auto-trigger:
+**Add a new override skill to `superpowers-overrides`** — three things must change together in one commit, or the skill is invisible or won't auto-trigger:
 1. Create `superpowers-overrides/skills/<name>/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
 2. Add `"./skills/<name>"` to `skills[]` in [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json).
-3. Add a `case` branch to both `superpowers-overrides/bin/override-prompt-expansion.sh` and `superpowers-overrides/bin/override-skill-handoff.sh` — pattern `superpowers:<slug>)  override="<slug>" ;;`.
+3. Add a `case` branch to `superpowers-overrides/bin/override-prompt-expansion.sh` — pattern `superpowers:<slug>)  override="superpowers-overrides:<slug>" ;;`.
 4. Add a row to the override table in [README.md](README.md) for discoverability.
 
-Missing step 1 or 2 → the skill is invisible to Claude Code. Missing step 3 → hooks won't intercept the trigger, override won't auto-fire.
+Missing step 1 or 2 → the skill is invisible to Claude Code. Missing step 3 → hooks won't inject the `additionalContext` reminder on slash-command trigger.
 
 ## Verifying a change didn't break the marketplace
 
@@ -123,11 +123,10 @@ print("OK — no orphan skill dirs")
 
 All three pass → the marketplace still resolves.
 
-**4. Hooks and bin scripts exist and are executable** (run after adding or renaming hook handlers):
+**4. Hooks and bin script exist and are executable** (run after adding or renaming hook handlers):
 ```bash
 [ -f superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
 [ -x superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
-[ -x superpowers-overrides/bin/override-skill-handoff.sh ] && echo "OK — skill-handoff executable"
 ```
 
 ## Git conventions for this repo

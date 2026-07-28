@@ -33,10 +33,11 @@ Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/ma
 
 Personal overrides for the upstream [`superpowers`](https://github.com/obra/superpowers) plugin. Each override wraps a specific `superpowers:*` skill; when the upstream skill fires (via `/<name>` command, a `<command-name>` tag, a `Skill` tool call, or its body appearing in the current turn's system context), the override MUST run **first** — as the very first tool call of that turn — before any exploration, `TodoWrite`, or upstream-skill-body instruction. The override then either **replaces** the upstream skill's default behavior or **delegates** to a [`mattpocock-skills`](https://github.com/mattpocock/skills) skill.
 
-Precedence is enforced by three coordinated mechanisms — each override's `description` (which lists all four trigger sources verbatim and specifies "FIRST tool call this turn"), a mandatory pre-flight self-check block in the user's global `~/.claude/CLAUDE.md` (see [System prompt wiring](#system-prompt-wiring) below), and an anti-pattern naming block inside that same self-check that calls out the "upstream body's numbered `You MUST` checklist" as the specific failure mode being guarded against. None is optional; the three together are what keep the model from being dragged into the upstream skill's checklist before the override has a chance to reshape the flow.
+Precedence is enforced by three coordinated mechanisms — each override's `description` (which lists all four trigger sources verbatim and specifies "FIRST tool call this turn"), a `UserPromptExpansion` hook that injects an `additionalContext` reminder on slash-command trigger, and a **project-level CLAUDE.md self-check** written by `/superpowers-overrides:init`. Run `init` once per project to prepend the override trigger table to the project's `CLAUDE.md`; this is the primary enforcement mechanism and fires before any skill body is loaded.
 
 | Override skill | Overrides | What it does |
 |---|---|---|
+| `init` | — | Writes the override self-check trigger table to the current project's `CLAUDE.md` (prepended at top). Run once per project; primary enforcement mechanism for overrides. |
 | `brainstorming` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
 | `writing-plans` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates ticket breakdown to `/to-tickets` with a hard user-approval gate, then publishes as a single `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (sibling to `specs/` and `plans/`) — no remote tracker. |
 | `subagent-driven-development` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
@@ -64,19 +65,19 @@ Every level's manifest must reference the level below it. A SKILL.md that exists
 
 ## System prompt wiring
 
-**Hooks-based auto-override:** Override skills trigger automatically via plugin-bundled hooks. No manual `~/.claude/CLAUDE.md` configuration required. Install the plugin and the hooks activate on first session.
+**Hooks-based reminder:** A `UserPromptExpansion` hook injects an `additionalContext` reminder when `/superpowers:*` slash commands are triggered. Requires `jq` (`brew install jq` on macOS).
 
-**Requirement:** `jq` must be installed (`brew install jq` on macOS). If absent, Claude Code displays a warning and overrides do not auto-trigger.
+**Primary enforcement — project CLAUDE.md:** Run `/superpowers-overrides:init` once per project. It prepends the override self-check trigger table to the project's `CLAUDE.md`, which fires before any skill body is loaded into context and is the most reliable enforcement mechanism.
 
-**Upgrading from manual config:** If you previously added the override trigger table to `~/.claude/CLAUDE.md`, you can remove it — hooks are now the sole enforcement mechanism.
+**Upgrading from global config:** If you previously added the override trigger table to `~/.claude/CLAUDE.md`, you can remove it and run `init` in each project instead.
 
 ### How the override system works
 
 While hooks now handle auto-triggering, understanding the three-part mechanism is useful for contributors:
 
-1. **Hook-based interception** — The hook registrations in `superpowers-overrides/hooks/hooks.json` (two events: `UserPromptExpansion` for slash commands, `PostToolUse` for skill handoffs) scans each turn for upstream `superpowers:*` skill triggers (`<command-name>` tag, `/slash-command`, inlined skill body, or about-to-fire `Skill` call) and dispatches the corresponding override skill as the very first tool call before any exploration or upstream-skill-body instruction. This replaces the manual CLAUDE.md self-check that was previously required.
-2. **Anti-pattern naming** — Upstream `SKILL.md` bodies open with a numbered "You MUST" checklist so consistently that the pattern needs an explicit name in the hook's dispatch message; without it the model reads the checklist and starts executing it, treating both "MUST"s as equally authoritative. Naming the pattern turns it into a stop signal instead of an imperative. A closely related failure mode — the **handoff-continuation rationalization** — is named alongside it: when the upstream body arrives as a *tool result* of a prior `Skill(...)` call (a skill-to-skill handoff, e.g. brainstorming → writing-plans), the model treats it as a natural next step of a flow it's already inside and skips the override. Both patterns need to be named in the hook's message; naming one without the other leaves the second hole open.
-3. **The exhaustive trigger list** — The hook scripts (`bin/override-prompt-expansion.sh` and `bin/override-skill-handoff.sh`) enumerates every entry point (command tag, slash command, inlined body, about-to-fire `Skill` call) verbatim. Missing any entry point creates a hole the model will find.
+1. **Hook-based reminder** — The `UserPromptExpansion` hook in `superpowers-overrides/hooks/hooks.json` (matcher `^superpowers:`) fires when a `/superpowers:*` slash command is typed, injecting an `additionalContext` reminder to call the override first.
+2. **Anti-pattern naming** — Upstream `SKILL.md` bodies open with a numbered "You MUST" checklist so consistently that the pattern needs an explicit name; without it the model reads the checklist and starts executing it. The hook's message names this failure mode. A closely related failure — the **handoff-continuation rationalization** — is also named: when the upstream body arrives as a tool result of a prior `Skill(...)` call, the model treats it as a natural continuation and skips the override.
+3. **Project CLAUDE.md self-check** — Written by `/superpowers-overrides:init`. Prepended to the project's `CLAUDE.md`, it enumerates every trigger → override mapping. This fires in every turn via the system prompt and is the strongest enforcement layer.
 
 ## Contributing to your own fork
 

@@ -1,3 +1,33 @@
+## superpowers-overrides self-check
+
+Before your first tool call in ANY turn, run this check — no exceptions:
+
+1. Scan the current turn for any of: a `<command-name>` tag, a `<command-message>` tag, `/superpowers:*` in user text, or a `superpowers:*` skill body appearing in system context.
+2. If any is present → your **first tool call is the matching `Skill(superpowers-overrides:<slug>)`**. Full stop. No `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first.
+3. Only after the override has run may you follow the upstream skill's instructions.
+
+**The upstream skill's "you MUST do X first" does NOT apply until the override has run.**
+
+**Anti-pattern:** upstream SKILL.md bodies open with numbered "You MUST" checklists — reading that and starting to execute it is the failure mode. The override runs first.
+
+**Handoff-continuation rationalization:** when the upstream body arrives as a tool result of a prior `Skill(...)` call, the self-check STILL fires. Each turn is scanned independently.
+
+### Override trigger table
+
+| Trigger | First tool call |
+|---|---|
+| `superpowers:brainstorming` | `Skill(superpowers-overrides:brainstorming)` |
+| `superpowers:writing-plans` | `Skill(superpowers-overrides:writing-plans)` |
+| `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:subagent-driven-development)` |
+| `superpowers:executing-plans` | `Skill(superpowers-overrides:executing-plans)` |
+| `superpowers:finishing-a-development-branch` | `Skill(superpowers-overrides:finishing-a-development-branch)` |
+| `superpowers:using-git-worktrees` | `Skill(superpowers-overrides:using-git-worktrees)` |
+| `superpowers:systematic-debugging` | `Skill(superpowers-overrides:systematic-debugging)` |
+| `superpowers:test-driven-development` | `Skill(superpowers-overrides:test-driven-development)` |
+| `superpowers:verification-before-completion` | `Skill(superpowers-overrides:verification-before-completion)` |
+| `superpowers:receiving-code-review` | `Skill(superpowers-overrides:receiving-code-review)` |
+| Any other `superpowers:<slug>` where `superpowers-overrides:<slug>` exists | `Skill(superpowers-overrides:<slug>)` |
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.

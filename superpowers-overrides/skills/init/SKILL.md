@@ -16,7 +16,9 @@ Write the override self-check rules into the current project's CLAUDE.md.
 
 2. Check if the override block already exists (search for `superpowers-overrides self-check`). If found, report "already initialized" and stop.
 
-3. Append the following block to the file (add a blank line separator before it if the file is non-empty):
+3. Write the block to the file:
+   - If the file is **empty or does not exist**: write the block as the entire file content.
+   - If the file **already has content**: prepend the block at the very top, followed by a blank line, then the existing content. Do NOT append to the end.
 
 ```markdown
 ## superpowers-overrides self-check

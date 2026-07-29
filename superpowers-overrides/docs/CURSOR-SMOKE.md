@@ -11,15 +11,17 @@ Reference: [cross-harness-overrides.md](./cross-harness-overrides.md)
 - [ ] `/superpowers:brainstorming` or attached upstream → agent Read `brainstorming-overrides` first (check tool trace)
 - [ ] Claude Code: `/superpowers:brainstorming` → `Skill(superpowers-overrides:brainstorming)` first (no regression)
 
-After editing canonical override skills, rebuild:
+After editing canonical override skills, rebuild and validate:
 
 ```bash
 ./superpowers-overrides/build/emit-overrides.sh
-./superpowers-overrides/tests/validate-overrides-build.sh
+npm run validate
 ```
 
-Optional — enable emit freshness check in CI after first generated commit:
+## Post-release smoke
 
-```bash
-ENABLE_EMIT_FRESH_CHECK=1 ./superpowers-overrides/tests/validate-overrides-build.sh
-```
+After merging a Version PR:
+
+- [ ] Git tag exists: `superpowers-overrides@{version}` (e.g. `superpowers-overrides@6.2.0-overrides.1`)
+- [ ] `.claude-plugin/marketplace.json` `superpowers-overrides.version` matches the tag version
+- [ ] `superpowers-overrides/CHANGELOG.md` entry exists for that version

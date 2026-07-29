@@ -1,6 +1,8 @@
 # oscaner-skills
 
-Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Packages skills as installable plugins — no build step, no runtime, just Markdown + JSON that Claude Code discovers via its plugin manifest chain.
+[![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
+
+Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Packages skills as installable plugins — Markdown + JSON manifests, plus npm/changesets for `superpowers-overrides` releases and CI validation.
 
 ## Installation
 
@@ -113,14 +115,27 @@ Cursor uses a flat skill namespace — override skills with the same name as ups
 
 If override skills do not appear after install, see the discovery fallback in [superpowers-overrides/docs/cross-harness-overrides.md](superpowers-overrides/docs/cross-harness-overrides.md).
 
-After editing canonical override skills under `superpowers-overrides/skills/`, rebuild:
+After editing canonical override skills under `superpowers-overrides/skills/`, rebuild and validate locally (same checks CI runs on PRs):
 
 ```bash
 ./superpowers-overrides/build/emit-overrides.sh
-./superpowers-overrides/tests/validate-overrides-build.sh
+npm run validate
 ```
 
+See [.changeset/README.md](.changeset/README.md) for release/changeset workflow.
+
 Manual smoke checklist: [superpowers-overrides/docs/CURSOR-SMOKE.md](superpowers-overrides/docs/CURSOR-SMOKE.md).
+
+## Releasing
+
+Only `superpowers-overrides` is versioned from this marketplace. Tags: `superpowers-overrides@{superpowers-version}-overrides.{N}` (e.g. `superpowers-overrides@6.2.0-overrides.1`).
+
+| Change | What to do |
+|--------|------------|
+| Overrides skill / manifest / build | `npx changeset` → PR → merge → merge Version PR → tag |
+| Superpowers submodule bump | Update pointer + `marketplace.json` superpowers version → PR → merge (align changeset auto-created) |
+
+Changelog: [superpowers-overrides/CHANGELOG.md](superpowers-overrides/CHANGELOG.md) (created on first release).
 
 ### How the override system works
 

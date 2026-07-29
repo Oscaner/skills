@@ -34,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-This is a **Claude Code plugin marketplace** (not a runtime codebase). It packages personal skills as installable plugins consumed by Claude Code itself. There is no build step, no test suite, no package manager — content is plain Markdown + JSON, discovered by Claude Code via the marketplace/plugin manifest chain.
+This is a **Claude Code plugin marketplace** (not a runtime codebase). It packages personal skills as installable plugins consumed by Claude Code itself. Content is primarily Markdown + JSON discovered via the marketplace/plugin manifest chain. `superpowers-overrides` also has a small npm workspace (changesets + CI scripts) and a Cursor emit build step — see [Releasing](#releasing) and [Verifying](#verifying-a-change-didnt-break-the-marketplace).
 
 ## Plugins registered here
 
@@ -164,6 +164,23 @@ All three pass → the marketplace still resolves.
 ./superpowers-overrides/build/emit-overrides.sh
 ./superpowers-overrides/tests/validate-overrides-build.sh
 ```
+
+**6–9. Full local CI (recommended):**
+```bash
+npm run validate
+```
+
+This runs steps 1–5 above plus emit freshness (`ENABLE_EMIT_FRESH_CHECK=1`), overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.sh](scripts/ci-validate.sh); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+## Releasing
+
+Only **`superpowers-overrides`** is versioned from this repo. Tags look like `superpowers-overrides@6.2.0-overrides.1` — the prerelease suffix tracks which vendored `superpowers` version the overrides target.
+
+**Overrides-only changes:** run `npx changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
+
+**Superpowers submodule bump:** update the submodule pointer and `marketplace.json` `plugins[superpowers].version`. No manual changeset required for align-only releases — [release.yml](.github/workflows/release.yml) prep creates an align changeset automatically when the prerelease base drifts.
+
+**Version scheme:** `{superpowers-semver}-overrides.{N}`. See [.changeset/README.md](.changeset/README.md).
 
 ## Git conventions for this repo
 

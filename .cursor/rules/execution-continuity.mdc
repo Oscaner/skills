@@ -1,0 +1,25 @@
+---
+description: Serial execution of approved plans/tickets without per-step confirmation prompts
+alwaysApply: true
+---
+
+# Execution continuity (plans / tickets / SDD)
+
+Applies when the user has **approved** a spec/plan/tickets and chosen execution (Subagent-Driven, Inline Execution, "按 tickets 执行", "ok 继续实现", "开始 T0", etc.).
+
+## Do
+
+1. Run all tickets/tasks in the approved plan **serially** without stopping to ask "要继续吗？" after each one.
+2. After each ticket: 1–3 sentence progress note, then **immediately** start the next ticket.
+3. Pause only when: a step fails and cannot be fixed; spec/plan conflict; a genuine user decision is required (not inferable from the plan).
+
+## Do not
+
+- Ask "要做 Tn+1 吗？" at every ticket boundary.
+- Treat a single "ok" on the execution mode as permission for **one** ticket only — it authorizes the **full** approved run unless the user narrows scope.
+
+## End of run
+
+Summarize: tickets completed, blockers (if any), commit SHAs (if any). Do not batch-ask "要继续吗？" mid-run.
+
+Does **not** apply to brainstorming, design review, or ad-hoc Q&A without an approved execution plan.

@@ -171,3 +171,11 @@ All three pass → the marketplace still resolves.
 - No attribution / co-author / AI-generation trailers in commit messages.
 - No `git worktree` — forbidden by user policy.
 - `git add -f` on a gitignored file requires explicit user confirmation.
+
+### When to commit
+
+**Default:** do not commit unless the user explicitly asks (`commit`, `Tn commit`, `提交`, `push`).
+
+**SDD / ticket execution:** when the user approved plan/tickets and started execution, and the plan/ticket specifies a commit for that ticket — commit after the ticket without asking again. If the plan omits commits, finish uncommitted and ask once at end-of-run.
+
+**Execution continuity:** during approved plan runs, do not stop after each ticket to ask "要继续吗？" — see `.cursor/rules/execution-continuity.mdc` (Cursor) or mirror this section in Claude Code sessions.

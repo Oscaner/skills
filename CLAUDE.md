@@ -159,6 +159,12 @@ All three pass → the marketplace still resolves.
 [ -x superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
 ```
 
+**5. Overrides build validates:**
+```bash
+./superpowers-overrides/build/emit-overrides.sh
+./superpowers-overrides/tests/validate-overrides-build.sh
+```
+
 ## Git conventions for this repo
 
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`).

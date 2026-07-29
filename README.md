@@ -103,6 +103,25 @@ Once `init` has run, use the upstream skill commands as normal — overrides fir
 
 All other `superpowers:*` skills follow the same pattern — see the override table above.
 
+### Using overrides in Cursor
+
+Cursor uses a flat skill namespace — override skills with the same name as upstream `superpowers` skills are deduplicated and hidden. This marketplace emits uniquely named Cursor skills (`brainstorming-overrides`, etc.) under `superpowers-overrides/.cursor/skills/`.
+
+1. Install both `superpowers` and `superpowers-overrides` from this marketplace.
+2. Run init in Cursor (tell the agent "for Cursor" if needed) — writes `.cursor/rules/superpowers-overrides.mdc`.
+3. Use `/brainstorming-overrides` (etc.) directly, or invoke upstream commands and rely on rules intercept.
+
+If override skills do not appear after install, see the discovery fallback in [superpowers-overrides/docs/cross-harness-overrides.md](superpowers-overrides/docs/cross-harness-overrides.md).
+
+After editing canonical override skills under `superpowers-overrides/skills/`, rebuild:
+
+```bash
+./superpowers-overrides/build/emit-overrides.sh
+./superpowers-overrides/tests/validate-overrides-build.sh
+```
+
+Manual smoke checklist: [superpowers-overrides/docs/CURSOR-SMOKE.md](superpowers-overrides/docs/CURSOR-SMOKE.md).
+
 ### How the override system works
 
 While hooks now handle auto-triggering, understanding the three-part mechanism is useful for contributors:

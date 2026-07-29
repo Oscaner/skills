@@ -1,9 +1,6 @@
 {
   "name": "@oscaner/skills",
   "private": true,
-  "workspaces": [
-    "superpowers-overrides"
-  ],
   "scripts": {
     "changeset": "changeset",
     "validate": "./scripts/ci-validate.sh",
@@ -11,8 +8,8 @@
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.30.0",
-    "@changesets/read": "^0.6.0"
+    "@changesets/cli": "^2.31.1",
+    "@changesets/read": "^0.6.7"
   },
-  "packageManager": "npm@10.9.4"
+  "packageManager": "pnpm@11.18.0"
 }

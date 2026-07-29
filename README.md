@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
 
-Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Packages skills as installable plugins — Markdown + JSON manifests, plus npm/changesets for `superpowers-overrides` releases and CI validation.
+Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Packages skills as installable plugins — Markdown + JSON manifests, plus pnpm/changesets for `superpowers-overrides` releases and CI validation.
 
 ## Installation
 
@@ -120,7 +120,7 @@ After editing canonical override skills under `superpowers-overrides/skills/`, r
 
 ```bash
 ./superpowers-overrides/build/emit-overrides.sh
-npm run validate
+pnpm run validate
 ```
 
 See [.changeset/README.md](.changeset/README.md) for release/changeset workflow.
@@ -133,7 +133,7 @@ Only `superpowers-overrides` is versioned from this marketplace. Tags: `superpow
 
 | Change | What to do |
 |--------|------------|
-| Overrides skill / manifest / build | `npx changeset` → PR → merge → merge Version PR → tag |
+| Overrides skill / manifest / build | `pnpm changeset` → PR → merge → merge Version PR → tag |
 | Superpowers submodule bump | Update pointer + `marketplace.json` superpowers version → PR → merge (align changeset auto-created) |
 
 Changelog: [superpowers-overrides/CHANGELOG.md](superpowers-overrides/CHANGELOG.md) (created on first release).

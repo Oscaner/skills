@@ -4,7 +4,7 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 ## When to add a changeset
 
-Run `npx changeset` when you change overrides skill behavior, manifest wiring, or build output under `superpowers-overrides/`.
+Run `pnpm changeset` when you change overrides skill behavior, manifest wiring, or build output under `superpowers-overrides/`.
 
 You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the release workflow auto-creates an align changeset on merge to `main`.
 

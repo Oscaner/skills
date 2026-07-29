@@ -15,7 +15,7 @@ After editing canonical override skills, rebuild and validate:
 
 ```bash
 ./superpowers-overrides/build/emit-overrides.sh
-npm run validate
+pnpm run validate
 ```
 
 ## Post-release smoke

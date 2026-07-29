@@ -1,0 +1,11 @@
+{
+  "name": "superpowers-overrides",
+  "version": "6.2.0-overrides.1",
+  "private": true,
+  "description": "Personal overrides for the superpowers plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oscaner/skills",
+    "directory": "superpowers-overrides"
+  }
+}

@@ -34,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-This is a **Claude Code plugin marketplace** (not a runtime codebase). It packages personal skills as installable plugins consumed by Claude Code itself. There is no build step, no test suite, no package manager — content is plain Markdown + JSON, discovered by Claude Code via the marketplace/plugin manifest chain.
+This is a **Claude Code plugin marketplace** (not a runtime codebase). It packages personal skills as installable plugins consumed by Claude Code itself. Content is primarily Markdown + JSON discovered via the marketplace/plugin manifest chain. `superpowers-overrides` also has a small pnpm workspace (changesets + CI scripts) and a Cursor emit build step — see [Releasing](#releasing) and [Verifying](#verifying-a-change-didnt-break-the-marketplace).
 
 ## Plugins registered here
 
@@ -47,7 +47,7 @@ Two plugins are declared in [.claude-plugin/marketplace.json](.claude-plugin/mar
 
 Three levels of manifest wire everything together; changing a skill's location means updating one file at each level:
 
-1. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — top-level `oscaner-skills` marketplace. Registers plugins by relative `source` path. Adding a new plugin means adding an entry to `plugins[]` here.
+1. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — top-level `oscaner` marketplace. Registers plugins by relative `source` path. Adding a new plugin means adding an entry to `plugins[]` here.
 2. `<plugin>/.claude-plugin/plugin.json` — e.g. [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path. Adding a new skill to a plugin means adding its directory to `skills[]` here.
 3. `<plugin>/skills/<skill-name>/SKILL.md` — the skill itself. Frontmatter (`name`, `description`) is what Claude Code loads into system context on every user turn. For override skills, `description` documents the trigger intent. Write it as `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn — trigger on ANY of: (1) /<slash-command> (bare or superpowers:-prefixed); (2) <command-name> tag; (3) upstream skill body in system context; (4) natural-language <verbs>`. The hard precedence is enforced by the plugin-bundled hooks (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides) below) — but the SKILL.md description's "FIRST tool call this turn" phrasing remains load-bearing as a fallback signal.
 
@@ -90,7 +90,7 @@ The three share the same date + feature slug so a spec, its plan, and its ticket
 
 ## Common operations
 
-There is no `npm test` here — content is plain Markdown + JSON, discovered by Claude Code at runtime. The genuine day-to-day operations are:
+There is no `pnpm test` here — content is plain Markdown + JSON, discovered by Claude Code at runtime. The genuine day-to-day operations are:
 
 **Bump the vendored `mattpocock-skills` submodule to its latest tip:**
 ```bash
@@ -118,7 +118,7 @@ Since there is no test suite, "does the manifest chain still resolve" IS the tes
 
 **1. `plugin.json` parses AND every entry maps to an existing directory:**
 ```bash
-cd /path/to/oscaner-skills
+cd /path/to/skills
 python3 -c '
 import json, os
 p = "superpowers-overrides/.claude-plugin/plugin.json"
@@ -164,6 +164,23 @@ All three pass → the marketplace still resolves.
 ./superpowers-overrides/build/emit-overrides.sh
 ./superpowers-overrides/tests/validate-overrides-build.sh
 ```
+
+**6–9. Full local CI (recommended):**
+```bash
+pnpm run validate
+```
+
+This runs steps 1–5 above plus emit freshness (`ENABLE_EMIT_FRESH_CHECK=1`), overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.sh](scripts/ci-validate.sh); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+## Releasing
+
+Only **`superpowers-overrides`** is versioned from this repo. Tags look like `superpowers-overrides@6.2.0-overrides.1` — the prerelease suffix tracks which vendored `superpowers` version the overrides target.
+
+**Overrides-only changes:** run `pnpm changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
+
+**Superpowers submodule bump:** update the submodule pointer and `marketplace.json` `plugins[superpowers].version`. No manual changeset required for align-only releases — [release.yml](.github/workflows/release.yml) prep creates an align changeset automatically when the prerelease base drifts.
+
+**Version scheme:** `{superpowers-semver}-overrides.{N}`. See [.changeset/README.md](.changeset/README.md).
 
 ## Git conventions for this repo
 

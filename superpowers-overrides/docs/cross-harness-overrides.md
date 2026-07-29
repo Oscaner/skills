@@ -20,6 +20,8 @@ Override plugins that reuse upstream skill names work in Claude Code but break i
 3. **Build emit** — generate `.cursor/skills/{slug}-overrides/` with rewritten frontmatter.
 4. **Enforcement** — slash `/brainstorming-overrides` + project rules from `init` (`render-rules.sh` → `.cursor/rules/superpowers-overrides.mdc`).
 
+**CI / release emit:** PR CI runs `ENABLE_EMIT_FRESH_CHECK=1` (regenerates `.cursor/skills/` and fails if committed output is stale). The release workflow runs `emit-overrides.sh` again during version bump. Contributors should run emit locally before opening a PR.
+
 Claude Code path is unchanged: hooks + project `CLAUDE.md` self-check + `Skill(superpowers-overrides:<slug>)`.
 
 ## Manifest schema

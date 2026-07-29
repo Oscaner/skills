@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare align changeset if superpowers bumped
+        run: node scripts/create-align-changeset.mjs
+      - uses: changesets/action@v1
+        with:
+          version: node scripts/version-packages.mjs
+          publish: pnpm exec changeset tag
+          commit: "chore: release superpowers-overrides"
+          title: "chore: release superpowers-overrides"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

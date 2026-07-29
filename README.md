@@ -1,4 +1,4 @@
-# oscaner-skills
+# oscaner
 
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
 
@@ -10,16 +10,17 @@ Add this marketplace to Claude Code, then install any plugin from it:
 
 ```bash
 # In Claude Code
-/plugin marketplace add oscaner/oscaner-skills
-/plugin install mattpocock-skills@oscaner-skills
-/plugin install superpowers-overrides@oscaner-skills
+/plugin marketplace add oscaner/skills
+/plugin install mattpocock-skills@oscaner
+/plugin install superpowers@oscaner
+/plugin install superpowers-overrides@oscaner
 ```
 
 Cloning this repo directly (rather than installing via the marketplace) requires initializing the `mattpocock-skills` submodule:
 
 ```bash
-git clone https://github.com/oscaner/oscaner-skills.git
-cd oscaner-skills
+git clone https://github.com/Oscaner/skills.git
+cd skills
 git submodule update --init
 ```
 

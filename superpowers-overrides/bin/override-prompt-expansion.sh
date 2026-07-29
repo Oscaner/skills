@@ -2,7 +2,7 @@
 set -eu
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "[oscaner-skills] WARNING: jq is required for superpowers override hooks. Install jq to enforce overrides automatically." >&2
+  echo "[oscaner] WARNING: jq is required for superpowers override hooks. Install jq to enforce overrides automatically." >&2
   exit 1
 fi
 
@@ -24,5 +24,5 @@ case "$command_name" in
 esac
 
 jq -n --arg override "$override" '{
-  additionalContext: ("MANDATORY OVERRIDE — oscaner-skills hook intercepted this turn.\nYour FIRST tool call MUST be Skill(\"" + $override + "\").\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")
+  additionalContext: ("MANDATORY OVERRIDE — oscaner hook intercepted this turn.\nYour FIRST tool call MUST be Skill(\"" + $override + "\").\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")
 }'

@@ -1,10 +1,10 @@
 # Cursor Manual Smoke Checklist
 
-Run after installing `superpowers` + `superpowers-overrides` from the oscaner-skills marketplace.
+Run after installing `superpowers` + `superpowers-overrides` from the `oscaner` marketplace.
 
 Reference: [cross-harness-overrides.md](./cross-harness-overrides.md)
 
-- [ ] Install `superpowers` + `superpowers-overrides` from oscaner-skills marketplace
+- [ ] Install `superpowers` + `superpowers-overrides` from `oscaner` marketplace
 - [ ] Agent skills list shows `brainstorming` AND `brainstorming-overrides` (if not: apply discovery fallback from portable spec)
 - [ ] `/brainstorming-overrides` attaches override skill
 - [ ] Run init → `.cursor/rules/superpowers-overrides.mdc` exists

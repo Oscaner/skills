@@ -47,7 +47,7 @@ Two plugins are declared in [.claude-plugin/marketplace.json](.claude-plugin/mar
 
 Three levels of manifest wire everything together; changing a skill's location means updating one file at each level:
 
-1. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — top-level `oscaner-skills` marketplace. Registers plugins by relative `source` path. Adding a new plugin means adding an entry to `plugins[]` here.
+1. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — top-level `oscaner` marketplace. Registers plugins by relative `source` path. Adding a new plugin means adding an entry to `plugins[]` here.
 2. `<plugin>/.claude-plugin/plugin.json` — e.g. [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path. Adding a new skill to a plugin means adding its directory to `skills[]` here.
 3. `<plugin>/skills/<skill-name>/SKILL.md` — the skill itself. Frontmatter (`name`, `description`) is what Claude Code loads into system context on every user turn. For override skills, `description` documents the trigger intent. Write it as `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn — trigger on ANY of: (1) /<slash-command> (bare or superpowers:-prefixed); (2) <command-name> tag; (3) upstream skill body in system context; (4) natural-language <verbs>`. The hard precedence is enforced by the plugin-bundled hooks (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides) below) — but the SKILL.md description's "FIRST tool call this turn" phrasing remains load-bearing as a fallback signal.
 
@@ -118,7 +118,7 @@ Since there is no test suite, "does the manifest chain still resolve" IS the tes
 
 **1. `plugin.json` parses AND every entry maps to an existing directory:**
 ```bash
-cd /path/to/oscaner-skills
+cd /path/to/skills
 python3 -c '
 import json, os
 p = "superpowers-overrides/.claude-plugin/plugin.json"

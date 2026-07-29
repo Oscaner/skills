@@ -1,5 +1,5 @@
 {
-  "name": "oscaner-skills",
+  "name": "@oscaner/skills",
   "private": true,
   "workspaces": [
     "superpowers-overrides"

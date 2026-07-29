@@ -1,0 +1,26 @@
+---
+description: superpowers-overrides self-check for Cursor — intercept upstream superpowers skills
+alwaysApply: true
+---
+
+## superpowers-overrides self-check (Cursor)
+
+Before your first tool call in ANY turn:
+
+1. Scan for: `/superpowers:*`, bare `/<slug>` matching an upstream override target, `<command-name>` tags, or upstream superpowers skill body in context.
+2. If matched → **first action is Read** the override skill whose `name` in `<agent_skills>` matches `{slug}-overrides` (e.g. `brainstorming-overrides` for `/brainstorming`).
+3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
+4. Only after the override body is loaded may you follow upstream instructions.
+
+### Override trigger table
+
+| `/brainstorming`, `/superpowers:brainstorming`, upstream `brainstorming` body | Read `brainstorming-overrides` via agent_skills fullPath |
+| `/writing-plans`, `/superpowers:writing-plans`, upstream `writing-plans` body | Read `writing-plans-overrides` via agent_skills fullPath |
+| `/subagent-driven-development`, `/superpowers:subagent-driven-development`, upstream `subagent-driven-development` body | Read `subagent-driven-development-overrides` via agent_skills fullPath |
+| `/executing-plans`, `/superpowers:executing-plans`, upstream `executing-plans` body | Read `executing-plans-overrides` via agent_skills fullPath |
+| `/finishing-a-development-branch`, `/superpowers:finishing-a-development-branch`, upstream `finishing-a-development-branch` body | Read `finishing-a-development-branch-overrides` via agent_skills fullPath |
+| `/using-git-worktrees`, `/superpowers:using-git-worktrees`, upstream `using-git-worktrees` body | Read `using-git-worktrees-overrides` via agent_skills fullPath |
+| `/systematic-debugging`, `/superpowers:systematic-debugging`, upstream `systematic-debugging` body | Read `systematic-debugging-overrides` via agent_skills fullPath |
+| `/test-driven-development`, `/superpowers:test-driven-development`, upstream `test-driven-development` body | Read `test-driven-development-overrides` via agent_skills fullPath |
+| `/verification-before-completion`, `/superpowers:verification-before-completion`, upstream `verification-before-completion` body | Read `verification-before-completion-overrides` via agent_skills fullPath |
+| `/receiving-code-review`, `/superpowers:receiving-code-review`, upstream `receiving-code-review` body | Read `receiving-code-review-overrides` via agent_skills fullPath |

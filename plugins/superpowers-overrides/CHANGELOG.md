@@ -1,5 +1,12 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.6
+
+### Patch Changes
+
+- Revert spor-bs opaque naming spike; restore `spor-brainstorming`. Cursor marketplace dedup is not fixable by id or description changes — use project `.cursor/skills/` copy.
+
+
 ## 6.2.0-overrides.5
 
 ### Patch Changes

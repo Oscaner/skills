@@ -45,11 +45,13 @@ Two plugins are declared in [.claude-plugin/marketplace.json](.claude-plugin/mar
 
 ## Marketplace → plugin → skill chain
 
-Three levels of manifest wire everything together; changing a skill's location means updating one file at each level:
+The canonical registry is [marketplace/source.json](marketplace/source.json). Emit generates harness-specific manifests:
 
-1. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — top-level `oscaner` marketplace. Registers plugins by relative `source` path. Adding a new plugin means adding an entry to `plugins[]` here.
-2. `<plugin>/.claude-plugin/plugin.json` — e.g. [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path. Adding a new skill to a plugin means adding its directory to `skills[]` here.
-3. `<plugin>/skills/<skill-name>/SKILL.md` — the skill itself. Frontmatter (`name`, `description`) is what Claude Code loads into system context on every user turn. For override skills, `description` documents the trigger intent. Write it as `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn — trigger on ANY of: (1) /<slash-command> (bare or superpowers:-prefixed); (2) <command-name> tag; (3) upstream skill body in system context; (4) natural-language <verbs>`. The hard precedence is enforced by the plugin-bundled hooks (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides) below) — but the SKILL.md description's "FIRST tool call this turn" phrasing remains load-bearing as a fallback signal.
+1. [marketplace/source.json](marketplace/source.json) — **only human-edited** plugin registry. After changes run `pnpm run emit && pnpm run validate`.
+2. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — generated Claude Code marketplace.
+3. [.cursor-plugin/marketplace.json](.cursor-plugin/marketplace.json) + [cursor-plugins/](cursor-plugins/) — generated Cursor Team Marketplace wrappers.
+4. `<plugin>/.claude-plugin/plugin.json` — e.g. [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path.
+5. `<plugin>/skills/<skill-name>/SKILL.md` — the skill itself.
 
 If a skill's SKILL.md exists on disk but is not listed in the plugin's `skills[]`, Claude Code will not find it. This is the most common breakage.
 
@@ -114,7 +116,7 @@ Missing step 1 or 2 → the skill is invisible to Claude Code. Missing step 3 �
 
 ## Verifying a change didn't break the marketplace
 
-Since there is no test suite, "does the manifest chain still resolve" IS the test. Run these three assertions after any structural edit (adding / removing / renaming a skill, editing `plugin.json`, editing `marketplace.json`):
+Since there is no test suite, "does the manifest chain still resolve" IS the test. Run `pnpm run validate` after any structural edit (skills, plugin.json, marketplace source, emit output).
 
 **1. `plugin.json` parses AND every entry maps to an existing directory:**
 ```bash
@@ -178,7 +180,7 @@ Only **`superpowers-overrides`** is versioned from this repo. Tags look like `su
 
 **Overrides-only changes:** run `pnpm changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
 
-**Superpowers submodule bump:** update the submodule pointer and `marketplace.json` `plugins[superpowers].version`. No manual changeset required for align-only releases — [release.yml](.github/workflows/release.yml) prep creates an align changeset automatically when the prerelease base drifts.
+**Superpowers submodule bump:** update the submodule pointer and `marketplace/source.json` `plugins[superpowers].version`, then `pnpm run emit`. No manual changeset required for align-only releases — [release.yml](.github/workflows/release.yml) prep creates an align changeset automatically when the prerelease base drifts.
 
 **Version scheme:** `{superpowers-semver}-overrides.{N}`. See [.changeset/README.md](.changeset/README.md).
 

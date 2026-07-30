@@ -59,12 +59,15 @@ Both cross-cutting skills exist to prevent copy-paste drift across overrides: `s
 ## Repository layout
 
 ```
-.claude-plugin/marketplace.json    # top-level marketplace manifest
+marketplace/source.json              # canonical registry (human-edited)
+.claude-plugin/marketplace.json    # generated — Claude Code marketplace
+.cursor-plugin/marketplace.json    # generated — Cursor Team Marketplace
+cursor-plugins/                    # generated Cursor plugin wrappers
 <plugin>/.claude-plugin/plugin.json  # per-plugin manifest (lists skills)
 <plugin>/skills/<skill>/SKILL.md   # the skill itself (frontmatter + rules)
 ```
 
-Every level's manifest must reference the level below it. A SKILL.md that exists on disk but isn't listed in its plugin's `skills[]` is invisible to Claude Code.
+Edit [marketplace/source.json](marketplace/source.json), then `pnpm run emit && pnpm run validate`. Do not hand-edit generated marketplace files.
 
 ## System prompt wiring
 
@@ -110,16 +113,27 @@ All other `superpowers:*` skills follow the same pattern — see the override ta
 
 Cursor uses a flat skill namespace — override skills with the same name as upstream `superpowers` skills are deduplicated and hidden. This marketplace emits uniquely named Cursor skills (`brainstorming-overrides`, etc.) under `superpowers-overrides/.cursor/skills/`.
 
-1. Install both `superpowers` and `superpowers-overrides` from this marketplace.
-2. Run init in Cursor (tell the agent "for Cursor" if needed) — writes `.cursor/rules/superpowers-overrides.mdc`.
-3. Use `/brainstorming-overrides` (etc.) directly, or invoke upstream commands and rely on rules intercept.
+#### Team Marketplace (recommended)
+
+1. **Admin:** Cursor Dashboard → Settings → Plugins → Team Marketplaces → Import → `https://github.com/Oscaner/skills`
+2. **Member:** Customize → Plugins → install `superpowers`, `superpowers-overrides`, and any other plugins you need
+3. **Per project:** run init (writes `.cursor/rules/superpowers-overrides.mdc`)
+4. **Verify:** Agent skills list shows `brainstorming` and `brainstorming-overrides`; `/brainstorming-overrides` works
+
+#### Claude Code marketplace (same repo)
+
+```bash
+/plugin marketplace add oscaner/skills
+/plugin install superpowers@oscaner
+/plugin install superpowers-overrides@oscaner
+```
 
 If override skills do not appear after install, see the discovery fallback in [superpowers-overrides/docs/cross-harness-overrides.md](superpowers-overrides/docs/cross-harness-overrides.md).
 
-After editing canonical override skills under `superpowers-overrides/skills/`, rebuild and validate locally (same checks CI runs on PRs):
+After editing canonical override skills or [marketplace/source.json](marketplace/source.json):
 
 ```bash
-./superpowers-overrides/build/emit-overrides.sh
+pnpm run emit
 pnpm run validate
 ```
 
@@ -134,7 +148,7 @@ Only `superpowers-overrides` is versioned from this marketplace. Tags: `superpow
 | Change | What to do |
 |--------|------------|
 | Overrides skill / manifest / build | `pnpm changeset` → PR → merge → merge Version PR → tag |
-| Superpowers submodule bump | Update pointer + `marketplace.json` superpowers version → PR → merge (align changeset auto-created) |
+| Superpowers submodule bump | Update pointer + `marketplace/source.json` superpowers version → `pnpm run emit` → PR → merge (align changeset auto-created) |
 
 Changelog: [superpowers-overrides/CHANGELOG.md](superpowers-overrides/CHANGELOG.md) (created on first release).
 

@@ -1,6 +1,6 @@
 {
   "name": "superpowers-overrides",
-  "version": "6.2.0-overrides.2",
+  "version": "6.2.0-overrides.3",
   "skills": [
     "./skills/init",
     "./skills/brainstorming-overrides",

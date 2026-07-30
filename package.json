@@ -4,13 +4,18 @@
   "scripts": {
     "changeset": "changeset",
     "validate": "./scripts/ci-validate.sh",
-    "version": "node scripts/version-packages.mjs"
+    "version": "node scripts/version-packages.mjs",
+    "emit:overrides": "./plugins/superpowers-overrides/build/emit-overrides.sh",
+    "emit:marketplace": "node scripts/emit-marketplace.mjs",
+    "emit": "pnpm run emit:overrides && pnpm run emit:marketplace",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.31.1",
     "@changesets/config": "^3.1.4",
-    "@changesets/read": "^0.6.7"
+    "@changesets/read": "^0.6.7",
+    "husky": "^9.1.7"
   },
   "packageManager": "pnpm@11.18.0"
 }

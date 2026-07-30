@@ -40,22 +40,24 @@ This is a **Claude Code plugin marketplace** (not a runtime codebase). It packag
 
 Two plugins are declared in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json):
 
-1. **`mattpocock-skills`** — vendored as a **git submodule** at [mattpocock-skills/](mattpocock-skills/) tracking `https://github.com/mattpocock/skills.git` (see [.gitmodules](.gitmodules)). Do **not** edit files under this directory in-tree; changes belong upstream. To update the pinned revision, run `git submodule update --remote mattpocock-skills` and commit the pointer bump with a `chore:` message. Fresh clones need `git submodule update --init` before Claude Code can resolve `mattpocock-skills:*` skill references (e.g. `grilling`, `tdd`, `to-tickets`) that the overrides delegate to.
+1. **`mattpocock-skills`** — vendored as a **git submodule** at [plugins/mattpocock-skills/](plugins/mattpocock-skills/) tracking `https://github.com/mattpocock/skills.git` (see [.gitmodules](.gitmodules)). Do **not** edit files under this directory in-tree; changes belong upstream. To update the pinned revision, run `git submodule update --remote mattpocock-skills` and commit the pointer bump with a `chore:` message. Fresh clones need `git submodule update --init` before Claude Code can resolve `mattpocock-skills:*` skill references (e.g. `grilling`, `tdd`, `to-tickets`) that the overrides delegate to.
 2. **`superpowers-overrides`** — first-party, edited in-tree. This is where new override skills go.
 
 ## Marketplace → plugin → skill chain
 
-Three levels of manifest wire everything together; changing a skill's location means updating one file at each level:
+The canonical registry is [marketplace/source.json](marketplace/source.json). Emit generates harness-specific manifests:
 
-1. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — top-level `oscaner` marketplace. Registers plugins by relative `source` path. Adding a new plugin means adding an entry to `plugins[]` here.
-2. `<plugin>/.claude-plugin/plugin.json` — e.g. [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path. Adding a new skill to a plugin means adding its directory to `skills[]` here.
-3. `<plugin>/skills/<skill-name>/SKILL.md` — the skill itself. Frontmatter (`name`, `description`) is what Claude Code loads into system context on every user turn. For override skills, `description` documents the trigger intent. Write it as `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn — trigger on ANY of: (1) /<slash-command> (bare or superpowers:-prefixed); (2) <command-name> tag; (3) upstream skill body in system context; (4) natural-language <verbs>`. The hard precedence is enforced by the plugin-bundled hooks (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides) below) — but the SKILL.md description's "FIRST tool call this turn" phrasing remains load-bearing as a fallback signal.
+1. [marketplace/source.json](marketplace/source.json) — **only human-edited** plugin registry. After changes run `pnpm run emit && pnpm run validate`.
+2. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — generated Claude Code marketplace.
+3. [.cursor-plugin/marketplace.json](.cursor-plugin/marketplace.json) + [cursor-plugins/](cursor-plugins/) — generated Cursor Team Marketplace wrappers.
+4. `plugins/<plugin>/.claude-plugin/plugin.json` — e.g. [plugins/superpowers-overrides/.claude-plugin/plugin.json](plugins/superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path.
+5. `plugins/<plugin>/skills/<skill-name>/SKILL.md` — the skill itself.
 
 If a skill's SKILL.md exists on disk but is not listed in the plugin's `skills[]`, Claude Code will not find it. This is the most common breakage.
 
 ## The overrides pattern (superpowers-overrides)
 
-The [superpowers-overrides](superpowers-overrides/) plugin's whole purpose is to **override** upstream `superpowers:*` skills without forking them. Each override skill follows a fixed shape:
+The [superpowers-overrides](plugins/superpowers-overrides/) plugin's whole purpose is to **override** upstream `superpowers:*` skills without forking them. Each override skill follows a fixed shape:
 
 - Frontmatter `description` starts with `MUST invoke BEFORE superpowers:<target> as your FIRST tool call this turn` and enumerates all four trigger sources explicitly: (1) `/<slash-command>` in both bare and `superpowers:`-prefixed forms; (2) `<command-name>` tags naming either form; (3) the upstream skill body appearing in the current turn's system context; (4) natural-language scenarios (verbs, synonyms). The "FIRST tool call" phrasing and the exhaustive trigger list are load-bearing — softer wording ("typically before target fires", "when target is active") lets the model follow the upstream skill body's own first-move checklist and skip the override.
 - Body opens with `## Rules`, numbered `Rule 1`, `Rule 2`, … Each rule takes one of three shapes: (a) **replaces** upstream behavior (self-review → fresh-subagent passes); (b) **delegates** to a `mattpocock-skills:*` skill (grilling, tdd, to-tickets); (c) **partial-delegate** — wraps the upstream skill's Steps 0–K unchanged and overrides Step K+1 locally (writing-plans Rule 3 is the canonical example: Steps 1–4 of `/to-tickets` are delegated verbatim, Step 5 "publish" is redirected to a single local `docs/superpowers/tickets/<date>-<feature>-tickets.md`, keeping the upstream single-file shape). Partial-delegate rules must state up front which steps are delegated and which are overridden — the split is what prevents Step K+1 from silently reverting to upstream defaults.
@@ -66,15 +68,15 @@ The [superpowers-overrides](superpowers-overrides/) plugin's whole purpose is to
 Precedence is enforced by **three coordinated mechanisms**, not one:
 
 1. The four-trigger `description` above (SKILL.md side) — documents every entry point verbatim; serves as fallback when hooks are unavailable.
-2. **Plugin-bundled hooks** in `superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `superpowers-overrides/bin/override-prompt-expansion.sh` injects `additionalContext`, reinforcing the override as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
+2. **Plugin-bundled hooks** in `plugins/superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `plugins/superpowers-overrides/bin/override-prompt-expansion.sh` injects `additionalContext`, reinforcing the override as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
 3. **Project-level CLAUDE.md self-check** — written by `superpowers-overrides:init`. Run `/superpowers-overrides:init` once per project to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
 
 ## Cross-cutting skills
 
 Two skills in `superpowers-overrides` are **not** overrides — they hold invariants that multiple overrides cite instead of duplicating. Neither has a slash command; they are invoked by reference from `Rule N` lines inside the overrides. Editing them propagates to every override that cites them.
 
-- [superpowers-overrides/skills/subagent-lifecycle/SKILL.md](superpowers-overrides/skills/subagent-lifecycle/SKILL.md) — **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review override's review-pass rule. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
-- [superpowers-overrides/skills/token-efficient-review-dispatch/SKILL.md](superpowers-overrides/skills/token-efficient-review-dispatch/SKILL.md) — **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review override's review-pass rule. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
+- [plugins/superpowers-overrides/skills/subagent-lifecycle/SKILL.md](plugins/superpowers-overrides/skills/subagent-lifecycle/SKILL.md) — **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review override's review-pass rule. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
+- [plugins/superpowers-overrides/skills/token-efficient-review-dispatch/SKILL.md](plugins/superpowers-overrides/skills/token-efficient-review-dispatch/SKILL.md) — **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review override's review-pass rule. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
 
 When editing any override that dispatches review passes, cite these skills rather than paraphrasing them — paraphrases drift; citations don't. When adding a new invariant that applies to multiple overrides, add a new rule to the appropriate cross-cutting skill and cite it, don't inline it across the overrides.
 
@@ -95,7 +97,7 @@ There is no `pnpm test` here — content is plain Markdown + JSON, discovered by
 **Bump the vendored `mattpocock-skills` submodule to its latest tip:**
 ```bash
 git submodule update --remote mattpocock-skills
-git commit mattpocock-skills -m "chore: bump mattpocock-skills submodule"
+git commit plugins/mattpocock-skills -m "chore: bump mattpocock-skills submodule"
 ```
 Use `chore:` (not `feat:`) — the change is a pointer bump, not a feature.
 
@@ -105,23 +107,23 @@ git submodule update --init
 ```
 
 **Add a new override skill to `superpowers-overrides`** — three things must change together in one commit, or the skill is invisible or won't auto-trigger:
-1. Create `superpowers-overrides/skills/<name>/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
-2. Add `"./skills/<name>"` to `skills[]` in [superpowers-overrides/.claude-plugin/plugin.json](superpowers-overrides/.claude-plugin/plugin.json).
-3. Add a `case` branch to `superpowers-overrides/bin/override-prompt-expansion.sh` — pattern `superpowers:<slug>)  override="superpowers-overrides:<slug>" ;;`.
+1. Create `plugins/superpowers-overrides/skills/<name>/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
+2. Add `"./skills/<name>"` to `skills[]` in [plugins/superpowers-overrides/.claude-plugin/plugin.json](plugins/superpowers-overrides/.claude-plugin/plugin.json).
+3. Add a `case` branch to `plugins/superpowers-overrides/bin/override-prompt-expansion.sh` — pattern `superpowers:<slug>)  override="superpowers-overrides:<slug>" ;;`.
 4. Add a row to the override table in [README.md](README.md) for discoverability.
 
 Missing step 1 or 2 → the skill is invisible to Claude Code. Missing step 3 → hooks won't inject the `additionalContext` reminder on slash-command trigger.
 
 ## Verifying a change didn't break the marketplace
 
-Since there is no test suite, "does the manifest chain still resolve" IS the test. Run these three assertions after any structural edit (adding / removing / renaming a skill, editing `plugin.json`, editing `marketplace.json`):
+Since there is no test suite, "does the manifest chain still resolve" IS the test. Run `pnpm run validate` after any structural edit (skills, plugin.json, marketplace source, emit output).
 
 **1. `plugin.json` parses AND every entry maps to an existing directory:**
 ```bash
 cd /path/to/skills
 python3 -c '
 import json, os
-p = "superpowers-overrides/.claude-plugin/plugin.json"
+p = "plugins/superpowers-overrides/.claude-plugin/plugin.json"
 d = json.load(open(p))
 skills = d["skills"]
 missing = [s for s in skills if not os.path.isdir(os.path.join("superpowers-overrides", s.lstrip("./")))]
@@ -133,7 +135,7 @@ print(f"OK — {len(skills)} skills, all resolve")
 
 **2. Every skill dir has a `SKILL.md`:**
 ```bash
-for d in superpowers-overrides/skills/*/; do
+for d in plugins/superpowers-overrides/skills/*/; do
   [ -f "$d/SKILL.md" ] || { echo "MISSING: $d/SKILL.md"; exit 1; }
 done && echo "OK — all skill dirs have SKILL.md"
 ```
@@ -142,9 +144,9 @@ done && echo "OK — all skill dirs have SKILL.md"
 ```bash
 python3 -c '
 import json, os
-d = json.load(open("superpowers-overrides/.claude-plugin/plugin.json"))
+d = json.load(open("plugins/superpowers-overrides/.claude-plugin/plugin.json"))
 declared = {s.lstrip("./") for s in d["skills"]}
-on_disk  = {f"skills/{n}" for n in os.listdir("superpowers-overrides/skills")}
+on_disk  = {f"skills/{n}" for n in os.listdir("plugins/superpowers-overrides/skills")}
 orphans  = on_disk - declared
 assert not orphans, f"skill dirs not in plugin.json skills[]: {orphans}"
 print("OK — no orphan skill dirs")
@@ -155,14 +157,14 @@ All three pass → the marketplace still resolves.
 
 **4. Hooks and bin script exist and are executable** (run after adding or renaming hook handlers):
 ```bash
-[ -f superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
-[ -x superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
+[ -f plugins/superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
+[ -x plugins/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
 ```
 
 **5. Overrides build validates:**
 ```bash
-./superpowers-overrides/build/emit-overrides.sh
-./superpowers-overrides/tests/validate-overrides-build.sh
+./plugins/superpowers-overrides/build/emit-overrides.sh
+./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 
 **6–9. Full local CI (recommended):**
@@ -178,7 +180,7 @@ Only **`superpowers-overrides`** is versioned from this repo. Tags look like `su
 
 **Overrides-only changes:** run `pnpm changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
 
-**Superpowers submodule bump:** update the submodule pointer and `marketplace.json` `plugins[superpowers].version`. No manual changeset required for align-only releases — [release.yml](.github/workflows/release.yml) prep creates an align changeset automatically when the prerelease base drifts.
+**Superpowers submodule bump:** update the submodule pointer and `marketplace/source.json` `plugins[superpowers].version`, then `pnpm run emit`. No manual changeset required for align-only releases — [release.yml](.github/workflows/release.yml) prep creates an align changeset automatically when the prerelease base drifts.
 
 **Version scheme:** `{superpowers-semver}-overrides.{N}`. See [.changeset/README.md](.changeset/README.md).
 

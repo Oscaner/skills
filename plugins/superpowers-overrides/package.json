@@ -6,6 +6,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Oscaner/skills",
-    "directory": "superpowers-overrides"
+    "directory": "plugins/superpowers-overrides"
   }
 }

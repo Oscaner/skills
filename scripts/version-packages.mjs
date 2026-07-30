@@ -6,8 +6,8 @@ import changelogFunctions from "@changesets/changelog-github";
 import { computeNextVersion, parseOverridesVersion } from "./lib/version-utils.mjs";
 
 const root = process.cwd();
-const pkgPath = join(root, "superpowers-overrides/package.json");
-const changelogPath = join(root, "superpowers-overrides/CHANGELOG.md");
+const pkgPath = join(root, "plugins/superpowers-overrides/package.json");
+const changelogPath = join(root, "plugins/superpowers-overrides/CHANGELOG.md");
 const changesetDir = join(root, ".changeset");
 
 const changesets = await getChangesets(root);
@@ -17,13 +17,13 @@ if (changesets.length === 0) {
 }
 
 const marketplace = JSON.parse(
-  readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8"),
+  readFileSync(join(root, "marketplace/source.json"), "utf8"),
 );
 const superpowersVersion = marketplace.plugins.find(
   (p) => p.name === "superpowers",
 )?.version;
 if (!superpowersVersion) {
-  throw new Error("superpowers plugin not found in marketplace.json");
+  throw new Error("superpowers plugin not found in marketplace/source.json");
 }
 
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
@@ -77,10 +77,6 @@ for (const cs of changesets) {
 }
 
 execSync("node scripts/sync-manifest-versions.mjs", {
-  stdio: "inherit",
-  cwd: root,
-});
-execSync("./superpowers-overrides/build/emit-overrides.sh", {
   stdio: "inherit",
   cwd: root,
 });

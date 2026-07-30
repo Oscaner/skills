@@ -1,9 +1,9 @@
 [submodule "mattpocock-skills"]
-	path = mattpocock-skills
+	path = plugins/mattpocock-skills
 	url = https://github.com/mattpocock/skills.git
 [submodule "superpowers"]
-	path = superpowers
+	path = plugins/superpowers
 	url = https://github.com/obra/superpowers.git
 [submodule "impeccable"]
-	path = impeccable
+	path = plugins/impeccable
 	url = https://github.com/pbakaus/impeccable.git

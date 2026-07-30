@@ -18,11 +18,17 @@ export function resolveVersion(root, plugin) {
   const truthPaths = {
     "mattpocock-skills": join(
       root,
-      "mattpocock-skills/.claude-plugin/plugin.json",
+      "plugins/mattpocock-skills/.claude-plugin/plugin.json",
     ),
-    impeccable: join(root, "impeccable/plugin/.claude-plugin/plugin.json"),
-    superpowers: join(root, "superpowers/.claude-plugin/plugin.json"),
-    "superpowers-overrides": join(root, "superpowers-overrides/package.json"),
+    impeccable: join(
+      root,
+      "plugins/impeccable/plugin/.claude-plugin/plugin.json",
+    ),
+    superpowers: join(root, "plugins/superpowers/.claude-plugin/plugin.json"),
+    "superpowers-overrides": join(
+      root,
+      "plugins/superpowers-overrides/package.json",
+    ),
   };
 
   const truthPath = truthPaths[plugin.name];

@@ -16,7 +16,7 @@ if (!superpowersVersion) {
 }
 
 const pkg = JSON.parse(
-  readFileSync(join(root, "superpowers-overrides/package.json"), "utf8"),
+  readFileSync(join(root, "plugins/superpowers-overrides/package.json"), "utf8"),
 );
 const parsed = parseOverridesVersion(pkg.version);
 const base = parsed?.base ?? "";

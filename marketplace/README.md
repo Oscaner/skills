@@ -37,10 +37,10 @@ Files include `"_generated": "scripts/emit-marketplace.mjs — do not edit"`. CI
 
 | Plugin | Canonical version source |
 |--------|-------------------------|
-| `superpowers-overrides` | `superpowers-overrides/package.json` |
-| `superpowers` | `superpowers/.claude-plugin/plugin.json` |
-| `impeccable` | `impeccable/plugin/.claude-plugin/plugin.json` |
-| `mattpocock-skills` | `mattpocock-skills/.claude-plugin/plugin.json` (optional in source) |
+| `superpowers-overrides` | `plugins/superpowers-overrides/package.json` |
+| `superpowers` | `plugins/superpowers/.claude-plugin/plugin.json` |
+| `impeccable` | `plugins/impeccable/plugin/.claude-plugin/plugin.json` |
+| `mattpocock-skills` | `plugins/mattpocock-skills/.claude-plugin/plugin.json` (optional in source) |
 
 Emit fails when `source.json` versions disagree with truth sources.
 

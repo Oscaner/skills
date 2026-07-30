@@ -7,7 +7,7 @@
     "name": "Paul Bakaus",
     "email": "paul@paulbakaus.com"
   },
-  "skills": "../../impeccable/plugin/skills",
+  "skills": "../../plugins/impeccable/plugin/skills",
   "version": "4.0.2",
   "homepage": "https://impeccable.style"
 }

@@ -4,13 +4,13 @@ import { execSync } from "node:child_process";
 
 const root = process.cwd();
 const pkg = JSON.parse(
-  readFileSync(join(root, "superpowers-overrides/package.json"), "utf8"),
+  readFileSync(join(root, "plugins/superpowers-overrides/package.json"), "utf8"),
 );
 const version = pkg.version;
 
 const pluginPath = join(
   root,
-  "superpowers-overrides/.claude-plugin/plugin.json",
+  "plugins/superpowers-overrides/.claude-plugin/plugin.json",
 );
 const plugin = JSON.parse(readFileSync(pluginPath, "utf8"));
 plugin.version = version;

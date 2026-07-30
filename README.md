@@ -28,11 +28,11 @@ To bump the pinned `mattpocock-skills` revision later: `git submodule update --r
 
 ## Plugins
 
-### [mattpocock-skills](mattpocock-skills/)
+### [mattpocock-skills](plugins/mattpocock-skills/)
 
 Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/mattpocock/skills). Not edited in-tree — this marketplace just re-exports it so the overrides below can delegate to `mattpocock-skills:grilling`, `mattpocock-skills:tdd`, and `mattpocock-skills:to-tickets`.
 
-### [superpowers-overrides](superpowers-overrides/)
+### [superpowers-overrides](plugins/superpowers-overrides/)
 
 Personal overrides for the upstream [`superpowers`](https://github.com/obra/superpowers) plugin. Each override wraps a specific `superpowers:*` skill; when the upstream skill fires (via `/<name>` command, a `<command-name>` tag, a `Skill` tool call, or its body appearing in the current turn's system context), the override MUST run **first** — as the very first tool call of that turn — before any exploration, `TodoWrite`, or upstream-skill-body instruction. The override then either **replaces** the upstream skill's default behavior or **delegates** to a [`mattpocock-skills`](https://github.com/mattpocock/skills) skill.
 
@@ -63,8 +63,9 @@ marketplace/source.json              # canonical registry (human-edited)
 .claude-plugin/marketplace.json    # generated — Claude Code marketplace
 .cursor-plugin/marketplace.json    # generated — Cursor Team Marketplace
 cursor-plugins/                    # generated Cursor plugin wrappers
-<plugin>/.claude-plugin/plugin.json  # per-plugin manifest (lists skills)
-<plugin>/skills/<skill>/SKILL.md   # the skill itself (frontmatter + rules)
+plugins/<plugin>/                  # vendored + first-party plugin trees
+plugins/<plugin>/.claude-plugin/plugin.json
+plugins/<plugin>/skills/<skill>/SKILL.md
 ```
 
 Edit [marketplace/source.json](marketplace/source.json), then `pnpm run emit && pnpm run validate`. Do not hand-edit generated marketplace files.
@@ -111,7 +112,7 @@ All other `superpowers:*` skills follow the same pattern — see the override ta
 
 ### Using overrides in Cursor
 
-Cursor uses a flat skill namespace — override skills with the same name as upstream `superpowers` skills are deduplicated and hidden. This marketplace emits uniquely named Cursor skills (`brainstorming-overrides`, etc.) under `superpowers-overrides/.cursor/skills/`.
+Cursor uses a flat skill namespace — override skills with the same name as upstream `superpowers` skills are deduplicated and hidden. This marketplace emits uniquely named Cursor skills (`brainstorming-overrides`, etc.) under `plugins/superpowers-overrides/.cursor/skills/`.
 
 #### Team Marketplace (recommended)
 
@@ -128,7 +129,7 @@ Cursor uses a flat skill namespace — override skills with the same name as ups
 /plugin install superpowers-overrides@oscaner
 ```
 
-If override skills do not appear after install, see the discovery fallback in [superpowers-overrides/docs/cross-harness-overrides.md](superpowers-overrides/docs/cross-harness-overrides.md).
+If override skills do not appear after install, see the discovery fallback in [plugins/superpowers-overrides/docs/cross-harness-overrides.md](plugins/superpowers-overrides/docs/cross-harness-overrides.md).
 
 After editing canonical override skills or [marketplace/source.json](marketplace/source.json):
 
@@ -139,7 +140,7 @@ pnpm run validate
 
 See [.changeset/README.md](.changeset/README.md) for release/changeset workflow.
 
-Manual smoke checklist: [superpowers-overrides/docs/CURSOR-SMOKE.md](superpowers-overrides/docs/CURSOR-SMOKE.md).
+Manual smoke checklist: [plugins/superpowers-overrides/docs/CURSOR-SMOKE.md](plugins/superpowers-overrides/docs/CURSOR-SMOKE.md).
 
 ## Releasing
 
@@ -150,13 +151,13 @@ Only `superpowers-overrides` is versioned from this marketplace. Tags: `superpow
 | Overrides skill / manifest / build | `pnpm changeset` → PR → merge → merge Version PR → tag |
 | Superpowers submodule bump | Update pointer + `marketplace/source.json` superpowers version → `pnpm run emit` → PR → merge (align changeset auto-created) |
 
-Changelog: [superpowers-overrides/CHANGELOG.md](superpowers-overrides/CHANGELOG.md) (created on first release).
+Changelog: [plugins/superpowers-overrides/CHANGELOG.md](plugins/superpowers-overrides/CHANGELOG.md) (created on first release).
 
 ### How the override system works
 
 While hooks now handle auto-triggering, understanding the three-part mechanism is useful for contributors:
 
-1. **Hook-based reminder** — The `UserPromptExpansion` hook in `superpowers-overrides/hooks/hooks.json` (matcher `^superpowers:`) fires when a `/superpowers:*` slash command is typed, injecting an `additionalContext` reminder to call the override first.
+1. **Hook-based reminder** — The `UserPromptExpansion` hook in `plugins/superpowers-overrides/hooks/hooks.json` (matcher `^superpowers:`) fires when a `/superpowers:*` slash command is typed, injecting an `additionalContext` reminder to call the override first.
 2. **Anti-pattern naming** — Upstream `SKILL.md` bodies open with a numbered "You MUST" checklist so consistently that the pattern needs an explicit name; without it the model reads the checklist and starts executing it. The hook's message names this failure mode. A closely related failure — the **handoff-continuation rationalization** — is also named: when the upstream body arrives as a tool result of a prior `Skill(...)` call, the model treats it as a natural continuation and skips the override.
 3. **Project CLAUDE.md self-check** — Written by `/superpowers-overrides:init`. Prepended to the project's `CLAUDE.md`, it enumerates every trigger → override mapping. This fires in every turn via the system prompt and is the strongest enforcement layer.
 

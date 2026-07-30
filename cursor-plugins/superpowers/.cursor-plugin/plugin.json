@@ -7,7 +7,7 @@
     "name": "Jesse Vincent",
     "email": "jesse@fsck.com"
   },
-  "skills": "../../superpowers/skills",
+  "skills": "../../plugins/superpowers/skills",
   "version": "6.2.0",
-  "hooks": "../../superpowers/hooks/hooks-cursor.json"
+  "hooks": "../../plugins/superpowers/hooks/hooks-cursor.json"
 }

@@ -91,7 +91,7 @@ print('OK')
 echo "== validate emit is fresh (optional) =="
 if [ "${ENABLE_EMIT_FRESH_CHECK:-0}" = "1" ]; then
   "$ROOT/build/emit-overrides.sh" >/dev/null
-  after=$(git -C "$ROOT/.." diff --name-only superpowers-overrides/.cursor/skills 2>/dev/null || true)
+  after=$(git -C "$ROOT/../.." diff --name-only plugins/superpowers-overrides/.cursor/skills 2>/dev/null || true)
   if [ -n "$after" ]; then
     echo "FAIL: emit-overrides.sh changed committed output — run build and commit"
     exit 1

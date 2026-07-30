@@ -7,6 +7,6 @@
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"
   },
-  "skills": "../../superpowers-overrides/.cursor/skills",
+  "skills": "../../plugins/superpowers-overrides/.cursor/skills",
   "version": "6.2.0-overrides.1"
 }

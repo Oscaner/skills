@@ -6,8 +6,8 @@ import changelogFunctions from "@changesets/changelog-github";
 import { computeNextVersion, parseOverridesVersion } from "./lib/version-utils.mjs";
 
 const root = process.cwd();
-const pkgPath = join(root, "superpowers-overrides/package.json");
-const changelogPath = join(root, "superpowers-overrides/CHANGELOG.md");
+const pkgPath = join(root, "plugins/superpowers-overrides/package.json");
+const changelogPath = join(root, "plugins/superpowers-overrides/CHANGELOG.md");
 const changesetDir = join(root, ".changeset");
 
 const changesets = await getChangesets(root);

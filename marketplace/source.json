@@ -18,7 +18,7 @@
       "homepage": "https://github.com/mattpocock/skills",
       "repository": "https://github.com/mattpocock/skills",
       "license": "MIT",
-      "contentRoot": "mattpocock-skills",
+      "contentRoot": "plugins/mattpocock-skills",
       "claude": {
         "category": "engineering",
         "keywords": [
@@ -31,7 +31,7 @@
       },
       "cursor": {
         "displayName": "Matt Pocock Skills",
-        "skills": "../../mattpocock-skills/skills"
+        "skills": "../../plugins/mattpocock-skills/skills"
       }
     },
     {
@@ -43,7 +43,7 @@
         "email": "paul@paulbakaus.com"
       },
       "homepage": "https://impeccable.style",
-      "contentRoot": "impeccable/plugin",
+      "contentRoot": "plugins/impeccable/plugin",
       "claude": {
         "category": "design",
         "tags": [
@@ -57,7 +57,7 @@
       },
       "cursor": {
         "displayName": "Impeccable",
-        "skills": "../../impeccable/plugin/skills"
+        "skills": "../../plugins/impeccable/plugin/skills"
       }
     },
     {
@@ -68,11 +68,11 @@
         "name": "Jesse Vincent",
         "email": "jesse@fsck.com"
       },
-      "contentRoot": "superpowers",
+      "contentRoot": "plugins/superpowers",
       "cursor": {
         "displayName": "Superpowers",
-        "skills": "../../superpowers/skills",
-        "hooks": "../../superpowers/hooks/hooks-cursor.json"
+        "skills": "../../plugins/superpowers/skills",
+        "hooks": "../../plugins/superpowers/hooks/hooks-cursor.json"
       }
     },
     {
@@ -83,7 +83,7 @@
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"
       },
-      "contentRoot": "superpowers-overrides",
+      "contentRoot": "plugins/superpowers-overrides",
       "claude": {
         "category": "workflow",
         "tags": [
@@ -95,7 +95,7 @@
       },
       "cursor": {
         "displayName": "Superpowers Overrides",
-        "skills": "../../superpowers-overrides/.cursor/skills"
+        "skills": "../../plugins/superpowers-overrides/.cursor/skills"
       }
     }
   ]

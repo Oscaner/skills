@@ -7,7 +7,7 @@
     "name": "Matt Pocock",
     "url": "https://github.com/mattpocock"
   },
-  "skills": "../../mattpocock-skills/skills",
+  "skills": "../../plugins/mattpocock-skills/skills",
   "version": "1.2.0",
   "homepage": "https://github.com/mattpocock/skills",
   "repository": "https://github.com/mattpocock/skills",

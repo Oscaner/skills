@@ -58,15 +58,15 @@ Flat-namespace output **always** uses `{slug}-overrides` for conflict targets. C
 ## Build commands
 
 ```bash
-./superpowers-overrides/build/emit-overrides.sh
-./superpowers-overrides/tests/validate-overrides-build.sh
+./plugins/superpowers-overrides/build/emit-overrides.sh
+./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 
 Regenerate after editing canonical `skills/<slug>/SKILL.md` files.
 
 ## Plugin discovery fallback (Cursor)
 
-Skills ship under `superpowers-overrides/.cursor/skills/` in the plugin tree. After marketplace install, verify both upstream and override skills appear in the agent skills list (e.g. `brainstorming` and `brainstorming-overrides`).
+Skills ship under `plugins/superpowers-overrides/.cursor/skills/` in the plugin tree. After marketplace install, verify both upstream and override skills appear in the agent skills list (e.g. `brainstorming` and `brainstorming-overrides`).
 
 If override skills are missing:
 
@@ -75,7 +75,7 @@ If override skills are missing:
 
 ```bash
 mkdir -p .cursor/skills
-cp -R path/to/superpowers-overrides/.cursor/skills/* .cursor/skills/
+cp -R path/to/plugins/superpowers-overrides/.cursor/skills/* .cursor/skills/
 ```
 
 ## Cursor setup

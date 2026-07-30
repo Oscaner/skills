@@ -95,7 +95,7 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 ## Cursor setup
 
 1. Install `superpowers` + `superpowers-overrides` from the marketplace.
-2. Run `/spor-init` in Cursor (copies `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`).
+2. Run `/spor-init` in Cursor (copies or refreshes `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`; re-run after plugin upgrade if rules are stale).
 3. Invoke `/spor-brainstorming` directly, or use upstream slash commands and rely on rules intercept.
 
 Manual verification: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
@@ -115,7 +115,7 @@ See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for direc
 1. **Manifest** — add `overrides.manifest.json` with `name`, upstream `overrides` id, and `source` path per target.
 2. **Naming** — use a plugin-level prefix on all skill ids to avoid flat-namespace dedup with upstream (e.g. `spor-*`, `terreno-*`, `cds-*`).
 3. **Generators** — share `manifest_targets.py`; commit hook + self-check outputs; CI `--check` on drift.
-4. **Init** — copy committed `build/generated/*` at runtime; never run generators in init.
+4. **Init** — copy or refresh committed `build/generated/*` at runtime; never run generators in init. Generated self-check files embed `superpowers-overrides-version` (Cursor frontmatter / Claude HTML comment) stamped from `.claude-plugin/plugin.json`; `/spor-init` compares project rules against installed version and overwrites when missing or stale.
 
 Copy JSON schema, generator scripts, and `validate-overrides-build.sh` from this plugin as a starting point.
 

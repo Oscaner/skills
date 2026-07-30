@@ -88,4 +88,18 @@ echo "OK"
 echo "== validate generator outputs fresh =="
 "$ROOT/build/generate-all.sh" --check
 
+echo "== validate self-check version stamps =="
+python3 -c "
+import json, re
+from pathlib import Path
+root = Path('$ROOT')
+version = json.loads((root / '.claude-plugin/plugin.json').read_text())['version']
+cursor = (root / 'build/generated/cursor-self-check.mdc').read_text()
+claude = (root / 'build/generated/claude-self-check.md').read_text()
+assert f'superpowers-overrides-version: {version}' in cursor, 'cursor self-check missing version stamp'
+m = re.search(r'<!-- superpowers-overrides-version: ([^ ]+) -->', claude)
+assert m and m.group(1) == version, 'claude self-check version stamp mismatch'
+print('OK')
+"
+
 echo "ALL PASS"

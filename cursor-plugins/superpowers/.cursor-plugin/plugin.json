@@ -1,0 +1,13 @@
+{
+  "_generated": "scripts/emit-marketplace.mjs — do not edit",
+  "name": "superpowers",
+  "displayName": "Superpowers",
+  "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques",
+  "author": {
+    "name": "Jesse Vincent",
+    "email": "jesse@fsck.com"
+  },
+  "skills": "../../superpowers/skills",
+  "version": "6.2.0",
+  "hooks": "../../superpowers/hooks/hooks-cursor.json"
+}

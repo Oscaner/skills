@@ -4,7 +4,10 @@
   "scripts": {
     "changeset": "changeset",
     "validate": "./scripts/ci-validate.sh",
-    "version": "node scripts/version-packages.mjs"
+    "version": "node scripts/version-packages.mjs",
+    "emit:overrides": "./superpowers-overrides/build/emit-overrides.sh",
+    "emit:marketplace": "node scripts/emit-marketplace.mjs",
+    "emit": "pnpm run emit:overrides && pnpm run emit:marketplace"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",

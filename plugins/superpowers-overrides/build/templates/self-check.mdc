@@ -8,7 +8,7 @@ alwaysApply: true
 Before your first tool call in ANY turn:
 
 1. Scan for: `/superpowers:*`, bare `/<slug>` matching an upstream override target, `<command-name>` tags, or upstream superpowers skill body in context.
-2. If matched → **first action is Read** the override skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `spor-brainstorming` for `/brainstorming`).
+2. If matched → **first action is Read** the override skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `spor-bs` for `/brainstorming`).
 3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
 4. Only after the override body is loaded may you follow upstream instructions.
 

@@ -41,7 +41,7 @@ Precedence is enforced by three coordinated mechanisms — each override's `desc
 | Override skill | Overrides | What it does |
 |---|---|---|
 | `spor-init` | — | Writes the override self-check trigger table to the current project's `CLAUDE.md` (prepended at top). Run once per project; primary enforcement mechanism for overrides. |
-| `spor-brainstorming` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
+| `spor-bs` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling`. **Spike id** — abbrev opaque naming experiment.
 | `spor-writing-plans` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates ticket breakdown to `/to-tickets` with a hard user-approval gate, then publishes as a single `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (sibling to `specs/` and `plans/`) — no remote tracker. |
 | `spor-subagent-driven-development` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
 | `spor-using-git-worktrees` | `superpowers:using-git-worktrees` | Refuses worktree creation entirely (per user policy in `~/.claude/CLAUDE.md`); offers branch-based isolation (`git checkout -b`, `git stash`) instead; propagates refusal back to caller skills (writing-plans, executing-plans, sdd, finishing-a-development-branch) that request worktree setup as a sub-step. |
@@ -102,7 +102,7 @@ Once `init` has run, use the upstream skill commands as normal — overrides fir
 
 | You type | What runs first | Then |
 |---|---|---|
-| `/superpowers:brainstorming` | `superpowers-overrides:spor-brainstorming` | delegates clarifying questions to `mattpocock-skills:grilling` |
+| `/superpowers:brainstorming` | `superpowers-overrides:spor-bs` | delegates clarifying questions to `mattpocock-skills:grilling` |
 | `/superpowers:writing-plans` | `superpowers-overrides:spor-writing-plans` | section-by-section writes, subagent review passes |
 | `/superpowers:subagent-driven-development` | `superpowers-overrides:spor-subagent-driven-development` | complexity-based review rounds |
 | `/superpowers:systematic-debugging` | `superpowers-overrides:spor-systematic-debugging` | gates fix proposals behind diagnostic evidence |

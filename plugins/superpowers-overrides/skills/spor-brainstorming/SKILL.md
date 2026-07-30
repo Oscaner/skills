@@ -42,8 +42,9 @@ When the request is a **large / multi-phase requirement** (any of: touches ≥3 
 1. **Produce an overall spec first.** Scope-only — no per-feature requirements, no acceptance criteria.
 2. **Run Rule 1's review passes on the overall** before any phase brainstorming starts. Run the same passes on **each phase spec** before writing-plans (see template Phase Spec §6).
 3. **Get explicit user approval on the phase decomposition.** Silence is not approval.
-4. **Take one phase at a time: spec → plan → development → shipped** before starting the next phase's brainstorming. Never pre-draft phase N+1 while N is in flight.
-5. **Recursive decomposition in-place.** Never create a sub-overall file. Expand the too-large phase in the overall's table into sub-phases, re-run Step 3.
+4. **Each phase runs an independent brainstorming cycle** before its spec is written: re-read overall + shipped upstream context → phase-scoped `grilling` → approaches → design approval → spec → review. Never derive a phase spec solely from the overall inventory paragraph or overall interview.
+5. **Take one phase at a time: spec → plan → development → shipped** before starting the next phase's brainstorming. Never pre-draft phase N+1 while N is in flight.
+6. **Recursive decomposition in-place.** Never create a sub-overall file. Expand the too-large phase in the overall's table into sub-phases, re-run Step 3.
 
 <!-- Additional rules for the brainstorming skill go below as Rule 4, Rule 5, … -->
 
@@ -55,6 +56,7 @@ When the request is a **large / multi-phase requirement** (any of: touches ≥3 
 - "I'll write the overall AND phase 1 spec in one pass to save a round-trip."
 - "User didn't reply to the decomposition-approval question, but silence probably means yes."
 - "Phase N is in executing-plans, I can start drafting phase N+1's spec in parallel to save wall time."
+- "The overall already covered phase N — I'll skip grilling and expand the inventory paragraph into the spec."
 
 ## Common Rationalizations
 
@@ -72,3 +74,4 @@ When the request is a **large / multi-phase requirement** (any of: touches ≥3 
 | "Batching Phase Status / Change History at end of day is cleaner" | The overall is the source of truth *while* the program is in flight, and the log captures reasons while they're fresh. Batching loses both. Update per-transition. |
 | "This edit is trivial, Change History would be noise" | Status transitions and decomposition edits are never trivial — they change the plan of record. Only pure prose typo fixes skip the log. |
 | "Change History is messy, I'll clean it up" | Append-only. If an entry was wrong, append a correction — don't edit the old one. |
+| "Overall grilling already asked about phase N" | Overall discovery decomposes the program; it does not design phase N. Each phase needs its own grilling, approaches, and approval on shipped context. |

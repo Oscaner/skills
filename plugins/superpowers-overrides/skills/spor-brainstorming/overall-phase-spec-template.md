@@ -64,6 +64,7 @@ Update header **Status** on each transition; append a change-history row (status
 Immediately after the version header. Localize the section title and bullets; must convey:
 
 - This is the program charter — no implementation detail. Each phase has its own design spec + implementation plan.
+- **Overall brainstorming does not substitute for phase brainstorming.** The inventory paragraph for a phase is decomposition context only — each phase still runs the full discovery → grilling → approaches → design approval → spec → review cycle on its own.
 - Before starting a new phase, confirm here: placement, upstream dependencies, and cross-cutting constraints are still current.
 - Any decision that deviates from this document must update this document first before downstream specs/plans change.
 
@@ -106,7 +107,7 @@ Phase IDs stay as shown; optional caption may be localized. **Keep in sync** wit
 
 Must include, verbatim or equivalent in the user's language:
 
-> Each phase runs its own brainstorming → writing-plans → development cycle independently. Do not "while you're at it" start the next phase. A phase's spec → plan → development must all be shipped before brainstorming begins for any phase that depends on it.
+> Each phase runs its own **full** brainstorming → writing-plans → development cycle independently — not a shortened pass derived from the overall. Do not "while you're at it" start the next phase. A phase's spec → plan → development must all be shipped before brainstorming begins for any phase that depends on it.
 
 ### 7. Document maintenance rules section
 
@@ -169,10 +170,21 @@ Do NOT duplicate constraints from the overall. Instead (localized):
 
 > This spec does not repeat the overall's cross-cutting conventions. On conflict, the overall wins.
 
-### 4. Design body (upstream brainstorming)
+### 4. Design body (upstream brainstorming — full cycle required)
 
-After sections 1–3, write the **phase-scoped design** following upstream `brainstorming` checklist steps 4–5 content (approaches, architecture, components, data flow, error handling, testing) — **limited to this phase's increment only**.
+Each phase brainstorming is a **fresh, independent run** of the upstream `brainstorming` checklist for that phase's increment only. The overall spec is **input context**, not a substitute for discovery.
 
+**Before drafting sections 1–3 and the design body, complete for this phase:**
+
+1. **Explore project context** — including shipped upstream phases, current codebase state, and the overall's constraints (re-read; do not rely on memory from overall drafting).
+2. **`grilling`** — invoke `mattpocock-skills:grilling` for phase-scoped clarifying questions. Do not skip because the overall interview already happened.
+3. **Propose 2–3 approaches** — trade-offs for *this phase's* increment.
+4. **Present design** — get user approval section-by-section before writing the spec file.
+
+**Then** write sections 1–3 (header, warning, cross-cutting pointer) and the design body (approaches chosen, architecture, components, data flow, error handling, testing) — **limited to this phase's increment only**.
+
+- Do **not** expand the overall inventory paragraph into a phase spec and call it done.
+- Do **not** reuse overall-level approach trade-offs without re-evaluating them for this phase's shipped context.
 - Scale sections to complexity; include acceptance criteria and success criteria here (not in the overall).
 - Do not design scope belonging to later phases; if discovered, record under **Notes for downstream phases** (section 5) and update the overall if decomposition must change.
 
@@ -187,6 +199,20 @@ Run `spor-brainstorming` Rule 1 review passes on every phase spec (same as the o
 ---
 
 ## Execution Rules
+
+### Independent phase brainstorming (core rule)
+
+When a phase's turn arrives, start a **new brainstorming session** for that phase alone:
+
+| Step | Requirement |
+|---|---|
+| Context | Re-read overall + inspect shipped upstream deliverables; do not assume overall drafting memory |
+| Discovery | Full `grilling` interview scoped to this phase — mandatory even if overall covered related topics |
+| Approaches | Fresh 2–3 options for this phase; upstream phases may change which option is viable |
+| Design approval | Present phase design; get explicit user approval before writing the phase spec |
+| Spec + review | Write phase spec → Rule 1 review passes → user review gate → writing-plans |
+
+**Forbidden shortcuts:** copying the inventory paragraph into the spec; skipping grilling ("already discussed in overall"); drafting multiple phase specs in one pass; inferring phase design approval from overall approval.
 
 ### Serial execution and parallel phases
 

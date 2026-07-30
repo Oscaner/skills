@@ -1,4 +1,4 @@
-<!-- superpowers-overrides-version: 6.2.0-overrides.6 -->
+<!-- superpowers-overrides-version: 6.2.0-overrides.7 -->
 ## superpowers-overrides self-check
 
 Before your first tool call in ANY turn, run this check — no exceptions:

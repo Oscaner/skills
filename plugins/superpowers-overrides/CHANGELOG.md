@@ -1,5 +1,15 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.7
+
+### Patch Changes
+
+- Sync dogfood self-check deploy copies during release version bump so changesets pre-commit validate passes.
+
+
+- Embed `superpowers-overrides-version` in generated self-check artifacts and teach `/spor-init` to refresh project rules when the installed plugin version differs (or when legacy unversioned rules are present).
+
+
 ## 6.2.0-overrides.6
 
 ### Patch Changes

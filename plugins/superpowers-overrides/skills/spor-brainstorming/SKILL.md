@@ -33,7 +33,7 @@ Whenever brainstorming needs clarifying questions from the user, the interview l
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming
 
-Before producing an overall or phase spec, Read `plugins/superpowers-overrides/skills/spor-brainstorming/overall-phase-spec-template.md` — it is the source of truth for document structure, serial execution rules, completion signals, and dynamic decomposition. Do not re-implement its conventions from memory.
+Before producing an overall or phase spec, Read `plugins/superpowers-overrides/skills/spor-brainstorming/overall-phase-spec-template.md` — it is the source of truth for document structure, serial execution rules, completion signals, dynamic decomposition, and **language** (write specs in the user's language; do not default to Chinese or any fixed locale). Do not re-implement its conventions from memory.
 
 **Escape hatch:** If the user has explicitly stated the scope is small before `grilling` begins — e.g. "这是小改动 / 就这一处 / scope 很小 / it's a minor change" — Rule 3 does NOT trigger. Proceed directly with a single-phase spec.
 

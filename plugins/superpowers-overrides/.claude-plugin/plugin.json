@@ -2,18 +2,18 @@
   "name": "superpowers-overrides",
   "version": "6.2.0-overrides.3",
   "skills": [
-    "./skills/init",
-    "./skills/brainstorming-overrides",
-    "./skills/writing-plans-overrides",
-    "./skills/subagent-driven-development-overrides",
-    "./skills/systematic-debugging-overrides",
-    "./skills/test-driven-development-overrides",
-    "./skills/verification-before-completion-overrides",
-    "./skills/receiving-code-review-overrides",
-    "./skills/subagent-lifecycle",
-    "./skills/token-efficient-review-dispatch",
-    "./skills/using-git-worktrees-overrides",
-    "./skills/executing-plans-overrides",
-    "./skills/finishing-a-development-branch-overrides"
+    "./skills/spor-init",
+    "./skills/spor-brainstorming",
+    "./skills/spor-writing-plans",
+    "./skills/spor-subagent-driven-development",
+    "./skills/spor-systematic-debugging",
+    "./skills/spor-test-driven-development",
+    "./skills/spor-verification-before-completion",
+    "./skills/spor-receiving-code-review",
+    "./skills/spor-subagent-lifecycle",
+    "./skills/spor-token-efficient-review-dispatch",
+    "./skills/spor-using-git-worktrees",
+    "./skills/spor-executing-plans",
+    "./skills/spor-finishing-a-development-branch"
   ]
 }

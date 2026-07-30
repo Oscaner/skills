@@ -1,6 +1,6 @@
 ---
-name: writing-plans-overrides
-description: MUST invoke BEFORE superpowers:writing-plans as your FIRST tool call this turn — trigger on ANY of: (1) user types `/writing-plans-overrides`, `/superpowers-overrides:writing-plans-overrides`, `/writing-plans` or `/superpowers:writing-plans`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:writing-plans skill body appears in the current turn's system context; (4) user asks in natural language to write an implementation plan, break work into tasks/tickets/issues, draft a plan document, or plan a feature build-out. Applies personal overrides (section-by-section writes; fresh subagent review passes; delegates ticket breakdown to mattpocock-skills:/to-tickets but redirects Step 5 publish target from repo-root `tickets.md` to `docs/superpowers/tickets/<date>-<feature>-tickets.md`).
+name: spor-writing-plans
+description: MUST invoke BEFORE superpowers:writing-plans as your FIRST tool call this turn — trigger on ANY of: (1) user types `/spor-writing-plans`, `/superpowers-overrides:spor-writing-plans`, `/writing-plans` or `/superpowers:writing-plans`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:writing-plans skill body appears in the current turn's system context; (4) user asks in natural language to write an implementation plan, break work into tasks/tickets/issues, draft a plan document, or plan a feature build-out. Applies personal overrides (section-by-section writes; fresh subagent review passes; delegates ticket breakdown to mattpocock-skills:/to-tickets but redirects Step 5 publish target from repo-root `tickets.md` to `docs/superpowers/tickets/<date>-<feature>-tickets.md`).
 ---
 
 # Writing-Plans Overrides
@@ -24,8 +24,8 @@ Before dispatching reviewers, classify the plan:
 Use the same Signals table as [`subagent-driven-development` Rule 1](../subagent-driven-development/SKILL.md) for classification signals — do not re-define them here.
 
 1. **IGNORE** any upstream "self-review is fine / checklist you run yourself / fix inline" instruction. Dispatch a subagent using the reviewer template at `skills/writing-plans/plan-document-reviewer-prompt.md` (resolve inside the upstream superpowers plugin cache). Do not re-implement its logic here — the template is the source of truth.
-2. Every reviewer dispatch is a **fresh** subagent — see [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 2. Concurrency governed by its Rule 1.
-3. Dispatch discipline (D1 escalate-on-finding, D2 delta review, D3 findings-only output) governed by [`token-efficient-review-dispatch`](../token-efficient-review-dispatch/SKILL.md).
+2. Every reviewer dispatch is a **fresh** subagent — see [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 2. Concurrency governed by its Rule 1.
+3. Dispatch discipline (D1 escalate-on-finding, D2 delta review, D3 findings-only output) governed by [`spor-token-efficient-review-dispatch`](../spor-token-efficient-review-dispatch/SKILL.md).
 
 Each pass covers ONE distinct category:
 
@@ -43,7 +43,7 @@ Once the plan passes Rule 2, breakdown into independently-grabbable work items f
 
 1. `/to-tickets` is user-invoked (`disable-model-invocation: true`) so the Skill tool can't trigger it. **Locate via Glob `~/.claude/plugins/cache/mattpocock-skills/**/skills/engineering/to-tickets/SKILL.md`, Read it, follow its Steps 1–4 (Gather → Explore → Draft → Quiz) as written.** The upstream SKILL.md is the source of truth for vertical-slicing rules, wide-refactor exceptions, and every template — do not paraphrase them here.
 2. Step 4's user approval is a **hard gate** — do not proceed to Rule 3b (Publish) without explicit approval.
-3. On load failure, follow [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 3. If Glob returns nothing (`mattpocock-skills` not installed), degrade silently — skip ticket breakdown and offer to proceed with the plan document as the sole artifact.
+3. On load failure, follow [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 3. If Glob returns nothing (`mattpocock-skills` not installed), degrade silently — skip ticket breakdown and offer to proceed with the plan document as the sole artifact.
 
 **Rule 3b — Redirect Step 5 publish target to a single local file:**
 

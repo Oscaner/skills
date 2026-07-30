@@ -10,16 +10,16 @@ input=$(cat)
 command_name=$(printf '%s' "$input" | jq -r '.command_name // ""')
 
 case "$command_name" in
-  superpowers:brainstorming) override="superpowers-overrides:brainstorming-overrides" ;;
-  superpowers:writing-plans) override="superpowers-overrides:writing-plans-overrides" ;;
-  superpowers:subagent-driven-development) override="superpowers-overrides:subagent-driven-development-overrides" ;;
-  superpowers:executing-plans) override="superpowers-overrides:executing-plans-overrides" ;;
-  superpowers:finishing-a-development-branch) override="superpowers-overrides:finishing-a-development-branch-overrides" ;;
-  superpowers:using-git-worktrees) override="superpowers-overrides:using-git-worktrees-overrides" ;;
-  superpowers:systematic-debugging) override="superpowers-overrides:systematic-debugging-overrides" ;;
-  superpowers:test-driven-development) override="superpowers-overrides:test-driven-development-overrides" ;;
-  superpowers:verification-before-completion) override="superpowers-overrides:verification-before-completion-overrides" ;;
-  superpowers:receiving-code-review) override="superpowers-overrides:receiving-code-review-overrides" ;;
+  superpowers:brainstorming) override="superpowers-overrides:spor-brainstorming" ;;
+  superpowers:writing-plans) override="superpowers-overrides:spor-writing-plans" ;;
+  superpowers:subagent-driven-development) override="superpowers-overrides:spor-subagent-driven-development" ;;
+  superpowers:executing-plans) override="superpowers-overrides:spor-executing-plans" ;;
+  superpowers:finishing-a-development-branch) override="superpowers-overrides:spor-finishing-a-development-branch" ;;
+  superpowers:using-git-worktrees) override="superpowers-overrides:spor-using-git-worktrees" ;;
+  superpowers:systematic-debugging) override="superpowers-overrides:spor-systematic-debugging" ;;
+  superpowers:test-driven-development) override="superpowers-overrides:spor-test-driven-development" ;;
+  superpowers:verification-before-completion) override="superpowers-overrides:spor-verification-before-completion" ;;
+  superpowers:receiving-code-review) override="superpowers-overrides:spor-receiving-code-review" ;;
   *) exit 0 ;;
 esac
 

@@ -1,6 +1,6 @@
 ---
-name: test-driven-development-overrides
-description: MUST invoke BEFORE superpowers:test-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/test-driven-development-overrides`, `/superpowers-overrides:test-driven-development-overrides`, `/test-driven-development` or `/superpowers:test-driven-development` or `/tdd`; (2) a `<command-name>` tag in the current turn names any of those; (3) the superpowers:test-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to do TDD, write tests first, follow red-green-refactor, or implement a feature test-first. Applies personal overrides: confirms seams with user before starting (blocking); delegates implementation loop to mattpocock-skills:tdd.
+name: spor-test-driven-development
+description: MUST invoke BEFORE superpowers:test-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/spor-test-driven-development`, `/superpowers-overrides:spor-test-driven-development`, `/test-driven-development` or `/superpowers:test-driven-development` or `/tdd`; (2) a `<command-name>` tag in the current turn names any of those; (3) the superpowers:test-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to do TDD, write tests first, follow red-green-refactor, or implement a feature test-first. Applies personal overrides: confirms seams with user before starting (blocking); delegates implementation loop to mattpocock-skills:tdd.
 ---
 
 # Test-Driven Development Overrides
@@ -12,7 +12,7 @@ description: MUST invoke BEFORE superpowers:test-driven-development as your FIRS
 The entire TDD implementation loop is delegated to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md). This **replaces** the upstream `superpowers:test-driven-development` flow. Do not re-implement any TDD rules here — seams, red-green-refactor, anti-patterns, and mocking constraints all live in that skill.
 
 1. After seams are confirmed (Rule 2), invoke `mattpocock-skills:tdd` via the Skill tool and follow its loop.
-2. On load failure, follow [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 3.
+2. On load failure, follow [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 3.
 
 ### Rule 2 — Confirm seams before delegating (blocking)
 

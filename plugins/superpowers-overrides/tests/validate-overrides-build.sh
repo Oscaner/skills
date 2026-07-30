@@ -29,7 +29,7 @@ except ImportError:
     for t in m['targets']:
         for k in ('name', 'overrides', 'source'):
             assert k in t
-        assert t['name'].endswith('-overrides')
+        assert t['name'].startswith('spor-')
     print('OK (minimal schema check)')
 "
 
@@ -43,7 +43,7 @@ for t in m['targets']:
     name = t['name']
     d = os.path.join(skills, name)
     assert os.path.isdir(d), f'missing {d}'
-    assert name.endswith('-overrides')
+    assert name.startswith('spor-')
     text = open(os.path.join(d, 'SKILL.md')).read()
     fm = re.match(r'(?s)^---\n(.*?)\n---', text).group(1)
     nm = re.search(r'^name:\s*(.+)$', fm, re.M).group(1).strip()
@@ -51,11 +51,17 @@ for t in m['targets']:
     plugin, upstream = t['overrides'].split(':', 1)
     assert plugin == 'superpowers'
     assert not os.path.isdir(os.path.join(skills, upstream)), f'upstream collision dir: {upstream}'
+for name in os.listdir(skills):
+    assert name.startswith('spor-'), f'skill dir must start with spor-: {name}'
+    text = open(os.path.join(skills, name, 'SKILL.md')).read()
+    fm = re.match(r'(?s)^---\n(.*?)\n---', text).group(1)
+    nm = re.search(r'^name:\s*(.+)$', fm, re.M).group(1).strip()
+    assert nm == name, f'{name}: frontmatter name={nm}'
 print('OK')
 "
 
 echo "== validate cross-cutting skills exist =="
-for slug in init subagent-lifecycle token-efficient-review-dispatch; do
+for slug in spor-init spor-subagent-lifecycle spor-token-efficient-review-dispatch; do
   [ -f "$SKILLS/$slug/SKILL.md" ] || { echo "MISSING cross-cutting: $slug"; exit 1; }
 done
 echo "OK"
@@ -67,14 +73,14 @@ root = '$ROOT'
 m = json.load(open(os.path.join(root, 'overrides.manifest.json')))
 pj = json.load(open(os.path.join(root, '.claude-plugin/plugin.json')))
 declared = {s.split('/')[-1] for s in pj['skills']}
-needed = {t['name'] for t in m['targets']} | {'init', 'subagent-lifecycle', 'token-efficient-review-dispatch'}
+needed = {t['name'] for t in m['targets']} | {'spor-init', 'spor-subagent-lifecycle', 'spor-token-efficient-review-dispatch'}
 assert needed <= declared, f'plugin.json missing: {needed - declared}'
 print('OK')
 "
 
 echo "== validate no legacy .cursor/skills tree =="
 if [ -d "$ROOT/.cursor/skills" ]; then
-  echo "FAIL: .cursor/skills/ still exists — delete per unified naming spec"
+  echo "FAIL: .cursor/skills/ still exists"
   exit 1
 fi
 echo "OK"

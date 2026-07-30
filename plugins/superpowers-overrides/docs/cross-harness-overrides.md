@@ -4,7 +4,8 @@ Portable convention for marketplace plugins that ship **override skills** alongs
 
 Design specs:
 
-- v2 (current): [docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md](../../docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md)
+- v3 (current): [docs/superpowers/specs/2026-07-30-spor-skill-prefix-design.md](../../docs/superpowers/specs/2026-07-30-spor-skill-prefix-design.md)
+- v2 (superseded): [docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md](../../docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md)
 - v1 (superseded emit model): [docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md](../../docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md)
 
 ## Problem
@@ -14,22 +15,22 @@ Design specs:
 | Claude Code / Grok (plugin mode) | `plugin:skill` namespace | Both visible |
 | Flat namespace (Cursor, Codex, Copilot, …) | Folder + frontmatter `name` | **Dedup** — one hidden |
 
-Override plugins that reuse upstream skill names work in Claude Code but break in Cursor when both plugins are installed.
+Override plugins that reuse upstream skill names work in Claude Code but break in Cursor when both plugins are installed. The `-overrides` suffix (v2) was insufficient — Cursor still deduplicated against upstream names. v3 uses a plugin-level `spor-` prefix on every skill id.
 
-## Solution (v2 — unified tree)
+## Solution (v3 — `spor-` prefix)
 
 One canonical tree under `skills/` serves Claude Code, Cursor marketplace, and manual copy:
 
-1. **Canonical source** — override targets live in `skills/<name>/` where `<name>` ends with `-overrides` (e.g. `brainstorming-overrides`). Directory basename equals frontmatter `name`.
+1. **Canonical source** — all skills live in `skills/spor-<slug>/` (e.g. `spor-brainstorming`). Directory basename equals frontmatter `name`.
 2. **Manifest** — declare targets in `overrides.manifest.json` with explicit `name`, `overrides`, and `source` fields.
 3. **Generators** — manifest-driven scripts write committed hook + self-check artifacts (`build/generated/*`, `bin/override-prompt-expansion.sh`).
-4. **Enforcement** — Claude hooks + project `CLAUDE.md` self-check; Cursor project rules from init + `/brainstorming-overrides` slash commands.
+4. **Enforcement** — Claude hooks + project `CLAUDE.md` self-check; Cursor project rules from init + `/spor-*` slash commands.
 
 No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
 
 **CI:** `pnpm run validate:overrides` checks generator drift; `tests/validate-overrides-build.sh` validates the canonical tree.
 
-Claude Code interception: `Skill(superpowers-overrides:brainstorming-overrides)` (manifest `name` field).
+Claude Code interception: `Skill(superpowers-overrides:spor-brainstorming)` (manifest `name` field).
 
 ## Manifest schema
 
@@ -41,9 +42,9 @@ Claude Code interception: `Skill(superpowers-overrides:brainstorming-overrides)`
   "plugin": "superpowers-overrides",
   "targets": [
     {
-      "name": "brainstorming-overrides",
+      "name": "spor-brainstorming",
       "overrides": "superpowers:brainstorming",
-      "source": "./skills/brainstorming-overrides"
+      "source": "./skills/spor-brainstorming"
     }
   ]
 }
@@ -52,7 +53,7 @@ Claude Code interception: `Skill(superpowers-overrides:brainstorming-overrides)`
 | Field | Description |
 |-------|-------------|
 | `plugin` | Override plugin namespace name |
-| `name` | Canonical skill id in all harnesses (ends with `-overrides` for override targets) |
+| `name` | Canonical skill id in all harnesses (starts with `spor-`) |
 | `overrides` | Upstream `plugin:skill` id to intercept |
 | `source` | Path to canonical skill directory |
 
@@ -60,7 +61,12 @@ Claude Code interception: `Skill(superpowers-overrides:brainstorming-overrides)`
 
 ## Naming rule
 
-Override targets **always** use the `-overrides` suffix in directory name and frontmatter `name`. Cross-cutting skills with no upstream collision (`init`, `subagent-lifecycle`, `token-efficient-review-dispatch`) keep original names.
+All skills in this plugin use the `spor-` prefix in directory name and frontmatter `name`:
+
+- Override targets: `spor-{upstream-slug}` (e.g. `spor-brainstorming` overrides `superpowers:brainstorming`)
+- Cross-cutting: `spor-init`, `spor-subagent-lifecycle`, `spor-token-efficient-review-dispatch`
+
+Init entry point: `/spor-init` (Claude Code: `/superpowers-overrides:spor-init`).
 
 ## Build commands
 
@@ -74,7 +80,7 @@ Regenerate after editing `overrides.manifest.json` or generator templates.
 
 ## Plugin discovery fallback (Cursor)
 
-Skills ship under `plugins/superpowers-overrides/skills/` in the plugin tree. After marketplace install, verify both upstream and override skills appear in the agent skills list (e.g. `brainstorming` and `brainstorming-overrides`).
+Skills ship under `plugins/superpowers-overrides/skills/` in the plugin tree. After marketplace install, verify all 13 `spor-*` skills appear in the agent skills list.
 
 If override skills are missing (Team Marketplace blocked or third-party import disabled):
 
@@ -89,8 +95,8 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 ## Cursor setup
 
 1. Install `superpowers` + `superpowers-overrides` from the marketplace.
-2. Run init in Cursor (copies `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`).
-3. Invoke `/brainstorming-overrides` directly, or use upstream slash commands and rely on rules intercept.
+2. Run `/spor-init` in Cursor (copies `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`).
+3. Invoke `/spor-brainstorming` directly, or use upstream slash commands and rely on rules intercept.
 
 Manual verification: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
 
@@ -107,7 +113,7 @@ See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for direc
 ## Adoption guide (third-party marketplaces)
 
 1. **Manifest** — add `overrides.manifest.json` with `name`, upstream `overrides` id, and `source` path per target.
-2. **Naming** — use explicit `-overrides` suffix on conflict targets; one tree for all harnesses.
+2. **Naming** — use a plugin-level prefix on all skill ids to avoid flat-namespace dedup with upstream (e.g. `spor-*`, `terreno-*`, `cds-*`).
 3. **Generators** — share `manifest_targets.py`; commit hook + self-check outputs; CI `--check` on drift.
 4. **Init** — copy committed `build/generated/*` at runtime; never run generators in init.
 

@@ -16,14 +16,14 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 
 | Trigger | First tool call |
 |---|---|
-| `superpowers:brainstorming` | `Skill(superpowers-overrides:brainstorming-overrides)` |
-| `superpowers:writing-plans` | `Skill(superpowers-overrides:writing-plans-overrides)` |
-| `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:subagent-driven-development-overrides)` |
-| `superpowers:executing-plans` | `Skill(superpowers-overrides:executing-plans-overrides)` |
-| `superpowers:finishing-a-development-branch` | `Skill(superpowers-overrides:finishing-a-development-branch-overrides)` |
-| `superpowers:using-git-worktrees` | `Skill(superpowers-overrides:using-git-worktrees-overrides)` |
-| `superpowers:systematic-debugging` | `Skill(superpowers-overrides:systematic-debugging-overrides)` |
-| `superpowers:test-driven-development` | `Skill(superpowers-overrides:test-driven-development-overrides)` |
-| `superpowers:verification-before-completion` | `Skill(superpowers-overrides:verification-before-completion-overrides)` |
-| `superpowers:receiving-code-review` | `Skill(superpowers-overrides:receiving-code-review-overrides)` |
+| `superpowers:brainstorming` | `Skill(superpowers-overrides:spor-brainstorming)` |
+| `superpowers:writing-plans` | `Skill(superpowers-overrides:spor-writing-plans)` |
+| `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:spor-subagent-driven-development)` |
+| `superpowers:executing-plans` | `Skill(superpowers-overrides:spor-executing-plans)` |
+| `superpowers:finishing-a-development-branch` | `Skill(superpowers-overrides:spor-finishing-a-development-branch)` |
+| `superpowers:using-git-worktrees` | `Skill(superpowers-overrides:spor-using-git-worktrees)` |
+| `superpowers:systematic-debugging` | `Skill(superpowers-overrides:spor-systematic-debugging)` |
+| `superpowers:test-driven-development` | `Skill(superpowers-overrides:spor-test-driven-development)` |
+| `superpowers:verification-before-completion` | `Skill(superpowers-overrides:spor-verification-before-completion)` |
+| `superpowers:receiving-code-review` | `Skill(superpowers-overrides:spor-receiving-code-review)` |
 | Any other `superpowers:<upstream-slug>` listed in overrides.manifest.json | `Skill(superpowers-overrides:<name>)` where `<name>` is the manifest target's `name` field |

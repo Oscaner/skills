@@ -1,6 +1,6 @@
 ---
-name: systematic-debugging-overrides
-description: MUST invoke BEFORE superpowers:systematic-debugging as your FIRST tool call this turn — trigger on ANY of: (1) user types `/systematic-debugging-overrides`, `/superpowers-overrides:systematic-debugging-overrides`, `/systematic-debugging` or `/superpowers:systematic-debugging`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:systematic-debugging skill body appears in the current turn's system context; (4) user asks in natural language to debug, diagnose a bug, investigate a failure, fix a test failure, or troubleshoot unexpected behavior. Applies personal overrides: gates fix proposals behind diagnostic evidence; delegates diagnosis loop to mattpocock-skills:diagnosing-bugs.
+name: spor-systematic-debugging
+description: MUST invoke BEFORE superpowers:systematic-debugging as your FIRST tool call this turn — trigger on ANY of: (1) user types `/spor-systematic-debugging`, `/superpowers-overrides:spor-systematic-debugging`, `/systematic-debugging` or `/superpowers:systematic-debugging`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:systematic-debugging skill body appears in the current turn's system context; (4) user asks in natural language to debug, diagnose a bug, investigate a failure, fix a test failure, or troubleshoot unexpected behavior. Applies personal overrides: gates fix proposals behind diagnostic evidence; delegates diagnosis loop to mattpocock-skills:diagnosing-bugs.
 ---
 
 # Systematic-Debugging Overrides
@@ -22,7 +22,7 @@ If neither is present, **refuse to output a fix proposal**. Instead, instruct th
 The full diagnosis loop is delegated to [`mattpocock-skills:diagnosing-bugs`](https://github.com/mattpocock/skills/blob/main/skills/engineering/diagnosing-bugs/SKILL.md). This **replaces** any upstream diagnostic phases from `superpowers:systematic-debugging`. Its rules live in that skill — do not re-implement here.
 
 1. Invoke it via the Skill tool the moment diagnosis begins.
-2. On load failure, follow [`subagent-lifecycle`](../subagent-lifecycle/SKILL.md) Rule 3.
+2. On load failure, follow [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 3.
 
 <!-- Additional rules for the systematic-debugging skill go below as Rule 3, Rule 4, … -->
 

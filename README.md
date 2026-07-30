@@ -36,25 +36,25 @@ Vendored as a git submodule tracking [`mattpocock/skills`](https://github.com/ma
 
 Personal overrides for the upstream [`superpowers`](https://github.com/obra/superpowers) plugin. Each override wraps a specific `superpowers:*` skill; when the upstream skill fires (via `/<name>` command, a `<command-name>` tag, a `Skill` tool call, or its body appearing in the current turn's system context), the override MUST run **first** — as the very first tool call of that turn — before any exploration, `TodoWrite`, or upstream-skill-body instruction. The override then either **replaces** the upstream skill's default behavior or **delegates** to a [`mattpocock-skills`](https://github.com/mattpocock/skills) skill.
 
-Precedence is enforced by three coordinated mechanisms — each override's `description` (which lists all four trigger sources verbatim and specifies "FIRST tool call this turn"), a `UserPromptExpansion` hook that injects an `additionalContext` reminder on slash-command trigger, and a **project-level CLAUDE.md self-check** written by `/superpowers-overrides:init`. Run `init` once per project to prepend the override trigger table to the project's `CLAUDE.md`; this is the primary enforcement mechanism and fires before any skill body is loaded.
+Precedence is enforced by three coordinated mechanisms — each override's `description` (which lists all four trigger sources verbatim and specifies "FIRST tool call this turn"), a `UserPromptExpansion` hook that injects an `additionalContext` reminder on slash-command trigger, and a **project-level CLAUDE.md self-check** written by `/spor-init` (Claude Code: `/superpowers-overrides:spor-init`). Run init once per project to prepend the override trigger table to the project's `CLAUDE.md`; this is the primary enforcement mechanism and fires before any skill body is loaded.
 
 | Override skill | Overrides | What it does |
 |---|---|---|
-| `init` | — | Writes the override self-check trigger table to the current project's `CLAUDE.md` (prepended at top). Run once per project; primary enforcement mechanism for overrides. |
-| `brainstorming-overrides` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
-| `writing-plans-overrides` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates ticket breakdown to `/to-tickets` with a hard user-approval gate, then publishes as a single `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (sibling to `specs/` and `plans/`) — no remote tracker. |
-| `subagent-driven-development-overrides` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
-| `using-git-worktrees-overrides` | `superpowers:using-git-worktrees` | Refuses worktree creation entirely (per user policy in `~/.claude/CLAUDE.md`); offers branch-based isolation (`git checkout -b`, `git stash`) instead; propagates refusal back to caller skills (writing-plans, executing-plans, sdd, finishing-a-development-branch) that request worktree setup as a sub-step. |
-| `executing-plans-overrides` | `superpowers:executing-plans` | Redirects to `subagent-driven-development` when subagents are available (upstream itself recommends this); routes worktree sub-step through `using-git-worktrees-overrides` (refuse); delegates task implementation to `mattpocock-skills:tdd`; enforces per-task conventional commits per user CLAUDE.md. |
-| `finishing-a-development-branch-overrides` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies. |
-| `systematic-debugging-overrides` | `superpowers:systematic-debugging` | Gates fix proposals behind diagnostic evidence (Rule 1); delegates diagnosis loop to `mattpocock-skills:diagnosing-bugs` (Rule 2). |
-| `test-driven-development-overrides` | `superpowers:test-driven-development` | Confirms test seams with user before starting (blocking, Rule 2); delegates full TDD loop to `mattpocock-skills:tdd` (Rule 1). |
-| `verification-before-completion-overrides` | `superpowers:verification-before-completion` | Pre-claim gate: invokes upstream before any completion claim (Rule 1); self-check banning softening language without verification evidence (Rule 2). |
-| `receiving-code-review-overrides` | `superpowers:receiving-code-review` | Delegates unclear feedback clarification to `mattpocock-skills:grilling` (Rule 1); delegates each non-mechanical fix to `mattpocock-skills:tdd` (Rule 2). |
-| `subagent-lifecycle` | *cross-cutting* | Invoked by reference from every review override and every parallel-agent dispatch. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. Never a slash command. |
-| `token-efficient-review-dispatch` | *cross-cutting* | Invoked by reference from every review override. Defines the three dispatch mechanisms (D1 escalate-on-finding, D2 delta review, D3 findings-only output) in one place — overrides cite instead of copy-paste. Never a slash command. |
+| `spor-init` | — | Writes the override self-check trigger table to the current project's `CLAUDE.md` (prepended at top). Run once per project; primary enforcement mechanism for overrides. |
+| `spor-brainstorming` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
+| `spor-writing-plans` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates ticket breakdown to `/to-tickets` with a hard user-approval gate, then publishes as a single `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (sibling to `specs/` and `plans/`) — no remote tracker. |
+| `spor-subagent-driven-development` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
+| `spor-using-git-worktrees` | `superpowers:using-git-worktrees` | Refuses worktree creation entirely (per user policy in `~/.claude/CLAUDE.md`); offers branch-based isolation (`git checkout -b`, `git stash`) instead; propagates refusal back to caller skills (writing-plans, executing-plans, sdd, finishing-a-development-branch) that request worktree setup as a sub-step. |
+| `spor-executing-plans` | `superpowers:executing-plans` | Redirects to `subagent-driven-development` when subagents are available (upstream itself recommends this); routes worktree sub-step through `spor-using-git-worktrees` (refuse); delegates task implementation to `mattpocock-skills:tdd`; enforces per-task conventional commits per user CLAUDE.md. |
+| `spor-finishing-a-development-branch` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies. |
+| `spor-systematic-debugging` | `superpowers:systematic-debugging` | Gates fix proposals behind diagnostic evidence (Rule 1); delegates diagnosis loop to `mattpocock-skills:diagnosing-bugs` (Rule 2). |
+| `spor-test-driven-development` | `superpowers:test-driven-development` | Confirms test seams with user before starting (blocking, Rule 2); delegates full TDD loop to `mattpocock-skills:tdd` (Rule 1). |
+| `spor-verification-before-completion` | `superpowers:verification-before-completion` | Pre-claim gate: invokes upstream before any completion claim (Rule 1); self-check banning softening language without verification evidence (Rule 2). |
+| `spor-receiving-code-review` | `superpowers:receiving-code-review` | Delegates unclear feedback clarification to `mattpocock-skills:grilling` (Rule 1); delegates each non-mechanical fix to `mattpocock-skills:tdd` (Rule 2). |
+| `spor-subagent-lifecycle` | *cross-cutting* | Invoked by reference from every review override and every parallel-agent dispatch. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. Never a slash command. |
+| `spor-token-efficient-review-dispatch` | *cross-cutting* | Invoked by reference from every review override. Defines the three dispatch mechanisms (D1 escalate-on-finding, D2 delta review, D3 findings-only output) in one place — overrides cite instead of copy-paste. Never a slash command. |
 
-Both cross-cutting skills exist to prevent copy-paste drift across overrides: `subagent-lifecycle` owns the "fresh + concurrent-iff-independent" invariant, `token-efficient-review-dispatch` owns the D1/D2/D3 mechanisms. Each review override cites both by link rather than repeating their content — when the invariants change, one edit propagates.
+Both cross-cutting skills exist to prevent copy-paste drift across overrides: `spor-subagent-lifecycle` owns the "fresh + concurrent-iff-independent" invariant, `spor-token-efficient-review-dispatch` owns the D1/D2/D3 mechanisms. Each review override cites both by link rather than repeating their content — when the invariants change, one edit propagates.
 
 ## Repository layout
 
@@ -74,7 +74,7 @@ Edit [marketplace/source.json](marketplace/source.json), then `pnpm run emit && 
 
 **Hooks-based reminder:** A `UserPromptExpansion` hook injects an `additionalContext` reminder when `/superpowers:*` slash commands are triggered. Requires `jq` (`brew install jq` on macOS).
 
-**Primary enforcement — project CLAUDE.md:** Run `/superpowers-overrides:init` once per project. It prepends the override self-check trigger table to the project's `CLAUDE.md`, which fires before any skill body is loaded into context and is the most reliable enforcement mechanism.
+**Primary enforcement — project CLAUDE.md:** Run `/spor-init` once per project (Claude Code: `/superpowers-overrides:spor-init`). It prepends the override self-check trigger table to the project's `CLAUDE.md`, which fires before any skill body is loaded into context and is the most reliable enforcement mechanism.
 
 **Upgrading from global config:** If you previously added the override trigger table to `~/.claude/CLAUDE.md`, you can remove it and run `init` in each project instead.
 
@@ -85,7 +85,7 @@ Edit [marketplace/source.json](marketplace/source.json), then `pnpm run emit && 
 After installing the plugin, run this once in each project where you want overrides to be enforced:
 
 ```
-/superpowers-overrides:init
+/spor-init
 ```
 
 This prepends the override trigger table to the project's `CLAUDE.md`. From then on, `/superpowers:brainstorming` (and all other `superpowers:*` skills) will automatically invoke their override counterpart first.
@@ -93,7 +93,7 @@ This prepends the override trigger table to the project's `CLAUDE.md`. From then
 To add to the global `~/.claude/CLAUDE.md` instead (applies to all projects):
 
 ```
-/superpowers-overrides:init    # then tell the AI: "add to global"
+/superpowers-overrides:spor-init    # then tell the AI: "add to global"
 ```
 
 ### Using overrides
@@ -102,24 +102,24 @@ Once `init` has run, use the upstream skill commands as normal — overrides fir
 
 | You type | What runs first | Then |
 |---|---|---|
-| `/superpowers:brainstorming` | `superpowers-overrides:brainstorming-overrides` | delegates clarifying questions to `mattpocock-skills:grilling` |
-| `/superpowers:writing-plans` | `superpowers-overrides:writing-plans-overrides` | section-by-section writes, subagent review passes |
-| `/superpowers:subagent-driven-development` | `superpowers-overrides:subagent-driven-development-overrides` | complexity-based review rounds |
-| `/superpowers:systematic-debugging` | `superpowers-overrides:systematic-debugging-overrides` | gates fix proposals behind diagnostic evidence |
-| `/superpowers:test-driven-development` | `superpowers-overrides:test-driven-development-overrides` | seams confirmation before delegating to `mattpocock-skills:tdd` |
+| `/superpowers:brainstorming` | `superpowers-overrides:spor-brainstorming` | delegates clarifying questions to `mattpocock-skills:grilling` |
+| `/superpowers:writing-plans` | `superpowers-overrides:spor-writing-plans` | section-by-section writes, subagent review passes |
+| `/superpowers:subagent-driven-development` | `superpowers-overrides:spor-subagent-driven-development` | complexity-based review rounds |
+| `/superpowers:systematic-debugging` | `superpowers-overrides:spor-systematic-debugging` | gates fix proposals behind diagnostic evidence |
+| `/superpowers:test-driven-development` | `superpowers-overrides:spor-test-driven-development` | seams confirmation before delegating to `mattpocock-skills:tdd` |
 
 All other `superpowers:*` skills follow the same pattern — see the override table above.
 
 ### Using overrides in Cursor
 
-Cursor uses a flat skill namespace — override skills share one canonical tree with Claude Code under `plugins/superpowers-overrides/skills/`. Override targets use the `-overrides` suffix (e.g. `brainstorming-overrides`) so they never deduplicate with upstream `superpowers` skills.
+Cursor uses a flat skill namespace — override skills share one canonical tree with Claude Code under `plugins/superpowers-overrides/skills/`. Override targets use the `spor-` prefix (e.g. `spor-brainstorming`) so they never deduplicate with upstream `superpowers` skills.
 
 #### Team Marketplace (recommended)
 
 1. **Admin:** Cursor Dashboard → Settings → Plugins → Team Marketplaces → Import → `https://github.com/Oscaner/skills`
 2. **Member:** Customize → Plugins → install `superpowers`, `superpowers-overrides`, and any other plugins you need
 3. **Per project:** run init (writes `.cursor/rules/superpowers-overrides.mdc`)
-4. **Verify:** Agent skills list shows `brainstorming` and `brainstorming-overrides`; `/brainstorming-overrides` works
+4. **Verify:** Agent skills list shows all 13 `spor-*` skills; `/spor-brainstorming` works
 
 #### Claude Code marketplace (same repo)
 
@@ -160,7 +160,7 @@ While hooks now handle auto-triggering, understanding the three-part mechanism i
 
 1. **Hook-based reminder** — The `UserPromptExpansion` hook in `plugins/superpowers-overrides/hooks/hooks.json` (matcher `^superpowers:`) fires when a `/superpowers:*` slash command is typed, injecting an `additionalContext` reminder to call the override first.
 2. **Anti-pattern naming** — Upstream `SKILL.md` bodies open with a numbered "You MUST" checklist so consistently that the pattern needs an explicit name; without it the model reads the checklist and starts executing it. The hook's message names this failure mode. A closely related failure — the **handoff-continuation rationalization** — is also named: when the upstream body arrives as a tool result of a prior `Skill(...)` call, the model treats it as a natural continuation and skips the override.
-3. **Project CLAUDE.md self-check** — Written by `/superpowers-overrides:init`. Prepended to the project's `CLAUDE.md`, it enumerates every trigger → override mapping. This fires in every turn via the system prompt and is the strongest enforcement layer.
+3. **Project CLAUDE.md self-check** — Written by `/spor-init`. Prepended to the project's `CLAUDE.md`, it enumerates every trigger → override mapping. This fires in every turn via the system prompt and is the strongest enforcement layer.
 
 ## Contributing to your own fork
 

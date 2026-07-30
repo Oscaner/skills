@@ -1,6 +1,6 @@
 # Overall + Phase Spec Organization Template
 
-Reference doc for `brainstorming` Rule 3. Read this when producing an overall or phase spec — do not re-implement these conventions from memory.
+Reference doc for `brainstorming` Rule 3 **document structure** (what produced specs contain). Process discipline — independent phase cycles, feed-back to overall, serial/parallel execution, decomposition, completion — lives in `SKILL.md` Rule 3 and sub-rules 3a–3e. Read both; do not re-implement from memory.
 
 ---
 
@@ -16,7 +16,7 @@ Reference doc for `brainstorming` Rule 3. Read this when producing an overall or
 
 ## File paths and naming
 
-All artifacts live under `docs/superpowers/`, sibling to existing single-phase conventions. Use one **program date** + **feature slug** across the whole program (same rule as `docs/superpowers/specs/`, `plans/`, `tickets/` in CLAUDE.md).
+All artifacts live under `docs/superpowers/`. Use one **program date** + **feature slug** across the whole program.
 
 | Artifact | Path pattern | Example |
 |---|---|---|
@@ -25,17 +25,14 @@ All artifacts live under `docs/superpowers/`, sibling to existing single-phase c
 | Phase N implementation plan | `docs/superpowers/plans/YYYY-MM-DD-<feature>-<phase-id>.md` | `…/2026-07-31-auth-p0.md` |
 | Phase N tickets (if published) | `docs/superpowers/tickets/YYYY-MM-DD-<feature>-<phase-id>-tickets.md` | `…/2026-07-31-auth-p0-tickets.md` |
 
-- `<phase-id>` is lowercase phase label from the inventory table (`p0`, `p1`, `p2a`, …).
-- User preference for spec location overrides these defaults (same as upstream brainstorming).
-- The overall inventory table **Design spec** and **Implementation plan** columns link to these paths once files exist.
+- `<phase-id>` is lowercase (`p0`, `p1`, `p2a`, …). User preference for spec location overrides these defaults.
+- Inventory **Design spec** / **Implementation plan** columns link to these paths once files exist.
 
 ---
 
 ## Overall Spec — Required Structure
 
 ### 1. Version header
-
-At the top of the file, before any section:
 
 ```
 - **Version**: v1.0 · YYYY-MM-DD
@@ -44,38 +41,27 @@ At the top of the file, before any section:
 - **Constraints**: [key project-level constraints, one per line]
 ```
 
-Localize the field labels (`Version`, `Status`, etc.) and status prose to the user's language. For **Author**, record who you are collaborating with and the harness + model actually in use (e.g. Cursor + model name) — never hardcode a product or model version.
+Localize field labels and status prose. **Author**: human partner + harness/model in use — never hardcode a product or model version.
 
-**Status lifecycle (overall):**
+**Status lifecycle (overall):** Draft → Approved → In progress → Complete (update header on each transition; append change-history row).
 
-| Status | Meaning |
-|---|---|
-| Draft | Written, not yet user-approved |
-| Approved | User approved decomposition; phase specs may start |
-| In progress | At least one phase spec/plan/dev started; not all phases shipped |
-| Complete | Every phase in the inventory is shipped |
-
-Update header **Status** on each transition; append a change-history row (status-only transitions count).
-
-**Version bumps:** increment minor version (`v1.0` → `v1.1`) on decomposition, scope shift, or phase completion; increment major (`v1.x` → `v2.0`) only on program-level goal or constraint rewrite. Pure typo fixes do not bump version.
+**Version bumps:** minor on decomposition, scope shift, or phase completion; major only on program-level goal or constraint rewrite.
 
 ### 2. `## 0 · Document scope` section
 
-Immediately after the version header. Localize the section title and bullets; must convey:
+Must convey (localized):
 
-- This is the program charter — no implementation detail. Each phase has its own design spec + implementation plan.
-- Before starting a new phase, confirm here: placement, upstream dependencies, and cross-cutting constraints are still current.
-- Any decision that deviates from this document must update this document first before downstream specs/plans change.
+- Program charter — no implementation detail; each phase has its own design spec + plan.
+- Before a new phase: confirm placement, upstream dependencies, and cross-cutting constraints are still current.
+- Deviations from this document update here first (see SKILL Rule 3b).
 
 ### 3. Program charter content (scope-only)
 
-After section 0, before the inventory table. **Include** (localized):
+- **Program goal** — 1–3 sentences.
+- **Non-goals** — explicit out-of-scope for the full program.
+- **Cross-cutting constraints** — tech stack, compatibility, security, i18n, etc. (header `Constraints` summarizes; this section expands).
 
-- **Program goal** — 1–3 sentences: what the whole program delivers and why.
-- **Non-goals** — explicit out-of-scope items for the full program.
-- **Cross-cutting constraints** — tech stack limits, compatibility, security, i18n, performance floors, etc. (the header `Constraints` field summarizes; this section expands).
-
-**Do NOT include** in the overall: per-feature acceptance criteria, API shapes, component-level design, or task lists. Those belong in phase specs.
+**Do NOT include:** per-feature acceptance criteria, API shapes, component design, or task lists.
 
 ### 4. Phase inventory table (4 columns)
 
@@ -86,49 +72,27 @@ After section 0, before the inventory table. **Include** (localized):
 | P1 | [one-paragraph scope] | [Pending] | [Pending] |
 ```
 
-- **Phase column**: one paragraph max — enough to approve decomposition, not a mini design spec.
-- Localize column headers and `[Pending]` to the user's language.
-- **When spec is written**: replace `[Pending]` with a markdown link to the phase design spec path.
-- **When plan is written**: replace plan `[Pending]` with a link to the plan path.
-- **When phase is shipped**: keep both links; append a localized completion marker to the **plan** cell only, e.g. `✅ Complete (tag \`<slug>-complete\` @ <sha>)`.
-- Do NOT add a separate Status column — completion is encoded in the plan cell.
+- **Phase column**: one paragraph max — decomposition context, not a design spec.
+- Spec/plan cells: `[Pending]` → markdown link when written; on ship, append completion marker to **plan** cell only (e.g. `✅ Complete (tag \`<slug>-complete\` @ <sha>)`).
+- No separate Status column.
 
 ### 5. Dependency graph (ASCII)
 
-```
-P0 → P1 → P2a → P2b
-              ↘ P2c
-```
+Keep in sync with the inventory table when phases are added, split, or reordered.
 
-Phase IDs stay as shown; optional caption may be localized. **Keep in sync** with the inventory table whenever phases are added, split, or reordered.
+### 6. Boundary rules (blockquote in produced doc)
 
-### 6. Explicit boundary rules section
+> Each phase runs its own full brainstorming → writing-plans → development cycle. A phase must be shipped before brainstorming begins for any phase that depends on it.
 
-Must include, verbatim or equivalent in the user's language:
+### 7. Document maintenance rules
 
-> Each phase runs its own brainstorming → writing-plans → development cycle independently. Do not "while you're at it" start the next phase. A phase's spec → plan → development must all be shipped before brainstorming begins for any phase that depends on it.
-
-### 7. Document maintenance rules section
-
-Must include (localized):
-
-- After each phase completes: update the inventory links; record deviations in change history; this document does not hold task checklists.
-- This document is the master spec: cross-phase convention changes must land here before phase specs change.
-- Phase specs are incremental only: do not repeat conventions already stated here; on conflict, this document wins.
+- After each phase: update inventory links; record deviations in change history; no task checklists here.
+- Master spec for cross-phase conventions; phase specs are incremental; on conflict, this document wins.
+- Phase-driven strategy changes feed back here before the phase spec is finalized (SKILL Rule 3b).
 
 ### 8. Change history table
 
-```markdown
-| Date | Version | Change |
-|---|---|---|
-| YYYY-MM-DD | v1.0 | Initial version |
-| YYYY-MM-DD | v1.1 | Pn complete (tag `xxx` @ sha) · deliverables summary |
-```
-
-- Localize column headers and row prose.
-- One row per meaningful change (new phase completion, decomposition, scope shift, status transition)
-- Completion row format: `Pn complete (tag \`xxx\` @ sha) · [deliverables: endpoints, tests, key decisions]` — localized as needed
-- Append-only — never edit or delete rows
+Append-only. One row per meaningful change (completion, decomposition, scope shift, status transition).
 
 ---
 
@@ -138,79 +102,40 @@ Must include (localized):
 
 ```
 - **Version**: v1.0 · YYYY-MM-DD
-- **Status**: [see Status lifecycle below]
+- **Status**: [Draft | Approved | Plan pending | Shipped]
 - **Author**: [human name or team] · [harness and model at time of writing]
-- **Parent program**: [overall title and link, including overall version number]
-- **Depends on**: [upstream phase IDs and completion refs, e.g. P0 (tag `auth-p0-complete` @ abc1234)]
+- **Parent program**: [overall title and link, including overall version]
+- **Depends on**: [upstream phase IDs and completion refs]
 ```
-
-Localize field labels and status prose. For **Author**, use the human partner and the harness + model actually in use — do not hardcode a product or model version.
-
-**Status lifecycle (phase spec):**
-
-| Status | Meaning |
-|---|---|
-| Draft | Written, not yet user-approved |
-| Approved | User approved design; writing-plans may start |
-| Plan pending | Approved but plan not yet written |
-| Shipped | Plan executed and phase completion signal recorded in overall |
 
 ### 2. Incremental warning
 
-Immediately after the header (localized):
+> ⚠️ This spec covers Phase N increment only. Cross-phase conventions live in the [overall master spec](link); on conflict, the overall wins.
 
-```
-> ⚠️ This spec covers Phase N increment only. Cross-phase technical conventions live in the [overall master spec](link); on conflict, the overall spec wins.
-```
-
-### 3. Cross-cutting constraints
-
-Do NOT duplicate constraints from the overall. Instead (localized):
+### 3. Cross-cutting constraints pointer
 
 > This spec does not repeat the overall's cross-cutting conventions. On conflict, the overall wins.
 
-### 4. Design body (upstream brainstorming)
+### 4. Design body
 
-After sections 1–3, write the **phase-scoped design** following upstream `brainstorming` checklist steps 4–5 content (approaches, architecture, components, data flow, error handling, testing) — **limited to this phase's increment only**.
+Phase-scoped design for **this increment only** — approaches chosen, architecture, components, data flow, error handling, testing, acceptance criteria. Follow upstream `brainstorming` content shape; follow SKILL Rule 3a for the discovery cycle before writing.
 
-- Scale sections to complexity; include acceptance criteria and success criteria here (not in the overall).
-- Do not design scope belonging to later phases; if discovered, record under **Notes for downstream phases** (section 5) and update the overall if decomposition must change.
+### 5. Deviations from overall (when applicable)
 
-### 5. Notes for downstream phases (optional)
+```markdown
+## Deviations from overall
 
-When this phase's brainstorming reveals scope shifts, constraints, or open questions for a later phase, capture them here immediately — do not rely on session memory. If the shift changes decomposition, update the overall inventory + change history and re-run user approval (Rule 3 step 3) before drafting the affected phase spec.
+| Overall assumption | Phase decision | Overall updated? |
+|---|---|---|
+| [what overall said] | [what this phase chose and why] | Yes — v1.x · YYYY-MM-DD |
+```
 
-### 6. Review
+Required when phase decisions diverge from the overall on cross-phase matters. If **Overall updated?** is not Yes, finalize the overall first (SKILL Rule 3b).
 
-Run `spor-brainstorming` Rule 1 review passes on every phase spec (same as the overall) before user review and before invoking writing-plans.
+### 6. Notes for downstream phases (optional)
 
----
+Scope shifts, constraints, or open questions for later phases. If decomposition or overall-level strategy changes, update overall + re-run decomposition approval (SKILL Rule 3 step 3).
 
-## Execution Rules
+### 7. Review
 
-### Serial execution and parallel phases
-
-**Default (serial):** Phase N spec → plan → development must **all be shipped** before brainstorming begins for any phase that lists N as a dependency.
-
-**Parallel branches:** Phases with the **same upstream dependency** and **no dependency on each other** may run brainstorming → plan → dev **in parallel** (e.g. P2a and P2c both after P1 is shipped). The dependency graph is the source of truth — if two phases are not connected by an arrow, they may proceed concurrently once shared upstream phases are shipped.
-
-Do not pre-draft a phase's spec while an upstream dependency is still in development — shipped outcomes often change downstream scope.
-
-### Dynamic in-place decomposition
-
-When a phase's brainstorming reveals it is too large:
-
-1. **Do NOT create a sub-overall.** One overall per program.
-2. In the overall's phase table, split the row into Na, Nb, … with one-paragraph scope + dependencies each
-3. Update the dependency graph to match
-4. Re-run user approval (Rule 3 step 3) before drafting any sub-phase spec
-5. Decomposition principle: each sub-phase introduces ≤1 new technology stack; each sub-phase is independently demo-able/verifiable
-6. Record the decomposition as a change history entry (with reason)
-
-### Completion signal
-
-**Preferred:** create git tag (name: `<slug>-complete`, e.g. `auth-p0-complete`).
-
-**If the project forbids tags:** use an equivalent immutable reference (release commit SHA, signed milestone issue, or tagged release URL) and record it in the change history.
-
-Then: in the overall inventory's **plan** column, append a localized completion marker, e.g. `✅ Complete (tag \`xxx\` @ sha)`; append a change-history row (ref + sha + full deliverables summary); bump overall header version if applicable.
+Rule 1 review passes before user review and writing-plans (SKILL Rule 3 step 2).

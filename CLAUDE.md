@@ -16,7 +16,7 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 
 | Trigger | First tool call |
 |---|---|
-| `superpowers:brainstorming` | `Skill(superpowers-overrides:spor-bs)` |
+| `superpowers:brainstorming` | `Skill(superpowers-overrides:spor-brainstorming)` |
 | `superpowers:writing-plans` | `Skill(superpowers-overrides:spor-writing-plans)` |
 | `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:spor-subagent-driven-development)` |
 | `superpowers:executing-plans` | `Skill(superpowers-overrides:spor-executing-plans)` |

@@ -10,7 +10,7 @@ input=$(cat)
 command_name=$(printf '%s' "$input" | jq -r '.command_name // ""')
 
 case "$command_name" in
-  superpowers:brainstorming) override="superpowers-overrides:spor-bs" ;;
+  superpowers:brainstorming) override="superpowers-overrides:spor-brainstorming" ;;
   superpowers:writing-plans) override="superpowers-overrides:spor-writing-plans" ;;
   superpowers:subagent-driven-development) override="superpowers-overrides:spor-subagent-driven-development" ;;
   superpowers:executing-plans) override="superpowers-overrides:spor-executing-plans" ;;

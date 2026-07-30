@@ -34,8 +34,8 @@ echo "== 4. hooks executable =="
 [ -f plugins/superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
 [ -x plugins/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion"
 
-echo "== 5. emit-overrides freshness =="
-ENABLE_EMIT_FRESH_CHECK=1 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
+echo "== 5. overrides build validation =="
+./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 
 echo "== 6. marketplace source schema =="
 node scripts/validate-source.mjs

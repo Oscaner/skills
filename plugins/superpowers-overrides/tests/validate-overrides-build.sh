@@ -2,7 +2,6 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS="$ROOT/skills"
-CURSOR="$ROOT/.cursor/skills"
 MANIFEST="$ROOT/overrides.manifest.json"
 
 echo "== validate manifest sources =="
@@ -73,41 +72,14 @@ assert needed <= declared, f'plugin.json missing: {needed - declared}'
 print('OK')
 "
 
-echo "== validate emitted cursor skills (transitional) =="
-python3 -c "
-import json, os, re
-m = json.load(open('$MANIFEST'))
-cursor = '$CURSOR'
-assert os.path.isdir(cursor), 'missing .cursor/skills (transitional emit tree)'
-for t in m['targets']:
-    name = t['name']
-    assert os.path.isdir(os.path.join(cursor, name)), f'missing emitted {name}'
-    _, upstream = t['overrides'].split(':', 1)
-    assert not os.path.isdir(os.path.join(cursor, upstream)), f'dedup collision: {upstream}'
-for slug in ('init', 'subagent-lifecycle', 'token-efficient-review-dispatch'):
-    assert os.path.isfile(os.path.join(cursor, slug, 'SKILL.md')), slug
-for name in os.listdir(cursor):
-    if not name.endswith('-overrides'):
-        continue
-    skill = os.path.join(cursor, name, 'SKILL.md')
-    text = open(skill).read()
-    fm = re.match(r'(?s)^---\n(.*?)\n---', text).group(1)
-    nm = re.search(r'^name:\s*(.+)$', fm, re.M).group(1).strip()
-    assert nm == name, f'{name}: frontmatter name={nm}'
-print('OK')
-"
-
-echo "== validate emit is fresh (optional) =="
-if [ "${ENABLE_EMIT_FRESH_CHECK:-0}" = "1" ]; then
-  "$ROOT/build/emit-overrides.sh" >/dev/null
-  after=$(git -C "$ROOT/../.." diff --name-only plugins/superpowers-overrides/.cursor/skills 2>/dev/null || true)
-  if [ -n "$after" ]; then
-    echo "FAIL: emit-overrides.sh changed committed output — run build and commit"
-    exit 1
-  fi
-  echo "OK — emit produces zero diff"
-else
-  echo "SKIP — set ENABLE_EMIT_FRESH_CHECK=1 to enable"
+echo "== validate no legacy .cursor/skills tree =="
+if [ -d "$ROOT/.cursor/skills" ]; then
+  echo "FAIL: .cursor/skills/ still exists — delete per unified naming spec"
+  exit 1
 fi
+echo "OK"
+
+echo "== validate generator outputs fresh =="
+"$ROOT/build/generate-all.sh" --check
 
 echo "ALL PASS"

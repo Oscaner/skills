@@ -34,40 +34,56 @@ echo "== 4. hooks executable =="
 [ -f superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
 [ -x superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion"
 
-echo "== 5. emit freshness =="
+echo "== 5. emit-overrides freshness =="
 ENABLE_EMIT_FRESH_CHECK=1 ./superpowers-overrides/tests/validate-overrides-build.sh
 
-echo "== 6. overrides version triple-check =="
+echo "== 6. marketplace source schema =="
+node scripts/validate-source.mjs
+
+echo "== 7. marketplace emit freshness =="
+node scripts/emit-marketplace.mjs --check
+
+echo "== 8. overrides version triple-check =="
 node -e "
+const s=require('./marketplace/source.json');
 const m=require('./.claude-plugin/marketplace.json');
 const p=require('./superpowers-overrides/package.json');
 const j=require('./superpowers-overrides/.claude-plugin/plugin.json');
+const src=s.plugins.find(x=>x.name==='superpowers-overrides');
 const entry=m.plugins.find(x=>x.name==='superpowers-overrides');
-if(entry.version!==p.version||p.version!==j.version)
-  throw new Error('version mismatch: '+[entry.version,p.version,j.version]);
+const v=[p.version,src.version,j.version,entry.version];
+if(new Set(v).size!==1) throw new Error('version mismatch: '+v.join(' '));
 console.log('OK —', p.version);
 "
 
-echo "== 7. overrides prerelease prefix =="
+echo "== 9. overrides prerelease prefix =="
 node -e "
-const m=require('./.claude-plugin/marketplace.json');
+const s=require('./marketplace/source.json');
 const p=require('./superpowers-overrides/package.json');
-const sp=m.plugins.find(x=>x.name==='superpowers').version;
+const sp=s.plugins.find(x=>x.name==='superpowers').version;
 if(!p.version.startsWith(sp+'-overrides.'))
   throw new Error(p.version+' not aligned to superpowers '+sp);
 console.log('OK');
 "
 
-echo "== 8. mattpocock-skills resolvable =="
-[ -d mattpocock-skills/skills ] && echo OK
-
-echo "== 9. superpowers version sync =="
+echo "== 10. superpowers version sync =="
 node -e "
+const s=require('./marketplace/source.json');
 const m=require('./.claude-plugin/marketplace.json');
 const j=require('./superpowers/.claude-plugin/plugin.json');
-const sp=m.plugins.find(x=>x.name==='superpowers').version;
-if(j.version!==sp) throw new Error('superpowers plugin.json '+j.version+' != marketplace '+sp);
-console.log('OK — superpowers', sp);
+const src=s.plugins.find(x=>x.name==='superpowers').version;
+const entry=m.plugins.find(x=>x.name==='superpowers').version;
+if(j.version!==src||src!==entry) throw new Error('superpowers mismatch: submodule='+j.version+' source='+src+' emitted='+entry);
+console.log('OK — superpowers', src);
 "
+
+echo "== 11. mattpocock-skills resolvable =="
+[ -d mattpocock-skills/skills ] && echo OK
+
+echo "== 12. cursor wrapper paths resolve =="
+node scripts/validate-wrapper-paths.mjs
+
+echo "== 13. marketplace plugin sources exist =="
+node scripts/validate-marketplace-sources.mjs
 
 echo "ALL PASS"

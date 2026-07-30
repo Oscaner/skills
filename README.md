@@ -41,16 +41,16 @@ Precedence is enforced by three coordinated mechanisms — each override's `desc
 | Override skill | Overrides | What it does |
 |---|---|---|
 | `init` | — | Writes the override self-check trigger table to the current project's `CLAUDE.md` (prepended at top). Run once per project; primary enforcement mechanism for overrides. |
-| `brainstorming` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
-| `writing-plans` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates ticket breakdown to `/to-tickets` with a hard user-approval gate, then publishes as a single `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (sibling to `specs/` and `plans/`) — no remote tracker. |
-| `subagent-driven-development` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
-| `using-git-worktrees` | `superpowers:using-git-worktrees` | Refuses worktree creation entirely (per user policy in `~/.claude/CLAUDE.md`); offers branch-based isolation (`git checkout -b`, `git stash`) instead; propagates refusal back to caller skills (writing-plans, executing-plans, sdd, finishing-a-development-branch) that request worktree setup as a sub-step. |
-| `executing-plans` | `superpowers:executing-plans` | Redirects to `subagent-driven-development` when subagents are available (upstream itself recommends this); routes worktree sub-step through `using-git-worktrees` (refuse); delegates task implementation to `mattpocock-skills:tdd`; enforces per-task conventional commits per user CLAUDE.md. |
-| `finishing-a-development-branch` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies. |
-| `systematic-debugging` | `superpowers:systematic-debugging` | Gates fix proposals behind diagnostic evidence (Rule 1); delegates diagnosis loop to `mattpocock-skills:diagnosing-bugs` (Rule 2). |
-| `test-driven-development` | `superpowers:test-driven-development` | Confirms test seams with user before starting (blocking, Rule 2); delegates full TDD loop to `mattpocock-skills:tdd` (Rule 1). |
-| `verification-before-completion` | `superpowers:verification-before-completion` | Pre-claim gate: invokes upstream before any completion claim (Rule 1); self-check banning softening language without verification evidence (Rule 2). |
-| `receiving-code-review` | `superpowers:receiving-code-review` | Delegates unclear feedback clarification to `mattpocock-skills:grilling` (Rule 1); delegates each non-mechanical fix to `mattpocock-skills:tdd` (Rule 2). |
+| `brainstorming-overrides` | `superpowers:brainstorming` | Replaces self-review with up to 3 fresh-subagent passes (Completeness → Consistency → Clarity); delegates requirements-gathering to `mattpocock-skills:grilling` (one question at a time, no batching). |
+| `writing-plans-overrides` | `superpowers:writing-plans` | Forces incremental section-by-section writes; replaces self-review with up to 3 fresh-subagent passes; delegates ticket breakdown to `/to-tickets` with a hard user-approval gate, then publishes as a single `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (sibling to `specs/` and `plans/`) — no remote tracker. |
+| `subagent-driven-development-overrides` | `superpowers:subagent-driven-development` | Scales review rounds to task complexity (Simple = 1 round, Complex = up to 3); batches related simple tasks; delegates implementation to `mattpocock-skills:tdd`. |
+| `using-git-worktrees-overrides` | `superpowers:using-git-worktrees` | Refuses worktree creation entirely (per user policy in `~/.claude/CLAUDE.md`); offers branch-based isolation (`git checkout -b`, `git stash`) instead; propagates refusal back to caller skills (writing-plans, executing-plans, sdd, finishing-a-development-branch) that request worktree setup as a sub-step. |
+| `executing-plans-overrides` | `superpowers:executing-plans` | Redirects to `subagent-driven-development` when subagents are available (upstream itself recommends this); routes worktree sub-step through `using-git-worktrees-overrides` (refuse); delegates task implementation to `mattpocock-skills:tdd`; enforces per-task conventional commits per user CLAUDE.md. |
+| `finishing-a-development-branch-overrides` | `superpowers:finishing-a-development-branch` | Collapses environment detection to normal-repo only (no worktree branch); drops Step 6 (Cleanup Workspace) entirely; enforces conventional commits and no attribution trailer on both merge commits and PR bodies. |
+| `systematic-debugging-overrides` | `superpowers:systematic-debugging` | Gates fix proposals behind diagnostic evidence (Rule 1); delegates diagnosis loop to `mattpocock-skills:diagnosing-bugs` (Rule 2). |
+| `test-driven-development-overrides` | `superpowers:test-driven-development` | Confirms test seams with user before starting (blocking, Rule 2); delegates full TDD loop to `mattpocock-skills:tdd` (Rule 1). |
+| `verification-before-completion-overrides` | `superpowers:verification-before-completion` | Pre-claim gate: invokes upstream before any completion claim (Rule 1); self-check banning softening language without verification evidence (Rule 2). |
+| `receiving-code-review-overrides` | `superpowers:receiving-code-review` | Delegates unclear feedback clarification to `mattpocock-skills:grilling` (Rule 1); delegates each non-mechanical fix to `mattpocock-skills:tdd` (Rule 2). |
 | `subagent-lifecycle` | *cross-cutting* | Invoked by reference from every review override and every parallel-agent dispatch. Enforces **fresh** subagent per pass and **concurrent iff independent** dispatch. Never a slash command. |
 | `token-efficient-review-dispatch` | *cross-cutting* | Invoked by reference from every review override. Defines the three dispatch mechanisms (D1 escalate-on-finding, D2 delta review, D3 findings-only output) in one place — overrides cite instead of copy-paste. Never a slash command. |
 
@@ -102,17 +102,17 @@ Once `init` has run, use the upstream skill commands as normal — overrides fir
 
 | You type | What runs first | Then |
 |---|---|---|
-| `/superpowers:brainstorming` | `superpowers-overrides:brainstorming` | delegates clarifying questions to `mattpocock-skills:grilling` |
-| `/superpowers:writing-plans` | `superpowers-overrides:writing-plans` | section-by-section writes, subagent review passes |
-| `/superpowers:subagent-driven-development` | `superpowers-overrides:subagent-driven-development` | complexity-based review rounds |
-| `/superpowers:systematic-debugging` | `superpowers-overrides:systematic-debugging` | gates fix proposals behind diagnostic evidence |
-| `/superpowers:test-driven-development` | `superpowers-overrides:test-driven-development` | seams confirmation before delegating to `mattpocock-skills:tdd` |
+| `/superpowers:brainstorming` | `superpowers-overrides:brainstorming-overrides` | delegates clarifying questions to `mattpocock-skills:grilling` |
+| `/superpowers:writing-plans` | `superpowers-overrides:writing-plans-overrides` | section-by-section writes, subagent review passes |
+| `/superpowers:subagent-driven-development` | `superpowers-overrides:subagent-driven-development-overrides` | complexity-based review rounds |
+| `/superpowers:systematic-debugging` | `superpowers-overrides:systematic-debugging-overrides` | gates fix proposals behind diagnostic evidence |
+| `/superpowers:test-driven-development` | `superpowers-overrides:test-driven-development-overrides` | seams confirmation before delegating to `mattpocock-skills:tdd` |
 
 All other `superpowers:*` skills follow the same pattern — see the override table above.
 
 ### Using overrides in Cursor
 
-Cursor uses a flat skill namespace — override skills with the same name as upstream `superpowers` skills are deduplicated and hidden. This marketplace emits uniquely named Cursor skills (`brainstorming-overrides`, etc.) under `plugins/superpowers-overrides/.cursor/skills/`.
+Cursor uses a flat skill namespace — override skills share one canonical tree with Claude Code under `plugins/superpowers-overrides/skills/`. Override targets use the `-overrides` suffix (e.g. `brainstorming-overrides`) so they never deduplicate with upstream `superpowers` skills.
 
 #### Team Marketplace (recommended)
 
@@ -131,10 +131,11 @@ Cursor uses a flat skill namespace — override skills with the same name as ups
 
 If override skills do not appear after install, see the discovery fallback in [plugins/superpowers-overrides/docs/cross-harness-overrides.md](plugins/superpowers-overrides/docs/cross-harness-overrides.md).
 
-After editing canonical override skills or [marketplace/source.json](marketplace/source.json):
+After editing override skills, manifest, or generators:
 
 ```bash
-pnpm run emit
+pnpm run generate:overrides   # when manifest or generator templates change
+pnpm run emit                 # regenerate marketplace manifests
 pnpm run validate
 ```
 

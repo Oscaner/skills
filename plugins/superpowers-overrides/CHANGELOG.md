@@ -1,5 +1,12 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.4
+
+### Patch Changes
+
+- BREAKING: Rename all override skills to `spor-*` prefix so Cursor flat namespace no longer deduplicates them against upstream `superpowers` skills. Supersedes the `-overrides` suffix naming from 6.2.0-overrides.3. Re-run `/spor-init` after upgrade.
+
+
 ## 6.2.0-overrides.3
 
 ### Patch Changes

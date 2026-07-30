@@ -25,6 +25,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Prepare align changeset if superpowers bumped
         run: node scripts/create-align-changeset.mjs
+      - run: pnpm run emit
       - uses: changesets/action@v1
         with:
           version: node scripts/version-packages.mjs

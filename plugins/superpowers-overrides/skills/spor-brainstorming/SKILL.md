@@ -33,14 +33,14 @@ Whenever brainstorming needs clarifying questions from the user, the interview l
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming
 
-Before producing an overall or phase spec, Read `plugins/superpowers-overrides/skills/spor-brainstorming/overall-phase-spec-template.md` — it is the source of truth for document structure, serial execution rules, completion signals, dynamic decomposition, and **language** (write specs in the user's language; do not default to Chinese or any fixed locale). Do not re-implement its conventions from memory.
+Before producing an overall or phase spec, Read `plugins/superpowers-overrides/skills/spor-brainstorming/overall-phase-spec-template.md` — it is the source of truth for **file paths**, document structure, serial/parallel execution rules, completion signals, dynamic decomposition, and **language** (write specs in the user's language; do not default to Chinese or any fixed locale). Do not re-implement its conventions from memory.
 
 **Escape hatch:** If the user has explicitly stated the scope is small before `grilling` begins — e.g. "这是小改动 / 就这一处 / scope 很小 / it's a minor change" — Rule 3 does NOT trigger. Proceed directly with a single-phase spec.
 
 When the request is a **large / multi-phase requirement** (any of: touches ≥3 distinct subsystems; spans multiple user-facing capabilities; the user says "整个系统 / 大功能 / 一整套 / overhaul / redesign / 分几期 / roadmap"; or Rule 2's `grilling` interview reveals ≥2 independent capability clusters), follow the overall-phase-spec-template:
 
 1. **Produce an overall spec first.** Scope-only — no per-feature requirements, no acceptance criteria.
-2. **Run Rule 1's review passes on the overall** before any phase brainstorming starts.
+2. **Run Rule 1's review passes on the overall** before any phase brainstorming starts. Run the same passes on **each phase spec** before writing-plans (see template Phase Spec §6).
 3. **Get explicit user approval on the phase decomposition.** Silence is not approval.
 4. **Take one phase at a time: spec → plan → development → shipped** before starting the next phase's brainstorming. Never pre-draft phase N+1 while N is in flight.
 5. **Recursive decomposition in-place.** Never create a sub-overall file. Expand the too-large phase in the overall's table into sub-phases, re-run Step 3.
@@ -65,7 +65,7 @@ When the request is a **large / multi-phase requirement** (any of: touches ≥3 
 | "Requirement is large but I already see the phases, overall is ceremony" | The overall isn't for you — it's the artifact the user approves before per-phase drafting starts. Skipping it means phase 2's `grilling` may invalidate phase 1's spec. |
 | "Phases look independent so I'll brainstorm them concurrently" | "Look independent" ≠ are independent. Phase N's spec routinely reveals a constraint that reshapes phase N+1's scope. Serial is the point. |
 | "User is technical, they'll infer approval from my continuing" | Silence is not approval for a scope-shaping decision. Ask, wait for an affirmative answer. |
-| "Phase N revealed a scope shift for N+1, I'll remember it" | Memory across a multi-week phased program is not reliable. Write it to N+1's `Notes` immediately; if the decomposition itself moved, re-run Step 3. |
+| "Phase N revealed a scope shift for N+1, I'll remember it" | Memory across a multi-week phased program is not reliable. Write it to the phase spec's **Notes for downstream phases** section immediately; if the decomposition itself moved, re-run Step 3. |
 | "Phase N is shipping, I can pre-draft N+1's spec now for speed" | The whole reason to phase is that shipped outcomes reshape later scope. Pre-drafting freezes assumptions before the evidence lands. |
 | "Phase turned out too big but I've already started — pushing through is faster than restarting" | A too-large phase produces a diffuse spec, a diffuse plan, and rework. Stop, decompose under Step 5. Sunk cost isn't a reason to keep going. |
 | "A sub-overall file is cleaner than editing the overall in place" | Cleaner for the writer, worse for every future reader. Deep overall trees hide the source of truth and split status across files. One program = one overall. |

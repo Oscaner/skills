@@ -88,4 +88,40 @@ echo "OK"
 echo "== validate generator outputs fresh =="
 "$ROOT/build/generate-all.sh" --check
 
+echo "== validate self-check version stamps =="
+python3 -c "
+import json, re
+from pathlib import Path
+root = Path('$ROOT')
+version = json.loads((root / '.claude-plugin/plugin.json').read_text())['version']
+cursor = (root / 'build/generated/cursor-self-check.mdc').read_text()
+claude = (root / 'build/generated/claude-self-check.md').read_text()
+assert f'superpowers-overrides-version: {version}' in cursor, 'cursor self-check missing version stamp'
+m = re.search(r'<!-- superpowers-overrides-version: ([^ ]+) -->', claude)
+assert m and m.group(1) == version, 'claude self-check version stamp mismatch'
+print('OK')
+"
+
+echo "== validate dogfood self-check version stamps =="
+REPO_ROOT="$(cd "$ROOT/../.." && pwd)"
+python3 -c "
+import json, re
+from pathlib import Path
+plugin_root = Path('$ROOT')
+repo_root = Path('$REPO_ROOT')
+version = json.loads((plugin_root / '.claude-plugin/plugin.json').read_text())['version']
+
+cursor_path = repo_root / '.cursor/rules/superpowers-overrides.mdc'
+claude_path = repo_root / 'CLAUDE.md'
+cursor = cursor_path.read_text()
+claude = claude_path.read_text()
+
+needle = f'superpowers-overrides-version: {version}'
+assert needle in cursor, f'{cursor_path}: missing or stale stamp — re-run /spor-init'
+
+m = re.search(r'<!-- superpowers-overrides-version: ([^ ]+) -->', claude.splitlines()[0])
+assert m and m.group(1) == version, f'{claude_path}: line 1 stamp mismatch — re-run /spor-init'
+print('OK')
+"
+
 echo "ALL PASS"

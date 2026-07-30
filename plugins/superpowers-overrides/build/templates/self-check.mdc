@@ -1,6 +1,7 @@
 ---
 description: superpowers-overrides self-check for Cursor — intercept upstream superpowers skills
 alwaysApply: true
+superpowers-overrides-version: {{PLUGIN_VERSION}}
 ---
 
 ## superpowers-overrides self-check (Cursor)

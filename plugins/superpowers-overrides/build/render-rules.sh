@@ -13,17 +13,19 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(sys.argv[1]) / "build/lib"))
-from manifest_targets import load_targets
+from manifest_targets import load_plugin_version, load_targets
 
 root = Path(sys.argv[1])
 template = (root / "build/templates/self-check.mdc").read_text()
+version = load_plugin_version(root)
 rows = []
 for t in load_targets(root):
     s = t.upstream_slug
     rows.append(
         f"| `/{s}`, `/superpowers:{s}`, upstream `{s}` body | Read `{t.name}` via agent_skills fullPath |"
     )
-print(template.replace("{{TRIGGER_TABLE}}", "\n".join(rows)), end="")
+out = template.replace("{{TRIGGER_TABLE}}", "\n".join(rows))
+print(out.replace("{{PLUGIN_VERSION}}", version), end="")
 PY
 
 if $CHECK; then

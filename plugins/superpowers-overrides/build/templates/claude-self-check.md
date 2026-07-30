@@ -1,3 +1,4 @@
+<!-- superpowers-overrides-version: {{PLUGIN_VERSION}} -->
 ## superpowers-overrides self-check
 
 Before your first tool call in ANY turn, run this check — no exceptions:

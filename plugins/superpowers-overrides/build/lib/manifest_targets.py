@@ -14,6 +14,15 @@ class Target:
     upstream_slug: str
 
 
+def load_plugin_version(plugin_root: Path) -> str:
+    plugin_json = plugin_root / ".claude-plugin" / "plugin.json"
+    data = json.loads(plugin_json.read_text())
+    version = data.get("version")
+    if not version:
+        raise ValueError(f"missing version in {plugin_json}")
+    return version
+
+
 def load_targets(plugin_root: Path) -> list[Target]:
     manifest_path = plugin_root / "overrides.manifest.json"
     data = json.loads(manifest_path.read_text())

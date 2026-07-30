@@ -1,5 +1,12 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.5
+
+### Patch Changes
+
+- BREAKING (spike): Rename brainstorming override to `spor-bs` to test Cursor marketplace dedup fix. Re-run init after upgrade. Manual smoke: plugin Skills count should increase without project copy.
+
+
 ## 6.2.0-overrides.4
 
 ### Patch Changes

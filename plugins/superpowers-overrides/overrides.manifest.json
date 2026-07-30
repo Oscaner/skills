@@ -3,9 +3,9 @@
   "plugin": "superpowers-overrides",
   "targets": [
     {
-      "name": "spor-brainstorming",
+      "name": "spor-bs",
       "overrides": "superpowers:brainstorming",
-      "source": "./skills/spor-brainstorming"
+      "source": "./skills/spor-bs"
     },
     {
       "name": "spor-writing-plans",

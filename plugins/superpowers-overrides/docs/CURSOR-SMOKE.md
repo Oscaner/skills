@@ -9,10 +9,9 @@ Reference: [cross-harness-overrides.md](./cross-harness-overrides.md)
 - [ ] Admin imports `https://github.com/Oscaner/skills` in Dashboard → Settings → Plugins → Team Marketplaces
 - [ ] Member installs all needed plugins from Customize → Plugins (`superpowers`, `superpowers-overrides`, etc.)
 - [ ] Cursor Dashboard lists four plugins after import
-- [ ] Agent skills list shows **13** `spor-*` skills (including `spor-init`, `spor-subagent-lifecycle`, `spor-token-efficient-review-dispatch`)
-- [ ] `/spor-brainstorming` attaches override skill
-- [ ] Run `/spor-init` → `.cursor/rules/superpowers-overrides.mdc` exists
-- [ ] `/superpowers:brainstorming` or attached upstream → agent invokes `spor-brainstorming` first (check tool trace)
+- [ ] Agent skills list shows **4** `spor-*` skills (3 cross-cutting + `spor-bs`) without project `.cursor/skills/` copy
+- [ ] `/spor-bs` attaches override skill (direct attach, no Search files)
+- [ ] `/superpowers:brainstorming` or attached upstream → agent invokes `spor-bs` first (check tool trace)
 
 ## Discovery fallback (non-Team users)
 
@@ -20,11 +19,11 @@ If Team Marketplace is unavailable:
 
 - [ ] Copy from `plugins/superpowers-overrides/skills/*` into project `.cursor/skills/`
 - [ ] Copy upstream from `plugins/superpowers/skills/*` into project `.cursor/skills/`
-- [ ] Repeat skill list and `/spor-brainstorming` checks above
+- [ ] Repeat skill list and `/spor-bs` checks above
 
 ## Claude Code regression
 
-- [ ] `/superpowers:brainstorming` → `Skill(superpowers-overrides:spor-brainstorming)` first
+- [ ] `/superpowers:brainstorming` → `Skill(superpowers-overrides:spor-bs)` first
 
 After editing override skills, manifest, or generators:
 

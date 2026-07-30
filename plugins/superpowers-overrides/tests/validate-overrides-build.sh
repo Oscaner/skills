@@ -102,4 +102,26 @@ assert m and m.group(1) == version, 'claude self-check version stamp mismatch'
 print('OK')
 "
 
+echo "== validate dogfood self-check version stamps =="
+REPO_ROOT="$(cd "$ROOT/../.." && pwd)"
+python3 -c "
+import json, re
+from pathlib import Path
+plugin_root = Path('$ROOT')
+repo_root = Path('$REPO_ROOT')
+version = json.loads((plugin_root / '.claude-plugin/plugin.json').read_text())['version']
+
+cursor_path = repo_root / '.cursor/rules/superpowers-overrides.mdc'
+claude_path = repo_root / 'CLAUDE.md'
+cursor = cursor_path.read_text()
+claude = claude_path.read_text()
+
+needle = f'superpowers-overrides-version: {version}'
+assert needle in cursor, f'{cursor_path}: missing or stale stamp — re-run /spor-init'
+
+m = re.search(r'<!-- superpowers-overrides-version: ([^ ]+) -->', claude.splitlines()[0])
+assert m and m.group(1) == version, f'{claude_path}: line 1 stamp mismatch — re-run /spor-init'
+print('OK')
+"
+
 echo "ALL PASS"

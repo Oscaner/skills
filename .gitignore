@@ -2,3 +2,4 @@ docs/superpowers
 node_modules
 .pnpm-store
 .superpowers
+__pycache__/

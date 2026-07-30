@@ -1,8 +1,11 @@
 # Cross-Harness Skill Overrides
 
-Portable convention for marketplace plugins that ship **override skills** with the same canonical name as an upstream plugin.
+Portable convention for marketplace plugins that ship **override skills** alongside an upstream plugin.
 
-Design spec: [docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md](../../docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md) (in-repo clone path; adjust if your marketplace layout differs).
+Design specs:
+
+- v2 (current): [docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md](../../docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md)
+- v1 (superseded emit model): [docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md](../../docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md)
 
 ## Problem
 
@@ -13,16 +16,20 @@ Design spec: [docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-de
 
 Override plugins that reuse upstream skill names work in Claude Code but break in Cursor when both plugins are installed.
 
-## Solution (v1 — Cursor)
+## Solution (v2 — unified tree)
 
-1. **Canonical source** — keep override content in `skills/<slug>/` with upstream-matching `name` (Claude Code semantic).
-2. **Manifest** — declare override targets in `overrides.manifest.json`.
-3. **Build emit** — generate `.cursor/skills/{slug}-overrides/` with rewritten frontmatter.
-4. **Enforcement** — slash `/brainstorming-overrides` + project rules from `init` (`render-rules.sh` → `.cursor/rules/superpowers-overrides.mdc`).
+One canonical tree under `skills/` serves Claude Code, Cursor marketplace, and manual copy:
 
-**CI / release emit:** PR CI runs `ENABLE_EMIT_FRESH_CHECK=1` (regenerates `.cursor/skills/` and fails if committed output is stale). The release workflow runs `emit-overrides.sh` again during version bump. Contributors should run emit locally before opening a PR.
+1. **Canonical source** — override targets live in `skills/<name>/` where `<name>` ends with `-overrides` (e.g. `brainstorming-overrides`). Directory basename equals frontmatter `name`.
+2. **Manifest** — declare targets in `overrides.manifest.json` with explicit `name`, `overrides`, and `source` fields.
+3. **Generators** — manifest-driven scripts write committed hook + self-check artifacts (`build/generated/*`, `bin/override-prompt-expansion.sh`).
+4. **Enforcement** — Claude hooks + project `CLAUDE.md` self-check; Cursor project rules from init + `/brainstorming-overrides` slash commands.
 
-Claude Code path is unchanged: hooks + project `CLAUDE.md` self-check + `Skill(superpowers-overrides:<slug>)`.
+No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
+
+**CI:** `pnpm run validate:overrides` checks generator drift; `tests/validate-overrides-build.sh` validates the canonical tree.
+
+Claude Code interception: `Skill(superpowers-overrides:brainstorming-overrides)` (manifest `name` field).
 
 ## Manifest schema
 
@@ -34,9 +41,9 @@ Claude Code path is unchanged: hooks + project `CLAUDE.md` self-check + `Skill(s
   "plugin": "superpowers-overrides",
   "targets": [
     {
-      "slug": "brainstorming",
+      "name": "brainstorming-overrides",
       "overrides": "superpowers:brainstorming",
-      "source": "./skills/brainstorming"
+      "source": "./skills/brainstorming-overrides"
     }
   ]
 }
@@ -45,48 +52,49 @@ Claude Code path is unchanged: hooks + project `CLAUDE.md` self-check + `Skill(s
 | Field | Description |
 |-------|-------------|
 | `plugin` | Override plugin namespace name |
-| `slug` | Canonical skill directory name |
-| `overrides` | Upstream `plugin:skill` id |
-| `source` | Path to canonical `SKILL.md` directory |
+| `name` | Canonical skill id in all harnesses (ends with `-overrides` for override targets) |
+| `overrides` | Upstream `plugin:skill` id to intercept |
+| `source` | Path to canonical skill directory |
 
-**Derived at build time:** flat name = `{slug}-overrides`.
+**Upstream slug for trigger tables:** parse from `overrides` (`superpowers:brainstorming` → `brainstorming`).
 
 ## Naming rule
 
-Flat-namespace output **always** uses `{slug}-overrides` for conflict targets. Cross-cutting skills with no upstream name collision keep their original names.
+Override targets **always** use the `-overrides` suffix in directory name and frontmatter `name`. Cross-cutting skills with no upstream collision (`init`, `subagent-lifecycle`, `token-efficient-review-dispatch`) keep original names.
 
 ## Build commands
 
 ```bash
-./plugins/superpowers-overrides/build/emit-overrides.sh
+pnpm run generate:overrides    # write committed generator outputs
+pnpm run validate:overrides    # --check drift
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 
-Regenerate after editing canonical `skills/<slug>/SKILL.md` files.
+Regenerate after editing `overrides.manifest.json` or generator templates.
 
 ## Plugin discovery fallback (Cursor)
 
-Skills ship under `plugins/superpowers-overrides/.cursor/skills/` in the plugin tree. After marketplace install, verify both upstream and override skills appear in the agent skills list (e.g. `brainstorming` and `brainstorming-overrides`).
+Skills ship under `plugins/superpowers-overrides/skills/` in the plugin tree. After marketplace install, verify both upstream and override skills appear in the agent skills list (e.g. `brainstorming` and `brainstorming-overrides`).
 
-If override skills are missing:
-
-1. Disable **Include third-party Plugins, Skills, and other configs** if `.claude/skills/` scanning causes dedup, or
-2. Copy or symlink plugin `.cursor/skills/*` into the project `.cursor/skills/`:
+If override skills are missing (Team Marketplace blocked or third-party import disabled):
 
 ```bash
 mkdir -p .cursor/skills
-cp -R path/to/plugins/superpowers-overrides/.cursor/skills/* .cursor/skills/
+cp -R path/to/plugins/superpowers-overrides/skills/* .cursor/skills/
+cp -R path/to/plugins/superpowers/skills/* .cursor/skills/   # upstream, separate plugin
 ```
+
+Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 
 ## Cursor setup
 
 1. Install `superpowers` + `superpowers-overrides` from the marketplace.
-2. Run init in Cursor (writes `.cursor/rules/superpowers-overrides.mdc`).
+2. Run init in Cursor (copies `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`).
 3. Invoke `/brainstorming-overrides` directly, or use upstream slash commands and rely on rules intercept.
 
 Manual verification: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
 
-## Deferred harnesses (documented, not built in v1)
+## Deferred harnesses (documented, not built)
 
 | Harness | Rules output (future) |
 |---------|----------------------|
@@ -98,11 +106,12 @@ See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for direc
 
 ## Adoption guide (third-party marketplaces)
 
-1. **Manifest** — add `overrides.manifest.json` listing each `slug`, upstream `overrides` id, and `source` path.
-2. **Build emit** — copy canonical skills to flat-namespace dirs; rewrite frontmatter `name` to `{slug}-overrides`; commit generated output.
-3. **Rules / init** — render a self-check rules file from the manifest; teach `init` to write it per harness.
+1. **Manifest** — add `overrides.manifest.json` with `name`, upstream `overrides` id, and `source` path per target.
+2. **Naming** — use explicit `-overrides` suffix on conflict targets; one tree for all harnesses.
+3. **Generators** — share `manifest_targets.py`; commit hook + self-check outputs; CI `--check` on drift.
+4. **Init** — copy committed `build/generated/*` at runtime; never run generators in init.
 
-Copy JSON schema, `emit-overrides.sh`, and `validate-overrides-build.sh` from this plugin as a starting point.
+Copy JSON schema, generator scripts, and `validate-overrides-build.sh` from this plugin as a starting point.
 
 ## Phase 2 (not v1)
 

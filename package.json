@@ -5,9 +5,10 @@
     "changeset": "changeset",
     "validate": "./scripts/ci-validate.sh",
     "version": "node scripts/version-packages.mjs",
-    "emit:overrides": "./plugins/superpowers-overrides/build/emit-overrides.sh",
+    "generate:overrides": "./plugins/superpowers-overrides/build/generate-all.sh",
+    "validate:overrides": "./plugins/superpowers-overrides/build/generate-all.sh --check",
     "emit:marketplace": "node scripts/emit-marketplace.mjs",
-    "emit": "pnpm run emit:overrides && pnpm run emit:marketplace",
+    "emit": "pnpm run generate:overrides && pnpm run emit:marketplace",
     "prepare": "husky"
   },
   "devDependencies": {

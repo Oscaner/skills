@@ -11,11 +11,17 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["slug", "overrides", "source"],
+        "required": ["name", "overrides", "source"],
         "additionalProperties": false,
         "properties": {
-          "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "overrides": { "type": "string", "pattern": "^[a-z0-9-]+:[a-z0-9-]+$" },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+-overrides$"
+          },
+          "overrides": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+:[a-z0-9-]+$"
+          },
           "source": { "type": "string", "pattern": "^\\./skills/" }
         }
       }

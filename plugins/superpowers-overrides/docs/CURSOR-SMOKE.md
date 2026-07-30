@@ -18,16 +18,18 @@ Reference: [cross-harness-overrides.md](./cross-harness-overrides.md)
 
 If Team Marketplace is unavailable:
 
-- [ ] Copy or symlink `plugins/superpowers-overrides/.cursor/skills/*` into project `.cursor/skills/`
+- [ ] Copy from `plugins/superpowers-overrides/skills/*` into project `.cursor/skills/`
+- [ ] Copy upstream from `plugins/superpowers/skills/*` into project `.cursor/skills/`
 - [ ] Repeat skill list and `/brainstorming-overrides` checks above
 
 ## Claude Code regression
 
-- [ ] `/superpowers:brainstorming` → `Skill(superpowers-overrides:brainstorming)` first
+- [ ] `/superpowers:brainstorming` → `Skill(superpowers-overrides:brainstorming-overrides)` first
 
-After editing canonical override skills or marketplace source:
+After editing override skills, manifest, or generators:
 
 ```bash
+pnpm run generate:overrides   # when manifest or templates change
 pnpm run emit
 pnpm run validate
 ```
@@ -36,6 +38,6 @@ pnpm run validate
 
 After merging a Version PR:
 
-- [ ] Git tag exists: `superpowers-overrides@{version}` (e.g. `superpowers-overrides@6.2.0-overrides.1`)
+- [ ] Git tag exists: `superpowers-overrides@{version}` (e.g. `superpowers-overrides@6.2.0-overrides.3`)
 - [ ] `marketplace/source.json` and emitted `.claude-plugin/marketplace.json` `superpowers-overrides.version` match the tag version
 - [ ] `plugins/superpowers-overrides/CHANGELOG.md` entry exists for that version

@@ -3,7 +3,7 @@
 Before your first tool call in ANY turn, run this check — no exceptions:
 
 1. Scan the current turn for any of: a `<command-name>` tag, a `<command-message>` tag, `/superpowers:*` in user text, or a `superpowers:*` skill body appearing in system context.
-2. If any is present → your **first tool call is the matching `Skill(superpowers-overrides:<slug>)`**. Full stop. No `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first.
+2. If any is present → your **first tool call is the matching `Skill(superpowers-overrides:<name>)`**. Full stop. No `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first.
 3. Only after the override has run may you follow the upstream skill's instructions.
 
 **The upstream skill's "you MUST do X first" does NOT apply until the override has run.**
@@ -16,17 +16,17 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 
 | Trigger | First tool call |
 |---|---|
-| `superpowers:brainstorming` | `Skill(superpowers-overrides:brainstorming)` |
-| `superpowers:writing-plans` | `Skill(superpowers-overrides:writing-plans)` |
-| `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:subagent-driven-development)` |
-| `superpowers:executing-plans` | `Skill(superpowers-overrides:executing-plans)` |
-| `superpowers:finishing-a-development-branch` | `Skill(superpowers-overrides:finishing-a-development-branch)` |
-| `superpowers:using-git-worktrees` | `Skill(superpowers-overrides:using-git-worktrees)` |
-| `superpowers:systematic-debugging` | `Skill(superpowers-overrides:systematic-debugging)` |
-| `superpowers:test-driven-development` | `Skill(superpowers-overrides:test-driven-development)` |
-| `superpowers:verification-before-completion` | `Skill(superpowers-overrides:verification-before-completion)` |
-| `superpowers:receiving-code-review` | `Skill(superpowers-overrides:receiving-code-review)` |
-| Any other `superpowers:<slug>` where `superpowers-overrides:<slug>` exists | `Skill(superpowers-overrides:<slug>)` |
+| `superpowers:brainstorming` | `Skill(superpowers-overrides:brainstorming-overrides)` |
+| `superpowers:writing-plans` | `Skill(superpowers-overrides:writing-plans-overrides)` |
+| `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:subagent-driven-development-overrides)` |
+| `superpowers:executing-plans` | `Skill(superpowers-overrides:executing-plans-overrides)` |
+| `superpowers:finishing-a-development-branch` | `Skill(superpowers-overrides:finishing-a-development-branch-overrides)` |
+| `superpowers:using-git-worktrees` | `Skill(superpowers-overrides:using-git-worktrees-overrides)` |
+| `superpowers:systematic-debugging` | `Skill(superpowers-overrides:systematic-debugging-overrides)` |
+| `superpowers:test-driven-development` | `Skill(superpowers-overrides:test-driven-development-overrides)` |
+| `superpowers:verification-before-completion` | `Skill(superpowers-overrides:verification-before-completion-overrides)` |
+| `superpowers:receiving-code-review` | `Skill(superpowers-overrides:receiving-code-review-overrides)` |
+| Any other `superpowers:<upstream-slug>` listed in overrides.manifest.json | `Skill(superpowers-overrides:<name>)` where `<name>` is the manifest target's `name` field |
 
 # CLAUDE.md
 
@@ -163,7 +163,7 @@ All three pass → the marketplace still resolves.
 
 **5. Overrides build validates:**
 ```bash
-./plugins/superpowers-overrides/build/emit-overrides.sh
+pnpm run validate:overrides
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 
@@ -172,7 +172,7 @@ All three pass → the marketplace still resolves.
 pnpm run validate
 ```
 
-This runs steps 1–5 above plus emit freshness (`ENABLE_EMIT_FRESH_CHECK=1`), overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.sh](scripts/ci-validate.sh); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
+This runs steps 1–5 above plus generator drift checks, overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.sh](scripts/ci-validate.sh); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Releasing
 

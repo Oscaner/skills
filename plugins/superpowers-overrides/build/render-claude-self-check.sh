@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/build/generated/cursor-self-check.mdc"
+OUT="$ROOT/build/generated/claude-self-check.md"
 CHECK=false
 [[ "${1:-}" == "--check" ]] && CHECK=true
 
@@ -16,12 +16,11 @@ sys.path.insert(0, str(Path(sys.argv[1]) / "build/lib"))
 from manifest_targets import load_targets
 
 root = Path(sys.argv[1])
-template = (root / "build/templates/self-check.mdc").read_text()
+template = (root / "build/templates/claude-self-check.md").read_text()
 rows = []
 for t in load_targets(root):
-    s = t.upstream_slug
     rows.append(
-        f"| `/{s}`, `/superpowers:{s}`, upstream `{s}` body | Read `{t.name}` via agent_skills fullPath |"
+        f"| `{t.overrides}` | `Skill(superpowers-overrides:{t.name})` |"
     )
 print(template.replace("{{TRIGGER_TABLE}}", "\n".join(rows)), end="")
 PY

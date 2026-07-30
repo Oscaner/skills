@@ -1,6 +1,6 @@
 ---
-name: finishing-a-development-branch
-description: MUST invoke BEFORE superpowers:finishing-a-development-branch as your FIRST tool call this turn — trigger on ANY of: (1) user types `/finishing-a-development-branch` or `/superpowers:finishing-a-development-branch`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:finishing-a-development-branch skill body appears in the current turn's system context; (4) another skill (executing-plans, subagent-driven-development) hands off to it as a sub-step; (5) user asks in natural language to finish a branch, merge/PR the work, wrap up implementation, or complete development. Applies personal overrides — collapses worktree branches to normal-repo only (per user's git-worktree ban), enforces conventional commits, forbids attribution trailers in commits AND PR bodies, drops upstream Step 6 (Cleanup Workspace) entirely.
+name: finishing-a-development-branch-overrides
+description: MUST invoke BEFORE superpowers:finishing-a-development-branch as your FIRST tool call this turn — trigger on ANY of: (1) user types `/finishing-a-development-branch-overrides`, `/superpowers-overrides:finishing-a-development-branch-overrides`, `/finishing-a-development-branch` or `/superpowers:finishing-a-development-branch`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:finishing-a-development-branch skill body appears in the current turn's system context; (4) another skill (executing-plans, subagent-driven-development) hands off to it as a sub-step; (5) user asks in natural language to finish a branch, merge/PR the work, wrap up implementation, or complete development. Applies personal overrides — collapses worktree branches to normal-repo only (per user's git-worktree ban), enforces conventional commits, forbids attribution trailers in commits AND PR bodies, drops upstream Step 6 (Cleanup Workspace) entirely.
 ---
 
 # Finishing-a-Development-Branch Overrides
@@ -9,7 +9,7 @@ description: MUST invoke BEFORE superpowers:finishing-a-development-branch as yo
 
 ### Rule 1 — Skip worktree detection and cleanup entirely
 
-Under user policy ([using-git-worktrees](../using-git-worktrees/SKILL.md)), no worktrees exist.
+Under user policy ([using-git-worktrees-overrides](../using-git-worktrees-overrides/SKILL.md)), no worktrees exist.
 
 1. Skip the `GIT_DIR` / `GIT_COMMON` detection block (upstream Step 2). Use the **Standard 4 options menu** (Step 4's normal-repo variant) unconditionally. Never present the "detached HEAD (3 options)" variant.
 2. Skip upstream Step 6 (`git worktree remove` / `git worktree prune`) unconditionally. Options 1 and 4's branch deletion (`git branch -d` / `-D`) still applies — only the worktree-removal block is gone.

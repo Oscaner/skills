@@ -21,9 +21,9 @@ root = os.environ["ROOT"]
 m = json.load(open(os.path.join(root, "overrides.manifest.json")))
 pj = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 declared = {s.split("/")[-1] for s in pj["skills"]}
-needed = {t["slug"] for t in m["targets"]} | {"init", "subagent-lifecycle", "token-efficient-review-dispatch"}
+needed = {t["name"] for t in m["targets"]} | {"init", "subagent-lifecycle", "token-efficient-review-dispatch"}
 missing = needed - declared
-assert not missing, f"plugin.json missing slugs: {missing}"
+assert not missing, f"plugin.json missing names: {missing}"
 print("OK — plugin.json alignment")
 PY
 
@@ -31,34 +31,16 @@ rm -rf "$CURSOR_SKILLS"
 mkdir -p "$CURSOR_SKILLS"
 
 python3 - <<'PY'
-import json, os, shutil, subprocess
+import json, os, shutil
 root = os.environ["ROOT"]
 m = json.load(open(os.path.join(root, "overrides.manifest.json")))
 cursor = os.path.join(root, ".cursor/skills")
-rewrite = os.path.join(root, "build/lib/rewrite-frontmatter.py")
 for t in m["targets"]:
-    slug, overrides, src = t["slug"], t["overrides"], t["source"]
-    flat = f"{slug}-overrides"
-    dst_dir = os.path.join(cursor, flat)
+    name, src = t["name"], t["source"]
+    dst_dir = os.path.join(cursor, name)
     src_dir = os.path.join(root, src.lstrip("./"))
-    os.makedirs(dst_dir, exist_ok=True)
-    for name in os.listdir(src_dir):
-        if name == "SKILL.md":
-            continue
-        s, d = os.path.join(src_dir, name), os.path.join(dst_dir, name)
-        if os.path.isdir(s):
-            shutil.copytree(s, d, dirs_exist_ok=True)
-        else:
-            shutil.copy2(s, d)
-    with open(os.path.join(src_dir, "SKILL.md")) as f:
-        src_text = f.read()
-    proc = subprocess.run(
-        ["python3", rewrite, "--slug", slug, "--overrides", overrides],
-        input=src_text, capture_output=True, text=True, check=True,
-    )
-    with open(os.path.join(dst_dir, "SKILL.md"), "w") as f:
-        f.write(proc.stdout)
-    print(f"  emitted {flat}")
+    shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+    print(f"  emitted {name}")
 for slug in ["init", "subagent-lifecycle", "token-efficient-review-dispatch"]:
     shutil.copytree(os.path.join(root, "skills", slug), os.path.join(cursor, slug), dirs_exist_ok=True)
     print(f"  copied {slug}")

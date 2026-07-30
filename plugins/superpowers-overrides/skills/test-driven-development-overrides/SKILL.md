@@ -1,6 +1,6 @@
 ---
-name: test-driven-development
-description: MUST invoke BEFORE superpowers:test-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/test-driven-development` or `/superpowers:test-driven-development` or `/tdd`; (2) a `<command-name>` tag in the current turn names any of those; (3) the superpowers:test-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to do TDD, write tests first, follow red-green-refactor, or implement a feature test-first. Applies personal overrides: confirms seams with user before starting (blocking); delegates implementation loop to mattpocock-skills:tdd.
+name: test-driven-development-overrides
+description: MUST invoke BEFORE superpowers:test-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/test-driven-development-overrides`, `/superpowers-overrides:test-driven-development-overrides`, `/test-driven-development` or `/superpowers:test-driven-development` or `/tdd`; (2) a `<command-name>` tag in the current turn names any of those; (3) the superpowers:test-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to do TDD, write tests first, follow red-green-refactor, or implement a feature test-first. Applies personal overrides: confirms seams with user before starting (blocking); delegates implementation loop to mattpocock-skills:tdd.
 ---
 
 # Test-Driven Development Overrides

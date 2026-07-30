@@ -1,6 +1,6 @@
 ---
-name: brainstorming
-description: MUST invoke BEFORE superpowers:brainstorming as your FIRST tool call this turn — trigger on ANY of: (1) user types `/brainstorming` or `/superpowers:brainstorming`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:brainstorming skill body appears in the current turn's system context; (4) user asks in natural language to brainstorm, design a feature, plan new functionality, write a spec, explore an idea, or discuss requirements. Applies personal overrides that customize brainstorming's default behavior (delegates clarifying questions to mattpocock-skills:grilling; replaces self-review with fresh subagent passes).
+name: brainstorming-overrides
+description: MUST invoke BEFORE superpowers:brainstorming as your FIRST tool call this turn — trigger on ANY of: (1) user types `/brainstorming-overrides`, `/superpowers-overrides:brainstorming-overrides`, `/brainstorming` or `/superpowers:brainstorming`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:brainstorming skill body appears in the current turn's system context; (4) user asks in natural language to brainstorm, design a feature, plan new functionality, write a spec, explore an idea, or discuss requirements. Applies personal overrides that customize brainstorming's default behavior (delegates clarifying questions to mattpocock-skills:grilling; replaces self-review with fresh subagent passes).
 ---
 
 # Brainstorming Overrides
@@ -33,7 +33,7 @@ Whenever brainstorming needs clarifying questions from the user, the interview l
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming
 
-Before producing an overall or phase spec, Read `plugins/superpowers-overrides/skills/brainstorming/overall-phase-spec-template.md` — it is the source of truth for document structure, serial execution rules, completion signals, and dynamic decomposition. Do not re-implement its conventions from memory.
+Before producing an overall or phase spec, Read `plugins/superpowers-overrides/skills/brainstorming-overrides/overall-phase-spec-template.md` — it is the source of truth for document structure, serial execution rules, completion signals, and dynamic decomposition. Do not re-implement its conventions from memory.
 
 **Escape hatch:** If the user has explicitly stated the scope is small before `grilling` begins — e.g. "这是小改动 / 就这一处 / scope 很小 / it's a minor change" — Rule 3 does NOT trigger. Proceed directly with a single-phase spec.
 

@@ -1,6 +1,6 @@
 ---
-name: systematic-debugging
-description: MUST invoke BEFORE superpowers:systematic-debugging as your FIRST tool call this turn — trigger on ANY of: (1) user types `/systematic-debugging` or `/superpowers:systematic-debugging`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:systematic-debugging skill body appears in the current turn's system context; (4) user asks in natural language to debug, diagnose a bug, investigate a failure, fix a test failure, or troubleshoot unexpected behavior. Applies personal overrides: gates fix proposals behind diagnostic evidence; delegates diagnosis loop to mattpocock-skills:diagnosing-bugs.
+name: systematic-debugging-overrides
+description: MUST invoke BEFORE superpowers:systematic-debugging as your FIRST tool call this turn — trigger on ANY of: (1) user types `/systematic-debugging-overrides`, `/superpowers-overrides:systematic-debugging-overrides`, `/systematic-debugging` or `/superpowers:systematic-debugging`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:systematic-debugging skill body appears in the current turn's system context; (4) user asks in natural language to debug, diagnose a bug, investigate a failure, fix a test failure, or troubleshoot unexpected behavior. Applies personal overrides: gates fix proposals behind diagnostic evidence; delegates diagnosis loop to mattpocock-skills:diagnosing-bugs.
 ---
 
 # Systematic-Debugging Overrides

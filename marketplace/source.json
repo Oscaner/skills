@@ -77,7 +77,7 @@
     },
     {
       "name": "superpowers-overrides",
-      "version": "6.2.0-overrides.1",
+      "version": "6.2.0-overrides.2",
       "description": "Personal overrides for the superpowers plugin that force delegation to other skills.",
       "author": {
         "name": "Oscaner Miao",

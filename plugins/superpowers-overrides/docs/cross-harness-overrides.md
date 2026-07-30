@@ -2,11 +2,7 @@
 
 Portable convention for marketplace plugins that ship **override skills** alongside an upstream plugin.
 
-Design specs:
-
-- v3 (current): [docs/superpowers/specs/2026-07-30-spor-skill-prefix-design.md](../../docs/superpowers/specs/2026-07-30-spor-skill-prefix-design.md)
-- v2 (superseded): [docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md](../../docs/superpowers/specs/2026-07-30-unified-skill-naming-design.md)
-- v1 (superseded emit model): [docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md](../../docs/superpowers/specs/2026-07-29-cross-harness-skill-overrides-design.md)
+Naming evolved across releases: v1 emit model → v2 `-overrides` suffix → v3 `spor-*` prefix (current). See [CHANGELOG.md](../CHANGELOG.md) entries `6.2.0-overrides.3` through `6.2.0-overrides.6`.
 
 ## Problem
 

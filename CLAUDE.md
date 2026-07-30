@@ -107,13 +107,14 @@ Use `chore:` (not `feat:`) — the change is a pointer bump, not a feature.
 git submodule update --init
 ```
 
-**Add a new override skill to `superpowers-overrides`** — three things must change together in one commit, or the skill is invisible or won't auto-trigger:
+**Add a new override skill to `superpowers-overrides`** — four things must change together in one commit, or the skill is invisible or won't auto-trigger:
+
 1. Create `plugins/superpowers-overrides/skills/<name>/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
 2. Add `"./skills/<name>"` to `skills[]` in [plugins/superpowers-overrides/.claude-plugin/plugin.json](plugins/superpowers-overrides/.claude-plugin/plugin.json).
-3. Add a `case` branch to `plugins/superpowers-overrides/bin/override-prompt-expansion.sh` — pattern `superpowers:<slug>)  override="superpowers-overrides:<slug>" ;;`.
+3. Add a target row to [plugins/superpowers-overrides/overrides.manifest.json](plugins/superpowers-overrides/overrides.manifest.json), then run `pnpm run generate:overrides` (regenerates `bin/override-prompt-expansion.sh` and `build/generated/*`). Do **not** hand-edit the hook script.
 4. Add a row to the override table in [README.md](README.md) for discoverability.
 
-Missing step 1 or 2 → the skill is invisible to Claude Code. Missing step 3 → hooks won't inject the `additionalContext` reminder on slash-command trigger.
+Missing step 1 or 2 → the skill is invisible to Claude Code. Missing manifest entry or skipping `generate:overrides` → hook and self-check drift.
 
 ## Verifying a change didn't break the marketplace
 

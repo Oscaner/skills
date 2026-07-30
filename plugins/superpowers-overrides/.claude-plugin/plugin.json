@@ -3,7 +3,7 @@
   "version": "6.2.0-overrides.5",
   "skills": [
     "./skills/spor-init",
-    "./skills/spor-bs",
+    "./skills/spor-brainstorming",
     "./skills/spor-writing-plans",
     "./skills/spor-subagent-driven-development",
     "./skills/spor-systematic-debugging",

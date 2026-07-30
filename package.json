@@ -5,6 +5,8 @@
     "changeset": "changeset",
     "validate": "./scripts/ci-validate.sh",
     "version": "node scripts/version-packages.mjs",
+    "generate:overrides": "./plugins/superpowers-overrides/build/generate-all.sh",
+    "validate:overrides": "./plugins/superpowers-overrides/build/generate-all.sh --check",
     "emit:overrides": "./plugins/superpowers-overrides/build/emit-overrides.sh",
     "emit:marketplace": "node scripts/emit-marketplace.mjs",
     "emit": "pnpm run emit:overrides && pnpm run emit:marketplace",

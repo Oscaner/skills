@@ -4,14 +4,14 @@ import { execSync } from "node:child_process";
 import { parseOverridesVersion } from "./lib/version-utils.mjs";
 
 const root = process.cwd();
-const marketplace = JSON.parse(
-  readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8"),
+const source = JSON.parse(
+  readFileSync(join(root, "marketplace/source.json"), "utf8"),
 );
-const superpowersVersion = marketplace.plugins.find(
+const superpowersVersion = source.plugins.find(
   (p) => p.name === "superpowers",
 )?.version;
 if (!superpowersVersion) {
-  console.error("superpowers plugin not found in marketplace.json");
+  console.error("superpowers plugin not found in marketplace/source.json");
   process.exit(1);
 }
 

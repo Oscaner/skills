@@ -23,8 +23,8 @@ def load_targets(plugin_root: Path) -> list[Target]:
         if plugin != "superpowers":
             raise ValueError(f"expected superpowers: prefix, got {row['overrides']!r}")
         name = row["name"]
-        if not name.endswith("-overrides"):
-            raise ValueError(f"name must end with -overrides, got {name!r}")
+        if not name.startswith("spor-"):
+            raise ValueError(f"name must start with spor-, got {name!r}")
         targets.append(
             Target(
                 name=name,

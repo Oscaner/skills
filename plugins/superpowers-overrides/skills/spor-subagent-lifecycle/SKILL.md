@@ -1,5 +1,5 @@
 ---
-name: subagent-lifecycle
+name: spor-subagent-lifecycle
 description: Cross-cutting policy invoked by reference from other override skills (brainstorming, writing-plans, subagent-driven-development), not directly by the user. No slash command. Governs concurrent-vs-serial dispatch of Agent/subagent calls, and forbids reusing a subagent across tasks or review passes. Referencing overrides cite this skill's Rule 1 and Rule 2 rather than repeating them.
 ---
 

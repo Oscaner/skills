@@ -1,5 +1,5 @@
 ---
-name: token-efficient-review-dispatch
+name: spor-token-efficient-review-dispatch
 description: Cross-cutting dispatch discipline for multi-pass review skills (brainstorming, writing-plans, subagent-driven-development). Defines the three token-efficiency mechanisms — D1 escalate-on-finding, D2 delta review, D3 findings-only output — shared verbatim across every review-pass override. Invoked by reference from those overrides, not directly by the user.
 ---
 

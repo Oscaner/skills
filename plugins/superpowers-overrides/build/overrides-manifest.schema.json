@@ -16,7 +16,7 @@
         "properties": {
           "name": {
             "type": "string",
-            "pattern": "^[a-z0-9-]+-overrides$"
+            "pattern": "^spor-[a-z0-9-]+$"
           },
           "overrides": {
             "type": "string",

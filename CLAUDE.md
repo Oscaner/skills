@@ -16,16 +16,16 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 
 | Trigger | First tool call |
 |---|---|
-| `superpowers:brainstorming` | `Skill(superpowers-overrides:brainstorming-overrides)` |
-| `superpowers:writing-plans` | `Skill(superpowers-overrides:writing-plans-overrides)` |
-| `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:subagent-driven-development-overrides)` |
-| `superpowers:executing-plans` | `Skill(superpowers-overrides:executing-plans-overrides)` |
-| `superpowers:finishing-a-development-branch` | `Skill(superpowers-overrides:finishing-a-development-branch-overrides)` |
-| `superpowers:using-git-worktrees` | `Skill(superpowers-overrides:using-git-worktrees-overrides)` |
-| `superpowers:systematic-debugging` | `Skill(superpowers-overrides:systematic-debugging-overrides)` |
-| `superpowers:test-driven-development` | `Skill(superpowers-overrides:test-driven-development-overrides)` |
-| `superpowers:verification-before-completion` | `Skill(superpowers-overrides:verification-before-completion-overrides)` |
-| `superpowers:receiving-code-review` | `Skill(superpowers-overrides:receiving-code-review-overrides)` |
+| `superpowers:brainstorming` | `Skill(superpowers-overrides:spor-brainstorming)` |
+| `superpowers:writing-plans` | `Skill(superpowers-overrides:spor-writing-plans)` |
+| `superpowers:subagent-driven-development` | `Skill(superpowers-overrides:spor-subagent-driven-development)` |
+| `superpowers:executing-plans` | `Skill(superpowers-overrides:spor-executing-plans)` |
+| `superpowers:finishing-a-development-branch` | `Skill(superpowers-overrides:spor-finishing-a-development-branch)` |
+| `superpowers:using-git-worktrees` | `Skill(superpowers-overrides:spor-using-git-worktrees)` |
+| `superpowers:systematic-debugging` | `Skill(superpowers-overrides:spor-systematic-debugging)` |
+| `superpowers:test-driven-development` | `Skill(superpowers-overrides:spor-test-driven-development)` |
+| `superpowers:verification-before-completion` | `Skill(superpowers-overrides:spor-verification-before-completion)` |
+| `superpowers:receiving-code-review` | `Skill(superpowers-overrides:spor-receiving-code-review)` |
 | Any other `superpowers:<upstream-slug>` listed in overrides.manifest.json | `Skill(superpowers-overrides:<name>)` where `<name>` is the manifest target's `name` field |
 
 # CLAUDE.md
@@ -69,14 +69,14 @@ Precedence is enforced by **three coordinated mechanisms**, not one:
 
 1. The four-trigger `description` above (SKILL.md side) — documents every entry point verbatim; serves as fallback when hooks are unavailable.
 2. **Plugin-bundled hooks** in `plugins/superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `plugins/superpowers-overrides/bin/override-prompt-expansion.sh` injects `additionalContext`, reinforcing the override as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
-3. **Project-level CLAUDE.md self-check** — written by `superpowers-overrides:init`. Run `/superpowers-overrides:init` once per project to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
+3. **Project-level CLAUDE.md self-check** — written by `spor-init`. Run `/spor-init` once per project (Claude Code: `/superpowers-overrides:spor-init`) to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
 
 ## Cross-cutting skills
 
 Two skills in `superpowers-overrides` are **not** overrides — they hold invariants that multiple overrides cite instead of duplicating. Neither has a slash command; they are invoked by reference from `Rule N` lines inside the overrides. Editing them propagates to every override that cites them.
 
-- [plugins/superpowers-overrides/skills/subagent-lifecycle/SKILL.md](plugins/superpowers-overrides/skills/subagent-lifecycle/SKILL.md) — **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review override's review-pass rule. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
-- [plugins/superpowers-overrides/skills/token-efficient-review-dispatch/SKILL.md](plugins/superpowers-overrides/skills/token-efficient-review-dispatch/SKILL.md) — **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review override's review-pass rule. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
+- [plugins/superpowers-overrides/skills/spor-subagent-lifecycle/SKILL.md](plugins/superpowers-overrides/skills/spor-subagent-lifecycle/SKILL.md) — **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review override's review-pass rule. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
+- [plugins/superpowers-overrides/skills/spor-token-efficient-review-dispatch/SKILL.md](plugins/superpowers-overrides/skills/spor-token-efficient-review-dispatch/SKILL.md) — **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review override's review-pass rule. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
 
 When editing any override that dispatches review passes, cite these skills rather than paraphrasing them — paraphrases drift; citations don't. When adding a new invariant that applies to multiple overrides, add a new rule to the appropriate cross-cutting skill and cite it, don't inline it across the overrides.
 

@@ -27,4 +27,9 @@ writeFileSync(sourcePath, JSON.stringify(source, null, 2) + "\n");
 
 execSync("pnpm run emit", { stdio: "inherit", cwd: root });
 
+execSync("node scripts/sync-dogfood-self-check.mjs", {
+  stdio: "inherit",
+  cwd: root,
+});
+
 console.log(`OK — synced ${version}`);

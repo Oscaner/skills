@@ -52,6 +52,7 @@ Localize field labels and status prose. **Author**: human partner + harness/mode
 Must convey (localized):
 
 - Program charter — no implementation detail; each phase has its own design spec + plan.
+- **Overall approval ≠ phase brainstorming started.** Inventory paragraphs are decomposition context; each phase begins its own discovery cycle only after the user explicitly starts that phase (SKILL Rule 3 step 4 gate).
 - Before a new phase: confirm placement, upstream dependencies, and cross-cutting constraints are still current.
 - Deviations from this document update here first (see SKILL Rule 3b).
 

@@ -42,11 +42,14 @@ When the request is a **large / multi-phase requirement** (any of: touches ≥3 
 1. **Produce an overall spec first** (template Overall sections). Scope-only — no per-feature requirements, no acceptance criteria.
 2. **Run Rule 1's review passes on the overall** before any phase brainstorming. Same passes on **each phase spec** before writing-plans.
 3. **Get explicit user approval on the phase decomposition.** Silence is not approval.
-4. **For each phase, run Rule 3a** (independent cycle) and **Rule 3b** (feed back deviations) before finalizing that phase's spec.
-5. **Follow Rule 3c** for serial/parallel boundaries. Never pre-draft a dependent phase while upstream is in flight.
-6. **Rule 3d** if a phase is too large; **Rule 3e** when a phase ships.
+4. **STOP — overall gate.** Do not start phase brainstorming, propose a P0 spec path, or list "write phase spec" as the next step in the same plan or turn. The overall cycle ends here until the user explicitly asks to start a phase (e.g. "开始 P0" / "start phase P0 brainstorming"). Commit/review the overall if appropriate; then wait.
+5. **For each phase** (only after step 4 is cleared for that phase), run Rule 3a (independent cycle) and Rule 3b (feed back deviations) before finalizing that phase's spec.
+6. **Follow Rule 3c** for serial/parallel boundaries. Never pre-draft a dependent phase while upstream is in flight.
+7. **Rule 3d** if a phase is too large; **Rule 3e** when a phase ships.
 
 #### Rule 3a — Independent phase brainstorming
+
+**Prerequisite:** Overall is written, reviewed, decomposition approved, and the user has explicitly started this phase's brainstorming. Approving overall design sections (§1–§5 conversation) is **not** starting P0.
 
 Each phase is a **new session** — overall inventory text is decomposition context, not a substitute for discovery.
 
@@ -98,6 +101,8 @@ Then: localized completion marker on overall inventory **plan** cell; change-his
 - "grilling failed to load, I'll paraphrase its one-question-at-a-time rule from memory and keep going."
 - "This large requirement is clear enough — I'll skip the overall and go straight to per-feature specs."
 - "I'll write the overall AND phase 1 spec in one pass to save a round-trip."
+- "I'll list 'write overall → write P0 spec → review' as the next three steps — that's just ordering, not bundling."
+- "User approved the overall design presentation, so P0 brainstorming is implicitly approved too."
 - "User didn't reply to the decomposition-approval question, but silence probably means yes."
 - "Phase N is in executing-plans, I can start drafting phase N+1's spec in parallel to save wall time."
 - "The overall already covered phase N — I'll skip grilling and expand the inventory paragraph into the spec."
@@ -121,3 +126,4 @@ Then: localized completion marker on overall inventory **plan** cell; change-his
 | "Change History is messy, I'll clean it up" | Append-only. Append a correction — don't edit old rows. |
 | "Overall grilling already asked about phase N" | Overall decomposes; it does not design phase N. Each phase needs its own grilling, approaches, and approval. |
 | "Updating overall mid-program is churn" | Stale overall misleads every later phase. Feed back under Rule 3b; change history captures why. |
+| "Overall is done, I'll propose P0 spec writing in the same plan to keep momentum" | Overall gate (step 4) exists precisely to prevent this. Propose only overall completion; phase brainstorming waits for explicit user go-ahead. |

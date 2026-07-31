@@ -33,97 +33,99 @@ Whenever brainstorming needs clarifying questions from the user, the interview l
 
 ### Rule 3 — Large requirements: overall spec first, then phased brainstorming
 
-Before producing an overall or phase spec, Read `plugins/superpowers-overrides/skills/spor-brainstorming/overall-phase-spec-template.md` for **document structure**, file paths, and language. Process discipline is Rule 3 steps and sub-rules 3a–3e below. Do not re-implement from memory.
+Read `plugins/superpowers-overrides/skills/spor-brainstorming/overall-phase-spec-template.md` for **document structure**, paths, and language. Process discipline is below. Do not re-implement from memory.
 
-**Escape hatch:** If the user has explicitly stated the scope is small before `grilling` begins — e.g. "这是小改动 / 就这一处 / scope 很小 / it's a minor change" — Rule 3 does NOT trigger. Proceed directly with a single-phase spec.
+**Escape hatch:** User stated scope is small before `grilling` — e.g. "小改动 / scope 很小 / minor change" — skip Rule 3; single-phase spec.
 
-When the request is a **large / multi-phase requirement** (any of: touches ≥3 distinct subsystems; spans multiple user-facing capabilities; the user says "整个系统 / 大功能 / 一整套 / overhaul / redesign / 分几期 / roadmap"; or Rule 2's `grilling` interview reveals ≥2 independent capability clusters):
+**Triggers:** ≥3 subsystems; multiple user-facing capabilities; user says 整个系统 / 大功能 / overhaul / 分几期 / roadmap; or `grilling` reveals ≥2 independent capability clusters.
 
-1. **Produce an overall spec first** (template Overall sections). Scope-only — no per-feature requirements, no acceptance criteria.
-2. **Run Rule 1's review passes on the overall** before any phase brainstorming. Same passes on **each phase spec** before writing-plans.
-3. **Get explicit user approval on the phase decomposition.** Silence is not approval.
-4. **STOP — overall gate.** Do not start phase brainstorming, propose a P0 spec path, or list "write phase spec" as the next step in the same plan or turn. The overall cycle ends here until the user explicitly asks to start a phase (e.g. "开始 P0" / "start phase P0 brainstorming"). Commit/review the overall if appropriate; then wait.
-5. **For each phase** (only after step 4 is cleared for that phase), run Rule 3a (independent cycle) and Rule 3b (feed back deviations) before finalizing that phase's spec.
-6. **Follow Rule 3c** for serial/parallel boundaries. Never pre-draft a dependent phase while upstream is in flight.
-7. **Rule 3d** if a phase is too large; **Rule 3e** when a phase ships.
+#### Program flow
+
+```
+Overall: grilling → decomposition → approval → write overall → Rule 1 → user review
+         └─ GATE (step 4): stop; wait for explicit "start Pn" — do NOT propose phase spec in same plan
+
+Per phase (after gate cleared for that phase):
+  Rule 3a: independent grilling → approaches → design approval → write phase spec → Rule 1 → user review
+  Rule 3b: if strategy/decomposition shifts → update overall FIRST (same turn), then resume
+  → writing-plans → dev → Rule 3e ship → next phase
+```
+
+**Three invariants (dogfooding):**
+
+| # | Invariant | Violation looks like |
+|---|-----------|----------------------|
+| 1 | **Overall gate** — decomposition approval ≠ phase brainstorming started | "Next: write overall → write P0 spec → review" in one plan |
+| 2 | **Independent phase cycle** — inventory paragraph is context, not the spec | Skip phase grilling; expand inventory row into phase spec |
+| 3 | **Overall = plan of record** — feed back before continuing | P0→P0a/P0b decided in chat; overall still shows P0; grilling continues under P0 |
+
+#### Steps
+
+1. Write **overall spec** (scope-only — no acceptance criteria). Template Overall sections.
+2. **Rule 1** on overall. Same on each phase spec before writing-plans.
+3. **Explicit approval** on decomposition. Silence ≠ approval.
+4. **GATE — stop.** No phase brainstorming, no phase spec paths, no bundled next steps. Wait for user to start a phase.
+5. **Per phase** (gate cleared): Rule 3a + 3b → Rule 3c boundaries → 3d if split needed → 3e on ship.
 
 #### Rule 3a — Independent phase brainstorming
 
-**Prerequisite:** Overall is written, reviewed, decomposition approved, and the user has explicitly started this phase's brainstorming. Approving overall design sections (§1–§5 conversation) is **not** starting P0.
-
-Each phase is a **new session** — overall inventory text is decomposition context, not a substitute for discovery.
+**Start only when:** overall reviewed, decomposition approved, user explicitly started **this** phase (e.g. "开始 P0").
 
 | Step | Requirement |
 |---|---|
-| Context | Re-read overall + inspect shipped upstream deliverables |
-| Discovery | Phase-scoped `grilling` — mandatory even if overall covered related topics |
+| Context | Re-read overall + shipped upstream deliverables |
+| Discovery | Phase-scoped `grilling` — mandatory even if overall covered the topic |
 | Approaches | Fresh 2–3 options for this phase |
-| Design approval | Explicit user approval before writing the phase spec |
-| Spec + review | Write per template → Rule 1 → user review → writing-plans |
+| Design approval | Explicit user approval before writing spec |
+| Spec + review | Template → Rule 1 → user review → writing-plans |
 
-**Forbidden:** copying the inventory paragraph into the spec; skipping grilling; drafting multiple phase specs in one pass; inferring phase approval from overall approval.
+#### Rule 3b — Feed back to overall (includes sub-phase splits)
 
-#### Rule 3b — Feed back deviations to overall
+**When:** cross-cutting constraints, non-goals, inventory scope, dependency graph, later-phase assumptions change — **or a phase splits** (P0 → P0a/P0b, including during grilling or approach selection).
 
-When phase brainstorming changes cross-cutting constraints, non-goals, inventory scope text, dependency graph, or later-phase assumptions:
+**Same turn, before continuing phase work:**
 
-1. **Pause** phase spec finalization.
-2. **Edit the overall** + bump version; **append change history** (phase ID, what, why).
-3. **User approval** for material strategy/scope shifts (same bar as step 3). Local-only choices skip overall edit.
-4. **Resume** — record in phase spec **Deviations from overall** with updated overall version link.
-5. **Then** Rule 1 and user review on the phase spec.
+1. **Stop** — no more grilling, approaches, spec paths, or sub-phase IDs until overall is updated.
+2. **Edit overall** — inventory + dependency graph + version bump + change history (phase ID, what, why).
+3. **User approval** on splits and material shifts (re-run step 3). Local-only choices skip overall edit.
+4. **Resume** first sub-phase only (P0a, not P0) → Rule 3a → phase spec **Deviations from overall** if applicable → Rule 1.
 
-Do not bury cross-phase strategy shifts only in the phase spec.
+Chat and phase specs are not substitutes for updating overall.
 
-#### Rule 3c — Serial execution and parallel phases
+#### Rule 3c — Serial and parallel
 
-**Serial:** Phase N spec → plan → dev must **all ship** before brainstorming any phase that depends on N.
+- **Serial:** N must fully ship before brainstorming any phase depending on N.
+- **Parallel:** same upstream, no mutual dependency → may run in parallel after upstream ships (graph is truth).
+- Never pre-draft while upstream is in development.
 
-**Parallel:** Phases sharing the same upstream and with **no dependency on each other** may run in parallel once upstream is shipped (dependency graph is source of truth).
+#### Rule 3d — In-place decomposition
 
-Do not pre-draft a phase spec while an upstream dependency is still in development.
+Subset of Rule 3b — never a sub-overall. Split parent row → Na, Nb; ≤1 new stack per sub-phase; each independently demo-able. **3b steps apply the moment the split is decided**, not when the spec is written.
 
-#### Rule 3d — Dynamic in-place decomposition
+#### Rule 3e — Completion
 
-When a phase is too large: split the row into Na, Nb, … in the overall table; update the dependency graph; re-run step 3 approval; record in change history. Never create a sub-overall. Each sub-phase: ≤1 new tech stack; independently demo-able.
-
-#### Rule 3e — Completion signal
-
-**Preferred:** git tag `<slug>-complete` (e.g. `auth-p0-complete`). **If tags forbidden:** immutable ref (release SHA, milestone issue) in change history.
-
-Then: localized completion marker on overall inventory **plan** cell; change-history row with deliverables; bump overall version if applicable.
+Git tag `<slug>-complete` (or immutable ref if tags forbidden) → completion marker on overall plan cell → change history → bump overall version.
 
 <!-- Additional rules for the brainstorming skill go below as Rule 4, Rule 5, … -->
 
-## Red Flags — STOP if you catch yourself thinking any of these
+## Red Flags
 
-- "I'll ask the clarifying questions inline instead of invoking `mattpocock-skills:grilling`."
-- "grilling failed to load, I'll paraphrase its one-question-at-a-time rule from memory and keep going."
-- "This large requirement is clear enough — I'll skip the overall and go straight to per-feature specs."
-- "I'll write the overall AND phase 1 spec in one pass to save a round-trip."
-- "I'll list 'write overall → write P0 spec → review' as the next three steps — that's just ordering, not bundling."
-- "User approved the overall design presentation, so P0 brainstorming is implicitly approved too."
-- "User didn't reply to the decomposition-approval question, but silence probably means yes."
-- "Phase N is in executing-plans, I can start drafting phase N+1's spec in parallel to save wall time."
-- "The overall already covered phase N — I'll skip grilling and expand the inventory paragraph into the spec."
-- "Phase N picked a different architecture — I'll document it in the phase spec only; overall can stay as-is."
+- Skip `grilling` (inline questions, paraphrase on load failure, or "overall already covered this").
+- Skip overall for large requirements, or bundle overall + phase spec in one pass/plan.
+- Treat decomposition approval or overall § conversation as permission to start P0.
+- Continue under parent phase ID after deciding P0→P0a/P0b; patch overall later.
+- Record cross-phase strategy changes only in phase spec or chat — not in overall.
+- Pre-draft dependent phases; infer approval from silence or user being technical.
 
 ## Common Rationalizations
 
 | Excuse | Reality |
 |--------|---------|
-| "I can gather requirements faster myself than through grilling" | Faster for you, not the user. Invoke the skill. |
-| "grilling feels synchronous and slow" | One-question-at-a-time aligns understanding before drafting. The alternative is rework. |
-| "Requirement is large but I already see the phases, overall is ceremony" | The overall isn't for you — it's the artifact the user approves before per-phase drafting starts. Skipping it means phase 2's `grilling` may invalidate phase 1's spec. |
-| "Phases look independent so I'll brainstorm them concurrently" | Check the dependency graph. Parallel is allowed only when phases share upstream and don't depend on each other — not because they "look" independent. |
-| "User is technical, they'll infer approval from my continuing" | Silence is not approval for a scope-shaping decision. Ask, wait for an affirmative answer. |
-| "Phase N revealed a scope shift for N+1, I'll remember it" | Write it to the phase spec's **Notes for downstream phases** immediately; if decomposition moved, re-run step 3. |
-| "Phase N is shipping, I can pre-draft N+1's spec now for speed" | Shipped outcomes reshape later scope. Pre-drafting freezes assumptions before evidence lands. |
-| "Phase turned out too big but I've already started — pushing through is faster than restarting" | Stop, decompose under Rule 3d. Sunk cost isn't a reason to keep going. |
-| "A sub-overall file is cleaner than editing the overall in place" | One program = one overall. Deep trees hide the source of truth. |
-| "Batching Phase Status / Change History at end of day is cleaner" | Update per-transition while reasons are fresh. |
-| "This edit is trivial, Change History would be noise" | Status transitions and decomposition edits are never trivial. Only pure typo fixes skip the log. |
-| "Change History is messy, I'll clean it up" | Append-only. Append a correction — don't edit old rows. |
-| "Overall grilling already asked about phase N" | Overall decomposes; it does not design phase N. Each phase needs its own grilling, approaches, and approval. |
-| "Updating overall mid-program is churn" | Stale overall misleads every later phase. Feed back under Rule 3b; change history captures why. |
-| "Overall is done, I'll propose P0 spec writing in the same plan to keep momentum" | Overall gate (step 4) exists precisely to prevent this. Propose only overall completion; phase brainstorming waits for explicit user go-ahead. |
+| "Listing overall → P0 → review is just ordering" | Invariant 1: gate exists between overall and phase cycles. |
+| "Overall grilling already asked about P0" | Invariant 2: overall decomposes; phase needs its own cycle. |
+| "I'll sync P0a/P0b to overall when I write the spec" | Invariant 3: inventory updates in the same turn as the split decision. |
+| "Updating overall mid-program is churn" | Stale overall misleads every later phase; change history captures why. |
+| "Phases look independent — brainstorm concurrently" | Check dependency graph; parallel only when graph allows. |
+| "Phase too big but I'm mid-grilling — push through" | Stop; Rule 3b/3d before the next question. |
+| "Sub-overall file is cleaner" | One program = one overall. |
+| "Batch change history later" | Append per-transition while reasons are fresh. |

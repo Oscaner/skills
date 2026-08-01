@@ -182,7 +182,7 @@ This runs steps 1–5 above plus generator drift checks, overrides version tripl
 
 ## Releasing
 
-Only **`superpowers-overrides`** is versioned from this repo. Tags look like `superpowers-overrides@6.2.0-overrides.1` — the prerelease suffix tracks which vendored `superpowers` version the overrides target.
+Only **`superpowers-overrides`** is versioned from this repo. Tags look like `superpowers-overrides@6.2.0-overrides.11` — the prerelease suffix tracks which vendored `superpowers` version the overrides target; new superpowers bases start at `{semver}-overrides.0`.
 
 **Overrides-only changes:** run `pnpm changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
 

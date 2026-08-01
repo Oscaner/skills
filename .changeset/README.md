@@ -6,7 +6,7 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 Run `pnpm changeset` when you change overrides skill behavior, manifest wiring, or build output under `plugins/superpowers-overrides/`.
 
-You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR that sets `{semver}-overrides.0` directly; merge triggers `tag-if-missing.mjs`.
+You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR that sets `{semver}-overrides.0` directly; merge triggers [release.yml](.github/workflows/release.yml) to create the git tag and GitHub Release when missing.
 
 ## Version scheme
 

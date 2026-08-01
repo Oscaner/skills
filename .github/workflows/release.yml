@@ -32,9 +32,32 @@ jobs:
           title: "chore: release superpowers-overrides"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Fetch tags for tag-if-missing
-        run: git fetch --tags origin
-      - name: Tag and release untagged overrides version
-        run: node scripts/tag-if-missing.mjs
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve HEAD SHA for tagging
+        id: head
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Read overrides version
+        id: overrides-ver
+        run: echo "version=$(node -p "require('./plugins/superpowers-overrides/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Create git tag if missing
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const tag = `superpowers-overrides@${{ steps.overrides-ver.outputs.version }}`;
+            try {
+              await github.rest.git.getRef({ ...context.repo, ref: `tags/${tag}` });
+              core.info(`${tag} already exists`);
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              await github.rest.git.createRef({
+                ...context.repo,
+                ref: `refs/tags/${tag}`,
+                sha: '${{ steps.head.outputs.sha }}',
+              });
+              core.info(`Created ${tag}`);
+            }
+      - name: Create GitHub Release if missing
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: superpowers-overrides@${{ steps.overrides-ver.outputs.version }}
+          generate_release_notes: true
+          skip_if_release_exists: true

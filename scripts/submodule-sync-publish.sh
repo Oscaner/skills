@@ -49,7 +49,12 @@ if [[ -z "$ISSUE_NUM" ]]; then
   ISSUE_NUM=$(echo "$ISSUES" | jq -r '.[0].number // empty')
 fi
 if [[ -z "$ISSUE_NUM" ]]; then
-  ISSUE_NUM=$(gh issue create --title "Submodule bump: ${NAME}" --body "Automated submodule sync tracking." --json number --jq '.number')
+  ISSUE_URL=$(gh issue create --title "Submodule bump: ${NAME}" --body "Automated submodule sync tracking.")
+  ISSUE_NUM=$(echo "$ISSUE_URL" | sed -n 's/.*\/issues\/\([0-9]*\).*/\1/p')
+  if [[ -z "$ISSUE_NUM" ]]; then
+    echo "ERROR: failed to parse issue number from: ${ISSUE_URL}" >&2
+    exit 1
+  fi
 fi
 gh issue comment "$ISSUE_NUM" --body "Updated: ${OLD_LABEL} → ${NEW_TAG}"
 

@@ -67,6 +67,7 @@
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"
       },
+      "license": "MIT",
       "version": "6.2.0-overrides.11",
       "category": "workflow",
       "tags": [

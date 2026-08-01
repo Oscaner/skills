@@ -1,0 +1,67 @@
+# oscaner
+
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+[![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
+
+*用 superpowers-overrides 把 superpowers 的全流程和 mattpocock 的精专缝成一条工程化流水线。*
+
+个人 [Claude Code](https://claude.com/claude-code) 插件市场。三个插件组成一条流水线：构思 → 计划 → 开发 → 交付。
+
+## 为什么有这个市场
+
+**[Superpowers](https://github.com/obra/superpowers)** 大而全——从 brainstorming、写计划、子 agent 驱动开发，到验证、收尾分支，一套走完。
+
+**[mattpocock-skills](plugins/mattpocock-skills/)** 小而精——`grilling` 挖清需求，`tdd` 管实现，`to-tickets` 切任务。每个 skill 只做一件事，但做得很准。
+
+单独用哪一个，都缺一块：什么时候 delegate、spec 怎么审、大功能怎么分期。**superpowers-overrides** 拦在上游 superpowers skill 前面——该替换的替换，该委托的委托，并在关键步骤接上 mattpocock。大需求走 **overall + phase**：先写 overall spec 分解范围，再逐 phase 跑完整的 spec → plan → dev 循环。
+
+## 流水线
+
+```
+Overall spec → Phase spec → Plan → SDD/TDD → Verify → Ship
+```
+
+overrides 在设计阶段加入 grilling 和 subagent review；grilling、tdd、to-tickets 通过 delegate 交给 mattpocock。
+
+各阶段对应哪些 override → [superpowers-overrides 说明](plugins/superpowers-overrides/README.zh-CN.md)。
+
+## 安装
+
+```bash
+# In Claude Code
+/plugin marketplace add oscaner/skills
+/plugin install mattpocock-skills@oscaner
+/plugin install superpowers@oscaner
+/plugin install superpowers-overrides@oscaner
+```
+
+克隆本仓库（本地开发需初始化 submodule）：
+
+```bash
+git clone https://github.com/Oscaner/skills.git
+cd skills
+git submodule update --init
+```
+
+## 快速开始
+
+1. 从 marketplace 安装 `superpowers`、`superpowers-overrides`、`mattpocock-skills`。
+2. 每个项目跑一次 **init skill**——插件升级后重跑。具体 slash 命令因 harness 而异 → [用法](plugins/superpowers-overrides/README.zh-CN.md#用法)。
+3. 照常调用 superpowers 工作流——overrides 会自动先执行。
+
+## 延伸阅读
+
+[superpowers-overrides 说明](plugins/superpowers-overrides/README.zh-CN.md)——按阶段的 skills、Claude Code / Cursor 差异、三层 enforcement。
+
+## 维护者
+
+修改 overrides 后：`pnpm run generate:overrides && pnpm run emit && pnpm run validate`。
+
+发布流程：[`.changeset/README.md`](.changeset/README.md)。贡献模式：[`CLAUDE.md`](CLAUDE.md)。
+
+## 许可
+
+本仓库 first-party 代码（`superpowers-overrides`、marketplace 工具链）采用 [MIT](LICENSE)。
+
+Vendored 插件保留各自许可——见各插件目录（如 `plugins/mattpocock-skills/LICENSE`）。

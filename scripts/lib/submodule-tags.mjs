@@ -58,13 +58,28 @@ export function pinnedSha(submodulePath) {
 }
 
 /** @param {string} submodulePath @param {RegExp} pattern */
-export function nearestTag(submodulePath, pattern) {
+export function tagAtHead(submodulePath, pattern) {
+  let raw;
   try {
-    const tag = git(submodulePath, "describe --tags --abbrev=0");
-    return pattern.test(tag) ? tag : null;
+    raw = git(submodulePath, "tag --points-at HEAD");
   } catch {
     return null;
   }
+  if (!raw) return null;
+  const tags = raw.split("\n").filter((t) => t && pattern.test(t));
+  if (tags.length === 0) return null;
+  return sortTagsBySemver(tags, pattern).at(-1) ?? null;
+}
+
+/** @param {string} submodulePath @param {RegExp} pattern */
+export function nearestTag(submodulePath, pattern) {
+  try {
+    const tag = git(submodulePath, "describe --tags --abbrev=0");
+    if (pattern.test(tag)) return tag;
+  } catch {
+    // Submodule CI checkouts often lack tags until fetched.
+  }
+  return tagAtHead(submodulePath, pattern);
 }
 
 /** @param {string} submodulePath @param {RegExp} pattern */
@@ -82,7 +97,15 @@ export function latestTag(submodulePath, pattern) {
 
 /** @param {string} submodulePath @param {RegExp} pattern */
 export function semverFromNearestTag(submodulePath, pattern) {
-  const tag = nearestTag(submodulePath, pattern);
+  let tag = nearestTag(submodulePath, pattern);
+  if (!tag) {
+    try {
+      fetchTags(submodulePath);
+    } catch {
+      return null;
+    }
+    tag = nearestTag(submodulePath, pattern);
+  }
   if (!tag) return null;
   return parseSemverFromTag(tag, pattern);
 }

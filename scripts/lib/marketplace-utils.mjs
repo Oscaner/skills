@@ -38,17 +38,26 @@ export function resolveVersion(root, plugin) {
 
   const truth = JSON.parse(readFileSync(truthPath, "utf8"));
   const truthVersion = truth.version;
-  if (!truthVersion) {
-    throw new Error(`No version in truth source: ${truthPath}`);
-  }
 
   if (plugin.name === "mattpocock-skills") {
+    if (!truthVersion) {
+      if (plugin.version !== undefined) {
+        throw new Error(
+          `Version in source for ${plugin.name} but missing in ${truthPath}`,
+        );
+      }
+      return { version: undefined, includeInClaude: false };
+    }
     if (plugin.version !== undefined && plugin.version !== truthVersion) {
       throw new Error(
         `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${truthVersion} (${truthPath})`,
       );
     }
     return { version: truthVersion, includeInClaude: plugin.version !== undefined };
+  }
+
+  if (!truthVersion) {
+    throw new Error(`No version in truth source: ${truthPath}`);
   }
 
   if (plugin.version === undefined) {
@@ -93,8 +102,8 @@ export function cursorWrapperManifest(plugin, resolved) {
     description: plugin.description,
     author: plugin.author,
     skills: plugin.cursor.skills,
-    version: resolved.version,
   };
+  if (resolved.version) manifest.version = resolved.version;
   if (plugin.homepage) manifest.homepage = plugin.homepage;
   if (plugin.repository) manifest.repository = plugin.repository;
   if (plugin.license) manifest.license = plugin.license;

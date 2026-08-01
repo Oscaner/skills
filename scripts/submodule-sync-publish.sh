@@ -20,7 +20,7 @@ if [[ "$UPDATED" != "true" ]]; then
 fi
 
 git fetch origin main
-git fetch origin "$BRANCH" || true
+git fetch origin "$BRANCH" 2>/dev/null || true
 OPEN_PR=$(gh pr list --search "head:${BRANCH} is:open" --json number,body --jq '.[0] // empty')
 
 if [[ -n "$OPEN_PR" ]] && git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then

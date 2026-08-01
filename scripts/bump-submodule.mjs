@@ -85,6 +85,11 @@ function applyBump(bumpName, result, newTag) {
 
   checkoutTag(newTag);
 
+  if (bumpName === "mattpocock-skills") {
+    execSync("pnpm run emit", { stdio: "inherit", cwd: root });
+    return;
+  }
+
   if (bumpName === "impeccable") {
     const sourcePath = "marketplace/source.json";
     const source = readJson(sourcePath);

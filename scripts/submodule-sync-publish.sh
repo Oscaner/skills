@@ -23,17 +23,27 @@ git fetch origin main
 git fetch origin "$BRANCH" 2>/dev/null || true
 OPEN_PR=$(gh pr list --search "head:${BRANCH} is:open" --json number,body --jq '.[0] // empty')
 
-if [[ -n "$OPEN_PR" ]] && git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+REMOTE_BRANCH_EXISTS=false
+if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+  REMOTE_BRANCH_EXISTS=true
   git checkout -B "$BRANCH" "origin/${BRANCH}"
-  git merge origin/main --no-edit
+  git rebase origin/main
 else
   git checkout -B "$BRANCH" origin/main
 fi
 
 node scripts/bump-submodule.mjs "$NAME"
 git add -A
-git commit -m "chore: bump ${NAME} submodule"
-git push -u origin "$BRANCH"
+if git diff --staged --quiet; then
+  echo "Branch already at ${NEW_TAG}; no new commit"
+else
+  git commit -m "chore: bump ${NAME} submodule"
+fi
+if [[ "$REMOTE_BRANCH_EXISTS" == "true" ]]; then
+  git push --force-with-lease -u origin "$BRANCH"
+else
+  git push -u origin "$BRANCH"
+fi
 
 ISSUE_NUM=""
 if [[ -n "$OPEN_PR" ]]; then

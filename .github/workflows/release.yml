@@ -55,9 +55,23 @@ jobs:
               });
               core.info(`Created ${tag}`);
             }
+      - name: Check if GitHub Release exists
+        id: release-exists
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const tag = `superpowers-overrides@${{ steps.overrides-ver.outputs.version }}`;
+            try {
+              await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
+              core.setOutput('exists', 'true');
+              core.info(`Release ${tag} already exists`);
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              core.setOutput('exists', 'false');
+            }
       - name: Create GitHub Release if missing
-        uses: softprops/action-gh-release@v2
+        if: steps.release-exists.outputs.exists != 'true'
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: superpowers-overrides@${{ steps.overrides-ver.outputs.version }}
           generate_release_notes: true
-          skip_if_release_exists: true

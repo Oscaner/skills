@@ -49,12 +49,26 @@ jobs:
 
       - id: find-issue
         if: steps.detect.outputs.updated == 'true'
-        uses: micalevisk/last-issue-action@v2
+        uses: actions/github-script@v9
         with:
-          state: open
-          labels: |
-            submodule-bump
-            submodule:${{ inputs.submodule }}
+          script: |
+            const labels = ['submodule-bump', `submodule:${{ inputs.submodule }}`];
+            const { data: issues } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              labels: labels.join(','),
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 1,
+            });
+            const issue = issues[0];
+            if (issue) {
+              core.setOutput('has-found', 'true');
+              core.setOutput('issue-number', String(issue.number));
+            } else {
+              core.setOutput('has-found', 'false');
+              core.setOutput('issue-number', '');
+            }
 
       - id: write-issue-body
         if: steps.detect.outputs.updated == 'true' && steps.find-issue.outputs.has-found != 'true'

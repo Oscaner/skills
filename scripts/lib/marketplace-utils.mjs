@@ -1,6 +1,11 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  TAG_PATTERNS,
+  SUBMODULE_PATHS,
+  semverFromNearestTag,
+} from "./submodule-tags.mjs";
 
 const GENERATED = "scripts/emit-marketplace.mjs — do not edit";
 
@@ -38,17 +43,30 @@ export function resolveVersion(root, plugin) {
 
   const truth = JSON.parse(readFileSync(truthPath, "utf8"));
   const truthVersion = truth.version;
-  if (!truthVersion) {
-    throw new Error(`No version in truth source: ${truthPath}`);
-  }
 
   if (plugin.name === "mattpocock-skills") {
-    if (plugin.version !== undefined && plugin.version !== truthVersion) {
+    const submodulePath = join(root, SUBMODULE_PATHS["mattpocock-skills"]);
+    const pattern = TAG_PATTERNS["mattpocock-skills"];
+    const effectiveVersion =
+      truthVersion ?? semverFromNearestTag(submodulePath, pattern);
+    if (!effectiveVersion) {
       throw new Error(
-        `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${truthVersion} (${truthPath})`,
+        `No version in ${truthPath} and no v* release tag on submodule HEAD`,
       );
     }
-    return { version: truthVersion, includeInClaude: plugin.version !== undefined };
+    if (plugin.version !== undefined && plugin.version !== effectiveVersion) {
+      throw new Error(
+        `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${effectiveVersion} (${truthPath})`,
+      );
+    }
+    return {
+      version: effectiveVersion,
+      includeInClaude: plugin.version !== undefined,
+    };
+  }
+
+  if (!truthVersion) {
+    throw new Error(`No version in truth source: ${truthPath}`);
   }
 
   if (plugin.version === undefined) {
@@ -93,8 +111,8 @@ export function cursorWrapperManifest(plugin, resolved) {
     description: plugin.description,
     author: plugin.author,
     skills: plugin.cursor.skills,
-    version: resolved.version,
   };
+  if (resolved.version) manifest.version = resolved.version;
   if (plugin.homepage) manifest.homepage = plugin.homepage;
   if (plugin.repository) manifest.repository = plugin.repository;
   if (plugin.license) manifest.license = plugin.license;

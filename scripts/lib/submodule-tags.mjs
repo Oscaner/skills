@@ -81,6 +81,13 @@ export function latestTag(submodulePath, pattern) {
 }
 
 /** @param {string} submodulePath @param {RegExp} pattern */
+export function semverFromNearestTag(submodulePath, pattern) {
+  const tag = nearestTag(submodulePath, pattern);
+  if (!tag) return null;
+  return parseSemverFromTag(tag, pattern);
+}
+
+/** @param {string} submodulePath @param {RegExp} pattern */
 export function hasUpdate(submodulePath, pattern) {
   fetchTags(submodulePath);
   const latest = latestTag(submodulePath, pattern);

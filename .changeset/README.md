@@ -6,15 +6,16 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 Run `pnpm changeset` when you change overrides skill behavior, manifest wiring, or build output under `plugins/superpowers-overrides/`.
 
-You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the release workflow auto-creates an align changeset on merge to `main`.
+You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR that sets `{semver}-overrides.0` directly; merge triggers `tag-if-missing.mjs`.
 
 ## Version scheme
 
 Versions follow `{superpowers-semver}-overrides.{N}`:
 
-- `6.2.0-overrides.1` — first overrides release for superpowers 6.2.0
-- `6.2.0-overrides.2` — next overrides-only release on the same superpowers base
-- `6.3.0-overrides.1` — resets when `marketplace.json` superpowers version moves to 6.3.0
+- `6.2.0-overrides.0` — aligned with superpowers 6.2.0, no overrides changes yet
+- `6.2.0-overrides.1` — first overrides-only release on superpowers 6.2.0 base
+- `6.2.0-overrides.2` — next overrides-only release on the same base
+- `6.3.0-overrides.0` — resets when superpowers base moves to 6.3.0
 
 ## Release flow
 

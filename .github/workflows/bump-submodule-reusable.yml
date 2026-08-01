@@ -67,7 +67,7 @@ jobs:
         if: steps.detect.outputs.updated == 'true' && steps.find-issue.outputs.has-found != 'true'
         uses: peter-evans/create-issue-from-file@v6
         with:
-          title: Submodule bump: ${{ inputs.submodule }}
+          title: "Submodule bump: ${{ inputs.submodule }}"
           content-filepath: .github/issue-bodies/${{ inputs.submodule }}.md
           labels: |
             submodule-bump
@@ -101,8 +101,8 @@ jobs:
         with:
           branch: chore/bump-${{ inputs.submodule }}
           base: main
-          title: chore: bump ${{ inputs.submodule }} submodule
-          commit-message: chore: bump ${{ inputs.submodule }} submodule
+          title: "chore: bump ${{ inputs.submodule }} submodule"
+          commit-message: "chore: bump ${{ inputs.submodule }} submodule"
           labels: |
             submodule-bump
             automated
@@ -117,4 +117,4 @@ jobs:
         uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ steps.issue-number.outputs.number }}
-          body: Updated: ${{ steps.detect.outputs.old_label }} → ${{ steps.detect.outputs.new_tag }}
+          body: "Updated: ${{ steps.detect.outputs.old_label }} → ${{ steps.detect.outputs.new_tag }}"

@@ -76,7 +76,7 @@ for (const cs of changesets) {
   unlinkSync(join(changesetDir, `${cs.id}.md`));
 }
 
-execSync("node scripts/sync-manifest-versions.mjs", {
+execSync("node scripts/sync-overrides-versions.mjs", {
   stdio: "inherit",
   cwd: root,
 });

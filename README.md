@@ -1,8 +1,30 @@
 # oscaner
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
 
-Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Packages skills as installable plugins — Markdown + JSON manifests, plus pnpm/changesets for `superpowers-overrides` releases and CI validation.
+*Combine superpowers' full workflow with mattpocock's precision — engineered via superpowers-overrides.*
+
+Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Three plugins work together as one pipeline: brainstorm, plan, build, ship.
+
+## Why this exists
+
+**[Superpowers](https://github.com/obra/superpowers)** is the full stack — brainstorming, writing plans, subagent-driven development, verification, branch finish. One library, end to end.
+
+**[mattpocock-skills](plugins/mattpocock-skills/)** is the precision layer — `grilling` for hard questions, `tdd` for implementation, `to-tickets` for slicing work. Small surface, sharp tools.
+
+Neither alone told me *when* to delegate, *how* to review specs, or *how to phase* a large feature. **superpowers-overrides** sits in front of upstream superpowers skills: intercept, replace or delegate, and wire mattpocock in at the right step. For big scope it adds **overall + phase** — decompose in an overall spec, then run full spec → plan → dev cycles one phase at a time.
+
+## The pipeline
+
+```
+Overall spec → Phase spec → Plan → SDD/TDD → Verify → Ship
+```
+
+Overrides add grilling and subagent review at design time; mattpocock handles grilling, tdd, and to-tickets via delegation.
+
+Skill mapping and harness setup → [superpowers-overrides README](plugins/superpowers-overrides/README.md).
 
 ## Installation
 
@@ -14,7 +36,7 @@ Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Packa
 /plugin install superpowers-overrides@oscaner
 ```
 
-Cloning this repo requires initializing the `mattpocock-skills` submodule:
+Clone this repo (submodule required for local development):
 
 ```bash
 git clone https://github.com/Oscaner/skills.git
@@ -22,84 +44,24 @@ cd skills
 git submodule update --init
 ```
 
-Bump submodule later: `git submodule update --remote mattpocock-skills` and commit with `chore:`.
-
-## Plugins
-
-### [mattpocock-skills](plugins/mattpocock-skills/)
-
-Vendored submodule tracking [`mattpocock/skills`](https://github.com/mattpocock/skills). Re-exported so overrides can delegate to `mattpocock-skills:grilling`, `tdd`, `to-tickets`.
-
-### [superpowers-overrides](plugins/superpowers-overrides/)
-
-Personal overrides for upstream [`superpowers`](https://github.com/obra/superpowers). Each `spor-*` skill intercepts a matching `superpowers:*` skill and runs **first** — replacing or delegating behavior. See [CLAUDE.md](CLAUDE.md) for the full override table and contributor pattern.
-
 ## Quick start
 
-1. Install `superpowers` + `superpowers-overrides` from the marketplace (see [Installation](#installation)).
-2. Run **`/spor-init`** once per project (Claude Code: `/superpowers-overrides:spor-init`) — writes override self-check rules to the project.
-3. Use upstream commands as normal — overrides fire automatically:
-   - Claude Code: `/superpowers:brainstorming`, `/superpowers:writing-plans`, …
-   - Cursor: `/spor-brainstorming`, `/spor-writing-plans`, …
+1. Install `superpowers`, `superpowers-overrides`, and `mattpocock-skills` from the marketplace.
+2. Run the **init skill** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](plugins/superpowers-overrides/README.md#usage).
+3. Invoke the superpowers workflow as you normally would — overrides intercept and run first.
 
-**Cursor:** Team Marketplace import + discovery fallback — [cross-harness-overrides.md](plugins/superpowers-overrides/docs/cross-harness-overrides.md). Smoke checklist: [CURSOR-SMOKE.md](plugins/superpowers-overrides/docs/CURSOR-SMOKE.md).
+## Learn more
 
-## Common override skills
-
-| Skill | Overrides | Notes |
-|---|---|---|
-| `spor-init` | — | Project wiring via `/spor-init` |
-| `spor-brainstorming` | `superpowers:brainstorming` | Grilling + subagent spec review |
-| `spor-writing-plans` | `superpowers:writing-plans` | Section writes + local tickets |
-| `spor-subagent-driven-development` | `superpowers:subagent-driven-development` | Complexity-based review rounds |
-
-Full list: [CLAUDE.md](CLAUDE.md) and [cross-harness-overrides.md](plugins/superpowers-overrides/docs/cross-harness-overrides.md).
-
-## Repository layout
-
-```
-marketplace/source.json              # canonical registry (human-edited)
-.claude-plugin/marketplace.json    # generated — Claude Code
-.cursor-plugin/marketplace.json    # generated — Cursor Team Marketplace
-cursor-plugins/                    # generated Cursor wrappers
-plugins/<plugin>/                  # plugin trees
-```
-
-Edit [marketplace/source.json](marketplace/source.json), then `pnpm run emit && pnpm run validate`.
-
-## Enforcement
-
-Overrides are enforced by three layers: each skill's four-trigger `description`, a `UserPromptExpansion` hook on `/superpowers:*` slash commands, and project rules written by **`/spor-init`** (`.cursor/rules/superpowers-overrides.mdc` in Cursor; `CLAUDE.md` self-check in Claude Code). Re-run init after plugin upgrades to refresh version stamps.
-
-Harness details: [cross-harness-overrides.md](plugins/superpowers-overrides/docs/cross-harness-overrides.md).
+[superpowers-overrides README](plugins/superpowers-overrides/README.md) — skills by phase, Claude Code vs Cursor, enforcement layers.
 
 ## Maintainers
 
-After editing override skills, manifest, or generators:
+After editing overrides: `pnpm run generate:overrides && pnpm run emit && pnpm run validate`.
 
-```bash
-pnpm run generate:overrides
-pnpm run emit
-pnpm run validate
-```
-
-Release workflow: [.changeset/README.md](.changeset/README.md).
-
-## Releasing
-
-Only `superpowers-overrides` is versioned. Tags: `superpowers-overrides@{superpowers-version}-overrides.{N}`.
-
-| Change | What to do |
-|--------|------------|
-| Overrides skill / manifest / build | `pnpm changeset` → PR → merge Version PR → tag |
-| Superpowers submodule bump | Update pointer + `marketplace/source.json` → `pnpm run emit` → PR |
-
-Changelog: [plugins/superpowers-overrides/CHANGELOG.md](plugins/superpowers-overrides/CHANGELOG.md).
-
-## Contributing
-
-New override rules go inside the override skill as `Rule N`. New override skills follow the pattern in [CLAUDE.md#the-overrides-pattern-superpowers-overrides](CLAUDE.md#the-overrides-pattern-superpowers-overrides).
+Release: [`.changeset/README.md`](.changeset/README.md). Contributor pattern: [`CLAUDE.md`](CLAUDE.md).
 
 ## License
 
-Personal use. No warranty. Adapt freely for your own setup.
+First-party code (`superpowers-overrides`, marketplace tooling) is [MIT](LICENSE).
+
+Vendored plugins keep their own licenses — see each plugin directory (e.g. `plugins/mattpocock-skills/LICENSE`).

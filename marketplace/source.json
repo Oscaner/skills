@@ -83,6 +83,7 @@
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"
       },
+      "license": "MIT",
       "contentRoot": "plugins/superpowers-overrides",
       "claude": {
         "category": "workflow",

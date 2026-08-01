@@ -1,0 +1,92 @@
+# superpowers-overrides
+
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+对 [superpowers](https://github.com/obra/superpowers) 的个人 override。每个 `spor-*` skill 在对应上游 skill **之前**运行——替换行为或 delegate 到 [mattpocock-skills](../mattpocock-skills/)。
+
+## overrides 做什么
+
+调用 `/brainstorming`、`/writing-plans` 等 superpowers skill 时，匹配的 `spor-*` override 会先加载。它要么 **replace** 上游步骤（如 self-review → 全新 subagent 审查），要么 **delegate** 给 mattpocock skill（如澄清问题 → `grilling`，实现 → `tdd`）。
+
+三层机制防止 override 被跳过：
+
+1. **Skill description** — 四触发 frontmatter；override 必须是本 turn 第一个 tool call。
+2. **Hook** — Claude Code 上 `/superpowers:*` 的 `UserPromptExpansion`。
+3. **项目规则** — `/spor-init` 写入项目（`CLAUDE.md` 或 `.cursor/rules/superpowers-overrides.mdc`）。
+
+## 工作流
+
+简化主路径图——不是完整 skill 清单。overall/phase、policy、cross-cutting skills 和 `spor-receiving-code-review` 见下方表格。
+
+```mermaid
+flowchart LR
+  subgraph discover["Discover"]
+    B[spor-brainstorming]
+  end
+  subgraph plan["Plan"]
+    W[spor-writing-plans]
+  end
+  subgraph build["Build"]
+    SDD[spor-subagent-driven-development]
+    EP[spor-executing-plans]
+    TDD[spor-test-driven-development]
+    DBG[spor-systematic-debugging]
+  end
+  subgraph ship["Ship"]
+    V[spor-verification-before-completion]
+    F[spor-finishing-a-development-branch]
+  end
+  B --> W --> SDD --> V --> F
+  EP -.-> SDD
+  TDD -.-> SDD
+  DBG -.-> SDD
+```
+
+**Overall + phase：** 大 scope → 写 overall spec 并获分解批准 → 显式 gate → 每个 phase 独立跑 discover→ship。主 README 的 ASCII 流水线包含 Phase spec；此图展示从 Discover 起的 per-phase skill 拦截链。
+
+## 按阶段划分的 Skills
+
+| 阶段 | Skill | 作用 |
+|------|-------|------|
+| Setup | `spor-init` | 项目 wiring；安装后跑一次 |
+| Discover | `spor-brainstorming` | discovery delegate 给 `grilling`；subagent spec review；大 scope 走 overall/phase |
+| Plan | `spor-writing-plans` | 分段写 plan + review；tickets 发布到 `docs/superpowers/tickets/` |
+| Build | `spor-subagent-driven-development` | 按复杂度多轮 review；implementer delegate 给 `tdd` |
+| Build | `spor-executing-plans` | 执行 plan；有 subagent 时转 SDD；每 task commit |
+| Build | `spor-test-driven-development` | 与用户确认 seam；循环 delegate 给 mattpocock `tdd` |
+| Build | `spor-systematic-debugging` | 先有证据再提 fix；delegate 给 `diagnosing-bugs` |
+| Ship | `spor-verification-before-completion` | 无验证证据不得声称完成 |
+| Ship | `spor-finishing-a-development-branch` | 分支收尾 / PR；禁止 worktree；conventional commits |
+| Ship | `spor-receiving-code-review` | 不清楚的反馈 → `grilling`；fix → `tdd`（不在图中——常在 build 中或 ship 前） |
+| Policy | `spor-using-git-worktrees` | 拒绝创建 worktree（用户策略） |
+| Cross-cutting | `spor-subagent-lifecycle` | 每 pass 全新 subagent；并发规则（被引用，无 slash） |
+| Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3 review dispatch（被引用，无 slash） |
+
+## 用法
+
+### 通用
+
+1. 从 oscaner marketplace 安装 `superpowers`、`superpowers-overrides`、`mattpocock-skills`。
+2. 每个项目运行 **`/spor-init`**（插件升级后重跑）。
+3. 照常调用 upstream superpowers skill——overrides 自动拦截。
+
+### Claude Code
+
+- 工作流：`/superpowers:brainstorming`、`/superpowers:writing-plans` …
+- Init：`/superpowers-overrides:spor-init` → 写入项目 `CLAUDE.md` self-check 块。
+
+### Cursor
+
+- 工作流：`/spor-brainstorming`、`/spor-writing-plans` …（或 rules 拦截）。
+- Init：`/spor-init` → 写入 `.cursor/rules/superpowers-overrides.mdc`。
+- 详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md) 和 [CURSOR-SMOKE.md](docs/CURSOR-SMOKE.md)。
+
+## 维护者文档
+
+- [cross-harness-overrides.md](docs/cross-harness-overrides.md)
+- [CLAUDE.md](../../CLAUDE.md) — override 模式、贡献指南
+- [CHANGELOG.md](CHANGELOG.md)
+
+## 许可
+
+[MIT](LICENSE)

@@ -27,3 +27,12 @@ describe("sortTagsBySemver", () => {
     assert.equal(sorted.at(-1), "v6.2.0");
   });
 });
+
+describe("semverFromNearestTag", () => {
+  it("derives semver from tag name", () => {
+    assert.equal(
+      parseSemverFromTag("v1.1.0", TAG_PATTERNS["mattpocock-skills"]),
+      "1.1.0",
+    );
+  });
+});

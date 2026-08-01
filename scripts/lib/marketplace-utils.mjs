@@ -1,6 +1,11 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  TAG_PATTERNS,
+  SUBMODULE_PATHS,
+  semverFromNearestTag,
+} from "./submodule-tags.mjs";
 
 const GENERATED = "scripts/emit-marketplace.mjs — do not edit";
 
@@ -40,20 +45,24 @@ export function resolveVersion(root, plugin) {
   const truthVersion = truth.version;
 
   if (plugin.name === "mattpocock-skills") {
-    if (!truthVersion) {
-      if (plugin.version !== undefined) {
-        throw new Error(
-          `Version in source for ${plugin.name} but missing in ${truthPath}`,
-        );
-      }
-      return { version: undefined, includeInClaude: false };
-    }
-    if (plugin.version !== undefined && plugin.version !== truthVersion) {
+    const submodulePath = join(root, SUBMODULE_PATHS["mattpocock-skills"]);
+    const pattern = TAG_PATTERNS["mattpocock-skills"];
+    const effectiveVersion =
+      truthVersion ?? semverFromNearestTag(submodulePath, pattern);
+    if (!effectiveVersion) {
       throw new Error(
-        `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${truthVersion} (${truthPath})`,
+        `No version in ${truthPath} and no v* release tag on submodule HEAD`,
       );
     }
-    return { version: truthVersion, includeInClaude: plugin.version !== undefined };
+    if (plugin.version !== undefined && plugin.version !== effectiveVersion) {
+      throw new Error(
+        `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${effectiveVersion} (${truthPath})`,
+      );
+    }
+    return {
+      version: effectiveVersion,
+      includeInClaude: plugin.version !== undefined,
+    };
   }
 
   if (!truthVersion) {

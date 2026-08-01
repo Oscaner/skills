@@ -103,7 +103,21 @@ git add plugins/mattpocock-skills
 git commit -m "chore: bump mattpocock-skills submodule"
 ```
 
-**Automated submodule sync (all three submodules):** GitHub Actions → Submodule Sync → Run workflow, or wait for weekly cron (Mon 09:00 Asia/Shanghai). See [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml).
+**Automated submodule sync (all three submodules):** GitHub Actions → Submodule Sync → Run workflow, or wait for weekly cron (Mon 09:00 Asia/Shanghai). Matrix caller [`.github/workflows/submodule-sync.yml`](.github/workflows/submodule-sync.yml) invokes reusable [`.github/workflows/bump-submodule-reusable.yml`](.github/workflows/bump-submodule-reusable.yml) per submodule (`create-pull-request` + Issue Action chain; no bash glue).
+
+**One-time label bootstrap** (required before first sync):
+
+```bash
+gh label create submodule-bump --color EDEDED --description "Automated submodule sync tracking"
+gh label create submodule:mattpocock-skills --color EDEDED
+gh label create submodule:superpowers --color EDEDED
+gh label create submodule:impeccable --color EDEDED
+```
+
+If migrating from v1 tracking Issues, add `submodule-bump` + `submodule:<name>` to existing open Issues to avoid duplicates.
+
+**Note:** PRs opened by the default `GITHUB_TOKEN` do not trigger `ci.yml` on `pull_request`; re-run CI manually or close/reopen the PR.
+
 Use `chore:` (not `feat:`) — the change is a pointer bump, not a feature.
 
 **Fresh-clone bootstrap (before Claude Code can resolve `mattpocock-skills:*` delegates):**
@@ -186,7 +200,7 @@ Only **`superpowers-overrides`** is versioned from this repo. Tags look like `su
 
 **Overrides-only changes:** run `pnpm changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
 
-**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0`, run `node scripts/sync-manifest-versions.mjs`. Merge triggers [tag-if-missing.mjs](scripts/tag-if-missing.mjs) for git tag + GitHub Release.
+**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0`, run `node scripts/sync-overrides-versions.mjs`. Merge triggers [release.yml](.github/workflows/release.yml) (github-script tag + GitHub Release).
 
 **Version scheme:** `{superpowers-semver}-overrides.{N}`. See [.changeset/README.md](.changeset/README.md).
 

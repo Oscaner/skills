@@ -73,7 +73,7 @@ function applyBump(bumpName, result, newTag) {
       result.files.push(pkgPath);
       prependChangelog(overridesVer, `Align with superpowers ${newVer}`);
       result.files.push("plugins/superpowers-overrides/CHANGELOG.md");
-      execSync("node scripts/sync-manifest-versions.mjs", {
+      execSync("node scripts/sync-overrides-versions.mjs", {
         stdio: "inherit",
         cwd: root,
       });

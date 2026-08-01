@@ -11,70 +11,12 @@ permissions:
   issues: write
 
 jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Sync mattpocock-skills
-        id: sync-mattpocock-skills
-        continue-on-error: true
-        run: bash scripts/submodule-sync-publish.sh mattpocock-skills
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Sync superpowers
-        id: sync-superpowers
-        continue-on-error: true
-        run: bash scripts/submodule-sync-publish.sh superpowers
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Sync impeccable
-        id: sync-impeccable
-        continue-on-error: true
-        run: bash scripts/submodule-sync-publish.sh impeccable
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Summarize sync results
-        if: always()
-        run: |
-          set -uo pipefail
-
-          declare -a names=(mattpocock-skills superpowers impeccable)
-          declare -a outcomes=(
-            "${{ steps.sync-mattpocock-skills.outcome }}"
-            "${{ steps.sync-superpowers.outcome }}"
-            "${{ steps.sync-impeccable.outcome }}"
-          )
-
-          failed=0
-          {
-            echo "## Submodule Sync results"
-            echo
-            echo "| Submodule | Outcome |"
-            echo "|-----------|---------|"
-            for i in "${!names[@]}"; do
-              name="${names[$i]}"
-              outcome="${outcomes[$i]}"
-              if [[ "$outcome" == "success" ]]; then
-                mark="✅ success"
-              else
-                mark="❌ ${outcome}"
-                failed=1
-              fi
-              echo "| \`${name}\` | ${mark} |"
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ "$failed" -ne 0 ]]; then
-            echo "One or more submodule sync steps failed (see Summary)." >&2
-            exit 1
-          fi
+  bump:
+    strategy:
+      fail-fast: false
+      matrix:
+        submodule: [mattpocock-skills, superpowers, impeccable]
+    uses: ./.github/workflows/bump-submodule-reusable.yml
+    with:
+      submodule: ${{ matrix.submodule }}
+    secrets: inherit

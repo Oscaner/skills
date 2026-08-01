@@ -9,7 +9,7 @@ export function parseOverridesVersion(version) {
 export function computeNextVersion(current, superpowersVersion) {
   const parsed = parseOverridesVersion(current);
   if (!parsed || parsed.base !== superpowersVersion) {
-    return `${superpowersVersion}-overrides.1`;
+    return `${superpowersVersion}-overrides.0`;
   }
   return `${parsed.base}-overrides.${parsed.n + 1}`;
 }

@@ -30,14 +30,14 @@ const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 const currentVersion = pkg.version;
 
 const nextVersion = !existsSync(changelogPath)
-  ? `${superpowersVersion}-overrides.1`
+  ? `${superpowersVersion}-overrides.0`
   : computeNextVersion(currentVersion, superpowersVersion);
 
 const parsed = parseOverridesVersion(currentVersion);
 const baseReset =
   parsed !== null &&
   parsed.base !== superpowersVersion &&
-  nextVersion.endsWith("-overrides.1");
+  nextVersion.endsWith("-overrides.0");
 
 const changelogOptions = { repo: "Oscaner/skills" };
 const releaseLines = [];

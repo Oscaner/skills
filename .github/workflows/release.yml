@@ -23,8 +23,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Prepare align changeset if superpowers bumped
-        run: node scripts/create-align-changeset.mjs
       - run: pnpm run emit
       - uses: changesets/action@v1
         with:
@@ -32,5 +30,11 @@ jobs:
           publish: pnpm exec changeset tag
           commit: "chore: release superpowers-overrides"
           title: "chore: release superpowers-overrides"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fetch tags for tag-if-missing
+        run: git fetch --tags origin
+      - name: Tag and release untagged overrides version
+        run: node scripts/tag-if-missing.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

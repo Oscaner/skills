@@ -1,0 +1,42 @@
+name: Submodule Sync
+
+on:
+  schedule:
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Sync mattpocock-skills
+        continue-on-error: true
+        run: bash scripts/submodule-sync-publish.sh mattpocock-skills
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sync superpowers
+        continue-on-error: true
+        run: bash scripts/submodule-sync-publish.sh superpowers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sync impeccable
+        continue-on-error: true
+        run: bash scripts/submodule-sync-publish.sh impeccable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

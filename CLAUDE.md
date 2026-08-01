@@ -95,11 +95,15 @@ The three share the same date + feature slug so a spec, its plan, and its ticket
 
 There is no `pnpm test` here — content is plain Markdown + JSON, discovered by Claude Code at runtime. The genuine day-to-day operations are:
 
-**Bump the vendored `mattpocock-skills` submodule to its latest tip:**
+**Bump the vendored `mattpocock-skills` submodule to its latest release tag:**
 ```bash
-git submodule update --remote mattpocock-skills
-git commit plugins/mattpocock-skills -m "chore: bump mattpocock-skills submodule"
+git -C plugins/mattpocock-skills fetch --tags origin
+git -C plugins/mattpocock-skills checkout v1.1.0   # latest v* tag
+git add plugins/mattpocock-skills
+git commit -m "chore: bump mattpocock-skills submodule"
 ```
+
+**Automated submodule sync (all three submodules):** GitHub Actions → Submodule Sync → Run workflow, or wait for weekly cron (Mon 09:00 Asia/Shanghai). See [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml).
 Use `chore:` (not `feat:`) — the change is a pointer bump, not a feature.
 
 **Fresh-clone bootstrap (before Claude Code can resolve `mattpocock-skills:*` delegates):**
@@ -178,11 +182,11 @@ This runs steps 1–5 above plus generator drift checks, overrides version tripl
 
 ## Releasing
 
-Only **`superpowers-overrides`** is versioned from this repo. Tags look like `superpowers-overrides@6.2.0-overrides.1` — the prerelease suffix tracks which vendored `superpowers` version the overrides target.
+Only **`superpowers-overrides`** is versioned from this repo. Tags look like `superpowers-overrides@6.2.0-overrides.11` — the prerelease suffix tracks which vendored `superpowers` version the overrides target; new superpowers bases start at `{semver}-overrides.0`.
 
 **Overrides-only changes:** run `pnpm changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
 
-**Superpowers submodule bump:** update the submodule pointer and `marketplace/source.json` `plugins[superpowers].version`, then `pnpm run emit`. No manual changeset required for align-only releases — [release.yml](.github/workflows/release.yml) prep creates an align changeset automatically when the prerelease base drifts.
+**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0`, run `node scripts/sync-manifest-versions.mjs`. Merge triggers [tag-if-missing.mjs](scripts/tag-if-missing.mjs) for git tag + GitHub Release.
 
 **Version scheme:** `{superpowers-semver}-overrides.{N}`. See [.changeset/README.md](.changeset/README.md).
 

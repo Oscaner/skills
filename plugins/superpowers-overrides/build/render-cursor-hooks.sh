@@ -41,7 +41,10 @@ hooks = {
         "preToolUse": [
             {
                 "command": "./bin/override-cursor-enforce.sh",
-            }
+            },
+            {
+                "command": "./bin/override-cursor-sdd-gate.sh",
+            },
         ],
     },
 }
@@ -150,6 +153,41 @@ if [ -n "$match" ]; then
   skill_suffix=$(printf '%s' "$match" | jq -r '.skill_suffix')
   session_key=$(printf '%s' "$match" | jq -r '.session_key')
   write_pending "$session_key" "$override" "$skill_suffix"
+fi
+
+sdd_session_key=$(INPUT="$input" python3 <<'PYSDD'
+import hashlib
+import json
+import os
+import re
+import sys
+
+SDD_SLASH_RES = [
+    r"(?i)(^|\\s)/subagent\\-driven\\-development(\\s|$)",
+    r"(?i)(^|\\s)/spor\\-subagent\\-driven\\-development(\\s|$)",
+    r"(?i)(^|\\s)/superpowers:subagent\\-driven\\-development(\\s|$)",
+    r"(?i)(^|\\s)/executing\\-plans(\\s|$)",
+]
+
+data = json.loads(os.environ["INPUT"])
+prompt = data.get("prompt") or ""
+for pat in SDD_SLASH_RES:
+    if re.search(pat, prompt):
+        if data.get("conversation_id"):
+            print(data["conversation_id"])
+        elif data.get("session_id"):
+            print(data["session_id"])
+        else:
+            print(hashlib.sha256(prompt.encode()).hexdigest()[:16])
+        sys.exit(0)
+sys.exit(1)
+PYSDD
+) || true
+
+if [ -n "${{sdd_session_key:-}}" ]; then
+  _plugin_root="$(cd "$(dirname "$0")/.." && pwd)"
+  _repo_root="$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || pwd)"
+  "${{_plugin_root}}/bin/sdd-session-activate.sh" minimal "$sdd_session_key" "$_repo_root" 2>/dev/null || true
 fi
 
 jq -n '{{continue:true}}'

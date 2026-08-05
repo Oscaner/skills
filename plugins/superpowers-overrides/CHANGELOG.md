@@ -1,5 +1,16 @@
 # superpowers-overrides
 
+## Unreleased
+
+### Breaking Changes
+
+- **pack — single-layer Cursor install:** Team Marketplace `source` for `superpowers-overrides` is now `./plugins/superpowers-overrides` (plugin-root `.cursor-plugin`). Removed `cursor-plugins/superpowers-overrides/` wrapper. Hook behavior unchanged. See `docs/MIGRATION-pack-single-layer.md`.
+
+### Minor Changes
+
+- Generate committed `.cursor-plugin` and `.codex-plugin` manifests at plugin root via `generate:overrides`.
+- `marketplace/source.json` uses `cursor.emitMode: plugin-root` for overrides.
+
 ## 6.2.0-overrides.12
 
 ### Patch Changes

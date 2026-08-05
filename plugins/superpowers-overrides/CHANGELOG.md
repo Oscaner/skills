@@ -1,5 +1,15 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.13
+
+### Patch Changes
+
+- Breaking: Cursor Team Marketplace installs `superpowers-overrides` from plugin root (`plugins/superpowers-overrides`) instead of `cursor-plugins/superpowers-overrides/`. Refresh marketplace or reinstall. Adds committed `.cursor-plugin` and `.codex-plugin` at plugin root. Hook logic unchanged.
+
+
+- Breaking: Cursor Team Marketplace installs **superpowers** from plugin root (`./plugins/superpowers`) instead of `cursor-plugins/superpowers/`. Removed redundant wrapper; upstream submodule `.cursor-plugin` is the manifest source. Refresh marketplace or reinstall. Adds `cursor-plugins/README.md` documenting hybrid emit (plugin-root vs wrapper). Does not change superpowers submodule content or hook logic.
+
+
 ## 6.2.0-overrides.12
 
 ### Patch Changes

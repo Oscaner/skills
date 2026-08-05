@@ -20,11 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(sys.argv[1]) / "build/lib"))
 from manifest_targets import load_targets
-from trigger_patterns import (
-    attach_path_regexes,
-    bare_slash_prompt_regex,
-    spor_slash_prompt_regex,
-)
+from trigger_patterns import attach_path_regexes
 
 root = Path(sys.argv[1])
 hooks_out = Path(sys.argv[2])
@@ -55,14 +51,12 @@ target_rows = []
 for t in targets:
     attach_res = attach_path_regexes(t.upstream_slug)
     attach_res.append(rf"(?i)/{t.upstream_slug}/SKILL\.md$")
+    source = t.source.lstrip("./")
+    skill_suffix = f"{source}/SKILL.md" if not source.endswith(".md") else source
     target_rows.append(
         {
             "name": t.name,
-            "upstream_slug": t.upstream_slug,
-            "bare_re": bare_slash_prompt_regex(t.upstream_slug),
-            "spor_re": spor_slash_prompt_regex(t.upstream_slug),
-            "prefixed_re": rf"(?i)superpowers:{t.upstream_slug}(\s|$|[^a-zA-Z0-9_-])",
-            "spor_prefixed_re": rf"(?i)superpowers-overrides:{t.name}(\s|$|[^a-zA-Z0-9_-])",
+            "skill_suffix": skill_suffix,
             "attach_res": attach_res,
         }
     )
@@ -80,12 +74,14 @@ pending_path() {{
 }}
 
 write_pending() {{
-  local session_key="$1" override="$2" trigger="$3"
+  local session_key="$1" override="$2" skill_suffix="$3"
   mkdir -p "$PENDING_ROOT"
   local now
   now=$(date +%s)
-  jq -n --arg override "$override" --arg trigger "$trigger" --argjson detected_at "$now" \\
-    '{{override: $override, trigger: $trigger, detected_at: $detected_at}}' > "$(pending_path "$session_key")"
+  jq -n --arg override "$override" --arg skill_suffix "$skill_suffix" \\
+    --arg trigger "attach" --argjson detected_at "$now" \\
+    '{{override: $override, skill_suffix: $skill_suffix, trigger: $trigger, detected_at: $detected_at}}' \\
+    > "$(pending_path "$session_key")"
 }}
 
 read_pending() {{
@@ -145,31 +141,16 @@ for t in TARGETS:
             continue
         for pat in t["attach_res"]:
             if re.search(pat, path):
-                print(json.dumps({{"override": t["name"], "trigger": "attach", "session_key": key}}))
+                print(json.dumps({{"override": t["name"], "skill_suffix": t["skill_suffix"], "trigger": "attach", "session_key": key}}))
                 sys.exit(0)
-
-for t in TARGETS:
-    if re.search(t["prefixed_re"], prompt) or re.search(t["spor_prefixed_re"], prompt):
-        print(json.dumps({{"override": t["name"], "trigger": "prefixed", "session_key": key}}))
-        sys.exit(0)
-
-for t in TARGETS:
-    if re.search(t["spor_re"], prompt):
-        print(json.dumps({{"override": t["name"], "trigger": "spor-slash", "session_key": key}}))
-        sys.exit(0)
-
-for t in TARGETS:
-    if re.search(t["bare_re"], prompt):
-        print(json.dumps({{"override": t["name"], "trigger": "bare-slash", "session_key": key}}))
-        sys.exit(0)
 PYMATCH
 )
 
 if [ -n "$match" ]; then
   override=$(printf '%s' "$match" | jq -r '.override')
-  trigger=$(printf '%s' "$match" | jq -r '.trigger')
+  skill_suffix=$(printf '%s' "$match" | jq -r '.skill_suffix')
   session_key=$(printf '%s' "$match" | jq -r '.session_key')
-  write_pending "$session_key" "$override" "$trigger"
+  write_pending "$session_key" "$override" "$skill_suffix"
 fi
 
 jq -n '{{continue:true}}'

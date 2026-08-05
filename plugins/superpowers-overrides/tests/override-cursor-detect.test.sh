@@ -9,26 +9,23 @@ mkdir -p "$PENDING_ROOT"
 
 out=$(printf '%s' '{"conversation_id":"conv-test-1","prompt":"/brainstorming design foo","attachments":[]}' | "$BIN")
 echo "$out" | jq -e '.continue == true' >/dev/null
-[ -f "$PENDING_ROOT/conv-test-1.json" ] || { echo "missing pending"; exit 1; }
-jq -e '.override == "spor-brainstorming"' "$PENDING_ROOT/conv-test-1.json" >/dev/null
+[ ! -f "$PENDING_ROOT/conv-test-1.json" ] || { echo "slash must not write pending"; exit 1; }
 
-# spor slash + prefixed prompt triggers
 printf '%s' '{"conversation_id":"conv-test-1b","prompt":"use /spor-brainstorming please","attachments":[]}' | "$BIN" >/dev/null
-jq -e '.override == "spor-brainstorming"' "$PENDING_ROOT/conv-test-1b.json" >/dev/null
+[ ! -f "$PENDING_ROOT/conv-test-1b.json" ] || { echo "spor slash must not write pending"; exit 1; }
 
 printf '%s' '{"conversation_id":"conv-test-1c","prompt":"run superpowers:brainstorming","attachments":[]}' | "$BIN" >/dev/null
-jq -e '.trigger == "prefixed"' "$PENDING_ROOT/conv-test-1c.json" >/dev/null
+[ ! -f "$PENDING_ROOT/conv-test-1c.json" ] || { echo "prefixed slash must not write pending"; exit 1; }
 
 printf '%s' '{"conversation_id":"conv-test-1d","prompt":"use superpowers-overrides:spor-brainstorming","attachments":[]}' | "$BIN" >/dev/null
-jq -e '.override == "spor-brainstorming"' "$PENDING_ROOT/conv-test-1d.json" >/dev/null
+[ ! -f "$PENDING_ROOT/conv-test-1d.json" ] || { echo "spor prefixed must not write pending"; exit 1; }
 
 printf '%s' '{"session_id":"sess-fallback","prompt":"/brainstorming","attachments":[]}' | "$BIN" >/dev/null
-[ -f "$PENDING_ROOT/sess-fallback.json" ] || { echo "missing session_id pending"; exit 1; }
+[ ! -f "$PENDING_ROOT/sess-fallback.json" ] || { echo "session_id slash must not write pending"; exit 1; }
 
-# session_key fallback when no conversation_id — hash via python3 (portable)
 hash_key=$(python3 -c "import hashlib; print(hashlib.sha256(b'/brainstorming only prompt hash').hexdigest()[:16])")
 printf '%s' '{"prompt":"/brainstorming only prompt hash","attachments":[]}' | "$BIN" >/dev/null
-[ -f "$PENDING_ROOT/${hash_key}.json" ] || { echo "missing hash pending"; exit 1; }
+[ ! -f "$PENDING_ROOT/${hash_key}.json" ] || { echo "hash slash must not write pending"; exit 1; }
 
 cache_path="$SPOR_SKILL"
 # simulate upstream attach by copying path shape
@@ -37,6 +34,7 @@ mkdir -p "$(dirname "$upstream_cache")" && cp "$SPOR_SKILL" "$upstream_cache"
 out2=$(printf '%s' "{\"conversation_id\":\"conv-test-2\",\"prompt\":\"please review\",\"attachments\":[{\"type\":\"file\",\"file_path\":\"$upstream_cache\"}]}" | "$BIN")
 echo "$out2" | jq -e '.continue == true' >/dev/null
 jq -e '.trigger == "attach"' "$PENDING_ROOT/conv-test-2.json" >/dev/null
+jq -e '.skill_suffix == "skills/spor-brainstorming/SKILL.md"' "$PENDING_ROOT/conv-test-2.json" >/dev/null
 
 repo_attach="$(dirname "$ROOT")/superpowers/skills/brainstorming/SKILL.md"
 if [ -f "$repo_attach" ]; then

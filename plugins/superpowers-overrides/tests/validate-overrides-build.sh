@@ -107,6 +107,34 @@ echo "== validate generator outputs fresh =="
 echo "== validate expansion script =="
 "$ROOT/tests/override-prompt-expansion.test.sh"
 
+echo "== validate cursor detect hook =="
+"$ROOT/tests/override-cursor-detect.test.sh"
+
+echo "== validate cursor enforce hook =="
+"$ROOT/tests/override-cursor-enforce.test.sh"
+
+echo "== validate hooks-cursor.json =="
+python3 -c "
+import json
+from pathlib import Path
+root = Path('$ROOT')
+hooks = json.loads((root / 'hooks/hooks-cursor.json').read_text())
+assert hooks['version'] == 1
+assert 'beforeSubmitPrompt' in hooks['hooks']
+assert 'preToolUse' in hooks['hooks']
+detect = hooks['hooks']['beforeSubmitPrompt'][0]
+assert detect['command'] == './bin/override-cursor-detect.sh'
+enforce = hooks['hooks']['preToolUse'][0]
+assert enforce['command'] == './bin/override-cursor-enforce.sh'
+assert 'matcher' not in enforce
+print('OK')
+"
+
+echo "== validate cursor hook scripts executable =="
+[ -x "$ROOT/bin/override-cursor-detect.sh" ] || { echo "FAIL: detect not executable"; exit 1; }
+[ -x "$ROOT/bin/override-cursor-enforce.sh" ] || { echo "FAIL: enforce not executable"; exit 1; }
+echo "OK"
+
 echo "== validate self-check version stamps =="
 python3 -c "
 import json, re

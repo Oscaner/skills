@@ -72,7 +72,12 @@ import json, os
 root = '$ROOT'
 m = json.load(open(os.path.join(root, 'overrides.manifest.json')))
 pj = json.load(open(os.path.join(root, '.claude-plugin/plugin.json')))
-declared = {s.split('/')[-1] for s in pj['skills']}
+skills = pj.get('skills')
+if skills is None or isinstance(skills, str):
+    skills_root = os.path.join(root, 'skills')
+    declared = {n for n in os.listdir(skills_root) if os.path.isfile(os.path.join(skills_root, n, 'SKILL.md'))}
+else:
+    declared = {s.split('/')[-1] for s in skills}
 needed = {t['name'] for t in m['targets']} | {'spor-init', 'spor-subagent-lifecycle', 'spor-token-efficient-review-dispatch'}
 assert needed <= declared, f'plugin.json missing: {needed - declared}'
 print('OK')

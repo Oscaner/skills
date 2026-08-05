@@ -1,22 +1,11 @@
 # superpowers-overrides
 
-## Unreleased
-
-### Breaking Changes
-
-- **pack — single-layer Cursor install:** Team Marketplace `source` for `superpowers-overrides` is now `./plugins/superpowers-overrides` (plugin-root `.cursor-plugin`). Removed `cursor-plugins/superpowers-overrides/` wrapper. Hook behavior unchanged. See `docs/MIGRATION-pack-single-layer.md`.
-
-### Minor Changes
-
-- Generate committed `.cursor-plugin` and `.codex-plugin` manifests at plugin root via `generate:overrides`.
-- `marketplace/source.json` uses `cursor.emitMode: plugin-root` for overrides.
-
 ## 6.2.0-overrides.12
 
 ### Patch Changes
 
 - **penf — override-first enforcement (Cursor + Claude Code)**
-  
+
   - **Cursor:** plugin-bundled `hooks-cursor.json` with `beforeSubmitPrompt` detect (pending state) and `preToolUse` enforce (deny non-`spor-*` first tools; allow Read/Skill spor). Marketplace `cursor.hooks` wired via emit.
   - **Claude Code:** manifest-generated `hooks.json` matchers for `^superpowers:`, bare `/<slug>`, and `^/spor-<slug>`; expansion script maps all three trigger forms.
   - **Generators:** `trigger_patterns.py`, `render-claude-hooks.sh`, `render-cursor-hooks.sh`; shell tests + CI executable checks.
@@ -100,5 +89,3 @@
 ### Patch Changes
 
 - Initial release with CI and changesets automation.
-
-

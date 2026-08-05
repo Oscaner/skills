@@ -101,6 +101,9 @@ assert any('spor-' in m for m in matchers)
 print('OK')
 "
 
+echo "== validate harness manifests =="
+python3 "$ROOT/tests/manifest-harness.test.py"
+
 echo "== validate generator outputs fresh =="
 "$ROOT/build/generate-all.sh" --check
 

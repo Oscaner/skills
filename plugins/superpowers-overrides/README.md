@@ -97,6 +97,26 @@ flowchart LR
 
 Hooks and enforcement scripts are **plugin-bundled** (same model as upstream `superpowers`). Consumer projects should never gain new hook files from `spor-init`.
 
+## SDD CLI harness scripts
+
+Token-efficient SDD orchestration (`spor-token-efficient-controller-handoff`) dispatches via plugin-bundled scripts under `bin/`. Orchestrator resolves harness once; scripts live in `{plugin_root}/bin/`.
+
+| Harness | Task script | Plan script | Ship level |
+|---------|-------------|-------------|------------|
+| **cursor** | `sdd-run-task-cursor.sh` | `sdd-run-plan-cursor.sh` | **Full** — `cursor agent` |
+| **claude** | `sdd-run-task-claude.sh` | `sdd-run-plan-claude.sh` | **Full** — `claude` |
+| **codex** | `sdd-run-task-codex.sh` | `sdd-run-plan-codex.sh` | **Stub** — exit 1 BLOCKED |
+| **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
+| **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
+
+Shared library: `bin/lib/sdd-common.sh` (workspace paths, plugin root resolution, exit codes).
+
+**Mode A (per task):** `sdd-run-task-<harness>.sh --task N --mode implement|handoff|review|fix`
+
+**Mode B (plan driver / AFK):** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 4-mode chain.
+
+Stub harness → exit 1 → orchestrator **BLOCKED** (not in-session p0 fallback). CLI missing → exit 2 → p0 fallback. See [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1).
+
 ## Docs for maintainers
 
 - [cross-harness-overrides.md](docs/cross-harness-overrides.md)

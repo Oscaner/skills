@@ -151,13 +151,57 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 
 Manual verification: same as [Self-check rules](#self-check-rules-both-harnesses) smoke bullets above.
 
+## SDD CLI harness scripts (p1)
+
+Token-efficient SDD orchestration uses plugin-bundled scripts under `bin/` — referenced by `spor-token-efficient-controller-handoff` (H6) and `spor-subagent-driven-development`. Orchestrator resolves harness once per plan; scripts do **not** re-detect CLI at runtime.
+
+| Harness | Task script | Plan script | Ship level |
+|---------|-------------|-------------|------------|
+| **cursor** | `sdd-run-task-cursor.sh` | `sdd-run-plan-cursor.sh` | **Full** — `cursor agent --print --output-format text --force` |
+| **claude** | `sdd-run-task-claude.sh` | `sdd-run-plan-claude.sh` | **Full** — `claude -p … --output-format text --dangerously-skip-permissions` |
+| **codex** | `sdd-run-task-codex.sh` | `sdd-run-plan-codex.sh` | **Stub** — exit 1 BLOCKED |
+| **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
+| **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
+
+Shared library: `bin/lib/sdd-common.sh` — workspace path contract (`SDD_WORKSPACE`, `SDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing).
+
+### Invocation modes
+
+**Mode A (per task):** orchestrator calls one mode per CLI invocation:
+
+```bash
+{plugin_root}/bin/sdd-run-task-<harness>.sh --task N --mode implement|handoff|review|fix [--segment implement|review|fix]
+```
+
+**Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
+
+```bash
+{plugin_root}/bin/sdd-run-plan-<harness>.sh --plan <path>
+```
+
+Plan driver invokes sibling task script per mode. Ledger append on APPROVED only.
+
+### Exit codes and fallback
+
+| Exit | Meaning | Orchestrator action |
+|------|---------|---------------------|
+| 0 | Success | Continue chain |
+| 1 | BLOCKED (stub harness or explicit block) | Stop — **not** p0 fallback |
+| 2 | CLI not in PATH | Silent p0 in-session fallback |
+
+Stub harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
+
+**CI:** `tests/validate-overrides-build.sh` asserts all 10 harness scripts + `bin/lib/sdd-common.sh` exist and are executable.
+
+Templates: `templates/sdd-cli/` (implement, handoff, review, fix).
+
 ## Deferred harnesses (documented, not built)
 
-| Harness | Rules output (future) |
-|---------|----------------------|
-| Codex / Copilot / Mistral Vibe | `AGENTS.md` section |
-| Gemini CLI | `.gemini/GEMINI.md` |
-| OpenCode / Pi / Qoder / Rovo / Kiro | Per harness config file |
+| Harness | Rules output (future) | SDD CLI (p1) |
+|---------|----------------------|--------------|
+| Codex / Copilot / Mistral Vibe | `AGENTS.md` section | Stub scripts (exit 1) |
+| Gemini CLI | `.gemini/GEMINI.md` | Stub scripts (exit 1) |
+| OpenCode / Pi / Qoder / Rovo / Kiro | Per harness config file | Not built |
 
 See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for directory mappings.
 

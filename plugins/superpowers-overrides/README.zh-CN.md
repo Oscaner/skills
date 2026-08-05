@@ -97,6 +97,26 @@ flowchart LR
 
 Hook 与 enforcement 脚本 **随 plugin 安装**（与 upstream `superpowers` 同模式）。`spor-init` 不应在 consumer 项目里新增 hook 文件。
 
+## SDD CLI harness 脚本
+
+Token-efficient SDD 编排（`spor-token-efficient-controller-handoff`）通过 plugin 内 `bin/` 下的脚本 dispatch。Orchestrator 只解析一次 harness；脚本位于 `{plugin_root}/bin/`。
+
+| Harness | Task 脚本 | Plan 脚本 | 实现级别 |
+|---------|-----------|-----------|----------|
+| **cursor** | `sdd-run-task-cursor.sh` | `sdd-run-plan-cursor.sh` | **Full** — `cursor agent` |
+| **claude** | `sdd-run-task-claude.sh` | `sdd-run-plan-claude.sh` | **Full** — `claude` |
+| **codex** | `sdd-run-task-codex.sh` | `sdd-run-plan-codex.sh` | **Stub** — exit 1 BLOCKED |
+| **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
+| **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
+
+共享库：`bin/lib/sdd-common.sh`（workspace 路径、plugin root 解析、exit code）。
+
+**Mode A（单 task）：** `sdd-run-task-<harness>.sh --task N --mode implement|handoff|review|fix`
+
+**Mode B（plan driver / AFK）：** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 4-mode 链。
+
+Stub harness → exit 1 → orchestrator **BLOCKED**（非 in-session p0 fallback）。CLI 缺失 → exit 2 → p0 fallback。详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1)。
+
 ## 维护者文档
 
 - [cross-harness-overrides.md](docs/cross-harness-overrides.md)

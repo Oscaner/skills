@@ -8,7 +8,7 @@
     "email": "oscaner1997@gmail.com"
   },
   "skills": "../../plugins/superpowers-overrides/skills",
-  "version": "6.2.0-overrides.11",
+  "version": "6.2.0-overrides.12",
   "license": "MIT",
   "hooks": "../../plugins/superpowers-overrides/hooks/hooks-cursor.json"
 }

@@ -94,6 +94,8 @@ Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invoc
 | `review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) |
 | `fix` | fix implementer; reads open-findings |
 
+**Worker discipline SOT:** `templates/sdd-cli/{implement,handoff,review,fix}.md` — orchestrator must not paraphrase implement/review/fix delegation; cite templates only.
+
 3. **Env contract** (paths only — **never** paste full plan into CLI env):
 
 | Variable | Purpose |

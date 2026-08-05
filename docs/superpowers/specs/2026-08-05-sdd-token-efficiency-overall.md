@@ -39,6 +39,7 @@
 | 文件 handoff + lean review | **p0** | [p0 design v1.3.1](2026-08-05-sdd-token-efficiency-p0-design.md) | penf ship | **impl complete** @ `feat/sdd` (`642cdc0..be28412`); release pending |
 | CLI 物理清空 per task | **p1** | [p1 design v1.2.1](2026-08-05-sdd-token-efficiency-p1-design.md) | **p0 release tag** | [plan](../plans/2026-08-05-sdd-token-efficiency-p1.md) published |
 | 薄 orchestrator + 模板 SOT | **p1-slim** | [p1-slim design](2026-08-05-sdd-slim-orchestrator-design.md) | p1 ship | impl complete |
+| spor-SDD on-disk slim | **p1-slim.1** | [p1-slim.1 design](2026-08-05-sdd-slim-orchestrator-v2-design.md) | p1-slim ship | impl complete |
 
 **交付物摘要（charter）**
 
@@ -50,6 +51,7 @@
 | p0 | H1–H5 cross-cutting + `spor-handoff-writer` + code-review 委托 + SDD Rule 5/6；自适应 diff（Simple=task / Complex=plan） |
 | p1 | plugin `bin/`：**cursor+claude full** CLI + 3 stub harness；H6–H8；4-mode 链 |
 | p1-slim | Rule 0 CLI/p0 branch；Rule 5 split；executing-plans router；implement.md commit |
+| p1-slim.1 | spor-SDD ≤160 lines；Rule 0a/5b/5c pointer-only |
 
 ### penf → pack 过渡（已知）
 

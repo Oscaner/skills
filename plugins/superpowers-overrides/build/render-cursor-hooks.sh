@@ -20,11 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(sys.argv[1]) / "build/lib"))
 from manifest_targets import load_targets
-from trigger_patterns import (
-    attach_path_regexes,
-    bare_slash_prompt_regex,
-    spor_slash_prompt_regex,
-)
+from trigger_patterns import attach_path_regexes
 
 root = Path(sys.argv[1])
 hooks_out = Path(sys.argv[2])
@@ -45,7 +41,10 @@ hooks = {
         "preToolUse": [
             {
                 "command": "./bin/override-cursor-enforce.sh",
-            }
+            },
+            {
+                "command": "./bin/override-cursor-sdd-gate.sh",
+            },
         ],
     },
 }
@@ -55,14 +54,12 @@ target_rows = []
 for t in targets:
     attach_res = attach_path_regexes(t.upstream_slug)
     attach_res.append(rf"(?i)/{t.upstream_slug}/SKILL\.md$")
+    source = t.source.lstrip("./")
+    skill_suffix = f"{source}/SKILL.md" if not source.endswith(".md") else source
     target_rows.append(
         {
             "name": t.name,
-            "upstream_slug": t.upstream_slug,
-            "bare_re": bare_slash_prompt_regex(t.upstream_slug),
-            "spor_re": spor_slash_prompt_regex(t.upstream_slug),
-            "prefixed_re": rf"(?i)superpowers:{t.upstream_slug}(\s|$|[^a-zA-Z0-9_-])",
-            "spor_prefixed_re": rf"(?i)superpowers-overrides:{t.name}(\s|$|[^a-zA-Z0-9_-])",
+            "skill_suffix": skill_suffix,
             "attach_res": attach_res,
         }
     )
@@ -80,12 +77,14 @@ pending_path() {{
 }}
 
 write_pending() {{
-  local session_key="$1" override="$2" trigger="$3"
+  local session_key="$1" override="$2" skill_suffix="$3"
   mkdir -p "$PENDING_ROOT"
   local now
   now=$(date +%s)
-  jq -n --arg override "$override" --arg trigger "$trigger" --argjson detected_at "$now" \\
-    '{{override: $override, trigger: $trigger, detected_at: $detected_at}}' > "$(pending_path "$session_key")"
+  jq -n --arg override "$override" --arg skill_suffix "$skill_suffix" \\
+    --arg trigger "attach" --argjson detected_at "$now" \\
+    '{{override: $override, skill_suffix: $skill_suffix, trigger: $trigger, detected_at: $detected_at}}' \\
+    > "$(pending_path "$session_key")"
 }}
 
 read_pending() {{
@@ -126,7 +125,6 @@ import sys
 TARGETS = {targets_json}
 
 data = json.loads(os.environ["INPUT"])
-prompt = data.get("prompt") or ""
 attachments = data.get("attachments") or []
 
 def session_key(d):
@@ -145,31 +143,51 @@ for t in TARGETS:
             continue
         for pat in t["attach_res"]:
             if re.search(pat, path):
-                print(json.dumps({{"override": t["name"], "trigger": "attach", "session_key": key}}))
+                print(json.dumps({{"override": t["name"], "skill_suffix": t["skill_suffix"], "trigger": "attach", "session_key": key}}))
                 sys.exit(0)
-
-for t in TARGETS:
-    if re.search(t["prefixed_re"], prompt) or re.search(t["spor_prefixed_re"], prompt):
-        print(json.dumps({{"override": t["name"], "trigger": "prefixed", "session_key": key}}))
-        sys.exit(0)
-
-for t in TARGETS:
-    if re.search(t["spor_re"], prompt):
-        print(json.dumps({{"override": t["name"], "trigger": "spor-slash", "session_key": key}}))
-        sys.exit(0)
-
-for t in TARGETS:
-    if re.search(t["bare_re"], prompt):
-        print(json.dumps({{"override": t["name"], "trigger": "bare-slash", "session_key": key}}))
-        sys.exit(0)
 PYMATCH
 )
 
 if [ -n "$match" ]; then
   override=$(printf '%s' "$match" | jq -r '.override')
-  trigger=$(printf '%s' "$match" | jq -r '.trigger')
+  skill_suffix=$(printf '%s' "$match" | jq -r '.skill_suffix')
   session_key=$(printf '%s' "$match" | jq -r '.session_key')
-  write_pending "$session_key" "$override" "$trigger"
+  write_pending "$session_key" "$override" "$skill_suffix"
+fi
+
+sdd_session_key=$(INPUT="$input" python3 <<'PYSDD'
+import hashlib
+import json
+import os
+import re
+import sys
+
+SDD_SLASH_RES = [
+    r"(?i)(^|\\s)/subagent\\-driven\\-development(\\s|$)",
+    r"(?i)(^|\\s)/spor\\-subagent\\-driven\\-development(\\s|$)",
+    r"(?i)(^|\\s)/superpowers:subagent\\-driven\\-development(\\s|$)",
+    r"(?i)(^|\\s)/executing\\-plans(\\s|$)",
+]
+
+data = json.loads(os.environ["INPUT"])
+prompt = data.get("prompt") or ""
+for pat in SDD_SLASH_RES:
+    if re.search(pat, prompt):
+        if data.get("conversation_id"):
+            print(data["conversation_id"])
+        elif data.get("session_id"):
+            print(data["session_id"])
+        else:
+            print(hashlib.sha256(prompt.encode()).hexdigest()[:16])
+        sys.exit(0)
+sys.exit(1)
+PYSDD
+) || true
+
+if [ -n "${{sdd_session_key:-}}" ]; then
+  _plugin_root="$(cd "$(dirname "$0")/.." && pwd)"
+  _repo_root="$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || pwd)"
+  "${{_plugin_root}}/bin/sdd-session-activate.sh" minimal "$sdd_session_key" "$_repo_root" 2>/dev/null || true
 fi
 
 jq -n '{{continue:true}}'
@@ -270,8 +288,9 @@ if $allow; then
 fi
 
 skill_ref="superpowers-overrides:${{override}}"
-jq -n --arg skill_ref "$skill_ref" \\
-  '{{permission:"deny", agent_message: ("MANDATORY OVERRIDE — oscaner hook intercepted this turn.\\nYour FIRST tool call MUST be Read(\\"<path ending in /spor-<slug>/SKILL.md>\\").\\n(Claude Code: Skill(\\"" + $skill_ref + "\\") if available.)\\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")}}'
+skill_suffix=$(printf '%s' "$pending" | jq -r --arg override "$override" '.skill_suffix // ("skills/" + $override + "/SKILL.md")')
+jq -n --arg skill_suffix "$skill_suffix" --arg override "$override" --arg skill_ref "$skill_ref" \\
+  '{{permission:"deny", agent_message: ("MANDATORY OVERRIDE — upstream skill attached without spor override loaded.\\nYour FIRST tool call MUST be Read(\\"" + $skill_suffix + "\\") using the fullPath from agent_skills for " + $override + ".\\n(Claude Code: Skill(\\"" + $skill_ref + "\\") if available.)\\nDo NOT follow the upstream skill checklist until the spor override is loaded.")}}'
 '''
 
 detect_out.write_text(detect_script)

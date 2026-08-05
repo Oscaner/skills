@@ -19,7 +19,7 @@ Before your first tool call in ANY turn:
 - Any tool call before spor override loaded
 - Attaching upstream SKILL full text is an **anti-pattern** — use `/spor-*`, bare upstream slash, or agent_skills list; never paste upstream SKILL.md as inline context
 
-**Cursor:** plugin-bundled hooks (`beforeSubmitPrompt` + `preToolUse`) detect and enforce overrides; these rules are **fallback only**. Do **not** install project `.cursor/hooks.json`.
+**Cursor:** plugin-bundled hooks enforce overrides on **upstream SKILL attach only** (`beforeSubmitPrompt` detect + `preToolUse` enforce). Slash commands (`/brainstorming`, `/spor-*`) rely on this self-check rule as primary enforcement. Do **not** install project `.cursor/hooks.json`.
 
 ### Override trigger table
 

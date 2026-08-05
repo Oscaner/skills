@@ -132,15 +132,55 @@ assert 'beforeSubmitPrompt' in hooks['hooks']
 assert 'preToolUse' in hooks['hooks']
 detect = hooks['hooks']['beforeSubmitPrompt'][0]
 assert detect['command'] == './bin/override-cursor-detect.sh'
-enforce = hooks['hooks']['preToolUse'][0]
-assert enforce['command'] == './bin/override-cursor-enforce.sh'
-assert 'matcher' not in enforce
+pre = hooks['hooks']['preToolUse']
+assert len(pre) == 2
+assert pre[0]['command'] == './bin/override-cursor-enforce.sh'
+assert pre[1]['command'] == './bin/override-cursor-sdd-gate.sh'
+assert 'matcher' not in pre[0]
+print('OK')
+"
+
+echo "== validate claude hooks.json PreToolUse =="
+python3 -c "
+import json
+from pathlib import Path
+root = Path('$ROOT')
+cc = json.loads((root / 'hooks/hooks.json').read_text())
+assert 'PreToolUse' in cc['hooks']
+assert len(cc['hooks']['PreToolUse']) == 2
+assert cc['hooks']['PreToolUse'][0]['matcher'] == 'Write|Edit'
+assert cc['hooks']['PreToolUse'][1]['matcher'] == 'Bash'
+assert cc['hooks']['PreToolUse'][0]['hooks'][0]['command'].endswith('override-claude-sdd-gate.sh')
 print('OK')
 "
 
 echo "== validate cursor hook scripts executable =="
 [ -x "$ROOT/bin/override-cursor-detect.sh" ] || { echo "FAIL: detect not executable"; exit 1; }
 [ -x "$ROOT/bin/override-cursor-enforce.sh" ] || { echo "FAIL: enforce not executable"; exit 1; }
+[ -x "$ROOT/bin/override-cursor-sdd-gate.sh" ] || { echo "FAIL: sdd-gate not executable"; exit 1; }
+[ -x "$ROOT/bin/override-claude-sdd-gate.sh" ] || { echo "FAIL: claude sdd-gate not executable"; exit 1; }
+[ -x "$ROOT/bin/sdd-session-activate.sh" ] || { echo "FAIL: sdd-session-activate not executable"; exit 1; }
+echo "OK"
+
+echo "== validate SDD CLI harness scripts executable =="
+SDD_SCRIPTS=(
+  sdd-run-task-cursor.sh
+  sdd-run-plan-cursor.sh
+  sdd-run-task-claude.sh
+  sdd-run-plan-claude.sh
+  sdd-run-task-codex.sh
+  sdd-run-plan-codex.sh
+  sdd-run-task-copilot.sh
+  sdd-run-plan-copilot.sh
+  sdd-run-task-gemini.sh
+  sdd-run-plan-gemini.sh
+  lib/sdd-common.sh
+)
+for script in "${SDD_SCRIPTS[@]}"; do
+  path="$ROOT/bin/$script"
+  [ -f "$path" ] || { echo "FAIL: missing $path"; exit 1; }
+  [ -x "$path" ] || { echo "FAIL: $path not executable"; exit 1; }
+done
 echo "OK"
 
 echo "== validate self-check version stamps =="

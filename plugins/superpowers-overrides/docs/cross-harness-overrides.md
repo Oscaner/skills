@@ -38,20 +38,38 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 
 | Hook | Handler | Role |
 |------|---------|------|
-| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match bare `/brainstorming`, `/spor-*`, `superpowers:*`, upstream SKILL attach paths → write pending state |
+| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths** or **SDD slash** → write pending / activate SDD session |
 | `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (spor SKILL path via `tool_input.path` or `tool_input.file_path`) or `Skill` (`superpowers-overrides:spor-*`); **deny** all other first tools |
+| `preToolUse` (no matcher) | `bin/override-cursor-sdd-gate.sh` | SDD orchestrator gate — deny non-workspace Write/Edit and non-allowlist Bash during active tasks |
 
-Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending; enforce blocks wrong first tools.
+Bare `/brainstorming`, `/spor-*`, and prefixed slash commands (`superpowers:*`) → **no pending**; self-check rules (`.cursor/rules/superpowers-overrides.mdc`) are primary enforcement for slash triggers.
+
+Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending on attach only; enforce blocks wrong first tools when pending exists.
 
 **Pending state contract** (detect writes, enforce reads):
 
 - Path: `$TMPDIR/oscaner-superpowers-overrides/pending/<session_key>.json`
 - `session_key` = `conversation_id` ?? `session_id` ?? first 16 hex of `sha256(prompt)`
-- Schema: `{"override":"spor-<slug>","detected_at":<unix>,"trigger":"bare-slash|prefixed|attach|spor-slash"}`
+- Schema: `{"override":"spor-<slug>","skill_suffix":"skills/spor-<slug>/SKILL.md","detected_at":<unix>,"trigger":"attach"}`
 - TTL: **300s** — expired pending → enforce allows and deletes file
 - Cleared when enforce allows a valid first tool
 
 **`spor-init` does not install hooks** — only refreshes `.cursor/rules/superpowers-overrides.mdc`. Consumer `git status` must show **no** new `.cursor/hooks.json`.
+
+### SDD orchestrator gate (p1-slim.2)
+
+Cross-harness PreToolUse enforcement for SDD orchestrator sessions (Cursor + Claude Code).
+
+| Item | Detail |
+|------|--------|
+| Pending path | `$TMPDIR/oscaner-superpowers-overrides/pending-sdd/<session_key>.json` |
+| Activation | SDD slash (`/subagent-driven-development`, `/spor-*`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Cursor detect + Claude expansion |
+| Shared lib | `bin/lib/sdd-orchestrator-gate.sh` — single allowlist + state machine |
+| Adapters | `override-cursor-sdd-gate.sh`, `override-claude-sdd-gate.sh` |
+| Fail-open | No jq, no pending, or cannot resolve workspace → allow (skill checklist fallback) |
+| Known gap | p0 Task-tool implementer Write — hook cannot intercept subagent tools ([p1-slim.2 spec](../../docs/superpowers/specs/2026-08-05-sdd-slim-orchestrator-p1-slim-2-design.md)) |
+
+Claude Code: `hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `override-claude-sdd-gate.sh`. Generators are SOT — run `pnpm run generate:overrides` after manifest edits.
 
 ### Claude Code — triple matcher + expansion
 
@@ -72,11 +90,14 @@ Project `CLAUDE.md` self-check (from `/spor-init`) is fallback when hooks are un
 - Cursor → `.cursor/rules/superpowers-overrides.mdc`
 - Claude Code → `CLAUDE.md` override trigger table
 
-Rules are **fallback only** on Cursor (hooks enforce). On both harnesses:
+On Cursor: hooks enforce on **upstream SKILL attach**; slash commands rely on these self-check rules as **primary** enforcement. On both harnesses:
 
 - **Anti-pattern:** manually attach upstream `superpowers/*/SKILL.md` body — attach **`spor-*`** or use slash commands instead; upstream SKILL full text in context still requires Read/Skill `spor-*` first.
 
-Manual smoke: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
+Manual smoke (Settings → Hooks → Execution Log):
+
+1. `/brainstorming` + Grep first tool → **no deny** (no pending; self-check governs)
+2. Attach upstream `brainstorming/SKILL.md` + Grep first tool → **deny** → Read spor SKILL → allow
 
 ## Manifest schema
 
@@ -142,17 +163,61 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 
 1. Install `superpowers` + `superpowers-overrides` from the marketplace.
 2. Run `/spor-init` in Cursor (copies or refreshes `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`; re-run after plugin upgrade if rules are stale).
-3. Invoke `/spor-brainstorming` directly, or use upstream slash commands — plugin hooks detect and enforce override-first; project rules are fallback only.
+3. Invoke `/spor-brainstorming` directly, or use upstream slash commands — slash triggers rely on project self-check rules; hooks enforce on upstream SKILL attach only.
 
-Manual verification: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
+Manual verification: same as [Self-check rules](#self-check-rules-both-harnesses) smoke bullets above.
+
+## SDD CLI harness scripts (p1)
+
+Token-efficient SDD orchestration uses plugin-bundled scripts under `bin/` — referenced by `spor-token-efficient-controller-handoff` (H6) and `spor-subagent-driven-development`. Orchestrator resolves harness once per plan; scripts do **not** re-detect CLI at runtime.
+
+| Harness | Task script | Plan script | Ship level |
+|---------|-------------|-------------|------------|
+| **cursor** | `sdd-run-task-cursor.sh` | `sdd-run-plan-cursor.sh` | **Full** — `cursor agent --print --output-format text --force` |
+| **claude** | `sdd-run-task-claude.sh` | `sdd-run-plan-claude.sh` | **Full** — `claude -p … --output-format text --dangerously-skip-permissions` |
+| **codex** | `sdd-run-task-codex.sh` | `sdd-run-plan-codex.sh` | **Stub** — exit 1 BLOCKED |
+| **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
+| **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
+
+Shared library: `bin/lib/sdd-common.sh` — workspace path contract (`SDD_WORKSPACE`, `SDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing).
+
+### Invocation modes
+
+**Mode A (per task):** orchestrator calls one mode per CLI invocation:
+
+```bash
+{plugin_root}/bin/sdd-run-task-<harness>.sh --task N --mode implement|handoff|review|fix [--segment implement|review|fix]
+```
+
+**Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
+
+```bash
+{plugin_root}/bin/sdd-run-plan-<harness>.sh --plan <path>
+```
+
+Plan driver invokes sibling task script per mode. Ledger append on APPROVED only.
+
+### Exit codes and fallback
+
+| Exit | Meaning | Orchestrator action |
+|------|---------|---------------------|
+| 0 | Success | Continue chain |
+| 1 | BLOCKED (stub harness or explicit block) | Stop — **not** p0 fallback |
+| 2 | CLI not in PATH | Silent p0 in-session fallback |
+
+Stub harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
+
+**CI:** `tests/validate-overrides-build.sh` asserts all 10 harness scripts + `bin/lib/sdd-common.sh` exist and are executable.
+
+Templates: `templates/sdd-cli/` (implement, handoff, review, fix).
 
 ## Deferred harnesses (documented, not built)
 
-| Harness | Rules output (future) |
-|---------|----------------------|
-| Codex / Copilot / Mistral Vibe | `AGENTS.md` section |
-| Gemini CLI | `.gemini/GEMINI.md` |
-| OpenCode / Pi / Qoder / Rovo / Kiro | Per harness config file |
+| Harness | Rules output (future) | SDD CLI (p1) |
+|---------|----------------------|--------------|
+| Codex / Copilot / Mistral Vibe | `AGENTS.md` section | Stub scripts (exit 1) |
+| Gemini CLI | `.gemini/GEMINI.md` | Stub scripts (exit 1) |
+| OpenCode / Pi / Qoder / Rovo / Kiro | Per harness config file | Not built |
 
 See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for directory mappings.
 

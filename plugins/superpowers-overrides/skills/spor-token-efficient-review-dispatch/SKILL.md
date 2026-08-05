@@ -42,6 +42,28 @@ Reviewer prompts MUST specify: no summaries, no positive commentary, no meta-obs
 
 An empty `findings` array means approve. No prose narration around the JSON.
 
+### D4 — code-review dual-axis gate (p0)
+
+Applies when SDD per-task review delegates to `mattpocock-skills:code-review` (see spor-subagent-driven-development Rule 5). **Not** the multi-pass D1 skip semantics.
+
+- Standards and Spec axes run **one round each**, **in parallel**
+- **No** per-axis "skip later passes" — each axis completes once per review invocation
+- After **both** axes finish, [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) **must run** — even when findings are empty (unified APPROVED gate + unverifiable scan)
+- Axis output format: Markdown body + trailing appendix:
+
+```markdown
+## Findings (D3)
+{"findings": [...]}
+```
+
+Handoff-writer parses the D3 block; empty array `[]` is valid.
+
+**Red flags (D4):**
+
+- "Both axes clean — skip handoff-writer."
+- "Apply brainstorming D1 to skip Spec axis because Standards was clean."
+- "Return findings prose to orchestrator instead of writing axis files."
+
 ## Red Flags — STOP if you catch yourself thinking any of these
 
 - "D1 says skip 2 & 3 but Pass 1 didn't list what it scanned — I'll accept the empty findings anyway."

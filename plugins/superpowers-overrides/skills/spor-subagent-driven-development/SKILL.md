@@ -1,13 +1,38 @@
 ---
 name: spor-subagent-driven-development
-description: MUST invoke BEFORE superpowers:subagent-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/spor-subagent-driven-development`, `/superpowers-overrides:spor-subagent-driven-development`, `/subagent-driven-development` or `/superpowers:subagent-driven-development`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:subagent-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to dispatch or orchestrate subagents, delegate implementation, or run multi-agent work. Applies personal overrides (complexity-based review rounds; token-efficient dispatch; implementer subagents delegate to mattpocock-skills:tdd; cheap model for implementers when spec and plan are complete).
+description: MUST invoke BEFORE superpowers:subagent-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/spor-subagent-driven-development`, `/superpowers-overrides:spor-subagent-driven-development`, `/subagent-driven-development` or `/superpowers:subagent-driven-development`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:subagent-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to dispatch or orchestrate subagents, delegate implementation, or run multi-agent work. Applies personal overrides (CLI-default forbids upstream SDD load; p0 fallback delegates tdd; code-review per-task review; handoff-writer; token-efficient controller handoff; cheap model for implementers when spec and plan are complete).
 ---
 
 # Subagent-Driven Development Overrides
 
 ## Rules
 
-### Rule 1 — Review rounds scale with task complexity
+### Rule 0 — Path branch (p1-slim)
+
+#### Rule 0a — CLI-default
+
+1. When Rule 7 item 1 applies (CLI available, not opt-out, not stub BLOCKED) → this session **must not** Read/Skill upstream `subagent-driven-development` **skill body** (including `implementer-prompt.md`, `task-reviewer-prompt.md`, and other prompt files under that skill directory).
+2. **Allowed:** shell-invoke upstream **scripts only** — `plugins/superpowers/skills/subagent-driven-development/scripts/sdd-workspace`, `task-brief`, `review-package` (resolve paths via `{plugin_root}`). Do **not** Read other Markdown prompts under the upstream SDD skill tree.
+3. **Orchestrator + worker (pointers only):**
+   - Orchestrator: Setup/ledger/plan-constraints via upstream scripts + Rule 7 + controller-handoff H6–H8; per-task Rule 1 → Rule 4 (once) → TASK_BASE in brief → H6 → Rule 5a → Rule 6; final whole-branch review orchestrator in-session (no CLI final)
+   - Worker discipline SOT: `templates/sdd-cli/{implement,handoff,review,fix}.md` — do not paraphrase Rule 3/5b/5c
+   - CLI worker review steps run in H6 subprocesses only — see Rule 5a (orchestrator does NOT dispatch handoff-writer/code-review in-session)
+4. **Orchestrator checklist (compact — mandatory when Rule 0a applies):**
+
+   **Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task.
+
+   **Per-task:** Rule 1 classify → Rule 4 confirm once → append `TASK_BASE: <sha>` to brief → shell H6 chain (implement → handoff/implement → review → handoff/review; fix per Rule 2) → Read handoff.json only → Rule 5a + Rule 6 → ledger on APPROVED. **Never** edit repo deliverables in this session — H6 CLI only.
+
+   **Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`.
+
+#### Rule 0b — p0 fallback
+
+1. Triggers when Rule 7 item 2 applies (script exit **2** / opt-out).
+2. **Then** Read upstream `subagent-driven-development`; Rules 3, 5b, 5c apply in full; in-session Task/subagent flow.
+3. Announce: `CLI unavailable — falling back to p0 in-session SDD.`
+4. Per-task commit: implementer subagent follows upstream + Rule 3 + Rule 5b commit paragraph (conventional commit; aligned with `templates/sdd-cli/implement.md` semantics).
+
+### Rule 1 — Task complexity (diff scope, test gate, model — not review rounds)
 
 Classify each task first:
 
@@ -18,69 +43,115 @@ Classify each task first:
 | Requires design judgment or architectural decisions | **Complex** |
 | User explicitly requested thoroughness | **Complex** |
 
-When in doubt, classify **Complex**. Every reviewer dispatch is a **fresh** subagent — see [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 2.
+When in doubt, classify **Complex**.
 
-**Simple tasks — 1 round each:** spec-compliance (all requirements met, nothing extra) + code-quality (basic correctness & maintainability). Both approve → proceed.
+Simple/Complex affects **only**:
 
-**Complex tasks — up to 3 rounds each, distinct focus per round:**
+- code-review diff scope (`review_scope`: task vs plan — see Rule 5a/5c)
+- test evidence gate hardness (Rule 6)
+- implementer model tier (Rule 4)
 
-| Round | Spec compliance | Code quality |
-|-------|-----------------|--------------|
-| 1 | Completeness — every requirement covered | Correctness & bugs |
-| 2 (delta) | Extra work & over-engineering | Security & reliability |
-| 3 (full diff) | Misunderstandings — semantic mismatches | Maintainability & readability |
+**Per-task review chain (Simple = Complex):** one code-review + handoff-writer implement + review segments — no multi-pass spor reviewers.
 
-Dispatch discipline (D1 escalate-on-finding, D2 delta review, D3 findings-only output) governed by [`spor-token-efficient-review-dispatch`](../spor-token-efficient-review-dispatch/SKILL.md). D1 applies **per axis** — spec-compliance and code-quality skip independently.
+**Batching:** When multiple Simple tasks share the same feature area or files, batch as one block: one `batch-<first>-<last>-handoff.json`, one code-review + one handoff-writer review segment, diff `FIRST_TASK_BASE..LAST_HEAD` with `review_scope: batch`, ledger still one line per task, hard test gate if any batched task triggers it. Do **not** reclassify a batch as Complex for extra review rounds — batching changes scope files only.
 
-**Batching:** When multiple simple tasks share the same feature area or shared files, batch them as a single **Complex** block (up to 3 rounds each, subject to D1).
+### Rule 2 — Fix loop until approved (cap 5)
 
-### Rule 2 — Rounds iterate until approved before advancing
+When handoff `status: CHANGES_REQUESTED`:
 
-A round that finds issues → implementer fixes → **same round's** reviewer re-reviews until approved → only then advance (subject to D1). Do not proceed past a round with unresolved findings.
+1. Fix implementer addresses open findings
+2. Scoped code-review on `FIX_BASE..HEAD` only
+3. Fresh handoff-writer (fix segment)
+4. Repeat until `APPROVED` or **5 fix rounds** — then STOP (H4). Do not advance with open blockers.
 
-### Rule 3 — Implementer subagents delegate to `mattpocock-skills:tdd`
+### Rule 3 — Implementer subagents delegate to `mattpocock-skills:tdd` **(p0 fallback only)**
 
-When dispatching an **implementer** subagent to write code, delegate implementation discipline to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md). This fills the gap where the upstream skill specifies *how to review* but leaves *how to implement* unopinionated. Its rules live in that skill — do not re-implement here.
+When Rule 0a applies, skip this rule — see `templates/sdd-cli/implement.md`.
 
-1. Instruct each implementer dispatch to invoke `mattpocock-skills:tdd` via the Skill tool and follow its red-green-refactor loop.
-2. Confirm the seams under test with the user before the implementer writes tests (the skill's own precondition).
-3. Exemption: pure-mechanical edits with **no behavioral change and no schema/config change** — renames, whitespace, comment reflow. Config files (route tables, feature flags, DB migrations, dependency versions, build configuration) are NOT exempt — they can silently change behavior. When in doubt, use TDD.
-4. If `mattpocock-skills:tdd` fails to load (Skill tool error — i.e. plugin is installed but skill fails to load): surface the exact error to the user and ask whether to proceed manually per that skill's discipline or wait for the plugin to be repaired. Do not paraphrase `tdd`'s rules from memory. If `mattpocock-skills` is not installed, degrade silently — implementer subagents proceed without invoking the skill.
+When dispatching an **implementer** subagent to write code (Rule 0b / p0 path), delegate implementation discipline to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md). Its rules live in that skill — do not re-implement here.
 
-### Rule 4 — Use cheaper models for implementers when spec and plan are complete
+Exemption: mechanical Markdown skill docs with no runtime behavior. TDD load failure → surface error or degrade silently if plugin absent.
 
-When both a spec doc and an implementation plan exist and satisfy ALL of:
+Implementers write test-evidence.json + report.md before H1 contract per `implement.md`.
 
-1. No TBD / "to be decided" items in the spec.
-2. Plan steps are concrete enough to execute without inferring intent.
-3. No open design questions (auth, data models, API shapes all resolved).
+### Rule 4 — Cheaper models when spec + plan complete
 
-…then implementer subagents MUST use the cheapest capable model available in the current environment:
+Requires: no TBD in spec, concrete plan steps, no open design questions. Implementers use cheapest capable tier (Cursor → Composer; Claude Code → lowest tier). code-review + final review stay default; handoff-writer cheapest.
 
-- **Claude Code** — check environment variables or session config for the available model tier; pick the lowest tier that can follow the plan.
-- **Cursor** — use Composer (it is already a cheaper-model interface by default).
+Confirm once before first p0 dispatch or first H6 shell (Rule 0a). Do not duplicate model selection in `implement.md`.
 
-Reviewer subagents stay on the default model — review requires judgment.
+### Rule 5 — Per-task review (split by path)
 
-**Before first dispatch in each session:** confirm — "Spec and plan look complete — I'll use a cheaper model for implementers. OK?"
+#### Rule 5a — Orchestrator gates (both paths)
 
-<!-- Additional rules for subagent-driven-development go below as Rule 5, Rule 6, … -->
+PreToolUse gate denies non-workspace writes during TASK_ACTIVE (both harnesses).
+
+When Rule 0a applies, orchestrator gates only — H6 + templates run worker review.
+
+Orchestrator **always**:
+
+1. Read handoff.json only (H2)
+2. `plan_conflicts` non-empty → **STOP** — present to human before fix loop (Rule 6)
+3. `CHANGES_REQUESTED` → Rule 2 fix loop (CLI: shell fix chain; p0: Rule 5c)
+4. `NEEDS_CONTEXT` or non-empty `unverifiable` → STOP
+
+Cite [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H8.
+
+#### Rule 5b — In-session implementer dispatch (p0 fallback only)
+
+When Rule 0a applies, skip — `templates/sdd-cli/implement.md` is SOT.
+
+p0 path: dispatch implementer per upstream SDD Task Loop §1 (`implementer-prompt.md`); filenames brief → report + test-evidence; commit/H1 per `implement.md`.
+
+#### Rule 5c — In-session per-task review (p0 fallback only)
+
+When Rule 0a applies, skip — H6 + `templates/sdd-cli/` is SOT.
+
+p0 path: handoff-writer + code-review per `templates/sdd-cli/{handoff,review,fix}.md`, `spor-handoff-writer`, and controller-handoff H1–H5; degradation per controller-handoff H2 degradation note + handoff-writer skill.
+
+### Rule 6 — Quality invariants
+
+1. **Test evidence gate** — data from `task-N-test-evidence.json`; soft vs hard per Rule 1 complexity + behavior_change signals (see handoff-writer skill).
+2. **Plan-mandated conflicts** — deliberate plan/brief violations → `plan_conflicts[]`; human adjudication before fix loop (Rule 5a).
+3. **Unverifiable** — axis reports flag unverifiable items → `unverifiable[]`; **non-empty → BLOCKED** until user confirms or writer re-run clears list.
+4. **NEEDS_CONTEXT** — handoff status → orchestrator STOP; request user context before resuming review/fix.
+
+### Rule 7 — CLI dispatch when available (p1)
+
+When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness>.sh` exists:
+
+1. Per-task execution **must** use H6 four-mode CLI chain — [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H6–H8.
+2. CLI unavailable (script exit **2**) or opt-out (`--no-cli` / `SDD_NO_CLI=1` / config `"cli": false`) → **p0** Rule 5b/5c/6 + H1–H5 in-session.
+3. Stub harness selected (codex/copilot/gemini) → script exit **1** → orchestrator **BLOCKED** (not p0 fallback).
+4. Orchestrator **still obeys Rule 6** after Read handoff: non-empty `plan_conflicts` → STOP; `NEEDS_CONTEXT` or non-empty `unverifiable` → STOP.
+5. **Final whole-branch review** — orchestrator in-session only (not CLI-dispatched). `{plugin_root}` via [`spor-init`](../spor-init/SKILL.md).
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
-- "It's basically simple, I'll do 1 round even though it touches 3 files."
-- "Batched simple tasks are still simple, 1 round is fine."
-- "The implementer can just write the code directly; TDD is overhead."
-- "I'll skip confirming seams — pick reasonable ones silently."
-- "The spec has a TBD section but it's minor — use the cheaper model anyway."
-- "Reviewers are just checking output; they can use the cheap model too."
+- "Simple task — I'll use upstream task-reviewer, it's faster."
+- "I'll Read the Spec axis report to decide if we're done."
+- "Complex means 3 review rounds — old Rule 1."
+- "Skip test-evidence.json — report has stdout."
+- "handoff-writer can wait until plan end."
+- "Batch of simple tasks — one round each."
+- "CLI is available but in-session is simpler — skip H6."
+- "Stub harness exit 1 — I'll fall back to p0."
+- "Exit 2 means stop the plan."
+- "Final review can run in a CLI session."
+- "CLI available — I'll Read upstream SDD for Setup context."
+- "Rule 0a — I'll paraphrase tdd in the override instead of citing implement.md."
+- "p0 fallback — skip the announce line."
+- "Hook will block me — I'll edit repo files before TASK_BASE / outside H6."
+- "Task is markdown-only — skip H6 and handoff.json."
+- "I'll mark ledger complete with inline review."
 
 ## Common Rationalizations
 
 | Excuse | Reality |
 |--------|---------|
-| "3 files is a soft boundary" | Hard boundary — 3+ files means Complex, no exceptions. |
-| "Writing tests first is slower" | Slower to write, faster to verify. `mattpocock-skills:tdd` closes the executor's feedback loop. |
-| "Seams are obvious, skip the confirmation" | Silent seams = tests against the wrong interface. Confirm them. |
-| "The plan looks complete to me" | All three criteria (Rule 4) must pass — if one is missing, keep the default model. |
-| "Reviewers just read output; cheaper is fine" | Reviewers make judgment calls (security, maintainability) — keep them on the default. |
+| "code-review is overkill for tiny tasks" | p0 program invariant — delegation is the token win. |
+| "I'll merge axis reports myself" | H5 forbids it — handoff-writer exists for structured extraction. |
+| "3 files is soft boundary" | Hard boundary for complexity classification — affects diff scope. |
+| "Fix round 6 will work" | H4 cap is 5 — STOP and escalate. |
+| "Rule 7 only applies when user asks for CLI" | Opt-in default — CLI available → H6 mandatory unless opt-out. |
+| "I'll dispatch final review as mode=review" | Q8 — final whole-branch review stays orchestrator in-session. |

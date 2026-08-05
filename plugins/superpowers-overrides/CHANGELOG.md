@@ -4,6 +4,11 @@
 
 ### Patch Changes
 
+- **Cursor attach-only enforce**
+  - Detect writes pending only on upstream SKILL attach; slash commands no longer trigger preToolUse deny.
+  - Pending includes `skill_suffix`; deny message references attach + agent_skills fullPath.
+  - Docs and self-check template updated.
+
 - **Fix Cursor `preToolUse` enforce rejecting valid spor Read first tools**
   
   - Cursor sends Read paths in `tool_input.file_path`; enforce only read `.path`, denying legitimate `Read(.../spor-*/SKILL.md)` calls after detect.

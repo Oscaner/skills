@@ -32,7 +32,10 @@ print("OK")
 
 echo "== 4. hooks executable =="
 [ -f plugins/superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
+[ -f plugins/superpowers-overrides/hooks/hooks-cursor.json ] && echo "OK — hooks-cursor.json"
 [ -x plugins/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion"
+[ -x plugins/superpowers-overrides/bin/override-cursor-detect.sh ] && echo "OK — cursor-detect"
+[ -x plugins/superpowers-overrides/bin/override-cursor-enforce.sh ] && echo "OK — cursor-enforce"
 
 echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh

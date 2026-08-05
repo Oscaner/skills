@@ -35,7 +35,13 @@ User's global `~/.claude/CLAUDE.md` states:
 
 Enforce this literally: after each task's Step 2.4 "Mark as completed", **before** advancing TodoWrite to the next task's `in_progress`, produce a conventional commit (`feat:` / `fix:` / `refactor:` / etc.) with a subject line matching the plan task and no attribution trailer / co-author / AI-generation line. If the commit would fail (lint hook, uncommitted unrelated changes), surface the failure to the user, don't force-add and don't rebase.
 
-<!-- Additional rules for the executing-plans skill go below as Rule 5, Rule 6, … -->
+### Rule 5 — After SDD redirect, apply p0 handoff discipline
+
+When Rule 1 redirects to `superpowers:subagent-driven-development`, the SDD session follows [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5 (orchestrator reads handoff.json only; handoff-writer mandatory; no review prose in controller context).
+
+Inline executing-plans fallback (no subagents) is **out of p0 scope** — upstream behavior unchanged.
+
+<!-- Additional rules for the executing-plans skill go below as Rule 6, Rule 7, … -->
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 
@@ -43,6 +49,7 @@ Enforce this literally: after each task's Step 2.4 "Mark as completed", **before
 - "I'll run `using-git-worktrees` anyway since upstream marks it required."
 - "The plan step doesn't say TDD, so I'll write code first and add tests after."
 - "Committing after each task fragments history — I'll squash into one at the end."
+- "SDD redirect means I can Read review reports in this session — executing-plans is different."
 
 ## Common Rationalizations
 

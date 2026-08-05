@@ -57,28 +57,13 @@ Re-review scope: `FIX_BASE..HEAD` only.
 - `FIX_BASE` = `HEAD` recorded immediately before fix dispatch (usually prior handoff `commits.head`)
 - Round cap: **5 fix rounds per task** (including post-review fix cycles); exceed → STOP and ask human
 
-**open-findings files** (written by handoff-writer when `status: CHANGES_REQUESTED`):
-
-| Scope | Path |
-|-------|------|
-| Single task | `<workspace>/task-N-open-findings.json` |
-| Batch | `<workspace>/batch-<first>-<last>-open-findings.json` |
-
-Full D3 shape: same as handoff `findings[]` (schema SOT: `templates/sdd-handoff-schema.md`, Task 2). Fix-loop handoff-writer reads open-findings as input.
-
-Orchestrator must not Read fix implementer prose — only updated handoff.json.
+**open-findings:** `task-N-open-findings.json` or `batch-*-open-findings.json` (D3 shape; schema SOT `templates/sdd-handoff-schema.md`). Orchestrator: handoff.json only — not fix prose.
 
 ### Rule H5 — Handoff-writer subagent mandatory
 
 After code-review axes complete, the orchestrator **must not** merge Standards/Spec prose itself.
 
-Dispatch a **fresh** [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) subagent per [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 2:
-
-- **Implement segment:** after implementer returns H1 contract
-- **Review segment:** after code-review writes axis files
-- **Fix segment:** after scoped re-review (fix loop)
-
-Input: file paths only. Template: `templates/sdd-handoff-writer-prompt.md`. Schema: `templates/sdd-handoff-schema.md` (Task 2; until then see [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) § handoff.json schema). Model: cheapest capable tier (Composer / lowest Claude tier) — structured extraction only.
+Fresh [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) per lifecycle Rule 2 — implement/review/fix segments; paths only; `templates/sdd-handoff-writer-prompt.md` + `templates/sdd-handoff-schema.md`; cheapest model.
 
 ### Rule H6–H8 — CLI dispatch (reference)
 

@@ -13,17 +13,8 @@ description: MUST invoke BEFORE superpowers:subagent-driven-development as your 
 
 1. When Rule 7 item 1 applies (CLI available, not opt-out, not stub BLOCKED) → this session **must not** Read/Skill upstream `subagent-driven-development` **skill body** (including `implementer-prompt.md`, `task-reviewer-prompt.md`, and other prompt files under that skill directory).
 2. **Allowed:** shell-invoke upstream **scripts only** — `plugins/superpowers/skills/subagent-driven-development/scripts/sdd-workspace`, `task-brief`, `review-package` (resolve paths via `{plugin_root}`). Do **not** Read other Markdown prompts under the upstream SDD skill tree.
-3. **Orchestrator + worker (pointers only):**
-   - Orchestrator: Setup/ledger/plan-constraints via upstream scripts + Rule 7 + [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5; shell details in `{plugin_root}/docs/sdd-h6-reference.md`; per-task Rule 1 → Rule 4 (once) → TASK_BASE in brief → H6 → Rule 5a → Rule 6; final whole-branch review orchestrator in-session (no CLI final)
-   - Worker discipline SOT: `templates/sdd-cli/{implement,handoff,review,fix}.md` — do not paraphrase
-   - CLI worker review steps run in H6 subprocesses only — see Rule 5a (orchestrator does NOT dispatch handoff-writer/code-review in-session)
-4. **Orchestrator checklist (compact — mandatory when Rule 0a applies):**
-
-   **Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task.
-
-   **Per-task:** Rule 1 classify → Rule 4 confirm once → append `TASK_BASE: <sha>` to brief → shell H6 chain (implement → handoff/implement → review → handoff/review; fix per Rule 2) → Read handoff.json only → Rule 5a + Rule 6 → ledger on APPROVED. **Never** edit repo deliverables in this session — H6 CLI only.
-
-   **Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`.
+3. **Pointers:** orchestrator → Rule 7 + [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5 + `{plugin_root}/docs/sdd-h6-reference.md`; workers → `templates/sdd-cli/*.md`; worker review in H6 subprocesses only (Rule 5a).
+4. **Checklist (Rule 0a):** Setup once — workspace, ledger, plan-constraints, todos. Per-task — classify, Rule 4 once, TASK_BASE, H6 chain, handoff.json, Rule 5a/6, ledger; **no** in-session repo edits. Final — whole-branch review in-session → clean → finishing branch.
 
 #### Rule 0b — p0 fallback
 
@@ -46,54 +37,25 @@ Classify each task first:
 
 When in doubt, classify **Complex**.
 
-Simple/Complex affects **only**:
-
-- code-review diff scope (`review_scope`: task vs plan — see Rule 5a / [`spor-sdd-p0-fallback`](../spor-sdd-p0-fallback/SKILL.md) Rule 5c)
-- test evidence gate hardness (Rule 6)
-- implementer model tier (Rule 4)
-
-**Per-task review chain (Simple = Complex):** one code-review + handoff-writer implement + review segments — no multi-pass spor reviewers.
-
-**Batching:** When multiple Simple tasks share the same feature area or files, batch as one block: one `batch-<first>-<last>-handoff.json`, one code-review + one handoff-writer review segment, diff `FIRST_TASK_BASE..LAST_HEAD` with `review_scope: batch`, ledger still one line per task, hard test gate if any batched task triggers it. Do **not** reclassify a batch as Complex for extra review rounds — batching changes scope files only.
+Affects **only** diff scope (`review_scope`), test gate (Rule 6), model tier (Rule 4). Simple = Complex review chain (one code-review + handoff-writer). **Batching:** shared-area Simple tasks → one batch handoff/review, `FIRST_TASK_BASE..LAST_HEAD`, ledger per task; batching ≠ Complex.
 
 ### Rule 2 — Fix loop until approved (cap 5)
 
-When handoff `status: CHANGES_REQUESTED`:
-
-1. Fix implementer addresses open findings
-2. Scoped code-review on `FIX_BASE..HEAD` only
-3. Fresh handoff-writer (fix segment)
-4. Repeat until `APPROVED` or **5 fix rounds** — then STOP (H4). Do not advance with open blockers.
+`CHANGES_REQUESTED` → fix → scoped review on `FIX_BASE..HEAD` → handoff-writer fix segment → repeat until `APPROVED` or **5 rounds** (H4).
 
 ### Rule 4 — Cheaper models when spec + plan complete
 
-Requires: no TBD in spec, concrete plan steps, no open design questions. Implementers use cheapest capable tier (Cursor → Composer; Claude Code → lowest tier). code-review + final review stay default; handoff-writer cheapest.
-
-Confirm once before first p0 dispatch or first H6 shell (Rule 0a). Do not duplicate model selection in `implement.md`.
+Spec+plan complete → cheapest implementer tier; code-review/final default; handoff-writer cheapest. Confirm once before first dispatch/H6 (Rule 0a).
 
 ### Rule 5 — Per-task review (split by path)
 
 #### Rule 5a — Orchestrator gates (both paths)
 
-PreToolUse gate denies non-workspace writes during TASK_ACTIVE (both harnesses).
-
-When Rule 0a applies, orchestrator gates only — H6 + templates run worker review.
-
-Orchestrator **always**:
-
-1. Read handoff.json only (H2)
-2. `plan_conflicts` non-empty → **STOP** — present to human before fix loop (Rule 6)
-3. `CHANGES_REQUESTED` → Rule 2 fix loop (CLI: shell fix chain; p0: [`spor-sdd-p0-fallback`](../spor-sdd-p0-fallback/SKILL.md) Rule 5c)
-4. `NEEDS_CONTEXT` or non-empty `unverifiable` → STOP
-
-Cite [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5.
+PreToolUse gate + handoff.json only (H2). STOP on `plan_conflicts`; `CHANGES_REQUESTED` → Rule 2 (CLI fix chain / p0 Rule 5c); `NEEDS_CONTEXT` or `unverifiable` → STOP. Rule 0a: H6 runs worker review. Cite controller-handoff H1–H5.
 
 ### Rule 6 — Quality invariants
 
-1. **Test evidence gate** — data from `task-N-test-evidence.json`; soft vs hard per Rule 1 complexity + behavior_change signals (see handoff-writer skill).
-2. **Plan-mandated conflicts** — deliberate plan/brief violations → `plan_conflicts[]`; human adjudication before fix loop (Rule 5a).
-3. **Unverifiable** — axis reports flag unverifiable items → `unverifiable[]`; **non-empty → BLOCKED** until user confirms or writer re-run clears list.
-4. **NEEDS_CONTEXT** — handoff status → orchestrator STOP; request user context before resuming review/fix.
+1. **Test evidence** — `task-N-test-evidence.json`; soft/hard per complexity + `behavior_change`. 2. **Plan conflicts** → `plan_conflicts[]`; human before fix loop. 3. **Unverifiable** → `unverifiable[]`; non-empty BLOCKED. 4. **NEEDS_CONTEXT** → STOP.
 
 ### Rule 7 — CLI dispatch when available (p1)
 

@@ -66,6 +66,14 @@ for slug in spor-init spor-subagent-lifecycle spor-token-efficient-review-dispat
 done
 echo "OK"
 
+echo "== validate spor-sdd-p0-fallback exists =="
+[ -f "$SKILLS/spor-sdd-p0-fallback/SKILL.md" ] || { echo "MISSING spor-sdd-p0-fallback"; exit 1; }
+! grep -q 'spor-sdd-p0-fallback' "$MANIFEST" || { echo "FAIL: p0-fallback must not be in manifest"; exit 1; }
+echo "OK"
+
+echo "== validate SDD orchestrator line budget =="
+"$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
+
 echo "== validate plugin.json alignment =="
 python3 -c "
 import json, os

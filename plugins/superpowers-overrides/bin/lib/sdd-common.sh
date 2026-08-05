@@ -173,3 +173,32 @@ sdd_assert_handoff() {
     sdd_exit_blocked "handoff failed schema check: ${handoff_path}"
   fi
 }
+
+# Locate upstream superpowers subagent-driven-development/scripts (sdd-workspace, review-package).
+# Resolution order: repo submodule → Claude plugin cache → Cursor plugin cache.
+# Optional arg: repo_root (defaults to git rev-parse --show-toplevel).
+sdd_superpowers_scripts_dir() {
+  local repo_root="${1:-}"
+  if [[ -z "$repo_root" ]]; then
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || repo_root=""
+  fi
+  if [[ -n "$repo_root" && -d "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts" ]]; then
+    printf '%s\n' "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts"
+    return 0
+  fi
+  local cache ver scripts probe
+  for cache in \
+    "${HOME}/.claude/plugins/cache/oscaner/superpowers" \
+    "${HOME}/.cursor/plugins/cache/oscaner/superpowers"; do
+    [[ -d "$cache" ]] || continue
+    for ver in $(find "$cache" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null | sort -V); do
+      scripts="${cache}/${ver}/skills/subagent-driven-development/scripts"
+      probe="${scripts}/sdd-workspace"
+      if [[ -f "$probe" ]]; then
+        printf '%s\n' "$scripts"
+        return 0
+      fi
+    done
+  done
+  return 1
+}

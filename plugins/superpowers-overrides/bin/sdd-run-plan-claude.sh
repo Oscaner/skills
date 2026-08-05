@@ -45,26 +45,6 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 [[ -x "$TASK_SCRIPT" ]] || sdd_exit_blocked "task script missing or not executable: ${TASK_SCRIPT}"
 
-_sdd_superpowers_scripts_dir() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
-  if [[ -d "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts" ]]; then
-    printf '%s\n' "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts"
-    return 0
-  fi
-  local cache="${HOME}/.claude/plugins/cache/oscaner/superpowers"
-  if [[ -d "$cache" ]]; then
-    local ver
-    for ver in $(find "$cache" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -V); do
-      if [[ -f "${cache}/${ver}/skills/subagent-driven-development/scripts/sdd-workspace" ]]; then
-        printf '%s\n' "${cache}/${ver}/skills/subagent-driven-development/scripts"
-        return 0
-      fi
-    done
-  fi
-  return 1
-}
-
 _sdd_write_plan_constraints() {
   local plan="$1" out="$2"
   if [[ -f "$out" ]]; then
@@ -80,7 +60,7 @@ _sdd_write_plan_constraints() {
 
 _resolve_workspace() {
   local scripts ws_script
-  scripts="$(_sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream sdd-workspace script not found"
+  scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream sdd-workspace script not found"
   ws_script="${scripts}/sdd-workspace"
   [[ -x "$ws_script" ]] || sdd_exit_blocked "sdd-workspace not executable: ${ws_script}"
   "$ws_script" "$PLAN_FILE"

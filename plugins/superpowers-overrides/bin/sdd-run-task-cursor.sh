@@ -79,37 +79,6 @@ _sdd_relpath_from_repo() {
   esac
 }
 
-_sdd_superpowers_scripts_dir() {
-  local repo_root="${1:-}"
-  if [[ -z "$repo_root" ]]; then
-    repo_root="$(_sdd_repo_root)" || return 1
-  fi
-  if [[ -d "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts" ]]; then
-    printf '%s\n' "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts"
-    return 0
-  fi
-  local cache="${HOME}/.claude/plugins/cache/oscaner/superpowers"
-  if [[ -d "$cache" ]]; then
-    local ver
-    for ver in $(find "$cache" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -V); do
-      if [[ -f "${cache}/${ver}/skills/subagent-driven-development/scripts/review-package" ]]; then
-        printf '%s\n' "${cache}/${ver}/skills/subagent-driven-development/scripts"
-        return 0
-      fi
-    done
-  fi
-  if [[ -d "${HOME}/.cursor/plugins/cache/oscaner/superpowers" ]]; then
-    local cver
-    for cver in $(find "${HOME}/.cursor/plugins/cache/oscaner/superpowers" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -V); do
-      if [[ -f "${HOME}/.cursor/plugins/cache/oscaner/superpowers/${cver}/skills/subagent-driven-development/scripts/review-package" ]]; then
-        printf '%s\n' "${HOME}/.cursor/plugins/cache/oscaner/superpowers/${cver}/skills/subagent-driven-development/scripts"
-        return 0
-      fi
-    done
-  fi
-  return 1
-}
-
 _sdd_plan_from_ledger() {
   local ledger="$1"
   sed -n '1s/^# SDD ledger — plan: //p' "$ledger"
@@ -122,7 +91,7 @@ _sdd_resolve_workspace() {
   fi
   [[ -n "$PLAN_FILE" ]] || sdd_exit_blocked "SDD_WORKSPACE unset and --plan not provided"
   local scripts ws_script
-  scripts="$(_sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream sdd-workspace script not found"
+  scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream sdd-workspace script not found"
   ws_script="${scripts}/sdd-workspace"
   [[ -x "$ws_script" ]] || sdd_exit_blocked "sdd-workspace not executable: ${ws_script}"
   "$ws_script" "$PLAN_FILE"
@@ -157,7 +126,7 @@ _sdd_emit_h1_four_lines() {
 _sdd_run_review_package() {
   local plan="$1" base="$2" head="$3" handoff_path="$4"
   local scripts review_pkg out_line diff_path repo_root rel
-  scripts="$(_sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream review-package script not found"
+  scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream review-package script not found"
   review_pkg="${scripts}/review-package"
   [[ -x "$review_pkg" ]] || sdd_exit_blocked "review-package not executable: ${review_pkg}"
 

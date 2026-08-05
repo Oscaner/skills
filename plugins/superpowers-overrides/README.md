@@ -80,7 +80,7 @@ flowchart LR
 - Workflow: `/spor-brainstorming`, `/spor-writing-plans`, … (or rules-based intercept).
 - Init: `/spor-init` → writes `.cursor/rules/superpowers-overrides.mdc`.
 - Hooks: install plugin from marketplace — detect/enforce ship with the plugin; **do not** add project `.cursor/hooks.json`.
-- See [cross-harness-overrides.md](docs/cross-harness-overrides.md) and [CURSOR-SMOKE.md](docs/CURSOR-SMOKE.md).
+- See [cross-harness-overrides.md](docs/cross-harness-overrides.md).
 
 ### Manual skill attach
 

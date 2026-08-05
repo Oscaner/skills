@@ -80,7 +80,7 @@ flowchart LR
 - 工作流：`/spor-brainstorming`、`/spor-writing-plans` …（或 rules 拦截）。
 - Init：`/spor-init` → 写入 `.cursor/rules/superpowers-overrides.mdc`。
 - Hooks：从 marketplace 安装插件即可——detect/enforce 随插件发布；**不要**添加项目 `.cursor/hooks.json`。
-- 详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md) 和 [CURSOR-SMOKE.md](docs/CURSOR-SMOKE.md)。
+- 详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md)。
 
 ### Manual skill attach（手动附加 skill）
 

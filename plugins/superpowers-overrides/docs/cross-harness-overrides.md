@@ -76,7 +76,7 @@ Rules are **fallback only** on Cursor (hooks enforce). On both harnesses:
 
 - **Anti-pattern:** manually attach upstream `superpowers/*/SKILL.md` body — attach **`spor-*`** or use slash commands instead; upstream SKILL full text in context still requires Read/Skill `spor-*` first.
 
-Manual smoke: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
+Manual smoke: `/brainstorming` in a fresh chat → first tool Read spor SKILL or deny wrong first tool (Settings → Hooks → Execution Log).
 
 ## Manifest schema
 
@@ -144,7 +144,7 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 2. Run `/spor-init` in Cursor (copies or refreshes `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`; re-run after plugin upgrade if rules are stale).
 3. Invoke `/spor-brainstorming` directly, or use upstream slash commands — plugin hooks detect and enforce override-first; project rules are fallback only.
 
-Manual verification: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
+Manual verification: same as above — `/brainstorming` → Read spor first; check Hook Execution Log.
 
 ## Deferred harnesses (documented, not built)
 

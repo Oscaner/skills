@@ -6,6 +6,7 @@
   "required": ["name", "owner", "metadata", "plugins"],
   "additionalProperties": false,
   "properties": {
+    "$schema": { "type": "string" },
     "name": { "type": "string", "minLength": 1 },
     "owner": {
       "type": "object",

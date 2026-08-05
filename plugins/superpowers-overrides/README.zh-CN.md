@@ -11,8 +11,8 @@
 三层机制防止 override 被跳过：
 
 1. **Skill description** — 四触发 frontmatter；override 必须是本 turn 第一个 tool call。
-2. **Hook** — Claude Code 上 `/superpowers:*` 的 `UserPromptExpansion`。
-3. **项目规则** — `/spor-init` 写入项目（`CLAUDE.md` 或 `.cursor/rules/superpowers-overrides.mdc`）。
+2. **Hooks（plugin-bundled）** — Claude Code：`UserPromptExpansion` 三重 matcher（`^superpowers:`、bare `/<slug>`、`^/spor-<slug>`）。Cursor：`beforeSubmitPrompt` detect + `preToolUse` enforce（`hooks/hooks-cursor.json`）。**不写项目 hook 文件。**
+3. **项目规则** — `/spor-init` 写入项目（`CLAUDE.md` 或 `.cursor/rules/superpowers-overrides.mdc`）；Cursor 上 hooks 未命中时为 fallback。
 
 ## 工作流
 
@@ -79,7 +79,21 @@ flowchart LR
 
 - 工作流：`/spor-brainstorming`、`/spor-writing-plans` …（或 rules 拦截）。
 - Init：`/spor-init` → 写入 `.cursor/rules/superpowers-overrides.mdc`。
+- Hooks：从 marketplace 安装插件即可——detect/enforce 随插件发布；**不要**添加项目 `.cursor/hooks.json`。
 - 详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md) 和 [CURSOR-SMOKE.md](docs/CURSOR-SMOKE.md)。
+
+### Manual skill attach（手动附加 skill）
+
+**推荐：**
+
+- 使用 `/spor-brainstorming` 等 slash，或 bare upstream slash（`/brainstorming`）——hooks + rules 自动拦截。
+- 需要 inline 上下文时 attach **`spor-*`** skill 文件（如 `spor-brainstorming/SKILL.md`）。
+
+**禁止：**
+
+- Attach upstream `superpowers/*/SKILL.md` 正文——内联 upstream checklist 会压过 spor 纪律（即使 hooks 已触发）。应改用 slash 或 agent skills 列表。
+
+Hook 与 enforcement 脚本 **随 plugin 安装**（与 upstream `superpowers` 同模式）。`spor-init` 不应在 consumer 项目里新增 hook 文件。
 
 ## 维护者文档
 

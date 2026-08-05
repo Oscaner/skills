@@ -1,8 +1,33 @@
+<!-- penf ship smoke: pending manual run -->
+
 # Cursor Manual Smoke Checklist
 
 Run after installing plugins from the `oscaner` marketplace.
 
 Reference: [cross-harness-overrides.md](./cross-harness-overrides.md)
+
+## Blocking — penf ship gate (D2 / D4)
+
+All items must pass before penf is considered shipped. Check tool trace in agent panel **and** Settings → Hooks → Execution Log.
+
+- [ ] Settings → Hooks shows `superpowers-overrides` **`beforeSubmitPrompt`** + **`preToolUse`**
+- [ ] `/brainstorming` → wrong first tool **denied**; `Read` (spor SKILL path) or `Skill` (`superpowers-overrides:spor-brainstorming`) **allowed**
+- [ ] `/spor-brainstorming` → detect + enforce path works (pending written; valid first tool clears it)
+- [ ] Prompt containing `superpowers:brainstorming` → detect fires (check Execution Log / pending file under `$TMPDIR/oscaner-superpowers-overrides/pending/`)
+- [ ] Attach upstream `brainstorming/SKILL.md` — repo path `plugins/superpowers/skills/brainstorming/SKILL.md` **or** plugin cache path (e.g. `~/.cursor/plugins/cache/.../superpowers/.../skills/brainstorming/SKILL.md`) → detect fires
+- [ ] Attach via `.cursor/skills/brainstorming/SKILL.md` → detect fires
+- [ ] **`git status`** in consumer project shows **no** new `.cursor/hooks.json` (hooks are plugin-bundled only)
+- [ ] Claude Code `/brainstorming` expansion contains **`MANDATORY OVERRIDE`**
+
+### First-tool contract
+
+Valid first tool after detect: **`Read`** with path ending in `/spor-<slug>/SKILL.md`, or **`Skill`** with `superpowers-overrides:spor-<slug>`. Any other first tool (Grep, Shell, Write, Read upstream SKILL, etc.) must be **denied** with MANDATORY OVERRIDE message.
+
+### `conversation_id` note (deferred finding)
+
+Detect and enforce resolve pending via the **same** `session_key`: `conversation_id` ?? `session_id` ?? `sha256(prompt)[:16]`. When smoke-testing, confirm in Hook Execution Log that **both** hooks receive the same `conversation_id` on the same turn. If `preToolUse` stdin lacks `conversation_id` (and no `session_id` fallback), enforce will not find the pending file written by detect → enforcement silently allows. File a Cursor bug if observed; rules self-check remains fallback.
+
+After completing this blocking run, replace the HTML comment at the top with: `<!-- penf ship smoke: YYYY-MM-DD by <name> -->`.
 
 ## Known limitation (marketplace co-install)
 
@@ -29,6 +54,7 @@ Copy override skills into the project:
 ## Claude Code regression
 
 - [ ] `/superpowers:brainstorming` → `Skill(superpowers-overrides:spor-brainstorming)` first
+- [ ] `/brainstorming` (bare) → expansion contains `MANDATORY OVERRIDE`
 
 After editing override skills, manifest, or generators:
 

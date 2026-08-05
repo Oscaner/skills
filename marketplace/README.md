@@ -25,8 +25,9 @@ pnpm run validate
 |------|---------|
 | `.claude-plugin/marketplace.json` | Claude Code |
 | `.cursor-plugin/marketplace.json` | Cursor Team Marketplace |
-| `cursor-plugins/<name>/.cursor-plugin/plugin.json` | Cursor plugin wrappers (wrapper mode only) |
-| `plugins/superpowers-overrides/.cursor-plugin/plugin.json` | Cursor manifest at plugin root (`emitMode: plugin-root`) |
+| `cursor-plugins/<name>/.cursor-plugin/plugin.json` | Cursor plugin wrappers (**wrapper mode only**) |
+| `plugins/superpowers-overrides/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — oscaner **generated** (`emitMode: plugin-root`) |
+| `plugins/superpowers/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — **upstream submodule (not emit)** |
 
 Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit output is stale.
 
@@ -37,7 +38,7 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 | **Wrapper** (default) | `displayName` + `skills` (+ optional `hooks`) | `cursor-plugins/<name>` |
 | **Plugin-root** | `{ "emitMode": "plugin-root" }` only | `./<contentRoot>` (reads plugin's `.cursor-plugin/plugin.json`) |
 
-Today only **`superpowers-overrides`** uses plugin-root. Other plugins keep wrapper emit.
+**Plugin-root today:** `superpowers-overrides` (oscaner-generated manifest) and **`superpowers`** (upstream submodule manifest). Other plugins keep wrapper emit. See [cursor-plugins/README.md](../cursor-plugins/README.md) for the hybrid rule and upgrade checklist.
 
 ## Schema
 
@@ -56,4 +57,4 @@ Emit fails when `source.json` versions disagree with truth sources.
 
 ## Cursor Team Marketplace
 
-Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`; `superpowers-overrides` installs from plugin root (see [MIGRATION-pack-single-layer.md](../plugins/superpowers-overrides/docs/MIGRATION-pack-single-layer.md)).
+Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`superpowers-overrides`** and **`superpowers`** install from plugin root (`./plugins/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md). Overrides migration: [MIGRATION-pack-single-layer.md](../plugins/superpowers-overrides/docs/MIGRATION-pack-single-layer.md).

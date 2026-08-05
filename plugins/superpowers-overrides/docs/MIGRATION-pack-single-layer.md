@@ -28,6 +28,10 @@ Behavior is unchanged; these directories exist for harness parity with upstream 
 
 The [penf design spec](../../../docs/superpowers/specs/2026-08-05-sdd-token-efficiency-penf-design.md) describes the **wrapper-era** Cursor install path (`cursor-plugins/…`). That was correct for penf ship; **pack** supersedes it with plugin-root manifests.
 
+## Related: superpowers plugin-root (pack-sp)
+
+Upstream **superpowers** uses the same single-layer Cursor install (`./plugins/superpowers`). See [cursor-plugins/README.md](../../../cursor-plugins/README.md).
+
 ## Contributors
 
 After changing `package.json`, `.claude-plugin/plugin.json`, or generator templates:

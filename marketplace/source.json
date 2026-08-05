@@ -70,9 +70,7 @@
       },
       "contentRoot": "plugins/superpowers",
       "cursor": {
-        "displayName": "Superpowers",
-        "skills": "../../plugins/superpowers/skills",
-        "hooks": "../../plugins/superpowers/hooks/hooks-cursor.json"
+        "emitMode": "plugin-root"
       }
     },
     {

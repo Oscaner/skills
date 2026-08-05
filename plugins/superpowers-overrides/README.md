@@ -11,8 +11,8 @@ When you invoke `/brainstorming`, `/writing-plans`, or any other superpowers ski
 Three layers keep overrides from being skipped:
 
 1. **Skill description** — four-trigger frontmatter; override must be the first tool call.
-2. **Hook** — `UserPromptExpansion` on `/superpowers:*` slash commands (Claude Code).
-3. **Project rules** — `/spor-init` writes self-check rules into your project (`CLAUDE.md` or `.cursor/rules/superpowers-overrides.mdc`).
+2. **Hooks (plugin-bundled)** — Claude Code: `UserPromptExpansion` with triple matchers (`^superpowers:`, bare `/<slug>`, `^/spor-<slug>`). Cursor: `beforeSubmitPrompt` detect + `preToolUse` enforce via `hooks/hooks-cursor.json`. **No project hook files.**
+3. **Project rules** — `/spor-init` writes self-check rules into your project (`CLAUDE.md` or `.cursor/rules/superpowers-overrides.mdc`); fallback on Cursor when hooks miss.
 
 ## Workflow
 
@@ -79,7 +79,21 @@ flowchart LR
 
 - Workflow: `/spor-brainstorming`, `/spor-writing-plans`, … (or rules-based intercept).
 - Init: `/spor-init` → writes `.cursor/rules/superpowers-overrides.mdc`.
+- Hooks: install plugin from marketplace — detect/enforce ship with the plugin; **do not** add project `.cursor/hooks.json`.
 - See [cross-harness-overrides.md](docs/cross-harness-overrides.md) and [CURSOR-SMOKE.md](docs/CURSOR-SMOKE.md).
+
+### Manual skill attach
+
+**Do:**
+
+- Use `/spor-brainstorming` (etc.) or bare upstream slash (`/brainstorming`) — hooks + rules intercept automatically.
+- Attach **`spor-*`** skill files if you need inline context (e.g. `spor-brainstorming/SKILL.md`).
+
+**Don't:**
+
+- Attach upstream `superpowers/*/SKILL.md` body — inline upstream checklists override spor discipline even when hooks fire. If you must reference upstream, use slash commands or the agent skills list instead.
+
+Hooks and enforcement scripts are **plugin-bundled** (same model as upstream `superpowers`). Consumer projects should never gain new hook files from `spor-init`.
 
 ## Docs for maintainers
 

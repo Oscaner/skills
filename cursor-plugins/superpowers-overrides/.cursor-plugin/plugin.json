@@ -9,5 +9,6 @@
   },
   "skills": "../../plugins/superpowers-overrides/skills",
   "version": "6.2.0-overrides.11",
-  "license": "MIT"
+  "license": "MIT",
+  "hooks": "../../plugins/superpowers-overrides/hooks/hooks-cursor.json"
 }

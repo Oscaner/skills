@@ -20,13 +20,63 @@ One canonical tree under `skills/` serves Claude Code, Cursor marketplace, and m
 1. **Canonical source** — all skills live in `skills/spor-<slug>/` (e.g. `spor-brainstorming`). Directory basename equals frontmatter `name`.
 2. **Manifest** — declare targets in `overrides.manifest.json` with explicit `name`, `overrides`, and `source` fields.
 3. **Generators** — manifest-driven scripts write committed hook + self-check artifacts (`build/generated/*`, `bin/override-prompt-expansion.sh`).
-4. **Enforcement** — Claude hooks + project `CLAUDE.md` self-check; Cursor project rules from init + `/spor-*` slash commands.
+4. **Enforcement** — harness-specific hooks + project self-check rules (see [Enforcement](#enforcement) below).
 
 No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
 
 **CI:** `pnpm run validate:overrides` checks generator drift; `tests/validate-overrides-build.sh` validates the canonical tree.
 
 Claude Code interception: `Skill(superpowers-overrides:spor-brainstorming)` (manifest `name` field).
+
+## Enforcement
+
+Override-first is enforced by **plugin-bundled hooks** plus project self-check rules. Hooks ship with the plugin — **never** copy hook files into consumer projects.
+
+### Cursor — detect + enforce (plugin-bundled)
+
+**File:** `hooks/hooks-cursor.json` (declared in marketplace `cursor.hooks`; emitted to `cursor-plugins/superpowers-overrides/.cursor-plugin/plugin.json`).
+
+| Hook | Handler | Role |
+|------|---------|------|
+| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match bare `/brainstorming`, `/spor-*`, `superpowers:*`, upstream SKILL attach paths → write pending state |
+| `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (spor SKILL path) or `Skill` (`superpowers-overrides:spor-*`); **deny** all other first tools |
+
+Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending; enforce blocks wrong first tools.
+
+**Pending state contract** (detect writes, enforce reads):
+
+- Path: `$TMPDIR/oscaner-superpowers-overrides/pending/<session_key>.json`
+- `session_key` = `conversation_id` ?? `session_id` ?? first 16 hex of `sha256(prompt)`
+- Schema: `{"override":"spor-<slug>","detected_at":<unix>,"trigger":"bare-slash|prefixed|attach|spor-slash"}`
+- TTL: **300s** — expired pending → enforce allows and deletes file
+- Cleared when enforce allows a valid first tool
+
+**`spor-init` does not install hooks** — only refreshes `.cursor/rules/superpowers-overrides.mdc`. Consumer `git status` must show **no** new `.cursor/hooks.json`.
+
+### Claude Code — triple matcher + expansion
+
+**File:** `hooks/hooks.json` — three `UserPromptExpansion` matchers (manifest-generated):
+
+1. `^superpowers:` — prefixed upstream slash commands
+2. Bare `/<upstream-slug>` — e.g. `/brainstorming`
+3. `^/spor-<upstream-slug>` — e.g. `/spor-brainstorming`
+
+All invoke `bin/override-prompt-expansion.sh`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(superpowers-overrides:spor-*)` first call.
+
+Project `CLAUDE.md` self-check (from `/spor-init`) is fallback when hooks are unavailable.
+
+### Self-check rules (both harnesses)
+
+`/spor-init` writes committed generator output into the project:
+
+- Cursor → `.cursor/rules/superpowers-overrides.mdc`
+- Claude Code → `CLAUDE.md` override trigger table
+
+Rules are **fallback only** on Cursor (hooks enforce). On both harnesses:
+
+- **Anti-pattern:** manually attach upstream `superpowers/*/SKILL.md` body — attach **`spor-*`** or use slash commands instead; upstream SKILL full text in context still requires Read/Skill `spor-*` first.
+
+Manual smoke: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
 
 ## Manifest schema
 
@@ -92,7 +142,7 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 
 1. Install `superpowers` + `superpowers-overrides` from the marketplace.
 2. Run `/spor-init` in Cursor (copies or refreshes `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`; re-run after plugin upgrade if rules are stale).
-3. Invoke `/spor-brainstorming` directly, or use upstream slash commands and rely on rules intercept.
+3. Invoke `/spor-brainstorming` directly, or use upstream slash commands — plugin hooks detect and enforce override-first; project rules are fallback only.
 
 Manual verification: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
 

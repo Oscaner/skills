@@ -11,15 +11,35 @@ command_name=$(printf '%s' "$input" | jq -r '.command_name // ""')
 
 case "$command_name" in
   superpowers:brainstorming) override="superpowers-overrides:spor-brainstorming" ;;
+  /brainstorming) override="superpowers-overrides:spor-brainstorming" ;;
+  /spor-brainstorming) override="superpowers-overrides:spor-brainstorming" ;;
   superpowers:writing-plans) override="superpowers-overrides:spor-writing-plans" ;;
+  /writing-plans) override="superpowers-overrides:spor-writing-plans" ;;
+  /spor-writing-plans) override="superpowers-overrides:spor-writing-plans" ;;
   superpowers:subagent-driven-development) override="superpowers-overrides:spor-subagent-driven-development" ;;
+  /subagent-driven-development) override="superpowers-overrides:spor-subagent-driven-development" ;;
+  /spor-subagent-driven-development) override="superpowers-overrides:spor-subagent-driven-development" ;;
   superpowers:executing-plans) override="superpowers-overrides:spor-executing-plans" ;;
+  /executing-plans) override="superpowers-overrides:spor-executing-plans" ;;
+  /spor-executing-plans) override="superpowers-overrides:spor-executing-plans" ;;
   superpowers:finishing-a-development-branch) override="superpowers-overrides:spor-finishing-a-development-branch" ;;
+  /finishing-a-development-branch) override="superpowers-overrides:spor-finishing-a-development-branch" ;;
+  /spor-finishing-a-development-branch) override="superpowers-overrides:spor-finishing-a-development-branch" ;;
   superpowers:using-git-worktrees) override="superpowers-overrides:spor-using-git-worktrees" ;;
+  /using-git-worktrees) override="superpowers-overrides:spor-using-git-worktrees" ;;
+  /spor-using-git-worktrees) override="superpowers-overrides:spor-using-git-worktrees" ;;
   superpowers:systematic-debugging) override="superpowers-overrides:spor-systematic-debugging" ;;
+  /systematic-debugging) override="superpowers-overrides:spor-systematic-debugging" ;;
+  /spor-systematic-debugging) override="superpowers-overrides:spor-systematic-debugging" ;;
   superpowers:test-driven-development) override="superpowers-overrides:spor-test-driven-development" ;;
+  /test-driven-development) override="superpowers-overrides:spor-test-driven-development" ;;
+  /spor-test-driven-development) override="superpowers-overrides:spor-test-driven-development" ;;
   superpowers:verification-before-completion) override="superpowers-overrides:spor-verification-before-completion" ;;
+  /verification-before-completion) override="superpowers-overrides:spor-verification-before-completion" ;;
+  /spor-verification-before-completion) override="superpowers-overrides:spor-verification-before-completion" ;;
   superpowers:receiving-code-review) override="superpowers-overrides:spor-receiving-code-review" ;;
+  /receiving-code-review) override="superpowers-overrides:spor-receiving-code-review" ;;
+  /spor-receiving-code-review) override="superpowers-overrides:spor-receiving-code-review" ;;
   *) exit 0 ;;
 esac
 

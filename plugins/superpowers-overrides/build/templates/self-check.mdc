@@ -13,6 +13,14 @@ Before your first tool call in ANY turn:
 3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
 4. Only after the override body is loaded may you follow upstream instructions.
 
+### Red flags — manual attach upstream
+
+- User attached **upstream** `superpowers/*/SKILL.md` body → you **still** Read/Skill `spor-*` first
+- Any tool call before spor override loaded
+- Attaching upstream SKILL full text is an **anti-pattern** — use `/spor-*`, bare upstream slash, or agent_skills list; never paste upstream SKILL.md as inline context
+
+**Cursor:** plugin-bundled hooks (`beforeSubmitPrompt` + `preToolUse`) detect and enforce overrides; these rules are **fallback only**. Do **not** install project `.cursor/hooks.json`.
+
 ### Override trigger table
 
 {{TRIGGER_TABLE}}

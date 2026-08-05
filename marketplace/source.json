@@ -96,7 +96,8 @@
       },
       "cursor": {
         "displayName": "Superpowers Overrides",
-        "skills": "../../plugins/superpowers-overrides/skills"
+        "skills": "../../plugins/superpowers-overrides/skills",
+        "hooks": "../../plugins/superpowers-overrides/hooks/hooks-cursor.json"
       }
     }
   ]

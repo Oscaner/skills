@@ -38,8 +38,9 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 
 | Hook | Handler | Role |
 |------|---------|------|
-| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths only** → write pending (with `skill_suffix`) |
+| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths** or **SDD slash** → write pending / activate SDD session |
 | `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (spor SKILL path via `tool_input.path` or `tool_input.file_path`) or `Skill` (`superpowers-overrides:spor-*`); **deny** all other first tools |
+| `preToolUse` (no matcher) | `bin/override-cursor-sdd-gate.sh` | SDD orchestrator gate — deny non-workspace Write/Edit and non-allowlist Bash during active tasks |
 
 Bare `/brainstorming`, `/spor-*`, and prefixed slash commands (`superpowers:*`) → **no pending**; self-check rules (`.cursor/rules/superpowers-overrides.mdc`) are primary enforcement for slash triggers.
 
@@ -54,6 +55,21 @@ Cursor cannot inject context on submit (no `additional_context` on `beforeSubmit
 - Cleared when enforce allows a valid first tool
 
 **`spor-init` does not install hooks** — only refreshes `.cursor/rules/superpowers-overrides.mdc`. Consumer `git status` must show **no** new `.cursor/hooks.json`.
+
+### SDD orchestrator gate (p1-slim.2)
+
+Cross-harness PreToolUse enforcement for SDD orchestrator sessions (Cursor + Claude Code).
+
+| Item | Detail |
+|------|--------|
+| Pending path | `$TMPDIR/oscaner-superpowers-overrides/pending-sdd/<session_key>.json` |
+| Activation | SDD slash (`/subagent-driven-development`, `/spor-*`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Cursor detect + Claude expansion |
+| Shared lib | `bin/lib/sdd-orchestrator-gate.sh` — single allowlist + state machine |
+| Adapters | `override-cursor-sdd-gate.sh`, `override-claude-sdd-gate.sh` |
+| Fail-open | No jq, no pending, or cannot resolve workspace → allow (skill checklist fallback) |
+| Known gap | p0 Task-tool implementer Write — hook cannot intercept subagent tools ([p1-slim.2 spec](../../docs/superpowers/specs/2026-08-05-sdd-slim-orchestrator-p1-slim-2-design.md)) |
+
+Claude Code: `hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `override-claude-sdd-gate.sh`. Generators are SOT — run `pnpm run generate:overrides` after manifest edits.
 
 ### Claude Code — triple matcher + expansion
 

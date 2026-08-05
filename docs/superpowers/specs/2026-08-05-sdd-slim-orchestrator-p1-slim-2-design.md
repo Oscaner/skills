@@ -263,7 +263,7 @@ Insert after item 3 (pointers). Rule 0a becomes **4 items** (supersedes p1-slim.
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| p1-slim.1 complete | dogfood exposed skip-H6 failure | **Pending** — impl adds p1-slim.2 row |
+| p1-slim.1 complete | dogfood exposed skip-H6 failure | **Yes** — p1-slim.2 row added |
 
 ## Non-goals
 

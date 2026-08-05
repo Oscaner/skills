@@ -56,6 +56,9 @@ echo "== 4. hooks executable =="
 
 echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
+./plugins/superpowers-overrides/tests/sdd-cli-dry-run-smoke.sh
+./plugins/superpowers-overrides/tests/override-cursor-sdd-gate.test.sh
+./plugins/superpowers-overrides/tests/override-claude-sdd-gate.test.sh
 
 echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs

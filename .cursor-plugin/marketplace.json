@@ -29,7 +29,7 @@
     {
       "_generated": "scripts/emit-marketplace.mjs — do not edit",
       "name": "superpowers-overrides",
-      "source": "cursor-plugins/superpowers-overrides",
+      "source": "./plugins/superpowers-overrides",
       "description": "Personal overrides for the superpowers plugin that force delegation to other skills."
     }
   ]

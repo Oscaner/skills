@@ -55,7 +55,7 @@
         }
       }
     },
-    "cursor": {
+    "cursorWrapper": {
       "type": "object",
       "required": ["displayName", "skills"],
       "additionalProperties": false,
@@ -64,6 +64,20 @@
         "skills": { "type": "string", "minLength": 1 },
         "hooks": { "type": "string", "minLength": 1 }
       }
+    },
+    "cursorPluginRoot": {
+      "type": "object",
+      "required": ["emitMode"],
+      "additionalProperties": false,
+      "properties": {
+        "emitMode": { "type": "string", "enum": ["plugin-root"] }
+      }
+    },
+    "cursor": {
+      "oneOf": [
+        { "$ref": "#/$defs/cursorWrapper" },
+        { "$ref": "#/$defs/cursorPluginRoot" }
+      ]
     },
     "plugin": {
       "type": "object",

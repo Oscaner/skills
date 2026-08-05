@@ -102,6 +102,11 @@ export function claudeMarketplaceEntry(plugin, resolved) {
   return entry;
 }
 
+/** @param {object} plugin */
+export function isPluginRoot(plugin) {
+  return plugin.cursor?.emitMode === "plugin-root";
+}
+
 /** @param {object} plugin @param {{ version: string }} resolved */
 export function cursorWrapperManifest(plugin, resolved) {
   const manifest = {
@@ -125,6 +130,23 @@ export function cursorWrapperManifest(plugin, resolved) {
  * @param {object} plugin
  */
 export function assertCursorPathsExist(root, plugin) {
+  if (isPluginRoot(plugin)) {
+    const contentRoot = join(root, plugin.contentRoot);
+    const manifestPath = join(contentRoot, ".cursor-plugin/plugin.json");
+    if (!existsSync(manifestPath)) {
+      throw new Error(`Missing plugin-root manifest: ${manifestPath}`);
+    }
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    for (const field of ["skills", "hooks"]) {
+      if (!manifest[field]) continue;
+      const abs = resolve(contentRoot, manifest[field]);
+      if (!existsSync(abs)) {
+        throw new Error(`Missing ${field} for ${plugin.name}: ${abs}`);
+      }
+    }
+    return;
+  }
+
   const wrapperRoot = join(root, "cursor-plugins", plugin.name);
   for (const [field, rel] of [
     ["skills", plugin.cursor.skills],

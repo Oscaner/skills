@@ -1,7 +1,35 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { execSync } from "node:child_process";
 
 const root = process.cwd();
+
+function validateSourceSchemaJson() {
+  try {
+    execSync(
+      `python3 -c "
+import json
+from jsonschema import validate
+source = json.load(open('marketplace/source.json'))
+schema = json.load(open('marketplace/source.schema.json'))
+validate(source, schema)
+print('OK — source.json schema')
+"`,
+      { cwd: root, stdio: "pipe" },
+    );
+    console.log("OK — source.json schema");
+  } catch (e) {
+    if (String(e.stderr ?? e.message).includes("No module named 'jsonschema'")) {
+      console.log("SKIP — jsonschema not installed (minimal checks only)");
+      return;
+    }
+    throw e;
+  }
+}
+
+function isPluginRoot(p) {
+  return p.cursor?.emitMode === "plugin-root";
+}
 
 function validateSourceSchema() {
   const source = JSON.parse(
@@ -19,11 +47,18 @@ function validateSourceSchema() {
     for (const field of ["name", "description", "author", "contentRoot", "cursor"]) {
       if (!p[field]) throw new Error(`${p.name ?? "?"} missing ${field}`);
     }
-    if (!p.cursor.displayName || !p.cursor.skills) {
-      throw new Error(`${p.name} missing cursor.displayName or cursor.skills`);
-    }
-    if (typeof p.cursor.skills !== "string") {
-      throw new Error(`${p.name} cursor.skills must be string in v1`);
+    if (isPluginRoot(p)) {
+      const manifest = join(root, p.contentRoot, ".cursor-plugin/plugin.json");
+      if (!existsSync(manifest)) {
+        throw new Error(`${p.name} missing plugin-root manifest: ${manifest}`);
+      }
+    } else {
+      if (!p.cursor.displayName || !p.cursor.skills) {
+        throw new Error(`${p.name} missing cursor.displayName or cursor.skills`);
+      }
+      if (typeof p.cursor.skills !== "string") {
+        throw new Error(`${p.name} cursor.skills must be string in v1`);
+      }
     }
     const contentRoot = join(root, p.contentRoot);
     if (!existsSync(contentRoot)) {
@@ -40,6 +75,30 @@ function validateWrapperPaths() {
   );
 
   for (const p of source.plugins) {
+    if (isPluginRoot(p)) {
+      const wrapperDir = join(root, "cursor-plugins", p.name);
+      if (existsSync(wrapperDir)) {
+        throw new Error(
+          `plugin-root ${p.name} wrapper must be deleted: ${wrapperDir}`,
+        );
+      }
+      const contentRoot = join(root, p.contentRoot);
+      const manifest = JSON.parse(
+        readFileSync(join(contentRoot, ".cursor-plugin/plugin.json"), "utf8"),
+      );
+      for (const [field, rel] of [
+        ["skills", manifest.skills],
+        ["hooks", manifest.hooks],
+      ]) {
+        if (!rel) continue;
+        const abs = resolve(contentRoot, rel);
+        if (!existsSync(abs)) {
+          throw new Error(`${p.name} plugin-root ${field} missing: ${abs}`);
+        }
+      }
+      continue;
+    }
+
     const wrapperRoot = join(root, "cursor-plugins", p.name);
     for (const [field, rel] of [
       ["skills", p.cursor.skills],
@@ -57,6 +116,9 @@ function validateWrapperPaths() {
 }
 
 function validateMarketplaceSources() {
+  const source = JSON.parse(
+    readFileSync(join(root, "marketplace/source.json"), "utf8"),
+  );
   const claude = JSON.parse(
     readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8"),
   );
@@ -76,11 +138,21 @@ function validateMarketplaceSources() {
     if (!existsSync(dir)) {
       throw new Error(`Cursor plugin source missing: ${entry.source}`);
     }
+    const plugin = source.plugins.find((p) => p.name === entry.name);
+    if (plugin && isPluginRoot(plugin)) {
+      const expected = `./${plugin.contentRoot}`;
+      if (entry.source !== expected) {
+        throw new Error(
+          `${entry.name} cursor source want ${expected}, got ${entry.source}`,
+        );
+      }
+    }
   }
 
   console.log("OK — marketplace plugin sources exist");
 }
 
+validateSourceSchemaJson();
 validateSourceSchema();
 validateWrapperPaths();
 validateMarketplaceSources();

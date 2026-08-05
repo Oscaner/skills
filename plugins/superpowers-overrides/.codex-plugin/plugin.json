@@ -1,16 +1,13 @@
 {
+  "_generated": "plugins/superpowers-overrides/build/render-codex-manifest.sh \u2014 do not edit",
   "name": "superpowers-overrides",
-  "version": "6.2.0-overrides.12",
-  "private": true,
   "description": "Personal overrides for the superpowers plugin that force delegation to other skills.",
+  "version": "6.2.0-overrides.12",
   "author": {
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Oscaner/skills",
-    "directory": "plugins/superpowers-overrides"
-  },
-  "license": "MIT"
+  "license": "MIT",
+  "skills": "./skills/",
+  "hooks": {}
 }

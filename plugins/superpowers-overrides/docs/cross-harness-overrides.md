@@ -34,7 +34,7 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 
 ### Cursor — detect + enforce (plugin-bundled)
 
-**File:** `hooks/hooks-cursor.json` (declared in marketplace `cursor.hooks`; emitted to `cursor-plugins/superpowers-overrides/.cursor-plugin/plugin.json`).
+**File:** `hooks/hooks-cursor.json` (declared in plugin-root `.cursor-plugin/plugin.json` → `"hooks": "./hooks/hooks-cursor.json"`).
 
 | Hook | Handler | Role |
 |------|---------|------|

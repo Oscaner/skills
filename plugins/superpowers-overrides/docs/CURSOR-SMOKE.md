@@ -4,7 +4,9 @@
 
 Run after installing plugins from the `oscaner` marketplace.
 
-Reference: [cross-harness-overrides.md](./cross-harness-overrides.md)
+Reference: [cross-harness-overrides.md](./cross-harness-overrides.md) · Install path: [MIGRATION-pack-single-layer.md](./MIGRATION-pack-single-layer.md)
+
+**Install topology (pack):** Cursor reads hooks from `plugins/superpowers-overrides/.cursor-plugin/plugin.json` at plugin root (single-layer contentRoot). No `cursor-plugins/superpowers-overrides/` wrapper.
 
 ## Blocking — penf ship gate (D2 / D4)
 
@@ -28,6 +30,16 @@ Valid first tool after detect: **`Read`** with path ending in `/spor-<slug>/SKIL
 Detect and enforce resolve pending via the **same** `session_key`: `conversation_id` ?? `session_id` ?? `sha256(prompt)[:16]`. When smoke-testing, confirm in Hook Execution Log that **both** hooks receive the same `conversation_id` on the same turn. If `preToolUse` stdin lacks `conversation_id` (and no `session_id` fallback), enforce will not find the pending file written by detect → enforcement silently allows. File a Cursor bug if observed; rules self-check remains fallback.
 
 After completing this blocking run, replace the HTML comment at the top with: `<!-- penf ship smoke: YYYY-MM-DD by <name> -->`.
+
+## Blocking — pack topology (after marketplace refresh)
+
+Lightweight checklist after pack single-layer migration. Full penf scenarios unchanged above.
+
+- [ ] Settings → Hooks still shows `superpowers-overrides` **`beforeSubmitPrompt`** + **`preToolUse`** after marketplace refresh
+- [ ] Sample `/brainstorming` → detect/enforce still works
+- [ ] Claude Code plugin cache tree includes `.cursor-plugin/` + `.codex-plugin/` under overrides
+
+Record in [MIGRATION-pack-single-layer.md](./MIGRATION-pack-single-layer.md) footer when done.
 
 ## Known limitation (marketplace co-install)
 

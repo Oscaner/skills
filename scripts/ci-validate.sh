@@ -6,12 +6,24 @@ cd "$ROOT"
 echo "== 1. plugin.json skills resolve =="
 python3 -c '
 import json, os
-p = "plugins/superpowers-overrides/.claude-plugin/plugin.json"
+root = "plugins/superpowers-overrides"
+p = os.path.join(root, ".claude-plugin/plugin.json")
 d = json.load(open(p))
-skills = d["skills"]
-missing = [s for s in skills if not os.path.isdir(os.path.join("plugins/superpowers-overrides", s.lstrip("./")))]
-assert not missing, f"skills[] points to missing dirs: {missing}"
-print(f"OK — {len(skills)} skills")
+skills = d.get("skills")
+if skills is None:
+    skills_dir = os.path.join(root, "skills")
+    assert os.path.isdir(skills_dir), f"missing default skills dir: {skills_dir}"
+    n = sum(1 for n in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, n, "SKILL.md")))
+    print(f"OK — {n} skills (default skills/ discovery)")
+elif isinstance(skills, str):
+    path = os.path.join(root, skills.lstrip("./"))
+    assert os.path.isdir(path), f"skills path missing: {path}"
+    n = sum(1 for n in os.listdir(path) if os.path.isfile(os.path.join(path, n, "SKILL.md")))
+    print(f"OK — {n} skills (directory {skills!r})")
+else:
+    missing = [s for s in skills if not os.path.isdir(os.path.join(root, s.lstrip("./")))]
+    assert not missing, f"skills[] points to missing dirs: {missing}"
+    print(f"OK — {len(skills)} skills")
 '
 
 echo "== 2. every skill dir has SKILL.md =="
@@ -22,12 +34,17 @@ done && echo OK
 echo "== 3. no orphan skill dirs =="
 python3 -c '
 import json, os
-d = json.load(open("plugins/superpowers-overrides/.claude-plugin/plugin.json"))
-declared = {s.lstrip("./") for s in d["skills"]}
-on_disk = {f"skills/{n}" for n in os.listdir("plugins/superpowers-overrides/skills")}
-orphans = on_disk - declared
-assert not orphans, f"orphans: {orphans}"
-print("OK")
+root = "plugins/superpowers-overrides"
+d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
+skills = d.get("skills")
+on_disk = {f"skills/{n}" for n in os.listdir(os.path.join(root, "skills")) if os.path.isdir(os.path.join(root, "skills", n))}
+if skills is None or (isinstance(skills, str) and skills.rstrip("/") in ("./skills", "skills")):
+    print("OK — directory discovery (no explicit skill list)")
+else:
+    declared = {s.lstrip("./") for s in skills}
+    orphans = on_disk - declared
+    assert not orphans, f"orphans: {orphans}"
+    print("OK")
 '
 
 echo "== 4. hooks executable =="

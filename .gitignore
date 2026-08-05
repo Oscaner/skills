@@ -3,3 +3,4 @@ node_modules
 .pnpm-store
 .superpowers
 __pycache__/
+tmp

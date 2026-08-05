@@ -56,11 +56,11 @@ The canonical registry is [marketplace/source.json](marketplace/source.json). Em
 
 1. [marketplace/source.json](marketplace/source.json) — **only human-edited** plugin registry. After changes run `pnpm run emit && pnpm run validate`.
 2. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — generated Claude Code marketplace.
-3. [.cursor-plugin/marketplace.json](.cursor-plugin/marketplace.json) + [cursor-plugins/](cursor-plugins/) — generated Cursor Team Marketplace wrappers.
+3. [.cursor-plugin/marketplace.json](.cursor-plugin/marketplace.json) + [cursor-plugins/](cursor-plugins/) — Cursor Team Marketplace: **plugin-root** for `superpowers-overrides` and `superpowers` (manifest at plugin root); **wrapper** emit for mattpocock-skills and impeccable under `cursor-plugins/`. Hybrid rule: [cursor-plugins/README.md](cursor-plugins/README.md). Overrides migration: [MIGRATION-pack-single-layer.md](plugins/superpowers-overrides/docs/MIGRATION-pack-single-layer.md).
 4. `plugins/<plugin>/.claude-plugin/plugin.json` — e.g. [plugins/superpowers-overrides/.claude-plugin/plugin.json](plugins/superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path.
 5. `plugins/<plugin>/skills/<skill-name>/SKILL.md` — the skill itself.
 
-If a skill's SKILL.md exists on disk but is not listed in the plugin's `skills[]`, Claude Code will not find it. This is the most common breakage.
+If a skill's SKILL.md exists on disk but is not under the plugin's declared `skills/` tree, Claude Code will not find it. This is the most common breakage.
 
 ## The overrides pattern (superpowers-overrides)
 
@@ -134,7 +134,7 @@ git submodule update --init
 **Add a new override skill to `superpowers-overrides`** — four things must change together in one commit, or the skill is invisible or won't auto-trigger:
 
 1. Create `plugins/superpowers-overrides/skills/<name>/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
-2. Add `"./skills/<name>"` to `skills[]` in [plugins/superpowers-overrides/.claude-plugin/plugin.json](plugins/superpowers-overrides/.claude-plugin/plugin.json).
+2. Add `"./skills/<name>"` directory with `SKILL.md` under [plugins/superpowers-overrides/skills/](plugins/superpowers-overrides/skills/) (`.claude-plugin/plugin.json` uses `"skills": "./skills/"` — no per-skill manifest entry needed).
 3. Add a target row to [plugins/superpowers-overrides/overrides.manifest.json](plugins/superpowers-overrides/overrides.manifest.json), then run `pnpm run generate:overrides` (regenerates `bin/override-prompt-expansion.sh` and `build/generated/*`). Do **not** hand-edit the hook script.
 4. Add a row to the override table in [README.md](README.md) for discoverability.
 

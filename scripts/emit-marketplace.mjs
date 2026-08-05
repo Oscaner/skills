@@ -19,6 +19,7 @@ import {
   claudeMarketplaceDocument,
   cursorMarketplaceDocument,
   repoRootFromImportMeta,
+  isPluginRoot,
 } from "./lib/marketplace-utils.mjs";
 
 const root = repoRootFromImportMeta(import.meta.url);
@@ -44,21 +45,25 @@ function emitAll(outRoot) {
     cursorMarketplacePlugins.push({
       _generated: "scripts/emit-marketplace.mjs — do not edit",
       name: plugin.name,
-      source: `cursor-plugins/${plugin.name}`,
+      source: isPluginRoot(plugin)
+        ? `./${plugin.contentRoot}`
+        : `cursor-plugins/${plugin.name}`,
       description: plugin.description,
     });
 
-    const wrapperDir = join(
-      outRoot,
-      "cursor-plugins",
-      plugin.name,
-      ".cursor-plugin",
-    );
-    mkdirSync(wrapperDir, { recursive: true });
-    writeJson(
-      join(wrapperDir, "plugin.json"),
-      cursorWrapperManifest(plugin, resolved),
-    );
+    if (!isPluginRoot(plugin)) {
+      const wrapperDir = join(
+        outRoot,
+        "cursor-plugins",
+        plugin.name,
+        ".cursor-plugin",
+      );
+      mkdirSync(wrapperDir, { recursive: true });
+      writeJson(
+        join(wrapperDir, "plugin.json"),
+        cursorWrapperManifest(plugin, resolved),
+      );
+    }
   }
 
   mkdirSync(join(outRoot, ".claude-plugin"), { recursive: true });
@@ -78,9 +83,11 @@ function compareTrees(generatedRoot) {
   const paths = [
     ".claude-plugin/marketplace.json",
     ".cursor-plugin/marketplace.json",
-    ...readSource(root).plugins.flatMap((p) => [
-      `cursor-plugins/${p.name}/.cursor-plugin/plugin.json`,
-    ]),
+    ...readSource(root).plugins.flatMap((p) =>
+      isPluginRoot(p)
+        ? []
+        : [`cursor-plugins/${p.name}/.cursor-plugin/plugin.json`],
+    ),
   ];
 
   for (const rel of paths) {

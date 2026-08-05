@@ -23,13 +23,13 @@
     {
       "_generated": "scripts/emit-marketplace.mjs — do not edit",
       "name": "superpowers",
-      "source": "cursor-plugins/superpowers",
+      "source": "./plugins/superpowers",
       "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques"
     },
     {
       "_generated": "scripts/emit-marketplace.mjs — do not edit",
       "name": "superpowers-overrides",
-      "source": "cursor-plugins/superpowers-overrides",
+      "source": "./plugins/superpowers-overrides",
       "description": "Personal overrides for the superpowers plugin that force delegation to other skills."
     }
   ]

@@ -66,7 +66,7 @@ done
 
 [[ -n "$TASK_NUM" && -n "$SDD_MODE_ARG" ]] || usage
 
-if ! command -v claude >/dev/null 2>&1; then
+if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v claude >/dev/null 2>&1; then
   sdd_exit_cli_missing "claude not found in PATH"
 fi
 

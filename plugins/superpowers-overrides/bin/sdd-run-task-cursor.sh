@@ -61,7 +61,7 @@ done
 
 [[ -n "$TASK_NUM" && -n "$SDD_MODE_ARG" ]] || usage
 
-if ! command -v cursor >/dev/null 2>&1; then
+if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v cursor >/dev/null 2>&1; then
   sdd_exit_cli_missing "cursor not found in PATH"
 fi
 

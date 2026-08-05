@@ -40,7 +40,7 @@ done
 [[ -n "$PLAN_FILE" ]] || usage
 [[ -f "$PLAN_FILE" ]] || sdd_exit_blocked "plan file not found: ${PLAN_FILE}"
 
-if ! command -v claude >/dev/null 2>&1; then
+if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v claude >/dev/null 2>&1; then
   sdd_exit_cli_missing "claude not found in PATH"
 fi
 [[ -x "$TASK_SCRIPT" ]] || sdd_exit_blocked "task script missing or not executable: ${TASK_SCRIPT}"

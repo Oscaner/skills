@@ -13,6 +13,12 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 
 **Handoff-continuation rationalization:** when the upstream body arrives as a tool result of a prior `Skill(...)` call, the self-check STILL fires. Each turn is scanned independently.
 
+### Red flags — manual attach upstream
+
+- User attached **upstream** `superpowers/*/SKILL.md` body → you **still** Read/Skill `spor-*` first
+- Any tool call before spor override loaded
+- Attaching upstream SKILL full text is an **anti-pattern** — use `/spor-*`, bare upstream slash, or agent_skills list; never paste upstream SKILL.md as inline context
+
 ### Override trigger table
 
 | Trigger | First tool call |

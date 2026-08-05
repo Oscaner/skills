@@ -200,7 +200,7 @@ Insert after item 3 (pointers). Rule 0a becomes **4 items** (supersedes p1-slim.
 
 ### Dogfood
 
-**Synthetic plan:** `docs/superpowers/plans/2026-08-05-sdd-dogfood-synthetic.md` (2 tasks, gitignored scratch deliverables).
+**Synthetic plan:** `docs/superpowers/plans/2026-08-05-sdd-dogfood-synthetic.md` (2 tasks, workspace-only scratch deliverables).
 
 **Manual E2E (ship gate — both harnesses):**
 

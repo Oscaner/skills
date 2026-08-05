@@ -60,7 +60,9 @@ flowchart LR
 | Ship | `spor-receiving-code-review` | Unclear feedback → `grilling`; fixes → `tdd` (not in diagram — often mid-build or pre-ship) |
 | Policy | `spor-using-git-worktrees` | Refuses worktree creation (user policy) |
 | Cross-cutting | `spor-subagent-lifecycle` | Fresh subagent per pass; concurrency rules (referenced, no slash) |
-| Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3 review dispatch (referenced, no slash) |
+| Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3/D4 review dispatch (referenced, no slash) |
+| Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator file-only handoff (referenced, no slash) |
+| Cross-cutting | `spor-handoff-writer` | handoff.json writer subagent (referenced, no slash) |
 
 ## Usage
 

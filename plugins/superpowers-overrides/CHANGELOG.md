@@ -1,5 +1,24 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.15
+
+### Patch Changes
+
+- p0 handoff + lean code-review delegation
+
+
+- p1 SDD CLI harness — plugin-bundled sdd-run-task/plan scripts (cursor+claude full, codex/copilot/gemini stubs), H6–H8, SDD Rule 7, templates, and validate checks
+
+
+- p1-slim.1 spor-SDD on-disk slim — pointer-only Rule 0a/5b/5c, orchestrator checklist trimmed to ≤160 lines, CLI-default forbids upstream SDD skill body load
+
+
+- p1-slim.2 SDD orchestrator gate — cross-harness PreToolUse (Cursor + Claude Code), shared gate lib + session activate, spor-SDD Rule 0a checklist, CI smoke tests, and synthetic dogfood plan
+
+
+- p1-slim thin orchestrator — Rule 0 CLI-default vs p0 fallback branch, spor-executing-plans router, implement.md commit contract, Rule 5 split (5a/5b/5c)
+
+
 ## 6.2.0-overrides.14
 
 ### Patch Changes

@@ -142,7 +142,7 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 
 1. Install `superpowers` + `superpowers-overrides` from the marketplace.
 2. Run `/spor-init` in Cursor (copies or refreshes `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`; re-run after plugin upgrade if rules are stale).
-3. Invoke `/spor-brainstorming` directly, or use upstream slash commands and rely on rules intercept.
+3. Invoke `/spor-brainstorming` directly, or use upstream slash commands — plugin hooks detect and enforce override-first; project rules are fallback only.
 
 Manual verification: [CURSOR-SMOKE.md](./CURSOR-SMOKE.md).
 

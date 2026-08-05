@@ -38,16 +38,18 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 
 | Hook | Handler | Role |
 |------|---------|------|
-| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match bare `/brainstorming`, `/spor-*`, `superpowers:*`, upstream SKILL attach paths → write pending state |
+| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths only** → write pending (with `skill_suffix`) |
 | `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (spor SKILL path via `tool_input.path` or `tool_input.file_path`) or `Skill` (`superpowers-overrides:spor-*`); **deny** all other first tools |
 
-Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending; enforce blocks wrong first tools.
+Bare `/brainstorming`, `/spor-*`, and prefixed slash commands (`superpowers:*`) → **no pending**; self-check rules (`.cursor/rules/superpowers-overrides.mdc`) are primary enforcement for slash triggers.
+
+Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending on attach only; enforce blocks wrong first tools when pending exists.
 
 **Pending state contract** (detect writes, enforce reads):
 
 - Path: `$TMPDIR/oscaner-superpowers-overrides/pending/<session_key>.json`
 - `session_key` = `conversation_id` ?? `session_id` ?? first 16 hex of `sha256(prompt)`
-- Schema: `{"override":"spor-<slug>","detected_at":<unix>,"trigger":"bare-slash|prefixed|attach|spor-slash"}`
+- Schema: `{"override":"spor-<slug>","skill_suffix":"skills/spor-<slug>/SKILL.md","detected_at":<unix>,"trigger":"attach"}`
 - TTL: **300s** — expired pending → enforce allows and deletes file
 - Cleared when enforce allows a valid first tool
 
@@ -72,11 +74,14 @@ Project `CLAUDE.md` self-check (from `/spor-init`) is fallback when hooks are un
 - Cursor → `.cursor/rules/superpowers-overrides.mdc`
 - Claude Code → `CLAUDE.md` override trigger table
 
-Rules are **fallback only** on Cursor (hooks enforce). On both harnesses:
+On Cursor: hooks enforce on **upstream SKILL attach**; slash commands rely on these self-check rules as **primary** enforcement. On both harnesses:
 
 - **Anti-pattern:** manually attach upstream `superpowers/*/SKILL.md` body — attach **`spor-*`** or use slash commands instead; upstream SKILL full text in context still requires Read/Skill `spor-*` first.
 
-Manual smoke: `/brainstorming` in a fresh chat → first tool Read spor SKILL or deny wrong first tool (Settings → Hooks → Execution Log).
+Manual smoke (Settings → Hooks → Execution Log):
+
+1. `/brainstorming` + Grep first tool → **no deny** (no pending; self-check governs)
+2. Attach upstream `brainstorming/SKILL.md` + Grep first tool → **deny** → Read spor SKILL → allow
 
 ## Manifest schema
 
@@ -142,9 +147,9 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 
 1. Install `superpowers` + `superpowers-overrides` from the marketplace.
 2. Run `/spor-init` in Cursor (copies or refreshes `build/generated/cursor-self-check.mdc` → `.cursor/rules/superpowers-overrides.mdc`; re-run after plugin upgrade if rules are stale).
-3. Invoke `/spor-brainstorming` directly, or use upstream slash commands — plugin hooks detect and enforce override-first; project rules are fallback only.
+3. Invoke `/spor-brainstorming` directly, or use upstream slash commands — slash triggers rely on project self-check rules; hooks enforce on upstream SKILL attach only.
 
-Manual verification: same as above — `/brainstorming` → Read spor first; check Hook Execution Log.
+Manual verification: same as [Self-check rules](#self-check-rules-both-harnesses) smoke bullets above.
 
 ## Deferred harnesses (documented, not built)
 

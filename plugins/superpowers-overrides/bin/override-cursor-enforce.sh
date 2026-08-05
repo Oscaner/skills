@@ -93,5 +93,6 @@ if $allow; then
 fi
 
 skill_ref="superpowers-overrides:${override}"
-jq -n --arg skill_ref "$skill_ref" \
-  '{permission:"deny", agent_message: ("MANDATORY OVERRIDE — oscaner hook intercepted this turn.\nYour FIRST tool call MUST be Read(\"<path ending in /spor-<slug>/SKILL.md>\").\n(Claude Code: Skill(\"" + $skill_ref + "\") if available.)\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")}'
+skill_suffix=$(printf '%s' "$pending" | jq -r --arg override "$override" '.skill_suffix // ("skills/" + $override + "/SKILL.md")')
+jq -n --arg skill_suffix "$skill_suffix" --arg override "$override" --arg skill_ref "$skill_ref" \
+  '{permission:"deny", agent_message: ("MANDATORY OVERRIDE — upstream skill attached without spor override loaded.\nYour FIRST tool call MUST be Read(\"" + $skill_suffix + "\") using the fullPath from agent_skills for " + $override + ".\n(Claude Code: Skill(\"" + $skill_ref + "\") if available.)\nDo NOT follow the upstream skill checklist until the spor override is loaded.")}'

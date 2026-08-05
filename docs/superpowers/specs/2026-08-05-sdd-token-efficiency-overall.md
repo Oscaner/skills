@@ -192,4 +192,5 @@ penf (override-first — hook + rules + smoke)
 | v1.9 | 2026-08-05 | 新增 **pack-sp**（superpowers plugin-root + cursor-plugins/README hybrid 规则）；pack 标 impl 完成 |
 | v2.0 | 2026-08-05 | pack + pack-sp **shipped** @ `.13`；CURSOR-SMOKE 完成；p0 v1.3（Q7 自适应 diff、Q8 分级 test gate、`spor-handoff-writer` 独立 skill） |
 | v2.1 | 2026-08-05 | p1 v1.2 grilling：cursor+claude full / 3 stub BLOCKED；4-mode CLI；impl 门禁 = p0 release tag |
+| v2.2 | 2026-08-05 | p1-slim.1–2 shipped：H6 ref split + controller-handoff slim + p0 lazy-load + schema SOT |
 | v2.3 | 2026-08-06 | p1-slim.3 inventory row + charter；orchestrator load ≤350；line-budget CI |

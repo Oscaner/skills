@@ -3,7 +3,7 @@
 - **Version**: v1.0 · 2026-08-05
 - **Status**: Draft
 - **Author**: oscaner · Cursor Agent
-- **Program**: [overall v2.2](2026-08-05-sdd-token-efficiency-overall.md) (inventory row at impl — see §3)
+- **Program**: [overall v2.3](2026-08-05-sdd-token-efficiency-overall.md) (inventory row at impl — see §3)
 - **Phase ID**: p1-slim.3
 - **Depends on**: [p1-slim.2](2026-08-05-sdd-slim-orchestrator-p1-slim-2-design.md) @ HEAD
 

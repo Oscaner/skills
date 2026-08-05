@@ -63,7 +63,7 @@ Re-review scope: `FIX_BASE..HEAD` only.
 
 After code-review axes complete, the orchestrator **must not** merge Standards/Spec prose itself.
 
-Fresh [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) per lifecycle Rule 2 — implement/review/fix segments; paths only; `templates/sdd-handoff-writer-prompt.md` + `templates/sdd-handoff-schema.md`; cheapest model.
+Fresh [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) per [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 2 — implement/review/fix segments; paths only; `templates/sdd-handoff-writer-prompt.md` + `templates/sdd-handoff-schema.md`; cheapest model.
 
 ### Rule H6–H8 — CLI dispatch (reference)
 

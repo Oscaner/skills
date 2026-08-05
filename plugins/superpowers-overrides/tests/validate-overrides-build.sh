@@ -104,6 +104,9 @@ print('OK')
 echo "== validate generator outputs fresh =="
 "$ROOT/build/generate-all.sh" --check
 
+echo "== validate expansion script =="
+"$ROOT/tests/override-prompt-expansion.test.sh"
+
 echo "== validate self-check version stamps =="
 python3 -c "
 import json, re

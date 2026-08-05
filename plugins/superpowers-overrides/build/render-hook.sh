@@ -33,6 +33,8 @@ lines = [
 ]
 for t in targets:
     lines.append(f'  {t.overrides}) override="superpowers-overrides:{t.name}" ;;')
+    lines.append(f'  /{t.upstream_slug}) override="superpowers-overrides:{t.name}" ;;')
+    lines.append(f'  /{t.name}) override="superpowers-overrides:{t.name}" ;;')
 lines.extend(
     [
         "  *) exit 0 ;;",

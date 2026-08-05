@@ -37,7 +37,9 @@ Enforce this literally: after each task's Step 2.4 "Mark as completed", **before
 
 ### Rule 5 — After SDD redirect, apply p0 handoff discipline
 
-When Rule 1 redirects to `superpowers:subagent-driven-development`, the SDD session follows [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5 (orchestrator reads handoff.json only; handoff-writer mandatory; no review prose in controller context).
+When Rule 1 redirects to `superpowers:subagent-driven-development`, the SDD session follows [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H8 (orchestrator reads handoff.json only; handoff-writer mandatory; no review prose in controller context).
+
+When CLI is available (cursor/claude in PATH, harness script exists, no opt-out), SDD Rule 7 applies — per-task H6 four-mode CLI chain; orchestrator never enters CLI session internals. Opt-out or CLI missing (exit 2) → p0 H1–H5 in-session. See H6–H8 in controller-handoff skill.
 
 Inline executing-plans fallback (no subagents) is **out of p0 scope** — upstream behavior unchanged.
 
@@ -50,6 +52,7 @@ Inline executing-plans fallback (no subagents) is **out of p0 scope** — upstre
 - "The plan step doesn't say TDD, so I'll write code first and add tests after."
 - "Committing after each task fragments history — I'll squash into one at the end."
 - "SDD redirect means I can Read review reports in this session — executing-plans is different."
+- "executing-plans entry skips CLI when user typed /executing-plans."
 
 ## Common Rationalizations
 
@@ -59,3 +62,4 @@ Inline executing-plans fallback (no subagents) is **out of p0 scope** — upstre
 | "`using-git-worktrees` is marked REQUIRED in Integration" | CLAUDE.md forbids that skill entirely — see using-git-worktrees. Required by upstream ≠ required by user. |
 | "Each plan step is small, TDD adds overhead" | mattpocock-skills:tdd handles that — small steps still get seams + red-green. The overhead is the discipline that keeps small steps from silently drifting. |
 | "One squashed commit is cleaner history" | User's CLAUDE.md picked per-task commits. Cleanliness is their call, not the model's. |
+| "executing-plans is inline — no CLI" | Rule 1 redirect → SDD Rule 7; CLI available → H6 chain same as direct SDD entry. |

@@ -81,7 +81,7 @@ When both a spec doc and an implementation plan exist and satisfy ALL of:
 
 ### Rule 5 — Per-task review via code-review + handoff-writer
 
-Per-task review **replaces** upstream task-reviewer multi-pass flow. Controller discipline: [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5.
+Per-task review **replaces** upstream task-reviewer multi-pass flow. Controller discipline: [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H8 (H6–H8 when CLI available per Rule 7).
 
 **Sequence:**
 
@@ -117,6 +117,19 @@ If plugin installed but `code-review` load fails → ask user: wait / manual deg
 3. **Unverifiable** — axis reports flag unverifiable items → `unverifiable[]`; **non-empty → BLOCKED** until user confirms or writer re-run clears list.
 4. **NEEDS_CONTEXT** — handoff status → orchestrator STOP; request user context before resuming review/fix.
 
+### Rule 7 — CLI dispatch when available (p1)
+
+When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness>.sh` exists:
+
+1. Per-task execution **must** use H6 four-mode CLI chain — [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H6–H8.
+2. CLI unavailable (script exit **2**) or opt-out (`--no-cli` / `SDD_NO_CLI=1` / config `"cli": false`) → **p0** Rule 5/6 + H1–H5 in-session.
+3. Stub harness selected (codex/copilot/gemini) → script exit **1** → orchestrator **BLOCKED** (not p0 fallback).
+4. Orchestrator **still obeys Rule 6** after Read handoff: non-empty `plan_conflicts` → STOP; `NEEDS_CONTEXT` or non-empty `unverifiable` → STOP.
+5. **Final whole-branch review** — orchestrator in-session only (not CLI-dispatched).
+6. `{plugin_root}` resolution matches [`spor-init`](../spor-init/SKILL.md).
+
+**Impl gate:** p1 CLI code ships only after p0 release tag (see p1 spec Q10).
+
 ## Red Flags — STOP if you catch yourself thinking any of these
 
 - "Simple task — I'll use upstream task-reviewer, it's faster."
@@ -125,6 +138,10 @@ If plugin installed but `code-review` load fails → ask user: wait / manual deg
 - "Skip test-evidence.json — report has stdout."
 - "handoff-writer can wait until plan end."
 - "Batch of simple tasks — one round each."
+- "CLI is available but in-session is simpler — skip H6."
+- "Stub harness exit 1 — I'll fall back to p0."
+- "Exit 2 means stop the plan."
+- "Final review can run in a CLI session."
 
 ## Common Rationalizations
 
@@ -135,3 +152,5 @@ If plugin installed but `code-review` load fails → ask user: wait / manual deg
 | "3 files is soft boundary" | Hard boundary for complexity classification — affects diff scope. |
 | "Degradation path is the main path" | Degrade only when mattpocock-skills absent; warn once. |
 | "Fix round 6 will work" | H4 cap is 5 — STOP and escalate. |
+| "Rule 7 only applies when user asks for CLI" | Opt-in default — CLI available → H6 mandatory unless opt-out. |
+| "I'll dispatch final review as mode=review" | Q8 — final whole-branch review stays orchestrator in-session. |

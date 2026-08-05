@@ -17,6 +17,12 @@ allow=$(printf '%s' "{\"conversation_id\":\"conv-e1\",\"tool_name\":\"Read\",\"t
 echo "$allow" | jq -e '.permission == "allow"' >/dev/null
 [ ! -f "$PENDING_ROOT/conv-e1.json" ] || { echo "pending not cleared"; exit 1; }
 
+# Cursor Read payload uses file_path not path
+printf '%s' '{"conversation_id":"conv-e1b","prompt":"/brainstorming","attachments":[]}' | "$DETECT" >/dev/null
+allow_fp=$(printf '%s' "{\"conversation_id\":\"conv-e1b\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$SPOR_SKILL\"}}" | "$ENFORCE")
+echo "$allow_fp" | jq -e '.permission == "allow"' >/dev/null
+[ ! -f "$PENDING_ROOT/conv-e1b.json" ] || { echo "pending not cleared (file_path)"; exit 1; }
+
 # Skill invocation as valid first tool
 printf '%s' '{"conversation_id":"conv-e2","prompt":"/brainstorming","attachments":[]}' | "$DETECT" >/dev/null
 allow_skill=$(printf '%s' '{"conversation_id":"conv-e2","tool_name":"Skill","tool_input":{"skill":"superpowers-overrides:spor-brainstorming"}}' | "$ENFORCE")

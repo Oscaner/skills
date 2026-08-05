@@ -85,6 +85,22 @@ if [ -d "$ROOT/.cursor/skills" ]; then
 fi
 echo "OK"
 
+echo "== validate trigger patterns =="
+python3 "$ROOT/tests/trigger-patterns.test.py"
+
+echo "== validate hooks.json matchers =="
+python3 -c "
+import json, re
+from pathlib import Path
+root = Path('$ROOT')
+hooks = json.loads((root / 'hooks/hooks.json').read_text())
+matchers = [e['matcher'] for e in hooks['hooks']['UserPromptExpansion']]
+assert any(m.startswith('^superpowers:') for m in matchers)
+assert any('/brainstorming' in m for m in matchers)
+assert any('spor-' in m for m in matchers)
+print('OK')
+"
+
 echo "== validate generator outputs fresh =="
 "$ROOT/build/generate-all.sh" --check
 

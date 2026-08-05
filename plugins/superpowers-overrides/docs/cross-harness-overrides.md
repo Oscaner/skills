@@ -39,7 +39,7 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 | Hook | Handler | Role |
 |------|---------|------|
 | `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match bare `/brainstorming`, `/spor-*`, `superpowers:*`, upstream SKILL attach paths → write pending state |
-| `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (spor SKILL path) or `Skill` (`superpowers-overrides:spor-*`); **deny** all other first tools |
+| `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (spor SKILL path via `tool_input.path` or `tool_input.file_path`) or `Skill` (`superpowers-overrides:spor-*`); **deny** all other first tools |
 
 Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending; enforce blocks wrong first tools.
 

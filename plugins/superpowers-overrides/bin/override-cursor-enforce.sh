@@ -73,7 +73,7 @@ tool_input=$(printf '%s' "$input" | jq -c '.tool_input // {}')
 allow=false
 
 if [ "$tool_name" = "Read" ]; then
-  read_path=$(printf '%s' "$tool_input" | jq -r '.path // ""')
+  read_path=$(printf '%s' "$tool_input" | jq -r '.path // .file_path // ""')
   if [ -n "$read_path" ] && printf '%s' "$read_path" | grep -Eiq "/skills/${override}/SKILL\.md$|/${override}/SKILL\.md$"; then
     allow=true
   fi
@@ -94,4 +94,4 @@ fi
 
 skill_ref="superpowers-overrides:${override}"
 jq -n --arg skill_ref "$skill_ref" \
-  '{permission:"deny", agent_message: ("MANDATORY OVERRIDE — oscaner hook intercepted this turn.\nYour FIRST tool call MUST be Skill(\"" + $skill_ref + "\").\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")}'
+  '{permission:"deny", agent_message: ("MANDATORY OVERRIDE — oscaner hook intercepted this turn.\nYour FIRST tool call MUST be Read(\"<path ending in /spor-<slug>/SKILL.md>\").\n(Claude Code: Skill(\"" + $skill_ref + "\") if available.)\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")}'

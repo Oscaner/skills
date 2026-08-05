@@ -4,7 +4,7 @@ Humans edit **only** [source.json](./source.json). All marketplace manifests are
 
 ## Edit workflow
 
-1. Change [source.json](./source.json) (plugin metadata, versions, Cursor wrapper paths).
+1. Change [source.json](./source.json) (plugin metadata, versions, Cursor paths).
 2. Run emit:
 
 ```bash
@@ -25,13 +25,23 @@ pnpm run validate
 |------|---------|
 | `.claude-plugin/marketplace.json` | Claude Code |
 | `.cursor-plugin/marketplace.json` | Cursor Team Marketplace |
-| `cursor-plugins/<name>/.cursor-plugin/plugin.json` | Cursor plugin wrappers |
+| `cursor-plugins/<name>/.cursor-plugin/plugin.json` | Cursor plugin wrappers (wrapper mode only) |
+| `plugins/superpowers-overrides/.cursor-plugin/plugin.json` | Cursor manifest at plugin root (`emitMode: plugin-root`) |
 
-Files include `"_generated": "scripts/emit-marketplace.mjs — do not edit"`. CI step 7 fails if emit output is stale.
+Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit output is stale.
+
+## Cursor install modes
+
+| Mode | `source.json` cursor block | Cursor marketplace `source` |
+|------|---------------------------|----------------------------|
+| **Wrapper** (default) | `displayName` + `skills` (+ optional `hooks`) | `cursor-plugins/<name>` |
+| **Plugin-root** | `{ "emitMode": "plugin-root" }` only | `./<contentRoot>` (reads plugin's `.cursor-plugin/plugin.json`) |
+
+Today only **`superpowers-overrides`** uses plugin-root. Other plugins keep wrapper emit.
 
 ## Schema
 
-[source.schema.json](./source.schema.json) validates required fields. Each plugin needs a `cursor` block with `displayName` and `skills` (string path relative to `cursor-plugins/<name>/`).
+[source.schema.json](./source.schema.json) validates required fields. `cursor` is **oneOf**: wrapper block or `{ "emitMode": "plugin-root" }`.
 
 ## Version truth
 
@@ -46,4 +56,4 @@ Emit fails when `source.json` versions disagree with truth sources.
 
 ## Cursor Team Marketplace
 
-Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. All four plugins resolve via `.cursor-plugin/marketplace.json` and `cursor-plugins/` wrappers.
+Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`; `superpowers-overrides` installs from plugin root (see [MIGRATION-pack-single-layer.md](../plugins/superpowers-overrides/docs/MIGRATION-pack-single-layer.md)).

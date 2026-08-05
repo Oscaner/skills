@@ -1,6 +1,6 @@
 {
   "name": "superpowers-overrides",
-  "version": "6.2.0-overrides.11",
+  "version": "6.2.0-overrides.12",
   "skills": [
     "./skills/spor-init",
     "./skills/spor-brainstorming",

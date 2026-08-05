@@ -17,6 +17,13 @@ description: MUST invoke BEFORE superpowers:subagent-driven-development as your 
    - Orchestrator: Setup/ledger/plan-constraints via upstream scripts + Rule 7 + controller-handoff H6–H8; per-task Rule 1 → Rule 4 (once) → TASK_BASE in brief → H6 → Rule 5a → Rule 6; final whole-branch review orchestrator in-session (no CLI final)
    - Worker discipline SOT: `templates/sdd-cli/{implement,handoff,review,fix}.md` — do not paraphrase Rule 3/5b/5c
    - CLI worker review steps run in H6 subprocesses only — see Rule 5a (orchestrator does NOT dispatch handoff-writer/code-review in-session)
+4. **Orchestrator checklist (compact — mandatory when Rule 0a applies):**
+
+   **Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task.
+
+   **Per-task:** Rule 1 classify → Rule 4 confirm once → append `TASK_BASE: <sha>` to brief → shell H6 chain (implement → handoff/implement → review → handoff/review; fix per Rule 2) → Read handoff.json only → Rule 5a + Rule 6 → ledger on APPROVED. **Never** edit repo deliverables in this session — H6 CLI only.
+
+   **Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`.
 
 #### Rule 0b — p0 fallback
 
@@ -46,17 +53,7 @@ Simple/Complex affects **only**:
 
 **Per-task review chain (Simple = Complex):** one code-review + handoff-writer implement + review segments — no multi-pass spor reviewers.
 
-**Batching:** When multiple Simple tasks share the same feature area or files, batch as one block:
-
-| Item | Convention |
-|------|------------|
-| Handoff | one `batch-<first>-<last>-handoff.json` |
-| Review | one code-review + one handoff-writer review segment |
-| Diff | `FIRST_TASK_BASE..LAST_HEAD`, `review_scope: batch` |
-| Ledger | still one complete line per task |
-| Test gate | hard if **any** batched task triggers hard gate |
-
-Do **not** reclassify a batch as Complex for extra review rounds — batching changes scope files only.
+**Batching:** When multiple Simple tasks share the same feature area or files, batch as one block: one `batch-<first>-<last>-handoff.json`, one code-review + one handoff-writer review segment, diff `FIRST_TASK_BASE..LAST_HEAD` with `review_scope: batch`, ledger still one line per task, hard test gate if any batched task triggers it. Do **not** reclassify a batch as Complex for extra review rounds — batching changes scope files only.
 
 ### Rule 2 — Fix loop until approved (cap 5)
 
@@ -86,6 +83,8 @@ Confirm once before first p0 dispatch or first H6 shell (Rule 0a). Do not duplic
 ### Rule 5 — Per-task review (split by path)
 
 #### Rule 5a — Orchestrator gates (both paths)
+
+PreToolUse gate denies non-workspace writes during TASK_ACTIVE (both harnesses).
 
 When Rule 0a applies, orchestrator gates only — H6 + templates run worker review.
 
@@ -142,6 +141,9 @@ When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness
 - "CLI available — I'll Read upstream SDD for Setup context."
 - "Rule 0a — I'll paraphrase tdd in the override instead of citing implement.md."
 - "p0 fallback — skip the announce line."
+- "Hook will block me — I'll edit repo files before TASK_BASE / outside H6."
+- "Task is markdown-only — skip H6 and handoff.json."
+- "I'll mark ledger complete with inline review."
 
 ## Common Rationalizations
 
@@ -150,8 +152,6 @@ When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness
 | "code-review is overkill for tiny tasks" | p0 program invariant — delegation is the token win. |
 | "I'll merge axis reports myself" | H5 forbids it — handoff-writer exists for structured extraction. |
 | "3 files is soft boundary" | Hard boundary for complexity classification — affects diff scope. |
-| "Degradation path is the main path" | Degrade only when mattpocock-skills absent; warn once. |
 | "Fix round 6 will work" | H4 cap is 5 — STOP and escalate. |
 | "Rule 7 only applies when user asks for CLI" | Opt-in default — CLI available → H6 mandatory unless opt-out. |
 | "I'll dispatch final review as mode=review" | Q8 — final whole-branch review stays orchestrator in-session. |
-| "Rule 5c is redundant when CLI works" | Rule 0b requires full p0 path; 5c is the only in-session review dispatch. |

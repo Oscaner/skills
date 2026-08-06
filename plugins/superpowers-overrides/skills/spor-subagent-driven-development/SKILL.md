@@ -12,7 +12,7 @@ description: MUST invoke BEFORE superpowers:subagent-driven-development as your 
 1. When Rule 7 item 1 applies (CLI available, not stub BLOCKED) → this session **must not** Read/Skill upstream `subagent-driven-development` **skill body** (including `implementer-prompt.md`, `task-reviewer-prompt.md`, and other prompt files under that skill directory).
 2. **Allowed:** shell-invoke upstream **scripts only** — `plugins/superpowers/skills/subagent-driven-development/scripts/sdd-workspace`, `task-brief`, `review-package` (resolve paths via `{plugin_root}`). Do **not** Read other Markdown prompts under the upstream SDD skill tree.
 3. **Pointers:** orchestrator → Rule 7 + [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5 + `{plugin_root}/docs/sdd-h6-reference.md`; workers → `templates/sdd-cli/*.md`; worker review in H6 subprocesses only (Rule 5a).
-4. **Orchestrator checklist (compact — mandatory when Rule 0a applies):**
+4. **Orchestrator checklist (compact — mandatory when Rule 0 applies):**
 
    **Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task.
 
@@ -41,13 +41,13 @@ Affects **only** diff scope (`review_scope`), test gate (Rule 6), model tier (Ru
 
 ### Rule 4 — Cheaper models when spec + plan complete
 
-Spec+plan complete → cheapest implementer tier; code-review/final default; handoff-writer cheapest. Confirm once before first dispatch/H6 (Rule 0a).
+Spec+plan complete → cheapest implementer tier; code-review/final default; handoff-writer cheapest. Confirm once before first dispatch/H6 (Rule 0).
 
 ### Rule 5 — Per-task review (split by path)
 
 #### Rule 5a — Orchestrator gates (both paths)
 
-PreToolUse gate + handoff.json only (H2). STOP on `plan_conflicts`; `CHANGES_REQUESTED` → Rule 2 (CLI fix chain); `NEEDS_CONTEXT` or `unverifiable` → STOP. Rule 0a: H6 runs worker review. Cite [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5.
+PreToolUse gate + handoff.json only (H2). STOP on `plan_conflicts`; `CHANGES_REQUESTED` → Rule 2 (CLI fix chain); `NEEDS_CONTEXT` or `unverifiable` → STOP. Rule 0: H6 runs worker review. Cite [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5.
 
 ### Rule 6 — Quality invariants
 

@@ -2,7 +2,7 @@
 # sdd-run-plan-cursor.sh — Mode B plan driver: pending tasks × 4-mode Cursor chain (p1)
 #
 # Invokes sibling sdd-run-task-cursor.sh per mode. Ledger append on APPROVED only (spec §2.9).
-# SDD_DRY_RUN=1 propagates to task script (no live cursor agent).
+# SDD_DRY_RUN=1 propagates to task script (no live cursor-agent).
 #
 # Usage:
 #   sdd-run-plan-cursor.sh --plan PATH
@@ -40,8 +40,8 @@ done
 [[ -n "$PLAN_FILE" ]] || usage
 [[ -f "$PLAN_FILE" ]] || sdd_exit_blocked "plan file not found: ${PLAN_FILE}"
 
-if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v cursor >/dev/null 2>&1; then
-  sdd_exit_cli_missing "cursor not found in PATH"
+if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v cursor-agent >/dev/null 2>&1; then
+  sdd_exit_cli_missing "cursor-agent not found in PATH"
 fi
 [[ -x "$TASK_SCRIPT" ]] || sdd_exit_blocked "task script missing or not executable: ${TASK_SCRIPT}"
 

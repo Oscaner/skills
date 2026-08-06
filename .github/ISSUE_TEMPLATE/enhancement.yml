@@ -1,0 +1,46 @@
+name: Enhancement
+description: Suggest an improvement to spor skills or workflow
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to suggest improvements found during dogfood use of spor skills.
+        Additional labels (`dogfood`, `superpowers-overrides`, `sdd`) will be added by maintainers.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: "Dogfood session context: branch, date, which spor skills were in use"
+      placeholder: "Branch: feat/my-feature, Date: 2026-08-06, Skills: spor-subagent-driven-development"
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: What happens today?
+    validations:
+      required: true
+  - type: textarea
+    id: desired-behavior
+    attributes:
+      label: Desired behavior
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: suggested-approach
+    attributes:
+      label: Suggested approach
+      description: Concrete suggestion, or "Open for discussion"
+      placeholder: Open for discussion
+    validations:
+      required: false
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to related issues or commits, if known
+    validations:
+      required: false

@@ -36,16 +36,15 @@ plugins/superpowers-overrides/
 .github/
 └── ISSUE_TEMPLATE/
     ├── bug_report.yml
-    ├── enhancement.yml
-    └── config.yml
+    └── enhancement.yml
 ```
 
 ### 修改
 
 | 文件 | 变更 |
 |------|------|
-| `plugins/superpowers-overrides/.claude-plugin/plugin.json` | 注册 `./skills/spor-report-issue` |
-| `plugins/superpowers-overrides/overrides.manifest.json` | 添加 standalone skill 条目（无 `overrides` 目标） |
+| `plugins/superpowers-overrides/.claude-plugin/plugin.json` | 注册 `./skills/spor-report-issue`（与 `spor-subagent-lifecycle`、`spor-handoff-writer` 同方式，仅加入 `skills` 数组） |
+| `plugins/superpowers-overrides/overrides.manifest.json` | **无需修改**。manifest schema 要求每条目必须有 `overrides` 字段（`plugin:skill` 格式），standalone skill 不入 manifest，只注册到 `plugin.json` |
 | `README.md` | 添加 skill 说明行 |
 
 ---
@@ -68,7 +67,7 @@ plugins/superpowers-overrides/
 
 1. **对话上下文**（最直接）：当前 session 的工具调用记录、错误信息、handoff 状态、review 发现的 findings
 2. **Ledger**：读 `.superpowers/sdd/*/progress.md`，提取 fix round、BLOCKED、parked、deferred minor 条目
-3. **Git log**：`git log <merge-base>..HEAD --oneline`，识别 fix round 提交（`fix:` 前缀）和异常提交模式
+3. **Git log**：`git log $(git merge-base HEAD origin/main)..HEAD --oneline`（以 `origin/main` 为基准，识别 fix round 提交（`fix:` 前缀）和异常提交模式；若 `origin/main` 不可用则回退到 `git log -20 --oneline`）
 
 #### 阶段 2 — 分类归纳（Claude 推理）
 
@@ -104,7 +103,13 @@ plugins/superpowers-overrides/
    - **跳过**：记录但不提交
 3. 按用户选择执行
 
-**语言规则：** issue title 和 body 使用当前 session 语言（从对话上下文检测，不询问用户）。
+**语言规则：** issue title 和 body 使用当前 session 语言。检测方式：看用户在**当前 session 中最近几条消息**使用的语言，以最后一条用户消息的语言为准。若 session 为混合语言（如问题描述用英文、对话用中文），以对话语言（中文）为准。回退默认：英文。
+
+**重复检测机制：**
+1. `gh issue list --state open --limit 100 --json number,title,body` 获取所有开放 issue
+2. 对每条待提交问题，提取**受影响组件名**（如 `sdd-run-task-claude.sh`、`handoff-writer`、`gate`）和**核心行为词**（如 `timeout`、`CHANGES_REQUESTED`、`exit 137`）作为关键词
+3. 在已有 issue 的 title 和 body 中做**大小写不敏感的子串匹配**
+4. 匹配到任意一条 → 展示候选列表，询问用户：**新建 / comment / 跳过**；无匹配 → 询问用户：**新建 / 跳过**
 
 **Labels 策略：**
 
@@ -113,7 +118,7 @@ plugins/superpowers-overrides/
 | `bug` 或 `enhancement` | 按问题类型固定 |
 | `dogfood` | skill 自动添加（所有 spor-report-issue 提交的 issue 都是 dogfood）|
 | `superpowers-overrides` | skill 自动添加（硬编码当前 plugin 名；未来其他 plugin 复制时修改此处）|
-| `sdd` | 按内容判断：涉及 SDD / H6 / orchestrator / handoff 时追加 |
+| `sdd` | 按内容判断：涉及 SDD（Subagent-Driven Development）/ H6 CLI 链 / orchestrator / handoff 时追加 |
 
 #### 阶段 5 — 最终汇报
 
@@ -232,7 +237,7 @@ SKILL.md 内嵌两个 CLI 模板（中英双语各一套，按 session 语言选
 
 - `name`: Bug report
 - `description`: Report a bug found while using spor skills
-- `labels`: `["bug"]`（其余由 skill 动态追加）
+- `labels`: `["bug"]`（其余 label 由 skill 通过 `gh issue create --label` 动态追加；通过 GitHub web UI 使用此模板创建的 issue 仅有 `bug` label，不含 `dogfood`/`superpowers-overrides`——web UI 路径属于手动上报，label 由用户自行补充）
 - 字段：**Context**、**Problem**、**Impact**、**Suggested fix**、**Related**
 - 字段结构与 SKILL.md Bug Template 完全一致
 
@@ -240,14 +245,13 @@ SKILL.md 内嵌两个 CLI 模板（中英双语各一套，按 session 语言选
 
 - `name`: Enhancement
 - `description`: Suggest an improvement to spor skills or workflow
-- `labels`: `["enhancement"]`
+- `labels`: `["enhancement"]`（同 bug_report.yml，web UI 路径 label 由用户自行补充）
 - 字段：**Context**、**Current behavior**、**Desired behavior**、**Suggested approach**、**Related**
 - 字段结构与 SKILL.md Enhancement Template 完全一致
 
 ### `config.yml`
 
-- `blank_issues_enabled: false`
-- 引导用户选择上述两个模板之一
+删除。`blank_issues_enabled: false` 只影响 GitHub web UI，对 skill CLI 路径无任何贡献，属于非目标范围的限制。不新增此文件。
 
 ---
 

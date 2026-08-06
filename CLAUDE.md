@@ -206,9 +206,9 @@ Only **`superpowers-overrides`** is versioned from this repo. Integration branch
 
 **Daily work:** open PRs against `develop`. CI runs `validate` on PRs to `develop` and `main`.
 
-**Overrides-only changes:** run `pnpm changeset`, describe the change, merge PR to `develop`. Push to `develop` with pending changesets triggers [.github/workflows/changesets-version.yml](.github/workflows/changesets-version.yml), which opens a Version PR against `develop`. Merge that Version PR on `develop`.
+**Overrides-only changes:** run `pnpm changeset`, describe the change, merge PR to `develop` (changesets accumulate on `develop`; no release workflow runs there).
 
-**Release to production:** open a PR `develop → main` (must pass `validate` and **Main PRs must come from develop**). Merge to `main` → [.github/workflows/release.yml](.github/workflows/release.yml) creates the git tag and GitHub Release. No Version PR runs on `main`.
+**Release to production:** open a PR `develop → main` (must pass `validate` and **Main PRs must come from develop**). Merge to `main` → [.github/workflows/release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**. Merge the Version PR on `main` → git tag and GitHub Release. When `main` is ahead of `develop`, the workflow opens an automated **`main → develop`** sync PR — merge it manually to align `develop`.
 
 **Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0.0.0`, run `node scripts/sync-overrides-versions.mjs`. Merge to `develop`, then release via `develop → main` as above.
 

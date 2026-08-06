@@ -63,6 +63,7 @@ flowchart LR
 | Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3/D4 review dispatch (referenced, no slash) |
 | Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator file-only handoff (referenced, no slash) |
 | Cross-cutting | `spor-handoff-writer` | handoff.json writer subagent (referenced, no slash) |
+| Cross-cutting | `spor-report-issue` | Analyse spor session findings and file GitHub issues via gh CLI; manual only |
 
 ## Usage
 

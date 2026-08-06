@@ -30,7 +30,7 @@ Cursor 官方提供了两个 agent CLI 入口：
 - **Rule 7 item 2 中的降级动作**：`→ p0 Rule 0b → spor-sdd-p0-fallback` 替换为 `→ BLOCKED，报告原因`
 - **所有 `spor-sdd-p0-fallback` 链接引用**
 - **Red Flags 过时条目**：
-  - `"Exit 2 means stop the plan."`（本就错误理解 exit 2，清除避免混淆）
+  - `"Exit 2 means stop the plan."`——新行为是 exit 2 → 显式 BLOCKED + 报告原因（非静默停止），此条目描述的是"误以为 exit 2 会默默终止计划"的错误认知，已由新 Rule 7 item 2 的明确措辞取代，保留反而引起歧义
   - `"p0 fallback — skip the announce line."`
 - **Common Rationalizations 过时条目**：
   - `"Rule 7 only applies when user asks for CLI"` — opt-out 不复存在，此行失效
@@ -56,7 +56,7 @@ Rule 0 — Path: CLI-mandatory (p1)
 - Rule 0 orchestrator checklist（compact，所有步骤）
 - Rule 1（task complexity）
 - Rule 2（fix loop cap 5）
-- Rule 4（cheaper models）
+- Rule 4（cheaper models）— 注：Rule 3 在当前 SKILL.md 中不存在，编号直接从 Rule 2 跳到 Rule 4，保持不变
 - Rule 5（per-task review）
 - Rule 6（quality invariants）
 - Rule 7 items 1、3、4、5
@@ -78,8 +78,9 @@ Rule 0 — Path: CLI-mandatory (p1)
 | `runCursorProviderSmoke` — `run(...)` 调用 | `run('agent', [...])` | `run('cursor-agent', [...])` |
 | `runAgentChoiceCursor` — `run(...)` 调用 | `run('agent', [...])` | `run('cursor-agent', [...])` |
 | `ensureCursorAgent` — version check | `run('agent', ['--version'], ...)` | `run('cursor-agent', ['--version'], ...)` |
-| `ensureCursorAgent` — 认证错误信息 | `agent login` | `cursor-agent login` |
-| `ensureCursorAgent` — install curl 命令（如有 `agent` 引用） | 视实际内容更新 | 同步 |
+| `ensureCursorAgent` — 认证错误信息（出现两处，约 L668 和 L845） | `` `agent login` `` | `` `cursor-agent login` `` |
+
+> **注：** `ensureCursorAgent` 的安装命令是 `curl https://cursor.com/install -fsS | bash`，不含 `agent` 字面量，无需修改。
 
 #### `plugins/superpowers-overrides/bin/sdd-run-task-cursor.sh`
 
@@ -97,15 +98,17 @@ Rule 0 — Path: CLI-mandatory (p1)
 | CLI 存在性检测 | `command -v cursor` | `command -v cursor-agent` |
 | `sdd_exit_cli_missing` 错误信息 | `cursor not found in PATH` | `cursor-agent not found in PATH` |
 
+> **注：** `sdd-run-plan-cursor.sh` 不直接调用 cursor CLI——实际调用委托给 `sdd-run-task-cursor.sh`（`_run_task_mode` 函数）。因此无需改"CLI 调用"行，只需更新存在性检测和错误信息，与 task 脚本对齐。
+
 #### `plugins/impeccable/skill/reference/hooks.md`
 
-涉及 Cursor CLI 的安装和使用说明（用户面向文档），将 `cursor agent` / `agent` 等 Cursor CLI 命令引用更新为 `cursor-agent`。具体行数在实施时确认。
+经核查，`hooks.md` 中没有 `cursor agent` CLI 命令引用——涉及 Cursor 的内容均为 Settings UI 操作说明（"confirm hooks are enabled under Settings -> Hooks"）和配置文件路径（`.cursor/hooks.json`），不含需要更新的命令行字符串。**此文件无需修改。**
 
 ---
 
 ## 变更 C — 需求 1（状态可见性）
 
-跳过。由 hedr 满足。
+跳过。由 hedr（harness event-driven renderer，live-server 的浏览器端 agent 状态展示层）满足，无需在本次变更中处理。
 
 ---
 
@@ -122,5 +125,5 @@ Rule 0 — Path: CLI-mandatory (p1)
 1. `spor-subagent-driven-development` SKILL.md 中不再出现 `p0`、`Rule 0b`、`spor-sdd-p0-fallback`、`opt-out`、`SDD_NO_CLI` 等词
 2. CLI 不可用时，SDD 输出 BLOCKED 并报告具体原因，不静默降级
 3. `sdd-run-task-cursor.sh` 和 `sdd-run-plan-cursor.sh` 中不再出现 `cursor agent`（空格版）
-4. `smoke-provider-hooks.mjs` 中所有 cursor 相关调用使用 `cursor-agent`
+4. `smoke-provider-hooks.mjs` 中所有 cursor 相关 CLI 调用使用 `cursor-agent`，认证错误信息同步
 5. `pnpm run validate` 通过

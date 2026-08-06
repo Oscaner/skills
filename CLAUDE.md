@@ -202,13 +202,19 @@ This runs steps 1–5 above plus generator drift checks, overrides version tripl
 
 ## Releasing
 
-Only **`superpowers-overrides`** is versioned from this repo. Tags look like `superpowers-overrides@6.2.0-overrides.11` — the prerelease suffix tracks which vendored `superpowers` version the overrides target; new superpowers bases start at `{semver}-overrides.0`.
+Only **`superpowers-overrides`** is versioned from this repo. Integration branch is **`develop`**; **`main`** receives releases only via PRs from `develop`.
 
-**Overrides-only changes:** run `pnpm changeset`, describe the change, open a PR, merge to `main`. The release workflow opens a Version PR; merge it to create the git tag.
+**Daily work:** open PRs against `develop`. CI runs `validate` on PRs to `develop` and `main`.
 
-**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0`, run `node scripts/sync-overrides-versions.mjs`. Merge triggers [release.yml](.github/workflows/release.yml) (github-script tag + GitHub Release).
+**Overrides-only changes:** run `pnpm changeset`, describe the change, merge PR to `develop`. Push to `develop` with pending changesets triggers [.github/workflows/changesets-version.yml](.github/workflows/changesets-version.yml), which opens a Version PR against `develop`. Merge that Version PR on `develop`.
 
-**Version scheme:** `{superpowers-semver}-overrides.{N}`. See [.changeset/README.md](.changeset/README.md).
+**Release to production:** open a PR `develop → main` (must pass `validate` and **Main PRs must come from develop**). Merge to `main` → [.github/workflows/release.yml](.github/workflows/release.yml) creates the git tag and GitHub Release. No Version PR runs on `main`.
+
+**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0.0.0`, run `node scripts/sync-overrides-versions.mjs`. Merge to `develop`, then release via `develop → main` as above.
+
+**Version scheme:** `{superpowers-semver}-overrides.{major}.{minor}.{patch}` (three-segment suffix). Tags look like `superpowers-overrides@6.2.0-overrides.0.15.0`. Changeset patch releases increment **patch** only on the same superpowers base. Any superpowers semver segment change (including patch) resets overrides to `{new-base}-overrides.0.0.0` — not the legacy `-overrides.0` single-counter form. See [.changeset/README.md](.changeset/README.md).
+
+**Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with [`scripts/gh-branch-rulesets.sh`](scripts/gh-branch-rulesets.sh) (`protect-develop`, `protect-main`; no bypass actors). Legacy single-counter release tags can be removed post-first new-format release via [`scripts/cleanup-legacy-release-tags.sh`](scripts/cleanup-legacy-release-tags.sh).
 
 ## Git conventions for this repo
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # sdd-run-task-cursor.sh — Cursor full harness: one SDD mode per invocation (p1)
 #
-# cursor agent invocation (source of truth for flags):
-#   cursor agent --print --output-format text --force "$prompt"
+# cursor-agent invocation (source of truth for flags):
+#   cursor-agent --print --output-format text --force "$prompt"
 #
 # Do not use --resume or any flag that carries prior session history (spec H6.5).
-# SDD_DRY_RUN=1 skips cursor agent (argument parsing / orchestration smoke tests).
+# SDD_DRY_RUN=1 skips cursor-agent (argument parsing / orchestration smoke tests).
 #
 # Usage:
 #   sdd-run-task-cursor.sh --task N --mode implement|handoff|review|fix [--segment implement|review|fix]
@@ -61,8 +61,8 @@ done
 
 [[ -n "$TASK_NUM" && -n "$SDD_MODE_ARG" ]] || usage
 
-if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v cursor >/dev/null 2>&1; then
-  sdd_exit_cli_missing "cursor not found in PATH"
+if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v cursor-agent >/dev/null 2>&1; then
+  sdd_exit_cli_missing "cursor-agent not found in PATH"
 fi
 
 _sdd_repo_root() {
@@ -202,14 +202,14 @@ blocker: none
 EOF
 )"
 else
-  agent_out="$(cursor agent --print --output-format text --force "$prompt" 2>/dev/null)" || agent_rc=$?
+  agent_out="$(cursor-agent --print --output-format text --force "$prompt" 2>/dev/null)" || agent_rc=$?
 fi
 
 _sdd_emit_h1_four_lines "$agent_out"
 
 if [[ "$agent_rc" -ne 0 ]]; then
   if [[ ! -f "${SDD_HANDOFF_PATH}" ]]; then
-    sdd_exit_blocked "cursor agent exited ${agent_rc} and handoff missing"
+    sdd_exit_blocked "cursor-agent exited ${agent_rc} and handoff missing"
   fi
   exit "$agent_rc"
 fi

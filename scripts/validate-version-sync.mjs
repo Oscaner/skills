@@ -14,6 +14,10 @@ const v = [p.version, src.version, j.version, entry.version];
 if (new Set(v).size !== 1) {
   throw new Error(`version mismatch: ${v.join(" ")}`);
 }
+const THREE_SEG = /^\d+\.\d+\.\d+-overrides\.\d+\.\d+\.\d+$/;
+if (!THREE_SEG.test(p.version)) {
+  throw new Error(`Invalid overrides version format: ${p.version}`);
+}
 console.log("OK —", p.version);
 
 const sp = s.plugins.find((x) => x.name === "superpowers").version;

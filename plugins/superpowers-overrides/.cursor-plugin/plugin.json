@@ -3,7 +3,7 @@
   "name": "superpowers-overrides",
   "displayName": "Superpowers Overrides",
   "description": "Personal overrides for the superpowers plugin that force delegation to other skills.",
-  "version": "6.2.0-overrides.15",
+  "version": "6.2.0-overrides.0.15.0",
   "author": {
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"

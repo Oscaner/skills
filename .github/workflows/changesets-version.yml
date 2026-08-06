@@ -1,0 +1,34 @@
+name: Changesets Version
+
+on:
+  push:
+    branches: [develop]
+
+concurrency: changesets-version-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run emit
+      - uses: changesets/action@v1
+        with:
+          version: node scripts/version-packages.mjs
+          publish: echo "Version PR only — publish happens on main"
+          commit: "chore: release superpowers-overrides"
+          title: "chore: release superpowers-overrides"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

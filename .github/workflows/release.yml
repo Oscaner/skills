@@ -1,3 +1,5 @@
+# Version PRs: .github/workflows/changesets-version.yml (push → develop)
+# Tag + GitHub Release: this workflow (push → main only)
 name: Release
 
 on:

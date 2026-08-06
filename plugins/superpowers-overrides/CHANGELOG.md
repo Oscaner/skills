@@ -1,5 +1,11 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.0.15.0
+
+### Patch Changes
+
+- Version scheme: adopt three-segment overrides semver `{base}-overrides.{major}.{minor}.{patch}` (migrated from `6.2.0-overrides.15`).
+
 ## 6.2.0-overrides.15
 
 ### Patch Changes

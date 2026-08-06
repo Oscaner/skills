@@ -52,7 +52,7 @@ Proceed to Phase 4 only after explicit confirmation.
 
 For each confirmed finding:
 
-1. Run: `gh issue list --state open --limit 100 --json number,title,body`
+1. Run: `gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`
 2. Extract keywords from the finding: **affected component name** (e.g. `sdd-run-task-claude.sh`, `handoff-writer`, `gate`) and **core behaviour words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`). Match case-insensitively as substrings against existing issue titles and bodies.
 3. **Match found** → show matching issues, ask user: **Create new issue / Add comment to existing / Skip**
 4. **No match** → ask user: **Create new issue / Skip**

@@ -1,6 +1,6 @@
 # SDD Token 效率改造 — Overall Spec
 
-- **Version**: v2.2 · 2026-08-05
+- **Version**: v2.3 · 2026-08-06
 - **Status**: Draft
 - **Author**: kang · Cursor Agent
 - **Constraints**:
@@ -41,6 +41,7 @@
 | 薄 orchestrator + 模板 SOT | **p1-slim** | [p1-slim design](2026-08-05-sdd-slim-orchestrator-design.md) | p1 ship | impl complete |
 | spor-SDD on-disk slim | **p1-slim.1** | [p1-slim.1 design](2026-08-05-sdd-slim-orchestrator-v2-design.md) | p1-slim ship | impl complete |
 | SDD orchestrator gate | **p1-slim.2** | [p1-slim.2 design](2026-08-05-sdd-slim-orchestrator-p1-slim-2-design.md) | p1-slim.1 ship | impl complete |
+| Orchestrator load ≤350 | **p1-slim.3** | [p1-slim.3 design](2026-08-05-sdd-slim-orchestrator-p1-slim-3-design.md) | p1-slim.2 ship | Pending |
 
 **交付物摘要（charter）**
 
@@ -54,6 +55,7 @@
 | p1-slim | Rule 0 CLI/p0 branch；Rule 5 split；executing-plans router；implement.md commit |
 | p1-slim.1 | spor-SDD ≤160 lines；Rule 0a/5b/5c pointer-only |
 | p1-slim.2 | PreToolUse gate + spor-SDD checklist + dogfood |
+| p1-slim.3 | H6 ref split + p0 lazy-load + schema SOT + line-budget CI |
 
 ### penf → pack 过渡（已知）
 
@@ -190,3 +192,5 @@ penf (override-first — hook + rules + smoke)
 | v1.9 | 2026-08-05 | 新增 **pack-sp**（superpowers plugin-root + cursor-plugins/README hybrid 规则）；pack 标 impl 完成 |
 | v2.0 | 2026-08-05 | pack + pack-sp **shipped** @ `.13`；CURSOR-SMOKE 完成；p0 v1.3（Q7 自适应 diff、Q8 分级 test gate、`spor-handoff-writer` 独立 skill） |
 | v2.1 | 2026-08-05 | p1 v1.2 grilling：cursor+claude full / 3 stub BLOCKED；4-mode CLI；impl 门禁 = p0 release tag |
+| v2.2 | 2026-08-05 | p1-slim.1–2 shipped：H6 ref split + controller-handoff slim + p0 lazy-load + schema SOT |
+| v2.3 | 2026-08-06 | p1-slim.3 inventory row + charter；orchestrator load ≤350；line-budget CI |

@@ -16,7 +16,8 @@ echo "$deny_orch" | jq -e '.permission == "deny"' >/dev/null
 allow_git=$(printf '%s' "{\"conversation_id\":\"conv-g1\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"git -C $REPO rev-parse HEAD\"}}" | "$GATE")
 echo "$allow_git" | jq -e '.permission == "allow"' >/dev/null
 
-# AC#4 TASK_ACTIVE — add TASK_BASE, no APPROVED handoff
+# AC#4 TASK_ACTIVE — bind workspace, add TASK_BASE, no APPROVED handoff
+"$ACTIVATE" bind conv-g1 "$REPO" "dogfood-plan.md" "$WS"
 echo 'TASK_BASE: abc' > "$WS/task-1-brief.md"
 deny_active=$(printf '%s' "{\"conversation_id\":\"conv-g1\",\"tool_name\":\"Write\",\"tool_input\":{\"path\":\"$REPO/plugins/foo.txt\",\"contents\":\"x\"}}" | "$GATE")
 echo "$deny_active" | jq -e '.permission == "deny"' >/dev/null

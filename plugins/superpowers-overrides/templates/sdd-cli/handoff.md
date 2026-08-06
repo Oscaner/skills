@@ -16,6 +16,8 @@
 4. When segment is **review** and status is **CHANGES_REQUESTED**, also write the open-findings JSON beside the handoff (handoff-writer owns the path).
 5. Do **not** write ledger — orchestrator-only.
 
+Handoff JSON shape: see `templates/sdd-handoff-schema.md` in plugin root.
+
 ## Return (H1 — stdout only)
 
 Return **exactly 4 lines** to stdout:

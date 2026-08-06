@@ -66,6 +66,9 @@ for slug in spor-init spor-subagent-lifecycle spor-token-efficient-review-dispat
 done
 echo "OK"
 
+echo "== validate SDD orchestrator line budget =="
+"$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
+
 echo "== validate plugin.json alignment =="
 python3 -c "
 import json, os

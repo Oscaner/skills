@@ -17,5 +17,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/ci-validate.sh

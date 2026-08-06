@@ -23,69 +23,9 @@ Structured extraction subagent — reads artifact **paths**, writes/updates `han
 2. On `CHANGES_REQUESTED`: write open-findings file from handoff `findings[]`
 3. Return H1 four-line contract to orchestrator (no review prose)
 
-### Status by segment
+## Schema
 
-| Segment | Set `phase` | Allowed `status` |
-|---------|-------------|------------------|
-| implement | `implement` | `DONE`, `BLOCKED` |
-| review / fix | `review` or `fix` | `APPROVED`, `CHANGES_REQUESTED`, `NEEDS_CONTEXT`, `BLOCKED` |
-
-## handoff.json schema
-
-**Single task** (`task` field — mutually exclusive with `tasks[]`):
-
-```json
-{
-  "task": 2,
-  "phase": "implement",
-  "status": "DONE",
-  "commits": { "base": "<TASK_BASE>", "head": "<HEAD>" },
-  "complexity": "simple",
-  "review_scope": "task",
-  "artifacts": {
-    "brief": ".superpowers/sdd/.../task-2-brief.md",
-    "report": ".superpowers/sdd/.../task-2-report.md",
-    "diff": ".superpowers/sdd/.../task-2-review-package.diff",
-    "review_standards": ".../task-2-review-standards.md",
-    "review_spec": ".../task-2-review-spec.md"
-  },
-  "test_evidence": {
-    "command": "pnpm test ...",
-    "passed": true,
-    "exit_code": 0,
-    "warnings_count": 0
-  },
-  "findings": [],
-  "unverifiable": [],
-  "plan_conflicts": []
-}
-```
-
-**Batch** (`tasks[]` — no `task` field):
-
-```json
-{
-  "tasks": [2, 3, 4],
-  "phase": "review",
-  "status": "APPROVED",
-  "commits": { "base": "<FIRST_TASK_BASE>", "head": "<LAST_HEAD>" },
-  "complexity": "batch",
-  "review_scope": "batch",
-  "artifacts": {},
-  "test_evidence": {},
-  "findings": [],
-  "unverifiable": [],
-  "plan_conflicts": []
-}
-```
-
-**`commits.base` alignment:**
-
-| review_scope | commits.base |
-|--------------|--------------|
-| `task` | `TASK_BASE` |
-| `plan` | `PLAN_BASE` |
-| `batch` | `FIRST_TASK_BASE` |
+Read field definitions and examples from [`templates/sdd-handoff-schema.md`](../../templates/sdd-handoff-schema.md) — do not paraphrase.
 
 ## Test evidence gate
 

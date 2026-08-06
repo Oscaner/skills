@@ -71,6 +71,10 @@ Cross-harness PreToolUse enforcement for SDD orchestrator sessions (Cursor + Cla
 
 Claude Code: `hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `override-claude-sdd-gate.sh`. Generators are SOT — run `pnpm run generate:overrides` after manifest edits.
 
+### SDD H6 reference doc (p1-slim.3)
+
+CLI env/exit/harness tables live in `docs/sdd-h6-reference.md`. Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
+
 ### Claude Code — triple matcher + expansion
 
 **File:** `hooks/hooks.json` — three `UserPromptExpansion` matchers (manifest-generated):

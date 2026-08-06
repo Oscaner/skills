@@ -58,7 +58,7 @@ git submodule update --init
 
 After editing overrides: `pnpm run generate:overrides && pnpm run emit && pnpm run validate`.
 
-**Branch flow:** `develop` is the default integration branch — day-to-day PRs merge here. Production releases land on `main` only via a `develop → main` PR (enforced by CI and GitHub Rulesets). Changeset Version PRs target `develop`; merging to `main` creates the git tag and GitHub Release.
+**Branch flow:** `develop` is the default integration branch — day-to-day PRs merge here and accumulate changesets. Production releases land on `main` only via a `develop → main` PR (enforced by CI and GitHub Rulesets). Version PRs, git tags, and GitHub Releases run on **`main`** only; an automated **`main → develop`** sync PR keeps `develop` aligned after release.
 
 Release: [`.changeset/README.md`](.changeset/README.md). Contributor pattern: [`CLAUDE.md`](CLAUDE.md).
 

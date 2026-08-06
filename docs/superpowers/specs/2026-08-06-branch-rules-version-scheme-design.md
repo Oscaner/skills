@@ -5,6 +5,8 @@
 **Repo:** [Oscaner/skills](https://github.com/Oscaner/skills)  
 **Scope:** GitHub branch governance, CI gates, automation target branches, superpowers-overrides semver migration
 
+> **Deviation (2026-08-06):** Changesets release flow superseded by [2026-08-06-changesets-release-on-main-design.md](./2026-08-06-changesets-release-on-main-design.md). Version PRs now target `main` (not `develop`); after release, an automated `main → develop` sync PR aligns branches.
+
 ## Problem
 
 Today:

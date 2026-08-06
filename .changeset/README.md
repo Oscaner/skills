@@ -2,7 +2,9 @@
 
 We use [changesets](https://github.com/changesets/changesets) to manage releases for `superpowers-overrides`.
 
-**Integration branch:** `develop` (configured as `baseBranch` in [config.json](config.json)).
+**Integration branch:** `develop` — feature PRs merge here and accumulate `.changeset/*.md` files.
+
+**Release branch:** `main` — configured as `baseBranch` in [config.json](config.json). Version PRs, tags, and GitHub Releases happen only on `main`.
 
 ## When to add a changeset
 
@@ -21,11 +23,10 @@ Versions follow `{superpowers-semver}-overrides.{major}.{minor}.{patch}`:
 
 ## Release flow
 
-1. Add a changeset in your PR (if needed)
-2. Merge PR to **`develop`**
-3. [changesets-version workflow](.github/workflows/changesets-version.yml) opens a Version PR against **`develop`**
-4. Merge the Version PR on **`develop`** (bumps version on develop only)
-5. Open a separate PR **`develop → main`**
-6. Merge to **`main`** → git tag `superpowers-overrides@{version}` and GitHub Release from [release.yml](.github/workflows/release.yml)
+1. Add a changeset in your PR (if needed) and merge to **`develop`**
+2. Open a PR **`develop → main`**
+3. Merge to **`main`** → [release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**
+4. Merge the Version PR on **`main`** → git tag `superpowers-overrides@{version}` and GitHub Release
+5. When `main` is ahead of `develop`, an automated **`main → develop`** sync PR opens — merge it manually to align `develop` with the released version
 
 See [CLAUDE.md](../CLAUDE.md) and [README.md](../README.md) for full details.

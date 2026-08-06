@@ -67,15 +67,18 @@ For each confirmed finding:
 | `bug` or `enhancement` | Always — matches finding type |
 | `dogfood` | Always — all issues filed by this skill are found during dogfood |
 | `superpowers-overrides` | Always — hardcoded to this plugin name |
-| `sdd` | When finding mentions SDD, H6 CLI chain, orchestrator, or handoff |
+| `sdd` | When finding mentions SDD, SDD CLI harness (sdd-run-task-*.sh), orchestrator, or handoff |
 
 **`gh issue create` invocation pattern:**
 ```bash
+# <type> is "bug" or "enhancement"; append ",sdd" when the finding is SDD-related
 gh issue create \
   --repo Oscaner/skills \
   --title "<title>" \
-  --label "bug,dogfood,superpowers-overrides" \
+  --label "<type>,dogfood,superpowers-overrides" \
   --body "<rendered body from template below>"
+# SDD-related finding:
+# --label "<type>,dogfood,superpowers-overrides,sdd"
 ```
 
 **`gh issue comment` invocation pattern:**

@@ -66,6 +66,9 @@ node scripts/validate-marketplace.mjs
 echo "== 7. marketplace emit freshness =="
 node scripts/emit-marketplace.mjs --check
 
+echo "== 7b. version-utils tests =="
+node --test scripts/lib/version-utils.test.mjs
+
 echo "== 8–10. version sync =="
 node scripts/validate-version-sync.mjs
 

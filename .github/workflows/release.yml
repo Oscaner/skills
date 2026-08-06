@@ -1,3 +1,8 @@
+# Release flow (main only):
+#   develop accumulates .changeset/*.md → develop→main PR → push main
+#   → changesets/action opens Version PR (target main)
+#   → merge Version PR → publish + tag + GitHub Release
+#   → sync PR main→develop when main is ahead of develop
 name: Release
 
 on:
@@ -17,6 +22,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -25,6 +31,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run emit
       - uses: changesets/action@v1
+        id: changesets
         with:
           version: node scripts/version-packages.mjs
           publish: pnpm exec changeset tag
@@ -70,8 +77,36 @@ jobs:
               core.setOutput('exists', 'false');
             }
       - name: Create GitHub Release if missing
+        id: gh-release
         if: steps.release-exists.outputs.exists != 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: superpowers-overrides@${{ steps.overrides-ver.outputs.version }}
           generate_release_notes: true
+      - name: Check if develop is behind main
+        if: steps.changesets.outputs.published == 'true' || steps.gh-release.outcome == 'success'
+        id: needs-sync
+        run: |
+          git fetch origin main develop
+          ahead=$(git rev-list --count origin/develop..origin/main)
+          echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
+          echo "needs_sync=$([ "$ahead" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Prepare main → develop back-merge
+        if: steps.needs-sync.outputs.needs_sync == 'true'
+        run: |
+          git fetch origin main develop
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B chore/sync-main-to-develop origin/develop
+          git merge origin/main -m "chore: sync main release back to develop"
+      - name: Open sync PR main → develop
+        if: steps.needs-sync.outputs.needs_sync == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          base: develop
+          branch: chore/sync-main-to-develop
+          title: "chore: sync main release back to develop"
+          commit-message: "chore: sync main release back to develop"
+          body: |
+            Automated back-merge after release on `main`.
+            Merge to keep `develop` aligned with the released version.

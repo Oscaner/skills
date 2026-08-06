@@ -1,0 +1,21 @@
+name: Main Source Gate
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited]
+
+jobs:
+  enforce:
+    name: Main PRs must come from develop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "develop" ]; then
+            echo "::error::PRs to main must come from 'develop' (got '$HEAD_REF'). Merge into develop first."
+            exit 1
+          fi
+          echo "OK: PR comes from develop."

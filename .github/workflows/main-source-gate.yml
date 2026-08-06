@@ -14,8 +14,17 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [ "$HEAD_REF" != "develop" ]; then
-            echo "::error::PRs to main must come from 'develop' (got '$HEAD_REF'). Merge into develop first."
-            exit 1
-          fi
-          echo "OK: PR comes from develop."
+          # develop: integration release PRs
+          # changeset-release/*: Version PRs opened by changesets/action on main
+          case "$HEAD_REF" in
+            develop)
+              echo "OK: PR comes from develop."
+              ;;
+            changeset-release/*)
+              echo "OK: changesets Version PR ($HEAD_REF)."
+              ;;
+            *)
+              echo "::error::PRs to main must come from 'develop' or 'changeset-release/*' (got '$HEAD_REF'). Merge into develop first."
+              exit 1
+              ;;
+          esac

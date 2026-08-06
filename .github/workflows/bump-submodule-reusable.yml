@@ -114,7 +114,7 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           branch: chore/bump-${{ inputs.submodule }}
-          base: main
+          base: develop
           title: "chore: bump ${{ inputs.submodule }} submodule"
           commit-message: "chore: bump ${{ inputs.submodule }} submodule"
           labels: |

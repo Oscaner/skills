@@ -71,6 +71,12 @@ Cross-harness PreToolUse enforcement for SDD orchestrator sessions (Cursor + Cla
 
 Claude Code: `hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `override-claude-sdd-gate.sh`. Generators are SOT — run `pnpm run generate:overrides` after manifest edits.
 
+**Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell or Write under the bound workspace.
+
+**Deny message:** a multi-line allowlist matrix listing every allowed Bash verb, the allowed Write root (`.superpowers/sdd/<plan-basename>/`), and the H6 implement shell. Same single-source verb list drives both the judgment and the message.
+
+**Anti-hijack:** a task brief activates only when its `TASK_BASE` is a real git object (`git -C <repo> cat-file -e <sha>`, CWD-independent) — stale stub SHAs never activate a workspace. Bound workspace (`pending.workspace`) wins; the gate scans only when unbound, so it is not hijacked by unrelated/stale workspaces. Full matrix in [`sdd-h6-reference.md`](sdd-h6-reference.md) (§ SDD gate matrix).
+
 ### SDD H6 reference doc (p1-slim.3)
 
 CLI env/exit/harness tables live in `docs/sdd-h6-reference.md`. Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.

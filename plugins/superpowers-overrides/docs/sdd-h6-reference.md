@@ -103,3 +103,34 @@ Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback).
 ## Mode B (opt-in / AFK)
 
 **Mode B (opt-in / AFK):** `{plugin_root}/bin/sdd-run-plan-<harness>.sh --plan <path>` reads plan + ledger; for each **pending task** runs the same 4-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 4-mode chain once.
+
+## SDD gate matrix
+
+The orchestrator PreToolUse gate (`bin/lib/sdd-orchestrator-gate.sh`, p1-slim.2) blocks direct repo edits while a task is active. Judgment is one decision point — `sdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
+
+The gate is fail-open until an active task resolves (spec 安全属性 / data-flow step 1):
+
+| Tool | Condition | Decision |
+|------|-----------|----------|
+| any | `jq` missing — `sdd_gate_decide` returns allow before any check | **allow** (fail-open) |
+| any | no pending file for the session | **allow** (fail-open) |
+| any | pending expired (>24h) → pending cleared | **allow** (fail-open) |
+| Write/Edit | path under `active_ws` | **allow** |
+| Write/Edit | path under `.superpowers/sdd/**`, phase `orchestrating` | **allow** |
+| Write/Edit | phase `inactive` / `task_complete` | **allow** |
+| Write/Edit | any other repo path | **deny** |
+| Bash/Shell | allowlist (`sdd-run-task-*` / `sdd-workspace` / `task-brief` / `review-package`) | **allow** |
+| Bash/Shell | read-only git verb (allowlist below) | **allow** |
+| Bash/Shell | anything else — mutating git, `ls`/`echo`, heredoc writes, compound commands | **deny** |
+| Bash/Shell | phase `inactive` / `task_complete` | **allow** |
+| other tools | — | allow |
+
+**Shell contract:**
+
+- Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> …`, `git -C <path> <verb> …`, `git --git-dir=<path> <verb> …`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
+- Repo changes flow **only** through the H6 implement shell (`sdd-run-task-<harness>.sh --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
+- Non-git read-only commands (`ls`, `echo`, …) are intentionally still denied (slim read-only set decision; see spec §Non-goals).
+
+**Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), `sdd_resolve_workspace` wins and the gate never scans unrelated workspaces.
+
+**Test override:** `SDD_GATE_FIXTURES_ROOT` replaces `.superpowers/sdd` resolution in `sdd_find_active_workspace` / `sdd_gate_decide` — gate tests point it at temp copies of `tests/fixtures/sdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `tests/sdd-gate-allow-deny-smoke.sh`.

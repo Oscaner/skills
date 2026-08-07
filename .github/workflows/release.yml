@@ -2,7 +2,7 @@
 #   develop accumulates .changeset/*.md → develop→main PR → push main
 #   → changesets/action opens Version PR (target main)
 #   → merge Version PR → publish + tag + GitHub Release
-#   → sync PR main→develop when main is ahead of develop (always checked post-release)
+#   → sync-main-to-develop.yml opens PR when main is ahead of develop
 name: Release
 
 on:
@@ -83,31 +83,8 @@ jobs:
         with:
           tag_name: superpowers-overrides@${{ steps.overrides-ver.outputs.version }}
           generate_release_notes: true
-      - name: Check if develop is behind main
-        id: needs-sync
-        run: |
-          git fetch origin main develop
-          ahead=$(git rev-list --count origin/develop..origin/main)
-          echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
-          echo "needs_sync=$([ "$ahead" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "main is $ahead commit(s) ahead of develop"
-      - name: Prepare and push sync branch
-        if: steps.needs-sync.outputs.needs_sync == 'true'
-        run: |
-          git fetch origin main develop
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B chore/sync-main-to-develop origin/develop
-          git merge origin/main -m "chore: sync main release back to develop"
-          git push origin chore/sync-main-to-develop --force-with-lease
-      - name: Open sync PR main → develop
-        if: steps.needs-sync.outputs.needs_sync == 'true'
-        uses: peter-evans/create-pull-request@v8
-        with:
-          base: develop
-          branch: chore/sync-main-to-develop
-          title: "chore: sync main release back to develop"
-          commit-message: "chore: sync main release back to develop"
-          body: |
-            Automated back-merge after release on `main`.
-            Merge to keep `develop` aligned with the released version.
+
+  sync-develop:
+    needs: release
+    uses: ./.github/workflows/sync-main-to-develop.yml
+    secrets: inherit

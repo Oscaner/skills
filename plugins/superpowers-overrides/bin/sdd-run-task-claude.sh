@@ -4,6 +4,10 @@
 # claude invocation (source of truth for flags):
 #   claude -p "$prompt" --output-format text --dangerously-skip-permissions
 #
+#   Print mode (-p) is one-shot — no session is registered in /resume or
+#   ~/.claude/sessions/. Audit trail is ledger + handoff files, not session
+#   list. See H6.6 in sdd-h6-reference.md.
+#
 # Do not use --resume, -r/--resume, -c/--continue, or any flag that carries prior
 # session history (spec H6.5).
 # SDD_DRY_RUN=1 skips claude (argument parsing / orchestration smoke tests).

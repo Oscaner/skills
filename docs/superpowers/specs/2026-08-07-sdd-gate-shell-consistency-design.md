@@ -302,14 +302,14 @@ fixture 模板是**普通目录**（不含 `.git`、不含 `.superpowers`），�
 
 | # | Scenario | Pass? | Date |
 |---|----------|-------|------|
-| 1 | 只读 git allow（orchestrating/task_active） | Pending | |
-| 2 | 变更类 git deny | Pending | |
-| 3 | stub-ws 不激活 / active-ws 激活 | Pending | |
-| 4 | bound-ws 不扫描无关 workspace | Pending | |
-| 5 | deny 消息含多行矩阵（git 清单与白名单一致，含 `git show`） | Pending | |
-| 6 | `task_complete` 后 allow | Pending | |
-| 7 | fixture 隔离：测试不碰真实 `.superpowers/sdd/`，临时副本注入 short-SHA | Pending | |
-| 8 | `pnpm run validate` | Pending | |
+| 1 | 只读 git allow（orchestrating/task_active） | ✅ | 2026-08-07 |
+| 2 | 变更类 git deny | ✅ | 2026-08-07 |
+| 3 | stub-ws 不激活 / active-ws 激活 | ✅ | 2026-08-07 |
+| 4 | bound-ws 不扫描无关 workspace | ✅ | 2026-08-07 |
+| 5 | deny 消息含多行矩阵（git 清单与白名单一致，含 `git show`） | ✅ | 2026-08-07 |
+| 6 | `task_complete` 后 allow | ✅ | 2026-08-07 |
+| 7 | fixture 隔离：测试不碰真实 `.superpowers/sdd/`，临时副本注入 short-SHA | ✅ | 2026-08-07 |
+| 8 | `pnpm run validate` | ✅ | 2026-08-07 |
 
 ## Grilling record
 

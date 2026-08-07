@@ -74,13 +74,50 @@ sdd_extract_command() {
   printf '%s' "$tool_input_json" | jq -r '.command // empty'
 }
 
-sdd_bash_allowed() {
+sdd_shell_allowed() {
   local cmd="$1"
   case "$cmd" in
     *sdd-run-task-*|*sdd-workspace*|*task-brief*|*review-package*) return 0 ;;
-    *rev-parse*) return 0 ;;
   esac
+  if sdd_git_verb_allowed "$cmd"; then
+    return 0
+  fi
   return 1
+}
+
+# 提取 git 子命令并查只读白名单。提取失败 → return 1（deny，fail-closed）。
+# 支持：git <verb>、git -C <path> <verb>、git --git-dir=<path> <verb>
+# v1 不支持：git -C <path> -c k=v <verb>（-c 配置选项）→ 提取失败 → deny
+sdd_git_verb_allowed() {
+  local cmd="$1" verb=""
+  local -a tokens=()
+  read -r -a tokens <<<"$cmd"
+  [[ "${tokens[0]:-}" == "git" ]] || return 1
+  local i=1
+  while [[ $i -lt ${#tokens[@]} ]]; do
+    case "${tokens[$i]}" in
+      -C)
+        i=$((i + 2))        # 跳过 -C 及其路径
+        continue
+        ;;
+      --git-dir=*)          # 跳过 --git-dir=<path>
+        i=$((i + 1))
+        continue
+        ;;
+      -*)                   # 其它未知 flag → 提取失败 → deny
+        return 1
+        ;;
+      *)
+        verb="${tokens[$i]}"
+        break
+        ;;
+    esac
+  done
+  [[ -n "$verb" ]] || return 1
+  case "$verb" in
+    status|diff|log|show|rev-parse|branch|remote|ls-files|diff-tree) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 sdd_is_under_path() {
@@ -213,12 +250,24 @@ sdd_deny_message() {
   local harness="$1" task_num="$2" plan_basename="$3"
   local plugin_root
   plugin_root="$(sdd_plugin_root_from_lib)"
-  cat <<EOF
-SDD orchestrator gate — direct repo edits forbidden during active task.
-Run: ${plugin_root}/bin/sdd-run-task-${harness}.sh --task ${task_num} --mode implement
-Allowed writes: .superpowers/sdd/${plan_basename}/ only.
-See spor-SDD Rule 0a item 4.
-EOF
+  cat <<-EOF
+	SDD orchestrator gate — direct repo edits forbidden during active task.
+
+	Allowed Bash (read-only diagnostics):
+	  git status / git diff / git log / git show / git rev-parse / git branch / git remote
+	  git ls-files / git diff-tree
+	  ${plugin_root}/bin/sdd-run-task-${harness}.sh
+	  sdd-workspace / task-brief / review-package
+
+	Allowed Write:
+	  .superpowers/sdd/${plan_basename}/
+
+	Repo changes flow only through:
+	  ${plugin_root}/bin/sdd-run-task-${harness}.sh --task ${task_num} --mode implement
+
+	Full matrix: docs/sdd-h6-reference.md (SDD gate matrix)
+	See spor-SDD Rule 0a item 4.
+	EOF
 }
 
 sdd_plan_basename() {
@@ -297,7 +346,7 @@ sdd_gate_decide() {
 
   if sdd_is_shell_tool "$tool_name"; then
     cmd="$(sdd_extract_command "$tool_input_json")"
-    if sdd_bash_allowed "$cmd"; then
+    if sdd_shell_allowed "$cmd"; then
       printf 'allow\n'
       return 0
     fi

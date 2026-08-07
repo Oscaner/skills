@@ -111,7 +111,8 @@ for needle in "SDD orchestrator gate" "Allowed Bash (read-only diagnostics):" \
               "git branch" "git remote" "git ls-files" "git diff-tree" \
               "sdd-run-task-claude.sh" "sdd-workspace / task-brief / review-package" \
               "Allowed Write:" ".superpowers/sdd/active-ws/" \
-              "--task 1 --mode implement" "See spor-SDD Rule 0a item 4."; do
+              "--task 1 --mode implement" "Full matrix: docs/sdd-h6-reference.md (SDD gate matrix)" \
+              "See spor-SDD Rule 0a item 4."; do
   r="$(bash_reason "$S1" "ls")"
   [[ "$r" == *"$needle"* ]] || fail "deny message missing: $needle"
 done

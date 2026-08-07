@@ -108,8 +108,13 @@ Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback).
 
 The orchestrator PreToolUse gate (`bin/lib/sdd-orchestrator-gate.sh`, p1-slim.2) blocks direct repo edits while a task is active. Judgment is one decision point — `sdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
 
+The gate is fail-open until an active task resolves (spec 安全属性 / data-flow step 1):
+
 | Tool | Condition | Decision |
 |------|-----------|----------|
+| any | `jq` missing — `sdd_gate_decide` returns allow before any check | **allow** (fail-open) |
+| any | no pending file for the session | **allow** (fail-open) |
+| any | pending expired (>24h) → pending cleared | **allow** (fail-open) |
 | Write/Edit | path under `active_ws` | **allow** |
 | Write/Edit | path under `.superpowers/sdd/**`, phase `orchestrating` | **allow** |
 | Write/Edit | phase `inactive` / `task_complete` | **allow** |
@@ -122,7 +127,7 @@ The orchestrator PreToolUse gate (`bin/lib/sdd-orchestrator-gate.sh`, p1-slim.2)
 
 **Shell contract:**
 
-- Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> …`, `git -C <path> <verb> …`, `git --git-dir=<path> <verb> …`. Anything else — compound commands (`&& | ; > < $( \``), `git -C <path> -c k=v <verb>`, unknown flags, quotes — fails verb extraction → **deny** (fail-closed).
+- Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> …`, `git -C <path> <verb> …`, `git --git-dir=<path> <verb> …`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
 - Repo changes flow **only** through the H6 implement shell (`sdd-run-task-<harness>.sh --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
 - Non-git read-only commands (`ls`, `echo`, …) are intentionally still denied (slim read-only set decision; see spec §Non-goals).
 

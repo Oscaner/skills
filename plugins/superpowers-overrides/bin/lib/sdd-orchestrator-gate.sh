@@ -298,6 +298,7 @@ ${verbs}
 	Repo changes flow only through:
 	  ${plugin_root}/bin/sdd-run-task-${harness}.sh --task ${task_num} --mode implement
 
+	Full matrix: docs/sdd-h6-reference.md (SDD gate matrix)
 	See spor-SDD Rule 0a item 4.
 	EOF
 }

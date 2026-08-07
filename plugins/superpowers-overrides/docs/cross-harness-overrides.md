@@ -71,7 +71,7 @@ Cross-harness PreToolUse enforcement for SDD orchestrator sessions (Cursor + Cla
 
 Claude Code: `hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `override-claude-sdd-gate.sh`. Generators are SOT — run `pnpm run generate:overrides` after manifest edits.
 
-**Shell allowance (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell.
+**Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell or Write under the bound workspace.
 
 **Deny message:** a multi-line allowlist matrix listing every allowed Bash verb, the allowed Write root (`.superpowers/sdd/<plan-basename>/`), and the H6 implement shell. Same single-source verb list drives both the judgment and the message.
 

@@ -243,7 +243,7 @@ fixture 模板是**普通目录**（不含 `.git`、不含 `.superpowers`），�
 | 无 pending / pending 过期 | allow（现状） |
 | `git cat-file -e` 失败（stub SHA 或非 git 根） | workspace 不被视为 active → 不劫持（`git -C "$repo_root" cat-file -e` 绑定仓库根） |
 | `git` 不在 PATH | 保守 deny（`git_object_exists` 返回 1，`git_verb_allowed` 对 git 命令返回 1） |
-| 命令含引号/复杂 token | `sdd_git_verb_allowed` 提取失败 → deny（fail-closed） |
+| verb token 或 branch/remote 参数含引号（如 `git "status"` / `git branch "foo"`） | `sdd_git_verb_allowed` 提取失败 → deny（fail-closed）；参数位置引号（`git status "a b"`、`git log --format="%h"`）按空格拆分，不触发提取失败 → allow |
 | `git -C <path> -c k=v <verb>` | **v1 不在提取范围** → deny（fail-closed，接受行为） |
 | `sdd-workspace` 创建 workspace（orchestrating） | brief 无 TASK_BASE → 不触发 active |
 | 测试 | `SDD_GATE_FIXTURES_ROOT` 覆盖 `.superpowers/sdd` 解析 |

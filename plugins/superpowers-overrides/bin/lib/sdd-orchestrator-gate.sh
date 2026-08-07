@@ -183,9 +183,12 @@ sdd_git_object_exists() {
 }
 
 sdd_find_active_workspace() {
-  local repo_root="$1"
-  local sdd_root="$repo_root/.superpowers/sdd" dir brief n handoff
+  local sdd_root="$1" repo_root dir brief n handoff
   [[ -d "$sdd_root" ]] || return 1
+  # git-object 校验绑定 sdd_root 所属仓库根（CWD 无关）。常规布局 $repo_root/.superpowers/sdd
+  # 与 fixture 布局 $TMPFIX/sdd 的仓库根深度不同，统一由 git toplevel 解析，不依赖固定上溯级数。
+  repo_root="$(git -C "$sdd_root" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$repo_root" ]] || return 1
   for dir in "$sdd_root"/*/; do
     [[ -d "$dir" ]] || continue
     n=1
@@ -324,7 +327,7 @@ sdd_plan_basename() {
 
 sdd_write_allowed() {
   local abs_path="$1" repo_root="$2" workspace="$3" phase="$4"
-  local sdd_root="$repo_root/.superpowers/sdd"
+  local sdd_root="${SDD_GATE_FIXTURES_ROOT:-$repo_root/.superpowers/sdd}"
   case "$phase" in
     inactive|task_complete) return 0 ;;
     orchestrating)
@@ -343,7 +346,7 @@ sdd_write_allowed() {
 # stdout: allow | deny|<message>
 sdd_gate_decide() {
   local harness="$1" tool_name="$2" tool_input_json="$3" session_key="$4"
-  local pending detected_at repo_root workspace phase abs_path cmd task_num plan_base msg
+  local pending detected_at repo_root sdd_root workspace phase abs_path cmd task_num plan_base msg
 
   if ! command -v jq >/dev/null 2>&1; then
     printf 'allow\n'
@@ -366,10 +369,12 @@ sdd_gate_decide() {
   repo_root="$(printf '%s' "$pending" | jq -r '.repo_root // empty')"
   [[ -n "$repo_root" ]] || { printf 'allow\n'; return 0; }
 
+  sdd_root="${SDD_GATE_FIXTURES_ROOT:-$repo_root/.superpowers/sdd}"
+
   workspace="$(sdd_resolve_workspace "$repo_root" "$pending" || true)"
   active_ws="$workspace"
   if [[ -z "$active_ws" ]]; then
-    active_ws="$(sdd_find_active_workspace "$repo_root" || true)"
+    active_ws="$(sdd_find_active_workspace "$sdd_root" || true)"
   fi
   phase="$(sdd_gate_phase "$repo_root" "$active_ws" "$pending")"
 

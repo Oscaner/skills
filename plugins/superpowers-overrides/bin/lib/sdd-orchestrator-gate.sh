@@ -74,6 +74,11 @@ sdd_extract_command() {
   printf '%s' "$tool_input_json" | jq -r '.command // empty'
 }
 
+# 只读 git 动词白名单 — 单源（判定 + deny 消息矩阵共用）。
+sdd_readonly_git_verbs() {
+  printf '%s\n' "status diff log show rev-parse branch remote ls-files diff-tree"
+}
+
 sdd_shell_allowed() {
   local cmd="$1"
   case "$cmd" in
@@ -88,12 +93,18 @@ sdd_shell_allowed() {
 # 提取 git 子命令并查只读白名单。提取失败 → return 1（deny，fail-closed）。
 # 支持：git <verb>、git -C <path> <verb>、git --git-dir=<path> <verb>
 # v1 不支持：git -C <path> -c k=v <verb>（-c 配置选项）→ 提取失败 → deny
+# 含 shell 操作符（&& | ; > < $( ` 换行）或多行命令 → deny（防复合命令绕过）。
+# branch/remote 只放行只读子参数（-a -r -v --show-current），拒绝变更类
+# （-d -D -m 及位置参数如 branch <new>、remote add/remove/set-url）。
 sdd_git_verb_allowed() {
-  local cmd="$1" verb=""
+  local cmd="$1" verb="" i
   local -a tokens=()
+  case "$cmd" in
+    *"&&"*|*"|"*|*";"*|*">"*|*"<"*|*"\$("*|*"\`"*|*$'\n'*) return 1 ;;
+  esac
   read -r -a tokens <<<"$cmd"
   [[ "${tokens[0]:-}" == "git" ]] || return 1
-  local i=1
+  i=1
   while [[ $i -lt ${#tokens[@]} ]]; do
     case "${tokens[$i]}" in
       -C)
@@ -114,8 +125,19 @@ sdd_git_verb_allowed() {
     esac
   done
   [[ -n "$verb" ]] || return 1
-  case "$verb" in
-    status|diff|log|show|rev-parse|branch|remote|ls-files|diff-tree) return 0 ;;
+  if [[ "$verb" == "branch" || "$verb" == "remote" ]]; then
+    local j=$((i + 1))
+    while [[ $j -lt ${#tokens[@]} ]]; do
+      case "${tokens[$j]}" in
+        -a|-r|-v|--show-current) ;;
+        *) return 1 ;;
+      esac
+      j=$((j + 1))
+    done
+    return 0
+  fi
+  case " $(sdd_readonly_git_verbs) " in
+    *" $verb "*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -248,14 +270,14 @@ sdd_active_task_num() {
 
 sdd_deny_message() {
   local harness="$1" task_num="$2" plan_basename="$3"
-  local plugin_root
+  local plugin_root verbs
   plugin_root="$(sdd_plugin_root_from_lib)"
+  verbs="$(sdd_readonly_git_verbs | awk '{printf "  git %s", $1; for (i = 2; i <= 7 && i <= NF; i++) printf " / git %s", $i; printf "\n  "; for (i = 8; i <= NF; i++) printf "git %s%s", $i, (i == NF ? "\n" : " / ")}')"
   cat <<-EOF
 	SDD orchestrator gate — direct repo edits forbidden during active task.
 
 	Allowed Bash (read-only diagnostics):
-	  git status / git diff / git log / git show / git rev-parse / git branch / git remote
-	  git ls-files / git diff-tree
+${verbs}
 	  ${plugin_root}/bin/sdd-run-task-${harness}.sh
 	  sdd-workspace / task-brief / review-package
 
@@ -265,7 +287,6 @@ sdd_deny_message() {
 	Repo changes flow only through:
 	  ${plugin_root}/bin/sdd-run-task-${harness}.sh --task ${task_num} --mode implement
 
-	Full matrix: docs/sdd-h6-reference.md (SDD gate matrix)
 	See spor-SDD Rule 0a item 4.
 	EOF
 }

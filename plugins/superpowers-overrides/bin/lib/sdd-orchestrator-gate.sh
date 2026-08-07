@@ -100,7 +100,7 @@ sdd_git_verb_allowed() {
   local cmd="$1" verb="" i
   local -a tokens=()
   case "$cmd" in
-    *"&&"*|*"|"*|*";"*|*">"*|*"<"*|*"\$("*|*"\`"*|*$'\n'*) return 1 ;;
+    *"&&"*|*"&"*|*"|"*|*";"*|*">"*|*"<"*|*"\$("*|*"\`"*|*$'\n'*) return 1 ;;
   esac
   read -r -a tokens <<<"$cmd"
   [[ "${tokens[0]:-}" == "git" ]] || return 1

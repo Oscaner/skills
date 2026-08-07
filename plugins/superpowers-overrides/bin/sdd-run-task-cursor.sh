@@ -4,6 +4,10 @@
 # cursor-agent invocation (source of truth for flags):
 #   cursor-agent --print --output-format text --force "$prompt"
 #
+#   Print mode (--print) is one-shot — no session is registered in /resume or
+#   ~/.claude/sessions/. Audit trail is ledger + handoff files, not session
+#   list. See H6.6 in sdd-h6-reference.md.
+#
 # Do not use --resume or any flag that carries prior session history (spec H6.5).
 # SDD_DRY_RUN=1 skips cursor-agent (argument parsing / orchestration smoke tests).
 #

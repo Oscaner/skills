@@ -18,6 +18,8 @@ description: MUST invoke BEFORE superpowers:subagent-driven-development as your 
 
    **Per-task:** Rule 1 classify → Rule 4 confirm once → append `TASK_BASE: <sha>` to brief → shell H6 chain (implement → handoff/implement → review → handoff/review; fix per Rule 2) → Read handoff.json only → Rule 5a + Rule 6 → ledger on APPROVED. **Never** edit repo deliverables in this session — H6 CLI only.
 
+   **Shell 契约：** 只读 git 诊断（`git status`/`git diff`/`git log`/`git show`/`git rev-parse`/`git branch`/`git remote`/`git ls-files`/`git diff-tree`）可用；`TASK_BASE` 必须是真实 git SHA（gate 以 `git cat-file -e` 校验）。
+
    **Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`.
 
 ### Rule 1 — Task complexity (diff scope, test gate, model — not review rounds)

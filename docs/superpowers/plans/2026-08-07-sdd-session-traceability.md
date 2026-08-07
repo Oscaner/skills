@@ -1,0 +1,164 @@
+# H6 CLI Agent Session Traceability — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Document why SDD CLI agents are not traceable via `/resume`, and where to find the audit trail instead.
+
+**Architecture:** Documentation-only — one new numbered rule (H6.6) in the H6 reference doc + a one-line comment in each task-runner shell script. No code changes.
+
+**Tech Stack:** Markdown, shell (comment-only)
+
+## Global Constraints
+
+- No shell execution logic changes — invocation lines stay as-is
+- H6.5 forbidden list unchanged (`--resume` still banned)
+- H6.6 must match existing doc's numbered-rule style under H6
+- Shell comments must be per-harness (`-p` for claude, `--print` for cursor)
+- Conventional commits (`docs:` prefix)
+
+---
+
+### Task 1: Add H6.6 to sdd-h6-reference.md
+
+**Files:**
+- Modify: `plugins/superpowers-overrides/docs/sdd-h6-reference.md`
+
+**Interfaces:**
+- Produces: H6.6 numbered rule read by shell scripts (Task 2, Task 3) via `See H6.6.` pointer
+
+- [ ] **Step 1: Insert H6.6 after H6.5**
+
+In `plugins/superpowers-overrides/docs/sdd-h6-reference.md`, locate the H6.5 rule:
+
+```
+5. **Forbidden:** `--resume` or any CLI invocation that carries prior session history.
+```
+
+Append the following block immediately after that line (before any H7 heading):
+
+```
+6. **Session traceability:** CLI agents use one-shot print mode (`--print` / `--output-format text`), which does NOT register sessions in the `/resume` list or `~/.claude/sessions/`. This is inherent to print mode — print mode executes a single prompt and exits; session persistence belongs to interactive sessions only. **Audit trail:** ledger (`progress.md`) + handoff files (`task-N-handoff.json`) + per-task reports (`task-N-report.md`). **Recovery:** re-run the orchestrator shell for that task+mode. **Alternatives considered:** `--session-id` (only targets `--resume`/`--continue`), `--name` (in print mode does not write to session registry), `--background` (long-lived daemon, incompatible with one-shot per-mode dispatch).
+```
+
+- [ ] **Step 2: Verify the doc reads correctly**
+
+```bash
+grep -n 'H6' plugins/superpowers-overrides/docs/sdd-h6-reference.md
+```
+
+Confirm H6.6 appears as item 6 under H6, before H7 begins.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add plugins/superpowers-overrides/docs/sdd-h6-reference.md
+git commit -m "docs: add H6.6 session traceability to H6 reference"
+```
+
+---
+
+### Task 2: Add session traceability comment to sdd-run-task-claude.sh
+
+**Files:**
+- Modify: `plugins/superpowers-overrides/bin/sdd-run-task-claude.sh`
+
+**Interfaces:**
+- Consumes: H6.6 rule from Task 1 (referenced via `See H6.6.` pointer)
+
+- [ ] **Step 1: Insert comment after flag invocation line**
+
+In `plugins/superpowers-overrides/bin/sdd-run-task-claude.sh`, locate line 5:
+
+```
+#   claude -p "$prompt" --output-format text --dangerously-skip-permissions
+```
+
+Insert the following line immediately after:
+
+```
+#   Print mode (-p) is one-shot — no session is registered in /resume or
+#   ~/.claude/sessions/. Audit trail is ledger + handoff files, not session
+#   list. See H6.6 in sdd-h6-reference.md.
+```
+
+- [ ] **Step 2: Verify the comment block**
+
+```bash
+head -15 plugins/superpowers-overrides/bin/sdd-run-task-claude.sh
+```
+
+Confirm the new comment appears directly after the flag invocation line and before the `# Do not use --resume` line.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add plugins/superpowers-overrides/bin/sdd-run-task-claude.sh
+git commit -m "docs: note print mode session behavior in sdd-run-task-claude.sh"
+```
+
+---
+
+### Task 3: Add session traceability comment to sdd-run-task-cursor.sh
+
+**Files:**
+- Modify: `plugins/superpowers-overrides/bin/sdd-run-task-cursor.sh`
+
+**Interfaces:**
+- Consumes: H6.6 rule from Task 1 (referenced via `See H6.6.` pointer)
+
+- [ ] **Step 1: Insert comment after flag invocation line**
+
+In `plugins/superpowers-overrides/bin/sdd-run-task-cursor.sh`, locate line 5:
+
+```
+#   cursor-agent --print --output-format text --force "$prompt"
+```
+
+Insert the following line immediately after:
+
+```
+#   Print mode (--print) is one-shot — no session is registered in /resume or
+#   ~/.claude/sessions/. Audit trail is ledger + handoff files, not session
+#   list. See H6.6 in sdd-h6-reference.md.
+```
+
+- [ ] **Step 2: Verify the comment block**
+
+```bash
+head -15 plugins/superpowers-overrides/bin/sdd-run-task-cursor.sh
+```
+
+Confirm the new comment appears directly after the flag invocation line and before the `# Do not use --resume` line.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add plugins/superpowers-overrides/bin/sdd-run-task-cursor.sh
+git commit -m "docs: note print mode session behavior in sdd-run-task-cursor.sh"
+```
+
+---
+
+### Task 4: Changeset
+
+**Files:**
+- Create: `.changeset/<auto-generated>.md`
+
+**Interfaces:**
+- Consumes: changes from Tasks 1–3
+
+- [ ] **Step 1: Run changeset**
+
+```bash
+cd plugins/superpowers-overrides && pnpm changeset
+```
+
+Select patch bump for `superpowers-overrides`. Describe: "Document why SDD CLI agents are not traceable via /resume — H6.6 in the reference doc + shell comments."
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add .changeset/
+git commit -m "chore: add changeset for session traceability docs"
+```
+

@@ -1,5 +1,17 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.0.15.2
+
+### Patch Changes
+
+- Add `spor-report-issue` standalone skill. After finishing a development session, `/spor-report-issue` analyses the conversation context, SDD ledgers, and git log to surface bugs and enhancement candidates, then offers to file them as GitHub issues via `gh issue create` with automatic `dogfood`, `superpowers-overrides`, and conditional `sdd` labels. Includes dedup detection against existing open issues and bilingual (EN/ZH) issue body templates.
+  
+  Also adds `.github/ISSUE_TEMPLATE/bug_report.yml` and `enhancement.yml` for structured web-UI issue creation with matching field names.
+
+- Remove p0 fallback from spor-subagent-driven-development; CLI is now mandatory. When the CLI is unavailable the orchestrator reports BLOCKED with the script path, harness, and exit code — no silent fallback to in-session execution.
+  
+  Migrate all Cursor CLI calls from the editor-bundled `cursor agent` to the standalone `cursor-agent` binary across `sdd-run-task-cursor.sh`, `sdd-run-plan-cursor.sh`, and `scripts/smoke-provider-hooks.mjs`.
+
 ## 6.2.0-overrides.0.15.1
 
 ### Patch Changes

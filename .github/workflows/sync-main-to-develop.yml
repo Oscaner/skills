@@ -1,0 +1,64 @@
+# Back-merge main → develop after a release on main.
+# Callable from release.yml; also runnable manually for investigation/retries.
+name: Sync main to develop
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check if develop is behind main
+        id: needs-sync
+        run: |
+          git fetch origin main develop
+          ahead=$(git rev-list --count origin/develop..origin/main)
+          echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
+          echo "needs_sync=$([ "$ahead" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "main is $ahead commit(s) ahead of develop"
+
+      - name: Prepare and push sync branch
+        if: steps.needs-sync.outputs.needs_sync == 'true'
+        run: |
+          git fetch origin main develop
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B chore/sync-main-to-develop origin/develop
+          git merge origin/main -m "chore: sync main release back to develop"
+          git push origin chore/sync-main-to-develop --force-with-lease
+
+      - name: Open sync PR main → develop
+        if: steps.needs-sync.outputs.needs_sync == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh pr list \
+            --head chore/sync-main-to-develop \
+            --base develop \
+            --state open \
+            --json number \
+            -q '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "Sync PR already open: #$existing"
+            gh pr view "$existing" --json url -q .url
+          else
+            gh pr create \
+              --base develop \
+              --head chore/sync-main-to-develop \
+              --title "chore: sync main release back to develop" \
+              --body "Automated back-merge after release on \`main\`."$'\n'"Merge to keep \`develop\` aligned with the released version."
+          fi
+
+      - name: Already aligned
+        if: steps.needs-sync.outputs.needs_sync != 'true'
+        run: echo "develop is up to date with main — no sync PR needed"

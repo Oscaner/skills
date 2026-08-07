@@ -176,6 +176,12 @@ sdd_resolve_workspace() {
   return 1
 }
 
+# git cat-file 必须绑定 repo_root（CWD 无关）。实证：bare `git cat-file -e` 依赖 CWD 是 git 仓库。
+sdd_git_object_exists() {
+  local repo_root="$1" sha="$2"
+  git -C "$repo_root" cat-file -e "$sha" 2>/dev/null
+}
+
 sdd_find_active_workspace() {
   local repo_root="$1"
   local sdd_root="$repo_root/.superpowers/sdd" dir brief n handoff
@@ -186,7 +192,7 @@ sdd_find_active_workspace() {
     while [[ -f "${dir}task-${n}-brief.md" ]]; do
       brief="${dir}task-${n}-brief.md"
       handoff="${dir}task-${n}-handoff.json"
-      if sdd_brief_has_task_base "$brief" && ! sdd_handoff_approved "$handoff"; then
+      if sdd_brief_has_task_base "$brief" "$repo_root" && ! sdd_handoff_approved "$handoff"; then
         printf '%s\n' "${dir%/}"
         return 0
       fi
@@ -197,7 +203,12 @@ sdd_find_active_workspace() {
 }
 
 sdd_brief_has_task_base() {
-  [[ -f "$1" ]] && grep -qE '^TASK_BASE: ' "$1" 2>/dev/null
+  local brief="$1" repo_root="$2"
+  [[ -f "$brief" ]] || return 1
+  local sha
+  sha="$(sed -nE 's/^TASK_BASE: //p' "$brief" | head -1 | tr -d ' \r')"
+  [[ -n "$sha" ]] || return 1
+  sdd_git_object_exists "$repo_root" "$sha"
 }
 
 sdd_handoff_approved() {
@@ -208,7 +219,7 @@ sdd_handoff_approved() {
 }
 
 sdd_frontier_task() {
-  local workspace="$1" n=1 brief handoff
+  local workspace="$1" repo_root="$2" n=1 brief handoff
   while [[ -n "$workspace" ]]; do
     brief="${workspace}/task-${n}-brief.md"
     handoff="${workspace}/task-${n}-handoff.json"
@@ -216,7 +227,7 @@ sdd_frontier_task() {
       printf '%s\n' "$((n - 1))"
       return 0
     fi
-    if sdd_brief_has_task_base "$brief"; then
+    if sdd_brief_has_task_base "$brief" "$repo_root"; then
       if ! sdd_handoff_approved "$handoff"; then
         printf '%s\n' "$n"
         return 0
@@ -235,28 +246,25 @@ sdd_gate_phase() {
   local n brief next_brief active_ws
   active_ws="$workspace"
   if [[ -z "$active_ws" ]]; then
-    active_ws="$(sdd_find_active_workspace "$repo_root" || true)"
-  fi
-  if [[ -z "$active_ws" ]]; then
     printf 'orchestrating\n'
     return 0
   fi
-  n="$(sdd_frontier_task "$active_ws")"
+  n="$(sdd_frontier_task "$active_ws" "$repo_root")"
   brief="${active_ws}/task-${n}-brief.md"
   next_brief="${active_ws}/task-$((n + 1))-brief.md"
   if [[ "$n" -eq 0 ]]; then
     printf 'orchestrating\n'
     return 0
   fi
-  if sdd_brief_has_task_base "$brief" && ! sdd_handoff_approved "${active_ws}/task-${n}-handoff.json"; then
+  if sdd_brief_has_task_base "$brief" "$repo_root" && ! sdd_handoff_approved "${active_ws}/task-${n}-handoff.json"; then
     printf 'task_active\n'
     return 0
   fi
-  if sdd_handoff_approved "${active_ws}/task-${n}-handoff.json" && ! sdd_brief_has_task_base "$next_brief"; then
+  if sdd_handoff_approved "${active_ws}/task-${n}-handoff.json" && ! sdd_brief_has_task_base "$next_brief" "$repo_root"; then
     printf 'task_complete\n'
     return 0
   fi
-  if sdd_brief_has_task_base "$brief"; then
+  if sdd_brief_has_task_base "$brief" "$repo_root"; then
     printf 'task_active\n'
     return 0
   fi
@@ -264,8 +272,8 @@ sdd_gate_phase() {
 }
 
 sdd_active_task_num() {
-  local workspace="$1"
-  sdd_frontier_task "$workspace"
+  local workspace="$1" repo_root="$2"
+  sdd_frontier_task "$workspace" "$repo_root"
 }
 
 sdd_deny_message() {
@@ -363,7 +371,7 @@ sdd_gate_decide() {
   if [[ -z "$active_ws" ]]; then
     active_ws="$(sdd_find_active_workspace "$repo_root" || true)"
   fi
-  phase="$(sdd_gate_phase "$repo_root" "$workspace" "$pending")"
+  phase="$(sdd_gate_phase "$repo_root" "$active_ws" "$pending")"
 
   if sdd_is_shell_tool "$tool_name"; then
     cmd="$(sdd_extract_command "$tool_input_json")"
@@ -375,7 +383,7 @@ sdd_gate_decide() {
       printf 'allow\n'
       return 0
     fi
-    task_num="$(sdd_active_task_num "$active_ws")"
+    task_num="$(sdd_active_task_num "$active_ws" "$repo_root")"
     [[ "$task_num" -gt 0 ]] || task_num=1
     plan_base="$(sdd_plan_basename "$active_ws" "$pending")"
     msg="$(sdd_deny_message "$harness" "$task_num" "$plan_base")"
@@ -391,7 +399,7 @@ sdd_gate_decide() {
       printf 'allow\n'
       return 0
     fi
-    task_num="$(sdd_active_task_num "$active_ws")"
+    task_num="$(sdd_active_task_num "$active_ws" "$repo_root")"
     [[ "$task_num" -gt 0 ]] || task_num=1
     plan_base="$(sdd_plan_basename "$active_ws" "$pending")"
     msg="$(sdd_deny_message "$harness" "$task_num" "$plan_base")"

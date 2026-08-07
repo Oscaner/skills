@@ -182,28 +182,27 @@ EOF
 
 ### 测试 fixture 隔离
 
-**约束（实证）**：`git cat-file -e <SHA>` 依赖 CWD 是 git 仓库；非 git 目录会失败。因此 git-object 校验必须用 `git -C "$repo_root" cat-file -e`（绑定 repo_root），且 fixture 根必须是 git 仓库。这排除了「repo_root 参数化 + 嵌套 fixture」方案——fixture 不是 git 仓库时 `cat-file` 找不到对象。正确路径是 `SDD_GATE_FIXTURES_ROOT` env 接缝 + 复制到临时 git 仓库注入 short-SHA。
+**约束（实证）**：
+- `git cat-file -e <SHA>` 依赖 CWD 是 git 仓库；非 git 目录会失败。git-object 校验必须用 `git -C "$repo_root" cat-file -e`（绑定 repo_root）。
+- **`.superpowers` 被根 `.gitignore`（第 4 行，无斜杠 → 匹配任意深度）忽略**；fixture 目录若 `git init` 会变嵌套 git 仓库（`git add` 记成 gitlink，fresh clone 为空）。**因此 fixture 模板不用 `.superpowers/sdd/` 路径、不做 `git init`**——用普通目录 `sdd/` 存放（被跟踪），测试运行时把 `SDD_GATE_FIXTURES_ROOT` 指向临时副本并 `git init` 副本（pending `repo_root` 指向副本，使 `git -C` cat-file 在副本内可解析）。
 
 **fixture 结构**（每个场景独立的 fixture 根，避免 `sdd_find_active_workspace` 首匹配遮蔽）：
 
 ```
 tests/fixtures/sdd-gate/
-  orchestrating/          # 场景根：仅含 orchestrating-ws/
-    .superpowers/sdd/orchestrating-ws/   # 无 TASK_BASE 或无 brief
-  active/                 # 场景根：仅含 active-ws/
-    .superpowers/sdd/active-ws/          # TASK_BASE: <真实 short-SHA>，无 handoff
-  complete/               # 场景根：仅含 complete-ws/
-    .superpowers/sdd/complete-ws/        # TASK_BASE: <真实 SHA> + handoff APPROVED
-  stub/                   # 场景根：仅含 stub-ws/
-    .superpowers/sdd/stub-ws/            # TASK_BASE: abc（stub）—— 断言不激活
+  orchestrating/sdd/orchestrating-ws/      # 空目录（无 brief → 不激活）
+  active/sdd/active-ws/task-1-brief.md     # TASK_BASE: <真实 short-SHA>，无 handoff
+  complete/sdd/complete-ws/
+    task-1-brief.md                        # TASK_BASE: <真实 SHA>
+    task-1-handoff.json                    # status: APPROVED
+  stub/sdd/stub-ws/task-1-brief.md         # TASK_BASE: abc（stub）—— 断言不激活
 ```
 
-每个场景根是独立 git 仓库（`git init`，可指向真实 repo 的对象库或含真实 HEAD 的引用）。
+fixture 模板是**普通目录**（不含 `.git`、不含 `.superpowers`），被 git 正常跟踪。`<真实 short-SHA>` 用占位符 `<SHA>`，测试运行时注入。
 
 **隔离机制**：
-- gate lib 增加 `SDD_GATE_FIXTURES_ROOT`（环境变量）：`sdd_find_active_workspace` / `sdd_gate_phase` 解析 `.superpowers/sdd` 时，若该变量有值则用 `$SDD_GATE_FIXTURES_ROOT` 作为 sdd 根
-- 测试在**临时目录**复制 fixture 场景根（`mktemp -d` + `cp -R`），在副本里注入当前真实 short-SHA（`sed` 替换 `TASK_BASE: <sha>`），再设 `SDD_GATE_FIXTURES_ROOT` 指向副本——**绝不修改被提交的 fixture 文件**（避免 P4 反模式重现）
-- 副本是 git 仓库（`git init` + 至少一个 commit），使 `git -C "$root" cat-file -e <short-sha>` 通过
+- gate lib 增加 `SDD_GATE_FIXTURES_ROOT`（环境变量）：`sdd_find_active_workspace` / `sdd_gate_phase` 解析 sdd 根时，若该变量有值则用 `$SDD_GATE_FIXTURES_ROOT`（签名从 `repo_root` 改为 `sdd_root`，调用点含 `sdd_gate_decide` 单一解析点）
+- 测试在**临时目录**复制 fixture 场景根（`mktemp -d` + `cp -R`），在副本里注入当前真实 short-SHA（`sed` 替换 `TASK_BASE: <SHA>`），`git init` 副本 + 设 pending `repo_root` 指向副本（使 `git -C` cat-file 在副本内可解析），再设 `SDD_GATE_FIXTURES_ROOT` 指向副本的 `sdd/`——**绝不修改被提交的 fixture 文件**（避免 P4 反模式重现）
 
 **现有测试改造**：
 - `override-{claude,cursor}-sdd-gate.test.sh` 改为从 fixture 场景根读取，不再往 `.superpowers/sdd/dogfood-test` 写 stub
@@ -261,7 +260,7 @@ tests/fixtures/sdd-gate/
 | File | Action |
 |------|--------|
 | `bin/lib/sdd-orchestrator-gate.sh` | **Modify** — `sdd_git_verb_allowed` / `sdd_git_object_exists` 新增；`sdd_bash_allowed` **重命名为 `sdd_shell_allowed`** 并扩展（allowlist + 只读 git 动词），唯一调用点在 `sdd_gate_decide` 更新；`sdd_brief_has_task_base` / `sdd_gate_phase` / `sdd_deny_message` 修改；`SDD_GATE_FIXTURES_ROOT` 覆盖 |
-| `tests/fixtures/sdd-gate/` | **Create** — 场景根（orchestrating / active / complete / stub），每场景独立 git 仓库 + `.superpowers/sdd/<ws>/` |
+| `tests/fixtures/sdd-gate/` | **Create** — 场景根（orchestrating / active / complete / stub），普通目录 `sdd/<ws>/`（不含 `.git`/`.superpowers`，被跟踪） |
 | `tests/override-claude-sdd-gate.test.sh` | **Modify** — 从 fixture 读取，删 dogfood-test 依赖 |
 | `tests/override-cursor-sdd-gate.test.sh` | **Modify** — 同上 |
 | `tests/sdd-gate-allow-deny-smoke.sh` | **Create** — 全矩阵 smoke |

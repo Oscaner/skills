@@ -195,3 +195,7 @@ Original branch-rules spec (2026-08-06) stated:
 | `README.md` | Fix branch-flow paragraph |
 | `CLAUDE.md` | Update Releasing |
 | `docs/superpowers/specs/2026-08-06-branch-rules-version-scheme-design.md` | Deviation note |
+
+## Deviation
+
+The **sync-PR gate** section (including the outer `published == 'true' || gh-release.outcome == 'success'` gate, the `published`-based run matrix, and the `id: gh-release` dependency) is **replaced** by [2026-08-08-release-flow-phase-separation-design.md](./2026-08-08-release-flow-phase-separation-design.md): publish-mode work (tag push, Release, sync PR) now gates on `hasChangesets == 'false'`.

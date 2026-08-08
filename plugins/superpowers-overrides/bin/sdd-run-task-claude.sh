@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# sdd-run-task-claude.sh — Claude Code full harness: one SDD mode per invocation (p1)
+# sdd-run-task-claude.sh — Claude thin harness: one SDD mode per invocation (p1)
+#
+# Shared run-loop lives in lib/sdd-common.sh (sdd_run_task). This shell keeps
+# only the irreducible Claude-specific differences: argument parsing / entry
+# contract, and the _sdd_invoke_cli flags (spec §4.3).
 #
 # claude invocation (source of truth for flags):
 #   claude -p "$prompt" --output-format text --dangerously-skip-permissions
@@ -18,8 +22,6 @@
 #
 # Usage:
 #   sdd-run-task-claude.sh --task N --mode implement|review|fix [--plan PATH]
-#
-# Requires SDD_WORKSPACE (or --plan with upstream sdd-workspace). Sets path env vars from --task.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -74,166 +76,8 @@ if [[ "$SDD_MODE_ARG" == "handoff" ]]; then
   exit 1
 fi
 
-if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v claude >/dev/null 2>&1; then
-  sdd_exit_cli_missing "claude not found in PATH"
-fi
-
-_sdd_repo_root() {
-  git rev-parse --show-toplevel 2>/dev/null
+_sdd_invoke_cli() {
+  claude -p "$1" --output-format text --dangerously-skip-permissions 2>/dev/null
 }
 
-_sdd_relpath_from_repo() {
-  local abs="$1" root
-  root="$(_sdd_repo_root)" || { printf '%s' "$abs"; return; }
-  abs="$(cd "$(dirname "$abs")" && pwd)/$(basename "$abs")"
-  case "$abs" in
-    "${root}/"*) printf '%s' "${abs#${root}/}" ;;
-    *) printf '%s' "$abs" ;;
-  esac
-}
-
-_sdd_plan_from_ledger() {
-  local ledger="$1"
-  sed -n '1s/^# SDD ledger — plan: //p' "$ledger"
-}
-
-_sdd_resolve_workspace() {
-  if [[ -n "${SDD_WORKSPACE:-}" ]]; then
-    printf '%s\n' "$SDD_WORKSPACE"
-    return 0
-  fi
-  [[ -n "$PLAN_FILE" ]] || sdd_exit_blocked "SDD_WORKSPACE unset and --plan not provided"
-  local scripts ws_script
-  scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream sdd-workspace script not found"
-  ws_script="${scripts}/sdd-workspace"
-  [[ -x "$ws_script" ]] || sdd_exit_blocked "sdd-workspace not executable: ${ws_script}"
-  "$ws_script" "$PLAN_FILE"
-}
-
-_sdd_set_task_env() {
-  local workspace="$1" task="$2"
-  export SDD_WORKSPACE="$workspace"
-  export SDD_LEDGER="${SDD_LEDGER:-${workspace}/progress.md}"
-  export SDD_TASK_BRIEF="${SDD_TASK_BRIEF:-${workspace}/task-${task}-brief.md}"
-  export SDD_HANDOFF_PATH="${SDD_HANDOFF_PATH:-${workspace}/task-${task}-handoff.json}"
-  export SDD_PLAN_CONSTRAINTS="${SDD_PLAN_CONSTRAINTS:-${workspace}/plan-constraints.md}"
-  export SDD_MODE="$SDD_MODE_ARG"
-  export SDD_FINDINGS="${SDD_FINDINGS:-${workspace}/task-${task}-open-findings.json}"
-}
-
-_sdd_emit_h1_four_lines() {
-  local raw="$1"
-  local -a keys=(status commits artifacts blocker)
-  local key line
-  for key in "${keys[@]}"; do
-    line="$(printf '%s\n' "$raw" | grep -E "^${key}:" | tail -1 || true)"
-    if [[ -n "$line" ]]; then
-      printf '%s\n' "$line"
-    else
-      printf '%s: <missing>\n' "$key"
-    fi
-  done
-}
-
-_sdd_claude_prepare_prompt() {
-  local mode="$1" rendered="$2"
-  if [[ "$mode" == "review" ]]; then
-    printf '%s\n\n%s' 'Skill(mattpocock-skills:code-review)' "$rendered"
-  else
-    printf '%s' "$rendered"
-  fi
-}
-
-_sdd_run_review_package() {
-  local plan="$1" base="$2" head="$3" handoff_path="$4"
-  local scripts review_pkg out_line diff_path repo_root rel
-  scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream review-package script not found"
-  review_pkg="${scripts}/review-package"
-  [[ -x "$review_pkg" ]] || sdd_exit_blocked "review-package not executable: ${review_pkg}"
-
-  out_line="$(bash "$review_pkg" "$plan" "$base" "$head" 2>&1 | tail -1)"
-  diff_path="$(printf '%s' "$out_line" | sed -n 's/^wrote \([^:]*\):.*/\1/p')"
-  if [[ -z "$diff_path" || ! -f "$diff_path" ]]; then
-    sdd_exit_blocked "review-package did not produce diff file (output: ${out_line})"
-  fi
-
-  if command -v jq >/dev/null 2>&1 && [[ -f "$handoff_path" ]]; then
-    repo_root="$(_sdd_repo_root)" || true
-    if [[ -n "$repo_root" && "$diff_path" == "${repo_root}/"* ]]; then
-      rel="${diff_path#${repo_root}/}"
-    else
-      rel="$(_sdd_relpath_from_repo "$diff_path")"
-    fi
-    local tmp
-    tmp="$(mktemp)"
-    jq --arg diff "$rel" '.artifacts = ((.artifacts // {}) + {diff: $diff})' "$handoff_path" >"$tmp"
-    mv "$tmp" "$handoff_path"
-  fi
-
-  printf '%s\n' "$out_line" >&2
-}
-
-WORKSPACE="$(_sdd_resolve_workspace)"
-_sdd_set_task_env "$WORKSPACE" "$TASK_NUM"
-
-if [[ -z "$PLAN_FILE" && -f "${SDD_LEDGER}" ]]; then
-  PLAN_FILE="$(_sdd_plan_from_ledger "${SDD_LEDGER}")"
-fi
-
-if [[ "$SDD_MODE_ARG" == "review" ]]; then
-  if [[ -z "${SDD_REVIEW_FIXED_POINT:-}" ]]; then
-    if [[ -f "${SDD_HANDOFF_PATH}" ]] && command -v jq >/dev/null 2>&1; then
-      SDD_REVIEW_FIXED_POINT="$(jq -r '.commits.base // empty' "${SDD_HANDOFF_PATH}")"
-      export SDD_REVIEW_FIXED_POINT
-    fi
-  fi
-  if [[ "${SDD_DRY_RUN:-}" == "1" && -z "${SDD_REVIEW_FIXED_POINT:-}" ]]; then
-    SDD_REVIEW_FIXED_POINT="HEAD~1"
-    export SDD_REVIEW_FIXED_POINT
-  fi
-  if [[ "${SDD_DRY_RUN:-}" != "1" ]]; then
-    [[ -n "${PLAN_FILE:-}" ]] || sdd_exit_blocked "review mode requires plan path (ledger header or --plan)"
-    [[ -f "$PLAN_FILE" ]] || sdd_exit_blocked "plan file not found: ${PLAN_FILE}"
-
-    review_base="${SDD_REVIEW_FIXED_POINT:-}"
-    review_head="HEAD"
-    if [[ -f "${SDD_HANDOFF_PATH}" ]] && command -v jq >/dev/null 2>&1; then
-      handoff_head="$(jq -r '.commits.head // empty' "${SDD_HANDOFF_PATH}")"
-      [[ -n "$handoff_head" ]] && review_head="$handoff_head"
-    fi
-    [[ -n "$review_base" ]] || sdd_exit_blocked "review mode requires SDD_REVIEW_FIXED_POINT or handoff commits.base"
-
-    _sdd_run_review_package "$PLAN_FILE" "$review_base" "$review_head" "${SDD_HANDOFF_PATH}"
-  fi
-fi
-
-sdd_require_env
-
-template_name="$SDD_MODE_ARG"
-rendered="$(sdd_render_template "$template_name")" || sdd_exit_blocked "template render failed: ${template_name}"
-prompt="$(_sdd_claude_prepare_prompt "$SDD_MODE_ARG" "$rendered")"
-
-agent_rc=0
-agent_out=""
-if [[ "${SDD_DRY_RUN:-}" == "1" ]]; then
-  agent_out="$(cat <<EOF
-status: DONE
-commits: base=dry-run head=dry-run
-artifacts: brief=${SDD_TASK_BRIEF} report=${SDD_WORKSPACE}/task-${TASK_NUM}-report.md test_evidence=${SDD_WORKSPACE}/task-${TASK_NUM}-test-evidence.json
-blocker: none
-EOF
-)"
-else
-  agent_out="$(claude -p "$prompt" --output-format text --dangerously-skip-permissions 2>/dev/null)" || agent_rc=$?
-fi
-
-_sdd_emit_h1_four_lines "$agent_out"
-
-if [[ "$agent_rc" -ne 0 ]]; then
-  if [[ ! -f "${SDD_HANDOFF_PATH}" ]]; then
-    sdd_exit_blocked "claude exited ${agent_rc} and handoff missing"
-  fi
-  exit "$agent_rc"
-fi
-
-sdd_exit_ok
+sdd_run_task claude "Skill(mattpocock-skills:code-review)" "$TASK_NUM"

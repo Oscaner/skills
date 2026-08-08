@@ -1,8 +1,8 @@
 # Release flow (main only):
 #   develop accumulates .changeset/*.md → develop→main PR → push main
-#   → changesets/action opens Version PR (target main)
-#   → merge Version PR → publish + tag + GitHub Release
-#   → sync-main-to-develop.yml opens PR when main is ahead of develop
+#   → changesets/action opens Version PR (target main); hasChangesets=true → tag/Release/sync skipped
+#   → merge Version PR → push main again; hasChangesets=false → publish mode
+#   → changeset tag (local) + explicit git push → GitHub Release → sync PR
 name: Release
 
 on:
@@ -18,6 +18,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,35 +37,21 @@ jobs:
         with:
           version: node scripts/version-packages.mjs
           publish: pnpm exec changeset tag
+          createGithubReleases: false
           commit: "chore: release superpowers-overrides"
           title: "chore: release superpowers-overrides"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Resolve HEAD SHA for tagging
-        id: head
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Read overrides version
         id: overrides-ver
+        if: steps.changesets.outputs.hasChangesets == 'false'
         run: echo "version=$(node -p "require('./plugins/superpowers-overrides/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Create git tag if missing
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const tag = `superpowers-overrides@${{ steps.overrides-ver.outputs.version }}`;
-            try {
-              await github.rest.git.getRef({ ...context.repo, ref: `tags/${tag}` });
-              core.info(`${tag} already exists`);
-            } catch (e) {
-              if (e.status !== 404) throw e;
-              await github.rest.git.createRef({
-                ...context.repo,
-                ref: `refs/tags/${tag}`,
-                sha: '${{ steps.head.outputs.sha }}',
-              });
-              core.info(`Created ${tag}`);
-            }
+      - name: Push git tag
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: git push origin "superpowers-overrides@${{ steps.overrides-ver.outputs.version }}"
       - name: Check if GitHub Release exists
         id: release-exists
+        if: steps.changesets.outputs.hasChangesets == 'false'
         uses: actions/github-script@v9
         with:
           script: |
@@ -71,14 +59,13 @@ jobs:
             try {
               await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
               core.setOutput('exists', 'true');
-              core.info(`Release ${tag} already exists`);
             } catch (e) {
               if (e.status !== 404) throw e;
               core.setOutput('exists', 'false');
             }
       - name: Create GitHub Release if missing
         id: gh-release
-        if: steps.release-exists.outputs.exists != 'true'
+        if: steps.changesets.outputs.hasChangesets == 'false' && steps.release-exists.outputs.exists != 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: superpowers-overrides@${{ steps.overrides-ver.outputs.version }}
@@ -86,5 +73,6 @@ jobs:
 
   sync-develop:
     needs: release
+    if: needs.release.outputs.hasChangesets == 'false'
     uses: ./.github/workflows/sync-main-to-develop.yml
     secrets: inherit

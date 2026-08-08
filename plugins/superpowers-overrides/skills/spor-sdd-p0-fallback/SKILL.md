@@ -27,7 +27,7 @@ p0 path: dispatch implementer per upstream SDD Task Loop §1 (`implementer-promp
 
 When Rule 0a applies, skip — H6 + `templates/sdd-cli/` is SOT.
 
-p0 path: handoff-writer + code-review per `templates/sdd-cli/{handoff,review,fix}.md`, [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md), and [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5; degradation per controller-handoff H2 degradation note + handoff-writer skill.
+p0 path: inline handoff write + code-review per `templates/sdd-cli/{implement,review,fix}.md`, [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) (schema reference), and [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5; degradation per controller-handoff H2 degradation note.
 
 ## Appendix D4 — code-review dual-axis gate (p0)
 
@@ -35,7 +35,7 @@ Applies when SDD per-task review delegates to `mattpocock-skills:code-review` (s
 
 - Standards and Spec axes run **one round each**, **in parallel**
 - **No** per-axis "skip later passes" — each axis completes once per review invocation
-- After **both** axes finish, [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) **must run** — even when findings are empty (unified APPROVED gate + unverifiable scan)
+- After **both** axes finish, handoff write runs inline in review mode per `_handoff-write-fragment.md` (unified APPROVED gate + unverifiable scan)
 - Axis output format: per [`spor-token-efficient-review-dispatch`](../spor-token-efficient-review-dispatch/SKILL.md) D3 — Markdown body + trailing `## Findings (D3)` JSON block; handoff-writer parses the D3 block; empty array `[]` is valid
 
 **Red flags (D4):**

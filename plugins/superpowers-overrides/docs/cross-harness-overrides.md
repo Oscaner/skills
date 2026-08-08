@@ -196,7 +196,7 @@ Shared library: `bin/lib/sdd-common.sh` — workspace path contract (`SDD_WORKSP
 **Mode A (per task):** orchestrator calls one mode per CLI invocation:
 
 ```bash
-{plugin_root}/bin/sdd-run-task-<harness>.sh --task N --mode implement|handoff|review|fix [--segment implement|review|fix]
+{plugin_root}/bin/sdd-run-task-<harness>.sh --task N --mode implement|review|fix
 ```
 
 **Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
@@ -219,7 +219,7 @@ Stub harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or 
 
 **CI:** `tests/validate-overrides-build.sh` asserts all 10 harness scripts + `bin/lib/sdd-common.sh` exist and are executable.
 
-Templates: `templates/sdd-cli/` (implement, handoff, review, fix).
+Templates: `templates/sdd-cli/` (implement, review, fix) + `_handoff-write-fragment.md`.
 
 ## Deferred harnesses (documented, not built)
 

@@ -18,7 +18,7 @@
    - `task-N-review-standards.md` (Standards axis)
    - `task-N-review-spec.md` (Spec axis)
 4. Each axis file **must** end with a `## Findings (D3)` section containing a JSON block `{"findings": [...]}` (D3 findings-only discipline).
-5. Do **not** write or update handoff.json — a separate `mode=handoff --segment review` invocation runs `spor-handoff-writer`.
+5. Write handoff per `_handoff-write-fragment.md` review segment. After axes complete, parse D3 findings — empty → `APPROVED`, non-empty → `CHANGES_REQUESTED`.
 6. Do **not** write ledger.
 
 ## Return (H1 — stdout only)

@@ -12,11 +12,12 @@
 # SDD_DRY_RUN=1 skips claude (argument parsing / orchestration smoke tests).
 #
 # Claude harness injects Skill(...) prefix before rendered template (spec §2.5):
-#   handoff → Skill(superpowers-overrides:spor-handoff-writer)
 #   review  → Skill(mattpocock-skills:code-review)
 #
+# Handoff write is now inline in implement/review/fix modes — no separate handoff mode.
+#
 # Usage:
-#   sdd-run-task-claude.sh --task N --mode implement|handoff|review|fix [--segment implement|review|fix]
+#   sdd-run-task-claude.sh --task N --mode implement|review|fix [--plan PATH]
 #
 # Requires SDD_WORKSPACE (or --plan with upstream sdd-workspace). Sets path env vars from --task.
 set -euo pipefail
@@ -27,11 +28,10 @@ source "${SCRIPT_DIR}/lib/sdd-common.sh"
 
 TASK_NUM=""
 SDD_MODE_ARG=""
-SDD_SEGMENT=""
 PLAN_FILE=""
 
 usage() {
-  printf 'usage: %s --task N --mode implement|handoff|review|fix [--segment implement|review|fix] [--plan PATH]\n' "$(basename "$0")" >&2
+  printf 'usage: %s --task N --mode implement|review|fix [--plan PATH]\n' "$(basename "$0")" >&2
   exit 2
 }
 
@@ -47,15 +47,14 @@ while [[ $# -gt 0 ]]; do
       SDD_MODE_ARG="$2"
       shift 2
       ;;
-    --segment)
-      [[ $# -ge 2 ]] || usage
-      SDD_SEGMENT="$2"
-      shift 2
-      ;;
     --plan)
       [[ $# -ge 2 ]] || usage
       PLAN_FILE="$2"
       shift 2
+      ;;
+    --segment)
+      printf '%s\n' '--segment removed: handoff write is now inline' >&2
+      exit 2
       ;;
     -h|--help)
       usage
@@ -68,6 +67,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$TASK_NUM" && -n "$SDD_MODE_ARG" ]] || usage
+
+# Reject removed handoff mode
+if [[ "$SDD_MODE_ARG" == "handoff" ]]; then
+  printf '%s\n' 'handoff mode removed: handoff write is now inline in implement/review/fix' >&2
+  exit 1
+fi
 
 if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v claude >/dev/null 2>&1; then
   sdd_exit_cli_missing "claude not found in PATH"
@@ -113,7 +118,6 @@ _sdd_set_task_env() {
   export SDD_HANDOFF_PATH="${SDD_HANDOFF_PATH:-${workspace}/task-${task}-handoff.json}"
   export SDD_PLAN_CONSTRAINTS="${SDD_PLAN_CONSTRAINTS:-${workspace}/plan-constraints.md}"
   export SDD_MODE="$SDD_MODE_ARG"
-  export SDD_HANDOFF_SEGMENT="${SDD_SEGMENT:-}"
   export SDD_FINDINGS="${SDD_FINDINGS:-${workspace}/task-${task}-open-findings.json}"
 }
 
@@ -131,20 +135,10 @@ _sdd_emit_h1_four_lines() {
   done
 }
 
-_sdd_claude_skill_prefix() {
-  case "$1" in
-    handoff) printf '%s' 'Skill(superpowers-overrides:spor-handoff-writer)' ;;
-    review)  printf '%s' 'Skill(mattpocock-skills:code-review)' ;;
-    *)       return 1 ;;
-  esac
-}
-
 _sdd_claude_prepare_prompt() {
   local mode="$1" rendered="$2"
-  local prefix
-  prefix="$(_sdd_claude_skill_prefix "$mode" 2>/dev/null || true)"
-  if [[ -n "$prefix" ]]; then
-    printf '%s\n\n%s' "$prefix" "$rendered"
+  if [[ "$mode" == "review" ]]; then
+    printf '%s\n\n%s' 'Skill(mattpocock-skills:code-review)' "$rendered"
   else
     printf '%s' "$rendered"
   fi
@@ -241,13 +235,5 @@ if [[ "$agent_rc" -ne 0 ]]; then
   fi
   exit "$agent_rc"
 fi
-
-case "$SDD_MODE_ARG" in
-  handoff)
-    if [[ "${SDD_DRY_RUN:-}" != "1" ]]; then
-      sdd_assert_handoff "${SDD_HANDOFF_PATH}"
-    fi
-    ;;
-esac
 
 sdd_exit_ok

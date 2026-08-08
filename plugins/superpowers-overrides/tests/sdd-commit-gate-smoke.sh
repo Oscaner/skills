@@ -8,6 +8,16 @@
 #   2. clean-tree fix    → H1 status: DONE, handoff.commits.head == git HEAD
 #   3. non-git workspace → fail-open: status: DONE preserved, no BLOCKED
 #   4. dirty-tree implement → BLOCKED (D3b active override, not just fix)
+#   5. clean tree + wrong handoff.commits.head → BLOCKED (F1 head consistency)
+#
+# Harness coverage note (F4): this smoke drives the claude thin shell
+# (sdd-run-task-claude.sh). Cursor's validator interception is covered by
+# sdd-cli-dry-run-smoke.sh's cursor loop — that covers the thin-shell glue, not
+# the interception itself. The cursor and claude shells share the same
+# sdd_run_task/validator (bin/lib/sdd-common.sh, behavior single source of
+# truth), so the interception path driven through the claude shell here plus the
+# glue driven through the cursor loop covers both. Smoke structure is unchanged
+# (not double-run) to keep fixture overhead from doubling.
 #
 # Fixture isolation: shared sdd-gate-test-lib.sh. The commit-gate scene ships
 # only a .gitignore (sdd/ ignored, mirroring the real repo); the workspace
@@ -143,5 +153,27 @@ printf '%s' "$out" | grep -q '^status: BLOCKED' || fail "dirty implement: H1 sta
 [[ "$(jq -r '.status' "$IMP_FIX/sdd/commit-gate-ws/task-1-handoff.json")" == "BLOCKED" ]] \
   || fail "dirty implement: handoff.status != BLOCKED"
 ASSERT_COUNT=$((ASSERT_COUNT + 3))
+
+echo "== 5. clean tree + wrong head → BLOCKED (F1 head consistency) =="
+setup_scenario commit-gate head-ws
+HEAD_FIX="$SCEN_DEST"
+materialize_ws "$HEAD_FIX" 1
+# Seed a handoff whose commits.head is NOT the copy's HEAD (tree stays clean).
+wrong="0000000000000000000000000000000000000000"
+printf '{"status":"DONE","phase":"implement","task":1,"commits":{"base":"%s","head":"%s"}}\n' \
+  "$(git -C "$HEAD_FIX" rev-parse HEAD)" "$wrong" > "$HEAD_FIX/sdd/commit-gate-ws/task-1-handoff.json"
+git -C "$HEAD_FIX" status --porcelain | grep -q . && fail "head-ws: tree should be clean after seed"
+
+set +e
+out="$(run_task "$HEAD_FIX" 1 fix 2>&1)"
+rc=$?
+set -e
+printf '%s' "$out" | grep -q '^status: BLOCKED' || fail "head mismatch: H1 status != BLOCKED"
+printf '%s' "$out" | grep -q '^blocker: handoff commits.head' || fail "head mismatch: blocker missing"
+printf '%s' "$out" | grep -q "does not match HEAD" || fail "head mismatch: blocker lacks HEAD comparison"
+[[ "$rc" -ne 0 ]] || fail "head mismatch: expected non-zero exit"
+[[ "$(jq -r '.status' "$HEAD_FIX/sdd/commit-gate-ws/task-1-handoff.json")" == "BLOCKED" ]] \
+  || fail "head mismatch: handoff.status != BLOCKED"
+ASSERT_COUNT=$((ASSERT_COUNT + 5))
 
 echo "OK — sdd-commit-gate-smoke ($ASSERT_COUNT assertions)"

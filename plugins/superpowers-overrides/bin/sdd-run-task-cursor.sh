@@ -30,6 +30,10 @@ source "${SCRIPT_DIR}/lib/sdd-common.sh"
 
 TASK_NUM=""
 SDD_MODE_ARG=""
+# PLAN_FILE is intentionally assigned here and consumed by the shared
+# sdd_run_task via dynamic scope (shellcheck cannot see across the library
+# source) — see bin/lib/sdd-common.sh.
+# shellcheck disable=SC2034
 PLAN_FILE=""
 
 usage() {
@@ -51,6 +55,8 @@ while [[ $# -gt 0 ]]; do
       ;;
     --plan)
       [[ $# -ge 2 ]] || usage
+      # PLAN_FILE consumed by shared sdd_run_task via dynamic scope.
+      # shellcheck disable=SC2034
       PLAN_FILE="$2"
       shift 2
       ;;

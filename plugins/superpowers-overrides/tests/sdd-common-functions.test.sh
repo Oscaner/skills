@@ -187,6 +187,42 @@ _fake_head="fbbbbbb2"
   assert_eq "F3e handoff untouched (no jq)" "1" "$(grep -c '"status":"DONE"' "$SDD_HANDOFF_PATH")"
 }
 
+# F3f. clean tree + wrong handoff head → head-consistency intercept (rc 1,
+# handoff BLOCKED, stderr names both SHAs). Orthogonal to the dirty check: the
+# tree is clean, so only the head comparison catches the drift.
+{
+  export SDD_WORKSPACE="$TESTROOT/ws3/head-mismatch"
+  export SDD_HANDOFF_PATH="$TESTROOT/ws3/head-mismatch-handoff.json"
+  mkdir -p "$SDD_WORKSPACE"
+  git -C "$SDD_WORKSPACE" init -q
+  git -C "$SDD_WORKSPACE" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+  real_head="$(git -C "$SDD_WORKSPACE" rev-parse HEAD)"
+  wrong_head="0000000000000000000000000000000000000000"
+  printf '{"status":"DONE","commits":{"base":"abc1234","head":"%s"},"artifacts":{}}' "$wrong_head" > "$SDD_HANDOFF_PATH"
+
+  set +e
+  err="$(sdd_validate_commit_contract implement 2>&1 >/dev/null)"
+  rc=$?
+  set -e
+  assert_rc "F3f head mismatch rc 1" 1 "$rc"
+  assert_eq "F3f SDD_BLOCKED message" "SDD_BLOCKED: handoff commits.head ${wrong_head} does not match HEAD ${real_head} (implement)" "$err"
+  assert_eq "F3f handoff.status" "BLOCKED" "$(jq -r '.status' "$SDD_HANDOFF_PATH")"
+  assert_eq "F3f handoff.blocker" "handoff commits.head ${wrong_head} does not match HEAD ${real_head} (implement)" "$(jq -r '.blocker' "$SDD_HANDOFF_PATH")"
+  assert_eq "F3f handoff.commits.head preserved" "$wrong_head" "$(jq -r '.commits.head' "$SDD_HANDOFF_PATH")"
+}
+
+# F3g. clean tree + handoff missing → fail-open (rc 0): no handoff, nothing to
+# compare, existing clean-tree pass must not regress.
+{
+  export SDD_WORKSPACE="$TESTROOT/ws3/clean-nohandoff"
+  mkdir -p "$SDD_WORKSPACE"
+  git -C "$SDD_WORKSPACE" init -q
+  git -C "$SDD_WORKSPACE" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+  unset SDD_HANDOFF_PATH
+  sdd_validate_commit_contract implement && rc=0 || rc=$?
+  assert_rc "F3g clean tree no handoff rc 0" 0 "$rc"
+}
+
 ###############################################################################
 # F4. sdd_run_task
 ###############################################################################
@@ -356,7 +392,10 @@ EOF
 
   assert_rc "F4e malformed handoff → non-zero exit" 1 "$rc"
   assert_eq "F4e H1 status BLOCKED" "status: BLOCKED" "$(printf '%s\n' "$h1" | grep '^status:')"
-  assert_eq "F4e H1 blocker unparseable" "blocker: handoff JSON unparseable (jq rewrite failed) after commit-contract interception" "$(printf '%s\n' "$h1" | grep '^blocker:')"
+  # F2: the H1 blocker names the real root cause (uncommitted changes) even
+  # though the handoff JSON was unparseable — the generic unparseable message
+  # must not mask the interception.
+  assert_eq "F4e H1 blocker root cause" "blocker: uncommitted changes at return (implement): dirty working tree" "$(printf '%s\n' "$h1" | grep '^blocker:')"
 }
 
 ###############################################################################

@@ -268,8 +268,16 @@ _sdd_raw_handoff_field() {
 # raw-file commits + blocker when the handoff's .status can't be read via jq
 # (validator rewrite failed) or jq is absent. Artifacts are not extractable in
 # this degraded state.
+#
+# When the commit-contract validator intercepted first, it stores the real
+# blocker reason in $SDD_BLOCKED_REASON (shell variable, dynamic scope) — prefer
+# it over the generic fallback so the H1 contract reports the actual root cause
+# (F2: no-jq/malformed no longer masks an uncommitted-changes interception).
 _sdd_emit_h1_raw_blocked() {
   local blocker_msg="$1" handoff="${SDD_HANDOFF_PATH:-}"
+  if [[ -n "${SDD_BLOCKED_REASON:-}" ]]; then
+    blocker_msg="$SDD_BLOCKED_REASON"
+  fi
   printf 'status: BLOCKED\n'
   printf 'commits: base=%s head=%s\n' \
     "$(_sdd_raw_handoff_field "$handoff" base)" \
@@ -343,27 +351,62 @@ _sdd_run_review_package() {
 }
 
 # Core commit-contract validator (spec §4.2). Mode implement/fix only;
-# review → no-op. Non-git / git-error → fail-open. Dirty working tree →
-# rewrite handoff (jq) + print SDD_BLOCKED + return 1. Untracked files count
-# as dirty (D3b strictness); the .superpowers/ workspace is gitignored so it
-# never trips the check.
+# review → no-op. Non-git / git-error → fail-open. Two orthogonal signals:
+#   dirty working tree → captures "worker didn't commit" (D2);
+#   clean tree but handoff commits.head != real HEAD → captures "worker
+#   committed but recorded the wrong head" (F1 — complements, not replaces,
+#   the dirty check; both rewrite the handoff + print SDD_BLOCKED + return 1).
+# Untracked files count as dirty (D3b strictness); the .superpowers/ workspace
+# is gitignored so it never trips the check. The real blocker reason is stored
+# in $SDD_BLOCKED_REASON (shell variable) so the H1 emitter can report it even
+# when the handoff rewrite failed (F2).
 sdd_validate_commit_contract() {
   local mode="$1"
   SDD_HANDOFF_UNWRITABLE=""
+  SDD_BLOCKED_REASON=""
   [[ "$mode" == "implement" || "$mode" == "fix" ]] || return 0
   local repo_root porcelain
   repo_root="$(git -C "${SDD_WORKSPACE:-.}" rev-parse --show-toplevel 2>/dev/null)" || return 0
   porcelain="$(git -C "$repo_root" status --porcelain 2>/dev/null)" || return 0
-  [[ -z "$porcelain" ]] && return 0
+  if [[ -z "$porcelain" ]]; then
+    # Clean tree: the dirty check can't see a head recorded wrong — verify the
+    # handoff's commits.head actually matches HEAD (F1). Fail-open when there's
+    # no handoff, no jq, or the head field is empty.
+    if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
+      local handoff_head actual_head
+      handoff_head="$(jq -r '.commits.head // empty' "${SDD_HANDOFF_PATH}")"
+      if [[ -n "$handoff_head" ]]; then
+        actual_head="$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" || actual_head=""
+        if [[ -n "$actual_head" && "$handoff_head" != "$actual_head" ]]; then
+          SDD_BLOCKED_REASON="handoff commits.head ${handoff_head} does not match HEAD ${actual_head} (${mode})"
+          if command -v jq >/dev/null 2>&1; then
+            local tmp
+            tmp="$(mktemp)"
+            if jq --arg b "$SDD_BLOCKED_REASON" \
+              '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp"; then
+              mv "$tmp" "${SDD_HANDOFF_PATH}"
+            else
+              rm -f "$tmp"
+              SDD_HANDOFF_UNWRITABLE=1
+            fi
+          fi
+          printf 'SDD_BLOCKED: %s\n' "$SDD_BLOCKED_REASON" >&2
+          return 1
+        fi
+      fi
+    fi
+    return 0
+  fi
   # Intercept: rewrite the handoff when jq is available AND the JSON parses; a
   # failed rewrite (malformed JSON, missing jq) is still authoritative BLOCKED —
   # the rewritten-handoff contract can't be honored, so signal it with
   # SDD_HANDOFF_UNWRITABLE for the H1 emitter rather than leaking the original
   # .status (which may say DONE).
+  SDD_BLOCKED_REASON="uncommitted changes at return (${mode}): dirty working tree"
   if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
     local tmp
     tmp="$(mktemp)"
-    if jq --arg b "uncommitted changes at return (${mode}): dirty working tree" \
+    if jq --arg b "$SDD_BLOCKED_REASON" \
       '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp"; then
       mv "$tmp" "${SDD_HANDOFF_PATH}"
     else

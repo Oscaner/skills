@@ -350,6 +350,25 @@ _sdd_run_review_package() {
   printf '%s\n' "$out_line" >&2
 }
 
+# Rewrite the handoff to BLOCKED with <reason> as .blocker, atomically. Shared
+# by both validator intercept branches (dirty tree, head mismatch). Guards on
+# handoff existence + jq; a failed rewrite (malformed JSON, missing jq) is still
+# authoritative BLOCKED — signal it with SDD_HANDOFF_UNWRITABLE for the H1
+# emitter rather than leaking the original .status (which may say DONE).
+_sdd_rewrite_handoff_blocked() {
+  local reason="$1" tmp
+  if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
+    tmp="$(mktemp)"
+    if jq --arg b "$reason" \
+      '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp"; then
+      mv "$tmp" "${SDD_HANDOFF_PATH}"
+    else
+      rm -f "$tmp"
+      SDD_HANDOFF_UNWRITABLE=1
+    fi
+  fi
+}
+
 # Core commit-contract validator (spec §4.2). Mode implement/fix only;
 # review → no-op. Non-git / git-error → fail-open. Two orthogonal signals:
 #   dirty working tree → captures "worker didn't commit" (D2);
@@ -379,17 +398,7 @@ sdd_validate_commit_contract() {
         actual_head="$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" || actual_head=""
         if [[ -n "$actual_head" && "$handoff_head" != "$actual_head" ]]; then
           SDD_BLOCKED_REASON="handoff commits.head ${handoff_head} does not match HEAD ${actual_head} (${mode})"
-          if command -v jq >/dev/null 2>&1; then
-            local tmp
-            tmp="$(mktemp)"
-            if jq --arg b "$SDD_BLOCKED_REASON" \
-              '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp"; then
-              mv "$tmp" "${SDD_HANDOFF_PATH}"
-            else
-              rm -f "$tmp"
-              SDD_HANDOFF_UNWRITABLE=1
-            fi
-          fi
+          _sdd_rewrite_handoff_blocked "$SDD_BLOCKED_REASON"
           printf 'SDD_BLOCKED: %s\n' "$SDD_BLOCKED_REASON" >&2
           return 1
         fi
@@ -397,23 +406,10 @@ sdd_validate_commit_contract() {
     fi
     return 0
   fi
-  # Intercept: rewrite the handoff when jq is available AND the JSON parses; a
-  # failed rewrite (malformed JSON, missing jq) is still authoritative BLOCKED —
-  # the rewritten-handoff contract can't be honored, so signal it with
-  # SDD_HANDOFF_UNWRITABLE for the H1 emitter rather than leaking the original
-  # .status (which may say DONE).
+  # Dirty tree intercept (D2); the head-mismatch branch above is the F1
+  # complement. Both rewrite via _sdd_rewrite_handoff_blocked + print SDD_BLOCKED.
   SDD_BLOCKED_REASON="uncommitted changes at return (${mode}): dirty working tree"
-  if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
-    local tmp
-    tmp="$(mktemp)"
-    if jq --arg b "$SDD_BLOCKED_REASON" \
-      '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp"; then
-      mv "$tmp" "${SDD_HANDOFF_PATH}"
-    else
-      rm -f "$tmp"
-      SDD_HANDOFF_UNWRITABLE=1
-    fi
-  fi
+  _sdd_rewrite_handoff_blocked "$SDD_BLOCKED_REASON"
   printf 'SDD_BLOCKED: uncommitted changes at return (%s) — dirty working tree\n' "$mode" >&2
   return 1
 }

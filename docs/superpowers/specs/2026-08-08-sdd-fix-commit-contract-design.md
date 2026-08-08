@@ -113,6 +113,16 @@
 ### 4.2 `sdd_validate_commit_contract` 伪代码
 
 ```bash
+# 改写 handoff 为 BLOCKED + blocker=<reason>，原子 mv。两个拦截分支（脏树 /
+# head 不一致）共享；handoff 缺失或改写失败（malformed/no-jq）→ SDD_HANDOFF_UNWRITABLE。
+_sdd_rewrite_handoff_blocked() {
+  local reason="$1" tmp
+  if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
+    tmp="$(mktemp)"
+    jq --arg b "$reason" '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
+  fi
+}
+
 sdd_validate_commit_contract() {
   local mode="$1"
   SDD_BLOCKED_REASON=""                                  # F2: 真实根因传给 H1 降级路径
@@ -128,11 +138,7 @@ sdd_validate_commit_contract() {
         actual_head="$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" || actual_head=""
         if [[ -n "$actual_head" && "$handoff_head" != "$actual_head" ]]; then
           SDD_BLOCKED_REASON="handoff commits.head ${handoff_head} does not match HEAD ${actual_head} (${mode})"
-          # 改写 handoff（有 jq）→ 打印 SDD_BLOCKED → 返回 1（与脏树拦截同形）
-          if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
-            local tmp; tmp="$(mktemp)"
-            jq --arg b "$SDD_BLOCKED_REASON" '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
-          fi
+          _sdd_rewrite_handoff_blocked "$SDD_BLOCKED_REASON"     # 改写 → 打印 → 返回 1
           printf 'SDD_BLOCKED: %s\n' "$SDD_BLOCKED_REASON" >&2
           return 1
         fi
@@ -140,12 +146,9 @@ sdd_validate_commit_contract() {
     fi
     return 0                                                   # 干净 + head 一致 → 通过
   fi
-  # 脏树拦截：改写 handoff（有 jq）→ 打印 SDD_BLOCKED → 返回 1
+  # 脏树拦截（与 head 不一致分支同形，共享 _sdd_rewrite_handoff_blocked）
   SDD_BLOCKED_REASON="uncommitted changes at return (${mode}): dirty working tree"
-  if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
-    local tmp; tmp="$(mktemp)"
-    jq --arg b "$SDD_BLOCKED_REASON" '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
-  fi
+  _sdd_rewrite_handoff_blocked "$SDD_BLOCKED_REASON"
   printf 'SDD_BLOCKED: uncommitted changes at return (%s) — dirty working tree\n' "$mode" >&2
   return 1
 }

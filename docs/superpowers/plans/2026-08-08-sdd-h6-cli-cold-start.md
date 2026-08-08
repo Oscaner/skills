@@ -8,7 +8,7 @@
 
 Consolidate SDD CLI mode dispatch by inlining handoff logic into implement/review/fix modes. Remove `--mode handoff` and `--segment` from shell scripts. Update all downstream skill files and docs.
 
-**20 files touched:** 8 shell scripts, 7 templates, 4 skills, 3 docs, 1 test (new).
+**20 files touched:** 5 shell scripts modified (+6 stubs no-change), 7 templates, 4 skills, 4 docs, 2 tests (1 new + 1 updated smoke test).
 
 ## Global Constraints
 
@@ -53,14 +53,21 @@ Consolidate SDD CLI mode dispatch by inlining handoff logic into implement/revie
 ### Task 4: Update task shell scripts — claude + cursor
 
 **What:** Per spec §4.3:
+
+**Both scripts (`claude.sh` and `cursor.sh`):**
 - Delete `--segment` arg parsing block, `SDD_SEGMENT` variable
-- Delete `_sdd_claude_skill_prefix` function (analogous `_sdd_cursor_skill_prefix` for cursor)
+- Delete `export SDD_HANDOFF_SEGMENT="${SDD_SEGMENT:-}"` line in `_sdd_set_task_env`
 - `usage()`: mode list → `implement|review|fix`
-- `_sdd_claude_prepare_prompt` / cursor equivalent: remove handoff prefix branch, keep review → `Skill(mattpocock-skills:code-review)`
-- Remove `case "$SDD_MODE_ARG"` handoff branch + `sdd_assert_handoff` call
+- Remove `case "$SDD_MODE_ARG"` handoff branch (cursor: the `handoff)` case that checked `SDD_HANDOFF_SEGMENT` and called `sdd_assert_handoff`; claude: `_sdd_claude_prepare_prompt` handoff branch + final `case` block calling `sdd_assert_handoff`)
 - handoff mode received → error exit with message `"handoff mode removed: handoff write is now inline"`
-- Review-package shell invocation untouched
-- Apply identical changes to both `sdd-run-task-claude.sh` and `sdd-run-task-cursor.sh`
+- Review-package shell invocation untouched (`_sdd_run_review_package` in both scripts)
+
+**Claude-only:**
+- Delete `_sdd_claude_skill_prefix` function entirely
+- `_sdd_claude_prepare_prompt`: remove handoff prefix branch, keep only review → `Skill(mattpocock-skills:code-review)`
+
+**Cursor-only (no prefix mechanism):**
+- Cursor script has no `_sdd_cursor_skill_prefix` or `_sdd_cursor_prepare_prompt` — it renders templates directly via `sdd_render_template` without any `Skill(...)` prefix injection. No prefix cleanup needed.
 
 **Files:** `bin/sdd-run-task-claude.sh`, `bin/sdd-run-task-cursor.sh` (MODIFY)
 
@@ -71,7 +78,9 @@ Consolidate SDD CLI mode dispatch by inlining handoff logic into implement/revie
 **What:** Per spec §4.3:
 - Delete `sdd_assert_handoff` function (~25 lines)
 - `sdd_require_env`: delete `handoff)` case `SDD_HANDOFF_SEGMENT` validation block; mode valid set → `implement|review|fix`
-- `sdd_template_var`: delete `HANDOFF)` and `SEGMENT)` cases (variables now resolved by parent template scope per spec §4.2 note)
+- `sdd_template_var`: delete `HANDOFF)` and `SEGMENT)` cases (function name is `_sdd_template_value` in code; variables now resolved by parent template scope per spec §4.2 note)
+- Remove `SEGMENT` from `placeholders` array in `sdd_render_template` (line ~87) — stale placeholder produces empty string but should be cleaned up
+- `sdd_require_env` mode valid set → `implement|review|fix`
 
 **Files:** `bin/lib/sdd-common.sh` (MODIFY)
 
@@ -107,27 +116,30 @@ Consolidate SDD CLI mode dispatch by inlining handoff logic into implement/revie
 
 ### Task 8: Update reference docs
 
-**What:** Modify 3 doc files:
-- `docs/sdd-h6-reference.md`: H6 mode table — delete handoff row, delete `SDD_HANDOFF_SEGMENT` row, update row count; typical shell sequence block — remove handoff lines, show 2-line chain; Mode B description — update from "4-mode chain" to "3-mode chain per task"
-- `docs/cross-harness-overrides.md`: invocation mode example — mode list `implement|handoff|review|fix` → `implement|review|fix`; template table — remove `handoff.md` row
-- `README.md` + `README.zh-CN.md` (2 files, same changes): cross-cutting skills table — `spor-handoff-writer` add note "(schema reference, no longer independently dispatched)"; Mode A usage line — `implement|handoff|review|fix` → `implement|review|fix`
+**What:** Modify 4 doc files:
+- `plugins/superpowers-overrides/docs/sdd-h6-reference.md`: H6 mode table — delete handoff row, delete `SDD_HANDOFF_SEGMENT` row, update row count; typical shell sequence block — remove handoff lines, show 2-line chain; Mode B description — update from "4-mode chain" to "3-mode chain per task"
+- `plugins/superpowers-overrides/docs/cross-harness-overrides.md`: invocation mode example — mode list `implement|handoff|review|fix` → `implement|review|fix`; template table — remove `handoff.md` row
+- `plugins/superpowers-overrides/README.md` + `plugins/superpowers-overrides/README.zh-CN.md` (2 files, same changes): cross-cutting skills table — `spor-handoff-writer` add note "(schema reference, no longer independently dispatched)"; Mode A usage line — `implement|handoff|review|fix` → `implement|review|fix`
 
-**Files:** `docs/sdd-h6-reference.md`, `docs/cross-harness-overrides.md`, `README.md`, `README.zh-CN.md` (MODIFY)
+**Files:** `plugins/superpowers-overrides/docs/sdd-h6-reference.md`, `plugins/superpowers-overrides/docs/cross-harness-overrides.md`, `plugins/superpowers-overrides/README.md`, `plugins/superpowers-overrides/README.zh-CN.md` (MODIFY)
 
 **Dependencies:** None (can run in parallel with Task 6–7)
 
-### Task 9: Write dry-run test + update validation
+### Task 9: Write dry-run test + update existing smoke test
 
 **What:** New file `tests/sdd-run-task-claude-dry-run.sh`:
-- Create fixture workspace (tmp dir) with stub brief (`TASK_BASE: <real-git-sha>`), existing handoff.json, test-evidence.json
-- `SDD_DRY_RUN=1 sdd-run-task-claude.sh --task 1 --mode implement`: assert exit 0, stdout H1 4 lines with status/commits/artifacts/blocker
+- Create fixture workspace (tmp dir) with stub brief (`TASK_BASE: $(git rev-parse HEAD)`), existing handoff.json, test-evidence.json
+- `SDD_DRY_RUN=1 sdd-run-task-claude.sh --task 1 --mode implement`: assert exit 0, stdout H1 4 lines
 - `SDD_DRY_RUN=1 sdd-run-task-claude.sh --task 1 --mode review`: assert exit 0
 - `SDD_DRY_RUN=1 sdd-run-task-claude.sh --task 1 --mode fix`: assert exit 0
 - `SDD_DRY_RUN=1 sdd-run-task-claude.sh --task 1 --mode handoff`: assert non-zero exit, error on stderr
 - `SDD_DRY_RUN=1 sdd-run-task-claude.sh --task 1 --mode implement --segment implement`: assert exit 2 (usage error)
+
+**Also update existing `tests/sdd-cli-dry-run-smoke.sh`:**
+- This test iterates over modes including `handoff:implement` and `handoff:review` with `--segment` flags. Remove handoff mode entries from the test's mode list so the test still passes.
 - Update `tests/validate-overrides-build.sh`: add new test script to executable assertion list
 
-**Files:** `tests/sdd-run-task-claude-dry-run.sh` (NEW), `tests/validate-overrides-build.sh` (MODIFY)
+**Files:** `tests/sdd-run-task-claude-dry-run.sh` (NEW), `tests/sdd-cli-dry-run-smoke.sh` (MODIFY), `tests/validate-overrides-build.sh` (MODIFY)
 
 **Dependencies:** Task 4, 5, 6 (shell scripts must be ready before testing)
 
@@ -137,7 +149,10 @@ Consolidate SDD CLI mode dispatch by inlining handoff logic into implement/revie
 1. Run `pnpm run validate` (full CI suite — all gate + harness tests must pass)
 2. Run new dry-run test: `./plugins/superpowers-overrides/tests/sdd-run-task-claude-dry-run.sh`
 3. Run `pnpm changeset` — describe the breaking change (handoff mode removal, inline handoff write)
-4. Final scan: `grep -rn 'sdd_assert_handoff\|_sdd_claude_skill_prefix\|--mode handoff\|--segment.*implement\|HANDOFF_SEGMENT\|mode=handoff' plugins/superpowers-overrides/` — should return zero results in non-doc, non-test files
+4. Final scan should return zero results in `bin/`, `skills/`, `templates/` (docs may have change-history references):
+   ```
+   grep -rn 'sdd_assert_handoff\|_sdd_claude_skill_prefix\|_sdd_cursor_skill_prefix\|--mode handoff\| --segment \|SDD_HANDOFF_SEGMENT\|SDD_SEGMENT' plugins/superpowers-overrides/
+   ```
 
 **Files:** `.changeset/*.md` (NEW from changeset)
 

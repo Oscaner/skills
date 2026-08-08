@@ -30,8 +30,11 @@ SDD CLI 执行中每个 task 的每个 mode（implement / handoff / review / fix
   claude -p implement → claude -p handoff(i) → review-package(shell) → claude -p review → claude -p handoff(r) → [claude -p fix → claude -p review → claude -p handoff(f)]
 
 新链 (每 task 2–4 进程):
-  review-package(shell) → claude -p implement+h(i) → claude -p review+h(r) → [claude -p fix+h(f) → claude -p review+h(rr)]
+  claude -p implement+h(i) → review-package(shell) → claude -p review+h(r) → [claude -p fix+h(f) → review-package(shell) → claude -p review+h(rr)]
 ```
+
+> **Note:** review-package 位置不变——仍然在 implement 完成后、review 启动前由 shell 侧执行（生成 diff archive），不在 `claude -p` 内部。
+
 
 - 优化：每 task 最少 4 → 2 进程（-50%），含 fix 8 → 4 进程（-50%）
 - 质量门保持：implementer 不能 self-review
@@ -84,7 +87,7 @@ handoff-writer 逻辑直接写入 implement/review/fix 模板 Instructions 尾�
 ```markdown
 ## Handoff write
 
-Write/update handoff per `templates/sdd-handoff-schema.md` from file paths only.
+Write/update handoff per `templates/sdd-handoff-schema.md` from file paths only (per [`spor-token-efficient-controller-handoff`](../plugins/superpowers-overrides/skills/spor-token-efficient-controller-handoff/SKILL.md) H1–H2 file-only discipline).
 
 ### Segment: implement
 
@@ -109,7 +112,13 @@ Write/update handoff per `templates/sdd-handoff-schema.md` from file paths only.
 
 ### Self-validate
 
-Run before returning H1 contract: `jq . {{HANDOFF}}` then check required keys (status, commits.base, commits.head) are non-null.
+Run before returning H1 contract: `jq . {{HANDOFF}}` then check required keys (status, commits.base, commits.head) are non-null. On failure → `status: BLOCKED` with blocker line describing the validation error.
+
+### Atomicity
+
+Implement+handoff runs in a single `claude -p` process: if implement succeeds but handoff write fails, the H1 contract returns `status: BLOCKED`. The orchestrator's retry re-runs the entire implement+handoff mode — the implementer should be idempotent (committed changes are re-applied safely by TDD).
+
+> `{{HANDOFF}}`, `{{WORKSPACE}}`, `{{TASK}}` template variables: the handoff-write fragment is included inline into each enclosing template (implement/review/fix.md), which already define these variables through their own `sdd_template_var` calls. The fragment itself does not need separate variable handling — it inherits the parent template's expansion scope.
 ```
 
 ### 4.3 CLI 脚本变更点
@@ -204,7 +213,7 @@ build/generated/*                  NO CHANGE — manifest 不变
 
 ## 5. Non-goals
 
-- Daemon / background agent 模式 — 架构改动过大，与 H6 one-shot 模型冲突
+- Daemon / background agent 模式 — 架构改动过大，p1 的核心约束仍然是独立的 `claude -p` 调用，本次只减少调用次数而非改变调用模型。该方向单独评估
 - `--no-session-persistence` 调优 — 属于 Claude Code 平台优化，不在本次 scope
 - 轻量 implement 模板 — 模板体积不是问题根因；SDD quality gate（TDD + report）应在 implement 模板保留
 - Review mode claude `-p` 内部展开多个 subagent 调用的 token 优化 — 属于 code-review skill 层面

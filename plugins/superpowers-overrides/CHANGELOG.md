@@ -1,5 +1,18 @@
 # superpowers-overrides
 
+## 6.2.0-overrides.0.15.3
+
+### Patch Changes
+
+- SDD orchestrator gate shell/workspace consistency + stale-workspace hijack prevention (issue [#53](https://github.com/Oscaner/skills/issues/53)). Read-only git diagnostics (`git status`/`git diff`/`git log`/`git show`/`git rev-parse`/`git branch`/`git remote`/`git ls-files`/`git diff-tree`) now allowed during active tasks, hardened against compound commands and mutating sub-verbs; deny message upgraded to a full allowlist matrix. Stale workspace hijack prevented via `TASK_BASE` git-object check and bound-workspace priority. Gate test fixtures isolated under `tests/fixtures/sdd-gate/`, full allow/deny matrix smoke test added and mounted in CI.
+
+
+- Document why SDD CLI agents are not traceable via /resume — H6.6 in the reference doc + shell comments.
+
+
+- Breaking: remove `--mode handoff` and `--segment` flag. Handoff write is now inline in implement/review/fix modes. ([#88](https://github.com/Oscaner/skills/issues/88))
+
+
 ## 6.2.0-overrides.0.15.2
 
 ### Patch Changes

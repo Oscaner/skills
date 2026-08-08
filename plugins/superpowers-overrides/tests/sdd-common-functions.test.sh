@@ -298,6 +298,67 @@ EOF
   assert_eq "F4c H1 status DONE" "status: DONE" "$(printf '%s\n' "$h1" | grep '^status:')"
 }
 
+# F4d. no-jq + handoff exists → H1 fallback emits commits from the raw file
+{
+  export SDD_HANDOFF_PATH="$TESTROOT/ws4d/handoff.json"
+  mkdir -p "$TESTROOT/ws4d"
+  printf '%s' '{"status":"DONE","commits":{"base":"bbbbbb1","head":"bbbbbb2"}}' > "$SDD_HANDOFF_PATH"
+
+  # mask jq: minimal PATH with only sed+head (raw extractor deps)
+  njqbin="$TESTROOT/ws4d/njqbin"
+  mkdir -p "$njqbin"
+  for b in sed head; do
+    ln -sf "$(command -v "$b")" "$njqbin/$b"
+  done
+
+  set +e
+  h1="$(PATH="$njqbin" _sdd_emit_h1_from_handoff 2>/dev/null)"
+  rc=$?
+  set -e
+  assert_rc "F4d no-jq H1 rc 0" 0 "$rc"
+  assert_eq "F4d H1 status BLOCKED" "status: BLOCKED" "$(printf '%s\n' "$h1" | grep '^status:')"
+  assert_eq "F4d H1 commits from raw" "commits: base=bbbbbb1 head=bbbbbb2" "$(printf '%s\n' "$h1" | grep '^commits:')"
+  assert_eq "F4d H1 blocker" "blocker: handoff unparseable without jq after commit-contract interception" "$(printf '%s\n' "$h1" | grep '^blocker:')"
+}
+
+# F4e. malformed handoff JSON + dirty tree → validator rewrite fails → H1
+# treats it as authoritative BLOCKED (never reads the un-rewritten .status)
+{
+  export SDD_DRY_RUN=1
+  export SDD_WORKSPACE="$TESTROOT/ws4e/dirty"
+  export SDD_LEDGER="$SDD_WORKSPACE/progress.md"
+  export SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md"
+  export SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json"
+  export SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md"
+  export SDD_MODE=implement
+  export SDD_MODE_ARG=implement
+  export PLAN_FILE="$TESTROOT/ws4e/plan.md"
+  mkdir -p "$SDD_WORKSPACE"
+  echo "# task 1" > "$SDD_TASK_BRIEF"
+  echo "# SDD ledger — plan: $PLAN_FILE" > "$SDD_LEDGER"
+  echo "constraints" > "$SDD_PLAN_CONSTRAINTS"
+  echo "# Plan" > "$PLAN_FILE"
+
+  # malformed JSON — the validator's jq rewrite must fail on this
+  printf '%s' '{not valid json' > "$SDD_HANDOFF_PATH"
+
+  git -C "$SDD_WORKSPACE" init -q
+  git -C "$SDD_WORKSPACE" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+  echo 'dirty' > "$SDD_WORKSPACE/dirty.txt"
+
+  # shellcheck disable=SC2329
+  _sdd_invoke_cli() { :; }  # unused in dry-run
+
+  set +e
+  h1="$(sdd_run_task sh "" 1 2>/dev/null)"
+  rc=$?
+  set -e
+
+  assert_rc "F4e malformed handoff → non-zero exit" 1 "$rc"
+  assert_eq "F4e H1 status BLOCKED" "status: BLOCKED" "$(printf '%s\n' "$h1" | grep '^status:')"
+  assert_eq "F4e H1 blocker unparseable" "blocker: handoff JSON unparseable (jq rewrite failed) after commit-contract interception" "$(printf '%s\n' "$h1" | grep '^blocker:')"
+}
+
 ###############################################################################
 # F5. sdd_run_plan
 ###############################################################################
@@ -370,6 +431,29 @@ EOF
   set -e
   assert_rc "F5b chain rc 0" 0 "$rc"
   assert_eq "F5b ledger appended" "Task 1: complete (commits base1..head1, review clean)" "$(tail -1 "$ws/progress.md")"
+}
+
+# F5c. _sdd_resolve_workspace: an explicit plan-file arg always wins over a
+# pre-set SDD_WORKSPACE — the plan driver must not be redirected by env that
+# leaked into its process. (Runs inside the fixture git repo so upstream
+# sdd-workspace resolves the fixture root, mirroring F5a/F5b.)
+{
+  export SDD_WORKSPACE="$TESTROOT/ws5c/bogus-workspace"
+  plan="$TESTROOT/ws5c/plan.md"
+  mkdir -p "$TESTROOT/ws5c"
+  printf '# Plan\n\n### Task 1: one\n' > "$plan"
+  git -C "$TESTROOT/ws5c" init -q
+  git -C "$TESTROOT/ws5c" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+
+  resolved=""
+  rc=0
+  resolved="$(cd "$TESTROOT/ws5c" && _sdd_resolve_workspace "$plan")" || rc=$?
+  # git resolves to physical paths; canonicalize the expectation to match
+  # (macOS /var/folders → /private/var/folders).
+  exp="$(cd "$TESTROOT/ws5c" && pwd -P)/.superpowers/sdd/plan"
+  assert_rc "F5c plan arg wins over SDD_WORKSPACE" 0 "$rc"
+  assert_eq "F5c workspace is plan-derived" "$exp" "$resolved"
+  unset SDD_WORKSPACE
 }
 
 ###############################################################################

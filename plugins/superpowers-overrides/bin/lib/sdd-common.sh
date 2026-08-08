@@ -211,17 +211,23 @@ _sdd_plan_from_ledger() {
   sed -n '1s/^# SDD ledger — plan: //p' "$ledger"
 }
 
+# Resolve the SDD workspace. Shared by the task path (no explicit plan-file
+# arg → honor $SDD_WORKSPACE when set, else derive from $PLAN_FILE) and the
+# plan path (explicit $plan_file arg → always derive from it; a pre-set
+# $SDD_WORKSPACE must not redirect the plan driver to a different workspace).
 _sdd_resolve_workspace() {
-  if [[ -n "${SDD_WORKSPACE:-}" ]]; then
+  local plan_file="${1:-}"
+  if [[ -z "$plan_file" && -n "${SDD_WORKSPACE:-}" ]]; then
     printf '%s\n' "$SDD_WORKSPACE"
     return 0
   fi
-  [[ -n "${PLAN_FILE:-}" ]] || sdd_exit_blocked "SDD_WORKSPACE unset and --plan not provided"
+  [[ -n "$plan_file" ]] || plan_file="${PLAN_FILE:-}"
+  [[ -n "$plan_file" ]] || sdd_exit_blocked "SDD_WORKSPACE unset and --plan not provided"
   local scripts ws_script
   scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream sdd-workspace script not found"
   ws_script="${scripts}/sdd-workspace"
   [[ -x "$ws_script" ]] || sdd_exit_blocked "sdd-workspace not executable: ${ws_script}"
-  "$ws_script" "$PLAN_FILE"
+  "$ws_script" "$plan_file"
 }
 
 _sdd_set_task_env() {
@@ -250,13 +256,43 @@ _sdd_emit_h1_four_lines() {
   done
 }
 
+# Raw-field extractor for handoff JSON when jq is unavailable or the file
+# failed jq parsing. Tolerates compact and pretty-printed JSON
+# ("key": "value" or "key":"value"); prints the first match, or empty.
+_sdd_raw_handoff_field() {
+  local handoff="$1" key="$2"
+  sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$handoff" | head -1
+}
+
 # H1 four-line return block from the handoff JSON (spec v3 — H1-from-handoff).
 # Reads the possibly-rewritten handoff; artifacts keys omitted when absent.
 # status: BLOCKED means the commit-contract validator rewrote it.
 _sdd_emit_h1_from_handoff() {
   local handoff="${SDD_HANDOFF_PATH:-}"
-  if [[ -z "$handoff" || ! -f "$handoff" ]] || ! command -v jq >/dev/null 2>&1; then
-    _sdd_emit_h1_four_lines "$(printf 'status: BLOCKED\nblocker: handoff unavailable after commit-contract interception\n')"
+  if [[ "${SDD_HANDOFF_UNWRITABLE:-}" == "1" ]]; then
+    # Validator's jq rewrite failed (malformed JSON): the handoff still holds the
+    # original .status, which the contract no longer trusts. Emit authoritative
+    # BLOCKED; the raw file's commits pair is still extractable.
+    printf 'status: BLOCKED\n'
+    printf 'commits: base=%s head=%s\n' \
+      "$(_sdd_raw_handoff_field "$handoff" base)" \
+      "$(_sdd_raw_handoff_field "$handoff" head)"
+    printf 'blocker: handoff JSON unparseable (jq rewrite failed) after commit-contract interception\n'
+    return
+  fi
+  if [[ -z "$handoff" || ! -f "$handoff" ]]; then
+    _sdd_emit_h1_four_lines "$(printf 'status: BLOCKED\nblocker: handoff missing after commit-contract interception\n')"
+    return
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    # Handoff exists but jq is absent: can't parse .status/.artifacts, but the
+    # commits pair is extractable from the raw JSON — degrade honestly rather
+    # than claiming the handoff is unavailable (it is not).
+    printf 'status: BLOCKED\n'
+    printf 'commits: base=%s head=%s\n' \
+      "$(_sdd_raw_handoff_field "$handoff" base)" \
+      "$(_sdd_raw_handoff_field "$handoff" head)"
+    printf 'blocker: handoff unparseable without jq after commit-contract interception\n'
     return
   fi
   printf 'status: %s\n' "$(jq -r '.status // "BLOCKED"' "$handoff")"
@@ -279,7 +315,7 @@ _sdd_emit_h1_from_handoff() {
 
 _sdd_run_review_package() {
   local plan="$1" base="$2" head="$3" handoff_path="$4"
-  local scripts review_pkg out_line diff_path repo_root rel
+  local scripts review_pkg out_line diff_path rel
   scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream review-package script not found"
   review_pkg="${scripts}/review-package"
   [[ -x "$review_pkg" ]] || sdd_exit_blocked "review-package not executable: ${review_pkg}"
@@ -291,12 +327,7 @@ _sdd_run_review_package() {
   fi
 
   if command -v jq >/dev/null 2>&1 && [[ -f "$handoff_path" ]]; then
-    repo_root="$(_sdd_repo_root)" || true
-    if [[ -n "$repo_root" && "$diff_path" == "${repo_root}/"* ]]; then
-      rel="${diff_path#"${repo_root}"/}"
-    else
-      rel="$(_sdd_relpath_from_repo "$diff_path")"
-    fi
+    rel="$(_sdd_relpath_from_repo "$diff_path")"
     local tmp
     tmp="$(mktemp)"
     jq --arg diff "$rel" '.artifacts = ((.artifacts // {}) + {diff: $diff})' "$handoff_path" >"$tmp"
@@ -313,16 +344,27 @@ _sdd_run_review_package() {
 # never trips the check.
 sdd_validate_commit_contract() {
   local mode="$1"
+  SDD_HANDOFF_UNWRITABLE=""
   [[ "$mode" == "implement" || "$mode" == "fix" ]] || return 0
   local repo_root porcelain
   repo_root="$(git -C "${SDD_WORKSPACE:-.}" rev-parse --show-toplevel 2>/dev/null)" || return 0
   porcelain="$(git -C "$repo_root" status --porcelain 2>/dev/null)" || return 0
   [[ -z "$porcelain" ]] && return 0
+  # Intercept: rewrite the handoff when jq is available AND the JSON parses; a
+  # failed rewrite (malformed JSON, missing jq) is still authoritative BLOCKED —
+  # the rewritten-handoff contract can't be honored, so signal it with
+  # SDD_HANDOFF_UNWRITABLE for the H1 emitter rather than leaking the original
+  # .status (which may say DONE).
   if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
     local tmp
     tmp="$(mktemp)"
-    jq --arg b "uncommitted changes at return (${mode}): dirty working tree" \
-      '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
+    if jq --arg b "uncommitted changes at return (${mode}): dirty working tree" \
+      '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp"; then
+      mv "$tmp" "${SDD_HANDOFF_PATH}"
+    else
+      rm -f "$tmp"
+      SDD_HANDOFF_UNWRITABLE=1
+    fi
   fi
   printf 'SDD_BLOCKED: uncommitted changes at return (%s) — dirty working tree\n' "$mode" >&2
   return 1
@@ -438,14 +480,6 @@ sdd_run_plan() {
     ' "$plan" >"$out"
   }
 
-  _resolve_workspace() {
-    local scripts ws_script
-    scripts="$(sdd_superpowers_scripts_dir)" || sdd_exit_blocked "upstream sdd-workspace script not found"
-    ws_script="${scripts}/sdd-workspace"
-    [[ -x "$ws_script" ]] || sdd_exit_blocked "sdd-workspace not executable: ${ws_script}"
-    "$ws_script" "$plan_file"
-  }
-
   _task_numbers_from_plan() {
     grep -E '^### Task [0-9]+:' "$plan_file" | sed -E 's/^### Task ([0-9]+):.*/\1/' | sort -n
   }
@@ -504,12 +538,11 @@ sdd_run_plan() {
     local findings="${workspace}/task-${n}-open-findings.json"
     local review_base fix_base status fix_round=0
 
-    export SDD_WORKSPACE="$workspace"
-    export SDD_LEDGER="$ledger"
-    export SDD_TASK_BRIEF="${workspace}/task-${n}-brief.md"
-    export SDD_HANDOFF_PATH="$handoff"
-    export SDD_PLAN_CONSTRAINTS="${workspace}/plan-constraints.md"
-    export SDD_FINDINGS="$findings"
+    # _sdd_set_task_env only defaults unset vars (task-path contract: respect
+    # explicitly-provided env); the plan chain must force the workspace-derived
+    # paths, so clear any pre-existing values first.
+    unset SDD_LEDGER SDD_TASK_BRIEF SDD_HANDOFF_PATH SDD_PLAN_CONSTRAINTS SDD_FINDINGS
+    _sdd_set_task_env "$workspace" "$n"
     unset SDD_REVIEW_FIXED_POINT
 
     [[ -f "${SDD_TASK_BRIEF}" ]] || sdd_exit_blocked "task brief missing: ${SDD_TASK_BRIEF}"
@@ -559,7 +592,7 @@ sdd_run_plan() {
     done
   }
 
-  workspace="$(_resolve_workspace)"
+  workspace="$(_sdd_resolve_workspace "$plan_file")"
   ledger="${workspace}/progress.md"
   [[ -f "$ledger" ]] || sdd_exit_blocked "ledger missing: ${ledger}"
 

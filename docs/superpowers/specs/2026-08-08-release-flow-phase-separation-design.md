@@ -46,7 +46,8 @@ These were confirmed from source before designing (do not re-derive):
 | `changesets/action` PR mode switches workspace to `changeset-release/<branch>`, runs `version`, opens PR, returns `published=false` | `dist/index.js` — PR-mode branch calls `prepareBranch` + `version` + PR creation |
 | `changesets/action` publish mode runs the `publish` script, then sets `published=true` only if the script's stdout parses `New tag:` lines | `Rt` function — parses `/New tag:\s+(.+?)@(.+)/` |
 | `published` depends on stdout parsing, so a publish where the tag already exists yields `published=false` | `Rt` — empty `u` when no `New tag:` in output → `{published:!1}` |
-| `changeset tag` creates **local** tags only; in git-cli mode the action then `git push origin <tag>` | `changesets-cli.cjs.js` `tag()` + action `pushTag()` |
+| `changeset tag` creates **local** tags only — no push | `changesets-cli.cjs.js` `tag()` |
+| The action's `pushTag` (`git push origin <tag>`) and native Release creation (`Lt`) are **both** gated on `createGithubReleases`; setting it `false` means the tag is **not** pushed and no Release is created by the action | `Rt` — `a && await Promise.all(u.map(e => pushTag + Lt))`, where `a` is `createGithubReleases` |
 | With `createGithubReleases: true`, the action creates a Release with `prerelease: version.includes('-')` — our version `6.2.0-overrides.0.15.3` contains `-`, so it would be marked prerelease | `Lt` function |
 | With `createGithubReleases: true`, Release body is the changelog entry, not PR-list notes | `Lt` — body = changelog entry via `Mt()` |
 | `changesets` logger writes `New tag:` lines to **stdout** | `@changesets/logger` — `console.log(format(...))` |
@@ -65,13 +66,21 @@ Conclusion from the facts: rely on **`hasChangesets`**, not `published`, to gate
 
 `release` job exposes `hasChangesets` as a job output; every publish-only step and the `sync-develop` job gate on `hasChangesets == 'false'`.
 
-### Tag: let `changeset tag` create it, we push the concrete tag
+### Tag: `changeset tag` creates it locally, we push it explicitly
 
-In publish mode, `publish: pnpm exec changeset tag` runs against the checked-out HEAD — which is `main` after the Version PR merge — and creates the tag **there**. The action then pushes it (`git push origin <tag>`, confirmed in source).
+In publish mode, `publish: pnpm exec changeset tag` runs against the checked-out HEAD — which is `main` after the Version PR merge — and creates the tag **locally** on that commit. Because `createGithubReleases: false` also disables the action's `pushTag`, we push the concrete tag ourselves:
+
+```yaml
+- name: Push git tag
+  if: steps.changesets.outputs.hasChangesets == 'false'
+  run: git push origin "superpowers-overrides@${{ steps.overrides-ver.outputs.version }}"
+```
+
+This step runs after `Read overrides version`, so the tag name is computed from the same post-merge `package.json` that `changeset tag` tagged — they cannot diverge.
 
 Delete the custom `Resolve HEAD SHA for tagging` + `Create git tag if missing` steps entirely. They were the source of the wrong-commit tag: `git rev-parse HEAD` resolved to the `changeset-release/main` branch tip that PR mode had left the workspace on.
 
-If `changeset tag` finds the tag already exists (e.g. re-run), it logs `Skipping tag (already exists)` and the action's `pushTag` re-pushes the existing ref — idempotent.
+If `changeset tag` finds the tag already exists (e.g. re-run), it logs `Skipping tag (already exists)`; `git push origin <tag>` then fails with "tag already exists" only if the remote tag points elsewhere — after cleanup this does not occur, and a same-commit re-run pushes the identical ref (a no-op).
 
 ### Release: explicitly `createGithubReleases: false`, we create a real Release
 
@@ -84,6 +93,9 @@ The `exists` guard is deliberate and must not be dropped: `release.yml` fires on
   id: overrides-ver
   if: steps.changesets.outputs.hasChangesets == 'false'
   run: echo "version=$(node -p "require('./plugins/superpowers-overrides/package.json').version")" >> "$GITHUB_OUTPUT"
+- name: Push git tag
+  if: steps.changesets.outputs.hasChangesets == 'false'
+  run: git push origin "superpowers-overrides@${{ steps.overrides-ver.outputs.version }}"
 - name: Check if GitHub Release exists
   id: release-exists
   if: steps.changesets.outputs.hasChangesets == 'false'
@@ -107,6 +119,8 @@ The `exists` guard is deliberate and must not be dropped: `release.yml` fires on
     generate_release_notes: true
 ```
 
+Order matters: `changeset tag` created the local tag in the `changesets/action` step (publish mode), `Push git tag` pushes it to origin, then `softprops` creates the Release against the now-existing remote tag.
+
 `id: gh-release` is kept for diff-minimality; nothing downstream reads `steps.gh-release.outcome` anymore (the sync gate no longer uses it).
 
 In publish mode the working tree is `main` at the merged Version PR head, so `package.json` already carries the bumped version — `Read overrides version` reads the correct value. (In PR mode this step is skipped, so no stale-value risk.)
@@ -124,7 +138,7 @@ In publish mode the working tree is `main` at the merged Version PR head, so `pa
 | Push to main | `hasChangesets` | tag + Release | sync PR |
 |---|---|---|---|
 | `develop → main` with pending changesets | `true` | **No** (PR mode) | **No** |
-| Version PR merged (no changesets left) | `false` | **Yes** — tag on main, Release, sync PR | **Yes** |
+| Version PR merged (no changesets left) | `false` | **Yes** — `changeset tag` local + our push + softprops Release | **Yes** |
 | Push with no new release (tag/Release already exist) | `false` | **No** (Release exists check) | **Yes** (main ahead) or **No** (aligned) |
 
 ## Cleanup of current incident state
@@ -147,7 +161,7 @@ After the fix lands, trigger `release.yml` on `main` again (any push) so the act
 ## Acceptance criteria
 
 - [ ] Merging a `develop → main` PR with pending changesets does **not** create a tag, Release, or sync PR; it only opens/updates the Version PR.
-- [ ] Merging the Version PR (which is a `push → main`) triggers publish mode and creates the git tag **on main's tip** (verify via `git ls-remote` that the tag target is in `main` history).
+- [ ] Merging the Version PR (which is a `push → main`) triggers publish mode; `changeset tag` creates the tag **on main's tip**, our `git push origin <tag>` publishes it (verify via `git ls-remote` that the tag target is in `main` history).
 - [ ] The GitHub Release is created for that tag with PR-list notes and **not** marked prerelease.
 - [ ] The sync PR (`main → develop`) is opened only after the release completes.
 - [ ] `hasChangesets` (not `published`) is the single gate; `published` does not appear in `release.yml`.
@@ -159,7 +173,7 @@ After the fix lands, trigger `release.yml` on `main` again (any push) so the act
 | Risk | Mitigation |
 |---|---|
 | `hasChangesets == 'false'` on a push that also has no changesets but where tag/Release already exist | Release-exists check makes it a no-op; sync PR still correct |
-| Publish-mode tag push fails on an already-existing tag | `changeset tag` logs skip; action `pushTag` re-pushes existing ref |
+| Publish-mode tag push fails on an already-existing tag | `changeset tag` logs skip; our `git push origin <tag>` fails only if the remote tag points elsewhere (does not occur after cleanup) |
 | Publish script stdout does not produce `New tag:` (e.g. tag pre-exists) | We don't depend on `published` — only `hasChangesets` |
 | `package.json` version read in publish mode differs from the tag | They are the same file at the same HEAD; `changeset tag` and `Read overrides version` both read post-merge main |
 | Workflow regenerates Version PR on next push while #91 is still open | `changesets/action` updates the existing open PR on the same branch (`changeset-release/main`) rather than creating a duplicate |
@@ -169,6 +183,6 @@ After the fix lands, trigger `release.yml` on `main` again (any push) so the act
 
 | Path | Action |
 |------|--------|
-| `.github/workflows/release.yml` | Rework gates: job output `hasChangesets`; remove tag-creation steps; `createGithubReleases: false`; publish-mode guards on version-read / release-exists / release-create; `sync-develop` gated on `hasChangesets == 'false'` |
+| `.github/workflows/release.yml` | Rework gates: job output `hasChangesets`; remove tag-creation steps; add explicit `git push origin <tag>`; `createGithubReleases: false`; publish-mode guards on version-read / tag-push / release-exists / release-create; `sync-develop` gated on `hasChangesets == 'false'` |
 | `docs/superpowers/specs/2026-08-06-changesets-release-on-main-design.md` | Add deviation note pointing to this spec for the sync-PR gate |
 | `README.md` / `CLAUDE.md` (Releasing section) | Update flow description to the corrected two-phase behavior if they describe the old gate |

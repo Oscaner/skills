@@ -36,8 +36,9 @@
    - `mode` 非 `implement`/`fix` → `return 0`（review no-op）。
    - `repo_root="$(git -C "${SDD_WORKSPACE:-.}" rev-parse --show-toplevel 2>/dev/null)"` 失败 → `return 0`（fail-open，非 git）。
    - `porcelain="$(git -C "$repo_root" status --porcelain 2>/dev/null)"` 失败 → `return 0`（fail-open，git 报错）。
-   - `[[ -z "$porcelain" ]]` → `return 0`（干净树通过）。
-   - 拦截：`SDD_HANDOFF_PATH` 存在且有 jq → 临时文件改写 `.status="BLOCKED"`、`.blocker="uncommitted changes at return (<mode>): dirty working tree"` 后原子 mv；无论有无 jq，打印 `SDD_BLOCKED: uncommitted changes at return (<mode>) — dirty working tree` 到 stderr 并 `return 1`。
+   - 干净树分支（`[[ -z "$porcelain" ]]`）内、`return 0` 前做 **F1 head 一致性校验**：`SDD_HANDOFF_PATH` 存在且有 jq 时读 `jq -r '.commits.head // empty'`，与 `git -C "$repo_root" rev-parse HEAD` 比较；不一致且 head 非空 → 改写 handoff `.status="BLOCKED"`、`.blocker="handoff commits.head <X> does not match HEAD <Y> (<mode>)"`、打印 `SDD_BLOCKED: …` 到 stderr、`return 1`；head 为空 / 无 handoff / 无 jq → 跳过（fail-open，不影响现有干净树通过行为）。
+   - 拦截（脏树或 head 不一致）时把真实 blocker 消息存入 shell 变量 `SDD_BLOCKED_REASON`（F2），H1 降级路径优先用该变量。
+   - 脏树拦截：`SDD_HANDOFF_PATH` 存在且有 jq → 临时文件改写 `.status="BLOCKED"`、`.blocker="uncommitted changes at return (<mode>): dirty working tree"` 后原子 mv；无论有无 jq，打印 `SDD_BLOCKED: uncommitted changes at return (<mode>) — dirty working tree` 到 stderr 并 `return 1`。
 4. `sdd_run_task <cli_bin> <review_prefix> <task_num>` — 吸收现 task 脚本 post-argparse 全部流程。**注意：此函数读取调用方 shell 的全局变量 `SDD_MODE_ARG` / `PLAN_FILE` / `SDD_MODE`（仅 `task_num` 作为参数传入）——这是有意设计，不是参数化缺失。**
    - CLI 预检（`sdd_check_cli`）→ `_sdd_set_task_env` → ledger 回填 `PLAN_FILE` → review 模式 fixed-point/plan 校验 + `_sdd_run_review_package` → `sdd_require_env` → `sdd_render_mode_prompt` → 调 `_sdd_invoke_cli "$prompt"`（harness 壳定义，唯一 CLI 差异）→ **`sdd_validate_commit_contract "$SDD_MODE"`** → **H1 输出** → agent_rc/handoff 处理。**顺序不可调反**。
    - **H1-from-handoff 机制（关键，spec v3 / plan pass-1 修复）：** 现有 `_sdd_emit_h1_four_lines` 读的是 agent stdout 明文（`$agent_out`），不读 handoff。契约校验可能已把 handoff 改写为 `status=BLOCKED`，若 H1 仍从 `$agent_out` 输出会打出 `DONE`。因此 `sdd_run_task` 内的 H1 输出改为**从 `SDD_HANDOFF_PATH`（可能被改写的 handoff.json）读取状态**：
@@ -49,7 +50,7 @@
 
 **Files:** `bin/lib/sdd-common.sh` (MODIFY)
 
-**Accepts:** 5 函数可被瘦壳脚本调用；`sdd_validate_commit_contract` 在非 git workspace / 干净树 / 脏树三态行为正确；**H1-from-handoff：validator 拦截时 H1 输出 `status: BLOCKED`（从改写后 handoff 读）且退出非零，validator 通过时 H1 保持从 `$agent_out` 输出且退出 0**；函数名不与现有 `sdd_*` 冲突。
+**Accepts:** 5 函数可被瘦壳脚本调用；`sdd_validate_commit_contract` 在非 git workspace / 干净树 / 脏树三态行为正确，且干净树 + handoff 记错 head → BLOCKED（F1）；**H1-from-handoff：validator 拦截时 H1 输出 `status: BLOCKED`（从改写后 handoff 读）且退出非零，validator 通过时 H1 保持从 `$agent_out` 输出且退出 0**；函数名不与现有 `sdd_*` 冲突。
 
 **Dependencies:** None
 

@@ -48,11 +48,20 @@
 
 **同时堵住 implement 模式**：implement 现在只有提示层（step 5）、无强制层——与 fix 之前是同一隐患。统一时一并加上。
 
-**信号完备性论证：** 脏工作区是**唯一且精确**的信号：
+**信号完备性论证：** 两个正交信号，配合覆盖「没提交」与「提交了但记错」：
 
-- 工人有改动 → 要么提交（树干净）要么不提交（树脏 → BLOCKED）。不存在「树干净但该提交没提交」的情形。
-- 工人本轮无改动 → 树净 + `head==base` 合法。
-- 因此无需额外的 `head==base` 判定；`git status --porcelain` 任一输出（含 staged `M `、unstaged ` M`、untracked `??`）即触发拦截。
+- 工人有改动 → 要么提交（树干净）要么不提交（树脏 → BLOCKED）。
+- 工人提交了但 handoff 记错 `commits.head` → 树干净，但 head 校验（见下）拦截——正是 #49 描述的下游 `FIX_BASE..HEAD` review 范围错的那类破坏。
+- 工人本轮无改动 → 树净 + `handoff.commits.head == 真实 HEAD` 合法。
+- 因此：**脏树**抓「没提交」，**head 一致性校验**（干净树分支）抓「提交了但记错」——正交补充，非替代；`git status --porcelain` 任一输出（含 staged `M `、unstaged ` M`、untracked `??`）即触发脏树拦截。
+
+**head 一致性校验（F1，spec v3 补充）：** 干净树分支（`[[ -z "$porcelain" ]]`）内、`return 0` 前：
+
+- 若 `SDD_HANDOFF_PATH` 存在且有 jq：读 `jq -r '.commits.head // empty'`，与 `git -C "$repo_root" rev-parse HEAD` 比较。
+- 不一致且 head 非空 → 改写 handoff `.status="BLOCKED"`、`.blocker="handoff commits.head <X> does not match HEAD <Y> (<mode>)"`，打印 `SDD_BLOCKED: …` 到 stderr，`return 1`。
+- head 为空 / 无 handoff / 无 jq → 跳过（fail-open，不影响现有干净树通过行为）。
+
+校验拦截时把真实 blocker 消息存入 shell 变量 `SDD_BLOCKED_REASON`，H1 降级路径优先用该变量（F2）——no-jq/malformed 的「unparseable」不再掩盖真实根因（如未提交改动）。
 
 **严格版 untracked 无误报论证：** 前置条件由上游 `sdd-workspace` 保证——它在 `.superpowers/sdd/` 写入 `*` `.gitignore`，workspace 产物永不进 porcelain。implement 模式的 gate 保证任务开始时树是干净的（脏 → 早已 BLOCKED）。因此 fix 返回时出现任何 `??` 或改动，**必然是工人新建/改的**——正是要抓的漂移。
 
@@ -106,16 +115,36 @@
 ```bash
 sdd_validate_commit_contract() {
   local mode="$1"
+  SDD_BLOCKED_REASON=""                                  # F2: 真实根因传给 H1 降级路径
   [[ "$mode" == "implement" || "$mode" == "fix" ]] || return 0      # review → no-op
   local repo_root porcelain
   repo_root="$(git -C "${SDD_WORKSPACE:-.}" rev-parse --show-toplevel 2>/dev/null)" || return 0  # 非 git → fail-open
   porcelain="$(git -C "$repo_root" status --porcelain 2>/dev/null)" || return 0  # git 报错 → fail-open
-  [[ -z "$porcelain" ]] && return 0                                   # 干净 → 通过
-  # 拦截：改写 handoff（有 jq）→ 打印 SDD_BLOCKED → 返回 1
+  if [[ -z "$porcelain" ]]; then                                   # 干净树
+    # F1 head 一致性校验（正交补充：脏树抓「没提交」，这里抓「提交了但记错」）
+    if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
+      handoff_head="$(jq -r '.commits.head // empty' "${SDD_HANDOFF_PATH}")"
+      if [[ -n "$handoff_head" ]]; then
+        actual_head="$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" || actual_head=""
+        if [[ -n "$actual_head" && "$handoff_head" != "$actual_head" ]]; then
+          SDD_BLOCKED_REASON="handoff commits.head ${handoff_head} does not match HEAD ${actual_head} (${mode})"
+          # 改写 handoff（有 jq）→ 打印 SDD_BLOCKED → 返回 1（与脏树拦截同形）
+          if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
+            local tmp; tmp="$(mktemp)"
+            jq --arg b "$SDD_BLOCKED_REASON" '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
+          fi
+          printf 'SDD_BLOCKED: %s\n' "$SDD_BLOCKED_REASON" >&2
+          return 1
+        fi
+      fi
+    fi
+    return 0                                                   # 干净 + head 一致 → 通过
+  fi
+  # 脏树拦截：改写 handoff（有 jq）→ 打印 SDD_BLOCKED → 返回 1
+  SDD_BLOCKED_REASON="uncommitted changes at return (${mode}): dirty working tree"
   if [[ -f "${SDD_HANDOFF_PATH:-}" ]] && command -v jq >/dev/null 2>&1; then
     local tmp; tmp="$(mktemp)"
-    jq --arg b "uncommitted changes at return (${mode}): dirty working tree" \
-       '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
+    jq --arg b "$SDD_BLOCKED_REASON" '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
   fi
   printf 'SDD_BLOCKED: uncommitted changes at return (%s) — dirty working tree\n' "$mode" >&2
   return 1
@@ -192,7 +221,10 @@ sdd_run_plan "$PLAN_FILE" "${SCRIPT_DIR}/sdd-run-task-claude.sh" claude "claude"
 | `SDD_DRY_RUN=1` | 契约**照跑**（跑的是 `git status`，不需要 CLI）——正是测试能验证它的方式 |
 | 只 staged 未 commit | porcelain `M `（staged）→ 被抓（porcelain 覆盖 staged + unstaged） |
 | 提交后有遗留 untracked | `??` → 被抓 → BLOCKED |
-| 本轮无改动 | 树净 + `head==base` 合法通过 |
+| 树净 + handoff 记错 head | **F1 拦截**：`handoff commits.head <X> does not match HEAD <Y> (<mode>)` → BLOCKED（脏树抓不到的场景） |
+| 树净 + 无 handoff / head 空 / 无 jq | head 校验跳过（fail-open），干净树照常通过 |
+| 树净 + `head==base`（本轮无改动） | 合法通过 |
+| 拦截时 handoff 改写失败（malformed/no-jq） | 仍权威 BLOCKED；H1 降级路径的 blocker 用 `SDD_BLOCKED_REASON`（真实根因，F2）而非通用「unparseable」 |
 | agent 退出非零 | 保持现有逻辑：有 handoff → 用其状态；无 handoff → BLOCKED。校验在 agent 返回后、退出前运行 |
 
 ## Change History
@@ -203,3 +235,4 @@ sdd_run_plan "$PLAN_FILE" "${SCRIPT_DIR}/sdd-run-task-claude.sh" claude "claude"
 | v1 | 范围从「fix.md + claude 侧校验」扩为「全 harness 统一」 | 用户要求「整体统一，不留技术债务」；镜像导致的 harness 间行为不一致一并解决 |
 | v2 | 决策 D 定为参数化（cursor 保持无 `Skill()` 注入）；决策 E 定为严格版并**同时应用到 implement + fix** | 核实 `2026-08-08-sdd-h6-cli-cold-start.md` §4.3 确认 cursor 差异是文档化设计；发现 implement 模式同隐患，一并堵死 |
 | v3 | 采纳 pass-1 自检建议：D3 拆为 D3a（review 注入参数化）/ D3b（untracked 严格度）；干净 fix 控制组补 `commits.head` 断言；`sdd_run_task` 标注「契约校验先于 H1 输出」顺序约束；D3b 标注 implement 是主动覆盖 | 决策编号引用一致性 + 测试覆盖「树干净但 head 错误」漂移 + 防止瘦壳重构调反顺序 |
+| v4 | 采纳 whole-branch review 的 Important finding：干净树分支补 **head 一致性校验**（handoff `commits.head` ≠ 真实 HEAD → BLOCKED），与脏树信号正交（抓「提交了但记错」）；拦截时真实 blocker 存入 `SDD_BLOCKED_REASON`，H1 降级路径优先用（F2，不再被「unparseable」掩盖） | #49 那类「树干净但 head 错 → 下游 review 范围错」的破坏只有 head 比较能抓 |

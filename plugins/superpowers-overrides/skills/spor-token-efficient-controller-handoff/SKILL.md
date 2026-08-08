@@ -59,17 +59,15 @@ Re-review scope: `FIX_BASE..HEAD` only.
 
 **open-findings:** `task-N-open-findings.json` or `batch-*-open-findings.json` (D3 shape; schema SOT `templates/sdd-handoff-schema.md`). Orchestrator: handoff.json only — not fix prose.
 
-### Rule H5 — Handoff-writer subagent mandatory
+### Rule H5 — Handoff write is inline (p1)
 
-After code-review axes complete, the orchestrator **must not** merge Standards/Spec prose itself.
-
-Fresh [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) per [`spor-subagent-lifecycle`](../spor-subagent-lifecycle/SKILL.md) Rule 2 — implement/review/fix segments; paths only; `templates/sdd-handoff-writer-prompt.md` + `templates/sdd-handoff-schema.md`; cheapest model.
+After code-review axes complete, handoff write is the last step inside implement/review/fix modes per template instructions (`_handoff-write-fragment.md` + `templates/sdd-handoff-schema.md`). The orchestrator **must not** merge Standards/Spec prose itself.
 
 ### Rule H6–H8 — CLI dispatch (reference)
 
 Orchestrator: shell `sdd-run-task-<harness>.sh` per spor-SDD Rule 7; **do not** paraphrase env/exit/harness details — Read `{plugin_root}/docs/sdd-h6-reference.md` once per session if needed.
 
-Worker discipline SOT remains `templates/sdd-cli/{implement,handoff,review,fix}.md`.
+Worker discipline SOT remains `templates/sdd-cli/{implement,review,fix}.md` + `_handoff-write-fragment.md`.
 
 ## Red Flags — STOP
 

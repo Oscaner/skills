@@ -1,6 +1,6 @@
 # SDD CLI Orchestrator Reference (H6–H8)
 
-> Worker discipline SOT: `templates/sdd-cli/{implement,handoff,review,fix}.md`
+> Worker discipline SOT: `templates/sdd-cli/{implement,review,fix}.md` + `_handoff-write-fragment.md`
 > Orchestrator gate discipline: `spor-token-efficient-controller-handoff` H1–H5
 
 ## H6 — CLI dispatch (p1)
@@ -8,14 +8,13 @@
 Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invocation per mode; process exit destroys context.
 
 1. **Detect harness** → `{plugin_root}/bin/sdd-run-task-<harness>.sh` (orchestrator resolves harness once; **no** runtime facade re-detecting CLI).
-2. **Four modes** — one invocation each:
+2. **Three modes** — one invocation each:
 
 | `SDD_MODE` | Responsibility |
 |------------|----------------|
-| `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + H1 four-line contract |
-| `handoff` | [`spor-handoff-writer`](../skills/spor-handoff-writer/SKILL.md); `SDD_HANDOFF_SEGMENT=implement\|review\|fix` |
-| `review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) |
-| `fix` | fix implementer; reads open-findings |
+| `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 four-line contract |
+| `review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) + handoff write |
+| `fix` | fix implementer + handoff write; reads open-findings |
 
 3. **Env contract** (paths only — **never** paste full plan into CLI env):
 
@@ -24,8 +23,7 @@ Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invoc
 | `SDD_WORKSPACE` | workspace root |
 | `SDD_TASK_BRIEF` | brief path |
 | `SDD_LEDGER` | progress.md |
-| `SDD_MODE` | `implement` \| `handoff` \| `review` \| `fix` |
-| `SDD_HANDOFF_SEGMENT` | when `handoff` mode: `implement` \| `review` \| `fix` |
+| `SDD_MODE` | `implement` \| `review` \| `fix` |
 | `SDD_FINDINGS` | fix mode: open-findings.json |
 | `SDD_PLAN_CONSTRAINTS` | `<workspace>/plan-constraints.md` (orchestrator prewrites) |
 | `SDD_HANDOFF_PATH` | target handoff.json path |
@@ -45,9 +43,7 @@ Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invoc
 
 ```bash
 sdd-run-task-<harness>.sh --task N --mode implement
-sdd-run-task-<harness>.sh --task N --mode handoff --segment implement
 sdd-run-task-<harness>.sh --task N --mode review
-sdd-run-task-<harness>.sh --task N --mode handoff --segment review
 ```
 
 Orchestrator / plan script sets `SDD_WORKSPACE` and path env vars before each shell; CLI **does not** Read the full plan file.
@@ -64,7 +60,7 @@ Orchestrator / plan script sets `SDD_WORKSPACE` and path env vars before each sh
 
 **Batching (§2.2b — inherits p0 §2.3):**
 
-Batch blocks still run **one** 4-mode CLI chain; filenames use batch prefix:
+Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 | Item | Convention |
 |------|------------|
@@ -85,7 +81,7 @@ All CLI scripts live in `plugins/superpowers-overrides/bin/`; templates in `plug
 
 ## H8 — CLI opt-in / opt-out
 
-**Opt-in (default):** cursor/claude CLI in PATH and harness script exists → SDD Rule 7 **mandates** H6 four-mode chain.
+**Opt-in (default):** cursor/claude CLI in PATH and harness script exists → SDD Rule 7 **mandates** H6 three-mode chain.
 
 **Opt-out priority (high → low):**
 
@@ -109,7 +105,7 @@ Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback).
 
 ## Mode B (opt-in / AFK)
 
-**Mode B (opt-in / AFK):** `{plugin_root}/bin/sdd-run-plan-<harness>.sh --plan <path>` reads plan + ledger; for each **pending task** runs the same 4-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 4-mode chain once.
+**Mode B (opt-in / AFK):** `{plugin_root}/bin/sdd-run-plan-<harness>.sh --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
 
 ## SDD gate matrix
 

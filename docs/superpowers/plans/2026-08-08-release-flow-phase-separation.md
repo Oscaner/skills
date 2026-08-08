@@ -65,11 +65,13 @@ Change to:
     secrets: inherit
 ```
 
-- [ ] **Step 2: Add `createGithubReleases: false` and `id: changesets` to the action step**
+- [ ] **Step 2: Add `createGithubReleases: false` to the action step**
 
-Current:
+`id: changesets` is **already present** (line 34). Only `createGithubReleases: false` needs to be added. Current `changesets/action` step:
+
 ```yaml
       - uses: changesets/action@v1
+        id: changesets
         with:
           version: node scripts/version-packages.mjs
           publish: pnpm exec changeset tag
@@ -93,9 +95,17 @@ Change to:
 ```
 `createGithubReleases: false` stops the action creating its own (prerelease-marked) Release AND its own tag push. `id: changesets` lets later steps read `hasChangesets`.
 
-- [ ] **Step 3: Delete the two tag-creation steps**
+- [ ] **Step 3: Delete ALL five ungated steps after `changesets/action`**
 
-Delete entirely (the wrong-commit tag source):
+The current `release.yml` has five steps between the `changesets/action` step and the `sync-develop` job, **none of which are gated on `hasChangesets`**. Delete all five — they are the source of the premature tag/Release. They are (in file order, lines ~42–85):
+
+1. `Resolve HEAD SHA for tagging` (`id: head`)
+2. `Read overrides version` (`id: overrides-ver`) — the un-gated original; re-added gated in Step 4
+3. `Create git tag if missing` — the wrong-commit `git rev-parse HEAD` + `createRef` path
+4. `Check if GitHub Release exists` (`id: release-exists`) — the un-gated original; re-added gated in Step 4
+5. `Create GitHub Release if missing` (`id: gh-release`) — the un-gated original; re-added gated in Step 4
+
+Delete block (the tag-creation trio):
 ```yaml
       - name: Resolve HEAD SHA for tagging
         id: head
@@ -121,11 +131,35 @@ Delete entirely (the wrong-commit tag source):
               core.info(`Created ${tag}`);
             }
 ```
-(`Resolve HEAD SHA for tagging`, `Read overrides version`, `Create git tag if missing` — remove all three. `Read overrides version` is re-added below in publish-mode-gated form.)
+Also delete the un-gated release steps that follow:
+```yaml
+      - name: Check if GitHub Release exists
+        id: release-exists
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const tag = `superpowers-overrides@${{ steps.overrides-ver.outputs.version }}`;
+            try {
+              await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
+              core.setOutput('exists', 'true');
+              core.info(`Release ${tag} already exists`);
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              core.setOutput('exists', 'false');
+            }
+      - name: Create GitHub Release if missing
+        id: gh-release
+        if: steps.release-exists.outputs.exists != 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: superpowers-overrides@${{ steps.overrides-ver.outputs.version }}
+          generate_release_notes: true
+```
+**Do not leave any of these five behind.** Deleting them matters for two reasons: (a) Step 4 adds gated replacements with the **same step IDs** — keeping the originals would produce duplicate `id: release-exists` / `id: gh-release`, which GitHub rejects at workflow validation; (b) the un-gated originals would still fire in PR mode, recreating the exact bug this plan fixes. After Step 3, the `release` job body ends right after the `changesets/action` step.
 
 - [ ] **Step 4: Add publish-mode-gated version read, tag push, release-exists check, release create**
 
-After the `changesets/action` step, add:
+After Step 3 the `release` job ends right after the `changesets/action` step. Add the following gated steps there (these **replace** the five deleted in Step 3 — no duplicate IDs, every step gated on `hasChangesets == 'false'`):
 ```yaml
       - name: Read overrides version
         id: overrides-ver
@@ -176,13 +210,28 @@ Change to:
 #   → changeset tag (local) + explicit git push → GitHub Release → sync PR
 ```
 
-- [ ] **Step 6: Validate YAML parses**
+- [ ] **Step 6: Validate YAML parses AND no duplicate step IDs / stale steps remain**
 
-Run (js-yaml 4 is in the pnpm store):
+`js-yaml` only checks YAML syntax — it does not catch GitHub Actions semantic errors (duplicate step IDs). Run all three checks:
+
 ```bash
 node -e "const fs=require('fs');const yaml=require('/Users/oscaner/Projects/oscaner-skills/node_modules/.pnpm/js-yaml@4.3.0/node_modules/js-yaml');yaml.load(fs.readFileSync('.github/workflows/release.yml','utf8'));console.log('YAML OK')"
 ```
 Expected: `YAML OK`
+
+```bash
+# no duplicate step IDs (each id appears exactly once)
+grep -c "id: release-exists" .github/workflows/release.yml   # expect 1
+grep -c "id: gh-release" .github/workflows/release.yml      # expect 1
+grep -c "id: overrides-ver" .github/workflows/release.yml   # expect 1
+```
+Expected: each prints `1`
+
+```bash
+# no stale tag-creation path remains
+grep -n "rev-parse HEAD\|createRef" .github/workflows/release.yml || echo "no stale tag steps — OK"
+```
+Expected: `no stale tag steps — OK`
 
 - [ ] **Step 7: Verify no `published` remains**
 
@@ -192,7 +241,16 @@ grep -n "published" .github/workflows/release.yml || echo "no published — OK"
 ```
 Expected: `no published — OK`
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 8: Verify all publish-mode steps are gated**
+
+Run:
+```bash
+# every step after changesets/action must carry the hasChangesets == 'false' gate
+grep -n "hasChangesets == 'false'" .github/workflows/release.yml
+```
+Expected: 5 hits (Read overrides version, Push git tag, Check if GitHub Release exists, Create GitHub Release if missing, sync-develop job)
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add .github/workflows/release.yml
@@ -236,9 +294,11 @@ Verify it matches the corrected flow (Version PR merge → publish mode → tag 
 
 Run:
 ```bash
-grep -rn "published ==\|gh-release.outcome" README.md CLAUDE.md .changeset/ docs/ 2>/dev/null || echo "no stale gate references — OK"
+grep -rn "published ==\|gh-release.outcome" README.md CLAUDE.md .changeset/ 2>/dev/null || echo "no stale gate references — OK"
 ```
-Expected: `no stale gate references — OK` (or a list of files to clean up that describe the old outer gate).
+Expected: `no stale gate references — OK`.
+
+**Do not grep `docs/`** — it contains the deviation note just added in Step 1 (which intentionally quotes `published == 'true' || gh-release.outcome == 'success'`) and the new spec/plan files. Those hits are expected and must be kept.
 
 - [ ] **Step 5: Commit**
 
@@ -254,10 +314,12 @@ git commit -m "docs: align release flow docs with publish-mode gating"
 **Files:** none (remote operations via `gh`)
 
 **Interfaces:**
-- Consumes: nothing from Tasks 1–2
+- Consumes: Task 1 deployed on `main` (Steps 6–7 verify the fixed flow)
 - Produces: clean state — no wrong tag, no premature Release, no stale sync PR
 
-**This task is manual, run AFTER Task 1 lands on main.** It is the incident cleanup from the spec. Do **not** run it before the workflow fix is deployed, or the mis-created artifacts will interfere with the fix's own verification.
+**This task is manual, run AFTER Task 1 lands on main.** It is the incident cleanup from the spec.
+
+**Load-bearing order:** Step 1 (delete the wrong tag at `04843a7`) **must** precede Step 7 (merge the Version PR). If the Version PR were merged first, the fixed workflow's `git push origin <tag>` would fail because the remote tag still points at the old commit. The checkboxes enforce this sequentially — do not reorder.
 
 - [ ] **Step 1: Delete the mis-created Release + tag**
 
@@ -309,19 +371,10 @@ Expected: a run appears; it opens a Version PR (no tag/Release/sync created yet)
 After merging the Version PR, check:
 ```bash
 git ls-remote origin "refs/tags/superpowers-overrides@6.2.0-overrides.0.15.3"   # tag on main's tip
-gh release list --limit 1                                                        # Release exists, not prerelease
+gh release view superpowers-overrides@6.2.0-overrides.0.15.3 --json isPrerelease,isDraft   # Release not prerelease/draft
 gh pr list --head chore/sync-main-to-develop --state open                        # sync PR open
 ```
-Expected: tag exists and is in main's history; Release present; sync PR open.
-
----
-
-
----
-
-
----
-
+Expected: tag exists and is in main's history; Release present with `isPrerelease=false`, `isDraft=false`; sync PR open.
 
 ## Execution Handoff
 

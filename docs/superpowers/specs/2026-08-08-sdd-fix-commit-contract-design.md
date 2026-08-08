@@ -117,7 +117,7 @@ sdd_validate_commit_contract() {
     jq --arg b "uncommitted changes at return (${mode}): dirty working tree" \
        '.status="BLOCKED" | .blocker=$b' "${SDD_HANDOFF_PATH}" >"$tmp" && mv "$tmp" "${SDD_HANDOFF_PATH}"
   fi
-  printf 'SDD_BLOCKED: uncommitted changes at return (%s mode) — dirty working tree\n' "$mode" >&2
+  printf 'SDD_BLOCKED: uncommitted changes at return (%s) — dirty working tree\n' "$mode" >&2
   return 1
 }
 ```

@@ -142,7 +142,7 @@ sdd_run_task claude "Skill(mattpocock-skills:code-review)" "$TASK_NUM"
 _sdd_invoke_cli() {
   cursor-agent --print --output-format text --force "$1" 2>/dev/null
 }
-sdd_run_task cursor "" "$TASK_NUM"
+sdd_run_task cursor-agent "" "$TASK_NUM"
 ```
 
 ```bash
@@ -152,9 +152,9 @@ sdd_run_plan "$PLAN_FILE" "${SCRIPT_DIR}/sdd-run-task-claude.sh" claude "claude"
 
 ### 4.4 文档更新
 
-- `docs/sdd-h6-reference.md` — fix 模式行补「+ commit contract」；新增「post-run commit gate」小节（模式、信号、fail-open、前置条件 `.superpowers/` 被 gitignore）。
-- `docs/cross-harness-overrides.md` — 共享 run-loop + gate 说明。
-- `README.md` / `README.zh-CN.md` — harness 共享库一行说明。
+- `plugins/superpowers-overrides/docs/sdd-h6-reference.md` — fix 模式行补「+ commit contract」；新增「post-run commit gate」小节（模式、信号、fail-open、前置条件 `.superpowers/` 被 gitignore）。
+- `plugins/superpowers-overrides/docs/cross-harness-overrides.md` — 共享 run-loop + gate 说明。
+- `plugins/superpowers-overrides/README.md` / `plugins/superpowers-overrides/README.zh-CN.md` — harness 共享库一行说明。
 - `CHANGELOG` — release 时由 changeset 自动生成。
 
 ## 5. 实施顺序

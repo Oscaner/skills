@@ -38,18 +38,18 @@
    - `porcelain="$(git -C "$repo_root" status --porcelain 2>/dev/null)"` 失败 → `return 0`（fail-open，git 报错）。
    - `[[ -z "$porcelain" ]]` → `return 0`（干净树通过）。
    - 拦截：`SDD_HANDOFF_PATH` 存在且有 jq → 临时文件改写 `.status="BLOCKED"`、`.blocker="uncommitted changes at return (<mode>): dirty working tree"` 后原子 mv；无论有无 jq，打印 `SDD_BLOCKED: uncommitted changes at return (<mode>) — dirty working tree` 到 stderr 并 `return 1`。
-4. `sdd_run_task <cli_bin> <review_prefix> <task_num>` — 吸收现 task 脚本 post-argparse 全部流程：
+4. `sdd_run_task <cli_bin> <review_prefix> <task_num>` — 吸收现 task 脚本 post-argparse 全部流程。**注意：此函数读取调用方 shell 的全局变量 `SDD_MODE_ARG` / `PLAN_FILE` / `SDD_MODE`（仅 `task_num` 作为参数传入）——这是有意设计，不是参数化缺失。**
    - CLI 预检（`sdd_check_cli`）→ `_sdd_set_task_env` → ledger 回填 `PLAN_FILE` → review 模式 fixed-point/plan 校验 + `_sdd_run_review_package` → `sdd_require_env` → `sdd_render_mode_prompt` → 调 `_sdd_invoke_cli "$prompt"`（harness 壳定义，唯一 CLI 差异）→ **`sdd_validate_commit_contract "$SDD_MODE"`** → **H1 输出** → agent_rc/handoff 处理。**顺序不可调反**。
    - **H1-from-handoff 机制（关键，spec v3 / plan pass-1 修复）：** 现有 `_sdd_emit_h1_four_lines` 读的是 agent stdout 明文（`$agent_out`），不读 handoff。契约校验可能已把 handoff 改写为 `status=BLOCKED`，若 H1 仍从 `$agent_out` 输出会打出 `DONE`。因此 `sdd_run_task` 内的 H1 输出改为**从 `SDD_HANDOFF_PATH`（可能被改写的 handoff.json）读取状态**：
-     - validator 返回 1（拦截）→ 直接输出 H1 四行：`status: BLOCKED`、`commits: base=<handoff.commits.base> head=<handoff.commits.head>`、`artifacts: <handoff.artifacts 各路径>`、`blocker: <handoff.blocker>`（用 jq 从改写后的 handoff 取）。
+     - validator 返回 1（拦截）→ 直接输出 H1 四行：`status: BLOCKED`、`commits: base=<handoff.commits.base> head=<handoff.commits.head>`、`artifacts: brief=<handoff.artifacts.brief> report=<handoff.artifacts.report> test_evidence=<handoff.artifacts.test_evidence>`、`blocker: <handoff.blocker>`（用 jq 从改写后的 handoff 取；artifacts 缺字段则省略该 key）。**且 H1 输出后必须退出非零（`sdd_exit_blocked` 无参或 `exit 1`）**——否则流程继续到 `sdd_exit_ok`（exit 0），打脸 Task 5「脏树 → 退出非零」断言。退出非零会跳过 agent_rc 处理。
      - validator 返回 0（干净树 / fail-open / review）→ 保留现有行为：从 `$agent_out` 输出 H1（dry-run 分支或 agent 真实返回）。
      - validator 的调用必须 `if sdd_validate_commit_contract "$SDD_MODE"; then …; else …; fi` 包裹（不能用裸调用——`set -e` 下 return 1 会 abort，H1 永远不输出）。
    - 现有逻辑中 dry-run 分支、`_sdd_repo_root`、`_sdd_relpath_from_repo`、`_sdd_plan_from_ledger`、`_sdd_resolve_workspace`、`_sdd_run_review_package`、`_sdd_set_task_env`、`_sdd_emit_h1_four_lines` 迁入此处（这些是**共享逻辑**，非 harness 差异）。
-5. `sdd_run_plan <plan_file> <task_script> <cli_bin> <label>` — 吸收现 plan 脚本全部流程：CLI 预检、`_sdd_write_plan_constraints`、`_resolve_workspace`、`_task_numbers_from_plan`、`_ledger_complete`、`_handoff_status`、`_task_pending`、`_run_task_mode`、`_append_ledger`、`_run_task_chain`（含 fix-loop cap 5）、pending 循环。末尾「no pending tasks」消息用 `printf 'sdd-run-plan-%s: no pending tasks\n' "$label"`。
+5. `sdd_run_plan <plan_file> <task_script> <cli_bin> <label>` — 吸收现 plan 脚本全部流程：CLI 预检、`_sdd_write_plan_constraints`、`_resolve_workspace`、`_task_numbers_from_plan`、`_ledger_complete`、`_handoff_status`、`_task_pending`、`_run_task_mode`、`_append_ledger`、`_run_task_chain`（含 fix-loop cap 5）、pending 循环。**迁入时把引用了全局 `TASK_SCRIPT` / `PLAN_FILE` 的 helper（`_run_task_mode`、`_resolve_workspace`）改写为使用参数 `$task_script` / `$plan_file`。**末尾「no pending tasks」消息用 `printf 'sdd-run-plan-%s: no pending tasks\n' "$label" >&2`（保留 stderr 重定向，与改前行为一致）。
 
 **Files:** `bin/lib/sdd-common.sh` (MODIFY)
 
-**Accepts:** 5 函数可被瘦壳脚本调用；`sdd_validate_commit_contract` 在非 git workspace / 干净树 / 脏树三态行为正确；**H1-from-handoff：validator 拦截时 H1 输出 `status: BLOCKED`（从改写后 handoff 读），validator 通过时 H1 保持从 `$agent_out` 输出**；函数名不与现有 `sdd_*` 冲突。
+**Accepts:** 5 函数可被瘦壳脚本调用；`sdd_validate_commit_contract` 在非 git workspace / 干净树 / 脏树三态行为正确；**H1-from-handoff：validator 拦截时 H1 输出 `status: BLOCKED`（从改写后 handoff 读）且退出非零，validator 通过时 H1 保持从 `$agent_out` 输出且退出 0**；函数名不与现有 `sdd_*` 冲突。
 
 **Dependencies:** None
 
@@ -103,10 +103,10 @@ sdd_run_task claude "Skill(mattpocock-skills:code-review)" "$TASK_NUM"
 _sdd_invoke_cli() {
   cursor-agent --print --output-format text --force "$1" 2>/dev/null
 }
-sdd_run_task cursor "" "$TASK_NUM"
+sdd_run_task cursor-agent "" "$TASK_NUM"
 ```
 
-**具体删除（从两个壳移入共享库，不重复实现）：** `_sdd_repo_root`、`_sdd_relpath_from_repo`、`_sdd_plan_from_ledger`、`_sdd_resolve_workspace`、`_sdd_set_task_env`、`_sdd_emit_h1_four_lines`、`_sdd_run_review_package`、dry-run 分支、agent_rc/handoff 处理、review 模式 fixed-point/plan 校验逻辑。
+**具体删除（从两个壳移入共享库，不重复实现）：** `_sdd_repo_root`、`_sdd_relpath_from_repo`、`_sdd_plan_from_ledger`、`_sdd_resolve_workspace`、`_sdd_set_task_env`、`_sdd_emit_h1_four_lines`、`_sdd_run_review_package`、dry-run 分支、agent_rc/handoff 处理、review 模式 fixed-point/plan 校验逻辑、claude 的 `_sdd_claude_prepare_prompt`（被共享 `sdd_render_mode_prompt` 取代）。
 
 **保留在壳（harness 特有）：** 参数解析、usage/handoff 拒绝、`_sdd_invoke_cli`（含各自 CLI flags 与 `2>/dev/null`）、`sdd_run_task` 调用行（含各自 `cli_bin` 与 `review_prefix`）。
 
@@ -176,9 +176,9 @@ sdd_run_plan "$PLAN_FILE" "${SCRIPT_DIR}/sdd-run-task-cursor.sh" cursor-agent "c
 
 **What:**
 
-1. `docs/sdd-h6-reference.md` — fix 模式行补「+ commit contract」；新增「post-run commit gate」小节（模式 implement/fix、信号 `git status --porcelain`、fail-open、前置条件 `.superpowers/` 被 `*` gitignore）。
-2. `docs/cross-harness-overrides.md` — SDD CLI harness 段落补共享 run-loop + commit gate 说明。
-3. `README.md` + `README.zh-CN.md` — harness 表格下补一行「共享库 `bin/lib/sdd-common.sh` 承载 task/plan run-loop」。
+1. `plugins/superpowers-overrides/docs/sdd-h6-reference.md` — fix 模式行补「+ commit contract」；新增「post-run commit gate」小节（模式 implement/fix、信号 `git status --porcelain`、fail-open、前置条件 `.superpowers/` 被 `*` gitignore）。
+2. `plugins/superpowers-overrides/docs/cross-harness-overrides.md` — SDD CLI harness 段落补共享 run-loop + commit gate 说明。
+3. `plugins/superpowers-overrides/README.md` + `plugins/superpowers-overrides/README.zh-CN.md` — harness 表格下补一行「共享库 `bin/lib/sdd-common.sh` 承载 task/plan run-loop」。
 4. `pnpm changeset` — 描述：#49 fix commit contract + H6 harness 统一。合并到 develop。
 
 **Files:** 4 docs (MODIFY) + 1 changeset (NEW)
@@ -201,6 +201,6 @@ sdd_run_plan "$PLAN_FILE" "${SCRIPT_DIR}/sdd-run-task-cursor.sh" cursor-agent "c
 
 **Accepts:** 全量 CI 绿；新/改测试全绿；PR 描述无 AI 署名尾注。
 
-**Dependencies:** Task 6
+**Dependencies:** Task 6, **Task 5**（Task 7 的 `pnpm run validate` 跑 ci-validate.sh 里 Task 5 挂的新测试，且 step 2 显式运行新 commit-gate 与改后 dry-run 测试——两者都是 Task 5 交付物）
 
 ---

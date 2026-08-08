@@ -110,7 +110,7 @@ Token-efficient SDD orchestration (`spor-token-efficient-controller-handoff`) di
 | **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
 | **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
 
-Shared library: `bin/lib/sdd-common.sh` (workspace paths, plugin root resolution, exit codes).
+Shared library: `bin/lib/sdd-common.sh` (workspace paths, plugin root resolution, exit codes) carries the task/plan run-loop (`sdd_run_task` / `sdd_run_plan`); harness shells are thin wrappers keeping only CLI flags, the review prefix, and the plan's task-script path.
 
 **Mode A (per task):** `sdd-run-task-<harness>.sh --task N --mode implement|review|fix`
 

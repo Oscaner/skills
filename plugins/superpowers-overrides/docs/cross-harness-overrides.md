@@ -189,7 +189,7 @@ Token-efficient SDD orchestration uses plugin-bundled scripts under `bin/` — r
 | **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
 | **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
 
-Shared library: `bin/lib/sdd-common.sh` — workspace path contract (`SDD_WORKSPACE`, `SDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing).
+Shared library: `bin/lib/sdd-common.sh` — workspace path contract (`SDD_WORKSPACE`, `SDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `sdd_run_task` (one mode per invocation) / `sdd_run_plan` (pending tasks × 3-mode chain). Harness shells (`sdd-run-task-<harness>.sh`, `sdd-run-plan-<harness>.sh`) are thin wrappers keeping only the **irreducible differences** — CLI invocation flags, review prefix parameter, and the plan's task-script path + label — so claude/cursor shells cannot drift apart. The same lib hosts the **post-run commit gate** (`sdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [sdd-h6-reference.md](sdd-h6-reference.md) (§ Post-run commit gate).
 
 ### Invocation modes
 

@@ -19,8 +19,8 @@ echo "# task 1" > "$SDD_WORKSPACE/task-1-brief.md"
 # run_shell_modes <shell_path> — exercise one thin harness shell across all
 # three modes. SDD_DRY_RUN=1 skips the live CLI PATH check (cursor-agent is
 # absent in CI) and the real invocation; the shared run-loop still runs template
-# render + commit-contract validation. Cursor keeps no Skill(...) review-prefix
-# injection (spec D3a) — the cursor shell is driven with an empty review_prefix.
+# render + commit-contract validation. (Cursor's empty review_prefix — spec
+# D3a — is documented in the file header; each shell is driven verbatim.)
 run_shell_modes() {
   local shell_path="$1"
   for mode in implement review fix; do

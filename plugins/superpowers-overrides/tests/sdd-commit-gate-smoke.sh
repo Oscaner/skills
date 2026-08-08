@@ -60,16 +60,24 @@ seed_handoff() {
     "$task" "$head_sha" "$head_sha" > "$ws/sdd/commit-gate-ws/task-${task}-handoff.json"
 }
 
+# materialize_ws <ws> <task> — create the gitignored workspace (brief, ledger,
+# constraints) inside the copy and seed the handoff with the copy's own HEAD.
+# Called after setup_scenario; leaves the tracked tree clean so a control run
+# can assert handoff.commits.head == git HEAD without a dirty-tree false hit.
+materialize_ws() {
+  local ws="$1" task="$2" head_sha
+  head_sha="$(git -C "$ws" rev-parse HEAD)"
+  mkdir -p "$ws/sdd/commit-gate-ws"
+  printf 'TASK_BASE: %s\n' "$(git -C "$ws" rev-parse --short HEAD)" > "$ws/sdd/commit-gate-ws/task-${task}-brief.md"
+  printf '# SDD ledger — plan: %s\n' "$PLAN" > "$ws/sdd/commit-gate-ws/progress.md"
+  printf '# constraints\n' > "$ws/sdd/commit-gate-ws/plan-constraints.md"
+  seed_handoff "$ws" "$task" "$head_sha"
+}
+
 echo "== 1. dirty-tree fix → BLOCKED, non-zero, handoff rewritten =="
 setup_scenario commit-gate dirty-ws
 DIRTY_FIX="$SCEN_DEST"
-mkdir -p "$DIRTY_FIX/sdd/commit-gate-ws"
-# Brief + ledger/constraints are gitignored (sdd/) — materialize them first,
-# then seed the handoff (commits pair = copy HEAD) BEFORE dirtying the tree.
-printf 'TASK_BASE: %s\n' "$(git -C "$DIRTY_FIX" rev-parse --short HEAD)" > "$DIRTY_FIX/sdd/commit-gate-ws/task-1-brief.md"
-printf '# SDD ledger — plan: %s\n' "$PLAN" > "$DIRTY_FIX/sdd/commit-gate-ws/progress.md"
-printf '# constraints\n' > "$DIRTY_FIX/sdd/commit-gate-ws/plan-constraints.md"
-seed_handoff "$DIRTY_FIX" 1 "$(git -C "$DIRTY_FIX" rev-parse HEAD)"
+materialize_ws "$DIRTY_FIX" 1
 # Dirty the tracked tree (fixture's .gitignore was committed during setup).
 printf 'dirty\n' >> "$DIRTY_FIX/.gitignore"
 
@@ -92,11 +100,7 @@ ASSERT_COUNT=$((ASSERT_COUNT + 4))
 echo "== 2. clean-tree fix control → DONE, handoff.head == git HEAD =="
 setup_scenario commit-gate clean-ws
 CLEAN_FIX="$SCEN_DEST"
-mkdir -p "$CLEAN_FIX/sdd/commit-gate-ws"
-printf 'TASK_BASE: %s\n' "$(git -C "$CLEAN_FIX" rev-parse --short HEAD)" > "$CLEAN_FIX/sdd/commit-gate-ws/task-1-brief.md"
-printf '# SDD ledger — plan: %s\n' "$PLAN" > "$CLEAN_FIX/sdd/commit-gate-ws/progress.md"
-printf '# constraints\n' > "$CLEAN_FIX/sdd/commit-gate-ws/plan-constraints.md"
-seed_handoff "$CLEAN_FIX" 1 "$(git -C "$CLEAN_FIX" rev-parse HEAD)"
+materialize_ws "$CLEAN_FIX" 1
 git -C "$CLEAN_FIX" status --porcelain | grep -q . && fail "clean-ws: tree should be clean after seed"
 
 out="$(run_task "$CLEAN_FIX" 1 fix)"
@@ -127,11 +131,7 @@ ASSERT_COUNT=$((ASSERT_COUNT + 2))
 echo "== 4. dirty-tree implement → BLOCKED (D3b active override) =="
 setup_scenario commit-gate imp-ws
 IMP_FIX="$SCEN_DEST"
-mkdir -p "$IMP_FIX/sdd/commit-gate-ws"
-printf 'TASK_BASE: %s\n' "$(git -C "$IMP_FIX" rev-parse --short HEAD)" > "$IMP_FIX/sdd/commit-gate-ws/task-1-brief.md"
-printf '# SDD ledger — plan: %s\n' "$PLAN" > "$IMP_FIX/sdd/commit-gate-ws/progress.md"
-printf '# constraints\n' > "$IMP_FIX/sdd/commit-gate-ws/plan-constraints.md"
-seed_handoff "$IMP_FIX" 1 "$(git -C "$IMP_FIX" rev-parse HEAD)"
+materialize_ws "$IMP_FIX" 1
 printf 'dirty\n' >> "$IMP_FIX/.gitignore"
 
 set +e

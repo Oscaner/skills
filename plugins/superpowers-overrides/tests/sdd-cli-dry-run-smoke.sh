@@ -16,24 +16,25 @@ echo "# SDD ledger — plan: $PLAN" > "$SDD_WORKSPACE/progress.md"
 echo "constraints" > "$SDD_WORKSPACE/plan-constraints.md"
 echo "# task 1" > "$SDD_WORKSPACE/task-1-brief.md"
 
-for mode in implement review fix; do
-  SDD_MODE=$mode SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \
-  SDD_LEDGER="$SDD_WORKSPACE/progress.md" \
-  SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md" \
-  SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json" \
-  SDD_REVIEW_FIXED_POINT="${SDD_REVIEW_FIXED_POINT:-HEAD~1}" \
-  "$ROOT/bin/sdd-run-task-claude.sh" --task 1 --mode "$mode" --plan "$PLAN" | head -4
-done
+# run_shell_modes <shell_path> — exercise one thin harness shell across all
+# three modes. SDD_DRY_RUN=1 skips the live CLI PATH check (cursor-agent is
+# absent in CI) and the real invocation; the shared run-loop still runs template
+# render + commit-contract validation. Cursor keeps no Skill(...) review-prefix
+# injection (spec D3a) — the cursor shell is driven with an empty review_prefix.
+run_shell_modes() {
+  local shell_path="$1"
+  for mode in implement review fix; do
+    SDD_MODE=$mode SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \
+    SDD_LEDGER="$SDD_WORKSPACE/progress.md" \
+    SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md" \
+    SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json" \
+    SDD_REVIEW_FIXED_POINT="${SDD_REVIEW_FIXED_POINT:-HEAD~1}" \
+    "$shell_path" --task 1 --mode "$mode" --plan "$PLAN" | head -4
+  done
+}
 
-# Cursor thin-shell glue: same dry-run path, no review-prefix injection.
-for mode in implement review fix; do
-  SDD_MODE=$mode SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \
-  SDD_LEDGER="$SDD_WORKSPACE/progress.md" \
-  SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md" \
-  SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json" \
-  SDD_REVIEW_FIXED_POINT="${SDD_REVIEW_FIXED_POINT:-HEAD~1}" \
-  "$ROOT/bin/sdd-run-task-cursor.sh" --task 1 --mode "$mode" --plan "$PLAN" | head -4
-done
+run_shell_modes "$ROOT/bin/sdd-run-task-claude.sh"
+run_shell_modes "$ROOT/bin/sdd-run-task-cursor.sh"
 
 # Verify handoff mode is rejected
 if SDD_MODE=handoff SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \

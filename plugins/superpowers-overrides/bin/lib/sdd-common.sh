@@ -264,6 +264,19 @@ _sdd_raw_handoff_field() {
   sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$handoff" | head -1
 }
 
+# BLOCKED fallback shared by _sdd_emit_h1_from_handoff: emits the status +
+# raw-file commits + blocker when the handoff's .status can't be read via jq
+# (validator rewrite failed) or jq is absent. Artifacts are not extractable in
+# this degraded state.
+_sdd_emit_h1_raw_blocked() {
+  local blocker_msg="$1" handoff="${SDD_HANDOFF_PATH:-}"
+  printf 'status: BLOCKED\n'
+  printf 'commits: base=%s head=%s\n' \
+    "$(_sdd_raw_handoff_field "$handoff" base)" \
+    "$(_sdd_raw_handoff_field "$handoff" head)"
+  printf 'blocker: %s\n' "$blocker_msg"
+}
+
 # H1 four-line return block from the handoff JSON (spec v3 — H1-from-handoff).
 # Reads the possibly-rewritten handoff; artifacts keys omitted when absent.
 # status: BLOCKED means the commit-contract validator rewrote it.
@@ -273,11 +286,7 @@ _sdd_emit_h1_from_handoff() {
     # Validator's jq rewrite failed (malformed JSON): the handoff still holds the
     # original .status, which the contract no longer trusts. Emit authoritative
     # BLOCKED; the raw file's commits pair is still extractable.
-    printf 'status: BLOCKED\n'
-    printf 'commits: base=%s head=%s\n' \
-      "$(_sdd_raw_handoff_field "$handoff" base)" \
-      "$(_sdd_raw_handoff_field "$handoff" head)"
-    printf 'blocker: handoff JSON unparseable (jq rewrite failed) after commit-contract interception\n'
+    _sdd_emit_h1_raw_blocked 'handoff JSON unparseable (jq rewrite failed) after commit-contract interception'
     return
   fi
   if [[ -z "$handoff" || ! -f "$handoff" ]]; then
@@ -288,11 +297,7 @@ _sdd_emit_h1_from_handoff() {
     # Handoff exists but jq is absent: can't parse .status/.artifacts, but the
     # commits pair is extractable from the raw JSON — degrade honestly rather
     # than claiming the handoff is unavailable (it is not).
-    printf 'status: BLOCKED\n'
-    printf 'commits: base=%s head=%s\n' \
-      "$(_sdd_raw_handoff_field "$handoff" base)" \
-      "$(_sdd_raw_handoff_field "$handoff" head)"
-    printf 'blocker: handoff unparseable without jq after commit-contract interception\n'
+    _sdd_emit_h1_raw_blocked 'handoff unparseable without jq after commit-contract interception'
     return
   fi
   printf 'status: %s\n' "$(jq -r '.status // "BLOCKED"' "$handoff")"

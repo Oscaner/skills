@@ -65,7 +65,7 @@
 | `sdd_render_mode_prompt <mode> <review_prefix>` | 渲染模板；review 模式且 prefix 非空时前置注入 |
 | `sdd_check_cli <cli_bin>` | CLI 预检；`SDD_DRY_RUN=1` 跳过；缺失 → exit 2 |
 | `sdd_validate_commit_contract <mode>` | **D2 核心**：implement/fix 返回后跑 porcelain；脏 → 改写 handoff + 打印 `SDD_BLOCKED` + 返回 1；review → no-op |
-| `sdd_run_task <cli_bin> <review_prefix> <task_num>` | 吸收 task 脚本全部 post-argparse 流程（env、review-package、render、调 `_sdd_invoke_cli`、**契约校验**、H1 四行输出、agent_rc/handoff 处理） |
+| `sdd_run_task <cli_bin> <review_prefix> <task_num>` | 吸收 task 脚本全部 post-argparse 流程（env、review-package、render、调 `_sdd_invoke_cli`、**契约校验**、H1 四行输出、agent_rc/handoff 处理）。**顺序约束：契约校验在 H1 输出之前，H1 从（可能被改写为 BLOCKED 的）handoff 读取状态**——瘦壳重构时不得调反 |
 | `sdd_run_plan <plan_file> <task_script> <cli_bin> <label>` | 吸收 plan 脚本全部流程（constraints、resolve、`_run_task_chain`、fix-loop、ledger） |
 
 **task 壳 → ~15 行：** 参数解析 + 定义一行 `_sdd_invoke_cli()`（各自的 CLI flags——这是**唯一不可消除的 harness 差异**）+ 一行 `sdd_run_task`。
@@ -74,13 +74,17 @@
 
 **入口脚本名不变**；**stub 脚本（codex/copilot/gemini task+plan）不动**（3 行最小实现，非镜像债务）。
 
-**Review 技能注入参数化（决策 D）：** 共享 `sdd_render_mode_prompt` 收 `review_prefix` 参数——claude 传 `Skill(mattpocock-skills:code-review)`（保持现状），cursor 传空（保持文档化现状）。注入逻辑只写一处，harness 差异作为显式参数保留。
+#### D3a — Review 技能注入参数化
 
-**Untracked 严格度（决策 E）：** 严格版——`git status --porcelain` 任一输出 → BLOCKED；同时应用到 implement + fix 两模式。
+共享 `sdd_render_mode_prompt` 收 `review_prefix` 参数——claude 传 `Skill(mattpocock-skills:code-review)`（保持现状），cursor 传空（保持文档化现状）。注入逻辑只写一处，harness 差异作为显式参数保留。
+
+#### D3b — Untracked 严格度（同时覆盖 implement + fix）
+
+严格版——`git status --porcelain` 任一输出 → BLOCKED；同时应用到 implement + fix 两模式。**implement 模式此次同时获得强制层，是对 #49 同类隐患（提示层存在但无 shell 强制层）的主动覆盖**，而非仅修 fix 一条路径。
 
 ### D4 — 测试策略
 
-- **新增 `tests/sdd-commit-gate-smoke.sh`**（自含临时 git 仓库，沿用 `sdd-gate-test-lib.sh` 隔离模式）：脏树 fix → H1 `status: BLOCKED` + 退出非零 + handoff.status=BLOCKED；干净树 fix 控制组 → `status: DONE` 保持；非 git workspace → fail-open；implement 脏树 → BLOCKED。
+- **新增 `tests/sdd-commit-gate-smoke.sh`**（自含临时 git 仓库，沿用 `sdd-gate-test-lib.sh` 隔离模式）：脏树 fix → H1 `status: BLOCKED` + 退出非零 + handoff.status=BLOCKED；干净树 fix 控制组 → `status: DONE` **且 `handoff.commits.head == git rev-parse HEAD`**（否则「树干净但 head 错误」的漂移测试抓不住）；非 git workspace → fail-open；implement 脏树 → BLOCKED。
 - **改 `tests/sdd-cli-dry-run-smoke.sh`**：加 cursor 循环（与 claude 并列验证瘦壳 glue）。
 - 挂入 `scripts/ci-validate.sh`。
 
@@ -198,3 +202,4 @@ sdd_run_plan "$PLAN_FILE" "${SCRIPT_DIR}/sdd-run-task-claude.sh" claude "claude"
 | v0 | 初版 | — |
 | v1 | 范围从「fix.md + claude 侧校验」扩为「全 harness 统一」 | 用户要求「整体统一，不留技术债务」；镜像导致的 harness 间行为不一致一并解决 |
 | v2 | 决策 D 定为参数化（cursor 保持无 `Skill()` 注入）；决策 E 定为严格版并**同时应用到 implement + fix** | 核实 `2026-08-08-sdd-h6-cli-cold-start.md` §4.3 确认 cursor 差异是文档化设计；发现 implement 模式同隐患，一并堵死 |
+| v3 | 采纳 pass-1 自检建议：D3 拆为 D3a（review 注入参数化）/ D3b（untracked 严格度）；干净 fix 控制组补 `commits.head` 断言；`sdd_run_task` 标注「契约校验先于 H1 输出」顺序约束；D3b 标注 implement 是主动覆盖 | 决策编号引用一致性 + 测试覆盖「树干净但 head 错误」漂移 + 防止瘦壳重构调反顺序 |

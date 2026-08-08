@@ -33,6 +33,13 @@ Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invoc
 
 4. **Output:** before exit, write/update `SDD_HANDOFF_PATH` (default `task-N-handoff.json` or batch variant); stdout ≤ H1 four lines; non-zero exit with no handoff → **BLOCKED**.
 5. **Forbidden:** `--resume` or any CLI invocation that carries prior session history.
+6. **Session traceability:** CLI agents use one-shot print mode (`--print` / `--output-format text`), which does NOT register sessions in the `/resume` list or `~/.claude/sessions/`.
+
+   | Concern | Approach |
+   |---------|----------|
+   | Audit trail | ledger (`progress.md`) + handoff files (`task-N-handoff.json`) + per-task reports (`task-N-report.md`) |
+   | Recovery | re-run the orchestrator shell for that task+mode |
+   | Rejected alternatives | `--session-id` (resume-only), `--name` (no session write in print mode), `--background` (daemon, incompatible with one-shot dispatch) |
 
 **Typical per-task shell sequence (mode A — thin orchestrator):**
 

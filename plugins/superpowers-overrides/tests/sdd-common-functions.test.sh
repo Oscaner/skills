@@ -457,5 +457,151 @@ EOF
 }
 
 ###############################################################################
+# G. plan shells are thin wrappers around sdd_run_plan (plan Task 3)
+###############################################################################
+# G1. claude plan shell delegates: run the real shell under a mirrored bin dir
+# whose lib/sdd-common.sh is a stub that records sdd_run_plan's args. The shell
+# must pass plan file, sibling task_script path, cli_bin=claude, label=claude.
+# (Old fat shells fail here: they never call sdd_run_plan.)
+{
+  mirror="$TESTROOT/wsg1/bin"
+  mkdir -p "$mirror/lib"
+  cp "$ROOT/bin/sdd-run-plan-claude.sh" "$mirror/sdd-run-plan-claude.sh"
+  cat > "$mirror/lib/sdd-common.sh" <<'EOF'
+#!/usr/bin/env bash
+sdd_exit_blocked() {
+  printf 'SDD_BLOCKED: %s\n' "$*" >&2
+  exit 1
+}
+sdd_run_plan() {
+  {
+    printf 'plan=%s\n' "$1"
+    printf 'task_script=%s\n' "$2"
+    printf 'cli_bin=%s\n' "$3"
+    printf 'label=%s\n' "$4"
+  } >> "${SDD_PLAN_ARGS_LOG:?}"
+}
+EOF
+  plan="$TESTROOT/wsg1/plan.md"
+  printf '# Plan\n\n### Task 1: one\n' > "$plan"
+  log="$TESTROOT/wsg1/args.log"
+
+  set +e
+  SDD_PLAN_ARGS_LOG="$log" "$mirror/sdd-run-plan-claude.sh" --plan "$plan" 2>"$TESTROOT/wsg1/err.log"
+  rc=$?
+  set -e
+  assert_rc "G1 claude shell rc 0" 0 "$rc"
+  assert_eq "G1 plan arg" "plan=$plan" "$(sed -n '1p' "$log")"
+  assert_eq "G1 task_script arg" "task_script=$mirror/sdd-run-task-claude.sh" "$(sed -n '2p' "$log")"
+  assert_eq "G1 cli_bin arg" "cli_bin=claude" "$(sed -n '3p' "$log")"
+  assert_eq "G1 label arg" "label=claude" "$(sed -n '4p' "$log")"
+}
+
+# G2. cursor plan shell delegates: same mirror, cli_bin=cursor-agent,
+# label=cursor, sibling task script is sdd-run-task-cursor.sh.
+{
+  mirror="$TESTROOT/wsg2/bin"
+  mkdir -p "$mirror/lib"
+  cp "$ROOT/bin/sdd-run-plan-cursor.sh" "$mirror/sdd-run-plan-cursor.sh"
+  cat > "$mirror/lib/sdd-common.sh" <<'EOF'
+#!/usr/bin/env bash
+sdd_exit_blocked() {
+  printf 'SDD_BLOCKED: %s\n' "$*" >&2
+  exit 1
+}
+sdd_run_plan() {
+  {
+    printf 'plan=%s\n' "$1"
+    printf 'task_script=%s\n' "$2"
+    printf 'cli_bin=%s\n' "$3"
+    printf 'label=%s\n' "$4"
+  } >> "${SDD_PLAN_ARGS_LOG:?}"
+}
+EOF
+  plan="$TESTROOT/wsg2/plan.md"
+  printf '# Plan\n\n### Task 1: one\n' > "$plan"
+  log="$TESTROOT/wsg2/args.log"
+
+  set +e
+  SDD_PLAN_ARGS_LOG="$log" "$mirror/sdd-run-plan-cursor.sh" --plan "$plan" 2>"$TESTROOT/wsg2/err.log"
+  rc=$?
+  set -e
+  assert_rc "G2 cursor shell rc 0" 0 "$rc"
+  assert_eq "G2 plan arg" "plan=$plan" "$(sed -n '1p' "$log")"
+  assert_eq "G2 task_script arg" "task_script=$mirror/sdd-run-task-cursor.sh" "$(sed -n '2p' "$log")"
+  assert_eq "G2 cli_bin arg" "cli_bin=cursor-agent" "$(sed -n '3p' "$log")"
+  assert_eq "G2 label arg" "label=cursor" "$(sed -n '4p' "$log")"
+}
+
+# G3. claude plan shell — no pending tasks through the real sdd_run_plan: label
+# "claude" in the stderr no-pending message, exit 0.
+{
+  export SDD_DRY_RUN=1
+  plan="$TESTROOT/wsg3/plan.md"
+  ws="$TESTROOT/wsg3/.superpowers/sdd/plan"
+  mkdir -p "$ws"
+  cat > "$plan" <<EOF
+# Plan
+
+### Task 1: one
+EOF
+  printf '# SDD ledger — plan: %s\n' "$plan" > "$ws/progress.md"
+  printf 'Task 1: complete\n' >> "$ws/progress.md"
+  git -C "$TESTROOT/wsg3" init -q
+  git -C "$TESTROOT/wsg3" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+
+  set +e
+  err="$(cd "$TESTROOT/wsg3" && "$ROOT/bin/sdd-run-plan-claude.sh" --plan "$plan" 2>&1 >/dev/null)"
+  rc=$?
+  set -e
+  assert_rc "G3 claude no-pending rc 0" 0 "$rc"
+  assert_eq "G3 claude no-pending message" "sdd-run-plan-claude: no pending tasks" "$err"
+}
+
+# G4. cursor plan shell — no pending tasks through the real sdd_run_plan: label
+# "cursor" in the stderr no-pending message, exit 0.
+{
+  export SDD_DRY_RUN=1
+  plan="$TESTROOT/wsg4/plan.md"
+  ws="$TESTROOT/wsg4/.superpowers/sdd/plan"
+  mkdir -p "$ws"
+  cat > "$plan" <<EOF
+# Plan
+
+### Task 1: one
+EOF
+  printf '# SDD ledger — plan: %s\n' "$plan" > "$ws/progress.md"
+  printf 'Task 1: complete\n' >> "$ws/progress.md"
+  git -C "$TESTROOT/wsg4" init -q
+  git -C "$TESTROOT/wsg4" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+
+  set +e
+  err="$(cd "$TESTROOT/wsg4" && "$ROOT/bin/sdd-run-plan-cursor.sh" --plan "$plan" 2>&1 >/dev/null)"
+  rc=$?
+  set -e
+  assert_rc "G4 cursor no-pending rc 0" 0 "$rc"
+  assert_eq "G4 cursor no-pending message" "sdd-run-plan-cursor: no pending tasks" "$err"
+}
+
+# G5. plan shell contract — missing --plan → usage (exit 2)
+{
+  set +e
+  "$ROOT/bin/sdd-run-plan-claude.sh" >/dev/null 2>&1
+  rc=$?
+  set -e
+  assert_rc "G5 missing --plan → usage rc 2" 2 "$rc"
+}
+
+# G6. plan shell contract — nonexistent plan file → SDD_BLOCKED (exit 1)
+{
+  set +e
+  err="$(SDD_DRY_RUN=1 "$ROOT/bin/sdd-run-plan-claude.sh" --plan "$TESTROOT/wsg6/nope.md" 2>&1 >/dev/null)"
+  rc=$?
+  set -e
+  assert_rc "G6 missing plan file rc 1" 1 "$rc"
+  assert_eq "G6 SDD_BLOCKED message" "SDD_BLOCKED: plan file not found: $TESTROOT/wsg6/nope.md" "$err"
+}
+
+###############################################################################
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]] || exit 1

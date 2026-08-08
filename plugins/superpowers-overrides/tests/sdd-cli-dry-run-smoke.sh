@@ -7,24 +7,24 @@ mkdir -p "$SDD_WORKSPACE"
 echo "# SDD ledger — plan: $PLAN" > "$SDD_WORKSPACE/progress.md"
 echo "constraints" > "$SDD_WORKSPACE/plan-constraints.md"
 echo "# task 1" > "$SDD_WORKSPACE/task-1-brief.md"
-for spec in "implement:" "handoff:implement" "review:"; do
-  mode="${spec%%:*}"
-  segment="${spec#*:}"
-  if [[ "$mode" == "handoff" ]]; then
-    export SDD_HANDOFF_SEGMENT="$segment"
-    SDD_MODE=$mode SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \
-    SDD_LEDGER="$SDD_WORKSPACE/progress.md" \
-    SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md" \
-    SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json" \
-    SDD_REVIEW_FIXED_POINT="${SDD_REVIEW_FIXED_POINT:-HEAD~1}" \
-    "$ROOT/bin/sdd-run-task-cursor.sh" --task 1 --mode "$mode" --segment "$segment" --plan "$PLAN" | head -4
-  else
-    SDD_MODE=$mode SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \
-    SDD_LEDGER="$SDD_WORKSPACE/progress.md" \
-    SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md" \
-    SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json" \
-    SDD_REVIEW_FIXED_POINT="${SDD_REVIEW_FIXED_POINT:-HEAD~1}" \
-    "$ROOT/bin/sdd-run-task-cursor.sh" --task 1 --mode "$mode" --plan "$PLAN" | head -4
-  fi
+
+for mode in implement review fix; do
+  SDD_MODE=$mode SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \
+  SDD_LEDGER="$SDD_WORKSPACE/progress.md" \
+  SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md" \
+  SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json" \
+  SDD_REVIEW_FIXED_POINT="${SDD_REVIEW_FIXED_POINT:-HEAD~1}" \
+  "$ROOT/bin/sdd-run-task-claude.sh" --task 1 --mode "$mode" --plan "$PLAN" | head -4
 done
+
+# Verify handoff mode is rejected
+if SDD_MODE=handoff SDD_TASK_BRIEF="$SDD_WORKSPACE/task-1-brief.md" \
+  SDD_LEDGER="$SDD_WORKSPACE/progress.md" \
+  SDD_PLAN_CONSTRAINTS="$SDD_WORKSPACE/plan-constraints.md" \
+  SDD_HANDOFF_PATH="$SDD_WORKSPACE/task-1-handoff.json" \
+  "$ROOT/bin/sdd-run-task-claude.sh" --task 1 --mode handoff --plan "$PLAN" 2>/dev/null; then
+  echo "FAIL: handoff mode should have been rejected"
+  exit 1
+fi
+
 echo "OK — sdd-cli-dry-run-smoke"

@@ -62,7 +62,7 @@ flowchart LR
 | Cross-cutting | `spor-subagent-lifecycle` | Fresh subagent per pass; concurrency rules (referenced, no slash) |
 | Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3/D4 review dispatch (referenced, no slash) |
 | Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator file-only handoff (referenced, no slash) |
-| Cross-cutting | `spor-handoff-writer` | handoff.json writer subagent (referenced, no slash) |
+| Cross-cutting | `spor-handoff-writer` | handoff.json schema reference doc (handoff write is inline, no longer independently dispatched) |
 | Cross-cutting | `spor-report-issue` | Analyse spor session findings and file GitHub issues via gh CLI (manual, no auto-trigger) |
 
 ## Usage
@@ -112,9 +112,9 @@ Token-efficient SDD orchestration (`spor-token-efficient-controller-handoff`) di
 
 Shared library: `bin/lib/sdd-common.sh` (workspace paths, plugin root resolution, exit codes).
 
-**Mode A (per task):** `sdd-run-task-<harness>.sh --task N --mode implement|handoff|review|fix`
+**Mode A (per task):** `sdd-run-task-<harness>.sh --task N --mode implement|review|fix`
 
-**Mode B (plan driver / AFK):** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 4-mode chain.
+**Mode B (plan driver / AFK):** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 3-mode chain.
 
 Stub harness → exit 1 → orchestrator **BLOCKED** (not in-session p0 fallback). CLI missing → exit 2 → p0 fallback. See [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1).
 

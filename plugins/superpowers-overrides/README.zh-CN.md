@@ -62,7 +62,7 @@ flowchart LR
 | Cross-cutting | `spor-subagent-lifecycle` | 每 pass 全新 subagent；并发规则（被引用，无 slash） |
 | Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3/D4 review dispatch（被引用，无 slash） |
 | Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator 文件-only handoff（被引用，无 slash） |
-| Cross-cutting | `spor-handoff-writer` | handoff.json writer subagent（被引用，无 slash） |
+| Cross-cutting | `spor-handoff-writer` | handoff.json schema reference doc（handoff 写入已内联，不再独立 dispatch） |
 
 ## 用法
 
@@ -111,9 +111,9 @@ Token-efficient SDD 编排（`spor-token-efficient-controller-handoff`）通过 
 
 共享库：`bin/lib/sdd-common.sh`（workspace 路径、plugin root 解析、exit code）。
 
-**Mode A（单 task）：** `sdd-run-task-<harness>.sh --task N --mode implement|handoff|review|fix`
+**Mode A（单 task）：** `sdd-run-task-<harness>.sh --task N --mode implement|review|fix`
 
-**Mode B（plan driver / AFK）：** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 4-mode 链。
+**Mode B（plan driver / AFK）：** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 3-mode 链。
 
 Stub harness → exit 1 → orchestrator **BLOCKED**（非 in-session p0 fallback）。CLI 缺失 → exit 2 → p0 fallback。详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1)。
 

@@ -1,6 +1,6 @@
 ---
 name: spor-subagent-driven-development
-description: MUST invoke BEFORE superpowers:subagent-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/spor-subagent-driven-development`, `/superpowers-overrides:spor-subagent-driven-development`, `/subagent-driven-development` or `/superpowers:subagent-driven-development`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:subagent-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to dispatch or orchestrate subagents, delegate implementation, or run multi-agent work. Applies personal overrides (CLI-default forbids upstream SDD load; code-review per-task review; handoff-writer; token-efficient controller handoff; cheap model for implementers when spec and plan are complete).
+description: MUST invoke BEFORE superpowers:subagent-driven-development as your FIRST tool call this turn — trigger on ANY of: (1) user types `/spor-subagent-driven-development`, `/superpowers-overrides:spor-subagent-driven-development`, `/subagent-driven-development` or `/superpowers:subagent-driven-development`; (2) a `<command-name>` tag in the current turn names either of those; (3) the superpowers:subagent-driven-development skill body appears in the current turn's system context; (4) user asks in natural language to dispatch or orchestrate subagents, delegate implementation, or run multi-agent work. Applies personal overrides (CLI-default forbids upstream SDD load; code-review per-task review; inline handoff write; token-efficient controller handoff; cheap model for implementers when spec and plan are complete).
 ---
 
 # Subagent-Driven Development Overrides
@@ -16,7 +16,9 @@ description: MUST invoke BEFORE superpowers:subagent-driven-development as your 
 
    **Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task.
 
-   **Per-task:** Rule 1 classify → Rule 4 confirm once → append `TASK_BASE: <sha>` to brief → shell H6 chain (implement → handoff/implement → review → handoff/review; fix per Rule 2) → Read handoff.json only → Rule 5a + Rule 6 → ledger on APPROVED. **Never** edit repo deliverables in this session — H6 CLI only.
+   **Per-task:** Rule 1 classify → Rule 4 confirm once → append `TASK_BASE: <sha>` to brief → shell H6 chain (implement → review; fix per Rule 2) → Read handoff.json only → Rule 5a + Rule 6 → ledger on APPROVED. **Never** edit repo deliverables in this session — H6 CLI only.
+
+   **Shell 契约：** 只读 git 诊断 Bash 在 gate 下可用（动词清单见 [`sdd-h6-reference.md` § SDD gate matrix](../../docs/sdd-h6-reference.md)）；`TASK_BASE` 必须是真实 git SHA 才激活 workspace。
 
    **Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`.
 
@@ -33,15 +35,15 @@ Classify each task first:
 
 When in doubt, classify **Complex**.
 
-Affects **only** diff scope (`review_scope`), test gate (Rule 6), model tier (Rule 4). Simple = Complex review chain (one code-review + handoff-writer). **Batching:** shared-area Simple tasks → one batch handoff/review, `FIRST_TASK_BASE..LAST_HEAD`, ledger per task; batching ≠ Complex.
+Affects **only** diff scope (`review_scope`), test gate (Rule 6), model tier (Rule 4). Simple = Complex review chain (one code-review + inline handoff write). **Batching:** shared-area Simple tasks → one batch handoff/review, `FIRST_TASK_BASE..LAST_HEAD`, ledger per task; batching ≠ Complex.
 
 ### Rule 2 — Fix loop until approved (cap 5)
 
-`CHANGES_REQUESTED` → fix → scoped review on `FIX_BASE..HEAD` → handoff-writer fix segment → repeat until `APPROVED` or **5 rounds** (H4).
+`CHANGES_REQUESTED` → fix → scoped review on `FIX_BASE..HEAD` → inline handoff write → repeat until `APPROVED` or **5 rounds** (H4).
 
 ### Rule 4 — Cheaper models when spec + plan complete
 
-Spec+plan complete → cheapest implementer tier; code-review/final default; handoff-writer cheapest. Confirm once before first dispatch/H6 (Rule 0).
+Spec+plan complete → cheapest implementer tier; code-review/final default; handoff is inline (no separate model). Confirm once before first dispatch/H6 (Rule 0).
 
 ### Rule 5 — Per-task review (split by path)
 
@@ -60,7 +62,7 @@ PreToolUse gate + handoff.json only (H2). STOP on `plan_conflicts`; `CHANGES_REQ
 
 When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness>.sh` exists:
 
-1. Per-task execution **must** use H6 four-mode CLI chain per [`docs/sdd-h6-reference.md`](../../docs/sdd-h6-reference.md).
+1. Per-task execution **must** use H6 three-mode CLI chain per [`docs/sdd-h6-reference.md`](../../docs/sdd-h6-reference.md).
 2. CLI unavailable (script exit **2**) or script not found → orchestrator **BLOCKED**. Report: script path attempted, harness, exit code. Do not fall back to in-session execution.
 3. Stub harness selected (codex/copilot/gemini) → script exit **1** → orchestrator **BLOCKED** (not p0 fallback).
 4. Orchestrator **still obeys Rule 6** after Read handoff: non-empty `plan_conflicts` → STOP; `NEEDS_CONTEXT` or non-empty `unverifiable` → STOP.
@@ -72,7 +74,7 @@ When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness
 - "I'll Read the Spec axis report to decide if we're done."
 - "Complex means 3 review rounds — old Rule 1."
 - "Skip test-evidence.json — report has stdout."
-- "handoff-writer can wait until plan end."
+- "handoff-writer can wait until plan end." → handoff is inline — remove
 - "Batch of simple tasks — one round each."
 - "CLI is available but in-session is simpler — skip H6."
 - "Stub harness exit 1 — I'll fall back to p0." → exit 1 means BLOCKED, not p0 fallback.
@@ -88,7 +90,7 @@ When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness
 | Excuse | Reality |
 |--------|---------|
 | "code-review is overkill for tiny tasks" | p0 program invariant — delegation is the token win. |
-| "I'll merge axis reports myself" | H5 forbids it — handoff-writer exists for structured extraction. |
+| "I'll merge axis reports myself" | H5 forbids it — handoff write is inline in each mode per template instructions. |
 | "3 files is soft boundary" | Hard boundary for complexity classification — affects diff scope. |
 | "Fix round 6 will work" | H4 cap is 5 — STOP and escalate. |
 | "I'll dispatch final review as mode=review" | Q8 — final whole-branch review stays orchestrator in-session. |

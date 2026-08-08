@@ -4,11 +4,17 @@
 # cursor-agent invocation (source of truth for flags):
 #   cursor-agent --print --output-format text --force "$prompt"
 #
+#   Print mode (--print) is one-shot — no session is registered in /resume or
+#   ~/.claude/sessions/. Audit trail is ledger + handoff files, not session
+#   list. See H6.6 in sdd-h6-reference.md.
+#
 # Do not use --resume or any flag that carries prior session history (spec H6.5).
 # SDD_DRY_RUN=1 skips cursor-agent (argument parsing / orchestration smoke tests).
 #
+# Handoff write is now inline in implement/review/fix modes — no separate handoff mode.
+#
 # Usage:
-#   sdd-run-task-cursor.sh --task N --mode implement|handoff|review|fix [--segment implement|review|fix]
+#   sdd-run-task-cursor.sh --task N --mode implement|review|fix [--plan PATH]
 #
 # Requires SDD_WORKSPACE (or --plan with upstream sdd-workspace). Sets path env vars from --task.
 set -euo pipefail
@@ -19,11 +25,10 @@ source "${SCRIPT_DIR}/lib/sdd-common.sh"
 
 TASK_NUM=""
 SDD_MODE_ARG=""
-SDD_SEGMENT=""
 PLAN_FILE=""
 
 usage() {
-  printf 'usage: %s --task N --mode implement|handoff|review|fix [--segment implement|review|fix] [--plan PATH]\n' "$(basename "$0")" >&2
+  printf 'usage: %s --task N --mode implement|review|fix [--plan PATH]\n' "$(basename "$0")" >&2
   exit 2
 }
 
@@ -39,15 +44,14 @@ while [[ $# -gt 0 ]]; do
       SDD_MODE_ARG="$2"
       shift 2
       ;;
-    --segment)
-      [[ $# -ge 2 ]] || usage
-      SDD_SEGMENT="$2"
-      shift 2
-      ;;
     --plan)
       [[ $# -ge 2 ]] || usage
       PLAN_FILE="$2"
       shift 2
+      ;;
+    --segment)
+      printf '%s\n' '--segment removed: handoff write is now inline' >&2
+      exit 2
       ;;
     -h|--help)
       usage
@@ -60,6 +64,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$TASK_NUM" && -n "$SDD_MODE_ARG" ]] || usage
+
+# Reject removed handoff mode
+if [[ "$SDD_MODE_ARG" == "handoff" ]]; then
+  printf '%s\n' 'handoff mode removed: handoff write is now inline in implement/review/fix' >&2
+  exit 1
+fi
 
 if [[ "${SDD_DRY_RUN:-}" != "1" ]] && ! command -v cursor-agent >/dev/null 2>&1; then
   sdd_exit_cli_missing "cursor-agent not found in PATH"
@@ -105,7 +115,6 @@ _sdd_set_task_env() {
   export SDD_HANDOFF_PATH="${SDD_HANDOFF_PATH:-${workspace}/task-${task}-handoff.json}"
   export SDD_PLAN_CONSTRAINTS="${SDD_PLAN_CONSTRAINTS:-${workspace}/plan-constraints.md}"
   export SDD_MODE="$SDD_MODE_ARG"
-  export SDD_HANDOFF_SEGMENT="${SDD_SEGMENT:-}"
   export SDD_FINDINGS="${SDD_FINDINGS:-${workspace}/task-${task}-open-findings.json}"
 }
 
@@ -213,13 +222,5 @@ if [[ "$agent_rc" -ne 0 ]]; then
   fi
   exit "$agent_rc"
 fi
-
-case "$SDD_MODE_ARG" in
-  handoff)
-    if [[ "${SDD_DRY_RUN:-}" != "1" ]]; then
-      sdd_assert_handoff "${SDD_HANDOFF_PATH}"
-    fi
-    ;;
-esac
 
 sdd_exit_ok

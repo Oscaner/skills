@@ -1,6 +1,6 @@
 ---
 name: spor-handoff-writer
-description: Write or update task-N-handoff.json from file paths only. Fresh subagent per dispatch. Cheap model. Returns H1 4-line contract to orchestrator. Invoked by spor-subagent-driven-development Rule 5 and spor-token-efficient-controller-handoff H5.
+description: Schema reference doc — handoff write is now inline in implement/review/fix templates per H6 p1. This skill is no longer independently dispatched. Referenced by templates for handoff schema and segment I/O rules.
 ---
 
 # Handoff Writer

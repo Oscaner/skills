@@ -4,7 +4,7 @@
 
 **Task brief:** {{BRIEF}}
 
-**Handoff path (orchestrator sets; handoff-writer updates in a later invocation):** {{HANDOFF}}
+**Handoff path (write at end of this mode):** {{HANDOFF}}
 
 **Plan constraints:** {{CONSTRAINTS}}
 
@@ -19,8 +19,7 @@
    - After tests pass: if TDD already created **one or more** conventional commits covering this task's changes, set `head` = `git rev-parse HEAD` (do not create duplicate commits).
    - Otherwise: create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the task brief; no attribution / co-author / AI-generation trailers; then `head` = `git rev-parse HEAD`.
    - Uncommitted changes at return → `status: BLOCKED`.
-6. Do **not** write or update handoff.json — a separate `mode=handoff` CLI invocation runs `spor-handoff-writer`.
-7. Do **not** write ledger (`{{WORKSPACE}}/progress.md`) — orchestrator-only.
+6. Write handoff per `_handoff-write-fragment.md` implement segment. Do **not** write ledger.
 
 ## Return (H1 — stdout only)
 

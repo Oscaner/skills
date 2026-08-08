@@ -6,7 +6,7 @@
 
 **Open findings:** {{FINDINGS}}
 
-**Handoff path (read for context; do not update — handoff-writer follows fix):** {{HANDOFF}}
+**Handoff path (read for context, then update per fragment below):** {{HANDOFF}}
 
 **Plan constraints:** {{CONSTRAINTS}}
 
@@ -16,7 +16,7 @@
 2. Fix issues per open-findings; stay within fix-loop scope (H4 incremental re-review uses `FIX_BASE..HEAD`).
 3. Update `<workspace>/task-N-test-evidence.json` after running verification commands.
 4. Update the implementer report at the path from the brief (or as the brief specifies for fix rounds).
-5. Do **not** write or update handoff.json — a separate `mode=handoff --segment fix` invocation runs after scoped re-review.
+5. Write handoff per `_handoff-write-fragment.md` fix segment.
 6. Do **not** write ledger.
 
 ## Return (H1 — stdout only)

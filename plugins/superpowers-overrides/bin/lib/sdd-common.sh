@@ -63,7 +63,6 @@ _sdd_template_value() {
     WORKSPACE)    printf '%s' "${SDD_WORKSPACE:-}" ;;
     BRIEF)        printf '%s' "${SDD_TASK_BRIEF:-}" ;;
     HANDOFF)      printf '%s' "${SDD_HANDOFF_PATH:-}" ;;
-    SEGMENT)      printf '%s' "${SDD_HANDOFF_SEGMENT:-}" ;;
     FINDINGS)     printf '%s' "${SDD_FINDINGS:-}" ;;
     CONSTRAINTS)  printf '%s' "${SDD_PLAN_CONSTRAINTS:-}" ;;
     FIXED_POINT)  printf '%s' "${SDD_REVIEW_FIXED_POINT:-}" ;;
@@ -84,7 +83,7 @@ sdd_render_template() {
   fi
 
   local content placeholders=(
-    WORKSPACE BRIEF HANDOFF SEGMENT FINDINGS CONSTRAINTS FIXED_POINT
+    WORKSPACE BRIEF HANDOFF FINDINGS CONSTRAINTS FIXED_POINT
   )
   content="$(<"$template")"
   local key value escaped
@@ -111,18 +110,6 @@ sdd_require_env() {
   case "$mode" in
     implement)
       ;;
-    handoff)
-      if [[ -z "${SDD_HANDOFF_SEGMENT:-}" ]]; then
-        missing+=(SDD_HANDOFF_SEGMENT)
-      else
-        case "${SDD_HANDOFF_SEGMENT}" in
-          implement|review|fix) ;;
-          *)
-            sdd_exit_blocked "SDD_HANDOFF_SEGMENT must be implement|review|fix (got: ${SDD_HANDOFF_SEGMENT})"
-            ;;
-        esac
-      fi
-      ;;
     review)
       if [[ -z "${SDD_REVIEW_FIXED_POINT:-}" ]]; then
         missing+=(SDD_REVIEW_FIXED_POINT)
@@ -137,40 +124,12 @@ sdd_require_env() {
       missing+=(SDD_MODE)
       ;;
     *)
-      sdd_exit_blocked "SDD_MODE must be implement|handoff|review|fix (got: ${mode})"
+      sdd_exit_blocked "SDD_MODE must be implement|review|fix (got: ${mode})"
       ;;
   esac
 
   if ((${#missing[@]} > 0)); then
     sdd_exit_blocked "Missing required env: ${missing[*]}"
-  fi
-}
-
-# Assert handoff file exists; optional jq schema check when jq is available.
-# Usage: sdd_assert_handoff [path]  — defaults to SDD_HANDOFF_PATH
-sdd_assert_handoff() {
-  local handoff_path="${1:-${SDD_HANDOFF_PATH:-}}"
-  if [[ -z "$handoff_path" ]]; then
-    sdd_exit_blocked "sdd_assert_handoff: no handoff path (set SDD_HANDOFF_PATH or pass argument)"
-  fi
-  if [[ ! -f "$handoff_path" ]]; then
-    sdd_exit_blocked "handoff file missing: ${handoff_path}"
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
-    return 0
-  fi
-  if ! jq -e . "$handoff_path" >/dev/null 2>&1; then
-    sdd_exit_blocked "handoff is not valid JSON: ${handoff_path}"
-  fi
-  if ! jq -e '
-    (.phase | type) == "string" and
-    (.status | type) == "string" and
-    (.commits | type) == "object" and
-    (.commits.base | type) == "string" and
-    (.commits.head | type) == "string" and
-    ((.task != null) or (.tasks | type) == "array")
-  ' "$handoff_path" >/dev/null 2>&1; then
-    sdd_exit_blocked "handoff failed schema check: ${handoff_path}"
   fi
 }
 

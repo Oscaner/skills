@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sdd-run-plan-claude.sh — Mode B plan driver: pending tasks × 4-mode Claude chain (p1)
+# sdd-run-plan-claude.sh — Mode B plan driver: pending tasks × 3-mode Claude chain (p1)
 #
 # Invokes sibling sdd-run-task-claude.sh per mode. Ledger append on APPROVED only (spec §2.9).
 # SDD_DRY_RUN=1 propagates to task script (no live claude).
@@ -99,11 +99,8 @@ _task_pending() {
 }
 
 _run_task_mode() {
-  local task="$1" mode="$2" segment="${3:-}"
+  local task="$1" mode="$2"
   local -a cmd=("$TASK_SCRIPT" --task "$task" --mode "$mode" --plan "$PLAN_FILE")
-  if [[ -n "$segment" ]]; then
-    cmd+=(--segment "$segment")
-  fi
   "${cmd[@]}"
 }
 
@@ -133,23 +130,21 @@ _run_task_chain() {
   export SDD_HANDOFF_PATH="$handoff"
   export SDD_PLAN_CONSTRAINTS="${workspace}/plan-constraints.md"
   export SDD_FINDINGS="$findings"
-  unset SDD_HANDOFF_SEGMENT SDD_REVIEW_FIXED_POINT
+  unset SDD_REVIEW_FIXED_POINT
 
   [[ -f "${SDD_TASK_BRIEF}" ]] || sdd_exit_blocked "task brief missing: ${SDD_TASK_BRIEF}"
 
   _run_task_mode "$n" implement
-  _run_task_mode "$n" handoff implement
 
   if [[ -f "$handoff" ]] && command -v jq >/dev/null 2>&1; then
     review_base="$(jq -r '.commits.base // empty' "$handoff")"
   else
     review_base=""
   fi
-  [[ -n "$review_base" ]] || sdd_exit_blocked "handoff missing commits.base after implement handoff (task ${n})"
+  [[ -n "$review_base" ]] || sdd_exit_blocked "handoff missing commits.base after implement (task ${n})"
   export SDD_REVIEW_FIXED_POINT="$review_base"
 
   _run_task_mode "$n" review
-  _run_task_mode "$n" handoff review
 
   while true; do
     status="$(_handoff_status "$handoff")"
@@ -176,7 +171,6 @@ _run_task_chain() {
         export SDD_FINDINGS="$findings"
         _run_task_mode "$n" fix
         _run_task_mode "$n" review
-        _run_task_mode "$n" handoff fix
         ;;
       *)
         sdd_exit_blocked "task ${n}: unexpected handoff status ${status}"

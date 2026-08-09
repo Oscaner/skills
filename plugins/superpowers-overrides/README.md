@@ -116,7 +116,7 @@ Shared library: `bin/lib/sdd-common.sh` (workspace paths, plugin root resolution
 
 **Mode B (plan driver / AFK):** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 3-mode chain.
 
-Stub harness → exit 1 → orchestrator **BLOCKED** (not in-session p0 fallback). CLI missing → exit 2 → p0 fallback. See [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1).
+Stub harness → exit 1 → orchestrator **BLOCKED** (not in-session p0 fallback). CLI missing → exit 2 → orchestrator **BLOCKED**. See [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1).
 
 ## Docs for maintainers
 

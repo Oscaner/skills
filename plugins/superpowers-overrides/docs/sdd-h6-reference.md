@@ -2,6 +2,7 @@
 
 > Worker discipline SOT: `templates/sdd-cli/{implement,review,fix}.md` + `_handoff-write-fragment.md`
 > Orchestrator gate discipline: `spor-token-efficient-controller-handoff` H1–H5
+> **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`sdd-orchestrator-line-budget.test.sh` 会断言（issue #52 Guard 1）。
 
 ## H6 — CLI dispatch (p1)
 
@@ -107,7 +108,7 @@ Any opt-out hit → **p0** in-session (Rule 5/6 + H1–H5).
 | **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** |
 | **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** |
 
-Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback). cursor/claude CLI not in PATH → exit 2 → p0 fallback.
+Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback). cursor/claude CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
 
 ## Mode B (opt-in / AFK)
 

@@ -79,7 +79,7 @@ Run from the repo root:
 grep -rn "Rule 0a\|Rule 0b" plugins/superpowers-overrides/skills/ plugins/superpowers-overrides/bin/ plugins/superpowers-overrides/tests/
 ```
 
-Expected: **no output** (the only remaining `Rule 0a` occurrences anywhere are historical CHANGELOG entries and the resolver's own allowed fixture, which live outside these three dirs).
+Expected: **no output** (the only remaining `Rule 0a` occurrences anywhere are historical CHANGELOG entries, which live outside these three dirs).
 
 - [ ] **Step 7: Run the full validation**
 
@@ -184,7 +184,7 @@ Expected: ends with `OK — line budget` (the current checklist contains all 18 
 
 - [ ] **Step 3: Negative check A — delete a phase marker (temp, revert after)**
 
-Temporarily delete the `**Final:**` line from the checklist in `skills/spor-subagent-driven-development/SKILL.md`, then:
+Temporarily delete the `**Final:**` line from the checklist in `plugins/superpowers-overrides/skills/spor-subagent-driven-development/SKILL.md`, then:
 
 Run: `./plugins/superpowers-overrides/tests/sdd-orchestrator-line-budget.test.sh`
 Expected: `FAIL: checklist phase marker 'Final:' not on its own line` + exit 1.

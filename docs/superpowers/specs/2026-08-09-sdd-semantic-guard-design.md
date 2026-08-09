@@ -36,19 +36,18 @@
 
 **位置**：追加进 `tests/sdd-orchestrator-line-budget.test.sh` 末尾（新 AC# 块）。
 
-**作用域**：`sed -n '/^### Rule 0 /,/^### Rule 1/p' "$SKILLS/spor-subagent-driven-development/SKILL.md"` 提取 Rule 0 块。
+**作用域（两级提取）**：
+1. Rule 0 块：`RULE0="$(sed -n '/^### Rule 0 /,/^### Rule 1/p' "$SKILLS/spor-subagent-driven-development/SKILL.md")"`
+2. checklist 子块：`CHECK="$(sed -n '/^4\. \*\*Orchestrator checklist/,/^### Rule 1/p' <<<"$RULE0")"` —— token 锚点只在 `$CHECK` 内断言，避免 `sdd-workspace`（item 2）、`implement`（implementer-prompt.md）、`review`（review-package）、`Rule 5a`（item 3 指针）在 Rule 0 块其他位置出现造成假通过。
 
-**锚点集合**（18 个，全部 `grep -qF`）：
+**锚点集合**（18 个）：
+- **三阶段标记**（**行锚定**正则，强制各自成行，防 `ca3aaa1` 式单行压缩；`grep -qF` 子串无法验证行独立性）：`^\s*\*\*Setup \(once\):\*\*`、`^\s*\*\*Per-task:\*\*`、`^\s*\*\*Final:\*\*`
+- **Setup 内容**（`$CHECK` 内 `grep -qF`）：`sdd-workspace`、`plan-constraints.md`、`ledger`
+- **Per-task 内容**：`TASK_BASE`、`H6 chain`、`implement`、`review`、`handoff.json`、`APPROVED`、`Rule 5a`、`Rule 6`
+- **无会话内改仓库不变式**：`**Never** edit repo deliverables`、`H6 CLI only`
+- **Final**：`requesting-code-review`、`finishing-a-development-branch`
 
-| 类别 | 锚点 |
-|------|------|
-| 三阶段标记 | `**Setup (once):**`、`**Per-task:**`、`**Final:**`（各自成行） |
-| Setup 内容 | `sdd-workspace`、`plan-constraints.md`、`ledger` |
-| Per-task 内容 | `TASK_BASE`、`H6 chain`、`implement`、`review`、`handoff.json`、`APPROVED`、`Rule 5a`、`Rule 6` |
-| 无会话内改仓库不变式 | `**Never** edit repo deliverables`、`H6 CLI only` |
-| Final | `requesting-code-review`、`finishing-a-development-branch` |
-
-`ca3aaa1` 式单行压缩同时失去三个独立成行的 phase 标记与大部分 token → FAIL。
+`ca3aaa1` 式单行压缩失去三个独立成行的 phase 标记（行锚定 grep 直接 FAIL）与大部分 token → FAIL。
 
 **明确不锚**：`Shell 契約：` 块（gate-matrix 指针，非 issue 所述三阶段）；`pre-flight`（太容易被合理改写删掉）。
 
@@ -63,32 +62,26 @@
 
 **算法**：
 
-1. **建索引**：对每个 override skill，`^#{3,4} (Rule [0-9]+[a-z]?)\b` 提取标题 ID。
-2. **提取正文引用**：`\bRule [0-9]+[a-z]?\b`，去掉标题行后扫 body + frontmatter。窄正则保证 `Rule points`（review-dispatch:8 散文）这类纯字母 token、`Rules take`（spor-init:29 散文）复数形式都不命中。
-3. **逐条解析**，顺序：
-   - 同文件标题 → OK；
-   - 该文件 allowlist（每个条目注明目标：跨文件兄弟 skill / upstream superpowers / to-tickets 步骤）→ OK；**跨文件条目同时校验目标文件确实存在该标题**（目标标题被改名 → FAIL）；
+1. **建索引**：对每个 override skill，提取 numeric 规则 ID `[0-9]+[a-z]?`，来源两种标题形态：`###`/`####` 标题（`^#{3,4} Rule [0-9]+[a-z]?`）**和**加粗标题（`^\*\*Rule [0-9]+[a-z]?`，如 writing-plans 的 `**Rule 3a —**` —— 不是 `###` 标题，但仍是规则头）。
+2. **提取正文引用**：`\bRule [0-9]+[a-z]?\b`，扫 body + frontmatter，排除：标题行、HTML 注释行（`<!-- Additional rules ... as Rule 4, Rule 5 -->` 是插入点标记，非引用）。
+3. **逐条解析**，顺序（显式目标优先于同文件）：
+   - **链接目标**：ref 位于 Markdown 链接内或紧邻 `](...SKILL.md)` → 目标是该链接指向的 skill 文件。兄弟 override（`skills/*/SKILL.md`）→ 校验目标标题存在；非兄弟/upstream → OK（作者显式指向别处，upstream 不在树内不校验）。
+   - **scoped 前缀**：`(spor-SDD|SDD|spor-<name>) Rule N` → 校验命名兄弟 skill 的标题。
+   - **同文件标题** → OK。
+   - **allowlist**（按文件，跨文件条目校验目标标题）→ OK。
    - 否则 **FAIL**，输出 文件 + 行 + 引用。
 
-   所有外部引用一律走显式 allowlist，**不做「唯一跨文件」自动解析** —— `Rule 3`/`Rule 4`/`Rule 5` 在多个 override skill 有标题，自动解析会把 upstream 引用误指到 p0-fallback/spor-SDD（如 spor-brainstorming 的 `Rule 4` 指 upstream，却会被解析成 spor-SDD 的 `Rule 4`）。
+   **不做「唯一跨文件」自动解析** —— `Rule 3`/`Rule 4`/`Rule 5` 在多个 override skill 有标题，自动解析会把 upstream 引用误指到 p0-fallback/spor-SDD。**已知局限**：无链接、无 scoped 前缀、且与同文件标题同号的裸引用按同文件处理（如 writing-plans:20 `[`subagent-driven-development` Rule 1]` 链接到 upstream SDD、与 writing-plans 自身 `Rule 1` 同号 —— 链接目标非兄弟，回落同文件）。守卫契约是「抓悬空引用」；跨文件改名靠链接 / scoped / allowlist 捕获，上述同号歧义在语义上不可判定。
 
-**allowlist 全集**（修复陈旧引用后；跨文件条目带目标校验）：
+**allowlist 全集**（经原型对当前仓库验证，仅 3 条）：
 
 | 文件 | allowlist 条目 | 目标 |
 |------|---------------|------|
-| spor-brainstorming | Rule 4, 5 | upstream `superpowers:brainstorming` |
-| spor-executing-plans | Rule 4, 5 | upstream executing-plans |
-| spor-executing-plans | Rule 0, 5b | 跨文件 → spor-SDD `Rule 0` / p0-fallback `Rule 5b` |
-| spor-finishing-a-development-branch | Rule 4, 5 | upstream |
-| spor-receiving-code-review | Rule 3, 4 | upstream |
-| spor-subagent-lifecycle | Rule 4 | upstream |
-| spor-systematic-debugging | Rule 3, 4 | upstream |
-| spor-test-driven-development | Rule 3, 4 | upstream |
-| spor-using-git-worktrees | Rule 3, 4 | upstream |
-| spor-verification-before-completion | Rule 3, 4 | upstream |
-| spor-writing-plans | Rule 3a, 3b, 3c + Rule 4, 5 | upstream writing-plans + `to-tickets` 步骤 |
-| spor-token-efficient-controller-handoff | Rule 7 | 跨文件 → spor-SDD `Rule 7` |
+| spor-finishing-a-development-branch | Rule 4 | upstream `superpowers:finishing-a-development-branch`（merge-commit 选项） |
+| spor-executing-plans | Rule 5b | 跨文件 → p0-fallback `Rule 5b` |
 | spor-sdd-p0-fallback | Rule 0 | 跨文件 → spor-SDD `Rule 0`（休眠化后「When Rule 0 applies」） |
+
+（lifecycle `Rule 3` 引用 —— receiving-code-review / systematic-debugging / tdd / brainstorming / writing-plans —— 均带兄弟链接 → 走链接校验，不入 allowlist；controller-handoff `Rule 7` 与 executing-plans `Rule 0` 是 scoped 前缀 → 走 scoped 校验，不入 allowlist；`<!-- Additional rules ... Rule 4/5 -->` 是注释，排除。）
 
 **自检**：测试末尾内嵌 fixture —— 构造含悬空引用的临时文件，断言 resolver 报 FAIL，证明守卫有效（dogfood）。
 
@@ -98,7 +91,7 @@
 
 **1. 机械改名 `Rule 0a → Rule 0`（2 处）**
 - `skills/spor-subagent-driven-development/SKILL.md:95` — Red Flag 标签 → `Rule 0`
-- `skills/spor-executing-plans/SKILL.md:28` — `SDD Rule 0a` → `SDD Rule 0`（`Rule 5b (p0)` 保留，走 executing-plans allowlist → p0-fallback）
+- `skills/spor-executing-plans/SKILL.md:28` — `SDD Rule 0a` → `SDD Rule 0`（scoped 前缀 → 走 scoped 校验，不入 allowlist；`Rule 5b (p0)` 保留，走 executing-plans allowlist → p0-fallback）
 
 **2. review-dispatch 一处**（`skills/spor-token-efficient-review-dispatch/SKILL.md:51`）
 - `(Rule 0b)` → `(p0 path)`，去掉对已删除 Rule 0b 的引用
@@ -110,7 +103,7 @@
 - Rule 5c 内同样 → `When Rule 0 applies (CLI default), skip`
 - Rule 3 内 `Rule 0b / p0 path` 措辞 → `p0 path`
 
-**4. exit-2 文档漂移（3 处）** — CHANGELOG 已声明 CLI-mandatory，权威行为是 BLOCKED：
+**4. exit-2 文档漂移（3 处）** — 不在 Guard 2 扫描域（docs 不扫），但属同一 CLI-mandatory 陈旧簇（`7c1a7b8` 移除 p0 fallback 后文档未同步）；用户 grilling 决策 #6 明确一并修。CHANGELOG 已声明权威行为是 BLOCKED：
 - `docs/sdd-h6-reference.md:110` — `exit 2 → p0 fallback` → `exit 2 → orchestrator BLOCKED`
 - `README.md:119`、`README.zh-CN.md:118` — 同样 → BLOCKED
 
@@ -130,20 +123,22 @@
 ## §3 Acceptance criteria
 
 1. `pnpm run validate` exit 0（含新 resolver 与 Guard 1）。
-2. Guard 1 负例：临时删除任一 phase 标记 → line-budget 测试 FAIL。
-3. Guard 2 负例：resolver 自带悬空引用 fixture → 断言 FAIL。
-4. 重跑陈旧引用扫描：skills/* 的 numeric `Rule N` 引用无悬空（只剩 allowlist 覆盖的 upstream/to-tickets 条目）；`Rule 0a` / `Rule 0b` 在 skills/、`bin/lib/sdd-orchestrator-gate.sh`、`tests/sdd-gate-allow-deny-smoke.sh` 全部清零。
-5. `spor-sdd-p0-fallback` 仍在磁盘、仍不在 `overrides.manifest.json` targets[]，frontmatter 标注 dormant。
-6. 三处 exit-2 文档与 spor-SDD Rule 7 一致（BLOCKED）。
-7. `docs/sdd-h6-reference.md` 顶部含 Rule 0 checklist 语义契约注记（grep 断言）。
-8. `pnpm run validate:overrides` + `./plugins/superpowers-overrides/tests/validate-overrides-build.sh` 通过。
+2. Guard 1 负例 A（删除）：临时删除任一 phase 标记行 → line-budget 测试 FAIL。
+3. Guard 1 负例 B（重排）：把三阶段 checklist 压成单行（保留全部 18 个 token）→ 行锚定 phase grep FAIL。
+4. Guard 2 负例：resolver 自带悬空引用 fixture → 断言 FAIL。
+5. 重跑陈旧引用扫描：skills/* 的 numeric `Rule N` 引用（排除 HTML 注释）无悬空；allowlist 仅剩 3 条已验证条目（finishing Rule 4 / executing-plans Rule 5b / p0-fallback Rule 0）；`Rule 0a` / `Rule 0b` 在 skills/、`bin/lib/sdd-orchestrator-gate.sh`、`tests/sdd-gate-allow-deny-smoke.sh` 全部清零。
+6. `spor-sdd-p0-fallback` 仍在磁盘、仍不在 `overrides.manifest.json` targets[]，frontmatter 标注 dormant。
+7. 三处 exit-2 文档与 spor-SDD Rule 7 一致（BLOCKED）。
+8. `docs/sdd-h6-reference.md` 顶部含 Rule 0 checklist 语义契约注记（grep 断言）。
+9. `pnpm run validate:overrides` + `./plugins/superpowers-overrides/tests/validate-overrides-build.sh` 通过。
 
 ## §4 Non-goals
 
 - 删除 `spor-sdd-p0-fallback`（p1-slim.3 AC#9 保留）。
 - 扫描 `docs/` 参考文档的 `Rule N` 引用（`§`/H 编号体系不适用）。
 - 校验 `Rule H1`–`H6` 与裸 `D1`–`D4` 标题引用、复数 `Rules N` 形式（不同命名约定，非本次 numeric 失败类；见 §2.2 scope 边界）。
-- 重写合法裸引用为强制 Markdown 链接（resolver 用「同文件优先 + 显式 allowlist」覆盖）。
+- 重写合法裸引用为强制 Markdown 链接（resolver 用「链接 / scoped 目标优先 + 同文件 + 显式 allowlist」覆盖）。
+- 解决与同文件标题同号的跨文件裸引用歧义（语义上不可判定，见 §2.2 已知局限）。
 - 给陈旧引用做 allowlist 兜底（那是文档 bug，应修复而非豁免）。
 
 ## §5 Grilling record
@@ -154,9 +149,9 @@
 | 2 | checklist 守卫机制 | 子串 / 标题断言（非 golden hash、非仅文档） |
 | 3 | 交叉引用守卫机制 | 全插件 resolver（heading 索引 + 跨文件解析 + allowlist） |
 | 4 | 测试落位 | 拆分 — 锚点进 line-budget 测试；resolver 独立 `rule-reference.test.py` |
-| 5 | 锚点深度 | 三阶段标记 + 18 个关键 token（非仅标记、非全量枚举） |
+| 5 | 锚点深度 | 三阶段标记（行锚定）+ 15 个关键 token（共 18 个锚点；非仅标记、非全量枚举） |
 | 6 | 陈旧引用修复 | 全修 + p0-fallback 休眠化 + exit-2 漂移一并修正 |
-| 7 | resolver 裸引用策略 | 同文件优先；所有外部引用走显式 allowlist（跨文件条目带目标标题校验），不做自动跨文件解析（自审修正：唯一跨文件会把 upstream 引用误指到 override skill 标题） |
+| 7 | resolver 裸引用策略 | 显式目标优先（链接 / scoped 前缀）→ 同文件 → 3 条显式 allowlist；不做自动跨文件解析（自审修正：唯一跨文件会把 upstream 引用误指；且需处理加粗标题 / HTML 注释 / 链接） |
 | 8 | env-unset 锚点 | 对齐现有 checklist（`unset SDD_` 视为举例，不加新步骤） |
 
 用户设计批准：2026-08-09（第 1–4 节逐节确认）。

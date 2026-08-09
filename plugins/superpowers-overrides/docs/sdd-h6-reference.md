@@ -2,6 +2,7 @@
 
 > Worker discipline SOT: `templates/sdd-cli/{implement,review,fix}.md` + `_handoff-write-fragment.md`
 > Orchestrator gate discipline: `spor-token-efficient-controller-handoff` H1–H5
+> **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`sdd-orchestrator-line-budget.test.sh` 会断言（issue #52 Guard 1）。
 
 ## H6 — CLI dispatch (p1)
 
@@ -69,7 +70,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Review reports | `batch-*-review-standards.md` / `batch-*-review-spec.md` |
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
-**Exit codes:** `0` = OK; `1` = BLOCKED / stub harness (`HARNESS_STUB:` on stderr); `2` = CLI missing → orchestrator silently falls back to p0 in-session (H1–H5).
+**Exit codes:** `0` = OK; `1` = BLOCKED / stub harness (`HARNESS_STUB:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback).
 
 **Post-run commit gate** (shared lib `bin/lib/sdd-common.sh` — `sdd_validate_commit_contract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (jq; failed rewrite → still authoritative BLOCKED via `SDD_HANDOFF_UNWRITABLE`), prints `SDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`_sdd_emit_h1_from_handoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 
@@ -107,7 +108,7 @@ Any opt-out hit → **p0** in-session (Rule 5/6 + H1–H5).
 | **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** |
 | **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** |
 
-Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback). cursor/claude CLI not in PATH → exit 2 → p0 fallback.
+Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback). cursor/claude CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
 
 ## Mode B (opt-in / AFK)
 

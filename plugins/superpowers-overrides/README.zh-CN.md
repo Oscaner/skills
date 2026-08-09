@@ -115,7 +115,7 @@ Token-efficient SDD 编排（`spor-token-efficient-controller-handoff`）通过 
 
 **Mode B（plan driver / AFK）：** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 3-mode 链。
 
-Stub harness → exit 1 → orchestrator **BLOCKED**（非 in-session p0 fallback）。CLI 缺失 → exit 2 → p0 fallback。详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1)。
+Stub harness → exit 1 → orchestrator **BLOCKED**（非 in-session p0 fallback）。CLI 缺失 → exit 2 → orchestrator **BLOCKED**。详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1)。
 
 ## 维护者文档
 

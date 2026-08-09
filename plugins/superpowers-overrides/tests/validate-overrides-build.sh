@@ -69,6 +69,9 @@ echo "OK"
 echo "== validate SDD orchestrator line budget =="
 "$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
 
+echo "== validate rule-reference integrity =="
+python3 "$ROOT/tests/rule-reference.test.py"
+
 echo "== validate plugin.json alignment =="
 python3 -c "
 import json, os

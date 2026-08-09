@@ -12,7 +12,7 @@
 
 ## Instructions
 
-1. Read open-findings at **`{{FINDINGS}}`** and the task brief at **`{{BRIEF}}`** (paths only for handoff context — do not paste full review axis bodies into prompts).
+1. Read open-findings at **`{{FINDINGS}}`** and the task brief at **`{{BRIEF}}`** (paths only for handoff context — do not paste full review axis bodies into prompts). open-findings 只含 blocker（non-deferred）；deferred 项 ride 在 handoff `findings[]` 跨轮次保留（D5a），不进 fix loop。
 2. Fix issues per open-findings; stay within fix-loop scope (H4 incremental re-review uses `FIX_BASE..HEAD`).
 3. Update `<workspace>/task-N-test-evidence.json` after running verification commands.
 4. Update the implementer report at the path from the brief (or as the brief specifies for fix rounds).

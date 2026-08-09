@@ -20,7 +20,7 @@ Structured extraction subagent — reads artifact **paths**, writes/updates `han
 ## Outputs
 
 1. Write/update `<workspace>/task-N-handoff.json` (or `batch-<first>-<last>-handoff.json`)
-2. On `CHANGES_REQUESTED`: write open-findings file from handoff `findings[]`
+2. On `CHANGES_REQUESTED`: write open-findings file from handoff `findings[]` **blocker（非 deferred）only**
 3. Return H1 four-line contract to orchestrator (no review prose)
 
 ## Schema
@@ -47,9 +47,11 @@ Parse axis report trailing block:
 {"findings": [...]}
 ```
 
-Merge into handoff `findings[]`. Scan report text for "cannot verify" / "unverifiable" → `unverifiable[]` (non-empty → set `status: BLOCKED`).
+Merge into handoff `findings[]` (keep prior `deferred: true` items; never replace wholesale). **Mark every `warn`/`nit` finding `deferred: true` at parse time** — unconditionally, whether or not the round also contains a `blocker` (deferred marking and status decision are independent steps). Scan report text for "cannot verify" / "unverifiable" → `unverifiable[]` (non-empty → set `status: BLOCKED`).
 
 **plan_conflicts:** deliberate plan/brief violations (not ordinary bugs) → `{plan_section, finding_summary}` entries; orchestrator STOPs before fix loop.
+
+**status** follows the schema SOT severity→status table in [`templates/sdd-handoff-schema.md`](../../templates/sdd-handoff-schema.md) — do not redefine here: any `blocker` → `CHANGES_REQUESTED`; only `warn`/`nit` → `APPROVED`; `unverifiable[]`/`plan_conflicts[]` → `BLOCKED`. On `CHANGES_REQUESTED`, write open-findings with **blocker（非 deferred）findings only** — deferred items never enter the fix loop.
 
 ## D3 orchestrator return
 

@@ -30,17 +30,21 @@ The **final pass** always receives the full document / diff — global-coherence
 Reviewer prompts MUST specify: no summaries, no positive commentary, no meta-observations. Output schema:
 
 ```
-{findings: [{lens, severity, section|file, line?, summary, fix}]}
+{findings: [{lens, severity, section|file, line?, summary, fix, deferred?}]}
 ```
 
 - `lens` — the pass's focus label (e.g. "Completeness", "Consistency & scope")
-- `severity` — one of `blocker` / `warn` / `nit`
+- `severity` — one of `blocker` / `warn` / `nit`; behavior anchors:
+  - `blocker` — 合并前必须修复（正确性 / 契约违反 / 任何不接受不修的缺陷）
+  - `warn` — 可延期的 minor（真实问题但非阻塞）
+  - `nit` — 纯风格
 - `section` or `file` — spec/plan section heading, or code file path
 - `line` — optional; only when the finding anchors to a specific line
 - `summary` — one sentence stating the defect
 - `fix` — concrete suggestion, one sentence
+- `deferred` — optional; `warn`/`nit` findings carry `deferred: true` (unconditional); `blocker` findings omit it
 
-An empty `findings` array means approve. No prose narration around the JSON.
+`warn`/`nit` 不进 fix loop——handoff 记 `APPROVED` + `deferred: true`。An empty `findings` array means approve. No prose narration around the JSON.
 
 ### D4 — code-review dual-axis gate (p0 only)
 

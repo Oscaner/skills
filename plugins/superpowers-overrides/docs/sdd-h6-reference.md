@@ -14,7 +14,7 @@ Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invoc
 |------------|----------------|
 | `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 four-line contract |
 | `review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) + handoff write |
-| `fix` | fix implementer + handoff write; reads open-findings |
+| `fix` | fix implementer + handoff write; reads open-findings; **+ commit contract** (post-run gate, see below) |
 
 3. **Env contract** (paths only — **never** paste full plan into CLI env):
 
@@ -70,6 +70,12 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
 **Exit codes:** `0` = OK; `1` = BLOCKED / stub harness (`HARNESS_STUB:` on stderr); `2` = CLI missing → orchestrator silently falls back to p0 in-session (H1–H5).
+
+**Post-run commit gate** (shared lib `bin/lib/sdd-common.sh` — `sdd_validate_commit_contract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (jq; failed rewrite → still authoritative BLOCKED via `SDD_HANDOFF_UNWRITABLE`), prints `SDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`_sdd_emit_h1_from_handoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
+
+- **Fail-open:** non-git workspace or `git` error → validation passes (return 0) — the gate never blocks on tooling failure.
+- **Precondition:** `.superpowers/sdd/` is `*`-gitignored (repo `.gitignore` line `.superpowers`), so the workspace never trips the dirty check itself.
+- **Ordering (spec v3):** commit-contract validation runs **before** H1 output — H1 must read the possibly-rewritten handoff, not the agent's stdout.
 
 **Ledger:** orchestrator (mode A) or plan script (mode B) appends ledger line after handoff `APPROVED`. CLI subprocesses **do not** write ledger.
 

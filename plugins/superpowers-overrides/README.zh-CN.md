@@ -109,7 +109,7 @@ Token-efficient SDD 编排（`spor-token-efficient-controller-handoff`）通过 
 | **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
 | **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
 
-共享库：`bin/lib/sdd-common.sh`（workspace 路径、plugin root 解析、exit code）。
+共享库：`bin/lib/sdd-common.sh`（workspace 路径、plugin root 解析、exit code）承载 task/plan run-loop（`sdd_run_task` / `sdd_run_plan`）；harness 壳仅保留 CLI flags、review 前缀与 plan 的 task 脚本路径。
 
 **Mode A（单 task）：** `sdd-run-task-<harness>.sh --task N --mode implement|review|fix`
 

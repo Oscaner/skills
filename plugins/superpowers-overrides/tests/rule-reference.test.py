@@ -35,6 +35,7 @@ SCOPED_TARGET = {"SDD": SPOR_SDD, "spor-SDD": SPOR_SDD}
 
 # per-file allowlist: bare rule id -> ("cross-file", target_skill) | ("upstream", None)
 ALLOWLIST = {
+    # finishing-branch:27 references `executing-plans Rule 4` (pre-existing; neither override defines Rule 4) — external, unvalidated
     "spor-finishing-a-development-branch": {"4": ("upstream", None)},
     "spor-executing-plans": {"5b": ("cross-file", "spor-sdd-p0-fallback")},
     "spor-sdd-p0-fallback": {"0": ("cross-file", SPOR_SDD)},
@@ -58,7 +59,11 @@ def build_index(skills_dir):
 
 def resolve_link(url, cur_dir, skills_dir):
     target = os.path.normpath(os.path.join(cur_dir, url))
-    if os.path.commonpath([target, skills_dir]) == os.path.normpath(skills_dir) and os.path.isfile(target):
+    try:
+        under_skills = os.path.commonpath([target, skills_dir]) == os.path.normpath(skills_dir)
+    except ValueError:  # different drives/roots (e.g. an absolute-path link)
+        return None, False
+    if under_skills and os.path.isfile(target):
         return os.path.basename(os.path.dirname(target)), True
     return None, False
 
@@ -97,7 +102,9 @@ def scan(skills_dir, idx):
                 sc = next((s for s in SCOPED.finditer(line) if s.start() <= m.start() < s.end()), None)
                 if sc is not None:
                     tname = SCOPED_TARGET.get(sc.group(1), sc.group(1))
-                    if rid not in idx[tname]:
+                    if tname not in idx:
+                        problems.append(f"{name}:{lineno}: Rule {rid} -> scoped {tname} is not a known skill")
+                    elif rid not in idx[tname]:
                         problems.append(f"{name}:{lineno}: Rule {rid} -> scoped {tname} lacks heading")
                     continue
                 # 3. same-file heading

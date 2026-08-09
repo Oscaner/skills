@@ -121,7 +121,7 @@ grep -qF '不适用' <<<"$D6" \
 
 # AC#8 — Rule 0 checklist semantic anchors (issue #52 Guard 1)
 RULE0="$(sed -n '/^### Rule 0 /,/^### Rule 1/p' "$SKILLS/spor-subagent-driven-development/SKILL.md")"
-CHECK="$(sed -n '/^4\. \*\*Orchestrator checklist/,/^### Rule 1/p' <<<"$RULE0")"
+CHECK="$(sed -n '/^4\. \*\*Orchestrator checklist/,/^### Rule 1/p' <<<"$RULE0" | sed '$d')"
 
 # three phase markers, each on its own line (line-anchored — blocks single-line collapse)
 for marker in 'Setup \(once\):' 'Per-task:' 'Final:'; do

@@ -45,4 +45,42 @@ schema_examples=$(grep -c '"task":' "$ROOT/templates/sdd-handoff-schema.md" || t
 [ "$hw_examples" -eq 0 ] || { echo "FAIL: handoff-writer still has inline schema"; exit 1; }
 [ "$schema_examples" -ge 1 ] || { echo "FAIL: schema file missing JSON example"; exit 1; }
 
+# Task 4 — D3 severity behavior anchors + deferral semantics (AC#1)
+D3="$(sed -n '/^### D3/,/^### D4/p' "$SKILLS/spor-token-efficient-review-dispatch/SKILL.md")"
+
+# AC#1a — three severity behavior anchors
+for anchor in '合并前必须修复' '可延期的 minor' '纯风格'; do
+  grep -qF "$anchor" <<<"$D3" \
+    || { echo "FAIL: D3 missing severity behavior anchor: $anchor"; exit 1; }
+done
+
+# AC#1b — deferral semantics: warn/nit never enter fix loop → APPROVED + deferred: true
+grep -qF 'deferred: true' <<<"$D3" \
+  || { echo "FAIL: D3 missing deferral semantics (deferred: true)"; exit 1; }
+grep -qF 'fix loop' <<<"$D3" \
+  || { echo "FAIL: D3 missing fix-loop exclusion for warn/nit"; exit 1; }
+
+# AC#1c — D3 schema block documents deferred optional field
+grep -qF '`deferred`' <<<"$D3" \
+  || { echo "FAIL: D3 schema block missing deferred field"; exit 1; }
+
+# AC#1d — D3 output schema {findings: [...]} preserved
+grep -qF '{findings:' <<<"$D3" \
+  || { echo "FAIL: D3 findings schema lost"; exit 1; }
+
+# Task 4 — handoff-writer Review segment parsing severity-aware, cites schema SOT (AC#2)
+RSP="$(sed -n '/^## Review segment parsing/,/^## D3 orchestrator return/p' "$SKILLS/spor-handoff-writer/SKILL.md")"
+
+# AC#2a — status decision cites schema SOT, not redefined inline
+grep -qF 'sdd-handoff-schema.md' <<<"$RSP" \
+  || { echo "FAIL: Review segment parsing must cite schema SOT"; exit 1; }
+
+# AC#2b — severity-aware deferred marking (warn/nit → deferred: true)
+grep -qF 'deferred: true' <<<"$RSP" \
+  || { echo "FAIL: Review segment parsing missing deferred marking"; exit 1; }
+
+# AC#2c — open-findings scoped to blocker (non-deferred) only
+grep -qF '非 deferred' <<<"$RSP" \
+  || { echo "FAIL: Review segment parsing missing blocker-only open-findings"; exit 1; }
+
 echo "OK — line budget"

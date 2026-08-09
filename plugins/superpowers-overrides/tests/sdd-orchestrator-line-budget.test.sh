@@ -119,4 +119,20 @@ grep -qF 'round cap 5' <<<"$D6" \
 grep -qF '不适用' <<<"$D6" \
   || { echo "FAIL: D6 missing round-cap-5 inapplicability"; exit 1; }
 
+# AC#8 — Rule 0 checklist semantic anchors (issue #52 Guard 1)
+RULE0="$(sed -n '/^### Rule 0 /,/^### Rule 1/p' "$SKILLS/spor-subagent-driven-development/SKILL.md")"
+CHECK="$(sed -n '/^4\. \*\*Orchestrator checklist/,/^### Rule 1/p' <<<"$RULE0")"
+
+# three phase markers, each on its own line (line-anchored — blocks single-line collapse)
+for marker in 'Setup \(once\):' 'Per-task:' 'Final:'; do
+  grep -qE "^[[:space:]]*\*\*${marker}\*\*" <<<"$CHECK" \
+    || { echo "FAIL: checklist phase marker '$marker' not on its own line"; exit 1; }
+done
+
+# checklist-body tokens, scoped to the checklist sub-block
+for token in 'sdd-workspace' 'plan-constraints.md' 'ledger' 'TASK_BASE' 'H6 chain' 'implement' 'review' 'handoff.json' 'APPROVED' 'Rule 5a' 'Rule 6' '**Never** edit repo deliverables' 'H6 CLI only' 'requesting-code-review' 'finishing-a-development-branch'; do
+  grep -qF "$token" <<<"$CHECK" \
+    || { echo "FAIL: checklist token missing: $token"; exit 1; }
+done
+
 echo "OK — line budget"

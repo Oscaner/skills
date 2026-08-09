@@ -111,7 +111,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
 
 **`findings[]`** — D3 review findings: `[{lens, severity, section|file, line?, summary, fix, deferred?}]`. Parsed from axis report `## Findings (D3)` JSON block; merged on review/fix segments. Same shape as `task-N-open-findings.json`.
 
-`deferred` 可选字段：`blocker` finding 无此字段（或 `false`）；`warn`/`nit` finding 为 `deferred: true`。标记规则见上表 D1 附注。Roll-up 聚合用 `filter(.deferred == true)`；deferred 项不进 fix loop。
+`deferred` 可选字段：`blocker` finding 无此字段（或 `false`）；`warn`/`nit` finding 为 `deferred: true`。标记规则见上表「Severity → status mapping」附注。Roll-up 聚合用 `filter(.deferred == true)`；deferred 项不进 fix loop。
 
 **`unverifiable[]`** — string list of items axis reports flag as "cannot verify" / "unverifiable". Non-empty → set `status: BLOCKED`.
 

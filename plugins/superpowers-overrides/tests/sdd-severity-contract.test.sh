@@ -50,10 +50,13 @@ section() {
 # The section is captured to a variable first (not piped straight into grep -q)
 # so awk finishes before grep runs: under `set -o pipefail` a grep -q early exit
 # would otherwise SIGPIPE awk once the section exceeds the pipe buffer.
+# grep must NOT use -q: with -q the reader exits early and the writer (printf)
+# SIGPIPEs once the section exceeds the pipe buffer (latent CI breakage). Redirect
+# to /dev/null instead — grep reads all stdin, printf never receives SIGPIPE.
 assert_section_grep() {
   local out
   out="$(section "$1" "$2")"
-  printf '%s' "$out" | grep -qE "$3" || fail "missing '$3' in '$2' of $1 ($4)"
+  printf '%s' "$out" | grep -E "$3" >/dev/null || fail "missing '$3' in '$2' of $1 ($4)"
   ASSERT_COUNT=$((ASSERT_COUNT + 1))
 }
 
@@ -84,9 +87,9 @@ assert_section_grep "$SCHEMA" '## Review arrays' 'deferred' "findings[] deferred
 
 echo "== 3. sdd-common.sh (_append_ledger deferred roll-up + no-jq degradation) =="
 APPEND_LEDGER="$(awk '/^  _append_ledger[(][)] [{]/{p=1} p{print} p && /^  [}]$/{exit}' "$SDD_COMMON")"
-printf '%s' "$APPEND_LEDGER" | grep -q 'deferred' || fail "missing deferred branch in _append_ledger: $SDD_COMMON"
+printf '%s' "$APPEND_LEDGER" | grep 'deferred' >/dev/null || fail "missing deferred branch in _append_ledger: $SDD_COMMON"
 ASSERT_COUNT=$((ASSERT_COUNT + 1))
-printf '%s' "$APPEND_LEDGER" | grep -q 'deferred not enumerated' || fail "missing no-jq degradation line in _append_ledger: $SDD_COMMON"
+printf '%s' "$APPEND_LEDGER" | grep 'deferred not enumerated' >/dev/null || fail "missing no-jq degradation line in _append_ledger: $SDD_COMMON"
 ASSERT_COUNT=$((ASSERT_COUNT + 1))
 
 echo "== 4. review.md (blocker + CHANGES_REQUESTED co-occur; no empty→APPROVED) =="

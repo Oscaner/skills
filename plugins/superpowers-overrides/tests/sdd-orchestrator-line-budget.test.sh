@@ -99,7 +99,7 @@ grep -qF '呈现' <<<"$D6" \
 grep -qF '用户决策' <<<"$D6" \
   || { echo "FAIL: D6 missing user decision gate"; exit 1; }
 
-# AC#1c — step 4 有界 final fix 波: 一个 fix agent + 一次 scoped re-review
+# AC#1c — step 3 有界 final fix 波: 一个 fix agent + 一次 scoped re-review
 grep -qF 'scoped re-review' <<<"$D6" \
   || { echo "FAIL: D6 missing scoped re-review"; exit 1; }
 grep -qF 'fix agent' <<<"$D6" \

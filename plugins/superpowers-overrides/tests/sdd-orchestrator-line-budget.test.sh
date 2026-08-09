@@ -93,7 +93,7 @@ grep -qF 'deferred' <<<"$D6" \
 grep -qF 'deferred not enumerated — jq missing' <<<"$D6" \
   || { echo "FAIL: D6 missing no-jq degraded-line robustness note"; exit 1; }
 
-# AC#1b — step 2 呈现 + step 3 用户决策
+# AC#1b — step 1 呈现 + step 2 用户决策
 grep -qF '呈现' <<<"$D6" \
   || { echo "FAIL: D6 missing present-to-user step"; exit 1; }
 grep -qF '用户决策' <<<"$D6" \

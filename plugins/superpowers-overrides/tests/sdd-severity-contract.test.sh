@@ -40,13 +40,20 @@ assert_no_grep() {
 # section <file> <header> — print lines from <header> up to (not incl) the next
 # ## / ### header outside a fenced code block (fences can legitimately contain
 # header-looking lines, e.g. the ## Findings (D3) block in handoff-writer).
+# Start condition is anchored to a real '## '/'### ' header line so body prose
+# or #### sub-headers containing the header string cannot shift the window.
 section() {
-  awk -v h="$2" 'index($0,h){p=1;next} p && /^```/{f=!f; next} p && !f && /^#{2,3} /{exit} p' "$1"
+  awk -v h="$2" '/^#{2,3} / && index($0,h){p=1;next} p && /^```/{f=!f; next} p && !f && /^#{2,3} /{exit} p' "$1"
 }
 
 # assert_section_grep <file> <header> <needle> <desc> — needle must match within a section.
+# The section is captured to a variable first (not piped straight into grep -q)
+# so awk finishes before grep runs: under `set -o pipefail` a grep -q early exit
+# would otherwise SIGPIPE awk once the section exceeds the pipe buffer.
 assert_section_grep() {
-  section "$1" "$2" | grep -qE "$3" || fail "missing '$3' in '$2' of $1 ($4)"
+  local out
+  out="$(section "$1" "$2")"
+  printf '%s' "$out" | grep -qE "$3" || fail "missing '$3' in '$2' of $1 ($4)"
   ASSERT_COUNT=$((ASSERT_COUNT + 1))
 }
 
@@ -76,7 +83,7 @@ assert_section_grep "$SCHEMA" '## Review arrays' 'findings\[\]' "findings[] desc
 assert_section_grep "$SCHEMA" '## Review arrays' 'deferred' "findings[] deferred field"
 
 echo "== 3. sdd-common.sh (_append_ledger deferred roll-up + no-jq degradation) =="
-APPEND_LEDGER="$(awk '/^  _append_ledger\(\) \{/{p=1} p{print} p && /^  \}$/{exit}' "$SDD_COMMON")"
+APPEND_LEDGER="$(awk '/^  _append_ledger[(][)] [{]/{p=1} p{print} p && /^  [}]$/{exit}' "$SDD_COMMON")"
 printf '%s' "$APPEND_LEDGER" | grep -q 'deferred' || fail "missing deferred branch in _append_ledger: $SDD_COMMON"
 ASSERT_COUNT=$((ASSERT_COUNT + 1))
 printf '%s' "$APPEND_LEDGER" | grep -q 'deferred not enumerated' || fail "missing no-jq degradation line in _append_ledger: $SDD_COMMON"
@@ -85,6 +92,7 @@ ASSERT_COUNT=$((ASSERT_COUNT + 1))
 echo "== 4. review.md (blocker + CHANGES_REQUESTED co-occur; no empty→APPROVED) =="
 assert_grep 'blocker.*CHANGES_REQUESTED' "$REVIEW" "review status decision"
 assert_no_grep 'empty → APPROVED' "$REVIEW" "old 'empty → APPROVED' wording removed"
+assert_no_grep 'empty → `APPROVED`' "$REVIEW" "old 'empty → \`APPROVED\`' wording removed (backtick variant)"
 
 echo "== 5. fix.md (deferred + open-findings blocker-only) =="
 assert_grep 'deferred' "$FIX" "fix segment deferred"

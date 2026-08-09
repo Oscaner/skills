@@ -78,7 +78,7 @@ All tasks APPROVED → before the final whole-branch review (Rule 0 **Final:**):
    - re-review clean → done: deferred items fixed, handoff `status` stays `APPROVED` (**不重写**), ledger keeps its `complete` line (optionally append one line noting K items fixed).
    - re-review exposes a new `blocker` → still one fix wave, then **unconditionally report to the user** (clean or not) — **no cross-task fix loop**; remaining items are not silently dropped, the report ends it.
    - **round cap 5 仅适用单任务 fix loop，不适用跨任务 final fix 波.**
-4. **Mode B** — user reads the ledger after the run ends to aggregate deferred; **no new shell end-of-run print** (`sdd-common.sh` has no such path).
+4. **Mode B** — user reads the ledger after the run ends to aggregate deferred; **no new shell end-of-run print** (`bin/lib/sdd-common.sh` has no such path).
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 

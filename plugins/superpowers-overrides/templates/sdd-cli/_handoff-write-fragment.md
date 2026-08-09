@@ -13,16 +13,22 @@ Write/update handoff per `templates/sdd-handoff-schema.md` from file paths only 
 ### Segment: review
 
 1. Read handoff.json + axis reports (`task-N-review-standards.md`, `task-N-review-spec.md`).
-2. Parse `## Findings (D3)` JSON block from each axis → merge into `findings[]`.
-3. Scan for "cannot verify"/"unverifiable" → `unverifiable[]`; non-empty → BLOCKED.
-4. Plan/brief violations → `plan_conflicts[]` (orchestrator STOPs).
-5. Empty findings → `status: APPROVED`; otherwise → `status: CHANGES_REQUESTED`.
-6. On CHANGES_REQUESTED: write open-findings JSON beside handoff.
+2. Parse `## Findings (D3)` JSON block from each axis → **merge** into prior handoff `findings[]`
+   (keep `deferred: true` items; never replace wholesale).
+3. **Mark every `warn`/`nit` finding `deferred: true`** — unconditionally, whether or not
+   the round also contains a `blocker` (D1: mixing must not re-enter deferred items in the fix loop).
+4. Scan for "cannot verify"/"unverifiable" → `unverifiable[]`; non-empty → BLOCKED.
+5. Plan/brief violations → `plan_conflicts[]` (orchestrator STOPs).
+6. Set status by severity: any `blocker` → `CHANGES_REQUESTED`; otherwise → `APPROVED`.
+7. On CHANGES_REQUESTED: write open-findings JSON (non-deferred = blocker findings only) beside handoff.
 
 ### Segment: fix
 
 1. Read handoff.json + open-findings.json.
-2. Update findings per resolved issues; set status per fix outcome.
+2. Resolve non-deferred findings per fix outcome (remove fixed / update remaining).
+3. **Preserve all `deferred: true` findings** from prior handoff `findings[]` — deferred
+   items never enter the fix loop and never drop across rounds (D5a).
+4. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
 
 ### Self-validate
 

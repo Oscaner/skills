@@ -83,4 +83,40 @@ grep -qF 'deferred: true' <<<"$RSP" \
 grep -qF '非 deferred' <<<"$RSP" \
   || { echo "FAIL: Review segment parsing missing blocker-only open-findings"; exit 1; }
 
+# Task 6 — D6 终盘聚合 + 用户决策门 (AC#1-3)
+D6="$(sed -n '/^### Rule 8/,/^## Red Flags/p' "$SKILLS/spor-subagent-driven-development/SKILL.md")"
+[ -n "$D6" ] || { echo "FAIL: D6 section (Rule 8) missing"; exit 1; }
+
+# AC#1a — step 1 聚合: grep deferred + no-jq 降级行（无冒号）子串匹配健壮
+grep -qF 'deferred' <<<"$D6" \
+  || { echo "FAIL: D6 missing aggregation (deferred)"; exit 1; }
+grep -qF 'deferred not enumerated — jq missing' <<<"$D6" \
+  || { echo "FAIL: D6 missing no-jq degraded-line robustness note"; exit 1; }
+
+# AC#1b — step 2 呈现 + step 3 用户决策
+grep -qF '呈现' <<<"$D6" \
+  || { echo "FAIL: D6 missing present-to-user step"; exit 1; }
+grep -qF '用户决策' <<<"$D6" \
+  || { echo "FAIL: D6 missing user decision gate"; exit 1; }
+
+# AC#1c — step 4 有界 final fix 波: 一个 fix agent + 一次 scoped re-review
+grep -qF 'scoped re-review' <<<"$D6" \
+  || { echo "FAIL: D6 missing scoped re-review"; exit 1; }
+grep -qF 'fix agent' <<<"$D6" \
+  || { echo "FAIL: D6 missing single fix agent"; exit 1; }
+
+# AC#2 — 不破坏既有 Rules 编号与引用（H1–H5 cite 等）
+for r in '### Rule 0' '### Rule 1' '### Rule 2' '### Rule 4' '### Rule 5' '### Rule 6' '### Rule 7'; do
+  grep -qF "$r" "$SKILLS/spor-subagent-driven-development/SKILL.md" \
+    || { echo "FAIL: existing rule heading lost: $r"; exit 1; }
+done
+grep -qF 'spor-token-efficient-controller-handoff' "$SKILLS/spor-subagent-driven-development/SKILL.md" \
+  || { echo "FAIL: controller-handoff H1-H5 reference lost"; exit 1; }
+
+# AC#3 — round cap 5 明确不适用于跨任务 final fix 波
+grep -qF 'round cap 5' <<<"$D6" \
+  || { echo "FAIL: D6 missing round cap 5 anchor"; exit 1; }
+grep -qF '不适用' <<<"$D6" \
+  || { echo "FAIL: D6 missing round-cap-5 inapplicability"; exit 1; }
+
 echo "OK — line budget"

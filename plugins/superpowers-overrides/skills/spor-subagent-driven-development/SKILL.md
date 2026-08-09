@@ -68,6 +68,18 @@ When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness
 4. Orchestrator **still obeys Rule 6** after Read handoff: non-empty `plan_conflicts` → STOP; `NEEDS_CONTEXT` or non-empty `unverifiable` → STOP.
 5. **Final whole-branch review** — orchestrator in-session only (not CLI-dispatched). `{plugin_root}` via [`spor-init`](../spor-init/SKILL.md).
 
+### Rule 8 — 终盘聚合 + 用户决策门 (D6)
+
+All tasks APPROVED → before the final whole-branch review (Rule 0 **Final:**):
+
+1. **聚合** — orchestrator reads the ledger and aggregates every deferred minor: grep `deferred` lines (match the `deferred` substring, not a colon-anchored pattern, so the no-jq degraded line `deferred not enumerated — jq missing` with no colon is also caught) → **呈现给用户**.
+2. **用户决策门** — user either defers all (run ends) or names items to fix.
+3. **要修 → 有界 final fix 波（一次）** — one **fix agent** takes the full list + one **scoped re-review** (fixed point = last final head; reuse `code-review`). End semantics:
+   - re-review clean → done: deferred items fixed, handoff `status` stays `APPROVED` (**不重写**), ledger keeps its `complete` line (optionally append one line noting K items fixed).
+   - re-review exposes a new `blocker` → still one fix wave, then **unconditionally report to the user** (clean or not) — **no cross-task fix loop**; remaining items are not silently dropped, the report ends it.
+   - **round cap 5 仅适用单任务 fix loop，不适用跨任务 final fix 波.**
+4. **Mode B** — user reads the ledger after the run ends to aggregate deferred; **no new shell end-of-run print** (`sdd-common.sh` has no such path).
+
 ## Red Flags — STOP if you catch yourself thinking any of these
 
 - "Simple task — I'll use upstream task-reviewer, it's faster."

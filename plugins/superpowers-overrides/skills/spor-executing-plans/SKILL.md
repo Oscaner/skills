@@ -25,7 +25,7 @@ Practical effect: when this skill would normally set up a worktree before Step 1
 
 ### Rule 3 — Commit after each task (inline fallback only)
 
-When Rule 1 redirects to SDD, this rule does not apply — commit is SDD Rule 0a + `templates/sdd-cli/implement.md` or Rule 5b (p0).
+When Rule 1 redirects to SDD, this rule does not apply — commit is SDD Rule 0 + `templates/sdd-cli/implement.md` or Rule 5b (p0).
 
 User's global `~/.claude/CLAUDE.md` states:
 

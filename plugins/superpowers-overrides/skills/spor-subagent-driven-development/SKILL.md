@@ -92,7 +92,7 @@ All tasks APPROVED → before the final whole-branch review (Rule 0 **Final:**):
 - "Stub harness exit 1 — I'll fall back to p0." → exit 1 means BLOCKED, not p0 fallback.
 - "Final review can run in a CLI session."
 - "CLI available — I'll Read upstream SDD for Setup context."
-- "Rule 0a — I'll paraphrase tdd in the override instead of citing implement.md."
+- "Rule 0 — I'll paraphrase tdd in the override instead of citing implement.md."
 - "Hook will block me — I'll edit repo files before TASK_BASE / outside H6."
 - "Task is markdown-only — skip H6 and handoff.json."
 - "I'll mark ledger complete with inline review."

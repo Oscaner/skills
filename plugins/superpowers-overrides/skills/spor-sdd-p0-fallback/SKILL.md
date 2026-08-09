@@ -1,15 +1,15 @@
 ---
 name: spor-sdd-p0-fallback
-description: p0 in-session SDD worker rules — Read only when spor-SDD Rule 0b triggers. Not an override slash target. Contains Rules 3, 5b, 5c and D4 review gate.
+description: p0 in-session SDD worker rules — dormant since CLI-mandatory (7c1a7b8); retained as p0 reference. Not an override slash target. Contains Rules 3, 5b, 5c and D4 review gate.
 ---
 
 ## Rules
 
 ### Rule 3 — Implementer subagents delegate to `mattpocock-skills:tdd` **(p0 fallback only)**
 
-When Rule 0a applies, skip this rule — see `templates/sdd-cli/implement.md`.
+When Rule 0 applies (CLI default), skip — `templates/sdd-cli/implement.md` is SOT.
 
-When dispatching an **implementer** subagent to write code (Rule 0b / p0 path), delegate implementation discipline to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md). Its rules live in that skill — do not re-implement here.
+When dispatching an **implementer** subagent to write code (p0 path), delegate implementation discipline to [`mattpocock-skills:tdd`](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/SKILL.md). Its rules live in that skill — do not re-implement here.
 
 Exemption: mechanical Markdown skill docs with no runtime behavior. TDD load failure → surface error or degrade silently if plugin absent.
 
@@ -19,13 +19,13 @@ Implementers write test-evidence.json + report.md before H1 contract per `implem
 
 #### Rule 5b — In-session implementer dispatch (p0 fallback only)
 
-When Rule 0a applies, skip — `templates/sdd-cli/implement.md` is SOT.
+When Rule 0 applies (CLI default), skip — `templates/sdd-cli/implement.md` is SOT.
 
 p0 path: dispatch implementer per upstream SDD Task Loop §1 (`implementer-prompt.md`); filenames brief → report + test-evidence; commit/H1 per `implement.md`.
 
 #### Rule 5c — In-session per-task review (p0 fallback only)
 
-When Rule 0a applies, skip — H6 + `templates/sdd-cli/` is SOT.
+When Rule 0 applies (CLI default), skip — H6 + `templates/sdd-cli/` is SOT.
 
 p0 path: inline handoff write + code-review per `templates/sdd-cli/{implement,review,fix}.md`, [`spor-handoff-writer`](../spor-handoff-writer/SKILL.md) (schema reference), and [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5; degradation per controller-handoff H2 degradation note.
 

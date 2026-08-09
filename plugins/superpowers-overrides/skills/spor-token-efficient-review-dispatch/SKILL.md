@@ -48,7 +48,7 @@ Reviewer prompts MUST specify: no summaries, no positive commentary, no meta-obs
 
 ### D4 — code-review dual-axis gate (p0 only)
 
-When SDD per-task review runs in-session (Rule 0b), see [`spor-sdd-p0-fallback`](../spor-sdd-p0-fallback/SKILL.md) Appendix D4. CLI-default path: D4 runs inside H6 `review` subprocess — orchestrator does not load D4 prose.
+When SDD per-task review runs in-session (p0 path), see [`spor-sdd-p0-fallback`](../spor-sdd-p0-fallback/SKILL.md) Appendix D4. CLI-default path: D4 runs inside H6 `review` subprocess — orchestrator does not load D4 prose.
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 

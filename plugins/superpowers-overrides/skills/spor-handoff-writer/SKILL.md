@@ -20,7 +20,7 @@ Structured extraction subagent — reads artifact **paths**, writes/updates `han
 ## Outputs
 
 1. Write/update `<workspace>/task-N-handoff.json` (or `batch-<first>-<last>-handoff.json`)
-2. On `CHANGES_REQUESTED`: write open-findings file from handoff `findings[]`
+2. On `CHANGES_REQUESTED`: write open-findings file from handoff `findings[]` **blocker（非 deferred）only**
 3. Return H1 four-line contract to orchestrator (no review prose)
 
 ## Schema

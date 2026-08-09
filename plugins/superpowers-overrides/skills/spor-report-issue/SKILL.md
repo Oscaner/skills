@@ -22,7 +22,7 @@ Standalone skill — not an override. Reads the current session and summarises s
 Read three sources in priority order:
 
 1. **Conversation context** (primary): tool call records, error messages, handoff statuses, review findings visible in this session.
-2. **Ledgers**: read every `.superpowers/sdd/*/progress.md` present in the repo root. Extract lines containing `fix round`, `BLOCKED`, `parked`, `deferred minor`, `CHANGES_REQUESTED`.
+2. **Ledgers**: read every `.superpowers/sdd/*/progress.md` present in the repo root. Extract lines containing `fix round`, `BLOCKED`, `parked`, `deferred`, `CHANGES_REQUESTED`.
 3. **Git log**: run `git log $(git merge-base HEAD origin/main)..HEAD --oneline`. Fall back to `git log -20 --oneline` if `origin/main` is unavailable. Identify `fix:` prefix commits and any repeated fix-round patterns.
 
 ### Phase 2 — Classify and summarise (Claude reasoning)

@@ -108,6 +108,7 @@ assert_section_grep "$DISPATCH" '### D3 — Findings-only output' 'APPROVED.*def
 
 echo "== 7. spor-handoff-writer review segment parsing (deferred) =="
 assert_section_grep "$HANDOFF_WRITER" '## Review segment parsing' 'deferred' "review parsing keeps deferred"
+assert_section_grep "$HANDOFF_WRITER" '## Outputs' 'blocker（非 deferred）only' "Outputs rule: open-findings blocker-only (not all findings)"
 
 echo "== 8. spor-subagent-driven-development Rule 8 (D6 end semantics) =="
 assert_section_grep "$SDD_SKILL" '### Rule 8 — 终盘聚合' 'deferred' "final aggregation deferred"

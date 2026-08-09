@@ -573,6 +573,10 @@ sdd_run_plan() {
     head="$(jq -r '.commits.head // "unknown"' "$handoff")"
     base="${base:0:7}"
     head="${head:0:7}"
+    # .findings // [] keeps the expression total for legacy APPROVED handoffs that
+    # predate the findings key (F5b locks this) — "Cannot iterate over null" would
+    # otherwise yield a malformed "deferred: " ledger line. jq errors are silent
+    # (2>/dev/null): a deferred count of 0 then falls through to "review clean".
     deferred="$(jq -c '[.findings // [] | .[] | select(.deferred == true)]' "$handoff" 2>/dev/null)"
     if [[ "$deferred" != "[]" ]]; then
       deferred_count="$(jq -r 'length' <<<"$deferred")"

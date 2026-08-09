@@ -564,16 +564,23 @@ sdd_run_plan() {
 
   _append_ledger() {
     local n="$1" ledger="$2" handoff="$3"
-    local base head
+    local base head deferred k oneline
     if ! command -v jq >/dev/null 2>&1; then
-      printf '\nTask %s: complete (review clean)\n' "$n" >>"$ledger"
+      printf '\nTask %s: complete (commits unknown..unknown, deferred not enumerated — jq missing)\n' "$n" >>"$ledger"
       return
     fi
     base="$(jq -r '.commits.base // "unknown"' "$handoff")"
     head="$(jq -r '.commits.head // "unknown"' "$handoff")"
     base="${base:0:7}"
     head="${head:0:7}"
-    printf '\nTask %s: complete (commits %s..%s, review clean)\n' "$n" "$base" "$head" >>"$ledger"
+    deferred="$(jq -c '[.findings[] | select(.deferred == true)]' "$handoff" 2>/dev/null)"
+    if [[ -n "$deferred" && "$deferred" != "[]" ]]; then
+      k="$(jq -r 'length' <<<"$deferred")"
+      oneline="$(jq -r 'map(.summary) | join("; ")' <<<"$deferred")"
+      printf '\nTask %s: complete (commits %s..%s, %s deferred: %s)\n' "$n" "$base" "$head" "$k" "$oneline" >>"$ledger"
+    else
+      printf '\nTask %s: complete (commits %s..%s, review clean)\n' "$n" "$base" "$head" >>"$ledger"
+    fi
   }
 
   _run_task_chain() {

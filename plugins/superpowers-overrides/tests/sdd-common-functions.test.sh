@@ -496,6 +496,91 @@ EOF
 }
 
 ###############################################################################
+# F6. _append_ledger deferred roll-up (plan Task 5) — three states
+###############################################################################
+# The function is defined inside sdd_run_plan, so each block first runs a
+# no-pending sdd_run_plan (sdd_exit_ok overridden to a no-op so the subshell
+# survives) to install the nested function, then calls _append_ledger directly.
+# F6a. no-jq → honest degraded wording (must not fake "review clean")
+{
+  export SDD_DRY_RUN=1
+  plan="$TESTROOT/ws6a/plan.md"
+  ws="$TESTROOT/ws6a/.superpowers/sdd/plan"
+  mkdir -p "$ws"
+  printf '# Plan\n\n### Task 1: one\n' > "$plan"
+  printf '# SDD ledger — plan: %s\n' "$plan" > "$ws/progress.md"
+  printf 'Task 1: complete (seed)\n' >> "$ws/progress.md"
+  handoff="$ws/task-1-handoff.json"
+  printf '%s' '{"status":"APPROVED","commits":{"base":"base1","head":"head1"},"findings":[{"severity":"nit","summary":"Nit alpha","deferred":true}]}' > "$handoff"
+  git -C "$TESTROOT/ws6a" init -q
+  git -C "$TESTROOT/ws6a" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+
+  task_script="$TESTROOT/ws6a/task.sh"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$task_script"
+  chmod +x "$task_script"
+
+  # mask jq entirely: PATH with only an empty dir
+  njqbin="$TESTROOT/ws6a/njqbin"
+  mkdir -p "$njqbin"
+
+  line="$(cd "$TESTROOT/ws6a" && source "$LIB"; sdd_exit_ok() { :; }; \
+    SDD_DRY_RUN=1 sdd_run_plan "$plan" "$task_script" sh "test" >/dev/null 2>&1 || true; \
+    PATH="$njqbin" _append_ledger 1 "$ws/progress.md" "$handoff" >/dev/null 2>&1; \
+    tail -1 "$ws/progress.md")"
+  assert_eq "F6a no-jq honest degraded wording" "Task 1: complete (commits unknown..unknown, deferred not enumerated — jq missing)" "$line"
+}
+
+# F6b. jq + deferred findings → roll-up "K deferred: summary; summary"
+{
+  export SDD_DRY_RUN=1
+  plan="$TESTROOT/ws6b/plan.md"
+  ws="$TESTROOT/ws6b/.superpowers/sdd/plan"
+  mkdir -p "$ws"
+  printf '# Plan\n\n### Task 1: one\n' > "$plan"
+  printf '# SDD ledger — plan: %s\n' "$plan" > "$ws/progress.md"
+  printf 'Task 1: complete (seed)\n' >> "$ws/progress.md"
+  handoff="$ws/task-1-handoff.json"
+  printf '%s' '{"status":"APPROVED","commits":{"base":"base1","head":"head1"},"findings":[{"severity":"nit","summary":"Nit alpha","deferred":true},{"severity":"warn","summary":"Warn beta","deferred":true},{"severity":"blocker","summary":"Blocker gamma","deferred":false}]}' > "$handoff"
+  git -C "$TESTROOT/ws6b" init -q
+  git -C "$TESTROOT/ws6b" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+
+  task_script="$TESTROOT/ws6b/task.sh"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$task_script"
+  chmod +x "$task_script"
+
+  line="$(cd "$TESTROOT/ws6b" && source "$LIB"; sdd_exit_ok() { :; }; \
+    SDD_DRY_RUN=1 sdd_run_plan "$plan" "$task_script" sh "test" >/dev/null 2>&1 || true; \
+    _append_ledger 1 "$ws/progress.md" "$handoff" >/dev/null 2>&1; \
+    tail -1 "$ws/progress.md")"
+  assert_eq "F6b deferred roll-up" "Task 1: complete (commits base1..head1, 2 deferred: Nit alpha; Warn beta)" "$line"
+}
+
+# F6c. jq + no deferred → "review clean" (empty findings array)
+{
+  export SDD_DRY_RUN=1
+  plan="$TESTROOT/ws6c/plan.md"
+  ws="$TESTROOT/ws6c/.superpowers/sdd/plan"
+  mkdir -p "$ws"
+  printf '# Plan\n\n### Task 1: one\n' > "$plan"
+  printf '# SDD ledger — plan: %s\n' "$plan" > "$ws/progress.md"
+  printf 'Task 1: complete (seed)\n' >> "$ws/progress.md"
+  handoff="$ws/task-1-handoff.json"
+  printf '%s' '{"status":"APPROVED","commits":{"base":"base1","head":"head1"},"findings":[]}' > "$handoff"
+  git -C "$TESTROOT/ws6c" init -q
+  git -C "$TESTROOT/ws6c" -c user.name=t -c user.email=t@e commit --allow-empty -qm init
+
+  task_script="$TESTROOT/ws6c/task.sh"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$task_script"
+  chmod +x "$task_script"
+
+  line="$(cd "$TESTROOT/ws6c" && source "$LIB"; sdd_exit_ok() { :; }; \
+    SDD_DRY_RUN=1 sdd_run_plan "$plan" "$task_script" sh "test" >/dev/null 2>&1 || true; \
+    _append_ledger 1 "$ws/progress.md" "$handoff" >/dev/null 2>&1; \
+    tail -1 "$ws/progress.md")"
+  assert_eq "F6c no deferred → review clean" "Task 1: complete (commits base1..head1, review clean)" "$line"
+}
+
+###############################################################################
 # G. plan shells are thin wrappers around sdd_run_plan (plan Task 3)
 ###############################################################################
 # G1. claude plan shell delegates: run the real shell under a mirrored bin dir

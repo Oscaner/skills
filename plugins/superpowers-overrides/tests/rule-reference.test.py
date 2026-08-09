@@ -27,7 +27,7 @@ HEAD = re.compile(r'^(?:#{3,4} |\*\*)Rule ([0-9]+[a-z]?)\b')
 REF = re.compile(r'\bRule ([0-9]+[a-z]?)\b')
 LINK = re.compile(r'\[[^\]]*\]\(([^)]*SKILL\.md)\)')
 LINK_HAS_REF = re.compile(r'\[[^\]]*Rule [0-9]+[a-z]?[^\]]*\]\(([^)]*SKILL\.md)\)')
-SCOPED = re.compile(r'\b(spor-[a-z-]+|SDD) Rule ([0-9]+[a-z]?)\b')
+SCOPED = re.compile(r'\b(spor-[a-zA-Z-]+|SDD) Rule ([0-9]+[a-z]?)\b')
 COMMENT = re.compile(r'^\s*<!--')
 
 SPOR_SDD = "spor-subagent-driven-development"

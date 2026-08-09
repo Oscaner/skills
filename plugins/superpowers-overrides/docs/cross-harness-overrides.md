@@ -213,7 +213,7 @@ Plan driver invokes sibling task script per mode. Ledger append on APPROVED only
 |------|---------|---------------------|
 | 0 | Success | Continue chain |
 | 1 | BLOCKED (stub harness or explicit block) | Stop — **not** p0 fallback |
-| 2 | CLI not in PATH | Silent p0 in-session fallback |
+| 2 | CLI not in PATH | Orchestrator **BLOCKED** |
 
 Stub harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
 

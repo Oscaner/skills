@@ -53,7 +53,7 @@ if $sdd_activate; then
   _plugin_root="$(cd "$(dirname "$0")/.." && pwd)"
   _repo_root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null || pwd)"
   _session_key=$(INPUT="$input" python3 -c "import hashlib,json,os;d=json.loads(os.environ['INPUT']);print(d.get('session_id') or d.get('conversation_id') or hashlib.sha256((d.get('prompt') or '').encode()).hexdigest()[:16])")
-  "${_plugin_root}/bin/sdd-session-activate.sh" minimal "$_session_key" "$_repo_root" 2>/dev/null || true
+  "${_plugin_root}/bin/cdd-session-activate.sh" minimal "$_session_key" "$_repo_root" 2>/dev/null || true
 fi
 
 jq -n --arg override "$override" '{

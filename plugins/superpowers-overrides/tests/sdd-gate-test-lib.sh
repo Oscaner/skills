@@ -15,22 +15,22 @@
 # Caller must set ROOT before sourcing. Derive the plugin tree from $ROOT.
 TESTS_DIR="$(cd "$ROOT/tests" && pwd)"
 FIXTURES="$TESTS_DIR/fixtures/sdd-gate"
-GATE_ROOT="${SDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-sdd}"
+GATE_ROOT="${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-sdd}"
 
-SESSION_TAG="${SDD_GATE_TEST_TAG:-$$}"
+SESSION_TAG="${CDD_GATE_TEST_TAG:-$$}"
 TMPROOT="$(mktemp -d)"
 
 # cleanup — remove this run's own pending-sdd JSON files. Scoped to the session
 # keys this run created; never a global find -delete (that would clobber a
 # concurrent or live session's gate, fail-open semantics violation).
-sdd_gate_test_cleanup() {
+cdd_gate_test_cleanup() {
   local key
   rm -rf "$TMPROOT"
   for key in "${SESSION_KEYS[@]:-}"; do
     rm -f "$GATE_ROOT/$key.json"
   done
 }
-trap 'sdd_gate_test_cleanup' EXIT
+trap 'cdd_gate_test_cleanup' EXIT
 
 # session_key <base> — per-run namespaced key: smk-<base>-$$. Unique to this
 # process, so overlapping runs never write the same pending file.
@@ -40,9 +40,9 @@ session_key() {
 
 # setup_scenario <scenario> <dest-name> [<session-key>] — copy a fixture scene
 # root into $TMPROOT/<dest-name>, git-init the copy, inject the copy's own short
-# SHA into any `<SHA>` brief placeholder, and export SDD_GATE_FIXTURES_ROOT so
+# SHA into any `<SHA>` brief placeholder, and export CDD_GATE_FIXTURES_ROOT so
 # the gate scans the copy instead of the real tree. With <session-key>, creates
-# the namespaced pending file via sdd-session-activate minimal mode.
+# the namespaced pending file via cdd-session-activate minimal mode.
 #
 # Result path is left in $SCEN_DEST. Do NOT call this inside $() — the export
 # and SESSION_KEYS bookkeeping would be lost to the subshell.
@@ -60,7 +60,7 @@ setup_scenario() {
       printf 'TASK_BASE: %s\n' "$sha" > "$b"
     fi
   done < <(find "$dest" -name 'task-*-brief.md')
-  export SDD_GATE_FIXTURES_ROOT="$dest/sdd"
+  export CDD_GATE_FIXTURES_ROOT="$dest/sdd"
   SCEN_DEST="$dest"
   if [[ -n "$key" ]]; then
     "$ACT" minimal "$key" "$dest"

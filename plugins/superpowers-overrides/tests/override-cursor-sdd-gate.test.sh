@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-cursor-sdd-gate.sh"
-ACT="$ROOT/bin/sdd-session-activate.sh"
+ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 
 # 隔离 fixture + per-run session 命名：共享 sdd-gate-test-lib.sh（见该文件头注释）。
@@ -11,7 +11,7 @@ source "$ROOT/tests/sdd-gate-test-lib.sh"
 
 # AC#3 minimal pending — active-ws 已含真实 SHA brief（无 APPROVED handoff）→ 扫描命中 task_active。
 # 仓库路径 Write deny + 只读 git allow 在 orchestrating/task_active 下判定一致；
-# 下方 deny_scan（sdd_root 下、workspace 外）是正向判别：仅扫描命中 task_active 时 deny，
+# 下方 deny_scan（cdd_root 下、workspace 外）是正向判别：仅扫描命中 task_active 时 deny，
 # 若扫描失败 → orchestrating → allow，断言失败。
 KEY="$(session_key conv-g)"
 setup_scenario active active-ws "$KEY"

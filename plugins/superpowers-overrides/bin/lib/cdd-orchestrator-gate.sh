@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# sdd-orchestrator-gate.sh — shared SDD orchestrator PreToolUse state machine (p1-slim.2)
+# cdd-orchestrator-gate.sh — shared CDD orchestrator PreToolUse state machine (p1-slim.2)
 # Source from harness adapters only.
 
-SDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-sdd"
-SDD_PENDING_TTL=86400
+CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-sdd"
+CDD_PENDING_TTL=86400
 
-sdd_pending_path() {
-  printf '%s\n' "$SDD_PENDING_ROOT/$1.json"
+cdd_pending_path() {
+  printf '%s\n' "$CDD_PENDING_ROOT/$1.json"
 }
 
-sdd_plugin_root_from_lib() {
+cdd_plugin_root_from_lib() {
   local dir
   dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   printf '%s\n' "$dir"
 }
 
-sdd_session_key_from_json() {
+cdd_session_key_from_json() {
   INPUT="$1" python3 <<'PYKEY'
 import hashlib
 import json
@@ -31,60 +31,60 @@ else:
 PYKEY
 }
 
-sdd_read_pending() {
+cdd_read_pending() {
   local session_key="$1" path
-  path="$(sdd_pending_path "$session_key")"
+  path="$(cdd_pending_path "$session_key")"
   if [[ -f "$path" ]]; then
     cat "$path"
   fi
 }
 
-sdd_pending_expired() {
+cdd_pending_expired() {
   local detected_at="$1" now
   detected_at="${detected_at:-0}"
   now=$(date +%s)
-  (( now - detected_at > SDD_PENDING_TTL ))
+  (( now - detected_at > CDD_PENDING_TTL ))
 }
 
-sdd_clear_pending() {
-  rm -f "$(sdd_pending_path "$1")"
+cdd_clear_pending() {
+  rm -f "$(cdd_pending_path "$1")"
 }
 
-sdd_is_write_tool() {
+cdd_is_write_tool() {
   case "$1" in
     Write|StrReplace|Edit|WriteNotebook|MultiEdit) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-sdd_is_shell_tool() {
+cdd_is_shell_tool() {
   case "$1" in
     Shell|Bash) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-sdd_extract_path() {
+cdd_extract_path() {
   local tool_input_json="$1"
   printf '%s' "$tool_input_json" | jq -r '.path // .file_path // empty'
 }
 
-sdd_extract_command() {
+cdd_extract_command() {
   local tool_input_json="$1"
   printf '%s' "$tool_input_json" | jq -r '.command // empty'
 }
 
 # 只读 git 动词白名单 — 单源（判定 + deny 消息矩阵共用）。
-sdd_readonly_git_verbs() {
+cdd_readonly_git_verbs() {
   printf '%s\n' "status diff log show rev-parse branch remote ls-files diff-tree"
 }
 
-sdd_shell_allowed() {
+cdd_shell_allowed() {
   local cmd="$1"
   case "$cmd" in
-    *sdd-run-task-*|*sdd-workspace*|*task-brief*|*review-package*) return 0 ;;
+    *cdd-run*|*sdd-run-task-*|*sdd-workspace*|*task-brief*|*review-package*) return 0 ;;
   esac
-  if sdd_git_verb_allowed "$cmd"; then
+  if cdd_git_verb_allowed "$cmd"; then
     return 0
   fi
   return 1
@@ -96,7 +96,7 @@ sdd_shell_allowed() {
 # 含 shell 操作符（&& | ; > < $( ` 换行）或多行命令 → deny（防复合命令绕过）。
 # branch/remote 只放行只读子参数（-a -r -v --show-current），拒绝变更类
 # （-d -D -m 及位置参数如 branch <new>、remote add/remove/set-url）。
-sdd_git_verb_allowed() {
+cdd_git_verb_allowed() {
   local cmd="$1" verb="" i
   local -a tokens=()
   case "$cmd" in
@@ -136,18 +136,18 @@ sdd_git_verb_allowed() {
     done
     return 0
   fi
-  case " $(sdd_readonly_git_verbs) " in
+  case " $(cdd_readonly_git_verbs) " in
     *" $verb "*) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-sdd_is_under_path() {
+cdd_is_under_path() {
   local path="$1" prefix="$2"
   [[ -n "$prefix" && -n "$path" && ( "$path" == "$prefix" || "$path" == "$prefix/"* ) ]]
 }
 
-sdd_normalize_abs() {
+cdd_normalize_abs() {
   local path="$1" repo_root="$2"
   if [[ "$path" != /* ]]; then
     path="$repo_root/$path"
@@ -165,7 +165,7 @@ sdd_normalize_abs() {
   fi
 }
 
-sdd_resolve_workspace() {
+cdd_resolve_workspace() {
   local repo_root="$1" pending_json="$2"
   local ws
   ws="$(printf '%s' "$pending_json" | jq -r '.workspace // empty')"
@@ -177,25 +177,25 @@ sdd_resolve_workspace() {
 }
 
 # git cat-file 必须绑定 repo_root（CWD 无关）。实证：bare `git cat-file -e` 依赖 CWD 是 git 仓库。
-sdd_git_object_exists() {
+cdd_git_object_exists() {
   local repo_root="$1" sha="$2"
   git -C "$repo_root" cat-file -e "$sha" 2>/dev/null
 }
 
-sdd_find_active_workspace() {
-  local sdd_root="$1" repo_root dir brief n handoff
-  [[ -d "$sdd_root" ]] || return 1
-  # git-object 校验绑定 sdd_root 所属仓库根（CWD 无关）。常规布局 $repo_root/.superpowers/sdd
+cdd_find_active_workspace() {
+  local cdd_root="$1" repo_root dir brief n handoff
+  [[ -d "$cdd_root" ]] || return 1
+  # git-object 校验绑定 cdd_root 所属仓库根（CWD 无关）。常规布局 $repo_root/.superpowers/cdd
   # 与 fixture 布局 $TMPFIX/sdd 的仓库根深度不同，统一由 git toplevel 解析，不依赖固定上溯级数。
-  repo_root="$(git -C "$sdd_root" rev-parse --show-toplevel 2>/dev/null || true)"
+  repo_root="$(git -C "$cdd_root" rev-parse --show-toplevel 2>/dev/null || true)"
   [[ -n "$repo_root" ]] || return 1
-  for dir in "$sdd_root"/*/; do
+  for dir in "$cdd_root"/*/; do
     [[ -d "$dir" ]] || continue
     n=1
     while [[ -f "${dir}task-${n}-brief.md" ]]; do
       brief="${dir}task-${n}-brief.md"
       handoff="${dir}task-${n}-handoff.json"
-      if sdd_brief_has_task_base "$brief" "$repo_root" && ! sdd_handoff_approved "$handoff"; then
+      if cdd_brief_has_task_base "$brief" "$repo_root" && ! cdd_handoff_approved "$handoff"; then
         printf '%s\n' "${dir%/}"
         return 0
       fi
@@ -205,23 +205,23 @@ sdd_find_active_workspace() {
   return 1
 }
 
-sdd_brief_has_task_base() {
+cdd_brief_has_task_base() {
   local brief="$1" repo_root="$2"
   [[ -f "$brief" ]] || return 1
   local sha
   sha="$(sed -nE 's/^TASK_BASE: //p' "$brief" | head -1 | tr -d ' \r')"
   [[ -n "$sha" ]] || return 1
-  sdd_git_object_exists "$repo_root" "$sha"
+  cdd_git_object_exists "$repo_root" "$sha"
 }
 
-sdd_handoff_approved() {
+cdd_handoff_approved() {
   local handoff="$1"
   [[ -f "$handoff" ]] || return 1
   command -v jq >/dev/null 2>&1 || return 1
   [[ "$(jq -r '.status // empty' "$handoff" 2>/dev/null)" == "APPROVED" ]]
 }
 
-sdd_frontier_task() {
+cdd_frontier_task() {
   local workspace="$1" repo_root="$2" n=1 brief handoff
   while [[ -n "$workspace" ]]; do
     brief="${workspace}/task-${n}-brief.md"
@@ -230,8 +230,8 @@ sdd_frontier_task() {
       printf '%s\n' "$((n - 1))"
       return 0
     fi
-    if sdd_brief_has_task_base "$brief" "$repo_root"; then
-      if ! sdd_handoff_approved "$handoff"; then
+    if cdd_brief_has_task_base "$brief" "$repo_root"; then
+      if ! cdd_handoff_approved "$handoff"; then
         printf '%s\n' "$n"
         return 0
       fi
@@ -244,7 +244,7 @@ sdd_frontier_task() {
   printf '0\n'
 }
 
-sdd_gate_phase() {
+cdd_gate_phase() {
   local repo_root="$1" workspace="$2" pending_json="$3"
   local n brief next_brief active_ws
   active_ws="$workspace"
@@ -252,38 +252,38 @@ sdd_gate_phase() {
     printf 'orchestrating\n'
     return 0
   fi
-  n="$(sdd_frontier_task "$active_ws" "$repo_root")"
+  n="$(cdd_frontier_task "$active_ws" "$repo_root")"
   brief="${active_ws}/task-${n}-brief.md"
   next_brief="${active_ws}/task-$((n + 1))-brief.md"
   if [[ "$n" -eq 0 ]]; then
     printf 'orchestrating\n'
     return 0
   fi
-  if sdd_brief_has_task_base "$brief" "$repo_root" && ! sdd_handoff_approved "${active_ws}/task-${n}-handoff.json"; then
+  if cdd_brief_has_task_base "$brief" "$repo_root" && ! cdd_handoff_approved "${active_ws}/task-${n}-handoff.json"; then
     printf 'task_active\n'
     return 0
   fi
-  if sdd_handoff_approved "${active_ws}/task-${n}-handoff.json" && ! sdd_brief_has_task_base "$next_brief" "$repo_root"; then
+  if cdd_handoff_approved "${active_ws}/task-${n}-handoff.json" && ! cdd_brief_has_task_base "$next_brief" "$repo_root"; then
     printf 'task_complete\n'
     return 0
   fi
-  if sdd_brief_has_task_base "$brief" "$repo_root"; then
+  if cdd_brief_has_task_base "$brief" "$repo_root"; then
     printf 'task_active\n'
     return 0
   fi
   printf 'orchestrating\n'
 }
 
-sdd_active_task_num() {
+cdd_active_task_num() {
   local workspace="$1" repo_root="$2"
-  sdd_frontier_task "$workspace" "$repo_root"
+  cdd_frontier_task "$workspace" "$repo_root"
 }
 
-sdd_deny_message() {
+cdd_deny_message() {
   local harness="$1" task_num="$2" plan_basename="$3"
   local plugin_root verbs
-  plugin_root="$(sdd_plugin_root_from_lib)"
-  verbs="$(sdd_readonly_git_verbs | awk '{printf "  git %s", $1; for (i = 2; i <= 7 && i <= NF; i++) printf " / git %s", $i; printf "\n  "; for (i = 8; i <= NF; i++) printf "git %s%s", $i, (i == NF ? "\n" : " / ")}')"
+  plugin_root="$(cdd_plugin_root_from_lib)"
+  verbs="$(cdd_readonly_git_verbs | awk '{printf "  git %s", $1; for (i = 2; i <= 7 && i <= NF; i++) printf " / git %s", $i; printf "\n  "; for (i = 8; i <= NF; i++) printf "git %s%s", $i, (i == NF ? "\n" : " / ")}')"
   cat <<-EOF
 	SDD orchestrator gate — direct repo edits forbidden during active task.
 
@@ -293,7 +293,7 @@ ${verbs}
 	  sdd-workspace / task-brief / review-package
 
 	Allowed Write:
-	  .superpowers/sdd/${plan_basename}/
+	  .superpowers/cdd/${plan_basename}/
 
 	Repo changes flow only through:
 	  ${plugin_root}/bin/sdd-run-task-${harness}.sh --task ${task_num} --mode implement
@@ -303,7 +303,7 @@ ${verbs}
 	EOF
 }
 
-sdd_plan_basename() {
+cdd_plan_basename() {
   local workspace="$1" pending_json="$2" plan_path basename
   plan_path="$(printf '%s' "$pending_json" | jq -r '.plan_path // empty')"
   if [[ -n "$plan_path" ]]; then
@@ -326,18 +326,18 @@ sdd_plan_basename() {
   printf 'unknown-plan\n'
 }
 
-sdd_write_allowed() {
+cdd_write_allowed() {
   local abs_path="$1" repo_root="$2" workspace="$3" phase="$4"
-  local sdd_root="${SDD_GATE_FIXTURES_ROOT:-$repo_root/.superpowers/sdd}"
+  local cdd_root="${CDD_GATE_FIXTURES_ROOT:-$repo_root/.superpowers/cdd}"
   case "$phase" in
     inactive|task_complete) return 0 ;;
     orchestrating)
-      sdd_is_under_path "$abs_path" "$sdd_root" && return 0
-      sdd_is_under_path "$abs_path" "$workspace" && return 0
+      cdd_is_under_path "$abs_path" "$cdd_root" && return 0
+      cdd_is_under_path "$abs_path" "$workspace" && return 0
       return 1
       ;;
     task_active)
-      sdd_is_under_path "$abs_path" "$workspace" && return 0
+      cdd_is_under_path "$abs_path" "$workspace" && return 0
       return 1
       ;;
     *) return 1 ;;
@@ -345,24 +345,24 @@ sdd_write_allowed() {
 }
 
 # stdout: allow | deny|<message>
-sdd_gate_decide() {
+cdd_gate_decide() {
   local harness="$1" tool_name="$2" tool_input_json="$3" session_key="$4"
-  local pending detected_at repo_root sdd_root workspace phase abs_path cmd task_num plan_base msg
+  local pending detected_at repo_root cdd_root workspace phase abs_path cmd task_num plan_base msg
 
   if ! command -v jq >/dev/null 2>&1; then
     printf 'allow\n'
     return 0
   fi
 
-  pending="$(sdd_read_pending "$session_key" || true)"
+  pending="$(cdd_read_pending "$session_key" || true)"
   if [[ -z "$pending" ]]; then
     printf 'allow\n'
     return 0
   fi
 
   detected_at="$(printf '%s' "$pending" | jq -r '.detected_at // 0')"
-  if sdd_pending_expired "$detected_at"; then
-    sdd_clear_pending "$session_key"
+  if cdd_pending_expired "$detected_at"; then
+    cdd_clear_pending "$session_key"
     printf 'allow\n'
     return 0
   fi
@@ -370,18 +370,18 @@ sdd_gate_decide() {
   repo_root="$(printf '%s' "$pending" | jq -r '.repo_root // empty')"
   [[ -n "$repo_root" ]] || { printf 'allow\n'; return 0; }
 
-  sdd_root="${SDD_GATE_FIXTURES_ROOT:-$repo_root/.superpowers/sdd}"
+  cdd_root="${CDD_GATE_FIXTURES_ROOT:-$repo_root/.superpowers/cdd}"
 
-  workspace="$(sdd_resolve_workspace "$repo_root" "$pending" || true)"
+  workspace="$(cdd_resolve_workspace "$repo_root" "$pending" || true)"
   active_ws="$workspace"
   if [[ -z "$active_ws" ]]; then
-    active_ws="$(sdd_find_active_workspace "$sdd_root" || true)"
+    active_ws="$(cdd_find_active_workspace "$cdd_root" || true)"
   fi
-  phase="$(sdd_gate_phase "$repo_root" "$active_ws" "$pending")"
+  phase="$(cdd_gate_phase "$repo_root" "$active_ws" "$pending")"
 
-  if sdd_is_shell_tool "$tool_name"; then
-    cmd="$(sdd_extract_command "$tool_input_json")"
-    if sdd_shell_allowed "$cmd"; then
+  if cdd_is_shell_tool "$tool_name"; then
+    cmd="$(cdd_extract_command "$tool_input_json")"
+    if cdd_shell_allowed "$cmd"; then
       printf 'allow\n'
       return 0
     fi
@@ -389,26 +389,26 @@ sdd_gate_decide() {
       printf 'allow\n'
       return 0
     fi
-    task_num="$(sdd_active_task_num "$active_ws" "$repo_root")"
+    task_num="$(cdd_active_task_num "$active_ws" "$repo_root")"
     [[ "$task_num" -gt 0 ]] || task_num=1
-    plan_base="$(sdd_plan_basename "$active_ws" "$pending")"
-    msg="$(sdd_deny_message "$harness" "$task_num" "$plan_base")"
+    plan_base="$(cdd_plan_basename "$active_ws" "$pending")"
+    msg="$(cdd_deny_message "$harness" "$task_num" "$plan_base")"
     printf 'deny|%s\n' "$msg"
     return 0
   fi
 
-  if sdd_is_write_tool "$tool_name"; then
-    abs_path="$(sdd_extract_path "$tool_input_json")"
+  if cdd_is_write_tool "$tool_name"; then
+    abs_path="$(cdd_extract_path "$tool_input_json")"
     [[ -n "$abs_path" ]] || { printf 'allow\n'; return 0; }
-    abs_path="$(sdd_normalize_abs "$abs_path" "$repo_root")"
-    if sdd_write_allowed "$abs_path" "$repo_root" "$active_ws" "$phase"; then
+    abs_path="$(cdd_normalize_abs "$abs_path" "$repo_root")"
+    if cdd_write_allowed "$abs_path" "$repo_root" "$active_ws" "$phase"; then
       printf 'allow\n'
       return 0
     fi
-    task_num="$(sdd_active_task_num "$active_ws" "$repo_root")"
+    task_num="$(cdd_active_task_num "$active_ws" "$repo_root")"
     [[ "$task_num" -gt 0 ]] || task_num=1
-    plan_base="$(sdd_plan_basename "$active_ws" "$pending")"
-    msg="$(sdd_deny_message "$harness" "$task_num" "$plan_base")"
+    plan_base="$(cdd_plan_basename "$active_ws" "$pending")"
+    msg="$(cdd_deny_message "$harness" "$task_num" "$plan_base")"
     printf 'deny|%s\n' "$msg"
     return 0
   fi

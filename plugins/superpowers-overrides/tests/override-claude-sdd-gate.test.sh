@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-claude-sdd-gate.sh"
-ACT="$ROOT/bin/sdd-session-activate.sh"
+ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 
 # 隔离 fixture + per-run session 命名：共享 sdd-gate-test-lib.sh（见该文件头注释）。
@@ -21,7 +21,7 @@ echo "$deny" | jq -e '.hookSpecificOutput.hookEventName == "PreToolUse"' >/dev/n
 echo "$deny" | jq -e '.hookSpecificOutput.permissionDecisionReason | contains("sdd-run-task-claude")' >/dev/null
 
 # 正向断言：扫描命中 active-ws → task_active。workspace 内写入 allow；
-# sdd_root 下、workspace 外的写入 deny（若扫描失败 → orchestrating → 两者皆 allow，断言失败）
+# cdd_root 下、workspace 外的写入 deny（若扫描失败 → orchestrating → 两者皆 allow，断言失败）
 allow_ws=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$FIX/sdd/active-ws/progress.md\",\"content\":\"x\"}}" | "$GATE")
 echo "$allow_ws" | jq -e '.hookSpecificOutput.permissionDecision == "allow"' >/dev/null
 deny_scan=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$FIX/sdd/ledger.md\",\"content\":\"x\"}}" | "$GATE")

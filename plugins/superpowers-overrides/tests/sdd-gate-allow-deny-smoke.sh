@@ -18,7 +18,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-claude-sdd-gate.sh"
-ACT="$ROOT/bin/sdd-session-activate.sh"
+ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 
 # shellcheck source=tests/sdd-gate-test-lib.sh
@@ -91,7 +91,7 @@ assert_allow_cmd "$S1" "review-package --task 1" "review-package"
 
 # Write: workspace allow, other repo paths deny
 assert_allow_write "$S1" "$TMPROOT/active-ws/sdd/active-ws/progress.md" "write active-ws"
-assert_deny_write "$S1" "$TMPROOT/active-ws/sdd/ledger.md" "write sdd_root ledger (outside active-ws)"
+assert_deny_write "$S1" "$TMPROOT/active-ws/sdd/ledger.md" "write cdd_root ledger (outside active-ws)"
 assert_deny_write "$S1" "$REPO/plugins/foo.txt" "write repo path (task_active)"
 
 # other tools always allow
@@ -104,13 +104,13 @@ printf '%s' "$out" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/
 printf '%s' "$out" | jq -e '(.hookSpecificOutput.permissionDecisionReason | length) > 0' >/dev/null || fail "empty permissionDecisionReason"
 ASSERT_COUNT=$((ASSERT_COUNT + 1))
 
-# deny message is the multi-line matrix: every line of sdd_deny_message, so
+# deny message is the multi-line matrix: every line of cdd_deny_message, so
 # drift in any matrix row goes uncaught nowhere (spec AC5, 含 git show).
 for needle in "SDD orchestrator gate" "Allowed Bash (read-only diagnostics):" \
               "git status" "git diff" "git log" "git show" "git rev-parse" \
               "git branch" "git remote" "git ls-files" "git diff-tree" \
               "sdd-run-task-claude.sh" "sdd-workspace / task-brief / review-package" \
-              "Allowed Write:" ".superpowers/sdd/active-ws/" \
+              "Allowed Write:" ".superpowers/cdd/active-ws/" \
               "--task 1 --mode implement" "Full matrix: docs/sdd-h6-reference.md (SDD gate matrix)" \
               "See spor-SDD Rule 0 item 4."; do
   r="$(bash_reason "$S1" "ls")"
@@ -124,10 +124,10 @@ setup_scenario stub stub-ws "$S2"
 
 # stub brief keeps `TASK_BASE: abc` (no <SHA> placeholder) — must NOT activate
 # (git-object validation fails). Phase stays orchestrating: read-only git +
-# sdd_root writes allow, direct repo edits deny.
+# cdd_root writes allow, direct repo edits deny.
 assert_allow_cmd "$S2" "git status" "git status (orchestrating)"
-assert_allow_write "$S2" "$TMPROOT/stub-ws/sdd/stub-ws/x.md" "write stub-ws (orchestrating sdd_root)"
-assert_allow_write "$S2" "$TMPROOT/stub-ws/sdd/ledger.md" "write sdd_root ledger (orchestrating)"
+assert_allow_write "$S2" "$TMPROOT/stub-ws/sdd/stub-ws/x.md" "write stub-ws (orchestrating cdd_root)"
+assert_allow_write "$S2" "$TMPROOT/stub-ws/sdd/ledger.md" "write cdd_root ledger (orchestrating)"
 assert_deny_write "$S2" "$REPO/plugins/foo.txt" "write repo path (orchestrating)"
 assert_deny_cmd "$S2" "ls" "ls (orchestrating)"
 
@@ -139,7 +139,7 @@ S3="$(session_key bound)"
 setup_scenario active bound-ws
 BOUND_FIX="$SCEN_DEST"
 # unrelated brief is lexically-first active candidate (000-) — under a scan
-# regression sdd_find_active_workspace would select it and the bound-ws
+# regression cdd_find_active_workspace would select it and the bound-ws
 # assertions below would fail, so bound precedence is a real discriminator.
 mkdir -p "$TMPROOT/bound-ws/sdd/000-unrelated-ws"
 printf 'TASK_BASE: %s\n' "$(git -C "$TMPROOT/bound-ws" rev-parse --short HEAD)" > "$TMPROOT/bound-ws/sdd/000-unrelated-ws/task-1-brief.md"
@@ -153,7 +153,7 @@ assert_deny_cmd "$S3" "git add foo" "git add (task_active)"
 assert_allow_cmd "$S3" "git status" "git status (task_active)"
 
 # bound deny message resolves plan basename from plan_path (plan.md → plan)
-assert_reason_contains "$S3" ".superpowers/sdd/plan/" "bound deny message should use plan_path basename"
+assert_reason_contains "$S3" ".superpowers/cdd/plan/" "bound deny message should use plan_path basename"
 
 echo "== 4. complete-ws (APPROVED handoff + real SHA → task_complete → shell/Write allow) =="
 S4="$(session_key complete)"
@@ -174,7 +174,7 @@ setup_scenario orchestrating orchestrating-ws "$S5"
 
 assert_allow_cmd "$S5" "git status" "git status (orchestrating)"
 assert_deny_cmd "$S5" "ls" "ls (orchestrating)"
-assert_allow_write "$S5" "$TMPROOT/orchestrating-ws/sdd/new-ws/x.md" "write sdd_root new-ws (orchestrating)"
+assert_allow_write "$S5" "$TMPROOT/orchestrating-ws/sdd/new-ws/x.md" "write cdd_root new-ws (orchestrating)"
 assert_deny_write "$S5" "$REPO/plugins/foo.txt" "write repo path (orchestrating)"
 
 echo "OK — sdd-gate-allow-deny-smoke ($ASSERT_COUNT assertions)"

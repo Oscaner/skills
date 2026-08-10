@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# sdd-session-activate.sh — write pending-sdd JSON for SDD orchestrator sessions
-# usage: sdd-session-activate.sh minimal <session_key> <repo_root>
-# usage: sdd-session-activate.sh bind <session_key> <repo_root> <plan_path> <workspace>
+# cdd-session-activate.sh — write pending-sdd JSON for CDD orchestrator sessions
+# usage: cdd-session-activate.sh minimal <session_key> <repo_root>
+# usage: cdd-session-activate.sh bind <session_key> <repo_root> <plan_path> <workspace>
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/sdd-orchestrator-gate.sh
-source "${SCRIPT_DIR}/lib/sdd-orchestrator-gate.sh"
+# shellcheck source=lib/cdd-orchestrator-gate.sh
+source "${SCRIPT_DIR}/lib/cdd-orchestrator-gate.sh"
 
 mode="${1:-}"
 session_key="${2:-}"
@@ -26,8 +26,8 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-mkdir -p "$SDD_PENDING_ROOT"
-path="$(sdd_pending_path "$session_key")"
+mkdir -p "$CDD_PENDING_ROOT"
+path="$(cdd_pending_path "$session_key")"
 now=$(date +%s)
 
 case "$mode" in

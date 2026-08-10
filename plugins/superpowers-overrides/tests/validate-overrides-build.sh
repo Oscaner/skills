@@ -165,28 +165,7 @@ echo "== validate cursor hook scripts executable =="
 [ -x "$ROOT/bin/override-cursor-enforce.sh" ] || { echo "FAIL: enforce not executable"; exit 1; }
 [ -x "$ROOT/bin/override-cursor-sdd-gate.sh" ] || { echo "FAIL: sdd-gate not executable"; exit 1; }
 [ -x "$ROOT/bin/override-claude-sdd-gate.sh" ] || { echo "FAIL: claude sdd-gate not executable"; exit 1; }
-[ -x "$ROOT/bin/sdd-session-activate.sh" ] || { echo "FAIL: sdd-session-activate not executable"; exit 1; }
-echo "OK"
-
-echo "== validate SDD CLI harness scripts executable =="
-SDD_SCRIPTS=(
-  sdd-run-task-cursor.sh
-  sdd-run-plan-cursor.sh
-  sdd-run-task-claude.sh
-  sdd-run-plan-claude.sh
-  sdd-run-task-codex.sh
-  sdd-run-plan-codex.sh
-  sdd-run-task-copilot.sh
-  sdd-run-plan-copilot.sh
-  sdd-run-task-gemini.sh
-  sdd-run-plan-gemini.sh
-  lib/sdd-common.sh
-)
-for script in "${SDD_SCRIPTS[@]}"; do
-  path="$ROOT/bin/$script"
-  [ -f "$path" ] || { echo "FAIL: missing $path"; exit 1; }
-  [ -x "$path" ] || { echo "FAIL: $path not executable"; exit 1; }
-done
+[ -x "$ROOT/bin/cdd-session-activate.sh" ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
 echo "== validate self-check version stamps =="

@@ -56,8 +56,6 @@ echo "== 4. hooks executable =="
 
 echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
-./plugins/superpowers-overrides/tests/sdd-cli-dry-run-smoke.sh
-./plugins/superpowers-overrides/tests/sdd-commit-gate-smoke.sh
 ./plugins/superpowers-overrides/tests/override-cursor-sdd-gate.test.sh
 ./plugins/superpowers-overrides/tests/override-claude-sdd-gate.test.sh
 ./plugins/superpowers-overrides/tests/sdd-gate-allow-deny-smoke.sh

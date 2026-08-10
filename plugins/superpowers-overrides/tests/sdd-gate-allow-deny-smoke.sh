@@ -2,7 +2,7 @@
 set -euo pipefail
 # sdd-gate-allow-deny-smoke.sh — full allow/deny decision matrix smoke test.
 #
-# Covers spec §设计 判定矩阵 for the shared sdd-orchestrator-gate.sh state machine,
+# Covers spec §设计 判定矩阵 for the shared cdd-orchestrator-gate.sh state machine,
 # driven through the Claude PreToolUse adapter (override-claude-sdd-gate.sh):
 #   - read-only git diagnostics allow (AC1 boundary cases + `-c` v1 deny)
 #   - mutating git verbs / non-git commands deny
@@ -20,6 +20,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-claude-sdd-gate.sh"
 ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
+OS_ENG="$ROOT/../os-engineering"
 
 # shellcheck source=tests/sdd-gate-test-lib.sh
 source "$ROOT/tests/sdd-gate-test-lib.sh"
@@ -84,7 +85,7 @@ assert_deny_cmd "$S1" "ls" "ls"
 assert_deny_cmd "$S1" "echo hi" "echo"
 
 # allowlist Bash
-assert_allow_cmd "$S1" "$ROOT/bin/sdd-run-task-claude.sh --task 1 --mode implement" "H6 sdd-run-task"
+assert_allow_cmd "$S1" "$OS_ENG/bin/cdd-run.sh --harness claude --task 1 --mode implement" "H6 cdd-run"
 assert_allow_cmd "$S1" "sdd-workspace create x" "sdd-workspace"
 assert_allow_cmd "$S1" "task-brief --task 1" "task-brief"
 assert_allow_cmd "$S1" "review-package --task 1" "review-package"
@@ -106,12 +107,12 @@ ASSERT_COUNT=$((ASSERT_COUNT + 1))
 
 # deny message is the multi-line matrix: every line of cdd_deny_message, so
 # drift in any matrix row goes uncaught nowhere (spec AC5, 含 git show).
-for needle in "SDD orchestrator gate" "Allowed Bash (read-only diagnostics):" \
+for needle in "CDD orchestrator gate" "Allowed Bash (read-only diagnostics):" \
               "git status" "git diff" "git log" "git show" "git rev-parse" \
               "git branch" "git remote" "git ls-files" "git diff-tree" \
-              "sdd-run-task-claude.sh" "sdd-workspace / task-brief / review-package" \
+              "cdd-run.sh --harness claude" "sdd-workspace / task-brief / review-package" \
               "Allowed Write:" ".superpowers/cdd/active-ws/" \
-              "--task 1 --mode implement" "Full matrix: docs/sdd-h6-reference.md (SDD gate matrix)" \
+              "--task 1 --mode implement" "Full matrix: docs/cdd-reference.md (CDD gate matrix)" \
               "See spor-SDD Rule 0 item 4."; do
   r="$(bash_reason "$S1" "ls")"
   [[ "$r" == *"$needle"* ]] || fail "deny message missing: $needle"

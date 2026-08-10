@@ -66,10 +66,20 @@ import json, os
 root = "plugins/os-engineering"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
-skills_dir = os.path.join(root, skills.lstrip("./"))
-assert os.path.isdir(skills_dir), f"missing skills dir: {skills_dir}"
-n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
-print(f"OK — {n} os-engineering skills")
+if skills is None:
+    skills_dir = os.path.join(root, "skills")
+    assert os.path.isdir(skills_dir), f"missing default skills dir: {skills_dir}"
+    n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
+    print(f"OK — {n} os-engineering skills (default skills/ discovery)")
+elif isinstance(skills, str):
+    skills_dir = os.path.join(root, skills.lstrip("./"))
+    assert os.path.isdir(skills_dir), f"missing skills dir: {skills_dir}"
+    n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
+    print(f"OK — {n} os-engineering skills (directory {skills!r})")
+else:
+    missing = [s for s in skills if not os.path.isdir(os.path.join(root, s.lstrip("./")))]
+    assert not missing, f"skills[] points to missing dirs: {missing}"
+    print(f"OK — {len(skills)} os-engineering skills (explicit list)")
 '
 ./plugins/os-engineering/tests/registry-schema.test.sh
 ./plugins/os-engineering/tests/cdd-select.test.sh
@@ -82,9 +92,13 @@ python3 plugins/os-engineering/tests/rule-reference.test.py \
 ./plugins/os-engineering/tests/ci-validate-wiring.test.sh
 
 echo "== 5c. migrated-engine zero-residue check =="
-grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-)' \
-  plugins/os-engineering/bin plugins/os-engineering/templates plugins/os-engineering/docs/cdd-reference.md \
-  || echo "OK — zero sdd residue in migrated engine"
+if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-)' \
+  plugins/os-engineering/bin plugins/os-engineering/templates plugins/os-engineering/docs/cdd-reference.md; then
+  echo "RESIDUE FOUND — sdd_/SDD_/sdd-run- in migrated engine"
+  exit 1
+else
+  echo "OK — zero sdd residue in migrated engine"
+fi
 
 echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# cdd-session-activate.sh — write pending-sdd JSON for CDD orchestrator sessions
+# cdd-session-activate.sh — write pending-cdd JSON for CDD orchestrator sessions
 # usage: cdd-session-activate.sh minimal <session_key> <repo_root>
 # usage: cdd-session-activate.sh bind <session_key> <repo_root> <plan_path> <workspace>
 
@@ -33,7 +33,7 @@ now=$(date +%s)
 case "$mode" in
   minimal)
     jq -n \
-      --arg trigger "sdd-orchestrator" \
+      --arg trigger "cdd-orchestrator" \
       --arg session_key "$session_key" \
       --arg repo_root "$repo_root" \
       --argjson detected_at "$now" \
@@ -48,11 +48,11 @@ case "$mode" in
         --argjson base "$existing" \
         --arg plan_path "$plan_path" \
         --arg workspace "$workspace" \
-        '{trigger: ($base.trigger // "sdd-orchestrator"), detected_at: ($base.detected_at // 0), session_key: ($base.session_key // ""), repo_root: ($base.repo_root // ""), plan_path: $plan_path, workspace: $workspace, active_task: null}' \
+        '{trigger: ($base.trigger // "cdd-orchestrator"), detected_at: ($base.detected_at // 0), session_key: ($base.session_key // ""), repo_root: ($base.repo_root // ""), plan_path: $plan_path, workspace: $workspace, active_task: null}' \
         >"$path"
     else
       jq -n \
-        --arg trigger "sdd-orchestrator" \
+        --arg trigger "cdd-orchestrator" \
         --arg session_key "$session_key" \
         --arg repo_root "$repo_root" \
         --arg plan_path "$plan_path" \

@@ -1,6 +1,6 @@
 # CDD CLI Orchestrator Reference (H6–H8)
 
-> Worker discipline SOT: `templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
+> Worker discipline SOT: `../templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
 > Orchestrator gate discipline: [`docs/controller-handoff.md`](controller-handoff.md) H1–H5
 > **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`sdd-orchestrator-line-budget.test.sh` 会断言（issue #52 Guard 1）。
 
@@ -70,7 +70,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Review reports | `batch-*-review-standards.md` / `batch-*-review-spec.md` |
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
-**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`HARNESS_STUB:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback).
+**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback).
 
 **Post-run commit gate** (shared lib `bin/lib/cdd-common.sh` — `cdd_validate_commit_contract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (jq; failed rewrite → still authoritative BLOCKED via `CDD_HANDOFF_UNWRITABLE`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`_cdd_emit_h1_from_handoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 

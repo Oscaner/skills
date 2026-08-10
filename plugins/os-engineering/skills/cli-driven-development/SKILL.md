@@ -11,11 +11,11 @@ description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发
 
 ### Rule: Harness Selection
 
-执行前先经 [cli-select](../cli-select/SKILL.md) 选定 harness，以 `--harness <name>` 传入。无 full harness 安装 → BLOCKED。
+执行前先经 [Rule: Ask](../cli-select/SKILL.md#rule-ask) 选定 harness，以 `--harness <name>` 传入。无 full harness 安装 → BLOCKED。
 
 ### Rule: Three-Mode Chain
 
-每任务三种模式各一次 CLI 调用（见 [cdd-reference.md](../docs/cdd-reference.md) H6）：
+每任务三种模式各一次 CLI 调用（见 [cdd-reference.md](../../docs/cdd-reference.md) H6）：
 
 ```bash
 {plugin_root}/bin/cdd-run.sh --harness <name> --task N --mode implement
@@ -26,7 +26,7 @@ description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发
 
 ### Rule: Handoff Contract
 
-每模式结束写/更新 `CDD_HANDOFF_PATH`（task-N-handoff.json）；stdout ≤ H1 四行；非零退出且无 handoff → BLOCKED。模板见 `templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`。
+每模式结束写/更新 `CDD_HANDOFF_PATH`（task-N-handoff.json）；stdout ≤ [Return Block 契约](../../docs/controller-handoff.md#rule-return-block) 四行；非零退出且无 handoff → BLOCKED。模板见 `templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`。
 
 ### Rule: Commit Gate
 

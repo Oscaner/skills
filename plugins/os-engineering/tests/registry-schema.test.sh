@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REG="${ROOT}/bin/harness-registry.json"
 
-command -v jq >/dev/null 2>&1 || { echo "SKIP — jq missing"; exit 0; }
 command -v python3 >/dev/null 2>&1 || { echo "FAIL — python3 missing"; exit 1; }
 
 python3 - "$REG" <<'PY'

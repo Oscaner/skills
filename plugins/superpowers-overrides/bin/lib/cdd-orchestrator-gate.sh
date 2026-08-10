@@ -2,7 +2,7 @@
 # cdd-orchestrator-gate.sh — shared CDD orchestrator PreToolUse state machine (p1-slim.2)
 # Source from harness adapters only.
 
-CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-sdd"
+CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-cdd"
 CDD_PENDING_TTL=86400
 
 cdd_pending_path() {
@@ -281,24 +281,25 @@ cdd_active_task_num() {
 
 cdd_deny_message() {
   local harness="$1" task_num="$2" plan_basename="$3"
-  local plugin_root verbs
+  local plugin_root os_root verbs
   plugin_root="$(cdd_plugin_root_from_lib)"
+  os_root="${plugin_root}/../os-engineering"
   verbs="$(cdd_readonly_git_verbs | awk '{printf "  git %s", $1; for (i = 2; i <= 7 && i <= NF; i++) printf " / git %s", $i; printf "\n  "; for (i = 8; i <= NF; i++) printf "git %s%s", $i, (i == NF ? "\n" : " / ")}')"
   cat <<-EOF
-	SDD orchestrator gate — direct repo edits forbidden during active task.
+	CDD orchestrator gate — direct repo edits forbidden during active task.
 
 	Allowed Bash (read-only diagnostics):
 ${verbs}
-	  ${plugin_root}/bin/sdd-run-task-${harness}.sh
+	  ${os_root}/bin/cdd-run.sh --harness ${harness}
 	  sdd-workspace / task-brief / review-package
 
 	Allowed Write:
 	  .superpowers/cdd/${plan_basename}/
 
 	Repo changes flow only through:
-	  ${plugin_root}/bin/sdd-run-task-${harness}.sh --task ${task_num} --mode implement
+	  ${os_root}/bin/cdd-run.sh --harness ${harness} --task ${task_num} --mode implement
 
-	Full matrix: docs/sdd-h6-reference.md (SDD gate matrix)
+	Full matrix: docs/cdd-reference.md (CDD gate matrix)
 	See spor-SDD Rule 0 item 4.
 	EOF
 }
@@ -333,6 +334,12 @@ cdd_write_allowed() {
     inactive|task_complete) return 0 ;;
     orchestrating)
       cdd_is_under_path "$abs_path" "$cdd_root" && return 0
+      # Transition: in-flight plans still live under .superpowers/sdd/ — allow
+      # workspace writes there too. The fixtures root is test-only: when set,
+      # only that root is scanned (D6-B5).
+      if [[ -z "${CDD_GATE_FIXTURES_ROOT:-}" ]]; then
+        cdd_is_under_path "$abs_path" "$repo_root/.superpowers/sdd" && return 0
+      fi
       cdd_is_under_path "$abs_path" "$workspace" && return 0
       return 1
       ;;
@@ -376,6 +383,12 @@ cdd_gate_decide() {
   active_ws="$workspace"
   if [[ -z "$active_ws" ]]; then
     active_ws="$(cdd_find_active_workspace "$cdd_root" || true)"
+    # Transition: in-flight plans still live under .superpowers/sdd/ — scan it
+    # as a fallback so a mid-migration workspace stays protected. The fixtures
+    # root is test-only: when set, only that root is scanned (D6-B5).
+    if [[ -z "$active_ws" && -z "${CDD_GATE_FIXTURES_ROOT:-}" ]]; then
+      active_ws="$(cdd_find_active_workspace "$repo_root/.superpowers/sdd" || true)"
+    fi
   fi
   phase="$(cdd_gate_phase "$repo_root" "$active_ws" "$pending")"
 

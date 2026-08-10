@@ -28,5 +28,6 @@ done
 [[ -n "$HARNESS" && -n "$PROMPT" ]] || usage
 
 export CDD_HARNESS="$HARNESS"
-cdd_check_cli "$(_cdd_registry_field "$HARNESS" cli)"
+# Registry ship gate first (D6-A1): unknown / not-supported harness → BLOCKED.
+cdd_check_harness "$HARNESS" >/dev/null
 _cdd_invoke_cli "$PROMPT"

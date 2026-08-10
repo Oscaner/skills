@@ -10,17 +10,17 @@
 #
 # Session keys are namespaced per-run (smk-<base>-$$) so overlapping test
 # invocations — and a live SDD session on the same machine — never share or
-# clobber each other's pending-sdd JSON in the gate's global pending root.
+# clobber each other's pending-cdd JSON in the gate's global pending root.
 
 # Caller must set ROOT before sourcing. Derive the plugin tree from $ROOT.
 TESTS_DIR="$(cd "$ROOT/tests" && pwd)"
 FIXTURES="$TESTS_DIR/fixtures/sdd-gate"
-GATE_ROOT="${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-sdd}"
+GATE_ROOT="${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-cdd}"
 
 SESSION_TAG="${CDD_GATE_TEST_TAG:-$$}"
 TMPROOT="$(mktemp -d)"
 
-# cleanup — remove this run's own pending-sdd JSON files. Scoped to the session
+# cleanup — remove this run's own pending-cdd JSON files. Scoped to the session
 # keys this run created; never a global find -delete (that would clobber a
 # concurrent or live session's gate, fail-open semantics violation).
 cdd_gate_test_cleanup() {

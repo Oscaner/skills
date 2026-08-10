@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-cursor-sdd-gate.sh"
 ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
+OS_ENG="$ROOT/../os-engineering"
 
 # 隔离 fixture + per-run session 命名：共享 sdd-gate-test-lib.sh（见该文件头注释）。
 # shellcheck source=tests/sdd-gate-test-lib.sh
@@ -33,7 +34,7 @@ allow_ws=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Write\",\"
 echo "$allow_ws" | jq -e '.permission == "allow"' >/dev/null
 
 # AC#5 Bash allowlist during TASK_ACTIVE
-allow_h6=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"$ROOT/bin/sdd-run-task-cursor.sh --task 1 --mode implement --plan foo.md\"}}" | "$GATE")
+allow_h6=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"$OS_ENG/bin/cdd-run.sh --harness cursor-agent --task 1 --mode implement --plan foo.md\"}}" | "$GATE")
 echo "$allow_h6" | jq -e '.permission == "allow"' >/dev/null
 deny_bash=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"rm -rf $REPO/plugins\"}}" | "$GATE")
 echo "$deny_bash" | jq -e '.permission == "deny"' >/dev/null

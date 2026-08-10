@@ -21,9 +21,15 @@ TASK_NUM=""
 MODE_ARG=""
 PLAN_FILE=""
 
+# usage → stderr + exit 2 (arg-parsing error); help → stdout + exit 0 (explicit -h/--help).
 usage() {
   printf 'usage: %s --harness <name> (--task N --mode implement|review|fix [--plan PATH] | --plan PATH)\n' "$(basename "$0")" >&2
   exit 2
+}
+
+help() {
+  printf 'usage: %s --harness <name> (--task N --mode implement|review|fix [--plan PATH] | --plan PATH)\n' "$(basename "$0")"
+  exit 0
 }
 
 while [[ $# -gt 0 ]]; do
@@ -32,7 +38,7 @@ while [[ $# -gt 0 ]]; do
     --task)    [[ $# -ge 2 ]] || usage; TASK_NUM="$2"; shift 2 ;;
     --mode)    [[ $# -ge 2 ]] || usage; MODE_ARG="$2"; shift 2 ;;
     --plan)    [[ $# -ge 2 ]] || usage; PLAN_FILE="$2"; shift 2 ;;
-    -h|--help) usage ;;
+    -h|--help) help ;;
     *) printf 'unknown argument: %s\n' "$1" >&2; usage ;;
   esac
 done

@@ -11,7 +11,7 @@ description: 用选定 harness CLI 评审任意 diff（base..head 或当前分�
 
 ### Rule: Choose Harness
 
-先经 [cli-select](../cli-select/SKILL.md) 选定 harness。
+先经 [Rule: Ask](../cli-select/SKILL.md#rule-ask) 选定 harness。
 
 ### Rule: Scope
 
@@ -23,7 +23,7 @@ description: 用选定 harness CLI 评审任意 diff（base..head 或当前分�
 
 ### Rule: Review Prompt
 
-构造自包含评审 prompt（含评审维度 + diff 文件路径；CLI agent 无本仓库 skill 上下文，须自带标准，不假设 `Skill(...)` 可加载），经 `cdd-exec.sh --harness <name> --prompt "<prompt>"` 派发。
+构造自包含评审 prompt（含评审维度 + diff 文件路径；CLI agent 无本仓库 skill 上下文，须自带标准，不假设 `Skill(...)` 可加载），经 `{plugin_root}/bin/cdd-exec.sh --harness <name> --prompt "<prompt>"` 派发。
 
 ### Rule: Findings Report
 

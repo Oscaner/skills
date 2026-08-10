@@ -188,6 +188,23 @@ cdd_check_cli() {
   fi
 }
 
+# Registry ship gate BEFORE CLI preflight (D6-A1): an unknown harness name or a
+# not-supported harness must BLOCK (exit 1) regardless of whether the binary
+# exists — the exit-2 CLI_MISSING path is reserved for a *full* harness whose
+# binary is absent. Unknown harness → "unknown harness"; not-supported harness →
+# "harness not supported: <name>"; only then cdd_check_cli on the real cli_bin.
+# Prints the resolved cli_bin for the caller.
+cdd_check_harness() {
+  local harness="$1" ship cli
+  ship="$(_cdd_registry_field "$harness" ship)"
+  [[ -n "$ship" ]] || cdd_exit_blocked "unknown harness: ${harness}"
+  [[ "$ship" == "full" ]] || cdd_exit_blocked "harness not supported: ${harness}"
+  cli="$(_cdd_registry_field "$harness" cli)"
+  [[ -n "$cli" ]] || cdd_exit_blocked "unknown harness: ${harness}"
+  cdd_check_cli "$cli"
+  printf '%s\n' "$cli"
+}
+
 # Registry: harness field lookup from bin/harness-registry.json (os-engineering).
 # cdd_plugin_root resolves the plugin root from this file's location.
 _cdd_registry() {
@@ -473,8 +490,9 @@ cdd_validate_commit_contract() {
 # One CDD mode per invocation (task shell post-argparse body). Reads the
 # caller shell's globals CDD_MODE_ARG / PLAN_FILE / CDD_MODE — only task_num is
 # passed as a parameter (deliberate; the shell owns CLI parsing).
-# Ordered contract (spec v3): CLI preflight → set env → ledger PLAN_FILE
-# backfill → review fixed-point/plan validation + review-package →
+# Arg order: cdd_run_task <harness> <task_num>.
+# Ordered contract (spec v3): registry ship gate → CLI preflight → set env →
+# ledger PLAN_FILE backfill → review fixed-point/plan validation + review-package →
 # cdd_require_env → render prompt → _cdd_invoke_cli (registry-driven) →
 # commit-contract validation → H1 output → agent_rc/handoff handling.
 cdd_run_task() {
@@ -483,8 +501,9 @@ cdd_run_task() {
   local cli_bin
 
   export CDD_HARNESS="$harness"
-  cli_bin="$(_cdd_registry_field "$harness" cli)"
-  cdd_check_cli "$cli_bin"
+  # Registry ship gate first: unknown / not-supported harness → BLOCKED (exit 1)
+  # before any CLI PATH check (D6-A1). cdd_check_harness prints the resolved cli.
+  cli_bin="$(cdd_check_harness "$harness")"
 
   workspace="$(_cdd_resolve_workspace)"
   _cdd_set_task_env "$workspace" "$task_num"
@@ -562,14 +581,15 @@ EOF
 # Mode B plan driver: pending tasks × 3-mode harness chain. Reads plan file,
 # writes plan constraints, runs each pending task's chain (implement → review
 # → fix loop cap 5), appends ledger on APPROVED.
+# Arg order: cdd_run_plan <plan_file> <harness>.
 cdd_run_plan() {
   local plan_file="$1" harness="$2"
   local workspace ledger pending_found=0
   local cli_bin
 
   [[ -f "$plan_file" ]] || cdd_exit_blocked "plan file not found: ${plan_file}"
-  cli_bin="$(_cdd_registry_field "$harness" cli)"
-  cdd_check_cli "$cli_bin"
+  # Registry ship gate first (D6-A1), same as cdd_run_task.
+  cli_bin="$(cdd_check_harness "$harness")"
 
   _cdd_write_plan_constraints() {
     local plan="$1" out="$2"

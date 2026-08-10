@@ -10,6 +10,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REG="${SCRIPT_DIR}/harness-registry.json"
 
+# csv — space-separated list → comma-separated (csv-join idiom; D6-C3).
+csv() {
+  printf '%s' "$1" | tr ' ' ','
+}
+
+command -v jq >/dev/null 2>&1 \
+  || { printf 'CDD_BLOCKED: jq required to read registry: %s\n' "$REG" >&2; exit 1; }
+
 detect_current_harness() {
   if [[ -n "${CURSOR_TRACE_ID:-}" ]]; then printf 'cursor-agent'; return; fi
   if [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then printf 'claude'; return; fi
@@ -40,7 +48,7 @@ unsupported="$(printf '%s' "$unsupported" | xargs)"
 recommended=""
 if [[ -z "$available" ]]; then
   printf 'available:\n'
-  printf 'unsupported_installed:%s\n' "$(printf '%s' "$unsupported" | tr ' ' ',')"
+  printf 'unsupported_installed:%s\n' "$(csv "$unsupported")"
   printf 'recommended:\n'
   printf 'BLOCKED: no full harness installed (registry: %s)\n' "$(jq -r 'keys[]' "$REG" | tr '\n' ' ')" >&2
   exit 1
@@ -60,6 +68,6 @@ else
   fi
 fi
 
-printf 'available:%s\n' "$(printf '%s' "$available" | tr ' ' ',')"
-printf 'unsupported_installed:%s\n' "$(printf '%s' "$unsupported" | tr ' ' ',')"
+printf 'available:%s\n' "$(csv "$available")"
+printf 'unsupported_installed:%s\n' "$(csv "$unsupported")"
 printf 'recommended:%s\n' "$recommended"

@@ -12,24 +12,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SEL="${ROOT}/bin/cdd-select.sh"
 
 command -v jq >/dev/null 2>&1 || { echo "SKIP — jq missing"; exit 0; }
-command -v python3 >/dev/null 2>&1 || { echo "FAIL — python3 missing"; exit 1; }
 
-harness_free_path() {
-  local reg="$ROOT/bin/harness-registry.json"
-  local clis result="" dir b skip
-  clis="$(jq -r '.[].cli' "$reg" | tr '\n' ' ')"
-  while IFS= read -r dir; do
-    [[ -n "$dir" ]] || continue
-    skip=0
-    for b in $clis; do
-      if [[ -x "$dir/$b" ]]; then skip=1; break; fi
-    done
-    if (( skip == 0 )); then
-      result="${result:+$result:}$dir"
-    fi
-  done < <(printf '%s' "$PATH" | tr ':' '\n')
-  printf '%s' "$result"
-}
+# shellcheck source=tests/test-lib.sh
+source "$ROOT/tests/test-lib.sh"
 
 mockdir="$(mktemp -d)"
 trap 'rm -rf "$mockdir"' EXIT

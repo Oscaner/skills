@@ -11,7 +11,7 @@ description: MUST invoke BEFORE superpowers:subagent-driven-development as your 
 
 1. When Rule 7 item 1 applies (CLI available, not stub BLOCKED) → this session **must not** Read/Skill upstream `subagent-driven-development` **skill body** (including `implementer-prompt.md`, `task-reviewer-prompt.md`, and other prompt files under that skill directory).
 2. **Allowed:** shell-invoke upstream **scripts only** — `plugins/superpowers/skills/subagent-driven-development/scripts/sdd-workspace`, `task-brief`, `review-package` (resolve paths via `{plugin_root}`). Do **not** Read other Markdown prompts under the upstream SDD skill tree.
-3. **Pointers:** orchestrator → Rule 7 + `{os-engineering}/docs/controller-handoff.md`（H1–H5，原 [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md)）+ `{os-engineering}/docs/cdd-reference.md`; workers → `{os-engineering}/templates/cdd/*.md`; worker review in H6 subprocesses only (Rule 5a).
+3. **Pointers:** orchestrator → Rule 7 + `{os-engineering}/docs/controller-handoff.md`（规则见 [controller-handoff.md](../../../os-engineering/docs/controller-handoff.md)，原 [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) 薄指针）+ `{os-engineering}/docs/cdd-reference.md`; workers → `{os-engineering}/templates/cdd/*.md`; worker review in H6 subprocesses only (Rule 5a).
 4. **Orchestrator checklist (compact — mandatory when Rule 0 applies):**
 
    **Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task.
@@ -49,7 +49,7 @@ Spec+plan complete → cheapest implementer tier; code-review/final default; han
 
 #### Rule 5a — Orchestrator gates (both paths)
 
-PreToolUse gate + handoff.json only (H2). STOP on `plan_conflicts`; `CHANGES_REQUESTED` → Rule 2 (CLI fix chain); `NEEDS_CONTEXT` or `unverifiable` → STOP. Rule 0: H6 runs worker review. Cite [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5.
+PreToolUse gate + handoff.json only (Handoff Only rule). STOP on `plan_conflicts`; `CHANGES_REQUESTED` → Rule 2 (CLI fix chain); `NEEDS_CONTEXT` or `unverifiable` → STOP. Rule 0: H6 runs worker review. Cite [`controller-handoff.md`](../../../os-engineering/docs/controller-handoff.md).
 
 ### Rule 6 — Quality invariants
 

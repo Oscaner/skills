@@ -22,22 +22,8 @@ unset CDD_MODE CDD_HARNESS
 [[ -f "$EXEC" ]] || { echo "FAIL — ${EXEC} missing (expect cdd-exec.sh from T6)"; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "SKIP — jq missing"; exit 0; }
 
-harness_free_path() {
-  local reg="$ROOT/bin/harness-registry.json"
-  local clis result="" dir b skip
-  clis="$(jq -r '.[].cli' "$reg" | tr '\n' ' ')"
-  while IFS= read -r dir; do
-    [[ -n "$dir" ]] || continue
-    skip=0
-    for b in $clis; do
-      if [[ -x "$dir/$b" ]]; then skip=1; break; fi
-    done
-    if (( skip == 0 )); then
-      result="${result:+$result:}$dir"
-    fi
-  done < <(printf '%s' "$PATH" | tr ':' '\n')
-  printf '%s' "$result"
-}
+# shellcheck source=tests/test-lib.sh
+source "$ROOT/tests/test-lib.sh"
 
 mockdir="$(mktemp -d)"
 trap 'rm -rf "$mockdir"' EXIT
@@ -90,4 +76,13 @@ set -e
 printf '%s\n' "$pi_out" | grep -q 'CDD_CLI_MISSING' \
   || { echo "FAIL: missing CLI stderr missing — got: $pi_out"; exit 1; }
 
-echo "OK — cdd-exec (5 scenarios)"
+# 场景 6: review-prefix 合成（live seam）— claude 的 review_prefix 非空，
+# CDD_MODE=review 时 _cdd_invoke_cli 把 prompt 前置为单参数
+# "Skill(mattpocock-skills:code-review) <prompt>"。cdd-exec.sh 是 mode-agnostic
+# 运行器：透传 CDD_MODE 即触发前缀合成（review-prefix 路径的 live 覆盖，D6-A2）。
+make_mock claude 'for a in "$@"; do last="$a"; done; printf "%s\n" "$last"'
+out=$(PATH="$mockdir:$FP" CDD_MODE=review "$EXEC" --harness claude --prompt "hello world")
+[[ "$out" == "Skill(mattpocock-skills:code-review) hello world" ]] \
+  || { echo "FAIL: review-prefix composition — got: $out"; exit 1; }
+
+echo "OK — cdd-exec (6 scenarios)"

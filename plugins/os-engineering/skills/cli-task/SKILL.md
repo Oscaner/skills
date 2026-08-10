@@ -11,7 +11,7 @@ description: 把任务派发给选定的 harness CLI 执行。三条路径：一
 
 ### Rule: Choose Harness
 
-先经 [cli-select](../cli-select/SKILL.md) 选定 harness，以显式 `--harness <name>` 传入。
+先经 [Rule: Ask](../cli-select/SKILL.md#rule-ask) 选定 harness，以显式 `--harness <name>` 传入。
 
 ### Rule: One-shot Free-Form
 

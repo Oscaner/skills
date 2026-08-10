@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS="$ROOT/skills"
 MANIFEST="$ROOT/overrides.manifest.json"
+OS_ENG="$ROOT/../os-engineering"
 
 echo "== validate manifest sources =="
 python3 -c "
@@ -69,8 +70,25 @@ echo "OK"
 echo "== validate SDD orchestrator line budget =="
 "$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
 
-echo "== validate rule-reference integrity =="
-python3 "$ROOT/tests/rule-reference.test.py"
+echo "== validate rule-reference integrity (dual-mode: os-engineering semantic + overrides numeric) =="
+python3 "$OS_ENG/tests/rule-reference.test.py" \
+  --skills os-engineering/skills:semantic superpowers-overrides/skills:numeric
+
+echo "== validate os-engineering engine (harness registry + runners) =="
+[ -f "$OS_ENG/bin/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }
+for script in cdd-run.sh cdd-select.sh cdd-exec.sh; do
+  [ -x "$OS_ENG/bin/$script" ] || { echo "FAIL: os-engineering/bin/$script not executable"; exit 1; }
+done
+echo "OK"
+
+echo "== validate os-engineering engine tests =="
+# cdd-exec.test.sh is intentionally not wired here — brief Step 2 sanctions only
+# the three tests below. It stays a standalone regression test (hermetic vs ambient
+# CDD_MODE since the T11 fix round); run it manually.
+"$OS_ENG/tests/registry-schema.test.sh"
+"$OS_ENG/tests/cdd-select.test.sh"
+"$OS_ENG/tests/cdd-cli-dry-run-smoke.sh"
+echo "OK"
 
 echo "== validate plugin.json alignment =="
 python3 -c "
@@ -165,28 +183,7 @@ echo "== validate cursor hook scripts executable =="
 [ -x "$ROOT/bin/override-cursor-enforce.sh" ] || { echo "FAIL: enforce not executable"; exit 1; }
 [ -x "$ROOT/bin/override-cursor-sdd-gate.sh" ] || { echo "FAIL: sdd-gate not executable"; exit 1; }
 [ -x "$ROOT/bin/override-claude-sdd-gate.sh" ] || { echo "FAIL: claude sdd-gate not executable"; exit 1; }
-[ -x "$ROOT/bin/sdd-session-activate.sh" ] || { echo "FAIL: sdd-session-activate not executable"; exit 1; }
-echo "OK"
-
-echo "== validate SDD CLI harness scripts executable =="
-SDD_SCRIPTS=(
-  sdd-run-task-cursor.sh
-  sdd-run-plan-cursor.sh
-  sdd-run-task-claude.sh
-  sdd-run-plan-claude.sh
-  sdd-run-task-codex.sh
-  sdd-run-plan-codex.sh
-  sdd-run-task-copilot.sh
-  sdd-run-plan-copilot.sh
-  sdd-run-task-gemini.sh
-  sdd-run-plan-gemini.sh
-  lib/sdd-common.sh
-)
-for script in "${SDD_SCRIPTS[@]}"; do
-  path="$ROOT/bin/$script"
-  [ -f "$path" ] || { echo "FAIL: missing $path"; exit 1; }
-  [ -x "$path" ] || { echo "FAIL: $path not executable"; exit 1; }
-done
+[ -x "$ROOT/bin/cdd-session-activate.sh" ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
 echo "== validate self-check version stamps =="

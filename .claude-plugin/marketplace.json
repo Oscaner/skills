@@ -76,6 +76,26 @@
         "overrides",
         "subagents"
       ]
+    },
+    {
+      "name": "os-engineering",
+      "source": "./plugins/os-engineering",
+      "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
+      "author": {
+        "name": "Oscaner Miao",
+        "email": "oscaner1997@gmail.com"
+      },
+      "license": "MIT",
+      "version": "0.1.0",
+      "category": "engineering",
+      "keywords": [
+        "engineering",
+        "cli",
+        "cdd",
+        "harness",
+        "droid",
+        "pi"
+      ]
     }
   ]
 }

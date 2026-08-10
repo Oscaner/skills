@@ -1,6 +1,11 @@
 # SDD CLI Orchestrator Reference (H6–H8)
 
-> Worker discipline SOT: `templates/sdd-cli/{implement,review,fix}.md` + `_handoff-write-fragment.md`
+> **SUPERSEDED:** this doc is the transition copy. The live reference is
+> [`os-engineering/docs/cdd-reference.md`](../../os-engineering/docs/cdd-reference.md)
+> (single runner `cdd-run.sh --harness <name>`); kept here for in-flight plans
+> until the migration completes (P2).
+
+> Worker discipline SOT: `{os-engineering}/templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
 > Orchestrator gate discipline: `spor-token-efficient-controller-handoff` H1–H5
 > **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`sdd-orchestrator-line-budget.test.sh` 会断言（issue #52 Guard 1）。
 
@@ -8,7 +13,7 @@
 
 Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Detect harness** → `{plugin_root}/bin/sdd-run-task-<harness>.sh` (orchestrator resolves harness once; **no** runtime facade re-detecting CLI).
+1. **Detect harness** → `{os-engineering}/bin/cdd-run.sh --harness <name>` (orchestrator resolves harness once; **no** runtime facade re-detecting CLI).
 2. **Three modes** — one invocation each:
 
 | `SDD_MODE` | Responsibility |
@@ -43,8 +48,8 @@ Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invoc
 **Typical per-task shell sequence (mode A — thin orchestrator):**
 
 ```bash
-sdd-run-task-<harness>.sh --task N --mode implement
-sdd-run-task-<harness>.sh --task N --mode review
+{os-engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement
+{os-engineering}/bin/cdd-run.sh --harness <name> --task N --mode review
 ```
 
 Orchestrator / plan script sets `SDD_WORKSPACE` and path env vars before each shell; CLI **does not** Read the full plan file.
@@ -70,9 +75,9 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Review reports | `batch-*-review-standards.md` / `batch-*-review-spec.md` |
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
-**Exit codes:** `0` = OK; `1` = BLOCKED / stub harness (`HARNESS_STUB:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback).
+**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback).
 
-**Post-run commit gate** (shared lib `bin/lib/sdd-common.sh` — `sdd_validate_commit_contract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (jq; failed rewrite → still authoritative BLOCKED via `SDD_HANDOFF_UNWRITABLE`), prints `SDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`_sdd_emit_h1_from_handoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
+**Post-run commit gate** (shared lib `os-engineering/bin/lib/cdd-common.sh` — `cdd_validate_commit_contract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (jq; failed rewrite → still authoritative BLOCKED via `CDD_HANDOFF_UNWRITABLE`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`_cdd_emit_h1_from_handoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 
 - **Fail-open:** non-git workspace or `git` error → validation passes (return 0) — the gate never blocks on tooling failure.
 - **Precondition:** `.superpowers/sdd/` is `*`-gitignored (repo `.gitignore` line `.superpowers`), so the workspace never trips the dirty check itself.
@@ -84,7 +89,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 Orchestrator / skill **must not** create `sdd-run-*.sh` or `scripts/sdd-*` in the consumer repo.
 
-All CLI scripts live in `plugins/superpowers-overrides/bin/`; templates in `plugins/superpowers-overrides/templates/sdd-cli/`. Version syncs with plugin release. `{plugin_root}` resolution matches [`spor-init`](../skills/spor-init/SKILL.md).
+All CLI scripts live in `plugins/os-engineering/bin/` (`cdd-run.sh` / `cdd-exec.sh` / `cdd-select.sh`); templates in `plugins/os-engineering/templates/cdd/`. Version syncs with plugin release.
 
 ## H8 — CLI opt-in / opt-out
 
@@ -98,25 +103,27 @@ All CLI scripts live in `plugins/superpowers-overrides/bin/`; templates in `plug
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1–H5).
 
-**Harness mapping:**
+**Harness mapping (single runner `os-engineering/bin/cdd-run.sh --harness <name>`):**
 
-| Harness | Task script | Plan script | Ship level |
-|---------|-------------|-------------|------------|
-| **cursor** | `sdd-run-task-cursor.sh` | `sdd-run-plan-cursor.sh` | **Full** — `cursor agent` |
-| **claude** | `sdd-run-task-claude.sh` | `sdd-run-plan-claude.sh` | **Full** — `claude` |
-| **codex** | `sdd-run-task-codex.sh` | `sdd-run-plan-codex.sh` | **Stub** |
-| **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** |
-| **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** |
+| Harness | CLI binary | Ship level |
+|---------|------------|------------|
+| **claude** | `claude` | **Full** |
+| **cursor-agent** | `cursor-agent` | **Full** |
+| **droid** | `droid` | **Full** |
+| **pi** | `pi` | **Full** |
+| **codex** | `codex` | **Not-supported** |
+| **copilot** | `copilot` | **Not-supported** |
+| **gemini** | `gemini` | **Not-supported** |
 
-Stub harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback). cursor/claude CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
+Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (not p0 fallback). Full-harness CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
 
 ## Mode B (opt-in / AFK)
 
-**Mode B (opt-in / AFK):** `{plugin_root}/bin/sdd-run-plan-<harness>.sh --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
+**Mode B (opt-in / AFK):** `{os-engineering}/bin/cdd-run.sh --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
 
 ## SDD gate matrix
 
-The orchestrator PreToolUse gate (`bin/lib/sdd-orchestrator-gate.sh`, p1-slim.2) blocks direct repo edits while a task is active. Judgment is one decision point — `sdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
+The orchestrator PreToolUse gate (`bin/lib/cdd-orchestrator-gate.sh`, p1-slim.2) blocks direct repo edits while a task is active. Judgment is one decision point — `cdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
 
 The gate is fail-open until an active task resolves (spec 安全属性 / data-flow step 1):
 
@@ -129,7 +136,7 @@ The gate is fail-open until an active task resolves (spec 安全属性 / data-fl
 | Write/Edit | path under `.superpowers/sdd/**`, phase `orchestrating` | **allow** |
 | Write/Edit | phase `inactive` / `task_complete` | **allow** |
 | Write/Edit | any other repo path | **deny** |
-| Bash/Shell | allowlist (`sdd-run-task-*` / `sdd-workspace` / `task-brief` / `review-package`) | **allow** |
+| Bash/Shell | allowlist (`cdd-run.sh --harness <name>` / `sdd-workspace` / `task-brief` / `review-package`) | **allow** |
 | Bash/Shell | read-only git verb (allowlist below) | **allow** |
 | Bash/Shell | anything else — mutating git, `ls`/`echo`, heredoc writes, compound commands | **deny** |
 | Bash/Shell | phase `inactive` / `task_complete` | **allow** |
@@ -138,9 +145,9 @@ The gate is fail-open until an active task resolves (spec 安全属性 / data-fl
 **Shell contract:**
 
 - Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> …`, `git -C <path> <verb> …`, `git --git-dir=<path> <verb> …`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
-- Repo changes flow **only** through the H6 implement shell (`sdd-run-task-<harness>.sh --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
+- Repo changes flow **only** through the H6 implement shell (`cdd-run.sh --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
 - Non-git read-only commands (`ls`, `echo`, …) are intentionally still denied (slim read-only set decision; see spec §Non-goals).
 
-**Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), `sdd_resolve_workspace` wins and the gate never scans unrelated workspaces.
+**Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), `cdd_resolve_workspace` wins and the gate never scans unrelated workspaces.
 
-**Test override:** `SDD_GATE_FIXTURES_ROOT` replaces `.superpowers/sdd` resolution in `sdd_find_active_workspace` / `sdd_gate_decide` — gate tests point it at temp copies of `tests/fixtures/sdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `tests/sdd-gate-allow-deny-smoke.sh`.
+**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `cdd_find_active_workspace` / `cdd_gate_decide` — gate tests point it at temp copies of `tests/fixtures/sdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `tests/sdd-gate-allow-deny-smoke.sh`.

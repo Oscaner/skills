@@ -97,25 +97,27 @@ flowchart LR
 
 Hook 与 enforcement 脚本 **随 plugin 安装**（与 upstream `superpowers` 同模式）。`spor-init` 不应在 consumer 项目里新增 hook 文件。
 
-## SDD CLI harness 脚本
+## CDD CLI harness 脚本
 
-Token-efficient SDD 编排（`spor-token-efficient-controller-handoff`）通过 plugin 内 `bin/` 下的脚本 dispatch。Orchestrator 只解析一次 harness；脚本位于 `{plugin_root}/bin/`。
+Token-efficient CDD 编排（`spor-token-efficient-controller-handoff`）通过 plugin 内脚本 dispatch。Orchestrator 只解析一次 harness；唯一 CLI runner 是 `os-engineering/bin/cdd-run.sh`。
 
-| Harness | Task 脚本 | Plan 脚本 | 实现级别 |
-|---------|-----------|-----------|----------|
-| **cursor** | `sdd-run-task-cursor.sh` | `sdd-run-plan-cursor.sh` | **Full** — `cursor agent` |
-| **claude** | `sdd-run-task-claude.sh` | `sdd-run-plan-claude.sh` | **Full** — `claude` |
-| **codex** | `sdd-run-task-codex.sh` | `sdd-run-plan-codex.sh` | **Stub** — exit 1 BLOCKED |
-| **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
-| **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
+| Harness | CLI 二进制 | 实现级别 |
+|---------|------------|----------|
+| **claude** | `claude` | **Full** — `claude -p … --output-format text --dangerously-skip-permissions` |
+| **cursor-agent** | `cursor-agent` | **Full** — `cursor-agent --print --output-format text --force` |
+| **droid** | `droid` | **Full** — `droid exec --auto medium --output-format stream-json` |
+| **pi** | `pi` | **Full** — `pi -p --no-session --no-approve` |
+| **codex** | `codex` | **Not-supported** — exit 1 BLOCKED |
+| **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
+| **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-共享库：`bin/lib/sdd-common.sh`（workspace 路径、plugin root 解析、exit code）承载 task/plan run-loop（`sdd_run_task` / `sdd_run_plan`）；harness 壳仅保留 CLI flags、review 前缀与 plan 的 task 脚本路径。
+共享库：`os-engineering/bin/lib/cdd-common.sh`（workspace 路径、plugin root 解析、exit code）承载 task/plan run-loop（`cdd_run_task` / `cdd_run_plan`）；`os-engineering/bin/cdd-run.sh` 是唯一 CLI runner（`--harness <name> --task N --mode M` | `--plan <path>`）。
 
-**Mode A（单 task）：** `sdd-run-task-<harness>.sh --task N --mode implement|review|fix`
+**Mode A（单 task）：** `{os-engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix`
 
-**Mode B（plan driver / AFK）：** `sdd-run-plan-<harness>.sh --plan <path>` — pending tasks × 3-mode 链。
+**Mode B（plan driver / AFK）：** `{os-engineering}/bin/cdd-run.sh --harness <name> --plan <path>` — pending tasks × 3-mode 链。
 
-Stub harness → exit 1 → orchestrator **BLOCKED**（非 in-session p0 fallback）。CLI 缺失 → exit 2 → orchestrator **BLOCKED**。详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md#sdd-cli-harness-scripts-p1)。
+Not-supported harness → exit 1 → orchestrator **BLOCKED**（非 in-session p0 fallback）。CLI 缺失 → exit 2 → orchestrator **BLOCKED**。详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md#cdd-cli-harness-scripts-p1)。
 
 ## 维护者文档
 

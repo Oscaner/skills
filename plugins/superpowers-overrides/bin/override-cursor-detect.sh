@@ -119,7 +119,7 @@ PYSDD
 if [ -n "${sdd_session_key:-}" ]; then
   _plugin_root="$(cd "$(dirname "$0")/.." && pwd)"
   _repo_root="$(git -C "$(pwd)" rev-parse --show-toplevel 2>/dev/null || pwd)"
-  "${_plugin_root}/bin/sdd-session-activate.sh" minimal "$sdd_session_key" "$_repo_root" 2>/dev/null || true
+  "${_plugin_root}/bin/cdd-session-activate.sh" minimal "$sdd_session_key" "$_repo_root" 2>/dev/null || true
 fi
 
 jq -n '{continue:true}'

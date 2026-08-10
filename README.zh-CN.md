@@ -6,7 +6,7 @@
 
 *用 superpowers-overrides 把 superpowers 的全流程和 mattpocock 的精专缝成一条工程化流水线。*
 
-个人 [Claude Code](https://claude.com/claude-code) 插件市场。三个插件组成一条流水线：构思 → 计划 → 开发 → 交付。
+个人 [Claude Code](https://claude.com/claude-code) 插件市场。四个插件组成一条流水线：构思 → 计划 → 开发 → 交付。
 
 ## 为什么有这个市场
 
@@ -15,6 +15,8 @@
 **[mattpocock-skills](plugins/mattpocock-skills/)** 小而精——`grilling` 挖清需求，`tdd` 管实现，`to-tickets` 切任务。每个 skill 只做一件事，但做得很准。
 
 单独用哪一个，都缺一块：什么时候 delegate、spec 怎么审、大功能怎么分期。**superpowers-overrides** 拦在上游 superpowers skill 前面——该替换的替换，该委托的委托，并在关键步骤接上 mattpocock。大需求走 **overall + phase**：先写 overall spec 分解范围，再逐 phase 跑完整的 spec → plan → dev 循环。
+
+**[os-engineering](plugins/os-engineering/)** 独立引擎层——`cli-*` 家族（`cli-select`、`cli-task`、`cli-driven-development`、`cli-code-review`）跑在 cdd 引擎上，带 per-harness registry 探测。
 
 ## 流水线
 

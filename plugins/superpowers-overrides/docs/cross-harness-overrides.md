@@ -56,30 +56,30 @@ Cursor cannot inject context on submit (no `additional_context` on `beforeSubmit
 
 **`spor-init` does not install hooks** — only refreshes `.cursor/rules/superpowers-overrides.mdc`. Consumer `git status` must show **no** new `.cursor/hooks.json`.
 
-### SDD orchestrator gate (p1-slim.2)
+### CDD orchestrator gate (p1-slim.2)
 
-Cross-harness PreToolUse enforcement for SDD orchestrator sessions (Cursor + Claude Code).
+Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Cursor + Claude Code).
 
 | Item | Detail |
 |------|--------|
-| Pending path | `$TMPDIR/oscaner-superpowers-overrides/pending-sdd/<session_key>.json` |
+| Pending path | `$TMPDIR/oscaner-superpowers-overrides/pending-cdd/<session_key>.json` |
 | Activation | SDD slash (`/subagent-driven-development`, `/spor-*`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Cursor detect + Claude expansion |
-| Shared lib | `bin/lib/sdd-orchestrator-gate.sh` — single allowlist + state machine |
+| Shared lib | `bin/lib/cdd-orchestrator-gate.sh` — single allowlist + state machine |
 | Adapters | `override-cursor-sdd-gate.sh`, `override-claude-sdd-gate.sh` |
 | Fail-open | No jq, no pending, or cannot resolve workspace → allow (skill checklist fallback) |
 | Known gap | p0 Task-tool implementer Write — hook cannot intercept subagent tools ([p1-slim.2 spec](../../docs/superpowers/specs/2026-08-05-sdd-slim-orchestrator-p1-slim-2-design.md)) |
 
 Claude Code: `hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `override-claude-sdd-gate.sh`. Generators are SOT — run `pnpm run generate:overrides` after manifest edits.
 
-**Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell or Write under the bound workspace.
+**Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell (`cdd-run.sh --harness <name>`) or Write under the bound workspace.
 
-**Deny message:** a multi-line allowlist matrix listing every allowed Bash verb, the allowed Write root (`.superpowers/sdd/<plan-basename>/`), and the H6 implement shell. Same single-source verb list drives both the judgment and the message.
+**Deny message:** a multi-line allowlist matrix listing every allowed Bash verb, the allowed Write root (`.superpowers/cdd/<plan-basename>/`), and the H6 implement shell. Same single-source verb list drives both the judgment and the message.
 
-**Anti-hijack:** a task brief activates only when its `TASK_BASE` is a real git object (`git -C <repo> cat-file -e <sha>`, CWD-independent) — stale stub SHAs never activate a workspace. Bound workspace (`pending.workspace`) wins; the gate scans only when unbound, so it is not hijacked by unrelated/stale workspaces. Full matrix in [`sdd-h6-reference.md`](sdd-h6-reference.md) (§ SDD gate matrix).
+**Anti-hijack:** a task brief activates only when its `TASK_BASE` is a real git object (`git -C <repo> cat-file -e <sha>`, CWD-independent) — stale stub SHAs never activate a workspace. Bound workspace (`pending.workspace`) wins; the gate scans only when unbound, so it is not hijacked by unrelated/stale workspaces. Full matrix in [`os-engineering/docs/cdd-reference.md`](../../os-engineering/docs/cdd-reference.md) (§ CDD gate matrix).
 
-### SDD H6 reference doc (p1-slim.3)
+### CDD H6 reference doc (p1-slim.3)
 
-CLI env/exit/harness tables live in `docs/sdd-h6-reference.md`. Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
+CLI env/exit/harness tables live in [`os-engineering/docs/cdd-reference.md`](../../os-engineering/docs/cdd-reference.md) (transition copy in `docs/sdd-h6-reference.md`). Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
 
 ### Claude Code — triple matcher + expansion
 
@@ -177,49 +177,51 @@ Then run init for `.cursor/rules/superpowers-overrides.mdc`.
 
 Manual verification: same as [Self-check rules](#self-check-rules-both-harnesses) smoke bullets above.
 
-## SDD CLI harness scripts (p1)
+## CDD CLI harness scripts (p1)
 
-Token-efficient SDD orchestration uses plugin-bundled scripts under `bin/` — referenced by `spor-token-efficient-controller-handoff` (H6) and `spor-subagent-driven-development`. Orchestrator resolves harness once per plan; scripts do **not** re-detect CLI at runtime.
+Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by `spor-token-efficient-controller-handoff` (H6) and `spor-subagent-driven-development`. Orchestrator resolves harness once per plan; the engine does **not** re-detect CLI at runtime.
 
-| Harness | Task script | Plan script | Ship level |
-|---------|-------------|-------------|------------|
-| **cursor** | `sdd-run-task-cursor.sh` | `sdd-run-plan-cursor.sh` | **Full** — `cursor agent --print --output-format text --force` |
-| **claude** | `sdd-run-task-claude.sh` | `sdd-run-plan-claude.sh` | **Full** — `claude -p … --output-format text --dangerously-skip-permissions` |
-| **codex** | `sdd-run-task-codex.sh` | `sdd-run-plan-codex.sh` | **Stub** — exit 1 BLOCKED |
-| **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
-| **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
+| Harness | CLI binary | Ship level |
+|---------|------------|------------|
+| **claude** | `claude` | **Full** — `claude -p … --output-format text --dangerously-skip-permissions` |
+| **cursor-agent** | `cursor-agent` | **Full** — `cursor-agent --print --output-format text --force` |
+| **droid** | `droid` | **Full** — `droid exec --auto medium --output-format stream-json` |
+| **pi** | `pi` | **Full** — `pi -p --no-session --no-approve` |
+| **codex** | `codex` | **Not-supported** — exit 1 BLOCKED |
+| **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
+| **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-Shared library: `bin/lib/sdd-common.sh` — workspace path contract (`SDD_WORKSPACE`, `SDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `sdd_run_task` (one mode per invocation) / `sdd_run_plan` (pending tasks × 3-mode chain). Harness shells (`sdd-run-task-<harness>.sh`, `sdd-run-plan-<harness>.sh`) are thin wrappers keeping only the **irreducible differences** — CLI invocation flags, review prefix parameter, and the plan's task-script path + label — so claude/cursor shells cannot drift apart. The same lib hosts the **post-run commit gate** (`sdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [sdd-h6-reference.md](sdd-h6-reference.md) (§ Post-run commit gate).
+Shared library: `os-engineering/bin/lib/cdd-common.sh` — workspace path contract (`CDD_WORKSPACE`, `CDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `cdd_run_task` (one mode per invocation) / `cdd_run_plan` (pending tasks × 3-mode chain). The single CLI runner is `os-engineering/bin/cdd-run.sh` (`--harness <name> --task N --mode M` | `--plan <path>`), registry-driven from `os-engineering/bin/harness-registry.json`. The same lib hosts the **post-run commit gate** (`cdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [os-engineering/docs/cdd-reference.md](../../os-engineering/docs/cdd-reference.md) (§ Post-run commit gate).
 
 ### Invocation modes
 
 **Mode A (per task):** orchestrator calls one mode per CLI invocation:
 
 ```bash
-{plugin_root}/bin/sdd-run-task-<harness>.sh --task N --mode implement|review|fix
+{os-engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix
 ```
 
 **Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
 
 ```bash
-{plugin_root}/bin/sdd-run-plan-<harness>.sh --plan <path>
+{os-engineering}/bin/cdd-run.sh --harness <name> --plan <path>
 ```
 
-Plan driver invokes sibling task script per mode. Ledger append on APPROVED only.
+Plan driver runs the 3-mode chain per pending task. Ledger append on APPROVED only.
 
 ### Exit codes and fallback
 
 | Exit | Meaning | Orchestrator action |
 |------|---------|---------------------|
 | 0 | Success | Continue chain |
-| 1 | BLOCKED (stub harness or explicit block) | Stop — **not** p0 fallback |
+| 1 | BLOCKED (not-supported harness or explicit block) | Stop — **not** p0 fallback |
 | 2 | CLI not in PATH | Orchestrator **BLOCKED** |
 
-Stub harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
+Not-supported harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
 
-**CI:** `tests/validate-overrides-build.sh` asserts all 10 harness scripts + `bin/lib/sdd-common.sh` exist and are executable.
+**CI:** `tests/validate-overrides-build.sh` asserts the os-engineering engine (harness registry + `cdd-run.sh`/`cdd-select.sh`/`cdd-exec.sh` executable + engine tests) and the overrides gate/hook scripts.
 
-Templates: `templates/sdd-cli/` (implement, review, fix) + `_handoff-write-fragment.md`.
+Templates: `templates/cdd/` (implement, review, fix) + `_handoff-write-fragment.md`.
 
 ## Deferred harnesses (documented, not built)
 

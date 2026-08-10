@@ -11,14 +11,14 @@ description: MUST invoke BEFORE superpowers:subagent-driven-development as your 
 
 1. When Rule 7 item 1 applies (CLI available, not stub BLOCKED) → this session **must not** Read/Skill upstream `subagent-driven-development` **skill body** (including `implementer-prompt.md`, `task-reviewer-prompt.md`, and other prompt files under that skill directory).
 2. **Allowed:** shell-invoke upstream **scripts only** — `plugins/superpowers/skills/subagent-driven-development/scripts/sdd-workspace`, `task-brief`, `review-package` (resolve paths via `{plugin_root}`). Do **not** Read other Markdown prompts under the upstream SDD skill tree.
-3. **Pointers:** orchestrator → Rule 7 + [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5 + `{plugin_root}/docs/sdd-h6-reference.md`; workers → `templates/sdd-cli/*.md`; worker review in H6 subprocesses only (Rule 5a).
+3. **Pointers:** orchestrator → Rule 7 + `{os-engineering}/docs/controller-handoff.md`（规则见 [controller-handoff.md](../../../os-engineering/docs/controller-handoff.md)，原 [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) 薄指针）+ `{os-engineering}/docs/cdd-reference.md`; workers → `{os-engineering}/templates/cdd/*.md`; worker review in H6 subprocesses only (Rule 5a).
 4. **Orchestrator checklist (compact — mandatory when Rule 0 applies):**
 
    **Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task.
 
    **Per-task:** Rule 1 classify → Rule 4 confirm once → append `TASK_BASE: <sha>` to brief → shell H6 chain (implement → review; fix per Rule 2) → Read handoff.json only → Rule 5a + Rule 6 → ledger on APPROVED. **Never** edit repo deliverables in this session — H6 CLI only.
 
-   **Shell 契约：** 只读 git 诊断 Bash 在 gate 下可用（动词清单见 [`sdd-h6-reference.md` § SDD gate matrix](../../docs/sdd-h6-reference.md)）；`TASK_BASE` 必须是真实 git SHA 才激活 workspace。
+   **Shell 契约：** 只读 git 诊断 Bash 在 gate 下可用（动词清单见 [`cdd-reference.md` § CDD gate matrix](../../../os-engineering/docs/cdd-reference.md)）；`TASK_BASE` 必须是真实 git SHA 才激活 workspace。
 
    **Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`.
 
@@ -49,7 +49,7 @@ Spec+plan complete → cheapest implementer tier; code-review/final default; han
 
 #### Rule 5a — Orchestrator gates (both paths)
 
-PreToolUse gate + handoff.json only (H2). STOP on `plan_conflicts`; `CHANGES_REQUESTED` → Rule 2 (CLI fix chain); `NEEDS_CONTEXT` or `unverifiable` → STOP. Rule 0: H6 runs worker review. Cite [`spor-token-efficient-controller-handoff`](../spor-token-efficient-controller-handoff/SKILL.md) H1–H5.
+PreToolUse gate + handoff.json only (Handoff Only rule). STOP on `plan_conflicts`; `CHANGES_REQUESTED` → Rule 2 (CLI fix chain); `NEEDS_CONTEXT` or `unverifiable` → STOP. Rule 0: H6 runs worker review. Cite [`controller-handoff.md`](../../../os-engineering/docs/controller-handoff.md).
 
 ### Rule 6 — Quality invariants
 
@@ -60,11 +60,11 @@ PreToolUse gate + handoff.json only (H2). STOP on `plan_conflicts`; `CHANGES_REQ
 
 ### Rule 7 — CLI dispatch when available (p1)
 
-When cursor/claude CLI is available and `{plugin_root}/bin/sdd-run-task-<harness>.sh` exists:
+When cursor/claude CLI is available and `{os-engineering}/bin/cdd-run.sh` exists:
 
-1. Per-task execution **must** use H6 three-mode CLI chain per [`docs/sdd-h6-reference.md`](../../docs/sdd-h6-reference.md).
-2. CLI unavailable (script exit **2**) or script not found → orchestrator **BLOCKED**. Report: script path attempted, harness, exit code. Do not fall back to in-session execution.
-3. Stub harness selected (codex/copilot/gemini) → script exit **1** → orchestrator **BLOCKED** (not p0 fallback).
+1. Per-task execution **must** use the H6 three-mode CLI chain — `{os-engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix [--plan PATH]`; Mode B (plan driver): `{os-engineering}/bin/cdd-run.sh --harness <name> --plan PATH` — per [`{os-engineering}/docs/cdd-reference.md`](../../../os-engineering/docs/cdd-reference.md).
+2. CLI unavailable (exit **2**) or engine script not found → orchestrator **BLOCKED**. Report: script path attempted, harness, exit code. Do not fall back to in-session execution.
+3. Not-supported harness selected (codex/copilot/gemini) → exit **1** → orchestrator **BLOCKED** (not p0 fallback).
 4. Orchestrator **still obeys Rule 6** after Read handoff: non-empty `plan_conflicts` → STOP; `NEEDS_CONTEXT` or non-empty `unverifiable` → STOP.
 5. **Final whole-branch review** — orchestrator in-session only (not CLI-dispatched). `{plugin_root}` via [`spor-init`](../spor-init/SKILL.md).
 
@@ -78,7 +78,7 @@ All tasks APPROVED → before the final whole-branch review (Rule 0 **Final:**):
    - re-review clean → done: deferred items fixed, handoff `status` stays `APPROVED` (**不重写**), ledger keeps its `complete` line (optionally append one line noting K items fixed).
    - re-review exposes a new `blocker` → still one fix wave, then **unconditionally report to the user** (clean or not) — **no cross-task fix loop**; remaining items are not silently dropped, the report ends it.
    - **round cap 5 仅适用单任务 fix loop，不适用跨任务 final fix 波.**
-4. **Mode B** — user reads the ledger after the run ends to aggregate deferred; **no new shell end-of-run print** (`bin/lib/sdd-common.sh` has no such path).
+4. **Mode B** — user reads the ledger after the run ends to aggregate deferred; **no new shell end-of-run print** (`os-engineering/bin/lib/cdd-common.sh` has no such path).
 
 ## Red Flags — STOP if you catch yourself thinking any of these
 

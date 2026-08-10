@@ -2,9 +2,12 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS="$ROOT/skills"
+OS_ENG="$ROOT/../os-engineering"
 
 sdd="$(wc -l < "$SKILLS/spor-subagent-driven-development/SKILL.md" | tr -d ' ')"
-ctrl="$(wc -l < "$SKILLS/spor-token-efficient-controller-handoff/SKILL.md" | tr -d ' ')"
+# controller-handoff content moved to os-engineering (the overrides skill is a
+# thin pointer); measure the real doc so the budget still bounds the prose.
+ctrl="$(wc -l < "$OS_ENG/docs/controller-handoff.md" | tr -d ' ')"
 life="$(wc -l < "$SKILLS/spor-subagent-lifecycle/SKILL.md" | tr -d ' ')"
 rev="$(wc -l < "$SKILLS/spor-token-efficient-review-dispatch/SKILL.md" | tr -d ' ')"
 
@@ -27,21 +30,23 @@ done
 grep -q '### Rule 3' "$SKILLS/spor-sdd-p0-fallback/SKILL.md" \
   || { echo "FAIL: p0-fallback missing Rule 3"; exit 1; }
 
-# AC#2 — env/exit/harness tables only in sdd-h6-reference.md
+# AC#2 — env/exit/harness tables live in os-engineering/docs/cdd-reference.md
 for marker in '| Variable | Purpose |' '| `SDD_MODE` |' '| Harness |'; do
   ! grep -qF "$marker" "$SKILLS/spor-token-efficient-controller-handoff/SKILL.md" \
     || { echo "FAIL: controller-handoff contains H6 table: $marker"; exit 1; }
 done
-grep -qF '| Variable | Purpose |' "$ROOT/docs/sdd-h6-reference.md" \
-  || { echo "FAIL: sdd-h6-reference missing env table"; exit 1; }
+grep -qF '| Variable | Purpose |' "$OS_ENG/docs/cdd-reference.md" \
+  || { echo "FAIL: cdd-reference missing env table"; exit 1; }
+grep -qF '| Ship | Harnesses |' "$OS_ENG/docs/cdd-reference.md" \
+  || { echo "FAIL: cdd-reference missing harness table"; exit 1; }
 
 # p0-fallback exists but not in manifest
 [ -f "$SKILLS/spor-sdd-p0-fallback/SKILL.md" ] || { echo "FAIL: missing p0-fallback"; exit 1; }
 ! grep -q 'spor-sdd-p0-fallback' "$ROOT/overrides.manifest.json"
 
-# schema single file — JSON examples only in sdd-handoff-schema.md
+# schema single file — JSON examples only in the os-engineering schema SOT
 hw_examples=$(grep -c '"task":' "$SKILLS/spor-handoff-writer/SKILL.md" || true)
-schema_examples=$(grep -c '"task":' "$ROOT/templates/sdd-handoff-schema.md" || true)
+schema_examples=$(grep -c '"task":' "$OS_ENG/docs/handoff-schema.md" || true)
 [ "$hw_examples" -eq 0 ] || { echo "FAIL: handoff-writer still has inline schema"; exit 1; }
 [ "$schema_examples" -ge 1 ] || { echo "FAIL: schema file missing JSON example"; exit 1; }
 
@@ -68,20 +73,21 @@ grep -qF '`deferred`' <<<"$D3" \
 grep -qF '{findings:' <<<"$D3" \
   || { echo "FAIL: D3 findings schema lost"; exit 1; }
 
-# Task 4 — handoff-writer Review segment parsing severity-aware, cites schema SOT (AC#2)
-RSP="$(sed -n '/^## Review segment parsing/,/^## D3 orchestrator return/p' "$SKILLS/spor-handoff-writer/SKILL.md")"
+# Task 4 — review-segment parsing severity-aware, cites schema SOT (AC#2).
+# Content moved from spor-handoff-writer to the os-engineering write-fragment.
+RSP="$(sed -n '/^### Segment: review/,/^### Segment: fix/p' "$OS_ENG/templates/cdd/_handoff-write-fragment.md")"
 
 # AC#2a — status decision cites schema SOT, not redefined inline
-grep -qF 'sdd-handoff-schema.md' <<<"$RSP" \
-  || { echo "FAIL: Review segment parsing must cite schema SOT"; exit 1; }
+grep -qF 'docs/handoff-schema.md' "$OS_ENG/templates/cdd/_handoff-write-fragment.md" \
+  || { echo "FAIL: handoff-write fragment must cite schema SOT"; exit 1; }
 
 # AC#2b — severity-aware deferred marking (warn/nit → deferred: true)
 grep -qF 'deferred: true' <<<"$RSP" \
-  || { echo "FAIL: Review segment parsing missing deferred marking"; exit 1; }
+  || { echo "FAIL: review segment missing deferred marking"; exit 1; }
 
 # AC#2c — open-findings scoped to blocker (non-deferred) only
-grep -qF '非 deferred' <<<"$RSP" \
-  || { echo "FAIL: Review segment parsing missing blocker-only open-findings"; exit 1; }
+grep -qF 'non-deferred = blocker findings only' <<<"$RSP" \
+  || { echo "FAIL: review segment missing blocker-only open-findings"; exit 1; }
 
 # Task 6 — D6 终盘聚合 + 用户决策门 (AC#1-3)
 D6="$(sed -n '/^### Rule 8/,/^## Red Flags/p' "$SKILLS/spor-subagent-driven-development/SKILL.md")"

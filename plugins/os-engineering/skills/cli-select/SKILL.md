@@ -15,7 +15,7 @@ description: 列出系统已安装的 harness CLI 并询问用哪个执行任务
 
 - `available:` —— ship=full 且已安装的 harness（逗号分隔）
 - `unsupported_installed:` —— ship=not-supported 但已安装（提示性，不参与推荐）
-- `recommended:` —— 推荐默认（droid > pi > 当前 harness > 注册序第一个）
+- `recommended:` —— 推荐默认（droid > pi > 当前 harness > 字母序第一个）
 
 ### Rule: Ask
 

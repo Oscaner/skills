@@ -133,7 +133,9 @@ cdd_require_env() {
   fi
 }
 
-# Locate upstream superpowers subagent-driven-development/scripts (sdd-workspace, review-package).
+# Locate upstream superpowers subagent-driven-development/scripts (review-package,
+# task-brief). sdd-workspace is no longer called — only probed for existence to
+# confirm the scripts dir is present.
 # Resolution order: repo submodule → Claude plugin cache → Cursor plugin cache.
 # Optional arg: repo_root (defaults to git rev-parse --show-toplevel).
 cdd_superpowers_scripts_dir() {
@@ -243,7 +245,12 @@ _cdd_invoke_cli() {
   # shellcheck disable=SC2086
   out="$($cli $invoke "$prompt_arg" 2>/dev/null)" || return $?
   if [[ "$output" == "stream-json" ]]; then
-    raw="$(printf '%s\n' "$out" | jq -r 'select(.type=="completion") | .finalText' | tail -1)"
+    # Keep the FULL finalText of the LAST completion event. A plain
+    # `| tail -1` would cut a multi-line H1 block to its last line — every
+    # earlier H1 key then emits <missing> (droid agents write the four-line
+    # contract as one finalText). Slurp the stream, take the last completion's
+    # text verbatim; empty result → no completion event.
+    raw="$(printf '%s\n' "$out" | jq -rs '[.[] | select(.type=="completion" and (.finalText != null)) | .finalText] | last // empty' 2>/dev/null || true)"
     if [[ -z "$raw" ]]; then
       printf 'stream-json: no completion event\nraw head:\n%s\n' "$(printf '%s\n' "$out" | head -5)" >&2
       cdd_exit_blocked "stream-json produced no completion finalText"

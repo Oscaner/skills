@@ -82,7 +82,7 @@ cdd_readonly_git_verbs() {
 cdd_shell_allowed() {
   local cmd="$1"
   case "$cmd" in
-    *cdd-run*|*sdd-run-task-*|*sdd-workspace*|*task-brief*|*review-package*) return 0 ;;
+    */cdd-run.sh*|cdd-run.sh*|*sdd-workspace*|*task-brief*|*review-package*) return 0 ;;
   esac
   if cdd_git_verb_allowed "$cmd"; then
     return 0

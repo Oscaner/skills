@@ -90,6 +90,11 @@ assert_allow_cmd "$S1" "sdd-workspace create x" "sdd-workspace"
 assert_allow_cmd "$S1" "task-brief --task 1" "task-brief"
 assert_allow_cmd "$S1" "review-package --task 1" "review-package"
 
+# tightened cdd-run match: exact cdd-run.sh invocation shape, not a substring —
+# a command merely containing `cdd-run` (or `cdd-run.sh`) must NOT slip through.
+assert_deny_cmd "$S1" "echo cdd-run" "echo cdd-run (substring bypass)"
+assert_deny_cmd "$S1" "echo cdd-run.sh" "echo cdd-run.sh (substring bypass)"
+
 # Write: workspace allow, other repo paths deny
 assert_allow_write "$S1" "$TMPROOT/active-ws/sdd/active-ws/progress.md" "write active-ws"
 assert_deny_write "$S1" "$TMPROOT/active-ws/sdd/ledger.md" "write cdd_root ledger (outside active-ws)"

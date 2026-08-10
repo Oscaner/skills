@@ -30,13 +30,15 @@ done
 grep -q '### Rule 3' "$SKILLS/spor-sdd-p0-fallback/SKILL.md" \
   || { echo "FAIL: p0-fallback missing Rule 3"; exit 1; }
 
-# AC#2 — env/exit/harness tables only in sdd-h6-reference.md
+# AC#2 — env/exit/harness tables live in os-engineering/docs/cdd-reference.md
 for marker in '| Variable | Purpose |' '| `SDD_MODE` |' '| Harness |'; do
   ! grep -qF "$marker" "$SKILLS/spor-token-efficient-controller-handoff/SKILL.md" \
     || { echo "FAIL: controller-handoff contains H6 table: $marker"; exit 1; }
 done
-grep -qF '| Variable | Purpose |' "$ROOT/docs/sdd-h6-reference.md" \
-  || { echo "FAIL: sdd-h6-reference missing env table"; exit 1; }
+grep -qF '| Variable | Purpose |' "$OS_ENG/docs/cdd-reference.md" \
+  || { echo "FAIL: cdd-reference missing env table"; exit 1; }
+grep -qF '| Ship | Harnesses |' "$OS_ENG/docs/cdd-reference.md" \
+  || { echo "FAIL: cdd-reference missing harness table"; exit 1; }
 
 # p0-fallback exists but not in manifest
 [ -f "$SKILLS/spor-sdd-p0-fallback/SKILL.md" ] || { echo "FAIL: missing p0-fallback"; exit 1; }

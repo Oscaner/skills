@@ -23,7 +23,7 @@
 
 ## Return (H1 — stdout only)
 
-Return **exactly 4 lines** to stdout:
+Return **exactly 4 lines** to stdout; make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
 
 ```
 status: <DONE|BLOCKED>

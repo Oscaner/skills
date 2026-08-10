@@ -12,7 +12,11 @@ Two scanning modes, selected per skills directory via `--skills <dir>:<mode>`:
            number; `#### <Name>` subheadings never count). Inline
            `Rule: <Name>` refs must resolve to a same-file heading; cross-refs
            use markdown links `[Rule: <Name>](../<skill>/SKILL.md#rule-<kebab>)`
-           whose target skill must have that heading.
+           whose target skill must have that heading. Cross-doc links carrying a
+           `#rule-<kebab>` anchor (e.g.
+           `[Return Block](../../docs/controller-handoff.md#rule-return-block)`)
+           are validated too: the anchor must match a heading slug in the target
+           file (SKILL.md or any `.md` under the repo).
 
 Invocation (from the repo root):
   python3 plugins/os-engineering/tests/rule-reference.test.py \
@@ -63,6 +67,34 @@ HEAD_SEM = re.compile(r'^### Rule: ([A-Z][A-Za-z0-9 -]*?)\s*$')
 REF_SEM = re.compile(r'Rule: ([A-Z][A-Za-z0-9 -]*?)(?=[^A-Za-z0-9 -]|$)')
 # Cross-file semantic ref: [Rule: <Name>](<path>/SKILL.md[#rule-<kebab>])
 LINK_HAS_REF_SEM = re.compile(r'\[Rule: ([A-Z][A-Za-z0-9 -]*?)\]\(([^)]*SKILL\.md[^)]*)\)')
+
+# --- cross-doc #rule-<kebab> anchor validation (semantic mode) ---
+LINK_URL = re.compile(r'\[[^\]]*\]\(([^)]+)\)')   # any markdown link URL
+RULE_FRAG = re.compile(r'^rule-[a-z0-9-]+$')       # #rule-<kebab> fragment
+HEAD_ANY = re.compile(r'^#{1,6}\s+(.+?)\s*#*\s*$')  # any heading level (doc anchor)
+
+
+def slugify(text):
+    """GitHub-style anchor slug for headings. Rule headings are ASCII; CJK/other
+    punctuation is dropped so e.g. `### Rule: Return Block` -> `rule-return-block`."""
+    s = text.strip().lower()
+    s = re.sub(r'[^a-z0-9\s-]', '', s)
+    s = re.sub(r'\s+', '-', s)
+    return s.strip('-')
+
+
+def heading_anchors(path):
+    """Set of heading-slug anchors present in a markdown file (all levels)."""
+    anchors = set()
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                m = HEAD_ANY.match(line.rstrip("\n"))
+                if m:
+                    anchors.add(slugify(m.group(1)))
+    except OSError:
+        pass
+    return anchors
 
 
 def build_index_numeric(skills_dir):
@@ -189,6 +221,24 @@ def scan_semantic(skills_dir, idx):
                 ref_name = m.group(1).strip()
                 if ref_name and ref_name not in idx[name]:
                     problems.append(f"{name}:{lineno}: Rule: {ref_name} dangling (no heading in {name})")
+            # 3. cross-doc `#rule-<kebab>` anchors must resolve to a heading slug
+            # in the target file — covers both SKILL.md links (../cli-select/
+            # SKILL.md#rule-ask) and doc links (../../docs/controller-handoff.md
+            # #rule-return-block). Missing target files are tolerated, matching
+            # the lenient handling of SKILL.md links in step 1.
+            for lm in LINK_URL.finditer(line):
+                url = lm.group(1).strip()
+                if url.startswith(("http://", "https://", "mailto:", "#")):
+                    continue
+                path_part, _, frag = url.partition("#")
+                if not RULE_FRAG.match(frag):
+                    continue
+                target = os.path.normpath(os.path.join(cur_dir, path_part))
+                if not os.path.isfile(target):
+                    continue
+                if frag not in heading_anchors(target):
+                    rel = os.path.relpath(target, REPO_ROOT)
+                    problems.append(f"{name}:{lineno}: #rule anchor {frag} not found in {rel}")
     return problems
 
 
@@ -220,6 +270,22 @@ def self_test():
         assert any("Rule: Delta" in p for p in probs2), f"semantic bare dangling not caught: {probs2}"
         assert any("Rule: Alpha" in p and "cli-aaa lacks heading" in p for p in probs2) is False, \
             f"semantic valid cross-ref flagged: {probs2}"
+
+        # semantic cross-doc anchor: doc link to an existing heading slug passes;
+        # a `#rule-<kebab>` anchor with no matching heading is caught.
+        d3 = os.path.join(tmp, "anchor")
+        os.makedirs(os.path.join(d3, "cli-aaa"))
+        os.makedirs(os.path.join(d3, "docs"))
+        with open(os.path.join(d3, "docs", "controller-handoff.md"), "w", encoding="utf-8") as f:
+            f.write("### Rule: Return Block\n\nBody.\n")
+        with open(os.path.join(d3, "cli-aaa", "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: cli-aaa\n---\n\n"
+                    "See [Return Block](../docs/controller-handoff.md#rule-return-block) "
+                    "and [Missing](../docs/controller-handoff.md#rule-missing).\n")
+        idx3 = build_index_semantic(d3)
+        probs3 = scan_semantic(d3, idx3)
+        assert not any("rule-return-block" in p for p in probs3), f"valid doc anchor flagged: {probs3}"
+        assert any("rule-missing" in p for p in probs3), f"missing doc anchor not caught: {probs3}"
     finally:
         shutil.rmtree(tmp)
 

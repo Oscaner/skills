@@ -54,7 +54,7 @@ if [[ -z "$available" ]]; then
   exit 1
 fi
 
-# 推荐优先级: droid > pi > 当前 harness(full) > 注册序第一个可用
+# 推荐优先级: droid > pi > 当前 harness(full) > 字母序第一个可用（jq keys[] 返回排序键）
 if [[ " $available " == *" droid "* ]]; then
   recommended="droid"
 elif [[ " $available " == *" pi "* ]]; then

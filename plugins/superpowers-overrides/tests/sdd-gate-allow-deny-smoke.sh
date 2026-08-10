@@ -112,7 +112,7 @@ for needle in "CDD orchestrator gate" "Allowed Bash (read-only diagnostics):" \
               "git branch" "git remote" "git ls-files" "git diff-tree" \
               "cdd-run.sh --harness claude" "sdd-workspace / task-brief / review-package" \
               "Allowed Write:" ".superpowers/cdd/active-ws/" \
-              "--task 1 --mode implement" "Full matrix: docs/cdd-reference.md (CDD gate matrix)" \
+              "--task 1 --mode implement" "Full matrix: ${OS_ENG}/docs/cdd-reference.md (CDD gate matrix)" \
               "See spor-SDD Rule 0 item 4."; do
   r="$(bash_reason "$S1" "ls")"
   [[ "$r" == *"$needle"* ]] || fail "deny message missing: $needle"

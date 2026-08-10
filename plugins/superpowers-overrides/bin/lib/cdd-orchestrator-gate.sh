@@ -299,7 +299,7 @@ ${verbs}
 	Repo changes flow only through:
 	  ${os_root}/bin/cdd-run.sh --harness ${harness} --task ${task_num} --mode implement
 
-	Full matrix: docs/cdd-reference.md (CDD gate matrix)
+	Full matrix: ${os_root}/docs/cdd-reference.md (CDD gate matrix)
 	See spor-SDD Rule 0 item 4.
 	EOF
 }
@@ -313,7 +313,7 @@ cdd_plan_basename() {
     return 0
   fi
   if [[ -n "$workspace" && -f "${workspace}/progress.md" ]]; then
-    plan_path="$(sed -n '1s/^# SDD ledger — plan: //p' "${workspace}/progress.md" 2>/dev/null || true)"
+    plan_path="$(sed -nE '1s/^# (SDD|CDD) ledger — plan: //p' "${workspace}/progress.md" 2>/dev/null || true)"
     if [[ -n "$plan_path" ]]; then
       basename="${plan_path##*/}"
       printf '%s\n' "${basename%.md}"

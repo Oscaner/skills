@@ -576,10 +576,10 @@ EOF
 }
 
 ###############################################################################
-# G. per-harness plan shells (sdd-run-plan-{claude,cursor}.sh) were deleted in
-# T10 — the engine now has a single runner (bin/cdd-run.sh) whose Mode A / Mode
-# B arg parsing and dry-run orchestration are covered by cdd-cli-dry-run-smoke.sh
-# and cdd-exec.test.sh. cdd_run_plan's own chain behavior is covered by F5b/F6.
+# G. per-harness plan shells were deleted in T10 — the engine now has a single
+# runner (bin/cdd-run.sh) whose Mode A / Mode B arg parsing and dry-run
+# orchestration are covered by cdd-cli-dry-run-smoke.sh and cdd-exec.test.sh.
+# cdd_run_plan's own chain behavior is covered by F5b/F6.
 ###############################################################################
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]] || exit 1

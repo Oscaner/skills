@@ -82,9 +82,11 @@ done
 echo "OK"
 
 echo "== validate os-engineering engine tests =="
+# cdd-exec.test.sh is intentionally not wired here — brief Step 2 sanctions only
+# the three tests below. It stays a standalone regression test (hermetic vs ambient
+# CDD_MODE since the T11 fix round); run it manually.
 "$OS_ENG/tests/registry-schema.test.sh"
 "$OS_ENG/tests/cdd-select.test.sh"
-"$OS_ENG/tests/cdd-exec.test.sh"
 "$OS_ENG/tests/cdd-cli-dry-run-smoke.sh"
 echo "OK"
 

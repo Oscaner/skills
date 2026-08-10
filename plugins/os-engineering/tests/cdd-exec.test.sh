@@ -11,9 +11,13 @@
 # Hermetic PATH（同 cdd-select.test.sh）：host 可能装有真实 registry CLI。
 # 丢弃所有含 registry CLI 二进制的 PATH 目录，把 jq symlink 进 mockdir 并前置，
 # 使 mock cli 与 jq 都解析得到，同时真实 CLI 无法泄漏。
+# Hermetic ambient CDD_*：_cdd_invoke_cli 在 CDD_MODE=review 时为 prompt 前置
+# review_prefix（cdd-common.sh）。本测试把 cdd-exec.sh 当 mode-agnostic 一次性运行器、
+# 断言原文透传，因此 unset 继承到的 CDD_MODE / CDD_HARNESS。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXEC="${ROOT}/bin/cdd-exec.sh"
+unset CDD_MODE CDD_HARNESS
 
 [[ -f "$EXEC" ]] || { echo "FAIL — ${EXEC} missing (expect cdd-exec.sh from T6)"; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "SKIP — jq missing"; exit 0; }

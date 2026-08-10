@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS="$ROOT/skills"
 MANIFEST="$ROOT/overrides.manifest.json"
+OS_ENG="$ROOT/../os-engineering"
 
 echo "== validate manifest sources =="
 python3 -c "
@@ -69,8 +70,23 @@ echo "OK"
 echo "== validate SDD orchestrator line budget =="
 "$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
 
-echo "== validate rule-reference integrity =="
-python3 "$ROOT/tests/rule-reference.test.py"
+echo "== validate rule-reference integrity (dual-mode: os-engineering semantic + overrides numeric) =="
+python3 "$OS_ENG/tests/rule-reference.test.py" \
+  --skills os-engineering/skills:semantic superpowers-overrides/skills:numeric
+
+echo "== validate os-engineering engine (harness registry + runners) =="
+[ -f "$OS_ENG/bin/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }
+for script in cdd-run.sh cdd-select.sh cdd-exec.sh; do
+  [ -x "$OS_ENG/bin/$script" ] || { echo "FAIL: os-engineering/bin/$script not executable"; exit 1; }
+done
+echo "OK"
+
+echo "== validate os-engineering engine tests =="
+"$OS_ENG/tests/registry-schema.test.sh"
+"$OS_ENG/tests/cdd-select.test.sh"
+"$OS_ENG/tests/cdd-exec.test.sh"
+"$OS_ENG/tests/cdd-cli-dry-run-smoke.sh"
+echo "OK"
 
 echo "== validate plugin.json alignment =="
 python3 -c "

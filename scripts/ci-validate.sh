@@ -59,7 +59,9 @@ echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/override-cursor-sdd-gate.test.sh
 ./plugins/superpowers-overrides/tests/override-claude-sdd-gate.test.sh
 ./plugins/superpowers-overrides/tests/sdd-gate-allow-deny-smoke.sh
-./plugins/superpowers-overrides/tests/sdd-severity-contract.test.sh
+./plugins/os-engineering/tests/cdd-severity-contract.test.sh
+./plugins/os-engineering/tests/cdd-common-functions.test.sh
+./plugins/os-engineering/tests/cdd-commit-gate-smoke.sh
 
 echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs

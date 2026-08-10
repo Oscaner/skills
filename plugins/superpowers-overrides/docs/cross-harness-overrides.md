@@ -189,7 +189,7 @@ Token-efficient SDD orchestration uses plugin-bundled scripts under `bin/` — r
 | **copilot** | `sdd-run-task-copilot.sh` | `sdd-run-plan-copilot.sh` | **Stub** — exit 1 BLOCKED |
 | **gemini** | `sdd-run-task-gemini.sh` | `sdd-run-plan-gemini.sh` | **Stub** — exit 1 BLOCKED |
 
-Shared library: `bin/lib/sdd-common.sh` — workspace path contract (`SDD_WORKSPACE`, `SDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `sdd_run_task` (one mode per invocation) / `sdd_run_plan` (pending tasks × 3-mode chain). Harness shells (`sdd-run-task-<harness>.sh`, `sdd-run-plan-<harness>.sh`) are thin wrappers keeping only the **irreducible differences** — CLI invocation flags, review prefix parameter, and the plan's task-script path + label — so claude/cursor shells cannot drift apart. The same lib hosts the **post-run commit gate** (`sdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [sdd-h6-reference.md](sdd-h6-reference.md) (§ Post-run commit gate).
+Shared library: `os-engineering/bin/lib/cdd-common.sh` — workspace path contract (`CDD_WORKSPACE`, `CDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `cdd_run_task` (one mode per invocation) / `cdd_run_plan` (pending tasks × 3-mode chain). The single CLI runner is `os-engineering/bin/cdd-run.sh` (`--harness <name> --task N --mode M` | `--plan <path>`), registry-driven from `os-engineering/bin/harness-registry.json`. The same lib hosts the **post-run commit gate** (`cdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [sdd-h6-reference.md](sdd-h6-reference.md) (§ Post-run commit gate).
 
 ### Invocation modes
 
@@ -217,7 +217,7 @@ Plan driver invokes sibling task script per mode. Ledger append on APPROVED only
 
 Stub harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
 
-**CI:** `tests/validate-overrides-build.sh` asserts all 10 harness scripts + `bin/lib/sdd-common.sh` exist and are executable.
+**CI:** `tests/validate-overrides-build.sh` asserts the os-engineering engine (harness registry + `cdd-run.sh`/`cdd-select.sh`/`cdd-exec.sh` executable + engine tests) and the overrides gate/hook scripts.
 
 Templates: `templates/sdd-cli/` (implement, review, fix) + `_handoff-write-fragment.md`.
 

@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# sdd-severity-contract.test.sh — lock the severity→status + deferred governance prose
+# cdd-severity-contract.test.sh — lock the severity→status + deferred governance prose
 # (spec D1/D4/D5a/D6). Grep contract over template/skill prose. Single source of
-# truth = templates/sdd-handoff-schema.md (D1); every positive grep is chosen so the
+# truth = docs/handoff-schema.md (D1); every positive grep is chosen so the
 # OLD wording / deleted passage does NOT match (no false-green), and negative greps
 # assert the removed phrases stay gone.
 #
 # Files under test:
-#   templates/sdd-cli/_handoff-write-fragment.md   review/fix segment I/O + status step
-#   templates/sdd-handoff-schema.md                schema SOT (findings[].deferred, mapping)
-#   bin/lib/sdd-common.sh                          _append_ledger deferred roll-up + no-jq
-#   templates/sdd-cli/review.md                    severity-aware status decision
-#   templates/sdd-cli/fix.md                       open-findings blocker-only
-#   skills/spor-token-efficient-review-dispatch/SKILL.md   D3 anchors + result anchor
-#   skills/spor-handoff-writer/SKILL.md            review segment parsing deferred
-#   skills/spor-subagent-driven-development/SKILL.md       Rule 8 D6 end semantics
+#   templates/cdd/_handoff-write-fragment.md   review/fix segment I/O + status step
+#   docs/handoff-schema.md                schema SOT (findings[].deferred, mapping)
+#   bin/lib/cdd-common.sh                          _append_ledger deferred roll-up + no-jq
+#   templates/cdd/review.md                    severity-aware status decision
+#   templates/cdd/fix.md                       open-findings blocker-only
+#   ../superpowers-overrides/skills/spor-token-efficient-review-dispatch/SKILL.md   D3 anchors + result anchor
+#   ../superpowers-overrides/skills/spor-subagent-driven-development/SKILL.md       Rule 8 D6 end semantics
 #
-# fail() is intentionally NOT sourced from sdd-gate-test-lib.sh — this test is
+# fail() is intentionally NOT sourced from the gate test lib — this test is
 # standalone (no fixture isolation needed; it greps the committed tree).
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -60,14 +59,14 @@ assert_section_grep() {
   ASSERT_COUNT=$((ASSERT_COUNT + 1))
 }
 
-FRAGMENT="$ROOT/templates/sdd-cli/_handoff-write-fragment.md"
-SCHEMA="$ROOT/templates/sdd-handoff-schema.md"
-SDD_COMMON="$ROOT/bin/lib/sdd-common.sh"
-REVIEW="$ROOT/templates/sdd-cli/review.md"
-FIX="$ROOT/templates/sdd-cli/fix.md"
-DISPATCH="$ROOT/skills/spor-token-efficient-review-dispatch/SKILL.md"
-HANDOFF_WRITER="$ROOT/skills/spor-handoff-writer/SKILL.md"
-SDD_SKILL="$ROOT/skills/spor-subagent-driven-development/SKILL.md"
+FRAGMENT="$ROOT/templates/cdd/_handoff-write-fragment.md"
+SCHEMA="$ROOT/docs/handoff-schema.md"
+CDD_COMMON="$ROOT/bin/lib/cdd-common.sh"
+REVIEW="$ROOT/templates/cdd/review.md"
+FIX="$ROOT/templates/cdd/fix.md"
+OVERRIDES="$ROOT/../superpowers-overrides"
+DISPATCH="$OVERRIDES/skills/spor-token-efficient-review-dispatch/SKILL.md"
+CDD_SKILL="$OVERRIDES/skills/spor-subagent-driven-development/SKILL.md"
 
 echo "== 1. _handoff-write-fragment.md (review status step + fix/review deferred preserve) =="
 # mapping wording is the new review step 6 (any blocker → CHANGES_REQUESTED), NOT the
@@ -80,16 +79,16 @@ assert_section_grep "$FRAGMENT" '### Segment: fix' 'Preserve all.*deferred: true
 assert_section_grep "$FRAGMENT" '### Segment: review' 'never replace wholesale|merge' "review segment merges findings"
 assert_no_grep 'Empty findings' "$FRAGMENT" "old 'Empty findings' wording removed"
 
-echo "== 2. sdd-handoff-schema.md (SOT mapping + findings[].deferred) =="
+echo "== 2. docs/handoff-schema.md (SOT mapping + findings[].deferred) =="
 assert_section_grep "$SCHEMA" '## Severity → status mapping' 'CHANGES_REQUESTED' "mapping table keeps CHANGES_REQUESTED"
 assert_section_grep "$SCHEMA" '## Review arrays' 'findings\[\]' "findings[] described"
 assert_section_grep "$SCHEMA" '## Review arrays' 'deferred' "findings[] deferred field"
 
-echo "== 3. sdd-common.sh (_append_ledger deferred roll-up + no-jq degradation) =="
-APPEND_LEDGER="$(awk '/^  _append_ledger[(][)] [{]/{p=1} p{print} p && /^  [}]$/{exit}' "$SDD_COMMON")"
-printf '%s' "$APPEND_LEDGER" | grep 'deferred' >/dev/null || fail "missing deferred branch in _append_ledger: $SDD_COMMON"
+echo "== 3. cdd-common.sh (_append_ledger deferred roll-up + no-jq degradation) =="
+APPEND_LEDGER="$(awk '/^  _append_ledger[(][)] [{]/{p=1} p{print} p && /^  [}]$/{exit}' "$CDD_COMMON")"
+printf '%s' "$APPEND_LEDGER" | grep 'deferred' >/dev/null || fail "missing deferred branch in _append_ledger: $CDD_COMMON"
 ASSERT_COUNT=$((ASSERT_COUNT + 1))
-printf '%s' "$APPEND_LEDGER" | grep 'deferred not enumerated' >/dev/null || fail "missing no-jq degradation line in _append_ledger: $SDD_COMMON"
+printf '%s' "$APPEND_LEDGER" | grep 'deferred not enumerated' >/dev/null || fail "missing no-jq degradation line in _append_ledger: $CDD_COMMON"
 ASSERT_COUNT=$((ASSERT_COUNT + 1))
 
 echo "== 4. review.md (blocker + CHANGES_REQUESTED co-occur; no empty→APPROVED) =="
@@ -106,19 +105,19 @@ assert_section_grep "$DISPATCH" '### D3 — Findings-only output' 'deferred: tru
 assert_section_grep "$DISPATCH" '### D3 — Findings-only output' '合并前必须修复' "D3 blocker behavior anchor"
 assert_section_grep "$DISPATCH" '### D3 — Findings-only output' 'APPROVED.*deferred: true' "D3 result anchor (warn/nit → APPROVED+deferred)"
 
-echo "== 7. spor-handoff-writer review segment parsing (deferred) =="
-assert_section_grep "$HANDOFF_WRITER" '## Review segment parsing' 'deferred' "review parsing keeps deferred"
-assert_section_grep "$HANDOFF_WRITER" '## Outputs' 'blocker（非 deferred）only' "Outputs rule: open-findings blocker-only (not all findings)"
+echo "== 7. _handoff-write-fragment.md review segment (deferred + blocker-only) =="
+assert_section_grep "$FRAGMENT" '### Segment: review' 'deferred: true' "review parsing keeps deferred"
+assert_section_grep "$FRAGMENT" '### Segment: review' 'non-deferred = blocker findings only' "review segment blocker-only open-findings"
 
 echo "== 8. spor-subagent-driven-development Rule 8 (D6 end semantics) =="
-assert_section_grep "$SDD_SKILL" '### Rule 8 — 终盘聚合' 'deferred' "final aggregation deferred"
-assert_section_grep "$SDD_SKILL" '### Rule 8 — 终盘聚合' '有界 final fix 波' "bounded-once final fix wave"
-assert_section_grep "$SDD_SKILL" '### Rule 8 — 终盘聚合' '不重写' "handoff stays APPROVED (no rewrite)"
-assert_section_grep "$SDD_SKILL" '### Rule 8 — 终盘聚合' 'unconditionally report to the user' "unconditional user report"
-assert_section_grep "$SDD_SKILL" '### Rule 8 — 终盘聚合' 'no cross-task fix loop' "no cross-task fix loop"
+assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' 'deferred' "final aggregation deferred"
+assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' '有界 final fix 波' "bounded-once final fix wave"
+assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' '不重写' "handoff stays APPROVED (no rewrite)"
+assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' 'unconditionally report to the user' "unconditional user report"
+assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' 'no cross-task fix loop' "no cross-task fix loop"
 
 echo "== 9. result anchors (warn/nit → APPROVED + deferred; never → CHANGES_REQUESTED) =="
 assert_grep 'deferred.*APPROVED' "$SCHEMA" "mapping row: warn/nit(deferred) → APPROVED"
 assert_grep 'APPROVED.*deferred: true' "$DISPATCH" "D3: handoff records APPROVED + deferred: true"
 
-echo "OK — sdd-severity-contract ($ASSERT_COUNT assertions)"
+echo "OK — cdd-severity-contract ($ASSERT_COUNT assertions)"

@@ -34,6 +34,7 @@ export function resolveVersion(root, plugin) {
       root,
       "plugins/superpowers-overrides/package.json",
     ),
+    "os-engineering": join(root, "plugins/os-engineering/package.json"),
   };
 
   const truthPath = truthPaths[plugin.name];

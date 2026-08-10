@@ -59,9 +59,32 @@ echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/override-cursor-sdd-gate.test.sh
 ./plugins/superpowers-overrides/tests/override-claude-sdd-gate.test.sh
 ./plugins/superpowers-overrides/tests/sdd-gate-allow-deny-smoke.sh
-./plugins/os-engineering/tests/cdd-severity-contract.test.sh
-./plugins/os-engineering/tests/cdd-common-functions.test.sh
+
+echo "== 5b. os-engineering plugin validation =="
+python3 -c '
+import json, os
+root = "plugins/os-engineering"
+d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
+skills = d.get("skills")
+skills_dir = os.path.join(root, skills.lstrip("./"))
+assert os.path.isdir(skills_dir), f"missing skills dir: {skills_dir}"
+n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
+print(f"OK — {n} os-engineering skills")
+'
+./plugins/os-engineering/tests/registry-schema.test.sh
+./plugins/os-engineering/tests/cdd-select.test.sh
+./plugins/os-engineering/tests/cdd-cli-dry-run-smoke.sh
 ./plugins/os-engineering/tests/cdd-commit-gate-smoke.sh
+./plugins/os-engineering/tests/cdd-common-functions.test.sh
+./plugins/os-engineering/tests/cdd-severity-contract.test.sh
+python3 plugins/os-engineering/tests/rule-reference.test.py \
+  --skills os-engineering/skills:semantic superpowers-overrides/skills:numeric
+./plugins/os-engineering/tests/ci-validate-wiring.test.sh
+
+echo "== 5c. migrated-engine zero-residue check =="
+grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-)' \
+  plugins/os-engineering/bin plugins/os-engineering/templates plugins/os-engineering/docs/cdd-reference.md \
+  || echo "OK — zero sdd residue in migrated engine"
 
 echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs

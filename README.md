@@ -6,7 +6,7 @@
 
 *Combine superpowers' full workflow with mattpocock's precision — engineered via superpowers-overrides.*
 
-Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Three plugins work together as one pipeline: brainstorm, plan, build, ship.
+Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Four plugins work together as one pipeline: brainstorm, plan, build, ship.
 
 ## Why this exists
 
@@ -15,6 +15,8 @@ Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Three
 **[mattpocock-skills](plugins/mattpocock-skills/)** is the precision layer — `grilling` for hard questions, `tdd` for implementation, `to-tickets` for slicing work. Small surface, sharp tools.
 
 Neither alone told me *when* to delegate, *how* to review specs, or *how to phase* a large feature. **superpowers-overrides** sits in front of upstream superpowers skills: intercept, replace or delegate, and wire mattpocock in at the right step. For big scope it adds **overall + phase** — decompose in an overall spec, then run full spec → plan → dev cycles one phase at a time.
+
+**[os-engineering](plugins/os-engineering/)** is the standalone engine layer — the `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection.
 
 ## The pipeline
 

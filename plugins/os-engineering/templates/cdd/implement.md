@@ -11,15 +11,16 @@
 ## Instructions
 
 1. Read **only** the task brief and plan constraints at the paths above. Do **not** read the full plan file or ledger.
-2. Invoke **`mattpocock-skills:tdd`** (Read the skill via `agent_skills` fullPath) to implement per the brief.
-3. Write a full implementer report to the path named in the brief (typically `<workspace>/task-N-report.md`).
-4. Write `<workspace>/task-N-test-evidence.json` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable).
-5. **Commit (base/head contract):**
+2. **Confirm seams first (blocking):** Propose the test boundaries — "I'll test at these seams: [X, Y]. Not testing: [Z]. Does this look right?" — and **wait for explicit user approval** before invoking tdd. Silence is not approval. Once approved:
+3. Invoke **`mattpocock-skills:tdd`** (Read the skill via `agent_skills` fullPath) to implement per the brief, with the confirmed seams in context.
+4. Write a full implementer report to the path named in the brief (typically `<workspace>/task-N-report.md`).
+5. Write `<workspace>/task-N-test-evidence.json` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable).
+6. **Commit (base/head contract):**
    - `base` = SHA in the task brief as `TASK_BASE` (orchestrator writes this immediately before the H6 implement shell — `git rev-parse HEAD` at chain start). Batch blocks: use `FIRST_TASK_BASE` from brief.
    - After tests pass: if TDD already created **one or more** conventional commits covering this task's changes, set `head` = `git rev-parse HEAD` (do not create duplicate commits).
    - Otherwise: create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the task brief; no attribution / co-author / AI-generation trailers; then `head` = `git rev-parse HEAD`.
    - Uncommitted changes at return → `status: BLOCKED`.
-6. Write handoff per `_handoff-write-fragment.md` implement segment. Do **not** write ledger.
+7. Write handoff per `_handoff-write-fragment.md` implement segment. Do **not** write ledger.
 
 ## Return (H1 — stdout only)
 

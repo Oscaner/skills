@@ -15,7 +15,7 @@ Resolve `{superpowers-plugin-root}`（同 [Rule: Read Upstream](../os-brainstorm
 
 ### Rule: Read Sub-Skills
 
-按需 Read `mattpocock-skills` 的 `skills/engineering/to-tickets/SKILL.md`（ticket 拆分 Steps 1-4）。
+按需 Read `mattpocock-skills` 的 `skills/engineering/to-tickets/SKILL.md`（ticket 拆分 Steps 1-4）。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
 
 ### Rule: Section-by-Section
 

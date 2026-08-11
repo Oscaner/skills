@@ -1,6 +1,6 @@
 ---
 name: os-executing-plans
-description: 独立执行计划总编排器 —— 用户选择执行模式（in-session / subagent / cli），编排器控制器规则集（9 条语义规则，三模式共用）。cli 模式委托 cli-driven-development；in-session/subagent 模式 Read 上游对应技能驱动。
+description: 独立执行计划总编排器 —— 用户选择执行模式（in-session / subagent / cli），编排器控制器规则集（10 条语义规则，三模式共用）。cli 模式委托 cli-driven-development；in-session/subagent 模式 Read 上游对应技能驱动。
 ---
 
 # OS Executing-Plans

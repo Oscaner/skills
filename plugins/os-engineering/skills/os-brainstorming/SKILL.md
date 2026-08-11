@@ -15,7 +15,7 @@ Resolve `{superpowers-plugin-root}`（优先 `$CLAUDE_PLUGIN_ROOT/../superpowers
 
 ### Rule: Read Sub-Skills
 
-按需 Read `mattpocock-skills` 的 `skills/productivity/grilling/SKILL.md`（澄清问题委派）。
+按需 Read `mattpocock-skills` 的 `skills/productivity/grilling/SKILL.md`（澄清问题委派）。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
 
 ### Rule: Overall-Phase
 

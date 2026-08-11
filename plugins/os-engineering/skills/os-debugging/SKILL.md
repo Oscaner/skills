@@ -19,7 +19,7 @@ Resolve `{superpowers-plugin-root}`（同 [Rule: Read Upstream](../os-brainstorm
 
 ### Rule: Delegate Diagnosis
 
-诊断循环委派 `mattpocock-skills:diagnosing-bugs`（Skill-invoke），不重实现。
+诊断循环委派 `mattpocock-skills:diagnosing-bugs`（Skill-invoke），不重实现。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
 
 ## Red Flags
 

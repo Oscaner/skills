@@ -15,11 +15,11 @@ Resolve `{superpowers-plugin-root}`（同 [Rule: Read Upstream](../os-brainstorm
 
 ### Rule: Understand
 
-上游 RESPONSE 模式的 UNDERSTAND 步：反馈项不清晰 → 委派 `mattpocock-skills:grilling` 澄清，全部项达成共识才进 VERIFY。
+上游 RESPONSE 模式的 UNDERSTAND 步：反馈项不清晰 → 委派 `mattpocock-skills:grilling` 澄清，全部项达成共识才进 VERIFY。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
 
 ### Rule: Implement
 
-IMPLEMENT 步：每个 fix 委派 `mattpocock-skills:tdd`（红-绿循环）。豁免：纯机械编辑（无行为/schema/config 变化——重命名、空白、注释重排）。可疑时用 TDD。
+IMPLEMENT 步：每个 fix 委派 `mattpocock-skills:tdd`（红-绿循环）。豁免：纯机械编辑（无行为/schema/config 变化——重命名、空白、注释重排）。可疑时用 TDD。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
 
 ### Rule: Optional CLI Review
 

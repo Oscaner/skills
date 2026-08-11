@@ -10,16 +10,21 @@ description: 独立接收评审反馈编排器 —— Read 上游 superpowers:re
 ## Rules
 
 ### Rule: Read Upstream
-Resolve `{superpowers-plugin-root}`（同 os-brainstorming Rule: Read Upstream 的解析+报错子句），Read `skills/receiving-code-review/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
+
+Resolve `{superpowers-plugin-root}`（同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream) 的解析+报错子句），Read `skills/receiving-code-review/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
 
 ### Rule: Understand
+
 上游 RESPONSE 模式的 UNDERSTAND 步：反馈项不清晰 → 委派 `mattpocock-skills:grilling` 澄清，全部项达成共识才进 VERIFY。
 
 ### Rule: Implement
+
 IMPLEMENT 步：每个 fix 委派 `mattpocock-skills:tdd`（红-绿循环）。豁免：纯机械编辑（无行为/schema/config 变化——重命名、空白、注释重排）。可疑时用 TDD。
 
 ### Rule: Optional CLI Review
+
 需派发评审时可调 [cli-code-review](../cli-code-review/SKILL.md)（任意 diff 经选定 harness CLI）。
 
 ## Red Flags
+
 - 「模糊反馈靠猜」→ grilling 澄清（Rule: Understand）

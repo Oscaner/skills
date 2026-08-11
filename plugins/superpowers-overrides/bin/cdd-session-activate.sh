@@ -40,6 +40,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# 模式枚举单一来源：in-session|subagent|cli（spec §E）——usage 文本、gate case、
+# test-lib 默认、test 断言共用此三值，改枚举时同步这些位置。空 → fail-open
+# （pending 省略 mode 字段）；非空必须在枚举内，否则报错退出（不写非法 mode）。
+case "$session_mode" in
+  ""|in-session|subagent|cli) ;;
+  *)
+    printf 'error: invalid mode: %s (expected in-session|subagent|cli)\n' "$session_mode" >&2
+    exit 2
+    ;;
+esac
+
 [[ -n "$subcommand" && -n "$session_key" && -n "$repo_root" ]] || usage
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -66,6 +77,8 @@ case "$subcommand" in
     if [[ -f "$path" ]]; then
       existing="$(cat "$path")"
       # 保留既有会话模式（hook 已写 --mode cli）；显式 --mode/env 优先。
+      # 省略 --mode 的 rebind 保留 prior pending.mode —— 保护 cli 严格性不被
+      # 无意识 rebind 冲掉（bind 是 cli 会话入轨，mode 缺失时不得降级为 fail-open）。
       if [[ -z "$session_mode" ]]; then
         session_mode="$(printf '%s' "$existing" | jq -r '.mode // empty' 2>/dev/null || true)"
       fi

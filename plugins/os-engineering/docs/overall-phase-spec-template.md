@@ -1,6 +1,6 @@
 # Overall + Phase Spec Organization Template
 
-**Document structure only** — what produced specs contain. Process: `SKILL.md` Rule 3 (flow + invariants + steps 3a–3e). Read both before drafting.
+**Document structure only** — what produced specs contain. Process: [Rule: Overall-Phase](../skills/os-brainstorming/SKILL.md#rule-overall-phase)（overall + phase 流程 + 不变式）。Read both before drafting.
 
 ---
 
@@ -41,8 +41,8 @@ Minor version bump: decomposition, scope shift, phase complete. Major: program g
 ### §0 Document scope
 
 - Charter only — no implementation detail.
-- **Overall approval ≠ phase started** (SKILL step 4 gate).
-- Deviations update here first (Rule 3b).
+- **Overall approval ≠ phase started**（GATE，见 Rule: Overall-Phase）。
+- Deviations update here first（同步更新到 overall）。
 
 ### §1 Program charter
 
@@ -57,7 +57,7 @@ Goal (1–3 sentences), non-goals, cross-cutting constraints. **Exclude:** accep
 ```
 
 - Scope column: decomposition context only.
-- **Split:** replace parent row with Na, Nb **before** sub-phase work continues (Rule 3b/3d).
+- **Split:** replace parent row with Na, Nb **before** sub-phase work continues.
 - Cells: Pending → link; on ship, completion marker on **plan** cell only.
 
 ### §3 Dependency graph (ASCII)
@@ -72,7 +72,7 @@ Sync with inventory on add/split/reorder.
 
 - Update links + change history per phase; no task lists.
 - Master spec for cross-phase conventions; phase specs incremental.
-- Strategy shifts and splits feed back **immediately** (Rule 3b).
+- Strategy shifts and splits feed back **immediately**（同步 overall）。
 
 ### §6 Change history
 
@@ -99,7 +99,7 @@ Append-only: completion, decomposition, scope shift, status transition.
 
 ### §2 Design body
 
-This phase's increment: approaches, architecture, components, data flow, errors, testing, **acceptance criteria**. Discovery cycle: Rule 3a before writing.
+This phase's increment: approaches, architecture, components, data flow, errors, testing, **acceptance criteria**. Discovery cycle before writing.
 
 ### §3 Deviations from overall (if cross-phase drift)
 
@@ -111,8 +111,8 @@ Required when phase diverges on cross-phase matters. **Overall updated?** must b
 
 ### §4 Notes for downstream (optional)
 
-Later-phase scope shifts. Decomposition changes → update overall + re-run step 3 approval.
+Later-phase scope shifts. Decomposition changes → update overall + re-run approval（GATE）。
 
 ### §5 Review
 
-Rule 1 passes before user review and writing-plans.
+Rule: Fresh-Subagent Review Passes 全过，才到 user review 和 writing-plans。

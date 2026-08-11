@@ -11,7 +11,7 @@ description: 独立写计划流程编排器 —— Read 上游 superpowers:writi
 
 ### Rule: Read Upstream
 
-Resolve `{superpowers-plugin-root}`（同 os-brainstorming Rule: Read Upstream），Read `skills/writing-plans/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
+Resolve `{superpowers-plugin-root}`（同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)），Read `skills/writing-plans/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
 
 ### Rule: Read Sub-Skills
 

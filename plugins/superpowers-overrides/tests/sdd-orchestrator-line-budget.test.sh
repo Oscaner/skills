@@ -115,7 +115,7 @@ grep -qF 'scoped re-review' <<<"$D6" \
 grep -qF 'fix agent' <<<"$D6" \
   || { echo "FAIL: D6 missing single fix agent"; exit 1; }
 
-# AC#2 — 不破坏既有语义规则标题（os-executing-plans 编排器控制器 Rules 1-8）
+# AC#2 — 不破坏既有语义规则标题（os-executing-plans 编排器控制器语义规则集）
 for r in '### Rule: Read Upstream' '### Rule: Mode Selection' '### Rule: Task Complexity' '### Rule: Confirm Once' '### Rule: Fix Loop' '### Rule: Per-Task Review' '### Rule: Quality Invariants' '### Rule: D6 Aggregation' '### Rule: Ledger'; do
   grep -qF "$r" "$OS_EXEC" \
     || { echo "FAIL: os-executing-plans rule heading lost: $r"; exit 1; }

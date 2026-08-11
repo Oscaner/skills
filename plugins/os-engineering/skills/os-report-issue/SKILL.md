@@ -1,6 +1,6 @@
 ---
 name: os-report-issue
-description: 分析当前 spor/os 会话的 bug 与增强机会，经 gh CLI 对 Oscaner/skills 提 GitHub issue。repo 开发工具，非常规工作流技能。
+description: 分析当前 spor/os 会话的 bug 与增强机会，经 gh CLI 对 Oscaner/skills 提 GitHub issue（spor-report-issue 规则迁移于此）。repo 开发工具，非常规工作流技能。
 ---
 
 # OS Report Issue

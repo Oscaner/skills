@@ -53,7 +53,7 @@ flowchart LR
 | Plan | `spor-writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
 | Build | `spor-subagent-driven-development` | Complexity-based review rounds; implementers delegate to `tdd` |
 | Build | `spor-executing-plans` | Plan execution; redirects to SDD when subagents available; per-task commits |
-| Build | `spor-test-driven-development` | Confirms seams with user; delegates loop to mattpocock `tdd` |
+| Build | `spor-test-driven-development` | Seam confirmation gate lives in templates/cdd/implement.md; delegates loop to mattpocock `tdd` |
 | Build | `spor-systematic-debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
 | Ship | `spor-verification-before-completion` | No completion claims without verification evidence |
 | Ship | `spor-finishing-a-development-branch` | Branch finish / PR; no worktrees; conventional commits |

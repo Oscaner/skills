@@ -14,7 +14,7 @@ Pass 1 独立先跑。零发现 + 明确扫描清单 → 后续 pass 跳过；�
 
 ### Rule: D3 Findings-Only Output
 
-评审 prompt 必须要求 findings-only（无总结、无正面评论）。输出 schema：`{findings: [{lens, severity, section, line?, summary, fix, deferred?}]}`。空数组 = approve。
+评审 prompt 必须要求 findings-only（无总结、无正面评论）。输出 schema：`{findings: [{lens, severity, section|file, line?, summary, fix, deferred?}]}`。空数组 = approve。
 
 **Severity 行为锚点：**
 - `blocker` — 合并前必须修复（正确性 / 契约违反）

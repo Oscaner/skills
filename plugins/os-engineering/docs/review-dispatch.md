@@ -1,0 +1,22 @@
+# Review Dispatch
+
+跨切面参考：多 pass 评审的派发纪律（D1/D2/D3）。被 os-brainstorming / os-writing-plans 的评审 passes 规则引用。
+
+## Rules
+
+### Rule: D1 Escalate-on-Finding
+
+Pass 1 独立先跑。零发现 + 明确扫描清单 → 后续 pass 跳过；否则修复后并发跑后续 pass。
+
+### Rule: D2 Delta Review
+
+中间 pass 只收前一 pass 修复后的变更部分；最终 pass 收全文（全局一致性检查需要跨节可见）。
+
+### Rule: D3 Findings-Only Output
+
+评审 prompt 必须要求 findings-only（无总结、无正面评论）。输出 schema：`{findings: [{lens, severity, section, line?, summary, fix, deferred?}]}`。空数组 = approve。
+
+**Severity 行为锚点：**
+- `blocker` — 合并前必须修复（正确性 / 契约违反）
+- `warn`/`nit` — 可延期 minor，**必须无条件带 `deferred: true`**
+- warn/nit → 结果 `APPROVED` + deferred: true；blocker → `CHANGES_REQUESTED`（不空转 APPROVED）

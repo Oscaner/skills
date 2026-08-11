@@ -34,7 +34,7 @@ spec+plan 完备 → 最便宜 implementer 层级；首次派发前确认一次�
 
 ### Rule: Per-Task Review
 
-每任务评审门：读 handoff.json 驱动（plan_conflicts → STOP；CHANGES_REQUESTED → Fix Loop；NEEDS_CONTEXT/unverifiable → STOP）。cli 模式 worker review 在 CLI 子进程内；in-session/subagent 模式评审门在会话内。
+每任务评审门：读 handoff.json 驱动（plan_conflicts → STOP；CHANGES_REQUESTED → Fix Loop；NEEDS_CONTEXT/unverifiable → STOP）。cli 模式 worker review 在 CLI 子进程内；in-session/subagent 模式评审门在会话内。纪律见 [controller-handoff.md](../../docs/controller-handoff.md) H1–H5。
 
 ### Rule: Quality Invariants
 
@@ -43,9 +43,26 @@ spec+plan 完备 → 最便宜 implementer 层级；首次派发前确认一次�
 3. unverifiable[] 非空 → BLOCKED
 4. handoff NEEDS_CONTEXT → STOP
 
+### Rule: Orchestrator Checklist
+
+编排器每计划一次的三阶段循环（三模式共用骨架；cli 模式差异见 Per-task 括号）：
+
+**Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task。
+
+**Per-task:** Rule: Task Complexity 分类 → Rule: Confirm Once → append `TASK_BASE: <sha>` to brief → 执行链（cli 模式 shell H6 chain：implement → review → fix per Rule: Fix Loop；in-session/subagent 模式会话内实现 + 评审）→ Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger。cli 模式 **Never** edit repo deliverables in this session — H6 CLI only。
+
+**Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`。
+
 ### Rule: D6 Aggregation
 
-全任务 APPROVED 后聚合 deferred → 用户决策（全部 defer / 点名修）→ 有界一次 final fix 波 + scoped re-review。
+全任务 APPROVED 后聚合 deferred（grep `deferred` 子串，含 no-jq 降级行 `deferred not enumerated — jq missing`）→ **呈现给用户** → **用户决策门**（全部 defer / 点名修）→ 要修则**有界 final fix 波（一次）**：一个 fix agent + scoped re-review。
+
+End semantics:
+- re-review clean → 结束，handoff `status` 保持 `APPROVED`（**不重写**），ledger 保留 complete 行（可追加一行记 K 项已修）
+- 暴露新 blocker → 仍一轮 fix 波，然后 **unconditionally report to the user**（clean 与否）—— **no cross-task fix loop**；剩余项不静默丢弃，report 结束
+- **round cap 5 仅适用单任务 fix loop，不适用跨任务 final fix 波**
+
+Mode B：用户 run 结束后自行读 ledger 聚合 deferred；shell 端无额外 end-of-run print。
 
 ### Rule: Ledger
 

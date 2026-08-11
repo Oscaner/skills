@@ -78,14 +78,14 @@ Precedence is enforced by **three coordinated mechanisms**, not one:
 2. **Plugin-bundled hooks** in `plugins/superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `plugins/superpowers-overrides/bin/override-prompt-expansion.sh` injects `additionalContext`, reinforcing the override as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
 3. **Project-level CLAUDE.md self-check** — written by `spor-init`. Run `/spor-init` once per project (Claude Code: `/superpowers-overrides:spor-init`) to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
 
-## Cross-cutting skills
+## Cross-cutting docs
 
-Two skills in `superpowers-overrides` are **not** overrides — they hold invariants that multiple overrides cite instead of duplicating. Neither has a slash command; they are invoked by reference from `Rule N` lines inside the overrides. Editing them propagates to every override that cites them.
+Two cross-cutting reference docs in `os-engineering/docs/` hold invariants that multiple os-* skills cite instead of duplicating. Neither is a slash command; they are invoked by reference from `Rule:` lines inside the os-* skills. Editing them propagates to every skill that cites them.
 
-- [plugins/superpowers-overrides/skills/spor-subagent-lifecycle/SKILL.md](plugins/superpowers-overrides/skills/spor-subagent-lifecycle/SKILL.md) — **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review override's review-pass rule. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
-- [plugins/superpowers-overrides/skills/spor-token-efficient-review-dispatch/SKILL.md](plugins/superpowers-overrides/skills/spor-token-efficient-review-dispatch/SKILL.md) — **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review override's review-pass rule. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
+- [plugins/os-engineering/docs/subagent-lifecycle.md](plugins/os-engineering/docs/subagent-lifecycle.md) — **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review-pass rule in the os-* skills. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
+- [plugins/os-engineering/docs/review-dispatch.md](plugins/os-engineering/docs/review-dispatch.md) — **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review-pass rule in the os-* skills. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
 
-When editing any override that dispatches review passes, cite these skills rather than paraphrasing them — paraphrases drift; citations don't. When adding a new invariant that applies to multiple overrides, add a new rule to the appropriate cross-cutting skill and cite it, don't inline it across the overrides.
+When editing any os-* skill that dispatches review passes, cite these docs rather than paraphrasing them — paraphrases drift; citations don't. When adding a new invariant that applies to multiple os-* skills, add a new rule to the appropriate cross-cutting doc and cite it, don't inline it across the skills.
 
 ## `docs/superpowers/` conventions
 

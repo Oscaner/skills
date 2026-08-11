@@ -18,5 +18,6 @@ Pass 1 独立先跑。零发现 + 明确扫描清单 → 后续 pass 跳过；�
 
 **Severity 行为锚点：**
 - `blocker` — 合并前必须修复（正确性 / 契约违反）
-- `warn`/`nit` — 可延期 minor，**必须无条件带 `deferred: true`**
-- warn/nit → 结果 `APPROVED` + deferred: true；blocker → `CHANGES_REQUESTED`（不空转 APPROVED）
+- `warn` — 可延期的 minor（真实问题但非阻塞）
+- `nit` — 纯风格
+- warn/nit 不进 fix loop——handoff 记 `APPROVED` + `deferred: true`；blocker → `CHANGES_REQUESTED`

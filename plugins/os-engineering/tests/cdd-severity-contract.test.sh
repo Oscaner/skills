@@ -12,8 +12,8 @@ set -euo pipefail
 #   bin/lib/cdd-common.sh                          _append_ledger deferred roll-up + no-jq
 #   templates/cdd/review.md                    severity-aware status decision
 #   templates/cdd/fix.md                       open-findings blocker-only
-#   ../superpowers-overrides/skills/spor-token-efficient-review-dispatch/SKILL.md   D3 anchors + result anchor
-#   ../superpowers-overrides/skills/spor-subagent-driven-development/SKILL.md       Rule 8 D6 end semantics
+#   docs/review-dispatch.md                     D3 anchors + result anchor (migrated from the deleted override skill)
+#   skills/os-executing-plans/SKILL.md          Rule: D6 Aggregation end semantics (host)
 #
 # fail() is intentionally NOT sourced from the gate test lib — this test is
 # standalone (no fixture isolation needed; it greps the committed tree).
@@ -65,8 +65,8 @@ CDD_COMMON="$ROOT/bin/lib/cdd-common.sh"
 REVIEW="$ROOT/templates/cdd/review.md"
 FIX="$ROOT/templates/cdd/fix.md"
 OVERRIDES="$ROOT/../superpowers-overrides"
-DISPATCH="$OVERRIDES/skills/spor-token-efficient-review-dispatch/SKILL.md"
-CDD_SKILL="$OVERRIDES/skills/spor-subagent-driven-development/SKILL.md"
+DISPATCH="$ROOT/docs/review-dispatch.md"
+CDD_SKILL="$ROOT/skills/os-executing-plans/SKILL.md"
 
 echo "== 1. _handoff-write-fragment.md (review status step + fix/review deferred preserve) =="
 # mapping wording is the new review step 6 (any blocker → CHANGES_REQUESTED), NOT the
@@ -100,21 +100,21 @@ echo "== 5. fix.md (deferred + open-findings blocker-only) =="
 assert_grep 'deferred' "$FIX" "fix segment deferred"
 assert_grep 'open-findings 只含 blocker' "$FIX" "open-findings blocker-only wording"
 
-echo "== 6. spor-token-efficient-review-dispatch D3 (behavior anchors, not bare severities) =="
-assert_section_grep "$DISPATCH" '### D3 — Findings-only output' 'deferred: true' "D3 deferred field"
-assert_section_grep "$DISPATCH" '### D3 — Findings-only output' '合并前必须修复' "D3 blocker behavior anchor"
-assert_section_grep "$DISPATCH" '### D3 — Findings-only output' 'APPROVED.*deferred: true' "D3 result anchor (warn/nit → APPROVED+deferred)"
+echo "== 6. os-engineering/docs/review-dispatch.md D3 (behavior anchors, not bare severities) =="
+assert_section_grep "$DISPATCH" '### Rule: D3 Findings-Only Output' 'deferred: true' "D3 deferred field"
+assert_section_grep "$DISPATCH" '### Rule: D3 Findings-Only Output' '合并前必须修复' "D3 blocker behavior anchor"
+assert_section_grep "$DISPATCH" '### Rule: D3 Findings-Only Output' 'APPROVED.*deferred: true' "D3 result anchor (warn/nit → APPROVED+deferred)"
 
 echo "== 7. _handoff-write-fragment.md review segment (deferred + blocker-only) =="
 assert_section_grep "$FRAGMENT" '### Segment: review' 'deferred: true' "review parsing keeps deferred"
 assert_section_grep "$FRAGMENT" '### Segment: review' 'non-deferred = blocker findings only' "review segment blocker-only open-findings"
 
-echo "== 8. spor-subagent-driven-development Rule 8 (D6 end semantics) =="
-assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' 'deferred' "final aggregation deferred"
-assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' '有界 final fix 波' "bounded-once final fix wave"
-assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' '不重写' "handoff stays APPROVED (no rewrite)"
-assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' 'unconditionally report to the user' "unconditional user report"
-assert_section_grep "$CDD_SKILL" '### Rule 8 — 终盘聚合' 'no cross-task fix loop' "no cross-task fix loop"
+echo "== 8. os-executing-plans Rule: D6 Aggregation (D6 end semantics) =="
+assert_section_grep "$CDD_SKILL" '### Rule: D6 Aggregation' 'deferred' "final aggregation deferred"
+assert_section_grep "$CDD_SKILL" '### Rule: D6 Aggregation' '有界 final fix 波' "bounded-once final fix wave"
+assert_section_grep "$CDD_SKILL" '### Rule: D6 Aggregation' '不重写' "handoff stays APPROVED (no rewrite)"
+assert_section_grep "$CDD_SKILL" '### Rule: D6 Aggregation' 'unconditionally report to the user' "unconditional user report"
+assert_section_grep "$CDD_SKILL" '### Rule: D6 Aggregation' 'no cross-task fix loop' "no cross-task fix loop"
 
 echo "== 9. result anchors (warn/nit → APPROVED + deferred; never → CHANGES_REQUESTED) =="
 assert_grep 'deferred.*APPROVED' "$SCHEMA" "mapping row: warn/nit(deferred) → APPROVED"

@@ -59,8 +59,6 @@ flowchart LR
 | Ship | `spor-finishing-a-development-branch` | 分支收尾 / PR；禁止 worktree；conventional commits |
 | Ship | `spor-receiving-code-review` | 不清楚的反馈 → `grilling`；fix → `tdd`（不在图中——常在 build 中或 ship 前） |
 | Policy | `spor-using-git-worktrees` | 拒绝创建 worktree（用户策略） |
-| Cross-cutting | `spor-subagent-lifecycle` | 每 pass 全新 subagent；并发规则（被引用，无 slash） |
-| Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3/D4 review dispatch（被引用，无 slash） |
 | Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator 文件-only handoff（被引用，无 slash） |
 | Cross-cutting | `spor-handoff-writer` | handoff.json schema reference doc（handoff 写入已内联，不再独立 dispatch） |
 

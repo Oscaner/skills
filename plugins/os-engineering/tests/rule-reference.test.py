@@ -53,8 +53,6 @@ SCOPED_TARGET = {"SDD": SPOR_SDD, "spor-SDD": SPOR_SDD}
 ALLOWLIST_NUM = {
     # finishing-branch:27 references `executing-plans Rule 4` (pre-existing; neither override defines Rule 4) — external, unvalidated
     "spor-finishing-a-development-branch": {"4": ("upstream", None)},
-    "spor-executing-plans": {"5b": ("cross-file", "spor-sdd-p0-fallback")},
-    "spor-sdd-p0-fallback": {"0": ("cross-file", SPOR_SDD)},
 }
 
 # --- semantic mode (os-engineering) ---

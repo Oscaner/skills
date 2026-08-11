@@ -67,6 +67,7 @@ FIX="$ROOT/templates/cdd/fix.md"
 OVERRIDES="$ROOT/../superpowers-overrides"
 DISPATCH="$ROOT/docs/review-dispatch.md"
 CDD_SKILL="$ROOT/skills/os-executing-plans/SKILL.md"
+IMPLEMENT="$ROOT/templates/cdd/implement.md"
 
 echo "== 1. _handoff-write-fragment.md (review status step + fix/review deferred preserve) =="
 # mapping wording is the new review step 6 (any blocker → CHANGES_REQUESTED), NOT the
@@ -119,5 +120,17 @@ assert_section_grep "$CDD_SKILL" '### Rule: D6 Aggregation' 'no cross-task fix l
 echo "== 9. result anchors (warn/nit → APPROVED + deferred; never → CHANGES_REQUESTED) =="
 assert_grep 'deferred.*APPROVED' "$SCHEMA" "mapping row: warn/nit(deferred) → APPROVED"
 assert_grep 'APPROVED.*deferred: true' "$DISPATCH" "D3: handoff records APPROVED + deferred: true"
+
+echo "== 10. implement.md seam gate (Confirm seams first + step numbering continuity) =="
+# the seam gate lives in the implement template (orchestrator-confirmed seams land in
+# the brief as CONFIRMED_SEAMS; the implementer applies them before tdd). Grep is chosen
+# so the pre-seam-gate wording (no seam step at all) cannot match.
+assert_grep 'Confirm seams first' "$IMPLEMENT" "implement template seam gate"
+# instruction numbering under ## Instructions must be 1,2,...,N with no gaps — a seam
+# step inserted between existing steps must renumber the tail, not leave holes.
+steps="$(section "$IMPLEMENT" '## Instructions' | awk '/^[0-9]+\. /{match($0, /^[0-9]+/); print substr($0, RSTART, RLENGTH)}')"
+expected="$(seq 1 "$(printf '%s\n' "$steps" | wc -l | tr -d ' ')")"
+[ "$steps" = "$expected" ] || fail "implement.md instruction steps not continuous (got: $steps, want: $expected)"
+ASSERT_COUNT=$((ASSERT_COUNT + 1))
 
 echo "OK — cdd-severity-contract ($ASSERT_COUNT assertions)"

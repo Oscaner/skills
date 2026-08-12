@@ -11,13 +11,13 @@ description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:br
 
 ### Rule: Read Upstream
 
-解析上游 `superpowers:brainstorming` 的 SKILL.md 路径，统一优先级（`{plugin-root}` = 本插件 os-engineering 根）：
+Read 上游 `superpowers:brainstorming` 的 SKILL.md 作为流程基线 **当可用时**（claude / cursor 装有 superpowers 插件）。**Read 而非 Skill-invoke**（Skill-invoke 会触发路由器拦截）。
 
-1. **in-harness 副本优先**：`{plugin-root}/.agents/skills/superpowers/brainstorming/SKILL.md`（os-engineering 多 harness 发射的共享副本；`.cursor/.gemini/.../skills/superpowers/<slug>/SKILL.md` 等 per-harness 副本存在时同优先级）
-2. **回退兄弟插件根**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`
-3. **回退同仓库相对路径**：`<repo-root>/plugins/superpowers/skills/brainstorming/SKILL.md`
+解析路径（`{plugin-root}` = 本插件 os-engineering 根）：
+1. **兄弟插件根**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同理）
+2. **回退同仓库相对路径**：`<repo-root>/plugins/superpowers/skills/brainstorming/SKILL.md`
 
-三处皆无 → 报错 + 提示解析路径。Read 解析出的 `brainstorming/SKILL.md` 作为流程基线。**Read 而非 Skill-invoke**（Skill-invoke 会触发路由器拦截）。
+上游不可用（非 claude harness / 未装 superpowers 插件）→ **不报错**：以本技能自身 Rules 为完整流程直接执行。本技能自身 Rules 是承重流程，Read 上游只是增强。
 
 ### Rule: Read Sub-Skills
 

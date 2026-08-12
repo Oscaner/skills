@@ -18,7 +18,7 @@
 
 - **终态边界**：superpowers-overrides = 触发路由器（plugin-root，claude+cursor，**无技能体**）；os-engineering = 技能 + 引擎 + gate + 全 harness emit
 - 多 harness 发射仿 impeccable 模式（build.js + PROVIDERS，per-harness 副本）
-- os-\* Read 上游 superpowers → 每 harness 连带就位上游技能
+- os-\* Read 上游 superpowers **当可用时**（claude/cursor 带 superpowers 插件）；不可用则以自身 Rules 为完整流程 —— **不 vendor 上游**（决策 B）
 - `pnpm run validate` 每任务后 ALL PASS；零 sdd 残留（既有 5c）
 - 提交信息 conventional commits，无 attribution
 
@@ -82,7 +82,7 @@ superpowers-overrides/            os-engineering/
   - `.kimi-plugin/plugin.json`（kimi，含 sessionStart + 工具映射散文）
   - `package.json` `pi` key（`pi: {skills: ["./skills"]}`，纯 skills 包，无 runtime 扩展）
   - `gemini-extension.json` + `GEMINI.md`（@-导入 skills/）
-- `.agents/skills/` 共享副本（codex/gemini/pi/qoder/opencode/copilot 等扫描）
+- `.agents/skills/` 共享副本（**仅 os-engineering skills**；codex/gemini/pi/qoder/opencode/copilot 等扫描；不 vendor 上游 superpowers）
 - overrides 路由器 hooks（UserPromptExpansion）+ 自检表 + os-engineering PreToolUse hooks
 - **版本同步**（仿 superpowers `.version-bump.json`：一个工具同步所有 manifest 的 version）
 - **丢弃 rovo/vibe/kiro**（无原生安装器）
@@ -91,7 +91,7 @@ superpowers-overrides/            os-engineering/
 
 **B5. os-\* 技能内容**（多 harness 解析适配）：
 
-- `{superpowers-plugin-root}` 解析器统一：**兄弟插件根优先**（claude `$CLAUDE_PLUGIN_ROOT/../superpowers`），回退同仓库相对路径（`.agents/skills/superpowers` / `plugins/superpowers`）。单一优先级。
+- `{superpowers-plugin-root}` 解析器统一：**Read upstream 当可用时**（claude `$CLAUDE_PLUGIN_ROOT/../superpowers`，回退 `<repo-root>/plugins/superpowers`）；**不可用（非 claude harness 无 superpowers）→ 以 os-* 自身 Rules 为完整流程**，不报错。
 - **非 claude+cursor harness 的触发**：统一 emit 写 per-harness self-check/README（GEMINI.md / AGENTS.md / .pi/SYSTEM.md 等），指引**直接调用 os-\***（不经上游 slash 拦截——路由器 hooks 只存在于 claude+cursor）。文档同步说明。
 
 #### C. 文档
@@ -104,7 +104,7 @@ superpowers-overrides/            os-engineering/
 ```
 /brainstorming → overrides UserPromptExpansion hook → expansion 注入「MUST invoke os-engineering:os-brainstorming」
   → agent 调 Skill(os-engineering:os-brainstorming)
-  → Rule: Read Upstream 解析 {superpowers-plugin-root}（每 harness）→ Read 上游 → 个人规则
+  → Rule: Read Upstream（当可用时 Read 上游 → 个人规则；不可用则以自身 Rules 为完整流程）
 ```
 
 ### 错误处理
@@ -112,7 +112,7 @@ superpowers-overrides/            os-engineering/
 | 场景 | 行为 |
 |------|------|
 | manifest 目标技能不存在 | expansion 报错 + 列出缺失 |
-| 上游 superpowers 未就位某 harness | os-\* Read Upstream 报错 + 提示 emit 或解析路径 |
+| 上游 superpowers 未就位某 harness | 非报错：os-\* 以自身 Rules 为完整流程（Read upstream 是增强非依赖） |
 | 非 marketplace harness 触发 | 自检表/文档指引手动复制 |
 
 ### 测试
@@ -153,6 +153,7 @@ superpowers-overrides/            os-engineering/
   - 重运行时产物：opencode runtime 插件 / pi TS 扩展（os-engineering 纯 markdown 目前不需要）
   - Trae 原生 extension（格式待研）
 - **统一 emit 工具是单一路径**：source.json 单一配置，一个 `pnpm run emit`（含 `--check` CI freshness + 版本同步）生成 first-party 全部产物
+- **决策 B（P3 内）**：os-engineering **不 vendor 上游 superpowers** —— `.agents/skills/` 只含 os-engineering skills（不再整目录复制 `plugins/superpowers/skills/`）。os-\* Rule: Read Upstream 改为 **when-available**：claude/cursor 带 superpowers 插件 → Read 上游作基线；非 claude harness 无 superpowers → 以自身 Rules 为完整流程，不报错。os-\* 自身 Rules 是承重流程。
 - **研究参考**：`docs/research/2026-08-10-harness-marketplace-hooks.md` + superpowers 插件结构（canonical skills/ + 薄 manifest 指向）
 
 ## §5 Review

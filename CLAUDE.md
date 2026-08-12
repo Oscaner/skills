@@ -195,7 +195,7 @@ pnpm run emit:check        # scripts/emit.mjs --check — drift → exit 1
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 
-**Note:** on a fresh clone, run `git submodule update --init` before `emit --check` — the emitter copies `plugins/superpowers/skills` into the shared `.agents/skills/superpowers` tree, so an uninitialized `superpowers` submodule makes the committed copy look stale and flags the check.
+**Note:** on a fresh clone, run `git submodule update --init` before `emit --check` — `emit`/validate resolve the `superpowers` submodule for version sync (`marketplace-utils.mjs` / `validate-version-sync.mjs`). The emitter does **not** copy upstream skills into `.agents/skills/` (os-engineering skills only; os-* Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
 
 **6–9. Full local CI (recommended):**
 ```bash

@@ -11,7 +11,7 @@ description: 独立完成前验证编排器 —— Read 上游 superpowers:verif
 
 ### Rule: Read Upstream
 
-解析上游 `verification-before-completion` 的 SKILL.md 路径（同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream) 的解析优先级 + 报错子句），Read 解析出的 `verification-before-completion/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
+Read 上游 `superpowers:verification-before-completion` 的 SKILL.md 作为流程基线 **当可用时**（解析优先级 + 不可用回退同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)）。**Read 而非 Skill-invoke**。
 
 ### Rule: Pre-Claim Gate
 

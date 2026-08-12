@@ -11,9 +11,9 @@ description: 独立执行计划总编排器 —— 用户选择执行模式（in
 
 ### Rule: Read Upstream
 
-按用户所选模式解析上游（解析优先级同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)）：
-- **in-session** → 解析 `executing-plans` 的 SKILL.md 路径，Read 作为基线
-- **subagent** → 解析 `subagent-driven-development` 的 SKILL.md 路径，Read 作为基线
+按用户所选模式解析上游（解析优先级 + 不可用回退同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)）：
+- **in-session** → 解析 `executing-plans` 的 SKILL.md 路径，Read 作为基线（当可用时）
+- **subagent** → 解析 `subagent-driven-development` 的 SKILL.md 路径，Read 作为基线（当可用时）
 - **cli** → [cli-driven-development](../cli-driven-development/SKILL.md)（Skill-invoke 委托，不 Read 上游）
 
 ### Rule: Mode Selection

@@ -16,7 +16,7 @@
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
  *      pi      → `package.json#pi` (verified/ensured)
- *      shared  → `.agents/skills/` copy (os-engineering + upstream superpowers)
+ *      shared  → `.agents/skills/` copy (os-engineering only — no vendored upstream)
  *    plus the overrides hooks/self-check tables and os-engineering PreToolUse
  *    hooks, and version consistency per `plugins/os-engineering/.version-bump.json`.
  *
@@ -200,12 +200,15 @@ function emitOsEngineering(outRoot, plugin) {
   ensurePiKey(root, plugin);
 }
 
-/** Shared `.agents/skills/` copy for codex/gemini/pi/qoder/opencode scanners. */
+/**
+ * Shared `.agents/skills/` copy for codex/gemini/pi/qoder/opencode scanners.
+ * Contains ONLY the os-engineering skills namespace — upstream superpowers
+ * skills are NOT vendored (os-* Read Upstream is a when-available enhancement).
+ */
 function emitAgentsSkillsCopy(outRoot, contentRoot) {
   const outAgents = join(outRoot, contentRoot, ".agents", "skills");
   const namespaces = [
     ["os-engineering", join(root, "plugins/os-engineering/skills")],
-    ["superpowers", join(root, "plugins/superpowers/skills")],
   ];
   // Prune stale namespace dirs (deleted source, or a namespace no longer
   // emitted) before re-copying, so a skill removed from skills/ can't linger

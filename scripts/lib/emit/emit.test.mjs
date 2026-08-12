@@ -10,6 +10,9 @@ import {
   geminiMarkdown,
   piPackageKey,
   generatedBanner,
+  FIRST_PARTY_NAMES,
+  osEngineeringClaudeHooks,
+  osEngineeringCursorHooks,
 } from "./manifests.mjs";
 import {
   loadTargets,
@@ -121,6 +124,41 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted", () => {
 
 test("piPackageKey is a pure skills package (no runtime extensions)", () => {
   assert.deepEqual(piPackageKey(), { skills: ["./skills"] });
+});
+
+test("FIRST_PARTY_NAMES covers both per-harness emit plugins", () => {
+  assert.deepEqual(FIRST_PARTY_NAMES, [
+    "superpowers-overrides",
+    "os-engineering",
+  ]);
+  assert.ok(
+    FIRST_PARTY_NAMES.includes("os-engineering"),
+    "os-engineering receives the per-harness emit (incl. gate hooks)",
+  );
+});
+
+test("osEngineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
+  const hooks = osEngineeringClaudeHooks();
+  const pre = hooks.hooks.PreToolUse;
+  assert.equal(pre.length, 2);
+  assert.equal(pre[0].matcher, "Write|Edit");
+  assert.equal(pre[1].matcher, "Bash");
+  for (const e of pre) {
+    assert.equal(e.hooks.length, 1);
+    assert.equal(e.hooks[0].type, "command");
+    assert.equal(
+      e.hooks[0].command,
+      "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+    );
+  }
+});
+
+test("osEngineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
+  const hooks = osEngineeringCursorHooks();
+  assert.equal(hooks.version, 1);
+  assert.deepEqual(hooks.hooks.preToolUse, [
+    { command: "./bin/override-cursor-cdd-gate.sh" },
+  ]);
 });
 
 // ---------------------------------------------------------------------------

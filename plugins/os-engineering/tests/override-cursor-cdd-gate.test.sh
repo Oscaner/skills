@@ -6,9 +6,9 @@ ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 OS_ENG="$ROOT"
 
-# 隔离 fixture + per-run session 命名：共享 sdd-gate-test-lib.sh（见该文件头注释）。
-# shellcheck source=tests/sdd-gate-test-lib.sh
-source "$ROOT/tests/sdd-gate-test-lib.sh"
+# 隔离 fixture + per-run session 命名：共享 cdd-gate-test-lib.sh（见该文件头注释）。
+# shellcheck source=tests/cdd-gate-test-lib.sh
+source "$ROOT/tests/cdd-gate-test-lib.sh"
 
 # AC#3 minimal pending — active-ws 已含真实 SHA brief（无 APPROVED handoff）→ 扫描命中 task_active。
 # 仓库路径 Write deny + 只读 git allow 在 orchestrating/task_active 下判定一致；

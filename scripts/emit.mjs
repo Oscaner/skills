@@ -21,8 +21,10 @@
  *    hooks, and version consistency per `plugins/os-engineering/.version-bump.json`.
  *
  * `--check` mode generates into a temp tree and diffs every produced path
- * against the on-disk tree (drift → exit 1). CI runs `pnpm run emit` before
- * `--check`, so gitignored emit products exist on disk for the comparison.
+ * against the on-disk tree (drift → exit 1). Emit products are committed (see
+ * .gitignore — none of them are ignored), so a fresh clone has them for the
+ * comparison; CI runs `pnpm run emit` before `--check` to materialize any
+ * newly-added product before diffing.
  */
 
 import {
@@ -60,6 +62,8 @@ import {
   geminiExtension,
   geminiMarkdown,
   piPackageKey,
+  osEngineeringClaudeHooks,
+  osEngineeringCursorHooks,
 } from "./lib/emit/manifests.mjs";
 import {
   loadTargets,
@@ -98,44 +102,6 @@ function readJson(rel) {
 // ---------------------------------------------------------------------------
 // os-engineering
 // ---------------------------------------------------------------------------
-
-/** os-engineering Claude PreToolUse hooks (gate on Write|Edit|Bash). */
-function osEngineeringClaudeHooks() {
-  return {
-    hooks: {
-      PreToolUse: [
-        {
-          matcher: "Write|Edit",
-          hooks: [
-            {
-              type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
-            },
-          ],
-        },
-        {
-          matcher: "Bash",
-          hooks: [
-            {
-              type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
-            },
-          ],
-        },
-      ],
-    },
-  };
-}
-
-/** os-engineering Cursor preToolUse hook (cdd gate). */
-function osEngineeringCursorHooks() {
-  return {
-    version: 1,
-    hooks: {
-      preToolUse: [{ command: "./bin/override-cursor-cdd-gate.sh" }],
-    },
-  };
-}
 
 function emitOsEngineering(outRoot, plugin) {
   const version = resolveVersion(root, plugin).version;
@@ -206,9 +172,25 @@ function emitAgentsSkillsCopy(outRoot, contentRoot) {
     ["os-engineering", join(root, "plugins/os-engineering/skills")],
     ["superpowers", join(root, "plugins/superpowers/skills")],
   ];
+  // Prune stale namespace dirs (deleted source, or a namespace no longer
+  // emitted) before re-copying, so a skill removed from skills/ can't linger
+  // in the committed .agents/skills/ tree and escape the --check diff.
+  if (existsSync(outAgents)) {
+    for (const entry of readdirSync(outAgents, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const src = namespaces.find(([ns]) => ns === entry.name)?.[1];
+      if (!src || !existsSync(src)) {
+        rmSync(join(outAgents, entry.name), { recursive: true, force: true });
+      }
+    }
+  }
+  // Re-copy each namespace from source so deletions inside a skill dir also
+  // disappear (cpSync alone merges and would leave stale files behind).
   for (const [ns, sourceRoot] of namespaces) {
     if (!existsSync(sourceRoot)) continue;
-    cpSync(sourceRoot, join(outAgents, ns), { recursive: true });
+    const dest = join(outAgents, ns);
+    rmSync(dest, { recursive: true, force: true });
+    cpSync(sourceRoot, dest, { recursive: true });
   }
   collectTree(outAgents, `${contentRoot}/.agents/skills`);
 }
@@ -374,7 +356,7 @@ function assertVersionBump() {
   const pkgVersion = readJson("plugins/os-engineering/package.json").version;
   for (const f of bump.files) {
     const abs = join(root, plugin, f.path);
-    if (!existsSync(abs)) continue; // gitignored emit product — checked via --check diff
+    if (!existsSync(abs)) continue; // not materialized on disk — checked via --check diff
     const doc = JSON.parse(readFileSync(abs, "utf8"));
     const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
     if (val !== pkgVersion) {

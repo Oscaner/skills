@@ -2,9 +2,10 @@
 #   develop accumulates .changeset/*.md → develop→main PR → push main
 #   → changesets/action opens Version PR (target main); hasChangesets=true → tag/Release/sync skipped
 #   → merge Version PR → push main again; hasChangesets=false → publish mode
-#   → per-plugin matrix job pushes git tag (skipped if already released) + GitHub Release
-#     for each of superpowers-overrides (superpowers-relative scheme) and
-#     os-engineering (independent semver) → sync PR
+#   → per-plugin matrix job pushes git tag + GitHub Release only for plugins that
+#     were actually versioned (recorded in .changeset/versioned-plugins.json by
+#     version-packages.mjs); plugins with no changesets are skipped — no phantom
+#     baseline tag/release → sync PR
 name: Release
 
 on:
@@ -64,6 +65,16 @@ jobs:
       - name: Read plugin version
         id: ver
         run: echo "version=$(node -p "require('./plugins/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Check plugin was versioned in this release
+        id: versioned
+        run: |
+          if [ ! -f .changeset/versioned-plugins.json ]; then
+            echo "versioned=false" >> "$GITHUB_OUTPUT"
+          elif jq -e --arg p "${{ matrix.name }}" '.[] | select(. == $p)' .changeset/versioned-plugins.json >/dev/null 2>&1; then
+            echo "versioned=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "versioned=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Check tag already exists
         id: tag-exists
         run: |
@@ -73,14 +84,14 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Create local tag
-        if: steps.tag-exists.outputs.exists != 'true'
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true'
         run: git tag "${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}"
       - name: Push git tag
-        if: steps.tag-exists.outputs.exists != 'true'
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true'
         run: git push origin "${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}"
       - name: Check if GitHub Release exists
         id: release-exists
-        if: steps.tag-exists.outputs.exists != 'true'
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true'
         uses: actions/github-script@v9
         with:
           script: |
@@ -93,7 +104,7 @@ jobs:
               core.setOutput('exists', 'false');
             }
       - name: Create GitHub Release if missing
-        if: steps.tag-exists.outputs.exists != 'true' && steps.release-exists.outputs.exists != 'true'
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true' && steps.release-exists.outputs.exists != 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}

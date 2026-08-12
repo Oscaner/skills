@@ -120,6 +120,48 @@ export function piPackageKey() {
   return { skills: ["./skills"] };
 }
 
+/**
+ * os-engineering Claude PreToolUse hooks (cdd gate on Write|Edit|Bash).
+ * Only os-engineering carries the gate — the overrides router plugin ships
+ * no PreToolUse hooks (see `overrides.mjs` claudeHooksJson).
+ */
+export function osEngineeringClaudeHooks() {
+  return {
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Write|Edit",
+          hooks: [
+            {
+              type: "command",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+            },
+          ],
+        },
+        {
+          matcher: "Bash",
+          hooks: [
+            {
+              type: "command",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/** os-engineering Cursor preToolUse hook (cdd gate). */
+export function osEngineeringCursorHooks() {
+  return {
+    version: 1,
+    hooks: {
+      preToolUse: [{ command: "./bin/override-cursor-cdd-gate.sh" }],
+    },
+  };
+}
+
 function codexInterface(plugin) {
   return {
     displayName: plugin.cursor?.displayName ?? plugin.name,

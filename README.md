@@ -36,6 +36,7 @@ Skill mapping and harness setup → [superpowers-overrides README](plugins/super
 /plugin install mattpocock-skills@oscaner
 /plugin install superpowers@oscaner
 /plugin install superpowers-overrides@oscaner
+/plugin install os-engineering@oscaner
 ```
 
 Clone this repo (submodule required for local development):
@@ -48,7 +49,7 @@ git submodule update --init
 
 ## Quick start
 
-1. Install `superpowers`, `superpowers-overrides`, and `mattpocock-skills` from the marketplace.
+1. Install `superpowers`, `superpowers-overrides`, `os-engineering`, and `mattpocock-skills` from the marketplace.
 2. Run **`os-init spor`** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](plugins/superpowers-overrides/README.md#usage).
 3. Invoke the superpowers workflow as you normally would — the router routes to the matching os-engineering / mattpocock target first.
 

@@ -6,9 +6,9 @@ ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 OS_ENG="$ROOT"
 
-# 隔离 fixture + per-run session 命名：共享 sdd-gate-test-lib.sh（见该文件头注释）。
-# shellcheck source=tests/sdd-gate-test-lib.sh
-source "$ROOT/tests/sdd-gate-test-lib.sh"
+# 隔离 fixture + per-run session 命名：共享 cdd-gate-test-lib.sh（见该文件头注释）。
+# shellcheck source=tests/cdd-gate-test-lib.sh
+source "$ROOT/tests/cdd-gate-test-lib.sh"
 
 # active fixture 已含真实 SHA brief（无 APPROVED handoff）→ minimal pending 经 fixture root
 # 扫描激活 task_active（旧测试用 `TASK_BASE: abc`，T2 后 git-object 校验不激活 → 实际是 orchestrating）

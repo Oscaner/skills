@@ -25,7 +25,7 @@ Override skills that reuse upstream skill names work in Claude Code but break in
 
 No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
 
-**CI:** `pnpm run validate:overrides` checks generator drift; `tests/validate-overrides-build.sh` validates the router + os-engineering engine.
+**CI:** `pnpm run emit:check` checks generator drift; `tests/validate-overrides-build.sh` validates the router + os-engineering engine.
 
 Claude Code interception: `Skill(os-engineering:os-brainstorming)` (manifest `name` field).
 

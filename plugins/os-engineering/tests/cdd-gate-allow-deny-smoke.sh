@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# sdd-gate-allow-deny-smoke.sh — full allow/deny decision matrix smoke test.
+# cdd-gate-allow-deny-smoke.sh — full allow/deny decision matrix smoke test.
 #
 # Covers spec §设计 判定矩阵 for the shared cdd-orchestrator-gate.sh state machine,
 # driven through the Claude PreToolUse adapter (override-claude-cdd-gate.sh):
@@ -11,7 +11,7 @@ set -euo pipefail
 #   - deny message is the multi-line allowlist matrix (lists git show etc.)
 #   - task_complete phase re-allows shell + Write (realtime phase, no caching)
 #
-# Fixture isolation: shared sdd-gate-test-lib.sh copies each scenario to a temp
+# Fixture isolation: shared cdd-gate-test-lib.sh copies each scenario to a temp
 # dir, git-inits it, injects the copy's own short-SHA into `<SHA>` briefs, and
 # namespaces session keys per-run — a concurrent run or a live SDD session's
 # pending file is never touched (see finding: global find -delete clobbers).
@@ -22,8 +22,8 @@ ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 OS_ENG="$ROOT"
 
-# shellcheck source=tests/sdd-gate-test-lib.sh
-source "$ROOT/tests/sdd-gate-test-lib.sh"
+# shellcheck source=tests/cdd-gate-test-lib.sh
+source "$ROOT/tests/cdd-gate-test-lib.sh"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
@@ -212,4 +212,4 @@ assert_allow_write "$S6_NOMODE" "$REPO/plugins/foo.txt" "no-mode: write repo pat
 S6_NOPENDING="$(session_key mode-no-pending)"
 assert_allow_write "$S6_NOPENDING" "$REPO/plugins/foo.txt" "no-pending: write repo path allow (fail-open)"
 
-echo "OK — sdd-gate-allow-deny-smoke ($ASSERT_COUNT assertions)"
+echo "OK — cdd-gate-allow-deny-smoke ($ASSERT_COUNT assertions)"

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# sdd-gate-test-lib.sh — shared fixture isolation + session namespacing for the
+# cdd-gate-test-lib.sh — shared fixture isolation + session namespacing for the
 # CDD gate tests (cdd-orchestrator-gate.sh, os-engineering). Sourced by the three
 # gate test scripts (override-claude, override-cursor, allow-deny smoke); do not
 # run standalone.
 #
 # Isolation model (spec §设计 测试 fixture 隔离): every scenario is copied from
-# tests/fixtures/sdd-gate/<scene>/ into a per-run temp dir, the copy is git-init'ed,
+# tests/fixtures/cdd-gate/<scene>/ into a per-run temp dir, the copy is git-init'ed,
 # and briefs carrying the `<SHA>` placeholder get the copy's own short-SHA injected.
 # Tracked fixture files are never modified (P4 anti-pattern).
 #
@@ -15,7 +15,7 @@
 
 # Caller must set ROOT before sourcing. Derive the plugin tree from $ROOT.
 TESTS_DIR="$(cd "$ROOT/tests" && pwd)"
-FIXTURES="$TESTS_DIR/fixtures/sdd-gate"
+FIXTURES="$TESTS_DIR/fixtures/cdd-gate"
 GATE_ROOT="${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-os-engineering/pending-cdd}"
 
 SESSION_TAG="${CDD_GATE_TEST_TAG:-$$}"
@@ -55,7 +55,7 @@ setup_scenario() {
   cp -R "$FIXTURES/$scen/." "$dest/"
   git -C "$dest" init -q
   git -C "$dest" add -A
-  git -C "$dest" -c user.name="sdd-gate-test" -c user.email="sdd-gate-test@example.com" \
+  git -C "$dest" -c user.name="cdd-gate-test" -c user.email="cdd-gate-test@example.com" \
     commit --allow-empty -qm "fixture"
   sha="$(git -C "$dest" rev-parse --short HEAD)"
   while IFS= read -r b; do

@@ -98,7 +98,7 @@ else:
 ./plugins/os-engineering/tests/cdd-severity-contract.test.sh
 python3 plugins/os-engineering/tests/rule-reference.test.py \
   --skills os-engineering/skills:semantic
-./plugins/os-engineering/tests/sdd-gate-allow-deny-smoke.sh
+./plugins/os-engineering/tests/cdd-gate-allow-deny-smoke.sh
 ./plugins/os-engineering/tests/override-claude-cdd-gate.test.sh
 ./plugins/os-engineering/tests/override-cursor-cdd-gate.test.sh
 ./plugins/os-engineering/tests/sdd-orchestrator-line-budget.test.sh

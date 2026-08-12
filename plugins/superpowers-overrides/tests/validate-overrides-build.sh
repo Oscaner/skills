@@ -110,8 +110,35 @@ if [ -d "$ROOT/.cursor/skills" ]; then
 fi
 echo "OK"
 
-echo "== validate trigger patterns =="
-python3 "$ROOT/tests/trigger-patterns.test.py"
+echo "== validate os-init self-check rows mirror manifest targets =="
+python3 -c "
+import json
+from pathlib import Path
+root = Path('$ROOT')
+# The os-init spor payload table (a hand-maintained copy of the trigger->target
+# mapping) must stay in lockstep with overrides.manifest.json targets[]. Every
+# manifest target's upstream slug must resolve to its canonical target name.
+lines = (root / '../os-engineering/skills/os-init/SKILL.md').read_text().splitlines()
+rows = {}
+for line in lines:
+    line = line.strip()
+    if not (line.startswith('| \`') and 'Skill(' in line):
+        continue
+    cells = [c.strip() for c in line.strip('|').split('|')]
+    if len(cells) != 2:
+        continue
+    slug = cells[0].strip().strip('\`').lstrip('/')
+    target = cells[1].strip()[len('Skill('):-1]
+    rows[slug] = target
+manifest = json.loads((root / 'overrides.manifest.json').read_text())
+assert len(rows) >= len(manifest['targets']), f'os-init payload has {len(rows)} rows, manifest has {len(manifest[\"targets\"])}'
+for t in manifest['targets']:
+    slug = t['overrides'].split(':', 1)[1]
+    want = t['name']
+    got = rows.get(slug)
+    assert got == want, f'os-init row /{slug}: Skill({got}) != Skill({want})'
+print('OK')
+"
 
 echo "== validate hooks.json matchers =="
 python3 -c "
@@ -157,7 +184,7 @@ pre = hooks['hooks']['preToolUse']
 assert len(pre) == 1
 assert pre[0]['command'] == './bin/override-cursor-enforce.sh'
 assert 'matcher' not in pre[0]
-assert not any('sdd-gate' in p['command'] for p in pre), 'gate preToolUse moved to os-engineering'
+assert not any('cdd-gate' in p['command'] for p in pre), 'gate preToolUse moved to os-engineering'
 print('OK')
 "
 

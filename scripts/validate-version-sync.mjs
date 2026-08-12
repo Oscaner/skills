@@ -37,8 +37,10 @@ if (sj.version !== srcSp || srcSp !== entrySp) {
 console.log("OK — superpowers", srcSp);
 
 // os-engineering — independent semver. package.json is the SOT; the
-// per-harness manifests are emit products (gitignored, materialized by
-// `pnpm run emit` — run before this check).
+// per-harness manifests are committed emit products, re-stamped by `pnpm run
+// emit` (run before this check). The manifest set is taken from
+// .version-bump.json#files so a newly-added harness manifest can't slip past
+// the equality check.
 const oePkg = readJson("plugins/os-engineering/package.json");
 const oeSrc = s.plugins.find((x) => x.name === "os-engineering");
 const oeEntry = m.plugins.find((x) => x.name === "os-engineering");
@@ -50,23 +52,19 @@ const oeVersions = [oePkg.version, oeSrc.version, oeEntry.version];
 if (new Set(oeVersions).size !== 1) {
   throw new Error(`os-engineering version mismatch: ${oeVersions.join(" ")}`);
 }
-for (const rel of [
-  ".claude-plugin/plugin.json",
-  ".cursor-plugin/plugin.json",
-  ".codex-plugin/plugin.json",
-  ".kimi-plugin/plugin.json",
-  "gemini-extension.json",
-]) {
-  const abs = join(root, "plugins/os-engineering", rel);
+const oeBump = readJson("plugins/os-engineering/.version-bump.json");
+for (const f of oeBump.files) {
+  const abs = join(root, "plugins/os-engineering", f.path);
   if (!existsSync(abs)) {
     throw new Error(
-      `missing generated manifest plugins/os-engineering/${rel} — run pnpm run emit`,
+      `missing generated manifest plugins/os-engineering/${f.path} — run pnpm run emit`,
     );
   }
   const doc = JSON.parse(readFileSync(abs, "utf8"));
-  if (doc.version !== oePkg.version) {
+  const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
+  if (val !== oePkg.version) {
     throw new Error(
-      `os-engineering ${rel} version ${doc.version} != ${oePkg.version} — run pnpm run emit`,
+      `os-engineering ${f.path} ${val} != ${oePkg.version} — run pnpm run emit`,
     );
   }
 }

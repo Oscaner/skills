@@ -24,6 +24,19 @@ const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
 const writeJson = (rel, data) =>
   writeFileSync(join(root, rel), JSON.stringify(data, null, 2) + "\n");
 
+/** Prepend a new release entry under a fixed header, preserving the rest. */
+function prependChangelog(header, entry, changelogPath) {
+  if (!existsSync(changelogPath)) {
+    writeFileSync(changelogPath, header + entry);
+    return;
+  }
+  const existing = readFileSync(changelogPath, "utf8");
+  if (!existing.startsWith(header)) {
+    throw new Error("Unexpected CHANGELOG format");
+  }
+  writeFileSync(changelogPath, header + entry + existing.slice(header.length));
+}
+
 const marketplace = readJson("marketplace/source.json");
 const superpowersVersion = marketplace.plugins.find(
   (p) => p.name === "superpowers",
@@ -65,18 +78,7 @@ if (overridesCS.length > 0 || overridesBaseReset) {
   }
   const overridesHeader = "# superpowers-overrides\n\n";
   const overridesEntry = `## ${overridesNext}\n\n### Patch Changes${releaseLines.join("")}\n\n`;
-  if (!existsSync(overridesChangelogPath)) {
-    writeFileSync(overridesChangelogPath, overridesHeader + overridesEntry);
-  } else {
-    const existing = readFileSync(overridesChangelogPath, "utf8");
-    if (!existing.startsWith(overridesHeader)) {
-      throw new Error("Unexpected CHANGELOG format");
-    }
-    writeFileSync(
-      overridesChangelogPath,
-      overridesHeader + overridesEntry + existing.slice(overridesHeader.length),
-    );
-  }
+  prependChangelog(overridesHeader, overridesEntry, overridesChangelogPath);
   overridesPkg.version = overridesNext;
   writeJson(overridesPkgPath, overridesPkg);
 }
@@ -110,26 +112,15 @@ if (osengCS.length > 0) {
   }
   const osengHeader = "# os-engineering\n\n";
   const osengEntry = `## ${osengNext}\n\n${sections.join("")}`;
-  if (!existsSync(osengChangelogPath)) {
-    writeFileSync(osengChangelogPath, osengHeader + osengEntry);
-  } else {
-    const existing = readFileSync(osengChangelogPath, "utf8");
-    if (!existing.startsWith(osengHeader)) {
-      throw new Error("Unexpected CHANGELOG format");
-    }
-    writeFileSync(
-      osengChangelogPath,
-      osengHeader + osengEntry + existing.slice(osengHeader.length),
-    );
-  }
+  prependChangelog(osengHeader, osengEntry, osengChangelogPath);
 
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
   // Sync os-engineering version to the SOT locations: marketplace/source.json
-  // and the os-init self-check stamp. The per-harness manifests are generated
-  // (gitignored) — the emit at the end of this script re-stamps them from
-  // package.json.
+  // and the os-init self-check stamp. The per-harness manifests (committed emit
+  // products) are re-stamped from package.json by the emit that
+  // sync-overrides-versions.mjs runs below (transitively via `pnpm run emit`).
   const sourcePath = "marketplace/source.json";
   const source = readJson(sourcePath);
   const entry = source.plugins.find((p) => p.name === "os-engineering");
@@ -148,6 +139,24 @@ if (osengCS.length > 0) {
   }
   writeFileSync(join(root, initPath), stamped);
 }
+
+// ---- record which plugins were actually versioned (release workflow) ----
+// release.yml's per-plugin matrix job reads this to skip plugins that had no
+// changesets — otherwise it would mint a phantom baseline tag/release for
+// os-engineering@0.1.0 on the first publish. Written under .changeset/ so the
+// Version PR commits it alongside the version bumps; it persists into the
+// publish-mode push that follows the Version PR merge.
+const versioned = [];
+if (overridesCS.length > 0 || overridesBaseReset) {
+  versioned.push("superpowers-overrides");
+}
+if (osengCS.length > 0) {
+  versioned.push("os-engineering");
+}
+writeFileSync(
+  join(root, ".changeset/versioned-plugins.json"),
+  JSON.stringify(versioned, null, 2) + "\n",
+);
 
 // ---- cleanup consumed changesets ----
 for (const cs of changesets) {

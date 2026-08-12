@@ -5,9 +5,6 @@
     "changeset": "changeset",
     "validate": "./scripts/ci-validate.sh",
     "version": "node scripts/version-packages.mjs",
-    "generate:overrides": "node scripts/emit.mjs",
-    "validate:overrides": "node scripts/emit.mjs --check",
-    "emit:marketplace": "node scripts/emit.mjs",
     "emit": "node scripts/emit.mjs",
     "emit:check": "node scripts/emit.mjs --check",
     "prepare": "husky"

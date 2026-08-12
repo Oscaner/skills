@@ -36,6 +36,7 @@ overrides 在设计阶段加入 grilling 和 subagent review；grilling、tdd、
 /plugin install mattpocock-skills@oscaner
 /plugin install superpowers@oscaner
 /plugin install superpowers-overrides@oscaner
+/plugin install os-engineering@oscaner
 ```
 
 克隆本仓库（本地开发需初始化 submodule）：
@@ -48,7 +49,7 @@ git submodule update --init
 
 ## 快速开始
 
-1. 从 marketplace 安装 `superpowers`、`superpowers-overrides`、`mattpocock-skills`。
+1. 从 marketplace 安装 `superpowers`、`superpowers-overrides`、`os-engineering`、`mattpocock-skills`。
 2. 每个项目跑一次 **`os-init spor`**——插件升级后重跑。具体 slash 命令因 harness 而异 → [用法](plugins/superpowers-overrides/README.zh-CN.md#用法)。
 3. 照常调用 superpowers 工作流——路由器会先路由到对应的 os-engineering / mattpocock 目标。
 

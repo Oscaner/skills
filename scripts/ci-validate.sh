@@ -3,6 +3,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+echo "== 0. unified emit freshness — --check against committed products (no write) =="
+node scripts/emit.mjs --check
+
 echo "== 1. plugin.json skills resolve =="
 python3 -c '
 import json, os
@@ -11,10 +14,13 @@ p = os.path.join(root, ".claude-plugin/plugin.json")
 d = json.load(open(p))
 skills = d.get("skills")
 if skills is None:
+    # overrides = trigger router — no skill bodies. skills/ may be absent or empty.
     skills_dir = os.path.join(root, "skills")
-    assert os.path.isdir(skills_dir), f"missing default skills dir: {skills_dir}"
-    n = sum(1 for n in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, n, "SKILL.md")))
-    print(f"OK — {n} skills (default skills/ discovery)")
+    n = 0
+    if os.path.isdir(skills_dir):
+        n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
+    assert n == 0, f"expected 0 overrides skills (trigger router, no skill bodies), got {n}"
+    print(f"OK — {n} skills (trigger router, no skill bodies)")
 elif isinstance(skills, str):
     path = os.path.join(root, skills.lstrip("./"))
     assert os.path.isdir(path), f"skills path missing: {path}"
@@ -26,10 +32,13 @@ else:
     print(f"OK — {len(skills)} skills")
 '
 
-echo "== 2. every skill dir has SKILL.md =="
+echo "== 2. every skill dir has SKILL.md (skip when none) =="
+shopt -s nullglob
 for d in plugins/superpowers-overrides/skills/*/; do
   [ -f "$d/SKILL.md" ] || { echo "MISSING: $d/SKILL.md"; exit 1; }
-done && echo OK
+done
+shopt -u nullglob
+echo OK
 
 echo "== 3. no orphan skill dirs =="
 python3 -c '
@@ -37,14 +46,12 @@ import json, os
 root = "plugins/superpowers-overrides"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
-on_disk = {f"skills/{n}" for n in os.listdir(os.path.join(root, "skills")) if os.path.isdir(os.path.join(root, "skills", n))}
-if skills is None or (isinstance(skills, str) and skills.rstrip("/") in ("./skills", "skills")):
-    print("OK — directory discovery (no explicit skill list)")
-else:
-    declared = {s.lstrip("./") for s in skills}
-    orphans = on_disk - declared
-    assert not orphans, f"orphans: {orphans}"
-    print("OK")
+skills_dir = os.path.join(root, "skills")
+on_disk = set()
+if os.path.isdir(skills_dir):
+    on_disk = {f"skills/{n}" for n in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, n))}
+assert not on_disk, f"overrides plugin must have no skill dirs (trigger router): {on_disk}"
+print("OK — no skill dirs (trigger router)")
 '
 
 echo "== 4. hooks executable =="
@@ -56,9 +63,6 @@ echo "== 4. hooks executable =="
 
 echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
-./plugins/superpowers-overrides/tests/override-cursor-sdd-gate.test.sh
-./plugins/superpowers-overrides/tests/override-claude-sdd-gate.test.sh
-./plugins/superpowers-overrides/tests/sdd-gate-allow-deny-smoke.sh
 
 echo "== 5b. os-engineering plugin validation =="
 python3 -c '
@@ -66,24 +70,24 @@ import json, os
 root = "plugins/os-engineering"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
-# 断言 os-engineering skills 数 = 12（4 cli-* + 8 os-*）
-EXPECTED = 12
+# 断言 os-engineering skills 数 = 13（12 发射 + os-init）
+EXPECTED = 13
 if skills is None:
     skills_dir = os.path.join(root, "skills")
     assert os.path.isdir(skills_dir), f"missing default skills dir: {skills_dir}"
     n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
-    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (4 cli-* + 8 os-*), got {n}"
+    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (12 emitters + os-init), got {n}"
     print(f"OK — {n} os-engineering skills (default skills/ discovery)")
 elif isinstance(skills, str):
     skills_dir = os.path.join(root, skills.lstrip("./"))
     assert os.path.isdir(skills_dir), f"missing skills dir: {skills_dir}"
     n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
-    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (4 cli-* + 8 os-*), got {n}"
+    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (12 emitters + os-init), got {n}"
     print(f"OK — {n} os-engineering skills (directory {skills!r})")
 else:
     missing = [s for s in skills if not os.path.isdir(os.path.join(root, s.lstrip("./")))]
     assert not missing, f"skills[] points to missing dirs: {missing}"
-    assert len(skills) == EXPECTED, f"expected {EXPECTED} os-engineering skills (4 cli-* + 8 os-*), got {len(skills)}"
+    assert len(skills) == EXPECTED, f"expected {EXPECTED} os-engineering skills (12 emitters + os-init), got {len(skills)}"
     print(f"OK — {len(skills)} os-engineering skills (explicit list)")
 '
 ./plugins/os-engineering/tests/registry-schema.test.sh
@@ -93,26 +97,37 @@ else:
 ./plugins/os-engineering/tests/cdd-common-functions.test.sh
 ./plugins/os-engineering/tests/cdd-severity-contract.test.sh
 python3 plugins/os-engineering/tests/rule-reference.test.py \
-  --skills os-engineering/skills:semantic superpowers-overrides/skills:numeric
+  --skills os-engineering/skills:semantic
+./plugins/os-engineering/tests/cdd-gate-allow-deny-smoke.sh
+./plugins/os-engineering/tests/override-claude-cdd-gate.test.sh
+./plugins/os-engineering/tests/override-cursor-cdd-gate.test.sh
+./plugins/os-engineering/tests/cdd-orchestrator-line-budget.test.sh
 ./plugins/os-engineering/tests/ci-validate-wiring.test.sh
 
-echo "== 5c. migrated-engine zero-residue check =="
-if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-)' \
-  plugins/os-engineering/bin plugins/os-engineering/templates plugins/os-engineering/docs/cdd-reference.md; then
-  echo "RESIDUE FOUND — sdd_/SDD_/sdd-run- in migrated engine"
+echo "== 5b2. os-engineering gate hooks =="
+[ -f plugins/os-engineering/hooks/hooks.json ] || { echo "FAIL: os-engineering hooks.json missing"; exit 1; }
+[ -f plugins/os-engineering/hooks/hooks-cursor.json ] || { echo "FAIL: os-engineering hooks-cursor.json missing"; exit 1; }
+[ -x plugins/os-engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
+[ -x plugins/os-engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
+[ -x plugins/os-engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
+echo "OK"
+
+echo "== 5c. engine + router zero-residue check =="
+if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)' \
+  plugins/os-engineering/bin plugins/os-engineering/skills \
+  plugins/superpowers-overrides/bin plugins/superpowers-overrides/hooks \
+  plugins/superpowers-overrides/build/generated 2>/dev/null; then
+  echo "RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine + router executable products"
   exit 1
 else
-  echo "OK — zero sdd residue in migrated engine"
+  echo "OK — zero residue in engine + router executable products"
 fi
 
 echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs
 
-echo "== 7. marketplace emit freshness =="
-node scripts/emit-marketplace.mjs --check
-
-echo "== 7b. version-utils tests =="
-node --test scripts/lib/version-utils.test.mjs
+echo "== 7. lib unit tests =="
+node --test scripts/lib/version-utils.test.mjs scripts/lib/emit/emit.test.mjs
 
 echo "== 8–10. version sync =="
 node scripts/validate-version-sync.mjs

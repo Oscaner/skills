@@ -1,4 +1,5 @@
 {
+  "_generated": "scripts/emit.mjs — do not edit",
   "version": 1,
   "hooks": {
     "beforeSubmitPrompt": [
@@ -10,9 +11,6 @@
     "preToolUse": [
       {
         "command": "./bin/override-cursor-enforce.sh"
-      },
-      {
-        "command": "./bin/override-cursor-sdd-gate.sh"
       }
     ]
   }

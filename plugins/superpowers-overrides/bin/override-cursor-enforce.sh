@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/emit.mjs — do not edit
 set -euo pipefail
 
 PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending"
@@ -74,14 +75,32 @@ allow=false
 
 if [ "$tool_name" = "Read" ]; then
   read_path=$(printf '%s' "$tool_input" | jq -r '.path // .file_path // ""')
-  if [ -n "$read_path" ] && printf '%s' "$read_path" | grep -Eiq "/skills/${override}/SKILL\.md$|/${override}/SKILL\.md$"; then
-    allow=true
+  if [ -n "$read_path" ]; then
+    if INPUT="$input" OVERRIDE="$override" python3 <<'PYREAD' | grep -q '^allow$'
+import json
+import os
+import re
+
+READ_RES = {"os-engineering:os-brainstorming":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-brainstorming/SKILL\\.md$"],"os-engineering:os-writing-plans":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-writing\\-plans/SKILL\\.md$"],"os-engineering:cli-driven-development":["(?i)/os\\-engineering/(?:[^/]*/)?skills/cli\\-driven\\-development/SKILL\\.md$"],"os-engineering:os-executing-plans":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-executing\\-plans/SKILL\\.md$"],"os-engineering:os-finishing":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-finishing/SKILL\\.md$"],"os-engineering:os-debugging":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-debugging/SKILL\\.md$"],"mattpocock-skills:tdd":["(?i)/mattpocock\\-skills/(?:[^/]*/)?skills/engineering/tdd/SKILL\\.md$"],"os-engineering:os-verification":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-verification/SKILL\\.md$"],"os-engineering:os-code-review":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-code\\-review/SKILL\\.md$"]}
+
+data = json.loads(os.environ["INPUT"])
+override = os.environ["OVERRIDE"]
+ti = data.get("tool_input") or {}
+path = ti.get("path") or ti.get("file_path") or ""
+for pat in READ_RES.get(override, []):
+    if re.search(pat, path):
+        print("allow")
+        break
+PYREAD
+    then
+      allow=true
+    fi
   fi
 fi
 
 if [ "$tool_name" = "Skill" ]; then
   skill_name=$(printf '%s' "$tool_input" | jq -r '.skill // ""')
-  if [ "$skill_name" = "superpowers-overrides:${override}" ]; then
+  if [ "$skill_name" = "$override" ]; then
     allow=true
   fi
 fi
@@ -92,7 +111,6 @@ if $allow; then
   exit 0
 fi
 
-skill_ref="superpowers-overrides:${override}"
-skill_suffix=$(printf '%s' "$pending" | jq -r --arg override "$override" '.skill_suffix // ("skills/" + $override + "/SKILL.md")')
-jq -n --arg skill_suffix "$skill_suffix" --arg override "$override" --arg skill_ref "$skill_ref" \
-  '{permission:"deny", agent_message: ("MANDATORY OVERRIDE — upstream skill attached without spor override loaded.\nYour FIRST tool call MUST be Read(\"" + $skill_suffix + "\") using the fullPath from agent_skills for " + $override + ".\n(Claude Code: Skill(\"" + $skill_ref + "\") if available.)\nDo NOT follow the upstream skill checklist until the spor override is loaded.")}'
+skill_suffix=$(printf '%s' "$pending" | jq -r --arg override "$override" '.skill_suffix // ""')
+jq -n --arg skill_suffix "$skill_suffix" --arg override "$override" \
+  '{permission:"deny", agent_message: ("MANDATORY OVERRIDE — upstream skill attached without the target override loaded.\nYour FIRST tool call MUST be Read(\"" + $skill_suffix + "\") using the fullPath from agent_skills for " + $override + ".\n(Claude Code: Skill(\"" + $override + "\") if available.)\nDo NOT follow the upstream skill checklist until the target skill is loaded.")}'

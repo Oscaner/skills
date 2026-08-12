@@ -6,8 +6,8 @@
 > until the migration completes (P2).
 
 > Worker discipline SOT: `{os-engineering}/templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
-> Orchestrator gate discipline: `spor-token-efficient-controller-handoff` H1–H5
-> **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`sdd-orchestrator-line-budget.test.sh` 会断言（issue #52 Guard 1）。
+> Orchestrator gate discipline: `os-executing-plans`（H1–H5，见 [`os-engineering/docs/controller-handoff.md`](../../os-engineering/docs/controller-handoff.md)）
+> **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`cdd-orchestrator-line-budget.test.sh` 会断言（issue #52 Guard 1）。
 
 ## H6 — CLI dispatch (p1)
 
@@ -123,7 +123,7 @@ Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (not p0 f
 
 ## SDD gate matrix
 
-The orchestrator PreToolUse gate (`bin/lib/cdd-orchestrator-gate.sh`, p1-slim.2) blocks direct repo edits while a task is active. Judgment is one decision point — `cdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
+The orchestrator PreToolUse gate (`os-engineering/bin/lib/cdd-orchestrator-gate.sh`, p1-slim.2) blocks direct repo edits while a task is active. Judgment is one decision point — `cdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
 
 The gate is fail-open until an active task resolves (spec 安全属性 / data-flow step 1):
 
@@ -150,4 +150,4 @@ The gate is fail-open until an active task resolves (spec 安全属性 / data-fl
 
 **Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), `cdd_resolve_workspace` wins and the gate never scans unrelated workspaces.
 
-**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `cdd_find_active_workspace` / `cdd_gate_decide` — gate tests point it at temp copies of `tests/fixtures/sdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `tests/sdd-gate-allow-deny-smoke.sh`.
+**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `cdd_find_active_workspace` / `cdd_gate_decide` — gate tests point it at temp copies of `os-engineering/tests/fixtures/cdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `os-engineering/tests/cdd-gate-allow-deny-smoke.sh`.

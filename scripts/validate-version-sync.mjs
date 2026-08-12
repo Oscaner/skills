@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
@@ -35,3 +35,49 @@ if (sj.version !== srcSp || srcSp !== entrySp) {
   );
 }
 console.log("OK — superpowers", srcSp);
+
+// os-engineering — independent semver. package.json is the SOT; the
+// per-harness manifests are committed emit products, re-stamped by `pnpm run
+// emit` (run before this check). The manifest set is taken from
+// .version-bump.json#files so a newly-added harness manifest can't slip past
+// the equality check.
+const oePkg = readJson("plugins/os-engineering/package.json");
+const oeSrc = s.plugins.find((x) => x.name === "os-engineering");
+const oeEntry = m.plugins.find((x) => x.name === "os-engineering");
+const SEMVER = /^\d+\.\d+\.\d+$/;
+if (!SEMVER.test(oePkg.version)) {
+  throw new Error(`Invalid os-engineering version format: ${oePkg.version}`);
+}
+const oeVersions = [oePkg.version, oeSrc.version, oeEntry.version];
+if (new Set(oeVersions).size !== 1) {
+  throw new Error(`os-engineering version mismatch: ${oeVersions.join(" ")}`);
+}
+const oeBump = readJson("plugins/os-engineering/.version-bump.json");
+for (const f of oeBump.files) {
+  const abs = join(root, "plugins/os-engineering", f.path);
+  if (!existsSync(abs)) {
+    throw new Error(
+      `missing generated manifest plugins/os-engineering/${f.path} — run pnpm run emit`,
+    );
+  }
+  const doc = JSON.parse(readFileSync(abs, "utf8"));
+  const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
+  if (val !== oePkg.version) {
+    throw new Error(
+      `os-engineering ${f.path} ${val} != ${oePkg.version} — run pnpm run emit`,
+    );
+  }
+}
+console.log("OK —", oePkg.version);
+
+const oeInit = readFileSync(
+  join(root, "plugins/os-engineering/skills/os-init/SKILL.md"),
+  "utf8",
+);
+const stamp = oeInit.match(/<!-- os-engineering-version: ([^ ]+) -->/);
+if (!stamp || stamp[1] !== oePkg.version) {
+  throw new Error(
+    `os-init SKILL.md version stamp mismatch: ${stamp?.[1]} vs ${oePkg.version}`,
+  );
+}
+console.log("OK — os-init SKILL.md stamp", oePkg.version);

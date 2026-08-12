@@ -5,10 +5,8 @@
     "changeset": "changeset",
     "validate": "./scripts/ci-validate.sh",
     "version": "node scripts/version-packages.mjs",
-    "generate:overrides": "./plugins/superpowers-overrides/build/generate-all.sh",
-    "validate:overrides": "./plugins/superpowers-overrides/build/generate-all.sh --check",
-    "emit:marketplace": "node scripts/emit-marketplace.mjs",
-    "emit": "pnpm run generate:overrides && pnpm run emit:marketplace",
+    "emit": "node scripts/emit.mjs",
+    "emit:check": "node scripts/emit.mjs --check",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -118,8 +118,7 @@
         ]
       },
       "cursor": {
-        "displayName": "os-engineering",
-        "skills": "../../plugins/os-engineering/skills"
+        "emitMode": "plugin-root"
       }
     }
   ]

@@ -1,6 +1,7 @@
 ---
 description: superpowers-overrides self-check for Cursor — intercept upstream superpowers skills
 alwaysApply: true
+_generated: scripts/emit.mjs — do not edit
 superpowers-overrides-version: {{PLUGIN_VERSION}}
 ---
 
@@ -9,17 +10,17 @@ superpowers-overrides-version: {{PLUGIN_VERSION}}
 Before your first tool call in ANY turn:
 
 1. Scan for: `/superpowers:*`, bare `/<slug>` matching an upstream override target, `<command-name>` tags, or upstream superpowers skill body in context.
-2. If matched → **first action is Read** the override skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `spor-brainstorming` for `/brainstorming`).
+2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `os-engineering:os-brainstorming` for `/brainstorming`).
 3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
-4. Only after the override body is loaded may you follow upstream instructions.
+4. Only after the target skill body is loaded may you follow upstream instructions.
 
 ### Red flags — manual attach upstream
 
-- User attached **upstream** `superpowers/*/SKILL.md` body → you **still** Read/Skill `spor-*` first
-- Any tool call before spor override loaded
-- Attaching upstream SKILL full text is an **anti-pattern** — use `/spor-*`, bare upstream slash, or agent_skills list; never paste upstream SKILL.md as inline context
+- User attached **upstream** `superpowers/*/SKILL.md` body → you **still** Read/Skill the target skill first
+- Any tool call before the target override loaded
+- Attaching upstream SKILL full text is an **anti-pattern** — use `/superpowers:*`, bare upstream slash, or agent_skills list; never paste upstream SKILL.md as inline context
 
-**Cursor:** plugin-bundled hooks enforce overrides on **upstream SKILL attach only** (`beforeSubmitPrompt` detect + `preToolUse` enforce). Slash commands (`/brainstorming`, `/spor-*`) rely on this self-check rule as primary enforcement. Do **not** install project `.cursor/hooks.json`.
+**Cursor:** plugin-bundled hooks enforce overrides on **upstream SKILL attach only** (`beforeSubmitPrompt` detect + `preToolUse` enforce). Slash commands (`/brainstorming`) rely on this self-check rule as primary enforcement. Do **not** install project `.cursor/hooks.json`.
 
 ### Override trigger table
 

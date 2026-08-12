@@ -1,6 +1,7 @@
 ---
 description: superpowers-overrides self-check for Cursor — intercept upstream superpowers skills
 alwaysApply: true
+_generated: scripts/emit.mjs — do not edit
 superpowers-overrides-version: 6.2.0-overrides.0.15.3
 ---
 
@@ -9,27 +10,27 @@ superpowers-overrides-version: 6.2.0-overrides.0.15.3
 Before your first tool call in ANY turn:
 
 1. Scan for: `/superpowers:*`, bare `/<slug>` matching an upstream override target, `<command-name>` tags, or upstream superpowers skill body in context.
-2. If matched → **first action is Read** the override skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `spor-brainstorming` for `/brainstorming`).
+2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `os-engineering:os-brainstorming` for `/brainstorming`).
 3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
-4. Only after the override body is loaded may you follow upstream instructions.
+4. Only after the target skill body is loaded may you follow upstream instructions.
 
 ### Red flags — manual attach upstream
 
-- User attached **upstream** `superpowers/*/SKILL.md` body → you **still** Read/Skill `spor-*` first
-- Any tool call before spor override loaded
-- Attaching upstream SKILL full text is an **anti-pattern** — use `/spor-*`, bare upstream slash, or agent_skills list; never paste upstream SKILL.md as inline context
+- User attached **upstream** `superpowers/*/SKILL.md` body → you **still** Read/Skill the target skill first
+- Any tool call before the target override loaded
+- Attaching upstream SKILL full text is an **anti-pattern** — use `/superpowers:*`, bare upstream slash, or agent_skills list; never paste upstream SKILL.md as inline context
 
-**Cursor:** plugin-bundled hooks enforce overrides on **upstream SKILL attach only** (`beforeSubmitPrompt` detect + `preToolUse` enforce). Slash commands (`/brainstorming`, `/spor-*`) rely on this self-check rule as primary enforcement. Do **not** install project `.cursor/hooks.json`.
+**Cursor:** plugin-bundled hooks enforce overrides on **upstream SKILL attach only** (`beforeSubmitPrompt` detect + `preToolUse` enforce). Slash commands (`/brainstorming`) rely on this self-check rule as primary enforcement. Do **not** install project `.cursor/hooks.json`.
 
 ### Override trigger table
 
-| `/brainstorming`, `/superpowers:brainstorming`, upstream `brainstorming` body | Read `spor-brainstorming` via agent_skills fullPath |
-| `/writing-plans`, `/superpowers:writing-plans`, upstream `writing-plans` body | Read `spor-writing-plans` via agent_skills fullPath |
-| `/subagent-driven-development`, `/superpowers:subagent-driven-development`, upstream `subagent-driven-development` body | Read `spor-subagent-driven-development` via agent_skills fullPath |
-| `/executing-plans`, `/superpowers:executing-plans`, upstream `executing-plans` body | Read `spor-executing-plans` via agent_skills fullPath |
-| `/finishing-a-development-branch`, `/superpowers:finishing-a-development-branch`, upstream `finishing-a-development-branch` body | Read `spor-finishing-a-development-branch` via agent_skills fullPath |
-| `/using-git-worktrees`, `/superpowers:using-git-worktrees`, upstream `using-git-worktrees` body | Read `spor-using-git-worktrees` via agent_skills fullPath |
-| `/systematic-debugging`, `/superpowers:systematic-debugging`, upstream `systematic-debugging` body | Read `spor-systematic-debugging` via agent_skills fullPath |
-| `/test-driven-development`, `/superpowers:test-driven-development`, upstream `test-driven-development` body | Read `spor-test-driven-development` via agent_skills fullPath |
-| `/verification-before-completion`, `/superpowers:verification-before-completion`, upstream `verification-before-completion` body | Read `spor-verification-before-completion` via agent_skills fullPath |
-| `/receiving-code-review`, `/superpowers:receiving-code-review`, upstream `receiving-code-review` body | Read `spor-receiving-code-review` via agent_skills fullPath |
+| `/brainstorming`, `/superpowers:brainstorming`, upstream `brainstorming` body | Read `os-engineering:os-brainstorming` via agent_skills fullPath |
+| `/writing-plans`, `/superpowers:writing-plans`, upstream `writing-plans` body | Read `os-engineering:os-writing-plans` via agent_skills fullPath |
+| `/subagent-driven-development`, `/superpowers:subagent-driven-development`, upstream `subagent-driven-development` body | Read `os-engineering:cli-driven-development` via agent_skills fullPath |
+| `/executing-plans`, `/superpowers:executing-plans`, upstream `executing-plans` body | Read `os-engineering:os-executing-plans` via agent_skills fullPath |
+| `/finishing-a-development-branch`, `/superpowers:finishing-a-development-branch`, upstream `finishing-a-development-branch` body | Read `os-engineering:os-finishing` via agent_skills fullPath |
+| `/systematic-debugging`, `/superpowers:systematic-debugging`, upstream `systematic-debugging` body | Read `os-engineering:os-debugging` via agent_skills fullPath |
+| `/test-driven-development`, `/superpowers:test-driven-development`, upstream `test-driven-development` body | Read `mattpocock-skills:tdd` via agent_skills fullPath |
+| `/verification-before-completion`, `/superpowers:verification-before-completion`, upstream `verification-before-completion` body | Read `os-engineering:os-verification` via agent_skills fullPath |
+| `/receiving-code-review`, `/superpowers:receiving-code-review`, upstream `receiving-code-review` body | Read `os-engineering:os-code-review` via agent_skills fullPath |
+| `/using-git-worktrees`, `/superpowers:using-git-worktrees`, upstream `using-git-worktrees` body | Read `os-engineering:os-finishing` via agent_skills fullPath |

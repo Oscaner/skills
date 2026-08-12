@@ -1,4 +1,5 @@
 {
+  "_generated": "scripts/emit.mjs — do not edit",
   "hooks": {
     "UserPromptExpansion": [
       {
@@ -11,40 +12,11 @@
         ]
       },
       {
-        "matcher": "((?i)(^|\\s)/brainstorming(\\s|$))|((?i)(^|\\s)/writing\\-plans(\\s|$))|((?i)(^|\\s)/subagent\\-driven\\-development(\\s|$))|((?i)(^|\\s)/executing\\-plans(\\s|$))|((?i)(^|\\s)/finishing\\-a\\-development\\-branch(\\s|$))|((?i)(^|\\s)/using\\-git\\-worktrees(\\s|$))|((?i)(^|\\s)/systematic\\-debugging(\\s|$))|((?i)(^|\\s)/test\\-driven\\-development(\\s|$))|((?i)(^|\\s)/verification\\-before\\-completion(\\s|$))|((?i)(^|\\s)/receiving\\-code\\-review(\\s|$))",
+        "matcher": "((?i)(^|\\s)/brainstorming(\\s|$))|((?i)(^|\\s)/writing\\-plans(\\s|$))|((?i)(^|\\s)/subagent\\-driven\\-development(\\s|$))|((?i)(^|\\s)/executing\\-plans(\\s|$))|((?i)(^|\\s)/finishing\\-a\\-development\\-branch(\\s|$))|((?i)(^|\\s)/systematic\\-debugging(\\s|$))|((?i)(^|\\s)/test\\-driven\\-development(\\s|$))|((?i)(^|\\s)/verification\\-before\\-completion(\\s|$))|((?i)(^|\\s)/receiving\\-code\\-review(\\s|$))|((?i)(^|\\s)/using\\-git\\-worktrees(\\s|$))",
         "hooks": [
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-prompt-expansion.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "((?i)^/spor-brainstorming(\\s|$))|((?i)^/spor-writing\\-plans(\\s|$))|((?i)^/spor-subagent\\-driven\\-development(\\s|$))|((?i)^/spor-executing\\-plans(\\s|$))|((?i)^/spor-finishing\\-a\\-development\\-branch(\\s|$))|((?i)^/spor-using\\-git\\-worktrees(\\s|$))|((?i)^/spor-systematic\\-debugging(\\s|$))|((?i)^/spor-test\\-driven\\-development(\\s|$))|((?i)^/spor-verification\\-before\\-completion(\\s|$))|((?i)^/spor-receiving\\-code\\-review(\\s|$))",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-prompt-expansion.sh"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-sdd-gate.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-sdd-gate.sh"
           }
         ]
       }

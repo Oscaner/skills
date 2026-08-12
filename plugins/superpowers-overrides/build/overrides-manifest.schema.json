@@ -16,13 +16,18 @@
         "properties": {
           "name": {
             "type": "string",
-            "pattern": "^spor-[a-z0-9-]+$"
+            "pattern": "^[a-z0-9-]+:[a-z0-9-]+$"
           },
           "overrides": {
             "type": "string",
             "pattern": "^[a-z0-9-]+:[a-z0-9-]+$"
           },
-          "source": { "type": "string", "pattern": "^\\./skills/" }
+          "source": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          }
         }
       }
     }

@@ -10,7 +10,10 @@ python3 -c "
 import json, os
 m = json.load(open('$MANIFEST'))
 for t in m['targets']:
-    p = os.path.join('$ROOT', t['source'].lstrip('./'), 'SKILL.md')
+    src = t.get('source')
+    if src is None:
+        continue  # submodule target (mattpocock tdd) — existence checked separately
+    p = os.path.join('$ROOT', src, 'SKILL.md')
     assert os.path.isfile(p), p
 print('OK')
 "
@@ -30,11 +33,11 @@ except ImportError:
     for t in m['targets']:
         for k in ('name', 'overrides', 'source'):
             assert k in t
-        assert t['name'].startswith('spor-')
+        assert ':' in t['name'], t['name']
     print('OK (minimal schema check)')
 "
 
-echo "== validate canonical skill names =="
+echo "== validate canonical target names =="
 python3 -c "
 import json, os, re
 m = json.load(open('$MANIFEST'))
@@ -42,38 +45,32 @@ assert len(m['targets']) == 10
 skills = '$SKILLS'
 for t in m['targets']:
     name = t['name']
-    d = os.path.join(skills, name)
-    assert os.path.isdir(d), f'missing {d}'
-    assert name.startswith('spor-')
-    text = open(os.path.join(d, 'SKILL.md')).read()
-    fm = re.match(r'(?s)^---\n(.*?)\n---', text).group(1)
-    nm = re.search(r'^name:\s*(.+)$', fm, re.M).group(1).strip()
-    assert nm == name, f'{name}: frontmatter name={nm}'
+    assert ':' in name, f'name must be plugin-qualified: {name}'
     plugin, upstream = t['overrides'].split(':', 1)
     assert plugin == 'superpowers'
     assert not os.path.isdir(os.path.join(skills, upstream)), f'upstream collision dir: {upstream}'
-for name in os.listdir(skills):
-    assert name.startswith('spor-'), f'skill dir must start with spor-: {name}'
-    text = open(os.path.join(skills, name, 'SKILL.md')).read()
-    fm = re.match(r'(?s)^---\n(.*?)\n---', text).group(1)
-    nm = re.search(r'^name:\s*(.+)$', fm, re.M).group(1).strip()
-    assert nm == name, f'{name}: frontmatter name={nm}'
+# no skill bodies: overrides = trigger router. skills/ must be absent or empty.
+if os.path.isdir(skills):
+    names = [n for n in os.listdir(skills) if os.path.isdir(os.path.join(skills, n))]
+    assert not names, f'skills/ must be empty (trigger router, no skill bodies): {names}'
 print('OK')
 "
 
 echo "== validate cross-cutting skills =="
-[ -f "$SKILLS/spor-init/SKILL.md" ] || { echo "MISSING cross-cutting: spor-init"; exit 1; }
+# all spor-* skill bodies deleted (T2); none may come back
+if [ -d "$SKILLS" ]; then
+  for slug in "$SKILLS"/spor-*; do
+    [ -e "$slug" ] && { echo "FAIL: spor-* skill still present: $(basename "$slug")"; exit 1; }
+  done
+fi
 for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-review-dispatch; do
   [ -e "$SKILLS/$slug" ] && { echo "FAIL: deleted cross-cutting skill still present: $slug"; exit 1; }
 done
 echo "OK"
 
-echo "== validate SDD orchestrator line budget =="
-"$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
-
-echo "== validate rule-reference integrity (dual-mode: os-engineering semantic + overrides numeric) =="
+echo "== validate rule-reference integrity (os-engineering semantic) =="
 python3 "$OS_ENG/tests/rule-reference.test.py" \
-  --skills os-engineering/skills:semantic superpowers-overrides/skills:numeric
+  --skills os-engineering/skills:semantic
 
 echo "== validate os-engineering engine (harness registry + runners) =="
 [ -f "$OS_ENG/bin/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }
@@ -91,20 +88,18 @@ echo "== validate os-engineering engine tests =="
 "$OS_ENG/tests/cdd-cli-dry-run-smoke.sh"
 echo "OK"
 
-echo "== validate plugin.json alignment =="
+echo "== validate manifest target existence (cross-plugin) =="
 python3 -c "
 import json, os
-root = '$ROOT'
-m = json.load(open(os.path.join(root, 'overrides.manifest.json')))
-pj = json.load(open(os.path.join(root, '.claude-plugin/plugin.json')))
-skills = pj.get('skills')
-if skills is None or isinstance(skills, str):
-    skills_root = os.path.join(root, 'skills')
-    declared = {n for n in os.listdir(skills_root) if os.path.isfile(os.path.join(skills_root, n, 'SKILL.md'))}
-else:
-    declared = {s.split('/')[-1] for s in skills}
-needed = {t['name'] for t in m['targets']} | {'spor-init'}
-assert needed <= declared, f'plugin.json missing: {needed - declared}'
+m = json.load(open('$MANIFEST'))
+repo = os.path.normpath(os.path.join('$ROOT', '..', '..'))
+for t in m['targets']:
+    plugin, skill = t['name'].split(':', 1)
+    if plugin == 'mattpocock-skills':
+        p = os.path.join(repo, 'plugins', plugin, 'skills', 'engineering', skill, 'SKILL.md')
+    else:
+        p = os.path.join(repo, 'plugins', plugin, 'skills', skill, 'SKILL.md')
+    assert os.path.isfile(p), f'missing target skill: {p}'
 print('OK')
 "
 
@@ -115,8 +110,35 @@ if [ -d "$ROOT/.cursor/skills" ]; then
 fi
 echo "OK"
 
-echo "== validate trigger patterns =="
-python3 "$ROOT/tests/trigger-patterns.test.py"
+echo "== validate os-init self-check rows mirror manifest targets =="
+python3 -c "
+import json
+from pathlib import Path
+root = Path('$ROOT')
+# The os-init spor payload table (a hand-maintained copy of the trigger->target
+# mapping) must stay in lockstep with overrides.manifest.json targets[]. Every
+# manifest target's upstream slug must resolve to its canonical target name.
+lines = (root / '../os-engineering/skills/os-init/SKILL.md').read_text().splitlines()
+rows = {}
+for line in lines:
+    line = line.strip()
+    if not (line.startswith('| \`') and 'Skill(' in line):
+        continue
+    cells = [c.strip() for c in line.strip('|').split('|')]
+    if len(cells) != 2:
+        continue
+    slug = cells[0].strip().strip('\`').lstrip('/')
+    target = cells[1].strip()[len('Skill('):-1]
+    rows[slug] = target
+manifest = json.loads((root / 'overrides.manifest.json').read_text())
+assert len(rows) >= len(manifest['targets']), f'os-init payload has {len(rows)} rows, manifest has {len(manifest[\"targets\"])}'
+for t in manifest['targets']:
+    slug = t['overrides'].split(':', 1)[1]
+    want = t['name']
+    got = rows.get(slug)
+    assert got == want, f'os-init row /{slug}: Skill({got}) != Skill({want})'
+print('OK')
+"
 
 echo "== validate hooks.json matchers =="
 python3 -c "
@@ -125,9 +147,10 @@ from pathlib import Path
 root = Path('$ROOT')
 hooks = json.loads((root / 'hooks/hooks.json').read_text())
 matchers = [e['matcher'] for e in hooks['hooks']['UserPromptExpansion']]
+assert len(matchers) == 2, matchers
 assert any(m.startswith('^superpowers:') for m in matchers)
 assert any('/brainstorming' in m for m in matchers)
-assert any('spor-' in m for m in matchers)
+assert not any('spor-' in m for m in matchers), 'spor- matchers must be removed'
 print('OK')
 "
 
@@ -135,7 +158,7 @@ echo "== validate harness manifests =="
 python3 "$ROOT/tests/manifest-harness.test.py"
 
 echo "== validate generator outputs fresh =="
-"$ROOT/build/generate-all.sh" --check
+node "$(cd "$ROOT/../.." && pwd)/scripts/emit.mjs" --check
 
 echo "== validate expansion script =="
 "$ROOT/tests/override-prompt-expansion.test.sh"
@@ -158,33 +181,26 @@ assert 'preToolUse' in hooks['hooks']
 detect = hooks['hooks']['beforeSubmitPrompt'][0]
 assert detect['command'] == './bin/override-cursor-detect.sh'
 pre = hooks['hooks']['preToolUse']
-assert len(pre) == 2
+assert len(pre) == 1
 assert pre[0]['command'] == './bin/override-cursor-enforce.sh'
-assert pre[1]['command'] == './bin/override-cursor-sdd-gate.sh'
 assert 'matcher' not in pre[0]
+assert not any('cdd-gate' in p['command'] for p in pre), 'gate preToolUse moved to os-engineering'
 print('OK')
 "
 
-echo "== validate claude hooks.json PreToolUse =="
+echo "== validate claude hooks.json has no PreToolUse (gate moved to os-engineering) =="
 python3 -c "
 import json
 from pathlib import Path
 root = Path('$ROOT')
 cc = json.loads((root / 'hooks/hooks.json').read_text())
-assert 'PreToolUse' in cc['hooks']
-assert len(cc['hooks']['PreToolUse']) == 2
-assert cc['hooks']['PreToolUse'][0]['matcher'] == 'Write|Edit'
-assert cc['hooks']['PreToolUse'][1]['matcher'] == 'Bash'
-assert cc['hooks']['PreToolUse'][0]['hooks'][0]['command'].endswith('override-claude-sdd-gate.sh')
+assert 'PreToolUse' not in cc['hooks'], 'gate PreToolUse moved to os-engineering'
 print('OK')
 "
 
 echo "== validate cursor hook scripts executable =="
 [ -x "$ROOT/bin/override-cursor-detect.sh" ] || { echo "FAIL: detect not executable"; exit 1; }
 [ -x "$ROOT/bin/override-cursor-enforce.sh" ] || { echo "FAIL: enforce not executable"; exit 1; }
-[ -x "$ROOT/bin/override-cursor-sdd-gate.sh" ] || { echo "FAIL: sdd-gate not executable"; exit 1; }
-[ -x "$ROOT/bin/override-claude-sdd-gate.sh" ] || { echo "FAIL: claude sdd-gate not executable"; exit 1; }
-[ -x "$ROOT/bin/cdd-session-activate.sh" ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
 echo "== validate self-check version stamps =="
@@ -208,18 +224,19 @@ import json, re
 from pathlib import Path
 plugin_root = Path('$ROOT')
 repo_root = Path('$REPO_ROOT')
-version = json.loads((plugin_root / '.claude-plugin/plugin.json').read_text())['version']
+# dogfood self-check is written by os-init spor, stamped with the os-engineering version
+version = json.loads((repo_root / 'plugins/os-engineering/.claude-plugin/plugin.json').read_text())['version']
 
 cursor_path = repo_root / '.cursor/rules/superpowers-overrides.mdc'
 claude_path = repo_root / 'CLAUDE.md'
 cursor = cursor_path.read_text()
 claude = claude_path.read_text()
 
-needle = f'superpowers-overrides-version: {version}'
-assert needle in cursor, f'{cursor_path}: missing or stale stamp — re-run /spor-init'
+needle = f'os-engineering-version: {version}'
+assert needle in cursor, f'{cursor_path}: missing or stale stamp — re-run os-init spor'
 
-m = re.search(r'<!-- superpowers-overrides-version: ([^ ]+) -->', claude.splitlines()[0])
-assert m and m.group(1) == version, f'{claude_path}: line 1 stamp mismatch — re-run /spor-init'
+m = re.search(r'<!-- os-engineering-version: ([^ ]+) -->', claude.splitlines()[0])
+assert m and m.group(1) == version, f'{claude_path}: line 1 stamp mismatch — re-run os-init spor'
 print('OK')
 "
 

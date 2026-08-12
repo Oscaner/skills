@@ -2,7 +2,10 @@
 #   develop accumulates .changeset/*.md → develop→main PR → push main
 #   → changesets/action opens Version PR (target main); hasChangesets=true → tag/Release/sync skipped
 #   → merge Version PR → push main again; hasChangesets=false → publish mode
-#   → changeset tag (local) + explicit git push → GitHub Release → sync PR
+#   → per-plugin matrix job pushes git tag + GitHub Release only for plugins that
+#     were actually versioned (recorded in .changeset/versioned-plugins.json by
+#     version-packages.mjs); plugins with no changesets are skipped — no phantom
+#     baseline tag/release → sync PR
 name: Release
 
 on:
@@ -38,24 +41,61 @@ jobs:
           version: node scripts/version-packages.mjs
           publish: pnpm exec changeset tag
           createGithubReleases: false
-          commit: "chore: release superpowers-overrides"
-          title: "chore: release superpowers-overrides"
+          commit: "chore: release plugins"
+          title: "chore: release plugins"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Read overrides version
-        id: overrides-ver
-        if: steps.changesets.outputs.hasChangesets == 'false'
-        run: echo "version=$(node -p "require('./plugins/superpowers-overrides/package.json').version")" >> "$GITHUB_OUTPUT"
+
+  release-plugin:
+    needs: release
+    if: needs.release.outputs.hasChangesets == 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: superpowers-overrides
+            tag_prefix: "superpowers-overrides@"
+          - name: os-engineering
+            tag_prefix: "os-engineering@"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Read plugin version
+        id: ver
+        run: echo "version=$(node -p "require('./plugins/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Check plugin was versioned in this release
+        id: versioned
+        run: |
+          if [ ! -f .changeset/versioned-plugins.json ]; then
+            echo "versioned=false" >> "$GITHUB_OUTPUT"
+          elif jq -e --arg p "${{ matrix.name }}" '.[] | select(. == $p)' .changeset/versioned-plugins.json >/dev/null 2>&1; then
+            echo "versioned=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "versioned=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check tag already exists
+        id: tag-exists
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create local tag
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true'
+        run: git tag "${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}"
       - name: Push git tag
-        if: steps.changesets.outputs.hasChangesets == 'false'
-        run: git push origin "superpowers-overrides@${{ steps.overrides-ver.outputs.version }}"
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true'
+        run: git push origin "${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}"
       - name: Check if GitHub Release exists
         id: release-exists
-        if: steps.changesets.outputs.hasChangesets == 'false'
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true'
         uses: actions/github-script@v9
         with:
           script: |
-            const tag = `superpowers-overrides@${{ steps.overrides-ver.outputs.version }}`;
+            const tag = `${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}`;
             try {
               await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
               core.setOutput('exists', 'true');
@@ -64,11 +104,10 @@ jobs:
               core.setOutput('exists', 'false');
             }
       - name: Create GitHub Release if missing
-        id: gh-release
-        if: steps.changesets.outputs.hasChangesets == 'false' && steps.release-exists.outputs.exists != 'true'
+        if: steps.versioned.outputs.versioned == 'true' && steps.tag-exists.outputs.exists != 'true' && steps.release-exists.outputs.exists != 'true'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: superpowers-overrides@${{ steps.overrides-ver.outputs.version }}
+          tag_name: ${{ matrix.tag_prefix }}${{ steps.ver.outputs.version }}
           generate_release_notes: true
 
   sync-develop:

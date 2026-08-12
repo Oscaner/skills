@@ -13,17 +13,16 @@ def test_cursor_manifest():
     m = load(".cursor-plugin/plugin.json")
     assert m["name"] == "superpowers-overrides"
     assert m["displayName"] == "Superpowers Overrides"
-    assert m["skills"] == "./skills/"
+    assert "skills" not in m, "overrides plugin has no skill bodies (trigger router only)"
     assert m["hooks"] == "./hooks/hooks-cursor.json"
     assert "_generated" in m
-    assert (ROOT / m["skills"]).is_dir()
     assert (ROOT / m["hooks"]).is_file()
 
 
 def test_codex_manifest_minimal():
     m = load(".codex-plugin/plugin.json")
     assert m["name"] == "superpowers-overrides"
-    assert m["skills"] == "./skills/"
+    assert "skills" not in m, "overrides plugin has no skill bodies (trigger router only)"
     assert m["hooks"] == {}
     assert "interface" not in m
     assert "repository" not in m

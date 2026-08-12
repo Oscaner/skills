@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "== 0. unified emit (write) — materialize gitignored first-party products =="
+echo "== 0. unified emit (write) — materialize committed first-party emit products =="
 node scripts/emit.mjs
 
 echo "== 1. plugin.json skills resolve =="
@@ -101,7 +101,7 @@ python3 plugins/os-engineering/tests/rule-reference.test.py \
 ./plugins/os-engineering/tests/cdd-gate-allow-deny-smoke.sh
 ./plugins/os-engineering/tests/override-claude-cdd-gate.test.sh
 ./plugins/os-engineering/tests/override-cursor-cdd-gate.test.sh
-./plugins/os-engineering/tests/sdd-orchestrator-line-budget.test.sh
+./plugins/os-engineering/tests/cdd-orchestrator-line-budget.test.sh
 ./plugins/os-engineering/tests/ci-validate-wiring.test.sh
 
 echo "== 5b2. os-engineering gate hooks =="

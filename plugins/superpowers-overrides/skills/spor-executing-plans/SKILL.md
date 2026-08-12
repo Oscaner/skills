@@ -5,4 +5,19 @@ description: MUST invoke BEFORE superpowers:executing-plans as your FIRST tool c
 
 # Executing-Plans（映射薄指针）
 
-invoke Skill(os-executing-plans)
+## Rules
+
+### Rule: Delegate
+
+invoke Skill(os-executing-plans)。本技能为过渡期薄指针，规则内容已移至 os-engineering。
+
+<!-- Additional rules … -->
+
+## Red Flags
+- 「在薄指针里补规则」→ 规则应进 os-executing-plans，不是这里
+- 「薄指针没内容，直接跟进上游」→ 规则在 os-executing-plans，先转发（Rule: Delegate）
+
+## Common Rationalizations
+| Excuse | Reality |
+|--------|---------|
+| 「薄指针没内容，直接跟进上游」| 规则在 os-executing-plans，先转发（Rule: Delegate）|

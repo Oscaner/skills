@@ -1,6 +1,6 @@
 ---
 name: os-executing-plans
-description: 独立执行计划总编排器 —— 用户选择执行模式（in-session / subagent / cli），编排器控制器规则集（10 条语义规则，三模式共用）。cli 模式委托 cli-driven-development；in-session/subagent 模式 Read 上游对应技能驱动。
+description: 独立执行计划总编排器 —— 用户选择执行模式（in-session / subagent / cli），编排器控制器规则集（11 条语义规则，三模式共用）。cli 模式委托 cli-driven-development；in-session/subagent 模式 Read 上游对应技能驱动。
 ---
 
 # OS Executing-Plans
@@ -32,6 +32,10 @@ spec+plan 完备 → 最便宜 implementer 层级；首次派发前确认一次�
 
 `CHANGES_REQUESTED` → fix → scoped review → 重复直到 `APPROVED` 或 **5 轮**（超限 STOP + 升级）。
 
+### Rule: Confirm Seams
+
+派发会用 tdd 的 implement worker 前，编排器在会话内向用户确认测试边界（seam），把确认结果 `CONFIRMED_SEAMS: <...>` 写进 task brief。cli 模式一次性 print-mode CLI 无法阻塞 —— `templates/cdd/implement.md` 非阻塞应用（「若 brief 含 `CONFIRMED_SEAMS`，应用之」），seam 确认由编排器层独占。
+
 ### Rule: Per-Task Review
 
 每任务评审门：读 handoff.json 驱动（plan_conflicts → STOP；CHANGES_REQUESTED → Fix Loop；NEEDS_CONTEXT/unverifiable → STOP）。cli 模式 worker review 在 CLI 子进程内；in-session/subagent 模式评审门在会话内。纪律见 [controller-handoff.md](../../docs/controller-handoff.md) H1–H5。
@@ -47,9 +51,9 @@ spec+plan 完备 → 最便宜 implementer 层级；首次派发前确认一次�
 
 编排器每计划一次的三阶段循环（三模式共用骨架；cli 模式差异见 Per-task 括号）：
 
-**Setup (once):** `sdd-workspace` → ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task。
+**Setup (once):** in-session/subagent → `sdd-workspace`；cli → 委托 [cli-driven-development](../cli-driven-development/SKILL.md) 的 workspace（cdd-run.sh H6 chain 内自建）。统一后续：ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task。
 
-**Per-task:** Rule: Task Complexity 分类 → Rule: Confirm Once → append `TASK_BASE: <sha>` to brief → 执行链（cli 模式 shell H6 chain：implement → review → fix per Rule: Fix Loop；in-session/subagent 模式会话内实现 + 评审）→ Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger。cli 模式 **Never** edit repo deliverables in this session — H6 CLI only。
+**Per-task:** Rule: Task Complexity 分类 → Rule: Confirm Once → Rule: Confirm Seams（tdd implement 派发前）→ append `TASK_BASE: <sha>` to brief → 执行链（cli 模式 shell H6 chain：implement → review → fix per Rule: Fix Loop；in-session/subagent 模式会话内实现 + 评审）→ Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger。cli 模式 **Never** edit repo deliverables in this session — H6 CLI only。
 
 **Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`。
 

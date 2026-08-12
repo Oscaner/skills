@@ -105,7 +105,7 @@ spor-brainstorming / spor-writing-plans / spor-subagent-driven-development / spo
 
 #### E. gate 模式感知（overrides，过渡期）
 
-- `cdd-session-activate.sh` 写 pending 时带 `mode` 字段（in-session|subagent|cli）；mode 经 `--mode <...>` 参数或 `CDD_MODE` env 传入。**非 os-executing-plans 流程**（无 mode）→ 默认 fail-open（gate 不误伤）。
+- `cdd-session-activate.sh` 写 pending 时带 `mode` 字段（in-session|subagent|cli）；mode 经 `--mode <...>` 参数或 `CDD_SESSION_MODE` env 传入。**非 os-executing-plans 流程**（无 mode）→ 默认 fail-open（gate 不误伤）。
 - `cdd-orchestrator-gate.sh` 读 `pending.mode`：
   - **cli** → 严格（repo 编辑只走 CLI shell，现有逻辑）
   - **in-session / subagent** → 放行 repo 编辑（keep 只读 git Bash 白名单）

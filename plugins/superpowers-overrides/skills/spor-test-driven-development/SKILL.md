@@ -5,4 +5,19 @@ description: MUST invoke BEFORE superpowers:test-driven-development as your FIRS
 
 # Test-Driven Development（映射薄指针）
 
-invoke Skill(mattpocock-skills:tdd)
+## Rules
+
+### Rule: Delegate
+
+invoke Skill(mattpocock-skills:tdd)。本技能为过渡期薄指针，规则内容已移至 mattpocock-skills:tdd；seam 确认门见 templates/cdd/implement.md。
+
+<!-- Additional rules … -->
+
+## Red Flags
+- 「在薄指针里补规则」→ 规则应进 mattpocock-skills:tdd，不是这里
+- 「薄指针没内容，直接跟进上游」→ 规则在 mattpocock-skills:tdd，先转发（Rule: Delegate）
+
+## Common Rationalizations
+| Excuse | Reality |
+|--------|---------|
+| 「薄指针没内容，直接跟进上游」| 规则在 mattpocock-skills:tdd，先转发（Rule: Delegate）|

@@ -5,4 +5,19 @@ description: MUST invoke BEFORE superpowers:using-git-worktrees as your FIRST to
 
 # Using-Git-Worktrees（映射薄指针）
 
-invoke Skill(os-finishing)
+## Rules
+
+### Rule: Delegate
+
+invoke Skill(os-finishing)。本技能为过渡期薄指针，worktree 拒绝规则已移至 os-finishing。
+
+<!-- Additional rules … -->
+
+## Red Flags
+- 「在薄指针里补规则」→ 规则应进 os-finishing，不是这里
+- 「薄指针没内容，直接跟进上游」→ 规则在 os-finishing，先转发（Rule: Delegate）
+
+## Common Rationalizations
+| Excuse | Reality |
+|--------|---------|
+| 「薄指针没内容，直接跟进上游」| 规则在 os-finishing，先转发（Rule: Delegate）|

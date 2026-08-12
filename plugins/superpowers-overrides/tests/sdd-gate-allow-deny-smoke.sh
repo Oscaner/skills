@@ -118,7 +118,7 @@ for needle in "CDD orchestrator gate" "Allowed Bash (read-only diagnostics):" \
               "cdd-run.sh --harness claude" "sdd-workspace / task-brief / review-package" \
               "Allowed Write:" ".superpowers/cdd/active-ws/" \
               "--task 1 --mode implement" "Full matrix: ${OS_ENG}/docs/cdd-reference.md (CDD gate matrix)" \
-              "See spor-SDD Rule 0 item 4."; do
+              "See os-executing-plans Rule: Orchestrator Checklist."; do
   r="$(bash_reason "$S1" "ls")"
   [[ "$r" == *"$needle"* ]] || fail "deny message missing: $needle"
 done

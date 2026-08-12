@@ -300,7 +300,7 @@ ${verbs}
 	  ${os_root}/bin/cdd-run.sh --harness ${harness} --task ${task_num} --mode implement
 
 	Full matrix: ${os_root}/docs/cdd-reference.md (CDD gate matrix)
-	See spor-SDD Rule 0 item 4.
+	See os-executing-plans Rule: Orchestrator Checklist.
 	EOF
 }
 

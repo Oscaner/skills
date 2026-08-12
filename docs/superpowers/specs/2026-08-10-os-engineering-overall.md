@@ -77,4 +77,4 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v1.3 · 2026-08-10 · sdd → cdd 全量更名落定（P1）：CDD_* env / cdd-common.sh / cdd-run.sh / .superpowers/cdd/ / cdd-reference.md / templates/cdd/；内联重实现 workspace resolver，仅保留上游 task-brief/review-package 脚本名。缩写规范：cdd = cli-driven-development（镜像 sdd），skill 家族用 cli-* 前缀
 - v1.4 · 2026-08-10 · 规则命名规范定稿：语义名 + 链接引用（`### Rule: <Name>`，无数字/子后缀），rule-reference.test.py 改为验证语义名
 - v1.5 · 2026-08-10 · P2 范围细化（grilling 审计）：os-* 核心集 8 技能（剔除 os-testing，tdd 直映 mattpocock + seam 门折进 cdd implement；executing-plans 直映；p0-fallback 删除；report-issue 保留）；os-executing-plans 为三模式总编器（in-session/subagent/cli）共用编器控制器 Rules 1-8；gate 模式感知（pending.mode）过渡期留 overrides，P3 随薄封装迁
-- v1.6 · 2026-08-10 · P2 执行完成（13 commits，os-* 8 技能 + 薄指针化 + gate 模式感知）；执行中 plan_conflict：seam 门从 implement.md 阻塞式移到编器层（os-executing-plans 确认 + CONFIRMED_SEAMS 写 brief，模板非阻塞）—— P2 spec §F 已同步修订
+- v1.6 · 2026-08-10 · P2 执行完成（14 commits，os-* 8 技能 + 薄指针化 + gate 模式感知）；执行中 plan_conflict：seam 门从 implement.md 阻塞式移到编器层（os-executing-plans 确认 + CONFIRMED_SEAMS 写 brief，模板非阻塞）—— P2 spec §F 已同步修订

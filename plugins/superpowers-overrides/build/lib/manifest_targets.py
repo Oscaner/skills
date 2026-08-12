@@ -10,8 +10,18 @@ from pathlib import Path
 class Target:
     name: str
     overrides: str
-    source: str
+    source: str | None
     upstream_slug: str
+
+    @property
+    def plugin(self) -> str:
+        """Target plugin from the qualified name (e.g. os-engineering)."""
+        return self.name.split(":", 1)[0]
+
+    @property
+    def skill(self) -> str:
+        """Target skill from the qualified name (e.g. os-brainstorming)."""
+        return self.name.split(":", 1)[1]
 
 
 def load_plugin_version(plugin_root: Path) -> str:
@@ -32,14 +42,31 @@ def load_targets(plugin_root: Path) -> list[Target]:
         if plugin != "superpowers":
             raise ValueError(f"expected superpowers: prefix, got {row['overrides']!r}")
         name = row["name"]
-        if not name.startswith("spor-"):
-            raise ValueError(f"name must start with spor-, got {name!r}")
+        if ":" not in name:
+            raise ValueError(f"name must be plugin-qualified (plugin:skill), got {name!r}")
         targets.append(
             Target(
                 name=name,
                 overrides=row["overrides"],
-                source=row["source"],
+                source=row.get("source"),
                 upstream_slug=upstream_slug,
             )
         )
     return targets
+
+
+def target_skill_suffix(t: Target) -> str:
+    """Repo-relative SKILL.md suffix for the target's own skill body.
+
+    os-engineering targets carry a cross-plugin ``source``; submodule targets
+    (mattpocock-skills:tdd) have ``source: null`` and are derived from the
+    qualified name (mattpocock nests skills under ``skills/engineering/``).
+    """
+    if t.source:
+        src = t.source
+        if src.startswith("./"):
+            src = src[2:]
+        return f"{src}/SKILL.md" if not src.endswith(".md") else src
+    if t.plugin == "mattpocock-skills":
+        return f"skills/engineering/{t.skill}/SKILL.md"
+    return f"skills/{t.skill}/SKILL.md"

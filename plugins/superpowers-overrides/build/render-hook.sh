@@ -32,27 +32,12 @@ lines = [
     'case "$command_name" in',
 ]
 for t in targets:
-    lines.append(f'  {t.overrides}) override="superpowers-overrides:{t.name}" ;;')
-    lines.append(f'  /{t.upstream_slug}) override="superpowers-overrides:{t.name}" ;;')
-    lines.append(f'  /{t.name}) override="superpowers-overrides:{t.name}" ;;')
+    lines.append(f'  {t.overrides}) override="{t.name}" ;;')
+    lines.append(f'  /{t.upstream_slug}) override="{t.name}" ;;')
 lines.extend(
     [
         "  *) exit 0 ;;",
         "esac",
-        "",
-        "sdd_activate=false",
-        'case "$command_name" in',
-        "  superpowers:subagent-driven-development|/subagent-driven-development|/spor-subagent-driven-development|"
-        "superpowers:executing-plans|/executing-plans|/spor-executing-plans)",
-        "    sdd_activate=true ;;",
-        "esac",
-        "",
-        'if $sdd_activate; then',
-        '  _plugin_root="$(cd "$(dirname "$0")/.." && pwd)"',
-        '  _repo_root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null || pwd)"',
-        '  _session_key=$(INPUT="$input" python3 -c "import hashlib,json,os;d=json.loads(os.environ[\'INPUT\']);print(d.get(\'session_id\') or d.get(\'conversation_id\') or hashlib.sha256((d.get(\'prompt\') or \'\').encode()).hexdigest()[:16])")',
-        '  "${_plugin_root}/bin/cdd-session-activate.sh" minimal "$_session_key" "$_repo_root" --mode cli 2>/dev/null || true',
-        "fi",
         "",
         "jq -n --arg override \"$override\" '{",
         '  additionalContext: ("MANDATORY OVERRIDE — oscaner hook intercepted this turn.\\nYour FIRST tool call MUST be Skill(\\"" + $override + "\\").\\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")',

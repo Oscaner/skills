@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(sys.argv[1]) / "build/lib"))
 from manifest_targets import load_targets
-from trigger_patterns import cc_matcher_bare_slash, cc_matcher_spor_slash
+from trigger_patterns import cc_matcher_bare_slash
 
 root = Path(sys.argv[1])
 targets = load_targets(root)
@@ -26,7 +26,6 @@ command_hook = {
 }
 
 bare_parts = [f"({cc_matcher_bare_slash(t.upstream_slug)})" for t in targets]
-spor_parts = [f"({cc_matcher_spor_slash(t.upstream_slug)})" for t in targets]
 
 sdd_gate_hook = {
     "type": "command",
@@ -42,10 +41,6 @@ hooks = {
             },
             {
                 "matcher": "|".join(bare_parts),
-                "hooks": [command_hook],
-            },
-            {
-                "matcher": "|".join(spor_parts),
                 "hooks": [command_hook],
             },
         ],

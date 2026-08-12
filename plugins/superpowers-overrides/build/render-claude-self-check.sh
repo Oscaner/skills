@@ -21,7 +21,7 @@ version = load_plugin_version(root)
 rows = []
 for t in load_targets(root):
     rows.append(
-        f"| `{t.overrides}` | `Skill(superpowers-overrides:{t.name})` |"
+        f"| `{t.overrides}` | `Skill({t.name})` |"
     )
 out = template.replace("{{TRIGGER_TABLE}}", "\n".join(rows))
 print(out.replace("{{PLUGIN_VERSION}}", version), end="")

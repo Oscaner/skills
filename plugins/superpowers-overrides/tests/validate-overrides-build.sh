@@ -10,7 +10,10 @@ python3 -c "
 import json, os
 m = json.load(open('$MANIFEST'))
 for t in m['targets']:
-    p = os.path.join('$ROOT', t['source'].lstrip('./'), 'SKILL.md')
+    src = t.get('source')
+    if src is None:
+        continue  # submodule target (mattpocock tdd) — existence checked separately
+    p = os.path.join('$ROOT', src, 'SKILL.md')
     assert os.path.isfile(p), p
 print('OK')
 "
@@ -30,11 +33,11 @@ except ImportError:
     for t in m['targets']:
         for k in ('name', 'overrides', 'source'):
             assert k in t
-        assert t['name'].startswith('spor-')
+        assert ':' in t['name'], t['name']
     print('OK (minimal schema check)')
 "
 
-echo "== validate canonical skill names =="
+echo "== validate canonical target names =="
 python3 -c "
 import json, os, re
 m = json.load(open('$MANIFEST'))
@@ -42,16 +45,11 @@ assert len(m['targets']) == 10
 skills = '$SKILLS'
 for t in m['targets']:
     name = t['name']
-    d = os.path.join(skills, name)
-    assert os.path.isdir(d), f'missing {d}'
-    assert name.startswith('spor-')
-    text = open(os.path.join(d, 'SKILL.md')).read()
-    fm = re.match(r'(?s)^---\n(.*?)\n---', text).group(1)
-    nm = re.search(r'^name:\s*(.+)$', fm, re.M).group(1).strip()
-    assert nm == name, f'{name}: frontmatter name={nm}'
+    assert ':' in name, f'name must be plugin-qualified: {name}'
     plugin, upstream = t['overrides'].split(':', 1)
     assert plugin == 'superpowers'
     assert not os.path.isdir(os.path.join(skills, upstream)), f'upstream collision dir: {upstream}'
+# transitional: the overrides plugin still holds spor-* skill bodies (deleted in a later ticket)
 for name in os.listdir(skills):
     assert name.startswith('spor-'), f'skill dir must start with spor-: {name}'
     text = open(os.path.join(skills, name, 'SKILL.md')).read()
@@ -91,20 +89,18 @@ echo "== validate os-engineering engine tests =="
 "$OS_ENG/tests/cdd-cli-dry-run-smoke.sh"
 echo "OK"
 
-echo "== validate plugin.json alignment =="
+echo "== validate manifest target existence (cross-plugin) =="
 python3 -c "
 import json, os
-root = '$ROOT'
-m = json.load(open(os.path.join(root, 'overrides.manifest.json')))
-pj = json.load(open(os.path.join(root, '.claude-plugin/plugin.json')))
-skills = pj.get('skills')
-if skills is None or isinstance(skills, str):
-    skills_root = os.path.join(root, 'skills')
-    declared = {n for n in os.listdir(skills_root) if os.path.isfile(os.path.join(skills_root, n, 'SKILL.md'))}
-else:
-    declared = {s.split('/')[-1] for s in skills}
-needed = {t['name'] for t in m['targets']} | {'spor-init'}
-assert needed <= declared, f'plugin.json missing: {needed - declared}'
+m = json.load(open('$MANIFEST'))
+repo = os.path.normpath(os.path.join('$ROOT', '..', '..'))
+for t in m['targets']:
+    plugin, skill = t['name'].split(':', 1)
+    if plugin == 'mattpocock-skills':
+        p = os.path.join(repo, 'plugins', plugin, 'skills', 'engineering', skill, 'SKILL.md')
+    else:
+        p = os.path.join(repo, 'plugins', plugin, 'skills', skill, 'SKILL.md')
+    assert os.path.isfile(p), f'missing target skill: {p}'
 print('OK')
 "
 
@@ -125,9 +121,10 @@ from pathlib import Path
 root = Path('$ROOT')
 hooks = json.loads((root / 'hooks/hooks.json').read_text())
 matchers = [e['matcher'] for e in hooks['hooks']['UserPromptExpansion']]
+assert len(matchers) == 2, matchers
 assert any(m.startswith('^superpowers:') for m in matchers)
 assert any('/brainstorming' in m for m in matchers)
-assert any('spor-' in m for m in matchers)
+assert not any('spor-' in m for m in matchers), 'spor- matchers must be removed'
 print('OK')
 "
 

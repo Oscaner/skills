@@ -13,19 +13,9 @@ def bare_slash_prompt_regex(slug: str) -> str:
     return rf"(?i)(^|\s)/{_slug_pattern(slug)}(\s|$)"
 
 
-def spor_slash_prompt_regex(slug: str) -> str:
-    """Match /spor-upstream-slug in user prompt."""
-    return rf"(?i)(^|\s)/spor-{_slug_pattern(slug)}(\s|$)"
-
-
 def cc_matcher_bare_slash(slug: str) -> str:
     """Claude Code UserPromptExpansion matcher for bare /upstream-slug."""
     return bare_slash_prompt_regex(slug)
-
-
-def cc_matcher_spor_slash(slug: str) -> str:
-    """Claude Code UserPromptExpansion matcher for /spor-upstream-slug."""
-    return rf"(?i)^/spor-{_slug_pattern(slug)}(\s|$)"
 
 
 def attach_path_regexes(slug: str) -> list[str]:
@@ -37,3 +27,17 @@ def attach_path_regexes(slug: str) -> list[str]:
         rf"(?i)/\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/{s}/SKILL\.md$",
         rf"(?i)/\.cursor/skills/(superpowers/)?{s}/SKILL\.md$",
     ]
+
+
+def target_skill_read_regexes(plugin: str, skill: str) -> list[str]:
+    """Regexes matching the target skill's own SKILL.md path.
+
+    Covers both the repo tree (``plugins/<plugin>/skills/<skill>/SKILL.md``)
+    and the plugin cache (``.../<plugin>/<hash>/skills/<skill>/SKILL.md``).
+    mattpocock-skills nests under ``skills/engineering/``.
+    """
+    p = re.escape(plugin)
+    s = re.escape(skill)
+    if plugin == "mattpocock-skills":
+        return [rf"(?i)/{p}/(?:[^/]*/)?skills/engineering/{s}/SKILL\.md$"]
+    return [rf"(?i)/{p}/(?:[^/]*/)?skills/{s}/SKILL\.md$"]

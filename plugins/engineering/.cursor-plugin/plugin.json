@@ -1,0 +1,22 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "name": "engineering",
+  "displayName": "engineering",
+  "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "engineering",
+    "cli",
+    "cdd",
+    "harness",
+    "droid",
+    "pi"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks-cursor.json"
+}

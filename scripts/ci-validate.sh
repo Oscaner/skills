@@ -64,57 +64,57 @@ echo "== 4. hooks executable =="
 echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 
-echo "== 5b. os-engineering plugin validation =="
+echo "== 5b. engineering plugin validation =="
 python3 -c '
 import json, os
-root = "plugins/os-engineering"
+root = "plugins/engineering"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
-# 断言 os-engineering skills 数 = 13（12 发射 + os-init）
+# 断言 engineering skills 数 = 13（12 发射 + os-init）
 EXPECTED = 13
 if skills is None:
     skills_dir = os.path.join(root, "skills")
     assert os.path.isdir(skills_dir), f"missing default skills dir: {skills_dir}"
     n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
-    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (12 emitters + os-init), got {n}"
-    print(f"OK — {n} os-engineering skills (default skills/ discovery)")
+    assert n == EXPECTED, f"expected {EXPECTED} engineering skills (12 emitters + os-init), got {n}"
+    print(f"OK — {n} engineering skills (default skills/ discovery)")
 elif isinstance(skills, str):
     skills_dir = os.path.join(root, skills.lstrip("./"))
     assert os.path.isdir(skills_dir), f"missing skills dir: {skills_dir}"
     n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
-    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (12 emitters + os-init), got {n}"
-    print(f"OK — {n} os-engineering skills (directory {skills!r})")
+    assert n == EXPECTED, f"expected {EXPECTED} engineering skills (12 emitters + os-init), got {n}"
+    print(f"OK — {n} engineering skills (directory {skills!r})")
 else:
     missing = [s for s in skills if not os.path.isdir(os.path.join(root, s.lstrip("./")))]
     assert not missing, f"skills[] points to missing dirs: {missing}"
-    assert len(skills) == EXPECTED, f"expected {EXPECTED} os-engineering skills (12 emitters + os-init), got {len(skills)}"
-    print(f"OK — {len(skills)} os-engineering skills (explicit list)")
+    assert len(skills) == EXPECTED, f"expected {EXPECTED} engineering skills (12 emitters + os-init), got {len(skills)}"
+    print(f"OK — {len(skills)} engineering skills (explicit list)")
 '
-./plugins/os-engineering/tests/registry-schema.test.sh
-./plugins/os-engineering/tests/cdd-select.test.sh
-./plugins/os-engineering/tests/cdd-cli-dry-run-smoke.sh
-./plugins/os-engineering/tests/cdd-commit-gate-smoke.sh
-./plugins/os-engineering/tests/cdd-common-functions.test.sh
-./plugins/os-engineering/tests/cdd-severity-contract.test.sh
-python3 plugins/os-engineering/tests/rule-reference.test.py \
-  --skills os-engineering/skills:semantic
-./plugins/os-engineering/tests/cdd-gate-allow-deny-smoke.sh
-./plugins/os-engineering/tests/override-claude-cdd-gate.test.sh
-./plugins/os-engineering/tests/override-cursor-cdd-gate.test.sh
-./plugins/os-engineering/tests/cdd-orchestrator-line-budget.test.sh
-./plugins/os-engineering/tests/ci-validate-wiring.test.sh
+./plugins/engineering/tests/registry-schema.test.sh
+./plugins/engineering/tests/cdd-select.test.sh
+./plugins/engineering/tests/cdd-cli-dry-run-smoke.sh
+./plugins/engineering/tests/cdd-commit-gate-smoke.sh
+./plugins/engineering/tests/cdd-common-functions.test.sh
+./plugins/engineering/tests/cdd-severity-contract.test.sh
+python3 plugins/engineering/tests/rule-reference.test.py \
+  --skills engineering/skills:semantic
+./plugins/engineering/tests/cdd-gate-allow-deny-smoke.sh
+./plugins/engineering/tests/override-claude-cdd-gate.test.sh
+./plugins/engineering/tests/override-cursor-cdd-gate.test.sh
+./plugins/engineering/tests/cdd-orchestrator-line-budget.test.sh
+./plugins/engineering/tests/ci-validate-wiring.test.sh
 
-echo "== 5b2. os-engineering gate hooks =="
-[ -f plugins/os-engineering/hooks/hooks.json ] || { echo "FAIL: os-engineering hooks.json missing"; exit 1; }
-[ -f plugins/os-engineering/hooks/hooks-cursor.json ] || { echo "FAIL: os-engineering hooks-cursor.json missing"; exit 1; }
-[ -x plugins/os-engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
-[ -x plugins/os-engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
-[ -x plugins/os-engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
+echo "== 5b2. engineering gate hooks =="
+[ -f plugins/engineering/hooks/hooks.json ] || { echo "FAIL: engineering hooks.json missing"; exit 1; }
+[ -f plugins/engineering/hooks/hooks-cursor.json ] || { echo "FAIL: engineering hooks-cursor.json missing"; exit 1; }
+[ -x plugins/engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
+[ -x plugins/engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
+[ -x plugins/engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
 echo "== 5c. engine + router zero-residue check =="
 if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)' \
-  plugins/os-engineering/bin plugins/os-engineering/skills \
+  plugins/engineering/bin plugins/engineering/skills \
   plugins/superpowers-overrides/bin plugins/superpowers-overrides/hooks \
   plugins/superpowers-overrides/build/generated 2>/dev/null; then
   echo "RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine + router executable products"

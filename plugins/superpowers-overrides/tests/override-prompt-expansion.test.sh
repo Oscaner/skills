@@ -13,12 +13,12 @@ run() {
     || { echo "FAIL $name slug: $out"; exit 1; }
 }
 
-run superpowers-prefix '{"command_name":"superpowers:brainstorming"}' 'os-engineering:os-brainstorming'
-run bare-slash '{"command_name":"/brainstorming"}' 'os-engineering:os-brainstorming'
-run writing-plans '{"command_name":"superpowers:writing-plans"}' 'os-engineering:os-writing-plans'
+run superpowers-prefix '{"command_name":"superpowers:brainstorming"}' 'engineering:os-brainstorming'
+run bare-slash '{"command_name":"/brainstorming"}' 'engineering:os-brainstorming'
+run writing-plans '{"command_name":"superpowers:writing-plans"}' 'engineering:os-writing-plans'
 run tdd-prefix '{"command_name":"superpowers:test-driven-development"}' 'mattpocock-skills:tdd'
 run tdd-slash '{"command_name":"/test-driven-development"}' 'mattpocock-skills:tdd'
-run finishing-slash '{"command_name":"/finishing-a-development-branch"}' 'os-engineering:os-finishing'
+run finishing-slash '{"command_name":"/finishing-a-development-branch"}' 'engineering:os-finishing'
 
 no_match=$(printf '%s' '{"command_name":"other:thing"}' | "$BIN" || true)
 if [ -z "$no_match" ]; then

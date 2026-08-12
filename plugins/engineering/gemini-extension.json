@@ -1,0 +1,7 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "name": "engineering",
+  "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
+  "version": "0.1.0",
+  "contextFileName": "GEMINI.md"
+}

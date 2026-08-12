@@ -38,7 +38,7 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 | **Wrapper** (default) | `displayName` + `skills` (+ optional `hooks`) | `cursor-plugins/<name>` |
 | **Plugin-root** | `{ "emitMode": "plugin-root" }` only | `./<contentRoot>` (reads plugin's `.cursor-plugin/plugin.json`) |
 
-**Plugin-root today:** `superpowers-overrides` and **`os-engineering`** (oscaner-generated manifests) and **`superpowers`** (upstream submodule manifest). Other plugins keep wrapper emit. See [cursor-plugins/README.md](../cursor-plugins/README.md) for the hybrid rule and upgrade checklist.
+**Plugin-root today:** `superpowers-overrides` and **`engineering`** (oscaner-generated manifests) and **`superpowers`** (upstream submodule manifest). Other plugins keep wrapper emit. See [cursor-plugins/README.md](../cursor-plugins/README.md) for the hybrid rule and upgrade checklist.
 
 ## Schema
 
@@ -57,4 +57,4 @@ Emit fails when `source.json` versions disagree with truth sources.
 
 ## Cursor Team Marketplace
 
-Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`superpowers-overrides`**, **`os-engineering`**, and **`superpowers`** install from plugin root (`./plugins/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md).
+Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`superpowers-overrides`**, **`engineering`**, and **`superpowers`** install from plugin root (`./plugins/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md).

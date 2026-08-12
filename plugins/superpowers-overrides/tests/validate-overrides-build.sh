@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS="$ROOT/skills"
 MANIFEST="$ROOT/overrides.manifest.json"
-OS_ENG="$ROOT/../os-engineering"
+OS_ENG="$ROOT/../engineering"
 
 echo "== validate manifest sources =="
 python3 -c "
@@ -68,18 +68,18 @@ for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-re
 done
 echo "OK"
 
-echo "== validate rule-reference integrity (os-engineering semantic) =="
+echo "== validate rule-reference integrity (engineering semantic) =="
 python3 "$OS_ENG/tests/rule-reference.test.py" \
-  --skills os-engineering/skills:semantic
+  --skills engineering/skills:semantic
 
-echo "== validate os-engineering engine (harness registry + runners) =="
+echo "== validate engineering engine (harness registry + runners) =="
 [ -f "$OS_ENG/bin/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }
 for script in cdd-run.sh cdd-select.sh cdd-exec.sh; do
-  [ -x "$OS_ENG/bin/$script" ] || { echo "FAIL: os-engineering/bin/$script not executable"; exit 1; }
+  [ -x "$OS_ENG/bin/$script" ] || { echo "FAIL: engineering/bin/$script not executable"; exit 1; }
 done
 echo "OK"
 
-echo "== validate os-engineering engine tests =="
+echo "== validate engineering engine tests =="
 # cdd-exec.test.sh is intentionally not wired here — brief Step 2 sanctions only
 # the three tests below. It stays a standalone regression test (hermetic vs ambient
 # CDD_MODE since the T11 fix round); run it manually.
@@ -118,7 +118,7 @@ root = Path('$ROOT')
 # The os-init spor payload table (a hand-maintained copy of the trigger->target
 # mapping) must stay in lockstep with overrides.manifest.json targets[]. Every
 # manifest target's upstream slug must resolve to its canonical target name.
-lines = (root / '../os-engineering/skills/os-init/SKILL.md').read_text().splitlines()
+lines = (root / '../engineering/skills/os-init/SKILL.md').read_text().splitlines()
 rows = {}
 for line in lines:
     line = line.strip()
@@ -184,17 +184,17 @@ pre = hooks['hooks']['preToolUse']
 assert len(pre) == 1
 assert pre[0]['command'] == './bin/override-cursor-enforce.sh'
 assert 'matcher' not in pre[0]
-assert not any('cdd-gate' in p['command'] for p in pre), 'gate preToolUse moved to os-engineering'
+assert not any('cdd-gate' in p['command'] for p in pre), 'gate preToolUse moved to engineering'
 print('OK')
 "
 
-echo "== validate claude hooks.json has no PreToolUse (gate moved to os-engineering) =="
+echo "== validate claude hooks.json has no PreToolUse (gate moved to engineering) =="
 python3 -c "
 import json
 from pathlib import Path
 root = Path('$ROOT')
 cc = json.loads((root / 'hooks/hooks.json').read_text())
-assert 'PreToolUse' not in cc['hooks'], 'gate PreToolUse moved to os-engineering'
+assert 'PreToolUse' not in cc['hooks'], 'gate PreToolUse moved to engineering'
 print('OK')
 "
 
@@ -224,18 +224,18 @@ import json, re
 from pathlib import Path
 plugin_root = Path('$ROOT')
 repo_root = Path('$REPO_ROOT')
-# dogfood self-check is written by os-init spor, stamped with the os-engineering version
-version = json.loads((repo_root / 'plugins/os-engineering/.claude-plugin/plugin.json').read_text())['version']
+# dogfood self-check is written by os-init spor, stamped with the engineering version
+version = json.loads((repo_root / 'plugins/engineering/.claude-plugin/plugin.json').read_text())['version']
 
 cursor_path = repo_root / '.cursor/rules/superpowers-overrides.mdc'
 claude_path = repo_root / 'CLAUDE.md'
 cursor = cursor_path.read_text()
 claude = claude_path.read_text()
 
-needle = f'os-engineering-version: {version}'
+needle = f'engineering-version: {version}'
 assert needle in cursor, f'{cursor_path}: missing or stale stamp — re-run os-init spor'
 
-m = re.search(r'<!-- os-engineering-version: ([^ ]+) -->', claude.splitlines()[0])
+m = re.search(r'<!-- engineering-version: ([^ ]+) -->', claude.splitlines()[0])
 assert m and m.group(1) == version, f'{claude_path}: line 1 stamp mismatch — re-run os-init spor'
 print('OK')
 "

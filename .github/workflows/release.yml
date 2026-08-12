@@ -55,8 +55,8 @@ jobs:
         include:
           - name: superpowers-overrides
             tag_prefix: "superpowers-overrides@"
-          - name: os-engineering
-            tag_prefix: "os-engineering@"
+          - name: engineering
+            tag_prefix: "engineering@"
     steps:
       - uses: actions/checkout@v7
         with:

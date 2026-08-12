@@ -16,9 +16,9 @@
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
  *      pi      → `package.json#pi` (verified/ensured)
- *      shared  → `.agents/skills/` copy (os-engineering only — no vendored upstream)
- *    plus the overrides hooks/self-check tables and os-engineering PreToolUse
- *    hooks, and version consistency per `plugins/os-engineering/.version-bump.json`.
+ *      shared  → `.agents/skills/` copy (engineering only — no vendored upstream)
+ *    plus the overrides hooks/self-check tables and engineering PreToolUse
+ *    hooks, and version consistency per `plugins/engineering/.version-bump.json`.
  *
  * `--check` mode generates into a temp tree and diffs every produced path
  * against the on-disk tree (drift → exit 1), and flags committed product files
@@ -63,8 +63,8 @@ import {
   geminiExtension,
   geminiMarkdown,
   piPackageKey,
-  osEngineeringClaudeHooks,
-  osEngineeringCursorHooks,
+  engineeringClaudeHooks,
+  engineeringCursorHooks,
 } from "./lib/emit/manifests.mjs";
 import {
   loadTargets,
@@ -100,12 +100,12 @@ const generatedPaths = [];
 const productRoots = [
   ".claude-plugin",
   ".cursor-plugin",
-  "plugins/os-engineering/.claude-plugin",
-  "plugins/os-engineering/.cursor-plugin",
-  "plugins/os-engineering/.codex-plugin",
-  "plugins/os-engineering/.kimi-plugin",
-  "plugins/os-engineering/hooks",
-  "plugins/os-engineering/.agents",
+  "plugins/engineering/.claude-plugin",
+  "plugins/engineering/.cursor-plugin",
+  "plugins/engineering/.codex-plugin",
+  "plugins/engineering/.kimi-plugin",
+  "plugins/engineering/hooks",
+  "plugins/engineering/.agents",
   "plugins/superpowers-overrides/.claude-plugin",
   "plugins/superpowers-overrides/.cursor-plugin",
   "plugins/superpowers-overrides/.codex-plugin",
@@ -116,8 +116,8 @@ const productRoots = [
 
 /** Standalone repo-relative product files (not inside a product root). */
 const productFiles = [
-  "plugins/os-engineering/gemini-extension.json",
-  "plugins/os-engineering/GEMINI.md",
+  "plugins/engineering/gemini-extension.json",
+  "plugins/engineering/GEMINI.md",
 ];
 
 function writeText(outRoot, rel, content) {
@@ -136,7 +136,7 @@ function readJson(rel) {
 }
 
 // ---------------------------------------------------------------------------
-// os-engineering
+// engineering
 // ---------------------------------------------------------------------------
 
 function emitOsEngineering(outRoot, plugin) {
@@ -187,12 +187,12 @@ function emitOsEngineering(outRoot, plugin) {
   writeJsonDoc(
     outRoot,
     `${contentRoot}/hooks/hooks.json`,
-    osEngineeringClaudeHooks(),
+    engineeringClaudeHooks(),
   );
   writeJsonDoc(
     outRoot,
     `${contentRoot}/hooks/hooks-cursor.json`,
-    osEngineeringCursorHooks(),
+    engineeringCursorHooks(),
   );
 
   emitAgentsSkillsCopy(outRoot, contentRoot);
@@ -203,13 +203,13 @@ function emitOsEngineering(outRoot, plugin) {
 
 /**
  * Shared `.agents/skills/` copy for codex/gemini/pi/qoder/opencode scanners.
- * Contains ONLY the os-engineering skills namespace — upstream superpowers
+ * Contains ONLY the engineering skills namespace — upstream superpowers
  * skills are NOT vendored (os-* Read Upstream is a when-available enhancement).
  */
 function emitAgentsSkillsCopy(outRoot, contentRoot) {
   const outAgents = join(outRoot, contentRoot, ".agents", "skills");
   const namespaces = [
-    ["os-engineering", join(root, "plugins/os-engineering/skills")],
+    ["engineering", join(root, "plugins/engineering/skills")],
   ];
   // Prune stale namespace dirs (deleted source, or a namespace no longer
   // emitted) before re-copying, so a skill removed from skills/ can't linger
@@ -267,8 +267,11 @@ function emitOverrides(outRoot, plugin) {
     readFileSync(join(pluginDir, "package.json"), "utf8"),
   );
   const version = pkg.version;
+  // Manifest `name` is the plugin name (superpowers-overrides), NOT the npm
+  // package name (@oscaner-skills/superpowers-overrides) — the plugin name is
+  // what marketplace install/resolve uses.
   const meta = {
-    name: pkg.name,
+    name: plugin.name,
     description: pkg.description,
     author: pkg.author,
     license: pkg.license,
@@ -386,11 +389,11 @@ function emitMarketplaceDocs(outRoot, source) {
 // ---------------------------------------------------------------------------
 
 function assertVersionBump() {
-  const plugin = "plugins/os-engineering";
+  const plugin = "plugins/engineering";
   const bumpPath = join(root, plugin, ".version-bump.json");
   if (!existsSync(bumpPath)) return;
   const bump = JSON.parse(readFileSync(bumpPath, "utf8"));
-  const pkgVersion = readJson("plugins/os-engineering/package.json").version;
+  const pkgVersion = readJson("plugins/engineering/package.json").version;
   for (const f of bump.files) {
     const abs = join(root, plugin, f.path);
     if (!existsSync(abs)) continue; // not materialized on disk — checked via --check diff
@@ -414,16 +417,16 @@ function emitAll(outRoot) {
 
   for (const plugin of source.plugins) {
     if (plugin.name === "superpowers-overrides") emitOverrides(outRoot, plugin);
-    if (plugin.name === "os-engineering") emitOsEngineering(outRoot, plugin);
+    if (plugin.name === "engineering") emitOsEngineering(outRoot, plugin);
   }
 
   emitMarketplaceDocs(outRoot, source);
 
-  // os-engineering no longer uses the cursor wrapper — the wrapper must be gone.
-  const staleWrapper = join(outRoot, "cursor-plugins/os-engineering");
+  // engineering no longer uses the cursor wrapper — the wrapper must be gone.
+  const staleWrapper = join(outRoot, "cursor-plugins/engineering");
   if (existsSync(staleWrapper)) {
     throw new Error(
-      `stale cursor wrapper: cursor-plugins/os-engineering/ must be deleted (plugin-root emit)`,
+      `stale cursor wrapper: cursor-plugins/engineering/ must be deleted (plugin-root emit)`,
     );
   }
 }
@@ -452,7 +455,7 @@ function compareTrees(generatedRoot) {
     generatedSet,
     productRoots,
     productFiles,
-    extraStale: ["cursor-plugins/os-engineering/"],
+    extraStale: ["cursor-plugins/engineering/"],
     root,
   });
   if (stale.length > 0) {

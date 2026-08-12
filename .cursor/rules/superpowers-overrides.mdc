@@ -1,15 +1,15 @@
 ---
-description: os-engineering self-check for Cursor — intercept upstream superpowers skills
+description: engineering self-check for Cursor — intercept upstream superpowers skills
 alwaysApply: true
-os-engineering-version: 0.1.0
+engineering-version: 0.1.0
 ---
 
-## os-engineering self-check (Cursor)
+## engineering self-check (Cursor)
 
 Before your first tool call in ANY turn:
 
 1. Scan for: `/superpowers:*`, bare `/<slug>` matching an upstream override target, `<command-name>` tags, or upstream superpowers skill body in context.
-2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `os-engineering:os-brainstorming` for `/brainstorming`).
+2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `engineering:os-brainstorming` for `/brainstorming`).
 3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
 4. Only after the target skill body is loaded may you follow upstream instructions.
 
@@ -23,13 +23,13 @@ Before your first tool call in ANY turn:
 
 ### Override trigger table
 
-| `/brainstorming`, `/superpowers:brainstorming`, upstream `brainstorming` body | Read `os-engineering:os-brainstorming` via agent_skills fullPath |
-| `/writing-plans`, `/superpowers:writing-plans`, upstream `writing-plans` body | Read `os-engineering:os-writing-plans` via agent_skills fullPath |
-| `/subagent-driven-development`, `/superpowers:subagent-driven-development`, upstream `subagent-driven-development` body | Read `os-engineering:cli-driven-development` via agent_skills fullPath |
-| `/executing-plans`, `/superpowers:executing-plans`, upstream `executing-plans` body | Read `os-engineering:os-executing-plans` via agent_skills fullPath |
-| `/finishing-a-development-branch`, `/superpowers:finishing-a-development-branch`, upstream `finishing-a-development-branch` body | Read `os-engineering:os-finishing` via agent_skills fullPath |
-| `/systematic-debugging`, `/superpowers:systematic-debugging`, upstream `systematic-debugging` body | Read `os-engineering:os-debugging` via agent_skills fullPath |
+| `/brainstorming`, `/superpowers:brainstorming`, upstream `brainstorming` body | Read `engineering:os-brainstorming` via agent_skills fullPath |
+| `/writing-plans`, `/superpowers:writing-plans`, upstream `writing-plans` body | Read `engineering:os-writing-plans` via agent_skills fullPath |
+| `/subagent-driven-development`, `/superpowers:subagent-driven-development`, upstream `subagent-driven-development` body | Read `engineering:cli-driven-development` via agent_skills fullPath |
+| `/executing-plans`, `/superpowers:executing-plans`, upstream `executing-plans` body | Read `engineering:os-executing-plans` via agent_skills fullPath |
+| `/finishing-a-development-branch`, `/superpowers:finishing-a-development-branch`, upstream `finishing-a-development-branch` body | Read `engineering:os-finishing` via agent_skills fullPath |
+| `/systematic-debugging`, `/superpowers:systematic-debugging`, upstream `systematic-debugging` body | Read `engineering:os-debugging` via agent_skills fullPath |
 | `/test-driven-development`, `/superpowers:test-driven-development`, upstream `test-driven-development` body | Read `mattpocock-skills:tdd` via agent_skills fullPath |
-| `/verification-before-completion`, `/superpowers:verification-before-completion`, upstream `verification-before-completion` body | Read `os-engineering:os-verification` via agent_skills fullPath |
-| `/receiving-code-review`, `/superpowers:receiving-code-review`, upstream `receiving-code-review` body | Read `os-engineering:os-code-review` via agent_skills fullPath |
-| `/using-git-worktrees`, `/superpowers:using-git-worktrees`, upstream `using-git-worktrees` body | Read `os-engineering:os-finishing` via agent_skills fullPath |
+| `/verification-before-completion`, `/superpowers:verification-before-completion`, upstream `verification-before-completion` body | Read `engineering:os-verification` via agent_skills fullPath |
+| `/receiving-code-review`, `/superpowers:receiving-code-review`, upstream `receiving-code-review` body | Read `engineering:os-code-review` via agent_skills fullPath |
+| `/using-git-worktrees`, `/superpowers:using-git-worktrees`, upstream `using-git-worktrees` body | Read `engineering:os-finishing` via agent_skills fullPath |

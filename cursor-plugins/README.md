@@ -34,7 +34,7 @@ pnpm run emit && pnpm run validate
 | superpowers | plugin-root | pack-sp — upstream submodule manifest |
 | mattpocock-skills | wrapper | no upstream `.cursor-plugin` |
 | impeccable | wrapper | no upstream `.cursor-plugin` |
-| os-engineering | plugin-root | emit-generated manifest at plugin root (`.cursor-plugin/plugin.json`); skills/ + hooks live at content root |
+| engineering | plugin-root | emit-generated manifest at plugin root (`.cursor-plugin/plugin.json`); skills/ + hooks live at content root |
 
 ## Upgrade checklist (wrapper → plugin-root)
 

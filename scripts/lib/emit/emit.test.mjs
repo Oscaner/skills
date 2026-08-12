@@ -13,8 +13,8 @@ import {
   piPackageKey,
   generatedBanner,
   FIRST_PARTY_NAMES,
-  osEngineeringClaudeHooks,
-  osEngineeringCursorHooks,
+  engineeringClaudeHooks,
+  engineeringCursorHooks,
 } from "./manifests.mjs";
 import {
   findStaleCommittedFiles,
@@ -33,7 +33,7 @@ import {
 } from "./overrides.mjs";
 
 const OS_ENG = {
-  name: "os-engineering",
+  name: "engineering",
   version: "0.1.0",
   description:
     "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
@@ -64,10 +64,10 @@ const OVERRIDES = {
 // manifests.mjs — generic first-party per-harness manifest builders
 // ---------------------------------------------------------------------------
 
-test("claudePluginManifest emits os-engineering claude manifest (thin, skills+../hooks)", () => {
+test("claudePluginManifest emits engineering claude manifest (thin, skills+../hooks)", () => {
   assert.deepEqual(claudePluginManifest(OS_ENG, "0.1.0"), {
     _generated: generatedBanner,
-    name: "os-engineering",
+    name: "engineering",
     description:
       "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
     version: "0.1.0",
@@ -100,8 +100,8 @@ test("claudePluginManifest with noSkills omits skills but keeps full metadata", 
 
 test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () => {
   const m = cursorPluginManifest(OS_ENG, "0.1.0");
-  assert.equal(m.name, "os-engineering");
-  assert.equal(m.displayName, "os-engineering");
+  assert.equal(m.name, "engineering");
+  assert.equal(m.displayName, "engineering");
   assert.equal(m.skills, "./skills/");
   assert.equal(m.hooks, "./hooks/hooks-cursor.json");
   assert.equal(m.version, "0.1.0");
@@ -114,10 +114,10 @@ test("codexPluginManifest includes skills, empty hooks, and interface", () => {
   const m = codexPluginManifest(OS_ENG, "0.1.0");
   assert.equal(m.skills, "./skills/");
   assert.deepEqual(m.hooks, {});
-  assert.equal(m.name, "os-engineering");
+  assert.equal(m.name, "engineering");
   assert.equal(m.version, "0.1.0");
   assert.ok(m.interface, "codex manifest must carry an interface");
-  assert.equal(m.interface.displayName, "os-engineering");
+  assert.equal(m.interface.displayName, "engineering");
   assert.ok(Array.isArray(m.interface.capabilities));
   assert.ok(m.interface.capabilities.length > 0);
 });
@@ -131,13 +131,13 @@ test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface"
     "kimi manifest must carry tool-mapping prose",
   );
   assert.ok(m.interface);
-  assert.equal(m.interface.displayName, "os-engineering");
+  assert.equal(m.interface.displayName, "engineering");
 });
 
 test("geminiExtension is thin: name/description/version + contextFileName", () => {
   assert.deepEqual(geminiExtension(OS_ENG, "0.1.0"), {
     _generated: generatedBanner,
-    name: "os-engineering",
+    name: "engineering",
     description:
       "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
     version: "0.1.0",
@@ -169,16 +169,16 @@ test("piPackageKey is a pure skills package (no runtime extensions)", () => {
 test("FIRST_PARTY_NAMES covers both per-harness emit plugins", () => {
   assert.deepEqual(FIRST_PARTY_NAMES, [
     "superpowers-overrides",
-    "os-engineering",
+    "engineering",
   ]);
   assert.ok(
-    FIRST_PARTY_NAMES.includes("os-engineering"),
-    "os-engineering receives the per-harness emit (incl. gate hooks)",
+    FIRST_PARTY_NAMES.includes("engineering"),
+    "engineering receives the per-harness emit (incl. gate hooks)",
   );
 });
 
-test("osEngineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
-  const hooks = osEngineeringClaudeHooks();
+test("engineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
+  const hooks = engineeringClaudeHooks();
   assert.ok(hooks._generated, "hooks.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
   const pre = hooks.hooks.PreToolUse;
@@ -195,8 +195,8 @@ test("osEngineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () =
   }
 });
 
-test("osEngineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
-  const hooks = osEngineeringCursorHooks();
+test("engineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
+  const hooks = engineeringCursorHooks();
   assert.ok(hooks._generated, "hooks-cursor.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
   assert.equal(hooks.version, 1);
@@ -219,17 +219,17 @@ test("findStaleCommittedFiles flags emitted products no longer generated", () =>
     // standalone product file that IS still generated
     writeFileSync(join(tmp, "standalone.json"), "{}\n");
     // retired whole-directory product (cursor wrapper) that must be gone
-    mkdirSync(join(tmp, "cursor-plugins/os-engineering"), { recursive: true });
+    mkdirSync(join(tmp, "cursor-plugins/engineering"), { recursive: true });
 
     const stale = findStaleCommittedFiles({
       generatedSet: new Set(["products/kept.json", "standalone.json"]),
       productRoots: ["products"],
       productFiles: ["standalone.json"],
-      extraStale: ["cursor-plugins/os-engineering/"],
+      extraStale: ["cursor-plugins/engineering/"],
       root: tmp,
     });
     assert.deepEqual(stale.sort(), [
-      "cursor-plugins/os-engineering/",
+      "cursor-plugins/engineering/",
       "products/stale.json",
     ]);
   } finally {
@@ -258,7 +258,7 @@ test("pruneStaleAgentsNamespaces removes deleted/missing namespace dirs", () => 
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-agents-"));
   try {
     const outAgents = join(tmp, ".agents", "skills");
-    mkdirSync(join(outAgents, "os-engineering"), { recursive: true });
+    mkdirSync(join(outAgents, "engineering"), { recursive: true });
     mkdirSync(join(outAgents, "superpowers"), { recursive: true });
     mkdirSync(join(outAgents, "ghost"), { recursive: true });
     const srcDir = join(tmp, "src");
@@ -266,13 +266,13 @@ test("pruneStaleAgentsNamespaces removes deleted/missing namespace dirs", () => 
 
     const namespaces = [
       // maps to an existing source → kept
-      ["os-engineering", srcDir],
+      ["engineering", srcDir],
       // maps to a missing source → pruned
       ["superpowers", join(tmp, "no-such-source")],
     ];
     const removed = pruneStaleAgentsNamespaces(outAgents, namespaces);
     assert.deepEqual(removed.sort(), ["ghost", "superpowers"]);
-    assert.ok(existsSync(join(outAgents, "os-engineering")), "kept namespace survives");
+    assert.ok(existsSync(join(outAgents, "engineering")), "kept namespace survives");
     assert.ok(!existsSync(join(outAgents, "superpowers")), "missing-source namespace pruned");
     assert.ok(!existsSync(join(outAgents, "ghost")), "unmapped namespace pruned");
   } finally {
@@ -285,7 +285,7 @@ test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", ()
   try {
     const outAgents = join(tmp, ".agents", "skills");
     const removed = pruneStaleAgentsNamespaces(outAgents, [
-      ["os-engineering", join(tmp, "src")],
+      ["engineering", join(tmp, "src")],
     ]);
     assert.deepEqual(removed, []);
   } finally {
@@ -301,12 +301,12 @@ test("loadTargets parses the real overrides.manifest.json", () => {
   const targets = loadTargets(MANIFEST_PATH);
   assert.equal(targets.length, 10);
   const brainstorming = targets.find(
-    (t) => t.name === "os-engineering:os-brainstorming",
+    (t) => t.name === "engineering:os-brainstorming",
   );
   assert.ok(brainstorming);
   assert.equal(brainstorming.overrides, "superpowers:brainstorming");
   assert.equal(brainstorming.upstream_slug, "brainstorming");
-  assert.equal(brainstorming.source, "../os-engineering/skills/os-brainstorming");
+  assert.equal(brainstorming.source, "../engineering/skills/os-brainstorming");
   const tdd = targets.find((t) => t.name === "mattpocock-skills:tdd");
   assert.equal(tdd.source, null);
   assert.equal(targetSkillSuffix(tdd), "skills/engineering/tdd/SKILL.md");
@@ -323,10 +323,10 @@ test("promptExpansionScript maps every overrides trigger to its target", () => {
   const script = promptExpansionScript(loadTargets(MANIFEST_PATH));
   assert.match(script, /^#!\/bin\/sh/);
   assert.match(script, /# scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /superpowers:brainstorming\) override="os-engineering:os-brainstorming"/);
-  assert.match(script, /\/brainstorming\) override="os-engineering:os-brainstorming"/);
+  assert.match(script, /superpowers:brainstorming\) override="engineering:os-brainstorming"/);
+  assert.match(script, /\/brainstorming\) override="engineering:os-brainstorming"/);
   assert.match(script, /superpowers:test-driven-development\) override="mattpocock-skills:tdd"/);
-  assert.match(script, /\/using-git-worktrees\) override="os-engineering:os-finishing"/);
+  assert.match(script, /\/using-git-worktrees\) override="engineering:os-finishing"/);
 });
 
 test("claudeHooksJson has exactly the two UserPromptExpansion matchers", () => {
@@ -350,7 +350,7 @@ test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {
   const script = cursorDetectScript(loadTargets(MANIFEST_PATH), template);
   assert.match(script, /#!\/usr\/bin\/env bash/);
   assert.match(script, /# scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /"skill_suffix": ?"\.\.\/os-engineering\/skills\/os-brainstorming\/SKILL\.md"/);
+  assert.match(script, /"skill_suffix": ?"\.\.\/engineering\/skills\/os-brainstorming\/SKILL\.md"/);
   assert.match(script, /"name": ?"mattpocock-skills:tdd"/);
   assert.match(script, /"skill_suffix": ?"skills\/engineering\/tdd\/SKILL\.md"/);
   // attach regex for the brainstorming upstream family present
@@ -368,7 +368,7 @@ test("cursorEnforceScript embeds read-regexes per target skill", () => {
   assert.match(script, /READ_RES = \{/);
   assert.match(script, /"mattpocock-skills:tdd"/);
   assert.match(script, /skills\/engineering\/tdd\/SKILL/);
-  assert.match(script, /"os-engineering:os-brainstorming"/);
+  assert.match(script, /"engineering:os-brainstorming"/);
 });
 
 test("claudeSelfCheckMd fills the trigger table with target skill names", () => {
@@ -383,7 +383,7 @@ test("claudeSelfCheckMd fills the trigger table with target skill names", () => 
   );
   assert.match(md, /<!-- scripts\/emit\.mjs — do not edit -->/);
   assert.match(md, /<!-- superpowers-overrides-version: 6\.2\.0-overrides\.0\.15\.3 -->/);
-  assert.match(md, /\| `superpowers:brainstorming` \| `Skill\(os-engineering:os-brainstorming\)` \|/);
+  assert.match(md, /\| `superpowers:brainstorming` \| `Skill\(engineering:os-brainstorming\)` \|/);
   assert.match(md, /\| `superpowers:test-driven-development` \| `Skill\(mattpocock-skills:tdd\)` \|/);
 });
 
@@ -399,5 +399,5 @@ test("cursorSelfCheckMdc carries the version stamp and trigger rows", () => {
   );
   assert.match(mdc, /_generated: scripts\/emit\.mjs — do not edit/);
   assert.match(mdc, /superpowers-overrides-version: 6\.2\.0-overrides\.0\.15\.3/);
-  assert.match(mdc, /\| `\/brainstorming`, `\/superpowers:brainstorming`, upstream `brainstorming` body \| Read `os-engineering:os-brainstorming` via agent_skills fullPath \|/);
+  assert.match(mdc, /\| `\/brainstorming`, `\/superpowers:brainstorming`, upstream `brainstorming` body \| Read `engineering:os-brainstorming` via agent_skills fullPath \|/);
 });

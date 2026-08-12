@@ -27,11 +27,6 @@ command_hook = {
 
 bare_parts = [f"({cc_matcher_bare_slash(t.upstream_slug)})" for t in targets]
 
-sdd_gate_hook = {
-    "type": "command",
-    "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-sdd-gate.sh",
-}
-
 hooks = {
     "hooks": {
         "UserPromptExpansion": [
@@ -43,10 +38,6 @@ hooks = {
                 "matcher": "|".join(bare_parts),
                 "hooks": [command_hook],
             },
-        ],
-        "PreToolUse": [
-            {"matcher": "Write|Edit", "hooks": [sdd_gate_hook]},
-            {"matcher": "Bash", "hooks": [sdd_gate_hook]},
         ],
     }
 }

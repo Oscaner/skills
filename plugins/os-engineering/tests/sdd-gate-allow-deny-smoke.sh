@@ -3,7 +3,7 @@ set -euo pipefail
 # sdd-gate-allow-deny-smoke.sh — full allow/deny decision matrix smoke test.
 #
 # Covers spec §设计 判定矩阵 for the shared cdd-orchestrator-gate.sh state machine,
-# driven through the Claude PreToolUse adapter (override-claude-sdd-gate.sh):
+# driven through the Claude PreToolUse adapter (override-claude-cdd-gate.sh):
 #   - read-only git diagnostics allow (AC1 boundary cases + `-c` v1 deny)
 #   - mutating git verbs / non-git commands deny
 #   - stub-ws (TASK_BASE: abc) does NOT activate; real-SHA active-ws does
@@ -17,10 +17,10 @@ set -euo pipefail
 # pending file is never touched (see finding: global find -delete clobbers).
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-GATE="$ROOT/bin/override-claude-sdd-gate.sh"
+GATE="$ROOT/bin/override-claude-cdd-gate.sh"
 ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
-OS_ENG="$ROOT/../os-engineering"
+OS_ENG="$ROOT"
 
 # shellcheck source=tests/sdd-gate-test-lib.sh
 source "$ROOT/tests/sdd-gate-test-lib.sh"

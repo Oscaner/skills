@@ -2,7 +2,7 @@
 # cdd-orchestrator-gate.sh — shared CDD orchestrator PreToolUse state machine (p1-slim.2)
 # Source from harness adapters only.
 
-CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-cdd"
+CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-os-engineering/pending-cdd"
 CDD_PENDING_TTL=86400
 
 cdd_pending_path() {
@@ -283,7 +283,7 @@ cdd_deny_message() {
   local harness="$1" task_num="$2" plan_basename="$3"
   local plugin_root os_root verbs
   plugin_root="$(cdd_plugin_root_from_lib)"
-  os_root="${plugin_root}/../os-engineering"
+  os_root="$plugin_root"
   verbs="$(cdd_readonly_git_verbs | awk '{printf "  git %s", $1; for (i = 2; i <= 7 && i <= NF; i++) printf " / git %s", $i; printf "\n  "; for (i = 8; i <= NF; i++) printf "git %s%s", $i, (i == NF ? "\n" : " / ")}')"
   cat <<-EOF
 	CDD orchestrator gate — direct repo edits forbidden during active task.

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-GATE="$ROOT/bin/override-claude-sdd-gate.sh"
+GATE="$ROOT/bin/override-claude-cdd-gate.sh"
 ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
-OS_ENG="$ROOT/../os-engineering"
+OS_ENG="$ROOT"
 
 # 隔离 fixture + per-run session 命名：共享 sdd-gate-test-lib.sh（见该文件头注释）。
 # shellcheck source=tests/sdd-gate-test-lib.sh
@@ -37,4 +37,4 @@ echo "$deny_bash" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/d
 allow_h6=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$OS_ENG/bin/cdd-run.sh --harness claude --task 1 --mode implement\"}}" | "$GATE")
 echo "$allow_h6" | jq -e '.hookSpecificOutput.permissionDecision == "allow"' >/dev/null
 
-echo "OK — override-claude-sdd-gate"
+echo "OK — override-claude-cdd-gate"

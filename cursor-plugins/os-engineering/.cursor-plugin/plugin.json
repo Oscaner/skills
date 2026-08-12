@@ -9,5 +9,6 @@
   },
   "skills": "../../plugins/os-engineering/skills",
   "version": "0.1.0",
-  "license": "MIT"
+  "license": "MIT",
+  "hooks": "../../plugins/os-engineering/hooks/hooks-cursor.json"
 }

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SKILLS="$ROOT/skills"
-OS_ENG="$ROOT/../os-engineering"
+OS_ENG="$ROOT"
 OS_EXEC="$OS_ENG/skills/os-executing-plans/SKILL.md"
 
 # orchestrator prose now lives in os-executing-plans + the os-engineering docs
@@ -24,33 +23,20 @@ echo "Tier 2 (+ subagent-lifecycle + review-dispatch): $tier2 lines"
 [ "$tier1" -le 225 ] || { echo "FAIL: Tier 1 $tier1 > 225"; exit 1; }
 [ "$tier2" -le 350 ] || { echo "FAIL: Tier 2 $tier2 > 350"; exit 1; }
 
-# AC#1 — orchestrator prose moved to os-engineering; the spor-SDD thin pointer is
-# deleted (T2), and os-executing-plans hosts D6 + checklist.
-[ ! -e "$SKILLS/spor-subagent-driven-development" ] \
-  || { echo "FAIL: spor-subagent-driven-development still present"; exit 1; }
+# AC#1 — orchestrator prose moved to os-engineering (T2); os-executing-plans
+# hosts D6 + checklist.
 grep -q '^### Rule: D6 Aggregation' "$OS_EXEC" \
   || { echo "FAIL: os-executing-plans missing D6 Aggregation"; exit 1; }
 grep -q '^### Rule: Orchestrator Checklist' "$OS_EXEC" \
   || { echo "FAIL: os-executing-plans missing Orchestrator Checklist"; exit 1; }
 
-# AC#2 — env/exit/harness tables live in os-engineering/docs/cdd-reference.md;
-# the controller-handoff thin pointer is deleted (T2).
-[ ! -e "$SKILLS/spor-token-efficient-controller-handoff" ] \
-  || { echo "FAIL: spor-token-efficient-controller-handoff still present"; exit 1; }
+# AC#2 — env/exit/harness tables live in os-engineering/docs/cdd-reference.md.
 grep -qF '| Variable | Purpose |' "$OS_ENG/docs/cdd-reference.md" \
   || { echo "FAIL: cdd-reference missing env table"; exit 1; }
 grep -qF '| Ship | Harnesses |' "$OS_ENG/docs/cdd-reference.md" \
   || { echo "FAIL: cdd-reference missing harness table"; exit 1; }
 
-# deleted cross-cutting skills are gone from the overrides tree
-for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-review-dispatch; do
-  [ -e "$SKILLS/$slug" ] && { echo "FAIL: deleted skill still present: $slug"; exit 1; }
-done
-
-# schema single file — JSON examples only in the os-engineering schema SOT;
-# the handoff-writer thin pointer is deleted (T2).
-[ ! -e "$SKILLS/spor-handoff-writer" ] \
-  || { echo "FAIL: spor-handoff-writer still present"; exit 1; }
+# schema single file — JSON examples only in the os-engineering schema SOT.
 schema_examples=$(grep -c '"task":' "$OS_ENG/docs/handoff-schema.md" || true)
 [ "$schema_examples" -ge 1 ] || { echo "FAIL: schema file missing JSON example"; exit 1; }
 

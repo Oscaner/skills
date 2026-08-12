@@ -42,9 +42,6 @@ hooks = {
             {
                 "command": "./bin/override-cursor-enforce.sh",
             },
-            {
-                "command": "./bin/override-cursor-sdd-gate.sh",
-            },
         ],
     },
 }

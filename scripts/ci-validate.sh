@@ -60,9 +60,6 @@ echo "== 4. hooks executable =="
 
 echo "== 5. overrides build validation =="
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
-./plugins/superpowers-overrides/tests/override-cursor-sdd-gate.test.sh
-./plugins/superpowers-overrides/tests/override-claude-sdd-gate.test.sh
-./plugins/superpowers-overrides/tests/sdd-gate-allow-deny-smoke.sh
 
 echo "== 5b. os-engineering plugin validation =="
 python3 -c '
@@ -98,7 +95,19 @@ else:
 ./plugins/os-engineering/tests/cdd-severity-contract.test.sh
 python3 plugins/os-engineering/tests/rule-reference.test.py \
   --skills os-engineering/skills:semantic
+./plugins/os-engineering/tests/sdd-gate-allow-deny-smoke.sh
+./plugins/os-engineering/tests/override-claude-cdd-gate.test.sh
+./plugins/os-engineering/tests/override-cursor-cdd-gate.test.sh
+./plugins/os-engineering/tests/sdd-orchestrator-line-budget.test.sh
 ./plugins/os-engineering/tests/ci-validate-wiring.test.sh
+
+echo "== 5b2. os-engineering gate hooks =="
+[ -f plugins/os-engineering/hooks/hooks.json ] || { echo "FAIL: os-engineering hooks.json missing"; exit 1; }
+[ -f plugins/os-engineering/hooks/hooks-cursor.json ] || { echo "FAIL: os-engineering hooks-cursor.json missing"; exit 1; }
+[ -x plugins/os-engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
+[ -x plugins/os-engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
+[ -x plugins/os-engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
+echo "OK"
 
 echo "== 5c. migrated-engine zero-residue check =="
 if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-)' \

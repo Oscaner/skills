@@ -68,9 +68,6 @@ for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-re
 done
 echo "OK"
 
-echo "== validate SDD orchestrator line budget =="
-"$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
-
 echo "== validate rule-reference integrity (os-engineering semantic) =="
 python3 "$OS_ENG/tests/rule-reference.test.py" \
   --skills os-engineering/skills:semantic
@@ -157,33 +154,26 @@ assert 'preToolUse' in hooks['hooks']
 detect = hooks['hooks']['beforeSubmitPrompt'][0]
 assert detect['command'] == './bin/override-cursor-detect.sh'
 pre = hooks['hooks']['preToolUse']
-assert len(pre) == 2
+assert len(pre) == 1
 assert pre[0]['command'] == './bin/override-cursor-enforce.sh'
-assert pre[1]['command'] == './bin/override-cursor-sdd-gate.sh'
 assert 'matcher' not in pre[0]
+assert not any('sdd-gate' in p['command'] for p in pre), 'gate preToolUse moved to os-engineering'
 print('OK')
 "
 
-echo "== validate claude hooks.json PreToolUse =="
+echo "== validate claude hooks.json has no PreToolUse (gate moved to os-engineering) =="
 python3 -c "
 import json
 from pathlib import Path
 root = Path('$ROOT')
 cc = json.loads((root / 'hooks/hooks.json').read_text())
-assert 'PreToolUse' in cc['hooks']
-assert len(cc['hooks']['PreToolUse']) == 2
-assert cc['hooks']['PreToolUse'][0]['matcher'] == 'Write|Edit'
-assert cc['hooks']['PreToolUse'][1]['matcher'] == 'Bash'
-assert cc['hooks']['PreToolUse'][0]['hooks'][0]['command'].endswith('override-claude-sdd-gate.sh')
+assert 'PreToolUse' not in cc['hooks'], 'gate PreToolUse moved to os-engineering'
 print('OK')
 "
 
 echo "== validate cursor hook scripts executable =="
 [ -x "$ROOT/bin/override-cursor-detect.sh" ] || { echo "FAIL: detect not executable"; exit 1; }
 [ -x "$ROOT/bin/override-cursor-enforce.sh" ] || { echo "FAIL: enforce not executable"; exit 1; }
-[ -x "$ROOT/bin/override-cursor-sdd-gate.sh" ] || { echo "FAIL: sdd-gate not executable"; exit 1; }
-[ -x "$ROOT/bin/override-claude-sdd-gate.sh" ] || { echo "FAIL: claude sdd-gate not executable"; exit 1; }
-[ -x "$ROOT/bin/cdd-session-activate.sh" ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
 echo "== validate self-check version stamps =="

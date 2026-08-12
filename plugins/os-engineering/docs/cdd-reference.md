@@ -113,7 +113,7 @@ not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fa
 
 ## CDD gate matrix
 
-The orchestrator PreToolUse gate（`plugins/superpowers-overrides/bin/lib/cdd-orchestrator-gate.sh`，过渡期在 overrides，P1 跨插件引用本节点；p1-slim.2）blocks direct repo edits while a task is active. Judgment is one decision point — `cdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
+The orchestrator PreToolUse gate（`plugins/os-engineering/bin/lib/cdd-orchestrator-gate.sh`，T3 迁入 os-engineering；p1-slim.2）blocks direct repo edits while a task is active. Judgment is one decision point — `cdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
 
 The gate is fail-open until an active task resolves (spec 安全属性 / data-flow step 1):
 

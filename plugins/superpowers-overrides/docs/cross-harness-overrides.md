@@ -40,7 +40,6 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 |------|---------|------|
 | `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths** or **SDD slash** → write pending / activate SDD session |
 | `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (spor SKILL path via `tool_input.path` or `tool_input.file_path`) or `Skill` (`superpowers-overrides:spor-*`); **deny** all other first tools |
-| `preToolUse` (no matcher) | `bin/override-cursor-sdd-gate.sh` | SDD orchestrator gate — deny non-workspace Write/Edit and non-allowlist Bash during active tasks |
 
 Bare `/brainstorming`, `/spor-*`, and prefixed slash commands (`superpowers:*`) → **no pending**; self-check rules (`.cursor/rules/superpowers-overrides.mdc`) are primary enforcement for slash triggers.
 
@@ -58,18 +57,18 @@ Cursor cannot inject context on submit (no `additional_context` on `beforeSubmit
 
 ### CDD orchestrator gate (p1-slim.2)
 
-Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Cursor + Claude Code).
+Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Cursor + Claude Code). The gate ships with **os-engineering** (T3) — the overrides plugin is a trigger router and carries no gate hooks.
 
 | Item | Detail |
 |------|--------|
-| Pending path | `$TMPDIR/oscaner-superpowers-overrides/pending-cdd/<session_key>.json` |
+| Pending path | `$TMPDIR/oscaner-os-engineering/pending-cdd/<session_key>.json` |
 | Activation | SDD slash (`/subagent-driven-development`, `/spor-*`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Cursor detect + Claude expansion |
-| Shared lib | `bin/lib/cdd-orchestrator-gate.sh` — single allowlist + state machine |
-| Adapters | `override-cursor-sdd-gate.sh`, `override-claude-sdd-gate.sh` |
+| Shared lib | `os-engineering/bin/lib/cdd-orchestrator-gate.sh` — single allowlist + state machine |
+| Adapters | `override-claude-cdd-gate.sh`, `override-cursor-cdd-gate.sh`（os-engineering） |
 | Fail-open | No jq, no pending, or cannot resolve workspace → allow (skill checklist fallback) |
 | Known gap | p0 Task-tool implementer Write — hook cannot intercept subagent tools ([p1-slim.2 spec](../../docs/superpowers/specs/2026-08-05-sdd-slim-orchestrator-p1-slim-2-design.md)) |
 
-Claude Code: `hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `override-claude-sdd-gate.sh`. Generators are SOT — run `pnpm run generate:overrides` after manifest edits.
+Claude Code: `os-engineering/hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `os-engineering/bin/override-claude-cdd-gate.sh`. Cursor: `os-engineering/hooks/hooks-cursor.json` adds `preToolUse` → `os-engineering/bin/override-cursor-cdd-gate.sh`. These hooks are checked-in plugin files — the overrides generators emit only the trigger-router hooks (`UserPromptExpansion` / detect + enforce).
 
 **Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell (`cdd-run.sh --harness <name>`) or Write under the bound workspace.
 
@@ -219,7 +218,7 @@ Plan driver runs the 3-mode chain per pending task. Ledger append on APPROVED on
 
 Not-supported harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
 
-**CI:** `tests/validate-overrides-build.sh` asserts the os-engineering engine (harness registry + `cdd-run.sh`/`cdd-select.sh`/`cdd-exec.sh` executable + engine tests) and the overrides gate/hook scripts.
+**CI:** `tests/validate-overrides-build.sh` asserts the os-engineering engine (harness registry + `cdd-run.sh`/`cdd-select.sh`/`cdd-exec.sh` executable + engine tests); the os-engineering gate/hook scripts and the gate test suite are validated in `scripts/ci-validate.sh` (5b block).
 
 Templates: `templates/cdd/` (implement, review, fix) + `_handoff-write-fragment.md`.
 

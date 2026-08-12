@@ -1,4 +1,5 @@
 {
   "name": "os-engineering",
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
 }

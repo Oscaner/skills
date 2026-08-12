@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      { "command": "./bin/override-cursor-cdd-gate.sh" }
+    ]
+  }
+}

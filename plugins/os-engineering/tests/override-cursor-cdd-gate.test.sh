@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-GATE="$ROOT/bin/override-cursor-sdd-gate.sh"
+GATE="$ROOT/bin/override-cursor-cdd-gate.sh"
 ACT="$ROOT/bin/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
-OS_ENG="$ROOT/../os-engineering"
+OS_ENG="$ROOT"
 
 # 隔离 fixture + per-run session 命名：共享 sdd-gate-test-lib.sh（见该文件头注释）。
 # shellcheck source=tests/sdd-gate-test-lib.sh
@@ -43,4 +43,4 @@ echo "$deny_bash" | jq -e '.permission == "deny"' >/dev/null
 allow_no_pending=$(printf '%s' '{"conversation_id":"conv-none","tool_name":"Write","tool_input":{"path":"/tmp/x","contents":"y"}}' | "$GATE")
 echo "$allow_no_pending" | jq -e '.permission == "allow"' >/dev/null
 
-echo "OK — override-cursor-sdd-gate"
+echo "OK — override-cursor-cdd-gate"

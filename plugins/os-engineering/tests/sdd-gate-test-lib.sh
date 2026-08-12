@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # sdd-gate-test-lib.sh — shared fixture isolation + session namespacing for the
-# SDD gate tests. Sourced by the three gate test scripts (override-claude,
-# override-cursor, allow-deny smoke); do not run standalone.
+# CDD gate tests (cdd-orchestrator-gate.sh, os-engineering). Sourced by the three
+# gate test scripts (override-claude, override-cursor, allow-deny smoke); do not
+# run standalone.
 #
 # Isolation model (spec §设计 测试 fixture 隔离): every scenario is copied from
 # tests/fixtures/sdd-gate/<scene>/ into a per-run temp dir, the copy is git-init'ed,
@@ -15,7 +16,7 @@
 # Caller must set ROOT before sourcing. Derive the plugin tree from $ROOT.
 TESTS_DIR="$(cd "$ROOT/tests" && pwd)"
 FIXTURES="$TESTS_DIR/fixtures/sdd-gate"
-GATE_ROOT="${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending-cdd}"
+GATE_ROOT="${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-os-engineering/pending-cdd}"
 
 SESSION_TAG="${CDD_GATE_TEST_TAG:-$$}"
 TMPROOT="$(mktemp -d)"

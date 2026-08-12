@@ -35,3 +35,30 @@ if (sj.version !== srcSp || srcSp !== entrySp) {
   );
 }
 console.log("OK — superpowers", srcSp);
+
+// os-engineering — independent semver, plugin.json is the SOT alongside package.json.
+const oePkg = readJson("plugins/os-engineering/package.json");
+const oePlugin = readJson("plugins/os-engineering/.claude-plugin/plugin.json");
+const oeSrc = s.plugins.find((x) => x.name === "os-engineering");
+const oeEntry = m.plugins.find((x) => x.name === "os-engineering");
+const oeVersions = [oePkg.version, oeSrc.version, oePlugin.version, oeEntry.version];
+if (new Set(oeVersions).size !== 1) {
+  throw new Error(`os-engineering version mismatch: ${oeVersions.join(" ")}`);
+}
+const SEMVER = /^\d+\.\d+\.\d+$/;
+if (!SEMVER.test(oePkg.version)) {
+  throw new Error(`Invalid os-engineering version format: ${oePkg.version}`);
+}
+console.log("OK —", oePkg.version);
+
+const oeInit = readFileSync(
+  join(root, "plugins/os-engineering/skills/os-init/SKILL.md"),
+  "utf8",
+);
+const stamp = oeInit.match(/<!-- os-engineering-version: ([^ ]+) -->/);
+if (!stamp || stamp[1] !== oePkg.version) {
+  throw new Error(
+    `os-init SKILL.md version stamp mismatch: ${stamp?.[1]} vs ${oePkg.version}`,
+  );
+}
+console.log("OK — os-init SKILL.md stamp", oePkg.version);

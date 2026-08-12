@@ -202,17 +202,17 @@ This runs steps 1–5 above plus generator drift checks, overrides version tripl
 
 ## Releasing
 
-Only **`superpowers-overrides`** is versioned from this repo. Integration branch is **`develop`**; **`main`** receives releases only via PRs from `develop`.
+Two plugins are versioned from this repo: **`superpowers-overrides`** (superpowers-relative scheme) and **`os-engineering`** (independent semver). Integration branch is **`develop`**; **`main`** receives releases only via PRs from `develop`.
 
 **Daily work:** open PRs against `develop`. CI runs `validate` on PRs to `develop` and `main`.
 
-**Overrides-only changes:** run `pnpm changeset`, describe the change, merge PR to `develop` (changesets accumulate on `develop`; no release workflow runs there).
+**Plugin changes:** run `pnpm changeset`, select the plugin(s) that changed (`superpowers-overrides` and/or `os-engineering`), describe the change, merge PR to `develop` (changesets accumulate on `develop`; no release workflow runs there).
 
-**Release to production:** open a PR `develop → main` (must pass `validate` and **Main PRs must come from develop**). Merge to `main` → [.github/workflows/release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**. Merge the Version PR on `main` → git tag and GitHub Release. When `main` is ahead of `develop`, the workflow opens an automated **`main → develop`** sync PR — merge it manually to align `develop`.
+**Release to production:** open a PR `develop → main` (must pass `validate` and **Main PRs must come from develop**). Merge to `main` → [.github/workflows/release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**. Merge the Version PR on `main` → per-plugin git tag + GitHub Release (`superpowers-overrides@{version}` and/or `os-engineering@{version}`, each skipped if that plugin had no changeset). When `main` is ahead of `develop`, the workflow opens an automated **`main → develop`** sync PR — merge it manually to align `develop`.
 
-**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0.0.0`, run `node scripts/sync-overrides-versions.mjs`. Merge to `develop`, then release via `develop → main` as above.
+**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `plugins/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0.0.0`, run `node scripts/sync-overrides-versions.mjs`. Merge to `develop`, then release via `develop → main` as above. This resets **overrides only** — os-engineering keeps its independent semver.
 
-**Version scheme:** `{superpowers-semver}-overrides.{major}.{minor}.{patch}` (three-segment suffix). Tags look like `superpowers-overrides@6.2.0-overrides.0.15.0`. Changeset patch releases increment **patch** only on the same superpowers base. Any superpowers semver segment change (including patch) resets overrides to `{new-base}-overrides.0.0.0` — not the legacy `-overrides.0` single-counter form. See [.changeset/README.md](.changeset/README.md).
+**Version scheme:** `superpowers-overrides` uses `{superpowers-semver}-overrides.{major}.{minor}.{patch}` (three-segment suffix). Tags look like `superpowers-overrides@6.2.0-overrides.0.15.0`. Changeset patch releases increment **patch** only on the same superpowers base. Any superpowers semver segment change (including patch) resets overrides to `{new-base}-overrides.0.0.0` — not the legacy `-overrides.0` single-counter form. `os-engineering` uses plain semver (`0.1.x`); a changeset bumping it releases independently as `os-engineering@{version}`. Both are driven by `node scripts/version-packages.mjs` (dual-plugin) and validated by `node scripts/validate-version-sync.mjs`. See [.changeset/README.md](.changeset/README.md).
 
 **Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with [`scripts/gh-branch-rulesets.sh`](scripts/gh-branch-rulesets.sh) (`protect-develop`, `protect-main`; no bypass actors). Legacy single-counter release tags can be removed post-first new-format release via [`scripts/cleanup-legacy-release-tags.sh`](scripts/cleanup-legacy-release-tags.sh).
 

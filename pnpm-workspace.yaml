@@ -1,2 +1,3 @@
 packages:
   - plugins/superpowers-overrides
+  - plugins/os-engineering

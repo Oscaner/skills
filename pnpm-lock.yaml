@@ -24,6 +24,8 @@ importers:
         specifier: ^9.1.7
         version: 9.1.7
 
+  plugins/os-engineering: {}
+
   plugins/superpowers-overrides: {}
 
 packages:

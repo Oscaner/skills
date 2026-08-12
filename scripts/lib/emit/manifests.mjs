@@ -25,17 +25,19 @@ function keywords(plugin) {
 /**
  * `.claude-plugin/plugin.json` — Claude Code manifest. Grok reuses this file
  * (no separate grok emit). Thin: skills/ + hooks/ point at canonical dirs.
+ * `noSkills` omits the `skills` field for the overrides trigger router, which
+ * ships no skill bodies (os-engineering keeps `skills: "./skills/"`).
  */
-export function claudePluginManifest(plugin, version) {
+export function claudePluginManifest(plugin, version, { noSkills = false } = {}) {
   const m = {
     _generated: generatedBanner,
     name: plugin.name,
     description: plugin.description,
     version,
     author: plugin.author,
-    skills: "./skills/",
-    hooks: "./hooks/hooks.json",
   };
+  if (!noSkills) m.skills = "./skills/";
+  m.hooks = "./hooks/hooks.json";
   if (plugin.license) m.license = plugin.license;
   if (plugin.claude?.category) m.category = plugin.claude.category;
   const kw = keywords(plugin);
@@ -130,6 +132,7 @@ export function piPackageKey() {
  */
 export function osEngineeringClaudeHooks() {
   return {
+    _generated: generatedBanner,
     hooks: {
       PreToolUse: [
         {
@@ -158,6 +161,7 @@ export function osEngineeringClaudeHooks() {
 /** os-engineering Cursor preToolUse hook (cdd gate). */
 export function osEngineeringCursorHooks() {
   return {
+    _generated: generatedBanner,
     version: 1,
     hooks: {
       preToolUse: [{ command: "./bin/override-cursor-cdd-gate.sh" }],

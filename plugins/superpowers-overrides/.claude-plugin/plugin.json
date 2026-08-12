@@ -1,5 +1,19 @@
 {
+  "_generated": "scripts/emit.mjs — do not edit",
   "name": "superpowers-overrides",
+  "description": "Personal overrides for the superpowers plugin that force delegation to other skills.",
   "version": "6.2.0-overrides.0.15.3",
-  "hooks": "./hooks/hooks.json"
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "hooks": "./hooks/hooks.json",
+  "license": "MIT",
+  "category": "workflow",
+  "keywords": [
+    "superpowers",
+    "mattpocock",
+    "overrides",
+    "subagents"
+  ]
 }

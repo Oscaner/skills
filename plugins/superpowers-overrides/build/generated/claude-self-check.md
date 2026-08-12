@@ -1,3 +1,4 @@
+<!-- scripts/emit.mjs — do not edit -->
 <!-- superpowers-overrides-version: 6.2.0-overrides.0.15.3 -->
 ## superpowers-overrides self-check
 

@@ -106,6 +106,7 @@ const productRoots = [
   "plugins/os-engineering/.kimi-plugin",
   "plugins/os-engineering/hooks",
   "plugins/os-engineering/.agents",
+  "plugins/superpowers-overrides/.claude-plugin",
   "plugins/superpowers-overrides/.cursor-plugin",
   "plugins/superpowers-overrides/.codex-plugin",
   "plugins/superpowers-overrides/hooks",
@@ -273,6 +274,11 @@ function emitOverrides(outRoot, plugin) {
     license: pkg.license,
   };
 
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.claude-plugin/plugin.json`,
+    claudePluginManifest(plugin, version, { noSkills: true }),
+  );
   writeJsonDoc(
     outRoot,
     `${contentRoot}/.cursor-plugin/plugin.json`,

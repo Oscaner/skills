@@ -1,4 +1,5 @@
 #!/bin/sh
+# scripts/emit.mjs — do not edit
 set -eu
 
 if ! command -v jq >/dev/null 2>&1; then

@@ -104,6 +104,7 @@ export function targetSkillReadRegexes(plugin, skill) {
 export function promptExpansionScript(targets) {
   const lines = [
     "#!/bin/sh",
+    `# ${generatedBanner}`,
     "set -eu",
     "",
     "if ! command -v jq >/dev/null 2>&1; then",
@@ -141,6 +142,7 @@ export function claudeHooksJson(targets) {
     (t) => `(${ccMatcherBareSlash(t.upstream_slug)})`,
   );
   return {
+    _generated: generatedBanner,
     hooks: {
       UserPromptExpansion: [
         { matcher: "^superpowers:", hooks: [commandHook] },
@@ -153,6 +155,7 @@ export function claudeHooksJson(targets) {
 /** `hooks/hooks-cursor.json` — static detect/enforce wiring. */
 export function cursorHooksJson() {
   return {
+    _generated: generatedBanner,
     version: 1,
     hooks: {
       beforeSubmitPrompt: [

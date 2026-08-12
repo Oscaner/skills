@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/emit.mjs — do not edit
 set -euo pipefail
 
 PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-superpowers-overrides/pending"

@@ -47,6 +47,19 @@ const OS_ENG = {
 
 const MANIFEST_PATH = "plugins/superpowers-overrides/overrides.manifest.json";
 
+const OVERRIDES = {
+  name: "superpowers-overrides",
+  version: "6.2.0-overrides.0.15.3",
+  description:
+    "Personal overrides for the superpowers plugin that force delegation to other skills.",
+  author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
+  license: "MIT",
+  claude: {
+    category: "workflow",
+    tags: ["superpowers", "mattpocock", "overrides", "subagents"],
+  },
+};
+
 // ---------------------------------------------------------------------------
 // manifests.mjs — generic first-party per-harness manifest builders
 // ---------------------------------------------------------------------------
@@ -65,6 +78,24 @@ test("claudePluginManifest emits os-engineering claude manifest (thin, skills+..
     category: "engineering",
     keywords: ["engineering", "cli", "cdd", "harness", "droid", "pi"],
   });
+});
+
+test("claudePluginManifest with noSkills omits skills but keeps full metadata", () => {
+  assert.deepEqual(
+    claudePluginManifest(OVERRIDES, "6.2.0-overrides.0.15.3", { noSkills: true }),
+    {
+      _generated: generatedBanner,
+      name: "superpowers-overrides",
+      description:
+        "Personal overrides for the superpowers plugin that force delegation to other skills.",
+      version: "6.2.0-overrides.0.15.3",
+      author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
+      hooks: "./hooks/hooks.json",
+      license: "MIT",
+      category: "workflow",
+      keywords: ["superpowers", "mattpocock", "overrides", "subagents"],
+    },
+  );
 });
 
 test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () => {
@@ -148,6 +179,8 @@ test("FIRST_PARTY_NAMES covers both per-harness emit plugins", () => {
 
 test("osEngineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
   const hooks = osEngineeringClaudeHooks();
+  assert.ok(hooks._generated, "hooks.json must carry the generated banner");
+  assert.match(hooks._generated, /scripts\/emit\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   assert.equal(pre.length, 2);
   assert.equal(pre[0].matcher, "Write|Edit");
@@ -164,6 +197,8 @@ test("osEngineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () =
 
 test("osEngineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
   const hooks = osEngineeringCursorHooks();
+  assert.ok(hooks._generated, "hooks-cursor.json must carry the generated banner");
+  assert.match(hooks._generated, /scripts\/emit\.mjs/);
   assert.equal(hooks.version, 1);
   assert.deepEqual(hooks.hooks.preToolUse, [
     { command: "./bin/override-cursor-cdd-gate.sh" },
@@ -287,6 +322,7 @@ test("ccMatcherBareSlash escapes hyphens like Python re.escape", () => {
 test("promptExpansionScript maps every overrides trigger to its target", () => {
   const script = promptExpansionScript(loadTargets(MANIFEST_PATH));
   assert.match(script, /^#!\/bin\/sh/);
+  assert.match(script, /# scripts\/emit\.mjs — do not edit/);
   assert.match(script, /superpowers:brainstorming\) override="os-engineering:os-brainstorming"/);
   assert.match(script, /\/brainstorming\) override="os-engineering:os-brainstorming"/);
   assert.match(script, /superpowers:test-driven-development\) override="mattpocock-skills:tdd"/);
@@ -295,6 +331,7 @@ test("promptExpansionScript maps every overrides trigger to its target", () => {
 
 test("claudeHooksJson has exactly the two UserPromptExpansion matchers", () => {
   const hooks = claudeHooksJson(loadTargets(MANIFEST_PATH));
+  assert.equal(hooks._generated, generatedBanner);
   const matchers = hooks.hooks.UserPromptExpansion.map((e) => e.matcher);
   assert.equal(matchers.length, 2);
   assert.equal(matchers[0], "^superpowers:");
@@ -312,6 +349,7 @@ test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {
   );
   const script = cursorDetectScript(loadTargets(MANIFEST_PATH), template);
   assert.match(script, /#!\/usr\/bin\/env bash/);
+  assert.match(script, /# scripts\/emit\.mjs — do not edit/);
   assert.match(script, /"skill_suffix": ?"\.\.\/os-engineering\/skills\/os-brainstorming\/SKILL\.md"/);
   assert.match(script, /"name": ?"mattpocock-skills:tdd"/);
   assert.match(script, /"skill_suffix": ?"skills\/engineering\/tdd\/SKILL\.md"/);
@@ -326,6 +364,7 @@ test("cursorEnforceScript embeds read-regexes per target skill", () => {
     "utf8",
   );
   const script = cursorEnforceScript(loadTargets(MANIFEST_PATH), template);
+  assert.match(script, /# scripts\/emit\.mjs — do not edit/);
   assert.match(script, /READ_RES = \{/);
   assert.match(script, /"mattpocock-skills:tdd"/);
   assert.match(script, /skills\/engineering\/tdd\/SKILL/);
@@ -342,6 +381,7 @@ test("claudeSelfCheckMd fills the trigger table with target skill names", () => 
     "6.2.0-overrides.0.15.3",
     template,
   );
+  assert.match(md, /<!-- scripts\/emit\.mjs — do not edit -->/);
   assert.match(md, /<!-- superpowers-overrides-version: 6\.2\.0-overrides\.0\.15\.3 -->/);
   assert.match(md, /\| `superpowers:brainstorming` \| `Skill\(os-engineering:os-brainstorming\)` \|/);
   assert.match(md, /\| `superpowers:test-driven-development` \| `Skill\(mattpocock-skills:tdd\)` \|/);
@@ -357,6 +397,7 @@ test("cursorSelfCheckMdc carries the version stamp and trigger rows", () => {
     "6.2.0-overrides.0.15.3",
     template,
   );
+  assert.match(mdc, /_generated: scripts\/emit\.mjs — do not edit/);
   assert.match(mdc, /superpowers-overrides-version: 6\.2\.0-overrides\.0\.15\.3/);
   assert.match(mdc, /\| `\/brainstorming`, `\/superpowers:brainstorming`, upstream `brainstorming` body \| Read `os-engineering:os-brainstorming` via agent_skills fullPath \|/);
 });

@@ -1,3 +1,4 @@
+<!-- scripts/emit.mjs — do not edit -->
 <!-- superpowers-overrides-version: {{PLUGIN_VERSION}} -->
 ## superpowers-overrides self-check
 

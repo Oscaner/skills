@@ -11,7 +11,7 @@ description: 独立接收评审反馈编排器 —— Read 上游 superpowers:re
 
 ### Rule: Read Upstream
 
-Resolve `{superpowers-plugin-root}`（同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream) 的解析+报错子句），Read `skills/receiving-code-review/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
+解析上游 `receiving-code-review` 的 SKILL.md 路径（同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream) 的解析优先级 + 报错子句），Read 解析出的 `receiving-code-review/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
 
 ### Rule: Understand
 

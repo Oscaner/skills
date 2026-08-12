@@ -1,6 +1,6 @@
 ---
 name: cli-driven-development
-description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发：三模式链（implement/review/fix）+ handoff 契约 + commit gate + ledger。引擎模式：编器职责（任务分类/fix loop/质量门/D6 聚合）由 spor-sdd（过渡期）与 os-executing-plans（P2）承担。
+description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发：三模式链（implement/review/fix）+ handoff 契约 + commit gate + ledger。引擎模式：编器职责（任务分类/fix loop/质量门/D6 聚合）由 os-executing-plans 承担。
 ---
 
 # CLI-Driven Development（cdd）
@@ -40,4 +40,4 @@ implement / fix 模式返回时校验工作区干净（`cdd_validate_commit_cont
 
 - 「--resume / -c / 任何携带历史会话的 flag」→ 禁止（H6.5），用一次性 print 模式
 - 「在编器会话里改 repo 文件」→ 引擎链只经 cdd-run.sh；会话侧由 orchestrator-gate 约束
-- 「把编器决策塞进引擎」→ 分类/质量门/D6 属于编器（spor-sdd / os-executing-plans），不是引擎
+- 「把编器决策塞进引擎」→ 分类/质量门/D6 属于编器（os-executing-plans），不是引擎

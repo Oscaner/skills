@@ -112,13 +112,15 @@ echo "== 5b2. os-engineering gate hooks =="
 [ -x plugins/os-engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
-echo "== 5c. migrated-engine zero-residue check =="
-if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-)' \
-  plugins/os-engineering/bin plugins/os-engineering/templates plugins/os-engineering/docs/cdd-reference.md; then
-  echo "RESIDUE FOUND — sdd_/SDD_/sdd-run- in migrated engine"
+echo "== 5c. engine + router zero-residue check =="
+if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)' \
+  plugins/os-engineering/bin plugins/os-engineering/skills \
+  plugins/superpowers-overrides/bin plugins/superpowers-overrides/hooks \
+  plugins/superpowers-overrides/build/generated 2>/dev/null; then
+  echo "RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine + router executable products"
   exit 1
 else
-  echo "OK — zero sdd residue in migrated engine"
+  echo "OK — zero residue in engine + router executable products"
 fi
 
 echo "== 6. marketplace validate =="

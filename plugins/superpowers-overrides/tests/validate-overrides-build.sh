@@ -197,18 +197,19 @@ import json, re
 from pathlib import Path
 plugin_root = Path('$ROOT')
 repo_root = Path('$REPO_ROOT')
-version = json.loads((plugin_root / '.claude-plugin/plugin.json').read_text())['version']
+# dogfood self-check is written by os-init spor, stamped with the os-engineering version
+version = json.loads((repo_root / 'plugins/os-engineering/.claude-plugin/plugin.json').read_text())['version']
 
 cursor_path = repo_root / '.cursor/rules/superpowers-overrides.mdc'
 claude_path = repo_root / 'CLAUDE.md'
 cursor = cursor_path.read_text()
 claude = claude_path.read_text()
 
-needle = f'superpowers-overrides-version: {version}'
-assert needle in cursor, f'{cursor_path}: missing or stale stamp — re-run /spor-init'
+needle = f'os-engineering-version: {version}'
+assert needle in cursor, f'{cursor_path}: missing or stale stamp — re-run os-init spor'
 
-m = re.search(r'<!-- superpowers-overrides-version: ([^ ]+) -->', claude.splitlines()[0])
-assert m and m.group(1) == version, f'{claude_path}: line 1 stamp mismatch — re-run /spor-init'
+m = re.search(r'<!-- os-engineering-version: ([^ ]+) -->', claude.splitlines()[0])
+assert m and m.group(1) == version, f'{claude_path}: line 1 stamp mismatch — re-run os-init spor'
 print('OK')
 "
 

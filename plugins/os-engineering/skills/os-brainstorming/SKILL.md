@@ -11,7 +11,13 @@ description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:br
 
 ### Rule: Read Upstream
 
-Resolve `{superpowers-plugin-root}`（优先 `$CLAUDE_PLUGIN_ROOT/../superpowers`，回退 repo 同级 `plugins/superpowers`，两者皆无 → 报错 + 提示解析路径）。Read `skills/brainstorming/SKILL.md` 作为流程基线。**Read 而非 Skill-invoke**（Skill-invoke 会触发 spor 拦截）。
+解析上游 `superpowers:brainstorming` 的 SKILL.md 路径，统一优先级（`{plugin-root}` = 本插件 os-engineering 根）：
+
+1. **in-harness 副本优先**：`{plugin-root}/.agents/skills/superpowers/brainstorming/SKILL.md`（os-engineering 多 harness 发射的共享副本；`.cursor/.gemini/.../skills/superpowers/<slug>/SKILL.md` 等 per-harness 副本存在时同优先级）
+2. **回退兄弟插件根**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`
+3. **回退同仓库相对路径**：`<repo-root>/plugins/superpowers/skills/brainstorming/SKILL.md`
+
+三处皆无 → 报错 + 提示解析路径。Read 解析出的 `brainstorming/SKILL.md` 作为流程基线。**Read 而非 Skill-invoke**（Skill-invoke 会触发路由器拦截）。
 
 ### Rule: Read Sub-Skills
 

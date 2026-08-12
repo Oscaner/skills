@@ -1,6 +1,6 @@
 ---
 name: os-report-issue
-description: 分析当前 spor/os 会话的 bug 与增强机会，经 gh CLI 对 Oscaner/skills 提 GitHub issue（spor-report-issue 规则迁移于此）。repo 开发工具，非常规工作流技能。手动触发，从不自动。
+description: 分析当前 SDD/CDD 会话的 bug 与增强机会，经 gh CLI 对 Oscaner/skills 提 GitHub issue（规则自旧版 report-issue 迁移）。repo 开发工具，非常规工作流技能。手动触发，从不自动。
 ---
 
 # OS Report Issue
@@ -67,7 +67,7 @@ gh issue comment <number> --repo Oscaner/skills --body "<按模板渲染的正�
 
 ### Rule: Keyword Examples
 
-issue 关键字示例用当前工具名（`cdd-run.sh` 而非已删的 `sdd-run-task-*.sh`）。
+issue 关键字示例用当前工具名（如 `cdd-run.sh`），不用已删除的旧工具名。
 
 ### Rule: Final Report
 

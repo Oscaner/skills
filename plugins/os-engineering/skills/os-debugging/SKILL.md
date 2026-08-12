@@ -11,7 +11,7 @@ description: 独立系统化调试编排器 —— Read 上游 superpowers:syste
 
 ### Rule: Read Upstream
 
-Resolve `{superpowers-plugin-root}`（同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream) 的解析+报错子句），Read `skills/systematic-debugging/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
+解析上游 `systematic-debugging` 的 SKILL.md 路径（同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream) 的解析优先级 + 报错子句），Read 解析出的 `systematic-debugging/SKILL.md` 作为基线。**Read 而非 Skill-invoke**。
 
 ### Rule: No-Fix-Without-Evidence
 

@@ -2,84 +2,54 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Personal overrides for [superpowers](https://github.com/obra/superpowers). Each `spor-*` skill runs **before** its upstream target — replacing behavior or delegating to [mattpocock-skills](../mattpocock-skills/).
+**Trigger router** for [superpowers](https://github.com/obra/superpowers) + [os-engineering](../os-engineering/). This plugin ships **no skill bodies** — it intercepts upstream superpowers triggers and routes them to the matching **os-engineering** orchestrator (`os-*` / `cli-*`) or a **mattpocock-skills** delegate (`tdd`). Personal overrides live in os-engineering's `os-*` skills, which read the upstream baseline and apply personal rules.
 
-## What overrides do
+## What the router does
 
-When you invoke `/brainstorming`, `/writing-plans`, or any other superpowers skill, the matching `spor-*` override loads first. It either **replaces** upstream steps (e.g. self-review → fresh subagent passes) or **delegates** to mattpocock skills (e.g. clarifying questions → `grilling`, implementation → `tdd`).
+When you invoke `/brainstorming`, `/writing-plans`, or any other superpowers skill, the router fires first and the matching target loads:
 
-Three layers keep overrides from being skipped:
+- `os-engineering:os-*` — flow orchestrators that read upstream and apply personal rules (e.g. clarifying questions → `grilling`, spec review → fresh subagent passes)
+- `os-engineering:cli-driven-development` / `cli-*` — cdd engine skills
+- `mattpocock-skills:tdd` — implementation delegate for `/test-driven-development`
 
-1. **Skill description** — four-trigger frontmatter; override must be the first tool call.
-2. **Hooks (plugin-bundled)** — Claude Code: `UserPromptExpansion` with triple matchers (`^superpowers:`, bare `/<slug>`, `^/spor-<slug>`). Cursor: `beforeSubmitPrompt` detect + `preToolUse` enforce via `hooks/hooks-cursor.json`. **No project hook files.**
-3. **Project rules** — `/spor-init` writes self-check rules into your project (`CLAUDE.md` or `.cursor/rules/superpowers-overrides.mdc`); fallback on Cursor when hooks miss.
+Three layers keep the route from being skipped:
 
-## Workflow
+1. **Trigger table** — every upstream entry point maps to its target in `overrides.manifest.json` (single source of truth).
+2. **Hooks (plugin-bundled)** — Claude Code: `UserPromptExpansion` matchers. Cursor: `beforeSubmitPrompt` detect + `preToolUse` enforce via `hooks/hooks-cursor.json`. **No project hook files.**
+3. **Project rules** — `os-init spor` (from os-engineering) writes self-check rules into your project (`CLAUDE.md` or `.cursor/rules/superpowers-overrides.mdc`); fallback on Cursor when hooks miss.
 
-Simplified main-path diagram — not a complete skill inventory. Overall/phase, policy, cross-cutting skills, and `spor-receiving-code-review` are in the table below.
+## Router targets
 
-```mermaid
-flowchart LR
-  subgraph discover["Discover"]
-    B[spor-brainstorming]
-  end
-  subgraph plan["Plan"]
-    W[spor-writing-plans]
-  end
-  subgraph build["Build"]
-    SDD[spor-subagent-driven-development]
-    EP[spor-executing-plans]
-    TDD[spor-test-driven-development]
-    DBG[spor-systematic-debugging]
-  end
-  subgraph ship["Ship"]
-    V[spor-verification-before-completion]
-    F[spor-finishing-a-development-branch]
-  end
-  B --> W --> SDD --> V --> F
-  EP -.-> SDD
-  TDD -.-> SDD
-  DBG -.-> SDD
-```
-
-**Overall + phase:** large scope → write an overall spec and get decomposition approval → explicit gate → per-phase discover→ship cycle. The main README ASCII pipeline includes Phase spec; this diagram shows the per-phase skill intercept chain from Discover onward.
-
-## Skills by phase
-
-| Phase | Skill | What it does |
-|-------|-------|--------------|
-| Setup | `spor-init` | Project wiring; run once after install |
-| Discover | `spor-brainstorming` | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
-| Plan | `spor-writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
-| Build | `spor-subagent-driven-development` | Complexity-based review rounds; implementers delegate to `tdd` |
-| Build | `spor-executing-plans` | Plan execution; redirects to SDD when subagents available; per-task commits |
-| Build | `spor-test-driven-development` | Seam confirmation gate lives in plugins/os-engineering/templates/cdd/implement.md; delegates loop to mattpocock `tdd` |
-| Build | `spor-systematic-debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
-| Ship | `spor-verification-before-completion` | No completion claims without verification evidence |
-| Ship | `spor-finishing-a-development-branch` | Branch finish / PR; no worktrees; conventional commits |
-| Ship | `spor-receiving-code-review` | Unclear feedback → `grilling`; fixes → `tdd` (not in diagram — often mid-build or pre-ship) |
-| Policy | `spor-using-git-worktrees` | Refuses worktree creation (user policy) |
-| Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator file-only handoff (referenced, no slash) |
-| Cross-cutting | `spor-handoff-writer` | handoff.json schema reference doc (handoff write is inline, no longer independently dispatched) |
-| Cross-cutting | `spor-report-issue` | Analyse spor session findings and file GitHub issues via gh CLI (manual, no auto-trigger) |
+| Trigger | Target | What it does |
+|---------|--------|--------------|
+| `/brainstorming` | `os-engineering:os-brainstorming` | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
+| `/writing-plans` | `os-engineering:os-writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
+| `/subagent-driven-development` | `os-engineering:cli-driven-development` | cdd engine — harness CLI three-mode chain (implement/review/fix) |
+| `/executing-plans` | `os-engineering:os-executing-plans` | Three-mode orchestrator (in-session / subagent / cli) |
+| `/finishing-a-development-branch` | `os-engineering:os-finishing` | Branch finish / PR; no worktrees; conventional commits |
+| `/systematic-debugging` | `os-engineering:os-debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
+| `/test-driven-development` | `mattpocock-skills:tdd` | Red→green loop; seam confirmation gate in os-engineering templates |
+| `/verification-before-completion` | `os-engineering:os-verification` | No completion claims without verification evidence |
+| `/receiving-code-review` | `os-engineering:os-code-review` | Unclear feedback → `grilling`; fixes → `tdd` |
+| `/using-git-worktrees` | `os-engineering:os-finishing` | Refuses worktree creation (user policy) |
 
 ## Usage
 
 ### Common
 
-1. Install `superpowers`, `superpowers-overrides`, and `mattpocock-skills` from the oscaner marketplace.
-2. Run **`/spor-init`** in each project (re-run after plugin upgrades).
-3. Invoke upstream superpowers skills — overrides intercept automatically.
+1. Install `superpowers`, `superpowers-overrides`, `os-engineering`, and `mattpocock-skills` from the oscaner marketplace.
+2. Run **`os-init spor`** in each project (re-run after plugin upgrades).
+3. Invoke upstream superpowers skills — the router routes automatically.
 
 ### Claude Code
 
 - Workflow: `/superpowers:brainstorming`, `/superpowers:writing-plans`, …
-- Init: `/superpowers-overrides:spor-init` → writes self-check block to project `CLAUDE.md`.
+- Init: `/os-init spor` → writes self-check block to project `CLAUDE.md`.
 
 ### Cursor
 
-- Workflow: `/spor-brainstorming`, `/spor-writing-plans`, … (or rules-based intercept).
-- Init: `/spor-init` → writes `.cursor/rules/superpowers-overrides.mdc`.
+- Workflow: bare upstream slash (`/brainstorming`) or rules-based intercept.
+- Init: `os-init spor` → writes `.cursor/rules/superpowers-overrides.mdc`.
 - Hooks: install plugin from marketplace — detect/enforce ship with the plugin; **do not** add project `.cursor/hooks.json`.
 - See [cross-harness-overrides.md](docs/cross-harness-overrides.md).
 
@@ -87,18 +57,18 @@ flowchart LR
 
 **Do:**
 
-- Use `/spor-brainstorming` (etc.) or bare upstream slash (`/brainstorming`) — hooks + rules intercept automatically.
-- Attach **`spor-*`** skill files if you need inline context (e.g. `spor-brainstorming/SKILL.md`).
+- Use bare upstream slash (`/brainstorming`) — hooks + rules route automatically.
+- Attach **os-engineering `os-*`** skill files if you need inline context (e.g. `os-brainstorming/SKILL.md`).
 
 **Don't:**
 
-- Attach upstream `superpowers/*/SKILL.md` body — inline upstream checklists override spor discipline even when hooks fire. If you must reference upstream, use slash commands or the agent skills list instead.
+- Attach upstream `superpowers/*/SKILL.md` body — inline upstream checklists override the router discipline even when hooks fire. If you must reference upstream, use slash commands or the agent skills list instead.
 
-Hooks and enforcement scripts are **plugin-bundled** (same model as upstream `superpowers`). Consumer projects should never gain new hook files from `spor-init`.
+Hooks and enforcement scripts are **plugin-bundled** (same model as upstream `superpowers`). Consumer projects should never gain new hook files from the router.
 
 ## CDD CLI harness scripts
 
-Token-efficient CDD orchestration (`spor-token-efficient-controller-handoff`) dispatches via plugin-bundled scripts. Orchestrator resolves harness once; the single CLI runner is `os-engineering/bin/cdd-run.sh`.
+Token-efficient CDD orchestration dispatches via plugin-bundled scripts — `os-executing-plans` orchestrates, `cli-driven-development` drives the harness chain. The orchestrator resolves harness once; the single CLI runner is `os-engineering/bin/cdd-run.sh`.
 
 | Harness | CLI binary | Ship level |
 |---------|------------|------------|

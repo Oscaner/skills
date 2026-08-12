@@ -111,9 +111,11 @@ spor-brainstorming / spor-writing-plans / spor-subagent-driven-development / spo
   - **in-session / subagent** → 放行 repo 编辑（keep 只读 git Bash 白名单）
   - 无 mode / 无 pending → fail-open
 
-#### F. cdd implement seam 门
+#### F. cdd implement seam 门（执行中修订：阻塞门移到编器层）
 
-`templates/cdd/implement.md` 增加：调用 `mattpocock-skills:tdd` 前先向用户确认 seam（边界），阻塞式等待批准。
+- **编器层**（os-executing-plans）：派发会用 tdd 的 implement worker 前，编器在会话内向用户确认 seam（边界），把 `CONFIRMED_SEAMS` 写进 task brief
+- **模板层**：`templates/cdd/implement.md` 非阻塞 ——「若 brief 含 `CONFIRMED_SEAMS`，应用之」；不阻塞等待（一次性 print-mode CLI 无法阻塞）
+- 修订原因：执行暴露阻塞 seam 门破坏非 tdd implement 派发（plan_conflict，用户裁决移到编器层）
 
 ### 数据流
 

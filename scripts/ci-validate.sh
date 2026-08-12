@@ -11,10 +11,13 @@ p = os.path.join(root, ".claude-plugin/plugin.json")
 d = json.load(open(p))
 skills = d.get("skills")
 if skills is None:
+    # overrides = trigger router — no skill bodies. skills/ may be absent or empty.
     skills_dir = os.path.join(root, "skills")
-    assert os.path.isdir(skills_dir), f"missing default skills dir: {skills_dir}"
-    n = sum(1 for n in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, n, "SKILL.md")))
-    print(f"OK — {n} skills (default skills/ discovery)")
+    n = 0
+    if os.path.isdir(skills_dir):
+        n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
+    assert n == 0, f"expected 0 overrides skills (trigger router, no skill bodies), got {n}"
+    print(f"OK — {n} skills (trigger router, no skill bodies)")
 elif isinstance(skills, str):
     path = os.path.join(root, skills.lstrip("./"))
     assert os.path.isdir(path), f"skills path missing: {path}"
@@ -26,10 +29,13 @@ else:
     print(f"OK — {len(skills)} skills")
 '
 
-echo "== 2. every skill dir has SKILL.md =="
+echo "== 2. every skill dir has SKILL.md (skip when none) =="
+shopt -s nullglob
 for d in plugins/superpowers-overrides/skills/*/; do
   [ -f "$d/SKILL.md" ] || { echo "MISSING: $d/SKILL.md"; exit 1; }
-done && echo OK
+done
+shopt -u nullglob
+echo OK
 
 echo "== 3. no orphan skill dirs =="
 python3 -c '
@@ -37,14 +43,12 @@ import json, os
 root = "plugins/superpowers-overrides"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
-on_disk = {f"skills/{n}" for n in os.listdir(os.path.join(root, "skills")) if os.path.isdir(os.path.join(root, "skills", n))}
-if skills is None or (isinstance(skills, str) and skills.rstrip("/") in ("./skills", "skills")):
-    print("OK — directory discovery (no explicit skill list)")
-else:
-    declared = {s.lstrip("./") for s in skills}
-    orphans = on_disk - declared
-    assert not orphans, f"orphans: {orphans}"
-    print("OK")
+skills_dir = os.path.join(root, "skills")
+on_disk = set()
+if os.path.isdir(skills_dir):
+    on_disk = {f"skills/{n}" for n in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, n))}
+assert not on_disk, f"overrides plugin must have no skill dirs (trigger router): {on_disk}"
+print("OK — no skill dirs (trigger router)")
 '
 
 echo "== 4. hooks executable =="
@@ -93,7 +97,7 @@ else:
 ./plugins/os-engineering/tests/cdd-common-functions.test.sh
 ./plugins/os-engineering/tests/cdd-severity-contract.test.sh
 python3 plugins/os-engineering/tests/rule-reference.test.py \
-  --skills os-engineering/skills:semantic superpowers-overrides/skills:numeric
+  --skills os-engineering/skills:semantic
 ./plugins/os-engineering/tests/ci-validate-wiring.test.sh
 
 echo "== 5c. migrated-engine zero-residue check =="

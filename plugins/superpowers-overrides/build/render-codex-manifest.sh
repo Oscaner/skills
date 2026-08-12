@@ -25,7 +25,6 @@ doc = {
     "version": meta["version"],
     "author": meta["author"],
     "license": meta["license"],
-    "skills": "./skills/",
     "hooks": {},
 }
 print(json.dumps(doc, indent=2) + "\n", end="")

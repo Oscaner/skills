@@ -38,9 +38,9 @@ for t in "${ENGINE_TESTS[@]}"; do
   [ "$ln" -gt "$marker" ] || fail "$t: invoked before == 5b == block"
 done
 
-# 4. rule-reference invoked with the dual-mode --skills args
+# 4. rule-reference invoked with the semantic-only --skills args
 grep -q 'rule-reference.test.py' "$VAL" || fail "rule-reference.test.py not invoked"
-grep -q -- '--skills os-engineering/skills:semantic superpowers-overrides/skills:numeric' "$VAL" \
+grep -q -- '--skills os-engineering/skills:semantic' "$VAL" \
   || fail "rule-reference --skills args missing/wrong"
 
 # 5. migrated-engine zero-residue check present (grep targets + OK echo)

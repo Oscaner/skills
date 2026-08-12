@@ -24,20 +24,19 @@ echo "Tier 2 (+ subagent-lifecycle + review-dispatch): $tier2 lines"
 [ "$tier1" -le 225 ] || { echo "FAIL: Tier 1 $tier1 > 225"; exit 1; }
 [ "$tier2" -le 350 ] || { echo "FAIL: Tier 2 $tier2 > 350"; exit 1; }
 
-# AC#1 — orchestrator prose moved to os-engineering; the spor-SDD thin pointer
-# must not carry numeric rules, and os-executing-plans hosts D6 + checklist.
-! grep -q '^### Rule [0-9]' "$SKILLS/spor-subagent-driven-development/SKILL.md" \
-  || { echo "FAIL: spor-SDD thin pointer must not carry numeric rules"; exit 1; }
+# AC#1 — orchestrator prose moved to os-engineering; the spor-SDD thin pointer is
+# deleted (T2), and os-executing-plans hosts D6 + checklist.
+[ ! -e "$SKILLS/spor-subagent-driven-development" ] \
+  || { echo "FAIL: spor-subagent-driven-development still present"; exit 1; }
 grep -q '^### Rule: D6 Aggregation' "$OS_EXEC" \
   || { echo "FAIL: os-executing-plans missing D6 Aggregation"; exit 1; }
 grep -q '^### Rule: Orchestrator Checklist' "$OS_EXEC" \
   || { echo "FAIL: os-executing-plans missing Orchestrator Checklist"; exit 1; }
 
-# AC#2 — env/exit/harness tables live in os-engineering/docs/cdd-reference.md
-for marker in '| Variable | Purpose |' '| `SDD_MODE` |' '| Harness |'; do
-  ! grep -qF "$marker" "$SKILLS/spor-token-efficient-controller-handoff/SKILL.md" \
-    || { echo "FAIL: controller-handoff contains H6 table: $marker"; exit 1; }
-done
+# AC#2 — env/exit/harness tables live in os-engineering/docs/cdd-reference.md;
+# the controller-handoff thin pointer is deleted (T2).
+[ ! -e "$SKILLS/spor-token-efficient-controller-handoff" ] \
+  || { echo "FAIL: spor-token-efficient-controller-handoff still present"; exit 1; }
 grep -qF '| Variable | Purpose |' "$OS_ENG/docs/cdd-reference.md" \
   || { echo "FAIL: cdd-reference missing env table"; exit 1; }
 grep -qF '| Ship | Harnesses |' "$OS_ENG/docs/cdd-reference.md" \
@@ -48,10 +47,11 @@ for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-re
   [ -e "$SKILLS/$slug" ] && { echo "FAIL: deleted skill still present: $slug"; exit 1; }
 done
 
-# schema single file — JSON examples only in the os-engineering schema SOT
-hw_examples=$(grep -c '"task":' "$SKILLS/spor-handoff-writer/SKILL.md" || true)
+# schema single file — JSON examples only in the os-engineering schema SOT;
+# the handoff-writer thin pointer is deleted (T2).
+[ ! -e "$SKILLS/spor-handoff-writer" ] \
+  || { echo "FAIL: spor-handoff-writer still present"; exit 1; }
 schema_examples=$(grep -c '"task":' "$OS_ENG/docs/handoff-schema.md" || true)
-[ "$hw_examples" -eq 0 ] || { echo "FAIL: handoff-writer still has inline schema"; exit 1; }
 [ "$schema_examples" -ge 1 ] || { echo "FAIL: schema file missing JSON example"; exit 1; }
 
 # D3 severity behavior anchors + deferral semantics now live in the

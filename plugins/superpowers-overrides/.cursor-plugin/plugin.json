@@ -9,6 +9,5 @@
     "email": "oscaner1997@gmail.com"
   },
   "license": "MIT",
-  "skills": "./skills/",
   "hooks": "./hooks/hooks-cursor.json"
 }

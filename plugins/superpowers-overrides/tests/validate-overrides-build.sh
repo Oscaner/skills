@@ -49,18 +49,20 @@ for t in m['targets']:
     plugin, upstream = t['overrides'].split(':', 1)
     assert plugin == 'superpowers'
     assert not os.path.isdir(os.path.join(skills, upstream)), f'upstream collision dir: {upstream}'
-# transitional: the overrides plugin still holds spor-* skill bodies (deleted in a later ticket)
-for name in os.listdir(skills):
-    assert name.startswith('spor-'), f'skill dir must start with spor-: {name}'
-    text = open(os.path.join(skills, name, 'SKILL.md')).read()
-    fm = re.match(r'(?s)^---\n(.*?)\n---', text).group(1)
-    nm = re.search(r'^name:\s*(.+)$', fm, re.M).group(1).strip()
-    assert nm == name, f'{name}: frontmatter name={nm}'
+# no skill bodies: overrides = trigger router. skills/ must be absent or empty.
+if os.path.isdir(skills):
+    names = [n for n in os.listdir(skills) if os.path.isdir(os.path.join(skills, n))]
+    assert not names, f'skills/ must be empty (trigger router, no skill bodies): {names}'
 print('OK')
 "
 
 echo "== validate cross-cutting skills =="
-[ -f "$SKILLS/spor-init/SKILL.md" ] || { echo "MISSING cross-cutting: spor-init"; exit 1; }
+# all spor-* skill bodies deleted (T2); none may come back
+if [ -d "$SKILLS" ]; then
+  for slug in "$SKILLS"/spor-*; do
+    [ -e "$slug" ] && { echo "FAIL: spor-* skill still present: $(basename "$slug")"; exit 1; }
+  done
+fi
 for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-review-dispatch; do
   [ -e "$SKILLS/$slug" ] && { echo "FAIL: deleted cross-cutting skill still present: $slug"; exit 1; }
 done
@@ -69,9 +71,9 @@ echo "OK"
 echo "== validate SDD orchestrator line budget =="
 "$ROOT/tests/sdd-orchestrator-line-budget.test.sh"
 
-echo "== validate rule-reference integrity (dual-mode: os-engineering semantic + overrides numeric) =="
+echo "== validate rule-reference integrity (os-engineering semantic) =="
 python3 "$OS_ENG/tests/rule-reference.test.py" \
-  --skills os-engineering/skills:semantic superpowers-overrides/skills:numeric
+  --skills os-engineering/skills:semantic
 
 echo "== validate os-engineering engine (harness registry + runners) =="
 [ -f "$OS_ENG/bin/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }

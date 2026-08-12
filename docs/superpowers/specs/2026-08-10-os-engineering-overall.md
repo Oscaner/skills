@@ -49,17 +49,17 @@
 | P1 | **插件骨架 + cli-* 家族 + droid/pi + harness 选择 + cli 模式重组**。创建 engineering 插件（marketplace/source.json 注册、plugin.json、CI validate 接入）；迁入并**重组** SDD harness 机制：声明式 harness registry（JSON：harness → cli_bin / invocation flags / output format / review_prefix / ship level）+ 单一通用 runner `cdd-run.sh`（`--harness <name> --task N --mode …` 或 `--plan`），**删除 per-harness 包装脚本与 stub 脚本**；新增 droid / pi 两个 full harness（分析并合并 `tmp/droid-example.sh` 可借鉴点：stream-json 解析 / `--auto` 级别 / completion sentinel）；迁入 `templates/sdd-cli/`、`docs/sdd-h6-reference.md`；cross-cutting `spor-token-efficient-controller-handoff`（H1–H5）与 `spor-handoff-writer` 降为插件 docs（并入 cli-driven-development 契约）；新增 `cli-select`（读 registry + `command -v` 列出已装 full harness + 询问 + 推荐 droid>pi>当前 harness）、`cli-task`（通用一次性派发）、`cli-driven-development`（三模式链）、`cli-code-review`。过渡期同步 superpowers-overrides 的 spor-sdd 引用指向新位置；全量 sdd→cdd 更名（CDD_* env / cdd-common.sh / cdd-run.sh / .superpowers/cdd/ / cdd-reference.md / templates/cdd/）。 | [Pending] | [Pending] |
 | P2 | **os-* 家族抽离（核心集审计，8 技能）**。`os-brainstorming` / `os-writing-plans` / `os-executing-plans`（总编器：编器控制器 Rules 1-8 三模式共用 + 分派 —— in-session→Read upstream executing-plans / subagent→Read upstream subagent-driven-development / cli→委托 `cli-driven-development`）/ `os-finishing`（含 worktree 拒绝，吸收 spor-using-git-worktrees）/ `os-verification` / `os-debugging` / `os-code-review` / `os-report-issue`。**不建 os-***（非 1:1 对齐）：tdd 直映 mattpocock（seam 门折进 cdd implement）、executing-plans 直映 os-executing-plans、p0-fallback 删除。cross-cutting `spor-subagent-lifecycle`、`spor-token-efficient-review-dispatch` 降为插件 docs；overall + phase 模板迁入；**gate 模式感知**（`pending.mode`：in-session|subagent|cli，cli 严格 / 其余放行 repo 编辑）。 | [Pending] | [Pending] |
 | P3 | **薄封装 + superpowers 模式发射**。superpowers-overrides 收缩为**触发路由器**（plugin-root，claude+cursor）：manifest 触发→目标表（spor-\* → os-\*/cli-\*/mattpocock tdd），hooks/expansion/自检表指向 os-\*/cli-\*，**spor-\* 全部删除**，rule-reference 数字模式退役。engineering = 技能 + 引擎 + gate：gate 全迁（PreToolUse hooks）、`os-init` 落位（参数化）、独立版本化、**统一 emit 工具**（`pnpm run emit` 从 source.json 生成 first-party 全部产物：claude/cursor/codex/kimi/gemini/pi **薄 manifest 指向 `skills/`** + GEMINI.md + `.agents/skills/` 共享 + overrides hooks/自检表 + 版本同步，仿 superpowers `.version-bump.json`）。**丢弃 rovo/vibe/kiro**（无原生安装器）。 | [Pending] | [Pending] |
-| P4 | **跨 harness gate adapters + 重运行时产物**。Grok / Qoder / Codex / Gemini / Vibe / Kiro 的 gate PreToolUse/BeforeTool adapters（各需原生配置 + 信任仪式；Copilot 因 matcher 忽略延后）；重运行时产物（opencode runtime 插件 / pi TS 扩展 —— engineering 纯 markdown 目前不需要）；Trae 原生 extension（格式待研）。 | [Pending] | [Pending] |
+| P4 | **跨 harness gate adapters + 重运行时产物 + npm 发布**。Grok / Qoder / Codex / Gemini / Vibe / Kiro 的 gate PreToolUse/BeforeTool adapters（各需原生配置 + 信任仪式；Copilot 因 matcher 忽略延后）；重运行时产物（opencode runtime 插件 / pi TS 扩展 —— engineering 纯 markdown 目前不需要）；Trae 原生 extension（格式待研）；**npm 发布机制**：全 first-party 发布 `@oscaner-skills/engineering` + `@oscaner-skills/superpowers-overrides` 到 npm（pi / opencode 等 npm 型 harness 用 `npm:` source 安装；claude/cursor/grok 继续走 root marketplace；root `@oscaner-skills/marketplace` 保持 private 不发布）。 | [Pending] | [Pending] |
 
 ## §3 Dependency graph (ASCII)
 
 ```
-P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + 多 harness 发射）──▶ P4（原生 marketplace + 跨 harness gate）
+P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4（跨 harness gate + 重运行时产物）
 ```
 
 - P1 → P2：插件存在、模式确立、harness 机制与 cli-driven-development 就位后，os-* 才能引用它们。
 - P2 → P3：薄封装需要 os-* 目标全部存在才能映射。
-- P3 → P4：原生清单与跨 harness gate adapters 建立在 P3 的 build.js 发射 + gate 基础设施之上。
+- P3 → P4：跨 harness gate adapters 与重运行时产物建立在 P3 的统一 emit 工具 + gate 基础设施之上。
 
 ## §4 Boundary rules
 
@@ -83,4 +83,4 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v1.7 · 2026-08-10 · P3 范围定稿（grilling）：终态边界 = overrides 触发路由器（plugin-root，claude+cursor，无技能体，spor-* 全删）/ os-engineering 技能+引擎+gate+全 harness emit；gate 全迁 os-engineering；os-init 参数化；os-engineering 独立版本化；**impeccable 模式多 harness 发射**（build.js + PROVIDERS，12 技能 → ~15 harness + 上游 superpowers 连带就位）；去掉 cursor-plugins wrapper emit
 - v1.8 · 2026-08-10 · P3 范围确认（研究）：harness marketplace/hooks 全量调查（docs/research/2026-08-10-harness-marketplace-hooks.md）—— 12 技能发射到 **14 非 claude harness**（`.agents/skills/` 一等目标，9 harness 读取）+ per-harness self-check/README（路由器 hooks 仅 claude+cursor）+ 上游整目录连带；**新增 P4**：Gemini/Codex/Qoder/Pi/Grok/Trae 原生插件清单 + Grok/Qoder/Codex/Gemini/Vibe/Kiro gate adapters（Copilot 延后）
 - v1.9 · 2026-08-10 · P3 发射模式改为 **superpowers 模式统一**（复盘 superpowers 插件结构）：不做 per-harness 技能副本，改 **canonical `skills/` + 薄 manifest 指向它**（claude/cursor/codex/kimi/gemini/pi）+ GEMINI.md + `.agents/skills/` 共享；**统一 emit 工具**（`pnpm run emit` 从 source.json 生成 first-party 全部产物 + 版本同步）；原生清单并入 P3，P4 缩为跨 harness gate adapters + 重运行时产物；**丢弃 rovo/vibe/kiro**
-- v2.0 · 2026-08-10 · 插件 rename：`os-engineering` → `engineering`（目录/插件名/命名空间 `engineering:*`，技能 os-*/cli-* 前缀保留）；**包名统一 `@oscaner-skills/` 作用域**（marketplace / engineering / superpowers-overrides）；npm 独立发布机制归 P4
+- v2.0 · 2026-08-10 · 插件 rename：`os-engineering` → `engineering`（目录/插件名/命名空间 `engineering:*`，技能 os-*/cli-* 前缀保留）；**包名统一 `@oscaner-skills/` 作用域**（marketplace / engineering / superpowers-overrides）；**全 first-party npm 发布归 P4**（engineering + superpowers-overrides，root 保持 private）

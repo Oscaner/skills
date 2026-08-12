@@ -135,10 +135,10 @@ git submodule update --init
 
 1. Create `plugins/superpowers-overrides/skills/<name>/SKILL.md` with the four-trigger frontmatter (see [The overrides pattern](#the-overrides-pattern-superpowers-overrides)).
 2. Add `"./skills/<name>"` directory with `SKILL.md` under [plugins/superpowers-overrides/skills/](plugins/superpowers-overrides/skills/) (`.claude-plugin/plugin.json` uses `"skills": "./skills/"` — no per-skill manifest entry needed).
-3. Add a target row to [plugins/superpowers-overrides/overrides.manifest.json](plugins/superpowers-overrides/overrides.manifest.json), then run `pnpm run generate:overrides` (regenerates `bin/override-prompt-expansion.sh` and `build/generated/*`). Do **not** hand-edit the hook script.
+3. Add a target row to [plugins/superpowers-overrides/overrides.manifest.json](plugins/superpowers-overrides/overrides.manifest.json), then run `pnpm run emit` (regenerates `bin/override-prompt-expansion.sh`, the cursor hooks, and `build/generated/*` via the unified `scripts/emit.mjs`). Do **not** hand-edit the hook script.
 4. Add a row to the override table in [README.md](README.md) for discoverability.
 
-Missing step 1 or 2 → the skill is invisible to Claude Code. Missing manifest entry or skipping `generate:overrides` → hook and self-check drift.
+Missing step 1 or 2 → the skill is invisible to Claude Code. Missing manifest entry or skipping `pnpm run emit` → hook and self-check drift.
 
 ## Verifying a change didn't break the marketplace
 
@@ -187,9 +187,9 @@ All three pass → the marketplace still resolves.
 [ -x plugins/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
 ```
 
-**5. Overrides build validates:**
+**5. Unified emit validates:**
 ```bash
-pnpm run validate:overrides
+pnpm run emit:check        # scripts/emit.mjs --check — drift → exit 1
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 

@@ -3,6 +3,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+echo "== 0. unified emit (write) — materialize gitignored first-party products =="
+node scripts/emit.mjs
+
 echo "== 1. plugin.json skills resolve =="
 python3 -c '
 import json, os
@@ -121,11 +124,11 @@ fi
 echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs
 
-echo "== 7. marketplace emit freshness =="
-node scripts/emit-marketplace.mjs --check
+echo "== 7. unified emit freshness =="
+node scripts/emit.mjs --check
 
-echo "== 7b. version-utils tests =="
-node --test scripts/lib/version-utils.test.mjs
+echo "== 7b. lib unit tests =="
+node --test scripts/lib/version-utils.test.mjs scripts/lib/emit/emit.test.mjs
 
 echo "== 8–10. version sync =="
 node scripts/validate-version-sync.mjs

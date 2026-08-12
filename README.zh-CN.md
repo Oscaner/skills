@@ -58,7 +58,7 @@ git submodule update --init
 
 ## 维护者
 
-修改 overrides 后：`pnpm run generate:overrides && pnpm run emit && pnpm run validate`。
+修改 overrides（或任一 first-party 插件 manifest）后：`pnpm run emit && pnpm run validate`。
 
 发布流程：[`.changeset/README.md`](.changeset/README.md)。贡献模式：[`CLAUDE.md`](CLAUDE.md)。
 

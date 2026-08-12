@@ -80,7 +80,7 @@ import json
 import os
 import re
 
-READ_RES = {"os-engineering:os-brainstorming":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-brainstorming/SKILL\\.md$"],"os-engineering:os-writing-plans":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-writing\\-plans/SKILL\\.md$"],"os-engineering:cli-driven-development":["(?i)/os\\-engineering/(?:[^/]*/)?skills/cli\\-driven\\-development/SKILL\\.md$"],"os-engineering:os-executing-plans":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-executing\\-plans/SKILL\\.md$"],"os-engineering:os-finishing":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-finishing/SKILL\\.md$"],"os-engineering:os-debugging":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-debugging/SKILL\\.md$"],"mattpocock-skills:tdd":["(?i)/mattpocock\\-skills/(?:[^/]*/)?skills/engineering/tdd/SKILL\\.md$"],"os-engineering:os-verification":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-verification/SKILL\\.md$"],"os-engineering:os-code-review":["(?i)/os\\-engineering/(?:[^/]*/)?skills/os\\-code\\-review/SKILL\\.md$"]}
+READ_RES = {{READ_RES_JSON}}
 
 data = json.loads(os.environ["INPUT"])
 override = os.environ["OVERRIDE"]

@@ -131,7 +131,7 @@ echo "== validate harness manifests =="
 python3 "$ROOT/tests/manifest-harness.test.py"
 
 echo "== validate generator outputs fresh =="
-"$ROOT/build/generate-all.sh" --check
+node "$(cd "$ROOT/../.." && pwd)/scripts/emit.mjs" --check
 
 echo "== validate expansion script =="
 "$ROOT/tests/override-prompt-expansion.test.sh"

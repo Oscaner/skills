@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
@@ -36,18 +36,39 @@ if (sj.version !== srcSp || srcSp !== entrySp) {
 }
 console.log("OK — superpowers", srcSp);
 
-// os-engineering — independent semver, plugin.json is the SOT alongside package.json.
+// os-engineering — independent semver. package.json is the SOT; the
+// per-harness manifests are emit products (gitignored, materialized by
+// `pnpm run emit` — run before this check).
 const oePkg = readJson("plugins/os-engineering/package.json");
-const oePlugin = readJson("plugins/os-engineering/.claude-plugin/plugin.json");
 const oeSrc = s.plugins.find((x) => x.name === "os-engineering");
 const oeEntry = m.plugins.find((x) => x.name === "os-engineering");
-const oeVersions = [oePkg.version, oeSrc.version, oePlugin.version, oeEntry.version];
-if (new Set(oeVersions).size !== 1) {
-  throw new Error(`os-engineering version mismatch: ${oeVersions.join(" ")}`);
-}
 const SEMVER = /^\d+\.\d+\.\d+$/;
 if (!SEMVER.test(oePkg.version)) {
   throw new Error(`Invalid os-engineering version format: ${oePkg.version}`);
+}
+const oeVersions = [oePkg.version, oeSrc.version, oeEntry.version];
+if (new Set(oeVersions).size !== 1) {
+  throw new Error(`os-engineering version mismatch: ${oeVersions.join(" ")}`);
+}
+for (const rel of [
+  ".claude-plugin/plugin.json",
+  ".cursor-plugin/plugin.json",
+  ".codex-plugin/plugin.json",
+  ".kimi-plugin/plugin.json",
+  "gemini-extension.json",
+]) {
+  const abs = join(root, "plugins/os-engineering", rel);
+  if (!existsSync(abs)) {
+    throw new Error(
+      `missing generated manifest plugins/os-engineering/${rel} — run pnpm run emit`,
+    );
+  }
+  const doc = JSON.parse(readFileSync(abs, "utf8"));
+  if (doc.version !== oePkg.version) {
+    throw new Error(
+      `os-engineering ${rel} version ${doc.version} != ${oePkg.version} — run pnpm run emit`,
+    );
+  }
 }
 console.log("OK —", oePkg.version);
 

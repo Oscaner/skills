@@ -7,7 +7,7 @@ import {
   semverFromNearestTag,
 } from "./submodule-tags.mjs";
 
-const GENERATED = "scripts/emit-marketplace.mjs — do not edit";
+const GENERATED = "scripts/emit.mjs — do not edit";
 
 /** @param {string} root */
 export function readSource(root) {

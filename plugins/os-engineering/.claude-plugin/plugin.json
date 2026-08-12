@@ -1,6 +1,0 @@
-{
-  "name": "os-engineering",
-  "version": "0.1.0",
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
-}

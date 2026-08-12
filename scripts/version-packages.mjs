@@ -126,13 +126,10 @@ if (osengCS.length > 0) {
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
-  // Sync os-engineering version to the SOT locations: .claude-plugin/plugin.json,
-  // marketplace/source.json, and the os-init self-check stamp.
-  const osengPluginPath = "plugins/os-engineering/.claude-plugin/plugin.json";
-  const osengPlugin = readJson(osengPluginPath);
-  osengPlugin.version = osengNext;
-  writeJson(osengPluginPath, osengPlugin);
-
+  // Sync os-engineering version to the SOT locations: marketplace/source.json
+  // and the os-init self-check stamp. The per-harness manifests are generated
+  // (gitignored) — the emit at the end of this script re-stamps them from
+  // package.json.
   const sourcePath = "marketplace/source.json";
   const source = readJson(sourcePath);
   const entry = source.plugins.find((p) => p.name === "os-engineering");

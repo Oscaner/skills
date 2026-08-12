@@ -1,0 +1,446 @@
+#!/usr/bin/env node
+/**
+ * Unified emit tool.
+ *
+ * Replaces `scripts/emit-marketplace.mjs` and the former per-plugin generator
+ * scripts (`plugins/superpowers-overrides/build/generate-all.sh` + render-*).
+ * Reads `marketplace/source.json`, generates every first-party artifact:
+ *
+ *  - repo-root marketplace manifests (`.claude-plugin/` + `.cursor-plugin/`)
+ *  - cursor wrapper manifests for vendored (non-plugin-root) plugins
+ *  - per-harness thin manifests for first-party plugins, all pointing at the
+ *    canonical `./skills/` tree:
+ *      claude  → `.claude-plugin/plugin.json`
+ *      cursor  → `.cursor-plugin/plugin.json`
+ *      codex   → `.codex-plugin/plugin.json`
+ *      kimi    → `.kimi-plugin/plugin.json`
+ *      gemini  → `gemini-extension.json` + `GEMINI.md`
+ *      pi      → `package.json#pi` (verified/ensured)
+ *      shared  → `.agents/skills/` copy (os-engineering + upstream superpowers)
+ *    plus the overrides hooks/self-check tables and os-engineering PreToolUse
+ *    hooks, and version consistency per `plugins/os-engineering/.version-bump.json`.
+ *
+ * `--check` mode generates into a temp tree and diffs every produced path
+ * against the on-disk tree (drift → exit 1). CI runs `pnpm run emit` before
+ * `--check`, so gitignored emit products exist on disk for the comparison.
+ */
+
+import {
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  mkdtempSync,
+  existsSync,
+  readdirSync,
+  cpSync,
+  chmodSync,
+} from "node:fs";
+import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
+import { execSync } from "node:child_process";
+import {
+  readSource,
+  resolveVersion,
+  claudeMarketplaceEntry,
+  cursorWrapperManifest,
+  assertCursorPathsExist,
+  assertPrereleasePrefix,
+  claudeMarketplaceDocument,
+  cursorMarketplaceDocument,
+  repoRootFromImportMeta,
+  isPluginRoot,
+} from "./lib/marketplace-utils.mjs";
+import {
+  generatedBanner,
+  claudePluginManifest,
+  cursorPluginManifest,
+  codexPluginManifest,
+  kimiPluginManifest,
+  geminiExtension,
+  geminiMarkdown,
+  piPackageKey,
+} from "./lib/emit/manifests.mjs";
+import {
+  loadTargets,
+  promptExpansionScript,
+  claudeHooksJson,
+  cursorHooksJson,
+  cursorDetectScript,
+  cursorEnforceScript,
+  claudeSelfCheckMd,
+  cursorSelfCheckMdc,
+  overridesCursorManifest,
+  overridesCodexManifest,
+} from "./lib/emit/overrides.mjs";
+
+const root = repoRootFromImportMeta(import.meta.url);
+const checkMode = process.argv.includes("--check");
+
+/** Repo-relative paths produced by the last emitAll run (for --check diff). */
+const generatedPaths = [];
+
+function writeText(outRoot, rel, content) {
+  const p = join(outRoot, rel);
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, content);
+  generatedPaths.push(rel);
+}
+
+function writeJsonDoc(outRoot, rel, data) {
+  writeText(outRoot, rel, JSON.stringify(data, null, 2) + "\n");
+}
+
+function readJson(rel) {
+  return JSON.parse(readFileSync(join(root, rel), "utf8"));
+}
+
+// ---------------------------------------------------------------------------
+// os-engineering
+// ---------------------------------------------------------------------------
+
+/** os-engineering Claude PreToolUse hooks (gate on Write|Edit|Bash). */
+function osEngineeringClaudeHooks() {
+  return {
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Write|Edit",
+          hooks: [
+            {
+              type: "command",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+            },
+          ],
+        },
+        {
+          matcher: "Bash",
+          hooks: [
+            {
+              type: "command",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/** os-engineering Cursor preToolUse hook (cdd gate). */
+function osEngineeringCursorHooks() {
+  return {
+    version: 1,
+    hooks: {
+      preToolUse: [{ command: "./bin/override-cursor-cdd-gate.sh" }],
+    },
+  };
+}
+
+function emitOsEngineering(outRoot, plugin) {
+  const version = resolveVersion(root, plugin).version;
+  const contentRoot = plugin.contentRoot;
+  const pluginDir = join(root, contentRoot);
+
+  // Canonical skills list (12 emitters + os-init).
+  const skillsDir = join(pluginDir, "skills");
+  const skillNames = readdirSync(skillsDir, { withFileTypes: true })
+    .filter(
+      (d) =>
+        d.isDirectory() && existsSync(join(skillsDir, d.name, "SKILL.md")),
+    )
+    .map((d) => d.name)
+    .sort();
+
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.claude-plugin/plugin.json`,
+    claudePluginManifest(plugin, version),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.cursor-plugin/plugin.json`,
+    cursorPluginManifest(plugin, version),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.codex-plugin/plugin.json`,
+    codexPluginManifest(plugin, version),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.kimi-plugin/plugin.json`,
+    kimiPluginManifest(plugin, version),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/gemini-extension.json`,
+    geminiExtension(plugin, version),
+  );
+  writeText(
+    outRoot,
+    `${contentRoot}/GEMINI.md`,
+    geminiMarkdown(plugin, skillNames),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/hooks/hooks.json`,
+    osEngineeringClaudeHooks(),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/hooks/hooks-cursor.json`,
+    osEngineeringCursorHooks(),
+  );
+
+  emitAgentsSkillsCopy(outRoot, contentRoot);
+
+  // pi: pure skills package, no runtime extensions.
+  ensurePiKey(root, plugin);
+}
+
+/** Shared `.agents/skills/` copy for codex/gemini/pi/qoder/opencode scanners. */
+function emitAgentsSkillsCopy(outRoot, contentRoot) {
+  const outAgents = join(outRoot, contentRoot, ".agents", "skills");
+  const namespaces = [
+    ["os-engineering", join(root, "plugins/os-engineering/skills")],
+    ["superpowers", join(root, "plugins/superpowers/skills")],
+  ];
+  for (const [ns, sourceRoot] of namespaces) {
+    if (!existsSync(sourceRoot)) continue;
+    cpSync(sourceRoot, join(outAgents, ns), { recursive: true });
+  }
+  collectTree(outAgents, `${contentRoot}/.agents/skills`);
+}
+
+function collectTree(absDir, relPrefix) {
+  for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+    const abs = join(absDir, entry.name);
+    const rel = `${relPrefix}/${entry.name}`;
+    if (entry.isDirectory()) {
+      collectTree(abs, rel);
+    } else {
+      generatedPaths.push(rel);
+    }
+  }
+}
+
+/** Ensure `package.json#pi` carries the pure-skills key (write + check). */
+function ensurePiKey(baseRoot, plugin) {
+  const pkgPath = join(baseRoot, plugin.contentRoot, "package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  const expected = piPackageKey();
+  if (JSON.stringify(pkg.pi) !== JSON.stringify(expected)) {
+    if (checkMode) {
+      console.error(
+        `DRIFT: ${plugin.contentRoot}/package.json missing pi ${JSON.stringify(expected)}`,
+      );
+      process.exit(1);
+    }
+    pkg.pi = expected;
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// superpowers-overrides
+// ---------------------------------------------------------------------------
+
+function emitOverrides(outRoot, plugin) {
+  const contentRoot = plugin.contentRoot;
+  const pluginDir = join(root, contentRoot);
+  const targets = loadTargets(join(pluginDir, "overrides.manifest.json"));
+  const pkg = JSON.parse(
+    readFileSync(join(pluginDir, "package.json"), "utf8"),
+  );
+  const version = pkg.version;
+  const meta = {
+    name: pkg.name,
+    description: pkg.description,
+    author: pkg.author,
+    license: pkg.license,
+  };
+
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.cursor-plugin/plugin.json`,
+    overridesCursorManifest(meta, version),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.codex-plugin/plugin.json`,
+    overridesCodexManifest(meta, version),
+  );
+  writeJsonDoc(outRoot, `${contentRoot}/hooks/hooks.json`, claudeHooksJson(targets));
+  writeJsonDoc(outRoot, `${contentRoot}/hooks/hooks-cursor.json`, cursorHooksJson());
+
+  const binScripts = [
+    [
+      "bin/override-prompt-expansion.sh",
+      promptExpansionScript(targets),
+    ],
+    [
+      "bin/override-cursor-detect.sh",
+      cursorDetectScript(
+        targets,
+        readFileSync(join(root, "scripts/templates/override-cursor-detect.sh"), "utf8"),
+      ),
+    ],
+    [
+      "bin/override-cursor-enforce.sh",
+      cursorEnforceScript(
+        targets,
+        readFileSync(join(root, "scripts/templates/override-cursor-enforce.sh"), "utf8"),
+      ),
+    ],
+  ];
+  for (const [rel, content] of binScripts) {
+    writeText(outRoot, `${contentRoot}/${rel}`, content);
+    if (outRoot === root) chmodSync(join(outRoot, contentRoot, rel), 0o755);
+  }
+
+  writeText(
+    outRoot,
+    `${contentRoot}/build/generated/claude-self-check.md`,
+    claudeSelfCheckMd(
+      targets,
+      version,
+      readFileSync(join(pluginDir, "build/templates/claude-self-check.md"), "utf8"),
+    ),
+  );
+  writeText(
+    outRoot,
+    `${contentRoot}/build/generated/cursor-self-check.mdc`,
+    cursorSelfCheckMdc(
+      targets,
+      version,
+      readFileSync(join(pluginDir, "build/templates/self-check.mdc"), "utf8"),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace documents (repo root) + cursor wrappers
+// ---------------------------------------------------------------------------
+
+function emitMarketplaceDocs(outRoot, source) {
+  const claudePlugins = [];
+  const cursorMarketplacePlugins = [];
+
+  for (const plugin of source.plugins) {
+    const resolved = resolveVersion(root, plugin);
+    assertCursorPathsExist(root, plugin);
+
+    claudePlugins.push(claudeMarketplaceEntry(plugin, resolved));
+    cursorMarketplacePlugins.push({
+      _generated: generatedBanner,
+      name: plugin.name,
+      source: isPluginRoot(plugin)
+        ? `./${plugin.contentRoot}`
+        : `cursor-plugins/${plugin.name}`,
+      description: plugin.description,
+    });
+
+    if (!isPluginRoot(plugin)) {
+      writeJsonDoc(
+        outRoot,
+        `cursor-plugins/${plugin.name}/.cursor-plugin/plugin.json`,
+        cursorWrapperManifest(plugin, resolved),
+      );
+    }
+  }
+
+  writeJsonDoc(
+    outRoot,
+    ".claude-plugin/marketplace.json",
+    claudeMarketplaceDocument(source, claudePlugins),
+  );
+  writeJsonDoc(
+    outRoot,
+    ".cursor-plugin/marketplace.json",
+    cursorMarketplaceDocument(source, cursorMarketplacePlugins),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Version consistency (mimic superpowers .version-bump.json)
+// ---------------------------------------------------------------------------
+
+function assertVersionBump() {
+  const plugin = "plugins/os-engineering";
+  const bumpPath = join(root, plugin, ".version-bump.json");
+  if (!existsSync(bumpPath)) return;
+  const bump = JSON.parse(readFileSync(bumpPath, "utf8"));
+  const pkgVersion = readJson("plugins/os-engineering/package.json").version;
+  for (const f of bump.files) {
+    const abs = join(root, plugin, f.path);
+    if (!existsSync(abs)) continue; // gitignored emit product — checked via --check diff
+    const doc = JSON.parse(readFileSync(abs, "utf8"));
+    const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
+    if (val !== pkgVersion) {
+      throw new Error(
+        `version drift: ${plugin}/${f.path} ${val} != ${pkgVersion} (run pnpm run emit)`,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Orchestration
+// ---------------------------------------------------------------------------
+
+function emitAll(outRoot) {
+  const source = readSource(root);
+  assertPrereleasePrefix(root, source);
+
+  for (const plugin of source.plugins) {
+    if (plugin.name === "superpowers-overrides") emitOverrides(outRoot, plugin);
+    if (plugin.name === "os-engineering") emitOsEngineering(outRoot, plugin);
+  }
+
+  emitMarketplaceDocs(outRoot, source);
+
+  // os-engineering no longer uses the cursor wrapper — the wrapper must be gone.
+  const staleWrapper = join(outRoot, "cursor-plugins/os-engineering");
+  if (existsSync(staleWrapper)) {
+    throw new Error(
+      `stale cursor wrapper: cursor-plugins/os-engineering/ must be deleted (plugin-root emit)`,
+    );
+  }
+}
+
+function compareTrees(generatedRoot) {
+  for (const rel of generatedPaths) {
+    const committed = join(root, rel);
+    const generated = join(generatedRoot, rel);
+    if (!existsSync(committed)) {
+      console.error(`MISSING committed file: ${rel} — run pnpm run emit`);
+      process.exit(1);
+    }
+    if (!existsSync(generated)) {
+      console.error(`MISSING generated file: ${rel}`);
+      process.exit(1);
+    }
+    try {
+      execSync(`diff -u "${committed}" "${generated}"`, { stdio: "pipe" });
+    } catch (e) {
+      console.error(`DRIFT: ${rel}\n${e.stdout?.toString() ?? ""}`);
+      process.exit(1);
+    }
+  }
+  assertVersionBump();
+  console.log("OK — emit fresh");
+}
+
+if (checkMode) {
+  const tempRoot = mkdtempSync(join(tmpdir(), "oscaner-emit-"));
+  try {
+    emitAll(tempRoot);
+    compareTrees(tempRoot);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+} else {
+  emitAll(root);
+  console.log("OK — emitted unified first-party manifests");
+}

@@ -53,14 +53,12 @@ flowchart LR
 | Plan | `spor-writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
 | Build | `spor-subagent-driven-development` | Complexity-based review rounds; implementers delegate to `tdd` |
 | Build | `spor-executing-plans` | Plan execution; redirects to SDD when subagents available; per-task commits |
-| Build | `spor-test-driven-development` | Confirms seams with user; delegates loop to mattpocock `tdd` |
+| Build | `spor-test-driven-development` | Seam confirmation gate lives in plugins/os-engineering/templates/cdd/implement.md; delegates loop to mattpocock `tdd` |
 | Build | `spor-systematic-debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
 | Ship | `spor-verification-before-completion` | No completion claims without verification evidence |
 | Ship | `spor-finishing-a-development-branch` | Branch finish / PR; no worktrees; conventional commits |
 | Ship | `spor-receiving-code-review` | Unclear feedback → `grilling`; fixes → `tdd` (not in diagram — often mid-build or pre-ship) |
 | Policy | `spor-using-git-worktrees` | Refuses worktree creation (user policy) |
-| Cross-cutting | `spor-subagent-lifecycle` | Fresh subagent per pass; concurrency rules (referenced, no slash) |
-| Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3/D4 review dispatch (referenced, no slash) |
 | Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator file-only handoff (referenced, no slash) |
 | Cross-cutting | `spor-handoff-writer` | handoff.json schema reference doc (handoff write is inline, no longer independently dispatched) |
 | Cross-cutting | `spor-report-issue` | Analyse spor session findings and file GitHub issues via gh CLI (manual, no auto-trigger) |

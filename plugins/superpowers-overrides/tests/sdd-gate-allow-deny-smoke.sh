@@ -118,7 +118,7 @@ for needle in "CDD orchestrator gate" "Allowed Bash (read-only diagnostics):" \
               "cdd-run.sh --harness claude" "sdd-workspace / task-brief / review-package" \
               "Allowed Write:" ".superpowers/cdd/active-ws/" \
               "--task 1 --mode implement" "Full matrix: ${OS_ENG}/docs/cdd-reference.md (CDD gate matrix)" \
-              "See spor-SDD Rule 0 item 4."; do
+              "See os-executing-plans Rule: Orchestrator Checklist."; do
   r="$(bash_reason "$S1" "ls")"
   [[ "$r" == *"$needle"* ]] || fail "deny message missing: $needle"
 done
@@ -149,7 +149,7 @@ BOUND_FIX="$SCEN_DEST"
 # assertions below would fail, so bound precedence is a real discriminator.
 mkdir -p "$TMPROOT/bound-ws/sdd/000-unrelated-ws"
 printf 'TASK_BASE: %s\n' "$(git -C "$TMPROOT/bound-ws" rev-parse --short HEAD)" > "$TMPROOT/bound-ws/sdd/000-unrelated-ws/task-1-brief.md"
-"$ACT" bind "$S3" "$BOUND_FIX" "$BOUND_FIX/plan.md" "$BOUND_FIX/sdd/active-ws"
+"$ACT" bind "$S3" "$BOUND_FIX" "$BOUND_FIX/plan.md" "$BOUND_FIX/sdd/active-ws" --mode cli
 SESSION_KEYS+=("$S3")
 
 assert_allow_write "$S3" "$TMPROOT/bound-ws/sdd/active-ws/progress.md" "write bound active-ws"
@@ -165,7 +165,7 @@ echo "== 4. complete-ws (APPROVED handoff + real SHA → task_complete → shell
 S4="$(session_key complete)"
 setup_scenario complete complete-ws
 COMPLETE_FIX="$SCEN_DEST"
-"$ACT" bind "$S4" "$COMPLETE_FIX" "$COMPLETE_FIX/plan.md" "$COMPLETE_FIX/sdd/complete-ws"
+"$ACT" bind "$S4" "$COMPLETE_FIX" "$COMPLETE_FIX/plan.md" "$COMPLETE_FIX/sdd/complete-ws" --mode cli
 SESSION_KEYS+=("$S4")
 
 # task_complete: shell and Write re-allowed (realtime phase, no caching)
@@ -182,5 +182,34 @@ assert_allow_cmd "$S5" "git status" "git status (orchestrating)"
 assert_deny_cmd "$S5" "ls" "ls (orchestrating)"
 assert_allow_write "$S5" "$TMPROOT/orchestrating-ws/sdd/new-ws/x.md" "write cdd_root new-ws (orchestrating)"
 assert_deny_write "$S5" "$REPO/plugins/foo.txt" "write repo path (orchestrating)"
+
+echo "== 6. mode awareness (pending.mode, spec §E) =="
+# in-session pending → Write to any repo path allow; shell keeps read-only git whitelist
+S6_IN="$(session_key mode-in-session)"
+setup_scenario active mode-in-session-ws "$S6_IN" in-session
+assert_allow_write "$S6_IN" "$REPO/plugins/foo.txt" "in-session: write repo path allow"
+assert_allow_write "$S6_IN" "$TMPROOT/mode-in-session-ws/sdd/ledger.md" "in-session: write cdd_root ledger allow"
+assert_allow_cmd "$S6_IN" "git status" "in-session: read-only git allow"
+assert_deny_cmd "$S6_IN" "rm -rf $REPO/plugins" "in-session: non-git shell still deny"
+
+# subagent pending → Write to any repo path allow
+S6_SUB="$(session_key mode-subagent)"
+setup_scenario active mode-subagent-ws "$S6_SUB" subagent
+assert_allow_write "$S6_SUB" "$REPO/plugins/foo.txt" "subagent: write repo path allow"
+
+# cli pending → workspace-outside repo path deny, workspace allow (strict)
+S6_CLI="$(session_key mode-cli)"
+setup_scenario active mode-cli-ws "$S6_CLI" cli
+assert_deny_write "$S6_CLI" "$REPO/plugins/foo.txt" "cli: write repo path deny"
+assert_allow_write "$S6_CLI" "$TMPROOT/mode-cli-ws/sdd/active-ws/progress.md" "cli: write active-ws allow"
+
+# no mode field pending → allow (fail-open, spec §E)
+S6_NOMODE="$(session_key mode-none)"
+setup_scenario active mode-none-ws "$S6_NOMODE" ""
+assert_allow_write "$S6_NOMODE" "$REPO/plugins/foo.txt" "no-mode: write repo path allow (fail-open)"
+
+# no pending → allow (fail-open)
+S6_NOPENDING="$(session_key mode-no-pending)"
+assert_allow_write "$S6_NOPENDING" "$REPO/plugins/foo.txt" "no-pending: write repo path allow (fail-open)"
 
 echo "OK — sdd-gate-allow-deny-smoke ($ASSERT_COUNT assertions)"

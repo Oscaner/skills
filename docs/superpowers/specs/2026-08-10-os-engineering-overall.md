@@ -2,7 +2,7 @@
 
 ## Header
 
-- **Version**: v1.4 · 2026-08-10
+- **Version**: v1.6 · 2026-08-10
 - **Status**: Approved · 2026-08-10（分解经用户批准）
 - **Author**: Oscaner Miao · Claude Code (Opus 4.8)
 - **Constraints**:
@@ -37,7 +37,7 @@
 - 过渡期 SDD CLI 链必须持续可用 —— 每个阶段结束时 orchestrator 仍能跑通当前工作流。
 - harness 机制迁移后，`pnpm run validate` 断言（validate-overrides-build.sh 等）必须同步更新。
 - 命名：插件 `os-engineering`；技能前缀 `os-*`（流程家族）+ `cli-*`（CLI 家族）。
-- **gate 模式感知（P2 落地）**：`sdd-orchestrator-gate.sh` 随 cli-driven-development 迁至 os-engineering；P2 起 gate 按模式放行 —— CLI 模式保持严格（repo 编辑只走 CLI shell），in-session 模式放行 repo 编辑。
+- **gate 模式感知（P2 落地，过渡期留 overrides）**：P2 起 gate 按 `pending.mode` 放行 —— cli 模式严格（repo 编辑只走 CLI shell），in-session/subagent 模式放行 repo 编辑。gate 本体（`cdd-orchestrator-gate.sh`）过渡期留 overrides，P3 随薄封装迁至 os-engineering。
 - **os-init 参数化**：`os-init spor` 初始化 superpowers 自检表；未来可扩展 `os-init <x>`。
 - **sdd → cdd 全量更名（P1 落位）**：新插件内 `SDD_*` 环境变量 → `CDD_*`；`sdd-common.sh` → `cdd-common.sh`；`sdd-orchestrator-gate.sh` → `cdd-orchestrator-gate.sh`；通用 runner `cdd-run.sh`；workspace `.superpowers/sdd/` → `.superpowers/cdd/`（内联重实现 workspace resolver，不再调用上游 `sdd-workspace`）；`docs/sdd-h6-reference.md` → `docs/cdd-reference.md`；`templates/sdd-cli/` → `templates/cdd/`。唯一保留的上游名：`task-brief` / `review-package`（submodule 脚本，以显式输出路径指向 cdd workspace 调用）。缩写规范：`cdd` = cli-driven-development（镜像 `sdd` = subagent-driven-development）；skill 家族用 `cli-*` 前缀。
 - **规则命名规范（P1 起，全插件生效）**：语义名 + 链接引用 —— 标题 `### Rule: <Semantic Name>`（如 `### Rule: Task Complexity`），无数字、无 a/b/c 子后缀（子规则升为独立语义规则或语义子标题）；跨技能引用用 markdown 链接 `[Rule: <Name>](../<skill>/SKILL.md#rule-<kebab>)`；`rule-reference.test.py` 从正则 `Rule [0-9]+` 改为验证语义名解析（P1 对 cdd 技能、P2 对 os-* 技能落地）。
@@ -47,8 +47,8 @@
 | # | Phase | Design spec | Implementation plan |
 |---|---|---|---|
 | P1 | **插件骨架 + cli-* 家族 + droid/pi + harness 选择 + cli 模式重组**。创建 os-engineering 插件（marketplace/source.json 注册、plugin.json、CI validate 接入）；迁入并**重组** SDD harness 机制：声明式 harness registry（JSON：harness → cli_bin / invocation flags / output format / review_prefix / ship level）+ 单一通用 runner `cdd-run.sh`（`--harness <name> --task N --mode …` 或 `--plan`），**删除 per-harness 包装脚本与 stub 脚本**；新增 droid / pi 两个 full harness（分析并合并 `tmp/droid-example.sh` 可借鉴点：stream-json 解析 / `--auto` 级别 / completion sentinel）；迁入 `templates/sdd-cli/`、`docs/sdd-h6-reference.md`；cross-cutting `spor-token-efficient-controller-handoff`（H1–H5）与 `spor-handoff-writer` 降为插件 docs（并入 cli-driven-development 契约）；新增 `cli-select`（读 registry + `command -v` 列出已装 full harness + 询问 + 推荐 droid>pi>当前 harness）、`cli-task`（通用一次性派发）、`cli-driven-development`（三模式链）、`cli-code-review`。过渡期同步 superpowers-overrides 的 spor-sdd 引用指向新位置；全量 sdd→cdd 更名（CDD_* env / cdd-common.sh / cdd-run.sh / .superpowers/cdd/ / cdd-reference.md / templates/cdd/）。 | [Pending] | [Pending] |
-| P2 | **os-* 家族抽离**。`os-brainstorming` / `os-writing-plans` / `os-executing-plans`（总编排：用户选择 CLI → 委托 `cli-driven-development`，或 in-session 路径）/ `os-finishing`（含 worktree 拒绝，吸收 spor-using-git-worktrees）/ `os-code-review` / `os-debugging` / `os-testing` / `os-verification` / `os-report-issue`。cross-cutting `spor-subagent-lifecycle`、`spor-token-efficient-review-dispatch` 降为插件 docs 引用；overall + phase 模板迁入；**gate 模式感知落地**（in-session 放行 repo 编辑）。 | [Pending] | [Pending] |
-| P3 | **薄封装**。superpowers-overrides 的 spor-* 全部改为「触发 → 目标」映射并移除规则内容；`os-init` 落位（参数化 `os-init spor`）；删除死技能（spor-sdd-p0-fallback、spor-executing-plans 已删）；hooks / 生成器 / 自检表按新映射重写（spor-init 生成表指向 os-*/cli-*）；README / cross-harness-overrides 文档更新；os-engineering 独立版本化 + 发布链调整。 | [Pending] | [Pending] |
+| P2 | **os-* 家族抽离（核心集审计，8 技能）**。`os-brainstorming` / `os-writing-plans` / `os-executing-plans`（总编器：编器控制器 Rules 1-8 三模式共用 + 分派 —— in-session→Read upstream executing-plans / subagent→Read upstream subagent-driven-development / cli→委托 `cli-driven-development`）/ `os-finishing`（含 worktree 拒绝，吸收 spor-using-git-worktrees）/ `os-verification` / `os-debugging` / `os-code-review` / `os-report-issue`。**不建 os-***（非 1:1 对齐）：tdd 直映 mattpocock（seam 门折进 cdd implement）、executing-plans 直映 os-executing-plans、p0-fallback 删除。cross-cutting `spor-subagent-lifecycle`、`spor-token-efficient-review-dispatch` 降为插件 docs；overall + phase 模板迁入；**gate 模式感知**（`pending.mode`：in-session|subagent|cli，cli 严格 / 其余放行 repo 编辑）。 | [Pending] | [Pending] |
+| P3 | **薄封装**。superpowers-overrides 的 spor-* 全部改为「触发 → 目标」映射并移除规则内容；`os-init` 落位（参数化 `os-init spor`）；删除死技能（spor-sdd-p0-fallback 删除；spor-executing-plans 薄指针转纯触发映射）；hooks / 生成器 / 自检表按新映射重写（spor-init 生成表指向 os-*/cli-*）；README / cross-harness-overrides 文档更新；os-engineering 独立版本化 + 发布链调整。 | [Pending] | [Pending] |
 
 ## §3 Dependency graph (ASCII)
 
@@ -76,3 +76,5 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v1.2 · 2026-08-10 · 完整迁移清单落定：17 个 spor-* 技能全部归类（os-* 9 / cli-* 4 / docs 4 / 删除 2 / os-init 参数化 + os-report-issue 迁移）；gate 模式感知定在 P2；os-init 支持参数化（init spor / init <x>）
 - v1.3 · 2026-08-10 · sdd → cdd 全量更名落定（P1）：CDD_* env / cdd-common.sh / cdd-run.sh / .superpowers/cdd/ / cdd-reference.md / templates/cdd/；内联重实现 workspace resolver，仅保留上游 task-brief/review-package 脚本名。缩写规范：cdd = cli-driven-development（镜像 sdd），skill 家族用 cli-* 前缀
 - v1.4 · 2026-08-10 · 规则命名规范定稿：语义名 + 链接引用（`### Rule: <Name>`，无数字/子后缀），rule-reference.test.py 改为验证语义名
+- v1.5 · 2026-08-10 · P2 范围细化（grilling 审计）：os-* 核心集 8 技能（剔除 os-testing，tdd 直映 mattpocock + seam 门折进 cdd implement；executing-plans 直映；p0-fallback 删除；report-issue 保留）；os-executing-plans 为三模式总编器（in-session/subagent/cli）共用编器控制器 Rules 1-8；gate 模式感知（pending.mode）过渡期留 overrides，P3 随薄封装迁
+- v1.6 · 2026-08-10 · P2 执行完成（14 commits，os-* 8 技能 + 薄指针化 + gate 模式感知）；执行中 plan_conflict：seam 门从 implement.md 阻塞式移到编器层（os-executing-plans 确认 + CONFIRMED_SEAMS 写 brief，模板非阻塞）—— P2 spec §F 已同步修订

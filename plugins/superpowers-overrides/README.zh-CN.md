@@ -53,14 +53,12 @@ flowchart LR
 | Plan | `spor-writing-plans` | 分段写 plan + review；tickets 发布到 `docs/superpowers/tickets/` |
 | Build | `spor-subagent-driven-development` | 按复杂度多轮 review；implementer delegate 给 `tdd` |
 | Build | `spor-executing-plans` | 执行 plan；有 subagent 时转 SDD；每 task commit |
-| Build | `spor-test-driven-development` | 与用户确认 seam；循环 delegate 给 mattpocock `tdd` |
+| Build | `spor-test-driven-development` | seam 确认门在 plugins/os-engineering/templates/cdd/implement.md；循环 delegate 给 mattpocock `tdd` |
 | Build | `spor-systematic-debugging` | 先有证据再提 fix；delegate 给 `diagnosing-bugs` |
 | Ship | `spor-verification-before-completion` | 无验证证据不得声称完成 |
 | Ship | `spor-finishing-a-development-branch` | 分支收尾 / PR；禁止 worktree；conventional commits |
 | Ship | `spor-receiving-code-review` | 不清楚的反馈 → `grilling`；fix → `tdd`（不在图中——常在 build 中或 ship 前） |
 | Policy | `spor-using-git-worktrees` | 拒绝创建 worktree（用户策略） |
-| Cross-cutting | `spor-subagent-lifecycle` | 每 pass 全新 subagent；并发规则（被引用，无 slash） |
-| Cross-cutting | `spor-token-efficient-review-dispatch` | D1/D2/D3/D4 review dispatch（被引用，无 slash） |
 | Cross-cutting | `spor-token-efficient-controller-handoff` | H1–H5 SDD orchestrator 文件-only handoff（被引用，无 slash） |
 | Cross-cutting | `spor-handoff-writer` | handoff.json schema reference doc（handoff 写入已内联，不再独立 dispatch） |
 

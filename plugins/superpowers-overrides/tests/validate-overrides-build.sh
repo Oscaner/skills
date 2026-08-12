@@ -61,9 +61,10 @@ for name in os.listdir(skills):
 print('OK')
 "
 
-echo "== validate cross-cutting skills exist =="
-for slug in spor-init spor-subagent-lifecycle spor-token-efficient-review-dispatch; do
-  [ -f "$SKILLS/$slug/SKILL.md" ] || { echo "MISSING cross-cutting: $slug"; exit 1; }
+echo "== validate cross-cutting skills =="
+[ -f "$SKILLS/spor-init/SKILL.md" ] || { echo "MISSING cross-cutting: spor-init"; exit 1; }
+for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-review-dispatch; do
+  [ -e "$SKILLS/$slug" ] && { echo "FAIL: deleted cross-cutting skill still present: $slug"; exit 1; }
 done
 echo "OK"
 
@@ -102,7 +103,7 @@ if skills is None or isinstance(skills, str):
     declared = {n for n in os.listdir(skills_root) if os.path.isfile(os.path.join(skills_root, n, 'SKILL.md'))}
 else:
     declared = {s.split('/')[-1] for s in skills}
-needed = {t['name'] for t in m['targets']} | {'spor-init', 'spor-subagent-lifecycle', 'spor-token-efficient-review-dispatch'}
+needed = {t['name'] for t in m['targets']} | {'spor-init'}
 assert needed <= declared, f'plugin.json missing: {needed - declared}'
 print('OK')
 "

@@ -66,19 +66,24 @@ import json, os
 root = "plugins/os-engineering"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
+# 断言 os-engineering skills 数 = 12（4 cli-* + 8 os-*）
+EXPECTED = 12
 if skills is None:
     skills_dir = os.path.join(root, "skills")
     assert os.path.isdir(skills_dir), f"missing default skills dir: {skills_dir}"
     n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
+    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (4 cli-* + 8 os-*), got {n}"
     print(f"OK — {n} os-engineering skills (default skills/ discovery)")
 elif isinstance(skills, str):
     skills_dir = os.path.join(root, skills.lstrip("./"))
     assert os.path.isdir(skills_dir), f"missing skills dir: {skills_dir}"
     n = sum(1 for x in os.listdir(skills_dir) if os.path.isfile(os.path.join(skills_dir, x, "SKILL.md")))
+    assert n == EXPECTED, f"expected {EXPECTED} os-engineering skills (4 cli-* + 8 os-*), got {n}"
     print(f"OK — {n} os-engineering skills (directory {skills!r})")
 else:
     missing = [s for s in skills if not os.path.isdir(os.path.join(root, s.lstrip("./")))]
     assert not missing, f"skills[] points to missing dirs: {missing}"
+    assert len(skills) == EXPECTED, f"expected {EXPECTED} os-engineering skills (4 cli-* + 8 os-*), got {len(skills)}"
     print(f"OK — {len(skills)} os-engineering skills (explicit list)")
 '
 ./plugins/os-engineering/tests/registry-schema.test.sh

@@ -53,8 +53,6 @@ SCOPED_TARGET = {"SDD": SPOR_SDD, "spor-SDD": SPOR_SDD}
 ALLOWLIST_NUM = {
     # finishing-branch:27 references `executing-plans Rule 4` (pre-existing; neither override defines Rule 4) — external, unvalidated
     "spor-finishing-a-development-branch": {"4": ("upstream", None)},
-    "spor-executing-plans": {"5b": ("cross-file", "spor-sdd-p0-fallback")},
-    "spor-sdd-p0-fallback": {"0": ("cross-file", SPOR_SDD)},
 }
 
 # --- semantic mode (os-engineering) ---
@@ -211,9 +209,19 @@ def scan_semantic(skills_dir, idx):
             link_matches = list(LINK_HAS_REF_SEM.finditer(line))
             for lm in link_matches:
                 ref_name = lm.group(1).strip()
-                tname, is_sibling = resolve_link(lm.group(2), cur_dir, skills_dir)
+                url = lm.group(2)
+                tname, is_sibling = resolve_link(url, cur_dir, skills_dir)
                 if is_sibling and ref_name not in idx[tname]:
                     problems.append(f"{name}:{lineno}: Rule: {ref_name} -> {tname} lacks heading")
+                # anchor contract: the #rule-<kebab> fragment on a cross-skill
+                # [Rule: <Name>] link must be the kebab slug of the rule name, so the
+                # anchor cannot silently point at a *different* rule in the same file
+                # (both headings exist, so the bare anchor check in step 3 can't catch it).
+                _, _, frag = url.partition("#")
+                if is_sibling and frag and RULE_FRAG.match(frag) and frag != "rule-" + slugify(ref_name):
+                    problems.append(
+                        f"{name}:{lineno}: Rule: {ref_name} -> {tname}#{frag} anchor mismatch "
+                        f"(want rule-{slugify(ref_name)})")
             # 2. bare same-file references (skip refs that are the link text above)
             for m in REF_SEM.finditer(line):
                 if _inside_link(m.span(), link_matches):
@@ -286,6 +294,30 @@ def self_test():
         probs3 = scan_semantic(d3, idx3)
         assert not any("rule-return-block" in p for p in probs3), f"valid doc anchor flagged: {probs3}"
         assert any("rule-missing" in p for p in probs3), f"missing doc anchor not caught: {probs3}"
+
+        # os-* modeled pattern: a skill at skills/<skill>/ references a two-level-up
+        # docs anchor and a cross-skill [Rule: <Name>](...SKILL.md#rule-<kebab>) link.
+        # The cross-skill #rule fragment must equal the kebab slug of the rule name —
+        # an anchor pointing at a *different* rule in the same file is a mismatch
+        # (both headings exist, so the bare anchor check cannot catch it).
+        d4 = os.path.join(tmp, "os")
+        for sub in ("cli-aaa", "os-aaa", "os-bbb", "docs"):
+            os.makedirs(os.path.join(d4, sub))
+        with open(os.path.join(d4, "docs", "controller-handoff.md"), "w", encoding="utf-8") as f:
+            f.write("### Rule: Return Block\n\nBody.\n")
+        with open(os.path.join(d4, "cli-aaa", "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: cli-aaa\n---\n\n### Rule: Ask\n\n### Rule: Detect\n\nBody.\n")
+        with open(os.path.join(d4, "os-aaa", "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: os-aaa\n---\n\n"
+                    "See [Rule: Ask](../cli-aaa/SKILL.md#rule-ask) "
+                    "and [Return Block](../../docs/controller-handoff.md#rule-return-block).\n")
+        with open(os.path.join(d4, "os-bbb", "SKILL.md"), "w", encoding="utf-8") as f:
+            f.write("---\nname: os-bbb\n---\n\nSee [Rule: Ask](../cli-aaa/SKILL.md#rule-detect).\n")
+        idx4 = build_index_semantic(d4)
+        probs4 = scan_semantic(d4, idx4)
+        assert not any("os-aaa" in p for p in probs4), f"os-* modeled valid refs flagged: {probs4}"
+        assert any("os-bbb" in p and "anchor mismatch" in p for p in probs4), \
+            f"cross-skill anchor-name mismatch not caught: {probs4}"
     finally:
         shutil.rmtree(tmp)
 

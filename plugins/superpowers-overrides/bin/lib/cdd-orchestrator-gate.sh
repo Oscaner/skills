@@ -300,7 +300,7 @@ ${verbs}
 	  ${os_root}/bin/cdd-run.sh --harness ${harness} --task ${task_num} --mode implement
 
 	Full matrix: ${os_root}/docs/cdd-reference.md (CDD gate matrix)
-	See spor-SDD Rule 0 item 4.
+	See os-executing-plans Rule: Orchestrator Checklist.
 	EOF
 }
 
@@ -354,7 +354,7 @@ cdd_write_allowed() {
 # stdout: allow | deny|<message>
 cdd_gate_decide() {
   local harness="$1" tool_name="$2" tool_input_json="$3" session_key="$4"
-  local pending detected_at repo_root cdd_root workspace phase abs_path cmd task_num plan_base msg
+  local pending detected_at repo_root cdd_root workspace phase abs_path cmd task_num plan_base msg session_mode
 
   if ! command -v jq >/dev/null 2>&1; then
     printf 'allow\n'
@@ -376,6 +376,9 @@ cdd_gate_decide() {
 
   repo_root="$(printf '%s' "$pending" | jq -r '.repo_root // empty')"
   [[ -n "$repo_root" ]] || { printf 'allow\n'; return 0; }
+
+  # 模式感知（spec §E）——解析 pending.mode（缺省空）。mode 空 / 无 pending → fail-open。
+  session_mode="$(printf '%s' "$pending" | jq -r '.mode // empty' 2>/dev/null || true)"
 
   cdd_root="${CDD_GATE_FIXTURES_ROOT:-$repo_root/.superpowers/cdd}"
 
@@ -414,6 +417,18 @@ cdd_gate_decide() {
     abs_path="$(cdd_extract_path "$tool_input_json")"
     [[ -n "$abs_path" ]] || { printf 'allow\n'; return 0; }
     abs_path="$(cdd_normalize_abs "$abs_path" "$repo_root")"
+    # 模式感知（spec §E）：in-session/subagent 放行 repo 编辑（Write/Edit 任意 repo 路径
+    # allow）；mode 空 → fail-open（allow）。cli 严格落到现有 cdd_write_allowed 判定。
+    case "$session_mode" in
+      in-session|subagent)
+        printf 'allow\n'
+        return 0
+        ;;
+      "")
+        printf 'allow\n'
+        return 0
+        ;;
+    esac
     if cdd_write_allowed "$abs_path" "$repo_root" "$active_ws" "$phase"; then
       printf 'allow\n'
       return 0

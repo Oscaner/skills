@@ -38,16 +38,18 @@ session_key() {
   printf '%s-%s-%s\n' "smk" "$1" "$SESSION_TAG"
 }
 
-# setup_scenario <scenario> <dest-name> [<session-key>] — copy a fixture scene
-# root into $TMPROOT/<dest-name>, git-init the copy, inject the copy's own short
-# SHA into any `<SHA>` brief placeholder, and export CDD_GATE_FIXTURES_ROOT so
-# the gate scans the copy instead of the real tree. With <session-key>, creates
-# the namespaced pending file via cdd-session-activate minimal mode.
+# setup_scenario <scenario> <dest-name> [<session-key> [<mode>]] — copy a fixture
+# scene root into $TMPROOT/<dest-name>, git-init the copy, inject the copy's own
+# short SHA into any `<SHA>` brief placeholder, and export CDD_GATE_FIXTURES_ROOT
+# so the gate scans the copy instead of the real tree. With <session-key>, creates
+# the namespaced pending file via cdd-session-activate minimal mode, defaulting
+# to `--mode cli` (hook-equivalent strict) — pass "" as <mode> to omit the mode
+# field (fail-open).
 #
 # Result path is left in $SCEN_DEST. Do NOT call this inside $() — the export
 # and SESSION_KEYS bookkeeping would be lost to the subshell.
 setup_scenario() {
-  local scen="$1" name="$2" key="${3:-}" sha b
+  local scen="$1" name="$2" key="${3:-}" mode="${4-cli}" sha b
   local dest="$TMPROOT/$name"
   cp -R "$FIXTURES/$scen/." "$dest/"
   git -C "$dest" init -q
@@ -63,7 +65,11 @@ setup_scenario() {
   export CDD_GATE_FIXTURES_ROOT="$dest/sdd"
   SCEN_DEST="$dest"
   if [[ -n "$key" ]]; then
-    "$ACT" minimal "$key" "$dest"
+    if [[ -n "$mode" ]]; then
+      "$ACT" minimal "$key" "$dest" --mode "$mode"
+    else
+      "$ACT" minimal "$key" "$dest"
+    fi
     SESSION_KEYS+=("$key")
   fi
 }

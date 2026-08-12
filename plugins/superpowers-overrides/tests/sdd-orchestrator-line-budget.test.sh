@@ -3,32 +3,35 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS="$ROOT/skills"
 OS_ENG="$ROOT/../os-engineering"
+OS_EXEC="$OS_ENG/skills/os-executing-plans/SKILL.md"
 
-sdd="$(wc -l < "$SKILLS/spor-subagent-driven-development/SKILL.md" | tr -d ' ')"
-# controller-handoff content moved to os-engineering (the overrides skill is a
-# thin pointer); measure the real doc so the budget still bounds the prose.
+# orchestrator prose now lives in os-executing-plans + the os-engineering docs
+# (overrides side is thin pointers); measure the real hosts so the budget still
+# bounds the prose.
+sdd="$(wc -l < "$OS_EXEC" | tr -d ' ')"
 ctrl="$(wc -l < "$OS_ENG/docs/controller-handoff.md" | tr -d ' ')"
-life="$(wc -l < "$SKILLS/spor-subagent-lifecycle/SKILL.md" | tr -d ' ')"
-rev="$(wc -l < "$SKILLS/spor-token-efficient-review-dispatch/SKILL.md" | tr -d ' ')"
+life="$(wc -l < "$OS_ENG/docs/subagent-lifecycle.md" | tr -d ' ')"
+rev="$(wc -l < "$OS_ENG/docs/review-dispatch.md" | tr -d ' ')"
 
 tier1=$((sdd + ctrl))
 tier2=$((tier1 + life + rev))
 
-echo "Tier 1 (spor-SDD + controller-handoff): $tier1 lines"
-echo "Tier 2 (+ lifecycle + review-dispatch): $tier2 lines"
+echo "Tier 1 (os-executing-plans + controller-handoff): $tier1 lines"
+echo "Tier 2 (+ subagent-lifecycle + review-dispatch): $tier2 lines"
 
-[ "$sdd" -le 160 ] || { echo "FAIL: spor-SDD $sdd > 160"; exit 1; }
+[ "$sdd" -le 160 ] || { echo "FAIL: os-executing-plans $sdd > 160"; exit 1; }
 [ "$ctrl" -le 110 ] || { echo "FAIL: controller-handoff $ctrl > 110"; exit 1; }
 [ "$tier1" -le 225 ] || { echo "FAIL: Tier 1 $tier1 > 225"; exit 1; }
 [ "$tier2" -le 350 ] || { echo "FAIL: Tier 2 $tier2 > 350"; exit 1; }
 
-# AC#1 — Rule 3/5b/5c bodies only in p0-fallback (references in spor-SDD OK)
-for rule in '### Rule 3' '#### Rule 5b' '#### Rule 5c' '### Rule 5b' '### Rule 5c'; do
-  ! grep -q "$rule" "$SKILLS/spor-subagent-driven-development/SKILL.md" \
-    || { echo "FAIL: spor-SDD must not contain $rule body"; exit 1; }
-done
-grep -q '### Rule 3' "$SKILLS/spor-sdd-p0-fallback/SKILL.md" \
-  || { echo "FAIL: p0-fallback missing Rule 3"; exit 1; }
+# AC#1 — orchestrator prose moved to os-engineering; the spor-SDD thin pointer
+# must not carry numeric rules, and os-executing-plans hosts D6 + checklist.
+! grep -q '^### Rule [0-9]' "$SKILLS/spor-subagent-driven-development/SKILL.md" \
+  || { echo "FAIL: spor-SDD thin pointer must not carry numeric rules"; exit 1; }
+grep -q '^### Rule: D6 Aggregation' "$OS_EXEC" \
+  || { echo "FAIL: os-executing-plans missing D6 Aggregation"; exit 1; }
+grep -q '^### Rule: Orchestrator Checklist' "$OS_EXEC" \
+  || { echo "FAIL: os-executing-plans missing Orchestrator Checklist"; exit 1; }
 
 # AC#2 — env/exit/harness tables live in os-engineering/docs/cdd-reference.md
 for marker in '| Variable | Purpose |' '| `SDD_MODE` |' '| Harness |'; do
@@ -40,9 +43,10 @@ grep -qF '| Variable | Purpose |' "$OS_ENG/docs/cdd-reference.md" \
 grep -qF '| Ship | Harnesses |' "$OS_ENG/docs/cdd-reference.md" \
   || { echo "FAIL: cdd-reference missing harness table"; exit 1; }
 
-# p0-fallback exists but not in manifest
-[ -f "$SKILLS/spor-sdd-p0-fallback/SKILL.md" ] || { echo "FAIL: missing p0-fallback"; exit 1; }
-! grep -q 'spor-sdd-p0-fallback' "$ROOT/overrides.manifest.json"
+# deleted cross-cutting skills are gone from the overrides tree
+for slug in spor-sdd-p0-fallback spor-subagent-lifecycle spor-token-efficient-review-dispatch; do
+  [ -e "$SKILLS/$slug" ] && { echo "FAIL: deleted skill still present: $slug"; exit 1; }
+done
 
 # schema single file — JSON examples only in the os-engineering schema SOT
 hw_examples=$(grep -c '"task":' "$SKILLS/spor-handoff-writer/SKILL.md" || true)
@@ -50,8 +54,9 @@ schema_examples=$(grep -c '"task":' "$OS_ENG/docs/handoff-schema.md" || true)
 [ "$hw_examples" -eq 0 ] || { echo "FAIL: handoff-writer still has inline schema"; exit 1; }
 [ "$schema_examples" -ge 1 ] || { echo "FAIL: schema file missing JSON example"; exit 1; }
 
-# Task 4 — D3 severity behavior anchors + deferral semantics (AC#1)
-D3="$(sed -n '/^### D3/,/^### D4/p' "$SKILLS/spor-token-efficient-review-dispatch/SKILL.md")"
+# D3 severity behavior anchors + deferral semantics now live in the
+# os-engineering review-dispatch doc (T1 completion).
+D3="$(sed -n '/^### Rule: D3 Findings-Only Output/,$p' "$OS_ENG/docs/review-dispatch.md")"
 
 # AC#1a — three severity behavior anchors
 for anchor in '合并前必须修复' '可延期的 minor' '纯风格'; do
@@ -66,15 +71,14 @@ grep -qF 'fix loop' <<<"$D3" \
   || { echo "FAIL: D3 missing fix-loop exclusion for warn/nit"; exit 1; }
 
 # AC#1c — D3 schema block documents deferred optional field
-grep -qF '`deferred`' <<<"$D3" \
+grep -qF 'deferred?' <<<"$D3" \
   || { echo "FAIL: D3 schema block missing deferred field"; exit 1; }
 
 # AC#1d — D3 output schema {findings: [...]} preserved
 grep -qF '{findings:' <<<"$D3" \
   || { echo "FAIL: D3 findings schema lost"; exit 1; }
 
-# Task 4 — review-segment parsing severity-aware, cites schema SOT (AC#2).
-# Content moved from spor-handoff-writer to the os-engineering write-fragment.
+# review-segment parsing severity-aware, cites schema SOT (AC#2).
 RSP="$(sed -n '/^### Segment: review/,/^### Segment: fix/p' "$OS_ENG/templates/cdd/_handoff-write-fragment.md")"
 
 # AC#2a — status decision cites schema SOT, not redefined inline
@@ -89,9 +93,9 @@ grep -qF 'deferred: true' <<<"$RSP" \
 grep -qF 'non-deferred = blocker findings only' <<<"$RSP" \
   || { echo "FAIL: review segment missing blocker-only open-findings"; exit 1; }
 
-# Task 6 — D6 终盘聚合 + 用户决策门 (AC#1-3)
-D6="$(sed -n '/^### Rule 8/,/^## Red Flags/p' "$SKILLS/spor-subagent-driven-development/SKILL.md")"
-[ -n "$D6" ] || { echo "FAIL: D6 section (Rule 8) missing"; exit 1; }
+# D6 终盘聚合 + 用户决策门 (AC#1-3) — hosted in os-executing-plans
+D6="$(sed -n '/^### Rule: D6 Aggregation/,/^### Rule: Ledger/p' "$OS_EXEC")"
+[ -n "$D6" ] || { echo "FAIL: D6 section (D6 Aggregation) missing"; exit 1; }
 
 # AC#1a — step 1 聚合: grep deferred + no-jq 降级行（无冒号）子串匹配健壮
 grep -qF 'deferred' <<<"$D6" \
@@ -111,13 +115,13 @@ grep -qF 'scoped re-review' <<<"$D6" \
 grep -qF 'fix agent' <<<"$D6" \
   || { echo "FAIL: D6 missing single fix agent"; exit 1; }
 
-# AC#2 — 不破坏既有 Rules 编号与引用（H1–H5 cite 等）
-for r in '### Rule 0' '### Rule 1' '### Rule 2' '### Rule 4' '### Rule 5' '### Rule 6' '### Rule 7'; do
-  grep -qF "$r" "$SKILLS/spor-subagent-driven-development/SKILL.md" \
-    || { echo "FAIL: existing rule heading lost: $r"; exit 1; }
+# AC#2 — 不破坏既有语义规则标题（os-executing-plans 编排器控制器语义规则集）
+for r in '### Rule: Read Upstream' '### Rule: Mode Selection' '### Rule: Task Complexity' '### Rule: Confirm Once' '### Rule: Fix Loop' '### Rule: Per-Task Review' '### Rule: Quality Invariants' '### Rule: D6 Aggregation' '### Rule: Ledger'; do
+  grep -qF "$r" "$OS_EXEC" \
+    || { echo "FAIL: os-executing-plans rule heading lost: $r"; exit 1; }
 done
-grep -qF 'spor-token-efficient-controller-handoff' "$SKILLS/spor-subagent-driven-development/SKILL.md" \
-  || { echo "FAIL: controller-handoff H1-H5 reference lost"; exit 1; }
+grep -qF 'controller-handoff.md' "$OS_EXEC" \
+  || { echo "FAIL: os-executing-plans missing controller-handoff citation"; exit 1; }
 
 # AC#3 — round cap 5 明确不适用于跨任务 final fix 波
 grep -qF 'round cap 5' <<<"$D6" \
@@ -125,19 +129,18 @@ grep -qF 'round cap 5' <<<"$D6" \
 grep -qF '不适用' <<<"$D6" \
   || { echo "FAIL: D6 missing round-cap-5 inapplicability"; exit 1; }
 
-# AC#8 — Rule 0 checklist semantic anchors (issue #52 Guard 1)
-RULE0="$(sed -n '/^### Rule 0 /,/^### Rule 1/p' "$SKILLS/spor-subagent-driven-development/SKILL.md")"
-CHECK="$(sed -n '/^4\. \*\*Orchestrator checklist/,/^### Rule 1/p' <<<"$RULE0" | sed '$d')"
+# AC#8 — Orchestrator Checklist semantic anchors (issue #52 Guard 1)
+RULE0="$(sed -n '/^### Rule: Orchestrator Checklist/,/^### Rule: D6 Aggregation/p' "$OS_EXEC")"
 
 # three phase markers, each on its own line (line-anchored — blocks single-line collapse)
 for marker in 'Setup \(once\):' 'Per-task:' 'Final:'; do
-  grep -qE "^[[:space:]]*\*\*${marker}\*\*" <<<"$CHECK" \
+  grep -qE "^[[:space:]]*\*\*${marker}\*\*" <<<"$RULE0" \
     || { echo "FAIL: checklist phase marker '$marker' not on its own line"; exit 1; }
 done
 
-# checklist-body tokens, scoped to the checklist sub-block
-for token in 'sdd-workspace' 'plan-constraints.md' 'ledger' 'TASK_BASE' 'H6 chain' 'implement' 'review' 'handoff.json' 'APPROVED' 'Rule 5a' 'Rule 6' '**Never** edit repo deliverables' 'H6 CLI only' 'requesting-code-review' 'finishing-a-development-branch'; do
-  grep -qF "$token" <<<"$CHECK" \
+# checklist-body tokens, scoped to the checklist rule
+for token in 'sdd-workspace' 'plan-constraints.md' 'ledger' 'TASK_BASE' 'H6 chain' 'implement' 'review' 'handoff.json' 'APPROVED' 'Rule: Per-Task Review' 'Rule: Quality Invariants' '**Never** edit repo deliverables' 'H6 CLI only' 'requesting-code-review' 'finishing-a-development-branch'; do
+  grep -qF "$token" <<<"$RULE0" \
     || { echo "FAIL: checklist token missing: $token"; exit 1; }
 done
 

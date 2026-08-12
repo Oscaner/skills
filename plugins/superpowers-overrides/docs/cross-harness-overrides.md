@@ -141,7 +141,7 @@ Manual smoke (Settings → Hooks → Execution Log):
 All skills in this plugin use the `spor-` prefix in directory name and frontmatter `name`:
 
 - Override targets: `spor-{upstream-slug}` (e.g. `spor-brainstorming` overrides `superpowers:brainstorming`)
-- Cross-cutting: `spor-init`, `spor-subagent-lifecycle`, `spor-token-efficient-review-dispatch`
+- Cross-cutting: `spor-init`, `spor-token-efficient-controller-handoff`, `spor-handoff-writer`
 
 Init entry point: `/spor-init` (Claude Code: `/superpowers-overrides:spor-init`).
 
@@ -157,7 +157,7 @@ Regenerate after editing `overrides.manifest.json` or generator templates.
 
 ## Plugin discovery fallback (Cursor)
 
-Skills ship under `plugins/superpowers-overrides/skills/` in the plugin tree. After marketplace install, verify all 13 `spor-*` skills appear in the agent skills list.
+Skills ship under `plugins/superpowers-overrides/skills/` in the plugin tree. After marketplace install, verify all 14 `spor-*` skills appear in the agent skills list.
 
 If override skills are missing (Team Marketplace blocked or third-party import disabled):
 

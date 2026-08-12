@@ -78,6 +78,10 @@ import {
   overridesCursorManifest,
   overridesCodexManifest,
 } from "./lib/emit/overrides.mjs";
+import {
+  findStaleCommittedFiles,
+  pruneStaleAgentsNamespaces,
+} from "./lib/emit/orchestrate.mjs";
 
 const root = repoRootFromImportMeta(import.meta.url);
 const checkMode = process.argv.includes("--check");
@@ -206,15 +210,7 @@ function emitAgentsSkillsCopy(outRoot, contentRoot) {
   // Prune stale namespace dirs (deleted source, or a namespace no longer
   // emitted) before re-copying, so a skill removed from skills/ can't linger
   // in the committed .agents/skills/ tree and escape the --check diff.
-  if (existsSync(outAgents)) {
-    for (const entry of readdirSync(outAgents, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const src = namespaces.find(([ns]) => ns === entry.name)?.[1];
-      if (!src || !existsSync(src)) {
-        rmSync(join(outAgents, entry.name), { recursive: true, force: true });
-      }
-    }
-  }
+  pruneStaleAgentsNamespaces(outAgents, namespaces);
   // Re-copy each namespace from source so deletions inside a skill dir also
   // disappear (cpSync alone merges and would leave stale files behind).
   for (const [ns, sourceRoot] of namespaces) {
@@ -423,41 +419,6 @@ function emitAll(outRoot) {
   }
 }
 
-function collectFilesUnder(relRoot) {
-  const abs = join(root, relRoot);
-  const files = [];
-  if (!existsSync(abs)) return files;
-  const walk = (rel, absDir) => {
-    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
-      const childRel = `${rel}/${entry.name}`;
-      if (entry.isDirectory()) {
-        walk(childRel, join(absDir, entry.name));
-      } else {
-        files.push(childRel);
-      }
-    }
-  };
-  walk(relRoot, abs);
-  return files;
-}
-
-function findStaleCommittedFiles(generatedSet) {
-  const stale = [];
-  for (const relRoot of productRoots) {
-    for (const rel of collectFilesUnder(relRoot)) {
-      if (!generatedSet.has(rel)) stale.push(rel);
-    }
-  }
-  for (const rel of productFiles) {
-    if (existsSync(join(root, rel)) && !generatedSet.has(rel)) stale.push(rel);
-  }
-  // os-engineering went plugin-root — the cursor wrapper must be gone entirely.
-  if (existsSync(join(root, "cursor-plugins/os-engineering"))) {
-    stale.push("cursor-plugins/os-engineering/");
-  }
-  return stale;
-}
-
 function compareTrees(generatedRoot) {
   const generatedSet = new Set(generatedPaths);
   for (const rel of generatedPaths) {
@@ -478,7 +439,13 @@ function compareTrees(generatedRoot) {
       process.exit(1);
     }
   }
-  const stale = findStaleCommittedFiles(generatedSet);
+  const stale = findStaleCommittedFiles({
+    generatedSet,
+    productRoots,
+    productFiles,
+    extraStale: ["cursor-plugins/os-engineering/"],
+    root,
+  });
   if (stale.length > 0) {
     console.error(
       "STALE committed product file(s) — generator no longer produces them (delete):",

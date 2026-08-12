@@ -1,3 +1,4 @@
+<!-- scripts/emit.mjs — do not edit -->
 @./skills/cli-code-review/SKILL.md
 @./skills/cli-driven-development/SKILL.md
 @./skills/cli-select/SKILL.md

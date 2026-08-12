@@ -28,6 +28,7 @@ function keywords(plugin) {
  */
 export function claudePluginManifest(plugin, version) {
   const m = {
+    _generated: generatedBanner,
     name: plugin.name,
     description: plugin.description,
     version,
@@ -100,6 +101,7 @@ export function kimiPluginManifest(plugin, version) {
 /** `gemini-extension.json` — thin: names GEMINI.md as the context file. */
 export function geminiExtension(plugin, version) {
   return {
+    _generated: generatedBanner,
     name: plugin.name,
     description: plugin.description,
     version,
@@ -109,10 +111,11 @@ export function geminiExtension(plugin, version) {
 
 /** `GEMINI.md` — @-import every skill body (sorted) for Gemini discovery. */
 export function geminiMarkdown(plugin, skillNames) {
-  return [...skillNames]
-    .sort()
-    .map((s) => `@./skills/${s}/SKILL.md`)
-    .join("\n") + "\n";
+  return (
+    `<!-- ${generatedBanner} -->\n` +
+    [...skillNames].sort().map((s) => `@./skills/${s}/SKILL.md`).join("\n") +
+    "\n"
+  );
 }
 
 /** `package.json#pi` — pure skills package, no runtime extensions. */

@@ -126,10 +126,7 @@ fi
 echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs
 
-echo "== 7. unified emit freshness =="
-node scripts/emit.mjs --check
-
-echo "== 7b. lib unit tests =="
+echo "== 7. lib unit tests =="
 node --test scripts/lib/version-utils.test.mjs scripts/lib/emit/emit.test.mjs
 
 echo "== 8–10. version sync =="

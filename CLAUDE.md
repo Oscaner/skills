@@ -195,6 +195,8 @@ pnpm run emit:check        # scripts/emit.mjs --check — drift → exit 1
 ./plugins/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 
+**Note:** on a fresh clone, run `git submodule update --init` before `emit --check` — the emitter copies `plugins/superpowers/skills` into the shared `.agents/skills/superpowers` tree, so an uninitialized `superpowers` submodule makes the committed copy look stale and flags the check.
+
 **6–9. Full local CI (recommended):**
 ```bash
 pnpm run validate

@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   claudePluginManifest,
   cursorPluginManifest,
@@ -14,6 +16,10 @@ import {
   osEngineeringClaudeHooks,
   osEngineeringCursorHooks,
 } from "./manifests.mjs";
+import {
+  findStaleCommittedFiles,
+  pruneStaleAgentsNamespaces,
+} from "./orchestrate.mjs";
 import {
   loadTargets,
   targetSkillSuffix,
@@ -47,6 +53,7 @@ const MANIFEST_PATH = "plugins/superpowers-overrides/overrides.manifest.json";
 
 test("claudePluginManifest emits os-engineering claude manifest (thin, skills+../hooks)", () => {
   assert.deepEqual(claudePluginManifest(OS_ENG, "0.1.0"), {
+    _generated: generatedBanner,
     name: "os-engineering",
     description:
       "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
@@ -98,6 +105,7 @@ test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface"
 
 test("geminiExtension is thin: name/description/version + contextFileName", () => {
   assert.deepEqual(geminiExtension(OS_ENG, "0.1.0"), {
+    _generated: generatedBanner,
     name: "os-engineering",
     description:
       "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
@@ -106,7 +114,7 @@ test("geminiExtension is thin: name/description/version + contextFileName", () =
   });
 });
 
-test("geminiMarkdown @-imports each skill's SKILL.md sorted", () => {
+test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () => {
   const md = geminiMarkdown(OS_ENG, [
     "os-init",
     "cli-select",
@@ -115,7 +123,8 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted", () => {
   ]);
   assert.equal(
     md,
-    "@./skills/cli-select/SKILL.md\n" +
+    `<!-- ${generatedBanner} -->\n` +
+      "@./skills/cli-select/SKILL.md\n" +
       "@./skills/cli-task/SKILL.md\n" +
       "@./skills/os-debugging/SKILL.md\n" +
       "@./skills/os-init/SKILL.md\n",
@@ -159,6 +168,94 @@ test("osEngineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
   assert.deepEqual(hooks.hooks.preToolUse, [
     { command: "./bin/override-cursor-cdd-gate.sh" },
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// orchestrate.mjs — stale-product detection + .agents/skills prune
+// ---------------------------------------------------------------------------
+
+test("findStaleCommittedFiles flags emitted products no longer generated", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-stale-"));
+  try {
+    // productRoot dir with one current and one stale product file
+    mkdirSync(join(tmp, "products"));
+    writeFileSync(join(tmp, "products/kept.json"), "{}\n");
+    writeFileSync(join(tmp, "products/stale.json"), "{}\n");
+    // standalone product file that IS still generated
+    writeFileSync(join(tmp, "standalone.json"), "{}\n");
+    // retired whole-directory product (cursor wrapper) that must be gone
+    mkdirSync(join(tmp, "cursor-plugins/os-engineering"), { recursive: true });
+
+    const stale = findStaleCommittedFiles({
+      generatedSet: new Set(["products/kept.json", "standalone.json"]),
+      productRoots: ["products"],
+      productFiles: ["standalone.json"],
+      extraStale: ["cursor-plugins/os-engineering/"],
+      root: tmp,
+    });
+    assert.deepEqual(stale.sort(), [
+      "cursor-plugins/os-engineering/",
+      "products/stale.json",
+    ]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("findStaleCommittedFiles returns empty when every product is generated", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-fresh-"));
+  try {
+    mkdirSync(join(tmp, "products"));
+    writeFileSync(join(tmp, "products/kept.json"), "{}\n");
+    const stale = findStaleCommittedFiles({
+      generatedSet: new Set(["products/kept.json"]),
+      productRoots: ["products"],
+      productFiles: [],
+      root: tmp,
+    });
+    assert.deepEqual(stale, []);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("pruneStaleAgentsNamespaces removes deleted/missing namespace dirs", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-agents-"));
+  try {
+    const outAgents = join(tmp, ".agents", "skills");
+    mkdirSync(join(outAgents, "os-engineering"), { recursive: true });
+    mkdirSync(join(outAgents, "superpowers"), { recursive: true });
+    mkdirSync(join(outAgents, "ghost"), { recursive: true });
+    const srcDir = join(tmp, "src");
+    mkdirSync(srcDir, { recursive: true });
+
+    const namespaces = [
+      // maps to an existing source → kept
+      ["os-engineering", srcDir],
+      // maps to a missing source → pruned
+      ["superpowers", join(tmp, "no-such-source")],
+    ];
+    const removed = pruneStaleAgentsNamespaces(outAgents, namespaces);
+    assert.deepEqual(removed.sort(), ["ghost", "superpowers"]);
+    assert.ok(existsSync(join(outAgents, "os-engineering")), "kept namespace survives");
+    assert.ok(!existsSync(join(outAgents, "superpowers")), "missing-source namespace pruned");
+    assert.ok(!existsSync(join(outAgents, "ghost")), "unmapped namespace pruned");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-agents-empty-"));
+  try {
+    const outAgents = join(tmp, ".agents", "skills");
+    const removed = pruneStaleAgentsNamespaces(outAgents, [
+      ["os-engineering", join(tmp, "src")],
+    ]);
+    assert.deepEqual(removed, []);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 // ---------------------------------------------------------------------------

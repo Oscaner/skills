@@ -21,10 +21,11 @@
  *    hooks, and version consistency per `plugins/os-engineering/.version-bump.json`.
  *
  * `--check` mode generates into a temp tree and diffs every produced path
- * against the on-disk tree (drift → exit 1). Emit products are committed (see
- * .gitignore — none of them are ignored), so a fresh clone has them for the
- * comparison; CI runs `pnpm run emit` before `--check` to materialize any
- * newly-added product before diffing.
+ * against the on-disk tree (drift → exit 1), and flags committed product files
+ * the generator no longer produces (stale extras under the emit-owned product
+ * roots → exit 1). Emit products are committed, so a fresh clone has them for
+ * the comparison; CI runs `pnpm run emit --check` directly against the
+ * committed tree (no write pass).
  */
 
 import {
@@ -83,6 +84,36 @@ const checkMode = process.argv.includes("--check");
 
 /** Repo-relative paths produced by the last emitAll run (for --check diff). */
 const generatedPaths = [];
+
+/**
+ * Repo-relative directories fully owned by the emit tool — every file inside
+ * is generator output. `--check` walks these to flag stale committed product
+ * files the generator no longer produces (compareTrees alone iterates only
+ * generated paths, so a vanished product would silently linger on disk).
+ * Wrapper roots (`cursor-plugins/<name>`) are appended at emit time for
+ * non-plugin-root plugins.
+ */
+const productRoots = [
+  ".claude-plugin",
+  ".cursor-plugin",
+  "plugins/os-engineering/.claude-plugin",
+  "plugins/os-engineering/.cursor-plugin",
+  "plugins/os-engineering/.codex-plugin",
+  "plugins/os-engineering/.kimi-plugin",
+  "plugins/os-engineering/hooks",
+  "plugins/os-engineering/.agents",
+  "plugins/superpowers-overrides/.cursor-plugin",
+  "plugins/superpowers-overrides/.codex-plugin",
+  "plugins/superpowers-overrides/hooks",
+  "plugins/superpowers-overrides/bin",
+  "plugins/superpowers-overrides/build/generated",
+];
+
+/** Standalone repo-relative product files (not inside a product root). */
+const productFiles = [
+  "plugins/os-engineering/gemini-extension.json",
+  "plugins/os-engineering/GEMINI.md",
+];
 
 function writeText(outRoot, rel, content) {
   const p = join(outRoot, rel);
@@ -324,6 +355,7 @@ function emitMarketplaceDocs(outRoot, source) {
     });
 
     if (!isPluginRoot(plugin)) {
+      productRoots.push(`cursor-plugins/${plugin.name}`);
       writeJsonDoc(
         outRoot,
         `cursor-plugins/${plugin.name}/.cursor-plugin/plugin.json`,
@@ -391,7 +423,43 @@ function emitAll(outRoot) {
   }
 }
 
+function collectFilesUnder(relRoot) {
+  const abs = join(root, relRoot);
+  const files = [];
+  if (!existsSync(abs)) return files;
+  const walk = (rel, absDir) => {
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      const childRel = `${rel}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(childRel, join(absDir, entry.name));
+      } else {
+        files.push(childRel);
+      }
+    }
+  };
+  walk(relRoot, abs);
+  return files;
+}
+
+function findStaleCommittedFiles(generatedSet) {
+  const stale = [];
+  for (const relRoot of productRoots) {
+    for (const rel of collectFilesUnder(relRoot)) {
+      if (!generatedSet.has(rel)) stale.push(rel);
+    }
+  }
+  for (const rel of productFiles) {
+    if (existsSync(join(root, rel)) && !generatedSet.has(rel)) stale.push(rel);
+  }
+  // os-engineering went plugin-root — the cursor wrapper must be gone entirely.
+  if (existsSync(join(root, "cursor-plugins/os-engineering"))) {
+    stale.push("cursor-plugins/os-engineering/");
+  }
+  return stale;
+}
+
 function compareTrees(generatedRoot) {
+  const generatedSet = new Set(generatedPaths);
   for (const rel of generatedPaths) {
     const committed = join(root, rel);
     const generated = join(generatedRoot, rel);
@@ -409,6 +477,14 @@ function compareTrees(generatedRoot) {
       console.error(`DRIFT: ${rel}\n${e.stdout?.toString() ?? ""}`);
       process.exit(1);
     }
+  }
+  const stale = findStaleCommittedFiles(generatedSet);
+  if (stale.length > 0) {
+    console.error(
+      "STALE committed product file(s) — generator no longer produces them (delete):",
+    );
+    for (const rel of stale) console.error(`  ${rel}`);
+    process.exit(1);
   }
   assertVersionBump();
   console.log("OK — emit fresh");

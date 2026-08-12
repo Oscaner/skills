@@ -3,8 +3,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "== 0. unified emit (write) — materialize committed first-party emit products =="
-node scripts/emit.mjs
+echo "== 0. unified emit freshness — --check against committed products (no write) =="
+node scripts/emit.mjs --check
 
 echo "== 1. plugin.json skills resolve =="
 python3 -c '

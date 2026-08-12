@@ -1,6 +1,6 @@
 ---
 name: os-brainstorming
-description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / fresh-subagent 评审 passes）。可独立调用；被 /brainstorming 的 spor 薄指针转发。
+description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / fresh-subagent 评审 passes）。可独立调用；由 /brainstorming 触发经 overrides 路由器直达。
 ---
 
 # OS Brainstorming

@@ -39,7 +39,7 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 
 | Hook | Handler | Role |
 |------|---------|------|
-| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths** or **SDD slash** → write pending / activate CDD session |
+| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths** → write pending / activate CDD session |
 | `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (target SKILL path via `tool_input.path` / `tool_input.file_path`) or `Skill` (manifest target name); **deny** all other first tools |
 
 Bare `/brainstorming`, `/superpowers:*`, and prefixed slash commands → **no pending**; self-check rules (`.cursor/rules/superpowers-overrides.mdc`) are primary enforcement for slash triggers.
@@ -63,7 +63,7 @@ Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Cursor + Cla
 | Item | Detail |
 |------|--------|
 | Pending path | `$TMPDIR/oscaner-os-engineering/pending-cdd/<session_key>.json` |
-| Activation | SDD slash (`/subagent-driven-development`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Cursor detect + Claude expansion |
+| Activation | CDD slash (`/subagent-driven-development`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Claude expansion |
 | Shared lib | `os-engineering/bin/lib/cdd-orchestrator-gate.sh` — single allowlist + state machine |
 | Adapters | `override-claude-cdd-gate.sh`, `override-cursor-cdd-gate.sh`（os-engineering） |
 | Fail-open | No jq, no pending, or cannot resolve workspace → allow (skill checklist fallback) |
@@ -219,7 +219,7 @@ Templates: `os-engineering/templates/cdd/` (implement, review, fix) + `_handoff-
 
 ## Deferred harnesses (documented, not built)
 
-| Harness | Rules output (future) | SDD CLI (p1) |
+| Harness | Rules output (future) | CDD CLI (p1) |
 |---------|----------------------|--------------|
 | Codex / Copilot / Mistral Vibe | `AGENTS.md` section | Stub scripts (exit 1) |
 | Gemini CLI | `.gemini/GEMINI.md` | Stub scripts (exit 1) |

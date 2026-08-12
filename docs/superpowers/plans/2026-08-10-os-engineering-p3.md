@@ -37,7 +37,7 @@
 | `scripts/version-packages.mjs` + `scripts/lib/version-utils.mjs` | Modify（双插件版本化） | T5 |
 | `plugins/os-engineering/package.json` | Modify（版本接入 changeset + pi skills key） | T5 |
 | `scripts/emit.mjs`（统一发射工具，扩 emit-marketplace） | Create/Modify（薄 manifest + GEMINI.md + .agents/skills + hooks + 版本同步） | T6 |
-| `plugins/os-engineering/.{claude-plugin,cursor-plugin,codex-plugin,kimi-plugin}/plugin.json` + `gemini-extension.json` + `GEMINI.md` + `.agents/skills/` | Create（统一 emit 产物，gitignore） | T6 |
+| `plugins/os-engineering/.{claude-plugin,cursor-plugin,codex-plugin,kimi-plugin}/plugin.json` + `gemini-extension.json` + `GEMINI.md` + `.agents/skills/` | Create（统一 emit 产物，已提交） | T6 |
 | `marketplace/source.json` | Modify（删 os-engineering cursor wrapper emit） | T6 |
 | `README.md` / `README.zh-CN.md` / `cross-harness-overrides.md` | Modify（边界 + 多 harness） | T7 |
 
@@ -350,7 +350,7 @@ git commit -m "feat: independent versioning for os-engineering (changeset + rele
 
 **Files:**
 - Create/Modify: `scripts/emit.mjs`（统一发射工具；扩展现有 emit-marketplace.mjs 或并入）
-- Create（emit 产物，gitignore）: os-engineering 下 `.claude-plugin/` `.cursor-plugin/` `.codex-plugin/` `.kimi-plugin/` `gemini-extension.json` `GEMINI.md` `.agents/skills/`
+- Create（emit 产物，已提交）: os-engineering 下 `.claude-plugin/` `.cursor-plugin/` `.codex-plugin/` `.kimi-plugin/` `gemini-extension.json` `GEMINI.md` `.agents/skills/`
 - Modify: `plugins/os-engineering/package.json`（`pi` key：`{skills: ["./skills"]}`）
 - Modify: `marketplace/source.json`（删 os-engineering 的 `cursor: {displayName, skills}` —— 去掉 cursor-plugins wrapper emit）
 - Modify: `scripts/ci-validate.sh`（`pnpm run emit --check` freshness）
@@ -387,9 +387,9 @@ git commit -m "feat: independent versioning for os-engineering (changeset + rele
 
 `marketplace/source.json`：删 os-engineering 的 `cursor: {displayName, skills}`。重跑 emit → `cursor-plugins/os-engineering/` wrapper 不再生成（cursor 产物改由统一 emit 的 `.cursor-plugin/plugin.json` 提供）。
 
-- [ ] **Step 4: .gitignore + CI freshness**
+- [ ] **Step 4: 产物提交 + CI freshness**
 
-emit 产物目录 gitignore；`ci-validate.sh` 加 `node scripts/emit.mjs --check`。
+emit 产物已提交（fresh-clone 可解析；--check CI 防漂移）；`ci-validate.sh` 加 `node scripts/emit.mjs --check`。
 
 - [ ] **Step 5: 运行 + freshness**
 
@@ -406,7 +406,7 @@ git add scripts plugins/os-engineering/.claude-plugin plugins/os-engineering/.cu
 git commit -m "feat: unified emit tool — superpowers-model thin manifests + .agents/skills + version sync"
 ```
 
-> 注：emit 产物 gitignore（不进版本库），`--check` CI 保证生成正确。rovo/vibe/kiro 不发射（无原生安装器）。
+> 注：emit 产物已提交（fresh-clone 可解析），`--check` CI 防漂移。rovo/vibe/kiro 不发射（无原生安装器）。
 
 ---
 

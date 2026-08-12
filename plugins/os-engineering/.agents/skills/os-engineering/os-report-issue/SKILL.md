@@ -53,12 +53,12 @@ description: 分析当前 SDD/CDD 会话的 bug 与增强机会，经 gh CLI 对
 | `bug` / `enhancement` | 总是 —— 匹配 finding 类型 |
 | `dogfood` | 总是 —— 本技能发现即 dogfood |
 | `superpowers-overrides` | 总是 |
-| `sdd` | finding 涉及 SDD/CDD、cdd-run.sh、orchestrator 或 handoff |
+| `cdd` | finding 涉及 CDD、cdd-run.sh、orchestrator 或 handoff |
 
 ```bash
-# <type> 为 "bug" 或 "enhancement"；SDD 相关追加 ",sdd"
+# <type> 为 "bug" 或 "enhancement"；CDD 相关追加 ",cdd"
 gh issue create --repo Oscaner/skills --title "<title>" \
-  --label "<type>,dogfood,superpowers-overrides[,sdd]" \
+  --label "<type>,dogfood,superpowers-overrides[,cdd]" \
   --body "<按模板渲染的正文>"
 
 # 命中既有 issue 时追加评论
@@ -82,7 +82,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.sh`），不用已删除�
 ```markdown
 ## Context
 
-<!-- dogfood session context: branch, date, spor skills in use -->
+<!-- dogfood session context: branch, date, os-* skills in use -->
 
 ## Problem
 
@@ -106,7 +106,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.sh`），不用已删除�
 ```markdown
 ## 背景
 
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 spor skill -->
+<!-- Dogfood session 上下文：分支、日期、使用了哪些 os-* skill -->
 
 ## 问题
 
@@ -130,7 +130,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.sh`），不用已删除�
 ```markdown
 ## Context
 
-<!-- dogfood session context: branch, date, spor skills in use -->
+<!-- dogfood session context: branch, date, os-* skills in use -->
 
 ## Current behavior
 
@@ -154,7 +154,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.sh`），不用已删除�
 ```markdown
 ## 背景
 
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 spor skill -->
+<!-- Dogfood session 上下文：分支、日期、使用了哪些 os-* skill -->
 
 ## 当前行为
 

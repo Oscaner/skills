@@ -67,7 +67,7 @@ superpowers-overrides/            os-engineering/
 
 #### B. os-engineering → 技能 + 引擎 + gate + 全 harness emit
 
-**B1. gate 迁入**：`cdd-orchestrator-gate.sh` + `cdd-session-activate.sh` + 2 adapters（随迁入**改名**为 `override-claude-cdd-gate.sh` / `override-cursor-cdd-gate.sh`，符合 sdd→cdd 更名约束）从 overrides 迁至 os-engineering `bin/`；os-engineering `hooks.json` 声明 **PreToolUse**（Write|Edit + Bash → gate）。**pending 路径共享**：`$TMPDIR/oscaner-superpowers-overrides/pending-cdd/<session_key>.json`（gate 与 cdd 引擎共用；overrides 路由器不写 pending）。overrides hooks.json 只剩 UserPromptExpansion。
+**B1. gate 迁入**：`cdd-orchestrator-gate.sh` + `cdd-session-activate.sh` + 2 adapters（随迁入**改名**为 `override-claude-cdd-gate.sh` / `override-cursor-cdd-gate.sh`，符合 sdd→cdd 更名约束）从 overrides 迁至 os-engineering `bin/`；os-engineering `hooks.json` 声明 **PreToolUse**（Write|Edit + Bash → gate）。**pending 路径共享**：`$TMPDIR/oscaner-os-engineering/pending-cdd/<session_key>.json`（gate 与 cdd 引擎共用；overrides 路由器不写 pending）。overrides hooks.json 只剩 UserPromptExpansion。
 
 **B2. os-init 落位**：`os-engineering/skills/os-init/SKILL.md` 参数化 —— `os-init spor` 写 superpowers 自检表（CLAUDE.md / .cursor rules，表指向 os-\*/cli-\*）；未来 `os-init <x>` 扩展。spor-init 删除。
 

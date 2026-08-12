@@ -4,7 +4,7 @@
 
 **Goal:** superpowers-overrides 收缩为触发路由器（无技能体，spor-\* 全删，manifest 指向 os-\*/cli-\*）；os-engineering 承载技能 + 引擎 + gate + 全 harness 发射 + 独立版本化。
 
-**Architecture:** overrides 的 manifest/hooks/expansion/自检表 retarget 到 os-\* 目标，spor-\* 全删；gate 迁 os-engineering；os-init 参数化；impeccable 模式 build.js 把 12 技能发射到 14 非 claude harness 目录 + 上游 superpowers 整目录连带 + per-harness self-check。
+**Architecture:** overrides 的 manifest/hooks/expansion/自检表 retarget 到 os-\* 目标，spor-\* 全删；gate 迁 os-engineering；os-init 参数化；impeccable 模式 build.js 把 12 技能发射到 14 非 claude harness 目录 + （decision B：不 vendor 上游，Read-upstream 当可用） + per-harness self-check。
 
 **Tech Stack:** Markdown、Bash、JSON、Node.js（build.js）；验证命令 `pnpm run validate`
 
@@ -428,7 +428,7 @@ git commit -m "feat: unified emit tool — superpowers-model thin manifests + .a
 
 - [ ] **Step 2: os-* Read Upstream 解析适配**
 
-各 os-\* 的 Rule: Read Upstream 解析器改为统一优先级：**in-harness 副本优先**（`.agents/.cursor/.gemini/.../skills/superpowers/<name>/SKILL.md`）→ 回退兄弟插件根（claude `$CLAUDE_PLUGIN_ROOT/../superpowers`）→ 回退同仓库相对路径。
+各 os-\* 的 Rule: Read Upstream 解析器改为统一优先级：**Read upstream 当可用时（非 claude harness 用自身 Rules 兜底）**（`.agents/.cursor/.gemini/.../skills/superpowers/<name>/SKILL.md`）→ 回退兄弟插件根（claude `$CLAUDE_PLUGIN_ROOT/../superpowers`）→ 回退同仓库相对路径。
 
 - [ ] **Step 2b: 仓库 dogfood（os-init spor）**
 

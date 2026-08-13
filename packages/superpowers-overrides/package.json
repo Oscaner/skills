@@ -12,5 +12,26 @@
     "url": "https://github.com/Oscaner/skills",
     "directory": "packages/superpowers-overrides"
   },
-  "license": "MIT"
+  "homepage": "https://github.com/Oscaner/skills",
+  "license": "MIT",
+  "oscaner-plugin": {
+    "claude": {
+      "category": "workflow",
+      "tags": [
+        "superpowers",
+        "mattpocock",
+        "overrides",
+        "subagents"
+      ]
+    },
+    "contentRoot": ".",
+    "harnesses": [
+      "cursor",
+      "codex"
+    ],
+    "hooks": {
+      "claude": "./hooks/hooks.json",
+      "cursor": "./hooks/hooks-cursor.json"
+    }
+  }
 }

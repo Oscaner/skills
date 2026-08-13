@@ -9,5 +9,7 @@
   },
   "skills": "../../vendors/impeccable/plugin/skills",
   "version": "4.0.4",
-  "homepage": "https://impeccable.style"
+  "homepage": "https://impeccable.style",
+  "repository": "https://github.com/pbakaus/impeccable",
+  "license": "Apache-2.0"
 }

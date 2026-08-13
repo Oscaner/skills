@@ -28,15 +28,15 @@
     },
     {
       "_generated": "scripts/emit.mjs — do not edit",
-      "name": "superpowers-overrides",
-      "source": "./packages/superpowers-overrides",
-      "description": "Personal overrides for the superpowers plugin that force delegation to other skills."
-    },
-    {
-      "_generated": "scripts/emit.mjs — do not edit",
       "name": "engineering",
       "source": "./packages/engineering",
       "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine."
+    },
+    {
+      "_generated": "scripts/emit.mjs — do not edit",
+      "name": "superpowers-overrides",
+      "source": "./packages/superpowers-overrides",
+      "description": "Personal overrides for the superpowers plugin that force delegation to other skills."
     }
   ]
 }

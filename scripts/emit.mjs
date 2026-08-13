@@ -4,9 +4,11 @@
  *
  * Replaces `scripts/emit-marketplace.mjs` and the former per-plugin generator
  * scripts (`packages/superpowers-overrides/build/generate-all.sh` + render-*).
- * Reads `marketplace/source.json`, generates every first-party artifact:
+ * Derives `marketplace/source.json` from packages/ + vendors/ (package-as-source)
+ * and generates every first-party artifact:
  *
  *  - repo-root marketplace manifests (`.claude-plugin/` + `.cursor-plugin/`)
+ *  - the derived `marketplace/source.json` aggregate (emit product)
  *  - cursor wrapper manifests for vendored (non-plugin-root) plugins
  *  - per-harness thin manifests for first-party plugins, all pointing at the
  *    canonical `./skills/` tree:
@@ -15,7 +17,7 @@
  *      codex   → `.codex-plugin/plugin.json`
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
- *      pi      → `package.json#pi` (verified/ensured)
+ *      pi      → `oscaner-plugin.pi` (verified/ensured)
  *      shared  → `.agents/skills/` copy (engineering only — no vendored upstream)
  *    plus the overrides hooks/self-check tables and engineering PreToolUse
  *    hooks, and version consistency per `packages/engineering/.version-bump.json`.
@@ -43,7 +45,6 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
 import {
-  readSource,
   resolveVersion,
   claudeMarketplaceEntry,
   cursorWrapperManifest,
@@ -66,6 +67,7 @@ import {
   engineeringClaudeHooks,
   engineeringCursorHooks,
 } from "./lib/emit/manifests.mjs";
+import { deriveSource } from "./lib/emit/source.mjs";
 import {
   loadTargets,
   promptExpansionScript,
@@ -116,6 +118,7 @@ const productRoots = [
 
 /** Standalone repo-relative product files (not inside a product root). */
 const productFiles = [
+  "marketplace/source.json",
   "packages/engineering/gemini-extension.json",
   "packages/engineering/GEMINI.md",
 ];
@@ -238,19 +241,24 @@ function collectTree(absDir, relPrefix) {
   }
 }
 
-/** Ensure `package.json#pi` carries the pure-skills key (write + check). */
+/**
+ * Ensure `package.json#oscaner-plugin.pi` carries the pure-skills key
+ * (write + check). The pi metadata lives in oscaner-plugin, not the top-level
+ * package.json#pi.
+ */
 function ensurePiKey(baseRoot, plugin) {
   const pkgPath = join(baseRoot, plugin.contentRoot, "package.json");
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
   const expected = piPackageKey();
-  if (JSON.stringify(pkg.pi) !== JSON.stringify(expected)) {
+  const osc = pkg["oscaner-plugin"] ?? {};
+  if (JSON.stringify(osc.pi) !== JSON.stringify(expected)) {
     if (checkMode) {
       console.error(
-        `DRIFT: ${plugin.contentRoot}/package.json missing pi ${JSON.stringify(expected)}`,
+        `DRIFT: ${plugin.contentRoot}/package.json missing oscaner-plugin.pi ${JSON.stringify(expected)}`,
       );
       process.exit(1);
     }
-    pkg.pi = expected;
+    pkg["oscaner-plugin"] = { ...osc, pi: expected };
     writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
   }
 }
@@ -412,7 +420,7 @@ function assertVersionBump() {
 // ---------------------------------------------------------------------------
 
 function emitAll(outRoot) {
-  const source = readSource(root);
+  const source = deriveSource(root);
   assertPrereleasePrefix(root, source);
 
   for (const plugin of source.plugins) {
@@ -421,6 +429,9 @@ function emitAll(outRoot) {
   }
 
   emitMarketplaceDocs(outRoot, source);
+
+  // source.json is itself a derived emit product (package-as-source).
+  writeJsonDoc(outRoot, "marketplace/source.json", source);
 
   // engineering no longer uses the cursor wrapper — the wrapper must be gone.
   const staleWrapper = join(outRoot, "cursor-plugins/engineering");

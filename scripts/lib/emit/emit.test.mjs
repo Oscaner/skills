@@ -12,10 +12,11 @@ import {
   geminiMarkdown,
   piPackageKey,
   generatedBanner,
-  FIRST_PARTY_NAMES,
+  deriveFirstPartyNames,
   engineeringClaudeHooks,
   engineeringCursorHooks,
 } from "./manifests.mjs";
+import { deriveSource, SOURCE_TOP } from "./source.mjs";
 import {
   findStaleCommittedFiles,
   pruneStaleAgentsNamespaces,
@@ -166,15 +167,126 @@ test("piPackageKey is a pure skills package (no runtime extensions)", () => {
   assert.deepEqual(piPackageKey(), { skills: ["./skills"] });
 });
 
-test("FIRST_PARTY_NAMES covers both per-harness emit plugins", () => {
-  assert.deepEqual(FIRST_PARTY_NAMES, [
-    "superpowers-overrides",
+test("deriveFirstPartyNames discovers packages with oscaner-plugin (sorted)", () => {
+  assert.deepEqual(deriveFirstPartyNames("packages"), [
     "engineering",
+    "superpowers-overrides",
   ]);
-  assert.ok(
-    FIRST_PARTY_NAMES.includes("engineering"),
-    "engineering receives the per-harness emit (incl. gate hooks)",
+});
+
+test("deriveFirstPartyNames ignores dirs without oscaner-plugin / package.json", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-fp-"));
+  try {
+    mkdirSync(join(tmp, "real"), { recursive: true });
+    writeFileSync(
+      join(tmp, "real", "package.json"),
+      JSON.stringify({ name: "real", "oscaner-plugin": { contentRoot: "." } }),
+    );
+    // has package.json but no oscaner-plugin → excluded
+    mkdirSync(join(tmp, "helper"), { recursive: true });
+    writeFileSync(join(tmp, "helper", "package.json"), JSON.stringify({ name: "helper" }));
+    // no package.json → excluded
+    mkdirSync(join(tmp, "empty"), { recursive: true });
+    assert.deepEqual(deriveFirstPartyNames(tmp), ["real"]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// source.mjs — source.json derivation (package-as-source)
+// ---------------------------------------------------------------------------
+
+test("deriveSource top-level fields come from emit constants", () => {
+  const source = deriveSource(".");
+  assert.equal(source.name, SOURCE_TOP.name);
+  assert.deepEqual(source.owner, SOURCE_TOP.owner);
+  assert.deepEqual(source.metadata, SOURCE_TOP.metadata);
+  assert.equal(source.$schema, SOURCE_TOP.$schema);
+});
+
+test("deriveSource enumerates vendors + first-party packages in stable order", () => {
+  const source = deriveSource(".");
+  assert.deepEqual(
+    source.plugins.map((p) => p.name),
+    ["mattpocock-skills", "impeccable", "superpowers", "engineering", "superpowers-overrides"],
   );
+  // schema-required fields present on every plugin
+  for (const p of source.plugins) {
+    assert.ok(p.name, "plugin name");
+    assert.ok(p.description, `${p.name} description`);
+    assert.ok(p.author?.name, `${p.name} author.name`);
+    assert.ok(p.contentRoot, `${p.name} contentRoot`);
+    assert.ok(p.cursor, `${p.name} cursor`);
+  }
+});
+
+test("deriveSource first-party entries carry oscaner-plugin + package metadata", () => {
+  const source = deriveSource(".");
+  const eng = source.plugins.find((p) => p.name === "engineering");
+  assert.deepEqual(eng, {
+    name: "engineering",
+    version: "0.1.0",
+    description:
+      "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
+    author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
+    contentRoot: "packages/engineering",
+    homepage: "https://github.com/Oscaner/skills",
+    repository: "https://github.com/Oscaner/skills",
+    license: "MIT",
+    claude: {
+      category: "engineering",
+      keywords: ["engineering", "cli", "cdd", "harness", "droid", "pi"],
+    },
+    cursor: { emitMode: "plugin-root" },
+  });
+
+  const ovr = source.plugins.find((p) => p.name === "superpowers-overrides");
+  assert.equal(ovr.version, "6.2.0-overrides.0.15.3");
+  assert.equal(ovr.contentRoot, "packages/superpowers-overrides");
+  assert.equal(ovr.license, "MIT");
+  assert.deepEqual(ovr.claude, {
+    category: "workflow",
+    tags: ["superpowers", "mattpocock", "overrides", "subagents"],
+  });
+  assert.deepEqual(ovr.cursor, { emitMode: "plugin-root" });
+});
+
+test("deriveSource vendor entries merge assembly-template fields + vendored files", () => {
+  const source = deriveSource(".");
+  const mp = source.plugins.find((p) => p.name === "mattpocock-skills");
+  assert.equal(mp.version, "1.1.0");
+  assert.deepEqual(mp.author, {
+    name: "Matt Pocock",
+    url: "https://github.com/mattpocock",
+  });
+  assert.equal(mp.contentRoot, "vendors/mattpocock-skills");
+  assert.equal(mp.repository, "https://github.com/mattpocock/skills");
+  assert.equal(mp.license, "MIT");
+  assert.deepEqual(mp.cursor, {
+    displayName: "Matt Pocock Skills",
+    skills: "../../vendors/mattpocock-skills/skills",
+  });
+
+  const imp = source.plugins.find((p) => p.name === "impeccable");
+  assert.equal(imp.version, "4.0.4");
+  assert.equal(imp.contentRoot, "vendors/impeccable/plugin");
+  assert.deepEqual(imp.author, {
+    name: "Paul Bakaus",
+    email: "paul@paulbakaus.com",
+  });
+  assert.equal(imp.repository, "https://github.com/pbakaus/impeccable");
+  assert.equal(imp.license, "Apache-2.0");
+  assert.deepEqual(imp.cursor, {
+    displayName: "Impeccable",
+    skills: "../../vendors/impeccable/plugin/skills",
+  });
+
+  const sp = source.plugins.find((p) => p.name === "superpowers");
+  assert.equal(sp.version, "6.2.0");
+  assert.equal(sp.contentRoot, "vendors/superpowers");
+  assert.deepEqual(sp.author, { name: "Jesse Vincent", email: "jesse@fsck.com" });
+  assert.deepEqual(sp.cursor, { emitMode: "plugin-root" });
 });
 
 test("engineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {

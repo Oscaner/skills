@@ -10,10 +10,31 @@
  * which is handled by the emit orchestrator, not here).
  */
 
+import { readdirSync, existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 export const generatedBanner = "scripts/emit.mjs — do not edit";
 
-/** First-party plugins that receive the full per-harness emit. */
-export const FIRST_PARTY_NAMES = ["superpowers-overrides", "engineering"];
+/**
+ * Derive first-party plugin package names from `packages/*` dirs whose
+ * package.json carries the `oscaner-plugin` field (package-as-source). The
+ * hand-maintained enum is gone — adding a package dir auto-joins the emit.
+ * Sorted for deterministic output.
+ * @param {string} packagesRoot repo-relative path to the packages/ dir
+ */
+export function deriveFirstPartyNames(packagesRoot) {
+  if (!existsSync(packagesRoot)) return [];
+  return readdirSync(packagesRoot, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .filter((name) => {
+      const pkgPath = join(packagesRoot, name, "package.json");
+      if (!existsSync(pkgPath)) return false;
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+      return Boolean(pkg["oscaner-plugin"]);
+    })
+    .sort();
+}
 
 /** engineering has no bundled assets — interface omits icon/logo paths. */
 const DEFAULT_REPO_URL = "https://github.com/Oscaner/skills";

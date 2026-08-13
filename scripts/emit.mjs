@@ -3,7 +3,7 @@
  * Unified emit tool.
  *
  * Replaces `scripts/emit-marketplace.mjs` and the former per-plugin generator
- * scripts (`plugins/superpowers-overrides/build/generate-all.sh` + render-*).
+ * scripts (`packages/superpowers-overrides/build/generate-all.sh` + render-*).
  * Reads `marketplace/source.json`, generates every first-party artifact:
  *
  *  - repo-root marketplace manifests (`.claude-plugin/` + `.cursor-plugin/`)
@@ -18,7 +18,7 @@
  *      pi      → `package.json#pi` (verified/ensured)
  *      shared  → `.agents/skills/` copy (engineering only — no vendored upstream)
  *    plus the overrides hooks/self-check tables and engineering PreToolUse
- *    hooks, and version consistency per `plugins/engineering/.version-bump.json`.
+ *    hooks, and version consistency per `packages/engineering/.version-bump.json`.
  *
  * `--check` mode generates into a temp tree and diffs every produced path
  * against the on-disk tree (drift → exit 1), and flags committed product files
@@ -100,24 +100,24 @@ const generatedPaths = [];
 const productRoots = [
   ".claude-plugin",
   ".cursor-plugin",
-  "plugins/engineering/.claude-plugin",
-  "plugins/engineering/.cursor-plugin",
-  "plugins/engineering/.codex-plugin",
-  "plugins/engineering/.kimi-plugin",
-  "plugins/engineering/hooks",
-  "plugins/engineering/.agents",
-  "plugins/superpowers-overrides/.claude-plugin",
-  "plugins/superpowers-overrides/.cursor-plugin",
-  "plugins/superpowers-overrides/.codex-plugin",
-  "plugins/superpowers-overrides/hooks",
-  "plugins/superpowers-overrides/bin",
-  "plugins/superpowers-overrides/build/generated",
+  "packages/engineering/.claude-plugin",
+  "packages/engineering/.cursor-plugin",
+  "packages/engineering/.codex-plugin",
+  "packages/engineering/.kimi-plugin",
+  "packages/engineering/hooks",
+  "packages/engineering/.agents",
+  "packages/superpowers-overrides/.claude-plugin",
+  "packages/superpowers-overrides/.cursor-plugin",
+  "packages/superpowers-overrides/.codex-plugin",
+  "packages/superpowers-overrides/hooks",
+  "packages/superpowers-overrides/bin",
+  "packages/superpowers-overrides/build/generated",
 ];
 
 /** Standalone repo-relative product files (not inside a product root). */
 const productFiles = [
-  "plugins/engineering/gemini-extension.json",
-  "plugins/engineering/GEMINI.md",
+  "packages/engineering/gemini-extension.json",
+  "packages/engineering/GEMINI.md",
 ];
 
 function writeText(outRoot, rel, content) {
@@ -209,7 +209,7 @@ function emitOsEngineering(outRoot, plugin) {
 function emitAgentsSkillsCopy(outRoot, contentRoot) {
   const outAgents = join(outRoot, contentRoot, ".agents", "skills");
   const namespaces = [
-    ["engineering", join(root, "plugins/engineering/skills")],
+    ["engineering", join(root, "packages/engineering/skills")],
   ];
   // Prune stale namespace dirs (deleted source, or a namespace no longer
   // emitted) before re-copying, so a skill removed from skills/ can't linger
@@ -389,11 +389,11 @@ function emitMarketplaceDocs(outRoot, source) {
 // ---------------------------------------------------------------------------
 
 function assertVersionBump() {
-  const plugin = "plugins/engineering";
+  const plugin = "packages/engineering";
   const bumpPath = join(root, plugin, ".version-bump.json");
   if (!existsSync(bumpPath)) return;
   const bump = JSON.parse(readFileSync(bumpPath, "utf8"));
-  const pkgVersion = readJson("plugins/engineering/package.json").version;
+  const pkgVersion = readJson("packages/engineering/package.json").version;
   for (const f of bump.files) {
     const abs = join(root, plugin, f.path);
     if (!existsSync(abs)) continue; // not materialized on disk — checked via --check diff

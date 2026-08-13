@@ -144,21 +144,21 @@ The router ships no `spor-*` skills. Target skill ids are the engineering / matt
 ```bash
 pnpm run emit                 # unified emit — writes per-harness manifests + hooks + .agents/skills
 pnpm run validate             # full CI chain (emit + router + gate + build freshness + rule-reference)
-./plugins/superpowers-overrides/tests/validate-overrides-build.sh
+./packages/superpowers-overrides/tests/validate-overrides-build.sh
 ```
 
 Regenerate after editing `overrides.manifest.json`, engineering skills, or generator templates.
 
 ## Plugin discovery fallback (Cursor)
 
-Skills ship under `plugins/engineering/skills/` in the plugin tree. After marketplace install, verify the engineering skills (12 emitters + os-init) appear in the agent skills list.
+Skills ship under `packages/engineering/skills/` in the plugin tree. After marketplace install, verify the engineering skills (12 emitters + os-init) appear in the agent skills list.
 
 If skills are missing (Team Marketplace blocked or third-party import disabled):
 
 ```bash
 mkdir -p .cursor/skills
-cp -R path/to/plugins/engineering/skills/* .cursor/skills/
-cp -R path/to/plugins/superpowers/skills/* .cursor/skills/   # upstream, separate plugin
+cp -R path/to/packages/engineering/skills/* .cursor/skills/
+cp -R path/to/vendors/superpowers/skills/* .cursor/skills/   # upstream, separate plugin
 ```
 
 Then run `os-init spor` for `.cursor/rules/superpowers-overrides.mdc`.

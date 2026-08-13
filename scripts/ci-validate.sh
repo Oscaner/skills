@@ -9,7 +9,7 @@ node scripts/emit.mjs --check
 echo "== 1. plugin.json skills resolve =="
 python3 -c '
 import json, os
-root = "plugins/superpowers-overrides"
+root = "packages/superpowers-overrides"
 p = os.path.join(root, ".claude-plugin/plugin.json")
 d = json.load(open(p))
 skills = d.get("skills")
@@ -34,7 +34,7 @@ else:
 
 echo "== 2. every skill dir has SKILL.md (skip when none) =="
 shopt -s nullglob
-for d in plugins/superpowers-overrides/skills/*/; do
+for d in packages/superpowers-overrides/skills/*/; do
   [ -f "$d/SKILL.md" ] || { echo "MISSING: $d/SKILL.md"; exit 1; }
 done
 shopt -u nullglob
@@ -43,7 +43,7 @@ echo OK
 echo "== 3. no orphan skill dirs =="
 python3 -c '
 import json, os
-root = "plugins/superpowers-overrides"
+root = "packages/superpowers-overrides"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
 skills_dir = os.path.join(root, "skills")
@@ -55,19 +55,19 @@ print("OK — no skill dirs (trigger router)")
 '
 
 echo "== 4. hooks executable =="
-[ -f plugins/superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
-[ -f plugins/superpowers-overrides/hooks/hooks-cursor.json ] && echo "OK — hooks-cursor.json"
-[ -x plugins/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion"
-[ -x plugins/superpowers-overrides/bin/override-cursor-detect.sh ] && echo "OK — cursor-detect"
-[ -x plugins/superpowers-overrides/bin/override-cursor-enforce.sh ] && echo "OK — cursor-enforce"
+[ -f packages/superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
+[ -f packages/superpowers-overrides/hooks/hooks-cursor.json ] && echo "OK — hooks-cursor.json"
+[ -x packages/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion"
+[ -x packages/superpowers-overrides/bin/override-cursor-detect.sh ] && echo "OK — cursor-detect"
+[ -x packages/superpowers-overrides/bin/override-cursor-enforce.sh ] && echo "OK — cursor-enforce"
 
 echo "== 5. overrides build validation =="
-./plugins/superpowers-overrides/tests/validate-overrides-build.sh
+./packages/superpowers-overrides/tests/validate-overrides-build.sh
 
 echo "== 5b. engineering plugin validation =="
 python3 -c '
 import json, os
-root = "plugins/engineering"
+root = "packages/engineering"
 d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
 skills = d.get("skills")
 # 断言 engineering skills 数 = 13（12 发射 + os-init）
@@ -90,33 +90,33 @@ else:
     assert len(skills) == EXPECTED, f"expected {EXPECTED} engineering skills (12 emitters + os-init), got {len(skills)}"
     print(f"OK — {len(skills)} engineering skills (explicit list)")
 '
-./plugins/engineering/tests/registry-schema.test.sh
-./plugins/engineering/tests/cdd-select.test.sh
-./plugins/engineering/tests/cdd-cli-dry-run-smoke.sh
-./plugins/engineering/tests/cdd-commit-gate-smoke.sh
-./plugins/engineering/tests/cdd-common-functions.test.sh
-./plugins/engineering/tests/cdd-severity-contract.test.sh
-python3 plugins/engineering/tests/rule-reference.test.py \
-  --skills engineering/skills:semantic
-./plugins/engineering/tests/cdd-gate-allow-deny-smoke.sh
-./plugins/engineering/tests/override-claude-cdd-gate.test.sh
-./plugins/engineering/tests/override-cursor-cdd-gate.test.sh
-./plugins/engineering/tests/cdd-orchestrator-line-budget.test.sh
-./plugins/engineering/tests/ci-validate-wiring.test.sh
+./packages/engineering/tests/registry-schema.test.sh
+./packages/engineering/tests/cdd-select.test.sh
+./packages/engineering/tests/cdd-cli-dry-run-smoke.sh
+./packages/engineering/tests/cdd-commit-gate-smoke.sh
+./packages/engineering/tests/cdd-common-functions.test.sh
+./packages/engineering/tests/cdd-severity-contract.test.sh
+python3 packages/engineering/tests/rule-reference.test.py \
+  --skills packages/engineering/skills:semantic
+./packages/engineering/tests/cdd-gate-allow-deny-smoke.sh
+./packages/engineering/tests/override-claude-cdd-gate.test.sh
+./packages/engineering/tests/override-cursor-cdd-gate.test.sh
+./packages/engineering/tests/cdd-orchestrator-line-budget.test.sh
+./packages/engineering/tests/ci-validate-wiring.test.sh
 
 echo "== 5b2. engineering gate hooks =="
-[ -f plugins/engineering/hooks/hooks.json ] || { echo "FAIL: engineering hooks.json missing"; exit 1; }
-[ -f plugins/engineering/hooks/hooks-cursor.json ] || { echo "FAIL: engineering hooks-cursor.json missing"; exit 1; }
-[ -x plugins/engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
-[ -x plugins/engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
-[ -x plugins/engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
+[ -f packages/engineering/hooks/hooks.json ] || { echo "FAIL: engineering hooks.json missing"; exit 1; }
+[ -f packages/engineering/hooks/hooks-cursor.json ] || { echo "FAIL: engineering hooks-cursor.json missing"; exit 1; }
+[ -x packages/engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
+[ -x packages/engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
+[ -x packages/engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
 echo "== 5c. engine + router zero-residue check =="
 if grep -rnE '\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)' \
-  plugins/engineering/bin plugins/engineering/skills \
-  plugins/superpowers-overrides/bin plugins/superpowers-overrides/hooks \
-  plugins/superpowers-overrides/build/generated 2>/dev/null; then
+  packages/engineering/bin packages/engineering/skills \
+  packages/superpowers-overrides/bin packages/superpowers-overrides/hooks \
+  packages/superpowers-overrides/build/generated 2>/dev/null; then
   echo "RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine + router executable products"
   exit 1
 else
@@ -133,6 +133,6 @@ echo "== 8–10. version sync =="
 node scripts/validate-version-sync.mjs
 
 echo "== 11. mattpocock-skills resolvable =="
-[ -d plugins/mattpocock-skills/skills ] && echo OK
+[ -d vendors/mattpocock-skills/skills ] && echo OK
 
 echo "ALL PASS"

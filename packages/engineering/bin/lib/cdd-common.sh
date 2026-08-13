@@ -143,8 +143,8 @@ cdd_superpowers_scripts_dir() {
   if [[ -z "$repo_root" ]]; then
     repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || repo_root=""
   fi
-  if [[ -n "$repo_root" && -d "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts" ]]; then
-    printf '%s\n' "${repo_root}/plugins/superpowers/skills/subagent-driven-development/scripts"
+  if [[ -n "$repo_root" && -d "${repo_root}/vendors/superpowers/skills/subagent-driven-development/scripts" ]]; then
+    printf '%s\n' "${repo_root}/vendors/superpowers/skills/subagent-driven-development/scripts"
     return 0
   fi
   local cache ver scripts probe

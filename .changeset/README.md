@@ -1,6 +1,6 @@
 # Changesets
 
-We use [changesets](https://github.com/changesets/changesets) to manage releases for two packages: **`@oscaner-skills/superpowers-overrides`** (superpowers-relative scheme) and **`@oscaner-skills/engineering`** (independent semver). Both are workspace packages under `plugins/`; each releases independently when a changeset names it.
+We use [changesets](https://github.com/changesets/changesets) to manage releases for two packages: **`@oscaner-skills/superpowers-overrides`** (superpowers-relative scheme) and **`@oscaner-skills/engineering`** (independent semver). Both are workspace packages under `packages/`; each releases independently when a changeset names it.
 
 **Integration branch:** `develop` — feature PRs merge here and accumulate `.changeset/*.md` files.
 
@@ -8,7 +8,7 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 ## When to add a changeset
 
-Run `pnpm changeset` when you change behavior or wiring under `plugins/superpowers-overrides/` or `plugins/engineering/`. Select the plugin(s) the change affects — a changeset may name both. Version bumps are computed per plugin by `node scripts/version-packages.mjs`:
+Run `pnpm changeset` when you change behavior or wiring under `packages/superpowers-overrides/` or `packages/engineering/`. Select the plugin(s) the change affects — a changeset may name both. Version bumps are computed per plugin by `node scripts/version-packages.mjs`:
 
 - `@oscaner-skills/superpowers-overrides` → `{superpowers-semver}-overrides.{major}.{minor}.{patch}` (patch increment on the same superpowers base)
 - `@oscaner-skills/engineering` → plain semver bump (patch / minor / major per the changeset's declared type)

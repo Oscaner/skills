@@ -18,7 +18,7 @@
       "homepage": "https://github.com/mattpocock/skills",
       "repository": "https://github.com/mattpocock/skills",
       "license": "MIT",
-      "contentRoot": "plugins/mattpocock-skills",
+      "contentRoot": "vendors/mattpocock-skills",
       "claude": {
         "category": "engineering",
         "keywords": [
@@ -31,7 +31,7 @@
       },
       "cursor": {
         "displayName": "Matt Pocock Skills",
-        "skills": "../../plugins/mattpocock-skills/skills"
+        "skills": "../../vendors/mattpocock-skills/skills"
       }
     },
     {
@@ -43,7 +43,7 @@
         "email": "paul@paulbakaus.com"
       },
       "homepage": "https://impeccable.style",
-      "contentRoot": "plugins/impeccable/plugin",
+      "contentRoot": "vendors/impeccable/plugin",
       "claude": {
         "category": "design",
         "tags": [
@@ -57,7 +57,7 @@
       },
       "cursor": {
         "displayName": "Impeccable",
-        "skills": "../../plugins/impeccable/plugin/skills"
+        "skills": "../../vendors/impeccable/plugin/skills"
       }
     },
     {
@@ -68,7 +68,7 @@
         "name": "Jesse Vincent",
         "email": "jesse@fsck.com"
       },
-      "contentRoot": "plugins/superpowers",
+      "contentRoot": "vendors/superpowers",
       "cursor": {
         "emitMode": "plugin-root"
       }
@@ -82,7 +82,7 @@
         "email": "oscaner1997@gmail.com"
       },
       "license": "MIT",
-      "contentRoot": "plugins/superpowers-overrides",
+      "contentRoot": "packages/superpowers-overrides",
       "claude": {
         "category": "workflow",
         "tags": [
@@ -105,7 +105,7 @@
         "email": "oscaner1997@gmail.com"
       },
       "license": "MIT",
-      "contentRoot": "plugins/engineering",
+      "contentRoot": "packages/engineering",
       "claude": {
         "category": "engineering",
         "keywords": [

@@ -15,8 +15,8 @@ Scanning mode, selected per skills directory via `--skills <dir>:<mode>`:
            file (SKILL.md or any `.md` under the repo).
 
 Invocation (from the repo root):
-  python3 plugins/engineering/tests/rule-reference.test.py \
-    --skills engineering/skills:semantic
+  python3 packages/engineering/tests/rule-reference.test.py \
+    --skills packages/engineering/skills:semantic
 
 Exits 0 on clean scan + self-test; 1 otherwise.
 """
@@ -27,7 +27,8 @@ import sys
 import tempfile
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, "..", ".."))
+# tests/ → engineering/ → packages/ → repo root (three levels post packages/ layout)
+REPO_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 
 DEFAULT_SKILLS = [
     ("engineering/skills", "semantic"),

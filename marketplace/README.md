@@ -26,8 +26,8 @@ pnpm run validate
 | `.claude-plugin/marketplace.json` | Claude Code |
 | `.cursor-plugin/marketplace.json` | Cursor Team Marketplace |
 | `cursor-plugins/<name>/.cursor-plugin/plugin.json` | Cursor plugin wrappers (**wrapper mode only**) |
-| `plugins/superpowers-overrides/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — oscaner **generated** (`emitMode: plugin-root`) |
-| `plugins/superpowers/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — **upstream submodule (not emit)** |
+| `packages/superpowers-overrides/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — oscaner **generated** (`emitMode: plugin-root`) |
+| `vendors/superpowers/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — **upstream submodule (not emit)** |
 
 Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit output is stale.
 
@@ -48,13 +48,13 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 
 | Plugin | Canonical version source |
 |--------|-------------------------|
-| `superpowers-overrides` | `plugins/superpowers-overrides/package.json` |
-| `superpowers` | `plugins/superpowers/.claude-plugin/plugin.json` |
-| `impeccable` | `plugins/impeccable/plugin/.claude-plugin/plugin.json` |
-| `mattpocock-skills` | `plugins/mattpocock-skills/.claude-plugin/plugin.json` (optional in source) |
+| `superpowers-overrides` | `packages/superpowers-overrides/package.json` |
+| `superpowers` | `vendors/superpowers/.claude-plugin/plugin.json` |
+| `impeccable` | `vendors/impeccable/plugin/.claude-plugin/plugin.json` |
+| `mattpocock-skills` | `vendors/mattpocock-skills/.claude-plugin/plugin.json` (optional in source) |
 
 Emit fails when `source.json` versions disagree with truth sources.
 
 ## Cursor Team Marketplace
 
-Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`superpowers-overrides`**, **`engineering`**, and **`superpowers`** install from plugin root (`./plugins/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md).
+Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`superpowers-overrides`**, **`engineering`**, and **`superpowers`** install from plugin root (`./packages/...`/`./vendors/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md).

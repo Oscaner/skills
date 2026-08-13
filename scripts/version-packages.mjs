@@ -48,10 +48,10 @@ if (!superpowersVersion) {
 const changelogOptions = { repo: "Oscaner/skills" };
 
 // ---- superpowers-overrides (superpowers-relative scheme) ----
-const overridesPkgPath = "plugins/superpowers-overrides/package.json";
+const overridesPkgPath = "packages/superpowers-overrides/package.json";
 const overridesChangelogPath = join(
   root,
-  "plugins/superpowers-overrides/CHANGELOG.md",
+  "packages/superpowers-overrides/CHANGELOG.md",
 );
 const overridesCS = changesetsForPlugin(
   changesets,
@@ -87,8 +87,8 @@ if (overridesCS.length > 0 || overridesBaseReset) {
 }
 
 // ---- engineering (independent semver) ----
-const osengPkgPath = "plugins/engineering/package.json";
-const osengChangelogPath = join(root, "plugins/engineering/CHANGELOG.md");
+const osengPkgPath = "packages/engineering/package.json";
+const osengChangelogPath = join(root, "packages/engineering/CHANGELOG.md");
 const osengCS = changesetsForPlugin(
   changesets,
   "@oscaner-skills/engineering",
@@ -136,7 +136,7 @@ if (osengCS.length > 0) {
   entry.version = osengNext;
   writeJson(sourcePath, source);
 
-  const initPath = "plugins/engineering/skills/os-init/SKILL.md";
+  const initPath = "packages/engineering/skills/os-init/SKILL.md";
   const init = readFileSync(join(root, initPath), "utf8");
   const stamped = init.replace(
     /<!-- engineering-version: [^ ]+ -->/,

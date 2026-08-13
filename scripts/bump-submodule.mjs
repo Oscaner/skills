@@ -39,7 +39,7 @@ function checkoutTag(tag) {
 
 /** @param {string} version @param {string} line */
 function prependChangelog(version, line) {
-  const changelogPath = join(root, "plugins/superpowers-overrides/CHANGELOG.md");
+  const changelogPath = join(root, "packages/superpowers-overrides/CHANGELOG.md");
   const header = "# superpowers-overrides\n\n";
   const entry = `## ${version}\n\n### Patch Changes\n\n- ${line}\n\n`;
   const existing = readFileSync(changelogPath, "utf8");
@@ -57,22 +57,22 @@ function applyBump(bumpName, result, newTag) {
     const source = readJson(sourcePath);
     const oldVer = result.oldSuperpowersVer;
     checkoutTag(newTag);
-    const newVer = readJson("plugins/superpowers/.claude-plugin/plugin.json").version;
+    const newVer = readJson("vendors/superpowers/.claude-plugin/plugin.json").version;
     result.semverChanged = oldVer !== newVer;
     if (result.semverChanged) {
-      const currentOverrides = readJson("plugins/superpowers-overrides/package.json")
+      const currentOverrides = readJson("packages/superpowers-overrides/package.json")
         .version;
       const overridesVer = computeNextVersion(currentOverrides, newVer);
       source.plugins.find((p) => p.name === "superpowers").version = newVer;
       writeFileSync(join(root, sourcePath), JSON.stringify(source, null, 2) + "\n");
       result.files.push(sourcePath);
-      const pkgPath = "plugins/superpowers-overrides/package.json";
+      const pkgPath = "packages/superpowers-overrides/package.json";
       const pkg = readJson(pkgPath);
       pkg.version = overridesVer;
       writeFileSync(join(root, pkgPath), JSON.stringify(pkg, null, 2) + "\n");
       result.files.push(pkgPath);
       prependChangelog(overridesVer, `Align with superpowers ${newVer}`);
-      result.files.push("plugins/superpowers-overrides/CHANGELOG.md");
+      result.files.push("packages/superpowers-overrides/CHANGELOG.md");
       execSync("node scripts/sync-overrides-versions.mjs", {
         stdio: "inherit",
         cwd: root,
@@ -93,7 +93,7 @@ function applyBump(bumpName, result, newTag) {
   if (bumpName === "impeccable") {
     const sourcePath = "marketplace/source.json";
     const source = readJson(sourcePath);
-    const ver = readJson("plugins/impeccable/plugin/.claude-plugin/plugin.json")
+    const ver = readJson("vendors/impeccable/plugin/.claude-plugin/plugin.json")
       .version;
     source.plugins.find((p) => p.name === "impeccable").version = ver;
     writeFileSync(join(root, sourcePath), JSON.stringify(source, null, 2) + "\n");

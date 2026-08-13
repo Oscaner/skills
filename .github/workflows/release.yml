@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
       - name: Read plugin version
         id: ver
-        run: echo "version=$(node -p "require('./plugins/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(node -p "require('./packages/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Check plugin was versioned in this release
         id: versioned
         run: |

@@ -45,7 +45,7 @@ const OS_ENG = {
   },
 };
 
-const MANIFEST_PATH = "plugins/superpowers-overrides/overrides.manifest.json";
+const MANIFEST_PATH = "packages/superpowers-overrides/overrides.manifest.json";
 
 const OVERRIDES = {
   name: "superpowers-overrides",
@@ -355,7 +355,7 @@ test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {
   assert.match(script, /"skill_suffix": ?"skills\/engineering\/tdd\/SKILL\.md"/);
   // attach regex for the brainstorming upstream family present
   assert.match(script, /\(\?i\)\/brainstorming\/SKILL/);
-  assert.match(script, /\(\?i\)\/plugins\/superpowers\/skills\/brainstorming\/SKILL/);
+  assert.match(script, /\(\?i\)\/vendors\/superpowers\/skills\/brainstorming\/SKILL/);
 });
 
 test("cursorEnforceScript embeds read-regexes per target skill", () => {
@@ -373,7 +373,7 @@ test("cursorEnforceScript embeds read-regexes per target skill", () => {
 
 test("claudeSelfCheckMd fills the trigger table with target skill names", () => {
   const template = readFileSync(
-    "plugins/superpowers-overrides/build/templates/claude-self-check.md",
+    "packages/superpowers-overrides/build/templates/claude-self-check.md",
     "utf8",
   );
   const md = claudeSelfCheckMd(
@@ -389,7 +389,7 @@ test("claudeSelfCheckMd fills the trigger table with target skill names", () => 
 
 test("cursorSelfCheckMdc carries the version stamp and trigger rows", () => {
   const template = readFileSync(
-    "plugins/superpowers-overrides/build/templates/self-check.mdc",
+    "packages/superpowers-overrides/build/templates/self-check.mdc",
     "utf8",
   );
   const mdc = cursorSelfCheckMdc(

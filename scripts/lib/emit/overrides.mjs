@@ -1,7 +1,7 @@
 /**
  * superpowers-overrides artifact generators.
  *
- * JS port of the former `plugins/superpowers-overrides/build/render-*.sh`
+ * JS port of the former `packages/superpowers-overrides/build/render-*.sh`
  * Python generators. Each function is pure: given parsed targets (and, for the
  * self-check tables, the version + template text), it returns the artifact
  * text/document. The unified emit tool wires file I/O.
@@ -80,7 +80,7 @@ export function attachPathRegexes(slug) {
   const s = pyEscape(slug);
   return [
     `(?i)/skills/${s}/SKILL\\.md$`,
-    `(?i)/plugins/superpowers/skills/${s}/SKILL\\.md$`,
+    `(?i)/vendors/superpowers/skills/${s}/SKILL\\.md$`,
     `(?i)/\\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/${s}/SKILL\\.md$`,
     `(?i)/\\.cursor/skills/(superpowers/)?${s}/SKILL\\.md$`,
   ];

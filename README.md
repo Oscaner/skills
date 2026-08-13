@@ -12,11 +12,11 @@ Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Four 
 
 **[Superpowers](https://github.com/obra/superpowers)** is the full stack — brainstorming, writing plans, subagent-driven development, verification, branch finish. One library, end to end.
 
-**[mattpocock-skills](plugins/mattpocock-skills/)** is the precision layer — `grilling` for hard questions, `tdd` for implementation, `to-tickets` for slicing work. Small surface, sharp tools.
+**[mattpocock-skills](vendors/mattpocock-skills/)** is the precision layer — `grilling` for hard questions, `tdd` for implementation, `to-tickets` for slicing work. Small surface, sharp tools.
 
 Neither alone told me *when* to delegate, *how* to review specs, or *how to phase* a large feature. **superpowers-overrides** is the **trigger router** — it ships no skill bodies. It intercepts upstream superpowers triggers (slash commands, SKILL attach) and routes them to the matching **engineering** orchestrator (`os-*`) or a **mattpocock-skills** delegate (`tdd`, `grilling`). The `os-*` orchestrators add personal rules on top of the upstream baseline — grilling for clarification, fresh-subagent spec review, and **overall + phase** decomposition for large scope.
 
-**[engineering](plugins/engineering/)** is the **skill + engine + gate** layer — the `os-*` orchestrators (`os-brainstorming`, `os-writing-plans`, `os-executing-plans`, …) and `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection, plus the cross-harness CDD orchestrator gate.
+**[engineering](packages/engineering/)** is the **skill + engine + gate** layer — the `os-*` orchestrators (`os-brainstorming`, `os-writing-plans`, `os-executing-plans`, …) and `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection, plus the cross-harness CDD orchestrator gate.
 
 ## The pipeline
 
@@ -26,7 +26,7 @@ Overall spec → Phase spec → Plan → SDD/TDD → Verify → Ship
 
 Overrides add grilling and subagent review at design time; mattpocock handles grilling, tdd, and to-tickets via delegation.
 
-Skill mapping and harness setup → [superpowers-overrides README](plugins/superpowers-overrides/README.md).
+Skill mapping and harness setup → [superpowers-overrides README](packages/superpowers-overrides/README.md).
 
 ## Installation
 
@@ -50,12 +50,12 @@ git submodule update --init
 ## Quick start
 
 1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the marketplace.
-2. Run **`os-init spor`** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](plugins/superpowers-overrides/README.md#usage).
+2. Run **`os-init spor`** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](packages/superpowers-overrides/README.md#usage).
 3. Invoke the superpowers workflow as you normally would — the router routes to the matching engineering / mattpocock target first.
 
 ## Learn more
 
-[superpowers-overrides README](plugins/superpowers-overrides/README.md) — router targets, Claude Code vs Cursor, enforcement layers.
+[superpowers-overrides README](packages/superpowers-overrides/README.md) — router targets, Claude Code vs Cursor, enforcement layers.
 
 ## Maintainers
 
@@ -69,4 +69,4 @@ Release: [`.changeset/README.md`](.changeset/README.md). Contributor pattern: [`
 
 First-party code (`superpowers-overrides`, marketplace tooling) is [MIT](LICENSE).
 
-Vendored plugins keep their own licenses — see each plugin directory (e.g. `plugins/mattpocock-skills/LICENSE`).
+Vendored plugins keep their own licenses — see each plugin directory (e.g. `vendors/mattpocock-skills/LICENSE`).

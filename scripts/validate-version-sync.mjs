@@ -6,8 +6,8 @@ const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
 
 const s = readJson("marketplace/source.json");
 const m = readJson(".claude-plugin/marketplace.json");
-const p = readJson("plugins/superpowers-overrides/package.json");
-const j = readJson("plugins/superpowers-overrides/.claude-plugin/plugin.json");
+const p = readJson("packages/superpowers-overrides/package.json");
+const j = readJson("packages/superpowers-overrides/.claude-plugin/plugin.json");
 const src = s.plugins.find((x) => x.name === "superpowers-overrides");
 const entry = m.plugins.find((x) => x.name === "superpowers-overrides");
 const v = [p.version, src.version, j.version, entry.version];
@@ -26,7 +26,7 @@ if (!p.version.startsWith(`${sp}-overrides.`)) {
 }
 console.log("OK");
 
-const sj = readJson("plugins/superpowers/.claude-plugin/plugin.json");
+const sj = readJson("vendors/superpowers/.claude-plugin/plugin.json");
 const srcSp = s.plugins.find((x) => x.name === "superpowers").version;
 const entrySp = m.plugins.find((x) => x.name === "superpowers").version;
 if (sj.version !== srcSp || srcSp !== entrySp) {
@@ -41,7 +41,7 @@ console.log("OK — superpowers", srcSp);
 // emit` (run before this check). The manifest set is taken from
 // .version-bump.json#files so a newly-added harness manifest can't slip past
 // the equality check.
-const oePkg = readJson("plugins/engineering/package.json");
+const oePkg = readJson("packages/engineering/package.json");
 const oeSrc = s.plugins.find((x) => x.name === "engineering");
 const oeEntry = m.plugins.find((x) => x.name === "engineering");
 const SEMVER = /^\d+\.\d+\.\d+$/;
@@ -52,12 +52,12 @@ const oeVersions = [oePkg.version, oeSrc.version, oeEntry.version];
 if (new Set(oeVersions).size !== 1) {
   throw new Error(`engineering version mismatch: ${oeVersions.join(" ")}`);
 }
-const oeBump = readJson("plugins/engineering/.version-bump.json");
+const oeBump = readJson("packages/engineering/.version-bump.json");
 for (const f of oeBump.files) {
-  const abs = join(root, "plugins/engineering", f.path);
+  const abs = join(root, "packages/engineering", f.path);
   if (!existsSync(abs)) {
     throw new Error(
-      `missing generated manifest plugins/engineering/${f.path} — run pnpm run emit`,
+      `missing generated manifest packages/engineering/${f.path} — run pnpm run emit`,
     );
   }
   const doc = JSON.parse(readFileSync(abs, "utf8"));
@@ -71,7 +71,7 @@ for (const f of oeBump.files) {
 console.log("OK —", oePkg.version);
 
 const oeInit = readFileSync(
-  join(root, "plugins/engineering/skills/os-init/SKILL.md"),
+  join(root, "packages/engineering/skills/os-init/SKILL.md"),
   "utf8",
 );
 const stamp = oeInit.match(/<!-- engineering-version: ([^ ]+) -->/);

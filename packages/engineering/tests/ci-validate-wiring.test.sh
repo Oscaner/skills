@@ -40,15 +40,15 @@ done
 
 # 4. rule-reference invoked with the semantic-only --skills args
 grep -q 'rule-reference.test.py' "$VAL" || fail "rule-reference.test.py not invoked"
-grep -q -- '--skills engineering/skills:semantic' "$VAL" \
+grep -q -- '--skills packages/engineering/skills:semantic' "$VAL" \
   || fail "rule-reference --skills args missing/wrong"
 
 # 5. engine + router zero-residue check present (grep targets + OK echo)
 grep -q 'zero residue in engine + router executable products' "$VAL" \
   || fail "zero-residue OK echo missing"
-grep -qF 'plugins/engineering/skills' "$VAL" \
+grep -qF 'packages/engineering/skills' "$VAL" \
   || fail "zero-residue grep misses engineering/skills"
-grep -qF 'plugins/superpowers-overrides/build/generated' "$VAL" \
+grep -qF 'packages/superpowers-overrides/build/generated' "$VAL" \
   || fail "zero-residue grep misses router build/generated"
 
 echo "OK — ci-validate engineering wiring intact"

@@ -70,7 +70,7 @@ echo "OK"
 
 echo "== validate rule-reference integrity (engineering semantic) =="
 python3 "$OS_ENG/tests/rule-reference.test.py" \
-  --skills engineering/skills:semantic
+  --skills packages/engineering/skills:semantic
 
 echo "== validate engineering engine (harness registry + runners) =="
 [ -f "$OS_ENG/bin/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }
@@ -96,9 +96,9 @@ repo = os.path.normpath(os.path.join('$ROOT', '..', '..'))
 for t in m['targets']:
     plugin, skill = t['name'].split(':', 1)
     if plugin == 'mattpocock-skills':
-        p = os.path.join(repo, 'plugins', plugin, 'skills', 'engineering', skill, 'SKILL.md')
+        p = os.path.join(repo, 'vendors', plugin, 'skills', 'engineering', skill, 'SKILL.md')
     else:
-        p = os.path.join(repo, 'plugins', plugin, 'skills', skill, 'SKILL.md')
+        p = os.path.join(repo, 'packages', plugin, 'skills', skill, 'SKILL.md')
     assert os.path.isfile(p), f'missing target skill: {p}'
 print('OK')
 "
@@ -225,7 +225,7 @@ from pathlib import Path
 plugin_root = Path('$ROOT')
 repo_root = Path('$REPO_ROOT')
 # dogfood self-check is written by os-init spor, stamped with the engineering version
-version = json.loads((repo_root / 'plugins/engineering/.claude-plugin/plugin.json').read_text())['version']
+version = json.loads((repo_root / 'packages/engineering/.claude-plugin/plugin.json').read_text())['version']
 
 cursor_path = repo_root / '.cursor/rules/superpowers-overrides.mdc'
 claude_path = repo_root / 'CLAUDE.md'

@@ -1,3 +1,5 @@
 packages:
-  - plugins/superpowers-overrides
-  - plugins/engineering
+  - packages/*
+  - vendors/*
+allowBuilds:
+  puppeteer: false

@@ -15,7 +15,7 @@ Read 上游 `superpowers:brainstorming` 的 SKILL.md 作为流程基线 **当可
 
 解析路径（`{plugin-root}` = 本插件 engineering 根）：
 1. **兄弟插件根**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同理）
-2. **回退同仓库相对路径**：`<repo-root>/plugins/superpowers/skills/brainstorming/SKILL.md`
+2. **回退同仓库相对路径**：`<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
 
 上游不可用（非 claude harness / 未装 superpowers 插件）→ **不报错**：以本技能自身 Rules 为完整流程直接执行。本技能自身 Rules 是承重流程，Read 上游只是增强。
 

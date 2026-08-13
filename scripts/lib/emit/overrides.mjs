@@ -166,6 +166,24 @@ export function cursorHooksJson() {
   };
 }
 
+/**
+ * Per-harness overrides hooks content, dispatched by harness name so the emit
+ * orchestrator can drive writes from the `oscaner-plugin.hooks` mapping.
+ * Fail-fast on a harness with no generator (mapping would point at a file that
+ * cannot be produced).
+ */
+export function overridesHooksFor(harness, targets) {
+  const byHarness = {
+    claude: () => claudeHooksJson(targets),
+    cursor: () => cursorHooksJson(),
+  };
+  const gen = byHarness[harness];
+  if (!gen) {
+    throw new Error(`no overrides hooks generator for harness: ${harness}`);
+  }
+  return gen();
+}
+
 function cursorDetectTargetRows(targets) {
   return targets.map((t) => ({
     name: t.name,
@@ -223,7 +241,7 @@ export function cursorSelfCheckMdc(targets, version, template) {
 }
 
 /** `.cursor-plugin/plugin.json` for the trigger-router plugin (no skills). */
-export function overridesCursorManifest(meta, version) {
+export function overridesCursorManifest(meta, version, hooks) {
   return {
     _generated: generatedBanner,
     name: meta.name,
@@ -232,7 +250,7 @@ export function overridesCursorManifest(meta, version) {
     version,
     author: meta.author,
     license: meta.license,
-    hooks: "./hooks/hooks-cursor.json",
+    hooks: hooks?.cursor ?? "./hooks/hooks-cursor.json",
   };
 }
 

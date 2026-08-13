@@ -58,7 +58,9 @@ export function claudePluginManifest(plugin, version, { noSkills = false } = {})
     author: plugin.author,
   };
   if (!noSkills) m.skills = "./skills/";
-  m.hooks = "./hooks/hooks.json";
+  // Hooks path comes from the `oscaner-plugin.hooks` mapping (single SOT);
+  // the fallback keeps the canonical default when a plugin carries no mapping.
+  m.hooks = plugin.hooks?.claude ?? "./hooks/hooks.json";
   if (plugin.license) m.license = plugin.license;
   if (plugin.claude?.category) m.category = plugin.claude.category;
   const kw = keywords(plugin);
@@ -80,7 +82,7 @@ export function cursorPluginManifest(plugin, version) {
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
   m.skills = "./skills/";
-  m.hooks = "./hooks/hooks-cursor.json";
+  m.hooks = plugin.hooks?.cursor ?? "./hooks/hooks-cursor.json";
   return m;
 }
 
@@ -97,7 +99,7 @@ export function codexPluginManifest(plugin, version) {
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
   m.skills = "./skills/";
-  m.hooks = {};
+  m.hooks = plugin.hooks?.codex ?? {};
   m.interface = codexInterface(plugin);
   return m;
 }
@@ -188,6 +190,24 @@ export function engineeringCursorHooks() {
       preToolUse: [{ command: "./bin/override-cursor-cdd-gate.sh" }],
     },
   };
+}
+
+/**
+ * Per-harness engineering hooks content, dispatched by harness name so the
+ * emit orchestrator can drive writes from the `oscaner-plugin.hooks` mapping.
+ * Fail-fast on a harness with no generator (mapping would point at a file that
+ * cannot be produced).
+ */
+export function engineeringHooksFor(harness) {
+  const byHarness = {
+    claude: engineeringClaudeHooks,
+    cursor: engineeringCursorHooks,
+  };
+  const gen = byHarness[harness];
+  if (!gen) {
+    throw new Error(`no engineering hooks generator for harness: ${harness}`);
+  }
+  return gen();
 }
 
 function codexInterface(plugin) {

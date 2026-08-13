@@ -80,6 +80,17 @@
         { "$ref": "#/$defs/cursorPluginRoot" }
       ]
     },
+    "harnessHooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claude": { "type": "string", "minLength": 1 },
+        "cursor": { "type": "string", "minLength": 1 },
+        "codex": { "type": "string", "minLength": 1 },
+        "kimi": { "type": "string", "minLength": 1 },
+        "gemini": { "type": "string", "minLength": 1 }
+      }
+    },
     "plugin": {
       "type": "object",
       "required": ["name", "description", "author", "contentRoot", "cursor"],
@@ -94,7 +105,8 @@
         "repository": { "type": "string" },
         "license": { "type": "string" },
         "claude": { "$ref": "#/$defs/claude" },
-        "cursor": { "$ref": "#/$defs/cursor" }
+        "cursor": { "$ref": "#/$defs/cursor" },
+        "hooks": { "$ref": "#/$defs/harnessHooks" }
       }
     }
   }

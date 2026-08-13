@@ -104,6 +104,10 @@
           "droid",
           "pi"
         ]
+      },
+      "hooks": {
+        "claude": "./hooks/hooks.json",
+        "cursor": "./hooks/hooks-cursor.json"
       }
     },
     {
@@ -129,6 +133,10 @@
           "overrides",
           "subagents"
         ]
+      },
+      "hooks": {
+        "claude": "./hooks/hooks.json",
+        "cursor": "./hooks/hooks-cursor.json"
       }
     }
   ]

@@ -170,6 +170,7 @@ function deriveFirstParty(root, dirName) {
   if (repository !== undefined) plugin.repository = repository;
   if (pkg.license !== undefined) plugin.license = pkg.license;
   if (osc.claude !== undefined) plugin.claude = osc.claude;
+  if (osc.hooks !== undefined) plugin.hooks = osc.hooks;
   return plugin;
 }
 

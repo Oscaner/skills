@@ -64,19 +64,17 @@ import {
   geminiExtension,
   geminiMarkdown,
   piPackageKey,
-  engineeringClaudeHooks,
-  engineeringCursorHooks,
+  engineeringHooksFor,
 } from "./lib/emit/manifests.mjs";
 import { deriveSource } from "./lib/emit/source.mjs";
 import {
   loadTargets,
   promptExpansionScript,
-  claudeHooksJson,
-  cursorHooksJson,
   cursorDetectScript,
   cursorEnforceScript,
   claudeSelfCheckMd,
   cursorSelfCheckMdc,
+  overridesHooksFor,
   overridesCursorManifest,
   overridesCodexManifest,
 } from "./lib/emit/overrides.mjs";
@@ -187,16 +185,16 @@ function emitOsEngineering(outRoot, plugin) {
     `${contentRoot}/GEMINI.md`,
     geminiMarkdown(plugin, skillNames),
   );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/hooks/hooks.json`,
-    engineeringClaudeHooks(),
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/hooks/hooks-cursor.json`,
-    engineeringCursorHooks(),
-  );
+  // Per-harness hooks written at the paths named by `oscaner-plugin.hooks`
+  // (claude → hooks/hooks.json, cursor → hooks/hooks-cursor.json). The mapping
+  // is the single SOT — adding a harness mapping here produces its hooks file.
+  for (const [harness, rel] of Object.entries(plugin.hooks ?? {})) {
+    writeJsonDoc(
+      outRoot,
+      `${contentRoot}/${rel.replace(/^\.\//, "")}`,
+      engineeringHooksFor(harness),
+    );
+  }
 
   emitAgentsSkillsCopy(outRoot, contentRoot);
 
@@ -293,15 +291,24 @@ function emitOverrides(outRoot, plugin) {
   writeJsonDoc(
     outRoot,
     `${contentRoot}/.cursor-plugin/plugin.json`,
-    overridesCursorManifest(meta, version),
+    overridesCursorManifest(meta, version, plugin.hooks),
   );
   writeJsonDoc(
     outRoot,
     `${contentRoot}/.codex-plugin/plugin.json`,
     overridesCodexManifest(meta, version),
   );
-  writeJsonDoc(outRoot, `${contentRoot}/hooks/hooks.json`, claudeHooksJson(targets));
-  writeJsonDoc(outRoot, `${contentRoot}/hooks/hooks-cursor.json`, cursorHooksJson());
+  // Per-harness hooks written at the paths named by `oscaner-plugin.hooks`
+  // (claude → hooks/hooks.json router, cursor → hooks/hooks-cursor.json
+  // detect/enforce). The mapping is the single SOT — adding a harness mapping
+  // here produces its hooks file.
+  for (const [harness, rel] of Object.entries(plugin.hooks ?? {})) {
+    writeJsonDoc(
+      outRoot,
+      `${contentRoot}/${rel.replace(/^\.\//, "")}`,
+      overridesHooksFor(harness, targets),
+    );
+  }
 
   const binScripts = [
     [

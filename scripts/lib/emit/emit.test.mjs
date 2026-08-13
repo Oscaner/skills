@@ -15,6 +15,7 @@ import {
   deriveFirstPartyNames,
   engineeringClaudeHooks,
   engineeringCursorHooks,
+  engineeringHooksFor,
 } from "./manifests.mjs";
 import { deriveSource, SOURCE_TOP } from "./source.mjs";
 import {
@@ -31,6 +32,7 @@ import {
   cursorEnforceScript,
   claudeSelfCheckMd,
   cursorSelfCheckMdc,
+  overridesHooksFor,
 } from "./overrides.mjs";
 
 const OS_ENG = {
@@ -121,6 +123,38 @@ test("codexPluginManifest includes skills, empty hooks, and interface", () => {
   assert.equal(m.interface.displayName, "engineering");
   assert.ok(Array.isArray(m.interface.capabilities));
   assert.ok(m.interface.capabilities.length > 0);
+});
+
+test("claudePluginManifest resolves hooks from plugin.hooks.claude mapping", () => {
+  const m = claudePluginManifest(
+    {
+      ...OS_ENG,
+      hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
+    },
+    "0.1.0",
+  );
+  assert.equal(m.hooks, "./hooks/claude.json");
+});
+
+test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () => {
+  const m = cursorPluginManifest(
+    {
+      ...OS_ENG,
+      hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
+    },
+    "0.1.0",
+  );
+  assert.equal(m.hooks, "./hooks/cursor.json");
+});
+
+test("codexPluginManifest resolves hooks from plugin.hooks.codex, default {}", () => {
+  const mapped = codexPluginManifest(
+    { ...OS_ENG, hooks: { codex: "./hooks/codex.json" } },
+    "0.1.0",
+  );
+  assert.equal(mapped.hooks, "./hooks/codex.json");
+  // no mapping → empty hooks object (codex has no generated hooks file)
+  assert.deepEqual(codexPluginManifest(OS_ENG, "0.1.0").hooks, {});
 });
 
 test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface", () => {
@@ -239,6 +273,7 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
       keywords: ["engineering", "cli", "cdd", "harness", "droid", "pi"],
     },
     cursor: { emitMode: "plugin-root" },
+    hooks: { claude: "./hooks/hooks.json", cursor: "./hooks/hooks-cursor.json" },
   });
 
   const ovr = source.plugins.find((p) => p.name === "superpowers-overrides");
@@ -250,6 +285,10 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
     tags: ["superpowers", "mattpocock", "overrides", "subagents"],
   });
   assert.deepEqual(ovr.cursor, { emitMode: "plugin-root" });
+  assert.deepEqual(ovr.hooks, {
+    claude: "./hooks/hooks.json",
+    cursor: "./hooks/hooks-cursor.json",
+  });
 });
 
 test("deriveSource vendor entries merge assembly-template fields + vendored files", () => {
@@ -315,6 +354,17 @@ test("engineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
   assert.deepEqual(hooks.hooks.preToolUse, [
     { command: "./bin/override-cursor-cdd-gate.sh" },
   ]);
+});
+
+test("engineeringHooksFor dispatches per harness, fail-fast on unknown", () => {
+  const claude = engineeringHooksFor("claude");
+  assert.equal(claude.hooks.PreToolUse[0].matcher, "Write|Edit");
+  const cursor = engineeringHooksFor("cursor");
+  assert.equal(cursor.version, 1);
+  assert.deepEqual(cursor.hooks.preToolUse, [
+    { command: "./bin/override-cursor-cdd-gate.sh" },
+  ]);
+  assert.throws(() => engineeringHooksFor("codex"), /codex/);
 });
 
 // ---------------------------------------------------------------------------
@@ -452,6 +502,20 @@ test("claudeHooksJson has exactly the two UserPromptExpansion matchers", () => {
   // every override target gets a bare-slash branch in the combined matcher
   assert.ok(matchers[1].includes("/writing\\-plans"), "writing-plans matcher");
   assert.ok(matchers[1].includes("/using\\-git\\-worktrees"), "using-git-worktrees matcher");
+});
+
+test("overridesHooksFor dispatches claude → router, cursor → detect/enforce, fail-fast on unknown", () => {
+  const targets = loadTargets(MANIFEST_PATH);
+  const claude = overridesHooksFor("claude", targets);
+  assert.equal(claude.hooks.UserPromptExpansion[0].matcher, "^superpowers:");
+  const cursor = overridesHooksFor("cursor", targets);
+  assert.deepEqual(cursor.hooks.beforeSubmitPrompt, [
+    { command: "./bin/override-cursor-detect.sh", matcher: "UserPromptSubmit" },
+  ]);
+  assert.deepEqual(cursor.hooks.preToolUse, [
+    { command: "./bin/override-cursor-enforce.sh" },
+  ]);
+  assert.throws(() => overridesHooksFor("codex", targets), /codex/);
 });
 
 test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {

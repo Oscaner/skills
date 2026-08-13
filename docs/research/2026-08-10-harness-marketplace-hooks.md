@@ -1,8 +1,8 @@
 # Harness Marketplace / Hooks / Skills / Instruction-File Reference
 
-Research question: for all ~15 harnesses (claude, cursor, gemini, pi, codex, agents, grok, opencode, trae, trae-cn, rovodev, qoder, github, vibe, kiro), what are the marketplace/plugin-manifest, hooks, skill-loading, and instruction-file capabilities — and what must the root marketplace, superpowers-overrides (trigger router), and os-engineering (skill emit + gate) each add per harness?
+Research question: for all ~15 harnesses (claude, cursor, gemini, pi, codex, agents, grok, opencode, trae, trae-cn, rovodev, qoder, github, vibe, kiro), what are the marketplace/plugin-manifest, hooks, skill-loading, and instruction-file capabilities — and what must the root marketplace, superpowers-overrides (trigger router), and engineering (skill emit + gate) each add per harness?
 
-Serves as the reference doc for the os-engineering P3 `build.js` multi-harness emit and the P3/P4 scoping decision.
+Serves as the reference doc for the engineering P3 `build.js` multi-harness emit and the P3/P4 scoping decision.
 
 **Verification basis**: primary sources (official docs, first-party repos) fetched 2026-08-10/12. Cross-checked against the impeccable plugin's prior research (`plugins/impeccable/docs/HARNESSES.md`, last verified 2026-07; `plugins/impeccable/scripts/lib/transformers/providers.js`). Where a claim disagrees with impeccable's table, the newer primary source wins and is flagged.
 
@@ -41,77 +41,77 @@ Notes and discrepancies vs. `plugins/impeccable/docs/HARNESSES.md`:
 
 ## 2. Per-harness assessment
 
-For each harness: what the root marketplace, superpowers-overrides (trigger router), and os-engineering must add. Scope tags: **[P3]** = in the current P3 build.js + router scope; **[P4]** = defer to a P4 split; **[N/A]** = not possible with that mechanism.
+For each harness: what the root marketplace, superpowers-overrides (trigger router), and engineering must add. Scope tags: **[P3]** = in the current P3 build.js + router scope; **[P4]** = defer to a P4 split; **[N/A]** = not possible with that mechanism.
 
 ### 2.1 Claude Code (source of truth)
-- **Root marketplace**: **[P3]** `marketplace/source.json` already registers superpowers-overrides + os-engineering; emitted to `.claude-plugin/marketplace.json`. Keep. `plugin.json` for os-engineering points at `./skills/` (source tree = claude version). Superpowers-overrides P3 becomes a no-skill router: `plugin.json` `skills` removed, only `hooks/hooks.json` (UserPromptExpansion) + `bin/override-prompt-expansion.sh` + `build/generated/*` self-check remain.
-- **Router**: **[P3]** UserPromptExpansion triple matcher (`^superpowers:`, bare `/<slug>`, `^/spor-*`) already exists. P3 retargets the injected `Skill(...)` from `spor-*` to `os-engineering:*` targets. This is the only harness with a native prompt-*expansion* hook — keep the router here.
-- **os-engineering**: **[P3]** skills live in `skills/` (plugin manifest path) — no emit copy needed for claude. Gate PreToolUse hooks move into os-engineering `hooks/hooks.json` (P3 B1). Self-check table goes in project `CLAUDE.md` (`os-init spor` writes it).
+- **Root marketplace**: **[P3]** `marketplace/source.json` already registers superpowers-overrides + engineering; emitted to `.claude-plugin/marketplace.json`. Keep. `plugin.json` for engineering points at `./skills/` (source tree = claude version). Superpowers-overrides P3 becomes a no-skill router: `plugin.json` `skills` removed, only `hooks/hooks.json` (UserPromptExpansion) + `bin/override-prompt-expansion.sh` + `build/generated/*` self-check remain.
+- **Router**: **[P3]** UserPromptExpansion triple matcher (`^superpowers:`, bare `/<slug>`, `^/spor-*`) already exists. P3 retargets the injected `Skill(...)` from `spor-*` to `engineering:*` targets. This is the only harness with a native prompt-*expansion* hook — keep the router here.
+- **engineering**: **[P3]** skills live in `skills/` (plugin manifest path) — no emit copy needed for claude. Gate PreToolUse hooks move into engineering `hooks/hooks.json` (P3 B1). Self-check table goes in project `CLAUDE.md` (`os-init spor` writes it).
 
 ### 2.2 Cursor
-- **Root marketplace**: **[P3]** `.cursor-plugin/marketplace.json` emit exists; superpowers-overrides uses **plugin-root** emit (its `.cursor-plugin/plugin.json` already declares `skills` + `hooks`). P3 removes the **wrapper** emit for os-engineering (`cursor: {displayName, skills}` in source.json) and emits os-engineering as plugin-root too (or keeps wrapper — overall v1.7 says remove wrapper emit). Note the flat-namespace dedup rule (cross-harness-overrides.md): any emitted os-* skill must not collide with upstream `superpowers:*` names; `os-*`/`cli-*` prefixes are safe.
+- **Root marketplace**: **[P3]** `.cursor-plugin/marketplace.json` emit exists; superpowers-overrides uses **plugin-root** emit (its `.cursor-plugin/plugin.json` already declares `skills` + `hooks`). P3 removes the **wrapper** emit for engineering (`cursor: {displayName, skills}` in source.json) and emits engineering as plugin-root too (or keeps wrapper — overall v1.7 says remove wrapper emit). Note the flat-namespace dedup rule (cross-harness-overrides.md): any emitted os-* skill must not collide with upstream `superpowers:*` names; `os-*`/`cli-*` prefixes are safe.
 - **Router**: **[P3]** cursor detect (`beforeSubmitPrompt`) + enforce (`preToolUse`) hooks already ship plugin-bundled; retarget to os-* targets. Slash triggers rely on `.cursor/rules/superpowers-overrides.mdc` self-check as primary (Cursor cannot inject context on submit).
-- **os-engineering**: **[P3]** build.js emits 12 skills to `.cursor/skills/`. Gate PreToolUse hooks → os-engineering cursor adapter (`override-cursor-cdd-gate.sh`) + `hooks-cursor.json`. Self-check → `.cursor/rules/os-engineering.mdc` (or extended `superpowers-overrides.mdc`).
+- **engineering**: **[P3]** build.js emits 12 skills to `.cursor/skills/`. Gate PreToolUse hooks → engineering cursor adapter (`override-cursor-cdd-gate.sh`) + `hooks-cursor.json`. Self-check → `.cursor/rules/engineering.mdc` (or extended `superpowers-overrides.mdc`).
 
 ### 2.3 Gemini CLI
 - **Root marketplace**: **[P4]** Gemini has no marketplace registry; native packaging = `gemini-extension.json` + `gemini extensions install <git-url>`. Emitting a Gemini extension manifest per-repo is a P4 native-packaging item. P3 fallback: directory copy of skills to `.gemini/skills/` (also works globally via `gemini skills install <repo>`).
 - **Router**: **[N/A / P4]** No `UserPromptExpansion`; the closest is `BeforeAgent` (fires after user submit, before planning) or `BeforeTool`. A P4 Gemini router adapter would need `settings.json` hooks with `BeforeAgent`/`BeforeTool` matchers — possible but new ground (fingerprint trust ceremony). Not in P3.
-- **os-engineering**: **[P3]** skills emit to `.gemini/skills/`. Self-check/trigger table → `.gemini/GEMINI.md` (always loaded). Gate: `BeforeTool` matcher hooks in `.gemini/settings.json` is P4 (needs trust handling); P3 documents "invoke os-* directly" via GEMINI.md.
+- **engineering**: **[P3]** skills emit to `.gemini/skills/`. Self-check/trigger table → `.gemini/GEMINI.md` (always loaded). Gate: `BeforeTool` matcher hooks in `.gemini/settings.json` is P4 (needs trust handling); P3 documents "invoke os-* directly" via GEMINI.md.
 
 ### 2.4 Pi
 - **Root marketplace**: **[P4]** Pi packages (`package.json` `pi` key + `pi install`) are a real distribution channel but a distinct package format — a P4 native-packaging item. P3 fallback: directory copy to `.pi/skills/`.
 - **Router**: **[N/A]** No CLI hooks. Extension `input`/`tool_call` events require TypeScript extensions — out of scope for the shell-based router.
-- **os-engineering**: **[P3]** skills emit to `.pi/skills/` (+ `.agents/skills/` alias works). Self-check → `.pi/SYSTEM.md` (system prompt) or `AGENTS.md` (context file, concatenated). Gate: N/A in P3 (extensions only).
+- **engineering**: **[P3]** skills emit to `.pi/skills/` (+ `.agents/skills/` alias works). Self-check → `.pi/SYSTEM.md` (system prompt) or `AGENTS.md` (context file, concatenated). Gate: N/A in P3 (extensions only).
 
 ### 2.5 Codex
 - **Root marketplace**: **[P4]** `.codex-plugin/plugin.json` + plugin catalog/marketplace sources exist, but publishing to the OpenAI universal directory is a heavyweight P4 item. P3 fallback: skills emit to `.agents/skills/` (Codex primary scan path) — no plugin needed.
 - **Router**: **[N/A / P4]** No `UserPromptExpansion`. `UserPromptSubmit` exists but ignores matchers. A P4 router would need `UserPromptSubmit` hooks (runs on every prompt) or PreToolUse gating — poor fit for slash routing.
-- **os-engineering**: **[P3]** skills emit to `.agents/skills/` (shared with cursor/gemini/copilot/opencode/pi/rovo/vibe/grok). Self-check → `AGENTS.md`. Gate: `PreToolUse` hooks in `.codex/hooks.json` exist (blocking) but require per-hook trust ceremony — P4.
+- **engineering**: **[P3]** skills emit to `.agents/skills/` (shared with cursor/gemini/copilot/opencode/pi/rovo/vibe/grok). Self-check → `AGENTS.md`. Gate: `PreToolUse` hooks in `.codex/hooks.json` exist (blocking) but require per-hook trust ceremony — P4.
 
 ### 2.6 agents (shared `.agents/`)
 - **Root marketplace**: N/A (directory convention, not a product).
 - **Router**: N/A (no host hooks).
-- **os-engineering**: **[P3]** This is the highest-leverage emit target: one copy of all 12 skills in `.agents/skills/` makes them load in Codex, Cursor, Gemini, Copilot, OpenCode, Pi, Rovo, Vibe, Grok. Self-check → root `AGENTS.md` (shared standard). Emit order in build.js should treat `.agents/skills/` as a first-class target, not an afterthought.
+- **engineering**: **[P3]** This is the highest-leverage emit target: one copy of all 12 skills in `.agents/skills/` makes them load in Codex, Cursor, Gemini, Copilot, OpenCode, Pi, Rovo, Vibe, Grok. Self-check → root `AGENTS.md` (shared standard). Emit order in build.js should treat `.agents/skills/` as a first-class target, not an afterthought.
 
 ### 2.7 Grok Build
 - **Root marketplace**: **[P3]** Grok reads Claude Code marketplaces/plugins directly — the existing `.claude-plugin/marketplace.json` is consumable as-is (zero extra marketplace work). Native `.grok/plugins/` + `[[marketplace.sources]]` is optional.
 - **Router**: **[N/A / P4]** No `UserPromptExpansion`; `UserPromptSubmit` is passive. PreToolUse is the only blocking event. P4 router adapter possible (matcher on tools), not P3.
-- **os-engineering**: **[P3]** skills emit to `.grok/skills/` (Claude-compatible frontmatter — the claude transform is nearly reusable). Self-check → `AGENTS.md` or `.grok/rules/*.md`. Gate: PreToolUse hooks in `.grok/hooks/os-engineering.json` (Claude tool-name matchers alias to Grok tools; `GROK_PLUGIN_ROOT` env; `/hooks-trust` required) — feasible in P3 if gate scope extends to grok, else P4.
+- **engineering**: **[P3]** skills emit to `.grok/skills/` (Claude-compatible frontmatter — the claude transform is nearly reusable). Self-check → `AGENTS.md` or `.grok/rules/*.md`. Gate: PreToolUse hooks in `.grok/hooks/engineering.json` (Claude tool-name matchers alias to Grok tools; `GROK_PLUGIN_ROOT` env; `/hooks-trust` required) — feasible in P3 if gate scope extends to grok, else P4.
 
 ### 2.8 OpenCode
 - **Root marketplace**: **[N/A]** No marketplace registry; plugins are TS modules/npm packages. Directory copy is the only P3 path.
 - **Router**: **[N/A]** Hooks exist only as TS plugin code (`tool.execute.before`), not shippable from a shell build.
-- **os-engineering**: **[P3]** skills emit to `.opencode/skills/`. Self-check → `AGENTS.md` (auto-loaded) or `instructions` globs in `opencode.json`. Gate: N/A in P3 (TS plugin would be P4).
+- **engineering**: **[P3]** skills emit to `.opencode/skills/`. Self-check → `AGENTS.md` (auto-loaded) or `instructions` globs in `opencode.json`. Gate: N/A in P3 (TS plugin would be P4).
 
 ### 2.9 / 2.10 Trae / Trae-CN
 - **Root marketplace**: **[P4]** Trae has an IDE extension marketplace; manifest format not confirmed from primary source (JS SPA). Skip in P3.
 - **Router**: **[N/A]** No hooks documented.
-- **os-engineering**: **[P3]** skills emit to `.trae/skills/` and `.trae-cn/skills/` (the latter confirmed by impeccable HARNESSES.md). Self-check → `.trae/rules/*.mdc` (rules loaded in full, Cursor-style; extension `.mdc` unconfirmed — verify). Skills note: Trae loads rules in full vs skills on-demand — the self-check table should go in rules, not a skill.
+- **engineering**: **[P3]** skills emit to `.trae/skills/` and `.trae-cn/skills/` (the latter confirmed by impeccable HARNESSES.md). Self-check → `.trae/rules/*.mdc` (rules loaded in full, Cursor-style; extension `.mdc` unconfirmed — verify). Skills note: Trae loads rules in full vs skills on-demand — the self-check table should go in rules, not a skill.
 
 ### 2.11 Rovo Dev
 - **Root marketplace**: **[N/A]** No marketplace.
 - **Router**: **[N/A]** `/hooks` command exists but no event docs; assume none.
-- **os-engineering**: **[P3]** skills emit to `.rovodev/skills/`. Self-check → `AGENTS.md` (Rovo memory convention; user `~/.rovodev/AGENTS.md` + project `AGENTS.md`/`AGENTS.local.md`).
+- **engineering**: **[P3]** skills emit to `.rovodev/skills/`. Self-check → `AGENTS.md` (Rovo memory convention; user `~/.rovodev/AGENTS.md` + project `AGENTS.md`/`AGENTS.local.md`).
 
 ### 2.12 Qoder
 - **Root marketplace**: **[P4]** Native `.qoder-plugin/plugin.json` + `marketplace.json` exist and are Claude-Code-shaped, but plugin install is IDE/CLI managed; a P4 native-manifest item. P3 fallback: directory copy to `.qoder/skills/`.
 - **Router**: **[N/A / P4]** Hooks mirror Claude Code (incl. `UserPromptSubmit`), but no expansion hook; a P4 router adapter is conceivable via `UserPromptSubmit` (runs every prompt).
-- **os-engineering**: **[P3]** skills emit to `.qoder/skills/`. Self-check → `AGENTS.md` or `.qoder/rules/**/*.md` (trigger frontmatter incl. `always_on`). Gate: **[P4]** PreToolUse in `.qoder/settings.json` is Claude-Code-identical — highest-fidelity port after claude/cursor, but trust/settings plumbing is new; defer with the other native gate adapters.
+- **engineering**: **[P3]** skills emit to `.qoder/skills/`. Self-check → `AGENTS.md` or `.qoder/rules/**/*.md` (trigger frontmatter incl. `always_on`). Gate: **[P4]** PreToolUse in `.qoder/settings.json` is Claude-Code-identical — highest-fidelity port after claude/cursor, but trust/settings plumbing is new; defer with the other native gate adapters.
 
 ### 2.13 GitHub Copilot
 - **Root marketplace**: **[N/A]** No repo-level plugin manifest; distribution is VS Code marketplace extensions or directory copy.
 - **Router**: **[N/A / P4]** Hooks exist (`.github/hooks/*.json`, Claude format) **but matchers are ignored** — a PreToolUse gate would fire on every tool call, not just the target. P4 with caution; not P3.
-- **os-engineering**: **[P3]** skills emit to `.github/skills/` (works across VS Code, Copilot CLI, cloud agent; also `.agents/skills/` alias). Self-check → `AGENTS.md` (or `.github/copilot-instructions.md`).
+- **engineering**: **[P3]** skills emit to `.github/skills/` (works across VS Code, Copilot CLI, cloud agent; also `.agents/skills/` alias). Self-check → `AGENTS.md` (or `.github/copilot-instructions.md`).
 
 ### 2.14 Vibe (Mistral)
 - **Root marketplace**: **[N/A]** No marketplace.
 - **Router**: **[N/A]** `pre_tool`/`post_agent` hooks are tool-level, no prompt expansion.
-- **os-engineering**: **[P3]** skills emit to `.vibe/skills/`. Self-check → `AGENTS.md` (trusted folders only — note: untrusted projects won't load it). Gate: `pre_tool` in `.vibe/hooks.toml` is shell-based (TOML, `command` receives JSON) — P4 candidate.
+- **engineering**: **[P3]** skills emit to `.vibe/skills/`. Self-check → `AGENTS.md` (trusted folders only — note: untrusted projects won't load it). Gate: `pre_tool` in `.vibe/hooks.toml` is shell-based (TOML, `command` receives JSON) — P4 candidate.
 
 ### 2.15 Kiro
 - **Root marketplace**: **[N/A]** No marketplace.
 - **Router**: **[N/A]** `UserPromptSubmit` is blocking but there is no expansion/additional-context mechanism (Kiro hook actions are `command` or agent-prompt injection).
-- **os-engineering**: **[P3]** skills emit to `.kiro/skills/`. Self-check → `.kiro/steering/*.md` with `inclusion: always` (loaded every interaction) or `AGENTS.md` in steering locations. Gate: `PreToolUse` blocking hooks in `.kiro/hooks/*.json` — P4 candidate.
+- **engineering**: **[P3]** skills emit to `.kiro/skills/`. Self-check → `.kiro/steering/*.md` with `inclusion: always` (loaded every interaction) or `AGENTS.md` in steering locations. Gate: `PreToolUse` blocking hooks in `.kiro/hooks/*.json` — P4 candidate.
 
 ---
 
@@ -123,7 +123,7 @@ For each harness: what the root marketplace, superpowers-overrides (trigger rout
 1. **Multi-harness skill emit** — every one of the 14 non-claude harnesses loads skills from a documented directory (Section 1, "Skill loading" column). A `build.js` + `lib/providers.js` that emits `skills/` to `.cursor .gemini .pi .codex .agents .grok .opencode .trae .trae-cn .rovodev .qoder .github .vibe .kiro` (per-harness frontmatter transforms, impeccable-style) is feasible today. **Treat `.agents/skills/` as a first-class emit target** — it is the single highest-leverage copy (loaded by 9 harnesses).
 2. **Per-harness self-check / README emit** — all 14 have an always- or auto-loaded instruction file that can carry the "invoke os-* directly" trigger table: `.cursor/rules/*.mdc`, `.gemini/GEMINI.md`, `.pi/SYSTEM.md` (or `AGENTS.md`), `AGENTS.md` (codex/opencode/rovodev/qoder/github/vibe), `.grok/rules/*.md`, `.trae/rules/*.mdc`, `.kiro/steering/*.md`. P3 B5's "write a self-check/README per harness directory" is confirmed correct and necessary — the router hooks exist **only** on claude + cursor, so every other harness gets the self-check table as its primary enforcement.
 3. **Router retarget (claude + cursor only)** — `UserPromptExpansion` (claude) and `beforeSubmitPrompt` detect + `preToolUse` enforce (cursor) are the only two harnesses with the interception primitives the router needs. P3's "router = claude + cursor, no skill bodies" is the right terminal boundary.
-4. **Gate migration to os-engineering (claude + cursor)** — PreToolUse adapters on these two harnesses are proven (existing tests). Keep the P3 gate scope to claude + cursor.
+4. **Gate migration to engineering (claude + cursor)** — PreToolUse adapters on these two harnesses are proven (existing tests). Keep the P3 gate scope to claude + cursor.
 5. **Upstream coordination** — copy `plugins/superpowers/skills/` wholesale into each harness dir so `os-*` skills' "Read upstream" resolves in-harness (P3 B4/B5).
 
 ### Split into P4 (native packaging + non-claude/cursor gate)
@@ -231,5 +231,5 @@ For each harness: what the root marketplace, superpowers-overrides (trigger rout
 ### Local cross-reference (repo)
 - `plugins/impeccable/docs/HARNESSES.md` — prior harness capability research
 - `plugins/impeccable/scripts/lib/transformers/providers.js` — emit target configs (configDir, frontmatter fields, emitHooks, hooksManifestRel)
-- `docs/superpowers/specs/2026-08-10-os-engineering-p3-design.md` — P3 scope being assessed
+- `docs/superpowers/specs/2026-08-10-engineering-p3-design.md` — P3 scope being assessed
 - `plugins/superpowers-overrides/docs/cross-harness-overrides.md` — router/gate architecture and claude+cursor enforcement model

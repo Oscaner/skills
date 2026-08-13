@@ -97,7 +97,7 @@
       }
     },
     {
-      "name": "os-engineering",
+      "name": "engineering",
       "version": "0.1.0",
       "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
       "author": {
@@ -105,7 +105,7 @@
         "email": "oscaner1997@gmail.com"
       },
       "license": "MIT",
-      "contentRoot": "plugins/os-engineering",
+      "contentRoot": "plugins/engineering",
       "claude": {
         "category": "engineering",
         "keywords": [

@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
 
-*Combine superpowers' full workflow with mattpocock's precision — engineered via superpowers-overrides + os-engineering.*
+*Combine superpowers' full workflow with mattpocock's precision — engineered via superpowers-overrides + engineering.*
 
 Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Four plugins work together as one pipeline: brainstorm, plan, build, ship.
 
@@ -14,9 +14,9 @@ Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Four 
 
 **[mattpocock-skills](plugins/mattpocock-skills/)** is the precision layer — `grilling` for hard questions, `tdd` for implementation, `to-tickets` for slicing work. Small surface, sharp tools.
 
-Neither alone told me *when* to delegate, *how* to review specs, or *how to phase* a large feature. **superpowers-overrides** is the **trigger router** — it ships no skill bodies. It intercepts upstream superpowers triggers (slash commands, SKILL attach) and routes them to the matching **os-engineering** orchestrator (`os-*`) or a **mattpocock-skills** delegate (`tdd`, `grilling`). The `os-*` orchestrators add personal rules on top of the upstream baseline — grilling for clarification, fresh-subagent spec review, and **overall + phase** decomposition for large scope.
+Neither alone told me *when* to delegate, *how* to review specs, or *how to phase* a large feature. **superpowers-overrides** is the **trigger router** — it ships no skill bodies. It intercepts upstream superpowers triggers (slash commands, SKILL attach) and routes them to the matching **engineering** orchestrator (`os-*`) or a **mattpocock-skills** delegate (`tdd`, `grilling`). The `os-*` orchestrators add personal rules on top of the upstream baseline — grilling for clarification, fresh-subagent spec review, and **overall + phase** decomposition for large scope.
 
-**[os-engineering](plugins/os-engineering/)** is the **skill + engine + gate** layer — the `os-*` orchestrators (`os-brainstorming`, `os-writing-plans`, `os-executing-plans`, …) and `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection, plus the cross-harness CDD orchestrator gate.
+**[engineering](plugins/engineering/)** is the **skill + engine + gate** layer — the `os-*` orchestrators (`os-brainstorming`, `os-writing-plans`, `os-executing-plans`, …) and `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection, plus the cross-harness CDD orchestrator gate.
 
 ## The pipeline
 
@@ -36,7 +36,7 @@ Skill mapping and harness setup → [superpowers-overrides README](plugins/super
 /plugin install mattpocock-skills@oscaner
 /plugin install superpowers@oscaner
 /plugin install superpowers-overrides@oscaner
-/plugin install os-engineering@oscaner
+/plugin install engineering@oscaner
 ```
 
 Clone this repo (submodule required for local development):
@@ -49,9 +49,9 @@ git submodule update --init
 
 ## Quick start
 
-1. Install `superpowers`, `superpowers-overrides`, `os-engineering`, and `mattpocock-skills` from the marketplace.
+1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the marketplace.
 2. Run **`os-init spor`** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](plugins/superpowers-overrides/README.md#usage).
-3. Invoke the superpowers workflow as you normally would — the router routes to the matching os-engineering / mattpocock target first.
+3. Invoke the superpowers workflow as you normally would — the router routes to the matching engineering / mattpocock target first.
 
 ## Learn more
 

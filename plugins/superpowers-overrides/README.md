@@ -2,42 +2,42 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**Trigger router** for [superpowers](https://github.com/obra/superpowers) + [os-engineering](../os-engineering/). This plugin ships **no skill bodies** — it intercepts upstream superpowers triggers and routes them to the matching **os-engineering** orchestrator (`os-*` / `cli-*`) or a **mattpocock-skills** delegate (`tdd`). Personal overrides live in os-engineering's `os-*` skills, which read the upstream baseline and apply personal rules.
+**Trigger router** for [superpowers](https://github.com/obra/superpowers) + [engineering](../engineering/). This plugin ships **no skill bodies** — it intercepts upstream superpowers triggers and routes them to the matching **engineering** orchestrator (`os-*` / `cli-*`) or a **mattpocock-skills** delegate (`tdd`). Personal overrides live in engineering's `os-*` skills, which read the upstream baseline and apply personal rules.
 
 ## What the router does
 
 When you invoke `/brainstorming`, `/writing-plans`, or any other superpowers skill, the router fires first and the matching target loads:
 
-- `os-engineering:os-*` — flow orchestrators that read upstream and apply personal rules (e.g. clarifying questions → `grilling`, spec review → fresh subagent passes)
-- `os-engineering:cli-driven-development` / `cli-*` — cdd engine skills
+- `engineering:os-*` — flow orchestrators that read upstream and apply personal rules (e.g. clarifying questions → `grilling`, spec review → fresh subagent passes)
+- `engineering:cli-driven-development` / `cli-*` — cdd engine skills
 - `mattpocock-skills:tdd` — implementation delegate for `/test-driven-development`
 
 Three layers keep the route from being skipped:
 
 1. **Trigger table** — every upstream entry point maps to its target in `overrides.manifest.json` (single source of truth).
 2. **Hooks (plugin-bundled)** — Claude Code: `UserPromptExpansion` matchers. Cursor: `beforeSubmitPrompt` detect + `preToolUse` enforce via `hooks/hooks-cursor.json`. **No project hook files.**
-3. **Project rules** — `os-init spor` (from os-engineering) writes self-check rules into your project (`CLAUDE.md` or `.cursor/rules/superpowers-overrides.mdc`); fallback on Cursor when hooks miss.
+3. **Project rules** — `os-init spor` (from engineering) writes self-check rules into your project (`CLAUDE.md` or `.cursor/rules/superpowers-overrides.mdc`); fallback on Cursor when hooks miss.
 
 ## Router targets
 
 | Trigger | Target | What it does |
 |---------|--------|--------------|
-| `/brainstorming` | `os-engineering:os-brainstorming` | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
-| `/writing-plans` | `os-engineering:os-writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
-| `/subagent-driven-development` | `os-engineering:cli-driven-development` | cdd engine — harness CLI three-mode chain (implement/review/fix) |
-| `/executing-plans` | `os-engineering:os-executing-plans` | Three-mode orchestrator (in-session / subagent / cli) |
-| `/finishing-a-development-branch` | `os-engineering:os-finishing` | Branch finish / PR; no worktrees; conventional commits |
-| `/systematic-debugging` | `os-engineering:os-debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
-| `/test-driven-development` | `mattpocock-skills:tdd` | Red→green loop; seam confirmation gate in os-engineering templates |
-| `/verification-before-completion` | `os-engineering:os-verification` | No completion claims without verification evidence |
-| `/receiving-code-review` | `os-engineering:os-code-review` | Unclear feedback → `grilling`; fixes → `tdd` |
-| `/using-git-worktrees` | `os-engineering:os-finishing` | Refuses worktree creation (user policy) |
+| `/brainstorming` | `engineering:os-brainstorming` | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
+| `/writing-plans` | `engineering:os-writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
+| `/subagent-driven-development` | `engineering:cli-driven-development` | cdd engine — harness CLI three-mode chain (implement/review/fix) |
+| `/executing-plans` | `engineering:os-executing-plans` | Three-mode orchestrator (in-session / subagent / cli) |
+| `/finishing-a-development-branch` | `engineering:os-finishing` | Branch finish / PR; no worktrees; conventional commits |
+| `/systematic-debugging` | `engineering:os-debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
+| `/test-driven-development` | `mattpocock-skills:tdd` | Red→green loop; seam confirmation gate in engineering templates |
+| `/verification-before-completion` | `engineering:os-verification` | No completion claims without verification evidence |
+| `/receiving-code-review` | `engineering:os-code-review` | Unclear feedback → `grilling`; fixes → `tdd` |
+| `/using-git-worktrees` | `engineering:os-finishing` | Refuses worktree creation (user policy) |
 
 ## Usage
 
 ### Common
 
-1. Install `superpowers`, `superpowers-overrides`, `os-engineering`, and `mattpocock-skills` from the oscaner marketplace.
+1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the oscaner marketplace.
 2. Run **`os-init spor`** in each project (re-run after plugin upgrades).
 3. Invoke upstream superpowers skills — the router routes automatically.
 
@@ -58,7 +58,7 @@ Three layers keep the route from being skipped:
 **Do:**
 
 - Use bare upstream slash (`/brainstorming`) — hooks + rules route automatically.
-- Attach **os-engineering `os-*`** skill files if you need inline context (e.g. `os-brainstorming/SKILL.md`).
+- Attach **engineering `os-*`** skill files if you need inline context (e.g. `os-brainstorming/SKILL.md`).
 
 **Don't:**
 
@@ -68,7 +68,7 @@ Hooks and enforcement scripts are **plugin-bundled** (same model as upstream `su
 
 ## CDD CLI harness scripts
 
-Token-efficient CDD orchestration dispatches via plugin-bundled scripts — `os-executing-plans` orchestrates, `cli-driven-development` drives the harness chain. The orchestrator resolves harness once; the single CLI runner is `os-engineering/bin/cdd-run.sh`.
+Token-efficient CDD orchestration dispatches via plugin-bundled scripts — `os-executing-plans` orchestrates, `cli-driven-development` drives the harness chain. The orchestrator resolves harness once; the single CLI runner is `engineering/bin/cdd-run.sh`.
 
 | Harness | CLI binary | Ship level |
 |---------|------------|------------|
@@ -80,11 +80,11 @@ Token-efficient CDD orchestration dispatches via plugin-bundled scripts — `os-
 | **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
 | **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-Shared library: `os-engineering/bin/lib/cdd-common.sh` (workspace paths, plugin root resolution, exit codes) carries the task/plan run-loop (`cdd_run_task` / `cdd_run_plan`); `os-engineering/bin/cdd-run.sh` is the single CLI runner (`--harness <name> --task N --mode M` | `--plan <path>`).
+Shared library: `engineering/bin/lib/cdd-common.sh` (workspace paths, plugin root resolution, exit codes) carries the task/plan run-loop (`cdd_run_task` / `cdd_run_plan`); `engineering/bin/cdd-run.sh` is the single CLI runner (`--harness <name> --task N --mode M` | `--plan <path>`).
 
-**Mode A (per task):** `{os-engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix`
+**Mode A (per task):** `{engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix`
 
-**Mode B (plan driver / AFK):** `{os-engineering}/bin/cdd-run.sh --harness <name> --plan <path>` — pending tasks × 3-mode chain.
+**Mode B (plan driver / AFK):** `{engineering}/bin/cdd-run.sh --harness <name> --plan <path>` — pending tasks × 3-mode chain.
 
 Not-supported harness → exit 1 → orchestrator **BLOCKED** (not in-session p0 fallback). CLI missing → exit 2 → orchestrator **BLOCKED**. See [cross-harness-overrides.md](docs/cross-harness-overrides.md#cdd-cli-harness-scripts-p1).
 

@@ -11,26 +11,26 @@ input=$(cat)
 command_name=$(printf '%s' "$input" | jq -r '.command_name // ""')
 
 case "$command_name" in
-  superpowers:brainstorming) override="os-engineering:os-brainstorming" ;;
-  /brainstorming) override="os-engineering:os-brainstorming" ;;
-  superpowers:writing-plans) override="os-engineering:os-writing-plans" ;;
-  /writing-plans) override="os-engineering:os-writing-plans" ;;
-  superpowers:subagent-driven-development) override="os-engineering:cli-driven-development" ;;
-  /subagent-driven-development) override="os-engineering:cli-driven-development" ;;
-  superpowers:executing-plans) override="os-engineering:os-executing-plans" ;;
-  /executing-plans) override="os-engineering:os-executing-plans" ;;
-  superpowers:finishing-a-development-branch) override="os-engineering:os-finishing" ;;
-  /finishing-a-development-branch) override="os-engineering:os-finishing" ;;
-  superpowers:systematic-debugging) override="os-engineering:os-debugging" ;;
-  /systematic-debugging) override="os-engineering:os-debugging" ;;
+  superpowers:brainstorming) override="engineering:os-brainstorming" ;;
+  /brainstorming) override="engineering:os-brainstorming" ;;
+  superpowers:writing-plans) override="engineering:os-writing-plans" ;;
+  /writing-plans) override="engineering:os-writing-plans" ;;
+  superpowers:subagent-driven-development) override="engineering:cli-driven-development" ;;
+  /subagent-driven-development) override="engineering:cli-driven-development" ;;
+  superpowers:executing-plans) override="engineering:os-executing-plans" ;;
+  /executing-plans) override="engineering:os-executing-plans" ;;
+  superpowers:finishing-a-development-branch) override="engineering:os-finishing" ;;
+  /finishing-a-development-branch) override="engineering:os-finishing" ;;
+  superpowers:systematic-debugging) override="engineering:os-debugging" ;;
+  /systematic-debugging) override="engineering:os-debugging" ;;
   superpowers:test-driven-development) override="mattpocock-skills:tdd" ;;
   /test-driven-development) override="mattpocock-skills:tdd" ;;
-  superpowers:verification-before-completion) override="os-engineering:os-verification" ;;
-  /verification-before-completion) override="os-engineering:os-verification" ;;
-  superpowers:receiving-code-review) override="os-engineering:os-code-review" ;;
-  /receiving-code-review) override="os-engineering:os-code-review" ;;
-  superpowers:using-git-worktrees) override="os-engineering:os-finishing" ;;
-  /using-git-worktrees) override="os-engineering:os-finishing" ;;
+  superpowers:verification-before-completion) override="engineering:os-verification" ;;
+  /verification-before-completion) override="engineering:os-verification" ;;
+  superpowers:receiving-code-review) override="engineering:os-code-review" ;;
+  /receiving-code-review) override="engineering:os-code-review" ;;
+  superpowers:using-git-worktrees) override="engineering:os-finishing" ;;
+  /using-git-worktrees) override="engineering:os-finishing" ;;
   *) exit 0 ;;
 esac
 

@@ -10,7 +10,7 @@ superpowers-overrides-version: {{PLUGIN_VERSION}}
 Before your first tool call in ANY turn:
 
 1. Scan for: `/superpowers:*`, bare `/<slug>` matching an upstream override target, `<command-name>` tags, or upstream superpowers skill body in context.
-2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `os-engineering:os-brainstorming` for `/brainstorming`).
+2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `engineering:os-brainstorming` for `/brainstorming`).
 3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
 4. Only after the target skill body is loaded may you follow upstream instructions.
 

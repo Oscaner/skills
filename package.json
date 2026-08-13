@@ -1,5 +1,5 @@
 {
-  "name": "@oscaner/skills",
+  "name": "@oscaner-skills/marketplace",
   "private": true,
   "scripts": {
     "changeset": "changeset",

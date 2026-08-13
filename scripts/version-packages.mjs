@@ -53,7 +53,10 @@ const overridesChangelogPath = join(
   root,
   "plugins/superpowers-overrides/CHANGELOG.md",
 );
-const overridesCS = changesetsForPlugin(changesets, "superpowers-overrides");
+const overridesCS = changesetsForPlugin(
+  changesets,
+  "@oscaner-skills/superpowers-overrides",
+);
 const overridesPkg = readJson(overridesPkgPath);
 const overridesParsed = parseOverridesVersion(overridesPkg.version);
 const overridesBaseReset =
@@ -63,7 +66,7 @@ const overridesNext = !existsSync(overridesChangelogPath)
   : computeNextVersion(overridesPkg.version, superpowersVersion);
 
 // Bump overrides only when it has changesets, or the superpowers base moved
-// (realignment release). An os-engineering-only changeset must not produce an
+// (realignment release). An engineering-only changeset must not produce an
 // empty overrides release.
 if (overridesCS.length > 0 || overridesBaseReset) {
   const releaseLines = [];
@@ -83,14 +86,17 @@ if (overridesCS.length > 0 || overridesBaseReset) {
   writeJson(overridesPkgPath, overridesPkg);
 }
 
-// ---- os-engineering (independent semver) ----
-const osengPkgPath = "plugins/os-engineering/package.json";
-const osengChangelogPath = join(root, "plugins/os-engineering/CHANGELOG.md");
-const osengCS = changesetsForPlugin(changesets, "os-engineering");
+// ---- engineering (independent semver) ----
+const osengPkgPath = "plugins/engineering/package.json";
+const osengChangelogPath = join(root, "plugins/engineering/CHANGELOG.md");
+const osengCS = changesetsForPlugin(
+  changesets,
+  "@oscaner-skills/engineering",
+);
 if (osengCS.length > 0) {
   const osengPkg = readJson(osengPkgPath);
   const osengTypes = osengCS.map(
-    (cs) => cs.releases.find((r) => r.name === "os-engineering").type,
+    (cs) => cs.releases.find((r) => r.name === "@oscaner-skills/engineering").type,
   );
   const bumpLevel = highestBumpLevel(osengTypes);
   const osengNext = computeNextIndependentVersion(osengPkg.version, bumpLevel);
@@ -98,7 +104,9 @@ if (osengCS.length > 0) {
   const sections = [];
   for (const type of ["major", "minor", "patch"]) {
     const typed = osengCS.filter(
-      (cs) => cs.releases.find((r) => r.name === "os-engineering").type === type,
+      (cs) =>
+        cs.releases.find((r) => r.name === "@oscaner-skills/engineering").type ===
+        type,
     );
     if (typed.length === 0) continue;
     const lines = [];
@@ -110,32 +118,32 @@ if (osengCS.length > 0) {
     const title = `${type[0].toUpperCase()}${type.slice(1)} Changes`;
     sections.push(`### ${title}${lines.join("")}\n\n`);
   }
-  const osengHeader = "# os-engineering\n\n";
+  const osengHeader = "# engineering\n\n";
   const osengEntry = `## ${osengNext}\n\n${sections.join("")}`;
   prependChangelog(osengHeader, osengEntry, osengChangelogPath);
 
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
-  // Sync os-engineering version to the SOT locations: marketplace/source.json
+  // Sync engineering version to the SOT locations: marketplace/source.json
   // and the os-init self-check stamp. The per-harness manifests (committed emit
   // products) are re-stamped from package.json by the emit that
   // sync-overrides-versions.mjs runs below (transitively via `pnpm run emit`).
   const sourcePath = "marketplace/source.json";
   const source = readJson(sourcePath);
-  const entry = source.plugins.find((p) => p.name === "os-engineering");
-  if (!entry) throw new Error("os-engineering not in marketplace/source.json");
+  const entry = source.plugins.find((p) => p.name === "engineering");
+  if (!entry) throw new Error("engineering not in marketplace/source.json");
   entry.version = osengNext;
   writeJson(sourcePath, source);
 
-  const initPath = "plugins/os-engineering/skills/os-init/SKILL.md";
+  const initPath = "plugins/engineering/skills/os-init/SKILL.md";
   const init = readFileSync(join(root, initPath), "utf8");
   const stamped = init.replace(
-    /<!-- os-engineering-version: [^ ]+ -->/,
-    `<!-- os-engineering-version: ${osengNext} -->`,
+    /<!-- engineering-version: [^ ]+ -->/,
+    `<!-- engineering-version: ${osengNext} -->`,
   );
   if (stamped === init) {
-    throw new Error("os-init SKILL.md missing os-engineering-version stamp");
+    throw new Error("os-init SKILL.md missing engineering-version stamp");
   }
   writeFileSync(join(root, initPath), stamped);
 }
@@ -143,7 +151,7 @@ if (osengCS.length > 0) {
 // ---- record which plugins were actually versioned (release workflow) ----
 // release.yml's per-plugin matrix job reads this to skip plugins that had no
 // changesets — otherwise it would mint a phantom baseline tag/release for
-// os-engineering@0.1.0 on the first publish. Written under .changeset/ so the
+// engineering@0.1.0 on the first publish. Written under .changeset/ so the
 // Version PR commits it alongside the version bumps; it persists into the
 // publish-mode push that follows the Version PR merge.
 const versioned = [];
@@ -151,7 +159,7 @@ if (overridesCS.length > 0 || overridesBaseReset) {
   versioned.push("superpowers-overrides");
 }
 if (osengCS.length > 0) {
-  versioned.push("os-engineering");
+  versioned.push("engineering");
 }
 writeFileSync(
   join(root, ".changeset/versioned-plugins.json"),

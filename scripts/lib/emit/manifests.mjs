@@ -13,9 +13,9 @@
 export const generatedBanner = "scripts/emit.mjs — do not edit";
 
 /** First-party plugins that receive the full per-harness emit. */
-export const FIRST_PARTY_NAMES = ["superpowers-overrides", "os-engineering"];
+export const FIRST_PARTY_NAMES = ["superpowers-overrides", "engineering"];
 
-/** os-engineering has no bundled assets — interface omits icon/logo paths. */
+/** engineering has no bundled assets — interface omits icon/logo paths. */
 const DEFAULT_REPO_URL = "https://github.com/Oscaner/skills";
 
 function keywords(plugin) {
@@ -26,7 +26,7 @@ function keywords(plugin) {
  * `.claude-plugin/plugin.json` — Claude Code manifest. Grok reuses this file
  * (no separate grok emit). Thin: skills/ + hooks/ point at canonical dirs.
  * `noSkills` omits the `skills` field for the overrides trigger router, which
- * ships no skill bodies (os-engineering keeps `skills: "./skills/"`).
+ * ships no skill bodies (engineering keeps `skills: "./skills/"`).
  */
 export function claudePluginManifest(plugin, version, { noSkills = false } = {}) {
   const m = {
@@ -126,11 +126,11 @@ export function piPackageKey() {
 }
 
 /**
- * os-engineering Claude PreToolUse hooks (cdd gate on Write|Edit|Bash).
- * Only os-engineering carries the gate — the overrides router plugin ships
+ * engineering Claude PreToolUse hooks (cdd gate on Write|Edit|Bash).
+ * Only engineering carries the gate — the overrides router plugin ships
  * no PreToolUse hooks (see `overrides.mjs` claudeHooksJson).
  */
-export function osEngineeringClaudeHooks() {
+export function engineeringClaudeHooks() {
   return {
     _generated: generatedBanner,
     hooks: {
@@ -158,8 +158,8 @@ export function osEngineeringClaudeHooks() {
   };
 }
 
-/** os-engineering Cursor preToolUse hook (cdd gate). */
-export function osEngineeringCursorHooks() {
+/** engineering Cursor preToolUse hook (cdd gate). */
+export function engineeringCursorHooks() {
   return {
     _generated: generatedBanner,
     version: 1,

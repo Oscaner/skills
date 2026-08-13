@@ -5,7 +5,7 @@
  * then regenerate every committed emit product via `pnpm run emit`.
  *
  * Deliberately does NOT rewrite repo dogfood (CLAUDE.md / `.cursor/rules/*`).
- * os-init owns the dogfood now and stamps it with the os-engineering version;
+ * os-init owns the dogfood now and stamps it with the engineering version;
  * a script that stamped it with the overrides version would fight os-init.
  */
 import { readFileSync, writeFileSync } from "node:fs";

@@ -111,23 +111,31 @@ describe("highestBumpLevel", () => {
 describe("changesetsForPlugin", () => {
   it("filters changesets by plugin name", () => {
     const changesets = [
-      { id: "a", releases: [{ name: "superpowers-overrides", type: "patch" }] },
-      { id: "b", releases: [{ name: "os-engineering", type: "minor" }] },
+      {
+        id: "a",
+        releases: [{ name: "@oscaner-skills/superpowers-overrides", type: "patch" }],
+      },
+      { id: "b", releases: [{ name: "@oscaner-skills/engineering", type: "minor" }] },
       {
         id: "c",
         releases: [
-          { name: "os-engineering", type: "patch" },
-          { name: "superpowers-overrides", type: "patch" },
+          { name: "@oscaner-skills/engineering", type: "patch" },
+          { name: "@oscaner-skills/superpowers-overrides", type: "patch" },
         ],
       },
     ];
     assert.deepEqual(
-      changesetsForPlugin(changesets, "os-engineering").map((cs) => cs.id),
+      changesetsForPlugin(changesets, "@oscaner-skills/engineering").map(
+        (cs) => cs.id,
+      ),
       ["b", "c"],
     );
   });
 
   it("returns empty for missing releases array", () => {
-    assert.deepEqual(changesetsForPlugin([{ id: "x" }], "os-engineering"), []);
+    assert.deepEqual(
+      changesetsForPlugin([{ id: "x" }], "@oscaner-skills/engineering"),
+      [],
+    );
   });
 });

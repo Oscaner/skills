@@ -16,7 +16,7 @@ KEY="$(session_key conv-c)"
 setup_scenario active active-ws "$KEY"
 FIX="$SCEN_DEST"
 
-deny=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$REPO/plugins/foo.txt\",\"content\":\"x\"}}" | "$GATE")
+deny=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$REPO/packages/foo.txt\",\"content\":\"x\"}}" | "$GATE")
 echo "$deny" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null
 echo "$deny" | jq -e '.hookSpecificOutput.hookEventName == "PreToolUse"' >/dev/null
 echo "$deny" | jq -e '.hookSpecificOutput.permissionDecisionReason | contains("cdd-run.sh --harness claude")' >/dev/null
@@ -28,10 +28,10 @@ echo "$allow_ws" | jq -e '.hookSpecificOutput.permissionDecision == "allow"' >/d
 deny_scan=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$FIX/sdd/ledger.md\",\"content\":\"x\"}}" | "$GATE")
 echo "$deny_scan" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null
 
-deny_active=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$REPO/plugins/foo.txt\",\"content\":\"x\"}}" | "$GATE")
+deny_active=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$REPO/packages/foo.txt\",\"content\":\"x\"}}" | "$GATE")
 echo "$deny_active" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null
 
-deny_bash=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf $REPO/plugins\"}}" | "$GATE")
+deny_bash=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf $REPO/packages\"}}" | "$GATE")
 echo "$deny_bash" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null
 
 allow_h6=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$OS_ENG/bin/cdd-run.sh --harness claude --task 1 --mode implement\"}}" | "$GATE")

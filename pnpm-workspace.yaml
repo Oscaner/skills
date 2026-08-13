@@ -1,5 +1,2 @@
 packages:
   - packages/*
-  - vendors/*
-allowBuilds:
-  puppeteer: false

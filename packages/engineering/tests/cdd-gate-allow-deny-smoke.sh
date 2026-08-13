@@ -98,7 +98,7 @@ assert_deny_cmd "$S1" "echo cdd-run.sh" "echo cdd-run.sh (substring bypass)"
 # Write: workspace allow, other repo paths deny
 assert_allow_write "$S1" "$TMPROOT/active-ws/sdd/active-ws/progress.md" "write active-ws"
 assert_deny_write "$S1" "$TMPROOT/active-ws/sdd/ledger.md" "write cdd_root ledger (outside active-ws)"
-assert_deny_write "$S1" "$REPO/plugins/foo.txt" "write repo path (task_active)"
+assert_deny_write "$S1" "$REPO/packages/foo.txt" "write repo path (task_active)"
 
 # other tools always allow
 assert_other_allow "$S1" Read '{}' "Read tool"
@@ -134,7 +134,7 @@ setup_scenario stub stub-ws "$S2"
 assert_allow_cmd "$S2" "git status" "git status (orchestrating)"
 assert_allow_write "$S2" "$TMPROOT/stub-ws/sdd/stub-ws/x.md" "write stub-ws (orchestrating cdd_root)"
 assert_allow_write "$S2" "$TMPROOT/stub-ws/sdd/ledger.md" "write cdd_root ledger (orchestrating)"
-assert_deny_write "$S2" "$REPO/plugins/foo.txt" "write repo path (orchestrating)"
+assert_deny_write "$S2" "$REPO/packages/foo.txt" "write repo path (orchestrating)"
 assert_deny_cmd "$S2" "ls" "ls (orchestrating)"
 
 # plan basename falls back to unknown-plan → proves stub-ws was NOT activated
@@ -154,7 +154,7 @@ SESSION_KEYS+=("$S3")
 
 assert_allow_write "$S3" "$TMPROOT/bound-ws/sdd/active-ws/progress.md" "write bound active-ws"
 assert_deny_write "$S3" "$TMPROOT/bound-ws/sdd/000-unrelated-ws/x.md" "write unrelated-ws (bound wins, not scanned)"
-assert_deny_write "$S3" "$REPO/plugins/foo.txt" "write repo path (task_active)"
+assert_deny_write "$S3" "$REPO/packages/foo.txt" "write repo path (task_active)"
 assert_deny_cmd "$S3" "git add foo" "git add (task_active)"
 assert_allow_cmd "$S3" "git status" "git status (task_active)"
 
@@ -171,7 +171,7 @@ SESSION_KEYS+=("$S4")
 # task_complete: shell and Write re-allowed (realtime phase, no caching)
 assert_allow_cmd "$S4" "ls" "bash ls (task_complete)"
 assert_allow_cmd "$S4" "git add foo" "bash git add (task_complete)"
-assert_allow_write "$S4" "$REPO/plugins/foo.txt" "write repo path (task_complete)"
+assert_allow_write "$S4" "$REPO/packages/foo.txt" "write repo path (task_complete)"
 assert_allow_write "$S4" "$TMPROOT/complete-ws/sdd/complete-ws/x.md" "write complete-ws (task_complete)"
 
 echo "== 5. orchestrating (empty ws dir → no briefs → orchestrating) =="
@@ -181,35 +181,35 @@ setup_scenario orchestrating orchestrating-ws "$S5"
 assert_allow_cmd "$S5" "git status" "git status (orchestrating)"
 assert_deny_cmd "$S5" "ls" "ls (orchestrating)"
 assert_allow_write "$S5" "$TMPROOT/orchestrating-ws/sdd/new-ws/x.md" "write cdd_root new-ws (orchestrating)"
-assert_deny_write "$S5" "$REPO/plugins/foo.txt" "write repo path (orchestrating)"
+assert_deny_write "$S5" "$REPO/packages/foo.txt" "write repo path (orchestrating)"
 
 echo "== 6. mode awareness (pending.mode, spec §E) =="
 # in-session pending → Write to any repo path allow; shell keeps read-only git whitelist
 S6_IN="$(session_key mode-in-session)"
 setup_scenario active mode-in-session-ws "$S6_IN" in-session
-assert_allow_write "$S6_IN" "$REPO/plugins/foo.txt" "in-session: write repo path allow"
+assert_allow_write "$S6_IN" "$REPO/packages/foo.txt" "in-session: write repo path allow"
 assert_allow_write "$S6_IN" "$TMPROOT/mode-in-session-ws/sdd/ledger.md" "in-session: write cdd_root ledger allow"
 assert_allow_cmd "$S6_IN" "git status" "in-session: read-only git allow"
-assert_deny_cmd "$S6_IN" "rm -rf $REPO/plugins" "in-session: non-git shell still deny"
+assert_deny_cmd "$S6_IN" "rm -rf $REPO/packages" "in-session: non-git shell still deny"
 
 # subagent pending → Write to any repo path allow
 S6_SUB="$(session_key mode-subagent)"
 setup_scenario active mode-subagent-ws "$S6_SUB" subagent
-assert_allow_write "$S6_SUB" "$REPO/plugins/foo.txt" "subagent: write repo path allow"
+assert_allow_write "$S6_SUB" "$REPO/packages/foo.txt" "subagent: write repo path allow"
 
 # cli pending → workspace-outside repo path deny, workspace allow (strict)
 S6_CLI="$(session_key mode-cli)"
 setup_scenario active mode-cli-ws "$S6_CLI" cli
-assert_deny_write "$S6_CLI" "$REPO/plugins/foo.txt" "cli: write repo path deny"
+assert_deny_write "$S6_CLI" "$REPO/packages/foo.txt" "cli: write repo path deny"
 assert_allow_write "$S6_CLI" "$TMPROOT/mode-cli-ws/sdd/active-ws/progress.md" "cli: write active-ws allow"
 
 # no mode field pending → allow (fail-open, spec §E)
 S6_NOMODE="$(session_key mode-none)"
 setup_scenario active mode-none-ws "$S6_NOMODE" ""
-assert_allow_write "$S6_NOMODE" "$REPO/plugins/foo.txt" "no-mode: write repo path allow (fail-open)"
+assert_allow_write "$S6_NOMODE" "$REPO/packages/foo.txt" "no-mode: write repo path allow (fail-open)"
 
 # no pending → allow (fail-open)
 S6_NOPENDING="$(session_key mode-no-pending)"
-assert_allow_write "$S6_NOPENDING" "$REPO/plugins/foo.txt" "no-pending: write repo path allow (fail-open)"
+assert_allow_write "$S6_NOPENDING" "$REPO/packages/foo.txt" "no-pending: write repo path allow (fail-open)"
 
 echo "OK — cdd-gate-allow-deny-smoke ($ASSERT_COUNT assertions)"

@@ -31,7 +31,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 
 DEFAULT_SKILLS = [
-    ("engineering/skills", "semantic"),
+    ("packages/engineering/skills", "semantic"),
 ]
 
 # --- semantic mode (engineering) ---

@@ -19,7 +19,7 @@ setup_scenario active active-ws "$KEY"
 FIX="$SCEN_DEST"
 WS="$FIX/sdd/active-ws"
 
-deny_orch=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"path\":\"$REPO/plugins/foo.txt\",\"contents\":\"x\"}}" | "$GATE")
+deny_orch=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"path\":\"$REPO/packages/foo.txt\",\"contents\":\"x\"}}" | "$GATE")
 echo "$deny_orch" | jq -e '.permission == "deny"' >/dev/null
 allow_git=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"git -C $REPO rev-parse HEAD\"}}" | "$GATE")
 echo "$allow_git" | jq -e '.permission == "allow"' >/dev/null
@@ -28,7 +28,7 @@ echo "$deny_scan" | jq -e '.permission == "deny"' >/dev/null
 
 # AC#4 TASK_ACTIVE — bind workspace（active fixture 已含真实 SHA brief，无 APPROVED handoff）
 "$ACT" bind "$KEY" "$FIX" "dogfood-plan.md" "$WS"
-deny_active=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"path\":\"$REPO/plugins/foo.txt\",\"contents\":\"x\"}}" | "$GATE")
+deny_active=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"path\":\"$REPO/packages/foo.txt\",\"contents\":\"x\"}}" | "$GATE")
 echo "$deny_active" | jq -e '.permission == "deny"' >/dev/null
 allow_ws=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Write\",\"tool_input\":{\"path\":\"$WS/progress.md\",\"contents\":\"# ledger\"}}" | "$GATE")
 echo "$allow_ws" | jq -e '.permission == "allow"' >/dev/null
@@ -36,7 +36,7 @@ echo "$allow_ws" | jq -e '.permission == "allow"' >/dev/null
 # AC#5 Bash allowlist during TASK_ACTIVE
 allow_h6=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"$OS_ENG/bin/cdd-run.sh --harness cursor-agent --task 1 --mode implement --plan foo.md\"}}" | "$GATE")
 echo "$allow_h6" | jq -e '.permission == "allow"' >/dev/null
-deny_bash=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"rm -rf $REPO/plugins\"}}" | "$GATE")
+deny_bash=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"rm -rf $REPO/packages\"}}" | "$GATE")
 echo "$deny_bash" | jq -e '.permission == "deny"' >/dev/null
 
 # fail-open — no pending

@@ -39,12 +39,13 @@ jobs:
         id: changesets
         with:
           version: node scripts/version-packages.mjs
-          publish: pnpm exec changeset tag
+          publish: pnpm exec changeset publish
           createGithubReleases: false
           commit: "chore: release plugins"
           title: "chore: release plugins"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release-plugin:
     needs: release

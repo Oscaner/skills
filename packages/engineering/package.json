@@ -1,7 +1,7 @@
 {
   "name": "@oscaner-skills/engineering",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
   "author": {
     "name": "Oscaner Miao",

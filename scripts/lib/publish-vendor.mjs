@@ -38,8 +38,21 @@ import {
 } from "./submodule-tags.mjs";
 import { piPackageKey } from "./emit/manifests.mjs";
 
-/** Vendors republished by publish-vendor (stable order). */
-export const VENDORS = ["mattpocock-skills", "impeccable", "superpowers"];
+/**
+ * Discover the vendored plugin set from the `vendors/` directory, sorted.
+ * cwd-independent — the caller passes the repo root. A vendor is any
+ * subdirectory (submodule checkout); non-directory entries (e.g. `.DS_Store`)
+ * are ignored. A dir present here but missing an `ASSEMBLY_TEMPLATE` entry
+ * fails later via `assemblyTemplate` with a clear error, never a bare
+ * TypeError.
+ * @param {string} root repo root
+ */
+export function listVendors(root) {
+  return readdirSync(join(root, "vendors"), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .sort();
+}
 
 /**
  * Assembly template per vendor — single source of truth for the assembly
@@ -51,6 +64,25 @@ export const ASSEMBLY_TEMPLATE = {
   superpowers: { contentRoot: "." },
   impeccable: { contentRoot: "plugin" },
 };
+
+/**
+ * Assembly template for a vendor, with a descriptive guard: a `vendors/` dir
+ * exists (listVendors derived it) but the assembly owner has no template entry
+ * for it — throw a clear error instead of a bare TypeError at the first
+ * `ASSEMBLY_TEMPLATE[name]` dereference.
+ * @param {string} name vendor name
+ */
+export function assemblyTemplate(name) {
+  const tpl = ASSEMBLY_TEMPLATE[name];
+  if (!tpl) {
+    throw new Error(
+      `${name}: no ASSEMBLY_TEMPLATE entry in scripts/lib/publish-vendor.mjs — ` +
+        "add the vendor's contentRoot to assemble it (and SUBMODULE_PATHS/TAG_PATTERNS " +
+        "in scripts/lib/submodule-tags.mjs)",
+    );
+  }
+  return tpl;
+}
 
 /**
  * Resolve the assembled package version for a vendor with a single priority,
@@ -65,8 +97,8 @@ export const ASSEMBLY_TEMPLATE = {
  * @param {string} root repo root
  */
 export function resolveVendorVersion(name, root) {
+  const { contentRoot } = assemblyTemplate(name);
   const submodulePath = join(root, SUBMODULE_PATHS[name]);
-  const { contentRoot } = ASSEMBLY_TEMPLATE[name];
   const manifestPath = join(
     submodulePath,
     contentRoot,
@@ -102,8 +134,8 @@ export function resolveVendorVersion(name, root) {
  * @param {string} root repo root
  */
 export function assemblePackageJson(name, root) {
+  const { contentRoot } = assemblyTemplate(name);
   const submodulePath = join(root, SUBMODULE_PATHS[name]);
-  const { contentRoot } = ASSEMBLY_TEMPLATE[name];
   const read = (rel) => {
     const p = join(submodulePath, rel);
     return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : {};
@@ -201,6 +233,7 @@ export function assertLicensePresent(name, root) {
  * @param {string} stageRoot parent dir for the staged package
  */
 export function stageVendor(name, root, stageRoot) {
+  assemblyTemplate(name);
   const submodulePath = join(root, SUBMODULE_PATHS[name]);
   const dest = join(stageRoot, name);
   rmSync(dest, { recursive: true, force: true });
@@ -221,6 +254,7 @@ export function stageVendor(name, root, stageRoot) {
  * @param {{ dryRun?: boolean, stageRoot: string }} opts
  */
 export function publishVendor(name, root, { dryRun = false, stageRoot }) {
+  assemblyTemplate(name);
   assertSubmoduleCheckedOut(name, root);
   assertLicensePresent(name, root);
   const dest = stageVendor(name, root, stageRoot);
@@ -244,7 +278,7 @@ export function publishAll(root, { dryRun = false } = {}) {
   const stageRoot = defaultStageRoot(root);
   rmSync(stageRoot, { recursive: true, force: true });
   mkdirSync(stageRoot, { recursive: true });
-  for (const name of VENDORS) {
+  for (const name of listVendors(root)) {
     publishVendor(name, root, { dryRun, stageRoot });
   }
   return stageRoot;

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { VENDORS, resolveVendorVersion } from "./publish-vendor.mjs";
+import { listVendors, resolveVendorVersion } from "./publish-vendor.mjs";
 
 const GENERATED = "scripts/emit.mjs — do not edit";
 
@@ -18,8 +18,9 @@ export function readSource(root) {
 export function resolveVersion(root, plugin) {
   // Vendors: the shared resolver (plugin.json first, release-tag fallback) is
   // the single priority, so the marketplace declaration always matches what
-  // publish-vendor will publish.
-  if (VENDORS.includes(plugin.name)) {
+  // publish-vendor will publish. The vendor set is derived from the vendors/
+  // dir so a newly added submodule is recognized without a constant update.
+  if (listVendors(root).includes(plugin.name)) {
     const effectiveVersion = resolveVendorVersion(plugin.name, root);
     if (plugin.version !== undefined && plugin.version !== effectiveVersion) {
       throw new Error(

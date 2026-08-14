@@ -20,6 +20,8 @@ import {
   assertSubmoduleCheckedOut,
   assertLicensePresent,
   stageVendor,
+  listVendors,
+  assemblyTemplate,
 } from "./publish-vendor.mjs";
 
 let dir;
@@ -154,6 +156,58 @@ test("resolveVendorVersion — impeccable without plugin.json version throws", (
   mkdirSync(p, { recursive: true });
   writeFileSync(join(p, "plugin.json"), JSON.stringify({ name: "impeccable" }));
   assert.throws(() => resolveVendorVersion("impeccable", root), /version/);
+});
+
+// ---------------------------------------------------------------------------
+// listVendors — vendored plugin set derived from the vendors/ dir
+// ---------------------------------------------------------------------------
+
+test("listVendors returns sorted vendor dir names from vendors/", () => {
+  const root = makeRoot();
+  mkdirSync(join(root, "vendors", "superpowers"), { recursive: true });
+  mkdirSync(join(root, "vendors", "impeccable"), { recursive: true });
+  mkdirSync(join(root, "vendors", "mattpocock-skills"), { recursive: true });
+  assert.deepEqual(listVendors(root), [
+    "impeccable",
+    "mattpocock-skills",
+    "superpowers",
+  ]);
+});
+
+test("listVendors ignores non-directory entries in vendors/", () => {
+  const root = makeRoot();
+  mkdirSync(join(root, "vendors"), { recursive: true });
+  writeFileSync(join(root, "vendors", ".DS_Store"), "");
+  mkdirSync(join(root, "vendors", "superpowers"), { recursive: true });
+  assert.deepEqual(listVendors(root), ["superpowers"]);
+});
+
+// ---------------------------------------------------------------------------
+// assemblyTemplate — ASSEMBLY_TEMPLATE guard (clear error, never a bare TypeError)
+// ---------------------------------------------------------------------------
+
+test("assemblyTemplate returns the template entry for a known vendor", () => {
+  assert.deepEqual(assemblyTemplate("impeccable"), { contentRoot: "plugin" });
+  assert.deepEqual(assemblyTemplate("superpowers"), { contentRoot: "." });
+});
+
+test("assemblyTemplate throws a clear error for a vendor without a template", () => {
+  const root = makeRoot();
+  mkdirSync(join(root, "vendors", "mystery"), { recursive: true });
+  assert.deepEqual(listVendors(root), ["mystery"]);
+  assert.throws(
+    () => assemblyTemplate("mystery"),
+    /no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s,
+  );
+});
+
+test("resolveVendorVersion surfaces the template guard for an unknown vendor", () => {
+  const root = makeRoot();
+  mkdirSync(join(root, "vendors", "mystery"), { recursive: true });
+  assert.throws(
+    () => resolveVendorVersion("mystery", root),
+    /no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s,
+  );
 });
 
 // ---------------------------------------------------------------------------

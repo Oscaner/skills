@@ -21,7 +21,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, posix } from "node:path";
 import { SUBMODULE_PATHS } from "../submodule-tags.mjs";
 import {
-  ASSEMBLY_TEMPLATE,
+  assemblyTemplate,
   resolveVendorVersion,
 } from "../publish-vendor.mjs";
 import { deriveFirstPartyNames } from "./manifests.mjs";
@@ -121,11 +121,12 @@ function firstDefined(...vals) {
  */
 function deriveVendor(root, name) {
   const desc = VENDOR_PLUGINS[name];
+  // Guard first: a vendor dir present in vendors/ but missing an assembly
+  // template must fail with a clear error (never a bare TypeError on the
+  // posix.join dereference below).
+  const { contentRoot: templateContentRoot } = assemblyTemplate(name);
   const submodulePath = SUBMODULE_PATHS[name];
-  const contentRoot = posix.join(
-    submodulePath,
-    ASSEMBLY_TEMPLATE[name].contentRoot,
-  );
+  const contentRoot = posix.join(submodulePath, templateContentRoot);
   const readVendorJson = (rel) =>
     existsSync(join(root, rel))
       ? JSON.parse(readFileSync(join(root, rel), "utf8"))

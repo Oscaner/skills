@@ -125,17 +125,10 @@ if (osengCS.length > 0) {
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
-  // Sync engineering version to the SOT locations: marketplace/source.json
-  // and the os-init self-check stamp. The per-harness manifests (committed emit
-  // products) are re-stamped from package.json by the emit that
-  // sync-overrides-versions.mjs runs below (transitively via `pnpm run emit`).
-  const sourcePath = "marketplace/source.json";
-  const source = readJson(sourcePath);
-  const entry = source.plugins.find((p) => p.name === "engineering");
-  if (!entry) throw new Error("engineering not in marketplace/source.json");
-  entry.version = osengNext;
-  writeJson(sourcePath, source);
-
+  // Sync engineering version to the os-init self-check stamp (the only SOT
+  // outside package.json). marketplace/source.json and the per-harness manifests
+  // are derived emit products — the emit that sync-overrides-versions.mjs runs
+  // below re-derives them from package.json, so no direct source.json write.
   const initPath = "packages/engineering/skills/os-init/SKILL.md";
   const init = readFileSync(join(root, initPath), "utf8");
   const stamped = init.replace(

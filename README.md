@@ -30,7 +30,7 @@ Five plugins are registered in the marketplace. Two are **first-party** (edited 
 | **mattpocock-skills** | [vendors/mattpocock-skills/](vendors/mattpocock-skills/) | `@oscaner-skills/mattpocock-skills` | Vendored upstream submodule |
 | **impeccable** | [vendors/impeccable/](vendors/impeccable/) | `@oscaner-skills/impeccable` | Vendored upstream submodule |
 
-First-party metadata lives in each `package.json`'s `oscaner-plugin` field (**package-as-source**): `pnpm run emit` derives `marketplace/source.json` from `packages/` + `vendors/` and regenerates every per-harness manifest. Vendored plugins are described by assembly templates in [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs). Adding a new first-party plugin is automatic — see [Adding a new first-party plugin](#adding-a-new-first-party-plugin).
+First-party metadata lives in each `package.json`'s `oscaner-plugin` field (**package-as-source**): `pnpm run emit` derives `marketplace/source.json` from `packages/` + `vendors/` and regenerates every per-harness manifest. Vendored plugins are assembled by [`scripts/lib/publish-vendor.mjs`](scripts/lib/publish-vendor.mjs) — the owner of `VENDORS` and the `ASSEMBLY_TEMPLATE` — plus the marketplace cursor blocks in [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) (`VENDOR_PLUGINS`). Adding a new first-party plugin is automatic — see [Adding a new first-party plugin](#adding-a-new-first-party-plugin).
 
 ### Hooks matrix
 
@@ -103,9 +103,9 @@ The marketplace is **package-as-source** — a new first-party plugin auto-wires
 2. `pnpm run emit` derives `marketplace/source.json` from it ([`deriveFirstPartyNames`](scripts/lib/emit/manifests.mjs) scans `packages/*` for the field) and regenerates the marketplace documents.
 3. `pnpm-workspace.yaml` (`packages/*`) picks it up automatically; a changeset naming it releases it as `@oscaner-skills/<name>` via [`scripts/version-packages.mjs`](scripts/version-packages.mjs).
 
-Per-harness hooks: add the harness → path mapping under `oscaner-plugin.hooks`; emit writes the hooks file. New harness manifests: extend `oscaner-plugin.harnesses`. The per-plugin harness emission in [`scripts/emit.mjs`](scripts/emit.mjs) is currently bespoke for `engineering` and `superpowers-overrides` — a new plugin type needs its emitter added there (or its manifests committed so the cursor path assertions pass).
+Per-harness hooks: add the harness → path mapping under `oscaner-plugin.hooks`; emit writes the hooks file. New harness manifests: extend `oscaner-plugin.harnesses` (declarative-only — emit hardcodes the per-plugin manifest set). The per-plugin harness emission in [`scripts/emit.mjs`](scripts/emit.mjs) is currently bespoke for `engineering` and `superpowers-overrides` — a new plugin type needs its emitter added there (or its manifests committed so the cursor path assertions pass).
 
-Vendoring an upstream plugin is the opposite path: add a `vendors/<name>` submodule + an assembly template in `VENDOR_PLUGINS` ([`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs)); [`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) assembles and republishes it.
+Vendoring an upstream plugin is the opposite path: add a `vendors/<name>` submodule and wire three places — `VENDORS` and `ASSEMBLY_TEMPLATE` in [`scripts/lib/publish-vendor.mjs`](scripts/lib/publish-vendor.mjs) (the assembly owner; `ASSEMBLY_TEMPLATE.contentRoot` is load-bearing — `deriveVendor`/`resolveVendorVersion` dereference it, so omitting it throws), and `VENDOR_PLUGINS` in [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) (the marketplace cursor block). [`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) assembles and republishes it.
 
 ## Maintainers
 
@@ -117,6 +117,6 @@ Release: [`.changeset/README.md`](.changeset/README.md). Contributor pattern: [`
 
 ## License
 
-First-party code (`superpowers-overrides`, marketplace tooling) is [MIT](LICENSE).
+First-party code (`superpowers-overrides`, `engineering`, marketplace tooling) is [MIT](LICENSE).
 
 Vendored plugins keep their own licenses — see each plugin directory (e.g. `vendors/mattpocock-skills/LICENSE`).

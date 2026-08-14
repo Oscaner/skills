@@ -55,7 +55,7 @@ Five plugins are registered in the marketplace (derived into [.claude-plugin/mar
 
 ## Marketplace → plugin → skill chain
 
-**Package-as-source:** the canonical registry [marketplace/source.json](marketplace/source.json) is **derived**, not hand-edited. `pnpm run emit` ([scripts/emit.mjs](scripts/emit.mjs)) rebuilds it from first-party `package.json#oscaner-plugin` fields (`packages/`) plus vendored assembly templates ([scripts/lib/emit/source.mjs](scripts/lib/emit/source.mjs)), then regenerates every harness-specific manifest:
+**Package-as-source:** the canonical registry [marketplace/source.json](marketplace/source.json) is **derived**, not hand-edited. `pnpm run emit` ([scripts/emit.mjs](scripts/emit.mjs)) rebuilds it from first-party `package.json#oscaner-plugin` fields (`packages/`) plus vendored assembly templates ([scripts/lib/publish-vendor.mjs](scripts/lib/publish-vendor.mjs)), then regenerates every harness-specific manifest:
 
 1. `packages/<plugin>/package.json` → `oscaner-plugin` field — first-party source of truth (name/version/contentRoot/harnesses/hooks).
 2. `vendors/<name>/` + assembly templates — vendored plugin descriptors (upstream submodules; version read from the vendored files).
@@ -163,7 +163,7 @@ Missing the skill dir or the manifest row → the skill is invisible to Claude C
 2. `pnpm run emit` derives `marketplace/source.json` from it and regenerates the marketplace documents; `pnpm-workspace.yaml` (`packages/*`) already picks it up.
 3. Add a changeset naming it → released as `@oscaner-skills/<name>` by [scripts/version-packages.mjs](scripts/version-packages.mjs).
 
-Per-harness hooks: map harness → path under `oscaner-plugin.hooks`; emit writes the hooks file. New harness manifests: extend `oscaner-plugin.harnesses`. Caveat: the per-plugin harness emission in `scripts/emit.mjs` is currently bespoke for `engineering` and `superpowers-overrides` — a new plugin type needs an emitter added there (or committed manifests that satisfy the cursor path assertions). Vendoring an upstream plugin is the opposite path (`vendors/<name>` submodule + `VENDOR_PLUGINS` template + `scripts/publish-vendor.mjs`).
+Per-harness hooks: map harness → path under `oscaner-plugin.hooks`; emit writes the hooks file. New harness manifests: extend `oscaner-plugin.harnesses` (declarative-only — emit hardcodes the per-plugin manifest set). Caveat: the per-plugin harness emission in `scripts/emit.mjs` is currently bespoke for `engineering` and `superpowers-overrides` — a new plugin type needs an emitter added there (or committed manifests that satisfy the cursor path assertions). Vendoring an upstream plugin is the opposite path (`vendors/<name>` submodule + `VENDORS`/`ASSEMBLY_TEMPLATE` in `scripts/lib/publish-vendor.mjs` + `VENDOR_PLUGINS` in `scripts/lib/emit/source.mjs`).
 
 ## Verifying a change didn't break the marketplace
 

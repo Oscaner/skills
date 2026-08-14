@@ -53,8 +53,6 @@ function prependChangelog(version, line) {
  */
 function applyBump(bumpName, result, newTag) {
   if (bumpName === "superpowers") {
-    const sourcePath = "marketplace/source.json";
-    const source = readJson(sourcePath);
     const oldVer = result.oldSuperpowersVer;
     checkoutTag(newTag);
     const newVer = readJson("vendors/superpowers/.claude-plugin/plugin.json").version;
@@ -63,9 +61,9 @@ function applyBump(bumpName, result, newTag) {
       const currentOverrides = readJson("packages/superpowers-overrides/package.json")
         .version;
       const overridesVer = computeNextVersion(currentOverrides, newVer);
-      source.plugins.find((p) => p.name === "superpowers").version = newVer;
-      writeFileSync(join(root, sourcePath), JSON.stringify(source, null, 2) + "\n");
-      result.files.push(sourcePath);
+      // marketplace/source.json is a derived emit product — the
+      // sync-overrides-versions.mjs run below re-derives it via `pnpm run emit`
+      // from package.json, so no direct source.json write.
       const pkgPath = "packages/superpowers-overrides/package.json";
       const pkg = readJson(pkgPath);
       pkg.version = overridesVer;
@@ -91,13 +89,9 @@ function applyBump(bumpName, result, newTag) {
   }
 
   if (bumpName === "impeccable") {
-    const sourcePath = "marketplace/source.json";
-    const source = readJson(sourcePath);
-    const ver = readJson("vendors/impeccable/plugin/.claude-plugin/plugin.json")
-      .version;
-    source.plugins.find((p) => p.name === "impeccable").version = ver;
-    writeFileSync(join(root, sourcePath), JSON.stringify(source, null, 2) + "\n");
-    result.files.push(sourcePath);
+    // marketplace/source.json is a derived emit product — the emit below
+    // re-derives the impeccable version from the vendored plugin.json, so no
+    // direct source.json write.
     execSync("pnpm run emit", { stdio: "inherit", cwd: root });
   }
 }

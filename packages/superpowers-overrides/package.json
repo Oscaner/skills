@@ -29,6 +29,7 @@
       "cursor",
       "codex"
     ],
+    "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set",
     "hooks": {
       "claude": "./hooks/hooks.json",
       "cursor": "./hooks/hooks-cursor.json"

@@ -30,7 +30,7 @@
 | **mattpocock-skills** | [vendors/mattpocock-skills/](vendors/mattpocock-skills/) | `@oscaner-skills/mattpocock-skills` | vendored 上游 submodule |
 | **impeccable** | [vendors/impeccable/](vendors/impeccable/) | `@oscaner-skills/impeccable` | vendored 上游 submodule |
 
-first-party 的元数据在各自 `package.json` 的 `oscaner-plugin` 字段里（**包即源**）：`pnpm run emit` 从 `packages/` + `vendors/` 派生 `marketplace/source.json` 并重新生成所有 per-harness manifest。vendored 插件由 [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) 里的装配模板描述。新增一个 first-party 插件是全自动的——见 [新增 first-party 插件](#新增-first-party-插件)。
+first-party 的元数据在各自 `package.json` 的 `oscaner-plugin` 字段里（**包即源**）：`pnpm run emit` 从 `packages/` + `vendors/` 派生 `marketplace/source.json` 并重新生成所有 per-harness manifest。vendored 插件由 [`scripts/lib/publish-vendor.mjs`](scripts/lib/publish-vendor.mjs) 装配——它是 `VENDORS` 与 `ASSEMBLY_TEMPLATE` 的 owner——marketplace cursor 块在 [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) 的 `VENDOR_PLUGINS`。新增一个 first-party 插件是全自动的——见 [新增 first-party 插件](#新增-first-party-插件)。
 
 ### hooks 矩阵
 
@@ -103,9 +103,9 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 2. `pnpm run emit` 从它派生 `marketplace/source.json`（[`deriveFirstPartyNames`](scripts/lib/emit/manifests.mjs) 扫描 `packages/*` 找该字段）并重新生成市场文档。
 3. `pnpm-workspace.yaml`（`packages/*`）自动纳入；一个点名它的 changeset 就会通过 [`scripts/version-packages.mjs`](scripts/version-packages.mjs) 把它作为 `@oscaner-skills/<name>` 发布。
 
-per-harness hooks：在 `oscaner-plugin.hooks` 里加 harness → 路径映射，emit 就会写出该 hooks 文件。新的 harness manifest：扩展 `oscaner-plugin.harnesses`。[`scripts/emit.mjs`](scripts/emit.mjs) 里 per-plugin 的 harness 发射目前是针对 `engineering` 和 `superpowers-overrides` 定制的——新插件类型需要在其中加 emitter（或提交好它的 manifest 以通过 cursor 路径断言）。
+per-harness hooks：在 `oscaner-plugin.hooks` 里加 harness → 路径映射，emit 就会写出该 hooks 文件。新的 harness manifest：扩展 `oscaner-plugin.harnesses`（declarative-only——emit 硬编码 per-plugin manifest 集）。[`scripts/emit.mjs`](scripts/emit.mjs) 里 per-plugin 的 harness 发射目前是针对 `engineering` 和 `superpowers-overrides` 定制的——新插件类型需要在其中加 emitter（或提交好它的 manifest 以通过 cursor 路径断言）。
 
-vendoring 上游插件是另一条路：加一个 `vendors/<name>` submodule + [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) 里的 `VENDOR_PLUGINS` 装配模板；[`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) 负责装配并重发。
+vendoring 上游插件是另一条路：加一个 `vendors/<name>` submodule，并改三处——[`scripts/lib/publish-vendor.mjs`](scripts/lib/publish-vendor.mjs) 里的 `VENDORS` 与 `ASSEMBLY_TEMPLATE`（装配 owner；`ASSEMBLY_TEMPLATE.contentRoot` 是 load-bearing——`deriveVendor`/`resolveVendorVersion` 会解引用它，漏了会抛错），以及 [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) 里的 `VENDOR_PLUGINS`（marketplace cursor 块）；[`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) 负责装配并重发。
 
 ## 维护者
 
@@ -115,6 +115,6 @@ vendoring 上游插件是另一条路：加一个 `vendors/<name>` submodule + [
 
 ## 许可
 
-本仓库 first-party 代码（`superpowers-overrides`、marketplace 工具链）采用 [MIT](LICENSE)。
+本仓库 first-party 代码（`superpowers-overrides`、`engineering`、marketplace 工具链）采用 [MIT](LICENSE)。
 
 Vendored 插件保留各自许可——见各插件目录（如 `vendors/mattpocock-skills/LICENSE`）。

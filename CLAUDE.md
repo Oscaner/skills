@@ -89,7 +89,7 @@ Hooks ship inside each plugin and activate only when the plugin is installed via
 
 | Plugin | Harness | Hooks file | Handlers |
 |--------|---------|------------|----------|
-| superpowers-overrides | Claude Code | `packages/superpowers-overrides/hooks/hooks.json` | `UserPromptExpansion` (3 matchers: `^superpowers:`, bare `/<slug>`, `^/os-<slug>`) → `bin/override-prompt-expansion.sh` |
+| superpowers-overrides | Claude Code | `packages/superpowers-overrides/hooks/hooks.json` | `UserPromptExpansion` (2 matchers: `^superpowers:`, bare `/<slug>` combined regex) → `bin/override-prompt-expansion.sh` |
 | superpowers-overrides | Cursor | `packages/superpowers-overrides/hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/override-cursor-detect.sh`; `preToolUse` → `bin/override-cursor-enforce.sh` |
 | engineering | Claude Code | `packages/engineering/hooks/hooks.json` | `PreToolUse` (`Write`/`Edit`, `Bash`) → `bin/override-claude-cdd-gate.sh` |
 | engineering | Cursor | `packages/engineering/hooks/hooks-cursor.json` | `preToolUse` → `bin/override-cursor-cdd-gate.sh` |

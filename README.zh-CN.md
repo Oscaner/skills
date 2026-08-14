@@ -38,7 +38,7 @@ hooks 随插件一起发布，只在插件通过 Claude Code / Cursor marketplac
 
 | 插件 | harness | hooks 文件 | 处理器 |
 |--------|---------|------------|----------|
-| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion`（3 个 matcher）→ `bin/override-prompt-expansion.sh` |
+| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion`（2 个 matcher：`^superpowers:` + bare `/<slug>` 组合正则）→ `bin/override-prompt-expansion.sh` |
 | superpowers-overrides | Cursor | `hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/override-cursor-detect.sh`；`preToolUse` → `bin/override-cursor-enforce.sh` |
 | engineering | Claude Code | `hooks/hooks.json` | `PreToolUse`（`Write`/`Edit`、`Bash`）→ `bin/override-claude-cdd-gate.sh` |
 | engineering | Cursor | `hooks/hooks-cursor.json` | `preToolUse` → `bin/override-cursor-cdd-gate.sh` |

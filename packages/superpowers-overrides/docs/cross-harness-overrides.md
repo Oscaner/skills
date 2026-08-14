@@ -81,15 +81,16 @@ Claude Code: `engineering/hooks/hooks.json` adds `PreToolUse` matchers (`Write|E
 
 CLI env/exit/harness tables live in [`engineering/docs/cdd-reference.md`](../../engineering/docs/cdd-reference.md) (transition copy in `docs/sdd-h6-reference.md`). Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
 
-### Claude Code — triple matcher + expansion
+### Claude Code — two UserPromptExpansion matchers + expansion
 
-**File:** `hooks/hooks.json` — three `UserPromptExpansion` matchers (manifest-generated):
+**File:** `hooks/hooks.json` — two `UserPromptExpansion` matchers (manifest-generated):
 
 1. `^superpowers:` — prefixed upstream slash commands
-2. Bare `/<upstream-slug>` — e.g. `/brainstorming`
-3. `^/os-<upstream-slug>` — e.g. `/os-brainstorming` (engineering targets)
+2. Combined bare-`/<upstream-slug>` regex — e.g. `/brainstorming` (one matcher covering every upstream slug)
 
-All invoke `bin/override-prompt-expansion.sh`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(<target-name>)` first call (e.g. `Skill(engineering:os-brainstorming)`).
+Both invoke `bin/override-prompt-expansion.sh`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(<target-name>)` first call (e.g. `Skill(engineering:os-brainstorming)`).
+
+`^/os-<upstream-slug>` (engineering targets) is not hook-intercepted — it is routed by the project `CLAUDE.md` self-check (`<command-name>` scan + trigger table from `os-init spor`).
 
 Project `CLAUDE.md` self-check (from `os-init spor`) is fallback when hooks are unavailable.
 

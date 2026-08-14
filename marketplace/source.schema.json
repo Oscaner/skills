@@ -84,11 +84,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "claude": { "type": "string", "minLength": 1 },
-        "cursor": { "type": "string", "minLength": 1 },
-        "codex": { "type": "string", "minLength": 1 },
-        "kimi": { "type": "string", "minLength": 1 },
-        "gemini": { "type": "string", "minLength": 1 }
+        "claude": { "type": "string", "minLength": 1, "pattern": "^\\./[A-Za-z0-9_][A-Za-z0-9_./-]*$" },
+        "cursor": { "type": "string", "minLength": 1, "pattern": "^\\./[A-Za-z0-9_][A-Za-z0-9_./-]*$" }
       }
     },
     "plugin": {

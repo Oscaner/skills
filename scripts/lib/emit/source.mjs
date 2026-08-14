@@ -9,14 +9,21 @@
  *
  * Vendored plugins have no in-repo oscaner-plugin package.json: their
  * name/version/contentRoot/cursor come from the assembly-template constants in
- * this module (T5 publish-vendor.mjs owns the same template once it lands),
- * merged with whatever the vendored package.json / .claude-plugin/plugin.json
- * already carry.
+ * publish-vendor.mjs (`ASSEMBLY_TEMPLATE`, the single owner — repo paths are
+ * derived here by prefixing `vendors/<name>`), merged with whatever the
+ * vendored package.json / .claude-plugin/plugin.json already carry. Versions
+ * resolve through the shared `resolveVendorVersion` (plugin.json first,
+ * release-tag fallback) so the marketplace declaration always matches what
+ * publish-vendor will publish.
  */
 
 import { readFileSync, existsSync } from "node:fs";
 import { join, posix } from "node:path";
 import { SUBMODULE_PATHS } from "../submodule-tags.mjs";
+import {
+  ASSEMBLY_TEMPLATE,
+  resolveVendorVersion,
+} from "../publish-vendor.mjs";
 import { deriveFirstPartyNames } from "./manifests.mjs";
 
 /** Top-level source.json fields — emit constants (never hand-edited). */
@@ -31,28 +38,26 @@ export const SOURCE_TOP = {
 };
 
 /**
- * Vendored plugin descriptors — the assembly-template fields for plugins that
- * live as upstream submodules (no in-repo oscaner-plugin package.json).
- * contentRoot is repo-relative; cursor is the marketplace cursor block
- * (wrapper for mattpocock-skills/impeccable, plugin-root for superpowers).
+ * Vendored plugin descriptors — the marketplace-specific fields for plugins
+ * that live as upstream submodules (no in-repo oscaner-plugin package.json).
+ * contentRoot is derived from the assembly template (see deriveVendor), not
+ * duplicated here; `cursor` is the marketplace cursor block (wrapper for
+ * mattpocock-skills/impeccable, plugin-root for superpowers).
  */
 export const VENDOR_PLUGINS = {
   "mattpocock-skills": {
-    contentRoot: "vendors/mattpocock-skills",
     cursor: {
       displayName: "Matt Pocock Skills",
       skills: "../../vendors/mattpocock-skills/skills",
     },
   },
   impeccable: {
-    contentRoot: "vendors/impeccable/plugin",
     cursor: {
       displayName: "Impeccable",
       skills: "../../vendors/impeccable/plugin/skills",
     },
   },
   superpowers: {
-    contentRoot: "vendors/superpowers",
     cursor: { emitMode: "plugin-root" },
   },
 };
@@ -109,22 +114,29 @@ function firstDefined(...vals) {
 /**
  * Derive a vendored plugin entry: assembly-template descriptor + vendored
  * files, with the `.claude-plugin/plugin.json` at contentRoot taking precedence
- * over the submodule-root package.json (impeccable's version SOT lives there).
+ * over the submodule-root package.json. contentRoot is the single assembly
+ * template prefixed with the repo submodule path; the version goes through the
+ * shared `resolveVendorVersion` so the marketplace declaration matches what
+ * publish-vendor will publish.
  */
 function deriveVendor(root, name) {
   const desc = VENDOR_PLUGINS[name];
   const submodulePath = SUBMODULE_PATHS[name];
+  const contentRoot = posix.join(
+    submodulePath,
+    ASSEMBLY_TEMPLATE[name].contentRoot,
+  );
   const readVendorJson = (rel) =>
     existsSync(join(root, rel))
       ? JSON.parse(readFileSync(join(root, rel), "utf8"))
       : {};
   const pkg = readVendorJson(join(submodulePath, "package.json"));
   const manifest = readVendorJson(
-    join(desc.contentRoot, ".claude-plugin", "plugin.json"),
+    join(contentRoot, ".claude-plugin", "plugin.json"),
   );
   const fallback = VENDOR_FALLBACK[name] ?? {};
 
-  const version = firstDefined(manifest.version, pkg.version);
+  const version = resolveVendorVersion(name, root);
   const description = firstDefined(manifest.description, pkg.description);
   const author = normalizeAuthor(
     firstDefined(manifest.author, pkg.author, fallback.author),
@@ -140,7 +152,7 @@ function deriveVendor(root, name) {
   );
   const license = firstDefined(manifest.license, pkg.license, fallback.license);
 
-  const plugin = { name, contentRoot: desc.contentRoot, cursor: desc.cursor };
+  const plugin = { name, contentRoot, cursor: desc.cursor };
   if (version !== undefined) plugin.version = version;
   if (description !== undefined) plugin.description = description;
   if (author !== undefined) plugin.author = author;

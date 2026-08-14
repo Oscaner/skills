@@ -147,13 +147,14 @@ test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () 
   assert.equal(m.hooks, "./hooks/cursor.json");
 });
 
-test("codexPluginManifest resolves hooks from plugin.hooks.codex, default {}", () => {
+test("codexPluginManifest always emits an empty hooks object (codex has no generated hooks file)", () => {
+  // a codex key in the hooks mapping is not a supported harness — the field is
+  // always {} regardless (harness set is claude/cursor only)
   const mapped = codexPluginManifest(
     { ...OS_ENG, hooks: { codex: "./hooks/codex.json" } },
     "0.1.0",
   );
-  assert.equal(mapped.hooks, "./hooks/codex.json");
-  // no mapping → empty hooks object (codex has no generated hooks file)
+  assert.deepEqual(mapped.hooks, {});
   assert.deepEqual(codexPluginManifest(OS_ENG, "0.1.0").hooks, {});
 });
 

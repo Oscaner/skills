@@ -129,7 +129,7 @@ The gate is fail-open until an active task resolves (spec 安全属性 / data-fl
 
 | Tool | Condition | Decision |
 |------|-----------|----------|
-| any | `jq` missing — `sdd_gate_decide` returns allow before any check | **allow** (fail-open) |
+| any | `jq` missing — `cdd_gate_decide` returns allow before any check | **allow** (fail-open) |
 | any | no pending file for the session | **allow** (fail-open) |
 | any | pending expired (>24h) → pending cleared | **allow** (fail-open) |
 | Write/Edit | path under `active_ws` | **allow** |

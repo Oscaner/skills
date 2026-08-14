@@ -7,12 +7,15 @@
  * scoped package.json (name/version/contentRoot/pi key, preserving the
  * upstream LICENSE), and runs `npm publish [--dry-run]`.
  *
- * Version source is per-vendor:
- *   - mattpocock-skills / superpowers → the semver from the `vX.Y.Z` release
- *     tag at the submodule HEAD (submodule-tags).
- *   - impeccable → `.claude-plugin/plugin.json` is the version SOT (its HEAD
- *     tags are ext-v / cli-v / skill-v prefixed — a plain v-tag lookup returns
- *     null, so the plugin.json truth is used instead).
+ * The version is resolved by `resolveVendorVersion` with one priority shared
+ * with the marketplace emit chain (source.mjs deriveVendor and marketplace-utils
+ * resolveVersion delegate here): the vendored `.claude-plugin/plugin.json`
+ * version at the assembly contentRoot first, then the `vX.Y.Z` release tag at
+ * the submodule HEAD.
+ *
+ * `ASSEMBLY_TEMPLATE` is the single owner of the per-vendor assembly
+ * `contentRoot` — source.mjs derives repo-relative paths from it rather than
+ * duplicating the template.
  */
 
 import { execSync } from "node:child_process";
@@ -39,8 +42,9 @@ import { piPackageKey } from "./emit/manifests.mjs";
 export const VENDORS = ["mattpocock-skills", "impeccable", "superpowers"];
 
 /**
- * Assembly template per vendor. `contentRoot` is relative to the assembled
- * package root (mirrors `VENDOR_PLUGINS` in emit/source.mjs).
+ * Assembly template per vendor — single source of truth for the assembly
+ * `contentRoot` (relative to the assembled package root). source.mjs imports
+ * this and prefixes the repo submodule path (`vendors/<name>`).
  */
 export const ASSEMBLY_TEMPLATE = {
   "mattpocock-skills": { contentRoot: "." },
@@ -48,45 +52,43 @@ export const ASSEMBLY_TEMPLATE = {
   impeccable: { contentRoot: "plugin" },
 };
 
-/** Where each vendor's package version comes from. */
-const VERSION_SOURCE = {
-  "mattpocock-skills": "submodule-tags",
-  superpowers: "submodule-tags",
-  impeccable: "plugin.json",
-};
-
 /**
- * Resolve the assembled package version for a vendor.
- * - submodule-tags: semver from the `vX.Y.Z` tag at submodule HEAD.
- * - plugin.json: the vendored `.claude-plugin/plugin.json` `version` field is
- *   the source of truth (impeccable's HEAD carries ext-v / cli-v / skill-v
- *   prefixed tags — a plain v-tag lookup returns null).
+ * Resolve the assembled package version for a vendor with a single priority,
+ * shared with the marketplace emit chain so a published npm version never
+ * disagrees with the marketplace declaration:
+ *   1. the vendored `.claude-plugin/plugin.json` `version` at the assembly
+ *      contentRoot (impeccable's SOT — its HEAD carries ext-v / cli-v /
+ *      skill-v prefixed tags, so a plain v-tag lookup would return null);
+ *   2. otherwise the semver from the `vX.Y.Z` release tag at the submodule
+ *      HEAD (mattpocock-skills / superpowers carry no plugin.json version).
  * @param {string} name vendor name
  * @param {string} root repo root
  */
 export function resolveVendorVersion(name, root) {
   const submodulePath = join(root, SUBMODULE_PATHS[name]);
-  if (VERSION_SOURCE[name] === "plugin.json") {
-    const manifestPath = join(
-      submodulePath,
-      ASSEMBLY_TEMPLATE[name].contentRoot,
-      ".claude-plugin",
-      "plugin.json",
-    );
+  const { contentRoot } = ASSEMBLY_TEMPLATE[name];
+  const manifestPath = join(
+    submodulePath,
+    contentRoot,
+    ".claude-plugin",
+    "plugin.json",
+  );
+  if (existsSync(manifestPath)) {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    if (!manifest.version) {
-      throw new Error(`${name}: no version in ${manifestPath}`);
-    }
-    return manifest.version;
+    if (manifest.version) return manifest.version;
   }
-  const version = semverFromNearestTag(submodulePath, TAG_PATTERNS[name]);
-  if (!version) {
-    throw new Error(
-      `${name}: no ${TAG_PATTERNS[name]} release tag on submodule HEAD ` +
-        `(${SUBMODULE_PATHS[name]})`,
-    );
+  // Release-tag fallback only makes sense for a checked-out submodule (a `.git`
+  // marker — dir for a normal checkout, file for a gitlinked submodule). A bare
+  // dir (no checkout) can't carry tags, so throw directly instead of running
+  // git and letting the execSync stderr leak.
+  if (existsSync(join(submodulePath, ".git"))) {
+    const version = semverFromNearestTag(submodulePath, TAG_PATTERNS[name]);
+    if (version) return version;
   }
-  return version;
+  throw new Error(
+    `${name}: no version in ${manifestPath} and no ${TAG_PATTERNS[name]} ` +
+      `release tag on submodule HEAD (${SUBMODULE_PATHS[name]})`,
+  );
 }
 
 /**

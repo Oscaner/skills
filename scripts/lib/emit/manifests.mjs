@@ -99,7 +99,9 @@ export function codexPluginManifest(plugin, version) {
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
   m.skills = "./skills/";
-  m.hooks = plugin.hooks?.codex ?? {};
+  // codex has no generated hooks file — the hooks field is always empty (the
+  // harness set is claude/cursor only; see the harnessHooks schema).
+  m.hooks = {};
   m.interface = codexInterface(plugin);
   return m;
 }
@@ -193,21 +195,36 @@ export function engineeringCursorHooks() {
 }
 
 /**
- * Per-harness engineering hooks content, dispatched by harness name so the
- * emit orchestrator can drive writes from the `oscaner-plugin.hooks` mapping.
- * Fail-fast on a harness with no generator (mapping would point at a file that
- * cannot be produced).
+ * Dispatch a per-harness hooks generator by harness name, fail-fast on a
+ * harness with no generator. Shared by the engineering and overrides hooks
+ * families so both enforce the same implemented harness set (claude/cursor) —
+ * the `oscaner-plugin.hooks` mapping must never point at a file no generator
+ * can produce.
+ * @param {string} harness
+ * @param {Record<string, () => object>} byHarness
+ * @param {string} label plugin family name for the error message
  */
-export function engineeringHooksFor(harness) {
-  const byHarness = {
-    claude: engineeringClaudeHooks,
-    cursor: engineeringCursorHooks,
-  };
+export function hooksFor(harness, byHarness, label) {
   const gen = byHarness[harness];
   if (!gen) {
-    throw new Error(`no engineering hooks generator for harness: ${harness}`);
+    throw new Error(`no ${label} hooks generator for harness: ${harness}`);
   }
   return gen();
+}
+
+/**
+ * Per-harness engineering hooks content, dispatched by harness name so the
+ * emit orchestrator can drive writes from the `oscaner-plugin.hooks` mapping.
+ */
+export function engineeringHooksFor(harness) {
+  return hooksFor(
+    harness,
+    {
+      claude: engineeringClaudeHooks,
+      cursor: engineeringCursorHooks,
+    },
+    "engineering",
+  );
 }
 
 function codexInterface(plugin) {

@@ -12,7 +12,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { generatedBanner } from "./manifests.mjs";
+import { generatedBanner, hooksFor } from "./manifests.mjs";
 
 /** Escape a slug the way Python `re.escape` does (hyphens included). */
 function pyEscape(s) {
@@ -169,19 +169,16 @@ export function cursorHooksJson() {
 /**
  * Per-harness overrides hooks content, dispatched by harness name so the emit
  * orchestrator can drive writes from the `oscaner-plugin.hooks` mapping.
- * Fail-fast on a harness with no generator (mapping would point at a file that
- * cannot be produced).
  */
 export function overridesHooksFor(harness, targets) {
-  const byHarness = {
-    claude: () => claudeHooksJson(targets),
-    cursor: () => cursorHooksJson(),
-  };
-  const gen = byHarness[harness];
-  if (!gen) {
-    throw new Error(`no overrides hooks generator for harness: ${harness}`);
-  }
-  return gen();
+  return hooksFor(
+    harness,
+    {
+      claude: () => claudeHooksJson(targets),
+      cursor: () => cursorHooksJson(),
+    },
+    "overrides",
+  );
 }
 
 function cursorDetectTargetRows(targets) {

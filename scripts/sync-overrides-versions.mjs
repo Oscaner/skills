@@ -24,23 +24,16 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { parseOverridesVersion } from "./lib/version-utils.mjs";
+import { resolveVendorVersion } from "./lib/publish-vendor.mjs";
 
 const root = process.cwd();
 const pkgPath = join(root, "packages/superpowers-overrides/package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 
-// The superpowers base is the vendored plugin.json version — deriveVendor and
-// resolveVersion both prefer it over the release tag, so the alignment target
-// is the same source the marketplace emit resolves against.
-const superpowersPath = join(
-  root,
-  "vendors/superpowers/.claude-plugin/plugin.json",
-);
-const superpowers = JSON.parse(readFileSync(superpowersPath, "utf8"));
-const base = superpowers.version;
-if (!base) {
-  throw new Error(`no version in ${superpowersPath}`);
-}
+// The superpowers base is the vendored plugin.json version — resolveVendorVersion
+// (shared with the marketplace emit chain) prefers plugin.json over the release
+// tag, so the alignment target is the same source the marketplace resolves against.
+const base = resolveVendorVersion("superpowers", root);
 
 const parsed = parseOverridesVersion(pkg.version);
 const next =

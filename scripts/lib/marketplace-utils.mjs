@@ -1,12 +1,9 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveVendorVersion } from "./publish-vendor.mjs";
+import { VENDORS, resolveVendorVersion } from "./publish-vendor.mjs";
 
 const GENERATED = "scripts/emit.mjs — do not edit";
-
-/** Vendors whose version resolves through the shared vendor resolver. */
-const VENDOR_PLUGIN_NAMES = ["mattpocock-skills", "impeccable", "superpowers"];
 
 /** @param {string} root */
 export function readSource(root) {
@@ -22,7 +19,7 @@ export function resolveVersion(root, plugin) {
   // Vendors: the shared resolver (plugin.json first, release-tag fallback) is
   // the single priority, so the marketplace declaration always matches what
   // publish-vendor will publish.
-  if (VENDOR_PLUGIN_NAMES.includes(plugin.name)) {
+  if (VENDORS.includes(plugin.name)) {
     const effectiveVersion = resolveVendorVersion(plugin.name, root);
     if (plugin.version !== undefined && plugin.version !== effectiveVersion) {
       throw new Error(

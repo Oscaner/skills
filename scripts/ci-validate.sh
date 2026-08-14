@@ -127,7 +127,7 @@ echo "== 6. marketplace validate =="
 node scripts/validate-marketplace.mjs
 
 echo "== 7. lib unit tests =="
-node --test scripts/lib/version-utils.test.mjs scripts/lib/emit/emit.test.mjs
+node --test scripts/lib/version-utils.test.mjs scripts/lib/emit/emit.test.mjs scripts/lib/publish-vendor.test.mjs
 
 echo "== 8–10. version sync =="
 node scripts/validate-version-sync.mjs

@@ -22,6 +22,7 @@ Override skills that reuse upstream skill names work in Claude Code but break in
 3. **Generators** — manifest-driven `scripts/emit.mjs` writes committed hook + self-check artifacts (`build/generated/*`, `bin/override-prompt-expansion.sh`).
 4. **engineering multi-harness emit** — the skills + engine plugin emits thin per-harness manifests (claude/cursor/codex/kimi/gemini/pi) all pointing at the canonical `./skills/` tree, plus a shared `.agents/skills/` copy (engineering + upstream superpowers) for codex/gemini/pi/qoder/opencode scanners. Modeled after impeccable's build.js + PROVIDERS pattern.
 5. **Enforcement** — harness-specific hooks + project self-check rules (see [Enforcement](#enforcement) below).
+6. **Package layout & hooks registration** — the router and engineering engine are first-party packages under `packages/` (`@oscaner-skills/superpowers-overrides`, `@oscaner-skills/engineering`), each with its metadata in `package.json#oscaner-plugin` (**package-as-source**). Upstream plugins (`superpowers`, `mattpocock-skills`, `impeccable`) are vendored submodules under `vendors/`, republished as `@oscaner-skills/<name>` by `scripts/publish-vendor.mjs`; their marketplace descriptors come from the assembly templates in `scripts/lib/emit/source.mjs`. Hooks are registered per harness via `oscaner-plugin.hooks` — the harness → path mapping is the single source of truth, and `scripts/emit.mjs` writes each hooks file at the declared path and references it from the generated per-harness manifest.
 
 No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
 
@@ -35,7 +36,7 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 
 ### Cursor — detect + enforce (plugin-bundled)
 
-**File:** `hooks/hooks-cursor.json` (declared in plugin-root `.cursor-plugin/plugin.json` → `"hooks": "./hooks/hooks-cursor.json"`).
+**File:** `hooks/hooks-cursor.json` (declared in `package.json#oscaner-plugin.hooks` — the SOT; emit writes the file at that path and references it from the plugin-root `.cursor-plugin/plugin.json` → `"hooks": "./hooks/hooks-cursor.json"`).
 
 | Hook | Handler | Role |
 |------|---------|------|

@@ -41,27 +41,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-This is a **Claude Code plugin marketplace** (not a runtime codebase). It packages personal skills as installable plugins consumed by Claude Code itself. Content is primarily Markdown + JSON discovered via the marketplace/plugin manifest chain. `superpowers-overrides` also has a small pnpm workspace (changesets + CI scripts) and a Cursor emit build step — see [Releasing](#releasing) and [Verifying](#verifying-a-change-didnt-break-the-marketplace).
+This is a **Claude Code plugin marketplace** (not a runtime codebase). It packages personal skills as installable plugins consumed by Claude Code itself. Content is primarily Markdown + JSON discovered via the marketplace/plugin manifest chain. First-party plugins under `packages/` form a small pnpm workspace (changesets + CI scripts + the unified `scripts/emit.mjs` build step) — see [Releasing](#releasing) and [Verifying](#verifying-a-change-didnt-break-the-marketplace).
 
 ## Plugins registered here
 
-Five plugins are declared in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json):
+Five plugins are registered in the marketplace (derived into [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) from `packages/` + `vendors/` — **package-as-source**):
 
-1. **`mattpocock-skills`** — vendored as a **git submodule** at [vendors/mattpocock-skills/](vendors/mattpocock-skills/) tracking `https://github.com/mattpocock/skills.git` (see [.gitmodules](.gitmodules)). Do **not** edit files under this directory in-tree; changes belong upstream. To update the pinned revision, run `git submodule update --remote mattpocock-skills` and commit the pointer bump with a `chore:` message. Fresh clones need `git submodule update --init` before Claude Code can resolve `mattpocock-skills:*` skill references (e.g. `grilling`, `tdd`, `to-tickets`) that the overrides delegate to.
-2. **`impeccable`** — vendored as a **git submodule** at [vendors/impeccable/](vendors/impeccable/) (frontend design skills).
-3. **`superpowers`** — vendored as a **git submodule** at [vendors/superpowers/](vendors/superpowers/) (upstream workflow skills; Read by the os-* orchestrators as baseline).
-4. **`superpowers-overrides`** — first-party, edited in-tree. **Trigger router** — no skill bodies; routes upstream triggers to engineering / mattpocock targets.
-5. **`engineering`** — first-party, edited in-tree. This is where new override skills (`os-*` / `cli-*`) go, plus the cdd engine and the CDD orchestrator gate.
+1. **`mattpocock-skills`** — vendored as a **git submodule** at [vendors/mattpocock-skills/](vendors/mattpocock-skills/) tracking `https://github.com/mattpocock/skills.git` (see [.gitmodules](.gitmodules)), republished as `@oscaner-skills/mattpocock-skills`. Do **not** edit files under this directory in-tree; changes belong upstream. To update the pinned revision, run `git submodule update --remote mattpocock-skills` and commit the pointer bump with a `chore:` message. Fresh clones need `git submodule update --init` before Claude Code can resolve `mattpocock-skills:*` skill references (e.g. `grilling`, `tdd`, `to-tickets`) that the overrides delegate to.
+2. **`impeccable`** — vendored as a **git submodule** at [vendors/impeccable/](vendors/impeccable/) (frontend design skills), republished as `@oscaner-skills/impeccable`.
+3. **`superpowers`** — vendored as a **git submodule** at [vendors/superpowers/](vendors/superpowers/) (upstream workflow skills; Read by the os-* orchestrators as baseline), republished as `@oscaner-skills/superpowers`.
+4. **`superpowers-overrides`** — first-party, edited in-tree at [packages/superpowers-overrides/](packages/superpowers-overrides/) (`@oscaner-skills/superpowers-overrides`). **Trigger router** — no skill bodies; routes upstream triggers to engineering / mattpocock targets.
+5. **`engineering`** — first-party, edited in-tree at [packages/engineering/](packages/engineering/) (`@oscaner-skills/engineering`). This is where new override skills (`os-*` / `cli-*`) go, plus the cdd engine and the CDD orchestrator gate.
 
 ## Marketplace → plugin → skill chain
 
-The canonical registry is [marketplace/source.json](marketplace/source.json). Emit generates harness-specific manifests:
+**Package-as-source:** the canonical registry [marketplace/source.json](marketplace/source.json) is **derived**, not hand-edited. `pnpm run emit` ([scripts/emit.mjs](scripts/emit.mjs)) rebuilds it from first-party `package.json#oscaner-plugin` fields (`packages/`) plus vendored assembly templates ([scripts/lib/emit/source.mjs](scripts/lib/emit/source.mjs)), then regenerates every harness-specific manifest:
 
-1. [marketplace/source.json](marketplace/source.json) — **only human-edited** plugin registry. After changes run `pnpm run emit && pnpm run validate`.
-2. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — generated Claude Code marketplace.
-3. [.cursor-plugin/marketplace.json](.cursor-plugin/marketplace.json) + [cursor-plugins/](cursor-plugins/) — Cursor Team Marketplace: **plugin-root** for `superpowers-overrides` and `superpowers` (manifest at plugin root); **wrapper** emit for mattpocock-skills and impeccable under `cursor-plugins/`. Hybrid rule: [cursor-plugins/README.md](cursor-plugins/README.md).
-4. `packages/<plugin>/.claude-plugin/plugin.json` — e.g. [packages/superpowers-overrides/.claude-plugin/plugin.json](packages/superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path.
-5. `packages/<plugin>/skills/<skill-name>/SKILL.md` — the skill itself.
+1. `packages/<plugin>/package.json` → `oscaner-plugin` field — first-party source of truth (name/version/contentRoot/harnesses/hooks).
+2. `vendors/<name>/` + assembly templates — vendored plugin descriptors (upstream submodules; version read from the vendored files).
+3. [marketplace/source.json](marketplace/source.json) — **derived** emit product (regenerated by `pnpm run emit`; do not hand-edit).
+4. [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) — generated Claude Code marketplace.
+5. [.cursor-plugin/marketplace.json](.cursor-plugin/marketplace.json) + [cursor-plugins/](cursor-plugins/) — Cursor Team Marketplace: **plugin-root** for `superpowers-overrides` and `superpowers` (manifest at plugin root); **wrapper** emit for mattpocock-skills and impeccable under `cursor-plugins/`. Hybrid rule: [cursor-plugins/README.md](cursor-plugins/README.md).
+6. `packages/<plugin>/.claude-plugin/plugin.json` — generated per-plugin Claude manifest, e.g. [packages/superpowers-overrides/.claude-plugin/plugin.json](packages/superpowers-overrides/.claude-plugin/plugin.json). Registers skills by relative directory path.
+7. `packages/<plugin>/skills/<skill-name>/SKILL.md` — the skill itself.
 
 If a skill's SKILL.md exists on disk but is not under the plugin's declared `skills/` tree, Claude Code will not find it. This is the most common breakage.
 
@@ -80,6 +82,19 @@ Route enforcement is coordinated by **three mechanisms**, not one:
 1. The router manifest + generated hooks — every upstream entry point is enumerated in `overrides.manifest.json` (single SOT); the emit generators derive hook matchers and self-check tables from it.
 2. **Plugin-bundled hooks** in `packages/superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `packages/superpowers-overrides/bin/override-prompt-expansion.sh` injects `additionalContext`, reinforcing the target as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
 3. **Project-level CLAUDE.md self-check** — written by `os-init spor`. Run `os-init spor` once per project (Claude Code: `/os-init spor`) to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
+
+### Hooks matrix
+
+Hooks ship inside each plugin and activate only when the plugin is installed via the Claude Code / Cursor marketplace. The harness → path mapping is declared in `package.json#oscaner-plugin.hooks` (the SOT); `pnpm run emit` writes each hooks file at the declared path and references it from the generated per-harness manifest.
+
+| Plugin | Harness | Hooks file | Handlers |
+|--------|---------|------------|----------|
+| superpowers-overrides | Claude Code | `packages/superpowers-overrides/hooks/hooks.json` | `UserPromptExpansion` (3 matchers: `^superpowers:`, bare `/<slug>`, `^/os-<slug>`) → `bin/override-prompt-expansion.sh` |
+| superpowers-overrides | Cursor | `packages/superpowers-overrides/hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/override-cursor-detect.sh`; `preToolUse` → `bin/override-cursor-enforce.sh` |
+| engineering | Claude Code | `packages/engineering/hooks/hooks.json` | `PreToolUse` (`Write`/`Edit`, `Bash`) → `bin/override-claude-cdd-gate.sh` |
+| engineering | Cursor | `packages/engineering/hooks/hooks-cursor.json` | `preToolUse` → `bin/override-cursor-cdd-gate.sh` |
+
+Detail (pending-state contract, fail-open, shell allowlist) → [cross-harness-overrides.md](packages/superpowers-overrides/docs/cross-harness-overrides.md).
 
 ## Cross-cutting docs
 
@@ -142,51 +157,73 @@ git submodule update --init
 
 Missing the skill dir or the manifest row → the skill is invisible to Claude Code or won't auto-trigger. Skipping `pnpm run emit` → hook and self-check drift.
 
+**Add a new first-party plugin** — the marketplace is **package-as-source**, so wiring is automatic:
+
+1. Create `packages/<name>/package.json` with the `oscaner-plugin` field (`contentRoot`, `harnesses`, optional `hooks`). `deriveFirstPartyNames` ([scripts/lib/emit/manifests.mjs](scripts/lib/emit/manifests.mjs)) discovers it by scanning `packages/*` for that field — no hand registration.
+2. `pnpm run emit` derives `marketplace/source.json` from it and regenerates the marketplace documents; `pnpm-workspace.yaml` (`packages/*`) already picks it up.
+3. Add a changeset naming it → released as `@oscaner-skills/<name>` by [scripts/version-packages.mjs](scripts/version-packages.mjs).
+
+Per-harness hooks: map harness → path under `oscaner-plugin.hooks`; emit writes the hooks file. New harness manifests: extend `oscaner-plugin.harnesses`. Caveat: the per-plugin harness emission in `scripts/emit.mjs` is currently bespoke for `engineering` and `superpowers-overrides` — a new plugin type needs an emitter added there (or committed manifests that satisfy the cursor path assertions). Vendoring an upstream plugin is the opposite path (`vendors/<name>` submodule + `VENDOR_PLUGINS` template + `scripts/publish-vendor.mjs`).
+
 ## Verifying a change didn't break the marketplace
 
 Since there is no test suite, "does the manifest chain still resolve" IS the test. Run `pnpm run validate` after any structural edit (skills, plugin.json, marketplace source, emit output).
 
-**1. `plugin.json` parses AND every entry maps to an existing directory:**
+**1. `plugin.json` parses AND every entry maps to an existing directory** (overrides is a trigger router — no skill bodies; engineering uses directory-form `skills`):
 ```bash
 cd /path/to/skills
 python3 -c '
 import json, os
-p = "packages/superpowers-overrides/.claude-plugin/plugin.json"
-d = json.load(open(p))
-skills = d["skills"]
-missing = [s for s in skills if not os.path.isdir(os.path.join("superpowers-overrides", s.lstrip("./")))]
-assert not missing, f"skills[] points to missing dirs: {missing}"
-print(f"OK — {len(skills)} skills, all resolve")
+
+def check(root, label):
+    d = json.load(open(os.path.join(root, ".claude-plugin/plugin.json")))
+    skills = d.get("skills")
+    if skills is None:
+        # trigger router — no skill bodies; skills/ must be empty or absent
+        sd = os.path.join(root, "skills")
+        n = 0
+        if os.path.isdir(sd):
+            n = sum(1 for x in os.listdir(sd) if os.path.isdir(os.path.join(sd, x)))
+        assert n == 0, f"{label}: expected 0 skills (trigger router), got {n}"
+        print(f"OK — {label}: trigger router (no skill bodies)")
+    elif isinstance(skills, str):
+        sd = os.path.join(root, skills.lstrip("./"))
+        assert os.path.isdir(sd), f"{label}: skills dir missing: {sd}"
+        n = sum(1 for x in os.listdir(sd) if os.path.isdir(os.path.join(sd, x)))
+        print(f"OK — {label}: {n} skills (directory {skills!r})")
+    else:
+        missing = [s for s in skills if not os.path.isdir(os.path.join(root, s.lstrip("./")))]
+        assert not missing, f"{label} skills[] -> missing dirs: {missing}"
+        print(f"OK — {label}: {len(skills)} skills, all resolve")
+
+check("packages/superpowers-overrides", "superpowers-overrides")
+check("packages/engineering", "engineering")
 '
 ```
-(Bind `skills` to a local first; Python 3.11 rejects `f"{d[\"skills\"]}"` with `SyntaxError: f-string expression part cannot include a backslash`.)
 
-**2. Every skill dir has a `SKILL.md`:**
+**2. Every skill dir has a `SKILL.md`** (engineering — the first-party skills plugin):
 ```bash
-for d in packages/superpowers-overrides/skills/*/; do
+for d in packages/engineering/skills/*/; do
   [ -f "$d/SKILL.md" ] || { echo "MISSING: $d/SKILL.md"; exit 1; }
-done && echo "OK — all skill dirs have SKILL.md"
+done && echo "OK — all engineering skill dirs have SKILL.md"
 ```
 
-**3. No skill on disk is missing from `plugin.json`** (the reverse breakage — file exists but manifest doesn't list it, so Claude Code won't find it):
+**3. No skill on disk is missing from `plugin.json`** (the reverse breakage — only applies to explicit-list manifests; a directory-form manifest *is* the declaration, so there is no orphan concept). None of the current plugins use the list form — `pnpm run validate` step 0/1 covers this via `scripts/emit.mjs --check`:
 ```bash
-python3 -c '
-import json, os
-d = json.load(open("packages/superpowers-overrides/.claude-plugin/plugin.json"))
-declared = {s.lstrip("./") for s in d["skills"]}
-on_disk  = {f"skills/{n}" for n in os.listdir("packages/superpowers-overrides/skills")}
-orphans  = on_disk - declared
-assert not orphans, f"skill dirs not in plugin.json skills[]: {orphans}"
-print("OK — no orphan skill dirs")
-'
+pnpm run emit:check
 ```
 
 All three pass → the marketplace still resolves.
 
-**4. Hooks and bin script exist and are executable** (run after adding or renaming hook handlers):
+**4. Hooks and bin script exist and are executable** (run after adding or renaming hook handlers — see the [hooks matrix](#hooks-matrix)):
 ```bash
-[ -f packages/superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
+[ -f packages/superpowers-overrides/hooks/hooks.json ] && echo "OK — overrides claude hooks"
+[ -f packages/superpowers-overrides/hooks/hooks-cursor.json ] && echo "OK — overrides cursor hooks"
 [ -x packages/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
+[ -f packages/engineering/hooks/hooks.json ] && echo "OK — engineering claude hooks"
+[ -f packages/engineering/hooks/hooks-cursor.json ] && echo "OK — engineering cursor hooks"
+[ -x packages/engineering/bin/override-claude-cdd-gate.sh ] && echo "OK — claude cdd-gate executable"
+[ -x packages/engineering/bin/override-cursor-cdd-gate.sh ] && echo "OK — cursor cdd-gate executable"
 ```
 
 **5. Unified emit validates:**
@@ -214,7 +251,7 @@ Two plugins are versioned from this repo: **`superpowers-overrides`** (superpowe
 
 **Release to production:** open a PR `develop → main` (must pass `validate` and **Main PRs must come from develop**). Merge to `main` → [.github/workflows/release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**. Merge the Version PR on `main` → per-plugin git tag + GitHub Release (`superpowers-overrides@{version}` and/or `engineering@{version}`, each skipped if that plugin had no changeset). When `main` is ahead of `develop`, the workflow opens an automated **`main → develop`** sync PR — merge it manually to align `develop`.
 
-**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `vendors/superpowers`, update `marketplace/source.json` `plugins[superpowers].version`, set overrides to `{semver}-overrides.0.0.0`, run `node scripts/sync-overrides-versions.mjs`. Merge to `develop`, then release via `develop → main` as above. This resets **overrides only** — engineering keeps its independent semver.
+**Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `vendors/superpowers` (the marketplace version then derives from the vendored files), set `packages/superpowers-overrides/package.json` to `{semver}-overrides.0.0.0`, run `node scripts/sync-overrides-versions.mjs` (syncs the version SOTs and re-emits — `marketplace/source.json` is **derived**, not hand-edited). Merge to `develop`, then release via `develop → main` as above. This resets **overrides only** — engineering keeps its independent semver.
 
 **Version scheme:** `superpowers-overrides` uses `{superpowers-semver}-overrides.{major}.{minor}.{patch}` (three-segment suffix). Tags look like `superpowers-overrides@6.2.0-overrides.0.15.0`. Changeset patch releases increment **patch** only on the same superpowers base. Any superpowers semver segment change (including patch) resets overrides to `{new-base}-overrides.0.0.0` — not the legacy `-overrides.0` single-counter form. `engineering` uses plain semver (`0.1.x`); a changeset bumping it releases independently as `engineering@{version}`. Both are driven by `node scripts/version-packages.mjs` (dual-plugin) and validated by `node scripts/validate-version-sync.mjs`. See [.changeset/README.md](.changeset/README.md).
 

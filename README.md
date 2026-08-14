@@ -18,6 +18,33 @@ Neither alone told me *when* to delegate, *how* to review specs, or *how to phas
 
 **[engineering](packages/engineering/)** is the **skill + engine + gate** layer — the `os-*` orchestrators (`os-brainstorming`, `os-writing-plans`, `os-executing-plans`, …) and `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection, plus the cross-harness CDD orchestrator gate.
 
+## Plugins
+
+Five plugins are registered in the marketplace. Two are **first-party** (edited in-tree under `packages/`); three are **vendored** upstream submodules (never edited in-tree, pinned under `vendors/`):
+
+| Plugin | Directory | npm package | Kind |
+|--------|-----------|-------------|------|
+| **superpowers-overrides** | [packages/superpowers-overrides/](packages/superpowers-overrides/) | `@oscaner-skills/superpowers-overrides` | First-party — trigger router |
+| **engineering** | [packages/engineering/](packages/engineering/) | `@oscaner-skills/engineering` | First-party — skills + cdd engine + gate |
+| **superpowers** | [vendors/superpowers/](vendors/superpowers/) | `@oscaner-skills/superpowers` | Vendored upstream submodule |
+| **mattpocock-skills** | [vendors/mattpocock-skills/](vendors/mattpocock-skills/) | `@oscaner-skills/mattpocock-skills` | Vendored upstream submodule |
+| **impeccable** | [vendors/impeccable/](vendors/impeccable/) | `@oscaner-skills/impeccable` | Vendored upstream submodule |
+
+First-party metadata lives in each `package.json`'s `oscaner-plugin` field (**package-as-source**): `pnpm run emit` derives `marketplace/source.json` from `packages/` + `vendors/` and regenerates every per-harness manifest. Vendored plugins are described by assembly templates in [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs). Adding a new first-party plugin is automatic — see [Adding a new first-party plugin](#adding-a-new-first-party-plugin).
+
+### Hooks matrix
+
+Hooks ship inside each plugin and activate only when the plugin is installed via the Claude Code / Cursor marketplace. The harness → path mapping is declared in `oscaner-plugin.hooks`; `pnpm run emit` writes each hooks file at the declared path.
+
+| Plugin | Harness | Hooks file | Handlers |
+|--------|---------|------------|----------|
+| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion` (3 matchers) → `bin/override-prompt-expansion.sh` |
+| superpowers-overrides | Cursor | `hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/override-cursor-detect.sh`; `preToolUse` → `bin/override-cursor-enforce.sh` |
+| engineering | Claude Code | `hooks/hooks.json` | `PreToolUse` (`Write`/`Edit`, `Bash`) → `bin/override-claude-cdd-gate.sh` |
+| engineering | Cursor | `hooks/hooks-cursor.json` | `preToolUse` → `bin/override-cursor-cdd-gate.sh` |
+
+Full enforcement model (detect/enforce, pending state, fail-open, shell allowlist) → [cross-harness-overrides.md](packages/superpowers-overrides/docs/cross-harness-overrides.md).
+
 ## The pipeline
 
 ```
@@ -47,6 +74,17 @@ cd skills
 git submodule update --init
 ```
 
+### npm packages
+
+Every plugin is also published as a scoped npm package under `@oscaner-skills/*` — first-party packages via changesets, vendored plugins republished by [`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) (upstream LICENSE preserved). The packages carry the same `oscaner-plugin` metadata; hooks activate when the plugin is installed through the Claude Code / Cursor marketplace.
+
+```bash
+# First-party
+npm install @oscaner-skills/superpowers-overrides @oscaner-skills/engineering
+# Vendored republishes (upstream content)
+npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
+```
+
 ## Quick start
 
 1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the marketplace.
@@ -56,6 +94,18 @@ git submodule update --init
 ## Learn more
 
 [superpowers-overrides README](packages/superpowers-overrides/README.md) — router targets, Claude Code vs Cursor, enforcement layers.
+
+## Adding a new first-party plugin
+
+The marketplace is **package-as-source** — a new first-party plugin auto-wires into the derivation, workspace, and release flow with no hand registration:
+
+1. Create `packages/<name>/package.json` with the `oscaner-plugin` field (`contentRoot`, `harnesses`, optional `hooks`) — the single metadata source.
+2. `pnpm run emit` derives `marketplace/source.json` from it ([`deriveFirstPartyNames`](scripts/lib/emit/manifests.mjs) scans `packages/*` for the field) and regenerates the marketplace documents.
+3. `pnpm-workspace.yaml` (`packages/*`) picks it up automatically; a changeset naming it releases it as `@oscaner-skills/<name>` via [`scripts/version-packages.mjs`](scripts/version-packages.mjs).
+
+Per-harness hooks: add the harness → path mapping under `oscaner-plugin.hooks`; emit writes the hooks file. New harness manifests: extend `oscaner-plugin.harnesses`. The per-plugin harness emission in [`scripts/emit.mjs`](scripts/emit.mjs) is currently bespoke for `engineering` and `superpowers-overrides` — a new plugin type needs its emitter added there (or its manifests committed so the cursor path assertions pass).
+
+Vendoring an upstream plugin is the opposite path: add a `vendors/<name>` submodule + an assembly template in `VENDOR_PLUGINS` ([`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs)); [`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) assembles and republishes it.
 
 ## Maintainers
 

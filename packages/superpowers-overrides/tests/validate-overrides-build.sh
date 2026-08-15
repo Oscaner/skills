@@ -118,7 +118,9 @@ root = Path('$ROOT')
 # The os-init spor payload table (a hand-maintained copy of the trigger->target
 # mapping) must stay in lockstep with overrides.manifest.json targets[]. Every
 # manifest target's upstream slug must resolve to its canonical target name.
-lines = (root / '../engineering/skills/os-init/SKILL.md').read_text().splitlines()
+# The table lives in the os-init skill's spor.md payload (SKILL.md is now a thin
+# dispatcher); spor.md is synced by the same emit/version machinery.
+lines = (root / '../engineering/skills/os-init/spor.md').read_text().splitlines()
 rows = {}
 for line in lines:
     line = line.strip()

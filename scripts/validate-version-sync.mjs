@@ -70,14 +70,18 @@ for (const f of oeBump.files) {
 }
 console.log("OK —", oePkg.version);
 
-const oeInit = readFileSync(
-  join(root, "packages/engineering/skills/os-init/SKILL.md"),
-  "utf8",
-);
-const stamp = oeInit.match(/<!-- engineering-version: ([^ ]+) -->/);
-if (!stamp || stamp[1] !== oePkg.version) {
-  throw new Error(
-    `os-init SKILL.md version stamp mismatch: ${stamp?.[1]} vs ${oePkg.version}`,
-  );
+// os-init stamps: SKILL.md (version marker) + spor.md (written-table template).
+// Both carry the engineering version and both are synced by version-packages.mjs.
+for (const rel of [
+  "packages/engineering/skills/os-init/SKILL.md",
+  "packages/engineering/skills/os-init/spor.md",
+]) {
+  const oeInit = readFileSync(join(root, rel), "utf8");
+  const stamp = oeInit.match(/<!-- engineering-version: ([^ ]+) -->/);
+  if (!stamp || stamp[1] !== oePkg.version) {
+    throw new Error(
+      `${rel} version stamp mismatch: ${stamp?.[1]} vs ${oePkg.version}`,
+    );
+  }
 }
-console.log("OK — os-init SKILL.md stamp", oePkg.version);
+console.log("OK — os-init SKILL.md/spor.md stamp", oePkg.version);

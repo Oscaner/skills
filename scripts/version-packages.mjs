@@ -125,20 +125,27 @@ if (osengCS.length > 0) {
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
-  // Sync engineering version to the os-init self-check stamp (the only SOT
-  // outside package.json). marketplace/source.json and the per-harness manifests
-  // are derived emit products — the emit that sync-overrides-versions.mjs runs
-  // below re-derives them from package.json, so no direct source.json write.
-  const initPath = "packages/engineering/skills/os-init/SKILL.md";
-  const init = readFileSync(join(root, initPath), "utf8");
-  const stamped = init.replace(
-    /<!-- engineering-version: [^ ]+ -->/,
-    `<!-- engineering-version: ${osengNext} -->`,
-  );
-  if (stamped === init) {
-    throw new Error("os-init SKILL.md missing engineering-version stamp");
+  // Sync engineering version to the os-init self-check stamps (the only SOTs
+  // outside package.json). SKILL.md holds the version marker; spor.md's
+  // written-table template carries the same stamp for `os-init spor`. Both must
+  // exist or the release aborts. marketplace/source.json and the per-harness
+  // manifests are derived emit products — the emit that
+  // sync-overrides-versions.mjs runs below re-derives them from package.json,
+  // so no direct source.json write.
+  for (const initPath of [
+    "packages/engineering/skills/os-init/SKILL.md",
+    "packages/engineering/skills/os-init/spor.md",
+  ]) {
+    const init = readFileSync(join(root, initPath), "utf8");
+    const stamped = init.replace(
+      /<!-- engineering-version: [^ ]+ -->/,
+      `<!-- engineering-version: ${osengNext} -->`,
+    );
+    if (stamped === init) {
+      throw new Error(`${initPath} missing engineering-version stamp`);
+    }
+    writeFileSync(join(root, initPath), stamped);
   }
-  writeFileSync(join(root, initPath), stamped);
 }
 
 // ---- record which plugins were actually versioned (release workflow) ----

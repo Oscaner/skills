@@ -29,3 +29,20 @@ export function denyMessageFor(r, harness) {
   if (ctx.taskNum) return denyMessage(harness, ctx.taskNum, ctx.planBase ?? "unknown-plan");
   return r?.reason ?? "";
 }
+
+// 工具名规范化 —— TS harness（opencode/pi）用小写工具名（bash/write/edit/apply_patch），
+// gate 核心以 Claude Code 规范名（Bash/Write/Edit/MultiEdit）判定 write/shell 工具。
+// 已知小写名映射回规范名；规范名 / 未知名原样透传（未知名 → 非 write/shell → allow，
+// fail-open）。校准自 opencode tools / pi extensions 文档。
+const TOOL_NAME_ALIASES = new Map([
+  ["bash", "Bash"],
+  ["shell", "Shell"],
+  ["write", "Write"],
+  ["edit", "Edit"],
+  ["apply_patch", "MultiEdit"],
+]);
+
+export function canonicalToolName(name) {
+  if (typeof name !== "string") return name;
+  return TOOL_NAME_ALIASES.get(name) ?? name;
+}

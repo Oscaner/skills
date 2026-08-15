@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "changeset": "changeset",
-    "validate": "./scripts/ci-validate.sh",
+    "validate": "node scripts/ci-validate.mjs",
     "version": "node scripts/version-packages.mjs",
     "emit": "node scripts/emit.mjs",
     "emit:check": "node scripts/emit.mjs --check",

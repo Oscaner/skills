@@ -22,4 +22,4 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
       - run: pnpm install --frozen-lockfile
-      - run: ./scripts/ci-validate.sh
+      - run: node scripts/ci-validate.mjs

@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-./scripts/ci-validate.sh
+node scripts/ci-validate.mjs

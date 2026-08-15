@@ -239,7 +239,7 @@ pnpm run emit:check        # scripts/emit.mjs --check — drift → exit 1
 pnpm run validate
 ```
 
-This runs steps 1–5 above plus generator drift checks, overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.sh](scripts/ci-validate.sh); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
+This runs steps 1–5 above plus generator drift checks, overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.mjs](scripts/ci-validate.mjs); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Releasing
 

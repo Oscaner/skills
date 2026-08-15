@@ -19,7 +19,7 @@ Override skills that reuse upstream skill names work in Claude Code but break in
 
 1. **No skill bodies** — `skills/` is absent/empty; `overrides.manifest.json` maps upstream triggers to targets in **engineering** (`os-*` / `cli-*`) or **mattpocock-skills** (`tdd`).
 2. **Manifest** — declare targets with explicit `name`, `overrides`, and `source` fields (cross-plugin path).
-3. **Generators** — manifest-driven `scripts/emit.mjs` writes committed hook + self-check artifacts (`build/generated/*`, `bin/override-prompt-expansion.sh`).
+3. **Generators** — manifest-driven `scripts/emit.mjs` writes committed hook + self-check artifacts (`build/generated/*`, `bin/prompt-expansion.mjs`).
 4. **engineering multi-harness emit** — the skills + engine plugin emits thin per-harness manifests (claude/cursor/codex/kimi/gemini/pi) all pointing at the canonical `./skills/` tree, plus a shared `.agents/skills/` copy (engineering only — upstream superpowers is not vendored) for codex/gemini/pi/qoder/opencode scanners. Modeled after impeccable's build.js + PROVIDERS pattern.
 5. **Enforcement** — harness-specific hooks + project self-check rules (see [Enforcement](#enforcement) below).
 6. **Package layout & hooks registration** — the router and engineering engine are first-party packages under `packages/` (`@oscaner-skills/superpowers-overrides`, `@oscaner-skills/engineering`), each with its metadata in `package.json#oscaner-plugin` (**package-as-source**). Upstream plugins (`superpowers`, `mattpocock-skills`, `impeccable`) are vendored submodules under `vendors/`, republished as `@oscaner-skills/<name>` by `scripts/publish-vendor.mjs`; their marketplace descriptors come from the assembly templates in `scripts/lib/publish-vendor.mjs` (`ASSEMBLY_TEMPLATE` — the owner) plus the marketplace cursor blocks in `scripts/lib/emit/source.mjs` (`VENDOR_PLUGINS`). Hooks are registered per harness via `oscaner-plugin.hooks` — the harness → path mapping is the single source of truth, and `scripts/emit.mjs` writes each hooks file at the declared path and references it from the generated per-harness manifest.
@@ -40,8 +40,8 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 
 | Hook | Handler | Role |
 |------|---------|------|
-| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/override-cursor-detect.sh` | Match **upstream SKILL attach paths** → write pending / activate CDD session |
-| `preToolUse` (no matcher) | `bin/override-cursor-enforce.sh` | If pending exists: **allow** first `Read` (target SKILL path via `tool_input.path` / `tool_input.file_path`) or `Skill` (manifest target name); **deny** all other first tools |
+| `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/cursor-detect.mjs` | Match **upstream SKILL attach paths** → write pending / activate CDD session |
+| `preToolUse` (no matcher) | `bin/cursor-enforce.mjs` | If pending exists: **allow** first `Read` (target SKILL path via `tool_input.path` / `tool_input.file_path`) or `Skill` (manifest target name); **deny** all other first tools |
 
 Bare `/brainstorming`, `/superpowers:*`, and prefixed slash commands → **no pending**; self-check rules (`.cursor/rules/superpowers-overrides.mdc`) are primary enforcement for slash triggers.
 
@@ -59,17 +59,17 @@ Cursor cannot inject context on submit (no `additional_context` on `beforeSubmit
 
 ### CDD orchestrator gate
 
-Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Cursor + Claude Code). The gate ships with **engineering** — the overrides plugin is a trigger router and carries no gate hooks.
+Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Claude Code, Cursor, and the other gated harnesses — per-harness install → [docs/gate-install.md](../../../docs/gate-install.md)). The gate ships with **engineering** — the overrides plugin is a trigger router and carries no gate hooks. The gate surface is **Node** (P4b): one decision core + one adapter per harness.
 
 | Item | Detail |
 |------|--------|
 | Pending path | `$TMPDIR/oscaner-engineering/pending-cdd/<session_key>.json` |
 | Activation | CDD slash (`/subagent-driven-development`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Claude expansion |
-| Shared lib | `engineering/bin/lib/cdd-orchestrator-gate.sh` — single allowlist + state machine |
-| Adapters | `override-claude-cdd-gate.sh`, `override-cursor-cdd-gate.sh`（engineering） |
-| Fail-open | No jq, no pending, or cannot resolve workspace → allow (skill checklist fallback) |
+| Decision core | `engineering/bin/gate/cdd-gate-core.mjs` — single fail-open, mode-aware decision point (git read-only allowlist + workspace-bound Write) |
+| Adapters | `engineering/bin/gate/adapters/<harness>.mjs` — claude, cursor + 9 more (grok/qoder/trae/codex/gemini/vibe/kiro/opencode/pi) |
+| Fail-open | No pending, cannot resolve workspace, or adapter exception → allow (skill checklist fallback) |
 
-Claude Code: `engineering/hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `engineering/bin/override-claude-cdd-gate.sh`. Cursor: `engineering/hooks/hooks-cursor.json` adds `preToolUse` → `engineering/bin/override-cursor-cdd-gate.sh`. These hooks are checked-in plugin files — the overrides generators emit only the trigger-router hooks (`UserPromptExpansion` / detect + enforce).
+Claude Code: `engineering/hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `engineering/bin/gate/adapters/claude.mjs`. Cursor: `engineering/hooks/hooks-cursor.json` adds `preToolUse` → `engineering/bin/gate/adapters/cursor.mjs`. These hooks are checked-in plugin files — the overrides generators emit only the trigger-router hooks (`UserPromptExpansion` / detect + enforce).
 
 **Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell (`cdd-run.sh --harness <name>`) or Write under the bound workspace.
 
@@ -88,7 +88,7 @@ CLI env/exit/harness tables live in [`engineering/docs/cdd-reference.md`](../../
 1. `^superpowers:` — prefixed upstream slash commands
 2. Combined bare-`/<upstream-slug>` regex — e.g. `/brainstorming` (one matcher covering every upstream slug)
 
-Both invoke `bin/override-prompt-expansion.sh`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(<target-name>)` first call (e.g. `Skill(engineering:os-brainstorming)`).
+Both invoke `bin/prompt-expansion.mjs`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(<target-name>)` first call (e.g. `Skill(engineering:os-brainstorming)`).
 
 `^/os-<upstream-slug>` (engineering targets) is not hook-intercepted — it is routed by the project `CLAUDE.md` self-check (`<command-name>` scan + trigger table from `os-init spor`).
 

@@ -80,7 +80,7 @@ The [superpowers-overrides](packages/superpowers-overrides/) plugin is the **tri
 Route enforcement is coordinated by **three mechanisms**, not one:
 
 1. The router manifest + generated hooks — every upstream entry point is enumerated in `overrides.manifest.json` (single SOT); the emit generators derive hook matchers and self-check tables from it.
-2. **Plugin-bundled hooks** in `packages/superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `packages/superpowers-overrides/bin/override-prompt-expansion.sh` injects `additionalContext`, reinforcing the target as the first tool call. Requires `jq` on the host; missing jq → stderr warning, no silent degradation.
+2. **Plugin-bundled hooks** in `packages/superpowers-overrides/hooks/hooks.json` — `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `packages/superpowers-overrides/bin/prompt-expansion.mjs` injects `additionalContext`, reinforcing the target as the first tool call.
 3. **Project-level CLAUDE.md self-check** — written by `os-init spor`. Run `os-init spor` once per project (Claude Code: `/os-init spor`) to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
 
 ### Hooks matrix
@@ -89,10 +89,10 @@ Hooks ship inside each plugin and activate only when the plugin is installed via
 
 | Plugin | Harness | Hooks file | Handlers |
 |--------|---------|------------|----------|
-| superpowers-overrides | Claude Code | `packages/superpowers-overrides/hooks/hooks.json` | `UserPromptExpansion` (2 matchers: `^superpowers:`, bare `/<slug>` combined regex) → `bin/override-prompt-expansion.sh` |
-| superpowers-overrides | Cursor | `packages/superpowers-overrides/hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/override-cursor-detect.sh`; `preToolUse` → `bin/override-cursor-enforce.sh` |
-| engineering | Claude Code | `packages/engineering/hooks/hooks.json` | `PreToolUse` (`Write`/`Edit`, `Bash`) → `bin/override-claude-cdd-gate.sh` |
-| engineering | Cursor | `packages/engineering/hooks/hooks-cursor.json` | `preToolUse` → `bin/override-cursor-cdd-gate.sh` |
+| superpowers-overrides | Claude Code | `packages/superpowers-overrides/hooks/hooks.json` | `UserPromptExpansion` (2 matchers: `^superpowers:`, bare `/<slug>` combined regex) → `bin/prompt-expansion.mjs` |
+| superpowers-overrides | Cursor | `packages/superpowers-overrides/hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/cursor-detect.mjs`; `preToolUse` → `bin/cursor-enforce.mjs` |
+| engineering | Claude Code | `packages/engineering/hooks/hooks.json` | `PreToolUse` (`Write`/`Edit`, `Bash`) → `bin/gate/adapters/claude.mjs` |
+| engineering | Cursor | `packages/engineering/hooks/hooks-cursor.json` | `preToolUse` → `bin/gate/adapters/cursor.mjs` |
 
 Detail (pending-state contract, fail-open, shell allowlist) → [cross-harness-overrides.md](packages/superpowers-overrides/docs/cross-harness-overrides.md).
 
@@ -152,7 +152,7 @@ git submodule update --init
 **Add a new override skill to `engineering`** — three things must change together in one commit, or the skill is invisible or won't auto-trigger:
 
 1. Create `packages/engineering/skills/<name>/SKILL.md` with the os-* orchestrator shape (see [The overrides pattern](#the-overrides-pattern-router-engineering)).
-2. Add a target row to [packages/superpowers-overrides/overrides.manifest.json](packages/superpowers-overrides/overrides.manifest.json) mapping the upstream trigger to `engineering:<name>` (source `../engineering/skills/<name>`), then run `pnpm run emit` (regenerates `bin/override-prompt-expansion.sh`, the cursor hooks, and `build/generated/*` via the unified `scripts/emit.mjs`). Do **not** hand-edit the hook script.
+2. Add a target row to [packages/superpowers-overrides/overrides.manifest.json](packages/superpowers-overrides/overrides.manifest.json) mapping the upstream trigger to `engineering:<name>` (source `../engineering/skills/<name>`), then run `pnpm run emit` (regenerates `bin/prompt-expansion.mjs`, the cursor hooks, and `build/generated/*` via the unified `scripts/emit.mjs`). Do **not** hand-edit the hook script.
 3. Add a row to the router target table in [README.md](README.md) for discoverability.
 
 Missing the skill dir or the manifest row → the skill is invisible to Claude Code or won't auto-trigger. Skipping `pnpm run emit` → hook and self-check drift.
@@ -219,11 +219,11 @@ All three pass → the marketplace still resolves.
 ```bash
 [ -f packages/superpowers-overrides/hooks/hooks.json ] && echo "OK — overrides claude hooks"
 [ -f packages/superpowers-overrides/hooks/hooks-cursor.json ] && echo "OK — overrides cursor hooks"
-[ -x packages/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion executable"
+[ -x packages/superpowers-overrides/bin/prompt-expansion.mjs ] && echo "OK — prompt-expansion executable"
 [ -f packages/engineering/hooks/hooks.json ] && echo "OK — engineering claude hooks"
 [ -f packages/engineering/hooks/hooks-cursor.json ] && echo "OK — engineering cursor hooks"
-[ -x packages/engineering/bin/override-claude-cdd-gate.sh ] && echo "OK — claude cdd-gate executable"
-[ -x packages/engineering/bin/override-cursor-cdd-gate.sh ] && echo "OK — cursor cdd-gate executable"
+[ -x packages/engineering/bin/gate/adapters/claude.mjs ] && echo "OK — claude cdd-gate executable"
+[ -x packages/engineering/bin/gate/adapters/cursor.mjs ] && echo "OK — cursor cdd-gate executable"
 ```
 
 **5. Unified emit validates:**

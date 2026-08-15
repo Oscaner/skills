@@ -1,7 +1,7 @@
 // gate/tests/cursor.test.mjs — P4b T3: Cursor preToolUse hook adapter I/O。
-// 从 tests/override-cursor-cdd-gate.test.sh 的行为迁移（行为为准）：hook JSON → stdout
-// **顶层** { permission }（对齐现行 override-cursor-cdd-gate.sh 响应形状，勿改格式）。
-// deny 断言 agent_message 含恢复指引；fixture 布局复用 cdd-gate-core.test.mjs。
+// 行为为准）：hook JSON → stdout **顶层** { permission }（{ permission: "allow" } /
+// { permission: "deny", agent_message }，勿改格式）。deny 断言 agent_message 含恢复指引；
+// fixture 布局复用 cdd-gate-core.test.mjs。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";

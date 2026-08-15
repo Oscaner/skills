@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // gate/adapters/cursor.mjs — Cursor preToolUse hook adapter（P4b T3）。
-// stdin hook JSON → gateDecide → stdout **顶层** { permission }（对齐现行
-// override-cursor-cdd-gate.sh 响应形状：{ permission: "allow" } /
-// { permission: "deny", agent_message }，勿用 hookSpecificOutput 包装）。
-// 异常 → fail-open allow（stderr 记录）。
+// stdin hook JSON → gateDecide → stdout **顶层** { permission }（响应形状：
+// { permission: "allow" } / { permission: "deny", agent_message }，
+// 勿用 hookSpecificOutput 包装）。异常 → fail-open allow（stderr 记录）。
 import { gateDecide } from "../cdd-gate-core.mjs";
 import { readStdin, sessionKeyFromJson, denyMessageFor } from "./lib.mjs";
 

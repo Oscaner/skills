@@ -16,7 +16,7 @@
 
 单独用哪一个，都缺一块：什么时候 delegate、spec 怎么审、大功能怎么分期。**superpowers-overrides** 是**触发路由器**——它不带任何技能体。它拦截上游 superpowers 触发（slash 命令、SKILL attach），路由到匹配的 **engineering** 编排器（`os-*`）或 **mattpocock-skills** 委托（`tdd`、`grilling`）。`os-*` 编排器在上游基线上叠加个人规则——grilling 澄清、fresh-subagent spec review、大 scope 走 **overall + phase** 分解。
 
-**[engineering](packages/engineering/)** 是**技能 + 引擎 + gate** 层——`os-*` 编排器（`os-brainstorming`、`os-writing-plans`、`os-executing-plans` …）与 `cli-*` 家族（`cli-select`、`cli-task`、`cli-driven-development`、`cli-code-review`）跑在 cdd 引擎上，带 per-harness registry 探测，外加跨 harness 的 CDD orchestrator gate。
+**[engineering](packages/engineering/)** 是**技能 + 引擎 + gate** 层——`os-*` 编排器（`os-brainstorming`、`os-writing-plans`、`os-executing-plans` …）与 `cli-*` 家族（`cli-select`、`cli-task`、`cli-driven-development`、`cli-code-review`）跑在 cdd 引擎上，带 per-harness registry 探测，外加跨 harness 的 CDD orchestrator gate（Node 核心 + 11 个 harness adapter——各 harness 安装见 [docs/gate-install.md](docs/gate-install.md)）。
 
 ## 插件列表
 
@@ -25,7 +25,7 @@
 | 插件 | 目录 | npm 包 | 类型 |
 |--------|-----------|-------------|------|
 | **superpowers-overrides** | [packages/superpowers-overrides/](packages/superpowers-overrides/) | `@oscaner-skills/superpowers-overrides` | first-party — 触发路由器 |
-| **engineering** | [packages/engineering/](packages/engineering/) | `@oscaner-skills/engineering` | first-party — 技能 + cdd 引擎 + gate |
+| **engineering** | [packages/engineering/](packages/engineering/) | `@oscaner-skills/engineering` | first-party — 技能 + cdd 引擎 + Node gate（11 adapter） |
 | **superpowers** | [vendors/superpowers/](vendors/superpowers/) | `@oscaner-skills/superpowers` | vendored 上游 submodule |
 | **mattpocock-skills** | [vendors/mattpocock-skills/](vendors/mattpocock-skills/) | `@oscaner-skills/mattpocock-skills` | vendored 上游 submodule |
 | **impeccable** | [vendors/impeccable/](vendors/impeccable/) | `@oscaner-skills/impeccable` | vendored 上游 submodule |
@@ -38,10 +38,10 @@ hooks 随插件一起发布，只在插件通过 Claude Code / Cursor marketplac
 
 | 插件 | harness | hooks 文件 | 处理器 |
 |--------|---------|------------|----------|
-| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion`（2 个 matcher：`^superpowers:` + bare `/<slug>` 组合正则）→ `bin/override-prompt-expansion.sh` |
-| superpowers-overrides | Cursor | `hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/override-cursor-detect.sh`；`preToolUse` → `bin/override-cursor-enforce.sh` |
-| engineering | Claude Code | `hooks/hooks.json` | `PreToolUse`（`Write`/`Edit`、`Bash`）→ `bin/override-claude-cdd-gate.sh` |
-| engineering | Cursor | `hooks/hooks-cursor.json` | `preToolUse` → `bin/override-cursor-cdd-gate.sh` |
+| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion`（2 个 matcher：`^superpowers:` + bare `/<slug>` 组合正则）→ `bin/prompt-expansion.mjs` |
+| superpowers-overrides | Cursor | `hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/cursor-detect.mjs`；`preToolUse` → `bin/cursor-enforce.mjs` |
+| engineering | Claude Code | `hooks/hooks.json` | `PreToolUse`（`Write`/`Edit`、`Bash`）→ `bin/gate/adapters/claude.mjs` |
+| engineering | Cursor | `hooks/hooks-cursor.json` | `preToolUse` → `bin/gate/adapters/cursor.mjs` |
 
 完整 enforcement 模型（detect/enforce、pending 状态、fail-open、shell 白名单）→ [cross-harness-overrides.md](packages/superpowers-overrides/docs/cross-harness-overrides.md)。
 
@@ -89,7 +89,8 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 
 1. 从 marketplace 安装 `superpowers`、`superpowers-overrides`、`engineering`、`mattpocock-skills`。
 2. 每个项目跑一次 **`os-init spor`**——插件升级后重跑。具体 slash 命令因 harness 而异 → [用法](packages/superpowers-overrides/README.zh-CN.md#用法)。
-3. 照常调用 superpowers 工作流——路由器会先路由到对应的 engineering / mattpocock 目标。
+3. 非 Claude/Cursor harness 要装跨 harness CDD gate，跑 **`os-init gates`**（或按各 harness 安装）→ [docs/gate-install.md](docs/gate-install.md)。
+4. 照常调用 superpowers 工作流——路由器会先路由到对应的 engineering / mattpocock 目标。
 
 ## 延伸阅读
 

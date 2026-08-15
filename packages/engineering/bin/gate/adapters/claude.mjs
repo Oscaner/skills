@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // gate/adapters/claude.mjs — Claude Code PreToolUse hook adapter（P4b T3）。
 // stdin hook JSON → gateDecide → stdout hookSpecificOutput。异常 → fail-open allow
-// （stderr 记录）。从 bin/override-claude-cdd-gate.sh 迁（响应形状对齐：
-// { hookEventName, permissionDecision, permissionDecisionReason }）。
+// （stderr 记录）。响应形状：{ hookEventName, permissionDecision, permissionDecisionReason }。
 import { gateDecide } from "../cdd-gate-core.mjs";
 import { readStdin, sessionKeyFromJson, denyMessageFor } from "./lib.mjs";
 

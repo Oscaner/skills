@@ -16,7 +16,7 @@ Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Four 
 
 Neither alone told me *when* to delegate, *how* to review specs, or *how to phase* a large feature. **superpowers-overrides** is the **trigger router** — it ships no skill bodies. It intercepts upstream superpowers triggers (slash commands, SKILL attach) and routes them to the matching **engineering** orchestrator (`os-*`) or a **mattpocock-skills** delegate (`tdd`, `grilling`). The `os-*` orchestrators add personal rules on top of the upstream baseline — grilling for clarification, fresh-subagent spec review, and **overall + phase** decomposition for large scope.
 
-**[engineering](packages/engineering/)** is the **skill + engine + gate** layer — the `os-*` orchestrators (`os-brainstorming`, `os-writing-plans`, `os-executing-plans`, …) and `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection, plus the cross-harness CDD orchestrator gate.
+**[engineering](packages/engineering/)** is the **skill + engine + gate** layer — the `os-*` orchestrators (`os-brainstorming`, `os-writing-plans`, `os-executing-plans`, …) and `cli-*` family (`cli-select`, `cli-task`, `cli-driven-development`, `cli-code-review`) running on the cdd engine with per-harness registry detection, plus the cross-harness CDD orchestrator gate (Node core + 11 harness adapters — per-harness install → [docs/gate-install.md](docs/gate-install.md)).
 
 ## Plugins
 
@@ -25,7 +25,7 @@ Five plugins are registered in the marketplace. Two are **first-party** (edited 
 | Plugin | Directory | npm package | Kind |
 |--------|-----------|-------------|------|
 | **superpowers-overrides** | [packages/superpowers-overrides/](packages/superpowers-overrides/) | `@oscaner-skills/superpowers-overrides` | First-party — trigger router |
-| **engineering** | [packages/engineering/](packages/engineering/) | `@oscaner-skills/engineering` | First-party — skills + cdd engine + gate |
+| **engineering** | [packages/engineering/](packages/engineering/) | `@oscaner-skills/engineering` | First-party — skills + cdd engine + Node gate (11 adapters) |
 | **superpowers** | [vendors/superpowers/](vendors/superpowers/) | `@oscaner-skills/superpowers` | Vendored upstream submodule |
 | **mattpocock-skills** | [vendors/mattpocock-skills/](vendors/mattpocock-skills/) | `@oscaner-skills/mattpocock-skills` | Vendored upstream submodule |
 | **impeccable** | [vendors/impeccable/](vendors/impeccable/) | `@oscaner-skills/impeccable` | Vendored upstream submodule |
@@ -38,10 +38,10 @@ Hooks ship inside each plugin and activate only when the plugin is installed via
 
 | Plugin | Harness | Hooks file | Handlers |
 |--------|---------|------------|----------|
-| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion` (2 matchers: `^superpowers:`, bare `/<slug>` combined regex) → `bin/override-prompt-expansion.sh` |
-| superpowers-overrides | Cursor | `hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/override-cursor-detect.sh`; `preToolUse` → `bin/override-cursor-enforce.sh` |
-| engineering | Claude Code | `hooks/hooks.json` | `PreToolUse` (`Write`/`Edit`, `Bash`) → `bin/override-claude-cdd-gate.sh` |
-| engineering | Cursor | `hooks/hooks-cursor.json` | `preToolUse` → `bin/override-cursor-cdd-gate.sh` |
+| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion` (2 matchers: `^superpowers:`, bare `/<slug>` combined regex) → `bin/prompt-expansion.mjs` |
+| superpowers-overrides | Cursor | `hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/cursor-detect.mjs`; `preToolUse` → `bin/cursor-enforce.mjs` |
+| engineering | Claude Code | `hooks/hooks.json` | `PreToolUse` (`Write`/`Edit`, `Bash`) → `bin/gate/adapters/claude.mjs` |
+| engineering | Cursor | `hooks/hooks-cursor.json` | `preToolUse` → `bin/gate/adapters/cursor.mjs` |
 
 Full enforcement model (detect/enforce, pending state, fail-open, shell allowlist) → [cross-harness-overrides.md](packages/superpowers-overrides/docs/cross-harness-overrides.md).
 
@@ -89,7 +89,8 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 
 1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the marketplace.
 2. Run **`os-init spor`** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](packages/superpowers-overrides/README.md#usage).
-3. Invoke the superpowers workflow as you normally would — the router routes to the matching engineering / mattpocock target first.
+3. For the cross-harness CDD gate on non-Claude/Cursor harnesses, run **`os-init gates`** (or follow the per-harness install) → [docs/gate-install.md](docs/gate-install.md).
+4. Invoke the superpowers workflow as you normally would — the router routes to the matching engineering / mattpocock target first.
 
 ## Learn more
 

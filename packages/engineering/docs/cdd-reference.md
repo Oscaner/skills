@@ -113,13 +113,13 @@ not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fa
 
 ## CDD gate matrix
 
-The orchestrator PreToolUse gate（`packages/engineering/bin/lib/cdd-orchestrator-gate.sh`，T3 迁入 engineering；p1-slim.2）blocks direct repo edits while a task is active. Judgment is one decision point — `cdd_gate_decide` resolves `active_ws` **once** (bound-ws first, scan only when unbound) and threads that same workspace through both phase and write checks.
+The orchestrator PreToolUse gate（Node core `packages/engineering/bin/gate/cdd-gate-core.mjs`，P4b 迁 Node）blocks direct repo edits while a task is active. Judgment is one decision point — `gateDecide` resolves the active workspace **once** (`pending.workspace` bound first, `findActiveWorkspace` scan only when unbound) and threads that same workspace through both phase and write checks.
 
 The gate is fail-open until an active task resolves (spec 安全属性 / data-flow step 1):
 
 | Tool | Condition | Decision |
 |------|-----------|----------|
-| any | `jq` missing — `cdd_gate_decide` returns allow before any check | **allow** (fail-open) |
+| any | adapter exception — adapter catches and returns allow (stderr recorded) | **allow** (fail-open) |
 | any | no pending file for the session | **allow** (fail-open) |
 | any | pending expired (>24h) → pending cleared | **allow** (fail-open) |
 | Write/Edit | path under `active_ws` | **allow** |
@@ -138,6 +138,6 @@ The gate is fail-open until an active task resolves (spec 安全属性 / data-fl
 - Repo changes flow **only** through the H6 implement shell (`cdd-run.sh --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
 - Non-git read-only commands (`ls`, `echo`, …) are intentionally still denied (slim read-only set decision; see spec §Non-goals).
 
-**Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), `cdd_resolve_workspace` wins and the gate never scans unrelated workspaces.
+**Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.
 
-**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `cdd_find_active_workspace` / `cdd_gate_decide` — gate tests point it at temp copies of `tests/fixtures/cdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `tests/cdd-gate-allow-deny-smoke.sh`.
+**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `findActiveWorkspace` / `gateDecide` — the Node gate tests point it at temp copies of `tests/fixtures/cdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `packages/engineering/bin/gate/tests/cdd-gate-core.test.mjs`.

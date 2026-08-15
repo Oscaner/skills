@@ -12,7 +12,9 @@
 
 ### Rule: Run Installer
 
-先跑 `node <repo>/packages/engineering/bin/os-init/install-gates.mjs`（检测/引导/写原生 config/信任）：
+先跑 `/os-init gates`（检测/引导/写原生 config/信任）—— 底层从**已安装包**运行
+`node <plugin-root>/bin/os-init/install-gates.mjs`（`<plugin-root>` = marketplace 实际
+安装 engineering 的位置，不是源 checkout 的 `node <repo>/packages/...` 路径）：
 
 1. 检测 —— `command -v <harness>`；trae 无 CLI → 检查 `~/.trae` 目录
 2. 引导 —— 包通道 harness（opencode/gemini/qoder/codex）打印安装命令，不写文件

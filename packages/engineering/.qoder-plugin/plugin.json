@@ -16,6 +16,6 @@
     "droid",
     "pi"
   ],
-  "skills": "./skills/",
+  "skills": "../skills/",
   "hooks": "./hooks/hooks.json"
 }

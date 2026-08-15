@@ -21,6 +21,7 @@ import {
   qoderHooksJson,
   assertAdapterPathsExist,
   collectHookCommands,
+  adapterRelFromCommand,
 } from "./manifests.mjs";
 import { deriveSource, SOURCE_TOP } from "./source.mjs";
 import {
@@ -120,7 +121,7 @@ test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () =
 
 test("codexPluginManifest includes skills, codex gate hooks path, and interface", () => {
   const m = codexPluginManifest(OS_ENG, "0.1.0");
-  assert.equal(m.skills, "./skills/");
+  assert.equal(m.skills, "../skills/");
   assert.equal(m.hooks, "./hooks/hooks.json");
   assert.equal(m.name, "engineering");
   assert.equal(m.version, "0.1.0");
@@ -155,6 +156,7 @@ test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () 
 test("codexPluginManifest points hooks at the codex plugin-root hooks channel", () => {
   // codex 插件 hooks 走 plugin-root `hooks/hooks.json`（manifest 位于 .codex-plugin/，
   // manifest-relative 为 ./hooks/hooks.json）；emit 按 package-relative 映射写文件。
+  // skills 同为 manifest-relative（../skills/ → 包根 skills/）—— 统一 base。
   assert.equal(codexPluginManifest(OS_ENG, "0.1.0").hooks, "./hooks/hooks.json");
   const mapped = codexPluginManifest(
     { ...OS_ENG, hooks: { codex: "./.codex-plugin/hooks/hooks.json" } },
@@ -163,7 +165,7 @@ test("codexPluginManifest points hooks at the codex plugin-root hooks channel", 
   assert.equal(mapped.hooks, "./hooks/hooks.json");
 });
 
-test("codexHooksJson wires PreToolUse gate to the codex adapter (plugin-root var)", () => {
+test("codexHooksJson wires PreToolUse gate to the codex adapter (manifest-relative ../bin)", () => {
   const hooks = codexHooksJson();
   assert.ok(hooks._generated, "hooks.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
@@ -176,7 +178,7 @@ test("codexHooksJson wires PreToolUse gate to the codex adapter (plugin-root var
     assert.equal(e.hooks[0].type, "command");
     assert.equal(
       e.hooks[0].command,
-      "${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+      "../bin/gate/adapters/codex.mjs",
     );
   }
 });
@@ -204,6 +206,40 @@ test("assertAdapterPathsExist: throws when a generated hooks command adapter is 
       hooks: { claude: "./hooks/hooks.json" },
     };
     // empty temp dir has no bin/gate/adapters/* — the guard must fail loud
+    assert.throws(() => assertAdapterPathsExist(plugin, tmp, "0.1.0"), /adapter/i);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("adapterRelFromCommand: ../bin manifest-relative shape is recognized (ADAPTER_CMD_RE cover)", () => {
+  assert.equal(
+    adapterRelFromCommand("../bin/gate/adapters/codex.mjs"),
+    "bin/gate/adapters/codex.mjs",
+  );
+  assert.equal(
+    adapterRelFromCommand("../bin/gate/adapters/qoder.mjs"),
+    "bin/gate/adapters/qoder.mjs",
+  );
+  assert.equal(
+    adapterRelFromCommand("./bin/gate/adapters/cursor.mjs"),
+    "bin/gate/adapters/cursor.mjs",
+  );
+  assert.equal(
+    adapterRelFromCommand("${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs"),
+    "bin/gate/adapters/claude.mjs",
+  );
+  assert.equal(adapterRelFromCommand("python3 /tmp/x.py"), null);
+});
+
+test("assertAdapterPathsExist: ../bin manifest-relative adapter missing → throws (guard covers ../)", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-adapter-guard-"));
+  try {
+    const plugin = {
+      name: "engineering",
+      hooks: { codex: "./.codex-plugin/hooks/hooks.json" },
+    };
+    // 空 temp dir 无 bin/gate/adapters/codex.mjs —— 即使命令是 ../ 前缀也必须失败
     assert.throws(() => assertAdapterPathsExist(plugin, tmp, "0.1.0"), /adapter/i);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -292,13 +328,13 @@ test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () 
   assert.equal(m.author.name, "Oscaner Miao");
   assert.equal(m.license, "MIT");
   assert.deepEqual(m.keywords, OS_ENG.claude.keywords);
-  assert.equal(m.skills, "./skills/");
+  assert.equal(m.skills, "../skills/");
   assert.equal(m.hooks, "./hooks/hooks.json");
   assert.ok(m._generated);
   assert.match(m._generated, /scripts\/emit\.mjs/);
 });
 
-test("qoderHooksJson wires PreToolUse gate to the qoder adapter", () => {
+test("qoderHooksJson wires PreToolUse gate to the qoder adapter (manifest-relative ../bin)", () => {
   const hooks = qoderHooksJson();
   assert.ok(hooks._generated, "qoder hooks.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
@@ -311,7 +347,7 @@ test("qoderHooksJson wires PreToolUse gate to the qoder adapter", () => {
     assert.equal(e.hooks[0].type, "command");
     assert.equal(
       e.hooks[0].command,
-      "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
+      "../bin/gate/adapters/qoder.mjs",
     );
   }
 });
@@ -504,12 +540,12 @@ test("engineeringHooksFor dispatches per harness, fail-fast on unknown", () => {
   const codex = engineeringHooksFor("codex");
   assert.equal(
     codex.hooks.PreToolUse[0].hooks[0].command,
-    "${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+    "../bin/gate/adapters/codex.mjs",
   );
   const qoder = engineeringHooksFor("qoder");
   assert.equal(
     qoder.hooks.PreToolUse[0].hooks[0].command,
-    "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
+    "../bin/gate/adapters/qoder.mjs",
   );
   assert.throws(() => engineeringHooksFor("kimi"), /kimi/);
 });

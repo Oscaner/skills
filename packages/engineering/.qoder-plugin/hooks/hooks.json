@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs"
+            "command": "../bin/gate/adapters/qoder.mjs"
           }
         ]
       },
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs"
+            "command": "../bin/gate/adapters/qoder.mjs"
           }
         ]
       }

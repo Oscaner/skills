@@ -75,8 +75,18 @@ test("opencode plugin: 无 pending → allow（不 throw）", async () => {
   );
 });
 
-test("opencode plugin: 畸形 input（undefined）→ 抛错 → fail-open allow（不 throw）", async () => {
+test("opencode plugin: 畸形 input（undefined）→ allow（不抛错）", async () => {
   const hooks = await cddGate({ directory: root });
   const before = hooks["tool.execute.before"];
   await assert.doesNotReject(() => before(undefined, undefined));
+});
+
+test("opencode plugin: 畸形 sessionID（Symbol）→ gateDecide 抛错 → catch → fail-open allow（不 throw）", async () => {
+  // Symbol sessionID 在 pendingPathFor 的模板字面量处抛 TypeError（Symbol 不能插值）——
+  // 穿过 gateDecide 落到 adapter 的 catch → fail-open allow。验证 catch 分支真实可达。
+  const hooks = await cddGate({ directory: root });
+  const before = hooks["tool.execute.before"];
+  await assert.doesNotReject(
+    () => before({ tool: "bash", sessionID: Symbol("malformed"), callID: "c5" }, { args: { command: "git commit -m x" } }),
+  );
 });

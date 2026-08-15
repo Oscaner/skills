@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs"
+            "command": "../bin/gate/adapters/codex.mjs"
           }
         ]
       },
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs"
+            "command": "../bin/gate/adapters/codex.mjs"
           }
         ]
       }

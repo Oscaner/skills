@@ -355,8 +355,10 @@ export function gateDecide(input) {
   }
 
   if (isWriteTool(toolName)) {
-    // bash `.path // .file_path` 优先级 + 空串语义：path 优先；空串回退 file_path
-    //（而非 `??` 把空 file_path 当值 → 空 rawPath → 静默 allow bypass）。
+    // path 优先、空串回退 file_path —— 对 bash 版 `jq -r '.path // .file_path // empty'`
+    // 的刻意加固：jq `//` 是 alternative 运算符，空串不是 null/false → `"" // "x"` 仍返回
+    // "" → 空 rawPath → `[[ -n "" ]]` 失败 → 静默 allow bypass。`||` 把空串当缺失 → 回退
+    // file_path → 仅两者皆空才 allow（锁定：cdd-gate-core.test.mjs 的 path/file_path 空串用例）。
     const rawPath = ti.path || ti.file_path || "";
     if (!rawPath) return allowResult();
     const absPath = normalizeAbs(rawPath, repoRoot);

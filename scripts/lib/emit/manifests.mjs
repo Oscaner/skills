@@ -91,6 +91,8 @@ export function cursorPluginManifest(plugin, version) {
  * Completes the sibling shape: skills + hooks（plugin-root `hooks/hooks.json`
  * 自动发现通道，manifest 位于 `.qoder-plugin/` 故 manifest-relative 为
  * `./hooks/hooks.json`；emit 按 `oscaner-plugin.hooks.qoder` 写文件）。
+ * 统一 manifest-relative base：`../skills/` → 包根 skills/，hooks 命令同
+ * `../bin/...` → 包根 bin/（见 qoderHooksJson）。
  */
 export function qoderPluginManifest(plugin, version) {
   const m = {
@@ -103,7 +105,7 @@ export function qoderPluginManifest(plugin, version) {
   if (plugin.license) m.license = plugin.license;
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
-  m.skills = "./skills/";
+  m.skills = "../skills/";
   m.hooks = "./hooks/hooks.json";
   return m;
 }
@@ -120,11 +122,11 @@ export function codexPluginManifest(plugin, version) {
   if (plugin.license) m.license = plugin.license;
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
-  m.skills = "./skills/";
-  // codex 插件 hooks 走 plugin-root `hooks/hooks.json` 自动发现通道（manifest 位于
-  // `.codex-plugin/`，故 manifest-relative 是 `./hooks/hooks.json`；emit 按
-  // `oscaner-plugin.hooks.codex`（package-relative）写文件到 `.codex-plugin/hooks/`）。
-  // cdd-gate 内容由 `hooks/hooks.json` 生成器产出。
+  // codex 插件统一 manifest-relative base：manifest 位于 `.codex-plugin/`，故
+  // `../skills/` → 包根 skills/，`./hooks/hooks.json` → `.codex-plugin/hooks/hooks.json`
+  //（hooks 命令同为 `../bin/...` → 包根 bin/，见 codexHooksJson）。skills 与 hooks
+  // 共用同一 base，不再混用 plugin-root 变量。
+  m.skills = "../skills/";
   m.hooks = "./hooks/hooks.json";
   m.interface = codexInterface(plugin);
   return m;
@@ -189,11 +191,12 @@ export function geminiMarkdown(plugin, skillNames) {
 
 /**
  * `package.json#pi` — pure skills package key for VENDORED assemblies
- * (publish-vendor.mjs). Pi consumes no package `pi` key (it auto-discovers
- * `*.ts` under the extensions dir), so this key is informational metadata only
- * — engineering's gate is delivered as a native os-init config set, not via a
- * `pi` package key. Vendored assemblies call with no extensions (pure-skills
- * key).
+ * (publish-vendor.mjs). Pi packages support a `package.json` `pi` key
+ * (skills/prompts/themes delivery via `pi install`), but engineering's gate is
+ * NOT delivered through it: the gate adapter is `.mjs` while pi extensions are
+ * auto-discovered `*.ts` — the gate ships as a native os-init config set
+ * (manual extension copy, experimental). This key carries vendored assemblies'
+ * skills delivery only (`extensions` field modeled for completeness).
  * @param {{ extensions?: string[] }} [opts]
  */
 export function piPackageKey({ extensions = [] } = {}) {
@@ -257,25 +260,25 @@ export function engineeringCursorHooks() {
 
 /**
  * engineering Codex PreToolUse hooks (cdd gate). Codex plugin hooks are read
- * from the plugin-root `hooks/hooks.json` that `.codex-plugin/plugin.json`
- * references. Codex discovers the manifest at `<plugin_root>/.codex-plugin/
- * plugin.json` and substitutes `${PLUGIN_ROOT}` (the plugin root) in plugin hook
- * commands at load time — so the adapter command must be plugin-root-anchored,
- * not a `../` relative path (hook subprocesses spawn in the project cwd, where a
- * relative command would resolve to the wrong place).
+ * from `.codex-plugin/hooks/hooks.json`（manifest 引用 `./hooks/hooks.json`）。
+ * Adapter 命令用 manifest-relative `../bin/...`（相对 `.codex-plugin/` → 包根
+ * `bin/gate/adapters/codex.mjs`）—— 与 plugin.json 的 skills/hooks 共用同一
+ * manifest-relative base，不依赖 `${PLUGIN_ROOT}` 替换（codex 通道待验证，
+ * 用文档化替换变量会引入「命令指向不存在文件」风险）。
  */
 export function codexHooksJson() {
-  return cddGatePreToolUseHooks("${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs");
+  return cddGatePreToolUseHooks("../bin/gate/adapters/codex.mjs");
 }
 
 /**
  * engineering Qoder PreToolUse hooks (cdd gate). Qoder mirrors Claude events;
- * plugin hooks are auto-discovered at plugin-root `hooks/hooks.json`
- * (`.qoder-plugin/` is the plugin root). `QODER_PLUGIN_ROOT` is the documented
- * plugin-root env var.
+ * plugin hooks are auto-discovered at `.qoder-plugin/hooks/hooks.json`
+ * (`.qoder-plugin/` is the plugin root). Adapter 命令同样 manifest-relative
+ * `../bin/...`（相对 `.qoder-plugin/` → 包根 `bin/gate/adapters/qoder.mjs`）——
+ * 与 codex 统一 base，不依赖 `QODER_PLUGIN_ROOT` 替换。
  */
 export function qoderHooksJson() {
-  return cddGatePreToolUseHooks("${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs");
+  return cddGatePreToolUseHooks("../bin/gate/adapters/qoder.mjs");
 }
 
 /**
@@ -335,9 +338,12 @@ export function collectHookCommands(doc) {
 }
 
 // 从 hook 命令提取 adapter 的 package-relative 路径。支持 `${ENV_VAR}/bin/...`
-// （claude/codex/qoder/gemini 的 plugin-root 变量）与 `./bin/...`（cursor 相对
-// 插件根）；非 adapter 命令（如 `python3 /tmp/x.py`）→ null（guard 跳过）。
-const ADAPTER_CMD_RE = /^(?:\$\{[A-Za-z_]+\}\/|\.\/)?(bin\/gate\/adapters\/[A-Za-z0-9_.-]+\.mjs)$/;
+// （claude/gemini 的 plugin-root 变量）、`./bin/...`（cursor 相对插件根）与
+// `../bin/...`（codex/qoder 的 manifest-relative base，相对 `.codex-plugin/` /
+// `.qoder-plugin/` → 包根 bin/）；非 adapter 命令（如 `python3 /tmp/x.py`）→ null
+// （guard 跳过）。guard 按捕获的 `bin/...` 后缀对 pluginDir 做存在性检查——
+// 无论前缀是变量还是 `../`，目标 adapter 都在包根 `bin/gate/adapters/` 下。
+const ADAPTER_CMD_RE = /^(?:\$\{[A-Za-z_]+\}\/|\.{1,2}\/)?(bin\/gate\/adapters\/[A-Za-z0-9_.-]+\.mjs)$/;
 export function adapterRelFromCommand(command) {
   if (typeof command !== "string") return null;
   const m = command.match(ADAPTER_CMD_RE);

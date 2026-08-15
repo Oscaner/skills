@@ -1,9 +1,13 @@
 # Pi gate — manual extension copy
 
-Pi has **no package.json `pi` key mechanism**. Research shows Pi auto-discovers
-`*.ts` / `*/index.ts` under `~/.pi/agent/extensions/` and `.pi/extensions/` —
-gate wiring for a Pi consumer is a **manual extension copy**, not an
-install-and-go package channel.
+Pi packages **do** have a `package.json` `pi` key mechanism — research shows
+`pi install npm:@x / git:host/repo / path` consumes a `pi` key with conventional
+dirs (`skills/ extensions/ prompts/ themes/`). But the **engineering gate is not
+delivered through that package channel**: the gate adapter is `.mjs`, while Pi
+extensions are auto-discovered as `*.ts` / `*/index.ts` under
+`~/.pi/agent/extensions/` and `.pi/extensions/`. Gate wiring for a Pi consumer is
+therefore a **manual extension copy** (experimental), not an install-and-go
+package channel.
 
 ## How it works
 
@@ -39,8 +43,10 @@ printf 'export { default } from "%s";\n' \
 
 - `pi.ts` — the native-config template (contains `{{GATE_ADAPTER}}`, so
   `deriveNativeHarnesses` treats `pi` as a native harness).
-- `README.md` — this file. The old `package.json` reference (documenting a `pi`
-  package key) was deleted — Pi consumes no such key.
+- `README.md` — this file. Pi's `package.json` `pi` key is real (skills /
+  prompts / themes delivery), but the gate adapter is `.mjs` — Pi extensions are
+  `.ts`, so the gate stays a manual extension copy (experimental) rather than a
+  verified package channel.
 
 If a target Pi version does not load the `.mjs` adapter via the shim, rewrite
 `pi.mjs` as `pi.ts` inside the package and update the shim's import target.

@@ -5,10 +5,12 @@
 // ctx.cwd / ctx.sessionManager；deny → { block: true, reason }（terminate 不设 →
 // 仅阻断本次调用）。写工具 input 用 path（read/write/edit 同构），gate 核心查
 // path || file_path → 直接命中。
-// 发现：pi 在 ~/.pi/agent/extensions + .pi/extensions 自动发现 `*.ts` / `*/index.ts`，
-// 无 package.json `pi` key 机制 —— 消费方通过 os-init gates 手动扩展复制（configs/pi/pi.ts
-// shim re-export 本 default export factory；见 gate/configs/pi/README.md）。`.mjs` 经
-// shim 的绝对路径 import 加载 —— 未经真实 pi 安装实测（experimental）。
+// 发现：pi 在 ~/.pi/agent/extensions + .pi/extensions 自动发现 `*.ts` / `*/index.ts`。
+// pi 包确有 package.json `pi` key（skills/prompts/themes 分发通道，见 research
+// harness-marketplace-hooks §1 Pi 行），但 gate 不以此为通道：adapter 是 `.mjs`，
+// pi 扩展只认 `*.ts`，故消费方通过 os-init gates 手动扩展复制（configs/pi/pi.ts
+// shim re-export 本 default export factory；见 gate/configs/pi/README.md）。`.mjs`
+// 经 shim 的绝对路径 import 加载 —— 未经真实 pi 安装实测（experimental）。
 import { gateDecide } from "../cdd-gate-core.mjs";
 import { canonicalToolName } from "./lib.mjs";
 

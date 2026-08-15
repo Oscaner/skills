@@ -92,6 +92,37 @@ test("pi 已装 → 写 ~/.pi/agent/extensions/engineering.ts（manual extension
   assert.ok(text.includes("pi.mjs"), "shim 指向包内 pi adapter（含 .mjs）");
 });
 
+test("pi 目标已存在且非模板生成 → 跳过不覆盖（幂等 guard，保留用户文件）", () => {
+  const home = mkdtempSync("/tmp/os-init-");
+  const e = env({ home, commands: ["pi"] });
+  const dir = path.join(home, ".pi", "agent", "extensions");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "engineering.ts"), "export const user = true;\n");
+  const out = run(["--harness", "pi"], e);
+  const p = path.join(dir, "engineering.ts");
+  assert.equal(readFileSync(p, "utf8"), "export const user = true;\n", "用户文件不被覆盖");
+  assert.match(out, /跳过/);
+});
+
+test("pi 目标已存在且为模板生成 → 幂等覆盖更新（指回包内 adapter）", () => {
+  const home = mkdtempSync("/tmp/os-init-");
+  const e = env({ home, commands: ["pi"] });
+  const dir = path.join(home, ".pi", "agent", "extensions");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    path.join(dir, "engineering.ts"),
+    "// os-init gates — Pi TS extension（manual extension copy）。\nexport { default } from \"/old/path/pi.mjs\";\n",
+  );
+  run(["--harness", "pi"], e);
+  const p = path.join(dir, "engineering.ts");
+  const text = readFileSync(p, "utf8");
+  assert.ok(text.includes("pi.mjs"), "模板生成文件被覆盖更新");
+  assert.ok(
+    text.includes(path.join("bin", "gate", "adapters", "pi.mjs")),
+    "覆盖后指向包内 adapter 路径",
+  );
+});
+
 test("原生集合（configs/ 派生）写原生 config；包通道只引导命令", () => {
   const home = mkdtempSync("/tmp/os-init-");
   const e = env({ home, commands: ALL_HARNESSES });

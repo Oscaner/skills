@@ -25,6 +25,10 @@ const ADAPTERS = path.join(PKG_ROOT, "bin", "gate", "adapters");
 const PLACEHOLDER = GATE_ADAPTER_PLACEHOLDER;
 const HOME = process.env.HOME ?? "";
 
+// pi 扩展 shim 模板标记 —— 用于识别「目标 .ts 文件是否为我们模板生成」。
+// 模板首行注释携带该标记；用户手写 / 第三方扩展不会有 → 存在且非模板生成 → 跳过不覆盖。
+const PI_TS_MARKER = "os-init gates — Pi TS extension";
+
 const homePath = (...seg) => path.join(HOME, ...seg);
 
 function commandExists(name) {
@@ -114,12 +118,13 @@ function mergeJsonHooks(existing, tmpl) {
 }
 
 // 目标已存在时合并：JSON 深合并；TOML 追加（已含同款块则跳过）；`.ts` 扩展 shim
-// 是我们的生成文件（非用户配置）→ 覆盖。合法 JSON/TOML 之外拒绝覆盖用户文件
-//（明确报错，不静默破坏）。
+// 是我们的生成文件（带模板标记）→ 覆盖，非模板生成的用户文件 → 跳过不覆盖。
+// 合法 JSON/TOML 之外拒绝覆盖用户文件（明确报错，不静默破坏）。
+// 返回 { content } 或 { skip: true }（目标已存在且非模板生成 → 不覆盖）。
 async function mergeIfExists(dest, content) {
-  if (!existsSync(dest)) return content;
+  if (!existsSync(dest)) return { content };
   const existing = await readFile(dest, "utf8");
-  if (!existing.trim()) return content;
+  if (!existing.trim()) return { content };
   if (dest.endsWith(".json")) {
     let existingObj;
     try {
@@ -128,14 +133,20 @@ async function mergeIfExists(dest, content) {
       throw new Error(`${dest} 不是合法 JSON —— 拒绝覆盖用户文件，请人工处理`);
     }
     const merged = mergeJsonHooks(existingObj, JSON.parse(content));
-    return `${JSON.stringify(merged, null, 2)}\n`;
+    return { content: `${JSON.stringify(merged, null, 2)}\n` };
   }
-  if (dest.endsWith(".ts")) return content; // pi 扩展 shim —— 覆盖（幂等）
+  if (dest.endsWith(".ts")) {
+    // pi 扩展 shim —— 仅当目标是我们的模板生成文件时覆盖（幂等更新）；
+    // 用户手写 / 第三方扩展 → 跳过，不无条件覆盖（幂等 guard）。
+    if (existing.includes(PI_TS_MARKER)) return { content };
+    return { skip: true };
+  }
   // TOML：已含同款块 → 跳过；否则追加（保留用户既有 hooks 块）。
-  if (existing.includes(content.trim())) return existing;
-  return `${existing.replace(/\s*$/, "\n")}${content.trim()}\n`;
+  if (existing.includes(content.trim())) return { content: existing };
+  return { content: `${existing.replace(/\s*$/, "\n")}${content.trim()}\n` };
 }
 
+// 写原生 config；返回 true（写入）/ false（跳过）/ null（dry-run）。
 async function installNative(name, h, dryRun) {
   const adapter = path.join(ADAPTERS, `${name}.mjs`);
   const template = await readFile(h.config.template, "utf8");
@@ -144,14 +155,20 @@ async function installNative(name, h, dryRun) {
   if (dryRun) {
     console.log(`  [dry-run] ${name.padEnd(10)} would write ${dest}`);
     if (h.trust) console.log(`  [dry-run] ${name.padEnd(10)} would print: ${h.trust}`);
-    return;
+    return null;
+  }
+  const merged = await mergeIfExists(dest, content);
+  if (merged.skip) {
+    console.log(`  — ${name.padEnd(10)} skipped — ${dest} 已存在非模板生成文件（不覆盖）`);
+    return false;
   }
   await mkdir(path.dirname(dest), { recursive: true });
-  await writeFile(dest, await mergeIfExists(dest, content));
+  await writeFile(dest, merged.content);
   console.log(`  ✓ ${name.padEnd(10)} wrote ${dest}`);
   if (h.trust) {
     console.log(`     ${name.padEnd(10)} 下一步: ${h.trust}`);
   }
+  return true;
 }
 
 function parseArgs(argv) {
@@ -190,8 +207,9 @@ async function main() {
       continue;
     }
     if (nativeSet.has(name)) {
-      await installNative(name, h, args.dryRun); // 写失败 → 抛错 → exit 1
-      wrote++;
+      const result = await installNative(name, h, args.dryRun); // 写失败 → 抛错 → exit 1
+      if (result === true) wrote++;
+      else if (result === false) skipped++;
     } else {
       console.log(`  · ${name.padEnd(10)} detected — 引导: ${h.guide}`);
       if (h.trust) console.log(`     ${name.padEnd(10)} 下一步: ${h.trust}`);

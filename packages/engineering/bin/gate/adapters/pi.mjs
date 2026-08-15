@@ -4,11 +4,11 @@
 // handler(event, ctx)，event.toolName / event.input（可变更、后置 handler 可见），
 // ctx.cwd / ctx.sessionManager；deny → { block: true, reason }（terminate 不设 →
 // 仅阻断本次调用）。写工具 input 用 path（read/write/edit 同构），gate 核心查
-// file_path ?? path → 直接命中。
-// 发现：pi 在 ~/.pi/extensions 自动发现 `*.ts`；本包扩展走 package.json `pi.extensions`
-// 显式路径加载（`.mjs` = ESM 模块）。`.mjs` 经实时 loader 支持未经实测 —— 若目标 pi
-// 版本不加载 `.mjs`，将本文件转写为 `.ts` 并在 piPackageKey/package.json 同步扩展路径
-// （见 gate/configs/pi/README.md）。
+// path || file_path → 直接命中。
+// 发现：pi 在 ~/.pi/agent/extensions + .pi/extensions 自动发现 `*.ts` / `*/index.ts`，
+// 无 package.json `pi` key 机制 —— 消费方通过 os-init gates 手动扩展复制（configs/pi/pi.ts
+// shim re-export 本 default export factory；见 gate/configs/pi/README.md）。`.mjs` 经
+// shim 的绝对路径 import 加载 —— 未经真实 pi 安装实测（experimental）。
 import { gateDecide } from "../cdd-gate-core.mjs";
 import { canonicalToolName } from "./lib.mjs";
 

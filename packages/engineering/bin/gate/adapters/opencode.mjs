@@ -13,7 +13,7 @@ export async function cddGate({ directory }) {
     "tool.execute.before": async (input, output) => {
       try {
         const args = { ...(output?.args ?? {}) };
-        // opencode 写工具（write/edit）用 camelCase filePath；gate 核心查 file_path ?? path。
+        // opencode 写工具（write/edit）用 camelCase filePath；gate 核心查 path || file_path。
         if (args.filePath != null && args.file_path == null) args.file_path = args.filePath;
         const r = gateDecide({
           harness: "opencode",

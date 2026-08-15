@@ -1,50 +1,46 @@
-# pi package key reference
+# Pi gate — manual extension copy
 
-Pi has no CLI hooks manifest — gate wiring ships as a **TS extension** referenced
-from the package's `pi` key in `package.json`. This directory documents the `pi`
-key shape that the engineering plugin emits, as a reference for packaging the
-gate for a Pi consumer.
+Pi has **no package.json `pi` key mechanism**. Research shows Pi auto-discovers
+`*.ts` / `*/index.ts` under `~/.pi/agent/extensions/` and `.pi/extensions/` —
+gate wiring for a Pi consumer is a **manual extension copy**, not an
+install-and-go package channel.
 
-## The `pi` key
+## How it works
 
-```json
-{
-  "pi": {
-    "extensions": ["./bin/gate/adapters/pi.mjs"],
-    "skills": ["./skills"]
-  }
-}
+`os-init gates` writes `~/.pi/agent/extensions/engineering.ts` — a thin shim
+that re-exports the package's `bin/gate/adapters/pi.mjs` default-export factory:
+
+```ts
+// configs/pi/pi.ts (the {{GATE_ADAPTER}} placeholder is replaced at install time)
+export { default } from "{{GATE_ADAPTER}}";
 ```
 
-- `extensions` — the in-process gate extension module (`pi.mjs`). Pi loads the
-  module's **default-export factory** and registers the gate handler via
-  `pi.on("tool_call", …)`; deny returns `{ block: true, reason }`. Path is
-  relative to the package root.
-- `skills` — the skills directory Pi discovers.
-
-## Where it lives
-
-`packages/engineering/package.json` → `oscaner-plugin.pi` carries the key for
-the `@oscaner-skills/engineering` package. It is **emit-generated**
-(`scripts/emit.mjs` `ensurePiKey` / `piPackageKey()` in
-`scripts/lib/emit/manifests.mjs`) — do not hand-edit the `pi` key; run
-`pnpm run emit`.
-
-## `.mjs` vs `*.ts` discovery note
-
-Pi auto-discovers `*.ts` / `*/index.ts` under `~/.pi/agent/extensions/` and
-`.pi/extensions/`. The package extension here is loaded via the **explicit**
-`pi.extensions` path (`./bin/gate/adapters/pi.mjs`), not the extensions-dir scan,
-so `.mjs` (valid ESM) is referenced directly. Live-loader support for `.mjs`
-through the package channel is unverified against a real pi install — if a target
-pi version does not load `.mjs`, rewrite the adapter as `pi.ts` and update both
-`piPackageKey()` (manifests.mjs) and the emitted `pi.extensions` path.
+The shim is **experimental / unverified against a live Pi install** — it assumes
+the Pi TS loader can resolve an absolute `.mjs` import from the installed
+`@oscaner-skills/engineering` package. The gate core stays in the package, so a
+Pi adapter update needs no re-copy of the extension.
 
 ## Install for Pi
 
 ```bash
-pi install npm:@oscaner-skills/engineering
+os-init gates            # or: os-init gates --harness pi
 ```
 
-Pi loads the extension from the installed package's `pi.extensions` list; the
-`skills` entry registers the engineering skills namespace.
+Or copy manually:
+
+```bash
+mkdir -p ~/.pi/agent/extensions
+printf 'export { default } from "%s";\n' \
+  "$(node -p "require.resolve('@oscaner-skills/engineering/bin/gate/adapters/pi.mjs')")" \
+  > ~/.pi/agent/extensions/engineering.ts
+```
+
+## `configs/pi/`
+
+- `pi.ts` — the native-config template (contains `{{GATE_ADAPTER}}`, so
+  `deriveNativeHarnesses` treats `pi` as a native harness).
+- `README.md` — this file. The old `package.json` reference (documenting a `pi`
+  package key) was deleted — Pi consumes no such key.
+
+If a target Pi version does not load the `.mjs` adapter via the shim, rewrite
+`pi.mjs` as `pi.ts` inside the package and update the shim's import target.

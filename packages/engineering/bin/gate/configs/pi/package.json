@@ -1,9 +1,0 @@
-{
-  "name": "@oscaner-skills/engineering",
-  "version": "0.1.0",
-  "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
-  "pi": {
-    "extensions": ["./bin/gate/adapters/pi.mjs"],
-    "skills": ["./skills"]
-  }
-}

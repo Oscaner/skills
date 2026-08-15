@@ -17,7 +17,6 @@ test("JSON config 模板 parse", () => {
     ["kiro", "hooks.json"],
     ["grok", "engineering.json"],
     ["opencode.json"],
-    ["pi", "package.json"],
   ];
   for (const rel of jsonFiles) {
     const p = path.join(CONFIGS, ...rel);
@@ -26,11 +25,28 @@ test("JSON config 模板 parse", () => {
   }
 });
 
+test("pi 原生模板：configs/pi/pi.ts 含 {{GATE_ADAPTER}} 占位符 re-export shim", () => {
+  const p = path.join(CONFIGS, "pi", "pi.ts");
+  const text = readFileSync(p, "utf8");
+  assert.match(text, /export\s*\{[^}]*default[^}]*\}\s*from/);
+  assert.ok(text.includes(GATE_ADAPTER_PLACEHOLDER), "模板应含 {{GATE_ADAPTER}} 占位符");
+});
+
 test("TOML 模板含 pre_tool 结构", () => {
   const text = readFileSync(path.join(CONFIGS, "vibe", "hooks.toml"), "utf8");
   assert.match(text, /\[\[hooks\]\]/);
   assert.match(text, /type\s*=\s*"pre_tool"/);
   assert.match(text, /command\s*=\s*"/);
+});
+
+test("kiro config 用文档化 hooks[] 数组形（trigger PascalCase + command，无 type:action）", () => {
+  const parsed = JSON.parse(readFileSync(path.join(CONFIGS, "kiro", "hooks.json"), "utf8"));
+  assert.ok(Array.isArray(parsed.hooks), "hooks 应为数组");
+  for (const entry of parsed.hooks) {
+    assert.equal(entry.type, undefined, "去掉非文档 type:action");
+    assert.ok(typeof entry.trigger === "string" && /^[A-Z]/.test(entry.trigger), "trigger 事件名 PascalCase");
+    assert.ok(typeof entry.command === "string" && entry.command.includes(GATE_ADAPTER_PLACEHOLDER), "command 含占位符");
+  }
 });
 
 test("原生模板集合派生：含 {{GATE_ADAPTER}} 占位符的目录 = 原生 harness", () => {
@@ -43,9 +59,9 @@ test("原生模板集合派生：含 {{GATE_ADAPTER}} 占位符的目录 = 原�
     assert.ok(hasPlaceholder, `derived native ${name} 应含占位符`);
   }
   // 回归护栏：已知原生 harness 必须在派生集合内（新增原生只需加目录，不改此断言）。
-  for (const known of ["trae", "vibe", "kiro", "grok"]) {
+  for (const known of ["trae", "vibe", "kiro", "grok", "pi"]) {
     assert.ok(derived.includes(known), `known native ${known} 应被派生`);
   }
-  // 包通道目录（pi 无占位符）不得派生为原生。
-  assert.ok(!derived.includes("pi"), "pi 无占位符模板 → 不派生为原生");
+  // 无 config 目录的包通道 harness（opencode 走 opencode.json 插件行）不得派生为原生。
+  assert.ok(!derived.includes("opencode"), "opencode 无 configs/ 模板 → 不派生为原生");
 });

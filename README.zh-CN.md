@@ -89,7 +89,7 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 
 1. 从 marketplace 安装 `superpowers`、`superpowers-overrides`、`engineering`、`mattpocock-skills`。
 2. 每个项目跑一次 **`os-init spor`**——插件升级后重跑。具体 slash 命令因 harness 而异 → [用法](packages/superpowers-overrides/README.zh-CN.md#用法)。
-3. 无包通道的 harness（trae / vibe / kiro，外加 grok 可选原生）要装跨 harness CDD gate，跑 **`os-init gates`**；包通道 harness（qoder / codex / gemini / pi / opencode）安装即生效。各 harness 安装 → [docs/gate-install.md](docs/gate-install.md)。
+3. 跨 harness CDD gate 按 harness 装——**已验证通道**（claude / cursor / trae / vibe / kiro / grok / qoder / gemini）走安装即生效或 `os-init gates` 原生 config；**experimental / 假设**（pi / opencode / codex）按文档格式接线但未经真实安装验证——pi 是手动扩展复制。各 harness 安装 → [docs/gate-install.md](docs/gate-install.md)。
 4. 照常调用 superpowers 工作流——路由器会先路由到对应的 engineering / mattpocock 目标。
 
 ## 延伸阅读

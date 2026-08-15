@@ -188,10 +188,12 @@ export function geminiMarkdown(plugin, skillNames) {
 }
 
 /**
- * `package.json#pi` — pure skills package plus (for engineering) the pi TS gate
- * extension. Vendored assemblies call with no extensions (pure-skills key); the
- * engineering emit passes the gate adapter path so the pi package ships the
- * in-process gate.
+ * `package.json#pi` — pure skills package key for VENDORED assemblies
+ * (publish-vendor.mjs). Pi consumes no package `pi` key (it auto-discovers
+ * `*.ts` under the extensions dir), so this key is informational metadata only
+ * — engineering's gate is delivered as a native os-init config set, not via a
+ * `pi` package key. Vendored assemblies call with no extensions (pure-skills
+ * key).
  * @param {{ extensions?: string[] }} [opts]
  */
 export function piPackageKey({ extensions = [] } = {}) {
@@ -255,13 +257,15 @@ export function engineeringCursorHooks() {
 
 /**
  * engineering Codex PreToolUse hooks (cdd gate). Codex plugin hooks are read
- * from the plugin-root `hooks/hooks.json` the `.codex-plugin/plugin.json`
- * manifest references. Codex documents no plugin-root env var, so the command
- * is a relative path (`../bin/gate/adapters/codex.mjs` from the plugin root /
- * hooks dir) instead of the Claude `${CLAUDE_PLUGIN_ROOT}` compat var.
+ * from the plugin-root `hooks/hooks.json` that `.codex-plugin/plugin.json`
+ * references. Codex discovers the manifest at `<plugin_root>/.codex-plugin/
+ * plugin.json` and substitutes `${PLUGIN_ROOT}` (the plugin root) in plugin hook
+ * commands at load time — so the adapter command must be plugin-root-anchored,
+ * not a `../` relative path (hook subprocesses spawn in the project cwd, where a
+ * relative command would resolve to the wrong place).
  */
 export function codexHooksJson() {
-  return cddGatePreToolUseHooks("../bin/gate/adapters/codex.mjs");
+  return cddGatePreToolUseHooks("${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs");
 }
 
 /**
@@ -308,6 +312,64 @@ export function engineeringHooksFor(harness) {
     },
     "engineering",
   );
+}
+
+// 递归收集 hook 文档里所有 `command` 字符串（claude/codex/qoder 的嵌套
+// hooks[].hooks[].command 与 cursor 的顶层 hooks[].command 都覆盖）。
+export function collectHookCommands(doc) {
+  const out = [];
+  const walk = (v) => {
+    if (Array.isArray(v)) {
+      for (const x of v) walk(x);
+      return;
+    }
+    if (v && typeof v === "object") {
+      if (typeof v.command === "string") out.push(v.command);
+      for (const [k, val] of Object.entries(v)) {
+        if (k !== "command") walk(val);
+      }
+    }
+  };
+  walk(doc);
+  return out;
+}
+
+// 从 hook 命令提取 adapter 的 package-relative 路径。支持 `${ENV_VAR}/bin/...`
+// （claude/codex/qoder/gemini 的 plugin-root 变量）与 `./bin/...`（cursor 相对
+// 插件根）；非 adapter 命令（如 `python3 /tmp/x.py`）→ null（guard 跳过）。
+const ADAPTER_CMD_RE = /^(?:\$\{[A-Za-z_]+\}\/|\.\/)?(bin\/gate\/adapters\/[A-Za-z0-9_.-]+\.mjs)$/;
+export function adapterRelFromCommand(command) {
+  if (typeof command !== "string") return null;
+  const m = command.match(ADAPTER_CMD_RE);
+  return m ? m[1] : null;
+}
+
+/**
+ * Emit guard (I3): every generated hooks command that targets a gate adapter
+ * must resolve to an existing file under the plugin dir. Throws otherwise —
+ * `pnpm run emit` / `emit --check` fail loud instead of shipping a broken hook
+ * command. Covers the engineering per-harness hooks + gemini-extension.json.
+ */
+export function assertAdapterPathsExist(plugin, pluginDir, version) {
+  const docs = [];
+  for (const [harness] of Object.entries(plugin.hooks ?? {})) {
+    docs.push(engineeringHooksFor(harness));
+  }
+  docs.push(geminiExtension(plugin, version));
+  const missing = [];
+  for (const doc of docs) {
+    for (const cmd of collectHookCommands(doc)) {
+      const rel = adapterRelFromCommand(cmd);
+      if (rel && !existsSync(join(pluginDir, rel))) {
+        missing.push(`${plugin.name}: ${rel} (from command: ${cmd})`);
+      }
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `emit hooks adapter guard — generated hook command adapter missing:\n  ${missing.join("\n  ")}`,
+    );
+  }
 }
 
 function codexInterface(plugin) {

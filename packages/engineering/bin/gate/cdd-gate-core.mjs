@@ -355,7 +355,9 @@ export function gateDecide(input) {
   }
 
   if (isWriteTool(toolName)) {
-    const rawPath = ti.file_path ?? ti.path ?? "";
+    // bash `.path // .file_path` 优先级 + 空串语义：path 优先；空串回退 file_path
+    //（而非 `??` 把空 file_path 当值 → 空 rawPath → 静默 allow bypass）。
+    const rawPath = ti.path || ti.file_path || "";
     if (!rawPath) return allowResult();
     const absPath = normalizeAbs(rawPath, repoRoot);
     if (sessionMode === "in-session" || sessionMode === "subagent" || sessionMode === "") return allowResult();

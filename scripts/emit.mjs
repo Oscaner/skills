@@ -18,7 +18,6 @@
  *      qoder   → `.qoder-plugin/plugin.json`
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
- *      pi      → `oscaner-plugin.pi` (verified/ensured)
  *      shared  → `.agents/skills/` copy (engineering only — no vendored upstream)
  *    plus the overrides hooks/self-check tables and engineering PreToolUse
  *    hooks, and version consistency per `packages/engineering/.version-bump.json`.
@@ -64,9 +63,9 @@ import {
   kimiPluginManifest,
   geminiExtension,
   geminiMarkdown,
-  piPackageKey,
   engineeringHooksFor,
   qoderPluginManifest,
+  assertAdapterPathsExist,
 } from "./lib/emit/manifests.mjs";
 import { deriveSource } from "./lib/emit/source.mjs";
 import {
@@ -206,8 +205,9 @@ function emitOsEngineering(outRoot, plugin) {
 
   emitAgentsSkillsCopy(outRoot, contentRoot);
 
-  // pi: pure skills package, no runtime extensions.
-  ensurePiKey(root, plugin);
+  // I3 guard: generated hooks commands must resolve to real adapter files
+  // (runs in write + --check modes; fail loud on a missing adapter).
+  assertAdapterPathsExist(plugin, pluginDir, version);
 }
 
 /**
@@ -244,28 +244,6 @@ function collectTree(absDir, relPrefix) {
     } else {
       generatedPaths.push(rel);
     }
-  }
-}
-
-/**
- * Ensure `package.json#oscaner-plugin.pi` carries the pure-skills key
- * (write + check). The pi metadata lives in oscaner-plugin, not the top-level
- * package.json#pi.
- */
-function ensurePiKey(baseRoot, plugin) {
-  const pkgPath = join(baseRoot, plugin.contentRoot, "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-  const expected = piPackageKey({ extensions: ["./bin/gate/adapters/pi.mjs"] });
-  const osc = pkg["oscaner-plugin"] ?? {};
-  if (JSON.stringify(osc.pi) !== JSON.stringify(expected)) {
-    if (checkMode) {
-      console.error(
-        `DRIFT: ${plugin.contentRoot}/package.json missing oscaner-plugin.pi ${JSON.stringify(expected)}`,
-      );
-      process.exit(1);
-    }
-    pkg["oscaner-plugin"] = { ...osc, pi: expected };
-    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
   }
 }
 

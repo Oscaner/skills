@@ -14,6 +14,7 @@
   },
   "homepage": "https://github.com/Oscaner/skills",
   "license": "MIT",
+  "main": "./bin/gate/adapters/opencode.mjs",
   "oscaner-plugin": {
     "claude": {
       "category": "engineering",
@@ -41,14 +42,6 @@
       "cursor": "./hooks/hooks-cursor.json",
       "codex": "./.codex-plugin/hooks/hooks.json",
       "qoder": "./.qoder-plugin/hooks/hooks.json"
-    },
-    "pi": {
-      "skills": [
-        "./skills"
-      ],
-      "extensions": [
-        "./bin/gate/adapters/pi.mjs"
-      ]
     }
   }
 }

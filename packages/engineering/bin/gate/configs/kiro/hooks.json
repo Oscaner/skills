@@ -1,10 +1,8 @@
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "type": "action",
-        "command": "node {{GATE_ADAPTER}}"
-      }
-    ]
-  }
+  "hooks": [
+    {
+      "trigger": "PreToolUse",
+      "command": "node {{GATE_ADAPTER}}"
+    }
+  ]
 }

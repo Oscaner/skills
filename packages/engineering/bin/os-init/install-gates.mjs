@@ -3,10 +3,11 @@
 // 用法: node install-gates.mjs [--harness trae,vibe,kiro,grok,pi,opencode,gemini,qoder,codex] [--dry-run]
 // 流程（对齐 spec §2.5）：
 //   1. 检测  —— command -v <harness>；trae 无 CLI → 检查 ~/.trae 目录存在
-//   2. 引导  —— 包通道 harness（pi/opencode/gemini/qoder/codex）打印安装命令 + trust 下一步，不写文件
+//   2. 引导  —— 包通道 harness（opencode/gemini/qoder/codex）打印安装命令 + trust 下一步，不写文件
 //   3. 配置  —— 原生 harness 集合从 gate/configs/ 派生（见 native-harnesses.mjs：
-//              含 {{GATE_ADAPTER}} 占位符模板的目录 = 原生），复制 configs/<h>/ 模板 → 机器路径；
-//              模板内 {{GATE_ADAPTER}} 占位符替换为包内 adapter 绝对路径（安装时解析）
+//              含 {{GATE_ADAPTER}} 占位符模板的目录 = 原生，含 pi 手动扩展复制），
+//              复制 configs/<h>/ 模板 → 机器路径；模板内 {{GATE_ADAPTER}} 占位符
+//              替换为包内 adapter 绝对路径（安装时解析）
 //   4. 信任  —— 原生 harness 打印 trust 下一步（grok `grok --trust`；trae Enable…）；
 //              包通道 codex/gemini 也打印 trust 下一步
 //   5. 报告  —— 已写 / 引导 / 跳过 列表；--dry-run 只预览不写
@@ -61,7 +62,10 @@ const HARNESSES = {
     detect: () => commandExists("grok"),
     trust: "grok --trust",
   },
-  pi: { guide: "pi install @oscaner-skills/engineering", detect: () => commandExists("pi") },
+  pi: {
+    config: { template: path.join(CONFIGS, "pi", "pi.ts"), dest: () => homePath(".pi", "agent", "extensions", "engineering.ts") },
+    detect: () => commandExists("pi"),
+  },
   opencode: { guide: "opencode.json `plugin` 数组加 `@oscaner-skills/engineering`", detect: () => commandExists("opencode") },
   gemini: {
     guide: "gemini extensions install <repo-url>",
@@ -76,19 +80,31 @@ const HARNESSES = {
   },
 };
 
-// hook 条目签名 —— 去重键（matcher + 命令）。Cursor 形（顶层 command）与
-// Claude 形（hooks[].command）都覆盖。
+// hook 条目签名 —— 去重键（trigger/matcher + 命令）。Cursor 形（顶层 command）、
+// Claude 形（hooks[].command）、kiro 数组形（trigger + command）都覆盖。
 function hookSignature(entry) {
   const cmds = (entry.hooks ?? []).map((h) => h.command).filter(Boolean);
   if (!cmds.length && entry.command) cmds.push(entry.command);
-  return `${entry.matcher ?? "*"}|${cmds.join(",")}`;
+  const scope = entry.trigger ?? entry.matcher ?? "*";
+  return `${scope}|${cmds.join(",")}`;
 }
 
-// JSON 深合并：模板默认值打底，用户既有值覆盖；hooks 逐事件追加模板条目（按签名去重）。
+// JSON 深合并：模板默认值打底，用户既有值覆盖。hooks 分两形：
+//   对象形（claude/cursor/grok）——逐事件追加模板条目（按签名去重）；
+//   数组形（kiro 文档化 hooks[]）——数组按签名去重合并，保持数组形。
 function mergeJsonHooks(existing, tmpl) {
   const out = { ...tmpl, ...existing };
-  out.hooks = { ...(tmpl.hooks ?? {}), ...(existing.hooks ?? {}) };
-  for (const [event, entries] of Object.entries(tmpl.hooks ?? {})) {
+  const tHooks = tmpl.hooks;
+  const eHooks = existing.hooks;
+  if (Array.isArray(tHooks)) {
+    const cur = Array.isArray(eHooks) ? [...eHooks] : [];
+    const sigs = new Set(cur.map(hookSignature));
+    const additions = tHooks.filter((e) => !sigs.has(hookSignature(e)));
+    out.hooks = [...cur, ...additions];
+    return out;
+  }
+  out.hooks = { ...(tHooks ?? {}), ...(eHooks ?? {}) };
+  for (const [event, entries] of Object.entries(tHooks ?? {})) {
     const cur = Array.isArray(out.hooks[event]) ? [...out.hooks[event]] : [];
     const sigs = new Set(cur.map(hookSignature));
     const additions = entries.filter((e) => !sigs.has(hookSignature(e)));
@@ -97,8 +113,9 @@ function mergeJsonHooks(existing, tmpl) {
   return out;
 }
 
-// 目标已存在时合并：JSON 深合并；TOML 追加（已含同款块则跳过）。合法 JSON/TOML 之外
-// 拒绝覆盖用户文件（明确报错，不静默破坏）。
+// 目标已存在时合并：JSON 深合并；TOML 追加（已含同款块则跳过）；`.ts` 扩展 shim
+// 是我们的生成文件（非用户配置）→ 覆盖。合法 JSON/TOML 之外拒绝覆盖用户文件
+//（明确报错，不静默破坏）。
 async function mergeIfExists(dest, content) {
   if (!existsSync(dest)) return content;
   const existing = await readFile(dest, "utf8");
@@ -113,6 +130,7 @@ async function mergeIfExists(dest, content) {
     const merged = mergeJsonHooks(existingObj, JSON.parse(content));
     return `${JSON.stringify(merged, null, 2)}\n`;
   }
+  if (dest.endsWith(".ts")) return content; // pi 扩展 shim —— 覆盖（幂等）
   // TOML：已含同款块 → 跳过；否则追加（保留用户既有 hooks 块）。
   if (existing.includes(content.trim())) return existing;
   return `${existing.replace(/\s*$/, "\n")}${content.trim()}\n`;

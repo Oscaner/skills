@@ -24,6 +24,7 @@ const NATIVE_DEST = {
   vibe: (home) => path.join(home, ".vibe", "hooks.toml"),
   kiro: (home) => path.join(home, ".kiro", "hooks", "engineering.json"),
   grok: (home) => path.join(home, ".grok", "hooks", "engineering.json"),
+  pi: (home) => path.join(home, ".pi", "agent", "extensions", "engineering.ts"),
 };
 
 // 造隔离 HOME + PATH 上的 fake 命令（executable 占位）。
@@ -80,6 +81,17 @@ test("grok 已装 → 写 ~/.grok/hooks/engineering.json + 打印/执行 `grok -
   assert.match(out, /grok --trust/);
 });
 
+test("pi 已装 → 写 ~/.pi/agent/extensions/engineering.ts（manual extension copy，re-export 包内 adapter）", () => {
+  const home = mkdtempSync("/tmp/os-init-");
+  const e = env({ home, commands: ["pi"] });
+  run(["--harness", "pi"], e);
+  const p = path.join(home, ".pi", "agent", "extensions", "engineering.ts");
+  assert.ok(existsSync(p), `expected ${p} written`);
+  const text = readFileSync(p, "utf8");
+  assert.match(text, /export/);
+  assert.ok(text.includes("pi.mjs"), "shim 指向包内 pi adapter（含 .mjs）");
+});
+
 test("原生集合（configs/ 派生）写原生 config；包通道只引导命令", () => {
   const home = mkdtempSync("/tmp/os-init-");
   const e = env({ home, commands: ALL_HARNESSES });
@@ -95,7 +107,7 @@ test("原生集合（configs/ 派生）写原生 config；包通道只引导命�
   for (const h of PACKAGE_CHANNEL) {
     assert.ok(!existsSync(path.join(home, `.${h}`)), `expected no ~/.${h} dir`);
   }
-  assert.match(out, /pi install @oscaner-skills\/engineering/);
+  // pi 已是原生 config（manual extension copy）—— 写 ~/.pi/agent/extensions/engineering.ts
   assert.match(out, /opencode\.json/);
   assert.match(out, /gemini extensions install/);
   assert.match(out, /\.qoder-plugin/);
@@ -143,4 +155,22 @@ test("grok config 已存在 → 保留用户非冲突内容（merge 而非覆盖
   assert.equal(merged.custom, "user-value"); // 用户顶层 key 保留
   assert.ok(merged.hooks.PreToolUse.some((h) => h.matcher === "Write|Edit")); // 我们的 Write|Edit gate 加入
   assert.ok(merged.hooks.PreToolUse.some((h) => h.matcher === "Other")); // 用户条目保留
+});
+
+test("kiro config 已存在（数组形）→ 保留用户非冲突条目（merge 数组形 hooks）", () => {
+  const home = mkdtempSync("/tmp/os-init-");
+  const e = env({ home, commands: ["kiro"] });
+  const dir = path.join(home, ".kiro", "hooks");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    path.join(dir, "engineering.json"),
+    JSON.stringify({
+      hooks: [{ trigger: "PreToolUse", command: "/usr/bin/custom-gate" }],
+    }),
+  );
+  run(["--harness", "kiro"], e);
+  const merged = JSON.parse(readFileSync(path.join(dir, "engineering.json"), "utf8"));
+  assert.ok(Array.isArray(merged.hooks), "kiro hooks 保持数组形");
+  assert.ok(merged.hooks.some((h) => h.command === "/usr/bin/custom-gate"), "用户条目保留");
+  assert.ok(merged.hooks.some((h) => typeof h.command === "string" && h.command.includes("kiro.mjs")), "我们的 gate 加入");
 });

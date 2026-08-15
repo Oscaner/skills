@@ -15,8 +15,8 @@
 先跑 `node <repo>/packages/engineering/bin/os-init/install-gates.mjs`（检测/引导/写原生 config/信任）：
 
 1. 检测 —— `command -v <harness>`；trae 无 CLI → 检查 `~/.trae` 目录
-2. 引导 —— 包通道 harness（pi/opencode/gemini/qoder/codex）打印安装命令，不写文件
-3. 配置 —— 无包通道 4 个（trae/vibe/kiro/grok）复制 `configs/<h>/` 模板 → 机器路径
+2. 引导 —— 包通道 harness（opencode/gemini/qoder/codex）打印安装命令，不写文件
+3. 配置 —— 原生 harness（trae/vibe/kiro/grok，外加 pi 手动扩展复制）复制 `configs/<h>/` 模板 → 机器路径
 4. 信任 —— grok 打印 `grok --trust`；trae 打印 Enable + sandbox/local 执行模式
 
 未知 `--harness` → 工具 exit 1；`--dry-run` 只预览不写任何文件；重复运行幂等（JSON 深合并 / TOML 追加，保留用户非冲突内容）。

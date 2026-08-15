@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { gateDecide, isWriteTool, isShellTool, readonlyGitVerbs, gitVerbAllowed, pendingPathFor } from "../cdd-gate-core.mjs";
 import { sessionKeyHash, sessionKeyFromJson } from "../adapters/lib.mjs";
-import { makeGateTestEnv, gitFixtureRoot, writePending, now } from "./helpers.mjs";
+import { makeGateTestEnv, gitFixtureRoot, writePending, now, activePlan } from "./helpers.mjs";
 
 const { root, pendingRoot } = makeGateTestEnv();
 const coreUrl = fileURLToPath(new URL("../cdd-gate-core.mjs", import.meta.url));
@@ -90,6 +90,39 @@ test(".superpowers/sdd 回退 workspace 解析 → task_active 出 workspace den
   assert.equal(r.decision, "deny");
   assert.equal(r.context.taskNum, 1);
   assert.equal(r.context.planBase, "plan-fallback");
+});
+
+test("path 提取：path 优先于 file_path（两者都出现，bash .path // .file_path 优先级）", () => {
+  const { dir, sha } = gitFixtureRoot(root);
+  const planDir = activePlan(dir, sha);
+  writePending(pendingRoot, "s-path-priority", { repo_root: dir, detected_at: now(), mode: "cli", workspace: planDir });
+  // path 指向 workspace 内、file_path 指向外部 → allow（说明 path 生效）
+  const inside = gateDecide({ harness: "claude", toolName: "Write", toolInput: { path: `${planDir}/ok.md`, file_path: `${dir}/outside.md` }, sessionKey: "s-path-priority", repoRoot: dir });
+  assert.equal(inside.decision, "allow");
+  // 反向：path 指向外部、file_path 指向 workspace 内 → deny（path 仍生效）
+  const outside = gateDecide({ harness: "claude", toolName: "Write", toolInput: { path: `${dir}/outside.md`, file_path: `${planDir}/ok.md` }, sessionKey: "s-path-priority", repoRoot: dir });
+  assert.equal(outside.decision, "deny");
+});
+
+test("path 提取：file_path 空串 + 真实 path → 取 path（空串不 bypass gate → allow）", () => {
+  const { dir, sha } = gitFixtureRoot(root);
+  const planDir = activePlan(dir, sha);
+  writePending(pendingRoot, "s-fp-empty", { repo_root: dir, detected_at: now(), mode: "cli", workspace: planDir });
+  // file_path 空串（部分 harness 总是发空串）+ path 指向 workspace 外 → deny（path 生效）
+  const r = gateDecide({ harness: "claude", toolName: "Write", toolInput: { path: `${dir}/outside.md`, file_path: "" }, sessionKey: "s-fp-empty", repoRoot: dir });
+  assert.equal(r.decision, "deny");
+});
+
+test("path 提取：path 空串 + 真实 file_path → 取 file_path（而非空 → allow）", () => {
+  const { dir, sha } = gitFixtureRoot(root);
+  const planDir = activePlan(dir, sha);
+  writePending(pendingRoot, "s-path-empty", { repo_root: dir, detected_at: now(), mode: "cli", workspace: planDir });
+  // path 空串 + file_path 指向 workspace 外 → deny（file_path 生效）
+  const r = gateDecide({ harness: "claude", toolName: "Write", toolInput: { path: "", file_path: `${dir}/outside.md` }, sessionKey: "s-path-empty", repoRoot: dir });
+  assert.equal(r.decision, "deny");
+  // path 空串 + file_path 空串 → 无路径 → allow
+  const none = gateDecide({ harness: "claude", toolName: "Write", toolInput: { path: "", file_path: "" }, sessionKey: "s-path-empty", repoRoot: dir });
+  assert.equal(none.decision, "allow");
 });
 
 test("task_complete phase → Write allow", () => {

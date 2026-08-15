@@ -60,6 +60,16 @@ source "$LIB"
   assert_eq "F0 pending path" "${CDD_PENDING_ROOT:-}/sess-1.json" "$got_root"
 }
 
+# I4 (whole-branch review): user-set CDD_PENDING_ROOT must survive sourcing
+# (`:-` semantics), matching the Node gate core's pendingPathFor — an explicit
+# override wins over the TMPDIR-derived default.
+{
+  override_root="$(env CDD_PENDING_ROOT=/custom/pending bash -c 'source "$0"; printf "%s" "$CDD_PENDING_ROOT"' "$LIB")" || true
+  assert_eq "I4 CDD_PENDING_ROOT override respected" "/custom/pending" "$override_root"
+  override_path="$(env CDD_PENDING_ROOT=/custom/pending bash -c 'source "$0"; cdd_pending_path sess-i4' "$LIB")" || true
+  assert_eq "I4 cdd_pending_path uses override" "/custom/pending/sess-i4.json" "$override_path"
+}
+
 # fake harness CLI invocation — records the prompt, writes a handoff + H1 lines
 # (unused by the dry-run F4 paths; documents the _cdd_invoke_cli contract)
 _fake_invoke() {

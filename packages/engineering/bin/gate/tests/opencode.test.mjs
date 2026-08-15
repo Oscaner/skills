@@ -5,11 +5,23 @@
 // fixture 帮手来自 ./helpers.mjs。
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { cddGate } from "../adapters/opencode.mjs";
 import { makeGateTestEnv, gitFixtureRoot, writePending, now, activePlan } from "./helpers.mjs";
 
 const { root, pendingRoot } = makeGateTestEnv();
+
+test("package.json main 解析到 opencode adapter 模块（import 包入口 → cddGate plugin 函数）", async () => {
+  const pkgPath = fileURLToPath(new URL("../../../package.json", import.meta.url));
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  assert.equal(pkg.main, "./bin/gate/adapters/opencode.mjs");
+  const mainPath = path.resolve(path.dirname(pkgPath), pkg.main);
+  const mod = await import(pathToFileURL(mainPath).href);
+  assert.equal(typeof mod.cddGate, "function");
+});
 
 test("opencode plugin: cli 严格 + Bash git commit → throw 阻断", async () => {
   const { dir, sha } = gitFixtureRoot(root);

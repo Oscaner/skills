@@ -18,8 +18,9 @@
 # Pending-session state contract (P4b T1 absorbed from cdd-orchestrator-gate.sh)
 # — the engine↔gate decoupling seam: session-activate writes pending JSON under
 # this root, the gate reads it, and the TTL bounds how stale a detected session
-# may be before the gate fail-opens.
-CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd"
+# may be before the gate fail-opens. `:-` respects a user-set CDD_PENDING_ROOT
+# (aligns the engine with the Node gate core's pendingPathFor).
+CDD_PENDING_ROOT="${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd}"
 # TTL is consumed by the Node gate core's pendingExpired (gate/cdd-gate-core.mjs) —
 # a cross-file consumer invisible to per-file shellcheck.
 # shellcheck disable=SC2034

@@ -19,6 +19,8 @@ import {
   codexHooksJson,
   qoderPluginManifest,
   qoderHooksJson,
+  assertAdapterPathsExist,
+  collectHookCommands,
 } from "./manifests.mjs";
 import { deriveSource, SOURCE_TOP } from "./source.mjs";
 import {
@@ -161,7 +163,7 @@ test("codexPluginManifest points hooks at the codex plugin-root hooks channel", 
   assert.equal(mapped.hooks, "./hooks/hooks.json");
 });
 
-test("codexHooksJson wires PreToolUse gate to the codex adapter (relative path)", () => {
+test("codexHooksJson wires PreToolUse gate to the codex adapter (plugin-root var)", () => {
   const hooks = codexHooksJson();
   assert.ok(hooks._generated, "hooks.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
@@ -174,9 +176,50 @@ test("codexHooksJson wires PreToolUse gate to the codex adapter (relative path)"
     assert.equal(e.hooks[0].type, "command");
     assert.equal(
       e.hooks[0].command,
-      "../bin/gate/adapters/codex.mjs",
+      "${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
     );
   }
+});
+
+test("assertAdapterPathsExist: every generated engineering hooks command resolves to a real adapter", () => {
+  const plugin = {
+    name: "engineering",
+    hooks: {
+      claude: "./hooks/hooks.json",
+      cursor: "./hooks/hooks-cursor.json",
+      codex: "./.codex-plugin/hooks/hooks.json",
+      qoder: "./.qoder-plugin/hooks/hooks.json",
+    },
+  };
+  assert.doesNotThrow(() =>
+    assertAdapterPathsExist(plugin, "packages/engineering", "0.1.0"),
+  );
+});
+
+test("assertAdapterPathsExist: throws when a generated hooks command adapter is missing", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-adapter-guard-"));
+  try {
+    const plugin = {
+      name: "engineering",
+      hooks: { claude: "./hooks/hooks.json" },
+    };
+    // empty temp dir has no bin/gate/adapters/* — the guard must fail loud
+    assert.throws(() => assertAdapterPathsExist(plugin, tmp, "0.1.0"), /adapter/i);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("collectHookCommands walks nested hook docs and returns every command string", () => {
+  const cmds = collectHookCommands({
+    hooks: {
+      PreToolUse: [
+        { matcher: "Write|Edit", hooks: [{ type: "command", command: "/a.mjs" }] },
+        { matcher: "Bash", hooks: [{ type: "command", command: "/b.mjs" }] },
+      ],
+    },
+  });
+  assert.deepEqual(cmds, ["/a.mjs", "/b.mjs"]);
 });
 
 test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface", () => {
@@ -270,6 +313,23 @@ test("qoderHooksJson wires PreToolUse gate to the qoder adapter", () => {
       e.hooks[0].command,
       "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
     );
+  }
+});
+
+test(".version-bump.json tracks every per-harness manifest version (incl .qoder-plugin)", () => {
+  const bump = JSON.parse(
+    readFileSync("packages/engineering/.version-bump.json", "utf8"),
+  );
+  const paths = bump.files.map((f) => f.path);
+  for (const p of [
+    ".claude-plugin/plugin.json",
+    ".cursor-plugin/plugin.json",
+    ".codex-plugin/plugin.json",
+    ".qoder-plugin/plugin.json",
+    ".kimi-plugin/plugin.json",
+    "gemini-extension.json",
+  ]) {
+    assert.ok(paths.includes(p), `${p} 应在 version-bump files 内`);
   }
 });
 
@@ -444,7 +504,7 @@ test("engineeringHooksFor dispatches per harness, fail-fast on unknown", () => {
   const codex = engineeringHooksFor("codex");
   assert.equal(
     codex.hooks.PreToolUse[0].hooks[0].command,
-    "../bin/gate/adapters/codex.mjs",
+    "${PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
   );
   const qoder = engineeringHooksFor("qoder");
   assert.equal(

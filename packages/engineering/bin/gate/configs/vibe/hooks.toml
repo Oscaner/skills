@@ -1,0 +1,5 @@
+# os-init gates — Mistral Vibe pre_tool gate（P4b T7）。
+# 命令指向包内 adapter 绝对路径（安装时 {{GATE_ADAPTER}} 替换为真实路径）。
+[[hooks]]
+type = "pre_tool"
+command = "node {{GATE_ADAPTER}}"

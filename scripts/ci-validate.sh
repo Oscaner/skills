@@ -98,7 +98,7 @@ else:
 ./packages/engineering/tests/cdd-severity-contract.test.sh
 python3 packages/engineering/tests/rule-reference.test.py \
   --skills packages/engineering/skills:semantic
-node --test "packages/engineering/bin/gate/tests/*.test.mjs"
+node --test "packages/engineering/bin/gate/tests/*.test.mjs" "packages/engineering/bin/os-init/tests/*.test.mjs"
 ./packages/engineering/tests/cdd-orchestrator-line-budget.test.sh
 ./packages/engineering/tests/ci-validate-wiring.test.sh
 

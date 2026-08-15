@@ -1,11 +1,11 @@
 // engine/tests/runner.test.mjs — T2: runner 模块单测（Node port of cdd-cli-dry-run-smoke.sh）。
-// runTask dry-run：H1 四行 + handoff 写（dry-run 由 runner 写 handoff —— Node 增强，bash dry-run 不写）。
+// runTask dry-run：H1 四行 + 不写 handoff（对齐 bash —— bash dry-run 分支不写 handoff）。
 // 另锁：ship gate（unknown/not-supported → blocked exit 1）；invalid mode 拒绝；
 // 嵌套 CLI 失败无 handoff → 写 BLOCKED handoff（stderr 进 blocker）+ exit 2（唯一 sanctioned divergence）。
 // runPlan 的构建块：taskNumbersFromPlan / isTaskPending / handoffStatus（纯函数）。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, chmodSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,7 +67,7 @@ async function capture(runFn) {
   return { code, stdout, stderr };
 }
 
-test("runTask: dry-run implement → H1 四行 DONE + handoff 写", async () => {
+test("runTask: dry-run implement → H1 四行 DONE + 不写 handoff（对齐 bash）", async () => {
   const ws = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 0);
@@ -76,11 +76,7 @@ test("runTask: dry-run implement → H1 四行 DONE + handoff 写", async () => 
   assert.equal(res.h1[1], "commits: base=dry-run head=dry-run");
   assert.match(res.h1[2], /^artifacts: brief=/);
   assert.equal(res.h1[3], "blocker: none");
-
-  const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
-  assert.equal(handoff.status, "DONE");
-  assert.equal(handoff.phase, "implement");
-  assert.equal(handoff.commits.base, "dry-run");
+  assert.equal(existsSync(path.join(ws, "task-1-handoff.json")), false, "dry-run 不写 handoff");
 });
 
 test("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
@@ -95,14 +91,13 @@ test("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
   assert.equal(lines[3], "blocker: none");
 });
 
-test("runTask: dry-run review/fix 三模式 → H1 DONE + handoff phase", async () => {
+test("runTask: dry-run review/fix 三模式 → H1 DONE + 不写 handoff（对齐 bash）", async () => {
   for (const mode of ["review", "fix"]) {
     const ws = setupWorkspace();
     const res = await runTask("claude", 1, { mode, dryRun: true, env: baseEnv(ws), noExit: true });
     assert.equal(res.exitCode, 0, `mode ${mode}`);
     assert.equal(res.h1[0], "status: DONE", `mode ${mode}`);
-    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
-    assert.equal(handoff.phase, mode);
+    assert.equal(existsSync(path.join(ws, "task-1-handoff.json")), false, `mode ${mode}: dry-run 不写 handoff`);
   }
 });
 

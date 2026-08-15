@@ -95,11 +95,12 @@ test("commit-contract: clean tree + handoff.head ≠ HEAD → ok:false（F1）",
   assert.equal(JSON.parse(readFileSync(handoff, "utf8")).status, "BLOCKED");
 });
 
-test("commit-contract: handoff.head=dry-run 哨兵 → 跳过 head-mismatch（dry-run 幂等）", () => {
+test("commit-contract: handoff.head=dry-run → head-mismatch（哨兵已移除，对齐 bash）", () => {
   const repo = setupRepo();
   const handoff = seedHandoff(repo, 1, { base: "dry-run", head: "dry-run" });
   const r = validateCommitContract("fix", repo, { handoffPath: handoff });
-  assert.equal(r.ok, true);
+  assert.equal(r.ok, false);
+  assert.match(r.blocker, /handoff commits.head dry-run does not match HEAD/);
 });
 
 test("commit-contract: 非 git 目录 → fail-open ok:true", () => {

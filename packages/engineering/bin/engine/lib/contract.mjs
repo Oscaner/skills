@@ -103,8 +103,8 @@ export function markDeferred(findings = []) {
 // 两个正交信号：dirty working tree（D2）；干净树但 handoff.commits.head ≠ 真实 HEAD（F1）。
 // 任一击中 → rewriteHandoffBlocked + 返回 { ok:false, blocker }。
 // repoRoot = 传入目录（对齐 `git -C "${CDD_WORKSPACE:-.}"`）；handoff 路径取 opts.handoffPath
-// 或 env CDD_HANDOFF_PATH。head="dry-run" 为 runner dry-run 仿真哨兵（bash dry-run 不写 handoff，
-// Node 写 —— 该哨兵跳过 head-mismatch 以保持 dry-run 幂等）。
+// 或 env CDD_HANDOFF_PATH。head 校验对齐 bash：无哨兵特殊值（dry-run 不写 handoff，
+// 任何 handoff.commits.head ≠ 真实 HEAD 一律视为 mismatch）。
 export function validateCommitContract(mode, repoRoot, opts = {}) {
   if (mode !== "implement" && mode !== "fix") return { ok: true, blocker: "" };
   const handoffPath = opts.handoffPath ?? process.env.CDD_HANDOFF_PATH ?? "";
@@ -117,7 +117,7 @@ export function validateCommitContract(mode, repoRoot, opts = {}) {
   if (porcelain === "") {
     // 干净树：校验 handoff 的 commits.head 是否等于真实 HEAD（F1）。
     const handoffHead = safeParse(handoffPath)?.commits?.head;
-    if (handoffHead && handoffHead !== "dry-run") {
+    if (handoffHead) {
       const actualHead = gitRevParseHead(root);
       if (actualHead && handoffHead !== actualHead) {
         const blocker = `handoff commits.head ${handoffHead} does not match HEAD ${actualHead} (${mode})`;

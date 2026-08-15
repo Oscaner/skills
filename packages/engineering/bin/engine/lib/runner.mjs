@@ -304,29 +304,6 @@ function dryRunH1Block(env, taskNum) {
   ].join("\n");
 }
 
-// dry-run 仿真 handoff（Node 增强：bash dry-run 不写 handoff，runner 写以续 H6 链）。
-// commits 用 dry-run 哨兵，与 H1 块一致；commit-contract 对 "dry-run" 哨兵跳过 head-mismatch。
-function dryRunHandoff(env, taskNum, mode) {
-  return {
-    task: taskNum,
-    phase: mode,
-    status: "DONE",
-    commits: { base: "dry-run", head: "dry-run" },
-    complexity: "simple",
-    review_scope: "task",
-    artifacts: {
-      brief: env.CDD_TASK_BRIEF,
-      report: path.join(env.CDD_WORKSPACE, `task-${taskNum}-report.md`),
-      test_evidence: path.join(env.CDD_WORKSPACE, `task-${taskNum}-test-evidence.json`),
-    },
-    test_evidence: {},
-    findings: [],
-    unverifiable: [],
-    plan_conflicts: [],
-    blocker: "none",
-  };
-}
-
 // ---- runTask / runPlan ----
 
 // 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, noExit }。
@@ -443,17 +420,12 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 11. H1 四行（来自 agent stdout / dry-run 块）
   const h1 = h1FourLines(agentOut);
 
-  // 12. dry-run 仿真 handoff（runner 写；bash dry-run 不写 —— Node 增强，供 H6 链续跑）
-  if (dryRun) {
-    writeHandoff(env.CDD_HANDOFF_PATH, dryRunHandoff(env, taskNum, mode));
-  }
-
-  // 13. agent 失败但 handoff 存在 → exit agent_rc
+  // 12. agent 失败但 handoff 存在 → exit agent_rc
   if (agentRc !== 0) {
     return finish(agentRc, h1, "", noExit);
   }
 
-  // 14. OK
+  // 13. OK（dry-run 不写 handoff —— 对齐 bash：bash dry-run 分支不写，Node 亦不写）
   return finish(0, h1, "", noExit);
 }
 

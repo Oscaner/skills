@@ -18,7 +18,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-claude-cdd-gate.sh"
-ACT="$ROOT/bin/cdd-session-activate.sh"
+ACT="$ROOT/bin/engine/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 OS_ENG="$ROOT"
 
@@ -85,7 +85,7 @@ assert_deny_cmd "$S1" "ls" "ls"
 assert_deny_cmd "$S1" "echo hi" "echo"
 
 # allowlist Bash
-assert_allow_cmd "$S1" "$OS_ENG/bin/cdd-run.sh --harness claude --task 1 --mode implement" "H6 cdd-run"
+assert_allow_cmd "$S1" "$OS_ENG/bin/engine/cdd-run.sh --harness claude --task 1 --mode implement" "H6 cdd-run"
 assert_allow_cmd "$S1" "sdd-workspace create x" "sdd-workspace"
 assert_allow_cmd "$S1" "task-brief --task 1" "task-brief"
 assert_allow_cmd "$S1" "review-package --task 1" "review-package"

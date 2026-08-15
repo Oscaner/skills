@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# cdd-common.sh — shared CDD CLI library (engineering p1)
-# Source from harness scripts: source "$(dirname "$0")/lib/cdd-common.sh"
+# cdd-common.sh — shared CDD CLI library (engineering p1; engine/ since P4b T1)
+# Source from engine scripts: source "$(dirname "$0")/lib/cdd-common.sh"
+# (the gate lib sources it via ../engine/lib/cdd-common.sh until T2 replaces it)
 #
 # Exit codes: 0=OK; 1=BLOCKED/stub; 2=CLI missing
 #
@@ -12,6 +13,20 @@
 #   CDD_PLAN_CONSTRAINTS       <workspace>/plan-constraints.md
 #   CDD_FINDINGS               <workspace>/task-N-open-findings.json (fix mode)
 #   CDD_REVIEW_FIXED_POINT     git ref for review/fix-loop scope (review mode)
+#
+# Pending-session state contract (P4b T1 absorbed from cdd-orchestrator-gate.sh)
+# — the engine↔gate decoupling seam: session-activate writes pending JSON under
+# this root, the gate reads it, and the TTL bounds how stale a detected session
+# may be before the gate fail-opens.
+CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd"
+# TTL is consumed by the gate lib's cdd_pending_expired (bin/lib/cdd-orchestrator-gate.sh) —
+# a cross-file consumer invisible to per-file shellcheck.
+# shellcheck disable=SC2034
+CDD_PENDING_TTL=86400
+
+cdd_pending_path() {
+  printf '%s\n' "$CDD_PENDING_ROOT/$1.json"
+}
 
 # Resolve plugin root from a script path by walking up until .claude-plugin/plugin.json exists.
 # Usage: root="$(cdd_plugin_root)"  # uses this file
@@ -207,12 +222,12 @@ cdd_check_harness() {
   printf '%s\n' "$cli"
 }
 
-# Registry: harness field lookup from bin/harness-registry.json (engineering).
+# Registry: harness field lookup from bin/engine/harness-registry.json (engineering).
 # cdd_plugin_root resolves the plugin root from this file's location.
 _cdd_registry() {
   local root
   root="$(cdd_plugin_root)" || cdd_exit_blocked "engineering plugin root not found"
-  printf '%s\n' "${root}/bin/harness-registry.json"
+  printf '%s\n' "${root}/bin/engine/harness-registry.json"
 }
 
 # Read a harness field from the registry (cli / invoke / output / review_prefix / ship).

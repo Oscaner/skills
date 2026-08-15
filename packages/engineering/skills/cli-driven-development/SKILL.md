@@ -18,8 +18,8 @@ description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发
 每任务三种模式各一次 CLI 调用（见 [cdd-reference.md](../../docs/cdd-reference.md) H6）：
 
 ```bash
-{plugin_root}/bin/cdd-run.sh --harness <name> --task N --mode implement
-{plugin_root}/bin/cdd-run.sh --harness <name> --task N --mode review
+{plugin_root}/bin/engine/cdd-run.sh --harness <name> --task N --mode implement
+{plugin_root}/bin/engine/cdd-run.sh --harness <name> --task N --mode review
 ```
 
 `--mode fix` 仅当 review 返回 CHANGES_REQUESTED 时进入（fix loop，上限 5 轮）。

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # cdd-orchestrator-gate.sh — shared CDD orchestrator PreToolUse state machine (p1-slim.2)
 # Source from harness adapters only.
-
-CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd"
-CDD_PENDING_TTL=86400
-
-cdd_pending_path() {
-  printf '%s\n' "$CDD_PENDING_ROOT/$1.json"
-}
+#
+# cdd_pending_path + CDD_PENDING_ROOT/CDD_PENDING_TTL moved to engine/lib/cdd-common.sh
+# (P4b T1, engine↔gate decoupling). The gate still calls cdd_pending_path (in
+# cdd_read_pending / cdd_clear_pending) and resolves the shared lib from this
+# file's own dir (bin/lib → ../engine/lib), independent of the sourcing adapter's cwd.
+_cdd_gate_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../engine/lib/cdd-common.sh
+source "${_cdd_gate_lib_dir}/../engine/lib/cdd-common.sh"
 
 cdd_plugin_root_from_lib() {
   local dir
@@ -290,14 +291,14 @@ cdd_deny_message() {
 
 	Allowed Bash (read-only diagnostics):
 ${verbs}
-	  ${os_root}/bin/cdd-run.sh --harness ${harness}
+	  ${os_root}/bin/engine/cdd-run.sh --harness ${harness}
 	  sdd-workspace / task-brief / review-package
 
 	Allowed Write:
 	  .superpowers/cdd/${plan_basename}/
 
 	Repo changes flow only through:
-	  ${os_root}/bin/cdd-run.sh --harness ${harness} --task ${task_num} --mode implement
+	  ${os_root}/bin/engine/cdd-run.sh --harness ${harness} --task ${task_num} --mode implement
 
 	Full matrix: ${os_root}/docs/cdd-reference.md (CDD gate matrix)
 	See os-executing-plans Rule: Orchestrator Checklist.

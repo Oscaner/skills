@@ -8,7 +8,7 @@
 
 Per-task execution uses **plugin-bundled** shell scripts — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Detect harness** → 经 [cli-select](../skills/cli-select/SKILL.md) 选定 harness → `{plugin_root}/bin/cdd-run.sh --harness <name>`（orchestrator 选一次；**无** runtime 重新检测）。
+1. **Detect harness** → 经 [cli-select](../skills/cli-select/SKILL.md) 选定 harness → `{plugin_root}/bin/engine/cdd-run.sh --harness <name>`（orchestrator 选一次；**无** runtime 重新检测）。
 2. **Three modes** — one invocation each:
 
 | `CDD_MODE` | Responsibility |
@@ -72,7 +72,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 **Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback).
 
-**Post-run commit gate** (shared lib `bin/lib/cdd-common.sh` — `cdd_validate_commit_contract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (jq; failed rewrite → still authoritative BLOCKED via `CDD_HANDOFF_UNWRITABLE`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`_cdd_emit_h1_from_handoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
+**Post-run commit gate** (shared lib `bin/engine/lib/cdd-common.sh` — `cdd_validate_commit_contract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (jq; failed rewrite → still authoritative BLOCKED via `CDD_HANDOFF_UNWRITABLE`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`_cdd_emit_h1_from_handoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 
 - **Fail-open:** non-git workspace or `git` error → validation passes (return 0) — the gate never blocks on tooling failure.
 - **Precondition:** `.superpowers/cdd/` is `*`-gitignored (repo `.gitignore` line `.superpowers`), so the workspace never trips the dirty check itself.
@@ -84,7 +84,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 Orchestrator / skill **must not** create `cdd-run*.sh` or `scripts/cdd-*` in the consumer repo.
 
-All CLI scripts live in `packages/engineering/bin/` (`cdd-run.sh` / `cdd-exec.sh` / `cdd-select.sh`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `cdd_plugin_root`（`bin/lib/cdd-common.sh`）/ [cli-select](../skills/cli-select/SKILL.md).
+All CLI scripts live in `packages/engineering/bin/engine/` (`cdd-run.sh` / `cdd-exec.sh` / `cdd-select.sh`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `cdd_plugin_root`（`bin/engine/lib/cdd-common.sh`）/ [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 
@@ -98,7 +98,7 @@ All CLI scripts live in `packages/engineering/bin/` (`cdd-run.sh` / `cdd-exec.sh
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1–H5).
 
-**Harness registry:** `{plugin_root}/bin/harness-registry.json` 声明每 harness 的 `cli` / `invoke` / `output` / `review_prefix` / `ship`，engine 经 `{plugin_root}/bin/cdd-run.sh` 读取（不再有 per-harness 脚本）。
+**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` 声明每 harness 的 `cli` / `invoke` / `output` / `review_prefix` / `ship`，engine 经 `{plugin_root}/bin/engine/cdd-run.sh` 读取（不再有 per-harness 脚本）。
 
 | Ship | Harnesses |
 |------|-----------|
@@ -109,7 +109,7 @@ not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fa
 
 ## Mode B (opt-in / AFK)
 
-**Mode B (opt-in / AFK):** `{plugin_root}/bin/cdd-run.sh --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
+**Mode B (opt-in / AFK):** `{plugin_root}/bin/engine/cdd-run.sh --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
 
 ## CDD gate matrix
 

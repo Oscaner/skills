@@ -7,7 +7,7 @@
 # through a mock-PATH scenario. Requires jq (registry is JSON); the caller
 # guards jq presence before invoking.
 harness_free_path() {
-  local reg="$ROOT/bin/harness-registry.json"
+  local reg="$ROOT/bin/engine/harness-registry.json"
   local clis result="" dir b skip
   clis="$(jq -r '.[].cli' "$reg" | tr '\n' ' ')"
   while IFS= read -r dir; do

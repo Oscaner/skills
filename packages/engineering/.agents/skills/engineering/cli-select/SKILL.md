@@ -11,7 +11,7 @@ description: 列出系统已安装的 harness CLI 并询问用哪个执行任务
 
 ### Rule: Detect
 
-运行 `{plugin_root}/bin/cdd-select.sh`，解析三行输出：
+运行 `{plugin_root}/bin/engine/cdd-select.sh`，解析三行输出：
 
 - `available:` —— ship=full 且已安装的 harness（逗号分隔）
 - `unsupported_installed:` —— ship=not-supported 但已安装（提示性，不参与推荐）

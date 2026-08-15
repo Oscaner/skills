@@ -9,7 +9,7 @@
 # resolvable), and symlink jq into the mock dir since its real dir is dropped.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SEL="${ROOT}/bin/cdd-select.sh"
+SEL="${ROOT}/bin/engine/cdd-select.sh"
 
 command -v jq >/dev/null 2>&1 || { echo "SKIP — jq missing"; exit 0; }
 

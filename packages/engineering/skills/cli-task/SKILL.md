@@ -15,7 +15,7 @@ description: 把任务派发给选定的 harness CLI 执行。三条路径：一
 
 ### Rule: One-shot Free-Form
 
-默认路径：`{plugin_root}/bin/cdd-exec.sh --harness <name> --prompt "<task 描述>"`，返回归一化后的最终输出（text 透传 / stream-json 取 finalText）。
+默认路径：`{plugin_root}/bin/engine/cdd-exec.sh --harness <name> --prompt "<task 描述>"`，返回归一化后的最终输出（text 透传 / stream-json 取 finalText）。
 
 ### Rule: Loop
 
@@ -23,7 +23,7 @@ description: 把任务派发给选定的 harness CLI 执行。三条路径：一
 
 ### Rule: Brief Path
 
-用户提供 brief 路径 → 走 handoff 契约：设 `CDD_TASK_BRIEF` 等 env，调 `{plugin_root}/bin/cdd-run.sh --harness <name> --task N --mode <implement|review|fix>`（模式由用户指定，默认 implement；用户 brief 即 task brief，cli-task 不做 transform）。
+用户提供 brief 路径 → 走 handoff 契约：设 `CDD_TASK_BRIEF` 等 env，调 `{plugin_root}/bin/engine/cdd-run.sh --harness <name> --task N --mode <implement|review|fix>`（模式由用户指定，默认 implement；用户 brief 即 task brief，cli-task 不做 transform）。
 
 ## Red Flags
 

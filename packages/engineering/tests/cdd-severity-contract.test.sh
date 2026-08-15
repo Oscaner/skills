@@ -9,7 +9,7 @@ set -euo pipefail
 # Files under test:
 #   templates/cdd/_handoff-write-fragment.md   review/fix segment I/O + status step
 #   docs/handoff-schema.md                schema SOT (findings[].deferred, mapping)
-#   bin/lib/cdd-common.sh                          _append_ledger deferred roll-up + no-jq
+#   bin/engine/lib/cdd-common.sh                          _append_ledger deferred roll-up + no-jq
 #   templates/cdd/review.md                    severity-aware status decision
 #   templates/cdd/fix.md                       open-findings blocker-only
 #   docs/review-dispatch.md                     D3 anchors + result anchor (migrated from the deleted override skill)
@@ -61,7 +61,7 @@ assert_section_grep() {
 
 FRAGMENT="$ROOT/templates/cdd/_handoff-write-fragment.md"
 SCHEMA="$ROOT/docs/handoff-schema.md"
-CDD_COMMON="$ROOT/bin/lib/cdd-common.sh"
+CDD_COMMON="$ROOT/bin/engine/lib/cdd-common.sh"
 REVIEW="$ROOT/templates/cdd/review.md"
 FIX="$ROOT/templates/cdd/fix.md"
 OVERRIDES="$ROOT/../superpowers-overrides"

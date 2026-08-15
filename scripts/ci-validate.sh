@@ -109,7 +109,7 @@ echo "== 5b2. engineering gate hooks =="
 [ -f packages/engineering/hooks/hooks-cursor.json ] || { echo "FAIL: engineering hooks-cursor.json missing"; exit 1; }
 [ -x packages/engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
 [ -x packages/engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
-[ -x packages/engineering/bin/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
+[ -x packages/engineering/bin/engine/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 
 echo "== 5c. engine + router zero-residue check =="

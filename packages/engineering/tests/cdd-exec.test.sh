@@ -16,7 +16,7 @@
 # 断言原文透传，因此 unset 继承到的 CDD_MODE / CDD_HARNESS。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-EXEC="${ROOT}/bin/cdd-exec.sh"
+EXEC="${ROOT}/bin/engine/cdd-exec.sh"
 unset CDD_MODE CDD_HARNESS
 
 [[ -f "$EXEC" ]] || { echo "FAIL — ${EXEC} missing (expect cdd-exec.sh from T6)"; exit 1; }

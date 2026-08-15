@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-claude-cdd-gate.sh"
-ACT="$ROOT/bin/cdd-session-activate.sh"
+ACT="$ROOT/bin/engine/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 OS_ENG="$ROOT"
 
@@ -34,7 +34,7 @@ echo "$deny_active" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >
 deny_bash=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf $REPO/packages\"}}" | "$GATE")
 echo "$deny_bash" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null
 
-allow_h6=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$OS_ENG/bin/cdd-run.sh --harness claude --task 1 --mode implement\"}}" | "$GATE")
+allow_h6=$(printf '%s' "{\"session_id\":\"$KEY\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$OS_ENG/bin/engine/cdd-run.sh --harness claude --task 1 --mode implement\"}}" | "$GATE")
 echo "$allow_h6" | jq -e '.hookSpecificOutput.permissionDecision == "allow"' >/dev/null
 
 echo "OK — override-claude-cdd-gate"

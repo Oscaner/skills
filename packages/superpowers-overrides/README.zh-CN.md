@@ -70,7 +70,7 @@ Hook 与 enforcement 脚本 **随 plugin 安装**（与 upstream `superpowers` �
 
 ## CDD CLI harness 脚本
 
-Token-efficient CDD 编排通过 plugin 内脚本 dispatch——`os-executing-plans` 编排，`cli-driven-development` 驱动 harness 链。Orchestrator 只解析一次 harness；唯一 CLI runner 是 `engineering/bin/cdd-run.sh`。
+Token-efficient CDD 编排通过 plugin 内脚本 dispatch——`os-executing-plans` 编排，`cli-driven-development` 驱动 harness 链。Orchestrator 只解析一次 harness；唯一 CLI runner 是 `engineering/bin/engine/cdd-run.sh`。
 
 | Harness | CLI 二进制 | 实现级别 |
 |---------|------------|----------|
@@ -82,11 +82,11 @@ Token-efficient CDD 编排通过 plugin 内脚本 dispatch——`os-executing-pl
 | **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
 | **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-共享库：`engineering/bin/lib/cdd-common.sh`（workspace 路径、plugin root 解析、exit code）承载 task/plan run-loop（`cdd_run_task` / `cdd_run_plan`）；`engineering/bin/cdd-run.sh` 是唯一 CLI runner（`--harness <name> --task N --mode M` | `--plan <path>`）。
+共享库：`engineering/bin/engine/lib/cdd-common.sh`（workspace 路径、plugin root 解析、exit code）承载 task/plan run-loop（`cdd_run_task` / `cdd_run_plan`）；`engineering/bin/engine/cdd-run.sh` 是唯一 CLI runner（`--harness <name> --task N --mode M` | `--plan <path>`）。
 
-**Mode A（单 task）：** `{engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix`
+**Mode A（单 task）：** `{engineering}/bin/engine/cdd-run.sh --harness <name> --task N --mode implement|review|fix`
 
-**Mode B（plan driver / AFK）：** `{engineering}/bin/cdd-run.sh --harness <name> --plan <path>` — pending tasks × 3-mode 链。
+**Mode B（plan driver / AFK）：** `{engineering}/bin/engine/cdd-run.sh --harness <name> --plan <path>` — pending tasks × 3-mode 链。
 
 Not-supported harness → exit 1 → orchestrator **BLOCKED**（非 in-session p0 fallback）。CLI 缺失 → exit 2 → orchestrator **BLOCKED**。详见 [cross-harness-overrides.md](docs/cross-harness-overrides.md#cdd-cli-harness-scripts-p1)。
 

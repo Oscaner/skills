@@ -4,7 +4,7 @@
 # (claude / cursor-agent) PATH check and the real invocation; the shared
 # run-loop still runs template render + commit-contract validation.
 #
-# NOTE: requires bin/cdd-run.sh (created in T4). This test is enabled after T4
+# NOTE: requires bin/engine/cdd-run.sh (created in T4). This test is enabled after T4
 # completes; until then it is a skeleton only.
 #
 # Cursor keeps no Skill(...) review-prefix injection (spec D3a) — the cursor
@@ -31,7 +31,7 @@ run_shell_modes() {
     CDD_PLAN_CONSTRAINTS="$CDD_WORKSPACE/plan-constraints.md" \
     CDD_HANDOFF_PATH="$CDD_WORKSPACE/task-1-handoff.json" \
     CDD_REVIEW_FIXED_POINT="${CDD_REVIEW_FIXED_POINT:-HEAD~1}" \
-    "$ROOT/bin/cdd-run.sh" --harness "$harness" --task 1 --mode "$mode" --plan "$PLAN" | head -4
+    "$ROOT/bin/engine/cdd-run.sh" --harness "$harness" --task 1 --mode "$mode" --plan "$PLAN" | head -4
   done
 }
 
@@ -43,7 +43,7 @@ if CDD_MODE=handoff CDD_TASK_BRIEF="$CDD_WORKSPACE/task-1-brief.md" \
   CDD_LEDGER="$CDD_WORKSPACE/progress.md" \
   CDD_PLAN_CONSTRAINTS="$CDD_WORKSPACE/plan-constraints.md" \
   CDD_HANDOFF_PATH="$CDD_WORKSPACE/task-1-handoff.json" \
-  "$ROOT/bin/cdd-run.sh" --harness claude --task 1 --mode handoff --plan "$PLAN" 2>/dev/null; then
+  "$ROOT/bin/engine/cdd-run.sh" --harness claude --task 1 --mode handoff --plan "$PLAN" 2>/dev/null; then
   echo "FAIL: handoff mode should have been rejected"
   exit 1
 fi

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # cdd-common-functions.test.sh — T0 shared-library foundation tests.
-# Exercises the five shared functions added to lib/cdd-common.sh:
+# Exercises the five shared functions added to engine/lib/cdd-common.sh:
 #   cdd_render_mode_prompt, cdd_check_cli, cdd_validate_commit_contract,
 #   cdd_run_task, cdd_run_plan
 # plus their H1-from-handoff contract (spec §4.2 / plan Task 1).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LIB="$ROOT/bin/lib/cdd-common.sh"
+LIB="$ROOT/bin/engine/lib/cdd-common.sh"
 TESTROOT="$(mktemp -d)"
 trap 'rm -rf "$TESTROOT"' EXIT
 
@@ -45,6 +45,20 @@ assert_rc() {
 # source the library under a stable identity (sourced via $LIB variable)
 # shellcheck disable=SC1090,SC1091
 source "$LIB"
+
+###############################################################################
+# F0. cdd_pending_path + CDD_PENDING_ROOT / CDD_PENDING_TTL (T1 absorption)
+###############################################################################
+# T1 (P4b) moved the pending-path contract out of cdd-orchestrator-gate.sh into
+# cdd-common.sh (engine↔gate dependency decoupling). Sourcing the shared lib
+# must define all three: the TMPDIR-derived pending root, the TTL, and the
+# per-session JSON path.
+{
+  got_root="$(cdd_pending_path sess-1)" || true
+  assert_eq "F0 pending root default" "${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd" "${CDD_PENDING_ROOT:-}"
+  assert_eq "F0 pending ttl" "86400" "${CDD_PENDING_TTL:-}"
+  assert_eq "F0 pending path" "${CDD_PENDING_ROOT:-}/sess-1.json" "$got_root"
+}
 
 # fake harness CLI invocation — records the prompt, writes a handoff + H1 lines
 # (unused by the dry-run F4 paths; documents the _cdd_invoke_cli contract)
@@ -577,7 +591,7 @@ EOF
 
 ###############################################################################
 # G. per-harness plan shells were deleted in T10 — the engine now has a single
-# runner (bin/cdd-run.sh) whose Mode A / Mode B arg parsing and dry-run
+# runner (bin/engine/cdd-run.sh) whose Mode A / Mode B arg parsing and dry-run
 # orchestration are covered by cdd-cli-dry-run-smoke.sh and cdd-exec.test.sh.
 # cdd_run_plan's own chain behavior is covered by F5b/F6.
 ###############################################################################

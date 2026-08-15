@@ -5,8 +5,11 @@ set -euo pipefail
 # usage: cdd-session-activate.sh bind <session_key> <repo_root> <plan_path> <workspace> [--mode <in-session|subagent|cli>]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/cdd-orchestrator-gate.sh
-source "${SCRIPT_DIR}/lib/cdd-orchestrator-gate.sh"
+# P4b T1: pending-path contract absorbed into cdd-common.sh (engine↔gate decoupling);
+# session-activate needs only cdd_pending_path + CDD_PENDING_ROOT (+ CDD_PENDING_TTL
+# via the lib) — no gate-lib functions.
+# shellcheck source=lib/cdd-common.sh
+source "${SCRIPT_DIR}/lib/cdd-common.sh"
 
 subcommand="${1:-}"
 session_key="${2:-}"

@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GATE="$ROOT/bin/override-cursor-cdd-gate.sh"
-ACT="$ROOT/bin/cdd-session-activate.sh"
+ACT="$ROOT/bin/engine/cdd-session-activate.sh"
 REPO="$(git -C "$ROOT/../.." rev-parse --show-toplevel)"
 OS_ENG="$ROOT"
 
@@ -34,7 +34,7 @@ allow_ws=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Write\",\"
 echo "$allow_ws" | jq -e '.permission == "allow"' >/dev/null
 
 # AC#5 Bash allowlist during TASK_ACTIVE
-allow_h6=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"$OS_ENG/bin/cdd-run.sh --harness cursor-agent --task 1 --mode implement --plan foo.md\"}}" | "$GATE")
+allow_h6=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"$OS_ENG/bin/engine/cdd-run.sh --harness cursor-agent --task 1 --mode implement --plan foo.md\"}}" | "$GATE")
 echo "$allow_h6" | jq -e '.permission == "allow"' >/dev/null
 deny_bash=$(printf '%s' "{\"conversation_id\":\"$KEY\",\"tool_name\":\"Shell\",\"tool_input\":{\"command\":\"rm -rf $REPO/packages\"}}" | "$GATE")
 echo "$deny_bash" | jq -e '.permission == "deny"' >/dev/null

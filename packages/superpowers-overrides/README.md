@@ -68,7 +68,7 @@ Hooks and enforcement scripts are **plugin-bundled** (same model as upstream `su
 
 ## CDD CLI harness scripts
 
-Token-efficient CDD orchestration dispatches via plugin-bundled scripts — `os-executing-plans` orchestrates, `cli-driven-development` drives the harness chain. The orchestrator resolves harness once; the single CLI runner is `engineering/bin/cdd-run.sh`.
+Token-efficient CDD orchestration dispatches via plugin-bundled scripts — `os-executing-plans` orchestrates, `cli-driven-development` drives the harness chain. The orchestrator resolves harness once; the single CLI runner is `engineering/bin/engine/cdd-run.sh`.
 
 | Harness | CLI binary | Ship level |
 |---------|------------|------------|
@@ -80,11 +80,11 @@ Token-efficient CDD orchestration dispatches via plugin-bundled scripts — `os-
 | **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
 | **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-Shared library: `engineering/bin/lib/cdd-common.sh` (workspace paths, plugin root resolution, exit codes) carries the task/plan run-loop (`cdd_run_task` / `cdd_run_plan`); `engineering/bin/cdd-run.sh` is the single CLI runner (`--harness <name> --task N --mode M` | `--plan <path>`).
+Shared library: `engineering/bin/engine/lib/cdd-common.sh` (workspace paths, plugin root resolution, exit codes) carries the task/plan run-loop (`cdd_run_task` / `cdd_run_plan`); `engineering/bin/engine/cdd-run.sh` is the single CLI runner (`--harness <name> --task N --mode M` | `--plan <path>`).
 
-**Mode A (per task):** `{engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix`
+**Mode A (per task):** `{engineering}/bin/engine/cdd-run.sh --harness <name> --task N --mode implement|review|fix`
 
-**Mode B (plan driver / AFK):** `{engineering}/bin/cdd-run.sh --harness <name> --plan <path>` — pending tasks × 3-mode chain.
+**Mode B (plan driver / AFK):** `{engineering}/bin/engine/cdd-run.sh --harness <name> --plan <path>` — pending tasks × 3-mode chain.
 
 Not-supported harness → exit 1 → orchestrator **BLOCKED** (not in-session p0 fallback). CLI missing → exit 2 → orchestrator **BLOCKED**. See [cross-harness-overrides.md](docs/cross-harness-overrides.md#cdd-cli-harness-scripts-p1).
 

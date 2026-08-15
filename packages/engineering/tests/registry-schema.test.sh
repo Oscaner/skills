@@ -2,7 +2,7 @@
 # registry-schema.test.sh — harness-registry.json 字段合法性断言
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REG="${ROOT}/bin/harness-registry.json"
+REG="${ROOT}/bin/engine/harness-registry.json"
 
 command -v python3 >/dev/null 2>&1 || { echo "FAIL — python3 missing"; exit 1; }
 

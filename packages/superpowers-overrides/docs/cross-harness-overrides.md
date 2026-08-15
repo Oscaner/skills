@@ -187,20 +187,20 @@ Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by 
 | **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
 | **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-Shared library: `engineering/bin/lib/cdd-common.sh` — workspace path contract (`CDD_WORKSPACE`, `CDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `cdd_run_task` (one mode per invocation) / `cdd_run_plan` (pending tasks × 3-mode chain). The single CLI runner is `engineering/bin/cdd-run.sh` (`--harness <name> --task N --mode M` | `--plan <path>`), registry-driven from `engineering/bin/harness-registry.json`. The same lib hosts the **post-run commit gate** (`cdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [engineering/docs/cdd-reference.md](../../engineering/docs/cdd-reference.md) (§ Post-run commit gate).
+Shared library: `engineering/bin/engine/lib/cdd-common.sh` — workspace path contract (`CDD_WORKSPACE`, `CDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `cdd_run_task` (one mode per invocation) / `cdd_run_plan` (pending tasks × 3-mode chain). The single CLI runner is `engineering/bin/engine/cdd-run.sh` (`--harness <name> --task N --mode M` | `--plan <path>`), registry-driven from `engineering/bin/engine/harness-registry.json`. The same lib hosts the **post-run commit gate** (`cdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [engineering/docs/cdd-reference.md](../../engineering/docs/cdd-reference.md) (§ Post-run commit gate).
 
 ### Invocation modes
 
 **Mode A (per task):** orchestrator calls one mode per CLI invocation:
 
 ```bash
-{engineering}/bin/cdd-run.sh --harness <name> --task N --mode implement|review|fix
+{engineering}/bin/engine/cdd-run.sh --harness <name> --task N --mode implement|review|fix
 ```
 
 **Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
 
 ```bash
-{engineering}/bin/cdd-run.sh --harness <name> --plan <path>
+{engineering}/bin/engine/cdd-run.sh --harness <name> --plan <path>
 ```
 
 Plan driver runs the 3-mode chain per pending task. Ledger append on APPROVED only.

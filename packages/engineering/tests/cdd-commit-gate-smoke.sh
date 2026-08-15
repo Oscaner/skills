@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cdd-commit-gate-smoke.sh — end-to-end smoke for the commit-contract validator
 # (cdd_validate_commit_contract, spec §4.2) driven through the real
-# engineering runner (bin/cdd-run.sh) under CDD_DRY_RUN=1.
+# engineering runner (bin/engine/cdd-run.sh) under CDD_DRY_RUN=1.
 #
 # Coverage (plan Task 5 + spec D4):
 #   1. dirty-tree fix    → H1 status: BLOCKED, non-zero exit, handoff rewritten
@@ -25,7 +25,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLAN="$ROOT/../../docs/superpowers/plans/2026-08-05-sdd-dogfood-synthetic.md"
-HARNESS="$ROOT/bin/cdd-run.sh"
+HARNESS="$ROOT/bin/engine/cdd-run.sh"
 export CDD_DRY_RUN=1
 
 TMPROOT="$(mktemp -d)"

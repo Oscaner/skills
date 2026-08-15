@@ -73,9 +73,9 @@ python3 "$OS_ENG/tests/rule-reference.test.py" \
   --skills packages/engineering/skills:semantic
 
 echo "== validate engineering engine (harness registry + runners) =="
-[ -f "$OS_ENG/bin/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }
+[ -f "$OS_ENG/bin/engine/harness-registry.json" ] || { echo "FAIL: harness-registry.json missing"; exit 1; }
 for script in cdd-run.sh cdd-select.sh cdd-exec.sh; do
-  [ -x "$OS_ENG/bin/$script" ] || { echo "FAIL: engineering/bin/$script not executable"; exit 1; }
+  [ -x "$OS_ENG/bin/engine/$script" ] || { echo "FAIL: engineering/bin/engine/$script not executable"; exit 1; }
 done
 echo "OK"
 

@@ -155,7 +155,8 @@ function spawnCapture(command, args, { cwd, env }) {
 
 // 对齐 _cdd_invoke_cli：$cli $invoke "$prompt_arg"（review 前缀合成）+ output 模式规范化
 // （text passthrough / stream-json → 最后一个 completion 的 finalText 完整保留）。
-async function invokeCli(entry, prompt, mode, env, cwd) {
+// 导出供 cdd-exec.mjs（T3 一次性 prompt-runner）复用 —— 归一化逻辑单一来源。
+export async function invokeCli(entry, prompt, mode, env, cwd) {
   const { cli, invoke, output, review_prefix } = entry;
   const promptArg = mode === "review" && review_prefix ? `${review_prefix} ${prompt}` : prompt;
   const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];

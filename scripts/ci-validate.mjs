@@ -175,32 +175,26 @@ function checkEngineeringSkillsCount() {
 }
 checkStep("5b. engineering skills-count (13)", checkEngineeringSkillsCount);
 
-const ENGINE_TESTS = [
-  "registry-schema.test.sh",
-  "cdd-select.test.sh",
-  "cdd-cli-dry-run-smoke.sh",
-  "cdd-commit-gate-smoke.sh",
-  "cdd-common-functions.test.sh",
-  "cdd-severity-contract.test.sh",
-];
-for (const t of ENGINE_TESTS) {
-  subprocessStep(`5b. engineering tests: ${t}`, path.join(ROOT, "packages/engineering/tests", t), []);
-}
-
 subprocessStep("5b. rule-reference.test.py (semantic)", "python3", [
   "packages/engineering/tests/rule-reference.test.py",
   "--skills",
   "packages/engineering/skills:semantic",
 ]);
 
-subprocessStep("5b. node:test gate + os-init + engine", "node", [
+// node:test 两棵树（T5）：行为/集成树 packages/engineering/tests/（helpers.mjs +
+// common-functions.test.mjs + ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init。
+// 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
+// 旧 6 个 shell engine 测试 + line-budget 已迁移：registry-schema/select/cli-dry-run/
+// commit-gate/severity 由模块测试吸收；common-functions 剩余家族（pending path / plugin
+// root / superpowers scripts dir / env 校验 / render / check cli / invoke cli）由
+// common-functions.test.mjs 在 bash 边界守护。
+subprocessStep("5b. node:test engine + gate + os-init + behavior", "node", [
   "--test",
+  "packages/engineering/tests/*.test.mjs",
+  "packages/engineering/bin/engine/tests/*.test.mjs",
   "packages/engineering/bin/gate/tests/*.test.mjs",
   "packages/engineering/bin/os-init/tests/*.test.mjs",
-  "packages/engineering/bin/engine/tests/*.test.mjs",
 ]);
-
-subprocessStep("5b. cdd-orchestrator-line-budget.test.sh", path.join(ROOT, "packages/engineering/tests/cdd-orchestrator-line-budget.test.sh"), []);
 
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/engineering/tests/ci-validate.test.mjs"]);
 

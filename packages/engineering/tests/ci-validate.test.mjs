@@ -56,22 +56,30 @@ test("engineering plugin validation + skills-count wired", () => {
   assert.ok(steps.some((s) => s.name.includes("engineering skills")), "skills-count step missing");
 });
 
-// 3. every engine test invoked exactly once, after the 5b marker
-const ENGINE_TESTS = [
+// 3. 5b node:test 跑两棵树（行为/集成 + 模块）；旧 shell engine 测试不得再被 invoke
+const OLD_SHELL_TESTS = [
   "registry-schema.test.sh",
   "cdd-select.test.sh",
   "cdd-cli-dry-run-smoke.sh",
   "cdd-commit-gate-smoke.sh",
   "cdd-common-functions.test.sh",
   "cdd-severity-contract.test.sh",
+  "cdd-orchestrator-line-budget.test.sh",
 ];
-test("6 engine shell tests wired exactly once inside 5b", () => {
+function behaviorNodeTestStep() {
+  return steps.find((s) => s.name.startsWith("5b. node:test") && s.args?.some((a) => a === "--test"));
+}
+test("5b node:test 跑行为 + 引擎两棵树；旧 shell 测试不 invoke", () => {
   const markerIndex = steps.findIndex((s) => s.name === "5b. engineering plugin validation");
   assert.ok(markerIndex !== -1, "5b marker missing");
-  for (const t of ENGINE_TESTS) {
-    const idxs = steps.map((s, i) => (s.name.includes(t) ? i : -1)).filter((i) => i !== -1);
-    assert.equal(idxs.length, 1, `${t}: expected 1 invocation in ci-validate.mjs, got ${idxs.length}`);
-    assert.ok(idxs[0] > markerIndex, `${t}: invoked before == 5b == block`);
+  const nt = behaviorNodeTestStep();
+  assert.ok(nt, "5b node:test 步骤缺失");
+  assert.ok(nt.args.some((a) => a.includes("packages/engineering/tests/*.test.mjs")), "行为树 glob 缺失");
+  assert.ok(nt.args.some((a) => a.includes("packages/engineering/bin/engine/tests/*.test.mjs")), "引擎模块树 glob 缺失");
+  const idx = steps.indexOf(nt);
+  assert.ok(idx > markerIndex, "node:test 步骤位于 5b marker 之前");
+  for (const t of OLD_SHELL_TESTS) {
+    assert.ok(!steps.some((s) => s.name.includes(t)), `${t} 不应再被 invoke`);
   }
 });
 
@@ -86,9 +94,9 @@ test("rule-reference invoked with semantic-only --skills args", () => {
 });
 
 // 5. node:test gate + os-init + engine suites wired (T1-T3 node:test aggregation)
-test("node:test gate + os-init + engine suites wired", () => {
-  const nt = steps.find((s) => s.name.includes("node:test gate"));
-  assert.ok(nt, "node:test gate+engine suite step missing");
+test("node:test 步骤含 gate + os-init + engine 套件 glob", () => {
+  const nt = behaviorNodeTestStep();
+  assert.ok(nt, "5b node:test 步骤缺失");
   assert.ok(nt.args.some((a) => a.includes("packages/engineering/bin/gate/tests/*.test.mjs")), "gate suite glob missing");
   assert.ok(nt.args.some((a) => a.includes("packages/engineering/bin/os-init/tests/*.test.mjs")), "os-init suite glob missing");
   assert.ok(nt.args.some((a) => a.includes("packages/engineering/bin/engine/tests/*.test.mjs")), "engine suite glob missing");

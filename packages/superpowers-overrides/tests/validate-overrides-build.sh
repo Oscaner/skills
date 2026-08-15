@@ -80,12 +80,10 @@ done
 echo "OK"
 
 echo "== validate engineering engine tests =="
-# cdd-exec.test.sh is intentionally not wired here — brief Step 2 sanctions only
-# the three tests below. It stays a standalone regression test (hermetic vs ambient
-# CDD_MODE since the T11 fix round); run it manually.
-"$OS_ENG/tests/registry-schema.test.sh"
-"$OS_ENG/tests/cdd-select.test.sh"
-"$OS_ENG/tests/cdd-cli-dry-run-smoke.sh"
+# T5: registry-schema / cdd-select / cdd-cli-dry-run 三个 shell engine 测试已迁 node:test
+# 模块套件（registry/select/run/runner/contract/...），原 .sh 删除。此处跑同一权威套件
+# 保持本脚本自足；ci-validate.mjs 5b 亦跑该套件（重复执行无害）。
+node --test "$OS_ENG/bin/engine/tests/"*.test.mjs
 echo "OK"
 
 echo "== validate manifest target existence (cross-plugin) =="

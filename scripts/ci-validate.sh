@@ -90,17 +90,11 @@ else:
     assert len(skills) == EXPECTED, f"expected {EXPECTED} engineering skills (12 emitters + os-init), got {len(skills)}"
     print(f"OK — {len(skills)} engineering skills (explicit list)")
 '
-./packages/engineering/tests/registry-schema.test.sh
-./packages/engineering/tests/cdd-select.test.sh
-./packages/engineering/tests/cdd-cli-dry-run-smoke.sh
-./packages/engineering/tests/cdd-commit-gate-smoke.sh
-./packages/engineering/tests/cdd-common-functions.test.sh
-./packages/engineering/tests/cdd-severity-contract.test.sh
 python3 packages/engineering/tests/rule-reference.test.py \
   --skills packages/engineering/skills:semantic
-node --test "packages/engineering/bin/gate/tests/*.test.mjs" "packages/engineering/bin/os-init/tests/*.test.mjs" "packages/engineering/bin/engine/tests/*.test.mjs"
-./packages/engineering/tests/cdd-orchestrator-line-budget.test.sh
-./packages/engineering/tests/ci-validate-wiring.test.sh
+# T5：6 个 shell engine 测试 + line-budget + ci-validate-wiring 已迁 node:test ——
+# 行为树 packages/engineering/tests/ + 模块树 bin/engine/tests/ + gate + os-init。
+node --test "packages/engineering/tests/*.test.mjs" "packages/engineering/bin/gate/tests/*.test.mjs" "packages/engineering/bin/os-init/tests/*.test.mjs" "packages/engineering/bin/engine/tests/*.test.mjs"
 
 echo "== 5b2. engineering gate hooks =="
 [ -f packages/engineering/hooks/hooks.json ] || { echo "FAIL: engineering hooks.json missing"; exit 1; }

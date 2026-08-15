@@ -320,21 +320,21 @@ function emitOverrides(outRoot, plugin) {
 
   const binScripts = [
     [
-      "bin/override-prompt-expansion.sh",
+      "bin/prompt-expansion.mjs",
       promptExpansionScript(targets),
     ],
     [
-      "bin/override-cursor-detect.sh",
+      "bin/cursor-detect.mjs",
       cursorDetectScript(
         targets,
-        readFileSync(join(root, "scripts/templates/override-cursor-detect.sh"), "utf8"),
+        readFileSync(join(root, "scripts/templates/cursor-detect.mjs"), "utf8"),
       ),
     ],
     [
-      "bin/override-cursor-enforce.sh",
+      "bin/cursor-enforce.mjs",
       cursorEnforceScript(
         targets,
-        readFileSync(join(root, "scripts/templates/override-cursor-enforce.sh"), "utf8"),
+        readFileSync(join(root, "scripts/templates/cursor-enforce.mjs"), "utf8"),
       ),
     ],
   ];

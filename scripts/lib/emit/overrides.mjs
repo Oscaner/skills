@@ -7,7 +7,7 @@
  * text/document. The unified emit tool wires file I/O.
  *
  * The two cursor hook scripts (detect/enforce) embed per-target JSON into a
- * bash+python template; the templates live in `scripts/templates/` and are
+ * Node template; the templates live in `scripts/templates/` and are
  * substituted here (via `{{TARGETS_JSON}}` / `{{READ_RES_JSON}}`).
  */
 
@@ -100,35 +100,41 @@ export function targetSkillReadRegexes(plugin, skill) {
 // Artifacts
 // ---------------------------------------------------------------------------
 
-/** `bin/override-prompt-expansion.sh` — case mapping command_name → target. */
+/** `bin/prompt-expansion.mjs` — command_name → target injection router. */
 export function promptExpansionScript(targets) {
-  const lines = [
-    "#!/bin/sh",
-    `# ${generatedBanner}`,
-    "set -eu",
-    "",
-    "if ! command -v jq >/dev/null 2>&1; then",
-    '  echo "[oscaner] WARNING: jq is required for superpowers override hooks. Install jq to enforce overrides automatically." >&2',
-    "  exit 1",
-    "fi",
-    "",
-    "input=$(cat)",
-    'command_name=$(printf \'%s\' "$input" | jq -r \'.command_name // ""\')',
-    "",
-    'case "$command_name" in',
-  ];
-  for (const t of targets) {
-    lines.push(`  ${t.overrides}) override="${t.name}" ;;`);
-    lines.push(`  /${t.upstream_slug}) override="${t.name}" ;;`);
-  }
-  lines.push("  *) exit 0 ;;");
-  lines.push("esac");
-  lines.push("");
-  lines.push(`jq -n --arg override "$override" '{`);
-  lines.push(
-    '  additionalContext: ("MANDATORY OVERRIDE — oscaner hook intercepted this turn.\\nYour FIRST tool call MUST be Skill(\\"" + $override + "\\").\\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.")',
+  const mapLines = targets.map(
+    (t) =>
+      `  "${t.overrides}": "${t.name}",\n  "/${t.upstream_slug}": "${t.name}"`,
   );
-  lines.push("}'", "");
+  const lines = [
+    "#!/usr/bin/env node",
+    `// ${generatedBanner}`,
+    'import { readFileSync } from "node:fs";',
+    "",
+    'const input = readFileSync(0, "utf8");',
+    'let commandName = "";',
+    "try {",
+    "  const parsed = JSON.parse(input);",
+    '  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {',
+    '    commandName = parsed.command_name ?? "";',
+    "  }",
+    "} catch {",
+    '  // not JSON — treat raw stdin as the command (bare /slug test harness)',
+    "}",
+    'if (!commandName) commandName = input.trim();',
+    "",
+    "const MAP = {",
+    mapLines.join(",\n"),
+    "};",
+    "",
+    "const override = MAP[commandName];",
+    "if (!override) process.exit(0);",
+    "",
+    "process.stdout.write(JSON.stringify({",
+    '  additionalContext: `MANDATORY OVERRIDE — oscaner hook intercepted this turn.\\nYour FIRST tool call MUST be Skill(${override}).\\nDo NOT call any other tool before it. Do NOT follow the skill body instructions below until after you have called the override.`,',
+    "}));",
+    "",
+  ];
   return lines.join("\n");
 }
 
@@ -136,7 +142,7 @@ export function promptExpansionScript(targets) {
 export function claudeHooksJson(targets) {
   const commandHook = {
     type: "command",
-    command: "${CLAUDE_PLUGIN_ROOT}/bin/override-prompt-expansion.sh",
+    command: "${CLAUDE_PLUGIN_ROOT}/bin/prompt-expansion.mjs",
   };
   const bareParts = targets.map(
     (t) => `(${ccMatcherBareSlash(t.upstream_slug)})`,
@@ -159,9 +165,9 @@ export function cursorHooksJson() {
     version: 1,
     hooks: {
       beforeSubmitPrompt: [
-        { command: "./bin/override-cursor-detect.sh", matcher: "UserPromptSubmit" },
+        { command: "./bin/cursor-detect.mjs", matcher: "UserPromptSubmit" },
       ],
-      preToolUse: [{ command: "./bin/override-cursor-enforce.sh" }],
+      preToolUse: [{ command: "./bin/cursor-enforce.mjs" }],
     },
   };
 }
@@ -192,7 +198,7 @@ function cursorDetectTargetRows(targets) {
   }));
 }
 
-/** `bin/override-cursor-detect.sh` — attach-detection hook body. */
+/** `bin/cursor-detect.mjs` — attach-detection hook body. */
 export function cursorDetectScript(targets, templateText) {
   return templateText.replace(
     "{{TARGETS_JSON}}",
@@ -208,7 +214,7 @@ function cursorEnforceReadRes(targets) {
   return readRes;
 }
 
-/** `bin/override-cursor-enforce.sh` — read/skill gate hook body. */
+/** `bin/cursor-enforce.mjs` — read/skill gate hook body. */
 export function cursorEnforceScript(targets, templateText) {
   return templateText.replace(
     "{{READ_RES_JSON}}",

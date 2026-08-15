@@ -1,0 +1,155 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
+
+// Cursor detect hook contract (UserPromptSubmit): scan attachment paths for an
+// upstream superpowers SKILL.md attach; if found, write a pending marker keyed by
+// session (conversation_id || session_id || prompt-hash) so the enforce hook can
+// gate the next first tool call. Always outputs {"continue":true}.
+const DETECT = fileURLToPath(
+  new URL("../../superpowers-overrides/bin/cursor-detect.mjs", import.meta.url),
+);
+
+let pendingRoot; // TMPDIR override so the hook writes into an isolated temp tree
+const savedTmpdir = process.env.TMPDIR;
+
+function setup() {
+  pendingRoot = mkdtempSync(join(tmpdir(), "oscaner-detect-"));
+  process.env.TMPDIR = pendingRoot;
+}
+
+function teardown() {
+  if (savedTmpdir === undefined) delete process.env.TMPDIR;
+  else process.env.TMPDIR = savedTmpdir;
+  rmSync(pendingRoot, { recursive: true, force: true });
+}
+
+function pendingPath(key) {
+  return join(
+    pendingRoot,
+    "oscaner-superpowers-overrides",
+    "pending",
+    `${key}.json`,
+  );
+}
+
+function detect(input) {
+  return execFileSync("node", [DETECT], { input, encoding: "utf8" });
+}
+
+// Upstream attach path shape that must match the vendored superpowers family.
+const upstreamAttach = "/fake/vendors/superpowers/skills/brainstorming/SKILL.md";
+
+test("cursor-detect: upstream SKILL.md attach writes pending with target + suffix", () => {
+  setup();
+  try {
+    const out = detect(
+      JSON.stringify({
+        conversation_id: "conv-a1",
+        prompt: "please review",
+        attachments: [{ type: "file", file_path: upstreamAttach }],
+      }),
+    );
+    assert.deepEqual(JSON.parse(out), { continue: true });
+    const pending = JSON.parse(
+      readFileSync(pendingPath("conv-a1"), "utf8"),
+    );
+    assert.equal(pending.override, "engineering:os-brainstorming");
+    assert.equal(
+      pending.skill_suffix,
+      "../engineering/skills/os-brainstorming/SKILL.md",
+    );
+    assert.equal(pending.trigger, "attach");
+    assert.ok(pending.detected_at > 0, "detected_at epoch present");
+  } finally {
+    teardown();
+  }
+});
+
+test("cursor-detect: attachment `path` field is accepted (Cursor file shape)", () => {
+  setup();
+  try {
+    detect(
+      JSON.stringify({
+        conversation_id: "conv-a2",
+        prompt: "x",
+        attachments: [{ type: "file", path: upstreamAttach }],
+      }),
+    );
+    assert.ok(existsSync(pendingPath("conv-a2")), "pending written from `path`");
+  } finally {
+    teardown();
+  }
+});
+
+test("cursor-detect: bare /brainstorming with no attachments writes no pending", () => {
+  setup();
+  try {
+    const out = detect(
+      JSON.stringify({
+        conversation_id: "conv-a3",
+        prompt: "/brainstorming design foo",
+        attachments: [],
+      }),
+    );
+    assert.deepEqual(JSON.parse(out), { continue: true });
+    assert.ok(!existsSync(pendingPath("conv-a3")), "slash must not write pending");
+  } finally {
+    teardown();
+  }
+});
+
+test("cursor-detect: session_id fallback keys the pending marker", () => {
+  setup();
+  try {
+    detect(
+      JSON.stringify({
+        session_id: "sess-a4",
+        prompt: "/brainstorming",
+        attachments: [{ file_path: upstreamAttach }],
+      }),
+    );
+    assert.ok(existsSync(pendingPath("sess-a4")), "pending keyed by session_id");
+  } finally {
+    teardown();
+  }
+});
+
+test("cursor-detect: prompt-hash fallback key is a 16-hex sha256", () => {
+  setup();
+  try {
+    const input = JSON.stringify({
+      prompt: "attach me",
+      attachments: [{ file_path: upstreamAttach }],
+    });
+    const out = detect(input);
+    assert.deepEqual(JSON.parse(out), { continue: true });
+    // no conversation_id/session_id → key = sha256(prompt).hex[:16]
+    const expected = createHash("sha256").update("attach me").digest("hex").slice(0, 16);
+    assert.ok(existsSync(pendingPath(expected)), `pending keyed by prompt hash (${expected})`);
+  } finally {
+    teardown();
+  }
+});
+
+test("cursor-detect: unrelated attachment path writes no pending", () => {
+  setup();
+  try {
+    const out = detect(
+      JSON.stringify({
+        conversation_id: "conv-a6",
+        prompt: "x",
+        attachments: [{ file_path: "/notes/meeting.md" }],
+      }),
+    );
+    assert.deepEqual(JSON.parse(out), { continue: true });
+    assert.ok(!existsSync(pendingPath("conv-a6")));
+  } finally {
+    teardown();
+  }
+});

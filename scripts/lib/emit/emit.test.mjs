@@ -566,14 +566,14 @@ test("ccMatcherBareSlash escapes hyphens like Python re.escape", () => {
   );
 });
 
-test("promptExpansionScript maps every overrides trigger to its target", () => {
+test("promptExpansionScript maps every overrides trigger to its target (.mjs)", () => {
   const script = promptExpansionScript(loadTargets(MANIFEST_PATH));
-  assert.match(script, /^#!\/bin\/sh/);
-  assert.match(script, /# scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /superpowers:brainstorming\) override="engineering:os-brainstorming"/);
-  assert.match(script, /\/brainstorming\) override="engineering:os-brainstorming"/);
-  assert.match(script, /superpowers:test-driven-development\) override="mattpocock-skills:tdd"/);
-  assert.match(script, /\/using-git-worktrees\) override="engineering:os-finishing"/);
+  assert.match(script, /^#!\/usr\/bin\/env node/);
+  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
+  assert.match(script, /"superpowers:brainstorming": "engineering:os-brainstorming"/);
+  assert.match(script, /"\/brainstorming": "engineering:os-brainstorming"/);
+  assert.match(script, /"superpowers:test-driven-development": "mattpocock-skills:tdd"/);
+  assert.match(script, /"\/using-git-worktrees": "engineering:os-finishing"/);
 });
 
 test("claudeHooksJson has exactly the two UserPromptExpansion matchers", () => {
@@ -587,6 +587,13 @@ test("claudeHooksJson has exactly the two UserPromptExpansion matchers", () => {
   // every override target gets a bare-slash branch in the combined matcher
   assert.ok(matchers[1].includes("/writing\\-plans"), "writing-plans matcher");
   assert.ok(matchers[1].includes("/using\\-git\\-worktrees"), "using-git-worktrees matcher");
+  // both matchers route to the Node prompt-expansion router
+  for (const e of hooks.hooks.UserPromptExpansion) {
+    assert.equal(
+      e.hooks[0].command,
+      "${CLAUDE_PLUGIN_ROOT}/bin/prompt-expansion.mjs",
+    );
+  }
 });
 
 test("overridesHooksFor dispatches claude → router, cursor → detect/enforce, fail-fast on unknown", () => {
@@ -595,22 +602,22 @@ test("overridesHooksFor dispatches claude → router, cursor → detect/enforce,
   assert.equal(claude.hooks.UserPromptExpansion[0].matcher, "^superpowers:");
   const cursor = overridesHooksFor("cursor", targets);
   assert.deepEqual(cursor.hooks.beforeSubmitPrompt, [
-    { command: "./bin/override-cursor-detect.sh", matcher: "UserPromptSubmit" },
+    { command: "./bin/cursor-detect.mjs", matcher: "UserPromptSubmit" },
   ]);
   assert.deepEqual(cursor.hooks.preToolUse, [
-    { command: "./bin/override-cursor-enforce.sh" },
+    { command: "./bin/cursor-enforce.mjs" },
   ]);
   assert.throws(() => overridesHooksFor("codex", targets), /codex/);
 });
 
 test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {
   const template = readFileSync(
-    "scripts/templates/override-cursor-detect.sh",
+    "scripts/templates/cursor-detect.mjs",
     "utf8",
   );
   const script = cursorDetectScript(loadTargets(MANIFEST_PATH), template);
-  assert.match(script, /#!\/usr\/bin\/env bash/);
-  assert.match(script, /# scripts\/emit\.mjs — do not edit/);
+  assert.match(script, /#!\/usr\/bin\/env node/);
+  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
   assert.match(script, /"skill_suffix": ?"\.\.\/engineering\/skills\/os-brainstorming\/SKILL\.md"/);
   assert.match(script, /"name": ?"mattpocock-skills:tdd"/);
   assert.match(script, /"skill_suffix": ?"skills\/engineering\/tdd\/SKILL\.md"/);
@@ -621,11 +628,11 @@ test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {
 
 test("cursorEnforceScript embeds read-regexes per target skill", () => {
   const template = readFileSync(
-    "scripts/templates/override-cursor-enforce.sh",
+    "scripts/templates/cursor-enforce.mjs",
     "utf8",
   );
   const script = cursorEnforceScript(loadTargets(MANIFEST_PATH), template);
-  assert.match(script, /# scripts\/emit\.mjs — do not edit/);
+  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
   assert.match(script, /READ_RES = \{/);
   assert.match(script, /"mattpocock-skills:tdd"/);
   assert.match(script, /skills\/engineering\/tdd\/SKILL/);

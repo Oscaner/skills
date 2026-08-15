@@ -153,6 +153,8 @@ assert len(matchers) == 2, matchers
 assert any(m.startswith('^superpowers:') for m in matchers)
 assert any('/brainstorming' in m for m in matchers)
 assert not any('spor-' in m for m in matchers), 'spor- matchers must be removed'
+commands = [e['hooks'][0]['command'] for e in hooks['hooks']['UserPromptExpansion']]
+assert all(c.endswith('/bin/prompt-expansion.mjs') for c in commands), commands
 print('OK')
 "
 
@@ -162,14 +164,11 @@ python3 "$ROOT/tests/manifest-harness.test.py"
 echo "== validate generator outputs fresh =="
 node "$(cd "$ROOT/../.." && pwd)/scripts/emit.mjs" --check
 
-echo "== validate expansion script =="
-"$ROOT/tests/override-prompt-expansion.test.sh"
-
-echo "== validate cursor detect hook =="
-"$ROOT/tests/override-cursor-detect.test.sh"
-
-echo "== validate cursor enforce hook =="
-"$ROOT/tests/override-cursor-enforce.test.sh"
+echo "== validate router hooks (Node) =="
+node --test \
+  "$ROOT/tests/prompt-expansion.test.mjs" \
+  "$ROOT/tests/cursor-detect.test.mjs" \
+  "$ROOT/tests/cursor-enforce.test.mjs"
 
 echo "== validate hooks-cursor.json =="
 python3 -c "
@@ -181,10 +180,10 @@ assert hooks['version'] == 1
 assert 'beforeSubmitPrompt' in hooks['hooks']
 assert 'preToolUse' in hooks['hooks']
 detect = hooks['hooks']['beforeSubmitPrompt'][0]
-assert detect['command'] == './bin/override-cursor-detect.sh'
+assert detect['command'] == './bin/cursor-detect.mjs'
 pre = hooks['hooks']['preToolUse']
 assert len(pre) == 1
-assert pre[0]['command'] == './bin/override-cursor-enforce.sh'
+assert pre[0]['command'] == './bin/cursor-enforce.mjs'
 assert 'matcher' not in pre[0]
 assert not any('cdd-gate' in p['command'] for p in pre), 'gate preToolUse moved to engineering'
 print('OK')
@@ -200,9 +199,10 @@ assert 'PreToolUse' not in cc['hooks'], 'gate PreToolUse moved to engineering'
 print('OK')
 "
 
-echo "== validate cursor hook scripts executable =="
-[ -x "$ROOT/bin/override-cursor-detect.sh" ] || { echo "FAIL: detect not executable"; exit 1; }
-[ -x "$ROOT/bin/override-cursor-enforce.sh" ] || { echo "FAIL: enforce not executable"; exit 1; }
+echo "== validate router hook scripts executable =="
+[ -x "$ROOT/bin/prompt-expansion.mjs" ] || { echo "FAIL: prompt-expansion not executable"; exit 1; }
+[ -x "$ROOT/bin/cursor-detect.mjs" ] || { echo "FAIL: detect not executable"; exit 1; }
+[ -x "$ROOT/bin/cursor-enforce.mjs" ] || { echo "FAIL: enforce not executable"; exit 1; }
 echo "OK"
 
 echo "== validate self-check version stamps =="

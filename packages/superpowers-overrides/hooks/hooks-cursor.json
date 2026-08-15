@@ -4,13 +4,13 @@
   "hooks": {
     "beforeSubmitPrompt": [
       {
-        "command": "./bin/override-cursor-detect.sh",
+        "command": "./bin/cursor-detect.mjs",
         "matcher": "UserPromptSubmit"
       }
     ],
     "preToolUse": [
       {
-        "command": "./bin/override-cursor-enforce.sh"
+        "command": "./bin/cursor-enforce.mjs"
       }
     ]
   }

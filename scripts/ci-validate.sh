@@ -57,9 +57,9 @@ print("OK — no skill dirs (trigger router)")
 echo "== 4. hooks executable =="
 [ -f packages/superpowers-overrides/hooks/hooks.json ] && echo "OK — hooks.json"
 [ -f packages/superpowers-overrides/hooks/hooks-cursor.json ] && echo "OK — hooks-cursor.json"
-[ -x packages/superpowers-overrides/bin/override-prompt-expansion.sh ] && echo "OK — prompt-expansion"
-[ -x packages/superpowers-overrides/bin/override-cursor-detect.sh ] && echo "OK — cursor-detect"
-[ -x packages/superpowers-overrides/bin/override-cursor-enforce.sh ] && echo "OK — cursor-enforce"
+[ -x packages/superpowers-overrides/bin/prompt-expansion.mjs ] && echo "OK — prompt-expansion"
+[ -x packages/superpowers-overrides/bin/cursor-detect.mjs ] && echo "OK — cursor-detect"
+[ -x packages/superpowers-overrides/bin/cursor-enforce.mjs ] && echo "OK — cursor-enforce"
 
 echo "== 5. overrides build validation =="
 ./packages/superpowers-overrides/tests/validate-overrides-build.sh

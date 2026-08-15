@@ -47,10 +47,12 @@ Install `engineering` from the marketplace (Cursor Team Marketplace / plugin ins
 Two equivalent options — **pick one** (they share the same pending state; running both
 is idempotent but redundant):
 
-1. **Marketplace** — Grok reads Claude-compatible plugins; install the Claude marketplace
-   above and `claude.mjs` is invoked for Grok `PreToolUse`.
+1. **Marketplace** — (assumption-based; unverified against a live Grok install) Grok reads
+   Claude-compatible plugins; install the Claude marketplace
+   above and `claude.mjs` is invoked for Grok `PreToolUse`. For a guaranteed `grok.mjs`
+   adapter, use the native-config option instead.
 2. **Native config (recommended)** — `os-init gates` writes `~/.grok/hooks/engineering.json`
-   pointing at `bin/gate/adapters/grok.mjs`, then trust it:
+   pointing at `bin/gate/adapters/grok.mjs`, then trust it (→ [Trust ceremonies](#trust-ceremonies)):
 
    ```bash
    grok --trust
@@ -69,8 +71,8 @@ hook under `.qoder-plugin/hooks/hooks.json` → `bin/gate/adapters/qoder.mjs`.
 
 ### Codex (plugin)
 
-Install the `.codex-plugin` (`.codex-plugin/plugin.json` embeds `hooks/hooks-codex.json`
-→ `bin/gate/adapters/codex.mjs`), then review/trust the hooks:
+Install the `.codex-plugin` (`.codex-plugin/plugin.json` embeds plugin-root `hooks/hooks.json`
+→ `bin/gate/adapters/codex.mjs`), then review/trust the hooks (→ [Trust ceremonies](#trust-ceremonies)):
 
 ```text
 /codex /hooks      # in the Codex session — approve the engineering hooks
@@ -134,20 +136,24 @@ templates to the machine and prints the trust ceremony:
 /os-init gates --harness trae,kiro  # limit to specific harnesses
 ```
 
-Under the hood it runs:
+Under the hood it runs the installer from the **installed package** (not a source
+checkout — the plugin root is wherever the marketplace installed `engineering`):
 
 ```bash
-node <repo>/packages/engineering/bin/os-init/install-gates.mjs [--harness …] [--dry-run]
+node <plugin-root>/bin/os-init/install-gates.mjs [--harness …] [--dry-run]
 ```
 
 What it does (idempotent — re-runs merge, never clobber user content):
 
-| Harness | Writes | Trust step (os-init prints next action) |
-|---------|--------|------------------------------------------|
-| **Trae** | `~/.trae/hooks.json` (Cursor format → `gate/adapters/trae.mjs`) | Enable the hook + sandbox/local execution mode |
+| Harness | Writes | Trust step |
+|---------|--------|------------|
+| **Trae** | `~/.trae/hooks.json` (Cursor format → `gate/adapters/trae.mjs`) | [Trust ceremonies](#trust-ceremonies) |
 | **Vibe** | `~/.vibe/hooks.toml` → `gate/adapters/vibe.mjs` | — |
 | **Kiro** | `~/.kiro/hooks/engineering.json` → `gate/adapters/kiro.mjs` | — |
-| **Grok** (optional native) | `~/.grok/hooks/engineering.json` → `gate/adapters/grok.mjs` | `grok --trust` |
+| **Grok** (optional native) | `~/.grok/hooks/engineering.json` → `gate/adapters/grok.mjs` | [Trust ceremonies](#trust-ceremonies) |
+
+Trust steps are listed once in [Trust ceremonies](#trust-ceremonies) — the authoritative
+list for every channel; `os-init gates` prints each harness's next step at install time.
 
 **Verify:** the listed files exist and point at the installed package's
 `bin/gate/adapters/<harness>.mjs`; during an active CDD task a repo-edit attempt is

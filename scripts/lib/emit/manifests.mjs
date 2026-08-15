@@ -86,7 +86,12 @@ export function cursorPluginManifest(plugin, version) {
   return m;
 }
 
-/** `.qoder-plugin/plugin.json` — Qoder plugin manifest (Claude-mirror plugin). */
+/**
+ * `.qoder-plugin/plugin.json` — Qoder plugin manifest (Claude-mirror plugin).
+ * Completes the sibling shape: skills + hooks（plugin-root `hooks/hooks.json`
+ * 自动发现通道，manifest 位于 `.qoder-plugin/` 故 manifest-relative 为
+ * `./hooks/hooks.json`；emit 按 `oscaner-plugin.hooks.qoder` 写文件）。
+ */
 export function qoderPluginManifest(plugin, version) {
   const m = {
     _generated: generatedBanner,
@@ -98,6 +103,8 @@ export function qoderPluginManifest(plugin, version) {
   if (plugin.license) m.license = plugin.license;
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
+  m.skills = "./skills/";
+  m.hooks = "./hooks/hooks.json";
   return m;
 }
 
@@ -114,10 +121,11 @@ export function codexPluginManifest(plugin, version) {
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
   m.skills = "./skills/";
-  // codex plugin hooks are declared as a manifest path override to a hooks
-  // file inside the plugin root (the documented codex plugin-hooks channel);
-  // the PreToolUse cdd-gate content ships in `hooks/hooks-codex.json`.
-  m.hooks = plugin.hooks?.codex ?? "./hooks/hooks-codex.json";
+  // codex 插件 hooks 走 plugin-root `hooks/hooks.json` 自动发现通道（manifest 位于
+  // `.codex-plugin/`，故 manifest-relative 是 `./hooks/hooks.json`；emit 按
+  // `oscaner-plugin.hooks.codex`（package-relative）写文件到 `.codex-plugin/hooks/`）。
+  // cdd-gate 内容由 `hooks/hooks.json` 生成器产出。
+  m.hooks = "./hooks/hooks.json";
   m.interface = codexInterface(plugin);
   return m;
 }
@@ -193,11 +201,11 @@ export function piPackageKey({ extensions = [] } = {}) {
 }
 
 /**
- * engineering Claude PreToolUse hooks (cdd gate on Write|Edit|Bash).
- * Only engineering carries the gate — the overrides router plugin ships
- * no PreToolUse hooks (see `overrides.mjs` claudeHooksJson).
+ * engineering PreToolUse cdd-gate hooks 共享形状（Write|Edit + Bash 两组，各一个
+ * type:command hook）。claude/codex/qoder 三份逐字复制的共同结构 —— 只差 adapter
+ * 命令；per-harness 生成器传入命令即可（matcher 组固定，改动只在一处）。
  */
-export function engineeringClaudeHooks() {
+function cddGatePreToolUseHooks(command) {
   return {
     _generated: generatedBanner,
     hooks: {
@@ -207,7 +215,7 @@ export function engineeringClaudeHooks() {
           hooks: [
             {
               type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs",
+              command,
             },
           ],
         },
@@ -216,13 +224,22 @@ export function engineeringClaudeHooks() {
           hooks: [
             {
               type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs",
+              command,
             },
           ],
         },
       ],
     },
   };
+}
+
+/**
+ * engineering Claude PreToolUse hooks (cdd gate on Write|Edit|Bash).
+ * Only engineering carries the gate — the overrides router plugin ships
+ * no PreToolUse hooks (see `overrides.mjs` claudeHooksJson).
+ */
+export function engineeringClaudeHooks() {
+  return cddGatePreToolUseHooks("${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs");
 }
 
 /** engineering Cursor preToolUse hook (cdd gate). */
@@ -238,70 +255,23 @@ export function engineeringCursorHooks() {
 
 /**
  * engineering Codex PreToolUse hooks (cdd gate). Codex plugin hooks are read
- * from the hooks file the `.codex-plugin/plugin.json` manifest path references
- * (`hooks/hooks-codex.json`). `CLAUDE_PLUGIN_ROOT` is the documented
- * compatibility env var codex sets for plugin-bundled hooks.
+ * from the plugin-root `hooks/hooks.json` the `.codex-plugin/plugin.json`
+ * manifest references. Codex documents no plugin-root env var, so the command
+ * is a relative path (`../bin/gate/adapters/codex.mjs` from the plugin root /
+ * hooks dir) instead of the Claude `${CLAUDE_PLUGIN_ROOT}` compat var.
  */
 export function codexHooksJson() {
-  return {
-    _generated: generatedBanner,
-    hooks: {
-      PreToolUse: [
-        {
-          matcher: "Write|Edit",
-          hooks: [
-            {
-              type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
-            },
-          ],
-        },
-        {
-          matcher: "Bash",
-          hooks: [
-            {
-              type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
-            },
-          ],
-        },
-      ],
-    },
-  };
+  return cddGatePreToolUseHooks("../bin/gate/adapters/codex.mjs");
 }
 
 /**
  * engineering Qoder PreToolUse hooks (cdd gate). Qoder mirrors Claude events;
- * plugin hooks read `QODER_PLUGIN_ROOT`. Ships under `.qoder-plugin/hooks/`
- * (plugin-root `hooks/hooks.json` is occupied by the Claude gate — see the
- * implementer report for the collision note).
+ * plugin hooks are auto-discovered at plugin-root `hooks/hooks.json`
+ * (`.qoder-plugin/` is the plugin root). `QODER_PLUGIN_ROOT` is the documented
+ * plugin-root env var.
  */
 export function qoderHooksJson() {
-  return {
-    _generated: generatedBanner,
-    hooks: {
-      PreToolUse: [
-        {
-          matcher: "Write|Edit",
-          hooks: [
-            {
-              type: "command",
-              command: "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
-            },
-          ],
-        },
-        {
-          matcher: "Bash",
-          hooks: [
-            {
-              type: "command",
-              command: "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
-            },
-          ],
-        },
-      ],
-    },
-  };
+  return cddGatePreToolUseHooks("${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs");
 }
 
 /**

@@ -119,7 +119,7 @@ test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () =
 test("codexPluginManifest includes skills, codex gate hooks path, and interface", () => {
   const m = codexPluginManifest(OS_ENG, "0.1.0");
   assert.equal(m.skills, "./skills/");
-  assert.equal(m.hooks, "./hooks/hooks-codex.json");
+  assert.equal(m.hooks, "./hooks/hooks.json");
   assert.equal(m.name, "engineering");
   assert.equal(m.version, "0.1.0");
   assert.ok(m.interface, "codex manifest must carry an interface");
@@ -150,20 +150,20 @@ test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () 
   assert.equal(m.hooks, "./hooks/cursor.json");
 });
 
-test("codexPluginManifest resolves hooks path from plugin.hooks.codex mapping", () => {
-  // codex plugin hooks are a manifest path override (documented codex plugin
-  // channel); the PreToolUse content ships in the referenced hooks file.
+test("codexPluginManifest points hooks at the codex plugin-root hooks channel", () => {
+  // codex 插件 hooks 走 plugin-root `hooks/hooks.json`（manifest 位于 .codex-plugin/，
+  // manifest-relative 为 ./hooks/hooks.json）；emit 按 package-relative 映射写文件。
+  assert.equal(codexPluginManifest(OS_ENG, "0.1.0").hooks, "./hooks/hooks.json");
   const mapped = codexPluginManifest(
-    { ...OS_ENG, hooks: { codex: "./hooks/codex.json" } },
+    { ...OS_ENG, hooks: { codex: "./.codex-plugin/hooks/hooks.json" } },
     "0.1.0",
   );
-  assert.equal(mapped.hooks, "./hooks/codex.json");
-  assert.equal(codexPluginManifest(OS_ENG, "0.1.0").hooks, "./hooks/hooks-codex.json");
+  assert.equal(mapped.hooks, "./hooks/hooks.json");
 });
 
-test("codexHooksJson wires PreToolUse gate to the codex adapter", () => {
+test("codexHooksJson wires PreToolUse gate to the codex adapter (relative path)", () => {
   const hooks = codexHooksJson();
-  assert.ok(hooks._generated, "hooks-codex.json must carry the generated banner");
+  assert.ok(hooks._generated, "hooks.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   assert.equal(pre.length, 2);
@@ -174,7 +174,7 @@ test("codexHooksJson wires PreToolUse gate to the codex adapter", () => {
     assert.equal(e.hooks[0].type, "command");
     assert.equal(
       e.hooks[0].command,
-      "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+      "../bin/gate/adapters/codex.mjs",
     );
   }
 });
@@ -241,7 +241,7 @@ test("piPackageKey carries the pi gate extension when passed, pure skills otherw
   assert.deepEqual(piPackageKey(), { skills: ["./skills"] });
 });
 
-test("qoderPluginManifest emits the qoder plugin manifest", () => {
+test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () => {
   const m = qoderPluginManifest(OS_ENG, "0.1.0");
   assert.equal(m.name, "engineering");
   assert.equal(m.version, "0.1.0");
@@ -249,6 +249,8 @@ test("qoderPluginManifest emits the qoder plugin manifest", () => {
   assert.equal(m.author.name, "Oscaner Miao");
   assert.equal(m.license, "MIT");
   assert.deepEqual(m.keywords, OS_ENG.claude.keywords);
+  assert.equal(m.skills, "./skills/");
+  assert.equal(m.hooks, "./hooks/hooks.json");
   assert.ok(m._generated);
   assert.match(m._generated, /scripts\/emit\.mjs/);
 });
@@ -346,7 +348,7 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
     hooks: {
       claude: "./hooks/hooks.json",
       cursor: "./hooks/hooks-cursor.json",
-      codex: "./hooks/hooks-codex.json",
+      codex: "./.codex-plugin/hooks/hooks.json",
       qoder: "./.qoder-plugin/hooks/hooks.json",
     },
   });
@@ -442,7 +444,7 @@ test("engineeringHooksFor dispatches per harness, fail-fast on unknown", () => {
   const codex = engineeringHooksFor("codex");
   assert.equal(
     codex.hooks.PreToolUse[0].hooks[0].command,
-    "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+    "../bin/gate/adapters/codex.mjs",
   );
   const qoder = engineeringHooksFor("qoder");
   assert.equal(

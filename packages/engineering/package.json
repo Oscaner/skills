@@ -32,13 +32,14 @@
       "codex",
       "kimi",
       "gemini",
-      "pi"
+      "pi",
+      "qoder"
     ],
     "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set",
     "hooks": {
       "claude": "./hooks/hooks.json",
       "cursor": "./hooks/hooks-cursor.json",
-      "codex": "./hooks/hooks-codex.json",
+      "codex": "./.codex-plugin/hooks/hooks.json",
       "qoder": "./.qoder-plugin/hooks/hooks.json"
     },
     "pi": {

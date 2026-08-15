@@ -9,9 +9,22 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { deriveNativeHarnesses } from "../../gate/configs/native-harnesses.mjs";
 
 const INSTALLER = fileURLToPath(new URL("../install-gates.mjs", import.meta.url));
 const ALL_HARNESSES = ["trae", "vibe", "kiro", "grok", "pi", "opencode", "gemini", "qoder", "codex"];
+const CONFIGS = fileURLToPath(new URL("../../gate/configs", import.meta.url));
+// native 集合派生自 configs/（与安装器同一 SOT —— 新增原生 harness 只加目录）。
+const NATIVE = deriveNativeHarnesses(CONFIGS);
+const PACKAGE_CHANNEL = ALL_HARNESSES.filter((h) => !NATIVE.includes(h));
+
+// 各原生 harness 的机器目标文件（per-harness 具体信息，非集合级硬编码）。
+const NATIVE_DEST = {
+  trae: (home) => path.join(home, ".trae", "hooks.json"),
+  vibe: (home) => path.join(home, ".vibe", "hooks.toml"),
+  kiro: (home) => path.join(home, ".kiro", "hooks", "engineering.json"),
+  grok: (home) => path.join(home, ".grok", "hooks", "engineering.json"),
+};
 
 // 造隔离 HOME + PATH 上的 fake 命令（executable 占位）。
 function env({ home, commands = [] }) {
@@ -67,18 +80,19 @@ test("grok 已装 → 写 ~/.grok/hooks/engineering.json + 打印/执行 `grok -
   assert.match(out, /grok --trust/);
 });
 
-test("trae/vibe/kiro/grok 是唯一写原生 config 的；pi/opencode/gemini/qoder/codex 只引导命令", () => {
+test("原生集合（configs/ 派生）写原生 config；包通道只引导命令", () => {
   const home = mkdtempSync("/tmp/os-init-");
   const e = env({ home, commands: ALL_HARNESSES });
   mkdirSync(path.join(home, ".trae"), { recursive: true });
   const out = run(["--harness", ALL_HARNESSES.join(",")], e);
-  // 无包通道 4 个写原生 config
-  assert.ok(existsSync(path.join(home, ".trae", "hooks.json")));
-  assert.ok(existsSync(path.join(home, ".vibe", "hooks.toml")));
-  assert.ok(existsSync(path.join(home, ".kiro", "hooks", "engineering.json")));
-  assert.ok(existsSync(path.join(home, ".grok", "hooks", "engineering.json")));
-  // 包通道 5 个只引导命令 —— 不写文件
-  for (const h of ["pi", "opencode", "gemini", "qoder", "codex"]) {
+  // 派生出的原生 harness 各自写原生 config
+  for (const name of NATIVE) {
+    assert.ok(NATIVE_DEST[name], `test 需知道 ${name} 的目标文件`);
+    const dest = NATIVE_DEST[name](home);
+    assert.ok(existsSync(dest), `expected ${dest} written for native ${name}`);
+  }
+  // 包通道 harness 只引导命令 —— 不写文件
+  for (const h of PACKAGE_CHANNEL) {
     assert.ok(!existsSync(path.join(home, `.${h}`)), `expected no ~/.${h} dir`);
   }
   assert.match(out, /pi install @oscaner-skills\/engineering/);
@@ -86,6 +100,16 @@ test("trae/vibe/kiro/grok 是唯一写原生 config 的；pi/opencode/gemini/qod
   assert.match(out, /gemini extensions install/);
   assert.match(out, /\.qoder-plugin/);
   assert.match(out, /\.codex-plugin/);
+});
+
+test("codex/gemini 引导时打印 trust 下一步（/hooks / 首次指纹）", () => {
+  const home = mkdtempSync("/tmp/os-init-");
+  const e = env({ home, commands: ["codex", "gemini"] });
+  const out = run(["--harness", "codex,gemini"], e);
+  assert.match(out, /codex/);
+  assert.match(out, /\/hooks 审查并信任 engineering 钩子/);
+  assert.match(out, /gemini/);
+  assert.match(out, /首次使用接受项目 hook 指纹确认/);
 });
 
 test("幂等：重复运行覆盖原生 config 不报错", () => {

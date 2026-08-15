@@ -3,10 +3,12 @@
 // 用法: node install-gates.mjs [--harness trae,vibe,kiro,grok,pi,opencode,gemini,qoder,codex] [--dry-run]
 // 流程（对齐 spec §2.5）：
 //   1. 检测  —— command -v <harness>；trae 无 CLI → 检查 ~/.trae 目录存在
-//   2. 引导  —— 包通道 harness（pi/opencode/gemini/qoder/codex）打印安装命令，不写文件
-//   3. 配置  —— 无包通道 4 个（trae/vibe/kiro/grok）复制 configs/<h>/ 模板 → 机器路径；
+//   2. 引导  —— 包通道 harness（pi/opencode/gemini/qoder/codex）打印安装命令 + trust 下一步，不写文件
+//   3. 配置  —— 原生 harness 集合从 gate/configs/ 派生（见 native-harnesses.mjs：
+//              含 {{GATE_ADAPTER}} 占位符模板的目录 = 原生），复制 configs/<h>/ 模板 → 机器路径；
 //              模板内 {{GATE_ADAPTER}} 占位符替换为包内 adapter 绝对路径（安装时解析）
-//   4. 信任  —— grok 打印 `grok --trust`；trae 打印 Enable + sandbox/local 执行模式
+//   4. 信任  —— 原生 harness 打印 trust 下一步（grok `grok --trust`；trae Enable…）；
+//              包通道 codex/gemini 也打印 trust 下一步
 //   5. 报告  —— 已写 / 引导 / 跳过 列表；--dry-run 只预览不写
 // 幂等：重复运行覆盖原生 config（保留用户非冲突内容：JSON 深合并 / TOML 追加）；
 // 未知 --harness → stderr + exit 1；写失败 → 明确报错不静默。
@@ -14,11 +16,12 @@ import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { deriveNativeHarnesses, GATE_ADAPTER_PLACEHOLDER } from "../gate/configs/native-harnesses.mjs";
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const CONFIGS = path.join(PKG_ROOT, "bin", "gate", "configs");
 const ADAPTERS = path.join(PKG_ROOT, "bin", "gate", "adapters");
-const PLACEHOLDER = "{{GATE_ADAPTER}}";
+const PLACEHOLDER = GATE_ADAPTER_PLACEHOLDER;
 const HOME = process.env.HOME ?? "";
 
 const homePath = (...seg) => path.join(HOME, ...seg);
@@ -37,35 +40,40 @@ function commandExists(name) {
   return false;
 }
 
-// harness 注册表：native=true 写原生 config（模板 → 机器路径）；native=false 只引导命令。
+// harness 注册表：native 集合派生自 configs/（见 native-harnesses.mjs）—— 这里不设
+// native 标志；原生 harness 带 config（模板 → 机器路径），包通道只带 guide + trust。
 const HARNESSES = {
   trae: {
-    native: true,
     config: { template: path.join(CONFIGS, "trae", "hooks.json"), dest: () => homePath(".trae", "hooks.json") },
     detect: () => existsSync(homePath(".trae")),
     trust: "Enable 钩子 + sandbox/local 执行模式",
   },
   vibe: {
-    native: true,
     config: { template: path.join(CONFIGS, "vibe", "hooks.toml"), dest: () => homePath(".vibe", "hooks.toml") },
     detect: () => commandExists("vibe"),
   },
   kiro: {
-    native: true,
     config: { template: path.join(CONFIGS, "kiro", "hooks.json"), dest: () => homePath(".kiro", "hooks", "engineering.json") },
     detect: () => commandExists("kiro"),
   },
   grok: {
-    native: true,
     config: { template: path.join(CONFIGS, "grok", "engineering.json"), dest: () => homePath(".grok", "hooks", "engineering.json") },
     detect: () => commandExists("grok"),
-    trustCommand: "grok --trust",
+    trust: "grok --trust",
   },
-  pi: { native: false, guide: "pi install @oscaner-skills/engineering", detect: () => commandExists("pi") },
-  opencode: { native: false, guide: "opencode.json `plugin` 数组加 `@oscaner-skills/engineering`", detect: () => commandExists("opencode") },
-  gemini: { native: false, guide: "gemini extensions install <repo-url>", detect: () => commandExists("gemini") },
-  qoder: { native: false, guide: "安装 .qoder-plugin（marketplace/本地）", detect: () => commandExists("qoder") },
-  codex: { native: false, guide: "安装 .codex-plugin（/plugins）", detect: () => commandExists("codex") },
+  pi: { guide: "pi install @oscaner-skills/engineering", detect: () => commandExists("pi") },
+  opencode: { guide: "opencode.json `plugin` 数组加 `@oscaner-skills/engineering`", detect: () => commandExists("opencode") },
+  gemini: {
+    guide: "gemini extensions install <repo-url>",
+    detect: () => commandExists("gemini"),
+    trust: "首次使用接受项目 hook 指纹确认",
+  },
+  qoder: { guide: "安装 .qoder-plugin（marketplace/本地）", detect: () => commandExists("qoder") },
+  codex: {
+    guide: "安装 .codex-plugin（/plugins）",
+    detect: () => commandExists("codex"),
+    trust: "/hooks 审查并信任 engineering 钩子",
+  },
 };
 
 // hook 条目签名 —— 去重键（matcher + 命令）。Cursor 形（顶层 command）与
@@ -117,16 +125,14 @@ async function installNative(name, h, dryRun) {
   const dest = h.config.dest();
   if (dryRun) {
     console.log(`  [dry-run] ${name.padEnd(10)} would write ${dest}`);
-    if (h.trustCommand) console.log(`  [dry-run] ${name.padEnd(10)} would print: ${h.trustCommand}`);
+    if (h.trust) console.log(`  [dry-run] ${name.padEnd(10)} would print: ${h.trust}`);
     return;
   }
   await mkdir(path.dirname(dest), { recursive: true });
   await writeFile(dest, await mergeIfExists(dest, content));
   console.log(`  ✓ ${name.padEnd(10)} wrote ${dest}`);
-  if (h.trustCommand) {
-    console.log(`     ${name.padEnd(10)} 下一步: ${h.trustCommand}`);
-  } else if (h.trust) {
-    console.log(`     ${name.padEnd(10)} ${h.trust}`);
+  if (h.trust) {
+    console.log(`     ${name.padEnd(10)} 下一步: ${h.trust}`);
   }
 }
 
@@ -153,6 +159,7 @@ async function main() {
     console.error(`os-init gates: 未知 harness: ${unknown.join(", ")}（可用: ${Object.keys(HARNESSES).join(", ")}）`);
     process.exit(1);
   }
+  const nativeSet = new Set(deriveNativeHarnesses(CONFIGS));
   console.log(`os-init gates — ${args.dryRun ? "dry-run preview（不写任何文件）" : "install"}`);
   let wrote = 0;
   let guided = 0;
@@ -164,11 +171,12 @@ async function main() {
       skipped++;
       continue;
     }
-    if (h.native) {
+    if (nativeSet.has(name)) {
       await installNative(name, h, args.dryRun); // 写失败 → 抛错 → exit 1
       wrote++;
     } else {
       console.log(`  · ${name.padEnd(10)} detected — 引导: ${h.guide}`);
+      if (h.trust) console.log(`     ${name.padEnd(10)} 下一步: ${h.trust}`);
       guided++;
     }
   }

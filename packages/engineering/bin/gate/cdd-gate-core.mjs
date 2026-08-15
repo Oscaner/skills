@@ -22,7 +22,8 @@ export const readonlyGitVerbs = [
 // branch/remote 只放行只读子参数（对齐 cdd_git_verb_allowed）。
 const BRANCH_REMOTE_READONLY_ARGS = new Set(["-a", "-r", "-v", "--show-current"]);
 
-const DEFAULT_PENDING_ROOT = path.join(process.env.TMPDIR ?? "/tmp", "oscaner-engineering", "pending-cdd");
+// bash `:-` 语义（对齐引擎 ${TMPDIR:-/tmp}）：TMPDIR 未设或空串 → /tmp。
+const DEFAULT_PENDING_ROOT = path.join(process.env.TMPDIR?.trim() || "/tmp", "oscaner-engineering", "pending-cdd");
 const DEFAULT_PENDING_TTL = 86400;
 
 export function isWriteTool(name) {
@@ -75,8 +76,9 @@ function shellAllowed(command) {
 }
 
 // pending 路径 —— 与引擎 cdd_pending_path 同一路径（否则生产 gate 找不到 pending → 静默 fail-open）。
-function pendingPathFor(sessionKey) {
-  const root = process.env.CDD_PENDING_ROOT ?? DEFAULT_PENDING_ROOT;
+// CDD_PENDING_ROOT 空串 → 回退默认（bash `:-` 语义），与 TMPDIR 处理一致。
+export function pendingPathFor(sessionKey) {
+  const root = process.env.CDD_PENDING_ROOT?.trim() || DEFAULT_PENDING_ROOT;
   return path.join(root, `${sessionKey}.json`);
 }
 

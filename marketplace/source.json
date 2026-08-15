@@ -108,7 +108,7 @@
       "hooks": {
         "claude": "./hooks/hooks.json",
         "cursor": "./hooks/hooks-cursor.json",
-        "codex": "./hooks/hooks-codex.json",
+        "codex": "./.codex-plugin/hooks/hooks.json",
         "qoder": "./.qoder-plugin/hooks/hooks.json"
       }
     },

@@ -15,5 +15,7 @@
     "harness",
     "droid",
     "pi"
-  ]
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
 }

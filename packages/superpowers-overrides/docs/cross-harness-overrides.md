@@ -79,7 +79,7 @@ Claude Code: `engineering/hooks/hooks.json` adds `PreToolUse` matchers (`Write|E
 
 ### CDD H6 reference doc
 
-CLI env/exit/harness tables live in [`engineering/docs/cdd-reference.md`](../../engineering/docs/cdd-reference.md) (transition copy in `docs/sdd-h6-reference.md`). Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
+CLI env/exit/harness tables live in [`engineering/docs/cdd-reference.md`](../../engineering/docs/cdd-reference.md). Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
 
 ### Claude Code — two UserPromptExpansion matchers + expansion
 

@@ -17,7 +17,7 @@
     "pi"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/hooks-codex.json",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "engineering",
     "shortDescription": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",

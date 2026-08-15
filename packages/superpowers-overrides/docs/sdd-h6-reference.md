@@ -89,7 +89,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 Orchestrator / skill **must not** create `sdd-run-*.sh` or `scripts/sdd-*` in the consumer repo.
 
-All CLI scripts live in `packages/engineering/bin/` (`cdd-run.sh` / `cdd-exec.sh` / `cdd-select.sh`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release.
+All CLI scripts live in `packages/engineering/bin/engine/` (`cdd-run.sh` / `cdd-exec.sh` / `cdd-select.sh`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release.
 
 ## H8 — CLI opt-in / opt-out
 

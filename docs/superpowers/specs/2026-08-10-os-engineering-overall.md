@@ -2,7 +2,7 @@
 
 ## Header
 
-- **Version**: v2.4 · 2026-08-10
+- **Version**: v2.6 · 2026-08-15
 - **Status**: Approved · 2026-08-10（分解经用户批准）
 - **Author**: Oscaner Miao · Claude Code (Opus 4.8)
 - **Constraints**:
@@ -25,6 +25,8 @@
 3. superpowers-overrides 收缩为**薄封装**：spor-* 只做「上游 slash 触发 → 对应 os-*/cli-* 技能」的映射，移除全部规则内容。
 4. overall + phase 模板迁入 engineering 插件 docs。
 
+**最高要求（分发视角）**：这套插件是**面向其他使用者的可分发产品，非作者自用**。一切设计以外部用户为准 —— 安装即用、零冗余步骤、文档对外可读、版本化发布可消费。不得依赖作者私有路径 / 机器 / 习惯，不得把「作者自己会用」当验收。任何阶段设计先问：**外部使用者拿到手能不能直接用？** 这条约束优先级高于其它所有设计取舍。
+
 **Non-goals:**
 
 - 不新增/修改上游 superpowers 插件内容（不改上游本体）。
@@ -34,6 +36,7 @@
 
 **Cross-cutting constraints:**
 
+- **分发视角是最高约束（全阶段生效）**：这套 skills 是分发给其他使用者的产品，非自用。交付以「外部用户安装即用」为验收基线 —— 包通道优先、os-init 一次性设置、无私有路径/机器假设、文档面向使用者而非作者。违反此原则的既有决策（作者习惯的路径/流程）在相关阶段修正。优先于其它一切约束。
 - 过渡期 SDD CLI 链必须持续可用 —— 每个阶段结束时 orchestrator 仍能跑通当前工作流。
 - harness 机制迁移后，`pnpm run validate` 断言（validate-overrides-build.sh 等）必须同步更新。
 - 命名：插件 `engineering`；技能前缀 `os-*`（流程家族）+ `cli-*`（CLI 家族）；**包名统一 `@oscaner-skills/` 作用域** —— `@oscaner-skills/marketplace`（root）/ `@oscaner-skills/engineering` / `@oscaner-skills/superpowers-overrides`
@@ -42,6 +45,7 @@
 - **os-init 参数化**：`os-init spor` 初始化 superpowers 自检表；未来可扩展 `os-init <x>`。
 - **sdd → cdd 全量更名（P1 落位）**：新插件内 `SDD_*` 环境变量 → `CDD_*`；`sdd-common.sh` → `cdd-common.sh`；`sdd-orchestrator-gate.sh` → `cdd-orchestrator-gate.sh`；通用 runner `cdd-run.sh`；workspace `.superpowers/sdd/` → `.superpowers/cdd/`（内联重实现 workspace resolver，不再调用上游 `sdd-workspace`）；`docs/sdd-h6-reference.md` → `docs/cdd-reference.md`；`templates/sdd-cli/` → `templates/cdd/`。唯一保留的上游名：`task-brief` / `review-package`（submodule 脚本，以显式输出路径指向 cdd workspace 调用）。缩写规范：`cdd` = cli-driven-development（镜像 `sdd` = subagent-driven-development）；skill 家族用 `cli-*` 前缀。
 - **规则命名规范（P1 起，全插件生效）**：语义名 + 链接引用 —— 标题 `### Rule: <Semantic Name>`（如 `### Rule: Task Complexity`），无数字、无 a/b/c 子后缀（子规则升为独立语义规则或语义子标题）；跨技能引用用 markdown 链接 `[Rule: <Name>](../<skill>/SKILL.md#rule-<kebab>)`；`rule-reference.test.py` 从正则 `Rule [0-9]+` 改为验证语义名解析（P1 对 cdd 技能、P2 对 os-* 技能落地）。
+- **脚本语言统一（P4b 起）**：消除 shell/mjs 多语言分散 —— **gate = 统一概念，不分 shell/TS**，所有 blocking tool-gate harness 平级覆盖。门决策抽**中立核心**（Node `.mjs`，允许破坏性重构，`cdd_gate_decide` 从 bash 抽出为单一实现 + 薄 CLI）；gate/hook 面（门核心 + 全部 adapter + claude/cursor adapter + prompt-expansion router）**P4b** 迁 Node；CDD 引擎（cdd-common/cdd-run/exec/select/session-activate）+ ci-validate + shell/python 测试 **P5** 迁 Node；终态 = 可执行面单语言 Node。门语义（`pending.mode` / fail-open / git 只读白名单）**保持不变** —— 移植不改语义。
 
 ## §2 Phase inventory
 
@@ -51,18 +55,20 @@
 | P2 | **os-* 家族抽离（核心集审计，8 技能）**。`os-brainstorming` / `os-writing-plans` / `os-executing-plans`（总编器：编器控制器 Rules 1-8 三模式共用 + 分派 —— in-session→Read upstream executing-plans / subagent→Read upstream subagent-driven-development / cli→委托 `cli-driven-development`）/ `os-finishing`（含 worktree 拒绝，吸收 spor-using-git-worktrees）/ `os-verification` / `os-debugging` / `os-code-review` / `os-report-issue`。**不建 os-***（非 1:1 对齐）：tdd 直映 mattpocock（seam 门折进 cdd implement）、executing-plans 直映 os-executing-plans、p0-fallback 删除。cross-cutting `spor-subagent-lifecycle`、`spor-token-efficient-review-dispatch` 降为插件 docs；overall + phase 模板迁入；**gate 模式感知**（`pending.mode`：in-session|subagent|cli，cli 严格 / 其余放行 repo 编辑）。 | [design](2026-08-10-os-engineering-p2-design.md) | [plan](../plans/2026-08-10-os-engineering-p2.md) | ✅ PR #105 merged |
 | P3 | **薄封装 + superpowers 模式发射**。superpowers-overrides 收缩为**触发路由器**（plugin-root，claude+cursor）：manifest 触发→目标表（spor-\* → os-\*/cli-\*/mattpocock tdd），hooks/expansion/自检表指向 os-\*/cli-\*，**spor-\* 全部删除**，rule-reference 数字模式退役。engineering = 技能 + 引擎 + gate：gate 全迁（PreToolUse hooks）、`os-init` 落位（参数化）、独立版本化、**统一 emit 工具**（`pnpm run emit` 从 source.json 生成 first-party 全部产物：claude/cursor/codex/kimi/gemini/pi **薄 manifest 指向 `skills/`** + GEMINI.md + `.agents/skills/` 共享 + overrides hooks/自检表 + 版本同步，仿 superpowers `.version-bump.json`）。**丢弃 rovo/vibe/kiro**（无原生安装器）。 | [design](2026-08-10-os-engineering-p3-design.md) | [plan](../plans/2026-08-10-os-engineering-p3.md) | ✅ #106/#107 merged to develop @ 58b72e5 |
 | P4a | **发布架构 v2（包即源）**。目录重组 `packages/`（engineering + superpowers-overrides）+ `vendors/`（mattpocock-skills / impeccable / superpowers 上游 submodule 源，不编辑）；package.json 加 `oscaner-plugin` 字段为唯一元数据源（source.json 派生）；pnpm workspace + changesets 统一版本/发布所有 `@oscaner-skills/*` 包（含 vendors 构建期装配 republish `@oscaner-skills/superpowers` / `@oscaner-skills/mattpocock-skills` / `@oscaner-skills/impeccable`，保留上游授权）；marketplace + harness manifests 从 packages 生成；未来插件 = 加包目录自动接入。 | [design](2026-08-10-os-engineering-p4a-design.md) | [plan](../plans/2026-08-10-os-engineering-p4a.md) | ✅ 实现完成 + whole-branch review passed（分支 `feat/os-engineering-p4` 待合并） |
-| P4b | **跨 harness gate adapters + 重运行时产物**。Grok / Qoder / Codex / Gemini / Vibe / Kiro 的 PreToolUse/BeforeTool gate adapters（各需原生配置 + 信任仪式；Copilot 因 matcher 忽略延后）；重运行时产物（opencode runtime 插件 / pi TS 扩展 —— engineering 纯 markdown 目前不需要）；Trae 原生 extension（格式待研）。 | [Pending] | [Pending] | ⏳ 未启动 |
+| P4b | **统一 gate 面迁 Node + 9 harness gate adapters + os-init gates（消费者视角交付）**。门决策抽中立核心（Node `.mjs`，破坏性重构，`cdd_gate_decide` 单一实现 + 薄 CLI）；gate/hook 面全迁 Node（门核心 + claude/cursor adapter + prompt-expansion router + 9 新 adapter，~800 行 bash 消灭）；gate targets = grok / qoder / trae / codex / gemini / vibe / kiro（原生 hook 触发，Node adapter）+ opencode / pi（**TS adapter**，import 门核心，随 `@oscaner-skills/engineering` 包分发）；Copilot 推迟（matcher 忽略）、Rovo N/A；**消费者视角安装即用**：有包通道 harness 走原生安装（pi `pi install` 一键 / opencode `plugin` 数组 / gemini `extensions install` / qoder-codex 插件 / grok 经 Claude marketplace），os-init gates 只为无包通道 3 个（trae/vibe/kiro）写原生 config + 信任引导（grok `--trust`、codex `/hooks`、gemini 指纹、trae Enable）；无 `~/.oscaner/` 整树拷贝；分支叠 `feat/os-engineering-p4`。 | [Pending] | [Pending] | 🚧 设计中 |
+| P5 | **CDD 引擎 + CI + 测试脚本迁 Node（脚本语言统一收尾）**。cdd-common.sh / cdd-run / cdd-exec / cdd-select / cdd-session-activate（~3000 行 bash）+ ci-validate.sh + 12 shell 测试 + rule-reference.test.py 全迁 Node；终结 bash/node 双栈 → 可执行面单语言。依赖 P4b（Node 门核心 + adapter 模式就位）。 | [Pending] | [Pending] | ⏳ 未启动 |
 
 ## §3 Dependency graph (ASCII)
 
 ```
-P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（跨 harness gate + 重运行时产物）
+P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（统一 gate 面迁 Node + 9 adapter + os-init gates）──▶ P5（CDD 引擎 + CI + 测试迁 Node）
 ```
 
 - P1 → P2：插件存在、模式确立、harness 机制与 cli-driven-development 就位后，os-* 才能引用它们。
 - P2 → P3：薄封装需要 os-* 目标全部存在才能映射。
 - P3 → P4a：发布架构 v2 建立在 P3 的统一 emit 工具 + 包结构之上。
 - P4a → P4b：跨 harness gate adapters 与重运行时产物在发布架构 v2 就位后实施。
+- P4b → P5：CDD 引擎迁移复用 P4b 的 Node 门核心 + adapter + 测试基建模式。
 
 ## §4 Boundary rules
 
@@ -91,3 +97,5 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v2.2 · 2026-08-10 · 发布架构 v2（A/C 合流）：包即源 —— 每个插件 = 独立 npm 包，package.json 唯一元数据源（source.json 派生）；目录 `packages/`（first-party）+ `vendors/`（上游 submodule 源，不编辑）；pnpm workspace + changesets 统一发布所有 @oscaner-skills/* 包（vendors 构建期装配 republish）；marketplace 从 packages 生成
 - v2.3 · 2026-08-10 · P4 拆分为 P4a（发布架构 v2：packages/vendors + 包即源 + 统一发布）+ P4b（跨 harness gate adapters + 重运行时产物）
 - v2.4 · 2026-08-10 · P4a 执行完成：目录迁移 packages/vendors + 包即源 + 统一发布 + vendors 装配 republish + hooks 每 harness 注册 + 文档；whole-branch review With fixes → 已修。补记阶段 ship：P1（PR #104 merged to develop）、P2（PR #105 merged）、P3（#106/#107 merged to develop @ 58b72e5）；P4a 分支 `feat/os-engineering-p4` 待合并
+- v2.5 · 2026-08-15 · P4b 范围重定义（grilling）：**gate = 统一概念不分 shell/TS** —— targets 扩为 9（grok/qoder/trae/codex/gemini/vibe/kiro shell 触发 + opencode/pi TS adapter），Copilot 推迟（matcher 忽略）、Rovo N/A；门决策抽**中立核心（Node，允许破坏性重构）**；gate/hook 面全迁 Node（~800 行 bash 消灭）；**新增 P5**（CDD 引擎 + ci-validate + shell/python 测试迁 Node，脚本语言统一收尾）；交付 **os-init gates**（检测→复制模板→自动/引导信任）；分支叠 `feat/os-engineering-p4`
+- v2.6 · 2026-08-15 · **最高要求确立：分发视角**。这套 skills 是面向其他使用者的可分发产品（非自用）—— 外部用户安装即用、零冗余步骤、文档对外可读、版本可消费。写入 §1 Goal + Cross-cutting 首条（优先于其它一切约束）。P4b 交付模型随之改消费者视角：包通道安装即用（pi/opencode/gemini/qoder/codex/grok），os-init 仅 trae/vibe/kiro 写原生 config + 信任引导

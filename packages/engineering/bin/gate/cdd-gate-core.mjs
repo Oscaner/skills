@@ -3,8 +3,8 @@
 // cdd_write_allowed / cdd_gate_phase 的等价判定。副作用仅：清除过期 pending（删文件）、
 // 只读 git exec（rev-parse / cat-file，execFileSync + catch → fail-open）；不写 workspace、不 commit。
 //
-// 导出：gateDecide(input) + isWriteTool / isShellTool / readonlyGitVerbs / gitVerbAllowed
-// （adapter 测试可复用）。CLI 与 11 个 adapter（T3/T4）都调用 gateDecide。
+// 导出：gateDecide(input) + isWriteTool / isShellTool / readonlyGitVerbs / gitVerbAllowed /
+// denyMessage（adapter 用 r.context 渲染 deny 文案）。CLI 与 11 个 adapter（T3/T4）都调用 gateDecide。
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
@@ -227,7 +227,8 @@ function writeAllowed(absPath, repoRoot, workspace, phase) {
 }
 
 // deny 消息 —— 等价 cdd_deny_message（含恢复指引）。os_root 为 engineering 插件根。
-function denyMessage(harness, taskNum, planBasename) {
+// 导出供 adapter（T3）用 r.context（taskNum/planBase）渲染 deny 文案。
+export function denyMessage(harness, taskNum, planBasename) {
   const osRoot = pluginRoot();
   const verbs = formatVerbs(readonlyGitVerbs);
   return `CDD orchestrator gate — direct repo edits forbidden during active task.

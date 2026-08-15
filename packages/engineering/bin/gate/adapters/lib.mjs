@@ -2,6 +2,7 @@
 // 对齐 bin/lib/cdd-orchestrator-gate.sh 的 cdd_session_key_from_json 语义：
 // conversation_id → session_id → sha256(prompt) 前 16 位。
 import { createHash } from "node:crypto";
+import { denyMessage } from "../cdd-gate-core.mjs";
 
 export async function readStdin() {
   let s = "";
@@ -17,4 +18,14 @@ export function sessionKeyFromJson(d) {
   if (d.conversation_id) return d.conversation_id;
   if (d.session_id) return d.session_id;
   return sha256(d.prompt ?? "");
+}
+
+// deny 文案 —— 用 gateDecide 返回的 r.context（taskNum/planBase）按当前 harness 渲染
+// （对齐 brief「用 r.context 渲染，回退 r.reason」：context 缺失时回退 r.reason）。
+// 结果与 r.reason 一致（denyResult 本就由同一 context 渲染），但保证文案永远匹配
+// 调用方 harness（如 cursor-agent），不受 pending 评估时传入 harness 的影响。
+export function denyMessageFor(r, harness) {
+  const ctx = r?.context ?? {};
+  if (ctx.taskNum) return denyMessage(harness, ctx.taskNum, ctx.planBase ?? "unknown-plan");
+  return r?.reason ?? "";
 }

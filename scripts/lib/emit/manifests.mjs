@@ -165,7 +165,7 @@ export function engineeringClaudeHooks() {
           hooks: [
             {
               type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs",
             },
           ],
         },
@@ -174,7 +174,7 @@ export function engineeringClaudeHooks() {
           hooks: [
             {
               type: "command",
-              command: "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs",
             },
           ],
         },
@@ -189,7 +189,7 @@ export function engineeringCursorHooks() {
     _generated: generatedBanner,
     version: 1,
     hooks: {
-      preToolUse: [{ command: "./bin/override-cursor-cdd-gate.sh" }],
+      preToolUse: [{ command: "./bin/gate/adapters/cursor.mjs" }],
     },
   };
 }

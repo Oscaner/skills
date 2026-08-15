@@ -342,7 +342,7 @@ test("engineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => 
     assert.equal(e.hooks[0].type, "command");
     assert.equal(
       e.hooks[0].command,
-      "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh",
+      "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs",
     );
   }
 });
@@ -353,7 +353,7 @@ test("engineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
   assert.equal(hooks.version, 1);
   assert.deepEqual(hooks.hooks.preToolUse, [
-    { command: "./bin/override-cursor-cdd-gate.sh" },
+    { command: "./bin/gate/adapters/cursor.mjs" },
   ]);
 });
 
@@ -363,7 +363,7 @@ test("engineeringHooksFor dispatches per harness, fail-fast on unknown", () => {
   const cursor = engineeringHooksFor("cursor");
   assert.equal(cursor.version, 1);
   assert.deepEqual(cursor.hooks.preToolUse, [
-    { command: "./bin/override-cursor-cdd-gate.sh" },
+    { command: "./bin/gate/adapters/cursor.mjs" },
   ]);
   assert.throws(() => engineeringHooksFor("codex"), /codex/);
 });

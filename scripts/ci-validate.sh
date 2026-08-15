@@ -98,17 +98,15 @@ else:
 ./packages/engineering/tests/cdd-severity-contract.test.sh
 python3 packages/engineering/tests/rule-reference.test.py \
   --skills packages/engineering/skills:semantic
-./packages/engineering/tests/cdd-gate-allow-deny-smoke.sh
-./packages/engineering/tests/override-claude-cdd-gate.test.sh
-./packages/engineering/tests/override-cursor-cdd-gate.test.sh
+node --test "packages/engineering/bin/gate/tests/*.test.mjs"
 ./packages/engineering/tests/cdd-orchestrator-line-budget.test.sh
 ./packages/engineering/tests/ci-validate-wiring.test.sh
 
 echo "== 5b2. engineering gate hooks =="
 [ -f packages/engineering/hooks/hooks.json ] || { echo "FAIL: engineering hooks.json missing"; exit 1; }
 [ -f packages/engineering/hooks/hooks-cursor.json ] || { echo "FAIL: engineering hooks-cursor.json missing"; exit 1; }
-[ -x packages/engineering/bin/override-claude-cdd-gate.sh ] || { echo "FAIL: claude cdd-gate not executable"; exit 1; }
-[ -x packages/engineering/bin/override-cursor-cdd-gate.sh ] || { echo "FAIL: cursor cdd-gate not executable"; exit 1; }
+[ -x packages/engineering/bin/gate/adapters/claude.mjs ] || { echo "FAIL: claude gate adapter not executable"; exit 1; }
+[ -x packages/engineering/bin/gate/adapters/cursor.mjs ] || { echo "FAIL: cursor gate adapter not executable"; exit 1; }
 [ -x packages/engineering/bin/engine/cdd-session-activate.sh ] || { echo "FAIL: cdd-session-activate not executable"; exit 1; }
 echo "OK"
 

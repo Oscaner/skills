@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs"
           }
         ]
       },
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/override-claude-cdd-gate.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs"
           }
         ]
       }

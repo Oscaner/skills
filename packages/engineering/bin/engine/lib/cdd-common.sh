@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # cdd-common.sh — shared CDD CLI library (engineering p1; engine/ since P4b T1)
 # Source from engine scripts: source "$(dirname "$0")/lib/cdd-common.sh"
-# (the gate lib sources it via ../engine/lib/cdd-common.sh until T2 replaces it)
+# (P4b T3: the bash gate lib is deleted — the Node gate core reads the same
+# pending root/path directly, no bash sourcing)
 #
 # Exit codes: 0=OK; 1=BLOCKED/stub; 2=CLI missing
 #
@@ -19,7 +20,7 @@
 # this root, the gate reads it, and the TTL bounds how stale a detected session
 # may be before the gate fail-opens.
 CDD_PENDING_ROOT="${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd"
-# TTL is consumed by the gate lib's cdd_pending_expired (bin/lib/cdd-orchestrator-gate.sh) —
+# TTL is consumed by the Node gate core's pendingExpired (gate/cdd-gate-core.mjs) —
 # a cross-file consumer invisible to per-file shellcheck.
 # shellcheck disable=SC2034
 CDD_PENDING_TTL=86400

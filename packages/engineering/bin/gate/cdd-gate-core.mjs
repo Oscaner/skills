@@ -321,9 +321,10 @@ export function gateDecide(input) {
   }
   if (!pending) return allowResult();
 
-  // 过期 pending → 清除 + allow。
+  // 过期 pending → 清除 + allow。CDD_PENDING_TTL 空串 → 回退默认（`||` 而非 `??`：
+  // Number("")=0 会把空串 env 解析成 TTL=0 → 秒过期；对齐 TMPDIR 的空串回退语义）。
   const detectedAt = pending.detected_at ?? 0;
-  const ttl = Number(process.env.CDD_PENDING_TTL ?? DEFAULT_PENDING_TTL);
+  const ttl = Number(process.env.CDD_PENDING_TTL || DEFAULT_PENDING_TTL);
   if (pendingExpired(detectedAt, ttl)) {
     try { rmSync(pendingPath, { force: true }); } catch { /* 清除失败仍 fail-open */ }
     return allowResult();

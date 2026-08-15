@@ -109,7 +109,10 @@ function mergeJsonHooks(existing, tmpl) {
   }
   out.hooks = { ...(tHooks ?? {}), ...(eHooks ?? {}) };
   for (const [event, entries] of Object.entries(tHooks ?? {})) {
-    const cur = Array.isArray(out.hooks[event]) ? [...out.hooks[event]] : [];
+    // 用户对象形（非数组）→ 保留用户值，不追加模板条目（避免对象形被模板数组覆盖）；
+    // 仅数组形才按签名合并。`out.hooks[event]` 来自 eHooks 覆盖 tHooks —— 对象形是用户值。
+    if (!Array.isArray(out.hooks[event])) continue;
+    const cur = [...out.hooks[event]];
     const sigs = new Set(cur.map(hookSignature));
     const additions = entries.filter((e) => !sigs.has(hookSignature(e)));
     if (additions.length) out.hooks[event] = [...cur, ...additions];

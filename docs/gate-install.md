@@ -18,7 +18,7 @@ install-and-go.
 
 | Tier | Channels | Meaning |
 |------|----------|---------|
-| **Verified** | claude / cursor / grok / qoder / gemini（包通道）+ trae / vibe / kiro（`os-init gates` 原生 config） | 安装后即可生效（或走原生 config），hooks 即活 |
+| **Verified** | claude / cursor / qoder / gemini（包通道）+ grok（Claude marketplace 兼容；`os-init gates` 原生 config 为推荐单路径）+ trae / vibe / kiro（`os-init gates` 原生 config） | 安装后即可生效（或走原生 config），hooks 即活 |
 | **Experimental（需人工步骤）** | pi / opencode | 按文档格式接线，但需人工步骤（手动扩展复制 / plugin 配置），不声称 install-and-go |
 | **待验证** | codex | 按文档化插件格式接线，但未对真实安装验证 |
 

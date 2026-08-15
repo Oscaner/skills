@@ -188,6 +188,26 @@ test("grok config 已存在 → 保留用户非冲突内容（merge 而非覆盖
   assert.ok(merged.hooks.PreToolUse.some((h) => h.matcher === "Other")); // 用户条目保留
 });
 
+test("grok config 已存在且 hooks[event] 为对象形 → 保留用户对象（模板数组不覆盖）", () => {
+  const home = mkdtempSync("/tmp/os-init-");
+  const e = env({ home, commands: ["grok"] });
+  const dir = path.join(home, ".grok", "hooks");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    path.join(dir, "engineering.json"),
+    JSON.stringify({
+      hooks: {
+        PreToolUse: { matcher: "user-object-form", custom: true },
+      },
+    }),
+  );
+  run(["--harness", "grok"], e);
+  const merged = JSON.parse(readFileSync(path.join(dir, "engineering.json"), "utf8"));
+  assert.equal(merged.hooks.PreToolUse.matcher, "user-object-form", "用户对象形值保留");
+  assert.equal(merged.hooks.PreToolUse.custom, true);
+  assert.ok(!Array.isArray(merged.hooks.PreToolUse), "对象形不被模板数组覆盖");
+});
+
 test("kiro config 已存在（数组形）→ 保留用户非冲突条目（merge 数组形 hooks）", () => {
   const home = mkdtempSync("/tmp/os-init-");
   const e = env({ home, commands: ["kiro"] });

@@ -28,6 +28,22 @@ test("expired pending (>24h) → clear + allow", () => {
   assert.ok(!existsSync(path.join(pendingRoot, "s-expired.json")));
 });
 
+test("CDD_PENDING_TTL 空串 → 回退默认 TTL（不秒过期，pending 保留）", () => {
+  const prev = process.env.CDD_PENDING_TTL;
+  process.env.CDD_PENDING_TTL = "";
+  try {
+    // detected_at 1 秒前 —— 若空串被 Number("")=0 解析成 TTL=0，`(now - detected_at) > 0` 恒真
+    // → 过期清除+allow；回退默认 TTL(86400) → 未过期 → cli 严格路径 deny + pending 保留。
+    writePending(pendingRoot, "s-ttl-empty", { repo_root: root, detected_at: now() - 1, mode: "cli" });
+    const r = gateDecide({ harness: "claude", toolName: "Write", toolInput: { file_path: `${root}/outside.md` }, sessionKey: "s-ttl-empty", repoRoot: root });
+    assert.equal(r.decision, "deny");
+    assert.ok(existsSync(path.join(pendingRoot, "s-ttl-empty.json")), "pending 未被清除");
+  } finally {
+    if (prev === undefined) delete process.env.CDD_PENDING_TTL;
+    else process.env.CDD_PENDING_TTL = prev;
+  }
+});
+
 test("mode in-session → Write allow（repo 编辑放行）", () => {
   writePending(pendingRoot, "s-in-session", { repo_root: root, detected_at: now(), mode: "in-session" });
   const r = gateDecide({ harness: "claude", toolName: "Write", toolInput: { file_path: `${root}/x.md` }, sessionKey: "s-in-session", repoRoot: root });

@@ -26,7 +26,7 @@
 
 - **gate = 统一概念，不分 shell/TS** —— 所有 blocking tool-gate harness 平级覆盖。
 - **11 gate adapters** = **9 新 targets**（grok / qoder / trae / codex / gemini / vibe / kiro 原生 hook 触发 Node adapter + opencode / pi **TS adapter** import 门核心）+ **claude/cursor adapter 迁 Node**。
-- **消费者视角交付**：adapter + 门核心随 `@oscaner-skills/engineering` 包分发；有原生包/插件通道的 harness 走**安装即用**（claude/cursor/grok/qoder/codex/gemini/pi/opencode），os-init 只为**无包通道的 3 个**（trae/vibe/kiro）写原生 config + 信任引导。无 `~/.oscaner/` 约定、无整树拷贝。
+- **消费者视角交付**：adapter + 门核心随 `@oscaner-skills/engineering` 包分发；有原生包/插件通道的 harness 走**安装即用**（claude/cursor/grok/qoder/codex/gemini/pi（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）/opencode），os-init 只为**无包通道的 3 个**（trae/vibe/kiro）写原生 config + 信任引导。无 `~/.oscaner/` 约定、无整树拷贝。
 - **Copilot 推迟**（matcher 被忽略 → gate 只能自己过滤工具）；**Rovo N/A**（无 hooks 事件文档）。
 - **门决策抽中立核心**（Node `.mjs`，允许破坏性重构）—— `cdd_gate_decide` 从 bash 抽出为单一实现 + 薄 CLI。
 - **gate/hook 面全迁 Node**（门核心 + 全部 adapter + claude/cursor adapter + prompt-expansion router，~800 行 bash 消灭）。
@@ -100,7 +100,7 @@ scripts/                       ← 不变（publish/CI 机制，P4a 已整理，
 - claude / cursor → marketplace（P4a 已建）；grok → 读 Claude marketplace 原样消费。
 - qoder / codex → `.qoder-plugin` / `.codex-plugin` 插件（manifest 内嵌 gate hooks，emit 生成）。
 - gemini → `gemini extensions install <repo>`（extension hooks）。
-- pi → `pi install @oscaner-skills/engineering`（核实：一键装包即注册 settings，extension 自动加载）。
+- pi → `pi install @oscaner-skills/engineering`（核实：一键装包即注册 settings，extension 自动加载）（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）。
 - opencode → opencode.json `plugin` 数组一行（核实：npm 自动安装）。
 - 无包通道 3 个（trae / vibe / kiro）→ os-init 写原生 config（指向安装包内 adapter 路径）。
 
@@ -168,10 +168,10 @@ emitResponse(r);                            // → 该 harness 原生 deny/allow
 | Vibe | `pre_tool` | `.vibe/hooks.toml`，stdin JSON | `decision: "deny"` + `reason` | os-init 写原生 config（无包通道）|
 | Kiro | `PreToolUse` | `.kiro/hooks/*.json`，v1 `hooks[]` | action `command` → 拒绝输出 | os-init 写原生 config（无包通道）|
 | OpenCode | `tool.execute.before`（TS plugin）| TS plugin 钩子对象 | throw 阻断 / 重写 `output.args` | 包通道：opencode.json `plugin` 数组一行（npm 自动装）|
-| Pi | `on('tool_call')`（TS extension）| TS extension 事件 | `{block: true, reason}` | 包通道：`pi install @oscaner-skills/engineering` 一键 |
+| Pi | `on('tool_call')`（TS extension）| TS extension 事件 | `{block: true, reason}` | 包通道：`pi install @oscaner-skills/engineering` 一键（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现） |
 
 交付通道 + 信任拆分（消费者视角）：
-- **包通道安装即用（os-init 不写 config）**：claude / cursor / grok（marketplace）、qoder / codex（插件 manifest）、gemini（extension install）、pi（`pi install`）、opencode（`plugin` 数组）—— 装完 hooks 即生效。
+- **包通道安装即用（os-init 不写 config）**：claude / cursor / grok（marketplace）、qoder / codex（插件 manifest）、gemini（extension install）、pi（`pi install`）（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）、opencode（`plugin` 数组）—— 装完 hooks 即生效。
 - **os-init 写原生 config（无包通道 3 个）**：trae / vibe / kiro —— 复制 `configs/` 模板到机器。
 - **信任引导（os-init 打印下一步）**：grok `--trust`（一条命令，os-init 可执行）；codex `/hooks` 逐 hook 审查；gemini 首次接受项目指纹；trae Enable 按钮 + sandbox/local 执行模式。
 
@@ -182,7 +182,7 @@ opencode/pi 的 TS adapter 用 `import { gateDecide } from "../cdd-gate-core.mjs
 ```
 os-init gates [--harness grok,qoder,…] [--dry-run]
   1. 检测     command -v / 配置目录 / IDE 存在（各 harness）
-  2. 引导     打印包通道安装命令（未装包通道才需要）：pi install @oscaner-skills/engineering、
+  2. 引导     打印包通道安装命令（未装包通道才需要）：pi install @oscaner-skills/engineering（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）、
               opencode.json `plugin` 数组加一行、gemini extensions install <repo>、
               qoder/codex 插件安装、grok 装 claude marketplace
   3. 配置     只给无包通道 3 个写原生 config：trae/vibe/kiro（configs/ 模板 → 机器路径）
@@ -198,7 +198,7 @@ os-init gates [--harness grok,qoder,…] [--dry-run]
 | `configs/vibe/hooks.toml` | `~/.vibe/hooks.toml` |
 | `configs/kiro/hooks.json` | `~/.kiro/hooks/engineering.json` |
 | `configs/opencode.json` | opencode.json `plugin` 数组加一行（npm 包名）|
-| `configs/pi/` | pi 包 `pi` key 参考（`pi install` 自动注册 settings）|
+| `configs/pi/` | pi 包 `pi` key 参考（`pi install` 自动注册 settings）（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）|
 | —（grok/qoder/codex/gemini）| hook config 由 emit 从各自 manifest 生成，无独立模板 |
 
 - 幂等：重复运行覆盖 config、保留非冲突内容（qoder/gemini 的 settings.json 合并 hooks key 而非整体覆盖）；已信任的跳过。
@@ -254,7 +254,7 @@ bin/os-init/
 
 - [ ] `gateDecide` 行为与 bash `cdd_gate_decide` 等价（回归测试锁定）。
 - [ ] 11 个 adapter 就位（9 新 + claude/cursor 迁移）+ fixture 测试全绿。
-- [ ] 包通道安装即用逐个核实：pi `pi install` 一键、opencode `plugin` 数组一行、gemini `extensions install`、qoder/codex 插件 hooks、grok 经 Claude marketplace。
+- [ ] 包通道安装即用逐个核实：pi `pi install` 一键（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）、opencode `plugin` 数组一行、gemini `extensions install`、qoder/codex 插件 hooks、grok 经 Claude marketplace。
 - [ ] os-init gates：无包通道 3 个（trae/vibe/kiro）写原生 config + 引导命令幂等 + `--dry-run`；不复制整树、无 `~/.oscaner/`。
 - [ ] claude/cursor hooks.json 命令路径指向 `.mjs`（emit 生成）；emit 扩展的 qoder/codex/gemini/pi/opencode manifest 接线全绿。
 - [ ] prompt-expansion router 迁 Node 且行为等价。

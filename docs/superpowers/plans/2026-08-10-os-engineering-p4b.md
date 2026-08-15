@@ -4,7 +4,7 @@
 
 **Goal:** 把 CDD gate 从 bash 迁到 Node 中立核心，为 9 个 harness 建 gate adapter，并交付 os-init gates —— 外部用户安装即用。
 
-**Architecture:** 门决策抽为语言无关的 Node 核心（`gateDecide` 纯函数 + 薄 CLI），11 个 adapter（7 原生 hook Node adapter + opencode/pi TS adapter + claude/cursor 迁移）只做各 harness 的 JSON I/O 翻译。有包通道的 harness 走原生安装即用（`pi install` / opencode `plugin` 数组 / gemini `extensions install` / qoder-codex 插件 / grok 经 Claude marketplace）；无包通道的 trae/vibe/kiro 由 `os-init gates` 写原生 config。CDD 引擎保持 bash（P5 迁），仅挪进 `bin/engine/`。
+**Architecture:** 门决策抽为语言无关的 Node 核心（`gateDecide` 纯函数 + 薄 CLI），11 个 adapter（7 原生 hook Node adapter + opencode/pi TS adapter + claude/cursor 迁移）只做各 harness 的 JSON I/O 翻译。有包通道的 harness 走原生安装即用（`pi install`（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现） / opencode `plugin` 数组 / gemini `extensions install` / qoder-codex 插件 / grok 经 Claude marketplace）；无包通道的 trae/vibe/kiro 由 `os-init gates` 写原生 config。CDD 引擎保持 bash（P5 迁），仅挪进 `bin/engine/`。
 
 **Tech Stack:** Node.js（`.mjs` + `node:test`）、Bash（engine 保留，P5 迁）、JSON/TOML（harness config 模板）、`@oscaner-skills/engineering` npm 包分发。
 
@@ -15,7 +15,7 @@
 - **门核心契约**：`gateDecide({ harness, toolName, toolInput, sessionKey, repoRoot }) → { decision: "allow"|"deny", reason: string, context: { taskNum, planBase } | null }`。核心不感知任何 harness 响应格式。
 - **Node (.mjs)**：gate/hook 面全迁 Node；CDD 引擎（`bin/engine/` bash）+ ci-validate + shell/python 测试是 **P5**，P4b 只挪目录不改语言。
 - **11 adapters**：9 新 targets（grok/qoder/trae/codex/gemini/vibe/kiro + opencode/pi TS）+ claude/cursor 迁 Node。Copilot 推迟（matcher 忽略）、Rovo N/A。
-- **交付通道**：有包通道 harness 走原生安装即用（claude/cursor/grok marketplace、qoder/codex 插件、gemini extension、pi `pi install`、opencode `plugin` 数组）；os-init gates 仅 trae/vibe/kiro 写原生 config + 信任引导。无 `~/.oscaner/` 整树拷贝。
+- **交付通道**：有包通道 harness 走原生安装即用（claude/cursor/grok marketplace、qoder/codex 插件、gemini extension、pi `pi install`（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）、opencode `plugin` 数组）；os-init gates 仅 trae/vibe/kiro 写原生 config + 信任引导。无 `~/.oscaner/` 整树拷贝。
 - **gate↔engine 接缝**：`cdd_pending_path` 迁入 `cdd-common.sh`（engine 侧）；`cdd_orchestrator-gate.sh` 拆解（决策 → Node 核心）。
 - `pnpm run validate` 每任务后 ALL PASS；conventional commits，无 attribution / co-author trailer；禁 git worktree；零 sdd/spor 残留。
 
@@ -603,7 +603,7 @@ Expected: FAIL（install-gates.mjs 不存在；且 configs/grok 模板未建 —
 // 用法: node install-gates.mjs [--harness grok,qoder,…] [--dry-run]
 // 1. 检测: command -v <harness> + 配置目录存在（trae: 无 CLI → 检查 ~/.trae 或 IDE）
 // 2. 引导（打印命令，不写文件）:
-//    pi        → `pi install @oscaner-skills/engineering`
+//    pi        → `pi install @oscaner-skills/engineering`（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package pi key；见 T13/最终实现）
 //    opencode  → opencode.json `plugin` 数组加 `@oscaner-skills/engineering`
 //    gemini    → `gemini extensions install <repo-url>`
 //    qoder     → 装 `.qoder-plugin`（marketplace/本地）
@@ -758,13 +758,13 @@ git commit -m "refactor: migrate prompt-expansion/cursor router to Node"
 
 - [ ] **Step 1: 使用者安装指南 `docs/gate-install.md`**
 
-面向**外部使用者**：安装 `@oscaner-skills/engineering` 后 —— claude/cursor/grok 走 marketplace、qoder/codex 插件、gemini `extensions install`、pi `pi install`、opencode opencode.json、trae/vibe/kiro/grok 跑 `os-init gates`；信任步骤（grok --trust / codex /hooks / gemini 指纹 / trae Enable）。每 harness 一栏「安装命令 → 验证」。
+面向**外部使用者**：安装 `@oscaner-skills/engineering` 后 —— claude/cursor/grok 走 marketplace、qoder/codex 插件、gemini `extensions install`、pi `pi install`（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现）、opencode opencode.json、trae/vibe/kiro/grok 跑 `os-init gates`；信任步骤（grok --trust / codex /hooks / gemini 指纹 / trae Enable）。每 harness 一栏「安装命令 → 验证」。
 
 **包通道手动验收清单**（spec §2.10 item 3 —— 逐通道写出验证命令）：
 
 | 通道 | 安装 | 验证 |
 |---|---|---|
-| pi | `pi install @oscaner-skills/engineering` | extension 出现在 pi 列表 / 触发 tool_call 见 gate 响应 |
+| pi | `pi install @oscaner-skills/engineering`（pi 通道已降级为 experimental —— 实际经 os-init 复制 extension 到 ~/.pi/agent/extensions/，非 package `pi` key；见 T13/最终实现） | extension 出现在 pi 列表 / 触发 tool_call 见 gate 响应 |
 | opencode | opencode.json `plugin` 数组加包名 | 启动无插件错误；试 Bash 被 gate 拦截 |
 | gemini | `gemini extensions install <repo-url>` | 列表见 extension；BeforeTool hook 触发 |
 | qoder/codex | 装插件 | 插件 hooks 生效 + codex `/hooks` 信任 |

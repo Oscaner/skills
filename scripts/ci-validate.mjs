@@ -143,7 +143,9 @@ function checkOverridesHooks() {
 checkStep("4. overrides hooks + bin executable", checkOverridesHooks);
 
 // 5. overrides build validation
-subprocessStep("5. overrides build validation", path.join(ROOT, "packages/superpowers-overrides/tests/validate-overrides-build.sh"), []);
+subprocessStep("5. overrides build validation", "node", [
+  path.join(ROOT, "packages/superpowers-overrides/tests/validate-overrides-build.mjs"),
+]);
 
 // 5b. engineering plugin validation
 checkStep("5b. engineering plugin validation", () => console.log("OK — engineering plugin validation"));
@@ -175,10 +177,9 @@ function checkEngineeringSkillsCount() {
 }
 checkStep("5b. engineering skills-count (13)", checkEngineeringSkillsCount);
 
-subprocessStep("5b. rule-reference.test.py (semantic)", "python3", [
-  "packages/engineering/tests/rule-reference.test.py",
-  "--skills",
-  "packages/engineering/skills:semantic",
+subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
+  "--test",
+  "packages/engineering/tests/rule-reference.test.mjs",
 ]);
 
 // node:test 两棵树（T5）：行为/集成树 packages/engineering/tests/（helpers.mjs +

@@ -83,14 +83,14 @@ test("5b node:test 跑行为 + 引擎两棵树；旧 shell 测试不 invoke", ()
   }
 });
 
-// 4. rule-reference invoked with semantic-only --skills args
-test("rule-reference invoked with semantic-only --skills args", () => {
-  const rr = steps.find((s) => s.name.includes("rule-reference.test.py"));
-  assert.ok(rr, "rule-reference.test.py not invoked");
-  assert.ok(
-    rr.args.join(" ").includes("--skills packages/engineering/skills:semantic"),
-    "rule-reference --skills args missing/wrong",
-  );
+// 4. rule-reference.test.mjs invoked via node --test (semantic mode is enforced
+// by the suite's real-scan test case, not CLI args)
+test("rule-reference.test.mjs invoked via node --test", () => {
+  const rr = steps.find((s) => s.name.includes("rule-reference.test.mjs"));
+  assert.ok(rr, "rule-reference.test.mjs not invoked");
+  assert.equal(rr.cmd, "node", "rule-reference must run under node");
+  assert.ok(rr.args.includes("--test"), "rule-reference must run via node --test");
+  assert.ok(rr.args.some((a) => a.includes("rule-reference.test.mjs")), "rule-reference.test.mjs path missing");
 });
 
 // 5. node:test gate + os-init + engine suites wired (T1-T3 node:test aggregation)

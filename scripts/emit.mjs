@@ -15,6 +15,7 @@
  *      claude  → `.claude-plugin/plugin.json`
  *      cursor  → `.cursor-plugin/plugin.json`
  *      codex   → `.codex-plugin/plugin.json`
+ *      qoder   → `.qoder-plugin/plugin.json`
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
  *      pi      → `oscaner-plugin.pi` (verified/ensured)
@@ -65,6 +66,7 @@ import {
   geminiMarkdown,
   piPackageKey,
   engineeringHooksFor,
+  qoderPluginManifest,
 } from "./lib/emit/manifests.mjs";
 import { deriveSource } from "./lib/emit/source.mjs";
 import {
@@ -104,6 +106,7 @@ const productRoots = [
   "packages/engineering/.cursor-plugin",
   "packages/engineering/.codex-plugin",
   "packages/engineering/.kimi-plugin",
+  "packages/engineering/.qoder-plugin",
   "packages/engineering/hooks",
   "packages/engineering/.agents",
   "packages/superpowers-overrides/.claude-plugin",
@@ -169,6 +172,11 @@ function emitOsEngineering(outRoot, plugin) {
     outRoot,
     `${contentRoot}/.codex-plugin/plugin.json`,
     codexPluginManifest(plugin, version),
+  );
+  writeJsonDoc(
+    outRoot,
+    `${contentRoot}/.qoder-plugin/plugin.json`,
+    qoderPluginManifest(plugin, version),
   );
   writeJsonDoc(
     outRoot,
@@ -247,7 +255,7 @@ function collectTree(absDir, relPrefix) {
 function ensurePiKey(baseRoot, plugin) {
   const pkgPath = join(baseRoot, plugin.contentRoot, "package.json");
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-  const expected = piPackageKey();
+  const expected = piPackageKey({ extensions: ["./bin/gate/adapters/pi.mjs"] });
   const osc = pkg["oscaner-plugin"] ?? {};
   if (JSON.stringify(osc.pi) !== JSON.stringify(expected)) {
     if (checkMode) {

@@ -1,0 +1,25 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

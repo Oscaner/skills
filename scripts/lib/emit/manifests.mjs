@@ -86,7 +86,22 @@ export function cursorPluginManifest(plugin, version) {
   return m;
 }
 
-/** `.codex-plugin/plugin.json` — skills/ + empty hooks + interface. */
+/** `.qoder-plugin/plugin.json` — Qoder plugin manifest (Claude-mirror plugin). */
+export function qoderPluginManifest(plugin, version) {
+  const m = {
+    _generated: generatedBanner,
+    name: plugin.name,
+    version,
+    description: plugin.description,
+  };
+  if (plugin.author) m.author = plugin.author;
+  if (plugin.license) m.license = plugin.license;
+  const kw = keywords(plugin);
+  if (kw.length) m.keywords = kw;
+  return m;
+}
+
+/** `.codex-plugin/plugin.json` — skills/ + PreToolUse gate hooks + interface. */
 export function codexPluginManifest(plugin, version) {
   const m = {
     _generated: generatedBanner,
@@ -99,9 +114,10 @@ export function codexPluginManifest(plugin, version) {
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
   m.skills = "./skills/";
-  // codex has no generated hooks file — the hooks field is always empty (the
-  // harness set is claude/cursor only; see the harnessHooks schema).
-  m.hooks = {};
+  // codex plugin hooks are declared as a manifest path override to a hooks
+  // file inside the plugin root (the documented codex plugin-hooks channel);
+  // the PreToolUse cdd-gate content ships in `hooks/hooks-codex.json`.
+  m.hooks = plugin.hooks?.codex ?? "./hooks/hooks-codex.json";
   m.interface = codexInterface(plugin);
   return m;
 }
@@ -125,7 +141,11 @@ export function kimiPluginManifest(plugin, version) {
   return m;
 }
 
-/** `gemini-extension.json` — thin: names GEMINI.md as the context file. */
+/**
+ * `gemini-extension.json` — names GEMINI.md as the context file and carries the
+ * BeforeTool cdd-gate hook. `${extensionPath}` is Gemini's documented extension
+ * variable for the extension's own directory.
+ */
 export function geminiExtension(plugin, version) {
   return {
     _generated: generatedBanner,
@@ -133,6 +153,20 @@ export function geminiExtension(plugin, version) {
     description: plugin.description,
     version,
     contextFileName: "GEMINI.md",
+    hooks: {
+      BeforeTool: [
+        {
+          matcher: "write_file|replace|run_shell_command",
+          hooks: [
+            {
+              type: "command",
+              command: "${extensionPath}/bin/gate/adapters/gemini.mjs",
+              timeout: 60000,
+            },
+          ],
+        },
+      ],
+    },
   };
 }
 
@@ -145,9 +179,17 @@ export function geminiMarkdown(plugin, skillNames) {
   );
 }
 
-/** `package.json#pi` — pure skills package, no runtime extensions. */
-export function piPackageKey() {
-  return { skills: ["./skills"] };
+/**
+ * `package.json#pi` — pure skills package plus (for engineering) the pi TS gate
+ * extension. Vendored assemblies call with no extensions (pure-skills key); the
+ * engineering emit passes the gate adapter path so the pi package ships the
+ * in-process gate.
+ * @param {{ extensions?: string[] }} [opts]
+ */
+export function piPackageKey({ extensions = [] } = {}) {
+  const key = { skills: ["./skills"] };
+  if (extensions.length > 0) key.extensions = extensions;
+  return key;
 }
 
 /**
@@ -195,10 +237,79 @@ export function engineeringCursorHooks() {
 }
 
 /**
+ * engineering Codex PreToolUse hooks (cdd gate). Codex plugin hooks are read
+ * from the hooks file the `.codex-plugin/plugin.json` manifest path references
+ * (`hooks/hooks-codex.json`). `CLAUDE_PLUGIN_ROOT` is the documented
+ * compatibility env var codex sets for plugin-bundled hooks.
+ */
+export function codexHooksJson() {
+  return {
+    _generated: generatedBanner,
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Write|Edit",
+          hooks: [
+            {
+              type: "command",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+            },
+          ],
+        },
+        {
+          matcher: "Bash",
+          hooks: [
+            {
+              type: "command",
+              command: "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * engineering Qoder PreToolUse hooks (cdd gate). Qoder mirrors Claude events;
+ * plugin hooks read `QODER_PLUGIN_ROOT`. Ships under `.qoder-plugin/hooks/`
+ * (plugin-root `hooks/hooks.json` is occupied by the Claude gate — see the
+ * implementer report for the collision note).
+ */
+export function qoderHooksJson() {
+  return {
+    _generated: generatedBanner,
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Write|Edit",
+          hooks: [
+            {
+              type: "command",
+              command: "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
+            },
+          ],
+        },
+        {
+          matcher: "Bash",
+          hooks: [
+            {
+              type: "command",
+              command: "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/**
  * Dispatch a per-harness hooks generator by harness name, fail-fast on a
  * harness with no generator. Shared by the engineering and overrides hooks
- * families so both enforce the same implemented harness set (claude/cursor) —
- * the `oscaner-plugin.hooks` mapping must never point at a file no generator
+ * families so both enforce their implemented harness set (engineering:
+ * claude/cursor/codex/qoder; overrides: claude/cursor) — the
+ * `oscaner-plugin.hooks` mapping must never point at a file no generator
  * can produce.
  * @param {string} harness
  * @param {Record<string, () => object>} byHarness
@@ -222,6 +333,8 @@ export function engineeringHooksFor(harness) {
     {
       claude: engineeringClaudeHooks,
       cursor: engineeringCursorHooks,
+      codex: codexHooksJson,
+      qoder: qoderHooksJson,
     },
     "engineering",
   );

@@ -37,11 +37,16 @@
     "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set",
     "hooks": {
       "claude": "./hooks/hooks.json",
-      "cursor": "./hooks/hooks-cursor.json"
+      "cursor": "./hooks/hooks-cursor.json",
+      "codex": "./hooks/hooks-codex.json",
+      "qoder": "./.qoder-plugin/hooks/hooks.json"
     },
     "pi": {
       "skills": [
         "./skills"
+      ],
+      "extensions": [
+        "./bin/gate/adapters/pi.mjs"
       ]
     }
   }

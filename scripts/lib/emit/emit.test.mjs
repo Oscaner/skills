@@ -16,6 +16,9 @@ import {
   engineeringClaudeHooks,
   engineeringCursorHooks,
   engineeringHooksFor,
+  codexHooksJson,
+  qoderPluginManifest,
+  qoderHooksJson,
 } from "./manifests.mjs";
 import { deriveSource, SOURCE_TOP } from "./source.mjs";
 import {
@@ -113,10 +116,10 @@ test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () =
   assert.match(m._generated, /scripts\/emit\.mjs/);
 });
 
-test("codexPluginManifest includes skills, empty hooks, and interface", () => {
+test("codexPluginManifest includes skills, codex gate hooks path, and interface", () => {
   const m = codexPluginManifest(OS_ENG, "0.1.0");
   assert.equal(m.skills, "./skills/");
-  assert.deepEqual(m.hooks, {});
+  assert.equal(m.hooks, "./hooks/hooks-codex.json");
   assert.equal(m.name, "engineering");
   assert.equal(m.version, "0.1.0");
   assert.ok(m.interface, "codex manifest must carry an interface");
@@ -147,15 +150,33 @@ test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () 
   assert.equal(m.hooks, "./hooks/cursor.json");
 });
 
-test("codexPluginManifest always emits an empty hooks object (codex has no generated hooks file)", () => {
-  // a codex key in the hooks mapping is not a supported harness — the field is
-  // always {} regardless (harness set is claude/cursor only)
+test("codexPluginManifest resolves hooks path from plugin.hooks.codex mapping", () => {
+  // codex plugin hooks are a manifest path override (documented codex plugin
+  // channel); the PreToolUse content ships in the referenced hooks file.
   const mapped = codexPluginManifest(
     { ...OS_ENG, hooks: { codex: "./hooks/codex.json" } },
     "0.1.0",
   );
-  assert.deepEqual(mapped.hooks, {});
-  assert.deepEqual(codexPluginManifest(OS_ENG, "0.1.0").hooks, {});
+  assert.equal(mapped.hooks, "./hooks/codex.json");
+  assert.equal(codexPluginManifest(OS_ENG, "0.1.0").hooks, "./hooks/hooks-codex.json");
+});
+
+test("codexHooksJson wires PreToolUse gate to the codex adapter", () => {
+  const hooks = codexHooksJson();
+  assert.ok(hooks._generated, "hooks-codex.json must carry the generated banner");
+  assert.match(hooks._generated, /scripts\/emit\.mjs/);
+  const pre = hooks.hooks.PreToolUse;
+  assert.equal(pre.length, 2);
+  assert.equal(pre[0].matcher, "Write|Edit");
+  assert.equal(pre[1].matcher, "Bash");
+  for (const e of pre) {
+    assert.equal(e.hooks.length, 1);
+    assert.equal(e.hooks[0].type, "command");
+    assert.equal(
+      e.hooks[0].command,
+      "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+    );
+  }
 });
 
 test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface", () => {
@@ -170,7 +191,7 @@ test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface"
   assert.equal(m.interface.displayName, "engineering");
 });
 
-test("geminiExtension is thin: name/description/version + contextFileName", () => {
+test("geminiExtension carries BeforeTool gate hooks + contextFileName", () => {
   assert.deepEqual(geminiExtension(OS_ENG, "0.1.0"), {
     _generated: generatedBanner,
     name: "engineering",
@@ -178,6 +199,20 @@ test("geminiExtension is thin: name/description/version + contextFileName", () =
       "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
     version: "0.1.0",
     contextFileName: "GEMINI.md",
+    hooks: {
+      BeforeTool: [
+        {
+          matcher: "write_file|replace|run_shell_command",
+          hooks: [
+            {
+              type: "command",
+              command: "${extensionPath}/bin/gate/adapters/gemini.mjs",
+              timeout: 60000,
+            },
+          ],
+        },
+      ],
+    },
   });
 });
 
@@ -198,8 +233,42 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () 
   );
 });
 
-test("piPackageKey is a pure skills package (no runtime extensions)", () => {
+test("piPackageKey carries the pi gate extension when passed, pure skills otherwise", () => {
+  assert.deepEqual(
+    piPackageKey({ extensions: ["./bin/gate/adapters/pi.mjs"] }),
+    { extensions: ["./bin/gate/adapters/pi.mjs"], skills: ["./skills"] },
+  );
   assert.deepEqual(piPackageKey(), { skills: ["./skills"] });
+});
+
+test("qoderPluginManifest emits the qoder plugin manifest", () => {
+  const m = qoderPluginManifest(OS_ENG, "0.1.0");
+  assert.equal(m.name, "engineering");
+  assert.equal(m.version, "0.1.0");
+  assert.equal(m.description, OS_ENG.description);
+  assert.equal(m.author.name, "Oscaner Miao");
+  assert.equal(m.license, "MIT");
+  assert.deepEqual(m.keywords, OS_ENG.claude.keywords);
+  assert.ok(m._generated);
+  assert.match(m._generated, /scripts\/emit\.mjs/);
+});
+
+test("qoderHooksJson wires PreToolUse gate to the qoder adapter", () => {
+  const hooks = qoderHooksJson();
+  assert.ok(hooks._generated, "qoder hooks.json must carry the generated banner");
+  assert.match(hooks._generated, /scripts\/emit\.mjs/);
+  const pre = hooks.hooks.PreToolUse;
+  assert.equal(pre.length, 2);
+  assert.equal(pre[0].matcher, "Write|Edit");
+  assert.equal(pre[1].matcher, "Bash");
+  for (const e of pre) {
+    assert.equal(e.hooks.length, 1);
+    assert.equal(e.hooks[0].type, "command");
+    assert.equal(
+      e.hooks[0].command,
+      "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
+    );
+  }
 });
 
 test("deriveFirstPartyNames discovers packages with oscaner-plugin (sorted)", () => {
@@ -274,7 +343,12 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
       keywords: ["engineering", "cli", "cdd", "harness", "droid", "pi"],
     },
     cursor: { emitMode: "plugin-root" },
-    hooks: { claude: "./hooks/hooks.json", cursor: "./hooks/hooks-cursor.json" },
+    hooks: {
+      claude: "./hooks/hooks.json",
+      cursor: "./hooks/hooks-cursor.json",
+      codex: "./hooks/hooks-codex.json",
+      qoder: "./.qoder-plugin/hooks/hooks.json",
+    },
   });
 
   const ovr = source.plugins.find((p) => p.name === "superpowers-overrides");
@@ -365,7 +439,17 @@ test("engineeringHooksFor dispatches per harness, fail-fast on unknown", () => {
   assert.deepEqual(cursor.hooks.preToolUse, [
     { command: "./bin/gate/adapters/cursor.mjs" },
   ]);
-  assert.throws(() => engineeringHooksFor("codex"), /codex/);
+  const codex = engineeringHooksFor("codex");
+  assert.equal(
+    codex.hooks.PreToolUse[0].hooks[0].command,
+    "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs",
+  );
+  const qoder = engineeringHooksFor("qoder");
+  assert.equal(
+    qoder.hooks.PreToolUse[0].hooks[0].command,
+    "${QODER_PLUGIN_ROOT}/bin/gate/adapters/qoder.mjs",
+  );
+  assert.throws(() => engineeringHooksFor("kimi"), /kimi/);
 });
 
 // ---------------------------------------------------------------------------

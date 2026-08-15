@@ -1,0 +1,25 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/codex.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

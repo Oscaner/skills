@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "node {{GATE_ADAPTER}}"
+      }
+    ]
+  }
+}

@@ -3,7 +3,7 @@
 ## Header
 
 - **Version**: v1.0 · 2026-08-10
-- **Status**: Draft
+- **Status**: Approved
 - **Author**: Oscaner Miao · Claude Code (Opus 4.8)
 - **Parent program**: [os-engineering 整体设计 v1.5](2026-08-10-os-engineering-overall.md)
 - **Depends on**: P1（os-engineering 插件 + cli-* 家族 + cdd 引擎已就位）

@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "mattpocock-skills",
-      "source": "./plugins/mattpocock-skills",
+      "source": "./vendors/mattpocock-skills",
       "description": "Matt Pocock's agent skills for real engineering",
       "author": {
         "name": "Matt Pocock",
@@ -20,6 +20,7 @@
       "homepage": "https://github.com/mattpocock/skills",
       "repository": "https://github.com/mattpocock/skills",
       "license": "MIT",
+      "version": "1.1.0",
       "category": "engineering",
       "keywords": [
         "engineering",
@@ -31,13 +32,15 @@
     },
     {
       "name": "impeccable",
-      "source": "./plugins/impeccable/plugin",
+      "source": "./vendors/impeccable/plugin",
       "description": "Design fluency for frontend development. 1 skill with 23 commands (/impeccable polish, /impeccable audit, /impeccable critique, etc.) and curated anti-pattern detection.",
       "author": {
         "name": "Paul Bakaus",
         "email": "paul@paulbakaus.com"
       },
       "homepage": "https://impeccable.style",
+      "repository": "https://github.com/pbakaus/impeccable",
+      "license": "Apache-2.0",
       "version": "4.0.4",
       "category": "design",
       "tags": [
@@ -51,40 +54,27 @@
     },
     {
       "name": "superpowers",
-      "source": "./plugins/superpowers",
+      "source": "./vendors/superpowers",
       "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques",
       "author": {
         "name": "Jesse Vincent",
         "email": "jesse@fsck.com"
       },
+      "homepage": "https://github.com/obra/superpowers",
+      "repository": "https://github.com/obra/superpowers",
+      "license": "MIT",
       "version": "6.2.0"
     },
     {
-      "name": "superpowers-overrides",
-      "source": "./plugins/superpowers-overrides",
-      "description": "Personal overrides for the superpowers plugin that force delegation to other skills.",
-      "author": {
-        "name": "Oscaner Miao",
-        "email": "oscaner1997@gmail.com"
-      },
-      "license": "MIT",
-      "version": "6.2.0-overrides.0.15.3",
-      "category": "workflow",
-      "tags": [
-        "superpowers",
-        "mattpocock",
-        "overrides",
-        "subagents"
-      ]
-    },
-    {
       "name": "engineering",
-      "source": "./plugins/engineering",
+      "source": "./packages/engineering",
       "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
       "author": {
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"
       },
+      "homepage": "https://github.com/Oscaner/skills",
+      "repository": "https://github.com/Oscaner/skills",
       "license": "MIT",
       "version": "0.1.0",
       "category": "engineering",
@@ -95,6 +85,26 @@
         "harness",
         "droid",
         "pi"
+      ]
+    },
+    {
+      "name": "superpowers-overrides",
+      "source": "./packages/superpowers-overrides",
+      "description": "Personal overrides for the superpowers plugin that force delegation to other skills.",
+      "author": {
+        "name": "Oscaner Miao",
+        "email": "oscaner1997@gmail.com"
+      },
+      "homepage": "https://github.com/Oscaner/skills",
+      "repository": "https://github.com/Oscaner/skills",
+      "license": "MIT",
+      "version": "6.2.0-overrides.0.15.3",
+      "category": "workflow",
+      "tags": [
+        "superpowers",
+        "mattpocock",
+        "overrides",
+        "subagents"
       ]
     }
   ]

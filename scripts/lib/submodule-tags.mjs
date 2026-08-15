@@ -7,9 +7,9 @@ export const TAG_PATTERNS = {
 };
 
 export const SUBMODULE_PATHS = {
-  "mattpocock-skills": "plugins/mattpocock-skills",
-  superpowers: "plugins/superpowers",
-  impeccable: "plugins/impeccable",
+  "mattpocock-skills": "vendors/mattpocock-skills",
+  superpowers: "vendors/superpowers",
+  impeccable: "vendors/impeccable",
 };
 
 /** @param {string} tag @param {RegExp} pattern */

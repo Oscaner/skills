@@ -48,10 +48,10 @@ if (!superpowersVersion) {
 const changelogOptions = { repo: "Oscaner/skills" };
 
 // ---- superpowers-overrides (superpowers-relative scheme) ----
-const overridesPkgPath = "plugins/superpowers-overrides/package.json";
+const overridesPkgPath = "packages/superpowers-overrides/package.json";
 const overridesChangelogPath = join(
   root,
-  "plugins/superpowers-overrides/CHANGELOG.md",
+  "packages/superpowers-overrides/CHANGELOG.md",
 );
 const overridesCS = changesetsForPlugin(
   changesets,
@@ -87,8 +87,8 @@ if (overridesCS.length > 0 || overridesBaseReset) {
 }
 
 // ---- engineering (independent semver) ----
-const osengPkgPath = "plugins/engineering/package.json";
-const osengChangelogPath = join(root, "plugins/engineering/CHANGELOG.md");
+const osengPkgPath = "packages/engineering/package.json";
+const osengChangelogPath = join(root, "packages/engineering/CHANGELOG.md");
 const osengCS = changesetsForPlugin(
   changesets,
   "@oscaner-skills/engineering",
@@ -125,27 +125,27 @@ if (osengCS.length > 0) {
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
-  // Sync engineering version to the SOT locations: marketplace/source.json
-  // and the os-init self-check stamp. The per-harness manifests (committed emit
-  // products) are re-stamped from package.json by the emit that
-  // sync-overrides-versions.mjs runs below (transitively via `pnpm run emit`).
-  const sourcePath = "marketplace/source.json";
-  const source = readJson(sourcePath);
-  const entry = source.plugins.find((p) => p.name === "engineering");
-  if (!entry) throw new Error("engineering not in marketplace/source.json");
-  entry.version = osengNext;
-  writeJson(sourcePath, source);
-
-  const initPath = "plugins/engineering/skills/os-init/SKILL.md";
-  const init = readFileSync(join(root, initPath), "utf8");
-  const stamped = init.replace(
-    /<!-- engineering-version: [^ ]+ -->/,
-    `<!-- engineering-version: ${osengNext} -->`,
-  );
-  if (stamped === init) {
-    throw new Error("os-init SKILL.md missing engineering-version stamp");
+  // Sync engineering version to the os-init self-check stamps (the only SOTs
+  // outside package.json). SKILL.md holds the version marker; spor.md's
+  // written-table template carries the same stamp for `os-init spor`. Both must
+  // exist or the release aborts. marketplace/source.json and the per-harness
+  // manifests are derived emit products — the emit that
+  // sync-overrides-versions.mjs runs below re-derives them from package.json,
+  // so no direct source.json write.
+  for (const initPath of [
+    "packages/engineering/skills/os-init/SKILL.md",
+    "packages/engineering/skills/os-init/spor.md",
+  ]) {
+    const init = readFileSync(join(root, initPath), "utf8");
+    const stamped = init.replace(
+      /<!-- engineering-version: [^ ]+ -->/,
+      `<!-- engineering-version: ${osengNext} -->`,
+    );
+    if (stamped === init) {
+      throw new Error(`${initPath} missing engineering-version stamp`);
+    }
+    writeFileSync(join(root, initPath), stamped);
   }
-  writeFileSync(join(root, initPath), stamped);
 }
 
 // ---- record which plugins were actually versioned (release workflow) ----

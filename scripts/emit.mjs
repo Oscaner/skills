@@ -3,22 +3,24 @@
  * Unified emit tool.
  *
  * Replaces `scripts/emit-marketplace.mjs` and the former per-plugin generator
- * scripts (`plugins/superpowers-overrides/build/generate-all.sh` + render-*).
- * Reads `marketplace/source.json`, generates every first-party artifact:
+ * scripts (`packages/superpowers-overrides/build/generate-all.sh` + render-*).
+ * Derives `marketplace/source.json` from packages/ + vendors/ (package-as-source)
+ * and generates every first-party artifact:
  *
  *  - repo-root marketplace manifests (`.claude-plugin/` + `.cursor-plugin/`)
+ *  - the derived `marketplace/source.json` aggregate (emit product)
  *  - cursor wrapper manifests for vendored (non-plugin-root) plugins
  *  - per-harness thin manifests for first-party plugins, all pointing at the
  *    canonical `./skills/` tree:
  *      claude  → `.claude-plugin/plugin.json`
  *      cursor  → `.cursor-plugin/plugin.json`
  *      codex   → `.codex-plugin/plugin.json`
+ *      qoder   → `.qoder-plugin/plugin.json`
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
- *      pi      → `package.json#pi` (verified/ensured)
  *      shared  → `.agents/skills/` copy (engineering only — no vendored upstream)
  *    plus the overrides hooks/self-check tables and engineering PreToolUse
- *    hooks, and version consistency per `plugins/engineering/.version-bump.json`.
+ *    hooks, and version consistency per `packages/engineering/.version-bump.json`.
  *
  * `--check` mode generates into a temp tree and diffs every produced path
  * against the on-disk tree (drift → exit 1), and flags committed product files
@@ -43,7 +45,6 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
 import {
-  readSource,
   resolveVersion,
   claudeMarketplaceEntry,
   cursorWrapperManifest,
@@ -62,19 +63,19 @@ import {
   kimiPluginManifest,
   geminiExtension,
   geminiMarkdown,
-  piPackageKey,
-  engineeringClaudeHooks,
-  engineeringCursorHooks,
+  engineeringHooksFor,
+  qoderPluginManifest,
+  assertAdapterPathsExist,
 } from "./lib/emit/manifests.mjs";
+import { deriveSource } from "./lib/emit/source.mjs";
 import {
   loadTargets,
   promptExpansionScript,
-  claudeHooksJson,
-  cursorHooksJson,
   cursorDetectScript,
   cursorEnforceScript,
   claudeSelfCheckMd,
   cursorSelfCheckMdc,
+  overridesHooksFor,
   overridesCursorManifest,
   overridesCodexManifest,
 } from "./lib/emit/overrides.mjs";
@@ -100,24 +101,26 @@ const generatedPaths = [];
 const productRoots = [
   ".claude-plugin",
   ".cursor-plugin",
-  "plugins/engineering/.claude-plugin",
-  "plugins/engineering/.cursor-plugin",
-  "plugins/engineering/.codex-plugin",
-  "plugins/engineering/.kimi-plugin",
-  "plugins/engineering/hooks",
-  "plugins/engineering/.agents",
-  "plugins/superpowers-overrides/.claude-plugin",
-  "plugins/superpowers-overrides/.cursor-plugin",
-  "plugins/superpowers-overrides/.codex-plugin",
-  "plugins/superpowers-overrides/hooks",
-  "plugins/superpowers-overrides/bin",
-  "plugins/superpowers-overrides/build/generated",
+  "packages/engineering/.claude-plugin",
+  "packages/engineering/.cursor-plugin",
+  "packages/engineering/.codex-plugin",
+  "packages/engineering/.kimi-plugin",
+  "packages/engineering/.qoder-plugin",
+  "packages/engineering/hooks",
+  "packages/engineering/.agents",
+  "packages/superpowers-overrides/.claude-plugin",
+  "packages/superpowers-overrides/.cursor-plugin",
+  "packages/superpowers-overrides/.codex-plugin",
+  "packages/superpowers-overrides/hooks",
+  "packages/superpowers-overrides/bin",
+  "packages/superpowers-overrides/build/generated",
 ];
 
 /** Standalone repo-relative product files (not inside a product root). */
 const productFiles = [
-  "plugins/engineering/gemini-extension.json",
-  "plugins/engineering/GEMINI.md",
+  "marketplace/source.json",
+  "packages/engineering/gemini-extension.json",
+  "packages/engineering/GEMINI.md",
 ];
 
 function writeText(outRoot, rel, content) {
@@ -171,6 +174,11 @@ function emitOsEngineering(outRoot, plugin) {
   );
   writeJsonDoc(
     outRoot,
+    `${contentRoot}/.qoder-plugin/plugin.json`,
+    qoderPluginManifest(plugin, version),
+  );
+  writeJsonDoc(
+    outRoot,
     `${contentRoot}/.kimi-plugin/plugin.json`,
     kimiPluginManifest(plugin, version),
   );
@@ -184,21 +192,22 @@ function emitOsEngineering(outRoot, plugin) {
     `${contentRoot}/GEMINI.md`,
     geminiMarkdown(plugin, skillNames),
   );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/hooks/hooks.json`,
-    engineeringClaudeHooks(),
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/hooks/hooks-cursor.json`,
-    engineeringCursorHooks(),
-  );
+  // Per-harness hooks written at the paths named by `oscaner-plugin.hooks`
+  // (claude → hooks/hooks.json, cursor → hooks/hooks-cursor.json). The mapping
+  // is the single SOT — adding a harness mapping here produces its hooks file.
+  for (const [harness, rel] of Object.entries(plugin.hooks ?? {})) {
+    writeJsonDoc(
+      outRoot,
+      `${contentRoot}/${rel.replace(/^\.\//, "")}`,
+      engineeringHooksFor(harness),
+    );
+  }
 
   emitAgentsSkillsCopy(outRoot, contentRoot);
 
-  // pi: pure skills package, no runtime extensions.
-  ensurePiKey(root, plugin);
+  // I3 guard: generated hooks commands must resolve to real adapter files
+  // (runs in write + --check modes; fail loud on a missing adapter).
+  assertAdapterPathsExist(plugin, pluginDir, version);
 }
 
 /**
@@ -209,7 +218,7 @@ function emitOsEngineering(outRoot, plugin) {
 function emitAgentsSkillsCopy(outRoot, contentRoot) {
   const outAgents = join(outRoot, contentRoot, ".agents", "skills");
   const namespaces = [
-    ["engineering", join(root, "plugins/engineering/skills")],
+    ["engineering", join(root, "packages/engineering/skills")],
   ];
   // Prune stale namespace dirs (deleted source, or a namespace no longer
   // emitted) before re-copying, so a skill removed from skills/ can't linger
@@ -235,23 +244,6 @@ function collectTree(absDir, relPrefix) {
     } else {
       generatedPaths.push(rel);
     }
-  }
-}
-
-/** Ensure `package.json#pi` carries the pure-skills key (write + check). */
-function ensurePiKey(baseRoot, plugin) {
-  const pkgPath = join(baseRoot, plugin.contentRoot, "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-  const expected = piPackageKey();
-  if (JSON.stringify(pkg.pi) !== JSON.stringify(expected)) {
-    if (checkMode) {
-      console.error(
-        `DRIFT: ${plugin.contentRoot}/package.json missing pi ${JSON.stringify(expected)}`,
-      );
-      process.exit(1);
-    }
-    pkg.pi = expected;
-    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
   }
 }
 
@@ -285,33 +277,42 @@ function emitOverrides(outRoot, plugin) {
   writeJsonDoc(
     outRoot,
     `${contentRoot}/.cursor-plugin/plugin.json`,
-    overridesCursorManifest(meta, version),
+    overridesCursorManifest(meta, version, plugin.hooks),
   );
   writeJsonDoc(
     outRoot,
     `${contentRoot}/.codex-plugin/plugin.json`,
     overridesCodexManifest(meta, version),
   );
-  writeJsonDoc(outRoot, `${contentRoot}/hooks/hooks.json`, claudeHooksJson(targets));
-  writeJsonDoc(outRoot, `${contentRoot}/hooks/hooks-cursor.json`, cursorHooksJson());
+  // Per-harness hooks written at the paths named by `oscaner-plugin.hooks`
+  // (claude → hooks/hooks.json router, cursor → hooks/hooks-cursor.json
+  // detect/enforce). The mapping is the single SOT — adding a harness mapping
+  // here produces its hooks file.
+  for (const [harness, rel] of Object.entries(plugin.hooks ?? {})) {
+    writeJsonDoc(
+      outRoot,
+      `${contentRoot}/${rel.replace(/^\.\//, "")}`,
+      overridesHooksFor(harness, targets),
+    );
+  }
 
   const binScripts = [
     [
-      "bin/override-prompt-expansion.sh",
+      "bin/prompt-expansion.mjs",
       promptExpansionScript(targets),
     ],
     [
-      "bin/override-cursor-detect.sh",
+      "bin/cursor-detect.mjs",
       cursorDetectScript(
         targets,
-        readFileSync(join(root, "scripts/templates/override-cursor-detect.sh"), "utf8"),
+        readFileSync(join(root, "scripts/templates/cursor-detect.mjs"), "utf8"),
       ),
     ],
     [
-      "bin/override-cursor-enforce.sh",
+      "bin/cursor-enforce.mjs",
       cursorEnforceScript(
         targets,
-        readFileSync(join(root, "scripts/templates/override-cursor-enforce.sh"), "utf8"),
+        readFileSync(join(root, "scripts/templates/cursor-enforce.mjs"), "utf8"),
       ),
     ],
   ];
@@ -389,11 +390,11 @@ function emitMarketplaceDocs(outRoot, source) {
 // ---------------------------------------------------------------------------
 
 function assertVersionBump() {
-  const plugin = "plugins/engineering";
+  const plugin = "packages/engineering";
   const bumpPath = join(root, plugin, ".version-bump.json");
   if (!existsSync(bumpPath)) return;
   const bump = JSON.parse(readFileSync(bumpPath, "utf8"));
-  const pkgVersion = readJson("plugins/engineering/package.json").version;
+  const pkgVersion = readJson("packages/engineering/package.json").version;
   for (const f of bump.files) {
     const abs = join(root, plugin, f.path);
     if (!existsSync(abs)) continue; // not materialized on disk — checked via --check diff
@@ -412,7 +413,7 @@ function assertVersionBump() {
 // ---------------------------------------------------------------------------
 
 function emitAll(outRoot) {
-  const source = readSource(root);
+  const source = deriveSource(root);
   assertPrereleasePrefix(root, source);
 
   for (const plugin of source.plugins) {
@@ -421,6 +422,9 @@ function emitAll(outRoot) {
   }
 
   emitMarketplaceDocs(outRoot, source);
+
+  // source.json is itself a derived emit product (package-as-source).
+  writeJsonDoc(outRoot, "marketplace/source.json", source);
 
   // engineering no longer uses the cursor wrapper — the wrapper must be gone.
   const staleWrapper = join(outRoot, "cursor-plugins/engineering");

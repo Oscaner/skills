@@ -39,12 +39,13 @@ jobs:
         id: changesets
         with:
           version: node scripts/version-packages.mjs
-          publish: pnpm exec changeset tag
+          publish: pnpm exec changeset publish
           createGithubReleases: false
           commit: "chore: release plugins"
           title: "chore: release plugins"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release-plugin:
     needs: release
@@ -64,7 +65,7 @@ jobs:
           fetch-depth: 0
       - name: Read plugin version
         id: ver
-        run: echo "version=$(node -p "require('./plugins/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(node -p "require('./packages/${{ matrix.name }}/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Check plugin was versioned in this release
         id: versioned
         run: |

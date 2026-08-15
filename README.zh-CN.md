@@ -12,11 +12,38 @@
 
 **[Superpowers](https://github.com/obra/superpowers)** 大而全——从 brainstorming、写计划、子 agent 驱动开发，到验证、收尾分支，一套走完。
 
-**[mattpocock-skills](plugins/mattpocock-skills/)** 小而精——`grilling` 挖清需求，`tdd` 管实现，`to-tickets` 切任务。每个 skill 只做一件事，但做得很准。
+**[mattpocock-skills](vendors/mattpocock-skills/)** 小而精——`grilling` 挖清需求，`tdd` 管实现，`to-tickets` 切任务。每个 skill 只做一件事，但做得很准。
 
 单独用哪一个，都缺一块：什么时候 delegate、spec 怎么审、大功能怎么分期。**superpowers-overrides** 是**触发路由器**——它不带任何技能体。它拦截上游 superpowers 触发（slash 命令、SKILL attach），路由到匹配的 **engineering** 编排器（`os-*`）或 **mattpocock-skills** 委托（`tdd`、`grilling`）。`os-*` 编排器在上游基线上叠加个人规则——grilling 澄清、fresh-subagent spec review、大 scope 走 **overall + phase** 分解。
 
-**[engineering](plugins/engineering/)** 是**技能 + 引擎 + gate** 层——`os-*` 编排器（`os-brainstorming`、`os-writing-plans`、`os-executing-plans` …）与 `cli-*` 家族（`cli-select`、`cli-task`、`cli-driven-development`、`cli-code-review`）跑在 cdd 引擎上，带 per-harness registry 探测，外加跨 harness 的 CDD orchestrator gate。
+**[engineering](packages/engineering/)** 是**技能 + 引擎 + gate** 层——`os-*` 编排器（`os-brainstorming`、`os-writing-plans`、`os-executing-plans` …）与 `cli-*` 家族（`cli-select`、`cli-task`、`cli-driven-development`、`cli-code-review`）跑在 cdd 引擎上，带 per-harness registry 探测，外加跨 harness 的 CDD orchestrator gate（Node 核心 + 11 个 harness adapter——各 harness 安装见 [docs/gate-install.md](docs/gate-install.md)）。
+
+## 插件列表
+
+市场注册了五个插件。其中两个是 **first-party**（在 `packages/` 下于树内维护）；三个是 **vendored** 上游 submodule（不在树内编辑，在 `vendors/` 下锁定版本）：
+
+| 插件 | 目录 | npm 包 | 类型 |
+|--------|-----------|-------------|------|
+| **superpowers-overrides** | [packages/superpowers-overrides/](packages/superpowers-overrides/) | `@oscaner-skills/superpowers-overrides` | first-party — 触发路由器 |
+| **engineering** | [packages/engineering/](packages/engineering/) | `@oscaner-skills/engineering` | first-party — 技能 + cdd 引擎 + Node gate（11 adapter） |
+| **superpowers** | [vendors/superpowers/](vendors/superpowers/) | `@oscaner-skills/superpowers` | vendored 上游 submodule |
+| **mattpocock-skills** | [vendors/mattpocock-skills/](vendors/mattpocock-skills/) | `@oscaner-skills/mattpocock-skills` | vendored 上游 submodule |
+| **impeccable** | [vendors/impeccable/](vendors/impeccable/) | `@oscaner-skills/impeccable` | vendored 上游 submodule |
+
+first-party 的元数据在各自 `package.json` 的 `oscaner-plugin` 字段里（**包即源**）：`pnpm run emit` 从 `packages/` + `vendors/` 派生 `marketplace/source.json` 并重新生成所有 per-harness manifest。vendored 插件由 [`scripts/lib/publish-vendor.mjs`](scripts/lib/publish-vendor.mjs) 装配——它是 `listVendors`（`vendors/` 目录扫描）与 `ASSEMBLY_TEMPLATE` 的 owner——marketplace cursor 块在 [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) 的 `VENDOR_PLUGINS`。新增一个 first-party 插件是全自动的——见 [新增 first-party 插件](#新增-first-party-插件)。
+
+### hooks 矩阵
+
+hooks 随插件一起发布，只在插件通过 Claude Code / Cursor marketplace 安装时激活。harness → 路径映射声明在 `oscaner-plugin.hooks`；`pnpm run emit` 把每个 hooks 文件写到声明的路径。
+
+| 插件 | harness | hooks 文件 | 处理器 |
+|--------|---------|------------|----------|
+| superpowers-overrides | Claude Code | `hooks/hooks.json` | `UserPromptExpansion`（2 个 matcher：`^superpowers:` + bare `/<slug>` 组合正则）→ `bin/prompt-expansion.mjs` |
+| superpowers-overrides | Cursor | `hooks/hooks-cursor.json` | `beforeSubmitPrompt` → `bin/cursor-detect.mjs`；`preToolUse` → `bin/cursor-enforce.mjs` |
+| engineering | Claude Code | `hooks/hooks.json` | `PreToolUse`（`Write`/`Edit`、`Bash`）→ `bin/gate/adapters/claude.mjs` |
+| engineering | Cursor | `hooks/hooks-cursor.json` | `preToolUse` → `bin/gate/adapters/cursor.mjs` |
+
+完整 enforcement 模型（detect/enforce、pending 状态、fail-open、shell 白名单）→ [cross-harness-overrides.md](packages/superpowers-overrides/docs/cross-harness-overrides.md)。
 
 ## 流水线
 
@@ -26,7 +53,7 @@ Overall spec → Phase spec → Plan → SDD/TDD → Verify → Ship
 
 overrides 在设计阶段加入 grilling 和 subagent review；grilling、tdd、to-tickets 通过 delegate 交给 mattpocock。
 
-各阶段对应哪些 override → [superpowers-overrides 说明](plugins/superpowers-overrides/README.zh-CN.md)。
+各阶段对应哪些 override → [superpowers-overrides 说明](packages/superpowers-overrides/README.zh-CN.md)。
 
 ## 安装
 
@@ -47,15 +74,39 @@ cd skills
 git submodule update --init
 ```
 
+### npm 包
+
+每个插件也会作为 `@oscaner-skills/*` scoped npm 包发布——first-party 走 changesets，vendored 插件由 [`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) 重新装配发布（保留上游 LICENSE）。这些包携带同样的 `oscaner-plugin` 元数据；hooks 只在通过 Claude Code / Cursor marketplace 安装时激活。
+
+```bash
+# first-party
+npm install @oscaner-skills/superpowers-overrides @oscaner-skills/engineering
+# vendored 重发（上游内容）
+npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
+```
+
 ## 快速开始
 
 1. 从 marketplace 安装 `superpowers`、`superpowers-overrides`、`engineering`、`mattpocock-skills`。
-2. 每个项目跑一次 **`os-init spor`**——插件升级后重跑。具体 slash 命令因 harness 而异 → [用法](plugins/superpowers-overrides/README.zh-CN.md#用法)。
-3. 照常调用 superpowers 工作流——路由器会先路由到对应的 engineering / mattpocock 目标。
+2. 每个项目跑一次 **`os-init spor`**——插件升级后重跑。具体 slash 命令因 harness 而异 → [用法](packages/superpowers-overrides/README.zh-CN.md#用法)。
+3. 跨 harness CDD gate 按 harness 装——**已验证通道**（claude / cursor / qoder / gemini 走 marketplace；grok 经 Claude marketplace 兼容 + `os-init gates` 原生 config，`~/.grok/hooks/engineering.json` 为推荐单路径；trae / vibe / kiro 走 `os-init gates` 原生 config）安装即生效或原生 config；**实验性（需人工步骤）**（pi / opencode）按文档格式接线但需人工步骤——pi 是手动扩展复制；**codex** 按文档化插件格式接线但未对真实安装验证。各 harness 安装 → [docs/gate-install.md](docs/gate-install.md)。
+4. 照常调用 superpowers 工作流——路由器会先路由到对应的 engineering / mattpocock 目标。
 
 ## 延伸阅读
 
-[superpowers-overrides 说明](plugins/superpowers-overrides/README.zh-CN.md)——路由器目标、Claude Code / Cursor 差异、三层 enforcement。
+[superpowers-overrides 说明](packages/superpowers-overrides/README.zh-CN.md)——路由器目标、Claude Code / Cursor 差异、三层 enforcement。
+
+## 新增 first-party 插件
+
+市场是**包即源**——新增一个 first-party 插件会自动接入派生、workspace 和发布流程，无需手工注册：
+
+1. 创建 `packages/<name>/package.json`，带上 `oscaner-plugin` 字段（`contentRoot`、`harnesses`、可选 `hooks`）——这是唯一元数据源。
+2. `pnpm run emit` 从它派生 `marketplace/source.json`（[`deriveFirstPartyNames`](scripts/lib/emit/manifests.mjs) 扫描 `packages/*` 找该字段）并重新生成市场文档。
+3. `pnpm-workspace.yaml`（`packages/*`）自动纳入；一个点名它的 changeset 就会通过 [`scripts/version-packages.mjs`](scripts/version-packages.mjs) 把它作为 `@oscaner-skills/<name>` 发布。
+
+per-harness hooks：在 `oscaner-plugin.hooks` 里加 harness → 路径映射，emit 就会写出该 hooks 文件。`oscaner-plugin.harnesses` 是 **declarative-only / informational**——无脚本消费它，emit 硬编码 per-plugin manifest 集；新增真正的新 harness manifest 需要在 [`scripts/emit.mjs`](scripts/emit.mjs) 里加 emitter（见下条 caveat）。[`scripts/emit.mjs`](scripts/emit.mjs) 里 per-plugin 的 harness 发射目前是针对 `engineering` 和 `superpowers-overrides` 定制的——新插件类型需要在其中加 emitter（或提交好它的 manifest 以通过 cursor 路径断言）。
+
+vendoring 上游插件是另一条路：加一个 `vendors/<name>` submodule——vendor 集合由 `listVendors` 从 `vendors/` 目录派生——并改 vendor 常量：[`scripts/lib/publish-vendor.mjs`](scripts/lib/publish-vendor.mjs) 里的 `ASSEMBLY_TEMPLATE`（装配 owner；`ASSEMBLY_TEMPLATE.contentRoot` 是 load-bearing——`deriveVendor`/`resolveVendorVersion` 会解引用它，漏了会抛错）、[`scripts/lib/submodule-tags.mjs`](scripts/lib/submodule-tags.mjs) 里的 `SUBMODULE_PATHS`/`TAG_PATTERNS`、以及 [`scripts/lib/emit/source.mjs`](scripts/lib/emit/source.mjs) 里的 `VENDOR_PLUGINS`（marketplace cursor 块）；[`scripts/publish-vendor.mjs`](scripts/publish-vendor.mjs) 负责装配并重发。
 
 ## 维护者
 
@@ -65,6 +116,6 @@ git submodule update --init
 
 ## 许可
 
-本仓库 first-party 代码（`superpowers-overrides`、marketplace 工具链）采用 [MIT](LICENSE)。
+本仓库 first-party 代码（`superpowers-overrides`、`engineering`、marketplace 工具链）采用 [MIT](LICENSE)。
 
-Vendored 插件保留各自许可——见各插件目录（如 `plugins/mattpocock-skills/LICENSE`）。
+Vendored 插件保留各自许可——见各插件目录（如 `vendors/mattpocock-skills/LICENSE`）。

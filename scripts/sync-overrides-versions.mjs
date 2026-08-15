@@ -1,8 +1,20 @@
 #!/usr/bin/env node
 /**
- * Sync the superpowers-overrides version into the two hand-edited version SOTs
- * (the overrides `.claude-plugin/plugin.json` and `marketplace/source.json`),
- * then regenerate every committed emit product via `pnpm run emit`.
+ * Align the superpowers-overrides version to the vendored superpowers base and
+ * regenerate every committed emit product.
+ *
+ * `packages/superpowers-overrides/package.json` is the single version SOT (the
+ * scheme is `{superpowers}-overrides.{major}.{minor}.{patch}`). The script
+ * reads that SOT, and when its superpowers base no longer matches the vendored
+ * superpowers `.claude-plugin/plugin.json` version, resets the overrides
+ * suffix to `.0.0.0` per the documented bump contract. Then `pnpm run emit`
+ * re-derives every downstream product (`.claude-plugin/plugin.json`,
+ * `marketplace/source.json`, hooks, self-check tables) from the SOT — no other
+ * file is written here.
+ *
+ * Callers that already computed and wrote the next version into package.json
+ * (bump-submodule.mjs, version-packages.mjs) are unaffected: when the base
+ * matches, the version is left untouched and the script only re-emits.
  *
  * Deliberately does NOT rewrite repo dogfood (CLAUDE.md / `.cursor/rules/*`).
  * os-init owns the dogfood now and stamps it with the engineering version;
@@ -11,30 +23,27 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
+import { parseOverridesVersion } from "./lib/version-utils.mjs";
+import { resolveVendorVersion } from "./lib/publish-vendor.mjs";
 
 const root = process.cwd();
-const pkg = JSON.parse(
-  readFileSync(join(root, "plugins/superpowers-overrides/package.json"), "utf8"),
-);
-const version = pkg.version;
+const pkgPath = join(root, "packages/superpowers-overrides/package.json");
+const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 
-const pluginPath = join(
-  root,
-  "plugins/superpowers-overrides/.claude-plugin/plugin.json",
-);
-const plugin = JSON.parse(readFileSync(pluginPath, "utf8"));
-plugin.version = version;
-writeFileSync(pluginPath, JSON.stringify(plugin, null, 2) + "\n");
+// The superpowers base is the vendored plugin.json version — resolveVendorVersion
+// (shared with the marketplace emit chain) prefers plugin.json over the release
+// tag, so the alignment target is the same source the marketplace resolves against.
+const base = resolveVendorVersion("superpowers", root);
 
-const sourcePath = join(root, "marketplace/source.json");
-const source = JSON.parse(readFileSync(sourcePath, "utf8"));
-const entry = source.plugins.find((p) => p.name === "superpowers-overrides");
-if (!entry) {
-  throw new Error("superpowers-overrides not in marketplace/source.json");
+const parsed = parseOverridesVersion(pkg.version);
+const next =
+  parsed && parsed.base === base ? pkg.version : `${base}-overrides.0.0.0`;
+
+if (pkg.version !== next) {
+  pkg.version = next;
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 }
-entry.version = version;
-writeFileSync(sourcePath, JSON.stringify(source, null, 2) + "\n");
 
 execSync("pnpm run emit", { stdio: "inherit", cwd: root });
 
-console.log(`OK — synced ${version}`);
+console.log(`OK — synced ${next}`);

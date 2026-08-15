@@ -1,11 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  TAG_PATTERNS,
-  SUBMODULE_PATHS,
-  semverFromNearestTag,
-} from "./submodule-tags.mjs";
+import { listVendors, resolveVendorVersion } from "./publish-vendor.mjs";
 
 const GENERATED = "scripts/emit.mjs — do not edit";
 
@@ -20,44 +16,15 @@ export function readSource(root) {
  * @param {{ name: string, version?: string }} plugin
  */
 export function resolveVersion(root, plugin) {
-  const truthPaths = {
-    "mattpocock-skills": join(
-      root,
-      "plugins/mattpocock-skills/.claude-plugin/plugin.json",
-    ),
-    impeccable: join(
-      root,
-      "plugins/impeccable/plugin/.claude-plugin/plugin.json",
-    ),
-    superpowers: join(root, "plugins/superpowers/.claude-plugin/plugin.json"),
-    "superpowers-overrides": join(
-      root,
-      "plugins/superpowers-overrides/package.json",
-    ),
-    "engineering": join(root, "plugins/engineering/package.json"),
-  };
-
-  const truthPath = truthPaths[plugin.name];
-  if (!truthPath || !existsSync(truthPath)) {
-    throw new Error(`Missing truth source for ${plugin.name}: ${truthPath}`);
-  }
-
-  const truth = JSON.parse(readFileSync(truthPath, "utf8"));
-  const truthVersion = truth.version;
-
-  if (plugin.name === "mattpocock-skills") {
-    const submodulePath = join(root, SUBMODULE_PATHS["mattpocock-skills"]);
-    const pattern = TAG_PATTERNS["mattpocock-skills"];
-    const effectiveVersion =
-      truthVersion ?? semverFromNearestTag(submodulePath, pattern);
-    if (!effectiveVersion) {
-      throw new Error(
-        `No version in ${truthPath} and no v* release tag on submodule HEAD`,
-      );
-    }
+  // Vendors: the shared resolver (plugin.json first, release-tag fallback) is
+  // the single priority, so the marketplace declaration always matches what
+  // publish-vendor will publish. The vendor set is derived from the vendors/
+  // dir so a newly added submodule is recognized without a constant update.
+  if (listVendors(root).includes(plugin.name)) {
+    const effectiveVersion = resolveVendorVersion(plugin.name, root);
     if (plugin.version !== undefined && plugin.version !== effectiveVersion) {
       throw new Error(
-        `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${effectiveVersion} (${truthPath})`,
+        `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${effectiveVersion}`,
       );
     }
     return {
@@ -65,6 +32,15 @@ export function resolveVersion(root, plugin) {
       includeInClaude: plugin.version !== undefined,
     };
   }
+
+  // First-party: package.json is the version SOT.
+  const truthPath = join(root, "packages", plugin.name, "package.json");
+  if (!existsSync(truthPath)) {
+    throw new Error(`Missing truth source for ${plugin.name}: ${truthPath}`);
+  }
+
+  const truth = JSON.parse(readFileSync(truthPath, "utf8"));
+  const truthVersion = truth.version;
 
   if (!truthVersion) {
     throw new Error(`No version in truth source: ${truthPath}`);

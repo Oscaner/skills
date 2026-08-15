@@ -1,0 +1,47 @@
+{
+  "name": "@oscaner-skills/engineering",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oscaner/skills",
+    "directory": "packages/engineering"
+  },
+  "homepage": "https://github.com/Oscaner/skills",
+  "license": "MIT",
+  "main": "./bin/gate/adapters/opencode.mjs",
+  "oscaner-plugin": {
+    "claude": {
+      "category": "engineering",
+      "keywords": [
+        "engineering",
+        "cli",
+        "cdd",
+        "harness",
+        "droid",
+        "pi"
+      ]
+    },
+    "contentRoot": ".",
+    "harnesses": [
+      "cursor",
+      "codex",
+      "kimi",
+      "gemini",
+      "pi",
+      "qoder"
+    ],
+    "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set",
+    "hooks": {
+      "claude": "./hooks/hooks.json",
+      "cursor": "./hooks/hooks-cursor.json",
+      "codex": "./.codex-plugin/hooks/hooks.json",
+      "qoder": "./.qoder-plugin/hooks/hooks.json"
+    }
+  }
+}

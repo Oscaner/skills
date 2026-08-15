@@ -68,10 +68,10 @@ export function gitVerbAllowed(command) {
 }
 
 // cdd_shell_allowed：cdd-run / sdd-workspace / task-brief / review-package 直接放行，
-// 否则落到只读 git 白名单。
+// 否则落到只读 git 白名单。引擎入口自 T7 起为 cdd-run.mjs（bash 已删）。
 function shellAllowed(command) {
   if (typeof command !== "string") return false;
-  if (/(^|\/)cdd-run\.sh|sdd-workspace|task-brief|review-package/.test(command)) return true;
+  if (/(^|\/)cdd-run\.mjs|sdd-workspace|task-brief|review-package/.test(command)) return true;
   return gitVerbAllowed(command);
 }
 
@@ -237,14 +237,14 @@ export function denyMessage(harness, taskNum, planBasename) {
 
 Allowed Bash (read-only diagnostics):
 ${verbs}
-  ${osRoot}/bin/engine/cdd-run.sh --harness ${harness}
+  ${osRoot}/bin/engine/cdd-run.mjs --harness ${harness}
   sdd-workspace / task-brief / review-package
 
 Allowed Write:
   .superpowers/cdd/${planBasename}/
 
 Repo changes flow only through:
-  ${osRoot}/bin/engine/cdd-run.sh --harness ${harness} --task ${taskNum} --mode implement
+  ${osRoot}/bin/engine/cdd-run.mjs --harness ${harness} --task ${taskNum} --mode implement
 
 Full matrix: ${osRoot}/docs/cdd-reference.md (CDD gate matrix)
 See os-executing-plans Rule: Orchestrator Checklist.`;

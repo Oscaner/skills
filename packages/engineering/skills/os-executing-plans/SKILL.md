@@ -18,7 +18,7 @@ description: 独立执行计划总编排器 —— 用户选择执行模式（in
 
 ### Rule: Mode Selection
 
-启动时用 `AskUserQuestion` 让用户选模式（in-session | subagent | cli）。选定后调 `cdd-session-activate.sh minimal <session_key> <repo_root> --mode <mode>` 写 `pending.mode`。
+启动时用 `AskUserQuestion` 让用户选模式（in-session | subagent | cli）。选定后调 `cdd-session-activate.mjs minimal <session_key> <repo_root> --mode <mode>` 写 `pending.mode`。
 
 ### Rule: Task Complexity
 
@@ -51,7 +51,7 @@ spec+plan 完备 → 最便宜 implementer 层级；首次派发前确认一次�
 
 编排器每计划一次的三阶段循环（三模式共用骨架；cli 模式差异见 Per-task 括号）：
 
-**Setup (once):** in-session/subagent → `sdd-workspace`；cli → 委托 [cli-driven-development](../cli-driven-development/SKILL.md) 的 workspace（cdd-run.sh H6 chain 内自建）。统一后续：ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task。
+**Setup (once):** in-session/subagent → `sdd-workspace`；cli → 委托 [cli-driven-development](../cli-driven-development/SKILL.md) 的 workspace（cdd-run.mjs H6 chain 内自建）。统一后续：ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task。
 
 **Per-task:** Rule: Task Complexity 分类 → Rule: Confirm Once → Rule: Confirm Seams（tdd implement 派发前）→ append `TASK_BASE: <sha>` to brief → 执行链（cli 模式 shell H6 chain：implement → review → fix per Rule: Fix Loop；in-session/subagent 模式会话内实现 + 评审）→ Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger。cli 模式 **Never** edit repo deliverables in this session — H6 CLI only。
 
@@ -75,5 +75,5 @@ Mode B：用户 run 结束后自行读 ledger 聚合 deferred；shell 端无额�
 ## Red Flags
 
 - 「CLI 可用就跳过模式选择」→ 三模式必须询问（Rule: Mode Selection）
-- 「in-session 也走 cdd-run.sh」→ in-session 是会话内实现，不走 CLI（Rule: Read Upstream）
+- 「in-session 也走 cdd-run.mjs」→ in-session 是会话内实现，不走 CLI（Rule: Read Upstream）
 - 「把编排器决策塞进 cli-driven-development」→ 引擎只管执行（Rule: Read Upstream 的 cli 分支）

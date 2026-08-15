@@ -182,13 +182,13 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
   "packages/engineering/tests/rule-reference.test.mjs",
 ]);
 
-// node:test 两棵树（T5）：行为/集成树 packages/engineering/tests/（helpers.mjs +
-// common-functions.test.mjs + ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init。
+// node:test 两棵树：行为/集成树 packages/engineering/tests/（helpers.mjs + rule-reference +
+// ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init。
 // 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
 // 旧 6 个 shell engine 测试 + line-budget 已迁移：registry-schema/select/cli-dry-run/
 // commit-gate/severity 由模块测试吸收；common-functions 剩余家族（pending path / plugin
-// root / superpowers scripts dir / env 校验 / render / check cli / invoke cli）由
-// common-functions.test.mjs 在 bash 边界守护。
+// root / superpowers scripts dir / env 校验 / render / check cli / invoke cli）的 bash 边界
+// 守护随 T7 删 bash 引擎移除 —— Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。
 subprocessStep("5b. node:test engine + gate + os-init + behavior", "node", [
   "--test",
   "packages/engineering/tests/*.test.mjs",
@@ -208,7 +208,6 @@ function checkEngineeringGateHooks() {
   for (const f of [
     "bin/gate/adapters/claude.mjs",
     "bin/gate/adapters/cursor.mjs",
-    "bin/engine/cdd-session-activate.sh", // bash entry retained until T7
     "bin/engine/cdd-run.mjs",
     "bin/engine/cdd-exec.mjs",
     "bin/engine/cdd-select.mjs",

@@ -128,7 +128,7 @@ function main() {
 
   check("validate engineering engine (harness registry + runners)", () => {
     assert(existsSync(path.join(ENGINE, "bin/engine/harness-registry.json")), "harness-registry.json missing");
-    for (const script of ["cdd-run.sh", "cdd-select.sh", "cdd-exec.sh"]) {
+    for (const script of ["cdd-run.mjs", "cdd-select.mjs", "cdd-exec.mjs"]) {
       assert(isExecutable(path.join(ENGINE, "bin/engine", script)), `engineering/bin/engine/${script} not executable`);
     }
   });

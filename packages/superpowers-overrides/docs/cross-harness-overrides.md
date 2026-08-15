@@ -26,7 +26,7 @@ Override skills that reuse upstream skill names work in Claude Code but break in
 
 No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
 
-**CI:** `pnpm run emit:check` checks generator drift; `tests/validate-overrides-build.sh` validates the router + engineering engine.
+**CI:** `pnpm run emit:check` checks generator drift; `tests/validate-overrides-build.mjs` validates the router + engineering engine.
 
 Claude Code interception: `Skill(engineering:os-brainstorming)` (manifest `name` field).
 
@@ -71,7 +71,7 @@ Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Claude Code,
 
 Claude Code: `engineering/hooks/hooks.json` adds `PreToolUse` matchers (`Write|Edit`, `Bash`) → `engineering/bin/gate/adapters/claude.mjs`. Cursor: `engineering/hooks/hooks-cursor.json` adds `preToolUse` → `engineering/bin/gate/adapters/cursor.mjs`. These hooks are checked-in plugin files — the overrides generators emit only the trigger-router hooks (`UserPromptExpansion` / detect + enforce).
 
-**Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell (`cdd-run.sh --harness <name>`) or Write under the bound workspace.
+**Shell contract (read-only git diagnostics):** the gate allows read-only git Bash during active tasks — `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` / `git remote` / `git ls-files` / `git diff-tree` (also via `git -C <path>` / `git --git-dir=<path>`). Anything else — mutating git verbs, non-git commands, compound commands, heredocs — is denied (fail-closed). Repo changes flow only through the H6 implement shell (`cdd-run.mjs --harness <name>`) or Write under the bound workspace.
 
 **Deny message:** a multi-line allowlist matrix listing every allowed Bash verb, the allowed Write root (`.superpowers/cdd/<plan-basename>/`), and the H6 implement shell. Same single-source verb list drives both the judgment and the message.
 
@@ -146,7 +146,7 @@ The router ships no `spor-*` skills. Target skill ids are the engineering / matt
 ```bash
 pnpm run emit                 # unified emit — writes per-harness manifests + hooks + .agents/skills
 pnpm run validate             # full CI chain (emit + router + gate + build freshness + rule-reference)
-./packages/superpowers-overrides/tests/validate-overrides-build.sh
+node packages/superpowers-overrides/tests/validate-overrides-build.mjs
 ```
 
 Regenerate after editing `overrides.manifest.json`, engineering skills, or generator templates.
@@ -187,20 +187,20 @@ Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by 
 | **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
 | **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-Shared library: `engineering/bin/engine/lib/cdd-common.sh` — workspace path contract (`CDD_WORKSPACE`, `CDD_LEDGER`, …), plugin root resolution, exit codes (0 OK; 1 BLOCKED/stub; 2 CLI missing), **and the shared task/plan run-loop**: `cdd_run_task` (one mode per invocation) / `cdd_run_plan` (pending tasks × 3-mode chain). The single CLI runner is `engineering/bin/engine/cdd-run.sh` (`--harness <name> --task N --mode M` | `--plan <path>`), registry-driven from `engineering/bin/engine/harness-registry.json`. The same lib hosts the **post-run commit gate** (`cdd_validate_commit_contract`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [engineering/docs/cdd-reference.md](../../engineering/docs/cdd-reference.md) (§ Post-run commit gate).
+Shared library: `engineering/bin/engine/lib/` Node modules — `runner.mjs` (workspace path contract `CDD_WORKSPACE`/`CDD_LEDGER`/…, exit codes 0 OK / 1 BLOCKED / 2 CLI missing, **and the shared task/plan run-loop** `runTask` (one mode per invocation) / `runPlan` (pending tasks × 3-mode chain)), `registry.mjs` (harness registry), `contract.mjs` (commit gate + handoff), `templates.mjs` (mode prompt render), `ledger.mjs` (ledger append). The single CLI runner is `engineering/bin/engine/cdd-run.mjs` (`--harness <name> --task N --mode M` | `--plan <path>`), registry-driven from `engineering/bin/engine/harness-registry.json`. The **post-run commit gate** (`validateCommitContract` in `contract.mjs`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [engineering/docs/cdd-reference.md](../../engineering/docs/cdd-reference.md) (§ Post-run commit gate).
 
 ### Invocation modes
 
 **Mode A (per task):** orchestrator calls one mode per CLI invocation:
 
 ```bash
-{engineering}/bin/engine/cdd-run.sh --harness <name> --task N --mode implement|review|fix
+{engineering}/bin/engine/cdd-run.mjs --harness <name> --task N --mode implement|review|fix
 ```
 
 **Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
 
 ```bash
-{engineering}/bin/engine/cdd-run.sh --harness <name> --plan <path>
+{engineering}/bin/engine/cdd-run.mjs --harness <name> --plan <path>
 ```
 
 Plan driver runs the 3-mode chain per pending task. Ledger append on APPROVED only.
@@ -215,7 +215,7 @@ Plan driver runs the 3-mode chain per pending task. Ledger append on APPROVED on
 
 Not-supported harness selected → exit 1 → orchestrator **BLOCKED**. No `--resume` or session-carry flags (H6.5).
 
-**CI:** `tests/validate-overrides-build.sh` asserts the engineering engine (harness registry + `cdd-run.sh`/`cdd-select.sh`/`cdd-exec.sh` executable + engine tests); the engineering gate/hook scripts and the gate test suite are validated in `scripts/ci-validate.sh` (5b block).
+**CI:** `tests/validate-overrides-build.mjs` asserts the engineering engine (harness registry + `cdd-run.mjs`/`cdd-select.mjs`/`cdd-exec.mjs` executable + engine tests); the engineering gate/hook scripts and the gate test suite are validated in `scripts/ci-validate.mjs` (5b block).
 
 Templates: `engineering/templates/cdd/` (implement, review, fix) + `_handoff-write-fragment.md`.
 
@@ -236,7 +236,7 @@ See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for direc
 3. **Generators** — use the unified `scripts/emit.mjs`; commit hook + self-check outputs; CI `--check` on drift.
 4. **Init** — copy or refresh committed `build/generated/*` at runtime; never run generators in init. Generated self-check files embed `engineering-version` (Cursor frontmatter / Claude HTML comment) stamped from the engineering plugin version; `os-init spor` compares project rules against installed version and overwrites when missing or stale.
 
-Copy the manifest, generator scripts, and `validate-overrides-build.sh` from this plugin as a starting point.
+Copy the manifest, generator scripts, and `validate-overrides-build.mjs` from this plugin as a starting point.
 
 ## Phase 2 (not v1)
 

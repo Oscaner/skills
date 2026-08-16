@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { exitOk, exitCliMissing } from "./utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 
@@ -29,7 +30,7 @@ function usage() {
   process.stderr.write(
     `       ${NAME} bind <session_key> <repo_root> <plan_path> <workspace> [--mode <in-session|subagent|cli>]\n`,
   );
-  process.exit(2);
+  exitCliMissing();
 }
 
 // 模式感知：--mode 优先于 CDD_SESSION_MODE env；遍历全部 args（对齐 bash while $*，位置参数后置）。
@@ -46,7 +47,7 @@ for (let i = 0; i < args.length; i++) {
 // 模式枚举单一来源：in-session|subagent|cli（spec §E）。空 → fail-open（pending 省略 mode）。
 if (!["", "in-session", "subagent", "cli"].includes(sessionMode)) {
   process.stderr.write(`error: invalid mode: ${sessionMode} (expected in-session|subagent|cli)\n`);
-  process.exit(2);
+  exitCliMissing();
 }
 
 if (!subcommand || !sessionKey || !repoRoot) usage();
@@ -109,4 +110,4 @@ if (subcommand === "minimal") {
   usage();
 }
 
-process.exit(0);
+exitOk();

@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { cliInPath } from "./lib/registry.mjs";
+import { exitBlocked } from "./utils/exit.mjs";
 
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
 const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
@@ -40,7 +41,7 @@ if (available.length === 0) {
   process.stdout.write(`unsupported_installed:${unsupported.join(",")}\n`);
   process.stdout.write("recommended:\n");
   process.stderr.write(`BLOCKED: no full harness installed (registry: ${names.join(" ")} )\n`);
-  process.exit(1);
+  exitBlocked();
 }
 
 // 推荐优先级: droid > pi > 当前 harness(full) > 字母序第一个可用。

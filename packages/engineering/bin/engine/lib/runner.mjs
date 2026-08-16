@@ -4,7 +4,8 @@
 // backfill → review fixed-point → require env → renderModePrompt → 嵌套 CLI spawn（捕获 stderr，
 // 非 2>/dev/null 吞）→ commit-contract → H1 四行 → handoff 处理。
 // runPlan：plan-constraints 写 → pending tasks × 三模式链（implement→review→fix，cap 5）→ ledger 追加。
-// noExit=true 时返回 { exitCode, h1 } 而非 process.exit —— runPlan 组合 / 单测的 seam。
+// noExit=true 时返回 { exitCode, h1 } 而非 exit helpers —— runPlan 组合 / 单测的 seam。
+// 落地退出委托 utils/exit.mjs（统一出口，无 inline process.exit）。
 import { spawn } from "node:child_process";
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import os from "node:os";
@@ -15,6 +16,7 @@ import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt } from "./templates.mjs";
 import { appendLedger, writePlanConstraints } from "./ledger.mjs";
 import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
+import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "review", "fix"];
@@ -27,13 +29,13 @@ class RunBlocked extends Error {
   }
 }
 
-// 落地退出：noExit=false → 写 H1（若 h1 非空）到 stdout + stderr 消息 + process.exit；
+// 落地退出：noExit=false → 写 H1（若 h1 非空）到 stdout + stderr 消息 + exitWithCode；
 // noExit=true → 仅返回 { exitCode, h1 }（runPlan 组合 / 单测）。
 function finish(exitCode, h1, msg, noExit, { stderrPrefix = "CDD_BLOCKED" } = {}) {
   if (msg) process.stderr.write(`${stderrPrefix}: ${msg}\n`);
   if (!noExit) {
     for (const line of h1) process.stdout.write(`${line}\n`);
-    process.exit(exitCode);
+    exitWithCode(exitCode);
   }
   return { exitCode, h1 };
 }
@@ -370,7 +372,7 @@ function dryRunH1Block(env, taskNum) {
 // ---- runTask / runPlan ----
 
 // 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, noExit }。
-// 返回 { exitCode, h1 }（noExit=true 时不 process.exit）。
+// 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
   const cwd = opts.cwd ?? process.cwd();

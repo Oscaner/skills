@@ -9,13 +9,14 @@ import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
 import { invokeCli } from "./lib/runner.mjs";
+import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "./utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
 
 function usage() {
   process.stderr.write(`usage: ${NAME} --harness <name> --prompt <text>\n`);
-  process.exit(2);
+  exitCliMissing();
 }
 
 const args = process.argv.slice(2);
@@ -57,7 +58,7 @@ try {
   if (e instanceof CddBlockedError) {
     const prefix = e.kind === "cli-missing" ? "CDD_CLI_MISSING" : "CDD_BLOCKED";
     process.stderr.write(`${prefix}: ${e.message}\n`);
-    process.exit(e.exitCode);
+    exitWithCode(e.exitCode);
   }
   throw e;
 }
@@ -71,8 +72,8 @@ if (!res.ok) {
   if (res.code === 1 && res.stderr.startsWith("stream-json produced no completion finalText")) {
     process.stderr.write(`CDD_BLOCKED: ${res.stderr}\n`);
   }
-  process.exit(res.code);
+  exitWithCode(res.code);
 }
 // 归一化输出：bash `$(...)` 剥尾部换行 + `printf '%s\n'` —— 恒单尾换行。
 process.stdout.write(`${res.stdout.replace(/\n+$/, "")}\n`);
-process.exit(0);
+exitOk();

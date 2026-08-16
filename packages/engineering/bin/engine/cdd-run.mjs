@@ -16,6 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, runPlan } from "./lib/runner.mjs";
+import { exitOk, exitCliMissing } from "./utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const DRY_RUN = process.env.CDD_DRY_RUN === "1";
@@ -25,14 +26,14 @@ function usage() {
   process.stderr.write(
     `usage: ${NAME} --harness <name> (--task N --mode implement|review|fix [--plan PATH] | --plan PATH)\n`,
   );
-  process.exit(2);
+  exitCliMissing();
 }
 
 function help() {
   process.stdout.write(
     `usage: ${NAME} --harness <name> (--task N --mode implement|review|fix [--plan PATH] | --plan PATH)\n`,
   );
-  process.exit(0);
+  exitOk();
 }
 
 const args = process.argv.slice(2);
@@ -76,7 +77,7 @@ if (taskNum !== "") {
   if (!modeArg) usage();
   const env = { ...process.env };
   if (planFile) env.PLAN_FILE = planFile;
-  // noExit=false：runTask 自行 process.exit(exitCode) —— 薄壳无需落地退出码。
+  // noExit=false：runTask 自行 exit helpers —— 薄壳无需落地退出码。
   await runTask(harness, taskNum, { mode: modeArg, dryRun: DRY_RUN, env });
 } else {
   // Mode B

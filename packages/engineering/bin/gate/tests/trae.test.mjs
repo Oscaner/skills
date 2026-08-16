@@ -27,7 +27,7 @@ test("trae hook: cli 严格 + Bash git commit → deny + 恢复指引", () => {
     { session_id: "s-cli-commit", tool_name: "Bash", tool_input: { command: "git commit -m x" } },
   );
   assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /cdd-run\.sh --harness trae/);
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /cdd-run.mjs --harness trae/);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /plan-a/);
 });
 

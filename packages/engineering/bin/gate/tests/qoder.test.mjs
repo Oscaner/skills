@@ -30,7 +30,7 @@ test("qoder hook: cli 严格 + Bash git commit → deny + 恢复指引", () => {
   );
   assert.equal(out.hookSpecificOutput.hookEventName, "PreToolUse");
   assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /cdd-run\.sh --harness qoder/);
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /cdd-run.mjs --harness qoder/);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /plan-a/);
 });
 

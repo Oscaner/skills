@@ -229,7 +229,7 @@ All three pass → the marketplace still resolves.
 **5. Unified emit validates:**
 ```bash
 pnpm run emit:check        # scripts/emit.mjs --check — drift → exit 1
-./packages/superpowers-overrides/tests/validate-overrides-build.sh
+node packages/superpowers-overrides/tests/validate-overrides-build.mjs
 ```
 
 **Note:** on a fresh clone, run `git submodule update --init` before `emit --check` — `emit`/validate resolve the `superpowers` submodule for version sync (`marketplace-utils.mjs` / `validate-version-sync.mjs`). The emitter does **not** copy upstream skills into `.agents/skills/` (engineering skills only; os-* Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
@@ -239,7 +239,7 @@ pnpm run emit:check        # scripts/emit.mjs --check — drift → exit 1
 pnpm run validate
 ```
 
-This runs steps 1–5 above plus generator drift checks, overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.sh](scripts/ci-validate.sh); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
+This runs steps 1–5 above plus generator drift checks, overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.mjs](scripts/ci-validate.mjs); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Releasing
 
@@ -255,7 +255,7 @@ Two plugins are versioned from this repo: **`superpowers-overrides`** (superpowe
 
 **Version scheme:** `superpowers-overrides` uses `{superpowers-semver}-overrides.{major}.{minor}.{patch}` (three-segment suffix). Tags look like `superpowers-overrides@6.2.0-overrides.0.15.0`. Changeset patch releases increment **patch** only on the same superpowers base. Any superpowers semver segment change (including patch) resets overrides to `{new-base}-overrides.0.0.0` — not the legacy `-overrides.0` single-counter form. `engineering` uses plain semver (`0.1.x`); a changeset bumping it releases independently as `engineering@{version}`. Both are driven by `node scripts/version-packages.mjs` (dual-plugin) and validated by `node scripts/validate-version-sync.mjs`. See [.changeset/README.md](.changeset/README.md).
 
-**Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with [`scripts/gh-branch-rulesets.sh`](scripts/gh-branch-rulesets.sh) (`protect-develop`, `protect-main`; no bypass actors). Legacy single-counter release tags can be removed post-first new-format release via [`scripts/cleanup-legacy-release-tags.sh`](scripts/cleanup-legacy-release-tags.sh).
+**Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with [`scripts/gh-branch-rulesets.mjs`](scripts/gh-branch-rulesets.mjs) (`protect-develop`, `protect-main`; no bypass actors). Legacy single-counter release tags can be removed post-first new-format release via [`scripts/cleanup-legacy-release-tags.mjs`](scripts/cleanup-legacy-release-tags.mjs).
 
 ## Git conventions for this repo
 

@@ -17,6 +17,7 @@ import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { exitBlocked, exitCliMissing } from "../utils/exit.mjs";
 import { deriveNativeHarnesses, GATE_ADAPTER_PLACEHOLDER } from "../gate/configs/native-harnesses.mjs";
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -183,7 +184,7 @@ function parseArgs(argv) {
       args.harness = (argv[++i] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
     } else {
       console.error(`os-init gates: 未知参数 ${argv[i]}`);
-      process.exit(2);
+      exitCliMissing(`unknown argument: ${argv[i]}`);
     }
   }
   return args;
@@ -195,7 +196,7 @@ async function main() {
   const unknown = names.filter((n) => !HARNESSES[n]);
   if (unknown.length) {
     console.error(`os-init gates: 未知 harness: ${unknown.join(", ")}（可用: ${Object.keys(HARNESSES).join(", ")}）`);
-    process.exit(1);
+    exitBlocked(`unknown harness: ${unknown.join(", ")}`);
   }
   const nativeSet = new Set(deriveNativeHarnesses(CONFIGS));
   console.log(`os-init gates — ${args.dryRun ? "dry-run preview（不写任何文件）" : "install"}`);
@@ -224,5 +225,5 @@ async function main() {
 
 main().catch((e) => {
   console.error(`os-init gates: ${e.message}`);
-  process.exit(1);
+  exitBlocked(e.message);
 });

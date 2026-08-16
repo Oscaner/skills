@@ -102,16 +102,16 @@ test("cdd-exec.mjs: missing CLI (pi, full) → CDD_CLI_MISSING exit 2", () => {
   assert.match(res.stderr, /CDD_CLI_MISSING/);
 });
 
-test("cdd-exec.mjs: CDD_DRY_RUN=1 跳过 CLI preflight — 缺失 cli → exit 0（对齐 cdd-run/runner dry-run 语义）", () => {
+test("cdd-exec.mjs: CDD_DRY_RUN=1 跳过 CLI preflight 但仍 invoke CLI（对齐 bash cdd-exec.sh）", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-exec-mock-"));
   const fp = harnessFreePath();
-  // pi 是 full harness，mock PATH 无 pi 二进制 —— 无 dryRun 时 preflight 会 CDD_CLI_MISSING exit 2。
-  // CDD_DRY_RUN=1 时跳过 preflight + CLI 调用 → exit 0。
+  // pi 是 full harness，mock PATH 无 pi 二进制 —— CDD_DRY_RUN=1 仅跳过 preflight（无 CDD_CLI_MISSING）；
+  // 但 cdd-exec 不跳过 CLI 调用（bash cdd-exec.sh 无 dry-run 分支）→ spawn 失败 exit 1。
   const res = runExec(["--harness", "pi", "--prompt", "x"], {
     mockPath: `${mock}${path.delimiter}${fp}`,
     extraEnv: { CDD_DRY_RUN: "1" },
   });
-  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
+  assert.equal(res.status, 1, `stderr: ${res.stderr}`);
   assert.doesNotMatch(res.stderr, /CDD_CLI_MISSING/, "dry-run 跳过 CLI preflight");
 });
 

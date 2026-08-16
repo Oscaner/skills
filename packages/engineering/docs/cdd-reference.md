@@ -30,7 +30,7 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 | `CDD_HANDOFF_PATH` | target handoff.json path |
 | `CDD_REVIEW_FIXED_POINT` | review: initial from handoff `commits.base`; fix-loop review: `FIX_BASE` |
 
-4. **Output:** before exit, write/update `CDD_HANDOFF_PATH` (default `task-N-handoff.json` or batch variant); stdout ≤ H1 four lines; non-zero exit with no handoff → **BLOCKED**.
+4. **Output:** before exit, write/update `CDD_HANDOFF_PATH` (default `task-N-handoff.json` or batch variant); stdout = H1 four lines as the final block (review mode may precede them with the review-package `wrote <diff>:` progress line — the last block is still the H1); non-zero exit with no handoff → **BLOCKED**.
 5. **Forbidden:** `--resume` or any CLI invocation that carries prior session history.
 6. **Session traceability:** CLI agents use one-shot print mode (`--print` / `--output-format text`), which does NOT register sessions in the `/resume` list or `~/.claude/sessions/`.
 
@@ -70,7 +70,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Review reports | `batch-*-review-standards.md` / `batch-*-review-spec.md` |
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
-**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback).
+**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec §2.1 stderr-surfacing).
 
 **Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 

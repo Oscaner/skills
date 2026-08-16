@@ -44,12 +44,12 @@ for (let i = 0; i < args.length; i++) {
 
 if (!harness || !prompt) usage();
 
-// dryRun（CDD_DRY_RUN=1）跳过 CLI PATH preflight + CLI 调用 —— 对齐 cdd-run/runner 的
-// dry-run 语义（参数解析/编排冒烟测试不依赖真实 CLI 二进制）。
+// dryRun（CDD_DRY_RUN=1）仅跳过 CLI PATH preflight（对齐 cdd_check_cli 的 dry-run 分支）；
+// 不跳过 CLI 调用 —— bash cdd-exec.sh 无 dry-run 分支，dry-run 下同样做 CLI 检查与 invoke。
 const dryRun = process.env.CDD_DRY_RUN === "1";
 
 // Registry ship gate first（D6-A1）：unknown / not-supported → BLOCKED exit 1；
-// full harness 缺 CLI → CDD_CLI_MISSING exit 2（对齐 cdd_check_harness）。
+// full harness 缺 CLI → CDD_CLI_MISSING exit 2（对齐 cdd_check_harness；dry-run 跳过 PATH 校验）。
 let entry;
 try {
   entry = checkHarness(loadRegistry(REG_PATH), harness, { dryRun });
@@ -60,11 +60,6 @@ try {
     process.exit(e.exitCode);
   }
   throw e;
-}
-
-if (dryRun) {
-  // 不 invoke CLI —— 冒烟测试只验证参数分派 + registry ship gate。
-  process.exit(0);
 }
 
 // 一次性 prompt-runner（不跑任务链）：CDD_MODE=review 触发 review-prefix 合成（透传）。

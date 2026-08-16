@@ -6,7 +6,7 @@
 // runPlan：plan-constraints 写 → pending tasks × 三模式链（implement→review→fix，cap 5）→ ledger 追加。
 // noExit=true 时返回 { exitCode, h1 } 而非 process.exit —— runPlan 组合 / 单测的 seam。
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -171,25 +171,75 @@ export async function invokeCli(entry, prompt, mode, env, cwd) {
   return res;
 }
 
-// 对齐 stream-json 规范化 jq：`[.[] | select(.type=="completion" and (.finalText != null)) | .finalText] | last // empty`。
+// 对齐 stream-json 规范化 jq -rs：slurp 整个 stdout 为 JSON 值序列（容忍 pretty-printed/多行事件），
+// `[.[] | select(.type=="completion" and (.finalText != null)) | .finalText] | last // empty`。
+// 逐行 NDJSON 解析会丢多行 JSON 事件的 finalText —— 全流扫描取最后 completion 的 finalText。
 function extractStreamJsonFinal(raw) {
+  const text = String(raw);
   let last = null;
-  for (const line of String(raw).split("\n")) {
-    const t = line.trim();
-    if (!t) continue;
+  let pos = 0;
+  const n = text.length;
+  while (pos < n) {
+    while (pos < n && /\s/.test(text[pos])) pos++; // 跳过 JSON 值间空白
+    if (pos >= n) break;
+    const end = jsonValueEnd(text, pos);
     try {
-      const ev = JSON.parse(t);
+      const ev = JSON.parse(text.slice(pos, end));
       if (ev.type === "completion" && ev.finalText != null) last = ev.finalText;
     } catch {
-      // 非 JSON 行跳过
+      // 非完整 JSON 文本跳过（对齐 jq 错误容错：无 completion → 调用方 BLOCKED）
     }
+    pos = Math.max(end, pos + 1);
   }
   return last;
 }
 
+// 返回 text 中从 start 起的一个完整 JSON 值结束后的索引（对齐 jq 的 JSON 流：值之间仅空白分隔，
+// 值本身可跨行）。对象/数组按 {} / [] 深度扫描（跳过字符串字面量与转义）；标量扫到空白或结构符。
+function jsonValueEnd(text, start) {
+  const n = text.length;
+  const first = text[start];
+  if (first === "{") return scanBalanced(text, start, "{", "}");
+  if (first === "[") return scanBalanced(text, start, "[", "]");
+  if (first === '"') {
+    let i = start + 1;
+    while (i < n) {
+      const ch = text[i];
+      if (ch === "\\") i += 2;
+      else if (ch === '"') return i + 1;
+      else i++;
+    }
+    return n;
+  }
+  let i = start;
+  while (i < n && !/\s/.test(text[i]) && !",}]".includes(text[i])) i++;
+  return i;
+}
+
+function scanBalanced(text, start, openCh, closeCh) {
+  const n = text.length;
+  let inString = false;
+  let depth = 0;
+  for (let i = start; i < n; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === openCh) depth++;
+    else if (ch === closeCh) {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return n;
+}
+
 // ---- review-package（非 dry-run review 模式）----
 
-// 对齐 cdd_superpowers_scripts_dir：repo submodule → Claude/Cursor plugin cache（版本目录倒序）。
+// 对齐 cdd_superpowers_scripts_dir：repo submodule → Claude/Cursor plugin cache（版本目录升序）。
 // 导出供单测（T7 补回：findSuperpowersScriptsDir / byVersion）。
 export function findSuperpowersScriptsDir(cwd) {
   const repoRoot = gitToplevel(cwd);
@@ -203,7 +253,7 @@ export function findSuperpowersScriptsDir(cwd) {
   ];
   for (const cache of cacheRoots) {
     if (!existsSync(cache)) continue;
-    const versions = readdirSync(cache).sort(byVersion).reverse();
+    const versions = readdirSync(cache).sort(byVersion);
     for (const ver of versions) {
       const scripts = path.join(cache, ver, "skills", "subagent-driven-development", "scripts");
       if (existsSync(path.join(scripts, "sdd-workspace"))) return scripts;
@@ -212,9 +262,7 @@ export function findSuperpowersScriptsDir(cwd) {
   return null;
 }
 
-// 简易版本排序（对齐 bash `sort -V`）：数字段逐段比较。
-// 注：Node 缓存探测用 .sort(byVersion).reverse()（newest-first），与 bash 升序相反 ——
-// 行为已由 runner.test.mjs 钉死（T7 warn 要求 pin 版本序）。
+// 简易版本排序（对齐 bash `sort -V` 升序）：数字段逐段比较，缓存探测取 oldest-first。
 export function byVersion(a, b) {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
@@ -236,17 +284,24 @@ function relpathFromRepo(abs, cwd) {
 
 // 对齐 _cdd_run_review_package：spawn 上游 review-package 脚本，解析末行 `wrote <diff>:`，
 // 把 diff 相对路径写进 handoff artifacts（Node 无 jq —— 直接 JSON 读写）。
+// bash 对齐：`[[ -x review-package ]]` 可执行检查（spawn 前 accessSync X_OK）+ `wrote <diff>:`
+// progress 行落到 stdout（operator 可见）。
 async function runReviewPackage(plan, base, head, handoffPath, { cwd, env }) {
   const scriptsDir = findSuperpowersScriptsDir(cwd);
   if (!scriptsDir) throw new RunBlocked("upstream review-package script not found");
   const reviewPkg = path.join(scriptsDir, "review-package");
-  if (!existsSync(reviewPkg)) throw new RunBlocked(`review-package not found: ${reviewPkg}`);
+  try {
+    accessSync(reviewPkg, constants.X_OK);
+  } catch {
+    throw new RunBlocked(`review-package not executable: ${reviewPkg}`);
+  }
   const res = await spawnCapture("bash", [reviewPkg, plan, base, head], { cwd, env });
   const outLine = res.stdout.trim().split("\n").filter(Boolean).pop() ?? "";
   const diffPath = outLine.match(/^wrote ([^:]+):/)?.[1] ?? "";
   if (!diffPath || !existsSync(diffPath)) {
     throw new RunBlocked(`review-package did not produce diff file (output: ${outLine})`);
   }
+  process.stdout.write(`${outLine}\n`); // 对齐 bash：`wrote <diff>:` progress 行（stdout）
   const h = readJson(handoffPath) ?? {};
   writeHandoff(handoffPath, { artifacts: { ...(h.artifacts ?? {}), diff: relpathFromRepo(diffPath, cwd) } });
 }
@@ -397,14 +452,16 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (!res.ok) agentRc = res.code;
   }
 
-  // 9. Commit-contract（先于 H1 —— validator 可能把 handoff 重写为 BLOCKED，H1 必须读该状态）
+  // 9. Commit-contract（先于 H1 —— validator 可能把 handoff 重写为 BLOCKED，H1 必须读该状态）。
+  //    !ok → stderr CDD_BLOCKED 诊断（对齐 bash cdd_validate_commit_contract 的 printf）+ exit 1。
   const contract = validateCommitContract(mode, workspace, { handoffPath: env.CDD_HANDOFF_PATH });
   if (!contract.ok) {
-    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "", noExit);
+    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), contract.blocker, noExit);
   }
 
-  // 10. 嵌套 CLI 失败且无 handoff → 写 BLOCKED handoff（stderr 进 blocker）+ H1-from-handoff + exit 2
-  //     （唯一 sanctioned divergence，§spec 2.1：bash 为 emit 原始 agent H1 + exit 1）
+  // 10. 嵌套 CLI 失败且无 handoff → 写 BLOCKED handoff（stderr 进 blocker）+ H1-from-handoff +
+  //     stderr CDD_BLOCKED 诊断 + exit 1（对齐 bash cdd_exit_blocked）。唯一 sanctioned divergence：
+  //     Node 额外写 handoff（§spec 2.1 stderr-surfacing）—— bash 为 emit 原始 agent H1 + exit 1。
   if (agentRc !== 0 && !existsSync(env.CDD_HANDOFF_PATH)) {
     const stderrText = cliStderr.trim();
     const blocker = stderrText
@@ -417,7 +474,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       commits: { base: "unknown", head: "unknown" },
       blocker,
     });
-    return finish(2, h1FromHandoff(env.CDD_HANDOFF_PATH), "", noExit);
+    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
   // 11. H1 四行（来自 agent stdout / dry-run 块）

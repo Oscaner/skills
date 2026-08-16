@@ -5,12 +5,12 @@
 - **Version**: v1.0 · 2026-08-16
 - **Status**: Draft
 - **Author**: Oscaner Miao · Claude Code (Opus 4.8)
-- **Parent program**: [os-engineering overall v2.8](2026-08-10-os-engineering-overall.md)
+- **Parent program**: [os-engineering overall v2.9](2026-08-10-os-engineering-overall.md)
 - **Depends on**: P5（CDD 引擎全迁 Node @ 合并后 develop）
 
 ## §0 Incremental warning
 
-> P6a 增量。跨阶段约定见 [overall v2.8](2026-08-10-os-engineering-overall.md)；冲突以 overall 为准。
+> P6a 增量。跨阶段约定见 [overall v2.9](2026-08-10-os-engineering-overall.md)；冲突以 overall 为准。
 
 ## §1 Constraints pointer
 
@@ -116,12 +116,13 @@ os-writing-plans Rule 2（plan review）:
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| P6a = 前置检查（submodule-init 3 类，仅 implement）+ cli review（overall v2.8 原述）| 前置检查改**按 harness 探测插件可用性**（非 submodule 假设）+ **全 mode**；required 集 = superpowers/mattpocock/engineering/overrides | Yes — v2.8 · 2026-08-16 |
+| P6a = 前置检查（submodule-init 3 类，仅 implement）+ cli review（overall v2.9 原述）| 前置检查改**按 harness 探测插件可用性**（非 submodule 假设）+ **全 mode**；required 集 = superpowers/mattpocock/engineering/overrides | Yes — v2.8 · 2026-08-16 |
 | overall non-goal「exit codes 0/1/2」| 新增 **exit 3（skills-missing）**，0/1/2 语义不动 | Yes — v2.8（§1 约束「exit 3 新增」）|
 
 ## §4 Notes for downstream
 
-- **P6b/P6c** 沿 P6a：research 集成（P6b）、文档 l10n（P6c）。
+- **P6a2 依赖**：前置检查的 skills-probe 矩阵按 P6a2 最终通道分类（安装即用 vs os-init）—— 顺序 P6a2 前或并行但引用最终分类。
+- **P6b/P6c** 沿 P6a：research 集成（P6b）、文档 l10n（P6c）。（overall v2.9 起 P6b→P6c、P6c→P6d 顺延，P6a2 交付补齐插入。）
 - research 文档 `docs/research/2026-08-16-harness-plugin-availability.md` 是探测路径的 source of truth。
 - `@oscaner-skills/*` npm 源：Claude 需 npm marketplace source；Pi 天然 —— 安装指引按通道。
 

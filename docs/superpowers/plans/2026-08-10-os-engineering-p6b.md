@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **pi key 动态推导，不硬编码**：vendored 装配从实际结构推导（上游 package.json `pi` → `.claude-plugin/plugin.json` skills → `.pi/skills/` → 兜底 `skills/` glob）；上游结构变更自适应。
-- **最终通道分类（P6b §2.5 权威）**：安装即用（claude/cursor-agent/droid/grok/qoder/codex/gemini/pi）+ os-init（opencode/trae/vibe/kiro）。
+- **最终通道分类（P6b §2.5 权威）**：安装即用（claude/cursor-agent/droid/grok/qoder/codex/gemini/pi，8 个）+ os-init（opencode/trae/vibe/kiro，4 个）= **12 harness**。`skills-probe.config.mjs` 的 harnesses 集合 = 12（**P6a 的 T1 已建此配置，本阶段对齐 + 依赖**）。
 - **os-init harness**：只列已装 harness（harness-detect util）、多选、per-harness install、manifest 全量同步（**删除仅 manifest 追踪文件**，不询问）；`os-init gates` 弃用。
 - **gemini-extension**：mattpocock 装配生成；上游自带则 error guard 报错。
 - **pi gate extension .ts + overrides router .ts 在 P6b 交付**（非延迟）。
@@ -50,8 +50,8 @@
 
 `publish-vendor.test.mjs`：对真实 vendored 结构断言动态推导：
 - superpowers → 保留上游 `pi`（extensions `./.pi/extensions/superpowers.ts` + skills）。
-- mattpocock → 读 `.claude-plugin/plugin.json` skills 列表 → `pi.skills` glob/逐目录。
-- impeccable → 扫 `.pi/skills/` → `pi.skills`。
+- mattpocock → 读 `.claude-plugin/plugin.json` skills 列表 → `pi.skills` glob/逐目录（21 技能）。
+- impeccable → `.pi/skills/`（pi 约定，优先于 plugin.json）→ `pi.skills`。
 - 装配输出**顶层 `pi` key**（非嵌套 `oscaner-plugin.pi`）。
 
 ```js
@@ -69,10 +69,10 @@ test("superpowers: preserve upstream pi (extensions+skills)", () => {
 - [ ] **Step 2: 跑测试确认 FAIL** → `node --test scripts/lib/publish-vendor.test.mjs`
 - [ ] **Step 3: 实现动态推导**
 
-`derivePiKey(vendorRoot)` 探测顺序：
+`derivePiKey(vendorRoot)` 探测顺序（**pi 约定优先于 claude plugin.json**）：
 1. `package.json` 顶层 `pi`（有 → 保留/合并上游 extensions+skills）
-2. `.claude-plugin/plugin.json` skills 数组 → 转 `pi.skills`（glob 或逐目录）
-3. `.pi/skills/` 目录 → `pi.skills`（pi 约定）
+2. `.pi/skills/` 目录 → `pi.skills`（pi 约定；impeccable 命中这里，非 plugin.json）
+3. `.claude-plugin/plugin.json` skills 数组 → 转 `pi.skills`（mattpocock 无 `.pi/skills/`，命中这里 → 21 技能 glob/逐目录）
 4. 兜底 glob `skills/`
 `assemblePackageJson`：`out.pi = derivePiKey(...)`（顶层，非 `oscaner-plugin.pi`）；保留 LICENSE。
 
@@ -134,6 +134,8 @@ Expected: 全 PASS；emit fresh；顶层 pi key 生成。
 git add scripts packages/engineering/bin/gate/adapters/pi.ts packages/superpowers-overrides/bin/pi-router.ts
 git commit -m "feat: first-party top-level pi key + gate/router TS extensions"
 ```
+
+> **pi probe 耦合（对齐 P6a）**：本任务给 engineering/overrides 加顶层 `pi` key 后，P6a 的 skills-probe.config 已删 `piDirCopyPlugins` 例外、pi probe 用 `package-list`（`pi list` 包匹配）—— 两者一致；pi 安装即用依赖本任务落定（跨阶段顺序：P6b 的 pi key 先于 P6a 的 pi probe 生效）。
 
 ---
 
@@ -202,12 +204,12 @@ git commit -m "feat: first-party top-level pi key + gate/router TS extensions"
 - Test: `packages/engineering/bin/utils/tests/harness-detect.test.mjs`、`packages/engineering/bin/os-init/tests/install-harness.test.mjs`
 
 **Interfaces:**
-- Consumes: T1/T2（pi/TS extension）+ P6a（skills-probe 矩阵）
+- Consumes: T1/T2（pi/TS extension）+ **P6a 的 skills-probe.config（12-harness 通道分类，P6a T1 已建）**
 - Produces: `os-init harness`（per-harness 多选 + manifest 同步）—— T6 文档
 
 - [ ] **Step 1: 写失败测试**
 
-`harness-detect.test.mjs`：`detectInstalledHarnesses(config)` —— `command -v` 已装 harness 列表（源 = skills-probe.config 的 11 harness）。`install-harness.test.mjs`：per-harness install（安装即用 probe → 指引；os-init 通道 → 写 config+复制 skills）；manifest 全量同步（**删除仅 manifest 追踪文件**；版本 check）；多选交互；`os-init gates` 移除。
+`harness-detect.test.mjs`：`detectInstalledHarnesses(config)` —— `command -v` 已装 harness 列表（源 = **skills-probe.config 的 12 harness 集合**）。`install-harness.test.mjs`：per-harness install（安装即用 probe → 指引；os-init 通道 → 写 config+复制 skills）；manifest 全量同步（**删除仅 manifest 追踪文件**；版本 check）；多选交互；`os-init gates` 移除。
 
 - [ ] **Step 2: 跑测试确认 FAIL**
 - [ ] **Step 3: 实现**

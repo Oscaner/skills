@@ -201,15 +201,16 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 ]);
 
 // node:test 两棵树：行为/集成树 packages/engineering/tests/（helpers.mjs + rule-reference +
-// ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init。
+// ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init + utils。
 // 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
 // 旧 bash engine 测试已全部迁移 → Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。
-subprocessStep("5b. node:test engine + gate + os-init + behavior", "node", [
+subprocessStep("5b. node:test engine + gate + os-init + utils + behavior", "node", [
   "--test",
   "packages/engineering/tests/*.test.mjs",
   "packages/engineering/bin/engine/tests/*.test.mjs",
   "packages/engineering/bin/gate/tests/*.test.mjs",
   "packages/engineering/bin/os-init/tests/*.test.mjs",
+  "packages/engineering/bin/utils/tests/*.test.mjs",
 ]);
 
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/engineering/tests/ci-validate.test.mjs"]);

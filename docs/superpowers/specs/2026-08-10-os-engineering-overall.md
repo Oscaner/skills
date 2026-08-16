@@ -61,14 +61,14 @@
 | P4b | **统一 gate 面迁 Node + 9 harness gate adapters + os-init gates（消费者视角交付）**。门决策抽中立核心（Node `.mjs`，破坏性重构，`cdd_gate_decide` 单一实现 + 薄 CLI）；gate/hook 面全迁 Node（门核心 + claude/cursor adapter + prompt-expansion router + 9 新 adapter，~800 行 bash 消灭）；gate targets = grok / qoder / trae / codex / gemini / vibe / kiro（原生 hook 触发，Node adapter）+ opencode / pi（**TS adapter**，import 门核心，随 `@oscaner-skills/engineering` 包分发）；Copilot 推迟（matcher 忽略）、Rovo N/A；**消费者视角安装即用**：有包通道 harness 走原生安装（pi `pi install` 一键 / opencode `plugin` 数组 / gemini `extensions install` / qoder-codex 插件 / grok 经 Claude marketplace），os-init gates 只为无包通道 3 个（trae/vibe/kiro）写原生 config + 信任引导（grok `--trust`、codex `/hooks`、gemini 指纹、trae Enable）；无 `~/.oscaner/` 整树拷贝；分支叠 `feat/os-engineering-p4`。 | [design](2026-08-10-os-engineering-p4b-design.md) | [plan](../plans/2026-08-10-os-engineering-p4b.md) | 🚧 设计中 |
 | P5 | **CDD 引擎 + CI + 测试脚本迁 Node（脚本语言统一收尾）**。cdd-common.sh / cdd-run / cdd-exec / cdd-select / cdd-session-activate（~3000 行 bash）+ ci-validate.sh + 12 shell 测试 + rule-reference.test.py 全迁 Node；终结 bash/node 双栈 → 可执行面单语言。依赖 P4b（Node 门核心 + adapter 模式就位）。 | [design](2026-08-10-os-engineering-p5-design.md) | [plan](../plans/2026-08-10-os-engineering-p5.md) | 🚧 设计中 |
 | P6a | **引擎/流程加固**。harness 前置检查 —— 全 mode（implement/review/fix）进入嵌套 CLI 前按 harness 探测上游 skills 插件可用性（superpowers/mattpocock-skills/`@oscaner-skills/*`，非 submodule 假设）+ plan/brief/templates 就位；缺失 → 提前 exit 3 + per-harness 安装指引；**spec/plan review 改走 cli review 模式**（经 cdd-exec 派发，替代 in-session subagent，D1/D2/D3 映射）。 | [design](2026-08-10-os-engineering-p6a-design.md) | [plan](../plans/2026-08-10-os-engineering-p6a.md) | 🚧 设计中 |
-| P6a2 | **交付补齐（安装即用诚实化）**。pi key 补齐（engineering/overrides 顶层 `pi` key → `pi install` 注册 skills；gate extension 的 pi 交付 .ts 适配**延迟待办**，见 §4）；gemini mattpocock-extension 装配（+ 上游自带则 error guard）；qoder/codex plugin manifest 补全 → 真安装即用；**os-init harness**（per-harness：只列已装 harness 的 `harness-detect` util 抽自 cdd-select → 多选 → per-harness install（安装即用 probe/指引，os-init 通道写 config+复制 skills）→ manifest 全量同步（版本 check + 自动增删改，无询问））；grok 归安装即用（marketplace）；P6a 前置检查 probe 矩阵按此最终通道分类对齐。 | [design](2026-08-10-os-engineering-p6a2-design.md) | [Pending] | 🚧 设计中 |
+| P6b | **交付补齐（安装即用诚实化）**。pi key 补齐（engineering/overrides 顶层 `pi` key → `pi install` 注册 skills；gate extension 的 pi 交付 .ts 适配**延迟待办**，见 §4）；gemini mattpocock-extension 装配（+ 上游自带则 error guard）；qoder/codex plugin manifest 补全 → 真安装即用；**os-init harness**（per-harness：只列已装 harness 的 `harness-detect` util 抽自 cdd-select → 多选 → per-harness install（安装即用 probe/指引，os-init 通道写 config+复制 skills）→ manifest 全量同步（版本 check + 自动增删改，无询问））；grok 归安装即用（marketplace）；P6a 前置检查 probe 矩阵按此最终通道分类对齐。 | [design](2026-08-10-os-engineering-p6a2-design.md) | [Pending] | 🚧 设计中 |
 | P6c | **research 集成**。mattpocock-skills:research 融入 os-brainstorming 流程（explore-context 步骤委派 research agent + 产出 findings markdown）。 | [Pending] | [Pending] | ⏳ 未启动 |
 | P6d | **文档语言 + 重写**。英文主 + `docs/zh-CN/` 中文查看镜像（平行文件惯例，同 README.md/README.zh-CN.md）；README.md / README.zh-CN.md / CLAUDE.md **从零重写**（CLAUDE.md 经 `init` skill 生成，不受历史束缚）；清理过时 docs/superpowers specs/plans（保留 os-engineering 当前阶段，删 sdd-*/release-flow 等历史）。 | [Pending] | [Pending] | ⏳ 未启动 |
 
 ## §3 Dependency graph (ASCII)
 
 ```
-P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（统一 gate 面迁 Node + 9 adapter + os-init gates）──▶ P5（CDD 引擎 + CI + 测试迁 Node）──▶ P6a2（交付补齐）──▶ P6a（引擎加固）──▶ P6c（research 集成）──▶ P6d（文档语言 + 重写）
+P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（统一 gate 面迁 Node + 9 adapter + os-init gates）──▶ P5（CDD 引擎 + CI + 测试迁 Node）──▶ P6a/P6b（引擎加固 + 交付补齐）──▶ P6c（research 集成）──▶ P6d（文档语言 + 重写）
 ```
 
 - P1 → P2：插件存在、模式确立、harness 机制与 cli-driven-development 就位后，os-* 才能引用它们。
@@ -76,16 +76,15 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - P3 → P4a：发布架构 v2 建立在 P3 的统一 emit 工具 + 包结构之上。
 - P4a → P4b：跨 harness gate adapters 与重运行时产物在发布架构 v2 就位后实施。
 - P4b → P5：CDD 引擎迁移复用 P4b 的 Node 门核心 + adapter + 测试基建模式。
-- P5 → P6a2：交付补齐建立 Node 引擎 + emit 装配就位之上；最终通道分类（安装即用 vs os-init）是 P6a 前置检查 probe 矩阵的依据。
-- P6a2 → P6a：P6a 前置检查引用 P6a2 的通道分类；cli-review 部分独立。
-- P6a/P6a2 → P6c/P6d：research 集成 + 文档重写反映落定终态。
+- P5 → P6a/P6b：Node 引擎就位后做引擎加固（前置检查 + cli review）与交付补齐（安装即用诚实化）；P6b 的最终通道分类是 P6a 前置检查 probe 矩阵的依据（P6b 可前或并行，引用最终分类）。
+- P6a/P6b → P6c/P6d：research 集成 + 文档重写反映落定终态。
 
 ## §4 Boundary rules
 
 > 每阶段：完整 brainstorming → plan → dev。依赖方在依赖就绪后才启动。
 
 **P6 待办（延迟项）**：
-- **pi gate extension 的 pi 交付**（P6a2 延迟）：gate adapter `pi.mjs` 需 `.ts` 版或 `index.ts` 包装（pi 自动发现 `*.ts`）才能经 `pi install` 随包加载 —— P6a2 只补 skills 的 pi key，extension 交付待后续阶段。
+- **pi gate extension 的 pi 交付**（P6b 延迟）：gate adapter `pi.mjs` 需 `.ts` 版或 `index.ts` 包装（pi 自动发现 `*.ts`）才能经 `pi install` 随包加载 —— P6b 只补 skills 的 pi key，extension 交付待后续阶段。
 
 **P6 规划备注**（overall v2.7 review 建议，落 phase spec 时考虑）：
 - **P6c**：l10n 需覆盖**存量 os-*/cli-* SKILL.md 正文**（当前多为中文），非仅 README/CLAUDE 三个文件；CLAUDE.md 从零重写须**重建 load-bearing 的 self-check 触发表 + `pnpm run validate`/emit 指令**。
@@ -118,4 +117,4 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v2.6 · 2026-08-15 · **最高要求确立：分发视角**。这套 skills 是面向其他使用者的可分发产品（非自用）—— 外部用户安装即用、零冗余步骤、文档对外可读、版本可消费。写入 §1 Goal + Cross-cutting 首条（优先于其它一切约束）。P4b 交付模型随之改消费者视角：包通道安装即用（pi/opencode/gemini/qoder/codex/grok），os-init 仅 trae/vibe/kiro 写原生 config + 信任引导
 - v2.7 · 2026-08-16 · **新增 P6 系列（grilling）**：P6a 引擎/流程加固（harness 前置检查 3 类 + spec/plan review 走 cli review 模式）；P6b research 集成（mattpocock-skills:research 融入 os-brainstorming）；P6c 文档语言 + 重写（英文主 + docs/zh-CN 中文查看镜像；README/CLAUDE 从零重写经 init skill；清历史 docs/superpowers specs/plans）。依赖：P6a/P6b 独立 → P6c 反映落定终态
 - v2.8 · 2026-08-16 · **P6a 前置检查重定义（research）**：非 submodule 假设 —— 端用户经 marketplace/npm 安装，改为按 harness 探测插件可用性（claude plugin list + 缓存 glob + enabledPlugins；cursor/droid/pi 走 .agents/skills/ + 各自 skill 目录）；全 mode（implement/review/fix）统一；缺失 → exit 3 + per-harness 安装指引（research 文档 2026-08-16-harness-plugin-availability.md 为探测路径 SOT）
-- v2.9 · 2026-08-17 · **P6 系列拆分（grilling）**：新增 **P6a2 交付补齐**（安装即用诚实化）—— pi key 补齐（顶层 `pi` key 注册 skills；gate extension .ts 交付**延迟待办**）、gemini mattpocock-extension 装配（上游自带则 error guard）、qoder/codex manifest 补全、os-init harness（per-harness：harness-detect util 抽自 cdd-select → 多选 → manifest 全量同步）、grok 归安装即用；**P6b→P6c、P6c→P6d 顺延**（research / 文档）；依赖 P6a2→P6a（前置检查引用通道分类）
+- v2.9 · 2026-08-17 · **P6 系列拆分（grilling）**：新增 **P6b 交付补齐**（安装即用诚实化）—— pi key 补齐（顶层 `pi` key 注册 skills；gate extension .ts 交付**延迟待办**）、gemini mattpocock-extension 装配（上游自带则 error guard）、qoder/codex manifest 补全、os-init harness（per-harness：harness-detect util 抽自 cdd-select → 多选 → manifest 全量同步）、grok 归安装即用；**阶段顺延**：旧 P6b（research）→P6c、旧 P6c（docs）→P6d；依赖 P6b→P6a（前置检查引用通道分类）

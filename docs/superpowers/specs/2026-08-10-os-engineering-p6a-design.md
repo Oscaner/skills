@@ -121,8 +121,8 @@ os-writing-plans Rule 2（plan review）:
 
 ## §4 Notes for downstream
 
-- **P6a2 依赖**：前置检查的 skills-probe 矩阵按 P6a2 最终通道分类（安装即用 vs os-init）—— 顺序 P6a2 前或并行但引用最终分类。
-- **P6b/P6c** 沿 P6a：research 集成（P6b）、文档 l10n（P6c）。（overall v2.9 起 P6b→P6c、P6c→P6d 顺延，P6a2 交付补齐插入。）
+- **P6b 依赖**：前置检查的 skills-probe 矩阵按 P6b 最终通道分类（安装即用 vs os-init）—— P6b 前或并行，但引用最终分类。
+- **P6c/P6d**：research 集成（P6c）、文档 l10n（P6d）—— 沿 P6a/P6b 落定终态。
 - research 文档 `docs/research/2026-08-16-harness-plugin-availability.md` 是探测路径的 source of truth。
 - `@oscaner-skills/*` npm 源：Claude 需 npm marketplace source；Pi 天然 —— 安装指引按通道。
 

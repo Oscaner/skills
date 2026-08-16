@@ -46,12 +46,15 @@
 - Consumes: 无（vendored submodule 为数据源）
 - Produces: `derivePiKey(vendorRoot) → { skills?, extensions? }`（动态探测）—— T2 复用
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: 写失败测试（fixture 基 + 更新既有断言）**
 
-`publish-vendor.test.mjs`：对真实 vendored 结构断言动态推导：
-- superpowers → 保留上游 `pi`（extensions `./.pi/extensions/superpowers.ts` + skills）。
-- mattpocock → 读 `.claude-plugin/plugin.json` skills 列表 → `pi.skills` glob/逐目录（21 技能）。
-- impeccable → `.pi/skills/`（pi 约定，优先于 plugin.json）→ `pi.skills`。
+`publish-vendor.test.mjs`：
+- **更新既有 4 条 `oscaner-plugin` 断言**（顶层 `pi` 取代嵌套 `oscaner-plugin.pi`）—— `assemblePackageJson` 改后旧断言失效，必须先改。
+- **fixture 扩展**：`makeSuperpowersFixture`/`makeMattpocockFixture`/`makeImpeccableFixture` 补 `pi` 探测所需结构（或新 fixture 传 `derivePiKey`）。
+- 新测试（fixture 优先，避免 fresh-clone 无 submodule）：
+  - superpowers → 保留上游 `pi`（extensions `./.pi/extensions/superpowers.ts` + skills）。
+  - mattpocock → 读 `.claude-plugin/plugin.json` skills 列表 → `pi.skills` glob/逐目录（21 技能）。
+  - impeccable → `.pi/skills/`（pi 约定，优先于 plugin.json）→ `pi.skills`。
 - 装配输出**顶层 `pi` key**（非嵌套 `oscaner-plugin.pi`）。
 
 ```js
@@ -115,9 +118,9 @@ git commit -m "feat: pi key dynamic derivation in vendor assembly (top-level pi)
 - [ ] **Step 3: 实现**
 
 - `piPackageKey()` 扩展：支持 `{ skills, extensions }` 参数（first-party emit 传 engineering/overrides 的配置）。
-- `gate/adapters/pi.ts`：port 自 `pi.mjs`（门决策），`.ts` 版（pi 自动发现 `*.ts`）。
-- `overrides/bin/pi-router.ts`：`export function on(event, ctx)` —— `input` 事件检测 `/brainstorming` 等 → `{ action: "transform", text: "Skill(engineering:os-brainstorming) " + text }`；`/spor-*` 不再匹配。
-- `emit` 写顶层 `pi` key 进 first-party package.json（发布时）。
+- `emit` 写顶层 `pi` key 进 first-party package.json：**保留 `oscaner-plugin` 字段**（`deriveFirstPartyNames`/`deriveFirstParty` 依赖它）—— emit 从「只读」扩展为「读 + 写顶层 `pi`」；测试锁 `oscaner-plugin` 不被破坏。
+- `gate/adapters/pi.ts`：port 自 `pi.mjs`（门决策），`.ts` 版（pi 自动发现 `*.ts`）。**`pi.mjs` 与 `pi.ts` 关系**：`pi.ts` 取代 `pi.mjs` 作为 pi 通道（os-init gates 移除后 pi 经 pi.ts）—— `pi.mjs` 删除或标注废弃（T5 确认）。
+- `overrides/bin/pi-router.ts`：`export function on(event, ctx)` —— `input` 事件检测 `/brainstorming` 等 → `{ action: "transform", text: "Skill(engineering:os-brainstorming) " + text }`；**触发映射对齐 `overrides.manifest.json` 全量**（非仅 /brainstorming）；`/spor-*` 不再匹配。
 
 - [ ] **Step 4: 测试 PASS + validate**
 
@@ -148,21 +151,21 @@ git commit -m "feat: first-party top-level pi key + gate/router TS extensions"
 
 **Interfaces:**
 - Consumes: T1（装配基座）
-- Produces: mattpocock 的 `gemini-extension.json` → `gemini extensions install` 安装即用
+- Produces: mattpocock 的 **thin** `gemini-extension.json`（无 hooks）→ `gemini extensions install` 安装即用
 
 - [ ] **Step 1: 写失败测试**
 
-`publish-vendor.test.mjs`：mattpocock 装配产物含 `gemini-extension.json`（name/version + skills + GEMINI.md 引用）；**上游自带 `gemini-extension.json` 时装配报错**（不静默覆盖）。
+`publish-vendor.test.mjs`：mattpocock 装配产物含 **thin** `gemini-extension.json`（name/version + **skills + GEMINI.md 引用，无 BeforeTool hooks**）；**上游自带 `gemini-extension.json` 时装配报错**（不静默覆盖）。
 
 - [ ] **Step 2: 跑测试确认 FAIL**
-- [ ] **Step 3: 实现**
+- [ ] **Step 3: 实现（thin builder，不复用带 hooks 的 geminiExtension()）**
 
-- 装配 mattpocock 前探测 `vendors/mattpocock-skills/gemini-extension.json` —— 有则 `throw`（「上游已自带，改用上游，停用装配生成」）。
-- 无则用 `geminiExtension()`/`geminiMarkdown()`（P4b 已有）生成 `gemini-extension.json` + GEMINI.md 进装配产物。
-- 验证：装配 dry-run 产物含 gemini-extension。
+现有 `geminiExtension()` 带 BeforeTool gate hook（指向 gate adapter）—— mattpocock 是 skill-only 包（无 gate adapter），复用会装坏。建 **thin 生成器** `thinGeminiExtension(name, version, skillDirs)` → `{ name, version, skills: skillDirs, contextFileName: "GEMINI.md" }` + `geminiMarkdown` 引用（mattpocock 的 GEMINI.md 指向其 skills）。
+- 装配 mattpocock 前探测 `vendors/mattpocock-skills/gemini-extension.json` —— 有则 `throw`（「上游已自带，改用上游」）。
+- 验证：装配 dry-run 产物含 thin gemini-extension。
 
 - [ ] **Step 4: 测试 PASS + validate**
-- [ ] **Step 5: 提交** → `git commit -m "feat: gemini-extension for mattpocock assembly + upstream error guard"`
+- [ ] **Step 5: 提交** → `git commit -m "feat: thin gemini-extension for mattpocock assembly + upstream error guard"`
 
 ---
 
@@ -185,6 +188,7 @@ git commit -m "feat: first-party top-level pi key + gate/router TS extensions"
 - [ ] **Step 3: 实现**
 
 - `codexHooksJson`：命令改插件根相对 `./bin/gate/adapters/codex.mjs`（P4b I3 修复）；skills 路径对齐。
+- `qoderHooksJson`：同样改插件根相对 `./bin/gate/adapters/qoder.mjs`（P4b 曾 `../bin/...`）；「unified manifest-relative base」注释保持。
 - `qoderPluginManifest`：补 `skills` + `hooks`（qoder 自动发现位置）+ interface。
 - emit adapter 路径存在 guard（P4b 已加部分，补全形状）。
 
@@ -209,13 +213,14 @@ git commit -m "feat: first-party top-level pi key + gate/router TS extensions"
 
 - [ ] **Step 1: 写失败测试**
 
-`harness-detect.test.mjs`：`detectInstalledHarnesses(config)` —— `command -v` 已装 harness 列表（源 = **skills-probe.config 的 12 harness 集合**）。`install-harness.test.mjs`：per-harness install（安装即用 probe → 指引；os-init 通道 → 写 config+复制 skills）；manifest 全量同步（**删除仅 manifest 追踪文件**；版本 check）；多选交互；`os-init gates` 移除。
+`harness-detect.test.mjs`：`detectInstalledHarnesses(config)` —— `command -v <cli>` 已装 harness 列表（**cli 源 = harness key == cli 名**，skills-probe.config 12 harness 集合；或 config 加 `cli` 字段）。`install-harness.test.mjs`：per-harness install（安装即用 probe → 指引；os-init 通道 → 写 config+复制 skills）；manifest 全量同步（**删除仅 manifest 追踪文件**；版本 check）；多选交互；`os-init gates` 移除。
 
 - [ ] **Step 2: 跑测试确认 FAIL**
 - [ ] **Step 3: 实现**
 
-- `harness-detect.mjs`：`detectInstalledHarnesses(config)`（`command -v <cli>`）；cdd-select + os-init harness 共用。
+- `harness-detect.mjs`：`detectInstalledHarnesses(config)`（`command -v <cli>`，cli 源 = config harness key 或显式 `cli` 字段）；cdd-select + os-init harness 共用（**cdd-select 的 ship=full 语义与通道分类的映射需说明**：可用 = 已装 + full；os-init 通道标「需初始化」而非「不可用」）。
 - `install-harness.mjs`：`os-init harness [h1,h2,...]` —— 无参多选菜单（只列已装）、显式指定；per-harness install（安装即用 probe→指引 / os-init 写 config+复制 skills）；manifest（`bin/os-init/state/<harness>.json`：engineeringVersion + files hash）全量同步（自动增删改，删除仅 manifest 追踪）。
+- **verify/extend skills-probe.config**：断言 `config.harnesses` = 12 + 通道分类（grok/droid/pi 归安装即用，opencode/trae/vibe/kiro 归 os-init）；若 P6a 未 merge，补扩展 + 删 `piDirCopyPlugins`。
 - 移除 `os-init gates`（`install-gates.mjs` 删或改别名 → 移除）。
 
 - [ ] **Step 4: 测试 PASS + validate**

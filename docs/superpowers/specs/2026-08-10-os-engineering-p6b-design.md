@@ -26,7 +26,7 @@
 
 P6b 交付补齐，6 项（均围绕「安装即用诚实化」）：
 
-1. **pi key 补齐（含两个 TS extension，动态推导）** —— 装配/emit 输出顶层 `pi` key：engineering = `{ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }`、overrides = `{ extensions: ["./bin/pi-router.ts"] }`；vendored 装配**动态探测**（上游 package.json `pi` → plugin.json skills → `.pi/skills/` → 兜底 `skills/` glob），不硬编码。
+1. **pi key 补齐（含两个 TS extension，动态推导）** —— 装配/emit 输出顶层 `pi` key：engineering = `{ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }`、overrides = `{ extensions: ["./bin/pi-router.ts"] }`；vendored 装配**动态探测**（上游 package.json `pi` → `.pi/skills/` → plugin.json skills → 兜底 `skills/` glob，pi 约定优先），不硬编码。
 2. **gemini mattpocock-extension** —— vendored 装配为 mattpocock 生成 `gemini-extension.json`（+ 上游自带则 **error guard** 改用上游）。
 3. **grok 归安装即用** —— 分类为 marketplace 通道（os-init harness grok 只指引 marketplace 安装）；原生 config 可选高级项。
 4. **os-init harness（per-harness）** —— `harness-detect` util 抽自 cdd-select（只列已装 harness）→ 多选 → per-harness install → manifest 全量同步。
@@ -46,13 +46,13 @@ P6b 交付补齐，6 项（均围绕「安装即用诚实化」）：
 | vendors/mattpocock-skills | **读 `.claude-plugin/plugin.json` skills 列表**（21 技能）→ 转 pi glob/逐目录；或 glob 实际 `skills/` 结构 |
 | vendors/impeccable | **扫描 `.pi/skills/`** 实际技能目录 |
 
-- **动态探测逻辑**（`publish-vendor.mjs`）：每 vendored 包依次探测 (1) package.json 顶层 `pi`（有则保留/合并）→ (2) `.claude-plugin/plugin.json` skills（转 pi.skills）→ (3) `.pi/skills/` 目录（pi 约定）→ (4) 兜底 glob `skills/`。上游加 pi key / 改结构时装配自适应，不需改 mjs。
+- **动态探测逻辑**（`publish-vendor.mjs`）：每 vendored 包依次探测 (1) package.json 顶层 `pi`（有则保留/合并）→ (2) **`.pi/skills/` 目录（pi 约定优先；impeccable 命中这里）** → (3) `.claude-plugin/plugin.json` skills（转 pi.skills；mattpocock 命中这里 → 21 技能）→ (4) 兜底 glob `skills/`。上游加 pi key / 改结构时装配自适应，不需改 mjs。
 - **两个 TS extension**：engineering gate adapter `pi.ts`（或 `index.ts` 包装）+ overrides router `pi-router.ts`（pi 自动发现 `*.ts`）。
 - 验证：`pi install @oscaner-skills/<pkg>` → `pi list` 见对应 skills + extensions（功能完整）。
 
 ### 2.2 Component 2: gemini mattpocock-extension
 
-- `publish-vendor.mjs` 装配 mattpocock-skills：生成 `gemini-extension.json`（薄 manifest：name/version + skills 目录 + GEMINI.md 引用；复用 `geminiExtension`/`geminiMarkdown` 逻辑）。
+- `publish-vendor.mjs` 装配 mattpocock-skills：生成 **thin** `gemini-extension.json`（name/version + skills 目录 + GEMINI.md 引用；**无 BeforeTool hooks** —— mattpocock 是 skill-only 包，不复用带 gate hook 的 `geminiExtension()`，用 thin builder）。
 - **error guard**：装配前探测 `vendors/mattpocock-skills/` 是否已有上游 `gemini-extension.json` —— 有则**报错**（「上游已自带，改用上游，停用我们的装配生成」），不静默覆盖。
 - first-party 若有缺 gemini-extension 也补（与 engineering 现有一致）。
 
@@ -60,7 +60,7 @@ P6b 交付补齐，6 项（均围绕「安装即用诚实化」）：
 
 **`harness-detect` util**（`bin/utils/harness-detect.mjs`，抽自 cdd-select）：
 - `detectInstalledHarnesses(config) → [{ harness, cli, status }]` —— `command -v <cli>` 存在即已装。
-- **harness 源**：`skills-probe.config.mjs` 的 `harnesses` 集合（上表 11 个）—— 非仅 registry（registry 只有 4 full + 3 not-supported）。cdd-select + os-init harness + P6a 前置检查共用。
+- **harness 源**：`skills-probe.config.mjs` 的 `harnesses` 集合（上表 12 个）—— 非仅 registry（registry 只有 4 full + 3 not-supported）。cdd-select + os-init harness + P6a 前置检查共用。
 
 **`os-init harness` 交互**：
 ```
@@ -99,7 +99,7 @@ os-init gates                         # 弃用（移除）
 - **droid**：full 派发 harness（`.agents/skills/` 探测）→ 归安装即用（缺 skills = exit 3，任务无法跑）。
 - **cursor 命名**：统一 `cursor-agent`（registry 名）。
 - **grok**：安装即用（读 Claude marketplace，零 emit 变更；原生 config 可选高级项）。
-- 实现：`bin/utils/skills-probe.config.mjs` 的 `harnesses` 集合 = 上表全部 11 个；`requiredPlugins` 对安装即用通道 probe → exit 3，os-init 通道 → 提示。
+- 实现：`bin/utils/skills-probe.config.mjs` 的 `harnesses` 集合 = 上表全部 12 个；`requiredPlugins` 对安装即用通道 probe → exit 3，os-init 通道 → 提示。
 - **pi probe 耦合**：P6b 给 engineering/overrides 加顶层 `pi` key 后，pi 的 skills-probe 从「目录复制例外（piDirCopyPlugins）」改为 `pi list` 包匹配 + 指引 `pi install npm:@oscaner-skills/engineering` —— 配置删除 `piDirCopyPlugins`。
 
 ### 2.6 错误处理
@@ -121,7 +121,7 @@ os-init gates                         # 弃用（移除）
 - [ ] overrides 顶层 `pi` key（router input extension .ts）→ pi 上路由 slash 触发。
 - [ ] vendored 装配顶层 `pi` **动态推导**（superpowers 读上游 package.json pi；mattpocock 读 plugin.json skills 转 glob；impeccable 扫 `.pi/skills/`）—— 不硬编码，上游结构变更自适应。
 - [ ] mattpocock 装配生成 gemini-extension + 上游自带 error guard。
-- [ ] `harness-detect` util（抽自 cdd-select，harness 源 = skills-probe.config 的 11 harness 集合）供 cdd-select + os-init + 前置检查共用。
+- [ ] `harness-detect` util（抽自 cdd-select，harness 源 = skills-probe.config 的 12 harness 集合）供 cdd-select + os-init + 前置检查共用。
 - [ ] `os-init harness`：只列已装、多选、per-harness install（含 skills 复制）、manifest 全量同步（版本 check + 自动增删改，**删除仅 manifest 追踪文件**）。
 - [ ] `os-init gates` 移除。
 - [ ] codex/qoder manifest 真安装即用（skills + gate hooks，路径正确）。
@@ -136,7 +136,7 @@ os-init gates                         # 弃用（移除）
 |---|---|---|
 | P6 = P6a/P6b/P6c（v2.8）| 新增 **P6b 交付补齐**；旧 P6b（research）→P6c、旧 P6c（docs）→P6d 顺延 | Yes — v2.9 · 2026-08-17 |
 | os-init gates（P4b 交付）| per-harness `os-init harness` 取代；gates 弃用 | Yes — v2.9（§2 P4b 行标 superseded）|
-| pi 安装即用（P4b 曾声称）| pi key 补齐；gate extension .ts 交付延迟待办 | Yes — v2.9（§4）|
+| pi 安装即用（P4b 曾声称）| pi key 补齐（顶层 `pi` + gate/router .ts 两 extension 在 P6b）| Yes — v2.9（§4）|
 | grok 原生 config（P4b design 曾推荐）| grok 归安装即用（marketplace）；原生可选 | Yes — v2.9 |
 
 ## §4 Notes for downstream

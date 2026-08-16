@@ -1,4 +1,4 @@
-# os-engineering P6a2 阶段设计：交付补齐（安装即用诚实化）
+# os-engineering P6b 阶段设计：交付补齐（安装即用诚实化）
 
 ## Header
 
@@ -10,13 +10,13 @@
 
 ## §0 Incremental warning
 
-> P6a2 增量。跨阶段约定见 [overall v2.9](2026-08-10-os-engineering-overall.md)；冲突以 overall 为准。
+> P6b 增量。跨阶段约定见 [overall v2.9](2026-08-10-os-engineering-overall.md)；冲突以 overall 为准。
 
 ## §1 Constraints pointer
 
 - 不重复 overall 约定；冲突以 overall 为准。
-- **交付补齐（P6a2 起）**：所有「声称安装即用」的 harness 必须真做到 —— 经 marketplace/npm/extension 装包即带 skills + gate hooks；做不到的（opencode/trae/vibe/kiro）诚实归 os-init（`os-init harness` 复制）。
-- **os-init harness（P6a2 落位）**：per-harness 明确选择（只列已装 harness + 多选）；每次跑做版本 check + manifest 全量同步（自动增删改，无询问）。
+- **交付补齐（P6b 起）**：所有「声称安装即用」的 harness 必须真做到 —— 经 marketplace/npm/extension 装包即带 skills + gate hooks；做不到的（opencode/trae/vibe/kiro）诚实归 os-init（`os-init harness` 复制）。
+- **os-init harness（P6b 落位）**：per-harness 明确选择（只列已装 harness + 多选）；每次跑做版本 check + manifest 全量同步（自动增删改，无询问）。
 - **`os-init gates` 弃用**（per-harness 取代）；`harness-detect` util 抽自 cdd-select 供共用。
 - Conventional commits、无 attribution；禁 git worktree；`pnpm run validate` 保持通过。
 
@@ -24,7 +24,7 @@
 
 ### 2.0 范围（grilling 确认）
 
-P6a2 交付补齐，6 项（均围绕「安装即用诚实化」）：
+P6b 交付补齐，6 项（均围绕「安装即用诚实化」）：
 
 1. **pi key 补齐** —— engineering/overrides emit 顶层 `pi` key（`pi.skills: ["./skills"]`）→ `pi install` 注册 skills。gate extension 的 pi 交付（.ts 适配）**延迟待办**（overall §4）。
 2. **gemini mattpocock-extension** —— vendored 装配为 mattpocock 生成 `gemini-extension.json`（+ 上游自带则 **error guard** 改用上游）。
@@ -49,8 +49,8 @@ P6a2 交付补齐，6 项（均围绕「安装即用诚实化」）：
 ### 2.3 Component 3: os-init harness（per-harness）
 
 **`harness-detect` util**（`bin/utils/harness-detect.mjs`，抽自 cdd-select）：
-- `detectInstalledHarnesses(registry) → [{ harness, cli, status }]` —— `command -v <cli>` 存在即已装。
-- cdd-select + os-init harness + P6a 前置检查共用。
+- `detectInstalledHarnesses(config) → [{ harness, cli, status }]` —— `command -v <cli>` 存在即已装。
+- **harness 源**：`skills-probe.config.mjs` 的 `harnesses` 集合（上表 11 个）—— 非仅 registry（registry 只有 4 full + 3 not-supported）。cdd-select + os-init harness + P6a 前置检查共用。
 
 **`os-init harness` 交互**：
 ```
@@ -67,7 +67,8 @@ os-init gates                         # 弃用（移除）
 
 **manifest 全量同步**（每次跑）：
 - manifest（`bin/os-init/state/<harness>.json`）记录：`{ engineeringVersion, files: { path → hash } }`。
-- 重跑：diff manifest vs 当前工程要写的文件集 → **自动**新增/覆盖/删除（插件内部行为变更 = 全量替换，无新旧共存，**不询问**）。
+- 重跑：diff manifest vs 当前工程要写的文件集（**来自 config 的每 harness 文件清单/模板渲染**）→ **自动**新增/覆盖/删除（插件内部行为变更 = 全量替换，无新旧共存，**不询问**）。
+- **删除语义（钉死）**：只删 **manifest 追踪过的文件**（本次 manifest 有、新文件集没有）；**未追踪的用户文件保留**（不「删目录里所有非 wanted」）。
 - **版本 check**：manifest 的 engineeringVersion vs 当前 → 有新版打印更新命令（不自动装）。
 
 ### 2.4 Component 4: qoder/codex manifest 补全
@@ -76,11 +77,20 @@ os-init gates                         # 弃用（移除）
 - **qoder**（`.qoder-plugin`）：`qoderPluginManifest` 补全 skills + hooks（在 qoder 自动发现位置）；emit 测试锁路径。
 - 验证：装 `.codex-plugin`/`.qoder-plugin` → skills + gate hooks 生效。
 
-### 2.5 P6a 前置检查对齐
+### 2.5 P6a 前置检查对齐（最终通道分类 —— 权威）
 
-P6a 的 skills-probe 配置按 P6a2 最终通道分类：
-- 安装即用通道（claude/cursor/grok/qoder/codex/gemini/pi）缺失 → **exit 3** + 安装指引。
-- os-init 通道（opencode/trae/vibe/kiro）缺失 → **提示** `os-init harness <name>`（非故障）。
+**最终通道分类（单一 SOT，P6a 前置检查 + os-init harness + skills-probe.config 共享）**：
+
+| 通道 | harness | 缺失行为 |
+|---|---|---|
+| **安装即用**（probe → 缺失 = **exit 3** + 安装指引）| claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | exit 3 |
+| **os-init**（缺失 = **提示** `os-init harness <name>`，非故障）| opencode / trae / vibe / kiro | 提示 |
+
+- **droid**：full 派发 harness（`.agents/skills/` 探测）→ 归安装即用（缺 skills = exit 3，任务无法跑）。
+- **cursor 命名**：统一 `cursor-agent`（registry 名）。
+- **grok**：安装即用（读 Claude marketplace，零 emit 变更；原生 config 可选高级项）。
+- 实现：`bin/utils/skills-probe.config.mjs` 的 `harnesses` 集合 = 上表全部 11 个；`requiredPlugins` 对安装即用通道 probe → exit 3，os-init 通道 → 提示。
+- **pi probe 耦合**：P6b 给 engineering/overrides 加顶层 `pi` key 后，pi 的 skills-probe 从「目录复制例外（piDirCopyPlugins）」改为 `pi list` 包匹配 + 指引 `pi install npm:@oscaner-skills/engineering` —— 配置删除 `piDirCopyPlugins`。
 
 ### 2.6 错误处理
 
@@ -99,26 +109,28 @@ P6a 的 skills-probe 配置按 P6a2 最终通道分类：
 
 - [ ] engineering/overrides 顶层 `pi` key 就位 → `pi install` 注册 skills。
 - [ ] mattpocock 装配生成 gemini-extension + 上游自带 error guard。
-- [ ] `harness-detect` util（抽自 cdd-select）供 cdd-select + os-init + 前置检查共用。
-- [ ] `os-init harness`：只列已装、多选、per-harness install（含 skills 复制）、manifest 全量同步（版本 check + 自动增删改）。
+- [ ] `harness-detect` util（抽自 cdd-select，harness 源 = skills-probe.config 的 11 harness 集合）供 cdd-select + os-init + 前置检查共用。
+- [ ] `os-init harness`：只列已装、多选、per-harness install（含 skills 复制）、manifest 全量同步（版本 check + 自动增删改，**删除仅 manifest 追踪文件**）。
 - [ ] `os-init gates` 移除。
 - [ ] codex/qoder manifest 真安装即用（skills + gate hooks，路径正确）。
-- [ ] P6a 前置检查 probe 矩阵按最终通道分类。
+- [ ] grok 归安装即用（marketplace 分类落定；os-init harness grok 指引 marketplace 安装）。
+- [ ] droid 归安装即用（`.agents/skills/` probe → exit 3）。
+- [ ] P6a 前置检查 probe 矩阵按最终通道分类（P6b §2.5 权威）。
 - [ ] `pnpm run validate` ALL PASS。
 
 ## §3 Deviations from overall
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| P6 = P6a/P6b/P6c（v2.8）| 新增 P6a2 交付补齐；P6b→P6c、P6c→P6d 顺延 | Yes — v2.9 · 2026-08-17 |
-| os-init gates（P4b 交付）| per-harness `os-init harness` 取代；gates 弃用 | Yes — v2.9 |
+| P6 = P6a/P6b/P6c（v2.8）| 新增 **P6b 交付补齐**；旧 P6b（research）→P6c、旧 P6c（docs）→P6d 顺延 | Yes — v2.9 · 2026-08-17 |
+| os-init gates（P4b 交付）| per-harness `os-init harness` 取代；gates 弃用 | Yes — v2.9（§2 P4b 行标 superseded）|
 | pi 安装即用（P4b 曾声称）| pi key 补齐；gate extension .ts 交付延迟待办 | Yes — v2.9（§4）|
-| grok 原生 config（P4b 曾推荐）| grok 归安装即用（marketplace）；原生可选 | Yes — v2.9 |
+| grok 原生 config（P4b design 曾推荐）| grok 归安装即用（marketplace）；原生可选 | Yes — v2.9 |
 
 ## §4 Notes for downstream
 
 - **延迟待办**：pi gate extension 的 `.ts` 交付（gate adapter `pi.mjs` → `index.ts`/`.ts` 包装）—— 使 `pi install` 随包加载 gate extension。
-- P6a 前置检查（skills-probe 矩阵）依赖 P6a2 的通道分类 —— 顺序 P6a2 前或并行但引用最终分类。
+- P6a 前置检查（skills-probe 矩阵）依赖 P6b 的通道分类 —— 顺序 P6b 前或并行但引用最终分类。
 - research 文档 `docs/research/2026-08-16-harness-plugin-availability.md` 为探测路径 SOT。
 
 ## §5 Review

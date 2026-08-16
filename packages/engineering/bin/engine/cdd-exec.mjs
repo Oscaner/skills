@@ -56,9 +56,9 @@ try {
   entry = checkHarness(loadRegistry(REG_PATH), harness, { dryRun });
 } catch (e) {
   if (e instanceof CddBlockedError) {
-    const prefix = e.kind === "cli-missing" ? "CDD_CLI_MISSING" : "CDD_BLOCKED";
-    process.stderr.write(`${prefix}: ${e.message}\n`);
-    exitWithCode(e.exitCode);
+    // 对齐 runner.mjs finish 语义：cli-missing → exitCliMissing（exit 2）；否则 → exitBlocked（exit 1）。
+    if (e.kind === "cli-missing") exitCliMissing(e.message);
+    exitBlocked(e.message);
   }
   throw e;
 }

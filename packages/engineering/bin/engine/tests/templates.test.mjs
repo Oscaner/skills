@@ -95,6 +95,12 @@ test("governance: 真实行预算（sdd/ctrl/tier1/tier2 实测宿主）", () =>
   assert.ok(tier2 <= lineBudget("tier2"), `Tier 2 ${tier2} > ${lineBudget("tier2")}`);
 });
 
+test("governance: wcLines 空/纯空白文件 → 0（0 分支覆盖）", () => {
+  // tests/fixtures/whitespace.txt 为纯空白内容 —— wcLines 的 `text.trim() ? ... : 0` 假分支（返回 0）
+  // 唯一覆盖点（其余 governance 目标均为非空文件，走 count 分支）。
+  assert.equal(wcLines("tests/fixtures/whitespace.txt"), 0);
+});
+
 test("governance: 技能 + 模板行数上限（防 runaway prose）", () => {
   for (const ent of readdirSync(path.join(PLUGIN_ROOT, "skills"), { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;

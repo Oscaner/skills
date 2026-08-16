@@ -225,17 +225,13 @@ function jsonValueEnd(text, start) {
 
 function scanBalanced(text, start, openCh, closeCh) {
   const n = text.length;
-  let inString = false;
   let depth = 0;
   for (let i = start; i < n; i++) {
     const ch = text[i];
-    if (inString) {
-      i = scanString(text, i) - 1; // scanString 返回结束 " 后索引；i++ 后指向其后
-      inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === openCh) depth++;
+    if (ch === '"') {
+      // scanString 期望 start 指向开引号；返回结束 " 后索引，i++ 后指向其后
+      i = scanString(text, i) - 1;
+    } else if (ch === openCh) depth++;
     else if (ch === closeCh) {
       depth--;
       if (depth === 0) return i + 1;

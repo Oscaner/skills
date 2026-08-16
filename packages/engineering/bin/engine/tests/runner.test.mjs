@@ -261,6 +261,33 @@ test("invokeCli: stream-json 多行 pretty-printed completion → finalText 正�
   }
 });
 
+test("invokeCli: stream-json 相邻紧凑事件（首个对象含空串）→ 不合并，正确取最后 finalText", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-stream-"));
+  const binDir = path.join(dir, "bin");
+  mkdirSync(binDir);
+  // 紧凑 NDJSON：首个事件含空字符串值 —— 旧 scanBalanced 调 scanString(text, i) 时 i 指向
+  // 字符串内部（开引号后一位），而 scanString 期望 start 是开引号位置。空串的"内部首字符"即
+  // 闭引号，会被 scanString 跳过 → 事件边界被错误跨越（两个事件合并 → JSON.parse 失败 → finalText 丢失）。
+  writeFileSync(
+    path.join(binDir, "fake-stream-cli"),
+    "#!/usr/bin/env bash\nprintf '%s\\n' '{\"a\":\"\"}'\nprintf '%s\\n' '{\"type\":\"completion\",\"finalText\":\"OK\"}'\n",
+  );
+  chmodSync(path.join(binDir, "fake-stream-cli"), 0o755);
+  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", review_prefix: "" };
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const ws = setupWorkspace();
+    const res = await invokeCli(entry, "prompt", "implement", baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }), ws);
+    assert.equal(res.ok, true, `stderr: ${res.stderr}`);
+    assert.equal(res.code, 0);
+    assert.equal(res.stdout, "OK");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
 test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（对齐 bash cdd_validate_commit_contract）", async () => {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-contract-stderr-")));
   execFileSync("git", ["init", "-q", dir]);

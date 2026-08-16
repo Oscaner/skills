@@ -190,7 +190,8 @@ function extractStreamJsonFinal(raw) {
 // ---- review-package（非 dry-run review 模式）----
 
 // 对齐 cdd_superpowers_scripts_dir：repo submodule → Claude/Cursor plugin cache（版本目录倒序）。
-function findSuperpowersScriptsDir(cwd) {
+// 导出供单测（T7 补回：findSuperpowersScriptsDir / byVersion）。
+export function findSuperpowersScriptsDir(cwd) {
   const repoRoot = gitToplevel(cwd);
   if (repoRoot) {
     const probe = path.join(repoRoot, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
@@ -212,7 +213,9 @@ function findSuperpowersScriptsDir(cwd) {
 }
 
 // 简易版本排序（对齐 bash `sort -V`）：数字段逐段比较。
-function byVersion(a, b) {
+// 注：Node 缓存探测用 .sort(byVersion).reverse()（newest-first），与 bash 升序相反 ——
+// 行为已由 runner.test.mjs 钉死（T7 warn 要求 pin 版本序）。
+export function byVersion(a, b) {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -476,6 +479,19 @@ export async function runPlan(planFile, harness, opts = {}) {
   return finish(0, [], "", noExit);
 }
 
+// 对齐 bash _run_task_chain 的 cdd_exit_blocked 诊断：链错误路径向 stderr emit
+// `CDD_BLOCKED: task N <reason>`（T2 warn —— Node port 之前丢 stderr，操作者无诊断）。
+function chainBlocked(n, reason) {
+  process.stderr.write(`CDD_BLOCKED: task ${n} ${reason}\n`);
+}
+
+// runTask 失败路径：读 handoff blocker（若存在）补全原因；否则给通用消息。
+function chainRunTaskFailed(n, handoffPath, phase, rc) {
+  const blocker = readJson(handoffPath)?.blocker;
+  chainBlocked(n, `${phase} failed (exit ${rc})${blocker ? `: ${blocker}` : ""}`);
+  return rc;
+}
+
 // 对齐 _run_task_chain：implement → review → fix loop（cap 5）。返回退出码（0=链成功）。
 async function runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryRun, baseEnv, registryPath }) {
   // _cdd_set_task_env 只默认未设置变量；plan chain 必须强制 workspace 派生路径 —— 先清掉显式值。
@@ -484,18 +500,24 @@ async function runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryR
     delete env[k];
   }
   const taskEnv = buildTaskEnv(env, workspace, n, "implement", harness);
-  if (!existsSync(taskEnv.CDD_TASK_BRIEF)) return 1;
-
-  let rc = (await runTask(harness, n, { mode: "implement", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-  if (rc !== 0) return rc;
+  if (!existsSync(taskEnv.CDD_TASK_BRIEF)) {
+    chainBlocked(n, `brief missing: ${taskEnv.CDD_TASK_BRIEF}`);
+    return 1;
+  }
 
   const handoffPath = taskEnv.CDD_HANDOFF_PATH;
+  let rc = (await runTask(harness, n, { mode: "implement", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
+  if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "implement", rc);
+
   const reviewBase = readJsonField(handoffPath, ["commits", "base"]);
-  if (!reviewBase) return 1;
+  if (!reviewBase) {
+    chainBlocked(n, "handoff missing commits.base after implement");
+    return 1;
+  }
   taskEnv.CDD_REVIEW_FIXED_POINT = reviewBase;
 
   rc = (await runTask(harness, n, { mode: "review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-  if (rc !== 0) return rc;
+  if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "review", rc);
 
   let fixRound = 0;
   for (;;) {
@@ -505,20 +527,30 @@ async function runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryR
       appendLedger(ledger, n, "complete", { base: h.commits?.base, head: h.commits?.head }, h.findings ?? []);
       return 0;
     }
-    if (status === "BLOCKED" || status === "NEEDS_CONTEXT") return 1;
+    if (status === "BLOCKED" || status === "NEEDS_CONTEXT") {
+      chainBlocked(n, `handoff status ${status}`);
+      return 1;
+    }
     if (status === "CHANGES_REQUESTED") {
       fixRound += 1;
-      if (fixRound > 5) return 1;
+      if (fixRound > 5) {
+        chainBlocked(n, "fix round cap exceeded (H4)");
+        return 1;
+      }
       const fixBase = readJsonField(handoffPath, ["commits", "head"]);
-      if (!fixBase) return 1;
+      if (!fixBase) {
+        chainBlocked(n, "cannot determine FIX_BASE (handoff commits.head missing)");
+        return 1;
+      }
       taskEnv.CDD_REVIEW_FIXED_POINT = fixBase;
       taskEnv.CDD_FINDINGS = path.join(workspace, `task-${n}-open-findings.json`);
       rc = (await runTask(harness, n, { mode: "fix", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-      if (rc !== 0) return rc;
+      if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "fix", rc);
       rc = (await runTask(harness, n, { mode: "review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-      if (rc !== 0) return rc;
+      if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "re-review", rc);
       continue;
     }
+    chainBlocked(n, `unexpected handoff status ${status}`);
     return 1;
   }
 }

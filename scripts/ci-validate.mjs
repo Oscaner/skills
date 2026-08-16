@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // scripts/ci-validate.mjs — P5 T4: Node validate orchestration (12 blocks).
 //
-// Port of scripts/ci-validate.sh. The marketplace's "does the manifest chain still
-// resolve" IS the test — this orchestrator runs every sub-check that guards it.
-// Subprocess steps use execFileSync (emit/version/marketplace/node:test + the
-// retained bash engine tests); structural checks run in-process. Failure is
-// structured: `console.error("== FAIL: <step> ==")` + message, exit code 1.
+// The marketplace's "does the manifest chain still resolve" IS the test — this
+// orchestrator runs every sub-check that guards it. Subprocess steps use
+// execFileSync (emit/version/marketplace/node:test + the retained bash engine
+// tests); structural checks run in-process. Failure is structured:
+// `console.error("== FAIL: <step> ==")` + message, exit code 1.
 //
 // The step list is exported (steps) so the wiring guard
 // (packages/engineering/tests/ci-validate.test.mjs) can assert engineering coverage
-// is not dropped — mirroring ci-validate-wiring.test.sh for the bash orchestrator.
+// is not dropped — mirroring the legacy bash wiring guard.
 
 import { execFileSync } from "node:child_process";
 import { accessSync, constants, existsSync, readFileSync, readdirSync } from "node:fs";
@@ -129,16 +129,34 @@ function checkNoOrphanSkills() {
 }
 checkStep("3. no orphan skill dirs", checkNoOrphanSkills);
 
-// 4. hooks executable
+// 4. hooks executable（bash-lenient 对齐：hooks 文件缺失 → warn 不 fail（步骤可跳过）；
+// hooks 文件存在 → 其引用 handler 必须存在且可执行（真正错误 → exit 1））。
 function checkOverridesHooks() {
   const p = path.join(ROOT, "packages/superpowers-overrides");
-  for (const f of ["hooks/hooks.json", "hooks/hooks-cursor.json"]) {
-    assert(existsSync(path.join(p, f)), `missing: ${f}`);
+  // hooks 文件 → 其引用 bin handler（hooks matrix：claude hooks.json → prompt-expansion；
+  // cursor hooks-cursor.json → cursor-detect/cursor-enforce）。
+  const handlers = {
+    "hooks/hooks.json": ["bin/prompt-expansion.mjs"],
+    "hooks/hooks-cursor.json": ["bin/cursor-detect.mjs", "bin/cursor-enforce.mjs"],
+  };
+  let missing = 0;
+  for (const [hookFile, binScripts] of Object.entries(handlers)) {
+    if (!existsSync(path.join(p, hookFile))) {
+      // 对齐 bash `[ -f ] && echo`：缺则静默跳过 → Node warn 不 fail。
+      console.warn(`WARN — overrides ${hookFile} missing (bash-lenient: skipped)`);
+      missing += 1;
+      continue;
+    }
+    for (const bin of binScripts) {
+      assert(existsSync(path.join(p, bin)), `missing: ${bin} (referenced by ${hookFile})`);
+      assert(isExecutable(path.join(p, bin)), `not executable: ${bin} (referenced by ${hookFile})`);
+    }
   }
-  for (const f of ["bin/prompt-expansion.mjs", "bin/cursor-detect.mjs", "bin/cursor-enforce.mjs"]) {
-    assert(isExecutable(path.join(p, f)), `not executable: ${f}`);
-  }
-  console.log("OK — hooks.json + hooks-cursor.json + router bin scripts executable");
+  console.log(
+    missing === 0
+      ? "OK — hooks.json + hooks-cursor.json + router bin scripts executable"
+      : "OK — overrides hooks partially missing (lenient); present hooks' handlers executable",
+  );
 }
 checkStep("4. overrides hooks + bin executable", checkOverridesHooks);
 
@@ -187,8 +205,9 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 // 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
 // 旧 6 个 shell engine 测试 + line-budget 已迁移：registry-schema/select/cli-dry-run/
 // commit-gate/severity 由模块测试吸收；common-functions 剩余家族（pending path / plugin
-// root / superpowers scripts dir / env 校验 / render / check cli / invoke cli）的 bash 边界
-// 守护随 T7 删 bash 引擎移除 —— Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。
+// root / env 校验 / render / check cli / invoke cli）的 bash 边界守护随 T7 删 bash 引擎移除
+// —— Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。superpowers scripts dir
+// 解析（findSuperpowersScriptsDir / byVersion）由 T8 补回 runner.test.mjs。
 subprocessStep("5b. node:test engine + gate + os-init + behavior", "node", [
   "--test",
   "packages/engineering/tests/*.test.mjs",
@@ -259,9 +278,13 @@ subprocessStep("7. lib unit tests", "node", [
 // 8–10. version sync
 subprocessStep("8-10. version sync", "node", ["scripts/validate-version-sync.mjs"]);
 
-// 11. mattpocock-skills resolvable
+// 11. mattpocock-skills resolvable（bash-lenient 对齐：submodule 缺失 → warn 不 fail ——
+// fresh clone 未 `git submodule update --init`；真正解析错误由 validate-version-sync 兜住）。
 function checkSubmodule() {
-  assert(existsSync(path.join(ROOT, "vendors/mattpocock-skills/skills")), "vendors/mattpocock-skills/skills missing");
+  if (!existsSync(path.join(ROOT, "vendors/mattpocock-skills/skills"))) {
+    console.warn("WARN — vendors/mattpocock-skills/skills missing (bash-lenient: skipped; fresh clone needs `git submodule update --init`)");
+    return;
+  }
   console.log("OK");
 }
 checkStep("11. mattpocock-skills resolvable", checkSubmodule);

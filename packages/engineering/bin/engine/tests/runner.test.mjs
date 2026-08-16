@@ -5,12 +5,13 @@
 // runPlan 的构建块：taskNumbersFromPlan / isTaskPending / handoffStatus（纯函数）。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus } from "../lib/runner.mjs";
+import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus, findSuperpowersScriptsDir, byVersion } from "../lib/runner.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 
@@ -177,4 +178,61 @@ test("isTaskPending / handoffStatus: ledger complete / APPROVED → false；DONE
 
   writeFileSync(ledger, "# CDD ledger\nTask 1: complete (commits a..b, review clean)\n");
   assert.equal(isTaskPending(1, ledger, handoff), false);
+});
+
+// ---- findSuperpowersScriptsDir / byVersion（T7 补回：删除 common-functions.test.mjs 后
+// 丢失的 scripts-dir 解析 + 版本序测试；pin Node newest-first 行为）----
+
+test("byVersion: 版本号逐数字段排序（对齐 bash sort -V）", () => {
+  const versions = ["1.10.0", "1.9.0", "2.0.0", "1.0.0"];
+  assert.deepEqual([...versions].sort(byVersion), ["1.0.0", "1.9.0", "1.10.0", "2.0.0"]);
+  // runner 缓存探测序 = ascending.reverse()（newest-first —— 与 bash 的 sort -V 升序相反，已钉死）
+  assert.deepEqual([...versions].sort(byVersion).reverse(), ["2.0.0", "1.10.0", "1.9.0", "1.0.0"]);
+});
+
+test("findSuperpowersScriptsDir: repo submodule 优先", () => {
+  // git rev-parse --show-toplevel 返回 realpath（/private/...），mkdtempSync 返回符号链接路径 ——
+  // realpathSync 对齐两者（macOS /tmp → /private/tmp）。
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-scripts-repo-")));
+  execFileSync("git", ["init", "-q", dir]);
+  const scripts = path.join(dir, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "sdd-workspace"), "");
+  assert.equal(findSuperpowersScriptsDir(dir), scripts);
+});
+
+test("findSuperpowersScriptsDir: cache 版本序（newest-first）+ Claude 优先 Cursor", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-scripts-cache-"));
+  // 无 repo submodule → 走 plugin cache。os.homedir() 读 $HOME —— 临时指向 fixture。
+  const claudeRoot = path.join(dir, ".claude", "plugins", "cache", "oscaner", "superpowers");
+  const cursorRoot = path.join(dir, ".cursor", "plugins", "cache", "oscaner", "superpowers");
+  // Claude cache 两版本（newest-first 应取 2.0.0）；Cursor cache 也有 → 不命中（Claude 优先）。
+  for (const ver of ["1.0.0", "2.0.0"]) {
+    const scripts = path.join(claudeRoot, ver, "skills", "subagent-driven-development", "scripts");
+    mkdirSync(scripts, { recursive: true });
+    writeFileSync(path.join(scripts, "sdd-workspace"), "");
+  }
+  const cursorScripts = path.join(cursorRoot, "3.0.0", "skills", "subagent-driven-development", "scripts");
+  mkdirSync(cursorScripts, { recursive: true });
+  writeFileSync(path.join(cursorScripts, "sdd-workspace"), "");
+
+  const origHome = process.env.HOME;
+  process.env.HOME = dir;
+  try {
+    const got = findSuperpowersScriptsDir(dir);
+    assert.equal(got, path.join(claudeRoot, "2.0.0", "skills", "subagent-driven-development", "scripts"));
+  } finally {
+    process.env.HOME = origHome;
+  }
+});
+
+test("findSuperpowersScriptsDir: 无 repo submodule + 无 cache → null", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-scripts-none-"));
+  const origHome = process.env.HOME;
+  process.env.HOME = path.join(dir, "nohome");
+  try {
+    assert.equal(findSuperpowersScriptsDir(dir), null);
+  } finally {
+    process.env.HOME = origHome;
+  }
 });

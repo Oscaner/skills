@@ -44,11 +44,15 @@ for (let i = 0; i < args.length; i++) {
 
 if (!harness || !prompt) usage();
 
+// dryRun（CDD_DRY_RUN=1）跳过 CLI PATH preflight + CLI 调用 —— 对齐 cdd-run/runner 的
+// dry-run 语义（参数解析/编排冒烟测试不依赖真实 CLI 二进制）。
+const dryRun = process.env.CDD_DRY_RUN === "1";
+
 // Registry ship gate first（D6-A1）：unknown / not-supported → BLOCKED exit 1；
 // full harness 缺 CLI → CDD_CLI_MISSING exit 2（对齐 cdd_check_harness）。
 let entry;
 try {
-  entry = checkHarness(loadRegistry(REG_PATH), harness);
+  entry = checkHarness(loadRegistry(REG_PATH), harness, { dryRun });
 } catch (e) {
   if (e instanceof CddBlockedError) {
     const prefix = e.kind === "cli-missing" ? "CDD_CLI_MISSING" : "CDD_BLOCKED";
@@ -56,6 +60,11 @@ try {
     process.exit(e.exitCode);
   }
   throw e;
+}
+
+if (dryRun) {
+  // 不 invoke CLI —— 冒烟测试只验证参数分派 + registry ship gate。
+  process.exit(0);
 }
 
 // 一次性 prompt-runner（不跑任务链）：CDD_MODE=review 触发 review-prefix 合成（透传）。

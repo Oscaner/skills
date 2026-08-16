@@ -102,6 +102,19 @@ test("cdd-exec.mjs: missing CLI (pi, full) → CDD_CLI_MISSING exit 2", () => {
   assert.match(res.stderr, /CDD_CLI_MISSING/);
 });
 
+test("cdd-exec.mjs: CDD_DRY_RUN=1 跳过 CLI preflight — 缺失 cli → exit 0（对齐 cdd-run/runner dry-run 语义）", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-exec-mock-"));
+  const fp = harnessFreePath();
+  // pi 是 full harness，mock PATH 无 pi 二进制 —— 无 dryRun 时 preflight 会 CDD_CLI_MISSING exit 2。
+  // CDD_DRY_RUN=1 时跳过 preflight + CLI 调用 → exit 0。
+  const res = runExec(["--harness", "pi", "--prompt", "x"], {
+    mockPath: `${mock}${path.delimiter}${fp}`,
+    extraEnv: { CDD_DRY_RUN: "1" },
+  });
+  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
+  assert.doesNotMatch(res.stderr, /CDD_CLI_MISSING/, "dry-run 跳过 CLI preflight");
+});
+
 test("cdd-exec.mjs: review-prefix 合成 — CDD_MODE=review 时 prompt 前置 review_prefix", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-exec-mock-"));
   makeMock(mock, "claude", 'for a in "$@"; do last="$a"; done; printf "%s\\n" "$last"');

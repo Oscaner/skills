@@ -10,11 +10,11 @@
 
 ## Global Constraints
 
-- **skills-missing gate 契约**：缺失 → **exit 3**（区别于 CLI-missing exit 2 / BLOCKED exit 1）+ stderr 打印该 harness 安装指引；探测本身失败（CLI 查询错/无权限）→ **fail-open allow**。
-- **required plugins 闭合集**（配置驱动）：`superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`（`@oscaner-skills/*` 已自发布，非本阶段动作）。
-- **全 mode**（implement/review/fix）统一检查；plan/brief/templates 就位检查含 plan（已有）+ brief + `templates/cdd/*.md`。
-- **探测锚定 registry full harness 集**（claude / cursor-agent / droid / pi；codex/copilot/gemini not-supported 不探测）；opencode 用 skill-dir probe（不读 plugin 数组）。
-- **cli review**：每 pass 一次 fresh `cdd-exec` 调用；D1（零发现→跳过后续/否则修复后并发，按 review-dispatch 原文）、D2（delta）、D3（findings-only）原样；Pass 3 恒 full，D1 只决定跳过。
+- **skills-missing gate 契约**：安装即用通道缺失 → **exit 3**（区别于 CLI-missing exit 2 / BLOCKED exit 1）+ stderr 安装指引；**os-init 通道缺失 → 提示** `os-init harness <name>`（非故障）；探测本身失败（CLI 查询错/无权限）→ **fail-open allow**。
+- **最终通道分类（P6b §2.5 权威）**：安装即用（claude/cursor-agent/droid/grok/qoder/codex/gemini/pi → exit 3）+ os-init（opencode/trae/vibe/kiro → 提示）。`skills-probe.config.mjs` 的 harnesses 集合 = 11 个。
+- **exit-3 范围（钉死）**：仅 skills 插件缺失；plan/brief/templates 缺失 = **BLOCKED exit 1**（任务前置条件错误）。
+- **required plugins 闭合集**（配置驱动）：`superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`。
+- **cli review**：每 pass 一次 fresh `cdd-exec` 调用；D1（零发现→跳过后续/否则修复后并发）、D2（**仅 Pass 2 delta；Pass 3 恒 full**）、D3（findings-only）；review 模板位于上游 vendors/superpowers（Read-Upstream 解析，本阶段不新建）。
 - `pnpm run validate` 每任务后 ALL PASS；conventional commits，无 attribution；禁 git worktree；零残留。
 
 ---
@@ -71,17 +71,26 @@ test("claude: enabledPlugins 缺 superpowers → missing + install hint", async 
 ```js
 export const config = {
   requiredPlugins: ["superpowers", "mattpocock-skills", "engineering", "superpowers-overrides"],
+  // 最终通道分类（P6b §2.5 权威）：install-and-use → probe exit 3；os-init → 提示
+  channel: {
+    "install-and-use": ["claude", "cursor-agent", "droid", "grok", "qoder", "codex", "gemini", "pi"],
+    "os-init": ["opencode", "trae", "vibe", "kiro"],
+  },
   harnesses: {
     claude: { probe: "plugin-list", cacheGlob: "~/.claude/plugins/cache/oscaner/<plugin>/*/skills/",
-      installHint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner` }, // marketplace-add 前置（research §2.1）
+      installHint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner` },
     "cursor-agent": { probe: "skill-dir", dirs: [".agents/skills", ".cursor/skills"], installHint: () => "copy skills 到 .agents/skills/ 或装 marketplace" },
     droid: { probe: "skill-dir", dirs: [".agents/skills"], installHint: () => "copy skills 到 .agents/skills/" },
-    pi: { probe: "package-list",
-      installHint: (p) => `pi install npm:@oscaner-skills/${p}` }, // 仅 vendored（superpowers/mattpocock/impeccable）；engineering 无 pi key → 目录复制
-    opencode: { probe: "skill-dir", dirs: [".opencode/skills", ".agents/skills"], installHint: () => "copy skills 到 .opencode/skills/（npm 包技能不自动发现）" },
+    grok: { probe: "plugin-list", installHint: () => "装 oscaner marketplace（grok 读 Claude marketplace）" },
+    qoder: { probe: "skill-dir", dirs: [".agents/skills", ".qoder/skills"], installHint: () => "装 .qoder-plugin 或 copy skills" },
+    codex: { probe: "skill-dir", dirs: [".agents/skills"], installHint: () => "装 .codex-plugin 或 copy skills" },
+    gemini: { probe: "skill-dir", dirs: [".agents/skills", ".gemini/skills"], installHint: () => "gemini extensions install 或 copy skills" },
+    pi: { probe: "package-list", installHint: (p) => `pi install npm:@oscaner-skills/${p}` },
+    opencode: { probe: "skill-dir", dirs: [".opencode/skills", ".agents/skills"], installHint: () => "os-init harness opencode（copy skills）" },
+    trae: { probe: "skill-dir", dirs: [".agents/skills", ".trae/skills"], installHint: () => "os-init harness trae" },
+    vibe: { probe: "skill-dir", dirs: [".agents/skills", ".vibe/skills"], installHint: () => "os-init harness vibe" },
+    kiro: { probe: "skill-dir", dirs: [".agents/skills", ".kiro/skills"], installHint: () => "os-init harness kiro" },
   },
-  // pi 的 engineering/overrides 例外：无 pi key，需目录复制到 .pi/skills/ 或 .agents/skills/
-  piDirCopyPlugins: ["engineering", "superpowers-overrides"],
 };
 ```
 
@@ -127,8 +136,9 @@ git commit -m "feat: skills-probe — per-harness plugin availability probe + co
 - **DI seam**：`runTask` 加 `opts.probeSkills`（对齐 `opts.registryPath` 先例）—— 测试注入 fake probeSkills；不设则默认 import `bin/utils/skills-probe.mjs`。**现有 runner.test.mjs 的 9 个 runTask 调用传 `opts.probeSkills: () => ({ missing: [], probeFailed: false })`**（或 env `CDD_SKIP_PROBE=1` 旁路），保持环境无关。
 - **noExit: true**（对齐 runner.test.mjs 惯例）→ 返回 `{exitCode, h1}`，不 `process.exit`。
 - **stderr 断言**：安装指引走 `finish` 的 `msg` → stderr（`CDD_BLOCKED:`），非 h1。用 `capture()` helper（stub process.exit + 捕获 stderr）。
-- implement/review/fix 全 mode：fake probeSkills 返回 missing → exit 3 + stderr 含 installHint，**不调嵌套 CLI**。
-- brief 缺失 → exit 3 + hint「创建 task-N-brief.md」；`templates/cdd/review.md` 缺失 → exit 3。
+- implement/review/fix 全 mode：fake probeSkills 返回 missing（安装即用通道）→ exit 3 + stderr 含 installHint，**不调嵌套 CLI**。
+- **os-init 通道缺失 → 提示** `os-init harness <name>`（非 exit 3）。
+- **brief/templates 缺失 → BLOCKED exit 1**（非 exit 3）。
 - probeFailed → fail-open（exit 0，任务照跑）。
 - 0/1/2 语义不动（registry ship gate 仍 exit 1/2；嵌套 CLI 失败仍 exit 1）。
 
@@ -154,10 +164,14 @@ const probe = await probeFn(harness, { requiredPlugins: config.requiredPlugins, 
 if (probe.probeFailed) {
   // fail-open：不阻塞（stderr 记录 probe 失败）
 } else if (probe.missing.length > 0) {
-  const hint = probe.missing.map(m => `${m.plugin}: ${m.installHint}`).join("\n");
-  return finish(3, [], `missing required skills plugins:\n${hint}`, noExit); // exit 3；h1 空，指引走 stderr（CDD_BLOCKED:）
+  if (config.channel["install-and-use"].includes(harness)) {
+    const hint = probe.missing.map(m => `${m.plugin}: ${m.installHint}`).join("\n");
+    return finish(3, [], `missing required skills plugins:\n${hint}`, noExit); // exit 3（仅安装即用通道）
+  }
+  // os-init 通道 → 提示（非故障），照跑
+  process.stderr.write(`os-init harness ${harness} 未运行（${probe.missing.length} 个上游插件缺失）—— 建议先初始化\n`);
 }
-// plan/brief/templates 就位检查（复用 templates.mjs 的 root walk 解析 templates/cdd/ 而非 cwd 相对路径；plan 已有 existsSync）
+// plan/brief/templates 就位检查（缺失 = finish(1, ..., "brief/templates missing", noExit) BLOCKED，非 exit 3；复用 templates.mjs root walk）
 ```
 
 现有 runner.test.mjs 的 9 个 runTask 调用：传 `probeSkills: () => ({ missing: [], probeFailed: false })`（或统一 `CDD_SKIP_PROBE=1` 旁路）—— 保持环境无关（test PATH 有无 claude 都不影响）。
@@ -204,7 +218,7 @@ spec review 分 3 类 pass（completeness / consistency&scope / clarity&YAGNI）
 
 - [ ] **Step 2: review-dispatch.md 更新 D1 映射**
 
-`review-dispatch.md`：在 D1/D2/D3 旁补「cli review 模式」注记 —— 每 pass 一次独立 `cdd-exec` 调用（无状态 fresh 嵌套会话），D1（零发现→后续跳过 / 否则修复后并发）、D2（delta）、D3（findings-only）原样；Pass 3 恒 full，D1 只决定是否跳过后续 pass。subagent-lifecycle「每 pass 新 agent」在 cli 模式 = 每 pass 新 cli 会话。
+`review-dispatch.md`：在 D1/D2/D3 旁补「cli review 模式」注记 —— 每 pass 一次独立 `cdd-exec` 调用（无状态 fresh 嵌套会话），D1（零发现→后续跳过 / 否则修复后并发）、**D2（仅 Pass 2 限定 delta；Pass 3 恒 full-doc）**、D3（findings-only）原样。subagent-lifecycle「每 pass 新 agent」在 cli 模式 = 每 pass 新 cli 会话。review 模板位于上游 `vendors/superpowers/skills/{brainstorming,writing-plans}/`（os-brainstorming Rule: Read Upstream 解析路径，orchestrator Read 后内联进 `cdd-exec --prompt`）—— **本阶段不新建模板文件**。
 
 - [ ] **Step 3: emit 再生成 + 测试 + validate**
 

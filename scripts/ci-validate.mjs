@@ -3,8 +3,8 @@
 //
 // The marketplace's "does the manifest chain still resolve" IS the test — this
 // orchestrator runs every sub-check that guards it. Subprocess steps use
-// execFileSync (emit/version/marketplace/node:test + the retained bash engine
-// tests); structural checks run in-process. Failure is structured:
+// execFileSync (emit/version/marketplace/node:test); structural checks run
+// in-process. Failure is structured:
 // `console.error("== FAIL: <step> ==")` + message, exit code 1.
 //
 // The step list is exported (steps) so the wiring guard
@@ -203,11 +203,7 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 // node:test 两棵树：行为/集成树 packages/engineering/tests/（helpers.mjs + rule-reference +
 // ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init。
 // 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
-// 旧 6 个 shell engine 测试 + line-budget 已迁移：registry-schema/select/cli-dry-run/
-// commit-gate/severity 由模块测试吸收；common-functions 剩余家族（pending path / plugin
-// root / env 校验 / render / check cli / invoke cli）的 bash 边界守护随 T7 删 bash 引擎移除
-// —— Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。superpowers scripts dir
-// 解析（findSuperpowersScriptsDir / byVersion）由 T8 补回 runner.test.mjs。
+// 旧 bash engine 测试已全部迁移 → Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。
 subprocessStep("5b. node:test engine + gate + os-init + behavior", "node", [
   "--test",
   "packages/engineering/tests/*.test.mjs",
@@ -311,5 +307,5 @@ export function main(stepsArg = steps) {
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  process.exitCode = main();
+  Promise.resolve(main()).then(code => process.exit(code != null ? code : 1)).catch(() => process.exit(1));
 }

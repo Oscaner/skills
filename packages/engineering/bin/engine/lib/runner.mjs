@@ -194,24 +194,29 @@ function extractStreamJsonFinal(raw) {
   return last;
 }
 
+// 扫描 JSON 字符串从 start（首个 "）到结束的 "（含）。返回结束 " 后索引。
+// 提取为共享函数，供 jsonValueEnd 和 scanBalanced 的字符串遍历复用。
+function scanString(text, start) {
+  let i = start + 1;
+  const n = text.length;
+  while (i < n) {
+    const ch = text[i];
+    if (ch === "\\") i += 2;
+    else if (ch === '"') return i + 1;
+    else i++;
+  }
+  return n;
+}
+
 // 返回 text 中从 start 起的一个完整 JSON 值结束后的索引（对齐 jq 的 JSON 流：值之间仅空白分隔，
 // 值本身可跨行）。对象/数组按 {} / [] 深度扫描（跳过字符串字面量与转义）；标量扫到空白或结构符。
 function jsonValueEnd(text, start) {
-  const n = text.length;
   const first = text[start];
   if (first === "{") return scanBalanced(text, start, "{", "}");
   if (first === "[") return scanBalanced(text, start, "[", "]");
-  if (first === '"') {
-    let i = start + 1;
-    while (i < n) {
-      const ch = text[i];
-      if (ch === "\\") i += 2;
-      else if (ch === '"') return i + 1;
-      else i++;
-    }
-    return n;
-  }
+  if (first === '"') return scanString(text, start);
   let i = start;
+  const n = text.length;
   while (i < n && !/\s/.test(text[i]) && !",}]".includes(text[i])) i++;
   return i;
 }
@@ -223,8 +228,8 @@ function scanBalanced(text, start, openCh, closeCh) {
   for (let i = start; i < n; i++) {
     const ch = text[i];
     if (inString) {
-      if (ch === "\\") i++;
-      else if (ch === '"') inString = false;
+      i = scanString(text, i) - 1; // scanString 返回结束 " 后索引；i++ 后指向其后
+      inString = false;
       continue;
     }
     if (ch === '"') inString = true;

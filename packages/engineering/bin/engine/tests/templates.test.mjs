@@ -78,7 +78,8 @@ function readRel(rel) {
 }
 
 function wcLines(rel) {
-  return readRel(rel).split("\n").length;
+  const text = readRel(rel);
+  return text.trim() ? text.split("\n").length - 1 : 0;
 }
 
 test("governance: 真实行预算（sdd/ctrl/tier1/tier2 实测宿主）", () => {
@@ -119,8 +120,9 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(/Preserve all `deferred: true` findings/.test(fragment), "fix segment preserves deferred");
   assert.ok(/never replace wholesale/.test(fragment), "review segment merge semantics");
 
-  // review.md: blocker → CHANGES_REQUESTED；old 'empty → APPROVED' 措辞已删（禁用）
+  // review.md: blocker → CHANGES_REQUESTED（新措辞）替换旧 empty → APPROVED
   assert.ok(/blocker → CHANGES_REQUESTED/.test(review), "review status mapping");
+  assert.ok(/warn\/nit → APPROVED/.test(review), "review warn/nit mapping (replaces old 'empty → APPROVED')");
   assert.ok(!review.includes("empty → APPROVED"), "old 'empty → APPROVED' removed");
 
   // fix.md: deferred + open-findings blocker-only

@@ -2,7 +2,7 @@
 
 ## Header
 
-- **Version**: v2.7 · 2026-08-16
+- **Version**: v2.8 · 2026-08-16
 - **Status**: Approved · 2026-08-10（分解经用户批准）
 - **Author**: Oscaner Miao · Claude Code (Opus 4.8)
 - **Constraints**:
@@ -48,7 +48,7 @@
 - **脚本语言统一（P4b 起）**：消除 shell/mjs 多语言分散 —— **gate = 统一概念，不分 shell/TS**，所有 blocking tool-gate harness 平级覆盖。门决策抽**中立核心**（Node `.mjs`，允许破坏性重构，`cdd_gate_decide` 从 bash 抽出为单一实现 + 薄 CLI）；gate/hook 面（门核心 + 全部 adapter + claude/cursor adapter + prompt-expansion router）**P4b** 迁 Node；CDD 引擎（cdd-common/cdd-run/exec/select/session-activate）+ ci-validate + shell/python 测试 **P5** 迁 Node；终态 = 可执行面单语言 Node。门语义（`pending.mode` / fail-open / git 只读白名单）**保持不变** —— 移植不改语义。
 - **文档语言（P6c 起）**：所有 skills/docs 以**英文为主**（harness 消费 SKILL.md 为英文），另提供 `docs/zh-CN/` 中文查看版镜像（平行文件惯例，同 README.md/README.zh-CN.md）。中文仅用于查看，不参与 harness 执行。
 - **cli review 模式（P6a 起）**：spec/plan 的 review 走 cli review 模式（对齐任务 review，替代 in-session subagent 派发）。
-- **harness 前置检查（P6a 起）**：task implement 进入嵌套 CLI 前检查上游 submodule init / harness CLI / plan+brief+templates；缺失 → 提前 exit + 安装指引。
+- **harness 前置检查（P6a 起）**：task 全 mode（implement/review/fix）进入嵌套 CLI 前检查 —— (a) 上游 skills 插件可用性（superpowers / mattpocock-skills / `@oscaner-skills/*` 自发布，按 harness 探测：`claude plugin list` + 缓存 glob + enabledPlugins；cursor/droid/pi 等走 `.agents/skills/` + 各自 skill 目录；**非 submodule 假设** —— 端用户经 marketplace/npm 安装）(b) plan/brief/templates 就位；任一缺失 → exit 3 + per-harness 安装指引。
 
 ## §2 Phase inventory
 
@@ -60,7 +60,7 @@
 | P4a | **发布架构 v2（包即源）**。目录重组 `packages/`（engineering + superpowers-overrides）+ `vendors/`（mattpocock-skills / impeccable / superpowers 上游 submodule 源，不编辑）；package.json 加 `oscaner-plugin` 字段为唯一元数据源（source.json 派生）；pnpm workspace + changesets 统一版本/发布所有 `@oscaner-skills/*` 包（含 vendors 构建期装配 republish `@oscaner-skills/superpowers` / `@oscaner-skills/mattpocock-skills` / `@oscaner-skills/impeccable`，保留上游授权）；marketplace + harness manifests 从 packages 生成；未来插件 = 加包目录自动接入。 | [design](2026-08-10-os-engineering-p4a-design.md) | [plan](../plans/2026-08-10-os-engineering-p4a.md) | ✅ 实现完成 + whole-branch review passed（分支 `feat/os-engineering-p4` 待合并） |
 | P4b | **统一 gate 面迁 Node + 9 harness gate adapters + os-init gates（消费者视角交付）**。门决策抽中立核心（Node `.mjs`，破坏性重构，`cdd_gate_decide` 单一实现 + 薄 CLI）；gate/hook 面全迁 Node（门核心 + claude/cursor adapter + prompt-expansion router + 9 新 adapter，~800 行 bash 消灭）；gate targets = grok / qoder / trae / codex / gemini / vibe / kiro（原生 hook 触发，Node adapter）+ opencode / pi（**TS adapter**，import 门核心，随 `@oscaner-skills/engineering` 包分发）；Copilot 推迟（matcher 忽略）、Rovo N/A；**消费者视角安装即用**：有包通道 harness 走原生安装（pi `pi install` 一键 / opencode `plugin` 数组 / gemini `extensions install` / qoder-codex 插件 / grok 经 Claude marketplace），os-init gates 只为无包通道 3 个（trae/vibe/kiro）写原生 config + 信任引导（grok `--trust`、codex `/hooks`、gemini 指纹、trae Enable）；无 `~/.oscaner/` 整树拷贝；分支叠 `feat/os-engineering-p4`。 | [design](2026-08-10-os-engineering-p4b-design.md) | [plan](../plans/2026-08-10-os-engineering-p4b.md) | 🚧 设计中 |
 | P5 | **CDD 引擎 + CI + 测试脚本迁 Node（脚本语言统一收尾）**。cdd-common.sh / cdd-run / cdd-exec / cdd-select / cdd-session-activate（~3000 行 bash）+ ci-validate.sh + 12 shell 测试 + rule-reference.test.py 全迁 Node；终结 bash/node 双栈 → 可执行面单语言。依赖 P4b（Node 门核心 + adapter 模式就位）。 | [design](2026-08-10-os-engineering-p5-design.md) | [plan](../plans/2026-08-10-os-engineering-p5.md) | 🚧 设计中 |
-| P6a | **引擎/流程加固**。harness 前置检查（3 类：上游 submodule init / harness CLI 可用 / plan+brief+templates 就位；任一缺失 → 提前 exit + 打印安装/初始化指引，避免进 harness 后胡乱完成任务）；**spec/plan review 改走 cli review 模式**（替代 in-session subagent 派发，对齐任务 review）。 | [design](2026-08-10-os-engineering-p6a-design.md) | [Pending] | 🚧 设计中 |
+| P6a | **引擎/流程加固**。harness 前置检查 —— 全 mode（implement/review/fix）进入嵌套 CLI 前按 harness 探测上游 skills 插件可用性（superpowers/mattpocock-skills/`@oscaner-skills/*`，非 submodule 假设）+ plan/brief/templates 就位；缺失 → 提前 exit 3 + per-harness 安装指引；**spec/plan review 改走 cli review 模式**（经 cdd-exec 派发，替代 in-session subagent，D1/D2/D3 映射）。 | [design](2026-08-10-os-engineering-p6a-design.md) | [Pending] | 🚧 设计中 |
 | P6b | **research 集成**。mattpocock-skills:research 融入 os-brainstorming 流程（explore-context 步骤委派 research agent + 产出 findings markdown）。 | [Pending] | [Pending] | ⏳ 未启动 |
 | P6c | **文档语言 + 重写**。英文主 + `docs/zh-CN/` 中文查看镜像（平行文件惯例，同 README.md/README.zh-CN.md）；README.md / README.zh-CN.md / CLAUDE.md **从零重写**（CLAUDE.md 经 `init` skill 生成，不受历史束缚）；清理过时 docs/superpowers specs/plans（保留 os-engineering 当前阶段，删 sdd-*/release-flow 等历史）。 | [Pending] | [Pending] | ⏳ 未启动 |
 
@@ -112,3 +112,4 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v2.5 · 2026-08-15 · P4b 范围重定义（grilling）：**gate = 统一概念不分 shell/TS** —— targets 扩为 9（grok/qoder/trae/codex/gemini/vibe/kiro shell 触发 + opencode/pi TS adapter），Copilot 推迟（matcher 忽略）、Rovo N/A；门决策抽**中立核心（Node，允许破坏性重构）**；gate/hook 面全迁 Node（~800 行 bash 消灭）；**新增 P5**（CDD 引擎 + ci-validate + shell/python 测试迁 Node，脚本语言统一收尾）；交付 **os-init gates**（检测→复制模板→自动/引导信任）；分支叠 `feat/os-engineering-p4`
 - v2.6 · 2026-08-15 · **最高要求确立：分发视角**。这套 skills 是面向其他使用者的可分发产品（非自用）—— 外部用户安装即用、零冗余步骤、文档对外可读、版本可消费。写入 §1 Goal + Cross-cutting 首条（优先于其它一切约束）。P4b 交付模型随之改消费者视角：包通道安装即用（pi/opencode/gemini/qoder/codex/grok），os-init 仅 trae/vibe/kiro 写原生 config + 信任引导
 - v2.7 · 2026-08-16 · **新增 P6 系列（grilling）**：P6a 引擎/流程加固（harness 前置检查 3 类 + spec/plan review 走 cli review 模式）；P6b research 集成（mattpocock-skills:research 融入 os-brainstorming）；P6c 文档语言 + 重写（英文主 + docs/zh-CN 中文查看镜像；README/CLAUDE 从零重写经 init skill；清历史 docs/superpowers specs/plans）。依赖：P6a/P6b 独立 → P6c 反映落定终态
+- v2.8 · 2026-08-16 · **P6a 前置检查重定义（research）**：非 submodule 假设 —— 端用户经 marketplace/npm 安装，改为按 harness 探测插件可用性（claude plugin list + 缓存 glob + enabledPlugins；cursor/droid/pi 走 .agents/skills/ + 各自 skill 目录）；全 mode（implement/review/fix）统一；缺失 → exit 3 + per-harness 安装指引（research 文档 2026-08-16-harness-plugin-availability.md 为探测路径 SOT）

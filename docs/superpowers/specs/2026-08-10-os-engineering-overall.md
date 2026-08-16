@@ -82,6 +82,10 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 
 > 每阶段：完整 brainstorming → plan → dev。依赖方在依赖就绪后才启动。
 
+**P6 规划备注**（overall v2.7 review 建议，落 phase spec 时考虑）：
+- **P6c**：l10n 需覆盖**存量 os-*/cli-* SKILL.md 正文**（当前多为中文），非仅 README/CLAUDE 三个文件；CLAUDE.md 从零重写须**重建 load-bearing 的 self-check 触发表 + `pnpm run validate`/emit 指令**。
+- **P6a**：cli review 模式须说明 **D1/D2/D3 + fresh-pass 独立性如何映射**（subagent-lifecycle / review-dispatch 跨技能文档），避免破坏既有 review-pass 规则。
+
 ## §5 Maintenance
 
 - 每阶段更新链接 + 变更历史；无任务列表。

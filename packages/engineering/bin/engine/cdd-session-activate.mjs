@@ -7,7 +7,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { exitOk, exitCliMissing } from "./utils/exit.mjs";
+import { exitOk, exitCliMissing } from "../utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 

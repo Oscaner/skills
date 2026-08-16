@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, runPlan } from "./lib/runner.mjs";
-import { exitOk, exitCliMissing } from "./utils/exit.mjs";
+import { exitOk, exitCliMissing } from "../utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const DRY_RUN = process.env.CDD_DRY_RUN === "1";

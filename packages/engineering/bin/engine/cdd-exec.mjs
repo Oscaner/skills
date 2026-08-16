@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
 import { invokeCli } from "./lib/runner.mjs";
-import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "./utils/exit.mjs";
+import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));

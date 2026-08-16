@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { cliInPath } from "./lib/registry.mjs";
-import { exitBlocked } from "./utils/exit.mjs";
+import { exitBlocked } from "../utils/exit.mjs";
 
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
 const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));

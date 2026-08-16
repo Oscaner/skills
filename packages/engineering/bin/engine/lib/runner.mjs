@@ -16,7 +16,7 @@ import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt } from "./templates.mjs";
 import { appendLedger, writePlanConstraints } from "./ledger.mjs";
 import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
-import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
+import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "review", "fix"];

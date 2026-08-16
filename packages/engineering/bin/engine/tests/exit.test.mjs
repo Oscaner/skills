@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { exitOk, exitBlocked, exitCliMissing } from "../utils/exit.mjs";
+import { exitOk, exitBlocked, exitCliMissing } from "../../utils/exit.mjs";
 
 // 捕获 fn(...args) 触发的 process.exit(code) + stderr 写入；返回 { code, stderr }。
 function captureExit(fn, ...args) {

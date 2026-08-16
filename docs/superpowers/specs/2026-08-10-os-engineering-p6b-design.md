@@ -26,26 +26,27 @@
 
 P6b 交付补齐，6 项（均围绕「安装即用诚实化」）：
 
-1. **pi key 补齐（含两个 TS extension，结构感知）** —— 装配/emit 输出顶层 `pi` key：engineering = `{ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }`、overrides = `{ extensions: ["./bin/pi-router.ts"] }`（`on('input')` 路由器）、vendors/superpowers 保留上游（extensions+skills）、vendors/mattpocock-skills = `{ skills: ["./skills/engineering/*", "./skills/productivity/*"] }`（嵌套 glob）、vendors/impeccable = `{ skills: ["./.pi/skills/impeccable"] }`。
+1. **pi key 补齐（含两个 TS extension，动态推导）** —— 装配/emit 输出顶层 `pi` key：engineering = `{ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }`、overrides = `{ extensions: ["./bin/pi-router.ts"] }`；vendored 装配**动态探测**（上游 package.json `pi` → plugin.json skills → `.pi/skills/` → 兜底 `skills/` glob），不硬编码。
 2. **gemini mattpocock-extension** —— vendored 装配为 mattpocock 生成 `gemini-extension.json`（+ 上游自带则 **error guard** 改用上游）。
 3. **grok 归安装即用** —— 分类为 marketplace 通道（os-init harness grok 只指引 marketplace 安装）；原生 config 可选高级项。
 4. **os-init harness（per-harness）** —— `harness-detect` util 抽自 cdd-select（只列已装 harness）→ 多选 → per-harness install → manifest 全量同步。
 5. **qoder/codex manifest 补全** —— 修 P4b review 的 experimental 项（codex hooks 路径、qoder metadata-only）→ 真安装即用。
 6. **P6a 前置检查对齐** —— probe 矩阵按最终通道分类（安装即用缺失 = exit 3 + 指引；os-init 缺失 = 提示 `os-init harness`）。
 
-### 2.1 Component 1: pi key 补齐（结构感知）
+### 2.1 Component 1: pi key 补齐（动态推导，不硬编码）
 
 - `publish-vendor.mjs` + `scripts/lib/emit/manifests.mjs`：装配/emit 输出**顶层 `pi` key**（非嵌套 `oscaner-plugin.pi`）。
-- **pi.skills 结构感知**（按每包实际 skill 布局，非一刀切 `./skills`）：
+- **pi.skills 动态推导**（装配时探测 vendored 包实际结构，不写死 mjs）：
 
-| 包 | pi key |
+| 包 | pi key 来源（动态）|
 |---|---|
-| engineering | `{ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }`（扁平 os-*/cli-*；gate .ts）|
-| superpowers-overrides | `{ extensions: ["./bin/pi-router.ts"] }`（`on('input')` 路由器复刻 UserPromptExpansion）|
-| vendors/superpowers | **保留上游** `{ extensions: ["./.pi/extensions/superpowers.ts"], skills: ["./skills"] }` |
-| vendors/mattpocock-skills | `{ skills: ["./skills/engineering/*", "./skills/productivity/*"] }`（嵌套 → glob，对齐 plugin.json 21 技能）|
-| vendors/impeccable | `{ skills: ["./.pi/skills/impeccable"] }`（单技能目录；装配保留 `.pi/`）|
+| engineering | emit 生成 `{ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }` |
+| superpowers-overrides | emit 生成 `{ extensions: ["./bin/pi-router.ts"] }` |
+| vendors/superpowers | **读上游 `package.json` 的 `pi` key**（保留 extensions+skills）|
+| vendors/mattpocock-skills | **读 `.claude-plugin/plugin.json` skills 列表**（21 技能）→ 转 pi glob/逐目录；或 glob 实际 `skills/` 结构 |
+| vendors/impeccable | **扫描 `.pi/skills/`** 实际技能目录 |
 
+- **动态探测逻辑**（`publish-vendor.mjs`）：每 vendored 包依次探测 (1) package.json 顶层 `pi`（有则保留/合并）→ (2) `.claude-plugin/plugin.json` skills（转 pi.skills）→ (3) `.pi/skills/` 目录（pi 约定）→ (4) 兜底 glob `skills/`。上游加 pi key / 改结构时装配自适应，不需改 mjs。
 - **两个 TS extension**：engineering gate adapter `pi.ts`（或 `index.ts` 包装）+ overrides router `pi-router.ts`（pi 自动发现 `*.ts`）。
 - 验证：`pi install @oscaner-skills/<pkg>` → `pi list` 见对应 skills + extensions（功能完整）。
 
@@ -118,7 +119,7 @@ os-init gates                         # 弃用（移除）
 
 - [ ] engineering 顶层 `pi` key（skills + gate extension .ts）→ `pi install` 注册 skills + gate。
 - [ ] overrides 顶层 `pi` key（router input extension .ts）→ pi 上路由 slash 触发。
-- [ ] vendored 装配顶层 `pi` **结构感知**（superpowers 保留 extensions+skills；mattpocock 嵌套 glob；impeccable `.pi/skills/impeccable` + 装配保留 `.pi/`）。
+- [ ] vendored 装配顶层 `pi` **动态推导**（superpowers 读上游 package.json pi；mattpocock 读 plugin.json skills 转 glob；impeccable 扫 `.pi/skills/`）—— 不硬编码，上游结构变更自适应。
 - [ ] mattpocock 装配生成 gemini-extension + 上游自带 error guard。
 - [ ] `harness-detect` util（抽自 cdd-select，harness 源 = skills-probe.config 的 11 harness 集合）供 cdd-select + os-init + 前置检查共用。
 - [ ] `os-init harness`：只列已装、多选、per-harness install（含 skills 复制）、manifest 全量同步（版本 check + 自动增删改，**删除仅 manifest 追踪文件**）。

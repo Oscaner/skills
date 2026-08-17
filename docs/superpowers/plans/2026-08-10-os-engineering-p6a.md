@@ -11,7 +11,8 @@
 ## Global Constraints
 
 - **skills-missing gate 契约**：安装即用通道缺失 → **exit 3**（区别于 CLI-missing exit 2 / BLOCKED exit 1）+ stderr 安装指引；**os-init 通道缺失 → 提示** `os-init harness <name>`（非故障）；探测本身失败（CLI 查询错/无权限）→ **fail-open allow**。
-- **最终通道分类（P6b §2.5 权威）**：安装即用（claude/cursor-agent/droid/grok/qoder/codex/gemini/pi → exit 3）+ os-init（opencode/trae/vibe/kiro → 提示）。`skills-probe.config.mjs` 的 harnesses 集合 = 11 个。
+- **最终通道分类（P6b §2.5 权威）**：安装即用（claude/cursor-agent/droid/grok/qoder/codex/gemini/pi → exit 3）+ os-init（opencode/trae/vibe/kiro → 提示）。`skills-probe.config.mjs` 的 harnesses 集合 = **12 个**（8 安装即用 + 4 os-init，MUST 与 P6b §2.5 逐一一致）。
+- **跨阶段依赖（P6a → P6b）**：pi 的 `package-list` probe 对 first-party（`@oscaner-skills/engineering` / `superpowers-overrides`）只有在 P6b emit 顶层 `pi` key 后才可解析（vendored 已有 pi / `.pi/skills/` 不受影响）。本阶段单测**用 mock `pi list` 输出**，不依赖真实 pi 包；执行顺序 P6b（T1/T2）先于 P6a 的 pi probe 真实生效。
 - **exit-3 范围（钉死）**：仅 skills 插件缺失；plan/brief/templates 缺失 = **BLOCKED exit 1**（任务前置条件错误）。
 - **required plugins 闭合集**（配置驱动）：`superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`。
 - **cli review**：每 pass 一次 fresh `cdd-exec` 调用；D1（零发现→跳过后续/否则修复后并发）、D2（**仅 Pass 2 delta；Pass 3 恒 full**）、D3（findings-only）；review 模板位于上游 vendors/superpowers（Read-Upstream 解析，本阶段不新建）。
@@ -51,7 +52,7 @@
 `skills-probe.test.mjs`（`node:test`，mock PATH/CLI/路径）：
 - claude：`claude plugin list --json` 输出 enabledPlugins 缺 superpowers → `missing` 含 superpowers + installHint `/plugin install superpowers@oscaner`；缓存 glob 有但 enabled 无 → missing（installed-but-disabled，hint 提示 enable）。
 - cursor/droid：`.agents/skills/` 无 `superpowers/` → missing + hint「copy 到 .agents/skills/」。
-- pi：`pi list` 无 `@oscaner-skills/superpowers` → missing + hint `pi install @oscaner-skills/superpowers`。
+- pi：`pi list` 无 `@oscaner-skills/superpowers` → missing + hint `pi install npm:@oscaner-skills/superpowers`（**对齐 `config.installHint` 的 `npm:` 前缀**；first-party 解析依赖 P6b 顶层 pi，本测试 mock `pi list` 输出独立跑）。
 - probe 失败（`claude` CLI 报错）→ `probeFailed: true`（调用方 fail-open）。
 - 探测顺序：CLI/list → glob（**env 层为 hook-context-only 扩展，P6a 不实现** —— 测试只断言 CLI→glob 两档）。
 

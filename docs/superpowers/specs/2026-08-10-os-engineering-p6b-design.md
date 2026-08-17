@@ -44,9 +44,9 @@ P6b 交付补齐，6 项（均围绕「安装即用诚实化」）：
 | superpowers-overrides | emit 生成 `{ extensions: ["./bin/pi-router.ts"] }` |
 | vendors/superpowers | **读上游 `package.json` 的 `pi` key**（保留 extensions+skills）|
 | vendors/mattpocock-skills | **读 `.claude-plugin/plugin.json` skills 列表**（21 技能）→ 转 pi glob/逐目录；或 glob 实际 `skills/` 结构 |
-| vendors/impeccable | **扫描 `.pi/skills/`** 实际技能目录 |
+| vendors/impeccable | **扫描 `.pi/skills/impeccable/`**（已验证存在：SKILL.md + reference/ + scripts/）→ `pi.skills`；`.claude-plugin/plugin.json` skills 为 `./.claude/skills/`，不作 pi 源 |
 
-- **动态探测逻辑**（`publish-vendor.mjs`）：每 vendored 包依次探测 (1) package.json 顶层 `pi`（有则保留/合并）→ (2) **`.pi/skills/` 目录（pi 约定优先；impeccable 命中这里）** → (3) `.claude-plugin/plugin.json` skills（转 pi.skills；mattpocock 命中这里 → 21 技能）→ (4) 兜底 glob `skills/`。上游加 pi key / 改结构时装配自适应，不需改 mjs。
+- **动态探测逻辑**（`publish-vendor.mjs`）：每 vendored 包依次探测 (1) package.json 顶层 `pi`（有则保留/合并）→ (2) **`.pi/skills/` 目录（pi 约定优先；impeccable 命中这里 → `.pi/skills/impeccable/`，其 plugin.json skills 是 `.claude/skills/` 不参与）** → (3) `.claude-plugin/plugin.json` skills（转 pi.skills；mattpocock 命中这里 → 21 技能）→ (4) 兜底 glob `skills/`。上游加 pi key / 改结构时装配自适应，不需改 mjs。
 - **两个 TS extension**：engineering gate adapter `pi.ts`（或 `index.ts` 包装）+ overrides router `pi-router.ts`（pi 自动发现 `*.ts`）。
 - 验证：`pi install @oscaner-skills/<pkg>` → `pi list` 见对应 skills + extensions（功能完整）。
 
@@ -59,7 +59,7 @@ P6b 交付补齐，6 项（均围绕「安装即用诚实化」）：
 ### 2.3 Component 3: os-init harness（per-harness）
 
 **`harness-detect` util**（`bin/utils/harness-detect.mjs`，抽自 cdd-select）：
-- `detectInstalledHarnesses(config) → [{ harness, cli, status }]` —— `command -v <cli>` 存在即已装。
+- `detectInstalledHarnesses(config) → [{ harness, cli, status }]` —— `command -v <cli>` 存在即已装；**`cli` 源 = `config.harnesses[h].cli ?? h`**（显式 `cli` 字段优先——harness key ≠ binary 名的要标注，如 cursor-agent = `"cursor-agent"`；skills-probe.config P6a 起每 harness 补 `cli` 字段）。
 - **harness 源**：`skills-probe.config.mjs` 的 `harnesses` 集合（上表 12 个）—— 非仅 registry（registry 只有 4 full + 3 not-supported）。cdd-select + os-init harness + P6a 前置检查共用。
 
 **`os-init harness` 交互**：
@@ -72,20 +72,20 @@ os-init gates                         # 弃用（移除）
 **per-harness install action**：
 | 通道 | 动作 |
 |---|---|
-| 安装即用（claude/cursor/grok/qoder/codex/gemini/pi）| probe 该 harness 已装 engineering 插件/gate？缺失 → 打印安装命令 + 信任步骤 |
+| 安装即用（claude/cursor-agent/droid/grok/qoder/codex/gemini/pi）| probe 该 harness 已装 engineering 插件/gate？缺失 → 打印安装命令 + 信任步骤 |
 | os-init（opencode/trae/vibe/kiro）| 写原生 gate config + **复制 skills** 到该 harness 目录 + 信任步骤 |
 
 **manifest 全量同步**（每次跑）：
-- manifest（`bin/os-init/state/<harness>.json`）记录：`{ engineeringVersion, files: { path → hash } }`。
+- manifest（`bin/os-init/state/<harness>.json`）记录：`{ engineeringVersion, files: { path → { hash, source } } }`（`source` = `"os-init"` 标记 os-init 写入的文件）。
 - 重跑：diff manifest vs 当前工程要写的文件集（**来自 config 的每 harness 文件清单/模板渲染**）→ **自动**新增/覆盖/删除（插件内部行为变更 = 全量替换，无新旧共存，**不询问**）。
-- **删除语义（钉死）**：只删 **manifest 追踪过的文件**（本次 manifest 有、新文件集没有）；**未追踪的用户文件保留**（不「删目录里所有非 wanted」）。
+- **删除语义（钉死）**：只删 **manifest 追踪过且未被用户改动**的文件（旧 manifest 有、新文件集没有 且 该文件 on-disk hash == manifest 记录 hash 且 `source` == `"os-init"`）；**hash 变 = 用户改动过 → 保留 + 报告**（不静默覆盖/删除）；**未追踪的用户文件保留**（不「删目录里所有非 wanted」）。
 - **版本 check**：manifest 的 engineeringVersion vs 当前 → 有新版打印更新命令（不自动装）。
 
 ### 2.4 Component 4: qoder/codex manifest 补全
 
-- **codex**（`.codex-plugin`）：hooks 命令 `../bin/gate/adapters/codex.mjs` 改插件根相对 `./bin/gate/adapters/codex.mjs`；skills 路径对齐；emit 存在 guard（P4b 已加部分）。
-- **qoder**（`.qoder-plugin`）：`qoderPluginManifest` 补全 skills + hooks（在 qoder 自动发现位置）；emit 测试锁路径。
-- 验证：装 `.codex-plugin`/`.qoder-plugin` → skills + gate hooks 生效。
+- **codex**（`.codex-plugin`）：hooks 命令 = **manifest-root-relative base（锁定）`../bin/gate/adapters/codex.mjs`** —— 相对 `.codex-plugin/` → 包根 `bin/...`，与 `skills: "../skills/"`、`hooks: "./hooks/hooks.json"` 同一 base（不依赖 `PLUGIN_ROOT` 替换）。**保留现状，不改 `./bin/...`**（`./bin/...` 会错误指向不存在的 `.codex-plugin/bin/...`）；emit 存在 guard（解析 manifest-root 相对路径 → 绝对路径，断言 adapter 存在且可执行；缺失 → 报错不 emit 坏产物）。
+- **qoder**（`.qoder-plugin`）：`qoderPluginManifest` skills + hooks **已就位**（现有产物已验证），补与 codex 相同的 manifest-root-relative base + adapter 路径存在 guard；emit 测试锁路径。
+- 验证：装 `.codex-plugin`/`.qoder-plugin` → skills + gate hooks 生效（adapter 路径经 guard 断言 resolves）。
 
 ### 2.5 P6a 前置检查对齐（最终通道分类 —— 权威）
 

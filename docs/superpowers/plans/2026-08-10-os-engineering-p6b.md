@@ -30,6 +30,7 @@
 | `packages/engineering/.codex-plugin/` `.qoder-plugin/` | manifest 补全（skills + gate hooks 路径）| T4 |
 | `packages/engineering/bin/utils/harness-detect.mjs` | 已装 harness 检测 util（抽自 cdd-select）| T5 |
 | `packages/engineering/bin/os-init/install-gates.mjs` → `install-harness.mjs` | os-init harness（per-harness + manifest 全量同步）| T5 |
+| `packages/engineering/bin/gate/adapters/pi.mjs`（删除）| T2 废弃的 legacy pi adapter（pi.ts 取代；随 os-init gates 移除）| T5 |
 | `packages/engineering/skills/os-init/gates.md` | os-init gates → os-init harness 文档 | T5 |
 | `CLAUDE.md` / `docs/gate-install.md` | pi 交付 / os-init harness / grok 安装即用 | T6 |
 
@@ -54,7 +55,7 @@
 - 新测试（fixture 优先，避免 fresh-clone 无 submodule）：
   - superpowers → 保留上游 `pi`（extensions `./.pi/extensions/superpowers.ts` + skills）。
   - mattpocock → 读 `.claude-plugin/plugin.json` skills 列表 → `pi.skills` glob/逐目录（21 技能）。
-  - impeccable → `.pi/skills/`（pi 约定，优先于 plugin.json）→ `pi.skills`。
+  - impeccable → 扫 **`.pi/skills/impeccable/`**（已验证存在：SKILL.md + reference/ + scripts/；pi 约定优先于 plugin.json）→ `pi.skills = ["./.pi/skills/impeccable"]`（`.claude-plugin/plugin.json` skills = `./.claude/skills/`，不作为 pi 源）。
 - 装配输出**顶层 `pi` key**（非嵌套 `oscaner-plugin.pi`）。
 
 ```js
@@ -66,6 +67,10 @@ test("mattpocock: derive pi.skills from plugin.json skills", () => {
 test("superpowers: preserve upstream pi (extensions+skills)", () => {
   const pi = derivePiKey("vendors/superpowers");
   assert.deepEqual(pi, { extensions: ["./.pi/extensions/superpowers.ts"], skills: ["./skills"] });
+});
+test("impeccable: derive pi.skills from .pi/skills/impeccable (pi convention, not plugin.json)", () => {
+  const pi = derivePiKey("vendors/impeccable");
+  assert.deepEqual(pi.skills, ["./.pi/skills/impeccable"]);
 });
 ```
 
@@ -119,7 +124,7 @@ git commit -m "feat: pi key dynamic derivation in vendor assembly (top-level pi)
 
 - `piPackageKey()` 扩展：支持 `{ skills, extensions }` 参数（first-party emit 传 engineering/overrides 的配置）。
 - `emit` 写顶层 `pi` key 进 first-party package.json：**保留 `oscaner-plugin` 字段**（`deriveFirstPartyNames`/`deriveFirstParty` 依赖它）—— emit 从「只读」扩展为「读 + 写顶层 `pi`」；测试锁 `oscaner-plugin` 不被破坏。
-- `gate/adapters/pi.ts`：port 自 `pi.mjs`（门决策），`.ts` 版（pi 自动发现 `*.ts`）。**`pi.mjs` 与 `pi.ts` 关系**：`pi.ts` 取代 `pi.mjs` 作为 pi 通道（os-init gates 移除后 pi 经 pi.ts）—— `pi.mjs` 删除或标注废弃（T5 确认）。
+- `gate/adapters/pi.ts`：port 自 `pi.mjs`（门决策），`.ts` 版（pi 自动发现 `*.ts`）。**`pi.ts` 取代 `pi.mjs` 成为 pi 通道**：`pi.mjs` **保留为 legacy 实现直到 T5**（os-init gates 的 pi shim 仍引用它，T2 不动以保持中间态树绿）；**更新 emit.test.mjs 既有断言 `.mjs` → `.ts`**（`scripts/lib/emit/emit.test.mjs:317-318` 的 `piPackageKey` 期望）。**T5 删除 `pi.mjs`**（随 os-init gates 移除，见 T5 File Structure）。
 - `overrides/bin/pi-router.ts`：`export function on(event, ctx)` —— `input` 事件检测 `/brainstorming` 等 → `{ action: "transform", text: "Skill(engineering:os-brainstorming) " + text }`；**触发映射对齐 `overrides.manifest.json` 全量**（非仅 /brainstorming）；`/spor-*` 不再匹配。
 
 - [ ] **Step 4: 测试 PASS + validate**
@@ -182,15 +187,15 @@ git commit -m "feat: first-party top-level pi key + gate/router TS extensions"
 
 - [ ] **Step 1: 写失败测试**
 
-`emit.test.mjs`：codex hooks 命令 = 插件根相对 `./bin/gate/adapters/codex.mjs`（非 `../bin/...`）；codex skills 路径正确；qoder manifest 含 skills + hooks（非 metadata-only）；adapter 路径存在 guard 触发。
+`emit.test.mjs`：**锁定统一 manifest-root-relative base** —— codex/qoder 的 hooks 命令与 `skills`/`hooks` 同 base（相对 `.codex-plugin/`/`.qoder-plugin/` 解析）：`../bin/gate/adapters/codex.mjs` 从 manifest-root 解析到包根 `bin/gate/adapters/codex.mjs`（**绝对路径存在**），qoder 同；adapter 缺失时 emit 存在 guard **报错**（不静默 emit 坏产物）。**注意：`./bin/...` 是错的**（相对 manifest-root 会指向不存在的 `.codex-plugin/bin/...`），断言锁 `../bin/...`。
 
 - [ ] **Step 2: 跑测试确认 FAIL**
 - [ ] **Step 3: 实现**
 
-- `codexHooksJson`：命令改插件根相对 `./bin/gate/adapters/codex.mjs`（P4b I3 修复）；skills 路径对齐。
-- `qoderHooksJson`：同样改插件根相对 `./bin/gate/adapters/qoder.mjs`（P4b 曾 `../bin/...`）；「unified manifest-relative base」注释保持。
-- `qoderPluginManifest`：补 `skills` + `hooks`（qoder 自动发现位置）+ interface。
-- emit adapter 路径存在 guard（P4b 已加部分，补全形状）。
+- `codexHooksJson`：**保留** manifest-root-relative `../bin/gate/adapters/codex.mjs`（相对 `.codex-plugin/` → 包根 `bin/`，与 `skills: "../skills/"`、`hooks: "./hooks/hooks.json"` 同一 base，不依赖 `PLUGIN_ROOT` 替换）；旧注释「codex 通道待验证」→ 更新为「base 契约已锁定 + adapter guard」。
+- `qoderHooksJson`：同 codex 保留 `../bin/gate/adapters/qoder.mjs`（manifest-root-relative base）；「unified manifest-relative base」注释保持并补 guard 说明。
+- `qoderPluginManifest`：skills + hooks **已就位**（现有产物已验证），无新增字段；只补 adapter 路径存在 guard 的一致断言。
+- **emit adapter 路径存在 guard（补全形状）**：emit 前把 `../bin/gate/adapters/{codex,qoder}.mjs` 从 manifest-root（`.codex-plugin/`/`.qoder-plugin/`）解析为绝对路径，断言文件存在且可执行；缺失 → 报错退出（不 emit 坏产物）。
 
 - [ ] **Step 4: `pnpm run emit && pnpm run validate`** → ALL PASS
 - [ ] **Step 5: 提交** → `git commit -m "fix: codex/qoder plugin manifests genuinely install-and-use"`
@@ -213,15 +218,15 @@ git commit -m "feat: first-party top-level pi key + gate/router TS extensions"
 
 - [ ] **Step 1: 写失败测试**
 
-`harness-detect.test.mjs`：`detectInstalledHarnesses(config)` —— `command -v <cli>` 已装 harness 列表（**cli 源 = harness key == cli 名**，skills-probe.config 12 harness 集合；或 config 加 `cli` 字段）。`install-harness.test.mjs`：per-harness install（安装即用 probe → 指引；os-init 通道 → 写 config+复制 skills）；manifest 全量同步（**删除仅 manifest 追踪文件**；版本 check）；多选交互；`os-init gates` 移除。
+`harness-detect.test.mjs`：`detectInstalledHarnesses(config)` —— `command -v <cli>` 已装 harness 列表（**`cli` 源 = `config.harnesses[h].cli ?? h`**，显式 `cli` 字段优先；cursor-agent = `"cursor-agent"`，binary 存在已验证）。`install-harness.test.mjs`：per-harness install（安装即用 probe → 指引；os-init 通道 → 写 config+复制 skills）；manifest 全量同步（**删除仅限 `source:"os-init"` + on-disk hash 未变的文件**；用户改动保留并报告；版本 check）；多选交互；`os-init gates` 移除 + `pi.mjs` 删除。
 
 - [ ] **Step 2: 跑测试确认 FAIL**
 - [ ] **Step 3: 实现**
 
-- `harness-detect.mjs`：`detectInstalledHarnesses(config)`（`command -v <cli>`，cli 源 = config harness key 或显式 `cli` 字段）；cdd-select + os-init harness 共用（**cdd-select 的 ship=full 语义与通道分类的映射需说明**：可用 = 已装 + full；os-init 通道标「需初始化」而非「不可用」）。
-- `install-harness.mjs`：`os-init harness [h1,h2,...]` —— 无参多选菜单（只列已装）、显式指定；per-harness install（安装即用 probe→指引 / os-init 写 config+复制 skills）；manifest（`bin/os-init/state/<harness>.json`：engineeringVersion + files hash）全量同步（自动增删改，删除仅 manifest 追踪）。
-- **verify/extend skills-probe.config**：断言 `config.harnesses` = 12 + 通道分类（grok/droid/pi 归安装即用，opencode/trae/vibe/kiro 归 os-init）；若 P6a 未 merge，补扩展 + 删 `piDirCopyPlugins`。
-- 移除 `os-init gates`（`install-gates.mjs` 删或改别名 → 移除）。
+- `harness-detect.mjs`：`detectInstalledHarnesses(config)`（`command -v <cli>`，**`cli` 源 = `config.harnesses[h].cli ?? h`**——先补 config 每 harness 显式 `cli` 字段，cursor-agent = `"cursor-agent"`、opencode = `"opencode"` 等）；cdd-select + os-init harness 共用（**cdd-select 的 ship=full 语义与通道分类的映射需说明**：可用 = 已装 + full；os-init 通道标「需初始化」而非「不可用」）。
+- `install-harness.mjs`：`os-init harness [h1,h2,...]` —— 无参多选菜单（只列已装）、显式指定；per-harness install（安装即用 probe→指引 / os-init 写 config+复制 skills）；manifest（`bin/os-init/state/<harness>.json`：`{ engineeringVersion, files: { path → { hash, source } } }`，`source` = `"os-init"` 标记）全量同步（自动增删改；**删除仅限 manifest 追踪 + `source:"os-init"` + on-disk hash 未变**；hash 变 = 用户改动 → 保留并报告）。
+- **verify/extend skills-probe.config**：断言 `config.harnesses` = 12 + 通道分类（grok/droid/pi 归安装即用，opencode/trae/vibe/kiro 归 os-init）+ 每 harness `cli` 字段；若 P6a 未 merge，补扩展 + 删 `piDirCopyPlugins`。
+- 移除 `os-init gates`（`install-gates.mjs` 删或改别名 → 移除）+ **删除 `bin/gate/adapters/pi.mjs`**（T2 已废弃的 legacy pi adapter）+ 更新 `bin/gate/configs/pi/README.md`（移除 `.mjs` shim 指引，指向 `pi.ts`）。
 
 - [ ] **Step 4: 测试 PASS + validate**
 - [ ] **Step 5: 提交** → `git commit -m "feat: os-init harness per-harness (harness-detect util + manifest full-sync)"`

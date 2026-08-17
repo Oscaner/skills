@@ -50,7 +50,8 @@ runTask(任意 mode):
 | **安装即用**（probe → exit 3）| claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | exit 3 + 安装指引 |
 | **os-init**（缺失 → 提示）| opencode / trae / vibe / kiro | 提示 `os-init harness <name>`（非故障）|
 
-安装即用通道探测路径（claude plugin list + enabledPlugins + 缓存 glob；cursor/droid/opencode 等 skill-dir glob；pi package-list）—— 实现细节在 `bin/utils/skills-probe.config.mjs`（P6b §2.5 权威，11 harness 集合）。
+安装即用通道探测路径（claude plugin list + enabledPlugins + 缓存 glob；cursor/droid/opencode 等 skill-dir glob；pi package-list）—— 实现细节在 `bin/utils/skills-probe.config.mjs`（P6b §2.5 权威，**12 harness 集合** = 8 安装即用 + 4 os-init）。
+- **跨阶段依赖（P6a → P6b）**：pi 的 `package-list` probe 对 first-party（engineering/overrides）依赖 P6b emit 顶层 `pi` key 后才可解析（vendored 已有 pi / `.pi/skills/` 不受影响）；本阶段单测 mock `pi list` 输出，执行顺序 P6b 先于 P6a 的 pi probe 真实生效。
 
 - **探测顺序**：CLI/list 命令 → 文件系统 glob → hook env 变量（research 建议）。
 - **installed vs enabled 区分**（claude 缓存存在 ≠ enabled —— 查 settings `enabledPlugins`）。

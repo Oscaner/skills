@@ -70,7 +70,16 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Review reports | `batch-*-review-standards.md` / `batch-*-review-spec.md` |
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
-**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec §2.1 stderr-surfacing).
+**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel 缺上游插件 → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint，orchestrator **BLOCKED**（区别于 2 = harness CLI 不存在；exit 3 = CLI 存在但 skills 插件未安装）。Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec §2.1 stderr-surfacing).
+
+**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): 全 mode（implement/review/fix）进入嵌套 CLI 前，per-harness 探测 required plugins（`superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`，配置驱动）：
+
+| 通道 | Harnesses | 缺失行为 |
+|------|-----------|----------|
+| install-and-use | claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | **exit 3** + stderr per-plugin install hint（不进入嵌套 CLI） |
+| os-init | opencode / trae / vibe / kiro | stderr 提示 `os-init harness <name>`（非 exit 3），任务照跑 |
+
+探测路径按 harness：plugin-list（claude/grok）、skill-dir（cursor-agent/droid/qoder/codex/gemini）、package-list（pi）。探测本身失败（CLI 查询错/无权限）→ **fail-open allow**（exit 0 + warn）。`skills-probe.config.mjs` 的 `harnesses` 集合 = 12 个，MUST 与 P6b §2.5 通道分类逐一一致。
 
 **Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 

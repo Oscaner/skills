@@ -241,6 +241,26 @@ pnpm run validate
 
 This runs steps 1–5 above plus generator drift checks, overrides version triple-check, prerelease prefix lint, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.mjs](scripts/ci-validate.mjs); mirrored on PRs by [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
+## CDD CLI pre-check (skills-missing gate)
+
+The CDD engine (`cdd-run.mjs` → `runner.mjs`) runs a **skills-missing pre-check** before spawning nested CLI agents, in all three modes (implement/review/fix). This is distinct from the exit-code hierarchy:
+
+| Exit | Meaning | Trigger |
+|------|---------|---------|
+| 0 | OK | task completed successfully |
+| 1 | BLOCKED | task prerequisite error (brief/templates missing, plan not found, harness not-supported) |
+| 2 | CLI missing | selected harness CLI not in PATH |
+| 3 | **skills-missing** | install-and-use channel 缺 required skills 插件（CLI 存在但插件未安装） |
+
+**Channel classification** (12 harnesses, configuration-driven via `bin/utils/skills-probe.config.mjs`):
+
+- **install-and-use** (8): claude / cursor-agent / droid / grok / qoder / codex / gemini / pi → missing → **exit 3** + stderr per-plugin install hint
+- **os-init** (4): opencode / trae / vibe / kiro → missing → stderr 提示 `os-init harness <name>`（非 exit 3），任务照跑
+
+**Required plugins** (closed set, configuration-driven): `superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`. Probe detection varies by harness: `plugin-list` (claude/grok), `skill-dir` (cursor-agent/droid/qoder/codex/gemini), `package-list` (pi). Probe failure (CLI error / no permission) → **fail-open allow** (exit 0 + warn).
+
+See [cdd-reference.md](packages/engineering/docs/cdd-reference.md) H6 for full gate details, and `bin/utils/skills-probe.mjs` / `bin/utils/skills-probe.config.mjs` for implementation.
+
 ## Releasing
 
 Two plugins are versioned from this repo: **`superpowers-overrides`** (superpowers-relative scheme) and **`engineering`** (independent semver). Integration branch is **`develop`**; **`main`** receives releases only via PRs from `develop`.

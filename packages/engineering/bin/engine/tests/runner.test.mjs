@@ -17,6 +17,10 @@ import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus, 
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 
+// No-op probeSkills stub — environment independence for all existing runTask calls
+// (brief Step 3: `probeSkills: async () => ({ missing: [], probeFailed: false })`).
+const NOOP_PROBE = async () => ({ missing: [], probeFailed: false });
+
 // 非 git 临时 workspace —— 对齐 cdd-cli-dry-run-smoke（CDD_WORKSPACE 指向 TMPDIR，commit-contract fail-open）。
 function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-runner-"));
@@ -72,7 +76,7 @@ async function capture(runFn) {
 
 test("runTask: dry-run implement → H1 四行 DONE + 不写 handoff（对齐 bash）", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 0);
   assert.equal(res.h1.length, 4);
   assert.equal(res.h1[0], "status: DONE");
@@ -85,7 +89,7 @@ test("runTask: dry-run implement → H1 四行 DONE + 不写 handoff（对齐 ba
 test("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
   const ws = setupWorkspace();
   const { code, stdout } = await capture(() =>
-    runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws) }),
   );
   assert.equal(code, 0);
   const lines = stdout.trim().split("\n");
@@ -97,7 +101,7 @@ test("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
 test("runTask: dry-run review/fix 三模式 → H1 DONE + 不写 handoff（对齐 bash）", async () => {
   for (const mode of ["review", "fix"]) {
     const ws = setupWorkspace();
-    const res = await runTask("claude", 1, { mode, dryRun: true, env: baseEnv(ws), noExit: true });
+    const res = await runTask("claude", 1, { mode, dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
     assert.equal(res.exitCode, 0, `mode ${mode}`);
     assert.equal(res.h1[0], "status: DONE", `mode ${mode}`);
     assert.equal(existsSync(path.join(ws, "task-1-handoff.json")), false, `mode ${mode}: dry-run 不写 handoff`);
@@ -106,19 +110,19 @@ test("runTask: dry-run review/fix 三模式 → H1 DONE + 不写 handoff（对�
 
 test("runTask: 非法 mode → 拒绝（非零退出）", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "handoff", dryRun: true, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "handoff", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 1);
 });
 
 test("runTask: unknown harness → blocked exit 1", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("no-such-harness", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
+  const res = await runTask("no-such-harness", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 1);
 });
 
 test("runTask: not-supported harness → blocked exit 1", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("codex", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
+  const res = await runTask("codex", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 1);
 });
 
@@ -140,6 +144,7 @@ test("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 blo
     try {
       return await runTask("ghost", 1, {
         mode: "implement",
+        probeSkills: NOOP_PROBE,
         env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
         registryPath: regPath,
         noExit: true,
@@ -297,7 +302,7 @@ test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（�
   writeFileSync(path.join(dir, "dirty.txt"), "uncommitted\n"); // 脏工作树信号
 
   const { code, stderr } = await capture(() =>
-    runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(dir) }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(dir) }),
   );
   assert.equal(code, 1);
   assert.match(stderr, /CDD_BLOCKED: uncommitted changes at return \(implement\)/);
@@ -330,6 +335,7 @@ test("runTask: review 模式 review-package 不可执行 → CDD_BLOCKED + exit 
     const { code, stderr } = await capture(() =>
       runTask("claude", 1, {
         mode: "review",
+        probeSkills: NOOP_PROBE,
         env: baseEnv(dir, {
           CDD_REVIEW_FIXED_POINT: "HEAD~1",
           PATH: `${binDir}${path.delimiter}${origPath}`,

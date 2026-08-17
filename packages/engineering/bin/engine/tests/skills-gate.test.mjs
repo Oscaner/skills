@@ -205,3 +205,16 @@ test("implement: 无缺失 → gate 不触发 + exit 0（dry-run）", async () =
   assert.equal(r.code, 0);
   assert.match(r.stdout, /status: DONE/);
 });
+
+// Slice 5: brief/templates 缺失 → BLOCKED exit 1（非 exit 3）
+test("implement: brief missing → BLOCKED exit 1 + stderr", async () => {
+  const ws = setupWorkspace();
+  const fakeProbe = async () => ({ missing: [], probeFailed: false });
+  // Set CDD_TASK_BRIEF to a non-existent path — gate checks before buildTaskEnv sets default.
+  const env = baseEnv(ws, { CDD_TASK_BRIEF: "/nonexistent/task-1-brief.md" });
+  const r = await capture(() =>
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env }),
+  );
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /brief missing/);
+});

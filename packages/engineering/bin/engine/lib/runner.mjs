@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
-import { renderModePrompt } from "./templates.mjs";
+import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { appendLedger, writePlanConstraints } from "./ledger.mjs";
 import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
@@ -425,6 +425,23 @@ export async function runTask(harness, taskNum, opts = {}) {
           process.stderr.write(`skills-probe: ${m.plugin}: ${m.installHint}\n`);
         }
       }
+    }
+  }
+
+  // 2.55 Brief/templates existence check — BLOCKED exit 1 if missing (not exit 3).
+  //   Reuses pluginRoot() from templates.mjs to locate the CDD template directory.
+  {
+    const taskBrief = baseEnv.CDD_TASK_BRIEF;
+    if (taskBrief && !existsSync(taskBrief)) {
+      return finish(1, [], `brief missing: ${taskBrief}`, noExit);
+    }
+    try {
+      const tplDir = path.join(pluginRoot(), "templates", "cdd");
+      if (!existsSync(tplDir)) {
+        return finish(1, [], `templates missing: ${tplDir}`, noExit);
+      }
+    } catch {
+      return finish(1, [], "templates missing: engineering plugin root not found", noExit);
     }
   }
 

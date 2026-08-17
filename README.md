@@ -89,7 +89,7 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 
 1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the marketplace.
 2. Run **`os-init spor`** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](packages/superpowers-overrides/README.md#usage).
-3. For the cross-harness CDD gate, install per-harness — **verified channels** (claude / cursor / qoder / gemini via marketplace; grok via Claude marketplace compatibility + `os-init gates` native config, with `~/.grok/hooks/engineering.json` the recommended single path; trae / vibe / kiro via `os-init gates` native config) are install-and-go or native config; **experimental (manual steps)** (pi / opencode) are wired to their documented formats but need manual steps — pi ships as a manual extension copy; **codex** is wired to its documented plugin format but unverified against a live install. Per-harness install → [docs/gate-install.md](docs/gate-install.md).
+3. For the cross-harness CDD gate, install per-harness — **install-and-use** (claude / cursor-agent / droid / grok / qoder / codex / gemini / pi — missing → exit 3 + install hint; skills + gate hooks ship via marketplace / plugin / extension / npm); **os-init** (opencode / trae / vibe / kiro — missing → hint `os-init harness <name>`; needs `os-init harness` for native gate config + skills copy). Per-harness install → [docs/gate-install.md](docs/gate-install.md).
 4. Invoke the superpowers workflow as you normally would — the router routes to the matching engineering / mattpocock target first.
 
 ## Learn more

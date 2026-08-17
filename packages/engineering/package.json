@@ -15,6 +15,10 @@
   "homepage": "https://github.com/Oscaner/skills",
   "license": "MIT",
   "main": "./bin/gate/adapters/opencode.mjs",
+  "pi": {
+    "skills": ["./skills"],
+    "extensions": ["./bin/gate/adapters/pi.ts"]
+  },
   "oscaner-plugin": {
     "claude": {
       "category": "engineering",

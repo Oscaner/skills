@@ -190,17 +190,14 @@ export function geminiMarkdown(plugin, skillNames) {
 }
 
 /**
- * `package.json#pi` — pure skills package key for VENDORED assemblies
- * (publish-vendor.mjs). Pi packages support a `package.json` `pi` key
- * (skills/prompts/themes delivery via `pi install`), but engineering's gate is
- * NOT delivered through it: the gate adapter is `.mjs` while pi extensions are
- * auto-discovered `*.ts` — the gate ships as a native os-init config set
- * (manual extension copy, experimental). This key carries vendored assemblies'
- * skills delivery only (`extensions` field modeled for completeness).
- * @param {{ extensions?: string[] }} [opts]
+ * `package.json#pi` — Pi key for both vendored assemblies and first-party plugins.
+ * Pi packages support a `package.json` `pi` key (skills/prompts/themes delivery
+ * via `pi install`). First-party emit passes `{ skills, extensions }` explicitly;
+ * vendored assemblies use the default pure-skills shape.
+ * @param {{ skills?: string[], extensions?: string[] }} [opts]
  */
-export function piPackageKey({ extensions = [] } = {}) {
-  const key = { skills: ["./skills"] };
+export function piPackageKey({ skills = ["./skills"], extensions = [] } = {}) {
+  const key = { skills };
   if (extensions.length > 0) key.extensions = extensions;
   return key;
 }

@@ -71,6 +71,7 @@ import { deriveSource } from "./lib/emit/source.mjs";
 import {
   loadTargets,
   promptExpansionScript,
+  piRouterScript,
   cursorDetectScript,
   cursorEnforceScript,
   claudeSelfCheckMd,
@@ -300,6 +301,10 @@ function emitOverrides(outRoot, plugin) {
     [
       "bin/prompt-expansion.mjs",
       promptExpansionScript(targets),
+    ],
+    [
+      "bin/pi-router.ts",
+      piRouterScript(targets),
     ],
     [
       "bin/cursor-detect.mjs",

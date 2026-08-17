@@ -1,0 +1,42 @@
+// gate/adapters/pi.ts — Pi TS extension gate adapter（P6b T2）。
+// pi 无 CLI hooks manifest；扩展为 TS 模块，default export factory 接收 ExtensionAPI，
+// pi.on("tool_call", handler) 注册阻塞处理器。校准自 pi extensions 文档：
+// handler(event, ctx)，event.toolName / event.input（可变更、后置 handler 可见），
+// ctx.cwd / ctx.sessionManager；deny → { block: true, reason }（terminate 不设 →
+// 仅阻断本次调用）。写工具 input 用 path（read/write/edit 同构），gate 核心查
+// path || file_path → 直接命中。
+// 发现：pi 在 ~/.pi/agent/extensions + .pi/extensions 自动发现 `*.ts` / `*/index.ts`。
+// 本文件取代 pi.mjs 成为 pi 通道（T5 删除 pi.mjs）。
+import { gateDecide } from "../cdd-gate-core.mjs";
+import { canonicalToolName } from "./lib.mjs";
+
+export default function cddGate(pi: any): void {
+  pi.on("tool_call", async (event: any, ctx: any) => {
+    try {
+      const r = gateDecide({
+        harness: "pi",
+        toolName: canonicalToolName(event.toolName),
+        toolInput: event.input ?? {},
+        sessionKey: await piSessionKey(ctx),
+        repoRoot: ctx.cwd ?? process.cwd(),
+      });
+      if (r.decision === "deny") return { block: true, reason: r.reason };
+      return {};
+    } catch (e: any) {
+      // 异常（畸形 event/ctx、gateDecide 意外抛错）→ fail-open allow（stderr 记录）。
+      console.error(`[cdd-gate pi] ${e?.message ?? e}`);
+      return {};
+    }
+  });
+}
+
+// sessionManager.getSessionId() 为会话标识（gateway 追踪/归因用）；不可用 → 静态 "pi" key。
+async function piSessionKey(ctx: any): Promise<string> {
+  try {
+    const id = await ctx.sessionManager?.getSessionId?.();
+    if (id) return id;
+  } catch {
+    // sessionManager 不可用 / 抛错 → 回退静态 key（fail-open 一致）。
+  }
+  return "pi";
+}

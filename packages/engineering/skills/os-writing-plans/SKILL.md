@@ -1,6 +1,6 @@
 ---
 name: os-writing-plans
-description: 独立写计划流程编排器 —— Read 上游 superpowers:writing-plans 作为基线，叠加个人规则（逐节写 / fresh-subagent 评审 passes / to-tickets 发布重定向）。
+description: 独立写计划流程编排器 —— Read 上游 superpowers:writing-plans 作为基线，叠加个人规则（逐节写 / cli review 评审 passes / to-tickets 发布重定向）。
 ---
 
 # OS Writing-Plans
@@ -21,9 +21,11 @@ Read 上游 `superpowers:writing-plans` 的 SKILL.md 作为流程基线 **当可
 
 计划逐节 Write/Edit（一个 section 一次工具调用），不整篇一次性生成。
 
-### Rule: Fresh-Subagent Review Passes
+### Rule: Plan Review via CLI
 
-计划用 fresh subagent 评审 passes（Completeness & spec alignment → Task decomposition → Buildability & type consistency），纪律见 [review-dispatch.md](../docs/review-dispatch.md)。
+计划 review 分 3 类 pass（completeness & spec alignment / task decomposition / buildability & type consistency），每 pass 一次 fresh `cdd-exec` 派发：
+  cdd-exec --harness claude --prompt "<plan-document-reviewer 模板 + pass 类别 + 文档路径>"
+**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = engineering 根）。派发纪律见 [review-dispatch.md](../docs/review-dispatch.md)（D1/D2/D3 + fresh-pass，原样映射到 cli）。
 
 ### Rule: Tickets Publish Redirect
 

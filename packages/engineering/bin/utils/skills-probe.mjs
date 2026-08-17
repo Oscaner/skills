@@ -63,8 +63,10 @@ function parseEnabledPlugins(out) {
   return [];
 }
 
-// plugin-list（claude）：CLI tier → enabledPlugins；缺失者用缓存 glob 区分 installed-but-disabled
-// （缓存命中但未启用）vs not-installed。exec 抛错/畸形 JSON → probeFailed（fail-open）。
+// plugin-list（claude / grok）：CLI tier → enabledPlugins；缺失者（claude 有 cacheGlob）用缓存 glob
+// 区分 installed-but-disabled（缓存命中但未启用）vs not-installed。grok 复用 Claude 的 `claude plugin
+// list --json`（grok 读 Claude marketplace），其 config 无 cacheGlob → 不区分，直接 not-installed。
+// exec 抛错/畸形 JSON → probeFailed（fail-open）。
 function probePluginList(harnessCfg, { requiredPlugins, env }) {
   let out;
   try {
@@ -81,13 +83,16 @@ function probePluginList(harnessCfg, { requiredPlugins, env }) {
   const missing = [];
   for (const plugin of requiredPlugins) {
     if (isEnabled(enabled, plugin)) continue;
-    const cachePattern = expandHome(harnessCfg.cacheGlob.replaceAll("<plugin>", plugin), env);
-    const cached = globHasSkills(cachePattern);
-    missing.push(
-      cached
-        ? { plugin, reason: "installed-but-disabled", installHint: `/plugin install ${plugin}@oscaner` }
-        : { plugin, reason: "not-installed", installHint: harnessCfg.installHint(plugin) },
-    );
+    let reason = "not-installed";
+    let installHint = harnessCfg.installHint(plugin);
+    if (harnessCfg.cacheGlob) {
+      const cachePattern = expandHome(harnessCfg.cacheGlob.replaceAll("<plugin>", plugin), env);
+      if (globHasSkills(cachePattern)) {
+        reason = "installed-but-disabled";
+        installHint = `/plugin install ${plugin}@oscaner`;
+      }
+    }
+    missing.push({ plugin, reason, installHint });
   }
   return { missing, probeFailed: false };
 }
@@ -112,9 +117,10 @@ function probeSkillDirs(harnessCfg, { requiredPlugins, cwd }) {
   return { missing, probeFailed: false };
 }
 
-// package-list（pi）：pi list 含 @oscaner-skills/<p> → available。piDirCopyPlugins（无 pi key）
-// 走 skill-dir 探测 + 目录复制指引。
-function probePackageList(harnessCfg, { requiredPlugins, cwd, env }) {
+// package-list（pi）：pi list 含 @oscaner-skills/<p> → available；缺失 → missing + npm: 前缀安装指引。
+// exec 抛错 → probeFailed（fail-open）。first-party（engineering/overrides）的 pi key 解析依赖 P6b emit
+// 顶层 pi key（跨阶段）；本阶段单测 mock `pi list` 输出独立跑，不依赖真实 pi 包。
+function probePackageList(harnessCfg, { requiredPlugins, env }) {
   let out;
   try {
     out = execFileSync("pi", ["list"], { env, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -123,12 +129,6 @@ function probePackageList(harnessCfg, { requiredPlugins, cwd, env }) {
   }
   const missing = [];
   for (const plugin of requiredPlugins) {
-    if (config.piDirCopyPlugins.includes(plugin)) {
-      if (!dirHasPlugin(cwd, harnessCfg.dirs, plugin)) {
-        missing.push({ plugin, reason: "not-installed", installHint: "copy skills 到 .pi/skills/ 或 .agents/skills/" });
-      }
-      continue;
-    }
     if (out.includes(`@oscaner-skills/${plugin}`)) continue;
     missing.push({ plugin, reason: "not-installed", installHint: harnessCfg.installHint(plugin) });
   }

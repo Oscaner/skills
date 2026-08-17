@@ -2,8 +2,17 @@
 // 探测路径 SOT：docs/research/2026-08-16-harness-plugin-availability.md（探测顺序 CLI/list → glob；
 // env 层为 hook-context-only 扩展，P6a 不实现）。installHint 生成安装指引（claude 的 marketplace-add
 // 前置见 research §2.1）。
+//
+// harnesses 集合 = 12（8 安装即用 + 4 os-init），MUST 与 P6b §2.5 逐一一致：
+//   install-and-use（缺失 → probe exit 3）：claude/cursor-agent/droid/grok/qoder/codex/gemini/pi
+//   os-init（缺失 → 提示 `os-init harness <name>`，非故障）：opencode/trae/vibe/kiro
 export const config = {
   requiredPlugins: ["superpowers", "mattpocock-skills", "engineering", "superpowers-overrides"],
+  // 最终通道分类（P6b §2.5 权威）：install-and-use → probe exit 3；os-init → 提示
+  channel: {
+    "install-and-use": ["claude", "cursor-agent", "droid", "grok", "qoder", "codex", "gemini", "pi"],
+    "os-init": ["opencode", "trae", "vibe", "kiro"],
+  },
   harnesses: {
     claude: {
       probe: "plugin-list",
@@ -20,17 +29,48 @@ export const config = {
       dirs: [".agents/skills"],
       installHint: () => "copy skills 到 .agents/skills/",
     },
+    grok: {
+      probe: "plugin-list",
+      installHint: () => "装 oscaner marketplace（grok 读 Claude marketplace）",
+    },
+    qoder: {
+      probe: "skill-dir",
+      dirs: [".agents/skills", ".qoder/skills"],
+      installHint: () => "装 .qoder-plugin 或 copy skills",
+    },
+    codex: {
+      probe: "skill-dir",
+      dirs: [".agents/skills"],
+      installHint: () => "装 .codex-plugin 或 copy skills",
+    },
+    gemini: {
+      probe: "skill-dir",
+      dirs: [".agents/skills", ".gemini/skills"],
+      installHint: () => "gemini extensions install 或 copy skills",
+    },
     pi: {
       probe: "package-list",
-      dirs: [".pi/skills", ".agents/skills"], // dir-copy fallback（piDirCopyPlugins 无 pi key）
       installHint: (p) => `pi install npm:@oscaner-skills/${p}`,
     },
     opencode: {
       probe: "skill-dir",
       dirs: [".opencode/skills", ".agents/skills"],
-      installHint: () => "copy skills 到 .opencode/skills/（npm 包技能不自动发现）",
+      installHint: () => "os-init harness opencode（copy skills）",
+    },
+    trae: {
+      probe: "skill-dir",
+      dirs: [".agents/skills", ".trae/skills"],
+      installHint: () => "os-init harness trae",
+    },
+    vibe: {
+      probe: "skill-dir",
+      dirs: [".agents/skills", ".vibe/skills"],
+      installHint: () => "os-init harness vibe",
+    },
+    kiro: {
+      probe: "skill-dir",
+      dirs: [".agents/skills", ".kiro/skills"],
+      installHint: () => "os-init harness kiro",
     },
   },
-  // pi 的 engineering/overrides 例外：无 pi key，需目录复制到 .pi/skills/ 或 .agents/skills/。
-  piDirCopyPlugins: ["engineering", "superpowers-overrides"],
 };

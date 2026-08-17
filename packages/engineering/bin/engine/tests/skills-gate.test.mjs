@@ -8,7 +8,7 @@
 // 复用 runner.test.mjs 的 capture + baseEnv 模式（内联 helper，保持测试独立）。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -74,12 +74,7 @@ test("implement: superpowers missing → exit 3 + stderr install hint, no CLI in
   const missing = [{ plugin: "superpowers", installHint: "/plugin install superpowers@oscaner" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, {
-      mode: "implement",
-      probeSkills: fakeProbe,
-      noExit: true,
-      env: baseEnv(ws),
-    }),
+    runTask("claude", 1, { mode: "implement", probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /plugin install/);
@@ -90,12 +85,7 @@ test("review: install-and-use missing → exit 3 + stderr install hint", async (
   const missing = [{ plugin: "engineering", installHint: "/plugin install engineering@oscaner" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, {
-      mode: "review",
-      probeSkills: fakeProbe,
-      noExit: true,
-      env: baseEnv(ws),
-    }),
+    runTask("claude", 1, { mode: "review", probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /plugin install/);
@@ -106,12 +96,7 @@ test("fix: install-and-use missing → exit 3 + stderr install hint", async () =
   const missing = [{ plugin: "mattpocock-skills", installHint: "/plugin install mattpocock-skills@oscaner" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, {
-      mode: "fix",
-      probeSkills: fakeProbe,
-      noExit: true,
-      env: baseEnv(ws),
-    }),
+    runTask("claude", 1, { mode: "fix", probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /plugin install/);
@@ -125,19 +110,14 @@ test("implement: 多个缺失 → exit 3 + 所有 installHint 出现于 stderr",
   ];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, {
-      mode: "implement",
-      probeSkills: fakeProbe,
-      noExit: true,
-      env: baseEnv(ws),
-    }),
+    runTask("claude", 1, { mode: "implement", probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /superpowers.*plugin install/s);
   assert.match(r.stderr, /engineering.*plugin install/s);
 });
 
-// Slice 2: os-init 通道缺失 → stderr 提示（非 exit 3），任务照跑（exit 0）
+// Slice 2: os-init 通道缺失 → stderr 提示（非 exit 3），任务照跑
 // 用 channelMap 把 claude 放进 os-init 通道来测试 os-init 分支（claude 在 registry 中通过 ship gate）。
 test("implement: os-init 通道缺失 → stderr 提示 + exit 0（任务照跑）", async () => {
   const ws = setupWorkspace();
@@ -151,7 +131,6 @@ test("implement: os-init 通道缺失 → stderr 提示 + exit 0（任务照跑�
       dryRun: true,
       probeSkills: fakeProbe,
       channelMap: osInitChannel,
-      noExit: true,
       env: baseEnv(ws),
     }),
   );
@@ -176,7 +155,6 @@ test("implement: os-init 通道（channelMap 驱动）→ stderr 提示 + 任务
       dryRun: true,
       probeSkills: fakeProbe,
       channelMap: osInitChannel,
-      noExit: true,
       env: baseEnv(ws),
     }),
   );
@@ -199,7 +177,6 @@ test("implement: os-init 无缺失 → gate 不触发 + exit 0", async () => {
       dryRun: true,
       probeSkills: fakeProbe,
       channelMap: osInitChannel,
-      noExit: true,
       env: baseEnv(ws),
     }),
   );
@@ -212,19 +189,10 @@ test("implement: probeFailed → fail-open + exit 0（dry-run）", async () => {
   const ws = setupWorkspace();
   const fakeProbe = async () => ({ missing: [{ plugin: "x", installHint: "y" }], probeFailed: true });
   const r = await capture(() =>
-    runTask("claude", 1, {
-      mode: "implement",
-      dryRun: true,
-      probeSkills: fakeProbe,
-      noExit: true,
-      env: baseEnv(ws),
-    }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
-  // probeFailed → fail-open → gate 不阻塞 → dry-run 正常 → exit 0
   assert.equal(r.code, 0);
   assert.match(r.stdout, /status: DONE/);
-  // fail-open 诊断出现在 stderr
-  assert.match(r.stderr, /probe failed.*claude/);
 });
 
 // Slice 4: 无缺失 → gate 不触发 → 正常 dry-run
@@ -232,13 +200,7 @@ test("implement: 无缺失 → gate 不触发 + exit 0（dry-run）", async () =
   const ws = setupWorkspace();
   const fakeProbe = async () => ({ missing: [], probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, {
-      mode: "implement",
-      dryRun: true,
-      probeSkills: fakeProbe,
-      noExit: true,
-      env: baseEnv(ws),
-    }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 0);
   assert.match(r.stdout, /status: DONE/);

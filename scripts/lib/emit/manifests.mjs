@@ -277,8 +277,8 @@ export function engineeringCursorHooks() {
  * from `.codex-plugin/hooks/hooks.json`（manifest 引用 `./hooks/hooks.json`）。
  * Adapter 命令用 manifest-relative `../bin/...`（相对 `.codex-plugin/` → 包根
  * `bin/gate/adapters/codex.mjs`）—— 与 plugin.json 的 skills/hooks 共用同一
- * manifest-relative base，不依赖 `${PLUGIN_ROOT}` 替换（codex 通道待验证，
- * 用文档化替换变量会引入「命令指向不存在文件」风险）。
+ * manifest-relative base，不依赖 `${PLUGIN_ROOT}` 替换（base 契约已锁定 +
+ * adapter guard——emit 前 assertAdapterPathsExist 断言 adapter 文件存在）。
  */
 export function codexHooksJson() {
   return cddGatePreToolUseHooks("../bin/gate/adapters/codex.mjs");

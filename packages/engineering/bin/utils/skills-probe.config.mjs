@@ -15,59 +15,71 @@ export const config = {
   },
   harnesses: {
     claude: {
+      cli: "claude",
       probe: "plugin-list",
       cacheGlob: "~/.claude/plugins/cache/oscaner/<plugin>/*/skills/",
       installHint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner`,
     },
     "cursor-agent": {
+      cli: "cursor-agent",
       probe: "skill-dir",
       dirs: [".agents/skills", ".cursor/skills"],
       installHint: () => "copy skills 到 .agents/skills/ 或装 marketplace",
     },
     droid: {
+      cli: "droid",
       probe: "skill-dir",
       dirs: [".agents/skills"],
       installHint: () => "copy skills 到 .agents/skills/",
     },
     grok: {
+      cli: "grok",
       probe: "plugin-list",
       installHint: () => "装 oscaner marketplace（grok 读 Claude marketplace）",
     },
     qoder: {
+      cli: "qoder",
       probe: "skill-dir",
       dirs: [".agents/skills", ".qoder/skills"],
       installHint: () => "装 .qoder-plugin 或 copy skills",
     },
     codex: {
+      cli: "codex",
       probe: "skill-dir",
       dirs: [".agents/skills"],
       installHint: () => "装 .codex-plugin 或 copy skills",
     },
     gemini: {
+      cli: "gemini",
       probe: "skill-dir",
       dirs: [".agents/skills", ".gemini/skills"],
       installHint: () => "gemini extensions install 或 copy skills",
     },
     pi: {
+      cli: "pi",
       probe: "package-list",
       installHint: (p) => `pi install npm:@oscaner-skills/${p}`,
     },
     opencode: {
+      cli: "opencode",
       probe: "skill-dir",
       dirs: [".opencode/skills", ".agents/skills"],
       installHint: () => "os-init harness opencode（copy skills）",
     },
     trae: {
+      cli: "trae",
       probe: "skill-dir",
       dirs: [".agents/skills", ".trae/skills"],
       installHint: () => "os-init harness trae",
     },
     vibe: {
+      cli: "vibe",
       probe: "skill-dir",
       dirs: [".agents/skills", ".vibe/skills"],
       installHint: () => "os-init harness vibe",
     },
     kiro: {
+      cli: "kiro",
       probe: "skill-dir",
       dirs: [".agents/skills", ".kiro/skills"],
       installHint: () => "os-init harness kiro",

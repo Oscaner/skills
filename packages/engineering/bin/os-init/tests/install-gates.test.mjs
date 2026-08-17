@@ -1,8 +1,5 @@
-// os-init/tests/install-gates.test.mjs — P4b T7: install-gates.mjs 安装器测试。
-// 隔离 HOME：以子进程运行安装器，HOME 指向临时目录；检测通过 PATH 上的 fake 命令
-// （vibe/kiro/grok/pi/opencode/gemini/qoder/codex）与 ~/.trae 目录存在来驱动。
-// 覆盖：--dry-run 不写、无包通道 4 个（trae/vibe/kiro/grok）写原生 config、
-// 包通道 5 个只引导命令、未知 harness 退出非零、幂等、保留用户非冲突内容。
+// os-init/tests/install-gates.test.mjs — P4b T7: install-gates.mjs 安装器测试（T5: 已迁移至 install-harness.mjs）。
+// 保留向后兼容路径：所有测试改为指向 install-harness.mjs。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -11,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deriveNativeHarnesses } from "../../gate/configs/native-harnesses.mjs";
 
-const INSTALLER = fileURLToPath(new URL("../install-gates.mjs", import.meta.url));
+const INSTALLER = fileURLToPath(new URL("../install-harness.mjs", import.meta.url));
 const ALL_HARNESSES = ["trae", "vibe", "kiro", "grok", "pi", "opencode", "gemini", "qoder", "codex"];
 const CONFIGS = fileURLToPath(new URL("../../gate/configs", import.meta.url));
 // native 集合派生自 configs/（与安装器同一 SOT —— 新增原生 harness 只加目录）。
@@ -89,7 +86,7 @@ test("pi 已装 → 写 ~/.pi/agent/extensions/engineering.ts（manual extension
   assert.ok(existsSync(p), `expected ${p} written`);
   const text = readFileSync(p, "utf8");
   assert.match(text, /export/);
-  assert.ok(text.includes("pi.mjs"), "shim 指向包内 pi adapter（含 .mjs）");
+  assert.ok(text.includes("pi.ts"), "shim 指向包内 pi adapter（.ts，T5 删除 pi.mjs）");
 });
 
 test("pi 目标已存在且非模板生成 → 跳过不覆盖（幂等 guard，保留用户文件）", () => {
@@ -111,15 +108,15 @@ test("pi 目标已存在且为模板生成 → 幂等覆盖更新（指回包内
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     path.join(dir, "engineering.ts"),
-    "// os-init gates — Pi TS extension（manual extension copy）。\nexport { default } from \"/old/path/pi.mjs\";\n",
+    "// os-init harness — Pi TS extension（manual extension copy）。\nexport { default } from \"/old/path/pi.ts\";\n",
   );
   run(["--harness", "pi"], e);
   const p = path.join(dir, "engineering.ts");
   const text = readFileSync(p, "utf8");
-  assert.ok(text.includes("pi.mjs"), "模板生成文件被覆盖更新");
+  assert.ok(text.includes("pi.ts"), "模板生成文件被覆盖更新");
   assert.ok(
-    text.includes(path.join("bin", "gate", "adapters", "pi.mjs")),
-    "覆盖后指向包内 adapter 路径",
+    text.includes(path.join("bin", "gate", "adapters", "pi.ts")),
+    "覆盖后指向包内 adapter 路径（.ts，T5 删除 pi.mjs）",
   );
 });
 

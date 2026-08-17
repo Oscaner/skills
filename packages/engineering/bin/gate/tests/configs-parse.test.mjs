@@ -1,7 +1,7 @@
 // gate/tests/configs-parse.test.mjs — P4b T7: gate/configs/** 模板 parse 校验。
 // JSON 模板 JSON.parse；TOML 模板结构冒烟（[[hooks]] / type="pre_tool" / command=）；
 // 原生模板集合从 configs/ 派生（native-harnesses.mjs —— 含 {{GATE_ADAPTER}} 占位符的目录），
-// 安装时由 install-gates.mjs 替换为包内 adapter 绝对路径（缺占位符 = 安装写出的 config 指向空串）。
+// 安装时由 install-harness.mjs 替换为包内 adapter 绝对路径（缺占位符 = 安装写出的 config 指向空串）。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";

@@ -1,24 +1,24 @@
-# os-init gates
+# os-init harness
 
-`os-init gates` 安装跨 harness 的 engineering gate（原生 config 写入 + 包通道引导 + 信任仪式），让 os-*/cli-* 触发自检在所有已装 harness 上生效。
+`os-init harness` 安装 per-harness 的 engineering 配置（原生 config 写入 + 包通道引导 + 信任仪式），让 os-*/cli-* 触发自检在所有已装 harness 上生效。
 
 ## Usage
 
 ```text
-/os-init gates [--harness …] [--dry-run]
+/os-init harness [--harness …] [--dry-run]
 ```
 
 ## Rules
 
 ### Rule: Run Installer
 
-先跑 `/os-init gates`（检测/引导/写原生 config/信任）—— 底层从**已安装包**运行
-`node <plugin-root>/bin/os-init/install-gates.mjs`（`<plugin-root>` = marketplace 实际
+先跑 `/os-init harness`（检测/引导/写原生 config/信任）—— 底层从**已安装包**运行
+`node <plugin-root>/bin/os-init/install-harness.mjs`（`<plugin-root>` = marketplace 实际
 安装 engineering 的位置，不是源 checkout 的 `node <repo>/packages/...` 路径）：
 
-1. 检测 —— `command -v <harness>`；trae 无 CLI → 检查 `~/.trae` 目录
-2. 引导 —— 包通道 harness（opencode/gemini/qoder/codex）打印安装命令，不写文件
-3. 配置 —— 原生 harness（trae/vibe/kiro/grok，外加 pi 手动扩展复制）复制 `configs/<h>/` 模板 → 机器路径
+1. 检测 —— harness-detect util（`command -v <cli>`；`cli` 源 = `config.harnesses[h].cli ?? h`）
+2. 引导 —— install-and-use 通道：打印 probe + install hint，不写文件
+3. 配置 —— os-init 通道：native harness 写 config（从 configs/ 派生模板）+ 复制 skills
 4. 信任 —— grok 打印 `grok --trust`；trae 打印 Enable + sandbox/local 执行模式
 
 未知 `--harness` → 工具 exit 1；`--dry-run` 只预览不写任何文件；重复运行幂等（JSON 深合并 / TOML 追加，保留用户非冲突内容）。

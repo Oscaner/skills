@@ -368,11 +368,12 @@ function dryRunH1Block(env, taskNum) {
 
 // ---- runTask / runPlan ----
 
-// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit }。
+// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot }。
 // 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
   const probeSkills = opts.probeSkills;
+  const pluginRootFn = opts.pluginRoot ?? pluginRoot;
   const channelMap = opts.channelMap ?? probeConfig.channel;
   const cwd = opts.cwd ?? process.cwd();
   const baseEnv = opts.env ?? process.env;
@@ -436,7 +437,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       return finish(1, [], `brief missing: ${taskBrief}`, noExit);
     }
     try {
-      const tplDir = path.join(pluginRoot(), "templates", "cdd");
+      const tplDir = path.join(pluginRootFn(), "templates", "cdd");
       if (!existsSync(tplDir)) {
         return finish(1, [], `templates missing: ${tplDir}`, noExit);
       }

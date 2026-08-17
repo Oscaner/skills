@@ -218,3 +218,15 @@ test("implement: brief missing → BLOCKED exit 1 + stderr", async () => {
   assert.equal(r.code, 1);
   assert.match(r.stderr, /brief missing/);
 });
+
+test("implement: templates missing → BLOCKED exit 1 + stderr", async () => {
+  const ws = setupWorkspace();
+  const fakeProbe = async () => ({ missing: [], probeFailed: false });
+  // pluginRoot returns a path where templates/cdd does not exist → gate exits 1.
+  const fakePluginRoot = () => ws;
+  const r = await capture(() =>
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, pluginRoot: fakePluginRoot, env: baseEnv(ws) }),
+  );
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /templates missing/);
+});

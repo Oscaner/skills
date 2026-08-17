@@ -180,6 +180,23 @@ export function geminiExtension(plugin, version) {
   };
 }
 
+/**
+ * Thin `gemini-extension.json` for skill-only packages (e.g. mattpocock).
+ * Carries name + version + skills + GEMINI.md context — no BeforeTool hooks.
+ * Used by vendored assemblies where the upstream has no gate adapter.
+ * @param {string} name package name (e.g. "mattpocock-skills")
+ * @param {string} version semver version
+ * @param {string[]} skillDirs skill directory paths (relative to extension root)
+ */
+export function thinGeminiExtension(name, version, skillDirs) {
+  return {
+    name,
+    version,
+    skills: skillDirs,
+    contextFileName: "GEMINI.md",
+  };
+}
+
 /** `GEMINI.md` — @-import every skill body (sorted) for Gemini discovery. */
 export function geminiMarkdown(plugin, skillNames) {
   return (

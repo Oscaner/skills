@@ -24,6 +24,7 @@ import {
   assemblyTemplate,
   derivePiKey,
 } from "./publish-vendor.mjs";
+import { thinGeminiExtension } from "./emit/manifests.mjs";
 
 let dir;
 function makeRoot() {
@@ -157,6 +158,11 @@ function makeMattpocockFixture() {
     }),
   );
   writeFileSync(join(p, "LICENSE"), "MIT\n");
+  // Skill directories for gemini-extension assembly verification
+  mkdirSync(join(p, "skills", "tdd"), { recursive: true });
+  writeFileSync(join(p, "skills", "tdd", "SKILL.md"), "# tdd\n");
+  mkdirSync(join(p, "skills", "grilling"), { recursive: true });
+  writeFileSync(join(p, "skills", "grilling", "SKILL.md"), "# grilling\n");
   return root;
 }
 
@@ -410,4 +416,98 @@ test("stageVendor copies content, writes scoped package.json + LICENSE", () => {
   assert.equal(pkg.version, "4.0.4");
   // pi at top level, derived from .pi/skills/impeccable
   assert.deepEqual(pkg.pi, { skills: ["./.pi/skills/impeccable"] });
+});
+
+// ---------------------------------------------------------------------------
+// thinGeminiExtension — mattpocock thin extension (no BeforeTool hooks)
+// ---------------------------------------------------------------------------
+
+test("thinGeminiExtension produces name/version/skills/contextFileName, no hooks", () => {
+  const ext = thinGeminiExtension("mattpocock-skills", "1.1.0", [
+    "./skills/tdd",
+    "./skills/grilling",
+  ]);
+  assert.equal(ext.name, "mattpocock-skills");
+  assert.equal(ext.version, "1.1.0");
+  assert.deepEqual(ext.skills, ["./skills/tdd", "./skills/grilling"]);
+  assert.equal(ext.contextFileName, "GEMINI.md");
+  assert.equal(ext.hooks, undefined);
+});
+
+test("thinGeminiExtension omits description when not provided", () => {
+  const ext = thinGeminiExtension("x", "0.0.1", []);
+  assert.equal(ext.description, undefined);
+  assert.equal(ext.hooks, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// stageVendor gemini-extension — mattpocock assembly produces thin extension + GEMINI.md
+// ---------------------------------------------------------------------------
+
+test("stageVendor mattpocock produces thin gemini-extension.json", () => {
+  const root = makeMattpocockFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("mattpocock-skills", root, stageRoot);
+
+  const geminiPath = join(dest, "gemini-extension.json");
+  assert.ok(existsSync(geminiPath), "gemini-extension.json should exist");
+  const ext = JSON.parse(readFileSync(geminiPath, "utf8"));
+  // Name is the scoped package name (from assemblePackageJson)
+  assert.equal(ext.name, "@oscaner-skills/mattpocock-skills");
+  assert.equal(ext.version, "1.1.0");
+  assert.equal(ext.contextFileName, "GEMINI.md");
+  assert.ok(Array.isArray(ext.skills), "skills should be an array");
+  assert.ok(ext.skills.length >= 2, "skills should include fixture dirs");
+  // No BeforeTool hooks in the thin extension
+  assert.equal(ext.hooks, undefined);
+});
+
+test("stageVendor mattpocock produces GEMINI.md with skill imports", () => {
+  const root = makeMattpocockFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("mattpocock-skills", root, stageRoot);
+
+  const geminiMdPath = join(dest, "GEMINI.md");
+  assert.ok(existsSync(geminiMdPath), "GEMINI.md should exist");
+  const content = readFileSync(geminiMdPath, "utf8");
+  // Skills come from the fixture's .claude-plugin/plugin.json skills array
+  assert.ok(content.includes("@./skills/claude-api/SKILL.md"), "should import claude-api skill");
+  assert.ok(content.includes("@./skills/grilling/SKILL.md"), "should import grilling skill");
+  assert.ok(!content.includes("hooks"), "thin extension GEMINI.md should not reference hooks");
+});
+
+// ---------------------------------------------------------------------------
+// stageVendor upstream guard — upstream gemini-extension.json triggers error
+// ---------------------------------------------------------------------------
+
+test("stageVendor throws when upstream already has gemini-extension.json", () => {
+  const root = makeMattpocockFixture();
+  // Plant an upstream gemini-extension.json in the vendor
+  writeFileSync(
+    join(root, "vendors", "mattpocock-skills", "gemini-extension.json"),
+    JSON.stringify({ name: "upstream" }),
+  );
+  const stageRoot = join(root, "stage");
+  assert.throws(
+    () => stageVendor("mattpocock-skills", root, stageRoot),
+    /gemini-extension\.json/,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// stageVendor unaffected — superpowers/impeccable don't get gemini-extension
+// ---------------------------------------------------------------------------
+
+test("stageVendor superpowers does not produce gemini-extension.json", () => {
+  const root = makeSuperpowersFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("superpowers", root, stageRoot);
+  assert.ok(!existsSync(join(dest, "gemini-extension.json")));
+});
+
+test("stageVendor impeccable does not produce gemini-extension.json", () => {
+  const root = makeImpeccableFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("impeccable", root, stageRoot);
+  assert.ok(!existsSync(join(dest, "gemini-extension.json")));
 });

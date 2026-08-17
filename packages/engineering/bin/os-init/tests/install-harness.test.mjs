@@ -87,19 +87,49 @@ test("manifest 写入 → bin/os-init/state/<harness>.json 存在 + 含 engineer
   assert.ok(existsSync(grokConfig), "grok config 写入");
 });
 
-test("manifest 追踪文件 → 删除仅限 source:'os-init' + hash 未变", () => {
+test("manifest 全量同步：删除 source:'os-init' + hash 未变的文件条目", () => {
   const home = mkdtempSync("/tmp/install-harness-");
   const e = env({ home, commands: ["vibe"] });
-  // 先安装 → 写 config
+  // 第一次安装 → 写 config + manifest 追踪
   run(["--harness", "vibe"], e);
   const dest = path.join(home, ".vibe", "hooks.toml");
   assert.ok(existsSync(dest), "vibe config 写入");
-  const originalContent = readFileSync(dest, "utf8");
-  const originalHash = sha256(originalContent);
+  const manifestFile = path.join(home, ".engineering", "state", "vibe.json");
+  assert.ok(existsSync(manifestFile), "manifest 写入");
+  const manifest1 = JSON.parse(readFileSync(manifestFile, "utf8"));
+  assert.ok(manifest1.files[dest], "manifest 追踪 dest 文件");
+  assert.equal(manifest1.files[dest].source, "os-init", "source 标记为 os-init");
 
-  // 幂等运行 → 文件不变
+  // 删除磁盘文件 + manifest 条目，再手动添加一个不存在的追踪条目
+  rmSync(dest);
+  manifest1.files["/tmp/nonexistent/file.txt"] = { hash: "deadbeef", source: "os-init" };
+  writeFileSync(manifestFile, JSON.stringify(manifest1, null, 2));
+
+  // 再次安装 → syncManifest 清理不存在的文件条目，installLoop 重新写入 config
   run(["--harness", "vibe"], e);
-  assert.equal(sha256(readFileSync(dest, "utf8")), originalHash, "幂等运行 hash 不变");
+  const manifest2 = JSON.parse(readFileSync(manifestFile, "utf8"));
+  assert.ok(!manifest2.files["/tmp/nonexistent/file.txt"], "syncManifest 清理了不存在文件的 manifest 条目");
+  assert.ok(existsSync(dest), "installLoop 重新写入 config");
+  assert.ok(manifest2.files[dest], "installLoop 重新追踪 dest 文件");
+});
+
+test("manifest 追踪：source 非 os-init → 保留不删", () => {
+  const home = mkdtempSync("/tmp/install-harness-");
+  const e = env({ home, commands: ["vibe"] });
+  // 安装
+  run(["--harness", "vibe"], e);
+  const dest = path.join(home, ".vibe", "hooks.toml");
+  const manifestFile = path.join(home, ".engineering", "state", "vibe.json");
+  // 改 manifest source 为非 os-init（模拟用户手动添加的追踪）
+  const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+  manifest.files[dest].source = "user";
+  writeFileSync(manifestFile, JSON.stringify(manifest, null, 2));
+  // 删除磁盘文件
+  rmSync(dest);
+  // 再次安装 → syncManifest 不应清理（source 非 os-init）
+  run(["--harness", "vibe"], e);
+  const manifest2 = JSON.parse(readFileSync(manifestFile, "utf8"));
+  assert.ok(manifest2.files[dest], "非 os-init source 的追踪条目保留");
 });
 
 test("用户改动 → hash 变化 → 保留并报告", () => {

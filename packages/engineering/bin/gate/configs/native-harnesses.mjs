@@ -1,6 +1,6 @@
 // gate/configs/native-harnesses.mjs — 原生 harness 集合派生（P4b T11 / T7 warn）。
 // 原生 = configs/<name>/ 下含 {{GATE_ADAPTER}} 占位符模板的目录。新增原生 harness =
-// 加 configs/<name>/ 模板即可，无需改 install-gates.mjs 注册表 / 测试的硬编码列表
+// 加 configs/<name>/ 模板即可，无需改 install-harness.mjs 注册表 / 测试的硬编码列表
 // （此前 trae/vibe/kiro/grok 在 3 处重复，加第 5 个要协调改 3 处 —— 派生消除）。
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";

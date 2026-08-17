@@ -16,6 +16,6 @@ invoked is `bin/gate/adapters/trae.mjs`.
 }
 ```
 
-`os-init gates` replaces `{{GATE_ADAPTER}}` with the installed package's
+`os-init harness` replaces `{{GATE_ADAPTER}}` with the installed package's
 adapter absolute path and writes `~/.trae/hooks.json`. After install, flip the
 hook **Enable** toggle + choose sandbox/local execution mode in Trae.

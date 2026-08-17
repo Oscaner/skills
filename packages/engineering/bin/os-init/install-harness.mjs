@@ -181,7 +181,8 @@ async function writeManifest(harness, manifest) {
   await writeFile(manifestPath(harness), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-// manifest 全量同步：删除仅限 source:"os-init" + on-disk hash 未变的文件
+// manifest 全量同步：清理已移除的 tracked 文件
+// 删除仅限 source:"os-init" + on-disk hash 未变的文件（磁盘 + manifest 条目）
 async function syncManifest(harness, manifest) {
   const toDelete = [];
   const toKeep = [];
@@ -191,13 +192,16 @@ async function syncManifest(harness, manifest) {
       continue;
     }
     if (!existsSync(filePath)) {
+      // 磁盘文件已移除 → 清理 manifest 条目
       delete manifest.files[filePath];
+      toDelete.push(filePath);
       continue;
     }
     const onDisk = readFileSync(filePath, "utf8");
     if (sha256(onDisk) === tracked.hash) {
       toDelete.push(filePath);
     } else {
+      // hash 变化 = 用户改动 → 保留
       toKeep.push(filePath);
     }
   }
@@ -275,6 +279,16 @@ async function main() {
   let guided = 0;
   let skipped = 0;
 
+  // manifest 全量同步：清理已移除的 tracked 文件（source:"os-init" + hash 未变 → 删除磁盘 + manifest）
+  // 在 install loop 前运行，避免 installNative 刚写入的文件被误删
+  for (const name of names) {
+    const manifest = readManifest(name);
+    const { deleted } = await syncManifest(name, manifest);
+    if (deleted.length) {
+      await writeManifest(name, manifest);
+    }
+  }
+
   for (const name of names) {
     const h = HARNESSES[name];
     if (!h.detect()) {
@@ -303,6 +317,7 @@ async function main() {
       guided++;
     }
   }
+
   console.log(`完成 — 写 config: ${wrote}, 引导: ${guided}, 跳过(未检测): ${skipped}`);
 }
 

@@ -1,6 +1,6 @@
 ---
 name: os-brainstorming
-description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / fresh-subagent 评审 passes）。可独立调用；由 /brainstorming 触发经 overrides 路由器直达。
+description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / cli review 评审 passes）。可独立调用；由 /brainstorming 触发经 overrides 路由器直达。
 ---
 
 # OS Brainstorming
@@ -27,9 +27,11 @@ Read 上游 `superpowers:brainstorming` 的 SKILL.md 作为流程基线 **当可
 
 大需求（≥3 子系统 / 分几期 / overhaul）先写 overall spec，再分阶段。文档结构见 [overall-phase-spec-template.md](../docs/overall-phase-spec-template.md)。GATE：overall 批准 ≠ 阶段已启动。
 
-### Rule: Fresh-Subagent Review Passes
+### Rule: Spec Review via CLI
 
-写出的 spec 用 fresh subagent 评审 passes（Completeness → Consistency & scope → Clarity & YAGNI），派发纪律见 [review-dispatch.md](../docs/review-dispatch.md) + [subagent-lifecycle.md](../docs/subagent-lifecycle.md)。
+spec review 分 3 类 pass（completeness / consistency&scope / clarity&YAGNI），每 pass 一次 fresh `cdd-exec` 派发：
+  cdd-exec --harness claude --prompt "<spec-document-reviewer 模板 + pass 类别 + 文档路径>"
+派发纪律见 [review-dispatch.md](../docs/review-dispatch.md)（D1/D2/D3 + fresh-pass，原样映射到 cli）。
 
 ### Rule: Write Design Doc
 

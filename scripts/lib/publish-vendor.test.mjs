@@ -22,6 +22,7 @@ import {
   stageVendor,
   listVendors,
   assemblyTemplate,
+  derivePiKey,
 } from "./publish-vendor.mjs";
 
 let dir;
@@ -48,7 +49,15 @@ function makeSuperpowersFixture() {
   makeGitRepo(p, "v6.2.0");
   writeFileSync(
     join(p, "package.json"),
-    JSON.stringify({ name: "superpowers", version: "6.2.0", description: "root desc" }),
+    JSON.stringify({
+      name: "superpowers",
+      version: "6.2.0",
+      description: "root desc",
+      pi: {
+        extensions: ["./.pi/extensions/superpowers.ts"],
+        skills: ["./skills"],
+      },
+    }),
   );
   mkdirSync(join(p, ".claude-plugin"), { recursive: true });
   writeFileSync(
@@ -91,6 +100,12 @@ function makeImpeccableFixture() {
       author: { name: "Paul Bakaus", email: "paul@paulbakaus.com" },
     }),
   );
+  // pi convention: .pi/skills/impeccable/ with SKILL.md
+  mkdirSync(join(p, ".pi", "skills", "impeccable"), { recursive: true });
+  writeFileSync(
+    join(p, ".pi", "skills", "impeccable", "SKILL.md"),
+    "# impeccable skill\n",
+  );
   writeFileSync(join(p, "LICENSE"), "Apache-2.0\n");
   return root;
 }
@@ -107,6 +122,38 @@ function makeMattpocockFixture() {
       private: true,
       description: "Matt Pocock's agent skills for real engineering",
       license: "MIT",
+    }),
+  );
+  // plugin.json with skills array (priority 3: no package.json pi, no .pi/skills/)
+  mkdirSync(join(p, ".claude-plugin"), { recursive: true });
+  writeFileSync(
+    join(p, ".claude-plugin", "plugin.json"),
+    JSON.stringify({
+      name: "mattpocock-skills",
+      version: "1.1.0",
+      skills: [
+        "./skills/claude-api",
+        "./skills/codebase-design",
+        "./skills/code-review",
+        "./skills/diagnosing-bugs",
+        "./skills/domain-modeling",
+        "./skills/finishing-a-development-branch",
+        "./skills/grilling",
+        "./skills/managing-ai-agents",
+        "./skills/mcp",
+        "./skills/mental-models",
+        "./skills/opening-requests",
+        "./skills/planning",
+        "./skills/prototype",
+        "./skills/receiving-code-review",
+        "./skills/requesting-code-review",
+        "./skills/research",
+        "./skills/simplifying",
+        "./skills/subagent-driven-development",
+        "./skills/tdd",
+        "./skills/test-driven-development",
+        "./skills/to-tickets",
+      ],
     }),
   );
   writeFileSync(join(p, "LICENSE"), "MIT\n");
@@ -211,6 +258,32 @@ test("resolveVendorVersion surfaces the template guard for an unknown vendor", (
 });
 
 // ---------------------------------------------------------------------------
+// derivePiKey — dynamic pi detection from vendored structure
+// ---------------------------------------------------------------------------
+
+test("derivePiKey — superpowers preserves upstream pi from package.json", () => {
+  const root = makeSuperpowersFixture();
+  const pi = derivePiKey(join(root, "vendors", "superpowers"), ".");
+  assert.deepEqual(pi, {
+    extensions: ["./.pi/extensions/superpowers.ts"],
+    skills: ["./skills"],
+  });
+});
+
+test("derivePiKey — mattpocock reads skills from .claude-plugin/plugin.json", () => {
+  const root = makeMattpocockFixture();
+  const pi = derivePiKey(join(root, "vendors", "mattpocock-skills"), ".");
+  assert.ok(Array.isArray(pi.skills));
+  assert.ok(pi.skills.length >= 21);
+});
+
+test("derivePiKey — impeccable derives from .pi/skills/impeccable (pi convention)", () => {
+  const root = makeImpeccableFixture();
+  const pi = derivePiKey(join(root, "vendors", "impeccable"), "plugin");
+  assert.deepEqual(pi.skills, ["./.pi/skills/impeccable"]);
+});
+
+// ---------------------------------------------------------------------------
 // assemblePackageJson — scoped package.json
 // ---------------------------------------------------------------------------
 
@@ -221,9 +294,11 @@ test("assemblePackageJson — superpowers scoped pkg (tags + plugin.json metadat
   assert.equal(pkg.version, "6.2.0");
   assert.equal(pkg.license, "MIT");
   assert.equal(pkg.description, "Core skills library for Claude Code");
-  assert.deepEqual(pkg["oscaner-plugin"], {
-    contentRoot: ".",
-    pi: { skills: ["./skills"] },
+  // pi at top level (not nested in oscaner-plugin), preserving upstream
+  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "." });
+  assert.deepEqual(pkg.pi, {
+    extensions: ["./.pi/extensions/superpowers.ts"],
+    skills: ["./skills"],
   });
 });
 
@@ -237,10 +312,9 @@ test("assemblePackageJson — impeccable version from plugin.json truth, content
     name: "Paul Bakaus",
     email: "paul@paulbakaus.com",
   });
-  assert.deepEqual(pkg["oscaner-plugin"], {
-    contentRoot: "plugin",
-    pi: { skills: ["./skills"] },
-  });
+  // pi at top level, derived from .pi/skills/impeccable (not plugin.json)
+  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "plugin" });
+  assert.deepEqual(pkg.pi, { skills: ["./.pi/skills/impeccable"] });
 });
 
 test("assemblePackageJson — mattpocock drops upstream private flag", () => {
@@ -249,10 +323,10 @@ test("assemblePackageJson — mattpocock drops upstream private flag", () => {
   assert.equal(pkg.version, "1.1.0");
   assert.equal(pkg.license, "MIT");
   assert.equal(pkg.private, undefined);
-  assert.deepEqual(pkg["oscaner-plugin"], {
-    contentRoot: ".",
-    pi: { skills: ["./skills"] },
-  });
+  // pi at top level, derived from .claude-plugin/plugin.json skills array
+  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "." });
+  assert.ok(Array.isArray(pkg.pi.skills));
+  assert.ok(pkg.pi.skills.length >= 21);
 });
 
 // ---------------------------------------------------------------------------
@@ -334,5 +408,6 @@ test("stageVendor copies content, writes scoped package.json + LICENSE", () => {
   const pkg = JSON.parse(readFileSync(join(dest, "package.json"), "utf8"));
   assert.equal(pkg.name, "@oscaner-skills/impeccable");
   assert.equal(pkg.version, "4.0.4");
-  assert.deepEqual(pkg["oscaner-plugin"].pi, { skills: ["./skills"] });
+  // pi at top level, derived from .pi/skills/impeccable
+  assert.deepEqual(pkg.pi, { skills: ["./.pi/skills/impeccable"] });
 });

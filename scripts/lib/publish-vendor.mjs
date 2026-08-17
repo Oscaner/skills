@@ -30,13 +30,12 @@ import {
   writeFileSync,
   rmSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import {
   SUBMODULE_PATHS,
   TAG_PATTERNS,
   semverFromNearestTag,
 } from "./submodule-tags.mjs";
-import { piPackageKey } from "./emit/manifests.mjs";
 
 /**
  * Discover the vendored plugin set from the `vendors/` directory, sorted.
@@ -82,6 +81,71 @@ export function assemblyTemplate(name) {
     );
   }
   return tpl;
+}
+
+/**
+ * Dynamically derive the `pi` key for a vendored submodule. Probes the
+ * actual submodule structure instead of hardcoding — upstream structural
+ * changes are picked up automatically.
+ *
+ * Detection priority (pi convention first, plugin.json last):
+ *   1. `package.json` top-level `pi` (superpowers — preserve upstream extensions+skills)
+ *   2. `.pi/skills/` directory (impeccable — pi convention, not plugin.json)
+ *   3. `.claude-plugin/plugin.json` skills array (mattpocock — no .pi/ dir)
+ *   4. Fallback: glob `skills/` directory at contentRoot
+ *
+ * @param {string} submodulePath absolute path to the vendored submodule root
+ * @param {string} contentRoot relative contentRoot (e.g. "." or "plugin")
+ * @returns {{ skills?: string[], extensions?: string[] }} pi key value
+ */
+export function derivePiKey(submodulePath, contentRoot) {
+  // 1. package.json top-level pi (superpowers — upstream carries extensions+skills)
+  const pkgPath = join(submodulePath, "package.json");
+  if (existsSync(pkgPath)) {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+    if (pkg.pi && typeof pkg.pi === "object") {
+      return { ...pkg.pi };
+    }
+  }
+
+  // 2. .pi/skills/ directory (pi convention — impeccable hits here)
+  const piSkillsDir = join(submodulePath, ".pi", "skills");
+  if (existsSync(piSkillsDir)) {
+    const entries = readdirSync(piSkillsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => `./.pi/skills/${e.name}`);
+    if (entries.length > 0) {
+      return { skills: entries };
+    }
+  }
+
+  // 3. .claude-plugin/plugin.json skills array (mattpocock — no .pi/ dir)
+  const manifestPath = join(
+    submodulePath,
+    contentRoot,
+    ".claude-plugin",
+    "plugin.json",
+  );
+  if (existsSync(manifestPath)) {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    if (Array.isArray(manifest.skills) && manifest.skills.length > 0) {
+      return { skills: [...manifest.skills] };
+    }
+  }
+
+  // 4. Fallback: glob skills/ directory at contentRoot
+  const skillsDir = join(submodulePath, contentRoot, "skills");
+  if (existsSync(skillsDir)) {
+    const entries = readdirSync(skillsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => `./skills/${e.name}`);
+    if (entries.length > 0) {
+      return { skills: entries };
+    }
+  }
+
+  // Nothing found — return empty skills (graceful degradation)
+  return { skills: [] };
 }
 
 /**
@@ -158,7 +222,11 @@ export function assemblePackageJson(name, root) {
     if (merged[field] !== undefined) out[field] = merged[field];
   }
   if (merged.repository !== undefined) out.repository = merged.repository;
-  out["oscaner-plugin"] = { contentRoot, pi: piPackageKey() };
+  out["oscaner-plugin"] = { contentRoot };
+  // Dynamic pi derivation from vendored structure (priority: package.json pi →
+  // .pi/skills/ → plugin.json skills → fallback skills/ glob)
+  const pi = derivePiKey(submodulePath, contentRoot);
+  if (pi && Object.keys(pi).length > 0) out.pi = pi;
   return out;
 }
 

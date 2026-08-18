@@ -14,7 +14,7 @@
 
 ## §0 Document scope
 
-P7c 是 P7 系列的第三个子阶段，处理版本管理脚本和发布流水线中的残留旧包名引用。P7a/P7b 完成了目录和命名空间改名，但 `version-packages.mjs` 和 `release.yml` 中仍引用旧包名，导致版本跳跃静默跳过 osuperpowers 插件、release tag 使用旧命名。
+P7c 是 P7 系列的第三个子阶段，处理版本管理脚本、发布流水线、配置文件、issue templates、GitHub labels 和 changeset 文档中的残留旧包名引用。P7a/P7b 完成了目录和命名空间改名，但多个文件中仍引用旧包名，导致功能性 bug（opencode 插件解析失败、版本跳跃静默跳过）和用户可见的旧命名残留。
 
 ## §1 scripts/version-packages.mjs — 包名替换
 
@@ -83,30 +83,138 @@ ls .changeset/*.md | xargs grep -l '@oscaner-skills/engineering'
 
 `CHANGELOG.md` 和 `.changeset/config.json` 不动。
 
-## §4 验证方案
+## §4 opencode.json 配置 — 包名修复
+
+### 问题
+
+`packages/osuperpowers/bin/gate/configs/opencode.json` 中 `plugin` 数组引用旧包名 `@oscaner-skills/engineering`。opencode 安装时会按此名查找插件，当前会导致解析失败（功能性 bug）。
+
+### 改动
+
+```diff
+- "plugin": ["@oscaner-skills/engineering"]
++ "plugin": ["@oscaner-skills/osuperpowers"]
+```
+
+### 验证
 
 ```bash
-# 1. 执行改动（§1-§3）
+grep -n '@oscaner-skills/engineering' packages/osuperpowers/bin/gate/configs/opencode.json
+# 预期：exit 1
+```
+
+## §5 Issue templates + install hint — 标签名更新
+
+### 问题
+
+两个 issue template 引用旧标签名 `superpowers-overrides`；`install-harness.mjs` 中 opencode hint 引用旧包名。
+
+### 改动
+
+**`.github/ISSUE_TEMPLATE/enhancement.yml` (line 9) 和 `bug_report.yml` (line 9)：**
+
+```diff
+- Additional labels (`dogfood`, `superpowers-overrides`, and `cdd` ...
++ Additional labels (`dogfood`, `osuperpowers-router`, and `cdd` ...
+```
+
+**`packages/osuperpowers/bin/os-init/install-harness.mjs` (line 100)：**
+
+```diff
+- hint: "opencode.json `plugin` 数组加 `@oscaner-skills/engineering`"
++ hint: "opencode.json `plugin` 数组加 `@oscaner-skills/osuperpowers`"
+```
+
+### 验证
+
+```bash
+grep -rn 'superpowers-overrides' .github/ISSUE_TEMPLATE/
+# 预期：exit 1
+grep -n '@oscaner-skills/engineering' packages/osuperpowers/bin/os-init/install-harness.mjs
+# 预期：exit 1
+```
+
+## §6 GitHub labels — 旧标签迁移
+
+### 问题
+
+GitHub 上存在旧标签 `superpowers-overrides` 和 `engineering`，需要创建新标签 `osuperpowers-router` 和 `osuperpowers` 并删除旧标签。
+
+### 改动
+
+```bash
+gh label create osuperpowers-router --color EDEDED --description "osuperpowers-router plugin (first-party)"
+gh label create osuperpowers --color EDEDED --description "osuperpowers plugin (first-party)"
+gh label delete superpowers-overrides --yes
+gh label delete engineering --yes
+```
+
+如有 issue 使用旧标签，先批量迁移到新标签再删除。
+
+### 验证
+
+```bash
+gh label list | grep -E 'superpowers-overrides|engineering|osuperpowers'
+# 预期：只出现 osuperpowers 和 osuperpowers-router
+```
+
+## §7 .changeset/README.md — 文档更新
+
+### 问题
+
+README 中大量引用旧包名和路径。
+
+### 改动
+
+全局替换：
+- `@oscaner-skills/superpowers-overrides` → `@oscaner-skills/osuperpowers-router`
+- `@oscaner-skills/engineering` → `@oscaner-skills/osuperpowers`
+- `packages/superpowers-overrides/` → `packages/osuperpowers-router/`
+- `packages/engineering/` → `packages/osuperpowers/`
+- `superpowers-overrides@{version}` → `osuperpowers-router@{version}`
+- `engineering@{version}` → `osuperpowers@{version}`
+- `engineering/skills/os-init/` → `packages/osuperpowers/skills/init/`
+
+### 验证
+
+```bash
+grep -n 'superpowers-overrides\|@oscaner-skills/engineering' .changeset/README.md
+# 预期：exit 1
+```
+
+## §8 验证方案
+
+```bash
+# 1. 执行改动（§1-§7）
 
 # 2. 验证无遗留旧引用
-grep -rn '@oscaner-skills/engineering' scripts/ .github/ .changeset/
+grep -rn '@oscaner-skills/engineering' scripts/ .github/ .changeset/ packages/osuperpowers/bin/
 # 预期：exit 1（无匹配）
 
-grep -rn 'superpowers-overrides@' .github/workflows/release.yml
+grep -rn 'superpowers-overrides' .github/ .changeset/ packages/osuperpowers/bin/
 # 预期：exit 1（无匹配）
 
 # 3. 验证脚本可执行
 node scripts/version-packages.mjs --dry-run 2>&1 || true
-# 预期：无抛出，正常处理 changeset
+# 预期：无抛出
 
 # 4. 全量验证
 pnpm run emit:check
 pnpm run validate
+
+# 5. GitHub labels
+gh label list | grep -E 'superpowers-overrides|^engineering '
+# 预期：exit 1（旧标签已删除）
 ```
 
 **验收标准**：
 - ✅ `version-packages.mjs` 中无 `@oscaner-skills/engineering` 引用
 - ✅ `release.yml` 矩阵使用 `osuperpowers-router@` / `osuperpowers@` tag 前缀
+- ✅ `opencode.json` 使用 `@oscaner-skills/osuperpowers`
+- ✅ issue templates 使用 `osuperpowers-router` 标签名
+- ✅ `install-harness.mjs` opencode hint 使用新包名
+- ✅ GitHub 上无 `superpowers-overrides` / `engineering` 旧标签
+- ✅ `.changeset/README.md` 使用新包名和路径
 - ✅ `.changeset/` 中无引用旧包名的 changeset 文件
 - ✅ `pnpm run emit:check` 无 drift
 - ✅ `pnpm run validate` 全部通过

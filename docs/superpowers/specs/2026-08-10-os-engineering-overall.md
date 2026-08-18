@@ -66,14 +66,14 @@
 | P6d | **文档英文化（翻译 phase）**。13 个 engineering SKILL.md 中文→英文（os-* 9 + cli-* 4）+ `SKILL.zh-CN.md` companion files；6 个 engineering docs 英文化（cdd-reference/handoff-schema/overall-phase-spec-template/controller-handoff/review-dispatch/subagent-lifecycle）+ `*.zh-CN.md` companion files；旧 docs/superpowers specs/plans/tickets 清理。统一 convention：`<name>.zh-CN.md` 同目录 companion 模式。 | [Pending] | [Pending] | ⏳ 未启动 |
 | P6e | **文档重写**。CLAUDE.md 从零重写（`init` skill 生成英文 + engineering self-check 清理）；README.md + README.zh-CN.md 从零重写（英文主 + 中文 companion）。统一 convention：所有双语文件用 `<name>.zh-CN.md` 同目录 companion 模式（无 `docs/zh-CN/` 平行目录）。 | [Pending] | [Pending] | ⏳ 未启动 |
 | P7a | **包目录改名 + emit 脚本适配**。`packages/engineering/` → `packages/osuperpowers/`，`packages/superpowers-overrides/` → `packages/osuperpowers-router/`；更新 `package.json`（name/repository.directory/description）；更新 `scripts/emit.mjs`（productRoots/productFiles/emitAll/assertVersionBump 中所有硬编码路径）；更新 `scripts/ci-validate.mjs`（步骤 1-5b/5c 中所有旧路径）；更新 `scripts/lib/emit/emit.test.mjs` 和 `scripts/lib/first-party-publish.test.mjs` 中包名断言；`pnpm run emit:check` + `pnpm run validate` 通过。 | [Pending] | [Pending] | ⏳ 未启动 |
-| P7b | **技能目录改名 + 命名空间**。13 个 `skills/os-*` 目录去掉 `os-` 前缀（如 `os-brainstorming` → `brainstorming`）；`overrides.manifest.json` 中 `name` 字段 `engineering:os-*` → `osuperpowers:*`、`source` 路径更新；各 SKILL.md 中 self-reference 和命名空间引用同步更新；`os-init/spor.md` 自检表模板更新；`pnpm run emit:check` 通过。 | [Pending] | [Pending] | ⏳ 未启动 |
+| P7b | **技能目录改名 + 命名空间 + 文档更新**。13 个 `skills/os-*` 目录去掉 `os-` 前缀（如 `os-brainstorming` → `brainstorming`）；`overrides.manifest.json` 中 `name` 字段 `osuperpowers:os-*` → `osuperpowers:*`、`source` 路径更新；各 SKILL.md 中 self-reference 和命名空间引用同步更新；`os-init/spor.md` 自检表模板更新；`scripts/emit.mjs` 中 `emitAgentsSkillsCopy` namespace 名更新；`packages/osuperpowers/CLAUDE.md`、`packages/osuperpowers/README.md`、`packages/osuperpowers-router/CLAUDE.md`、`packages/osuperpowers-router/README.md`、`README.md` 中所有 `os-*` 技能名和 `superpowers-overrides`/`engineering` 引用更新；`pnpm run emit:check` 通过。 | [Pending] | [Pending] | ⏳ 未启动 |
 | P7c | **版本管理 + 发布流水线**。`scripts/version-packages.mjs` 中包名 `@oscaner-skills/engineering` → `@oscaner-skills/osuperpowers`、`@oscaner-skills/superpowers-overrides` → `@oscaner-skills/osuperpowers-router`；`scripts/validate-version-sync.mjs` 中 `s.plugins.find` 引用更新；`scripts/sync-overrides-versions.mjs` 中包路径更新；`.github/workflows/release.yml` 矩阵 tag_prefix 更新；`packages/osuperpowers/bin/utils/skills-probe.config.mjs` 中 `requiredPlugins` 更新；相关测试文件断言更新；已消费 changeset 清理。 | [Pending] | [Pending] | ⏳ 未启动 |
 | P7d | **文档更新**。README.md/README.zh-CN.md/CLAUDE.md 中所有 engineering/superpowers-overrides 引用更新；`packages/osuperpowers/CLAUDE.md` 和 `packages/osuperpowers-router/CLAUDE.md` 中包名引用更新；`docs/gate-install.md`/`marketplace/README.md` 等关联文档中引用更新。 | [Pending] | [Pending] | ⏳ 未启动 |
 
 ## §3 Dependency graph (ASCII)
 
 ```
-P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（统一 gate 面迁 Node + 9 adapter + os-init gates）──▶ P5（CDD 引擎 + CI + 测试迁 Node）──▶ P6a/P6b（引擎加固 + 交付补齐）──▶ P6c（research 集成）──▶ P6d（文档英文化）──▶ P6e（文档重写 + 镜像）──▶ P7a（包目录改名 + emit 脚本适配）──▶ P7b（技能目录改名 + 命名空间）──▶ P7c（版本管理 + 发布流水线）──▶ P7d（文档更新）
+P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（统一 gate 面迁 Node + 9 adapter + os-init gates）──▶ P5（CDD 引擎 + CI + 测试迁 Node）──▶ P6a/P6b（引擎加固 + 交付补齐）──▶ P6c（research 集成）──▶ P6d（文档英文化）──▶ P6e（文档重写 + 镜像）──▶ P7a（包目录改名 + emit 脚本适配）──▶ P7b（技能目录改名 + 命名空间 + 文档更新）──▶ P7c（版本管理 + 发布流水线）
 ```
 
 - P1 → P2：插件存在、模式确立、harness 机制与 cli-driven-development 就位后，os-* 才能引用它们。
@@ -86,9 +86,8 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - P6c → P6d：SKILL.md 内容稳定后做英文化翻译。
 - P6d → P6e：翻译完成后 root files 重写 + 旧文件清理。
 - P6e → P7a：文档稳定后做包目录改名 + emit 脚本适配。
-- P7a → P7b：emit 就位后做技能目录改名 + 命名空间（emit 重新生成 hooks/自检表）。
-- P7b → P7c：命名空间稳定后做版本管理 + 发布流水线适配。
-- P7c → P7d：发布流水线就位后做文档更新。
+- P7a → P7b：emit 就位后做技能目录改名 + 命名空间 + 文档更新（emit 重新生成 hooks/自检表）。
+- P7b → P7c：命名空间稳定后做版本管理 + 发布流水线适配。P7d（文档更新）合并入 P7b。
 
 ## §4 Boundary rules
 
@@ -130,4 +129,4 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v2.8 · 2026-08-16 · **P6a 前置检查重定义（research）**：非 submodule 假设 —— 端用户经 marketplace/npm 安装，改为按 harness 探测插件可用性（claude plugin list + 缓存 glob + enabledPlugins；cursor/droid/pi 走 .agents/skills/ + 各自 skill 目录）；全 mode（implement/review/fix）统一；缺失 → exit 3 + per-harness 安装指引（research 文档 2026-08-16-harness-plugin-availability.md 为探测路径 SOT）
 - v2.9 · 2026-08-17 · **P6 系列拆分（grilling）**：新增 **P6b 交付补齐**（安装即用诚实化）—— pi key 补齐（engineering = skills + gate extension .ts、overrides = router extension .ts、vendors 保留/生成）、gemini mattpocock-extension 装配（上游自带则 error guard）、qoder/codex manifest 补全、os-init harness（per-harness：harness-detect util 抽自 cdd-select → 多选 → manifest 全量同步）、grok 归安装即用；**阶段顺延**：旧 P6b（research）→P6c、旧 P6c（docs）→P6d；依赖 P6b→P6a（前置检查引用通道分类）
 - v3.0 · 2026-08-18 · **P6c 完成 + P6d/P6e 拆分 + 统一 companion file convention**：P6c research 集成实现完成（os-brainstorming Rule: Research Delegation）；原 P6d（文档语言 + 重写）拆分为 **P6d 文档英文化**（13 SKILL.md 中→英 + `SKILL.zh-CN.md` companion + 6 docs 英文化 + `*.zh-CN.md` companion + 旧文件清理）和 **P6e 文档重写**（CLAUDE.md/README 从零重写）；**统一 convention：所有双语文件用 `<name>.zh-CN.md` 同目录 companion 模式**（无 `docs/zh-CN/` 平行目录）；依赖 P6c→P6d→P6e
-- v4.0 · 2026-08-18 · **新增 P7 系列（品牌统一）**：`packages/engineering` → `packages/osuperpowers`，`packages/superpowers-overrides` → `packages/osuperpowers-router`；技能目录 `os-*` 前缀去掉（如 `os-brainstorming` → `brainstorming`）+ 命名空间 `engineering:` → `osuperpowers:`；全部脚本/CI/版本管理/发布流水线/文档同步更新。拆分为 P7a（包目录改名 + emit 脚本适配）→ P7b（技能目录改名 + 命名空间）→ P7c（版本管理 + 发布流水线）→ P7d（文档更新）。
+- v4.0 · 2026-08-18 · **新增 P7 系列（品牌统一）**：`packages/engineering` → `packages/osuperpowers`，`packages/superpowers-overrides` → `packages/osuperpowers-router`；技能目录 `os-*` 前缀去掉（如 `os-brainstorming` → `brainstorming`）+ 命名空间 `engineering:` → `osuperpowers:`；全部脚本/CI/版本管理/发布流水线/文档同步更新。拆分为 P7a（包目录改名 + emit 脚本适配）→ P7b（技能目录改名 + 命名空间 + 文档更新，P7d 合并入 P7b）→ P7c（版本管理 + 发布流水线）。

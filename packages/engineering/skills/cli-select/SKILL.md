@@ -1,35 +1,35 @@
 ---
 name: cli-select
-description: 列出系统已安装的 harness CLI 并询问用哪个执行任务。推荐优先级 droid > pi > 当前 harness。被 cli-driven-development / cli-task / cli-code-review / os-executing-plans 引用。
+description: Lists the harness CLIs installed on the system and asks which one to use for task execution. Recommended priority: droid > pi > current harness. Referenced by cli-driven-development / cli-task / cli-code-review / os-executing-plans.
 ---
 
 # CLI Select
 
-选择执行任务的 harness CLI：检测、列出、推荐、询问。
+Select the harness CLI to execute tasks: detect, list, recommend, ask.
 
 ## Rules
 
 ### Rule: Detect
 
-运行 `{plugin_root}/bin/engine/cdd-select.mjs`，解析三行输出：
+Run `{plugin_root}/bin/engine/cdd-select.mjs` and parse its three output lines:
 
-- `available:` —— ship=full 且已安装的 harness（逗号分隔）
-- `unsupported_installed:` —— ship=not-supported 但已安装（提示性，不参与推荐）
-- `recommended:` —— 推荐默认（droid > pi > 当前 harness > 字母序第一个）
+- `available:` -- harnesses that are ship=full and installed (comma-separated)
+- `unsupported_installed:` -- harnesses that are ship=not-supported but installed (informational, not included in recommendations)
+- `recommended:` -- the recommended default (droid > pi > current harness > first alphabetically)
 
 ### Rule: Ask
 
-用 `AskUserQuestion` 列出 `available` 各项，在推荐项标注「(Recommended)」并放第一位，请用户选择。
+Use `AskUserQuestion` to list each item in `available`, mark the recommended item with "(Recommended)" and place it first, then ask the user to choose.
 
 ### Rule: Empty list
 
-`available:` 为空（cdd-select.mjs exit 1）→ **BLOCKED**，报告注册的 full harness 清单与缺失提示。不静默 fallback。
+`available:` is empty (cdd-select.mjs exit 1) -> **BLOCKED**, report the registered full harness list and missing hints. Do not silently fall back.
 
 ### Rule: Propagate
 
-把所选 harness 以**显式** `--harness <name>` 传给调用方（`cdd-run.mjs --harness <name> …`）。不设隐式环境变量。
+Pass the selected harness to the caller via **explicit** `--harness <name>` (`cdd-run.mjs --harness <name> ...`). Do not set implicit environment variables.
 
 ## Red Flags
 
-- 「当前 harness 不在 available 里，就强制用它」→ 当前非 full/未检测则跳过回退（Rule: Empty list）
-- 「available 为空但 codex 在 PATH，凑合推 codex」→ not-supported 不参与推荐（Rule: Detect）
+- "The current harness is not in available, so force-use it anyway" -> if current is not full / not detected, skip and fall back (Rule: Empty list)
+- "available is empty but codex is in PATH, so recommend codex" -> not-supported items are excluded from recommendations (Rule: Detect)

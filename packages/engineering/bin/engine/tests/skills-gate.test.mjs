@@ -74,7 +74,7 @@ test("implement: superpowers missing → exit 3 + stderr install hint, no CLI in
   const missing = [{ plugin: "superpowers", installHint: "/plugin install superpowers@oscaner" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, { mode: "implement", probeSkills: fakeProbe, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /plugin install/);
@@ -85,7 +85,7 @@ test("review: install-and-use missing → exit 3 + stderr install hint", async (
   const missing = [{ plugin: "engineering", installHint: "/plugin install engineering@oscaner" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, { mode: "review", probeSkills: fakeProbe, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /plugin install/);
@@ -96,7 +96,7 @@ test("fix: install-and-use missing → exit 3 + stderr install hint", async () =
   const missing = [{ plugin: "mattpocock-skills", installHint: "/plugin install mattpocock-skills@oscaner" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, { mode: "fix", probeSkills: fakeProbe, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "fix", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /plugin install/);
@@ -110,7 +110,7 @@ test("implement: 多个缺失 → exit 3 + 所有 installHint 出现于 stderr",
   ];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, { mode: "implement", probeSkills: fakeProbe, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 3);
   assert.match(r.stderr, /superpowers.*plugin install/s);

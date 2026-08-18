@@ -22,7 +22,9 @@ import {
   stageVendor,
   listVendors,
   assemblyTemplate,
+  derivePiKey,
 } from "./publish-vendor.mjs";
+import { thinGeminiExtension } from "./emit/manifests.mjs";
 
 let dir;
 function makeRoot() {
@@ -48,7 +50,15 @@ function makeSuperpowersFixture() {
   makeGitRepo(p, "v6.2.0");
   writeFileSync(
     join(p, "package.json"),
-    JSON.stringify({ name: "superpowers", version: "6.2.0", description: "root desc" }),
+    JSON.stringify({
+      name: "superpowers",
+      version: "6.2.0",
+      description: "root desc",
+      pi: {
+        extensions: ["./.pi/extensions/superpowers.ts"],
+        skills: ["./skills"],
+      },
+    }),
   );
   mkdirSync(join(p, ".claude-plugin"), { recursive: true });
   writeFileSync(
@@ -91,6 +101,12 @@ function makeImpeccableFixture() {
       author: { name: "Paul Bakaus", email: "paul@paulbakaus.com" },
     }),
   );
+  // pi convention: .pi/skills/impeccable/ with SKILL.md
+  mkdirSync(join(p, ".pi", "skills", "impeccable"), { recursive: true });
+  writeFileSync(
+    join(p, ".pi", "skills", "impeccable", "SKILL.md"),
+    "# impeccable skill\n",
+  );
   writeFileSync(join(p, "LICENSE"), "Apache-2.0\n");
   return root;
 }
@@ -109,7 +125,44 @@ function makeMattpocockFixture() {
       license: "MIT",
     }),
   );
+  // plugin.json with skills array (priority 3: no package.json pi, no .pi/skills/)
+  mkdirSync(join(p, ".claude-plugin"), { recursive: true });
+  writeFileSync(
+    join(p, ".claude-plugin", "plugin.json"),
+    JSON.stringify({
+      name: "mattpocock-skills",
+      version: "1.1.0",
+      skills: [
+        "./skills/claude-api",
+        "./skills/codebase-design",
+        "./skills/code-review",
+        "./skills/diagnosing-bugs",
+        "./skills/domain-modeling",
+        "./skills/finishing-a-development-branch",
+        "./skills/grilling",
+        "./skills/managing-ai-agents",
+        "./skills/mcp",
+        "./skills/mental-models",
+        "./skills/opening-requests",
+        "./skills/planning",
+        "./skills/prototype",
+        "./skills/receiving-code-review",
+        "./skills/requesting-code-review",
+        "./skills/research",
+        "./skills/simplifying",
+        "./skills/subagent-driven-development",
+        "./skills/tdd",
+        "./skills/test-driven-development",
+        "./skills/to-tickets",
+      ],
+    }),
+  );
   writeFileSync(join(p, "LICENSE"), "MIT\n");
+  // Skill directories for gemini-extension assembly verification
+  mkdirSync(join(p, "skills", "tdd"), { recursive: true });
+  writeFileSync(join(p, "skills", "tdd", "SKILL.md"), "# tdd\n");
+  mkdirSync(join(p, "skills", "grilling"), { recursive: true });
+  writeFileSync(join(p, "skills", "grilling", "SKILL.md"), "# grilling\n");
   return root;
 }
 
@@ -211,6 +264,51 @@ test("resolveVendorVersion surfaces the template guard for an unknown vendor", (
 });
 
 // ---------------------------------------------------------------------------
+// derivePiKey — dynamic pi detection from vendored structure
+// ---------------------------------------------------------------------------
+
+test("derivePiKey — superpowers preserves upstream pi from package.json", () => {
+  const root = makeSuperpowersFixture();
+  const pi = derivePiKey(join(root, "vendors", "superpowers"), ".");
+  assert.deepEqual(pi, {
+    extensions: ["./.pi/extensions/superpowers.ts"],
+    skills: ["./skills"],
+  });
+});
+
+test("derivePiKey — mattpocock reads skills from .claude-plugin/plugin.json", () => {
+  const root = makeMattpocockFixture();
+  const pi = derivePiKey(join(root, "vendors", "mattpocock-skills"), ".");
+  assert.ok(Array.isArray(pi.skills));
+  assert.ok(pi.skills.length >= 21);
+});
+
+test("derivePiKey — impeccable derives from .pi/skills/impeccable (pi convention)", () => {
+  const root = makeImpeccableFixture();
+  const pi = derivePiKey(join(root, "vendors", "impeccable"), "plugin");
+  assert.deepEqual(pi.skills, ["./.pi/skills/impeccable"]);
+});
+
+test("derivePiKey — no pi source returns empty skills", () => {
+  const root = makeRoot();
+  const p = join(root, "vendors", "bare-vendor");
+  mkdirSync(p, { recursive: true });
+  writeFileSync(join(p, "package.json"), JSON.stringify({ name: "bare" }));
+  const pi = derivePiKey(p, ".");
+  assert.deepEqual(pi, { skills: [] });
+});
+
+test("derivePiKey — fallback skills/ directory glob picks subdirectories", () => {
+  const root = makeRoot();
+  const p = join(root, "vendors", "skills-only");
+  mkdirSync(join(p, "skills", "alpha"), { recursive: true });
+  mkdirSync(join(p, "skills", "beta"), { recursive: true });
+  writeFileSync(join(p, "package.json"), JSON.stringify({ name: "skills-only" }));
+  const pi = derivePiKey(p, ".");
+  assert.deepEqual(pi, { skills: ["./skills/alpha", "./skills/beta"] });
+});
+
+// ---------------------------------------------------------------------------
 // assemblePackageJson — scoped package.json
 // ---------------------------------------------------------------------------
 
@@ -221,9 +319,11 @@ test("assemblePackageJson — superpowers scoped pkg (tags + plugin.json metadat
   assert.equal(pkg.version, "6.2.0");
   assert.equal(pkg.license, "MIT");
   assert.equal(pkg.description, "Core skills library for Claude Code");
-  assert.deepEqual(pkg["oscaner-plugin"], {
-    contentRoot: ".",
-    pi: { skills: ["./skills"] },
+  // pi at top level (not nested in oscaner-plugin), preserving upstream
+  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "." });
+  assert.deepEqual(pkg.pi, {
+    extensions: ["./.pi/extensions/superpowers.ts"],
+    skills: ["./skills"],
   });
 });
 
@@ -237,10 +337,9 @@ test("assemblePackageJson — impeccable version from plugin.json truth, content
     name: "Paul Bakaus",
     email: "paul@paulbakaus.com",
   });
-  assert.deepEqual(pkg["oscaner-plugin"], {
-    contentRoot: "plugin",
-    pi: { skills: ["./skills"] },
-  });
+  // pi at top level, derived from .pi/skills/impeccable (not plugin.json)
+  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "plugin" });
+  assert.deepEqual(pkg.pi, { skills: ["./.pi/skills/impeccable"] });
 });
 
 test("assemblePackageJson — mattpocock drops upstream private flag", () => {
@@ -249,10 +348,10 @@ test("assemblePackageJson — mattpocock drops upstream private flag", () => {
   assert.equal(pkg.version, "1.1.0");
   assert.equal(pkg.license, "MIT");
   assert.equal(pkg.private, undefined);
-  assert.deepEqual(pkg["oscaner-plugin"], {
-    contentRoot: ".",
-    pi: { skills: ["./skills"] },
-  });
+  // pi at top level, derived from .claude-plugin/plugin.json skills array
+  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "." });
+  assert.ok(Array.isArray(pkg.pi.skills));
+  assert.ok(pkg.pi.skills.length >= 21);
 });
 
 // ---------------------------------------------------------------------------
@@ -334,5 +433,100 @@ test("stageVendor copies content, writes scoped package.json + LICENSE", () => {
   const pkg = JSON.parse(readFileSync(join(dest, "package.json"), "utf8"));
   assert.equal(pkg.name, "@oscaner-skills/impeccable");
   assert.equal(pkg.version, "4.0.4");
-  assert.deepEqual(pkg["oscaner-plugin"].pi, { skills: ["./skills"] });
+  // pi at top level, derived from .pi/skills/impeccable
+  assert.deepEqual(pkg.pi, { skills: ["./.pi/skills/impeccable"] });
+});
+
+// ---------------------------------------------------------------------------
+// thinGeminiExtension — mattpocock thin extension (no BeforeTool hooks)
+// ---------------------------------------------------------------------------
+
+test("thinGeminiExtension produces name/version/skills/contextFileName, no hooks", () => {
+  const ext = thinGeminiExtension("mattpocock-skills", "1.1.0", [
+    "./skills/tdd",
+    "./skills/grilling",
+  ]);
+  assert.equal(ext.name, "mattpocock-skills");
+  assert.equal(ext.version, "1.1.0");
+  assert.deepEqual(ext.skills, ["./skills/tdd", "./skills/grilling"]);
+  assert.equal(ext.contextFileName, "GEMINI.md");
+  assert.equal(ext.hooks, undefined);
+});
+
+test("thinGeminiExtension omits description when not provided", () => {
+  const ext = thinGeminiExtension("x", "0.0.1", []);
+  assert.equal(ext.description, undefined);
+  assert.equal(ext.hooks, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// stageVendor gemini-extension — mattpocock assembly produces thin extension + GEMINI.md
+// ---------------------------------------------------------------------------
+
+test("stageVendor mattpocock produces thin gemini-extension.json", () => {
+  const root = makeMattpocockFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("mattpocock-skills", root, stageRoot);
+
+  const geminiPath = join(dest, "gemini-extension.json");
+  assert.ok(existsSync(geminiPath), "gemini-extension.json should exist");
+  const ext = JSON.parse(readFileSync(geminiPath, "utf8"));
+  // Name is the scoped package name (from assemblePackageJson)
+  assert.equal(ext.name, "@oscaner-skills/mattpocock-skills");
+  assert.equal(ext.version, "1.1.0");
+  assert.equal(ext.contextFileName, "GEMINI.md");
+  assert.ok(Array.isArray(ext.skills), "skills should be an array");
+  assert.ok(ext.skills.length >= 2, "skills should include fixture dirs");
+  // No BeforeTool hooks in the thin extension
+  assert.equal(ext.hooks, undefined);
+});
+
+test("stageVendor mattpocock produces GEMINI.md with skill imports", () => {
+  const root = makeMattpocockFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("mattpocock-skills", root, stageRoot);
+
+  const geminiMdPath = join(dest, "GEMINI.md");
+  assert.ok(existsSync(geminiMdPath), "GEMINI.md should exist");
+  const content = readFileSync(geminiMdPath, "utf8");
+  // Skills come from the fixture's .claude-plugin/plugin.json skills array
+  assert.ok(content.includes("@./skills/claude-api/SKILL.md"), "should import claude-api skill");
+  assert.ok(content.includes("@./skills/grilling/SKILL.md"), "should import grilling skill");
+  assert.ok(!content.includes("hooks"), "thin extension GEMINI.md should not reference hooks");
+});
+
+// ---------------------------------------------------------------------------
+// stageVendor upstream guard — upstream gemini-extension.json triggers error
+// ---------------------------------------------------------------------------
+
+test("stageVendor throws when upstream already has gemini-extension.json", () => {
+  const root = makeMattpocockFixture();
+  // Plant an upstream gemini-extension.json in the vendor
+  writeFileSync(
+    join(root, "vendors", "mattpocock-skills", "gemini-extension.json"),
+    JSON.stringify({ name: "upstream" }),
+  );
+  const stageRoot = join(root, "stage");
+  assert.throws(
+    () => stageVendor("mattpocock-skills", root, stageRoot),
+    /gemini-extension\.json/,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// stageVendor unaffected — superpowers/impeccable don't get gemini-extension
+// ---------------------------------------------------------------------------
+
+test("stageVendor superpowers does not produce gemini-extension.json", () => {
+  const root = makeSuperpowersFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("superpowers", root, stageRoot);
+  assert.ok(!existsSync(join(dest, "gemini-extension.json")));
+});
+
+test("stageVendor impeccable does not produce gemini-extension.json", () => {
+  const root = makeImpeccableFixture();
+  const stageRoot = join(root, "stage");
+  const dest = stageVendor("impeccable", root, stageRoot);
+  assert.ok(!existsSync(join(dest, "gemini-extension.json")));
 });

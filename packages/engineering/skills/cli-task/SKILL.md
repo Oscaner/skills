@@ -1,31 +1,31 @@
 ---
 name: cli-task
-description: 把任务派发给选定的 harness CLI 执行。三条路径：一次性自由任务、--loop 迭代（sentinel 停止）、brief 路径（handoff 契约）。复用 cdd 引擎（registry + cdd-exec.mjs / cdd-run.mjs），无 ledger/plan 编器职责。
+description: Dispatches a task to the selected harness CLI for execution. Three paths: one-shot free-form, --loop iteration (sentinel stops), brief path (handoff contract). Reuses the cdd engine (registry + cdd-exec.mjs / cdd-run.mjs), no ledger/plan orchestrator responsibilities.
 ---
 
 # CLI Task
 
-把单个任务派发给选定的 harness CLI 执行，返回最终输出。
+Dispatch a single task to the selected harness CLI for execution, returning the final output.
 
 ## Rules
 
 ### Rule: Choose Harness
 
-先经 [Rule: Ask](../cli-select/SKILL.md#rule-ask) 选定 harness，以显式 `--harness <name>` 传入。
+Select a harness via [Rule: Ask](../cli-select/SKILL.md#rule-ask) first, passing it explicitly as `--harness <name>`.
 
 ### Rule: One-shot Free-Form
 
-默认路径：`{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "<task 描述>"`，返回归一化后的最终输出（text 透传 / stream-json 取 finalText）。
+Default path: `{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "<task description>"`, returning the normalized final output (text passthrough / stream-json extracts finalText).
 
 ### Rule: Loop
 
-`cli-task --loop "<base prompt>"`：迭代调用 `cdd-exec.mjs`，每轮 prompt = base prompt + `[Iteration N — previous result: <上一轮 final text>]`（回喂上一轮输出）。输出含 sentinel（默认 `<promise>NO MORE TASKS</promise>`，`--sentinel` 可改）或达 `--max`（默认 20）则停；逐轮显示最终文本。
+`cli-task --loop "<base prompt>"`: iteratively call `cdd-exec.mjs`, where each round's prompt = base prompt + `[Iteration N -- previous result: <previous round final text>]` (feeds back the previous round's output). Stops when output contains the sentinel (default `<promise>NO MORE TASKS</promise>`, overridable via `--sentinel`) or `--max` is reached (default 20); displays the final text each round.
 
 ### Rule: Brief Path
 
-用户提供 brief 路径 → 走 handoff 契约：设 `CDD_TASK_BRIEF` 等 env，调 `{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode <implement|review|fix>`（模式由用户指定，默认 implement；用户 brief 即 task brief，cli-task 不做 transform）。
+User provides a brief path -> follows the handoff contract: set `CDD_TASK_BRIEF` and other env vars, then call `{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode <implement|review|fix>` (mode is user-specified, defaults to implement; the user brief IS the task brief, cli-task does not transform it).
 
 ## Red Flags
 
-- 「--loop 每轮发同一 prompt，反正会变」→ 无状态 print CLI 每轮输出相同，必须回喂上一轮结果（Rule: Loop）
-- 「free-form 也要写 handoff.json」→ 一次性自由任务不写 ledger/handoff（Rule: One-shot Free-Form）
+- "--loop sends the same prompt each round, it will change anyway" -> stateless print CLI produces identical output each round; you MUST feed back the previous round's result (Rule: Loop)
+- "free-form also needs to write handoff.json" -> one-shot free-form tasks do not write ledger/handoff (Rule: One-shot Free-Form)

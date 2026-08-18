@@ -1,41 +1,71 @@
 ---
 name: os-brainstorming
-description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / fresh-subagent 评审 passes）。可独立调用；由 /brainstorming 触发经 overrides 路由器直达。
+description: Independent brainstorm orchestrator -- Reads upstream superpowers:brainstorming as baseline, layers personal rules (grilling clarification / overall+phase / cli review passes). Callable standalone; triggered by /brainstorming via overrides router.
 ---
 
 # OS Brainstorming
 
-完整 brainstorm 流程编排，可独立调用。
+Full brainstorm flow orchestration, callable standalone.
 
 ## Rules
 
 ### Rule: Read Upstream
 
-Read 上游 `superpowers:brainstorming` 的 SKILL.md 作为流程基线 **当可用时**（claude / cursor 装有 superpowers 插件）。**Read 而非 Skill-invoke**（Skill-invoke 会触发路由器拦截）。
+Read upstream `superpowers:brainstorming` SKILL.md as the process baseline **when available** (claude / cursor has superpowers plugin installed). **Read, not Skill-invoke** (Skill-invoke triggers the router interception).
 
-解析路径（`{plugin-root}` = 本插件 engineering 根）：
-1. **兄弟插件根**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同理）
-2. **回退同仓库相对路径**：`<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
+Resolve paths (`{plugin-root}` = this plugin's engineering root):
+1. **Sibling plugin root**: claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md` (same for cursor)
+2. **Fallback same-repo relative path**: `<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
 
-上游不可用（非 claude harness / 未装 superpowers 插件）→ **不报错**：以本技能自身 Rules 为完整流程直接执行。本技能自身 Rules 是承重流程，Read 上游只是增强。
+Upstream unavailable (non-claude harness / superpowers plugin not installed) -> **no error**: execute this skill's own Rules as the complete flow directly. This skill's own Rules are the load-bearing flow; reading upstream is purely additive.
 
 ### Rule: Read Sub-Skills
 
-按需 Read `mattpocock-skills` 的 `skills/productivity/grilling/SKILL.md`（澄清问题委派）。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
+On demand, Read `mattpocock-skills` `skills/productivity/grilling/SKILL.md` (clarification question delegation). Load failure protocol: see [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure).
+
+### Rule: Research Delegation
+
+When the explore-context phase discovers questions requiring primary source research (questions the codebase cannot answer: upstream API behavior, harness CLI specs, package internals, cross-harness differences, etc.):
+
+1. **Identify + ask the user**: list questions needing research, ask "trigger research?" (multiple questions can be batched)
+   - User confirms -> spawn research agent (steps 2-6)
+   - User declines -> skip that question, **normal flow continues** (explore-context -> grilling)
+2. **Spawn background agent**: one mattpocock-skills:research agent per research question (parallel).
+   Research agent prompt = question description + instruction to cite sources.
+3. **Continue explore-context** (code exploration is not interrupted)
+4. **Wait for completion**: before entering grilling, ensure all background research is done.
+5. **Output**: findings written to `docs/research/YYYY-MM-DD-<topic>.md` (follow existing convention,
+   see existing 3 files under `docs/research/`).
+6. **Consumption**: research findings are referenced as primary sources in subsequent grilling + approach selection + design (not re-searched ad-hoc).
+
+Trigger conditions (non-exhaustive, orchestrator judgment):
+- User question involves external API / CLI behavioral specs (not findable in codebase)
+- Upstream package internal structure or conventions (e.g. pi CLI discovery mechanism)
+- Cross-harness differences requiring comparative verification
+
+Non-trigger conditions:
+- Question can be answered directly from codebase / docs / git history
+- Pure design decisions (no external facts needed)
+
+Trigger failure (research agent error/timeout) -> log stderr, do not block flow (fail-open).
 
 ### Rule: Overall-Phase
 
-大需求（≥3 子系统 / 分几期 / overhaul）先写 overall spec，再分阶段。文档结构见 [overall-phase-spec-template.md](../docs/overall-phase-spec-template.md)。GATE：overall 批准 ≠ 阶段已启动。
+Large requirements (>=3 subsystems / multi-phase / overhaul) write an overall spec first, then phase out. Document structure: see [overall-phase-spec-template.md](../docs/overall-phase-spec-template.md). GATE: overall approval != phase started.
 
-### Rule: Fresh-Subagent Review Passes
+### Rule: Spec Review via CLI
 
-写出的 spec 用 fresh subagent 评审 passes（Completeness → Consistency & scope → Clarity & YAGNI），派发纪律见 [review-dispatch.md](../docs/review-dispatch.md) + [subagent-lifecycle.md](../docs/subagent-lifecycle.md)。
+Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI), each pass dispatches a fresh `cdd-exec`:
+  cdd-exec --harness claude --prompt "<spec-document-reviewer template + pass category + document path>"
+Dispatch discipline: see [review-dispatch.md](../docs/review-dispatch.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli).
 
 ### Rule: Write Design Doc
 
-spec 存 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审阅后 → writing-plans。
+Spec saved to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, after user review -> writing-plans.
 
 ## Red Flags
 
-- 「Skill-invoke 上游 brainstorm」→ Read 而非 Skill-invoke（Rule: Read Upstream）
-- 「简单项目跳过设计」→ 每个项目都过设计（上游流程要求）
+- "Skill-invoke upstream brainstorm" -> Read instead of Skill-invoke (Rule: Read Upstream)
+- "Skip design for simple projects" -> every project goes through design (upstream flow requirement)
+- "Research auto-triggers without asking user" -> user confirmation is a hard gate
+- "Research blocks explore-context" -> background parallel

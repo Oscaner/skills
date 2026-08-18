@@ -33,6 +33,7 @@ import {
   targetSkillSuffix,
   ccMatcherBareSlash,
   promptExpansionScript,
+  piRouterScript,
   claudeHooksJson,
   cursorDetectScript,
   cursorEnforceScript,
@@ -312,12 +313,36 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () 
   );
 });
 
-test("piPackageKey carries the pi gate extension when passed, pure skills otherwise", () => {
+test("piPackageKey carries the pi gate extension (.ts) when passed, pure skills otherwise", () => {
   assert.deepEqual(
-    piPackageKey({ extensions: ["./bin/gate/adapters/pi.mjs"] }),
-    { extensions: ["./bin/gate/adapters/pi.mjs"], skills: ["./skills"] },
+    piPackageKey({ extensions: ["./bin/gate/adapters/pi.ts"] }),
+    { extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] },
   );
   assert.deepEqual(piPackageKey(), { skills: ["./skills"] });
+});
+
+test("piPackageKey first-party: engineering pi key (skills + extensions)", () => {
+  assert.deepEqual(
+    piPackageKey({ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }),
+    { skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] },
+  );
+});
+
+test("piPackageKey first-party: overrides pi key (extensions only, no skills)", () => {
+  assert.deepEqual(
+    piPackageKey({ extensions: ["./bin/pi-router.ts"] }),
+    { extensions: ["./bin/pi-router.ts"], skills: ["./skills"] },
+  );
+});
+
+test("first-party pi keys: engineering pi = skills + gate extension (.ts), overrides pi = router extension (.ts)", () => {
+  const eng = JSON.parse(readFileSync("packages/engineering/package.json", "utf8"));
+  const ovr = JSON.parse(readFileSync("packages/superpowers-overrides/package.json", "utf8"));
+  assert.deepEqual(eng.pi, { skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] });
+  assert.deepEqual(ovr.pi, { extensions: ["./bin/pi-router.ts"] });
+  // oscaner-plugin field must NOT be removed by pi key addition
+  assert.ok(eng["oscaner-plugin"], "engineering oscaner-plugin preserved");
+  assert.ok(ovr["oscaner-plugin"], "overrides oscaner-plugin preserved");
 });
 
 test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () => {
@@ -672,6 +697,17 @@ test("promptExpansionScript maps every overrides trigger to its target (.mjs)", 
   assert.match(script, /"\/brainstorming": "engineering:os-brainstorming"/);
   assert.match(script, /"superpowers:test-driven-development": "mattpocock-skills:tdd"/);
   assert.match(script, /"\/using-git-worktrees": "engineering:os-finishing"/);
+});
+
+test("piRouterScript maps every overrides trigger to its target (.ts)", () => {
+  const script = piRouterScript(loadTargets(MANIFEST_PATH));
+  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
+  assert.match(script, /"brainstorming": "engineering:os-brainstorming"/);
+  assert.match(script, /"writing-plans": "engineering:os-writing-plans"/);
+  assert.match(script, /"test-driven-development": "mattpocock-skills:tdd"/);
+  assert.match(script, /"using-git-worktrees": "engineering:os-finishing"/);
+  assert.match(script, /export function on/);
+  assert.match(script, /pi\.on\("input"/);
 });
 
 test("claudeHooksJson has exactly the two UserPromptExpansion matchers", () => {

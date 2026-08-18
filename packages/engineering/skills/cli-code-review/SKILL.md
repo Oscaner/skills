@@ -1,35 +1,35 @@
 ---
 name: cli-code-review
-description: 用选定 harness CLI 评审任意 diff（base..head 或当前分支 vs origin/main），返回 findings 报告。独立于 cdd 链内逐任务 review 模式。
+description: Reviews an arbitrary diff (base..head or current branch vs origin/main) using the selected harness CLI, returning a findings report. Independent of the per-task review mode inside the cdd chain.
 ---
 
 # CLI Code Review
 
-评审任意 diff 范围的代码，委托给选定的 harness CLI agent。
+Review code in an arbitrary diff range, delegated to the selected harness CLI agent.
 
 ## Rules
 
 ### Rule: Choose Harness
 
-先经 [Rule: Ask](../cli-select/SKILL.md#rule-ask) 选定 harness。
+Select a harness via [Rule: Ask](../cli-select/SKILL.md#rule-ask) first.
 
 ### Rule: Scope
 
-范围 = 显式 `base..head`，或当前分支 vs `origin/main`（`git merge-base` 推导）。
+Scope = explicit `base..head`, or current branch vs `origin/main` (derived via `git merge-base`).
 
 ### Rule: Diff Package
 
-用上游 `review-package` 脚本生成 diff 包（`review-package PLAN_FILE BASE HEAD <out>`），作为评审输入。
+Use the upstream `review-package` script to generate a diff package (`review-package PLAN_FILE BASE HEAD <out>`), which serves as the review input.
 
 ### Rule: Review Prompt
 
-构造自包含评审 prompt（含评审维度 + diff 文件路径；CLI agent 无本仓库 skill 上下文，须自带标准，不假设 `Skill(...)` 可加载），经 `{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "<prompt>"` 派发。
+Construct a self-contained review prompt (containing review dimensions + diff file paths; the CLI agent has no repo skill context, so criteria must be included in the prompt -- do not assume `Skill(...)` is loadable), then dispatch via `{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "<prompt>"`.
 
 ### Rule: Findings Report
 
-收集 agent 输出的 findings（按严重级 blocker / warn / nit 整理）作为报告；无 findings → 通过。报告给用户，不自动合并。
+Collect the agent's output findings (organized by severity: blocker / warn / nit) as the report; no findings -> pass. Report to the user, do not auto-merge.
 
 ## Red Flags
 
-- 「评审当前未提交改动用 HEAD~1」→ 用显式 base..head 或 merge-base（Rule: Scope）
-- 「假设 CLI agent 能加载 mattpocock code-review skill」→ droid/pi 无该 skill；prompt 必须自包含（Rule: Review Prompt）
+- "Reviewing uncommitted changes using HEAD~1" -> use explicit base..head or merge-base (Rule: Scope)
+- "Assuming the CLI agent can load the mattpocock code-review skill" -> droid/pi do not have that skill; the prompt must be self-contained (Rule: Review Prompt)

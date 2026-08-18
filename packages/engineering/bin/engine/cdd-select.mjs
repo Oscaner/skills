@@ -1,19 +1,14 @@
 #!/usr/bin/env node
 // cdd-select.mjs — detect installed harness CLIs + recommended default.
-// Node port of cdd-select.sh; reads harness-registry.json; prints:
-//   available: <csv of ship=full AND command -v found>
-//   unsupported_installed: <csv of ship=not-supported AND found>
+// Node port of cdd-select.sh; reads skills-probe.config.mjs; prints:
+//   available: <csv of channel=install-and-use AND command -v found>
+//   unsupported_installed: <csv of non-install-and-use AND found>
 //   recommended: <name>
 // BLOCKED (exit 1) when no full harness is installed.
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
-import { cliInPath } from "./lib/registry.mjs";
+// T5: 复用 harness-detect util（cli 源 = config.harnesses[h].cli ?? h）。
+import { detectInstalledHarnesses } from "../utils/harness-detect.mjs";
+import { config } from "../utils/skills-probe.config.mjs";
 import { exitBlocked } from "../utils/exit.mjs";
-
-const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
-const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-const names = Object.keys(reg).sort(); // 对齐 jq keys[]（排序键）
 
 // detect_current_harness：CURSOR_TRACE_ID → cursor-agent；CLAUDE_CODE_SESSION_ID → claude；
 // AI_AGENT=claude-code* → claude；否则空。
@@ -24,23 +19,15 @@ function detectCurrentHarness(env) {
   return "";
 }
 
-const available = [];
-const unsupported = [];
-for (const name of names) {
-  const entry = reg[name];
-  const cli = entry?.cli;
-  if (!cli) continue;
-  if (!cliInPath(cli)) continue; // command -v 对齐
-  if (entry.ship === "full") available.push(name);
-  else unsupported.push(name);
-}
+const detected = detectInstalledHarnesses(config, { env: process.env });
+const available = detected.filter((h) => h.installed && h.channel === "install-and-use").map((h) => h.name);
+const unsupported = detected.filter((h) => h.installed && h.channel !== "install-and-use").map((h) => h.name);
 
 if (available.length === 0) {
-  // 对齐 cdd-select.sh BLOCKED 分支：三行空/unsupported 输出 + stderr BLOCKED（registry 键空格拼接）。
   process.stdout.write("available:\n");
   process.stdout.write(`unsupported_installed:${unsupported.join(",")}\n`);
   process.stdout.write("recommended:\n");
-  process.stderr.write(`BLOCKED: no full harness installed (registry: ${names.join(" ")} )\n`);
+  process.stderr.write(`BLOCKED: no full harness installed (registry: ${detected.map((h) => h.name).join(" ")} )\n`);
   exitBlocked();
 }
 

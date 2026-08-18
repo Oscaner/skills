@@ -257,13 +257,10 @@ function main() {
     // dogfood self-check is written by os-init spor, stamped with the engineering version
     const version = JSON.parse(readFileSync(path.join(REPO, "packages/engineering/.claude-plugin/plugin.json"), "utf8")).version;
     const cursorPath = path.join(REPO, ".cursor/rules/superpowers-overrides.mdc");
-    const claudePath = path.join(REPO, "CLAUDE.md");
     const cursor = readFileSync(cursorPath, "utf8");
-    const claude = readFileSync(claudePath, "utf8");
     const needle = `engineering-version: ${version}`;
     assert(cursor.includes(needle), `${cursorPath}: missing or stale stamp — re-run os-init spor`);
-    const m = claude.split("\n")[0].match(/<!-- engineering-version: ([^ ]+) -->/);
-    assert(m && m[1] === version, `${claudePath}: line 1 stamp mismatch — re-run os-init spor`);
+    // root CLAUDE.md is init-generated, not hand-stamped — no version check here
   });
 
   console.log("ALL PASS");

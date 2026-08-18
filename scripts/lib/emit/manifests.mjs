@@ -180,6 +180,23 @@ export function geminiExtension(plugin, version) {
   };
 }
 
+/**
+ * Thin `gemini-extension.json` for skill-only packages (e.g. mattpocock).
+ * Carries name + version + skills + GEMINI.md context — no BeforeTool hooks.
+ * Used by vendored assemblies where the upstream has no gate adapter.
+ * @param {string} name package name (e.g. "mattpocock-skills")
+ * @param {string} version semver version
+ * @param {string[]} skillDirs skill directory paths (relative to extension root)
+ */
+export function thinGeminiExtension(name, version, skillDirs) {
+  return {
+    name,
+    version,
+    skills: skillDirs,
+    contextFileName: "GEMINI.md",
+  };
+}
+
 /** `GEMINI.md` — @-import every skill body (sorted) for Gemini discovery. */
 export function geminiMarkdown(plugin, skillNames) {
   return (
@@ -190,17 +207,14 @@ export function geminiMarkdown(plugin, skillNames) {
 }
 
 /**
- * `package.json#pi` — pure skills package key for VENDORED assemblies
- * (publish-vendor.mjs). Pi packages support a `package.json` `pi` key
- * (skills/prompts/themes delivery via `pi install`), but engineering's gate is
- * NOT delivered through it: the gate adapter is `.mjs` while pi extensions are
- * auto-discovered `*.ts` — the gate ships as a native os-init config set
- * (manual extension copy, experimental). This key carries vendored assemblies'
- * skills delivery only (`extensions` field modeled for completeness).
- * @param {{ extensions?: string[] }} [opts]
+ * `package.json#pi` — Pi key for both vendored assemblies and first-party plugins.
+ * Pi packages support a `package.json` `pi` key (skills/prompts/themes delivery
+ * via `pi install`). First-party emit passes `{ skills, extensions }` explicitly;
+ * vendored assemblies use the default pure-skills shape.
+ * @param {{ skills?: string[], extensions?: string[] }} [opts]
  */
-export function piPackageKey({ extensions = [] } = {}) {
-  const key = { skills: ["./skills"] };
+export function piPackageKey({ skills = ["./skills"], extensions = [] } = {}) {
+  const key = { skills };
   if (extensions.length > 0) key.extensions = extensions;
   return key;
 }
@@ -263,8 +277,8 @@ export function engineeringCursorHooks() {
  * from `.codex-plugin/hooks/hooks.json`（manifest 引用 `./hooks/hooks.json`）。
  * Adapter 命令用 manifest-relative `../bin/...`（相对 `.codex-plugin/` → 包根
  * `bin/gate/adapters/codex.mjs`）—— 与 plugin.json 的 skills/hooks 共用同一
- * manifest-relative base，不依赖 `${PLUGIN_ROOT}` 替换（codex 通道待验证，
- * 用文档化替换变量会引入「命令指向不存在文件」风险）。
+ * manifest-relative base，不依赖 `${PLUGIN_ROOT}` 替换（base 契约已锁定 +
+ * adapter guard——emit 前 assertAdapterPathsExist 断言 adapter 文件存在）。
  */
 export function codexHooksJson() {
   return cddGatePreToolUseHooks("../bin/gate/adapters/codex.mjs");

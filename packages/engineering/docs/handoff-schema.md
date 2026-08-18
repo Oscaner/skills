@@ -1,27 +1,27 @@
-# Handoff Schema（task-N-handoff.json）
+# Handoff Schema (task-N-handoff.json)
 
-Single source of truth for task-N-handoff.json — cited by [`controller-handoff.md`](controller-handoff.md)（H2 / H4 / H5）与 `templates/cdd/_handoff-write-fragment.md` 各 segment。
+Single source of truth for task-N-handoff.json — cited by [`controller-handoff.md`](controller-handoff.md) (H2 / H4 / H5) and each segment of `templates/cdd/_handoff-write-fragment.md`.
 
 ## Status by segment
 
-| Segment | Set `phase` | Allowed `status` |
+| Segment | Sets `phase` | Allowed `status` |
 |---------|-------------|------------------|
 | implement | `implement` | `DONE`, `BLOCKED` |
 | review / fix | `review` or `fix` | `APPROVED`, `CHANGES_REQUESTED`, `NEEDS_CONTEXT`, `BLOCKED` |
 
-## Severity → status mapping
+## Severity -> status mapping
 
-`findings[]` 内容 → handoff `status`:
+`findings[]` content → handoff `status`:
 
-| `findings[]` 内容 | handoff `status` |
+| `findings[]` content | handoff `status` |
 |---|---|
-| 空 | `APPROVED`（review clean） |
-| 仅 `warn`/`nit`（deferred） | `APPROVED`（带 deferred 明细） |
-| 含 `blocker`（无论是否兼有 `warn`/`nit`） | `CHANGES_REQUESTED` |
-| `unverifiable[]` 非空 | `BLOCKED`（不变） |
-| `plan_conflicts[]` 非空 | `BLOCKED`（orchestrator STOP，不变） |
+| Empty | `APPROVED` (review clean) |
+| Only `warn`/`nit` (deferred) | `APPROVED` (with deferred details) |
+| Contains `blocker` (regardless of accompanying `warn`/`nit`) | `CHANGES_REQUESTED` |
+| `unverifiable[]` non-empty | `BLOCKED` (unchanged) |
+| `plan_conflicts[]` non-empty | `BLOCKED` (orchestrator STOP, unchanged) |
 
-**任何 `warn`/`nit` finding 无条件标 `deferred: true`——无论同轮是否含 `blocker`（防止 minor 被错误拖入 fix loop）。** 混合轮次（blocker + warn/nit）里 warn/nit 仍标 deferred——deferred 标记与 status 决策是两个独立步骤。
+**Any `warn`/`nit` finding is unconditionally marked `deferred: true` — regardless of whether `blocker` is also present in the same round (prevents minor findings from being incorrectly dragged into the fix loop).** In mixed rounds (blocker + warn/nit), warn/nit are still marked deferred — the deferred flag and the status decision are two independent steps.
 
 ## Single task
 
@@ -71,8 +71,8 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
       "lens": "Clarity",
       "severity": "nit",
       "section": "§4.1",
-      "summary": "…",
-      "fix": "…",
+      "summary": "...",
+      "fix": "...",
       "deferred": true
     }
   ],
@@ -113,7 +113,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
 
 **`findings[]`** — D3 review findings: `[{lens, severity, section|file, line?, summary, fix, deferred?}]`. Parsed from axis report `## Findings (D3)` JSON block; merged on review/fix segments. Same shape as `task-N-open-findings.json`.
 
-`deferred` 可选字段：`blocker` finding 无此字段（或 `false`）；`warn`/`nit` finding 为 `deferred: true`。标记规则见上表「Severity → status mapping」附注。Roll-up 聚合用 `filter(.deferred == true)`；deferred 项不进 fix loop。
+`deferred` is an optional field: `blocker` findings have no such field (or `false`); `warn`/`nit` findings are `deferred: true`. See the annotation in the "Severity -> status mapping" table above for marking rules. Roll-up aggregation uses `filter(.deferred == true)`; deferred items do not enter the fix loop.
 
 **`unverifiable[]`** — string list of items axis reports flag as "cannot verify" / "unverifiable". Non-empty → set `status: BLOCKED`.
 

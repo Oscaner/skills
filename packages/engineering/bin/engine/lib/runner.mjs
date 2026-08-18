@@ -13,10 +13,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
-import { renderModePrompt } from "./templates.mjs";
+import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { appendLedger, writePlanConstraints } from "./ledger.mjs";
 import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
+import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "review", "fix"];
@@ -367,10 +368,13 @@ function dryRunH1Block(env, taskNum) {
 
 // ---- runTask / runPlan ----
 
-// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, noExit }。
+// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot }。
 // 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
+  const probeSkills = opts.probeSkills;
+  const pluginRootFn = opts.pluginRoot ?? pluginRoot;
+  const channelMap = opts.channelMap ?? probeConfig.channel;
   const cwd = opts.cwd ?? process.cwd();
   const baseEnv = opts.env ?? process.env;
   const registryPath = opts.registryPath ?? REG_PATH;
@@ -395,6 +399,51 @@ export async function runTask(harness, taskNum, opts = {}) {
   } catch (e) {
     if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
     throw e;
+  }
+
+  // 2.5 Skills gate — probe for required skill plugins via DI seam.
+  //   probeSkills(harness, { cwd, env }) → { missing: [{plugin, installHint}], probeFailed }.
+  //   Channel classification: install-and-use → exit 3; os-init → stderr hint + continue;
+  //   probeFailed → fail-open (exit 0, warn).
+  if (probeSkills) {
+    let probeResult;
+    try {
+      probeResult = await probeSkills(harness, { cwd, env: baseEnv });
+    } catch {
+      probeResult = { missing: [], probeFailed: true };
+    }
+    if (probeResult.probeFailed) {
+      process.stderr.write(`skills-probe: probe failed for ${harness}, failing open\n`);
+    } else if (probeResult.missing.length > 0) {
+      if (channelMap["install-and-use"]?.includes(harness)) {
+        for (const m of probeResult.missing) {
+          process.stderr.write(`${m.plugin}: ${m.installHint}\n`);
+        }
+        return finish(3, [], `missing skills: ${probeResult.missing.map((m) => m.plugin).join(", ")}`, noExit);
+      } else {
+        // os-init channel or unknown — warn and continue
+        for (const m of probeResult.missing) {
+          process.stderr.write(`skills-probe: ${m.plugin}: ${m.installHint}\n`);
+        }
+      }
+    }
+  }
+
+  // 2.55 Brief/templates existence check — BLOCKED exit 1 if missing (not exit 3).
+  //   Reuses pluginRoot() from templates.mjs to locate the CDD template directory.
+  {
+    const taskBrief = baseEnv.CDD_TASK_BRIEF;
+    if (taskBrief && !existsSync(taskBrief)) {
+      return finish(1, [], `brief missing: ${taskBrief}`, noExit);
+    }
+    try {
+      const tplDir = path.join(pluginRootFn(), "templates", "cdd");
+      if (!existsSync(tplDir)) {
+        return finish(1, [], `templates missing: ${tplDir}`, noExit);
+      }
+    } catch {
+      return finish(1, [], "templates missing: engineering plugin root not found", noExit);
+    }
   }
 
   // 3. Set env

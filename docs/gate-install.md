@@ -9,21 +9,22 @@ format. The gate ships inside the package — installing the plugin is installin
 
 ## Channel classification
 
-Channels are classified into **three tiers**, kept consistent across this doc, the
-[acceptance checklist](#channel-acceptance-checklist), and
-[README](../README.md) / [README.zh-CN](../README.zh-CN.md). **Verified** means the
-channel is install-and-go or `os-init gates` native config — hooks are live after install
-(plus the harness's trust ritual). **Experimental / 待验证** channels are **not** claimed
-install-and-go.
+Two channels, **12 harnesses** total (P6b §2.5 authoritative — single SOT shared with
+[skills-probe.config.mjs](../packages/engineering/bin/utils/skills-probe.config.mjs)):
 
-| Tier | Channels | Meaning |
-|------|----------|---------|
-| **Verified** | claude / cursor / qoder / gemini（包通道）+ grok（Claude marketplace 兼容；`os-init gates` 原生 config 为推荐单路径）+ trae / vibe / kiro（`os-init gates` 原生 config） | 安装后即可生效（或走原生 config），hooks 即活 |
-| **Experimental（需人工步骤）** | pi / opencode | 按文档格式接线，但需人工步骤（手动扩展复制 / plugin 配置），不声称 install-and-go |
-| **待验证** | codex | 按文档化插件格式接线，但未对真实安装验证 |
+| Channel | Harnesses | Missing behavior |
+|---------|-----------|------------------|
+| **install-and-use** | claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | probe → **exit 3** + per-plugin install hint |
+| **os-init** | opencode / trae / vibe / kiro | probe → stderr 提示 `os-init harness <name>`（非 exit 3），任务照跑 |
 
-> 安装命令一律使用**包安装路径**（`<plugin-root>` = marketplace 实际安装 engineering 的位置），
-> 不是 `node <repo>/packages/...` 源 checkout 路径。
+**install-and-use** channels deliver skills + gate hooks via their native install path
+(marketplace / plugin / extension / npm package) — no manual copy needed.
+**os-init** channels require `os-init harness` to write native gate config and copy
+skills to the harness directory.
+
+> Gate hooks (CDD orchestrator enforcement) are separate from skills delivery.
+> install-and-use channels ship gate hooks via their plugin/extension manifest.
+> os-init channels get gate hooks via `os-init harness` (native config + skills copy).
 
 Gate semantics are unchanged across harnesses: fail-open when no CDD task is active,
 mode-aware (`pending.mode`), git read-only allowlist for `Bash`, and Write paths
@@ -31,7 +32,7 @@ bound to the active workspace. Details → [cross-harness-overrides.md](../packa
 
 ---
 
-## Verified — package channel (install-and-go)
+## install-and-use — package / marketplace channel
 
 ### Claude Code (marketplace)
 
@@ -45,7 +46,7 @@ each invoking `bin/gate/adapters/claude.mjs`. Start a CDD task and attempt a rep
 outside the bound workspace → denied.
 **Trust:** plugin install is enough — no separate ritual.
 
-### Cursor (marketplace)
+### Cursor Agent (marketplace)
 
 Install `engineering` from the marketplace (Cursor Team Marketplace / plugin install).
 
@@ -53,16 +54,30 @@ Install `engineering` from the marketplace (Cursor Team Marketplace / plugin ins
 `bin/gate/adapters/cursor.mjs`. Same gate smoke test as Claude Code.
 **Trust:** plugin install is enough.
 
-### Grok (native config — recommended; marketplace optional)
+### Droid (skill-dir)
 
-Grok reads Claude-compatible plugins, but the **marketplace** path is assumption-based
-(unverified against a live Grok install). The guaranteed path is `os-init gates` native
-config → `~/.grok/hooks/engineering.json` → `bin/gate/adapters/grok.mjs`:
+Droid reads skills from `.agents/skills/` — copy the engineering skills directory there.
 
 ```bash
-os-init gates --harness grok
-grok --trust
+cp -r <plugin-root>/skills/* .agents/skills/
 ```
+
+**Verify:** skills appear in `.agents/skills/`; during an active CDD task a repo-edit
+attempt is denied (droid routes through the gate adapter).
+**Trust:** no separate trust ritual; skill copy = enabled.
+
+### Grok (marketplace — install-and-use)
+
+Grok reads Claude-compatible plugins via marketplace compatibility. Install the
+engineering plugin from the Oscaner marketplace — skills + gate hooks ship together.
+
+```bash
+# Grok reads the Claude marketplace
+/plugin marketplace add oscaner/skills
+/plugin install engineering@oscaner
+```
+
+Alternatively, `os-init harness grok` can guide the marketplace install steps.
 
 **Verify:** `~/.grok/hooks/engineering.json` exists; during an active CDD task a repo-edit
 attempt is denied.
@@ -77,6 +92,20 @@ Install the `.qoder-plugin` (marketplace or local). The plugin manifest
 **Verify:** plugin hooks are active in Qoder; a CDD `Bash`/`Write` deny returns
 `permissionDecision: "deny"`.
 **Trust:** plugin install is enough.
+
+### Codex (plugin — install-and-use)
+
+Install the `.codex-plugin` (`.codex-plugin/plugin.json` embeds
+`.codex-plugin/hooks/hooks.json` → `bin/gate/adapters/codex.mjs` via the
+manifest-relative `../bin/...` command), then review/trust the hooks:
+
+```text
+/codex /hooks      # in the Codex session — approve the engineering hooks
+```
+
+**Verify:** hooks list shows the engineering gate hook; during an active task a
+non-read-only `Bash` is denied (`permissionDecision: "deny"`).
+**Trust:** `/hooks` and approve the engineering hooks.
 
 ### Gemini (extension)
 
@@ -94,58 +123,74 @@ directory (not a Claude-style `${CLAUDE_PLUGIN_ROOT}` variable).
 repo-edit attempt triggers the fingerprint confirmation, then `BeforeTool` blocks it.
 **Trust:** accept the project hook fingerprint on first use.
 
-## Verified — native config (`os-init gates`)
+### Pi (npm package — install-and-use)
 
-### Trae / Vibe / Kiro
-
-`os-init gates` copies each harness's native hook config to the machine:
+Pi packages support a `package.json` top-level `pi` key (skills + extensions delivery).
+The engineering plugin emits a top-level `pi` key with skills and a gate extension
+TypeScript shim (`bin/gate/adapters/pi.ts`) that Pi auto-discovers under
+`~/.pi/agent/extensions/`.
 
 ```bash
-os-init gates --harness trae,vibe,kiro
+pi install npm:@oscaner-skills/engineering
 ```
 
-| Harness | Writes | Trust |
-|---------|--------|-------|
-| **Trae** | `~/.trae/hooks.json` (Cursor format → `bin/gate/adapters/trae.mjs`) | flip hook **Enable** + sandbox/local execution mode |
-| **Vibe** | `~/.vibe/hooks.toml` → `bin/gate/adapters/vibe.mjs` | — |
-| **Kiro** | `~/.kiro/hooks/engineering.json` → `bin/gate/adapters/kiro.mjs` | — |
-
-**Verify:** the listed files exist and point at the installed package's
-`bin/gate/adapters/<harness>.mjs`; during an active CDD task a repo-edit attempt is
-denied in that harness.
+**Verify:** `pi list` shows the engineering skills + extensions; triggering a gate deny
+during a CDD task shows the gate `reason`.
+**Trust:** `pi install` = enabled; re-install to update.
 
 ---
 
-## Experimental — needs manual steps
+## os-init — native config + skills copy
 
-Wired to each harness's **documented** format, but **not** install-and-go — they need
-manual steps and are not claimed verified against a live install.
-
-### Pi (manual extension copy) — experimental
-
-Pi packages **do** support a `package.json` `pi` key (skills/prompts/themes delivery),
-but the gate adapter is `.mjs` while Pi auto-discovers `*.ts` / `*/index.ts` extensions
-under `~/.pi/agent/extensions/`. So the gate ships as a **manual extension copy**:
-`os-init gates` writes a thin TS shim re-exporting the package's `bin/gate/adapters/pi.mjs`
-default-export factory (`pi.on("tool_call", …)`; deny → `{ block: true, reason }`):
+For harnesses in the os-init channel (opencode / trae / vibe / kiro), `os-init harness`
+writes native gate config and copies skills to the harness directory:
 
 ```bash
-os-init gates --harness pi
+os-init harness                       # detect installed harnesses → multi-select menu
+os-init harness trae,vibe,kiro        # explicit specification
 ```
 
-**Verify:** `~/.pi/agent/extensions/engineering.ts` exists; triggering a gate deny during
-a CDD task shows the gate `reason`. The shim assumes the Pi TS loader resolves the
-absolute `.mjs` import — **unverified against a live Pi install**.
-**Trust:** config write = enabled; re-run `os-init gates` to update the shim.
+### Trae
 
-### OpenCode (plugin module) — experimental
+```bash
+os-init harness trae
+```
 
-Add the package to the `plugin` array of `opencode.json`:
+| Writes | Trust |
+|--------|-------|
+| `~/.trae/hooks.json` (Cursor format → `bin/gate/adapters/trae.mjs`) + skills to `.trae/skills/` | flip hook **Enable** + sandbox/local execution mode |
 
-```json
-{
-  "plugin": ["@oscaner-skills/engineering"]
-}
+**Verify:** `~/.trae/hooks.json` exists and points at the installed package's
+`bin/gate/adapters/trae.mjs`; during an active CDD task a repo-edit attempt is denied.
+
+### Vibe
+
+```bash
+os-init harness vibe
+```
+
+| Writes | Trust |
+|--------|-------|
+| `~/.vibe/hooks.toml` → `bin/gate/adapters/vibe.mjs` + skills to `.vibe/skills/` | — |
+
+**Verify:** the listed files exist; a CDD repo-edit attempt is denied.
+
+### Kiro
+
+```bash
+os-init harness kiro
+```
+
+| Writes | Trust |
+|--------|-------|
+| `~/.kiro/hooks/engineering.json` → `bin/gate/adapters/kiro.mjs` + skills to `.kiro/skills/` | — |
+
+**Verify:** the listed files exist; a CDD repo-edit attempt is denied.
+
+### OpenCode
+
+```bash
+os-init harness opencode
 ```
 
 OpenCode auto-installs the npm package; `package.json#main` points at
@@ -154,74 +199,52 @@ OpenCode auto-installs the npm package; `package.json#main` points at
 in-process (no subprocess).
 
 **Verify:** starting OpenCode shows no plugin error; during an active CDD task a `Bash`
-call is intercepted (gate deny). The `main` entry + named-export shape is **unverified
-against a real OpenCode install**.
+call is intercepted (gate deny).
 
 ---
 
-## 待验证 — wired to documented format, not yet verified
+## `os-init harness` — per-harness installer
 
-### Codex (plugin) — 待验证
+`os-init harness` is the unified installer for all harnesses. It detects installed
+harnesses (via `harness-detect` util — `command -v <cli>`), presents a multi-select
+menu, and runs per-harness install actions:
 
-Install the `.codex-plugin` (`.codex-plugin/plugin.json` embeds
-`.codex-plugin/hooks/hooks.json` → `bin/gate/adapters/codex.mjs` via the
-manifest-relative `../bin/...` command), then review/trust the hooks:
-
-```text
-/codex /hooks      # in the Codex session — approve the engineering hooks
-```
-
-**Verify:** hooks list shows the engineering gate hook; during an active task a
-non-read-only `Bash` is denied (`permissionDecision: "deny"`). The manifest-relative
-`../bin/...` command path is documented but **untested against a real Codex install**.
-
----
-
-## `os-init gates` (native config installer)
-
-For harnesses delivered as native config (trae / vibe / kiro / grok native / pi manual
-extension copy), `os-init gates` copies the templates to the machine and prints the
-trust ceremony:
-
-```bash
-/os-init gates                      # detect → write native config → report
-/os-init gates --dry-run            # preview what would be written, write nothing
-/os-init gates --harness trae,kiro  # limit to specific harnesses
-```
+| Channel | Action |
+|---------|--------|
+| install-and-use | probe that harness for installed engineering plugin/gate; if missing → print install command + trust steps |
+| os-init | write native gate config + **copy skills** to harness directory + trust steps |
 
 Under the hood it runs the installer from the **installed package** (not a source
 checkout — the plugin root is wherever the marketplace installed `engineering`):
 
 ```bash
-node <plugin-root>/bin/os-init/install-gates.mjs [--harness …] [--dry-run]
+node <plugin-root>/bin/os-init/install-harness.mjs [--harness …] [--dry-run]
 ```
 
-What it does (idempotent — re-runs merge, never clobber user content; `.ts` targets that
-exist and aren't template-generated are skipped, not overwritten):
-
-| Harness | Writes | Trust step |
-|---------|--------|------------|
-| **Trae** | `~/.trae/hooks.json` (Cursor format → `gate/adapters/trae.mjs`) | [Trust ceremonies](#trust-ceremonies) |
-| **Vibe** | `~/.vibe/hooks.toml` → `gate/adapters/vibe.mjs` | — |
-| **Kiro** | `~/.kiro/hooks/engineering.json` → `gate/adapters/kiro.mjs` | — |
-| **Grok** (optional native) | `~/.grok/hooks/engineering.json` → `gate/adapters/grok.mjs` | [Trust ceremonies](#trust-ceremonies) |
-| **Pi** (manual extension copy) | `~/.pi/agent/extensions/engineering.ts` → re-exports `gate/adapters/pi.mjs` | — |
-
-Trust steps are listed once in [Trust ceremonies](#trust-ceremonies) — the authoritative
-list for every channel; `os-init gates` prints each harness's next step at install time.
+**Manifest full sync** (runs every time):
+- Manifest at `bin/os-init/state/<harness>.json` tracks `{ engineeringVersion, files: { path → { hash, source } } }`
+  where `source = "os-init"` marks os-init-written files.
+- Re-run diffs manifest vs current file set → auto add/overwrite/delete (no prompting).
+- **Delete semantics**: only delete files that (a) were tracked in manifest, (b) not
+  user-modified (hash matches), and (c) have `source == "os-init"`. Untracked user
+  files are preserved.
 
 ## Channel acceptance checklist
 
 | Channel | Status | Install | Verify |
 |---------|--------|---------|--------|
-| **Claude / Cursor** | Verified | marketplace install | `/hooks` shows the gate hook; CDD task deny |
-| **Grok** | Verified (native) | `os-init gates`（或 marketplace） | `~/.grok/hooks/engineering.json` exists; a gate deny triggers |
-| **Qoder** | Verified | install the plugin | plugin hooks active; deny returns `permissionDecision: "deny"` |
-| **Gemini** | Verified | `gemini extensions install <repo-url>` | extension in list; `BeforeTool` hook triggers |
-| **Trae / Vibe / Kiro** | Verified (native) | `os-init gates` | config file exists; a gate deny triggers |
-| **Pi** | Experimental | `os-init gates --harness pi` (manual extension copy) | `~/.pi/agent/extensions/engineering.ts` exists; a gate `tool_call` deny |
-| **OpenCode** | Experimental | opencode.json `plugin` array adds the package name | clean startup (no plugin error); `Bash` during a CDD task → gate intercepts |
-| **Codex** | 待验证 | install the plugin + `/hooks` trust | hooks list shows the gate; a non-read-only `Bash` deny |
+| **Claude** | install-and-use | marketplace install | `/hooks` shows the gate hook; CDD task deny |
+| **Cursor Agent** | install-and-use | marketplace install | hooks settings show the gate hook; CDD task deny |
+| **Droid** | install-and-use | copy skills to `.agents/skills/` | skills appear; CDD task deny |
+| **Grok** | install-and-use | marketplace install (Claude marketplace compat) | `~/.grok/hooks/engineering.json` exists; gate deny |
+| **Qoder** | install-and-use | install the plugin | plugin hooks active; deny returns `permissionDecision: "deny"` |
+| **Codex** | install-and-use | install the plugin + `/hooks` trust | hooks list shows the gate; a non-read-only `Bash` deny |
+| **Gemini** | install-and-use | `gemini extensions install <repo-url>` | extension in list; `BeforeTool` hook triggers |
+| **Pi** | install-and-use | `pi install npm:@oscaner-skills/engineering` | `pi list` shows skills + extensions; gate `tool_call` deny |
+| **Trae** | os-init | `os-init harness trae` | `~/.trae/hooks.json` exists; gate deny |
+| **Vibe** | os-init | `os-init harness vibe` | `~/.vibe/hooks.toml` exists; gate deny |
+| **Kiro** | os-init | `os-init harness kiro` | `~/.kiro/hooks/engineering.json` exists; gate deny |
+| **OpenCode** | os-init | `os-init harness opencode` | clean startup; `Bash` during CDD task → gate intercepts |
 
 ## Smoke test (any harness)
 
@@ -251,4 +274,4 @@ Config written ≠ trusted. After install, complete the harness's trust ritual:
   ship inside the package and are referenced by path.
 - It is **not** the trigger router. The superpowers trigger router
   (`superpowers-overrides`) is a separate plugin; `os-init spor` initializes its
-  self-check table. `os-init gates` installs only the engineering CDD gate.
+  self-check table. `os-init harness` installs only the engineering CDD gate.

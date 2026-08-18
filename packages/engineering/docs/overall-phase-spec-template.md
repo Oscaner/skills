@@ -1,6 +1,6 @@
 # Overall + Phase Spec Organization Template
 
-**Document structure only** — what produced specs contain. Process: [Rule: Overall-Phase](../skills/os-brainstorming/SKILL.md#rule-overall-phase)（overall + phase 流程 + 不变式）。Read both before drafting.
+**Document structure only** — what produced specs contain. Process: [Rule: Overall-Phase](../skills/os-brainstorming/SKILL.md#rule-overall-phase) (overall + phase flow + invariants). Read both before drafting.
 
 ---
 
@@ -21,7 +21,7 @@ One **program date** + **feature slug** under `docs/superpowers/`:
 | Phase plan | `plans/YYYY-MM-DD-<feature>-<phase-id>.md` |
 | Phase tickets | `tickets/YYYY-MM-DD-<feature>-<phase-id>-tickets.md` |
 
-`<phase-id>` lowercase (`p0`, `p2a`, …). Inventory columns link here once files exist.
+`<phase-id>` lowercase (`p0`, `p2a`, ...). Inventory columns link here once files exist.
 
 ---
 
@@ -30,25 +30,25 @@ One **program date** + **feature slug** under `docs/superpowers/`:
 ### Header
 
 ```
-- **Version**: v1.0 · YYYY-MM-DD
+- **Version**: v1.0 . YYYY-MM-DD
 - **Status**: Draft | Approved | In progress | Complete
-- **Author**: [human] · [harness + model at writing time]
+- **Author**: [human] . [harness + model at writing time]
 - **Constraints**: [project-level, one per line]
 ```
 
 Minor version bump: decomposition, scope shift, phase complete. Major: program goal/constraint rewrite.
 
-### §0 Document scope
+### Section 0: Document scope
 
 - Charter only — no implementation detail.
-- **Overall approval ≠ phase started**（GATE，见 Rule: Overall-Phase）。
-- Deviations update here first（同步更新到 overall）。
+- **Overall approval is not equivalent to phase started** (GATE, see Rule: Overall-Phase).
+- Deviations update here first (sync to overall).
 
-### §1 Program charter
+### Section 1: Program charter
 
-Goal (1–3 sentences), non-goals, cross-cutting constraints. **Exclude:** acceptance criteria, API shapes, component design, tasks.
+Goal (1-3 sentences), non-goals, cross-cutting constraints. **Exclude:** acceptance criteria, API shapes, component design, tasks.
 
-### §2 Phase inventory
+### Section 2: Phase inventory
 
 ```markdown
 | # | Phase | Design spec | Implementation plan |
@@ -60,21 +60,21 @@ Goal (1–3 sentences), non-goals, cross-cutting constraints. **Exclude:** accep
 - **Split:** replace parent row with Na, Nb **before** sub-phase work continues.
 - Cells: Pending → link; on ship, completion marker on **plan** cell only.
 
-### §3 Dependency graph (ASCII)
+### Section 3: Dependency graph (ASCII)
 
 Sync with inventory on add/split/reorder.
 
-### §4 Boundary rules (blockquote)
+### Section 4: Boundary rules (blockquote)
 
 > Each phase: full brainstorming → plan → dev. Shipped before dependents start.
 
-### §5 Maintenance
+### Section 5: Maintenance
 
 - Update links + change history per phase; no task lists.
 - Master spec for cross-phase conventions; phase specs incremental.
-- Strategy shifts and splits feed back **immediately**（同步 overall）。
+- Strategy shifts and splits feed back **immediately** (sync to overall).
 
-### §6 Change history
+### Section 6: Change history
 
 Append-only: completion, decomposition, scope shift, status transition.
 
@@ -89,30 +89,30 @@ Append-only: completion, decomposition, scope shift, status transition.
 - **Author**, **Parent program** (link + version), **Depends on** (upstream + tags)
 ```
 
-### §0 Incremental warning
+### Section 0: Incremental warning
 
 > Phase N increment only. Cross-phase conventions in [overall](link); overall wins on conflict.
 
-### §1 Constraints pointer
+### Section 1: Constraints pointer
 
 > Does not repeat overall conventions. Overall wins on conflict.
 
-### §2 Design body
+### Section 2: Design body
 
 This phase's increment: approaches, architecture, components, data flow, errors, testing, **acceptance criteria**. Discovery cycle before writing.
 
-### §3 Deviations from overall (if cross-phase drift)
+### Section 3: Deviations from overall (if cross-phase drift)
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| … | … | Yes — v1.x · date |
+| ... | ... | Yes — v1.x . date |
 
 Required when phase diverges on cross-phase matters. **Overall updated?** must be Yes before review.
 
-### §4 Notes for downstream (optional)
+### Section 4: Notes for downstream (optional)
 
-Later-phase scope shifts. Decomposition changes → update overall + re-run approval（GATE）。
+Later-phase scope shifts. Decomposition changes → update overall + re-run approval (GATE).
 
-### §5 Review
+### Section 5: Review
 
-Rule: Fresh-Subagent Review Passes 全过，才到 user review 和 writing-plans。
+Rule: Fresh-Subagent Review Passes must all pass before reaching user review and writing-plans.

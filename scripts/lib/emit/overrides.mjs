@@ -187,6 +187,35 @@ export function overridesHooksFor(harness, targets) {
   );
 }
 
+/** `bin/pi-router.ts` — Pi TS extension trigger router (slash command → Skill transform). */
+export function piRouterScript(targets) {
+  const mapLines = targets.map(
+    (t) => `  "${t.upstream_slug}": "${t.name}"`,
+  );
+  const lines = [
+    "// bin/pi-router.ts — Pi TS extension trigger router（P6b T2）。",
+    `// ${generatedBanner}`,
+    "",
+    "const MAP: Record<string, string> = {",
+    mapLines.join(",\n"),
+    "};",
+    "",
+    "export function on(pi: any): void {",
+    '  pi.on("input", async (event: { text: string }, _ctx: any) => {',
+    "    const text = event.text ?? \"\";",
+    '    const m = text.match(/^\\/([a-z][a-z0-9-]*)/);',
+    "    if (!m) return null;",
+    "    const slug = m[1];",
+    "    const target = MAP[slug];",
+    "    if (!target) return null;",
+    '    return { action: "transform", text: `Skill(${target}) ${text}` };',
+    "  });",
+    "}",
+    "",
+  ];
+  return lines.join("\n");
+}
+
 function cursorDetectTargetRows(targets) {
   return targets.map((t) => ({
     name: t.name,

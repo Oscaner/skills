@@ -1,26 +1,26 @@
 ---
 name: os-verification
-description: 独立完成前验证编排器 —— Read 上游 superpowers:verification-before-completion 作为基线，叠加个人规则（pre-claim gate / 软化语言自检）。
+description: Independent pre-completion verification orchestrator -- Reads upstream superpowers:verification-before-completion as baseline, layers personal rules (pre-claim gate / softening-language self-check).
 ---
 
 # OS Verification
 
-完成前验证：证据先于断言。
+Pre-completion verification: evidence before assertion.
 
 ## Rules
 
 ### Rule: Read Upstream
 
-Read 上游 `superpowers:verification-before-completion` 的 SKILL.md 作为流程基线 **当可用时**（解析优先级 + 不可用回退同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)）。**Read 而非 Skill-invoke**。
+Read upstream `superpowers:verification-before-completion` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
 
 ### Rule: Pre-Claim Gate
 
-任何声称「完成 / 已修 / 通过」的输出前，先调上游验证流程（触发时机 = 模型内部决定「可以说完成了」之前，非输出后拦截）。
+Before any output that claims "done / fixed / passed", invoke the upstream verification process first (trigger timing = before the model internally decides "can say it's done", not post-output interception).
 
 ### Rule: Softening-Language Self-Check
 
-输出前扫描软化语言：状态类（"should pass"/"looks good"/"appears correct"）、规避类。发现 → 视为未验证声称，补证据。
+Before output, scan for softening language: status claims ("should pass"/"looks good"/"appears correct"), evasion phrases. Found -> treat as unverified claim, supplement with evidence.
 
 ## Red Flags
 
-- 「简单改动不用验证」→ pre-claim gate 覆盖所有流程（Rule: Pre-Claim Gate）
+- "Simple change doesn't need verification" -> pre-claim gate covers all flows (Rule: Pre-Claim Gate)

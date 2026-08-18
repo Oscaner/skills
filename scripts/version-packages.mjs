@@ -91,12 +91,12 @@ const osengPkgPath = "packages/osuperpowers/package.json";
 const osengChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
 const osengCS = changesetsForPlugin(
   changesets,
-  "@oscaner-skills/engineering",
+  "@oscaner-skills/osuperpowers",
 );
 if (osengCS.length > 0) {
   const osengPkg = readJson(osengPkgPath);
   const osengTypes = osengCS.map(
-    (cs) => cs.releases.find((r) => r.name === "@oscaner-skills/engineering").type,
+    (cs) => cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type,
   );
   const bumpLevel = highestBumpLevel(osengTypes);
   const osengNext = computeNextIndependentVersion(osengPkg.version, bumpLevel);
@@ -105,7 +105,7 @@ if (osengCS.length > 0) {
   for (const type of ["major", "minor", "patch"]) {
     const typed = osengCS.filter(
       (cs) =>
-        cs.releases.find((r) => r.name === "@oscaner-skills/engineering").type ===
+        cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type ===
         type,
     );
     if (typed.length === 0) continue;

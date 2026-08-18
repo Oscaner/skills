@@ -2,7 +2,7 @@
 // `harness_free_path` + cdd-commit-gate-smoke.sh `setup_repo` fixture）。
 //
 // 与 bin/engine/tests/（模块单测，各自的 helpers 内联）分属两层：本文件服务
-// packages/engineering/tests/ 的行为/集成测试树（bash 边界测试）。
+// packages/osuperpowers/tests/ 的行为/集成测试树（bash 边界测试）。
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

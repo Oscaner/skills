@@ -113,14 +113,14 @@ describe("changesetsForPlugin", () => {
     const changesets = [
       {
         id: "a",
-        releases: [{ name: "@oscaner-skills/superpowers-overrides", type: "patch" }],
+        releases: [{ name: "@oscaner-skills/osuperpowers-router", type: "patch" }],
       },
       { id: "b", releases: [{ name: "@oscaner-skills/osuperpowers", type: "minor" }] },
       {
         id: "c",
         releases: [
           { name: "@oscaner-skills/osuperpowers", type: "patch" },
-          { name: "@oscaner-skills/superpowers-overrides", type: "patch" },
+          { name: "@oscaner-skills/osuperpowers-router", type: "patch" },
         ],
       },
     ];

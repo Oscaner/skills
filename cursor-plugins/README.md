@@ -30,7 +30,7 @@ pnpm run emit && pnpm run validate
 
 | Plugin | Mode | Notes |
 |--------|------|-------|
-| superpowers-overrides | plugin-root | pack — oscaner-generated manifest at plugin root |
+| osuperpowers-router | plugin-root | pack — oscaner-generated manifest at plugin root |
 | superpowers | plugin-root | pack-sp — upstream submodule manifest |
 | mattpocock-skills | wrapper | no upstream `.cursor-plugin` |
 | impeccable | wrapper | no upstream `.cursor-plugin` |

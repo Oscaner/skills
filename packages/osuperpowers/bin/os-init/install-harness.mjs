@@ -97,7 +97,7 @@ const HARNESSES = {
     config: { template: path.join(CONFIGS, "kiro", "hooks.json"), dest: () => homePath(".kiro", "hooks", "engineering.json") },
     detect: () => commandExists("kiro"),
   },
-  opencode: { channel: "os-init", hint: "opencode.json `plugin` 数组加 `@oscaner-skills/engineering`", detect: () => commandExists("opencode") },
+  opencode: { channel: "os-init", hint: "opencode.json `plugin` 数组加 `@oscaner-skills/osuperpowers`", detect: () => commandExists("opencode") },
 };
 
 // hook 条目签名 —— 去重键（trigger/matcher + 命令）。

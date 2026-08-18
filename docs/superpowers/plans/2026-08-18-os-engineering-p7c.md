@@ -492,6 +492,9 @@ grep -rn 'superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --ex
 echo "=== @oscaner-skills/engineering ==="
 grep -rn '@oscaner-skills/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
 
+echo "=== bare engineering (plugin name / path ref) ==="
+grep -rn 'engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null | grep -v '"category": "engineering"' | grep -v 'real engineering' | grep -v 'engineering skills' | grep -v 'docs/superpowers/specs/' | grep -v 'docs/superpowers/plans/' | grep -v 'docs/research/' | grep -v 'docs/superpowers/tickets/' | grep -v 'CHANGELOG' || echo "(clean)"
+
 echo "=== packages/engineering ==="
 grep -rn 'packages/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
 
@@ -499,9 +502,14 @@ echo "=== packages/superpowers-overrides ==="
 grep -rn 'packages/superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
 ```
 
-Expected: all four sections output `(clean)` or only match historical docs (`docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/research/`) and `docs/superpowers/tickets/` — these are historical records and intentionally preserved.
+Expected: all five sections output `(clean)` or only match known-safe patterns:
+- `"category": "engineering"` — category metadata, not a package name
+- `CHANGELOG.md` — historical records
+- `docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/research/`, `docs/superpowers/tickets/` — historical docs
+- `scripts/cleanup-legacy-release-tags.mjs` — intentionally references old tag format for cleanup
+- `scripts/bump-submodule.mjs` — historical header comment
 
-If any match appears outside historical docs, fix it before proceeding.
+If any match appears outside these known-safe patterns, fix it before proceeding.
 
 - [ ] **Step 4: Verify GitHub labels**
 

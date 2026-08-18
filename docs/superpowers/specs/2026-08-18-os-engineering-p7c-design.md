@@ -194,13 +194,20 @@ grep -rn 'superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --ex
 echo "=== @oscaner-skills/engineering ==="
 grep -rn '@oscaner-skills/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
 
+echo "=== bare engineering (plugin name / path ref) ==="
+grep -rn 'engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null | grep -v '"category": "engineering"' | grep -v 'real engineering' | grep -v 'engineering skills' | grep -v 'docs/superpowers/specs/' | grep -v 'docs/superpowers/plans/' | grep -v 'docs/research/' | grep -v 'docs/superpowers/tickets/' | grep -v 'CHANGELOG' || echo "(clean)"
+
 echo "=== packages/engineering ==="
 grep -rn 'packages/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
 
 echo "=== packages/superpowers-overrides ==="
 grep -rn 'packages/superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
-# 预期：全部 (clean)，或仅匹配历史文档（docs/superpowers/specs/、docs/superpowers/plans/、docs/research/）
-# 历史文档中的旧引用是预期保留的，不需要修复
+# 预期：全部 (clean)，或仅匹配已知安全模式：
+# - "category": "engineering"（分类元数据）
+# - CHANGELOG.md（历史记录）
+# - docs/superpowers/specs/、docs/superpowers/plans/、docs/research/（历史文档）
+# - scripts/cleanup-legacy-release-tags.mjs（故意引用旧 tag 格式）
+# - scripts/bump-submodule.mjs（历史 header 注释）
 
 # 3. 验证脚本可执行
 node scripts/version-packages.mjs --dry-run 2>&1 || true

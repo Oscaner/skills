@@ -187,12 +187,20 @@ grep -n 'superpowers-overrides\|@oscaner-skills/engineering' .changeset/README.m
 ```bash
 # 1. 执行改动（§1-§7）
 
-# 2. 验证无遗留旧引用
-grep -rn '@oscaner-skills/engineering' scripts/ .github/ .changeset/ packages/osuperpowers/bin/
-# 预期：exit 1（无匹配）
+# 2. 全仓库 grep（排除 vendors/ 和 node_modules/）
+echo "=== superpowers-overrides ==="
+grep -rn 'superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
 
-grep -rn 'superpowers-overrides' .github/ .changeset/ packages/osuperpowers/bin/
-# 预期：exit 1（无匹配）
+echo "=== @oscaner-skills/engineering ==="
+grep -rn '@oscaner-skills/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
+
+echo "=== packages/engineering ==="
+grep -rn 'packages/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
+
+echo "=== packages/superpowers-overrides ==="
+grep -rn 'packages/superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
+# 预期：全部 (clean)，或仅匹配历史文档（docs/superpowers/specs/、docs/superpowers/plans/、docs/research/）
+# 历史文档中的旧引用是预期保留的，不需要修复
 
 # 3. 验证脚本可执行
 node scripts/version-packages.mjs --dry-run 2>&1 || true

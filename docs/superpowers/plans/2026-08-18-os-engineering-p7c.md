@@ -116,36 +116,38 @@ git commit -m "fix: update release.yml tag prefixes to osuperpowers-router/osupe
 - Delete: `.changeset/engineering-p4.md`
 - Delete: `.changeset/engineering-p5.md`
 - Delete: `.changeset/engineering-p6.md`
+- Delete: `.changeset/seven-mice-dance.md`
+- Delete: `.changeset/twelve-waves-rescue.md`
 
 **Interfaces:**
 - Consumes: None
 - Produces: Clean `.changeset/` directory with no stale old-package-name references
 
-- [ ] **Step 1: List files to delete**
+- [ ] **Step 1: List all changeset files**
 
-Run: `ls .changeset/engineering-*.md`
-Expected: 7 files (p1, p2, p3, p3-overrides, p4, p5, p6)
+Run: `ls .changeset/*.md`
+Expected: `README.md` + `engineering-p*.md` (7 files) + `seven-mice-dance.md` + `twelve-waves-rescue.md`
 
-- [ ] **Step 2: Delete all engineering changeset files**
+- [ ] **Step 2: Delete all stale changeset files**
 
 ```bash
-rm .changeset/engineering-p1.md .changeset/engineering-p2.md .changeset/engineering-p3.md .changeset/engineering-p3-overrides.md .changeset/engineering-p4.md .changeset/engineering-p5.md .changeset/engineering-p6.md
+rm .changeset/engineering-p1.md .changeset/engineering-p2.md .changeset/engineering-p3.md .changeset/engineering-p3-overrides.md .changeset/engineering-p4.md .changeset/engineering-p5.md .changeset/engineering-p6.md .changeset/seven-mice-dance.md .changeset/twelve-waves-rescue.md
 ```
 
-- [ ] **Step 3: Verify no old-package references remain in .changeset/**
+- [ ] **Step 3: Verify no stale references remain in .changeset/**
 
-Run: `grep -rl '@oscaner-skills/engineering' .changeset/ 2>/dev/null; echo "exit: $?"`
-Expected: exit 1 (no matches)
+Run: `grep -rl '@oscaner-skills/engineering\|@oscaner-skills/superpowers-overrides' .changeset/ 2>/dev/null; echo "exit: $?"`
+Expected: only `README.md` matches (fixed in Task 7), no changeset `.md` files
 
 - [ ] **Step 4: Verify .changeset/ still has valid files**
 
 Run: `ls .changeset/`
-Expected: `README.md`, `config.json` (and any `VERSION_*.md` pending changesets) — no `engineering-*` files
+Expected: `README.md`, `config.json` only — no `engineering-*` or orphaned files
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add .changeset/engineering-p1.md .changeset/engineering-p2.md .changeset/engineering-p3.md .changeset/engineering-p3-overrides.md .changeset/engineering-p4.md .changeset/engineering-p5.md .changeset/engineering-p6.md
+git add .changeset/engineering-p1.md .changeset/engineering-p2.md .changeset/engineering-p3.md .changeset/engineering-p3-overrides.md .changeset/engineering-p4.md .changeset/engineering-p5.md .changeset/engineering-p6.md .changeset/seven-mice-dance.md .changeset/twelve-waves-rescue.md
 git commit -m "chore: remove consumed changeset files from pre-P7 era"
 ```
 
@@ -189,24 +191,25 @@ git commit -m "fix: update opencode.json plugin name to @oscaner-skills/osuperpo
 
 ---
 
-### Task 5: Update issue templates and install hint
+### Task 5: Update issue templates, install hint, and pi README
 
 **Files:**
 - Modify: `.github/ISSUE_TEMPLATE/enhancement.yml` (line 9)
 - Modify: `.github/ISSUE_TEMPLATE/bug_report.yml` (line 9)
 - Modify: `packages/osuperpowers/bin/os-init/install-harness.mjs` (line 100)
+- Modify: `packages/osuperpowers/bin/gate/configs/pi/README.md` (line 30)
 
 **Interfaces:**
 - Consumes: None (independent)
-- Produces: Correct label name in issue templates, correct package name in install hint
+- Produces: Correct label name in issue templates, correct package names in install hints
 
 - [ ] **Step 1: Verify current stale references**
 
 Run: `grep -rn 'superpowers-overrides' .github/ISSUE_TEMPLATE/`
 Expected: 2 matches (enhancement.yml, bug_report.yml)
 
-Run: `grep -n '@oscaner-skills/engineering' packages/osuperpowers/bin/os-init/install-harness.mjs`
-Expected: 1 match
+Run: `grep -rn '@oscaner-skills/engineering' packages/osuperpowers/bin/os-init/install-harness.mjs packages/osuperpowers/bin/gate/configs/pi/README.md`
+Expected: 2 matches
 
 - [ ] **Step 2: Update enhancement.yml**
 
@@ -248,24 +251,126 @@ Edit `packages/osuperpowers/bin/os-init/install-harness.mjs` line 100 — replac
 hint: "opencode.json `plugin` 数组加 `@oscaner-skills/osuperpowers`"
 ```
 
-- [ ] **Step 5: Verify no stale references remain**
+- [ ] **Step 5: Update pi README.md**
+
+Edit `packages/osuperpowers/bin/gate/configs/pi/README.md` line 30 — replace `@oscaner-skills/engineering` with `@oscaner-skills/osuperpowers`:
+
+```bash
+"$(node -p "require.resolve('@oscaner-skills/osuperpowers/bin/gate/adapters/pi.ts')")" \
+```
+
+- [ ] **Step 6: Verify no stale references remain**
 
 Run: `grep -rn 'superpowers-overrides' .github/ISSUE_TEMPLATE/`
 Expected: exit 1
 
-Run: `grep -n '@oscaner-skills/engineering' packages/osuperpowers/bin/os-init/install-harness.mjs`
+Run: `grep -rn '@oscaner-skills/engineering' packages/osuperpowers/bin/os-init/install-harness.mjs packages/osuperpowers/bin/gate/configs/pi/README.md`
 Expected: exit 1
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add .github/ISSUE_TEMPLATE/enhancement.yml .github/ISSUE_TEMPLATE/bug_report.yml packages/osuperpowers/bin/os-init/install-harness.mjs
-git commit -m "fix: update issue templates and install hint to use new plugin names"
+git add .github/ISSUE_TEMPLATE/enhancement.yml .github/ISSUE_TEMPLATE/bug_report.yml packages/osuperpowers/bin/os-init/install-harness.mjs packages/osuperpowers/bin/gate/configs/pi/README.md
+git commit -m "fix: update issue templates, install hint, and pi README to use new plugin names"
 ```
 
 ---
 
-### Task 6: Migrate GitHub labels
+### Task 6: Fix test assertions with stale package names
+
+**Files:**
+- Modify: `scripts/lib/version-utils.test.mjs` (lines 116-137)
+- Modify: `packages/osuperpowers-router/tests/manifest-harness.test.mjs` (line 64)
+
+**Interfaces:**
+- Consumes: None (independent)
+- Produces: Test fixtures and assertions use correct package names
+
+- [ ] **Step 1: Update version-utils.test.mjs fixtures**
+
+Edit `scripts/lib/version-utils.test.mjs` — replace old package names in test fixtures:
+
+```js
+// Line 116: releases fixture
+releases: [{ name: "@oscaner-skills/osuperpowers-router", type: "patch" }],
+
+// Line 118: releases fixture
+{ id: "b", releases: [{ name: "@oscaner-skills/osuperpowers", type: "minor" }] },
+
+// Line 122: expected releases
+{ name: "@oscaner-skills/osuperpowers-router", type: "patch" },
+
+// Line 128: changesetSetForPlugin calls
+changesetSetForPlugin(changesets, "@oscaner-skills/osuperpowers"),
+
+// Line 137: edge case test
+changesetSetForPlugin([{ id: "x" }], "@oscaner-skills/osuperpowers"),
+```
+
+- [ ] **Step 2: Run version-utils tests**
+
+Run: `node --test scripts/lib/version-utils.test.mjs`
+Expected: all tests pass
+
+- [ ] **Step 3: Update manifest-harness.test.mjs assertion**
+
+Edit `packages/osuperpowers-router/tests/manifest-harness.test.mjs` line 64 — update assertion text:
+
+```js
+assert.ok(overrides, "osuperpowers-router missing from marketplace/source.json");
+```
+
+- [ ] **Step 4: Run router tests**
+
+Run: `node --test packages/osuperpowers-router/tests/manifest-harness.test.mjs`
+Expected: all tests pass
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add scripts/lib/version-utils.test.mjs packages/osuperpowers-router/tests/manifest-harness.test.mjs
+git commit -m "fix: update test assertions to use new package names"
+```
+
+---
+
+### Task 7: Update cross-harness-overrides.md
+
+**Files:**
+- Modify: `packages/osuperpowers-router/docs/cross-harness-overrides.md` (line 25)
+
+**Interfaces:**
+- Consumes: None (independent)
+- Produces: Documentation uses correct package names
+
+- [ ] **Step 1: Verify current stale reference**
+
+Run: `grep -n '@oscaner-skills/engineering' packages/osuperpowers-router/docs/cross-harness-overrides.md`
+Expected: 1 match at line 25
+
+- [ ] **Step 2: Update package name**
+
+Edit `packages/osuperpowers-router/docs/cross-harness-overrides.md` line 25 — replace `@oscaner-skills/engineering` with `@oscaner-skills/osuperpowers`:
+
+```
+`@oscaner-skills/osuperpowers-router`, `@oscaner-skills/osuperpowers`
+```
+
+- [ ] **Step 3: Verify**
+
+Run: `grep -n '@oscaner-skills/engineering' packages/osuperpowers-router/docs/cross-harness-overrides.md`
+Expected: exit 1
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/osuperpowers-router/docs/cross-harness-overrides.md
+git commit -m "docs: update cross-harness-overrides.md package name references"
+```
+
+---
+
+### Task 8: Migrate GitHub labels
 
 **Files:**
 - None modified (GitHub API only via `gh` CLI)
@@ -318,7 +423,7 @@ Expected: both new labels present
 
 ---
 
-### Task 7: Update .changeset/README.md
+### Task 9: Update .changeset/README.md
 
 **Files:**
 - Modify: `.changeset/README.md`
@@ -358,13 +463,13 @@ git commit -m "docs: update changeset README to use new plugin names"
 
 ---
 
-### Task 8: Full validation
+### Task 10: Full validation
 
 **Files:**
 - None modified (verification only)
 
 **Interfaces:**
-- Consumes: All changes from Tasks 1-7
+- Consumes: All changes from Tasks 1-9
 - Produces: Green CI validation confirming no drift
 
 - [ ] **Step 1: Run emit check**
@@ -377,13 +482,26 @@ Expected: exit 0 (no drift)
 Run: `pnpm run validate`
 Expected: exit 0 (all 12 validation blocks pass)
 
-- [ ] **Step 3: Verify no stale references across entire repo**
+- [ ] **Step 3: Verify no stale references across entire repo (excl. vendors/ and node_modules/)**
 
-Run: `grep -rn '@oscaner-skills/engineering' scripts/ .github/ .changeset/ packages/osuperpowers/bin/ 2>/dev/null; echo "exit: $?"`
-Expected: exit 1 (no matches)
+Run:
+```bash
+echo "=== superpowers-overrides ==="
+grep -rn 'superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
 
-Run: `grep -rn 'superpowers-overrides' .github/ .changeset/ packages/osuperpowers/bin/ 2>/dev/null; echo "exit: $?"`
-Expected: exit 1 (no matches)
+echo "=== @oscaner-skills/engineering ==="
+grep -rn '@oscaner-skills/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
+
+echo "=== packages/engineering ==="
+grep -rn 'packages/engineering' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
+
+echo "=== packages/superpowers-overrides ==="
+grep -rn 'packages/superpowers-overrides' --include='*.{md,yml,yaml,json,mjs,js,ts}' --exclude-dir=vendors --exclude-dir=node_modules . 2>/dev/null || echo "(clean)"
+```
+
+Expected: all four sections output `(clean)` or only match historical docs (`docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/research/`) and `docs/superpowers/tickets/` — these are historical records and intentionally preserved.
+
+If any match appears outside historical docs, fix it before proceeding.
 
 - [ ] **Step 4: Verify GitHub labels**
 

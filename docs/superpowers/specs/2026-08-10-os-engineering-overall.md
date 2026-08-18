@@ -2,7 +2,7 @@
 
 ## Header
 
-- **Version**: v2.9 · 2026-08-17
+- **Version**: v3.0 · 2026-08-18
 - **Status**: Approved · 2026-08-10（分解经用户批准）
 - **Author**: Oscaner Miao · Claude Code (Opus 4.8)
 - **Constraints**:
@@ -46,7 +46,7 @@
 - **sdd → cdd 全量更名（P1 落位）**：新插件内 `SDD_*` 环境变量 → `CDD_*`；`sdd-common.sh` → `cdd-common.sh`；`sdd-orchestrator-gate.sh` → `cdd-orchestrator-gate.sh`；通用 runner `cdd-run.sh`；workspace `.superpowers/sdd/` → `.superpowers/cdd/`（内联重实现 workspace resolver，不再调用上游 `sdd-workspace`）；`docs/sdd-h6-reference.md` → `docs/cdd-reference.md`；`templates/sdd-cli/` → `templates/cdd/`。唯一保留的上游名：`task-brief` / `review-package`（submodule 脚本，以显式输出路径指向 cdd workspace 调用）。缩写规范：`cdd` = cli-driven-development（镜像 `sdd` = subagent-driven-development）；skill 家族用 `cli-*` 前缀。
 - **规则命名规范（P1 起，全插件生效）**：语义名 + 链接引用 —— 标题 `### Rule: <Semantic Name>`（如 `### Rule: Task Complexity`），无数字、无 a/b/c 子后缀（子规则升为独立语义规则或语义子标题）；跨技能引用用 markdown 链接 `[Rule: <Name>](../<skill>/SKILL.md#rule-<kebab>)`；`rule-reference.test.py` 从正则 `Rule [0-9]+` 改为验证语义名解析（P1 对 cdd 技能、P2 对 os-* 技能落地）。
 - **脚本语言统一（P4b 起）**：消除 shell/mjs 多语言分散 —— **gate = 统一概念，不分 shell/TS**，所有 blocking tool-gate harness 平级覆盖。门决策抽**中立核心**（Node `.mjs`，允许破坏性重构，`cdd_gate_decide` 从 bash 抽出为单一实现 + 薄 CLI）；gate/hook 面（门核心 + 全部 adapter + claude/cursor adapter + prompt-expansion router）**P4b** 迁 Node；CDD 引擎（cdd-common/cdd-run/exec/select/session-activate）+ ci-validate + shell/python 测试 **P5** 迁 Node；终态 = 可执行面单语言 Node。门语义（`pending.mode` / fail-open / git 只读白名单）**保持不变** —— 移植不改语义。
-- **文档语言（P6c 起）**：所有 skills/docs 以**英文为主**（harness 消费 SKILL.md 为英文），另提供 `docs/zh-CN/` 中文查看版镜像（平行文件惯例，同 README.md/README.zh-CN.md）。中文仅用于查看，不参与 harness 执行。
+- **文档语言（P6d 起）**：所有 skills/docs 以**英文为主**（harness 消费 SKILL.md 为英文），中文版本用 `<name>.zh-CN.md` 同目录 companion file 模式（与 README.md/README.zh-CN.md 惯例一致）。中文仅用于查看，不参与 harness 执行。无 `docs/zh-CN/` 平行目录。
 - **cli review 模式（P6a 起）**：spec/plan 的 review 走 cli review 模式（对齐任务 review，替代 in-session subagent 派发）。
 - **harness 前置检查（P6a 起）**：task 全 mode（implement/review/fix）进入嵌套 CLI 前检查 —— (a) 上游 skills 插件可用性（superpowers / mattpocock-skills / `@oscaner-skills/*` 自发布，按 harness 探测：`claude plugin list` + 缓存 glob + enabledPlugins；cursor/droid/pi 等走 `.agents/skills/` + 各自 skill 目录；**非 submodule 假设** —— 端用户经 marketplace/npm 安装）(b) plan/brief/templates 就位；任一缺失 → exit 3 + per-harness 安装指引。
 
@@ -62,13 +62,14 @@
 | P5 | **CDD 引擎 + CI + 测试脚本迁 Node（脚本语言统一收尾）**。cdd-common.sh / cdd-run / cdd-exec / cdd-select / cdd-session-activate（~3000 行 bash）+ ci-validate.sh + 12 shell 测试 + rule-reference.test.py 全迁 Node；终结 bash/node 双栈 → 可执行面单语言。依赖 P4b（Node 门核心 + adapter 模式就位）。 | [design](2026-08-10-os-engineering-p5-design.md) | [plan](../plans/2026-08-10-os-engineering-p5.md) | 🚧 设计中 |
 | P6a | **引擎/流程加固**。harness 前置检查 —— 全 mode（implement/review/fix）进入嵌套 CLI 前按 harness 探测上游 skills 插件可用性（superpowers/mattpocock-skills/`@oscaner-skills/*`，非 submodule 假设）+ plan/brief/templates 就位；缺失 → 提前 exit 3 + per-harness 安装指引；**spec/plan review 改走 cli review 模式**（经 cdd-exec 派发，替代 in-session subagent，D1/D2/D3 映射）。 | [design](2026-08-10-os-engineering-p6a-design.md) | [plan](../plans/2026-08-10-os-engineering-p6a.md) | 🚧 设计中 |
 | P6b | **交付补齐（安装即用诚实化）**。pi key 补齐（顶层 `pi` key **动态推导**：engineering = skills + **gate extension .ts**、overrides = **router input extension .ts**；vendored 装配动态探测 package.json pi → plugin.json skills → `.pi/skills/` → 兜底 glob）；gemini mattpocock-extension 装配（+ 上游自带则 error guard）；qoder/codex plugin manifest 补全 → 真安装即用；**os-init harness**（per-harness：只列已装 harness 的 `harness-detect` util 抽自 cdd-select → 多选 → per-harness install（安装即用 probe/指引，os-init 通道写 config+复制 skills）→ manifest 全量同步（版本 check + 自动增删改，无询问））；grok 归安装即用（marketplace）；P6a 前置检查 probe 矩阵按此最终通道分类对齐。 | [design](2026-08-10-os-engineering-p6b-design.md) | [plan](../plans/2026-08-10-os-engineering-p6b.md) | 🚧 设计中 |
-| P6c | **research 集成**。mattpocock-skills:research 融入 os-brainstorming 流程（explore-context 步骤委派 research agent + 产出 findings markdown）。 | [Pending] | [Pending] | ⏳ 未启动 |
-| P6d | **文档语言 + 重写**。英文主 + `docs/zh-CN/` 中文查看镜像（平行文件惯例，同 README.md/README.zh-CN.md）；README.md / README.zh-CN.md / CLAUDE.md **从零重写**（CLAUDE.md 经 `init` skill 生成，不受历史束缚）；清理过时 docs/superpowers specs/plans（保留 os-engineering 当前阶段，删 sdd-*/release-flow 等历史）。 | [Pending] | [Pending] | ⏳ 未启动 |
+| P6c | **research 集成**。mattpocock-skills:research 融入 os-brainstorming 流程（explore-context 步骤委派 research agent + 产出 findings markdown）。 | [design](2026-08-10-os-engineering-p6c-design.md) | [plan](../plans/2026-08-10-os-engineering-p6c.md) | ✅ 实现完成 |
+| P6d | **文档英文化（翻译 phase）**。13 个 engineering SKILL.md 中文→英文（os-* 9 + cli-* 4）+ `SKILL.zh-CN.md` companion files；6 个 engineering docs 英文化（cdd-reference/handoff-schema/overall-phase-spec-template/controller-handoff/review-dispatch/subagent-lifecycle）+ `*.zh-CN.md` companion files；旧 docs/superpowers specs/plans/tickets 清理。统一 convention：`<name>.zh-CN.md` 同目录 companion 模式。 | [Pending] | [Pending] | ⏳ 未启动 |
+| P6e | **文档重写**。CLAUDE.md 从零重写（`init` skill 生成英文 + engineering self-check 清理）；README.md + README.zh-CN.md 从零重写（英文主 + 中文 companion）。统一 convention：所有双语文件用 `<name>.zh-CN.md` 同目录 companion 模式（无 `docs/zh-CN/` 平行目录）。 | [Pending] | [Pending] | ⏳ 未启动 |
 
 ## §3 Dependency graph (ASCII)
 
 ```
-P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（统一 gate 面迁 Node + 9 adapter + os-init gates）──▶ P5（CDD 引擎 + CI + 测试迁 Node）──▶ P6a/P6b（引擎加固 + 交付补齐）──▶ P6c（research 集成）──▶ P6d（文档语言 + 重写）
+P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家族）──▶ P3（薄封装 + superpowers 模式发射）──▶ P4a（发布架构 v2）──▶ P4b（统一 gate 面迁 Node + 9 adapter + os-init gates）──▶ P5（CDD 引擎 + CI + 测试迁 Node）──▶ P6a/P6b（引擎加固 + 交付补齐）──▶ P6c（research 集成）──▶ P6d（文档英文化）──▶ P6e（文档重写 + 镜像）
 ```
 
 - P1 → P2：插件存在、模式确立、harness 机制与 cli-driven-development 就位后，os-* 才能引用它们。
@@ -77,7 +78,9 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - P4a → P4b：跨 harness gate adapters 与重运行时产物在发布架构 v2 就位后实施。
 - P4b → P5：CDD 引擎迁移复用 P4b 的 Node 门核心 + adapter + 测试基建模式。
 - P5 → P6a/P6b：Node 引擎就位后做引擎加固（前置检查 + cli review）与交付补齐（安装即用诚实化）；P6b 的最终通道分类是 P6a 前置检查 probe 矩阵的依据（P6b 可前或并行，引用最终分类）。
-- P6a/P6b → P6c/P6d：research 集成 + 文档重写反映落定终态。
+- P6a/P6b → P6c：research 集成反映落定终态的 skills 流程。
+- P6c → P6d：SKILL.md 内容稳定后做英文化翻译。
+- P6d → P6e：翻译完成后 root files 重写 + 旧文件清理。
 
 ## §4 Boundary rules
 
@@ -118,3 +121,4 @@ P1（插件骨架 + cli-* 家族 + droid/pi + 选择）──▶ P2（os-* 家�
 - v2.7 · 2026-08-16 · **新增 P6 系列（grilling）**：P6a 引擎/流程加固（harness 前置检查 3 类 + spec/plan review 走 cli review 模式）；P6b research 集成（mattpocock-skills:research 融入 os-brainstorming）；P6c 文档语言 + 重写（英文主 + docs/zh-CN 中文查看镜像；README/CLAUDE 从零重写经 init skill；清历史 docs/superpowers specs/plans）。依赖：P6a/P6b 独立 → P6c 反映落定终态
 - v2.8 · 2026-08-16 · **P6a 前置检查重定义（research）**：非 submodule 假设 —— 端用户经 marketplace/npm 安装，改为按 harness 探测插件可用性（claude plugin list + 缓存 glob + enabledPlugins；cursor/droid/pi 走 .agents/skills/ + 各自 skill 目录）；全 mode（implement/review/fix）统一；缺失 → exit 3 + per-harness 安装指引（research 文档 2026-08-16-harness-plugin-availability.md 为探测路径 SOT）
 - v2.9 · 2026-08-17 · **P6 系列拆分（grilling）**：新增 **P6b 交付补齐**（安装即用诚实化）—— pi key 补齐（engineering = skills + gate extension .ts、overrides = router extension .ts、vendors 保留/生成）、gemini mattpocock-extension 装配（上游自带则 error guard）、qoder/codex manifest 补全、os-init harness（per-harness：harness-detect util 抽自 cdd-select → 多选 → manifest 全量同步）、grok 归安装即用；**阶段顺延**：旧 P6b（research）→P6c、旧 P6c（docs）→P6d；依赖 P6b→P6a（前置检查引用通道分类）
+- v3.0 · 2026-08-18 · **P6c 完成 + P6d/P6e 拆分 + 统一 companion file convention**：P6c research 集成实现完成（os-brainstorming Rule: Research Delegation）；原 P6d（文档语言 + 重写）拆分为 **P6d 文档英文化**（13 SKILL.md 中→英 + `SKILL.zh-CN.md` companion + 6 docs 英文化 + `*.zh-CN.md` companion + 旧文件清理）和 **P6e 文档重写**（CLAUDE.md/README 从零重写）；**统一 convention：所有双语文件用 `<name>.zh-CN.md` 同目录 companion 模式**（无 `docs/zh-CN/` 平行目录）；依赖 P6c→P6d→P6e

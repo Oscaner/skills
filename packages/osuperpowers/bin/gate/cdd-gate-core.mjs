@@ -247,7 +247,7 @@ Repo changes flow only through:
   ${osRoot}/bin/engine/cdd-run.mjs --harness ${harness} --task ${taskNum} --mode implement
 
 Full matrix: ${osRoot}/docs/cdd-reference.md (CDD gate matrix)
-See os-executing-plans Rule: Orchestrator Checklist.`;
+See executing-plans Rule: Orchestrator Checklist.`;
 }
 
 // cdd_readonly_git_verbs 的 awk 排版：前 7 个动词一行（`  git x / git y / …`），

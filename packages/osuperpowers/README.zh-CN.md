@@ -1,4 +1,4 @@
-# @oscaner-skills/engineering
+# @oscaner-skills/osuperpowers
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -16,15 +16,15 @@ Claude Code 工程技能插件 — os-\* 编排系列、cli-\* CDD 引擎技能�
 
 | 技能 | 类型 | 说明 |
 |------|------|------|
-| `os-brainstorming` | 编排器 | 发现阶段委托给 `grilling`；子代理规格审查；大范围整体/分阶段 |
-| `os-writing-plans` | 编排器 | 逐节方案编写 + 审查；工单输出到 `docs/superpowers/tickets/` |
-| `os-executing-plans` | 编排器 | 三模式执行器（会话内 / 子代理 / CLI） |
-| `os-finishing` | 编排器 | 分支收尾 / PR；禁止 worktree；约定式提交 |
-| `os-debugging` | 编排器 | 先收集证据再修复；委托给 `diagnosing-bugs` |
-| `os-verification` | 编排器 | 无验证证据不得声称完成 |
-| `os-code-review` | 编排器 | 反馈不清 → `grilling`；修复 → `tdd` |
-| `os-init` | 工具 | 项目初始化（`os-init spor` 写入自检规则） |
-| `os-report-issue` | 工具 | 结构化问题报告 |
+| `brainstorming` | 编排器 | 发现阶段委托给 `grilling`；子代理规格审查；大范围整体/分阶段 |
+| `writing-plans` | 编排器 | 逐节方案编写 + 审查；工单输出到 `docs/superpowers/tickets/` |
+| `executing-plans` | 编排器 | 三模式执行器（会话内 / 子代理 / CLI） |
+| `finishing` | 编排器 | 分支收尾 / PR；禁止 worktree；约定式提交 |
+| `debugging` | 编排器 | 先收集证据再修复；委托给 `diagnosing-bugs` |
+| `verification` | 编排器 | 无验证证据不得声称完成 |
+| `code-review` | 编排器 | 反馈不清 → `grilling`；修复 → `tdd` |
+| `init` | 工具 | 项目初始化（`init router` 写入自检规则） |
+| `report-issue` | 工具 | 结构化问题报告 |
 | `cli-driven-development` | CDD 引擎 | CLI 三模式链分发器 |
 | `cli-select` | CDD 引擎 | 交互式 harness 选择 |
 | `cli-task` | CDD 引擎 | 单任务 CDD 执行 |
@@ -33,30 +33,30 @@ Claude Code 工程技能插件 — os-\* 编排系列、cli-\* CDD 引擎技能�
 ## 安装
 
 ```bash
-npm install @oscaner-skills/engineering
+npm install @oscaner-skills/osuperpowers
 ```
 
 或从 oscaner-skills Claude Code marketplace 安装。
 
 ## 快速开始
 
-1. 从 marketplace 安装 `superpowers`、`superpowers-overrides`、`engineering` 和 `mattpocock-skills`。
-2. 在每个项目中运行 **`/os-init spor`** 写入自检规则。
+1. 从 marketplace 安装 `superpowers`、`osuperpowers-router`、`osuperpowers` 和 `mattpocock-skills`。
+2. 在每个项目中运行 **`/init router`** 写入自检规则。
 3. 使用上游 superpowers 技能 — 路由器自动路由到工程编排器。
 
 ### Claude Code
 
 ```bash
-/osuperpowers:brainstorming    # → os-brainstorming
-/osuperpowers:writing-plans    # → os-writing-plans
-/osuperpowers:executing-plans  # → os-executing-plans
+/osuperpowers:brainstorming    # → brainstorming
+/osuperpowers:writing-plans    # → writing-plans
+/osuperpowers:executing-plans  # → executing-plans
 ```
 
 ### Cursor
 
 ```bash
-/brainstorming    # → os-brainstorming（裸上游斜杠命令）
-/writing-plans    # → os-writing-plans
+/brainstorming    # → brainstorming（裸上游斜杠命令）
+/writing-plans    # → writing-plans
 ```
 
 ## CDD CLI harness 脚本

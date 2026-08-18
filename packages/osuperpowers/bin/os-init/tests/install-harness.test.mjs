@@ -185,7 +185,7 @@ test("os-init harness 不再安装 pi.mjs（pi.ts 替代）", () => {
 // ---------------------------------------------------------------- os-init gates 移除验证
 
 test("os-init SKILL.md 中 gates 已替换为 harness", () => {
-  const skillDir = fileURLToPath(new URL("../../../skills/os-init", import.meta.url));
+  const skillDir = fileURLToPath(new URL("../../../skills/init", import.meta.url));
   const skillMd = readFileSync(path.join(skillDir, "SKILL.md"), "utf8");
   assert.ok(!skillMd.includes("os-init gates"), "SKILL.md 不再引用 os-init gates");
   assert.ok(skillMd.includes("os-init harness") || skillMd.includes("harness"), "SKILL.md 引用 harness");

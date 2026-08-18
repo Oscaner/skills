@@ -2,16 +2,16 @@
 // scripts/emit.mjs — do not edit
 
 const MAP: Record<string, string> = {
-  "brainstorming": "osuperpowers:os-brainstorming",
-  "writing-plans": "osuperpowers:os-writing-plans",
+  "brainstorming": "osuperpowers:brainstorming",
+  "writing-plans": "osuperpowers:writing-plans",
   "subagent-driven-development": "osuperpowers:cli-driven-development",
-  "executing-plans": "osuperpowers:os-executing-plans",
-  "finishing-a-development-branch": "osuperpowers:os-finishing",
-  "systematic-debugging": "osuperpowers:os-debugging",
+  "executing-plans": "osuperpowers:executing-plans",
+  "finishing-a-development-branch": "osuperpowers:finishing",
+  "systematic-debugging": "osuperpowers:debugging",
   "test-driven-development": "mattpocock-skills:tdd",
-  "verification-before-completion": "osuperpowers:os-verification",
-  "receiving-code-review": "osuperpowers:os-code-review",
-  "using-git-worktrees": "osuperpowers:os-finishing"
+  "verification-before-completion": "osuperpowers:verification",
+  "receiving-code-review": "osuperpowers:code-review",
+  "using-git-worktrees": "osuperpowers:finishing"
 };
 
 export function on(pi: any): void {

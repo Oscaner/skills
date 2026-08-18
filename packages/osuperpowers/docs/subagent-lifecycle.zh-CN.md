@@ -14,7 +14,7 @@
 
 ### Rule: Delegate Load Failure
 
-委派 `mattpocock-skills:*` 加载失败时：目标 skill 无法解析/加载 → 向用户报错 + 询问下一步（不静默跳过委派）；plugin 整体缺失 → 静默降级（该委派环节跳过，流程继续，结果标注未委派）。被 os-debugging（→ diagnosing-bugs）、os-code-review（→ grilling/tdd）、os-writing-plans（→ to-tickets）、os-brainstorming（→ grilling）的委派规则引用。
+委派 `mattpocock-skills:*` 加载失败时：目标 skill 无法解析/加载 → 向用户报错 + 询问下一步（不静默跳过委派）；plugin 整体缺失 → 静默降级（该委派环节跳过，流程继续，结果标注未委派）。被 debugging（→ diagnosing-bugs）、code-review（→ grilling/tdd）、writing-plans（→ to-tickets）、brainstorming（→ grilling）的委派规则引用。
 
 ## Red Flags
 

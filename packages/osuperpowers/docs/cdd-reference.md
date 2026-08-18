@@ -72,12 +72,12 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 **Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel missing upstream plugin → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint, orchestrator **BLOCKED** (distinguished from 2 = harness CLI does not exist; exit 3 = CLI exists but skills plugin is not installed). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec section 2.1 stderr-surfacing).
 
-**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`, config-driven):
+**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `engineering` + `osuperpowers-router`, config-driven):
 
 | Channel | Harnesses | Missing behavior |
 |------|-----------|----------|
 | install-and-use | claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | **exit 3** + stderr per-plugin install hint (does not enter nested CLI) |
-| os-init | opencode / trae / vibe / kiro | stderr hint `os-init harness <name>` (not exit 3), task runs anyway |
+| init | opencode / trae / vibe / kiro | stderr hint `init harness <name>` (not exit 3), task runs anyway |
 
 Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent/droid/qoder/codex/gemini), package-list (pi). Probe itself fails (CLI query error / no permission) → **fail-open allow** (exit 0 + warn). The `harnesses` set in `skills-probe.config.mjs` = 12, and MUST be one-to-one consistent with P6b section 2.5 channel classification.
 
@@ -93,7 +93,7 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 
 Orchestrator / skill **must not** create `cdd-run*` or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in `packages/engineering/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 
@@ -122,7 +122,7 @@ Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fa
 
 ## CDD gate matrix
 
-The orchestrator PreToolUse gate (Node core `packages/engineering/bin/gate/cdd-gate-core.mjs`, P4b migrated to Node) blocks direct repo edits while a task is active. Judgment is one decision point — `gateDecide` resolves the active workspace **once** (`pending.workspace` bound first, `findActiveWorkspace` scan only when unbound) and threads that same workspace through both phase and write checks.
+The orchestrator PreToolUse gate (Node core `packages/osuperpowers/bin/gate/cdd-gate-core.mjs`, P4b migrated to Node) blocks direct repo edits while a task is active. Judgment is one decision point — `gateDecide` resolves the active workspace **once** (`pending.workspace` bound first, `findActiveWorkspace` scan only when unbound) and threads that same workspace through both phase and write checks.
 
 The gate is fail-open until an active task resolves (spec security property / data-flow step 1):
 
@@ -149,4 +149,4 @@ The gate is fail-open until an active task resolves (spec security property / da
 
 **Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.
 
-**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `findActiveWorkspace` / `gateDecide` — the Node gate tests point it at temp copies of `tests/fixtures/cdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `packages/engineering/bin/gate/tests/cdd-gate-core.test.mjs`.
+**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `findActiveWorkspace` / `gateDecide` — the Node gate tests point it at temp copies of `tests/fixtures/cdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `packages/osuperpowers/bin/gate/tests/cdd-gate-core.test.mjs`.

@@ -1,12 +1,12 @@
 # SDD CLI Orchestrator Reference (H6–H8)
 
 > **SUPERSEDED:** this doc is the transition copy. The live reference is
-> [`engineering/docs/cdd-reference.md`](../../engineering/docs/cdd-reference.md)
+> [`engineering/docs/cdd-reference.md`](../../osuperpowers/docs/cdd-reference.md)
 > (single runner `cdd-run.mjs --harness <name>`); kept here for in-flight plans
 > (migration complete at P5 — executable surface is single-language Node).
 
 > Worker discipline SOT: `{engineering}/templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
-> Orchestrator gate discipline: `os-executing-plans`（H1–H5，见 [`engineering/docs/controller-handoff.md`](../../engineering/docs/controller-handoff.md)）
+> Orchestrator gate discipline: `executing-plans`（H1–H5，见 [`engineering/docs/controller-handoff.md`](../../osuperpowers/docs/controller-handoff.md)）
 > **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`engineering/bin/engine/tests/templates.test.mjs` 会断言（issue #52 Guard 1）。
 
 ## H6 — CLI dispatch (p1)
@@ -89,7 +89,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 Orchestrator / skill **must not** create `sdd-run-*` or `scripts/sdd-*` in the consumer repo.
 
-All CLI scripts live in `packages/engineering/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release.
+All CLI scripts live in `packages/osuperpowers/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs`); templates in `packages/osuperpowers/templates/cdd/`. Version syncs with plugin release.
 
 ## H8 — CLI opt-in / opt-out
 

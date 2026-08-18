@@ -1,6 +1,6 @@
 # Overall + Phase Spec Organization Template
 
-**Document structure only** — what produced specs contain. Process: [Rule: Overall-Phase](../skills/os-brainstorming/SKILL.md#rule-overall-phase) (overall + phase flow + invariants). Read both before drafting.
+**Document structure only** — what produced specs contain. Process: [Rule: Overall-Phase](../skills/brainstorming/SKILL.md#rule-overall-phase) (overall + phase flow + invariants). Read both before drafting.
 
 ---
 

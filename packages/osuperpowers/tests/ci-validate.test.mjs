@@ -44,16 +44,16 @@ test("ci-validate.mjs 存在", () => {
   assert.ok(existsSync(VAL), `missing ${VAL}`);
 });
 
-// 1. == 5b. engineering plugin validation == marker present
+// 1. == 5b. osuperpowers plugin validation == marker present
 test("5b marker step present", () => {
-  const idx = steps.findIndex((s) => s.name === "5b. engineering plugin validation");
-  assert.ok(idx !== -1, "missing 5b. engineering plugin validation marker step");
+  const idx = steps.findIndex((s) => s.name === "5b. osuperpowers plugin validation");
+  assert.ok(idx !== -1, "missing 5b. osuperpowers plugin validation marker step");
 });
 
-// 2. plugin.json structural check present (engineering plugin validation + skills-count print)
-test("engineering plugin validation + skills-count wired", () => {
-  assert.ok(steps.some((s) => s.name.includes("engineering plugin validation")), "5b marker step missing");
-  assert.ok(steps.some((s) => s.name.includes("engineering skills")), "skills-count step missing");
+// 2. plugin.json structural check present (osuperpowers plugin validation + skills-count print)
+test("osuperpowers plugin validation + skills-count wired", () => {
+  assert.ok(steps.some((s) => s.name.includes("osuperpowers plugin validation")), "5b marker step missing");
+  assert.ok(steps.some((s) => s.name.includes("osuperpowers skills")), "skills-count step missing");
 });
 
 // 3. 5b node:test 跑两棵树（行为/集成 + 模块）；旧 shell engine 测试不得再被 invoke
@@ -70,7 +70,7 @@ function behaviorNodeTestStep() {
   return steps.find((s) => s.name.startsWith("5b. node:test") && s.args?.some((a) => a === "--test"));
 }
 test("5b node:test 跑行为 + 引擎两棵树；旧 shell 测试不 invoke", () => {
-  const markerIndex = steps.findIndex((s) => s.name === "5b. engineering plugin validation");
+  const markerIndex = steps.findIndex((s) => s.name === "5b. osuperpowers plugin validation");
   assert.ok(markerIndex !== -1, "5b marker missing");
   const nt = behaviorNodeTestStep();
   assert.ok(nt, "5b node:test 步骤缺失");
@@ -113,8 +113,8 @@ test("zero-residue check present with correct grep targets", () => {
   );
 });
 
-// 7. 5b2 engineering gate hooks check present
-test("5b2 engineering gate hooks step present", () => {
+// 7. 5b2 osuperpowers gate hooks check present
+test("5b2 osuperpowers gate hooks step present", () => {
   assert.ok(steps.some((s) => s.name.startsWith("5b2.")), "5b2 gate hooks check missing");
 });
 

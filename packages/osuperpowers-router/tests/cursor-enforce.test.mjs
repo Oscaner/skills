@@ -14,9 +14,9 @@ const ENFORCE = fileURLToPath(
   new URL("../../osuperpowers-router/bin/cursor-enforce.mjs", import.meta.url),
 );
 
-const OVERRIDE = "osuperpowers:os-brainstorming";
-const SKILL_SUFFIX = "../engineering/skills/os-brainstorming/SKILL.md";
-const TARGET_SKILL_PATH = "/repo/packages/osuperpowers/skills/os-brainstorming/SKILL.md";
+const OVERRIDE = "osuperpowers:brainstorming";
+const SKILL_SUFFIX = "../engineering/skills/brainstorming/SKILL.md";
+const TARGET_SKILL_PATH = "/repo/packages/osuperpowers/skills/brainstorming/SKILL.md";
 
 let pendingRoot;
 const savedTmpdir = process.env.TMPDIR;
@@ -120,7 +120,7 @@ test("cursor-enforce: pending + Read of non-target path → deny", () => {
   try {
     writePending("conv-e3");
     const out = enforceTool("conv-e3", "Read", {
-      path: "/repo/packages/osuperpowers/skills/os-debugging/SKILL.md",
+      path: "/repo/packages/osuperpowers/skills/debugging/SKILL.md",
     });
     assert.equal(JSON.parse(out).permission, "deny");
     assert.ok(existsSync(pendingPath("conv-e3")), "pending retained on deny");
@@ -145,7 +145,7 @@ test("cursor-enforce: pending + Skill(wrong target) → deny", () => {
   setup();
   try {
     writePending("conv-e4b");
-    const out = enforceTool("conv-e4b", "Skill", { skill: "osuperpowers:os-debugging" });
+    const out = enforceTool("conv-e4b", "Skill", { skill: "osuperpowers:debugging" });
     assert.equal(JSON.parse(out).permission, "deny");
   } finally {
     teardown();

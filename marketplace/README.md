@@ -4,7 +4,7 @@ The marketplace is **package-as-source**: `packages/<name>/package.json#oscaner-
 
 ## Edit workflow
 
-First-party plugins (`engineering`, `superpowers-overrides`):
+First-party plugins (`osuperpowers`, `osuperpowers-router`):
 
 1. Edit `packages/<name>/package.json` — the `oscaner-plugin` field (contentRoot, harnesses, hooks) is the SOT. Adding a package dir with that field auto-joins the emit; no hand registration.
 2. Run emit:
@@ -31,7 +31,7 @@ Vendored plugins (`mattpocock-skills`, `impeccable`, `superpowers`): changes bel
 | `.claude-plugin/marketplace.json` | Claude Code |
 | `.cursor-plugin/marketplace.json` | Cursor Team Marketplace |
 | `cursor-plugins/<name>/.cursor-plugin/plugin.json` | Cursor plugin wrappers (**wrapper mode only**) |
-| `packages/superpowers-overrides/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — oscaner **generated** (`emitMode: plugin-root`) |
+| `packages/osuperpowers-router/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — oscaner **generated** (`emitMode: plugin-root`) |
 | `vendors/superpowers/.cursor-plugin/plugin.json` | Cursor manifest at plugin root — **upstream submodule (not emit)** |
 
 Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit output is stale.
@@ -43,7 +43,7 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 | **Wrapper** (default) | `displayName` + `skills` (+ optional `hooks`) | `cursor-plugins/<name>` |
 | **Plugin-root** | `{ "emitMode": "plugin-root" }` only | `./<contentRoot>` (reads plugin's `.cursor-plugin/plugin.json`) |
 
-**Plugin-root today:** `superpowers-overrides` and **`engineering`** (oscaner-generated manifests) and **`superpowers`** (upstream submodule manifest). Other plugins keep wrapper emit. See [cursor-plugins/README.md](../cursor-plugins/README.md) for the hybrid rule and upgrade checklist.
+**Plugin-root today:** `osuperpowers-router` and **`osuperpowers`** (oscaner-generated manifests) and **`superpowers`** (upstream submodule manifest). Other plugins keep wrapper emit. See [cursor-plugins/README.md](../cursor-plugins/README.md) for the hybrid rule and upgrade checklist.
 
 ## Schema
 
@@ -53,8 +53,8 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 
 | Plugin | Canonical version source |
 |--------|-------------------------|
-| `superpowers-overrides` | `packages/superpowers-overrides/package.json` (SOT; emit re-stamps every derived product from it) |
-| `engineering` | `packages/engineering/package.json` (SOT) |
+| `osuperpowers-router` | `packages/osuperpowers-router/package.json` (SOT; emit re-stamps every derived product from it) |
+| `osuperpowers` | `packages/osuperpowers/package.json` (SOT) |
 | `superpowers` | `vendors/superpowers/.claude-plugin/plugin.json` |
 | `impeccable` | `vendors/impeccable/plugin/.claude-plugin/plugin.json` |
 | `mattpocock-skills` | vendored `.claude-plugin/plugin.json` → `vX.Y.Z` release tag at submodule HEAD (fallback) |
@@ -63,4 +63,4 @@ Emit fails when `source.json` versions disagree with the truth sources.
 
 ## Cursor Team Marketplace
 
-Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`superpowers-overrides`**, **`engineering`**, and **`superpowers`** install from plugin root (`./packages/...`/`./vendors/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md).
+Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`osuperpowers-router`**, **`osuperpowers`**, and **`superpowers`** install from plugin root (`./packages/...`/`./vendors/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md).

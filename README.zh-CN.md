@@ -3,8 +3,8 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/engineering?label=engineering)](https://www.npmjs.com/package/@oscaner-skills/engineering)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/superpowers-overrides?label=superpowers-overrides)](https://www.npmjs.com/package/@oscaner-skills/superpowers-overrides)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers-router?label=osuperpowers-router)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers-router)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 个人 AI 编程技能市场。五个插件，一条流水线——适用于 **Claude Code**、**Cursor**、**Droid**、**Pi**、**Grok**、**Qoder**、**Codex** 和 **Gemini**。
@@ -23,8 +23,8 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 
 | 插件 | 类型 | 说明 |
 |------|------|------|
-| **[engineering](packages/engineering/)** | 一方 | 技能（`os-*` 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
-| **[superpowers-overrides](packages/superpowers-overrides/)** | 一方 | 触发路由器——拦截上游触发，路由到 engineering / mattpocock 目标 |
+| **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（`os-*` 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
+| **[osuperpowers-router](packages/osuperpowers-router/)** | 一方 | 触发路由器——拦截上游触发，路由到 osuperpowers / mattpocock 目标 |
 | **[superpowers](vendors/superpowers/)** | vendored | 上游工作流技能——brainstorming、writing plans、SDD、verification、branch finish |
 | **[mattpocock-skills](vendors/mattpocock-skills/)** | vendored | 精准工具——`grilling`、`tdd`、`to-tickets` |
 | **[impeccable](vendors/impeccable/)** | vendored | 前端设计技能 |
@@ -38,8 +38,8 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 ```bash
 # Claude Code
 /plugin marketplace add oscaner/skills
-/plugin install engineering@oscaner
-/plugin install superpowers-overrides@oscaner
+/plugin install osuperpowers@oscaner
+/plugin install osuperpowers-router@oscaner
 /plugin install superpowers@oscaner
 /plugin install mattpocock-skills@oscaner
 ```
@@ -47,7 +47,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 ### 从 npm 安装
 
 ```bash
-npm install @oscaner-skills/engineering @oscaner-skills/superpowers-overrides
+npm install @oscaner-skills/osuperpowers @oscaner-skills/osuperpowers-router
 npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
 ```
 
@@ -62,19 +62,19 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 | Qoder | install-and-use | 安装插件 |
 | Codex | install-and-use | 安装插件 + `/hooks` 信任 |
 | Gemini | install-and-use | `gemini extensions install <repo-url>` |
-| Pi | install-and-use | `pi install npm:@oscaner-skills/engineering` |
-| Trae | os-init | `os-init harness trae` |
-| Vibe | os-init | `os-init harness vibe` |
-| Kiro | os-init | `os-init harness kiro` |
-| OpenCode | os-init | `os-init harness opencode` |
+| Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
+| Trae | init | `init harness trae` |
+| Vibe | init | `init harness vibe` |
+| Kiro | init | `init harness kiro` |
+| OpenCode | init | `init harness opencode` |
 
 各 harness 详细安装步骤：[docs/gate-install.md](docs/gate-install.md)。
 
 ## 快速开始
 
 1. 从市场或 npm 安装插件（见上文）。
-2. 每个项目跑一次 **`os-init spor`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中初始化 override 触发表。
-3. 照常调用 superpowers 工作流——路由器会自动路由到对应的 engineering / mattpocock 目标。
+2. 每个项目跑一次 **`init router`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中初始化 override 触发表。
+3. 照常调用 superpowers 工作流——路由器会自动路由到对应的 osuperpowers / mattpocock 目标。
 
 ## 架构
 
@@ -94,8 +94,8 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
 
 ## 各包文档
 
-- [packages/engineering/](packages/engineering/)——技能、CDD 引擎、gate
-- [packages/superpowers-overrides/](packages/superpowers-overrides/)——路由器目标、enforcement 层
+- [packages/osuperpowers/](packages/osuperpowers/)——技能、CDD 引擎、gate
+- [packages/osuperpowers-router/](packages/osuperpowers-router/)——路由器目标、enforcement 层
 - [docs/gate-install.md](docs/gate-install.md)——各 harness gate 安装指南
 
 ## 开发
@@ -132,6 +132,6 @@ git commit -m "chore: bump mattpocock-skills submodule"
 
 ## 许可
 
-一方代码（`engineering`、`superpowers-overrides`、marketplace 工具链）：[MIT](LICENSE)。
+一方代码（`osuperpowers`、`osuperpowers-router`、marketplace 工具链）：[MIT](LICENSE)。
 
 Vendored 插件保留各自许可——见各插件目录。

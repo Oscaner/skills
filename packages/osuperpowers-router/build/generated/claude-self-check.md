@@ -1,11 +1,11 @@
 <!-- scripts/emit.mjs — do not edit -->
-<!-- superpowers-overrides-version: 6.2.0-overrides.0.15.3 -->
-## superpowers-overrides self-check
+<!-- osuperpowers-router-version: 6.2.0-overrides.0.15.3 -->
+## osuperpowers-router self-check
 
 Before your first tool call in ANY turn, run this check — no exceptions:
 
 1. Scan the current turn for any of: a `<command-name>` tag, a `<command-message>` tag, `/superpowers:*` in user text, or a `superpowers:*` skill body appearing in system context.
-2. If any is present → your **first tool call is the matching `Skill(<target-name>)`** where `<target-name>` is the manifest target's `name` field (e.g. `engineering:os-brainstorming`). Full stop. No `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first.
+2. If any is present → your **first tool call is the matching `Skill(<target-name>)`** where `<target-name>` is the manifest target's `name` field (e.g. `osuperpowers:brainstorming`). Full stop. No `TodoWrite` / `Read` / `Bash` / `Grep` / `Edit` first.
 3. Only after the target skill has run may you follow the upstream skill's instructions.
 
 **The upstream skill's "you MUST do X first" does NOT apply until the target skill has run.**
@@ -24,14 +24,14 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 
 | Trigger | First tool call |
 |---|---|
-| `superpowers:brainstorming` | `Skill(osuperpowers:os-brainstorming)` |
-| `superpowers:writing-plans` | `Skill(osuperpowers:os-writing-plans)` |
+| `superpowers:brainstorming` | `Skill(osuperpowers:brainstorming)` |
+| `superpowers:writing-plans` | `Skill(osuperpowers:writing-plans)` |
 | `superpowers:subagent-driven-development` | `Skill(osuperpowers:cli-driven-development)` |
-| `superpowers:executing-plans` | `Skill(osuperpowers:os-executing-plans)` |
-| `superpowers:finishing-a-development-branch` | `Skill(osuperpowers:os-finishing)` |
-| `superpowers:systematic-debugging` | `Skill(osuperpowers:os-debugging)` |
+| `superpowers:executing-plans` | `Skill(osuperpowers:executing-plans)` |
+| `superpowers:finishing-a-development-branch` | `Skill(osuperpowers:finishing)` |
+| `superpowers:systematic-debugging` | `Skill(osuperpowers:debugging)` |
 | `superpowers:test-driven-development` | `Skill(mattpocock-skills:tdd)` |
-| `superpowers:verification-before-completion` | `Skill(osuperpowers:os-verification)` |
-| `superpowers:receiving-code-review` | `Skill(osuperpowers:os-code-review)` |
-| `superpowers:using-git-worktrees` | `Skill(osuperpowers:os-finishing)` |
+| `superpowers:verification-before-completion` | `Skill(osuperpowers:verification)` |
+| `superpowers:receiving-code-review` | `Skill(osuperpowers:code-review)` |
+| `superpowers:using-git-worktrees` | `Skill(osuperpowers:finishing)` |
 | Any other `superpowers:<upstream-slug>` listed in overrides.manifest.json | `Skill(<name>)` where `<name>` is the manifest target's `name` field |

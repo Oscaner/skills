@@ -19,7 +19,7 @@ test("pi-router: on() registers input handler on pi instance", () => {
   assert.ok(registered.includes("input"), "must register 'input' event handler");
 });
 
-test("pi-router: input handler transforms /brainstorming → Skill(osuperpowers:os-brainstorming)", async () => {
+test("pi-router: input handler transforms /brainstorming → Skill(osuperpowers:brainstorming)", async () => {
   let handler;
   const pi = { on: (name, h) => { if (name === "input") handler = h; } };
   on(pi);
@@ -28,7 +28,7 @@ test("pi-router: input handler transforms /brainstorming → Skill(osuperpowers:
   assert.match(result.text, /Skill\(osuperpowers:os-brainstorming\)/);
 });
 
-test("pi-router: input handler transforms /writing-plans → Skill(osuperpowers:os-writing-plans)", async () => {
+test("pi-router: input handler transforms /writing-plans → Skill(osuperpowers:writing-plans)", async () => {
   let handler;
   const pi = { on: (name, h) => { if (name === "input") handler = h; } };
   on(pi);
@@ -46,7 +46,7 @@ test("pi-router: input handler transforms /test-driven-development → Skill(mat
   assert.match(result.text, /Skill\(mattpocock-skills:tdd\)/);
 });
 
-test("pi-router: input handler transforms /using-git-worktrees → Skill(osuperpowers:os-finishing)", async () => {
+test("pi-router: input handler transforms /using-git-worktrees → Skill(osuperpowers:finishing)", async () => {
   let handler;
   const pi = { on: (name, h) => { if (name === "input") handler = h; } };
   on(pi);

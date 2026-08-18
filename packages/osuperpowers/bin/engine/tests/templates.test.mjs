@@ -83,13 +83,13 @@ function wcLines(rel) {
 }
 
 test("governance: 真实行预算（sdd/ctrl/tier1/tier2 实测宿主）", () => {
-  const sdd = wcLines("skills/os-executing-plans/SKILL.md");
+  const sdd = wcLines("skills/executing-plans/SKILL.md");
   const ctrl = wcLines("docs/controller-handoff.md");
   const life = wcLines("docs/subagent-lifecycle.md");
   const rev = wcLines("docs/review-dispatch.md");
   const tier1 = sdd + ctrl;
   const tier2 = tier1 + life + rev;
-  assert.ok(sdd <= lineBudget("sdd"), `os-executing-plans ${sdd} > ${lineBudget("sdd")}`);
+  assert.ok(sdd <= lineBudget("sdd"), `executing-plans ${sdd} > ${lineBudget("sdd")}`);
   assert.ok(ctrl <= lineBudget("ctrl"), `controller-handoff ${ctrl} > ${lineBudget("ctrl")}`);
   assert.ok(tier1 <= lineBudget("tier1"), `Tier 1 ${tier1} > ${lineBudget("tier1")}`);
   assert.ok(tier2 <= lineBudget("tier2"), `Tier 2 ${tier2} > ${lineBudget("tier2")}`);
@@ -118,7 +118,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   const review = readRel("templates/cdd/review.md");
   const fix = readRel("templates/cdd/fix.md");
   const dispatch = readRel("docs/review-dispatch.md");
-  const skill = readRel("skills/os-executing-plans/SKILL.md");
+  const skill = readRel("skills/executing-plans/SKILL.md");
 
   // review segment：deferred 保留 + blocker-only open-findings + merge
   assert.ok(fragment.includes("deferred: true"), "fragment deferred marking");
@@ -142,7 +142,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(dispatch.includes("deferred: true"), "D3 deferred field");
   assert.ok(/warn\/nit do not enter the fix loop/.test(dispatch), "D3 warn/nit no fix loop");
 
-  // D6 end semantics（os-executing-plans Rule: D6 Aggregation）
+  // D6 end semantics（executing-plans Rule: D6 Aggregation）
   const d6 = skill.slice(skill.indexOf("### Rule: D6 Aggregation"));
   assert.ok(d6.includes("deferred"), "D6 aggregation deferred");
   assert.ok(d6.includes("bounded final fix wave"), "D6 bounded final fix wave");

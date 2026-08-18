@@ -59,10 +59,10 @@ test("cursor-detect: upstream SKILL.md attach writes pending with target + suffi
     const pending = JSON.parse(
       readFileSync(pendingPath("conv-a1"), "utf8"),
     );
-    assert.equal(pending.override, "osuperpowers:os-brainstorming");
+    assert.equal(pending.override, "osuperpowers:brainstorming");
     assert.equal(
       pending.skill_suffix,
-      "../osuperpowers/skills/os-brainstorming/SKILL.md",
+      "../osuperpowers/skills/brainstorming/SKILL.md",
     );
     assert.equal(pending.trigger, "attach");
     assert.ok(pending.detected_at > 0, "detected_at epoch present");

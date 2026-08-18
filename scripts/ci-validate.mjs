@@ -8,7 +8,7 @@
 // `console.error("== FAIL: <step> ==")` + message, exit code 1.
 //
 // The step list is exported (steps) so the wiring guard
-// (packages/osuperpowers/tests/ci-validate.test.mjs) can assert engineering coverage
+// (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers coverage
 // is not dropped — mirroring the legacy bash wiring guard.
 
 import { execFileSync } from "node:child_process";
@@ -165,8 +165,8 @@ subprocessStep("5. overrides build validation", "node", [
   path.join(ROOT, "packages/osuperpowers-router/tests/validate-overrides-build.mjs"),
 ]);
 
-// 5b. engineering plugin validation
-checkStep("5b. engineering plugin validation", () => console.log("OK — engineering plugin validation"));
+// 5b. osuperpowers plugin validation
+checkStep("5b. osuperpowers plugin validation", () => console.log("OK — osuperpowers plugin validation"));
 
 function checkEngineeringSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
@@ -178,22 +178,22 @@ function checkEngineeringSkillsCount() {
     const dir = path.join(p, "skills");
     assert(existsSync(dir), `missing default skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} engineering skills (12 emitters + os-init), got ${n}`);
-    console.log(`OK — ${n} engineering skills (default skills/ discovery)`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init), got ${n}`);
+    console.log(`OK — ${n} osuperpowers skills (default skills/ discovery)`);
   } else if (typeof skills === "string") {
     const dir = path.join(p, skills.replace(/^\.\//, ""));
     assert(existsSync(dir), `missing skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} engineering skills (12 emitters + os-init), got ${n}`);
-    console.log(`OK — ${n} engineering skills (directory ${skills})`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init), got ${n}`);
+    console.log(`OK — ${n} osuperpowers skills (directory ${skills})`);
   } else {
     const missing = skills.filter((s) => !existsSync(path.join(p, s.replace(/^\.\//, ""))));
     assert(missing.length === 0, `skills[] points to missing dirs: ${missing}`);
-    assert(skills.length === EXPECTED, `expected ${EXPECTED} engineering skills (12 emitters + os-init), got ${skills.length}`);
-    console.log(`OK — ${skills.length} engineering skills (explicit list)`);
+    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init), got ${skills.length}`);
+    console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
 }
-checkStep("5b. engineering skills-count (13)", checkEngineeringSkillsCount);
+checkStep("5b. osuperpowers skills-count (13)", checkEngineeringSkillsCount);
 
 subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
   "--test",
@@ -215,7 +215,7 @@ subprocessStep("5b. node:test engine + gate + os-init + utils + behavior", "node
 
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
 
-// 5b2. engineering gate hooks
+// 5b2. osuperpowers gate hooks
 function checkEngineeringGateHooks() {
   const p = path.join(ROOT, "packages/osuperpowers");
   for (const f of ["hooks/hooks.json", "hooks/hooks-cursor.json"]) {
@@ -231,9 +231,9 @@ function checkEngineeringGateHooks() {
   ]) {
     assert(isExecutable(path.join(p, f)), `not executable: ${f}`);
   }
-  console.log("OK — engineering gate hooks + engine entries executable");
+  console.log("OK — osuperpowers gate hooks + engine entries executable");
 }
-checkStep("5b2. engineering gate hooks + engine entries executable", checkEngineeringGateHooks);
+checkStep("5b2. osuperpowers gate hooks + engine entries executable", checkEngineeringGateHooks);
 
 // 5c. engine + router zero-residue grep (sdd_/spor- — must not regress)
 const RESIDUE_TARGETS = [

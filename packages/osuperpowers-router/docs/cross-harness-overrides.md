@@ -2,7 +2,7 @@
 
 Portable convention for marketplace plugins that **route** upstream skill triggers to override targets across harnesses.
 
-Naming evolved across releases: v1 emit model → v2 `-overrides` suffix → v3 `spor-*` prefix → **v4 trigger router** (current). v3's `spor-*` skill bodies were deleted; **superpowers-overrides now ships no skill bodies** and routes to engineering targets. See [CHANGELOG.md](../CHANGELOG.md) entries `6.2.0-overrides.3` through `6.2.0-overrides.6`.
+Naming evolved across releases: v1 emit model → v2 `-overrides` suffix → v3 `spor-*` prefix → **v4 trigger router** (current). v3's `spor-*` skill bodies were deleted; **osuperpowers-router now ships no skill bodies** and routes to engineering targets. See [CHANGELOG.md](../CHANGELOG.md) entries `6.2.0-overrides.3` through `6.2.0-overrides.6`.
 
 ## Problem
 
@@ -15,20 +15,20 @@ Override skills that reuse upstream skill names work in Claude Code but break in
 
 ## Solution (v4 — trigger router + engineering)
 
-**superpowers-overrides** is a **trigger router** (claude + cursor), not a skill pack:
+**osuperpowers-router** is a **trigger router** (claude + cursor), not a skill pack:
 
 1. **No skill bodies** — `skills/` is absent/empty; `overrides.manifest.json` maps upstream triggers to targets in **engineering** (`os-*` / `cli-*`) or **mattpocock-skills** (`tdd`).
 2. **Manifest** — declare targets with explicit `name`, `overrides`, and `source` fields (cross-plugin path).
 3. **Generators** — manifest-driven `scripts/emit.mjs` writes committed hook + self-check artifacts (`build/generated/*`, `bin/prompt-expansion.mjs`).
 4. **engineering multi-harness emit** — the skills + engine plugin emits thin per-harness manifests (claude/cursor/codex/kimi/gemini/pi) all pointing at the canonical `./skills/` tree, plus a shared `.agents/skills/` copy (engineering only — upstream superpowers is not vendored) for codex/gemini/pi/qoder/opencode scanners. Modeled after impeccable's build.js + PROVIDERS pattern.
 5. **Enforcement** — harness-specific hooks + project self-check rules (see [Enforcement](#enforcement) below).
-6. **Package layout & hooks registration** — the router and engineering engine are first-party packages under `packages/` (`@oscaner-skills/superpowers-overrides`, `@oscaner-skills/engineering`), each with its metadata in `package.json#oscaner-plugin` (**package-as-source**). Upstream plugins (`superpowers`, `mattpocock-skills`, `impeccable`) are vendored submodules under `vendors/`, republished as `@oscaner-skills/<name>` by `scripts/publish-vendor.mjs`; their marketplace descriptors come from the assembly templates in `scripts/lib/publish-vendor.mjs` (`ASSEMBLY_TEMPLATE` — the owner) plus the marketplace cursor blocks in `scripts/lib/emit/source.mjs` (`VENDOR_PLUGINS`). Hooks are registered per harness via `oscaner-plugin.hooks` — the harness → path mapping is the single source of truth, and `scripts/emit.mjs` writes each hooks file at the declared path and references it from the generated per-harness manifest.
+6. **Package layout & hooks registration** — the router and engineering engine are first-party packages under `packages/` (`@oscaner-skills/osuperpowers-router`, `@oscaner-skills/engineering`), each with its metadata in `package.json#oscaner-plugin` (**package-as-source**). Upstream plugins (`superpowers`, `mattpocock-skills`, `impeccable`) are vendored submodules under `vendors/`, republished as `@oscaner-skills/<name>` by `scripts/publish-vendor.mjs`; their marketplace descriptors come from the assembly templates in `scripts/lib/publish-vendor.mjs` (`ASSEMBLY_TEMPLATE` — the owner) plus the marketplace cursor blocks in `scripts/lib/emit/source.mjs` (`VENDOR_PLUGINS`). Hooks are registered per harness via `oscaner-plugin.hooks` — the harness → path mapping is the single source of truth, and `scripts/emit.mjs` writes each hooks file at the declared path and references it from the generated per-harness manifest.
 
 No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
 
 **CI:** `pnpm run emit:check` checks generator drift; `tests/validate-overrides-build.mjs` validates the router + engineering engine.
 
-Claude Code interception: `Skill(engineering:os-brainstorming)` (manifest `name` field).
+Claude Code interception: `Skill(osuperpowers:brainstorming)` (manifest `name` field).
 
 ## Enforcement
 
@@ -43,19 +43,19 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 | `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/cursor-detect.mjs` | Match **upstream SKILL attach paths** → write pending / activate CDD session |
 | `preToolUse` (no matcher) | `bin/cursor-enforce.mjs` | If pending exists: **allow** first `Read` (target SKILL path via `tool_input.path` / `tool_input.file_path`) or `Skill` (manifest target name); **deny** all other first tools |
 
-Bare `/brainstorming`, `/superpowers:*`, and prefixed slash commands → **no pending**; self-check rules (`.cursor/rules/superpowers-overrides.mdc`) are primary enforcement for slash triggers.
+Bare `/brainstorming`, `/superpowers:*`, and prefixed slash commands → **no pending**; self-check rules (`.cursor/rules/osuperpowers-router.mdc`) are primary enforcement for slash triggers.
 
 Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending on attach only; enforce blocks wrong first tools when pending exists.
 
 **Pending state contract** (detect writes, enforce reads):
 
-- Path: `$TMPDIR/oscaner-superpowers-overrides/pending/<session_key>.json`
+- Path: `$TMPDIR/oscaner-osuperpowers-router/pending/<session_key>.json`
 - `session_key` = `conversation_id` ?? `session_id` ?? first 16 hex of `sha256(prompt)`
 - Schema: `{"override":"<target-name>","skill_suffix":"skills/os-<slug>/SKILL.md","detected_at":<unix>,"trigger":"attach"}`
 - TTL: **300s** — expired pending → enforce allows and deletes file
 - Cleared when enforce allows a valid first tool
 
-**Init does not install hooks** — `os-init spor` only refreshes `.cursor/rules/superpowers-overrides.mdc`. Consumer `git status` must show **no** new `.cursor/hooks.json`.
+**Init does not install hooks** — `init router` only refreshes `.cursor/rules/osuperpowers-router.mdc`. Consumer `git status` must show **no** new `.cursor/hooks.json`.
 
 ### CDD orchestrator gate
 
@@ -88,17 +88,17 @@ CLI env/exit/harness tables live in [`engineering/docs/cdd-reference.md`](../../
 1. `^superpowers:` — prefixed upstream slash commands
 2. Combined bare-`/<upstream-slug>` regex — e.g. `/brainstorming` (one matcher covering every upstream slug)
 
-Both invoke `bin/prompt-expansion.mjs`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(<target-name>)` first call (e.g. `Skill(engineering:os-brainstorming)`).
+Both invoke `bin/prompt-expansion.mjs`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(<target-name>)` first call (e.g. `Skill(osuperpowers:brainstorming)`).
 
-`^/os-<upstream-slug>` (engineering targets) is not hook-intercepted — it is routed by the project `CLAUDE.md` self-check (`<command-name>` scan + trigger table from `os-init spor`).
+`^/os-<upstream-slug>` (engineering targets) is not hook-intercepted — it is routed by the project `CLAUDE.md` self-check (`<command-name>` scan + trigger table from `init router`).
 
-Project `CLAUDE.md` self-check (from `os-init spor`) is fallback when hooks are unavailable.
+Project `CLAUDE.md` self-check (from `init router`) is fallback when hooks are unavailable.
 
 ### Self-check rules (both harnesses)
 
-`os-init spor` (engineering) writes committed generator output into the project:
+`init router` (engineering) writes committed generator output into the project:
 
-- Cursor → `.cursor/rules/superpowers-overrides.mdc`
+- Cursor → `.cursor/rules/osuperpowers-router.mdc`
 - Claude Code → `CLAUDE.md` override trigger table
 
 On Cursor: hooks enforce on **upstream SKILL attach**; slash commands rely on these self-check rules as **primary** enforcement. On both harnesses:
@@ -108,7 +108,7 @@ On Cursor: hooks enforce on **upstream SKILL attach**; slash commands rely on th
 Manual smoke (Settings → Hooks → Execution Log):
 
 1. `/brainstorming` + Grep first tool → **no deny** (no pending; self-check governs)
-2. Attach upstream `brainstorming/SKILL.md` + Grep first tool → **deny** → Read os-brainstorming SKILL → allow
+2. Attach upstream `brainstorming/SKILL.md` + Grep first tool → **deny** → Read brainstorming SKILL → allow
 
 ## Manifest schema
 
@@ -117,12 +117,12 @@ Manual smoke (Settings → Hooks → Execution Log):
 ```json
 {
   "$schema": "./build/overrides-manifest.schema.json",
-  "plugin": "superpowers-overrides",
+  "plugin": "osuperpowers-router",
   "targets": [
     {
-      "name": "engineering:os-brainstorming",
+      "name": "osuperpowers:brainstorming",
       "overrides": "superpowers:brainstorming",
-      "source": "../engineering/skills/os-brainstorming"
+      "source": "../engineering/skills/brainstorming"
     }
   ]
 }
@@ -131,7 +131,7 @@ Manual smoke (Settings → Hooks → Execution Log):
 | Field | Description |
 |-------|-------------|
 | `plugin` | Router plugin namespace name |
-| `name` | Target skill id in all harnesses (`plugin:skill`, e.g. `engineering:os-brainstorming`) |
+| `name` | Target skill id in all harnesses (`plugin:skill`, e.g. `osuperpowers:brainstorming`) |
 | `overrides` | Upstream `plugin:skill` id to intercept |
 | `source` | Path to canonical skill directory (cross-plugin) |
 
@@ -139,43 +139,43 @@ Manual smoke (Settings → Hooks → Execution Log):
 
 ## Naming rule
 
-The router ships no `spor-*` skills. Target skill ids are the engineering / mattpocock canonical names (`engineering:os-*`, `engineering:cli-*`, `mattpocock-skills:tdd`). Init entry point: `os-init spor` (Claude Code: `/os-init spor`).
+The router ships no `spor-*` skills. Target skill ids are the engineering / mattpocock canonical names (`osuperpowers:*`, `osuperpowers:cli-*`, `mattpocock-skills:tdd`). Init entry point: `init router` (Claude Code: `/init router`).
 
 ## Build commands
 
 ```bash
 pnpm run emit                 # unified emit — writes per-harness manifests + hooks + .agents/skills
 pnpm run validate             # full CI chain (emit + router + gate + build freshness + rule-reference)
-node packages/superpowers-overrides/tests/validate-overrides-build.mjs
+node packages/osuperpowers-router/tests/validate-overrides-build.mjs
 ```
 
 Regenerate after editing `overrides.manifest.json`, engineering skills, or generator templates.
 
 ## Plugin discovery fallback (Cursor)
 
-Skills ship under `packages/engineering/skills/` in the plugin tree. After marketplace install, verify the engineering skills (12 emitters + os-init) appear in the agent skills list.
+Skills ship under `packages/osuperpowers/skills/` in the plugin tree. After marketplace install, verify the engineering skills (12 emitters + init) appear in the agent skills list.
 
 If skills are missing (Team Marketplace blocked or third-party import disabled):
 
 ```bash
 mkdir -p .cursor/skills
-cp -R path/to/packages/engineering/skills/* .cursor/skills/
+cp -R path/to/packages/osuperpowers/skills/* .cursor/skills/
 cp -R path/to/vendors/superpowers/skills/* .cursor/skills/   # upstream, separate plugin
 ```
 
-Then run `os-init spor` for `.cursor/rules/superpowers-overrides.mdc`.
+Then run `init router` for `.cursor/rules/osuperpowers-router.mdc`.
 
 ## Cursor setup
 
-1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the marketplace.
-2. Run `os-init spor` in Cursor (copies or refreshes the self-check rule → `.cursor/rules/superpowers-overrides.mdc`; re-run after plugin upgrade if rules are stale).
+1. Install `superpowers`, `osuperpowers-router`, `engineering`, and `mattpocock-skills` from the marketplace.
+2. Run `init router` in Cursor (copies or refreshes the self-check rule → `.cursor/rules/osuperpowers-router.mdc`; re-run after plugin upgrade if rules are stale).
 3. Invoke upstream slash commands — slash triggers rely on project self-check rules; hooks enforce on upstream SKILL attach only.
 
 Manual verification: same as [Self-check rules](#self-check-rules-both-harnesses) smoke bullets above.
 
 ## CDD CLI harness scripts
 
-Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by `os-executing-plans` and `cli-driven-development`. Orchestrator resolves harness once per plan; the engine does **not** re-detect CLI at runtime.
+Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by `executing-plans` and `cli-driven-development`. Orchestrator resolves harness once per plan; the engine does **not** re-detect CLI at runtime.
 
 | Harness | CLI binary | Ship level |
 |---------|------------|------------|
@@ -234,7 +234,7 @@ See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for direc
 1. **Manifest** — add `overrides.manifest.json` with `name`, upstream `overrides` id, and `source` path per target.
 2. **Routing** — router plugin ships no skill bodies; targets live in the skills plugin (`os-*` orchestrators) or a delegate (`tdd`). Flat-namespace dedup is avoided by target names already being plugin-qualified.
 3. **Generators** — use the unified `scripts/emit.mjs`; commit hook + self-check outputs; CI `--check` on drift.
-4. **Init** — copy or refresh committed `build/generated/*` at runtime; never run generators in init. Generated self-check files embed `engineering-version` (Cursor frontmatter / Claude HTML comment) stamped from the engineering plugin version; `os-init spor` compares project rules against installed version and overwrites when missing or stale.
+4. **Init** — copy or refresh committed `build/generated/*` at runtime; never run generators in init. Generated self-check files embed `engineering-version` (Cursor frontmatter / Claude HTML comment) stamped from the engineering plugin version; `init router` compares project rules against installed version and overwrites when missing or stale.
 
 Copy the manifest, generator scripts, and `validate-overrides-build.mjs` from this plugin as a starting point.
 

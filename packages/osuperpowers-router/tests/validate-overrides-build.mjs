@@ -160,11 +160,11 @@ function main() {
   });
 
   check("validate os-init self-check rows mirror manifest targets", () => {
-    // The os-init spor payload table (a hand-maintained copy of the
+    // The os-init router payload table (a hand-maintained copy of the
     // trigger->target mapping) must stay in lockstep with overrides.manifest.json
     // targets[]. Every manifest target's upstream slug must resolve to its
-    // canonical target name. The table lives in os-init's spor.md payload.
-    const sporMd = readFileSync(path.join(ENGINE, "skills/os-init/spor.md"), "utf8");
+    // canonical target name. The table lives in os-init's router.md payload.
+    const sporMd = readFileSync(path.join(ENGINE, "skills/init/router.md"), "utf8");
     const rows = {};
     for (const raw of sporMd.split("\n")) {
       const line = raw.trim();
@@ -248,18 +248,18 @@ function main() {
     const version = JSON.parse(readFileSync(path.join(ROOT, ".claude-plugin/plugin.json"), "utf8")).version;
     const cursor = readFileSync(path.join(ROOT, "build/generated/cursor-self-check.mdc"), "utf8");
     const claude = readFileSync(path.join(ROOT, "build/generated/claude-self-check.md"), "utf8");
-    assert(cursor.includes(`superpowers-overrides-version: ${version}`), "cursor self-check missing version stamp");
-    const m = claude.match(/<!-- superpowers-overrides-version: ([^ ]+) -->/);
+    assert(cursor.includes(`osuperpowers-router-version: ${version}`), "cursor self-check missing version stamp");
+    const m = claude.match(/<!-- osuperpowers-router-version: ([^ ]+) -->/);
     assert(m && m[1] === version, "claude self-check version stamp mismatch");
   });
 
   check("validate dogfood self-check version stamps", () => {
-    // dogfood self-check is written by os-init spor, stamped with the engineering version
+    // dogfood self-check is written by os-init router, stamped with the osuperpowers version
     const version = JSON.parse(readFileSync(path.join(REPO, "packages/osuperpowers/.claude-plugin/plugin.json"), "utf8")).version;
-    const cursorPath = path.join(REPO, ".cursor/rules/superpowers-overrides.mdc");
+    const cursorPath = path.join(REPO, ".cursor/rules/osuperpowers-router.mdc");
     const cursor = readFileSync(cursorPath, "utf8");
-    const needle = `engineering-version: ${version}`;
-    assert(cursor.includes(needle), `${cursorPath}: missing or stale stamp — re-run os-init spor`);
+    const needle = `osuperpowers-version: ${version}`;
+    assert(cursor.includes(needle), `${cursorPath}: missing or stale stamp — re-run os-init router`);
     // root CLAUDE.md is init-generated, not hand-stamped — no version check here
   });
 

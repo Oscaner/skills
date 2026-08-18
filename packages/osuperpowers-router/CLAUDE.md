@@ -1,11 +1,11 @@
-# superpowers-overrides — Claude Code Session Guide
+# osuperpowers-router — Claude Code Session Guide
 
 ## What this plugin does
 
-`superpowers-overrides` is a **trigger router**. It ships **no skill bodies** — its sole job is to intercept upstream `superpowers:*` triggers and route them to the correct target:
+`osuperpowers-router` is a **trigger router**. It ships **no skill bodies** — its sole job is to intercept upstream `superpowers:*` triggers and route them to the correct target:
 
-- `engineering:os-*` / `cli-*` — personal orchestrator skills in `packages/engineering/skills/`
-- `mattpocock-skills:tdd` — direct delegate (no engineering wrapper)
+- `osuperpowers:*` / `cli-*` — personal orchestrator skills in `packages/osuperpowers/skills/`
+- `mattpocock-skills:tdd` — direct delegate (no osuperpowers wrapper)
 
 When you type `/brainstorming`, `/writing-plans`, or any other upstream superpowers command, the router fires first and the matching target skill loads instead.
 
@@ -31,28 +31,28 @@ Three mechanisms enforce routing:
 
 ### 3. Project-level self-check
 
-`os-init spor` (from engineering) writes an override trigger table into the project's `CLAUDE.md` (Claude Code) or `.cursor/rules/superpowers-overrides.mdc` (Cursor). This is the primary enforcement mechanism — it fires before any skill body loads into context.
+`init router` (from osuperpowers) writes an override trigger table into the project's `CLAUDE.md` (Claude Code) or `.cursor/rules/osuperpowers-router.mdc` (Cursor). This is the primary enforcement mechanism — it fires before any skill body loads into context.
 
 ## Trigger mapping table
 
 | Upstream trigger | Target | Description |
 |---|---|---|
-| `superpowers:brainstorming` | `engineering:os-brainstorming` | Discovery via `grilling`; subagent spec review |
-| `superpowers:writing-plans` | `engineering:os-writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
-| `superpowers:subagent-driven-development` | `engineering:cli-driven-development` | CDD engine — harness CLI three-mode chain |
-| `superpowers:executing-plans` | `engineering:os-executing-plans` | Three-mode orchestrator (in-session / subagent / cli) |
-| `superpowers:finishing-a-development-branch` | `engineering:os-finishing` | Branch finish / PR; no worktrees; conventional commits |
-| `superpowers:systematic-debugging` | `engineering:os-debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
+| `superpowers:brainstorming` | `osuperpowers:brainstorming` | Discovery via `grilling`; subagent spec review |
+| `superpowers:writing-plans` | `osuperpowers:writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
+| `superpowers:subagent-driven-development` | `osuperpowers:cli-driven-development` | CDD engine — harness CLI three-mode chain |
+| `superpowers:executing-plans` | `osuperpowers:executing-plans` | Three-mode orchestrator (in-session / subagent / cli) |
+| `superpowers:finishing-a-development-branch` | `osuperpowers:finishing` | Branch finish / PR; no worktrees; conventional commits |
+| `superpowers:systematic-debugging` | `osuperpowers:debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
 | `superpowers:test-driven-development` | `mattpocock-skills:tdd` | Red-green loop; direct delegate |
-| `superpowers:verification-before-completion` | `engineering:os-verification` | No completion claims without verification evidence |
-| `superpowers:receiving-code-review` | `engineering:os-code-review` | Unclear feedback goes to `grilling`; fixes go to `tdd` |
-| `superpowers:using-git-worktrees` | `engineering:os-finishing` | Refuses worktree creation (user policy) |
+| `superpowers:verification-before-completion` | `osuperpowers:verification` | No completion claims without verification evidence |
+| `superpowers:receiving-code-review` | `osuperpowers:code-review` | Unclear feedback goes to `grilling`; fixes go to `tdd` |
+| `superpowers:using-git-worktrees` | `osuperpowers:finishing` | Refuses worktree creation (user policy) |
 
-The same mapping is used for bare `/slug` forms (e.g. `/brainstorming` maps to `engineering:os-brainstorming`).
+The same mapping is used for bare `/slug` forms (e.g. `/brainstorming` maps to `osuperpowers:brainstorming`).
 
 ## Convention: no skill bodies
 
-This plugin ships **zero SKILL.md files**. All skill bodies live under `packages/engineering/skills/`. The overrides plugin's `skills/` directory must be empty (or absent). This is enforced by the validation scripts — a non-empty skills directory in a trigger-router plugin causes `pnpm run validate` to fail.
+This plugin ships **zero SKILL.md files**. All skill bodies live under `packages/osuperpowers/skills/`. The overrides plugin's `skills/` directory must be empty (or absent). This is enforced by the validation scripts — a non-empty skills directory in a trigger-router plugin causes `pnpm run validate` to fail.
 
 ## Related files
 
@@ -62,4 +62,4 @@ This plugin ships **zero SKILL.md files**. All skill bodies live under `packages
 - `bin/prompt-expansion.mjs` — Claude Code hook handler
 - `bin/cursor-detect.mjs` — Cursor detect hook handler
 - `bin/cursor-enforce.mjs` — Cursor enforce hook handler
-- `../engineering/skills/` — where all target skill bodies live
+- `../osuperpowers/skills/` — where all target skill bodies live

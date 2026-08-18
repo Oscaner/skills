@@ -1,6 +1,6 @@
 # Review Dispatch
 
-跨切面参考：多 pass 评审的派发纪律（D1/D2/D3）。被 os-brainstorming / os-writing-plans 的评审 passes 规则引用。
+跨切面参考：多 pass 评审的派发纪律（D1/D2/D3）。被 brainstorming / writing-plans 的评审 passes 规则引用。
 
 ## Rules
 

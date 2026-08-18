@@ -15,26 +15,26 @@ try {
 if (!commandName) commandName = input.trim();
 
 const MAP = {
-  "superpowers:brainstorming": "osuperpowers:os-brainstorming",
-  "/brainstorming": "osuperpowers:os-brainstorming",
-  "superpowers:writing-plans": "osuperpowers:os-writing-plans",
-  "/writing-plans": "osuperpowers:os-writing-plans",
+  "superpowers:brainstorming": "osuperpowers:brainstorming",
+  "/brainstorming": "osuperpowers:brainstorming",
+  "superpowers:writing-plans": "osuperpowers:writing-plans",
+  "/writing-plans": "osuperpowers:writing-plans",
   "superpowers:subagent-driven-development": "osuperpowers:cli-driven-development",
   "/subagent-driven-development": "osuperpowers:cli-driven-development",
-  "superpowers:executing-plans": "osuperpowers:os-executing-plans",
-  "/executing-plans": "osuperpowers:os-executing-plans",
-  "superpowers:finishing-a-development-branch": "osuperpowers:os-finishing",
-  "/finishing-a-development-branch": "osuperpowers:os-finishing",
-  "superpowers:systematic-debugging": "osuperpowers:os-debugging",
-  "/systematic-debugging": "osuperpowers:os-debugging",
+  "superpowers:executing-plans": "osuperpowers:executing-plans",
+  "/executing-plans": "osuperpowers:executing-plans",
+  "superpowers:finishing-a-development-branch": "osuperpowers:finishing",
+  "/finishing-a-development-branch": "osuperpowers:finishing",
+  "superpowers:systematic-debugging": "osuperpowers:debugging",
+  "/systematic-debugging": "osuperpowers:debugging",
   "superpowers:test-driven-development": "mattpocock-skills:tdd",
   "/test-driven-development": "mattpocock-skills:tdd",
-  "superpowers:verification-before-completion": "osuperpowers:os-verification",
-  "/verification-before-completion": "osuperpowers:os-verification",
-  "superpowers:receiving-code-review": "osuperpowers:os-code-review",
-  "/receiving-code-review": "osuperpowers:os-code-review",
-  "superpowers:using-git-worktrees": "osuperpowers:os-finishing",
-  "/using-git-worktrees": "osuperpowers:os-finishing"
+  "superpowers:verification-before-completion": "osuperpowers:verification",
+  "/verification-before-completion": "osuperpowers:verification",
+  "superpowers:receiving-code-review": "osuperpowers:code-review",
+  "/receiving-code-review": "osuperpowers:code-review",
+  "superpowers:using-git-worktrees": "osuperpowers:finishing",
+  "/using-git-worktrees": "osuperpowers:finishing"
 };
 
 const override = MAP[commandName];

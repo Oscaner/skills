@@ -262,7 +262,7 @@ test("collectHookCommands walks nested hook docs and returns every command strin
 test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface", () => {
   const m = kimiPluginManifest(OS_ENG, "0.1.0");
   assert.equal(m.skills, "./skills/");
-  assert.deepEqual(m.sessionStart, { skill: "os-init" });
+  assert.deepEqual(m.sessionStart, { skill: "init" });
   assert.ok(
     typeof m.skillInstructions === "string" && m.skillInstructions.length > 0,
     "kimi manifest must carry tool-mapping prose",
@@ -298,18 +298,18 @@ test("geminiExtension carries BeforeTool gate hooks + contextFileName", () => {
 
 test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () => {
   const md = geminiMarkdown(OS_ENG, [
-    "os-init",
+    "init",
     "cli-select",
     "cli-task",
-    "os-debugging",
+    "debugging",
   ]);
   assert.equal(
     md,
     `<!-- ${generatedBanner} -->\n` +
       "@./skills/cli-select/SKILL.md\n" +
       "@./skills/cli-task/SKILL.md\n" +
-      "@./skills/os-debugging/SKILL.md\n" +
-      "@./skills/os-init/SKILL.md\n",
+      "@./skills/debugging/SKILL.md\n" +
+      "@./skills/init/SKILL.md\n",
   );
 });
 
@@ -671,15 +671,15 @@ test("loadTargets parses the real overrides.manifest.json", () => {
   const targets = loadTargets(MANIFEST_PATH);
   assert.equal(targets.length, 10);
   const brainstorming = targets.find(
-    (t) => t.name === "osuperpowers:os-brainstorming",
+    (t) => t.name === "osuperpowers:brainstorming",
   );
   assert.ok(brainstorming);
   assert.equal(brainstorming.overrides, "superpowers:brainstorming");
   assert.equal(brainstorming.upstream_slug, "brainstorming");
-  assert.equal(brainstorming.source, "../osuperpowers/skills/os-brainstorming");
+  assert.equal(brainstorming.source, "../osuperpowers/skills/brainstorming");
   const tdd = targets.find((t) => t.name === "mattpocock-skills:tdd");
   assert.equal(tdd.source, null);
-  assert.equal(targetSkillSuffix(tdd), "skills/engineering/tdd/SKILL.md");
+  assert.equal(targetSkillSuffix(tdd), "skills/osuperpowers/tdd/SKILL.md");
 });
 
 test("ccMatcherBareSlash escapes hyphens like Python re.escape", () => {
@@ -693,19 +693,19 @@ test("promptExpansionScript maps every overrides trigger to its target (.mjs)", 
   const script = promptExpansionScript(loadTargets(MANIFEST_PATH));
   assert.match(script, /^#!\/usr\/bin\/env node/);
   assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /"superpowers:brainstorming": "osuperpowers:os-brainstorming"/);
-  assert.match(script, /"\/brainstorming": "osuperpowers:os-brainstorming"/);
+  assert.match(script, /"superpowers:brainstorming": "osuperpowers:brainstorming"/);
+  assert.match(script, /"\/brainstorming": "osuperpowers:brainstorming"/);
   assert.match(script, /"superpowers:test-driven-development": "mattpocock-skills:tdd"/);
-  assert.match(script, /"\/using-git-worktrees": "osuperpowers:os-finishing"/);
+  assert.match(script, /"\/using-git-worktrees": "osuperpowers:finishing"/);
 });
 
 test("piRouterScript maps every overrides trigger to its target (.ts)", () => {
   const script = piRouterScript(loadTargets(MANIFEST_PATH));
   assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /"brainstorming": "osuperpowers:os-brainstorming"/);
-  assert.match(script, /"writing-plans": "osuperpowers:os-writing-plans"/);
+  assert.match(script, /"brainstorming": "osuperpowers:brainstorming"/);
+  assert.match(script, /"writing-plans": "osuperpowers:writing-plans"/);
   assert.match(script, /"test-driven-development": "mattpocock-skills:tdd"/);
-  assert.match(script, /"using-git-worktrees": "osuperpowers:os-finishing"/);
+  assert.match(script, /"using-git-worktrees": "osuperpowers:finishing"/);
   assert.match(script, /export function on/);
   assert.match(script, /pi\.on\("input"/);
 });
@@ -752,9 +752,9 @@ test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {
   const script = cursorDetectScript(loadTargets(MANIFEST_PATH), template);
   assert.match(script, /#!\/usr\/bin\/env node/);
   assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /"skill_suffix": ?"\.\.\/osuperpowers\/skills\/os-brainstorming\/SKILL\.md"/);
+  assert.match(script, /"skill_suffix": ?"\.\.\/osuperpowers\/skills\/brainstorming\/SKILL\.md"/);
   assert.match(script, /"name": ?"mattpocock-skills:tdd"/);
-  assert.match(script, /"skill_suffix": ?"skills\/engineering\/tdd\/SKILL\.md"/);
+  assert.match(script, /"skill_suffix": ?"skills\/osuperpowers\/tdd\/SKILL\.md"/);
   // attach regex for the brainstorming upstream family present
   assert.match(script, /\(\?i\)\/brainstorming\/SKILL/);
   assert.match(script, /\(\?i\)\/vendors\/superpowers\/skills\/brainstorming\/SKILL/);
@@ -769,8 +769,8 @@ test("cursorEnforceScript embeds read-regexes per target skill", () => {
   assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
   assert.match(script, /READ_RES = \{/);
   assert.match(script, /"mattpocock-skills:tdd"/);
-  assert.match(script, /skills\/engineering\/tdd\/SKILL/);
-  assert.match(script, /"osuperpowers:os-brainstorming"/);
+  assert.match(script, /skills\/osuperpowers\/tdd\/SKILL/);
+  assert.match(script, /"osuperpowers:brainstorming"/);
 });
 
 test("claudeSelfCheckMd fills the trigger table with target skill names", () => {
@@ -784,8 +784,8 @@ test("claudeSelfCheckMd fills the trigger table with target skill names", () => 
     template,
   );
   assert.match(md, /<!-- scripts\/emit\.mjs — do not edit -->/);
-  assert.match(md, /<!-- superpowers-overrides-version: 6\.2\.0-overrides\.0\.15\.3 -->/);
-  assert.match(md, /\| `superpowers:brainstorming` \| `Skill\(osuperpowers:os-brainstorming\)` \|/);
+  assert.match(md, /<!-- osuperpowers-router-version: 6\.2\.0-overrides\.0\.15\.3 -->/);
+  assert.match(md, /\| `superpowers:brainstorming` \| `Skill\(osuperpowers:brainstorming\)` \|/);
   assert.match(md, /\| `superpowers:test-driven-development` \| `Skill\(mattpocock-skills:tdd\)` \|/);
 });
 
@@ -800,6 +800,6 @@ test("cursorSelfCheckMdc carries the version stamp and trigger rows", () => {
     template,
   );
   assert.match(mdc, /_generated: scripts\/emit\.mjs — do not edit/);
-  assert.match(mdc, /superpowers-overrides-version: 6\.2\.0-overrides\.0\.15\.3/);
-  assert.match(mdc, /\| `\/brainstorming`, `\/superpowers:brainstorming`, upstream `brainstorming` body \| Read `osuperpowers:os-brainstorming` via agent_skills fullPath \|/);
+  assert.match(mdc, /osuperpowers-router-version: 6\.2\.0-overrides\.0\.15\.3/);
+  assert.match(mdc, /\| `\/brainstorming`, `\/superpowers:brainstorming`, upstream `brainstorming` body \| Read `osuperpowers:brainstorming` via agent_skills fullPath \|/);
 });

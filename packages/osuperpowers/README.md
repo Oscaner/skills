@@ -1,4 +1,4 @@
-# @oscaner-skills/engineering
+# @oscaner-skills/osuperpowers
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -16,15 +16,15 @@ This plugin provides two skill families:
 
 | Skill | Type | Description |
 |-------|------|-------------|
-| `os-brainstorming` | Orchestrator | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
-| `os-writing-plans` | Orchestrator | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
-| `os-executing-plans` | Orchestrator | Three-mode executor (in-session / subagent / cli) |
-| `os-finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
-| `os-debugging` | Orchestrator | Evidence before fixes; delegates to `diagnosing-bugs` |
-| `os-verification` | Orchestrator | No completion claims without verification evidence |
-| `os-code-review` | Orchestrator | Unclear feedback → `grilling`; fixes → `tdd` |
-| `os-init` | Utility | Project initialization (`os-init spor` writes self-check rules) |
-| `os-report-issue` | Utility | Structured issue reporting |
+| `brainstorming` | Orchestrator | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
+| `writing-plans` | Orchestrator | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
+| `executing-plans` | Orchestrator | Three-mode executor (in-session / subagent / cli) |
+| `finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
+| `debugging` | Orchestrator | Evidence before fixes; delegates to `diagnosing-bugs` |
+| `verification` | Orchestrator | No completion claims without verification evidence |
+| `code-review` | Orchestrator | Unclear feedback → `grilling`; fixes → `tdd` |
+| `init` | Utility | Project initialization (`init router` writes self-check rules) |
+| `report-issue` | Utility | Structured issue reporting |
 | `cli-driven-development` | CDD Engine | Harness CLI three-mode chain dispatcher |
 | `cli-select` | CDD Engine | Interactive harness selection |
 | `cli-task` | CDD Engine | Single-task CDD execution |
@@ -33,30 +33,30 @@ This plugin provides two skill families:
 ## Installation
 
 ```bash
-npm install @oscaner-skills/engineering
+npm install @oscaner-skills/osuperpowers
 ```
 
 Or install from the oscaner-skills Claude Code marketplace.
 
 ## Quick start
 
-1. Install `superpowers`, `superpowers-overrides`, `engineering`, and `mattpocock-skills` from the marketplace.
-2. Run **`/os-init spor`** in each project to write self-check rules.
-3. Use upstream superpowers skills — the router routes automatically to engineering orchestrators.
+1. Install `superpowers`, `osuperpowers-router`, `osuperpowers`, and `mattpocock-skills` from the marketplace.
+2. Run **`/init router`** in each project to write self-check rules.
+3. Use upstream superpowers skills — the router routes automatically to osuperpowers orchestrators.
 
 ### Claude Code
 
 ```bash
-/osuperpowers:brainstorming    # → os-brainstorming
-/osuperpowers:writing-plans    # → os-writing-plans
-/osuperpowers:executing-plans  # → os-executing-plans
+/osuperpowers:brainstorming    # → brainstorming
+/osuperpowers:writing-plans    # → writing-plans
+/osuperpowers:executing-plans  # → executing-plans
 ```
 
 ### Cursor
 
 ```bash
-/brainstorming    # → os-brainstorming (bare upstream slash)
-/writing-plans    # → os-writing-plans
+/brainstorming    # → brainstorming (bare upstream slash)
+/writing-plans    # → writing-plans
 ```
 
 ## CDD CLI harness scripts
@@ -75,7 +75,7 @@ The CDD engine dispatches via plugin-bundled scripts. The single CLI runner is `
 
 ## Docs for maintainers
 
-- [CLAUDE.md](CLAUDE.md) — engineering plugin internals (hooks, overrides pattern, emit, verification, releasing)
+- [CLAUDE.md](CLAUDE.md) — osuperpowers plugin internals (hooks, overrides pattern, emit, verification, releasing)
 
 ## License
 

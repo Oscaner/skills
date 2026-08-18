@@ -4,7 +4,7 @@ Pi packages have a `package.json` `pi` key mechanism — `pi install npm:@x / gi
 
 ## How it works
 
-`os-init harness` writes `~/.pi/agent/extensions/engineering.ts` — a thin shim
+`init harness` writes `~/.pi/agent/extensions/engineering.ts` — a thin shim
 that re-exports the package's `bin/gate/adapters/pi.ts` default-export factory:
 
 ```ts
@@ -19,7 +19,7 @@ so a Pi adapter update needs no re-copy of the extension.
 ## Install for Pi
 
 ```bash
-os-init harness --harness pi
+init harness --harness pi
 ```
 
 Or copy manually:
@@ -37,7 +37,7 @@ printf 'export { default } from "%s";\n' \
   `deriveNativeHarnesses` treats `pi` as a native harness).
 - `README.md` — this file. Pi's `package.json` `pi` key delivers skills / prompts /
   themes, but the gate adapter is `.ts` — Pi extensions are auto-discovered as `*.ts`,
-  so the gate is a native config install (via `os-init harness`) rather than a
+  so the gate is a native config install (via `init harness`) rather than a
   package-channel delivery.
 
 If a target Pi version does not load the `.ts` adapter, check the Pi extension

@@ -14,7 +14,7 @@ Multiple passes run concurrently only when mutually independent (no data depende
 
 ### Rule: Delegate Load Failure
 
-When delegating to `mattpocock-skills:*` fails: target skill cannot be resolved/loaded → report the error to the user and ask for next steps (do not silently skip the delegation); entire plugin is missing → silent degradation (that delegation step is skipped, the flow continues, the result is annotated as "not delegated"). Cited by delegation rules in os-debugging (→ diagnosing-bugs), os-code-review (→ grilling/tdd), os-writing-plans (→ to-tickets), os-brainstorming (→ grilling).
+When delegating to `mattpocock-skills:*` fails: target skill cannot be resolved/loaded → report the error to the user and ask for next steps (do not silently skip the delegation); entire plugin is missing → silent degradation (that delegation step is skipped, the flow continues, the result is annotated as "not delegated"). Cited by delegation rules in debugging (→ diagnosing-bugs), code-review (→ grilling/tdd), writing-plans (→ to-tickets), brainstorming (→ grilling).
 
 ## Red Flags
 

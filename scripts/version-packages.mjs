@@ -125,24 +125,24 @@ if (osengCS.length > 0) {
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
-  // Sync engineering version to the os-init self-check stamps (the only SOTs
-  // outside package.json). SKILL.md holds the version marker; spor.md's
-  // written-table template carries the same stamp for `os-init spor`. Both must
+  // Sync engineering version to the init self-check stamps (the only SOTs
+  // outside package.json). SKILL.md holds the version marker; router.md's
+  // written-table template carries the same stamp for `init router`. Both must
   // exist or the release aborts. marketplace/source.json and the per-harness
   // manifests are derived emit products — the emit that
   // sync-overrides-versions.mjs runs below re-derives them from package.json,
   // so no direct source.json write.
   for (const initPath of [
-    "packages/osuperpowers/skills/os-init/SKILL.md",
-    "packages/osuperpowers/skills/os-init/spor.md",
+    "packages/osuperpowers/skills/init/SKILL.md",
+    "packages/osuperpowers/skills/init/router.md",
   ]) {
     const init = readFileSync(join(root, initPath), "utf8");
     const stamped = init.replace(
-      /<!-- engineering-version: [^ ]+ -->/,
-      `<!-- engineering-version: ${osengNext} -->`,
+      /<!-- osuperpowers-version: [^ ]+ -->/,
+      `<!-- osuperpowers-version: ${osengNext} -->`,
     );
     if (stamped === init) {
-      throw new Error(`${initPath} missing engineering-version stamp`);
+      throw new Error(`${initPath} missing osuperpowers-version stamp`);
     }
     writeFileSync(join(root, initPath), stamped);
   }

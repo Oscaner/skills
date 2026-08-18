@@ -1,6 +1,6 @@
 # Review Dispatch
 
-Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). Cited by review-pass rules in os-brainstorming / os-writing-plans.
+Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). Cited by review-pass rules in brainstorming / writing-plans.
 
 ## Rules
 

@@ -8,8 +8,8 @@ A **multi-harness AI coding skills marketplace**. Skills work across Claude Code
 
 Five plugins ship here:
 
-1. **engineering** — first-party, in-tree at `packages/engineering/`. os-* orchestration + cli-* family + CDD engine + gate.
-2. **superpowers-overrides** — first-party, in-tree at `packages/superpowers-overrides/`. Trigger router: no skill bodies, maps upstream triggers to engineering/mattpocock targets.
+1. **osuperpowers** — first-party, in-tree at `packages/osuperpowers/`. os-* orchestration + cli-* family + CDD engine + gate.
+2. **osuperpowers-router** — first-party, in-tree at `packages/osuperpowers-router/`. Trigger router: no skill bodies, maps upstream triggers to osuperpowers/mattpocock targets.
 3. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by os-* orchestrators.
 4. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, to-tickets, research).
 5. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
@@ -34,26 +34,26 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 
 ## Architecture details
 
-- `packages/` — first-party plugins (engineering + superpowers-overrides)
+- `packages/` — first-party plugins (osuperpowers + osuperpowers-router)
 - `vendors/` — upstream submodules (superpowers / mattpocock-skills / impeccable); not edited in-tree
 - `scripts/emit.mjs` — unified emit tool (derives source.json + all harness manifests)
 - `scripts/ci-validate.mjs` — Node validation orchestration
-- `packages/superpowers-overrides/hooks/` — hooks for Claude (`hooks.json`) and Cursor (`hooks-cursor.json`)
-- `packages/engineering/hooks/` — PreToolUse gate hooks for Claude + Cursor
-- `packages/engineering/bin/engine/` — CDD engine (cdd-run.mjs, runner.mjs, registry, templates)
-- `packages/engineering/bin/gate/adapters/` — per-harness gate adapters
-- `packages/engineering/docs/` — cross-cutting docs (cdd-reference, handoff-schema, review-dispatch, subagent-lifecycle)
+- `packages/osuperpowers-router/hooks/` — hooks for Claude (`hooks.json`) and Cursor (`hooks-cursor.json`)
+- `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
+- `packages/osuperpowers/bin/engine/` — CDD engine (cdd-run.mjs, runner.mjs, registry, templates)
+- `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
+- `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, review-dispatch, subagent-lifecycle)
 
-For engineering plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`packages/engineering/CLAUDE.md`](packages/engineering/CLAUDE.md).
+For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md).
 
-For overrides trigger router internals, see [`packages/superpowers-overrides/CLAUDE.md`](packages/superpowers-overrides/CLAUDE.md).
+For overrides trigger router internals, see [`packages/osuperpowers-router/CLAUDE.md`](packages/osuperpowers-router/CLAUDE.md).
 
 ## Per-package documentation
 
-- [`packages/engineering/CLAUDE.md`](packages/engineering/CLAUDE.md) — engineering plugin internals
-- [`packages/superpowers-overrides/CLAUDE.md`](packages/superpowers-overrides/CLAUDE.md) — overrides trigger router internals
-- [`packages/engineering/README.md`](packages/engineering/README.md) — engineering plugin user guide
-- [`packages/superpowers-overrides/README.md`](packages/superpowers-overrides/README.md) — overrides plugin user guide
+- [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md) — osuperpowers plugin internals
+- [`packages/osuperpowers-router/CLAUDE.md`](packages/osuperpowers-router/CLAUDE.md) — overrides trigger router internals
+- [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
+- [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
 
 ## Git conventions
 

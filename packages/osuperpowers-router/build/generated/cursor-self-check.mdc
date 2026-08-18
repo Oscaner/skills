@@ -1,16 +1,16 @@
 ---
-description: superpowers-overrides self-check for Cursor — intercept upstream superpowers skills
+description: osuperpowers-router self-check for Cursor — intercept upstream superpowers skills
 alwaysApply: true
 _generated: scripts/emit.mjs — do not edit
-superpowers-overrides-version: 6.2.0-overrides.0.15.3
+osuperpowers-router-version: 6.2.0-overrides.0.15.3
 ---
 
-## superpowers-overrides self-check (Cursor)
+## osuperpowers-router self-check (Cursor)
 
 Before your first tool call in ANY turn:
 
 1. Scan for: `/superpowers:*`, bare `/<slug>` matching an upstream override target, `<command-name>` tags, or upstream superpowers skill body in context.
-2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `engineering:os-brainstorming` for `/brainstorming`).
+2. If matched → **first action is Read** the target skill whose `name` in `<agent_skills>` matches the manifest target (e.g. `osuperpowers:brainstorming` for `/brainstorming`).
 3. Use the `fullPath` from `<agent_skills>` — never hardcode project-relative paths.
 4. Only after the target skill body is loaded may you follow upstream instructions.
 
@@ -24,13 +24,13 @@ Before your first tool call in ANY turn:
 
 ### Override trigger table
 
-| `/brainstorming`, `/superpowers:brainstorming`, upstream `brainstorming` body | Read `osuperpowers:os-brainstorming` via agent_skills fullPath |
-| `/writing-plans`, `/superpowers:writing-plans`, upstream `writing-plans` body | Read `osuperpowers:os-writing-plans` via agent_skills fullPath |
+| `/brainstorming`, `/superpowers:brainstorming`, upstream `brainstorming` body | Read `osuperpowers:brainstorming` via agent_skills fullPath |
+| `/writing-plans`, `/superpowers:writing-plans`, upstream `writing-plans` body | Read `osuperpowers:writing-plans` via agent_skills fullPath |
 | `/subagent-driven-development`, `/superpowers:subagent-driven-development`, upstream `subagent-driven-development` body | Read `osuperpowers:cli-driven-development` via agent_skills fullPath |
-| `/executing-plans`, `/superpowers:executing-plans`, upstream `executing-plans` body | Read `osuperpowers:os-executing-plans` via agent_skills fullPath |
-| `/finishing-a-development-branch`, `/superpowers:finishing-a-development-branch`, upstream `finishing-a-development-branch` body | Read `osuperpowers:os-finishing` via agent_skills fullPath |
-| `/systematic-debugging`, `/superpowers:systematic-debugging`, upstream `systematic-debugging` body | Read `osuperpowers:os-debugging` via agent_skills fullPath |
+| `/executing-plans`, `/superpowers:executing-plans`, upstream `executing-plans` body | Read `osuperpowers:executing-plans` via agent_skills fullPath |
+| `/finishing-a-development-branch`, `/superpowers:finishing-a-development-branch`, upstream `finishing-a-development-branch` body | Read `osuperpowers:finishing` via agent_skills fullPath |
+| `/systematic-debugging`, `/superpowers:systematic-debugging`, upstream `systematic-debugging` body | Read `osuperpowers:debugging` via agent_skills fullPath |
 | `/test-driven-development`, `/superpowers:test-driven-development`, upstream `test-driven-development` body | Read `mattpocock-skills:tdd` via agent_skills fullPath |
-| `/verification-before-completion`, `/superpowers:verification-before-completion`, upstream `verification-before-completion` body | Read `osuperpowers:os-verification` via agent_skills fullPath |
-| `/receiving-code-review`, `/superpowers:receiving-code-review`, upstream `receiving-code-review` body | Read `osuperpowers:os-code-review` via agent_skills fullPath |
-| `/using-git-worktrees`, `/superpowers:using-git-worktrees`, upstream `using-git-worktrees` body | Read `osuperpowers:os-finishing` via agent_skills fullPath |
+| `/verification-before-completion`, `/superpowers:verification-before-completion`, upstream `verification-before-completion` body | Read `osuperpowers:verification` via agent_skills fullPath |
+| `/receiving-code-review`, `/superpowers:receiving-code-review`, upstream `receiving-code-review` body | Read `osuperpowers:code-review` via agent_skills fullPath |
+| `/using-git-worktrees`, `/superpowers:using-git-worktrees`, upstream `using-git-worktrees` body | Read `osuperpowers:finishing` via agent_skills fullPath |

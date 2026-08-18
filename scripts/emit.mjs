@@ -148,7 +148,7 @@ function emitOsEngineering(outRoot, plugin) {
   const contentRoot = plugin.contentRoot;
   const pluginDir = join(root, contentRoot);
 
-  // Canonical skills list (12 emitters + os-init).
+  // Canonical skills list (12 emitters + init).
   const skillsDir = join(pluginDir, "skills");
   const skillNames = readdirSync(skillsDir, { withFileTypes: true })
     .filter(
@@ -219,7 +219,7 @@ function emitOsEngineering(outRoot, plugin) {
 function emitAgentsSkillsCopy(outRoot, contentRoot) {
   const outAgents = join(outRoot, contentRoot, ".agents", "skills");
   const namespaces = [
-    ["engineering", join(root, "packages/osuperpowers/skills")],
+    ["osuperpowers", join(root, "packages/osuperpowers/skills")],
   ];
   // Prune stale namespace dirs (deleted source, or a namespace no longer
   // emitted) before re-copying, so a skill removed from skills/ can't linger

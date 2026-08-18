@@ -1,0 +1,51 @@
+{
+  "name": "@oscaner-skills/osuperpowers",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Standalone osuperpowers skills: os-* orchestrators, cli-* family, CDD engine, cross-harness gate.",
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oscaner/skills",
+    "directory": "packages/osuperpowers"
+  },
+  "homepage": "https://github.com/Oscaner/skills",
+  "license": "MIT",
+  "main": "./bin/gate/adapters/opencode.mjs",
+  "pi": {
+    "skills": ["./skills"],
+    "extensions": ["./bin/gate/adapters/pi.ts"]
+  },
+  "oscaner-plugin": {
+    "claude": {
+      "category": "engineering",
+      "keywords": [
+        "engineering",
+        "cli",
+        "cdd",
+        "harness",
+        "droid",
+        "pi"
+      ]
+    },
+    "contentRoot": ".",
+    "harnesses": [
+      "cursor",
+      "codex",
+      "kimi",
+      "gemini",
+      "pi",
+      "qoder"
+    ],
+    "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set",
+    "hooks": {
+      "claude": "./hooks/hooks.json",
+      "cursor": "./hooks/hooks-cursor.json",
+      "codex": "./.codex-plugin/hooks/hooks.json",
+      "qoder": "./.qoder-plugin/hooks/hooks.json"
+    }
+  }
+}

@@ -8,7 +8,7 @@
 // `console.error("== FAIL: <step> ==")` + message, exit code 1.
 //
 // The step list is exported (steps) so the wiring guard
-// (packages/engineering/tests/ci-validate.test.mjs) can assert engineering coverage
+// (packages/osuperpowers/tests/ci-validate.test.mjs) can assert engineering coverage
 // is not dropped — mirroring the legacy bash wiring guard.
 
 import { execFileSync } from "node:child_process";
@@ -76,7 +76,7 @@ subprocessStep("0. unified emit freshness (--check)", "node", ["scripts/emit.mjs
 
 // 1. plugin.json skills resolve
 function checkOverridesPluginSkills() {
-  const p = path.join(ROOT, "packages/superpowers-overrides");
+  const p = path.join(ROOT, "packages/osuperpowers-router");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
   if (skills === null || skills === undefined) {
@@ -102,7 +102,7 @@ checkStep("1. plugin.json skills resolve", checkOverridesPluginSkills);
 
 // 2. every skill dir has SKILL.md (skip when none)
 function checkSkillsMarkdown() {
-  const dir = path.join(ROOT, "packages/superpowers-overrides/skills");
+  const dir = path.join(ROOT, "packages/osuperpowers-router/skills");
   if (!existsSync(dir)) {
     console.log("OK — no skills dir");
     return;
@@ -110,7 +110,7 @@ function checkSkillsMarkdown() {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const md = path.join(dir, ent.name, "SKILL.md");
-    assert(existsSync(md), `MISSING: packages/superpowers-overrides/skills/${ent.name}/SKILL.md`);
+    assert(existsSync(md), `MISSING: packages/osuperpowers-router/skills/${ent.name}/SKILL.md`);
   }
   console.log("OK");
 }
@@ -118,7 +118,7 @@ checkStep("2. every skill dir has SKILL.md", checkSkillsMarkdown);
 
 // 3. no orphan skill dirs
 function checkNoOrphanSkills() {
-  const dir = path.join(ROOT, "packages/superpowers-overrides/skills");
+  const dir = path.join(ROOT, "packages/osuperpowers-router/skills");
   if (!existsSync(dir)) {
     console.log("OK — no skill dirs (trigger router)");
     return;
@@ -132,7 +132,7 @@ checkStep("3. no orphan skill dirs", checkNoOrphanSkills);
 // 4. hooks executable（bash-lenient 对齐：hooks 文件缺失 → warn 不 fail（步骤可跳过）；
 // hooks 文件存在 → 其引用 handler 必须存在且可执行（真正错误 → exit 1））。
 function checkOverridesHooks() {
-  const p = path.join(ROOT, "packages/superpowers-overrides");
+  const p = path.join(ROOT, "packages/osuperpowers-router");
   // hooks 文件 → 其引用 bin handler（hooks matrix：claude hooks.json → prompt-expansion；
   // cursor hooks-cursor.json → cursor-detect/cursor-enforce）。
   const handlers = {
@@ -162,14 +162,14 @@ checkStep("4. overrides hooks + bin executable", checkOverridesHooks);
 
 // 5. overrides build validation
 subprocessStep("5. overrides build validation", "node", [
-  path.join(ROOT, "packages/superpowers-overrides/tests/validate-overrides-build.mjs"),
+  path.join(ROOT, "packages/osuperpowers-router/tests/validate-overrides-build.mjs"),
 ]);
 
 // 5b. engineering plugin validation
 checkStep("5b. engineering plugin validation", () => console.log("OK — engineering plugin validation"));
 
 function checkEngineeringSkillsCount() {
-  const p = path.join(ROOT, "packages/engineering");
+  const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
   const EXPECTED = 13; // 12 emitters + os-init
@@ -197,27 +197,27 @@ checkStep("5b. engineering skills-count (13)", checkEngineeringSkillsCount);
 
 subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
   "--test",
-  "packages/engineering/tests/rule-reference.test.mjs",
+  "packages/osuperpowers/tests/rule-reference.test.mjs",
 ]);
 
-// node:test 两棵树：行为/集成树 packages/engineering/tests/（helpers.mjs + rule-reference +
+// node:test 两棵树：行为/集成树 packages/osuperpowers/tests/（helpers.mjs + rule-reference +
 // ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init + utils。
 // 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
 // 旧 bash engine 测试已全部迁移 → Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。
 subprocessStep("5b. node:test engine + gate + os-init + utils + behavior", "node", [
   "--test",
-  "packages/engineering/tests/*.test.mjs",
-  "packages/engineering/bin/engine/tests/*.test.mjs",
-  "packages/engineering/bin/gate/tests/*.test.mjs",
-  "packages/engineering/bin/os-init/tests/*.test.mjs",
-  "packages/engineering/bin/utils/tests/*.test.mjs",
+  "packages/osuperpowers/tests/*.test.mjs",
+  "packages/osuperpowers/bin/engine/tests/*.test.mjs",
+  "packages/osuperpowers/bin/gate/tests/*.test.mjs",
+  "packages/osuperpowers/bin/os-init/tests/*.test.mjs",
+  "packages/osuperpowers/bin/utils/tests/*.test.mjs",
 ]);
 
-subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/engineering/tests/ci-validate.test.mjs"]);
+subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
 
 // 5b2. engineering gate hooks
 function checkEngineeringGateHooks() {
-  const p = path.join(ROOT, "packages/engineering");
+  const p = path.join(ROOT, "packages/osuperpowers");
   for (const f of ["hooks/hooks.json", "hooks/hooks-cursor.json"]) {
     assert(existsSync(path.join(p, f)), `missing: ${f}`);
   }
@@ -237,11 +237,11 @@ checkStep("5b2. engineering gate hooks + engine entries executable", checkEngine
 
 // 5c. engine + router zero-residue grep (sdd_/spor- — must not regress)
 const RESIDUE_TARGETS = [
-  "packages/engineering/bin",
-  "packages/engineering/skills",
-  "packages/superpowers-overrides/bin",
-  "packages/superpowers-overrides/hooks",
-  "packages/superpowers-overrides/build/generated",
+  "packages/osuperpowers/bin",
+  "packages/osuperpowers/skills",
+  "packages/osuperpowers-router/bin",
+  "packages/osuperpowers-router/hooks",
+  "packages/osuperpowers-router/build/generated",
 ];
 const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
 function checkZeroResidue() {

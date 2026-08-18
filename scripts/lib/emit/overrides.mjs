@@ -1,7 +1,7 @@
 /**
  * superpowers-overrides artifact generators.
  *
- * JS port of the former `packages/superpowers-overrides/build/render-*.sh`
+ * JS port of the former `packages/osuperpowers-router/build/render-*.sh`
  * Python generators. Each function is pure: given parsed targets (and, for the
  * self-check tables, the version + template text), it returns the artifact
  * text/document. The unified emit tool wires file I/O.

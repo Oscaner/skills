@@ -21,9 +21,9 @@ const VENDORED_PLUGIN_JSON = {
 // The bump chain writes these on a superpowers bump (bump-submodule.mjs +
 // sync-overrides-versions.mjs). A move back to root plugins/ layout breaks them.
 const SUPERPOWERS_BUMP_TARGETS = [
-  "packages/superpowers-overrides/package.json",
-  "packages/superpowers-overrides/.claude-plugin/plugin.json",
-  "packages/superpowers-overrides/CHANGELOG.md",
+  "packages/osuperpowers-router/package.json",
+  "packages/osuperpowers-router/.claude-plugin/plugin.json",
+  "packages/osuperpowers-router/CHANGELOG.md",
   "marketplace/source.json",
 ];
 
@@ -72,14 +72,14 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
     );
   });
 
-  it("targets packages/superpowers-overrides/ for superpowers bump writes", () => {
+  it("targets packages/osuperpowers-router/ for superpowers bump writes", () => {
     for (const rel of SUPERPOWERS_BUMP_TARGETS) {
       assert.ok(existsSync(join(root, rel)), `${rel} missing`);
     }
   });
 
   it("has no stale root plugins/ layout literals in the bump scripts", () => {
-    const stale = /(?<!cursor-)plugins\/(?:superpowers|impeccable|mattpocock-skills|superpowers-overrides)/;
+    const stale = /(?<!cursor-)plugins\/(?:superpowers|impeccable|mattpocock-skills|osuperpowers-router)/;
     for (const rel of [
       "scripts/bump-submodule.mjs",
       "scripts/sync-overrides-versions.mjs",

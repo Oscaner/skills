@@ -1,0 +1,21 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "name": "osuperpowers",
+  "description": "Standalone osuperpowers skills: os-* orchestrators, cli-* family, CDD engine, cross-harness gate.",
+  "version": "0.1.0",
+  "contextFileName": "GEMINI.md",
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|run_shell_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${extensionPath}/bin/gate/adapters/gemini.mjs",
+            "timeout": 60000
+          }
+        ]
+      }
+    ]
+  }
+}

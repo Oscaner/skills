@@ -47,15 +47,15 @@ if (!superpowersVersion) {
 
 const changelogOptions = { repo: "Oscaner/skills" };
 
-// ---- superpowers-overrides (superpowers-relative scheme) ----
-const overridesPkgPath = "packages/superpowers-overrides/package.json";
+// ---- osuperpowers-router (superpowers-relative scheme) ----
+const overridesPkgPath = "packages/osuperpowers-router/package.json";
 const overridesChangelogPath = join(
   root,
-  "packages/superpowers-overrides/CHANGELOG.md",
+  "packages/osuperpowers-router/CHANGELOG.md",
 );
 const overridesCS = changesetsForPlugin(
   changesets,
-  "@oscaner-skills/superpowers-overrides",
+  "@oscaner-skills/osuperpowers-router",
 );
 const overridesPkg = readJson(overridesPkgPath);
 const overridesParsed = parseOverridesVersion(overridesPkg.version);
@@ -79,7 +79,7 @@ if (overridesCS.length > 0 || overridesBaseReset) {
       await changelogFunctions.getReleaseLine(cs, "patch", changelogOptions),
     );
   }
-  const overridesHeader = "# superpowers-overrides\n\n";
+  const overridesHeader = "# osuperpowers-router\n\n";
   const overridesEntry = `## ${overridesNext}\n\n### Patch Changes${releaseLines.join("")}\n\n`;
   prependChangelog(overridesHeader, overridesEntry, overridesChangelogPath);
   overridesPkg.version = overridesNext;
@@ -87,8 +87,8 @@ if (overridesCS.length > 0 || overridesBaseReset) {
 }
 
 // ---- engineering (independent semver) ----
-const osengPkgPath = "packages/engineering/package.json";
-const osengChangelogPath = join(root, "packages/engineering/CHANGELOG.md");
+const osengPkgPath = "packages/osuperpowers/package.json";
+const osengChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
 const osengCS = changesetsForPlugin(
   changesets,
   "@oscaner-skills/engineering",
@@ -118,7 +118,7 @@ if (osengCS.length > 0) {
     const title = `${type[0].toUpperCase()}${type.slice(1)} Changes`;
     sections.push(`### ${title}${lines.join("")}\n\n`);
   }
-  const osengHeader = "# engineering\n\n";
+  const osengHeader = "# osuperpowers\n\n";
   const osengEntry = `## ${osengNext}\n\n${sections.join("")}`;
   prependChangelog(osengHeader, osengEntry, osengChangelogPath);
 
@@ -133,8 +133,8 @@ if (osengCS.length > 0) {
   // sync-overrides-versions.mjs runs below re-derives them from package.json,
   // so no direct source.json write.
   for (const initPath of [
-    "packages/engineering/skills/os-init/SKILL.md",
-    "packages/engineering/skills/os-init/spor.md",
+    "packages/osuperpowers/skills/os-init/SKILL.md",
+    "packages/osuperpowers/skills/os-init/spor.md",
   ]) {
     const init = readFileSync(join(root, initPath), "utf8");
     const stamped = init.replace(
@@ -156,10 +156,10 @@ if (osengCS.length > 0) {
 // publish-mode push that follows the Version PR merge.
 const versioned = [];
 if (overridesCS.length > 0 || overridesBaseReset) {
-  versioned.push("superpowers-overrides");
+  versioned.push("osuperpowers-router");
 }
 if (osengCS.length > 0) {
-  versioned.push("engineering");
+  versioned.push("osuperpowers");
 }
 writeFileSync(
   join(root, ".changeset/versioned-plugins.json"),

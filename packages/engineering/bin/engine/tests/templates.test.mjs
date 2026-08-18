@@ -135,12 +135,12 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(fix.includes("deferred"), "fix deferred");
   assert.ok(fix.includes("open-findings 只含 blocker"), "fix open-findings blocker-only");
 
-  // D3 severity 行为锚点
-  assert.ok(dispatch.includes("合并前必须修复"), "D3 blocker anchor");
-  assert.ok(dispatch.includes("可延期的 minor"), "D3 warn anchor");
-  assert.ok(dispatch.includes("纯风格"), "D3 nit anchor");
+  // D3 severity behavioral anchors
+  assert.ok(dispatch.includes("must fix before merge"), "D3 blocker anchor");
+  assert.ok(dispatch.includes("deferrable minor"), "D3 warn anchor");
+  assert.ok(dispatch.includes("pure style"), "D3 nit anchor");
   assert.ok(dispatch.includes("deferred: true"), "D3 deferred field");
-  assert.ok(/warn\/nit 不进 fix loop/.test(dispatch), "D3 warn/nit no fix loop");
+  assert.ok(/warn\/nit do not enter the fix loop/.test(dispatch), "D3 warn/nit no fix loop");
 
   // D6 end semantics（os-executing-plans Rule: D6 Aggregation）
   const d6 = skill.slice(skill.indexOf("### Rule: D6 Aggregation"));

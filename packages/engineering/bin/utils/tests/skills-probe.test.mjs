@@ -33,13 +33,13 @@ function envWith(mockDir, home) {
 }
 
 function fakeClaudePluginList({ enabled = [], home } = {}) {
-  const json = JSON.stringify({ enabledPlugins: enabled });
+  const json = JSON.stringify({ enabledPlugins: enabled }).replaceAll("'", "'\\''");
   const mockDir = makeMockDir({ claude: `printf '%s\\n' '${json}'` });
   return { env: envWith(mockDir, home) };
 }
 
 function fakePiList({ packages = [] } = {}) {
-  const body = packages.map((p) => `printf '%s\\n' '${p}'`).join("\n");
+  const body = packages.map((p) => `printf '%s\\n' '${p.replaceAll("'", "'\\''")}'`).join("\n");
   const mockDir = makeMockDir({ pi: body });
   return { env: envWith(mockDir) };
 }

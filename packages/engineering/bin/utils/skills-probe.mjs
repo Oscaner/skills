@@ -60,7 +60,7 @@ function parseEnabledPlugins(out) {
   if (Array.isArray(data.installedPlugins)) {
     return data.installedPlugins.filter((p) => p.enabled).map((p) => p.id ?? p.name ?? "");
   }
-  return [];
+  return null;
 }
 
 // plugin-list（claude / grok）：CLI tier → enabledPlugins；缺失者（claude 有 cacheGlob）用缓存 glob
@@ -129,7 +129,8 @@ function probePackageList(harnessCfg, { requiredPlugins, env }) {
   }
   const missing = [];
   for (const plugin of requiredPlugins) {
-    if (out.includes(`@oscaner-skills/${plugin}`)) continue;
+    const pkgName = `@oscaner-skills/${plugin}`;
+    if (out.split(/\s+/).includes(pkgName)) continue;
     missing.push({ plugin, reason: "not-installed", installHint: harnessCfg.installHint(plugin) });
   }
   return { missing, probeFailed: false };

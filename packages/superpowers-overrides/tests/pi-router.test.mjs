@@ -12,15 +12,6 @@ function makePi() {
   return { pi, handlers };
 }
 
-test("pi-router: /brainstorming → transform Skill(engineering:os-brainstorming)", () => {
-  const { pi } = makePi();
-  on(pi);
-  // Simulate pi input event with leading slash (pi strips it)
-  const out = on(pi);
-  // Verify handler registered
-  assert.ok(pi.on, "on() must call pi.on()");
-});
-
 test("pi-router: on() registers input handler on pi instance", () => {
   const registered = [];
   const pi = { on: (name, handler) => { registered.push(name); } };

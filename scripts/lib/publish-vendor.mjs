@@ -30,7 +30,7 @@ import {
   writeFileSync,
   rmSync,
 } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import {
   SUBMODULE_PATHS,
   TAG_PATTERNS,

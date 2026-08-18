@@ -1,12 +1,6 @@
-// gate/adapters/pi.ts — Pi TS extension gate adapter（P6b T2）。
-// pi 无 CLI hooks manifest；扩展为 TS 模块，default export factory 接收 ExtensionAPI，
-// pi.on("tool_call", handler) 注册阻塞处理器。校准自 pi extensions 文档：
-// handler(event, ctx)，event.toolName / event.input（可变更、后置 handler 可见），
-// ctx.cwd / ctx.sessionManager；deny → { block: true, reason }（terminate 不设 →
-// 仅阻断本次调用）。写工具 input 用 path（read/write/edit 同构），gate 核心查
-// path || file_path → 直接命中。
-// 发现：pi 在 ~/.pi/agent/extensions + .pi/extensions 自动发现 `*.ts` / `*/index.ts`。
-// 本文件取代 pi.mjs 成为 pi 通道（T5 删除 pi.mjs）。
+// gate/adapters/pi.ts — Pi TS extension gate adapter (P6b T2).
+// Registers a tool_call handler via pi.on() for CDD gate enforcement.
+// Replaces pi.mjs as the pi channel (T5).
 import { gateDecide } from "../cdd-gate-core.mjs";
 import { canonicalToolName } from "./lib.mjs";
 

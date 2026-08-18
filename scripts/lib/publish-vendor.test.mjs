@@ -289,6 +289,25 @@ test("derivePiKey — impeccable derives from .pi/skills/impeccable (pi conventi
   assert.deepEqual(pi.skills, ["./.pi/skills/impeccable"]);
 });
 
+test("derivePiKey — no pi source returns empty skills", () => {
+  const root = makeRoot();
+  const p = join(root, "vendors", "bare-vendor");
+  mkdirSync(p, { recursive: true });
+  writeFileSync(join(p, "package.json"), JSON.stringify({ name: "bare" }));
+  const pi = derivePiKey(p, ".");
+  assert.deepEqual(pi, { skills: [] });
+});
+
+test("derivePiKey — fallback skills/ directory glob picks subdirectories", () => {
+  const root = makeRoot();
+  const p = join(root, "vendors", "skills-only");
+  mkdirSync(join(p, "skills", "alpha"), { recursive: true });
+  mkdirSync(join(p, "skills", "beta"), { recursive: true });
+  writeFileSync(join(p, "package.json"), JSON.stringify({ name: "skills-only" }));
+  const pi = derivePiKey(p, ".");
+  assert.deepEqual(pi, { skills: ["./skills/alpha", "./skills/beta"] });
+});
+
 // ---------------------------------------------------------------------------
 // assemblePackageJson — scoped package.json
 // ---------------------------------------------------------------------------

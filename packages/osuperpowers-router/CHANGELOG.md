@@ -1,4 +1,4 @@
-# superpowers-overrides
+# osuperpowers-router
 
 ## 6.2.0-overrides.0.15.3
 

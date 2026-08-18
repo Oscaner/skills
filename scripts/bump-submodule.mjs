@@ -40,7 +40,7 @@ function checkoutTag(tag) {
 /** @param {string} version @param {string} line */
 function prependChangelog(version, line) {
   const changelogPath = join(root, "packages/osuperpowers-router/CHANGELOG.md");
-  const header = "# superpowers-overrides\n\n";
+  const header = "# osuperpowers-router\n\n";
   const entry = `## ${version}\n\n### Patch Changes\n\n- ${line}\n\n`;
   const existing = readFileSync(changelogPath, "utf8");
   writeFileSync(changelogPath, header + entry + existing.slice(header.length));

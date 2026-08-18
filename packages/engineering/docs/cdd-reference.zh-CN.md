@@ -1,14 +1,14 @@
-# CDD CLI Orchestrator Reference (H6-H8)
+# CDD CLI Orchestrator Reference (H6–H8)
 
 > Worker discipline SOT: `../templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
-> Orchestrator gate discipline: [`docs/controller-handoff.md`](controller-handoff.md) H1-H5
-> **Rule 0 checklist semantic contract:** The three-phase phase markers and key tokens in Rule 0 are not line-budget trimming targets — trimming must not delete/compress the checklist's phase structure or key tokens; `bin/engine/tests/templates.test.mjs` asserts this (issue #52 Guard 1).
+> Orchestrator gate discipline: [`docs/controller-handoff.md`](controller-handoff.md) H1–H5
+> **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`bin/engine/tests/templates.test.mjs` 会断言（issue #52 Guard 1）。
 
 ## H6 — CLI dispatch (p1)
 
 Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*.mjs`) — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Detect harness** → via [cli-select](../skills/cli-select/SKILL.md) to select harness → `{plugin_root}/bin/engine/cdd-run.mjs --harness <name>` (orchestrator selects once; **no** runtime re-detection).
+1. **Detect harness** → 经 [cli-select](../skills/cli-select/SKILL.md) 选定 harness → `{plugin_root}/bin/engine/cdd-run.mjs --harness <name>`（orchestrator 选一次；**无** runtime 重新检测）。
 2. **Three modes** — one invocation each:
 
 | `CDD_MODE` | Responsibility |
@@ -49,7 +49,7 @@ cdd-run.mjs --harness <name> --task N --mode review
 
 Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CLI invocation; CLI **does not** Read the full plan file.
 
-**Workspace path contract (section 2.2a):**
+**Workspace path contract (§2.2a):**
 
 | Path | Purpose |
 |------|---------|
@@ -59,7 +59,7 @@ Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CL
 | `<workspace>/batch-<first>-<last>-handoff.json` | handoff (batch) |
 | `<workspace>/plan-constraints.md` | orchestrator excerpt from plan Global Constraints (`CDD_PLAN_CONSTRAINTS`) |
 
-**Batching (section 2.2b — inherits p0 section 2.3):**
+**Batching (§2.2b — inherits p0 §2.3):**
 
 Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
@@ -70,18 +70,18 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Review reports | `batch-*-review-standards.md` / `batch-*-review-spec.md` |
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
-**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel missing upstream plugin → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint, orchestrator **BLOCKED** (distinguished from 2 = harness CLI does not exist; exit 3 = CLI exists but skills plugin is not installed). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec section 2.1 stderr-surfacing).
+**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel 缺上游插件 → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint，orchestrator **BLOCKED**（区别于 2 = harness CLI 不存在；exit 3 = CLI 存在但 skills 插件未安装）。Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec §2.1 stderr-surfacing).
 
-**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`, config-driven):
+**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): 全 mode（implement/review/fix）进入嵌套 CLI 前，per-harness 探测 required plugins（`superpowers` + `mattpocock-skills` + `engineering` + `superpowers-overrides`，配置驱动）：
 
-| Channel | Harnesses | Missing behavior |
+| 通道 | Harnesses | 缺失行为 |
 |------|-----------|----------|
-| install-and-use | claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | **exit 3** + stderr per-plugin install hint (does not enter nested CLI) |
-| os-init | opencode / trae / vibe / kiro | stderr hint `os-init harness <name>` (not exit 3), task runs anyway |
+| install-and-use | claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | **exit 3** + stderr per-plugin install hint（不进入嵌套 CLI） |
+| os-init | opencode / trae / vibe / kiro | stderr 提示 `os-init harness <name>`（非 exit 3），任务照跑 |
 
-Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent/droid/qoder/codex/gemini), package-list (pi). Probe itself fails (CLI query error / no permission) → **fail-open allow** (exit 0 + warn). The `harnesses` set in `skills-probe.config.mjs` = 12, and MUST be one-to-one consistent with P6b section 2.5 channel classification.
+探测路径按 harness：plugin-list（claude/grok）、skill-dir（cursor-agent/droid/qoder/codex/gemini）、package-list（pi）。探测本身失败（CLI 查询错/无权限）→ **fail-open allow**（exit 0 + warn）。`skills-probe.config.mjs` 的 `harnesses` 集合 = 12 个，MUST 与 P6b §2.5 通道分类逐一一致。
 
-**Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec section 4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
+**Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 
 - **Fail-open:** non-git workspace or `git` error → validation passes (return 0) — the gate never blocks on tooling failure.
 - **Precondition:** `.superpowers/cdd/` is `*`-gitignored (repo `.gitignore` line `.superpowers`), so the workspace never trips the dirty check itself.
@@ -93,7 +93,7 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 
 Orchestrator / skill **must not** create `cdd-run*` or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in `packages/engineering/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in `packages/engineering/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/engineering/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()`（`bin/gate/cdd-gate-core.mjs`）/ [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 
@@ -105,16 +105,16 @@ All CLI entry scripts live in `packages/engineering/bin/engine/` (`cdd-run.mjs` 
 2. Env `CDD_NO_CLI=1`
 3. (Optional) project `.superpowers/cdd/config.json` `"cli": false`
 
-Any opt-out hit → **p0** in-session (Rule 5/6 + H1-H5).
+Any opt-out hit → **p0** in-session (Rule 5/6 + H1–H5).
 
-**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `review_prefix` / `ship`; the engine reads it via `{plugin_root}/bin/engine/cdd-run.mjs` (no more per-harness scripts).
+**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` 声明每 harness 的 `cli` / `invoke` / `output` / `review_prefix` / `ship`，engine 经 `{plugin_root}/bin/engine/cdd-run.mjs` 读取（不再有 per-harness 脚本）。
 
 | Ship | Harnesses |
 |------|-----------|
 | **Full** | claude, cursor-agent, droid, pi |
 | **Not-supported** | codex, copilot, gemini |
 
-Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fallback). Selected harness CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
+not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fallback). Selected harness CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
 
 ## Mode B (opt-in / AFK)
 
@@ -122,9 +122,9 @@ Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fa
 
 ## CDD gate matrix
 
-The orchestrator PreToolUse gate (Node core `packages/engineering/bin/gate/cdd-gate-core.mjs`, P4b migrated to Node) blocks direct repo edits while a task is active. Judgment is one decision point — `gateDecide` resolves the active workspace **once** (`pending.workspace` bound first, `findActiveWorkspace` scan only when unbound) and threads that same workspace through both phase and write checks.
+The orchestrator PreToolUse gate（Node core `packages/engineering/bin/gate/cdd-gate-core.mjs`，P4b 迁 Node）blocks direct repo edits while a task is active. Judgment is one decision point — `gateDecide` resolves the active workspace **once** (`pending.workspace` bound first, `findActiveWorkspace` scan only when unbound) and threads that same workspace through both phase and write checks.
 
-The gate is fail-open until an active task resolves (spec security property / data-flow step 1):
+The gate is fail-open until an active task resolves (spec 安全属性 / data-flow step 1):
 
 | Tool | Condition | Decision |
 |------|-----------|----------|
@@ -135,7 +135,7 @@ The gate is fail-open until an active task resolves (spec security property / da
 | Write/Edit | path under `.superpowers/cdd/**`, phase `orchestrating` | **allow** |
 | Write/Edit | phase `inactive` / `task_complete` | **allow** |
 | Write/Edit | any other repo path | **deny** |
-| Bash/Shell | allowlist (`cdd-run.mjs --harness <name>` / `task-brief` / `review-package`) | **allow** |
+| Bash/Shell | allowlist（`cdd-run.mjs --harness <name>` / `task-brief` / `review-package`） | **allow** |
 | Bash/Shell | read-only git verb (allowlist below) | **allow** |
 | Bash/Shell | anything else — mutating git, `ls`/`echo`, heredoc writes, compound commands | **deny** |
 | Bash/Shell | phase `inactive` / `task_complete` | **allow** |
@@ -143,9 +143,9 @@ The gate is fail-open until an active task resolves (spec security property / da
 
 **Shell contract:**
 
-- Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> ...`, `git -C <path> <verb> ...`, `git --git-dir=<path> <verb> ...`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
+- Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> …`, `git -C <path> <verb> …`, `git --git-dir=<path> <verb> …`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
 - Repo changes flow **only** through the H6 implement shell (`cdd-run.mjs --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
-- Non-git read-only commands (`ls`, `echo`, ...) are intentionally still denied (slim read-only set decision; see spec section Non-goals).
+- Non-git read-only commands (`ls`, `echo`, …) are intentionally still denied (slim read-only set decision; see spec §Non-goals).
 
 **Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.
 

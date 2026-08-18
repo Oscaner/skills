@@ -1,83 +1,83 @@
 ---
 name: os-report-issue
-description: 分析当前 SDD/CDD 会话的 bug 与增强机会，经 gh CLI 对 Oscaner/skills 提 GitHub issue（规则自旧版 report-issue 迁移）。repo 开发工具，非常规工作流技能。手动触发，从不自动。
+description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI (rules migrated from legacy report-issue). Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 ---
 
 # OS Report Issue
 
-分析 SDD/CDD 会话（`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log）找出 bug 与增强，提 issue。目标仓库 `Oscaner/skills`。
+Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, file issues. Target repo: `Oscaner/skills`.
 
 ## Rules
 
 ### Rule: Analyze Session
 
-按优先级读三来源：
-1. **会话上下文**（主）：本会话可见的工具调用记录、报错、handoff 状态、评审发现。
-2. **ledger**：repo 根下 `.superpowers/sdd/*/progress.md` 与 `.superpowers/cdd/*/progress.md` 全读；抽取含 `fix round`、`BLOCKED`、`parked`、`deferred`、`CHANGES_REQUESTED` 的行。
-3. **git log**：`git log $(git merge-base HEAD origin/main)..HEAD --oneline`；`origin/main` 不可用则回退 `git log -20 --oneline`。识别 `fix:` 前缀 commit 与重复 fix-round 模式。
+Read three sources in priority order:
+1. **Session context** (primary): tool call records visible in this session, errors, handoff state, review findings.
+2. **Ledger**: read all files under repo root `.superpowers/sdd/*/progress.md` and `.superpowers/cdd/*/progress.md`; extract lines containing `fix round`, `BLOCKED`, `parked`, `deferred`, `CHANGES_REQUESTED`.
+3. **Git log**: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`; if `origin/main` is unavailable, fall back to `git log -20 --oneline`. Identify `fix:` prefix commits and repeated fix-round patterns.
 
 ### Rule: Classify Findings
 
-每条发现归入两类：
+Each finding is classified into one of two categories:
 
-| 类型 | 判据 | 标签 |
-|------|------|------|
-| `bug` | 工具/脚本行为与 spec 不符——超时、错误退出码、gate 误判、handoff schema 错误 | `bug` |
-| `enhancement` | 流程可改进但未坏——DX 缺口、文档缺失、CI 覆盖不足、模板缺口 | `enhancement` |
+| Type | Criteria | Label |
+|------|----------|-------|
+| `bug` | Tool/script behavior does not match spec -- timeouts, wrong exit codes, gate misjudgment, handoff schema errors | `bug` |
+| `enhancement` | Process can be improved but is not broken -- DX gaps, missing docs, insufficient CI coverage, template gaps | `enhancement` |
 
-每条含：**Title**（短，可直接作 issue 标题）、**一句话描述**、**受影响组件**（技能名 / 脚本路径 / 命令）、**证据**（具体报错或 ledger 条目）。
+Each finding includes: **Title** (short, usable as issue title directly), **one-line description**, **affected component** (skill name / script path / command), **evidence** (specific error output or ledger entry).
 
 ### Rule: Confirm Before Filing
 
-把发现列为编号清单呈现给用户，问：整体是否准确？有无删改？**显式确认后才进入提交流程**，不预先 gh issue create。
+Present findings as a numbered list to the user, asking: is this accurate overall? Any additions or removals? **Only proceed to filing after explicit confirmation**, do not pre-create gh issue.
 
 ### Rule: Dedup Check
 
-每条已确认的 finding 先查重：
+Before filing, check each confirmed finding for duplicates:
 1. `gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`
-2. 取关键字：**受影响组件名**（如 `cdd-run.mjs`、`handoff-writer`、`gate`）+ **核心行为词**（如 `timeout`、`CHANGES_REQUESTED`、`exit 137`），对既有 issue 标题与正文做大小写不敏感子串匹配。
-3. **命中** → 展示匹配 issue，用户三选：**Create new issue / Add comment to existing / Skip**
-4. **未命中** → 用户二选：**Create new issue / Skip**
-5. 执行所选动作。
+2. Extract keywords: **affected component name** (e.g. `cdd-run.mjs`, `handoff-writer`, `gate`) + **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`), do case-insensitive substring matching against existing issue titles and bodies.
+3. **Hit** -> show matching issue, user chooses from three options: **Create new issue / Add comment to existing / Skip**
+4. **No hit** -> user chooses from two options: **Create new issue / Skip**
+5. Execute the selected action.
 
 ### Rule: Session Language
 
-从用户最近消息检测会话语言，issue 标题与正文用该语言；无信号回退英文。模板见 [Issue Body Templates](#issue-body-templates)。
+Detect session language from the user's most recent messages; issue title and body use that language; no signal defaults to English. Templates: see [Issue Body Templates](#issue-body-templates).
 
 ### Rule: Automatic Labels
 
-`gh issue create` 自动打标：
+`gh issue create` auto-applies labels:
 
 | Label | When |
 |-------|------|
-| `bug` / `enhancement` | 总是 —— 匹配 finding 类型 |
-| `dogfood` | 总是 —— 本技能发现即 dogfood |
-| `superpowers-overrides` | 总是 |
-| `cdd` | finding 涉及 CDD、cdd-run.mjs、orchestrator 或 handoff |
+| `bug` / `enhancement` | Always -- matches finding type |
+| `dogfood` | Always -- this skill's findings are dogfood |
+| `superpowers-overrides` | Always |
+| `cdd` | Finding involves CDD, cdd-run.mjs, orchestrator, or handoff |
 
 ```bash
-# <type> 为 "bug" 或 "enhancement"；CDD 相关追加 ",cdd"
+# <type> is "bug" or "enhancement"; append ",cdd" if CDD-related
 gh issue create --repo Oscaner/skills --title "<title>" \
   --label "<type>,dogfood,superpowers-overrides[,cdd]" \
-  --body "<按模板渲染的正文>"
+  --body "<template-rendered body>"
 
-# 命中既有 issue 时追加评论
-gh issue comment <number> --repo Oscaner/skills --body "<按模板渲染的正文>"
+# When matching an existing issue, append a comment
+gh issue comment <number> --repo Oscaner/skills --body "<template-rendered body>"
 ```
 
 ### Rule: Keyword Examples
 
-issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除的旧工具名。
+Issue keyword examples use current tool names (e.g. `cdd-run.mjs`), not deleted legacy tool names.
 
 ### Rule: Final Report
 
-收尾打印全部结果：新建 issue → URL；追加评论 → URL；Skip → 列出原因。
+Print all results at completion: new issue -> URL; appended comment -> URL; Skip -> list reason.
 
 ## Issue Body Templates
 
-按会话语言（Rule: Session Language）选模板。
+Choose template based on session language (Rule: Session Language).
 
-### Bug — English
+### Bug -- English
 
 ```markdown
 ## Context
@@ -90,7 +90,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 
 ## Impact
 
-<!-- what this blocked or degraded — token cost, extra rounds, incorrect state -->
+<!-- what this blocked or degraded -- token cost, extra rounds, incorrect state -->
 
 ## Suggested fix
 
@@ -101,7 +101,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 <!-- links to related issues or commits, if known -->
 ```
 
-### Bug — 中文
+### Bug -- Chinese
 
 ```markdown
 ## 背景
@@ -125,7 +125,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 <!-- 相关 issue 链接或 commit，如有 -->
 ```
 
-### Enhancement — English
+### Enhancement -- English
 
 ```markdown
 ## Context
@@ -149,7 +149,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 <!-- links to related issues or commits, if known -->
 ```
 
-### Enhancement — 中文
+### Enhancement -- Chinese
 
 ```markdown
 ## 背景

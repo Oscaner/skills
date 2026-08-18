@@ -1,31 +1,31 @@
 ---
 name: os-finishing
-description: 独立收尾流程编排器 —— Read 上游 superpowers:finishing-a-development-branch 作为基线，叠加个人规则（禁 worktree / conventional commit / 无 attribution / Option4 输入 discard）。
+description: Independent finishing orchestrator -- Reads upstream superpowers:finishing-a-development-branch as baseline, layers personal rules (no worktree / conventional commits / no attribution / Option4 typed discard).
 ---
 
 # OS Finishing
 
-开发分支收尾：合并 / PR / 保留 / 丢弃。
+Development branch finishing: merge / PR / keep / discard.
 
 ## Rules
 
 ### Rule: Read Upstream
 
-Read 上游 `superpowers:finishing-a-development-branch` 的 SKILL.md 作为流程基线 **当可用时**（解析优先级 + 不可用回退同 [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)）。**Read 而非 Skill-invoke**。
+Read upstream `superpowers:finishing-a-development-branch` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../os-brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
 
 ### Rule: No Worktrees
 
-**禁 worktree**（用户策略）。跳过上游 worktree 检测块，用 Standard 4 options（normal-repo 变体）。若意外检测到 worktree 状态 → STOP + 报告用户。跳过上游 Step 6（worktree remove/prune）。
+**No worktrees** (user policy). Skip the upstream worktree detection block, use Standard 4 options (normal-repo variant). If worktree state is accidentally detected -> STOP + report to user. Skip upstream Step 6 (worktree remove/prune).
 
 ### Rule: Conventional Commits
 
-合并 commit / PR title 遵循 conventional commits；**禁止任何 attribution/co-author/AI-generation 行**（trailers、footers、inline 都不行）。PR body 只用 `## Summary` + `## Test Plan`，不追加 attribution 段。
+Merge commit / PR title follows conventional commits; **no attribution/co-author/AI-generation lines** (trailers, footers, inline -- none allowed). PR body uses only `## Summary` + `## Test Plan`, no attribution sections appended.
 
 ### Rule: Option4 Typed Discard
 
-Option 4（丢弃分支）要求用户**输入 discard 字面量**确认，不用多选菜单。摩擦是防误删。
+Option 4 (discard branch) requires the user to **type the literal "discard"** to confirm, not a multiple-choice menu. The friction prevents accidental deletion.
 
 ## Red Flags
 
-- 「跑一下 worktree 检测也无害」→ 禁 worktree，跳过检测块（Rule: No Worktrees）
-- 「PR body 加 Claude attribution 是标配」→ 用户策略禁止（Rule: Conventional Commits）
+- "Running worktree detection is harmless" -> no worktrees, skip detection block (Rule: No Worktrees)
+- "Adding Claude attribution to PR body is standard practice" -> user policy forbids it (Rule: Conventional Commits)

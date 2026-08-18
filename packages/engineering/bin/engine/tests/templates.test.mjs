@@ -145,8 +145,8 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   // D6 end semantics（os-executing-plans Rule: D6 Aggregation）
   const d6 = skill.slice(skill.indexOf("### Rule: D6 Aggregation"));
   assert.ok(d6.includes("deferred"), "D6 aggregation deferred");
-  assert.ok(d6.includes("有界 final fix 波"), "D6 bounded final fix wave");
-  assert.ok(d6.includes("不重写"), "D6 no handoff rewrite");
+  assert.ok(d6.includes("bounded final fix wave"), "D6 bounded final fix wave");
+  assert.ok(d6.includes("not rewritten"), "D6 no handoff rewrite");
   assert.ok(d6.includes("unconditionally report to the user"), "D6 unconditional user report");
   assert.ok(d6.includes("no cross-task fix loop"), "D6 no cross-task fix loop");
 });

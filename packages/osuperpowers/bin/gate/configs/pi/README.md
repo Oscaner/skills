@@ -27,7 +27,7 @@ Or copy manually:
 ```bash
 mkdir -p ~/.pi/agent/extensions
 printf 'export { default } from "%s";\n' \
-  "$(node -p "require.resolve('@oscaner-skills/engineering/bin/gate/adapters/pi.ts')")" \
+  "$(node -p "require.resolve('@oscaner-skills/osuperpowers/bin/gate/adapters/pi.ts')")" \
   > ~/.pi/agent/extensions/engineering.ts
 ```
 

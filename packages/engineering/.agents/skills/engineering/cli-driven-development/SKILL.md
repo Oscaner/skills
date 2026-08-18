@@ -1,43 +1,43 @@
 ---
 name: cli-driven-development
-description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发：三模式链（implement/review/fix）+ handoff 契约 + commit gate + ledger。引擎模式：编器职责（任务分类/fix loop/质量门/D6 聚合）由 os-executing-plans 承担。
+description: cdd engine -- drives planned task development with the selected harness CLI: three-mode chain (implement/review/fix) + handoff contract + commit gate + ledger. Engine mode: orchestrator responsibilities (task classification / fix loop / quality gate / D6 aggregation) are handled by os-executing-plans.
 ---
 
-# CLI-Driven Development（cdd）
+# CLI-Driven Development (cdd)
 
-用选定的 harness CLI 执行计划任务的三模式链。**这是引擎**：它执行，不做编器决策。
+Execute planned tasks with the selected harness CLI via a three-mode chain. **This is the engine**: it executes, it does not make orchestrator decisions.
 
 ## Rules
 
 ### Rule: Harness Selection
 
-执行前先经 [Rule: Ask](../cli-select/SKILL.md#rule-ask) 选定 harness，以 `--harness <name>` 传入。无 full harness 安装 → BLOCKED。
+Before execution, select a harness via [Rule: Ask](../cli-select/SKILL.md#rule-ask) and pass it as `--harness <name>`. No full harness installed -> BLOCKED.
 
 ### Rule: Three-Mode Chain
 
-每任务三种模式各一次 CLI 调用（见 [cdd-reference.md](../../docs/cdd-reference.md) H6）：
+Each task gets one CLI call per mode (see [cdd-reference.md](../../docs/cdd-reference.md) H6):
 
 ```bash
 {plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode implement
 {plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode review
 ```
 
-`--mode fix` 仅当 review 返回 CHANGES_REQUESTED 时进入（fix loop，上限 5 轮）。
+`--mode fix` is only entered when review returns CHANGES_REQUESTED (fix loop, max 5 rounds).
 
 ### Rule: Handoff Contract
 
-每模式结束写/更新 `CDD_HANDOFF_PATH`（task-N-handoff.json）；stdout ≤ [Return Block 契约](../../docs/controller-handoff.md#rule-return-block) 四行；非零退出且无 handoff → BLOCKED。模板见 `templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`。
+At the end of each mode, write/update `CDD_HANDOFF_PATH` (task-N-handoff.json); stdout <= [Return Block contract](../../docs/controller-handoff.md#rule-return-block) four lines; non-zero exit with no handoff -> BLOCKED. Templates at `templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`.
 
 ### Rule: Commit Gate
 
-implement / fix 模式返回时校验工作区干净（`cdd_validate_commit_contract`）：脏树 → 重写 handoff `status: BLOCKED` + 非零退出；非 git / git 错误 → fail-open。
+When implement / fix mode returns, validate that the workspace is clean (`cdd_validate_commit_contract`): dirty tree -> rewrite handoff `status: BLOCKED` + non-zero exit; non-git / git error -> fail-open.
 
 ### Rule: Ledger
 
-`APPROVED` 才在 `CDD_LEDGER`（progress.md）追加 `Task N: complete` 行；CLI 子进程不写 ledger。
+Only append `Task N: complete` line to `CDD_LEDGER` (progress.md) when status is `APPROVED`; CLI subprocesses do not write to the ledger.
 
 ## Red Flags
 
-- 「--resume / -c / 任何携带历史会话的 flag」→ 禁止（H6.5），用一次性 print 模式
-- 「在编器会话里改 repo 文件」→ 引擎链只经 cdd-run.mjs；会话侧由 orchestrator-gate 约束
-- 「把编器决策塞进引擎」→ 分类/质量门/D6 属于编器（os-executing-plans），不是引擎
+- "--resume / -c / any flag that carries historical session" -> forbidden (H6.5), use one-shot print mode
+- "Modify repo files inside an orchestrator session" -> engine chain only goes through cdd-run.mjs; session side is constrained by orchestrator-gate
+- "Cram orchestrator decisions into the engine" -> classification / quality gate / D6 belong to the orchestrator (os-executing-plans), not the engine

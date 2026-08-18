@@ -115,17 +115,17 @@ describe("changesetsForPlugin", () => {
         id: "a",
         releases: [{ name: "@oscaner-skills/superpowers-overrides", type: "patch" }],
       },
-      { id: "b", releases: [{ name: "@oscaner-skills/engineering", type: "minor" }] },
+      { id: "b", releases: [{ name: "@oscaner-skills/osuperpowers", type: "minor" }] },
       {
         id: "c",
         releases: [
-          { name: "@oscaner-skills/engineering", type: "patch" },
+          { name: "@oscaner-skills/osuperpowers", type: "patch" },
           { name: "@oscaner-skills/superpowers-overrides", type: "patch" },
         ],
       },
     ];
     assert.deepEqual(
-      changesetsForPlugin(changesets, "@oscaner-skills/engineering").map(
+      changesetsForPlugin(changesets, "@oscaner-skills/osuperpowers").map(
         (cs) => cs.id,
       ),
       ["b", "c"],
@@ -134,7 +134,7 @@ describe("changesetsForPlugin", () => {
 
   it("returns empty for missing releases array", () => {
     assert.deepEqual(
-      changesetsForPlugin([{ id: "x" }], "@oscaner-skills/engineering"),
+      changesetsForPlugin([{ id: "x" }], "@oscaner-skills/osuperpowers"),
       [],
     );
   });

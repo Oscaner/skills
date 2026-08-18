@@ -61,7 +61,7 @@ test("metadata matches package.json", () => {
 test("description matches marketplace source", () => {
   const source = JSON.parse(readFileSync(path.join(REPO, "marketplace/source.json"), "utf8"));
   const overrides = source.plugins.find((p) => p.name === "osuperpowers-router");
-  assert.ok(overrides, "superpowers-overrides missing from marketplace/source.json");
+  assert.ok(overrides, "osuperpowers-router missing from marketplace/source.json");
   const pkg = load("package.json");
   assert.equal(pkg.description, overrides.description);
 });

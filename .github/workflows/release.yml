@@ -54,10 +54,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: superpowers-overrides
-            tag_prefix: "superpowers-overrides@"
-          - name: engineering
-            tag_prefix: "engineering@"
+          - name: osuperpowers-router
+            tag_prefix: "osuperpowers-router@"
+          - name: osuperpowers
+            tag_prefix: "osuperpowers@"
     steps:
       - uses: actions/checkout@v7
         with:

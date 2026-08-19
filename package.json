@@ -13,7 +13,7 @@
     "@changesets/changelog-github": "^1.0.0",
     "@changesets/cli": "^3.0.0",
     "@changesets/config": "^4.0.0",
-    "@changesets/read": "^0.6.7",
+    "@changesets/read": "^1.0.0",
     "husky": "^9.1.7"
   },
   "packageManager": "pnpm@11.18.0"

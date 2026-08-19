@@ -25,7 +25,7 @@ test("pi-router: input handler transforms /brainstorming → Skill(osuperpowers:
   on(pi);
   const result = await handler({ text: "/brainstorming" }, {});
   assert.equal(result.action, "transform");
-  assert.match(result.text, /Skill\(osuperpowers:os-brainstorming\)/);
+  assert.match(result.text, /Skill\(osuperpowers:brainstorming\)/);
 });
 
 test("pi-router: input handler transforms /writing-plans → Skill(osuperpowers:writing-plans)", async () => {
@@ -34,7 +34,7 @@ test("pi-router: input handler transforms /writing-plans → Skill(osuperpowers:
   on(pi);
   const result = await handler({ text: "/writing-plans" }, {});
   assert.equal(result.action, "transform");
-  assert.match(result.text, /Skill\(osuperpowers:os-writing-plans\)/);
+  assert.match(result.text, /Skill\(osuperpowers:writing-plans\)/);
 });
 
 test("pi-router: input handler transforms /test-driven-development → Skill(mattpocock-skills:tdd)", async () => {
@@ -52,7 +52,7 @@ test("pi-router: input handler transforms /using-git-worktrees → Skill(osuperp
   on(pi);
   const result = await handler({ text: "/using-git-worktrees" }, {});
   assert.equal(result.action, "transform");
-  assert.match(result.text, /Skill\(osuperpowers:os-finishing\)/);
+  assert.match(result.text, /Skill\(osuperpowers:finishing\)/);
 });
 
 test("pi-router: /spor-* does NOT match (returns null)", async () => {

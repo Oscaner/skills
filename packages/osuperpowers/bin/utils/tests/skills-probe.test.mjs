@@ -59,11 +59,11 @@ test("config: requiredPlugins 含 4 插件", () => {
   assert.deepEqual(config.requiredPlugins, ["superpowers", "mattpocock-skills", "osuperpowers", "osuperpowers-router"]);
 });
 
-test("config: harnesses 集合 = 12（8 安装即用 + 4 os-init，逐一一致 P6b §2.5）", () => {
+test("config: harnesses 集合 = 12（8 安装即用 + 4 init，逐一一致 P6b §2.5）", () => {
   const all = [...INSTALL_AND_USE, ...OS_INIT];
   assert.deepEqual(Object.keys(config.harnesses).sort(), [...all].sort());
   assert.deepEqual(config.channel["install-and-use"], INSTALL_AND_USE);
-  assert.deepEqual(config.channel["os-init"], OS_INIT);
+  assert.deepEqual(config.channel["init"], OS_INIT);
 });
 
 test("config: 每个 harness 有 probe + installHint", () => {
@@ -137,7 +137,7 @@ test("grok: enabledPlugins 缺 superpowers → missing + hint（无 cacheGlob �
 // ---------------------------------------------------------------- skill-dir (install-and-use: cursor/droid/qoder/codex/gemini)
 
 test("cursor-agent: .agents/skills 无 superpowers → missing + copy hint", async () => {
-  const cwd = fakeCwdWithDirs([".agents/skills/engineering"]);
+  const cwd = fakeCwdWithDirs([".agents/skills/osuperpowers"]);
   const r = await probeSkills("cursor-agent", { requiredPlugins: config.requiredPlugins, cwd });
   const sup = r.missing.find((m) => m.plugin === "superpowers");
   assert.ok(sup, "superpowers 应在 missing");
@@ -200,34 +200,34 @@ test("gemini: 空目录 → missing + hint", async () => {
   assert.match(sup.installHint, /gemini extensions install/);
 });
 
-// ---------------------------------------------------------------- os-init (opencode/trae/vibe/kiro) skill-dir
+// ---------------------------------------------------------------- init (opencode/trae/vibe/kiro) skill-dir
 
-test("opencode: .opencode/skills 无 superpowers → missing + os-init hint", async () => {
+test("opencode: .opencode/skills 无 superpowers → missing + init hint", async () => {
   const cwd = fakeCwdWithDirs([]);
   const r = await probeSkills("opencode", { requiredPlugins: ["superpowers"], cwd });
   const sup = r.missing.find((m) => m.plugin === "superpowers");
   assert.ok(sup, "superpowers 应在 missing");
-  assert.match(sup.installHint, /os-init harness opencode/);
+  assert.match(sup.installHint, /osuperpowers:init harness opencode/);
 });
 
-test("opencode: config 归 os-init 通道", () => {
-  assert.ok(config.channel["os-init"].includes("opencode"));
+test("opencode: config 归 init 通道", () => {
+  assert.ok(config.channel["init"].includes("opencode"));
 });
 
-test("trae: 空目录 → missing + os-init hint", async () => {
+test("trae: 空目录 → missing + init hint", async () => {
   const cwd = fakeCwdWithDirs([]);
   const r = await probeSkills("trae", { requiredPlugins: ["superpowers"], cwd });
   const sup = r.missing.find((m) => m.plugin === "superpowers");
   assert.ok(sup, "superpowers 应在 missing");
-  assert.match(sup.installHint, /os-init harness trae/);
+  assert.match(sup.installHint, /osuperpowers:init harness trae/);
 });
 
-test("vibe: 空目录 → missing + os-init hint", async () => {
+test("vibe: 空目录 → missing + init hint", async () => {
   const cwd = fakeCwdWithDirs([]);
   const r = await probeSkills("vibe", { requiredPlugins: ["superpowers"], cwd });
   const sup = r.missing.find((m) => m.plugin === "superpowers");
   assert.ok(sup, "superpowers 应在 missing");
-  assert.match(sup.installHint, /os-init harness vibe/);
+  assert.match(sup.installHint, /osuperpowers:init harness vibe/);
 });
 
 test("kiro: .kiro/skills 有 superpowers → 不在 missing", async () => {

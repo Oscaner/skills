@@ -34,7 +34,7 @@ function envWith(mockDir, home) {
 const CONFIG = {
   channel: {
     "install-and-use": ["claude", "cursor-agent", "droid", "grok", "qoder", "codex", "gemini", "pi"],
-    "os-init": ["opencode", "trae", "vibe", "kiro"],
+    "init": ["opencode", "trae", "vibe", "kiro"],
   },
   harnesses: {
     claude: { cli: "claude", probe: "plugin-list" },
@@ -98,15 +98,15 @@ test("detectInstalledHarnesses: install-and-use 通道的已装 harness 标记 c
   assert.equal(pi.channel, "install-and-use");
 });
 
-test("detectInstalledHarnesses: os-init 通道的已装 harness 标记 channel=os-init", () => {
+test("detectInstalledHarnesses: init 通道的已装 harness 标记 channel=init", () => {
   const mock = makeMockDir({ opencode: "exit 0", trae: "exit 0" });
   const result = detectInstalledHarnesses(CONFIG, { env: envWith(mock) });
   const oc = result.find((h) => h.name === "opencode");
   assert.ok(oc);
-  assert.equal(oc.channel, "os-init");
+  assert.equal(oc.channel, "init");
   const tr = result.find((h) => h.name === "trae");
   assert.ok(tr);
-  assert.equal(tr.channel, "os-init");
+  assert.equal(tr.channel, "init");
 });
 
 // ---------------------------------------------------------------- 返回 shape

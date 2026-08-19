@@ -1,7 +1,7 @@
 // packages/osuperpowers/tests/rule-reference.test.mjs — Node port of
 // rule-reference.test.py (semantic mode, issue #52 Guard 2).
 //
-// Guards rule-name integrity across the engineering SKILL.md files:
+// Guards rule-name integrity across the osuperpowers SKILL.md files:
 //   - rule headings are `### Rule: <Semantic Name>` (level-3 only, so
 //     `#### <Name>` subheadings never register as rule IDs);
 //   - inline `Rule: <Name>` refs must resolve to a same-file heading;
@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-// tests/ → engineering/ → packages/ → repo root (three levels post packages/ layout)
+// tests/ → osuperpowers/ → packages/ → repo root (three levels post packages/ layout)
 export const REPO_ROOT = path.resolve(HERE, "../../..");
 const ENGINE_SKILLS = path.join(REPO_ROOT, "packages/osuperpowers/skills");
 
@@ -232,24 +232,25 @@ test("semantic: cross-doc #rule anchor resolution", () => {
   }
 });
 
-test("semantic: cross-skill anchor-name mismatch caught (os-* model)", () => {
-  const tmp = mkdtempSync(path.join(tmpdir(), "rule-ref-os-"));
+test("semantic: cross-skill anchor-name mismatch caught (model)", () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), "rule-ref-model-"));
   try {
-    for (const sub of ["cli-aaa", "os-aaa", "os-bbb", "docs"]) {
+    for (const sub of ["cli-aaa", "aaa", "bbb", "docs"]) {
       mkdirSync(path.join(tmp, sub), { recursive: true });
     }
     writeFileSync(path.join(tmp, "docs", "controller-handoff.md"), "### Rule: Return Block\n\nBody.\n");
     writeFileSync(path.join(tmp, "cli-aaa", "SKILL.md"),
       "---\nname: cli-aaa\n---\n\n### Rule: Ask\n\n### Rule: Detect\n\nBody.\n");
-    writeFileSync(path.join(tmp, "os-aaa", "SKILL.md"),
-      "---\nname: os-aaa\n---\n\nSee [Rule: Ask](../cli-aaa/SKILL.md#rule-ask) and [Return Block](../../docs/controller-handoff.md#rule-return-block).\n");
-    writeFileSync(path.join(tmp, "os-bbb", "SKILL.md"),
-      "---\nname: os-bbb\n---\n\nSee [Rule: Ask](../cli-aaa/SKILL.md#rule-detect).\n");
+    writeFileSync(path.join(tmp, "aaa", "SKILL.md"),
+      "---\nname: aaa\n---\n\nSee [Rule: Ask](../cli-aaa/SKILL.md#rule-ask) and [Return Block](../../docs/controller-handoff.md#rule-return-block).\n");
+    writeFileSync(path.join(tmp, "bbb", "SKILL.md"),
+      "---\nname: bbb\n---\n\nSee [Rule: Ask](../cli-aaa/SKILL.md#rule-detect).\n");
     const idx = buildIndexSemantic(tmp);
     const problems = scanSemantic(tmp, idx);
-    assert.ok(!problems.some((p) => p.includes("os-aaa")), `os-* modeled valid refs flagged: ${problems}`);
+    // problem 字符串前缀 = "<name>:<line>:" —— 前缀限定避免 "aaa" 子串误吞 cli-aaa 的引用
+    assert.ok(!problems.some((p) => p.startsWith("aaa:")), `model valid refs flagged: ${problems}`);
     assert.ok(
-      problems.some((p) => p.includes("os-bbb") && p.includes("anchor mismatch")),
+      problems.some((p) => p.startsWith("bbb:") && p.includes("anchor mismatch")),
       `cross-skill anchor-name mismatch not caught: ${problems}`,
     );
   } finally {
@@ -257,8 +258,8 @@ test("semantic: cross-skill anchor-name mismatch caught (os-* model)", () => {
   }
 });
 
-// --- real scan: the engineering skills (semantic mode) must stay clean ---
-test("scan engineering skills (semantic) is clean", () => {
+// --- real scan: the osuperpowers skills (semantic mode) must stay clean ---
+test("scan osuperpowers skills (semantic) is clean", () => {
   assert.ok(existsSync(ENGINE_SKILLS), `missing skills dir: ${ENGINE_SKILLS}`);
   const idx = buildIndexSemantic(ENGINE_SKILLS);
   const problems = scanSemantic(ENGINE_SKILLS, idx);

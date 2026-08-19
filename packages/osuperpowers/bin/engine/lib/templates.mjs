@@ -31,7 +31,7 @@ export function pluginRoot() {
   for (;;) {
     if (existsSync(path.join(dir, ".claude-plugin", "plugin.json"))) return dir;
     const parent = path.dirname(dir);
-    if (parent === dir) throw new Error("engineering plugin root not found");
+    if (parent === dir) throw new Error("osuperpowers plugin root not found");
     dir = parent;
   }
 }

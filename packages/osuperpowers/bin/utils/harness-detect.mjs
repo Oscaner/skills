@@ -2,8 +2,8 @@
 // detectInstalledHarnesses(config, { env }) → [{name, installed, channel, cli}]
 //   cli 源 = config.harnesses[h].cli ?? h（显式 cli 字段优先；cursor-agent = "cursor-agent"）
 //   installed = command -v <cli> 存在且可执行（对齐 engine/lib/registry.mjs cliInPath）
-//   channel = "install-and-use" | "os-init"（从 config.channel 派生）
-// cdd-select + os-init harness 共用。
+//   channel = "install-and-use" | "init"（从 config.channel 派生）
+// cdd-select + init 共用。
 import { statSync } from "node:fs";
 import path from "node:path";
 
@@ -38,7 +38,7 @@ function buildChannelMap(channel) {
 //   name = harness key
 //   cli = config.harnesses[h].cli ?? h
 //   installed = command -v <cli> 存在且可执行
-//   channel = config.channel 派生的通道分类（"install-and-use" | "os-init" | undefined）
+//   channel = config.channel 派生的通道分类（"install-and-use" | "init" | undefined）
 export function detectInstalledHarnesses(config, { env = process.env } = {}) {
   const channelMap = buildChannelMap(config.channel);
   const harnesses = config.harnesses;

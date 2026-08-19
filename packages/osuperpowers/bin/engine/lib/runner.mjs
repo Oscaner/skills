@@ -403,7 +403,7 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // 2.5 Skills gate — probe for required skill plugins via DI seam.
   //   probeSkills(harness, { cwd, env }) → { missing: [{plugin, installHint}], probeFailed }.
-  //   Channel classification: install-and-use → exit 3; os-init → stderr hint + continue;
+  //   Channel classification: install-and-use → exit 3; init → stderr hint + continue;
   //   probeFailed → fail-open (exit 0, warn).
   if (probeSkills) {
     let probeResult;
@@ -421,7 +421,7 @@ export async function runTask(harness, taskNum, opts = {}) {
         }
         return finish(3, [], `missing skills: ${probeResult.missing.map((m) => m.plugin).join(", ")}`, noExit);
       } else {
-        // os-init channel or unknown — warn and continue
+        // init channel or unknown — warn and continue
         for (const m of probeResult.missing) {
           process.stderr.write(`skills-probe: ${m.plugin}: ${m.installHint}\n`);
         }
@@ -442,7 +442,7 @@ export async function runTask(harness, taskNum, opts = {}) {
         return finish(1, [], `templates missing: ${tplDir}`, noExit);
       }
     } catch {
-      return finish(1, [], "templates missing: engineering plugin root not found", noExit);
+      return finish(1, [], "templates missing: osuperpowers plugin root not found", noExit);
     }
   }
 

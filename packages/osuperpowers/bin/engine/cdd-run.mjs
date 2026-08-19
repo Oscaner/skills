@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cdd-run.mjs — engineering single CLI runner: one mode per invocation (Mode A)
+// cdd-run.mjs — osuperpowers single CLI runner: one mode per invocation (Mode A)
 // or plan driver (Mode B). Node port of cdd-run.sh; thin shell delegating to
 // runner.mjs runTask / runPlan.
 //

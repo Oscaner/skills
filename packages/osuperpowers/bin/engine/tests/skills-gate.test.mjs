@@ -2,7 +2,7 @@
 // DI seam: runTask opts.probeSkills — 测试注入 fake probeSkills，不触碰真实 CLI/list。
 // 覆盖场景：
 //   1. install-and-use 通道缺失 → exit 3 + stderr installHint（implement/review/fix 全 mode）
-//   2. os-init 通道缺失 → stderr 提示（非 exit 3），任务照跑（exit 0）
+//   2. init 通道缺失 → stderr 提示（非 exit 3），任务照跑（exit 0）
 //   3. probeFailed → fail-open（exit 0，不阻塞）
 //   4. brief/templates 缺失 → BLOCKED exit 1（非 exit 3，复用 finish(1,...)）
 // 复用 runner.test.mjs 的 capture + baseEnv 模式（内联 helper，保持测试独立）。
@@ -117,66 +117,66 @@ test("implement: 多个缺失 → exit 3 + 所有 installHint 出现于 stderr",
   assert.match(r.stderr, /osuperpowers.*plugin install/s);
 });
 
-// Slice 2: os-init 通道缺失 → stderr 提示（非 exit 3），任务照跑
-// 用 channelMap 把 claude 放进 os-init 通道来测试 os-init 分支（claude 在 registry 中通过 ship gate）。
-test("implement: os-init 通道缺失 → stderr 提示 + exit 0（任务照跑）", async () => {
+// Slice 2: init 通道缺失 → stderr 提示（非 exit 3），任务照跑
+// 用 channelMap 把 claude 放进 init 通道来测试 init 分支（claude 在 registry 中通过 ship gate）。
+test("implement: init 通道缺失 → stderr 提示 + exit 0（任务照跑）", async () => {
   const ws = setupWorkspace();
-  const missing = [{ plugin: "superpowers", installHint: "os-init harness opencode" }];
+  const missing = [{ plugin: "superpowers", installHint: "osuperpowers:init harness opencode" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
-  // channelMap 把 claude 放进 os-init 通道（跳过 exit 3）
-  const osInitChannel = { "install-and-use": [], "os-init": ["claude"] };
+  // channelMap 把 claude 放进 init 通道（跳过 exit 3）
+  const initChannel = { "install-and-use": [], "init": ["claude"] };
   const r = await capture(() =>
     runTask("claude", 1, {
       mode: "implement",
       dryRun: true,
       probeSkills: fakeProbe,
-      channelMap: osInitChannel,
+      channelMap: initChannel,
       env: baseEnv(ws),
     }),
   );
   assert.equal(r.code, 0);
-  assert.match(r.stderr, /os-init harness opencode/);
+  assert.match(r.stderr, /osuperpowers:init harness opencode/);
   // dry-run 正常产出 H1
   assert.match(r.stdout, /status: DONE/);
 });
 
-// 真实 os-init 通道测试：验证 channelMap 驱动 gate 分支逻辑
-test("implement: os-init 通道（channelMap 驱动）→ stderr 提示 + 任务照跑", async () => {
+// 真实 init 通道测试：验证 channelMap 驱动 gate 分支逻辑
+test("implement: init 通道（channelMap 驱动）→ stderr 提示 + 任务照跑", async () => {
   const ws = setupWorkspace();
   const missing = [
-    { plugin: "superpowers", installHint: "os-init harness trae" },
-    { plugin: "osuperpowers", installHint: "os-init harness trae" },
+    { plugin: "superpowers", installHint: "osuperpowers:init harness trae" },
+    { plugin: "osuperpowers", installHint: "osuperpowers:init harness trae" },
   ];
   const fakeProbe = async () => ({ missing, probeFailed: false });
-  const osInitChannel = { "install-and-use": [], "os-init": ["claude"] };
+  const initChannel = { "install-and-use": [], "init": ["claude"] };
   const r = await capture(() =>
     runTask("claude", 1, {
       mode: "implement",
       dryRun: true,
       probeSkills: fakeProbe,
-      channelMap: osInitChannel,
+      channelMap: initChannel,
       env: baseEnv(ws),
     }),
   );
   assert.equal(r.code, 0);
   // 所有缺失提示都出现于 stderr
-  assert.match(r.stderr, /superpowers.*os-init harness trae/s);
-  assert.match(r.stderr, /osuperpowers.*os-init harness trae/s);
+  assert.match(r.stderr, /superpowers.*osuperpowers:init harness trae/s);
+  assert.match(r.stderr, /osuperpowers.*osuperpowers:init harness trae/s);
   // 任务照跑
   assert.match(r.stdout, /status: DONE/);
 });
 
-// 无缺失 → gate 不触发 → 正常 dry-run（os-init 通道）
-test("implement: os-init 无缺失 → gate 不触发 + exit 0", async () => {
+// 无缺失 → gate 不触发 → 正常 dry-run（init 通道）
+test("implement: init 无缺失 → gate 不触发 + exit 0", async () => {
   const ws = setupWorkspace();
   const fakeProbe = async () => ({ missing: [], probeFailed: false });
-  const osInitChannel = { "install-and-use": [], "os-init": ["claude"] };
+  const initChannel = { "install-and-use": [], "init": ["claude"] };
   const r = await capture(() =>
     runTask("claude", 1, {
       mode: "implement",
       dryRun: true,
       probeSkills: fakeProbe,
-      channelMap: osInitChannel,
+      channelMap: initChannel,
       env: baseEnv(ws),
     }),
   );

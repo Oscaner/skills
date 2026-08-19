@@ -118,7 +118,7 @@ function probeSkillDirs(harnessCfg, { requiredPlugins, cwd }) {
 }
 
 // package-list（pi）：pi list 含 @oscaner-skills/<p> → available；缺失 → missing + npm: 前缀安装指引。
-// exec 抛错 → probeFailed（fail-open）。first-party（engineering/overrides）的 pi key 解析依赖 P6b emit
+// exec 抛错 → probeFailed（fail-open）。first-party（osuperpowers/overrides）的 pi key 解析依赖 P6b emit
 // 顶层 pi key（跨阶段）；本阶段单测 mock `pi list` 输出独立跑，不依赖真实 pi 包。
 function probePackageList(harnessCfg, { requiredPlugins, env }) {
   let out;

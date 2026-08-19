@@ -141,7 +141,7 @@ export function assertCursorPathsExist(root, plugin) {
 
 /** @param {string} root @param {object} source */
 export function assertPrereleasePrefix(root, source) {
-  const overrides = source.plugins.find((p) => p.name === "superpowers-overrides");
+  const overrides = source.plugins.find((p) => p.name === "osuperpowers-router");
   const superpowers = source.plugins.find((p) => p.name === "superpowers");
   if (!overrides?.version || !superpowers?.version) return;
   const prefix = `${superpowers.version}-overrides.`;

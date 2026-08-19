@@ -1,6 +1,6 @@
-# Gate installation — `@oscaner-skills/engineering`
+# Gate installation — `@oscaner-skills/osuperpowers`
 
-The **engineering** plugin ships a cross-harness **CDD orchestrator gate**: while a CDD
+The **osuperpowers** plugin ships a cross-harness **CDD orchestrator gate**: while a CDD
 task is active it blocks direct repo edits (`Write`/`Edit`) and non-read-only `Bash` in
 every agent harness that can run the CDD engine. One decision core
 (`bin/gate/cdd-gate-core.mjs`) + one adapter per harness
@@ -10,25 +10,25 @@ format. The gate ships inside the package — installing the plugin is installin
 ## Channel classification
 
 Two channels, **12 harnesses** total (P6b §2.5 authoritative — single SOT shared with
-[skills-probe.config.mjs](../packages/engineering/bin/utils/skills-probe.config.mjs)):
+[skills-probe.config.mjs](../packages/osuperpowers/bin/utils/skills-probe.config.mjs)):
 
 | Channel | Harnesses | Missing behavior |
 |---------|-----------|------------------|
 | **install-and-use** | claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | probe → **exit 3** + per-plugin install hint |
-| **os-init** | opencode / trae / vibe / kiro | probe → stderr 提示 `os-init harness <name>`（非 exit 3），任务照跑 |
+| **init** | opencode / trae / vibe / kiro | probe → stderr 提示 `init harness <name>`（非 exit 3），任务照跑 |
 
 **install-and-use** channels deliver skills + gate hooks via their native install path
 (marketplace / plugin / extension / npm package) — no manual copy needed.
-**os-init** channels require `os-init harness` to write native gate config and copy
+**init** channels require `init harness` to write native gate config and copy
 skills to the harness directory.
 
 > Gate hooks (CDD orchestrator enforcement) are separate from skills delivery.
 > install-and-use channels ship gate hooks via their plugin/extension manifest.
-> os-init channels get gate hooks via `os-init harness` (native config + skills copy).
+> init channels get gate hooks via `init harness` (native config + skills copy).
 
 Gate semantics are unchanged across harnesses: fail-open when no CDD task is active,
 mode-aware (`pending.mode`), git read-only allowlist for `Bash`, and Write paths
-bound to the active workspace. Details → [cross-harness-overrides.md](../packages/superpowers-overrides/docs/cross-harness-overrides.md).
+bound to the active workspace. Details → [cross-harness-overrides.md](../packages/osuperpowers-router/docs/cross-harness-overrides.md).
 
 ---
 
@@ -38,25 +38,25 @@ bound to the active workspace. Details → [cross-harness-overrides.md](../packa
 
 ```bash
 /plugin marketplace add oscaner/skills
-/plugin install engineering@oscaner
+/plugin install osuperpowers@oscaner
 ```
 
-**Verify:** `/hooks` shows the engineering `PreToolUse` hooks (`Write|Edit` and `Bash`),
+**Verify:** `/hooks` shows the osuperpowers `PreToolUse` hooks (`Write|Edit` and `Bash`),
 each invoking `bin/gate/adapters/claude.mjs`. Start a CDD task and attempt a repo edit
 outside the bound workspace → denied.
 **Trust:** plugin install is enough — no separate ritual.
 
 ### Cursor Agent (marketplace)
 
-Install `engineering` from the marketplace (Cursor Team Marketplace / plugin install).
+Install `osuperpowers` from the marketplace (Cursor Team Marketplace / plugin install).
 
-**Verify:** the Cursor hooks settings list the engineering `preToolUse` hook →
+**Verify:** the Cursor hooks settings list the osuperpowers `preToolUse` hook →
 `bin/gate/adapters/cursor.mjs`. Same gate smoke test as Claude Code.
 **Trust:** plugin install is enough.
 
 ### Droid (skill-dir)
 
-Droid reads skills from `.agents/skills/` — copy the engineering skills directory there.
+Droid reads skills from `.agents/skills/` — copy the osuperpowers skills directory there.
 
 ```bash
 cp -r <plugin-root>/skills/* .agents/skills/
@@ -69,17 +69,17 @@ attempt is denied (droid routes through the gate adapter).
 ### Grok (marketplace — install-and-use)
 
 Grok reads Claude-compatible plugins via marketplace compatibility. Install the
-engineering plugin from the Oscaner marketplace — skills + gate hooks ship together.
+osuperpowers plugin from the Oscaner marketplace — skills + gate hooks ship together.
 
 ```bash
 # Grok reads the Claude marketplace
 /plugin marketplace add oscaner/skills
-/plugin install engineering@oscaner
+/plugin install osuperpowers@oscaner
 ```
 
-Alternatively, `os-init harness grok` can guide the marketplace install steps.
+Alternatively, `init harness grok` can guide the marketplace install steps.
 
-**Verify:** `~/.grok/hooks/engineering.json` exists; during an active CDD task a repo-edit
+**Verify:** `~/.grok/hooks/osuperpowers.json` exists; during an active CDD task a repo-edit
 attempt is denied.
 **Trust:** `grok --trust`.
 
@@ -100,12 +100,12 @@ Install the `.codex-plugin` (`.codex-plugin/plugin.json` embeds
 manifest-relative `../bin/...` command), then review/trust the hooks:
 
 ```text
-/codex /hooks      # in the Codex session — approve the engineering hooks
+/codex /hooks      # in the Codex session — approve the osuperpowers hooks
 ```
 
-**Verify:** hooks list shows the engineering gate hook; during an active task a
+**Verify:** hooks list shows the osuperpowers gate hook; during an active task a
 non-read-only `Bash` is denied (`permissionDecision: "deny"`).
-**Trust:** `/hooks` and approve the engineering hooks.
+**Trust:** `/hooks` and approve the osuperpowers hooks.
 
 ### Gemini (extension)
 
@@ -119,41 +119,41 @@ The extension manifest (`gemini-extension.json`) registers a `BeforeTool` hook
 uses a `type: "command"` handler with `${extensionPath}` for the extension's own
 directory (not a Claude-style `${CLAUDE_PLUGIN_ROOT}` variable).
 
-**Verify:** `gemini extensions list` shows the `engineering` extension; the first CDD
+**Verify:** `gemini extensions list` shows the `osuperpowers` extension; the first CDD
 repo-edit attempt triggers the fingerprint confirmation, then `BeforeTool` blocks it.
 **Trust:** accept the project hook fingerprint on first use.
 
 ### Pi (npm package — install-and-use)
 
 Pi packages support a `package.json` top-level `pi` key (skills + extensions delivery).
-The engineering plugin emits a top-level `pi` key with skills and a gate extension
+The osuperpowers plugin emits a top-level `pi` key with skills and a gate extension
 TypeScript shim (`bin/gate/adapters/pi.ts`) that Pi auto-discovers under
 `~/.pi/agent/extensions/`.
 
 ```bash
-pi install npm:@oscaner-skills/engineering
+pi install npm:@oscaner-skills/osuperpowers
 ```
 
-**Verify:** `pi list` shows the engineering skills + extensions; triggering a gate deny
+**Verify:** `pi list` shows the osuperpowers skills + extensions; triggering a gate deny
 during a CDD task shows the gate `reason`.
 **Trust:** `pi install` = enabled; re-install to update.
 
 ---
 
-## os-init — native config + skills copy
+## init — native config + skills copy
 
-For harnesses in the os-init channel (opencode / trae / vibe / kiro), `os-init harness`
+For harnesses in the init channel (opencode / trae / vibe / kiro), `init harness`
 writes native gate config and copies skills to the harness directory:
 
 ```bash
-os-init harness                       # detect installed harnesses → multi-select menu
-os-init harness trae,vibe,kiro        # explicit specification
+init harness                       # detect installed harnesses → multi-select menu
+init harness trae,vibe,kiro        # explicit specification
 ```
 
 ### Trae
 
 ```bash
-os-init harness trae
+init harness trae
 ```
 
 | Writes | Trust |
@@ -166,7 +166,7 @@ os-init harness trae
 ### Vibe
 
 ```bash
-os-init harness vibe
+init harness vibe
 ```
 
 | Writes | Trust |
@@ -178,19 +178,19 @@ os-init harness vibe
 ### Kiro
 
 ```bash
-os-init harness kiro
+init harness kiro
 ```
 
 | Writes | Trust |
 |--------|-------|
-| `~/.kiro/hooks/engineering.json` → `bin/gate/adapters/kiro.mjs` + skills to `.kiro/skills/` | — |
+| `~/.kiro/hooks/osuperpowers.json` → `bin/gate/adapters/kiro.mjs` + skills to `.kiro/skills/` | — |
 
 **Verify:** the listed files exist; a CDD repo-edit attempt is denied.
 
 ### OpenCode
 
 ```bash
-os-init harness opencode
+init harness opencode
 ```
 
 OpenCode auto-installs the npm package; `package.json#main` points at
@@ -203,30 +203,30 @@ call is intercepted (gate deny).
 
 ---
 
-## `os-init harness` — per-harness installer
+## `init harness` — per-harness installer
 
-`os-init harness` is the unified installer for all harnesses. It detects installed
+`init harness` is the unified installer for all harnesses. It detects installed
 harnesses (via `harness-detect` util — `command -v <cli>`), presents a multi-select
 menu, and runs per-harness install actions:
 
 | Channel | Action |
 |---------|--------|
-| install-and-use | probe that harness for installed engineering plugin/gate; if missing → print install command + trust steps |
-| os-init | write native gate config + **copy skills** to harness directory + trust steps |
+| install-and-use | probe that harness for installed osuperpowers plugin/gate; if missing → print install command + trust steps |
+| init | write native gate config + **copy skills** to harness directory + trust steps |
 
 Under the hood it runs the installer from the **installed package** (not a source
-checkout — the plugin root is wherever the marketplace installed `engineering`):
+checkout — the plugin root is wherever the marketplace installed `osuperpowers`):
 
 ```bash
-node <plugin-root>/bin/os-init/install-harness.mjs [--harness …] [--dry-run]
+node <plugin-root>/bin/init/install-harness.mjs [--harness …] [--dry-run]
 ```
 
 **Manifest full sync** (runs every time):
-- Manifest at `bin/os-init/state/<harness>.json` tracks `{ engineeringVersion, files: { path → { hash, source } } }`
-  where `source = "os-init"` marks os-init-written files.
+- Manifest at `~/.osuperpowers/state/<harness>.json` tracks `{ osuperpowersVersion, files: { path → { hash, source } } }`
+  where `source = "init"` marks init-written files.
 - Re-run diffs manifest vs current file set → auto add/overwrite/delete (no prompting).
 - **Delete semantics**: only delete files that (a) were tracked in manifest, (b) not
-  user-modified (hash matches), and (c) have `source == "os-init"`. Untracked user
+  user-modified (hash matches), and (c) have `source == "init"`. Untracked user
   files are preserved.
 
 ## Channel acceptance checklist
@@ -236,15 +236,15 @@ node <plugin-root>/bin/os-init/install-harness.mjs [--harness …] [--dry-run]
 | **Claude** | install-and-use | marketplace install | `/hooks` shows the gate hook; CDD task deny |
 | **Cursor Agent** | install-and-use | marketplace install | hooks settings show the gate hook; CDD task deny |
 | **Droid** | install-and-use | copy skills to `.agents/skills/` | skills appear; CDD task deny |
-| **Grok** | install-and-use | marketplace install (Claude marketplace compat) | `~/.grok/hooks/engineering.json` exists; gate deny |
+| **Grok** | install-and-use | marketplace install (Claude marketplace compat) | `~/.grok/hooks/osuperpowers.json` exists; gate deny |
 | **Qoder** | install-and-use | install the plugin | plugin hooks active; deny returns `permissionDecision: "deny"` |
 | **Codex** | install-and-use | install the plugin + `/hooks` trust | hooks list shows the gate; a non-read-only `Bash` deny |
 | **Gemini** | install-and-use | `gemini extensions install <repo-url>` | extension in list; `BeforeTool` hook triggers |
-| **Pi** | install-and-use | `pi install npm:@oscaner-skills/engineering` | `pi list` shows skills + extensions; gate `tool_call` deny |
-| **Trae** | os-init | `os-init harness trae` | `~/.trae/hooks.json` exists; gate deny |
-| **Vibe** | os-init | `os-init harness vibe` | `~/.vibe/hooks.toml` exists; gate deny |
-| **Kiro** | os-init | `os-init harness kiro` | `~/.kiro/hooks/engineering.json` exists; gate deny |
-| **OpenCode** | os-init | `os-init harness opencode` | clean startup; `Bash` during CDD task → gate intercepts |
+| **Pi** | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` | `pi list` shows skills + extensions; gate `tool_call` deny |
+| **Trae** | init | `init harness trae` | `~/.trae/hooks.json` exists; gate deny |
+| **Vibe** | init | `init harness vibe` | `~/.vibe/hooks.toml` exists; gate deny |
+| **Kiro** | init | `init harness kiro` | `~/.kiro/hooks/osuperpowers.json` exists; gate deny |
+| **OpenCode** | init | `init harness opencode` | clean startup; `Bash` during CDD task → gate intercepts |
 
 ## Smoke test (any harness)
 
@@ -261,8 +261,8 @@ Outside an active CDD task the gate is fail-open — that is by design, not a br
 
 Config written ≠ trusted. After install, complete the harness's trust ritual:
 
-- **Grok** — `grok --trust` (os-init prints it; you can run it yourself)
-- **Codex** — `/hooks` and approve the engineering hooks
+- **Grok** — `grok --trust` (init prints it; you can run it yourself)
+- **Codex** — `/hooks` and approve the osuperpowers hooks
 - **Gemini** — accept the project hook fingerprint on first use
 - **Trae** — flip the hook **Enable** button + choose sandbox/local execution mode
 - **Qoder / Cursor / Claude Code** — no separate trust ritual; plugin install is enough
@@ -273,5 +273,5 @@ Config written ≠ trusted. After install, complete the harness's trust ritual:
 - It never copies a full tree or uses a `~/.oscaner/` convention — hooks and adapters
   ship inside the package and are referenced by path.
 - It is **not** the trigger router. The superpowers trigger router
-  (`superpowers-overrides`) is a separate plugin; `os-init spor` initializes its
-  self-check table. `os-init harness` installs only the engineering CDD gate.
+  (`osuperpowers-router`) is a separate plugin; `init router` initializes its
+  self-check table. `init harness` installs only the osuperpowers CDD gate.

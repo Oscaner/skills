@@ -1,8 +1,0 @@
----
-"@oscaner-skills/engineering": patch
-"@oscaner-skills/superpowers-overrides": patch
----
-
-engineering P6 — skills-gate + skills-probe + i18n + docs rewrite. Skills probe: per-harness plugin availability probe with 12-harness channel config (`install-and-use` / `os-init` classification); skills-probe gate integrated into runner with DI seam and channel-based exit codes (install-and-use missing → exit 3, os-init missing → stderr hint + continue). `os-brainstorming` and `os-writing-plans` spec/plan review refactored via `cdd-exec` (CLI review mode). `pi.mjs` dynamic key derivation in vendor assembly; first-party top-level pi key + gate/router TypeScript extensions; thin gemini-extension for mattpocock assembly; codex/qoder plugin manifests verified as install-and-use. `os-init` harness per-harness (harness-detect util + manifest full-sync). i18n: all `os-*` and `cli-*` SKILL.md files translated to English with zh-CN companion files; root CLAUDE.md rewritten (lean multi-harness project overview); per-package README files + zh-CN companions; overrides CLAUDE.md created. Pre-os-engineering docs cleanup (45 files removed). Version stamp validation updated for self-check tables.
-
-superpowers-overrides: cursor-plugins wrapper emit removed (plugin-root emit via unified `scripts/emit.mjs`); `publish-vendor.mjs` extended for pi derivation; `emit.mjs` split into `overrides.mjs` + `manifests.mjs` for modularity; `ci-validate.mjs` updated with version sync checks.

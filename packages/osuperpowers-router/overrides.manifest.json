@@ -1,0 +1,16 @@
+{
+  "$schema": "./build/overrides-manifest.schema.json",
+  "plugin": "osuperpowers-router",
+  "targets": [
+    { "name": "osuperpowers:brainstorming", "overrides": "superpowers:brainstorming", "source": "../osuperpowers/skills/brainstorming" },
+    { "name": "osuperpowers:writing-plans", "overrides": "superpowers:writing-plans", "source": "../osuperpowers/skills/writing-plans" },
+    { "name": "osuperpowers:cli-driven-development", "overrides": "superpowers:subagent-driven-development", "source": "../osuperpowers/skills/cli-driven-development" },
+    { "name": "osuperpowers:executing-plans", "overrides": "superpowers:executing-plans", "source": "../osuperpowers/skills/executing-plans" },
+    { "name": "osuperpowers:finishing", "overrides": "superpowers:finishing-a-development-branch", "source": "../osuperpowers/skills/finishing" },
+    { "name": "osuperpowers:debugging", "overrides": "superpowers:systematic-debugging", "source": "../osuperpowers/skills/debugging" },
+    { "name": "mattpocock-skills:tdd", "overrides": "superpowers:test-driven-development", "source": null },
+    { "name": "osuperpowers:verification", "overrides": "superpowers:verification-before-completion", "source": "../osuperpowers/skills/verification" },
+    { "name": "osuperpowers:code-review", "overrides": "superpowers:receiving-code-review", "source": "../osuperpowers/skills/code-review" },
+    { "name": "osuperpowers:finishing", "overrides": "superpowers:using-git-worktrees", "source": "../osuperpowers/skills/finishing" }
+  ]
+}

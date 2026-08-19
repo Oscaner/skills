@@ -39,8 +39,8 @@ function checkoutTag(tag) {
 
 /** @param {string} version @param {string} line */
 function prependChangelog(version, line) {
-  const changelogPath = join(root, "packages/superpowers-overrides/CHANGELOG.md");
-  const header = "# superpowers-overrides\n\n";
+  const changelogPath = join(root, "packages/osuperpowers-router/CHANGELOG.md");
+  const header = "# osuperpowers-router\n\n";
   const entry = `## ${version}\n\n### Patch Changes\n\n- ${line}\n\n`;
   const existing = readFileSync(changelogPath, "utf8");
   writeFileSync(changelogPath, header + entry + existing.slice(header.length));
@@ -58,19 +58,19 @@ function applyBump(bumpName, result, newTag) {
     const newVer = readJson("vendors/superpowers/.claude-plugin/plugin.json").version;
     result.semverChanged = oldVer !== newVer;
     if (result.semverChanged) {
-      const currentOverrides = readJson("packages/superpowers-overrides/package.json")
+      const currentOverrides = readJson("packages/osuperpowers-router/package.json")
         .version;
       const overridesVer = computeNextVersion(currentOverrides, newVer);
       // marketplace/source.json is a derived emit product — the
       // sync-overrides-versions.mjs run below re-derives it via `pnpm run emit`
       // from package.json, so no direct source.json write.
-      const pkgPath = "packages/superpowers-overrides/package.json";
+      const pkgPath = "packages/osuperpowers-router/package.json";
       const pkg = readJson(pkgPath);
       pkg.version = overridesVer;
       writeFileSync(join(root, pkgPath), JSON.stringify(pkg, null, 2) + "\n");
       result.files.push(pkgPath);
       prependChangelog(overridesVer, `Align with superpowers ${newVer}`);
-      result.files.push("packages/superpowers-overrides/CHANGELOG.md");
+      result.files.push("packages/osuperpowers-router/CHANGELOG.md");
       execSync("node scripts/sync-overrides-versions.mjs", {
         stdio: "inherit",
         cwd: root,

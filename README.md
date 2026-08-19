@@ -3,8 +3,8 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/engineering?label=engineering)](https://www.npmjs.com/package/@oscaner-skills/engineering)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/superpowers-overrides?label=superpowers-overrides)](https://www.npmjs.com/package/@oscaner-skills/superpowers-overrides)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers-router?label=osuperpowers-router)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers-router)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Personal AI coding skills marketplace. Five plugins, one pipeline -- works across **Claude Code**, **Cursor**, **Droid**, **Pi**, **Grok**, **Qoder**, **Codex**, and **Gemini**.
@@ -23,8 +23,8 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| **[engineering](packages/engineering/)** | First-party | Skills (`os-*` orchestrators, `cli-*` family), CDD engine, cross-harness gate (11 adapters) |
-| **[superpowers-overrides](packages/superpowers-overrides/)** | First-party | Trigger router -- intercepts upstream triggers and routes to engineering / mattpocock targets |
+| **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine, cross-harness gate (11 adapters) |
+| **[osuperpowers-router](packages/osuperpowers-router/)** | First-party | Trigger router -- intercepts upstream triggers and routes to osuperpowers / mattpocock targets |
 | **[superpowers](vendors/superpowers/)** | Vendored | Upstream workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
 | **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd`, `to-tickets` |
 | **[impeccable](vendors/impeccable/)** | Vendored | Frontend design skills |
@@ -38,8 +38,8 @@ All plugins are published as scoped npm packages under `@oscaner-skills/*`.
 ```bash
 # Claude Code
 /plugin marketplace add oscaner/skills
-/plugin install engineering@oscaner
-/plugin install superpowers-overrides@oscaner
+/plugin install osuperpowers@oscaner
+/plugin install osuperpowers-router@oscaner
 /plugin install superpowers@oscaner
 /plugin install mattpocock-skills@oscaner
 ```
@@ -47,7 +47,7 @@ All plugins are published as scoped npm packages under `@oscaner-skills/*`.
 ### From npm
 
 ```bash
-npm install @oscaner-skills/engineering @oscaner-skills/superpowers-overrides
+npm install @oscaner-skills/osuperpowers @oscaner-skills/osuperpowers-router
 npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
 ```
 
@@ -62,19 +62,19 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 | Qoder | install-and-use | install plugin |
 | Codex | install-and-use | install plugin + `/hooks` trust |
 | Gemini | install-and-use | `gemini extensions install <repo-url>` |
-| Pi | install-and-use | `pi install npm:@oscaner-skills/engineering` |
-| Trae | os-init | `os-init harness trae` |
-| Vibe | os-init | `os-init harness vibe` |
-| Kiro | os-init | `os-init harness kiro` |
-| OpenCode | os-init | `os-init harness opencode` |
+| Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
+| Trae | init | `init harness trae` |
+| Vibe | init | `init harness vibe` |
+| Kiro | init | `init harness kiro` |
+| OpenCode | init | `init harness opencode` |
 
 Full per-harness details: [docs/gate-install.md](docs/gate-install.md).
 
 ## Quick start
 
 1. Install plugins from the marketplace or npm (see above).
-2. Run **`os-init spor`** once per project -- re-run after plugin upgrades. This initializes the override trigger table in your project's CLAUDE.md / Cursor rules.
-3. Invoke the superpowers workflow as you normally would -- the router routes to the matching engineering / mattpocock target automatically.
+2. Run **`init router`** once per project -- re-run after plugin upgrades. This initializes the override trigger table in your project's CLAUDE.md / Cursor rules.
+3. Invoke the superpowers workflow as you normally would -- the router routes to the matching osuperpowers / mattpocock target automatically.
 
 ## Architecture
 
@@ -94,8 +94,8 @@ Full architecture: [CLAUDE.md](CLAUDE.md).
 
 ## Per-package docs
 
-- [packages/engineering/](packages/engineering/) -- skills, CDD engine, gate
-- [packages/superpowers-overrides/](packages/superpowers-overrides/) -- router targets, enforcement layers
+- [packages/osuperpowers/](packages/osuperpowers/) -- skills, CDD engine, gate
+- [packages/osuperpowers-router/](packages/osuperpowers-router/) -- router targets, enforcement layers
 - [docs/gate-install.md](docs/gate-install.md) -- per-harness gate installation
 
 ## Development
@@ -132,6 +132,6 @@ Release process: [`.changeset/README.md`](.changeset/README.md).
 
 ## License
 
-First-party code (`engineering`, `superpowers-overrides`, marketplace tooling): [MIT](LICENSE).
+First-party code (`osuperpowers`, `osuperpowers-router`, marketplace tooling): [MIT](LICENSE).
 
 Vendored plugins keep their own licenses -- see each plugin directory.

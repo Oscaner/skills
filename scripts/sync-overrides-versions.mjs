@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Align the superpowers-overrides version to the vendored superpowers base and
+ * Align the osuperpowers-router version to the vendored superpowers base and
  * regenerate every committed emit product.
  *
- * `packages/superpowers-overrides/package.json` is the single version SOT (the
+ * `packages/osuperpowers-router/package.json` is the single version SOT (the
  * scheme is `{superpowers}-overrides.{major}.{minor}.{patch}`). The script
  * reads that SOT, and when its superpowers base no longer matches the vendored
  * superpowers `.claude-plugin/plugin.json` version, resets the overrides
@@ -17,8 +17,8 @@
  * matches, the version is left untouched and the script only re-emits.
  *
  * Deliberately does NOT rewrite repo dogfood (CLAUDE.md / `.cursor/rules/*`).
- * os-init owns the dogfood now and stamps it with the engineering version;
- * a script that stamped it with the overrides version would fight os-init.
+ * init owns the dogfood now and stamps it with the osuperpowers version;
+ * a script that stamped it with the overrides version would fight init.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,7 +27,7 @@ import { parseOverridesVersion } from "./lib/version-utils.mjs";
 import { resolveVendorVersion } from "./lib/publish-vendor.mjs";
 
 const root = process.cwd();
-const pkgPath = join(root, "packages/superpowers-overrides/package.json");
+const pkgPath = join(root, "packages/osuperpowers-router/package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 
 // The superpowers base is the vendored plugin.json version — resolveVendorVersion

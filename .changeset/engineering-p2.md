@@ -1,7 +1,0 @@
----
-"@oscaner-skills/superpowers-overrides": patch
----
-
-engineering extraction P2 — os-* family (8 core flow-orchestration skills) added to `packages/engineering/` (os-brainstorming / os-writing-plans / os-executing-plans 3-mode orchestrator / os-finishing with worktree refusal absorbed / os-verification / os-debugging / os-code-review / os-report-issue), each a "Read upstream superpowers SKILL.md + apply personal rules" standalone orchestrator with semantic rule names (`### Rule: <Name>` + `#rule-<kebab>` links). tdd direct-maps to mattpocock-skills:tdd (seam confirmation moved to the orchestrator); executing-plans maps to os-executing-plans; using-git-worktrees absorbed into os-finishing; spor-sdd-p0-fallback deleted; cross-cutting spor-subagent-lifecycle / spor-token-efficient-review-dispatch content moved to engineering docs and deleted.
-
-superpowers-overrides transition: 8 extracted spor-* skills thin-pointerized (body `invoke Skill(os-<X>)`, frontmatter keeps the 4-trigger interception); gate mode-awareness — `cdd-session-activate.sh` writes `pending.mode` (`--mode` arg / `CDD_SESSION_MODE` env, enum-validated), `cdd-orchestrator-gate.sh` reads it (cli strict / in-session+subagent relax repo edits / no-mode+no-pending fail-open), hook render sources emit `--mode cli` to keep legacy cli-session strictness; rule-reference.test.py dual-mode (numeric transitional + semantic) now validates the os-* skills alongside the overrides.

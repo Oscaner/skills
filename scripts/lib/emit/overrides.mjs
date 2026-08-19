@@ -1,7 +1,7 @@
 /**
- * superpowers-overrides artifact generators.
+ * osuperpowers-router artifact generators.
  *
- * JS port of the former `packages/superpowers-overrides/build/render-*.sh`
+ * JS port of the former `packages/osuperpowers-router/build/render-*.sh`
  * Python generators. Each function is pure: given parsed targets (and, for the
  * self-check tables, the version + template text), it returns the artifact
  * text/document. The unified emit tool wires file I/O.
@@ -60,7 +60,7 @@ export function targetSkillSuffix(t) {
     return src.endsWith(".md") ? src : `${src}/SKILL.md`;
   }
   if (t.plugin === "mattpocock-skills") {
-    return `skills/engineering/${t.skill}/SKILL.md`;
+    return `skills/osuperpowers/${t.skill}/SKILL.md`;
   }
   return `skills/${t.skill}/SKILL.md`;
 }
@@ -91,7 +91,7 @@ export function targetSkillReadRegexes(plugin, skill) {
   const p = pyEscape(plugin);
   const s = pyEscape(skill);
   if (plugin === "mattpocock-skills") {
-    return [`(?i)/${p}/(?:[^/]*/)?skills/engineering/${s}/SKILL\\.md$`];
+    return [`(?i)/${p}/(?:[^/]*/)?skills/osuperpowers/${s}/SKILL\\.md$`];
   }
   return [`(?i)/${p}/(?:[^/]*/)?skills/${s}/SKILL\\.md$`];
 }

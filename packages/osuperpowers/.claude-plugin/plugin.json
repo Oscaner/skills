@@ -1,0 +1,22 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "name": "osuperpowers",
+  "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "license": "MIT",
+  "category": "osuperpowers",
+  "keywords": [
+    "osuperpowers",
+    "cli",
+    "cdd",
+    "harness",
+    "droid",
+    "pi"
+  ]
+}

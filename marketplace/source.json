@@ -80,13 +80,13 @@
       "license": "MIT"
     },
     {
-      "name": "engineering",
-      "contentRoot": "packages/engineering",
+      "name": "osuperpowers",
+      "contentRoot": "packages/osuperpowers",
       "cursor": {
         "emitMode": "plugin-root"
       },
       "version": "0.1.0",
-      "description": "Standalone engineering skills: cli-* orchestration family (select/task/driven-development/code-review) on the cdd engine.",
+      "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
       "author": {
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"
@@ -95,9 +95,9 @@
       "repository": "https://github.com/Oscaner/skills",
       "license": "MIT",
       "claude": {
-        "category": "engineering",
+        "category": "osuperpowers",
         "keywords": [
-          "engineering",
+          "osuperpowers",
           "cli",
           "cdd",
           "harness",
@@ -113,13 +113,13 @@
       }
     },
     {
-      "name": "superpowers-overrides",
-      "contentRoot": "packages/superpowers-overrides",
+      "name": "osuperpowers-router",
+      "contentRoot": "packages/osuperpowers-router",
       "cursor": {
         "emitMode": "plugin-root"
       },
       "version": "6.2.0-overrides.0.15.3",
-      "description": "Personal overrides for the superpowers plugin that force delegation to other skills.",
+      "description": "Trigger router for osuperpowers: intercepts upstream superpowers triggers and routes to osuperpowers / mattpocock targets.",
       "author": {
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"

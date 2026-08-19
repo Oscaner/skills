@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 const PENDING_ROOT = join(
   process.env.TMPDIR ?? tmpdir(),
-  "oscaner-superpowers-overrides",
+  "oscaner-osuperpowers-router",
   "pending",
 );
 

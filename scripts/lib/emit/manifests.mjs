@@ -36,7 +36,7 @@ export function deriveFirstPartyNames(packagesRoot) {
     .sort();
 }
 
-/** engineering has no bundled assets — interface omits icon/logo paths. */
+/** osuperpowers has no bundled assets — interface omits icon/logo paths. */
 const DEFAULT_REPO_URL = "https://github.com/Oscaner/skills";
 
 function keywords(plugin) {
@@ -47,7 +47,7 @@ function keywords(plugin) {
  * `.claude-plugin/plugin.json` — Claude Code manifest. Grok reuses this file
  * (no separate grok emit). Thin: skills/ + hooks/ point at canonical dirs.
  * `noSkills` omits the `skills` field for the overrides trigger router, which
- * ships no skill bodies (engineering keeps `skills: "./skills/"`).
+ * ships no skill bodies ( osuperpowers keeps `skills: "./skills/"`).
  */
 export function claudePluginManifest(plugin, version, { noSkills = false } = {}) {
   const m = {
@@ -145,7 +145,7 @@ export function kimiPluginManifest(plugin, version) {
   const kw = keywords(plugin);
   if (kw.length) m.keywords = kw;
   m.skills = "./skills/";
-  m.sessionStart = { skill: "os-init" };
+  m.sessionStart = { skill: "init" };
   m.skillInstructions = kimiInstructions(plugin);
   m.interface = kimiInterface(plugin);
   return m;
@@ -220,7 +220,7 @@ export function piPackageKey({ skills = ["./skills"], extensions = [] } = {}) {
 }
 
 /**
- * engineering PreToolUse cdd-gate hooks 共享形状（Write|Edit + Bash 两组，各一个
+ * osuperpowers PreToolUse cdd-gate hooks 共享形状（Write|Edit + Bash 两组，各一个
  * type:command hook）。claude/codex/qoder 三份逐字复制的共同结构 —— 只差 adapter
  * 命令；per-harness 生成器传入命令即可（matcher 组固定，改动只在一处）。
  */
@@ -253,16 +253,16 @@ function cddGatePreToolUseHooks(command) {
 }
 
 /**
- * engineering Claude PreToolUse hooks (cdd gate on Write|Edit|Bash).
- * Only engineering carries the gate — the overrides router plugin ships
+ * osuperpowers Claude PreToolUse hooks (cdd gate on Write|Edit|Bash).
+ * Only osuperpowers carries the gate — the overrides router plugin ships
  * no PreToolUse hooks (see `overrides.mjs` claudeHooksJson).
  */
-export function engineeringClaudeHooks() {
+export function osuperpowersClaudeHooks() {
   return cddGatePreToolUseHooks("${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs");
 }
 
-/** engineering Cursor preToolUse hook (cdd gate). */
-export function engineeringCursorHooks() {
+/** osuperpowers Cursor preToolUse hook (cdd gate). */
+export function osuperpowersCursorHooks() {
   return {
     _generated: generatedBanner,
     version: 1,
@@ -273,7 +273,7 @@ export function engineeringCursorHooks() {
 }
 
 /**
- * engineering Codex PreToolUse hooks (cdd gate). Codex plugin hooks are read
+ * osuperpowers Codex PreToolUse hooks (cdd gate). Codex plugin hooks are read
  * from `.codex-plugin/hooks/hooks.json`（manifest 引用 `./hooks/hooks.json`）。
  * Adapter 命令用 manifest-relative `../bin/...`（相对 `.codex-plugin/` → 包根
  * `bin/gate/adapters/codex.mjs`）—— 与 plugin.json 的 skills/hooks 共用同一
@@ -285,7 +285,7 @@ export function codexHooksJson() {
 }
 
 /**
- * engineering Qoder PreToolUse hooks (cdd gate). Qoder mirrors Claude events;
+ * osuperpowers Qoder PreToolUse hooks (cdd gate). Qoder mirrors Claude events;
  * plugin hooks are auto-discovered at `.qoder-plugin/hooks/hooks.json`
  * (`.qoder-plugin/` is the plugin root). Adapter 命令同样 manifest-relative
  * `../bin/...`（相对 `.qoder-plugin/` → 包根 `bin/gate/adapters/qoder.mjs`）——
@@ -297,8 +297,8 @@ export function qoderHooksJson() {
 
 /**
  * Dispatch a per-harness hooks generator by harness name, fail-fast on a
- * harness with no generator. Shared by the engineering and overrides hooks
- * families so both enforce their implemented harness set (engineering:
+ * harness with no generator. Shared by the osuperpowers and overrides hooks
+ * families so both enforce their implemented harness set (osuperpowers:
  * claude/cursor/codex/qoder; overrides: claude/cursor) — the
  * `oscaner-plugin.hooks` mapping must never point at a file no generator
  * can produce.
@@ -315,19 +315,19 @@ export function hooksFor(harness, byHarness, label) {
 }
 
 /**
- * Per-harness engineering hooks content, dispatched by harness name so the
+ * Per-harness osuperpowers hooks content, dispatched by harness name so the
  * emit orchestrator can drive writes from the `oscaner-plugin.hooks` mapping.
  */
-export function engineeringHooksFor(harness) {
+export function osuperpowersHooksFor(harness) {
   return hooksFor(
     harness,
     {
-      claude: engineeringClaudeHooks,
-      cursor: engineeringCursorHooks,
+      claude: osuperpowersClaudeHooks,
+      cursor: osuperpowersCursorHooks,
       codex: codexHooksJson,
       qoder: qoderHooksJson,
     },
-    "engineering",
+    "osuperpowers",
   );
 }
 
@@ -368,12 +368,12 @@ export function adapterRelFromCommand(command) {
  * Emit guard (I3): every generated hooks command that targets a gate adapter
  * must resolve to an existing file under the plugin dir. Throws otherwise —
  * `pnpm run emit` / `emit --check` fail loud instead of shipping a broken hook
- * command. Covers the engineering per-harness hooks + gemini-extension.json.
+ * command. Covers the osuperpowers per-harness hooks + gemini-extension.json.
  */
 export function assertAdapterPathsExist(plugin, pluginDir, version) {
   const docs = [];
   for (const [harness] of Object.entries(plugin.hooks ?? {})) {
-    docs.push(engineeringHooksFor(harness));
+    docs.push(osuperpowersHooksFor(harness));
   }
   docs.push(geminiExtension(plugin, version));
   const missing = [];

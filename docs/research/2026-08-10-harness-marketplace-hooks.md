@@ -1,6 +1,6 @@
 # Harness Marketplace / Hooks / Skills / Instruction-File Reference
 
-Research question: for all ~15 harnesses (claude, cursor, gemini, pi, codex, agents, grok, opencode, trae, trae-cn, rovodev, qoder, github, vibe, kiro), what are the marketplace/plugin-manifest, hooks, skill-loading, and instruction-file capabilities — and what must the root marketplace, superpowers-overrides (trigger router), and engineering (skill emit + gate) each add per harness?
+Research question: for all ~15 harnesses (claude, cursor, gemini, pi, codex, agents, grok, opencode, trae, trae-cn, rovodev, qoder, github, vibe, kiro), what are the marketplace/plugin-manifest, hooks, skill-loading, and instruction-file capabilities — and what must the root marketplace, osuperpowers-router (trigger router), and engineering (skill emit + gate) each add per harness?
 
 Serves as the reference doc for the engineering P3 `build.js` multi-harness emit and the P3/P4 scoping decision.
 
@@ -41,17 +41,17 @@ Notes and discrepancies vs. `plugins/impeccable/docs/HARNESSES.md`:
 
 ## 2. Per-harness assessment
 
-For each harness: what the root marketplace, superpowers-overrides (trigger router), and engineering must add. Scope tags: **[P3]** = in the current P3 build.js + router scope; **[P4]** = defer to a P4 split; **[N/A]** = not possible with that mechanism.
+For each harness: what the root marketplace, osuperpowers-router (trigger router), and engineering must add. Scope tags: **[P3]** = in the current P3 build.js + router scope; **[P4]** = defer to a P4 split; **[N/A]** = not possible with that mechanism.
 
 ### 2.1 Claude Code (source of truth)
-- **Root marketplace**: **[P3]** `marketplace/source.json` already registers superpowers-overrides + engineering; emitted to `.claude-plugin/marketplace.json`. Keep. `plugin.json` for engineering points at `./skills/` (source tree = claude version). Superpowers-overrides P3 becomes a no-skill router: `plugin.json` `skills` removed, only `hooks/hooks.json` (UserPromptExpansion) + `bin/override-prompt-expansion.sh` + `build/generated/*` self-check remain.
-- **Router**: **[P3]** UserPromptExpansion triple matcher (`^superpowers:`, bare `/<slug>`, `^/spor-*`) already exists. P3 retargets the injected `Skill(...)` from `spor-*` to `engineering:*` targets. This is the only harness with a native prompt-*expansion* hook — keep the router here.
-- **engineering**: **[P3]** skills live in `skills/` (plugin manifest path) — no emit copy needed for claude. Gate PreToolUse hooks move into engineering `hooks/hooks.json` (P3 B1). Self-check table goes in project `CLAUDE.md` (`os-init spor` writes it).
+- **Root marketplace**: **[P3]** `marketplace/source.json` already registers osuperpowers-router + engineering; emitted to `.claude-plugin/marketplace.json`. Keep. `plugin.json` for engineering points at `./skills/` (source tree = claude version). Superpowers-overrides P3 becomes a no-skill router: `plugin.json` `skills` removed, only `hooks/hooks.json` (UserPromptExpansion) + `bin/override-prompt-expansion.sh` + `build/generated/*` self-check remain.
+- **Router**: **[P3]** UserPromptExpansion triple matcher (`^superpowers:`, bare `/<slug>`, `^/spor-*`) already exists. P3 retargets the injected `Skill(...)` from `spor-*` to `osuperpowers:*` targets. This is the only harness with a native prompt-*expansion* hook — keep the router here.
+- **engineering**: **[P3]** skills live in `skills/` (plugin manifest path) — no emit copy needed for claude. Gate PreToolUse hooks move into engineering `hooks/hooks.json` (P3 B1). Self-check table goes in project `CLAUDE.md` (`init router` writes it).
 
 ### 2.2 Cursor
-- **Root marketplace**: **[P3]** `.cursor-plugin/marketplace.json` emit exists; superpowers-overrides uses **plugin-root** emit (its `.cursor-plugin/plugin.json` already declares `skills` + `hooks`). P3 removes the **wrapper** emit for engineering (`cursor: {displayName, skills}` in source.json) and emits engineering as plugin-root too (or keeps wrapper — overall v1.7 says remove wrapper emit). Note the flat-namespace dedup rule (cross-harness-overrides.md): any emitted os-* skill must not collide with upstream `superpowers:*` names; `os-*`/`cli-*` prefixes are safe.
-- **Router**: **[P3]** cursor detect (`beforeSubmitPrompt`) + enforce (`preToolUse`) hooks already ship plugin-bundled; retarget to os-* targets. Slash triggers rely on `.cursor/rules/superpowers-overrides.mdc` self-check as primary (Cursor cannot inject context on submit).
-- **engineering**: **[P3]** build.js emits 12 skills to `.cursor/skills/`. Gate PreToolUse hooks → engineering cursor adapter (`override-cursor-cdd-gate.sh`) + `hooks-cursor.json`. Self-check → `.cursor/rules/engineering.mdc` (or extended `superpowers-overrides.mdc`).
+- **Root marketplace**: **[P3]** `.cursor-plugin/marketplace.json` emit exists; osuperpowers-router uses **plugin-root** emit (its `.cursor-plugin/plugin.json` already declares `skills` + `hooks`). P3 removes the **wrapper** emit for engineering (`cursor: {displayName, skills}` in source.json) and emits engineering as plugin-root too (or keeps wrapper — overall v1.7 says remove wrapper emit). Note the flat-namespace dedup rule (cross-harness-overrides.md): any emitted os-* skill must not collide with upstream `superpowers:*` names; `os-*`/`cli-*` prefixes are safe.
+- **Router**: **[P3]** cursor detect (`beforeSubmitPrompt`) + enforce (`preToolUse`) hooks already ship plugin-bundled; retarget to os-* targets. Slash triggers rely on `.cursor/rules/osuperpowers-router.mdc` self-check as primary (Cursor cannot inject context on submit).
+- **engineering**: **[P3]** build.js emits 12 skills to `.cursor/skills/`. Gate PreToolUse hooks → engineering cursor adapter (`override-cursor-cdd-gate.sh`) + `hooks-cursor.json`. Self-check → `.cursor/rules/engineering.mdc` (or extended `osuperpowers-router.mdc`).
 
 ### 2.3 Gemini CLI
 - **Root marketplace**: **[P4]** Gemini has no marketplace registry; native packaging = `gemini-extension.json` + `gemini extensions install <git-url>`. Emitting a Gemini extension manifest per-repo is a P4 native-packaging item. P3 fallback: directory copy of skills to `.gemini/skills/` (also works globally via `gemini skills install <repo>`).
@@ -232,4 +232,4 @@ For each harness: what the root marketplace, superpowers-overrides (trigger rout
 - `plugins/impeccable/docs/HARNESSES.md` — prior harness capability research
 - `plugins/impeccable/scripts/lib/transformers/providers.js` — emit target configs (configDir, frontmatter fields, emitHooks, hooksManifestRel)
 - `docs/superpowers/specs/2026-08-10-engineering-p3-design.md` — P3 scope being assessed
-- `plugins/superpowers-overrides/docs/cross-harness-overrides.md` — router/gate architecture and claude+cursor enforcement model
+- `plugins/osuperpowers-router/docs/cross-harness-overrides.md` — router/gate architecture and claude+cursor enforcement model

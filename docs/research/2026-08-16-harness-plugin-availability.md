@@ -34,9 +34,9 @@ Legend — **Authoritative probe**: a command/config that tells you installed st
 | **Authoritative probe** | `claude plugin list --json` (installed plugins; `--available` adds marketplace plugins, requires `--json`). `claude plugin marketplace list --json` (each entry has `installLocation` = local cache path). `claude plugin details <name>` (component inventory). | plugins-reference ("CLI Commands") |
 | Skill-dir probe | `~/.claude/skills/<name>/SKILL.md` (standalone) + plugin `skills/` under the cache. | plugins |
 | Env vars (hook-visible only) | `${CLAUDE_PLUGIN_ROOT}` = plugin install dir, `${CLAUDE_PLUGIN_DATA}` = `~/.claude/plugins/data/<id>/`, `${CLAUDE_PROJECT_DIR}` = project root. **Exported to hook / MCP / LSP subprocesses**, not documented for the main agent Bash env. | plugins-reference ("Environment Variables for Plugins") |
-| **Detection recipe** | 1) `claude plugin list --json` and check for IDs `superpowers@oscaner`, `mattpocock-skills@oscaner`, `engineering@oscaner`, `superpowers-overrides@oscaner` (parse `enabled`/`disabled`). 2) Fallback filesystem: glob `~/.claude/plugins/cache/oscaner/{superpowers,mattpocock-skills,engineering,superpowers-overrides}/*/` and require `<root>/skills/<name>/SKILL.md` for the specific skill needed (e.g. `superpowers/skills/executing-plans/SKILL.md`, `mattpocock-skills/skills/productivity/grilling/SKILL.md`). 3) Enablement: confirm in `enabledPlugins` of the applicable scope settings. | this research |
+| **Detection recipe** | 1) `claude plugin list --json` and check for IDs `superpowers@oscaner`, `mattpocock-skills@oscaner`, `engineering@oscaner`, `osuperpowers-router@oscaner` (parse `enabled`/`disabled`). 2) Fallback filesystem: glob `~/.claude/plugins/cache/oscaner/{superpowers,mattpocock-skills,engineering,osuperpowers-router}/*/` and require `<root>/skills/<name>/SKILL.md` for the specific skill needed (e.g. `superpowers/skills/executing-plans/SKILL.md`, `mattpocock-skills/skills/productivity/grilling/SKILL.md`). 3) Enablement: confirm in `enabledPlugins` of the applicable scope settings. | this research |
 
-**Install instruction when missing:** `/plugin marketplace add Oscaner/skills` then `/plugin install superpowers@oscaner`, `/plugin install mattpocock-skills@oscaner` (and the already-installed `engineering@oscaner` / `superpowers-overrides@oscaner`).
+**Install instruction when missing:** `/plugin marketplace add Oscaner/skills` then `/plugin install superpowers@oscaner`, `/plugin install mattpocock-skills@oscaner` (and the already-installed `engineering@oscaner` / `osuperpowers-router@oscaner`).
 
 ### 2.2 Cursor
 
@@ -80,7 +80,7 @@ Legend — **Authoritative probe**: a command/config that tells you installed st
 | On-disk locations | npm (user): `~/.pi/agent/npm/`; npm (project): `.pi/npm/`; git (user): `~/.pi/agent/git/<host>/<path>`; git (project): `.pi/git/...`. Settings: `~/.pi/agent/settings.json` + `.pi/settings.json`. Skill dirs: `.pi/skills/`, `~/.pi/agent/skills/`, `.agents/skills/`. | badlogic/pi-mono packages.md (+ prior research) |
 | **Authoritative probe** | `pi list` — "show installed packages from settings". `pi config` toggles enabled extensions/skills/prompts/themes. | badlogic/pi-mono packages.md |
 | **Detection recipe** | 1) `pi list` → look for `@oscaner-skills/superpowers`, `@oscaner-skills/mattpocock-skills`. 2) Filesystem: `~/.pi/agent/npm/@oscaner-skills/{superpowers,mattpocock-skills}/skills/` (user) or `.pi/npm/...` (project). 3) Skill dirs `.pi/skills/`, `~/.pi/agent/skills/`, `.agents/skills/` for the specific skill names. | this research |
-| **Install instruction when missing** | `pi install npm:@oscaner-skills/superpowers npm:@oscaner-skills/mattpocock-skills` (both vendored packages carry the `pi` key with `skills: ["./skills"]`). `@oscaner-skills/engineering` has **no** `pi` key — its skills must be directory-copied to `.pi/skills/` or `.agents/skills/`. | publish-vendor.mjs `assemblePackageJson` / `piPackageKey`; packages/engineering/package.json |
+| **Install instruction when missing** | `pi install npm:@oscaner-skills/superpowers npm:@oscaner-skills/mattpocock-skills` (both vendored packages carry the `pi` key with `skills: ["./skills"]`). `@oscaner-skills/engineering` has **no** `pi` key — its skills must be directory-copied to `.pi/skills/` or `.agents/skills/`. | publish-vendor.mjs `assemblePackageJson` / `piPackageKey`; packages/osuperpowers/package.json |
 
 ### 2.6 Gemini CLI
 
@@ -124,11 +124,11 @@ The cross-harness convention. Verified today that **Codex**, **Cursor**, and **O
 
 ## 3. How the self-published `@oscaner-skills/*` packages are installed + detected per harness
 
-The repo publishes via `scripts/lib/publish-vendor.mjs` (vendored: `@oscaner-skills/superpowers`, `@oscaner-skills/mattpocock-skills`, `@oscaner-skills/impeccable`, each with `contentRoot` + `pi` key `{skills: ["./skills"]}`) and first-party `@oscaner-skills/engineering` + `@oscaner-skills/superpowers-overrides` (with `oscaner-plugin` field; `engineering` also sets `main: ./bin/gate/adapters/opencode.mjs`). The vendored assemblies keep `.claude-plugin/plugin.json` at the package root (both superpowers and mattpocock-skills ship one in-tree), so each npm package is itself a valid Claude Code plugin directory.
+The repo publishes via `scripts/lib/publish-vendor.mjs` (vendored: `@oscaner-skills/superpowers`, `@oscaner-skills/mattpocock-skills`, `@oscaner-skills/impeccable`, each with `contentRoot` + `pi` key `{skills: ["./skills"]}`) and first-party `@oscaner-skills/engineering` + `@oscaner-skills/osuperpowers-router` (with `oscaner-plugin` field; `engineering` also sets `main: ./bin/gate/adapters/opencode.mjs`). The vendored assemblies keep `.claude-plugin/plugin.json` at the package root (both superpowers and mattpocock-skills ship one in-tree), so each npm package is itself a valid Claude Code plugin directory.
 
 | Harness | `@oscaner-skills/*` install channel | Detect as | Source |
 |---|---|---|---|
-| **Claude Code** | Only via a marketplace entry with an `npm` source (`source: {source: "npm", package: "@oscaner-skills/..."}`). The current `.claude-plugin/marketplace.json` uses **relative-path** sources (`./packages/engineering`, `./vendors/...`) — so today users install from the git marketplace `Oscaner/skills`, not npm. | `claude plugin list --json`; cache glob `~/.claude/plugins/cache/oscaner/{superpowers,mattpocock-skills,engineering,superpowers-overrides}/*/`. npm-source version resolves to `unknown` unless pinned (plugins-reference) — glob, don't pin. | plugin-marketplaces (npm sources), plugins-reference (version resolution), this repo's marketplace.json |
+| **Claude Code** | Only via a marketplace entry with an `npm` source (`source: {source: "npm", package: "@oscaner-skills/..."}`). The current `.claude-plugin/marketplace.json` uses **relative-path** sources (`./packages/osuperpowers`, `./vendors/...`) — so today users install from the git marketplace `Oscaner/skills`, not npm. | `claude plugin list --json`; cache glob `~/.claude/plugins/cache/oscaner/{superpowers,mattpocock-skills,engineering,osuperpowers-router}/*/`. npm-source version resolves to `unknown` unless pinned (plugins-reference) — glob, don't pin. | plugin-marketplaces (npm sources), plugins-reference (version resolution), this repo's marketplace.json |
 | **Cursor** | Team Marketplace (git import) or directory copy; no npm channel documented. | skill-dir probe (`.cursor/skills/`, `.agents/skills/`). | cursor docs |
 | **Grok** | Reads the Claude Code marketplace/plugin cache as-is (zero-config). | `~/.claude/plugins/cache/oscaner/...`, `~/.grok/plugins/marketplaces/`, `~/.grok/skills/`. | docs.x.ai |
 | **OpenCode** | `plugin: ["@oscaner-skills/superpowers", ...]` in `opencode.json` → Bun-installs into `~/.cache/opencode/node_modules/`. **But skills are not auto-discovered from npm packages** — skills need directory copy to a skill dir. | probe `~/.cache/opencode/node_modules/@oscaner-skills/*/` + skill dirs. | opencode.ai/docs/plugins, /docs/skills |
@@ -143,7 +143,7 @@ The repo publishes via `scripts/lib/publish-vendor.mjs` (vendored: `@oscaner-ski
 
 | Harness | Authoritative CLI/JSON | Filesystem probe (most reliable) | Env-var probe | Install instruction to print |
 |---|---|---|---|---|
-| **Claude Code** | `claude plugin list --json` (enabled state), `claude plugin marketplace list --json` (`installLocation`), `claude plugin details <name>` | `~/.claude/plugins/cache/oscaner/{superpowers,mattpocock-skills,engineering,superpowers-overrides}/*/skills/<skill>/SKILL.md` + `enabledPlugins` in settings | `$CLAUDE_PLUGIN_ROOT` (hook-only; sibling = `$CLAUDE_PLUGIN_ROOT/../<plugin>/`) | `/plugin marketplace add Oscaner/skills` + `/plugin install <plugin>@oscaner` |
+| **Claude Code** | `claude plugin list --json` (enabled state), `claude plugin marketplace list --json` (`installLocation`), `claude plugin details <name>` | `~/.claude/plugins/cache/oscaner/{superpowers,mattpocock-skills,engineering,osuperpowers-router}/*/skills/<skill>/SKILL.md` + `enabledPlugins` in settings | `$CLAUDE_PLUGIN_ROOT` (hook-only; sibling = `$CLAUDE_PLUGIN_ROOT/../<plugin>/`) | `/plugin marketplace add Oscaner/skills` + `/plugin install <plugin>@oscaner` |
 | **Cursor** | none documented | `.cursor/skills/`, `.agents/skills/`, `~/.cursor/skills/`, `~/.agents/skills/`, `.claude/skills/`; `~/.cursor/plugins/local/` | — | Team Marketplace install or copy skills to `.agents/skills/` |
 | **Grok** | none (TUI `/plugins`) | `~/.claude/plugins/cache/oscaner/…`, `~/.grok/plugins/marketplaces/`, `~/.grok/skills/`, `.grok/skills/`, `.agents/skills/` | `$GROK_PLUGIN_ROOT` (hook-only) | `grok` → `/plugins`; or copy skills to `~/.grok/skills/` |
 | **OpenCode** | none documented | `.opencode/skills/`, `.agents/skills/`, `.claude/skills/`, `~/.config/opencode/skills/`; `~/.cache/opencode/node_modules/@oscaner-skills/*/` | — | add to `plugin` array + copy skills to `.agents/skills/` |
@@ -157,14 +157,14 @@ The repo publishes via `scripts/lib/publish-vendor.mjs` (vendored: `@oscaner-ski
 
 ## 5. Implications for the CDD pre-flight check
 
-The current pre-flight (`packages/engineering/bin/engine/lib/registry.mjs` `checkHarness`) verifies only: harness known → `ship == "full"` → CLI in PATH (`cliInPath`). It returns `CddBlockedError` with `kind: "cli-missing"` (exit 2). There is **no** check for upstream skill availability — the gap this research targets.
+The current pre-flight (`packages/osuperpowers/bin/engine/lib/registry.mjs` `checkHarness`) verifies only: harness known → `ship == "full"` → CLI in PATH (`cliInPath`). It returns `CddBlockedError` with `kind: "cli-missing"` (exit 2). There is **no** check for upstream skill availability — the gap this research targets.
 
 **Recommended addition — a second gate after the CLI check**, `checkUpstreamSkills(harness, required)`, probing the **current (orchestrator) harness** for the skill plugins the os-* orchestrator will Read/delegate to:
 
-**Required upstream skills** (from `packages/engineering/skills/os-*/SKILL.md`):
+**Required upstream skills** (from `packages/osuperpowers/skills/os-*/SKILL.md`):
 - `superpowers` — os-* "Read Upstream" resolves `{plugin-root}/../superpowers/skills/<name>/SKILL.md` (fallback `<repo-root>/vendors/superpowers/…`, author-only).
 - `mattpocock-skills` — delegates: `tdd`, `to-tickets`, `grilling`, `code-review`, `diagnosing-bugs`, `research`. Concrete probe names: `superpowers/skills/executing-plans/SKILL.md`, `mattpocock-skills/skills/engineering/tdd/SKILL.md` + `mattpocock-skills/skills/productivity/grilling/SKILL.md`.
-- First-party `@oscaner-skills/engineering` (self — always present when the gate runs) and `@oscaner-skills/superpowers-overrides` (router; needed for slash-trigger routing in Claude Code/Cursor).
+- First-party `@oscaner-skills/engineering` (self — always present when the gate runs) and `@oscaner-skills/osuperpowers-router` (router; needed for slash-trigger routing in Claude Code/Cursor).
 
 **Per-harness probe + failure behavior** (mirror `checkHarness`'s structured `CddBlockedError`):
 
@@ -223,11 +223,11 @@ The current pre-flight (`packages/engineering/bin/engine/lib/registry.mjs` `chec
 - `docs/research/2026-08-10-harness-marketplace-hooks.md` — prior harness capability matrix (skill dirs, install channels for Copilot/Rovo/Vibe/Kiro/Trae, `.agents/skills/` reader list)
 - `docs/research/2026-08-10-harness-hooks-matrix.md` — per-harness hooks + trust ceremonies (verified 2026-08-13)
 - `docs/gate-install.md` — per-harness gate install channels + trust ceremonies (claude/cursor/grok/qoder/gemini/trae/vibe/kiro/pi/opencode/codex)
-- `packages/engineering/bin/engine/lib/registry.mjs` + `harness-registry.json` — current CDD pre-flight (`checkHarness` → CLI presence only)
-- `packages/engineering/bin/os-init/install-gates.mjs` — per-harness detection (`commandExists`, `~/.trae` dir check) and guide/trust text
-- `packages/engineering/skills/os-*/SKILL.md` — "Read Upstream" (claude `$CLAUDE_PLUGIN_ROOT/../superpowers/…`, fallback `<repo-root>/vendors/superpowers/…`) + mattpocock delegate list
-- `packages/engineering/docs/subagent-lifecycle.md` — "Rule: Delegate Load Failure" (silent degradation when a plugin is wholly missing)
+- `packages/osuperpowers/bin/engine/lib/registry.mjs` + `harness-registry.json` — current CDD pre-flight (`checkHarness` → CLI presence only)
+- `packages/osuperpowers/bin/init/install-gates.mjs` — per-harness detection (`commandExists`, `~/.trae` dir check) and guide/trust text
+- `packages/osuperpowers/skills/os-*/SKILL.md` — "Read Upstream" (claude `$CLAUDE_PLUGIN_ROOT/../superpowers/…`, fallback `<repo-root>/vendors/superpowers/…`) + mattpocock delegate list
+- `packages/osuperpowers/docs/subagent-lifecycle.md` — "Rule: Delegate Load Failure" (silent degradation when a plugin is wholly missing)
 - `scripts/lib/publish-vendor.mjs` — vendored `@oscaner-skills/*` assembly (`contentRoot`, `pi` key `{skills:["./skills"]}`)
-- `packages/engineering/package.json` / `packages/superpowers-overrides/package.json` — first-party npm package metadata (`oscaner-plugin`, `main` → opencode adapter)
-- `.claude-plugin/marketplace.json` / `marketplace/source.json` — marketplace `name: "oscaner"`, plugin names (`superpowers`, `mattpocock-skills`, `engineering`, `superpowers-overrides`, `impeccable`), relative-path sources (not npm)
+- `packages/osuperpowers/package.json` / `packages/osuperpowers-router/package.json` — first-party npm package metadata (`oscaner-plugin`, `main` → opencode adapter)
+- `.claude-plugin/marketplace.json` / `marketplace/source.json` — marketplace `name: "oscaner"`, plugin names (`superpowers`, `mattpocock-skills`, `engineering`, `osuperpowers-router`, `impeccable`), relative-path sources (not npm)
 - Vendored submodules: `vendors/superpowers/` (has `.claude-plugin/plugin.json` + `gemini-extension.json`), `vendors/mattpocock-skills/` (has `.claude-plugin/plugin.json`, no gemini manifest), `vendors/impeccable/plugin/`

@@ -26,6 +26,7 @@ import {
   decideProbe,
   collectGaps,
   resolveUpstreamTag,
+  classifyProbeError,
 } from "./publish-vendor.mjs";
 import { thinGeminiExtension } from "./emit/manifests.mjs";
 
@@ -610,4 +611,24 @@ test("stageVendor impeccable does not produce gemini-extension.json", () => {
   const stageRoot = join(root, "stage");
   const dest = stageVendor("impeccable", root, stageRoot);
   assert.ok(!existsSync(join(dest, "gemini-extension.json")));
+});
+
+// ---------------------------------------------------------------------------
+// classifyProbeError — stderr regex 判定 (Task 2)
+// ---------------------------------------------------------------------------
+
+test("classifyProbeError — E404 → E404", () => {
+  assert.equal(classifyProbeError("npm ERR! code E404\nnpm ERR! 404 Not found - GET https://registry.npmjs.org/@oscaner-skills%2fimpeccable"), "E404");
+});
+
+test("classifyProbeError — Not found → E404", () => {
+  assert.equal(classifyProbeError("npm ERR! 404 Not found"), "E404");
+});
+
+test("classifyProbeError — other error → error", () => {
+  assert.equal(classifyProbeError("npm ERR! code E403\nnpm ERR! 403 Forbidden"), "error");
+});
+
+test("classifyProbeError — empty stderr → error", () => {
+  assert.equal(classifyProbeError(""), "error");
 });

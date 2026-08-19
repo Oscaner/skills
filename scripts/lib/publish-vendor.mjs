@@ -19,6 +19,7 @@
  */
 
 import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   readFileSync,
   existsSync,
@@ -74,6 +75,82 @@ export function resolveUpstreamTag(version, ctx, tagExists) {
     if (tagExists(`refs/tags/${tag}`)) return tag;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// I/O helpers for vendor publish (Task 2)
+// ---------------------------------------------------------------------------
+
+/** npm view stderr 判定：含 E404/Not found → "E404"；否则 → "error" */
+export function classifyProbeError(stderr) {
+  if (/E404|Not found/i.test(stderr)) return "E404";
+  return "error";
+}
+
+/** 三态探测：npm view <name>@<version> → "exit0" | "E404" | "error" */
+export function probeRegistryVersion(name, version) {
+  const { status, stderr } = spawnSync("npm", ["view", `${name}@${version}`, "version"], { encoding: "utf8" });
+  if (status === 0) return "exit0";
+  return classifyProbeError(stderr ?? "");
+}
+
+/** 枚举已发布版本；E404 返回 []（未首次发布） */
+export function listRegistryVersions(name) {
+  try {
+    const { stdout } = spawnSync("npm", ["view", name, "versions", "--json"], { encoding: "utf8" });
+    return JSON.parse(stdout ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+/** git ls-remote 检查 tag 是否存在于 origin */
+export function probeTagExists(name, version) {
+  const { status } = spawnSync(
+    "git",
+    ["ls-remote", "--exit-code", "--tags", "origin", `refs/tags/${name}@${version}`],
+    { stdio: "ignore" },
+  );
+  return status === 0;
+}
+
+/** gh release view 检查 Release 是否存在（runner 注入 GITHUB_TOKEN env） */
+export function probeReleaseExists(name, version) {
+  const { status } = spawnSync("gh", ["release", "view", `${name}@${version}`], { stdio: "ignore" });
+  return status === 0;
+}
+
+/** 解析 .gitmodules，返回 vendor 上游 owner/repo（GitHub 返回 "owner/repo"，非 GitHub 返回 null） */
+export function readGitmodules(root, vendorName) {
+  const content = readFileSync(join(root, ".gitmodules"), "utf8");
+  const sectionRegex = /\[submodule "([^"]+)"\][^[]*?url\s*=\s*([^\n]+)/gs;
+  for (const [, subName, url] of content.matchAll(sectionRegex)) {
+    if (subName === vendorName) {
+      const m = url.trim().match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+      return m ? `${m[1]}/${m[2]}` : null;
+    }
+  }
+  return null;
+}
+
+/** git ls-remote 探测上游 repo 是否有指定 tag（host 非 GitHub → false） */
+export function probeUpstreamTagExists(root, vendorName, tagRef) {
+  const upstreamRepo = readGitmodules(root, vendorName);
+  if (!upstreamRepo) return false;
+  const url = `https://github.com/${upstreamRepo}.git`;
+  const { status } = spawnSync("git", ["ls-remote", "--exit-code", "--tags", url, tagRef], { stdio: "ignore" });
+  return status === 0;
+}
+
+/** 取 submodule HEAD 上匹配 TAG_PATTERNS 的 tag（null = 无匹配） */
+function headTagAtHead(root, vendorName) {
+  const submodulePath = join(root, SUBMODULE_PATHS[vendorName]);
+  try {
+    const { stdout } = spawnSync("git", ["-C", submodulePath, "tag", "--points-at", "HEAD"], { encoding: "utf8" });
+    return stdout.split("\n").find((t) => t && TAG_PATTERNS[vendorName].test(t)) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -410,8 +487,7 @@ export function defaultStageRoot(root) {
 }
 
 /**
- * Assemble + publish every vendor. Fresh staging root each run (stale staged
- * packages from a previous run are removed first). Returns the staging root.
+ * Assemble + publish every vendor; 输出 registry 全量差集到 stdout。
  * @param {string} root repo root
  * @param {{ dryRun?: boolean }} opts
  */
@@ -419,8 +495,87 @@ export function publishAll(root, { dryRun = false } = {}) {
   const stageRoot = defaultStageRoot(root);
   rmSync(stageRoot, { recursive: true, force: true });
   mkdirSync(stageRoot, { recursive: true });
-  for (const name of listVendors(root)) {
-    publishVendor(name, root, { dryRun, stageRoot });
+
+  // 缓存 vendor 列表 + 版本：避免 publish 循环与 gap 循环重复 listVendors + resolveVendorVersion I/O
+  const vendorList = listVendors(root);
+  const vendorData = vendorList.map((name) => ({ name, version: resolveVendorVersion(name, root) }));
+
+  const publishedThisRun = []; // 成功发布 / EPUBLISHCONFLICT 归一化的 vendor name 列表
+
+  // ── Phase 1: stage + publish ────────────────────────────────────────────
+  for (const { name, version } of vendorData) {
+    const dest = stageVendor(name, root, stageRoot);
+
+    if (dryRun) {
+      // dry-run：不探测、不发布，stdout 在函数末尾统一输出 []
+      continue;
+    }
+
+    // probe（三态）
+    const probe = probeRegistryVersion(`@oscaner-skills/${name}`, version);
+    const decision = decideProbe(probe); // E404→publish / exit0→skip / error→throw（release 中止）
+
+    if (decision === "skip") {
+      process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published\n`);
+      // 继续：该版本可能缺 tag/Release，由差集补建
+    }
+
+    if (decision === "publish") {
+      const { status, stdout, stderr } = spawnSync(
+        "npm",
+        ["publish", "--access", "public"],
+        { cwd: dest, encoding: "utf8" },
+      );
+      // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
+      if (stderr) process.stderr.write(stderr);
+      if (status === 0) {
+        process.stderr.write(`[publish] @oscaner-skills/${name}@${version} → npm\n`);
+        publishedThisRun.push(name);
+      } else if (/EPUBLISHCONFLICT/i.test((stdout ?? "") + (stderr ?? ""))) {
+        // TOCTOU 归一化：已发布 skip + 记录进 publishedThisRun（进差集）
+        process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published (EPUBLISHCONFLICT)\n`);
+        publishedThisRun.push(name);
+      } else {
+        throw new Error(`npm publish failed for ${name}@${version}: ${(stdout ?? "") + (stderr ?? "")}`);
+      }
+    }
   }
+
+  if (dryRun) {
+    process.stdout.write("[]\n");
+    return stageRoot;
+  }
+
+  // ── Phase 2: registry 全量差集 ──────────────────────────────────────────
+  const items = [];
+  for (const { name, version: currentVersion } of vendorData) {
+    const registryVersions = listRegistryVersions(`@oscaner-skills/${name}`);
+    // union：registry + 本轮发布（防 TOCTOU registry 索引滞后）
+    const publishedVersion = publishedThisRun.includes(name) ? currentVersion : null;
+    const allVersions = [...new Set([...registryVersions, ...(publishedVersion ? [publishedVersion] : [])])];
+    if (allVersions.length === 0) continue;
+
+    // 构建本仓库 tag/release 索引
+    const tagIndex = new Set();
+    const releaseIndex = new Set();
+    for (const v of allVersions) {
+      if (probeTagExists(name, v)) tagIndex.add(v);
+      if (probeReleaseExists(name, v)) releaseIndex.add(v);
+    }
+
+    const gaps = collectGaps(allVersions, tagIndex, releaseIndex);
+    const upstreamRepo = readGitmodules(root, name);
+    const headTag = headTagAtHead(root, name);
+
+    for (const gap of gaps) {
+      const upstreamTag = resolveUpstreamTag(gap.version, { headVersion: currentVersion, headTag }, (ref) =>
+        probeUpstreamTagExists(root, name, ref),
+      );
+      items.push({ name, version: gap.version, upstreamRepo, upstreamTag });
+    }
+  }
+
+  // ── stdout 契约：单行合法 JSON 数组（bin 不再写 stdout）──────────────────
+  process.stdout.write(JSON.stringify(items) + "\n");
   return stageRoot;
 }

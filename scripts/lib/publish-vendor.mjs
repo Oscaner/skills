@@ -38,6 +38,44 @@ import {
 } from "./submodule-tags.mjs";
 import { thinGeminiExtension, geminiMarkdown } from "./emit/manifests.mjs";
 
+// ---------------------------------------------------------------------------
+// Pure helpers for vendor publish I/O (Task 1)
+// ---------------------------------------------------------------------------
+
+/** @param {"exit0"|"E404"|"error"} probeResult */
+export function decideProbe(probeResult) {
+  if (probeResult === "exit0") return "skip";
+  if (probeResult === "E404") return "publish";
+  throw new Error(`probe error (${probeResult}) — aborting release`);
+}
+
+/**
+ * @param {string[]} allVersions   合并后版本列表（registryVersions ∪ publishedThisRun 去重）
+ * @param {Set<string>} tagIndex   已有 tag 的 `version` 集合
+ * @param {Set<string>} releaseIndex  已有 Release 的 `version` 集合
+ * @returns {{ version: string }[]}
+ */
+export function collectGaps(allVersions, tagIndex, releaseIndex) {
+  return allVersions
+    .filter((v) => !tagIndex.has(v) || !releaseIndex.has(v))
+    .map((version) => ({ version }));
+}
+
+/**
+ * @param {string}   version 当前版本
+ * @param {{ headVersion: string|null, headTag: string|null }} ctx
+ * @param {(tagRef: string) => boolean} tagExists  注入的 tag 探测（纯函数可注入 stub）
+ * @returns {string|null} upstreamTag（null = 双失败 → 省略）
+ */
+export function resolveUpstreamTag(version, ctx, tagExists) {
+  if (ctx.headVersion === version && ctx.headTag) return ctx.headTag;
+  const candidates = [`v${version}`, `skill-v${version}`];
+  for (const tag of candidates) {
+    if (tagExists(`refs/tags/${tag}`)) return tag;
+  }
+  return null;
+}
+
 /**
  * Discover the vendored plugin set from the `vendors/` directory, sorted.
  * cwd-independent — the caller passes the repo root. A vendor is any

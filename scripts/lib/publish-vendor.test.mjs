@@ -23,6 +23,9 @@ import {
   listVendors,
   assemblyTemplate,
   derivePiKey,
+  decideProbe,
+  collectGaps,
+  resolveUpstreamTag,
 } from "./publish-vendor.mjs";
 import { thinGeminiExtension } from "./emit/manifests.mjs";
 
@@ -167,7 +170,85 @@ function makeMattpocockFixture() {
 }
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (dir) rmSync(dir, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// decideProbe — 三态判定
+// ---------------------------------------------------------------------------
+
+test("decideProbe — exit0 → skip", () => {
+  assert.equal(decideProbe("exit0"), "skip");
+});
+
+test("decideProbe — E404 → publish", () => {
+  assert.equal(decideProbe("E404"), "publish");
+});
+
+test("decideProbe — error → throws", () => {
+  assert.throws(() => decideProbe("error"), /probe error.*aborting release/);
+});
+
+// ---------------------------------------------------------------------------
+// collectGaps — 全量差集
+// ---------------------------------------------------------------------------
+
+test("collectGaps — version with tag+release → excluded", () => {
+  const tagIdx = new Set(["6.2.0"]);
+  const relIdx = new Set(["6.2.0"]);
+  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), []);
+});
+
+test("collectGaps — missing tag → included", () => {
+  const tagIdx = new Set();
+  const relIdx = new Set(["6.2.0"]);
+  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), [{ version: "6.2.0" }]);
+});
+
+test("collectGaps — missing release → included", () => {
+  const tagIdx = new Set(["6.2.0"]);
+  const relIdx = new Set();
+  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), [{ version: "6.2.0" }]);
+});
+
+test("collectGaps — TOCTOU union via caller: registry+publishedThisRun both included", () => {
+  const allVersions = ["6.0.0", "6.2.0"];
+  const tagIdx = new Set(["6.0.0"]);
+  const relIdx = new Set(["6.0.0", "6.2.0"]);
+  assert.deepEqual(collectGaps(allVersions, tagIdx, relIdx), [{ version: "6.2.0" }]);
+});
+
+test("collectGaps — all present → empty", () => {
+  const allVersions = ["1.0.0", "1.1.0"];
+  const tagIdx = new Set(["1.0.0", "1.1.0"]);
+  const relIdx = new Set(["1.0.0", "1.1.0"]);
+  assert.deepEqual(collectGaps(allVersions, tagIdx, relIdx), []);
+});
+
+// ---------------------------------------------------------------------------
+// resolveUpstreamTag — 三级链
+// ---------------------------------------------------------------------------
+
+test("resolveUpstreamTag — version matches HEAD → returns headTag", () => {
+  const tag = resolveUpstreamTag("6.2.0", { headVersion: "6.2.0", headTag: "v6.2.0" }, () => false);
+  assert.equal(tag, "v6.2.0");
+});
+
+test("resolveUpstreamTag — fall through to upstream probe → returns matched tag", () => {
+  const probe = (ref) => ref === "refs/tags/v6.0.0";
+  const tag = resolveUpstreamTag("6.0.0", { headVersion: "6.2.0", headTag: "v6.2.0" }, probe);
+  assert.equal(tag, "v6.0.0");
+});
+
+test("resolveUpstreamTag — skill-v candidate for impeccable", () => {
+  const probe = (ref) => ref === "refs/tags/skill-v4.0.4";
+  const tag = resolveUpstreamTag("4.0.4", { headVersion: "4.0.4", headTag: "skill-v4.0.4" }, probe);
+  assert.equal(tag, "skill-v4.0.4");
+});
+
+test("resolveUpstreamTag — both probes fail → returns null", () => {
+  const tag = resolveUpstreamTag("2.0.0", { headVersion: "1.0.0", headTag: "v1.0.0" }, () => false);
+  assert.equal(tag, null);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// bin/os-init/install-harness.mjs — per-harness 安装器（P6b T5，取代 install-gates.mjs）。
+// bin/init/install-harness.mjs — per-harness 安装器（P6b T5，取代 install-gates.mjs）。
 // 用法: node install-harness.mjs [--harness h1,h2,...] [--dry-run]
 // 流程：
 //   1. 检测  —— command -v <cli>；仅列出已装 harness（harness-detect util）
 //   2. 引导  —— install-and-use 通道：打印 probe + install hint，不写文件
-//   3. 配置  —— os-init 通道：写 config（原生 harness 从 configs/ 派生模板）+ 复制 skills
+//   3. 配置  —— init 通道：写 config（原生 harness 从 configs/ 派生模板）+ 复制 skills
 //   4. 信任  —— grok `grok --trust`；trae Enable…；codex `/hooks`；gemini 指纹
 //   5. 报告  —— 已写 / 引导 / 跳过 列表；--dry-run 只预览不写
-//   6. manifest — bin/os-init/state/<harness>.json 全量同步
-//     { engineeringVersion, files: { path → { hash, source } } }
-//     source = "os-init" 标记自动生成的文件
-//     删除仅限 manifest 追踪 + source:"os-init" + on-disk hash 未变
+//   6. manifest — ~/.osuperpowers/state/<harness>.json 全量同步
+//     { osuperpowersVersion, files: { path → { hash, source } } }
+//     source = "init" 标记自动生成的文件
+//     删除仅限 manifest 追踪 + source:"init" + on-disk hash 未变
 //     hash 变 = 用户改动 → 保留并报告
 // 幂等：重复运行覆盖原生 config（保留用户非冲突内容：JSON 深合并 / TOML 追加）；
 // 未知 --harness → stderr + exit 1；写失败 → 明确报错不静默。
@@ -31,7 +31,7 @@ const PLACEHOLDER = GATE_ADAPTER_PLACEHOLDER;
 const HOME = process.env.HOME ?? "";
 
 // pi 扩展 shim 模板标记 —— 用于识别「目标 .ts 文件是否为我们模板生成」。
-const PI_TS_MARKER = "os-init harness — Pi TS extension";
+const PI_TS_MARKER = "osuperpowers harness — Pi TS extension";
 
 const homePath = (...seg) => path.join(HOME, ...seg);
 
@@ -51,14 +51,14 @@ function commandExists(name) {
 
 // harness 安装描述：per-harness 具体行为。
 // install-and-use 通道：probe → install hint（不写文件）
-// os-init 通道：native config 写入 / guide + trust
+// init 通道：native config 写入 / guide + trust
 const HARNESSES = {
   claude: { channel: "install-and-use", detect: () => commandExists("claude"), hint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner` },
   "cursor-agent": { channel: "install-and-use", detect: () => commandExists("cursor-agent"), hint: () => "copy skills 到 .agents/skills/ 或装 marketplace" },
   droid: { channel: "install-and-use", detect: () => commandExists("droid"), hint: () => "copy skills 到 .agents/skills/" },
   grok: {
     channel: "install-and-use",
-    config: { template: path.join(CONFIGS, "grok", "engineering.json"), dest: () => homePath(".grok", "hooks", "engineering.json") },
+    config: { template: path.join(CONFIGS, "grok", "osuperpowers.json"), dest: () => homePath(".grok", "hooks", "osuperpowers.json") },
     detect: () => commandExists("grok"),
     trust: "grok --trust",
   },
@@ -67,7 +67,7 @@ const HARNESSES = {
     channel: "install-and-use",
     detect: () => commandExists("codex"),
     hint: () => "安装 .codex-plugin（/plugins）",
-    trust: "/hooks 审查并信任 engineering 钩子",
+    trust: "/hooks 审查并信任 osuperpowers 钩子",
   },
   gemini: {
     channel: "install-and-use",
@@ -78,26 +78,26 @@ const HARNESSES = {
   pi: {
     channel: "install-and-use",
     detect: () => commandExists("pi"),
-    config: { template: path.join(CONFIGS, "pi", "pi.ts"), dest: () => homePath(".pi", "agent", "extensions", "engineering.ts") },
+    config: { template: path.join(CONFIGS, "pi", "pi.ts"), dest: () => homePath(".pi", "agent", "extensions", "osuperpowers.ts") },
     hint: (p) => `pi install npm:@oscaner-skills/${p}`,
   },
   trae: {
-    channel: "os-init",
+    channel: "init",
     config: { template: path.join(CONFIGS, "trae", "hooks.json"), dest: () => homePath(".trae", "hooks.json") },
     detect: () => existsSync(homePath(".trae")),
     trust: "Enable 钩子 + sandbox/local 执行模式",
   },
   vibe: {
-    channel: "os-init",
+    channel: "init",
     config: { template: path.join(CONFIGS, "vibe", "hooks.toml"), dest: () => homePath(".vibe", "hooks.toml") },
     detect: () => commandExists("vibe"),
   },
   kiro: {
-    channel: "os-init",
-    config: { template: path.join(CONFIGS, "kiro", "hooks.json"), dest: () => homePath(".kiro", "hooks", "engineering.json") },
+    channel: "init",
+    config: { template: path.join(CONFIGS, "kiro", "hooks.json"), dest: () => homePath(".kiro", "hooks", "osuperpowers.json") },
     detect: () => commandExists("kiro"),
   },
-  opencode: { channel: "os-init", hint: "opencode.json `plugin` 数组加 `@oscaner-skills/osuperpowers`", detect: () => commandExists("opencode") },
+  opencode: { channel: "init", hint: "opencode.json `plugin` 数组加 `@oscaner-skills/osuperpowers`", detect: () => commandExists("opencode") },
 };
 
 // hook 条目签名 —— 去重键（trigger/matcher + 命令）。
@@ -159,19 +159,19 @@ function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 
-const ENGINEERING_VERSION = JSON.parse(readFileSync(path.join(PKG_ROOT, "package.json"), "utf8")).version;
+const OSUPERPOWERS_VERSION = JSON.parse(readFileSync(path.join(PKG_ROOT, "package.json"), "utf8")).version;
 
 function manifestPath(harness) {
-  return path.join(HOME, ".engineering", "state", `${harness}.json`);
+  return path.join(HOME, ".osuperpowers", "state", `${harness}.json`);
 }
 
 function readManifest(harness) {
   const p = manifestPath(harness);
-  if (!existsSync(p)) return { engineeringVersion: ENGINEERING_VERSION, files: {} };
+  if (!existsSync(p)) return { osuperpowersVersion: OSUPERPOWERS_VERSION, files: {} };
   try {
     return JSON.parse(readFileSync(p, "utf8"));
   } catch {
-    return { engineeringVersion: ENGINEERING_VERSION, files: {} };
+    return { osuperpowersVersion: OSUPERPOWERS_VERSION, files: {} };
   }
 }
 
@@ -182,12 +182,12 @@ async function writeManifest(harness, manifest) {
 }
 
 // manifest 全量同步：清理已移除的 tracked 文件
-// 删除仅限 source:"os-init" + on-disk hash 未变的文件（磁盘 + manifest 条目）
+// 删除仅限 source:"init" + on-disk hash 未变的文件（磁盘 + manifest 条目）
 async function syncManifest(harness, manifest) {
   const toDelete = [];
   const toKeep = [];
   for (const [filePath, tracked] of Object.entries(manifest.files ?? {})) {
-    if (tracked.source !== "os-init") {
+    if (tracked.source !== "init") {
       toKeep.push(filePath);
       continue;
     }
@@ -217,7 +217,7 @@ async function syncManifest(harness, manifest) {
 }
 
 // 记录文件到 manifest
-function trackFile(manifest, filePath, content, source = "os-init") {
+function trackFile(manifest, filePath, content, source = "init") {
   if (!manifest.files) manifest.files = {};
   manifest.files[filePath] = { hash: sha256(content), source };
 }
@@ -258,7 +258,7 @@ function parseArgs(argv) {
     } else if (argv[i] === "--harness") {
       args.harness = (argv[++i] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
     } else {
-      console.error(`os-init harness: 未知参数 ${argv[i]}`);
+      console.error(`osuperpowers:init harness: 未知参数 ${argv[i]}`);
       exitCliMissing(`unknown argument: ${argv[i]}`);
     }
   }
@@ -270,16 +270,16 @@ async function main() {
   const names = args.harness ?? Object.keys(HARNESSES);
   const unknown = names.filter((n) => !HARNESSES[n]);
   if (unknown.length) {
-    console.error(`os-init harness: 未知 harness: ${unknown.join(", ")}（可用: ${Object.keys(HARNESSES).join(", ")}）`);
+    console.error(`osuperpowers:init harness: 未知 harness: ${unknown.join(", ")}（可用: ${Object.keys(HARNESSES).join(", ")}）`);
     exitBlocked(`unknown harness: ${unknown.join(", ")}`);
   }
   const nativeSet = new Set(deriveNativeHarnesses(CONFIGS));
-  console.log(`os-init harness — ${args.dryRun ? "dry-run preview（不写任何文件）" : "install"}`);
+  console.log(`osuperpowers:init harness — ${args.dryRun ? "dry-run preview（不写任何文件）" : "install"}`);
   let wrote = 0;
   let guided = 0;
   let skipped = 0;
 
-  // manifest 全量同步：清理已移除的 tracked 文件（source:"os-init" + hash 未变 → 删除磁盘 + manifest）
+  // manifest 全量同步：清理已移除的 tracked 文件（source:"init" + hash 未变 → 删除磁盘 + manifest）
   // 在 install loop 前运行，避免 installNative 刚写入的文件被误删
   for (const name of names) {
     const manifest = readManifest(name);
@@ -322,6 +322,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(`os-init harness: ${e.message}`);
+  console.error(`osuperpowers:init harness: ${e.message}`);
   exitBlocked(e.message);
 });

@@ -15,7 +15,7 @@ test("JSON config 模板 parse", () => {
   const jsonFiles = [
     ["trae", "hooks.json"],
     ["kiro", "hooks.json"],
-    ["grok", "engineering.json"],
+    ["grok", "osuperpowers.json"],
     ["opencode.json"],
   ];
   for (const rel of jsonFiles) {

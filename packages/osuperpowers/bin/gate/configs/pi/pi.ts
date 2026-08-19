@@ -1,4 +1,4 @@
-// os-init gates — Pi TS extension（manual extension copy）。
+// init gates — Pi TS extension（manual extension copy）。
 // Pi auto-discovers `*.ts` / `*/index.ts` under ~/.pi/agent/extensions/ and
 // .pi/extensions/（Pi 包确有 package.json `pi` key 机制，但 gate adapter 是
 // .mjs、不能作 .ts extension 走包通道 —— 见 configs/pi/README.md）。本 shim

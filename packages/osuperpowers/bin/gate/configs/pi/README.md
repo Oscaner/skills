@@ -1,10 +1,10 @@
 # Pi gate — TS extension
 
-Pi packages have a `package.json` `pi` key mechanism — `pi install npm:@x / git:host/repo / path` consumes a `pi` key with conventional dirs (`skills/ extensions/ prompts/ themes/`). The engineering gate is delivered as a **TS extension** (`pi.ts`) that re-exports the package's gate core via the Pi TS loader.
+Pi packages have a `package.json` `pi` key mechanism — `pi install npm:@x / git:host/repo / path` consumes a `pi` key with conventional dirs (`skills/ extensions/ prompts/ themes/`). The osuperpowers gate is delivered as a **TS extension** (`pi.ts`) that re-exports the package's gate core via the Pi TS loader.
 
 ## How it works
 
-`init harness` writes `~/.pi/agent/extensions/engineering.ts` — a thin shim
+`init harness` writes `~/.pi/agent/extensions/osuperpowers.ts` — a thin shim
 that re-exports the package's `bin/gate/adapters/pi.ts` default-export factory:
 
 ```ts
@@ -28,7 +28,7 @@ Or copy manually:
 mkdir -p ~/.pi/agent/extensions
 printf 'export { default } from "%s";\n' \
   "$(node -p "require.resolve('@oscaner-skills/osuperpowers/bin/gate/adapters/pi.ts')")" \
-  > ~/.pi/agent/extensions/engineering.ts
+  > ~/.pi/agent/extensions/osuperpowers.ts
 ```
 
 ## `configs/pi/`

@@ -1,6 +1,6 @@
-// packages/osuperpowers/tests/ci-validate.test.mjs — T4: validate 编排的 engineering 接线守卫。
+// packages/osuperpowers/tests/ci-validate.test.mjs — T4: validate 编排的 osuperpowers 接线守卫。
 // Node port of ci-validate-wiring.test.sh: guards scripts/ci-validate.mjs so future edits
-// cannot drop engineering coverage from `pnpm run validate`. Unlike the bash guard (source
+// cannot drop osuperpowers coverage from `pnpm run validate`. Unlike the bash guard (source
 // grep), this imports the orchestrator and inspects the exported `steps` array — wiring is
 // asserted on real step registration, not string matching. Also covers failure propagation:
 // main() returns 1 with a structured `== FAIL: <step> ==` on stderr when a step throws.
@@ -93,12 +93,12 @@ test("rule-reference.test.mjs invoked via node --test", () => {
   assert.ok(rr.args.some((a) => a.includes("rule-reference.test.mjs")), "rule-reference.test.mjs path missing");
 });
 
-// 5. node:test gate + os-init + engine suites wired (T1-T3 node:test aggregation)
-test("node:test 步骤含 gate + os-init + engine 套件 glob", () => {
+// 5. node:test gate + init + engine suites wired (T1-T3 node:test aggregation)
+test("node:test 步骤含 gate + init + engine 套件 glob", () => {
   const nt = behaviorNodeTestStep();
   assert.ok(nt, "5b node:test 步骤缺失");
   assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/gate/tests/*.test.mjs")), "gate suite glob missing");
-  assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/os-init/tests/*.test.mjs")), "os-init suite glob missing");
+  assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/init/tests/*.test.mjs")), "init suite glob missing");
   assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/engine/tests/*.test.mjs")), "engine suite glob missing");
 });
 

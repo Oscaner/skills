@@ -168,32 +168,32 @@ subprocessStep("5. overrides build validation", "node", [
 // 5b. osuperpowers plugin validation
 checkStep("5b. osuperpowers plugin validation", () => console.log("OK — osuperpowers plugin validation"));
 
-function checkEngineeringSkillsCount() {
+function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 13; // 12 emitters + os-init
+  const EXPECTED = 13; // 12 emitters + init
   let n;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");
     assert(existsSync(dir), `missing default skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init), got ${n}`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + init), got ${n}`);
     console.log(`OK — ${n} osuperpowers skills (default skills/ discovery)`);
   } else if (typeof skills === "string") {
     const dir = path.join(p, skills.replace(/^\.\//, ""));
     assert(existsSync(dir), `missing skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init), got ${n}`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + init), got ${n}`);
     console.log(`OK — ${n} osuperpowers skills (directory ${skills})`);
   } else {
     const missing = skills.filter((s) => !existsSync(path.join(p, s.replace(/^\.\//, ""))));
     assert(missing.length === 0, `skills[] points to missing dirs: ${missing}`);
-    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init), got ${skills.length}`);
+    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (12 emitters + init), got ${skills.length}`);
     console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
 }
-checkStep("5b. osuperpowers skills-count (13)", checkEngineeringSkillsCount);
+checkStep("5b. osuperpowers skills-count (13)", checkOsuperpowersSkillsCount);
 
 subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
   "--test",
@@ -201,22 +201,22 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 ]);
 
 // node:test 两棵树：行为/集成树 packages/osuperpowers/tests/（helpers.mjs + rule-reference +
-// ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + os-init + utils。
+// ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + init + utils。
 // 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
 // 旧 bash engine 测试已全部迁移 → Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。
-subprocessStep("5b. node:test engine + gate + os-init + utils + behavior", "node", [
+subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", [
   "--test",
   "packages/osuperpowers/tests/*.test.mjs",
   "packages/osuperpowers/bin/engine/tests/*.test.mjs",
   "packages/osuperpowers/bin/gate/tests/*.test.mjs",
-  "packages/osuperpowers/bin/os-init/tests/*.test.mjs",
+  "packages/osuperpowers/bin/init/tests/*.test.mjs",
   "packages/osuperpowers/bin/utils/tests/*.test.mjs",
 ]);
 
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
 
 // 5b2. osuperpowers gate hooks
-function checkEngineeringGateHooks() {
+function checkOsuperpowersGateHooks() {
   const p = path.join(ROOT, "packages/osuperpowers");
   for (const f of ["hooks/hooks.json", "hooks/hooks-cursor.json"]) {
     assert(existsSync(path.join(p, f)), `missing: ${f}`);
@@ -233,7 +233,7 @@ function checkEngineeringGateHooks() {
   }
   console.log("OK — osuperpowers gate hooks + engine entries executable");
 }
-checkStep("5b2. osuperpowers gate hooks + engine entries executable", checkEngineeringGateHooks);
+checkStep("5b2. osuperpowers gate hooks + engine entries executable", checkOsuperpowersGateHooks);
 
 // 5c. engine + router zero-residue grep (sdd_/spor- — must not regress)
 const RESIDUE_TARGETS = [

@@ -130,6 +130,8 @@ git commit -m "chore: bump mattpocock-skills submodule"
 
 发布流程：[`.changeset/README.md`](.changeset/README.md)。
 
+Vendored 插件（`@oscaner-skills/{superpowers,mattpocock-skills,impeccable}`）在每次 publish 模式发布时随 first-party 一起装配发布到 npm，并经由 registry 全量一致性差集保证每个 npm 版本同时拥有 git tag + GitHub Release。详见 [`.changeset/README.md` vendor 发布段](.changeset/README.md#vendor-publishing)。
+
 ## 许可
 
 一方代码（`osuperpowers`、`osuperpowers-router`、marketplace 工具链）：[MIT](LICENSE)。

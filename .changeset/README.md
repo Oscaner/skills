@@ -10,19 +10,19 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 Run `pnpm changeset` when you change behavior or wiring under `packages/osuperpowers-router/` or `packages/osuperpowers/`. Select the plugin(s) the change affects — a changeset may name both. Version bumps are computed per plugin by `node scripts/version-packages.mjs`:
 
-- `@oscaner-skills/osuperpowers-router` → `{superpowers-semver}-overrides.{major}.{minor}.{patch}` (patch increment on the same superpowers base)
+- `@oscaner-skills/osuperpowers-router` → `{superpowers-semver}-router.{major}.{minor}.{patch}` (patch increment on the same superpowers base)
 - `@oscaner-skills/osuperpowers` → plain semver bump (patch / minor / major per the changeset's declared type)
 
-You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR against `develop` that sets `{semver}-overrides.0.0.0` directly; release happens after merging `develop → main`. This resets **overrides only**; osuperpowers keeps its independent semver.
+You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR against `develop` that sets `{semver}-router.0.0.0` directly; release happens after merging `develop → main`. This resets **overrides only**; osuperpowers keeps its independent semver.
 
 ## Version scheme
 
-`@oscaner-skills/osuperpowers-router` follows `{superpowers-semver}-overrides.{major}.{minor}.{patch}`:
+`@oscaner-skills/osuperpowers-router` follows `{superpowers-semver}-router.{major}.{minor}.{patch}`:
 
-- `6.2.0-overrides.0.0.0` — aligned with superpowers 6.2.0, no overrides changes yet
-- `6.2.0-overrides.0.15.0` — fifteenth overrides-only release on superpowers 6.2.0 base (minor segment tracks release count on base)
-- `6.2.0-overrides.0.15.1` — next patch increment from changesets on the same base
-- `6.3.0-overrides.0.0.0` — resets when superpowers base moves to 6.3.0 (any semver segment change, including patch, resets to `0.0.0`)
+- `6.2.0-router.0.0.0` — aligned with superpowers 6.2.0, no overrides changes yet
+- `6.2.0-router.0.15.0` — fifteenth overrides-only release on superpowers 6.2.0 base (minor segment tracks release count on base)
+- `6.2.0-router.0.15.1` — next patch increment from changesets on the same base
+- `6.3.0-router.0.0.0` — resets when superpowers base moves to 6.3.0 (any semver segment change, including patch, resets to `0.0.0`)
 
 `@oscaner-skills/osuperpowers` follows plain semver (`0.1.x`), bumped independently of superpowers:
 

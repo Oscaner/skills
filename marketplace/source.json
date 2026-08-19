@@ -118,7 +118,7 @@
       "cursor": {
         "emitMode": "plugin-root"
       },
-      "version": "6.2.0-overrides.0.15.3",
+      "version": "6.2.0-router.0.15.3",
       "description": "Trigger router for osuperpowers: intercepts upstream superpowers triggers and routes to osuperpowers / mattpocock targets.",
       "author": {
         "name": "Oscaner Miao",

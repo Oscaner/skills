@@ -144,7 +144,7 @@ export function assertPrereleasePrefix(root, source) {
   const overrides = source.plugins.find((p) => p.name === "osuperpowers-router");
   const superpowers = source.plugins.find((p) => p.name === "superpowers");
   if (!overrides?.version || !superpowers?.version) return;
-  const prefix = `${superpowers.version}-overrides.`;
+  const prefix = `${superpowers.version}-router.`;
   if (!overrides.version.startsWith(prefix)) {
     throw new Error(
       `${overrides.version} must start with ${prefix}`,

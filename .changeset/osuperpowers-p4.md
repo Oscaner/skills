@@ -3,10 +3,10 @@
 "@oscaner-skills/osuperpowers-router": patch
 ---
 
-osuperpowers P4 — 发布架构 v2（包即源）+ 统一 gate 面迁 Node。
+osuperpowers P4 — publishing architecture v2 (package-as-source) + gate surface ported to Node.
 
-- 目录重组 `packages/`（first-party）+ `vendors/`（superpowers / mattpocock-skills / impeccable 上游 submodule 源，不编辑）；`package.json#oscaner-plugin` 为唯一元数据源（source.json 派生）。
-- pnpm workspace + changesets 统一版本/发布所有 `@oscaner-skills/*` 包（vendors 构建期装配 republish，保留上游授权）。
-- marketplace + harness manifests 从 packages 生成；未来插件 = 加包目录自动接入。
-- gate 面迁 Node：`cdd-gate-core` + 薄 CLI（`gateDecide` 语义单一实现）；7 个原生 hook gate adapters（grok/qoder/trae/codex/gemini/vibe/kiro）+ opencode/pi TypeScript adapters（随包分发）；per-harness gate manifest 接线（qoder/codex/gemini/pi/opencode）；~800 行 bash 消灭。
-- os-init gates 概念建立（后由 P6b 的 `init harness` 安装器取代）。
+- Directory rework: `packages/` (first-party) + `vendors/` (upstream submodule sources: superpowers / mattpocock-skills / impeccable — never edited); `package.json#oscaner-plugin` is the single metadata source of truth (marketplace/source.json derived).
+- pnpm workspace + changesets version and publish all `@oscaner-skills/*` packages together (vendored plugins republished via build-time assembly, upstream attribution preserved).
+- Marketplace + harness manifests generated from packages; a future plugin = add a package directory, automatically wired into emit + publishing.
+- Gate surface ported to Node: `cdd-gate-core` + thin CLI (single `gateDecide` implementation); 7 native-hook gate adapters (grok/qoder/trae/codex/gemini/vibe/kiro) + opencode/pi TypeScript adapters (shipped with the package); per-harness gate manifest wiring; ~800 lines of bash eliminated.
+- The `os-init gates` concept landed (later superseded by the P6b `init harness` installer).

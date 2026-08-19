@@ -3,8 +3,8 @@
 "@oscaner-skills/osuperpowers-router": patch
 ---
 
-osuperpowers P6 — 引擎/流程加固 + 交付补齐（安装即用诚实化）。
+osuperpowers P6 — engine/flow hardening + delivery completion (install-and-use honesty).
 
-- **harness 前置检查（P6a）**：全 mode（implement/review/fix）进入嵌套 CLI 前，按 harness 探测上游 skills 插件可用性（superpowers / mattpocock-skills / `@oscaner-skills/*`，非 submodule 假设）+ plan/brief/templates 就位；缺失 → exit 3（install-and-use 通道）/ stderr 提示（init 通道）+ per-harness 安装指引；spec/plan review 改走 cli review 模式（cdd-exec 派发，D1/D2/D3 映射）。
-- **交付补齐（P6b）**：pi key 补齐（skills + gate TS extension）；gemini mattpocock-extension 装配 + error guard；qoder/codex plugin manifest 补全 → 真安装即用；`init harness` per-harness 安装器（harness-detect → 多选 → 原生 config 写入 + 复制 skills + manifest 全量同步 `{ osuperpowersVersion, files: { path → { hash, source } } }`）；grok 归安装即用（Claude marketplace）。
-- **research 集成（P6c）**：mattpocock-skills:research 融入 brainstorming 流程（explore-context 委派 research agent + findings markdown）。
+- **Harness pre-checks (P6a)**: before entering a nested CLI in every mode (implement/review/fix), probe per-harness availability of the required skills plugins (superpowers / mattpocock-skills / `@oscaner-skills/*` — no submodule assumption) plus plan/brief/templates presence; missing → exit 3 (install-and-use channel) / stderr hint (init channel) + per-harness install guidance; spec/plan review now runs through the CLI review mode (cdd-exec dispatch, D1/D2/D3 mapping).
+- **Delivery completion (P6b)**: pi key completed (skills + gate TS extension); gemini mattpocock-extension assembly with error guard; qoder/codex plugin manifests completed → genuine install-and-use; `init harness` per-harness installer (harness-detect → multi-select → native config writes + skills copy + manifest full-sync `{ osuperpowersVersion, files: { path → { hash, source } } }`); grok moved to install-and-use (Claude marketplace).
+- **Research integration (P6c)**: mattpocock-skills:research woven into the brainstorming flow (explore-context delegates to a research agent + findings markdown).

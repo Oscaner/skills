@@ -23,7 +23,7 @@ export const readonlyGitVerbs = [
 const BRANCH_REMOTE_READONLY_ARGS = new Set(["-a", "-r", "-v", "--show-current"]);
 
 // bash `:-` 语义（对齐引擎 ${TMPDIR:-/tmp}）：TMPDIR 未设或空串 → /tmp。
-const DEFAULT_PENDING_ROOT = path.join(process.env.TMPDIR?.trim() || "/tmp", "oscaner-engineering", "pending-cdd");
+const DEFAULT_PENDING_ROOT = path.join(process.env.TMPDIR?.trim() || "/tmp", "osuperpowers", "pending-cdd");
 const DEFAULT_PENDING_TTL = 86400;
 
 export function isWriteTool(name) {
@@ -228,7 +228,7 @@ function writeAllowed(absPath, repoRoot, workspace, phase) {
   }
 }
 
-// deny 消息 —— 等价 cdd_deny_message（含恢复指引）。os_root 为 engineering 插件根。
+// deny 消息 —— 等价 cdd_deny_message（含恢复指引）。os_root 为 osuperpowers 插件根。
 // 导出供 adapter（T3）用 r.context（taskNum/planBase）渲染 deny 文案。
 export function denyMessage(harness, taskNum, planBasename) {
   const osRoot = pluginRoot();

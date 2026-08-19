@@ -11,10 +11,10 @@ import { exitOk, exitCliMissing } from "../utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 
-// 对齐 cdd-common.sh 的 `${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd}`
+// 对齐 cdd-common.sh 的 `${CDD_PENDING_ROOT:-${TMPDIR:-/tmp}/osuperpowers/pending-cdd}`
 // 与 gate core 的 pendingPathFor（空串回退默认）。CDD_SESSION_MODE 用 `??`（空串视为显式空）。
 const PENDING_ROOT = process.env.CDD_PENDING_ROOT?.trim()
-  || path.join(process.env.TMPDIR?.trim() || "/tmp", "oscaner-engineering", "pending-cdd");
+  || path.join(process.env.TMPDIR?.trim() || "/tmp", "osuperpowers", "pending-cdd");
 
 const args = process.argv.slice(2);
 const subcommand = args[0] ?? "";

@@ -1,6 +1,6 @@
 // gate/tests/cdd-gate-core.test.mjs — P4b T2: gateDecide 语义移植测试。
 // 从 bin/lib/cdd-orchestrator-gate.sh 的行为移植语义（行为为准），pending 路径对齐引擎
-// （CDD_PENDING_ROOT 默认 ${TMPDIR:-/tmp}/oscaner-engineering/pending-cdd）。fixture
+// （CDD_PENDING_ROOT 默认 ${TMPDIR:-/tmp}/osuperpowers/pending-cdd）。fixture
 // 帮手来自 ./helpers.mjs。
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -182,14 +182,14 @@ test("TMPDIR 空串 → 默认 pending root 落到 /tmp（bash :- 语义）", ()
   const out = execFileSync("node", ["--input-type=module", "-e",
     `import { pendingPathFor } from ${JSON.stringify(coreUrl)}; process.stdout.write(pendingPathFor("s"));`],
     { env: { ...process.env, TMPDIR: "", CDD_PENDING_ROOT: "" }, encoding: "utf8" });
-  assert.ok(out.startsWith("/tmp/oscaner-engineering/"), `expected /tmp default root, got: ${out}`);
+  assert.ok(out.startsWith("/tmp/osuperpowers/"), `expected /tmp default root, got: ${out}`);
 });
 
 test("CDD_PENDING_ROOT 空串 → 回退默认 root（bash :- 语义）", () => {
   const out = execFileSync("node", ["--input-type=module", "-e",
     `import { pendingPathFor } from ${JSON.stringify(coreUrl)}; process.stdout.write(pendingPathFor("s"));`],
     { env: { ...process.env, TMPDIR: "/tmp", CDD_PENDING_ROOT: "" }, encoding: "utf8" });
-  assert.ok(out.startsWith("/tmp/oscaner-engineering/"), `expected /tmp default root, got: ${out}`);
+  assert.ok(out.startsWith("/tmp/osuperpowers/"), `expected /tmp default root, got: ${out}`);
 });
 
 test("CLI: stdin JSON → stdout JSON（薄 CLI 冒烟）", () => {

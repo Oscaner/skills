@@ -122,7 +122,7 @@ test("cdd-session-activate.mjs: CDD_PENDING_ROOT 缺省 → TMPDIR 派生默认�
   const res = runActivate(["minimal", "sess-def", "/repo"], { TMPDIR: t });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   const p = JSON.parse(
-    readFileSync(path.join(t, "oscaner-engineering", "pending-cdd", "sess-def.json"), "utf8"),
+    readFileSync(path.join(t, "osuperpowers", "pending-cdd", "sess-def.json"), "utf8"),
   );
   assert.equal(p.session_key, "sess-def");
 });

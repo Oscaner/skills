@@ -76,7 +76,7 @@
       "homepage": "https://github.com/Oscaner/skills",
       "repository": "https://github.com/Oscaner/skills",
       "license": "MIT",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "category": "osuperpowers",
       "keywords": [
         "osuperpowers",
@@ -98,7 +98,7 @@
       "homepage": "https://github.com/Oscaner/skills",
       "repository": "https://github.com/Oscaner/skills",
       "license": "MIT",
-      "version": "6.2.0-router.0.15.3",
+      "version": "6.2.0-router.0.15.4",
       "category": "workflow",
       "tags": [
         "superpowers",

@@ -2,7 +2,7 @@
 description: osuperpowers-router self-check for Cursor — intercept upstream superpowers skills
 alwaysApply: true
 _generated: scripts/emit.mjs — do not edit
-osuperpowers-router-version: 6.2.0-router.0.15.3
+osuperpowers-router-version: 6.2.0-router.0.15.4
 ---
 
 ## osuperpowers-router self-check (Cursor)

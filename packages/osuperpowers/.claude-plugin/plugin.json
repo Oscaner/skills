@@ -2,7 +2,7 @@
   "_generated": "scripts/emit.mjs — do not edit",
   "name": "osuperpowers",
   "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"

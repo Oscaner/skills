@@ -4,9 +4,9 @@
  * regenerate every committed emit product.
  *
  * `packages/osuperpowers-router/package.json` is the single version SOT (the
- * scheme is `{superpowers}-overrides.{major}.{minor}.{patch}`). The script
+ * scheme is `{superpowers}-router.{major}.{minor}.{patch}`). The script
  * reads that SOT, and when its superpowers base no longer matches the vendored
- * superpowers `.claude-plugin/plugin.json` version, resets the overrides
+ * superpowers `.claude-plugin/plugin.json` version, resets the router
  * suffix to `.0.0.0` per the documented bump contract. Then `pnpm run emit`
  * re-derives every downstream product (`.claude-plugin/plugin.json`,
  * `marketplace/source.json`, hooks, self-check tables) from the SOT — no other
@@ -23,7 +23,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import { parseOverridesVersion } from "./lib/version-utils.mjs";
+import { parseRouterVersion } from "./lib/version-utils.mjs";
 import { resolveVendorVersion } from "./lib/publish-vendor.mjs";
 
 const root = process.cwd();
@@ -35,9 +35,9 @@ const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 // tag, so the alignment target is the same source the marketplace resolves against.
 const base = resolveVendorVersion("superpowers", root);
 
-const parsed = parseOverridesVersion(pkg.version);
+const parsed = parseRouterVersion(pkg.version);
 const next =
-  parsed && parsed.base === base ? pkg.version : `${base}-overrides.0.0.0`;
+  parsed && parsed.base === base ? pkg.version : `${base}-router.0.0.0`;
 
 if (pkg.version !== next) {
   pkg.version = next;

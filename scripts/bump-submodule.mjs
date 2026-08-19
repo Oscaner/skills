@@ -62,7 +62,7 @@ function applyBump(bumpName, result, newTag) {
         .version;
       const overridesVer = computeNextVersion(currentOverrides, newVer);
       // marketplace/source.json is a derived emit product — the
-      // sync-overrides-versions.mjs run below re-derives it via `pnpm run emit`
+      // sync-router-versions.mjs run below re-derives it via `pnpm run emit`
       // from package.json, so no direct source.json write.
       const pkgPath = "packages/osuperpowers-router/package.json";
       const pkg = readJson(pkgPath);
@@ -71,7 +71,7 @@ function applyBump(bumpName, result, newTag) {
       result.files.push(pkgPath);
       prependChangelog(overridesVer, `Align with superpowers ${newVer}`);
       result.files.push("packages/osuperpowers-router/CHANGELOG.md");
-      execSync("node scripts/sync-overrides-versions.mjs", {
+      execSync("node scripts/sync-router-versions.mjs", {
         stdio: "inherit",
         cwd: root,
       });

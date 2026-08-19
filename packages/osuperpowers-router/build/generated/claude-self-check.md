@@ -1,5 +1,5 @@
 <!-- scripts/emit.mjs — do not edit -->
-<!-- osuperpowers-router-version: 6.2.0-overrides.0.15.3 -->
+<!-- osuperpowers-router-version: 6.2.0-router.0.15.3 -->
 ## osuperpowers-router self-check
 
 Before your first tool call in ANY turn, run this check — no exceptions:

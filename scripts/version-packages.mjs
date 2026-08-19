@@ -5,7 +5,7 @@ import getChangesets from "@changesets/read";
 import changelogFunctions from "@changesets/changelog-github";
 import {
   computeNextVersion,
-  parseOverridesVersion,
+  parseRouterVersion,
   computeNextIndependentVersion,
   highestBumpLevel,
   changesetsForPlugin,
@@ -79,11 +79,11 @@ const overridesCS = changesetsForPlugin(
   "@oscaner-skills/osuperpowers-router",
 );
 const overridesPkg = readJson(overridesPkgPath);
-const overridesParsed = parseOverridesVersion(overridesPkg.version);
+const overridesParsed = parseRouterVersion(overridesPkg.version);
 const overridesBaseReset =
   overridesParsed !== null && overridesParsed.base !== superpowersVersion;
 const overridesNext = !existsSync(overridesChangelogPath)
-  ? `${superpowersVersion}-overrides.0.0.0`
+  ? `${superpowersVersion}-router.0.0.0`
   : computeNextVersion(overridesPkg.version, superpowersVersion);
 
 // Bump overrides only when it has changesets, or the superpowers base moved
@@ -151,7 +151,7 @@ if (osuperpowersCS.length > 0) {
   // written-table template carries the same stamp for `init router`. Both must
   // exist or the release aborts. marketplace/source.json and the per-harness
   // manifests are derived emit products — the emit that
-  // sync-overrides-versions.mjs runs below re-derives them from package.json,
+  // sync-router-versions.mjs runs below re-derives them from package.json,
   // so no direct source.json write.
   for (const initPath of [
     "packages/osuperpowers/skills/init/SKILL.md",
@@ -209,9 +209,9 @@ if (DRY) {
 // Runs after both plugin versions are written so the emit resolves
 // source.json against the freshly bumped package.json versions.
 if (DRY) {
-  console.log("  [dry-run] would run sync-overrides-versions.mjs (re-derive marketplace + manifests)");
+  console.log("  [dry-run] would run sync-router-versions.mjs (re-derive marketplace + manifests)");
 } else {
-  execSync("node scripts/sync-overrides-versions.mjs", {
+  execSync("node scripts/sync-router-versions.mjs", {
     stdio: "inherit",
     cwd: root,
   });

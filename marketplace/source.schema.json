@@ -80,6 +80,21 @@
         { "$ref": "#/$defs/cursorPluginRoot" }
       ]
     },
+    "harnessHooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claude": { "$ref": "#/$defs/hookPath" },
+        "cursor": { "$ref": "#/$defs/hookPath" },
+        "codex": { "$ref": "#/$defs/hookPath" },
+        "qoder": { "$ref": "#/$defs/hookPath" }
+      }
+    },
+    "hookPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\./(?:(?:\\.[A-Za-z0-9_-]|[A-Za-z0-9_])[A-Za-z0-9_.-]*)(?:/(?:\\.[A-Za-z0-9_-]|[A-Za-z0-9_])[A-Za-z0-9_.-]*)*$"
+    },
     "plugin": {
       "type": "object",
       "required": ["name", "description", "author", "contentRoot", "cursor"],
@@ -94,7 +109,8 @@
         "repository": { "type": "string" },
         "license": { "type": "string" },
         "claude": { "$ref": "#/$defs/claude" },
-        "cursor": { "$ref": "#/$defs/cursor" }
+        "cursor": { "$ref": "#/$defs/cursor" },
+        "hooks": { "$ref": "#/$defs/harnessHooks" }
       }
     }
   }

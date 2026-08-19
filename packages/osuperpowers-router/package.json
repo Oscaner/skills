@@ -1,0 +1,41 @@
+{
+  "name": "@oscaner-skills/osuperpowers-router",
+  "version": "6.2.0-overrides.0.15.3",
+  "private": false,
+  "description": "Trigger router for osuperpowers: intercepts upstream superpowers triggers and routes to osuperpowers / mattpocock targets.",
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oscaner/skills",
+    "directory": "packages/osuperpowers-router"
+  },
+  "homepage": "https://github.com/Oscaner/skills",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./bin/pi-router.ts"]
+  },
+  "oscaner-plugin": {
+    "claude": {
+      "category": "workflow",
+      "tags": [
+        "superpowers",
+        "mattpocock",
+        "overrides",
+        "subagents"
+      ]
+    },
+    "contentRoot": ".",
+    "harnesses": [
+      "cursor",
+      "codex"
+    ],
+    "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set",
+    "hooks": {
+      "claude": "./hooks/hooks.json",
+      "cursor": "./hooks/hooks-cursor.json"
+    }
+  }
+}

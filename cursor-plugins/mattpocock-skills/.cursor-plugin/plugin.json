@@ -1,5 +1,5 @@
 {
-  "_generated": "scripts/emit-marketplace.mjs — do not edit",
+  "_generated": "scripts/emit.mjs — do not edit",
   "name": "mattpocock-skills",
   "displayName": "Matt Pocock Skills",
   "description": "Matt Pocock's agent skills for real engineering",
@@ -7,7 +7,7 @@
     "name": "Matt Pocock",
     "url": "https://github.com/mattpocock"
   },
-  "skills": "../../plugins/mattpocock-skills/skills",
+  "skills": "../../vendors/mattpocock-skills/skills",
   "version": "1.1.0",
   "homepage": "https://github.com/mattpocock/skills",
   "repository": "https://github.com/mattpocock/skills",

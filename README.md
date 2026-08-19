@@ -1,69 +1,137 @@
-# oscaner
+# oscaner-skills
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
+[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers-router?label=osuperpowers-router)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers-router)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-*Combine superpowers' full workflow with mattpocock's precision — engineered via superpowers-overrides.*
+Personal AI coding skills marketplace. Five plugins, one pipeline -- works across **Claude Code**, **Cursor**, **Droid**, **Pi**, **Grok**, **Qoder**, **Codex**, and **Gemini**.
 
-Personal [Claude Code](https://claude.com/claude-code) plugin marketplace. Three plugins work together as one pipeline: brainstorm, plan, build, ship.
+## What this is
 
-## Why this exists
+A plugin marketplace that packages personal skills as installable plugins consumed by multiple AI coding harnesses. Content is Markdown + JSON, discovered at runtime via the marketplace/plugin manifest chain. First-party plugins under `packages/` form a pnpm workspace (changesets, CI, unified `pnpm run emit` build).
 
-**[Superpowers](https://github.com/obra/superpowers)** is the full stack — brainstorming, writing plans, subagent-driven development, verification, branch finish. One library, end to end.
-
-**[mattpocock-skills](plugins/mattpocock-skills/)** is the precision layer — `grilling` for hard questions, `tdd` for implementation, `to-tickets` for slicing work. Small surface, sharp tools.
-
-Neither alone told me *when* to delegate, *how* to review specs, or *how to phase* a large feature. **superpowers-overrides** sits in front of upstream superpowers skills: intercept, replace or delegate, and wire mattpocock in at the right step. For big scope it adds **overall + phase** — decompose in an overall spec, then run full spec → plan → dev cycles one phase at a time.
-
-## The pipeline
+The pipeline flow:
 
 ```
-Overall spec → Phase spec → Plan → SDD/TDD → Verify → Ship
+Spec --> Plan --> SDD/TDD --> Verify --> Ship
 ```
 
-Overrides add grilling and subagent review at design time; mattpocock handles grilling, tdd, and to-tickets via delegation.
+## Plugins
 
-Skill mapping and harness setup → [superpowers-overrides README](plugins/superpowers-overrides/README.md).
+| Plugin | Type | Description |
+|--------|------|-------------|
+| **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine, cross-harness gate (11 adapters) |
+| **[osuperpowers-router](packages/osuperpowers-router/)** | First-party | Trigger router -- intercepts upstream triggers and routes to osuperpowers / mattpocock targets |
+| **[superpowers](vendors/superpowers/)** | Vendored | Upstream workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
+| **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd`, `to-tickets` |
+| **[impeccable](vendors/impeccable/)** | Vendored | Frontend design skills |
+
+All plugins are published as scoped npm packages under `@oscaner-skills/*`.
 
 ## Installation
 
+### From marketplace (recommended)
+
 ```bash
-# In Claude Code
+# Claude Code
 /plugin marketplace add oscaner/skills
-/plugin install mattpocock-skills@oscaner
+/plugin install osuperpowers@oscaner
+/plugin install osuperpowers-router@oscaner
 /plugin install superpowers@oscaner
-/plugin install superpowers-overrides@oscaner
+/plugin install mattpocock-skills@oscaner
 ```
 
-Clone this repo (submodule required for local development):
+### From npm
 
 ```bash
-git clone https://github.com/Oscaner/skills.git
-cd skills
-git submodule update --init
+npm install @oscaner-skills/osuperpowers @oscaner-skills/osuperpowers-router
+npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
 ```
+
+### Per-harness install
+
+| Harness | Channel | Install method |
+|---------|---------|---------------|
+| Claude Code | install-and-use | marketplace install |
+| Cursor Agent | install-and-use | marketplace install |
+| Droid | install-and-use | copy skills to `.agents/skills/` |
+| Grok | install-and-use | marketplace install (Claude compat) |
+| Qoder | install-and-use | install plugin |
+| Codex | install-and-use | install plugin + `/hooks` trust |
+| Gemini | install-and-use | `gemini extensions install <repo-url>` |
+| Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
+| Trae | init | `init harness trae` |
+| Vibe | init | `init harness vibe` |
+| Kiro | init | `init harness kiro` |
+| OpenCode | init | `init harness opencode` |
+
+Full per-harness details: [docs/gate-install.md](docs/gate-install.md).
 
 ## Quick start
 
-1. Install `superpowers`, `superpowers-overrides`, and `mattpocock-skills` from the marketplace.
-2. Run the **init skill** once per project — re-run after plugin upgrades. Slash command depends on your harness → [Usage](plugins/superpowers-overrides/README.md#usage).
-3. Invoke the superpowers workflow as you normally would — overrides intercept and run first.
+1. Install plugins from the marketplace or npm (see above).
+2. Run **`init router`** once per project -- re-run after plugin upgrades. This initializes the override trigger table in your project's CLAUDE.md / Cursor rules.
+3. Invoke the superpowers workflow as you normally would -- the router routes to the matching osuperpowers / mattpocock target automatically.
 
-## Learn more
+## Architecture
 
-[superpowers-overrides README](plugins/superpowers-overrides/README.md) — skills by phase, Claude Code vs Cursor, enforcement layers.
+The marketplace is **package-as-source** -- metadata lives in each `package.json`'s `oscaner-plugin` field. The build step `pnpm run emit` derives everything from that:
 
-## Maintainers
+```
+package.json#oscaner-plugin --> emit --> marketplace/source.json
+                                     --> .claude-plugin/marketplace.json
+                                     --> .cursor-plugin/marketplace.json
+                                     --> per-plugin .claude-plugin/plugin.json
+                                     --> hooks files (per harness)
+```
 
-After editing overrides: `pnpm run generate:overrides && pnpm run emit && pnpm run validate`.
+No hand-registration needed for first-party plugins. Vendored plugins are assembled from `vendors/` submodules via `scripts/lib/publish-vendor.mjs`.
 
-**Branch flow:** `develop` is the default integration branch — day-to-day PRs merge here and accumulate changesets. Production releases land on `main` only via a `develop → main` PR (enforced by CI and GitHub Rulesets). Version PRs, git tags, and GitHub Releases run on **`main`** only; an automated **`main → develop`** sync PR keeps `develop` aligned after release.
+Full architecture: [CLAUDE.md](CLAUDE.md).
 
-Release: [`.changeset/README.md`](.changeset/README.md). Contributor pattern: [`CLAUDE.md`](CLAUDE.md).
+## Per-package docs
+
+- [packages/osuperpowers/](packages/osuperpowers/) -- skills, CDD engine, gate
+- [packages/osuperpowers-router/](packages/osuperpowers-router/) -- router targets, enforcement layers
+- [docs/gate-install.md](docs/gate-install.md) -- per-harness gate installation
+
+## Development
+
+### Common operations
+
+```bash
+# After editing any plugin manifest or skills
+pnpm run emit && pnpm run validate
+
+# Fresh clone -- init submodules
+git submodule update --init
+
+# Bump a vendored submodule
+git -C vendors/mattpocock-skills fetch --tags origin
+git -C vendors/mattpocock-skills checkout v1.1.0
+git add vendors/mattpocock-skills
+git commit -m "chore: bump mattpocock-skills submodule"
+```
+
+### Adding a new first-party plugin
+
+1. Create `packages/<name>/package.json` with the `oscaner-plugin` field.
+2. Run `pnpm run emit` -- it auto-discovers the plugin and regenerates all manifests.
+3. Add a changeset naming it -- released as `@oscaner-skills/<name>`.
+
+No hand registration needed. See [CLAUDE.md](CLAUDE.md) for full details.
+
+### Branch flow
+
+`develop` is the integration branch. Day-to-day PRs merge there. Production releases go through `develop --> main`. Version PRs, git tags, and GitHub Releases run on `main` only.
+
+Release process: [`.changeset/README.md`](.changeset/README.md).
 
 ## License
 
-First-party code (`superpowers-overrides`, marketplace tooling) is [MIT](LICENSE).
+First-party code (`osuperpowers`, `osuperpowers-router`, marketplace tooling): [MIT](LICENSE).
 
-Vendored plugins keep their own licenses — see each plugin directory (e.g. `plugins/mattpocock-skills/LICENSE`).
+Vendored plugins keep their own licenses -- see each plugin directory.

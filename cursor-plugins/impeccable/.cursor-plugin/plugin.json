@@ -1,5 +1,5 @@
 {
-  "_generated": "scripts/emit-marketplace.mjs — do not edit",
+  "_generated": "scripts/emit.mjs — do not edit",
   "name": "impeccable",
   "displayName": "Impeccable",
   "description": "Design fluency for frontend development. 1 skill with 23 commands (/impeccable polish, /impeccable audit, /impeccable critique, etc.) and curated anti-pattern detection.",
@@ -7,7 +7,9 @@
     "name": "Paul Bakaus",
     "email": "paul@paulbakaus.com"
   },
-  "skills": "../../plugins/impeccable/plugin/skills",
+  "skills": "../../vendors/impeccable/plugin/skills",
   "version": "4.0.4",
-  "homepage": "https://impeccable.style"
+  "homepage": "https://impeccable.style",
+  "repository": "https://github.com/pbakaus/impeccable",
+  "license": "Apache-2.0"
 }

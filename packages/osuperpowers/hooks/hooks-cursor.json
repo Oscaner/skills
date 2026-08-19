@@ -1,0 +1,11 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "./bin/gate/adapters/cursor.mjs"
+      }
+    ]
+  }
+}

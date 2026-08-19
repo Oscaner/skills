@@ -1,0 +1,19 @@
+{
+  "_generated": "scripts/emit.mjs — do not edit",
+  "name": "osuperpowers-router",
+  "description": "Trigger router for osuperpowers: intercepts upstream superpowers triggers and routes to osuperpowers / mattpocock targets.",
+  "version": "6.2.0-overrides.0.15.3",
+  "author": {
+    "name": "Oscaner Miao",
+    "email": "oscaner1997@gmail.com"
+  },
+  "hooks": "./hooks/hooks.json",
+  "license": "MIT",
+  "category": "workflow",
+  "keywords": [
+    "superpowers",
+    "mattpocock",
+    "overrides",
+    "subagents"
+  ]
+}

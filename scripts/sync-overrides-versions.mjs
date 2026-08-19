@@ -1,75 +1,49 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+#!/usr/bin/env node
+/**
+ * Align the osuperpowers-router version to the vendored superpowers base and
+ * regenerate every committed emit product.
+ *
+ * `packages/osuperpowers-router/package.json` is the single version SOT (the
+ * scheme is `{superpowers}-overrides.{major}.{minor}.{patch}`). The script
+ * reads that SOT, and when its superpowers base no longer matches the vendored
+ * superpowers `.claude-plugin/plugin.json` version, resets the overrides
+ * suffix to `.0.0.0` per the documented bump contract. Then `pnpm run emit`
+ * re-derives every downstream product (`.claude-plugin/plugin.json`,
+ * `marketplace/source.json`, hooks, self-check tables) from the SOT — no other
+ * file is written here.
+ *
+ * Callers that already computed and wrote the next version into package.json
+ * (bump-submodule.mjs, version-packages.mjs) are unaffected: when the base
+ * matches, the version is left untouched and the script only re-emits.
+ *
+ * Deliberately does NOT rewrite repo dogfood (CLAUDE.md / `.cursor/rules/*`).
+ * init owns the dogfood now and stamps it with the osuperpowers version;
+ * a script that stamped it with the overrides version would fight init.
+ */
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { execSync } from "node:child_process";
+import { parseOverridesVersion } from "./lib/version-utils.mjs";
+import { resolveVendorVersion } from "./lib/publish-vendor.mjs";
 
 const root = process.cwd();
-const pkg = JSON.parse(
-  readFileSync(join(root, "plugins/superpowers-overrides/package.json"), "utf8"),
-);
-const version = pkg.version;
+const pkgPath = join(root, "packages/osuperpowers-router/package.json");
+const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 
-const pluginPath = join(
-  root,
-  "plugins/superpowers-overrides/.claude-plugin/plugin.json",
-);
-const plugin = JSON.parse(readFileSync(pluginPath, "utf8"));
-plugin.version = version;
-writeFileSync(pluginPath, JSON.stringify(plugin, null, 2) + "\n");
+// The superpowers base is the vendored plugin.json version — resolveVendorVersion
+// (shared with the marketplace emit chain) prefers plugin.json over the release
+// tag, so the alignment target is the same source the marketplace resolves against.
+const base = resolveVendorVersion("superpowers", root);
 
-const sourcePath = join(root, "marketplace/source.json");
-const source = JSON.parse(readFileSync(sourcePath, "utf8"));
-const entry = source.plugins.find((p) => p.name === "superpowers-overrides");
-if (!entry) {
-  throw new Error("superpowers-overrides not in marketplace/source.json");
+const parsed = parseOverridesVersion(pkg.version);
+const next =
+  parsed && parsed.base === base ? pkg.version : `${base}-overrides.0.0.0`;
+
+if (pkg.version !== next) {
+  pkg.version = next;
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 }
-entry.version = version;
-writeFileSync(sourcePath, JSON.stringify(source, null, 2) + "\n");
 
 execSync("pnpm run emit", { stdio: "inherit", cwd: root });
 
-const pluginRoot = join(root, "plugins/superpowers-overrides");
-const generatedCursor = join(
-  pluginRoot,
-  "build/generated/cursor-self-check.mdc",
-);
-const generatedClaude = join(
-  pluginRoot,
-  "build/generated/claude-self-check.md",
-);
-const deployCursor = join(root, ".cursor/rules/superpowers-overrides.mdc");
-const claudePath = join(root, "CLAUDE.md");
-
-const cursorCanonical = readFileSync(generatedCursor, "utf8");
-const claudeCanonical = readFileSync(generatedClaude, "utf8");
-
-mkdirSync(dirname(deployCursor), { recursive: true });
-writeFileSync(deployCursor, cursorCanonical);
-
-const claude = readFileSync(claudePath, "utf8");
-const lines = claude.split("\n");
-
-let start = 0;
-if (lines[0]?.startsWith("<!-- superpowers-overrides-version:")) {
-  start = 0;
-} else {
-  const idx = lines.findIndex((l) =>
-    l.startsWith("## superpowers-overrides self-check"),
-  );
-  if (idx === -1) {
-    throw new Error(
-      `${claudePath}: no superpowers-overrides self-check block found`,
-    );
-  }
-  start = idx;
-}
-
-const end = lines.findIndex((l) => l === "# CLAUDE.md");
-if (end === -1) {
-  throw new Error(`${claudePath}: missing '# CLAUDE.md' heading`);
-}
-
-const rest = lines.slice(end).join("\n");
-const merged = `${claudeCanonical.trimEnd()}\n\n${rest}`;
-writeFileSync(claudePath, merged);
-
-console.log(`OK — synced ${version}`);
+console.log(`OK — synced ${next}`);

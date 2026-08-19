@@ -58,9 +58,13 @@ export function claudePluginManifest(plugin, version, { noSkills = false } = {})
     author: plugin.author,
   };
   if (!noSkills) m.skills = "./skills/";
-  // Hooks path comes from the `oscaner-plugin.hooks` mapping (single SOT);
-  // the fallback keeps the canonical default when a plugin carries no mapping.
-  m.hooks = plugin.hooks?.claude ?? "./hooks/hooks.json";
+  // Claude Code auto-loads <pluginRoot>/hooks/hooks.json as the standard hooks
+  // file, so manifest.hooks may only name *additional* hook files — referencing
+  // the canonical file makes plugin load fail with "Duplicate hooks file
+  // detected". The canonical default is therefore omitted; a non-default
+  // `oscaner-plugin.hooks.claude` (an extra hook file) is still emitted.
+  const claudeHooks = plugin.hooks?.claude ?? "./hooks/hooks.json";
+  if (claudeHooks !== "./hooks/hooks.json") m.hooks = claudeHooks;
   if (plugin.license) m.license = plugin.license;
   if (plugin.claude?.category) m.category = plugin.claude.category;
   const kw = keywords(plugin);

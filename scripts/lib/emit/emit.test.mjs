@@ -87,8 +87,9 @@ const ROUTER = {
 // manifests.mjs — generic first-party per-harness manifest builders
 // ---------------------------------------------------------------------------
 
-test("claudePluginManifest emits osuperpowers claude manifest (thin, skills+../hooks)", () => {
-  assert.deepEqual(claudePluginManifest(OS_ENG, OS_VERSION), {
+test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no hooks field)", () => {
+  const m = claudePluginManifest(OS_ENG, OS_VERSION);
+  assert.deepEqual(m, {
     _generated: generatedBanner,
     name: "osuperpowers",
     description:
@@ -97,10 +98,13 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills+../h
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
     license: "MIT",
     skills: "./skills/",
-    hooks: "./hooks/hooks.json",
     category: "osuperpowers",
     keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
   });
+  assert.ok(
+    !("hooks" in m),
+    "standard hooks/hooks.json is auto-loaded by Claude Code — manifest must not reference it (duplicate load fails plugin startup)",
+  );
 });
 
 test("claudePluginManifest with noSkills omits skills but keeps full metadata", () => {
@@ -113,7 +117,6 @@ test("claudePluginManifest with noSkills omits skills but keeps full metadata", 
         "Personal overrides for the superpowers plugin that force delegation to other skills.",
       version: ROUTER_VERSION,
       author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
-      hooks: "./hooks/hooks.json",
       license: "MIT",
       category: "workflow",
       keywords: ["superpowers", "mattpocock", "overrides", "subagents"],
@@ -145,15 +148,28 @@ test("codexPluginManifest includes skills, codex gate hooks path, and interface"
   assert.ok(m.interface.capabilities.length > 0);
 });
 
-test("claudePluginManifest resolves hooks from plugin.hooks.claude mapping", () => {
-  const m = claudePluginManifest(
+test("claudePluginManifest emits hooks only for non-canonical hook files", () => {
+  // A non-default `oscaner-plugin.hooks.claude` (an additional hook file beyond
+  // the auto-loaded standard) is still emitted in manifest.hooks.
+  const custom = claudePluginManifest(
     {
       ...OS_ENG,
       hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
     },
     OS_VERSION,
   );
-  assert.equal(m.hooks, "./hooks/claude.json");
+  assert.equal(custom.hooks, "./hooks/claude.json");
+  // The canonical ./hooks/hooks.json is auto-loaded by Claude Code — naming it
+  // in manifest.hooks duplicates the load and fails plugin startup, so it is
+  // omitted even when `oscaner-plugin.hooks.claude` maps to it explicitly.
+  const canonical = claudePluginManifest(
+    { ...OS_ENG, hooks: { claude: "./hooks/hooks.json" } },
+    OS_VERSION,
+  );
+  assert.ok(
+    !("hooks" in canonical),
+    "canonical ./hooks/hooks.json is auto-loaded — must be omitted from manifest.hooks",
+  );
 });
 
 test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () => {

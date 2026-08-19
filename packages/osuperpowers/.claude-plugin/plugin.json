@@ -8,7 +8,6 @@
     "email": "oscaner1997@gmail.com"
   },
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json",
   "license": "MIT",
   "category": "osuperpowers",
   "keywords": [

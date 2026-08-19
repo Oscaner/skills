@@ -14,6 +14,16 @@ import {
 const root = process.cwd();
 const changesetDir = join(root, ".changeset");
 
+// ---- CLI 参数（修复 footgun：此前未知参数被静默忽略并真执行） ----
+const args = process.argv.slice(2);
+const DRY = args.includes("--dry-run");
+const unknownArgs = args.filter((a) => a !== "--dry-run");
+if (unknownArgs.length > 0) {
+  process.stderr.write(`usage: version-packages.mjs [--dry-run]\n`);
+  process.stderr.write(`unknown argument(s): ${unknownArgs.join(", ")}\n`);
+  process.exit(1);
+}
+
 const changesets = await getChangesets(root);
 if (changesets.length === 0) {
   console.log("No changesets — skip version");
@@ -21,11 +31,22 @@ if (changesets.length === 0) {
 }
 
 const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
-const writeJson = (rel, data) =>
+const writeJson = (rel, data) => {
+  if (DRY) {
+    console.log(`  [dry-run] write ${rel}: version → ${data.version}`);
+    return;
+  }
   writeFileSync(join(root, rel), JSON.stringify(data, null, 2) + "\n");
+};
 
 /** Prepend a new release entry under a fixed header, preserving the rest. */
 function prependChangelog(header, entry, changelogPath) {
+  if (DRY) {
+    console.log(`  [dry-run] prepend changelog ${changelogPath.replace(`${root}/`, "")}:`);
+    console.log((header + entry).trimEnd());
+    console.log("");
+    return;
+  }
   if (!existsSync(changelogPath)) {
     writeFileSync(changelogPath, header + entry);
     return;
@@ -144,6 +165,10 @@ if (osuperpowersCS.length > 0) {
     if (stamped === init) {
       throw new Error(`${initPath} missing osuperpowers-version stamp`);
     }
+    if (DRY) {
+      console.log(`  [dry-run] stamp ${initPath} → osuperpowers-version ${osuperpowersNext}`);
+      continue;
+    }
     writeFileSync(join(root, initPath), stamped);
   }
 }
@@ -161,22 +186,35 @@ if (overridesCS.length > 0 || overridesBaseReset) {
 if (osuperpowersCS.length > 0) {
   versioned.push("osuperpowers");
 }
-writeFileSync(
-  join(root, ".changeset/versioned-plugins.json"),
-  JSON.stringify(versioned, null, 2) + "\n",
-);
+if (DRY) {
+  console.log(`  [dry-run] write .changeset/versioned-plugins.json: ${versioned.join(", ")}`);
+} else {
+  writeFileSync(
+    join(root, ".changeset/versioned-plugins.json"),
+    JSON.stringify(versioned, null, 2) + "\n",
+  );
+}
 
 // ---- cleanup consumed changesets ----
-for (const cs of changesets) {
-  unlinkSync(join(changesetDir, `${cs.id}.md`));
+if (DRY) {
+  const consumed = changesets.map((cs) => `${cs.id}.md`).join(", ");
+  console.log(`  [dry-run] would consume changesets: ${consumed}`);
+} else {
+  for (const cs of changesets) {
+    unlinkSync(join(changesetDir, `${cs.id}.md`));
+  }
 }
 
 // ---- sync overrides version + regenerate marketplace emits ----
 // Runs after both plugin versions are written so the emit resolves
 // source.json against the freshly bumped package.json versions.
-execSync("node scripts/sync-overrides-versions.mjs", {
-  stdio: "inherit",
-  cwd: root,
-});
+if (DRY) {
+  console.log("  [dry-run] would run sync-overrides-versions.mjs (re-derive marketplace + manifests)");
+} else {
+  execSync("node scripts/sync-overrides-versions.mjs", {
+    stdio: "inherit",
+    cwd: root,
+  });
+}
 
-console.log("OK — versioned");
+console.log(DRY ? "OK — would version (dry-run, nothing written)" : "OK — versioned");

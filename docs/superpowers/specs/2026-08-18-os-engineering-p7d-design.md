@@ -138,7 +138,7 @@ grep -rn 'oscaner-engineering' packages scripts --exclude-dir=node_modules   # �
 
 - `git mv packages/osuperpowers/bin/os-init packages/osuperpowers/bin/init`
 - `install-harness.mjs:165` `path.join(HOME, ".engineering", "state", ...)` → `.osuperpowers/state`；测试行 82/97/122 同步
-- `scripts/ci-validate.mjs`：`os-init` 全部 7 行（行 175 注释 `12 emitters + os-init`、行 181/187/192 断言消息 `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init)`、行 204 注释、行 207 步骤名 `5b. node:test engine + gate + os-init + utils + behavior`、行 212 glob `bin/os-init/tests/*.test.mjs`）→ `init`；函数 `checkEngineeringSkillsCount`（行 171/196）→ `checkOsuperpowersSkillsCount`、`checkEngineeringGateHooks`（行 219/236）→ `checkOsuperpowersGateHooks`；`packages/osuperpowers/tests/ci-validate.test.mjs`（3 行：96/97/101）同步
+- `scripts/ci-validate.mjs`：`os-init` 全部 7 行（行 175 注释 `12 emitters + os-init`、行 181/187/192 断言消息 `expected ${EXPECTED} osuperpowers skills (12 emitters + os-init)`、行 204 注释、行 207 步骤名 `5b. node:test engine + gate + os-init + utils + behavior`、行 212 glob `bin/os-init/tests/*.test.mjs`）→ `init`；函数 `checkEngineeringSkillsCount`（行 171/196）→ `checkOsuperpowersSkillsCount`、`checkEngineeringGateHooks`（行 219/236）→ `checkOsuperpowersGateHooks`；`packages/osuperpowers/tests/ci-validate.test.mjs`（5 行：1/3 头部 `engineering` 注释 + 96/97/101 `os-init`/glob）同步
 - `install-harness.mjs` 头部注释（行 2 `bin/os-init/install-harness.mjs`、行 10 manifest 路径）同步
 
 ### 验证
@@ -208,7 +208,7 @@ node --test packages/osuperpowers/bin/init/tests/*.test.mjs packages/osuperpower
 
 - `packages/osuperpowers/docs/cdd-reference.md:75`：required plugins 列表 `... + engineering + osuperpowers-router` —— **漏改，功能性错误** → `osuperpowers`；`cdd-reference.zh-CN.md` 同行同步
 - `docs/gate-install.md:225`：manifest 路径 `bin/init/state/` → `~/.osuperpowers/state/`（对齐实现）+ 字段 `engineeringVersion` → `osuperpowersVersion`
-- `packages/osuperpowers-router/docs/cross-harness-overrides.md`（27 处）：`engineering` → `osuperpowers`（路径 `engineering/bin/...`、`engineering/docs/cdd-reference.md`、`"source": "../engineering/skills/brainstorming"`、`{[engineering]}` 占位符、plugins 列表等）；`os-\*` → `osuperpowers:*`（行 20/93/106/142/235）；行 54 `skills/os-<slug>/SKILL.md` → `skills/<slug>/SKILL.md`（P7b 已去前缀，文档 stale）；行 66 pending 路径 → `osuperpowers/pending-cdd`；行 237 `engineering-version` → `osuperpowers-version`
+- `packages/osuperpowers-router/docs/cross-harness-overrides.md`（29 处）：`engineering` → `osuperpowers`（路径 `engineering/bin/...`、`engineering/docs/cdd-reference.md`、`"source": "../engineering/skills/brainstorming"`、`{[engineering]}` 占位符、plugins 列表等）；`os-\*` → `osuperpowers:*`（行 20/93/106/142/235）；行 54 `skills/os-<slug>/SKILL.md` → `skills/<slug>/SKILL.md`（P7b 已去前缀，文档 stale）；行 66 pending 路径 → `osuperpowers/pending-cdd`；行 237 `engineering-version` → `osuperpowers-version`
 - `CLAUDE.md`（根）：行 11 `os-* orchestration` → `osuperpowers orchestration`；行 13 `read by os-* orchestrators` → `read by osuperpowers orchestrators`
 - `README.md`（根）1 处 + `README.zh-CN.md`（根）行 26 `os-* 编排器` → 同步（**双语 companion 都要**）
 - `packages/osuperpowers/CLAUDE.md`（8 处 `os-*` 家族词，行 21/27/50/52/53/55/103/184）→ `osuperpowers` 家族描述（`os-*` 编排技能 → `osuperpowers` 编排技能；`osuperpowers:*` 命名空间引用保持）
@@ -256,6 +256,7 @@ grep -rn 'sdd-h6-reference' packages --exclude-dir=node_modules   # 预期：无
 
 - 上游元数据三项：同 §2.5（`source.mjs` VENDOR_FALLBACK、`publish-vendor.test.mjs` fixture、派生产物 vendored 数据）
 - 上游路径引用：`writing-plans/SKILL.md` + zh-CN:18 的 `skills/engineering/to-tickets/SKILL.md`（mattpocock bucket 路径）
+- 上游题材短语（新增）：根 `CLAUDE.md:14` `Engineering precision skills`（描述 mattpocock-skills 的题材归属，非我方插件名）
 - 历史文档例外：P1-P6 见 §6.2
 
 ## §7 派生产物重生成
@@ -280,6 +281,7 @@ grep -rIniE 'os-|engineering|oscaner-engineering|ENGINEERING_VERSION|engineering
   | grep -v 'skills/engineering/to-tickets' \
   | grep -v '^scripts/lib/emit/source\.mjs:' \
   | grep -v 'publish-vendor.test.mjs' \
+  | grep -v '^CLAUDE\.md:14:' \
   || echo "(A clean or allowlisted-only)"
 # 预期：无剩余行（或仅上述白名单）
 
@@ -300,7 +302,7 @@ pnpm run emit:check
 # C. 全量
 pnpm run validate
 
-# D. P7 p7a/b/c 文档零旧名（P7d 设计文档自身 = 映射表，豁免；overall 用 D2 标记检查）
+# D. P7 p7a/b/c 文档零旧名（P7d 设计文档自身 = 映射表，豁免；overall 用 D2 标记检查；p7c 无 tickets 文件 —— 只扫存在文件，缺失文件会让 grep 退出 2 而非 clean）
 grep -rInE 'os-|engineering|oscaner-engineering|ENGINEERING_VERSION|engineeringVersion' \
   docs/superpowers/specs/2026-08-18-os-engineering-p7a-design.md \
   docs/superpowers/specs/2026-08-18-os-engineering-p7b-design.md \
@@ -309,8 +311,7 @@ grep -rInE 'os-|engineering|oscaner-engineering|ENGINEERING_VERSION|engineeringV
   docs/superpowers/plans/2026-08-18-os-engineering-p7b.md \
   docs/superpowers/plans/2026-08-18-os-engineering-p7c.md \
   docs/superpowers/tickets/2026-08-18-os-engineering-p7a-tickets.md \
-  docs/superpowers/tickets/2026-08-18-os-engineering-p7b-tickets.md \
-  docs/superpowers/tickets/2026-08-18-os-engineering-p7c-tickets.md 2>/dev/null \
+  docs/superpowers/tickets/2026-08-18-os-engineering-p7b-tickets.md 2>/dev/null \
   || echo "(D clean)"
 
 # D2. overall spec 标记检查（非 token-zero —— v4.1 changelog + §2 P7d 行按设计保留旧名描述映射）

@@ -1,6 +1,6 @@
 {
   "name": "@oscaner-skills/osuperpowers",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
   "author": {
@@ -16,8 +16,12 @@
   "license": "MIT",
   "main": "./bin/gate/adapters/opencode.mjs",
   "pi": {
-    "skills": ["./skills"],
-    "extensions": ["./bin/gate/adapters/pi.ts"]
+    "skills": [
+      "./skills"
+    ],
+    "extensions": [
+      "./bin/gate/adapters/pi.ts"
+    ]
   },
   "oscaner-plugin": {
     "claude": {

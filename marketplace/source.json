@@ -85,7 +85,7 @@
       "cursor": {
         "emitMode": "plugin-root"
       },
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
       "author": {
         "name": "Oscaner Miao",
@@ -118,7 +118,7 @@
       "cursor": {
         "emitMode": "plugin-root"
       },
-      "version": "6.2.0-router.0.15.3",
+      "version": "6.2.0-router.0.15.4",
       "description": "Trigger router for osuperpowers: intercepts upstream superpowers triggers and routes to osuperpowers / mattpocock targets.",
       "author": {
         "name": "Oscaner Miao",

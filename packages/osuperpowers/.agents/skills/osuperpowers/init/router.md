@@ -23,7 +23,7 @@
 > **说明**：下表中的 Trigger 均来自上游 **superpowers** 插件（而非 osuperpowers）。当用户输入这些触发词时，`osuperpowers-router` 拦截并路由到右侧的 osuperpowers 编排器。
 
 ```markdown
-<!-- osuperpowers-version: 0.1.0 -->
+<!-- osuperpowers-version: 0.1.1 -->
 
 ## osuperpowers self-check
 

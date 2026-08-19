@@ -5,7 +5,11 @@
 #   → per-plugin matrix job pushes git tag + GitHub Release only for plugins that
 #     were actually versioned (recorded in .changeset/versioned-plugins.json by
 #     version-packages.mjs); plugins with no changesets are skipped — no phantom
-#     baseline tag/release → sync PR
+#     baseline tag/release → sync PR.
+#   Vendors (superpowers/mattpocock-skills/impeccable) co-publish in publish mode:
+#     publish-vendor (npm assembly publish + registry gap sweep → to_tag JSON)
+#     → release-vendor (git tag + GitHub Release per gap item; upstream-sync body).
+#     release-plugin and sync-develop block on publish-vendor (atomicity).
 name: Release
 
 on:
@@ -47,8 +51,78 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  release-plugin:
+  publish-vendor:
     needs: release
+    if: needs.release.outputs.hasChangesets == 'false'
+    runs-on: ubuntu-latest
+    outputs:
+      to_tag: ${{ steps.publish.outputs.to_tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Assemble + publish vendored plugins, emit registry gap list
+        id: publish
+        run: |
+          to_tag=$(node scripts/publish-vendor.mjs)
+          echo "to_tag=$to_tag" >> "$GITHUB_OUTPUT"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  release-vendor:
+    needs: [release, publish-vendor]
+    if: needs.release.outputs.hasChangesets == 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.publish-vendor.outputs.to_tag) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check tag already exists
+        id: tag-exists
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ matrix.name }}@${{ matrix.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create local tag
+        if: steps.tag-exists.outputs.exists != 'true'
+        run: git tag "${{ matrix.name }}@${{ matrix.version }}"
+
+      - name: Push git tag
+        if: steps.tag-exists.outputs.exists != 'true'
+        run: git push origin "${{ matrix.name }}@${{ matrix.version }}"
+
+      - name: Check if GitHub Release exists
+        id: release-exists
+        run: |
+          if gh release view "${{ matrix.name }}@${{ matrix.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release if missing
+        if: steps.release-exists.outputs.exists != 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ matrix.name }}@${{ matrix.version }}
+          generate_release_notes: false
+          body: |
+            Assembled from upstream [${{ matrix.upstreamRepo }}](https://github.com/${{ matrix.upstreamRepo }}) @ `${{ matrix.upstreamTag }}`.
+
+  release-plugin:
+    needs: [release, publish-vendor]
     if: needs.release.outputs.hasChangesets == 'false'
     runs-on: ubuntu-latest
     strategy:
@@ -112,7 +186,7 @@ jobs:
           generate_release_notes: true
 
   sync-develop:
-    needs: release
+    needs: [release, publish-vendor]
     if: needs.release.outputs.hasChangesets == 'false'
     uses: ./.github/workflows/sync-main-to-develop.yml
     secrets: inherit

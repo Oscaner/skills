@@ -41,19 +41,19 @@ console.log("OK — superpowers", srcSp);
 // emit` (run before this check). The manifest set is taken from
 // .version-bump.json#files so a newly-added harness manifest can't slip past
 // the equality check.
-const oePkg = readJson("packages/osuperpowers/package.json");
-const oeSrc = s.plugins.find((x) => x.name === "osuperpowers");
-const oeEntry = m.plugins.find((x) => x.name === "osuperpowers");
+const osuperpowersPkg = readJson("packages/osuperpowers/package.json");
+const osuperpowersSrc = s.plugins.find((x) => x.name === "osuperpowers");
+const osuperpowersEntry = m.plugins.find((x) => x.name === "osuperpowers");
 const SEMVER = /^\d+\.\d+\.\d+$/;
-if (!SEMVER.test(oePkg.version)) {
-  throw new Error(`Invalid osuperpowers version format: ${oePkg.version}`);
+if (!SEMVER.test(osuperpowersPkg.version)) {
+  throw new Error(`Invalid osuperpowers version format: ${osuperpowersPkg.version}`);
 }
-const oeVersions = [oePkg.version, oeSrc.version, oeEntry.version];
-if (new Set(oeVersions).size !== 1) {
-  throw new Error(`osuperpowers version mismatch: ${oeVersions.join(" ")}`);
+const osuperpowersVersions = [osuperpowersPkg.version, osuperpowersSrc.version, osuperpowersEntry.version];
+if (new Set(osuperpowersVersions).size !== 1) {
+  throw new Error(`osuperpowers version mismatch: ${osuperpowersVersions.join(" ")}`);
 }
-const oeBump = readJson("packages/osuperpowers/.version-bump.json");
-for (const f of oeBump.files) {
+const osuperpowersBump = readJson("packages/osuperpowers/.version-bump.json");
+for (const f of osuperpowersBump.files) {
   const abs = join(root, "packages/osuperpowers", f.path);
   if (!existsSync(abs)) {
     throw new Error(
@@ -62,13 +62,13 @@ for (const f of oeBump.files) {
   }
   const doc = JSON.parse(readFileSync(abs, "utf8"));
   const val = f.field.split(".").reduce((o, k) => o?.[k], doc);
-  if (val !== oePkg.version) {
+  if (val !== osuperpowersPkg.version) {
     throw new Error(
-      `osuperpowers ${f.path} ${val} != ${oePkg.version} — run pnpm run emit`,
+      `osuperpowers ${f.path} ${val} != ${osuperpowersPkg.version} — run pnpm run emit`,
     );
   }
 }
-console.log("OK —", oePkg.version);
+console.log("OK —", osuperpowersPkg.version);
 
 // init stamps: SKILL.md (version marker) + router.md (written-table template).
 // Both carry the osuperpowers version and both are synced by version-packages.mjs.
@@ -78,10 +78,10 @@ for (const rel of [
 ]) {
   const oeInit = readFileSync(join(root, rel), "utf8");
   const stamp = oeInit.match(/<!-- osuperpowers-version: ([^ ]+) -->/);
-  if (!stamp || stamp[1] !== oePkg.version) {
+  if (!stamp || stamp[1] !== osuperpowersPkg.version) {
     throw new Error(
-      `${rel} version stamp mismatch: ${stamp?.[1]} vs ${oePkg.version}`,
+      `${rel} version stamp mismatch: ${stamp?.[1]} vs ${osuperpowersPkg.version}`,
     );
   }
 }
-console.log("OK — init SKILL.md/router.md stamp", oePkg.version);
+console.log("OK — init SKILL.md/router.md stamp", osuperpowersPkg.version);

@@ -43,7 +43,7 @@ Files include `"_generated": "… — do not edit"`. CI step 7 fails if emit out
 | **Wrapper** (default) | `displayName` + `skills` (+ optional `hooks`) | `cursor-plugins/<name>` |
 | **Plugin-root** | `{ "emitMode": "plugin-root" }` only | `./<contentRoot>` (reads plugin's `.cursor-plugin/plugin.json`) |
 
-**Plugin-root today:** `osuperpowers-router` and **`osuperpowers`** (oscaner-generated manifests) and **`superpowers`** (upstream submodule manifest). Other plugins keep wrapper emit. See [cursor-plugins/README.md](../cursor-plugins/README.md) for the hybrid rule and upgrade checklist.
+**Plugin-root today:** `osuperpowers-router` and **`osuperpowers`** (oscaner-generated manifests) and **`superpowers`** (upstream submodule manifest). Other plugins keep wrapper emit under `cursor-plugins/` (vendored upstreams only); the old hybrid-rule detail doc was removed with the P7d cleanup.
 
 ## Schema
 
@@ -63,4 +63,4 @@ Emit fails when `source.json` versions disagree with the truth sources.
 
 ## Cursor Team Marketplace
 
-Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`osuperpowers-router`**, **`osuperpowers`**, and **`superpowers`** install from plugin root (`./packages/...`/`./vendors/...`); see [cursor-plugins/README.md](../cursor-plugins/README.md).
+Import `https://github.com/Oscaner/skills` in Cursor Dashboard → Settings → Plugins → Team Marketplaces. Plugins resolve via `.cursor-plugin/marketplace.json`. **`osuperpowers-router`**, **`osuperpowers`**, and **`superpowers`** install from plugin root (`./packages/...`/`./vendors/...`).

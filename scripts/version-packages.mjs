@@ -87,23 +87,23 @@ if (overridesCS.length > 0 || overridesBaseReset) {
 }
 
 // ---- osuperpowers (independent semver) ----
-const osengPkgPath = "packages/osuperpowers/package.json";
-const osengChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
-const osengCS = changesetsForPlugin(
+const osuperpowersPkgPath = "packages/osuperpowers/package.json";
+const osuperpowersChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
+const osuperpowersCS = changesetsForPlugin(
   changesets,
   "@oscaner-skills/osuperpowers",
 );
-if (osengCS.length > 0) {
-  const osengPkg = readJson(osengPkgPath);
-  const osengTypes = osengCS.map(
+if (osuperpowersCS.length > 0) {
+  const osuperpowersPkg = readJson(osuperpowersPkgPath);
+  const osuperpowersTypes = osuperpowersCS.map(
     (cs) => cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type,
   );
-  const bumpLevel = highestBumpLevel(osengTypes);
-  const osengNext = computeNextIndependentVersion(osengPkg.version, bumpLevel);
+  const bumpLevel = highestBumpLevel(osuperpowersTypes);
+  const osuperpowersNext = computeNextIndependentVersion(osuperpowersPkg.version, bumpLevel);
 
   const sections = [];
   for (const type of ["major", "minor", "patch"]) {
-    const typed = osengCS.filter(
+    const typed = osuperpowersCS.filter(
       (cs) =>
         cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type ===
         type,
@@ -118,12 +118,12 @@ if (osengCS.length > 0) {
     const title = `${type[0].toUpperCase()}${type.slice(1)} Changes`;
     sections.push(`### ${title}${lines.join("")}\n\n`);
   }
-  const osengHeader = "# osuperpowers\n\n";
-  const osengEntry = `## ${osengNext}\n\n${sections.join("")}`;
-  prependChangelog(osengHeader, osengEntry, osengChangelogPath);
+  const osuperpowersHeader = "# osuperpowers\n\n";
+  const osuperpowersEntry = `## ${osuperpowersNext}\n\n${sections.join("")}`;
+  prependChangelog(osuperpowersHeader, osuperpowersEntry, osuperpowersChangelogPath);
 
-  osengPkg.version = osengNext;
-  writeJson(osengPkgPath, osengPkg);
+  osuperpowersPkg.version = osuperpowersNext;
+  writeJson(osuperpowersPkgPath, osuperpowersPkg);
 
   // Sync osuperpowers version to the init self-check stamps (the only SOTs
   // outside package.json). SKILL.md holds the version marker; router.md's
@@ -139,7 +139,7 @@ if (osengCS.length > 0) {
     const init = readFileSync(join(root, initPath), "utf8");
     const stamped = init.replace(
       /<!-- osuperpowers-version: [^ ]+ -->/,
-      `<!-- osuperpowers-version: ${osengNext} -->`,
+      `<!-- osuperpowers-version: ${osuperpowersNext} -->`,
     );
     if (stamped === init) {
       throw new Error(`${initPath} missing osuperpowers-version stamp`);
@@ -158,7 +158,7 @@ const versioned = [];
 if (overridesCS.length > 0 || overridesBaseReset) {
   versioned.push("osuperpowers-router");
 }
-if (osengCS.length > 0) {
+if (osuperpowersCS.length > 0) {
   versioned.push("osuperpowers");
 }
 writeFileSync(

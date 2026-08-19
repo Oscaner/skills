@@ -2,13 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Claude Code 工程技能插件 — os-\* 编排系列、cli-\* CDD 引擎技能、CDD 编排器门控。
+Claude Code 工程技能插件 — osuperpowers 编排系列、cli-\* CDD 引擎技能、CDD 编排器门控。
 
 ## 功能概述
 
 本插件提供两大技能系列：
 
-- **os-\* 编排器** — 读取上游 `superpowers` 基线并叠加个人规则的流程编排器（澄清问题通过 `grilling`、规格审查通过 fresh subagent passes、工单发布重定向等）
+- **osuperpowers 编排器** — 读取上游 `superpowers` 基线并叠加个人规则的流程编排器（澄清问题通过 `grilling`、规格审查通过 fresh subagent passes、工单发布重定向等）
 - **cli-\* CDD 引擎** — 三模式链（implement / review / fix），将编码任务分发到外部 AI CLI（`claude`、`cursor-agent`、`droid`、`pi`）
 - **CDD 门控** — 对 `Write`/`Edit` 和 `Bash` 工具调用执行 pending-state 约束的钩子
 

@@ -222,7 +222,7 @@ node <plugin-root>/bin/init/install-harness.mjs [--harness …] [--dry-run]
 ```
 
 **Manifest full sync** (runs every time):
-- Manifest at `bin/init/state/<harness>.json` tracks `{ engineeringVersion, files: { path → { hash, source } } }`
+- Manifest at `~/.osuperpowers/state/<harness>.json` tracks `{ osuperpowersVersion, files: { path → { hash, source } } }`
   where `source = "init"` marks init-written files.
 - Re-run diffs manifest vs current file set → auto add/overwrite/delete (no prompting).
 - **Delete semantics**: only delete files that (a) were tracked in manifest, (b) not

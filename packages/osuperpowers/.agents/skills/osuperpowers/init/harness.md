@@ -1,6 +1,6 @@
 # init harness
 
-`init harness` 安装 per-harness 的 osuperpowers 配置（原生 config 写入 + 包通道引导 + 信任仪式），让 os-*/cli-* 触发自检在所有已装 harness 上生效。
+`init harness` 安装 per-harness 的 osuperpowers 配置（原生 config 写入 + 包通道引导 + 信任仪式），让 osuperpowers:*/cli-* 触发自检在所有已装 harness 上生效。
 
 ## Usage
 

@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**触发路由插件**，用于 [superpowers](https://github.com/obra/superpowers) + [osuperpowers](../osuperpowers/)。本插件**不包含任何 skill 正文** — 它拦截上游 `superpowers:*` 触发器，并将它们路由到对应的 **osuperpowers** 编排器（`os-*` / `cli-*`）或 **mattpocock-skills** 委托（`tdd`）。
+**触发路由插件**，用于 [superpowers](https://github.com/obra/superpowers) + [osuperpowers](../osuperpowers/)。本插件**不包含任何 skill 正文** — 它拦截上游 `superpowers:*` 触发器，并将它们路由到对应的 **osuperpowers** 编排器（`osuperpowers:*` / `cli-*`）或 **mattpocock-skills** 委托（`tdd`）。
 
 ## 功能说明
 

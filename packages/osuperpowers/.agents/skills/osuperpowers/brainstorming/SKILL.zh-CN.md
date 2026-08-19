@@ -13,7 +13,7 @@ description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:br
 
 Read 上游 `superpowers:brainstorming` 的 SKILL.md 作为流程基线 **当可用时**（claude / cursor 装有 superpowers 插件）。**Read 而非 Skill-invoke**（Skill-invoke 会触发路由器拦截）。
 
-解析路径（`{plugin-root}` = 本插件 engineering 根）：
+解析路径（`{plugin-root}` = 本插件 osuperpowers 根）：
 1. **兄弟插件根**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同理）
 2. **回退同仓库相对路径**：`<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
 

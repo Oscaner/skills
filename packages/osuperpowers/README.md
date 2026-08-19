@@ -2,13 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Engineering skills for Claude Code — os-* orchestration family, cli-* CDD engine skills, and the CDD orchestrator gate.
+osuperpowers skills for Claude Code — orchestration family, cli-* CDD engine skills, and the CDD orchestrator gate.
 
 ## What it does
 
 This plugin provides two skill families:
 
-- **os-\* orchestration** — flow orchestrators that read upstream `superpowers` baselines and apply personal rules (clarifying questions via `grilling`, spec review via fresh subagent passes, ticket publish redirection, etc.)
+- **osuperpowers orchestration** — flow orchestrators that read upstream `superpowers` baselines and apply personal rules (clarifying questions via `grilling`, spec review via fresh subagent passes, ticket publish redirection, etc.)
 - **cli-\* CDD engine** — harness CLI three-mode chain (implement / review / fix) that dispatches coding tasks to external AI CLIs (`claude`, `cursor-agent`, `droid`, `pi`)
 - **CDD gate** — hooks that enforce pending-state contracts on `Write`/`Edit` and `Bash` tool calls
 

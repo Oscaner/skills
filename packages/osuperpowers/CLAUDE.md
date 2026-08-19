@@ -18,13 +18,13 @@ If a skill's SKILL.md exists on disk but is not under the plugin's declared `ski
 
 ## The overrides pattern (router --> osuperpowers)
 
-The [osuperpowers-router](../osuperpowers-router/) plugin is the **trigger router** -- it ships no skill bodies. The override skills live in [osuperpowers](./skills/). Each `os-*` orchestrator skill follows a fixed shape:
+The [osuperpowers-router](../osuperpowers-router/) plugin is the **trigger router** -- it ships no skill bodies. The override skills live in [osuperpowers](./skills/). Each `osuperpowers` orchestrator skill follows a fixed shape:
 
 - Frontmatter `description` names the upstream it reads (`Read 上游 superpowers:<target> 作为基线`) and the personal rules it adds. Upstream entry points map to targets in the router manifest (`overrides.manifest.json`) -- the single source of truth the emit generators derive hooks and self-check tables from.
 - Body opens with `## Rules`, semantic `### Rule: <Name>` headings (no numbers; `#rule-<kebab>` anchors). Each rule takes one of three shapes: (a) **replaces** upstream behavior (self-review --> fresh-subagent passes); (b) **delegates** to a `mattpocock-skills:*` skill (grilling, tdd, to-tickets); (c) **partial-delegate** -- wraps the upstream skill's Steps 0-K unchanged and overrides Step K+1 locally (writing-plans Rule: Tickets Publish Redirect is the canonical example: Steps 1-4 of `/to-tickets` are delegated verbatim, Step 5 "publish" is redirected to a single local `docs/superpowers/tickets/<date>-<feature>-tickets.md`, keeping the upstream single-file shape). Partial-delegate rules must state up front which steps are delegated and which are overridden -- the split is what prevents Step K+1 from silently reverting to upstream defaults.
 - When one rule has multiple internal enforcement mechanisms (e.g. "locate the delegate", "redirect publish target", "structure the user-approval quiz"), decompose it into sub-rules `Rule Na` / `Rule Nb` / `Rule Nc` under a single umbrella heading. Sub-rules are cheaper than sibling top-level rules when the mechanisms share a triggering context but attack different failure modes.
 - Body closes with `## Red Flags` (thoughts that should stop you). Load-bearing -- the orchestrator is designed to catch drift, so removing this section defeats the point.
-- New rules go **inside** the `os-*` skill as `### Rule: <Name>`, never in the user's global `~/.claude/CLAUDE.md`.
+- New rules go **inside** the `osuperpowers` skill as `### Rule: <Name>`, never in the user's global `~/.claude/CLAUDE.md`.
 
 Route enforcement is coordinated by **three mechanisms**, not one:
 
@@ -47,12 +47,12 @@ Detail (pending-state contract, fail-open, shell allowlist) --> [cross-harness-o
 
 ## Cross-cutting docs
 
-Two cross-cutting reference docs in `osuperpowers/docs/` hold invariants that multiple os-* skills cite instead of duplicating. Neither is a slash command; they are invoked by reference from `Rule:` lines inside the os-* skills. Editing them propagates to every skill that cites them.
+Two cross-cutting reference docs in `osuperpowers/docs/` hold invariants that multiple osuperpowers skills cite instead of duplicating. Neither is a slash command; they are invoked by reference from `Rule:` lines inside the osuperpowers skills. Editing them propagates to every skill that cites them.
 
-- [docs/subagent-lifecycle.md](docs/subagent-lifecycle.md) -- **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review-pass rule in the os-* skills. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
-- [docs/review-dispatch.md](docs/review-dispatch.md) -- **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review-pass rule in the os-* skills. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
+- [docs/subagent-lifecycle.md](docs/subagent-lifecycle.md) -- **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review-pass rule in the osuperpowers skills. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
+- [docs/review-dispatch.md](docs/review-dispatch.md) -- **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review-pass rule in the osuperpowers skills. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
 
-When editing any os-* skill that dispatches review passes, cite these docs rather than paraphrasing them -- paraphrases drift; citations don't. When adding a new invariant that applies to multiple os-* skills, add a new rule to the appropriate cross-cutting doc and cite it, don't inline it across the skills.
+When editing any osuperpowers skill that dispatches review passes, cite these docs rather than paraphrasing them -- paraphrases drift; citations don't. When adding a new invariant that applies to multiple osuperpowers skills, add a new rule to the appropriate cross-cutting doc and cite it, don't inline it across the skills.
 
 ## `docs/superpowers/` conventions
 
@@ -100,7 +100,7 @@ git submodule update --init
 
 **Add a new override skill to `osuperpowers`** -- three things must change together in one commit, or the skill is invisible or won't auto-trigger:
 
-1. Create `packages/osuperpowers/skills/<name>/SKILL.md` with the os-* orchestrator shape (see [The overrides pattern](#the-overrides-pattern-router-osuperpowers)).
+1. Create `packages/osuperpowers/skills/<name>/SKILL.md` with the osuperpowers orchestrator shape (see [The overrides pattern](#the-overrides-pattern-router-osuperpowers)).
 2. Add a target row to [packages/osuperpowers-router/overrides.manifest.json](../osuperpowers-router/overrides.manifest.json) mapping the upstream trigger to `osuperpowers:<name>` (source `../osuperpowers/skills/<name>`), then run `pnpm run emit` (regenerates `bin/prompt-expansion.mjs`, the cursor hooks, and `build/generated/*` via the unified `scripts/emit.mjs`). Do **not** hand-edit the hook script.
 3. Add a row to the router target table in [README.md](../../README.md) for discoverability.
 
@@ -181,7 +181,7 @@ pnpm run emit:check        # scripts/emit.mjs --check -- drift --> exit 1
 node packages/osuperpowers-router/tests/validate-overrides-build.mjs
 ```
 
-**Note:** on a fresh clone, run `git submodule update --init` before `emit --check` -- `emit`/validate resolve the `superpowers` submodule for version sync (`marketplace-utils.mjs` / `validate-version-sync.mjs`). The emitter does **not** copy upstream skills into `.agents/skills/` (osuperpowers skills only; os-* Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
+**Note:** on a fresh clone, run `git submodule update --init` before `emit --check` -- `emit`/validate resolve the `superpowers` submodule for version sync (`marketplace-utils.mjs` / `validate-version-sync.mjs`). The emitter does **not** copy upstream skills into `.agents/skills/` (osuperpowers skills only; osuperpowers Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
 
 **6-9. Full local CI (recommended):**
 ```bash

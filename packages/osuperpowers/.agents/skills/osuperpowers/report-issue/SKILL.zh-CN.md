@@ -82,7 +82,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 ```markdown
 ## Context
 
-<!-- dogfood session context: branch, date, os-* skills in use -->
+<!-- dogfood session context: branch, date, osuperpowers skills in use -->
 
 ## Problem
 
@@ -106,7 +106,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 ```markdown
 ## 背景
 
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 os-* skill -->
+<!-- Dogfood session 上下文：分支、日期、使用了哪些 osuperpowers skill -->
 
 ## 问题
 
@@ -130,7 +130,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 ```markdown
 ## Context
 
-<!-- dogfood session context: branch, date, os-* skills in use -->
+<!-- dogfood session context: branch, date, osuperpowers skills in use -->
 
 ## Current behavior
 
@@ -154,7 +154,7 @@ issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除
 ```markdown
 ## 背景
 
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 os-* skill -->
+<!-- Dogfood session 上下文：分支、日期、使用了哪些 osuperpowers skill -->
 
 ## 当前行为
 

@@ -23,7 +23,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 
 | 插件 | 类型 | 说明 |
 |------|------|------|
-| **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（`os-*` 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
+| **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（osuperpowers 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
 | **[osuperpowers-router](packages/osuperpowers-router/)** | 一方 | 触发路由器——拦截上游触发，路由到 osuperpowers / mattpocock 目标 |
 | **[superpowers](vendors/superpowers/)** | vendored | 上游工作流技能——brainstorming、writing plans、SDD、verification、branch finish |
 | **[mattpocock-skills](vendors/mattpocock-skills/)** | vendored | 精准工具——`grilling`、`tdd`、`to-tickets` |

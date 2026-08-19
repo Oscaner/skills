@@ -23,7 +23,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (`os-*` orchestrators, `cli-*` family), CDD engine, cross-harness gate (11 adapters) |
+| **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine, cross-harness gate (11 adapters) |
 | **[osuperpowers-router](packages/osuperpowers-router/)** | First-party | Trigger router -- intercepts upstream triggers and routes to osuperpowers / mattpocock targets |
 | **[superpowers](vendors/superpowers/)** | Vendored | Upstream workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
 | **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd`, `to-tickets` |

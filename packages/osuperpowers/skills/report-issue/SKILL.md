@@ -82,7 +82,7 @@ Choose template based on session language (Rule: Session Language).
 ```markdown
 ## Context
 
-<!-- dogfood session context: branch, date, os-* skills in use -->
+<!-- dogfood session context: branch, date, osuperpowers skills in use -->
 
 ## Problem
 
@@ -106,7 +106,7 @@ Choose template based on session language (Rule: Session Language).
 ```markdown
 ## 背景
 
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 os-* skill -->
+<!-- Dogfood session 上下文：分支、日期、使用了哪些 osuperpowers skill -->
 
 ## 问题
 
@@ -130,7 +130,7 @@ Choose template based on session language (Rule: Session Language).
 ```markdown
 ## Context
 
-<!-- dogfood session context: branch, date, os-* skills in use -->
+<!-- dogfood session context: branch, date, osuperpowers skills in use -->
 
 ## Current behavior
 
@@ -154,7 +154,7 @@ Choose template based on session language (Rule: Session Language).
 ```markdown
 ## 背景
 
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 os-* skill -->
+<!-- Dogfood session 上下文：分支、日期、使用了哪些 osuperpowers skill -->
 
 ## 当前行为
 

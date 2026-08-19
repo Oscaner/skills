@@ -25,7 +25,7 @@ Read 上游 `superpowers:writing-plans` 的 SKILL.md 作为流程基线 **当可
 
 计划 review 分 3 类 pass（completeness & spec alignment / task decomposition / buildability & type consistency），每 pass 一次 fresh `cdd-exec` 派发：
   cdd-exec --harness claude --prompt "<plan-document-reviewer 模板 + pass 类别 + 文档路径>"
-**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = engineering 根）。派发纪律见 [review-dispatch.md](../docs/review-dispatch.md)（D1/D2/D3 + fresh-pass，原样映射到 cli）。
+**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = osuperpowers 根）。派发纪律见 [review-dispatch.md](../docs/review-dispatch.md)（D1/D2/D3 + fresh-pass，原样映射到 cli）。
 
 ### Rule: Tickets Publish Redirect
 

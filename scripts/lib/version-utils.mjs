@@ -31,7 +31,7 @@ export function parseSemver(version) {
 }
 
 /**
- * engineering independent semver bump.
+ * osuperpowers independent semver bump.
  * @param {string} current e.g. "0.1.0"
  * @param {"patch"|"minor"|"major"} bumpLevel
  */

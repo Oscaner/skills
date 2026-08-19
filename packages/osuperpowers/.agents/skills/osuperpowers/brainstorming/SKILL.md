@@ -13,7 +13,7 @@ Full brainstorm flow orchestration, callable standalone.
 
 Read upstream `superpowers:brainstorming` SKILL.md as the process baseline **when available** (claude / cursor has superpowers plugin installed). **Read, not Skill-invoke** (Skill-invoke triggers the router interception).
 
-Resolve paths (`{plugin-root}` = this plugin's engineering root):
+Resolve paths (`{plugin-root}` = this plugin's osuperpowers root):
 1. **Sibling plugin root**: claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md` (same for cursor)
 2. **Fallback same-repo relative path**: `<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
 

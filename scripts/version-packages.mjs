@@ -66,7 +66,7 @@ const overridesNext = !existsSync(overridesChangelogPath)
   : computeNextVersion(overridesPkg.version, superpowersVersion);
 
 // Bump overrides only when it has changesets, or the superpowers base moved
-// (realignment release). An engineering-only changeset must not produce an
+// (realignment release). An osuperpowers-only changeset must not produce an
 // empty overrides release.
 if (overridesCS.length > 0 || overridesBaseReset) {
   const releaseLines = [];
@@ -86,7 +86,7 @@ if (overridesCS.length > 0 || overridesBaseReset) {
   writeJson(overridesPkgPath, overridesPkg);
 }
 
-// ---- engineering (independent semver) ----
+// ---- osuperpowers (independent semver) ----
 const osengPkgPath = "packages/osuperpowers/package.json";
 const osengChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
 const osengCS = changesetsForPlugin(
@@ -125,7 +125,7 @@ if (osengCS.length > 0) {
   osengPkg.version = osengNext;
   writeJson(osengPkgPath, osengPkg);
 
-  // Sync engineering version to the init self-check stamps (the only SOTs
+  // Sync osuperpowers version to the init self-check stamps (the only SOTs
   // outside package.json). SKILL.md holds the version marker; router.md's
   // written-table template carries the same stamp for `init router`. Both must
   // exist or the release aborts. marketplace/source.json and the per-harness
@@ -151,7 +151,7 @@ if (osengCS.length > 0) {
 // ---- record which plugins were actually versioned (release workflow) ----
 // release.yml's per-plugin matrix job reads this to skip plugins that had no
 // changesets — otherwise it would mint a phantom baseline tag/release for
-// engineering@0.1.0 on the first publish. Written under .changeset/ so the
+// osuperpowers@0.1.0 on the first publish. Written under .changeset/ so the
 // Version PR commits it alongside the version bumps; it persists into the
 // publish-mode push that follows the Version PR merge.
 const versioned = [];

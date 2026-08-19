@@ -15,7 +15,7 @@ const ENFORCE = fileURLToPath(
 );
 
 const OVERRIDE = "osuperpowers:brainstorming";
-const SKILL_SUFFIX = "../engineering/skills/brainstorming/SKILL.md";
+const SKILL_SUFFIX = "../osuperpowers/skills/brainstorming/SKILL.md";
 const TARGET_SKILL_PATH = "/repo/packages/osuperpowers/skills/brainstorming/SKILL.md";
 
 let pendingRoot;

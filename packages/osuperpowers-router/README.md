@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**Trigger router** for [superpowers](https://github.com/obra/superpowers) + [osuperpowers](../osuperpowers/). This plugin ships **no skill bodies** — it intercepts upstream `superpowers:*` triggers and routes them to the matching **osuperpowers** orchestrator (`os-*` / `cli-*`) or a **mattpocock-skills** delegate (`tdd`).
+**Trigger router** for [superpowers](https://github.com/obra/superpowers) + [osuperpowers](../osuperpowers/). This plugin ships **no skill bodies** — it intercepts upstream `superpowers:*` triggers and routes them to the matching **osuperpowers** orchestrator (`osuperpowers:*` / `cli-*`) or a **mattpocock-skills** delegate (`tdd`).
 
 ## What it does
 

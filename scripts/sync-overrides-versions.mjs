@@ -17,8 +17,8 @@
  * matches, the version is left untouched and the script only re-emits.
  *
  * Deliberately does NOT rewrite repo dogfood (CLAUDE.md / `.cursor/rules/*`).
- * os-init owns the dogfood now and stamps it with the engineering version;
- * a script that stamped it with the overrides version would fight os-init.
+ * init owns the dogfood now and stamps it with the osuperpowers version;
+ * a script that stamped it with the overrides version would fight init.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

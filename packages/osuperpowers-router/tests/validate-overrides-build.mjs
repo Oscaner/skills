@@ -3,7 +3,7 @@
 // of validate-overrides-build.sh.
 //
 // Validates the overrides trigger-router build: the manifest schema + canonical
-// target names, the hooks matchers, hooks-cursor.json, os-init lockstep,
+// target names, the hooks matchers, hooks-cursor.json, init lockstep,
 // self-check version stamps, dogfood stamps, and the sub-validators that the
 // .sh deferred to python3 / node (rule-reference, manifest-harness, router
 // hooks, engine tests, emit freshness). Fail-fast like `set -e` in the .sh:
@@ -122,18 +122,18 @@ function main() {
     }
   });
 
-  check("validate rule-reference integrity (engineering semantic)", () => {
+  check("validate rule-reference integrity (osuperpowers semantic)", () => {
     nodeTest(path.join(ENGINE, "tests/rule-reference.test.mjs"));
   });
 
-  check("validate engineering engine (harness registry + runners)", () => {
+  check("validate osuperpowers engine (harness registry + runners)", () => {
     assert(existsSync(path.join(ENGINE, "bin/engine/harness-registry.json")), "harness-registry.json missing");
     for (const script of ["cdd-run.mjs", "cdd-select.mjs", "cdd-exec.mjs"]) {
-      assert(isExecutable(path.join(ENGINE, "bin/engine", script)), `engineering/bin/engine/${script} not executable`);
+      assert(isExecutable(path.join(ENGINE, "bin/engine", script)), `osuperpowers/bin/engine/${script} not executable`);
     }
   });
 
-  check("validate engineering engine tests", () => {
+  check("validate osuperpowers engine tests", () => {
     const testsDir = path.join(ENGINE, "bin/engine/tests");
     const files = readdirSync(testsDir)
       .filter((f) => f.endsWith(".test.mjs"))
@@ -159,11 +159,11 @@ function main() {
     assert(!isDir(path.join(ROOT, ".cursor/skills")), ".cursor/skills/ still exists");
   });
 
-  check("validate os-init self-check rows mirror manifest targets", () => {
-    // The os-init router payload table (a hand-maintained copy of the
+  check("validate init self-check rows mirror manifest targets", () => {
+    // The init router payload table (a hand-maintained copy of the
     // trigger->target mapping) must stay in lockstep with overrides.manifest.json
     // targets[]. Every manifest target's upstream slug must resolve to its
-    // canonical target name. The table lives in os-init's router.md payload.
+    // canonical target name. The table lives in init's router.md payload.
     const sporMd = readFileSync(path.join(ENGINE, "skills/init/router.md"), "utf8");
     const rows = {};
     for (const raw of sporMd.split("\n")) {
@@ -182,13 +182,13 @@ function main() {
     const manifest = loadManifest();
     assert(
       Object.keys(rows).length >= manifest.targets.length,
-      `os-init payload has ${Object.keys(rows).length} rows, manifest has ${manifest.targets.length}`,
+      `init payload has ${Object.keys(rows).length} rows, manifest has ${manifest.targets.length}`,
     );
     for (const t of manifest.targets) {
       const slug = t.overrides.split(":")[1];
       const want = t.name;
       const got = rows[slug];
-      assert(got === want, `os-init row /${slug}: Skill(${got}) != Skill(${want})`);
+      assert(got === want, `init row /${slug}: Skill(${got}) != Skill(${want})`);
     }
   });
 
@@ -230,12 +230,12 @@ function main() {
     assert(pre.length === 1, `expected 1 preToolUse entry: ${pre.length}`);
     assert(pre[0].command === "./bin/cursor-enforce.mjs", `enforce command: ${pre[0].command}`);
     assert(!("matcher" in pre[0]), "preToolUse must not carry a matcher");
-    assert(!pre.some((p) => p.command.includes("cdd-gate")), "gate preToolUse moved to engineering");
+    assert(!pre.some((p) => p.command.includes("cdd-gate")), "gate preToolUse moved to osuperpowers");
   });
 
-  check("validate claude hooks.json has no PreToolUse (gate moved to engineering)", () => {
+  check("validate claude hooks.json has no PreToolUse (gate moved to osuperpowers)", () => {
     const cc = JSON.parse(readFileSync(path.join(ROOT, "hooks/hooks.json"), "utf8"));
-    assert(!("PreToolUse" in cc.hooks), "gate PreToolUse moved to engineering");
+    assert(!("PreToolUse" in cc.hooks), "gate PreToolUse moved to osuperpowers");
   });
 
   check("validate router hook scripts executable", () => {

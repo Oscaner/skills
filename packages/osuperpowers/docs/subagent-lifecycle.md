@@ -1,6 +1,6 @@
 # Subagent Lifecycle
 
-Cross-cutting reference: cited by review-pass rules in os-* skills.
+Cross-cutting reference: cited by review-pass rules in osuperpowers skills.
 
 ## Rules
 

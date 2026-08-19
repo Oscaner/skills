@@ -1,6 +1,6 @@
 # Subagent Lifecycle
 
-跨切面参考：被 os-* 技能的评审 passes 规则引用。
+跨切面参考：被 osuperpowers 技能的评审 passes 规则引用。
 
 ## Rules
 

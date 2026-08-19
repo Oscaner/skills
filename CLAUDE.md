@@ -8,9 +8,9 @@ A **multi-harness AI coding skills marketplace**. Skills work across Claude Code
 
 Five plugins ship here:
 
-1. **osuperpowers** — first-party, in-tree at `packages/osuperpowers/`. os-* orchestration + cli-* family + CDD engine + gate.
+1. **osuperpowers** — first-party, in-tree at `packages/osuperpowers/`. osuperpowers orchestration + cli-* family + CDD engine + gate.
 2. **osuperpowers-router** — first-party, in-tree at `packages/osuperpowers-router/`. Trigger router: no skill bodies, maps upstream triggers to osuperpowers/mattpocock targets.
-3. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by os-* orchestrators.
+3. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by osuperpowers orchestrators.
 4. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, to-tickets, research).
 5. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
 

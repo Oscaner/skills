@@ -42,9 +42,22 @@ import {
   overridesHooksFor,
 } from "./overrides.mjs";
 
+// First-party versions are read from the live package.json SOTs so these
+// assertions hold at any released version. A stale hardcoded version broke the
+// Release workflow's pre-commit gate whenever version-packages.mjs bumped the
+// tree before committing (emit reads the bumped package.json, so asserts must
+// expect the bumped version).
+const readPkgVersion = (rel) =>
+  JSON.parse(
+    readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"),
+  ).version;
+const OS_VERSION = readPkgVersion("packages/osuperpowers");
+const ROUTER_VERSION = readPkgVersion("packages/osuperpowers-router");
+const ROUTER_VERSION_RE = ROUTER_VERSION.replace(/\./g, "\\.");
+
 const OS_ENG = {
   name: "osuperpowers",
-  version: "0.1.0",
+  version: OS_VERSION,
   description:
     "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
   author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
@@ -57,9 +70,9 @@ const OS_ENG = {
 
 const MANIFEST_PATH = "packages/osuperpowers-router/overrides.manifest.json";
 
-const OVERRIDES = {
+const ROUTER = {
   name: "osuperpowers-router",
-  version: "6.2.0-overrides.0.15.3",
+  version: ROUTER_VERSION,
   description:
     "Personal overrides for the superpowers plugin that force delegation to other skills.",
   author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
@@ -75,12 +88,12 @@ const OVERRIDES = {
 // ---------------------------------------------------------------------------
 
 test("claudePluginManifest emits osuperpowers claude manifest (thin, skills+../hooks)", () => {
-  assert.deepEqual(claudePluginManifest(OS_ENG, "0.1.0"), {
+  assert.deepEqual(claudePluginManifest(OS_ENG, OS_VERSION), {
     _generated: generatedBanner,
     name: "osuperpowers",
     description:
       "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
-    version: "0.1.0",
+    version: OS_VERSION,
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
     license: "MIT",
     skills: "./skills/",
@@ -92,13 +105,13 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills+../h
 
 test("claudePluginManifest with noSkills omits skills but keeps full metadata", () => {
   assert.deepEqual(
-    claudePluginManifest(OVERRIDES, "6.2.0-overrides.0.15.3", { noSkills: true }),
+    claudePluginManifest(ROUTER, ROUTER_VERSION, { noSkills: true }),
     {
       _generated: generatedBanner,
       name: "osuperpowers-router",
       description:
         "Personal overrides for the superpowers plugin that force delegation to other skills.",
-      version: "6.2.0-overrides.0.15.3",
+      version: ROUTER_VERSION,
       author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
       hooks: "./hooks/hooks.json",
       license: "MIT",
@@ -109,23 +122,23 @@ test("claudePluginManifest with noSkills omits skills but keeps full metadata", 
 });
 
 test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () => {
-  const m = cursorPluginManifest(OS_ENG, "0.1.0");
+  const m = cursorPluginManifest(OS_ENG, OS_VERSION);
   assert.equal(m.name, "osuperpowers");
   assert.equal(m.displayName, "osuperpowers");
   assert.equal(m.skills, "./skills/");
   assert.equal(m.hooks, "./hooks/hooks-cursor.json");
-  assert.equal(m.version, "0.1.0");
+  assert.equal(m.version, OS_VERSION);
   assert.equal(m.license, "MIT");
   assert.ok(m._generated);
   assert.match(m._generated, /scripts\/emit\.mjs/);
 });
 
 test("codexPluginManifest includes skills, codex gate hooks path, and interface", () => {
-  const m = codexPluginManifest(OS_ENG, "0.1.0");
+  const m = codexPluginManifest(OS_ENG, OS_VERSION);
   assert.equal(m.skills, "../skills/");
   assert.equal(m.hooks, "./hooks/hooks.json");
   assert.equal(m.name, "osuperpowers");
-  assert.equal(m.version, "0.1.0");
+  assert.equal(m.version, OS_VERSION);
   assert.ok(m.interface, "codex manifest must carry an interface");
   assert.equal(m.interface.displayName, "osuperpowers");
   assert.ok(Array.isArray(m.interface.capabilities));
@@ -138,7 +151,7 @@ test("claudePluginManifest resolves hooks from plugin.hooks.claude mapping", () 
       ...OS_ENG,
       hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
     },
-    "0.1.0",
+    OS_VERSION,
   );
   assert.equal(m.hooks, "./hooks/claude.json");
 });
@@ -149,7 +162,7 @@ test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () 
       ...OS_ENG,
       hooks: { claude: "./hooks/claude.json", cursor: "./hooks/cursor.json" },
     },
-    "0.1.0",
+    OS_VERSION,
   );
   assert.equal(m.hooks, "./hooks/cursor.json");
 });
@@ -158,10 +171,10 @@ test("codexPluginManifest points hooks at the codex plugin-root hooks channel", 
   // codex 插件 hooks 走 plugin-root `hooks/hooks.json`（manifest 位于 .codex-plugin/，
   // manifest-relative 为 ./hooks/hooks.json）；emit 按 package-relative 映射写文件。
   // skills 同为 manifest-relative（../skills/ → 包根 skills/）—— 统一 base。
-  assert.equal(codexPluginManifest(OS_ENG, "0.1.0").hooks, "./hooks/hooks.json");
+  assert.equal(codexPluginManifest(OS_ENG, OS_VERSION).hooks, "./hooks/hooks.json");
   const mapped = codexPluginManifest(
     { ...OS_ENG, hooks: { codex: "./.codex-plugin/hooks/hooks.json" } },
-    "0.1.0",
+    OS_VERSION,
   );
   assert.equal(mapped.hooks, "./hooks/hooks.json");
 });
@@ -195,7 +208,7 @@ test("assertAdapterPathsExist: every generated osuperpowers hooks command resolv
     },
   };
   assert.doesNotThrow(() =>
-    assertAdapterPathsExist(plugin, "packages/osuperpowers", "0.1.0"),
+    assertAdapterPathsExist(plugin, "packages/osuperpowers", OS_VERSION),
   );
 });
 
@@ -207,7 +220,7 @@ test("assertAdapterPathsExist: throws when a generated hooks command adapter is 
       hooks: { claude: "./hooks/hooks.json" },
     };
     // empty temp dir has no bin/gate/adapters/* — the guard must fail loud
-    assert.throws(() => assertAdapterPathsExist(plugin, tmp, "0.1.0"), /adapter/i);
+    assert.throws(() => assertAdapterPathsExist(plugin, tmp, OS_VERSION), /adapter/i);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -241,7 +254,7 @@ test("assertAdapterPathsExist: ../bin manifest-relative adapter missing → thro
       hooks: { codex: "./.codex-plugin/hooks/hooks.json" },
     };
     // 空 temp dir 无 bin/gate/adapters/codex.mjs —— 即使命令是 ../ 前缀也必须失败
-    assert.throws(() => assertAdapterPathsExist(plugin, tmp, "0.1.0"), /adapter/i);
+    assert.throws(() => assertAdapterPathsExist(plugin, tmp, OS_VERSION), /adapter/i);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -260,7 +273,7 @@ test("collectHookCommands walks nested hook docs and returns every command strin
 });
 
 test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface", () => {
-  const m = kimiPluginManifest(OS_ENG, "0.1.0");
+  const m = kimiPluginManifest(OS_ENG, OS_VERSION);
   assert.equal(m.skills, "./skills/");
   assert.deepEqual(m.sessionStart, { skill: "init" });
   assert.ok(
@@ -272,12 +285,12 @@ test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface"
 });
 
 test("geminiExtension carries BeforeTool gate hooks + contextFileName", () => {
-  assert.deepEqual(geminiExtension(OS_ENG, "0.1.0"), {
+  assert.deepEqual(geminiExtension(OS_ENG, OS_VERSION), {
     _generated: generatedBanner,
     name: "osuperpowers",
     description:
       "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
-    version: "0.1.0",
+    version: OS_VERSION,
     contextFileName: "GEMINI.md",
     hooks: {
       BeforeTool: [
@@ -346,9 +359,9 @@ test("first-party pi keys: osuperpowers pi = skills + gate extension (.ts), over
 });
 
 test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () => {
-  const m = qoderPluginManifest(OS_ENG, "0.1.0");
+  const m = qoderPluginManifest(OS_ENG, OS_VERSION);
   assert.equal(m.name, "osuperpowers");
-  assert.equal(m.version, "0.1.0");
+  assert.equal(m.version, OS_VERSION);
   assert.equal(m.description, OS_ENG.description);
   assert.equal(m.author.name, "Oscaner Miao");
   assert.equal(m.license, "MIT");
@@ -453,7 +466,7 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
   const eng = source.plugins.find((p) => p.name === "osuperpowers");
   assert.deepEqual(eng, {
     name: "osuperpowers",
-    version: "0.1.0",
+    version: OS_VERSION,
     description:
       "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
@@ -475,7 +488,7 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
   });
 
   const ovr = source.plugins.find((p) => p.name === "osuperpowers-router");
-  assert.equal(ovr.version, "6.2.0-overrides.0.15.3");
+  assert.equal(ovr.version, ROUTER_VERSION);
   assert.equal(ovr.contentRoot, "packages/osuperpowers-router");
   assert.equal(ovr.license, "MIT");
   assert.deepEqual(ovr.claude, {
@@ -780,11 +793,11 @@ test("claudeSelfCheckMd fills the trigger table with target skill names", () => 
   );
   const md = claudeSelfCheckMd(
     loadTargets(MANIFEST_PATH),
-    "6.2.0-overrides.0.15.3",
+    ROUTER_VERSION,
     template,
   );
   assert.match(md, /<!-- scripts\/emit\.mjs — do not edit -->/);
-  assert.match(md, /<!-- osuperpowers-router-version: 6\.2\.0-overrides\.0\.15\.3 -->/);
+  assert.match(md, new RegExp(`<!-- osuperpowers-router-version: ${ROUTER_VERSION_RE} -->`));
   assert.match(md, /\| `superpowers:brainstorming` \| `Skill\(osuperpowers:brainstorming\)` \|/);
   assert.match(md, /\| `superpowers:test-driven-development` \| `Skill\(mattpocock-skills:tdd\)` \|/);
 });
@@ -796,10 +809,10 @@ test("cursorSelfCheckMdc carries the version stamp and trigger rows", () => {
   );
   const mdc = cursorSelfCheckMdc(
     loadTargets(MANIFEST_PATH),
-    "6.2.0-overrides.0.15.3",
+    ROUTER_VERSION,
     template,
   );
   assert.match(mdc, /_generated: scripts\/emit\.mjs — do not edit/);
-  assert.match(mdc, /osuperpowers-router-version: 6\.2\.0-overrides\.0\.15\.3/);
+  assert.match(mdc, new RegExp(`osuperpowers-router-version: ${ROUTER_VERSION_RE}`));
   assert.match(mdc, /\| `\/brainstorming`, `\/superpowers:brainstorming`, upstream `brainstorming` body \| Read `osuperpowers:brainstorming` via agent_skills fullPath \|/);
 });

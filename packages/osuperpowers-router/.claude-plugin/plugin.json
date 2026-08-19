@@ -7,7 +7,6 @@
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"
   },
-  "hooks": "./hooks/hooks.json",
   "license": "MIT",
   "category": "workflow",
   "keywords": [

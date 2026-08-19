@@ -380,23 +380,22 @@ git commit -m "docs: purge os-* and engineering names from plugin docs and skill
 - Consumes: Tasks 1-5 finalized names
 - Produces: grep-clean P7-era docs + overall spec P7d row in completed state — verified by Task 7's D/D2 lanes
 
-- [ ] **Step 1: Apply §1 mapping to p7a/b/c docs**
+- [ ] **Step 1: P7 系列文档 —— 改名记录类豁免（执行期决策 A）**
 
-In the 9 p7a/p7b/p7c files above, apply the canonical mapping mechanically: `os-*` family → `osuperpowers`/`osuperpowers:*`, `os-<skill>` → `osuperpowers:<skill>`, `"os-init"` → `osuperpowers:init` (skill) or `init` (command/internals), `os-engineering`/`engineering` (our plugin/paths) → `osuperpowers`, `packages/engineering/` → `packages/osuperpowers/`, `engineeringVersion`/`ENGINEERING_VERSION` → `osuperpowersVersion`/`OSUPERPOWERS_VERSION`.
-
-**File names are intentionally NOT renamed** (`2026-08-18-os-engineering-p7a-*` stays — series identifier).
+P7a/b/c 设计/计划/tickets 是**改名记录文档**（内容即旧→新对照表）。按执行期批准的决策 A：**映射记录行（含 `→`/`->`）与文件名 slug 引用（`os-engineering-p7*`）豁免**，不做 token 清扫（清除即破坏史实）；前向引用清理实测为 0（296 行匹配剔除豁免类后无剩余）。本步骤无文件编辑 —— 仅确认文档保持原样（映射记录）。
 
 - [ ] **Step 2: Sync the overall spec**
 
 In `docs/superpowers/specs/2026-08-10-os-engineering-overall.md` (design §6.1 + Rule 3b):
-- §2 table: P7a/P7b rows → `✅ 实现完成` + link existing design/plan; P7d row links → this design + plan, status → `✅ 实现完成`
-- §6 Change history: append `v4.2 · 2026-08-19 · P7d 实现完成 ...` entry
-- Keep the §2 P7d row's *description* text mostly as-is (it documents the mapping — the row intentionally retains old names to explain what was cleaned)
+- §2 table: P7a/P7b rows → `✅ 实现完成` + design/plan links; P7d row → links (this design + plan) + status `✅ 实现完成`；P7d 行验收描述指向设计 spec §8 A/A2/D/D2 车道（含改名记录豁免）
+- Header `Version` → v4.2
+- §6 Change history: append `v4.2 · 2026-08-19 · **P7d 实现完成** ...` entry
+- Keep the v4.0/v4.1 changelog entries + §2 phase descriptions + row mapping text (records — exempt)
 
-- [ ] **Step 3: Verify P7-era docs clean**
+- [ ] **Step 3: Verify P7-era docs (exempt-class classifier, D lane)**
 
-Run: `grep -rInE 'os-|engineering|oscaner-engineering|ENGINEERING_VERSION|engineeringVersion' docs/superpowers/specs/2026-08-18-os-engineering-p7a-design.md docs/superpowers/specs/2026-08-18-os-engineering-p7b-design.md docs/superpowers/specs/2026-08-18-os-engineering-p7c-design.md docs/superpowers/plans/2026-08-18-os-engineering-p7a.md docs/superpowers/plans/2026-08-18-os-engineering-p7b.md docs/superpowers/plans/2026-08-18-os-engineering-p7c.md docs/superpowers/tickets/2026-08-18-os-engineering-p7a-tickets.md docs/superpowers/tickets/2026-08-18-os-engineering-p7b-tickets.md 2>/dev/null`
-Expected: exit 1 (no matches)
+Run: the design spec §8 D-lane command (8 existing files) — grep tokens, then `| grep -v 'os-engineering-p7' | grep -vE '(→|->)'`
+Expected: no residual lines (all matches are exempt classes: mapping records + filename-slug refs; note grep on the 8 files must not name any nonexistent file — p7c has no tickets file, excluded from the lane)
 
 - [ ] **Step 4: Verify overall markers**
 
@@ -447,7 +446,7 @@ Expected: no output. If output appears, rename those files (content-scan misses 
 
 - [ ] **Step 3: Lane D + D2 (P7 docs + overall markers)**
 
-Run the §8 D command (the **8 existing** p7a/b/c files — spec lane excludes the never-created p7c-tickets; passing a missing file would make grep exit 2 and `|| echo` fake-clean) — expected exit 1 (clean).
+Run the §8 D command (the **8 existing** p7a/b/c files — spec lane excludes the never-created p7c-tickets; passing a missing file would make grep exit 2 and `|| echo` fake-clean) then the two exempt-class filters: `| grep -v 'os-engineering-p7' | grep -vE '(→|->)'` — expected no residual (all matches are mapping-record / filename-slug exemptions).
 Run the §8 D2 command on the overall spec — expected matches showing `P7d.*✅` + `2026-08-19-os-engineering-p7d`.
 
 - [ ] **Step 4: Full test + validation**

@@ -60,12 +60,12 @@ Work the **frontier**: any ticket whose blockers are all done. T1/T2/T3 have no 
 
 ## T6 — Historical P7a/b/c docs + overall spec synced
 
-**What to build:** The 9 P7-era documents (p7a/b/c design/plan/tickets; p7c has no tickets file) and the overall spec (§2 statuses, P7d row completed + links, change history v4.2) use the final `osuperpowers` naming; P1-P6 history intentionally untouched; filenames intentionally kept.
+**What to build:** The overall spec (§2 P7a/P7b/P7d rows → completed + links, Header v4.2, change history v4.2) reflects the finished P7 series. The P7a/b/c docs are **rename-record documents** — per execution decision A, their old→new mapping tables and filename-slug references are exempt (they ARE the record); no token purge, no forward-stale content exists (verified 296 matches minus exempt classes = 0). Filenames intentionally kept.
 
 **Blocked by:** T5 (final names settled).
 
-- [ ] p7a/b/c docs apply the canonical mapping; overall spec rows/links/changelog updated (P7d descriptive row keeps mapping description by design)
-- [ ] D lane (8 existing files) exits 1; D2 markers (`P7d.*✅` + plan/design links) present in overall
+- [ ] Overall spec updated: P7a/P7b rows ✅ + links; P7d row ✅ + links + acceptance points to design §8 lanes; v4.2 changelog entry
+- [ ] D lane (exempt-class classifier: `os-engineering-p7` slug refs + `→`/`->` mapping records excluded) on the 8 existing p7 files → no residual; D2 markers (`P7d.*✅` + plan/design links) present in overall
 
 ## T7 — Final acceptance: zero legacy naming + green validation
 
@@ -74,6 +74,6 @@ Work the **frontier**: any ticket whose blockers are all done. T1/T2/T3 have no 
 **Blocked by:** T1-T6.
 
 - [ ] Lane A residual = ∅ (only whitelist: `skills/engineering/to-tickets`, source.mjs VENDOR_FALLBACK, publish-vendor fixture, CLAUDE.md:14); lane A2 no stale filenames
-- [ ] D lane exits 1 (8 files); D2 markers present
+- [ ] D lane residual = ∅ after exempt-class filters (`os-engineering-p7` slug refs + `→`/`->` mapping records); D2 markers present
 - [ ] All node:test suites + `pnpm run validate` green; `version-packages.mjs --dry-run` no error
 - [ ] No derived file hand-edited (emit-only); vendors/ untouched

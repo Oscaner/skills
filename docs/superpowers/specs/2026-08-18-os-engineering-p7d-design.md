@@ -239,12 +239,11 @@ grep -rn 'sdd-h6-reference' packages --exclude-dir=node_modules   # 预期：无
 
 ### §6.1 P7 系列同步
 
-以下文件内容同步到最终命名（`os-*` → `osuperpowers:*`、`engineering` → `osuperpowers`、路径/状态/链接整体更新；**文件名不变**）：
+以下文件**内容同步到最终命名**，但按其作为**改名记录文档**的属性执行（执行期决策：P7a/b/c 与 P7d 设计文档同属映射记录类）：
 
-- `docs/superpowers/specs/2026-08-18-os-engineering-p7a-design.md`、`2026-08-18-os-engineering-p7b-design.md`、`2026-08-18-os-engineering-p7c-design.md`
-- `docs/superpowers/plans/2026-08-18-os-engineering-p7a.md`、`2026-08-18-os-engineering-p7b.md`、`2026-08-18-os-engineering-p7c.md`
-- `docs/superpowers/tickets/2026-08-18-os-engineering-p7a-tickets.md`、`2026-08-18-os-engineering-p7b-tickets.md`、`2026-08-18-os-engineering-p7c-tickets.md`
-- `docs/superpowers/specs/2026-08-10-os-engineering-overall.md`：§2 表 P7a/P7b 行状态修正（已完成）、P7d 行 `[Pending]` → 本设计 + 计划链接、末尾状态 `⏳ 未启动` → `✅ 实现完成`；变更历史追加 v4.2 条目（跨阶段 Rule 3b）
+- **映射记录表/对照行（含 `→`/`->`）与文件名 slug 引用（`os-engineering-p7*`）豁免** —— 文档内容即旧→新对照，清除即破坏史实（实测剔除豁免类后残留为 0，无需前向引用清理）
+- **overall spec**：§2 表 P7a/P7b 行状态→✅ + 链接、P7d 行 → ✅ + 链接、Header v4.2、变更历史追加 v4.2 条目（v4.0/v4.1 条目与阶段描述属记录类，保留旧名）
+- 文件：`docs/superpowers/specs/2026-08-18-os-engineering-p7a/b/c-design.md`、`plans/...-p7a/b/c.md`、`tickets/2026-08-18-os-engineering-p7a/b-tickets.md` **文件名不变**（系列标识）；`2026-08-10-os-engineering-overall.md` 上述行更新
 
 ### §6.2 P1-P6 留史 + 文件名保留
 
@@ -302,7 +301,7 @@ pnpm run emit:check
 # C. 全量
 pnpm run validate
 
-# D. P7 p7a/b/c 文档零旧名（P7d 设计文档自身 = 映射表，豁免；overall 用 D2 标记检查；p7c 无 tickets 文件 —— 只扫存在文件，缺失文件会让 grep 退出 2 而非 clean）
+# D. P7 改名记录文档：删除豁免类后无残留（映射表 / 文件名 slug 引用是文档固有内容）
 grep -rInE 'os-|engineering|oscaner-engineering|ENGINEERING_VERSION|engineeringVersion' \
   docs/superpowers/specs/2026-08-18-os-engineering-p7a-design.md \
   docs/superpowers/specs/2026-08-18-os-engineering-p7b-design.md \
@@ -312,7 +311,10 @@ grep -rInE 'os-|engineering|oscaner-engineering|ENGINEERING_VERSION|engineeringV
   docs/superpowers/plans/2026-08-18-os-engineering-p7c.md \
   docs/superpowers/tickets/2026-08-18-os-engineering-p7a-tickets.md \
   docs/superpowers/tickets/2026-08-18-os-engineering-p7b-tickets.md 2>/dev/null \
+  | grep -v 'os-engineering-p7' \
+  | grep -vE '(→|->)' \
   || echo "(D clean)"
+# 预期：无剩余行（其余行全部 = 豁免类：改名映射记录 / 文件名 slug 引用）。实测 296 行匹配中剔除两类后为 0。
 
 # D2. overall spec 标记检查（非 token-zero —— v4.1 changelog + §2 P7d 行按设计保留旧名描述映射）
 grep -nE 'P7d.*✅|2026-08-19-os-engineering-p7d' \

@@ -18,8 +18,8 @@
  *      qoder   → `.qoder-plugin/plugin.json`
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
- *      shared  → `.agents/skills/` copy (engineering only — no vendored upstream)
- *    plus the overrides hooks/self-check tables and engineering PreToolUse
+ *      shared  → `.agents/skills/` copy (osuperpowers only — no vendored upstream)
+ *    plus the overrides hooks/self-check tables and osuperpowers PreToolUse
  *    hooks, and version consistency per `packages/osuperpowers/.version-bump.json`.
  *
  * `--check` mode generates into a temp tree and diffs every produced path
@@ -63,7 +63,7 @@ import {
   kimiPluginManifest,
   geminiExtension,
   geminiMarkdown,
-  engineeringHooksFor,
+  osuperpowersHooksFor,
   qoderPluginManifest,
   assertAdapterPathsExist,
 } from "./lib/emit/manifests.mjs";
@@ -143,7 +143,7 @@ function readJson(rel) {
 // osuperpowers
 // ---------------------------------------------------------------------------
 
-function emitOsEngineering(outRoot, plugin) {
+function emitOsuperpowers(outRoot, plugin) {
   const version = resolveVersion(root, plugin).version;
   const contentRoot = plugin.contentRoot;
   const pluginDir = join(root, contentRoot);
@@ -200,7 +200,7 @@ function emitOsEngineering(outRoot, plugin) {
     writeJsonDoc(
       outRoot,
       `${contentRoot}/${rel.replace(/^\.\//, "")}`,
-      engineeringHooksFor(harness),
+      osuperpowersHooksFor(harness),
     );
   }
 
@@ -213,8 +213,8 @@ function emitOsEngineering(outRoot, plugin) {
 
 /**
  * Shared `.agents/skills/` copy for codex/gemini/pi/qoder/opencode scanners.
- * Contains ONLY the engineering skills namespace — upstream superpowers
- * skills are NOT vendored (os-* Read Upstream is a when-available enhancement).
+ * Contains ONLY the osuperpowers skills namespace — upstream superpowers
+ * skills are NOT vendored (osuperpowers Read Upstream is a when-available enhancement).
  */
 function emitAgentsSkillsCopy(outRoot, contentRoot) {
   const outAgents = join(outRoot, contentRoot, ".agents", "skills");
@@ -423,21 +423,13 @@ function emitAll(outRoot) {
 
   for (const plugin of source.plugins) {
     if (plugin.name === "osuperpowers-router") emitOverrides(outRoot, plugin);
-    if (plugin.name === "osuperpowers") emitOsEngineering(outRoot, plugin);
+    if (plugin.name === "osuperpowers") emitOsuperpowers(outRoot, plugin);
   }
 
   emitMarketplaceDocs(outRoot, source);
 
   // source.json is itself a derived emit product (package-as-source).
   writeJsonDoc(outRoot, "marketplace/source.json", source);
-
-  // osuperpowers no longer uses the cursor wrapper — the wrapper must be gone.
-  const staleWrapper = join(outRoot, "cursor-plugins/engineering");
-  if (existsSync(staleWrapper)) {
-    throw new Error(
-      `stale cursor wrapper: cursor-plugins/engineering/ must be deleted (plugin-root emit)`,
-    );
-  }
 }
 
 function compareTrees(generatedRoot) {
@@ -464,7 +456,7 @@ function compareTrees(generatedRoot) {
     generatedSet,
     productRoots,
     productFiles,
-    extraStale: ["cursor-plugins/engineering/"],
+    extraStale: [],
     root,
   });
   if (stale.length > 0) {

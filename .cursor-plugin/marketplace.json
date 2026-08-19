@@ -30,7 +30,7 @@
       "_generated": "scripts/emit.mjs — do not edit",
       "name": "osuperpowers",
       "source": "./packages/osuperpowers",
-      "description": "Standalone osuperpowers skills: os-* orchestrators, cli-* family, CDD engine, cross-harness gate."
+      "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate."
     },
     {
       "_generated": "scripts/emit.mjs — do not edit",

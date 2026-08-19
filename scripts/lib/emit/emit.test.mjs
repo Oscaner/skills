@@ -13,9 +13,9 @@ import {
   piPackageKey,
   generatedBanner,
   deriveFirstPartyNames,
-  engineeringClaudeHooks,
-  engineeringCursorHooks,
-  engineeringHooksFor,
+  osuperpowersClaudeHooks,
+  osuperpowersCursorHooks,
+  osuperpowersHooksFor,
   codexHooksJson,
   qoderPluginManifest,
   qoderHooksJson,
@@ -46,12 +46,12 @@ const OS_ENG = {
   name: "osuperpowers",
   version: "0.1.0",
   description:
-    "Standalone osuperpowers skills: os-* orchestrators, cli-* family, CDD engine, cross-harness gate.",
+    "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
   author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
   license: "MIT",
   claude: {
-    category: "engineering",
-    keywords: ["engineering", "cli", "cdd", "harness", "droid", "pi"],
+    category: "osuperpowers",
+    keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
   },
 };
 
@@ -74,19 +74,19 @@ const OVERRIDES = {
 // manifests.mjs — generic first-party per-harness manifest builders
 // ---------------------------------------------------------------------------
 
-test("claudePluginManifest emits engineering claude manifest (thin, skills+../hooks)", () => {
+test("claudePluginManifest emits osuperpowers claude manifest (thin, skills+../hooks)", () => {
   assert.deepEqual(claudePluginManifest(OS_ENG, "0.1.0"), {
     _generated: generatedBanner,
     name: "osuperpowers",
     description:
-      "Standalone osuperpowers skills: os-* orchestrators, cli-* family, CDD engine, cross-harness gate.",
+      "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
     version: "0.1.0",
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
     license: "MIT",
     skills: "./skills/",
     hooks: "./hooks/hooks.json",
-    category: "engineering",
-    keywords: ["engineering", "cli", "cdd", "harness", "droid", "pi"],
+    category: "osuperpowers",
+    keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
   });
 });
 
@@ -184,7 +184,7 @@ test("codexHooksJson wires PreToolUse gate to the codex adapter (manifest-relati
   }
 });
 
-test("assertAdapterPathsExist: every generated engineering hooks command resolves to a real adapter", () => {
+test("assertAdapterPathsExist: every generated osuperpowers hooks command resolves to a real adapter", () => {
   const plugin = {
     name: "osuperpowers",
     hooks: {
@@ -276,7 +276,7 @@ test("geminiExtension carries BeforeTool gate hooks + contextFileName", () => {
     _generated: generatedBanner,
     name: "osuperpowers",
     description:
-      "Standalone osuperpowers skills: os-* orchestrators, cli-* family, CDD engine, cross-harness gate.",
+      "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
     version: "0.1.0",
     contextFileName: "GEMINI.md",
     hooks: {
@@ -455,15 +455,15 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
     name: "osuperpowers",
     version: "0.1.0",
     description:
-      "Standalone osuperpowers skills: os-* orchestrators, cli-* family, CDD engine, cross-harness gate.",
+      "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
     author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
     contentRoot: "packages/osuperpowers",
     homepage: "https://github.com/Oscaner/skills",
     repository: "https://github.com/Oscaner/skills",
     license: "MIT",
     claude: {
-      category: "engineering",
-      keywords: ["engineering", "cli", "cdd", "harness", "droid", "pi"],
+      category: "osuperpowers",
+      keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
     },
     cursor: { emitMode: "plugin-root" },
     hooks: {
@@ -526,8 +526,8 @@ test("deriveSource vendor entries merge assembly-template fields + vendored file
   assert.deepEqual(sp.cursor, { emitMode: "plugin-root" });
 });
 
-test("engineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
-  const hooks = engineeringClaudeHooks();
+test("osuperpowersClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
+  const hooks = osuperpowersClaudeHooks();
   assert.ok(hooks._generated, "hooks.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
   const pre = hooks.hooks.PreToolUse;
@@ -544,8 +544,8 @@ test("engineeringClaudeHooks gates Write|Edit and Bash via the cdd gate", () => 
   }
 });
 
-test("engineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
-  const hooks = engineeringCursorHooks();
+test("osuperpowersCursorHooks wires the cursor cdd gate preToolUse", () => {
+  const hooks = osuperpowersCursorHooks();
   assert.ok(hooks._generated, "hooks-cursor.json must carry the generated banner");
   assert.match(hooks._generated, /scripts\/emit\.mjs/);
   assert.equal(hooks.version, 1);
@@ -554,25 +554,25 @@ test("engineeringCursorHooks wires the cursor cdd gate preToolUse", () => {
   ]);
 });
 
-test("engineeringHooksFor dispatches per harness, fail-fast on unknown", () => {
-  const claude = engineeringHooksFor("claude");
+test("osuperpowersHooksFor dispatches per harness, fail-fast on unknown", () => {
+  const claude = osuperpowersHooksFor("claude");
   assert.equal(claude.hooks.PreToolUse[0].matcher, "Write|Edit");
-  const cursor = engineeringHooksFor("cursor");
+  const cursor = osuperpowersHooksFor("cursor");
   assert.equal(cursor.version, 1);
   assert.deepEqual(cursor.hooks.preToolUse, [
     { command: "./bin/gate/adapters/cursor.mjs" },
   ]);
-  const codex = engineeringHooksFor("codex");
+  const codex = osuperpowersHooksFor("codex");
   assert.equal(
     codex.hooks.PreToolUse[0].hooks[0].command,
     "../bin/gate/adapters/codex.mjs",
   );
-  const qoder = engineeringHooksFor("qoder");
+  const qoder = osuperpowersHooksFor("qoder");
   assert.equal(
     qoder.hooks.PreToolUse[0].hooks[0].command,
     "../bin/gate/adapters/qoder.mjs",
   );
-  assert.throws(() => engineeringHooksFor("kimi"), /kimi/);
+  assert.throws(() => osuperpowersHooksFor("kimi"), /kimi/);
 });
 
 // ---------------------------------------------------------------------------

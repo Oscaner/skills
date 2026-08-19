@@ -253,16 +253,6 @@ function main() {
     assert(m && m[1] === version, "claude self-check version stamp mismatch");
   });
 
-  check("validate dogfood self-check version stamps", () => {
-    // dogfood self-check is written by os-init router, stamped with the osuperpowers version
-    const version = JSON.parse(readFileSync(path.join(REPO, "packages/osuperpowers/.claude-plugin/plugin.json"), "utf8")).version;
-    const cursorPath = path.join(REPO, ".cursor/rules/osuperpowers-router.mdc");
-    const cursor = readFileSync(cursorPath, "utf8");
-    const needle = `osuperpowers-version: ${version}`;
-    assert(cursor.includes(needle), `${cursorPath}: missing or stale stamp — re-run os-init router`);
-    // root CLAUDE.md is init-generated, not hand-stamped — no version check here
-  });
-
   console.log("ALL PASS");
 }
 

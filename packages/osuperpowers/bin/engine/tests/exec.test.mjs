@@ -1,6 +1,7 @@
 // engine/tests/exec.test.mjs — T3: cdd-exec.mjs 一次性自由任务入口行为（hermetic mock PATH）。
 // Node port of cdd-exec.test.sh（6 scenarios）：参数分派、text passthrough、stream-json
 // last-finalText、unsupported BLOCKED、missing CLI exit 2、review-prefix 合成。
+// + --template / --param 渲染路径（T3-ext: template 渲染、missing 文件、missing placeholder、互斥）
 // Hermetic PATH：丢弃所有含 registry CLI 二进制的 PATH 目录（host 真实 CLI 不泄漏）。
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -125,4 +126,62 @@ test("cdd-exec.mjs: review-prefix 合成 — CDD_MODE=review 时 prompt 前置 r
   });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.equal(res.stdout.trim(), "Skill(mattpocock-skills:code-review) hello world");
+});
+
+// --template / --param 渲染路径（T3-ext）
+test("cdd-exec.mjs: --template 渲染 spec-review + params → 输出含模板内容", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-exec-mock-"));
+  makeMock(mock, "claude", 'for a in "$@"; do last="$a"; done; printf "%s\\n" "$last"');
+  const fp = harnessFreePath();
+  const res = runExec(
+    ["--harness", "claude", "--template", "spec-review", "--param", "DOC=/test.md", "--param", "PASS=completeness"],
+    { mockPath: `${mock}${path.delimiter}${fp}` },
+  );
+  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
+  // 渲染后 prompt 含模板标题
+  assert.match(res.stdout, /Spec Review/);
+  // 占位符已替换
+  assert.match(res.stdout, /\/test\.md/);
+  assert.match(res.stdout, /completeness/);
+});
+
+test("cdd-exec.mjs: --template 不存在文件 → exit 1 + template not found", () => {
+  const fp = harnessFreePath();
+  const res = runExec(["--harness", "claude", "--template", "nonexistent-xyz"], { mockPath: fp });
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /template not found/);
+});
+
+test("cdd-exec.mjs: --template 缺少 placeholder → exit 1 + missing param", () => {
+  const fp = harnessFreePath();
+  // spec-review 需要 DOC 和 PASS；只传 DOC → PASS 未替换 → 报错
+  const res = runExec(
+    ["--harness", "claude", "--template", "spec-review", "--param", "DOC=/test.md"],
+    { mockPath: fp },
+  );
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /missing param/);
+});
+
+test("cdd-exec.mjs: --template + --prompt 互斥 → exit 2", () => {
+  const fp = harnessFreePath();
+  const res = runExec(
+    ["--harness", "claude", "--template", "spec-review", "--prompt", "hello"],
+    { mockPath: fp },
+  );
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /mutually exclusive/);
+});
+
+test("cdd-exec.mjs: --param 值含等号 → KEY=VALUE 正确解析（value 可含 =）", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-exec-mock-"));
+  makeMock(mock, "claude", 'for a in "$@"; do last="$a"; done; printf "%s\\n" "$last"');
+  const fp = harnessFreePath();
+  // DOC=/path/to/file?a=b: eq = 分隔第一个 = 即可，value 含 = 号合法
+  const res = runExec(
+    ["--harness", "claude", "--template", "spec-review", "--param", "DOC=/path/to?a=b", "--param", "PASS=completeness"],
+    { mockPath: `${mock}${path.delimiter}${fp}` },
+  );
+  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
+  assert.match(res.stdout, /\/path\/to\?a=b/);
 });

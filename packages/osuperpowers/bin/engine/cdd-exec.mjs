@@ -3,25 +3,60 @@
 // Node port of cdd-exec.sh; thin shell reusing registry.mjs ship gate + runner.mjs
 // invokeCli（registry output 模式归一化：text passthrough / stream-json last finalText）。
 //
-//   usage: cdd-exec.mjs --harness <name> --prompt <text>
+//   usage: cdd-exec.mjs --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])
 import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
 import { invokeCli } from "./lib/runner.mjs";
+import { pluginRoot } from "./lib/templates.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
+const TEMPLATE_DIR = path.join(pluginRoot(), "templates", "cdd");
+
+// 加载模板文件并替换 {{KEY}} → value；缺失占位符 → 报错退出。
+function renderTemplate(name, params, programName) {
+  const templatePath = path.join(TEMPLATE_DIR, `${name}.md`);
+  if (!existsSync(templatePath)) {
+    process.stderr.write(`${programName}: template not found: templates/cdd/${name}.md\n`);
+    exitWithCode(1);
+  }
+  let content = readFileSync(templatePath, "utf8");
+  for (const [key, value] of Object.entries(params)) {
+    content = content.split(`{{${key}}}`).join(value);
+  }
+  // 未传占位符 → 报错
+  const missing = content.match(/\{\{(\w+)\}\}/);
+  if (missing) {
+    process.stderr.write(`${programName}: template ${name}: missing param ${missing[0]}\n`);
+    exitWithCode(1);
+  }
+  return content;
+}
 
 function usage() {
-  process.stderr.write(`usage: ${NAME} --harness <name> --prompt <text>\n`);
+  process.stderr.write(
+    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])\n`,
+  );
   exitCliMissing();
+}
+
+function help() {
+  process.stdout.write(
+    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])\n`,
+  );
+  exitOk();
 }
 
 const args = process.argv.slice(2);
 let harness = "";
 let prompt = "";
+let templateName = "";
+/** @type {Record<string, string>} */
+const params = {};
 
 for (let i = 0; i < args.length; i++) {
   switch (args[i]) {
@@ -33,9 +68,24 @@ for (let i = 0; i < args.length; i++) {
       if (i + 1 >= args.length) usage();
       prompt = args[++i];
       break;
+    case "--template":
+      if (i + 1 >= args.length) usage();
+      templateName = args[++i];
+      break;
+    case "--param": {
+      if (i + 1 >= args.length) usage();
+      const raw = args[++i];
+      const eq = raw.indexOf("=");
+      if (eq < 0) {
+        process.stderr.write(`${NAME}: --param must be KEY=VALUE (got: ${raw})\n`);
+        exitCliMissing();
+      }
+      params[raw.slice(0, eq)] = raw.slice(eq + 1);
+      break;
+    }
     case "-h":
     case "--help":
-      usage();
+      help();
       break;
     default:
       process.stderr.write(`unknown argument: ${args[i]}\n`);
@@ -43,7 +93,16 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-if (!harness || !prompt) usage();
+if (!harness) usage();
+if (templateName && prompt) {
+  process.stderr.write(`${NAME}: --template and --prompt are mutually exclusive\n`);
+  usage();
+}
+if (!templateName && !prompt) usage();
+
+if (templateName) {
+  prompt = renderTemplate(templateName, params, NAME);
+}
 
 // dryRun（CDD_DRY_RUN=1）仅跳过 CLI PATH preflight（对齐 cdd_check_cli 的 dry-run 分支）；
 // 不跳过 CLI 调用 —— bash cdd-exec.sh 无 dry-run 分支，dry-run 下同样做 CLI 检查与 invoke。

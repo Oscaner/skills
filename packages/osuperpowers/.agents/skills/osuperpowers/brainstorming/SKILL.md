@@ -55,8 +55,8 @@ Large requirements (>=3 subsystems / multi-phase / overhaul) write an overall sp
 
 ### Rule: Spec Review via CLI
 
-Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI), each pass dispatches a fresh `cdd-exec`:
-  cdd-exec --harness claude --prompt "<spec-document-reviewer template + pass category + document path>"
+Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI), each pass dispatches a fresh `cdd-review`:
+  cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
 Dispatch discipline: see [review-dispatch.md](../docs/review-dispatch.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli).
 
 ### Rule: Write Design Doc

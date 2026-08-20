@@ -61,7 +61,7 @@ npm install @oscaner-skills/osuperpowers
 
 ## CDD CLI harness 脚本
 
-CDD 引擎通过插件捆绑脚本分发。单一 CLI 运行器为 `bin/engine/cdd-run.mjs`。
+CDD 引擎通过插件捆绑脚本分发。单一 CLI 运行器为 `bin/engine/cdd-task.mjs`。
 
 | Harness | CLI 二进制 | 状态 |
 |---------|-----------|------|

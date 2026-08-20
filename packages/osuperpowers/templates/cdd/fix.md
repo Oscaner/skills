@@ -21,7 +21,7 @@
    - 修复验证通过后：若本轮已产生**一个或多个**常规提交覆盖 fix 范围改动 → `head` = `git rev-parse HEAD`（不重复提交）。
    - 否则：创建**一个**常规提交（`fix:` 为主，或匹配改动的 `feat:`/`refactor:`），subject 对齐 fix 范围；无署名 / co-author / AI 生成尾注；然后 `head` = `git rev-parse HEAD`。
    - 本轮无 fix 范围改动（相对 `FIX_BASE` 无 diff）→ 不提交，`head` 保持原样。
-   - 返回时仍有未提交改动 → `status: BLOCKED`（`cdd-run.mjs --harness <name>` 会强制校验）。
+   - 返回时仍有未提交改动 → `status: BLOCKED`（`cdd-task.mjs --harness <name>` 会强制校验）。
 6. Write handoff per `_handoff-write-fragment.md` fix segment.
 7. Do **not** write ledger.
 

@@ -35,7 +35,7 @@ Present findings as a numbered list to the user, asking: is this accurate overal
 
 Before filing, check each confirmed finding for duplicates:
 1. `gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`
-2. Extract keywords: **affected component name** (e.g. `cdd-run.mjs`, `handoff-writer`, `gate`) + **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`), do case-insensitive substring matching against existing issue titles and bodies.
+2. Extract keywords: **affected component name** (e.g. `cdd-task.mjs`, `handoff-writer`, `gate`) + **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`), do case-insensitive substring matching against existing issue titles and bodies.
 3. **Hit** -> show matching issue, user chooses from three options: **Create new issue / Add comment to existing / Skip**
 4. **No hit** -> user chooses from two options: **Create new issue / Skip**
 5. Execute the selected action.
@@ -53,7 +53,7 @@ Detect session language from the user's most recent messages; issue title and bo
 | `bug` / `enhancement` | Always -- matches finding type |
 | `dogfood` | Always -- this skill's findings are dogfood |
 | `osuperpowers-router` | Always |
-| `cdd` | Finding involves CDD, cdd-run.mjs, orchestrator, or handoff |
+| `cdd` | Finding involves CDD, cdd-task.mjs, orchestrator, or handoff |
 
 ```bash
 # <type> is "bug" or "enhancement"; append ",cdd" if CDD-related
@@ -67,7 +67,7 @@ gh issue comment <number> --repo Oscaner/skills --body "<template-rendered body>
 
 ### Rule: Keyword Examples
 
-Issue keyword examples use current tool names (e.g. `cdd-run.mjs`), not deleted legacy tool names.
+Issue keyword examples use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
 
 ### Rule: Final Report
 

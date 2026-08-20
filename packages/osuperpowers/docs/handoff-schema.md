@@ -7,7 +7,7 @@ Single source of truth for task-N-handoff.json — cited by [`controller-handoff
 | Segment | Sets `phase` | Allowed `status` |
 |---------|-------------|------------------|
 | implement | `implement` | `DONE`, `BLOCKED` |
-| review / fix | `review` or `fix` | `APPROVED`, `CHANGES_REQUESTED`, `NEEDS_CONTEXT`, `BLOCKED` |
+| task-review / fix | `task-review` or `fix` | `APPROVED`, `CHANGES_REQUESTED`, `NEEDS_CONTEXT`, `BLOCKED` |
 
 ## Severity -> status mapping
 
@@ -59,7 +59,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
 ```json
 {
   "task": 2,
-  "phase": "review",
+  "phase": "task-review",
   "status": "APPROVED",
   "commits": { "base": "<TASK_BASE>", "head": "<HEAD>" },
   "complexity": "simple",
@@ -88,7 +88,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
 ```json
 {
   "tasks": [2, 3, 4],
-  "phase": "review",
+  "phase": "task-review",
   "status": "APPROVED",
   "commits": { "base": "<FIRST_TASK_BASE>", "head": "<LAST_HEAD>" },
   "complexity": "batch",

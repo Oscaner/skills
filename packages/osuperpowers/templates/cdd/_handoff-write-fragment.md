@@ -10,7 +10,7 @@ Write/update handoff per [`docs/handoff-schema.md`](../../docs/handoff-schema.md
 2. Gate: Complex/`behavior_change:true` → hard (require command/passed/exit_code); Simple → soft (WARN).
 3. Set `status: DONE` on success; blocker finding → `status: BLOCKED`.
 
-### Segment: review
+### Segment: task-review
 
 1. Read handoff.json + axis reports (`task-N-review-standards.md`, `task-N-review-spec.md`).
 2. Parse `## Findings (D3)` JSON block from each axis → **merge** into prior handoff `findings[]`

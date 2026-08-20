@@ -43,11 +43,11 @@ test("renderModePrompt: implement 输出含 mode 模板 + env 替换 + handoff-w
   }
 });
 
-test("renderModePrompt: review/fix 模板同样渲染 + 片段", () => {
+test("renderModePrompt: task-review/fix 模板同样渲染 + 片段", () => {
   const env = { WORKSPACE: "/ws", BRIEF: "/ws/task-1-brief.md", HANDOFF: "/ws/task-1-handoff.json", CONSTRAINTS: "/ws/plan-constraints.md", TASK: "1" };
-  const review = renderModePrompt("review", env);
-  assert.match(review, /^# CDD review — CLI session/m);
-  assert.ok(review.includes("### Segment: review"), "review 段");
+  const review = renderModePrompt("task-review", env);
+  assert.match(review, /^# CDD task-review — CLI session/m);
+  assert.ok(review.includes("### Segment: task-review"), "task-review 段");
   const fix = renderModePrompt("fix", env);
   assert.match(fix, /^# CDD fix — CLI session/m);
   assert.ok(fix.includes("### Segment: fix"), "fix 段");
@@ -55,6 +55,24 @@ test("renderModePrompt: review/fix 模板同样渲染 + 片段", () => {
 
 test("renderModePrompt: 缺失模板 → 抛错", () => {
   assert.throws(() => renderModePrompt("no-such-mode", {}), /missing template/);
+});
+
+test("renderModePrompt: spec-review 模板可加载但占位符由 cdd-review renderTemplate 处理", () => {
+  // renderModePrompt 只替换 CDD 标准占位符（WORKSPACE/BRIEF/HANDOFF/CONSTRAINTS/TASK/FINDINGS/FIXED_POINT）；
+  // DOC/PASS/SPEC 不在列表中 → renderModePrompt 不做替换。
+  // spec-review/plan-review 的 {{DOC}}/{{PASS}}/{{SPEC}} 由 cdd-review.mjs 的 renderTemplate 函数
+  // （全参数替换 + 缺失占位符报错）处理。该行为已在 exec.test.mjs 的 spawn 测试中覆盖。
+  const out = renderModePrompt("spec-review", {});
+  assert.ok(out.includes("Spec Review"), "spec-review 模板可加载");
+  assert.ok(out.includes("{{DOC}}"), "DOC 不在 PLACEHOLDERS 中，保留原样（由 cdd-review renderTemplate 替换）");
+});
+
+test("renderModePrompt: plan-review 模板可加载但占位符由 cdd-review renderTemplate 处理", () => {
+  const out = renderModePrompt("plan-review", {});
+  assert.ok(out.includes("Plan Review"), "plan-review 模板可加载");
+  assert.ok(out.includes("{{DOC}}"), "DOC 不在 PLACEHOLDERS 中");
+  assert.ok(out.includes("{{SPEC}}"), "SPEC 不在 PLACEHOLDERS 中");
+  assert.ok(out.includes("{{PASS}}"), "PASS 不在 PLACEHOLDERS 中");
 });
 
 test("lineBudget: 真实阈值", () => {
@@ -115,7 +133,7 @@ test("governance: 技能 + 模板行数上限（防 runaway prose）", () => {
 
 test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   const fragment = readRel("templates/cdd/_handoff-write-fragment.md");
-  const review = readRel("templates/cdd/review.md");
+  const review = readRel("templates/cdd/task-review.md");
   const fix = readRel("templates/cdd/fix.md");
   const dispatch = readRel("docs/review-dispatch.md");
   const skill = readRel("skills/executing-plans/SKILL.md");
@@ -126,7 +144,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(/Preserve all `deferred: true` findings/.test(fragment), "fix segment preserves deferred");
   assert.ok(/never replace wholesale/.test(fragment), "review segment merge semantics");
 
-  // review.md: blocker → CHANGES_REQUESTED（新措辞）替换旧 empty → APPROVED
+  // task-review.md: blocker → CHANGES_REQUESTED（新措辞）替换旧 empty → APPROVED
   assert.ok(/blocker → CHANGES_REQUESTED/.test(review), "review status mapping");
   assert.ok(/warn\/nit → APPROVED/.test(review), "review warn/nit mapping (replaces old 'empty → APPROVED')");
   assert.ok(!review.includes("empty → APPROVED"), "old 'empty → APPROVED' removed");

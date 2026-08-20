@@ -23,7 +23,7 @@ const NOOP_PROBE = async () => ({ missing: [], probeFailed: false });
 
 // 非 git 临时 workspace —— 对齐 cdd-cli-dry-run-smoke（CDD_WORKSPACE 指向 TMPDIR，commit-contract fail-open）。
 function setupWorkspace() {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-runner-"));
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
   writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
   writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\n");
@@ -98,8 +98,8 @@ test("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
   assert.equal(lines[3], "blocker: none");
 });
 
-test("runTask: dry-run review/fix 三模式 → H1 DONE + 不写 handoff（对齐 bash）", async () => {
-  for (const mode of ["review", "fix"]) {
+test("runTask: dry-run task-review/fix 三模式 → H1 DONE + 不写 handoff（对齐 bash）", async () => {
+  for (const mode of ["task-review", "fix"]) {
     const ws = setupWorkspace();
     const res = await runTask("claude", 1, { mode, dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
     assert.equal(res.exitCode, 0, `mode ${mode}`);
@@ -133,7 +133,7 @@ test("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 blo
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const res = await (async () => {
@@ -251,7 +251,7 @@ test("invokeCli: stream-json 多行 pretty-printed completion → finalText 正�
   const event = JSON.stringify({ type: "completion", finalText: "MULTILINE\nFINAL" }, null, 2);
   writeFileSync(path.join(binDir, "fake-stream-cli"), `#!/usr/bin/env bash\ncat <<'JSON'\n${event}\nJSON\n`);
   chmodSync(path.join(binDir, "fake-stream-cli"), 0o755);
-  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", review_prefix: "" };
+  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", task_review_prefix: "" };
 
   const origPath = process.env.PATH;
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
@@ -278,7 +278,7 @@ test("invokeCli: stream-json 相邻紧凑事件（首个对象含空串）→ �
     "#!/usr/bin/env bash\nprintf '%s\\n' '{\"a\":\"\"}'\nprintf '%s\\n' '{\"type\":\"completion\",\"finalText\":\"OK\"}'\n",
   );
   chmodSync(path.join(binDir, "fake-stream-cli"), 0o755);
-  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", review_prefix: "" };
+  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", task_review_prefix: "" };
 
   const origPath = process.env.PATH;
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
@@ -308,7 +308,7 @@ test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（�
   assert.match(stderr, /CDD_BLOCKED: uncommitted changes at return \(implement\)/);
 });
 
-test("runTask: review 模式 review-package 不可执行 → CDD_BLOCKED + exit 1（对齐 bash [[ -x ]]）", async () => {
+test("runTask: task-review 模式 review-package 不可执行 → CDD_BLOCKED + exit 1（对齐 bash [[ -x ]]）", async () => {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-reviewpkg-")));
   writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
   writeFileSync(path.join(dir, "progress.md"), `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
@@ -334,10 +334,10 @@ test("runTask: review 模式 review-package 不可执行 → CDD_BLOCKED + exit 
   try {
     const { code, stderr } = await capture(() =>
       runTask("claude", 1, {
-        mode: "review",
+        mode: "task-review",
         probeSkills: NOOP_PROBE,
         env: baseEnv(dir, {
-          CDD_REVIEW_FIXED_POINT: "HEAD~1",
+          CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1",
           PATH: `${binDir}${path.delimiter}${origPath}`,
         }),
         cwd: dir,

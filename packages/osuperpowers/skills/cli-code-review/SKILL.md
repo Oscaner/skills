@@ -23,7 +23,7 @@ Use the upstream `review-package` script to generate a diff package (`review-pac
 
 ### Rule: Review Prompt
 
-Construct a self-contained review prompt (containing review dimensions + diff file paths; the CLI agent has no repo skill context, so criteria must be included in the prompt -- do not assume `Skill(...)` is loadable), then dispatch via `{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "<prompt>"`.
+Construct a self-contained review prompt (containing review dimensions + diff file paths; the CLI agent has no repo skill context, so criteria must be included in the prompt -- do not assume `Skill(...)` is loadable), then dispatch via `{plugin_root}/bin/engine/cdd-review.mjs --harness <name> --prompt "<prompt>"`.
 
 ### Rule: Findings Report
 

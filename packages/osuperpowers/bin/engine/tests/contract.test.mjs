@@ -109,10 +109,10 @@ test("commit-contract: 非 git 目录 → fail-open ok:true", () => {
   assert.equal(r.ok, true);
 });
 
-test("commit-contract: review 模式 → no-op ok:true", () => {
+test("commit-contract: task-review 模式 → no-op ok:true", () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-  const r = validateCommitContract("review", repo);
+  const r = validateCommitContract("task-review", repo);
   assert.equal(r.ok, true);
 });
 

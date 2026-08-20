@@ -128,7 +128,7 @@ function main() {
 
   check("validate osuperpowers engine (harness registry + runners)", () => {
     assert(existsSync(path.join(ENGINE, "bin/engine/harness-registry.json")), "harness-registry.json missing");
-    for (const script of ["cdd-run.mjs", "cdd-select.mjs", "cdd-exec.mjs"]) {
+    for (const script of ["cdd-task.mjs", "cdd-select.mjs", "cdd-review.mjs"]) {
       assert(isExecutable(path.join(ENGINE, "bin/engine", script)), `osuperpowers/bin/engine/${script} not executable`);
     }
   });

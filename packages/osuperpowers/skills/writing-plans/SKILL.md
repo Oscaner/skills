@@ -23,8 +23,8 @@ Write/Edit the plan section by section (one tool call per section), not as a sin
 
 ### Rule: Plan Review via CLI
 
-Plan review has 3 pass types (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches a fresh `cdd-exec`:
-  cdd-exec --harness claude --prompt "<plan-document-reviewer template + pass category + document path>"
+Plan review has 3 pass types (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches a fresh `cdd-review`:
+  cdd-review --harness claude --template plan-review --param PASS=<completeness|decomposition|buildability> --param DOC=<plan-path> --param SPEC=<spec-path>
 **Template resolution reuses** [Rule: Read Upstream](#rule-read-upstream) path rules (`{plugin-root}` = osuperpowers root). Dispatch discipline: see [review-dispatch.md](../docs/review-dispatch.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli).
 
 ### Rule: Tickets Publish Redirect

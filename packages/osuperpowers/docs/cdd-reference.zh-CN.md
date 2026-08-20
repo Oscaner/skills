@@ -1,6 +1,6 @@
 # CDD CLI Orchestrator Reference (H6–H8)
 
-> Worker discipline SOT: `../templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
+> Worker discipline SOT: `../templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`
 > Orchestrator gate discipline: [`docs/controller-handoff.md`](controller-handoff.md) H1–H5
 > **Rule 0 checklist 语义契约:** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 — 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`bin/engine/tests/templates.test.mjs` 会断言（issue #52 Guard 1）。
 
@@ -8,13 +8,13 @@
 
 Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*.mjs`) — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Detect harness** → 经 [cli-select](../skills/cli-select/SKILL.md) 选定 harness → `{plugin_root}/bin/engine/cdd-run.mjs --harness <name>`（orchestrator 选一次；**无** runtime 重新检测）。
+1. **Detect harness** → 经 [cli-select](../skills/cli-select/SKILL.md) 选定 harness → `{plugin_root}/bin/engine/cdd-task.mjs --harness <name>`（orchestrator 选一次；**无** runtime 重新检测）。
 2. **Three modes** — one invocation each:
 
 | `CDD_MODE` | Responsibility |
 |------------|----------------|
 | `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 four-line contract |
-| `review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) + handoff write |
+| `task-review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) + handoff write |
 | `fix` | fix implementer + handoff write; reads open-findings; **+ commit contract** (post-run gate, see below) |
 
 3. **Env contract** (paths only — **never** paste full plan into CLI env):
@@ -24,13 +24,13 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 | `CDD_WORKSPACE` | workspace root |
 | `CDD_TASK_BRIEF` | brief path |
 | `CDD_LEDGER` | progress.md |
-| `CDD_MODE` | `implement` \| `review` \| `fix` |
+| `CDD_MODE` | `implement` \| `task-review` \| `fix` |
 | `CDD_FINDINGS` | fix mode: open-findings.json |
 | `CDD_PLAN_CONSTRAINTS` | `<workspace>/plan-constraints.md` (orchestrator prewrites) |
 | `CDD_HANDOFF_PATH` | target handoff.json path |
-| `CDD_REVIEW_FIXED_POINT` | review: initial from handoff `commits.base`; fix-loop review: `FIX_BASE` |
+| `CDD_TASK_REVIEW_FIXED_POINT` | task-review: initial from handoff `commits.base`; fix-loop task-review: `FIX_BASE` |
 
-4. **Output:** before exit, write/update `CDD_HANDOFF_PATH` (default `task-N-handoff.json` or batch variant); stdout = H1 four lines as the final block (review mode may precede them with the review-package `wrote <diff>:` progress line — the last block is still the H1); non-zero exit with no handoff → **BLOCKED**.
+4. **Output:** before exit, write/update `CDD_HANDOFF_PATH` (default `task-N-handoff.json` or batch variant); stdout = H1 four lines as the final block (task-review mode may precede them with the review-package `wrote <diff>:` progress line — the last block is still the H1); non-zero exit with no handoff → **BLOCKED**.
 5. **Forbidden:** `--resume` or any CLI invocation that carries prior session history.
 6. **Session traceability:** CLI agents use one-shot print mode (`--print` / `--output-format text`), which does NOT register sessions in the `/resume` list or `~/.claude/sessions/`.
 
@@ -43,8 +43,8 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 **Typical per-task CLI sequence (mode A — thin orchestrator):**
 
 ```bash
-cdd-run.mjs --harness <name> --task N --mode implement
-cdd-run.mjs --harness <name> --task N --mode review
+cdd-task.mjs --harness <name> --task N --mode implement
+cdd-task.mjs --harness <name> --task N --mode task-review
 ```
 
 Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CLI invocation; CLI **does not** Read the full plan file.
@@ -72,7 +72,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 **Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel 缺上游插件 → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint，orchestrator **BLOCKED**（区别于 2 = harness CLI 不存在；exit 3 = CLI 存在但 skills 插件未安装）。Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec §2.1 stderr-surfacing).
 
-**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): 全 mode（implement/review/fix）进入嵌套 CLI 前，per-harness 探测 required plugins（`superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`，配置驱动）：
+**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): 全 mode（implement/task-review/fix）进入嵌套 CLI 前，per-harness 探测 required plugins（`superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`，配置驱动）：
 
 | 通道 | Harnesses | 缺失行为 |
 |------|-----------|----------|
@@ -81,7 +81,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 探测路径按 harness：plugin-list（claude/grok）、skill-dir（cursor-agent/droid/qoder/codex/gemini）、package-list（pi）。探测本身失败（CLI 查询错/无权限）→ **fail-open allow**（exit 0 + warn）。`skills-probe.config.mjs` 的 `harnesses` 集合 = 12 个，MUST 与 P6b §2.5 通道分类逐一一致。
 
-**Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec §4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
+**Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec §4.2): modes **implement** and **fix** are validated on return; **task-review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 
 - **Fail-open:** non-git workspace or `git` error → validation passes (return 0) — the gate never blocks on tooling failure.
 - **Precondition:** `.superpowers/cdd/` is `*`-gitignored (repo `.gitignore` line `.superpowers`), so the workspace never trips the dirty check itself.
@@ -91,9 +91,9 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 ## H7 — No consumer-repo CLI scripts
 
-Orchestrator / skill **must not** create `cdd-run*` or `scripts/cdd-*` in the consumer repo.
+Orchestrator / skill **must not** create `cdd-task*` or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()`（`bin/gate/cdd-gate-core.mjs`）/ [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-task.mjs` / `cdd-review.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()`（`bin/gate/cdd-gate-core.mjs`）/ [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 
@@ -107,7 +107,7 @@ All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-run.mjs`
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1–H5).
 
-**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` 声明每 harness 的 `cli` / `invoke` / `output` / `review_prefix` / `ship`，engine 经 `{plugin_root}/bin/engine/cdd-run.mjs` 读取（不再有 per-harness 脚本）。
+**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` 声明每 harness 的 `cli` / `invoke` / `output` / `task_review_prefix` / `ship`，engine 经 `{plugin_root}/bin/engine/cdd-task.mjs` 读取（不再有 per-harness 脚本）。
 
 | Ship | Harnesses |
 |------|-----------|
@@ -118,7 +118,7 @@ not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fa
 
 ## Mode B (opt-in / AFK)
 
-**Mode B (opt-in / AFK):** `{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
+**Mode B (opt-in / AFK):** `{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
 
 ## CDD gate matrix
 
@@ -135,7 +135,7 @@ The gate is fail-open until an active task resolves (spec 安全属性 / data-fl
 | Write/Edit | path under `.superpowers/cdd/**`, phase `orchestrating` | **allow** |
 | Write/Edit | phase `inactive` / `task_complete` | **allow** |
 | Write/Edit | any other repo path | **deny** |
-| Bash/Shell | allowlist（`cdd-run.mjs --harness <name>` / `task-brief` / `review-package`） | **allow** |
+| Bash/Shell | allowlist（`cdd-task.mjs --harness <name>` / `task-brief` / `review-package`） | **allow** |
 | Bash/Shell | read-only git verb (allowlist below) | **allow** |
 | Bash/Shell | anything else — mutating git, `ls`/`echo`, heredoc writes, compound commands | **deny** |
 | Bash/Shell | phase `inactive` / `task_complete` | **allow** |
@@ -144,7 +144,7 @@ The gate is fail-open until an active task resolves (spec 安全属性 / data-fl
 **Shell contract:**
 
 - Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> …`, `git -C <path> <verb> …`, `git --git-dir=<path> <verb> …`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
-- Repo changes flow **only** through the H6 implement shell (`cdd-run.mjs --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
+- Repo changes flow **only** through the H6 implement shell (`cdd-task.mjs --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
 - Non-git read-only commands (`ls`, `echo`, …) are intentionally still denied (slim read-only set decision; see spec §Non-goals).
 
 **Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.

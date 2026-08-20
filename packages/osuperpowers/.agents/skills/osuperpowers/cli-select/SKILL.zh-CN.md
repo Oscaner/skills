@@ -27,7 +27,7 @@ description: 列出系统已安装的 harness CLI 并询问用哪个执行任务
 
 ### Rule: Propagate
 
-把所选 harness 以**显式** `--harness <name>` 传给调用方（`cdd-run.mjs --harness <name> …`）。不设隐式环境变量。
+把所选 harness 以**显式** `--harness <name>` 传给调用方（`cdd-task.mjs --harness <name> …`）。不设隐式环境变量。
 
 ## Red Flags
 

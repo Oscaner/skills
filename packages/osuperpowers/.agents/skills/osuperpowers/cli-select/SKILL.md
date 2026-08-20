@@ -27,7 +27,7 @@ Use `AskUserQuestion` to list each item in `available`, mark the recommended ite
 
 ### Rule: Propagate
 
-Pass the selected harness to the caller via **explicit** `--harness <name>` (`cdd-run.mjs --harness <name> ...`). Do not set implicit environment variables.
+Pass the selected harness to the caller via **explicit** `--harness <name>` (`cdd-task.mjs --harness <name> ...`). Do not set implicit environment variables.
 
 ## Red Flags
 

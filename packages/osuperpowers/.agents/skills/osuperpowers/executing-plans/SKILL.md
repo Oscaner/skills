@@ -51,7 +51,7 @@ Per-task review gate: read handoff.json driven (plan_conflicts -> STOP; CHANGES_
 
 The orchestrator's three-phase loop per plan (shared skeleton across three modes; cli mode differences noted in Per-task parentheses):
 
-**Setup (once):** in-session/subagent -> `sdd-workspace`; cli -> delegate workspace to [cli-driven-development](../cli-driven-development/SKILL.md) (built inside cdd-run.mjs H6 chain). Unified follow-up: ledger -> read plan once -> `plan-constraints.md` -> pre-flight -> todo per task.
+**Setup (once):** in-session/subagent -> `sdd-workspace`; cli -> delegate workspace to [cli-driven-development](../cli-driven-development/SKILL.md) (built inside cdd-task.mjs H6 chain). Unified follow-up: ledger -> read plan once -> `plan-constraints.md` -> pre-flight -> todo per task.
 
 **Per-task:** Rule: Task Complexity → Rule: Confirm Once → Rule: Confirm Seams (before tdd implement dispatch) → append `TASK_BASE: <sha>` to brief → execution chain (cli mode shell H6 chain: implement → review → fix per Rule: Fix Loop; in-session/subagent mode in-session implementation + review) → Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger. cli mode **Never** edits repo deliverables in this session — H6 CLI only。
 
@@ -75,5 +75,5 @@ Only `APPROVED` appends `Task N: complete` to `CDD_LEDGER`.
 ## Red Flags
 
 - "CLI is available so skip mode selection" -> all three modes must be asked (Rule: Mode Selection)
-- "in-session also uses cdd-run.mjs" -> in-session is in-session implementation, no CLI (Rule: Read Upstream)
+- "in-session also uses cdd-task.mjs" -> in-session is in-session implementation, no CLI (Rule: Read Upstream)
 - "Shove orchestrator decisions into cli-driven-development" -> engine only handles execution (Rule: Read Upstream — cli branch)

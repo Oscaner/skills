@@ -8,7 +8,7 @@
 
 Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*.mjs`) — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Detect harness** → via [cli-select](../skills/cli-select/SKILL.md) to select harness → `{plugin_root}/bin/engine/cdd-run.mjs --harness <name>` (orchestrator selects once; **no** runtime re-detection).
+1. **Detect harness** → via [cli-select](../skills/cli-select/SKILL.md) to select harness → `{plugin_root}/bin/engine/cdd-task.mjs --harness <name>` (orchestrator selects once; **no** runtime re-detection).
 2. **Three modes** — one invocation each:
 
 | `CDD_MODE` | Responsibility |
@@ -43,8 +43,8 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 **Typical per-task CLI sequence (mode A — thin orchestrator):**
 
 ```bash
-cdd-run.mjs --harness <name> --task N --mode implement
-cdd-run.mjs --harness <name> --task N --mode task-review
+cdd-task.mjs --harness <name> --task N --mode implement
+cdd-task.mjs --harness <name> --task N --mode task-review
 ```
 
 Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CLI invocation; CLI **does not** Read the full plan file.
@@ -91,9 +91,9 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 
 ## H7 — No consumer-repo CLI scripts
 
-Orchestrator / skill **must not** create `cdd-run*` or `scripts/cdd-*` in the consumer repo.
+Orchestrator / skill **must not** create `cdd-task*` or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-run.mjs` / `cdd-exec.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-task.mjs` / `cdd-review.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 
@@ -107,7 +107,7 @@ All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-run.mjs`
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1-H5).
 
-**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `task_review_prefix` / `ship`; the engine reads it via `{plugin_root}/bin/engine/cdd-run.mjs` (no more per-harness scripts).
+**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `task_review_prefix` / `ship`; the engine reads it via `{plugin_root}/bin/engine/cdd-task.mjs` (no more per-harness scripts).
 
 | Ship | Harnesses |
 |------|-----------|
@@ -118,7 +118,7 @@ Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fa
 
 ## Mode B (opt-in / AFK)
 
-**Mode B (opt-in / AFK):** `{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
+**Mode B (opt-in / AFK):** `{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
 
 ## CDD gate matrix
 
@@ -135,7 +135,7 @@ The gate is fail-open until an active task resolves (spec security property / da
 | Write/Edit | path under `.superpowers/cdd/**`, phase `orchestrating` | **allow** |
 | Write/Edit | phase `inactive` / `task_complete` | **allow** |
 | Write/Edit | any other repo path | **deny** |
-| Bash/Shell | allowlist (`cdd-run.mjs --harness <name>` / `task-brief` / `review-package`) | **allow** |
+| Bash/Shell | allowlist (`cdd-task.mjs --harness <name>` / `task-brief` / `review-package`) | **allow** |
 | Bash/Shell | read-only git verb (allowlist below) | **allow** |
 | Bash/Shell | anything else — mutating git, `ls`/`echo`, heredoc writes, compound commands | **deny** |
 | Bash/Shell | phase `inactive` / `task_complete` | **allow** |
@@ -144,7 +144,7 @@ The gate is fail-open until an active task resolves (spec security property / da
 **Shell contract:**
 
 - Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> ...`, `git -C <path> <verb> ...`, `git --git-dir=<path> <verb> ...`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
-- Repo changes flow **only** through the H6 implement shell (`cdd-run.mjs --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
+- Repo changes flow **only** through the H6 implement shell (`cdd-task.mjs --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
 - Non-git read-only commands (`ls`, `echo`, ...) are intentionally still denied (slim read-only set decision; see spec section Non-goals).
 
 **Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.

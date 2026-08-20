@@ -8,7 +8,7 @@
 
 Pass 1 独立先跑。零发现 + 明确扫描清单 → 后续 pass 跳过；否则修复后并发跑后续 pass。
 
-**CLI review：** 每 pass 一次独立 `cdd-exec` 调用（无状态 fresh 嵌套会话）。
+**CLI review：** 每 pass 一次独立 `cdd-review` 调用（无状态 fresh 嵌套会话）。
 
 ### Rule: D2 Delta Review
 

@@ -61,7 +61,7 @@ Or install from the oscaner-skills Claude Code marketplace.
 
 ## CDD CLI harness scripts
 
-The CDD engine dispatches via plugin-bundled scripts. The single CLI runner is `bin/engine/cdd-run.mjs`.
+The CDD engine dispatches via plugin-bundled scripts. The single CLI runner is `bin/engine/cdd-task.mjs`.
 
 | Harness | CLI binary | Status |
 |---------|------------|--------|

@@ -35,7 +35,7 @@ description: 分析当前 SDD/CDD 会话的 bug 与增强机会，经 gh CLI 对
 
 每条已确认的 finding 先查重：
 1. `gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`
-2. 取关键字：**受影响组件名**（如 `cdd-run.mjs`、`handoff-writer`、`gate`）+ **核心行为词**（如 `timeout`、`CHANGES_REQUESTED`、`exit 137`），对既有 issue 标题与正文做大小写不敏感子串匹配。
+2. 取关键字：**受影响组件名**（如 `cdd-task.mjs`、`handoff-writer`、`gate`）+ **核心行为词**（如 `timeout`、`CHANGES_REQUESTED`、`exit 137`），对既有 issue 标题与正文做大小写不敏感子串匹配。
 3. **命中** → 展示匹配 issue，用户三选：**Create new issue / Add comment to existing / Skip**
 4. **未命中** → 用户二选：**Create new issue / Skip**
 5. 执行所选动作。
@@ -53,7 +53,7 @@ description: 分析当前 SDD/CDD 会话的 bug 与增强机会，经 gh CLI 对
 | `bug` / `enhancement` | 总是 —— 匹配 finding 类型 |
 | `dogfood` | 总是 —— 本技能发现即 dogfood |
 | `osuperpowers-router` | 总是 |
-| `cdd` | finding 涉及 CDD、cdd-run.mjs、orchestrator 或 handoff |
+| `cdd` | finding 涉及 CDD、cdd-task.mjs、orchestrator 或 handoff |
 
 ```bash
 # <type> 为 "bug" 或 "enhancement"；CDD 相关追加 ",cdd"
@@ -67,7 +67,7 @@ gh issue comment <number> --repo Oscaner/skills --body "<按模板渲染的正�
 
 ### Rule: Keyword Examples
 
-issue 关键字示例用当前工具名（如 `cdd-run.mjs`），不用已删除的旧工具名。
+issue 关键字示例用当前工具名（如 `cdd-task.mjs`），不用已删除的旧工具名。
 
 ### Rule: Final Report
 

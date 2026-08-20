@@ -23,7 +23,7 @@ description: 用选定 harness CLI 评审任意 diff（base..head 或当前分�
 
 ### Rule: Review Prompt
 
-构造自包含评审 prompt（含评审维度 + diff 文件路径；CLI agent 无本仓库 skill 上下文，须自带标准，不假设 `Skill(...)` 可加载），经 `{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "<prompt>"` 派发。
+构造自包含评审 prompt（含评审维度 + diff 文件路径；CLI agent 无本仓库 skill 上下文，须自带标准，不假设 `Skill(...)` 可加载），经 `{plugin_root}/bin/engine/cdd-review.mjs --harness <name> --prompt "<prompt>"` 派发。
 
 ### Rule: Findings Report
 

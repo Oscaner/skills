@@ -18,8 +18,8 @@ Before execution, select a harness via [Rule: Ask](../cli-select/SKILL.md#rule-a
 Each task gets one CLI call per mode (see [cdd-reference.md](../../docs/cdd-reference.md) H6):
 
 ```bash
-{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode implement
-{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode task-review
+{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement
+{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --task N --mode task-review
 ```
 
 `--mode fix` is only entered when task-review returns CHANGES_REQUESTED (fix loop, max 5 rounds).
@@ -39,5 +39,5 @@ Only append `Task N: complete` line to `CDD_LEDGER` (progress.md) when status is
 ## Red Flags
 
 - "--resume / -c / any flag that carries historical session" -> forbidden (H6.5), use one-shot print mode
-- "Modify repo files inside an orchestrator session" -> engine chain only goes through cdd-run.mjs; session side is constrained by orchestrator-gate
+- "Modify repo files inside an orchestrator session" -> engine chain only goes through cdd-task.mjs; session side is constrained by orchestrator-gate
 - "Cram orchestrator decisions into the engine" -> classification / quality gate / D6 belong to the orchestrator (executing-plans), not the engine

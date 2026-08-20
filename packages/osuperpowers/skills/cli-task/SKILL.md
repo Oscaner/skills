@@ -1,6 +1,6 @@
 ---
 name: cli-task
-description: Dispatches a task to the selected harness CLI for execution. Three paths: one-shot free-form, --loop iteration (sentinel stops), brief path (handoff contract). Reuses the cdd engine (registry + cdd-exec.mjs / cdd-run.mjs), no ledger/plan orchestrator responsibilities.
+description: Dispatches a task to the selected harness CLI for execution. Three paths: one-shot free-form, --loop iteration (sentinel stops), brief path (handoff contract). Reuses the cdd engine (registry + cdd-review.mjs / cdd-task.mjs), no ledger/plan orchestrator responsibilities.
 ---
 
 # CLI Task
@@ -15,15 +15,15 @@ Select a harness via [Rule: Ask](../cli-select/SKILL.md#rule-ask) first, passing
 
 ### Rule: One-shot Free-Form
 
-Default path: `{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "<task description>"`, returning the normalized final output (text passthrough / stream-json extracts finalText).
+Default path: `{plugin_root}/bin/engine/cdd-review.mjs --harness <name> --prompt "<task description>"`, returning the normalized final output (text passthrough / stream-json extracts finalText).
 
 ### Rule: Loop
 
-`cli-task --loop "<base prompt>"`: iteratively call `cdd-exec.mjs`, where each round's prompt = base prompt + `[Iteration N -- previous result: <previous round final text>]` (feeds back the previous round's output). Stops when output contains the sentinel (default `<promise>NO MORE TASKS</promise>`, overridable via `--sentinel`) or `--max` is reached (default 20); displays the final text each round.
+`cli-task --loop "<base prompt>"`: iteratively call `cdd-review.mjs`, where each round's prompt = base prompt + `[Iteration N -- previous result: <previous round final text>]` (feeds back the previous round's output). Stops when output contains the sentinel (default `<promise>NO MORE TASKS</promise>`, overridable via `--sentinel`) or `--max` is reached (default 20); displays the final text each round.
 
 ### Rule: Brief Path
 
-User provides a brief path -> follows the handoff contract: set `CDD_TASK_BRIEF` and other env vars, then call `{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode <implement|task-review|fix>` (mode is user-specified, defaults to implement; the user brief IS the task brief, cli-task does not transform it).
+User provides a brief path -> follows the handoff contract: set `CDD_TASK_BRIEF` and other env vars, then call `{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <implement|task-review|fix>` (mode is user-specified, defaults to implement; the user brief IS the task brief, cli-task does not transform it).
 
 ## Red Flags
 

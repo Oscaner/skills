@@ -62,6 +62,7 @@ For overrides trigger router internals, see [`packages/osuperpowers-router/CLAUD
 - No `git worktree` — forbidden.
 - `git add -f` on a gitignored file requires explicit user confirmation.
 - **Do not commit** unless the user explicitly asks. Default is no commit.
+- **After completing a feature/fix, create a changeset** via `pnpm run changeset` (or manually write a `.changeset/<slug>.md` file) before the final commit. If the user must remind you, treat it as a process violation and file a dogfood issue.
 
 ## Node.js
 

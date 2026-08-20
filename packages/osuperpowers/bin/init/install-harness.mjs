@@ -53,7 +53,7 @@ function commandExists(name) {
 // install-and-use 通道：probe → install hint（不写文件）
 // init 通道：native config 写入 / guide + trust
 const HARNESSES = {
-  claude: { channel: "install-and-use", detect: () => commandExists("claude"), hint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner` },
+  claude: { channel: "install-and-use", detect: () => commandExists("claude"), hint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner-skills` },
   "cursor-agent": { channel: "install-and-use", detect: () => commandExists("cursor-agent"), hint: () => "copy skills 到 .agents/skills/ 或装 marketplace" },
   droid: { channel: "install-and-use", detect: () => commandExists("droid"), hint: () => "copy skills 到 .agents/skills/" },
   grok: {

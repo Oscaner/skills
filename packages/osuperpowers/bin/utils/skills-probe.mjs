@@ -40,11 +40,11 @@ function globHasSkills(pattern) {
   });
 }
 
-// claude enabledPlugins 匹配：接受裸名（superpowers）或带 marketplace 后缀（superpowers@oscaner）。
+// claude enabledPlugins 匹配：接受裸名（superpowers）或带 marketplace 后缀（superpowers@oscaner-skills）。
 function isEnabled(enabledPlugins, plugin) {
   return enabledPlugins.some((id) => {
     const s = String(id ?? "");
-    return s === plugin || s === `${plugin}@oscaner` || s.startsWith(`${plugin}@`);
+    return s === plugin || s === `${plugin}@oscaner-skills` || s.startsWith(`${plugin}@`);
   });
 }
 
@@ -89,7 +89,7 @@ function probePluginList(harnessCfg, { requiredPlugins, env }) {
       const cachePattern = expandHome(harnessCfg.cacheGlob.replaceAll("<plugin>", plugin), env);
       if (globHasSkills(cachePattern)) {
         reason = "installed-but-disabled";
-        installHint = `/plugin install ${plugin}@oscaner`;
+        installHint = `/plugin install ${plugin}@oscaner-skills`;
       }
     }
     missing.push({ plugin, reason, installHint });

@@ -82,13 +82,13 @@ test("claude: enabledPlugins 缺 superpowers → missing + install hint", async 
   const sup = r.missing.find((m) => m.plugin === "superpowers");
   assert.ok(sup, "superpowers 应在 missing");
   assert.equal(sup.reason, "not-installed");
-  assert.match(sup.installHint, /\/plugin install superpowers@oscaner/);
+  assert.match(sup.installHint, /\/plugin install superpowers@oscaner-skills/);
   assert.match(sup.installHint, /marketplace add Oscaner\/skills/);
 });
 
 test("claude: enabledPlugins 含全部 → 不在 missing", async () => {
   const fake = fakeClaudePluginList({
-    enabled: ["superpowers@oscaner", "mattpocock-skills@oscaner", "osuperpowers@oscaner", "osuperpowers-router@oscaner"],
+    enabled: ["superpowers@oscaner-skills", "mattpocock-skills@oscaner-skills", "osuperpowers@oscaner-skills", "osuperpowers-router@oscaner-skills"],
   });
   const r = await probeSkills("claude", { requiredPlugins: config.requiredPlugins, env: fake.env });
   assert.equal(r.probeFailed, false);
@@ -97,18 +97,18 @@ test("claude: enabledPlugins 含全部 → 不在 missing", async () => {
 
 test("claude: 缓存 glob 有但 enabled 无 → installed-but-disabled", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "skills-probe-home-"));
-  mkdirSync(path.join(home, ".claude/plugins/cache/oscaner/superpowers/1.2.3/skills"), { recursive: true });
+  mkdirSync(path.join(home, ".claude/plugins/cache/oscaner-skills/superpowers/1.2.3/skills"), { recursive: true });
   const fake = fakeClaudePluginList({ enabled: [], home });
   const r = await probeSkills("claude", { requiredPlugins: ["superpowers"], env: fake.env });
   const sup = r.missing.find((m) => m.plugin === "superpowers");
   assert.equal(sup.reason, "installed-but-disabled");
-  assert.match(sup.installHint, /\/plugin install superpowers@oscaner/);
+  assert.match(sup.installHint, /\/plugin install superpowers@oscaner-skills/);
 });
 
 test("claude: CLI enabled 优先于 glob（探测顺序 CLI/list → glob）", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "skills-probe-home-"));
-  mkdirSync(path.join(home, ".claude/plugins/cache/oscaner/superpowers/9.9.9/skills"), { recursive: true });
-  const fake = fakeClaudePluginList({ enabled: ["superpowers@oscaner"], home });
+  mkdirSync(path.join(home, ".claude/plugins/cache/oscaner-skills/superpowers/9.9.9/skills"), { recursive: true });
+  const fake = fakeClaudePluginList({ enabled: ["superpowers@oscaner-skills"], home });
   const r = await probeSkills("claude", { requiredPlugins: ["superpowers"], env: fake.env });
   assert.equal(r.probeFailed, false);
   assert.ok(!r.missing.some((m) => m.plugin === "superpowers"));

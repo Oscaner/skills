@@ -29,7 +29,7 @@ import { deriveFirstPartyNames } from "./manifests.mjs";
 /** Top-level source.json fields — emit constants (never hand-edited). */
 export const SOURCE_TOP = {
   $schema: "./source.schema.json",
-  name: "oscaner",
+  name: "oscaner-skills",
   owner: { name: "Oscaner Miao" },
   metadata: {
     description:

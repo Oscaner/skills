@@ -38,7 +38,7 @@ bound to the active workspace. Details → [cross-harness-overrides.md](../packa
 
 ```bash
 /plugin marketplace add oscaner/skills
-/plugin install osuperpowers@oscaner
+/plugin install osuperpowers@oscaner-skills
 ```
 
 **Verify:** `/hooks` shows the osuperpowers `PreToolUse` hooks (`Write|Edit` and `Bash`),
@@ -74,7 +74,7 @@ osuperpowers plugin from the Oscaner marketplace — skills + gate hooks ship to
 ```bash
 # Grok reads the Claude marketplace
 /plugin marketplace add oscaner/skills
-/plugin install osuperpowers@oscaner
+/plugin install osuperpowers@oscaner-skills
 ```
 
 Alternatively, `init harness grok` can guide the marketplace install steps.

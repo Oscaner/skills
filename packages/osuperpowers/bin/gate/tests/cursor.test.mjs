@@ -29,7 +29,7 @@ test("cursor hook: cli 严格 + Write 出 workspace → deny + agent_message 恢
   );
   assert.equal(out.permission, "deny");
   assert.ok(out.agent_message, "deny 需携带 agent_message 恢复指引");
-  assert.match(out.agent_message, /cdd-run.mjs --harness cursor/);
+  assert.match(out.agent_message, /cdd-task.mjs --harness cursor/);
   assert.match(out.agent_message, /plan-a/);
 });
 

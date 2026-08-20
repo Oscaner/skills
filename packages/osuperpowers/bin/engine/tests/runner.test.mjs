@@ -23,7 +23,7 @@ const NOOP_PROBE = async () => ({ missing: [], probeFailed: false });
 
 // 非 git 临时 workspace —— 对齐 cdd-cli-dry-run-smoke（CDD_WORKSPACE 指向 TMPDIR，commit-contract fail-open）。
 function setupWorkspace() {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-runner-"));
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
   writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
   writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\n");

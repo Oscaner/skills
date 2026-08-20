@@ -69,7 +69,7 @@ test("shell + git 变更动词（commit）→ deny", () => {
   writePending(pendingRoot, "s-commit", { repo_root: root, detected_at: now(), mode: "cli" });
   const r = gateDecide({ harness: "claude", toolName: "Bash", toolInput: { command: "git commit -m x" }, sessionKey: "s-commit", repoRoot: root });
   assert.equal(r.decision, "deny");
-  assert.match(r.reason, /cdd-run/); // 锁定 deny 文案含恢复指引（等价 cdd_deny_message）
+  assert.match(r.reason, /cdd-task/); // 锁定 deny 文案含恢复指引（等价 cdd_deny_message）
 });
 
 test("shell 复合命令（git status && rm x）→ deny", () => {

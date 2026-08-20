@@ -57,17 +57,17 @@ test("renderModePrompt: 缺失模板 → 抛错", () => {
   assert.throws(() => renderModePrompt("no-such-mode", {}), /missing template/);
 });
 
-test("renderModePrompt: spec-review 模板可加载但占位符由 cdd-exec renderTemplate 处理", () => {
+test("renderModePrompt: spec-review 模板可加载但占位符由 cdd-review renderTemplate 处理", () => {
   // renderModePrompt 只替换 CDD 标准占位符（WORKSPACE/BRIEF/HANDOFF/CONSTRAINTS/TASK/FINDINGS/FIXED_POINT）；
   // DOC/PASS/SPEC 不在列表中 → renderModePrompt 不做替换。
-  // spec-review/plan-review 的 {{DOC}}/{{PASS}}/{{SPEC}} 由 cdd-exec.mjs 的 renderTemplate 函数
+  // spec-review/plan-review 的 {{DOC}}/{{PASS}}/{{SPEC}} 由 cdd-review.mjs 的 renderTemplate 函数
   // （全参数替换 + 缺失占位符报错）处理。该行为已在 exec.test.mjs 的 spawn 测试中覆盖。
   const out = renderModePrompt("spec-review", {});
   assert.ok(out.includes("Spec Review"), "spec-review 模板可加载");
-  assert.ok(out.includes("{{DOC}}"), "DOC 不在 PLACEHOLDERS 中，保留原样（由 cdd-exec renderTemplate 替换）");
+  assert.ok(out.includes("{{DOC}}"), "DOC 不在 PLACEHOLDERS 中，保留原样（由 cdd-review renderTemplate 替换）");
 });
 
-test("renderModePrompt: plan-review 模板可加载但占位符由 cdd-exec renderTemplate 处理", () => {
+test("renderModePrompt: plan-review 模板可加载但占位符由 cdd-review renderTemplate 处理", () => {
   const out = renderModePrompt("plan-review", {});
   assert.ok(out.includes("Plan Review"), "plan-review 模板可加载");
   assert.ok(out.includes("{{DOC}}"), "DOC 不在 PLACEHOLDERS 中");

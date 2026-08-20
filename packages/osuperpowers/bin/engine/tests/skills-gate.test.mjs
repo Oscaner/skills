@@ -71,7 +71,7 @@ async function capture(runFn) {
 // Slice 1: install-and-use 通道（claude）缺失 → exit 3 + stderr installHint + 不调嵌套 CLI
 test("implement: superpowers missing → exit 3 + stderr install hint, no CLI invoke", async () => {
   const ws = setupWorkspace();
-  const missing = [{ plugin: "superpowers", installHint: "/plugin install superpowers@oscaner" }];
+  const missing = [{ plugin: "superpowers", installHint: "/plugin install superpowers@oscaner-skills" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
     runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
@@ -82,7 +82,7 @@ test("implement: superpowers missing → exit 3 + stderr install hint, no CLI in
 
 test("review: install-and-use missing → exit 3 + stderr install hint", async () => {
   const ws = setupWorkspace();
-  const missing = [{ plugin: "osuperpowers", installHint: "/plugin install osuperpowers@oscaner" }];
+  const missing = [{ plugin: "osuperpowers", installHint: "/plugin install osuperpowers@oscaner-skills" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
     runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
@@ -93,7 +93,7 @@ test("review: install-and-use missing → exit 3 + stderr install hint", async (
 
 test("fix: install-and-use missing → exit 3 + stderr install hint", async () => {
   const ws = setupWorkspace();
-  const missing = [{ plugin: "mattpocock-skills", installHint: "/plugin install mattpocock-skills@oscaner" }];
+  const missing = [{ plugin: "mattpocock-skills", installHint: "/plugin install mattpocock-skills@oscaner-skills" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
     runTask("claude", 1, { mode: "fix", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
@@ -105,8 +105,8 @@ test("fix: install-and-use missing → exit 3 + stderr install hint", async () =
 test("implement: 多个缺失 → exit 3 + 所有 installHint 出现于 stderr", async () => {
   const ws = setupWorkspace();
   const missing = [
-    { plugin: "superpowers", installHint: "/plugin install superpowers@oscaner" },
-    { plugin: "osuperpowers", installHint: "/plugin install osuperpowers@oscaner" },
+    { plugin: "superpowers", installHint: "/plugin install superpowers@oscaner-skills" },
+    { plugin: "osuperpowers", installHint: "/plugin install osuperpowers@oscaner-skills" },
   ];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>

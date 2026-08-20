@@ -1,7 +1,7 @@
 {
   "_generated": "scripts/emit.mjs — do not edit",
   "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
-  "name": "oscaner",
+  "name": "oscaner-skills",
   "metadata": {
     "description": "Personal skill collection: superpowers/mattpocock-skills overrides and standalone skills."
   },

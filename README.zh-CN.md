@@ -38,10 +38,10 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 ```bash
 # Claude Code
 /plugin marketplace add oscaner/skills
-/plugin install osuperpowers@oscaner
-/plugin install osuperpowers-router@oscaner
-/plugin install superpowers@oscaner
-/plugin install mattpocock-skills@oscaner
+/plugin install osuperpowers@oscaner-skills
+/plugin install osuperpowers-router@oscaner-skills
+/plugin install superpowers@oscaner-skills
+/plugin install mattpocock-skills@oscaner-skills
 ```
 
 ### 从 npm 安装

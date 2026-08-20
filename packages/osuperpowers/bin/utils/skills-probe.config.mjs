@@ -17,8 +17,8 @@ export const config = {
     claude: {
       cli: "claude",
       probe: "plugin-list",
-      cacheGlob: "~/.claude/plugins/cache/oscaner/<plugin>/*/skills/",
-      installHint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner`,
+      cacheGlob: "~/.claude/plugins/cache/oscaner-skills/<plugin>/*/skills/",
+      installHint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner-skills`,
     },
     "cursor-agent": {
       cli: "cursor-agent",

@@ -78,7 +78,7 @@ export const config = {
     "os-init": ["opencode", "trae", "vibe", "kiro"],
   },
   harnesses: {
-    claude: { probe: "plugin-list", cacheGlob: "~/.claude/plugins/cache/oscaner/<plugin>/*/skills/",
+    claude: { probe: "plugin-list", cacheGlob: "~/.claude/plugins/cache/oscaner-skills/<plugin>/*/skills/",
       installHint: (p) => `/plugin marketplace add Oscaner/skills && /plugin install ${p}@oscaner` },
     "cursor-agent": { probe: "skill-dir", dirs: [".agents/skills", ".cursor/skills"], installHint: () => "copy skills 到 .agents/skills/ 或装 marketplace" },
     droid: { probe: "skill-dir", dirs: [".agents/skills"], installHint: () => "copy skills 到 .agents/skills/" },

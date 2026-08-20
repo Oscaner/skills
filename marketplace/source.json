@@ -1,6 +1,6 @@
 {
   "$schema": "./source.schema.json",
-  "name": "oscaner",
+  "name": "oscaner-skills",
   "owner": {
     "name": "Oscaner Miao"
   },

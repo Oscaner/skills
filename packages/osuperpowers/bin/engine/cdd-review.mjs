@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// cdd-exec.mjs — run one prompt via a chosen harness CLI, print normalized output.
-// Node port of cdd-exec.sh; thin shell reusing registry.mjs ship gate + runner.mjs
+// cdd-review.mjs — run one prompt via a chosen harness CLI, print normalized output.
+// Node port of the legacy bash script; thin shell reusing registry.mjs ship gate + runner.mjs
 // invokeCli（registry output 模式归一化：text passthrough / stream-json last finalText）。
 //
-//   usage: cdd-exec.mjs --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])
+//   usage: cdd-review.mjs --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -105,7 +105,7 @@ if (templateName) {
 }
 
 // dryRun（CDD_DRY_RUN=1）仅跳过 CLI PATH preflight（对齐 cdd_check_cli 的 dry-run 分支）；
-// 不跳过 CLI 调用 —— bash cdd-exec.sh 无 dry-run 分支，dry-run 下同样做 CLI 检查与 invoke。
+// 不跳过 CLI 调用（dry-run 下同样做 CLI preflight + invoke）。
 const dryRun = process.env.CDD_DRY_RUN === "1";
 
 // Registry ship gate first（D6-A1）：unknown / not-supported → BLOCKED exit 1；

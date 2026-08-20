@@ -27,6 +27,8 @@ import {
   collectGaps,
   resolveUpstreamTag,
   classifyProbeError,
+  PROBE,
+  PROBE_CLASS,
 } from "./publish-vendor.mjs";
 import { thinGeminiExtension } from "./emit/manifests.mjs";
 
@@ -178,16 +180,16 @@ afterEach(() => {
 // decideProbe — 三态判定
 // ---------------------------------------------------------------------------
 
-test("decideProbe — exit0 → skip", () => {
-  assert.equal(decideProbe("exit0"), "skip");
+test("decideProbe — published → skip", () => {
+  assert.equal(decideProbe(PROBE.PUBLISHED), PROBE_CLASS.PUBLISHED);
 });
 
-test("decideProbe — E404 → publish", () => {
-  assert.equal(decideProbe("E404"), "publish");
+test("decideProbe — unpublished → publish", () => {
+  assert.equal(decideProbe(PROBE.UNPUBLISHED), PROBE_CLASS.SHOULD_PUBLISH);
 });
 
 test("decideProbe — error → throws", () => {
-  assert.throws(() => decideProbe("error"), /probe error.*aborting release/);
+  assert.throws(() => decideProbe(PROBE.ERROR), /probe error.*aborting release/);
 });
 
 // ---------------------------------------------------------------------------
@@ -241,10 +243,18 @@ test("resolveUpstreamTag — fall through to upstream probe → returns matched 
   assert.equal(tag, "v6.0.0");
 });
 
-test("resolveUpstreamTag — skill-v candidate for impeccable", () => {
+test("resolveUpstreamTag — skill-v HEAD match (impeccable current version)", () => {
   const probe = (ref) => ref === "refs/tags/skill-v4.0.4";
   const tag = resolveUpstreamTag("4.0.4", { headVersion: "4.0.4", headTag: "skill-v4.0.4" }, probe);
   assert.equal(tag, "skill-v4.0.4");
+});
+
+test("resolveUpstreamTag — v-candidate fails, skill-v succeeds via probe loop (historical impeccable)", () => {
+  // HEAD version differs → short-circuit skipped → enters candidate loop
+  // v<version> fails at tier-1 → skill-v<version> succeeds at tier-2
+  const probe = (ref) => ref === "refs/tags/skill-v4.0.0";
+  const tag = resolveUpstreamTag("4.0.0", { headVersion: "4.0.4", headTag: "skill-v4.0.4" }, probe);
+  assert.equal(tag, "skill-v4.0.0");
 });
 
 test("resolveUpstreamTag — both probes fail → returns null", () => {
@@ -617,18 +627,39 @@ test("stageVendor impeccable does not produce gemini-extension.json", () => {
 // classifyProbeError — stderr regex 判定 (Task 2)
 // ---------------------------------------------------------------------------
 
-test("classifyProbeError — E404 → E404", () => {
-  assert.equal(classifyProbeError("npm ERR! code E404\nnpm ERR! 404 Not found - GET https://registry.npmjs.org/@oscaner-skills%2fimpeccable"), "E404");
+test("classifyProbeError — E404 → unpublished", () => {
+  assert.equal(classifyProbeError("npm ERR! code E404\nnpm ERR! 404 Not found - GET https://registry.npmjs.org/@oscaner-skills%2fimpeccable"), PROBE.UNPUBLISHED);
 });
 
 test("classifyProbeError — Not found → E404", () => {
-  assert.equal(classifyProbeError("npm ERR! 404 Not found"), "E404");
+  assert.equal(classifyProbeError("npm ERR! 404 Not found"), PROBE.UNPUBLISHED);
 });
 
 test("classifyProbeError — other error → error", () => {
-  assert.equal(classifyProbeError("npm ERR! code E403\nnpm ERR! 403 Forbidden"), "error");
+  assert.equal(classifyProbeError("npm ERR! code E403\nnpm ERR! 403 Forbidden"), PROBE.ERROR);
 });
 
 test("classifyProbeError — empty stderr → error", () => {
-  assert.equal(classifyProbeError(""), "error");
+  assert.equal(classifyProbeError(""), PROBE.ERROR);
+});
+
+// ---------------------------------------------------------------------------
+// dry-run stdout contract
+// ---------------------------------------------------------------------------
+
+import { spawnSync } from "node:child_process";
+import { repoRootFromImportMeta } from "./marketplace-utils.mjs";
+
+test("publish-vendor --dry-run stdout is exactly []", () => {
+  const root = repoRootFromImportMeta(import.meta.url);
+  const binPath = join(root, "publish-vendor.mjs");
+  const { status, stdout, stderr } = spawnSync(
+    "node",
+    [binPath, "--dry-run"],
+    { encoding: "utf8", cwd: root },
+  );
+  assert.equal(status, 0, `dry-run should exit 0, got ${status}, stderr: ${stderr.slice(0, 500)}`);
+  assert.equal(stdout.trim(), "[]");
+  assert.ok(stderr.includes("OK — dry-run complete"), "stderr should contain OK line");
+  assert.ok(stderr.includes("staged at"), "stderr should contain staged-at line");
 });

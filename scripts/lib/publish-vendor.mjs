@@ -43,10 +43,16 @@ import { thinGeminiExtension, geminiMarkdown } from "./emit/manifests.mjs";
 // Pure helpers for vendor publish I/O (Task 1)
 // ---------------------------------------------------------------------------
 
-/** @param {"exit0"|"E404"|"error"} probeResult */
+/** @enum {string} probe result constants */
+export const PROBE = Object.freeze({ PUBLISHED: "published", UNPUBLISHED: "unpublished", ERROR: "error" });
+
+/** classifyProbe return values */
+export const PROBE_CLASS = Object.freeze({ PUBLISHED: "skip", SHOULD_PUBLISH: "publish" });
+
+/** @param {typeof PROBE[keyof typeof PROBE]} probeResult */
 export function decideProbe(probeResult) {
-  if (probeResult === "exit0") return "skip";
-  if (probeResult === "E404") return "publish";
+  if (probeResult === PROBE.PUBLISHED) return PROBE_CLASS.PUBLISHED;
+  if (probeResult === PROBE.UNPUBLISHED) return PROBE_CLASS.SHOULD_PUBLISH;
   throw new Error(`probe error (${probeResult}) — aborting release`);
 }
 
@@ -83,25 +89,23 @@ export function resolveUpstreamTag(version, ctx, tagExists) {
 
 /** npm view stderr 判定：含 E404/Not found → "E404"；否则 → "error" */
 export function classifyProbeError(stderr) {
-  if (/E404|Not found/i.test(stderr)) return "E404";
-  return "error";
+  if (/E404|Not found/i.test(stderr)) return PROBE.UNPUBLISHED;
+  return PROBE.ERROR;
 }
 
-/** 三态探测：npm view <name>@<version> → "exit0" | "E404" | "error" */
+/** 三态探测：npm view <name>@<version> → PROBE.PUBLISHED | PROBE.UNPUBLISHED | PROBE.ERROR */
 export function probeRegistryVersion(name, version) {
   const { status, stderr } = spawnSync("npm", ["view", `${name}@${version}`, "version"], { encoding: "utf8" });
-  if (status === 0) return "exit0";
+  if (status === 0) return PROBE.PUBLISHED;
   return classifyProbeError(stderr ?? "");
 }
 
-/** 枚举已发布版本；E404 返回 []（未首次发布） */
+/** 枚举已发布版本；E404 → []（未首次发布）；其他错误 → throw（与 probe fail-closed 一致） */
 export function listRegistryVersions(name) {
-  try {
-    const { stdout } = spawnSync("npm", ["view", name, "versions", "--json"], { encoding: "utf8" });
-    return JSON.parse(stdout ?? "[]");
-  } catch {
-    return [];
-  }
+  const { status, stdout, stderr } = spawnSync("npm", ["view", name, "versions", "--json"], { encoding: "utf8" });
+  if (status === 0) return JSON.parse(stdout ?? "[]");
+  if (/E404|Not found/i.test(stderr ?? "")) return [];
+  throw new Error(`npm view versions failed for ${name}: ${(stdout ?? "") + (stderr ?? "")}`);
 }
 
 /** git ls-remote 检查 tag 是否存在于 origin */
@@ -515,12 +519,12 @@ export function publishAll(root, { dryRun = false } = {}) {
     const probe = probeRegistryVersion(`@oscaner-skills/${name}`, version);
     const decision = decideProbe(probe); // E404→publish / exit0→skip / error→throw（release 中止）
 
-    if (decision === "skip") {
+    if (decision === PROBE_CLASS.PUBLISHED) {
       process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published\n`);
       // 继续：该版本可能缺 tag/Release，由差集补建
     }
 
-    if (decision === "publish") {
+    if (decision === PROBE_CLASS.SHOULD_PUBLISH) {
       const { status, stdout, stderr } = spawnSync(
         "npm",
         ["publish", "--access", "public"],

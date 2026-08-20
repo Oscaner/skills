@@ -23,7 +23,7 @@ Default path: `{plugin_root}/bin/engine/cdd-exec.mjs --harness <name> --prompt "
 
 ### Rule: Brief Path
 
-User provides a brief path -> follows the handoff contract: set `CDD_TASK_BRIEF` and other env vars, then call `{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode <implement|review|fix>` (mode is user-specified, defaults to implement; the user brief IS the task brief, cli-task does not transform it).
+User provides a brief path -> follows the handoff contract: set `CDD_TASK_BRIEF` and other env vars, then call `{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode <implement|task-review|fix>` (mode is user-specified, defaults to implement; the user brief IS the task brief, cli-task does not transform it).
 
 ## Red Flags
 

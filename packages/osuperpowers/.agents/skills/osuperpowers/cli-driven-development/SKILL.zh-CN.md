@@ -1,6 +1,6 @@
 ---
 name: cli-driven-development
-description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发：三模式链（implement/review/fix）+ handoff 契约 + commit gate + ledger。引擎模式：编器职责（任务分类/fix loop/质量门/D6 聚合）由 executing-plans 承担。
+description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发：三模式链（implement/task-review/fix）+ handoff 契约 + commit gate + ledger。引擎模式：编器职责（任务分类/fix loop/质量门/D6 聚合）由 executing-plans 承担。
 ---
 
 # CLI-Driven Development（cdd）
@@ -19,14 +19,14 @@ description: cdd 引擎 —— 用选定 harness CLI 驱动计划任务的开发
 
 ```bash
 {plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode implement
-{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode review
+{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode task-review
 ```
 
-`--mode fix` 仅当 review 返回 CHANGES_REQUESTED 时进入（fix loop，上限 5 轮）。
+`--mode fix` 仅当 task-review 返回 CHANGES_REQUESTED 时进入（fix loop，上限 5 轮）。
 
 ### Rule: Handoff Contract
 
-每模式结束写/更新 `CDD_HANDOFF_PATH`（task-N-handoff.json）；stdout ≤ [Return Block 契约](../../docs/controller-handoff.md#rule-return-block) 四行；非零退出且无 handoff → BLOCKED。模板见 `templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`。
+每模式结束写/更新 `CDD_HANDOFF_PATH`（task-N-handoff.json）；stdout ≤ [Return Block 契约](../../docs/controller-handoff.md#rule-return-block) 四行；非零退出且无 handoff → BLOCKED。模板见 `templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`。
 
 ### Rule: Commit Gate
 

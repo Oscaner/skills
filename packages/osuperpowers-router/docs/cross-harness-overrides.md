@@ -194,7 +194,7 @@ Shared library: `osuperpowers/bin/engine/lib/` Node modules — `runner.mjs` (wo
 **Mode A (per task):** orchestrator calls one mode per CLI invocation:
 
 ```bash
-{osuperpowers}/bin/engine/cdd-run.mjs --harness <name> --task N --mode implement|review|fix
+{osuperpowers}/bin/engine/cdd-run.mjs --harness <name> --task N --mode implement|task-review|fix
 ```
 
 **Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
@@ -217,7 +217,7 @@ Not-supported harness selected → exit 1 → orchestrator **BLOCKED**. No `--re
 
 **CI:** `tests/validate-overrides-build.mjs` asserts the osuperpowers engine (harness registry + `cdd-run.mjs`/`cdd-select.mjs`/`cdd-exec.mjs` executable + engine tests); the osuperpowers gate/hook scripts and the gate test suite are validated in `scripts/ci-validate.mjs` (5b block).
 
-Templates: `osuperpowers/templates/cdd/` (implement, review, fix) + `_handoff-write-fragment.md`.
+Templates: `osuperpowers/templates/cdd/` (implement, task-review, fix) + `_handoff-write-fragment.md`.
 
 ## Deferred harnesses (documented, not built)
 

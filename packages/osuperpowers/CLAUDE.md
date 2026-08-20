@@ -192,7 +192,7 @@ This runs steps 1-5 above plus generator drift checks, overrides version triple-
 
 ## CDD CLI pre-check (skills-missing gate)
 
-The CDD engine (`cdd-run.mjs` --> `runner.mjs`) runs a **skills-missing pre-check** before spawning nested CLI agents, in all three modes (implement/review/fix). This is distinct from the exit-code hierarchy:
+The CDD engine (`cdd-run.mjs` --> `runner.mjs`) runs a **skills-missing pre-check** before spawning nested CLI agents, in all three modes (implement/task-review/fix). This is distinct from the exit-code hierarchy:
 
 | Exit | Meaning | Trigger |
 |------|---------|---------|

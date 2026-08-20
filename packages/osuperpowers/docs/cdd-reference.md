@@ -40,7 +40,7 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
    | Recovery | re-run the orchestrator shell for that task+mode |
    | Rejected alternatives | `--session-id` (resume-only), `--name` (no session write in print mode), `--background` (daemon, incompatible with one-shot dispatch) |
 
-**Typical per-task CLI sequence (mode A — thin orchestrator):**
+**Typical per-task CLI sequence (thin orchestrator):**
 
 ```bash
 cdd-task.mjs --harness <name> --task N --mode implement
@@ -87,7 +87,7 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 - **Precondition:** `.superpowers/cdd/` is `*`-gitignored (repo `.gitignore` line `.superpowers`), so the workspace never trips the dirty check itself.
 - **Ordering (spec v3):** commit-contract validation runs **before** H1 output — H1 must read the possibly-rewritten handoff, not the agent's stdout.
 
-**Ledger:** orchestrator (mode A) or plan script (mode B) appends ledger line after handoff `APPROVED`. CLI subprocesses **do not** write ledger.
+**Ledger:** orchestrator appends ledger line after handoff `APPROVED`. CLI subprocesses **do not** write ledger.
 
 ## H7 — No consumer-repo CLI scripts
 
@@ -115,10 +115,6 @@ Any opt-out hit → **p0** in-session (Rule 5/6 + H1-H5).
 | **Not-supported** | codex, copilot, gemini |
 
 Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fallback). Selected harness CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
-
-## Mode B (opt-in / AFK)
-
-**Mode B (opt-in / AFK):** `{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --plan <path>` reads plan + ledger; for each **pending task** runs the same 3-mode chain. Pending = no `Task N: complete` ledger line and handoff not `APPROVED` (or handoff missing). Batch blocks dispatch the entire batch's 3-mode chain once.
 
 ## CDD gate matrix
 

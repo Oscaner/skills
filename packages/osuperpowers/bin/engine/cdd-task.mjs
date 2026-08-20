@@ -1,21 +1,14 @@
 #!/usr/bin/env node
-// cdd-task.mjs — osuperpowers single task runner: one mode per invocation (Mode A)
-// or plan driver (Mode B). Node port of the legacy bash script; thin shell delegating to
-// runner.mjs runTask / runPlan.
+// cdd-task.mjs — osuperpowers single task runner: one mode per invocation.
 //
-//   Mode A:  cdd-task.mjs --harness <name> --task N --mode implement|task-review|fix [--plan PATH]
-//   Mode B:  cdd-task.mjs --harness <name> --plan PATH
+//   cdd-task.mjs --harness <name> --task N --mode implement|task-review|fix [--plan PATH]
 //
-// Entry disambiguation: --task N present => Mode A (--plan optional);
-// else --plan present => Mode B (required); neither => usage exit 2.
-//
+// --plan optional: sets PLAN_FILE env for workspace resolution (task-review review-package).
 // CDD_DRY_RUN=1 skips the CLI (argument parsing / orchestration smoke tests).
-// Mode A passes --plan via PLAN_FILE env（aligns with legacy bash：cdd_run_task 无 plan-file
-// 参数，_cdd_resolve_workspace 优先 CDD_WORKSPACE —— 只有 Mode B 恒从 plan 派生 workspace）。
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runTask, runPlan } from "./lib/runner.mjs";
+import { runTask } from "./lib/runner.mjs";
 import { exitOk, exitCliMissing } from "../utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
@@ -24,14 +17,14 @@ const DRY_RUN = process.env.CDD_DRY_RUN === "1";
 // usage → stderr + exit 2 (arg-parsing error); help → stdout + exit 0 (explicit -h/--help)。
 function usage() {
   process.stderr.write(
-    `usage: ${NAME} --harness <name> (--task N --mode implement|task-review|fix [--plan PATH] | --plan PATH)\n`,
+    `usage: ${NAME} --harness <name> --task N --mode implement|task-review|fix [--plan PATH]\n`,
   );
   exitCliMissing();
 }
 
 function help() {
   process.stdout.write(
-    `usage: ${NAME} --harness <name> (--task N --mode implement|task-review|fix [--plan PATH] | --plan PATH)\n`,
+    `usage: ${NAME} --harness <name> --task N --mode implement|task-review|fix [--plan PATH]\n`,
   );
   exitOk();
 }
@@ -72,15 +65,8 @@ for (let i = 0; i < args.length; i++) {
 
 if (!harness) usage();
 
-if (taskNum !== "") {
-  // Mode A
-  if (!modeArg) usage();
-  const env = { ...process.env };
-  if (planFile) env.PLAN_FILE = planFile;
-  // noExit=false：runTask 自行 exit helpers —— 薄壳无需落地退出码。
-  await runTask(harness, taskNum, { mode: modeArg, dryRun: DRY_RUN, env });
-} else {
-  // Mode B
-  if (!planFile) usage();
-  await runPlan(planFile, harness, { dryRun: DRY_RUN });
-}
+// Mode A (per-task only; --plan is optional — sets PLAN_FILE for workspace resolution)
+if (!taskNum || !modeArg) usage();
+const env = { ...process.env };
+if (planFile) env.PLAN_FILE = planFile;
+await runTask(harness, taskNum, { mode: modeArg, dryRun: DRY_RUN, env });

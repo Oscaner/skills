@@ -20,7 +20,7 @@ import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/e
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
-const VALID_MODES = ["implement", "review", "fix"];
+const VALID_MODES = ["implement", "review", "task-review", "fix"];
 
 // 本地编排错误：携带退出码；runTask/runPlan 捕获后 finish。
 class RunBlocked extends Error {

@@ -98,8 +98,8 @@ test("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
   assert.equal(lines[3], "blocker: none");
 });
 
-test("runTask: dry-run review/fix 三模式 → H1 DONE + 不写 handoff（对齐 bash）", async () => {
-  for (const mode of ["review", "fix"]) {
+test("runTask: dry-run task-review/fix 三模式 → H1 DONE + 不写 handoff（对齐 bash）", async () => {
+  for (const mode of ["task-review", "fix"]) {
     const ws = setupWorkspace();
     const res = await runTask("claude", 1, { mode, dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
     assert.equal(res.exitCode, 0, `mode ${mode}`);

@@ -99,7 +99,7 @@ export function markDeferred(findings = []) {
 // ---- commit-contract validator ----
 
 // Core commit-contract validator（spec §4.2，port cdd_validate_commit_contract）。
-// mode implement/fix 才校验；review → no-op。非 git / git-error → fail-open。
+// mode implement/fix 才校验；task-review → no-op。非 git / git-error → fail-open。
 // 两个正交信号：dirty working tree（D2）；干净树但 handoff.commits.head ≠ 真实 HEAD（F1）。
 // 任一击中 → rewriteHandoffBlocked + 返回 { ok:false, blocker }。
 // repoRoot = 传入目录（对齐 `git -C "${CDD_WORKSPACE:-.}"`）；handoff 路径取 opts.handoffPath

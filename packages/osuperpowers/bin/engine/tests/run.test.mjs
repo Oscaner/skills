@@ -55,8 +55,8 @@ test("cdd-run.mjs: dry-run implement → H1 四行 DONE + exit 0", () => {
   assert.equal(lines[3], "blocker: none");
 });
 
-test("cdd-run.mjs: dry-run review/fix 三模式 → status DONE + exit 0", () => {
-  for (const mode of ["review", "fix"]) {
+test("cdd-run.mjs: dry-run task-review/fix 三模式 → status DONE + exit 0", () => {
+  for (const mode of ["task-review", "fix"]) {
     const ws = setupWorkspace();
     const res = run(
       ["--harness", "claude", "--task", "1", "--mode", mode, "--plan", path.join(ws, "plan.md")],

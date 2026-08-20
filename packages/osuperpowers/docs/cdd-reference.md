@@ -1,6 +1,6 @@
 # CDD CLI Orchestrator Reference (H6-H8)
 
-> Worker discipline SOT: `../templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`
+> Worker discipline SOT: `../templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`
 > Orchestrator gate discipline: [`docs/controller-handoff.md`](controller-handoff.md) H1-H5
 > **Rule 0 checklist semantic contract:** The three-phase phase markers and key tokens in Rule 0 are not line-budget trimming targets — trimming must not delete/compress the checklist's phase structure or key tokens; `bin/engine/tests/templates.test.mjs` asserts this (issue #52 Guard 1).
 
@@ -14,7 +14,7 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 | `CDD_MODE` | Responsibility |
 |------------|----------------|
 | `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 four-line contract |
-| `review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) + handoff write |
+| `task-review` | `review-package` shell (archive diff); `code-review` variant (D4; axis files; Step 5 override) + handoff write |
 | `fix` | fix implementer + handoff write; reads open-findings; **+ commit contract** (post-run gate, see below) |
 
 3. **Env contract** (paths only — **never** paste full plan into CLI env):
@@ -24,13 +24,13 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 | `CDD_WORKSPACE` | workspace root |
 | `CDD_TASK_BRIEF` | brief path |
 | `CDD_LEDGER` | progress.md |
-| `CDD_MODE` | `implement` \| `review` \| `fix` |
+| `CDD_MODE` | `implement` \| `task-review` \| `fix` |
 | `CDD_FINDINGS` | fix mode: open-findings.json |
 | `CDD_PLAN_CONSTRAINTS` | `<workspace>/plan-constraints.md` (orchestrator prewrites) |
 | `CDD_HANDOFF_PATH` | target handoff.json path |
-| `CDD_REVIEW_FIXED_POINT` | review: initial from handoff `commits.base`; fix-loop review: `FIX_BASE` |
+| `CDD_TASK_REVIEW_FIXED_POINT` | task-review: initial from handoff `commits.base`; fix-loop task-review: `FIX_BASE` |
 
-4. **Output:** before exit, write/update `CDD_HANDOFF_PATH` (default `task-N-handoff.json` or batch variant); stdout = H1 four lines as the final block (review mode may precede them with the review-package `wrote <diff>:` progress line — the last block is still the H1); non-zero exit with no handoff → **BLOCKED**.
+4. **Output:** before exit, write/update `CDD_HANDOFF_PATH` (default `task-N-handoff.json` or batch variant); stdout = H1 four lines as the final block (task-review mode may precede them with the review-package `wrote <diff>:` progress line — the last block is still the H1); non-zero exit with no handoff → **BLOCKED**.
 5. **Forbidden:** `--resume` or any CLI invocation that carries prior session history.
 6. **Session traceability:** CLI agents use one-shot print mode (`--print` / `--output-format text`), which does NOT register sessions in the `/resume` list or `~/.claude/sessions/`.
 
@@ -44,7 +44,7 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 
 ```bash
 cdd-run.mjs --harness <name> --task N --mode implement
-cdd-run.mjs --harness <name> --task N --mode review
+cdd-run.mjs --harness <name> --task N --mode task-review
 ```
 
 Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CLI invocation; CLI **does not** Read the full plan file.
@@ -72,7 +72,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 **Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel missing upstream plugin → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint, orchestrator **BLOCKED** (distinguished from 2 = harness CLI does not exist; exit 3 = CLI exists but skills plugin is not installed). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec section 2.1 stderr-surfacing).
 
-**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`, config-driven):
+**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/task-review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`, config-driven):
 
 | Channel | Harnesses | Missing behavior |
 |------|-----------|----------|
@@ -81,7 +81,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent/droid/qoder/codex/gemini), package-list (pi). Probe itself fails (CLI query error / no permission) → **fail-open allow** (exit 0 + warn). The `harnesses` set in `skills-probe.config.mjs` = 12, and MUST be one-to-one consistent with P6b section 2.5 channel classification.
 
-**Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec section 4.2): modes **implement** and **fix** are validated on return; **review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
+**Post-run commit gate** (Node module `bin/engine/lib/contract.mjs` — `validateCommitContract`, spec section 4.2): modes **implement** and **fix** are validated on return; **task-review** is a no-op. Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty, D3b strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE.
 
 - **Fail-open:** non-git workspace or `git` error → validation passes (return 0) — the gate never blocks on tooling failure.
 - **Precondition:** `.superpowers/cdd/` is `*`-gitignored (repo `.gitignore` line `.superpowers`), so the workspace never trips the dirty check itself.
@@ -107,7 +107,7 @@ All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-run.mjs`
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1-H5).
 
-**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `review_prefix` / `ship`; the engine reads it via `{plugin_root}/bin/engine/cdd-run.mjs` (no more per-harness scripts).
+**Harness registry:** `{plugin_root}/bin/engine/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `task_review_prefix` / `ship`; the engine reads it via `{plugin_root}/bin/engine/cdd-run.mjs` (no more per-harness scripts).
 
 | Ship | Harnesses |
 |------|-----------|

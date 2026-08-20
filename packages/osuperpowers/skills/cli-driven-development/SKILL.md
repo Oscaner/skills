@@ -1,6 +1,6 @@
 ---
 name: cli-driven-development
-description: cdd engine -- drives planned task development with the selected harness CLI: three-mode chain (implement/review/fix) + handoff contract + commit gate + ledger. Engine mode: orchestrator responsibilities (task classification / fix loop / quality gate / D6 aggregation) are handled by executing-plans.
+description: cdd engine -- drives planned task development with the selected harness CLI: three-mode chain (implement/task-review/fix) + handoff contract + commit gate + ledger. Engine mode: orchestrator responsibilities (task classification / fix loop / quality gate / D6 aggregation) are handled by executing-plans.
 ---
 
 # CLI-Driven Development (cdd)
@@ -19,14 +19,14 @@ Each task gets one CLI call per mode (see [cdd-reference.md](../../docs/cdd-refe
 
 ```bash
 {plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode implement
-{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode review
+{plugin_root}/bin/engine/cdd-run.mjs --harness <name> --task N --mode task-review
 ```
 
-`--mode fix` is only entered when review returns CHANGES_REQUESTED (fix loop, max 5 rounds).
+`--mode fix` is only entered when task-review returns CHANGES_REQUESTED (fix loop, max 5 rounds).
 
 ### Rule: Handoff Contract
 
-At the end of each mode, write/update `CDD_HANDOFF_PATH` (task-N-handoff.json); stdout <= [Return Block contract](../../docs/controller-handoff.md#rule-return-block) four lines; non-zero exit with no handoff -> BLOCKED. Templates at `templates/cdd/{implement,review,fix}.md` + `_handoff-write-fragment.md`.
+At the end of each mode, write/update `CDD_HANDOFF_PATH` (task-N-handoff.json); stdout <= [Return Block contract](../../docs/controller-handoff.md#rule-return-block) four lines; non-zero exit with no handoff -> BLOCKED. Templates at `templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`.
 
 ### Rule: Commit Gate
 

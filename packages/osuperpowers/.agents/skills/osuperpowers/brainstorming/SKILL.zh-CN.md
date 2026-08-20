@@ -3,7 +3,7 @@ name: brainstorming
 description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / cli review 评审 passes）。可独立调用；由 /brainstorming 触发经 overrides 路由器直达。
 ---
 
-# OS Brainstorming
+# Osuperpowers Brainstorming
 
 完整 brainstorm 流程编排，可独立调用。
 
@@ -21,7 +21,10 @@ Read 上游 `superpowers:brainstorming` 的 SKILL.md 作为流程基线 **当可
 
 ### Rule: Read Sub-Skills
 
-按需 Read `mattpocock-skills` 的 `skills/productivity/grilling/SKILL.md`（澄清问题委派）。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
+**必须**读取 `mattpocock-skills` 的 `skills/productivity/grilling/SKILL.md`（强制步骤——澄清问题委派）。
+读取失败（文件不存在/读取错误）→ **报告错误 + 询问用户下一步**，
+用户可决定绕过 grilling 继续或中止流程。所有失败场景行为统一。
+加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
 
 ### Rule: Research Delegation
 
@@ -61,6 +64,10 @@ spec review 分 3 类 pass（completeness / consistency&scope / clarity&YAGNI）
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
 派发纪律见 [review-dispatch.md](../docs/review-dispatch.md)（D1/D2/D3 + fresh-pass，原样映射到 cli）。
 
+### Rule: Next-Step Routing
+
+brainstorming 完成后，Skill-invoke **`osuperpowers:writing-plans`**（而非上游 `superpowers:writing-plans`）。osuperpowers 包装版本在上游基线之上叠加了 section-by-section 写作、cli review passes 和 ticket publish redirect。
+
 ### Rule: Write Design Doc
 
 spec 存 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审阅后 → writing-plans。
@@ -71,3 +78,4 @@ spec 存 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审阅后
 - 「简单项目跳过设计」→ 每个项目都过设计（上游流程要求）
 - 「research 自动触发不问用户」→ 用户确认是硬门
 - 「research 阻塞 explore-context」→ 后台并行
+- 「Invoke writing-plans / superpowers:writing-plans」→ invoke **`osuperpowers:writing-plans`**（Rule: Next-Step Routing）

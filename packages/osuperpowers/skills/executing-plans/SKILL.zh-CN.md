@@ -3,7 +3,7 @@ name: executing-plans
 description: 独立执行计划总编排器 —— 用户选择执行模式（in-session / subagent / cli），编排器控制器规则集（11 条语义规则，三模式共用）。cli 模式委托 cli-driven-development；in-session/subagent 模式 Read 上游对应技能驱动。
 ---
 
-# OS Executing-Plans
+# Osuperpowers Executing-Plans
 
 执行书面计划的总编排器。三种模式由用户选择。
 
@@ -18,7 +18,9 @@ description: 独立执行计划总编排器 —— 用户选择执行模式（in
 
 ### Rule: Mode Selection
 
-启动时用 `AskUserQuestion` 让用户选模式（in-session | subagent | cli）。选定后调 `cdd-session-activate.mjs minimal <session_key> <repo_root> --mode <mode>` 写 `pending.mode`。
+<HARD-GATE>
+启动时、**在任何其他操作之前**（读 plan 之前、设置之前、任何接触仓库的工具调用之前），用 `AskUserQuestion` 让用户选模式（in-session | subagent | cli）。不接受上游技能的预选——编排器始终直接询问。选定后调 `cdd-session-activate.mjs minimal <session_key> <repo_root> --mode <mode>` 写 `pending.mode`。
+</HARD-GATE>
 
 ### Rule: Task Complexity
 
@@ -55,7 +57,7 @@ spec+plan 完备 → 最便宜 implementer 层级；首次派发前确认一次�
 
 **Per-task:** Rule: Task Complexity 分类 → Rule: Confirm Once → Rule: Confirm Seams（tdd implement 派发前）→ append `TASK_BASE: <sha>` to brief → 执行链（cli 模式 shell H6 chain：implement → review → fix per Rule: Fix Loop；in-session/subagent 模式会话内实现 + 评审）→ Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger。cli 模式 **Never** edit repo deliverables in this session — H6 CLI only。
 
-**Final:** `requesting-code-review` whole-branch in-session → clean → `finishing-a-development-branch`。
+**Final:** [osuperpowers:code-review](../code-review/SKILL.md) whole-branch in-session → clean → [osuperpowers:finishing](../finishing/SKILL.md)。
 
 ### Rule: D6 Aggregation
 
@@ -77,3 +79,7 @@ Mode B：用户 run 结束后自行读 ledger 聚合 deferred；shell 端无额�
 - 「CLI 可用就跳过模式选择」→ 三模式必须询问（Rule: Mode Selection）
 - 「in-session 也走 cdd-task.mjs」→ in-session 是会话内实现，不走 CLI（Rule: Read Upstream）
 - 「把编排器决策塞进 cli-driven-development」→ 引擎只管执行（Rule: Read Upstream 的 cli 分支）
+- 「User already chose subagent/inline in writing-plans handoff」→ Mode Selection 是 HARD-GATE，必须重新询问（Rule: Mode Selection）
+- 「Start executing without calling AskUserQuestion」→ Mode Selection 必须是第一个动作（Rule: Mode Selection）
+- 「Load from state with prior mode selection」→ session 恢复带缓存模式仍须调用 AskUserQuestion（Rule: Mode Selection）
+- 「Use superpowers:subagent-driven-development / superpowers:executing-plans」→ 上游 subagent-driven-development 引用的 superpowers:* 需显式映射到 osuperpowers 对应版本（本 plan 的 Next-Step Routing rule 负责）

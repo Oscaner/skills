@@ -87,7 +87,7 @@ name: os-brainstorming
 description: "EN: Orchestrate brainstorm flow | ZH: 独立 brainstorm 流程编排器"
 ---
 
-# OS Brainstorming
+# Osuperpowers Brainstorming
 
 ## English
 

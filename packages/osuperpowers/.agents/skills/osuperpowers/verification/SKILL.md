@@ -3,7 +3,7 @@ name: verification
 description: Independent pre-completion verification orchestrator -- Reads upstream superpowers:verification-before-completion as baseline, layers personal rules (pre-claim gate / softening-language self-check).
 ---
 
-# OS Verification
+# Osuperpowers Verification
 
 Pre-completion verification: evidence before assertion.
 

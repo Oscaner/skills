@@ -264,7 +264,7 @@ name: os-init
 description: 参数化初始化工具。`os-init spor` 初始化 superpowers 自检表（写项目 CLAUDE.md / .cursor rules，表指向 os-*/cli-* 目标）。未来 `os-init <x>` 扩展其它目标。
 ---
 
-# OS Init
+# Osuperpowers Init
 
 初始化各系统的自检表。
 

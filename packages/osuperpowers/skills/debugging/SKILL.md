@@ -3,7 +3,7 @@ name: debugging
 description: Independent systematic debugging orchestrator -- Reads upstream superpowers:systematic-debugging as baseline, layers personal rules (no fix without diagnostic evidence / delegate diagnosing-bugs).
 ---
 
-# OS Debugging
+# Osuperpowers Debugging
 
 Systematic debugging: evidence before fix proposals.
 

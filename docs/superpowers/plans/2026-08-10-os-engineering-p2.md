@@ -146,7 +146,7 @@ name: os-brainstorming
 description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / fresh-subagent 评审 passes）。可独立调用；被 /brainstorming 的 spor 薄指针转发。
 ---
 
-# OS Brainstorming
+# Osuperpowers Brainstorming
 
 完整 brainstorm 流程编排，可独立调用。
 
@@ -186,7 +186,7 @@ name: os-writing-plans
 description: 独立写计划流程编排器 —— Read 上游 superpowers:writing-plans 作为基线，叠加个人规则（逐节写 / fresh-subagent 评审 passes / to-tickets 发布重定向）。
 ---
 
-# OS Writing-Plans
+# Osuperpowers Writing-Plans
 
 完整写计划流程编排，可独立调用。
 
@@ -244,7 +244,7 @@ name: os-executing-plans
 description: 独立执行计划总编排器 —— 用户选择执行模式（in-session / subagent / cli），编排器控制器 Rules 1-8 三模式共用。cli 模式委托 cli-driven-development；in-session/subagent 模式 Read 上游对应技能驱动。
 ---
 
-# OS Executing-Plans
+# Osuperpowers Executing-Plans
 
 执行书面计划的总编排器。三种模式由用户选择。
 
@@ -325,7 +325,7 @@ name: os-finishing
 description: 独立收尾流程编排器 —— Read 上游 superpowers:finishing-a-development-branch 作为基线，叠加个人规则（禁 worktree / conventional commit / 无 attribution / Option4 输入 discard）。
 ---
 
-# OS Finishing
+# Osuperpowers Finishing
 
 开发分支收尾：合并 / PR / 保留 / 丢弃。
 
@@ -381,7 +381,7 @@ name: os-verification
 description: 独立完成前验证编排器 —— Read 上游 superpowers:verification-before-completion 作为基线，叠加个人规则（pre-claim gate / 软化语言自检）。
 ---
 
-# OS Verification
+# Osuperpowers Verification
 
 完成前验证：证据先于断言。
 
@@ -408,7 +408,7 @@ name: os-debugging
 description: 独立系统化调试编排器 —— Read 上游 superpowers:systematic-debugging 作为基线，叠加个人规则（无诊断证据不提案 / 委派 diagnosing-bugs）。
 ---
 
-# OS Debugging
+# Osuperpowers Debugging
 
 系统化调试：证据先于修复提案。
 
@@ -435,7 +435,7 @@ name: os-code-review
 description: 独立接收评审反馈编排器 —— Read 上游 superpowers:receiving-code-review 作为基线，叠加个人规则（grilling 澄清 / tdd 委派）。可选调 cli-code-review 派发评审。
 ---
 
-# OS Code Review
+# Osuperpowers Code Review
 
 处理评审反馈：验证证据、拒绝表演式附和。
 
@@ -485,7 +485,7 @@ name: os-report-issue
 description: 分析当前 spor/os 会话的 bug 与增强机会，经 gh CLI 对 Oscaner/skills 提 GitHub issue。repo 开发工具，非常规工作流技能。
 ---
 
-# OS Report Issue
+# Osuperpowers Report Issue
 
 分析 SDD 会话（.superpowers/sdd/*/progress.md + git log）找出 bug 与增强，提 issue。
 

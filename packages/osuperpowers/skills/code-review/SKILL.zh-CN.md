@@ -3,7 +3,7 @@ name: code-review
 description: 独立接收评审反馈编排器 —— Read 上游 superpowers:receiving-code-review 作为基线，叠加个人规则（grilling 澄清 / tdd 委派）。可选调 cli-code-review 派发评审。
 ---
 
-# OS Code Review
+# Osuperpowers Code Review
 
 处理评审反馈：验证证据、拒绝表演式附和。
 

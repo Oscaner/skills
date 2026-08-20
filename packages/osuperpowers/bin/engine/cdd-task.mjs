@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// cdd-run.mjs — osuperpowers single CLI runner: one mode per invocation (Mode A)
-// or plan driver (Mode B). Node port of cdd-run.sh; thin shell delegating to
+// cdd-task.mjs — osuperpowers single task runner: one mode per invocation (Mode A)
+// or plan driver (Mode B). Node port of the legacy bash script; thin shell delegating to
 // runner.mjs runTask / runPlan.
 //
-//   Mode A:  cdd-run.mjs --harness <name> --task N --mode implement|task-review|fix [--plan PATH]
-//   Mode B:  cdd-run.mjs --harness <name> --plan PATH
+//   Mode A:  cdd-task.mjs --harness <name> --task N --mode implement|task-review|fix [--plan PATH]
+//   Mode B:  cdd-task.mjs --harness <name> --plan PATH
 //
 // Entry disambiguation: --task N present => Mode A (--plan optional);
 // else --plan present => Mode B (required); neither => usage exit 2.
 //
 // CDD_DRY_RUN=1 skips the CLI (argument parsing / orchestration smoke tests).
-// Mode A passes --plan via PLAN_FILE env (对齐 cdd-run.sh：cdd_run_task 无 plan-file
+// Mode A passes --plan via PLAN_FILE env（aligns with legacy bash：cdd_run_task 无 plan-file
 // 参数，_cdd_resolve_workspace 优先 CDD_WORKSPACE —— 只有 Mode B 恒从 plan 派生 workspace）。
 import path from "node:path";
 import { fileURLToPath } from "node:url";

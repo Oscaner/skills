@@ -116,13 +116,13 @@ test("cdd-exec.mjs: CDD_DRY_RUN=1 跳过 CLI preflight 但仍 invoke CLI（对�
   assert.doesNotMatch(res.stderr, /CDD_CLI_MISSING/, "dry-run 跳过 CLI preflight");
 });
 
-test("cdd-exec.mjs: review-prefix 合成 — CDD_MODE=review 时 prompt 前置 review_prefix", () => {
+test("cdd-exec.mjs: task-review-prefix 合成 — CDD_MODE=task-review 时 prompt 前置 task_review_prefix", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-exec-mock-"));
   makeMock(mock, "claude", 'for a in "$@"; do last="$a"; done; printf "%s\\n" "$last"');
   const fp = harnessFreePath();
   const res = runExec(["--harness", "claude", "--prompt", "hello world"], {
     mockPath: `${mock}${path.delimiter}${fp}`,
-    extraEnv: { CDD_MODE: "review" },
+    extraEnv: { CDD_MODE: "task-review" },
   });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.equal(res.stdout.trim(), "Skill(mattpocock-skills:code-review) hello world");

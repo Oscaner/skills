@@ -3,28 +3,28 @@
     "cli": "claude",
     "invoke": "-p --output-format text --dangerously-skip-permissions",
     "output": "text",
-    "review_prefix": "Skill(mattpocock-skills:code-review)",
+    "task_review_prefix": "Skill(mattpocock-skills:code-review)",
     "ship": "full"
   },
   "cursor-agent": {
     "cli": "cursor-agent",
     "invoke": "--print --output-format text --force",
     "output": "text",
-    "review_prefix": "",
+    "task_review_prefix": "",
     "ship": "full"
   },
   "droid": {
     "cli": "droid",
     "invoke": "exec --auto medium --output-format stream-json",
     "output": "stream-json",
-    "review_prefix": "",
+    "task_review_prefix": "",
     "ship": "full"
   },
   "pi": {
     "cli": "pi",
     "invoke": "-p --no-session --no-approve",
     "output": "text",
-    "review_prefix": "",
+    "task_review_prefix": "",
     "ship": "full"
   },
   "codex": { "cli": "codex", "ship": "not-supported" },

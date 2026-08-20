@@ -100,7 +100,7 @@ test("cdd-run.mjs: 非法 mode → CDD_BLOCKED exit 1（port cdd-cli-dry-run-smo
     { CDD_DRY_RUN: "1", CDD_WORKSPACE: ws },
   );
   assert.equal(res.status, 1);
-  assert.match(res.stderr, /CDD_MODE must be implement\|review\|fix \(got: handoff\)/);
+  assert.match(res.stderr, /CDD_MODE must be implement\|task-review\|fix \(got: handoff\)/);
 });
 
 test("cdd-run.mjs: Mode B dry-run 无 pending task → exit 0 + no-pending stderr", () => {

@@ -51,7 +51,7 @@ test("checkHarness: CLI preflight — full harness 缺二进制 → cli-missing�
   const ghost = "cdd-nonexistent-cli-xyz";
   const fixture = {
     ...reg,
-    ghost: { cli: ghost, invoke: "-p", output: "text", review_prefix: "", ship: "full" },
+    ghost: { cli: ghost, invoke: "-p", output: "text", task_review_prefix: "", ship: "full" },
   };
   assert.throws(
     () => checkHarness(fixture, "ghost"),
@@ -63,7 +63,7 @@ test("checkHarness: dryRun 跳过 CLI 存在校验", () => {
   const reg = loadRegistry(REG_PATH);
   const fixture = {
     ...reg,
-    ghost: { cli: "cdd-nonexistent-cli-xyz", invoke: "-p", output: "text", review_prefix: "", ship: "full" },
+    ghost: { cli: "cdd-nonexistent-cli-xyz", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" },
   };
   const entry = checkHarness(fixture, "ghost", { dryRun: true });
   assert.equal(entry.cli, "cdd-nonexistent-cli-xyz");
@@ -73,7 +73,7 @@ test("registryField: 字段读取 + 缺失回退空串", () => {
   const reg = loadRegistry(REG_PATH);
   assert.equal(registryField(reg, "claude", "cli"), "claude");
   assert.equal(registryField(reg, "claude", "invoke"), "-p --output-format text --dangerously-skip-permissions");
-  assert.equal(registryField(reg, "claude", "review_prefix"), "Skill(mattpocock-skills:code-review)");
+  assert.equal(registryField(reg, "claude", "task_review_prefix"), "Skill(mattpocock-skills:code-review)");
   assert.equal(registryField(reg, "claude", "no-such-field"), "");
   assert.equal(registryField(reg, "no-such-harness", "cli"), "");
   assert.equal(registryField(reg, "codex", "invoke"), ""); // not-supported 不带 invoke（schema）

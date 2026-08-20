@@ -133,7 +133,7 @@ test("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 blo
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const res = await (async () => {
@@ -251,7 +251,7 @@ test("invokeCli: stream-json 多行 pretty-printed completion → finalText 正�
   const event = JSON.stringify({ type: "completion", finalText: "MULTILINE\nFINAL" }, null, 2);
   writeFileSync(path.join(binDir, "fake-stream-cli"), `#!/usr/bin/env bash\ncat <<'JSON'\n${event}\nJSON\n`);
   chmodSync(path.join(binDir, "fake-stream-cli"), 0o755);
-  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", review_prefix: "" };
+  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", task_review_prefix: "" };
 
   const origPath = process.env.PATH;
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
@@ -278,7 +278,7 @@ test("invokeCli: stream-json 相邻紧凑事件（首个对象含空串）→ �
     "#!/usr/bin/env bash\nprintf '%s\\n' '{\"a\":\"\"}'\nprintf '%s\\n' '{\"type\":\"completion\",\"finalText\":\"OK\"}'\n",
   );
   chmodSync(path.join(binDir, "fake-stream-cli"), 0o755);
-  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", review_prefix: "" };
+  const entry = { cli: "fake-stream-cli", invoke: "-p", output: "stream-json", task_review_prefix: "" };
 
   const origPath = process.env.PATH;
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
@@ -308,7 +308,7 @@ test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（�
   assert.match(stderr, /CDD_BLOCKED: uncommitted changes at return \(implement\)/);
 });
 
-test("runTask: review 模式 review-package 不可执行 → CDD_BLOCKED + exit 1（对齐 bash [[ -x ]]）", async () => {
+test("runTask: task-review 模式 review-package 不可执行 → CDD_BLOCKED + exit 1（对齐 bash [[ -x ]]）", async () => {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-reviewpkg-")));
   writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
   writeFileSync(path.join(dir, "progress.md"), `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
@@ -334,10 +334,10 @@ test("runTask: review 模式 review-package 不可执行 → CDD_BLOCKED + exit 
   try {
     const { code, stderr } = await capture(() =>
       runTask("claude", 1, {
-        mode: "review",
+        mode: "task-review",
         probeSkills: NOOP_PROBE,
         env: baseEnv(dir, {
-          CDD_REVIEW_FIXED_POINT: "HEAD~1",
+          CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1",
           PATH: `${binDir}${path.delimiter}${origPath}`,
         }),
         cwd: dir,

@@ -122,7 +122,7 @@ try {
   throw e;
 }
 
-// 一次性 prompt-runner（不跑任务链）：CDD_MODE=review 触发 review-prefix 合成（透传）。
+// 一次性 prompt-runner（不跑任务链）：CDD_MODE=task-review 触发 task_review_prefix 合成（透传）。
 const mode = process.env.CDD_MODE ?? "";
 const res = await invokeCli(entry, prompt, mode, process.env, process.cwd());
 if (!res.ok) {

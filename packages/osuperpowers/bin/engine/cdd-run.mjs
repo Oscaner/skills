@@ -3,7 +3,7 @@
 // or plan driver (Mode B). Node port of cdd-run.sh; thin shell delegating to
 // runner.mjs runTask / runPlan.
 //
-//   Mode A:  cdd-run.mjs --harness <name> --task N --mode implement|review|fix [--plan PATH]
+//   Mode A:  cdd-run.mjs --harness <name> --task N --mode implement|task-review|fix [--plan PATH]
 //   Mode B:  cdd-run.mjs --harness <name> --plan PATH
 //
 // Entry disambiguation: --task N present => Mode A (--plan optional);
@@ -24,14 +24,14 @@ const DRY_RUN = process.env.CDD_DRY_RUN === "1";
 // usage → stderr + exit 2 (arg-parsing error); help → stdout + exit 0 (explicit -h/--help)。
 function usage() {
   process.stderr.write(
-    `usage: ${NAME} --harness <name> (--task N --mode implement|review|fix [--plan PATH] | --plan PATH)\n`,
+    `usage: ${NAME} --harness <name> (--task N --mode implement|task-review|fix [--plan PATH] | --plan PATH)\n`,
   );
   exitCliMissing();
 }
 
 function help() {
   process.stdout.write(
-    `usage: ${NAME} --harness <name> (--task N --mode implement|review|fix [--plan PATH] | --plan PATH)\n`,
+    `usage: ${NAME} --harness <name> (--task N --mode implement|task-review|fix [--plan PATH] | --plan PATH)\n`,
   );
   exitOk();
 }

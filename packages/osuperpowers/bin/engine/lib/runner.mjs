@@ -3,7 +3,7 @@
 // runTask 有序契约：registry ship gate → CLI preflight → workspace/env → ledger PLAN_FILE
 // backfill → review fixed-point → require env → renderModePrompt → 嵌套 CLI spawn（捕获 stderr，
 // 非 2>/dev/null 吞）→ commit-contract → H1 四行 → handoff 处理。
-// runPlan：plan-constraints 写 → pending tasks × 三模式链（implement→review→fix，cap 5）→ ledger 追加。
+// runPlan：plan-constraints 写 → pending tasks × 三模式链（implement→task-review→fix，cap 5）→ ledger 追加。
 // noExit=true 时返回 { exitCode, h1 } 而非 exit helpers —— runPlan 组合 / 单测的 seam。
 // 落地退出委托 utils/exit.mjs（统一出口，无 inline process.exit）。
 import { spawn } from "node:child_process";
@@ -20,7 +20,7 @@ import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/e
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
-const VALID_MODES = ["implement", "review", "task-review", "fix"];
+const VALID_MODES = ["implement", "task-review", "fix"];
 
 // 本地编排错误：携带退出码；runTask/runPlan 捕获后 finish。
 class RunBlocked extends Error {
@@ -105,17 +105,17 @@ function readJson(filePath) {
 
 // 对齐 cdd_require_env 的 mode 有效性检查。
 function validateMode(mode) {
-  if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|review|fix (got: ${mode})`;
+  if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|task-review|fix (got: ${mode})`;
   return null;
 }
 
-// 对齐 cdd_require_env：必需 CDD_* + mode 特例（review → CDD_REVIEW_FIXED_POINT；fix → CDD_FINDINGS）。
+// 对齐 cdd_require_env：必需 CDD_* + mode 特例（task-review → CDD_TASK_REVIEW_FIXED_POINT；fix → CDD_FINDINGS）。
 function requireEnv(env, mode) {
   const missing = [];
   for (const v of ["CDD_WORKSPACE", "CDD_TASK_BRIEF", "CDD_LEDGER", "CDD_MODE", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS"]) {
     if (!env[v]) missing.push(v);
   }
-  if (mode === "review" && !env.CDD_REVIEW_FIXED_POINT) missing.push("CDD_REVIEW_FIXED_POINT");
+  if (mode === "task-review" && !env.CDD_TASK_REVIEW_FIXED_POINT) missing.push("CDD_TASK_REVIEW_FIXED_POINT");
   if (mode === "fix" && !env.CDD_FINDINGS) missing.push("CDD_FINDINGS");
   return missing.length > 0 ? `Missing required env: ${missing.join(" ")}` : null;
 }
@@ -128,7 +128,7 @@ function promptEnv(env, taskNum) {
     HANDOFF: env.CDD_HANDOFF_PATH,
     FINDINGS: env.CDD_FINDINGS,
     CONSTRAINTS: env.CDD_PLAN_CONSTRAINTS,
-    FIXED_POINT: env.CDD_REVIEW_FIXED_POINT,
+    FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT,
     TASK: String(taskNum),
   };
 }
@@ -156,12 +156,12 @@ function spawnCapture(command, args, { cwd, env }) {
   });
 }
 
-// 对齐 _cdd_invoke_cli：$cli $invoke "$prompt_arg"（review 前缀合成）+ output 模式规范化
+// 对齐 _cdd_invoke_cli：$cli $invoke "$prompt_arg"（task-review 前缀合成）+ output 模式规范化
 // （text passthrough / stream-json → 最后一个 completion 的 finalText 完整保留）。
 // 导出供 cdd-exec.mjs（T3 一次性 prompt-runner）复用 —— 归一化逻辑单一来源。
 export async function invokeCli(entry, prompt, mode, env, cwd) {
-  const { cli, invoke, output, review_prefix } = entry;
-  const promptArg = mode === "review" && review_prefix ? `${review_prefix} ${prompt}` : prompt;
+  const { cli, invoke, output, task_review_prefix } = entry;
+  const promptArg = mode === "task-review" && task_review_prefix ? `${task_review_prefix} ${prompt}` : prompt;
   const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];
   const res = await spawnCapture(cli, args, { cwd, env });
   if (res.ok && output === "stream-json") {
@@ -453,23 +453,23 @@ export async function runTask(harness, taskNum, opts = {}) {
   let plan = planFile || baseEnv.PLAN_FILE || "";
   if (!plan) plan = backfillPlanFromLedger(env.CDD_LEDGER);
 
-  // 5. Review fixed-point + review-package
-  if (mode === "review") {
-    if (!env.CDD_REVIEW_FIXED_POINT) {
+  // 5. Task-review fixed-point + review-package
+  if (mode === "task-review") {
+    if (!env.CDD_TASK_REVIEW_FIXED_POINT) {
       const handoffBase = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "base"]);
-      if (handoffBase) env.CDD_REVIEW_FIXED_POINT = handoffBase;
+      if (handoffBase) env.CDD_TASK_REVIEW_FIXED_POINT = handoffBase;
     }
-    if (dryRun && !env.CDD_REVIEW_FIXED_POINT) env.CDD_REVIEW_FIXED_POINT = "HEAD~1";
+    if (dryRun && !env.CDD_TASK_REVIEW_FIXED_POINT) env.CDD_TASK_REVIEW_FIXED_POINT = "HEAD~1";
     if (!dryRun) {
-      if (!plan) return finish(1, [], "review mode requires plan path (ledger header or --plan)", noExit);
+      if (!plan) return finish(1, [], "task-review mode requires plan path (ledger header or --plan)", noExit);
       if (!existsSync(plan)) return finish(1, [], `plan file not found: ${plan}`, noExit);
-      const reviewBase = env.CDD_REVIEW_FIXED_POINT;
-      if (!reviewBase) return finish(1, [], "review mode requires CDD_REVIEW_FIXED_POINT or handoff commits.base", noExit);
-      let reviewHead = "HEAD";
+      const taskReviewBase = env.CDD_TASK_REVIEW_FIXED_POINT;
+      if (!taskReviewBase) return finish(1, [], "task-review mode requires CDD_TASK_REVIEW_FIXED_POINT or handoff commits.base", noExit);
+      let taskReviewHead = "HEAD";
       const handoffHead = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "head"]);
-      if (handoffHead) reviewHead = handoffHead;
+      if (handoffHead) taskReviewHead = handoffHead;
       try {
-        await runReviewPackage(plan, reviewBase, reviewHead, env.CDD_HANDOFF_PATH, { cwd, env });
+        await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH, { cwd, env });
       } catch (e) {
         if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
         throw e;
@@ -605,7 +605,7 @@ function chainRunTaskFailed(n, handoffPath, phase, rc) {
 async function runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryRun, baseEnv, registryPath }) {
   // _cdd_set_task_env 只默认未设置变量；plan chain 必须强制 workspace 派生路径 —— 先清掉显式值。
   const env = { ...baseEnv };
-  for (const k of ["CDD_LEDGER", "CDD_TASK_BRIEF", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS", "CDD_FINDINGS", "CDD_REVIEW_FIXED_POINT"]) {
+  for (const k of ["CDD_LEDGER", "CDD_TASK_BRIEF", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS", "CDD_FINDINGS", "CDD_TASK_REVIEW_FIXED_POINT"]) {
     delete env[k];
   }
   const taskEnv = buildTaskEnv(env, workspace, n, "implement", harness);
@@ -618,15 +618,15 @@ async function runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryR
   let rc = (await runTask(harness, n, { mode: "implement", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
   if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "implement", rc);
 
-  const reviewBase = readJsonField(handoffPath, ["commits", "base"]);
-  if (!reviewBase) {
+  const taskReviewBase = readJsonField(handoffPath, ["commits", "base"]);
+  if (!taskReviewBase) {
     chainBlocked(n, "handoff missing commits.base after implement");
     return 1;
   }
-  taskEnv.CDD_REVIEW_FIXED_POINT = reviewBase;
+  taskEnv.CDD_TASK_REVIEW_FIXED_POINT = taskReviewBase;
 
-  rc = (await runTask(harness, n, { mode: "review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-  if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "review", rc);
+  rc = (await runTask(harness, n, { mode: "task-review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
+  if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "task-review", rc);
 
   let fixRound = 0;
   for (;;) {
@@ -651,12 +651,12 @@ async function runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryR
         chainBlocked(n, "cannot determine FIX_BASE (handoff commits.head missing)");
         return 1;
       }
-      taskEnv.CDD_REVIEW_FIXED_POINT = fixBase;
+      taskEnv.CDD_TASK_REVIEW_FIXED_POINT = fixBase;
       taskEnv.CDD_FINDINGS = path.join(workspace, `task-${n}-open-findings.json`);
       rc = (await runTask(harness, n, { mode: "fix", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
       if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "fix", rc);
-      rc = (await runTask(harness, n, { mode: "review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-      if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "re-review", rc);
+      rc = (await runTask(harness, n, { mode: "task-review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
+      if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "re-task-review", rc);
       continue;
     }
     chainBlocked(n, `unexpected handoff status ${status}`);

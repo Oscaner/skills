@@ -3,7 +3,7 @@ name: finishing
 description: 独立收尾流程编排器 —— Read 上游 superpowers:finishing-a-development-branch 作为基线，叠加个人规则（禁 worktree / conventional commit / 无 attribution / Option4 输入 discard）。
 ---
 
-# OS Finishing
+# Osuperpowers Finishing
 
 开发分支收尾：合并 / PR / 保留 / 丢弃。
 

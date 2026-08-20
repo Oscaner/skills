@@ -3,7 +3,7 @@ name: executing-plans
 description: Independent plan execution orchestrator -- User selects execution mode (in-session / subagent / cli), orchestrator controller rule set (11 semantic rules, shared across three modes). cli mode delegates to cli-driven-development; in-session/subagent mode Reads the corresponding upstream skill.
 ---
 
-# OS Executing-Plans
+# Osuperpowers Executing-Plans
 
 Master orchestrator for executing written plans. Three modes chosen by the user.
 
@@ -18,7 +18,9 @@ Resolve upstream based on user-selected mode (resolution priority + unavailabili
 
 ### Rule: Mode Selection
 
-At startup, use `AskUserQuestion` to let the user choose a mode (in-session | subagent | cli). After selection, call `cdd-session-activate.mjs minimal <session_key> <repo_root> --mode <mode>` to write `pending.mode`.
+<HARD-GATE>
+At startup, BEFORE any other action (before reading plan, before setup, before ANY tool call that touches the repo), use `AskUserQuestion` to let the user choose a mode (in-session | subagent | cli). Do NOT accept a mode pre-selection from a prior skill's handoff — the orchestrator always asks directly. After selection, call `cdd-session-activate.mjs minimal <session_key> <repo_root> --mode <mode>` to write `pending.mode`.
+</HARD-GATE>
 
 ### Rule: Task Complexity
 
@@ -55,7 +57,7 @@ The orchestrator's three-phase loop per plan (shared skeleton across three modes
 
 **Per-task:** Rule: Task Complexity → Rule: Confirm Once → Rule: Confirm Seams (before tdd implement dispatch) → append `TASK_BASE: <sha>` to brief → execution chain (cli mode shell H6 chain: implement → review → fix per Rule: Fix Loop; in-session/subagent mode in-session implementation + review) → Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger. cli mode **Never** edits repo deliverables in this session — H6 CLI only。
 
-**Final:** `requesting-code-review` whole-branch in-session -> clean -> `finishing-a-development-branch`.
+**Final:** [osuperpowers:code-review](../code-review/SKILL.md) whole-branch in-session -> clean -> [osuperpowers:finishing](../finishing/SKILL.md).
 
 ### Rule: D6 Aggregation
 
@@ -77,3 +79,7 @@ Only `APPROVED` appends `Task N: complete` to `CDD_LEDGER`.
 - "CLI is available so skip mode selection" -> all three modes must be asked (Rule: Mode Selection)
 - "in-session also uses cdd-task.mjs" -> in-session is in-session implementation, no CLI (Rule: Read Upstream)
 - "Shove orchestrator decisions into cli-driven-development" -> engine only handles execution (Rule: Read Upstream — cli branch)
+- "User already chose subagent/inline in writing-plans handoff" -> Mode Selection is a HARD-GATE, always ask directly (Rule: Mode Selection)
+- "Start executing without calling AskUserQuestion" -> Mode Selection must be the first action, before any repo tool call (Rule: Mode Selection)
+- "Load from state with prior mode selection" -> session restored with cached mode must still call AskUserQuestion (Rule: Mode Selection)
+- "Use superpowers:subagent-driven-development / superpowers:executing-plans" -> upstream subagent-driven-development references to superpowers:* must be explicitly mapped to osuperpowers counterparts (the plan's own Next-Step Routing rule governs this)

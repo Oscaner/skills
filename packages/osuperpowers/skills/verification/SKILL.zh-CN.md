@@ -3,7 +3,7 @@ name: verification
 description: 独立完成前验证编排器 —— Read 上游 superpowers:verification-before-completion 作为基线，叠加个人规则（pre-claim gate / 软化语言自检）。
 ---
 
-# OS Verification
+# Osuperpowers Verification
 
 完成前验证：证据先于断言。
 

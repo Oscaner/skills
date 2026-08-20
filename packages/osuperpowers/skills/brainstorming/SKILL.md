@@ -3,7 +3,7 @@ name: brainstorming
 description: Independent brainstorm orchestrator -- Reads upstream superpowers:brainstorming as baseline, layers personal rules (grilling clarification / overall+phase / cli review passes). Callable standalone; triggered by /brainstorming via overrides router.
 ---
 
-# OS Brainstorming
+# Osuperpowers Brainstorming
 
 Full brainstorm flow orchestration, callable standalone.
 
@@ -21,7 +21,10 @@ Upstream unavailable (non-claude harness / superpowers plugin not installed) -> 
 
 ### Rule: Read Sub-Skills
 
-On demand, Read `mattpocock-skills` `skills/productivity/grilling/SKILL.md` (clarification question delegation). Load failure protocol: see [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure).
+**Must** read `mattpocock-skills` `skills/productivity/grilling/SKILL.md` (mandatory step — clarification question delegation).
+On failure (file not found / read error) → **report error + ask the user for next steps**;
+user may skip grilling and continue, or abort the flow. All failure scenarios behave identically.
+Load failure protocol: see [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure).
 
 ### Rule: Research Delegation
 
@@ -59,6 +62,10 @@ Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI),
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
 Dispatch discipline: see [review-dispatch.md](../docs/review-dispatch.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli).
 
+### Rule: Next-Step Routing
+
+After brainstorming completes, invoke **`osuperpowers:writing-plans`** (not upstream `superpowers:writing-plans`). The osuperpowers wrapper adds section-by-section writing, cli review passes, and ticket publish redirect on top of the upstream baseline.
+
 ### Rule: Write Design Doc
 
 Spec saved to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, after user review -> writing-plans.
@@ -69,3 +76,4 @@ Spec saved to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, after user 
 - "Skip design for simple projects" -> every project goes through design (upstream flow requirement)
 - "Research auto-triggers without asking user" -> user confirmation is a hard gate
 - "Research blocks explore-context" -> background parallel
+- "Invoke writing-plans / superpowers:writing-plans" -> invoke **`osuperpowers:writing-plans`** (Rule: Next-Step Routing)

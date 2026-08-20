@@ -3,7 +3,7 @@ name: report-issue
 description: 分析当前 SDD/CDD 会话的 bug 与增强机会，经 gh CLI 对 Oscaner/skills 提 GitHub issue（规则自旧版 report-issue 迁移）。repo 开发工具，非常规工作流技能。手动触发，从不自动。
 ---
 
-# OS Report Issue
+# Osuperpowers Report Issue
 
 分析 SDD/CDD 会话（`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log）找出 bug 与增强，提 issue。目标仓库 `Oscaner/skills`。
 

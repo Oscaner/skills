@@ -3,7 +3,7 @@ name: finishing
 description: Independent finishing orchestrator -- Reads upstream superpowers:finishing-a-development-branch as baseline, layers personal rules (no worktree / conventional commits / no attribution / Option4 typed discard).
 ---
 
-# OS Finishing
+# Osuperpowers Finishing
 
 Development branch finishing: merge / PR / keep / discard.
 

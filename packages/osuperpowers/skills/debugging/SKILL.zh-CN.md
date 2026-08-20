@@ -3,7 +3,7 @@ name: debugging
 description: 独立系统化调试编排器 —— Read 上游 superpowers:systematic-debugging 作为基线，叠加个人规则（无诊断证据不提案 / 委派 diagnosing-bugs）。
 ---
 
-# OS Debugging
+# Osuperpowers Debugging
 
 系统化调试：证据先于修复提案。
 

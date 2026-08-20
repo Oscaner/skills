@@ -3,7 +3,7 @@ name: writing-plans
 description: Independent plan-writing orchestrator -- Reads upstream superpowers:writing-plans as baseline, layers personal rules (section-by-section writing / cli review passes / to-tickets publish redirect).
 ---
 
-# OS Writing-Plans
+# Osuperpowers Writing-Plans
 
 Full plan-writing flow orchestration, callable standalone.
 
@@ -31,7 +31,19 @@ Plan review has 3 pass types (completeness & spec alignment / task decomposition
 
 After ticket splitting, publish to a single local file `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (do not publish to remote tracker).
 
+### Rule: Next-Step Routing
+
+After plan review passes, invoke **`osuperpowers:executing-plans`** (not upstream `superpowers:subagent-driven-development` or `superpowers:executing-plans`). `osuperpowers:executing-plans` is the single entry point — it handles mode selection (in-session / subagent / cli) internally, applies osuperpowers-specific rules (Task Complexity, Confirm Once, Fix Loop, Confirm Seams, Per-Task Review, Quality Invariants, D6 Aggregation, Ledger), and routes to the correct execution path.
+
+**Execution handoff text:**
+
+> "Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute — I'll hand off to `osuperpowers:executing-plans` for mode selection and execution."
+
+Do NOT offer a subagent-vs-inline choice — `osuperpowers:executing-plans` does that.
+
 ## Red Flags
 
 - "Write the whole thing at once" -> section-by-section writing (Rule: Section-by-Section)
 - "Publish tickets to GitHub" -> single local file (Rule: Tickets Publish Redirect)
+- "Invoke superpowers:subagent-driven-development / superpowers:executing-plans" -> invoke **`osuperpowers:executing-plans`** (Rule: Next-Step Routing)
+- "Offer subagent vs inline choice" -> `osuperpowers:executing-plans` handles mode selection (Rule: Next-Step Routing)

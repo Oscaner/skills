@@ -3,7 +3,7 @@ name: report-issue
 description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI (rules migrated from legacy report-issue). Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 ---
 
-# OS Report Issue
+# Osuperpowers Report Issue
 
 Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, file issues. Target repo: `Oscaner/skills`.
 

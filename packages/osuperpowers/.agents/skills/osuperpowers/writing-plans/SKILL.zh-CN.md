@@ -3,7 +3,7 @@ name: writing-plans
 description: 独立写计划流程编排器 —— Read 上游 superpowers:writing-plans 作为基线，叠加个人规则（逐节写 / cli review 评审 passes / to-tickets 发布重定向）。
 ---
 
-# OS Writing-Plans
+# Osuperpowers Writing-Plans
 
 完整写计划流程编排，可独立调用。
 
@@ -31,7 +31,19 @@ Read 上游 `superpowers:writing-plans` 的 SKILL.md 作为流程基线 **当可
 
 ticket 拆分后发布到本地单文件 `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md`（不发布远程 tracker）。
 
+### Rule: Next-Step Routing
+
+计划 review 通过后，Skill-invoke **`osuperpowers:executing-plans`**（而非上游 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans`）。`osuperpowers:executing-plans` 是唯一入口——它内部处理模式选择（in-session / subagent / cli）、应用 osuperpowers 特有规则（Task Complexity、Confirm Once、Fix Loop、Confirm Seams、Per-Task Review、Quality Invariants、D6 Aggregation、Ledger），并路由到正确的执行路径。
+
+**执行移交文本：**
+
+> 「Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute — I'll hand off to `osuperpowers:executing-plans` for mode selection and execution.」
+
+不要提供 subagent vs inline 二选一——`osuperpowers:executing-plans` 负责模式选择。
+
 ## Red Flags
 
 - 「整篇一个 Write」→ 逐节写（Rule: Section-by-Section）
 - 「tickets 发 GitHub」→ 本地单文件（Rule: Tickets Publish Redirect）
+- 「Invoke superpowers:subagent-driven-development / superpowers:executing-plans」→ invoke **`osuperpowers:executing-plans`**（Rule: Next-Step Routing）
+- 「Offer subagent vs inline choice」→ `osuperpowers:executing-plans` 处理模式选择（Rule: Next-Step Routing）

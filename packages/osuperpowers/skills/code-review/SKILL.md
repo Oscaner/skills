@@ -3,7 +3,7 @@ name: code-review
 description: Independent review feedback orchestrator -- Reads upstream superpowers:receiving-code-review as baseline, layers personal rules (grilling clarification / tdd delegation). Optionally invokes cli-code-review to dispatch reviews.
 ---
 
-# OS Code Review
+# Osuperpowers Code Review
 
 Process review feedback: verify evidence, reject performative agreement.
 

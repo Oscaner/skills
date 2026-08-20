@@ -23,6 +23,12 @@ import {
   listVendors,
   assemblyTemplate,
   derivePiKey,
+  decideProbe,
+  collectGaps,
+  resolveUpstreamTag,
+  classifyProbeError,
+  PROBE,
+  PROBE_CLASS,
 } from "./publish-vendor.mjs";
 import { thinGeminiExtension } from "./emit/manifests.mjs";
 
@@ -167,7 +173,93 @@ function makeMattpocockFixture() {
 }
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (dir) rmSync(dir, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// decideProbe — 三态判定
+// ---------------------------------------------------------------------------
+
+test("decideProbe — published → skip", () => {
+  assert.equal(decideProbe(PROBE.PUBLISHED), PROBE_CLASS.PUBLISHED);
+});
+
+test("decideProbe — unpublished → publish", () => {
+  assert.equal(decideProbe(PROBE.UNPUBLISHED), PROBE_CLASS.SHOULD_PUBLISH);
+});
+
+test("decideProbe — error → throws", () => {
+  assert.throws(() => decideProbe(PROBE.ERROR), /probe error.*aborting release/);
+});
+
+// ---------------------------------------------------------------------------
+// collectGaps — 全量差集
+// ---------------------------------------------------------------------------
+
+test("collectGaps — version with tag+release → excluded", () => {
+  const tagIdx = new Set(["6.2.0"]);
+  const relIdx = new Set(["6.2.0"]);
+  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), []);
+});
+
+test("collectGaps — missing tag → included", () => {
+  const tagIdx = new Set();
+  const relIdx = new Set(["6.2.0"]);
+  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), [{ version: "6.2.0" }]);
+});
+
+test("collectGaps — missing release → included", () => {
+  const tagIdx = new Set(["6.2.0"]);
+  const relIdx = new Set();
+  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), [{ version: "6.2.0" }]);
+});
+
+test("collectGaps — TOCTOU union via caller: registry+publishedThisRun both included", () => {
+  const allVersions = ["6.0.0", "6.2.0"];
+  const tagIdx = new Set(["6.0.0"]);
+  const relIdx = new Set(["6.0.0", "6.2.0"]);
+  assert.deepEqual(collectGaps(allVersions, tagIdx, relIdx), [{ version: "6.2.0" }]);
+});
+
+test("collectGaps — all present → empty", () => {
+  const allVersions = ["1.0.0", "1.1.0"];
+  const tagIdx = new Set(["1.0.0", "1.1.0"]);
+  const relIdx = new Set(["1.0.0", "1.1.0"]);
+  assert.deepEqual(collectGaps(allVersions, tagIdx, relIdx), []);
+});
+
+// ---------------------------------------------------------------------------
+// resolveUpstreamTag — 三级链
+// ---------------------------------------------------------------------------
+
+test("resolveUpstreamTag — version matches HEAD → returns headTag", () => {
+  const tag = resolveUpstreamTag("6.2.0", { headVersion: "6.2.0", headTag: "v6.2.0" }, () => false);
+  assert.equal(tag, "v6.2.0");
+});
+
+test("resolveUpstreamTag — fall through to upstream probe → returns matched tag", () => {
+  const probe = (ref) => ref === "refs/tags/v6.0.0";
+  const tag = resolveUpstreamTag("6.0.0", { headVersion: "6.2.0", headTag: "v6.2.0" }, probe);
+  assert.equal(tag, "v6.0.0");
+});
+
+test("resolveUpstreamTag — skill-v HEAD match (impeccable current version)", () => {
+  const probe = (ref) => ref === "refs/tags/skill-v4.0.4";
+  const tag = resolveUpstreamTag("4.0.4", { headVersion: "4.0.4", headTag: "skill-v4.0.4" }, probe);
+  assert.equal(tag, "skill-v4.0.4");
+});
+
+test("resolveUpstreamTag — v-candidate fails, skill-v succeeds via probe loop (historical impeccable)", () => {
+  // HEAD version differs → short-circuit skipped → enters candidate loop
+  // v<version> fails at tier-1 → skill-v<version> succeeds at tier-2
+  const probe = (ref) => ref === "refs/tags/skill-v4.0.0";
+  const tag = resolveUpstreamTag("4.0.0", { headVersion: "4.0.4", headTag: "skill-v4.0.4" }, probe);
+  assert.equal(tag, "skill-v4.0.0");
+});
+
+test("resolveUpstreamTag — both probes fail → returns null", () => {
+  const tag = resolveUpstreamTag("2.0.0", { headVersion: "1.0.0", headTag: "v1.0.0" }, () => false);
+  assert.equal(tag, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -529,4 +621,45 @@ test("stageVendor impeccable does not produce gemini-extension.json", () => {
   const stageRoot = join(root, "stage");
   const dest = stageVendor("impeccable", root, stageRoot);
   assert.ok(!existsSync(join(dest, "gemini-extension.json")));
+});
+
+// ---------------------------------------------------------------------------
+// classifyProbeError — stderr regex 判定 (Task 2)
+// ---------------------------------------------------------------------------
+
+test("classifyProbeError — E404 → unpublished", () => {
+  assert.equal(classifyProbeError("npm ERR! code E404\nnpm ERR! 404 Not found - GET https://registry.npmjs.org/@oscaner-skills%2fimpeccable"), PROBE.UNPUBLISHED);
+});
+
+test("classifyProbeError — Not found → E404", () => {
+  assert.equal(classifyProbeError("npm ERR! 404 Not found"), PROBE.UNPUBLISHED);
+});
+
+test("classifyProbeError — other error → error", () => {
+  assert.equal(classifyProbeError("npm ERR! code E403\nnpm ERR! 403 Forbidden"), PROBE.ERROR);
+});
+
+test("classifyProbeError — empty stderr → error", () => {
+  assert.equal(classifyProbeError(""), PROBE.ERROR);
+});
+
+// ---------------------------------------------------------------------------
+// dry-run stdout contract
+// ---------------------------------------------------------------------------
+
+import { spawnSync } from "node:child_process";
+import { repoRootFromImportMeta } from "./marketplace-utils.mjs";
+
+test("publish-vendor --dry-run stdout is exactly []", () => {
+  const root = repoRootFromImportMeta(import.meta.url);
+  const binPath = join(root, "publish-vendor.mjs");
+  const { status, stdout, stderr } = spawnSync(
+    "node",
+    [binPath, "--dry-run"],
+    { encoding: "utf8", cwd: root },
+  );
+  assert.equal(status, 0, `dry-run should exit 0, got ${status}, stderr: ${stderr.slice(0, 500)}`);
+  assert.equal(stdout.trim(), "[]");
+  assert.ok(stderr.includes("OK — dry-run complete"), "stderr should contain OK line");
+  assert.ok(stderr.includes("staged at"), "stderr should contain staged-at line");
 });

@@ -130,6 +130,8 @@ No hand registration needed. See [CLAUDE.md](CLAUDE.md) for full details.
 
 Release process: [`.changeset/README.md`](.changeset/README.md).
 
+Vendored plugins (`@oscaner-skills/{superpowers,mattpocock-skills,impeccable}`) are assembled and published to npm alongside first-party packages during each publish-mode release, with a registry full-consistency sweep ensuring every npm version has a git tag and GitHub Release. See [`.changeset/README.md#vendor-publishing`](.changeset/README.md#vendor-publishing).
+
 ## License
 
 First-party code (`osuperpowers`, `osuperpowers-router`, marketplace tooling): [MIT](LICENSE).

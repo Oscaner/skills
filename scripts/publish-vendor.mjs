@@ -21,9 +21,9 @@ const dryRun = process.argv.includes("--dry-run");
 
 try {
   const stageRoot = publishAll(root, { dryRun });
-  console.log(`OK — ${dryRun ? "dry-run" : "publish"} complete for @oscaner-skills/*`);
-  console.log(`staged at ${stageRoot}`);
+  process.stderr.write(`OK — ${dryRun ? "dry-run" : "publish"} complete for @oscaner-skills/*\n`);
+  process.stderr.write(`staged at ${stageRoot}\n`);
 } catch (err) {
-  console.error(`publish-vendor failed: ${err.message}`);
+  process.stderr.write(`publish-vendor failed: ${err.message}\n`);
   process.exit(1);
 }

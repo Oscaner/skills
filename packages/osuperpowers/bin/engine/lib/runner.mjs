@@ -1,10 +1,9 @@
-// engine/lib/runner.mjs — CDD task/plan runner（Node port of cdd_run_task / cdd_run_plan）。
+// engine/lib/runner.mjs — CDD per-task runner (Node port of cdd_run_task).
 // H1 四行输出独占（spec v3）：本模块负责格式化 status/commits/artifacts/blocker。
 // runTask 有序契约：registry ship gate → CLI preflight → workspace/env → ledger PLAN_FILE
 // backfill → review fixed-point → require env → renderModePrompt → 嵌套 CLI spawn（捕获 stderr，
 // 非 2>/dev/null 吞）→ commit-contract → H1 四行 → handoff 处理。
-// runPlan：plan-constraints 写 → pending tasks × 三模式链（implement→task-review→fix，cap 5）→ ledger 追加。
-// noExit=true 时返回 { exitCode, h1 } 而非 exit helpers —— runPlan 组合 / 单测的 seam。
+// noExit=true 时返回 { exitCode, h1 } 而非 exit helpers —— 单测的 seam。
 // 落地退出委托 utils/exit.mjs（统一出口，无 inline process.exit）。
 import { spawn } from "node:child_process";
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
@@ -14,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
-import { appendLedger, writePlanConstraints } from "./ledger.mjs";
+import { appendLedger } from "./ledger.mjs";
 import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
@@ -541,128 +540,6 @@ export async function runTask(harness, taskNum, opts = {}) {
   return finish(0, h1, "", noExit);
 }
 
-// 对齐 cdd_run_plan：pending tasks × 三模式链。返回 { exitCode, h1 }（h1 通常为空）。
-export async function runPlan(planFile, harness, opts = {}) {
-  const { dryRun = false, noExit = false } = opts;
-  const cwd = opts.cwd ?? process.cwd();
-  const baseEnv = opts.env ?? process.env;
-  const registryPath = opts.registryPath ?? REG_PATH;
-
-  if (!existsSync(planFile)) return finish(1, [], `plan file not found: ${planFile}`, noExit);
-
-  // Registry ship gate first（D6-A1）
-  try {
-    checkHarness(loadRegistry(registryPath), harness, { dryRun });
-  } catch (e) {
-    if (e instanceof CddBlockedError) {
-      return finish(e.exitCode, [], e.message, noExit, {
-        stderrPrefix: e.kind === "cli-missing" ? "CDD_CLI_MISSING" : "CDD_BLOCKED",
-      });
-    }
-    throw e;
-  }
-
-  let workspace;
-  try {
-    workspace = resolveWorkspace({ planFile, env: baseEnv, cwd });
-  } catch (e) {
-    if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
-    throw e;
-  }
-  const ledger = path.join(workspace, "progress.md");
-  if (!existsSync(ledger)) return finish(1, [], `ledger missing: ${ledger}`, noExit);
-
-  writePlanConstraints(planFile, path.join(workspace, "plan-constraints.md"));
-
-  let pendingFound = false;
-  for (const n of taskNumbersFromPlan(planFile)) {
-    if (n === 0) continue;
-    const handoff = path.join(workspace, `task-${n}-handoff.json`);
-    if (!isTaskPending(n, ledger, handoff)) continue;
-    pendingFound = true;
-    const rc = await runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryRun, baseEnv, registryPath });
-    if (rc !== 0) return finish(rc, [], "", noExit);
-  }
-
-  if (!pendingFound) process.stderr.write("no pending tasks\n");
-  return finish(0, [], "", noExit);
-}
-
-// 对齐 bash _run_task_chain 的 cdd_exit_blocked 诊断：链错误路径向 stderr emit
-// `CDD_BLOCKED: task N <reason>`（T2 warn —— Node port 之前丢 stderr，操作者无诊断）。
-function chainBlocked(n, reason) {
-  process.stderr.write(`CDD_BLOCKED: task ${n} ${reason}\n`);
-}
-
-// runTask 失败路径：读 handoff blocker（若存在）补全原因；否则给通用消息。
-function chainRunTaskFailed(n, handoffPath, phase, rc) {
-  const blocker = readJson(handoffPath)?.blocker;
-  chainBlocked(n, `${phase} failed (exit ${rc})${blocker ? `: ${blocker}` : ""}`);
-  return rc;
-}
-
-// 对齐 _run_task_chain：implement → review → fix loop（cap 5）。返回退出码（0=链成功）。
-async function runTaskChain(planFile, harness, n, workspace, ledger, { cwd, dryRun, baseEnv, registryPath }) {
-  // _cdd_set_task_env 只默认未设置变量；plan chain 必须强制 workspace 派生路径 —— 先清掉显式值。
-  const env = { ...baseEnv };
-  for (const k of ["CDD_LEDGER", "CDD_TASK_BRIEF", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS", "CDD_FINDINGS", "CDD_TASK_REVIEW_FIXED_POINT"]) {
-    delete env[k];
-  }
-  const taskEnv = buildTaskEnv(env, workspace, n, "implement", harness);
-  if (!existsSync(taskEnv.CDD_TASK_BRIEF)) {
-    chainBlocked(n, `brief missing: ${taskEnv.CDD_TASK_BRIEF}`);
-    return 1;
-  }
-
-  const handoffPath = taskEnv.CDD_HANDOFF_PATH;
-  let rc = (await runTask(harness, n, { mode: "implement", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-  if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "implement", rc);
-
-  const taskReviewBase = readJsonField(handoffPath, ["commits", "base"]);
-  if (!taskReviewBase) {
-    chainBlocked(n, "handoff missing commits.base after implement");
-    return 1;
-  }
-  taskEnv.CDD_TASK_REVIEW_FIXED_POINT = taskReviewBase;
-
-  rc = (await runTask(harness, n, { mode: "task-review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-  if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "task-review", rc);
-
-  let fixRound = 0;
-  for (;;) {
-    const status = handoffStatus(handoffPath);
-    if (status === "APPROVED") {
-      const h = readJson(handoffPath) ?? {};
-      appendLedger(ledger, n, "complete", { base: h.commits?.base, head: h.commits?.head }, h.findings ?? []);
-      return 0;
-    }
-    if (status === "BLOCKED" || status === "NEEDS_CONTEXT") {
-      chainBlocked(n, `handoff status ${status}`);
-      return 1;
-    }
-    if (status === "CHANGES_REQUESTED") {
-      fixRound += 1;
-      if (fixRound > 5) {
-        chainBlocked(n, "fix round cap exceeded (H4)");
-        return 1;
-      }
-      const fixBase = readJsonField(handoffPath, ["commits", "head"]);
-      if (!fixBase) {
-        chainBlocked(n, "cannot determine FIX_BASE (handoff commits.head missing)");
-        return 1;
-      }
-      taskEnv.CDD_TASK_REVIEW_FIXED_POINT = fixBase;
-      taskEnv.CDD_FINDINGS = path.join(workspace, `task-${n}-open-findings.json`);
-      rc = (await runTask(harness, n, { mode: "fix", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-      if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "fix", rc);
-      rc = (await runTask(harness, n, { mode: "task-review", planFile, dryRun, env: taskEnv, cwd, noExit: true, registryPath })).exitCode;
-      if (rc !== 0) return chainRunTaskFailed(n, handoffPath, "re-task-review", rc);
-      continue;
-    }
-    chainBlocked(n, `unexpected handoff status ${status}`);
-    return 1;
-  }
-}
 
 // ---- plan 构建块（纯函数，单测 seam）----
 

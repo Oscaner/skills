@@ -1,10 +1,10 @@
 // engine/tests/task.test.mjs — T3: cdd-task.mjs 入口壳 CLI 契约（Node port of cdd-cli-dry-run-smoke.sh）。
 // CDD_DRY_RUN=1 跳过真实 CLI 调用；runTask 仍走 registry ship gate / template render /
-// commit-contract（非 git temp workspace → fail-open）。断言 H1 四行 + 退出码 + Mode B no-pending。
+// commit-contract（非 git temp workspace → fail-open）。断言 H1 四行 + 退出码。
 // 测试经 spawnSync 起子进程（cwd=repo root），env 清掉 orchestrator 会话可能继承的 CDD_*。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync, execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -103,39 +103,12 @@ test("cdd-task.mjs: 非法 mode → CDD_BLOCKED exit 1（port cdd-cli-dry-run-sm
   assert.match(res.stderr, /CDD_MODE must be implement\|task-review\|fix \(got: handoff\)/);
 });
 
-test("cdd-task.mjs: Mode B dry-run 无 pending task → exit 0 + no-pending stderr", () => {
-  // 需要 git repo：runPlan 从 plan 派生 workspace（CDD_WORKSPACE 不 redirect plan driver）。
-  const dir = mkdtempSync(path.join(tmpdir(), "cdd-plan-cli-"));
-  execFileSyncQuiet(["git", "init", "-q", dir]);
-  const plan = path.join(dir, "plan.md");
-  writeFileSync(plan, "# Plan\nNo tasks\n");
-  const wsDir = path.join(dir, ".superpowers", "cdd", "plan");
-  mkdirSync(wsDir, { recursive: true });
-  writeFileSync(path.join(wsDir, "progress.md"), "# CDD ledger — plan: plan.md\n");
-
-  const res = run(["--harness", "claude", "--plan", plan], { CDD_DRY_RUN: "1" }, { cwd: dir });
-  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
-  assert.match(res.stderr, /no pending tasks/);
+test("cdd-task.mjs: --plan without --task → usage stderr + exit 2", () => {
+  const ws = setupWorkspace();
+  const res = run(
+    ["--harness", "claude", "--plan", path.join(ws, "plan.md")],
+    { CDD_DRY_RUN: "1", CDD_WORKSPACE: ws },
+  );
+  assert.equal(res.status, 2, `stderr: ${res.stderr}`);
+  assert.match(res.stderr, /^usage: /);
 });
-
-test("cdd-task.mjs: Mode B dirty-tree 实现 → 链错误路径 CDD_BLOCKED stderr + exit 1", () => {
-  // git repo + 脏工作树（plan.md / dirty.txt 未提交）→ implement 的 commit-contract 拦截，
-  // runTaskChain 错误路径必须向 stderr emit CDD_BLOCKED:（对齐 bash cdd_exit_blocked 诊断）。
-  const dir = mkdtempSync(path.join(tmpdir(), "cdd-dirty-"));
-  execFileSyncQuiet(["git", "init", "-q", dir]);
-  const plan = path.join(dir, "plan.md");
-  writeFileSync(plan, "# Plan\n### Task 1: test\n");
-  const wsDir = path.join(dir, ".superpowers", "cdd", "plan");
-  mkdirSync(wsDir, { recursive: true });
-  writeFileSync(path.join(wsDir, "progress.md"), "# CDD ledger — plan: plan.md\n");
-  writeFileSync(path.join(wsDir, "task-1-brief.md"), "# task 1\n");
-  writeFileSync(path.join(dir, "dirty.txt"), "uncommitted\n"); // 脏工作树信号
-
-  const res = run(["--harness", "claude", "--plan", plan], { CDD_DRY_RUN: "1" }, { cwd: dir });
-  assert.equal(res.status, 1, `stdout: ${res.stdout}`);
-  assert.match(res.stderr, /CDD_BLOCKED:/, `stderr: ${res.stderr}`);
-});
-
-function execFileSyncQuiet(args, opts) {
-  return execFileSync(args[0], args.slice(1), { ...opts, stdio: "ignore" });
-}

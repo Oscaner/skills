@@ -187,23 +187,15 @@ Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by 
 | **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
 | **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-Shared library: `osuperpowers/bin/engine/lib/` Node modules — `runner.mjs` (workspace path contract `CDD_WORKSPACE`/`CDD_LEDGER`/…, exit codes 0 OK / 1 BLOCKED / 2 CLI missing, **and the shared task/plan run-loop** `runTask` (one mode per invocation) / `runPlan` (pending tasks × 3-mode chain)), `registry.mjs` (harness registry), `contract.mjs` (commit gate + handoff), `templates.mjs` (mode prompt render), `ledger.mjs` (ledger append). The single CLI runner is `osuperpowers/bin/engine/cdd-task.mjs` (`--harness <name> --task N --mode M` | `--plan <path>`), registry-driven from `osuperpowers/bin/engine/harness-registry.json`. The **post-run commit gate** (`validateCommitContract` in `contract.mjs`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [osuperpowers/docs/cdd-reference.md](../../osuperpowers/docs/cdd-reference.md) (§ Post-run commit gate).
+Shared library: `osuperpowers/bin/engine/lib/` Node modules — `runner.mjs` (workspace path contract `CDD_WORKSPACE`/`CDD_LEDGER`/…, exit codes 0 OK / 1 BLOCKED / 2 CLI missing, **and the shared task run-loop** `runTask` (one mode per invocation)), `registry.mjs` (harness registry), `contract.mjs` (commit gate + handoff), `templates.mjs` (mode prompt render), `ledger.mjs` (ledger append). The single CLI runner is `osuperpowers/bin/engine/cdd-task.mjs` (`--harness <name> --task N --mode M`), registry-driven from `osuperpowers/bin/engine/harness-registry.json`. The **post-run commit gate** (`validateCommitContract` in `contract.mjs`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [osuperpowers/docs/cdd-reference.md](../../osuperpowers/docs/cdd-reference.md) (§ Post-run commit gate).
 
-### Invocation modes
+### Invocation
 
-**Mode A (per task):** orchestrator calls one mode per CLI invocation:
+**Per-task:** orchestrator calls one mode per CLI invocation:
 
 ```bash
 {osuperpowers}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement|task-review|fix
 ```
-
-**Mode B (plan driver / AFK):** batch pending tasks from plan + ledger:
-
-```bash
-{osuperpowers}/bin/engine/cdd-task.mjs --harness <name> --plan <path>
-```
-
-Plan driver runs the 3-mode chain per pending task. Ledger append on APPROVED only.
 
 ### Exit codes and fallback
 

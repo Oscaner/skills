@@ -224,8 +224,8 @@ function checkOsuperpowersGateHooks() {
   for (const f of [
     "bin/gate/adapters/claude.mjs",
     "bin/gate/adapters/cursor.mjs",
-    "bin/engine/cdd-run.mjs",
-    "bin/engine/cdd-exec.mjs",
+    "bin/engine/cdd-task.mjs",
+    "bin/engine/cdd-review.mjs",
     "bin/engine/cdd-select.mjs",
     "bin/engine/cdd-session-activate.mjs",
   ]) {

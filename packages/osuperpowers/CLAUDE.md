@@ -50,7 +50,7 @@ Detail (pending-state contract, fail-open, shell allowlist) --> [cross-harness-o
 Two cross-cutting reference docs in `osuperpowers/docs/` hold invariants that multiple osuperpowers skills cite instead of duplicating. Neither is a slash command; they are invoked by reference from `Rule:` lines inside the osuperpowers skills. Editing them propagates to every skill that cites them.
 
 - [docs/subagent-lifecycle.md](docs/subagent-lifecycle.md) -- **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review-pass rule in the osuperpowers skills. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
-- [docs/review-dispatch.md](docs/review-dispatch.md) -- **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**. Cited by every review-pass rule in the osuperpowers skills. Its "final pass gets full doc, middle passes get delta" rule is the invariant that keeps global-coherence signal from being lost to token efficiency.
+- [docs/docs-review.md](docs/docs-review.md) -- **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**, **Rule: Review Stopping** (loop flow for warn/nit user decision), **Rule: Handoff Output** `[Engine pending P2]`. Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-review and branch-review use their own mechanisms.
 
 When editing any osuperpowers skill that dispatches review passes, cite these docs rather than paraphrasing them -- paraphrases drift; citations don't. When adding a new invariant that applies to multiple osuperpowers skills, add a new rule to the appropriate cross-cutting doc and cite it, don't inline it across the skills.
 

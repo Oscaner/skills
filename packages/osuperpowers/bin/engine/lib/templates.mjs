@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 真实行预算（非旧 121/165）：sdd / ctrl 为两个宿主文档；tier1 = sdd+ctrl；
-// tier2 = tier1 + subagent-lifecycle + review-dispatch。
+// tier2 = tier1 + subagent-lifecycle + docs-review。
 export const LINE_BUDGETS = Object.freeze({
   sdd: 160,
   ctrl: 110,

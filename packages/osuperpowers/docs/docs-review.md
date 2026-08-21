@@ -1,4 +1,4 @@
-# Review Dispatch
+# Docs Review
 
 > **Scope:** Applies to 3-pass AI-orchestrated doc reviews (spec-review / plan-review) only.
 > Task-review uses Fix Loop in `executing-plans/SKILL.md`. Branch-review uses `cli-code-review/SKILL.md`.

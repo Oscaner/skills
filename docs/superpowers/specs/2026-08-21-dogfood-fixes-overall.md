@@ -1,6 +1,6 @@
 # Dogfood 修复程序 — Overall Spec
 
-- **Version**: v1.4 · 2026-08-21
+- **Version**: v1.6 · 2026-08-21
 - **Status**: Approved
 - **Author**: Oscaner Miao · Claude Opus 4.8 (1M context)
 - **Constraints**:
@@ -36,6 +36,8 @@
 | P1 | [#163](https://github.com/Oscaner/skills/issues/163) | writing-plans + executing-plans CLI 模式多项流程违规 |
 | P2 | [#154](https://github.com/Oscaner/skills/issues/154) | task brief 应由脚本机械切分，消除 AI token 消耗 |
 | P2 | [#155](https://github.com/Oscaner/skills/issues/155) | review-package diff 输出到 `.superpowers/sdd/` 路径混用 |
+| P2 | 无 issue（dogfood 会话 2026-08-21 P2 brainstorming 发现） | grilling 技能读取后未被正确应用，AI 用自身提问框架替代了技能指令 |
+| P2 | 无 issue（dogfood 会话 2026-08-21 P2 review 发现） | Review Stopping 重跑询问应用 AskUserQuestion + 提示 Next step，不应为纯文本问句 |
 | P3 | [#152](https://github.com/Oscaner/skills/issues/152) | cdd-reference.zh-CN.md 翻译不完整 |
 | P4 | 无 issue（依据 dogfood 会话 2026-08-21 决策） | overall-phase-spec-template.md + brainstorming Rule: Overall-Phase 更新，固化本次会话新增实践 |
 
@@ -57,7 +59,7 @@
 | # | Phase | 范围 | Design spec | Implementation plan |
 |---|-------|------|-------------|---------------------|
 | P1 | Skills 规则修复 | writing-plans / brainstorming / executing-plans / code-review / cli-code-review SKILL.md + review-dispatch.md 规则文本变更（#156 / #162 / #163）；Review 停止机制（blocker 必修，warn/nit 问用户，决策后不再重跑 3 pass）；所有 review 类型 handoff.json 规则定义 | [Approved](2026-08-21-dogfood-fixes-p1-design.md) | [Pending] `plans/2026-08-21-dogfood-fixes-p1.md` |
-| P2 | CDD 引擎修复 | runner.mjs brief 自动生成 + 结构校验；runReviewPackage OUTFILE 修复（#154 / #155）；cdd-review.mjs 新增 `--handoff PATH` 参数（使 spec/plan/branch review 统一输出 handoff.json） | [Pending] `specs/2026-08-21-dogfood-fixes-p2-design.md` | [Pending] `plans/2026-08-21-dogfood-fixes-p2.md` |
+| P2 | CDD 引擎修复 + brainstorming grilling 加强 + docs-review Review Stopping 问询改进 | runner.mjs brief 自动生成 + 结构校验；runReviewPackage OUTFILE 修复（#154 / #155）；cdd-review.mjs 新增 `--handoff PATH` 参数（使 spec/plan/branch review 统一输出 handoff.json）；brainstorming/SKILL.md Rule: Read Sub-Skills 加强 grilling 委托指令（grilling 发现）；docs-review.md Rule: Review Stopping 重跑询问改为 AskUserQuestion + Next step 提示（review 发现） | [Approved](2026-08-21-dogfood-fixes-p2-design.md) | [Approved](../plans/2026-08-21-dogfood-fixes-p2.md) |
 | P3 | 文档翻译补全 | cdd-reference.zh-CN.md H7 之后约 60 行补全翻译（#152） | [Pending] `specs/2026-08-21-dogfood-fixes-p3-design.md` | [Pending] `plans/2026-08-21-dogfood-fixes-p3.md` |
 | P4 | 模板与流程更新 | `overall-phase-spec-template.md` + `brainstorming/SKILL.md` Rule: Overall-Phase 更新，固化本次会话新增实践（issue 清单表、路径命名约定、Phase acceptance criteria、软/硬依赖区分）；补充"每个 Phase 必须经完整 brainstorming 循环生成 Phase spec，Overall 批准后直接进入实施是违规" | [Pending] `specs/2026-08-21-dogfood-fixes-p4-design.md` | [Pending] `plans/2026-08-21-dogfood-fixes-p4.md` |
 | P5 | executing-plans 统一 + branch-review CLI | 删除 `executing-plans/SKILL.md`（及 zh-CN 镜像），将编排职责统一至 `cli-driven-development/SKILL.md`；执行末尾改为 branch-review CLI 而非调用 `osuperpowers:code-review` skill | [Pending] `specs/2026-08-21-dogfood-fixes-p5-design.md` | [Pending] `plans/2026-08-21-dogfood-fixes-p5.md` |
@@ -96,7 +98,7 @@ P1 和 P3 可并行启动；P2 可在 P1 评审期间并行推进，但最终实
 >
 > **P1 验收标准**：5 个 SKILL.md + review-dispatch.md 规则变更落地；Review 停止机制（blocker 必修、warn/nit 问用户、决策后不再重跑 3 pass）写入 review-dispatch.md；所有 review 类型 handoff.json 规则写入 review-dispatch.md 及各引用方；`pnpm run validate` 全绿；详细条件见 P1 design spec。
 >
-> **P2 验收标准**：runner.mjs brief 自动生成 + 结构校验逻辑有单元测试覆盖；runReviewPackage diff 输出到 `.superpowers/cdd/`（存量 `.superpowers/sdd/` 文件保留不处理，属 gitignore 临时文件，由用户手动清理）；cdd-review.mjs `--handoff PATH` 参数实现并有单元测试覆盖；`pnpm run validate` 全绿；详细条件见 P2 design spec。
+> **P2 验收标准**：runner.mjs brief 自动生成 + 结构校验逻辑有单元测试覆盖；runReviewPackage diff 输出到 `.superpowers/cdd/`（存量 `.superpowers/sdd/` 文件保留不处理，属 gitignore 临时文件，由用户手动清理）；cdd-review.mjs `--handoff PATH` 参数实现并有单元测试覆盖；brainstorming/SKILL.md Rule: Read Sub-Skills 含 grilling 委托指令加强（读取后须完整执行 grilling 技能指令，不得替换为自身框架）并补 Red Flag，zh-CN 镜像同步更新；docs-review.md Rule: Review Stopping 重跑询问改为 AskUserQuestion 格式并含 Next step 提示；`pnpm run validate` 全绿；详细条件见 P2 design spec。
 >
 > **P3 验收标准**：从 `## H7 — No consumer-repo CLI scripts` 节至文件末尾的所有英文段落翻译为中文，diff 中无英文正文残留、与英文源 `cdd-reference.md` 对照确认无漏译、`pnpm run validate` 全绿。P3 无代码变动，不需要单元测试覆盖。
 >
@@ -123,3 +125,6 @@ P1 和 P3 可并行启动；P2 可在 P1 评审期间并行推进，但最终实
 | 2026-08-21 | P1 design spec 用户批准，Phase 清单 Design spec 列更新为 Approved |
 | 2026-08-21 | v1.3：新增语言架构约束（Strategy A/B） |
 | 2026-08-21 | v1.4：新增 P5（executing-plans 统一 + branch-review CLI），更新 Phase 清单、依赖图、边界规则 |
+| 2026-08-21 | v1.5：P2 新增 grilling 委托违规 issue（brainstorming Rule: Read Sub-Skills 加强），更新 Issue 清单、Phase 清单、P2 验收标准 |
+| 2026-08-21 | v1.6：P2 新增 Review Stopping AskUserQuestion issue（docs-review.md Rule: Review Stopping 改进），更新 Issue 清单、Phase 清单、P2 验收标准 |
+| 2026-08-21 | P2 design spec 用户批准，Phase 清单 Design spec 列更新为 Approved |

@@ -104,7 +104,7 @@ test("governance: 真实行预算（sdd/ctrl/tier1/tier2 实测宿主）", () =>
   const sdd = wcLines("skills/executing-plans/SKILL.md");
   const ctrl = wcLines("docs/controller-handoff.md");
   const life = wcLines("docs/subagent-lifecycle.md");
-  const rev = wcLines("docs/review-dispatch.md");
+  const rev = wcLines("docs/docs-review.md");
   const tier1 = sdd + ctrl;
   const tier2 = tier1 + life + rev;
   assert.ok(sdd <= lineBudget("sdd"), `executing-plans ${sdd} > ${lineBudget("sdd")}`);
@@ -135,7 +135,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   const fragment = readRel("templates/cdd/_handoff-write-fragment.md");
   const review = readRel("templates/cdd/task-review.md");
   const fix = readRel("templates/cdd/fix.md");
-  const dispatch = readRel("docs/review-dispatch.md");
+  const dispatch = readRel("docs/docs-review.md");
   const skill = readRel("skills/executing-plans/SKILL.md");
 
   // review segment：deferred 保留 + blocker-only open-findings + merge
@@ -157,8 +157,8 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(dispatch.includes("must fix before merge"), "D3 blocker anchor");
   assert.ok(dispatch.includes("deferrable minor"), "D3 warn anchor");
   assert.ok(dispatch.includes("pure style"), "D3 nit anchor");
-  assert.ok(dispatch.includes("deferred: true"), "D3 deferred field");
-  assert.ok(/warn\/nit do not enter the fix loop/.test(dispatch), "D3 warn/nit no fix loop");
+  assert.ok(dispatch.includes("Rule: Review Stopping"), "D3 deferred field (via Rule: Review Stopping)");
+  assert.ok(/warn\/nit.*Rule: Review Stopping/.test(dispatch), "D3 warn/nit → Review Stopping");
 
   // D6 end semantics（executing-plans Rule: D6 Aggregation）
   const d6 = skill.slice(skill.indexOf("### Rule: D6 Aggregation"));

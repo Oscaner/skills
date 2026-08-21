@@ -42,7 +42,7 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 - `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
 - `packages/osuperpowers/bin/engine/` — CDD engine (cdd-task.mjs, cdd-review.mjs, runner.mjs, registry, templates)
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
-- `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, review-dispatch, subagent-lifecycle)
+- `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, docs-review, subagent-lifecycle)
 
 For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md).
 
@@ -54,6 +54,31 @@ For overrides trigger router internals, see [`packages/osuperpowers-router/CLAUD
 - [`packages/osuperpowers-router/CLAUDE.md`](packages/osuperpowers-router/CLAUDE.md) — overrides trigger router internals
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
 - [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
+
+## Language Architecture
+
+Two distinct language strategies apply depending on file type:
+
+### Strategy A — English-primary + zh-CN mirror (SKILL.md and docs/)
+
+`skills/*/SKILL.md` and `docs/*.md` are **English-primary**. Chinese (`.zh-CN.md`) files are **human-readable mirrors** — AI harnesses always read the English source.
+
+| File | Role |
+|------|------|
+| `skills/*/SKILL.md` | English authoritative source — edit here; **no Chinese content** |
+| `skills/*/SKILL.zh-CN.md` | Chinese mirror — must be updated when English source changes |
+| `docs/*.md` | English authoritative source — edit here; **no Chinese content** |
+| `docs/*.zh-CN.md` | Chinese mirror — must be updated when English source changes |
+| `.agents/skills/*/SKILL.md` | Derived by `pnpm run emit` — never edit directly |
+| `.agents/skills/*/SKILL.zh-CN.md` | Derived by emit from source mirror — never edit directly |
+
+**Editing rule**: SKILL.md and docs/*.md must be written entirely in English. Chinese translations belong only in the corresponding `.zh-CN.md`. When editing an English source file, updating its `.zh-CN.md` mirror is **part of the same task** — not deferred.
+
+### Strategy B — Chinese-primary, no mirror (specs and plans)
+
+`docs/superpowers/specs/*.md` and `docs/superpowers/plans/*.md` are internal developer documents written **in Chinese**. No `.zh-CN.md` mirror is needed or maintained for these files.
+
+**Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, run `pnpm run emit` to propagate changes to `.agents/`. Running `pnpm run emit:check` verifies no drift.
 
 ## Git conventions
 

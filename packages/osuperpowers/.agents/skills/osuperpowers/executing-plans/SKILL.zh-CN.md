@@ -1,85 +1,114 @@
 ---
 name: executing-plans
-description: 独立执行计划总编排器 —— 用户选择执行模式（in-session / subagent / cli），编排器控制器规则集（11 条语义规则，三模式共用）。cli 模式委托 cli-driven-development；in-session/subagent 模式 Read 上游对应技能驱动。
+description: 独立 plan 执行编排器——用户选择执行模式（in-session / subagent / cli），编排器控制器规则集（11 条语义规则，三种模式共用）。cli 模式委托给 cli-driven-development；in-session/subagent 模式读取对应的上游 skill。
 ---
 
 # Osuperpowers Executing-Plans
 
-执行书面计划的总编排器。三种模式由用户选择。
+执行已写 plan 的主编排器。用户选择三种模式之一。
+
+<HARD-GATE>
+启动时第一个动作必须是 AskUserQuestion 选择模式（in-session | subagent | cli），
+在此之前禁止任何 repo tool call。不接受来自先前 skill handoff 的预选模式——编排器必须直接询问。
+</HARD-GATE>
+
+## Checklist
+
+1. AskUserQuestion 选择模式（in-session / subagent / cli）
+2. 读取对应上游 SKILL.md（Rule: Read Upstream）
+3. Setup（workspace / ledger / plan / plan-constraints / pre-flight）
+4. Per-task 循环：Task Complexity → Confirm Once → Confirm Seams → 执行 → **Per-Task Review** → ledger
+5. D6 Aggregation（deferred items 聚合 → 用户决策）
+6. `osuperpowers:code-review` → `osuperpowers:finishing`
 
 ## Rules
 
 ### Rule: Read Upstream
 
-按用户所选模式解析上游（解析优先级 + 不可用回退同 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）：
-- **in-session** → 解析 `executing-plans` 的 SKILL.md 路径，Read 作为基线（当可用时）
-- **subagent** → 解析 `subagent-driven-development` 的 SKILL.md 路径，Read 作为基线（当可用时）
-- **cli** → [cli-driven-development](../cli-driven-development/SKILL.md)（Skill-invoke 委托，不 Read 上游）
+根据用户选择的模式解析上游（解析优先级 + 不可用回退同 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）：
+- **in-session** → 解析 `executing-plans` SKILL.md 路径，读取作为基线（有上游时）
+- **subagent** → 解析 `subagent-driven-development` SKILL.md 路径，读取作为基线（有上游时）
+- **cli** → [cli-driven-development](../cli-driven-development/SKILL.md)（Skill-invoke 委托，不读取上游）
 
 ### Rule: Mode Selection
 
 <HARD-GATE>
-启动时、**在任何其他操作之前**（读 plan 之前、设置之前、任何接触仓库的工具调用之前），用 `AskUserQuestion` 让用户选模式（in-session | subagent | cli）。不接受上游技能的预选——编排器始终直接询问。选定后调 `cdd-session-activate.mjs minimal <session_key> <repo_root> --mode <mode>` 写 `pending.mode`。
+启动时，在任何其他动作之前（在读取 plan 之前、setup 之前、任何接触 repo 的 tool call 之前），使用 `AskUserQuestion` 让用户选择模式（in-session | subagent | cli）。不接受来自先前 skill handoff 的预选模式——编排器必须直接询问。选择后，调用 `cdd-session-activate.mjs minimal <session_key> <repo_root> --mode <mode>` 写入 `pending.mode`。
+</HARD-GATE>
+
+<HARD-GATE>
+CLI 模式选定后，本 session 禁止使用 Write/Edit 工具修改仓库交付物（所有 git-tracked 文件及 skill 产物）。
+所有代码变更必须通过 cdd-task.mjs H6 chain 执行。发现违规立即停止并报告用户。
 </HARD-GATE>
 
 ### Rule: Task Complexity
 
-每任务先分类：触及 1-2 文件 + 机械实现 → **Simple**；3+ 文件 / 跨模块 / 需设计判断 / 用户要求彻底 → **Complex**。影响 diff scope、测试门、model 层级。
+先分类每个 task：涉及 1-2 个文件 + 机械性实施 → **Simple**；3+ 个文件 / 跨模块 / 需要设计判断 / 用户要求彻底 → **Complex**。影响 diff 范围、测试门控、模型层级。
 
 ### Rule: Confirm Once
 
-spec+plan 完备 → 最便宜 implementer 层级；首次派发前确认一次。
+spec+plan 完成 → 最低档实施层；在第一次 dispatch 前确认一次。
 
 ### Rule: Fix Loop
 
-`CHANGES_REQUESTED` → fix → scoped review → 重复直到 `APPROVED` 或 **5 轮**（超限 STOP + 升级）。
+`CHANGES_REQUESTED` → 修复 → 范围 review → 重复直到 `APPROVED` 或 **5 轮**（超过 → STOP + 上报）。
 
 ### Rule: Confirm Seams
 
-派发会用 tdd 的 implement worker 前，编排器在会话内向用户确认测试边界（seam），把确认结果 `CONFIRMED_SEAMS: <...>` 写进 task brief。cli 模式一次性 print-mode CLI 无法阻塞 —— `templates/cdd/implement.md` 非阻塞应用（「若 brief 含 `CONFIRMED_SEAMS`，应用之」），seam 确认由编排器层独占。
+在 dispatch tdd implement worker 之前，编排器在 session 中与用户确认测试边界（seam），将确认结果 `CONFIRMED_SEAMS: <...>` 写入 task brief。cli 模式是 fire-and-forget print-mode CLI，不能阻塞——`templates/cdd/implement.md` 应用非阻塞方式（"若 brief 含 `CONFIRMED_SEAMS`，则应用"），seam 确认专属于编排器层。
 
 ### Rule: Per-Task Review
 
-每任务评审门：读 handoff.json 驱动（plan_conflicts → STOP；CHANGES_REQUESTED → Fix Loop；NEEDS_CONTEXT/unverifiable → STOP）。cli 模式 worker review 在 CLI 子进程内；in-session/subagent 模式评审门在会话内。纪律见 [controller-handoff.md](../../docs/controller-handoff.md) H1–H5。
+<HARD-GATE>
+每个 task 实施完成后，必须读取 `$CDD_HANDOFF_PATH`（handoff.json）执行 Per-Task Review 门控，
+判定 APPROVED 后才可写入 ledger 并推进下一 task。
+禁止跳过 handoff 读取直接进入下一 task 或编译验证。适用于 in-session / subagent / cli 全部模式。
+</HARD-GATE>
+
+Per-task review 门控：由 handoff.json 驱动（plan_conflicts → STOP；CHANGES_REQUESTED → Fix Loop；NEEDS_CONTEXT/unverifiable → STOP）。cli 模式 worker review 在 CLI 子进程内运行；in-session/subagent 模式 review 门控在 session 中运行。规程见 [controller-handoff.md](../../docs/controller-handoff.md) H1-H5。
 
 ### Rule: Quality Invariants
 
-1. 测试证据门（task-N-test-evidence.json）
-2. plan_conflicts[] → 人为裁决
+1. 测试证据门控（task-N-test-evidence.json）
+2. plan_conflicts[] → 人工裁决
 3. unverifiable[] 非空 → BLOCKED
 4. handoff NEEDS_CONTEXT → STOP
 
 ### Rule: Orchestrator Checklist
 
-编排器每计划一次的三阶段循环（三模式共用骨架；cli 模式差异见 Per-task 括号）：
+编排器的三阶段循环（三种模式共用骨架；Per-task 中注明 cli 模式差异）：
 
-**Setup (once):** in-session/subagent → `sdd-workspace`；cli → 委托 [cli-driven-development](../cli-driven-development/SKILL.md) 的 workspace（cdd-task.mjs H6 chain 内自建）。统一后续：ledger → read plan once → `plan-constraints.md` → pre-flight → todo per task。
+**Setup（一次）：** in-session/subagent → `sdd-workspace`；cli → 委托 workspace 给 [cli-driven-development](../cli-driven-development/SKILL.md)（内置在 cdd-task.mjs H6 chain 中）。统一后续：ledger → 读取 plan 一次 → `plan-constraints.md` → pre-flight → 逐 task todo。
 
-**Per-task:** Rule: Task Complexity 分类 → Rule: Confirm Once → Rule: Confirm Seams（tdd implement 派发前）→ append `TASK_BASE: <sha>` to brief → 执行链（cli 模式 shell H6 chain：implement → review → fix per Rule: Fix Loop；in-session/subagent 模式会话内实现 + 评审）→ Read `handoff.json` only → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger。cli 模式 **Never** edit repo deliverables in this session — H6 CLI only。
+**Per-task：** Rule: Task Complexity → Rule: Confirm Once → Rule: Confirm Seams（tdd implement dispatch 之前）→ 在 brief 追加 `TASK_BASE: <sha>` → 执行链（cli 模式 shell H6 chain：implement → review → fix per Rule: Fix Loop；in-session/subagent 模式 session 内实施 + review）→ 仅读取 `handoff.json` → Rule: Per-Task Review + Rule: Quality Invariants → `APPROVED` → ledger。cli 模式本 session **绝不**编辑仓库交付物——仅 H6 CLI。
 
-**Final:** [osuperpowers:code-review](../code-review/SKILL.md) whole-branch in-session → clean → [osuperpowers:finishing](../finishing/SKILL.md)。
+**Final：** [osuperpowers:code-review](../code-review/SKILL.md) whole-branch in-session → clean → [osuperpowers:finishing](../finishing/SKILL.md)。
 
 ### Rule: D6 Aggregation
 
-全任务 APPROVED 后聚合 deferred（grep `deferred` 子串，含 no-jq 降级行 `deferred not enumerated — jq missing`）→ **呈现给用户** → **用户决策门**（全部 defer / 点名修）→ 要修则**有界 final fix 波（一次）**：一个 fix agent + scoped re-review。
+所有 task APPROVED 后，聚合 deferred items（grep `deferred` 子字符串，含无 jq 的回退行 `deferred not enumerated -- jq missing`）→ **呈现给用户** → **用户决策门控**（全部 defer / 指定要修复的）→ 若要求修复则**有限最终修复波（一次 pass）**：一个 fix agent + 范围 re-review。
 
-End semantics:
-- re-review clean → 结束，handoff `status` 保持 `APPROVED`（**不重写**），ledger 保留 complete 行（可追加一行记 K 项已修）
-- 暴露新 blocker → 仍一轮 fix 波，然后 **unconditionally report to the user**（clean 与否）—— **no cross-task fix loop**；剩余项不静默丢弃，report 结束
-- **round cap 5 仅适用单任务 fix loop，不适用跨任务 final fix 波**
+结束语义：
+- re-review 通过 → 完成，handoff `status` 保持 `APPROVED`（**不重写**），ledger 保留完整行（可追加注明修复了 K 项的行）
+- 暴露新 blocker → 仍是一次修复波，然后**无条件向用户报告**（通过与否均报告）——**无跨 task 修复循环**；剩余项目不静默丢弃，报告结束
+- **5 轮上限仅适用于单 task 修复循环，不适用于跨 task 最终修复波**
 
-Mode B：用户 run 结束后自行读 ledger 聚合 deferred；shell 端无额外 end-of-run print。
+Mode B：run 结束后用户读取 ledger 以聚合 deferred；shell 侧在 run 结束时无额外打印。
 
 ### Rule: Ledger
 
-`APPROVED` 才在 `CDD_LEDGER` 追加 `Task N: complete`。
+仅 `APPROVED` 向 `CDD_LEDGER` 追加 `Task N: complete`。
 
 ## Red Flags
 
-- 「CLI 可用就跳过模式选择」→ 三模式必须询问（Rule: Mode Selection）
-- 「in-session 也走 cdd-task.mjs」→ in-session 是会话内实现，不走 CLI（Rule: Read Upstream）
-- 「把编排器决策塞进 cli-driven-development」→ 引擎只管执行（Rule: Read Upstream 的 cli 分支）
-- 「User already chose subagent/inline in writing-plans handoff」→ Mode Selection 是 HARD-GATE，必须重新询问（Rule: Mode Selection）
-- 「Start executing without calling AskUserQuestion」→ Mode Selection 必须是第一个动作（Rule: Mode Selection）
-- 「Load from state with prior mode selection」→ session 恢复带缓存模式仍须调用 AskUserQuestion（Rule: Mode Selection）
-- 「Use superpowers:subagent-driven-development / superpowers:executing-plans」→ 上游 subagent-driven-development 引用的 superpowers:* 需显式映射到 osuperpowers 对应版本（本 plan 的 Next-Step Routing rule 负责）
+- "CLI 可用所以跳过模式选择" → 三种模式都必须询问（Rule: Mode Selection）
+- "in-session 也使用 cdd-task.mjs" → in-session 是 session 内实施，无 CLI（Rule: Read Upstream）
+- "把编排器决策塞入 cli-driven-development" → 引擎只处理执行（Rule: Read Upstream — cli branch）
+- "用户已在 writing-plans handoff 中选择了 subagent/inline" → Mode Selection 是 HARD-GATE，必须直接询问（Rule: Mode Selection）
+- "不调用 AskUserQuestion 就开始执行" → Mode Selection 必须是第一个动作，在任何 repo tool call 之前（Rule: Mode Selection）
+- "从有先前模式选择的状态加载" → session 恢复时有缓存模式仍须调用 AskUserQuestion（Rule: Mode Selection）
+- "使用 superpowers:subagent-driven-development / superpowers:executing-plans" → 上游 superpowers:* 引用必须显式映射到 osuperpowers 对应项
+- "CLI 模式下使用 Write/Edit 修改仓库交付物" → 违反 HARD-GATE Mode Selection（CLI 禁止内联编辑），通过 cdd-task.mjs 执行
+- "实施完成后直接进入下一 task 或编译验证" → 违反 HARD-GATE Per-Task Review（门控），必须先读 `$CDD_HANDOFF_PATH`
+- "实施完以后把 Per-Task Review 当成 3-pass review 来跑" → Per-Task Review 是 handoff.json 读取门控，不是 docs-review.md 的 3-pass review
+- "Fix Loop 也要遵循 docs-review.md 停止机制" → Fix Loop 是 task-review（APPROVED/CHANGES_REQUESTED），不使用 docs-review.md

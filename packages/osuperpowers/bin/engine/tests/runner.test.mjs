@@ -13,7 +13,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus, findSuperpowersScriptsDir, byVersion } from "../lib/runner.mjs";
+import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus,
+         findSuperpowersScriptsDir, byVersion, runReviewPackage } from "../lib/runner.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -409,4 +410,36 @@ test("runTask: brief 不存在 + plan 不可用 → BLOCKED exit 1", async () =>
     env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
   });
   assert.equal(res.exitCode, 1);
+});
+
+test("runReviewPackage: 传第 4 参数 OUTFILE = <workspace>/review-<base7>..<head7>.diff", async () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-outfile-"));
+  const mockDir = mkdtempSync(path.join(tmpdir(), "mock-scripts-"));
+
+  // mock review-package: capture $4 → file, create the diff file, output "wrote $4: 1 commit(s), 10 bytes"
+  const captureFile = path.join(ws, "captured-outfile.txt");
+  writeFileSync(
+    path.join(mockDir, "review-package"),
+    `#!/bin/sh\nprintf '%s' "$4" > "${captureFile}"\nmkdir -p "$(dirname "$4")"\ntouch "$4"\nprintf 'wrote %s: 1 commit(s), 10 bytes\\n' "$4"\n`,
+  );
+  chmodSync(path.join(mockDir, "review-package"), 0o755);
+
+  const planFile = path.join(ws, "plan.md");
+  writeFileSync(planFile, "# Plan\n");
+  const handoffPath = path.join(ws, "task-1-handoff.json");
+  writeFileSync(handoffPath, "{}");
+
+  // base/head are full SHAs; shortSha = first 7 chars
+  const base = "abc1234abcdefabc1234abcdefabc1234abcdefab";
+  const head = "def5678defabcdef5678defabcdef5678defabcd";
+
+  await runReviewPackage(planFile, base, head, handoffPath, {
+    cwd: ws,
+    env: process.env,
+    scriptsDir: mockDir,
+  });
+
+  const captured = readFileSync(captureFile, "utf8");
+  assert.match(captured, /review-abc1234\.\.def5678\.diff$/);
+  assert.ok(captured.startsWith(ws), `expected captured path to start with workspace: ${captured}`);
 });

@@ -290,8 +290,9 @@ function relpathFromRepo(abs, cwd) {
 // 把 diff 相对路径写进 handoff artifacts（Node 无 jq —— 直接 JSON 读写）。
 // bash 对齐：`[[ -x review-package ]]` 可执行检查（spawn 前 accessSync X_OK）+ `wrote <diff>:`
 // progress 行落到 stdout（operator 可见）。
-async function runReviewPackage(plan, base, head, handoffPath, { cwd, env }) {
-  const scriptsDir = findSuperpowersScriptsDir(cwd);
+// scriptsDir DI：单测可 override findSuperpowersScriptsDir（避免触达 repo/cache 真实路径）。
+export async function runReviewPackage(plan, base, head, handoffPath, { cwd, env, scriptsDir: scriptsDirOverride }) {
+  const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(cwd);
   if (!scriptsDir) throw new RunBlocked("upstream review-package script not found");
   const reviewPkg = path.join(scriptsDir, "review-package");
   try {
@@ -299,7 +300,10 @@ async function runReviewPackage(plan, base, head, handoffPath, { cwd, env }) {
   } catch {
     throw new RunBlocked(`review-package not executable: ${reviewPkg}`);
   }
-  const res = await spawnCapture("bash", [reviewPkg, plan, base, head], { cwd, env });
+  function shortSha(sha) { return String(sha).slice(0, 7); }
+  const wsDir = path.dirname(handoffPath);
+  const outFile = path.join(wsDir, `review-${shortSha(base)}..${shortSha(head)}.diff`);
+  const res = await spawnCapture("bash", [reviewPkg, plan, base, head, outFile], { cwd, env });
   const outLine = res.stdout.trim().split("\n").filter(Boolean).pop() ?? "";
   const diffPath = outLine.match(/^wrote ([^:]+):/)?.[1] ?? "";
   if (!diffPath || !existsSync(diffPath)) {

@@ -1,81 +1,101 @@
 ---
 name: brainstorming
-description: 独立 brainstorm 流程编排器 —— Read 上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / cli review 评审 passes）。可独立调用；由 /brainstorming 触发经 overrides 路由器直达。
+description: 独立 brainstorm 编排器——读取上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / CLI review pass）。可单独调用；通过 overrides router 由 /brainstorming 触发。
 ---
 
 # Osuperpowers Brainstorming
 
-完整 brainstorm 流程编排，可独立调用。
+完整 brainstorm 流程编排，可单独调用。
+
+<HARD-GATE>
+触发 brainstorming 后，必须按序完成以下全部步骤，
+无论改动规模大小、输入是否已含方案、是否已有 issue 描述：
+
+1. 读取上游 superpowers:brainstorming SKILL.md（Rule: Read Upstream）
+2. 读取 grilling SKILL.md（Rule: Read Sub-Skills）
+3. Explore project context（文件、文档、近期 commits）
+4. Grilling——逐一追问，每次只问一个问题，等待回答后继续
+5. 提出 2-3 个方案，含 trade-off 与推荐
+6. 逐节呈现设计，每节获得用户确认
+7. 写入 design doc
+8. 3-pass Spec Review via CLI（Rule: Spec Review via CLI）
+9. 用户审阅 spec，按需迭代
+10. 移交 osuperpowers:writing-plans（Rule: Next-Step Routing）
+
+在步骤 6（design 用户批准）完成前，禁止任何实施行动。
+</HARD-GATE>
+
+## Checklist
+
+1. 读取上游 superpowers:brainstorming SKILL.md（Rule: Read Upstream）
+2. 读取 grilling SKILL.md（Rule: Read Sub-Skills）
+3. Explore project context（文件、文档、近期 commits）
+4. Grilling——逐一追问，每次只问一个问题，等待回答后继续
+5. 提出 2-3 个方案，含 trade-off 与推荐
+6. 逐节呈现设计，每节获得用户确认
+7. 写入 design doc
+8. 3-pass Spec Review via CLI（Rule: Spec Review via CLI）
+9. 用户审阅 spec，按需迭代
+10. 移交 osuperpowers:writing-plans（Rule: Next-Step Routing）
 
 ## Rules
 
 ### Rule: Read Upstream
 
-Read 上游 `superpowers:brainstorming` 的 SKILL.md 作为流程基线 **当可用时**（claude / cursor 装有 superpowers 插件）。**Read 而非 Skill-invoke**（Skill-invoke 会触发路由器拦截）。
+有上游时读取 `superpowers:brainstorming` SKILL.md 作为基线（claude / cursor 已安装 superpowers plugin）。**读取，不 Skill-invoke**（Skill-invoke 会触发 router 拦截）。
 
-解析路径（`{plugin-root}` = 本插件 osuperpowers 根）：
-1. **兄弟插件根**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同理）
-2. **回退同仓库相对路径**：`<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
+路径解析（`{plugin-root}` = 本 plugin 的 osuperpowers 根）：
+1. **同级 plugin 根目录**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同）
+2. **回退到 repo 内相对路径**：`<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
 
-上游不可用（非 claude harness / 未装 superpowers 插件）→ **不报错**：以本技能自身 Rules 为完整流程直接执行。本技能自身 Rules 是承重流程，Read 上游只是增强。
+上游不可用（非 claude harness / superpowers plugin 未安装）→ **不报错**：直接执行本 skill 的 Rules 作为完整流程。
 
 ### Rule: Read Sub-Skills
 
-**必须**读取 `mattpocock-skills` 的 `skills/productivity/grilling/SKILL.md`（强制步骤——澄清问题委派）。
-读取失败（文件不存在/读取错误）→ **报告错误 + 询问用户下一步**，
-用户可决定绕过 grilling 继续或中止流程。所有失败场景行为统一。
-加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
+**必须**读取 `mattpocock-skills` `skills/productivity/grilling/SKILL.md`（强制步骤——澄清问题委托）。
+失败（文件不存在/读取错误）→ **报告错误 + 询问用户下一步**；用户可跳过 grilling 继续或中止流程。
+加载失败协议：见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
 
 ### Rule: Research Delegation
 
-explore-context 阶段发现需要 primary source 研究的问题时（代码库无法回答的：upstream API 行为、
-harness CLI 规范、包内部结构、跨 harness 差异等）：
+当 explore-context 阶段发现需要主源研究的问题（上游 API 行为、harness CLI 规格、包内部结构、跨 harness 差异）：
 
-1. **识别 + 问用户**：列出需要研究的问题，问「是否触发 research？」（多问题可一次征求）
-   - 用户确认 → spawn research agent（步骤 2-6）
-   - 用户拒绝 → 跳过该问题，**正常流程继续**（explore-context → grilling）
-2. **Spawn background agent**：每个研究问题 spawn 一个 mattpocock-skills:research agent（并行）。
-   Research agent 的 prompt = 问题描述 + 要求 citation 的指令。
+1. **识别 + 询问用户**：列出问题，询问"是否触发 research？"——用户确认 → spawn；用户拒绝 → 跳过，正常流程继续
+2. **派发后台 agent**：每个问题一个 mattpocock-skills:research agent（并行）。Prompt = 问题描述 + 引用来源指令。
 3. **继续 explore-context**（代码探索不中断）
-4. **等完成**：进入 grilling 前，确保所有后台 research 完成。
-5. **产出**：findings 写入 `docs/research/YYYY-MM-DD-<topic>.md`（遵循现有 convention，
-   见 `docs/research/` 下已有 3 份）。
-6. **消费**：research findings 在后续 grilling + approach selection + design 中作为
-   primary source 引用（非 ad-hoc 重搜）。
+4. 进入 grilling 前**等待完成**
+5. **输出**：写入 `docs/research/YYYY-MM-DD-<topic>.md`
+6. **消费**：在 grilling + 方案选择 + 设计中作为主源引用
 
-触发条件（非穷尽，orchestrator 判断）：
-- 用户问题涉及外部 API / CLI 的行为规范（代码库查不到）
-- 上游包的内部结构或约定（如 pi CLI 发现机制）
-- 跨 harness 差异需要对比验证
-
-不触发条件：
-- 问题可从代码库 / docs / git history 直接回答
-- 纯设计决策（不需要外部事实）
-
-触发失败（research agent 出错/超时）→ 记录 stderr，不阻塞流程（fail-open）。
+触发失败（agent 错误/超时）→ 记录 stderr，不阻塞流程（fail-open）。
 
 ### Rule: Overall-Phase
 
-大需求（≥3 子系统 / 分几期 / overhaul）先写 overall spec，再分阶段。文档结构见 [overall-phase-spec-template.md](../docs/overall-phase-spec-template.md)。GATE：overall 批准 ≠ 阶段已启动。
+大型需求（≥3 个子系统 / 多阶段 / 大改）先写 overall spec，再 phase out。文档结构见 [overall-phase-spec-template.md](../docs/overall-phase-spec-template.md)。GATE：overall 批准 ≠ phase 已开始。
 
 ### Rule: Spec Review via CLI
 
-spec review 分 3 类 pass（completeness / consistency&scope / clarity&YAGNI），每 pass 一次 fresh `cdd-review` 派发：
+Spec review 有 3 种 pass 类型（completeness / consistency&scope / clarity&YAGNI），每个 pass 派发一次新的 `cdd-review`：
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-派发纪律见 [review-dispatch.md](../docs/review-dispatch.md)（D1/D2/D3 + fresh-pass，原样映射到 cli）。
+派发纪律见 [docs-review.md](../docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output `[Engine pending P2]`）。
 
 ### Rule: Next-Step Routing
 
-brainstorming 完成后，Skill-invoke **`osuperpowers:writing-plans`**（而非上游 `superpowers:writing-plans`）。osuperpowers 包装版本在上游基线之上叠加了 section-by-section 写作、cli review passes 和 ticket publish redirect。
+brainstorming 完成后，调用 **`osuperpowers:writing-plans`**（非上游 `superpowers:writing-plans`）。osuperpowers wrapper 在上游基线之上叠加了逐节写入、CLI review pass 和 ticket 发布重定向。
 
 ### Rule: Write Design Doc
 
-spec 存 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审阅后 → writing-plans。
+Spec 保存到 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审阅后 → writing-plans。
 
 ## Red Flags
 
-- 「Skill-invoke 上游 brainstorm」→ Read 而非 Skill-invoke（Rule: Read Upstream）
-- 「简单项目跳过设计」→ 每个项目都过设计（上游流程要求）
-- 「research 自动触发不问用户」→ 用户确认是硬门
-- 「research 阻塞 explore-context」→ 后台并行
-- 「Invoke writing-plans / superpowers:writing-plans」→ invoke **`osuperpowers:writing-plans`**（Rule: Next-Step Routing）
+- "Skill-invoke 上游 brainstorm" → 读取而非 Skill-invoke（Rule: Read Upstream）
+- "跳过简单项目的设计" → 每个项目都要经过设计（HARD-GATE 流程型 Step 6）
+- "Research 在未询问用户的情况下自动触发" → 用户确认是硬性门控（Rule: Research Delegation）
+- "Research 阻塞 explore-context" → 后台并行（Rule: Research Delegation）
+- "调用 writing-plans / superpowers:writing-plans" → 调用 **`osuperpowers:writing-plans`**（Rule: Next-Step Routing）
+- "输入已含方案，跳过 grilling 直接设计" → 违反 HARD-GATE 流程型 Step 4
+- "改动简单，跳过 design 直接实施" → 违反 HARD-GATE 流程型 Step 6
+- "Overall 批准后直接开始实施（跳过 Phase brainstorming）" → 违反 HARD-GATE 流程型 Steps 1-10（整个流程）
+- "blocker=0 后自动修复 warn/nit 并重跑 review" → 违反 Review Stopping 规则（docs-review.md），应呈现给用户，用户决策后视需求决定是否重跑
+- "为获取 warn/nit 内容额外发起新的 cdd-review 调用" → 违反 Review Stopping 规则，从本次 3-pass cycle 已有输出读取

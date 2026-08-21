@@ -55,6 +55,23 @@ For overrides trigger router internals, see [`packages/osuperpowers-router/CLAUD
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
 - [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
 
+## Language Architecture
+
+All source files are **English-primary**. Chinese (`.zh-CN.md`) files are **human-readable mirrors** only — AI harnesses always read the English source.
+
+| File | Role |
+|------|------|
+| `skills/*/SKILL.md` | Authoritative source — edit here |
+| `skills/*/SKILL.zh-CN.md` | Chinese mirror — may drift after English edits |
+| `docs/*.md` | Authoritative source |
+| `docs/*.zh-CN.md` | Chinese mirror — may drift |
+| `.agents/skills/*/SKILL.md` | Derived by `pnpm run emit` — never edit directly |
+| `.agents/skills/*/SKILL.zh-CN.md` | Derived by emit from source mirror — never edit directly |
+
+**Editing rule**: modify only the English source file. The corresponding `.zh-CN.md` requires separate translation maintenance and is explicitly out of scope for implementation tasks unless the task is a translation pass. When a `.zh-CN.md` drifts, note it in the task's deferred findings rather than blocking the task.
+
+**Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, run `pnpm run emit` to propagate changes to `.agents/`. Running `pnpm run emit:check` verifies no drift.
+
 ## Git conventions
 
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`).

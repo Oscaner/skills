@@ -42,7 +42,7 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 - `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
 - `packages/osuperpowers/bin/engine/` — CDD engine (cdd-task.mjs, cdd-review.mjs, runner.mjs, registry, templates)
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
-- `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, review-dispatch, subagent-lifecycle)
+- `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, docs-review, subagent-lifecycle)
 
 For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md).
 

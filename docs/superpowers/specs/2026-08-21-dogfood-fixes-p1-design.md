@@ -18,6 +18,7 @@
 
 > 不重复 Overall 约束。Overall 优先。
 > 跨相约束适用：P1 规则变更不得破坏现有 engine 测试（`pnpm run validate` 全绿）。
+> **语言约束（来自 Overall v1.3）**：所有 SKILL.md 重写须为纯英文；zh-CN 镜像文件必须在同一 task 内同步更新，不可 defer。
 
 ---
 
@@ -297,6 +298,7 @@ P4（模板与流程更新）将修改 `brainstorming/SKILL.md` 的 Rule: Overal
 | #163-④ | executing-plans/SKILL.md HARD-GATE Per-Task Review（门控）存在；Red Flag 覆盖跳过 handoff 反模式 |
 | 测试 | `pnpm run validate` 全绿 |
 | 兼容性 | 无新增规则与现有规则矛盾；现有 Red Flags 保留或合并，无丢失 |
+| 语言架构 | 所有重写的 SKILL.md 为纯英文（无中文混入）；对应 zh-CN 镜像文件在同一 task 内同步更新 |
 | Review 停止机制 | `review-dispatch.md` 重命名为 `docs-review.md`，新增 scope 声明（spec/plan only）、Rule: Review Stopping（循环流程）、Rule: Handoff Output；brainstorming + writing-plans 引用路径更新；CLAUDE.md 描述更新；task-review / branch-review 不引用 docs-review.md |
 | Handoff 统一 | `docs-review.md` 新增 Rule: Handoff Output；brainstorming + writing-plans 补 Handoff 规则引用；P2 提供 cdd-review.mjs `--handoff PATH` 引擎实现 |
 

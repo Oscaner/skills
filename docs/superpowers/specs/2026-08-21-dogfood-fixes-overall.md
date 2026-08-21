@@ -1,6 +1,6 @@
 # Dogfood 修复程序 — Overall Spec
 
-- **Version**: v1.2 · 2026-08-21
+- **Version**: v1.3 · 2026-08-21
 - **Status**: Approved
 - **Author**: Oscaner Miao · Claude Opus 4.8 (1M context)
 - **Constraints**:
@@ -8,6 +8,8 @@
   - 不引入新功能或扩展现有能力边界
   - 不重构引擎整体架构
   - 每相完成后独立 changeset
+  - **语言架构 Strategy A**：`skills/*/SKILL.md` 和 `docs/*.md` 须为纯英文，zh-CN 镜像必须在同一 task 内同步更新；不得在英文文件内掺入中文内容
+  - **语言架构 Strategy B**：`docs/superpowers/specs/` 和 `docs/superpowers/plans/` 为中文，无需镜像
 
 ---
 

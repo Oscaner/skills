@@ -10,7 +10,8 @@
 
 ## Global Constraints
 
-- 不修改 `.zh-CN.md` 文件（zh-CN 文件将因重写而漂移，需在后续独立处理，P1 范围外）
+- **语言架构 Strategy A**：SKILL.md 须为纯英文，无中文混入；zh-CN 镜像文件必须在同一 task 内同步更新（非 defer）
+- **语言架构 Strategy B**：specs/plans 中文写作，无需镜像
 - 不修改 vendors 子模块
 - task-review（executing-plans Fix Loop）和 branch-review（cli-code-review）不引用 docs-review.md，维持现有机制
 - 每 task 完成后独立 commit（conventional commit 格式，无 AI attribution）
@@ -24,10 +25,14 @@
 |------|------|------|
 | `packages/osuperpowers/docs/review-dispatch.md` | Rename → `docs-review.md` + scope 声明 + Rule: Review Stopping + Rule: Handoff Output | Task 1 |
 | `packages/osuperpowers/CLAUDE.md` | Modify — 引用路径 + scope 描述更新 | Task 1 |
-| `packages/osuperpowers/skills/brainstorming/SKILL.md` | Rewrite — 统一骨架 + HARD-GATE + #162 | Task 2 |
-| `packages/osuperpowers/skills/writing-plans/SKILL.md` | Rewrite — 统一骨架 + #156 + #163-① + #163-② | Task 3 |
-| `packages/osuperpowers/skills/executing-plans/SKILL.md` | Rewrite — 统一骨架 + #163-③ + #163-④ | Task 4 |
+| `packages/osuperpowers/skills/brainstorming/SKILL.md` | Rewrite — 纯英文 + 统一骨架 + HARD-GATE + #162 | Task 2 |
+| `packages/osuperpowers/skills/brainstorming/SKILL.zh-CN.md` | Update — 同步 Task 2 英文重写内容 | Task 2 |
+| `packages/osuperpowers/skills/writing-plans/SKILL.md` | Rewrite — 纯英文 + 统一骨架 + #156 + #163-① + #163-② | Task 3 |
+| `packages/osuperpowers/skills/writing-plans/SKILL.zh-CN.md` | Update — 同步 Task 3 英文重写内容 | Task 3 |
+| `packages/osuperpowers/skills/executing-plans/SKILL.md` | Rewrite — 纯英文 + 统一骨架 + #163-③ + #163-④ | Task 4 |
+| `packages/osuperpowers/skills/executing-plans/SKILL.zh-CN.md` | Update — 同步 Task 4 英文重写内容 | Task 4 |
 | `.agents/skills/osuperpowers/*/SKILL.md`（派生） | 由 `pnpm run emit` 重新生成 | Task 5 |
+| `.agents/skills/osuperpowers/*/SKILL.zh-CN.md`（派生） | 由 `pnpm run emit` 重新生成 | Task 5 |
 
 ---
 

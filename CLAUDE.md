@@ -57,18 +57,26 @@ For overrides trigger router internals, see [`packages/osuperpowers-router/CLAUD
 
 ## Language Architecture
 
-All source files are **English-primary**. Chinese (`.zh-CN.md`) files are **human-readable mirrors** only — AI harnesses always read the English source.
+Two distinct language strategies apply depending on file type:
+
+### Strategy A — English-primary + zh-CN mirror (SKILL.md and docs/)
+
+`skills/*/SKILL.md` and `docs/*.md` are **English-primary**. Chinese (`.zh-CN.md`) files are **human-readable mirrors** — AI harnesses always read the English source.
 
 | File | Role |
 |------|------|
-| `skills/*/SKILL.md` | Authoritative source — edit here |
-| `skills/*/SKILL.zh-CN.md` | Chinese mirror — may drift after English edits |
-| `docs/*.md` | Authoritative source |
-| `docs/*.zh-CN.md` | Chinese mirror — may drift |
+| `skills/*/SKILL.md` | English authoritative source — edit here; **no Chinese content** |
+| `skills/*/SKILL.zh-CN.md` | Chinese mirror — must be updated when English source changes |
+| `docs/*.md` | English authoritative source — edit here; **no Chinese content** |
+| `docs/*.zh-CN.md` | Chinese mirror — must be updated when English source changes |
 | `.agents/skills/*/SKILL.md` | Derived by `pnpm run emit` — never edit directly |
 | `.agents/skills/*/SKILL.zh-CN.md` | Derived by emit from source mirror — never edit directly |
 
-**Editing rule**: modify only the English source file. The corresponding `.zh-CN.md` requires separate translation maintenance and is explicitly out of scope for implementation tasks unless the task is a translation pass. When a `.zh-CN.md` drifts, note it in the task's deferred findings rather than blocking the task.
+**Editing rule**: SKILL.md and docs/*.md must be written entirely in English. Chinese translations belong only in the corresponding `.zh-CN.md`. When editing an English source file, updating its `.zh-CN.md` mirror is **part of the same task** — not deferred.
+
+### Strategy B — Chinese-primary, no mirror (specs and plans)
+
+`docs/superpowers/specs/*.md` and `docs/superpowers/plans/*.md` are internal developer documents written **in Chinese**. No `.zh-CN.md` mirror is needed or maintained for these files.
 
 **Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, run `pnpm run emit` to propagate changes to `.agents/`. Running `pnpm run emit:check` verifies no drift.
 

@@ -53,8 +53,7 @@ Upstream unavailable (non-claude harness / superpowers plugin not installed) →
 ### Rule: Read Sub-Skills
 
 **Must** read `mattpocock-skills` `skills/productivity/grilling/SKILL.md` (mandatory step — clarification question delegation).
-On failure (file not found / read error) → **report error + ask the user for next steps**;
-user may skip grilling and continue, or abort the flow.
+On failure (file not found / read error) → **report error + ask the user for next steps**; user may skip grilling and continue, or abort the flow.
 Load failure protocol: see [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure).
 
 ### Rule: Research Delegation

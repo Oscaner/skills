@@ -55,6 +55,7 @@ Upstream unavailable (non-claude harness / superpowers plugin not installed) →
 **Must** read `mattpocock-skills` `skills/productivity/grilling/SKILL.md` (mandatory step — clarification question delegation).
 On failure (file not found / read error) → **report error + ask the user for next steps**; user may skip grilling and continue, or abort the flow.
 Load failure protocol: see [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure).
+After reading the grilling SKILL.md, execute its instructions as the grilling framework verbatim — do not substitute with a self-organized interview format, option menus, or structured choice lists.
 
 ### Rule: Research Delegation
 
@@ -78,6 +79,7 @@ Large requirements (>=3 subsystems / multi-phase / overhaul) write an overall sp
 Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI), each pass dispatches a fresh `cdd-review`:
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
 Dispatch discipline: see [docs-review.md](../docs/docs-review.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli; Review Stopping loop + Handoff Output `[Engine pending P2]`).
+Review Stopping next-step label for this skill: `"User review of spec"`.
 
 ### Rule: Next-Step Routing
 
@@ -99,3 +101,4 @@ Spec saved to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, after user 
 - "Overall approved, start implementation directly (skipping Phase brainstorming)" → violates HARD-GATE flow Steps 1-10 (entire flow)
 - "Auto-fix warn/nit and re-run review after blocker=0" → violates Review Stopping (docs-review.md); present to user, re-run only if user requests
 - "Issue new cdd-review call to obtain warn/nit content" → violates Review Stopping; read from already-captured output of current 3-pass cycle
+- "Presents Option A / Option B choices instead of following grilling skill" → violates Rule: Read Sub-Skills (grilling delegation); apply grilling SKILL.md instructions verbatim

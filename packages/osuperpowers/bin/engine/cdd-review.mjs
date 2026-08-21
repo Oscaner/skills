@@ -12,6 +12,7 @@ import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs"
 import { invokeCli } from "./lib/runner.mjs";
 import { pluginRoot } from "./lib/templates.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
+import { writeHandoff } from "./lib/contract.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
@@ -39,14 +40,14 @@ function renderTemplate(name, params, programName) {
 
 function usage() {
   process.stderr.write(
-    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])\n`,
+    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...]) [--handoff PATH]\n`,
   );
   exitCliMissing();
 }
 
 function help() {
   process.stdout.write(
-    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])\n`,
+    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...]) [--handoff PATH]\n`,
   );
   exitOk();
 }
@@ -55,6 +56,7 @@ const args = process.argv.slice(2);
 let harness = "";
 let prompt = "";
 let templateName = "";
+let handoffPath = "";
 /** @type {Record<string, string>} */
 const params = {};
 
@@ -71,6 +73,10 @@ for (let i = 0; i < args.length; i++) {
     case "--template":
       if (i + 1 >= args.length) usage();
       templateName = args[++i];
+      break;
+    case "--handoff":
+      if (i + 1 >= args.length) usage();
+      handoffPath = args[++i];
       break;
     case "--param": {
       if (i + 1 >= args.length) usage();
@@ -125,6 +131,11 @@ try {
 // 一次性 prompt-runner（不跑任务链）：CDD_MODE=task-review 触发 task_review_prefix 合成（透传）。
 const mode = process.env.CDD_MODE ?? "";
 const res = await invokeCli(entry, prompt, mode, process.env, process.cwd());
+if (handoffPath) {
+  writeHandoff(handoffPath, res.ok
+    ? { status: "DONE" }
+    : { status: "BLOCKED", blocker: (res.stderr.split("\n")[0] || "").trim() || `cli exited ${res.code}` });
+}
 if (!res.ok) {
   // stream-json no-completion → bash 显式 CDD_BLOCKED 路径；其余按 CLI 退出码静默退出
   // （对齐 _cdd_invoke_cli 的 2>/dev/null：CLI stderr 不进输出）。

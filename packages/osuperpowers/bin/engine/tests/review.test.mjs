@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, chmodSync, statSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, chmodSync, statSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -184,4 +184,46 @@ test("cdd-review.mjs: --param 值含等号 → KEY=VALUE 正确解析（value �
   );
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.match(res.stdout, /\/path\/to\?a=b/);
+});
+
+test("cdd-review.mjs: --handoff + mock exit 0 → handoff 含 status DONE", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
+  const handoffDir = mkdtempSync(path.join(tmpdir(), "cdd-handoff-"));
+  makeMock(mock, "claude", 'printf "ok\\n"');
+  const fp = harnessFreePath();
+  const handoffPath = path.join(handoffDir, "test-handoff.json");
+  const res = runExec(
+    ["--harness", "claude", "--prompt", "hello", "--handoff", handoffPath],
+    { mockPath: `${mock}${path.delimiter}${fp}` },
+  );
+  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
+  assert.ok(existsSync(handoffPath), "handoff file should exist");
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.equal(h.status, "DONE");
+});
+
+test("cdd-review.mjs: --handoff + mock exit 1 → handoff 含 status BLOCKED + blocker", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
+  const handoffDir = mkdtempSync(path.join(tmpdir(), "cdd-handoff-"));
+  makeMock(mock, "claude", 'printf "error output\\n" >&2; exit 1');
+  const fp = harnessFreePath();
+  const handoffPath = path.join(handoffDir, "test-handoff.json");
+  const res = runExec(
+    ["--harness", "claude", "--prompt", "hello", "--handoff", handoffPath],
+    { mockPath: `${mock}${path.delimiter}${fp}` },
+  );
+  assert.notEqual(res.status, 0);
+  assert.ok(existsSync(handoffPath), "handoff file should exist even on failure");
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.equal(h.status, "BLOCKED");
+  assert.ok(h.blocker, "blocker field should be non-empty");
+});
+
+test("cdd-review.mjs: 无 --handoff → 不写文件", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
+  makeMock(mock, "claude", 'printf "ok\\n"');
+  const fp = harnessFreePath();
+  const handoffPath = path.join(mkdtempSync(path.join(tmpdir(), "cdd-handoff-")), "should-not-exist.json");
+  runExec(["--harness", "claude", "--prompt", "hello"], { mockPath: `${mock}${path.delimiter}${fp}` });
+  assert.equal(existsSync(handoffPath), false, "handoff file should NOT exist without --handoff");
 });

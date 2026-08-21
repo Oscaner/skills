@@ -19,16 +19,16 @@ import { config } from "../../utils/skills-probe.config.mjs";
 
 function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-skills-gate-"));
-  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
+  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n");
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\n");
+  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
   return ws;
 }
 
 function baseEnv(ws, extra = {}) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith("CDD_")) env[k] = v;
+    if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
   }
   return { ...env, CDD_WORKSPACE: ws, ...extra };
 }

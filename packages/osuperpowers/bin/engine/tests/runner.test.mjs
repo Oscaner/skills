@@ -15,6 +15,9 @@ import { fileURLToPath } from "node:url";
 
 import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus, findSuperpowersScriptsDir, byVersion } from "../lib/runner.mjs";
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(HERE, "../../../../..");
+
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 
 // No-op probeSkills stub — environment independence for all existing runTask calls
@@ -26,16 +29,17 @@ function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
   writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\n");
+  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n"); // ← 加 TASK_BASE
   return ws;
 }
 
 // 测试 env：清掉外部会话可能继承的 CDD_*（本测试进程运行在 orchestrator env 下 —— CDD_HANDOFF_PATH
 // 等若泄漏，runTask 会写到真实 workspace）；仅保留测试可控的 CDD_WORKSPACE（+extra）。
+// PLAN_FILE 同样清除：CDD 宿主 env 中的 PLAN_FILE 若泄漏，会影响 plan-backfill 逻辑（test 4 依赖无 plan）。
 function baseEnv(ws, extra = {}) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith("CDD_")) env[k] = v;
+    if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
   }
   return { ...env, CDD_WORKSPACE: ws, ...extra };
 }
@@ -298,7 +302,7 @@ test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（�
   execFileSync("git", ["init", "-q", dir]);
   writeFileSync(path.join(dir, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
   writeFileSync(path.join(dir, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(dir, "task-1-brief.md"), "# task 1\n");
+  writeFileSync(path.join(dir, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
   writeFileSync(path.join(dir, "dirty.txt"), "uncommitted\n"); // 脏工作树信号
 
   const { code, stderr } = await capture(() =>
@@ -313,7 +317,7 @@ test("runTask: task-review 模式 review-package 不可执行 → CDD_BLOCKED + 
   writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
   writeFileSync(path.join(dir, "progress.md"), `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
   writeFileSync(path.join(dir, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(dir, "task-1-brief.md"), "# task 1\n");
+  writeFileSync(path.join(dir, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
   // HOME → fake plugin cache：review-package 存在但不可执行（无 chmod +x）。
   const scripts = path.join(
     dir, ".claude", "plugins", "cache", "oscaner", "superpowers", "1.0.0",
@@ -350,4 +354,59 @@ test("runTask: task-review 模式 review-package 不可执行 → CDD_BLOCKED + 
     process.env.PATH = origPath;
     process.env.HOME = origHome;
   }
+});
+
+test("runTask: brief 已存在 + 含 TASK_BASE: → pass（dry-run exit 0）", async () => {
+  const ws = setupWorkspace(); // brief 已含 TASK_BASE: abc123
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
+  });
+  assert.equal(res.exitCode, 0);
+  assert.equal(res.h1[0], "status: DONE");
+});
+
+test("runTask: brief 已存在 + 缺 TASK_BASE: → BLOCKED exit 1", async () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
+  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
+  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
+  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\n"); // no TASK_BASE
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
+  });
+  assert.equal(res.exitCode, 1);
+});
+
+test("runTask: brief 不存在 + plan 可用 → auto-generate + exit 0", async () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
+  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n"); // no plan in ledger
+  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
+  // no brief file
+  const planDir = mkdtempSync(path.join(tmpdir(), "plan-"));
+  const planFile = path.join(planDir, "plan.md");
+  writeFileSync(planFile, "# Plan\n\n### Task 1: Do something\nTask body\n");
+  const env = baseEnv(ws, {
+    CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md"),
+    PLAN_FILE: planFile,
+  });
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env, cwd: REPO_ROOT, noExit: true,
+  });
+  assert.equal(res.exitCode, 0);
+  assert.ok(existsSync(path.join(ws, "task-1-brief.md")), "brief should be auto-generated");
+  assert.match(readFileSync(path.join(ws, "task-1-brief.md"), "utf8"), /^TASK_BASE: /m);
+});
+
+test("runTask: brief 不存在 + plan 不可用 → BLOCKED exit 1", async () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
+  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n"); // no plan
+  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
+  // no brief, no plan
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
+  });
+  assert.equal(res.exitCode, 1);
 });

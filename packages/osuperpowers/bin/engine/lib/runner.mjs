@@ -17,6 +17,7 @@ import { appendLedger } from "./ledger.mjs";
 import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
+import { generateBrief, validateBrief } from "./brief.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "task-review", "fix"];
@@ -428,13 +429,8 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
-  // 2.55 Brief/templates existence check — BLOCKED exit 1 if missing (not exit 3).
-  //   Reuses pluginRoot() from templates.mjs to locate the CDD template directory.
+  // 2.55 Templates existence check — BLOCKED exit 1 if missing (not exit 3).
   {
-    const taskBrief = baseEnv.CDD_TASK_BRIEF;
-    if (taskBrief && !existsSync(taskBrief)) {
-      return finish(1, [], `brief missing: ${taskBrief}`, noExit);
-    }
     try {
       const tplDir = path.join(pluginRootFn(), "templates", "cdd");
       if (!existsSync(tplDir)) {
@@ -451,6 +447,24 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 4. Ledger PLAN_FILE backfill
   let plan = planFile || baseEnv.PLAN_FILE || "";
   if (!plan) plan = backfillPlanFromLedger(env.CDD_LEDGER);
+
+  // 4.5 Brief 生成 / 校验（plan backfill 之后，task-review fixed-point 之前）
+  // plan、taskNum、cwd 均为本函数现有作用域变量
+  {
+    const briefPath = env.CDD_TASK_BRIEF;
+    if (briefPath) {
+      if (!existsSync(briefPath)) {
+        if (!plan) return finish(1, [], "brief missing and plan unavailable: cannot auto-generate brief", noExit);
+        try {
+          generateBrief(plan, taskNum, briefPath, cwd);
+        } catch (e) {
+          return finish(1, [], `brief auto-generation failed: ${e.message}`, noExit);
+        }
+      } else if (!validateBrief(briefPath)) {
+        return finish(1, [], `brief missing TASK_BASE: line: ${briefPath}`, noExit);
+      }
+    }
+  }
 
   // 5. Task-review fixed-point + review-package
   if (mode === "task-review") {

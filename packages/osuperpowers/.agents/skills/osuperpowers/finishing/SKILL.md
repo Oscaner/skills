@@ -13,6 +13,8 @@ Development branch finishing: merge / PR / keep / discard.
 
 Read upstream `superpowers:finishing-a-development-branch` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
 
+The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)).
+
 ### Rule: No Worktrees
 
 **No worktrees** (user policy). Skip the upstream worktree detection block, use Standard 4 options (normal-repo variant). If worktree state is accidentally detected -> STOP + report to user. Skip upstream Step 6 (worktree remove/prune).

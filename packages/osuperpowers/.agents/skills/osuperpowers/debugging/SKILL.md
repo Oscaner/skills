@@ -13,6 +13,8 @@ Systematic debugging: evidence before fix proposals.
 
 Read upstream `superpowers:systematic-debugging` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
 
+The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)).
+
 ### Rule: No-Fix-Without-Evidence
 
 Before proposing a fix, the current turn must have diagnostic tool output (Read/Bash/Grep used for information gathering) or an explicit reference to prior diagnostic results. Otherwise, **refuse to output a fix proposal** and complete root cause investigation first. Exemption: user explicitly states the root cause is known.

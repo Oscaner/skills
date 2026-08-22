@@ -44,16 +44,16 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
 - `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, docs-review, subagent-lifecycle)
 
-For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md).
+For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
 
-For overrides trigger router internals, see [`packages/osuperpowers-router/CLAUDE.md`](packages/osuperpowers-router/CLAUDE.md).
+For overrides trigger router internals, see [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md).
 
 ## Per-package documentation
 
-- [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md) — osuperpowers plugin internals
-- [`packages/osuperpowers-router/CLAUDE.md`](packages/osuperpowers-router/CLAUDE.md) — overrides trigger router internals
-- [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
-- [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
+- [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin 用户指南
+- [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin 用户指南
+- [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin 维护者指南（emit 链 / hooks / releasing）
+- [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin 维护者指南
 
 ## Language Architecture
 
@@ -88,6 +88,7 @@ Two distinct language strategies apply depending on file type:
 - `git add -f` on a gitignored file requires explicit user confirmation.
 - **Do not commit** unless the user explicitly asks. Default is no commit.
 - **After completing a feature/fix, create a changeset** via `pnpm run changeset` (or manually write a `.changeset/<slug>.md` file) before the final commit. If the user must remind you, treat it as a process violation and file a dogfood issue.
+- **使用者视角**：规则文本与随插件发布的文档变更须从发布后使用者角度审视——消费者环境无 `vendors/`、无 monorepo 布局、无本仓库开发工具链。
 
 ## Node.js
 

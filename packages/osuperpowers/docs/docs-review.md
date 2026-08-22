@@ -60,7 +60,7 @@ When presenting warn/nit: read from the already-captured output of the current
 ### Rule: Handoff Output
 
 **Scope:** spec-review and plan-review only. Task-review uses $CDD_HANDOFF_PATH
-(unchanged). Branch-review: out of scope for this rule. `[Engine pending P2]`
+(unchanged). Branch-review: out of scope for this rule.
 
 Path convention (enforced by P2 engine — `cdd-review.mjs --handoff PATH`):
   - spec-review: `<cdd-workspace>/spec-review-handoff.json`

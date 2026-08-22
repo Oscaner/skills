@@ -54,7 +54,7 @@
 
 ### Rule: Handoff Output
 
-**范围：** 仅限 spec-review 和 plan-review。task-review 使用 `$CDD_HANDOFF_PATH`（不变）。branch-review：不在本规则范围内。`[Engine pending P2]`
+**范围：** 仅限 spec-review 和 plan-review。task-review 使用 `$CDD_HANDOFF_PATH`（不变）。branch-review：不在本规则范围内。
 
 路径约定（由 P2 引擎执行 — `cdd-review.mjs --handoff PATH`）：
   - spec-review：`<cdd-workspace>/spec-review-handoff.json`

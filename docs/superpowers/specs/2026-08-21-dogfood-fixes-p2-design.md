@@ -1,7 +1,7 @@
 # Dogfood 修复 P2 — CDD 引擎修复 + brainstorming grilling 加强 Phase Spec
 
 - **Version**: v1.1 · 2026-08-21
-- **Status**: Draft
+- **Status**: Approved
 - **Author**: Oscaner Miao · Claude Opus 4.8 (1M context)
 - **Parent program**: [Overall Spec](2026-08-21-dogfood-fixes-overall.md) v1.6
 - **Depends on**: P1（软依赖；P2 可独立交付，最终实现应对齐 P1 已确定规则）
@@ -243,7 +243,7 @@ P4（模板与流程更新）修改 `brainstorming/SKILL.md` 的 Rule: Overall-P
 | --handoff 实现 | cdd-review.mjs 解析 `--handoff PATH`；exit 0 写 `{"status":"DONE"}`；non-0 写 `{"status":"BLOCKED","blocker":"..."}`；无 `--handoff` 时不写文件 |
 | --handoff 测试 | review.test.mjs 新增：① `--handoff` + mock exit 0 → handoff 含 status DONE；② `--handoff` + mock exit 1 → handoff 含 status BLOCKED + blocker；③ 无 `--handoff` → 不写文件 |
 | grilling 委托 | brainstorming/SKILL.md Rule: Read Sub-Skills 含 grilling 委托执行指令；Red Flags 含 Option A/B 替代反模式；zh-CN 同步；修改后运行 `pnpm run emit`，`emit:check` 无 drift |
-| Review Stopping 问询 | docs-review.md Rule: Review Stopping 重跑询问改为 AskUserQuestion 格式（两选项：Proceed: \<next-step\> / Re-run 3-pass review）；brainstorming 和 writing-plans 规则引用处注明各自的 next-step 标签 |
+| Review Stopping 问询 | docs-review.md Rule: Review Stopping 重跑询问改为 AskUserQuestion 格式（两选项：Proceed: \<next-step\> 与 Fix selected warns/nits；③ 之后不提供 Re-run）；brainstorming 和 writing-plans 规则引用处注明各自的 next-step 标签 |
 | 语言架构 | SKILL.md 修改为纯英文（无中文混入）；SKILL.zh-CN.md 在同一 task 内同步更新 |
 | 测试全绿 | `pnpm run validate` 全绿 |
 | 兼容性 | 无新增规则与现有规则矛盾；现有测试全部通过 |

@@ -1,4 +1,7 @@
-// packages/osuperpowers/bin/engine/tests/brief.test.mjs
+// engine/tests/brief.test.mjs — T2: brief 生成/校验模块单测（Node port）。
+// generateBrief：从 plan 机械提取 ### Task N: 段落，追加 TASK_BASE: <sha>，写入 brief。
+//   plan 缺失 → throw；task 段落缺失 → throw；git HEAD 不可取 → throw。
+// validateBrief：含 TASK_BASE: 行 → true；文件不存在 / 无 TASK_BASE: → false。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";

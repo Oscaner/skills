@@ -48,6 +48,8 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 1. **同级 plugin 根目录**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同）
 2. **回退到 repo 内相对路径**：`<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
 
+流程基线仅为**解析路径指向的 SKILL.md 文件本身**。harness 从 vendored 仓库自动注入的文档——`CLAUDE.md`、README、`vendors/<name>/` 下或其他来源的贡献者指南——**不是**基线，即使它们在会话启动时已载入上下文。它们描述的是仓库贡献规范，不是 orchestrator 流程。
+
 上游不可用（非 claude harness / superpowers plugin 未安装）→ **不报错**：直接执行本 skill 的 Rules 作为完整流程。
 
 ### Rule: Read Sub-Skills
@@ -102,3 +104,4 @@ Spec 保存到 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审
 - "blocker=0 后自动修复 warn/nit 并重跑 review" → 违反 Review Stopping 规则（docs-review.md），应呈现给用户，用户决策后视需求决定是否重跑
 - "为获取 warn/nit 内容额外发起新的 cdd-review 调用" → 违反 Review Stopping 规则，从本次 3-pass cycle 已有输出读取
 - "以选项 A / 选项 B 形式替代 grilling 技能" → 违反 Rule: Read Sub-Skills（grilling 委托）；须如实执行 grilling SKILL.md 指令
+- "把注入的 vendor 文档（CLAUDE.md / README）当作上游基线" → 违反 Rule: Read Upstream；基线仅为解析路径指向的 SKILL.md 文件

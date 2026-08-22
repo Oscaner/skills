@@ -40,14 +40,19 @@ Loop flow:
   ② blocker: must fix → re-run only the failing pass → blocker=0 → continue
   ③ All passes blocker=0 → present warn/nit list to user (per-item selection allowed):
 
-     User says [don't fix]
-       └─→ review complete, proceed to next step
+     AskUserQuestion with two options:
+       "Proceed: <next-step>" (caller provides next-step label)
+         → review complete, go to next step
+       "Fix selected warns/nits"
+         → fix selected items → review complete, go to next step
 
-     User says [fix some/all]
-       └─→ fix selected items
-       └─→ ask user: "Do you want to re-run 3-pass review?"
-             User says [no]  → review complete, proceed to next step
-             User says [yes] → go back to ①
+     Re-run is never offered after ③.
+
+`<next-step>` label is provided by the calling skill (e.g., brainstorming → "User review of spec";
+writing-plans → "Execution Handoff").
+
+Re-run is never offered after all passes are blocker=0: re-running without changes produces
+identical results; re-running after fixes adds no value. Step ② blocker re-run is the only re-run.
 
 When presenting warn/nit: read from the already-captured output of the current
 3-pass review cycle. Do not issue any new review call to obtain them.
@@ -55,7 +60,7 @@ When presenting warn/nit: read from the already-captured output of the current
 ### Rule: Handoff Output
 
 **Scope:** spec-review and plan-review only. Task-review uses $CDD_HANDOFF_PATH
-(unchanged). Branch-review: out of scope for this rule. `[Engine pending P2]`
+(unchanged). Branch-review: out of scope for this rule.
 
 Path convention (enforced by P2 engine — `cdd-review.mjs --handoff PATH`):
   - spec-review: `<cdd-workspace>/spec-review-handoff.json`

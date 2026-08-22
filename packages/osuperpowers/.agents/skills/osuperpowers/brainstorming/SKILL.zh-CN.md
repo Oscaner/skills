@@ -55,6 +55,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 **必须**读取 `mattpocock-skills` `skills/productivity/grilling/SKILL.md`（强制步骤——澄清问题委托）。
 失败（文件不存在/读取错误）→ **报告错误 + 询问用户下一步**；用户可跳过 grilling 继续或中止流程。
 加载失败协议：见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
+读取 grilling SKILL.md 后，须将其指令作为 grilling 阶段的执行框架如实执行，不得以自行组织的提问格式、选项菜单或结构化选择列表替代。
 
 ### Rule: Research Delegation
 
@@ -77,7 +78,8 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 Spec review 有 3 种 pass 类型（completeness / consistency&scope / clarity&YAGNI），每个 pass 派发一次新的 `cdd-review`：
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-派发纪律见 [docs-review.md](../docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output `[Engine pending P2]`）。
+派发纪律见 [docs-review.md](../docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
+Review Stopping next-step 标签（本技能）：`"用户审阅 spec"`。
 
 ### Rule: Next-Step Routing
 
@@ -99,3 +101,4 @@ Spec 保存到 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审
 - "Overall 批准后直接开始实施（跳过 Phase brainstorming）" → 违反 HARD-GATE 流程型 Steps 1-10（整个流程）
 - "blocker=0 后自动修复 warn/nit 并重跑 review" → 违反 Review Stopping 规则（docs-review.md），应呈现给用户，用户决策后视需求决定是否重跑
 - "为获取 warn/nit 内容额外发起新的 cdd-review 调用" → 违反 Review Stopping 规则，从本次 3-pass cycle 已有输出读取
+- "以选项 A / 选项 B 形式替代 grilling 技能" → 违反 Rule: Read Sub-Skills（grilling 委托）；须如实执行 grilling SKILL.md 指令

@@ -19,16 +19,16 @@ import { config } from "../../utils/skills-probe.config.mjs";
 
 function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-skills-gate-"));
-  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
+  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n");
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\n");
+  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
   return ws;
 }
 
 function baseEnv(ws, extra = {}) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith("CDD_")) env[k] = v;
+    if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
   }
   return { ...env, CDD_WORKSPACE: ws, ...extra };
 }
@@ -210,7 +210,7 @@ test("implement: 无缺失 → gate 不触发 + exit 0（dry-run）", async () =
 test("implement: brief missing → BLOCKED exit 1 + stderr", async () => {
   const ws = setupWorkspace();
   const fakeProbe = async () => ({ missing: [], probeFailed: false });
-  // Set CDD_TASK_BRIEF to a non-existent path — gate checks before buildTaskEnv sets default.
+  // Set CDD_TASK_BRIEF to a non-existent path — step 4.5 brief check runs after buildTaskEnv.
   const env = baseEnv(ws, { CDD_TASK_BRIEF: "/nonexistent/task-1-brief.md" });
   const r = await capture(() =>
     runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env }),

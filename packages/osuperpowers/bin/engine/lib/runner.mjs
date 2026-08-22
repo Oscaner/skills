@@ -17,6 +17,7 @@ import { appendLedger } from "./ledger.mjs";
 import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
+import { generateBrief, validateBrief } from "./brief.mjs";
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "task-review", "fix"];
@@ -285,12 +286,18 @@ function relpathFromRepo(abs, cwd) {
   return resolved;
 }
 
+// 对齐 cdd_run_review_package：diff 文件名用 base/head 前 7 位。
+function shortSha(sha) {
+  return String(sha).slice(0, 7);
+}
+
 // 对齐 _cdd_run_review_package：spawn 上游 review-package 脚本，解析末行 `wrote <diff>:`，
 // 把 diff 相对路径写进 handoff artifacts（Node 无 jq —— 直接 JSON 读写）。
 // bash 对齐：`[[ -x review-package ]]` 可执行检查（spawn 前 accessSync X_OK）+ `wrote <diff>:`
 // progress 行落到 stdout（operator 可见）。
-async function runReviewPackage(plan, base, head, handoffPath, { cwd, env }) {
-  const scriptsDir = findSuperpowersScriptsDir(cwd);
+// scriptsDir DI：单测可 override findSuperpowersScriptsDir（避免触达 repo/cache 真实路径）。
+export async function runReviewPackage(plan, base, head, handoffPath, { cwd, env, scriptsDir: scriptsDirOverride }) {
+  const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(cwd);
   if (!scriptsDir) throw new RunBlocked("upstream review-package script not found");
   const reviewPkg = path.join(scriptsDir, "review-package");
   try {
@@ -298,7 +305,9 @@ async function runReviewPackage(plan, base, head, handoffPath, { cwd, env }) {
   } catch {
     throw new RunBlocked(`review-package not executable: ${reviewPkg}`);
   }
-  const res = await spawnCapture("bash", [reviewPkg, plan, base, head], { cwd, env });
+  const wsDir = path.dirname(handoffPath);
+  const outFile = path.join(wsDir, `review-${shortSha(base)}..${shortSha(head)}.diff`);
+  const res = await spawnCapture("bash", [reviewPkg, plan, base, head, outFile], { cwd, env });
   const outLine = res.stdout.trim().split("\n").filter(Boolean).pop() ?? "";
   const diffPath = outLine.match(/^wrote ([^:]+):/)?.[1] ?? "";
   if (!diffPath || !existsSync(diffPath)) {
@@ -428,13 +437,8 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
-  // 2.55 Brief/templates existence check — BLOCKED exit 1 if missing (not exit 3).
-  //   Reuses pluginRoot() from templates.mjs to locate the CDD template directory.
+  // 2.55 Templates existence check — BLOCKED exit 1 if missing (not exit 3).
   {
-    const taskBrief = baseEnv.CDD_TASK_BRIEF;
-    if (taskBrief && !existsSync(taskBrief)) {
-      return finish(1, [], `brief missing: ${taskBrief}`, noExit);
-    }
     try {
       const tplDir = path.join(pluginRootFn(), "templates", "cdd");
       if (!existsSync(tplDir)) {
@@ -451,6 +455,23 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 4. Ledger PLAN_FILE backfill
   let plan = planFile || baseEnv.PLAN_FILE || "";
   if (!plan) plan = backfillPlanFromLedger(env.CDD_LEDGER);
+
+  // 4.5 Brief 生成 / 校验（plan backfill 之后，task-review fixed-point 之前）
+  // CDD_TASK_BRIEF 由 buildTaskEnv 恒设置 —— briefPath 永不为 falsy，无外层守卫。
+  // plan、taskNum、cwd 均为本函数现有作用域变量
+  {
+    const briefPath = env.CDD_TASK_BRIEF;
+    if (!existsSync(briefPath)) {
+      if (!plan) return finish(1, [], "brief missing and plan unavailable: cannot auto-generate brief", noExit);
+      try {
+        generateBrief(plan, taskNum, briefPath, cwd);
+      } catch (e) {
+        return finish(1, [], `brief auto-generation failed: ${e.message}`, noExit);
+      }
+    } else if (!validateBrief(briefPath)) {
+      return finish(1, [], `brief at ${briefPath} missing TASK_BASE: line`, noExit);
+    }
+  }
 
   // 5. Task-review fixed-point + review-package
   if (mode === "task-review") {

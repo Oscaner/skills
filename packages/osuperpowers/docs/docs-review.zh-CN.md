@@ -37,23 +37,24 @@
 
 循环流程：
   ① 执行 3-pass review
-  ② blocker：必须修复 → 只重跑产生该 blocker 的 pass → blocker=0 → 继续
-  ③ 所有 pass blocker=0 → 将 warn/nit 列表一次性呈现给用户（允许逐项选择）：
+  ② blocker：必须修复 → 只重跑产生该 blocker 的那一 pass → blocker=0 → 继续
+  ③ 所有 pass blocker=0 → 将 warn/nit 列表呈现给用户（允许逐项选择）：
 
-     用户说【不修复】
-       └─→ review 完成，进入下一步
+     使用 AskUserQuestion，两个选项：
+       「继续：<next-step>」（由调用方技能提供标签）
+         → review 完成，进入下一步
+       「修复选定 warn/nit」
+         → 修复选定项 → review 完成，进入下一步
 
-     用户说【修复部分或全部】
-       └─→ 修复指定项
-       └─→ 询问用户："是否需要重新进行 3-pass review？"
-             用户说【不需要】→ review 完成，进入下一步
-             用户说【需要】  → 回到 ①
+     ③ 之后不提供重跑选项。
+
+`<next-step>` 标签由调用方技能提供（如 brainstorming → "用户审阅 spec"；writing-plans → "Execution Handoff"）。blocker 重跑（步骤 ②）是唯一的重跑；③ 之后不重跑。
 
 呈现 warn/nit 时：从本次 3-pass review cycle 已有的各 pass 输出中读取，不额外发起任何新的 review 调用。
 
 ### Rule: Handoff Output
 
-**范围：** 仅限 spec-review 和 plan-review。task-review 使用 `$CDD_HANDOFF_PATH`（不变）。branch-review：不在本规则范围内。`[Engine pending P2]`
+**范围：** 仅限 spec-review 和 plan-review。task-review 使用 `$CDD_HANDOFF_PATH`（不变）。branch-review：不在本规则范围内。
 
 路径约定（由 P2 引擎执行 — `cdd-review.mjs --handoff PATH`）：
   - spec-review：`<cdd-workspace>/spec-review-handoff.json`

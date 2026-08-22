@@ -78,6 +78,10 @@ Two distinct language strategies apply depending on file type:
 
 `docs/superpowers/specs/*.md` and `docs/superpowers/plans/*.md` are internal developer documents written **in Chinese**. No `.zh-CN.md` mirror is needed or maintained for these files.
 
+### Strategy B extension — maintainer docs (docs/maintainers/)
+
+`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the two packages' `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
+
 **Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, run `pnpm run emit` to propagate changes to `.agents/`. Running `pnpm run emit:check` verifies no drift.
 
 ## Git conventions

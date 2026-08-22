@@ -1,7 +1,7 @@
 # CDD CLI Orchestrator Reference (H6–H8)
 
 > Worker discipline 权威来源（SOT）：`../templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`
-> Orchestrator gate discipline：[`docs/controller-handoff.md`](controller-handoff.md) H1–H5
+> Orchestrator gate 纪律：[`docs/controller-handoff.md`](controller-handoff.md) H1–H5
 > **Rule 0 checklist 语义契约：** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 —— 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`bin/engine/tests/templates.test.mjs` 会断言这一点（issue #52 Guard 1）。
 
 ## H6 — CLI 分发（p1）
@@ -87,7 +87,7 @@ Batch 块仍然运行 **一条** 3-mode CLI 链；文件名使用 batch 前缀�
 - **Precondition（前置条件）：** `.superpowers/cdd/` 已被 `*` gitignore（repo `.gitignore` 中的 `.superpowers` 一行），因此 workspace 本身永远不会触发脏检查。
 - **Ordering（顺序，spec v3）：** commit-contract 校验在 H1 输出**之前**运行 —— H1 必须读取可能已被改写的 handoff，而不是 agent 的 stdout。
 
-**Ledger（台账）：** orchestrator 在 handoff `APPROVED` 后追加 ledger 行。CLI 子进程**不**写 ledger。
+**Ledger：** orchestrator 在 handoff `APPROVED` 后追加 ledger 行。CLI 子进程**不**写 ledger。
 
 ## H7 — consumer-repo 内不放置 CLI 脚本
 

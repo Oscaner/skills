@@ -1,6 +1,6 @@
 # Dogfood 修复程序 — Overall Spec
 
-- **Version**: v1.9 · 2026-08-22
+- **Version**: v1.9 · 2026-08-23
 - **Status**: Approved
 - **Author**: Oscaner Miao · Claude Opus 4.8 (1M context)
 - **Constraints**:

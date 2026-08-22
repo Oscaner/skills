@@ -1,7 +1,7 @@
 # Dogfood 修复 P3 — 文档与规则文本修正 Phase Spec
 
 - **Version**: v1.0 · 2026-08-22
-- **Status**: Draft
+- **Status**: Approved
 - **Author**: Oscaner Miao · Claude Opus 4.8 (1M context)
 - **Parent program**: [Overall Spec](2026-08-21-dogfood-fixes-overall.md) v1.9
 - **Depends on**: 无硬依赖。共享文件说明（Overall v1.9 依赖说明的展开）：P3 改 `brainstorming/SKILL.md` Rule: Read Upstream 节（P4 改同文件的 Rule: Overall-Phase 节，两节不重叠）；P3 给 `executing-plans/SKILL.md` 追加基线短句是临时性加固（P5 将删除该文件并迁移规则至 cli-driven-development）。顺序约束：P3 先于 P4/P5 落地

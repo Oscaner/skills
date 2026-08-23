@@ -50,14 +50,16 @@ For overrides trigger router internals, see [`docs/maintainers/osuperpowers-rout
 
 ## Per-package documentation
 
-- [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin 用户指南
-- [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin 用户指南
-- [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin 维护者指南（emit 链 / hooks / releasing）
-- [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin 维护者指南
+- [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
+- [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
+- [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / hooks / releasing)
+- [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin maintainer guide
 
 ## Language Architecture
 
-Two distinct language strategies apply depending on file type:
+**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**. Chinese appears only as a mirror of an English source (`*.zh-CN.md`); it is never authored standalone. The single exception is this repo's internal developer specs/plans, which follow the user's working language. (User directive: everything else must be English-primary; Chinese is mirror-only — never the source of truth.)
+
+Two distinct language strategies implement this, depending on file type:
 
 ### Strategy A — English-primary + zh-CN mirror (SKILL.md and docs/)
 
@@ -92,7 +94,7 @@ Two distinct language strategies apply depending on file type:
 - `git add -f` on a gitignored file requires explicit user confirmation.
 - **Do not commit** unless the user explicitly asks. Default is no commit.
 - **After completing a feature/fix, create a changeset** via `pnpm run changeset` (or manually write a `.changeset/<slug>.md` file) before the final commit. If the user must remind you, treat it as a process violation and file a dogfood issue.
-- **使用者视角**：规则文本与随插件发布的文档变更须从发布后使用者角度审视——消费者环境无 `vendors/`、无 monorepo 布局、无本仓库开发工具链。
+- **Consumer perspective**: changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no `vendors/`, no monorepo layout, and no this-repo toolchain. `docs/maintainers/*.md` is exempt (maintainer-only, not shipped; its reader block states this).
 
 ## Node.js
 

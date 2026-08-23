@@ -1,6 +1,6 @@
-# osuperpowers-router 插件 — 维护者指南
+# osuperpowers-router plugin — maintainer guide
 
-> **读者定位**：本文面向本 monorepo（Oscaner/skills）的开发者，描述插件开发、emit 链、hooks、releasing 等维护流程。**消费者环境不适用**——安装插件的用户无需阅读本文。
+> **Reader positioning:** this document is for developers of this monorepo (Oscaner/skills) — it describes plugin development, the emit chain, hooks, and releasing. **It does not apply to the consumer environment** — users who install the plugin need not read this.
 
 ## How it works
 

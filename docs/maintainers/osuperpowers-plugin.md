@@ -1,6 +1,6 @@
-# osuperpowers 插件 — 维护者指南
+# osuperpowers plugin — maintainer guide
 
-> **读者定位**：本文面向本 monorepo（Oscaner/skills）的开发者，描述插件开发、emit 链、hooks、releasing 等维护流程。**消费者环境不适用**——安装插件的用户无需阅读本文。
+> **Reader positioning:** this document is for developers of this monorepo (Oscaner/skills) — it describes plugin development, the emit chain, hooks, and releasing. **It does not apply to the consumer environment** — users who install the plugin need not read this.
 
 ## Marketplace --> plugin --> skill chain
 
@@ -20,7 +20,7 @@ If a skill's SKILL.md exists on disk but is not under the plugin's declared `ski
 
 The [osuperpowers-router](../../packages/osuperpowers-router/) plugin is the **trigger router** -- it ships no skill bodies. The override skills live in [osuperpowers](../../packages/osuperpowers/skills/). Each `osuperpowers` orchestrator skill follows a fixed shape:
 
-- Frontmatter `description` names the upstream it reads (`Read 上游 superpowers:<target> 作为基线`) and the personal rules it adds. Upstream entry points map to targets in the router manifest (`overrides.manifest.json`) -- the single source of truth the emit generators derive hooks and self-check tables from.
+- Frontmatter `description` names the upstream it reads (`Read upstream superpowers:<target> as baseline`) and the personal rules it adds. Upstream entry points map to targets in the router manifest (`overrides.manifest.json`) -- the single source of truth the emit generators derive hooks and self-check tables from.
 - Body opens with `## Rules`, semantic `### Rule: <Name>` headings (no numbers; `#rule-<kebab>` anchors). Each rule takes one of three shapes: (a) **replaces** upstream behavior (self-review --> fresh-subagent passes); (b) **delegates** to a `mattpocock-skills:*` skill (grilling, tdd, to-tickets); (c) **partial-delegate** -- wraps the upstream skill's Steps 0-K unchanged and overrides Step K+1 locally (writing-plans Rule: Tickets Publish Redirect is the canonical example: Steps 1-4 of `/to-tickets` are delegated verbatim, Step 5 "publish" is redirected to a single local `docs/superpowers/tickets/<date>-<feature>-tickets.md`, keeping the upstream single-file shape). Partial-delegate rules must state up front which steps are delegated and which are overridden -- the split is what prevents Step K+1 from silently reverting to upstream defaults.
 - When one rule has multiple internal enforcement mechanisms (e.g. "locate the delegate", "redirect publish target", "structure the user-approval quiz"), decompose it into sub-rules `Rule Na` / `Rule Nb` / `Rule Nc` under a single umbrella heading. Sub-rules are cheaper than sibling top-level rules when the mechanisms share a triggering context but attack different failure modes.
 - Body closes with `## Red Flags` (thoughts that should stop you). Load-bearing -- the orchestrator is designed to catch drift, so removing this section defeats the point.
@@ -199,12 +199,12 @@ The CDD engine (`cdd-task.mjs` --> `runner.mjs`) runs a **skills-missing pre-che
 | 0 | OK | task completed successfully |
 | 1 | BLOCKED | task prerequisite error (brief/templates missing, plan not found, harness not-supported) |
 | 2 | CLI missing | selected harness CLI not in PATH |
-| 3 | **skills-missing** | install-and-use channel 缺 required skills 插件（CLI 存在但插件未安装） |
+| 3 | **skills-missing** | install-and-use channel missing required skills plugins (CLI present but plugins not installed) |
 
 **Channel classification** (12 harnesses, configuration-driven via `packages/osuperpowers/bin/utils/skills-probe.config.mjs`):
 
 - **install-and-use** (8): claude / cursor-agent / droid / grok / qoder / codex / gemini / pi --> missing --> **exit 3** + stderr per-plugin install hint
-- **init** (4): opencode / trae / vibe / kiro --> missing --> stderr 提示 `init harness <name>`（非 exit 3），任务照跑
+- **init** (4): opencode / trae / vibe / kiro --> missing --> stderr hint `init harness <name>` (not exit 3); task runs anyway
 
 **Required plugins** (closed set, configuration-driven): `superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`. Probe detection varies by harness: `plugin-list` (claude/grok), `skill-dir` (cursor-agent/droid/qoder/codex/gemini), `package-list` (pi). Probe failure (CLI error / no permission) --> **fail-open allow** (exit 0 + warn).
 

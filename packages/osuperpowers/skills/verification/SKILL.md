@@ -13,6 +13,8 @@ Pre-completion verification: evidence before assertion.
 
 Read upstream `superpowers:verification-before-completion` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
 
+The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)).
+
 ### Rule: Pre-Claim Gate
 
 Before any output that claims "done / fixed / passed", invoke the upstream verification process first (trigger timing = before the model internally decides "can say it's done", not post-output interception).

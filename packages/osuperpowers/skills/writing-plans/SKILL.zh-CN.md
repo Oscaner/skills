@@ -22,6 +22,8 @@ description: 独立 plan 写作编排器——读取上游 superpowers:writing-p
 
 有上游时读取 `superpowers:writing-plans` SKILL.md 作为基线（解析优先级 + 不可用回退同 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。**读取，不 Skill-invoke**。
 
+基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。
+
 ### Rule: Read Sub-Skills
 
 按需读取 `mattpocock-skills` `skills/engineering/to-tickets/SKILL.md`（ticket 拆分步骤 1-4）。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。

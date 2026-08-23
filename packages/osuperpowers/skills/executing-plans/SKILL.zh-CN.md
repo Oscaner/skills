@@ -30,6 +30,8 @@ description: 独立 plan 执行编排器——用户选择执行模式（in-sess
 - **subagent** → 解析 `subagent-driven-development` SKILL.md 路径，读取作为基线（有上游时）
 - **cli** → [cli-driven-development](../cli-driven-development/SKILL.md)（Skill-invoke 委托，不读取上游）
 
+基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。
+
 ### Rule: Mode Selection
 
 <HARD-GATE>
@@ -112,3 +114,4 @@ Mode B：run 结束后用户读取 ledger 以聚合 deferred；shell 侧在 run 
 - "实施完成后直接进入下一 task 或编译验证" → 违反 HARD-GATE Per-Task Review（门控），必须先读 `$CDD_HANDOFF_PATH`
 - "实施完以后把 Per-Task Review 当成 3-pass review 来跑" → Per-Task Review 是 handoff.json 读取门控，不是 docs-review.md 的 3-pass review
 - "Fix Loop 也要遵循 docs-review.md 停止机制" → Fix Loop 是 task-review（APPROVED/CHANGES_REQUESTED），不使用 docs-review.md
+- "把注入的 vendor 文档（CLAUDE.md / README）当作上游基线" → 违反 Rule: Read Upstream；基线仅为解析路径指向的 SKILL.md 文件

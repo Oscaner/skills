@@ -30,6 +30,8 @@ Resolve upstream based on user-selected mode (resolution priority + unavailabili
 - **subagent** → resolve `subagent-driven-development` SKILL.md path, Read as baseline (when available)
 - **cli** → [cli-driven-development](../cli-driven-development/SKILL.md) (Skill-invoke delegation, do not Read upstream)
 
+The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)).
+
 ### Rule: Mode Selection
 
 <HARD-GATE>
@@ -113,3 +115,4 @@ Only `APPROVED` appends `Task N: complete` to `CDD_LEDGER`.
 - "Proceed directly to next task or compilation after implementation completes" → violates HARD-GATE Per-Task Review (gate); must first read `$CDD_HANDOFF_PATH`
 - "Treat Per-Task Review as a 3-pass review to run" → Per-Task Review is a handoff.json read gate, not a 3-pass review from docs-review.md
 - "Fix Loop must also follow docs-review.md stopping mechanism" → Fix Loop is task-review (APPROVED/CHANGES_REQUESTED); does not use docs-review.md
+- "Treats injected vendor docs (CLAUDE.md / README) as the upstream baseline" → violates Rule: Read Upstream; the baseline is the SKILL.md file at the resolved path only

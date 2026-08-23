@@ -44,20 +44,22 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
 - `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, docs-review, subagent-lifecycle)
 
-For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md).
+For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
 
-For overrides trigger router internals, see [`packages/osuperpowers-router/CLAUDE.md`](packages/osuperpowers-router/CLAUDE.md).
+For overrides trigger router internals, see [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md).
 
 ## Per-package documentation
 
-- [`packages/osuperpowers/CLAUDE.md`](packages/osuperpowers/CLAUDE.md) — osuperpowers plugin internals
-- [`packages/osuperpowers-router/CLAUDE.md`](packages/osuperpowers-router/CLAUDE.md) — overrides trigger router internals
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
 - [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
+- [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / hooks / releasing)
+- [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin maintainer guide
 
 ## Language Architecture
 
-Two distinct language strategies apply depending on file type:
+**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**. Chinese appears only as a mirror of an English source (`*.zh-CN.md`); it is never authored standalone. The single exception is this repo's internal developer specs/plans, which follow the user's working language. (User directive: everything else must be English-primary; Chinese is mirror-only — never the source of truth.)
+
+Two distinct language strategies implement this, depending on file type:
 
 ### Strategy A — English-primary + zh-CN mirror (SKILL.md and docs/)
 
@@ -78,6 +80,10 @@ Two distinct language strategies apply depending on file type:
 
 `docs/superpowers/specs/*.md` and `docs/superpowers/plans/*.md` are internal developer documents written **in Chinese**. No `.zh-CN.md` mirror is needed or maintained for these files.
 
+### Strategy B extension — maintainer docs (docs/maintainers/)
+
+`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the two packages' `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
+
 **Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, run `pnpm run emit` to propagate changes to `.agents/`. Running `pnpm run emit:check` verifies no drift.
 
 ## Git conventions
@@ -88,6 +94,7 @@ Two distinct language strategies apply depending on file type:
 - `git add -f` on a gitignored file requires explicit user confirmation.
 - **Do not commit** unless the user explicitly asks. Default is no commit.
 - **After completing a feature/fix, create a changeset** via `pnpm run changeset` (or manually write a `.changeset/<slug>.md` file) before the final commit. If the user must remind you, treat it as a process violation and file a dogfood issue.
+- **Consumer perspective**: changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no `vendors/`, no monorepo layout, and no this-repo toolchain. `docs/maintainers/*.md` is exempt (maintainer-only, not shipped; its reader block states this).
 
 ## Node.js
 

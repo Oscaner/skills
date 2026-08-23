@@ -13,6 +13,8 @@ description: 独立接收评审反馈编排器 —— Read 上游 superpowers:re
 
 Read 上游 `superpowers:receiving-code-review` 的 SKILL.md 作为流程基线 **当可用时**（解析优先级 + 不可用回退同 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。**Read 而非 Skill-invoke**。
 
+基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。
+
 ### Rule: Understand
 
 上游 RESPONSE 模式的 UNDERSTAND 步：反馈项不清晰 → 委派 `mattpocock-skills:grilling` 澄清，全部项达成共识才进 VERIFY。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。

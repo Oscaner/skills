@@ -48,6 +48,8 @@ Resolve paths (`{plugin-root}` = this plugin's osuperpowers root):
 1. **Sibling plugin root**: claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md` (same for cursor)
 2. **Fallback same-repo relative path**: `<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
 
+The process baseline is the **SKILL.md file at the resolved path only**. Documents a harness auto-injects from vendored repos — `CLAUDE.md`, README, contributor guides under `vendors/<name>/` or any other source — are **not** the baseline, even when they load into context at session start. They describe repo contribution norms, not orchestrator flow.
+
 Upstream unavailable (non-claude harness / superpowers plugin not installed) → **no error**: execute this skill's own Rules as the complete flow directly.
 
 ### Rule: Read Sub-Skills
@@ -102,3 +104,4 @@ Spec saved to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, after user 
 - "Auto-fix warn/nit and re-run review after blocker=0" → violates Review Stopping (docs-review.md); present to user, re-run only if user requests
 - "Issue new cdd-review call to obtain warn/nit content" → violates Review Stopping; read from already-captured output of current 3-pass cycle
 - "Presents Option A / Option B choices instead of following grilling skill" → violates Rule: Read Sub-Skills (grilling delegation); apply grilling SKILL.md instructions verbatim
+- "Treats injected vendor docs (CLAUDE.md / README) as the upstream baseline" → violates Rule: Read Upstream; the baseline is the SKILL.md file at the resolved path only

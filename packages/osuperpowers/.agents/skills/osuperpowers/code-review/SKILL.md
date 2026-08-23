@@ -13,6 +13,8 @@ Process review feedback: verify evidence, reject performative agreement.
 
 Read upstream `superpowers:receiving-code-review` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
 
+The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)).
+
 ### Rule: Understand
 
 Upstream RESPONSE mode's UNDERSTAND step: feedback items unclear -> delegate to `mattpocock-skills:grilling` for clarification, all items must reach consensus before entering VERIFY. Load failure protocol: see [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure).

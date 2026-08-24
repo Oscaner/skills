@@ -3,7 +3,7 @@
 - **Version**: v1.1 · 2026-08-24（v1.1：重构为 cdd 引擎 `### Task N:` 可消费格式；补 CLI 模式执行协议；Task 1 按实际执行扩围）
 - **Status**: Approved（设计已批准；Task 1 已完成 cb14c7c；Task 2–7 经 cdd-task.mjs 链执行）
 - **Author**: Oscaner Miao · Claude Opus 4.8 (1M context)
-- **设计规格**: [dogfood-fixes-p5-design.md](../../specs/2026-08-21-dogfood-fixes-p5-design.md)
+- **设计规格**: [dogfood-fixes-p5-design.md](../../specs/2026-08-24-dogfood-fixes-p5-design.md)
 - **上游宪章**: [dogfood-fixes-overall.md v2.1](../../specs/2026-08-21-dogfood-fixes-overall.md)（P5 全局破坏性授权）
 - **语言策略**: Strategy B（plans/ 中文，无镜像）
 

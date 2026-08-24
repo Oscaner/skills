@@ -365,7 +365,7 @@ git rm packages/osuperpowers/docs/overall-phase-spec-template.md packages/osuper
 
 原：`| P4 | 模板与流程更新 | \`overall-phase-spec-template.md\` + \`brainstorming/SKILL.md\` Rule: Overall-Phase 更新，固化本次会话新增实践（...） | [Pending] ... | [Pending] ... |`
 
-改为：`| P4 | 模板与流程更新 | \`skills/brainstorming/overall-spec-template.md\` + \`phase-spec-template.md\`（删除+新建两模板） + \`brainstorming/SKILL.md\` Rule: Overall-Phase 更新，固化本次会话新增实践（...） | [Approved](2026-08-21-dogfood-fixes-p4-design.md) | [Pending] \`plans/2026-08-21-dogfood-fixes-p4.md\` |`
+改为：`| P4 | 模板与流程更新 | \`skills/brainstorming/overall-spec-template.md\` + \`phase-spec-template.md\`（删除+新建两模板） + \`brainstorming/SKILL.md\` Rule: Overall-Phase 更新，固化本次会话新增实践（...） | [Approved](2026-08-23-dogfood-fixes-p4-design.md) | [Pending] \`plans/2026-08-21-dogfood-fixes-p4.md\` |`
 
 （Design spec 列补链接；plan 列保持 Pending 待执行完成。）
 
@@ -449,4 +449,3 @@ git commit -m "chore: add changeset for P4 spec template split"
 - Spec 覆盖：Section 3 销毁/新建/改写/重跑 全部映射到 Task 1–6；Section 4/5 模板结构映射到 Task 1/2；Section 6 SKILL.md 改写映射到 Task 4；Section 7 验证清单映射到 Task 5/6。
 - 占位符扫描：无 TBD/TODO；每个代码步骤均含实际内容或命令。
 - 类型一致性：文件路径、图例符号（`->`/`-> (soft)` 源文件，`──建议先于──▶` 镜像）、版本号（overall v1.9→v2.0）跨任务一致。
-

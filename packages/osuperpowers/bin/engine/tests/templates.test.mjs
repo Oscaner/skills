@@ -167,3 +167,15 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(cdd.includes("origin/develop"), "Final Review BASE = integration branch origin/develop");
   assert.ok(cdd.includes("osuperpowers:finishing"), "Final Review hand-off to osuperpowers:finishing");
 });
+
+test("governance: branch-review 模板基线标注（P5 task 3：BASE=origin/develop 集成点）", () => {
+  const lines = readRel("templates/cdd/branch-review.md").split("\n");
+  const headingIdx = lines.findIndex((l) => l.trim() === "# Branch Review");
+  assert.ok(headingIdx >= 0, "# Branch Review 标题存在");
+  // 标题后第一行必须是整分支基线标注注释（spec 原文，防误改回 origin/main 基线）
+  assert.equal(
+    lines[headingIdx + 1],
+    "<!-- Whole-branch review baseline: origin/develop (git merge-base origin/develop HEAD), not origin/main. Aligned with cli-driven-development Rule: Final Review. -->",
+    "标题后紧跟基线标注注释",
+  );
+});

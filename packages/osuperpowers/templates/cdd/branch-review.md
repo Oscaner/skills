@@ -1,4 +1,5 @@
 # Branch Review
+<!-- Whole-branch review baseline: origin/develop (git merge-base origin/develop HEAD), not origin/main. Aligned with cli-driven-development Rule: Final Review. -->
 
 Review git diff {{BASE}}..{{HEAD}} with {{PLAN}} for context.
 

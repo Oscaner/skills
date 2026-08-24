@@ -215,6 +215,27 @@ BREAKING CHANGE: removed public skills executing-plans, code-review, cli-code-re
 ```
 提交：`chore: add changeset for P5 three-skill convergence`。
 
+### Task 8: Final Review 修复波（2 warn + 2 nit 全修）
+
+来源：branch-review CLI pass（BASE=4ed0a46, HEAD=07cf347）findings。一轮修复波，修后复验 validate，不重跑评审。
+
+1. **SKILL.md + zh-CN 去 D6 措辞**（warn#1——D6 语义已随 executing-plans 删除，技能无此规则，不得声称拥有）：
+   - en description `owns orchestrator responsibilities (task classification / fix loop / quality gate / D6 aggregation / Final branch-review)` → `owns orchestrator responsibilities (task classification / fix loop / quality gate / final branch-review)`
+   - en intro `(mode chain, D6 aggregation, Final Review)` → `(mode chain, Final Review)`
+   - zh-CN description `承担编器职责（任务分类 / fix loop / 质量门 / D6 聚合 / Final branch-review）` → `承担编器职责（任务分类 / fix loop / 质量门 / 最终 branch-review）`
+   - zh-CN intro `（模式链、D6 聚合、Final Review）` → `（模式链、Final Review）`
+   - 同步 `templates.test.mjs` 中引用 D6 的注释/断言措辞（若 grep 到 "D6" 于该测试文件）
+2. **三处注释去字面 slug**（warn#2——让清零 grep 真正归零）：
+   - `templates.test.mjs:162` `// P5 删除守卫：executing-plans 技能已删，治理宿主迁移至 cli-driven-development。` → `// P5 deletion guard: legacy skill removed; governance host moved to cli-driven-development.`
+   - `ci-validate.mjs:175` `// 9 emitters + init (P5 removed executing-plans, code-review, cli-code-review)` → `// 9 emitters + init (P5 removed three legacy skills)`
+   - `emit.test.mjs:701` `// P5 removed executing-plans + code-review mappings` → `// P5 removed two legacy mappings`
+3. **README 合并双行**（nit#3）：
+   - en 第 21 行保留为唯一行并合并描述：`` | `cli-driven-development` | Orchestrator + Engine | Plan executor (cli-only); harness CLI three-mode chain dispatcher + final branch-review CLI | ``；删除第 27 行 engine 行
+   - zh-CN 第 21 行同理：`` | `cli-driven-development` | 编排器 + 引擎 | 计划执行器（cli-only）；CLI 三模式链分发器 + 最终 branch-review CLI | ``；删除第 27 行
+4. **gate 消息指向 Three-Mode Chain**（nit#4）：`cdd-gate-core.mjs:250` `See cli-driven-development Rule: Final Review.` → `See cli-driven-development Rule: Three-Mode Chain.`
+
+验证：清零 grep（bin/scripts 无字面 slug 命中）+ `pnpm run emit && pnpm run emit:check && pnpm run validate` ALL PASS。提交：一个 `fix:` commit。
+
 ---
 
 ## Section 3–5：顺序 / 风险（要点保留）

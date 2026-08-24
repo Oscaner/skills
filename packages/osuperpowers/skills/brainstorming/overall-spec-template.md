@@ -71,7 +71,7 @@ Every known issue / discovered requirement, mapped to the phase that resolves it
 
 - Scope column: decomposition context only.
 - **Split:** replace parent row with Na, Nb before sub-phase work continues.
-- Cells: Pending → link; on ship, completion marker on **plan** cell only.
+- Cells: Pending -> link; on ship, completion marker on **plan** cell only.
 - **Acceptance criteria**: verifiable condition for the phase (not "done when code exists").
 - **Dependency**: cite the graph node + whether hard (`->`) or soft (`-> (soft)`).
 

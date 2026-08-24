@@ -12,7 +12,7 @@ const PENDING_ROOT = join(
 );
 const TTL = 300;
 
-const READ_RES = {"osuperpowers:brainstorming":["(?i)/osuperpowers/(?:[^/]*/)?skills/brainstorming/SKILL\\.md$"],"osuperpowers:writing-plans":["(?i)/osuperpowers/(?:[^/]*/)?skills/writing\\-plans/SKILL\\.md$"],"osuperpowers:cli-driven-development":["(?i)/osuperpowers/(?:[^/]*/)?skills/cli\\-driven\\-development/SKILL\\.md$"],"osuperpowers:executing-plans":["(?i)/osuperpowers/(?:[^/]*/)?skills/executing\\-plans/SKILL\\.md$"],"osuperpowers:finishing":["(?i)/osuperpowers/(?:[^/]*/)?skills/finishing/SKILL\\.md$"],"osuperpowers:debugging":["(?i)/osuperpowers/(?:[^/]*/)?skills/debugging/SKILL\\.md$"],"mattpocock-skills:tdd":["(?i)/mattpocock\\-skills/(?:[^/]*/)?skills/osuperpowers/tdd/SKILL\\.md$"],"osuperpowers:verification":["(?i)/osuperpowers/(?:[^/]*/)?skills/verification/SKILL\\.md$"],"osuperpowers:code-review":["(?i)/osuperpowers/(?:[^/]*/)?skills/code\\-review/SKILL\\.md$"]};
+const READ_RES = {"osuperpowers:brainstorming":["(?i)/osuperpowers/(?:[^/]*/)?skills/brainstorming/SKILL\\.md$"],"osuperpowers:writing-plans":["(?i)/osuperpowers/(?:[^/]*/)?skills/writing\\-plans/SKILL\\.md$"],"osuperpowers:cli-driven-development":["(?i)/osuperpowers/(?:[^/]*/)?skills/cli\\-driven\\-development/SKILL\\.md$"],"osuperpowers:finishing":["(?i)/osuperpowers/(?:[^/]*/)?skills/finishing/SKILL\\.md$"],"osuperpowers:debugging":["(?i)/osuperpowers/(?:[^/]*/)?skills/debugging/SKILL\\.md$"],"mattpocock-skills:tdd":["(?i)/mattpocock\\-skills/(?:[^/]*/)?skills/osuperpowers/tdd/SKILL\\.md$"],"osuperpowers:verification":["(?i)/osuperpowers/(?:[^/]*/)?skills/verification/SKILL\\.md$"]};
 
 function compilePattern(pat) {
   // Python `(?i)` inline flag → JS `i` RegExp flag (strip the prefix).

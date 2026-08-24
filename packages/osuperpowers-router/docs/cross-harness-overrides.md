@@ -64,7 +64,7 @@ Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Claude Code,
 | Item | Detail |
 |------|--------|
 | Pending path | `$TMPDIR/osuperpowers/pending-cdd/<session_key>.json` |
-| Activation | CDD slash (`/subagent-driven-development`, `/superpowers:subagent-driven-development`, `/executing-plans`) via Claude expansion |
+| Activation | CDD slash (`/subagent-driven-development`, `/superpowers:subagent-driven-development`) via Claude expansion |
 | Decision core | `osuperpowers/bin/gate/cdd-gate-core.mjs` — single fail-open, mode-aware decision point (git read-only allowlist + workspace-bound Write) |
 | Adapters | `osuperpowers/bin/gate/adapters/<harness>.mjs` — claude, cursor + 9 more (grok/qoder/trae/codex/gemini/vibe/kiro/opencode/pi) |
 | Fail-open | No pending, cannot resolve workspace, or adapter exception → allow (skill checklist fallback) |
@@ -175,7 +175,7 @@ Manual verification: same as [Self-check rules](#self-check-rules-both-harnesses
 
 ## CDD CLI harness scripts
 
-Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by `executing-plans` and `cli-driven-development`. Orchestrator resolves harness once per plan; the engine does **not** re-detect CLI at runtime.
+Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by `cli-driven-development`. Orchestrator resolves harness once per plan; the engine does **not** re-detect CLI at runtime.
 
 | Harness | CLI binary | Ship level |
 |---------|------------|------------|

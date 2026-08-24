@@ -1,6 +1,6 @@
 ---
 name: cli-select
-description: 列出系统已安装的 harness CLI 并询问用哪个执行任务。推荐优先级 droid > pi > 当前 harness。被 cli-driven-development / cli-task / cli-code-review / executing-plans 引用。
+description: 列出系统已安装的 harness CLI 并询问用哪个执行任务。推荐优先级 droid > pi > 当前 harness。被 cli-driven-development / cli-task 引用。
 ---
 
 # CLI Select

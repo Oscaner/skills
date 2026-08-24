@@ -1,6 +1,6 @@
 # Dogfood 修复程序 — Overall Spec
 
-- **Version**: v2.0 · 2026-08-23
+- **Version**: v2.1 · 2026-08-24
 - **Status**: Approved
 - **Author**: Oscaner Miao · Claude Opus 4.8 (1M context)
 - **Constraints**:
@@ -10,6 +10,7 @@
   - 每相完成后独立 changeset
   - **语言架构 Strategy A**：`skills/*/SKILL.md` 和 `docs/*.md` 须为纯英文，zh-CN 镜像必须在同一 task 内同步更新；不得在英文文件内掺入中文内容
   - **语言架构 Strategy B**：`docs/superpowers/specs/` 和 `docs/superpowers/plans/` 为中文，无需镜像
+  - **P5 破坏性授权例外**：2026-08-24 P5 brainstorming 决策，授予 P5 **全局破坏性授权**——P5 可对 CDD 引擎做重构、可引入破坏性更新，范围覆盖整个 dogfood 程序（含已 shipped 的 P1–P4）。本文件 §1 非目标中"不重构引擎整体架构""不引入新功能或扩展现有能力边界"两条约束**对 P5 不再适用**。破坏性改动须"符合最佳实践"：聚焦、有记录、避免无谓拆毁已稳定成果；且仍须 `pnpm run validate` 全绿、每相独立 changeset。
 
 ---
 
@@ -43,12 +44,13 @@
 | P3 | 无 issue（dogfood 会话 2026-08-22 P3 brainstorming 发现） | `packages/*/CLAUDE.md` 随插件发布（contentRoot="."），内容却全为 monorepo 维护指南，对消费者环境是噪音；须拆分重组（维护者内容移出 packages/，落 docs/maintainers/） |
 | P4 | 无 issue（依据 dogfood 会话 2026-08-21 决策） | `skills/brainstorming/overall-spec-template.md` + `phase-spec-template.md`（删除旧 docs/ 单文档、拆为两模板） + `brainstorming/SKILL.md` Rule: Overall-Phase 更新，固化本次会话新增实践 |
 | P4 | 无 issue（dogfood 会话 2026-08-22 P2 执行发现） | phase 进行中发生需求变更时须回馈 Overall Spec（P2 执行中新增 3 项：grilling 委托 v1.5 / Review Stopping v1.6 / Rule: Scope v1.7） |
-| P5 | 无 issue（dogfood 会话 2026-08-22 whole-branch review 发现） | cli-code-review Rule: Scope 基线为 `origin/main`，本仓库集成分支为 `develop`，应改为 `origin/develop` |
+| P5 | 无 issue（dogfood 会话 2026-08-22 whole-branch review 发现） | cli-code-review Rule: Scope 基线为 `origin/main`，本仓库集成分支为 `develop`，应改为 `origin/develop`（改为 `branch-review` 模板/Rule: Scope 基线 `origin/develop`） |
+| P5 | 无 issue（dogfood 会话 2026-08-24 P5 brainstorming 决策） | 删除 `executing-plans`、`code-review`、`cli-code-review` 三技能（评估后冗余，review 链路单一收敛到 `cdd-review.mjs --template {task-review\|branch-review}`）；`writing-plans` 交棒改指 `cli-driven-development`；获全局破坏性授权（B） |
 
-**非目标**：
-- 不引入新功能或扩展现有能力边界
+**非目标（P5 除外，见 §1 破坏性授权例外）**：
+- 不引入新功能或扩展现有能力边界（P5 解除）
 - 不修改上游 vendors 子模块
-- 不重构引擎整体架构
+- 不重构引擎整体架构（P5 解除）
 
 **跨相约束**：
 - P1 技能规则变更不得破坏现有 engine 测试（`pnpm run validate` 全绿）
@@ -65,8 +67,8 @@
 | P1 | Skills 规则修复 | writing-plans / brainstorming / executing-plans / code-review / cli-code-review SKILL.md + review-dispatch.md 规则文本变更（#156 / #162 / #163）；Review 停止机制（blocker 必修，warn/nit 问用户，决策后不再重跑 3 pass）；所有 review 类型 handoff.json 规则定义 | [Approved](2026-08-21-dogfood-fixes-p1-design.md) | [Pending] `plans/2026-08-21-dogfood-fixes-p1.md` |
 | P2 | CDD 引擎修复 + brainstorming grilling 加强 + docs-review Review Stopping 问询改进 | runner.mjs brief 自动生成 + 结构校验；runReviewPackage OUTFILE 修复（#154 / #155）；cdd-review.mjs 新增 `--handoff PATH` 参数（使 spec/plan/branch review 统一输出 handoff.json）；brainstorming/SKILL.md Rule: Read Sub-Skills 加强 grilling 委托指令（grilling 发现）；docs-review.md Rule: Review Stopping 重跑询问改为 AskUserQuestion + Next step 提示（review 发现） | [Approved](2026-08-21-dogfood-fixes-p2-design.md) | [Approved](../plans/2026-08-21-dogfood-fixes-p2.md) |
 | P3 | 文档与规则文本修正 | cdd-reference.zh-CN.md 全文翻译补全 + Mode B 漂移节清除（#152，边界从 H7→EOF 扩为全文）；Rule: Read Upstream 措辞澄清（brainstorming 正典追加 + 5 个引用方短句 + executing-plans 短句与反模式；7 个 zh-CN 镜像同步）；CLAUDE.md 拆分重组（packages/*/CLAUDE.md 删除，维护者内容迁 docs/maintainers/，根 CLAUDE.md 指针更新 + 使用者视角维护规则） | [Approved](2026-08-22-dogfood-fixes-p3-design.md) | [Approved](../plans/2026-08-22-dogfood-fixes-p3.md) |
-| P4 | 模板与流程更新 | `skills/brainstorming/overall-spec-template.md` + `phase-spec-template.md`（删除+新建两模板） + `brainstorming/SKILL.md` Rule: Overall-Phase 更新，固化本次会话新增实践（issue 清单表、路径命名约定、Phase acceptance criteria、软/硬依赖区分、**phase 中需求变更须回馈 Overall**）；补充"每个 Phase 必须经完整 brainstorming 循环生成 Phase spec，Overall 批准后直接进入实施是违规" | [Approved](2026-08-21-dogfood-fixes-p4-design.md) | [Pending] `plans/2026-08-21-dogfood-fixes-p4.md` |
-| P5 | executing-plans 统一 + branch-review CLI | 删除 `executing-plans/SKILL.md`（及 zh-CN 镜像），将编排职责统一至 `cli-driven-development/SKILL.md`；执行末尾改为 branch-review CLI 而非调用 `osuperpowers:code-review` skill；cli-code-review Rule: Scope 基线改为 `origin/develop`（dogfood 发现） | [Pending] `specs/2026-08-21-dogfood-fixes-p5-design.md` | [Pending] `plans/2026-08-21-dogfood-fixes-p5.md` |
+| P4 | 模板与流程更新 | `skills/brainstorming/overall-spec-template.md` + `phase-spec-template.md`（删除+新建两模板） + `brainstorming/SKILL.md` Rule: Overall-Phase 更新，固化本次会话新增实践（issue 清单表、路径命名约定、Phase acceptance criteria、软/硬依赖区分、**phase 中需求变更须回馈 Overall**）；补充"每个 Phase 必须经完整 brainstorming 循环生成 Phase spec，Overall 批准后直接进入实施是违规" | [Approved](2026-08-23-dogfood-fixes-p4-design.md) | [Pending] `plans/2026-08-21-dogfood-fixes-p4.md` |
+| P5 | 三技能收敛 + branch-review CLI | 删除 `executing-plans`/`code-review`/`cli-code-review` 三技能（及 zh-CN 镜像），review 链路单一收敛到 `cdd-review.mjs --template {task-review\|branch-review}`；`cli-driven-development/SKILL.md` 新增 Rule: Final Review（末尾 branch-review CLI 收尾，基线 `origin/develop`）；`writing-plans` 交棒改指 `cli-driven-development`；获全局破坏性授权（B） | [Pending] `specs/2026-08-24-dogfood-fixes-p5-design.md` | [Pending] `plans/2026-08-21-dogfood-fixes-p5.md` |
 
 **P1 → P2 软依赖**：P2 引擎新增 `cdd-review.mjs --handoff PATH`，为 P1 中"所有 review 输出 handoff.json"规则提供引擎侧实现；P1 规则可先落地，P2 提供执行保障。P1 可独立交付，P2 强化其可执行性。P2 可在 P1 评审期间并行推进，但最终实现应对齐 P1 已确定的规则。P3 与 P1/P2 完全独立（共享文件见下）。P3 改 `brainstorming/SKILL.md` Rule: Read Upstream 节（P4 改同文件 Rule: Overall-Phase 节，两节不重叠）、给 `executing-plans/SKILL.md` 追加基线短句（临时性加固，P5 删除该文件时一并迁移）——顺序约束：**P3 先于 P4/P5 落地**。P4 修改 `brainstorming/SKILL.md`（Rule: Overall-Phase 节），与 P1 同文件，建议 P1 shipped 后再启动 P4 实现，避免并行编辑冲突。**P5 依赖 P1**：P5 删除 executing-plans/SKILL.md，P1 已建立的规则（HARD-GATE、Checklist）需先迁移至 cli-driven-development，建议 P1 shipped 后启动 P5。
 
@@ -98,7 +100,7 @@ P1 和 P3 可并行启动；P2 可在 P1 评审期间并行推进，但最终实
 >
 > **顺序建议（软依赖）**：P2 可在 P1 评审期间并行推进，但最终实现应对齐 P1 已确定的规则。P3 与 P1/P2 完全独立，可与 P1 并行或在任意时间启动。P4、P5 建议在 P1 shipped 后再启动（P4 与 P1 共享 brainstorming/SKILL.md；P5 需先有 P1 规则作为迁移源），程序末尾执行。
 >
-> **P5 验收标准**：`executing-plans/SKILL.md`（及 zh-CN）已删除；`cli-driven-development/SKILL.md` 已整合原 executing-plans 编排规则（HARD-GATE / Checklist / Rules）；执行末尾改用 branch-review CLI（如 task-review 风格），不再调用 `osuperpowers:code-review` skill；cli-code-review Rule: Scope 基线改为 `origin/develop`；`pnpm run validate` 全绿；详细条件见 P5 design spec。
+> **P5 验收标准**：`executing-plans/SKILL.md`（及 zh-CN）、`code-review/SKILL.md`（及 zh-CN）、`cli-code-review/SKILL.md`（及 zh-CN）三技能目录已删除；`cli-driven-development/SKILL.md` 已承担 plan 执行唯一编排器（cli-only），含 Rule: Final Review（末尾 `cdd-review.mjs --template branch-review` 收尾，基线 `origin/develop`）；`writing-plans` 交棒改指 `cli-driven-development`；除 vendored / 历史 plan 文档外 `executing-plans`/`code-review`/`cli-code-review` 字面引用全清零；`pnpm run emit`/`emit:check` 无 drift、`pnpm run validate` 全绿；独立 changeset（破坏性，major）；详细条件见 P5 design spec。
 >
 > **P1 验收标准**：5 个 SKILL.md + review-dispatch.md 规则变更落地；Review 停止机制（blocker 必修、warn/nit 问用户、决策后不再重跑 3 pass）写入 review-dispatch.md；所有 review 类型 handoff.json 规则写入 review-dispatch.md 及各引用方；`pnpm run validate` 全绿；详细条件见 P1 design spec。
 >
@@ -138,3 +140,4 @@ P1 和 P3 可并行启动；P2 可在 P1 评审期间并行推进，但最终实
 | 2026-08-22 | v1.9：P3 范围扩展为「文档与规则文本修正」（翻译扩全文 + Read Upstream 措辞澄清 + CLAUDE.md 拆分重组，dogfood 会话 2026-08-22 P3 brainstorming 发现），新增使用者视角维护规则；更新 Issue 清单、Phase 清单、跨相约束、依赖说明、P3 验收标准 |
 | 2026-08-23 | P3 实施完成（cdd-reference zh-CN 全文补全 / Read Upstream 基线澄清 / CLAUDE.md 拆分重组），Phase 清单 P3 行 Design spec 与 Implementation plan 列更新为 Approved |
 | 2026-08-23 | v2.0：P4 实施——删除 `docs/overall-phase-spec-template.md` 单文档，拆为 `skills/brainstorming/overall-spec-template.md` + `phase-spec-template.md`（含 zh-CN 镜像）；Section 1/2/4 三处 P4 引用同步至新路径与删除+新建框架（phase 中变更回馈 Overall 实践，Q5） |
+| 2026-08-24 | v2.1：P5 授予**全局破坏性授权**（B）——P5 可对 CDD 引擎重构、可引入破坏性更新，覆盖整个 dogfood 程序（含已 shipped P1–P4）；§1 非目标中"不重构引擎""不扩展边界"两条对 P5 解除；新增 P5 破坏性授权例外条款。P5 范围扩展为**三技能收敛**：删 `executing-plans`/`code-review`/`cli-code-review`（评估冗余，review 链路单一收敛到 `cdd-review.mjs --template {task-review\|branch-review}`），`writing-plans` 交棒改指 `cli-driven-development`，`branch-review` 基线 `origin/develop`；更新 Issue 清单、Phase 清单、P5 验收标准 |

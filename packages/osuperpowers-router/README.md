@@ -25,12 +25,10 @@ Three layers keep the route from being skipped:
 | `/brainstorming` | `osuperpowers:brainstorming` | Delegates discovery to `grilling`; subagent spec review |
 | `/writing-plans` | `osuperpowers:writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
 | `/subagent-driven-development` | `osuperpowers:cli-driven-development` | CDD engine — harness CLI three-mode chain |
-| `/executing-plans` | `osuperpowers:executing-plans` | Three-mode orchestrator (in-session / subagent / cli) |
 | `/finishing-a-development-branch` | `osuperpowers:finishing` | Branch finish / PR; no worktrees; conventional commits |
 | `/systematic-debugging` | `osuperpowers:debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
 | `/test-driven-development` | `mattpocock-skills:tdd` | Red-green loop; seam confirmation gate |
 | `/verification-before-completion` | `osuperpowers:verification` | No completion claims without verification evidence |
-| `/receiving-code-review` | `osuperpowers:code-review` | Unclear feedback goes to `grilling`; fixes go to `tdd` |
 | `/using-git-worktrees` | `osuperpowers:finishing` | Refuses worktree creation (user policy) |
 
 ## Installation

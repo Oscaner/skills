@@ -21,8 +21,6 @@ const MAP = {
   "/writing-plans": "osuperpowers:writing-plans",
   "superpowers:subagent-driven-development": "osuperpowers:cli-driven-development",
   "/subagent-driven-development": "osuperpowers:cli-driven-development",
-  "superpowers:executing-plans": "osuperpowers:executing-plans",
-  "/executing-plans": "osuperpowers:executing-plans",
   "superpowers:finishing-a-development-branch": "osuperpowers:finishing",
   "/finishing-a-development-branch": "osuperpowers:finishing",
   "superpowers:systematic-debugging": "osuperpowers:debugging",
@@ -31,8 +29,6 @@ const MAP = {
   "/test-driven-development": "mattpocock-skills:tdd",
   "superpowers:verification-before-completion": "osuperpowers:verification",
   "/verification-before-completion": "osuperpowers:verification",
-  "superpowers:receiving-code-review": "osuperpowers:code-review",
-  "/receiving-code-review": "osuperpowers:code-review",
   "superpowers:using-git-worktrees": "osuperpowers:finishing",
   "/using-git-worktrees": "osuperpowers:finishing"
 };

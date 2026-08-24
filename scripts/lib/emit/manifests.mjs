@@ -426,7 +426,7 @@ function kimiInterface(plugin) {
 /** Kimi Code tool-mapping prose for the cdd/cli-* orchestration skills. */
 function kimiInstructions(plugin) {
   return `Kimi Code tool mapping for ${plugin.name} skills:\n\n` +
-    `- The cli-* family (cli-select, cli-task, cli-driven-development, cli-code-review) orchestrate work through the cdd engine's CLI. When a skill says to run an orchestrator, select a task, or drive a development loop, call the cdd-* scripts from the plugin's bin/ via the terminal tool.\n` +
+    `- The cli-* family (cli-select, cli-task, cli-driven-development) orchestrate work through the cdd engine's CLI. When a skill says to run an orchestrator, select a task, or drive a development loop, call the cdd-* scripts from the plugin's bin/ via the terminal tool.\n` +
     `- When a skill says to ask the user, ask clarifying questions, ask one question at a time, present multiple-choice options, use the terminal for a question, or wait for the user's choice, call Kimi Code's AskUserQuestion tool. Do not render those choices as plain assistant text unless AskUserQuestion is unavailable or the session is in auto permission mode.\n` +
     `- For AskUserQuestion, provide 1 question with 2-4 concrete options when possible. Put the recommended option first and suffix its label with (Recommended).\n` +
     `- When a skill refers to TodoWrite or a task checklist, use Kimi Code's TodoList tool.\n` +

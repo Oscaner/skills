@@ -1,7 +1,7 @@
 # Docs Review
 
 > **Scope:** Applies to 3-pass AI-orchestrated doc reviews (spec-review / plan-review) only.
-> Task-review uses Fix Loop in `executing-plans/SKILL.md`. Branch-review uses `cli-code-review/SKILL.md`.
+> Task-review uses Fix Loop in `cli-driven-development/SKILL.md`. Branch-review uses `cli-driven-development` + `cdd-review.mjs` (--template branch-review).
 
 Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). Cited by review-pass rules in brainstorming / writing-plans.
 

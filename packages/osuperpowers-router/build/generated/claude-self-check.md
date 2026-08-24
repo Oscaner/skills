@@ -27,11 +27,9 @@ Before your first tool call in ANY turn, run this check — no exceptions:
 | `superpowers:brainstorming` | `Skill(osuperpowers:brainstorming)` |
 | `superpowers:writing-plans` | `Skill(osuperpowers:writing-plans)` |
 | `superpowers:subagent-driven-development` | `Skill(osuperpowers:cli-driven-development)` |
-| `superpowers:executing-plans` | `Skill(osuperpowers:executing-plans)` |
 | `superpowers:finishing-a-development-branch` | `Skill(osuperpowers:finishing)` |
 | `superpowers:systematic-debugging` | `Skill(osuperpowers:debugging)` |
 | `superpowers:test-driven-development` | `Skill(mattpocock-skills:tdd)` |
 | `superpowers:verification-before-completion` | `Skill(osuperpowers:verification)` |
-| `superpowers:receiving-code-review` | `Skill(osuperpowers:code-review)` |
 | `superpowers:using-git-worktrees` | `Skill(osuperpowers:finishing)` |
 | Any other `superpowers:<upstream-slug>` listed in overrides.manifest.json | `Skill(<name>)` where `<name>` is the manifest target's `name` field |

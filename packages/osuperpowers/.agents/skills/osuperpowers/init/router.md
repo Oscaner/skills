@@ -32,12 +32,10 @@
 | `/brainstorming` | Skill(osuperpowers:brainstorming) |
 | `/writing-plans` | Skill(osuperpowers:writing-plans) |
 | `/subagent-driven-development` | Skill(osuperpowers:cli-driven-development) |
-| `/executing-plans` | Skill(osuperpowers:executing-plans) |
 | `/finishing-a-development-branch` | Skill(osuperpowers:finishing) |
 | `/systematic-debugging` | Skill(osuperpowers:debugging) |
 | `/test-driven-development` | Skill(mattpocock-skills:tdd) |
 | `/verification-before-completion` | Skill(osuperpowers:verification) |
-| `/receiving-code-review` | Skill(osuperpowers:code-review) |
 | `/using-git-worktrees` | Skill(osuperpowers:finishing) |
 ```
 

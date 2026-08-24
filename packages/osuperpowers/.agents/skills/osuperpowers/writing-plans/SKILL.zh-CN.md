@@ -14,7 +14,7 @@ description: 独立 plan 写作编排器——读取上游 superpowers:writing-p
 3. 逐节写入 plan——每节一次 tool call（Rule: Section-by-Section）
 4. 3-pass Plan Review via CLI（completeness / decomposition / buildability）
 5. 将写完的 plan 一次性呈现给用户确认
-6. Execution Handoff → 移交 `osuperpowers:executing-plans`
+6. Execution Handoff → 移交 `osuperpowers:cli-driven-development`
 
 ## Rules
 
@@ -53,22 +53,20 @@ ticket 拆分后，发布到单一本地文件 `docs/superpowers/tickets/YYYY-MM
 
 ### Rule: Next-Step Routing
 
-plan review 通过后，调用 **`osuperpowers:executing-plans`**（非上游 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans`）。
+plan review 通过后，调用 **`osuperpowers:cli-driven-development`**（非上游 `superpowers:subagent-driven-development`）。
 
 **Execution handoff 文本：**
 
-> "Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute — I'll hand off to `osuperpowers:executing-plans` for mode selection and execution."
-
-不提供 subagent vs inline 选择——`osuperpowers:executing-plans` 自行处理模式选择。
+> "Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute — I'll hand off to `osuperpowers:cli-driven-development` for CLI execution."
 
 ## Red Flags
 
 - "一次性写入全部内容" → 逐节写入（Rule: Section-by-Section）
 - "发布 tickets 到 GitHub" → 单一本地文件（Rule: Tickets Publish Redirect）
-- "调用 superpowers:subagent-driven-development / superpowers:executing-plans" → 调用 **`osuperpowers:executing-plans`**（Rule: Next-Step Routing）
-- "提供 subagent vs inline 选择" → `osuperpowers:executing-plans` 处理模式选择（Rule: Next-Step Routing）
+- "调用 superpowers:subagent-driven-development" → 调用 **`osuperpowers:cli-driven-development`**（Rule: Next-Step Routing）
+- "提供执行模式选择" → `osuperpowers:cli-driven-development` 处理执行（Rule: Next-Step Routing）
 - "每节写完后询问用户是否继续" → 写完所有节再确认（Rule: Section-by-Section）
 - "用内联自检替代 Plan Review cdd-review CLI" → 违反 HARD-GATE Plan Review，必须调用三次 CLI
-- "展示 subagent / in-session / CLI 三选一选项" → 使用 Execution Handoff 文本，移交 `osuperpowers:executing-plans`（Rule: Next-Step Routing）
+- "展示执行模式选择选项" → 使用 Execution Handoff 文本，移交 `osuperpowers:cli-driven-development`（Rule: Next-Step Routing）
 - "blocker=0 后自动修复 warn/nit 并重跑 review" → 违反 Review Stopping 规则（docs-review.md），应呈现给用户，用户决策后视需求决定是否重跑
 - "为获取 warn/nit 内容额外发起新的 cdd-review 调用" → 违反 Review Stopping 规则，从本次 3-pass cycle 已有输出读取

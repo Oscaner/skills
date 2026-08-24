@@ -1,11 +1,11 @@
 ---
 name: cli-driven-development
-description: cdd engine -- drives planned task development with the selected harness CLI: three-mode chain (implement/task-review/fix) + handoff contract + commit gate + ledger. Engine mode: orchestrator responsibilities (task classification / fix loop / quality gate / D6 aggregation) are handled by executing-plans.
+description: Plan executor (cli-only) + orchestrator + engine — drives planned task development via the selected harness CLI three-mode chain (implement / task-review / fix), owns orchestrator responsibilities (task classification / fix loop / quality gate / final branch-review), and a final branch-review CLI pass before finishing.
 ---
 
 # CLI-Driven Development (cdd)
 
-Execute planned tasks with the selected harness CLI via a three-mode chain. **This is the engine**: it executes, it does not make orchestrator decisions.
+Execute planned tasks with the selected harness CLI via a three-mode chain. **This skill is both orchestrator and engine**: it executes AND makes orchestrator decisions (mode chain, Final Review).
 
 ## Rules
 
@@ -36,8 +36,29 @@ When implement / fix mode returns, validate that the workspace is clean (`cdd_va
 
 Only append `Task N: complete` line to `CDD_LEDGER` (progress.md) when status is `APPROVED`; CLI subprocesses do not write to the ledger.
 
+### Rule: Final Review
+
+<HARD-GATE>
+After ALL tasks return APPROVED and the ledger is complete, you MUST run a
+whole-branch review via the selected harness CLI before handing off to
+`osuperpowers:finishing`. Do NOT skip this pass. Do NOT auto-merge its findings.
+</HARD-GATE>
+
+Run:
+
+```bash
+{plugin_root}/bin/engine/cdd-review.mjs --harness <name> \
+  --template branch-review \
+  --param BASE=<git merge-base origin/develop HEAD> \
+  --param HEAD=<head> \
+  --param PLAN=<plan-path>
+```
+
+BASE is the integration branch point (`origin/develop`), not `origin/main` — this repo integrates into `develop`. Report the findings to the user; do NOT auto-merge. When clean, hand off to `osuperpowers:finishing`.
+
 ## Red Flags
 
 - "--resume / -c / any flag that carries historical session" -> forbidden (H6.5), use one-shot print mode
 - "Modify repo files inside an orchestrator session" -> engine chain only goes through cdd-task.mjs; session side is constrained by orchestrator-gate
-- "Cram orchestrator decisions into the engine" -> classification / quality gate / D6 belong to the orchestrator (executing-plans), not the engine
+- "branch-review findings auto-merged" -> findings are reported, never auto-merged (Rule: Final Review)
+- "Skip Final Review and go straight to finishing" -> Final Review is a HARD-GATE before `osuperpowers:finishing` (Rule: Final Review)

@@ -18,17 +18,14 @@ This plugin provides two skill families:
 |-------|------|-------------|
 | `brainstorming` | Orchestrator | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
 | `writing-plans` | Orchestrator | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
-| `executing-plans` | Orchestrator | Three-mode executor (in-session / subagent / cli) |
+| `cli-driven-development` | Orchestrator + Engine | Plan executor (cli-only); harness CLI three-mode chain dispatcher + final branch-review CLI |
 | `finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
 | `debugging` | Orchestrator | Evidence before fixes; delegates to `diagnosing-bugs` |
 | `verification` | Orchestrator | No completion claims without verification evidence |
-| `code-review` | Orchestrator | Unclear feedback → `grilling`; fixes → `tdd` |
 | `init` | Utility | Project initialization (`init router` writes self-check rules) |
 | `report-issue` | Utility | Structured issue reporting |
-| `cli-driven-development` | CDD Engine | Harness CLI three-mode chain dispatcher |
 | `cli-select` | CDD Engine | Interactive harness selection |
 | `cli-task` | CDD Engine | Single-task CDD execution |
-| `cli-code-review` | CDD Engine | CDD-driven code review |
 
 ## Installation
 
@@ -49,7 +46,6 @@ Or install from the oscaner-skills Claude Code marketplace.
 ```bash
 /osuperpowers:brainstorming    # → brainstorming
 /osuperpowers:writing-plans    # → writing-plans
-/osuperpowers:executing-plans  # → executing-plans
 ```
 
 ### Cursor

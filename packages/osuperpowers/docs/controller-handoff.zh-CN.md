@@ -1,6 +1,6 @@
 # Controller Handoff（H1–H5）
 
-编器（executing-plans）驱动 cdd 引擎的纪律。被 cli-driven-development、cli-task / cli-select 与编器技能引用。跨技能引用用 markdown 链接（语义规则名 + `#rule-<kebab>` 锚，如 `[Return Block](controller-handoff.md#rule-return-block)`）。
+编器（cli-driven-development）驱动 cdd 引擎的纪律。被 cli-driven-development、cli-task / cli-select 与编器技能引用。跨技能引用用 markdown 链接（语义规则名 + `#rule-<kebab>` 锚，如 `[Return Block](controller-handoff.md#rule-return-block)`）。
 
 ## Rules
 

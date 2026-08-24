@@ -18,13 +18,12 @@ Claude Code 工程技能插件 — osuperpowers 编排系列、cli-\* CDD 引擎
 |------|------|------|
 | `brainstorming` | 编排器 | 发现阶段委托给 `grilling`；子代理规格审查；大范围整体/分阶段 |
 | `writing-plans` | 编排器 | 逐节方案编写 + 审查；工单输出到 `docs/superpowers/tickets/` |
-| `cli-driven-development` | 编排器 + 引擎 | 计划执行器（cli-only）+ 最终 branch-review CLI |
+| `cli-driven-development` | 编排器 + 引擎 | 计划执行器（cli-only）；CLI 三模式链分发器 + 最终 branch-review CLI |
 | `finishing` | 编排器 | 分支收尾 / PR；禁止 worktree；约定式提交 |
 | `debugging` | 编排器 | 先收集证据再修复；委托给 `diagnosing-bugs` |
 | `verification` | 编排器 | 无验证证据不得声称完成 |
 | `init` | 工具 | 项目初始化（`init router` 写入自检规则） |
 | `report-issue` | 工具 | 结构化问题报告 |
-| `cli-driven-development` | CDD 引擎 | CLI 三模式链分发器 |
 | `cli-select` | CDD 引擎 | 交互式 harness 选择 |
 | `cli-task` | CDD 引擎 | 单任务 CDD 执行 |
 

@@ -159,7 +159,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(dispatch.includes("Rule: Review Stopping"), "D3 deferred field (via Rule: Review Stopping)");
   assert.ok(/warn\/nit.*Rule: Review Stopping/.test(dispatch), "D3 warn/nit → Review Stopping");
 
-  // P5 删除守卫：executing-plans 技能已删，治理宿主迁移至 cli-driven-development。
+  // P5 deletion guard: legacy skill removed; governance host moved to cli-driven-development.
   // Final Review 收尾语义锚点（P5 task 2）：cli-driven-development 现兼任 orchestrator，
   // 必须携带整分支 review HARD-GATE（BASE=origin/develop 集成点）+ finishing 交接语义。
   const cdd = readRel("skills/cli-driven-development/SKILL.md");

@@ -1,11 +1,11 @@
 ---
 name: cli-driven-development
-description: 计划执行器（仅 CLI）+ 编器 + 引擎 —— 用选定 harness CLI 的三模式链（implement / task-review / fix）驱动计划任务开发，承担编器职责（任务分类 / fix loop / 质量门 / D6 聚合 / Final branch-review），并在 finishing 前跑一次最终 branch-review CLI pass。
+description: 计划执行器（仅 CLI）+ 编器 + 引擎 —— 用选定 harness CLI 的三模式链（implement / task-review / fix）驱动计划任务开发，承担编器职责（任务分类 / fix loop / 质量门 / 最终 branch-review），并在 finishing 前跑一次最终 branch-review CLI pass。
 ---
 
 # CLI-Driven Development（cdd）
 
-用选定的 harness CLI 执行计划任务的三模式链。**本技能同时是编器与引擎**：既执行也做编器决策（模式链、D6 聚合、Final Review）。
+用选定的 harness CLI 执行计划任务的三模式链。**本技能同时是编器与引擎**：既执行也做编器决策（模式链、Final Review）。
 
 ## Rules
 

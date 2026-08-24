@@ -1,11 +1,11 @@
 ---
 name: cli-driven-development
-description: Plan executor (cli-only) + orchestrator + engine — drives planned task development via the selected harness CLI three-mode chain (implement / task-review / fix), owns orchestrator responsibilities (task classification / fix loop / quality gate / D6 aggregation / Final branch-review), and a final branch-review CLI pass before finishing.
+description: Plan executor (cli-only) + orchestrator + engine — drives planned task development via the selected harness CLI three-mode chain (implement / task-review / fix), owns orchestrator responsibilities (task classification / fix loop / quality gate / final branch-review), and a final branch-review CLI pass before finishing.
 ---
 
 # CLI-Driven Development (cdd)
 
-Execute planned tasks with the selected harness CLI via a three-mode chain. **This skill is both orchestrator and engine**: it executes AND makes orchestrator decisions (mode chain, D6 aggregation, Final Review).
+Execute planned tasks with the selected harness CLI via a three-mode chain. **This skill is both orchestrator and engine**: it executes AND makes orchestrator decisions (mode chain, Final Review).
 
 ## Rules
 

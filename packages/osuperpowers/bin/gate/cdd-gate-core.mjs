@@ -247,7 +247,7 @@ Repo changes flow only through:
   ${osRoot}/bin/engine/cdd-task.mjs --harness ${harness} --task ${taskNum} --mode implement
 
 Full matrix: ${osRoot}/docs/cdd-reference.md (CDD gate matrix)
-See cli-driven-development Rule: Final Review.`;
+See cli-driven-development Rule: Three-Mode Chain.`;
 }
 
 // cdd_readonly_git_verbs 的 awk 排版：前 7 个动词一行（`  git x / git y / …`），

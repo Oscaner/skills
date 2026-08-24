@@ -39,7 +39,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run emit
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         id: changesets
         with:
           version: node scripts/version-packages.mjs

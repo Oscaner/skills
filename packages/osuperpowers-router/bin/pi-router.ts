@@ -5,12 +5,10 @@ const MAP: Record<string, string> = {
   "brainstorming": "osuperpowers:brainstorming",
   "writing-plans": "osuperpowers:writing-plans",
   "subagent-driven-development": "osuperpowers:cli-driven-development",
-  "executing-plans": "osuperpowers:executing-plans",
   "finishing-a-development-branch": "osuperpowers:finishing",
   "systematic-debugging": "osuperpowers:debugging",
   "test-driven-development": "mattpocock-skills:tdd",
   "verification-before-completion": "osuperpowers:verification",
-  "receiving-code-review": "osuperpowers:code-review",
   "using-git-worktrees": "osuperpowers:finishing"
 };
 

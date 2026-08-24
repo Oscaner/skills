@@ -12,7 +12,7 @@
         ]
       },
       {
-        "matcher": "((?i)(^|\\s)/brainstorming(\\s|$))|((?i)(^|\\s)/writing\\-plans(\\s|$))|((?i)(^|\\s)/subagent\\-driven\\-development(\\s|$))|((?i)(^|\\s)/executing\\-plans(\\s|$))|((?i)(^|\\s)/finishing\\-a\\-development\\-branch(\\s|$))|((?i)(^|\\s)/systematic\\-debugging(\\s|$))|((?i)(^|\\s)/test\\-driven\\-development(\\s|$))|((?i)(^|\\s)/verification\\-before\\-completion(\\s|$))|((?i)(^|\\s)/receiving\\-code\\-review(\\s|$))|((?i)(^|\\s)/using\\-git\\-worktrees(\\s|$))",
+        "matcher": "((?i)(^|\\s)/brainstorming(\\s|$))|((?i)(^|\\s)/writing\\-plans(\\s|$))|((?i)(^|\\s)/subagent\\-driven\\-development(\\s|$))|((?i)(^|\\s)/finishing\\-a\\-development\\-branch(\\s|$))|((?i)(^|\\s)/systematic\\-debugging(\\s|$))|((?i)(^|\\s)/test\\-driven\\-development(\\s|$))|((?i)(^|\\s)/verification\\-before\\-completion(\\s|$))|((?i)(^|\\s)/using\\-git\\-worktrees(\\s|$))",
         "hooks": [
           {
             "type": "command",

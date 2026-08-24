@@ -1,7 +1,7 @@
 # Docs Review
 
 > **范围：** 仅适用于 3-pass AI 编排文档评审（spec-review / plan-review）。
-> task-review 使用 `executing-plans/SKILL.md` 中的 Fix Loop。branch-review 使用 `cli-code-review/SKILL.md`。
+> task-review 使用 `cli-driven-development/SKILL.md` 中的 Fix Loop。branch-review 使用 `cli-driven-development` + `cdd-review.mjs`（--template branch-review）。
 
 跨切面参考：多 pass 评审的派发纪律（D1/D2/D3）。被 brainstorming / writing-plans 的评审 pass 规则引用。
 

@@ -14,7 +14,7 @@
 | `CDD_MODE` | 职责 |
 |------------|----------------|
 | `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 四行契约 |
-| `task-review` | `review-package` shell（archive diff）；`code-review` 变体（D4；axis 文件；Step 5 覆盖）+ handoff write |
+| `task-review` | `review-package` shell（archive diff）；经 `cdd-review.mjs` 直派的 axis 评审（D4；axis 文件；Step 5 覆盖）+ handoff write |
 | `fix` | fix implementer + handoff write；读取 open-findings；**+ commit contract**（post-run gate，见下文） |
 
 3. **Env contract（环境变量契约）**（仅路径 —— **绝不**把完整 plan 粘贴进 CLI 环境变量）：

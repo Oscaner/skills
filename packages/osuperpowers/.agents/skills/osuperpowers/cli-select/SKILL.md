@@ -1,6 +1,6 @@
 ---
 name: cli-select
-description: Lists the harness CLIs installed on the system and asks which one to use for task execution. Recommended priority: droid > pi > current harness. Referenced by cli-driven-development / cli-task / cli-code-review / executing-plans.
+description: Lists the harness CLIs installed on the system and asks which one to use for task execution. Recommended priority: droid > pi > current harness. Referenced by cli-driven-development / cli-task.
 ---
 
 # CLI Select

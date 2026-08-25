@@ -95,6 +95,7 @@
 | （未言明 CDD_WORKSPACE-only 语义） | CDD_WORKSPACE 直设分支保持现语义（无 plan 时 workspace=env 值，repoRoot 允许 null 容忍下游），保基线测试不回退 | No — phase 内澄清 |
 | CDD_WORKSPACE+plan 同给语义 | 旧：无 planFile opt 时 env 直设 workspace——**无论 plan 经何种来源给出（含 env.PLAN_FILE），env workspace 均不被覆盖**；新：有有效 plan 时 workspace 一并由 plan 派生值覆盖、env 被忽略（消费者可见变更） | Yes — 记入 P10 breaking 清单 |
 | （未言明 backfill 来源） | ledger backfill 收紧为仅显式注入 baseEnv.CDD_LEDGER——直设 workspace 靠默认派生路径 backfill 的调用方将 BLOCK（破坏性，对齐 H6 env 契约） | Yes — 记入 P10 breaking 清单 |
+| （执行偏差，dogfood 记录） | Task 3 实现 agent 越界将 Task 4 内容一并提交（209b135，含 ci-validate 技能计数 10→9 连带修正）；用户决策合并验收 T3+T4——两任务共用同一 review diff，ledger 分别记 complete | No — 执行期处置记录 |
 | invokeCli cwd 语义 | 明确不动（与 git 解析无关），写入 non-goal | No — 澄清性记录 |
 
 ## Section 4: Notes for downstream

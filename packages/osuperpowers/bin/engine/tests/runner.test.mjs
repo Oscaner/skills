@@ -38,35 +38,40 @@ function setupWorkspace() {
 // 等若泄漏，runTask 会写到真实 workspace）；仅保留测试可控的 CDD_WORKSPACE（+extra）。
 // PLAN_FILE 同样清除：CDD 宿主 env 中的 PLAN_FILE 若泄漏，会影响 plan-backfill 逻辑（test 4 依赖无 plan）。
 function baseEnv(ws, extra = {}) {
-  const env = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
-  }
-  return { ...env, CDD_WORKSPACE: ws, ...extra };
+  return { ...filteredEnv(), CDD_WORKSPACE: ws, ...extra };
 }
 
-// 跨仓用例 env：复用 baseEnv 的 CDD_*/PLAN_FILE 过滤循环，但不注入任何 workspace ——
+// 跨仓用例 env：复用 baseEnv 的 CDD_*/PLAN_FILE 过滤，但不注入任何 workspace ——
 // 无 CDD_WORKSPACE / PLAN_FILE 泄漏（#173：plan 派生分支 / cannot-resolve 用例需要）。
 function cleanEnv(extra = {}) {
+  return { ...filteredEnv(), ...extra };
+}
+
+// 过滤宿主 env 的 CDD_* 与 PLAN_FILE（baseEnv/cleanEnv 共用的单一过滤实现）。
+function filteredEnv() {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
   }
-  return { ...env, ...extra };
+  return env;
 }
 
-// git init + 空提交（-c 内联身份：无全局 user.name/email 的环境（CI runner）也能 commit）。
-function gitInit(dir) {
-  execFileSync("git", ["init", "-q"], { cwd: dir });
-  execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
-    "commit", "--allow-empty", "-q", "-m", "init"]);
-}
+// git init + 空提交（共享 helper：brief.test.mjs 同用；-c 内联身份兼容无全局 user.name/email 的 CI）。
+import { gitInit } from "./helpers.mjs";
 
 // gitInit + realpath 归一（git rev-parse --show-toplevel 返回 realpath；macOS /tmp → /private/tmp）。
-function gitInit2(dir) {
+function gitInitReal(dir) {
   const real = realpathSync(dir);
   gitInit(real);
   return real;
+}
+
+// 在已 init 的仓库写入 plan 文件并 add+commit——保持工作树干净（commit-contract 校验）。
+function commitPlan(repoDir, planFile) {
+  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
+  execFileSync("git", ["-C", repoDir, "add", "-A"]);
+  execFileSync("git", ["-C", repoDir, "commit", "-q", "-m", "plan"]); // 保持仓库干净——commit-contract 校验工作树
+  return planFile;
 }
 
 // 捕获 runTask（noExit:false）的 process.exit + stdout/stderr。
@@ -413,11 +418,8 @@ test("runTask: brief 已存在 + 缺 TASK_BASE: → BLOCKED exit 1", async () =>
 test("runTask: brief 不存在 + plan 可用 → auto-generate + exit 0", async () => {
   // #173：plan 仓库须 git init + 提交（workspace 派生于 <planDir>/.superpowers/cdd/<slug>/，
   // commit-contract 校验该工作树 → 写完 plan.md 后 add+commit 保持干净）。
-  const planDir = gitInit2(mkdtempSync(path.join(tmpdir(), "plan-")));
-  const planFile = path.join(planDir, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: Do something\nTask body\n");
-  execFileSync("git", ["-C", planDir, "add", "-A"]);
-  execFileSync("git", ["-C", planDir, "commit", "-q", "-m", "plan"]);
+  const planDir = gitInitReal(mkdtempSync(path.join(tmpdir(), "plan-")));
+  const planFile = commitPlan(planDir, path.join(planDir, "plan.md"));
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
   writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n"); // no plan in ledger
   const derivedWs = path.join(planDir, ".superpowers", "cdd", "plan");
@@ -497,10 +499,7 @@ test("runTask #173: plan 在仓库 A、cwd 在仓库 B → workspace 落于 A，
   const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b-")));
   gitInit(repoA);
   gitInit(repoB);
-  const planFile = path.join(repoA, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  execFileSync("git", ["-C", repoA, "add", "-A"]);
-  execFileSync("git", ["-C", repoA, "commit", "-q", "-m", "plan"]); // 保持 repoA 干净——commit-contract 校验工作树
+  const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-ws-")); // CDD_WORKSPACE 不设
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
@@ -557,16 +556,13 @@ test("resolveRepoRoot #173: CDD_WORKSPACE 直设 → repoRoot=git toplevel；裸
   gitInit(wsGit);
   assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: wsGit } }).repoRoot, wsGit);
   const bare = mkdtempSync(path.join(tmpdir(), "cdd-ws-bare-"));
-  assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: bare } }).repoRoot, "");
+  assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: bare } }).repoRoot, null);
 });
 
 test("runTask #173: CDD_WORKSPACE 与 plan 同给 → workspace 落 plan 派生路径，env 被忽略", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-both-")));
   gitInit(repoA);
-  const planFile = path.join(repoA, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  execFileSync("git", ["-C", repoA, "add", "-A"]);
-  execFileSync("git", ["-C", repoA, "commit", "-q", "-m", "plan"]); // 保持 repoA 干净——commit-contract 校验工作树
+  const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
   const ignored = mkdtempSync(path.join(tmpdir(), "cdd-ws-ignored-"));
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,

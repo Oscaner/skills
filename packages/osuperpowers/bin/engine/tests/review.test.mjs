@@ -81,7 +81,7 @@ test("cdd-review.mjs: text passthrough — claude (output=text) → stdout 含�
   const fp = harnessFreePath();
   const res = runExec(["--harness", "claude", ...TEMPLATE_ARGS], { mockPath: `${mock}${path.delimiter}${fp}` });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
-  assert.match(res.stdout, /Review the spec document at \*\*\/test\.md\*\*/);
+  assert.match(res.stdout, new RegExp(RENDER_SIG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(res.stdout, /\{\{(DOC|PASS)\}\}/, "占位符已全部替换");
 });
 
@@ -139,7 +139,7 @@ test("cdd-review.mjs: task-review-prefix 合成 — CDD_MODE=task-review 时模�
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   // prefix 拼在模板渲染结果之前（`${prefix} ${prompt}`），渲染体紧随其后
   assert.match(res.stdout, /^Skill\(mattpocock-skills:code-review\) # Spec Review/);
-  assert.match(res.stdout, /Review the spec document at \*\*\/test\.md\*\*/);
+  assert.match(res.stdout, new RegExp(RENDER_SIG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 // --template / --param 渲染路径（T3-ext）

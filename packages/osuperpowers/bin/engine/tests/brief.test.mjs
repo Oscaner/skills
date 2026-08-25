@@ -10,16 +10,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateBrief, validateBrief } from "../lib/brief.mjs";
+import { gitInit } from "./helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
-
-// git init + 空提交（-c 内联身份：无全局 user.name/email 的环境（CI runner）也能 commit）。
-function gitInit(dir) {
-  execFileSync("git", ["init", "-q"], { cwd: dir });
-  execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
-    "commit", "--allow-empty", "-q", "-m", "init"]);
-}
 
 function makePlan(tasks) {
   return tasks.map(([n, body]) => `### Task ${n}: Task${n}\n${body}`).join("\n\n") + "\n";

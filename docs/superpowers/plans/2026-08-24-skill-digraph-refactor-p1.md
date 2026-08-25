@@ -32,11 +32,11 @@
 
 - [ ] **Step 1: 写失败测试——跨仓核心用例**
 
-在 `runner.test.mjs` 顶部 import 区补 `gitToplevel` 无需（走 runTask 黑盒）；文件末尾新增：
+在 `runner.test.mjs` 顶部 import 区：`execFileSync` 已有（L10）勿重复；`resolveRepoRoot` 加入 L16-17 现有 runner import 列表（Step 6 直测需要）；文件末尾新增：
 
 ```js
 // ---- P1 #173 跨仓回归（plan 派生分支）----
-import { execFileSync } from "node:child_process";
+// （execFileSync 文件顶部已 import，勿重复声明）
 
 function gitInit(dir) {
   execFileSync("git", ["init", "-q"], { cwd: dir });
@@ -72,7 +72,7 @@ test("runTask #173: plan 在仓库 A、cwd 在仓库 B → workspace 落于 A，
 - [ ] **Step 2: 运行确认失败**
 
 Run: `node --test packages/osuperpowers/bin/engine/tests/runner.test.mjs`
-Expected: 新用例 FAIL（现状从 cwd=repoB 解析根，workspace 落 B 或报 not in a git repo）
+Expected: **整文件模块加载失败**（`SyntaxError: The requested module '../lib/runner.mjs' does not provide an export named 'resolveRepoRoot'`）——Step 1 已把该导出名加入 import 列表而实现尚不存在，此即本步 TDD 红信号；「workspace 落 B / not in a git repo」的逐用例行为失败在 Step 3 实现后才可观察
 
 - [ ] **Step 3: 实现 resolveRepoRoot + 改造 resolveWorkspace**
 
@@ -147,14 +147,16 @@ runTask 入口重排（步骤 1 registry gate 之后）：
 
 （后续步骤 4 的旧 backfill 行删除——plan 已在此处定稿；步骤 5 task-review 的 `if (!plan)` 检查保持不变。`rr.plan` 已含 env.PLAN_FILE 来源，故 resolveWorkspace 的派生分支以 `planFile: rr.plan` 单参驱动。）
 
-- [ ] **Step 4: 运行测试确认新用例绿**
+- [ ] **Step 4: 迁移基线用例 2（review-package not executable——自 Task 2 前移）+ 运行确认全绿**
+
+**backfill 收紧使该基线用例在本步即红**（plan 不可用 → BLOCK 消息变为 'task-review mode requires plan path'，stderr 断言 /review-package not executable:/ 失败），故其 fixture 迁移必须与 Task 1 同步完成（Global Constraints：基线不回退）：fixture 的 dir 改为 `gitInit(dir)`；baseEnv 显式注入 `CDD_LEDGER: path.join(dir, "progress.md")` 与 `CDD_TASK_BRIEF`/`CDD_HANDOFF_PATH` 指向 `<dir>/.superpowers/cdd/plan/` 下预写文件；断言不变。（Task 2 Step 6 原迁移步骤随之取消。）
 
 Run: `node --test packages/osuperpowers/bin/engine/tests/runner.test.mjs`
 Expected: 全部 PASS（含既有用例——CDD_WORKSPACE-only 用例走直设分支不受影响）
 
 - [ ] **Step 5: 迁移基线用例 1（brief auto-generate）+ 补 plan-not-found 用例**
 
-「brief 不存在 + plan 可用」用例：`planDir` 改为 `gitInit(mkdtempSync(...))`；**写完 plan.md 后 `git add -A && git commit`（保持 plan 仓库工作树干净——commit-contract 校验）**；断言 TASK_BASE 取该仓库 HEAD（`execFileSync("git", ["-C", planDir, "rev-parse", "HEAD"])` 前 7 位前缀匹配即可）。新增：
+「brief 不存在 + plan 可用」用例：`planDir` 改为 `gitInit(mkdtempSync(...))`；**写完 plan.md 后 `git add -A && git commit`（保持 plan 仓库工作树干净——commit-contract 校验）**。**本步仅做 fixture 迁移与 workspace 落点断言（workspace 现派生于 `<planDir>/.superpowers/cdd/<slug>/`——原 `CDD_TASK_BRIEF` env 与 existsSync 断言随之改指新派生路径）**；TASK_BASE == planDir HEAD 的断言**移至 Task 2 Step 1**（generateBrief 的 repoRoot 下传在 Task 2 才落地，本步时 generateBrief 仍收 cwd=REPO_ROOT，断言必然红）。新增：
 
 ```js
 test("runTask #173: plan 路径不存在 → 'plan file not found'", async () => {
@@ -182,9 +184,20 @@ test("runTask #173: 无 plan 无 CDD_WORKSPACE → 'cannot resolve repo root'", 
 });
 ```
 
-直设双变体（实现时以 `cleanEnv()` 加 `CDD_WORKSPACE` 构造 env）。**两变体均须**：`CDD_TASK_BRIEF` 与 `CDD_HANDOFF_PATH` 指到仓库外路径（mkdtemp 下），brief 预写含 `TASK_BASE:` 行——否则步骤 4.5 BLOCKED 'brief missing and plan unavailable'；git 目录变体的 workspace 即仓库本身，若 brief/handoff 写入仓库内未提交文件会触发 commit-contract 拦截（exit 1 而非断言的 0）：
-- git 目录变体：ws = `gitInit(mkdtempSync(...))`，env 含 `CDD_WORKSPACE: ws` → exit 0。
-- 裸 TMPDIR 变体：CDD_WORKSPACE 指向非 git mkdtemp → 同样 exit 0（容忍语义，repoRoot=null 不阻塞；非 git 树 commit-contract fail-open，无拦截问题）。
+直设双变体（实现时以 `cleanEnv()` 加 `CDD_WORKSPACE` 构造 env）。**两变体均须**：`CDD_TASK_BRIEF` 与 `CDD_HANDOFF_PATH` 指到仓库外路径（mkdtemp 下），brief 预写含 `TASK_BASE:` 行——否则步骤 4.5 BLOCKED 'brief missing and plan unavailable'；git 目录变体的 workspace 即仓库本身，若 brief/handoff 写入仓库内未提交文件会触发 commit-contract 拦截（exit 1 而非断言的 0）。**spec §2.4#4 的 repoRoot 断言经 resolveRepoRoot 直测落地**（resolveRepoRoot 已导出）：
+
+```js
+test("resolveRepoRoot #173: CDD_WORKSPACE 直设 → repoRoot=git toplevel；裸 TMPDIR → 空串", () => {
+  const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
+  gitInit(wsGit);
+  assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: wsGit } }).repoRoot, wsGit);
+  const bare = mkdtempSync(path.join(tmpdir(), "cdd-ws-bare-"));
+  assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: bare } }).repoRoot, "");
+});
+```
+
+- git 目录黑盒变体：ws = `gitInit(mkdtempSync(...))`，env 含 `CDD_WORKSPACE: ws` → exit 0。
+- 裸 TMPDIR 黑盒变体：CDD_WORKSPACE 指向非 git mkdtemp → 同样 exit 0（容忍语义，repoRoot=null 不阻塞；非 git 树 commit-contract fail-open，无拦截问题）。
 
 both-given 用例：
 
@@ -192,8 +205,6 @@ both-given 用例：
 test("runTask #173: CDD_WORKSPACE 与 plan 同给 → workspace 落 plan 派生路径，env 被忽略", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-both-")));
   gitInit(repoA);
-  const planFile = path.join(repoA, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
   const planFile = path.join(repoA, "plan.md");
   writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
   execFileSync("git", ["-C", repoA, "add", "-A"]);
@@ -257,15 +268,27 @@ test("runTask #173: brief auto-generate 时 TASK_BASE 取 plan 仓库 A 的 HEAD
 });
 ```
 
-brief.test.mjs 新增（generateBrief 直测，DI cwd 参数语义验证）：
+brief.test.mjs 新增（generateBrief 直测，回归钉死 repoRoot 参数语义——现状已绿，Task 2 实现后保持绿）：
 
 ```js
-test("generateBrief #173: cwd 指向仓库 B、plan 在仓库 A → TASK_BASE 取传入目录的 HEAD", () => {
-  // fixture：repoA/repoB 均 gitInit；调用 generateBrief(plan, 1, out, repoA) 断言取 repoA HEAD
+test("generateBrief #173: 第 4 参数为 repoRoot —— cwd 无关，取传入目录所在仓库 HEAD", () => {
+  const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-brief-a-")));
+  const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-brief-b-")));
+  gitInit(repoA);
+  gitInit(repoB);
+  const planFile = path.join(repoA, "plan.md");
+  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
+  execFileSync("git", ["-C", repoA, "add", "-A"]);
+  execFileSync("git", ["-C", repoA, "commit", "-q", "-m", "plan"]);
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "cdd-brief-out-")), "task-1-brief.md");
+  // process.cwd() 与 repoA 无关（测试进程 cwd 在 oscaner-skills）——断言仅由第 4 参数决定
+  generateBrief(planFile, 1, out, repoA);
+  const head = execFileSync("git", ["-C", repoA, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  assert.match(readFileSync(out, "utf8"), new RegExp(`^TASK_BASE: ${head.slice(0, 7)}`, "m"));
 });
 ```
 
-（完整代码同上模式；此处直测签名行为。）
+（brief.test.mjs 顶部需补 `execFileSync` import 与本地 `gitInit` helper——该文件当前无此依赖。）
 
 review-package 子进程 cwd 断言用例（spec §2.4 #5，DI scriptsDir + 记录 spawn cwd）：
 
@@ -338,11 +361,15 @@ runReviewPackage 内两处：
 ```js
 const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(repoRoot);
 ...
-const res = await spawnCapture("bash", [reviewPkg, plan, base, head, outFile], { cwd: repoRoot || cwd, env });
+const res = await spawnCapture("bash", [reviewPkg, plan, base, head, outFile], { cwd, env });
+// 注：runReviewPackage 的选项键保持 `cwd`（签名不变，直测 source-compatible）——
+// 语义变更在调用方：runTask 步骤 5 现传入 repoRoot 作为该值。
 ```
 （`|| cwd` 兜底 CDD_WORKSPACE-only 且非 git 目录场景——与 P1 spec §2.1「下游容忍」一致。）
 
-runTask 步骤 5 调用点：`await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH, { cwd: repoRoot || cwd, env })`。
+runTask 步骤 5 调用点：`await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH, { cwd: repoRoot || cwd, env, scriptsDir: opts.scriptsDir })`（`cwd` 键传 repoRoot 值——语义变更在调用方，runReviewPackage 签名不变）。
+
+**runTask scriptsDir DI 透传（Step 1 review-package-cwd 用例的前置）**：runTask opts 解构处补 `scriptsDir = opts.scriptsDir`，并经上行的 `scriptsDir` 键转发给 runReviewPackage——否则该用例的 `scriptsDir: scripts` 被静默丢弃，findSuperpowersScriptsDir 回退真实 HOME plugin cache，测试失败原因难辨。属测试 seam 扩展，不改生产行为。
 
 runTask 步骤 4.5 brief 调用点：`generateBrief(plan, taskNum, briefPath, repoRoot || cwd)`。
 
@@ -353,12 +380,7 @@ brief.mjs：仅注释更新（参数名 cwd → repoRoot，语义即「取该目
 Run: `node --test packages/osuperpowers/bin/engine/tests/runner.test.mjs packages/osuperpowers/bin/engine/tests/brief.test.mjs`
 Expected: 全部 PASS
 
-- [ ] **Step 5: 迁移基线用例 2（review-package not executable）**
-
-runner.test.mjs 该用例三处改动：fixture 的 dir 改为 `gitInit(dir)`（含初始 commit）；baseEnv 显式加 `CDD_LEDGER: path.join(dir, "progress.md")` 与 `CDD_TASK_BRIEF: path.join(ws2, "task-1-brief.md")`（ws2 为新 mkdtemp，预写含 TASK_BASE 的 brief 文件）；断言不变（仍命中 review-package not executable）。
-
-Run: `node --test packages/osuperpowers/bin/engine/tests/runner.test.mjs`
-Expected: PASS
+- [ ] **Step 5: （已取消——基线用例 2 迁移前移至 Task 1 Step 4，backfill 收紧使其在 Task 1 即红）**
 
 - [ ] **Step 6: Commit**
 
@@ -386,7 +408,7 @@ review.test.mjs 全量改写规则：
 |---|---|
 | 「缺 --prompt / 未知 flag → exit 2」 | 改名「缺 --template / 未知 flag → exit 2」：`runExec(["--bogus", "x"])` 与 `runExec(["--harness","claude"])` 均 exit 2；新增 `runExec(["--harness","claude","--prompt","y"])` → stderr 含 `unknown argument: --prompt` 且 exit 2（防回归断言，字面量豁免见 Global Constraints） |
 | text passthrough 系列（claude / droid / codex-not-supported / pi） | `["--harness","<name>","--prompt","hello world"]` → `["--harness","<name>","--template","spec-review","--param","DOC=/test.md","--param","PASS=completeness"]`；mock CLI 断言从「stdout == prompt」改为「stdout 含模板渲染产物特征串」（如 `Review the spec document at **/test.md**`） |
-| pi stream-json 多行 pretty-printed | 同上替换入口参数，断言 finalText 提取逻辑不变 |
+| pi stream-json 多行 pretty-printed | **位于 runner.test.mjs（invokeCli 直测，prompt 为函数入参）——无需改动**，勿在 review.test.mjs 中寻找 |
 | task-review-prefix 合成（CDD_MODE=task-review） | 同上替换，断言 prefix 拼在模板渲染结果前 |
 | handoff 写入系列（DONE / BLOCKED） | 同上替换 |
 | template 不存在 | 不变 |
@@ -495,7 +517,7 @@ git commit -m "refactor: remove orphan cli-task skill and all references (#169)"
 - [ ] **Step 1: 引擎全量测试**
 
 Run: `pnpm run validate`
-Expected: 绿（含 emit freshness / plugin resolution / engine tests / version sync 全部块）；引擎测试计数 = 124 基线 + 9 新增（Task 1 七项：跨仓核心、plan-not-found、BLOCKED、直设 git 变体、直设裸变体、both-given + Task 2 两项：brief 归属、review-package cwd；另有 brief.test.mjs 直测 1 项）− 1 删除（Task 3 互斥用例）= ≥132 全 pass
+Expected: 绿（含 emit freshness / plugin resolution / engine tests / version sync 全部块）；引擎测试计数 = 124 基线 + 10 新增（Task 1 六项黑盒 + 1 项 resolveRepoRoot 直测：跨仓核心、plan-not-found、BLOCKED、resolveRepoRoot 直测、直设 git 黑盒变体、直设裸黑盒变体、both-given + Task 2 两项：brief 归属、review-package cwd；另有 brief.test.mjs 直测 1 项）− 1 删除（Task 3 互斥用例）= ≥133 全 pass
 
 - [ ] **Step 2: 跨仓场景手动冒烟（可选但推荐）**
 

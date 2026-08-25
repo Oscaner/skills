@@ -268,9 +268,9 @@ function scanBalanced(text, start, openCh, closeCh) {
 // ---- review-package（非 dry-run review 模式）----
 
 // 对齐 cdd_superpowers_scripts_dir：repo submodule → Claude/Cursor plugin cache（版本目录升序）。
+// 第 1 参数为 repoRoot（#173：submodule 探测从项目仓库找 vendors，与调用方 cwd 解耦）。
 // 导出供单测（T7 补回：findSuperpowersScriptsDir / byVersion）。
-export function findSuperpowersScriptsDir(cwd) {
-  const repoRoot = gitToplevel(cwd);
+export function findSuperpowersScriptsDir(repoRoot) {
   if (repoRoot) {
     const probe = path.join(repoRoot, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
     if (existsSync(path.join(probe, "sdd-workspace"))) return probe;
@@ -303,10 +303,10 @@ export function byVersion(a, b) {
 }
 
 // 对齐 _cdd_relpath_from_repo：repo 内路径 → 相对 repo；否则绝对路径。
-function relpathFromRepo(abs, cwd) {
-  const root = gitToplevel(cwd);
+// 第 2 参数为 repoRoot（#173：由调用方 resolveRepoRoot 下传；无根 → 回退绝对路径）。
+function relpathFromRepo(abs, repoRoot) {
   const resolved = path.resolve(abs);
-  if (root && resolved.startsWith(`${root}/`)) return resolved.slice(root.length + 1);
+  if (repoRoot && resolved.startsWith(`${repoRoot}/`)) return resolved.slice(repoRoot.length + 1);
   return resolved;
 }
 
@@ -320,6 +320,7 @@ function shortSha(sha) {
 // bash 对齐：`[[ -x review-package ]]` 可执行检查（spawn 前 accessSync X_OK）+ `wrote <diff>:`
 // progress 行落到 stdout（operator 可见）。
 // scriptsDir DI：单测可 override findSuperpowersScriptsDir（避免触达 repo/cache 真实路径）。
+// cwd 选项语义 = 子进程执行目录（#173：调用方传 repoRoot —— review-package 在 plan 仓库内跑）。
 export async function runReviewPackage(plan, base, head, handoffPath, { cwd, env, scriptsDir: scriptsDirOverride }) {
   const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(cwd);
   if (!scriptsDir) throw new RunBlocked("upstream review-package script not found");
@@ -411,7 +412,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   const baseEnv = opts.env ?? process.env;
   const registryPath = opts.registryPath ?? REG_PATH;
 
-  // 1. Registry ship gate + CLI preflight
+  // 2. Registry ship gate + CLI preflight
   let entry;
   try {
     entry = checkHarness(loadRegistry(registryPath), harness, { dryRun });
@@ -423,6 +424,8 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
     throw e;
   }
+
+  const scriptsDir = opts.scriptsDir; // DI 透传至 runReviewPackage（测试 seam，不改生产行为）
 
   // 2. 有效 plan 合成 + repoRoot 解析（#173：入口统一，永不回退 cwd）+ workspace
   let workspace;
@@ -495,7 +498,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (!existsSync(briefPath)) {
       if (!plan) return finish(1, [], "brief missing and plan unavailable: cannot auto-generate brief", noExit);
       try {
-        generateBrief(plan, taskNum, briefPath, cwd);
+        generateBrief(plan, taskNum, briefPath, repoRoot || cwd); // #173：repoRoot 下传（plan 仓库 HEAD）
       } catch (e) {
         return finish(1, [], `brief auto-generation failed: ${e.message}`, noExit);
       }
@@ -520,7 +523,9 @@ export async function runTask(harness, taskNum, opts = {}) {
       const handoffHead = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "head"]);
       if (handoffHead) taskReviewHead = handoffHead;
       try {
-        await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH, { cwd, env });
+        // #173：cwd 键传 repoRoot 值（语义变更在调用方——子进程在 plan 仓库内执行；签名不变）。
+        await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH,
+          { cwd: repoRoot || cwd, env, scriptsDir });
       } catch (e) {
         if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
         throw e;

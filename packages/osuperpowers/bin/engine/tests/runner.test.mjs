@@ -577,3 +577,63 @@ test("runTask #173: CDD_WORKSPACE 与 plan 同给 → workspace 落 plan 派生�
   assert.ok(existsSync(path.join(repoA, ".superpowers", "cdd", "plan")), "workspace derived from plan");
   assert.ok(!existsSync(path.join(ignored, ".superpowers")), "env workspace ignored");
 });
+
+test("runTask #173: brief auto-generate 时 TASK_BASE 取 plan 仓库 A 的 HEAD", async () => {
+  const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a2-")));
+  const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b2-")));
+  gitInit(repoA);
+  gitInit(repoB);
+  const planFile = path.join(repoA, "plan.md");
+  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
+  execFileSync("git", ["-C", repoA, "add", "."]);
+  execFileSync("git", ["-C", repoA, "commit", "-q", "-m", "plan"]); // HEAD 含 plan commit
+  const briefPath = path.join(mkdtempSync(path.join(tmpdir(), "cdd-ws2-")), "task-1-brief.md");
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: { ...cleanEnv(), PLAN_FILE: planFile, CDD_TASK_BRIEF: briefPath },
+    cwd: repoB, noExit: true,
+  });
+  assert.equal(res.exitCode, 0);
+  const head = execFileSync("git", ["-C", repoA, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  assert.match(readFileSync(briefPath, "utf8"), new RegExp(`^TASK_BASE: ${head.slice(0, 7)}`, "m"));
+});
+
+test("runTask #173: review-package 子进程在 repoRoot 内执行", async () => {
+  // fixture 同「review-package 不可执行」用例结构，但 review-package 可执行且为记录脚本：
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-rp-cwd-")));
+  gitInit(dir);
+  writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
+  const ledger = path.join(mkdtempSync(path.join(tmpdir(), "cdd-ledger-")), "progress.md");
+  writeFileSync(ledger, `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
+  const ws = path.join(dir, ".superpowers", "cdd", "plan");
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
+  const spawnLog = path.join(mkdtempSync(path.join(tmpdir(), "cdd-spawnlog-")), "cwd.txt");
+  const scripts = path.join(dir, "fake-scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "review-package"),
+    `#!/usr/bin/env bash\npwd > "${spawnLog}"\necho wrote /nonexistent/x: 0`);
+  chmodSync(path.join(scripts, "review-package"), 0o755);
+  // claude 存根过 preflight（对齐基线「review-package 不可执行」夹具——非 dry-run 必须有 CLI 在 PATH）：
+  // checkHarness 读 process.env.PATH —— 调用前临时注入，跑完还原。
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-rp-bin-"));
+  writeFileSync(path.join(binDir, "claude"), "#!/usr/bin/env bash\nexit 0\n");
+  chmodSync(path.join(binDir, "claude"), 0o755);
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    await runTask("claude", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: { ...cleanEnv(), CDD_WORKSPACE: ws, CDD_LEDGER: ledger,
+             CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md"), CDD_TASK_REVIEW_FIXED_POINT: "HEAD",
+             PATH: `${binDir}${path.delimiter}${origPath}` },
+      cwd: mkdtempSync(path.join(tmpdir(), "cdd-elsewhere-")),
+      scriptsDir: scripts, noExit: true,
+    });
+  } finally {
+    process.env.PATH = origPath;
+  }
+  // 注：mock 的 `wrote /nonexistent/x` 不存在 → spawn 后 runReviewPackage 抛 RunBlocked（exit 1，
+  // stderr 有 CDD_BLOCKED 诊断）——本用例只钉死子进程执行目录，不校验退出码。
+  assert.equal(readFileSync(spawnLog, "utf8").trim(), dir); // 子进程 pwd == repoRoot
+});

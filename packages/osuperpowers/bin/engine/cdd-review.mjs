@@ -3,7 +3,7 @@
 // Node port of the legacy bash script; thin shell reusing registry.mjs ship gate + runner.mjs
 // invokeCli（registry output 模式归一化：text passthrough / stream-json last finalText）。
 //
-//   usage: cdd-review.mjs --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...])
+//   usage: cdd-review.mjs --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -40,21 +40,20 @@ function renderTemplate(name, params, programName) {
 
 function usage() {
   process.stderr.write(
-    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...]) [--handoff PATH]\n`,
+    `usage: ${NAME} --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]\n`,
   );
   exitCliMissing();
 }
 
 function help() {
   process.stdout.write(
-    `usage: ${NAME} --harness <name> (--prompt <text> | --template <name> [--param KEY=VALUE...]) [--handoff PATH]\n`,
+    `usage: ${NAME} --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]\n`,
   );
   exitOk();
 }
 
 const args = process.argv.slice(2);
 let harness = "";
-let prompt = "";
 let templateName = "";
 let handoffPath = "";
 /** @type {Record<string, string>} */
@@ -65,10 +64,6 @@ for (let i = 0; i < args.length; i++) {
     case "--harness":
       if (i + 1 >= args.length) usage();
       harness = args[++i];
-      break;
-    case "--prompt":
-      if (i + 1 >= args.length) usage();
-      prompt = args[++i];
       break;
     case "--template":
       if (i + 1 >= args.length) usage();
@@ -100,15 +95,12 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!harness) usage();
-if (templateName && prompt) {
-  process.stderr.write(`${NAME}: --template and --prompt are mutually exclusive\n`);
+if (!templateName) {
+  process.stderr.write(`${NAME}: --template is required\n`);
   usage();
 }
-if (!templateName && !prompt) usage();
 
-if (templateName) {
-  prompt = renderTemplate(templateName, params, NAME);
-}
+const prompt = renderTemplate(templateName, params, NAME);
 
 // dryRun（CDD_DRY_RUN=1）仅跳过 CLI PATH preflight（对齐 cdd_check_cli 的 dry-run 分支）；
 // 不跳过 CLI 调用（dry-run 下同样做 CLI preflight + invoke）。

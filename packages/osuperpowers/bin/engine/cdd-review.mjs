@@ -38,17 +38,15 @@ function renderTemplate(name, params, programName) {
   return content;
 }
 
+const USAGE = `usage: ${NAME} --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]\n`;
+
 function usage() {
-  process.stderr.write(
-    `usage: ${NAME} --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]\n`,
-  );
+  process.stderr.write(USAGE);
   exitCliMissing();
 }
 
 function help() {
-  process.stdout.write(
-    `usage: ${NAME} --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]\n`,
-  );
+  process.stdout.write(USAGE);
   exitOk();
 }
 

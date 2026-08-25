@@ -9,6 +9,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gitInit } from "./helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/osuperpowers/bin/engine/tests
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -38,9 +39,7 @@ function run(args, extraEnv = {}, opts = {}) {
 // （commit-contract 校验）。-c 内联身份：无全局 user.name/email 的环境也能 commit。
 function setupWorkspace() {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-task-cli-")));
-  execFileSync("git", ["init", "-q"], { cwd: dir });
-  execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
-    "commit", "--allow-empty", "-q", "-m", "init"]);
+  gitInit(dir);
   writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
   execFileSync("git", ["-C", dir, "add", "-A"]);
   execFileSync("git", ["-C", dir, "commit", "-q", "-m", "plan"]);

@@ -551,7 +551,7 @@ test("runTask #173: CDD_WORKSPACE 直设（裸 TMPDIR 非 git）→ exit 0（rep
   assert.equal(res.exitCode, 0);
 });
 
-test("resolveRepoRoot #173: CDD_WORKSPACE 直设 → repoRoot=git toplevel；裸 TMPDIR → 空串", () => {
+test("resolveRepoRoot #173: CDD_WORKSPACE 直设 → repoRoot=git toplevel；裸 TMPDIR → null", () => {
   const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
   gitInit(wsGit);
   assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: wsGit } }).repoRoot, wsGit);

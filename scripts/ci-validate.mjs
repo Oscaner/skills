@@ -172,7 +172,7 @@ function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 10; // 9 emitters + init (P5 removed three legacy skills)
+  const EXPECTED = 9; // 8 emitters + init (P5 removed three legacy skills, #169 removed cli-task)
   let n;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");
@@ -193,7 +193,7 @@ function checkOsuperpowersSkillsCount() {
     console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
 }
-checkStep("5b. osuperpowers skills-count (10)", checkOsuperpowersSkillsCount);
+checkStep("5b. osuperpowers skills-count (9)", checkOsuperpowersSkillsCount);
 
 subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
   "--test",

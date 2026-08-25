@@ -24,7 +24,7 @@
 
 **Files:**
 - Modify: `packages/osuperpowers/bin/engine/lib/runner.mjs:44-61`（resolveWorkspace）、`:377-460`（runTask 入口顺序）
-- Test: `packages/osuperpowers/bin/engine/tests/runner.test.mjs`（新增 describe 块）
+- Test: `packages/osuperpowers/bin/engine/tests/runner.test.mjs`（新增 describe 块；brief.test.mjs 不在本 Task——其直测属 Task 2）
 
 **Interfaces:**
 - Consumes: `gitToplevel(cwd)`（contract.mjs，已有）
@@ -378,14 +378,14 @@ brief.mjs：仅注释更新（参数名 cwd → repoRoot，语义即「取该目
 - [ ] **Step 4: 运行测试确认绿**
 
 Run: `node --test packages/osuperpowers/bin/engine/tests/runner.test.mjs packages/osuperpowers/bin/engine/tests/brief.test.mjs`
-Expected: 全部 PASS
+Expected: 全部 PASS——含 Step 1 的 brief 归属新用例（TASK_BASE 断言在此转绿：generateBrief repoRoot 下传已落地）与 brief.test.mjs 直测（回归钉死，保持绿）
 
 - [ ] **Step 5: （已取消——基线用例 2 迁移前移至 Task 1 Step 4，backfill 收紧使其在 Task 1 即红）**
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/osuperpowers/bin/engine/lib/runner.mjs packages/osuperpowers/bin/engine/lib/brief.mjs packages/osuperpowers/bin/engine/tests/
+git add packages/osuperpowers/bin/engine/lib/runner.mjs packages/osuperpowers/bin/engine/lib/brief.mjs packages/osuperpowers/bin/engine/tests/runner.test.mjs packages/osuperpowers/bin/engine/tests/brief.test.mjs
 git commit -m "fix(engine): thread repoRoot through scripts-dir/relpath/brief/review-package (#173)"
 ```
 

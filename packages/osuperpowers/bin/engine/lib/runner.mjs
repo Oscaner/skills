@@ -43,21 +43,45 @@ function finish(exitCode, h1, msg, noExit, { stderrPrefix = "CDD_BLOCKED" } = {}
 
 // ---- workspace / env ----
 
-// 对齐 _cdd_resolve_workspace：无 plan_file + CDD_WORKSPACE → 用之；否则从 plan 派生
-// <repo>/.superpowers/cdd/<slug>/（mkdir + cdd/.gitignore）。
-export function resolveWorkspace({ planFile, env, cwd }) {
-  if (!planFile && env.CDD_WORKSPACE) return env.CDD_WORKSPACE;
-  const plan = planFile || env.PLAN_FILE;
-  if (!plan) throw new RunBlocked("CDD_WORKSPACE unset and --plan not provided");
-  if (!existsSync(plan)) throw new RunBlocked(`plan file not found: ${plan}`);
-  const slug = path.basename(plan, ".md");
-  if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
-  const root = gitToplevel(cwd);
-  if (!root) throw new RunBlocked("not in a git repo");
-  const base = path.join(root, ".superpowers", "cdd");
-  mkdirSync(path.join(base, slug), { recursive: true });
-  writeFileSync(path.join(base, ".gitignore"), "*\n");
-  return path.join(base, slug);
+// 有效 plan 三来源合成（opt ‖ env.PLAN_FILE ‖ ledger backfill）。
+// resolveRepoRoot 的分支判断与错误信息均基于该有效 plan（#173：永不回退 cwd）。
+// 分支规则：
+//   有有效 plan → plan 派生分支：existsSync 前置（"plan file not found"）→
+//     repoRoot = gitToplevel(dirname(plan))，失败 → "not in a git repo"；
+//     workspace = <repoRoot>/.superpowers/cdd/<slug>/
+//   无有效 plan 且有 CDD_WORKSPACE → 直设分支（现行为）：workspace = env 原值；
+//     repoRoot = gitToplevel(workspace)，允许 null（下游容忍）
+//   两者皆无 → RunBlocked "cannot resolve repo root: provide --plan or CDD_WORKSPACE"
+export function resolveRepoRoot({ planFile, env, ledgerPath }) {
+  let plan = planFile || env.PLAN_FILE || "";
+  if (!plan && ledgerPath) plan = backfillPlanFromLedger(ledgerPath);
+  if (plan) {
+    if (!existsSync(plan)) throw new RunBlocked(`plan file not found: ${plan}`);
+    const root = gitToplevel(path.dirname(plan));
+    if (!root) throw new RunBlocked("not in a git repo");
+    return { plan, repoRoot: root };
+  }
+  if (env.CDD_WORKSPACE) {
+    return { plan: "", repoRoot: gitToplevel(env.CDD_WORKSPACE) ?? "" };
+  }
+  throw new RunBlocked("cannot resolve repo root: provide --plan or CDD_WORKSPACE");
+}
+
+// 纯派生（根由 resolveRepoRoot 解析后经第 3 参注入）：有 plan → <repoRoot>/.superpowers/cdd/<slug>/；
+// 无 plan + CDD_WORKSPACE → env 原值；两者皆无 → RunBlocked。
+export function resolveWorkspace({ planFile, env, repoRoot }) {
+  if (planFile || env.PLAN_FILE) {
+    if (!repoRoot) throw new RunBlocked("not in a git repo");
+    const plan = planFile || env.PLAN_FILE;
+    const slug = path.basename(plan, ".md");
+    if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
+    const base = path.join(repoRoot, ".superpowers", "cdd");
+    mkdirSync(path.join(base, slug), { recursive: true });
+    writeFileSync(path.join(base, ".gitignore"), "*\n");
+    return path.join(base, slug);
+  }
+  if (env.CDD_WORKSPACE) return env.CDD_WORKSPACE;
+  throw new RunBlocked("CDD_WORKSPACE unset and --plan not provided");
 }
 
 // 对齐 _cdd_set_task_env：workspace 派生路径，未设置才默认（`${VAR:-default}` 语义）；
@@ -400,10 +424,19 @@ export async function runTask(harness, taskNum, opts = {}) {
     throw e;
   }
 
-  // 2. Resolve workspace
+  // 2. 有效 plan 合成 + repoRoot 解析（#173：入口统一，永不回退 cwd）+ workspace
   let workspace;
+  let repoRoot;
+  let plan;
   try {
-    workspace = resolveWorkspace({ planFile, env: baseEnv, cwd });
+    const rr = resolveRepoRoot({ planFile, env: baseEnv, ledgerPath: baseEnv.CDD_LEDGER });
+    plan = rr.plan;
+    repoRoot = rr.repoRoot; // 存入作用域——Task 2 的 brief/review-package/scripts-dir 调用点使用
+    workspace = resolveWorkspace({
+      planFile: rr.plan || "",          // 有效 plan（含 env.PLAN_FILE / backfill 来源）→ 派生分支
+      env: rr.plan ? {} : baseEnv,      // 无有效 plan → 直设分支读 baseEnv.CDD_WORKSPACE
+      repoRoot: rr.repoRoot,
+    });
   } catch (e) {
     if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
     throw e;
@@ -452,9 +485,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 3. Set env
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness);
 
-  // 4. Ledger PLAN_FILE backfill
-  let plan = planFile || baseEnv.PLAN_FILE || "";
-  if (!plan) plan = backfillPlanFromLedger(env.CDD_LEDGER);
+  // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
 
   // 4.5 Brief 生成 / 校验（plan backfill 之后，task-review fixed-point 之前）
   // CDD_TASK_BRIEF 由 buildTaskEnv 恒设置 —— briefPath 永不为 falsy，无外层守卫。

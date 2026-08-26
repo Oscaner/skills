@@ -11,7 +11,7 @@
 - SOT-first 单提交：所有改动验证绿后一次提交 `refactor: remove retired debugging and verification skills and their trigger routes`。
 - 终扫口径：P10 同范围 token 归零（`packages/` 排除 CHANGELOG、`docs/` 排除历史 specs/plans/tickets；scripts/ 内 fixture 防御性同步）。
 
-## Task 1: SOT 删行 + 技能目录删除 + emit 级联再生
+### Task 1: SOT 删行 + 技能目录删除 + emit 级联再生
 
 **步骤**：
 
@@ -26,7 +26,7 @@
 - `git status` 显示 4 个 SKILL.md 删除 + 派生品更新；
 - `grep -c debugging packages/osuperpowers/GEMINI.md` = 0。
 
-## Task 2: 手工同步面清扫
+### Task 2: 手工同步面清扫
 
 **步骤**：
 
@@ -40,7 +40,7 @@
 
 **验收**：本任务编辑的文件（两 README 对、maintainer 文档对、init/router.md）内 grep `osuperpowers:(debugging|verification)` 与 `skills/(debugging|verification)/` 归零——router 测试（cursor-enforce.test.mjs）与 subagent-lifecycle 的残留属 Task 3 范围；全树归零判定保留在 Task 4。
 
-## Task 3: 测试 fixture 与悬空引用
+### Task 3: 测试 fixture 与悬空引用
 
 **步骤**：
 
@@ -54,7 +54,7 @@
 
 **验收**：`node --test scripts/lib/emit/emit.test.mjs` 绿；router 测试绿。
 
-## Task 4: 全量验证 + 终扫预演 + 单提交
+### Task 4: 全量验证 + 终扫预演 + 单提交
 
 **步骤**：
 

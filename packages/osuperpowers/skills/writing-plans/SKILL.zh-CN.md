@@ -26,7 +26,7 @@ description: 独立 plan 写作编排器——读取上游 superpowers:writing-p
 
 ### Rule: Read Sub-Skills
 
-按需读取 `mattpocock-skills` `skills/engineering/to-tickets/SKILL.md`（ticket 拆分步骤 1-4）。加载失败协议见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
+按需读取 `mattpocock-skills` `skills/engineering/to-tickets/SKILL.md`（ticket 拆分步骤 1-4）。加载失败协议：目标 skill 无法解析/加载 → 向用户报告错误并询问下一步。不静默降级。用户可选择跳过委托或中止流程。
 
 ### Rule: Section-by-Section
 
@@ -44,7 +44,7 @@ Plan 写完后，必须按序执行三次 cdd-review CLI pass
 
 Plan review 有 3 种 pass 类型（completeness & spec 对齐 / task 分解 / buildability & 类型一致性），每个 pass 派发一次新的 `cdd-review`：
   cdd-review --harness claude --template plan-review --param PASS=<completeness|decomposition|buildability> --param DOC=<plan-path> --param SPEC=<spec-path>
-**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = osuperpowers 根）。派发纪律见 [docs-review.md](../docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
+**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = osuperpowers 根）。派发纪律见 [docs-review.md](../brainstorming/docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
 Review Stopping next-step 标签（本技能）：`"Execution Handoff"`。
 
 ### Rule: Tickets Publish Redirect

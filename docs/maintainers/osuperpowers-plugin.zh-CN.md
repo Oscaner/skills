@@ -47,12 +47,12 @@ Hooks 随每个插件发布，仅当插件经 Claude Code / Cursor marketplace �
 
 ## Cross-cutting docs
 
-`packages/osuperpowers/docs/` 下有两份 cross-cutting 参考文档，承载多个 osuperpowers skill 共同引用的不变量，而非各自复制。两者都不是 slash 命令；它们由 osuperpowers skill 内部的 `Rule:` 行通过引用调用。编辑它们会传播到每个引用它的 skill。
+`packages/osuperpowers/docs/` 下原有两份 cross-cutting 参考文档，P3 已迁移/解散：
 
-- [docs/subagent-lifecycle.md](../../packages/osuperpowers/docs/subagent-lifecycle.md) —— **每次 pass 用 fresh subagent**、**当且仅当独立时并发** dispatch。被 osuperpowers 各 skill 的 review-pass 规则引用。独立性指无数据依赖（不读取 Pass N-1 的固定输出），而非仅仅是「不同类别」。
-- [docs/docs-review.md](../../packages/osuperpowers/docs/docs-review.md) —— **D1 escalate-on-finding**、**D2 delta review**、**D3 findings-only output**、**Rule: Review Stopping**（warn/nit 用户决策的循环流）、**Rule: Handoff Output**。仅被 spec-review（brainstorming）和 plan-review（writing-plans）引用。task-review 与 branch-review 使用各自机制。
+- `docs-review.md`（D1/D2/D3 + Review Stopping + Handoff Output）→ `skills/brainstorming/docs/docs-review.md`
+- `subagent-lifecycle.md`（fresh/concurrent dispatch）→ **已解散**（CLI 模式下 Fresh/Concurrent 规则消亡；Delegate Load Failure 内联到各消费者 skill）
 
-编辑任何 dispatch review pass 的 osuperpowers skill 时，应当引用这些文档而非转述它们 —— 转述会漂移，引用不会。当新增一条适用于多个 osuperpowers skill 的不变量时，把它加进相应的 cross-cutting 文档中的规则并引用，不要在各 skill 间内联复制。
+仅被 spec-review（brainstorming）和 plan-review（writing-plans）引用。task-review 与 branch-review 使用各自机制。
 
 ## `docs/superpowers/` conventions
 
@@ -208,7 +208,7 @@ CDD 引擎（`cdd-task.mjs` --> `runner.mjs`）在 spawn 嵌套 CLI agent 之前
 
 **必需插件**（封闭集合，配置驱动）：`superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`。探测按 harness 而异：`plugin-list`（claude/grok）、`skill-dir`（cursor-agent/droid/qoder/codex/gemini）、`package-list`（pi）。探测失败（CLI 错误 / 无权限）--> **fail-open 放行**（exit 0 + warn）。
 
-完整 gate 细节见 [cdd-reference.md](../../packages/osuperpowers/docs/cdd-reference.md) H6，实现见 `packages/osuperpowers/bin/utils/skills-probe.mjs` / `packages/osuperpowers/bin/utils/skills-probe.config.mjs`。
+完整 gate 细节见 [cdd-reference.md](../../packages/osuperpowers/skills/cli-driven-development/docs/cdd-reference.md) H6，实现见 `packages/osuperpowers/bin/utils/skills-probe.mjs` / `packages/osuperpowers/bin/utils/skills-probe.config.mjs`。
 
 ## Releasing
 

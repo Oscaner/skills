@@ -56,7 +56,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 **必须**读取 `mattpocock-skills` `skills/productivity/grilling/SKILL.md`（强制步骤——澄清问题委托）。
 失败（文件不存在/读取错误）→ **报告错误 + 询问用户下一步**；用户可跳过 grilling 继续或中止流程。
-加载失败协议：见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
+加载失败协议：目标 skill 无法解析/加载 → 向用户报告错误并询问下一步。不静默降级。用户可选择跳过委托或中止流程。
 读取 grilling SKILL.md 后，须将其指令作为 grilling 阶段的执行框架如实执行，不得以自行组织的提问格式、选项菜单或结构化选择列表替代。
 
 ### Rule: Research Delegation
@@ -74,7 +74,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 ### Rule: Overall-Phase
 
-大型 / 多阶段需求（≥3 子系统 / 多阶段 / 大改）先写 overall spec，再 phase out。文档结构见 [overall-spec-template.md](./overall-spec-template.md)（每 phase 另见 [phase-spec-template.md](./phase-spec-template.md)）。GATE：overall 批准 ≠ 任何 phase 已开始。
+大型 / 多阶段需求（≥3 子系统 / 多阶段 / 大改）先写 overall spec，再 phase out。文档结构见 [overall-spec-template.md](./docs/overall-spec-template.md)（每 phase 另见 [phase-spec-template.md](./docs/phase-spec-template.md)）。GATE：overall 批准 ≠ 任何 phase 已开始。
 
 起草时，overall spec 必须包含：(1) 按 phase 的 issue 清单；(2) 路径命名 `specs/YYYY-MM-DD-<feature>-overall.md`、`specs/YYYY-MM-DD-<feature>-<phase-id>-design.md`、`plans/...-<phase-id>.md`、`tickets/...-<phase-id>-tickets.md`（`<phase-id>` 小写）；(3) 每 phase 的 Acceptance criteria；(4) 软/硬依赖区分（图例：`->` = 硬阻塞，`──建议先于──▶` = 软建议——完整图例见模板）；(5) phase 进行中出现的范围/约束变更必须先回馈 overall spec 再实施。每个 phase spec 须经完整 brainstorm→plan→dev 循环生成；仅 overall 批准后直接实施属违规。
 
@@ -82,7 +82,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 Spec review 有 3 种 pass 类型（completeness / consistency&scope / clarity&YAGNI），每个 pass 派发一次新的 `cdd-review`：
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-派发纪律见 [docs-review.md](../docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
+派发纪律见 [docs-review.md](./docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
 Review Stopping next-step 标签（本技能）：`"用户审阅 spec"`。
 
 ### Rule: Next-Step Routing

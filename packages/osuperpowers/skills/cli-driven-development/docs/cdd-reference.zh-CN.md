@@ -1,7 +1,7 @@
 # CDD CLI Orchestrator Reference (H6–H8)
 
 > Worker discipline 权威来源（SOT）：`../templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`
-> Orchestrator gate 纪律：[`docs/controller-handoff.md`](controller-handoff.md) H1–H5
+> Orchestrator gate 纪律：[`controller-handoff.md`](controller-handoff.md) H1–H5
 > **Rule 0 checklist 语义契约：** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 —— 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`bin/engine/tests/templates.test.mjs` 会断言这一点（issue #52 Guard 1）。
 
 ## H6 — CLI 分发（p1）

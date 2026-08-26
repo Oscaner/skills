@@ -47,12 +47,12 @@ Detail (pending-state contract, fail-open, shell allowlist) --> [cross-harness-o
 
 ## Cross-cutting docs
 
-Two cross-cutting reference docs in `packages/osuperpowers/docs/` hold invariants that multiple osuperpowers skills cite instead of duplicating. Neither is a slash command; they are invoked by reference from `Rule:` lines inside the osuperpowers skills. Editing them propagates to every skill that cites them.
+`packages/osuperpowers/docs/` held two cross-cutting reference docs that have been relocated during P3:
 
-- [docs/subagent-lifecycle.md](../../packages/osuperpowers/docs/subagent-lifecycle.md) -- **fresh subagent per pass**, **concurrent iff independent** dispatch. Cited by every review-pass rule in the osuperpowers skills. Independence means no data dependency (no reading Pass N-1's fixed output), not merely "different categories".
-- [docs/docs-review.md](../../packages/osuperpowers/docs/docs-review.md) -- **D1 escalate-on-finding**, **D2 delta review**, **D3 findings-only output**, **Rule: Review Stopping** (loop flow for warn/nit user decision), **Rule: Handoff Output**. Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-review and branch-review use their own mechanisms.
+- `docs-review.md` (D1/D2/D3 + Review Stopping + Handoff Output) → `skills/brainstorming/docs/docs-review.md`
+- `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
-When editing any osuperpowers skill that dispatches review passes, cite these docs rather than paraphrasing them -- paraphrases drift; citations don't. When adding a new invariant that applies to multiple osuperpowers skills, add a new rule to the appropriate cross-cutting doc and cite it, don't inline it across the skills.
+Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-review and branch-review use their own mechanisms.
 
 ## `docs/superpowers/` conventions
 
@@ -208,7 +208,7 @@ The CDD engine (`cdd-task.mjs` --> `runner.mjs`) runs a **skills-missing pre-che
 
 **Required plugins** (closed set, configuration-driven): `superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`. Probe detection varies by harness: `plugin-list` (claude/grok), `skill-dir` (cursor-agent/droid/qoder/codex/gemini), `package-list` (pi). Probe failure (CLI error / no permission) --> **fail-open allow** (exit 0 + warn).
 
-See [cdd-reference.md](../../packages/osuperpowers/docs/cdd-reference.md) H6 for full gate details, and `packages/osuperpowers/bin/utils/skills-probe.mjs` / `packages/osuperpowers/bin/utils/skills-probe.config.mjs` for implementation.
+See [cdd-reference.md](../../packages/osuperpowers/skills/cli-driven-development/docs/cdd-reference.md) H6 for full gate details, and `packages/osuperpowers/bin/utils/skills-probe.mjs` / `packages/osuperpowers/bin/utils/skills-probe.config.mjs` for implementation.
 
 ## Releasing
 

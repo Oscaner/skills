@@ -39,4 +39,4 @@ handoff 写入内联在各模式模板（`templates/cdd/{implement,task-review,f
 
 ---
 
-H6–H8（CLI dispatch / opt-in / harness registry / gate matrix）→ [`docs/cdd-reference.md`](cdd-reference.md)。
+H6–H8（CLI dispatch / opt-in / harness registry / gate matrix）→ [`cdd-reference.md`](cdd-reference.md)。

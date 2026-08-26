@@ -79,8 +79,8 @@ test("lineBudget: 真实阈值", () => {
   assert.equal(lineBudget("sdd"), 160);
   assert.equal(lineBudget("ctrl"), 110);
   assert.equal(lineBudget("tier1"), 225);
-  assert.equal(lineBudget("tier2"), 350);
-  assert.deepEqual(LINE_BUDGETS, { sdd: 160, ctrl: 110, tier1: 225, tier2: 350 });
+  assert.equal(lineBudget("tier2"), 320);
+  assert.deepEqual(LINE_BUDGETS, { sdd: 160, ctrl: 110, tier1: 225, tier2: 320 });
 });
 
 test("lineBudget: 未知 tier → 抛错", () => {
@@ -102,11 +102,10 @@ function wcLines(rel) {
 
 test("governance: 真实行预算（sdd/ctrl/tier1/tier2 实测宿主）", () => {
   const sdd = wcLines("skills/cli-driven-development/SKILL.md");
-  const ctrl = wcLines("docs/controller-handoff.md");
-  const life = wcLines("docs/subagent-lifecycle.md");
-  const rev = wcLines("docs/docs-review.md");
+  const ctrl = wcLines("skills/cli-driven-development/docs/controller-handoff.md");
+  const rev = wcLines("skills/brainstorming/docs/docs-review.md");
   const tier1 = sdd + ctrl;
-  const tier2 = tier1 + life + rev;
+  const tier2 = tier1 + rev;
   assert.ok(sdd <= lineBudget("sdd"), `cli-driven-development ${sdd} > ${lineBudget("sdd")}`);
   assert.ok(ctrl <= lineBudget("ctrl"), `controller-handoff ${ctrl} > ${lineBudget("ctrl")}`);
   assert.ok(tier1 <= lineBudget("tier1"), `Tier 1 ${tier1} > ${lineBudget("tier1")}`);
@@ -135,7 +134,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   const fragment = readRel("templates/cdd/_handoff-write-fragment.md");
   const review = readRel("templates/cdd/task-review.md");
   const fix = readRel("templates/cdd/fix.md");
-  const dispatch = readRel("docs/docs-review.md");
+  const dispatch = readRel("skills/brainstorming/docs/docs-review.md");
 
   // review segment：deferred 保留 + blocker-only open-findings + merge
   assert.ok(fragment.includes("deferred: true"), "fragment deferred marking");

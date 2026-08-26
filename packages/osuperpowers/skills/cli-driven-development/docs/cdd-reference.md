@@ -1,7 +1,7 @@
 # CDD CLI Orchestrator Reference (H6-H8)
 
 > Worker discipline SOT: `../templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`
-> Orchestrator gate discipline: [`docs/controller-handoff.md`](controller-handoff.md) H1-H5
+> Orchestrator gate discipline: [`controller-handoff.md`](controller-handoff.md) H1-H5
 > **Rule 0 checklist semantic contract:** The three-phase phase markers and key tokens in Rule 0 are not line-budget trimming targets — trimming must not delete/compress the checklist's phase structure or key tokens; `bin/engine/tests/templates.test.mjs` asserts this (issue #52 Guard 1).
 
 ## H6 — CLI dispatch (p1)

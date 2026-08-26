@@ -1,5 +1,5 @@
 // engine/lib/contract.mjs — CDD commit-contract validator + handoff write（Node port of
-// cdd_validate_commit_contract / _cdd_rewrite_handoff_blocked + docs/handoff-schema.md 写入）。
+// cdd_validate_commit_contract / _cdd_rewrite_handoff_blocked + skills/cli-driven-development/docs/handoff-schema.md 写入）。
 // classifySeverity / rollupStatus / markDeferred 是 severity→status+deferred 决策的 Node 钉死契约
 // （spec D1/D4/D5a；port 自 cdd-severity-contract.test.sh 的语义而非其 grep 散文）。
 // runner.mjs（T2）在嵌套 CLI 失败时用 writeHandoff 捕获 stderr 进 blocker（唯一 sanctioned divergence）。
@@ -41,7 +41,7 @@ function safeParse(filePath) {
   }
 }
 
-// 按 docs/handoff-schema.md 写 handoff。已有文件 → 浅合并（H6 链 update 语义：
+// 按 skills/cli-driven-development/docs/handoff-schema.md 写 handoff。已有文件 → 浅合并（H6 链 update 语义：
 // review/validator 改 status/blocker 时保留 task/commits/findings 等字段）。
 // 父目录不存在自动创建；返回合并后的完整对象。
 export function writeHandoff(handoffPath, data) {

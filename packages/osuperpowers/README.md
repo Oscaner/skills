@@ -20,8 +20,6 @@ This plugin provides two skill families:
 | `writing-plans` | Orchestrator | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
 | `cli-driven-development` | Orchestrator + Engine | Plan executor (cli-only); harness CLI three-mode chain dispatcher + final branch-review CLI |
 | `finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
-| `debugging` | Orchestrator | Evidence before fixes; delegates to `diagnosing-bugs` |
-| `verification` | Orchestrator | No completion claims without verification evidence |
 | `init` | Utility | Project initialization (`init router` writes self-check rules) |
 | `report-issue` | Utility | Structured issue reporting |
 | `cli-select` | CDD Engine | Interactive harness selection |

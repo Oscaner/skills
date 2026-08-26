@@ -92,7 +92,7 @@ function main() {
 
   check("validate canonical target names", () => {
     const m = loadManifest();
-    assert(m.targets.length === 8, `expected 8 targets, got ${m.targets.length}`);
+    assert(m.targets.length === 6, `expected 6 targets, got ${m.targets.length}`);
     for (const t of m.targets) {
       assert(t.name.includes(":"), `name must be plugin-qualified: ${t.name}`);
       const [plugin, upstream] = t.overrides.split(":");

@@ -34,9 +34,7 @@
 | `superpowers:writing-plans` | `osuperpowers:writing-plans` | 逐节 plan 写入 + review；tickets 写入 `docs/superpowers/tickets/` |
 | `superpowers:subagent-driven-development` | `osuperpowers:cli-driven-development` | CDD 引擎——harness CLI 三模式链 |
 | `superpowers:finishing-a-development-branch` | `osuperpowers:finishing` | 分支收尾 / PR；无 worktree；conventional commits |
-| `superpowers:systematic-debugging` | `osuperpowers:debugging` | 证据先于修复；委派给 `diagnosing-bugs` |
 | `superpowers:test-driven-development` | `mattpocock-skills:tdd` | 红绿循环；直接 delegate |
-| `superpowers:verification-before-completion` | `osuperpowers:verification` | 未经验证证据不得声称完成 |
 | `superpowers:using-git-worktrees` | `osuperpowers:finishing` | 拒绝创建 worktree（用户政策） |
 
 同样的映射也用于 bare `/slug` 形式（例如 `/brainstorming` 映射到 `osuperpowers:brainstorming`）。

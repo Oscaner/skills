@@ -33,9 +33,7 @@
 | `/writing-plans` | Skill(osuperpowers:writing-plans) |
 | `/subagent-driven-development` | Skill(osuperpowers:cli-driven-development) |
 | `/finishing-a-development-branch` | Skill(osuperpowers:finishing) |
-| `/systematic-debugging` | Skill(osuperpowers:debugging) |
 | `/test-driven-development` | Skill(mattpocock-skills:tdd) |
-| `/verification-before-completion` | Skill(osuperpowers:verification) |
 | `/using-git-worktrees` | Skill(osuperpowers:finishing) |
 ```
 

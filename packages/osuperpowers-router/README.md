@@ -26,9 +26,7 @@ Three layers keep the route from being skipped:
 | `/writing-plans` | `osuperpowers:writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
 | `/subagent-driven-development` | `osuperpowers:cli-driven-development` | CDD engine — harness CLI three-mode chain |
 | `/finishing-a-development-branch` | `osuperpowers:finishing` | Branch finish / PR; no worktrees; conventional commits |
-| `/systematic-debugging` | `osuperpowers:debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
 | `/test-driven-development` | `mattpocock-skills:tdd` | Red-green loop; seam confirmation gate |
-| `/verification-before-completion` | `osuperpowers:verification` | No completion claims without verification evidence |
 | `/using-git-worktrees` | `osuperpowers:finishing` | Refuses worktree creation (user policy) |
 
 ## Installation

@@ -696,7 +696,7 @@ test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", ()
 
 test("loadTargets parses the real overrides.manifest.json", () => {
   const targets = loadTargets(MANIFEST_PATH);
-  assert.equal(targets.length, 8); // P5 removed two legacy mappings
+  assert.equal(targets.length, 6); // P2 removed debugging/verification mappings
   const brainstorming = targets.find(
     (t) => t.name === "osuperpowers:brainstorming",
   );

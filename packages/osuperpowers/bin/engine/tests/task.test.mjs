@@ -4,11 +4,12 @@
 // 测试经 spawnSync 起子进程（cwd=repo root），env 清掉 orchestrator 会话可能继承的 CDD_*。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { spawnSync, execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gitCommit, gitInit } from "./helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/osuperpowers/bin/engine/tests
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -33,11 +34,15 @@ function run(args, extraEnv = {}, opts = {}) {
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 
-// 非 git temp workspace —— 对齐 cdd-cli-dry-run-smoke（CDD_WORKSPACE 指向 TMPDIR，commit-contract fail-open）。
+// #173：plan 须位于 git 仓库内（repoRoot = gitToplevel(dirname(plan))，永不回退 cwd）——
+// workspace 派生于 <planDir>/.superpowers/cdd/<slug>/；gitCommit 保持工作树干净
+// （commit-contract 校验）。
 function setupWorkspace() {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-cli-"));
-  writeFileSync(path.join(ws, "plan.md"), "# Plan\n### Task 1: test\n");
-  return ws;
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-task-cli-")));
+  gitInit(dir);
+  writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
+  gitCommit(dir);
+  return dir;
 }
 
 test("cdd-task.mjs: dry-run implement → H1 四行 DONE + exit 0", () => {

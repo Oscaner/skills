@@ -43,21 +43,51 @@ function finish(exitCode, h1, msg, noExit, { stderrPrefix = "CDD_BLOCKED" } = {}
 
 // ---- workspace / env ----
 
-// 对齐 _cdd_resolve_workspace：无 plan_file + CDD_WORKSPACE → 用之；否则从 plan 派生
-// <repo>/.superpowers/cdd/<slug>/（mkdir + cdd/.gitignore）。
-export function resolveWorkspace({ planFile, env, cwd }) {
-  if (!planFile && env.CDD_WORKSPACE) return env.CDD_WORKSPACE;
-  const plan = planFile || env.PLAN_FILE;
-  if (!plan) throw new RunBlocked("CDD_WORKSPACE unset and --plan not provided");
-  if (!existsSync(plan)) throw new RunBlocked(`plan file not found: ${plan}`);
-  const slug = path.basename(plan, ".md");
-  if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
-  const root = gitToplevel(cwd);
-  if (!root) throw new RunBlocked("not in a git repo");
-  const base = path.join(root, ".superpowers", "cdd");
-  mkdirSync(path.join(base, slug), { recursive: true });
-  writeFileSync(path.join(base, ".gitignore"), "*\n");
-  return path.join(base, slug);
+// 有效 plan 三来源合成（opt ‖ env.PLAN_FILE ‖ ledger backfill）。
+// resolveRepoRoot 的分支判断与错误信息均基于该有效 plan（#173：永不回退 cwd）。
+// 分支规则：
+//   有有效 plan → plan 派生分支：existsSync 前置（"plan file not found"）→
+//     repoRoot = gitToplevel(dirname(plan))，失败 → "not in a git repo"；
+//     workspace = <repoRoot>/.superpowers/cdd/<slug>/
+//   无有效 plan 且有 CDD_WORKSPACE → 直设分支（现行为）：workspace = env 原值；
+//     repoRoot = gitToplevel(workspace)，允许 null（下游容忍）
+//   两者皆无 → RunBlocked "cannot resolve repo root: provide --plan or CDD_WORKSPACE"
+export function resolveRepoRoot({ planFile, env, ledgerPath }) {
+  let plan = planFile || env.PLAN_FILE || "";
+  if (!plan && ledgerPath) plan = backfillPlanFromLedger(ledgerPath);
+  if (plan) {
+    if (!existsSync(plan)) throw new RunBlocked(`plan file not found: ${plan}`);
+    const root = gitToplevel(path.dirname(plan));
+    if (!root) throw new RunBlocked("not in a git repo");
+    return { plan, repoRoot: root };
+  }
+  if (env.CDD_WORKSPACE) {
+    // repoRoot 允许为 null（下游容忍：scripts-dir 跳过 submodule 探测 / relpath 回退绝对路径）。
+    return { plan: "", repoRoot: gitToplevel(env.CDD_WORKSPACE) };
+  }
+  throw new RunBlocked("cannot resolve repo root: provide --plan or CDD_WORKSPACE");
+}
+
+// 纯派生（根由 resolveRepoRoot 解析后经第 3 参注入）：有 plan → <repoRoot>/.superpowers/cdd/<slug>/；
+// 无 plan + CDD_WORKSPACE → env 原值；两者皆无 → RunBlocked。
+// workspace 解析（#173 后为纯派生，repoRoot 由 resolveRepoRoot 给出）：
+//   有 plan（planFile 参数 = 有效 plan，含 env.PLAN_FILE/backfill 来源）→ 派生分支
+//     <repoRoot>/.superpowers/cdd/<slug>/；
+//   无 plan 且 env.CDD_WORKSPACE → 直设分支（现行为）：workspace = env 原值。
+// 分支选择由 planSource 显式声明（"plan" | "workspace"）——调用方据 resolveRepoRoot
+// 结果决定，消除「伪造空 env 驱动内部分支」的控制耦合。
+export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
+  if (planSource === "plan") {
+    if (!repoRoot) throw new RunBlocked("not in a git repo");
+    const slug = path.basename(plan, ".md");
+    if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
+    const base = path.join(repoRoot, ".superpowers", "cdd");
+    mkdirSync(path.join(base, slug), { recursive: true });
+    writeFileSync(path.join(base, ".gitignore"), "*\n");
+    return path.join(base, slug);
+  }
+  if (env.CDD_WORKSPACE) return env.CDD_WORKSPACE;
+  throw new RunBlocked("CDD_WORKSPACE unset and --plan not provided");
 }
 
 // 对齐 _cdd_set_task_env：workspace 派生路径，未设置才默认（`${VAR:-default}` 语义）；
@@ -244,9 +274,9 @@ function scanBalanced(text, start, openCh, closeCh) {
 // ---- review-package（非 dry-run review 模式）----
 
 // 对齐 cdd_superpowers_scripts_dir：repo submodule → Claude/Cursor plugin cache（版本目录升序）。
+// 第 1 参数为 repoRoot（#173：submodule 探测从项目仓库找 vendors，与调用方 cwd 解耦）。
 // 导出供单测（T7 补回：findSuperpowersScriptsDir / byVersion）。
-export function findSuperpowersScriptsDir(cwd) {
-  const repoRoot = gitToplevel(cwd);
+export function findSuperpowersScriptsDir(repoRoot) {
   if (repoRoot) {
     const probe = path.join(repoRoot, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
     if (existsSync(path.join(probe, "sdd-workspace"))) return probe;
@@ -279,10 +309,10 @@ export function byVersion(a, b) {
 }
 
 // 对齐 _cdd_relpath_from_repo：repo 内路径 → 相对 repo；否则绝对路径。
-function relpathFromRepo(abs, cwd) {
-  const root = gitToplevel(cwd);
+// 第 2 参数为 repoRoot（#173：由调用方 resolveRepoRoot 下传；无根 → 回退绝对路径）。
+function relpathFromRepo(abs, repoRoot) {
   const resolved = path.resolve(abs);
-  if (root && resolved.startsWith(`${root}/`)) return resolved.slice(root.length + 1);
+  if (repoRoot && resolved.startsWith(`${repoRoot}/`)) return resolved.slice(repoRoot.length + 1);
   return resolved;
 }
 
@@ -296,8 +326,11 @@ function shortSha(sha) {
 // bash 对齐：`[[ -x review-package ]]` 可执行检查（spawn 前 accessSync X_OK）+ `wrote <diff>:`
 // progress 行落到 stdout（operator 可见）。
 // scriptsDir DI：单测可 override findSuperpowersScriptsDir（避免触达 repo/cache 真实路径）。
-export async function runReviewPackage(plan, base, head, handoffPath, { cwd, env, scriptsDir: scriptsDirOverride }) {
-  const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(cwd);
+// cwd 选项语义 = 子进程执行目录（#173：调用方传 repoRoot —— review-package 在 plan 仓库内跑）。
+// repoRoot 选项：#173 后调用方传入项目仓库根（bash 子进程 cwd 与 relpath 基准均基于它）；
+// 键名沿用 `cwd`（历史直测 source-compatible），语义即「子进程工作目录 = repoRoot」。
+export async function runReviewPackage(plan, base, head, handoffPath, { cwd: repoRoot, env, scriptsDir: scriptsDirOverride }) {
+  const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(repoRoot);
   if (!scriptsDir) throw new RunBlocked("upstream review-package script not found");
   const reviewPkg = path.join(scriptsDir, "review-package");
   try {
@@ -307,7 +340,7 @@ export async function runReviewPackage(plan, base, head, handoffPath, { cwd, env
   }
   const wsDir = path.dirname(handoffPath);
   const outFile = path.join(wsDir, `review-${shortSha(base)}..${shortSha(head)}.diff`);
-  const res = await spawnCapture("bash", [reviewPkg, plan, base, head, outFile], { cwd, env });
+  const res = await spawnCapture("bash", [reviewPkg, plan, base, head, outFile], { cwd: repoRoot, env });
   const outLine = res.stdout.trim().split("\n").filter(Boolean).pop() ?? "";
   const diffPath = outLine.match(/^wrote ([^:]+):/)?.[1] ?? "";
   if (!diffPath || !existsSync(diffPath)) {
@@ -315,7 +348,7 @@ export async function runReviewPackage(plan, base, head, handoffPath, { cwd, env
   }
   process.stdout.write(`${outLine}\n`); // 对齐 bash：`wrote <diff>:` progress 行（stdout）
   const h = readJson(handoffPath) ?? {};
-  writeHandoff(handoffPath, { artifacts: { ...(h.artifacts ?? {}), diff: relpathFromRepo(diffPath, cwd) } });
+  writeHandoff(handoffPath, { artifacts: { ...(h.artifacts ?? {}), diff: relpathFromRepo(diffPath, repoRoot) } });
 }
 
 // ---- H1 输出 ----
@@ -376,7 +409,8 @@ function dryRunH1Block(env, taskNum) {
 
 // ---- runTask / runPlan ----
 
-// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot }。
+// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot, scriptsDir }。
+// scriptsDir：DI 透传至 runReviewPackage（测试 seam，不改生产行为）。
 // 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
@@ -400,10 +434,22 @@ export async function runTask(harness, taskNum, opts = {}) {
     throw e;
   }
 
-  // 2. Resolve workspace
+  const scriptsDir = opts.scriptsDir; // DI 透传至 runReviewPackage（测试 seam，不改生产行为）
+
+  // 2. 有效 plan 合成 + repoRoot 解析（#173：入口统一，永不回退 cwd）+ workspace
   let workspace;
+  let repoRoot;
+  let plan;
   try {
-    workspace = resolveWorkspace({ planFile, env: baseEnv, cwd });
+    const rr = resolveRepoRoot({ planFile, env: baseEnv, ledgerPath: baseEnv.CDD_LEDGER });
+    plan = rr.plan;
+    repoRoot = rr.repoRoot; // 存入作用域——brief/review-package/scripts-dir 调用点使用
+    workspace = resolveWorkspace({
+      plan: rr.plan,
+      planSource: rr.plan ? "plan" : "workspace", // 有效 plan → 派生分支；否则直设分支读 baseEnv.CDD_WORKSPACE
+      env: baseEnv,
+      repoRoot,
+    });
   } catch (e) {
     if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
     throw e;
@@ -452,9 +498,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 3. Set env
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness);
 
-  // 4. Ledger PLAN_FILE backfill
-  let plan = planFile || baseEnv.PLAN_FILE || "";
-  if (!plan) plan = backfillPlanFromLedger(env.CDD_LEDGER);
+  // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
 
   // 4.5 Brief 生成 / 校验（plan backfill 之后，task-review fixed-point 之前）
   // CDD_TASK_BRIEF 由 buildTaskEnv 恒设置 —— briefPath 永不为 falsy，无外层守卫。
@@ -464,7 +508,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (!existsSync(briefPath)) {
       if (!plan) return finish(1, [], "brief missing and plan unavailable: cannot auto-generate brief", noExit);
       try {
-        generateBrief(plan, taskNum, briefPath, cwd);
+        generateBrief(plan, taskNum, briefPath, repoRoot || cwd); // #173：repoRoot 下传（plan 仓库 HEAD）
       } catch (e) {
         return finish(1, [], `brief auto-generation failed: ${e.message}`, noExit);
       }
@@ -489,7 +533,9 @@ export async function runTask(harness, taskNum, opts = {}) {
       const handoffHead = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "head"]);
       if (handoffHead) taskReviewHead = handoffHead;
       try {
-        await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH, { cwd, env });
+        // #173：cwd 键传 repoRoot 值（语义变更在调用方——子进程在 plan 仓库内执行；签名不变）。
+        await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH,
+          { cwd: repoRoot || cwd, env, scriptsDir });
       } catch (e) {
         if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
         throw e;

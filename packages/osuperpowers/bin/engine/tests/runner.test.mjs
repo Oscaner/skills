@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus,
-         findSuperpowersScriptsDir, byVersion, runReviewPackage } from "../lib/runner.mjs";
+         findSuperpowersScriptsDir, byVersion, runReviewPackage, resolveRepoRoot } from "../lib/runner.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -38,11 +38,39 @@ function setupWorkspace() {
 // 等若泄漏，runTask 会写到真实 workspace）；仅保留测试可控的 CDD_WORKSPACE（+extra）。
 // PLAN_FILE 同样清除：CDD 宿主 env 中的 PLAN_FILE 若泄漏，会影响 plan-backfill 逻辑（test 4 依赖无 plan）。
 function baseEnv(ws, extra = {}) {
+  return { ...filteredEnv(), CDD_WORKSPACE: ws, ...extra };
+}
+
+// 跨仓用例 env：复用 baseEnv 的 CDD_*/PLAN_FILE 过滤，但不注入任何 workspace ——
+// 无 CDD_WORKSPACE / PLAN_FILE 泄漏（#173：plan 派生分支 / cannot-resolve 用例需要）。
+function cleanEnv(extra = {}) {
+  return { ...filteredEnv(), ...extra };
+}
+
+// 过滤宿主 env 的 CDD_* 与 PLAN_FILE（baseEnv/cleanEnv 共用的单一过滤实现）。
+function filteredEnv() {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
   }
-  return { ...env, CDD_WORKSPACE: ws, ...extra };
+  return env;
+}
+
+// git init + 空提交（共享 helper：brief.test.mjs 同用；-c 内联身份兼容无全局 user.name/email 的 CI）。
+import { gitCommit, gitInit } from "./helpers.mjs";
+
+// gitInit + realpath 归一（git rev-parse --show-toplevel 返回 realpath；macOS /tmp → /private/tmp）。
+function gitInitReal(dir) {
+  const real = realpathSync(dir);
+  gitInit(real);
+  return real;
+}
+
+// 在已 init 的仓库写入 plan 文件并 add+commit——保持工作树干净（commit-contract 校验）。
+function commitPlan(repoDir, planFile) {
+  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
+  gitCommit(repoDir); // 保持仓库干净——commit-contract 校验工作树
+  return planFile;
 }
 
 // 捕获 runTask（noExit:false）的 process.exit + stdout/stderr。
@@ -315,10 +343,14 @@ test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（�
 
 test("runTask: task-review 模式 review-package 不可执行 → CDD_BLOCKED + exit 1（对齐 bash [[ -x ]]）", async () => {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-reviewpkg-")));
+  gitInit(dir); // #173：backfill 收紧后 plan 解析需要 git repo（repoRoot = gitToplevel(dirname(plan))）
   writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
   writeFileSync(path.join(dir, "progress.md"), `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
-  writeFileSync(path.join(dir, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(dir, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
+  // brief/handoff 预写在派生工作区 <dir>/.superpowers/cdd/plan/ 下（slug = plan.md 基名）；
+  // .gitignore 由 resolveWorkspace 写入后整棵子树被忽略，工作树保持干净。
+  const derivedWs = path.join(dir, ".superpowers", "cdd", "plan");
+  mkdirSync(derivedWs, { recursive: true });
+  writeFileSync(path.join(derivedWs, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
   // HOME → fake plugin cache：review-package 存在但不可执行（无 chmod +x）。
   const scripts = path.join(
     dir, ".claude", "plugins", "cache", "oscaner", "superpowers", "1.0.0",
@@ -342,6 +374,9 @@ test("runTask: task-review 模式 review-package 不可执行 → CDD_BLOCKED + 
         mode: "task-review",
         probeSkills: NOOP_PROBE,
         env: baseEnv(dir, {
+          CDD_LEDGER: path.join(dir, "progress.md"),
+          CDD_TASK_BRIEF: path.join(derivedWs, "task-1-brief.md"),
+          CDD_HANDOFF_PATH: path.join(derivedWs, "task-1-handoff.json"),
           CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1",
           PATH: `${binDir}${path.delimiter}${origPath}`,
         }),
@@ -380,15 +415,17 @@ test("runTask: brief 已存在 + 缺 TASK_BASE: → BLOCKED exit 1", async () =>
 });
 
 test("runTask: brief 不存在 + plan 可用 → auto-generate + exit 0", async () => {
+  // #173：plan 仓库须 git init + 提交（workspace 派生于 <planDir>/.superpowers/cdd/<slug>/，
+  // commit-contract 校验该工作树 → 写完 plan.md 后 add+commit 保持干净）。
+  const planDir = gitInitReal(mkdtempSync(path.join(tmpdir(), "plan-")));
+  const planFile = commitPlan(planDir, path.join(planDir, "plan.md"));
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
   writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n"); // no plan in ledger
-  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  // no brief file
-  const planDir = mkdtempSync(path.join(tmpdir(), "plan-"));
-  const planFile = path.join(planDir, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: Do something\nTask body\n");
-  const env = baseEnv(ws, {
-    CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md"),
+  const derivedWs = path.join(planDir, ".superpowers", "cdd", "plan");
+  const briefPath = path.join(derivedWs, "task-1-brief.md"); // workspace 现派生于 plan 仓库
+  const env = cleanEnv({
+    CDD_WORKSPACE: ws,
+    CDD_TASK_BRIEF: briefPath,
     PLAN_FILE: planFile,
   });
   const res = await runTask("claude", 1, {
@@ -396,8 +433,17 @@ test("runTask: brief 不存在 + plan 可用 → auto-generate + exit 0", async 
     env, cwd: REPO_ROOT, noExit: true,
   });
   assert.equal(res.exitCode, 0);
-  assert.ok(existsSync(path.join(ws, "task-1-brief.md")), "brief should be auto-generated");
-  assert.match(readFileSync(path.join(ws, "task-1-brief.md"), "utf8"), /^TASK_BASE: /m);
+  assert.ok(existsSync(briefPath), "brief should be auto-generated at plan-derived workspace");
+  assert.match(readFileSync(briefPath, "utf8"), /^TASK_BASE: /m);
+});
+
+test("runTask #173: plan 路径不存在 → 'plan file not found'", async () => {
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: { ...baseEnv(tmpdir()), PLAN_FILE: "/nonexistent/plan.md" },
+    noExit: true,
+  });
+  assert.equal(res.exitCode, 1);
 });
 
 test("runTask: brief 不存在 + plan 不可用 → BLOCKED exit 1", async () => {
@@ -442,4 +488,146 @@ test("runReviewPackage: 传第 4 参数 OUTFILE = <workspace>/review-<base7>..<h
   const captured = readFileSync(captureFile, "utf8");
   assert.match(captured, /review-abc1234\.\.def5678\.diff$/);
   assert.ok(captured.startsWith(ws), `expected captured path to start with workspace: ${captured}`);
+});
+
+// ---- P1 #173 跨仓回归（plan 派生分支）----
+// （execFileSync 文件顶部已 import，勿重复声明）
+
+test("runTask #173: plan 在仓库 A、cwd 在仓库 B → workspace 落于 A，B 内无 .superpowers", async () => {
+  const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a-")));
+  const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b-")));
+  gitInit(repoA);
+  gitInit(repoB);
+  const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-ws-")); // CDD_WORKSPACE 不设
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: { ...cleanEnv(), PLAN_FILE: planFile }, // 无 CDD_WORKSPACE
+    cwd: repoB, noExit: true,
+  });
+  assert.equal(res.exitCode, 0);
+  const slug = path.basename(planFile, ".md");
+  assert.ok(existsSync(path.join(repoA, ".superpowers", "cdd", slug)), "workspace under A");
+  assert.ok(!existsSync(path.join(repoB, ".superpowers")), "no .superpowers in B");
+});
+
+test("runTask #173: 无 plan 无 CDD_WORKSPACE → 'cannot resolve repo root'", async () => {
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: cleanEnv(), cwd: mkdtempSync(path.join(tmpdir(), "cdd-bare-")), noExit: true,
+  });
+  assert.equal(res.exitCode, 1);
+});
+
+// 直设分支黑盒变体公共构造：CDD_TASK_BRIEF/CDD_HANDOFF_PATH 指到仓库外路径（mkdtemp 下），
+// brief 预写含 TASK_BASE: 行——否则步骤 4.5 BLOCKED 'brief missing and plan unavailable'；
+// git 目录变体的 workspace 即仓库本身，brief/handoff 写入仓库内未提交文件会触发 commit-contract
+// 拦截（exit 1 而非断言的 0）。
+function directWorkspaceCase(wsDir, extraEnv = {}) {
+  const briefOut = mkdtempSync(path.join(tmpdir(), "cdd-brief-out-"));
+  const env = cleanEnv({
+    CDD_WORKSPACE: wsDir,
+    CDD_TASK_BRIEF: path.join(briefOut, "task-1-brief.md"),
+    CDD_HANDOFF_PATH: path.join(briefOut, "task-1-handoff.json"),
+    ...extraEnv,
+  });
+  writeFileSync(env.CDD_TASK_BRIEF, "# task 1\nTASK_BASE: abc123\n");
+  return runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env, noExit: true,
+  });
+}
+
+test("runTask #173: CDD_WORKSPACE 直设（git 目录）→ exit 0", async () => {
+  const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
+  gitInit(wsGit);
+  const res = await directWorkspaceCase(wsGit);
+  assert.equal(res.exitCode, 0);
+});
+
+test("runTask #173: CDD_WORKSPACE 直设（裸 TMPDIR 非 git）→ exit 0（repoRoot 容忍语义）", async () => {
+  const bare = mkdtempSync(path.join(tmpdir(), "cdd-ws-bare-"));
+  const res = await directWorkspaceCase(bare);
+  assert.equal(res.exitCode, 0);
+});
+
+test("resolveRepoRoot #173: CDD_WORKSPACE 直设 → repoRoot=git toplevel；裸 TMPDIR → null", () => {
+  const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
+  gitInit(wsGit);
+  assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: wsGit } }).repoRoot, wsGit);
+  const bare = mkdtempSync(path.join(tmpdir(), "cdd-ws-bare-"));
+  assert.equal(resolveRepoRoot({ env: { CDD_WORKSPACE: bare } }).repoRoot, null);
+});
+
+test("runTask #173: CDD_WORKSPACE 与 plan 同给 → workspace 落 plan 派生路径，env 被忽略", async () => {
+  const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-both-")));
+  gitInit(repoA);
+  const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
+  const ignored = mkdtempSync(path.join(tmpdir(), "cdd-ws-ignored-"));
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: { ...cleanEnv(), CDD_WORKSPACE: ignored, PLAN_FILE: planFile },
+    cwd: repoA, noExit: true,
+  });
+  assert.equal(res.exitCode, 0);
+  assert.ok(existsSync(path.join(repoA, ".superpowers", "cdd", "plan")), "workspace derived from plan");
+  assert.ok(!existsSync(path.join(ignored, ".superpowers")), "env workspace ignored");
+});
+
+test("runTask #173: brief auto-generate 时 TASK_BASE 取 plan 仓库 A 的 HEAD", async () => {
+  const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a2-")));
+  const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b2-")));
+  gitInit(repoA);
+  gitInit(repoB);
+  const planFile = path.join(repoA, "plan.md");
+  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
+  gitCommit(repoA); // HEAD 含 plan commit
+  const briefPath = path.join(mkdtempSync(path.join(tmpdir(), "cdd-ws2-")), "task-1-brief.md");
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    env: { ...cleanEnv(), PLAN_FILE: planFile, CDD_TASK_BRIEF: briefPath },
+    cwd: repoB, noExit: true,
+  });
+  assert.equal(res.exitCode, 0);
+  const head = execFileSync("git", ["-C", repoA, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  assert.match(readFileSync(briefPath, "utf8"), new RegExp(`^TASK_BASE: ${head.slice(0, 7)}`, "m"));
+});
+
+test("runTask #173: review-package 子进程在 repoRoot 内执行", async () => {
+  // fixture 同「review-package 不可执行」用例结构，但 review-package 可执行且为记录脚本：
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-rp-cwd-")));
+  gitInit(dir);
+  writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
+  const ledger = path.join(mkdtempSync(path.join(tmpdir(), "cdd-ledger-")), "progress.md");
+  writeFileSync(ledger, `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
+  const ws = path.join(dir, ".superpowers", "cdd", "plan");
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
+  const spawnLog = path.join(mkdtempSync(path.join(tmpdir(), "cdd-spawnlog-")), "cwd.txt");
+  const scripts = path.join(dir, "fake-scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "review-package"),
+    `#!/usr/bin/env bash\npwd > "${spawnLog}"\necho wrote /nonexistent/x: 0`);
+  chmodSync(path.join(scripts, "review-package"), 0o755);
+  // claude 存根过 preflight（对齐基线「review-package 不可执行」夹具——非 dry-run 必须有 CLI 在 PATH）：
+  // checkHarness 读 process.env.PATH —— 调用前临时注入，跑完还原。
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-rp-bin-"));
+  writeFileSync(path.join(binDir, "claude"), "#!/usr/bin/env bash\nexit 0\n");
+  chmodSync(path.join(binDir, "claude"), 0o755);
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    await runTask("claude", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: { ...cleanEnv(), CDD_WORKSPACE: ws, CDD_LEDGER: ledger,
+             CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md"), CDD_TASK_REVIEW_FIXED_POINT: "HEAD",
+             PATH: `${binDir}${path.delimiter}${origPath}` },
+      cwd: mkdtempSync(path.join(tmpdir(), "cdd-elsewhere-")),
+      scriptsDir: scripts, noExit: true,
+    });
+  } finally {
+    process.env.PATH = origPath;
+  }
+  // 注：mock 的 `wrote /nonexistent/x` 不存在 → spawn 后 runReviewPackage 抛 RunBlocked（exit 1，
+  // stderr 有 CDD_BLOCKED 诊断）——本用例只钉死子进程执行目录，不校验退出码。
+  assert.equal(readFileSync(spawnLog, "utf8").trim(), dir); // 子进程 pwd == repoRoot
 });

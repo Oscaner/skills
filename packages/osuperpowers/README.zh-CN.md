@@ -25,7 +25,6 @@ Claude Code 工程技能插件 — osuperpowers 编排系列、cli-\* CDD 引擎
 | `init` | 工具 | 项目初始化（`init router` 写入自检规则） |
 | `report-issue` | 工具 | 结构化问题报告 |
 | `cli-select` | CDD 引擎 | 交互式 harness 选择 |
-| `cli-task` | CDD 引擎 | 单任务 CDD 执行 |
 
 ## 安装
 

@@ -25,7 +25,6 @@ This plugin provides two skill families:
 | `init` | Utility | Project initialization (`init router` writes self-check rules) |
 | `report-issue` | Utility | Structured issue reporting |
 | `cli-select` | CDD Engine | Interactive harness selection |
-| `cli-task` | CDD Engine | Single-task CDD execution |
 
 ## Installation
 

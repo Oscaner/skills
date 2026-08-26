@@ -1,7 +1,8 @@
 // engine/tests/review.test.mjs — T3: cdd-review.mjs 一次性自由任务入口行为（hermetic mock PATH）。
 // Node port of the legacy bash test（6 scenarios）：参数分派、text passthrough、stream-json
 // last-finalText、unsupported BLOCKED、missing CLI exit 2、review-prefix 合成。
-// + --template / --param 渲染路径（T3-ext: template 渲染、missing 文件、missing placeholder、互斥）
+// + --template / --param 渲染路径（T3-ext: 渲染、missing 文件、missing placeholder、query-param 转义）
+// P1 #169: --prompt 已删除 —— cdd-review 仅接受 --template 入口；传 --prompt → unknown argument exit 2。
 // Hermetic PATH：丢弃所有含 registry CLI 二进制的 PATH 目录（host 真实 CLI 不泄漏）。
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -54,23 +55,34 @@ function runExec(args, { mockPath, extraEnv = {} } = {}) {
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 
-test("cdd-review.mjs: 缺 --prompt / 未知 flag → exit 2", () => {
-  const noPrompt = runExec(["--harness", "claude"]);
-  assert.equal(noPrompt.status, 2);
-  assert.match(noPrompt.stderr, /^usage: /);
+// spec-review 模板渲染产物特征串（DOC=/test.md、PASS=completeness 注入后）。
+const RENDER_SIG = "Review the spec document at **/test.md**";
+const TEMPLATE_ARGS = ["--template", "spec-review", "--param", "DOC=/test.md", "--param", "PASS=completeness"];
 
-  const bogus = runExec(["--bogus", "x", "--prompt", "y"]);
+test("cdd-review.mjs: 缺 --template / 未知 flag → exit 2", () => {
+  const noTemplate = runExec(["--harness", "claude"]);
+  assert.equal(noTemplate.status, 2);
+  assert.match(noTemplate.stderr, /--template is required/);
+  assert.match(noTemplate.stderr, /^usage: /m);
+
+  const bogus = runExec(["--bogus", "x"]);
   assert.equal(bogus.status, 2);
   assert.match(bogus.stderr, /unknown argument: --bogus/);
+
+  // 防回归：--prompt 已删除，作为 unknown flag 拒绝（字面量豁免见 plan Global Constraints）。
+  const legacyPrompt = runExec(["--harness", "claude", "--prompt", "y"]);
+  assert.equal(legacyPrompt.status, 2);
+  assert.match(legacyPrompt.stderr, /unknown argument: --prompt/);
 });
 
-test("cdd-review.mjs: text passthrough — claude (output=text) → stdout == prompt", () => {
+test("cdd-review.mjs: text passthrough — claude (output=text) → stdout 含模板渲染产物", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
   makeMock(mock, "claude", 'for a in "$@"; do last="$a"; done; printf "%s\\n" "$last"');
   const fp = harnessFreePath();
-  const res = runExec(["--harness", "claude", "--prompt", "hello world"], { mockPath: `${mock}${path.delimiter}${fp}` });
+  const res = runExec(["--harness", "claude", ...TEMPLATE_ARGS], { mockPath: `${mock}${path.delimiter}${fp}` });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
-  assert.equal(res.stdout.trim(), "hello world");
+  assert.match(res.stdout, new RegExp(RENDER_SIG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(res.stdout, /\{\{(DOC|PASS)\}\}/, "占位符已全部替换");
 });
 
 test("cdd-review.mjs: stream-json — droid → stdout == 最后 completion.finalText", () => {
@@ -81,7 +93,7 @@ test("cdd-review.mjs: stream-json — droid → stdout == 最后 completion.fina
     'printf "%s\\n" "{\\"type\\":\\"event\\",\\"finalText\\":\\"partial\\"}"\nprintf "%s\\n" "{\\"type\\":\\"completion\\",\\"finalText\\":\\"FINAL RESULT\\"}"',
   );
   const fp = harnessFreePath();
-  const res = runExec(["--harness", "droid", "--prompt", "task"], { mockPath: `${mock}${path.delimiter}${fp}` });
+  const res = runExec(["--harness", "droid", ...TEMPLATE_ARGS], { mockPath: `${mock}${path.delimiter}${fp}` });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.equal(res.stdout.trim(), "FINAL RESULT");
 });
@@ -90,7 +102,7 @@ test("cdd-review.mjs: unsupported harness (codex) → BLOCKED exit 1", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
   makeMock(mock, "codex", "exit 0");
   const fp = harnessFreePath();
-  const res = runExec(["--harness", "codex", "--prompt", "x"], { mockPath: `${mock}${path.delimiter}${fp}` });
+  const res = runExec(["--harness", "codex", ...TEMPLATE_ARGS], { mockPath: `${mock}${path.delimiter}${fp}` });
   assert.notEqual(res.status, 0);
   assert.match(res.stderr, /CDD_BLOCKED/);
 });
@@ -98,7 +110,7 @@ test("cdd-review.mjs: unsupported harness (codex) → BLOCKED exit 1", () => {
 test("cdd-review.mjs: missing CLI (pi, full) → CDD_CLI_MISSING exit 2", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
   const fp = harnessFreePath();
-  const res = runExec(["--harness", "pi", "--prompt", "x"], { mockPath: `${mock}${path.delimiter}${fp}` });
+  const res = runExec(["--harness", "pi", ...TEMPLATE_ARGS], { mockPath: `${mock}${path.delimiter}${fp}` });
   assert.equal(res.status, 2);
   assert.match(res.stderr, /CDD_CLI_MISSING/);
 });
@@ -108,7 +120,7 @@ test("cdd-review.mjs: CDD_DRY_RUN=1 跳过 CLI preflight 但仍 invoke CLI（对
   const fp = harnessFreePath();
   // pi 是 full harness，mock PATH 无 pi 二进制 —— CDD_DRY_RUN=1 仅跳过 preflight（无 CDD_CLI_MISSING）；
   // 但 cdd-review 不跳过 CLI 调用（bash cdd-review.sh 无 dry-run 分支）→ spawn 失败 exit 1。
-  const res = runExec(["--harness", "pi", "--prompt", "x"], {
+  const res = runExec(["--harness", "pi", ...TEMPLATE_ARGS], {
     mockPath: `${mock}${path.delimiter}${fp}`,
     extraEnv: { CDD_DRY_RUN: "1" },
   });
@@ -116,16 +128,18 @@ test("cdd-review.mjs: CDD_DRY_RUN=1 跳过 CLI preflight 但仍 invoke CLI（对
   assert.doesNotMatch(res.stderr, /CDD_CLI_MISSING/, "dry-run 跳过 CLI preflight");
 });
 
-test("cdd-review.mjs: task-review-prefix 合成 — CDD_MODE=task-review 时 prompt 前置 task_review_prefix", () => {
+test("cdd-review.mjs: task-review-prefix 合成 — CDD_MODE=task-review 时模板渲染结果前置 task_review_prefix", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
   makeMock(mock, "claude", 'for a in "$@"; do last="$a"; done; printf "%s\\n" "$last"');
   const fp = harnessFreePath();
-  const res = runExec(["--harness", "claude", "--prompt", "hello world"], {
+  const res = runExec(["--harness", "claude", ...TEMPLATE_ARGS], {
     mockPath: `${mock}${path.delimiter}${fp}`,
     extraEnv: { CDD_MODE: "task-review" },
   });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
-  assert.equal(res.stdout.trim(), "Skill(mattpocock-skills:code-review) hello world");
+  // prefix 拼在模板渲染结果之前（`${prefix} ${prompt}`），渲染体紧随其后
+  assert.match(res.stdout, /^Skill\(mattpocock-skills:code-review\) # Spec Review/);
+  assert.match(res.stdout, new RegExp(RENDER_SIG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 // --template / --param 渲染路径（T3-ext）
@@ -163,16 +177,6 @@ test("cdd-review.mjs: --template 缺少 placeholder → exit 1 + missing param",
   assert.match(res.stderr, /missing param/);
 });
 
-test("cdd-review.mjs: --template + --prompt 互斥 → exit 2", () => {
-  const fp = harnessFreePath();
-  const res = runExec(
-    ["--harness", "claude", "--template", "spec-review", "--prompt", "hello"],
-    { mockPath: fp },
-  );
-  assert.equal(res.status, 2);
-  assert.match(res.stderr, /mutually exclusive/);
-});
-
 test("cdd-review.mjs: --param 值含等号 → KEY=VALUE 正确解析（value 可含 =）", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
   makeMock(mock, "claude", 'for a in "$@"; do last="$a"; done; printf "%s\\n" "$last"');
@@ -193,7 +197,7 @@ test("cdd-review.mjs: --handoff + mock exit 0 → handoff 含 status DONE", () =
   const fp = harnessFreePath();
   const handoffPath = path.join(handoffDir, "test-handoff.json");
   const res = runExec(
-    ["--harness", "claude", "--prompt", "hello", "--handoff", handoffPath],
+    ["--harness", "claude", ...TEMPLATE_ARGS, "--handoff", handoffPath],
     { mockPath: `${mock}${path.delimiter}${fp}` },
   );
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
@@ -209,7 +213,7 @@ test("cdd-review.mjs: --handoff + mock exit 1 → handoff 含 status BLOCKED + b
   const fp = harnessFreePath();
   const handoffPath = path.join(handoffDir, "test-handoff.json");
   const res = runExec(
-    ["--harness", "claude", "--prompt", "hello", "--handoff", handoffPath],
+    ["--harness", "claude", ...TEMPLATE_ARGS, "--handoff", handoffPath],
     { mockPath: `${mock}${path.delimiter}${fp}` },
   );
   assert.notEqual(res.status, 0);
@@ -224,6 +228,6 @@ test("cdd-review.mjs: 无 --handoff → 不写文件", () => {
   makeMock(mock, "claude", 'printf "ok\\n"');
   const fp = harnessFreePath();
   const handoffPath = path.join(mkdtempSync(path.join(tmpdir(), "cdd-handoff-")), "should-not-exist.json");
-  runExec(["--harness", "claude", "--prompt", "hello"], { mockPath: `${mock}${path.delimiter}${fp}` });
+  runExec(["--harness", "claude", ...TEMPLATE_ARGS], { mockPath: `${mock}${path.delimiter}${fp}` });
   assert.equal(existsSync(handoffPath), false, "handoff file should NOT exist without --handoff");
 });

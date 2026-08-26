@@ -1,0 +1,140 @@
+# 技能 digraph 重构 + 引擎修复 + 文档迁移 — Overall Spec
+
+- **Version**: v1.5 · 2026-08-25
+- **Status**: Approved
+- **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
+- **Constraints**:
+  - 允许破坏性更新，确保最佳实践，不留技术债务（用户指令）
+  - 仓库语言政策：SKILL.md / docs 英文主源 + zh-CN 镜像；本 spec 及 phase spec 中文（Strategy B）
+  - 不 commit 除非用户明确要求；changeset 仅在 P10 统一建（程序级豁免，见 Cross-cutting constraints）
+  - vendored 子模块不可改（#173 上游 bash 脚本不动）
+
+---
+
+## Document scope
+
+Charter only — no implementation detail。
+
+- **Overall approval is not equivalent to any phase started**（GATE）。
+- Deviations update here first, then sync to overall。
+
+## File paths
+
+One program date + feature slug under `docs/superpowers/`：
+
+| Artifact | Path |
+|---|---|
+| Overall | `specs/2026-08-24-skill-digraph-refactor-overall.md` |
+| Phase spec | `specs/2026-08-24-skill-digraph-refactor-<phase-id>-design.md` |
+| Phase plan | `plans/2026-08-24-skill-digraph-refactor-<phase-id>.md` |
+| Phase tickets | `tickets/2026-08-24-skill-digraph-refactor-<phase-id>-tickets.md` |
+
+`<phase-id>` 小写（`p1` … `p10`）。
+
+---
+
+## Program charter
+
+将 osuperpowers 全部编排技能重写为**节点锚定式**（digraph 为唯一控制流真相源：图节点即正文小节，每节点固定 Do/Read/Exit/Fail 四要素），消灭 HARD-GATE 十步清单 + Rules 散文 + Red Flags 的规则汤三重表示；同时落地三个 dogfood issue 修复、迁移技能共用文档至技能目录（并解散 subagent-lifecycle 文档——Fresh/Concurrent 规则随 CLI 模式消亡，Delegate Load Failure 溶入节点 Fail 字段）、删除孤儿/退役技能（cli-task、debugging、verification），并新增维护者规范文档。
+
+Non-goals：
+- 不改上游 vendored 仓库（superpowers / mattpocock-skills）；#173 的上游 bash 修复另走 upstream PR，不在本程序内。
+- 除 #173/#169 明确修复外，不改引擎其他行为语义（输出契约与退出码不变；#168 不改引擎钉死的 D5a severity 契约）。
+- 不动 osuperpowers-router 的触发路由结构本身（仅随技能删除清理对应条目）。
+- init 的 harness/spor 两分支内嵌内容保持原样（legacy 内容豁免——外层分派成图达标即可；豁免规则写入 skill-authoring.md）。
+
+Cross-cutting constraints：
+- 重构触及的每个 SKILL.md 必须符合 `docs/maintainers/skill-authoring.md` 规范（P3 产出）。
+- **block 政策（全局约束）**：所有带 Read-Upstream 规则的技能（brainstorming / writing-plans / finishing），上游基线缺失一律为显式 BLOCKED 节点（含安装指引）——不降级、不静默 fallback；P4/P5/P6 各自落实。
+- 所有被删符号全仓 grep 归零（含 .agents/ 由 emit 再生保证）。
+- 每 phase 收尾 `pnpm run emit && pnpm run validate` 绿。
+- **changeset 策略：仅 P10 统一建一个 changeset**（各 phase 不建）——本程序为单一原子重构，逐 phase changeset 会产生无意义的中间版本语义；此为对仓库 CLAUDE.md「每 feature 完成后建 changeset」规则的程序级豁免，豁免依据即本行。
+
+---
+
+## Issue inventory
+
+| Phase | Issue (ref) | Title summary |
+|---|---|---|
+| P1 | [#173](https://github.com/Oscaner/skills/issues/173) | 工作区解析跟随 plan 文件路径而非 cwd（自家 Node 引擎同源 bug 修复） |
+| P1 | [#169](https://github.com/Oscaner/skills/issues/169) | 删除 cdd-review.mjs 的 --prompt 参数，强制 --template 唯一入口 |
+| P8 | [#168](https://github.com/Oscaner/skills/issues/168) | deferred 处置门：final review 前询问用户是否修复累积 warn/nit（原 executing-plans 已删，落点改为 cli-driven-development 重构内的决策节点） |
+
+---
+
+## Phase inventory
+
+| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
+|---|---|---|---|---|---|---|
+| P1 | engine-fixes：#173 workspace 解析改从 plan 目录取仓库根并显式下传 repoRoot；#169 删 --prompt；删 cli-task 孤儿技能及引用 | Pending | Pending | ① 回归测试：cwd 在仓库 B、plan 在仓库 A → workspace 落于 `A/.superpowers/cdd/<slug>/`；② `resolveWorkspace`/`findSuperpowersScriptsDir`/`relpathFromRepo` 不再从 cwd 取根；③ cdd-review.mjs 无 `--prompt` 分支/校验/usage，全仓引用归零；④ cli-task 目录删除，README/GEMINI/cli-select description/controller-handoff 提及清理；⑤ validate 绿 | P1 -> P3 |
+| P2 | remove-retired-skills：删 debugging + verification 技能；清 router 映射（overrides.manifest.json / prompt-expansion.mjs / cursor-detect.mjs 经 emit 再生）；README 路由表清理；**含 init/router.md 中退役技能触发条目的清除**（legacy 豁免仅限分支内嵌正文，不含退役符号引用） | Pending | Pending | ① 两技能目录删除；② router 三处映射 + init/router.md 退役条目无残留；③ 全仓无 dangling 引用（范围同 P10 终扫定义）；④ emit 后 `.agents/` 同步消失；⑤ validate 绿 | P2 -> P3 |
+| P3 | docs-infra：4 个共享文档迁入主消费者技能目录（docs-review→writing-plans，cdd-reference/controller-handoff/handoff-schema→cli-driven-development，各带 zh-CN）；解散 subagent-lifecycle（Fresh/Concurrent 随 CLI 模式消亡，Delegate Load Failure 溶入后续节点 Fail 字段）；新建 `docs/maintainers/skill-authoring.md`（节点锚定式规范，中文 Strategy B）；**同步 docs/maintainers/ 两份维护者文档（osuperpowers-plugin.md 及 zh-CN 镜像）对已迁移/解散文档的引用**；repo CLAUDE.md 增规范指引。注：技能 SKILL.md 内的 subagent-lifecycle 引用留待 P4–P9 重写自然消除（有意悬空窗口），P10 终扫兜底 | Pending | Pending | ① `packages/osuperpowers/docs/` 目录不存在；② 4 文档新家存在且链接可解析（skills/ 树内相对路径）；③ skill-authoring.md 含 Flow digraph 语义约定 / Nodes 四要素模板 / Invariants ≤5 / Failure Modes 表 / BLOCKED 终态约定 / init legacy 内容豁免规则 / 图正文一致性校验清单；④ CLAUDE.md 有指引条目；⑤ emit + validate 绿 | P3 -> P4, P3 -> P5, ..., P3 -> P9 |
+| P4 | brainstorming 重构：十步流程映射为节点锚定式（research 并行子图、overall-phase 分支入 digraph）；Read-Upstream 缺失由「降级」改为 BLOCKED 终态（block 政策统一）；**加强 overall→phase 路由：digraph 含 overall-approval 后显式进入「下一 phase 的 brainstorming」节点（非 writing-plans），Next-Step Routing 规则区分「overall 批准」与「design spec 批准」两种出口**；**固化 Review 重跑纪律进 Review Stopping 相关节点（重跑仅由 blocker 驱动、循环直到 blocker=0；随 blocker 轮的 warn/nit 顺手修，单独 warn/nit 留用户决策、不触发重跑）**；**固化 spec commit 纪律进收口节点（design doc 获批即 commit）** | Pending | Pending | ① 符合 skill-authoring 规范（图节点与小节一一对应、无独立 Rules 散文堆）；② 上游缺失路径为显式 BLOCKED 节点含安装指引；③ grilling 加载失败协议在 read-grilling 节点 Fail 字段；④ overall→phase 路由强化在图中可见（overall 批准 → 下一个 phase 的 brainstorming，非 writing-plans）；⑤ Review 重跑纪律在图中可见（复审回边条件 = 存在 blocker，循环至 blocker=0；warn/nit 不构成回边）；⑥ spec commit 纪律在收口节点可见；⑦ zh-CN 镜像同步；⑧ emit + validate 绿 | P3 -> P4 |
+| P5 | writing-plans 重构：三 pass review 循环回边显式入图；to-tickets 条件节点；Review Stopping 用户门菱形化；**上游缺失为 BLOCKED 节点（Cross-cutting block 政策）**；**固化 Review 重跑纪律进 Plan Review 相关节点（与 brainstorming spec-review 同规则：重跑仅由 blocker 驱动、循环直到 blocker=0；随 blocker 轮的 warn/nit 顺手修，单独 warn/nit 留用户决策、不触发重跑）**；**固化 plan commit 纪律进 Execution Handoff 前节点（plan 获批即 commit）** | Pending | Pending | 同 P4 标准专项：① 3-pass 循环回边标注 fresh-pass；② tickets publish 重定向入图；③ 上游缺失路径为显式 BLOCKED 节点（全局约束落实）；④ Review 重跑纪律在图中可见（复审回边条件 = 存在 blocker，warn/nit 不构成回边）；⑤ plan commit 纪律在 Execution Handoff 前节点可见；⑥ zh-CN 同步；⑦ emit + validate 绿 | P3 -> P5 |
+| P6 | finishing 重构：上游四选项流程 + No-Worktrees 检测分支 + Option4 typed-discard 门 + Conventional Commits 约束压缩为 Invariants | Pending | Pending | ① 四选项分支入 digraph；② typed-discard 门为菱形节点；③ 无 worktree 违规检测为前置守卫节点；④ zh-CN 同步；⑤ emit + validate 绿 | P3 -> P6 |
+| P7 | cli-select 重构：detect→ask→propagate 线性链；empty-list BLOCKED 终态 | Pending | Pending | ① 三节点线性链 + 输出解析细节入 detect 节点；② empty-list BLOCKED 含注册表提示要求；③ zh-CN 同步；④ emit + validate 绿 | P3 -> P7 |
+| P8 | cli-driven-development 重构：三模式链 + fix-loop ≤5 回边 + **新增 deferred-disposition 门（关闭 #168）**：deferred = 各任务 task-review 产物（handoff `findings[]` 中 `deferred: true` 的 warn/nit，已随 ledger roll-up 累积），**纯呈现层聚合自现有 review 产物，不引入新引擎状态**。门语义：全部任务 APPROVED 后、Final Review 前，按产出任务分组呈现累积 deferred，用户选立即修或携带跳过；**选立即修时走 fix 模式的 deferred-sweep 通道（见下）** + Final Review HARD-GATE 菱形 + 交接 finishing 终态；**fix 模式双通道扩展：`templates/cdd/fix.md` 加 `{{FINDINGS_SCOPE}}` 占位符（blocker-only=默认，D5a 契约不变｜deferred-sweep=用户决策后的全量清扫，完成后从 handoff findings[] 移除对应项），runner.mjs renderModePrompt 加 CDD_FINDINGS_SCOPE env 映射（默认 blocker-only），_handoff-write-fragment.md fix segment 补 sweep 清理分支——不拆 fix-blocker/fix-no-blocker 双文件（_handoff-write-fragment/H6 模式表/gate allowlist 维护面翻倍，否决该候选）** | Pending | Pending | ① 节点锚定式达标；② deferred-disposition 门存在且语义符合本行描述；③ blocker 行为不变（必修，不进该门）；④ fix 双通道：默认 blocker-only 行为零变化，deferred-sweep 有测试钉死（sweep 后 handoff findings[] 对应项移除）；⑤ 引用迁移后的同目录 docs（cdd-reference 等）；⑥ zh-CN 同步；⑦ emit + validate 绿；⑧ 关联 #168 | P3 -> P8 |
+| P9 | init + report-issue 重构：init 参数分派成图（spor/harness/no-param 三入口）；report-issue 六步流程成图（analyze→classify→confirm→dedup→file→report） | Pending | Pending | ① 两技能均达标；② report-issue 的 gh 命令与模板保留原样仅组织方式变；③ zh-CN 同步；④ emit + validate 绿 | P3 -> P9 |
+| P10 | closure：grep 终扫（搜索树限定 `packages/`（**排除各包 `CHANGELOG.md`**——append-only 历史不重写；**排除 `bin/engine/tests/` 中防回归断言的 `--prompt` 字面量**——P1 新增断言有意保留该 token）、`docs/`（**排除 `docs/superpowers/{specs,plans,tickets}/` 历史文档**；`docs/maintainers/` 在终扫时点应为零残留——P3 已同步其引用，若命中即 P3 缺口回修）、根 README、`marketplace/source.json`；token 模式：`osuperpowers:debugging`、`skills/debugging/`、`osuperpowers:verification`、`skills/verification/`、`cli-task`、`--prompt`、`subagent-lifecycle`、`docs/cdd-reference` 等旧 docs 路径 全部归零）；统一 changeset（breaking：移除 cli-task/debugging/verification 及其触发词；feat：节点锚定式重写 + 引擎修复）；关联 issue 关闭引用落地 commit | Pending | Pending | ① 上述限定范围内 grep 终扫清单逐项为零；② changeset 含 breaking 标注；③ `pnpm run emit && pnpm run validate` 绿；④ #168/#169/#173 关闭评论附 commit | P4 -> P10, P5 -> P10, P6 -> P10, P7 -> P10, P8 -> P10, P9 -> P10 |
+
+Scope column 仅作分解上下文；split 时以 Na/Nb 替换父行后再继续子阶段工作。
+
+---
+
+## Dependency graph (ASCII)
+
+```
+P1 -> P3          (硬：P3 迁移需清扫引擎注释中的旧 docs 路径，先稳定引擎)
+P2 -> P3          (硬：P3 迁移一并清扫退役技能的文档引用，先完成删除)
+P3 -> P4          (硬：格式规范 + 文档最终位置就绪后才开始重写)
+P3 -> P5          (硬)
+P3 -> P6          (硬)
+P3 -> P7          (硬)
+P3 -> P8          (硬)
+P3 -> P9          (硬)
+P4 ->(soft) P5 ->(soft) P6 ->(soft) P7 ->(soft) P8 ->(soft) P9   (软：执行顺序便利——评审校准连续性；非阻塞)
+P4..P9 各自 -> P10 (硬：终扫前全部落地)
+```
+
+Legend:
+- `->` = hard block（依赖方不得在先决方 ship 前开始）
+- `-> (soft)` = suggestion only（顺序便利，非阻塞）
+
+Sync with inventory on add/split/reorder。
+
+---
+
+## Boundary rules
+
+> Each phase: full brainstorm -> plan -> dev。Shipped before dependents start。
+> Requirement changes arising during a phase MUST feed back to this overall spec before implementation proceeds — version bump + change-history entry + sync affected phase acceptance/dependency。
+
+补充约定：
+- **Next-step routing（本程序级强化）：overall 批准后的下一个动作是 P1 的 brainstorming（完整 brainstorm→plan→dev 循环的起点），不是 writing-plans**——writing-plans 只属于某个 phase 内部、其 design spec 获批之后。每个 phase 都从自己的 brainstorming 开始。
+- **文档 commit 纪律（程序级强化）**：brainstorming 结束（design spec 获批）与 writing-plans 结束（implementation plan 获批）这两个收口点，**各自立即 commit 一次**——前者提交 spec 文档，后者提交 plan 文档（含其间对 overall 的同步修订）。不等 dev 阶段合并提交；P4/P5 重构对应技能时把该纪律固化进 Write Design Doc / Execution Handoff 相关节点。
+- **Review 重跑纪律（程序级强化，落实 docs-review.md Review Stopping ②）**：3-pass review 的重跑**仅由 blocker 驱动**——某 pass 含 blocker → 修复 → 仅重跑该 pass → 若仍有 blocker 则重复「修复→复审」直到 blocker=0；**随 blocker 复审轮次出现的 warn/nit 可在该轮一并顺手修复**（避免已开着的复审循环再拖一轮）；**单独的 warn/nit（无 blocker 的 pass / blocker 清零后的残余）永不触发重跑**，留待 ③ 用户决策门。blocker=0 后进入 ③ 用户决策门，此后不再提供任何重跑。**适用于所有 3-pass review 场景：brainstorming 的 spec-review 与 writing-plans 的 plan-review 同规则同门**（P5 重构 writing-plans 时一并固化）。
+- 每个 phase spec 是一次完整 brainstorm→plan→dev 循环的产物；仅 overall 批准直接实施、或 overall 批准后直接进 writing-plans 均属违规。
+- P4–P9 共用 P3 的 skill-authoring.md 作为唯一格式权威；重构中若发现规范缺口，先改规范（P3 文档）再改技能。
+- 引擎代码改动仅限 P1；**例外（路径字符串豁免）**：P3 允许对引擎、模板及**消费者技能 SKILL.md** 做「仅文档链接/路径字符串」的编辑（迁移后旧 `../docs/*` 引用改指新家），行为正文仍留待各技能重构 phase。
+- 破坏性变更（删技能/删参数/block 政策）允许，但必须反映在 P10 changeset 的 breaking 标注中。
+
+---
+
+## Maintenance
+
+- Update links + change history per phase; no task lists。
+- Master spec for cross-phase conventions; phase specs incremental。
+- Strategy shifts and splits feed back **immediately**（sync to overall）。
+
+---
+
+## Change history
+
+Append-only：
+
+- v1.0 · 2026-08-24 — 初版：10 phase 分解、3 issue 映射、依赖图定稿（dogfood session，grilling 决策：block 政策统一 5→3 个 Read-Upstream 技能；cli-task/debugging/verification 删除；subagent-lifecycle 解散；只修自家 Node 引擎；deferred 处置门放 Final Review 前用户询问）。
+- v1.1 · 2026-08-24 — 用户审阅反馈：新增程序级 Next-step routing 强化——overall 批准后下一步是 P1 的 brainstorming 而非 writing-plans（Boundary rules 补充约定 + P4 验收 ④：brainstorming 重构时在 digraph 与 Next-Step Routing 规则中固化该路由，区分「overall 批准」与「design spec 批准」两种出口）。
+- v1.2 · 2026-08-24 — 用户纠偏（dogfood 过程发现）：P1 spec review Pass 1 被 warn/nit 连带触发重跑共 4 轮，违反 Review Stopping ②「仅 blocker 触发复审」。新增 Boundary rules「Review 重跑纪律」：重跑仅由 blocker 驱动、修复复审循环直到 blocker=0（不限次数）；随 blocker 复审轮出现的 warn/nit 可顺手一并修，单独的 warn/nit 永不触发重跑、留待用户决策门；P4 重构 brainstorming 技能时将本纪律一并固化进 Review Stopping 相关节点。
+- v1.3 · 2026-08-24 — P1 design spec 获批后用户补充：Review 重跑纪律明确适用于所有 3-pass review 场景——writing-plans 的 plan-review 与 brainstorming 的 spec-review 同规则同门；P5 scope/验收同步扩展（Plan Review 相关节点固化该纪律）。
+- v1.4 · 2026-08-24 — 用户补充：文档 commit 纪律——brainstorming 结束（spec 获批）与 writing-plans 结束（plan 获批）各自立即 commit（spec 一次、plan 一次，含 overall 同步修订），不等 dev 合并；P4/P5 验收扩展固化该纪律进收口节点。本程序即时生效：P1 spec+plan 于进入 dev 前补 commit。
+- v1.5 · 2026-08-25 — P1 执行回顾（report-issue dogfood）：① fix 模式双通道扩展定案并入 P8——`fix.md` 加 `{{FINDINGS_SCOPE}}` 占位符（blocker-only 默认 / deferred-sweep 显式 opt-in），否决 fix-blocker/fix-no-blocker 双文件拆分候选；deferred-disposition 门选修复时走 sweep 通道，与 #168 闭环。② 执行缺陷分流：task-review commit-gate 误判已报 #175；agent 越界提交（T3 替 T4 commit）超出本程序范围另报 issue；嵌套 CLI 无超时已有 #137。

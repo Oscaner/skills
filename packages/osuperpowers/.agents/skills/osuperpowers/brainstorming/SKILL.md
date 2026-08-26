@@ -56,7 +56,7 @@ Upstream unavailable (non-claude harness / superpowers plugin not installed) →
 
 **Must** read `mattpocock-skills` `skills/productivity/grilling/SKILL.md` (mandatory step — clarification question delegation).
 On failure (file not found / read error) → **report error + ask the user for next steps**; user may skip grilling and continue, or abort the flow.
-Load failure protocol: see [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure).
+Load failure protocol: target skill cannot be resolved/loaded → report the error to the user and ask for next steps. No silent degradation. The user can decide to skip the delegation or abort the flow.
 After reading the grilling SKILL.md, execute its instructions as the grilling framework verbatim — do not substitute with a self-organized interview format, option menus, or structured choice lists.
 
 ### Rule: Research Delegation
@@ -82,7 +82,7 @@ When drafting, the overall spec MUST carry: (1) issue inventory per phase; (2) p
 
 Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI), each pass dispatches a fresh `cdd-review`:
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-Dispatch discipline: see [docs-review.md](../docs/docs-review.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli; Review Stopping loop + Handoff Output).
+Dispatch discipline: see [docs-review.md](../writing-plans/docs/docs-review.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli; Review Stopping loop + Handoff Output).
 Review Stopping next-step label for this skill: `"User review of spec"`.
 
 ### Rule: Next-Step Routing

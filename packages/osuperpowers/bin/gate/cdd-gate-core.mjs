@@ -246,7 +246,7 @@ Allowed Write:
 Repo changes flow only through:
   ${osRoot}/bin/engine/cdd-task.mjs --harness ${harness} --task ${taskNum} --mode implement
 
-Full matrix: ${osRoot}/docs/cdd-reference.md (CDD gate matrix)
+Full matrix: ${osRoot}/skills/cli-driven-development/docs/cdd-reference.md (CDD gate matrix)
 See cli-driven-development Rule: Three-Mode Chain.`;
 }
 

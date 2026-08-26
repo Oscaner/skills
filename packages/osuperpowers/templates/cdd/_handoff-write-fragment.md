@@ -1,6 +1,6 @@
 ## Handoff write
 
-Write/update handoff per [`docs/handoff-schema.md`](../../docs/handoff-schema.md) from file paths only（per [`docs/controller-handoff.md`](../../docs/controller-handoff.md) H1–H2 file-only discipline）。
+Write/update handoff per [`handoff-schema.md`](../../skills/cli-driven-development/docs/handoff-schema.md) from file paths only（per [`controller-handoff.md`](../../skills/cli-driven-development/docs/controller-handoff.md) H1–H2 file-only discipline）。
 
 > Template variables: included inline into enclosing templates which define `{{HANDOFF}}`, `{{WORKSPACE}}`, `{{TASK}}` via `_cdd_template_value`.
 

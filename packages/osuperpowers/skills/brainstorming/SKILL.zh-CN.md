@@ -56,7 +56,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 **必须**读取 `mattpocock-skills` `skills/productivity/grilling/SKILL.md`（强制步骤——澄清问题委托）。
 失败（文件不存在/读取错误）→ **报告错误 + 询问用户下一步**；用户可跳过 grilling 继续或中止流程。
-加载失败协议：见 [subagent-lifecycle.md](../docs/subagent-lifecycle.md#rule-delegate-load-failure)。
+加载失败协议：目标 skill 无法解析/加载 → 向用户报告错误并询问下一步。不静默降级。用户可选择跳过委托或中止流程。
 读取 grilling SKILL.md 后，须将其指令作为 grilling 阶段的执行框架如实执行，不得以自行组织的提问格式、选项菜单或结构化选择列表替代。
 
 ### Rule: Research Delegation
@@ -82,7 +82,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 Spec review 有 3 种 pass 类型（completeness / consistency&scope / clarity&YAGNI），每个 pass 派发一次新的 `cdd-review`：
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-派发纪律见 [docs-review.md](../docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
+派发纪律见 [docs-review.md](../writing-plans/docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
 Review Stopping next-step 标签（本技能）：`"用户审阅 spec"`。
 
 ### Rule: Next-Step Routing

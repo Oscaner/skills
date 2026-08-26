@@ -75,11 +75,11 @@ Claude Code: `osuperpowers/hooks/hooks.json` adds `PreToolUse` matchers (`Write|
 
 **Deny message:** a multi-line allowlist matrix listing every allowed Bash verb, the allowed Write root (`.superpowers/cdd/<plan-basename>/`), and the H6 implement shell. Same single-source verb list drives both the judgment and the message.
 
-**Anti-hijack:** a task brief activates only when its `TASK_BASE` is a real git object (`git -C <repo> cat-file -e <sha>`, CWD-independent) — stale stub SHAs never activate a workspace. Bound workspace (`pending.workspace`) wins; the gate scans only when unbound, so it is not hijacked by unrelated/stale workspaces. Full matrix in [`osuperpowers/docs/cdd-reference.md`](../../osuperpowers/docs/cdd-reference.md) (§ CDD gate matrix).
+**Anti-hijack:** a task brief activates only when its `TASK_BASE` is a real git object (`git -C <repo> cat-file -e <sha>`, CWD-independent) — stale stub SHAs never activate a workspace. Bound workspace (`pending.workspace`) wins; the gate scans only when unbound, so it is not hijacked by unrelated/stale workspaces. Full matrix in [`osuperpowers/skills/cli-driven-development/docs/cdd-reference.md`](../../osuperpowers/skills/cli-driven-development/docs/cdd-reference.md) (§ CDD gate matrix).
 
 ### CDD H6 reference doc
 
-CLI env/exit/harness tables live in [`osuperpowers/docs/cdd-reference.md`](../../osuperpowers/docs/cdd-reference.md). Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
+CLI env/exit/harness tables live in [`osuperpowers/skills/cli-driven-development/docs/cdd-reference.md`](../../osuperpowers/skills/cli-driven-development/docs/cdd-reference.md). Orchestrator skills cite H1–H5 only; Read reference doc once per session when shelling H6.
 
 ### Claude Code — two UserPromptExpansion matchers + expansion
 
@@ -187,7 +187,7 @@ Token-efficient CDD orchestration uses plugin-bundled scripts — referenced by 
 | **copilot** | `copilot` | **Not-supported** — exit 1 BLOCKED |
 | **gemini** | `gemini` | **Not-supported** — exit 1 BLOCKED |
 
-Shared library: `osuperpowers/bin/engine/lib/` Node modules — `runner.mjs` (workspace path contract `CDD_WORKSPACE`/`CDD_LEDGER`/…, exit codes 0 OK / 1 BLOCKED / 2 CLI missing, **and the shared task run-loop** `runTask` (one mode per invocation)), `registry.mjs` (harness registry), `contract.mjs` (commit gate + handoff), `templates.mjs` (mode prompt render), `ledger.mjs` (ledger append). The single CLI runner is `osuperpowers/bin/engine/cdd-task.mjs` (`--harness <name> --task N --mode M`), registry-driven from `osuperpowers/bin/engine/harness-registry.json`. The **post-run commit gate** (`validateCommitContract` in `contract.mjs`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [osuperpowers/docs/cdd-reference.md](../../osuperpowers/docs/cdd-reference.md) (§ Post-run commit gate).
+Shared library: `osuperpowers/bin/engine/lib/` Node modules — `runner.mjs` (workspace path contract `CDD_WORKSPACE`/`CDD_LEDGER`/…, exit codes 0 OK / 1 BLOCKED / 2 CLI missing, **and the shared task run-loop** `runTask` (one mode per invocation)), `registry.mjs` (harness registry), `contract.mjs` (commit gate + handoff), `templates.mjs` (mode prompt render), `ledger.mjs` (ledger append). The single CLI runner is `osuperpowers/bin/engine/cdd-task.mjs` (`--harness <name> --task N --mode M`), registry-driven from `osuperpowers/bin/engine/harness-registry.json`. The **post-run commit gate** (`validateCommitContract` in `contract.mjs`): implement/fix modes validate a clean working tree on return (dirty → handoff rewritten `status: BLOCKED` + non-zero exit; fail-open on non-git / git error). See [osuperpowers/skills/cli-driven-development/docs/cdd-reference.md](../../osuperpowers/skills/cli-driven-development/docs/cdd-reference.md) (§ Post-run commit gate).
 
 ### Invocation
 

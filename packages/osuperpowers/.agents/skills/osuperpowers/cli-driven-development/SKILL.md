@@ -15,7 +15,7 @@ Before execution, select a harness via [Rule: Ask](../cli-select/SKILL.md#rule-a
 
 ### Rule: Three-Mode Chain
 
-Each task gets one CLI call per mode (see [cdd-reference.md](../../docs/cdd-reference.md) H6):
+Each task gets one CLI call per mode (see [cdd-reference.md](./docs/cdd-reference.md) H6):
 
 ```bash
 {plugin_root}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement
@@ -26,7 +26,7 @@ Each task gets one CLI call per mode (see [cdd-reference.md](../../docs/cdd-refe
 
 ### Rule: Handoff Contract
 
-At the end of each mode, write/update `CDD_HANDOFF_PATH` (task-N-handoff.json); stdout <= [Return Block contract](../../docs/controller-handoff.md#rule-return-block) four lines; non-zero exit with no handoff -> BLOCKED. Templates at `templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`.
+At the end of each mode, write/update `CDD_HANDOFF_PATH` (task-N-handoff.json); stdout <= [Return Block contract](./docs/controller-handoff.md#rule-return-block) four lines; non-zero exit with no handoff -> BLOCKED. Templates at `templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`.
 
 ### Rule: Commit Gate
 

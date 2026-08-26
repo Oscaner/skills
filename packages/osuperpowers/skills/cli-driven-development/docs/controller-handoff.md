@@ -39,4 +39,4 @@ Handoff writes are inlined in each mode template (`templates/cdd/{implement,task
 
 ---
 
-H6-H8 (CLI dispatch / opt-in / harness registry / gate matrix) → [`docs/cdd-reference.md`](cdd-reference.md).
+H6-H8 (CLI dispatch / opt-in / harness registry / gate matrix) → [`cdd-reference.md`](cdd-reference.md).

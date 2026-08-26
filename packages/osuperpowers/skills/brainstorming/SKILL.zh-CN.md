@@ -74,7 +74,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 ### Rule: Overall-Phase
 
-大型 / 多阶段需求（≥3 子系统 / 多阶段 / 大改）先写 overall spec，再 phase out。文档结构见 [overall-spec-template.md](./overall-spec-template.md)（每 phase 另见 [phase-spec-template.md](./phase-spec-template.md)）。GATE：overall 批准 ≠ 任何 phase 已开始。
+大型 / 多阶段需求（≥3 子系统 / 多阶段 / 大改）先写 overall spec，再 phase out。文档结构见 [overall-spec-template.md](./docs/overall-spec-template.md)（每 phase 另见 [phase-spec-template.md](./docs/phase-spec-template.md)）。GATE：overall 批准 ≠ 任何 phase 已开始。
 
 起草时，overall spec 必须包含：(1) 按 phase 的 issue 清单；(2) 路径命名 `specs/YYYY-MM-DD-<feature>-overall.md`、`specs/YYYY-MM-DD-<feature>-<phase-id>-design.md`、`plans/...-<phase-id>.md`、`tickets/...-<phase-id>-tickets.md`（`<phase-id>` 小写）；(3) 每 phase 的 Acceptance criteria；(4) 软/硬依赖区分（图例：`->` = 硬阻塞，`──建议先于──▶` = 软建议——完整图例见模板）；(5) phase 进行中出现的范围/约束变更必须先回馈 overall spec 再实施。每个 phase spec 须经完整 brainstorm→plan→dev 循环生成；仅 overall 批准后直接实施属违规。
 

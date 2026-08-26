@@ -74,7 +74,7 @@ Trigger failure (research agent error/timeout) → log stderr, do not block flow
 
 ### Rule: Overall-Phase
 
-Large / multi-phase requirements (>=3 subsystems / multi-phase / overhaul) write an overall spec first, then phase out. Document structure: [overall-spec-template.md](./overall-spec-template.md) (+ [phase-spec-template.md](./phase-spec-template.md) per phase). GATE: overall approval != any phase started.
+Large / multi-phase requirements (>=3 subsystems / multi-phase / overhaul) write an overall spec first, then phase out. Document structure: [overall-spec-template.md](./docs/overall-spec-template.md) (+ [phase-spec-template.md](./docs/phase-spec-template.md) per phase). GATE: overall approval != any phase started.
 
 When drafting, the overall spec MUST carry: (1) issue inventory per phase; (2) path naming `specs/YYYY-MM-DD-<feature>-overall.md`, `specs/YYYY-MM-DD-<feature>-<phase-id>-design.md`, `plans/...-<phase-id>.md`, `tickets/...-<phase-id>-tickets.md` (`<phase-id>` lowercase); (3) per-phase Acceptance criteria; (4) soft vs hard dependency distinction (graph legend: `->` = hard block, `-> (soft)` = suggestion — full legend in the template); (5) requirement changes arising during a phase MUST feed back to the overall spec before implementation. Each phase spec is produced by a full brainstorm->plan->dev cycle; jumping to implementation after overall approval alone is a violation.
 

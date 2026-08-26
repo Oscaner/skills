@@ -329,13 +329,13 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () 
   const md = geminiMarkdown(OS_ENG, [
     "init",
     "cli-select",
-    "debugging",
+    "alpha",
   ]);
   assert.equal(
     md,
     `<!-- ${generatedBanner} -->\n` +
+      "@./skills/alpha/SKILL.md\n" +
       "@./skills/cli-select/SKILL.md\n" +
-      "@./skills/debugging/SKILL.md\n" +
       "@./skills/init/SKILL.md\n",
   );
 });

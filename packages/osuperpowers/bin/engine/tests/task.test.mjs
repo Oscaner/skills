@@ -9,7 +9,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { gitInit } from "./helpers.mjs";
+import { gitCommit, gitInit } from "./helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/osuperpowers/bin/engine/tests
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -35,14 +35,13 @@ function run(args, extraEnv = {}, opts = {}) {
 }
 
 // #173：plan 须位于 git 仓库内（repoRoot = gitToplevel(dirname(plan))，永不回退 cwd）——
-// workspace 派生于 <planDir>/.superpowers/cdd/<slug>/；add+commit 保持工作树干净
-// （commit-contract 校验）。-c 内联身份：无全局 user.name/email 的环境也能 commit。
+// workspace 派生于 <planDir>/.superpowers/cdd/<slug>/；gitCommit 保持工作树干净
+// （commit-contract 校验）。
 function setupWorkspace() {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-task-cli-")));
   gitInit(dir);
   writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
-  execFileSync("git", ["-C", dir, "add", "-A"]);
-  execFileSync("git", ["-C", dir, "commit", "-q", "-m", "plan"]);
+  gitCommit(dir);
   return dir;
 }
 

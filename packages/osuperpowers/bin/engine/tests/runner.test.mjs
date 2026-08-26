@@ -57,7 +57,7 @@ function filteredEnv() {
 }
 
 // git init + 空提交（共享 helper：brief.test.mjs 同用；-c 内联身份兼容无全局 user.name/email 的 CI）。
-import { gitInit } from "./helpers.mjs";
+import { gitCommit, gitInit } from "./helpers.mjs";
 
 // gitInit + realpath 归一（git rev-parse --show-toplevel 返回 realpath；macOS /tmp → /private/tmp）。
 function gitInitReal(dir) {
@@ -69,8 +69,7 @@ function gitInitReal(dir) {
 // 在已 init 的仓库写入 plan 文件并 add+commit——保持工作树干净（commit-contract 校验）。
 function commitPlan(repoDir, planFile) {
   writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  execFileSync("git", ["-C", repoDir, "add", "-A"]);
-  execFileSync("git", ["-C", repoDir, "commit", "-q", "-m", "plan"]); // 保持仓库干净——commit-contract 校验工作树
+  gitCommit(repoDir); // 保持仓库干净——commit-contract 校验工作树
   return planFile;
 }
 
@@ -581,8 +580,7 @@ test("runTask #173: brief auto-generate 时 TASK_BASE 取 plan 仓库 A 的 HEAD
   gitInit(repoB);
   const planFile = path.join(repoA, "plan.md");
   writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  execFileSync("git", ["-C", repoA, "add", "."]);
-  execFileSync("git", ["-C", repoA, "commit", "-q", "-m", "plan"]); // HEAD 含 plan commit
+  gitCommit(repoA); // HEAD 含 plan commit
   const briefPath = path.join(mkdtempSync(path.join(tmpdir(), "cdd-ws2-")), "task-1-brief.md");
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,

@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateBrief, validateBrief } from "../lib/brief.mjs";
-import { gitInit } from "./helpers.mjs";
+import { gitCommit, gitInit } from "./helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -75,8 +75,7 @@ test("generateBrief #173: 第 4 参数为 repoRoot —— cwd 无关，取传入
   gitInit(repoB);
   const planFile = path.join(repoA, "plan.md");
   writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  execFileSync("git", ["-C", repoA, "add", "-A"]);
-  execFileSync("git", ["-C", repoA, "commit", "-q", "-m", "plan"]);
+  gitCommit(repoA);
   const out = path.join(mkdtempSync(path.join(tmpdir(), "cdd-brief-out-")), "task-1-brief.md");
   // process.cwd() 与 repoA 无关（测试进程 cwd 在 oscaner-skills）——断言仅由第 4 参数决定
   generateBrief(planFile, 1, out, repoA);

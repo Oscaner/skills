@@ -7,3 +7,11 @@ export function gitInit(dir) {
   execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
     "commit", "--allow-empty", "-q", "-m", "init"]);
 }
+
+// 在已 init 的仓库 add+commit（保持工作树干净——commit-contract 校验）。
+// 同样 -c 内联身份：裸 git commit 在无全局身份的 CI runner 上会失败（PR #177 CI 实测）。
+export function gitCommit(dir, message = "plan") {
+  execFileSync("git", ["-C", dir, "add", "-A"]);
+  execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
+    "commit", "-q", "-m", message]);
+}

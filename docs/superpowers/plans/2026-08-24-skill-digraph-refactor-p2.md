@@ -44,7 +44,7 @@
 
 **步骤**：
 
-1. `scripts/lib/emit/emit.test.mjs` geminiMarkdown 用例（约 328-341 行）：样例名数组 `["init", "cli-select", "debugging"]` → `["init", "cli-select", "alpha"]`，期望输出三行按字典序为 `@./skills/alpha/SKILL.md`、`@./skills/cli-select/SKILL.md`、`@./skills/init/SKILL.md`（alpha 字典序最前，输出顺序与输入数组顺序无关）。
+1. `scripts/lib/emit/emit.test.mjs` geminiMarkdown 用例（约 328-341 行）：样例名数组 `["init", "cli-select", "debugging"]` → `["init", "cli-select", "sample-skill"]`，期望输出三行按字典序为 `@./skills/cli-select/SKILL.md`、`@./skills/init/SKILL.md`、`@./skills/sample-skill/SKILL.md`（sample-skill 字典序最末，输出顺序与输入数组顺序无关；**有意偏离原设计**："alpha" 改为 "sample-skill" 以提升自文档化度——Final Review 建议记录此偏离）。
 2. `scripts/lib/emit/emit.test.mjs` loadTargets 用例（约 699 行）：`assert.equal(targets.length, 8)` → `6`，注释同步为当前状态描述。
 3. `packages/osuperpowers-router/tests/cursor-enforce.test.mjs`：
    - 约 123 行 fixture path `/repo/packages/osuperpowers/skills/debugging/SKILL.md` → `/repo/packages/osuperpowers/skills/writing-plans/SKILL.md`；
@@ -81,3 +81,4 @@
 - v1.0 · 2026-08-26 — 初版（dogfood session）：4 Task 分解——SOT-first 级联再生、手工同步面、测试 fixture + 悬空引用、终扫预演单提交。
 - v1.0.1 · 2026-08-26 — review 吸收（Pass 1+2 warn/nit，无 blocker）：geminiMarkdown 排序断言修正（alpha 字典序最前）；Task 2 验收范围收窄至本任务文件；cursor-enforce fixture 记录对 spec §5 的有意偏离（brainstorming→writing-plans，避免与 OVERRIDE 常量冲突）。
 - v1.0.2 · 2026-08-26 — review 吸收（Pass 3 warn，无 blocker）：Task 2 补收尾 `pnpm run emit` 步骤——init/router.md 手工编辑后 .agents 派生副本需再同步，否则 emit-freshness 必红。
+- v1.0.3 · 2026-08-26 — Final Review 后：记录 geminiMarkdown fixture alpha→sample-skill 偏离（提升自文档化度；与 cursor-enforce brainstorming→writing-plans 偏离同模式）。

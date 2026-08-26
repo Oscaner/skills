@@ -44,7 +44,7 @@ Plan 写完后，必须按序执行三次 cdd-review CLI pass
 
 Plan review 有 3 种 pass 类型（completeness & spec 对齐 / task 分解 / buildability & 类型一致性），每个 pass 派发一次新的 `cdd-review`：
   cdd-review --harness claude --template plan-review --param PASS=<completeness|decomposition|buildability> --param DOC=<plan-path> --param SPEC=<spec-path>
-**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = osuperpowers 根）。派发纪律见 [docs-review.md](./docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
+**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = osuperpowers 根）。派发纪律见 [docs-review.md](../brainstorming/docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
 Review Stopping next-step 标签（本技能）：`"Execution Handoff"`。
 
 ### Rule: Tickets Publish Redirect

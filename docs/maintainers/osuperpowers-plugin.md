@@ -49,7 +49,7 @@ Detail (pending-state contract, fail-open, shell allowlist) --> [cross-harness-o
 
 `packages/osuperpowers/docs/` held two cross-cutting reference docs that have been relocated during P3:
 
-- `docs-review.md` (D1/D2/D3 + Review Stopping + Handoff Output) → `skills/writing-plans/docs/docs-review.md`
+- `docs-review.md` (D1/D2/D3 + Review Stopping + Handoff Output) → `skills/brainstorming/docs/docs-review.md`
 - `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
 Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-review and branch-review use their own mechanisms.

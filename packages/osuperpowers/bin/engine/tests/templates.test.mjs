@@ -103,7 +103,7 @@ function wcLines(rel) {
 test("governance: 真实行预算（sdd/ctrl/tier1/tier2 实测宿主）", () => {
   const sdd = wcLines("skills/cli-driven-development/SKILL.md");
   const ctrl = wcLines("skills/cli-driven-development/docs/controller-handoff.md");
-  const rev = wcLines("skills/writing-plans/docs/docs-review.md");
+  const rev = wcLines("skills/brainstorming/docs/docs-review.md");
   const tier1 = sdd + ctrl;
   const tier2 = tier1 + rev;
   assert.ok(sdd <= lineBudget("sdd"), `cli-driven-development ${sdd} > ${lineBudget("sdd")}`);
@@ -134,7 +134,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   const fragment = readRel("templates/cdd/_handoff-write-fragment.md");
   const review = readRel("templates/cdd/task-review.md");
   const fix = readRel("templates/cdd/fix.md");
-  const dispatch = readRel("skills/writing-plans/docs/docs-review.md");
+  const dispatch = readRel("skills/brainstorming/docs/docs-review.md");
 
   // review segment：deferred 保留 + blocker-only open-findings + merge
   assert.ok(fragment.includes("deferred: true"), "fragment deferred marking");

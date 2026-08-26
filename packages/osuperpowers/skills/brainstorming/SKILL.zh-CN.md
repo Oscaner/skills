@@ -82,7 +82,7 @@ description: 独立 brainstorm 编排器——读取上游 superpowers:brainstor
 
 Spec review 有 3 种 pass 类型（completeness / consistency&scope / clarity&YAGNI），每个 pass 派发一次新的 `cdd-review`：
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-派发纪律见 [docs-review.md](../writing-plans/docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
+派发纪律见 [docs-review.md](./docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
 Review Stopping next-step 标签（本技能）：`"用户审阅 spec"`。
 
 ### Rule: Next-Step Routing

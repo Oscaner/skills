@@ -82,7 +82,7 @@ When drafting, the overall spec MUST carry: (1) issue inventory per phase; (2) p
 
 Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI), each pass dispatches a fresh `cdd-review`:
   cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-Dispatch discipline: see [docs-review.md](../writing-plans/docs/docs-review.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli; Review Stopping loop + Handoff Output).
+Dispatch discipline: see [docs-review.md](./docs/docs-review.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli; Review Stopping loop + Handoff Output).
 Review Stopping next-step label for this skill: `"User review of spec"`.
 
 ### Rule: Next-Step Routing

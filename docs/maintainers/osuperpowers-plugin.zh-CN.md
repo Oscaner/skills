@@ -49,7 +49,7 @@ Hooks 随每个插件发布，仅当插件经 Claude Code / Cursor marketplace �
 
 `packages/osuperpowers/docs/` 下原有两份 cross-cutting 参考文档，P3 已迁移/解散：
 
-- `docs-review.md`（D1/D2/D3 + Review Stopping + Handoff Output）→ `skills/writing-plans/docs/docs-review.md`
+- `docs-review.md`（D1/D2/D3 + Review Stopping + Handoff Output）→ `skills/brainstorming/docs/docs-review.md`
 - `subagent-lifecycle.md`（fresh/concurrent dispatch）→ **已解散**（CLI 模式下 Fresh/Concurrent 规则消亡；Delegate Load Failure 内联到各消费者 skill）
 
 仅被 spec-review（brainstorming）和 plan-review（writing-plans）引用。task-review 与 branch-review 使用各自机制。

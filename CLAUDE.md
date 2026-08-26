@@ -42,7 +42,6 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 - `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
 - `packages/osuperpowers/bin/engine/` — CDD engine (cdd-task.mjs, cdd-review.mjs, runner.mjs, registry, templates)
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
-- `packages/osuperpowers/docs/` — cross-cutting docs (cdd-reference, handoff-schema, docs-review, subagent-lifecycle)
 
 For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
 
@@ -54,6 +53,7 @@ For overrides trigger router internals, see [`docs/maintainers/osuperpowers-rout
 - [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
 - [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / hooks / releasing)
 - [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin maintainer guide
+- [`docs/maintainers/skill-authoring.md`](docs/maintainers/skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, Chinese Strategy B)
 
 ## Language Architecture
 

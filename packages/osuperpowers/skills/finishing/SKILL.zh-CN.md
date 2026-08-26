@@ -11,9 +11,9 @@ description: 独立收尾流程编排器 —— Read 上游 superpowers:finishin
 
 ### Rule: Read Upstream
 
-Read 上游 `superpowers:finishing-a-development-branch` 的 SKILL.md 作为流程基线 **当可用时**（解析优先级 + 不可用回退同 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。**Read 而非 Skill-invoke**。
+Read 上游 `superpowers:finishing-a-development-branch` 的 SKILL.md 作为流程基线 **当可用时**（解析优先级 + 不可用回退同 [Read Upstream](../brainstorming/SKILL.md#read-upstream)）。**Read 而非 Skill-invoke**。
 
-基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。
+基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Read Upstream](../brainstorming/SKILL.md#read-upstream)）。
 
 ### Rule: No Worktrees
 

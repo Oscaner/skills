@@ -20,9 +20,9 @@ description: 独立 plan 写作编排器——读取上游 superpowers:writing-p
 
 ### Rule: Read Upstream
 
-有上游时读取 `superpowers:writing-plans` SKILL.md 作为基线（解析优先级 + 不可用回退同 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。**读取，不 Skill-invoke**。
+有上游时读取 `superpowers:writing-plans` SKILL.md 作为基线（解析优先级 + 不可用回退同 [Read Upstream](../brainstorming/SKILL.md#read-upstream)）。**读取，不 Skill-invoke**。
 
-基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)）。
+基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Read Upstream](../brainstorming/SKILL.md#read-upstream)）。
 
 ### Rule: Read Sub-Skills
 

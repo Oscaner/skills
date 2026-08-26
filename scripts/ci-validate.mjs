@@ -178,18 +178,18 @@ function checkOsuperpowersSkillsCount() {
     const dir = path.join(p, "skills");
     assert(existsSync(dir), `missing default skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (8 emitters + init), got ${n}`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (6 emitters + init), got ${n}`);
     console.log(`OK — ${n} osuperpowers skills (default skills/ discovery)`);
   } else if (typeof skills === "string") {
     const dir = path.join(p, skills.replace(/^\.\//, ""));
     assert(existsSync(dir), `missing skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (8 emitters + init), got ${n}`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (6 emitters + init), got ${n}`);
     console.log(`OK — ${n} osuperpowers skills (directory ${skills})`);
   } else {
     const missing = skills.filter((s) => !existsSync(path.join(p, s.replace(/^\.\//, ""))));
     assert(missing.length === 0, `skills[] points to missing dirs: ${missing}`);
-    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (8 emitters + init), got ${skills.length}`);
+    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (6 emitters + init), got ${skills.length}`);
     console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
 }

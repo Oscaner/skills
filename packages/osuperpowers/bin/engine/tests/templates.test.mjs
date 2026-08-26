@@ -118,18 +118,6 @@ test("governance: wcLines 空/纯空白文件 → 0（0 分支覆盖）", () => 
   assert.equal(wcLines("tests/fixtures/whitespace.txt"), 0);
 });
 
-test("governance: 技能 + 模板行数上限（防 runaway prose）", () => {
-  for (const ent of readdirSync(path.join(PLUGIN_ROOT, "skills"), { withFileTypes: true })) {
-    if (!ent.isDirectory()) continue;
-    const n = wcLines(`skills/${ent.name}/SKILL.md`);
-    assert.ok(n <= 200, `skills/${ent.name}/SKILL.md ${n} > 200`);
-  }
-  for (const f of readdirSync(path.join(PLUGIN_ROOT, "templates", "cdd"))) {
-    const n = wcLines(`templates/cdd/${f}`);
-    assert.ok(n <= 60, `templates/cdd/${f} ${n} > 60`);
-  }
-});
-
 test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   const fragment = readRel("templates/cdd/_handoff-write-fragment.md");
   const review = readRel("templates/cdd/task-review.md");

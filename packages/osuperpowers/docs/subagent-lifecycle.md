@@ -14,7 +14,7 @@ Multiple passes run concurrently only when mutually independent (no data depende
 
 ### Rule: Delegate Load Failure
 
-When delegating to a sub-skill (`mattpocock-skills:*` or any skill referenced in Read Sub-Skills) fails: target skill cannot be resolved/loaded → report the error to the user and ask for next steps. All failure scenarios behave identically — no silent degradation. The user can decide to skip the delegation or abort the flow. Cited by delegation rules in debugging (→ diagnosing-bugs), receiving-code-review (→ grilling/tdd), writing-plans (→ to-tickets), brainstorming (→ grilling).
+When delegating to a sub-skill (`mattpocock-skills:*` or any skill referenced in Read Sub-Skills) fails: target skill cannot be resolved/loaded → report the error to the user and ask for next steps. All failure scenarios behave identically — no silent degradation. The user can decide to skip the delegation or abort the flow. Cited by delegation rules in receiving-code-review (→ grilling/tdd), writing-plans (→ to-tickets), brainstorming (→ grilling).
 
 ## Red Flags
 

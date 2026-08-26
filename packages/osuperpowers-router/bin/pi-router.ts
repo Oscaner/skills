@@ -6,9 +6,7 @@ const MAP: Record<string, string> = {
   "writing-plans": "osuperpowers:writing-plans",
   "subagent-driven-development": "osuperpowers:cli-driven-development",
   "finishing-a-development-branch": "osuperpowers:finishing",
-  "systematic-debugging": "osuperpowers:debugging",
   "test-driven-development": "mattpocock-skills:tdd",
-  "verification-before-completion": "osuperpowers:verification",
   "using-git-worktrees": "osuperpowers:finishing"
 };
 

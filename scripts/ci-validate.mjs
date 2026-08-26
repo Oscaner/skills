@@ -172,24 +172,25 @@ function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 9; // 8 emitters + init (P5 removed three legacy skills, #169 removed cli-task)
+  const EXPECTED = 7; // 6 emitters + init (P5 removed three legacy skills, #169 removed cli-task, P2 removed debugging+verification)
+  const EMITTERS_LABEL = "6 emitters + init";
   let n;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");
     assert(existsSync(dir), `missing default skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (8 emitters + init), got ${n}`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${n}`);
     console.log(`OK — ${n} osuperpowers skills (default skills/ discovery)`);
   } else if (typeof skills === "string") {
     const dir = path.join(p, skills.replace(/^\.\//, ""));
     assert(existsSync(dir), `missing skills dir: ${dir}`);
     n = countSkillsWithMarkdown(dir);
-    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (8 emitters + init), got ${n}`);
+    assert(n === EXPECTED, `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${n}`);
     console.log(`OK — ${n} osuperpowers skills (directory ${skills})`);
   } else {
     const missing = skills.filter((s) => !existsSync(path.join(p, s.replace(/^\.\//, ""))));
     assert(missing.length === 0, `skills[] points to missing dirs: ${missing}`);
-    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (8 emitters + init), got ${skills.length}`);
+    assert(skills.length === EXPECTED, `expected ${EXPECTED} osuperpowers skills (${EMITTERS_LABEL}), got ${skills.length}`);
     console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
 }

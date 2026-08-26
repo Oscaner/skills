@@ -23,12 +23,8 @@ const MAP = {
   "/subagent-driven-development": "osuperpowers:cli-driven-development",
   "superpowers:finishing-a-development-branch": "osuperpowers:finishing",
   "/finishing-a-development-branch": "osuperpowers:finishing",
-  "superpowers:systematic-debugging": "osuperpowers:debugging",
-  "/systematic-debugging": "osuperpowers:debugging",
   "superpowers:test-driven-development": "mattpocock-skills:tdd",
   "/test-driven-development": "mattpocock-skills:tdd",
-  "superpowers:verification-before-completion": "osuperpowers:verification",
-  "/verification-before-completion": "osuperpowers:verification",
   "superpowers:using-git-worktrees": "osuperpowers:finishing",
   "/using-git-worktrees": "osuperpowers:finishing"
 };

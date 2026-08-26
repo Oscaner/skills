@@ -34,9 +34,7 @@ Three mechanisms enforce routing:
 | `superpowers:writing-plans` | `osuperpowers:writing-plans` | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
 | `superpowers:subagent-driven-development` | `osuperpowers:cli-driven-development` | CDD engine — harness CLI three-mode chain |
 | `superpowers:finishing-a-development-branch` | `osuperpowers:finishing` | Branch finish / PR; no worktrees; conventional commits |
-| `superpowers:systematic-debugging` | `osuperpowers:debugging` | Evidence before fixes; delegates to `diagnosing-bugs` |
 | `superpowers:test-driven-development` | `mattpocock-skills:tdd` | Red-green loop; direct delegate |
-| `superpowers:verification-before-completion` | `osuperpowers:verification` | No completion claims without verification evidence |
 | `superpowers:using-git-worktrees` | `osuperpowers:finishing` | Refuses worktree creation (user policy) |
 
 The same mapping is used for bare `/slug` forms (e.g. `/brainstorming` maps to `osuperpowers:brainstorming`).

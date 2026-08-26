@@ -26,9 +26,7 @@
 | `/writing-plans` | `osuperpowers:writing-plans` | 逐节计划编写 + 审查；ticket 输出到 `docs/superpowers/tickets/` |
 | `/subagent-driven-development` | `osuperpowers:cli-driven-development` | CDD 引擎 — 工具 CLI 三模式链 |
 | `/finishing-a-development-branch` | `osuperpowers:finishing` | 分支完成 / PR；禁止 worktree；约定式提交 |
-| `/systematic-debugging` | `osuperpowers:debugging` | 先收集证据再修复；委托给 `diagnosing-bugs` |
 | `/test-driven-development` | `mattpocock-skills:tdd` | 红绿循环；seam 确认门控 |
-| `/verification-before-completion` | `osuperpowers:verification` | 无验证证据不得声称完成 |
 | `/using-git-worktrees` | `osuperpowers:finishing` | 拒绝创建 worktree（用户策略） |
 
 ## 安装

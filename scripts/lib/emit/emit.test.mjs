@@ -329,14 +329,14 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () 
   const md = geminiMarkdown(OS_ENG, [
     "init",
     "cli-select",
-    "debugging",
+    "sample-skill",
   ]);
   assert.equal(
     md,
     `<!-- ${generatedBanner} -->\n` +
       "@./skills/cli-select/SKILL.md\n" +
-      "@./skills/debugging/SKILL.md\n" +
-      "@./skills/init/SKILL.md\n",
+      "@./skills/init/SKILL.md\n" +
+      "@./skills/sample-skill/SKILL.md\n",
   );
 });
 
@@ -696,7 +696,7 @@ test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", ()
 
 test("loadTargets parses the real overrides.manifest.json", () => {
   const targets = loadTargets(MANIFEST_PATH);
-  assert.equal(targets.length, 8); // P5 removed two legacy mappings
+  assert.equal(targets.length, 6); // P2 removed debugging/verification mappings
   const brainstorming = targets.find(
     (t) => t.name === "osuperpowers:brainstorming",
   );

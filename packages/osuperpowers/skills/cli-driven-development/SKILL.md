@@ -11,7 +11,7 @@ Execute planned tasks with the selected harness CLI via a three-mode chain. **Th
 
 ### Rule: Harness Selection
 
-Before execution, select a harness via [Rule: Ask](../cli-select/SKILL.md#rule-ask) and pass it as `--harness <name>`. No full harness installed -> BLOCKED.
+Before execution, select a harness via [ask](../cli-select/SKILL.md#ask) and pass it as `--harness <name>`. No full harness installed -> BLOCKED.
 
 ### Rule: Three-Mode Chain
 

@@ -106,7 +106,15 @@ flowchart TD
 
 ### `commit-spec`
 
-- **Do**: 将 spec 文档提交到 git。spec 获批即 commit（I4）；不等 dev 合并
+- **Do**: 将 spec 文档提交到 git。spec 获批即 commit（I4）；不等 dev 合并。
+
+  **Commit 前校验 overall spec 四表同步**（仅当本 phase 是 overall 程序的子 phase 时；single-spec 项目跳过此校验）：
+  - Issue inventory：本 phase spec 或 plan 中提及的所有 `#NNN` issue 编号均已在 overall Issue inventory 中登记（新增或更新）
+  - Phase inventory：本 phase 行的 scope / design spec / plan / acceptance criteria / dependency 字段已更新到最新状态
+  - Dependency graph：若本 phase 新增或移除依赖关系，ASCII 图已同步
+  - Change history：本 phase 的变更已 append 一行（含 version + 日期 + 摘要）
+
+  任何一表未同步 → 视为 spec commit 违规，**不得 commit**，必须先同步再提交
 - **Read**: spec 文件路径
 - **Exit**: commit 完成 → `overall-spec?`
 - **Fail**: git 错误 → report + fail-open（不阻塞用户审阅 spec）

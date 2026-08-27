@@ -169,13 +169,11 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(dispatch.includes("Rule: Review Stopping"), "D3 deferred field (via Rule: Review Stopping)");
   assert.ok(/warn\/nit.*Rule: Review Stopping/.test(dispatch), "D3 warn/nit → Review Stopping");
 
-  // P5 deletion guard: legacy skill removed; governance host moved to cli-driven-development.
-  // Final Review 收尾语义锚点（P5 task 2）：cli-driven-development 现兼任 orchestrator，
-  // 必须携带整分支 review HARD-GATE（BASE=origin/develop 集成点）+ finishing 交接语义。
+  // P5 deletion guard (P8 update): legacy "### Rule: Final Review" replaced by node-anchored
+  // `branch-review` + `handoff-finishing` nodes. Governance anchors updated to node-anchored format.
   const cdd = readRel("skills/cli-driven-development/SKILL.md");
-  assert.ok(cdd.includes("### Rule: Final Review"), "Final Review rule anchor");
-  assert.ok(cdd.includes("origin/develop"), "Final Review BASE = integration branch origin/develop");
-  assert.ok(cdd.includes("osuperpowers:finishing"), "Final Review hand-off to osuperpowers:finishing");
+  assert.ok(cdd.includes("### `branch-review`"), "branch-review node anchor (replaces Rule: Final Review)");
+  assert.ok(cdd.includes("osuperpowers:finishing"), "handoff-finishing node references osuperpowers:finishing");
 });
 
 test("governance: branch-review 模板基线标注（P5 task 3：BASE=origin/develop 集成点）", () => {

@@ -11,7 +11,7 @@ description: 计划执行器（仅 CLI）+ 编器 + 引擎 —— 用选定 harn
 
 ### Rule: Harness Selection
 
-执行前先经 [Rule: Ask](../cli-select/SKILL.md#rule-ask) 选定 harness，以 `--harness <name>` 传入。无 full harness 安装 → BLOCKED。
+执行前先经 [ask](../cli-select/SKILL.md#ask) 选定 harness，以 `--harness <name>` 传入。无 full harness 安装 → BLOCKED。
 
 ### Rule: Three-Mode Chain
 

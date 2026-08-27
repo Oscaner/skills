@@ -1,6 +1,6 @@
 # 技能 digraph 重构 + 引擎修复 + 文档迁移 — Overall Spec
 
-- **Version**: v1.14 · 2026-08-27
+- **Version**: v1.15 · 2026-08-27
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -63,6 +63,9 @@ Cross-cutting constraints：
 | P7 | [#136](https://github.com/Oscaner/skills/issues/136) | report-issue Rule: Automatic Labels 硬编码 osuperpowers-router，应按受影响组件选择 osuperpowers / osuperpowers-router（**P7 提前消费 fix：Failure Modes recovery label 使用组件分类后的 `osuperpowers`**；P9 完成引擎层面修复） |
 | P8 | [#168](https://github.com/Oscaner/skills/issues/168) | deferred 处置门：final review 前询问用户是否修复累积 warn/nit（原 executing-plans 已删，落点改为 cli-driven-development 重构内的决策节点） |
 | P8 | [#181](https://github.com/Oscaner/skills/issues/181) | CDD dispatch 失败：嵌套 CLI stdout 不可靠 + orchestrator 不读 handoff + task-review 被跳过 + branch-review 无持久化 |
+| P8 | [#185](https://github.com/Oscaner/skills/issues/185) | brief.mjs --task N 命名空间与 CDD task 索引冲突——plan Task 数量 > CDD task 时 brief 错误（P7 dogfood 发现） |
+| P8 | [#186](https://github.com/Oscaner/skills/issues/186) | 嵌套 CLI implement 写 handoff commits.head SHA 格式不一致（7-char vs 40-char），触发 commit-contract BLOCKED（P7 dogfood 发现） |
+| P8 | [#187](https://github.com/Oscaner/skills/issues/187) | 嵌套 CLI implement 写 handoff status=DONE（非 APPROVED），违反 CDD 状态机契约（P7 dogfood 发现） |
 
 ---
 
@@ -154,3 +157,4 @@ Append-only：
 - v1.12 · 2026-08-27 — P7 brainstorming 回写（3 项）：① cli-select BLOCKED 语义明确为"engine bug"（orchestrator 宿主 harness 必然存在；`available=0` 或引擎脚本执行失败均为 bug 信号，非用户侧缺失）；② Failure Modes 表扩展 recovery 列——固化 `osuperpowers:report-issue` 上报路径为 BLOCKED 标准恢复操作（P5/P6 dogfood 闭环模式正式纳入 P7）；③ report-issue label 组件分类规则提前消费 #136 fix——P7 recovery label 使用组件分类后的 `osuperpowers`（非硬编码 `osuperpowers-router`），新增 Boundary rule「report-issue label 组件分类」。
 - v1.13 · 2026-08-27 — P7 plan 审阅反馈：Issue inventory 表补充 #136 行（P7 提前消费 fix 的归属条目）；v1.12 仅新增 Boundary rule 未同步 inventory，本版本补齐。
 - v1.14 · 2026-08-27 — P7 plan review 用户反馈（preventive fix）：P7 scope 新增「preventive fix」——overall-spec-template Issue inventory 段强化更新触发条件规则（发现新 issue / 提前消费其他 phase issue 时必须同步 inventory + version bump + change history）；brainstorming commit-spec 节点 Do 字段新增 commit 前四表同步校验（Issue inventory / Phase inventory / Dependency graph / Change history）。P7 验收追加 ⑥⑦；P7 行 scope + 验收同步扩展。
+- v1.15 · 2026-08-27 — P7 CDD dogfood 回写（3 项新 issue 归 P8）：① #185 brief.mjs --task N 命名空间与 CDD task 索引冲突；② #186 嵌套 CLI implement 写 handoff commits.head SHA 格式不一致（7-char vs 40-char）；③ #187 嵌套 CLI implement 写 handoff status=DONE（非 APPROVED）。三 issue 均为 CDD engine 契约缺口，归 P8（cli-driven-development 重构）统一修复。

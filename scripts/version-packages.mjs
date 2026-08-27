@@ -146,16 +146,15 @@ if (osuperpowersCS.length > 0) {
   osuperpowersPkg.version = osuperpowersNext;
   writeJson(osuperpowersPkgPath, osuperpowersPkg);
 
-  // Sync osuperpowers version to the init self-check stamps (the only SOTs
-  // outside package.json). SKILL.md holds the version marker; router.md's
-  // written-table template carries the same stamp for `init router`. Both must
-  // exist or the release aborts. marketplace/source.json and the per-harness
-  // manifests are derived emit products — the emit that
-  // sync-router-versions.mjs runs below re-derives them from package.json,
-  // so no direct source.json write.
+  // Sync osuperpowers version to the init self-check stamp (the only SOT outside
+  // package.json besides the manifest and derived emit products). SKILL.md holds
+  // the version marker. The legacy router.md stamp target was removed in P9 task 1
+  // (design spec §1.1 — `init router` deleted), so only SKILL.md is synced here.
+  // marketplace/source.json and the per-harness manifests are derived emit products
+  // — the emit that sync-router-versions.mjs runs below re-derives them from
+  // package.json, so no direct source.json write.
   for (const initPath of [
     "packages/osuperpowers/skills/init/SKILL.md",
-    "packages/osuperpowers/skills/init/router.md",
   ]) {
     const init = readFileSync(join(root, initPath), "utf8");
     const stamped = init.replace(

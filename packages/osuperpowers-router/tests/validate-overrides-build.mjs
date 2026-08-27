@@ -159,38 +159,11 @@ function main() {
     assert(!isDir(path.join(ROOT, ".cursor/skills")), ".cursor/skills/ still exists");
   });
 
-  check("validate init self-check rows mirror manifest targets", () => {
-    // The init router payload table (a hand-maintained copy of the
-    // trigger->target mapping) must stay in lockstep with overrides.manifest.json
-    // targets[]. Every manifest target's upstream slug must resolve to its
-    // canonical target name. The table lives in init's router.md payload.
-    const sporMd = readFileSync(path.join(ENGINE, "skills/init/router.md"), "utf8");
-    const rows = {};
-    for (const raw of sporMd.split("\n")) {
-      const line = raw.trim();
-      if (!(line.startsWith("| `") && line.includes("Skill("))) continue;
-      const cells = line
-        .replace(/^\|+/, "")
-        .replace(/\|+$/, "")
-        .split("|")
-        .map((c) => c.trim());
-      if (cells.length !== 2) continue;
-      const slug = cells[0].replace(/^`+|`+$/g, "").replace(/^\/+/, "");
-      const target = cells[1].slice(6, -1); // strip "Skill(" + ")"
-      rows[slug] = target;
-    }
-    const manifest = loadManifest();
-    assert(
-      Object.keys(rows).length >= manifest.targets.length,
-      `init payload has ${Object.keys(rows).length} rows, manifest has ${manifest.targets.length}`,
-    );
-    for (const t of manifest.targets) {
-      const slug = t.overrides.split(":")[1];
-      const want = t.name;
-      const got = rows[slug];
-      assert(got === want, `init row /${slug}: Skill(${got}) != Skill(${want})`);
-    }
-  });
+  // NOTE: the legacy "init router" self-check table payload (init/router.md) was
+  // a hand-maintained mirror of overrides.manifest.json and is deleted (P9 task 1,
+  // design spec §1.1 — manifest is the single SOT; routing is enforced by hooks).
+  // Its lockstep validator is therefore removed; manifest-target fidelity is now
+  // covered by the manifest/hooks matchers below.
 
   check("validate hooks.json matchers", () => {
     const hooks = JSON.parse(readFileSync(path.join(ROOT, "hooks/hooks.json"), "utf8"));

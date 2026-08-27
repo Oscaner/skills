@@ -70,11 +70,11 @@ for (const f of osuperpowersBump.files) {
 }
 console.log("OK —", osuperpowersPkg.version);
 
-// init stamps: SKILL.md (version marker) + router.md (written-table template).
-// Both carry the osuperpowers version and both are synced by version-packages.mjs.
+// init stamp: SKILL.md (version marker). router.md (written-table template) was
+// deleted in P9 task 1 (design spec §1.1 — init router removed), so the stamp
+// check covers SKILL.md only.
 for (const rel of [
   "packages/osuperpowers/skills/init/SKILL.md",
-  "packages/osuperpowers/skills/init/router.md",
 ]) {
   const oeInit = readFileSync(join(root, rel), "utf8");
   const stamp = oeInit.match(/<!-- osuperpowers-version: ([^ ]+) -->/);
@@ -84,4 +84,4 @@ for (const rel of [
     );
   }
 }
-console.log("OK — init SKILL.md/router.md stamp", osuperpowersPkg.version);
+console.log("OK — init SKILL.md stamp", osuperpowersPkg.version);

@@ -14,7 +14,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus,
-         findSuperpowersScriptsDir, byVersion, runReviewPackage, resolveRepoRoot } from "../lib/runner.mjs";
+         findSuperpowersScriptsDir, byVersion, runReviewPackage, resolveRepoRoot,
+         spawnCapture } from "../lib/runner.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -630,4 +631,20 @@ test("runTask #173: review-package 子进程在 repoRoot 内执行", async () =>
   // 注：mock 的 `wrote /nonexistent/x` 不存在 → spawn 后 runReviewPackage 抛 RunBlocked（exit 1，
   // stderr 有 CDD_BLOCKED 诊断）——本用例只钉死子进程执行目录，不校验退出码。
   assert.equal(readFileSync(spawnLog, "utf8").trim(), dir); // 子进程 pwd == repoRoot
+});
+
+// ---- P5 spawnCapture env leak regression ----
+
+test("spawnCapture: strips CLAUDE_CODE_SUBAGENT_MODEL from child env", async () => {
+  const env = { ...process.env, CLAUDE_CODE_SUBAGENT_MODEL: "qwen3.7-max" };
+  const res = await spawnCapture("printenv", ["CLAUDE_CODE_SUBAGENT_MODEL"], { cwd: process.cwd(), env });
+  assert.equal(res.ok, false, "printenv should exit non-zero when var is unset");
+  assert.ok(!res.stdout.includes("qwen3.7-max"), "CLAUDE_CODE_SUBAGENT_MODEL must not leak to child process");
+});
+
+test("spawnCapture: preserves non-subagent env vars", async () => {
+  const env = { ...process.env, CDD_CUSTOM_VAR: "hello-test" };
+  const res = await spawnCapture("printenv", ["CDD_CUSTOM_VAR"], { cwd: process.cwd(), env });
+  assert.equal(res.ok, true);
+  assert.match(res.stdout.trim(), /hello-test/);
 });

@@ -17,7 +17,7 @@ export const LINE_BUDGETS = Object.freeze({
   tier2: 320,
 });
 
-const PLACEHOLDERS = ["WORKSPACE", "BRIEF", "HANDOFF", "FINDINGS", "CONSTRAINTS", "FIXED_POINT", "TASK"];
+const PLACEHOLDERS = ["WORKSPACE", "BRIEF", "HANDOFF", "FINDINGS", "CONSTRAINTS", "FIXED_POINT", "TASK", "FINDINGS_SCOPE"];
 
 // 行预算查询 —— tier 名 → 阈值。
 export function lineBudget(tier) {

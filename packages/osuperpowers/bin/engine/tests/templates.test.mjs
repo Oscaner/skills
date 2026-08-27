@@ -75,6 +75,29 @@ test("renderModePrompt: plan-review 模板可加载但占位符由 cdd-review re
   assert.ok(out.includes("{{PASS}}"), "PASS 不在 PLACEHOLDERS 中");
 });
 
+// #168 FINDINGS_SCOPE placeholder rendering
+test("renderModePrompt #168: fix mode + FINDINGS_SCOPE=deferred-sweep → rendered", () => {
+  const env = {
+    WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
+    CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "1",
+    FINDINGS_SCOPE: "deferred-sweep",
+  };
+  const out = renderModePrompt("fix", env);
+  assert.ok(out.includes("deferred-sweep"), "FINDINGS_SCOPE should be rendered in fix mode");
+  assert.ok(!out.includes("{{FINDINGS_SCOPE}}"), "no residual FINDINGS_SCOPE placeholder");
+});
+
+test("renderModePrompt #168: fix mode + default FINDINGS_SCOPE → blocker-only", () => {
+  const env = {
+    WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
+    CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "1",
+    FINDINGS_SCOPE: "blocker-only",
+  };
+  const out = renderModePrompt("fix", env);
+  assert.ok(out.includes("blocker-only"), "default FINDINGS_SCOPE should render");
+  assert.ok(!out.includes("{{FINDINGS_SCOPE}}"), "no residual placeholder");
+});
+
 test("lineBudget: 真实阈值", () => {
   assert.equal(lineBudget("sdd"), 160);
   assert.equal(lineBudget("ctrl"), 110);
@@ -137,7 +160,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
 
   // fix.md: deferred + open-findings blocker-only
   assert.ok(fix.includes("deferred"), "fix deferred");
-  assert.ok(fix.includes("open-findings 只含 blocker"), "fix open-findings blocker-only");
+  assert.ok(fix.includes("blocker-only"), "fix open-findings blocker-only");
 
   // D3 severity behavioral anchors
   assert.ok(dispatch.includes("must fix before merge"), "D3 blocker anchor");

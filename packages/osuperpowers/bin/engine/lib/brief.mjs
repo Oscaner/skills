@@ -15,7 +15,7 @@ export function generateBrief(planFile, taskNum, outPath, repoRoot) {
     if (start < 0 && lines[i].startsWith(header)) { start = i; continue; }
     if (start >= 0 && /^### Task \d+:/.test(lines[i])) { end = i; break; }
   }
-  if (start < 0) throw new Error(`task ${taskNum} not found in plan: ${planFile}`);
+  if (start < 0) throw new Error(`task ${taskNum} not found (CDD-level index; plan must contain '### Task N:' heading) in plan: ${planFile}`);
   const sha = gitRevParseHead(repoRoot);
   if (!sha) throw new Error("cannot resolve HEAD: not in a git repo");
   const content = lines.slice(start, end).join("\n").replace(/\n+$/, "") + "\nTASK_BASE: " + sha + "\n";

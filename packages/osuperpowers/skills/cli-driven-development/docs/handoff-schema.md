@@ -6,7 +6,7 @@ Single source of truth for task-N-handoff.json — cited by [`controller-handoff
 
 | Segment | Sets `phase` | Allowed `status` |
 |---------|-------------|------------------|
-| implement | `implement` | `DONE`, `BLOCKED` |
+| implement | `implement` | `APPROVED`, `BLOCKED` |
 | task-review / fix | `task-review` or `fix` | `APPROVED`, `CHANGES_REQUESTED`, `NEEDS_CONTEXT`, `BLOCKED` |
 
 ## Severity -> status mapping
@@ -31,8 +31,8 @@ Single source of truth for task-N-handoff.json — cited by [`controller-handoff
 {
   "task": 2,
   "phase": "implement",
-  "status": "DONE",
-  "commits": { "base": "<TASK_BASE>", "head": "<HEAD>" },
+  "status": "APPROVED",
+  "commits": { "base": "<TASK_BASE>", "head": "<full 40-char SHA from git rev-parse HEAD>" },
   "complexity": "simple",
   "review_scope": "task",
   "artifacts": {
@@ -61,7 +61,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
   "task": 2,
   "phase": "task-review",
   "status": "APPROVED",
-  "commits": { "base": "<TASK_BASE>", "head": "<HEAD>" },
+  "commits": { "base": "<TASK_BASE>", "head": "<full 40-char SHA from git rev-parse HEAD>" },
   "complexity": "simple",
   "review_scope": "task",
   "artifacts": {},
@@ -90,7 +90,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
   "tasks": [2, 3, 4],
   "phase": "task-review",
   "status": "APPROVED",
-  "commits": { "base": "<FIRST_TASK_BASE>", "head": "<LAST_HEAD>" },
+  "commits": { "base": "<FIRST_TASK_BASE>", "head": "<full 40-char SHA from git rev-parse HEAD>" },
   "complexity": "batch",
   "review_scope": "batch",
   "artifacts": {},
@@ -108,6 +108,10 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
 | `task` | `TASK_BASE` |
 | `plan` | `PLAN_BASE` |
 | `batch` | `FIRST_TASK_BASE` |
+
+## `commits.head`
+
+Full 40-char SHA from `git rev-parse HEAD`. Never use `--short`, `git log --format=%h`, or any truncated form. The engine validates `commits.head` with strict-equal primary and prefix fallback for legacy 7-char handoffs (#186).
 
 ## Review arrays
 

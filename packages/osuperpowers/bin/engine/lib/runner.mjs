@@ -92,7 +92,8 @@ export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
 
 // 对齐 _cdd_set_task_env：workspace 派生路径，未设置才默认（`${VAR:-default}` 语义）；
 // CDD_WORKSPACE / CDD_MODE / CDD_HARNESS 强制。返回新 env 对象（不改 baseEnv）。
-export function buildTaskEnv(baseEnv, workspace, task, mode, harness) {
+// scope：fix mode 时注入 CDD_FINDINGS_SCOPE（#168：fix 双通道 scope env 映射）。
+export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope } = {}) {
   const env = { ...baseEnv };
   env.CDD_WORKSPACE = workspace;
   env.CDD_HARNESS = harness;
@@ -102,6 +103,7 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness) {
   env.CDD_PLAN_CONSTRAINTS ||= path.join(workspace, "plan-constraints.md");
   env.CDD_MODE = mode;
   env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
+  if (scope) env.CDD_FINDINGS_SCOPE = scope;
   return env;
 }
 
@@ -150,7 +152,7 @@ function requireEnv(env, mode) {
   return missing.length > 0 ? `Missing required env: ${missing.join(" ")}` : null;
 }
 
-// renderModePrompt 的 {{PLACEHOLDER}} env 映射（bash 6 键 + TASK 超集键）。
+// renderModePrompt 的 {{PLACEHOLDER}} env 映射（bash 6 键 + TASK + FINDINGS_SCOPE 超集键）。
 function promptEnv(env, taskNum) {
   return {
     WORKSPACE: env.CDD_WORKSPACE,
@@ -160,6 +162,7 @@ function promptEnv(env, taskNum) {
     CONSTRAINTS: env.CDD_PLAN_CONSTRAINTS,
     FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT,
     TASK: String(taskNum),
+    FINDINGS_SCOPE: env.CDD_FINDINGS_SCOPE ?? "blocker-only",
   };
 }
 
@@ -418,7 +421,7 @@ function dryRunH1Block(env, taskNum) {
 // scriptsDir：DI 透传至 runReviewPackage（测试 seam，不改生产行为）。
 // 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
-  const { mode, planFile, dryRun = false, noExit = false } = opts;
+  const { mode, planFile, dryRun = false, noExit = false, scope } = opts;
   const probeSkills = opts.probeSkills;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
   const channelMap = opts.channelMap ?? probeConfig.channel;
@@ -500,8 +503,19 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
-  // 3. Set env
-  const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness);
+  // 3. Scope validation (fix mode only; #168 dual-channel)
+  const VALID_SCOPES = ["blocker-only", "deferred-sweep"];
+  if (mode === "fix") {
+    const effectiveScope = scope ?? "blocker-only";
+    if (!VALID_SCOPES.includes(effectiveScope)) {
+      return finish(1, [], `invalid scope: ${effectiveScope} (must be one of: ${VALID_SCOPES.join(", ")})`, noExit);
+    }
+  }
+
+  // 4. Set env
+  const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
+    scope: mode === "fix" ? (scope ?? "blocker-only") : undefined,
+  });
 
   // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
 
@@ -598,6 +612,17 @@ export async function runTask(harness, taskNum, opts = {}) {
       blocker,
     });
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
+  }
+
+  // 10.5. CLI succeeded but no handoff → write APPROVED fallback (#187: status APPROVED, not DONE).
+  // dry-run excluded: bash dry-run 不写 handoff, Node 亦不写.
+  if (agentRc === 0 && !dryRun && !existsSync(env.CDD_HANDOFF_PATH)) {
+    writeHandoff(env.CDD_HANDOFF_PATH, {
+      task: taskNum,
+      phase: mode,
+      status: "APPROVED",
+      commits: { base: "unknown", head: "unknown" },
+    });
   }
 
   // 11. H1 四行（来自 agent stdout / dry-run 块）

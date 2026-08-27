@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus,
          findSuperpowersScriptsDir, byVersion, runReviewPackage, resolveRepoRoot,
-         spawnCapture } from "../lib/runner.mjs";
+         spawnCapture, buildTaskEnv } from "../lib/runner.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -647,4 +647,108 @@ test("spawnCapture: preserves non-subagent env vars", async () => {
   const res = await spawnCapture("printenv", ["CDD_CUSTOM_VAR"], { cwd: process.cwd(), env });
   assert.equal(res.ok, true);
   assert.match(res.stdout.trim(), /hello-test/);
+});
+
+// ---- P8 #187 #168: status APPROVED fallback + CDD_FINDINGS_SCOPE scope env ----
+
+test("buildTaskEnv #168: fix mode + scope → env.CDD_FINDINGS_SCOPE set", () => {
+  const ws = setupWorkspace();
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "fix", "claude", { scope: "deferred-sweep" });
+  assert.equal(env.CDD_FINDINGS_SCOPE, "deferred-sweep");
+});
+
+test("buildTaskEnv #168: implement mode → no CDD_FINDINGS_SCOPE", () => {
+  const ws = setupWorkspace();
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "implement", "claude");
+  assert.equal(env.CDD_FINDINGS_SCOPE, undefined);
+});
+
+test("runTask #168: fix mode + --scope deferred-sweep → env has CDD_FINDINGS_SCOPE", async () => {
+  const ws = setupWorkspace();
+  // Use a fake CLI that records the env and exits 0
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-scope-bin-"));
+  const envLog = path.join(ws, "scope-env-log.txt");
+  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nexit 0\n`);
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "fix", scope: "deferred-sweep", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
+    assert.ok(existsSync(envLog), "env log file should exist");
+    assert.match(readFileSync(envLog, "utf8"), /deferred-sweep/);
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask #168: fix mode + default scope → env has CDD_FINDINGS_SCOPE=blocker-only", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-scope-def-bin-"));
+  const envLog = path.join(ws, "scope-env-log.txt");
+  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nexit 0\n`);
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "fix", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
+    assert.match(readFileSync(envLog, "utf8"), /blocker-only/);
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask #168: --scope invalid → RunBlocked exit 1", async () => {
+  const ws = setupWorkspace();
+  const res = await runTask("claude", 1, {
+    mode: "fix", scope: "invalid", dryRun: true, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+  });
+  assert.equal(res.exitCode, 1);
+});
+
+test("runTask #187: CLI succeeds + no handoff → fallback handoff status=APPROVED", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-ok-cli-"));
+  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 0, `expected exit 0`);
+    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
+    assert.equal(handoff.status, "APPROVED", "fallback handoff should be APPROVED, not DONE (#187)");
+    assert.equal(handoff.phase, "implement");
+  } finally {
+    process.env.PATH = origPath;
+  }
 });

@@ -116,10 +116,11 @@ export function validateCommitContract(mode, repoRoot, opts = {}) {
 
   if (porcelain === "") {
     // 干净树：校验 handoff 的 commits.head 是否等于真实 HEAD（F1）。
+    // strict equal primary; prefix fallback for legacy 7-char handoffs (#186)
     const handoffHead = safeParse(handoffPath)?.commits?.head;
     if (handoffHead) {
       const actualHead = gitRevParseHead(root);
-      if (actualHead && handoffHead !== actualHead) {
+      if (actualHead && handoffHead !== actualHead && !actualHead.startsWith(handoffHead)) {
         const blocker = `handoff commits.head ${handoffHead} does not match HEAD ${actualHead} (${mode})`;
         rewriteHandoffBlocked(handoffPath, blocker);
         return { ok: false, blocker };

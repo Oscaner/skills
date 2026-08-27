@@ -1,6 +1,6 @@
 # Skill Digraph Refactor — P7: cli-select 重构 Design Spec
 
-- **Version**: v1.1 · 2026-08-27
+- **Version**: v1.1.1 · 2026-08-27
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -135,10 +135,9 @@ cli-select 没有 implicit fail-open 场景——所有失败都路由到显式 
 5. Invariant I1（Explicit Propagation）声明 + 禁止 skill 层与引擎层隐式 env var
 6. cli-driven-development SKILL.md + .zh-CN.md 的 `#rule-ask` anchor 同步更新为 `#ask`
 7. cli-select SKILL.zh-CN.md 同步
-8. emit + validate 绿
-10. **preventive fix 落地**：`overall-spec-template.md` Issue inventory 段含「更新触发条件」规则；`brainstorming/SKILL.md` 的 `commit-spec` 节点 Do 字段含「四表同步校验」步骤；`brainstorming/SKILL.zh-CN.md` 同步
-11. emit + validate 绿（cli-select + brainstorming 两技能衍生均同步）
-12. CDD execution: workspace 存在 + 全 task handoff.json + ledger 全 APPROVED + Final Review 产物
+8. **preventive fix 落地**：`overall-spec-template.md` Issue inventory 段含「更新触发条件」规则；`brainstorming/SKILL.md` 的 `commit-spec` 节点 Do 字段含「四表同步校验」步骤；`brainstorming/SKILL.zh-CN.md` 同步
+9. emit + validate 绿（cli-select + brainstorming 两技能衍生均同步）
+10. CDD execution: workspace 存在 + 全 task handoff.json + ledger 全 APPROVED + Final Review 产物
 
 ---
 
@@ -180,3 +179,4 @@ cli-select 没有 implicit fail-open 场景——所有失败都路由到显式 
 
 - v1.0 · 2026-08-27 — 初版：2 节点 + BLOCKED 终态的 digraph + 1 Invariant + 2 行 Failure Modes（含 recovery 列） + 7 行为变更 + 跨 skill anchor 同步 + P9 #136 提前消费。
 - v1.1 · 2026-08-27 — plan review 用户反馈（preventive fix）：新增 Goal 8（防止同类问题再发生）+ Behavior Changes B8（overall-spec-template Issue inventory 更新规则强化）+ B9（brainstorming commit-spec 节点四表同步校验）+ 新增 plan Task 2（preventive fix 单独原子 commit）+ Acceptance #10（preventive fix 落地验收）+ 3 commits 替代原 2 commits。
+- v1.1.1 · 2026-08-27 — branch-review nit fix：§7 Acceptance Criteria 编号 gap（item 8 跳至 10，且 item 8 与 item 11 重复"emit + validate 绿"）修复：移除旧 item 8、重排 item 10→8 / 11→9 / 12→10，最终 10 条连续编号。

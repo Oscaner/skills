@@ -167,8 +167,13 @@ function promptEnv(env, taskNum) {
 
 // 原始 spawn + 捕获 stdout/stderr。exit code 0 → ok:true；否则 ok:false（stderr 保留给 blocker）。
 function spawnCapture(command, args, { cwd, env }) {
+  // Strip subagent model env vars to prevent leakage into nested CLI sessions.
+  // Nested `claude -p` is NOT a subagent but inherits parent env, causing
+  // CLAUDE_CODE_SUBAGENT_MODEL to override the nested session's model.
+  const cleanEnv = { ...env };
+  delete cleanEnv.CLAUDE_CODE_SUBAGENT_MODEL;
   return new Promise((resolve) => {
-    const proc = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(command, args, { cwd, env: cleanEnv, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     proc.stdout.on("data", (d) => {

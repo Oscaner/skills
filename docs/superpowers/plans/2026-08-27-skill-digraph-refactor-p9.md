@@ -57,7 +57,7 @@
 
 ## §A — init 重构
 
-#### Task 1: init 2-entry dispatcher + node-anchored harness.md + delete init router
+### Task 1: init 2-entry dispatcher + node-anchored harness.md + delete init router
 
 **Files:**
 - Modify: `packages/osuperpowers/skills/init/SKILL.md`
@@ -104,7 +104,7 @@
 
 ## §B — report-issue 重构 + #136
 
-#### Task 2: report-issue 6-step/7-node digraph + component-label classification
+### Task 2: report-issue 6-step/7-node digraph + component-label classification
 
 **Files:**
 - Modify: `packages/osuperpowers/skills/report-issue/SKILL.md`
@@ -134,7 +134,7 @@
 
 ## §C — Cursor self-check rule 清理 + slash 拦截
 
-#### Task 3: remove cursor .mdc generation + extend cursor-detect slash interception
+### Task 3: remove cursor .mdc generation + extend cursor-detect slash interception
 
 **Files:**
 - Modify: `scripts/lib/emit/overrides.mjs` — 删 `cursorSelfCheckMdc` 函数（约 264-273 行）
@@ -187,7 +187,7 @@
 
 ## §D — emit + validate + close #136
 
-#### Task 4: emit + validate + close #136
+### Task 4: emit + validate + close #136
 
 **Files:**
 - Run: `pnpm run emit`, `pnpm run validate`

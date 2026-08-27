@@ -103,6 +103,26 @@ test("commit-contract: handoff.head=dry-run → head-mismatch（哨兵已移除�
   assert.match(r.blocker, /handoff commits.head dry-run does not match HEAD/);
 });
 
+// #186 SHA prefix 兼容：handoff.head 是实际 HEAD 的前缀 → ok:true（兼容历史 7-char handoff）
+test("commit-contract #186: handoff.head=7-char prefix of HEAD → ok:true（prefix fallback）", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const prefix = head.slice(0, 7);
+  const handoff = seedHandoff(repo, 1, { base: head, head: prefix });
+  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  assert.equal(r.ok, true, `prefix ${prefix} should match full HEAD ${head}`);
+});
+
+test("commit-contract #186: handoff.head=non-prefix 7-char → ok:false（mismatch）", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const wrong = "0000000";
+  const handoff = seedHandoff(repo, 1, { base: head, head: wrong });
+  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  assert.equal(r.ok, false);
+  assert.match(r.blocker, /does not match HEAD/);
+});
+
 test("commit-contract: 非 git 目录 → fail-open ok:true", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-nogit-"));
   const r = validateCommitContract("fix", dir, { handoffPath: path.join(dir, "task-1-handoff.json") });

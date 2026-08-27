@@ -8,7 +8,8 @@ Write/update handoff per [`handoff-schema.md`](../../skills/cli-driven-developme
 
 1. Read `{{WORKSPACE}}/task-{{TASK}}-test-evidence.json` (omit `behavior_change` in handoff).
 2. Gate: Complex/`behavior_change:true` → hard (require command/passed/exit_code); Simple → soft (WARN).
-3. Set `status: DONE` on success; blocker finding → `status: BLOCKED`.
+3. Set `status: APPROVED` on success; blocker finding → `status: BLOCKED`.
+4. `commits.head` = `git rev-parse HEAD`（full 40-char SHA；禁止 `--short` / `git log --format=%h` / 任何截断）.
 
 ### Segment: task-review
 
@@ -27,8 +28,11 @@ Write/update handoff per [`handoff-schema.md`](../../skills/cli-driven-developme
 1. Read handoff.json + open-findings.json.
 2. Resolve non-deferred findings per fix outcome (remove fixed / update remaining).
 3. **Preserve all `deferred: true` findings** from prior handoff `findings[]` — deferred
-   items never enter the fix loop and never drop across rounds (D5a).
+   items never enter the fix loop and never drop across rounds (blocker-only scope).
+   **Exception: deferred-sweep scope** — sweep-resolved findings are removed from `findings[]`
+   (fully resolved, not retained as deferred); unresolved findings remain `deferred: true`.
 4. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
+5. `commits.head` = `git rev-parse HEAD`（full 40-char SHA；禁止 `--short` / `git log --format=%h` / 任何截断）.
 
 ### Self-validate
 

@@ -1,64 +1,148 @@
 ---
 name: cli-driven-development
-description: 计划执行器（仅 CLI）+ 编器 + 引擎 —— 用选定 harness CLI 的三模式链（implement / task-review / fix）驱动计划任务开发，承担编器职责（任务分类 / fix loop / 质量门 / 最终 branch-review），并在 finishing 前跑一次最终 branch-review CLI pass。
+description: 独立的 cli-driven-development 编器 —— 节点锚定式流程，以 digraph 为唯一控制流真相源。通过 cli-select 选定 harness，经共享文档确定 base，派发 CDD 三模式链（implement / task-review / fix），经 deferred-disposition 门聚合延迟 findings，执行 branch-review，交接 finishing。可独立调用；不被其他技能引用。
 ---
 
 # CLI-Driven Development（cdd）
 
-用选定的 harness CLI 执行计划任务的三模式链。**本技能同时是编器与引擎**：既执行也做编器决策（模式链、Final Review）。
+用选定的 harness CLI 执行计划任务的三模式链。本技能同时是编器与引擎：既执行也做编器决策（模式链、Final Review）。
 
-## Rules
+## Flow Digraph
 
-### Rule: Harness Selection
-
-执行前先经 [ask](../cli-select/SKILL.md#ask) 选定 harness，以 `--harness <name>` 传入。无 full harness 安装 → BLOCKED。
-
-### Rule: Three-Mode Chain
-
-每任务三种模式各一次 CLI 调用（见 [cdd-reference.md](./docs/cdd-reference.md) H6）：
-
-```bash
-{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement
-{plugin_root}/bin/engine/cdd-task.mjs --harness <name> --task N --mode task-review
+```mermaid
+flowchart TD
+  A[select-harness] -->|harness chosen| B[determine-base]
+  A -->|no harness| Z1((BLOCKED: no-harness))
+  B -->|base confirmed| C[dispatch-mode]
+  B -->|user refuses| Z2((BLOCKED: base-undecided))
+  C -->|implement| D{handoff-status}
+  C -->|task-review| D
+  C -->|fix| D
+  D -->|APPROVED| E{task-complete?}
+  D -->|CHANGES_REQUESTED| F{fix-rounds >= 5?}
+  D -->|BLOCKED| Z3((BLOCKED: engine-error))
+  E -->|more tasks remain| C
+  E -->|all complete| G{any-deferred?}
+  F -->|no| C
+  F -->|yes| Z4((BLOCKED: fix-loop-exhausted))
+  G -->|no| K[branch-review]
+  G -->|yes| H[deferred-disposition]
+  H -->|fix-now| I[deferred-sweep-loop]
+  H -->|carry-skip| K
+  H -->|3x unrecognized| Z5((BLOCKED: menu-exhausted))
+  I -->|per-task sweep + re-review| K
+  K -->|no-blocker| L[handoff-finishing]
+  K -->|blocker| J[branch-fix-loop]
+  J -->|fix + re-review| K
+  L --> M((APPROVED: finishing))
 ```
 
-`--mode fix` 仅当 task-review 返回 CHANGES_REQUESTED 时进入（fix loop，上限 5 轮）。
+## Node Definitions
 
-### Rule: Handoff Contract
+### `select-harness`
 
-每模式结束写/更新 `CDD_HANDOFF_PATH`（task-N-handoff.json）；stdout ≤ [Return Block 契约](./docs/controller-handoff.md#rule-return-block) 四行；非零退出且无 handoff → BLOCKED。模板见 `templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`。
+- **Do**: 调用 [cli-select](../cli-select/SKILL.md) 的 [ask](../cli-select/SKILL.md#ask) 节点（跨 skill 调用），获取用户选定的 harness 名；将 `--harness <name>` 作为**显式 CLI 参数**传递给所有下游 `cdd-task.mjs` / `cdd-review.mjs` 调用（禁止隐式 env var 传播——延续 P7 I1）。
+- **Read**: cli-select 的 `ask` 节点返回的 harness 名。
+- **Exit**: 选定 harness → `determine-base`；cli-select BLOCKED → BLOCKED: no-harness。
+- **Fail**: cli-select 返回 BLOCKED（engine bug / 用户取消）→ 本节点同 BLOCKED。
 
-### Rule: Commit Gate
+### `determine-base`
 
-implement / fix 模式返回时校验工作区干净（`cdd_validate_commit_contract`）：脏树 → 重写 handoff `status: BLOCKED` + 非零退出；非 git / git 错误 → fail-open。
+- **Do**: 按 [base-branch.md](./docs/base-branch.md) 方法论按顺序尝试推断源：① plan 文档 `base` 字段 ② branch upstream（`git rev-parse --abbrev-ref @{u}`）③ 对话上下文（历史消息明确提及 base）④ fallback 询问用户。确定后写入 `.superpowers/cdd/<slug>/base-branch.json`（schema：`{base, source: "plan-field"|"branch-upstream"|"conversation-context"|"user-confirmed", confirmed_at}`；slug = CDD workspace slug；source 四值对应 4 推断源）。**Scope 解析**：CDD 场景 scope = `cdd`，slug = CDD workspace slug。
+- **Read**: plan 文档 + `git rev-parse --abbrev-ref @{u}` + 对话上下文 + `.superpowers/cdd/<slug>/base-branch.json`（可选，若已存在则跳过推断）。
+- **Exit**: base 已确认（artifact 写入或已存在）→ `dispatch-mode`（首个 task 的 implement）。
+- **Fail**: 用户拒绝确认 → BLOCKED: base-undecided。
 
-### Rule: Ledger
+### `dispatch-mode`
 
-`APPROVED` 才在 `CDD_LEDGER`（progress.md）追加 `Task N: complete` 行；CLI 子进程不写 ledger。
+- **Do**: 构造并执行 `cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]`（`--scope` 仅 `--mode fix` 时有效；默认 `blocker-only`）。**Background execution**（程序级强化）：必须以 background 模式运行 CLI（harness 支持时用 `run_in_background`，不支持时超时+轮询）。返回后**必须读 handoff.json 判断状态**（Orchestrator handoff 检查义务——#181 核心）：解析 `status` 字段（APPROVED / CHANGES_REQUESTED / BLOCKED），**不凭 stdout 是否为空判断有无变更**。brief 生成使用 `--task N` 索引（CDD 级唯一索引——#185 fix 后语义）。scope 默认 `blocker-only`；deferred-sweep 仅当 deferred-disposition 决策为 fix-now 时启用。
+- **Read**: `CDD_HANDOFF_PATH`（`task-N-handoff.json`）+ open-findings（fix mode 时）+ brief 生成依赖的 plan 段落。
+- **Exit**: 构造 CLI 命令并 spawn → 进入 `handoff-status`（决策节点，按 handoff status 路由）。
+- **Fail**: 嵌套 CLI 失败且 handoff 缺失 → runner.mjs 已写 BLOCKED handoff（含 stderr 进 blocker），本节点读取并路由到 BLOCKED: engine-error。
 
-### Rule: Final Review（终局评审）
+### `handoff-status`（决策节点）
 
-<HARD-GATE>
-全部 task 返回 APPROVED 且 ledger 完成后，必须在交接给 `osuperpowers:finishing` 前，
-经选定 harness CLI 跑一次整分支 review。禁止跳过该 pass；禁止自动 merge 其 findings。
-</HARD-GATE>
+- **Do**: 读 `handoff.json` 的 `status` 字段，路由到对应出口。
+- **Read**: `handoff.json`。
+- **Exit**: `APPROVED` → `task-complete?`；`CHANGES_REQUESTED` → dispatch-mode（fix mode，blocker-only scope；dispatch-mode 内部维护 fix-round 计数器，≥ 5 时路由到 BLOCKED: fix-loop-exhausted）；`BLOCKED` → BLOCKED: engine-error；`NEEDS_CONTEXT` → **implicit fail-open**（handoff 需要更多上下文时，orchestrator 手工调查后以相同 mode 重派 dispatch-mode；不在 digraph 中作为边）。
+- **Fail**: `status` 字段缺失或非法（非 APPROVED/CHANGES_REQUESTED/BLOCKED 之一；NEEDS_CONTEXT 为已知但隐式处理的状态，由 Exit 字段的 fail-open 路径处理，不走此 Fail 分支）。
 
-命令：
+### `task-complete?`（决策节点）
 
-```bash
-{plugin_root}/bin/engine/cdd-review.mjs --harness <name> \
-  --template branch-review \
-  --param BASE=<git merge-base origin/develop HEAD 的结果> \
-  --param HEAD=<head> \
-  --param PLAN=<plan-path>
-```
+- **Do**: 检查 ledger `progress.md` + 所有 task 的 handoff：① 若 ledger 已有 `Task N: complete` 行对应该 task 且还有后续未完成任务 → 继续 dispatch；② 若 ledger 含所有 task 的 complete 行 → 进入 `any-deferred?`。**task-review 不可跳过**（#181 纪律）：每 task 必跑 implement → task-review → （fix 如需）→ ledger 完整链路；不允许从 implement 直接跳到 ledger。**ledger 追加纪律**：仅当 handoff `status: APPROVED` 时追加 `Task N: complete` 行（CLI 子进程不写 ledger）。
+- **Read**: `progress.md`（CDD_LEDGER）+ 所有 `task-N-handoff.json`。
+- **Exit**: 还有未完成 task → `dispatch-mode`（下一 task 的 implement）；所有 task APPROVED → `any-deferred?`。
+- **Fail**: 某 task handoff 缺失或 status 非 APPROVED 但 ledger 无该 task 的 complete 行 → BLOCKED: engine-error。
 
-BASE 是集成分支点（`origin/develop`），不是 `origin/main`——本仓库集成进 `develop`。
-findings 汇报给用户；不自动 merge。通过后交接 `osuperpowers:finishing`。
+### `any-deferred?`（决策节点）
 
-## Red Flags
+- **Do**: 扫描所有 `task-N-handoff.json` 的 `findings[]`，提取 `deferred: true` 项；按 task 分组汇总（生成内存中的 deferred rollup）；非空 → `deferred-disposition`；空 → `branch-review`。
+- **Read**: 所有 `task-N-handoff.json` 的 `findings[]`。
+- **Exit**: 存在 `deferred: true` 项 → `deferred-disposition`；无 → `branch-review`。
+- **Fail**: handoff 文件损坏或不可解析 → BLOCKED: engine-error。
 
-- 「--resume / -c / 任何携带历史会话的 flag」→ 禁止（H6.5），用一次性 print 模式
-- 「在编器会话里改 repo 文件」→ 引擎链只经 cdd-task.mjs；会话侧由 orchestrator-gate 约束
-- 「branch-review findings 被自动 merge」→ findings 仅汇报，绝不自动 merge（Rule: Final Review）
-- 「跳过 Final Review 直接 finishing」→ Final Review 是 `osuperpowers:finishing` 前的 HARD-GATE（Rule: Final Review）
+### `deferred-disposition`
+
+- **Do**: 向用户呈现累积 deferred findings（按 task 分组）：每 task 列出 `findings[].deferred=true` 项（severity + summary + 推荐 fix）；**用户选择**：① fix-now（进入 deferred-sweep-loop，按 task 单独修）② carry-skip（携带跳过，直接 branch-review）。呈现时说明 deferred 项为 warn/nit 级别，不影响 APPROVED 语义，但修复后分支更干净。
+- **Read**: any-deferred? 节点聚合的 deferred rollup。
+- **Exit**: fix-now → `deferred-sweep-loop`；carry-skip → `branch-review`。
+- **Fail**: 用户拒绝决策（present-menu 累计 3 次机会耗尽，同 P6 finishing `present-menu` 计数模型）→ BLOCKED: menu-exhausted。
+
+### `deferred-sweep-loop`
+
+- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 完成后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Fix segment 清理**（_handoff-write-fragment.md fix segment 补 sweep 清理分支）：sweep 完成的 finding 从 `findings[]` 移除（非 deferred 化，而是彻底解决）。
+- **Read**: 每 task 的 handoff + fix 模式返回的 handoff 更新。
+- **Exit**: 所有 deferred-sweep task 完成（re-review APPROVED）→ `branch-review`。
+- **Fail**: 某 task sweep 陷入 fix-loop-exhausted → BLOCKED: fix-loop-exhausted。
+
+### `branch-review`
+
+- **Do**: `cdd-review.mjs --harness <name> --template branch-review --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>`（BASE 从 artifact 读，**移除 `origin/develop` 硬编码**）。**Background execution**（程序级强化）。返回后**读 handoff.json 判断状态**（同 dispatch-mode 节点纪律）。**持久化 diff + report 到 workspace**（#181 纪律）：写 `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md`（内容从 cdd-review 输出 + findings 提取）。
+- **Read**: `base-branch.json`（取 base 名）+ branch HEAD + plan 路径 + cdd-review 输出。
+- **Exit**: 无 blocker → `handoff-finishing`；有 blocker → `branch-fix-loop`；仅有 deferred → `handoff-finishing`（deferred 项不阻塞 finishing）。
+- **Fail**: cdd-review 失败且无 handoff → BLOCKED: engine-error。
+
+### `branch-fix-loop`
+
+- **Do**: 基于 branch-review 的 blocker findings，orchestrator 直接（或派发嵌套 CLI）修复；修复后**重跑 branch-review**（回到 `branch-review` 节点）。分支级 fix 循环，无硬性上限（但建议 ≤ 3 轮；超出由用户决策是否继续）。
+- **Read**: branch-review 的 findings（来自 handoff `findings[]`）。
+- **Exit**: 修复后 branch-review 无 blocker → `handoff-finishing`。
+- **Fail**: 多轮修复后 blocker 不消 → **implicit fail-open**（停手 + report 给用户，branch 保留，用户手动决策）。
+
+### `handoff-finishing`
+
+- **Do**: 准备交接给 `osuperpowers:finishing`：确保 `.superpowers/cdd/<slug>/base-branch.json` 已写入（finishing 的 `read-base` 节点消费同一 artifact）；总结 branch 状态（commits count / base / 未修 deferred 项数量）；调用 `osuperpowers:finishing` 接管后续（merge / PR / keep / discard 四选项）。
+- **Read**: `base-branch.json` + ledger + 所有 handoff + branch-review 最终状态。
+- **Exit**: 交接完成 → APPROVED: finishing。
+- **Fail**: finishing 接管失败 → **implicit fail-open**（branch 保留，用户手动 finishing）。
+
+## Invariants
+
+| # | Invariant |
+|---|-----------|
+| I1 | **Explicit Propagation** — 所选 harness 仅以 `--harness <name>` 显式 CLI 参数传播给下游（`cdd-task.mjs` / `cdd-review.mjs`）；禁止 skill 层与引擎层任何形式的隐式环境变量传递（`CDD_HARNESS` / `HARNESS_NAME` 等均不允许）——延续 P7 I1。 |
+| I2 | **CLI Background Execution** — 所有 CLI mode 调用（`cdd-task.mjs` / `cdd-review.mjs`）必须以 background 方式运行——harness 支持时用 `run_in_background`，不支持时超时+轮询（overall spec v1.9 程序级强化）。 |
+| I3 | **No --resume / -c** — 所有嵌套 CLI 调用禁止携带历史 session 标志（`--resume` / `-c` 等），使用 one-shot print mode。 |
+| I4 | **Fix Dual-Channel Contract** — fix 模式两通道：`--scope blocker-only`（默认，fix.md 仅处理 non-deferred 项；deferred 项保留在 handoff `findings[]` 跨轮次不动，不进 fix loop）｜`--scope deferred-sweep`（用户决策后，处理 deferred 项）。`runner.mjs` 把 scope 映射为 `CDD_FINDINGS_SCOPE` env；`fix.md` 的 `{{FINDINGS_SCOPE}}` 占位符按 env 展开。 |
+| I5 | **Three-Mode Chain Completeness** — 每 task 必走 implement → task-review → （fix 如需）→ ledger 完整链路；不允许跳过 task-review 直接从 implement 到 ledger（#181 纪律）。 |
+
+## Failure Modes
+
+跨节点的失败行为映射（与 Node Fail 字段互补）：
+
+| failure | behavior | reason | recovery |
+|---------|----------|--------|----------|
+| `cli-select` BLOCKED | BLOCKED: no-harness | 无法获取 harness 名 | 由 cli-select 节点的 report-issue 路径处理 |
+| determine-base 用户拒绝确认 | BLOCKED: base-undecided | merge/PR 到错误 base 代价高 | 用户重跑 CDD 时重新询问 |
+| 嵌套 CLI 失败 + handoff 缺失 | BLOCKED: engine-error | 引擎 bug 信号 | `osuperpowers:report-issue` 上报，label `bug, dogfood, osuperpowers, cdd` |
+| handoff `status: BLOCKED` | BLOCKED: engine-error | runner.mjs 已捕获 blocker（dirty tree / CLI 失败） | 读 blocker 字段决策恢复（如先 commit 再重试） |
+| task 级 fix-loop ≥ 5 轮 | BLOCKED: fix-loop-exhausted | 避免 task 级无限循环 | 用户决策：手工修 / 重新 review scope / 放弃 |
+| handoff JSON 损坏或 status 字段非法 | BLOCKED: engine-error | 契约违规（runner self-validate 应已拦截） | report-issue 上报 |
+| deferred-disposition 累计 3 次呈现耗尽 | BLOCKED: menu-exhausted | 无法获取用户决策 | 用户重跑 CDD |
+| branch-fix-loop 多轮 blocker 不消 | **implicit fail-open** | 分支级 blocker 可能需手工调查（无硬性上限，建议 ≤ 3 轮；超出由用户决策） | 停手 + report，branch 保留，用户手动 finishing |
+| `osuperpowers:finishing` 接管失败 | **implicit fail-open** | finishing 自身问题 | branch 保留，用户手动 finishing |
+
+**Fail-open vs BLOCKED 约定**：
+
+- **BLOCKED**：显式终态节点（digraph 圆角圆），需用户介入恢复。
+- **implicit fail-open**：节点级失败（不在 digraph），流程停手 + report 给用户。

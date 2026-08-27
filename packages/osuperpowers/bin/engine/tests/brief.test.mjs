@@ -31,13 +31,13 @@ test("generateBrief: 提取 Task 1 段落，含 TASK_BASE:，不含 Task 2", () 
   assert.doesNotMatch(content, /^### Task 2:/m);
 });
 
-test("generateBrief: task 不存在 → throw task N not found", () => {
+test("generateBrief: task 不存在 → throw task N not found (CDD-level index)", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "brief-test-"));
   const planFile = path.join(dir, "plan.md");
   writeFileSync(planFile, makePlan([[1, "body\n"]]));
   assert.throws(
     () => generateBrief(planFile, 99, path.join(dir, "out.md"), REPO_ROOT),
-    /task 99 not found/,
+    /task 99 not found \(CDD-level index/,
   );
 });
 
@@ -81,4 +81,28 @@ test("generateBrief #173: 第 4 参数为 repoRoot —— cwd 无关，取传入
   generateBrief(planFile, 1, out, repoA);
   const head = execFileSync("git", ["-C", repoA, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   assert.match(readFileSync(out, "utf8"), new RegExp(`^TASK_BASE: ${head.slice(0, 7)}`, "m"));
+});
+
+// #185 统一命名空间：--task N = CDD 级唯一索引（plan 中 ### Task N: heading 1:1 对应）
+test("generateBrief #185: CDD 级统一命名空间 —— --task 2 取 Task 2 段落（不含 Task 1 / Task 3）", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "brief-ns-"));
+  const planFile = path.join(dir, "plan.md");
+  writeFileSync(planFile, makePlan([[1, "body 1\n"], [2, "body 2\n"], [3, "body 3\n"]]));
+  const outPath = path.join(dir, "task-2-brief.md");
+  generateBrief(planFile, 2, outPath, REPO_ROOT);
+  const content = readFileSync(outPath, "utf8");
+  assert.match(content, /^### Task 2:/m);
+  assert.doesNotMatch(content, /^### Task 1:/m);
+  assert.doesNotMatch(content, /^### Task 3:/m);
+  assert.ok(content.includes("body 2"));
+});
+
+test("generateBrief #185: task 2 不存在（仅 Task 1）→ throw CDD-level index 错误信息", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "brief-ns-miss-"));
+  const planFile = path.join(dir, "plan.md");
+  writeFileSync(planFile, makePlan([[1, "only task 1\n"]]));
+  assert.throws(
+    () => generateBrief(planFile, 2, path.join(dir, "out.md"), REPO_ROOT),
+    /task 2 not found \(CDD-level index; plan must contain '### Task N:' heading\)/,
+  );
 });

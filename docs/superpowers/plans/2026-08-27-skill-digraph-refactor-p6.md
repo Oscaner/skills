@@ -30,7 +30,7 @@
 
 ---
 
-## Task 1: 共享文档 `base-branch.md` 产出（P8 消费）
+### Task 1: 共享文档 `base-branch.md` 产出（P8 消费）
 
 **目标**：在 `cli-driven-development/docs/` 下新建 `base-branch.md` + `base-branch.zh-CN.md`，作为 finishing（P6）+ CDD（P8）的共享方法论 + artifact schema 文档。
 
@@ -76,7 +76,7 @@
 
 ---
 
-## Task 2: finishing SKILL.md 重写（节点锚定式）
+### Task 2: finishing SKILL.md 重写（节点锚定式）
 
 **目标**：将 `packages/osuperpowers/skills/finishing/SKILL.md` 从 Checklist + Rules + Red Flags 三重表示重写为节点锚定式。
 
@@ -155,7 +155,7 @@
 
 ---
 
-## Task 3: cross-skill anchor 更新 + emit + validate + 终扫预演
+### Task 3: cross-skill anchor 更新 + emit + validate + 终扫预演
 
 **目标**：更新所有引用 finishing SKILL.md 旧 anchor 的 cross-skill 引用；运行 emit + validate 保证衍生文件同步；运行终扫 pattern 验证旧格式关键词归零。
 

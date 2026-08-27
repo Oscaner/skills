@@ -1,109 +1,137 @@
 ---
 name: brainstorming
-description: Independent brainstorm orchestrator -- Reads upstream superpowers:brainstorming as baseline, layers personal rules (grilling clarification / overall+phase / cli review passes). Callable standalone; triggered by /brainstorming via overrides router.
+description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Reads upstream superpowers:brainstorming as baseline, layers personal rules (grilling / overall-phase routing / spec-review / commit discipline). Callable standalone; triggered by /brainstorming via overrides router.
 ---
 
 # Osuperpowers Brainstorming
 
 Full brainstorm flow orchestration, callable standalone.
 
-<HARD-GATE>
-After brainstorming is triggered, you MUST complete ALL of the following steps in order,
-regardless of change size, whether input already contains a proposal, or whether an issue exists:
+## Flow Digraph
 
-1. Read upstream superpowers:brainstorming SKILL.md (Rule: Read Upstream)
-2. Read grilling SKILL.md (Rule: Read Sub-Skills)
-3. Explore project context (files, docs, recent commits)
-4. Grilling — ask one question at a time, wait for each answer before continuing
-5. Propose 2-3 approaches with trade-offs and recommendation
-6. Present design section by section; get user confirmation after each section
-7. Write design doc
-8. 3-pass Spec Review via CLI (Rule: Spec Review via CLI)
-9. User reviews spec; iterate as needed
-10. Hand off to osuperpowers:writing-plans (Rule: Next-Step Routing)
+```mermaid
+flowchart TD
+  A[read-upstream] -->|loaded| B[read-sub-skills]
+  A -->|missing| Z1((BLOCKED: install superpowers))
+  B -->|loaded| C[explore-context]
+  B -->|missing| Z2((BLOCKED: install mattpocock-skills))
+  C --> D[grilling]
+  D --> E[propose-approaches]
+  E --> F[present-design]
+  F -->|revise section| F
+  F --> G{user-approves?}
+  G -->|revise| F
+  G -->|yes| H[write-spec]
+  H --> I[spec-review]
+  I -->|blocker found| I
+  I -->|blocker=0| J{user-ok?}
+  I -->|pass1 clean| K
+  J -->|fix selected| K
+  J -->|approved| K[commit-spec]
+  K --> L{overall-spec?}
+  L -->|yes: next phase| M((HANDOFF: brainstorming))
+  L -->|no: single spec| N((HANDOFF: writing-plans))
+```
 
-No implementation actions allowed until step 6 (design approved by user) is complete.
-</HARD-GATE>
+## Node Definitions
 
-## Checklist
+### `read-upstream`
 
-1. Read upstream superpowers:brainstorming SKILL.md (Rule: Read Upstream)
-2. Read grilling SKILL.md (Rule: Read Sub-Skills)
-3. Explore project context (files, docs, recent commits)
-4. Grilling — ask one question at a time, wait for each answer before continuing
-5. Propose 2-3 approaches with trade-offs and recommendation
-6. Present design section by section; get user confirmation after each section
-7. Write design doc
-8. 3-pass Spec Review via CLI (Rule: Spec Review via CLI)
-9. User reviews spec; iterate as needed
-10. Hand off to osuperpowers:writing-plans (Rule: Next-Step Routing)
+- **Do**: Read upstream `superpowers:brainstorming` SKILL.md as the process baseline. **Read, not Skill-invoke** (Skill-invoke triggers router interception — I1). Resolution: ① harness plugin system locates the sibling `superpowers` plugin's SKILL.md; ② fallback to vendored path in the same repo. The baseline is the SKILL.md file only — harness-injected docs (CLAUDE.md, README, vendor contributor guides) are not the baseline
+- **Read**: Upstream `superpowers:brainstorming` SKILL.md file
+- **Exit**: File exists and readable → `read-sub-skills`; missing → BLOCKED (install superpowers plugin)
+- **Fail**: Skill-invoke upstream → violates I1
 
-## Rules
+### `read-sub-skills`
 
-### Rule: Read Upstream
+- **Do**: Read `mattpocock-skills` grilling SKILL.md, loading its framework as the grilling stage execution basis. Resolution: ① harness plugin system locates the sibling `mattpocock-skills` plugin; ② fallback to vendored path in the same repo
+- **Read**: Grilling SKILL.md file
+- **Exit**: Loaded → `explore-context`; missing → BLOCKED (install mattpocock-skills)
+- **Fail**: Load failure → BLOCKED with install guidance for mattpocock-skills plugin
 
-Read upstream `superpowers:brainstorming` SKILL.md as the process baseline **when available** (claude / cursor has superpowers plugin installed). **Read, not Skill-invoke** (Skill-invoke triggers the router interception).
+### `explore-context`
 
-Resolve paths (`{plugin-root}` = this plugin's osuperpowers root):
-1. **Sibling plugin root**: claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md` (same for cursor)
-2. **Fallback same-repo relative path**: `<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
+- **Do**: Explore project context (files, docs, recent commits). If questions requiring primary source research arise (upstream API behavior, harness CLI specs, package internals, cross-harness differences): identify → ask user "trigger research?" → user confirms: spawn parallel background research agents (one per question) → user declines: skip research. Exploration continues uninterrupted. Wait for research completion before entering grilling. Write research output to `docs/research/YYYY-MM-DD-<topic>.md`
+- **Read**: Project files, docs, git log, research output files (if spawned)
+- **Exit**: Exploration complete (research finished if spawned) → `grilling`
+- **Fail**: Research agent error/timeout → log stderr, fail-open (do not block flow)
 
-The process baseline is the **SKILL.md file at the resolved path only**. Documents a harness auto-injects from vendored repos — `CLAUDE.md`, README, contributor guides under `vendors/<name>/` or any other source — are **not** the baseline, even when they load into context at session start. They describe repo contribution norms, not orchestrator flow.
+### `grilling`
 
-Upstream unavailable (non-claude harness / superpowers plugin not installed) → **no error**: execute this skill's own Rules as the complete flow directly.
+- **Do**: Follow grilling SKILL.md framework verbatim — ask one question at a time, wait for each answer before continuing. Code-searchable facts: look up yourself. Decision questions: ask the user
+- **Read**: Grilling SKILL.md framework (loaded in `read-sub-skills`)
+- **Exit**: Shared understanding reached → `propose-approaches`
+- **Fail**: Substituting option menus or structured choice lists for grilling framework → violates invariant
 
-### Rule: Read Sub-Skills
+### `propose-approaches`
 
-**Must** read `mattpocock-skills` `skills/productivity/grilling/SKILL.md` (mandatory step — clarification question delegation).
-On failure (file not found / read error) → **report error + ask the user for next steps**; user may skip grilling and continue, or abort the flow.
-Load failure protocol: target skill cannot be resolved/loaded → report the error to the user and ask for next steps. No silent degradation. The user can decide to skip the delegation or abort the flow.
-After reading the grilling SKILL.md, execute its instructions as the grilling framework verbatim — do not substitute with a self-organized interview format, option menus, or structured choice lists.
+- **Do**: Propose 2-3 approaches with trade-offs and recommendation. YAGNI ruthlessly
+- **Read**: Decisions from grilling + research findings (if any)
+- **Exit**: Approaches presented → `present-design`
+- **Fail**: —
 
-### Rule: Research Delegation
+### `present-design`
 
-When the explore-context phase discovers questions requiring primary source research (upstream API behavior, harness CLI specs, package internals, cross-harness differences):
+- **Do**: Present design section by section, getting user confirmation per section before proceeding. Section complexity determines length
+- **Read**: Chosen approach + all grilling decisions
+- **Exit**: All sections confirmed → `user-approves?`; user requests revision → revise and re-present that section
+- **Fail**: —
 
-1. **Identify + ask the user**: list questions, ask "trigger research?" — user confirms → spawn; user declines → skip, normal flow continues
-2. **Spawn background agent**: one mattpocock-skills:research agent per question (parallel). Prompt = question + cite sources instruction.
-3. **Continue explore-context** (code exploration is not interrupted)
-4. **Wait for completion** before entering grilling
-5. **Output**: findings written to `docs/research/YYYY-MM-DD-<topic>.md`
-6. **Consumption**: research findings referenced as primary sources in grilling + approach selection + design
+### `user-approves?`
 
-Trigger failure (research agent error/timeout) → log stderr, do not block flow (fail-open).
+- **Do**: Determine user's approval status for the overall design
+- **Exit**: Approved → `write-spec`; revise → back to `present-design`
+- **Fail**: —
 
-### Rule: Overall-Phase
+### `write-spec`
 
-Large / multi-phase requirements (>=3 subsystems / multi-phase / overhaul) write an overall spec first, then phase out. Document structure: [overall-spec-template.md](./docs/overall-spec-template.md) (+ [phase-spec-template.md](./docs/phase-spec-template.md) per phase). GATE: overall approval != any phase started.
+- **Do**: Write design to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`. Overall spec: use [overall-spec-template.md](./docs/overall-spec-template.md). Phase spec: use [phase-spec-template.md](./docs/phase-spec-template.md)
+- **Read**: All design decisions
+- **Exit**: File written → `spec-review`
+- **Fail**: —
 
-When drafting, the overall spec MUST carry: (1) issue inventory per phase; (2) path naming `specs/YYYY-MM-DD-<feature>-overall.md`, `specs/YYYY-MM-DD-<feature>-<phase-id>-design.md`, `plans/...-<phase-id>.md`, `tickets/...-<phase-id>-tickets.md` (`<phase-id>` lowercase); (3) per-phase Acceptance criteria; (4) soft vs hard dependency distinction (graph legend: `->` = hard block, `-> (soft)` = suggestion — full legend in the template); (5) requirement changes arising during a phase MUST feed back to the overall spec before implementation. Each phase spec is produced by a full brainstorm->plan->dev cycle; jumping to implementation after overall approval alone is a violation.
+### `spec-review`
 
-### Rule: Spec Review via CLI
+- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI), each pass dispatches an independent `cdd-review` CLI call: `cdd-review --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. Follow D1/D2/D3 from [docs-review.md](./docs/docs-review.md). Review Stopping: ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `commit-spec`. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Read**: Spec document + [docs-review.md](./docs/docs-review.md)
+- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean (D1) → skip to `commit-spec`
+- **Fail**: Re-run review after blocker=0 → violates I5. New cdd-review call for warn/nit → violates I5
 
-Spec review has 3 pass types (completeness / consistency&scope / clarity&YAGNI), each pass dispatches a fresh `cdd-review`:
-  cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-Dispatch discipline: see [docs-review.md](./docs/docs-review.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli; Review Stopping loop + Handoff Output).
-Review Stopping next-step label for this skill: `"User review of spec"`.
+### `user-ok?`
 
-### Rule: Next-Step Routing
+- **Do**: Present warn/nit list from spec-review output. User options: ① Proceed to commit ② Fix selected warns/nits. Re-run is never offered after blocker=0
+- **Read**: warn/nit findings from spec-review output (read from already-captured output; no new cdd-review call)
+- **Exit**: Proceed → `commit-spec`; fix selected → fix then → `commit-spec` (no review re-run)
+- **Fail**: Re-run review → violates I5
 
-After brainstorming completes, invoke **`osuperpowers:writing-plans`** (not upstream `superpowers:writing-plans`). The osuperpowers wrapper adds section-by-section writing, cli review passes, and ticket publish redirect on top of the upstream baseline.
+### `commit-spec`
 
-### Rule: Write Design Doc
+- **Do**: Commit spec document to git. Spec approved = commit immediately (I4); do not wait for dev merge
+- **Read**: Spec file path
+- **Exit**: Commit complete → `overall-spec?`
+- **Fail**: Git error → report + fail-open (do not block user spec review)
 
-Spec saved to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, after user review → writing-plans.
+### `overall-spec?`
 
-## Red Flags
+- **Do**: Determine whether current spec is an overall spec (multi-phase) or a single phase spec
+- **Exit**: Overall spec → HANDOFF: brainstorming (next phase's full brainstorm→plan→dev cycle); single phase spec → HANDOFF: writing-plans
+- **Fail**: Overall approved then directly entering writing-plans (skipping phase-level brainstorming) → violates overall spec boundary rule
 
-- "Skill-invoke upstream brainstorm" → Read instead of Skill-invoke (Rule: Read Upstream)
-- "Skip design for simple projects" → every project goes through design (HARD-GATE flow Step 6)
-- "Research auto-triggers without asking user" → user confirmation is a hard gate (Rule: Research Delegation)
-- "Research blocks explore-context" → background parallel (Rule: Research Delegation)
-- "Invoke writing-plans / superpowers:writing-plans" → invoke **`osuperpowers:writing-plans`** (Rule: Next-Step Routing)
-- "Input already contains a proposal, skip grilling and go straight to design" → violates HARD-GATE flow Step 4
-- "Change is simple, skip design and implement directly" → violates HARD-GATE flow Step 6
-- "Overall approved, start implementation directly (skipping Phase brainstorming)" → violates HARD-GATE flow Steps 1-10 (entire flow)
-- "Auto-fix warn/nit and re-run review after blocker=0" → violates Review Stopping (docs-review.md); present to user, re-run only if user requests
-- "Issue new cdd-review call to obtain warn/nit content" → violates Review Stopping; read from already-captured output of current 3-pass cycle
-- "Presents Option A / Option B choices instead of following grilling skill" → violates Rule: Read Sub-Skills (grilling delegation); apply grilling SKILL.md instructions verbatim
-- "Treats injected vendor docs (CLAUDE.md / README) as the upstream baseline" → violates Rule: Read Upstream; the baseline is the SKILL.md file at the resolved path only
+## Invariants
+
+| # | Invariant |
+|---|---|
+| I1 | **Read, not Skill-invoke** — upstream skill files are Read only, never Skill-invoked (triggers router interception) |
+| I2 | **Research requires user confirmation** — spawn research agents only after explicit user confirmation; never auto-trigger |
+| I3 | **Design first** — no implementation actions until design is user-approved |
+| I4 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
+| I5 | **Review Stopping** — re-run driven only by blockers; no re-run after blocker=0; no new cdd-review call to obtain warn/nit |
+
+## Failure Modes
+
+| failure | behavior | reason |
+|---|---|---|
+| Upstream superpowers:brainstorming SKILL.md missing | BLOCKED (with install superpowers plugin guidance) | Block policy: no silent fallback |
+| Grilling SKILL.md missing | BLOCKED (with install mattpocock-skills guidance) | Block policy: sub-skill missing = no degradation |
+| Research agent error/timeout | fail-open (log stderr, do not block flow) | Research is optional enhancement |
+| Git commit error | report + fail-open | Do not block user spec review |

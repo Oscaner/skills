@@ -1,109 +1,137 @@
 ---
 name: brainstorming
-description: 独立 brainstorm 编排器——读取上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling 澄清 / overall+phase / CLI review pass）。可单独调用；通过 overrides router 由 /brainstorming 触发。
+description: 独立 brainstorm 编排器——节点锚定式流程，digraph 为唯一控制流真相源。读取上游 superpowers:brainstorming 作为基线，叠加个人规则（grilling / overall-phase 路由 / spec-review / commit 纪律）。可单独调用；通过 overrides router 由 /brainstorming 触发。
 ---
 
 # Osuperpowers Brainstorming
 
 完整 brainstorm 流程编排，可单独调用。
 
-<HARD-GATE>
-触发 brainstorming 后，必须按序完成以下全部步骤，
-无论改动规模大小、输入是否已含方案、是否已有 issue 描述：
+## Flow Digraph
 
-1. 读取上游 superpowers:brainstorming SKILL.md（Rule: Read Upstream）
-2. 读取 grilling SKILL.md（Rule: Read Sub-Skills）
-3. Explore project context（文件、文档、近期 commits）
-4. Grilling——逐一追问，每次只问一个问题，等待回答后继续
-5. 提出 2-3 个方案，含 trade-off 与推荐
-6. 逐节呈现设计，每节获得用户确认
-7. 写入 design doc
-8. 3-pass Spec Review via CLI（Rule: Spec Review via CLI）
-9. 用户审阅 spec，按需迭代
-10. 移交 osuperpowers:writing-plans（Rule: Next-Step Routing）
+```mermaid
+flowchart TD
+  A[read-upstream] -->|loaded| B[read-sub-skills]
+  A -->|missing| Z1((BLOCKED: install superpowers))
+  B -->|loaded| C[explore-context]
+  B -->|missing| Z2((BLOCKED: install mattpocock-skills))
+  C --> D[grilling]
+  D --> E[propose-approaches]
+  E --> F[present-design]
+  F -->|revise section| F
+  F --> G{user-approves?}
+  G -->|revise| F
+  G -->|yes| H[write-spec]
+  H --> I[spec-review]
+  I -->|blocker found| I
+  I -->|blocker=0| J{user-ok?}
+  I -->|pass1 clean| K
+  J -->|fix selected| K
+  J -->|approved| K[commit-spec]
+  K --> L{overall-spec?}
+  L -->|yes: next phase| M((HANDOFF: brainstorming))
+  L -->|no: single spec| N((HANDOFF: writing-plans))
+```
 
-在步骤 6（design 用户批准）完成前，禁止任何实施行动。
-</HARD-GATE>
+## Node Definitions
 
-## Checklist
+### `read-upstream`
 
-1. 读取上游 superpowers:brainstorming SKILL.md（Rule: Read Upstream）
-2. 读取 grilling SKILL.md（Rule: Read Sub-Skills）
-3. Explore project context（文件、文档、近期 commits）
-4. Grilling——逐一追问，每次只问一个问题，等待回答后继续
-5. 提出 2-3 个方案，含 trade-off 与推荐
-6. 逐节呈现设计，每节获得用户确认
-7. 写入 design doc
-8. 3-pass Spec Review via CLI（Rule: Spec Review via CLI）
-9. 用户审阅 spec，按需迭代
-10. 移交 osuperpowers:writing-plans（Rule: Next-Step Routing）
+- **Do**: 读取上游 `superpowers:brainstorming` SKILL.md 作为流程基线。**Read, not Skill-invoke**（Skill-invoke 触发 router 拦截——I1）。解析策略：① 通过 harness plugin 系统定位同级 `superpowers` plugin 的 SKILL.md；② 回退到同 repo 的 vendored 路径。基线仅为 SKILL.md 文件——harness 注入的文档（CLAUDE.md、README、vendor 贡献者指南）不是基线
+- **Read**: 上游 `superpowers:brainstorming` SKILL.md 文件
+- **Exit**: 文件存在且可读 → `read-sub-skills`；缺失 → BLOCKED（安装 superpowers plugin）
+- **Fail**: Skill-invoke 上游 → 违反 I1
 
-## Rules
+### `read-sub-skills`
 
-### Rule: Read Upstream
+- **Do**: 读取 `mattpocock-skills` 的 grilling SKILL.md，加载其框架作为 grilling 阶段执行基础。解析策略：① 通过 harness plugin 系统定位同级 `mattpocock-skills` plugin；② 回退到同 repo 的 vendored 路径
+- **Read**: grilling SKILL.md 文件
+- **Exit**: 加载成功 → `explore-context`；缺失 → BLOCKED（安装 mattpocock-skills）
+- **Fail**: 加载失败 → BLOCKED（含安装 mattpocock-skills plugin 指引）
 
-有上游时读取 `superpowers:brainstorming` SKILL.md 作为基线（claude / cursor 已安装 superpowers plugin）。**读取，不 Skill-invoke**（Skill-invoke 会触发 router 拦截）。
+### `explore-context`
 
-路径解析（`{plugin-root}` = 本 plugin 的 osuperpowers 根）：
-1. **同级 plugin 根目录**：claude `$CLAUDE_PLUGIN_ROOT/../superpowers/skills/brainstorming/SKILL.md`（cursor 同）
-2. **回退到 repo 内相对路径**：`<repo-root>/vendors/superpowers/skills/brainstorming/SKILL.md`
+- **Do**: 探索项目上下文（文件、文档、近期 commits）。如发现需要主源研究的问题（上游 API 行为、harness CLI 规格、包内部结构、跨 harness 差异）：识别 → 询问用户"是否触发 research？" → 用户确认：并行 spawn research agent（一个问题一个 agent）→ 用户拒绝：跳过 research。探索不中断。进入 grilling 前等待 research 完成。输出写入 `docs/research/YYYY-MM-DD-<topic>.md`
+- **Read**: 项目文件、docs、git log、research 输出文件（如有）
+- **Exit**: 探索完成（research 如有则已等待完成）→ `grilling`
+- **Fail**: research agent 错误/超时 → 记录 stderr，fail-open（不阻塞流程）
 
-流程基线仅为**解析路径指向的 SKILL.md 文件本身**。harness 从 vendored 仓库自动注入的文档——`CLAUDE.md`、README、`vendors/<name>/` 下或其他来源的贡献者指南——**不是**基线，即使它们在会话启动时已载入上下文。它们描述的是仓库贡献规范，不是 orchestrator 流程。
+### `grilling`
 
-上游不可用（非 claude harness / superpowers plugin 未安装）→ **不报错**：直接执行本 skill 的 Rules 作为完整流程。
+- **Do**: 按 grilling SKILL.md 框架如实执行——逐一追问用户，每次一个问题，等待回答后继续。代码可查的事实自己查，决策问题留给用户
+- **Read**: grilling SKILL.md 框架（从 `read-sub-skills` 加载）
+- **Exit**: 达到 shared understanding → `propose-approaches`
+- **Fail**: 以选项菜单/结构化列表替代 grilling 框架 → 违反 invariant
 
-### Rule: Read Sub-Skills
+### `propose-approaches`
 
-**必须**读取 `mattpocock-skills` `skills/productivity/grilling/SKILL.md`（强制步骤——澄清问题委托）。
-失败（文件不存在/读取错误）→ **报告错误 + 询问用户下一步**；用户可跳过 grilling 继续或中止流程。
-加载失败协议：目标 skill 无法解析/加载 → 向用户报告错误并询问下一步。不静默降级。用户可选择跳过委托或中止流程。
-读取 grilling SKILL.md 后，须将其指令作为 grilling 阶段的执行框架如实执行，不得以自行组织的提问格式、选项菜单或结构化选择列表替代。
+- **Do**: 提出 2-3 个方案含 trade-off 与推荐。YAGNI ruthlessly
+- **Read**: grilling 收集的决策 + research findings（如有）
+- **Exit**: 方案呈现完毕 → `present-design`
+- **Fail**: —
 
-### Rule: Research Delegation
+### `present-design`
 
-当 explore-context 阶段发现需要主源研究的问题（上游 API 行为、harness CLI 规格、包内部结构、跨 harness 差异）：
+- **Do**: 逐节呈现设计，每节获得用户确认后再呈现下一节。节复杂度决定长度
+- **Read**: 方案选择 + 全部 grilling 决策
+- **Exit**: 用户全部节确认 → `user-approves?`；用户要求修改 → 修订后重新呈现该节
+- **Fail**: —
 
-1. **识别 + 询问用户**：列出问题，询问"是否触发 research？"——用户确认 → spawn；用户拒绝 → 跳过，正常流程继续
-2. **派发后台 agent**：每个问题一个 mattpocock-skills:research agent（并行）。Prompt = 问题描述 + 引用来源指令。
-3. **继续 explore-context**（代码探索不中断）
-4. 进入 grilling 前**等待完成**
-5. **输出**：写入 `docs/research/YYYY-MM-DD-<topic>.md`
-6. **消费**：在 grilling + 方案选择 + 设计中作为主源引用
+### `user-approves?`
 
-触发失败（agent 错误/超时）→ 记录 stderr，不阻塞流程（fail-open）。
+- **Do**: 判断用户对整体设计的批准状态
+- **Exit**: approved → `write-spec`；revise → 回到 `present-design`
+- **Fail**: —
 
-### Rule: Overall-Phase
+### `write-spec`
 
-大型 / 多阶段需求（≥3 子系统 / 多阶段 / 大改）先写 overall spec，再 phase out。文档结构见 [overall-spec-template.md](./docs/overall-spec-template.md)（每 phase 另见 [phase-spec-template.md](./docs/phase-spec-template.md)）。GATE：overall 批准 ≠ 任何 phase 已开始。
+- **Do**: 将设计写入 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`。Overall spec 使用 [overall-spec-template.md](./docs/overall-spec-template.md)；phase spec 使用 [phase-spec-template.md](./docs/phase-spec-template.md)
+- **Read**: 全部设计决策
+- **Exit**: 文件写入完成 → `spec-review`
+- **Fail**: —
 
-起草时，overall spec 必须包含：(1) 按 phase 的 issue 清单；(2) 路径命名 `specs/YYYY-MM-DD-<feature>-overall.md`、`specs/YYYY-MM-DD-<feature>-<phase-id>-design.md`、`plans/...-<phase-id>.md`、`tickets/...-<phase-id>-tickets.md`（`<phase-id>` 小写）；(3) 每 phase 的 Acceptance criteria；(4) 软/硬依赖区分（图例：`->` = 硬阻塞，`──建议先于──▶` = 软建议——完整图例见模板）；(5) phase 进行中出现的范围/约束变更必须先回馈 overall spec 再实施。每个 phase spec 须经完整 brainstorm→plan→dev 循环生成；仅 overall 批准后直接实施属违规。
+### `spec-review`
 
-### Rule: Spec Review via CLI
+- **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI），每 pass 派发独立 `cdd-review` CLI 调用：`cdd-review --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。遵循 [docs-review.md](./docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `commit-spec`。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
+- **Read**: spec 文档 + [docs-review.md](./docs/docs-review.md)
+- **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ 跳到 `commit-spec`
+- **Fail**: blocker=0 后重跑 review → 违反 I5。为新 warn/nit 发起新 cdd-review → 违反 I5
 
-Spec review 有 3 种 pass 类型（completeness / consistency&scope / clarity&YAGNI），每个 pass 派发一次新的 `cdd-review`：
-  cdd-review --harness claude --template spec-review --param PASS=<completeness|consistency|clarity> --param DOC=<path>
-派发纪律见 [docs-review.md](./docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
-Review Stopping next-step 标签（本技能）：`"用户审阅 spec"`。
+### `user-ok?`
 
-### Rule: Next-Step Routing
+- **Do**: 呈现 spec-review 输出的 warn/nit 列表。用户选项：① Proceed to commit ② Fix selected warns/nits。blocker=0 后不提供重跑
+- **Read**: spec-review 输出的 warn/nit findings（从已有输出读取；不发新 cdd-review）
+- **Exit**: proceed → `commit-spec`；fix selected → 修复后 → `commit-spec`（不重跑 review）
+- **Fail**: 重跑 review → 违反 I5
 
-brainstorming 完成后，调用 **`osuperpowers:writing-plans`**（非上游 `superpowers:writing-plans`）。osuperpowers wrapper 在上游基线之上叠加了逐节写入、CLI review pass 和 ticket 发布重定向。
+### `commit-spec`
 
-### Rule: Write Design Doc
+- **Do**: 将 spec 文档提交到 git。spec 获批即 commit（I4）；不等 dev 合并
+- **Read**: spec 文件路径
+- **Exit**: commit 完成 → `overall-spec?`
+- **Fail**: git 错误 → report + fail-open（不阻塞用户审阅 spec）
 
-Spec 保存到 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`，用户审阅后 → writing-plans。
+### `overall-spec?`
 
-## Red Flags
+- **Do**: 判断当前 spec 是 overall spec（含多 phase）还是单 phase spec
+- **Exit**: overall spec → HANDOFF: brainstorming（下一 phase 的完整 brainstorm→plan→dev 循环）；单 phase spec → HANDOFF: writing-plans
+- **Fail**: overall 批准后直接进 writing-plans（跳过 phase 级 brainstorming）→ 违反 overall spec 边界规则
 
-- "Skill-invoke 上游 brainstorm" → 读取而非 Skill-invoke（Rule: Read Upstream）
-- "跳过简单项目的设计" → 每个项目都要经过设计（HARD-GATE 流程型 Step 6）
-- "Research 在未询问用户的情况下自动触发" → 用户确认是硬性门控（Rule: Research Delegation）
-- "Research 阻塞 explore-context" → 后台并行（Rule: Research Delegation）
-- "调用 writing-plans / superpowers:writing-plans" → 调用 **`osuperpowers:writing-plans`**（Rule: Next-Step Routing）
-- "输入已含方案，跳过 grilling 直接设计" → 违反 HARD-GATE 流程型 Step 4
-- "改动简单，跳过 design 直接实施" → 违反 HARD-GATE 流程型 Step 6
-- "Overall 批准后直接开始实施（跳过 Phase brainstorming）" → 违反 HARD-GATE 流程型 Steps 1-10（整个流程）
-- "blocker=0 后自动修复 warn/nit 并重跑 review" → 违反 Review Stopping 规则（docs-review.md），应呈现给用户，用户决策后视需求决定是否重跑
-- "为获取 warn/nit 内容额外发起新的 cdd-review 调用" → 违反 Review Stopping 规则，从本次 3-pass cycle 已有输出读取
-- "以选项 A / 选项 B 形式替代 grilling 技能" → 违反 Rule: Read Sub-Skills（grilling 委托）；须如实执行 grilling SKILL.md 指令
-- "把注入的 vendor 文档（CLAUDE.md / README）当作上游基线" → 违反 Rule: Read Upstream；基线仅为解析路径指向的 SKILL.md 文件
+## Invariants
+
+| # | Invariant |
+|---|---|
+| I1 | **Read, not Skill-invoke** — 上游 skill 文件只 Read，不 Skill-invoke（触发 router 拦截） |
+| I2 | **Research 需用户确认** — spawn research agent 前必须用户明确确认，不自动触发 |
+| I3 | **Design first** — design 获用户批准前禁止任何实施行动 |
+| I4 | **Spec commit 纪律** — spec 获批即 commit；不等 dev 合并 |
+| I5 | **Review Stopping** — 重跑仅由 blocker 驱动；blocker=0 后不重跑；不为获取 warn/nit 发起新 cdd-review |
+
+## Failure Modes
+
+| failure | behavior | reason |
+|---|---|---|
+| 上游 superpowers:brainstorming SKILL.md 缺失 | BLOCKED（含安装 superpowers plugin 指引） | block 政策：不静默 fallback |
+| grilling SKILL.md 缺失 | BLOCKED（含安装 mattpocock-skills 指引） | block 政策：子技能缺失不降级 |
+| research agent 错误/超时 | fail-open（记录 stderr，不阻塞流程） | research 是可选增强 |
+| git commit 错误 | report + fail-open | 不阻塞用户审阅 spec |

@@ -11,9 +11,9 @@ Development branch finishing: merge / PR / keep / discard.
 
 ### Rule: Read Upstream
 
-Read upstream `superpowers:finishing-a-development-branch` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)). **Read, not Skill-invoke**.
+Read upstream `superpowers:finishing-a-development-branch` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Read Upstream](../brainstorming/SKILL.md#read-upstream)). **Read, not Skill-invoke**.
 
-The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Rule: Read Upstream](../brainstorming/SKILL.md#rule-read-upstream)).
+The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Read Upstream](../brainstorming/SKILL.md#read-upstream)).
 
 ### Rule: No Worktrees
 

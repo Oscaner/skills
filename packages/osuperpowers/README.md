@@ -20,7 +20,7 @@ This plugin provides two skill families:
 | `writing-plans` | Orchestrator | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
 | `cli-driven-development` | Orchestrator + Engine | Plan executor (cli-only); harness CLI three-mode chain dispatcher + final branch-review CLI |
 | `finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
-| `init` | Utility | Project initialization (`init router` writes self-check rules) |
+| `init` | Utility | Project initialization (harness config; writes no skill rules) |
 | `report-issue` | Utility | Structured issue reporting |
 | `cli-select` | CDD Engine | Interactive harness selection |
 
@@ -35,7 +35,7 @@ Or install from the oscaner-skills Claude Code marketplace.
 ## Quick start
 
 1. Install `superpowers`, `osuperpowers-router`, `osuperpowers`, and `mattpocock-skills` from the marketplace.
-2. Run **`/init router`** in each project to write self-check rules.
+2. Run **`/init`** in each project to set up harness config.
 3. Use upstream superpowers skills — the router routes automatically to osuperpowers orchestrators.
 
 ### Claude Code

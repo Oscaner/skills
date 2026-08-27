@@ -38,7 +38,6 @@ import {
   cursorDetectScript,
   cursorEnforceScript,
   claudeSelfCheckMd,
-  cursorSelfCheckMdc,
   overridesHooksFor,
 } from "./overrides.mjs";
 
@@ -816,17 +815,3 @@ test("claudeSelfCheckMd fills the trigger table with target skill names", () => 
   assert.match(md, /\| `superpowers:test-driven-development` \| `Skill\(mattpocock-skills:tdd\)` \|/);
 });
 
-test("cursorSelfCheckMdc carries the version stamp and trigger rows", () => {
-  const template = readFileSync(
-    "packages/osuperpowers-router/build/templates/self-check.mdc",
-    "utf8",
-  );
-  const mdc = cursorSelfCheckMdc(
-    loadTargets(MANIFEST_PATH),
-    ROUTER_VERSION,
-    template,
-  );
-  assert.match(mdc, /_generated: scripts\/emit\.mjs — do not edit/);
-  assert.match(mdc, new RegExp(`osuperpowers-router-version: ${ROUTER_VERSION_RE}`));
-  assert.match(mdc, /\| `\/brainstorming`, `\/superpowers:brainstorming`, upstream `brainstorming` body \| Read `osuperpowers:brainstorming` via agent_skills fullPath \|/);
-});

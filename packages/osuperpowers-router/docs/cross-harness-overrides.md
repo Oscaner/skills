@@ -43,19 +43,17 @@ Override-first is enforced by **plugin-bundled hooks** plus project self-check r
 | `beforeSubmitPrompt` (`UserPromptSubmit`) | `bin/cursor-detect.mjs` | Match **upstream SKILL attach paths** → write pending / activate CDD session |
 | `preToolUse` (no matcher) | `bin/cursor-enforce.mjs` | If pending exists: **allow** first `Read` (target SKILL path via `tool_input.path` / `tool_input.file_path`) or `Skill` (manifest target name); **deny** all other first tools |
 
-Bare `/brainstorming`, `/superpowers:*`, and prefixed slash commands → **no pending**; self-check rules (`.cursor/rules/osuperpowers-router.mdc`) are primary enforcement for slash triggers.
+Bare `/brainstorming`, `/superpowers:*`, and prefixed slash commands are intercepted by the detect hook on submit — `beforeSubmitPrompt` writes a pending marker (trigger `"slash"`) so `preToolUse` enforce can gate the first tool, mirroring Claude's `UserPromptExpansion` semantics.
 
-Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending on attach only; enforce blocks wrong first tools when pending exists.
+Cursor cannot inject context on submit (no `additional_context` on `beforeSubmitPrompt`). Detect writes pending on both attach and bare/inline slash; enforce blocks wrong first tools when pending exists.
 
 **Pending state contract** (detect writes, enforce reads):
 
 - Path: `$TMPDIR/oscaner-osuperpowers-router/pending/<session_key>.json`
 - `session_key` = `conversation_id` ?? `session_id` ?? first 16 hex of `sha256(prompt)`
-- Schema: `{"override":"<target-name>","skill_suffix":"skills/<slug>/SKILL.md","detected_at":<unix>,"trigger":"attach"}`
+- Schema: `{"override":"<target-name>","skill_suffix":"skills/<slug>/SKILL.md","detected_at":<unix>,"trigger":"attach"|"slash"}`
 - TTL: **300s** — expired pending → enforce allows and deletes file
 - Cleared when enforce allows a valid first tool
-
-**Init does not install hooks** — `init router` only refreshes `.cursor/rules/osuperpowers-router.mdc`. Consumer `git status` must show **no** new `.cursor/hooks.json`.
 
 ### CDD orchestrator gate
 
@@ -64,7 +62,7 @@ Cross-harness PreToolUse enforcement for CDD orchestrator sessions (Claude Code,
 | Item | Detail |
 |------|--------|
 | Pending path | `$TMPDIR/osuperpowers/pending-cdd/<session_key>.json` |
-| Activation | CDD slash (`/subagent-driven-development`, `/superpowers:subagent-driven-development`) via Claude expansion |
+| Activation | CDD slash (`/cli-driven-development`, `/superpowers:cli-driven-development`) via Claude expansion |
 | Decision core | `osuperpowers/bin/gate/cdd-gate-core.mjs` — single fail-open, mode-aware decision point (git read-only allowlist + workspace-bound Write) |
 | Adapters | `osuperpowers/bin/gate/adapters/<harness>.mjs` — claude, cursor + 9 more (grok/qoder/trae/codex/gemini/vibe/kiro/opencode/pi) |
 | Fail-open | No pending, cannot resolve workspace, or adapter exception → allow (skill checklist fallback) |
@@ -90,24 +88,11 @@ CLI env/exit/harness tables live in [`osuperpowers/skills/cli-driven-development
 
 Both invoke `bin/prompt-expansion.mjs`, which injects `additionalContext` containing **MANDATORY OVERRIDE** and the required `Skill(<target-name>)` first call (e.g. `Skill(osuperpowers:brainstorming)`).
 
-`^/<upstream-slug>` (osuperpowers targets) is not hook-intercepted — it is routed by the project `CLAUDE.md` self-check (`<command-name>` scan + trigger table from `init router`).
+### Manual smoke
 
-Project `CLAUDE.md` self-check (from `init router`) is fallback when hooks are unavailable.
+Settings → Hooks → Execution Log:
 
-### Self-check rules (both harnesses)
-
-`init router` (osuperpowers) writes committed generator output into the project:
-
-- Cursor → `.cursor/rules/osuperpowers-router.mdc`
-- Claude Code → `CLAUDE.md` override trigger table
-
-On Cursor: hooks enforce on **upstream SKILL attach**; slash commands rely on these self-check rules as **primary** enforcement. On both harnesses:
-
-- **Anti-pattern:** manually attach upstream `superpowers/*/SKILL.md` body — use slash commands or read the target osuperpowers skill instead; upstream SKILL full text in context still requires the target skill first.
-
-Manual smoke (Settings → Hooks → Execution Log):
-
-1. `/brainstorming` + Grep first tool → **no deny** (no pending; self-check governs)
+1. `/brainstorming` + Grep first tool → **no deny** (no pending; slash intercepted by hooks)
 2. Attach upstream `brainstorming/SKILL.md` + Grep first tool → **deny** → Read brainstorming SKILL → allow
 
 ## Manifest schema
@@ -139,7 +124,7 @@ Manual smoke (Settings → Hooks → Execution Log):
 
 ## Naming rule
 
-The router ships no `spor-*` skills. Target skill ids are the osuperpowers / mattpocock canonical names (`osuperpowers:*`, `osuperpowers:cli-*`, `mattpocock-skills:tdd`). Init entry point: `init router` (Claude Code: `/init router`).
+The router ships no `spor-*` skills. Target skill ids are the osuperpowers / mattpocock canonical names (`osuperpowers:*`, `osuperpowers:cli-*`, `mattpocock-skills:tdd`). Slash interception is handled entirely by plugin-bundled hooks (`cursor-detect.mjs` / Claude `UserPromptExpansion`) — no project `init` step is required.
 
 ## Build commands
 
@@ -163,15 +148,12 @@ cp -R path/to/packages/osuperpowers/skills/* .cursor/skills/
 cp -R path/to/vendors/superpowers/skills/* .cursor/skills/   # upstream, separate plugin
 ```
 
-Then run `init router` for `.cursor/rules/osuperpowers-router.mdc`.
-
 ## Cursor setup
 
 1. Install `superpowers`, `osuperpowers-router`, `osuperpowers`, and `mattpocock-skills` from the marketplace.
-2. Run `init router` in Cursor (copies or refreshes the self-check rule → `.cursor/rules/osuperpowers-router.mdc`; re-run after plugin upgrade if rules are stale).
-3. Invoke upstream slash commands — slash triggers rely on project self-check rules; hooks enforce on upstream SKILL attach only.
+2. Invoke upstream slash commands — bare `/<slug>` and inline ` /<slug>` are intercepted by `cursor-detect.mjs` (plugin-bundled `beforeSubmitPrompt` hook) and gated by `cursor-enforce.mjs`.
 
-Manual verification: same as [Self-check rules](#self-check-rules-both-harnesses) smoke bullets above.
+Manual verification: same as [Manual smoke](#manual-smoke) bullets above.
 
 ## CDD CLI harness scripts
 
@@ -226,7 +208,7 @@ See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for direc
 1. **Manifest** — add `overrides.manifest.json` with `name`, upstream `overrides` id, and `source` path per target.
 2. **Routing** — router plugin ships no skill bodies; targets live in the skills plugin (`osuperpowers:*` orchestrators) or a delegate (`tdd`). Flat-namespace dedup is avoided by target names already being plugin-qualified.
 3. **Generators** — use the unified `scripts/emit.mjs`; commit hook + self-check outputs; CI `--check` on drift.
-4. **Init** — copy or refresh committed `build/generated/*` at runtime; never run generators in init. Generated self-check files embed `osuperpowers-version` (Cursor frontmatter / Claude HTML comment) stamped from the osuperpowers plugin version; `init router` compares project rules against installed version and overwrites when missing or stale.
+4. **No init step** — slash interception is fully hook-driven; emit nothing into consumer projects at runtime.
 
 Copy the manifest, generator scripts, and `validate-overrides-build.mjs` from this plugin as a starting point.
 

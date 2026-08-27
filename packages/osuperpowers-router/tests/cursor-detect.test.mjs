@@ -87,18 +87,98 @@ test("cursor-detect: attachment `path` field is accepted (Cursor file shape)", (
   }
 });
 
-test("cursor-detect: bare /brainstorming with no attachments writes no pending", () => {
+test("cursor-detect: bare /brainstorming slash writes pending with trigger=slash", () => {
   setup();
   try {
     const out = detect(
       JSON.stringify({
         conversation_id: "conv-a3",
-        prompt: "/brainstorming design foo",
+        prompt: "/brainstorming",
         attachments: [],
       }),
     );
     assert.deepEqual(JSON.parse(out), { continue: true });
-    assert.ok(!existsSync(pendingPath("conv-a3")), "slash must not write pending");
+    const pending = JSON.parse(readFileSync(pendingPath("conv-a3"), "utf8"));
+    assert.equal(pending.override, "osuperpowers:brainstorming");
+    assert.equal(
+      pending.skill_suffix,
+      "../osuperpowers/skills/brainstorming/SKILL.md",
+    );
+    assert.equal(pending.trigger, "slash");
+    assert.ok(pending.detected_at > 0, "detected_at epoch present");
+  } finally {
+    teardown();
+  }
+});
+
+// Every upstream slug is intercepted by its bare slash — mirrors Claude
+// UserPromptExpansion (single SOT = overrides.manifest.json upstream_slug).
+const SLASH_TARGETS = [
+  ["brainstorming", "osuperpowers:brainstorming", "../osuperpowers/skills/brainstorming/SKILL.md"],
+  ["writing-plans", "osuperpowers:writing-plans", "../osuperpowers/skills/writing-plans/SKILL.md"],
+  ["subagent-driven-development", "osuperpowers:cli-driven-development", "../osuperpowers/skills/cli-driven-development/SKILL.md"],
+  ["finishing-a-development-branch", "osuperpowers:finishing", "../osuperpowers/skills/finishing/SKILL.md"],
+  ["test-driven-development", "mattpocock-skills:tdd", "skills/osuperpowers/tdd/SKILL.md"],
+  ["using-git-worktrees", "osuperpowers:finishing", "../osuperpowers/skills/finishing/SKILL.md"],
+];
+
+for (const [slug, override, suffix] of SLASH_TARGETS) {
+  test(`cursor-detect: bare /${slug} slash writes pending with trigger=slash`, () => {
+    setup();
+    try {
+      const key = `slash-${slug}`;
+      const out = detect(
+        JSON.stringify({
+          conversation_id: key,
+          prompt: `/${slug}`,
+          attachments: [],
+        }),
+      );
+      assert.deepEqual(JSON.parse(out), { continue: true });
+      const pending = JSON.parse(readFileSync(pendingPath(key), "utf8"));
+      assert.equal(pending.override, override);
+      assert.equal(pending.skill_suffix, suffix);
+      assert.equal(pending.trigger, "slash");
+      assert.ok(pending.detected_at > 0, "detected_at epoch present");
+    } finally {
+      teardown();
+    }
+  });
+}
+
+test("cursor-detect: inline /brainstorming slash (within prose) writes pending", () => {
+  setup();
+  try {
+    const out = detect(
+      JSON.stringify({
+        conversation_id: "conv-inline",
+        prompt: "please run /brainstorming for this design",
+        attachments: [],
+      }),
+    );
+    assert.deepEqual(JSON.parse(out), { continue: true });
+    const pending = JSON.parse(readFileSync(pendingPath("conv-inline"), "utf8"));
+    assert.equal(pending.override, "osuperpowers:brainstorming");
+    assert.equal(pending.trigger, "slash");
+  } finally {
+    teardown();
+  }
+});
+
+test("cursor-detect: non-upstream slash writes no pending", () => {
+  setup();
+  try {
+    detect(
+      JSON.stringify({
+        conversation_id: "conv-neg",
+        prompt: "/unknown-skill foo",
+        attachments: [],
+      }),
+    );
+    assert.ok(
+      !existsSync(pendingPath("conv-neg")),
+      "non-upstream slash must not write pending",
+    );
   } finally {
     teardown();
   }

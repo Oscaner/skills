@@ -13,10 +13,19 @@ const PENDING_ROOT = join(
 
 const TARGETS = [{"name":"osuperpowers:brainstorming","skill_suffix":"../osuperpowers/skills/brainstorming/SKILL.md","attach_res":["(?i)/skills/brainstorming/SKILL\\.md$","(?i)/vendors/superpowers/skills/brainstorming/SKILL\\.md$","(?i)/\\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/brainstorming/SKILL\\.md$","(?i)/\\.cursor/skills/(superpowers/)?brainstorming/SKILL\\.md$","(?i)/brainstorming/SKILL\\.md$"]},{"name":"osuperpowers:writing-plans","skill_suffix":"../osuperpowers/skills/writing-plans/SKILL.md","attach_res":["(?i)/skills/writing\\-plans/SKILL\\.md$","(?i)/vendors/superpowers/skills/writing\\-plans/SKILL\\.md$","(?i)/\\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/writing\\-plans/SKILL\\.md$","(?i)/\\.cursor/skills/(superpowers/)?writing\\-plans/SKILL\\.md$","(?i)/writing-plans/SKILL\\.md$"]},{"name":"osuperpowers:cli-driven-development","skill_suffix":"../osuperpowers/skills/cli-driven-development/SKILL.md","attach_res":["(?i)/skills/subagent\\-driven\\-development/SKILL\\.md$","(?i)/vendors/superpowers/skills/subagent\\-driven\\-development/SKILL\\.md$","(?i)/\\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/subagent\\-driven\\-development/SKILL\\.md$","(?i)/\\.cursor/skills/(superpowers/)?subagent\\-driven\\-development/SKILL\\.md$","(?i)/subagent-driven-development/SKILL\\.md$"]},{"name":"osuperpowers:finishing","skill_suffix":"../osuperpowers/skills/finishing/SKILL.md","attach_res":["(?i)/skills/finishing\\-a\\-development\\-branch/SKILL\\.md$","(?i)/vendors/superpowers/skills/finishing\\-a\\-development\\-branch/SKILL\\.md$","(?i)/\\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/finishing\\-a\\-development\\-branch/SKILL\\.md$","(?i)/\\.cursor/skills/(superpowers/)?finishing\\-a\\-development\\-branch/SKILL\\.md$","(?i)/finishing-a-development-branch/SKILL\\.md$"]},{"name":"mattpocock-skills:tdd","skill_suffix":"skills/osuperpowers/tdd/SKILL.md","attach_res":["(?i)/skills/test\\-driven\\-development/SKILL\\.md$","(?i)/vendors/superpowers/skills/test\\-driven\\-development/SKILL\\.md$","(?i)/\\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/test\\-driven\\-development/SKILL\\.md$","(?i)/\\.cursor/skills/(superpowers/)?test\\-driven\\-development/SKILL\\.md$","(?i)/test-driven-development/SKILL\\.md$"]},{"name":"osuperpowers:finishing","skill_suffix":"../osuperpowers/skills/finishing/SKILL.md","attach_res":["(?i)/skills/using\\-git\\-worktrees/SKILL\\.md$","(?i)/vendors/superpowers/skills/using\\-git\\-worktrees/SKILL\\.md$","(?i)/\\.claude/plugins/cache/[^/]+/superpowers/[^/]+/skills/using\\-git\\-worktrees/SKILL\\.md$","(?i)/\\.cursor/skills/(superpowers/)?using\\-git\\-worktrees/SKILL\\.md$","(?i)/using-git-worktrees/SKILL\\.md$"]}];
 
+// Slash-intercept targets: bare `^/<slug>$` / inline ` /<slug>` map to an
+// override name (mirrors Claude UserPromptExpansion — same SOT upstream_slug).
+const SLASH_TARGETS = [{"slug":"brainstorming","name":"osuperpowers:brainstorming","suffix":"../osuperpowers/skills/brainstorming/SKILL.md"},{"slug":"writing-plans","name":"osuperpowers:writing-plans","suffix":"../osuperpowers/skills/writing-plans/SKILL.md"},{"slug":"subagent-driven-development","name":"osuperpowers:cli-driven-development","suffix":"../osuperpowers/skills/cli-driven-development/SKILL.md"},{"slug":"finishing-a-development-branch","name":"osuperpowers:finishing","suffix":"../osuperpowers/skills/finishing/SKILL.md"},{"slug":"test-driven-development","name":"mattpocock-skills:tdd","suffix":"skills/osuperpowers/tdd/SKILL.md"},{"slug":"using-git-worktrees","name":"osuperpowers:finishing","suffix":"../osuperpowers/skills/finishing/SKILL.md"}];
+
 function compilePattern(pat) {
   // Python `(?i)` inline flag → JS `i` RegExp flag (strip the prefix).
   const flags = pat.startsWith("(?i)") ? "i" : "";
   return new RegExp(pat.replace(/^\(\?i\)/, ""), flags);
+}
+
+function slashPattern(slug) {
+  const s = slug.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)/(?:superpowers:)?${s}(?:\\s|$)`, "i");
 }
 
 function sessionKey(data) {
@@ -62,6 +71,25 @@ outer: for (const t of TARGETS) {
         break outer;
       }
     }
+  }
+}
+
+// Slash intercept: bare `^/<slug>$` or inline ` /<slug>` (optionally
+// `/superpowers:<slug>`). Writes the same pending marker with trigger="slash".
+const promptText = data.prompt ?? "";
+for (const s of SLASH_TARGETS) {
+  if (slashPattern(s.slug).test(promptText)) {
+    mkdirSync(PENDING_ROOT, { recursive: true });
+    writeFileSync(
+      join(PENDING_ROOT, `${key}.json`),
+      JSON.stringify({
+        override: s.name,
+        skill_suffix: s.suffix,
+        trigger: "slash",
+        detected_at: Math.floor(Date.now() / 1000),
+      }),
+    );
+    break;
   }
 }
 

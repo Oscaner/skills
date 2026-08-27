@@ -217,11 +217,9 @@ function main() {
     }
   });
 
-  check("validate self-check version stamps", () => {
+  check("validate claude self-check version stamp", () => {
     const version = JSON.parse(readFileSync(path.join(ROOT, ".claude-plugin/plugin.json"), "utf8")).version;
-    const cursor = readFileSync(path.join(ROOT, "build/generated/cursor-self-check.mdc"), "utf8");
     const claude = readFileSync(path.join(ROOT, "build/generated/claude-self-check.md"), "utf8");
-    assert(cursor.includes(`osuperpowers-router-version: ${version}`), "cursor self-check missing version stamp");
     const m = claude.match(/<!-- osuperpowers-router-version: ([^ ]+) -->/);
     assert(m && m[1] === version, "claude self-check version stamp mismatch");
   });

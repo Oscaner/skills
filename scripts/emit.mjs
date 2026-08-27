@@ -75,7 +75,6 @@ import {
   cursorDetectScript,
   cursorEnforceScript,
   claudeSelfCheckMd,
-  cursorSelfCheckMdc,
   overridesHooksFor,
   overridesCursorManifest,
   overridesCodexManifest,
@@ -333,15 +332,6 @@ function emitOverrides(outRoot, plugin) {
       targets,
       version,
       readFileSync(join(pluginDir, "build/templates/claude-self-check.md"), "utf8"),
-    ),
-  );
-  writeText(
-    outRoot,
-    `${contentRoot}/build/generated/cursor-self-check.mdc`,
-    cursorSelfCheckMdc(
-      targets,
-      version,
-      readFileSync(join(pluginDir, "build/templates/self-check.mdc"), "utf8"),
     ),
   );
 }

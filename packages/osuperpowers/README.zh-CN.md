@@ -20,7 +20,7 @@ Claude Code 工程技能插件 — osuperpowers 编排系列、cli-\* CDD 引擎
 | `writing-plans` | 编排器 | 逐节方案编写 + 审查；工单输出到 `docs/superpowers/tickets/` |
 | `cli-driven-development` | 编排器 + 引擎 | 计划执行器（cli-only）；CLI 三模式链分发器 + 最终 branch-review CLI |
 | `finishing` | 编排器 | 分支收尾 / PR；禁止 worktree；约定式提交 |
-| `init` | 工具 | 项目初始化（`init router` 写入自检规则） |
+| `init` | 工具 | 项目初始化（harness 配置；不写入 skill 规则） |
 | `report-issue` | 工具 | 结构化问题报告 |
 | `cli-select` | CDD 引擎 | 交互式 harness 选择 |
 
@@ -35,7 +35,7 @@ npm install @oscaner-skills/osuperpowers
 ## 快速开始
 
 1. 从 marketplace 安装 `superpowers`、`osuperpowers-router`、`osuperpowers` 和 `mattpocock-skills`。
-2. 在每个项目中运行 **`/init router`** 写入自检规则。
+2. 在每个项目中运行 **`/init`** 设置 harness 配置。
 3. 使用上游 superpowers 技能 — 路由器自动路由到工程编排器。
 
 ### Claude Code

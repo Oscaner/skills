@@ -1,6 +1,6 @@
 # Skill Digraph Refactor — P7: cli-select 重构 Design Spec
 
-- **Version**: v1.0 · 2026-08-27
+- **Version**: v1.1 · 2026-08-27
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -21,6 +21,7 @@
 5. 同步更新 cli-driven-development SKILL.md + .zh-CN.md 的跨 skill anchor（`#rule-ask` → `#ask`）
 6. zh-CN 镜像同步（cli-select SKILL.md）
 7. 完全符合 `docs/maintainers/skill-authoring.md` v1.0 规范
+8. **防止同类问题再发生（preventive fix）**：强化 `overall-spec-template.md` 的 Issue inventory 更新规则 + brainstorming SKILL.md 的 `commit-spec` 节点 Do 字段，确保未来任何 phase 在"发现新 issue"或"提前消费其他 phase 的 issue"时都不会漏更 Issue inventory
 
 ### Non-goals
 
@@ -120,6 +121,8 @@ cli-select 没有 implicit fail-open 场景——所有失败都路由到显式 
 | B5 | `Rule: Propagate` 作为 Rule 段落 | Invariant I1（Explicit Propagation），明确禁止 skill 层 + engine 层隐式 env var | P7 grilling Q2 |
 | B6 | `$CLAUDE_PLUGIN_ROOT` 间接引用 | harness-agnostic 路径解析描述 | 多 harness 兼容 |
 | B7 | `#rule-ask` anchor（cli-driven-development 引用） | → `#ask`（P7 同步更新） | P7 grilling Q5 |
+| B8 | `overall-spec-template.md` Issue inventory 段仅描述映射规则，未说明"phase 发现新 issue"或"提前消费其他 phase issue"时必须同步 inventory | **新增 Issue inventory 更新规则**：① phase 执行（含 brainstorming 设计阶段）发现新 issue → 必须在该 phase spec 中声明归属 + 同步 overall spec Issue inventory；② phase 提前消费其他 phase 的 issue → 必须在 inventory 标注"提前消费" + 注明实际修复 phase 与生效 timing；③ Issue inventory 变更必须伴随 overall spec version bump + change history 条目 | P7 plan review 用户反馈 |
+| B9 | brainstorming `commit-spec` 节点 Do 字段仅提交 spec 文档，未校验 overall spec 同步完整性 | **commit-spec 节点 Do 字段新增校验步骤**：commit 前校验 overall spec 四表同步（Issue inventory / Phase inventory / Dependency graph / Change history）——任何一表未同步视为 spec commit 违规，不得 commit | P7 plan review 用户反馈 |
 
 ---
 
@@ -133,13 +136,15 @@ cli-select 没有 implicit fail-open 场景——所有失败都路由到显式 
 6. cli-driven-development SKILL.md + .zh-CN.md 的 `#rule-ask` anchor 同步更新为 `#ask`
 7. cli-select SKILL.zh-CN.md 同步
 8. emit + validate 绿
-9. CDD execution: workspace 存在 + 全 task handoff.json + ledger 全 APPROVED + Final Review 产物
+10. **preventive fix 落地**：`overall-spec-template.md` Issue inventory 段含「更新触发条件」规则；`brainstorming/SKILL.md` 的 `commit-spec` 节点 Do 字段含「四表同步校验」步骤；`brainstorming/SKILL.zh-CN.md` 同步
+11. emit + validate 绿（cli-select + brainstorming 两技能衍生均同步）
+12. CDD execution: workspace 存在 + 全 task handoff.json + ledger 全 APPROVED + Final Review 产物
 
 ---
 
 ## §8 Execution Strategy
 
-**1 Task 实施（cli-select 足够简单，anchor 更新作为原子 commit 的一部分）**：
+**2 Task 实施（cli-select 重写 + preventive fix 分离为两个原子 commit）**：
 
 ### Task 1：cli-select 重写 + anchor 同步
 
@@ -156,13 +161,22 @@ cli-select 没有 implicit fail-open 场景——所有失败都路由到显式 
   - `grep -r '## Checklist' packages/osuperpowers/skills/cli-select/` → 预期零匹配
   - `grep -r 'Rule: ' packages/osuperpowers/skills/cli-select/` → 预期零匹配
 
-### Atomic commits（2 个）
+### Task 2：preventive fix（overall-spec-template + brainstorming commit-spec 节点）
 
-1. `docs: add P7 cli-select design spec + sync overall spec v1.12`（spec + overall 同步，同 commit）
+- 更新 `packages/osuperpowers/skills/brainstorming/docs/overall-spec-template.md`：Issue inventory 段新增「更新触发条件」规则（3 项，详见 B8）
+- 更新 `packages/osuperpowers/skills/brainstorming/SKILL.md`：`commit-spec` 节点 Do 字段新增「commit 前校验 overall spec 四表同步」步骤（详见 B9）
+- 同步 `brainstorming/SKILL.zh-CN.md`（节对节对齐 commit-spec 节点 Do 字段更新）
+- `pnpm run emit && pnpm run validate`
+
+### Atomic commits（3 个）
+
+1. `docs: add P7 cli-select design spec + sync overall spec v1.14`（spec + overall 同步，已 commit）
 2. `refactor: rewrite cli-select to node-anchored format (P7)`（cli-select 重写 + anchor 同步 + zh-CN + emit + validate）
+3. `docs: harden overall-spec-template issue inventory rules + brainstorming commit-spec node (P7 preventive fix)`（Task 2 范围）
 
 ---
 
 ## Change history
 
 - v1.0 · 2026-08-27 — 初版：2 节点 + BLOCKED 终态的 digraph + 1 Invariant + 2 行 Failure Modes（含 recovery 列） + 7 行为变更 + 跨 skill anchor 同步 + P9 #136 提前消费。
+- v1.1 · 2026-08-27 — plan review 用户反馈（preventive fix）：新增 Goal 8（防止同类问题再发生）+ Behavior Changes B8（overall-spec-template Issue inventory 更新规则强化）+ B9（brainstorming commit-spec 节点四表同步校验）+ 新增 plan Task 2（preventive fix 单独原子 commit）+ Acceptance #10（preventive fix 落地验收）+ 3 commits 替代原 2 commits。

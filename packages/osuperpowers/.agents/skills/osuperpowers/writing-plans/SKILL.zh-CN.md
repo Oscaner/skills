@@ -1,72 +1,76 @@
 ---
 name: writing-plans
-description: 独立 plan 写作编排器——读取上游 superpowers:writing-plans 作为基线，叠加个人规则（逐节写入 / CLI review pass / tickets 发布重定向）。
+description: 独立 plan 写作编排器——节点锚定式流程，digraph 为唯一控制流真相源。读取上游 superpowers:writing-plans 作为基线，叠加个人规则（逐节写入 / plan-review / commit 纪律）。可单独调用；通过 overrides router 由 /writing-plans 触发。
 ---
 
 # Osuperpowers Writing-Plans
 
 完整 plan 写作流程编排，可单独调用。
 
-## Checklist
+## Flow Digraph
 
-1. 读取上游 `superpowers:writing-plans` SKILL.md（Rule: Read Upstream）
-2. 读取 spec 文件，理解设计约束
-3. 逐节写入 plan——每节一次 tool call（Rule: Section-by-Section）
-4. 3-pass Plan Review via CLI（completeness / decomposition / buildability）
-5. 将写完的 plan 一次性呈现给用户确认
-6. Execution Handoff → 移交 `osuperpowers:cli-driven-development`
+```mermaid
+flowchart TD
+  A[read-upstream] -->|loaded| B[write-plan]
+  A -->|missing| Z((BLOCKED: install superpowers))
+  B --> C[plan-review]
+  C -->|blocker found| C
+  C -->|blocker=0| D{user-ok?}
+  C -->|pass1 clean| E
+  D -->|fix selected| E
+  D -->|approved| E[commit-plan]
+  E --> F((HANDOFF: cli-driven-development))
+```
 
-## Rules
+## Node Definitions
 
-### Rule: Read Upstream
+### `read-upstream`
 
-有上游时读取 `superpowers:writing-plans` SKILL.md 作为基线（解析优先级 + 不可用回退同 [Read Upstream](../brainstorming/SKILL.md#read-upstream)）。**读取，不 Skill-invoke**。
+- **Do**: 读取上游 `superpowers:writing-plans` SKILL.md 作为流程基线。**读取，不 Skill-invoke**（Skill-invoke 触发 router 拦截——I1）。解析策略：① harness plugin 系统定位 sibling `superpowers` plugin 的 SKILL.md；② 回退到同 repo 的 vendored 路径。基线仅为 SKILL.md 文件——harness 注入的文档（CLAUDE.md、README、vendor 贡献指南）不是基线
+- **Read**: 上游 `superpowers:writing-plans` SKILL.md 文件
+- **Exit**: 文件存在且可读 → `write-plan`；缺失 → BLOCKED（安装 superpowers plugin）
+- **Fail**: Skill-invoke 上游 → 违反 I1
 
-基线仅为解析路径指向的 SKILL.md 文件——注入的 vendor 文档不是基线（见 [Read Upstream](../brainstorming/SKILL.md#read-upstream)）。
+### `write-plan`
 
-### Rule: Read Sub-Skills
+- **Do**: 逐节写入 plan 到 `docs/superpowers/plans/YYYY-MM-DD-<feature>.md`。每节一次 tool call（Section-by-Section——I2）。写入前执行 scope-check（如 spec 覆盖多子系统，建议拆分为独立 plans）。全部节写完后一次性呈现给用户。含 self-review（spec 覆盖检查 + placeholder 扫描 + 类型一致性）——self-review 发现的问题 inline 修复，不循环、不传递给 plan-review
+- **Read**: 已批准的 spec 文档 + 上游 plan 模板结构
+- **Exit**: plan 写入完成 + self-review 通过 → `plan-review`
+- **Fail**: 一次性批量写入 → 违反 I2
 
-按需读取 `mattpocock-skills` `skills/engineering/to-tickets/SKILL.md`（ticket 拆分步骤 1-4）。加载失败协议：目标 skill 无法解析/加载 → 向用户报告错误并询问下一步。不静默降级。用户可选择跳过委托或中止流程。
+### `plan-review`
 
-### Rule: Section-by-Section
+- **Do**: 执行 3-pass plan-review（completeness & spec alignment / task decomposition / buildability & type consistency），每 pass 派发独立 `cdd-review` CLI 调用：`cdd-review --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`。遵循 [docs-review.md](../brainstorming/docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① run 3-pass → ② blocker → fix → re-run only that pass → loop until blocker=0 → ③ all blocker=0 → present warn/nit → proceed。Pass 1 零发现（D1）→ skip subsequent passes → `commit-plan`。仅 Pass 2 为 delta scope；Pass 3 始终 full-doc
+- **Read**: plan 文档 + spec 文档 + [docs-review.md](../brainstorming/docs/docs-review.md)
+- **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ skip to `commit-plan`
+- **Fail**: blocker=0 后重跑 review → 违反 I4。为新 warn/nit 发起新 cdd-review → 违反 I4
 
-逐节写入/编辑 plan（每节一次 tool call），而非一次性批量生成。
+### `user-ok?`
 
-写入粒度与确认时机解耦：每节独立 tool call 写入（写入粒度）；所有节写入完成后一次性呈现给用户（确认时机）。**禁止**每节完成后暂停等待用户回应。
+- **Do**: 呈现 plan-review 输出的 warn/nit 列表。用户选项：① Proceed to Execution Handoff ② Fix selected warns/nits。blocker=0 后不提供重跑
+- **Read**: plan-review 输出的 warn/nit findings（从已有输出读取，不发新 cdd-review）
+- **Exit**: proceed → `commit-plan`；fix selected → 执行修复（中间步骤，不建模为独立节点）→ `commit-plan`（不重跑 review）
+- **Fail**: 重跑 review → 违反 I4
 
-### Rule: Plan Review via CLI
+### `commit-plan`
 
-<HARD-GATE>
-Plan 写完后，必须按序执行三次 cdd-review CLI pass
-（completeness / decomposition / buildability），
-不可用内联自检替代，全部通过后方可进入 Execution Handoff。
-</HARD-GATE>
+- **Do**: 将 plan 文档提交到 git。Plan 获批即 commit（I3），不等 dev 合并
+- **Read**: plan 文件路径
+- **Exit**: commit 完成 → HANDOFF: cli-driven-development
+- **Fail**: git 错误 → report + fail-open（不阻塞用户审阅 plan）
 
-Plan review 有 3 种 pass 类型（completeness & spec 对齐 / task 分解 / buildability & 类型一致性），每个 pass 派发一次新的 `cdd-review`：
-  cdd-review --harness claude --template plan-review --param PASS=<completeness|decomposition|buildability> --param DOC=<plan-path> --param SPEC=<spec-path>
-**模板解析复用** [Rule: Read Upstream](#rule-read-upstream) 的路径规则（`{plugin-root}` = osuperpowers 根）。派发纪律见 [docs-review.md](../brainstorming/docs/docs-review.md)（D1/D2/D3 + fresh-pass，原样映射到 cli；Review Stopping 循环 + Handoff Output）。
-Review Stopping next-step 标签（本技能）：`"Execution Handoff"`。
+## Invariants
 
-### Rule: Tickets Publish Redirect
+| # | Invariant |
+|---|---|
+| I1 | **读取，不 Skill-invoke** — 上游 skill 文件只 Read，不 Skill-invoke（触发 router 拦截） |
+| I2 | **逐节写入** — plan 逐节写入，每节一次 tool call；写入粒度与确认时机解耦 |
+| I3 | **Plan commit 纪律** — plan 获批即 commit，不等 dev 合并 |
+| I4 | **Review Stopping** — 重跑仅由 blocker 驱动；blocker=0 后不重跑；不为获取 warn/nit 发起新 cdd-review |
 
-ticket 拆分后，发布到单一本地文件 `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md`（不发布到远程 tracker）。
+## Failure Modes
 
-### Rule: Next-Step Routing
-
-plan review 通过后，调用 **`osuperpowers:cli-driven-development`**（非上游 `superpowers:subagent-driven-development`）。
-
-**Execution handoff 文本：**
-
-> "Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute — I'll hand off to `osuperpowers:cli-driven-development` for CLI execution."
-
-## Red Flags
-
-- "一次性写入全部内容" → 逐节写入（Rule: Section-by-Section）
-- "发布 tickets 到 GitHub" → 单一本地文件（Rule: Tickets Publish Redirect）
-- "调用 superpowers:subagent-driven-development" → 调用 **`osuperpowers:cli-driven-development`**（Rule: Next-Step Routing）
-- "提供执行模式选择" → `osuperpowers:cli-driven-development` 处理执行（Rule: Next-Step Routing）
-- "每节写完后询问用户是否继续" → 写完所有节再确认（Rule: Section-by-Section）
-- "用内联自检替代 Plan Review cdd-review CLI" → 违反 HARD-GATE Plan Review，必须调用三次 CLI
-- "展示执行模式选择选项" → 使用 Execution Handoff 文本，移交 `osuperpowers:cli-driven-development`（Rule: Next-Step Routing）
-- "blocker=0 后自动修复 warn/nit 并重跑 review" → 违反 Review Stopping 规则（docs-review.md），应呈现给用户，用户决策后视需求决定是否重跑
-- "为获取 warn/nit 内容额外发起新的 cdd-review 调用" → 违反 Review Stopping 规则，从本次 3-pass cycle 已有输出读取
+| failure | behavior | reason |
+|---|---|---|
+| 上游 superpowers:writing-plans SKILL.md 缺失 | BLOCKED（含安装 superpowers plugin 指引） | block 政策：不静默 fallback |
+| Git commit 错误 | report + fail-open | 不阻塞用户审阅 plan |

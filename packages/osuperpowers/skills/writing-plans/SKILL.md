@@ -1,72 +1,76 @@
 ---
 name: writing-plans
-description: Independent plan-writing orchestrator -- Reads upstream superpowers:writing-plans as baseline, layers personal rules (section-by-section writing / cli review passes / to-tickets publish redirect).
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Reads upstream superpowers:writing-plans as baseline, layers personal rules (section-by-section writing / plan-review / commit discipline). Callable standalone; triggered by /writing-plans via overrides router.
 ---
 
 # Osuperpowers Writing-Plans
 
 Full plan-writing flow orchestration, callable standalone.
 
-## Checklist
+## Flow Digraph
 
-1. Read upstream `superpowers:writing-plans` SKILL.md (Rule: Read Upstream)
-2. Read spec file to understand design constraints
-3. Write plan section by section — one tool call per section (Rule: Section-by-Section)
-4. 3-pass Plan Review via CLI (completeness / decomposition / buildability)
-5. Present completed plan to user in one message for confirmation
-6. Execution Handoff → hand off to `osuperpowers:cli-driven-development`
+```mermaid
+flowchart TD
+  A[read-upstream] -->|loaded| B[write-plan]
+  A -->|missing| Z((BLOCKED: install superpowers))
+  B --> C[plan-review]
+  C -->|blocker found| C
+  C -->|blocker=0| D{user-ok?}
+  C -->|pass1 clean| E
+  D -->|fix selected| E
+  D -->|approved| E[commit-plan]
+  E --> F((HANDOFF: cli-driven-development))
+```
 
-## Rules
+## Node Definitions
 
-### Rule: Read Upstream
+### `read-upstream`
 
-Read upstream `superpowers:writing-plans` SKILL.md as the process baseline **when available** (resolution priority + unavailability fallback same as [Read Upstream](../brainstorming/SKILL.md#read-upstream)). **Read, not Skill-invoke**.
+- **Do**: Read upstream `superpowers:writing-plans` SKILL.md as the process baseline. **Read, not Skill-invoke** (Skill-invoke triggers router interception — I1). Resolution: ① harness plugin system locates the sibling `superpowers` plugin's SKILL.md; ② fallback to vendored path in the same repo. The baseline is the SKILL.md file only — harness-injected docs (CLAUDE.md, README, vendor contributor guides) are not the baseline
+- **Read**: Upstream `superpowers:writing-plans` SKILL.md file
+- **Exit**: File exists and readable → `write-plan`; missing → BLOCKED (install superpowers plugin)
+- **Fail**: Skill-invoke upstream → violates I1
 
-The baseline is the SKILL.md file at the resolved path only — injected vendor docs are not the baseline (see [Read Upstream](../brainstorming/SKILL.md#read-upstream)).
+### `write-plan`
 
-### Rule: Read Sub-Skills
+- **Do**: Write plan section by section to `docs/superpowers/plans/YYYY-MM-DD-<feature>.md`. Each section uses one tool call (Section-by-Section — I2). Before writing, perform scope-check (if spec covers multiple subsystems, suggest splitting into separate plans). After all sections are written, present the complete plan to the user in one message. Includes self-review (spec coverage check + placeholder scan + type consistency) — issues found during self-review are fixed inline, not looped or passed to plan-review
+- **Read**: Approved spec document + upstream plan template structure
+- **Exit**: Plan written + self-review passed → `plan-review`
+- **Fail**: Bulk writing in one call → violates I2
 
-On demand, Read `mattpocock-skills` `skills/engineering/to-tickets/SKILL.md` (ticket splitting Steps 1-4). Load failure protocol: target skill cannot be resolved/loaded → report the error to the user and ask for next steps. No silent degradation. The user can decide to skip the delegation or abort the flow.
+### `plan-review`
 
-### Rule: Section-by-Section
+- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `cdd-review` CLI call: `cdd-review --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`. Follow D1/D2/D3 from [docs-review.md](../brainstorming/docs/docs-review.md). Review Stopping: ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `commit-plan`. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Read**: Plan document + spec document + [docs-review.md](../brainstorming/docs/docs-review.md)
+- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean (D1) → skip to `commit-plan`
+- **Fail**: Re-run review after blocker=0 → violates I4. New cdd-review call for warn/nit → violates I4
 
-Write/Edit the plan section by section (one tool call per section), not as a single bulk generation.
+### `user-ok?`
 
-Writing granularity and confirmation timing are decoupled: each section is written in one independent tool call (writing granularity); after all sections are written, present to the user in one message (confirmation timing). **Prohibited**: pausing after each section to wait for user response.
+- **Do**: Present warn/nit list from plan-review output. User options: ① Proceed to Execution Handoff ② Fix selected warns/nits. Re-run is never offered after blocker=0
+- **Read**: warn/nit findings from plan-review output (read from already-captured output; no new cdd-review call)
+- **Exit**: Proceed → `commit-plan`; fix selected → apply fixes (intermediate step, not modeled as separate node) → `commit-plan` (no review re-run)
+- **Fail**: Re-run review → violates I4
 
-### Rule: Plan Review via CLI
+### `commit-plan`
 
-<HARD-GATE>
-After the plan is written, you MUST execute three cdd-review CLI passes in order
-(completeness / decomposition / buildability).
-Inline self-check is NOT a substitute. All passes must complete before Execution Handoff.
-</HARD-GATE>
+- **Do**: Commit plan document to git. Plan approved = commit immediately (I3); do not wait for dev merge
+- **Read**: Plan file path
+- **Exit**: Commit complete → HANDOFF: cli-driven-development
+- **Fail**: Git error → report + fail-open (do not block user plan review)
 
-Plan review has 3 pass types (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches a fresh `cdd-review`:
-  cdd-review --harness claude --template plan-review --param PASS=<completeness|decomposition|buildability> --param DOC=<plan-path> --param SPEC=<spec-path>
-**Template resolution reuses** [Rule: Read Upstream](#rule-read-upstream) path rules (`{plugin-root}` = osuperpowers root). Dispatch discipline: see [docs-review.md](../brainstorming/docs/docs-review.md) (D1/D2/D3 + fresh-pass, mapped verbatim to cli; Review Stopping loop + Handoff Output).
-Review Stopping next-step label for this skill: `"Execution Handoff"`.
+## Invariants
 
-### Rule: Tickets Publish Redirect
+| # | Invariant |
+|---|---|
+| I1 | **Read, not Skill-invoke** — upstream skill files are Read only, never Skill-invoked (triggers router interception) |
+| I2 | **Section-by-Section** — plan written section by section, one tool call per section; writing granularity decoupled from confirmation timing |
+| I3 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
+| I4 | **Review Stopping** — re-run driven only by blockers; no re-run after blocker=0; no new cdd-review call to obtain warn/nit |
 
-After ticket splitting, publish to a single local file `docs/superpowers/tickets/YYYY-MM-DD-<feature>-tickets.md` (do not publish to remote tracker).
+## Failure Modes
 
-### Rule: Next-Step Routing
-
-After plan review passes, invoke **`osuperpowers:cli-driven-development`** (not upstream `superpowers:subagent-driven-development`).
-
-**Execution handoff text:**
-
-> "Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute — I'll hand off to `osuperpowers:cli-driven-development` for CLI execution."
-
-## Red Flags
-
-- "Write the whole thing at once" → section-by-section writing (Rule: Section-by-Section)
-- "Publish tickets to GitHub" → single local file (Rule: Tickets Publish Redirect)
-- "Invoke superpowers:subagent-driven-development" → invoke **`osuperpowers:cli-driven-development`** (Rule: Next-Step Routing)
-- "Offer mode choice" → `osuperpowers:cli-driven-development` handles execution (Rule: Next-Step Routing)
-- "Ask user after each section whether to continue" → write all sections first, then confirm (Rule: Section-by-Section)
-- "Replace Plan Review CLI with inline self-check" → violates HARD-GATE Plan Review; must call CLI three times
-- "Display execution-mode choice" → use Execution Handoff text, hand off to `osuperpowers:cli-driven-development` (Rule: Next-Step Routing)
-- "Auto-fix warn/nit and re-run review after blocker=0" → violates Review Stopping (docs-review.md); present to user, re-run only if user requests
-- "Issue new cdd-review call to obtain warn/nit content" → violates Review Stopping; read from already-captured output of current 3-pass cycle
+| failure | behavior | reason |
+|---|---|---|
+| Upstream superpowers:writing-plans SKILL.md missing | BLOCKED (with install superpowers plugin guidance) | Block policy: no silent fallback |
+| Git commit error | report + fail-open | Do not block user plan review |

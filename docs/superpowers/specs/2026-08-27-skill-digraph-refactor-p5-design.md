@@ -1,7 +1,7 @@
 # Skill Digraph Refactor — P5: writing-plans 重构 Design Spec
 
 - **Version**: v1.0 · 2026-08-27
-- **Status**: Draft
+- **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
   - 仓库语言政策：SKILL.md 英文主源 + zh-CN 镜像；本 spec 中文（Strategy B）

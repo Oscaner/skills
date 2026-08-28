@@ -6,12 +6,12 @@
 // Spawns harness CLI directly (spawnCapture, NOT invokeCli) with research prompt.
 // RESEARCH_TIMEOUT env overrides timeout (default 600000ms = 10 min).
 // CDD_DRY_RUN=1 skips harness invocation (argument parsing / smoke tests).
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadRegistry, checkHarness } from "./lib/registry.mjs";
+import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
+import { spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
 import { exitOk, exitCliMissing, exitBlocked } from "../utils/exit.mjs";
 
@@ -74,6 +74,10 @@ try {
   const reg = loadRegistry(REG_PATH);
   entry = checkHarness(reg, harness, { dryRun: DRY_RUN });
 } catch (err) {
+  if (err instanceof CddBlockedError) {
+    if (err.kind === "cli-missing") exitCliMissing(err.message);
+    exitBlocked(err.message);
+  }
   process.stderr.write(`${NAME}: ${err.message}\n`);
   process.exit(err.exitCode ?? 1);
 }
@@ -101,42 +105,19 @@ if (DRY_RUN) {
 const cli = entry.cli;
 const cliArgs = [...entry.invoke.split(/\s+/).filter(Boolean), prompt];
 
-// Strip subagent model env vars to prevent leakage into nested sessions.
-const cleanEnv = { ...process.env };
-delete cleanEnv.CLAUDE_CODE_SUBAGENT_MODEL;
-
-const child = spawn(cli, cliArgs, {
-  cwd: process.cwd(),
-  env: cleanEnv,
-  stdio: ["ignore", "pipe", "pipe"],
-});
-
 // timeout watchdog: kill child + exit 1
 const timer = setTimeout(() => {
-  child.kill("SIGTERM");
   process.stderr.write(`${NAME}: RESEARCH_TIMEOUT after ${RESEARCH_TIMEOUT}ms\n`);
   process.exit(1);
 }, RESEARCH_TIMEOUT);
-
-// prevent timer from keeping event loop alive if process exits early
 timer.unref?.();
 
-// capture stdout/stderr from child (mirrors spawnCapture semantics)
-let stdout = "";
-let stderr = "";
-child.stdout.on("data", (d) => { stdout += d; });
-child.stderr.on("data", (d) => { stderr += d; });
-
-const result = await new Promise((resolve) => {
-  child.on("error", (err) => {
-    resolve({ ok: false, code: 1, stdout, stderr: stderr || `spawn failed: ${err.message}` });
-  });
-  child.on("close", (code) => {
-    resolve({ ok: code === 0, code: code ?? 1, stdout, stderr });
-  });
-});
-
-clearTimeout(timer);
+let result;
+try {
+  result = await spawnCapture(cli, cliArgs, { cwd: process.cwd(), env: process.env });
+} finally {
+  clearTimeout(timer);
+}
 
 if (!result.ok) {
   process.stderr.write(`${NAME}: harness failed (exit ${result.code})\n`);

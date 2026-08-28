@@ -1,7 +1,7 @@
 # Docs Review
 
 > **Scope:** Applies to 3-pass AI-orchestrated doc reviews (spec-review / plan-review) only.
-> Task-review uses Fix Loop in `cli-driven-development/SKILL.md`. Branch-review uses `cli-driven-development` + `{pluginRoot}/bin/engine/cdd-review.mjs` (--template branch-review).
+> Task-review uses Fix Loop in `cli-driven-development/SKILL.md`. Branch-review uses `cli-driven-development` + `node {pluginRoot}/bin/engine/cdd-review.mjs` (--template branch-review).
 
 Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). Cited by review-pass rules in brainstorming / writing-plans.
 
@@ -11,7 +11,7 @@ Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). 
 
 Pass 1 runs independently first. Zero findings + explicit scan checklist → subsequent passes are skipped; otherwise, fix first, then run subsequent passes concurrently.
 
-**CLI review:** each pass is an independent `{pluginRoot}/bin/engine/cdd-review.mjs` invocation (stateless fresh nested session).
+**CLI review:** each pass is an independent `node {pluginRoot}/bin/engine/cdd-review.mjs` invocation (stateless fresh nested session).
 
 ### Rule: D2 Delta Review
 

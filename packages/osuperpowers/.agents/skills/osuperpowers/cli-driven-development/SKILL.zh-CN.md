@@ -71,7 +71,7 @@ flowchart TD
 
 ### `engine-recovery`（决策节点）
 
-- **Do**: 读当前 `handoff.json` 的 blocker 字段并判断可修复性：① 若 blocker 描述可修复条件（如 dirty tree → 先 commit，缺失 artifact → 重新生成）**且** `progress.md` `engine-recovery-count` < 2 → 重置 recovery 计数 → 以相同 mode 重派 `dispatch-mode`；② 若不可修复或 `engine-recovery-count` ≥ 2 → 终态 `BLOCKED: engine-error`。
+- **Do**: 读当前 `handoff.json` 的 blocker 字段并判断可修复性：① 若 blocker 描述可修复条件（如 dirty tree → 先 commit，缺失 artifact → 重新生成）**且** `progress.md` `engine-recovery-count` < 2 → 递增 recovery 计数 → 以相同 mode 重派 `dispatch-mode`；② 若不可修复或 `engine-recovery-count` ≥ 2 → 终态 `BLOCKED: engine-error`。
 - **Read**: `handoff.json`（blocker 字段）+ `progress.md`（engine-recovery-count；每次 recovery 尝试递增）。
 - **Exit**: 可修复 + retry<2 → `dispatch-mode`（同 mode，同 task）；不可修复或 retry≥2 → `BLOCKED: engine-error`。
 - **Fail**: blocker 字段为空或不可解析 → 终态 `BLOCKED: engine-error`。
@@ -137,7 +137,7 @@ flowchart TD
 | I4 | **Fix Dual-Channel Contract** — fix 模式两通道：`--scope blocker-only`（默认，fix.md 仅处理 non-deferred 项；deferred 项保留在 handoff `findings[]` 跨轮次不动，不进 fix loop）｜`--scope deferred-sweep`（用户决策后，处理 deferred 项）。`runner.mjs` 把 scope 映射为 `CDD_FINDINGS_SCOPE` env；`fix.md` 的 `{{FINDINGS_SCOPE}}` 占位符按 env 展开。 |
 | I5 | **Three-Mode Chain Completeness** — 每 task 必走 implement → task-review → （fix 如需）→ ledger 完整链路；不允许跳过 task-review 直接从 implement 到 ledger（#181 纪律）。 |
 | I6 | **No Controller Bypass** — 当引擎可用（cdd-task.mjs / cdd-review.mjs 可运行）时，orchestrator 禁止手写控制流绕过引擎处理。所有 task 执行、review、fix 派发必须走引擎 CLI 调用；禁止 orchestrator 层直接操控 handoff/ledger 状态来替代引擎处理。 |
-| I7 | **No Hand-Written Deferred Fix** — deferred findings 修复必须走 `--mode fix` dispatch（`deferred-disposition` fix-now → `deferred-sweep-loop`）；controller 禁止在引擎 CLI 路径之外手写 deferred findings 的修复。**降级路径**：当引擎完全不可用时（exit 3 / harness 缺失 / retry 计数命中 I6 的 `engine-recovery` 硬上限 retry≥2），controller 可直接修复但**必须在 `progress.md` 记录降级原因**（severity + summary + reason）；engine 恢复后补 `--mode fix` re-review。 |
+| I7 | **No Hand-Written Deferred Fix** — deferred findings 修复必须走 `--mode fix` dispatch（`deferred-disposition` fix-now → `deferred-sweep-loop`）；controller 禁止在引擎 CLI 路径之外手写 deferred findings 的修复。**降级路径**：当引擎完全不可用时（exit 3 / harness 缺失 / retry 计数命中 `engine-recovery` 硬上限 retry≥2），controller 可直接修复但**必须在 `progress.md` 记录降级原因**（severity + summary + reason）；engine 恢复后补 `--mode fix` re-review。 |
 
 ## Failure Modes
 

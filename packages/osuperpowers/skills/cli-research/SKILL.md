@@ -35,7 +35,7 @@ flowchart TD
 
 - **Do**: Call the cli-select ask node (cross-skill call via `osuperpowers:cli-select`) to detect available harnesses and ask the user to select one. The selected harness name is returned for use in `dispatch-research`.
 - **Read**: cli-select node output (selected harness name)
-- **Exit**: User selects a harness → `prepare-harness`; no harnesses available or user cancels → BLOCKED (no harness)
+- **Exit**: User selects a harness → `prepare-brief`; no harnesses available or user cancels → BLOCKED (no harness)
 - **Fail**: cli-select execution failure → BLOCKED (no harness); user cancellation → treated as user-side, not counted in Failure Modes
 
 ### `prepare-brief`

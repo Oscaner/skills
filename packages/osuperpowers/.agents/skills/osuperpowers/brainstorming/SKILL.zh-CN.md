@@ -51,12 +51,8 @@ flowchart TD
 
 ### `explore-context`
 
-- **Do**: 探索项目上下文（文件、文档、近期 commits）。如发现需要主源研究的问题（上游 API 行为、harness CLI 规格、包内部结构、跨 harness 差异）：识别 → 询问用户"是否触发 research？" → 用户确认 → **两条路径**：
-  - **Agent tool 路径（默认）**：并行 spawn research agent（一个问题一个 agent）→ 用户拒绝：跳过 research。探索不中断。进入 grilling 前等待 research 完成。
-  - **CLI 路径（可选，已知 harness）**：当 session context 已有 harness（prior CDD session / 用户显式指定）时，使用 `cdd-research.mjs` CLI：准备 brief → `node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>` → findings 落盘 `docs/superpowers/research/YYYY-MM-DD-<topic>.md`。此路径无需选择 harness，因 harness 从 context 中已知。
-
-  输出写入 `docs/superpowers/research/YYYY-MM-DD-<topic>.md`
-- **Read**: 项目文件、docs、git log、research 输出文件（如有）——包括 `docs/superpowers/research/` 下由 `cdd-research.mjs` 产出的 findings 文件
+- **Do**: 探索项目上下文（文件、文档、近期 commits）。如发现需要主源研究的问题：识别 → 询问用户"是否触发 research？" → 用户确认 → 按 harness 可用性分支：**Agent tool 路径**（默认，无已知 harness）或 **CLI 路径**（已知 harness —— `cdd-research.mjs`，无需选择步骤）。CLI 调用参考：`node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>`
+- **Read**: 项目文件、docs、git log、research 输出文件——包括 `docs/superpowers/research/` 下由 `cdd-research.mjs` 产出的 findings 文件
 - **Exit**: 探索完成（research 如有则已等待完成）→ `grilling`
 - **Fail**: research agent 错误/超时 → 记录 stderr，fail-open（不阻塞流程）。CLI 路径失败 → 降级到 Agent tool 路径
 
@@ -147,3 +143,4 @@ flowchart TD
 | grilling SKILL.md 缺失 | BLOCKED（含安装 mattpocock-skills 指引） | block 政策：子技能缺失不降级 |
 | research agent 错误/超时 | fail-open（记录 stderr，不阻塞流程） | research 是可选增强 |
 | git commit 错误 | report + fail-open | 不阻塞用户审阅 spec |
+| CLI 路径失败 | 降级到 Agent tool 路径 | CLI 不可用但默认路径可用 |

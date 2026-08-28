@@ -26,7 +26,7 @@
 Return **exactly 4 lines** to stdout (no other prose); make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
 
 ```
-status: <DONE|BLOCKED|NEEDS_CONTEXT>
+status: <APPROVED|BLOCKED|NEEDS_CONTEXT>
 commits: base=<sha> head=<sha>
 artifacts: brief=<path> report=<path> test_evidence=<path>
 blocker: <none|one-line>

@@ -113,7 +113,7 @@ test("runTask: dry-run implement → H1 四行 DONE + 不写 handoff（对齐 ba
   const res = await runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 0);
   assert.equal(res.h1.length, 4);
-  assert.equal(res.h1[0], "status: DONE");
+  assert.equal(res.h1[0], "status: DONE"); // H1 format is engine-side, not affected by handoffStatus normalization
   assert.equal(res.h1[1], "commits: base=dry-run head=dry-run");
   assert.match(res.h1[2], /^artifacts: brief=/);
   assert.equal(res.h1[3], "blocker: none");
@@ -210,8 +210,10 @@ test("isTaskPending / handoffStatus: ledger complete / APPROVED → false；DONE
   assert.equal(isTaskPending(1, ledger, handoff), true);
 
   writeFileSync(handoff, JSON.stringify({ status: "DONE" }));
-  assert.equal(handoffStatus(handoff), "DONE");
-  assert.equal(isTaskPending(1, ledger, handoff), true);
+  // T2: DONE normalized to APPROVED by handoffStatus()
+  assert.equal(handoffStatus(handoff), "APPROVED");
+  // T2: DONE normalized to APPROVED → isTaskPending returns false (not pending)
+  assert.equal(isTaskPending(1, ledger, handoff), false);
 
   writeFileSync(handoff, JSON.stringify({ status: "APPROVED" }));
   assert.equal(handoffStatus(handoff), "APPROVED");
@@ -400,7 +402,7 @@ test("runTask: brief 已存在 + 含 TASK_BASE: → pass（dry-run exit 0）", a
     env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
   });
   assert.equal(res.exitCode, 0);
-  assert.equal(res.h1[0], "status: DONE");
+  assert.equal(res.h1[0], "status: DONE"); // H1 format is engine-side, not affected by handoffStatus normalization
 });
 
 test("runTask: brief 已存在 + 缺 TASK_BASE: → BLOCKED exit 1", async () => {
@@ -751,4 +753,33 @@ test("runTask #187: CLI succeeds + no handoff → fallback handoff status=APPROV
   } finally {
     process.env.PATH = origPath;
   }
+});
+
+// T2: handoffStatus() 归一化 DONE/OK/COMPLETED → APPROVED（#187 fix 模式 re-review 残留）
+test("handoffStatus: DONE → APPROVED normalization", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-"));
+  const hp = path.join(dir, "h.json");
+  writeFileSync(hp, JSON.stringify({ status: "DONE" }));
+  assert.equal(handoffStatus(hp), "APPROVED");
+});
+
+test("handoffStatus: OK → APPROVED normalization", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-ok-"));
+  const hp = path.join(dir, "h.json");
+  writeFileSync(hp, JSON.stringify({ status: "OK" }));
+  assert.equal(handoffStatus(hp), "APPROVED");
+});
+
+test("handoffStatus: COMPLETED → APPROVED normalization", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-comp-"));
+  const hp = path.join(dir, "h.json");
+  writeFileSync(hp, JSON.stringify({ status: "COMPLETED" }));
+  assert.equal(handoffStatus(hp), "APPROVED");
+});
+
+test("handoffStatus: APPROVED unchanged", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-ap-"));
+  const hp = path.join(dir, "h.json");
+  writeFileSync(hp, JSON.stringify({ status: "APPROVED" }));
+  assert.equal(handoffStatus(hp), "APPROVED");
 });

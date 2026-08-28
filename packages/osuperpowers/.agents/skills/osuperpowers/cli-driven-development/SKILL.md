@@ -55,7 +55,7 @@ flowchart TD
 
 ### `dispatch-mode`
 
-- **Do**: Construct and execute `cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]` (`--scope` only valid for `--mode fix`; default `blocker-only`). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation — #181 core): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED); **never judge changes by stdout emptiness**. Brief generation uses `--task N` index (CDD-level unique index — #185 post-fix semantics). Scope defaults to `blocker-only`; `deferred-sweep` only when deferred-disposition decision is fix-now.
+- **Do**: Construct and execute `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]` (`--scope` only valid for `--mode fix`; default `blocker-only`). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation — #181 core): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED); **never judge changes by stdout emptiness**. Brief generation uses `--task N` index (CDD-level unique index — #185 post-fix semantics). Scope defaults to `blocker-only`; `deferred-sweep` only when deferred-disposition decision is fix-now.
 - **Read**: `CDD_HANDOFF_PATH` (`task-N-handoff.json`) + open-findings (fix mode) + brief-dependent plan sections.
 - **Exit**: construct CLI command and spawn → enter `handoff-status` (decision node, routes by handoff status).
 - **Fail**: nested CLI failure with missing handoff → runner.mjs has written BLOCKED handoff (stderr in blocker field); this node reads and routes to BLOCKED: engine-error.
@@ -90,14 +90,14 @@ flowchart TD
 
 ### `deferred-sweep-loop`
 
-- **Do**: Run deferred-sweep per task: for each task's `findings[].deferred=true` items, dispatch `cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep` (fix dual-channel: deferred-sweep); after sweep, task-review re-reviews (verify fixes); if re-review returns new blockers → enter fix loop (≤ 5 rounds); re-review APPROVED → ledger appends the task's `Task N: complete` line (internal bookkeeping, not a digraph edge) → continue next task's sweep. **Fix segment cleanup** (_handoff-write-fragment.md fix segment sweep branch): sweep-resolved findings are removed from `findings[]` (fully resolved, not retained as deferred).
+- **Do**: Run deferred-sweep per task: for each task's `findings[].deferred=true` items, dispatch `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep` (fix dual-channel: deferred-sweep); after sweep, task-review re-reviews (verify fixes); if re-review returns new blockers → enter fix loop (≤ 5 rounds); re-review APPROVED → ledger appends the task's `Task N: complete` line (internal bookkeeping, not a digraph edge) → continue next task's sweep. **Fix segment cleanup** (_handoff-write-fragment.md fix segment sweep branch): sweep-resolved findings are removed from `findings[]` (fully resolved, not retained as deferred).
 - **Read**: each task's handoff + fix mode returned handoff updates.
 - **Exit**: all deferred-sweep tasks complete (re-review APPROVED) → `branch-review`.
 - **Fail**: task sweep hits fix-loop-exhausted → BLOCKED: fix-loop-exhausted.
 
 ### `branch-review`
 
-- **Do**: `cdd-review.mjs --harness <name> --template branch-review --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>` (BASE read from artifact, **removes `origin/develop` hardcode**). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode). **Persist diff + report to workspace** (#181 discipline): write `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md` (content from cdd-review output + findings extraction).
+- **Do**: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template branch-review --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>` (BASE read from artifact, **removes `origin/develop` hardcode**). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode). **Persist diff + report to workspace** (#181 discipline): write `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md` (content from cdd-review output + findings extraction).
 - **Read**: `base-branch.json` (for base name) + branch HEAD + plan path + cdd-review output.
 - **Exit**: no blockers → `handoff-finishing`; blockers present → `branch-fix-loop`; only deferred → `handoff-finishing` (deferred items do not block finishing).
 - **Fail**: cdd-review fails with no handoff → BLOCKED: engine-error.

@@ -43,8 +43,8 @@
 **典型 per-task CLI 序列（thin orchestrator）：**
 
 ```bash
-cdd-task.mjs --harness <name> --task N --mode implement
-cdd-task.mjs --harness <name> --task N --mode task-review
+node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement
+node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode task-review
 ```
 
 Orchestrator / plan 脚本在每次 CLI 调用前设置 `CDD_WORKSPACE` 与路径环境变量；CLI **不会**读取完整 plan 文件。
@@ -140,7 +140,7 @@ orchestrator 的 PreToolUse gate（Node 核心 `packages/osuperpowers/bin/gate/c
 **Shell contract（shell 契约）：**
 
 - 每个 phase 都允许只读 git 诊断：`git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch`（只读 flag 仅 `-a|-r|-v|--show-current`）/ `git remote`（仅只读 flag）/ `git ls-files` / `git diff-tree`。可接受形式：`git <verb> …`、`git -C <path> <verb> …`、`git --git-dir=<path> <verb> …`。其他任何情况 —— 复合命令（`` && | ; > < $( ` ``）、`git -C <path> -c k=v <verb>`、未知 flag、或 verb token 或 branch/remote 参数中带引号 —— 动词提取失败 → **deny**（fail-closed）。
-- Repo 变更**只**经 H6 implement shell（`cdd-task.mjs --harness <name> --task N --mode implement`）或对已绑定 workspace 的 Write 进行 —— 绝不经 Bash（heredoc 会被拒绝）。
+- Repo 变更**只**经 H6 implement shell（`node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement`）或对已绑定 workspace 的 Write 进行 —— 绝不经 Bash（heredoc 会被拒绝）。
 - 非 git 的只读命令（`ls`、`echo`、…）仍被有意拒绝（精简只读集合的决策；见 spec §Non-goals）。
 
 **Anti-hijack（防劫持，stale workspace）：** task brief 仅在其 `TASK_BASE` 是真实 git 对象时才激活 —— `git -C <repo> cat-file -e <sha>`（与 CWD 无关）。Stub SHA（`TASK_BASE: abc`）绝不会激活 workspace。当 session 已绑定（`pending.workspace`）时，绑定的 workspace 优先，gate 绝不扫描无关的 workspace。

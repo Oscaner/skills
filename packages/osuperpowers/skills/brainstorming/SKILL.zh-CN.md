@@ -92,7 +92,7 @@ flowchart TD
 
 ### `spec-review`
 
-- **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI），每 pass 派发独立 `cdd-review` CLI 调用：`cdd-review --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。遵循 [docs-review.md](./docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `commit-spec`。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
+- **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。遵循 [docs-review.md](./docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `commit-spec`。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
 - **Read**: spec 文档 + [docs-review.md](./docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ 跳到 `commit-spec`
 - **Fail**: blocker=0 后重跑 review → 违反 I5。为新 warn/nit 发起新 cdd-review → 违反 I5

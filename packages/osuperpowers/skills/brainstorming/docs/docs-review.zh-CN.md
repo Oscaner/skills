@@ -1,7 +1,7 @@
 # Docs Review
 
 > **范围：** 仅适用于 3-pass AI 编排文档评审（spec-review / plan-review）。
-> task-review 使用 `cli-driven-development/SKILL.md` 中的 Fix Loop。branch-review 使用 `cli-driven-development` + `cdd-review.mjs`（--template branch-review）。
+> task-review 使用 `cli-driven-development/SKILL.md` 中的 Fix Loop。branch-review 使用 `cli-driven-development` + `{pluginRoot}/bin/engine/cdd-review.mjs`（--template branch-review）。
 
 跨切面参考：多 pass 评审的派发纪律（D1/D2/D3）。被 brainstorming / writing-plans 的评审 pass 规则引用。
 
@@ -11,7 +11,7 @@
 
 第 1 pass 独立首先运行。零发现 + 显式扫描检查清单 → 跳过后续 pass；否则先修复，然后并发运行后续 pass。
 
-**CLI 评审：** 每个 pass 是独立的 `cdd-review` 调用（无状态的全新嵌套 session）。
+**CLI 评审：** 每个 pass 是独立的 `{pluginRoot}/bin/engine/cdd-review.mjs` 调用（无状态的全新嵌套 session）。
 
 ### Rule: D2 Delta Review
 
@@ -56,7 +56,7 @@
 
 **范围：** 仅限 spec-review 和 plan-review。task-review 使用 `$CDD_HANDOFF_PATH`（不变）。branch-review：不在本规则范围内。
 
-路径约定（由 P2 引擎执行 — `cdd-review.mjs --handoff PATH`）：
+路径约定（由 P2 引擎执行 — `node {pluginRoot}/bin/engine/cdd-review.mjs --handoff PATH`）：
   - spec-review：`<cdd-workspace>/spec-review-handoff.json`
   - plan-review：`<cdd-workspace>/plan-review-handoff.json`
 

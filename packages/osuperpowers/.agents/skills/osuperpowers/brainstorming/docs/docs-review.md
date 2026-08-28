@@ -1,7 +1,7 @@
 # Docs Review
 
 > **Scope:** Applies to 3-pass AI-orchestrated doc reviews (spec-review / plan-review) only.
-> Task-review uses Fix Loop in `cli-driven-development/SKILL.md`. Branch-review uses `cli-driven-development` + `cdd-review.mjs` (--template branch-review).
+> Task-review uses Fix Loop in `cli-driven-development/SKILL.md`. Branch-review uses `cli-driven-development` + `{pluginRoot}/bin/engine/cdd-review.mjs` (--template branch-review).
 
 Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). Cited by review-pass rules in brainstorming / writing-plans.
 
@@ -11,7 +11,7 @@ Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). 
 
 Pass 1 runs independently first. Zero findings + explicit scan checklist → subsequent passes are skipped; otherwise, fix first, then run subsequent passes concurrently.
 
-**CLI review:** each pass is an independent `cdd-review` invocation (stateless fresh nested session).
+**CLI review:** each pass is an independent `{pluginRoot}/bin/engine/cdd-review.mjs` invocation (stateless fresh nested session).
 
 ### Rule: D2 Delta Review
 
@@ -62,7 +62,7 @@ When presenting warn/nit: read from the already-captured output of the current
 **Scope:** spec-review and plan-review only. Task-review uses $CDD_HANDOFF_PATH
 (unchanged). Branch-review: out of scope for this rule.
 
-Path convention (enforced by P2 engine — `cdd-review.mjs --handoff PATH`):
+Path convention (enforced by P2 engine — `node {pluginRoot}/bin/engine/cdd-review.mjs --handoff PATH`):
   - spec-review: `<cdd-workspace>/spec-review-handoff.json`
   - plan-review: `<cdd-workspace>/plan-review-handoff.json`
 

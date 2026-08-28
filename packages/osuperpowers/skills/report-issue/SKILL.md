@@ -72,7 +72,7 @@ flowchart TD
 
 ### file
 
-- **Do**: Run `gh issue create` with labels computed per the #136 component classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
+- **Do**: Run `gh issue create --repo Oscaner/skills` with labels computed per the #136 component classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
 - **Read**: classified label set; `## Issue Body Templates` prose; finding evidence
 - **Exit**: filing complete → `report`
 - **Fail**: `gh issue create` fails → fail-open (report stderr, keep finding for manual retry)
@@ -118,7 +118,7 @@ Choose the template by session language (detect from the user's most recent mess
 
 ## Impact
 
-<!-- what this blocked or degraded — token cost, extra rounds, incorrect state -->
+<!-- what this blocked or degraded -- token cost, extra rounds, incorrect state -->
 
 ## Suggested fix
 

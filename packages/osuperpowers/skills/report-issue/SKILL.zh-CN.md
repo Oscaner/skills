@@ -72,7 +72,7 @@ flowchart TD
 
 ### file
 
-- **Do**: 按 **#136 组件分类 label** 调 `gh issue create`（`gh issue create --label "<type>,dogfood,<component>[,cdd]"`）；命中走 `gh issue comment`。body 用 `## Issue Body Templates` prose（按会话语言选 EN/CN × bug/enhancement）。关键字示例用当前工具名（如 `cdd-task.mjs`），不用已删除旧工具名。
+- **Do**: 按 **#136 组件分类 label** 调 `gh issue create`（`gh issue create --repo Oscaner/skills --label "<type>,dogfood,<component>[,cdd]"`）；命中走 `gh issue comment --repo Oscaner/skills`。body 用 `## Issue Body Templates` prose（按会话语言选 EN/CN × bug/enhancement）。关键字示例用当前工具名（如 `cdd-task.mjs`），不用已删除旧工具名。
 - **Read**: 分类后的 label 集；`## Issue Body Templates` prose；finding evidence
 - **Exit**: filing 完成 → `report`
 - **Fail**: `gh issue create` 失败 → fail-open（报告 stderr，保留供手动重试）
@@ -118,7 +118,7 @@ flowchart TD
 
 ## Impact
 
-<!-- what this blocked or degraded — token cost, extra rounds, incorrect state -->
+<!-- what this blocked or degraded -- token cost, extra rounds, incorrect state -->
 
 ## Suggested fix
 

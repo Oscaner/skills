@@ -22,9 +22,9 @@
 - `preToolUse` → `packages/osuperpowers-router/bin/cursor-enforce.mjs` —— 若存在 pending state，则拦截非 override 工具调用（例如 Read 上游 SKILL.md）并注入强制性的 override 消息
 - Fail-open：若任何内容无法解析或 pending 文件过期（TTL 300s），hook 放行该操作
 
-### 3. 项目级 self-check
+### 3. 路由强制（hook-only）
 
-`init router`（来自 osuperpowers）将一份 override trigger 表写入项目的 `CLAUDE.md`（Claude Code）或 `.cursor/rules/osuperpowers-router.mdc`（Cursor）。这是主要强制机制——它在任何 skill 正文载入上下文之前触发。
+> **P9 更新**：原先由 `init router` 写入的项目级 CLAUDE.md / `.cursor/rules/` self-check 表已删除。所有路由强制均为 hook 驱动，无需项目初始化步骤。Cursor 的 slash 触发由 `cursor-detect.mjs` 的 `beforeSubmitPrompt` hook 直接拦截（与 Claude `UserPromptExpansion` 同语义）。
 
 ## Trigger mapping table
 

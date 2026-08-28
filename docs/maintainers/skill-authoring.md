@@ -106,10 +106,10 @@ BLOCKED 节点正文必须包含：
 
 ## 7. init legacy 内容豁免
 
-- `skills/init/` 的 harness/spor 两分支内嵌正文保持原样
-- **豁免范围**：分支内的 prose 内容（payload 模板文本）
+- `skills/init/` 的 harness 分支内嵌正文保持原样（`router.md` 已在 P9 删除）
+- **豁免范围**：harness 分支内的 prose 内容（payload 模板文本）
 - **不豁免**：分支结构、外层分派逻辑
-- **豁免理由**：init 的 payload 是嵌入在 SKILL.md 中的模板文本，非控制流——强制节点化会破坏 payload 的可读性
+- **豁免理由**：init 的 payload 是嵌入在 `harness.md` 中的模板文本，非控制流——强制节点化会破坏 payload 的可读性
 
 ## 8. 图正文一致性校验清单
 

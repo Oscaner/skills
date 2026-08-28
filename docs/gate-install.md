@@ -273,5 +273,6 @@ Config written ≠ trusted. After install, complete the harness's trust ritual:
 - It never copies a full tree or uses a `~/.oscaner/` convention — hooks and adapters
   ship inside the package and are referenced by path.
 - It is **not** the trigger router. The superpowers trigger router
-  (`osuperpowers-router`) is a separate plugin; `init router` initializes its
-  self-check table. `init harness` installs only the osuperpowers CDD gate.
+  (`osuperpowers-router`) is a separate plugin; routing is hook-driven
+  (manifest-derived `UserPromptExpansion` on Claude, `cursor-detect` on Cursor).
+  `init harness` installs only the osuperpowers CDD gate.

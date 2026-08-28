@@ -20,17 +20,18 @@
 
 [osuperpowers-router](../../packages/osuperpowers-router/) 插件是 **trigger router** —— 不随包发布任何 skill 正文。override skill 位于 [osuperpowers](../../packages/osuperpowers/skills/)。每个 `osuperpowers` orchestrator skill 遵循固定形态：
 
-- Frontmatter 的 `description` 写明它读取的上游（「Read 上游 superpowers:<target> 作为基线」）以及新增的个人规则。上游入口点映射到 router manifest（`overrides.manifest.json`）中的 target —— 这是 emit 生成器派生 hooks 与 self-check 表的单一真源。
+- Frontmatter 的 `description` 写明它读取的上游（「Read 上游 superpowers:<target> 作为基线」）以及新增的个人规则。上游入口点映射到 router manifest（`overrides.manifest.json`）中的 target —— 这是 emit 生成器派生 hooks 的单一真源。
 - 正文以 `## Rules` 开头，语义化 `### Rule: <Name>` 标题（无编号；`#rule-<kebab>` 锚点）。每条规则取三种形态之一：(a) **replaces** 上游行为（self-review --> fresh-subagent 通过）；(b) **delegates** 到 `mattpocock-skills:*` skill（grilling、tdd、to-tickets）；(c) **partial-delegate** —— 原样包裹上游 skill 的 Step 0-K，本地覆盖 Step K+1（writing-plans 的 Rule: Tickets Publish Redirect 是典范：Step 1-4 逐字委派 `/to-tickets`，Step 5「publish」重定向到单个本地 `docs/superpowers/tickets/<date>-<feature>-tickets.md`，保留上游单文件形态）。partial-delegate 规则须在一开始声明哪些 step 被委派、哪些被覆盖 —— 这一拆分防止 Step K+1 静默回退到上游默认值。
 - 当一条规则有多个内部执行机制时（例如「定位 delegate」「重定向 publish target」「构造用户确认 quiz」），把它拆为同一伞形标题下的子规则 `Rule Na` / `Rule Nb` / `Rule Nc`。当机制共享触发上下文但攻击不同失败模式时，子规则比同级 top-level 规则更轻。
 - 正文以 `## Red Flags` 收尾（应当让你停下来的念头）。这是承重结构 —— orchestrator 设计用来捕捉漂移，删除此节等于废掉设计本意。
 - 新规则一律放进 `osuperpowers` skill 内部作为 `### Rule: <Name>`，绝不要放进用户全局 `~/.claude/CLAUDE.md`。
 
-路由强制由**三种机制**协同，而非单一：
+路由强制由**两种机制**协同：
 
-1. Router manifest + 生成的 hooks —— 每个上游入口点在 `overrides.manifest.json`（单一 SOT）中枚举；emit 生成器从中派生 hook matchers 与 self-check 表。
-2. **Plugin-bundled hooks**，位于 `packages/osuperpowers-router/hooks/hooks.json` —— `UserPromptExpansion`（matcher `^superpowers:`）拦截 slash 命令。handler 在 `packages/osuperpowers-router/bin/prompt-expansion.mjs`，注入 `additionalContext`，将 target 强化为首个工具调用。
-3. **项目级 CLAUDE.md self-check** —— 由 `init router` 写入。每个项目运行一次 `init router`（Claude Code：`/init router`）将 override trigger 表前置到项目 CLAUDE.md。这是主要强制机制；它先于任何 skill 正文载入上下文触发。
+1. **Manifest 派生的 hook matchers** —— 每个上游入口点在 `overrides.manifest.json`（单一 SOT）中枚举；emit 生成器从中派生 hook matchers。Claude Code 上：`hooks/hooks.json` 的 `UserPromptExpansion` matchers 拦截 slash 命令并注入 `additionalContext`。Cursor 上：`hooks-cursor.json` 的 `beforeSubmitPrompt` 检测 SKILL attach / bare slash → 写 pending；`preToolUse` 守卫首工具调用。
+2. **Plugin-bundled hooks** 随 `packages/osuperpowers-router/hooks/` 发布，仅当插件安装时激活。harness → 路径映射声明于 `package.json#oscaner-plugin.hooks`（SOT）。
+
+> **注意**：原先由已删除的 `init router` 写入的项目级 CLAUDE.md / `.cursor/rules/` self-check 表不再使用。所有路由强制均为 hook 驱动，无需项目初始化步骤。
 
 ### Hooks matrix
 
@@ -104,7 +105,7 @@ git submodule update --init
 2. 向 [packages/osuperpowers-router/overrides.manifest.json](../../packages/osuperpowers-router/overrides.manifest.json) 添加 target 行，将上游 trigger 映射到 `osuperpowers:<name>`（source `../osuperpowers/skills/<name>`），然后运行 `pnpm run emit`（通过统一的 `scripts/emit.mjs` 重新生成 `packages/osuperpowers-router/bin/prompt-expansion.mjs`、cursor hooks、以及 `packages/osuperpowers-router/build/generated/*`）。**不要**手编 hook 脚本。
 3. 在 [README.md](../../README.md) 的 router target 表中加一行以提升可发现性。
 
-缺 skill 目录或 manifest 行 --> skill 对 Claude Code 不可见或不会自动触发。跳过 `pnpm run emit` --> hook 与 self-check 漂移。
+缺 skill 目录或 manifest 行 --> skill 对 Claude Code 不可见或不会自动触发。跳过 `pnpm run emit` --> hook 漂移。
 
 **新增 first-party 插件** —— marketplace 是 **package-as-source**，因此接线是自动的：
 

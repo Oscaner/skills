@@ -43,8 +43,8 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 **Typical per-task CLI sequence (thin orchestrator):**
 
 ```bash
-cdd-task.mjs --harness <name> --task N --mode implement
-cdd-task.mjs --harness <name> --task N --mode task-review
+node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement
+node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode task-review
 ```
 
 Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CLI invocation; CLI **does not** Read the full plan file.
@@ -140,7 +140,7 @@ The gate is fail-open until an active task resolves (spec security property / da
 **Shell contract:**
 
 - Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> ...`, `git -C <path> <verb> ...`, `git --git-dir=<path> <verb> ...`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
-- Repo changes flow **only** through the H6 implement shell (`cdd-task.mjs --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
+- Repo changes flow **only** through the H6 implement shell (`node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
 - Non-git read-only commands (`ls`, `echo`, ...) are intentionally still denied (slim read-only set decision; see spec section Non-goals).
 
 **Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.

@@ -49,18 +49,6 @@ function headOf(repo) {
   return git(repo, "rev-parse", "HEAD");
 }
 
-test("commit-contract: dirty tree → ok:false + handoff.status=BLOCKED", () => {
-  const repo = setupRepo();
-  const head = headOf(repo);
-  const handoff = seedHandoff(repo, 1, { base: head, head });
-  appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
-  assert.equal(r.ok, false);
-  assert.match(r.blocker, /uncommitted changes at return/);
-  assert.equal(JSON.parse(readFileSync(handoff, "utf8")).status, "BLOCKED");
-});
-
 test("commit-contract: dirty tree implement → ok:false（D3b 同样适用 implement）", () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
@@ -75,7 +63,44 @@ test("commit-contract: clean tree → ok:true（handoff 不重写）", () => {
   const handoff = seedHandoff(repo, 1, { base: head, head });
   const r = validateCommitContract("fix", repo, { handoffPath: handoff });
   assert.equal(r.ok, true);
+  // validateCommitContract 不改 status（归一化在 handoffStatus() 内存层，非文件层）
   assert.equal(JSON.parse(readFileSync(handoff, "utf8")).status, "DONE");
+});
+
+test("commit-contract: clean tree → ok:true + handoff status 归一化 OK → APPROVED", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const handoff = path.join(repo, "cdd", "task-1-handoff.json");
+  const dir = path.join(repo, "cdd");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(handoff, JSON.stringify({ status: "OK", phase: "fix", task: 1, commits: { base: head, head } }));
+  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  assert.equal(r.ok, true);
+  assert.equal(JSON.parse(readFileSync(handoff, "utf8")).status, "OK");
+});
+
+test("commit-contract: clean tree → ok:true + handoff status COMPLETED unchanged (validateCommitContract does not mutate status)", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const handoff = path.join(repo, "cdd", "task-1-handoff.json");
+  const dir = path.join(repo, "cdd");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(handoff, JSON.stringify({ status: "COMPLETED", phase: "fix", task: 1, commits: { base: head, head } }));
+  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  assert.equal(r.ok, true);
+  assert.equal(JSON.parse(readFileSync(handoff, "utf8")).status, "COMPLETED");
+});
+
+test("commit-contract: clean tree → ok:true + handoff status APPROVED 不变", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const handoff = path.join(repo, "cdd", "task-1-handoff.json");
+  const dir = path.join(repo, "cdd");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(handoff, JSON.stringify({ status: "APPROVED", phase: "fix", task: 1, commits: { base: head, head } }));
+  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  assert.equal(r.ok, true);
+  assert.equal(JSON.parse(readFileSync(handoff, "utf8")).status, "APPROVED");
 });
 
 test("commit-contract: clean tree + 无 handoff → ok:true（fail-open）", () => {

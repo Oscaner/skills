@@ -61,6 +61,19 @@ export function rewriteHandoffBlocked(handoffPath, reason) {
 
 // ---- severity 契约 ----
 
+// handoff status 归一化（T2: runner.mjs validator 归一化）：
+// DONE/OK/COMPLETED → APPROVED；其余不变（UNKNOWN/MISSING/CHANGES_REQUESTED/BLOCKED 保持原行为）。
+export function normalizeHandoffStatus(status) {
+  switch (status) {
+    case "DONE":
+    case "OK":
+    case "COMPLETED":
+      return "APPROVED";
+    default:
+      return status;
+  }
+}
+
 // severity → 决策。契约钉死（spec D1/D4/D5a）：
 //   "blocker" → "CHANGES_REQUESTED"；"warn"|"nit" → "deferred"（APPROVED 且 findings deferred）；
 //   "unverifiable" / "needs_context" → "STOP"（BLOCKED）。未知 → 抛错（契约违规）。

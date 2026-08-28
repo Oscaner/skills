@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { appendLedger } from "./ledger.mjs";
-import { validateCommitContract, writeHandoff, gitToplevel } from "./contract.mjs";
+import { validateCommitContract, writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 import { generateBrief, validateBrief } from "./brief.mjs";
@@ -660,7 +660,7 @@ function ledgerComplete(n, ledgerPath) {
 export function handoffStatus(handoffPath) {
   if (!handoffPath || !existsSync(handoffPath)) return "MISSING";
   try {
-    return JSON.parse(readFileSync(handoffPath, "utf8")).status ?? "UNKNOWN";
+    return normalizeHandoffStatus(JSON.parse(readFileSync(handoffPath, "utf8")).status ?? "UNKNOWN");
   } catch {
     return "UNKNOWN";
   }

@@ -20,11 +20,13 @@ flowchart TD
   C -->|fix| D
   D -->|APPROVED| E{task-complete?}
   D -->|CHANGES_REQUESTED| F{fix-rounds >= 5?}
-  D -->|BLOCKED| Z3((BLOCKED: engine-error))
+  D -->|BLOCKED| R{engine-recovery}
   E -->|more tasks remain| C
   E -->|all complete| G{any-deferred?}
   F -->|no| C
   F -->|yes| Z4((BLOCKED: fix-loop-exhausted))
+  R -->|yes, fixable & retry<2| C
+  R -->|no| Z3((BLOCKED: engine-error))
   G -->|no| K[branch-review]
   G -->|yes| H[deferred-disposition]
   H -->|fix-now| I[deferred-sweep-loop]
@@ -55,7 +57,7 @@ flowchart TD
 
 ### `dispatch-mode`
 
-- **Do**: 构造并执行 `cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]`（`--scope` 仅 `--mode fix` 时有效；默认 `blocker-only`）。**Background execution**（程序级强化）：必须以 background 模式运行 CLI（harness 支持时用 `run_in_background`，不支持时超时+轮询）。返回后**必须读 handoff.json 判断状态**（Orchestrator handoff 检查义务——#181 核心）：解析 `status` 字段（APPROVED / CHANGES_REQUESTED / BLOCKED），**不凭 stdout 是否为空判断有无变更**。brief 生成使用 `--task N` 索引（CDD 级唯一索引——#185 fix 后语义）。scope 默认 `blocker-only`；deferred-sweep 仅当 deferred-disposition 决策为 fix-now 时启用。
+- **Do**: 构造并执行 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]`（`--scope` 仅 `--mode fix` 时有效；默认 `blocker-only`）。**Background execution**（程序级强化）：必须以 background 模式运行 CLI（harness 支持时用 `run_in_background`，不支持时超时+轮询）。返回后**必须读 handoff.json 判断状态**（Orchestrator handoff 检查义务——#181 核心）：解析 `status` 字段（APPROVED / CHANGES_REQUESTED / BLOCKED），**不凭 stdout 是否为空判断有无变更**。brief 生成使用 `--task N` 索引（CDD 级唯一索引——#185 fix 后语义）。scope 默认 `blocker-only`；deferred-sweep 仅当 deferred-disposition 决策为 fix-now 时启用。
 - **Read**: `CDD_HANDOFF_PATH`（`task-N-handoff.json`）+ open-findings（fix mode 时）+ brief 生成依赖的 plan 段落。
 - **Exit**: 构造 CLI 命令并 spawn → 进入 `handoff-status`（决策节点，按 handoff status 路由）。
 - **Fail**: 嵌套 CLI 失败且 handoff 缺失 → runner.mjs 已写 BLOCKED handoff（含 stderr 进 blocker），本节点读取并路由到 BLOCKED: engine-error。
@@ -64,8 +66,17 @@ flowchart TD
 
 - **Do**: 读 `handoff.json` 的 `status` 字段，路由到对应出口。
 - **Read**: `handoff.json`。
-- **Exit**: `APPROVED` → `task-complete?`；`CHANGES_REQUESTED` → dispatch-mode（fix mode，blocker-only scope；dispatch-mode 内部维护 fix-round 计数器，≥ 5 时路由到 BLOCKED: fix-loop-exhausted）；`BLOCKED` → BLOCKED: engine-error；`NEEDS_CONTEXT` → **implicit fail-open**（handoff 需要更多上下文时，orchestrator 手工调查后以相同 mode 重派 dispatch-mode；不在 digraph 中作为边）。
+- **Exit**: `APPROVED` → `task-complete?`；`CHANGES_REQUESTED` → dispatch-mode（fix mode，blocker-only scope；dispatch-mode 内部维护 fix-round 计数器，≥ 5 时路由到 BLOCKED: fix-loop-exhausted）；`BLOCKED` → `engine-recovery`（决策节点——读 blocker 判断可修复性；可修复 + retry<2 → 重 dispatch 同 mode；不可修复/retry≥2 → BLOCKED: engine-error；retry 计数器通过 `progress.md` `engine-recovery-count` 管理，不走 `handoff.json.retryCount`——见下方 §D 偏差声明）；`NEEDS_CONTEXT` → **implicit fail-open**（orchestrator 手工调查后以相同 mode 重派 dispatch-mode；不在 digraph 中作为边）。
 - **Fail**: `status` 字段缺失或非法（非 APPROVED/CHANGES_REQUESTED/BLOCKED 之一；NEEDS_CONTEXT 为已知但隐式处理的状态，由 Exit 字段的 fail-open 路径处理，不走此 Fail 分支）。
+
+### `engine-recovery`（决策节点）
+
+- **Do**: 读当前 `handoff.json` 的 blocker 字段并判断可修复性：① 若 blocker 描述可修复条件（如 dirty tree → 先 commit，缺失 artifact → 重新生成）**且** `progress.md` `engine-recovery-count` < 2 → 递增 recovery 计数 → 以相同 mode 重派 `dispatch-mode`；② 若不可修复或 `engine-recovery-count` ≥ 2 → 终态 `BLOCKED: engine-error`。
+- **Read**: `handoff.json`（blocker 字段）+ `progress.md`（engine-recovery-count；每次 recovery 尝试递增）。
+- **Exit**: 可修复 + retry<2 → `dispatch-mode`（同 mode，同 task）；不可修复或 retry≥2 → `BLOCKED: engine-error`。
+- **Fail**: blocker 字段为空或不可解析 → 终态 `BLOCKED: engine-error`。
+
+> **§D 偏差声明（deliberate spec §2.3 step 4 departure）**：Spec §2.3 规定复用 `handoff.json.retryCount`（由 engine 层 `runner.mjs` 管理）。本 plan 改为 `progress.md` `engine-recovery-count`（由 orchestrator 层 skill 管理）。理由：P10 scope 限定「不改控制流」（design §1 范围边界）；`runner.mjs` 当前无 retry 基础设施，retry 是 skill digraph 的 `engine-recovery` 决策节点逻辑（orchestrator 层），非 engine 循环——由 orchestrator 跨 re-dispatch 保留计数，不改 `runner.mjs`。
 
 ### `task-complete?`（决策节点）
 
@@ -90,14 +101,14 @@ flowchart TD
 
 ### `deferred-sweep-loop`
 
-- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 完成后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Fix segment 清理**（_handoff-write-fragment.md fix segment 补 sweep 清理分支）：sweep 完成的 finding 从 `findings[]` 移除（非 deferred 化，而是彻底解决）。
+- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 完成后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Controller 约束**：deferred findings 修复必须走本节点 `--mode fix` dispatch；禁止在引擎 CLI 路径之外手写修复（见 I7）。**Fix segment 清理**（_handoff-write-fragment.md fix segment 补 sweep 清理分支）：sweep 完成的 finding 从 `findings[]` 移除（非 deferred 化，而是彻底解决）。
 - **Read**: 每 task 的 handoff + fix 模式返回的 handoff 更新。
 - **Exit**: 所有 deferred-sweep task 完成（re-review APPROVED）→ `branch-review`。
 - **Fail**: 某 task sweep 陷入 fix-loop-exhausted → BLOCKED: fix-loop-exhausted。
 
 ### `branch-review`
 
-- **Do**: `cdd-review.mjs --harness <name> --template branch-review --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>`（BASE 从 artifact 读，**移除 `origin/develop` 硬编码**）。**Background execution**（程序级强化）。返回后**读 handoff.json 判断状态**（同 dispatch-mode 节点纪律）。**持久化 diff + report 到 workspace**（#181 纪律）：写 `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md`（内容从 cdd-review 输出 + findings 提取）。
+- **Do**: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template branch-review --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>`（BASE 从 artifact 读，**移除 `origin/develop` 硬编码**）。**Background execution**（程序级强化）。返回后**读 handoff.json 判断状态**（同 dispatch-mode 节点纪律）。**持久化 diff + report 到 workspace**（#181 纪律）：写 `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md`（内容从 cdd-review 输出 + findings 提取）。
 - **Read**: `base-branch.json`（取 base 名）+ branch HEAD + plan 路径 + cdd-review 输出。
 - **Exit**: 无 blocker → `handoff-finishing`；有 blocker → `branch-fix-loop`；仅有 deferred → `handoff-finishing`（deferred 项不阻塞 finishing）。
 - **Fail**: cdd-review 失败且无 handoff → BLOCKED: engine-error。
@@ -125,6 +136,8 @@ flowchart TD
 | I3 | **No --resume / -c** — 所有嵌套 CLI 调用禁止携带历史 session 标志（`--resume` / `-c` 等），使用 one-shot print mode。 |
 | I4 | **Fix Dual-Channel Contract** — fix 模式两通道：`--scope blocker-only`（默认，fix.md 仅处理 non-deferred 项；deferred 项保留在 handoff `findings[]` 跨轮次不动，不进 fix loop）｜`--scope deferred-sweep`（用户决策后，处理 deferred 项）。`runner.mjs` 把 scope 映射为 `CDD_FINDINGS_SCOPE` env；`fix.md` 的 `{{FINDINGS_SCOPE}}` 占位符按 env 展开。 |
 | I5 | **Three-Mode Chain Completeness** — 每 task 必走 implement → task-review → （fix 如需）→ ledger 完整链路；不允许跳过 task-review 直接从 implement 到 ledger（#181 纪律）。 |
+| I6 | **No Controller Bypass** — 当引擎可用（cdd-task.mjs / cdd-review.mjs 可运行）时，orchestrator 禁止手写控制流绕过引擎处理。所有 task 执行、review、fix 派发必须走引擎 CLI 调用；禁止 orchestrator 层直接操控 handoff/ledger 状态来替代引擎处理。 |
+| I7 | **No Hand-Written Deferred Fix** — deferred findings 修复必须走 `--mode fix` dispatch（`deferred-disposition` fix-now → `deferred-sweep-loop`）；controller 禁止在引擎 CLI 路径之外手写 deferred findings 的修复。**降级路径**：当引擎完全不可用时（exit 3 / harness 缺失 / retry 计数命中 `engine-recovery` 硬上限 retry≥2），controller 可直接修复但**必须在 `progress.md` 记录降级原因**（severity + summary + reason）；engine 恢复后补 `--mode fix` re-review。 |
 
 ## Failure Modes
 
@@ -135,12 +148,13 @@ flowchart TD
 | `cli-select` BLOCKED | BLOCKED: no-harness | 无法获取 harness 名 | 由 cli-select 节点的 report-issue 路径处理 |
 | determine-base 用户拒绝确认 | BLOCKED: base-undecided | merge/PR 到错误 base 代价高 | 用户重跑 CDD 时重新询问 |
 | 嵌套 CLI 失败 + handoff 缺失 | BLOCKED: engine-error | 引擎 bug 信号 | `osuperpowers:report-issue` 上报，label `bug, dogfood, osuperpowers, cdd` |
-| handoff `status: BLOCKED` | BLOCKED: engine-error | runner.mjs 已捕获 blocker（dirty tree / CLI 失败） | 读 blocker 字段决策恢复（如先 commit 再重试） |
+| handoff `status: BLOCKED` | `engine-recovery` 决策 → 重 dispatch 或 BLOCKED: engine-error | runner.mjs 已捕获 blocker（dirty tree / CLI 失败） | engine-recovery 读 blocker：可修复 + retry<2 → 重 dispatch；否则终态 BLOCKED |
 | task 级 fix-loop ≥ 5 轮 | BLOCKED: fix-loop-exhausted | 避免 task 级无限循环 | 用户决策：手工修 / 重新 review scope / 放弃 |
 | handoff JSON 损坏或 status 字段非法 | BLOCKED: engine-error | 契约违规（runner self-validate 应已拦截） | report-issue 上报 |
 | deferred-disposition 累计 3 次呈现耗尽 | BLOCKED: menu-exhausted | 无法获取用户决策 | 用户重跑 CDD |
 | branch-fix-loop 多轮 blocker 不消 | **implicit fail-open** | 分支级 blocker 可能需手工调查（无硬性上限，建议 ≤ 3 轮；超出由用户决策） | 停手 + report，branch 保留，用户手动 finishing |
 | `osuperpowers:finishing` 接管失败 | **implicit fail-open** | finishing 自身问题 | branch 保留，用户手动 finishing |
+| controller bypass engine | **implicit fail-open**（降级） | 引擎完全不可用（exit 3 / harness 缺失 / retry≥2 硬上限）；controller 直接手写 deferred findings 修复 | 记录降级原因到 `progress.md`（severity + summary + reason）；engine 恢复后补 `--mode fix` re-review |
 
 **Fail-open vs BLOCKED 约定**：
 

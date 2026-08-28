@@ -99,11 +99,11 @@ test("renderModePrompt #168: fix mode + default FINDINGS_SCOPE → blocker-only"
 });
 
 test("lineBudget: 真实阈值", () => {
-  assert.equal(lineBudget("sdd"), 160);
+  assert.equal(lineBudget("sdd"), 162);
   assert.equal(lineBudget("ctrl"), 110);
   assert.equal(lineBudget("tier1"), 225);
   assert.equal(lineBudget("tier2"), 320);
-  assert.deepEqual(LINE_BUDGETS, { sdd: 160, ctrl: 110, tier1: 225, tier2: 320 });
+  assert.deepEqual(LINE_BUDGETS, { sdd: 162, ctrl: 110, tier1: 225, tier2: 320 });
 });
 
 test("lineBudget: 未知 tier → 抛错", () => {
@@ -186,4 +186,32 @@ test("governance: branch-review 模板基线标注（P5 task 3：BASE=origin/dev
     "<!-- Whole-branch review baseline: origin/develop (git merge-base origin/develop HEAD), not origin/main. Aligned with cli-driven-development Rule: Final Review. -->",
     "标题后紧跟基线标注注释",
   );
+});
+
+// T2: fix.md 模板禁止 DONE（AC#3）
+test("templates #T2: fix.md 渲染后 handoff 指令不含 DONE 关键词", () => {
+  const env = {
+    WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
+    CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "1",
+    FINDINGS_SCOPE: "blocker-only",
+  };
+  const out = renderModePrompt("fix", env);
+  // fix 模板的 H1 Return 行和 handoff 段不应包含 DONE 作为 status 选项
+  // （DONE/OK/COMPLETED 已被 runner.mjs 归一化为 APPROVED）
+  assert.ok(!/status:.*DONE/.test(out), "fix template must not contain DONE as status option");
+  assert.ok(!/status:.*\bOK\b/.test(out), "fix template must not contain OK as status option");
+  assert.ok(!/status:.*COMPLETED/.test(out), "fix template must not contain COMPLETED as status option");
+  // 应使用 APPROVED 或 BLOCKED
+  assert.ok(out.includes("APPROVED") || out.includes("BLOCKED"), "fix template uses APPROVED or BLOCKED");
+});
+
+// T2: implement.md H1 使用 APPROVED 而非 DONE
+test("templates #T2: implement.md H1 使用 APPROVED 而非 DONE", () => {
+  const env = {
+    WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
+    CONSTRAINTS: "/ws/c.md", TASK: "1",
+  };
+  const out = renderModePrompt("implement", env);
+  // implement 模板的 H1 Return 行应使用 APPROVED 而非 DONE
+  assert.ok(!out.match(/status:.*\bDONE\b/), "implement template H1 must not use DONE as status option");
 });

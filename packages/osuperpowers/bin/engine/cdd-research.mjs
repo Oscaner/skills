@@ -106,15 +106,21 @@ const cli = entry.cli;
 const cliArgs = [...entry.invoke.split(/\s+/).filter(Boolean), prompt];
 
 // timeout watchdog: kill child + exit 1
+let childProc = null;
 const timer = setTimeout(() => {
   process.stderr.write(`${NAME}: RESEARCH_TIMEOUT after ${RESEARCH_TIMEOUT}ms\n`);
+  if (childProc) childProc.kill("SIGTERM");
   process.exit(1);
 }, RESEARCH_TIMEOUT);
 timer.unref?.();
 
 let result;
 try {
-  result = await spawnCapture(cli, cliArgs, { cwd: process.cwd(), env: process.env });
+  result = await spawnCapture(cli, cliArgs, {
+    cwd: process.cwd(),
+    env: process.env,
+    onSpawn(proc) { childProc = proc; },
+  });
 } finally {
   clearTimeout(timer);
 }

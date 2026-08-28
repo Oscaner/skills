@@ -4,7 +4,8 @@
 import { spawn } from "node:child_process";
 
 // Raw spawn + capture stdout/stderr. exit code 0 → ok:true; otherwise ok:false.
-export function spawnCapture(command, args, { cwd, env }) {
+// opts.onSpawn(proc) — optional callback fired after spawn, before close/error.
+export function spawnCapture(command, args, { cwd, env, onSpawn }) {
   // Strip subagent model env vars to prevent leakage into nested CLI sessions.
   const cleanEnv = { ...env };
   delete cleanEnv.CLAUDE_CODE_SUBAGENT_MODEL;
@@ -12,6 +13,7 @@ export function spawnCapture(command, args, { cwd, env }) {
     const proc = spawn(command, args, { cwd, env: cleanEnv, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
+    if (onSpawn) onSpawn(proc);
     proc.stdout.on("data", (d) => {
       stdout += d;
     });

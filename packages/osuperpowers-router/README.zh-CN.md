@@ -12,11 +12,12 @@
 - `osuperpowers:cli-driven-development` — CDD 引擎 skill
 - `mattpocock-skills:tdd` — `/test-driven-development` 的实现委托
 
-三层机制确保路由不被跳过：
+两层机制确保路由不被跳过：
 
 1. **触发映射表** — 每个上游入口点在 `overrides.manifest.json` 中映射到目标（唯一事实来源）
-2. **插件内置 Hooks** — Claude Code：`UserPromptExpansion` 匹配器；Cursor：`beforeSubmitPrompt` 检测 + `preToolUse` 强制执行
-3. **项目规则** — `init router` 将自检规则写入项目（`CLAUDE.md` 或 `.cursor/rules/osuperpowers-router.mdc`）
+2. **插件内置 Hooks** — Claude Code：`UserPromptExpansion` 匹配器；Cursor：`beforeSubmitPrompt` 检测（attach + 裸/行内 slash）+ `preToolUse` 强制执行
+
+无需项目级 `init` 步骤 — slash 拦截完全由插件内置 hooks 处理。
 
 ## 路由目标
 
@@ -40,18 +41,15 @@ npm install @oscaner-skills/osuperpowers-router
 ## 快速开始
 
 1. 从 marketplace 安装 `superpowers`、`osuperpowers-router`、`osuperpowers` 和 `mattpocock-skills`。
-2. 在每个项目中运行 **`init router`**（插件升级后需重新运行）。
-3. 调用上游 superpowers skill — 路由自动生效。
+2. 调用上游 superpowers skill — 路由自动生效（无需项目级 `init` 步骤；slash 拦截由 hooks 驱动）。
 
 ### Claude Code
 
 - 工作流：`/superpowers:brainstorming`、`/superpowers:writing-plans` ...
-- 初始化：`/init router` 将自检块写入项目 `CLAUDE.md`。
 
 ### Cursor
 
-- 工作流：裸上游斜杠命令（`/brainstorming`）或基于规则的拦截。
-- 初始化：`init router` 写入 `.cursor/rules/osuperpowers-router.mdc`。
+- 工作流：裸上游斜杠命令（`/brainstorming`）或行内 ` /<slug>` — 由 `cursor-detect.mjs`（`beforeSubmitPrompt` hook）拦截。
 - Hooks 随插件一起安装；**不要**在项目中添加 `.cursor/hooks.json`。
 
 ## 许可证

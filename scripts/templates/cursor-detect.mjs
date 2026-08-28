@@ -13,10 +13,19 @@ const PENDING_ROOT = join(
 
 const TARGETS = {{TARGETS_JSON}};
 
+// Slash-intercept targets: bare `^/<slug>$` / inline ` /<slug>` map to an
+// override name (mirrors Claude UserPromptExpansion — same SOT upstream_slug).
+const SLASH_TARGETS = {{SLASH_TARGETS_JSON}};
+
 function compilePattern(pat) {
   // Python `(?i)` inline flag → JS `i` RegExp flag (strip the prefix).
   const flags = pat.startsWith("(?i)") ? "i" : "";
   return new RegExp(pat.replace(/^\(\?i\)/, ""), flags);
+}
+
+function slashPattern(slug) {
+  const s = slug.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)/(?:superpowers:)?${s}(?:\\s|$)`, "i");
 }
 
 function sessionKey(data) {
@@ -62,6 +71,25 @@ outer: for (const t of TARGETS) {
         break outer;
       }
     }
+  }
+}
+
+// Slash intercept: bare `^/<slug>$` or inline ` /<slug>` (optionally
+// `/superpowers:<slug>`). Writes the same pending marker with trigger="slash".
+const promptText = data.prompt ?? "";
+for (const s of SLASH_TARGETS) {
+  if (slashPattern(s.slug).test(promptText)) {
+    mkdirSync(PENDING_ROOT, { recursive: true });
+    writeFileSync(
+      join(PENDING_ROOT, `${key}.json`),
+      JSON.stringify({
+        override: s.name,
+        skill_suffix: s.suffix,
+        trigger: "slash",
+        detected_at: Math.floor(Date.now() / 1000),
+      }),
+    );
+    break;
   }
 }
 

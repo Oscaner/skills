@@ -227,12 +227,23 @@ function cursorDetectTargetRows(targets) {
   }));
 }
 
-/** `bin/cursor-detect.mjs` — attach-detection hook body. */
+/** Slash-intercept rows: upstream_slug → override name (single SOT = manifest). */
+function cursorDetectSlashRows(targets) {
+  return targets.map((t) => ({
+    slug: t.upstream_slug,
+    name: t.name,
+    suffix: targetSkillSuffix(t),
+  }));
+}
+
+/** `bin/cursor-detect.mjs` — attach + slash-detection hook body. */
 export function cursorDetectScript(targets, templateText) {
-  return templateText.replace(
-    "{{TARGETS_JSON}}",
-    JSON.stringify(cursorDetectTargetRows(targets)),
-  );
+  return templateText
+    .replace("{{TARGETS_JSON}}", JSON.stringify(cursorDetectTargetRows(targets)))
+    .replace(
+      "{{SLASH_TARGETS_JSON}}",
+      JSON.stringify(cursorDetectSlashRows(targets)),
+    );
 }
 
 function cursorEnforceReadRes(targets) {
@@ -255,17 +266,6 @@ export function cursorEnforceScript(targets, templateText) {
 export function claudeSelfCheckMd(targets, version, template) {
   const rows = targets.map(
     (t) => `| \`${t.overrides}\` | \`Skill(${t.name})\` |`,
-  );
-  return template
-    .replace("{{TRIGGER_TABLE}}", rows.join("\n"))
-    .replace("{{PLUGIN_VERSION}}", version);
-}
-
-/** `build/generated/cursor-self-check.mdc` — filled template. */
-export function cursorSelfCheckMdc(targets, version, template) {
-  const rows = targets.map(
-    (t) =>
-      `| \`/${t.upstream_slug}\`, \`/superpowers:${t.upstream_slug}\`, upstream \`${t.upstream_slug}\` body | Read \`${t.name}\` via agent_skills fullPath |`,
   );
   return template
     .replace("{{TRIGGER_TABLE}}", rows.join("\n"))

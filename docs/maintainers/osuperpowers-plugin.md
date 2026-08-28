@@ -20,17 +20,18 @@ If a skill's SKILL.md exists on disk but is not under the plugin's declared `ski
 
 The [osuperpowers-router](../../packages/osuperpowers-router/) plugin is the **trigger router** -- it ships no skill bodies. The override skills live in [osuperpowers](../../packages/osuperpowers/skills/). Each `osuperpowers` orchestrator skill follows a fixed shape:
 
-- Frontmatter `description` names the upstream it reads (`Read upstream superpowers:<target> as baseline`) and the personal rules it adds. Upstream entry points map to targets in the router manifest (`overrides.manifest.json`) -- the single source of truth the emit generators derive hooks and self-check tables from.
+- Frontmatter `description` names the upstream it reads (`Read upstream superpowers:<target> as baseline`) and the personal rules it adds. Upstream entry points map to targets in the router manifest (`overrides.manifest.json`) -- the single source of truth the emit generators derive hooks from.
 - Body opens with `## Rules`, semantic `### Rule: <Name>` headings (no numbers; `#rule-<kebab>` anchors). Each rule takes one of three shapes: (a) **replaces** upstream behavior (self-review --> fresh-subagent passes); (b) **delegates** to a `mattpocock-skills:*` skill (grilling, tdd, to-tickets); (c) **partial-delegate** -- wraps the upstream skill's Steps 0-K unchanged and overrides Step K+1 locally (writing-plans Rule: Tickets Publish Redirect is the canonical example: Steps 1-4 of `/to-tickets` are delegated verbatim, Step 5 "publish" is redirected to a single local `docs/superpowers/tickets/<date>-<feature>-tickets.md`, keeping the upstream single-file shape). Partial-delegate rules must state up front which steps are delegated and which are overridden -- the split is what prevents Step K+1 from silently reverting to upstream defaults.
 - When one rule has multiple internal enforcement mechanisms (e.g. "locate the delegate", "redirect publish target", "structure the user-approval quiz"), decompose it into sub-rules `Rule Na` / `Rule Nb` / `Rule Nc` under a single umbrella heading. Sub-rules are cheaper than sibling top-level rules when the mechanisms share a triggering context but attack different failure modes.
 - Body closes with `## Red Flags` (thoughts that should stop you). Load-bearing -- the orchestrator is designed to catch drift, so removing this section defeats the point.
 - New rules go **inside** the `osuperpowers` skill as `### Rule: <Name>`, never in the user's global `~/.claude/CLAUDE.md`.
 
-Route enforcement is coordinated by **three mechanisms**, not one:
+Route enforcement is coordinated by **two mechanisms**:
 
-1. The router manifest + generated hooks -- every upstream entry point is enumerated in `overrides.manifest.json` (single SOT); the emit generators derive hook matchers and self-check tables from it.
-2. **Plugin-bundled hooks** in `packages/osuperpowers-router/hooks/hooks.json` -- `UserPromptExpansion` (matcher `^superpowers:`) intercepts slash commands. Handler in `packages/osuperpowers-router/bin/prompt-expansion.mjs` injects `additionalContext`, reinforcing the target as the first tool call.
-3. **Project-level CLAUDE.md self-check** -- written by `init router`. Run `init router` once per project (Claude Code: `/init router`) to prepend the override trigger table to the project's `CLAUDE.md`. This is the primary enforcement mechanism; it fires before any skill body is loaded into context.
+1. **Manifest-derived hook matchers** -- every upstream entry point is enumerated in `overrides.manifest.json` (single SOT); the emit generators derive hook matchers from it. On Claude Code: `UserPromptExpansion` matchers in `hooks/hooks.json` intercept slash commands and inject `additionalContext`. On Cursor: `beforeSubmitPrompt` in `hooks-cursor.json` detects SKILL attach / bare slash → writes pending; `preToolUse` gates the first tool call.
+2. **Plugin-bundled hooks** ship in `packages/osuperpowers-router/hooks/` and activate only when the plugin is installed. The harness → path mapping is declared in `package.json#oscaner-plugin.hooks` (the SOT).
+
+> **Note:** The former project-level CLAUDE.md / `.cursor/rules/` self-check table (written by the now-deleted `init router`) is no longer used. All routing enforcement is hook-driven; no project init step is required.
 
 ### Hooks matrix
 
@@ -104,7 +105,7 @@ git submodule update --init
 2. Add a target row to [packages/osuperpowers-router/overrides.manifest.json](../../packages/osuperpowers-router/overrides.manifest.json) mapping the upstream trigger to `osuperpowers:<name>` (source `../osuperpowers/skills/<name>`), then run `pnpm run emit` (regenerates `packages/osuperpowers-router/bin/prompt-expansion.mjs`, the cursor hooks, and `packages/osuperpowers-router/build/generated/*` via the unified `scripts/emit.mjs`). Do **not** hand-edit the hook script.
 3. Add a row to the router target table in [README.md](../../README.md) for discoverability.
 
-Missing the skill dir or the manifest row --> the skill is invisible to Claude Code or won't auto-trigger. Skipping `pnpm run emit` --> hook and self-check drift.
+Missing the skill dir or the manifest row --> the skill is invisible to Claude Code or won't auto-trigger. Skipping `pnpm run emit` --> hook drift.
 
 **Add a new first-party plugin** -- the marketplace is **package-as-source**, so wiring is automatic:
 

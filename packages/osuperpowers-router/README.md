@@ -12,11 +12,12 @@ When you invoke `/brainstorming`, `/writing-plans`, or any other superpowers ski
 - `osuperpowers:cli-driven-development` — CDD engine skills
 - `mattpocock-skills:tdd` — implementation delegate for `/test-driven-development`
 
-Three layers keep the route from being skipped:
+Two layers keep the route from being skipped:
 
 1. **Trigger table** — every upstream entry point maps to its target in `overrides.manifest.json` (single source of truth)
-2. **Hooks (plugin-bundled)** — Claude Code: `UserPromptExpansion` matchers; Cursor: `beforeSubmitPrompt` detect + `preToolUse` enforce
-3. **Project rules** — `init router` writes self-check rules into your project (`CLAUDE.md` or `.cursor/rules/osuperpowers-router.mdc`)
+2. **Hooks (plugin-bundled)** — Claude Code: `UserPromptExpansion` matchers; Cursor: `beforeSubmitPrompt` detect (attach + bare/inline slash) + `preToolUse` enforce
+
+No project `init` step is required — slash interception is handled entirely by the plugin-bundled hooks.
 
 ## Router targets
 
@@ -40,18 +41,15 @@ Or install from the oscaner-skills marketplace alongside the companion plugins (
 ## Quick start
 
 1. Install `superpowers`, `osuperpowers-router`, `osuperpowers`, and `mattpocock-skills` from the marketplace.
-2. Run **`init router`** in each project (re-run after plugin upgrades).
-3. Invoke upstream superpowers skills — the router routes automatically.
+2. Invoke upstream superpowers skills — the router routes automatically (no project `init` step required; slash interception is hook-driven).
 
 ### Claude Code
 
 - Workflow: `/superpowers:brainstorming`, `/superpowers:writing-plans`, ...
-- Init: `/init router` writes self-check block to project `CLAUDE.md`.
 
 ### Cursor
 
-- Workflow: bare upstream slash (`/brainstorming`) or rules-based intercept.
-- Init: `init router` writes `.cursor/rules/osuperpowers-router.mdc`.
+- Workflow: bare upstream slash (`/brainstorming`) or inline ` /<slug>` — intercepted by `cursor-detect.mjs` (`beforeSubmitPrompt` hook).
 - Hooks ship with the plugin; **do not** add project `.cursor/hooks.json`.
 
 ## License

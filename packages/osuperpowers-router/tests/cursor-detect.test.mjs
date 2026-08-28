@@ -87,18 +87,100 @@ test("cursor-detect: attachment `path` field is accepted (Cursor file shape)", (
   }
 });
 
-test("cursor-detect: bare /brainstorming with no attachments writes no pending", () => {
+test("cursor-detect: bare /brainstorming slash writes pending with trigger=slash", () => {
   setup();
   try {
     const out = detect(
       JSON.stringify({
         conversation_id: "conv-a3",
-        prompt: "/brainstorming design foo",
+        prompt: "/brainstorming",
         attachments: [],
       }),
     );
     assert.deepEqual(JSON.parse(out), { continue: true });
-    assert.ok(!existsSync(pendingPath("conv-a3")), "slash must not write pending");
+    const pending = JSON.parse(readFileSync(pendingPath("conv-a3"), "utf8"));
+    assert.equal(pending.override, "osuperpowers:brainstorming");
+    assert.equal(
+      pending.skill_suffix,
+      "../osuperpowers/skills/brainstorming/SKILL.md",
+    );
+    assert.equal(pending.trigger, "slash");
+    assert.ok(pending.detected_at > 0, "detected_at epoch present");
+  } finally {
+    teardown();
+  }
+});
+
+// Derive the slash-intercept target table from the emitted hook — single source
+// of truth is overrides.manifest.json → emit → bin/cursor-detect.mjs. Editing
+// the manifest + re-emitting regenerates the hook AND this test's coverage, so
+// no target list is hand-duplicated (no Shotgun Surgery).
+function loadSlashTargets() {
+  const src = readFileSync(DETECT, "utf8");
+  const m = src.match(/const SLASH_TARGETS = (\[[\s\S]*?\]);/);
+  if (!m) throw new Error("SLASH_TARGETS not found in emitted cursor-detect.mjs");
+  return JSON.parse(m[1]);
+}
+
+const SLASH_TARGETS = loadSlashTargets();
+
+for (const { slug, name, suffix } of SLASH_TARGETS) {
+  test(`cursor-detect: bare /${slug} slash writes pending with trigger=slash`, () => {
+    setup();
+    try {
+      const key = `slash-${slug}`;
+      const out = detect(
+        JSON.stringify({
+          conversation_id: key,
+          prompt: `/${slug}`,
+          attachments: [],
+        }),
+      );
+      assert.deepEqual(JSON.parse(out), { continue: true });
+      const pending = JSON.parse(readFileSync(pendingPath(key), "utf8"));
+      assert.equal(pending.override, name);
+      assert.equal(pending.skill_suffix, suffix);
+      assert.equal(pending.trigger, "slash");
+      assert.ok(pending.detected_at > 0, "detected_at epoch present");
+    } finally {
+      teardown();
+    }
+  });
+}
+
+test("cursor-detect: inline /brainstorming slash (within prose) writes pending", () => {
+  setup();
+  try {
+    const out = detect(
+      JSON.stringify({
+        conversation_id: "conv-inline",
+        prompt: "please run /brainstorming for this design",
+        attachments: [],
+      }),
+    );
+    assert.deepEqual(JSON.parse(out), { continue: true });
+    const pending = JSON.parse(readFileSync(pendingPath("conv-inline"), "utf8"));
+    assert.equal(pending.override, "osuperpowers:brainstorming");
+    assert.equal(pending.trigger, "slash");
+  } finally {
+    teardown();
+  }
+});
+
+test("cursor-detect: non-upstream slash writes no pending", () => {
+  setup();
+  try {
+    detect(
+      JSON.stringify({
+        conversation_id: "conv-neg",
+        prompt: "/unknown-skill foo",
+        attachments: [],
+      }),
+    );
+    assert.ok(
+      !existsSync(pendingPath("conv-neg")),
+      "non-upstream slash must not write pending",
+    );
   } finally {
     teardown();
   }

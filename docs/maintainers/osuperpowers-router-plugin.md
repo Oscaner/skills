@@ -8,7 +8,7 @@ Three mechanisms enforce routing:
 
 ### 1. overrides.manifest.json (single source of truth)
 
-`packages/osuperpowers-router/overrides.manifest.json` lists every upstream trigger and its target. All hook scripts and self-check tables are derived from this manifest by `pnpm run emit`. Never hand-edit the hook scripts — edit the manifest and re-emit.
+`packages/osuperpowers-router/overrides.manifest.json` lists every upstream trigger and its target. All hook scripts are derived from this manifest by `pnpm run emit`. Never hand-edit the hook scripts — edit the manifest and re-emit.
 
 ### 2. Hooks (plugin-bundled)
 
@@ -22,9 +22,9 @@ Three mechanisms enforce routing:
 - `preToolUse` → `packages/osuperpowers-router/bin/cursor-enforce.mjs` — if a pending state exists, blocks non-override tool calls (Read of upstream SKILL.md, etc.) and injects a mandatory override message
 - Fail-open: if anything is unparseable or the pending file is stale (TTL 300s), the hook allows the action
 
-### 3. Project-level self-check
+### 3. Slash interception (hook-only)
 
-`init router` (from osuperpowers) writes an override trigger table into the project's `CLAUDE.md` (Claude Code) or `.cursor/rules/osuperpowers-router.mdc` (Cursor). This is the primary enforcement mechanism — it fires before any skill body loads into context.
+Bare `/slug` and inline ` /slug` (optionally `/superpowers:<slug>`) commands are intercepted by the plugin-bundled hooks — Claude's `UserPromptExpansion` (two matchers) and Cursor's `beforeSubmitPrompt` (`cursor-detect.mjs`). No project `init` step runs and no trigger table is written into the consumer project; enforcement is entirely hook-driven and fires as the prompt enters context.
 
 ## Trigger mapping table
 

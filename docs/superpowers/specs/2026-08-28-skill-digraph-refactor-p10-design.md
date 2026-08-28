@@ -118,7 +118,7 @@ P4-P9 完成 5 个技能的节点锚定式重构，但 CDD engine 与 skill 文�
    - 读 blocker 字段 → 判断可修复性
    - 可修复 + retry<2 → 重 dispatch 同 mode（回到 `dispatch-mode`）
    - 不可修复 / retry≥2 → BLOCKED: engine-error 终态
-   - **retry 计数器存储**：复用 fix-loop 计数器同一字段——`handoff.json` 的 `retryCount`（位于 handoff 顶层，与 fix-loop 计数器同字段同存储）；跨 re-dispatch 保留计数（engine-recovery 重 dispatch 时 runner.mjs 读取并递增该字段，不新建独立字段）
+   - **retry 计数器存储**：orchestrator/skill 层管理（**plan 偏差声明**：原 spec 设计为 runner.mjs 管理 `handoff.json.retryCount`，plan 改为 `progress.md` 的 `engine-recovery: task-N count=N` 行）。理由：P10 scope 限定「不改控制流」（design §1），runner.mjs 当前无 retry 基础设施，retry 是 skill digraph 的 `engine-recovery` 决策节点逻辑（orchestrator 层），非 engine 循环；`engine-recovery: task-N count=N` 与 progress.md 现有 `Task N: complete` 行模式一致。跨 re-dispatch 由 orchestrator 读取/写入该行保留计数，不改 runner.mjs。
 
 **影响范围**：
 - `skills/cli-driven-development/SKILL.md` — `handoff-status` 节点 + 新增 `engine-recovery` 节点 + Invariants 表 I6
@@ -185,7 +185,7 @@ P10 建议 4 task（对应 4 issue）：
 |---|---|---|---|
 | Task 1 | #190 | package.json bin + skill 节点 CLI 路径 + sub-docs 同步 | 1 atomic commit |
 | Task 2 | #187 | fix.md 模板禁止 DONE + runner.mjs validator 归一化 + 测试 | 1 atomic commit |
-| Task 3 | #144 | handoff-status 改 engine-recovery 决策节点 + Invariant I6 + digraph | 1 atomic commit |
+| Task 3 | #144 | handoff-status 改 engine-recovery 决策节点 + Invariant I6 + digraph（**plan 偏差**：retry 计数器在 progress.md orchestrator 层，非 handoff.json runner.mjs 层） | 1 atomic commit |
 | Task 4 | #145 | Rule 禁止绕过 engine + Failure Modes 降级行 + 测试桩 | 1 atomic commit |
 
 > 注：每个 task 走完整 CDD 三模式链（implement → task-review → fix if needed → ledger），Final Review（branch-review）在全部 task 完成后运行。

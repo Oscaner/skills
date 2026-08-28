@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 // 真实行预算（非旧 121/165）：sdd / ctrl 为两个宿主文档；tier1 = sdd+ctrl；
 // tier2 = tier1 + docs-review。
 export const LINE_BUDGETS = Object.freeze({
-  sdd: 160,
+  sdd: 162,
   ctrl: 110,
   tier1: 225,
   tier2: 320,

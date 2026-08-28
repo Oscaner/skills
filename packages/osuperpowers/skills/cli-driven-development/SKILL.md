@@ -101,7 +101,7 @@ flowchart TD
 
 ### `deferred-sweep-loop`
 
-- **Do**: Run deferred-sweep per task: for each task's `findings[].deferred=true` items, dispatch `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep` (fix dual-channel: deferred-sweep); after sweep, task-review re-reviews (verify fixes); if re-review returns new blockers → enter fix loop (≤ 5 rounds); re-review APPROVED → ledger appends the task's `Task N: complete` line (internal bookkeeping, not a digraph edge) → continue next task's sweep. **Fix segment cleanup** (_handoff-write-fragment.md fix segment sweep branch): sweep-resolved findings are removed from `findings[]` (fully resolved, not retained as deferred).
+- **Do**: Run deferred-sweep per task: for each task's `findings[].deferred=true` items, dispatch `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep` (fix dual-channel: deferred-sweep); after sweep, task-review re-reviews (verify fixes); if re-review returns new blockers → enter fix loop (≤ 5 rounds); re-review APPROVED → ledger appends the task's `Task N: complete` line (internal bookkeeping, not a digraph edge) → continue next task's sweep. **Controller restriction**: deferred findings fix must go through `--mode fix` dispatch via this node; hand-writing fixes outside the engine CLI path is forbidden (see I7). **Fix segment cleanup** (_handoff-write-fragment.md fix segment sweep branch): sweep-resolved findings are removed from `findings[]` (fully resolved, not retained as deferred).
 - **Read**: each task's handoff + fix mode returned handoff updates.
 - **Exit**: all deferred-sweep tasks complete (re-review APPROVED) → `branch-review`.
 - **Fail**: task sweep hits fix-loop-exhausted → BLOCKED: fix-loop-exhausted.
@@ -137,6 +137,7 @@ flowchart TD
 | I4 | **Fix Dual-Channel Contract** — fix mode two channels: `--scope blocker-only` (default; fix.md only processes non-deferred items; deferred items stay in handoff `findings[]` across rounds, do not enter fix loop) \| `--scope deferred-sweep` (after user decision; processes deferred items). `runner.mjs` maps scope to `CDD_FINDINGS_SCOPE` env; `fix.md` `{{FINDINGS_SCOPE}}` placeholder expands per env. |
 | I5 | **Three-Mode Chain Completeness** — Every task must go through the full implement → task-review → (fix if needed) → ledger chain; skipping task-review from implement directly to ledger is forbidden (#181 discipline). |
 | I6 | **No Controller Bypass** — When the engine is available (cdd-task.mjs / cdd-review.mjs can run), the orchestrator must not hand-write control-flow bypasses that skip engine processing. All task execution, review, and fix dispatch must go through engine CLI calls; direct orchestrator-side manipulation of handoff/ledger state as a substitute for engine processing is forbidden. |
+| I7 | **No Hand-Written Deferred Fix** — Deferred findings repair must go through `--mode fix` dispatch (`deferred-disposition` fix-now → `deferred-sweep-loop`); the controller must not hand-write fixes for deferred findings outside the engine CLI path. **Degradation path**: when the engine is completely unavailable (exit 3 / harness missing / retry count hits I6's `engine-recovery` hard cap retry≥2), the controller may directly fix but **must record the degradation reason in `progress.md`** (severity + summary + reason); after engine recovery, supplement a `--mode fix` re-review. |
 
 ## Failure Modes
 
@@ -153,6 +154,7 @@ Cross-node failure behavior mapping (complements Node Fail fields):
 | deferred-disposition accumulates 3 exhausted presentations | BLOCKED: menu-exhausted | Cannot obtain user decision | User re-runs CDD |
 | branch-fix-loop blockers persist after multiple rounds | **implicit fail-open** | Branch-level blockers may need manual investigation (no hard cap; recommended ≤ 3 rounds; beyond that, user decides) | Stop + report; branch preserved; user manually finishes |
 | `osuperpowers:finishing` takeover fails | **implicit fail-open** | finishing's own issue | Branch preserved; user manually finishes |
+| controller bypass engine | **implicit fail-open** (degradation) | Engine completely unavailable (exit 3 / harness missing / retry≥2 hard cap); controller directly hand-writes fix for deferred findings | Record degradation reason in `progress.md` (severity + summary + reason); after engine recovery, supplement `--mode fix` re-review |
 
 **Fail-open vs BLOCKED convention**:
 

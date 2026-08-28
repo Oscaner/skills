@@ -101,7 +101,7 @@ flowchart TD
 
 ### `deferred-sweep-loop`
 
-- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 完成后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Fix segment 清理**（_handoff-write-fragment.md fix segment 补 sweep 清理分支）：sweep 完成的 finding 从 `findings[]` 移除（非 deferred 化，而是彻底解决）。
+- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 完成后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Controller 约束**：deferred findings 修复必须走本节点 `--mode fix` dispatch；禁止在引擎 CLI 路径之外手写修复（见 I7）。**Fix segment 清理**（_handoff-write-fragment.md fix segment 补 sweep 清理分支）：sweep 完成的 finding 从 `findings[]` 移除（非 deferred 化，而是彻底解决）。
 - **Read**: 每 task 的 handoff + fix 模式返回的 handoff 更新。
 - **Exit**: 所有 deferred-sweep task 完成（re-review APPROVED）→ `branch-review`。
 - **Fail**: 某 task sweep 陷入 fix-loop-exhausted → BLOCKED: fix-loop-exhausted。
@@ -137,6 +137,7 @@ flowchart TD
 | I4 | **Fix Dual-Channel Contract** — fix 模式两通道：`--scope blocker-only`（默认，fix.md 仅处理 non-deferred 项；deferred 项保留在 handoff `findings[]` 跨轮次不动，不进 fix loop）｜`--scope deferred-sweep`（用户决策后，处理 deferred 项）。`runner.mjs` 把 scope 映射为 `CDD_FINDINGS_SCOPE` env；`fix.md` 的 `{{FINDINGS_SCOPE}}` 占位符按 env 展开。 |
 | I5 | **Three-Mode Chain Completeness** — 每 task 必走 implement → task-review → （fix 如需）→ ledger 完整链路；不允许跳过 task-review 直接从 implement 到 ledger（#181 纪律）。 |
 | I6 | **No Controller Bypass** — 当引擎可用（cdd-task.mjs / cdd-review.mjs 可运行）时，orchestrator 禁止手写控制流绕过引擎处理。所有 task 执行、review、fix 派发必须走引擎 CLI 调用；禁止 orchestrator 层直接操控 handoff/ledger 状态来替代引擎处理。 |
+| I7 | **No Hand-Written Deferred Fix** — deferred findings 修复必须走 `--mode fix` dispatch（`deferred-disposition` fix-now → `deferred-sweep-loop`）；controller 禁止在引擎 CLI 路径之外手写 deferred findings 的修复。**降级路径**：当引擎完全不可用时（exit 3 / harness 缺失 / retry 计数命中 I6 的 `engine-recovery` 硬上限 retry≥2），controller 可直接修复但**必须在 `progress.md` 记录降级原因**（severity + summary + reason）；engine 恢复后补 `--mode fix` re-review。 |
 
 ## Failure Modes
 
@@ -153,6 +154,7 @@ flowchart TD
 | deferred-disposition 累计 3 次呈现耗尽 | BLOCKED: menu-exhausted | 无法获取用户决策 | 用户重跑 CDD |
 | branch-fix-loop 多轮 blocker 不消 | **implicit fail-open** | 分支级 blocker 可能需手工调查（无硬性上限，建议 ≤ 3 轮；超出由用户决策） | 停手 + report，branch 保留，用户手动 finishing |
 | `osuperpowers:finishing` 接管失败 | **implicit fail-open** | finishing 自身问题 | branch 保留，用户手动 finishing |
+| controller bypass engine | **implicit fail-open**（降级） | 引擎完全不可用（exit 3 / harness 缺失 / retry≥2 硬上限）；controller 直接手写 deferred findings 修复 | 记录降级原因到 `progress.md`（severity + summary + reason）；engine 恢复后补 `--mode fix` re-review |
 
 **Fail-open vs BLOCKED 约定**：
 

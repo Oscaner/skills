@@ -19,9 +19,9 @@ Override skills that reuse upstream skill names work in Claude Code but break in
 
 1. **No skill bodies** — `skills/` is absent/empty; `overrides.manifest.json` maps upstream triggers to targets in **osuperpowers** (`osuperpowers:*` / `cli-*`) or **mattpocock-skills** (`tdd`).
 2. **Manifest** — declare targets with explicit `name`, `overrides`, and `source` fields (cross-plugin path).
-3. **Generators** — manifest-driven `scripts/emit.mjs` writes committed hook + self-check artifacts (`build/generated/*`, `bin/prompt-expansion.mjs`).
+3. **Generators** — manifest-driven `scripts/emit.mjs` writes committed hook artifacts (`build/generated/*`, `bin/prompt-expansion.mjs`).
 4. **osuperpowers multi-harness emit** — the skills + engine plugin emits thin per-harness manifests (claude/cursor/codex/kimi/gemini/pi) all pointing at the canonical `./skills/` tree, plus a shared `.agents/skills/` copy (osuperpowers only — upstream superpowers is not vendored) for codex/gemini/pi/qoder/opencode scanners. Modeled after impeccable's build.js + PROVIDERS pattern.
-5. **Enforcement** — harness-specific hooks + project self-check rules (see [Enforcement](#enforcement) below).
+5. **Enforcement** — harness-specific hooks (see [Enforcement](#enforcement) below).
 6. **Package layout & hooks registration** — the router and osuperpowers engine are first-party packages under `packages/` (`@oscaner-skills/osuperpowers-router`, `@oscaner-skills/osuperpowers`), each with its metadata in `package.json#oscaner-plugin` (**package-as-source**). Upstream plugins (`superpowers`, `mattpocock-skills`, `impeccable`) are vendored submodules under `vendors/`, republished as `@oscaner-skills/<name>` by `scripts/publish-vendor.mjs`; their marketplace descriptors come from the assembly templates in `scripts/lib/publish-vendor.mjs` (`ASSEMBLY_TEMPLATE` — the owner) plus the marketplace cursor blocks in `scripts/lib/emit/source.mjs` (`VENDOR_PLUGINS`). Hooks are registered per harness via `oscaner-plugin.hooks` — the harness → path mapping is the single source of truth, and `scripts/emit.mjs` writes each hooks file at the declared path and references it from the generated per-harness manifest.
 
 No `.cursor/skills/` emit duplicate. No frontmatter rewrite at build time.
@@ -32,7 +32,7 @@ Claude Code interception: `Skill(osuperpowers:brainstorming)` (manifest `name` f
 
 ## Enforcement
 
-Override-first is enforced by **plugin-bundled hooks** plus project self-check rules. Hooks ship with the plugin — **never** copy hook files into consumer projects.
+Override-first is enforced by **plugin-bundled hooks**. Hooks ship with the plugin — **never** copy hook files into consumer projects.
 
 ### Cursor — detect + enforce (plugin-bundled)
 
@@ -207,14 +207,14 @@ See [impeccable/docs/HARNESSES.md](../../impeccable/docs/HARNESSES.md) for direc
 
 1. **Manifest** — add `overrides.manifest.json` with `name`, upstream `overrides` id, and `source` path per target.
 2. **Routing** — router plugin ships no skill bodies; targets live in the skills plugin (`osuperpowers:*` orchestrators) or a delegate (`tdd`). Flat-namespace dedup is avoided by target names already being plugin-qualified.
-3. **Generators** — use the unified `scripts/emit.mjs`; commit hook + self-check outputs; CI `--check` on drift.
+3. **Generators** — use the unified `scripts/emit.mjs`; commit hook artifacts; CI `--check` on drift.
 4. **No init step** — slash interception is fully hook-driven; emit nothing into consumer projects at runtime.
 
 Copy the manifest, generator scripts, and `validate-overrides-build.mjs` from this plugin as a starting point.
 
 ## Phase 2 (not v1)
 
-- NL keyword interception in rules self-check
+- NL keyword interception in hook detect
 - Emit rules for Codex / Copilot / Gemini from the same manifest
 - Agent Skills spec proposal for `overrides` / `extends` frontmatter
 - Cursor product request for native `plugin:skill` namespace

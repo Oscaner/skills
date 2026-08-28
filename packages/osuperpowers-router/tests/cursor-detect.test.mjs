@@ -111,18 +111,20 @@ test("cursor-detect: bare /brainstorming slash writes pending with trigger=slash
   }
 });
 
-// Every upstream slug is intercepted by its bare slash — mirrors Claude
-// UserPromptExpansion (single SOT = overrides.manifest.json upstream_slug).
-const SLASH_TARGETS = [
-  ["brainstorming", "osuperpowers:brainstorming", "../osuperpowers/skills/brainstorming/SKILL.md"],
-  ["writing-plans", "osuperpowers:writing-plans", "../osuperpowers/skills/writing-plans/SKILL.md"],
-  ["subagent-driven-development", "osuperpowers:cli-driven-development", "../osuperpowers/skills/cli-driven-development/SKILL.md"],
-  ["finishing-a-development-branch", "osuperpowers:finishing", "../osuperpowers/skills/finishing/SKILL.md"],
-  ["test-driven-development", "mattpocock-skills:tdd", "skills/osuperpowers/tdd/SKILL.md"],
-  ["using-git-worktrees", "osuperpowers:finishing", "../osuperpowers/skills/finishing/SKILL.md"],
-];
+// Derive the slash-intercept target table from the emitted hook — single source
+// of truth is overrides.manifest.json → emit → bin/cursor-detect.mjs. Editing
+// the manifest + re-emitting regenerates the hook AND this test's coverage, so
+// no target list is hand-duplicated (no Shotgun Surgery).
+function loadSlashTargets() {
+  const src = readFileSync(DETECT, "utf8");
+  const m = src.match(/const SLASH_TARGETS = (\[[\s\S]*?\]);/);
+  if (!m) throw new Error("SLASH_TARGETS not found in emitted cursor-detect.mjs");
+  return JSON.parse(m[1]);
+}
 
-for (const [slug, override, suffix] of SLASH_TARGETS) {
+const SLASH_TARGETS = loadSlashTargets();
+
+for (const { slug, name, suffix } of SLASH_TARGETS) {
   test(`cursor-detect: bare /${slug} slash writes pending with trigger=slash`, () => {
     setup();
     try {
@@ -136,7 +138,7 @@ for (const [slug, override, suffix] of SLASH_TARGETS) {
       );
       assert.deepEqual(JSON.parse(out), { continue: true });
       const pending = JSON.parse(readFileSync(pendingPath(key), "utf8"));
-      assert.equal(pending.override, override);
+      assert.equal(pending.override, name);
       assert.equal(pending.skill_suffix, suffix);
       assert.equal(pending.trigger, "slash");
       assert.ok(pending.detected_at > 0, "detected_at epoch present");

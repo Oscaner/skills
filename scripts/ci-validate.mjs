@@ -172,8 +172,8 @@ function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 7; // 6 emitters + init (P5 removed three legacy skills, #169 removed cli-task, P2 removed debugging+verification)
-  const EMITTERS_LABEL = "6 emitters + init";
+  const EXPECTED = 8; // 7 emitters + init (P5 removed three legacy skills, #169 removed cli-task, P2 removed debugging+verification, P11 added cli-research)
+  const EMITTERS_LABEL = "7 emitters + init";
   let n;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");

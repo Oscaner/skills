@@ -1,6 +1,7 @@
 <!-- scripts/emit.mjs — do not edit -->
 @./skills/brainstorming/SKILL.md
 @./skills/cli-driven-development/SKILL.md
+@./skills/cli-research/SKILL.md
 @./skills/cli-select/SKILL.md
 @./skills/finishing/SKILL.md
 @./skills/init/SKILL.md

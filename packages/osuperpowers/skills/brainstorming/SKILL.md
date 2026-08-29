@@ -51,10 +51,10 @@ flowchart TD
 
 ### `explore-context`
 
-- **Do**: Explore project context (files, docs, recent commits). If questions requiring primary source research arise (upstream API behavior, harness CLI specs, package internals, cross-harness differences): identify → ask user "trigger research?" → user confirms: spawn parallel background research agents (one per question) → user declines: skip research. Exploration continues uninterrupted. Wait for research completion before entering grilling. Write research output to `docs/research/YYYY-MM-DD-<topic>.md`
-- **Read**: Project files, docs, git log, research output files (if spawned)
+- **Do**: Explore project context (files, docs, recent commits). If questions requiring primary source research arise: identify → ask user "trigger research?" → user confirms → branch by harness availability: **Agent tool path** (default, no known harness) or **CLI path** (known harness — `cdd-research.mjs` without selection step)
+- **Read**: Project files, docs, git log, research output files — including `docs/superpowers/research/` findings files produced by `cdd-research.mjs`. CLI invocation reference: `node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>`
 - **Exit**: Exploration complete (research finished if spawned) → `grilling`
-- **Fail**: Research agent error/timeout → log stderr, fail-open (do not block flow)
+- **Fail**: Research agent error/timeout → log stderr, fail-open (do not block flow). CLI path failure → fall back to Agent tool path
 
 ### `grilling`
 
@@ -143,3 +143,4 @@ flowchart TD
 | Grilling SKILL.md missing | BLOCKED (with install mattpocock-skills guidance) | Block policy: sub-skill missing = no degradation |
 | Research agent error/timeout | fail-open (log stderr, do not block flow) | Research is optional enhancement |
 | Git commit error | report + fail-open | Do not block user spec review |
+| CLI path failure | fall back to Agent tool path | CLI unavailable but default path works |

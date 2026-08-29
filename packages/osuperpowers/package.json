@@ -18,7 +18,8 @@
     "cdd-review": "./bin/engine/cdd-review.mjs",
     "cdd-task": "./bin/engine/cdd-task.mjs",
     "cdd-select": "./bin/engine/cdd-select.mjs",
-    "cdd-session-activate": "./bin/engine/cdd-session-activate.mjs"
+    "cdd-session-activate": "./bin/engine/cdd-session-activate.mjs",
+    "cdd-research": "./bin/engine/cdd-research.mjs"
   },
   "main": "./bin/gate/adapters/opencode.mjs",
   "pi": {

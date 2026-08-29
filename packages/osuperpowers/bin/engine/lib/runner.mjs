@@ -5,7 +5,6 @@
 // 非 2>/dev/null 吞）→ commit-contract → H1 四行 → handoff 处理。
 // noExit=true 时返回 { exitCode, h1 } 而非 exit helpers —— 单测的 seam。
 // 落地退出委托 utils/exit.mjs（统一出口，无 inline process.exit）。
-import { spawn } from "node:child_process";
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -18,6 +17,10 @@ import { validateCommitContract, writeHandoff, gitToplevel, normalizeHandoffStat
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 import { generateBrief, validateBrief } from "./brief.mjs";
+import { spawnCapture, invokeCli } from "./cli-shared.mjs";
+
+// Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
+export { spawnCapture, invokeCli };
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "task-review", "fix"];
@@ -164,119 +167,6 @@ function promptEnv(env, taskNum) {
     TASK: String(taskNum),
     FINDINGS_SCOPE: env.CDD_FINDINGS_SCOPE ?? "blocker-only",
   };
-}
-
-// ---- 嵌套 CLI 调用 ----
-
-// 原始 spawn + 捕获 stdout/stderr。exit code 0 → ok:true；否则 ok:false（stderr 保留给 blocker）。
-export function spawnCapture(command, args, { cwd, env }) {
-  // Strip subagent model env vars to prevent leakage into nested CLI sessions.
-  // Nested `claude -p` is NOT a subagent but inherits parent env, causing
-  // CLAUDE_CODE_SUBAGENT_MODEL to override the nested session's model.
-  const cleanEnv = { ...env };
-  delete cleanEnv.CLAUDE_CODE_SUBAGENT_MODEL;
-  return new Promise((resolve) => {
-    const proc = spawn(command, args, { cwd, env: cleanEnv, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    proc.stdout.on("data", (d) => {
-      stdout += d;
-    });
-    proc.stderr.on("data", (d) => {
-      stderr += d;
-    });
-    proc.on("error", (err) => {
-      resolve({ ok: false, code: 1, stdout, stderr: stderr || `spawn failed: ${err.message}` });
-    });
-    proc.on("close", (code) => {
-      resolve({ ok: code === 0, code: code ?? 1, stdout, stderr });
-    });
-  });
-}
-
-// 对齐 _cdd_invoke_cli：$cli $invoke "$prompt_arg"（task-review 前缀合成）+ output 模式规范化
-// （text passthrough / stream-json → 最后一个 completion 的 finalText 完整保留）。
-// 导出供 cdd-review.mjs（一次性 prompt-runner）复用 —— 归一化逻辑单一来源。
-export async function invokeCli(entry, prompt, mode, env, cwd) {
-  const { cli, invoke, output, task_review_prefix } = entry;
-  const promptArg = mode === "task-review" && task_review_prefix ? `${task_review_prefix} ${prompt}` : prompt;
-  const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];
-  const res = await spawnCapture(cli, args, { cwd, env });
-  if (res.ok && output === "stream-json") {
-    const finalText = extractStreamJsonFinal(res.stdout);
-    if (!finalText) {
-      return { ok: false, code: 1, stdout: res.stdout, stderr: "stream-json produced no completion finalText" };
-    }
-    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr };
-  }
-  return res;
-}
-
-// 对齐 stream-json 规范化 jq -rs：slurp 整个 stdout 为 JSON 值序列（容忍 pretty-printed/多行事件），
-// `[.[] | select(.type=="completion" and (.finalText != null)) | .finalText] | last // empty`。
-// 逐行 NDJSON 解析会丢多行 JSON 事件的 finalText —— 全流扫描取最后 completion 的 finalText。
-function extractStreamJsonFinal(raw) {
-  const text = String(raw);
-  let last = null;
-  let pos = 0;
-  const n = text.length;
-  while (pos < n) {
-    while (pos < n && /\s/.test(text[pos])) pos++; // 跳过 JSON 值间空白
-    if (pos >= n) break;
-    const end = jsonValueEnd(text, pos);
-    try {
-      const ev = JSON.parse(text.slice(pos, end));
-      if (ev.type === "completion" && ev.finalText != null) last = ev.finalText;
-    } catch {
-      // 非完整 JSON 文本跳过（对齐 jq 错误容错：无 completion → 调用方 BLOCKED）
-    }
-    pos = Math.max(end, pos + 1);
-  }
-  return last;
-}
-
-// 扫描 JSON 字符串从 start（首个 "）到结束的 "（含）。返回结束 " 后索引。
-// 提取为共享函数，供 jsonValueEnd 和 scanBalanced 的字符串遍历复用。
-function scanString(text, start) {
-  let i = start + 1;
-  const n = text.length;
-  while (i < n) {
-    const ch = text[i];
-    if (ch === "\\") i += 2;
-    else if (ch === '"') return i + 1;
-    else i++;
-  }
-  return n;
-}
-
-// 返回 text 中从 start 起的一个完整 JSON 值结束后的索引（对齐 jq 的 JSON 流：值之间仅空白分隔，
-// 值本身可跨行）。对象/数组按 {} / [] 深度扫描（跳过字符串字面量与转义）；标量扫到空白或结构符。
-function jsonValueEnd(text, start) {
-  const first = text[start];
-  if (first === "{") return scanBalanced(text, start, "{", "}");
-  if (first === "[") return scanBalanced(text, start, "[", "]");
-  if (first === '"') return scanString(text, start);
-  let i = start;
-  const n = text.length;
-  while (i < n && !/\s/.test(text[i]) && !",}]".includes(text[i])) i++;
-  return i;
-}
-
-function scanBalanced(text, start, openCh, closeCh) {
-  const n = text.length;
-  let depth = 0;
-  for (let i = start; i < n; i++) {
-    const ch = text[i];
-    if (ch === '"') {
-      // scanString 期望 start 指向开引号；返回结束 " 后索引，i++ 后指向其后
-      i = scanString(text, i) - 1;
-    } else if (ch === openCh) depth++;
-    else if (ch === closeCh) {
-      depth--;
-      if (depth === 0) return i + 1;
-    }
-  }
-  return n;
 }
 
 // ---- review-package（非 dry-run review 模式）----

@@ -51,8 +51,8 @@ flowchart TD
 
 ### `explore-context`
 
-- **Do**: 探索项目上下文（文件、文档、近期 commits）。如发现需要主源研究的问题：识别 → 询问用户"是否触发 research？" → 用户确认 → 按 harness 可用性分支：**Agent tool 路径**（默认，无已知 harness）或 **CLI 路径**（已知 harness —— `cdd-research.mjs`，无需选择步骤）。CLI 调用参考：`node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>`
-- **Read**: 项目文件、docs、git log、research 输出文件——包括 `docs/superpowers/research/` 下由 `cdd-research.mjs` 产出的 findings 文件
+- **Do**: 探索项目上下文（文件、文档、近期 commits）。如发现需要主源研究的问题：识别 → 询问用户"是否触发 research？" → 用户确认 → 按 harness 可用性分支：**Agent tool 路径**（默认，无已知 harness）或 **CLI 路径**（已知 harness —— `cdd-research.mjs`，无需选择步骤）
+- **Read**: 项目文件、docs、git log、research 输出文件——包括 `docs/superpowers/research/` 下由 `cdd-research.mjs` 产出的 findings 文件。CLI 调用参考：`node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>`
 - **Exit**: 探索完成（research 如有则已等待完成）→ `grilling`
 - **Fail**: research agent 错误/超时 → 记录 stderr，fail-open（不阻塞流程）。CLI 路径失败 → 降级到 Agent tool 路径
 

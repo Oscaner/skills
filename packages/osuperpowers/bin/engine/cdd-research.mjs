@@ -67,6 +67,16 @@ for (let i = 0; i < args.length; i++) {
 
 if (!harness || !briefPath || !outputPath) usage();
 
+// ---- brief validation (before harness gate — brief is pure file check, no PATH dependency) ----
+
+let briefContent;
+try {
+  briefContent = readFileSync(briefPath, "utf8");
+} catch (err) {
+  process.stderr.write(`${NAME}: cannot read brief: ${err.message}\n`);
+  exitBlocked();
+}
+
 // ---- harness registry gate ----
 
 let entry;
@@ -80,16 +90,6 @@ try {
   }
   process.stderr.write(`${NAME}: ${err.message}\n`);
   process.exit(err.exitCode ?? 1);
-}
-
-// ---- brief → prompt ----
-
-let briefContent;
-try {
-  briefContent = readFileSync(briefPath, "utf8");
-} catch (err) {
-  process.stderr.write(`${NAME}: cannot read brief: ${err.message}\n`);
-  exitBlocked();
 }
 
 const prompt = buildResearchPrompt(briefContent);

@@ -51,8 +51,8 @@ flowchart TD
 
 ### `explore-context`
 
-- **Do**: Explore project context (files, docs, recent commits). If questions requiring primary source research arise: identify → ask user "trigger research?" → user confirms → branch by harness availability: **Agent tool path** (default, no known harness) or **CLI path** (known harness — `cdd-research.mjs` without selection step). CLI invocation reference: `node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>`
-- **Read**: Project files, docs, git log, research output files — including `docs/superpowers/research/` findings files produced by `cdd-research.mjs`
+- **Do**: Explore project context (files, docs, recent commits). If questions requiring primary source research arise: identify → ask user "trigger research?" → user confirms → branch by harness availability: **Agent tool path** (default, no known harness) or **CLI path** (known harness — `cdd-research.mjs` without selection step)
+- **Read**: Project files, docs, git log, research output files — including `docs/superpowers/research/` findings files produced by `cdd-research.mjs`. CLI invocation reference: `node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>`
 - **Exit**: Exploration complete (research finished if spawned) → `grilling`
 - **Fail**: Research agent error/timeout → log stderr, fail-open (do not block flow). CLI path failure → fall back to Agent tool path
 

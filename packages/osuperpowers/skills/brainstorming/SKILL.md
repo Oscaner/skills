@@ -13,24 +13,34 @@ Full brainstorm flow orchestration, callable standalone.
 flowchart TD
   A[read-upstream] -->|loaded| B[read-sub-skills]
   A -->|missing| Z1((BLOCKED: install superpowers))
-  B -->|loaded| C[explore-context]
+  B -->|loaded| C{read-program}
   B -->|missing| Z2((BLOCKED: install mattpocock-skills))
-  C --> D[grilling]
-  D --> E[propose-approaches]
-  E --> F[present-design]
-  F -->|revise section| F
-  F --> G{user-approves?}
-  G -->|revise| F
-  G -->|yes| H[write-spec]
-  H --> I[spec-review]
-  I -->|blocker found| I
-  I -->|blocker=0| J{user-ok?}
-  I -->|pass1 clean| K
-  J -->|fix selected| K
-  J -->|approved| K[commit-spec]
-  K --> L{overall-spec?}
-  L -->|yes: next phase| M((HANDOFF: brainstorming))
-  L -->|no: single spec| N((HANDOFF: writing-plans))
+  C -->|mode resolved| D[explore-context]
+  C -->|unparseable| Z4((BLOCKED: overall-parse-failed))
+  D --> E{claim-phase}
+  E -->|phase in overall Phase inventory| F[grilling]
+  E -->|phase NOT in inventory (phase-within-program)| S[sync-overall]
+  E -->|new-program mode| F
+  S -->|four tables consistent| D
+  S -->|inconsistent| Z3((BLOCKED: overall-sync-failed))
+  E -->|inventory unparseable| Z3
+  F -->|mid-grill split / new scope| E
+  F --> G[propose-approaches]
+  G --> H[present-design]
+  H -->|revise section| H
+  H --> I{user-approves?}
+  I -->|revise| H
+  I -->|yes| J[write-spec]
+  J --> K[spec-review 3-pass D1/D2/D3]
+  K -->|blocker found| K
+  K -->|blocker=0| L{user-ok?}
+  K -->|pass1 clean (D1 zero findings, skip D2/D3)| L
+  L -->|fix selected (after blocker=0, no re-review per Review Stopping)| Q{user-confirm-commit?}
+  L -->|approved| Q{user-confirm-commit?}
+  Q -->|confirmed| M[commit-spec]
+  M --> N{overall-spec?}
+  N -->|yes: next phase| O((HANDOFF: brainstorming))
+  N -->|no: single spec| P((HANDOFF: writing-plans))
 ```
 
 ## Node Definitions
@@ -49,19 +59,48 @@ flowchart TD
 - **Exit**: Loaded → `explore-context`; missing → BLOCKED (install mattpocock-skills)
 - **Fail**: Load failure → BLOCKED with install guidance for mattpocock-skills plugin
 
+### `read-program`
+
+- **Do**: Detect whether a parent overall spec exists (convention path `docs/superpowers/specs/*-overall.md`; the user may supply the parent overall path explicitly in this node — input channel: a conversation message giving an absolute/relative path, which must match `docs/superpowers/specs/*-overall.md`). Note: `osuperpowers:brainstorming` is invoked by the harness via SKILL.md, not a CLI entry, so the parent overall path is obtained only via the conversation channel (no `--parent-overall` CLI param, to avoid conflicting with the brainstorming invocation model). If multiple matching overall files exist (glob hit >1) → terminal `BLOCKED: overall-parse-failed` (prompt the user to specify the unique parent path). Resolve to a mode: `new-program` (no parent overall) or `phase-within-program` (has a parent overall; this is a per-phase brainstorm).
+- **Read**: `docs/superpowers/specs/*-overall.md` (if present) + optional user-supplied parent overall path (must match the format above).
+- **Exit**: mode resolved → `explore-context` (carrying the mode marker).
+- **Fail**: parent overall file exists but is unparseable / multiple matches cannot be disambiguated → terminal `BLOCKED: overall-parse-failed` (block with explicit prompt to specify the unique parent; never silently downgrade to new-program).
+
 ### `explore-context`
 
-- **Do**: Explore project context (files, docs, recent commits). If questions requiring primary source research arise: identify → ask user "trigger research?" → user confirms → branch by harness availability: **Agent tool path** (default, no known harness) or **CLI path** (known harness — `cdd-research.mjs` without selection step)
-- **Read**: Project files, docs, git log, research output files — including `docs/superpowers/research/` findings files produced by `cdd-research.mjs`. CLI invocation reference: `node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>`
-- **Exit**: Exploration complete (research finished if spawned) → `grilling`
-- **Fail**: Research agent error/timeout → log stderr, fail-open (do not block flow). CLI path failure → fall back to Agent tool path
+- **Do**: Carry the mode marker resolved by `read-program` (`new-program` / `phase-within-program`). Explore project context in that mode (files / docs / git log / existing research findings); from this, judge whether the current request needs a new phase or a phase split. Optional research still triggers only via the Confirm Gate (I2).
+- **Read**: project files, docs, git log, research findings; parent overall (phase-within-program mode).
+- **Exit**: exploration complete → `claim-phase` (carrying the mode marker). Note: `explore-context`'s "needs new phase?" judgment is only a suggestive probe; `claim-phase`'s Phase inventory lookup is the sole authoritative decision (on conflict, claim-phase wins).
+- **Fail**: Research agent error/timeout → log stderr, fail-open (do not block flow). CLI path failure → fall back to Agent tool path.
+
+### `claim-phase`
+
+- **Do**: Based on `read-program`'s mode marker + the phase identifier in the user request (e.g. `/brainstorming P14`), judge whether that phase already exists in the parent overall's **Phase inventory** (the four-table sync procedure is in [add-phase-protocol.md](./docs/add-phase-protocol.md)):
+  - `new-program` mode → straight to `grilling` (program-level design ultimately reaches `overall-spec?`).
+  - `phase-within-program` mode + phase **already in** Phase inventory → `grilling` (normal path).
+  - `phase-within-program` mode + phase **not in** Phase inventory (new phase / split) → `sync-overall`.
+- **Read**: parent overall's Phase inventory table.
+- **Exit**: in inventory / new-program → `grilling`; not in → `sync-overall`.
+- **Fail**: Phase inventory table missing or unparseable → terminal `BLOCKED: overall-sync-failed` (same terminal as sync-overall, consistent semantics).
+
+### `sync-overall`
+
+- **Do**: Read the parent overall → perform the four-table sync (procedure + checklist in [add-phase-protocol.md](./docs/add-phase-protocol.md)):
+  ① **Issue inventory** — append a new issue row (`#NNN` + owning phase; if this only splits an existing issue, fill the phase-ownership column);
+  ② **Phase inventory** — append a new phase row (scope / design spec / plan / acceptance / dependency);
+  ③ **Dependency graph** — add hard/soft edges (the new phase's dependency on predecessors + successors' dependency on the new phase);
+  ④ **version bump + change-history** entry (record the reason, user decision, scope boundary).
+  Then run the **four-table consistency check**: any `#NNN` referenced by the phase spec/plan must be in Issue inventory; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
+- **Read**: full parent overall spec (the Design spec column of Phase inventory).
+- **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling`.
+- **Fail**: four tables inconsistent (e.g. dependency phase not shipped, dangling reference) → terminal `BLOCKED: overall-sync-failed`; never allow grilling an unregistered phase.
 
 ### `grilling`
 
-- **Do**: Follow grilling SKILL.md framework verbatim — ask one question at a time, wait for each answer before continuing. Code-searchable facts: look up yourself. Decision questions: ask the user
+- **Do**: Follow grilling SKILL.md framework verbatim — ask one question at a time, wait for each answer before continuing. Code-searchable facts: look up yourself. Decision questions: ask the user. Before grilling, confirm `claim-phase` has released this phase (structural guarantee — state explicitly in the Do field).
 - **Read**: Grilling SKILL.md framework (loaded in `read-sub-skills`)
 - **Exit**: Shared understanding reached → `propose-approaches`
-- **Fail**: Substituting option menus or structured choice lists for grilling framework → violates invariant
+- **Fail**: Substituting option menus or structured choice lists for grilling framework → violates invariant. Mid-grill detects a phase split / new scope → route back to `claim-phase` (pairs with I6).
 
 ### `propose-approaches`
 
@@ -119,6 +158,13 @@ flowchart TD
 - **Exit**: Commit complete → `overall-spec?`
 - **Fail**: Git error → report + fail-open (do not block user spec review)
 
+### `user-confirm-commit?`
+
+- **Do**: At the spec closeout point, explicitly request commit confirmation from the user (CLAUDE.md forbids auto-commit, so a `user-confirm-commit?` gate is required before `commit-spec`).
+- **Read**: none (pure confirmation).
+- **Exit**: user confirms → `commit-spec`; user declines → hold (no commit; spec retained for later).
+- **Fail**: — (confirmation gate has no failure branch)
+
 ### `overall-spec?`
 
 - **Do**: Determine whether current spec is an overall spec (multi-phase) or a single phase spec
@@ -134,6 +180,8 @@ flowchart TD
 | I3 | **Design first** — no implementation actions until design is user-approved |
 | I4 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
 | I5 | **Review Stopping** — re-run driven only by blockers; no re-run after blocker=0; no new cdd-review call to obtain warn/nit |
+| I6 | **Register-before-grill** (scope: `phase-within-program` mode) — grilling runs only for phases already present in the overall Phase inventory. `new-program` mode passes through the `claim-phase` node but **skips the inventory check** to reach grilling directly (digraph `E -->|new-program mode| F`). In `phase-within-program` mode, if mid-grill a phase split / new issue emerges → route back to `claim-phase` → `sync-overall`; never grill unregistered scope. |
+| I7 | **Serial-phase** — when `sync-overall` registers a new phase, verify its hard-dependency predecessor has **Design spec column = `Done`** in the overall Phase inventory; if not shipped (Design spec ≠ `Done`) → hard `BLOCKED: overall-sync-failed` (same terminal as §2.3; never release grilling for an unmet phase — this is exactly the v1.19c anti-pattern to block). |
 
 ## Failure Modes
 
@@ -144,3 +192,6 @@ flowchart TD
 | Research agent error/timeout | fail-open (log stderr, do not block flow) | Research is optional enhancement |
 | Git commit error | report + fail-open | Do not block user spec review |
 | CLI path failure | fall back to Agent tool path | CLI unavailable but default path works |
+| Parent overall spec unparseable / multiple matches | BLOCKED (overall-parse-failed) | mode resolution cannot proceed | prompt user to specify the unique parent overall path |
+| Phase inventory missing or unparseable | BLOCKED (overall-sync-failed) | claim-phase / sync-overall cannot gate | user supplies or fixes the overall Phase inventory |
+| Four-table sync inconsistent (dependency not shipped / dangling ref) | BLOCKED (overall-sync-failed) | refuse to grill an unregistered / unmet-dependency phase | fix the overall four tables, then re-run sync-overall |

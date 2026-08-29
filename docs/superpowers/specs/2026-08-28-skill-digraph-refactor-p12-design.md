@@ -1,7 +1,7 @@
 # P12 Design Spec: cli-timeout
 
 - **Version**: v1.0 · 2026-08-29
-- **Status**: Draft
+- **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 
 ---

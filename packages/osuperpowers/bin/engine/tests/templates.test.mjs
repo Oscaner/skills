@@ -99,11 +99,11 @@ test("renderModePrompt #168: fix mode + default FINDINGS_SCOPE → blocker-only"
 });
 
 test("lineBudget: 真实阈值", () => {
-  assert.equal(lineBudget("sdd"), 162);
+  assert.equal(lineBudget("sdd"), 175);
   assert.equal(lineBudget("ctrl"), 110);
   assert.equal(lineBudget("tier1"), 225);
   assert.equal(lineBudget("tier2"), 320);
-  assert.deepEqual(LINE_BUDGETS, { sdd: 162, ctrl: 110, tier1: 225, tier2: 320 });
+  assert.deepEqual(LINE_BUDGETS, { sdd: 175, ctrl: 110, tier1: 225, tier2: 320 });
 });
 
 test("lineBudget: 未知 tier → 抛错", () => {

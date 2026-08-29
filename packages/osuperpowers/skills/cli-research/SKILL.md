@@ -18,7 +18,8 @@ flowchart TD
   C -->|brief written| D[dispatch-research]
   C -->|brief write failed| Z3((BLOCKED: brief failed))
   D -->|research complete| E[report]
-  D -->|CLI error / timeout| Z4((BLOCKED: CLI failed))
+  D -->|CLI error| Z4((BLOCKED: CLI failed))
+  D -->|TIMEOUT| E[report]
   E -->|findings presented| F((APPROVED))
 ```
 
@@ -49,8 +50,8 @@ flowchart TD
 
 - **Do**: Execute `node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>` as a background process. Monitor for completion; do not block the main session — the CLI runs asynchronously.
 - **Read**: `{pluginRoot}/bin/engine/cdd-research.mjs` (CLI script)
-- **Exit**: CLI exits 0 and findings file is written → `report`; CLI exits non-zero or times out → BLOCKED (CLI failed)
-- **Fail**: CLI execution error / non-zero exit / timeout → BLOCKED (CLI failed); record stderr for diagnostics
+- **Exit**: CLI exits 0 and findings file is written → `report`; CLI exits non-zero → BLOCKED (CLI failed); CLI times out → `report` (fail-open — read partial findings if available, then proceed to report; timeout is not retryable in research context)
+- **Fail**: CLI execution error / non-zero exit → BLOCKED (CLI failed); CLI timeout → fail-open to `report` (research is optional enhancement, partial findings are valuable; no timeout-count increment); record stderr for diagnostics
 
 ### `report`
 
@@ -75,5 +76,5 @@ flowchart TD
 | No harness available | BLOCKED (no harness) | Cannot dispatch research without a target harness | Install a supported harness per cli-select documentation |
 | Brief write failure | BLOCKED (brief failed) | Cannot dispatch without a valid brief file | Check workspace permissions and disk space |
 | cdd-research.mjs CLI error | BLOCKED (CLI failed) | CLI failure may indicate engine bug or harness misconfiguration | Check stderr diagnostics; invoke `osuperpowers:report-issue` if engine bug suspected |
-| cdd-research.mjs timeout | BLOCKED (CLI failed) | Long-running research exceeded timeout threshold | Review timeout configuration in cdd-research.mjs; increase if appropriate |
+| cdd-research.mjs timeout | fail-open → report | Long-running research exceeded timeout; partial findings may exist | Read partial findings file if available; report to user with timeout note; research is optional enhancement, not worth blocking |
 | Findings file missing | report error with diagnostics | CLI may have exited 0 but failed to write output | Check cdd-research.mjs stderr; verify output path permissions |

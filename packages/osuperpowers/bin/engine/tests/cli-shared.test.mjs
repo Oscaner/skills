@@ -6,9 +6,33 @@ import { mkdtempSync, writeFileSync, chmodSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { spawnCapture, invokeCli } from "../lib/cli-shared.mjs";
+import { spawnCapture, invokeCli, resolveTimeoutMs } from "../lib/cli-shared.mjs";
 
 const { delimiter } = path;
+
+// --- resolveTimeoutMs: research mode backward-compat env priority ---
+
+test("resolveTimeoutMs: research CDD_RESEARCH_TIMEOUT 优先于旧 RESEARCH_TIMEOUT", () => {
+  const env = { CDD_RESEARCH_TIMEOUT: "3600", RESEARCH_TIMEOUT: "900" };
+  // 新名优先于旧名（秒 → ms）
+  assert.equal(resolveTimeoutMs(env, "research"), 3600 * 1000);
+});
+
+test("resolveTimeoutMs: research 仅 RESEARCH_TIMEOUT 仍生效（向后兼容）", () => {
+  const env = { RESEARCH_TIMEOUT: "900" };
+  assert.equal(resolveTimeoutMs(env, "research"), 900 * 1000);
+});
+
+test("resolveTimeoutMs: research CDD_CLI_TIMEOUT 在 RESEARCH_TIMEOUT 之前（stepped）", () => {
+  const env = { CDD_CLI_TIMEOUT: "900", RESEARCH_TIMEOUT: "1200" };
+  // CDD_CLI_TIMEOUT=900 → 向上取到 1800s 边界
+  assert.equal(resolveTimeoutMs(env, "research"), 1800 * 1000);
+});
+
+test("resolveTimeoutMs: research 仅 CDD_CLI_TIMEOUT → stepped 边界", () => {
+  const env = { CDD_CLI_TIMEOUT: "900" };
+  assert.equal(resolveTimeoutMs(env, "research"), 1800 * 1000);
+});
 
 test("spawnCapture: echo 命令 → ok:true + stdout 包含输出", async () => {
   const res = await spawnCapture("echo", ["hello cli-shared"], { cwd: process.cwd(), env: process.env });

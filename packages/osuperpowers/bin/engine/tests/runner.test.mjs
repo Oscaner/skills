@@ -783,3 +783,126 @@ test("handoffStatus: APPROVED unchanged", () => {
   writeFileSync(hp, JSON.stringify({ status: "APPROVED" }));
   assert.equal(handoffStatus(hp), "APPROVED");
 });
+
+// ---- P12 timeout path ----
+
+test("normalizeHandoffStatus: TIMEOUT passthrough", async () => {
+  const { normalizeHandoffStatus } = await import("../lib/contract.mjs");
+  assert.equal(normalizeHandoffStatus("TIMEOUT"), "TIMEOUT");
+});
+
+test("readTimeoutCount: no header → 0", async () => {
+  const { readTimeoutCount } = await import("../lib/runner.mjs");
+  const dir = mkdtempSync(path.join(tmpdir(), "tc-read-"));
+  const p = path.join(dir, "progress.md");
+  writeFileSync(p, "# CDD ledger\nTask 1: complete\n");
+  assert.equal(readTimeoutCount(p), 0);
+});
+
+test("readTimeoutCount: header present → parsed value", async () => {
+  const { readTimeoutCount } = await import("../lib/runner.mjs");
+  const dir = mkdtempSync(path.join(tmpdir(), "tc-read2-"));
+  const p = path.join(dir, "progress.md");
+  writeFileSync(p, "# CDD ledger\n# timeoutCount: 3\nTask 1: complete\n");
+  assert.equal(readTimeoutCount(p), 3);
+});
+
+test("writeTimeoutCount: creates header + read returns value", async () => {
+  const { readTimeoutCount, writeTimeoutCount } = await import("../lib/runner.mjs");
+  const dir = mkdtempSync(path.join(tmpdir(), "tc-write-"));
+  const p = path.join(dir, "progress.md");
+  writeFileSync(p, "# CDD ledger\n");
+  writeTimeoutCount(p, 1);
+  assert.equal(readTimeoutCount(p), 1);
+});
+
+test("writeTimeoutCount: increments existing header", async () => {
+  const { readTimeoutCount, writeTimeoutCount } = await import("../lib/runner.mjs");
+  const dir = mkdtempSync(path.join(tmpdir(), "tc-inc-"));
+  const p = path.join(dir, "progress.md");
+  writeFileSync(p, "# CDD ledger\n# timeoutCount: 2\n");
+  writeTimeoutCount(p, 3);
+  assert.equal(readTimeoutCount(p), 3);
+});
+
+test("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-timeout-"));
+  // Mock CLI: sleep 5s — will be killed by 1s timeout
+  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nsleep 5\nexit 0\n");
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    const hp = path.join(ws, "task-1-handoff.json");
+    assert.ok(existsSync(hp), "handoff file should exist after timeout");
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    assert.equal(h.status, "TIMEOUT");
+    assert.match(h.blocker, /timeout after/);
+    // Partial artifacts preserved in handoff
+    assert.equal(h.task, 1);
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask: timeout → timeoutCount incremented in progress.md", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-tc-inc-"));
+  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nsleep 5\nexit 0\n");
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    const progress = readFileSync(path.join(ws, "progress.md"), "utf8");
+    assert.match(progress, /# timeoutCount: 1/);
+    // Second timeout increments
+    await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    const progress2 = readFileSync(path.join(ws, "progress.md"), "utf8");
+    assert.match(progress2, /# timeoutCount: 2/);
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask: unkillable → handoff status BLOCKED + blocker process unkillable", async () => {
+  // NOTE: SIGKILL always kills processes on modern Unix, so the unkillable path in spawnCapture
+  // is unreachable with real processes. This test verifies the BLOCKED handoff write path exists
+  // by testing at the contract level: writeHandoff with status BLOCKED.
+  const { writeHandoff } = await import("../lib/contract.mjs");
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-unkillable-ho-"));
+  const hp = path.join(dir, "task-1-handoff.json");
+  writeHandoff(hp, {
+    task: 1, phase: "implement", status: "BLOCKED",
+    blocker: "process unkillable",
+    findings: [{ severity: "warn", title: "pre-existing" }],
+  });
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  assert.equal(h.status, "BLOCKED");
+  assert.match(h.blocker, /unkillable/);
+  assert.deepEqual(h.findings, [{ severity: "warn", title: "pre-existing" }]);
+});

@@ -20,6 +20,7 @@ import {
   classifySeverity,
   rollupStatus,
   markDeferred,
+  normalizeHandoffStatus,
 } from "../lib/contract.mjs";
 
 function git(repo, ...args) {
@@ -199,6 +200,18 @@ test("markDeferred: warn/nit 无条件 deferred:true，blocker 不标", () => {
   assert.equal(out[0].deferred, true);
   assert.equal(out[1].deferred, true);
   assert.equal(out[2].deferred, undefined);
+});
+
+test("normalizeHandoffStatus: TIMEOUT → TIMEOUT（透传，无映射）", () => {
+  assert.equal(normalizeHandoffStatus("TIMEOUT"), "TIMEOUT");
+});
+
+test("normalizeHandoffStatus: BLOCKED → BLOCKED", () => {
+  assert.equal(normalizeHandoffStatus("BLOCKED"), "BLOCKED");
+});
+
+test("normalizeHandoffStatus: CHANGES_REQUESTED → CHANGES_REQUESTED", () => {
+  assert.equal(normalizeHandoffStatus("CHANGES_REQUESTED"), "CHANGES_REQUESTED");
 });
 
 test("writeHandoff: 按 schema 写入 + 合并已有（保留 commits）", () => {

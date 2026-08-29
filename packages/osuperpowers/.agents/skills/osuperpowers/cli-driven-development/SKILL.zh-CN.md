@@ -21,12 +21,15 @@ flowchart TD
   D -->|APPROVED| E{task-complete?}
   D -->|CHANGES_REQUESTED| F{fix-rounds >= 5?}
   D -->|BLOCKED| R{engine-recovery}
+  D -->|TIMEOUT| T{timeout-decision}
   E -->|more tasks remain| C
   E -->|all complete| G{any-deferred?}
   F -->|no| C
   F -->|yes| Z4((BLOCKED: fix-loop-exhausted))
   R -->|yes, fixable & retry<2| C
   R -->|no| Z3((BLOCKED: engine-error))
+  T -->|timeoutCount < 2 & CLI stdout| C
+  T -->|timeoutCount >= 2 or SIGKILL / zero output| Z6((BLOCKED: timeout-exhausted))
   G -->|no| K[branch-review]
   G -->|yes| H[deferred-disposition]
   H -->|fix-now| I[deferred-sweep-loop]
@@ -57,16 +60,16 @@ flowchart TD
 
 ### `dispatch-mode`
 
-- **Do**: 构造并执行 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]`（`--scope` 仅 `--mode fix` 时有效；默认 `blocker-only`）。**Background execution**（程序级强化）：必须以 background 模式运行 CLI（harness 支持时用 `run_in_background`，不支持时超时+轮询）。返回后**必须读 handoff.json 判断状态**（Orchestrator handoff 检查义务——#181 核心）：解析 `status` 字段（APPROVED / CHANGES_REQUESTED / BLOCKED），**不凭 stdout 是否为空判断有无变更**。brief 生成使用 `--task N` 索引（CDD 级唯一索引——#185 fix 后语义）。scope 默认 `blocker-only`；deferred-sweep 仅当 deferred-disposition 决策为 fix-now 时启用。
-- **Read**: `CDD_HANDOFF_PATH`（`task-N-handoff.json`）+ open-findings（fix mode 时）+ brief 生成依赖的 plan 段落。
-- **Exit**: 构造 CLI 命令并 spawn → 进入 `handoff-status`（决策节点，按 handoff status 路由）。
+- **Do**: 构造并执行 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]`（`--scope` 仅 `--mode fix` 时有效；默认 `blocker-only`）。**Background execution**（程序级强化）：必须以 background 模式运行 CLI（harness 支持时用 `run_in_background`，不支持时超时+轮询）。返回后**必须读 handoff.json 判断状态**（Orchestrator handoff 检查义务——#181 核心）：解析 `status` 字段（APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT），**不凭 stdout 是否为空判断有无变更**。**超时处理**：若 `invokeCli` 返回 `timedOut: true`，读 `progress.md` `timeoutCount` 并路由到 `timeout-decision`（digraph 中的决策节点）。brief 生成使用 `--task N` 索引（CDD 级唯一索引——#185 fix 后语义）。scope 默认 `blocker-only`；deferred-sweep 仅当 deferred-disposition 决策为 fix-now 时启用。
+- **Read**: `CDD_HANDOFF_PATH`（`task-N-handoff.json`）+ open-findings（fix mode 时）+ brief 生成依赖的 plan 段落 + `progress.md`（timeoutCount，超时时）。
+- **Exit**: 构造 CLI 命令并 spawn → 进入 `handoff-status`（决策节点，按 handoff status 路由）。超时时 → 进入 `timeout-decision`。
 - **Fail**: 嵌套 CLI 失败且 handoff 缺失 → runner.mjs 已写 BLOCKED handoff（含 stderr 进 blocker），本节点读取并路由到 BLOCKED: engine-error。
 
 ### `handoff-status`（决策节点）
 
 - **Do**: 读 `handoff.json` 的 `status` 字段，路由到对应出口。
 - **Read**: `handoff.json`。
-- **Exit**: `APPROVED` → `task-complete?`；`CHANGES_REQUESTED` → dispatch-mode（fix mode，blocker-only scope；dispatch-mode 内部维护 fix-round 计数器，≥ 5 时路由到 BLOCKED: fix-loop-exhausted）；`BLOCKED` → `engine-recovery`（决策节点——读 blocker 判断可修复性；可修复 + retry<2 → 重 dispatch 同 mode；不可修复/retry≥2 → BLOCKED: engine-error；retry 计数器通过 `progress.md` `engine-recovery-count` 管理，不走 `handoff.json.retryCount`——见下方 §D 偏差声明）；`NEEDS_CONTEXT` → **implicit fail-open**（orchestrator 手工调查后以相同 mode 重派 dispatch-mode；不在 digraph 中作为边）。
+- **Exit**: `APPROVED` → `task-complete?`；`CHANGES_REQUESTED` → dispatch-mode（fix mode，blocker-only scope；dispatch-mode 内部维护 fix-round 计数器，≥ 5 时路由到 BLOCKED: fix-loop-exhausted）；`BLOCKED` → `engine-recovery`（决策节点——读 blocker 判断可修复性；可修复 + retry<2 → 重 dispatch 同 mode；不可修复/retry≥2 → BLOCKED: engine-error；retry 计数器通过 `progress.md` `engine-recovery-count` 管理，不走 `handoff.json.retryCount`——见下方 §D 偏差声明）；`TIMEOUT` → `timeout-decision`（决策节点——读 `progress.md` `timeoutCount`；< 2 + CLI stdout 存在 → 重试 dispatch-mode；≥ 2 或 SIGKILL / 零输出 → BLOCKED: timeout-exhausted）；`NEEDS_CONTEXT` → **implicit fail-open**（orchestrator 手工调查后以相同 mode 重派 dispatch-mode；不在 digraph 中作为边）。
 - **Fail**: `status` 字段缺失或非法（非 APPROVED/CHANGES_REQUESTED/BLOCKED 之一；NEEDS_CONTEXT 为已知但隐式处理的状态，由 Exit 字段的 fail-open 路径处理，不走此 Fail 分支）。
 
 ### `engine-recovery`（决策节点）
@@ -77,6 +80,13 @@ flowchart TD
 - **Fail**: blocker 字段为空或不可解析 → 终态 `BLOCKED: engine-error`。
 
 > **§D 偏差声明（deliberate spec §2.3 step 4 departure）**：Spec §2.3 规定复用 `handoff.json.retryCount`（由 engine 层 `runner.mjs` 管理）。本 plan 改为 `progress.md` `engine-recovery-count`（由 orchestrator 层 skill 管理）。理由：P10 scope 限定「不改控制流」（design §1 范围边界）；`runner.mjs` 当前无 retry 基础设施，retry 是 skill digraph 的 `engine-recovery` 决策节点逻辑（orchestrator 层），非 engine 循环——由 orchestrator 跨 re-dispatch 保留计数，不改 `runner.mjs`。
+
+### `timeout-decision`（决策节点）
+
+- **Do**：读 `progress.md` `timeoutCount` 判断超时重试资格：① 若 `timeoutCount < 2` **且** CLI 产生了部分 stdout（超时前有非空输出）→ 递增 `progress.md` `timeoutCount` → 重派 `dispatch-mode`（同 task，同 mode——带 partial handoff 上下文重试）；② 若 `timeoutCount >= 2` **或** CLI 被 SIGKILL 终止 **或** CLI 产生零输出 → 终态 `BLOCKED: timeout-exhausted`。`timeoutCount` 持久化在 `progress.md`（与 `engine-recovery-count` 同模式），不写入 `handoff.json`。
+- **Read**：`progress.md`（timeoutCount）+ 超时 dispatch 的 CLI stdout 存在性检查。
+- **Exit**：timeoutCount < 2 且 CLI stdout 存在 → `dispatch-mode`（重试）；timeoutCount >= 2 或 SIGKILL / 零输出 → `BLOCKED: timeout-exhausted`。
+- **Fail**：`progress.md` 不可读或 timeoutCount 不可解析 → 终态 `BLOCKED: timeout-exhausted`。
 
 ### `task-complete?`（决策节点）
 
@@ -138,6 +148,7 @@ flowchart TD
 | I5 | **Three-Mode Chain Completeness** — 每 task 必走 implement → task-review → （fix 如需）→ ledger 完整链路；不允许跳过 task-review 直接从 implement 到 ledger（#181 纪律）。 |
 | I6 | **No Controller Bypass** — 当引擎可用（cdd-task.mjs / cdd-review.mjs 可运行）时，orchestrator 禁止手写控制流绕过引擎处理。所有 task 执行、review、fix 派发必须走引擎 CLI 调用；禁止 orchestrator 层直接操控 handoff/ledger 状态来替代引擎处理。 |
 | I7 | **No Hand-Written Deferred Fix** — deferred findings 修复必须走 `--mode fix` dispatch（`deferred-disposition` fix-now → `deferred-sweep-loop`）；controller 禁止在引擎 CLI 路径之外手写 deferred findings 的修复。**降级路径**：当引擎完全不可用时（exit 3 / harness 缺失 / retry 计数命中 `engine-recovery` 硬上限 retry≥2），controller 可直接修复但**必须在 `progress.md` 记录降级原因**（severity + summary + reason）；engine 恢复后补 `--mode fix` re-review。 |
+| I8 | **Timeout Retry with Cap** — `dispatch-mode` 返回 `TIMEOUT` 时，`timeout-decision` 读取 `progress.md` `timeoutCount`。若 `timeoutCount < 2` 且 CLI 产生了部分 stdout（超时前非空输出），递增 `timeoutCount` 并通过 `dispatch-mode` 重试。若 `timeoutCount >= 2` 或 CLI 被 SIGKILL 终止或产生零输出 → 终态 `BLOCKED: timeout-exhausted`。`timeoutCount` 持久化在 `progress.md`（与 `engine-recovery-count` 同模式）。 |
 
 ## Failure Modes
 
@@ -149,6 +160,8 @@ flowchart TD
 | determine-base 用户拒绝确认 | BLOCKED: base-undecided | merge/PR 到错误 base 代价高 | 用户重跑 CDD 时重新询问 |
 | 嵌套 CLI 失败 + handoff 缺失 | BLOCKED: engine-error | 引擎 bug 信号 | `osuperpowers:report-issue` 上报，label `bug, dogfood, osuperpowers, cdd` |
 | handoff `status: BLOCKED` | `engine-recovery` 决策 → 重 dispatch 或 BLOCKED: engine-error | runner.mjs 已捕获 blocker（dirty tree / CLI 失败） | engine-recovery 读 blocker：可修复 + retry<2 → 重 dispatch；否则终态 BLOCKED |
+| handoff `status: TIMEOUT` | `timeout-decision` → 重试或 BLOCKED: timeout-exhausted | CLI 超时未完成 | timeout-decision 读 `timeoutCount`：< 2 + 部分 stdout → 重试（递增计数）；≥ 2 或 SIGKILL / 零输出 → 终态 BLOCKED: timeout-exhausted |
+| timeout exhaustion（timeoutCount ≥ 2） | BLOCKED: timeout-exhausted | 重试上限已到；CLI 持续超时 | 检查超时配置；检查 workspace 资源；增大超时或修复底层性能问题 |
 | task 级 fix-loop ≥ 5 轮 | BLOCKED: fix-loop-exhausted | 避免 task 级无限循环 | 用户决策：手工修 / 重新 review scope / 放弃 |
 | handoff JSON 损坏或 status 字段非法 | BLOCKED: engine-error | 契约违规（runner self-validate 应已拦截） | report-issue 上报 |
 | deferred-disposition 累计 3 次呈现耗尽 | BLOCKED: menu-exhausted | 无法获取用户决策 | 用户重跑 CDD |

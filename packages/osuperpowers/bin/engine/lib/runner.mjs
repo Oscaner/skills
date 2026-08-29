@@ -17,7 +17,7 @@ import { validateCommitContract, writeHandoff, gitToplevel, normalizeHandoffStat
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 import { generateBrief, validateBrief } from "./brief.mjs";
-import { spawnCapture, invokeCli } from "./cli-shared.mjs";
+import { spawnCapture, invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
 export { spawnCapture, invokeCli };
@@ -470,13 +470,49 @@ export async function runTask(harness, taskNum, opts = {}) {
   let agentOut = "";
   let agentRc = 0;
   let cliStderr = "";
+  let timedOut = false;
+  let unkillable = false;
   if (dryRun) {
     agentOut = dryRunH1Block(env, taskNum);
   } else {
-    const res = await invokeCli(entry, prompt, mode, env, cwd);
+    const timeoutMs = resolveTimeoutMs(env, "task");
+    const res = await invokeCli(entry, prompt, mode, env, cwd, timeoutMs);
     agentOut = res.ok ? res.stdout : "";
     cliStderr = res.stderr;
-    if (!res.ok) agentRc = res.code;
+    timedOut = res.timedOut === true;
+    unkillable = res.unkillable === true;
+    if (!res.ok && !timedOut) agentRc = res.code;
+  }
+
+  // 8.5 Timeout path — 在 commit-contract 验证前写入 partial handoff。
+  //   timedOut && !unkillable → TIMEOUT partial handoff（status=TIMEOUT + blocker + 已有 findings）；
+  //   timedOut && unkillable  → BLOCKED handoff（process unkillable）。
+  //   进度：递增 progress.md timeoutCount。
+  if (timedOut) {
+    const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
+    if (unkillable) {
+      writeHandoff(env.CDD_HANDOFF_PATH, {
+        task: taskNum,
+        phase: mode,
+        status: "BLOCKED",
+        blocker: "process unkillable",
+        findings: existingHandoff?.findings ?? [],
+      });
+      return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "process unkillable", noExit);
+    }
+    // Normal timeout: TIMEOUT partial handoff
+    const timeoutMs = resolveTimeoutMs(env, "task");
+    writeHandoff(env.CDD_HANDOFF_PATH, {
+      task: taskNum,
+      phase: mode,
+      status: "TIMEOUT",
+      blocker: `timeout after ${timeoutMs}ms`,
+      findings: existingHandoff?.findings ?? [],
+    });
+    // Increment timeoutCount in progress.md
+    const currentCount = readTimeoutCount(env.CDD_LEDGER);
+    writeTimeoutCount(env.CDD_LEDGER, currentCount + 1);
+    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
   // 9. Commit-contract（先于 H1 —— validator 可能把 handoff 重写为 BLOCKED，H1 必须读该状态）。
@@ -544,6 +580,35 @@ export function taskNumbersFromPlan(planFile) {
 function ledgerComplete(n, ledgerPath) {
   if (!ledgerPath || !existsSync(ledgerPath)) return false;
   return new RegExp(`^Task ${n}: complete`).test(readFileSync(ledgerPath, "utf8"));
+}
+
+// ---- timeoutCount helpers ----
+// progress.md 新增 `# timeoutCount: N` header 行（plain-text 格式，与 `Task N: complete` 行风格一致）。
+
+// readTimeoutCount：读取 progress.md 中的 `# timeoutCount: N` header；缺失 → 0。
+export function readTimeoutCount(progressPath) {
+  if (!progressPath || !existsSync(progressPath)) return 0;
+  const content = readFileSync(progressPath, "utf8");
+  const m = content.match(/^# timeoutCount: (\d+)/m);
+  return m ? Number(m[1]) : 0;
+}
+
+// writeTimeoutCount：写入/更新 progress.md 中的 `# timeoutCount: N` header。
+// 若 header 不存在则追加到文件开头（在 `# CDD ledger` 行之后）；已存在则替换。
+export function writeTimeoutCount(progressPath, n) {
+  if (!progressPath) return;
+  let content = existsSync(progressPath) ? readFileSync(progressPath, "utf8") : "";
+  const line = `# timeoutCount: ${n}`;
+  if (/^# timeoutCount: \d+/m.test(content)) {
+    content = content.replace(/^# timeoutCount: \d+/m, line);
+  } else {
+    // Insert after the first line (the `# CDD ledger` header line) or at the top
+    const lines = content.split("\n");
+    const firstLine = lines[0] ?? "";
+    lines.splice(1, 0, line);
+    content = lines.join("\n");
+  }
+  writeFileSync(progressPath, content);
 }
 
 // 对齐 _handoff_status：缺失 → "MISSING"；损坏 → "UNKNOWN"；否则 status // "UNKNOWN"。

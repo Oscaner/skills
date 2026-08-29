@@ -11,15 +11,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
-import { spawnCapture } from "./lib/cli-shared.mjs";
+import { spawnCapture, resolveTimeoutMs } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
-import { exitOk, exitCliMissing, exitBlocked } from "../utils/exit.mjs";
+import { exitOk, exitCliMissing, exitBlocked, exitWithCode } from "../utils/exit.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const REG_PATH = process.env.CDD_REGISTRY_PATH
   || fileURLToPath(new URL("./harness-registry.json", import.meta.url));
 const DRY_RUN = process.env.CDD_DRY_RUN === "1";
-const RESEARCH_TIMEOUT = Number(process.env.RESEARCH_TIMEOUT) || 600_000;
 
 const USAGE = `usage: ${NAME} --harness <name> --brief <path> --output <path> [-h/--help]`;
 
@@ -105,30 +104,33 @@ if (DRY_RUN) {
 const cli = entry.cli;
 const cliArgs = [...entry.invoke.split(/\s+/).filter(Boolean), prompt];
 
-// timeout watchdog: kill child + exit 1
-let childProc = null;
-const timer = setTimeout(() => {
-  process.stderr.write(`${NAME}: RESEARCH_TIMEOUT after ${RESEARCH_TIMEOUT}ms\n`);
-  if (childProc) childProc.kill("SIGTERM");
-  process.exit(1);
-}, RESEARCH_TIMEOUT);
-timer.unref?.();
+const timeoutMs = resolveTimeoutMs(process.env, "research");
 
 let result;
 try {
   result = await spawnCapture(cli, cliArgs, {
     cwd: process.cwd(),
     env: process.env,
-    onSpawn(proc) { childProc = proc; },
+    timeoutMs,
+    // onSpawn retained for spawnCapture internal timeout kill; no ad-hoc watchdog here.
+    onSpawn() {},
   });
-} finally {
-  clearTimeout(timer);
+} catch (err) {
+  process.stderr.write(`${NAME}: spawn error: ${err.message}\n`);
+  exitWithCode(1);
+}
+
+// Timeout path: 写 partial findings（保留已产出内容）+ 追加 TIMEOUT frontmatter + exit 1。
+if (result.timedOut) {
+  process.stderr.write(`${NAME}: timeout after ${timeoutMs}ms\n`);
+  writeFindings(outputPath, `${result.stdout}\n---\nstatus: TIMEOUT\n`);
+  exitWithCode(1);
 }
 
 if (!result.ok) {
   process.stderr.write(`${NAME}: harness failed (exit ${result.code})\n`);
   if (result.stderr) process.stderr.write(result.stderr);
-  process.exit(1);
+  exitWithCode(1);
 }
 
 writeFindings(outputPath, result.stdout);

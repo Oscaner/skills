@@ -9,9 +9,12 @@ const DEFAULT_TIMEOUTS = { task: 1800_000, review: 1800_000, research: 1800_000 
 // 30-minute step boundary in seconds. Non-boundary values round up.
 const STEP_SECONDS = 1800;
 
+// Old env names retained for backward-compat (per-mode scope only).
+const LEGACY_MODE_ENV = { research: "RESEARCH_TIMEOUT" };
+
 /**
  * Resolve timeout in milliseconds for a given mode.
- * Priority: per-mode env (no stepping) > CDD_CLI_TIMEOUT (stepped) > DEFAULT_TIMEOUTS[mode] (stepped).
+ * Priority: per-mode env (no stepping) > CDD_CLI_TIMEOUT (stepped) > legacy per-mode env (no stepping) > DEFAULT_TIMEOUTS[mode] (stepped).
  * 30-minute stepping: non-boundary seconds round up to next step boundary.
  * @param {Record<string, string|undefined>} env
  * @param {string} mode
@@ -29,6 +32,12 @@ export function resolveTimeoutMs(env, mode) {
   if (globalRaw !== undefined) {
     const seconds = Math.max(1, Math.ceil(Number(globalRaw) / STEP_SECONDS) * STEP_SECONDS);
     return seconds * 1000;
+  }
+  // Legacy env name (e.g. RESEARCH_TIMEOUT) — backward-compat, used as-is (no stepping).
+  const legacyKey = LEGACY_MODE_ENV[mode];
+  const legacy = legacyKey ? env[legacyKey] : undefined;
+  if (legacy !== undefined) {
+    return Math.max(1, Number(legacy)) * 1000;
   }
   if (DEFAULT_TIMEOUTS[mode] != null) {
     return DEFAULT_TIMEOUTS[mode];

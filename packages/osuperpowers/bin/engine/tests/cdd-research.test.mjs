@@ -170,3 +170,131 @@ test("cdd-research: 未知参数 → exit 2", () => {
   const r = runCli(["--unknown-flag"]);
   assert.equal(r.exitCode, 2);
 });
+
+// --- Slice 5: timeout reuse (spawnCapture) + partial TIMEOUT findings ---
+
+// 挂起 harness（sleep 长时）+ 极短 timeout → spawnCapture 触发 timedOut。
+function makeHangHarness(dir) {
+  const mockCli = path.join(dir, "hang-harness.sh");
+  writeFileSync(mockCli, "#!/bin/sh\nsleep 30\n");
+  chmodSync(mockCli, 0o755);
+  return mockCli;
+}
+
+function makeTimeoutRegistry(dir) {
+  const registryPath = path.join(dir, "registry.json");
+  writeFileSync(registryPath, JSON.stringify({
+    "mock-timeout-harness": {
+      ship: "full",
+      cli: "hang-harness.sh",
+      invoke: "-p",
+      output: "text",
+    },
+  }));
+  return registryPath;
+}
+
+test("cdd-research: timeout → 写 partial findings + TIMEOUT frontmatter + exit 1", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-timeout-"));
+  makeHangHarness(dir);
+  const registryPath = makeTimeoutRegistry(dir);
+  const briefPath = path.join(dir, "brief.md");
+  writeFileSync(briefPath, "Analyze the auth module.");
+  const outputPath = path.join(dir, "findings.md");
+
+  const r = runCli([
+    "--harness", "mock-timeout-harness",
+    "--brief", briefPath,
+    "--output", outputPath,
+  ], {
+    env: {
+      CDD_REGISTRY_PATH: registryPath,
+      PATH: `${dir}:${process.env.PATH}`,
+      CDD_RESEARCH_TIMEOUT: "1",
+    },
+  });
+  assert.equal(r.exitCode, 1, "should exit 1 on timeout");
+  assert.ok(existsSync(outputPath), "partial findings file should exist on timeout");
+  const content = readFileSync(outputPath, "utf8");
+  assert.ok(content.includes("TIMEOUT"), "findings should contain TIMEOUT frontmatter");
+});
+
+test("cdd-research: 旧 RESEARCH_TIMEOUT 向后兼容（秒级，仍生效）", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-legacy-"));
+  makeHangHarness(dir);
+  const registryPath = makeTimeoutRegistry(dir);
+  const briefPath = path.join(dir, "brief.md");
+  writeFileSync(briefPath, "Analyze the auth module.");
+  const outputPath = path.join(dir, "findings.md");
+
+  // RESEARCH_TIMEOUT=1（秒）→ 极短 timeout → 挂起 harness 超时退出 1。
+  // 若旧 env 未被读取，会退回 1800000ms 默认，sleep 30 在 execFileSync 10s 截断内未超时 → exit 0 ≠ 1。
+  const r = runCli([
+    "--harness", "mock-timeout-harness",
+    "--brief", briefPath,
+    "--output", outputPath,
+  ], {
+    env: {
+      CDD_REGISTRY_PATH: registryPath,
+      PATH: `${dir}:${process.env.PATH}`,
+      RESEARCH_TIMEOUT: "1",
+    },
+  });
+  assert.equal(r.exitCode, 1, "legacy RESEARCH_TIMEOUT=1 should trigger timeout");
+  assert.ok(existsSync(outputPath), "partial findings file should exist");
+  assert.ok(readFileSync(outputPath, "utf8").includes("TIMEOUT"), "should contain TIMEOUT");
+});
+
+test("cdd-research: CDD_RESEARCH_TIMEOUT 优先于旧 RESEARCH_TIMEOUT（秒级）", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-prio-"));
+  makeHangHarness(dir);
+  const registryPath = makeTimeoutRegistry(dir);
+  const briefPath = path.join(dir, "brief.md");
+  writeFileSync(briefPath, "Analyze the auth module.");
+  const outputPath = path.join(dir, "findings.md");
+
+  // CDD_RESEARCH_TIMEOUT=1（优先）→ 超时；RESEARCH_TIMEOUT=900 不应生效（否则 30s 内 sleep 完成 exit 0）。
+  const r = runCli([
+    "--harness", "mock-timeout-harness",
+    "--brief", briefPath,
+    "--output", outputPath,
+  ], {
+    env: {
+      CDD_REGISTRY_PATH: registryPath,
+      PATH: `${dir}:${process.env.PATH}`,
+      CDD_RESEARCH_TIMEOUT: "1",
+      RESEARCH_TIMEOUT: "900",
+    },
+  });
+  assert.equal(r.exitCode, 1, "new CDD_RESEARCH_TIMEOUT=1 should win over RESEARCH_TIMEOUT=900");
+  assert.ok(readFileSync(outputPath, "utf8").includes("TIMEOUT"), "should contain TIMEOUT");
+});
+
+test("cdd-research: 充足 timeout 下挂起 harness 正常完成（不误判 timeout）", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-okto-"));
+  const mockCli = path.join(dir, "sleep-harness.sh");
+  writeFileSync(mockCli, "#!/bin/sh\necho \"# Research Findings\n\nSlept then finished.\"\n");
+  chmodSync(mockCli, 0o755);
+  const registryPath = path.join(dir, "registry.json");
+  writeFileSync(registryPath, JSON.stringify({
+    "mock-timeout-harness": { ship: "full", cli: "sleep-harness.sh", invoke: "-p", output: "text" },
+  }));
+  const briefPath = path.join(dir, "brief.md");
+  writeFileSync(briefPath, "Analyze the auth module.");
+  const outputPath = path.join(dir, "findings.md");
+
+  // RESEARCH_TIMEOUT=900（足够）→ 立即完成的 echo harness → exit 0，无 TIMEOUT。
+  const r = runCli([
+    "--harness", "mock-timeout-harness",
+    "--brief", briefPath,
+    "--output", outputPath,
+  ], {
+    env: {
+      CDD_REGISTRY_PATH: registryPath,
+      PATH: `${dir}:${process.env.PATH}`,
+      RESEARCH_TIMEOUT: "900",
+    },
+  });
+  assert.equal(r.exitCode, 0, "sufficient timeout should not trigger timeout path");
+  assert.ok(readFileSync(outputPath, "utf8").includes("Research Findings"), "should contain findings");
+});

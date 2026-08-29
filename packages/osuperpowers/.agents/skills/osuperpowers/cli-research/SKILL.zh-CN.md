@@ -18,7 +18,8 @@ flowchart TD
   C -->|brief written| D[dispatch-research]
   C -->|brief write failed| Z3((BLOCKED: brief failed))
   D -->|research complete| E[report]
-  D -->|CLI error / timeout| Z4((BLOCKED: CLI failed))
+  D -->|CLI error| Z4((BLOCKED: CLI failed))
+  D -->|TIMEOUT| E[report]
   E -->|findings presented| F((APPROVED))
 ```
 
@@ -49,8 +50,8 @@ flowchart TD
 
 - **Do**：执行 `node {pluginRoot}/bin/engine/cdd-research.mjs --harness <name> --brief <brief-path> --output <findings-path>` 作为后台进程。监控完成状态；不阻塞主会话——CLI 异步运行。
 - **Read**：`{pluginRoot}/bin/engine/cdd-research.mjs`（CLI 脚本）
-- **Exit**：CLI 退出码 0 且 findings 文件已写入 → `report`；CLI 退出码非 0 或超时 → BLOCKED（CLI failed）
-- **Fail**：CLI 执行错误 / 非零退出码 / 超时 → BLOCKED（CLI failed）；记录 stderr 用于诊断
+- **Exit**：CLI 退出码 0 且 findings 文件已写入 → `report`；CLI 退出码非 0 → BLOCKED（CLI failed）；CLI 超时 → `report`（fail-open——读取 partial findings 如有，然后进入 report；research 场景下超时不可重试）
+- **Fail**：CLI 执行错误 / 非零退出码 → BLOCKED（CLI failed）；CLI 超时 → fail-open 到 `report`（research 为可选增强，partial findings 有价值；不递增 timeout-count）；记录 stderr 用于诊断
 
 ### `report`
 
@@ -75,5 +76,5 @@ flowchart TD
 | 无可用 harness | BLOCKED（no harness） | 无目标 harness 则无法调度研究 | 按 cli-select 文档安装支持的 harness |
 | Brief 写入失败 | BLOCKED（brief failed） | 无有效 brief 文件则无法调度 | 检查 workspace 权限和磁盘空间 |
 | cdd-research.mjs CLI 错误 | BLOCKED（CLI failed） | CLI 失败可能表示引擎 bug 或 harness 配置问题 | 检查 stderr 诊断信息；疑似引擎 bug 时调用 `osuperpowers:report-issue` |
-| cdd-research.mjs 超时 | BLOCKED（CLI failed） | 长时间运行的研究超出超时阈值 | 检查 cdd-research.mjs 中的超时配置；适当时增大 |
+| cdd-research.mjs 超时 | fail-open → report | 长时间运行的研究超出超时阈值；可能存在 partial findings | 读取 partial findings 文件（如有）；向用户报告并附超时说明；research 为可选增强，不值得阻塞 |
 | findings 文件缺失 | 报告错误并附诊断信息 | CLI 可能退出码为 0 但未写入输出 | 检查 cdd-research.mjs stderr；验证输出路径权限 |

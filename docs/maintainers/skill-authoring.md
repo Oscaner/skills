@@ -72,7 +72,7 @@ flowchart TD
 ## 4. Invariants
 
 - 跨节点的不变量，集中声明在 `## Invariants` 小节
-- **上限 5 条**——超限时检查是否可降级为某节点的 Fail 字段
+- **上限 5 条**——超限时检查是否可降级为某节点的 Fail 字段（例外：`osuperpowers:brainstorming` 因 P14 新增 I6/I7 串行/登记纪律，实际持有 7 条；该例外已在该技能 design spec v1.0 §2.4/§2.5 显式授权，不视为违规）
 - 典型 invariant：
   - vendored 子模块不可改
   - commit 纪律（spec 获批即 commit）

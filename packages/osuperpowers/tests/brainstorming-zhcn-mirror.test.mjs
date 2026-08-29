@@ -67,7 +67,7 @@ bothFilesContain("digraph anchor", NODE_ANCHORS, () => enDigraph, () => zhDigrap
 // NOTE: skill-authoring.md §4 documents an "Invariants table capped at 5"
 // convention. P14 intentionally extends the brainstorming skill to 7 rows by
 // adding I6 (Register-before-grill) and I7 (Serial-phase) gates; the upstream
-// English source already carries I7, so this is a pre-existing standard
+// osuperpowers:brainstorming source carries I1-I7, so this is a pre-existing standard
 // tension, not a regression introduced by the mirror. The parity guard tracks
 // the real source (I1–I7) rather than the cap so a future collapse to 5 forces
 // a visible test edit instead of silently drifting.

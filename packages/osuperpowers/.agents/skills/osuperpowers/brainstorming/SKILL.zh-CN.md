@@ -56,7 +56,7 @@ flowchart TD
 
 - **Do**: 读取 `mattpocock-skills` 的 grilling SKILL.md，加载其框架作为 grilling 阶段执行基础。解析策略：① 通过 harness plugin 系统定位同级 `mattpocock-skills` plugin；② 回退到同 repo 的 vendored 路径
 - **Read**: grilling SKILL.md 文件
-- **Exit**: 加载成功 → `explore-context`；缺失 → BLOCKED（安装 mattpocock-skills）
+- **Exit**: 加载成功 → `read-program`；缺失 → BLOCKED（安装 mattpocock-skills）
 - **Fail**: 加载失败 → BLOCKED（含安装 mattpocock-skills plugin 指引）
 
 ### `read-program`
@@ -133,14 +133,14 @@ flowchart TD
 
 - **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。遵循 [docs-review.md](./docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `commit-spec`。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
 - **Read**: spec 文档 + [docs-review.md](./docs/docs-review.md)
-- **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ 跳到 `commit-spec`
+- **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ 跳到 `user-confirm-commit?`（仍经 `user-ok?` → `user-confirm-commit?`）
 - **Fail**: blocker=0 后重跑 review → 违反 I5。为新 warn/nit 发起新 cdd-review → 违反 I5
 
 ### `user-ok?`
 
 - **Do**: 呈现 spec-review 输出的 warn/nit 列表。用户选项：① Proceed to commit ② Fix selected warns/nits。blocker=0 后不提供重跑
 - **Read**: spec-review 输出的 warn/nit findings（从已有输出读取；不发新 cdd-review）
-- **Exit**: proceed → `commit-spec`；fix selected → 修复后 → `commit-spec`（不重跑 review）
+- **Exit**: proceed → `user-confirm-commit?` → `commit-spec`；fix selected → 修复后 → `user-confirm-commit?` → `commit-spec`（不重跑 review）
 - **Fail**: 重跑 review → 违反 I5
 
 ### `commit-spec`

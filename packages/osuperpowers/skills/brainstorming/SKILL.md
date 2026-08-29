@@ -133,14 +133,14 @@ flowchart TD
 
 - **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI), each pass dispatches an independent `cdd-review` CLI call: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. Follow D1/D2/D3 from [docs-review.md](./docs/docs-review.md). Review Stopping: ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `commit-spec`. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Spec document + [docs-review.md](./docs/docs-review.md)
-- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean (D1) → skip to `commit-spec`
+- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean (D1) → skip to `user-confirm-commit?` (still via `user-ok?` → `user-confirm-commit?`)
 - **Fail**: Re-run review after blocker=0 → violates I5. New cdd-review call for warn/nit → violates I5
 
 ### `user-ok?`
 
 - **Do**: Present warn/nit list from spec-review output. User options: ① Proceed to commit ② Fix selected warns/nits. Re-run is never offered after blocker=0
 - **Read**: warn/nit findings from spec-review output (read from already-captured output; no new cdd-review call)
-- **Exit**: Proceed → `commit-spec`; fix selected → fix then → `commit-spec` (no review re-run)
+- **Exit**: Proceed → `user-confirm-commit?` → `commit-spec`; fix selected → fix then → `user-confirm-commit?` → `commit-spec` (no review re-run)
 - **Fail**: Re-run review → violates I5
 
 ### `commit-spec`

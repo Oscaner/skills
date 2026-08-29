@@ -6,8 +6,9 @@
 //   - the four new digraph node anchors (read-program / claim-phase /
 //     sync-overall / user-confirm-commit?) appear in BOTH files' mermaid block;
 //   - Invariant rows I1–I7 are present in both files;
-//   - the three new Failure Modes terminal rows (overall-parse-failed /
-//     overall-sync-failed) are present in both files.
+//   - the two distinct Failure Modes terminal ids (overall-parse-failed /
+//     overall-sync-failed) are present in both files — the three new EN rows
+//     collapse to two ids, the third reusing overall-sync-failed.
 //
 // Prose translation quality is out of scope (human review). This guard only
 // asserts that the Chinese mirror did not silently drop structural elements
@@ -19,7 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-// tests/ → osuperpowers/ → packages/ → repo root
+// tests/ → (up one level to package root) → skills/brainstorming
 const SKILL_DIR = path.resolve(HERE, "..", "skills", "brainstorming");
 const EN = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8");
 const ZH = readFileSync(path.join(SKILL_DIR, "SKILL.zh-CN.md"), "utf8");
@@ -32,6 +33,23 @@ function mermaidBlock(src) {
 const enDigraph = mermaidBlock(EN);
 const zhDigraph = mermaidBlock(ZH);
 
+// Assert that every item appears in both the EN and zh-CN source under the
+// same needle shape. `fmt` maps an item to the exact substring searched for
+// (defaults to the item itself); `getEn`/`getZh` supply the haystack so the
+// digraph anchors can be scoped to the mermaid block while everything else is
+// matched against the full file.
+function bothFilesContain(label, items, getEn, getZh, fmt = (x) => x) {
+  for (const item of items) {
+    const needle = fmt(item);
+    test(`${label} ${item} present in EN`, () => {
+      assert.ok(getEn().includes(needle), `EN missing ${label} ${item}`);
+    });
+    test(`${label} ${item} present in zh-CN`, () => {
+      assert.ok(getZh().includes(needle), `zh-CN missing ${label} ${item}`);
+    });
+  }
+}
+
 // The four node-anchor ids are ASCII identifiers shared across both files
 // (the brief requires identical anchor names so cross-file anchors stay
 // consistent). Presence in the digraph block is the seam.
@@ -41,50 +59,24 @@ const NODE_ANCHORS = [
   "sync-overall",
   "user-confirm-commit?",
 ];
-
-for (const anchor of NODE_ANCHORS) {
-  test(`digraph anchor ${anchor} present in EN`, () => {
-    assert.ok(
-      enDigraph.includes(anchor),
-      `EN digraph missing anchor ${anchor}`,
-    );
-  });
-  test(`digraph anchor ${anchor} present in zh-CN`, () => {
-    assert.ok(
-      zhDigraph.includes(anchor),
-      `zh-CN digraph missing anchor ${anchor}`,
-    );
-  });
-}
+bothFilesContain("digraph anchor", NODE_ANCHORS, () => enDigraph, () => zhDigraph);
 
 // Invariant rows I1..I7 must appear in both files as a table row marker
 // `| I<n> |`.
+//
+// NOTE: skill-authoring.md §4 documents an "Invariants table capped at 5"
+// convention. P14 intentionally extends the brainstorming skill to 7 rows by
+// adding I6 (Register-before-grill) and I7 (Serial-phase) gates; the upstream
+// English source already carries I7, so this is a pre-existing standard
+// tension, not a regression introduced by the mirror. The parity guard tracks
+// the real source (I1–I7) rather than the cap so a future collapse to 5 forces
+// a visible test edit instead of silently drifting.
 const INVARIANTS = ["I1", "I2", "I3", "I4", "I5", "I6", "I7"];
-for (const id of INVARIANTS) {
-  test(`invariant ${id} present in EN`, () => {
-    assert.ok(EN.includes(`| ${id} |`), `EN missing invariant row ${id}`);
-  });
-  test(`invariant ${id} present in zh-CN`, () => {
-    assert.ok(
-      ZH.includes(`| ${id} |`),
-      `zh-CN missing invariant row ${id}`,
-    );
-  });
-}
+bothFilesContain("invariant", INVARIANTS, () => EN, () => ZH, (id) => `| ${id} |`);
 
-// The three new Failure Modes terminal rows reference these terminal ids.
+// The two distinct Failure Modes terminal ids the P14 refactor added.
 const TERMINALS = ["overall-parse-failed", "overall-sync-failed"];
-for (const term of TERMINALS) {
-  test(`failure-mode terminal ${term} present in EN`, () => {
-    assert.ok(EN.includes(term), `EN missing failure terminal ${term}`);
-  });
-  test(`failure-mode terminal ${term} present in zh-CN`, () => {
-    assert.ok(
-      ZH.includes(term),
-      `zh-CN missing failure terminal ${term}`,
-    );
-  });
-}
+bothFilesContain("failure-mode terminal", TERMINALS, () => EN, () => ZH);
 
 // The new node definitions (read-program / claim-phase / sync-overall /
 // user-confirm-commit?) must have a section heading in both files.
@@ -94,11 +86,4 @@ const NODE_HEADINGS = [
   "### `sync-overall`",
   "### `user-confirm-commit?`",
 ];
-for (const h of NODE_HEADINGS) {
-  test(`node heading ${h} present in EN`, () => {
-    assert.ok(EN.includes(h), `EN missing node heading ${h}`);
-  });
-  test(`node heading ${h} present in zh-CN`, () => {
-    assert.ok(ZH.includes(h), `zh-CN missing node heading ${h}`);
-  });
-}
+bothFilesContain("node heading", NODE_HEADINGS, () => EN, () => ZH);

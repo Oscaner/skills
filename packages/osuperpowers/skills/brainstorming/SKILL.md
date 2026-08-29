@@ -56,7 +56,7 @@ flowchart TD
 
 - **Do**: Read `mattpocock-skills` grilling SKILL.md, loading its framework as the grilling stage execution basis. Resolution: ① harness plugin system locates the sibling `mattpocock-skills` plugin; ② fallback to vendored path in the same repo
 - **Read**: Grilling SKILL.md file
-- **Exit**: Loaded → `explore-context`; missing → BLOCKED (install mattpocock-skills)
+- **Exit**: Loaded → `read-program`; missing → BLOCKED (install mattpocock-skills)
 - **Fail**: Load failure → BLOCKED with install guidance for mattpocock-skills plugin
 
 ### `read-program`

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
 import { invokeCli } from "./lib/runner.mjs";
+import { resolveTimeoutMs } from "./lib/cli-shared.mjs";
 import { pluginRoot } from "./lib/templates.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { writeHandoff } from "./lib/contract.mjs";
@@ -120,7 +121,20 @@ try {
 
 // 一次性 prompt-runner（不跑任务链）：CDD_MODE=task-review 触发 task_review_prefix 合成（透传）。
 const mode = process.env.CDD_MODE ?? "";
-const res = await invokeCli(entry, prompt, mode, process.env, process.cwd());
+const timeoutMs = resolveTimeoutMs(process.env, "review");
+const res = await invokeCli(entry, prompt, mode, process.env, process.cwd(), timeoutMs);
+
+// Timeout path: 如果有 --handoff → 写 TIMEOUT partial handoff；无 --handoff → silent no-op。
+if (res.timedOut) {
+  if (handoffPath) {
+    writeHandoff(handoffPath, {
+      status: "TIMEOUT",
+      blocker: `timeout after ${timeoutMs}ms`,
+    });
+  }
+  exitWithCode(1);
+}
+
 if (handoffPath) {
   writeHandoff(handoffPath, res.ok
     ? { status: "DONE" }

@@ -231,3 +231,37 @@ test("cdd-review.mjs: 无 --handoff → 不写文件", () => {
   runExec(["--harness", "claude", ...TEMPLATE_ARGS], { mockPath: `${mock}${path.delimiter}${fp}` });
   assert.equal(existsSync(handoffPath), false, "handoff file should NOT exist without --handoff");
 });
+
+// ---- P12 review timeout ----
+
+test("cdd-review.mjs: timeout + --handoff → handoff status TIMEOUT + timedOut", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-review-timeout-"));
+  const handoffDir = mkdtempSync(path.join(tmpdir(), "cdd-handoff-to-"));
+  // Mock CLI: sleep 5s — will be killed by 1s timeout
+  makeMock(mock, "claude", "sleep 5\nexit 0");
+  const fp = harnessFreePath();
+  const handoffPath = path.join(handoffDir, "timeout-handoff.json");
+  const res = runExec(
+    ["--harness", "claude", ...TEMPLATE_ARGS, "--handoff", handoffPath],
+    { mockPath: `${mock}${path.delimiter}${fp}`, extraEnv: { CDD_REVIEW_TIMEOUT: "1" } },
+  );
+  // Timeout → exit 1 (spawnCapture returns ok:false)
+  assert.equal(res.status, 1);
+  assert.ok(existsSync(handoffPath), "handoff file should exist after timeout");
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.equal(h.status, "TIMEOUT");
+  assert.ok(h.blocker, "blocker should be present");
+});
+
+test("cdd-review.mjs: timeout + no --handoff → silent no-op (no file)", () => {
+  const mock = mkdtempSync(path.join(tmpdir(), "cdd-review-timeout-noho-"));
+  makeMock(mock, "claude", "sleep 5\nexit 0");
+  const fp = harnessFreePath();
+  const handoffPath = path.join(mkdtempSync(path.join(tmpdir(), "cdd-handoff-no-")), "should-not-exist.json");
+  const res = runExec(
+    ["--harness", "claude", ...TEMPLATE_ARGS],
+    { mockPath: `${mock}${path.delimiter}${fp}`, extraEnv: { CDD_REVIEW_TIMEOUT: "1" } },
+  );
+  assert.equal(res.status, 1);
+  assert.equal(existsSync(handoffPath), false, "handoff file should NOT exist without --handoff");
+});

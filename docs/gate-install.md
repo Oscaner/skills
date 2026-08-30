@@ -248,7 +248,7 @@ node <plugin-root>/bin/init/install-harness.mjs [--harness …] [--dry-run]
 
 ## Smoke test (any harness)
 
-1. Start a CDD task (`/subagent-driven-development`, …) so a pending
+1. Start a CDD task (`/cli-driven-development`, …) so a pending
    session exists.
 2. Attempt a mutating repo operation outside the bound workspace — `git push`, a `Write`
    to a path outside `.superpowers/cdd/<plan>/`, or a compound `Bash` command.

@@ -28,14 +28,14 @@ flowchart TD
 
 ## Node Definitions
 
-### analyze
+### `analyze`
 
 - **Do**: 按优先级读三源——① 会话上下文（主）：本会话可见的工具调用记录、报错、handoff、评审发现；② ledger：repo 根下 `.superpowers/sdd/*/progress.md` 与 `.superpowers/cdd/*/progress.md` 全读，抽取含 `fix round`、`BLOCKED`、`parked`、`deferred`、`CHANGES_REQUESTED` 的行；③ git log：`git log $(git merge-base HEAD origin/main)..HEAD --oneline`，`origin/main` 不可用则回退 `git log -20 --oneline`。识别重复 fix-round 模式。
 - **Read**: 会话上下文；`{repo}/.superpowers/{sdd,cdd}/*/progress.md`；git log
 - **Exit**: 提取 findings → `classify`
 - **Fail**: ledger / git log 不可用 → 仅用会话上下文（fail-open，不阻塞）
 
-### classify
+### `classify`
 
 - **Do**: 每条 finding 分类——`bug`（工具/脚本行为与 spec 不符：超时、错误退出码、gate 误判、handoff schema 错误）/ `enhancement`（流程可改进但未坏：DX 缺口、文档缺失、CI 覆盖不足、模板缺口）。每条含 **Title**（短，可直接作 issue 标题）、**一句话描述**、**受影响组件**（技能名 / 脚本路径 / 命令）、**证据**（具体报错或 ledger 条目）。对受影响组件应用 **#136 组件标签分类**（见下）。组件模糊（跨插件/无法确定）默认 `osuperpowers`——不新增交互 prompt；用户可在 `confirm` 节点纠正分类。
 
@@ -49,35 +49,35 @@ flowchart TD
 - **Exit**: 分类完成 → `confirm`
 - **Fail**: 类型无法判定 → 默认 `enhancement`（偏保守）
 
-### confirm
+### `confirm`
 
 - **Do**: 将 findings 编号列表呈现给用户，问「整体准确吗？有增删吗？」——**未获明确确认前不预建 gh issue**。若用户认为组件分类（`osuperpowers` / `osuperpowers-router` / `cdd`）有误，在此节点纠正后再提。
 - **Read**: 分类后的 findings
 - **Exit**: 用户确认 → `dedup`；用户拒绝 → BLOCKED（user-reject）
 - **Fail**: 无响应 / 明确拒绝 → BLOCKED（user-reject，流程终止）
 
-### dedup
+### `dedup`
 
 - **Do**: 对每个确认 finding 查重：`gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`；关键词（组件名 + 行为词）大小写不敏感子串匹配。
 - **Read**: `gh issue list` 输出；confirmed findings
 - **Exit**: 命中 → `resolve-hit`；未命中 → `file`
 - **Fail**: `gh` 不可用 / 网络失败 → fail-open（报告，跳 filing，提示手动）
 
-### resolve-hit
+### `resolve-hit`
 
 - **Do**: 命中已有 issue 时展示匹配项，用户三选一：**Create new / Add comment to existing / Skip**。
 - **Read**: 匹配到的 issue（number + title + body）
 - **Exit**: new → `file`；comment → `file`（comment 路径）；skip → APPROVED（skipped）
 - **Fail**: 无响应 → 默认 skip（不重复 filing）
 
-### file
+### `file`
 
 - **Do**: 按 **#136 组件分类 label** 调 `gh issue create`（`gh issue create --repo Oscaner/skills --label "<type>,dogfood,<component>[,cdd]"`）；命中走 `gh issue comment --repo Oscaner/skills`。body 用 `## Issue Body Templates` prose（按会话语言选 EN/CN × bug/enhancement）。关键字示例用当前工具名（如 `cdd-task.mjs`），不用已删除旧工具名。
 - **Read**: 分类后的 label 集；`## Issue Body Templates` prose；finding evidence
 - **Exit**: filing 完成 → `report`
 - **Fail**: `gh issue create` 失败 → fail-open（报告 stderr，保留供手动重试）
 
-### report
+### `report`
 
 - **Do**: 打印全部结果：new issue → URL；appended comment → URL；Skip → 列出原因。
 - **Read**: 各 finding 的最终动作

@@ -31,7 +31,7 @@ flowchart TD
   H --> I{user-approves?}
   I -->|revise| H
   I -->|yes| J[write-spec]
-  J --> K[spec-review 3-pass D1/D2/D3]
+  J --> K[spec-review]
   K -->|blocker found| K
   K -->|blocker=0| L{user-ok?}
   K -->|pass1 clean (D1 zero findings, skip D2/D3)| L

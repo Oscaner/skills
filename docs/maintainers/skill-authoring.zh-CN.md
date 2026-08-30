@@ -3,7 +3,7 @@
 - **Version**: v1.0 · 2026-08-26
 - **Scope**: P4–P9 所有 osuperpowers 技能 SKILL.md 重写的唯一格式权威
 - **读者**: 本仓库维护者 + 执行重构的 AI agent
-- **语言**: 中文 Strategy B（maintainer doc，无 zh-CN 镜像）
+- **语言**: English primary + zh-CN mirror（maintainer doc）
 
 > **读者须知**: 本文档为 maintainer-only 文档，不随插件发布到消费者环境。消费者看到的只有 `packages/*/` 下的内容。
 

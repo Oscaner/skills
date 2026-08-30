@@ -1,7 +1,7 @@
 // engine/tests/templates.test.mjs — T1: mode 模板渲染 + 行预算模块单测。
 // renderModePrompt：读 templates/cdd/<mode>.md + _handoff-write-fragment.md，做
-// {{PLACEHOLDER}} env 替换。lineBudget：真实阈值（port cdd-orchestrator-line-budget.test.sh：
-// sdd≤160 / ctrl≤110 / tier1≤225 / tier2≤350，非旧 121/165）。
+// {{PLACEHOLDER}} env 替换。lineBudget：P13 re-baseline 阈值（sdd≤210 / ctrl≤50 /
+// tier1≤260 / tier2≤331）。
 // 另含 prose-grep 治理守卫（T8 补回：port cdd-orchestrator-line-budget.test.sh +
 // cdd-severity-contract.test.sh 的 grep-contracts —— 技能/模板/文档正文行数 + 语义锚点）。
 import { test } from "node:test";
@@ -99,11 +99,11 @@ test("renderModePrompt #168: fix mode + default FINDINGS_SCOPE → blocker-only"
 });
 
 test("lineBudget: 真实阈值", () => {
-  assert.equal(lineBudget("sdd"), 175);
-  assert.equal(lineBudget("ctrl"), 110);
-  assert.equal(lineBudget("tier1"), 225);
-  assert.equal(lineBudget("tier2"), 320);
-  assert.deepEqual(LINE_BUDGETS, { sdd: 175, ctrl: 110, tier1: 225, tier2: 320 });
+  assert.equal(lineBudget("sdd"), 210);
+  assert.equal(lineBudget("ctrl"), 50);
+  assert.equal(lineBudget("tier1"), 260);
+  assert.equal(lineBudget("tier2"), 331);
+  assert.deepEqual(LINE_BUDGETS, { sdd: 210, ctrl: 50, tier1: 260, tier2: 331 });
 });
 
 test("lineBudget: 未知 tier → 抛错", () => {

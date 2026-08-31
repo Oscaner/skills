@@ -28,14 +28,14 @@ flowchart TD
 
 ## Node Definitions
 
-### analyze
+### `analyze`
 
 - **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.superpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `deferred` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns.
 - **Read**: session context; `{repo}/.superpowers/{sdd,cdd}/*/progress.md`; git log
 - **Exit**: extracted findings → `classify`
 - **Fail**: ledger / git log unavailable → use session context only (fail-open, never block)
 
-### classify
+### `classify`
 
 - **Do**: Classify each finding as `bug` (tool/script behavior does not match spec — timeouts, wrong exit codes, gate misjudgment, handoff schema errors) or `enhancement` (process can be improved but not broken — DX gaps, missing docs, insufficient CI coverage, template gaps). Each finding includes **Title** (short, usable as issue title directly), **one-line description**, **affected component** (skill name / script path / command), and **evidence** (specific error output or ledger entry). Apply the **#136 component-label classification** to the affected component (see below). When component is ambiguous (cross-plugin or undeterminable), default to `osuperpowers` — do not add an interactive prompt; the user can correct the classification at the `confirm` node.
 
@@ -49,35 +49,35 @@ flowchart TD
 - **Exit**: classification complete → `confirm`
 - **Fail**: type undeterminable → default `enhancement` (conservative)
 
-### confirm
+### `confirm`
 
 - **Do**: Present the findings as a numbered list and ask: "Is this accurate overall? Any additions or removals?" Do **not** pre-create any gh issue before explicit confirmation. If the user believes a component classification (`osuperpowers` / `osuperpowers-router` / `cdd`) is wrong, let them correct it here before filing.
 - **Read**: classified findings
 - **Exit**: user confirms → `dedup`; user rejects → BLOCKED (user-reject)
 - **Fail**: no response / explicit rejection → BLOCKED (user-reject, flow terminates)
 
-### dedup
+### `dedup`
 
 - **Do**: For each confirmed finding, check for duplicates: `gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`. Match keywords — the **affected component name** (e.g. `cdd-task.mjs`, `handoff-writer`, `gate`) plus **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`) — case-insensitively against existing issue titles and bodies.
 - **Read**: `gh issue list` output; confirmed findings
 - **Exit**: hit → `resolve-hit`; no-hit → `file`
 - **Fail**: `gh` unavailable / network failure → fail-open (report, skip filing, suggest manual)
 
-### resolve-hit
+### `resolve-hit`
 
 - **Do**: When an existing issue matches, show the match and let the user choose three ways: **Create new issue / Add comment to existing / Skip**.
 - **Read**: matched issue (number + title + body)
 - **Exit**: new → `file`; comment → `file` (comment path); skip → APPROVED (skipped)
 - **Fail**: no response → default skip (no duplicate filing)
 
-### file
+### `file`
 
 - **Do**: Run `gh issue create --repo Oscaner/skills` with labels computed per the #136 component classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
 - **Read**: classified label set; `## Issue Body Templates` prose; finding evidence
 - **Exit**: filing complete → `report`
 - **Fail**: `gh issue create` fails → fail-open (report stderr, keep finding for manual retry)
 
-### report
+### `report`
 
 - **Do**: Print all results: new issue → URL; appended comment → URL; Skip → list reason.
 - **Read**: final action for each finding

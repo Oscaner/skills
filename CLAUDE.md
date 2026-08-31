@@ -53,7 +53,7 @@ For overrides trigger router internals, see [`docs/maintainers/osuperpowers-rout
 - [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
 - [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / hooks / releasing)
 - [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin maintainer guide
-- [`docs/maintainers/skill-authoring.md`](docs/maintainers/skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, Chinese Strategy B)
+- [`docs/maintainers/skill-authoring.md`](docs/maintainers/skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary + zh-CN mirror)
 
 ## Language Architecture
 
@@ -83,6 +83,8 @@ Two distinct language strategies implement this, depending on file type:
 ### Strategy B extension — maintainer docs (docs/maintainers/)
 
 `docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the two packages' `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
+
+**Exception:** `docs/maintainers/skill-authoring.md` follows Strategy A (English primary + zh-CN mirror) — it has a Chinese mirror at `docs/maintainers/skill-authoring.zh-CN.md`.
 
 **Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, run `pnpm run emit` to propagate changes to `.agents/`. Running `pnpm run emit:check` verifies no drift.
 

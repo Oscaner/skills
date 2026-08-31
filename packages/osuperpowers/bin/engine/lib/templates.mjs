@@ -8,13 +8,16 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// 真实行预算（非旧 121/165）：sdd / ctrl 为两个宿主文档；tier1 = sdd+ctrl；
-// tier2 = tier1 + docs-review。
+// 真实行预算（P13 re-baseline ~120% of measured P4-P9 post-rewrite）：
+// sdd = cli-driven-development/SKILL.md (measured 175 → budget 210)
+// ctrl = controller-handoff.md (measured 42 → budget 50)
+// tier1 = sdd+ctrl (217 → 260)
+// tier2 = tier1+docs-review (260+71=331)
 export const LINE_BUDGETS = Object.freeze({
-  sdd: 175,
-  ctrl: 110,
-  tier1: 225,
-  tier2: 320,
+  sdd: 210,
+  ctrl: 50,
+  tier1: 260,
+  tier2: 331,
 });
 
 const PLACEHOLDERS = ["WORKSPACE", "BRIEF", "HANDOFF", "FINDINGS", "CONSTRAINTS", "FIXED_POINT", "TASK", "FINDINGS_SCOPE"];

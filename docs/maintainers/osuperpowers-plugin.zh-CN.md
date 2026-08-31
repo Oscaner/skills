@@ -57,13 +57,10 @@ Hooks 随每个插件发布，仅当插件经 Claude Code / Cursor marketplace �
 
 ## `docs/superpowers/` conventions
 
-skill 流 `brainstorming --> writing-plans --> subagent-driven-development` 在三个同级目录下产出文档：
+skill 流 `brainstorming --> writing-plans --> cli-driven-development` 在两个同级目录下产出文档：
 
 - [docs/superpowers/specs/](../../docs/superpowers/specs/) —— `YYYY-MM-DD-<feature>-design.md`，brainstorming skill 的输出（spec 文档，经 `brainstorming` Rule 1 审阅）。
 - [docs/superpowers/plans/](../../docs/superpowers/plans/) —— `YYYY-MM-DD-<feature>.md`，writing-plans skill 的输出（实现计划，经 `writing-plans` Rule 2 审阅）。
-- `docs/superpowers/tickets/` —— `YYYY-MM-DD-<feature>-tickets.md`，当 writing-plans Rule 3c quiz 选中「publish to local file」时 `/to-tickets` 发布步骤的输出（首次使用时创建目录）。
-
-三者共享相同 date + feature slug，使 spec、plan、tickets 排序相邻。`writing-plans` Rule 3b 硬编码 tickets 路径；不要发布到别处，也不要把这些文档写到 repo 根。
 
 ## Common operations
 

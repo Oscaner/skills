@@ -1,62 +1,62 @@
-# Skill Authoring 规范
+# Skill Authoring Specification
 
 - **Version**: v1.0 · 2026-08-26
-- **Scope**: P4–P9 所有 osuperpowers 技能 SKILL.md 重写的唯一格式权威
-- **读者**: 本仓库维护者 + 执行重构的 AI agent
-- **语言**: 中文 Strategy B（maintainer doc，无 zh-CN 镜像）
+- **Scope**: Sole format authority for all P4–P9 osuperpowers skill SKILL.md rewrites
+- **Audience**: This repository's maintainers + AI agents executing refactors
+- **Language**: English primary + zh-CN mirror (Strategy A — maintainer doc)
 
-> **读者须知**: 本文档为 maintainer-only 文档，不随插件发布到消费者环境。消费者看到的只有 `packages/*/` 下的内容。
+> **Reader notice**: This document is maintainer-only and is not shipped to the consumer environment with the plugin. Consumers see only content under `packages/*/`.
 
 ---
 
-## 1. 概述
+## 1. Overview
 
-节点锚定式 SKILL.md 的核心思想：**digraph 为唯一控制流真相源**，正文小节与图节点一一对应。
+Node-anchored SKILL.md core idea: **the digraph is the sole source of truth for control flow**, and prose sections map one-to-one to graph nodes.
 
-消灭三重表示：
+Eliminate triple representation:
 
-| 旧模式 | 问题 | 新模式 |
+| Old pattern | Problem | New pattern |
 |---|---|---|
-| HARD-GATE 十步清单 | 步骤与规则边界模糊 | 节点 Exit/Fail 字段 |
-| Rules 散文堆 | 规则不归属、交叉引用难追踪 | 归属于节点或 Invariants |
-| Red Flags 规则汤 | 反例与正面规则混排 | 拆入节点 Fail 字段或 Invariants |
+| HARD-GATE ten-step checklist | Ambiguous boundaries between steps and rules | Node Exit/Fail fields |
+| Loose Rules prose | Rules unattributed, cross-references hard to track | Attributed to nodes or Invariants |
+| Red Flags rule soup | Anti-patterns mixed with positive rules | Split into node Fail fields or Invariants |
 
-## 2. Flow Digraph 语义约定
+## 2. Flow Digraph Conventions
 
-- 图用 **mermaid** 嵌入 SKILL.md 正文（消费者渲染支持最广）
-- 节点类型：
+- Graphs are embedded in SKILL.md prose using **mermaid** (broadest consumer rendering support)
+- Node types:
 
-| 类型 | mermaid 语法 | 语义 |
+| Type | Mermaid syntax | Semantics |
 |---|---|---|
-| 普通操作 | `A[do-thing]` | 执行动作，有明确出口 |
-| 决策 | `B{condition?}` | 条件分支（diamond） |
-| 终态 | `C((APPROVED))` / `D((BLOCKED))` | 流程终止（rounded） |
+| Normal operation | `A[do-thing]` | Execute action, has defined exit |
+| Decision | `B{condition?}` | Conditional branch (diamond) |
+| Terminal | `C((APPROVED))` / `D((BLOCKED))` | Flow terminates (rounded) |
 
-- 边类型：
+- Edge types:
 
-| 类型 | 语法 | 语义 |
+| Type | Syntax | Semantics |
 |---|---|---|
-| 无条件 | `A --> B` | 必然转移 |
-| 条件 | `A -->\|label\| B` | 标签说明分支条件 |
-| 回边 | `A -->\|retry\| B` | 显式标注循环（review 循环、fix 循环） |
+| Unconditional | `A --> B` | Mandatory transition |
+| Conditional | `A -->|label| B` | Label describes branch condition |
+| Back-edge | `A -->|retry| B` | Explicitly annotated loop (review loop, fix loop) |
 
-- 终止节点三种终态：
-  - **BLOCKED** — 流程终止，需用户介入
-  - **APPROVED** — 流程正常完成
-  - **HANDOFF** — 交接给下一个技能/工具
+- Terminal nodes have three possible terminal states:
+  - **BLOCKED** — flow terminates, requires user intervention
+  - **APPROVED** — flow completes normally
+  - **HANDOFF** — hand off to the next skill/tool
 
-## 3. Node 四要素模板
+## 3. Node Four-Element Template
 
-每个节点正文必须包含 **Do / Read / Exit / Fail** 四要素：
+Every node's prose must include four elements: **Do / Read / Exit / Fail**:
 
-| 要素 | 内容 | 长度 |
+| Element | Content | Length |
 |---|---|---|
-| **Do** | 节点做什么 | 1-3 句话 |
-| **Read** | 输入的文件 / 环境变量 / 上下文 | 路径列表 |
-| **Exit** | 出口路由（成功 → 下一节点；条件分支的判定条件） | 与图边对齐 |
-| **Fail** | 失败模式 → 行为（报错 / BLOCKED / 重试 / fail-open） | 与 Failure Modes 表互补 |
+| **Do** | What the node does | 1–3 sentences |
+| **Read** | Input files / environment variables / context | Path list |
+| **Exit** | Exit routing (success → next node; decision branch criteria) | Aligned with graph edges |
+| **Fail** | Failure mode → behavior (error / BLOCKED / retry / fail-open) | Complements the Failure Modes table |
 
-### 示例：`read-grilling` 节点
+### Example: `read-grilling` node
 
 ```mermaid
 flowchart TD
@@ -64,74 +64,74 @@ flowchart TD
   A -->|load failed| Z((BLOCKED))
 ```
 
-- **Do**: 读取 mattpocock-skills 的 grilling SKILL.md 并加载其框架
+- **Do**: Read the grilling SKILL.md from mattpocock-skills and load its framework
 - **Read**: `vendors/mattpocock-skills/skills/productivity/grilling/SKILL.md`
-- **Exit**: 文件存在 → `apply-grilling`；文件缺失 → BLOCKED
-- **Fail**: 读取错误 → 向用户报告错误并询问下一步（skip 或 abort）
+- **Exit**: File exists → `apply-grilling`; file missing → BLOCKED
+- **Fail**: Read error → report to user and ask for next step (skip or abort)
 
 ## 4. Invariants
 
-- 跨节点的不变量，集中声明在 `## Invariants` 小节
-- **上限 5 条**——超限时检查是否可降级为某节点的 Fail 字段（例外：`osuperpowers:brainstorming` 因 P14 新增 I6/I7 串行/登记纪律，实际持有 7 条；该例外已在该技能 design spec v1.0 §2.4/§2.5 显式授权，不视为违规）
-- 典型 invariant：
-  - vendored 子模块不可改
-  - commit 纪律（spec 获批即 commit）
-  - 语言政策（English-primary + zh-CN 镜像）
-  - block 政策（Read-Upstream 缺失一律 BLOCKED）
-  - Review Stopping（重跑仅由 blocker 驱动）
+- Cross-node invariants, declared centrally in the `## Invariants` section
+- **Hard limit of 5** — if exceeded, check whether an item can be demoted to a node's Fail field (exception: `osuperpowers:brainstorming` holds 7 invariants due to P14's I6/I7 serialization/discipline rules; this exception was explicitly authorized in that skill's design spec v1.0 §2.4/§2.5 and is not a violation)
+- Typical invariants:
+  - Vendored submodules must not be modified
+  - Commit discipline (commit when spec is approved)
+  - Language policy (English primary + zh-CN mirror)
+  - Block policy (missing Read-Upstream always → BLOCKED)
+  - Review Stopping (re-runs driven only by blockers)
 
-## 5. Failure Modes 表
+## 5. Failure Modes Table
 
-集中列出跨节点的失败行为映射，位于 `## Failure Modes` 小节：
+Cross-node failure-to-behavior mappings, located in the `## Failure Modes` section:
 
 | failure | behavior | reason |
 |---|---|---|
-| 上游 SKILL.md 缺失 | BLOCKED（含安装指引） | block 政策：不静默 fallback |
-| 子技能加载失败 | report + ask user | Delegate Load Failure 协议 |
-| harness 未安装 | BLOCKED（含注册提示） | 无可用 harness 则无法执行 |
-| 嵌套 CLI 超时 | fail-open（记录 stderr） | 不阻塞主流程 |
+| Upstream SKILL.md missing | BLOCKED (with install instructions) | Block policy: no silent fallback |
+| Sub-skill load failure | Report + ask user | Delegate Load Failure protocol |
+| Harness not installed | BLOCKED (with registration prompt) | Cannot execute without a working harness |
+| Nested CLI timeout | Fail-open (log stderr) | Must not block the main flow |
 
-- 与 Node Fail 字段互补：Fail 字段处理节点局部失败；本表处理跨节点失败
-- 每个 failure 对应图中至少一条边或一个终态节点
+- Complements node Fail fields: Fail fields handle node-local failures; this table handles cross-node failures
+- Every failure maps to at least one graph edge or terminal node
 
-## 6. BLOCKED 终态约定
+## 6. BLOCKED Terminal State Convention
 
-BLOCKED 节点正文必须包含：
+BLOCKED node prose must include:
 
-1. **阻塞原因**：一句话说明为什么卡住
-2. **恢复操作**：具体的安装指引或用户手动步骤
-3. **不静默 fallback**：明确声明不降级、不跳过
+1. **Blocking reason**: One sentence explaining why execution is stuck
+2. **Recovery action**: Concrete install instructions or manual user steps
+3. **No silent fallback**: Explicit statement that degradation and skipping are prohibited
 
-**Block 政策**（程序级约束）：所有带 Read-Upstream 规则的技能（brainstorming / writing-plans / finishing），上游基线缺失一律为显式 BLOCKED 节点（含安装指引）——不降级、不静默 fallback。
+**Block policy** (program-level constraint): All skills with Read-Upstream rules (brainstorming / writing-plans / finishing) must treat missing upstream baselines as an explicit BLOCKED node (with install instructions) — no degradation, no silent fallback.
 
-## 7. init legacy 内容豁免
+## 7. init Legacy Content Exemption
 
-- `skills/init/` 的 harness 分支内嵌正文保持原样（`router.md` 已在 P9 删除）
-- **豁免范围**：harness 分支内的 prose 内容（payload 模板文本）
-- **不豁免**：分支结构、外层分派逻辑
-- **豁免理由**：init 的 payload 是嵌入在 `harness.md` 中的模板文本，非控制流——强制节点化会破坏 payload 的可读性
+- `skills/init/` harness-branch inline prose remains as-is (`router.md` was deleted in P9)
+- **Exemption scope**: Prose content inside harness branches (payload template text)
+- **Not exempted**: Branch structure, outer dispatch logic
+- **Exemption rationale**: init's payload is template text embedded in `harness.md`, not control flow — forcing node-anchoring would break payload readability
 
-## 8. 图正文一致性校验清单
+## 8. Graph–Prose Consistency Checklist
 
-P4–P9 重写后，验收必须通过以下 4 条：
+After P4–P9 rewrites, acceptance must pass these 4 checks:
 
-1. **节点覆盖**：图中每个节点 ID 在正文有对应小节
-2. **小节对齐**：正文每个小节标题与某节点 ID 对齐（无孤立小节）
-3. **无独立 Rules 散文堆**：规则必须归属于节点（Do/Read/Exit/Fail）或 Invariants
-4. **无独立 Red Flags 小节**：反例拆入节点 Fail 字段或 Invariants
+1. **Node coverage**: Every node ID in the graph has a corresponding prose section
+2. **Section alignment**: Every prose section heading aligns to a node ID (no orphaned sections)
+3. **No standalone Rules prose**: Rules must be attributed to a node (Do/Read/Exit/Fail) or to Invariants
+4. **No standalone Red Flags section**: Anti-patterns must be split into node Fail fields or Invariants
 
-## 9. 路径字符串编辑边界（P3 专项说明）
+## 9. Path String Edit Boundary (P3 Specific)
 
-P3 允许对引擎、模板及消费者 SKILL.md 做「仅文档链接/路径字符串」的编辑；行为正文留待 P4–P9。具体边界：
+P3 permits edits to engine, template, and consumer SKILL.md limited to "documentation links / path strings only"; behavioral prose is deferred to P4–P9. Specific boundaries:
 
-- ✅ 文档内部互引用链接（`[text](path)`）的 path 部分
-- ✅ 代码注释中的路径字符串
-- ✅ 测试 fixture 中的路径字符串
-- ❌ 引擎行为正文（控制流、退出码、输出契约）
-- ❌ 技能 Rules/Red Flags/Checklist 散文体结构
+- ✅ Inter-document cross-reference links (`[text](path)`) — path portion only
+- ✅ Path strings in code comments
+- ✅ Path strings in test fixtures
+- ❌ Engine behavioral prose (control flow, exit codes, output contracts)
+- ❌ Skill Rules / Red Flags / Checklist prose structure
 
 ---
 
 ## Change history
 
-- v1.0 · 2026-08-26 — 初版（P3 docs-infra）：9 节骨架 + read-grilling 虚构示例 + init legacy 豁免规则。
+- v1.0 · 2026-08-26 — Initial version (P3 docs-infra): 9-section skeleton + read-grilling illustrative example + init legacy exemption rule.

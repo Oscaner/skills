@@ -57,13 +57,10 @@ Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-
 
 ## `docs/superpowers/` conventions
 
-The skill flow `brainstorming --> writing-plans --> subagent-driven-development` produces documents under three sibling directories:
+The skill flow `brainstorming --> writing-plans --> cli-driven-development` produces documents under two sibling directories:
 
 - [docs/superpowers/specs/](../../docs/superpowers/specs/) -- `YYYY-MM-DD-<feature>-design.md`, output of the brainstorming skill (spec doc, reviewed via `brainstorming` Rule 1).
 - [docs/superpowers/plans/](../../docs/superpowers/plans/) -- `YYYY-MM-DD-<feature>.md`, output of the writing-plans skill (implementation plan, reviewed via `writing-plans` Rule 2).
-- `docs/superpowers/tickets/` -- `YYYY-MM-DD-<feature>-tickets.md`, output of the `/to-tickets` publish step when the writing-plans Rule 3c quiz picks "publish to local file" (the directory is created on first use).
-
-The three share the same date + feature slug so a spec, its plan, and its tickets sort together. `writing-plans` Rule 3b hard-codes the tickets path; don't publish tickets anywhere else, and don't write these docs at repo root.
 
 ## Common operations
 

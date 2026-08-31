@@ -104,14 +104,14 @@ flowchart TD
 
 ### `deferred-disposition`
 
-- **Do**: 向用户呈现累积 deferred findings（按 task 分组）：每 task 列出 `findings[].deferred=true` 项（severity + summary + 推荐 fix）；**用户选择**：① fix-now（进入 deferred-sweep-loop，按 task 单独修）② carry-skip（携带跳过，直接 branch-review）。呈现时说明 deferred 项为 warn/nit 级别，不影响 APPROVED 语义，但修复后分支更干净。
+- **Do**: 向用户呈现累积 deferred findings（按 task 分组）：每 task 列出 `findings[].deferred=true` 项（severity + summary + 推荐 fix）；**用户选择**：① fix-now（进入 deferred-sweep-loop；sweep 处理全部 deferred findings——"pure record" nits 也不例外；sweep 完成 = findings[] 全部清空（无论代码是否实际修改）；sweep 后无逐 task 二次确认）② carry-skip（携带跳过，直接 branch-review）。呈现时说明 deferred 项为 warn/nit 级别，不影响 APPROVED 语义，但修复后分支更干净。
 - **Read**: any-deferred? 节点聚合的 deferred rollup。
 - **Exit**: fix-now → `deferred-sweep-loop`；carry-skip → `branch-review`。
 - **Fail**: 用户拒绝决策（present-menu 累计 3 次机会耗尽，同 P6 finishing `present-menu` 计数模型）→ BLOCKED: menu-exhausted。
 
 ### `deferred-sweep-loop`
 
-- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 完成后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Controller 约束**：deferred findings 修复必须走本节点 `--mode fix` dispatch；禁止在引擎 CLI 路径之外手写修复（见 I7）。**Fix segment 清理**（_handoff-write-fragment.md fix segment 补 sweep 清理分支）：sweep 完成的 finding 从 `findings[]` 移除（非 deferred 化，而是彻底解决）。
+- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 处理全部 deferred findings——"pure record" nits 也不例外。sweep 完成（agentRc=0）后 runner.mjs 自动清空 `findings[]` 并写入 `status: APPROVED`（#191 sweep收口）；agentRc≠0 → findings 保留，status 不动。sweep 后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Controller 约束**：deferred findings 修复必须走本节点 `--mode fix` dispatch；禁止在引擎 CLI 路径之外手写修复（见 I7）。
 - **Read**: 每 task 的 handoff + fix 模式返回的 handoff 更新。
 - **Exit**: 所有 deferred-sweep task 完成（re-review APPROVED）→ `branch-review`。
 - **Fail**: 某 task sweep 陷入 fix-loop-exhausted → BLOCKED: fix-loop-exhausted。

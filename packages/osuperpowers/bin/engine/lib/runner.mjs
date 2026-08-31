@@ -442,10 +442,8 @@ export async function runTask(harness, taskNum, opts = {}) {
       const handoffHead = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "head"]);
       if (handoffHead) taskReviewHead = handoffHead;
       // #200 phantom SHA 校验：review-package 前校验 commits.head 可达性
-      const preReviewHandoff = readJson(env.CDD_HANDOFF_PATH);
-      const preReviewHead = preReviewHandoff?.commits?.head;
-      if (preReviewHead && !gitCatFileCommitExists(preReviewHead, repoRoot || cwd)) {
-        return finish(1, [], `review-package: commits.head ${preReviewHead} is not a reachable commit object`, noExit);
+      if (handoffHead && !gitCatFileCommitExists(handoffHead, repoRoot || cwd)) {
+        return finish(1, [], `review-package: commits.head ${handoffHead} is not a reachable commit object`, noExit);
       }
       try {
         // #173：cwd 键传 repoRoot 值（语义变更在调用方——子进程在 plan 仓库内执行；签名不变）。

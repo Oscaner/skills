@@ -106,11 +106,11 @@ import { validateCommitContract, writeHandoff, gitToplevel, normalizeHandoffStat
 
 - [ ] **Step 2: Add phantom SHA guard before step 5 runReviewPackage**
 
-Insert BEFORE the `runReviewPackage` call in step 5 (around line 444, before the `try` block):
+Insert BEFORE the `try` block at line 444 in runner.mjs (inside the `if (!dryRun)` block, after line 443 `if (handoffHead) taskReviewHead = handoffHead;`):
 
 ```javascript
       // #200 phantom SHA 校验：review-package 前校验 commits.head 可达性
-      const preReviewHandoff = readJson(handoffPath);
+      const preReviewHandoff = readJson(env.CDD_HANDOFF_PATH);
       const preReviewHead = preReviewHandoff?.commits?.head;
       if (preReviewHead && !gitCatFileCommitExists(preReviewHead, repoRoot || cwd)) {
         return finish(1, [], `review-package: commits.head ${preReviewHead} is not a reachable commit object`, noExit);
@@ -170,16 +170,16 @@ git commit -m "feat(engine): guard review-package against phantom commits.head (
 
 - [ ] **Step 1: Add mode-phase guard (#175) before commit-contract**
 
-Insert BETWEEN step 8.5 (timeout path) and step 9 (commit-contract), as new step 8.6:
+Insert BETWEEN step 8.5 (timeout path, line 516) and step 9 (commit-contract, line 518), as new step 8.6. Variables: `mode` comes from `opts.mode` (function parameter), `env` is the `buildTaskEnv` result at line 406, `handoffPath` = `env.CDD_HANDOFF_PATH`:
 
 ```javascript
   // 8.6 Mode-phase consistency guard (#175): ensure handoff phase matches CDD_MODE.
   //    Runs BEFORE sweep收口 and commit-contract. Audit warning only, no拦截.
   {
-    const existingHandoff = readJson(handoffPath);
+    const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
     if (existingHandoff && existingHandoff.phase && existingHandoff.phase !== mode) {
       process.stderr.write(`[audit] handoff phase '${existingHandoff.phase}' corrected to '${mode}'\n`);
-      writeHandoff(handoffPath, { phase: mode });
+      writeHandoff(env.CDD_HANDOFF_PATH, { phase: mode });
     }
   }
 ```
@@ -193,9 +193,9 @@ Insert as step 8.7, AFTER mode-phase guard:
   //    agentRc === 0 + scope deferred-sweep → findings[] = [], status = APPROVED.
   //    agentRc ≠ 0 → no sweep, findings保留, status不touch.
   if (mode === "fix" && (scope ?? "blocker-only") === "deferred-sweep" && agentRc === 0) {
-    const sweepHandoff = readJson(handoffPath);
+    const sweepHandoff = readJson(env.CDD_HANDOFF_PATH);
     if (sweepHandoff?.findings?.length > 0) {
-      writeHandoff(handoffPath, { findings: [], status: "APPROVED" });
+      writeHandoff(env.CDD_HANDOFF_PATH, { findings: [], status: "APPROVED" });
     }
   }
 ```
@@ -230,10 +230,12 @@ test("runTask: sweep收口 deferred-sweep + success → findings cleared + statu
     task: 1, phase: "fix", status: "APPROVED",
     findings: [{ severity: "nit", summary: "style", deferred: true }]
   }));
+  // Use noExit (not dryRun) so step 8.7 sweep code executes with agentRc=0 path
   const res = await runTask("claude", 1, {
     mode: "fix", dryRun: true, scope: "deferred-sweep", probeSkills: NOOP_PROBE,
-    env: baseEnv(ws),
+    env: baseEnv(ws), noExit: true,
   });
+  assert.equal(res.exitCode, 0, "dry-run fix succeeds");
   const h = JSON.parse(readFileSync(handoffPath, "utf8"));
   assert.deepEqual(h.findings, [], "sweep should clear findings");
   assert.equal(h.status, "APPROVED");

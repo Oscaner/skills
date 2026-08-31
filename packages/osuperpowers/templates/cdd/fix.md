@@ -28,6 +28,7 @@
    - 否则：创建**一个**常规提交（`fix:` 为主，或匹配改动的 `feat:`/`refactor:`），subject 对齐 fix 范围；无署名 / co-author / AI 生成尾注；然后 `head` = `git rev-parse HEAD`。
    - 本轮无 fix 范围改动（相对 `FIX_BASE` 无 diff）→ 不提交，`head` 保持原样。
    - 返回时仍有未提交改动 → `status: BLOCKED`（`cdd-task.mjs --harness <name>` 会强制校验）。
+   - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
 6. Write handoff per `_handoff-write-fragment.md` fix segment.
 7. Do **not** write ledger.
 

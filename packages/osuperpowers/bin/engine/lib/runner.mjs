@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { appendLedger } from "./ledger.mjs";
-import { validateCommitContract, writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mjs";
+import { validateCommitContract, writeHandoff, gitToplevel, normalizeHandoffStatus, gitCatFileCommitExists } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 import { generateBrief, validateBrief } from "./brief.mjs";
@@ -395,8 +395,8 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // 3. Scope validation (fix mode only; #168 dual-channel)
   const VALID_SCOPES = ["blocker-only", "deferred-sweep"];
+  const effectiveScope = scope ?? "blocker-only";
   if (mode === "fix") {
-    const effectiveScope = scope ?? "blocker-only";
     if (!VALID_SCOPES.includes(effectiveScope)) {
       return finish(1, [], `invalid scope: ${effectiveScope} (must be one of: ${VALID_SCOPES.join(", ")})`, noExit);
     }
@@ -404,7 +404,7 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // 4. Set env
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
-    scope: mode === "fix" ? (scope ?? "blocker-only") : undefined,
+    scope: mode === "fix" ? effectiveScope : undefined,
   });
 
   // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
@@ -441,6 +441,10 @@ export async function runTask(harness, taskNum, opts = {}) {
       let taskReviewHead = "HEAD";
       const handoffHead = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "head"]);
       if (handoffHead) taskReviewHead = handoffHead;
+      // #200 phantom SHA 校验：review-package 前校验 commits.head 可达性
+      if (handoffHead && !gitCatFileCommitExists(handoffHead, repoRoot || cwd)) {
+        return finish(1, [], `review-package: commits.head ${handoffHead} is not a reachable commit object`, noExit);
+      }
       try {
         // #173：cwd 键传 repoRoot 值（语义变更在调用方——子进程在 plan 仓库内执行；签名不变）。
         await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH,
@@ -513,6 +517,26 @@ export async function runTask(harness, taskNum, opts = {}) {
     const currentCount = readTimeoutCount(env.CDD_LEDGER);
     writeTimeoutCount(env.CDD_LEDGER, currentCount + 1);
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
+  }
+
+  // 8.6 Mode-phase consistency guard (#175): ensure handoff phase matches CDD_MODE.
+  //    Runs BEFORE sweep收口 and commit-contract. Audit warning only, no拦截。
+  {
+    const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
+    if (existingHandoff && existingHandoff.phase && existingHandoff.phase !== mode) {
+      process.stderr.write(`[audit] handoff phase '${existingHandoff.phase}' corrected to '${mode}'\n`);
+      writeHandoff(env.CDD_HANDOFF_PATH, { phase: mode });
+    }
+  }
+
+  // 8.7 Deferred-sweep收口 (#191): clear findings[] on successful sweep.
+  //    agentRc === 0 + scope deferred-sweep → findings[] = [], status = APPROVED.
+  //    agentRc ≠ 0 → no sweep, findings保留, status不touch.
+  if (mode === "fix" && effectiveScope === "deferred-sweep" && agentRc === 0) {
+    const sweepHandoff = readJson(env.CDD_HANDOFF_PATH);
+    if (sweepHandoff?.findings?.length > 0) {
+      writeHandoff(env.CDD_HANDOFF_PATH, { findings: [], status: "APPROVED" });
+    }
   }
 
   // 9. Commit-contract（先于 H1 —— validator 可能把 handoff 重写为 BLOCKED，H1 必须读该状态）。

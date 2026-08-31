@@ -21,6 +21,7 @@ import {
   rollupStatus,
   markDeferred,
   normalizeHandoffStatus,
+  gitCatFileCommitExists,
 } from "../lib/contract.mjs";
 
 function git(repo, ...args) {
@@ -254,4 +255,25 @@ test("writeHandoff: 父目录不存在自动创建 + 已有非 JSON 覆盖为合
   writeFileSync(p, "garbage");
   writeHandoff(p, { status: "BLOCKED" });
   assert.equal(JSON.parse(readFileSync(p, "utf8")).status, "BLOCKED");
+});
+
+test("gitCatFileCommitExists: real commit → true", () => {
+  const repo = setupRepo();
+  const sha = headOf(repo);
+  assert.equal(gitCatFileCommitExists(sha, repo), true);
+});
+
+test("gitCatFileCommitExists: phantom SHA → false", () => {
+  const repo = setupRepo();
+  assert.equal(gitCatFileCommitExists("0000000000000000000000000000000000000000", repo), false);
+});
+
+test("gitCatFileCommitExists: empty string → false", () => {
+  const repo = setupRepo();
+  assert.equal(gitCatFileCommitExists("", repo), false);
+});
+
+test("gitCatFileCommitExists: null → false", () => {
+  const repo = setupRepo();
+  assert.equal(gitCatFileCommitExists(null, repo), false);
 });

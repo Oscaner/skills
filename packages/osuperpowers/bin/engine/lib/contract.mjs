@@ -27,6 +27,17 @@ export function gitRevParseHead(cwd) {
   return git(["rev-parse", "HEAD"], cwd);
 }
 
+// git cat-file -e 验证 SHA 是否为真实可达的 commit 对象（#200 phantom SHA 防护）；返回 boolean。
+export function gitCatFileCommitExists(sha, cwd) {
+  if (!sha) return false;
+  try {
+    execFileSync("git", ["cat-file", "-e", `${sha}^{commit}`], { cwd, stdio: ["ignore", "ignore", "ignore"] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function gitStatusPorcelain(cwd) {
   return git(["status", "--porcelain"], cwd);
 }

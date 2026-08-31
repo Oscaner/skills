@@ -20,6 +20,7 @@
 4. Each axis file **must** end with a `## Findings (D3)` section containing a JSON block `{"findings": [...]}` (D3 findings-only discipline).
 5. Write handoff per `_handoff-write-fragment.md` review segment. After axes complete, parse D3 findings and set status per `_handoff-write-fragment.md` review segment (spec D1: blocker → CHANGES_REQUESTED; warn/nit → APPROVED + deferred).
 6. Do **not** write ledger.
+7. **Findings output:** Review findings MUST be written to `{{HANDOFF}}` (the JSON handoff file). Do not return findings via stdout alone. If the handoff `findings[]` is empty or missing at return, the runner treats this as no findings found.
 
 ## Return (H1 — stdout only)
 

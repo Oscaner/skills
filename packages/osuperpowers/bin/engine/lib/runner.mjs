@@ -521,6 +521,26 @@ export async function runTask(harness, taskNum, opts = {}) {
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
+  // 8.6 Mode-phase consistency guard (#175): ensure handoff phase matches CDD_MODE.
+  //    Runs BEFORE sweep收口 and commit-contract. Audit warning only, no拦截。
+  {
+    const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
+    if (existingHandoff && existingHandoff.phase && existingHandoff.phase !== mode) {
+      process.stderr.write(`[audit] handoff phase '${existingHandoff.phase}' corrected to '${mode}'\n`);
+      writeHandoff(env.CDD_HANDOFF_PATH, { phase: mode });
+    }
+  }
+
+  // 8.7 Deferred-sweep收口 (#191): clear findings[] on successful sweep.
+  //    agentRc === 0 + scope deferred-sweep → findings[] = [], status = APPROVED.
+  //    agentRc ≠ 0 → no sweep, findings保留, status不touch.
+  if (mode === "fix" && (scope ?? "blocker-only") === "deferred-sweep" && agentRc === 0) {
+    const sweepHandoff = readJson(env.CDD_HANDOFF_PATH);
+    if (sweepHandoff?.findings?.length > 0) {
+      writeHandoff(env.CDD_HANDOFF_PATH, { findings: [], status: "APPROVED" });
+    }
+  }
+
   // 9. Commit-contract（先于 H1 —— validator 可能把 handoff 重写为 BLOCKED，H1 必须读该状态）。
   //    !ok → stderr CDD_BLOCKED 诊断（对齐 bash cdd_validate_commit_contract 的 printf）+ exit 1。
   const contract = validateCommitContract(mode, workspace, { handoffPath: env.CDD_HANDOFF_PATH });

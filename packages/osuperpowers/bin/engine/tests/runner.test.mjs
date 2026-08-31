@@ -951,3 +951,42 @@ test("runTask: unkillable → handoff status BLOCKED + blocker process unkillabl
   assert.match(h.blocker, /unkillable/);
   assert.deepEqual(h.findings, [{ severity: "warn", title: "pre-existing" }]);
 });
+
+// ---- #175 mode-phase guard + #191 deferred-sweep 收口 ----
+
+test("runTask: mode-phase guard → handoff phase corrected + audit stderr", async () => {
+  const ws = setupWorkspace();
+  // Seed handoff with wrong phase
+  const handoffPath = path.join(ws, "task-1-handoff.json");
+  writeFileSync(handoffPath, JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    commits: { base: "abc123", head: "abc123" }
+  }));
+  const { stderr } = await capture(() =>
+    runTask("claude", 1, {
+      mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1" }),
+    }),
+  );
+  assert.match(stderr, /\[audit\] handoff phase 'implement' corrected to 'task-review'/);
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.equal(h.phase, "task-review");
+});
+
+test("runTask: sweep收口 deferred-sweep + success → findings cleared + status APPROVED", async () => {
+  const ws = setupWorkspace();
+  const handoffPath = path.join(ws, "task-1-handoff.json");
+  writeFileSync(handoffPath, JSON.stringify({
+    task: 1, phase: "fix", status: "APPROVED",
+    findings: [{ severity: "nit", summary: "style", deferred: true }]
+  }));
+  // Use noExit (not dryRun) so step 8.7 sweep code executes with agentRc=0 path
+  const res = await runTask("claude", 1, {
+    mode: "fix", dryRun: true, scope: "deferred-sweep", probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+  });
+  assert.equal(res.exitCode, 0, "dry-run fix succeeds");
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.deepEqual(h.findings, [], "sweep should clear findings");
+  assert.equal(h.status, "APPROVED");
+});

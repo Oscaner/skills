@@ -75,7 +75,7 @@ flowchart TD
 
 ### `file`
 
-- **Do**: 按 **#136 组件分类 label** 调 `gh issue create`（`gh issue create --repo Oscaner/skills --label "<type>,dogfood,<component>[,cdd]"`）；命中走 `gh issue comment --repo Oscaner/skills`。body 用 `## Issue Body Templates` prose（按会话语言选 EN/CN × bug/enhancement）。关键字示例用当前工具名（如 `cdd-task.mjs`），不用已删除旧工具名。
+- **Do**: 按 **#136 组件分类 label** 调 `gh issue create`（`gh issue create --repo Oscaner/skills --label "<type>,dogfood,<component>[,cdd]"`）；comment 路径走 `gh issue comment --repo Oscaner/skills`；reopen 路径先 `gh issue reopen --repo Oscaner/skills <number>` 再 `gh issue comment --repo Oscaner/skills <number>`。body 用 `## Issue Body Templates` prose（按会话语言选 EN/CN × bug/enhancement）。关键字示例用当前工具名（如 `cdd-task.mjs`），不用已删除旧工具名。
 - **Read**: 分类后的 label 集；`## Issue Body Templates` prose；finding evidence
 - **Exit**: filing 完成 → `report`
 - **Fail**: `gh issue create` 失败 → fail-open（报告 stderr，保留供手动重试）
@@ -104,7 +104,7 @@ flowchart TD
 | I1 | **Confirm Gate** — 未获用户明确确认前不预建任何 gh issue（confirm 节点硬门） |
 | I2 | **Component-Label** — label 按受影响组件分类（`osuperpowers` / `osuperpowers-router`），不硬编码 `osuperpowers-router`（#136） |
 | I3 | **Manual Trigger Only** — report-issue 仅手动触发，从不自动 |
-| I4 | **Closed Issue Awareness** — dedup 查询 `--state all`（非仅 open）；closed 匹配展示 reopen+comment 选项；针对已关闭 issue 的回归不得静默创建重复 issue。 |
+| I4 | **Closed Issue Awareness** — dedup 查询 `--state all`（非仅 open）；closed 匹配展示 reopen+comment 选项；针对已关闭 issue 的回归不得静默创建重复 issue |
 
 ## Issue Body Templates
 

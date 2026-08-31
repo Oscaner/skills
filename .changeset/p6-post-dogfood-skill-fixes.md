@@ -1,5 +1,5 @@
 ---
-"@oscaner-skills/osuperpowers": minor
+"@oscaner-skills/osuperpowers": patch
 ---
 
 refactor(report-issue): dedup closed issue detection, reopen+comment flow

@@ -75,7 +75,7 @@ flowchart TD
 
 ### `file`
 
-- **Do**: Run `gh issue create --repo Oscaner/skills` with labels computed per the #136 component classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
+- **Do**: Run `gh issue create --repo Oscaner/skills` with labels computed per the #136 component classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. On a dedup hit via the reopen path, run `gh issue reopen --repo Oscaner/skills <number>` then `gh issue comment --repo Oscaner/skills <number>`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
 - **Read**: classified label set; `## Issue Body Templates` prose; finding evidence
 - **Exit**: filing complete → `report`
 - **Fail**: `gh issue create` fails → fail-open (report stderr, keep finding for manual retry)
@@ -95,7 +95,7 @@ flowchart TD
 | `gh` CLI unavailable / network failure | fail-open (report + suggest manual) | external tool dependency | keep findings for retry |
 | dedup hit, user no response | default skip | avoid duplicate filing | no duplicate issue created |
 | `gh issue create` fails | fail-open (report stderr) | external API error | keep finding for manual retry |
-| `gh issue reopen` fails | fail-open (report stderr, keep finding for manual retry) | Closed issue may be locked or restricted | User manually reopens |
+| `gh issue reopen` fails | fail-open (report stderr, keep finding for manual retry) | closed issue may be locked or restricted | user manually reopens |
 
 ## Invariants
 
@@ -104,7 +104,7 @@ flowchart TD
 | I1 | **Confirm Gate** — no gh issue is pre-created before explicit user confirmation (hard gate at `confirm`) |
 | I2 | **Component-Label** — label classifies by the affected package (`osuperpowers` / `osuperpowers-router`), never hardcodes `osuperpowers-router` (#136) |
 | I3 | **Manual Trigger Only** — report-issue runs only on manual trigger, never automatically |
-| I4 | **Closed Issue Awareness** — dedup queries `--state all` (not just open); closed matches present reopen+comment option; regressions against closed issues must not silently create duplicates. |
+| I4 | **Closed Issue Awareness** — dedup queries `--state all` (not just open); closed matches present reopen+comment option; regressions against closed issues must not silently create duplicates |
 
 ## Issue Body Templates
 

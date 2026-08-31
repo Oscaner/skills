@@ -395,8 +395,8 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // 3. Scope validation (fix mode only; #168 dual-channel)
   const VALID_SCOPES = ["blocker-only", "deferred-sweep"];
+  const effectiveScope = scope ?? "blocker-only";
   if (mode === "fix") {
-    const effectiveScope = scope ?? "blocker-only";
     if (!VALID_SCOPES.includes(effectiveScope)) {
       return finish(1, [], `invalid scope: ${effectiveScope} (must be one of: ${VALID_SCOPES.join(", ")})`, noExit);
     }
@@ -404,7 +404,7 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // 4. Set env
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
-    scope: mode === "fix" ? (scope ?? "blocker-only") : undefined,
+    scope: mode === "fix" ? effectiveScope : undefined,
   });
 
   // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
@@ -532,7 +532,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 8.7 Deferred-sweep收口 (#191): clear findings[] on successful sweep.
   //    agentRc === 0 + scope deferred-sweep → findings[] = [], status = APPROVED.
   //    agentRc ≠ 0 → no sweep, findings保留, status不touch.
-  if (mode === "fix" && (scope ?? "blocker-only") === "deferred-sweep" && agentRc === 0) {
+  if (mode === "fix" && effectiveScope === "deferred-sweep" && agentRc === 0) {
     const sweepHandoff = readJson(env.CDD_HANDOFF_PATH);
     if (sweepHandoff?.findings?.length > 0) {
       writeHandoff(env.CDD_HANDOFF_PATH, { findings: [], status: "APPROVED" });

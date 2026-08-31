@@ -131,10 +131,10 @@ flowchart TD
 
 ### `spec-review`
 
-- **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。遵循 [docs-review.md](./docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `commit-spec`。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
-- **Read**: spec 文档 + [docs-review.md](./docs/docs-review.md)
+- **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。遵循 D1/D2/D3 from [docs-review.md](../_docs/docs-review.md)。Review Stopping（see I5）：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `commit-spec`。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
+- **Read**: spec 文档 + [docs-review.md](../_docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ 跳到 `user-confirm-commit?`（仍经 `user-ok?` → `user-confirm-commit?`）
-- **Fail**: blocker=0 后重跑 review → 违反 I5。为新 warn/nit 发起新 cdd-review → 违反 I5
+- **Fail**: blocker=0 后重跑 review → 违反 I5（Review Stopping）。为新 warn/nit 发起新 cdd-review → 违反 I5。
 
 ### `user-ok?`
 
@@ -179,7 +179,7 @@ flowchart TD
 | I2 | **Research 需用户确认** — spawn research agent 前必须用户明确确认，不自动触发 |
 | I3 | **Design first** — design 获用户批准前禁止任何实施行动 |
 | I4 | **Spec commit 纪律** — spec 获批即 commit；不等 dev 合并 |
-| I5 | **Review Stopping** — 重跑仅由 blocker 驱动；blocker=0 后不重跑；不为获取 warn/nit 发起新 cdd-review |
+| I5 | **Review Stopping** — 重跑仅由 blocker 驱动；全部 pass 均为 blocker=0 后不重跑；不为获取 warn/nit 发起新 cdd-review（从当前 review cycle 的已捕获输出读取）。 |
 | I6 | **Register-before-grill**（scope：`phase-within-program` 模式）— grilling 仅对已存在于 overall Phase inventory 的 phase 运行。`new-program` 模式会经过 `claim-phase` 节点但 **跳过 inventory 检查** 直达 grilling（digraph `E -->|new-program mode| F`）。在 `phase-within-program` 模式下，若 grilling 中途出现 phase split / 新 issue → 路由回 `claim-phase` → `sync-overall`；绝不对未登记的 scope 进行 grilling |
 | I7 | **Serial-phase** — 当 `sync-overall` 登记新 phase 时，校验其 hard-dependency 前驱在 overall Phase inventory 中 **Design spec 列 = `Done`**；若未交付（Design spec ≠ `Done`）→ 硬 `BLOCKED: overall-sync-failed`（与 §2.3 同终端；绝不为未满足的 phase 释放 grilling——这正是要阻断的 v1.19c anti-pattern） |
 
@@ -195,3 +195,4 @@ flowchart TD
 | 父 overall spec 不可解析 / 多匹配 | BLOCKED（overall-parse-failed） | 模式解析无法继续 | 提示用户指定唯一父 overall 路径 |
 | Phase inventory 缺失或不可解析 | BLOCKED（overall-sync-failed） | claim-phase / sync-overall 无法把关 | 用户补充或修复 overall Phase inventory |
 | 四表同步不一致（依赖未交付 / 悬空引用） | BLOCKED（overall-sync-failed） | 拒绝为未登记 / 依赖未满足的 phase 进行 grilling | 修复 overall 四表后重跑 sync-overall |
+| spec-review blocker=0 后重跑 | 违反 I5（Review Stopping）— 停止并向用户报告 | Agent 在全部 pass 均为 blocker=0 后重跑 review |

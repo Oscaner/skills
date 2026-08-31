@@ -33,14 +33,14 @@ flowchart TD
 
 ### `write-plan`
 
-- **Do**: 逐节写入 plan 到 `docs/superpowers/plans/YYYY-MM-DD-<feature>.md`。每节一次 tool call（Section-by-Section——I2）。写入前执行 scope-check（如 spec 覆盖多子系统，建议拆分为独立 plans）。全部节写完后一次性呈现给用户。含 self-review（spec 覆盖检查 + placeholder 扫描 + 类型一致性）——self-review 发现的问题 inline 修复，不循环、不传递给 plan-review
+- **Do**: 逐节写入 plan 到 `docs/superpowers/plans/YYYY-MM-DD-<feature>.md`。每节一次 tool call（Section-by-Section——I2）。任务标题必须使用 H3（`### Task N:`），匹配 `brief.mjs` 的 brief 提取格式。写入前执行 scope-check（如 spec 覆盖多子系统，建议拆分为独立 plans）。全部节写完后一次性呈现给用户。含 self-review（spec 覆盖检查 + placeholder 扫描 + 类型一致性）——self-review 发现的问题 inline 修复，不循环、不传递给 plan-review
 - **Read**: 已批准的 spec 文档 + 上游 plan 模板结构
 - **Exit**: plan 写入完成 + self-review 通过 → `plan-review`
 - **Fail**: 一次性批量写入 → 违反 I2
 
 ### `plan-review`
 
-- **Do**: 执行 3-pass plan-review（completeness & spec alignment / task decomposition / buildability & type consistency），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`。遵循 [docs-review.md](../_docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① run 3-pass → ② blocker → fix → re-run only that pass → loop until blocker=0 → ③ all blocker=0 → present warn/nit → proceed。Pass 1 零发现（D1）→ skip subsequent passes → `commit-plan`。仅 Pass 2 为 delta scope；Pass 3 始终 full-doc
+- **Do**: 执行 3-pass plan-review（completeness & spec alignment / task decomposition / buildability & type consistency），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`。遵循 [docs-review.md](../_docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping (see I4)：① run 3-pass → ② blocker → fix → re-run only that pass → loop until blocker=0 → ③ all blocker=0 → present warn/nit → proceed。Pass 1 零发现（D1）→ skip subsequent passes → `commit-plan`。仅 Pass 2 为 delta scope；Pass 3 始终 full-doc
 - **Read**: plan 文档 + spec 文档 + [docs-review.md](../_docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ skip to `commit-plan`
 - **Fail**: blocker=0 后重跑 review → 违反 I4。为新 warn/nit 发起新 cdd-review → 违反 I4
@@ -67,6 +67,7 @@ flowchart TD
 | I2 | **逐节写入** — plan 逐节写入，每节一次 tool call；写入粒度与确认时机解耦 |
 | I3 | **Plan commit 纪律** — plan 获批即 commit，不等 dev 合并 |
 | I4 | **Review Stopping** — 重跑仅由 blocker 驱动；blocker=0 后不重跑；不为获取 warn/nit 发起新 cdd-review |
+| I5 | **Task Heading H3** — Plan 任务标题必须使用 H3（`### Task N:` 格式），匹配 brief.mjs 提取模式（`packages/osuperpowers/bin/engine/lib/brief.mjs` 第 11 行）。H2 或其他级别将导致 CDD dispatch 时 brief 提取失败 |
 
 ## Failure Modes
 
@@ -74,3 +75,4 @@ flowchart TD
 |---|---|---|
 | 上游 superpowers:writing-plans SKILL.md 缺失 | BLOCKED（含安装 superpowers plugin 指引） | block 政策：不静默 fallback |
 | Git commit 错误 | report + fail-open | 不阻塞用户审阅 plan |
+| plan-review re-run after blocker=0 | Violates I4 (Review Stopping) — stop + report to user | Agent re-runs review after all passes are blocker=0 |

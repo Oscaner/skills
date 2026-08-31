@@ -1,6 +1,6 @@
 # Post-Dogfood Bugfixes + Anti-Pattern Elimination — Overall Spec
 
-- **Version**: v1.6 · 2026-08-31
+- **Version**: v1.7 · 2026-08-31
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -40,7 +40,7 @@ Charter only — no implementation detail。
 | Pγ | (skill-authoring) | skill-authoring.md 缺 Anti-patterns 规范 |
 | Pγ | (brainstorming) | brainstorming SKILL.md 反模式消除（Rule Duplication / Bare Compliance / Insufficient Granularity） |
 | Pδ | [#210](https://github.com/Oscaner/skills/issues/210) | deferred-sweep 被 commit-contract F1 误拦：sweep 运行时 HEAD 已前进导致 handoff commits.head mismatch |
-| Pδ | [#211](https://github.com/Oscaner/skills/issues/211) | cli-driven-development 重构：engine 契约修复 + CDD 简化路径 + agent 文件定向 + degradation 标准化 |
+| Pδ | [#211](https://github.com/Oscaner/skills/issues/211) | cli-driven-development 重构：engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化，所有任务强制执行） |
 
 ---
 
@@ -51,7 +51,7 @@ Charter only — no implementation detail。
 | Pα | engine-fixes：#200 phantom SHA 校验 + #176 跨任务边界约束 + #175 task-review mode 守卫 + #191 deferred-sweep 清零 | Done | Done | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-alpha.md) | Done | ① `gitCatFileCommitExists` 导出 + 单测；② runner.mjs 集成测试；③ implement.md/fix.md 边界约束；④ runner.mjs mode-phase 守卫 + 单测；⑤ task-review.md findings 写入指令；⑥ sweep 收口 findings 清空；⑦ validate 绿 | Pβ |
 | Pβ | skill-fixes：#198/#184 task heading 强制 + #195/#196 docs-review 重写 + #194 report-issue dedup 扩展 | Pending | Pending | Pending | Pending | 见 phase spec | Pγ |
 | Pγ | anti-patterns + brainstorming 重写：#207 CDD 执行流程绕过修复 + #206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Pending | Pending | Pending | Pending | 见 phase spec | Pδ |
-| Pδ | CDD 重构：#210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + CDD 简化路径 + agent 文件定向 + degradation 标准化 | Pending | Pending | Pending | Pending | 见 phase spec | 无 |
+| Pδ | CDD 重构：#210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | Pending | Pending | Pending | Pending | 见 phase spec | 无 |
 
 ---
 
@@ -76,3 +76,4 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.4 | 2026-08-31 | 3-pass spec review fixes：Phase inventory 拆列（Design spec/Plan/Status/Deliverables/Downstream）；#184 标记 duplicate；Pα Design spec = Done | [human] · Claude Opus 4.8 |
 | v1.5 | 2026-08-31 | Added #207 CDD 执行流程绕过 issue；Pγ scope 更新 | [human] · Claude Opus 4.8 |
 | v1.6 | 2026-08-31 | Added #210 deferred-sweep F1 + #211 CDD refactoring；新增 Pδ phase；dependency graph 更新为 4-phase 串行 | [human] · Claude Opus 4.8 |
+| v1.7 | 2026-08-31 | Removed CDD 简化路径 from Pδ scope（三模式链不简化，所有任务强制执行） | [human] · Claude Opus 4.8 |

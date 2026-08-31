@@ -19,6 +19,7 @@ flowchart TD
   E -->|no-hit| G[file]
   F -->|new| G
   F -->|comment| G
+  F -->|reopen| G
   F -->|skip| H((APPROVED: skipped))
   G --> I[report]
   I --> J((APPROVED: report))
@@ -58,16 +59,18 @@ flowchart TD
 
 ### `dedup`
 
-- **Do**: 对每个确认 finding 查重：`gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`；关键词（组件名 + 行为词）大小写不敏感子串匹配。
+- **Do**: 对每个确认 finding 查重：`gh issue list --repo Oscaner/skills --state all --limit 100 --json number,title,body,state`；关键词（组件名 + 行为词）大小写不敏感子串匹配。
 - **Read**: `gh issue list` 输出；confirmed findings
 - **Exit**: 命中 → `resolve-hit`；未命中 → `file`
 - **Fail**: `gh` 不可用 / 网络失败 → fail-open（报告，跳 filing，提示手动）
 
 ### `resolve-hit`
 
-- **Do**: 命中已有 issue 时展示匹配项，用户三选一：**Create new / Add comment to existing / Skip**。
-- **Read**: 匹配到的 issue（number + title + body）
-- **Exit**: new → `file`；comment → `file`（comment 路径）；skip → APPROVED（skipped）
+- **Do**: 命中已有 issue 时按状态区分：
+  - **Open 匹配**：展示匹配项，用户三选一：**Create new issue / Add comment to existing / Skip**。
+  - **Closed 匹配**：展示匹配项（含关闭原因，如有），用户四选一：**Create new issue / Reopen + comment / Comment-only / Skip**。Reopen 先执行 `gh issue reopen --repo Oscaner/skills <number>` 再 comment。
+- **Read**: 匹配到的 issue（number + title + body + state）
+- **Exit**: new → `file`；comment → `file`（comment 路径）；reopen → `file`（reopen 路径）；skip → APPROVED（skipped）
 - **Fail**: 无响应 → 默认 skip（不重复 filing）
 
 ### `file`
@@ -92,6 +95,7 @@ flowchart TD
 | `gh` CLI 不可用 / 网络失败 | fail-open（报告 + 提示手动） | 外部工具依赖 | 保留 findings 供重试 |
 | dedup 命中后用户无响应 | 默认 skip | 避免重复 filing | 不创建重复 issue |
 | `gh issue create` 失败 | fail-open（报告 stderr） | 外部 API 错误 | 保留 finding 供手动重试 |
+| `gh issue reopen` 失败 | fail-open（报告 stderr，保留供手动重试） | 已关闭 issue 可能被锁定或受限 | 用户手动 reopen |
 
 ## Invariants
 
@@ -100,6 +104,7 @@ flowchart TD
 | I1 | **Confirm Gate** — 未获用户明确确认前不预建任何 gh issue（confirm 节点硬门） |
 | I2 | **Component-Label** — label 按受影响组件分类（`osuperpowers` / `osuperpowers-router`），不硬编码 `osuperpowers-router`（#136） |
 | I3 | **Manual Trigger Only** — report-issue 仅手动触发，从不自动 |
+| I4 | **Closed Issue Awareness** — dedup 查询 `--state all`（非仅 open）；closed 匹配展示 reopen+comment 选项；针对已关闭 issue 的回归不得静默创建重复 issue。 |
 
 ## Issue Body Templates
 

@@ -19,6 +19,7 @@ flowchart TD
   E -->|no-hit| G[file]
   F -->|new| G
   F -->|comment| G
+  F -->|reopen| G
   F -->|skip| H((APPROVED: skipped))
   G --> I[report]
   I --> J((APPROVED: report))
@@ -58,16 +59,18 @@ flowchart TD
 
 ### `dedup`
 
-- **Do**: For each confirmed finding, check for duplicates: `gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`. Match keywords — the **affected component name** (e.g. `cdd-task.mjs`, `handoff-writer`, `gate`) plus **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`) — case-insensitively against existing issue titles and bodies.
+- **Do**: For each confirmed finding, check for duplicates: `gh issue list --repo Oscaner/skills --state all --limit 100 --json number,title,body,state`. Match keywords — the **affected component name** (e.g. `cdd-task.mjs`, `handoff-writer`, `gate`) plus **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`) — case-insensitively against existing issue titles and bodies.
 - **Read**: `gh issue list` output; confirmed findings
 - **Exit**: hit → `resolve-hit`; no-hit → `file`
 - **Fail**: `gh` unavailable / network failure → fail-open (report, skip filing, suggest manual)
 
 ### `resolve-hit`
 
-- **Do**: When an existing issue matches, show the match and let the user choose three ways: **Create new issue / Add comment to existing / Skip**.
-- **Read**: matched issue (number + title + body)
-- **Exit**: new → `file`; comment → `file` (comment path); skip → APPROVED (skipped)
+- **Do**: When an existing issue matches, differentiate by state:
+  - **Open match**: show the match and let the user choose: **Create new issue / Add comment to existing / Skip**.
+  - **Closed match**: show the match (including close reason if available) and let the user choose: **Create new issue / Reopen + comment / Comment-only / Skip**. Reopen uses `gh issue reopen --repo Oscaner/skills <number>` before commenting.
+- **Read**: matched issue (number + title + body + state)
+- **Exit**: new → `file`; comment → `file` (comment path); reopen → `file` (reopen path); skip → APPROVED (skipped)
 - **Fail**: no response → default skip (no duplicate filing)
 
 ### `file`
@@ -92,6 +95,7 @@ flowchart TD
 | `gh` CLI unavailable / network failure | fail-open (report + suggest manual) | external tool dependency | keep findings for retry |
 | dedup hit, user no response | default skip | avoid duplicate filing | no duplicate issue created |
 | `gh issue create` fails | fail-open (report stderr) | external API error | keep finding for manual retry |
+| `gh issue reopen` fails | fail-open (report stderr, keep finding for manual retry) | Closed issue may be locked or restricted | User manually reopens |
 
 ## Invariants
 
@@ -100,6 +104,7 @@ flowchart TD
 | I1 | **Confirm Gate** — no gh issue is pre-created before explicit user confirmation (hard gate at `confirm`) |
 | I2 | **Component-Label** — label classifies by the affected package (`osuperpowers` / `osuperpowers-router`), never hardcodes `osuperpowers-router` (#136) |
 | I3 | **Manual Trigger Only** — report-issue runs only on manual trigger, never automatically |
+| I4 | **Closed Issue Awareness** — dedup queries `--state all` (not just open); closed matches present reopen+comment option; regressions against closed issues must not silently create duplicates. |
 
 ## Issue Body Templates
 

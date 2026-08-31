@@ -889,6 +889,51 @@ test("runTask: timeout → timeoutCount incremented in progress.md", async () =>
   }
 });
 
+// ---- #200 phantom SHA guard ----
+
+test("runTask: task-review + phantom commits.head → exit 1, review-package not executed", async () => {
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-phantom-")));
+  gitInit(dir);
+  writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
+  writeFileSync(path.join(dir, "progress.md"), `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
+  const derivedWs = path.join(dir, ".superpowers", "cdd", "plan");
+  mkdirSync(derivedWs, { recursive: true });
+  writeFileSync(path.join(derivedWs, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
+  // Seed handoff with phantom SHA
+  const handoffPath = path.join(derivedWs, "task-1-handoff.json");
+  writeFileSync(handoffPath, JSON.stringify({
+    task: 1, phase: "task-review", status: "APPROVED",
+    commits: { base: "abc123", head: "0000000000000000000000000000000000000000" }
+  }));
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-phantom-bin-"));
+  writeFileSync(path.join(binDir, "claude"), "#!/usr/bin/env bash\nexit 0\n");
+  chmodSync(path.join(binDir, "claude"), 0o755);
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const { code, stderr } = await capture(() =>
+      runTask("claude", 1, {
+        mode: "task-review", probeSkills: NOOP_PROBE,
+        env: baseEnv(dir, {
+          CDD_LEDGER: path.join(dir, "progress.md"),
+          CDD_TASK_BRIEF: path.join(derivedWs, "task-1-brief.md"),
+          CDD_HANDOFF_PATH: handoffPath,
+          CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1",
+          PATH: `${binDir}${path.delimiter}${origPath}`,
+        }),
+        cwd: dir, registryPath: REG_PATH,
+      }),
+    );
+    assert.equal(code, 1);
+    assert.match(stderr, /not a reachable commit object/);
+    // Verify review-package did NOT run: handoff has no diff artifact (guard terminated before runReviewPackage)
+    const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+    assert.equal(h.artifacts?.diff, undefined, "review-package should not have produced diff");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
 test("runTask: unkillable → handoff status BLOCKED + blocker process unkillable", async () => {
   // NOTE: SIGKILL always kills processes on modern Unix, so the unkillable path in spawnCapture
   // is unreachable with real processes. This test verifies the BLOCKED handoff write path exists

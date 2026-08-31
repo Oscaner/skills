@@ -40,8 +40,8 @@ flowchart TD
 
 ### `plan-review`
 
-- **Do**: 执行 3-pass plan-review（completeness & spec alignment / task decomposition / buildability & type consistency），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`。遵循 [docs-review.md](../brainstorming/docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① run 3-pass → ② blocker → fix → re-run only that pass → loop until blocker=0 → ③ all blocker=0 → present warn/nit → proceed。Pass 1 零发现（D1）→ skip subsequent passes → `commit-plan`。仅 Pass 2 为 delta scope；Pass 3 始终 full-doc
-- **Read**: plan 文档 + spec 文档 + [docs-review.md](../brainstorming/docs/docs-review.md)
+- **Do**: 执行 3-pass plan-review（completeness & spec alignment / task decomposition / buildability & type consistency），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`。遵循 [docs-review.md](../_docs/docs-review.md) 的 D1/D2/D3 规则。Review Stopping：① run 3-pass → ② blocker → fix → re-run only that pass → loop until blocker=0 → ③ all blocker=0 → present warn/nit → proceed。Pass 1 零发现（D1）→ skip subsequent passes → `commit-plan`。仅 Pass 2 为 delta scope；Pass 3 始终 full-doc
+- **Read**: plan 文档 + spec 文档 + [docs-review.md](../_docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ skip to `commit-plan`
 - **Fail**: blocker=0 后重跑 review → 违反 I4。为新 warn/nit 发起新 cdd-review → 违反 I4
 

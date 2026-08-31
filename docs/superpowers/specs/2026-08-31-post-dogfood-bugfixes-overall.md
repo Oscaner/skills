@@ -1,6 +1,6 @@
 # Post-Dogfood Bugfixes + Anti-Pattern Elimination — Overall Spec
 
-- **Version**: v1.1 · 2026-08-31
+- **Version**: v1.3 · 2026-08-31
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -33,6 +33,7 @@ Charter only — no implementation detail。
 | Pβ | [#195](https://github.com/Oscaner/skills/issues/195) | review re-review 规则统一——仅 blocker 触发重跑 |
 | Pβ | [#196](https://github.com/Oscaner/skills/issues/196) | plan review Pass 3 blocker 修复后未 re-run——#195 的具体实例 |
 | Pβ | [#194](https://github.com/Oscaner/skills/issues/194) | report-issue dedup 缺 closed issue 检测——回归 issue 需 reopen+comment |
+| Pγ | [#206](https://github.com/Oscaner/skills/issues/206) | brainstorming spec-review 3-pass 审查完全跳过——write-spec 后直接 commit |
 | Pγ | [#204](https://github.com/Oscaner/skills/issues/204) | grilling 纪律违反——brainstorming orchestrator 未遵守 baseline |
 | Pγ | [#205](https://github.com/Oscaner/skills/issues/205) | brainstorming overall spec 产出前进行了 phase-level 详细设计（阶段划分跳过） |
 | Pγ | (skill-authoring) | skill-authoring.md 缺 Anti-patterns 规范 |
@@ -44,9 +45,9 @@ Charter only — no implementation detail。
 
 | # | Phase | Scope | Design spec | Plan | Acceptance | Dependency |
 |---|---|---|---|---|---|---|
-| Pα | engine-fixes：#200 phantom SHA 校验 + #176 跨任务边界约束 + #175 task-review mode 守卫 + #191 deferred-sweep 清零 | Pending | Pending | 见 phase spec | Pβ |
+| Pα | engine-fixes：#200 phantom SHA 校验 + #176 跨任务边界约束 + #175 task-review mode 守卫 + #191 deferred-sweep 清零 | Done | Pending | ① `gitCatFileCommitExists` 导出 + 单测；② implement.md/fix.md 边界约束；③ runner.mjs mode-phase 守卫 + 单测；④ task-review.md findings 写入指令；⑤ sweep 收口 findings 清空；⑥ validate 绿 | Pβ |
 | Pβ | skill-fixes：#198/#184 task heading 强制 + #195/#196 docs-review 重写 + #194 report-issue dedup 扩展 | Pending | Pending | 见 phase spec | Pγ |
-| Pγ | anti-patterns + brainstorming 重写：#205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Pending | Pending | 见 phase spec | 无 |
+| Pγ | anti-patterns + brainstorming 重写：#206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Pending | Pending | 见 phase spec | 无 |
 
 ---
 
@@ -66,3 +67,5 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 |---|---|---|---|
 | v1.0 | 2026-08-31 | Initial charter — 10 issues + skill-authoring | [human] · Claude Opus 4.8 |
 | v1.1 | 2026-08-31 | Added #205 brainstorming flow violation;串行 dependency 修正 | [human] · Claude Opus 4.8 |
+| v1.2 | 2026-08-31 | Pα design spec written (Done)；Phase inventory acceptance criteria 具体化 | [human] · Claude Opus 4.8 |
+| v1.3 | 2026-08-31 | Added #206 spec-review 3-pass 跳过 issue；Pγ scope 更新 | [human] · Claude Opus 4.8 |

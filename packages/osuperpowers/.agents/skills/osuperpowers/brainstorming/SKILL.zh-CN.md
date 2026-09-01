@@ -18,25 +18,29 @@ flowchart TD
   C -->|mode resolved| D[explore-context]
   C -->|unparseable| Z4((BLOCKED: overall-parse-failed))
   D --> E{claim-phase}
-  E -->|phase in overall Phase inventory| F[grilling]
+  E -->|phase in overall Phase inventory| F{grilling-mode?}
   E -->|phase NOT in inventory (phase-within-program)| S[sync-overall]
   E -->|new-program mode| F
   S -->|four tables consistent| D
   S -->|inconsistent| Z3((BLOCKED: overall-sync-failed))
   E -->|inventory unparseable| Z3
   F -->|mid-grill split / new scope| E
-  F --> G[propose-approaches]
+  F -->|phase-within-program| G[propose-approaches]
+  F -->|new-program| G2[propose-phase-approaches]
   G --> H[present-design]
   H -->|revise section| H
   H --> I{user-approves?}
   I -->|revise| H
   I -->|yes| J[write-spec]
-  J --> K[spec-review]
+  G2 --> H2{charter-approves?}
+  H2 -->|revise| H2
+  H2 -->|yes| J
+  J --> K{spec-review?}
   K -->|blocker found| K
   K -->|blocker=0| L{user-ok?}
   K -->|pass1 clean (D1 zero findings, skip D2/D3)| L
   L -->|fix selected (after blocker=0, no re-review per Review Stopping)| Q{user-confirm-commit?}
-  L -->|approved| Q{user-confirm-commit?}
+  L -->|approved| Q
   Q -->|confirmed| M[commit-spec]
   M --> N{overall-spec?}
   N -->|yes: next phase| O((HANDOFF: brainstorming))
@@ -76,11 +80,11 @@ flowchart TD
 ### `claim-phase`
 
 - **Do**: 基于 `read-program` 的模式标记 + 用户请求中的 phase 标识符（如 `/brainstorming P14`），判断该 phase 是否已存在于父 overall 的 **Phase inventory**（四表同步流程见 [add-phase-protocol.md](./docs/add-phase-protocol.md)）：
-  - `new-program` 模式 → 直接到 `grilling`（program 级设计最终会到达 `overall-spec?`）
-  - `phase-within-program` 模式 + phase **已在** Phase inventory → `grilling`（正常路径）
+  - `new-program` 模式 → 直接到 `grilling-mode?`（program 级设计最终会到达 `overall-spec?`）
+  - `phase-within-program` 模式 + phase **已在** Phase inventory → `grilling-mode?`（正常路径）
   - `phase-within-program` 模式 + phase **不在** Phase inventory（新 phase / split）→ `sync-overall`
 - **Read**: 父 overall 的 Phase inventory 表
-- **Exit**: 已在 inventory / new-program → `grilling`；不在 → `sync-overall`
+- **Exit**: 已在 inventory / new-program → `grilling-mode?`；不在 → `sync-overall`
 - **Fail**: Phase inventory 表缺失或不可解析 → 终端 `BLOCKED: overall-sync-failed`（与 sync-overall 同终端，语义一致）
 
 ### `sync-overall`
@@ -92,21 +96,44 @@ flowchart TD
   ④ **version bump + change-history** 条目（记录原因、用户决策、scope 边界）。
   然后运行 **四表一致性校验**：phase spec/plan 引用的任意 `#NNN` 必须存在于 Issue inventory；Dependency graph 引用的任意 phase 必须存在于 Phase inventory；新 phase 的 hard-dependency 前驱在父 overall 的 Phase inventory 中必须 **Design spec 列 = `Done`**（与 §2.5 中 I7 同列权威；不再依据 plan 单元 / git 状态判断）。
 - **Read**: 完整父 overall spec（含 Phase inventory 的 Design spec 列）
-- **Exit**: 四表一致 → 回到 `explore-context`（用已登记的 phase 重新评估 scope）→ 经 `claim-phase`（phase 现在已存在）→ `grilling`
+- **Exit**: 四表一致 → 回到 `explore-context`（用已登记的 phase 重新评估 scope）→ 经 `claim-phase`（phase 现在已存在）→ `grilling-mode?`
 - **Fail**: 四表不一致（如依赖 phase 未交付、悬空引用）→ 终端 `BLOCKED: overall-sync-failed`；绝不允许对未登记的 phase 进行 grilling
 
-### `grilling`
+### `grilling-mode?`
 
-- **Do**: 按 grilling SKILL.md 框架如实执行——逐一追问用户，每次一个问题，等待回答后继续。代码可查的事实自己查，决策问题留给用户。grilling 前需确认 `claim-phase` 已释放本 phase（结构保证——在 Do 字段中显式声明）
-- **Read**: grilling SKILL.md 框架（从 `read-sub-skills` 加载）
-- **Exit**: 达到 shared understanding → `propose-approaches`
-- **Fail**: 以选项菜单/结构化选择列表替代 grilling 框架 → 违反 invariant。grilling 中途检测到 phase split / 新 scope → 路由回 `claim-phase`（与 I6 配对）
+- **Do**: 根据 `read-program` 模式分支 grilling 行为。上游 grilling SKILL.md 基线不变（Read，非 Skill-invoke——I1）。
+
+  - **`phase-within-program`** → 实施 grilling：根因分析 → 影响边界 → 修复方向 → 技术方案。每次 grilling session 处理一个 issue。
+  - **`new-program`** → scope 级 grilling：每个候选 phase 的 scope 定义、依赖、验收标准、issue 归属。一次 session 覆盖所有 phase。
+
+  **共享纪律**（上游基线 + 自检）：
+  - 一次一个问题，等用户回答后再继续
+  - 每个问题附带推荐答案
+  - 每个问题前自检：① 仅一个问题？② 已附推荐答案？③ 根因已探索（仅 phase-within-program）？→ 若任一不满足 → 重新正确提问
+
+- **Read**: grilling SKILL.md 框架（从 `read-sub-skills` 加载）+ 模式标记（从 `read-program`）
+- **Exit**: `phase-within-program` → `propose-approaches`；`new-program` → `propose-phase-approaches`
+- **Fail**: 自检连续失败 2 次 → BLOCKED（grilling 纪律破裂）；grilling 中途检测到 phase split / 新 scope → 路由回 `claim-phase`
 
 ### `propose-approaches`
 
 - **Do**: 提出 2-3 个方案含 trade-off 与推荐。YAGNI ruthlessly
 - **Read**: grilling 收集的决策 + research findings（如有）
 - **Exit**: 方案呈现完毕 → `present-design`
+- **Fail**: —
+
+### `propose-phase-approaches`
+
+- **Do**: 基于 scope-level grilling 产出，列出每个 phase 的 scope/dependency/acceptance。用户确认 phase 分解是否合理。
+- **Read**: scope-level grilling 决策 + 父 overall（如有）
+- **Exit**: phase 分解确认 → `charter-approves?`
+- **Fail**: —
+
+### `charter-approves?`
+
+- **Do**: 用户审批 charter 分解。
+- **Read**: 来自 `propose-phase-approaches` 的 charter 分解 + 父 overall（如有）
+- **Exit**: Approved → `write-spec`；revise → `propose-phase-approaches`
 - **Fail**: —
 
 ### `present-design`
@@ -124,16 +151,19 @@ flowchart TD
 
 ### `write-spec`
 
-- **Do**: 将设计写入 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`。Overall spec 使用 [overall-spec-template.md](./docs/overall-spec-template.md)；phase spec 使用 [phase-spec-template.md](./docs/phase-spec-template.md)
-- **Read**: 全部设计决策
-- **Exit**: 文件写入完成 → `spec-review`
-- **Fail**: —
+- **Do**: 根据模式确定写入粒度：
+  - **`new-program`** → 仅 charter：scope 分解 + issue inventory + phase inventory + dependency graph + 验收标准。**无 phase 级实施细节。** 使用 overall-spec-template.md（含 "Charter only — no implementation detail" GATE）
+  - **`phase-within-program`** → phase 级详细设计（含 grilling 产出：根因 / 修复方向 / 技术决策）。使用 phase-spec-template.md
 
-### `spec-review`
+- **Read**: 模式标记 + 全部设计决策 + 模板（路径：`packages/osuperpowers/skills/brainstorming/docs/`）
+- **Exit**: 文件写入完成 → `spec-review?`
+- **Fail**: 模板缺失/不可读 → BLOCKED（missing template）
 
-- **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI），每 pass 派发独立 `cdd-review` CLI 调用：`node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。遵循 D1/D2/D3 from [docs-review.md](../_docs/docs-review.md)。Review Stopping（see I5）：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `commit-spec`。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
-- **Read**: spec 文档 + [docs-review.md](../_docs/docs-review.md)
-- **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean（D1）→ 跳到 `user-confirm-commit?`（仍经 `user-ok?` → `user-confirm-commit?`）
+### `spec-review?`
+
+- **Do**: 执行 3-pass spec review（completeness / consistency&scope / clarity&YAGNI）。每 pass **必须**派发 `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`。**self-review、手动检查或任何其他替代 cdd-review CLI 调用的行为均被禁止。** 遵循 D1/D2/D3 from `_docs/docs-review.md`。Review Stopping（I5）：① 运行 3-pass → ② 发现 blocker → 修复 → 仅重跑该 pass → 循环直到 blocker=0 → ③ 全部 pass blocker=0 → 呈现 warn/nit 给用户 → 继续。Pass 1 零发现（D1）→ 跳过后续 pass → `user-ok?`（pass1 clean 经 user-ok? → user-confirm-commit?，图 K→L→Q）。仅 Pass 2 为 delta-scoped；Pass 3 始终 full-doc
+- **Read**: spec 文档 + `_docs/docs-review.md`
+- **Exit**: blocker=0 → `user-ok?`（呈现 warn/nit）；Pass 1 clean → `user-ok?`
 - **Fail**: blocker=0 后重跑 review → 违反 I5（Review Stopping）。为新 warn/nit 发起新 cdd-review → 违反 I5。
 
 ### `user-ok?`
@@ -182,6 +212,7 @@ flowchart TD
 | I5 | **Review Stopping** — 重跑仅由 blocker 驱动；全部 pass 均为 blocker=0 后不重跑；不为获取 warn/nit 发起新 cdd-review（从当前 review cycle 的已捕获输出读取）。 |
 | I6 | **Register-before-grill**（scope：`phase-within-program` 模式）— grilling 仅对已存在于 overall Phase inventory 的 phase 运行。`new-program` 模式会经过 `claim-phase` 节点但 **跳过 inventory 检查** 直达 grilling（digraph `E -->|new-program mode| F`）。在 `phase-within-program` 模式下，若 grilling 中途出现 phase split / 新 issue → 路由回 `claim-phase` → `sync-overall`；绝不对未登记的 scope 进行 grilling |
 | I7 | **Serial-phase** — 当 `sync-overall` 登记新 phase 时，校验其 hard-dependency 前驱在 overall Phase inventory 中 **Design spec 列 = `Done`**；若未交付（Design spec ≠ `Done`）→ 硬 `BLOCKED: overall-sync-failed`（与 §2.3 同终端；绝不为未满足的 phase 释放 grilling——这正是要阻断的 v1.19c anti-pattern） |
+| I8 | **Mode-aware flow** — `grilling-mode?` 节点根据 `read-program` 模式分支行为：`new-program` → scope 级 grilling → `propose-phase-approaches`；`phase-within-program` → 实施 grilling → `propose-approaches`。`write-spec` 节点根据模式确定写入粒度：`new-program` → 仅 charter（无实施细节）；`phase-within-program` → phase 级详细设计。模式标记贯穿整个流程。 |
 
 ## Failure Modes
 
@@ -196,3 +227,6 @@ flowchart TD
 | Phase inventory 缺失或不可解析 | BLOCKED（overall-sync-failed） | claim-phase / sync-overall 无法把关 | 用户补充或修复 overall Phase inventory |
 | 四表同步不一致（依赖未交付 / 悬空引用） | BLOCKED（overall-sync-failed） | 拒绝为未登记 / 依赖未满足的 phase 进行 grilling | 修复 overall 四表后重跑 sync-overall |
 | spec-review blocker=0 后重跑 | 违反 I5（Review Stopping）— 停止并向用户报告 | Agent 在全部 pass 均为 blocker=0 后重跑 review |
+| Grilling 自检连续失败 2 次 | BLOCKED（grilling 纪律破裂） | 自检机制失败，需用户介入 |
+| spec-review 未调用 cdd-review CLI | 违反 spec-review Do — 必须重新执行 | Review 替代反模式 |
+| write-spec 模板缺失/不可读 | BLOCKED（missing template） | 无法确定写入格式 |

@@ -130,6 +130,39 @@ P3 permits edits to engine, template, and consumer SKILL.md limited to "document
 - ❌ Engine behavioral prose (control flow, exit codes, output contracts)
 - ❌ Skill Rules / Red Flags / Checklist prose structure
 
+## 10. Anti-patterns (Node-anchored SKILL.md)
+
+Anti-patterns organized by the anatomy element where they manifest.
+When auditing a node, check only the patterns relevant to that element.
+
+### Do field
+| Anti-pattern | Symptom | Fix |
+|---|---|---|
+| Bare compliance | Do says "follow X" without expanding critical constraints | Extract key constraints as numbered self-checks in Do |
+| Review substitution | Self-review or manual check replaces CLI dispatch | Do must state CLI invocation explicitly (tool + args) |
+| Mode-unaware branching | One Do behavior covers multiple modes | Add mode-aware branching in Do |
+
+### Exit field
+| Anti-pattern | Symptom | Fix |
+|---|---|---|
+| Exit drift | Graph edges don't match Exit paths | Graph and Exit must enumerate identical edge labels |
+| Implicit scope creep | New exit path added without Invariant update | New exit path with behavioral significance → new or updated Invariant |
+
+### Fail field
+| Anti-pattern | Symptom | Fix |
+|---|---|---|
+| Failure mode gap | Fail = "—" but real failure exists | Every node must have Fail for each possible error state |
+
+### Invariants
+| Anti-pattern | Symptom | Fix |
+|---|---|---|
+| Rule duplication | Same rule in Invariant + node Do + Fail | Single source: Invariant for cross-node, node Fail for node-local |
+
+### Node decomposition
+| Anti-pattern | Symptom | Fix |
+|---|---|---|
+| Insufficient granularity | One node handles multiple distinct responsibilities | Split into separate nodes with clear Exit handoff |
+
 ---
 
 ## Change history

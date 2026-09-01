@@ -18,25 +18,29 @@ flowchart TD
   C -->|mode resolved| D[explore-context]
   C -->|unparseable| Z4((BLOCKED: overall-parse-failed))
   D --> E{claim-phase}
-  E -->|phase in overall Phase inventory| F[grilling]
+  E -->|phase in overall Phase inventory| F{grilling-mode?}
   E -->|phase NOT in inventory (phase-within-program)| S[sync-overall]
   E -->|new-program mode| F
   S -->|four tables consistent| D
   S -->|inconsistent| Z3((BLOCKED: overall-sync-failed))
   E -->|inventory unparseable| Z3
   F -->|mid-grill split / new scope| E
-  F --> G[propose-approaches]
+  F -->|phase-within-program| G[propose-approaches]
+  F -->|new-program| G2[propose-phase-approaches]
   G --> H[present-design]
   H -->|revise section| H
   H --> I{user-approves?}
   I -->|revise| H
   I -->|yes| J[write-spec]
-  J --> K[spec-review]
+  G2 --> H2{charter-approves?}
+  H2 -->|revise| H2
+  H2 -->|yes| J
+  J --> K{spec-review?}
   K -->|blocker found| K
   K -->|blocker=0| L{user-ok?}
   K -->|pass1 clean (D1 zero findings, skip D2/D3)| L
   L -->|fix selected (after blocker=0, no re-review per Review Stopping)| Q{user-confirm-commit?}
-  L -->|approved| Q{user-confirm-commit?}
+  L -->|approved| Q
   Q -->|confirmed| M[commit-spec]
   M --> N{overall-spec?}
   N -->|yes: next phase| O((HANDOFF: brainstorming))
@@ -76,11 +80,11 @@ flowchart TD
 ### `claim-phase`
 
 - **Do**: Based on `read-program`'s mode marker + the phase identifier in the user request (e.g. `/brainstorming P14`), judge whether that phase already exists in the parent overall's **Phase inventory** (the four-table sync procedure is in [add-phase-protocol.md](./docs/add-phase-protocol.md)):
-  - `new-program` mode → straight to `grilling` (program-level design ultimately reaches `overall-spec?`).
-  - `phase-within-program` mode + phase **already in** Phase inventory → `grilling` (normal path).
+  - `new-program` mode → straight to `grilling-mode?` (program-level design ultimately reaches `overall-spec?`).
+  - `phase-within-program` mode + phase **already in** Phase inventory → `grilling-mode?` (normal path).
   - `phase-within-program` mode + phase **not in** Phase inventory (new phase / split) → `sync-overall`.
 - **Read**: parent overall's Phase inventory table.
-- **Exit**: in inventory / new-program → `grilling`; not in → `sync-overall`.
+- **Exit**: in inventory / new-program → `grilling-mode?`; not in → `sync-overall`.
 - **Fail**: Phase inventory table missing or unparseable → terminal `BLOCKED: overall-sync-failed` (same terminal as sync-overall, consistent semantics).
 
 ### `sync-overall`
@@ -92,21 +96,44 @@ flowchart TD
   ④ **version bump + change-history** entry (record the reason, user decision, scope boundary).
   Then run the **four-table consistency check**: any `#NNN` referenced by the phase spec/plan must be in Issue inventory; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
 - **Read**: full parent overall spec (the Design spec column of Phase inventory).
-- **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling`.
+- **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling-mode?`.
 - **Fail**: four tables inconsistent (e.g. dependency phase not shipped, dangling reference) → terminal `BLOCKED: overall-sync-failed`; never allow grilling an unregistered phase.
 
-### `grilling`
+### `grilling-mode?`
 
-- **Do**: Follow grilling SKILL.md framework verbatim — ask one question at a time, wait for each answer before continuing. Code-searchable facts: look up yourself. Decision questions: ask the user. Before grilling, confirm `claim-phase` has released this phase (structural guarantee — state explicitly in the Do field).
-- **Read**: Grilling SKILL.md framework (loaded in `read-sub-skills`)
-- **Exit**: Shared understanding reached → `propose-approaches`
-- **Fail**: Substituting option menus or structured choice lists for grilling framework → violates invariant. Mid-grill detects a phase split / new scope → route back to `claim-phase` (pairs with I6).
+- **Do**: Branch grilling behavior based on `read-program` mode. Upstream grilling SKILL.md baseline unchanged (Read, not Skill-invoke — I1).
+
+  - **`phase-within-program`** → implementation grilling: root-cause analysis → impact boundary → fix direction → technical approach. One issue per grilling session.
+  - **`new-program`** → scope-level grilling: each candidate phase's scope definition, dependencies, acceptance criteria, issue ownership. All phases in one session.
+
+  **Shared discipline** (upstream baseline + self-check):
+  - One question at a time, wait for answer before continuing
+  - Each question includes a recommended answer
+  - Before each question, self-check: ① One question only? ② Recommended answer included? ③ Root cause explored (phase-within-program only)? → If any fails → re-do the question correctly.
+
+- **Read**: Grilling SKILL.md framework (loaded in `read-sub-skills`) + mode marker (from `read-program`)
+- **Exit**: `phase-within-program` → `propose-approaches`; `new-program` → `propose-phase-approaches`
+- **Fail**: Self-check fails 2 consecutive times → BLOCKED (grilling discipline broken); mid-grill detects phase split / new scope → route back to `claim-phase`
 
 ### `propose-approaches`
 
 - **Do**: Propose 2-3 approaches with trade-offs and recommendation. YAGNI ruthlessly
 - **Read**: Decisions from grilling + research findings (if any)
 - **Exit**: Approaches presented → `present-design`
+- **Fail**: —
+
+### `propose-phase-approaches`
+
+- **Do**: Based on scope-level grilling output, present each phase's scope, dependencies, and acceptance criteria. User confirms the phase decomposition is correct.
+- **Read**: scope-level grilling decisions + parent overall (if exists)
+- **Exit**: Phase decomposition confirmed → `charter-approves?`
+- **Fail**: —
+
+### `charter-approves?`
+
+- **Do**: User approves the charter decomposition.
+- **Read**: charter decomposition from `propose-phase-approaches` + parent overall (if exists)
+- **Exit**: Approved → `write-spec`; revise → `propose-phase-approaches`
 - **Fail**: —
 
 ### `present-design`
@@ -124,16 +151,19 @@ flowchart TD
 
 ### `write-spec`
 
-- **Do**: Write design to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`. Overall spec: use [overall-spec-template.md](./docs/overall-spec-template.md). Phase spec: use [phase-spec-template.md](./docs/phase-spec-template.md)
-- **Read**: All design decisions
-- **Exit**: File written → `spec-review`
-- **Fail**: —
+- **Do**: Determine write granularity based on mode:
+  - **`new-program`** → charter-only: scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria. **No phase-level implementation details.** Use overall-spec-template.md (contains "Charter only — no implementation detail" GATE)
+  - **`phase-within-program`** → phase-level detailed design (including grilling outputs: root cause / fix direction / technical decisions). Use phase-spec-template.md
 
-### `spec-review`
+- **Read**: mode marker + all design decisions + template (path: `packages/osuperpowers/skills/brainstorming/docs/`)
+- **Exit**: File written → `spec-review?`
+- **Fail**: Template missing/unreadable → BLOCKED (missing template)
 
-- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI), each pass dispatches an independent `cdd-review` CLI call: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. Follow D1/D2/D3 from [docs-review.md](../_docs/docs-review.md). Review Stopping (see I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `commit-spec`. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
-- **Read**: Spec document + [docs-review.md](../_docs/docs-review.md)
-- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean (D1) → skip to `user-confirm-commit?` (still via `user-ok?` → `user-confirm-commit?`)
+### `spec-review?`
+
+- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. **Self-review, manual checks, or any other substitute for cdd-review CLI invocation is forbidden.** Follow D1/D2/D3 from `_docs/docs-review.md`. Review Stopping (I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `user-ok?` (pass1 clean routes through user-ok? → user-confirm-commit?, graph K→L→Q). Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Read**: Spec document + `_docs/docs-review.md`
+- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean → `user-ok?`
 - **Fail**: Re-run review after blocker=0 → violates I5 (Review Stopping). New cdd-review call for warn/nit → violates I5.
 
 ### `user-ok?`
@@ -182,6 +212,7 @@ flowchart TD
 | I5 | **Review Stopping** — re-run driven only by blockers; no re-run after all passes are blocker=0; no new cdd-review call to obtain warn/nit (read from already-captured output of the current review cycle). |
 | I6 | **Register-before-grill** (scope: `phase-within-program` mode) — grilling runs only for phases already present in the overall Phase inventory. `new-program` mode passes through the `claim-phase` node but **skips the inventory check** to reach grilling directly (digraph `E -->|new-program mode| F`). In `phase-within-program` mode, if mid-grill a phase split / new issue emerges → route back to `claim-phase` → `sync-overall`; never grill unregistered scope. |
 | I7 | **Serial-phase** — when `sync-overall` registers a new phase, verify its hard-dependency predecessor has **Design spec column = `Done`** in the overall Phase inventory; if not shipped (Design spec ≠ `Done`) → hard `BLOCKED: overall-sync-failed` (same terminal as §2.3; never release grilling for an unmet phase — this is exactly the v1.19c anti-pattern to block). |
+| I8 | **Mode-aware flow** — `grilling-mode?` node branches behavior based on `read-program` mode: `new-program` → scope-level grilling → `propose-phase-approaches`; `phase-within-program` → implementation grilling → `propose-approaches`. `write-spec` node determines write granularity based on mode: `new-program` → charter-only (no implementation details); `phase-within-program` → phase-level detailed design. Mode marker is carried throughout the flow. |
 
 ## Failure Modes
 
@@ -196,3 +227,6 @@ flowchart TD
 | Phase inventory missing or unparseable | BLOCKED (overall-sync-failed) | claim-phase / sync-overall cannot gate | user supplies or fixes the overall Phase inventory |
 | Four-table sync inconsistent (dependency not shipped / dangling ref) | BLOCKED (overall-sync-failed) | refuse to grill an unregistered / unmet-dependency phase | fix the overall four tables, then re-run sync-overall |
 | spec-review re-run after blocker=0 | Violates I5 (Review Stopping) — stop + report to user | Agent re-runs review after all passes are blocker=0 |
+| Grilling self-check fails 2 consecutive times | BLOCKED (grilling discipline broken) | Self-check mechanism failed, user intervention required |
+| spec-review does not invoke cdd-review CLI | Violates spec-review Do — must re-execute | Review substitution anti-pattern |
+| write-spec template missing/unreadable | BLOCKED (missing template) | Cannot determine write format |

@@ -130,6 +130,38 @@ P3 允许对引擎、模板及消费者 SKILL.md 做「仅文档链接/路径字
 - ❌ 引擎行为正文（控制流、退出码、输出契约）
 - ❌ 技能 Rules/Red Flags/Checklist 散文体结构
 
+## 10. 反模式（Node-anchored SKILL.md）
+
+按 anatomy 元素分类的反模式。审计节点时，仅检查与该元素相关的模式。
+
+### Do 字段
+| 反模式 | 症状 | 修复 |
+|---|---|---|
+| 裸合规（Bare compliance） | Do 仅写"follow X"但未展开关键约束 | 在 Do 中提取关键约束为编号 self-check |
+| 审查替代（Review substitution） | self-review 或手动检查替代 CLI 派发 | Do 必须显式声明 CLI 调用（工具 + 参数） |
+| Mode 不感知分支（Mode-unaware branching） | 一个 Do 行为覆盖多种 mode | 在 Do 中添加 mode-aware branching |
+
+### Exit 字段
+| 反模式 | 症状 | 修复 |
+|---|---|---|
+| Exit 漂移（Exit drift） | 图边与 Exit 路径不一致 | 图和 Exit 必须枚举相同的 edge labels |
+| 隐式范围蔓延（Implicit scope creep） | 新增 exit 路径但未更新 Invariant | 新增有行为意义的 exit 路径 → 新增或更新 Invariant |
+
+### Fail 字段
+| 反模式 | 症状 | 修复 |
+|---|---|---|
+| 失败模式缺口（Failure mode gap） | Fail = "—" 但实际存在失败场景 | 每个节点必须为每种可能的错误状态配置 Fail |
+
+### Invariants
+| 反模式 | 症状 | 修复 |
+|---|---|---|
+| 规则重复（Rule duplication） | 同一规则在 Invariant + node Do + Fail 中重复 | 单一来源：Invariant 管跨节点规则，node Fail 管节点本地规则 |
+
+### 节点分解
+| 反模式 | 症状 | 修复 |
+|---|---|---|
+| 粒度不足（Insufficient granularity） | 单个节点承担多个不同职责 | 拆分为独立节点，明确 Exit handoff |
+
 ---
 
 ## Change history

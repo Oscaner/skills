@@ -123,6 +123,7 @@ flowchart TD
 ### `charter-approves?`
 
 - **Do**: User approves the charter decomposition.
+- **Read**: charter decomposition from `propose-phase-approaches` + parent overall (if exists)
 - **Exit**: Approved → `write-spec`; revise → `propose-phase-approaches`
 - **Fail**: —
 

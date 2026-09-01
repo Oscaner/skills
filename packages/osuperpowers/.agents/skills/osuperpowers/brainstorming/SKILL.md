@@ -212,6 +212,7 @@ flowchart TD
 | I5 | **Review Stopping** — re-run driven only by blockers; no re-run after all passes are blocker=0; no new cdd-review call to obtain warn/nit (read from already-captured output of the current review cycle). |
 | I6 | **Register-before-grill** (scope: `phase-within-program` mode) — grilling runs only for phases already present in the overall Phase inventory. `new-program` mode passes through the `claim-phase` node but **skips the inventory check** to reach grilling directly (digraph `E -->|new-program mode| F`). In `phase-within-program` mode, if mid-grill a phase split / new issue emerges → route back to `claim-phase` → `sync-overall`; never grill unregistered scope. |
 | I7 | **Serial-phase** — when `sync-overall` registers a new phase, verify its hard-dependency predecessor has **Design spec column = `Done`** in the overall Phase inventory; if not shipped (Design spec ≠ `Done`) → hard `BLOCKED: overall-sync-failed` (same terminal as §2.3; never release grilling for an unmet phase — this is exactly the v1.19c anti-pattern to block). |
+| I8 | **Mode-aware flow** — `grilling` node branches behavior based on `read-program` mode: `new-program` → scope-level grilling → `propose-phase-approaches`; `phase-within-program` → implementation grilling → `propose-approaches`. `write-spec` node determines write granularity based on mode: `new-program` → charter-only (no implementation details); `phase-within-program` → phase-level detailed design. Mode marker is carried throughout the flow. |
 
 ## Failure Modes
 
@@ -226,3 +227,6 @@ flowchart TD
 | Phase inventory missing or unparseable | BLOCKED (overall-sync-failed) | claim-phase / sync-overall cannot gate | user supplies or fixes the overall Phase inventory |
 | Four-table sync inconsistent (dependency not shipped / dangling ref) | BLOCKED (overall-sync-failed) | refuse to grill an unregistered / unmet-dependency phase | fix the overall four tables, then re-run sync-overall |
 | spec-review re-run after blocker=0 | Violates I5 (Review Stopping) — stop + report to user | Agent re-runs review after all passes are blocker=0 |
+| Grilling self-check fails 2 consecutive times | BLOCKED (grilling discipline broken) | Self-check mechanism failed, user intervention required |
+| spec-review does not invoke cdd-review CLI | Violates spec-review Do — must re-execute | Review substitution anti-pattern |
+| write-spec template missing/unreadable | BLOCKED (missing template) | Cannot determine write format |

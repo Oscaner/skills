@@ -144,7 +144,7 @@ flowchart TD
 
 - **Do**: Write design to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`. Overall spec: use [overall-spec-template.md](./docs/overall-spec-template.md). Phase spec: use [phase-spec-template.md](./docs/phase-spec-template.md)
 - **Read**: All design decisions
-- **Exit**: File written → `spec-review`
+- **Exit**: File written → `spec-review?`
 - **Fail**: —
 
 ### `spec-review?`

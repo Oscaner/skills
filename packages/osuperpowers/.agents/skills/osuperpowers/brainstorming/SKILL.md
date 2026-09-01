@@ -84,7 +84,7 @@ flowchart TD
   - `phase-within-program` mode + phase **already in** Phase inventory → `grilling` (normal path).
   - `phase-within-program` mode + phase **not in** Phase inventory (new phase / split) → `sync-overall`.
 - **Read**: parent overall's Phase inventory table.
-- **Exit**: in inventory / new-program → `grilling`; not in → `sync-overall`.
+- **Exit**: in inventory / new-program → `grilling-mode?`; not in → `sync-overall`.
 - **Fail**: Phase inventory table missing or unparseable → terminal `BLOCKED: overall-sync-failed` (same terminal as sync-overall, consistent semantics).
 
 ### `sync-overall`
@@ -96,7 +96,7 @@ flowchart TD
   ④ **version bump + change-history** entry (record the reason, user decision, scope boundary).
   Then run the **four-table consistency check**: any `#NNN` referenced by the phase spec/plan must be in Issue inventory; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
 - **Read**: full parent overall spec (the Design spec column of Phase inventory).
-- **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling`.
+- **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling-mode?`.
 - **Fail**: four tables inconsistent (e.g. dependency phase not shipped, dangling reference) → terminal `BLOCKED: overall-sync-failed`; never allow grilling an unregistered phase.
 
 ### `grilling-mode?`
@@ -146,7 +146,7 @@ flowchart TD
 - **Exit**: File written → `spec-review`
 - **Fail**: —
 
-### `spec-review`
+### `spec-review?`
 
 - **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI), each pass dispatches an independent `cdd-review` CLI call: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. Follow D1/D2/D3 from [docs-review.md](../_docs/docs-review.md). Review Stopping (see I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `commit-spec`. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Spec document + [docs-review.md](../_docs/docs-review.md)

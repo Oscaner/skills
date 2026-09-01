@@ -18,25 +18,29 @@ flowchart TD
   C -->|mode resolved| D[explore-context]
   C -->|unparseable| Z4((BLOCKED: overall-parse-failed))
   D --> E{claim-phase}
-  E -->|phase in overall Phase inventory| F[grilling]
+  E -->|phase in overall Phase inventory| F{grilling-mode?}
   E -->|phase NOT in inventory (phase-within-program)| S[sync-overall]
   E -->|new-program mode| F
   S -->|four tables consistent| D
   S -->|inconsistent| Z3((BLOCKED: overall-sync-failed))
   E -->|inventory unparseable| Z3
   F -->|mid-grill split / new scope| E
-  F --> G[propose-approaches]
+  F -->|phase-within-program| G[propose-approaches]
+  F -->|new-program| G2[propose-phase-approaches]
   G --> H[present-design]
   H -->|revise section| H
   H --> I{user-approves?}
   I -->|revise| H
   I -->|yes| J[write-spec]
-  J --> K[spec-review]
+  G2 --> H2{charter-approves?}
+  H2 -->|revise| H2
+  H2 -->|yes| J
+  J --> K{spec-review}
   K -->|blocker found| K
   K -->|blocker=0| L{user-ok?}
   K -->|pass1 clean (D1 zero findings, skip D2/D3)| L
   L -->|fix selected (after blocker=0, no re-review per Review Stopping)| Q{user-confirm-commit?}
-  L -->|approved| Q{user-confirm-commit?}
+  L -->|approved| Q
   Q -->|confirmed| M[commit-spec]
   M --> N{overall-spec?}
   N -->|yes: next phase| O((HANDOFF: brainstorming))
@@ -95,7 +99,7 @@ flowchart TD
 - **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling`.
 - **Fail**: four tables inconsistent (e.g. dependency phase not shipped, dangling reference) → terminal `BLOCKED: overall-sync-failed`; never allow grilling an unregistered phase.
 
-### `grilling`
+### `grilling-mode?`
 
 - **Do**: Follow grilling SKILL.md framework verbatim — ask one question at a time, wait for each answer before continuing. Code-searchable facts: look up yourself. Decision questions: ask the user. Before grilling, confirm `claim-phase` has released this phase (structural guarantee — state explicitly in the Do field).
 - **Read**: Grilling SKILL.md framework (loaded in `read-sub-skills`)
@@ -107,6 +111,19 @@ flowchart TD
 - **Do**: Propose 2-3 approaches with trade-offs and recommendation. YAGNI ruthlessly
 - **Read**: Decisions from grilling + research findings (if any)
 - **Exit**: Approaches presented → `present-design`
+- **Fail**: —
+
+### `propose-phase-approaches`
+
+- **Do**: Based on scope-level grilling output, present each phase's scope, dependencies, and acceptance criteria. User confirms the phase decomposition is correct.
+- **Read**: scope-level grilling decisions + parent overall (if exists)
+- **Exit**: Phase decomposition confirmed → `charter-approves?`
+- **Fail**: —
+
+### `charter-approves?`
+
+- **Do**: User approves the charter decomposition.
+- **Exit**: Approved → `write-spec`; revise → `propose-phase-approaches`
 - **Fail**: —
 
 ### `present-design`

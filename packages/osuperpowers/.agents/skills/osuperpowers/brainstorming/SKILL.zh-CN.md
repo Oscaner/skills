@@ -212,7 +212,7 @@ flowchart TD
 | I5 | **Review Stopping** — 重跑仅由 blocker 驱动；全部 pass 均为 blocker=0 后不重跑；不为获取 warn/nit 发起新 cdd-review（从当前 review cycle 的已捕获输出读取）。 |
 | I6 | **Register-before-grill**（scope：`phase-within-program` 模式）— grilling 仅对已存在于 overall Phase inventory 的 phase 运行。`new-program` 模式会经过 `claim-phase` 节点但 **跳过 inventory 检查** 直达 grilling（digraph `E -->|new-program mode| F`）。在 `phase-within-program` 模式下，若 grilling 中途出现 phase split / 新 issue → 路由回 `claim-phase` → `sync-overall`；绝不对未登记的 scope 进行 grilling |
 | I7 | **Serial-phase** — 当 `sync-overall` 登记新 phase 时，校验其 hard-dependency 前驱在 overall Phase inventory 中 **Design spec 列 = `Done`**；若未交付（Design spec ≠ `Done`）→ 硬 `BLOCKED: overall-sync-failed`（与 §2.3 同终端；绝不为未满足的 phase 释放 grilling——这正是要阻断的 v1.19c anti-pattern） |
-| I8 | **Mode-aware flow** — `grilling` 节点根据 `read-program` 模式分支行为：`new-program` → scope 级 grilling → `propose-phase-approaches`；`phase-within-program` → 实施 grilling → `propose-approaches`。`write-spec` 节点根据模式确定写入粒度：`new-program` → 仅 charter（无实施细节）；`phase-within-program` → phase 级详细设计。模式标记贯穿整个流程。 |
+| I8 | **Mode-aware flow** — `grilling-mode?` 节点根据 `read-program` 模式分支行为：`new-program` → scope 级 grilling → `propose-phase-approaches`；`phase-within-program` → 实施 grilling → `propose-approaches`。`write-spec` 节点根据模式确定写入粒度：`new-program` → 仅 charter（无实施细节）；`phase-within-program` → phase 级详细设计。模式标记贯穿整个流程。 |
 
 ## Failure Modes
 

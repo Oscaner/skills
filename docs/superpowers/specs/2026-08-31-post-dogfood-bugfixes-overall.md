@@ -1,6 +1,6 @@
 # Post-Dogfood Bugfixes + Anti-Pattern Elimination — Overall Spec
 
-- **Version**: v1.7 · 2026-08-31
+- **Version**: v1.9 · 2026-08-31
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -49,7 +49,7 @@ Charter only — no implementation detail。
 | # | Phase | Scope | Design spec | Plan | Status | Deliverables | Downstream |
 |---|---|---|---|---|---|---|---|
 | Pα | engine-fixes：#200 phantom SHA 校验 + #176 跨任务边界约束 + #175 task-review mode 守卫 + #191 deferred-sweep 清零 | Done | Done | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-alpha.md) | Done | ① `gitCatFileCommitExists` 导出 + 单测；② runner.mjs 集成测试；③ implement.md/fix.md 边界约束；④ runner.mjs mode-phase 守卫 + 单测；⑤ task-review.md findings 写入指令；⑥ sweep 收口 findings 清空；⑦ validate 绿 | Pβ |
-| Pβ | skill-fixes：#198/#184 task heading 强制 + #195/#196 docs-review 重写 + #194 report-issue dedup 扩展 | Pending | Pending | Pending | Pending | 见 phase spec | Pγ |
+| Pβ | skill-fixes：#198/#184 task heading 强制 + #195/#196 docs-review 重写 + #194 report-issue dedup 扩展 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-beta-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-beta.md) | Pending | 见 phase spec | Pγ |
 | Pγ | anti-patterns + brainstorming 重写：#207 CDD 执行流程绕过修复 + #206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Pending | Pending | Pending | Pending | 见 phase spec | Pδ |
 | Pδ | CDD 重构：#210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | Pending | Pending | Pending | Pending | 见 phase spec | 无 |
 
@@ -77,3 +77,5 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.5 | 2026-08-31 | Added #207 CDD 执行流程绕过 issue；Pγ scope 更新 | [human] · Claude Opus 4.8 |
 | v1.6 | 2026-08-31 | Added #210 deferred-sweep F1 + #211 CDD refactoring；新增 Pδ phase；dependency graph 更新为 4-phase 串行 | [human] · Claude Opus 4.8 |
 | v1.7 | 2026-08-31 | Removed CDD 简化路径 from Pδ scope（三模式链不简化，所有任务强制执行） | [human] · Claude Opus 4.8 |
+| v1.8 | 2026-08-31 | Pβ Design spec = Done（brainstorming complete）；#198 H3 + #195 Review Stopping + #194 dedup + _docs/ directory restructure | [human] · Claude Opus 4.8 |
+| v1.9 | 2026-08-31 | Pβ Plan = Done（writing-plans complete）；6-task implementation plan committed | [human] · Claude Opus 4.8 |

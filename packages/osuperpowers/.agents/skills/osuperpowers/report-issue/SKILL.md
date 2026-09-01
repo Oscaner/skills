@@ -1,11 +1,11 @@
 ---
 name: report-issue
-description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Component labels classify findings into osuperpowers / osuperpowers-router (rule #136). Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
+description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Component labels classify findings into osuperpowers / osuperpowers-router. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 ---
 
 # Osuperpowers Report Issue
 
-Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then file issues against `Oscaner/skills` via `gh`. The flow is a digraph: `analyze → classify → confirm → dedup → {resolve-hit} → file → report`. Component labels classify each finding's affected package (`osuperpowers` / `osuperpowers-router`, rule #136). Manual trigger only.
+Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then file issues against `Oscaner/skills` via `gh`. The flow is a digraph: `analyze → classify → confirm → dedup → {resolve-hit} → file → report`. Component labels classify each finding's affected package (`osuperpowers` / `osuperpowers-router`). Manual trigger only.
 
 ## Flow Digraph
 
@@ -19,6 +19,7 @@ flowchart TD
   E -->|no-hit| G[file]
   F -->|new| G
   F -->|comment| G
+  F -->|reopen| G
   F -->|skip| H((APPROVED: skipped))
   G --> I[report]
   I --> J((APPROVED: report))
@@ -37,9 +38,9 @@ flowchart TD
 
 ### `classify`
 
-- **Do**: Classify each finding as `bug` (tool/script behavior does not match spec — timeouts, wrong exit codes, gate misjudgment, handoff schema errors) or `enhancement` (process can be improved but not broken — DX gaps, missing docs, insufficient CI coverage, template gaps). Each finding includes **Title** (short, usable as issue title directly), **one-line description**, **affected component** (skill name / script path / command), and **evidence** (specific error output or ledger entry). Apply the **#136 component-label classification** to the affected component (see below). When component is ambiguous (cross-plugin or undeterminable), default to `osuperpowers` — do not add an interactive prompt; the user can correct the classification at the `confirm` node.
+- **Do**: Classify each finding as `bug` (tool/script behavior does not match spec — timeouts, wrong exit codes, gate misjudgment, handoff schema errors) or `enhancement` (process can be improved but not broken — DX gaps, missing docs, insufficient CI coverage, template gaps). Each finding includes **Title** (short, usable as issue title directly), **one-line description**, **affected component** (skill name / script path / command), and **evidence** (specific error output or ledger entry). Apply the **Component-label classification** to the affected component (see below). When component is ambiguous (cross-plugin or undeterminable), default to `osuperpowers` — do not add an interactive prompt; the user can correct the classification at the `confirm` node.
 
-  **#136 Component-label classification** (which package owns the affected component):
+  **Component-label classification** (which package owns the affected component):
   - ① Affected component ∈ `packages/osuperpowers/` (cdd-task.mjs / runner.mjs / cli-select / orchestration skills / gate) → label `osuperpowers`.
   - ② Affected component ∈ `packages/osuperpowers-router/` (hooks / overrides manifest / prompt-expansion / cursor hooks) → label `osuperpowers-router`.
   - ③ Cross-plugin or undeterminable → default `osuperpowers` (no interactive prompt; user can correct at `confirm`).
@@ -58,21 +59,23 @@ flowchart TD
 
 ### `dedup`
 
-- **Do**: For each confirmed finding, check for duplicates: `gh issue list --repo Oscaner/skills --state open --limit 100 --json number,title,body`. Match keywords — the **affected component name** (e.g. `cdd-task.mjs`, `handoff-writer`, `gate`) plus **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`) — case-insensitively against existing issue titles and bodies.
+- **Do**: For each confirmed finding, check for duplicates: `gh issue list --repo Oscaner/skills --state all --limit 100 --json number,title,body,state`. Match keywords — the **affected component name** (e.g. `cdd-task.mjs`, `handoff-writer`, `gate`) plus **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`) — case-insensitively against existing issue titles and bodies.
 - **Read**: `gh issue list` output; confirmed findings
 - **Exit**: hit → `resolve-hit`; no-hit → `file`
 - **Fail**: `gh` unavailable / network failure → fail-open (report, skip filing, suggest manual)
 
 ### `resolve-hit`
 
-- **Do**: When an existing issue matches, show the match and let the user choose three ways: **Create new issue / Add comment to existing / Skip**.
-- **Read**: matched issue (number + title + body)
-- **Exit**: new → `file`; comment → `file` (comment path); skip → APPROVED (skipped)
+- **Do**: When an existing issue matches, differentiate by state:
+  - **Open match**: show the match and let the user choose: **Create new issue / Add comment to existing / Skip**.
+  - **Closed match**: show the match (including close reason if available) and let the user choose: **Create new issue / Reopen + comment / Comment-only / Skip**. Reopen uses `gh issue reopen --repo Oscaner/skills <number>` before commenting.
+- **Read**: matched issue (number + title + body + state)
+- **Exit**: new → `file`; comment → `file` (comment path); reopen → `file` (reopen path); skip → APPROVED (skipped)
 - **Fail**: no response → default skip (no duplicate filing)
 
 ### `file`
 
-- **Do**: Run `gh issue create --repo Oscaner/skills` with labels computed per the #136 component classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
+- **Do**: Run `gh issue create --repo Oscaner/skills` with labels computed per the Component-label classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. On a dedup hit via the reopen path, run `gh issue reopen --repo Oscaner/skills <number>` then `gh issue comment --repo Oscaner/skills <number>`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
 - **Read**: classified label set; `## Issue Body Templates` prose; finding evidence
 - **Exit**: filing complete → `report`
 - **Fail**: `gh issue create` fails → fail-open (report stderr, keep finding for manual retry)
@@ -92,14 +95,16 @@ flowchart TD
 | `gh` CLI unavailable / network failure | fail-open (report + suggest manual) | external tool dependency | keep findings for retry |
 | dedup hit, user no response | default skip | avoid duplicate filing | no duplicate issue created |
 | `gh issue create` fails | fail-open (report stderr) | external API error | keep finding for manual retry |
+| `gh issue reopen` fails | fail-open (report stderr, keep finding for manual retry) | closed issue may be locked or restricted | user manually reopens |
 
 ## Invariants
 
 | # | Invariant |
 |---|---|
 | I1 | **Confirm Gate** — no gh issue is pre-created before explicit user confirmation (hard gate at `confirm`) |
-| I2 | **Component-Label** — label classifies by the affected package (`osuperpowers` / `osuperpowers-router`), never hardcodes `osuperpowers-router` (#136) |
+| I2 | **Component-Label** — label classifies by the affected package (`osuperpowers` / `osuperpowers-router`), never hardcodes `osuperpowers-router` |
 | I3 | **Manual Trigger Only** — report-issue runs only on manual trigger, never automatically |
+| I4 | **Closed Issue Awareness** — dedup queries `--state all` (not just open); closed matches present reopen+comment option; regressions against closed issues must not silently create duplicates |
 
 ## Issue Body Templates
 

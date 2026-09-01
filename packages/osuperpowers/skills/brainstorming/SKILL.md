@@ -35,7 +35,7 @@ flowchart TD
   G2 --> H2{charter-approves?}
   H2 -->|revise| H2
   H2 -->|yes| J
-  J --> K{spec-review}
+  J --> K{spec-review?}
   K -->|blocker found| K
   K -->|blocker=0| L{user-ok?}
   K -->|pass1 clean (D1 zero findings, skip D2/D3)| L

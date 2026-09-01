@@ -18,7 +18,7 @@ flowchart TD
   C -->|mode resolved| D[explore-context]
   C -->|unparseable| Z4((BLOCKED: overall-parse-failed))
   D --> E{claim-phase}
-  E -->|phase in overall Phase inventory| F{grilling}
+  E -->|phase in overall Phase inventory| F{grilling-mode?}
   E -->|phase NOT in inventory (phase-within-program)| S[sync-overall]
   E -->|new-program mode| F
   S -->|four tables consistent| D
@@ -35,7 +35,7 @@ flowchart TD
   G2 --> H2{charter-approves?}
   H2 -->|revise| H2
   H2 -->|yes| J
-  J --> K{spec-review}
+  J --> K{spec-review?}
   K -->|blocker found| K
   K -->|blocker=0| L{user-ok?}
   K -->|pass1 clean (D1 zero findings, skip D2/D3)| L
@@ -80,11 +80,11 @@ flowchart TD
 ### `claim-phase`
 
 - **Do**: Based on `read-program`'s mode marker + the phase identifier in the user request (e.g. `/brainstorming P14`), judge whether that phase already exists in the parent overall's **Phase inventory** (the four-table sync procedure is in [add-phase-protocol.md](./docs/add-phase-protocol.md)):
-  - `new-program` mode → straight to `grilling` (program-level design ultimately reaches `overall-spec?`).
-  - `phase-within-program` mode + phase **already in** Phase inventory → `grilling` (normal path).
+  - `new-program` mode → straight to `grilling-mode?` (program-level design ultimately reaches `overall-spec?`).
+  - `phase-within-program` mode + phase **already in** Phase inventory → `grilling-mode?` (normal path).
   - `phase-within-program` mode + phase **not in** Phase inventory (new phase / split) → `sync-overall`.
 - **Read**: parent overall's Phase inventory table.
-- **Exit**: in inventory / new-program → `grilling`; not in → `sync-overall`.
+- **Exit**: in inventory / new-program → `grilling-mode?`; not in → `sync-overall`.
 - **Fail**: Phase inventory table missing or unparseable → terminal `BLOCKED: overall-sync-failed` (same terminal as sync-overall, consistent semantics).
 
 ### `sync-overall`
@@ -96,10 +96,10 @@ flowchart TD
   ④ **version bump + change-history** entry (record the reason, user decision, scope boundary).
   Then run the **four-table consistency check**: any `#NNN` referenced by the phase spec/plan must be in Issue inventory; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
 - **Read**: full parent overall spec (the Design spec column of Phase inventory).
-- **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling`.
+- **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling-mode?`.
 - **Fail**: four tables inconsistent (e.g. dependency phase not shipped, dangling reference) → terminal `BLOCKED: overall-sync-failed`; never allow grilling an unregistered phase.
 
-### `grilling`
+### `grilling-mode?`
 
 - **Do**: Branch grilling behavior based on `read-program` mode. Upstream grilling SKILL.md baseline unchanged (Read, not Skill-invoke — I1).
 
@@ -156,10 +156,10 @@ flowchart TD
   - **`phase-within-program`** → phase-level detailed design (including grilling outputs: root cause / fix direction / technical decisions). Use phase-spec-template.md
 
 - **Read**: mode marker + all design decisions + template (path: `packages/osuperpowers/skills/brainstorming/docs/`)
-- **Exit**: File written → `spec-review`
+- **Exit**: File written → `spec-review?`
 - **Fail**: Template missing/unreadable → BLOCKED (missing template)
 
-### `spec-review`
+### `spec-review?`
 
 - **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. **Self-review, manual checks, or any other substitute for cdd-review CLI invocation is forbidden.** Follow D1/D2/D3 from `_docs/docs-review.md`. Review Stopping (I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `user-ok?` (pass1 clean routes through user-ok? → user-confirm-commit?, graph K→L→Q). Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Spec document + `_docs/docs-review.md`

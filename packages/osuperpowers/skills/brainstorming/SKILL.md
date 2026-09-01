@@ -103,7 +103,7 @@ flowchart TD
 
 - **Do**: Follow grilling SKILL.md framework verbatim — ask one question at a time, wait for each answer before continuing. Code-searchable facts: look up yourself. Decision questions: ask the user. Before grilling, confirm `claim-phase` has released this phase (structural guarantee — state explicitly in the Do field).
 - **Read**: Grilling SKILL.md framework (loaded in `read-sub-skills`)
-- **Exit**: Shared understanding reached → `propose-approaches`
+- **Exit**: `phase-within-program` → `propose-approaches`; `new-program` → `propose-phase-approaches`
 - **Fail**: Substituting option menus or structured choice lists for grilling framework → violates invariant. Mid-grill detects a phase split / new scope → route back to `claim-phase` (pairs with I6).
 
 ### `propose-approaches`

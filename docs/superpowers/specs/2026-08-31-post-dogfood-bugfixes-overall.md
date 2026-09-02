@@ -56,7 +56,7 @@ Charter only — no implementation detail。
 | Pβ | skill-fixes：#198/#184 task heading 强制 + #195/#196 docs-review 重写 + #194 report-issue dedup 扩展 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-beta-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-beta.md) | Pending | 见 phase spec | Pγ |
 | Pγ | anti-patterns + brainstorming 重写：#206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-gamma-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-gamma.md) | Done | 见 phase spec | Pδ |
 | Pδ | CDD 重构：#207 CDD 执行流程绕过修复 + #210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | [design](./2026-09-01-post-dogfood-bugfixes-p-delta-design.md) | [plan](../plans/2026-09-01-post-dogfood-bugfixes-p-delta.md) | Done | Pending | 见 phase spec | Pε |
-| Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 | Pending | Pending | Pending | 见 phase spec | — |
+| Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 + issue 编号清理 + review 3-pass 强制 | [design](./2026-09-02-post-dogfood-bugfixes-p-epsilon-design.md) | Pending | Pending | 见 phase spec | Pδ |
 
 ---
 
@@ -89,3 +89,4 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.12 | 2026-08-31 | Pγ Plan = Done（writing-plans complete）；7-task implementation plan committed | [human] · Claude Opus 4.8 |
 | v1.13 | 2026-09-01 | Pδ Design spec = Done（brainstorming complete）；三层架构重划分 + handoff schema 重构 + 模板目录重组 + progress 结构化 | [human] · Claude Opus 4.8 |
 | v1.14 | 2026-09-02 | 新增 Pε（cleanup + simplification）：#208 report-issue 隐私脱敏 + #209 router 删除 + #71 I2 移除 + zh-CN 清理；串行依赖 Pδ→Pε | [human] · Claude Opus 4.8 |
+| v1.15 | 2026-09-02 | Pε Design spec = Done（brainstorming complete）；11-task plan：router 删除 + emit/version 清理 + osuperpowers 内部引用 + report-issue 重构 + issue 编号清理 + zh-CN 删除 + CLAUDE.md + writing-plans I2 + review 3-pass 强制 | [human] · Claude Opus 4.8 |

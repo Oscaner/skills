@@ -29,7 +29,8 @@ const NOOP_PROBE = async () => ({ missing: [], probeFailed: false });
 // 非 git 临时 workspace —— 对齐 cdd-cli-dry-run-smoke（CDD_WORKSPACE 指向 TMPDIR，commit-contract fail-open）。
 function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
-  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
+  const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "", tasks: [], degradationLog: [] };
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify(progressData, null, 2));
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
   writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n"); // ← 加 TASK_BASE
   return ws;
@@ -108,13 +109,13 @@ async function capture(runFn) {
   return { code, stdout, stderr };
 }
 
-test("runTask: dry-run implement → H1 四行 DONE + 不写 handoff（对齐 bash）", async () => {
+test("runTask: dry-run implement → H1 四行 APPROVED + 不写 handoff（对齐 bash）", async () => {
   const ws = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 0);
   assert.equal(res.h1.length, 4);
-  assert.equal(res.h1[0], "status: DONE"); // H1 format is engine-side, not affected by handoffStatus normalization
-  assert.equal(res.h1[1], "commits: base=dry-run head=dry-run");
+  assert.equal(res.h1[0], "status: APPROVED");
+  assert.equal(res.h1[1], "commits: base=dry-run");
   assert.match(res.h1[2], /^artifacts: brief=/);
   assert.equal(res.h1[3], "blocker: none");
   assert.equal(existsSync(path.join(ws, "task-1-handoff.json")), false, "dry-run 不写 handoff");
@@ -128,7 +129,7 @@ test("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
   assert.equal(code, 0);
   const lines = stdout.trim().split("\n");
   assert.equal(lines.length, 4);
-  assert.equal(lines[0], "status: DONE");
+  assert.equal(lines[0], "status: APPROVED");
   assert.equal(lines[3], "blocker: none");
 });
 
@@ -137,7 +138,7 @@ test("runTask: dry-run task-review/fix 三模式 → H1 DONE + 不写 handoff（
     const ws = setupWorkspace();
     const res = await runTask("claude", 1, { mode, dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
     assert.equal(res.exitCode, 0, `mode ${mode}`);
-    assert.equal(res.h1[0], "status: DONE", `mode ${mode}`);
+    assert.equal(res.h1[0], "status: APPROVED", `mode ${mode}`);
     assert.equal(existsSync(path.join(ws, "task-1-handoff.json")), false, `mode ${mode}: dry-run 不写 handoff`);
   }
 });
@@ -332,7 +333,8 @@ test("invokeCli: stream-json 相邻紧凑事件（首个对象含空串）→ �
 test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（对齐 bash cdd_validate_commit_contract）", async () => {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-contract-stderr-")));
   execFileSync("git", ["init", "-q", dir]);
-  writeFileSync(path.join(dir, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
+  const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "", tasks: [], degradationLog: [] };
+  writeFileSync(path.join(dir, "progress.json"), JSON.stringify(progressData, null, 2));
   writeFileSync(path.join(dir, "plan-constraints.md"), "constraints\n");
   writeFileSync(path.join(dir, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
   writeFileSync(path.join(dir, "dirty.txt"), "uncommitted\n"); // 脏工作树信号
@@ -402,7 +404,7 @@ test("runTask: brief 已存在 + 含 TASK_BASE: → pass（dry-run exit 0）", a
     env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
   });
   assert.equal(res.exitCode, 0);
-  assert.equal(res.h1[0], "status: DONE"); // H1 format is engine-side, not affected by handoffStatus normalization
+  assert.equal(res.h1[0], "status: APPROVED");
 });
 
 test("runTask: brief 已存在 + 缺 TASK_BASE: → BLOCKED exit 1", async () => {
@@ -856,7 +858,7 @@ test("runTask: timeout → handoff status TIMEOUT + blocker + partial findings",
   }
 });
 
-test("runTask: timeout → timeoutCount incremented in progress.md", async () => {
+test("runTask: timeout → timeoutCount incremented in progress.json", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-tc-inc-"));
   writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nsleep 5\nexit 0\n");
@@ -874,16 +876,16 @@ test("runTask: timeout → timeoutCount incremented in progress.md", async () =>
       env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
-    const progress = readFileSync(path.join(ws, "progress.md"), "utf8");
-    assert.match(progress, /# timeoutCount: 1/);
+    const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    assert.equal(progress.timeoutCount, 1);
     // Second timeout increments
     await runTask("ghost", 1, {
       mode: "implement", probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
-    const progress2 = readFileSync(path.join(ws, "progress.md"), "utf8");
-    assert.match(progress2, /# timeoutCount: 2/);
+    const progress2 = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    assert.equal(progress2.timeoutCount, 2);
   } finally {
     process.env.PATH = origPath;
   }

@@ -45,7 +45,7 @@ function setupWorkspace() {
   return dir;
 }
 
-test("cdd-task.mjs: dry-run implement → H1 四行 DONE + exit 0", () => {
+test("cdd-task.mjs: dry-run implement → H1 四行 APPROVED + exit 0", () => {
   const ws = setupWorkspace();
   const res = run(
     ["--harness", "claude", "--task", "1", "--mode", "implement", "--plan", path.join(ws, "plan.md")],
@@ -54,13 +54,13 @@ test("cdd-task.mjs: dry-run implement → H1 四行 DONE + exit 0", () => {
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   const lines = res.stdout.trim().split("\n");
   assert.equal(lines.length, 4, `expected 4 H1 lines, got: ${JSON.stringify(res.stdout)}`);
-  assert.equal(lines[0], "status: DONE");
-  assert.equal(lines[1], "commits: base=dry-run head=dry-run");
+  assert.equal(lines[0], "status: APPROVED");
+  assert.equal(lines[1], "commits: base=dry-run");
   assert.match(lines[2], /^artifacts: brief=/);
   assert.equal(lines[3], "blocker: none");
 });
 
-test("cdd-task.mjs: dry-run task-review/fix 三模式 → status DONE + exit 0", () => {
+test("cdd-task.mjs: dry-run task-review/fix 三模式 → status APPROVED + exit 0", () => {
   for (const mode of ["task-review", "fix"]) {
     const ws = setupWorkspace();
     const res = run(
@@ -68,7 +68,7 @@ test("cdd-task.mjs: dry-run task-review/fix 三模式 → status DONE + exit 0",
       { CDD_DRY_RUN: "1", CDD_WORKSPACE: ws },
     );
     assert.equal(res.status, 0, `mode ${mode} stderr: ${res.stderr}`);
-    assert.match(res.stdout, /^status: DONE$/m, `mode ${mode}`);
+    assert.match(res.stdout, /^status: APPROVED$/m, `mode ${mode}`);
   }
 });
 

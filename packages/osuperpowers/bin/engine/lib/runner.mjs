@@ -18,6 +18,7 @@ import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/e
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 import { generateBrief, validateBrief } from "./brief.mjs";
 import { spawnCapture, invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
+import { readProgressJSON, writeProgressJSON, migrateIfNeeded } from "./progress.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
 export { spawnCapture, invokeCli };
@@ -100,7 +101,7 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope } 
   const env = { ...baseEnv };
   env.CDD_WORKSPACE = workspace;
   env.CDD_HARNESS = harness;
-  env.CDD_LEDGER ||= path.join(workspace, "progress.md");
+  env.CDD_LEDGER ||= path.join(workspace, "progress.json");
   env.CDD_TASK_BRIEF ||= path.join(workspace, `task-${task}-brief.md`);
   env.CDD_HANDOFF_PATH ||= path.join(workspace, `task-${task}-handoff.json`);
   env.CDD_PLAN_CONSTRAINTS ||= path.join(workspace, "plan-constraints.md");
@@ -298,8 +299,8 @@ export function h1FromHandoff(handoffPath) {
 function dryRunH1Block(env, taskNum) {
   const ws = env.CDD_WORKSPACE;
   return [
-    "status: DONE",
-    "commits: base=dry-run head=dry-run",
+    "status: APPROVED",
+    "commits: base=dry-run",
     `artifacts: brief=${env.CDD_TASK_BRIEF} report=${ws}/task-${taskNum}-report.md test_evidence=${ws}/task-${taskNum}-test-evidence.json`,
     "blocker: none",
   ].join("\n");
@@ -513,9 +514,11 @@ export async function runTask(harness, taskNum, opts = {}) {
       blocker: `timeout after ${timeoutMs}ms`,
       findings: existingHandoff?.findings ?? [],
     });
-    // Increment timeoutCount in progress.md
-    const currentCount = readTimeoutCount(env.CDD_LEDGER);
-    writeTimeoutCount(env.CDD_LEDGER, currentCount + 1);
+    // Increment timeoutCount in progress.json
+    const progressDir = path.dirname(env.CDD_LEDGER);
+    const progressData = readProgressJSON(progressDir);
+    progressData.timeoutCount++;
+    writeProgressJSON(progressDir, progressData);
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
@@ -558,7 +561,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       task: taskNum,
       phase: mode,
       status: "BLOCKED",
-      commits: { base: "unknown", head: "unknown" },
+      commits: { base: "unknown" },
       blocker,
     });
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
@@ -571,7 +574,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       task: taskNum,
       phase: mode,
       status: "APPROVED",
-      commits: { base: "unknown", head: "unknown" },
+      commits: { base: "unknown" },
     });
   }
 

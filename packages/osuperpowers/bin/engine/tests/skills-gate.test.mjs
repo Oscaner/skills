@@ -137,7 +137,7 @@ test("implement: init 通道缺失 → stderr 提示 + exit 0（任务照跑）"
   assert.equal(r.code, 0);
   assert.match(r.stderr, /osuperpowers:init harness opencode/);
   // dry-run 正常产出 H1
-  assert.match(r.stdout, /status: DONE/);
+  assert.match(r.stdout, /status: APPROVED/);
 });
 
 // 真实 init 通道测试：验证 channelMap 驱动 gate 分支逻辑
@@ -163,7 +163,7 @@ test("implement: init 通道（channelMap 驱动）→ stderr 提示 + 任务照
   assert.match(r.stderr, /superpowers.*osuperpowers:init harness trae/s);
   assert.match(r.stderr, /osuperpowers.*osuperpowers:init harness trae/s);
   // 任务照跑
-  assert.match(r.stdout, /status: DONE/);
+  assert.match(r.stdout, /status: APPROVED/);
 });
 
 // 无缺失 → gate 不触发 → 正常 dry-run（init 通道）
@@ -181,7 +181,7 @@ test("implement: init 无缺失 → gate 不触发 + exit 0", async () => {
     }),
   );
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /status: DONE/);
+  assert.match(r.stdout, /status: APPROVED/);
 });
 
 // Slice 3: probeFailed → fail-open（exit 0，任务照跑）
@@ -192,7 +192,7 @@ test("implement: probeFailed → fail-open + exit 0（dry-run）", async () => {
     runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /status: DONE/);
+  assert.match(r.stdout, /status: APPROVED/);
 });
 
 // Slice 4: 无缺失 → gate 不触发 → 正常 dry-run
@@ -203,7 +203,7 @@ test("implement: 无缺失 → gate 不触发 + exit 0（dry-run）", async () =
     runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /status: DONE/);
+  assert.match(r.stdout, /status: APPROVED/);
 });
 
 // Slice 5: brief/templates 缺失 → BLOCKED exit 1（非 exit 3）

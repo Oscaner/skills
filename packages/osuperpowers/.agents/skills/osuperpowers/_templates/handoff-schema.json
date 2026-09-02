@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["task", "phase", "status", "artifacts", "findings"],
+  "properties": {
+    "task": { "type": "integer", "minimum": 1 },
+    "phase": { "type": "string", "enum": ["implement", "task-review", "fix"] },
+    "status": { "type": "string", "enum": ["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "TIMEOUT"] },
+    "commits": {
+      "type": "object",
+      "required": ["base"],
+      "properties": {
+        "base": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "complexity": { "type": "string", "enum": ["simple", "moderate", "complex"] },
+    "review_scope": { "type": "string", "enum": ["task", "branch"] },
+    "artifacts": { "type": "object" },
+    "findings": { "type": "array" },
+    "unverifiable": { "type": "array" },
+    "plan_conflicts": { "type": "array" },
+    "blocker": { "type": "string" }
+  },
+  "additionalProperties": false
+}

@@ -19,7 +19,8 @@
     "findings": { "type": "array" },
     "unverifiable": { "type": "array" },
     "plan_conflicts": { "type": "array" },
-    "blocker": { "type": "string" }
+    "blocker": { "type": "string" },
+    "test_evidence": { "type": "object" }
   },
   "additionalProperties": false
 }

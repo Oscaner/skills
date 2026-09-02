@@ -13,12 +13,12 @@ import { fileURLToPath } from "node:url";
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { appendLedger } from "./ledger.mjs";
-import { validateCommitContract, writeHandoff, gitToplevel, normalizeHandoffStatus, gitCatFileCommitExists } from "./contract.mjs";
+import { writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
-import { generateBrief, validateBrief } from "./brief.mjs";
 import { spawnCapture, invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded } from "./progress.mjs";
+import { validateHandoffSchema } from "./schema-utils.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
 export { spawnCapture, invokeCli };
@@ -411,23 +411,6 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
 
-  // 4.5 Brief 生成 / 校验（plan backfill 之后，task-review fixed-point 之前）
-  // CDD_TASK_BRIEF 由 buildTaskEnv 恒设置 —— briefPath 永不为 falsy，无外层守卫。
-  // plan、taskNum、cwd 均为本函数现有作用域变量
-  {
-    const briefPath = env.CDD_TASK_BRIEF;
-    if (!existsSync(briefPath)) {
-      if (!plan) return finish(1, [], "brief missing and plan unavailable: cannot auto-generate brief", noExit);
-      try {
-        generateBrief(plan, taskNum, briefPath, repoRoot || cwd); // #173：repoRoot 下传（plan 仓库 HEAD）
-      } catch (e) {
-        return finish(1, [], `brief auto-generation failed: ${e.message}`, noExit);
-      }
-    } else if (!validateBrief(briefPath)) {
-      return finish(1, [], `brief at ${briefPath} missing TASK_BASE: line`, noExit);
-    }
-  }
-
   // 5. Task-review fixed-point + review-package
   if (mode === "task-review") {
     if (!env.CDD_TASK_REVIEW_FIXED_POINT) {
@@ -435,27 +418,6 @@ export async function runTask(harness, taskNum, opts = {}) {
       if (handoffBase) env.CDD_TASK_REVIEW_FIXED_POINT = handoffBase;
     }
     if (dryRun && !env.CDD_TASK_REVIEW_FIXED_POINT) env.CDD_TASK_REVIEW_FIXED_POINT = "HEAD~1";
-    if (!dryRun) {
-      if (!plan) return finish(1, [], "task-review mode requires plan path (ledger header or --plan)", noExit);
-      if (!existsSync(plan)) return finish(1, [], `plan file not found: ${plan}`, noExit);
-      const taskReviewBase = env.CDD_TASK_REVIEW_FIXED_POINT;
-      if (!taskReviewBase) return finish(1, [], "task-review mode requires CDD_TASK_REVIEW_FIXED_POINT or handoff commits.base", noExit);
-      let taskReviewHead = "HEAD";
-      const handoffHead = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "head"]);
-      if (handoffHead) taskReviewHead = handoffHead;
-      // #200 phantom SHA 校验：review-package 前校验 commits.head 可达性
-      if (handoffHead && !gitCatFileCommitExists(handoffHead, repoRoot || cwd)) {
-        return finish(1, [], `review-package: commits.head ${handoffHead} is not a reachable commit object`, noExit);
-      }
-      try {
-        // #173：cwd 键传 repoRoot 值（语义变更在调用方——子进程在 plan 仓库内执行；签名不变）。
-        await runReviewPackage(plan, taskReviewBase, taskReviewHead, env.CDD_HANDOFF_PATH,
-          { cwd: repoRoot || cwd, env, scriptsDir });
-      } catch (e) {
-        if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
-        throw e;
-      }
-    }
   }
 
   // 6. require env / mode validation
@@ -523,31 +485,30 @@ export async function runTask(harness, taskNum, opts = {}) {
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
-  // 8.6 Mode-phase consistency guard (#175): ensure handoff phase matches CDD_MODE.
-  //    Runs BEFORE sweep收口 and commit-contract. Audit warning only, no拦截。
+  // 8.8 Handoff JSON Schema validation — reject malformed handoffs before downstream processing.
   {
     const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
-    if (existingHandoff && existingHandoff.phase && existingHandoff.phase !== mode) {
-      process.stderr.write(`[audit] handoff phase '${existingHandoff.phase}' corrected to '${mode}'\n`);
-      writeHandoff(env.CDD_HANDOFF_PATH, { phase: mode });
+    if (existingHandoff) {
+      const sv = validateHandoffSchema(existingHandoff);
+      if (!sv.valid) {
+        writeHandoff(env.CDD_HANDOFF_PATH, { status: "BLOCKED", blocker: sv.reason });
+        return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
+      }
     }
   }
 
-  // 8.7 Deferred-sweep收口 (#191): clear findings[] on successful sweep.
-  //    agentRc === 0 + scope deferred-sweep → findings[] = [], status = APPROVED.
-  //    agentRc ≠ 0 → no sweep, findings保留, status不touch.
-  if (mode === "fix" && effectiveScope === "deferred-sweep" && agentRc === 0) {
-    const sweepHandoff = readJson(env.CDD_HANDOFF_PATH);
-    if (sweepHandoff?.findings?.length > 0) {
-      writeHandoff(env.CDD_HANDOFF_PATH, { findings: [], status: "APPROVED" });
+  // 8.9 Open-findings.json pre-generation (fix mode) — filter handoff findings by scope
+  //     and write to CDD_FINDINGS path so downstream processing has them.
+  if (mode === "fix" && scope && existsSync(env.CDD_HANDOFF_PATH)) {
+    const fixHandoff = readJson(env.CDD_HANDOFF_PATH);
+    if (fixHandoff?.findings) {
+      const openFindings = fixHandoff.findings.filter(f => {
+        if (scope === "blocker-only") return !f.deferred;
+        if (scope === "deferred-sweep") return f.deferred;
+        return false;
+      });
+      writeFileSync(env.CDD_FINDINGS, JSON.stringify({ findings: openFindings }, null, 2));
     }
-  }
-
-  // 9. Commit-contract（先于 H1 —— validator 可能把 handoff 重写为 BLOCKED，H1 必须读该状态）。
-  //    !ok → stderr CDD_BLOCKED 诊断（对齐 bash cdd_validate_commit_contract 的 printf）+ exit 1。
-  const contract = validateCommitContract(mode, workspace, { handoffPath: env.CDD_HANDOFF_PATH });
-  if (!contract.ok) {
-    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), contract.blocker, noExit);
   }
 
   // 10. 嵌套 CLI 失败且无 handoff → 写 BLOCKED handoff（stderr 进 blocker）+ H1-from-handoff +

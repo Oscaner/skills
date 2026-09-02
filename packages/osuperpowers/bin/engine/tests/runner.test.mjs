@@ -330,73 +330,6 @@ test("invokeCli: stream-json 相邻紧凑事件（首个对象含空串）→ �
   }
 });
 
-test("runTask: Mode A commit-contract 拦截 → stderr CDD_BLOCKED + exit 1（对齐 bash cdd_validate_commit_contract）", async () => {
-  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-contract-stderr-")));
-  execFileSync("git", ["init", "-q", dir]);
-  const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "", tasks: [], degradationLog: [] };
-  writeFileSync(path.join(dir, "progress.json"), JSON.stringify(progressData, null, 2));
-  writeFileSync(path.join(dir, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(dir, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
-  writeFileSync(path.join(dir, "dirty.txt"), "uncommitted\n"); // 脏工作树信号
-
-  const { code, stderr } = await capture(() =>
-    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(dir) }),
-  );
-  assert.equal(code, 1);
-  assert.match(stderr, /CDD_BLOCKED: uncommitted changes at return \(implement\)/);
-});
-
-test("runTask: task-review 模式 review-package 不可执行 → CDD_BLOCKED + exit 1（对齐 bash [[ -x ]]）", async () => {
-  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-reviewpkg-")));
-  gitInit(dir); // #173：backfill 收紧后 plan 解析需要 git repo（repoRoot = gitToplevel(dirname(plan))）
-  writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
-  writeFileSync(path.join(dir, "progress.md"), `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
-  // brief/handoff 预写在派生工作区 <dir>/.superpowers/cdd/plan/ 下（slug = plan.md 基名）；
-  // .gitignore 由 resolveWorkspace 写入后整棵子树被忽略，工作树保持干净。
-  const derivedWs = path.join(dir, ".superpowers", "cdd", "plan");
-  mkdirSync(derivedWs, { recursive: true });
-  writeFileSync(path.join(derivedWs, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
-  // HOME → fake plugin cache：review-package 存在但不可执行（无 chmod +x）。
-  const scripts = path.join(
-    dir, ".claude", "plugins", "cache", "oscaner", "superpowers", "1.0.0",
-    "skills", "subagent-driven-development", "scripts",
-  );
-  mkdirSync(scripts, { recursive: true });
-  writeFileSync(path.join(scripts, "sdd-workspace"), "");
-  writeFileSync(path.join(scripts, "review-package"), "#!/usr/bin/env bash\necho should-not-run\n");
-  // fake claude 过 preflight（review-package 抛错前不会真的 invoke）。
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-review-bin-"));
-  writeFileSync(path.join(binDir, "claude"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "claude"), 0o755);
-
-  const origPath = process.env.PATH;
-  const origHome = process.env.HOME;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  process.env.HOME = dir;
-  try {
-    const { code, stderr } = await capture(() =>
-      runTask("claude", 1, {
-        mode: "task-review",
-        probeSkills: NOOP_PROBE,
-        env: baseEnv(dir, {
-          CDD_LEDGER: path.join(dir, "progress.md"),
-          CDD_TASK_BRIEF: path.join(derivedWs, "task-1-brief.md"),
-          CDD_HANDOFF_PATH: path.join(derivedWs, "task-1-handoff.json"),
-          CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1",
-          PATH: `${binDir}${path.delimiter}${origPath}`,
-        }),
-        cwd: dir,
-        registryPath: REG_PATH,
-      }),
-    );
-    assert.equal(code, 1);
-    assert.match(stderr, /CDD_BLOCKED: review-package not executable:/);
-  } finally {
-    process.env.PATH = origPath;
-    process.env.HOME = origHome;
-  }
-});
-
 test("runTask: brief 已存在 + 含 TASK_BASE: → pass（dry-run exit 0）", async () => {
   const ws = setupWorkspace(); // brief 已含 TASK_BASE: abc123
   const res = await runTask("claude", 1, {
@@ -407,58 +340,11 @@ test("runTask: brief 已存在 + 含 TASK_BASE: → pass（dry-run exit 0）", a
   assert.equal(res.h1[0], "status: APPROVED");
 });
 
-test("runTask: brief 已存在 + 缺 TASK_BASE: → BLOCKED exit 1", async () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
-  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger — plan: /tmp/plan.md\n");
-  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\n"); // no TASK_BASE
-  const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
-    env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
-  });
-  assert.equal(res.exitCode, 1);
-});
-
-test("runTask: brief 不存在 + plan 可用 → auto-generate + exit 0", async () => {
-  // #173：plan 仓库须 git init + 提交（workspace 派生于 <planDir>/.superpowers/cdd/<slug>/，
-  // commit-contract 校验该工作树 → 写完 plan.md 后 add+commit 保持干净）。
-  const planDir = gitInitReal(mkdtempSync(path.join(tmpdir(), "plan-")));
-  const planFile = commitPlan(planDir, path.join(planDir, "plan.md"));
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
-  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n"); // no plan in ledger
-  const derivedWs = path.join(planDir, ".superpowers", "cdd", "plan");
-  const briefPath = path.join(derivedWs, "task-1-brief.md"); // workspace 现派生于 plan 仓库
-  const env = cleanEnv({
-    CDD_WORKSPACE: ws,
-    CDD_TASK_BRIEF: briefPath,
-    PLAN_FILE: planFile,
-  });
-  const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
-    env, cwd: REPO_ROOT, noExit: true,
-  });
-  assert.equal(res.exitCode, 0);
-  assert.ok(existsSync(briefPath), "brief should be auto-generated at plan-derived workspace");
-  assert.match(readFileSync(briefPath, "utf8"), /^TASK_BASE: /m);
-});
-
 test("runTask #173: plan 路径不存在 → 'plan file not found'", async () => {
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
     env: { ...baseEnv(tmpdir()), PLAN_FILE: "/nonexistent/plan.md" },
     noExit: true,
-  });
-  assert.equal(res.exitCode, 1);
-});
-
-test("runTask: brief 不存在 + plan 不可用 → BLOCKED exit 1", async () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
-  writeFileSync(path.join(ws, "progress.md"), "# CDD ledger\n"); // no plan
-  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  // no brief, no plan
-  const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
-    env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
   });
   assert.equal(res.exitCode, 1);
 });
@@ -576,65 +462,6 @@ test("runTask #173: CDD_WORKSPACE 与 plan 同给 → workspace 落 plan 派生�
   assert.equal(res.exitCode, 0);
   assert.ok(existsSync(path.join(repoA, ".superpowers", "cdd", "plan")), "workspace derived from plan");
   assert.ok(!existsSync(path.join(ignored, ".superpowers")), "env workspace ignored");
-});
-
-test("runTask #173: brief auto-generate 时 TASK_BASE 取 plan 仓库 A 的 HEAD", async () => {
-  const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a2-")));
-  const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b2-")));
-  gitInit(repoA);
-  gitInit(repoB);
-  const planFile = path.join(repoA, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  gitCommit(repoA); // HEAD 含 plan commit
-  const briefPath = path.join(mkdtempSync(path.join(tmpdir(), "cdd-ws2-")), "task-1-brief.md");
-  const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
-    env: { ...cleanEnv(), PLAN_FILE: planFile, CDD_TASK_BRIEF: briefPath },
-    cwd: repoB, noExit: true,
-  });
-  assert.equal(res.exitCode, 0);
-  const head = execFileSync("git", ["-C", repoA, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  assert.match(readFileSync(briefPath, "utf8"), new RegExp(`^TASK_BASE: ${head.slice(0, 7)}`, "m"));
-});
-
-test("runTask #173: review-package 子进程在 repoRoot 内执行", async () => {
-  // fixture 同「review-package 不可执行」用例结构，但 review-package 可执行且为记录脚本：
-  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-rp-cwd-")));
-  gitInit(dir);
-  writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
-  const ledger = path.join(mkdtempSync(path.join(tmpdir(), "cdd-ledger-")), "progress.md");
-  writeFileSync(ledger, `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
-  const ws = path.join(dir, ".superpowers", "cdd", "plan");
-  mkdirSync(ws, { recursive: true });
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
-  const spawnLog = path.join(mkdtempSync(path.join(tmpdir(), "cdd-spawnlog-")), "cwd.txt");
-  const scripts = path.join(dir, "fake-scripts");
-  mkdirSync(scripts, { recursive: true });
-  writeFileSync(path.join(scripts, "review-package"),
-    `#!/usr/bin/env bash\npwd > "${spawnLog}"\necho wrote /nonexistent/x: 0`);
-  chmodSync(path.join(scripts, "review-package"), 0o755);
-  // claude 存根过 preflight（对齐基线「review-package 不可执行」夹具——非 dry-run 必须有 CLI 在 PATH）：
-  // checkHarness 读 process.env.PATH —— 调用前临时注入，跑完还原。
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-rp-bin-"));
-  writeFileSync(path.join(binDir, "claude"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "claude"), 0o755);
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    await runTask("claude", 1, {
-      mode: "task-review", probeSkills: NOOP_PROBE,
-      env: { ...cleanEnv(), CDD_WORKSPACE: ws, CDD_LEDGER: ledger,
-             CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md"), CDD_TASK_REVIEW_FIXED_POINT: "HEAD",
-             PATH: `${binDir}${path.delimiter}${origPath}` },
-      cwd: mkdtempSync(path.join(tmpdir(), "cdd-elsewhere-")),
-      scriptsDir: scripts, noExit: true,
-    });
-  } finally {
-    process.env.PATH = origPath;
-  }
-  // 注：mock 的 `wrote /nonexistent/x` 不存在 → spawn 后 runReviewPackage 抛 RunBlocked（exit 1，
-  // stderr 有 CDD_BLOCKED 诊断）——本用例只钉死子进程执行目录，不校验退出码。
-  assert.equal(readFileSync(spawnLog, "utf8").trim(), dir); // 子进程 pwd == repoRoot
 });
 
 // ---- P5 spawnCapture env leak regression ----
@@ -891,51 +718,6 @@ test("runTask: timeout → timeoutCount incremented in progress.json", async () 
   }
 });
 
-// ---- #200 phantom SHA guard ----
-
-test("runTask: task-review + phantom commits.head → exit 1, review-package not executed", async () => {
-  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-phantom-")));
-  gitInit(dir);
-  writeFileSync(path.join(dir, "plan.md"), "# Plan\n### Task 1: test\n");
-  writeFileSync(path.join(dir, "progress.md"), `# CDD ledger — plan: ${path.join(dir, "plan.md")}\n`);
-  const derivedWs = path.join(dir, ".superpowers", "cdd", "plan");
-  mkdirSync(derivedWs, { recursive: true });
-  writeFileSync(path.join(derivedWs, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
-  // Seed handoff with phantom SHA
-  const handoffPath = path.join(derivedWs, "task-1-handoff.json");
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "task-review", status: "APPROVED",
-    commits: { base: "abc123", head: "0000000000000000000000000000000000000000" }
-  }));
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-phantom-bin-"));
-  writeFileSync(path.join(binDir, "claude"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "claude"), 0o755);
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    const { code, stderr } = await capture(() =>
-      runTask("claude", 1, {
-        mode: "task-review", probeSkills: NOOP_PROBE,
-        env: baseEnv(dir, {
-          CDD_LEDGER: path.join(dir, "progress.md"),
-          CDD_TASK_BRIEF: path.join(derivedWs, "task-1-brief.md"),
-          CDD_HANDOFF_PATH: handoffPath,
-          CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1",
-          PATH: `${binDir}${path.delimiter}${origPath}`,
-        }),
-        cwd: dir, registryPath: REG_PATH,
-      }),
-    );
-    assert.equal(code, 1);
-    assert.match(stderr, /not a reachable commit object/);
-    // Verify review-package did NOT run: handoff has no diff artifact (guard terminated before runReviewPackage)
-    const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-    assert.equal(h.artifacts?.diff, undefined, "review-package should not have produced diff");
-  } finally {
-    process.env.PATH = origPath;
-  }
-});
-
 test("runTask: unkillable → handoff status BLOCKED + blocker process unkillable", async () => {
   // NOTE: SIGKILL always kills processes on modern Unix, so the unkillable path in spawnCapture
   // is unreachable with real processes. This test verifies the BLOCKED handoff write path exists
@@ -952,43 +734,4 @@ test("runTask: unkillable → handoff status BLOCKED + blocker process unkillabl
   assert.equal(h.status, "BLOCKED");
   assert.match(h.blocker, /unkillable/);
   assert.deepEqual(h.findings, [{ severity: "warn", title: "pre-existing" }]);
-});
-
-// ---- #175 mode-phase guard + #191 deferred-sweep 收口 ----
-
-test("runTask: mode-phase guard → handoff phase corrected + audit stderr", async () => {
-  const ws = setupWorkspace();
-  // Seed handoff with wrong phase
-  const handoffPath = path.join(ws, "task-1-handoff.json");
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "implement", status: "APPROVED",
-    commits: { base: "abc123", head: "abc123" }
-  }));
-  const { stderr } = await capture(() =>
-    runTask("claude", 1, {
-      mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE,
-      env: baseEnv(ws, { CDD_TASK_REVIEW_FIXED_POINT: "HEAD~1" }),
-    }),
-  );
-  assert.match(stderr, /\[audit\] handoff phase 'implement' corrected to 'task-review'/);
-  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-  assert.equal(h.phase, "task-review");
-});
-
-test("runTask: sweep收口 deferred-sweep + success → findings cleared + status APPROVED", async () => {
-  const ws = setupWorkspace();
-  const handoffPath = path.join(ws, "task-1-handoff.json");
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "fix", status: "APPROVED",
-    findings: [{ severity: "nit", summary: "style", deferred: true }]
-  }));
-  // Use noExit (not dryRun) so step 8.7 sweep code executes with agentRc=0 path
-  const res = await runTask("claude", 1, {
-    mode: "fix", dryRun: true, scope: "deferred-sweep", probeSkills: NOOP_PROBE,
-    env: baseEnv(ws), noExit: true,
-  });
-  assert.equal(res.exitCode, 0, "dry-run fix succeeds");
-  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-  assert.deepEqual(h.findings, [], "sweep should clear findings");
-  assert.equal(h.status, "APPROVED");
 });

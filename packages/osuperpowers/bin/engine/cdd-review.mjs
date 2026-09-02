@@ -5,39 +5,17 @@
 //
 //   usage: cdd-review.mjs --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]
 import path from "node:path";
-import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
 import { invokeCli } from "./lib/runner.mjs";
 import { resolveTimeoutMs } from "./lib/cli-shared.mjs";
-import { pluginRoot } from "./lib/templates.mjs";
+import { renderTemplate } from "./lib/templates.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { writeHandoff } from "./lib/contract.mjs";
 
 const NAME = path.basename(fileURLToPath(import.meta.url));
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
-const TEMPLATE_DIR = path.join(pluginRoot(), "templates", "cdd");
-
-// 加载模板文件并替换 {{KEY}} → value；缺失占位符 → 报错退出。
-function renderTemplate(name, params, programName) {
-  const templatePath = path.join(TEMPLATE_DIR, `${name}.md`);
-  if (!existsSync(templatePath)) {
-    process.stderr.write(`${programName}: template not found: templates/cdd/${name}.md\n`);
-    exitWithCode(1);
-  }
-  let content = readFileSync(templatePath, "utf8");
-  for (const [key, value] of Object.entries(params)) {
-    content = content.split(`{{${key}}}`).join(value);
-  }
-  // 未传占位符 → 报错
-  const missing = content.match(/\{\{(\w+)\}\}/);
-  if (missing) {
-    process.stderr.write(`${programName}: template ${name}: missing param ${missing[0]}\n`);
-    exitWithCode(1);
-  }
-  return content;
-}
 
 const USAGE = `usage: ${NAME} --harness <name> --template <name> [--param KEY=VALUE...] [--handoff PATH]\n`;
 
@@ -137,7 +115,7 @@ if (res.timedOut) {
 
 if (handoffPath) {
   writeHandoff(handoffPath, res.ok
-    ? { status: "DONE" }
+    ? { status: "APPROVED" }
     : { status: "BLOCKED", blocker: (res.stderr.split("\n")[0] || "").trim() || `cli exited ${res.code}` });
 }
 if (!res.ok) {

@@ -35,7 +35,7 @@ fix loop 上限 **5 轮**，超限 STOP + 升级（ask human）；fix 重审 sco
 
 ### Rule: Inline Handoff
 
-handoff 写入内联在各模式模板（`templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`），无独立 handoff 模式。编器不得自行 merge Standards/Spec prose。
+handoff 写入内联在各模式模板（`templates/{implement,task-review,fix}.md`），无独立 handoff 模式。编器不得自行 merge Standards/Spec prose。
 
 ---
 

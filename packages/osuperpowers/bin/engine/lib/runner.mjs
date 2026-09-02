@@ -385,9 +385,10 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 2.55 Templates existence check — BLOCKED exit 1 if missing (not exit 3).
   {
     try {
-      const tplDir = path.join(pluginRootFn(), "templates", "cdd");
-      if (!existsSync(tplDir)) {
-        return finish(1, [], `templates missing: ${tplDir}`, noExit);
+      const modeDir = path.join(pluginRootFn(), "skills", "cli-driven-development", "templates");
+      const sharedDir = path.join(pluginRootFn(), "skills", "_templates");
+      if (!existsSync(modeDir) && !existsSync(sharedDir)) {
+        return finish(1, [], `templates missing: ${modeDir}`, noExit);
       }
     } catch {
       return finish(1, [], "templates missing: osuperpowers plugin root not found", noExit);

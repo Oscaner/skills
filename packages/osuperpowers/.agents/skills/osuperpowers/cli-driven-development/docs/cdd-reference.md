@@ -1,6 +1,6 @@
 # CDD CLI Orchestrator Reference (H6-H8)
 
-> Worker discipline SOT: `../templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`
+> Worker discipline SOT: `../templates/{implement,task-review,fix}.md`
 > Orchestrator gate discipline: [`controller-handoff.md`](controller-handoff.md) H1-H5
 > **Rule 0 checklist semantic contract:** The three-phase phase markers and key tokens in Rule 0 are not line-budget trimming targets — trimming must not delete/compress the checklist's phase structure or key tokens; `bin/engine/tests/templates.test.mjs` asserts this (issue #52 Guard 1).
 
@@ -93,7 +93,7 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 
 Orchestrator / skill **must not** create `cdd-task*` or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-task.mjs` / `cdd-review.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/templates/cdd/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-task.mjs` / `cdd-review.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/skills/cli-driven-development/templates/` + `packages/osuperpowers/skills/_templates/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 

@@ -1,7 +1,8 @@
 // engine/tests/templates.test.mjs — T1: mode 模板渲染 + 行预算模块单测。
-// renderModePrompt：读 templates/cdd/<mode>.md + _handoff-write-fragment.md，做
-// {{PLACEHOLDER}} env 替换。lineBudget：P13 re-baseline 阈值（sdd≤210 / ctrl≤50 /
-// tier1≤260 / tier2≤331）。
+// renderModePrompt：读 skills/cli-driven-development/templates/<mode>.md，做
+// {{PLACEHOLDER}} env 替换。renderTemplate：读 skills/_templates/<name>.md 全参数替换
+// （migrated from cdd-review.mjs）。行预算 port
+// cdd-orchestrator-line-budget.test.sh 的真实阈值）。
 // 另含 prose-grep 治理守卫（T8 补回：port cdd-orchestrator-line-budget.test.sh +
 // cdd-severity-contract.test.sh 的 grep-contracts —— 技能/模板/文档正文行数 + 语义锚点）。
 import { test } from "node:test";
@@ -10,12 +11,12 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderModePrompt, lineBudget, LINE_BUDGETS } from "../lib/templates.mjs";
+import { renderModePrompt, renderTemplate, lineBudget, LINE_BUDGETS } from "../lib/templates.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = path.resolve(HERE, "../../.."); // packages/osuperpowers
 
-test("renderModePrompt: implement 输出含 mode 模板 + env 替换 + handoff-write 片段", () => {
+test("renderModePrompt: implement 输出含 mode 模板 + env 替换 + 内联 Handoff Output", () => {
   const env = {
     WORKSPACE: "/ws/render",
     BRIEF: "/ws/render/task-1-brief.md",
@@ -32,9 +33,9 @@ test("renderModePrompt: implement 输出含 mode 模板 + env 替换 + handoff-w
   assert.ok(out.includes("**Handoff path (write at end of this mode):** /ws/render/task-1-handoff.json"), "{{HANDOFF}} 替换");
   assert.ok(out.includes("**Plan constraints:** /ws/render/plan-constraints.md"), "{{CONSTRAINTS}} 替换");
 
-  // handoff-write 片段（_handoff-write-fragment.md）包含在输出中
-  assert.ok(out.includes("## Handoff write"), "handoff-write 片段标题");
-  assert.ok(out.includes("### Segment: implement"), "implement 段");
+  // 内联 Handoff Output（替代 _handoff-write-fragment.md）
+  assert.ok(out.includes("## Handoff Output"), "inline Handoff Output section");
+  assert.ok(out.includes("### Segment: implement"), "implement segment");
   assert.ok(out.includes("task-{{TASK}}-test-evidence.json") === false, "{{TASK}} 已替换");
 
   // 无残留占位符
@@ -43,36 +44,46 @@ test("renderModePrompt: implement 输出含 mode 模板 + env 替换 + handoff-w
   }
 });
 
-test("renderModePrompt: task-review/fix 模板同样渲染 + 片段", () => {
+test("renderModePrompt: task-review/fix 模板同样渲染 + 内联 Handoff Output", () => {
   const env = { WORKSPACE: "/ws", BRIEF: "/ws/task-1-brief.md", HANDOFF: "/ws/task-1-handoff.json", CONSTRAINTS: "/ws/plan-constraints.md", TASK: "1" };
   const review = renderModePrompt("task-review", env);
   assert.match(review, /^# CDD task-review — CLI session/m);
-  assert.ok(review.includes("### Segment: task-review"), "task-review 段");
+  assert.ok(review.includes("### Segment: task-review"), "task-review segment");
+  assert.ok(review.includes("## Handoff Output"), "inline Handoff Output in task-review");
   const fix = renderModePrompt("fix", env);
   assert.match(fix, /^# CDD fix — CLI session/m);
-  assert.ok(fix.includes("### Segment: fix"), "fix 段");
+  assert.ok(fix.includes("### Segment: fix"), "fix segment");
+  assert.ok(fix.includes("## Handoff Output"), "inline Handoff Output in fix");
 });
 
 test("renderModePrompt: 缺失模板 → 抛错", () => {
   assert.throws(() => renderModePrompt("no-such-mode", {}), /missing template/);
 });
 
-test("renderModePrompt: spec-review 模板可加载但占位符由 cdd-review renderTemplate 处理", () => {
-  // renderModePrompt 只替换 CDD 标准占位符（WORKSPACE/BRIEF/HANDOFF/CONSTRAINTS/TASK/FINDINGS/FIXED_POINT）；
-  // DOC/PASS/SPEC 不在列表中 → renderModePrompt 不做替换。
-  // spec-review/plan-review 的 {{DOC}}/{{PASS}}/{{SPEC}} 由 cdd-review.mjs 的 renderTemplate 函数
-  // （全参数替换 + 缺失占位符报错）处理。该行为已在 exec.test.mjs 的 spawn 测试中覆盖。
-  const out = renderModePrompt("spec-review", {});
-  assert.ok(out.includes("Spec Review"), "spec-review 模板可加载");
-  assert.ok(out.includes("{{DOC}}"), "DOC 不在 PLACEHOLDERS 中，保留原样（由 cdd-review renderTemplate 替换）");
+test("renderModePrompt: spec-review 不在 cli-driven-development/templates/ → 抛错（由 renderTemplate 加载）", () => {
+  // spec-review 在 _templates/ 中，由 cdd-review.mjs 的 renderTemplate 函数加载；
+  // renderModePrompt 只加载 cli-driven-development/templates/ 下的 mode 模板。
+  assert.throws(() => renderModePrompt("spec-review", {}), /missing template/);
 });
 
-test("renderModePrompt: plan-review 模板可加载但占位符由 cdd-review renderTemplate 处理", () => {
-  const out = renderModePrompt("plan-review", {});
-  assert.ok(out.includes("Plan Review"), "plan-review 模板可加载");
-  assert.ok(out.includes("{{DOC}}"), "DOC 不在 PLACEHOLDERS 中");
-  assert.ok(out.includes("{{SPEC}}"), "SPEC 不在 PLACEHOLDERS 中");
-  assert.ok(out.includes("{{PASS}}"), "PASS 不在 PLACEHOLDERS 中");
+test("renderModePrompt: plan-review 不在 cli-driven-development/templates/ → 抛错（由 renderTemplate 加载）", () => {
+  // plan-review 在 _templates/ 中，由 cdd-review.mjs 的 renderTemplate 函数加载。
+  assert.throws(() => renderModePrompt("plan-review", {}), /missing template/);
+});
+
+test("renderTemplate: _templates/ 全参数替换 + 缺失占位符报错", () => {
+  const out = renderTemplate("spec-review", { DOC: "/doc.md", PASS: "completeness" }, "test");
+  assert.ok(out.includes("Spec Review"), "spec-review 模板可加载");
+  assert.ok(!out.includes("{{DOC}}"), "DOC 已替换");
+  assert.ok(out.includes("/doc.md"), "DOC 值正确");
+  assert.ok(!out.includes("{{PASS}}"), "PASS 已替换");
+  assert.ok(out.includes("completeness"), "PASS 值正确");
+  // {{SPEC}} 未传 → 应报错
+  assert.throws(() => renderTemplate("spec-review", { DOC: "/doc.md" }, "test"), /missing param/);
+});
+
+test("renderTemplate: 缺失模板 → 抛错", () => {
+  assert.throws(() => renderTemplate("no-such-template", {}, "test"), /template not found/);
 });
 
 // #168 FINDINGS_SCOPE placeholder rendering
@@ -142,16 +153,19 @@ test("governance: wcLines 空/纯空白文件 → 0（0 分支覆盖）", () => 
 });
 
 test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
-  const fragment = readRel("templates/cdd/_handoff-write-fragment.md");
-  const review = readRel("templates/cdd/task-review.md");
-  const fix = readRel("templates/cdd/fix.md");
+  const implement = readRel("skills/cli-driven-development/templates/implement.md");
+  const review = readRel("skills/cli-driven-development/templates/task-review.md");
+  const fix = readRel("skills/cli-driven-development/templates/fix.md");
   const dispatch = readRel("skills/_docs/docs-review.md");
 
-  // review segment：deferred 保留 + blocker-only open-findings + merge
-  assert.ok(fragment.includes("deferred: true"), "fragment deferred marking");
-  assert.ok(fragment.includes("non-deferred = blocker findings only"), "fragment blocker-only open-findings");
-  assert.ok(/Preserve all `deferred: true` findings/.test(fragment), "fix segment preserves deferred");
-  assert.ok(/never replace wholesale/.test(fragment), "review segment merge semantics");
+  // inline Handoff Output segment：deferred 保留 + blocker-only open-findings + merge
+  assert.ok(implement.includes("### Segment: implement"), "implement inline segment");
+  assert.ok(review.includes("### Segment: task-review"), "task-review inline segment");
+  assert.ok(fix.includes("### Segment: fix"), "fix inline segment");
+  assert.ok(review.includes("deferred: true"), "review deferred marking");
+  assert.ok(review.includes("non-deferred = blocker findings only"), "review blocker-only open-findings");
+  assert.ok(/Preserve all `deferred: true` findings/.test(fix), "fix segment preserves deferred");
+  assert.ok(/never replace wholesale/.test(review), "review segment merge semantics");
 
   // task-review.md: blocker → CHANGES_REQUESTED（新措辞）替换旧 empty → APPROVED
   assert.ok(/blocker → CHANGES_REQUESTED/.test(review), "review status mapping");
@@ -177,7 +191,7 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
 });
 
 test("governance: branch-review 模板基线标注（P5 task 3：BASE=origin/develop 集成点）", () => {
-  const lines = readRel("templates/cdd/branch-review.md").split("\n");
+  const lines = readRel("skills/_templates/branch-review.md").split("\n");
   const headingIdx = lines.findIndex((l) => l.trim() === "# Branch Review");
   assert.ok(headingIdx >= 0, "# Branch Review 标题存在");
   // 标题后第一行必须是整分支基线标注注释（spec 原文，防误改回 origin/main 基线）

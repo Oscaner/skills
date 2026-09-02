@@ -190,7 +190,7 @@ test("cdd-review.mjs: --param 值含等号 → KEY=VALUE 正确解析（value �
   assert.match(res.stdout, /\/path\/to\?a=b/);
 });
 
-test("cdd-review.mjs: --handoff + mock exit 0 → handoff 含 status DONE", () => {
+test("cdd-review.mjs: --handoff + mock exit 0 → handoff 含 status APPROVED", () => {
   const mock = mkdtempSync(path.join(tmpdir(), "cdd-review.mock-"));
   const handoffDir = mkdtempSync(path.join(tmpdir(), "cdd-handoff-"));
   makeMock(mock, "claude", 'printf "ok\\n"');
@@ -203,7 +203,7 @@ test("cdd-review.mjs: --handoff + mock exit 0 → handoff 含 status DONE", () =
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.ok(existsSync(handoffPath), "handoff file should exist");
   const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-  assert.equal(h.status, "DONE");
+  assert.equal(h.status, "APPROVED");
 });
 
 test("cdd-review.mjs: --handoff + mock exit 1 → handoff 含 status BLOCKED + blocker", () => {

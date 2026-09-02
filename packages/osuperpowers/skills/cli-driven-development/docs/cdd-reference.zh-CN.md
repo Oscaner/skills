@@ -1,6 +1,6 @@
 # CDD CLI Orchestrator Reference (H6–H8)
 
-> Worker discipline 权威来源（SOT）：`../templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`
+> Worker discipline 权威来源（SOT）：`../templates/{implement,task-review,fix}.md`
 > Orchestrator gate 纪律：[`controller-handoff.md`](controller-handoff.md) H1–H5
 > **Rule 0 checklist 语义契约：** Rule 0 的三阶段 phase 标记与关键 token 不是 line-budget 瘦身目标 —— 瘦身不得删除/压缩 checklist 的 phase 结构或关键 token；`bin/engine/tests/templates.test.mjs` 会断言这一点（issue #52 Guard 1）。
 
@@ -93,7 +93,7 @@ Batch 块仍然运行 **一条** 3-mode CLI 链；文件名使用 batch 前缀�
 
 Orchestrator / skill **不得**在 consumer repo 中创建 `cdd-task*` 或 `scripts/cdd-*`。
 
-所有 CLI 入口脚本都在 `packages/osuperpowers/bin/engine/`（`cdd-task.mjs` / `cdd-review.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`）；模板在 `packages/osuperpowers/templates/cdd/`。版本随插件发布同步。`{plugin_root}` 经 `pluginRoot()`（`bin/gate/cdd-gate-core.mjs`）/ [cli-select](../skills/cli-select/SKILL.md) 解析。
+所有 CLI 入口脚本都在 `packages/osuperpowers/bin/engine/`（`cdd-task.mjs` / `cdd-review.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`）；模板在 `packages/osuperpowers/skills/cli-driven-development/templates/` + `packages/osuperpowers/skills/_templates/`。版本随插件发布同步。`{plugin_root}` 经 `pluginRoot()`（`bin/gate/cdd-gate-core.mjs`）/ [cli-select](../skills/cli-select/SKILL.md) 解析。
 
 ## H8 — CLI opt-in / opt-out
 

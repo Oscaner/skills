@@ -60,17 +60,25 @@ flowchart TD
 
 ### `dispatch-mode`
 
-- **Do**: 构造并执行 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]`（`--scope` 仅 `--mode fix` 时有效；默认 `blocker-only`）。**Background execution**（程序级强化）：必须以 background 模式运行 CLI（harness 支持时用 `run_in_background`，不支持时超时+轮询）。返回后**必须读 handoff.json 判断状态**（Orchestrator handoff 检查义务——#181 核心）：解析 `status` 字段（APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT），**不凭 stdout 是否为空判断有无变更**。**超时处理**：若 `invokeCli` 返回 `timedOut: true`，读 `progress.md` `timeoutCount` 并路由到 `timeout-decision`（digraph 中的决策节点）。brief 生成使用 `--task N` 索引（CDD 级唯一索引——#185 fix 后语义）。scope 默认 `blocker-only`；deferred-sweep 仅当 deferred-disposition 决策为 fix-now 时启用。
-- **Read**: `CDD_HANDOFF_PATH`（`task-N-handoff.json`）+ open-findings（fix mode 时）+ brief 生成依赖的 plan 段落 + `progress.md`（timeoutCount，超时时）。
+- **Do**: 派发 cdd-task.mjs 前执行以下步骤：
+  1. 生成 brief：`node bin/engine/lib/brief.mjs --task N --plan <path> --output <workspace>/task-N-brief.md`
+  2. 记录 dispatch-time HEAD：`git rev-parse HEAD` → 写入 `progress.json.lastDispatchHead`
+  3. task-review 模式时：通过 review-package 脚本生成 review diff
+  4. **三模式链强制执行（#207）**：fix 模式——验证该 task 的 task-review handoff 存在且 status = APPROVED；否则拒绝 dispatch（报告给用户）
+  5. 派发：`node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]`（`--scope` 仅 `--mode fix` 时有效；默认 `blocker-only`）。**Background execution**（程序级强化）：必须以 background 模式运行 CLI（harness 支持时用 `run_in_background`，不支持时超时+轮询）。返回后**必须读 handoff.json 判断状态**（Orchestrator handoff 检查义务——#181 核心）：解析 `status` 字段（APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT），**不凭 stdout 是否为空判断有无变更**。**超时处理**：若 `invokeCli` 返回 `timedOut: true`，读 `progress.json` `timeoutCount` 并路由到 `timeout-decision`（digraph 中的决策节点）。brief 生成使用 `--task N` 索引（CDD 级唯一索引——#185 fix 后语义）。scope 默认 `blocker-only`；deferred-sweep 仅当 deferred-disposition 决策为 fix-now 时启用。
+- **Read**: `CDD_HANDOFF_PATH`（`task-N-handoff.json`）+ open-findings（fix mode 时）+ brief 生成依赖的 plan 段落 + `progress.json`（timeoutCount，超时时）。
 - **Exit**: 构造 CLI 命令并 spawn → 进入 `handoff-status`（决策节点，按 handoff status 路由）。超时时 → 进入 `timeout-decision`。
-- **Fail**: 嵌套 CLI 失败且 handoff 缺失 → runner.mjs 已写 BLOCKED handoff（含 stderr 进 blocker），本节点读取并路由到 BLOCKED: engine-error。
+- **Fail**: 嵌套 CLI 失败且 handoff 缺失 → runner.mjs 已写 BLOCKED handoff（含 stderr 进 blocker），本节点读取并路由到 BLOCKED: engine-error。三模式链强制执行违规（fix dispatch 无先前 task-review APPROVED）→ 报告给用户，拒绝 dispatch。
 
 ### `handoff-status`（决策节点）
 
-- **Do**: 读 `handoff.json` 的 `status` 字段，路由到对应出口。
+- **Do**: 读 `handoff.json` 的 `status` 字段。路由前执行 commit-contract 验证：
+  1. `node bin/engine/lib/contract.mjs --check-dirty` — dirty tree → 路由到 BLOCKED: engine-error
+  2. `node bin/engine/lib/contract.mjs --check-head --handoff <path> --progress <path>` — head 不匹配 → 路由到 BLOCKED: engine-error
+  然后按 status 路由：`APPROVED` → `task-complete?`；`CHANGES_REQUESTED` → dispatch-mode（fix mode，blocker-only scope；dispatch-mode 内部维护 fix-round 计数器，≥ 5 时路由到 BLOCKED: fix-loop-exhausted）；`BLOCKED` → `engine-recovery`（决策节点——读 blocker 判断可修复性；可修复 + retry<2 → 重 dispatch 同 mode；不可修复/retry≥2 → BLOCKED: engine-error；retry 计数器通过 `progress.md` `engine-recovery-count` 管理，不走 `handoff.json.retryCount`——见下方 §D 偏差声明）；`TIMEOUT` → `timeout-decision`（决策节点——读 `progress.md` `timeoutCount`；< 2 + CLI stdout 存在 → 重试 dispatch-mode；≥ 2 或 SIGKILL / 零输出 → BLOCKED: timeout-exhausted）；`NEEDS_CONTEXT` → **implicit fail-open**（orchestrator 手工调查后以相同 mode 重派 dispatch-mode；不在 digraph 中作为边）。
 - **Read**: `handoff.json`。
 - **Exit**: `APPROVED` → `task-complete?`；`CHANGES_REQUESTED` → dispatch-mode（fix mode，blocker-only scope；dispatch-mode 内部维护 fix-round 计数器，≥ 5 时路由到 BLOCKED: fix-loop-exhausted）；`BLOCKED` → `engine-recovery`（决策节点——读 blocker 判断可修复性；可修复 + retry<2 → 重 dispatch 同 mode；不可修复/retry≥2 → BLOCKED: engine-error；retry 计数器通过 `progress.md` `engine-recovery-count` 管理，不走 `handoff.json.retryCount`——见下方 §D 偏差声明）；`TIMEOUT` → `timeout-decision`（决策节点——读 `progress.md` `timeoutCount`；< 2 + CLI stdout 存在 → 重试 dispatch-mode；≥ 2 或 SIGKILL / 零输出 → BLOCKED: timeout-exhausted）；`NEEDS_CONTEXT` → **implicit fail-open**（orchestrator 手工调查后以相同 mode 重派 dispatch-mode；不在 digraph 中作为边）。
-- **Fail**: `status` 字段缺失或非法（非 APPROVED/CHANGES_REQUESTED/BLOCKED 之一；NEEDS_CONTEXT 为已知但隐式处理的状态，由 Exit 字段的 fail-open 路径处理，不走此 Fail 分支）。
+- **Fail**: commit-contract 验证失败（dirty tree 或 head 不匹配）→ BLOCKED: engine-error。`status` 字段缺失或非法（非 APPROVED/CHANGES_REQUESTED/BLOCKED 之一；NEEDS_CONTEXT 为已知但隐式处理的状态，由 Exit 字段的 fail-open 路径处理，不走此 Fail 分支）。
 
 ### `engine-recovery`（决策节点）
 
@@ -111,7 +119,11 @@ flowchart TD
 
 ### `deferred-sweep-loop`
 
-- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 处理全部 deferred findings——"pure record" nits 也不例外。sweep 完成（agentRc=0）后 runner.mjs 自动清空 `findings[]` 并写入 `status: APPROVED`（#191 sweep收口）；agentRc≠0 → findings 保留，status 不动。sweep 后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Controller 约束**：deferred findings 修复必须走本节点 `--mode fix` dispatch；禁止在引擎 CLI 路径之外手写修复（见 I7）。
+- **Do**: 按 task 单独跑 deferred-sweep：对每 task 的 `findings[].deferred=true` 项，派发 `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep`（fix 双通道：deferred-sweep）；sweep 处理全部 deferred findings——"pure record" nits 也不例外。fix CLI 返回且 agent exit code = 0 后：
+  1. `node bin/engine/lib/contract.mjs --clear-findings --handoff <path>`（原地清空 `findings[]`）
+  2. 设置 handoff.status = "APPROVED"
+  3. 追加该 task 的 `Task N: complete` 到 ledger
+  继续下一 task 的 sweep。sweep 后 task-review re-review（验证修复）；若 re-review 返回新 blocker → 走 fix 循环（≤ 5 轮）；re-review APPROVED → ledger 追加该 task `Task N: complete` 行（节点内部簿记，不产生 digraph 边）→ 继续下一 task 的 sweep。**Controller 约束**：deferred findings 修复必须走本节点 `--mode fix` dispatch；禁止在引擎 CLI 路径之外手写修复（见 I7）。
 - **Read**: 每 task 的 handoff + fix 模式返回的 handoff 更新。
 - **Exit**: 所有 deferred-sweep task 完成（re-review APPROVED）→ `branch-review`。
 - **Fail**: 某 task sweep 陷入 fix-loop-exhausted → BLOCKED: fix-loop-exhausted。

@@ -13,6 +13,9 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 import {
   validateCommitContract,
@@ -276,4 +279,87 @@ test("gitCatFileCommitExists: empty string → false", () => {
 test("gitCatFileCommitExists: null → false", () => {
   const repo = setupRepo();
   assert.equal(gitCatFileCommitExists(null, repo), false);
+});
+
+// --- CLI entry point tests ---
+
+const CONTRACT_MJS = path.resolve(HERE, "../lib/contract.mjs");
+
+function cliRun(repo, ...args) {
+  try {
+    const stdout = execFileSync(process.execPath, [CONTRACT_MJS, ...args], {
+      cwd: repo,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return { exitCode: 0, stdout: stdout.trim() };
+  } catch (e) {
+    return { exitCode: e.status, stdout: (e.stdout || "").trim() };
+  }
+}
+
+test("CLI --check-dirty: clean tree → exit 0, dirty:false", () => {
+  const repo = setupRepo();
+  const r = cliRun(repo, "--check-dirty");
+  assert.equal(r.exitCode, 0);
+  assert.deepEqual(JSON.parse(r.stdout), { dirty: false });
+});
+
+test("CLI --check-dirty: dirty tree → exit 1, dirty:true + files", () => {
+  const repo = setupRepo();
+  writeFileSync(path.join(repo, "untracked.txt"), "oops");
+  const r = cliRun(repo, "--check-dirty");
+  assert.equal(r.exitCode, 1);
+  const parsed = JSON.parse(r.stdout);
+  assert.equal(parsed.dirty, true);
+  assert.ok(Array.isArray(parsed.files));
+});
+
+test("CLI --clear-findings: clears findings array in handoff", () => {
+  const repo = setupRepo();
+  const handoffPath = path.join(repo, "cdd", "task-1-handoff.json");
+  mkdirSync(path.join(repo, "cdd"), { recursive: true });
+  writeFileSync(handoffPath, JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    artifacts: {}, findings: [{ severity: "blocker", summary: "x" }],
+  }));
+  const r = cliRun(repo, "--clear-findings", "--handoff", handoffPath);
+  assert.equal(r.exitCode, 0);
+  assert.deepEqual(JSON.parse(r.stdout), { cleared: true });
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.deepEqual(h.findings, []);
+});
+
+test("CLI --check-head: valid head (matches) → exit 0, valid:true", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const handoffPath = path.join(repo, "cdd", "task-1-handoff.json");
+  const progressPath = path.join(repo, "cdd", "progress.json");
+  mkdirSync(path.join(repo, "cdd"), { recursive: true });
+  writeFileSync(handoffPath, JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    artifacts: {}, findings: [], commits: { base: head, head },
+  }));
+  writeFileSync(progressPath, JSON.stringify({ lastDispatchHead: head }));
+  const r = cliRun(repo, "--check-head", "--handoff", handoffPath, "--progress", progressPath);
+  assert.equal(r.exitCode, 0);
+  assert.deepEqual(JSON.parse(r.stdout), { valid: true });
+});
+
+test("CLI --check-head: head mismatch → exit 1, valid:false + reason", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const handoffPath = path.join(repo, "cdd", "task-1-handoff.json");
+  const progressPath = path.join(repo, "cdd", "progress.json");
+  mkdirSync(path.join(repo, "cdd"), { recursive: true });
+  writeFileSync(handoffPath, JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    artifacts: {}, findings: [], commits: { base: head, head },
+  }));
+  writeFileSync(progressPath, JSON.stringify({ lastDispatchHead: "0000000000000000000000000000000000000000" }));
+  const r = cliRun(repo, "--check-head", "--handoff", handoffPath, "--progress", progressPath);
+  assert.equal(r.exitCode, 1);
+  const parsed = JSON.parse(r.stdout);
+  assert.equal(parsed.valid, false);
+  assert.match(parsed.reason, /head mismatch/);
 });

@@ -1,6 +1,6 @@
 # Handoff Schema (task-N-handoff.json)
 
-Single source of truth for task-N-handoff.json — cited by [`controller-handoff.md`](controller-handoff.md) (H2 / H4 / H5) and each segment of `templates/cdd/_handoff-write-fragment.md`.
+Single source of truth for task-N-handoff.json — cited by [`controller-handoff.md`](controller-handoff.md) (H2 / H4 / H5) and each segment of the CDD mode templates ([`implement.md`](../templates/implement.md), [`task-review.md`](../templates/task-review.md), [`fix.md`](../templates/fix.md)).
 
 ## Status by segment
 

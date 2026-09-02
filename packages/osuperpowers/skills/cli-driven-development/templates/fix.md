@@ -29,7 +29,7 @@
    - 本轮无 fix 范围改动（相对 `FIX_BASE` 无 diff）→ 不提交，`head` 保持原样。
    - 返回时仍有未提交改动 → `status: BLOCKED`（`cdd-task.mjs --harness <name>` 会强制校验）。
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
-6. Write handoff per `_handoff-write-fragment.md` fix segment.
+6. Write handoff per `## Handoff Output` below.
 7. Do **not** write ledger.
 
 ## Return (H1 — stdout only)
@@ -44,3 +44,26 @@ blocker: <none|one-line>
 ```
 
 Fix prose and test output live in files only.
+
+## Handoff Output
+
+Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) from file paths only (per [`controller-handoff.md`](../docs/controller-handoff.md) H1–H2 file-only discipline).
+
+### Segment: fix
+
+1. Read handoff.json + open-findings.json.
+2. Resolve non-deferred findings per fix outcome (remove fixed / update remaining).
+3. **Preserve all `deferred: true` findings** from prior handoff `findings[]` — deferred
+   items never enter the fix loop and never drop across rounds (blocker-only scope).
+   **Exception: deferred-sweep scope** — sweep-resolved findings are removed from `findings[]`
+   (fully resolved, not retained as deferred); unresolved findings remain `deferred: true`.
+4. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
+5. `commits.base` = `{{FIXED_POINT}}` (fix dispatch `FIX_BASE`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
+
+### Self-validate
+
+Before H1: `jq . {{HANDOFF}}` → check status/commits.base/commits.head non-null. Fail → `status: BLOCKED`.
+
+### Atomicity
+
+Implement+handoff in one process. Handoff write fails → H1 `status: BLOCKED`. Retry → full mode re-run (idempotent).

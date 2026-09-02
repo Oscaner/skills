@@ -106,3 +106,47 @@ test("generateBrief #185: task 2 不存在（仅 Task 1）→ throw CDD-level in
     /task 2 not found \(CDD-level index; plan must contain '### Task N:' heading\)/,
   );
 });
+
+// --- CLI entry point tests ---
+
+const BRIEF_MJS = path.resolve(HERE, "../lib/brief.mjs");
+
+function cliRun(repo, ...args) {
+  try {
+    const stdout = execFileSync(process.execPath, [BRIEF_MJS, ...args], {
+      cwd: repo,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return { exitCode: 0, stdout: stdout.trim() };
+  } catch (e) {
+    return { exitCode: e.status, stdout: (e.stdout || "").trim() };
+  }
+}
+
+test("CLI --task N --plan --output: success → exit 0, brief path", () => {
+  const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "brief-cli-")));
+  gitInit(repo);
+  const planFile = path.join(repo, "plan.md");
+  writeFileSync(planFile, "# Plan\n\n### Task 1: First task\nDo stuff\n");
+  gitCommit(repo);
+  const outPath = path.join(repo, "task-1-brief.md");
+  const r = cliRun(repo, "--task", "1", "--plan", planFile, "--output", outPath);
+  assert.equal(r.exitCode, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.equal(parsed.brief, outPath);
+  const content = readFileSync(outPath, "utf8");
+  assert.match(content, /^### Task 1:/m);
+  assert.match(content, /^TASK_BASE: [0-9a-f]{40}$/m);
+});
+
+test("CLI --task N: missing task → exit 1, stderr contains error", () => {
+  const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "brief-cli-err-")));
+  gitInit(repo);
+  const planFile = path.join(repo, "plan.md");
+  writeFileSync(planFile, "# Plan\n\n### Task 1: First task\nDo stuff\n");
+  gitCommit(repo);
+  const outPath = path.join(repo, "task-99-brief.md");
+  const r = cliRun(repo, "--task", "99", "--plan", planFile, "--output", outPath);
+  assert.equal(r.exitCode, 1);
+});

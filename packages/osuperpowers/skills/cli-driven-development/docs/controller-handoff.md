@@ -35,7 +35,7 @@ Fix loop is capped at **5 rounds**; exceeding the cap → STOP + escalate (ask h
 
 ### Rule: Inline Handoff
 
-Handoff writes are inlined in each mode template (`templates/cdd/{implement,task-review,fix}.md` + `_handoff-write-fragment.md`); there is no standalone handoff mode. The orchestrator must not merge Standards/Spec prose on its own.
+Handoff writes are inlined in each mode template (`templates/{implement,task-review,fix}.md`); there is no standalone handoff mode. The orchestrator must not merge Standards/Spec prose on its own.
 
 ---
 

@@ -620,40 +620,6 @@ test("normalizeHandoffStatus: TIMEOUT passthrough", async () => {
   assert.equal(normalizeHandoffStatus("TIMEOUT"), "TIMEOUT");
 });
 
-test("readTimeoutCount: no header → 0", async () => {
-  const { readTimeoutCount } = await import("../lib/runner.mjs");
-  const dir = mkdtempSync(path.join(tmpdir(), "tc-read-"));
-  const p = path.join(dir, "progress.md");
-  writeFileSync(p, "# CDD ledger\nTask 1: complete\n");
-  assert.equal(readTimeoutCount(p), 0);
-});
-
-test("readTimeoutCount: header present → parsed value", async () => {
-  const { readTimeoutCount } = await import("../lib/runner.mjs");
-  const dir = mkdtempSync(path.join(tmpdir(), "tc-read2-"));
-  const p = path.join(dir, "progress.md");
-  writeFileSync(p, "# CDD ledger\n# timeoutCount: 3\nTask 1: complete\n");
-  assert.equal(readTimeoutCount(p), 3);
-});
-
-test("writeTimeoutCount: creates header + read returns value", async () => {
-  const { readTimeoutCount, writeTimeoutCount } = await import("../lib/runner.mjs");
-  const dir = mkdtempSync(path.join(tmpdir(), "tc-write-"));
-  const p = path.join(dir, "progress.md");
-  writeFileSync(p, "# CDD ledger\n");
-  writeTimeoutCount(p, 1);
-  assert.equal(readTimeoutCount(p), 1);
-});
-
-test("writeTimeoutCount: increments existing header", async () => {
-  const { readTimeoutCount, writeTimeoutCount } = await import("../lib/runner.mjs");
-  const dir = mkdtempSync(path.join(tmpdir(), "tc-inc-"));
-  const p = path.join(dir, "progress.md");
-  writeFileSync(p, "# CDD ledger\n# timeoutCount: 2\n");
-  writeTimeoutCount(p, 3);
-  assert.equal(readTimeoutCount(p), 3);
-});
-
 test("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-timeout-"));

@@ -111,7 +111,8 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope } 
   return env;
 }
 
-// 对齐 _cdd_plan_from_ledger：ledger 首行 `# CDD ledger — plan: <path>`。
+// 对齐 _cdd_plan_from_ledger：legacy fallback — 仅对迁移前的 progress.md（首行
+// `# CDD ledger — plan: <path>`）生效；progress.json 不含该行，正则不匹配时返回 ""。
 function backfillPlanFromLedger(ledgerPath) {
   if (!ledgerPath || !existsSync(ledgerPath)) return "";
   const first = readFileSync(ledgerPath, "utf8").split("\n", 1)[0] ?? "";
@@ -569,35 +570,6 @@ export function taskNumbersFromPlan(planFile) {
 function ledgerComplete(n, ledgerPath) {
   if (!ledgerPath || !existsSync(ledgerPath)) return false;
   return new RegExp(`^Task ${n}: complete`).test(readFileSync(ledgerPath, "utf8"));
-}
-
-// ---- timeoutCount helpers ----
-// progress.md 新增 `# timeoutCount: N` header 行（plain-text 格式，与 `Task N: complete` 行风格一致）。
-
-// readTimeoutCount：读取 progress.md 中的 `# timeoutCount: N` header；缺失 → 0。
-export function readTimeoutCount(progressPath) {
-  if (!progressPath || !existsSync(progressPath)) return 0;
-  const content = readFileSync(progressPath, "utf8");
-  const m = content.match(/^# timeoutCount: (\d+)/m);
-  return m ? Number(m[1]) : 0;
-}
-
-// writeTimeoutCount：写入/更新 progress.md 中的 `# timeoutCount: N` header。
-// 若 header 不存在则追加到文件开头（在 `# CDD ledger` 行之后）；已存在则替换。
-export function writeTimeoutCount(progressPath, n) {
-  if (!progressPath) return;
-  let content = existsSync(progressPath) ? readFileSync(progressPath, "utf8") : "";
-  const line = `# timeoutCount: ${n}`;
-  if (/^# timeoutCount: \d+/m.test(content)) {
-    content = content.replace(/^# timeoutCount: \d+/m, line);
-  } else {
-    // Insert after the first line (the `# CDD ledger` header line) or at the top
-    const lines = content.split("\n");
-    const firstLine = lines[0] ?? "";
-    lines.splice(1, 0, line);
-    content = lines.join("\n");
-  }
-  writeFileSync(progressPath, content);
 }
 
 // 对齐 _handoff_status：缺失 → "MISSING"；损坏 → "UNKNOWN"；否则 status // "UNKNOWN"。

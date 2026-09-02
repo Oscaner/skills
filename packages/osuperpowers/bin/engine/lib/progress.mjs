@@ -4,7 +4,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-export const PROGRESS_SCHEMA = {
+const PROGRESS_SCHEMA = {
   required: ["plan", "timeoutCount", "engineRecoveryCount", "lastDispatchHead", "tasks", "degradationLog"],
   tasksItem: { required: ["task", "status"], statusEnum: ["pending", "complete"] },
   degradationLogItem: {

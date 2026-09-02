@@ -2,9 +2,8 @@
 // generateBrief: mechanically extract ### Task N: section from plan, append TASK_BASE, write file.
 //   第 4 参数 repoRoot：取该目录所在仓库的 HEAD 作 TASK_BASE（#173 —— 与调用方 cwd 解耦）。
 // validateBrief: check brief contains TASK_BASE: line.
-import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { gitRevParseHead } from "./contract.mjs";
+import { gitRevParseHead, gitToplevel } from "./contract.mjs";
 
 export function generateBrief(planFile, taskNum, outPath, repoRoot) {
   if (!existsSync(planFile)) throw new Error(`plan file not found: ${planFile}`);
@@ -29,17 +28,17 @@ export function validateBrief(briefPath) {
 }
 
 // --- CLI entry point (orchestrator calls via node brief.mjs --task N --plan <path> --output <path>) ---
-if (process.argv[1] && process.argv[1].endsWith('brief.mjs') && process.argv.length > 2) {
+if (process.argv[1] && process.argv[1].endsWith("brief.mjs") && process.argv.length > 2) {
   const args = process.argv.slice(2);
-  const taskIdx = args.indexOf('--task');
-  const planIdx = args.indexOf('--plan');
-  const outputIdx = args.indexOf('--output');
+  const taskIdx = args.indexOf("--task");
+  const planIdx = args.indexOf("--plan");
+  const outputIdx = args.indexOf("--output");
   const taskNum = parseInt(args[taskIdx + 1]);
   const planPath = planIdx >= 0 ? args[planIdx + 1] : undefined;
   const outputPath = outputIdx >= 0 ? args[outputIdx + 1] : undefined;
 
   try {
-    const repoRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
+    const repoRoot = gitToplevel();
     generateBrief(planPath, taskNum, outputPath, repoRoot);
     process.stdout.write(JSON.stringify({ brief: outputPath }));
     process.exit(0);

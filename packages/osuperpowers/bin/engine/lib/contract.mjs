@@ -159,20 +159,20 @@ export function validateCommitContract(mode, repoRoot, opts = {}) {
 }
 
 // --- CLI entry point (orchestrator calls via node contract.mjs --check-head ...) ---
-if (process.argv[1] && process.argv[1].endsWith('contract.mjs') && process.argv.length > 2) {
+if (process.argv[1] && process.argv[1].endsWith("contract.mjs") && process.argv.length > 2) {
   const args = process.argv.slice(2);
   const flag = args[0];
-  const handoffIdx = args.indexOf('--handoff');
-  const progressIdx = args.indexOf('--progress');
+  const handoffIdx = args.indexOf("--handoff");
+  const progressIdx = args.indexOf("--progress");
   const handoffPath = handoffIdx >= 0 ? args[handoffIdx + 1] : null;
   const progressPath = progressIdx >= 0 ? args[progressIdx + 1] : null;
 
-  if (flag === '--check-head') {
-    const progress = JSON.parse(readFileSync(progressPath, 'utf8'));
+  if (flag === "--check-head") {
+    const progress = JSON.parse(readFileSync(progressPath, "utf8"));
     const lastDispatchHead = progress.lastDispatchHead;
-    const actualHead = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-    const handoff = JSON.parse(readFileSync(handoffPath, 'utf8'));
-    const { validateHandoffSchema } = await import('./schema-utils.mjs');
+    const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
+    const { validateHandoffSchema } = await import("./schema-utils.mjs");
     const sv = validateHandoffSchema(handoff);
     if (!sv.valid) {
       process.stdout.write(JSON.stringify({ valid: false, reason: sv.reason }));
@@ -186,10 +186,10 @@ if (process.argv[1] && process.argv[1].endsWith('contract.mjs') && process.argv.
     process.exit(0);
   }
 
-  if (flag === '--check-dirty') {
-    const status = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim();
+  if (flag === "--check-dirty") {
+    const status = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim();
     if (status) {
-      const files = status.split('\n').map(l => l.substring(3));
+      const files = status.split("\n").map(l => l.substring(3));
       process.stdout.write(JSON.stringify({ dirty: true, files }));
       process.exit(1);
     }
@@ -197,8 +197,8 @@ if (process.argv[1] && process.argv[1].endsWith('contract.mjs') && process.argv.
     process.exit(0);
   }
 
-  if (flag === '--clear-findings') {
-    const handoff = JSON.parse(readFileSync(handoffPath, 'utf8'));
+  if (flag === "--clear-findings") {
+    const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
     handoff.findings = [];
     writeFileSync(handoffPath, JSON.stringify(handoff, null, 2));
     process.stdout.write(JSON.stringify({ cleared: true }));

@@ -41,6 +41,10 @@ Charter only — no implementation detail。
 | Pδ | [#207](https://github.com/Oscaner/skills/issues/207) | CDD 执行流程完全未遵守：跳过 select-harness/determine-base/dispatch-mode，直接手写代码 |
 | Pδ | [#210](https://github.com/Oscaner/skills/issues/210) | deferred-sweep 被 commit-contract F1 误拦：sweep 运行时 HEAD 已前进导致 handoff commits.head mismatch |
 | Pδ | [#211](https://github.com/Oscaner/skills/issues/211) | cli-driven-development 重构：engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化，所有任务强制执行） |
+| Pε | [#208](https://github.com/Oscaner/skills/issues/208) | report-issue skill + issue templates 缺消费者隐私数据脱敏指引 |
+| Pε | [#209](https://github.com/Oscaner/skills/issues/209) | 删除 osuperpowers-router 插件（不再需要 trigger router） |
+| Pε | [#71](https://github.com/Oscaner/skills/issues/71) | writing-plans Section-by-Section I2 规则与 Edit 锚点重复冲突——移除 I2，尊重上游编写规范 |
+| Pε | (zh-CN cleanup) | 删除 packages/osuperpowers/skills 下所有 .zh-CN.md 镜像文件 |
 
 ---
 
@@ -51,17 +55,18 @@ Charter only — no implementation detail。
 | Pα | engine-fixes：#200 phantom SHA 校验 + #176 跨任务边界约束 + #175 task-review mode 守卫 + #191 deferred-sweep 清零 | Done | Done | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-alpha.md) | Done | ① `gitCatFileCommitExists` 导出 + 单测；② runner.mjs 集成测试；③ implement.md/fix.md 边界约束；④ runner.mjs mode-phase 守卫 + 单测；⑤ task-review.md findings 写入指令；⑥ sweep 收口 findings 清空；⑦ validate 绿 | Pβ |
 | Pβ | skill-fixes：#198/#184 task heading 强制 + #195/#196 docs-review 重写 + #194 report-issue dedup 扩展 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-beta-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-beta.md) | Pending | 见 phase spec | Pγ |
 | Pγ | anti-patterns + brainstorming 重写：#206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-gamma-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-gamma.md) | Done | 见 phase spec | Pδ |
-| Pδ | CDD 重构：#207 CDD 执行流程绕过修复 + #210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | [design](./2026-09-01-post-dogfood-bugfixes-p-delta-design.md) | [plan](../plans/2026-09-01-post-dogfood-bugfixes-p-delta.md) | Done | Pending | 见 phase spec | 无 |
+| Pδ | CDD 重构：#207 CDD 执行流程绕过修复 + #210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | [design](./2026-09-01-post-dogfood-bugfixes-p-delta-design.md) | [plan](../plans/2026-09-01-post-dogfood-bugfixes-p-delta.md) | Done | Pending | 见 phase spec | Pε |
+| Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 | Pending | Pending | Pending | 见 phase spec | — |
 
 ---
 
 ## Dependency graph (ASCII)
 
 ```
-Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + brainstorming) ──→ Pδ (CDD refactoring)
+Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + brainstorming) ──→ Pδ (CDD refactoring) ──→ Pε (cleanup + simplification)
 ```
 
-**说明**：Pα→Pβ→Pγ→Pδ 串行依赖。Pδ 的 CDD 重构依赖 Pγ 的 brainstorming 重写完成（确保 CDD skill 本身格式规范后再重构）。Pδ 含 #210 commit-contract scope-aware 修复 + #211 系统性重构。
+**说明**：Pα→Pβ→Pγ→Pδ→Pε 串行依赖。Pδ 的 CDD 重构依赖 Pγ 的 brainstorming 重写完成（确保 CDD skill 本身格式规范后再重构）。Pε 为收尾 phase：#208 隐私脱敏 + #209 router 删除 + #71 writing-plans I2 移除 + zh-CN 镜像清理。
 
 ---
 
@@ -83,3 +88,4 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.11 | 2026-08-31 | Pγ Design spec = Done（brainstorming complete）；mode-aware branching + skill-authoring §10 Anti-patterns | [human] · Claude Opus 4.8 |
 | v1.12 | 2026-08-31 | Pγ Plan = Done（writing-plans complete）；7-task implementation plan committed | [human] · Claude Opus 4.8 |
 | v1.13 | 2026-09-01 | Pδ Design spec = Done（brainstorming complete）；三层架构重划分 + handoff schema 重构 + 模板目录重组 + progress 结构化 | [human] · Claude Opus 4.8 |
+| v1.14 | 2026-09-02 | 新增 Pε（cleanup + simplification）：#208 report-issue 隐私脱敏 + #209 router 删除 + #71 I2 移除 + zh-CN 清理；串行依赖 Pδ→Pε | [human] · Claude Opus 4.8 |

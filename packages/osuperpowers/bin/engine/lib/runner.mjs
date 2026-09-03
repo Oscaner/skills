@@ -332,11 +332,12 @@ function dryRunH1Block(env, taskNum) {
 
 // ---- runTask / runPlan ----
 
-// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot, scriptsDir }。
+// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot, scriptsDir, invokeCliOverride }。
 // scriptsDir：DI 透传至 runReviewPackage（测试 seam，不改生产行为）。
+// invokeCliOverride：test seam — async (briefPath, workspace, env) => { rc, stdout, stderr }。
 // 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
-  const { mode, planFile, dryRun = false, noExit = false } = opts;
+  const { mode, planFile, dryRun = false, noExit = false, invokeCliOverride = null } = opts;
   const probeSkills = opts.probeSkills;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
   const channelMap = opts.channelMap ?? probeConfig.channel;
@@ -465,6 +466,14 @@ export async function runTask(harness, taskNum, opts = {}) {
   let unkillable = false;
   if (dryRun) {
     agentOut = dryRunH1Block(env, taskNum);
+  } else if (invokeCliOverride) {
+    // Test seam: invokeCliOverride(briefPath, workspace, env) → { rc, stdout, stderr }
+    const { rc, stdout, stderr } = await invokeCliOverride(env.CDD_TASK_BRIEF, workspace, env);
+    agentRc = rc !== 0 ? rc : 0;
+    agentOut = rc === 0 ? stdout : "";
+    cliStderr = stderr;
+    timedOut = false;
+    unkillable = false;
   } else {
     const timeoutMs = resolveTimeoutMs(env, "task");
     const res = await invokeCli(entry, prompt, mode, env, cwd, timeoutMs);

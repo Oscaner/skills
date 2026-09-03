@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus,
          findSuperpowersScriptsDir, byVersion, runReviewPackage, resolveRepoRoot,
          spawnCapture, buildTaskEnv } from "../lib/runner.mjs";
+import { getRound } from "../lib/progress.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -850,4 +851,103 @@ test("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT 
   const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   assert.equal(res.exitCode, 0, "task-review with 'unknown' base should still exit 0 (dryRun HEAD~1 fallback)");
   assert.equal(res.h1[0], "status: APPROVED");
+});
+
+// ---- T13: invokeCliOverride seam tests ----
+
+// Helper: assert a handoff file has artifacts + → message
+function assertBlockedHandoffValid(handoffPath) {
+  assert.ok(existsSync(handoffPath), `BLOCKED handoff must be written: ${handoffPath}`);
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.equal(h.status, "BLOCKED");
+  assert.ok(h.artifacts !== undefined, "BLOCKED handoff must have artifacts: {}");
+  assert.match(h.blocker, /→/, "BLOCKED blocker must contain → action");
+}
+
+test("runTask: step 8.8 BLOCKED handoff is schema-valid (has artifacts)", async () => {
+  const ws = setupWorkspace();
+  // Pre-seed an invalid handoff (missing artifacts) at the per-round path.
+  // invokeCliOverride exits 0 without touching the file, so step 8.8 reads the pre-seeded invalid handoff.
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED", findings: [],
+    // no artifacts — schema invalid → triggers step 8.8
+  }));
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 0, stdout: "", stderr: "" }),
+  });
+  assert.equal(res.exitCode, 1);
+  assertBlockedHandoffValid(path.join(ws, "task-1-implement.json"));
+});
+
+test("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action message", async () => {
+  const ws = setupWorkspace();
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 1, stdout: "", stderr: "some error" }),
+  });
+  assert.equal(res.exitCode, 1);
+  assertBlockedHandoffValid(path.join(ws, "task-1-implement.json"));
+});
+
+test("runTask: step 10.5 BLOCKED when cli exits 0 but handoff not written", async () => {
+  const ws = setupWorkspace();
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    findings: [], artifacts: {}, commits: { base: "a".repeat(40) },
+  }));
+  const res = await runTask("claude", 1, {
+    mode: "task-review", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 0, stdout: "", stderr: "" }),
+  });
+  assert.equal(res.exitCode, 1, "step 10.5 BLOCKED must exit 1");
+  assertBlockedHandoffValid(path.join(ws, "task-1-task-review-1.json"));
+});
+
+test("runTask: per-round buildTaskEnv — task-review derives task-1-task-review-1.json", async () => {
+  const ws = setupWorkspace();
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "task-review", "claude", { round: 1 });
+  assert.ok(env.CDD_HANDOFF_PATH.endsWith("task-1-task-review-1.json"),
+    `expected task-1-task-review-1.json, got: ${env.CDD_HANDOFF_PATH}`);
+});
+
+test("runTask: implement derives task-1-implement.json (no round suffix)", async () => {
+  const ws = setupWorkspace();
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "implement", "claude", { round: 1 });
+  assert.ok(env.CDD_HANDOFF_PATH.endsWith("task-1-implement.json"),
+    `expected task-1-implement.json, got: ${env.CDD_HANDOFF_PATH}`);
+});
+
+test("runTask: BLOCKED message contains diagnosis → action format", async () => {
+  const ws = setupWorkspace();
+  await runTask("claude", 1, {
+    mode: "implement", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 1, stdout: "", stderr: "test error" }),
+  });
+  if (existsSync(path.join(ws, "task-1-implement.json"))) {
+    const h = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
+    if (h.blocker) assert.match(h.blocker, /→/, "BLOCKED message must contain →");
+  }
+});
+
+test("runTask: round-2 buildTaskEnv derives task-1-task-review-2.json", async () => {
+  const ws = setupWorkspace();
+  const progressPath = path.join(ws, "progress.json");
+  const prog = JSON.parse(readFileSync(progressPath, "utf8"));
+  if (!prog.tasks.find(t => t.task === 1)) prog.tasks.push({ task: 1, status: "pending", rounds: {} });
+  prog.tasks.find(t => t.task === 1).rounds = { "task-review": 1 }; // round 1 completed
+  writeFileSync(progressPath, JSON.stringify(prog, null, 2));
+
+  // buildTaskEnv with round=2 derives task-1-task-review-2.json
+  const taskEnv = buildTaskEnv(baseEnv(ws), ws, 1, "task-review", "claude", { round: 2 });
+  assert.ok(taskEnv.CDD_HANDOFF_PATH.endsWith("task-1-task-review-2.json"),
+    `expected task-1-task-review-2.json, got: ${taskEnv.CDD_HANDOFF_PATH}`);
+
+  // getRound returns 2 (last completed=1, next=2)
+  const updated = JSON.parse(readFileSync(progressPath, "utf8"));
+  assert.equal(getRound(updated, 1, "task-review"), 2);
 });

@@ -306,3 +306,15 @@ test("renderModePrompt: TASK env not set → stub.task=0 (parseInt fallback)", (
   const out = renderModePrompt("implement", env);
   assert.ok(out.includes('"task": 0'), "stub.task=0 when TASK env missing");
 });
+
+// ---- T13: docs schema renderHandoffStub ----
+
+test("renderHandoffStub: docs schema → doc_path field, no task field", () => {
+  // PLUGIN_ROOT is already defined above as packages/osuperpowers
+  const docsSchema = JSON.parse(readFileSync(
+    path.join(PLUGIN_ROOT, "skills/_templates/docs-handoff-schema.json"), "utf8"
+  ));
+  const stub = renderHandoffStub(docsSchema, "review", undefined, { docPath: "/spec.md" });
+  assert.ok(stub.includes('"doc_path": "/spec.md"'), "doc_path value from docPath option");
+  assert.ok(!stub.includes('"task"'), "no task field for docs schema");
+});

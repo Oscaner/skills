@@ -1340,15 +1340,17 @@
 
 - [ ] **Step 2: Update Review Stopping (I4) in `plan-review` Do field**
 
-  Replace inline Review Stopping description with reference to SOT:
+  Replace inline Review Stopping description with reference to SOT.
+  **Use markdown hyperlink, not backtick-span** (backtick-span `Rule: X` triggers REF_SEM as a dangling same-file reference if the heading does not exist in that SKILL.md):
   ```
-  Review Stopping (I4): follow `### Rule: Review Stopping` in `_docs/docs-review.md`.
+  Review Stopping (I4): follow [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md.
   ```
 
 - [ ] **Step 3: Update I4 invariant text**
 
+  **Use markdown hyperlink** (same REF_SEM constraint as Step 2):
   ```
-  | I4 | **Review Stopping** — see `### Rule: Review Stopping` in `_docs/docs-review.md` |
+  | I4 | **Review Stopping** — see [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md |
   ```
 
 - [ ] **Step 4: Run emit and validate**

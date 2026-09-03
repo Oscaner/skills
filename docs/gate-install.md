@@ -28,7 +28,7 @@ skills to the harness directory.
 
 Gate semantics are unchanged across harnesses: fail-open when no CDD task is active,
 mode-aware (`pending.mode`), git read-only allowlist for `Bash`, and Write paths
-bound to the active workspace. Details → [cross-harness-overrides.md](../packages/osuperpowers-router/docs/cross-harness-overrides.md).
+bound to the active workspace.
 
 ---
 
@@ -272,7 +272,3 @@ Config written ≠ trusted. After install, complete the harness's trust ritual:
 - It only enforces **while a CDD task is active**. No pending → allow (fail-open).
 - It never copies a full tree or uses a `~/.oscaner/` convention — hooks and adapters
   ship inside the package and are referenced by path.
-- It is **not** the trigger router. The superpowers trigger router
-  (`osuperpowers-router`) is a separate plugin; routing is hook-driven
-  (manifest-derived `UserPromptExpansion` on Claude, `cursor-detect` on Cursor).
-  `init harness` installs only the osuperpowers CDD gate.

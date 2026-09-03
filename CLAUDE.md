@@ -10,13 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A **multi-harness AI coding skills marketplace**. Skills work across Claude Code, Cursor, Droid, Pi, Grok, Qoder, Codex, and Gemini. Personal skills are packaged as installable plugins consumed by AI coding harnesses.
 
-Five plugins ship here:
+Four plugins ship here:
 
 1. **osuperpowers** — first-party, in-tree at `packages/osuperpowers/`. osuperpowers orchestration + cli-* family + CDD engine + gate.
-2. **osuperpowers-router** — first-party, in-tree at `packages/osuperpowers-router/`. Trigger router: no skill bodies, maps upstream triggers to osuperpowers/mattpocock targets.
-3. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by osuperpowers orchestrators.
-4. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, to-tickets, research).
-5. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
+2. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by osuperpowers orchestrators.
+3. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, to-tickets, research).
+4. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
 
 ## Package-as-source architecture
 
@@ -40,25 +39,20 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 
 ## Architecture details
 
-- `packages/` — first-party plugins (osuperpowers + osuperpowers-router)
+- `packages/` — first-party plugins (osuperpowers)
 - `vendors/` — upstream submodules (superpowers / mattpocock-skills / impeccable); not edited in-tree
 - `scripts/emit.mjs` — unified emit tool (derives source.json + all harness manifests)
 - `scripts/ci-validate.mjs` — Node validation orchestration
-- `packages/osuperpowers-router/hooks/` — hooks for Claude (`hooks.json`) and Cursor (`hooks-cursor.json`)
 - `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
 - `packages/osuperpowers/bin/engine/` — CDD engine (cdd-task.mjs, cdd-review.mjs, runner.mjs, registry, templates)
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
 
 For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
 
-For overrides trigger router internals, see [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md).
-
 ## Per-package documentation
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
-- [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
 - [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / hooks / releasing)
-- [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin maintainer guide
 - [`docs/maintainers/skill-authoring.md`](docs/maintainers/skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary)
 
 ## Language Architecture
@@ -85,7 +79,7 @@ Two distinct language strategies implement this, depending on file type:
 
 ### Strategy B extension — maintainer docs (docs/maintainers/)
 
-`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the two packages' `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
+`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the package's `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
 
 **Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, **you MUST run `pnpm run emit`** to propagate changes to `.agents/`. This is not optional — omitting it causes CI failure. Running `pnpm run emit:check` verifies no drift.
 

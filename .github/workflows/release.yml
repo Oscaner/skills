@@ -128,8 +128,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: osuperpowers-router
-            tag_prefix: "osuperpowers-router@"
           - name: osuperpowers
             tag_prefix: "osuperpowers@"
     steps:

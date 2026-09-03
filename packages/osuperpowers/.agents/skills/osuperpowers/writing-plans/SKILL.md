@@ -38,7 +38,7 @@ flowchart TD
 
 ### `plan-review`
 
-- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `cdd-review` CLI call: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`. Follow D1/D2/D3 from [docs-review.md](../_docs/docs-review.md). Review Stopping (see I3): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until re-review output shows blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `cdd-review` CLI call: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`. Follow D2/D3 from [docs-review.md](../_docs/docs-review.md) (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (see I3): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until re-review output shows blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Plan document + spec document + [docs-review.md](../_docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?` (present warn/nit)
 - **Fail**: Re-run review after blocker=0 → violates I3. New cdd-review call for warn/nit → violates I3

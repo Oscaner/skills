@@ -160,7 +160,7 @@ flowchart TD
 
 ### `spec-review?`
 
-- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. **Self-review, manual checks, or any other substitute for cdd-review CLI invocation is forbidden.** Follow D1/D2/D3 from `_docs/docs-review.md`. Review Stopping (I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until re-review output shows blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. **Self-review, manual checks, or any other substitute for cdd-review CLI invocation is forbidden.** Follow D2/D3 from `_docs/docs-review.md` (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until re-review output shows blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Spec document + `_docs/docs-review.md`
 - **Exit**: blocker=0 → `user-ok?` (present warn/nit)
 - **Fail**: Re-run review after blocker=0 → violates I5 (Review Stopping). New cdd-review call for warn/nit → violates I5.

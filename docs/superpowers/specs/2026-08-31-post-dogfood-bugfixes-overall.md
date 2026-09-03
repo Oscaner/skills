@@ -1,6 +1,6 @@
 # Post-Dogfood Bugfixes + Anti-Pattern Elimination — Overall Spec
 
-- **Version**: v1.23 · 2026-09-03
+- **Version**: v1.25 · 2026-09-03
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -52,13 +52,13 @@ Charter only — no implementation detail。
 | Pζ | [#220](https://github.com/Oscaner/skills/issues/220) | cdd-task.mjs task-review mode：agent 退出 0 但不写 handoff——H1 output missing，runner 保留旧 implement handoff |
 | Pζ | [#221](https://github.com/Oscaner/skills/issues/221) | CDD handoff templates 旁路 schema SOT——required fields 在 prose 中手动维护而非从 handoff-schema.json 派生 |
 | Pζ | [#222](https://github.com/Oscaner/skills/issues/222) | CDD handoff 各阶段共用 task-N-handoff.json——implement/task-review/fix 相互覆盖，无各阶段独立审计记录 |
-| Pζ | (deferred-sweep elim) | deferred-sweep-loop 消除——fix 不再区分 scope，所有 findings 统一处理 |
-| Pζ | (review-stopping-sot) | Review Stopping 语义统一——unified digraph SOT 写入 docs-review.md，brainstorming/writing-plans 对齐 |
-| Pζ | (review-loop-module) | review-loop.mjs 共享模块提取——CDD + doc-review 复用同一 review→fix loop 抽象 |
-| Pζ | (docs-task-cli) | cdd-review.mjs → docs-task.mjs 重构——新增 review/fix 双 mode，对称 cdd-task.mjs |
-| Pζ | (fix-mode-simplify) | fix-mode 简化——删除 CDD_FINDINGS_SCOPE/deferred/open-findings，全量 findings |
-| Pζ | (user-ok-delete) | user-ok? 节点删除——brainstorming spec-review 后不再有用户 warn/nit 介入点 |
-| Pζ | (maintainer-docs) | CLAUDE.md + maintainer docs 更新——BLOCKED message 格式、Review Stopping、per-phase-per-round 架构 |
+| Pζ | [#224](https://github.com/Oscaner/skills/issues/224) | deferred-sweep-loop 消除——fix 不再区分 scope，所有 findings 统一处理 |
+| Pζ | [#225](https://github.com/Oscaner/skills/issues/225) | Review Stopping 语义统一——unified digraph SOT 写入 docs-review.md，brainstorming/writing-plans 对齐 |
+| Pζ | [#226](https://github.com/Oscaner/skills/issues/226) | review-loop.mjs 共享模块提取——CDD + doc-review 复用同一 review→fix loop 抽象 |
+| Pζ | [#227](https://github.com/Oscaner/skills/issues/227) | cdd-review.mjs → docs-task.mjs 重构——新增 review/fix 双 mode，对称 cdd-task.mjs |
+| Pζ | [#228](https://github.com/Oscaner/skills/issues/228) | fix-mode 简化——删除 CDD_FINDINGS_SCOPE/deferred/open-findings，全量 findings |
+| Pζ | [#229](https://github.com/Oscaner/skills/issues/229) | user-ok? 节点删除——brainstorming spec-review 后不再有用户 warn/nit 介入点 |
+| Pζ | [#230](https://github.com/Oscaner/skills/issues/230) | CLAUDE.md + maintainer docs 更新——BLOCKED message 格式、Review Stopping、per-phase-per-round 架构 |
 
 ---
 
@@ -115,4 +115,4 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.23 | 2026-09-02 | Pζ +#222 per-phase handoff 文件架构——各阶段共用 task-N-handoff.json 相互覆盖；Pζ scope 扩展为文件架构重构 | [human] · Claude Opus 4.8 |
 | v1.23 | 2026-09-03 | Pε Status = Done；Phase inventory Deliverables 填充；Constraints 语言政策 zh-CN 镜像移除 | [human] · Claude Opus 4.8 |
 | v1.24 | 2026-09-03 | Pζ Design spec = Done；scope 扩展为全面重构（+deferred-sweep 消除/Review Stopping 统一/review-loop.mjs/docs-task.mjs/fix-mode 简化/user-ok? 删除/maintainer docs）；Issue inventory +7 新 issue；dependency graph 说明更新 | [human] · Claude Opus 4.8 |
-| v1.25 | 2026-09-03 | Pζ Plan = Done；overall spec 四表同步 | [human] · Claude Opus 4.8 |
+| v1.25 | 2026-09-03 | Pζ Plan = Done；Issue inventory placeholder labels replaced with real issue numbers | [human] · Claude Opus 4.8 |

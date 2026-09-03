@@ -6,7 +6,7 @@
 
 ---
 
-### Task 1 — 物理删除 router 代码
+### Task 1: 物理删除 router 代码
 
 **依赖**：无
 
@@ -26,7 +26,7 @@ rm -f docs/maintainers/osuperpowers-router-plugin.zh-CN.md
 
 ---
 
-### Task 2 — emit pipeline 清理
+### Task 2: emit pipeline 清理
 
 **依赖**：Task 1
 
@@ -62,7 +62,7 @@ rm -f docs/maintainers/osuperpowers-router-plugin.zh-CN.md
 
 ---
 
-### Task 3 — version scripts 清理
+### Task 3: version scripts 清理
 
 **依赖**：Task 1
 
@@ -74,7 +74,7 @@ rm -f docs/maintainers/osuperpowers-router-plugin.zh-CN.md
 
 ---
 
-### Task 4 — osuperpowers 内部引用清理
+### Task 4: osuperpowers 内部引用清理
 
 **依赖**：Task 1
 
@@ -105,7 +105,7 @@ rm -f docs/maintainers/osuperpowers-router-plugin.zh-CN.md
 
 ---
 
-### Task 5 — report-issue 重构
+### Task 5: report-issue 重构
 
 **依赖**：Task 4
 
@@ -159,7 +159,7 @@ SKILL.zh-CN.md 随 Task 7 一并删除，不单独处理。
 
 ---
 
-### Task 6 — 清除 skill 文档中的 issue 编号
+### Task 6: 清除 skill 文档中的 issue 编号
 
 **依赖**：Task 4
 
@@ -184,7 +184,7 @@ SKILL.zh-CN.md 随 Task 7 一并删除，不单独处理。
 
 ---
 
-### Task 7 — 删除全部 .zh-CN.md
+### Task 7: 删除全部 .zh-CN.md
 
 **依赖**：无
 
@@ -216,7 +216,7 @@ docs/maintainers/ 下 2 个：
 
 ---
 
-### Task 8 — CLAUDE.md + README 更新
+### Task 8: CLAUDE.md + README 更新
 
 **依赖**：Task 1 + Task 7
 
@@ -257,7 +257,7 @@ install 文字移除 router
 
 ---
 
-### Task 9 — writing-plans I2 移除
+### Task 9: writing-plans I2 移除
 
 **依赖**：无（独立）
 
@@ -272,7 +272,7 @@ upstream（vendored submodule）不改。
 
 ---
 
-### Task 10 — 收尾
+### Task 10: 收尾
 
 **依赖**：Task 1-9 全部完成
 
@@ -286,7 +286,7 @@ upstream（vendored submodule）不改。
 
 ---
 
-### Task 11 — review 3-pass 强制执行 + Review Stopping 语义修正
+### Task 11: review 3-pass 强制执行 + Review Stopping 语义修正
 
 **依赖**：无（独立，与 Task 9 编辑同一文件的不同节点，可并行）
 

@@ -866,3 +866,80 @@ test("runTask #open-findings: implement mode → no open-findings.json (pre-gen 
   assert.equal(res.exitCode, 0);
   assert.ok(!existsSync(findingsPath), "open-findings.json should NOT exist in implement mode");
 });
+
+// ---- Pε #218: step 8.8 schema-validation BLOCKED handoff must include phase ----
+// 紧急修复验证：runner.mjs step 8.8 在 agent 写入非法 handoff 时覆写 BLOCKED handoff，
+// 历史 bug 遗漏 phase 字段 → 下次 dispatch 再次 schema validation 失败（无限循环）。
+// Fix（line 495）已补 phase: mode。以下测试锁住该行为。
+
+test("runTask #218: step 8.8 schema-validation BLOCKED → handoff contains phase field", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-blocked-"));
+  // Fake CLI exits 0 but writes a schema-invalid handoff (missing required 'findings').
+  // runner.mjs step 8.8 must overwrite it with a BLOCKED handoff that includes phase (#218).
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{}}' > "$CDD_HANDOFF_PATH"\n` +
+      `exit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 1, "schema validation failure should exit 1");
+    const hp = path.join(ws, "task-1-handoff.json");
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    assert.equal(h.status, "BLOCKED", "overwritten handoff must be BLOCKED");
+    assert.equal(h.phase, "implement", "BLOCKED handoff must include phase field (#218: missing phase caused schema-loop)");
+    assert.match(h.blocker, /missing required field/, "blocker must reference schema failure reason");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (unknown property variant)", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-unk-"));
+  // Fake CLI writes handoff with unknown property (additionalProperties: false → invalid).
+  // Uses implement mode (no extra env requirements) to test a different schema violation code path.
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{},"findings":[],"unknownField":"bad"}' > "$CDD_HANDOFF_PATH"\n` +
+      `exit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 1, "schema validation failure should exit 1");
+    const hp = path.join(ws, "task-1-handoff.json");
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    assert.equal(h.status, "BLOCKED", "overwritten handoff must be BLOCKED");
+    assert.equal(h.phase, "implement", "phase in BLOCKED handoff must match the runner mode (#218)");
+    assert.match(h.blocker, /unknown property/, "blocker must reference the unknown property");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});

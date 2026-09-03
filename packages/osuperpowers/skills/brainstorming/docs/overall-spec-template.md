@@ -66,7 +66,7 @@ Every known issue / discovered requirement, mapped to the phase that resolves it
 The following 3 scenarios MUST sync Issue inventory + version bump + change history entry:
 
 1. **Phase execution discovers a new issue** (dev stage / dogfood session / plan review) → declare ownership in that phase's design spec / plan (which phase fixes it) + add a new row to overall Issue inventory
-2. **Phase pre-consumes another phase's issue** (e.g. P7 pre-consumes P9's #136 fix) → add row to overall Issue inventory + mark "pre-consumed" + note the actual fixing phase and effective timing (e.g. "P9 completes engine-level fix; P7 only declares target label")
+2. **Phase pre-consumes another phase's issue** (e.g. P7 pre-consumes P9's fix) → add row to overall Issue inventory + mark "pre-consumed" + note the actual fixing phase and effective timing (e.g. "P9 completes engine-level fix; P7 only declares target label")
 3. **Issue re-assignment during phase execution** (e.g. an issue moves from P5 to P8) → update the Phase column in overall Issue inventory + version bump + change history entry
 
 **Missed-update detection**: any phase spec / plan that references a specific issue number (`#NNN`) where that number does not appear in the overall Issue inventory is a violation.

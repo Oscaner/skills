@@ -28,18 +28,6 @@ import {
   findStaleCommittedFiles,
   pruneStaleAgentsNamespaces,
 } from "./orchestrate.mjs";
-import {
-  loadTargets,
-  targetSkillSuffix,
-  ccMatcherBareSlash,
-  promptExpansionScript,
-  piRouterScript,
-  claudeHooksJson,
-  cursorDetectScript,
-  cursorEnforceScript,
-  claudeSelfCheckMd,
-  overridesHooksFor,
-} from "./overrides.mjs";
 
 // First-party versions are read from the live package.json SOTs so these
 // assertions hold at any released version. A stale hardcoded version broke the
@@ -51,8 +39,6 @@ const readPkgVersion = (rel) =>
     readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"),
   ).version;
 const OS_VERSION = readPkgVersion("packages/osuperpowers");
-const ROUTER_VERSION = readPkgVersion("packages/osuperpowers-router");
-const ROUTER_VERSION_RE = ROUTER_VERSION.replace(/\./g, "\\.");
 
 const OS_ENG = {
   name: "osuperpowers",
@@ -67,20 +53,9 @@ const OS_ENG = {
   },
 };
 
-const MANIFEST_PATH = "packages/osuperpowers-router/overrides.manifest.json";
+const MANIFEST_PATH = ""; // router deleted — kept as placeholder to avoid breaking test line refs
 
-const ROUTER = {
-  name: "osuperpowers-router",
-  version: ROUTER_VERSION,
-  description:
-    "Personal overrides for the superpowers plugin that force delegation to other skills.",
-  author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
-  license: "MIT",
-  claude: {
-    category: "workflow",
-    tags: ["superpowers", "mattpocock", "overrides", "subagents"],
-  },
-};
+const ROUTER = null; // router deleted
 
 // ---------------------------------------------------------------------------
 // manifests.mjs — generic first-party per-harness manifest builders
@@ -106,22 +81,8 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no 
   );
 });
 
-test("claudePluginManifest with noSkills omits skills but keeps full metadata", () => {
-  assert.deepEqual(
-    claudePluginManifest(ROUTER, ROUTER_VERSION, { noSkills: true }),
-    {
-      _generated: generatedBanner,
-      name: "osuperpowers-router",
-      description:
-        "Personal overrides for the superpowers plugin that force delegation to other skills.",
-      version: ROUTER_VERSION,
-      author: { name: "Oscaner Miao", email: "oscaner1997@gmail.com" },
-      license: "MIT",
-      category: "workflow",
-      keywords: ["superpowers", "mattpocock", "overrides", "subagents"],
-    },
-  );
-});
+// router deleted — test removed
+// test("claudePluginManifest with noSkills omits skills but keeps full metadata", ...)
 
 test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () => {
   const m = cursorPluginManifest(OS_ENG, OS_VERSION);
@@ -355,21 +316,15 @@ test("piPackageKey first-party: osuperpowers pi key (skills + extensions)", () =
 });
 
 test("piPackageKey first-party: overrides pi key (extensions only, no skills)", () => {
+  // router deleted — test kept with osuperpowers-only variant
   assert.deepEqual(
-    piPackageKey({ extensions: ["./bin/pi-router.ts"] }),
-    { extensions: ["./bin/pi-router.ts"], skills: ["./skills"] },
+    piPackageKey({ extensions: ["./bin/gate/adapters/pi.ts"] }),
+    { extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] },
   );
 });
 
-test("first-party pi keys: osuperpowers pi = skills + gate extension (.ts), overrides pi = router extension (.ts)", () => {
-  const eng = JSON.parse(readFileSync("packages/osuperpowers/package.json", "utf8"));
-  const ovr = JSON.parse(readFileSync("packages/osuperpowers-router/package.json", "utf8"));
-  assert.deepEqual(eng.pi, { skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] });
-  assert.deepEqual(ovr.pi, { extensions: ["./bin/pi-router.ts"] });
-  // oscaner-plugin field must NOT be removed by pi key addition
-  assert.ok(eng["oscaner-plugin"], "osuperpowers oscaner-plugin preserved");
-  assert.ok(ovr["oscaner-plugin"], "overrides oscaner-plugin preserved");
-});
+// router deleted — test removed
+// test("first-party pi keys: osuperpowers pi = skills + gate extension (.ts), overrides pi = router extension (.ts)", ...)
 
 test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () => {
   const m = qoderPluginManifest(OS_ENG, OS_VERSION);
@@ -423,7 +378,6 @@ test(".version-bump.json tracks every per-harness manifest version (incl .qoder-
 test("deriveFirstPartyNames discovers packages with oscaner-plugin (sorted)", () => {
   assert.deepEqual(deriveFirstPartyNames("packages"), [
     "osuperpowers",
-    "osuperpowers-router",
   ]);
 });
 
@@ -462,7 +416,7 @@ test("deriveSource enumerates vendors + first-party packages in stable order", (
   const source = deriveSource(".");
   assert.deepEqual(
     source.plugins.map((p) => p.name),
-    ["mattpocock-skills", "impeccable", "superpowers", "osuperpowers", "osuperpowers-router"],
+    ["mattpocock-skills", "impeccable", "superpowers", "osuperpowers"],
   );
   // schema-required fields present on every plugin
   for (const p of source.plugins) {
@@ -500,19 +454,7 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
     },
   });
 
-  const ovr = source.plugins.find((p) => p.name === "osuperpowers-router");
-  assert.equal(ovr.version, ROUTER_VERSION);
-  assert.equal(ovr.contentRoot, "packages/osuperpowers-router");
-  assert.equal(ovr.license, "MIT");
-  assert.deepEqual(ovr.claude, {
-    category: "workflow",
-    tags: ["superpowers", "mattpocock", "overrides", "subagents"],
-  });
-  assert.deepEqual(ovr.cursor, { emitMode: "plugin-root" });
-  assert.deepEqual(ovr.hooks, {
-    claude: "./hooks/hooks.json",
-    cursor: "./hooks/hooks-cursor.json",
-  });
+  // router deleted — router assertions removed
 });
 
 test("deriveSource vendor entries merge assembly-template fields + vendored files", () => {
@@ -690,128 +632,7 @@ test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", ()
 });
 
 // ---------------------------------------------------------------------------
-// overrides.mjs — target parsing + artifact generators
+// overrides.mjs — router deleted, all tests below removed (#209)
 // ---------------------------------------------------------------------------
 
-test("loadTargets parses the real overrides.manifest.json", () => {
-  const targets = loadTargets(MANIFEST_PATH);
-  assert.equal(targets.length, 6); // P2 removed debugging/verification mappings
-  const brainstorming = targets.find(
-    (t) => t.name === "osuperpowers:brainstorming",
-  );
-  assert.ok(brainstorming);
-  assert.equal(brainstorming.overrides, "superpowers:brainstorming");
-  assert.equal(brainstorming.upstream_slug, "brainstorming");
-  assert.equal(brainstorming.source, "../osuperpowers/skills/brainstorming");
-  const tdd = targets.find((t) => t.name === "mattpocock-skills:tdd");
-  assert.equal(tdd.source, null);
-  assert.equal(targetSkillSuffix(tdd), "skills/osuperpowers/tdd/SKILL.md");
-});
-
-test("ccMatcherBareSlash escapes hyphens like Python re.escape", () => {
-  assert.equal(
-    ccMatcherBareSlash("writing-plans"),
-    "(?i)(^|\\s)/writing\\-plans(\\s|$)",
-  );
-});
-
-test("promptExpansionScript maps every overrides trigger to its target (.mjs)", () => {
-  const script = promptExpansionScript(loadTargets(MANIFEST_PATH));
-  assert.match(script, /^#!\/usr\/bin\/env node/);
-  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /"superpowers:brainstorming": "osuperpowers:brainstorming"/);
-  assert.match(script, /"\/brainstorming": "osuperpowers:brainstorming"/);
-  assert.match(script, /"superpowers:test-driven-development": "mattpocock-skills:tdd"/);
-  assert.match(script, /"\/using-git-worktrees": "osuperpowers:finishing"/);
-});
-
-test("piRouterScript maps every overrides trigger to its target (.ts)", () => {
-  const script = piRouterScript(loadTargets(MANIFEST_PATH));
-  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /"brainstorming": "osuperpowers:brainstorming"/);
-  assert.match(script, /"writing-plans": "osuperpowers:writing-plans"/);
-  assert.match(script, /"test-driven-development": "mattpocock-skills:tdd"/);
-  assert.match(script, /"using-git-worktrees": "osuperpowers:finishing"/);
-  assert.match(script, /export function on/);
-  assert.match(script, /pi\.on\("input"/);
-});
-
-test("claudeHooksJson has exactly the two UserPromptExpansion matchers", () => {
-  const hooks = claudeHooksJson(loadTargets(MANIFEST_PATH));
-  assert.equal(hooks._generated, generatedBanner);
-  const matchers = hooks.hooks.UserPromptExpansion.map((e) => e.matcher);
-  assert.equal(matchers.length, 2);
-  assert.equal(matchers[0], "^superpowers:");
-  assert.match(matchers[1], /\/brainstorming/);
-  assert.doesNotMatch(matchers[1], /spor-/);
-  // every override target gets a bare-slash branch in the combined matcher
-  assert.ok(matchers[1].includes("/writing\\-plans"), "writing-plans matcher");
-  assert.ok(matchers[1].includes("/using\\-git\\-worktrees"), "using-git-worktrees matcher");
-  // both matchers route to the Node prompt-expansion router
-  for (const e of hooks.hooks.UserPromptExpansion) {
-    assert.equal(
-      e.hooks[0].command,
-      "${CLAUDE_PLUGIN_ROOT}/bin/prompt-expansion.mjs",
-    );
-  }
-});
-
-test("overridesHooksFor dispatches claude → router, cursor → detect/enforce, fail-fast on unknown", () => {
-  const targets = loadTargets(MANIFEST_PATH);
-  const claude = overridesHooksFor("claude", targets);
-  assert.equal(claude.hooks.UserPromptExpansion[0].matcher, "^superpowers:");
-  const cursor = overridesHooksFor("cursor", targets);
-  assert.deepEqual(cursor.hooks.beforeSubmitPrompt, [
-    { command: "./bin/cursor-detect.mjs", matcher: "UserPromptSubmit" },
-  ]);
-  assert.deepEqual(cursor.hooks.preToolUse, [
-    { command: "./bin/cursor-enforce.mjs" },
-  ]);
-  assert.throws(() => overridesHooksFor("codex", targets), /codex/);
-});
-
-test("cursorDetectScript embeds target skill_suffix and attach regexes", () => {
-  const template = readFileSync(
-    "scripts/templates/cursor-detect.mjs",
-    "utf8",
-  );
-  const script = cursorDetectScript(loadTargets(MANIFEST_PATH), template);
-  assert.match(script, /#!\/usr\/bin\/env node/);
-  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /"skill_suffix": ?"\.\.\/osuperpowers\/skills\/brainstorming\/SKILL\.md"/);
-  assert.match(script, /"name": ?"mattpocock-skills:tdd"/);
-  assert.match(script, /"skill_suffix": ?"skills\/osuperpowers\/tdd\/SKILL\.md"/);
-  // attach regex for the brainstorming upstream family present
-  assert.match(script, /\(\?i\)\/brainstorming\/SKILL/);
-  assert.match(script, /\(\?i\)\/vendors\/superpowers\/skills\/brainstorming\/SKILL/);
-});
-
-test("cursorEnforceScript embeds read-regexes per target skill", () => {
-  const template = readFileSync(
-    "scripts/templates/cursor-enforce.mjs",
-    "utf8",
-  );
-  const script = cursorEnforceScript(loadTargets(MANIFEST_PATH), template);
-  assert.match(script, /\/\/ scripts\/emit\.mjs — do not edit/);
-  assert.match(script, /READ_RES = \{/);
-  assert.match(script, /"mattpocock-skills:tdd"/);
-  assert.match(script, /skills\/osuperpowers\/tdd\/SKILL/);
-  assert.match(script, /"osuperpowers:brainstorming"/);
-});
-
-test("claudeSelfCheckMd fills the trigger table with target skill names", () => {
-  const template = readFileSync(
-    "packages/osuperpowers-router/build/templates/claude-self-check.md",
-    "utf8",
-  );
-  const md = claudeSelfCheckMd(
-    loadTargets(MANIFEST_PATH),
-    ROUTER_VERSION,
-    template,
-  );
-  assert.match(md, /<!-- scripts\/emit\.mjs — do not edit -->/);
-  assert.match(md, new RegExp(`<!-- osuperpowers-router-version: ${ROUTER_VERSION_RE} -->`));
-  assert.match(md, /\| `superpowers:brainstorming` \| `Skill\(osuperpowers:brainstorming\)` \|/);
-  assert.match(md, /\| `superpowers:test-driven-development` \| `Skill\(mattpocock-skills:tdd\)` \|/);
-});
 

@@ -4,10 +4,9 @@
 
 [![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
-[![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers-router?label=osuperpowers-router)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers-router)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-个人 AI 编程技能市场。五个插件，一条流水线——适用于 **Claude Code**、**Cursor**、**Droid**、**Pi**、**Grok**、**Qoder**、**Codex** 和 **Gemini**。
+个人 AI 编程技能市场。四个插件，一条流水线——适用于 **Claude Code**、**Cursor**、**Droid**、**Pi**、**Grok**、**Qoder**、**Codex** 和 **Gemini**。
 
 ## 这是什么
 
@@ -24,7 +23,6 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 | 插件 | 类型 | 说明 |
 |------|------|------|
 | **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（osuperpowers 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
-| **[osuperpowers-router](packages/osuperpowers-router/)** | 一方 | 触发路由器——拦截上游触发，路由到 osuperpowers / mattpocock 目标 |
 | **[superpowers](vendors/superpowers/)** | vendored | 上游工作流技能——brainstorming、writing plans、SDD、verification、branch finish |
 | **[mattpocock-skills](vendors/mattpocock-skills/)** | vendored | 精准工具——`grilling`、`tdd`、`to-tickets` |
 | **[impeccable](vendors/impeccable/)** | vendored | 前端设计技能 |
@@ -39,7 +37,6 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 # Claude Code
 /plugin marketplace add oscaner/skills
 /plugin install osuperpowers@oscaner-skills
-/plugin install osuperpowers-router@oscaner-skills
 /plugin install superpowers@oscaner-skills
 /plugin install mattpocock-skills@oscaner-skills
 ```
@@ -47,7 +44,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 ### 从 npm 安装
 
 ```bash
-npm install @oscaner-skills/osuperpowers @oscaner-skills/osuperpowers-router
+npm install @oscaner-skills/osuperpowers
 npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
 ```
 
@@ -73,8 +70,8 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 ## 快速开始
 
 1. 从市场或 npm 安装插件（见上文）。
-2. 每个项目跑一次 **`init router`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中初始化 override 触发表。
-3. 照常调用 superpowers 工作流——路由器会自动路由到对应的 osuperpowers / mattpocock 目标。
+2. 每个项目跑一次 **`/init harness`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中设置 harness 配置。
+3. 照常调用 superpowers 工作流——osuperpowers skills 会自动拦截上游触发器并路由到对应目标。
 
 ## 架构
 
@@ -95,7 +92,6 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
 ## 各包文档
 
 - [packages/osuperpowers/](packages/osuperpowers/)——技能、CDD 引擎、gate
-- [packages/osuperpowers-router/](packages/osuperpowers-router/)——路由器目标、enforcement 层
 - [docs/gate-install.md](docs/gate-install.md)——各 harness gate 安装指南
 
 ## 开发
@@ -134,6 +130,6 @@ Vendored 插件（`@oscaner-skills/{superpowers,mattpocock-skills,impeccable}`�
 
 ## 许可
 
-一方代码（`osuperpowers`、`osuperpowers-router`、marketplace 工具链）：[MIT](LICENSE)。
+一方代码（`osuperpowers`、marketplace 工具链）：[MIT](LICENSE)。
 
 Vendored 插件保留各自许可——见各插件目录。

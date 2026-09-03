@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Use this template to report bugs found during dogfood use of spor skills.
-        Additional labels (`dogfood`, `osuperpowers-router`, and `cdd` for CDD-related findings) will be appended automatically when the issue is filed via the report-issue skill.
+        Additional labels (`dogfood` and `cdd` for CDD-related findings) will be appended automatically when the issue is filed via the report-issue skill.
   - type: textarea
     id: context
     attributes:

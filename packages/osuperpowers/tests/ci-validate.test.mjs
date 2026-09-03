@@ -102,15 +102,12 @@ test("node:test 步骤含 gate + init + engine 套件 glob", () => {
   assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/engine/tests/*.test.mjs")), "engine suite glob missing");
 });
 
-// 6. engine + router zero-residue check present (grep targets + OK echo)
+// 6. engine zero-residue check present (grep targets + OK echo)
 test("zero-residue check present with correct grep targets", () => {
   const zr = steps.find((s) => s.name.startsWith("5c."));
   assert.ok(zr, "zero-residue check missing");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/skills"), "zero-residue grep misses osuperpowers/skills");
-  assert.ok(
-    zr.grepTargets?.includes("packages/osuperpowers-router/build/generated"),
-    "zero-residue grep misses router build/generated",
-  );
+  assert.ok(zr.grepTargets?.includes("packages/osuperpowers/bin"), "zero-residue grep misses osuperpowers/bin");
 });
 
 // 7. 5b2 osuperpowers gate hooks check present

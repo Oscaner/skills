@@ -1,11 +1,11 @@
 ---
 name: report-issue
-description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Component labels classify findings into osuperpowers / osuperpowers-router. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
+description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Labels follow dogfood,<type>[,cdd] format. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 ---
 
 # Osuperpowers Report Issue
 
-Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then file issues against `Oscaner/skills` via `gh`. The flow is a digraph: `analyze → classify → confirm → dedup → {resolve-hit} → file → report`. Component labels classify each finding's affected package (`osuperpowers` / `osuperpowers-router`). Manual trigger only.
+Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then file issues against `Oscaner/skills` via `gh`. The flow is a digraph: `analyze → classify → confirm → dedup → {resolve-hit} → file → report`. Labels follow `dogfood,<type>[,cdd]` format. Manual trigger only.
 
 ## Flow Digraph
 
@@ -31,28 +31,21 @@ flowchart TD
 
 ### `analyze`
 
-- **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.superpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `deferred` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns.
+- **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.superpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `deferred` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns. Do not paste API keys, tokens, or secrets — replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before including in findings.
 - **Read**: session context; `{repo}/.superpowers/{sdd,cdd}/*/progress.md`; git log
 - **Exit**: extracted findings → `classify`
 - **Fail**: ledger / git log unavailable → use session context only (fail-open, never block)
 
 ### `classify`
 
-- **Do**: Classify each finding as `bug` (tool/script behavior does not match spec — timeouts, wrong exit codes, gate misjudgment, handoff schema errors) or `enhancement` (process can be improved but not broken — DX gaps, missing docs, insufficient CI coverage, template gaps). Each finding includes **Title** (short, usable as issue title directly), **one-line description**, **affected component** (skill name / script path / command), and **evidence** (specific error output or ledger entry). Apply the **Component-label classification** to the affected component (see below). When component is ambiguous (cross-plugin or undeterminable), default to `osuperpowers` — do not add an interactive prompt; the user can correct the classification at the `confirm` node.
-
-  **Component-label classification** (which package owns the affected component):
-  - ① Affected component ∈ `packages/osuperpowers/` (cdd-task.mjs / runner.mjs / cli-select / orchestration skills / gate) → label `osuperpowers`.
-  - ② Affected component ∈ `packages/osuperpowers-router/` (hooks / overrides manifest / prompt-expansion / cursor hooks) → label `osuperpowers-router`.
-  - ③ Cross-plugin or undeterminable → default `osuperpowers` (no interactive prompt; user can correct at `confirm`).
-  - **CDD dimension**: if the finding involves CDD / cdd-task.mjs / orchestrator / handoff, append `cdd` to the label set.
-
+- **Do**: Classify each finding as `bug` (tool/script behavior does not match spec — timeouts, wrong exit codes, gate misjudgment, handoff schema errors) or `enhancement` (process can be improved but not broken — DX gaps, missing docs, insufficient CI coverage, template gaps). Each finding includes **Title** (short, usable as issue title directly), **one-line description**, **affected component** (skill name / script path / command), and **evidence** (specific error output or ledger entry). Label each finding `dogfood,<type>` (add `,cdd` when the finding is CDD-related).
 - **Read**: findings output by `analyze`
 - **Exit**: classification complete → `confirm`
 - **Fail**: type undeterminable → default `enhancement` (conservative)
 
 ### `confirm`
 
-- **Do**: Present the findings as a numbered list and ask: "Is this accurate overall? Any additions or removals?" Do **not** pre-create any gh issue before explicit confirmation. If the user believes a component classification (`osuperpowers` / `osuperpowers-router` / `cdd`) is wrong, let them correct it here before filing.
+- **Do**: Present the findings as a numbered list and ask: "Is this accurate overall? Any additions or removals?" Do **not** pre-create any gh issue before explicit confirmation.
 - **Read**: classified findings
 - **Exit**: user confirms → `dedup`; user rejects → BLOCKED (user-reject)
 - **Fail**: no response / explicit rejection → BLOCKED (user-reject, flow terminates)
@@ -75,8 +68,8 @@ flowchart TD
 
 ### `file`
 
-- **Do**: Run `gh issue create --repo Oscaner/skills` with labels computed per the Component-label classification (`<type>,dogfood,<component>[,cdd]`). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. On a dedup hit via the reopen path, run `gh issue reopen --repo Oscaner/skills <number>` then `gh issue comment --repo Oscaner/skills <number>`. Use the `## Issue Body Templates` prose for the body, chosen by session language × bug/enhancement. Keyword examples must use current tool names (e.g. `cdd-task.mjs`), not deleted legacy tool names.
-- **Read**: classified label set; `## Issue Body Templates` prose; finding evidence
+- **Do**: Run `gh issue create --repo Oscaner/skills` with labels `dogfood,<type>` (add `,cdd` for CDD-related findings). On a dedup hit via the comment path, run `gh issue comment --repo Oscaner/skills`. On a dedup hit via the reopen path, run `gh issue reopen --repo Oscaner/skills <number>` then `gh issue comment --repo Oscaner/skills <number>`. For the issue body: Read the template file from `skills/report-issue/templates/` chosen by session language × finding type — `(en, bug)` → `bug-en.md`; `(en, enhancement)` → `enhancement-en.md`; `(zh, bug)` → `bug-zh.md`; `(zh, enhancement)` → `enhancement-zh.md` — then fill in the placeholders (`{{CONTEXT}}`, `{{PROBLEM}}`, `{{IMPACT}}`, `{{SUGGESTED_FIX}}` / `{{SUGGESTED_APPROACH}}`) with the finding's details.
+- **Read**: classified label set; template files in `skills/report-issue/templates/`; finding evidence
 - **Exit**: filing complete → `report`
 - **Fail**: `gh issue create` fails → fail-open (report stderr, keep finding for manual retry)
 
@@ -102,106 +95,6 @@ flowchart TD
 | # | Invariant |
 |---|---|
 | I1 | **Confirm Gate** — no gh issue is pre-created before explicit user confirmation (hard gate at `confirm`) |
-| I2 | **Component-Label** — label classifies by the affected package (`osuperpowers` / `osuperpowers-router`), never hardcodes `osuperpowers-router` |
+| I2 | **Label Format** — labels are always `dogfood,<type>[,cdd]`; no component segment |
 | I3 | **Manual Trigger Only** — report-issue runs only on manual trigger, never automatically |
 | I4 | **Closed Issue Awareness** — dedup queries `--state all` (not just open); closed matches present reopen+comment option; regressions against closed issues must not silently create duplicates |
-
-## Issue Body Templates
-
-Choose the template by session language (detect from the user's most recent messages; default English) and finding type (bug / enhancement). These are prose payloads kept verbatim from the prior version, not node-ized.
-
-### Bug — English
-
-```markdown
-## Context
-
-<!-- dogfood session context: branch, date, osuperpowers skills in use -->
-
-## Problem
-
-<!-- what happened, with exact error messages or tool output -->
-
-## Impact
-
-<!-- what this blocked or degraded -- token cost, extra rounds, incorrect state -->
-
-## Suggested fix
-
-<!-- concrete suggestion, or "Under investigation" -->
-
-## Related
-
-<!-- links to related issues or commits, if known -->
-```
-
-### Bug — Chinese
-
-```markdown
-## 背景
-
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 osuperpowers skill -->
-
-## 问题
-
-<!-- 发生了什么，尽量附上具体报错信息或工具输出 -->
-
-## 影响
-
-<!-- 阻塞或降级了什么——token 消耗、额外轮次、状态错误等 -->
-
-## 建议修复
-
-<!-- 具体建议；若暂不清楚则写"待排查" -->
-
-## 相关
-
-<!-- 相关 issue 链接或 commit，如有 -->
-```
-
-### Enhancement — English
-
-```markdown
-## Context
-
-<!-- dogfood session context: branch, date, osuperpowers skills in use -->
-
-## Current behavior
-
-<!-- what happens today -->
-
-## Desired behavior
-
-<!-- what should happen instead -->
-
-## Suggested approach
-
-<!-- concrete suggestion, or "Open for discussion" -->
-
-## Related
-
-<!-- links to related issues or commits, if known -->
-```
-
-### Enhancement — Chinese
-
-```markdown
-## 背景
-
-<!-- Dogfood session 上下文：分支、日期、使用了哪些 osuperpowers skill -->
-
-## 当前行为
-
-<!-- 目前的实际表现 -->
-
-## 期望行为
-
-<!-- 应该是什么表现 -->
-
-## 建议方案
-
-<!-- 具体建议；若暂不清楚则写"欢迎讨论" -->
-
-## 相关
-
-<!-- 相关 issue 链接或 commit，如有 -->
-```

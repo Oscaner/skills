@@ -55,8 +55,8 @@ function fakeCwdWithDirs(relDirs = []) {
 const INSTALL_AND_USE = ["claude", "cursor-agent", "droid", "grok", "qoder", "codex", "gemini", "pi"];
 const OS_INIT = ["opencode", "trae", "vibe", "kiro"];
 
-test("config: requiredPlugins 含 4 插件", () => {
-  assert.deepEqual(config.requiredPlugins, ["superpowers", "mattpocock-skills", "osuperpowers", "osuperpowers-router"]);
+test("config: requiredPlugins 含 3 插件", () => {
+  assert.deepEqual(config.requiredPlugins, ["superpowers", "mattpocock-skills", "osuperpowers"]);
 });
 
 test("config: harnesses 集合 = 12（8 安装即用 + 4 init，逐一一致 P6b §2.5）", () => {
@@ -88,7 +88,7 @@ test("claude: enabledPlugins 缺 superpowers → missing + install hint", async 
 
 test("claude: enabledPlugins 含全部 → 不在 missing", async () => {
   const fake = fakeClaudePluginList({
-    enabled: ["superpowers@oscaner-skills", "mattpocock-skills@oscaner-skills", "osuperpowers@oscaner-skills", "osuperpowers-router@oscaner-skills"],
+    enabled: ["superpowers@oscaner-skills", "mattpocock-skills@oscaner-skills", "osuperpowers@oscaner-skills"],
   });
   const r = await probeSkills("claude", { requiredPlugins: config.requiredPlugins, env: fake.env });
   assert.equal(r.probeFailed, false);

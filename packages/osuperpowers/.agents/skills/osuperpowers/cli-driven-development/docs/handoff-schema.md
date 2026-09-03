@@ -111,7 +111,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
 
 ## `commits.head`
 
-Full 40-char SHA from `git rev-parse HEAD`. Never use `--short`, `git log --format=%h`, or any truncated form. The engine validates `commits.head` with strict-equal primary and prefix fallback for legacy 7-char handoffs (#186).
+Full 40-char SHA from `git rev-parse HEAD`. Never use `--short`, `git log --format=%h`, or any truncated form. The engine validates `commits.head` with strict-equal primary and prefix fallback for legacy 7-char handoffs.
 
 ## Review arrays
 

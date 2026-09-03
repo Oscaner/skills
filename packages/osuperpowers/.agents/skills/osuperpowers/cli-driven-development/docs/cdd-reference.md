@@ -2,7 +2,7 @@
 
 > Worker discipline SOT: `../templates/{implement,task-review,fix}.md`
 > Orchestrator gate discipline: [`controller-handoff.md`](controller-handoff.md) H1-H5
-> **Rule 0 checklist semantic contract:** The three-phase phase markers and key tokens in Rule 0 are not line-budget trimming targets — trimming must not delete/compress the checklist's phase structure or key tokens; `bin/engine/tests/templates.test.mjs` asserts this (issue #52 Guard 1).
+> **Rule 0 checklist semantic contract:** The three-phase phase markers and key tokens in Rule 0 are not line-budget trimming targets — trimming must not delete/compress the checklist's phase structure or key tokens; `bin/engine/tests/templates.test.mjs` asserts this.
 
 ## H6 — CLI dispatch (p1)
 
@@ -72,7 +72,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 **Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel missing upstream plugin → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint, orchestrator **BLOCKED** (distinguished from 2 = harness CLI does not exist; exit 3 = CLI exists but skills plugin is not installed). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec section 2.1 stderr-surfacing).
 
-**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/task-review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `osuperpowers` + `osuperpowers-router`, config-driven):
+**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/task-review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `osuperpowers`, config-driven):
 
 | Channel | Harnesses | Missing behavior |
 |------|-----------|----------|

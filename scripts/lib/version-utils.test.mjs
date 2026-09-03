@@ -1,58 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  parseRouterVersion,
-  computeNextVersion,
   parseSemver,
   computeNextIndependentVersion,
   highestBumpLevel,
   changesetsForPlugin,
 } from "./version-utils.mjs";
-
-describe("parseRouterVersion", () => {
-  it("parses three-segment suffix", () => {
-    assert.deepEqual(parseRouterVersion("6.2.0-router.0.15.0"), {
-      base: "6.2.0",
-      major: 0,
-      minor: 15,
-      patch: 0,
-    });
-  });
-
-  it("rejects legacy single-counter format", () => {
-    assert.equal(parseRouterVersion("6.2.0-router.15"), null);
-  });
-});
-
-describe("computeNextVersion", () => {
-  it("increments patch on same base", () => {
-    assert.equal(
-      computeNextVersion("6.2.0-router.0.15.0", "6.2.0"),
-      "6.2.0-router.0.15.1",
-    );
-  });
-
-  it("resets on superpowers minor bump", () => {
-    assert.equal(
-      computeNextVersion("6.2.0-router.0.15.3", "6.3.0"),
-      "6.3.0-router.0.0.0",
-    );
-  });
-
-  it("resets on superpowers patch bump", () => {
-    assert.equal(
-      computeNextVersion("6.2.0-router.0.15.0", "6.2.1"),
-      "6.2.1-router.0.0.0",
-    );
-  });
-
-  it("returns 0.0.0 for unknown current on new base", () => {
-    assert.equal(
-      computeNextVersion("not-a-version", "6.2.0"),
-      "6.2.0-router.0.0.0",
-    );
-  });
-});
 
 describe("parseSemver", () => {
   it("parses plain semver", () => {
@@ -61,10 +14,6 @@ describe("parseSemver", () => {
       minor: 1,
       patch: 0,
     });
-  });
-
-  it("rejects router suffixed versions", () => {
-    assert.equal(parseSemver("6.2.0-router.0.15.0"), null);
   });
 
   it("rejects non-version strings", () => {
@@ -111,16 +60,11 @@ describe("highestBumpLevel", () => {
 describe("changesetsForPlugin", () => {
   it("filters changesets by plugin name", () => {
     const changesets = [
-      {
-        id: "a",
-        releases: [{ name: "@oscaner-skills/osuperpowers-router", type: "patch" }],
-      },
       { id: "b", releases: [{ name: "@oscaner-skills/osuperpowers", type: "minor" }] },
       {
         id: "c",
         releases: [
           { name: "@oscaner-skills/osuperpowers", type: "patch" },
-          { name: "@oscaner-skills/osuperpowers-router", type: "patch" },
         ],
       },
     ];

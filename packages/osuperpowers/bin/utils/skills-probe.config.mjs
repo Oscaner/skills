@@ -7,7 +7,7 @@
 //   install-and-use（缺失 → probe exit 3）：claude/cursor-agent/droid/grok/qoder/codex/gemini/pi
 //   init（缺失 → 提示 `osuperpowers:init harness <name>`，非故障）：opencode/trae/vibe/kiro
 export const config = {
-  requiredPlugins: ["superpowers", "mattpocock-skills", "osuperpowers", "osuperpowers-router"],
+  requiredPlugins: ["superpowers", "mattpocock-skills", "osuperpowers"],
   // 最终通道分类（P6b §2.5 权威）：install-and-use → probe exit 3；init → 提示
   channel: {
     "install-and-use": ["claude", "cursor-agent", "droid", "grok", "qoder", "codex", "gemini", "pi"],

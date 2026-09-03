@@ -34,9 +34,9 @@ npm install @oscaner-skills/osuperpowers
 
 ## 快速开始
 
-1. 从 marketplace 安装 `superpowers`、`osuperpowers-router`、`osuperpowers` 和 `mattpocock-skills`。
+1. 从 marketplace 安装 `superpowers`、`osuperpowers` 和 `mattpocock-skills`。
 2. 在每个项目中运行 **`/init`** 设置 harness 配置。
-3. 使用上游 superpowers 技能 — 路由器自动路由到工程编排器。
+3. 调用 osuperpowers 技能 — 在 Claude Code 中使用 `/osuperpowers:<技能>`，在 Cursor 中使用裸斜杠命令。
 
 ### Claude Code
 

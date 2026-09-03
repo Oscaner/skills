@@ -74,97 +74,6 @@ function checkStep(name, fn, meta = {}) {
 // 0. unified emit freshness — --check against committed products (no write)
 subprocessStep("0. unified emit freshness (--check)", "node", ["scripts/emit.mjs", "--check"]);
 
-// 1. plugin.json skills resolve
-function checkOverridesPluginSkills() {
-  const p = path.join(ROOT, "packages/osuperpowers-router");
-  const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
-  const skills = manifest.skills;
-  if (skills === null || skills === undefined) {
-    // overrides = trigger router — no skill bodies. skills/ may be absent or empty.
-    const dir = path.join(p, "skills");
-    if (existsSync(dir)) {
-      const n = countSkillsWithMarkdown(dir);
-      assert(n === 0, `expected 0 overrides skills (trigger router, no skill bodies), got ${n}`);
-    }
-    console.log("OK — 0 skills (trigger router, no skill bodies)");
-  } else if (typeof skills === "string") {
-    const dir = path.join(p, skills.replace(/^\.\//, ""));
-    assert(existsSync(dir), `skills path missing: ${dir}`);
-    const n = countSkillsWithMarkdown(dir);
-    console.log(`OK — ${n} skills (directory ${skills})`);
-  } else {
-    const missing = skills.filter((s) => !existsSync(path.join(p, s.replace(/^\.\//, ""))));
-    assert(missing.length === 0, `skills[] points to missing dirs: ${missing}`);
-    console.log(`OK — ${skills.length} skills`);
-  }
-}
-checkStep("1. plugin.json skills resolve", checkOverridesPluginSkills);
-
-// 2. every skill dir has SKILL.md (skip when none)
-function checkSkillsMarkdown() {
-  const dir = path.join(ROOT, "packages/osuperpowers-router/skills");
-  if (!existsSync(dir)) {
-    console.log("OK — no skills dir");
-    return;
-  }
-  for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    if (!ent.isDirectory()) continue;
-    const md = path.join(dir, ent.name, "SKILL.md");
-    assert(existsSync(md), `MISSING: packages/osuperpowers-router/skills/${ent.name}/SKILL.md`);
-  }
-  console.log("OK");
-}
-checkStep("2. every skill dir has SKILL.md", checkSkillsMarkdown);
-
-// 3. no orphan skill dirs
-function checkNoOrphanSkills() {
-  const dir = path.join(ROOT, "packages/osuperpowers-router/skills");
-  if (!existsSync(dir)) {
-    console.log("OK — no skill dirs (trigger router)");
-    return;
-  }
-  const dirs = readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory());
-  assert(dirs.length === 0, `overrides plugin must have no skill dirs (trigger router): ${dirs.map((d) => d.name).join(", ")}`);
-  console.log("OK — no skill dirs (trigger router)");
-}
-checkStep("3. no orphan skill dirs", checkNoOrphanSkills);
-
-// 4. hooks executable（bash-lenient 对齐：hooks 文件缺失 → warn 不 fail（步骤可跳过）；
-// hooks 文件存在 → 其引用 handler 必须存在且可执行（真正错误 → exit 1））。
-function checkOverridesHooks() {
-  const p = path.join(ROOT, "packages/osuperpowers-router");
-  // hooks 文件 → 其引用 bin handler（hooks matrix：claude hooks.json → prompt-expansion；
-  // cursor hooks-cursor.json → cursor-detect/cursor-enforce）。
-  const handlers = {
-    "hooks/hooks.json": ["bin/prompt-expansion.mjs"],
-    "hooks/hooks-cursor.json": ["bin/cursor-detect.mjs", "bin/cursor-enforce.mjs"],
-  };
-  let missing = 0;
-  for (const [hookFile, binScripts] of Object.entries(handlers)) {
-    if (!existsSync(path.join(p, hookFile))) {
-      // 对齐 bash `[ -f ] && echo`：缺则静默跳过 → Node warn 不 fail。
-      console.warn(`WARN — overrides ${hookFile} missing (bash-lenient: skipped)`);
-      missing += 1;
-      continue;
-    }
-    for (const bin of binScripts) {
-      assert(existsSync(path.join(p, bin)), `missing: ${bin} (referenced by ${hookFile})`);
-      assert(isExecutable(path.join(p, bin)), `not executable: ${bin} (referenced by ${hookFile})`);
-    }
-  }
-  console.log(
-    missing === 0
-      ? "OK — hooks.json + hooks-cursor.json + router bin scripts executable"
-      : "OK — overrides hooks partially missing (lenient); present hooks' handlers executable",
-  );
-}
-checkStep("4. overrides hooks + bin executable", checkOverridesHooks);
-
-// 5. overrides build validation
-subprocessStep("5. overrides build validation", "node", [
-  path.join(ROOT, "packages/osuperpowers-router/tests/validate-overrides-build.mjs"),
-]);
-
 // 5b. osuperpowers plugin validation
 checkStep("5b. osuperpowers plugin validation", () => console.log("OK — osuperpowers plugin validation"));
 
@@ -236,13 +145,10 @@ function checkOsuperpowersGateHooks() {
 }
 checkStep("5b2. osuperpowers gate hooks + engine entries executable", checkOsuperpowersGateHooks);
 
-// 5c. engine + router zero-residue grep (sdd_/spor- — must not regress)
+// 5c. engine zero-residue grep (sdd_/spor- — must not regress)
 const RESIDUE_TARGETS = [
   "packages/osuperpowers/bin",
   "packages/osuperpowers/skills",
-  "packages/osuperpowers-router/bin",
-  "packages/osuperpowers-router/hooks",
-  "packages/osuperpowers-router/build/generated",
 ];
 const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
 function checkZeroResidue() {
@@ -254,10 +160,10 @@ function checkZeroResidue() {
       if (RESIDUE_RE.test(buf.toString("utf8"))) hits.push(path.relative(ROOT, f));
     }
   }
-  assert(hits.length === 0, `RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine + router executable products:\n  ${hits.join("\n  ")}`);
-  console.log("OK — zero residue in engine + router executable products");
+  assert(hits.length === 0, `RESIDUE FOUND — sdd_/SDD_/sdd-run-/spor- in engine executable products:\n  ${hits.join("\n  ")}`);
+  console.log("OK — zero residue in engine executable products");
 }
-checkStep("5c. engine + router zero-residue grep", checkZeroResidue, { grepTargets: RESIDUE_TARGETS });
+checkStep("5c. engine zero-residue grep", checkZeroResidue, { grepTargets: RESIDUE_TARGETS });
 
 // 6. marketplace validate
 subprocessStep("6. marketplace validate", "node", ["scripts/validate-marketplace.mjs"]);

@@ -10,13 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A **multi-harness AI coding skills marketplace**. Skills work across Claude Code, Cursor, Droid, Pi, Grok, Qoder, Codex, and Gemini. Personal skills are packaged as installable plugins consumed by AI coding harnesses.
 
-Five plugins ship here:
+Four plugins ship here:
 
 1. **osuperpowers** — first-party, in-tree at `packages/osuperpowers/`. osuperpowers orchestration + cli-* family + CDD engine + gate.
-2. **osuperpowers-router** — first-party, in-tree at `packages/osuperpowers-router/`. Trigger router: no skill bodies, maps upstream triggers to osuperpowers/mattpocock targets.
-3. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by osuperpowers orchestrators.
-4. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, to-tickets, research).
-5. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
+2. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by osuperpowers orchestrators.
+3. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, to-tickets, research).
+4. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
 
 ## Package-as-source architecture
 
@@ -40,47 +39,39 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 
 ## Architecture details
 
-- `packages/` — first-party plugins (osuperpowers + osuperpowers-router)
+- `packages/` — first-party plugins (osuperpowers)
 - `vendors/` — upstream submodules (superpowers / mattpocock-skills / impeccable); not edited in-tree
 - `scripts/emit.mjs` — unified emit tool (derives source.json + all harness manifests)
 - `scripts/ci-validate.mjs` — Node validation orchestration
-- `packages/osuperpowers-router/hooks/` — hooks for Claude (`hooks.json`) and Cursor (`hooks-cursor.json`)
 - `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
 - `packages/osuperpowers/bin/engine/` — CDD engine (cdd-task.mjs, cdd-review.mjs, runner.mjs, registry, templates)
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
 
 For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
 
-For overrides trigger router internals, see [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md).
-
 ## Per-package documentation
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
-- [`packages/osuperpowers-router/README.md`](packages/osuperpowers-router/README.md) — overrides plugin user guide
 - [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / hooks / releasing)
-- [`docs/maintainers/osuperpowers-router-plugin.md`](docs/maintainers/osuperpowers-router-plugin.md) — osuperpowers-router plugin maintainer guide
-- [`docs/maintainers/skill-authoring.md`](docs/maintainers/skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary + zh-CN mirror)
+- [`docs/maintainers/skill-authoring.md`](docs/maintainers/skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary)
 
 ## Language Architecture
 
-**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**. Chinese appears only as a mirror of an English source (`*.zh-CN.md`); it is never authored standalone. The single exception is this repo's internal developer specs/plans, which follow the user's working language. (User directive: everything else must be English-primary; Chinese is mirror-only — never the source of truth.)
+**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**. zh-CN mirrors (`*.zh-CN.md`) have been retired; English is the sole source of truth. The single exception is this repo's internal developer specs/plans, which follow the user's working language.
 
 Two distinct language strategies implement this, depending on file type:
 
-### Strategy A — English-primary + zh-CN mirror (SKILL.md and docs/)
+### Strategy A — English-primary (SKILL.md and docs/)
 
-`skills/*/SKILL.md` and `docs/*.md` are **English-primary**. Chinese (`.zh-CN.md`) files are **human-readable mirrors** — AI harnesses always read the English source.
+`skills/*/SKILL.md` and `docs/*.md` are **English-primary**. zh-CN mirrors have been retired; no `.zh-CN.md` files are maintained under `skills/` or `docs/`.
 
 | File | Role |
 |------|------|
 | `skills/*/SKILL.md` | English authoritative source — edit here; **no Chinese content** |
-| `skills/*/SKILL.zh-CN.md` | Chinese mirror — must be updated when English source changes |
 | `docs/*.md` | English authoritative source — edit here; **no Chinese content** |
-| `docs/*.zh-CN.md` | Chinese mirror — must be updated when English source changes |
 | `.agents/skills/*/SKILL.md` | **Derived by `pnpm run emit` — NEVER edit directly** |
-| `.agents/skills/*/SKILL.zh-CN.md` | **Derived by emit from source mirror — NEVER edit directly** |
 
-**Editing rule**: SKILL.md and docs/*.md must be written entirely in English. Chinese translations belong only in the corresponding `.zh-CN.md`. When editing an English source file, updating its `.zh-CN.md` mirror is **part of the same task** — not deferred.
+**Editing rule**: SKILL.md and docs/*.md must be written entirely in English. Do not create `.zh-CN.md` mirror files — they are retired.
 
 ### Strategy B — Chinese-primary, no mirror (specs and plans)
 
@@ -88,9 +79,7 @@ Two distinct language strategies implement this, depending on file type:
 
 ### Strategy B extension — maintainer docs (docs/maintainers/)
 
-`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the two packages' `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
-
-**Exception:** `docs/maintainers/skill-authoring.md` follows Strategy A (English primary + zh-CN mirror) — it has a Chinese mirror at `docs/maintainers/skill-authoring.zh-CN.md`.
+`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the package's `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
 
 **Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, **you MUST run `pnpm run emit`** to propagate changes to `.agents/`. This is not optional — omitting it causes CI failure. Running `pnpm run emit:check` verifies no drift.
 

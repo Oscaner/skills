@@ -19,7 +19,7 @@
  *      kimi    → `.kimi-plugin/plugin.json`
  *      gemini  → `gemini-extension.json` + `GEMINI.md`
  *      shared  → `.agents/skills/` copy (osuperpowers only — no vendored upstream)
- *    plus the overrides hooks/self-check tables and osuperpowers PreToolUse
+ *    plus the osuperpowers PreToolUse
  *    hooks, and version consistency per `packages/osuperpowers/.version-bump.json`.
  *
  * `--check` mode generates into a temp tree and diffs every produced path
@@ -69,17 +69,6 @@ import {
 } from "./lib/emit/manifests.mjs";
 import { deriveSource } from "./lib/emit/source.mjs";
 import {
-  loadTargets,
-  promptExpansionScript,
-  piRouterScript,
-  cursorDetectScript,
-  cursorEnforceScript,
-  claudeSelfCheckMd,
-  overridesHooksFor,
-  overridesCursorManifest,
-  overridesCodexManifest,
-} from "./lib/emit/overrides.mjs";
-import {
   findStaleCommittedFiles,
   pruneStaleAgentsNamespaces,
 } from "./lib/emit/orchestrate.mjs";
@@ -108,12 +97,6 @@ const productRoots = [
   "packages/osuperpowers/.qoder-plugin",
   "packages/osuperpowers/hooks",
   "packages/osuperpowers/.agents",
-  "packages/osuperpowers-router/.claude-plugin",
-  "packages/osuperpowers-router/.cursor-plugin",
-  "packages/osuperpowers-router/.codex-plugin",
-  "packages/osuperpowers-router/hooks",
-  "packages/osuperpowers-router/bin",
-  "packages/osuperpowers-router/build/generated",
 ];
 
 /** Standalone repo-relative product files (not inside a product root). */
@@ -248,95 +231,6 @@ function collectTree(absDir, relPrefix) {
 }
 
 // ---------------------------------------------------------------------------
-// osuperpowers-router
-// ---------------------------------------------------------------------------
-
-function emitOverrides(outRoot, plugin) {
-  const contentRoot = plugin.contentRoot;
-  const pluginDir = join(root, contentRoot);
-  const targets = loadTargets(join(pluginDir, "overrides.manifest.json"));
-  const pkg = JSON.parse(
-    readFileSync(join(pluginDir, "package.json"), "utf8"),
-  );
-  const version = pkg.version;
-  // Manifest `name` is the plugin name (osuperpowers-router), NOT the npm
-  // package name (@oscaner-skills/osuperpowers-router) — the plugin name is
-  // what marketplace install/resolve uses.
-  const meta = {
-    name: plugin.name,
-    description: pkg.description,
-    author: pkg.author,
-    license: pkg.license,
-  };
-
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.claude-plugin/plugin.json`,
-    claudePluginManifest(plugin, version, { noSkills: true }),
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.cursor-plugin/plugin.json`,
-    overridesCursorManifest(meta, version, plugin.hooks),
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.codex-plugin/plugin.json`,
-    overridesCodexManifest(meta, version),
-  );
-  // Per-harness hooks written at the paths named by `oscaner-plugin.hooks`
-  // (claude → hooks/hooks.json router, cursor → hooks/hooks-cursor.json
-  // detect/enforce). The mapping is the single SOT — adding a harness mapping
-  // here produces its hooks file.
-  for (const [harness, rel] of Object.entries(plugin.hooks ?? {})) {
-    writeJsonDoc(
-      outRoot,
-      `${contentRoot}/${rel.replace(/^\.\//, "")}`,
-      overridesHooksFor(harness, targets),
-    );
-  }
-
-  const binScripts = [
-    [
-      "bin/prompt-expansion.mjs",
-      promptExpansionScript(targets),
-    ],
-    [
-      "bin/pi-router.ts",
-      piRouterScript(targets),
-    ],
-    [
-      "bin/cursor-detect.mjs",
-      cursorDetectScript(
-        targets,
-        readFileSync(join(root, "scripts/templates/cursor-detect.mjs"), "utf8"),
-      ),
-    ],
-    [
-      "bin/cursor-enforce.mjs",
-      cursorEnforceScript(
-        targets,
-        readFileSync(join(root, "scripts/templates/cursor-enforce.mjs"), "utf8"),
-      ),
-    ],
-  ];
-  for (const [rel, content] of binScripts) {
-    writeText(outRoot, `${contentRoot}/${rel}`, content);
-    if (outRoot === root) chmodSync(join(outRoot, contentRoot, rel), 0o755);
-  }
-
-  writeText(
-    outRoot,
-    `${contentRoot}/build/generated/claude-self-check.md`,
-    claudeSelfCheckMd(
-      targets,
-      version,
-      readFileSync(join(pluginDir, "build/templates/claude-self-check.md"), "utf8"),
-    ),
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Marketplace documents (repo root) + cursor wrappers
 // ---------------------------------------------------------------------------
 
@@ -412,7 +306,6 @@ function emitAll(outRoot) {
   assertPrereleasePrefix(root, source);
 
   for (const plugin of source.plugins) {
-    if (plugin.name === "osuperpowers-router") emitOverrides(outRoot, plugin);
     if (plugin.name === "osuperpowers") emitOsuperpowers(outRoot, plugin);
   }
 

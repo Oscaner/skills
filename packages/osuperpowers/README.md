@@ -36,7 +36,7 @@ Or install from the oscaner-skills Claude Code marketplace.
 
 1. Install `superpowers`, `osuperpowers`, and `mattpocock-skills` from the marketplace.
 2. Run **`/init`** in each project to set up harness config.
-3. Use upstream superpowers skills — the router routes automatically to osuperpowers orchestrators.
+3. Invoke osuperpowers skills — use `/osuperpowers:<skill>` in Claude Code, or bare slash commands in Cursor.
 
 ### Claude Code
 

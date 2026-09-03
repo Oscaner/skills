@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["phase", "status", "findings", "artifacts", "doc_path"],
+  "properties": {
+    "phase":     { "type": "string", "enum": ["review", "fix"] },
+    "status":    { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"] },
+    "doc_path":  { "type": "string" },
+    "findings":  { "type": "array" },
+    "artifacts": { "type": "object" },
+    "round":     { "type": "integer" },
+    "blocker":   { "type": "string" }
+  },
+  "additionalProperties": false
+}

@@ -38,10 +38,10 @@ flowchart TD
 
 ### `plan-review`
 
-- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `docs-task` CLI call: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template plan-review --doc <path> --param SPEC=<spec-path> --param PASS=<lens>`, where `<lens>` is `completeness` (Pass 1), `decomposition` (Pass 2), or `buildability` (Pass 3). Follow D2/D3 from [docs-review.md](../_docs/docs-review.md) (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I4): ① run review passes; ② if blocker>0 → fix all findings (blocker + warn + nit) → re-run; ③ if blocker=0 → fix remaining warn/nit from captured output → done (no re-run; declaring blocker=0 after local fix without re-running cdd-review on that pass is not permitted). Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Do**: Execute 3-pass plan-review, dispatching an independent `docs-task` CLI call per pass: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template plan-review --doc <path> --param SPEC=<spec-path> --param PASS=<lens>`. Pass lenses: **Pass 1** `completeness` — spec coverage + missing tasks; **Pass 2** `decomposition` — task boundaries + interfaces (delta-scoped: only changes since last blocker-free pass); **Pass 3** `buildability` — type consistency + placeholder scan (always full-doc). All 3 passes are mandatory — D1 skip-on-clean does not apply. Review Stopping (I4): ① run all 3 passes; ② if blocker>0 → fix all findings (blocker + warn + nit) using `docs-task --mode fix` → re-run affected pass(es); ③ if blocker=0 on all passes → fix remaining warn/nit from captured output (no new docs-task call) → done
 - **Read**: Plan document + spec document + [docs-review.md](../_docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?` (present warn/nit)
-- **Fail**: Re-run review after blocker=0 → violates I4. New cdd-review call for warn/nit → violates I4
+- **Fail**: Re-run review after all passes show blocker=0 → violates I4 (Review Stopping). New docs-task review call for warn/nit → violates I4
 
 ### `user-ok?`
 

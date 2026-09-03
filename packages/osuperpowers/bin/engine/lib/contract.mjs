@@ -64,7 +64,9 @@ export function writeHandoff(handoffPath, data) {
 }
 
 // 对齐 _cdd_rewrite_handoff_blocked：把 handoff 重写为 status=BLOCKED + blocker + artifacts: {}。
+// Guard: 当 handoffPath 为空/未定义时 no-op（caller 未提供 path，不写文件）。
 export function rewriteHandoffBlocked(handoffPath, reason) {
+  if (!handoffPath) return;
   writeHandoff(handoffPath, { status: "BLOCKED", blocker: reason, artifacts: {} });
 }
 

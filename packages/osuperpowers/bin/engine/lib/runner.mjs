@@ -145,6 +145,22 @@ function readJson(filePath) {
   }
 }
 
+// Returns the path of the handoff written by the previous phase for this task.
+// task-review round 1: reads task-N-implement.json
+// task-review round R>1: reads task-N-fix-(R-1).json
+// fix round R: reads task-N-task-review-R.json
+function prevHandoffPath(workspace, task, mode, round) {
+  if (mode === "task-review") {
+    return round === 1
+      ? path.join(workspace, `task-${task}-implement.json`)
+      : path.join(workspace, `task-${task}-fix-${round - 1}.json`);
+  }
+  if (mode === "fix") {
+    return path.join(workspace, `task-${task}-task-review-${round}.json`);
+  }
+  return null; // implement has no prior phase
+}
+
 // 对齐 cdd_require_env 的 mode 有效性检查。
 function validateMode(mode) {
   if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|task-review|fix (got: ${mode})`;
@@ -157,7 +173,6 @@ function requireEnv(env, mode) {
   for (const v of ["CDD_WORKSPACE", "CDD_TASK_BRIEF", "CDD_LEDGER", "CDD_MODE", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS"]) {
     if (!env[v]) missing.push(v);
   }
-  if (mode === "task-review" && !env.CDD_TASK_REVIEW_FIXED_POINT) missing.push("CDD_TASK_REVIEW_FIXED_POINT");
   if (mode === "fix" && !env.CDD_FINDINGS) missing.push("CDD_FINDINGS");
   return missing.length > 0 ? `Missing required env: ${missing.join(" ")}` : null;
 }
@@ -170,7 +185,7 @@ function promptEnv(env, taskNum) {
     HANDOFF: env.CDD_HANDOFF_PATH,
     FINDINGS: env.CDD_FINDINGS,
     CONSTRAINTS: env.CDD_PLAN_CONSTRAINTS,
-    FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT,
+    FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT ?? "",  // empty string if cross-phase read returned nothing
     TASK: String(taskNum),
     FINDINGS_SCOPE: env.CDD_FINDINGS_SCOPE ?? "blocker-only",
   };
@@ -421,11 +436,16 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
 
-  // 5. Task-review fixed-point + review-package
-  if (mode === "task-review") {
+  // 5. Task-review / fix fixed-point — derive from prior-phase handoff (cross-phase read).
+  if (mode === "task-review" || mode === "fix") {
     if (!env.CDD_TASK_REVIEW_FIXED_POINT) {
-      const handoffBase = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "base"]);
-      if (handoffBase) env.CDD_TASK_REVIEW_FIXED_POINT = handoffBase;
+      const prev = prevHandoffPath(workspace, taskNum, mode, round);
+      if (prev) {
+        const prevCommitsBase = readJsonField(prev, ["commits", "base"]);
+        if (prevCommitsBase && prevCommitsBase !== "unknown") {
+          env.CDD_TASK_REVIEW_FIXED_POINT = prevCommitsBase;
+        }
+      }
     }
     if (dryRun && !env.CDD_TASK_REVIEW_FIXED_POINT) env.CDD_TASK_REVIEW_FIXED_POINT = "HEAD~1";
   }

@@ -943,3 +943,117 @@ test("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (u
     process.env.PATH = origPath;
   }
 });
+
+// ---- Pζ T3: cross-phase fixed-point derivation ----
+
+test("runTask Pζ T3: task-review dry-run without prior implement handoff → exits 0 (requireEnv no longer gates on FIXED_POINT)", async () => {
+  const ws = setupWorkspace();
+  // No prior implement handoff — FIXED_POINT falls back to HEAD~1 (dry-run) then template ?? "" guard
+  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  assert.equal(res.exitCode, 0, "task-review without prior handoff should exit 0");
+  assert.equal(res.h1[0], "status: APPROVED");
+});
+
+test("runTask Pζ T3: task-review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT set from implement.json commits.base", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-"));
+  const envLog = path.join(ws, "fp-env-log.txt");
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nexit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  // Write prior implement handoff with a known commits.base SHA
+  const implBase = "aabbccddeeff1234567890aabbccddeeff12345678";
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    commits: { base: implBase, head: "deadbeefdeadbeefdeadbeef1234567890abcdef" },
+    findings: [], artifacts: {},
+  }));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 0, `task-review should exit 0: ${JSON.stringify(res)}`);
+    assert.ok(existsSync(envLog), "env log should exist");
+    assert.match(readFileSync(envLog, "utf8").trim(), new RegExp(implBase),
+      "CDD_TASK_REVIEW_FIXED_POINT should equal implement.json commits.base");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask Pζ T3: task-review round 2 → FIXED_POINT derived from task-1-fix-1.json (not implement.json)", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-r2-"));
+  const envLog = path.join(ws, "fp-r2-log.txt");
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nexit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const implBase = "implement-base-sha1234567890abcdef12345678";
+  const fix1Base = "fix1-base-sha1234567890abcdef1234567890ab";
+
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    commits: { base: implBase, head: "impl-head-sha" },
+    findings: [], artifacts: {},
+  }));
+  writeFileSync(path.join(ws, "task-1-fix-1.json"), JSON.stringify({
+    task: 1, phase: "fix", status: "APPROVED",
+    commits: { base: fix1Base, head: "fix1-head-sha" },
+    findings: [], artifacts: {},
+  }));
+
+  // Set rounds["task-review"] = 1 → getRound returns 2 → prevHandoffPath → task-1-fix-1.json
+  const progressData = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+  progressData.tasks = [{ task: 1, status: "pending", rounds: { "task-review": 1 } }];
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify(progressData, null, 2));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 0, `task-review round 2 should exit 0: ${JSON.stringify(res)}`);
+    assert.ok(existsSync(envLog), "env log should exist");
+    const capturedFP = readFileSync(envLog, "utf8").trim();
+    assert.match(capturedFP, new RegExp(fix1Base), "round 2 FIXED_POINT should come from fix-1 (not implement)");
+    assert.ok(!capturedFP.includes(implBase), "implement base should NOT be used in round 2");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT not set (template gets empty string)", async () => {
+  const ws = setupWorkspace();
+  // Write implement handoff with 'unknown' base (BLOCKED/TIMEOUT handoff — not a valid SHA)
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "BLOCKED",
+    commits: { base: "unknown" },
+    findings: [], artifacts: {},
+  }));
+  // dry-run sets HEAD~1 fallback → still exits 0
+  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  assert.equal(res.exitCode, 0, "task-review with 'unknown' base should still exit 0 (dryRun HEAD~1 fallback)");
+  assert.equal(res.h1[0], "status: APPROVED");
+});

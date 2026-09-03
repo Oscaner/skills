@@ -163,6 +163,37 @@ pnpm run validate
 
 This runs steps 1-5 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.mjs](../../scripts/ci-validate.mjs); mirrored on PRs by [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
 
+## CDD Engine internals
+
+### BLOCKED Message Format
+
+All `writeHandoff({ status: "BLOCKED" })` calls must include:
+1. `artifacts: {}` — prevents step 8.8 re-validation loop
+2. `blocker` field formatted as: `"<diagnosis> → <suggested action>"`
+
+Example: `"handoff missing required field 'artifacts' → add artifacts: {} to your handoff JSON at {{HANDOFF}}"`
+
+The `→` separator is machine-readable: AI agents parse the suggested action to self-recover.
+
+### Handoff File Architecture
+
+Handoffs use per-phase per-round flat files in the workspace:
+- `task-N-implement.json` — implement mode (written once)
+- `task-N-task-review-R.json` — task-review round R (1, 2, 3…)
+- `task-N-fix-R.json` — fix round R (1, 2, 3…)
+
+Round tracking in `progress.json` per-task per-mode (`rounds["task-review"]`, `rounds["fix"]`).
+Any handoff written to disk (including BLOCKED/TIMEOUT) increments the round counter.
+
+### docs-task.mjs
+
+Replaces `cdd-review.mjs`. Symmetric CLI to `cdd-task.mjs` for document tasks.
+- `--mode review`: runs D1/D2/D3 doc review, writes `<slug>-review-R.json`
+- `--mode fix`: fixes all findings, writes `<slug>-fix-R.json`
+- `--template branch-review` does not support `--mode fix` (exits 2)
+
+Schema: `skills/_templates/docs-handoff-schema.json`
+
 ## CDD CLI pre-check (skills-missing gate)
 
 The CDD engine (`cdd-task.mjs` --> `runner.mjs`) runs a **skills-missing pre-check** before spawning nested CLI agents, in all three modes (implement/task-review/fix). This is distinct from the exit-code hierarchy:

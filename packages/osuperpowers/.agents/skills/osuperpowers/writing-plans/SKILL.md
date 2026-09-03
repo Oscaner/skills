@@ -16,7 +16,6 @@ flowchart TD
   B --> C[plan-review]
   C -->|blocker found| C
   C -->|blocker=0| D{user-ok?}
-  C -->|pass1 clean| E
   D -->|fix selected| E
   D -->|approved| E[commit-plan]
   E --> F((HANDOFF: cli-driven-development))
@@ -39,9 +38,9 @@ flowchart TD
 
 ### `plan-review`
 
-- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `cdd-review` CLI call: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`. Follow D1/D2/D3 from [docs-review.md](../_docs/docs-review.md). Review Stopping (see I3): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `commit-plan`. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `cdd-review` CLI call: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template plan-review --param PASS=<pass-type> --param DOC=<path> --param SPEC=<spec-path>`. Follow D1/D2/D3 from [docs-review.md](../_docs/docs-review.md). Review Stopping (see I3): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until re-review output shows blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Plan document + spec document + [docs-review.md](../_docs/docs-review.md)
-- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean (D1) → skip to `commit-plan`
+- **Exit**: blocker=0 → `user-ok?` (present warn/nit)
 - **Fail**: Re-run review after blocker=0 → violates I3. New cdd-review call for warn/nit → violates I3
 
 ### `user-ok?`
@@ -64,7 +63,7 @@ flowchart TD
 |---|---|
 | I1 | **Read, not Skill-invoke** — upstream skill files are Read only, never Skill-invoked |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
-| I3 | **Review Stopping** — re-run driven only by blockers; no re-run after blocker=0; no new cdd-review call to obtain warn/nit |
+| I3 | **Review Stopping** — re-run driven only by blockers; stop only when re-review output (cdd-review CLI) shows 0 blockers for that pass — fixing locally and declaring blocker=0 without re-running cdd-review on that pass is insufficient; no new cdd-review call to obtain warn/nit (read from already-captured output of the current review cycle). |
 | I4 | **Task Heading H3** — Plan task headings MUST use H3 (`### Task N:` format), matching brief.mjs extraction pattern (line 11 in `packages/osuperpowers/bin/engine/lib/brief.mjs`). H2 or any other level will cause brief extraction failure at CDD dispatch time |
 
 ## Failure Modes
@@ -73,4 +72,4 @@ flowchart TD
 |---|---|---|
 | Upstream superpowers:writing-plans SKILL.md missing | BLOCKED (with install superpowers plugin guidance) | Block policy: no silent fallback |
 | Git commit error | report + fail-open | Do not block user plan review |
-| plan-review re-run after blocker=0 | Violates I3 (Review Stopping) — stop + report to user | Agent re-runs review after all passes are blocker=0 |
+| plan-review re-run after blocker=0 | Violates I3 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd-review on that pass |

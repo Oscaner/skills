@@ -38,7 +38,6 @@ flowchart TD
   J --> K{spec-review?}
   K -->|blocker found| K
   K -->|blocker=0| L{user-ok?}
-  K -->|pass1 clean (D1 zero findings, skip D2/D3)| L
   L -->|fix selected (after blocker=0, no re-review per Review Stopping)| Q{user-confirm-commit?}
   L -->|approved| Q
   Q -->|confirmed| M[commit-spec]
@@ -161,9 +160,9 @@ flowchart TD
 
 ### `spec-review?`
 
-- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. **Self-review, manual checks, or any other substitute for cdd-review CLI invocation is forbidden.** Follow D1/D2/D3 from `_docs/docs-review.md`. Review Stopping (I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Pass 1 zero findings (D1) → skip subsequent passes → `user-ok?` (pass1 clean routes through user-ok? → user-confirm-commit?, graph K→L→Q). Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template spec-review --param PASS=<pass-type> --param DOC=<path>`. **Self-review, manual checks, or any other substitute for cdd-review CLI invocation is forbidden.** Follow D1/D2/D3 from `_docs/docs-review.md`. Review Stopping (I5): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until re-review output shows blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Spec document + `_docs/docs-review.md`
-- **Exit**: blocker=0 → `user-ok?` (present warn/nit); Pass 1 clean → `user-ok?`
+- **Exit**: blocker=0 → `user-ok?` (present warn/nit)
 - **Fail**: Re-run review after blocker=0 → violates I5 (Review Stopping). New cdd-review call for warn/nit → violates I5.
 
 ### `user-ok?`
@@ -209,7 +208,7 @@ flowchart TD
 | I2 | **Research requires user confirmation** — spawn research agents only after explicit user confirmation; never auto-trigger |
 | I3 | **Design first** — no implementation actions until design is user-approved |
 | I4 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
-| I5 | **Review Stopping** — re-run driven only by blockers; no re-run after all passes are blocker=0; no new cdd-review call to obtain warn/nit (read from already-captured output of the current review cycle). |
+| I5 | **Review Stopping** — re-run driven only by blockers; stop only when re-review output (cdd-review CLI) shows 0 blockers for that pass — fixing locally and declaring blocker=0 without re-running cdd-review on that pass is insufficient; no new cdd-review call to obtain warn/nit (read from already-captured output of the current review cycle). |
 | I6 | **Register-before-grill** (scope: `phase-within-program` mode) — grilling runs only for phases already present in the overall Phase inventory. `new-program` mode passes through the `claim-phase` node but **skips the inventory check** to reach grilling directly (digraph `E -->|new-program mode| F`). In `phase-within-program` mode, if mid-grill a phase split / new issue emerges → route back to `claim-phase` → `sync-overall`; never grill unregistered scope. |
 | I7 | **Serial-phase** — when `sync-overall` registers a new phase, verify its hard-dependency predecessor has **Design spec column = `Done`** in the overall Phase inventory; if not shipped (Design spec ≠ `Done`) → hard `BLOCKED: overall-sync-failed` (same terminal as §2.3; never release grilling for an unmet phase — this is exactly the v1.19c anti-pattern to block). |
 | I8 | **Mode-aware flow** — `grilling-mode?` node branches behavior based on `read-program` mode: `new-program` → scope-level grilling → `propose-phase-approaches`; `phase-within-program` → implementation grilling → `propose-approaches`. `write-spec` node determines write granularity based on mode: `new-program` → charter-only (no implementation details); `phase-within-program` → phase-level detailed design. Mode marker is carried throughout the flow. |
@@ -226,7 +225,7 @@ flowchart TD
 | Parent overall spec unparseable / multiple matches | BLOCKED (overall-parse-failed) | mode resolution cannot proceed | prompt user to specify the unique parent overall path |
 | Phase inventory missing or unparseable | BLOCKED (overall-sync-failed) | claim-phase / sync-overall cannot gate | user supplies or fixes the overall Phase inventory |
 | Four-table sync inconsistent (dependency not shipped / dangling ref) | BLOCKED (overall-sync-failed) | refuse to grill an unregistered / unmet-dependency phase | fix the overall four tables, then re-run sync-overall |
-| spec-review re-run after blocker=0 | Violates I5 (Review Stopping) — stop + report to user | Agent re-runs review after all passes are blocker=0 |
+| spec-review re-run after blocker=0 | Violates I5 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd-review on that pass |
 | Grilling self-check fails 2 consecutive times | BLOCKED (grilling discipline broken) | Self-check mechanism failed, user intervention required |
 | spec-review does not invoke cdd-review CLI | Violates spec-review Do — must re-execute | Review substitution anti-pattern |
 | write-spec template missing/unreadable | BLOCKED (missing template) | Cannot determine write format |

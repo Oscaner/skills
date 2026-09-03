@@ -530,15 +530,23 @@ export async function runTask(harness, taskNum, opts = {}) {
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
-  // 10.5. CLI succeeded but no handoff → write APPROVED fallback (#187: status APPROVED, not DONE).
+  // 10.5. CLI succeeded but no handoff (or stale handoff from different phase) →
+  // write APPROVED fallback (#187: status APPROVED, not DONE).
+  // Phase mismatch: handoff exists but phase !== mode → agent ran but didn't overwrite
+  // (e.g. task-review agent exits 0 without writing new handoff over implement handoff).
   // dry-run excluded: bash dry-run 不写 handoff, Node 亦不写.
-  if (agentRc === 0 && !dryRun && !existsSync(env.CDD_HANDOFF_PATH)) {
-    writeHandoff(env.CDD_HANDOFF_PATH, {
-      task: taskNum,
-      phase: mode,
-      status: "APPROVED",
-      commits: { base: "unknown" },
-    });
+  if (agentRc === 0 && !dryRun) {
+    const existingHandoff = existsSync(env.CDD_HANDOFF_PATH) ? readJson(env.CDD_HANDOFF_PATH) : null;
+    const phaseMismatch = existingHandoff && existingHandoff.phase !== mode;
+    if (!existingHandoff || phaseMismatch) {
+      writeHandoff(env.CDD_HANDOFF_PATH, {
+        task: taskNum,
+        phase: mode,
+        status: "APPROVED",
+        commits: { base: existingHandoff?.commits?.head ?? "unknown" },
+        findings: existingHandoff?.findings ?? [],
+      });
+    }
   }
 
   // 11. H1 四行（来自 agent stdout / dry-run 块）

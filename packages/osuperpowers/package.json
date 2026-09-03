@@ -15,7 +15,7 @@
   "homepage": "https://github.com/Oscaner/skills",
   "license": "MIT",
   "bin": {
-    "cdd-review": "./bin/engine/cdd-review.mjs",
+    "docs-task": "./bin/engine/docs-task.mjs",
     "cdd-task": "./bin/engine/cdd-task.mjs",
     "cdd-select": "./bin/engine/cdd-select.mjs",
     "cdd-session-activate": "./bin/engine/cdd-session-activate.mjs",

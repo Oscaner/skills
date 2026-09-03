@@ -4,7 +4,7 @@
 // renderModePrompt 读 skills/cli-driven-development/templates/<mode>.md 并做
 // {{PLACEHOLDER}} env 替换。TASK 不在 bash `_cdd_template_value` 的 6 键内 —— 片段内联后
 // 需它才能渲染完整，故为超集键（fragment 头部声明 {{TASK}} 是其合法占位符）。
-// renderTemplate 读 skills/_templates/<name>.md 并做全参数替换（migrated from cdd-review.mjs）。
+// renderTemplate 读 skills/_templates/<name>.md 并做全参数替换（used by docs-task.mjs）。
 // renderHandoffStub 由 loadHandoffSchema 驱动，生成 schema 合规的 handoff JSON 示例代码块。
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -86,7 +86,7 @@ export function renderModePrompt(mode, env = {}) {
   return content;
 }
 
-// 渲染共享模板（_templates/）：全参数替换 + 缺失占位符报错（migrated from cdd-review.mjs）。
+// 渲染共享模板（_templates/）：全参数替换 + 缺失占位符报错（used by docs-task.mjs）。
 export function renderTemplate(name, params, programName) {
   const templatePath = path.join(PKG_ROOT, "skills", "_templates", `${name}.md`);
   if (!existsSync(templatePath)) {
@@ -96,8 +96,8 @@ export function renderTemplate(name, params, programName) {
   for (const [key, value] of Object.entries(params)) {
     content = content.split(`{{${key}}}`).join(value);
   }
-  // 未传占位符 → 报错
-  const missing = content.match(/\{\{(\w+)\}\}/);
+  // 未传占位符 → 报错（{{HANDOFF_STUB}} 由二次传递处理，豁免）
+  const missing = [...content.matchAll(/\{\{(\w+)\}\}/g)].find(m => m[1] !== "HANDOFF_STUB");
   if (missing) {
     throw new Error(`${programName}: template ${name}: missing param ${missing[0]}`);
   }

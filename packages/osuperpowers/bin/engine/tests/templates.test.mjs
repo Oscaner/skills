@@ -1,7 +1,7 @@
 // engine/tests/templates.test.mjs — T1: mode 模板渲染 + 行预算模块单测。
 // renderModePrompt：读 skills/cli-driven-development/templates/<mode>.md，做
 // {{PLACEHOLDER}} env 替换。renderTemplate：读 skills/_templates/<name>.md 全参数替换
-// （migrated from cdd-review.mjs）。行预算 port
+// （used by docs-task.mjs）。行预算 port
 // cdd-orchestrator-line-budget.test.sh 的真实阈值）。
 // 另含 prose-grep 治理守卫（T8 补回：port cdd-orchestrator-line-budget.test.sh +
 // cdd-severity-contract.test.sh 的 grep-contracts —— 技能/模板/文档正文行数 + 语义锚点）。
@@ -61,25 +61,27 @@ test("renderModePrompt: 缺失模板 → 抛错", () => {
 });
 
 test("renderModePrompt: spec-review 不在 cli-driven-development/templates/ → 抛错（由 renderTemplate 加载）", () => {
-  // spec-review 在 _templates/ 中，由 cdd-review.mjs 的 renderTemplate 函数加载；
+  // spec-review 在 _templates/ 中，由 docs-task.mjs 的 renderTemplate 函数加载；
   // renderModePrompt 只加载 cli-driven-development/templates/ 下的 mode 模板。
   assert.throws(() => renderModePrompt("spec-review", {}), /missing template/);
 });
 
 test("renderModePrompt: plan-review 不在 cli-driven-development/templates/ → 抛错（由 renderTemplate 加载）", () => {
-  // plan-review 在 _templates/ 中，由 cdd-review.mjs 的 renderTemplate 函数加载。
+  // plan-review 在 _templates/ 中，由 docs-task.mjs 的 renderTemplate 函数加载。
   assert.throws(() => renderModePrompt("plan-review", {}), /missing template/);
 });
 
 test("renderTemplate: _templates/ 全参数替换 + 缺失占位符报错", () => {
-  const out = renderTemplate("spec-review", { DOC: "/doc.md", PASS: "completeness" }, "test");
+  const out = renderTemplate("spec-review", { DOC: "/doc.md", PASS: "completeness", HANDOFF: "/h.json" }, "test");
   assert.ok(out.includes("Spec Review"), "spec-review 模板可加载");
   assert.ok(!out.includes("{{DOC}}"), "DOC 已替换");
   assert.ok(out.includes("/doc.md"), "DOC 值正确");
   assert.ok(!out.includes("{{PASS}}"), "PASS 已替换");
   assert.ok(out.includes("completeness"), "PASS 值正确");
-  // {{SPEC}} 未传 → 应报错
-  assert.throws(() => renderTemplate("spec-review", { DOC: "/doc.md" }, "test"), /missing param/);
+  // {{HANDOFF_STUB}} 由二次传递处理，renderTemplate 豁免 → 残留在输出中
+  assert.ok(out.includes("{{HANDOFF_STUB}}"), "{{HANDOFF_STUB}} 残留（二次传递）");
+  // PASS 未传 → 应报错
+  assert.throws(() => renderTemplate("spec-review", { DOC: "/doc.md", HANDOFF: "/h.json" }, "test"), /missing param/);
 });
 
 test("renderTemplate: 缺失模板 → 抛错", () => {

@@ -39,3 +39,14 @@ Return **only** a JSON object in the following format — no prose, no summary, 
 ```
 
 Empty findings array = approved. No other output.
+
+## Handoff Output
+
+Write the following JSON exactly to `{{HANDOFF}}`:
+
+{{HANDOFF_STUB}}
+
+Rules:
+- `status`: APPROVED (no blockers) or CHANGES_REQUESTED (blockers found)
+- `findings`: all review findings (blocker/warn/nit)
+- `doc_path`: must be the exact path `{{DOC}}`

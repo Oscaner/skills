@@ -14,7 +14,7 @@ Per-task execution uses **plugin-bundled** Node CLI entry scripts (`bin/engine/*
 | `CDD_MODE` | Responsibility |
 |------------|----------------|
 | `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 four-line contract |
-| `task-review` | `review-package` shell (archive diff); axis review via `cdd-review.mjs` direct dispatch (D4; axis files; Step 5 override) + handoff write |
+| `task-review` | `review-package` shell (archive diff); axis review via `docs-task.mjs` direct dispatch (D4; axis files; Step 5 override) + handoff write |
 | `fix` | fix implementer + handoff write; reads open-findings; **+ commit contract** (post-run gate, see below) |
 
 3. **Env contract** (paths only — **never** paste full plan into CLI env):
@@ -93,7 +93,7 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 
 Orchestrator / skill **must not** create `cdd-task*` or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-task.mjs` / `cdd-review.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/skills/cli-driven-development/templates/` + `packages/osuperpowers/skills/_templates/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in `packages/osuperpowers/bin/engine/` (`cdd-task.mjs` / `docs-task.mjs` / `cdd-select.mjs` / `cdd-session-activate.mjs`); templates in `packages/osuperpowers/skills/cli-driven-development/templates/` + `packages/osuperpowers/skills/_templates/`. Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 

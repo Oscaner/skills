@@ -71,7 +71,7 @@ Charter only — no implementation detail。
 | Pγ | anti-patterns + brainstorming 重写：#206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-gamma-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-gamma.md) | Done | 见 phase spec | Pδ |
 | Pδ | CDD 重构：#207 CDD 执行流程绕过修复 + #210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | [design](./2026-09-01-post-dogfood-bugfixes-p-delta-design.md) | [plan](../plans/2026-09-01-post-dogfood-bugfixes-p-delta.md) | Done | Pending | 见 phase spec | Pε |
 | Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 + issue 编号清理 + review 3-pass 强制 + #216 heading 格式防回归 + #217 Task1/2 原子性约束 + #218 runner BLOCKED handoff phase 修复 | [design](./2026-09-02-post-dogfood-bugfixes-p-epsilon-design.md) | [plan](../plans/2026-09-02-post-dogfood-bugfixes-p-epsilon.md) | Done | ① osuperpowers-router 插件删除（#209）；② emit + version 流程 router 清理；③ osuperpowers 内部 router 引用移除；④ CLAUDE.md 语言政策 zh-CN 镜像退役 + router refs 清理；⑤ report-issue 隐私脱敏指引（#208）；⑥ issue 编号更新（#216/#217/#218）；⑦ skills/ 下 .zh-CN.md 全删；⑧ writing-plans I2 移除 + I3→I2/I4→I3/I5→I4 重编号（#71）；⑨ validate 绿 | Pζ |
-| Pζ | CDD handoff schema + templates + 文件架构 全面重构：#219/#220/#221/#222 + deferred-sweep 消除 + Review Stopping 统一 + review-loop.mjs 共享 + docs-task.mjs + fix-mode 简化 + user-ok? 删除 + maintainer docs 更新；允许破坏性更新，不留技术债务 | [design](./2026-09-03-post-dogfood-bugfixes-p-zeta-design.md) | Pending | Pending | 见 phase spec | — |
+| Pζ | CDD handoff schema + templates + 文件架构 全面重构：#219/#220/#221/#222 + deferred-sweep 消除 + Review Stopping 统一 + review-loop.mjs 共享 + docs-task.mjs + fix-mode 简化 + user-ok? 删除 + maintainer docs 更新；允许破坏性更新，不留技术债务 | [design](./2026-09-03-post-dogfood-bugfixes-p-zeta-design.md) | [plan](../plans/2026-09-03-post-dogfood-bugfixes-p-zeta.md) | Pending | 见 phase spec | — |
 
 ---
 
@@ -115,3 +115,4 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.23 | 2026-09-02 | Pζ +#222 per-phase handoff 文件架构——各阶段共用 task-N-handoff.json 相互覆盖；Pζ scope 扩展为文件架构重构 | [human] · Claude Opus 4.8 |
 | v1.23 | 2026-09-03 | Pε Status = Done；Phase inventory Deliverables 填充；Constraints 语言政策 zh-CN 镜像移除 | [human] · Claude Opus 4.8 |
 | v1.24 | 2026-09-03 | Pζ Design spec = Done；scope 扩展为全面重构（+deferred-sweep 消除/Review Stopping 统一/review-loop.mjs/docs-task.mjs/fix-mode 简化/user-ok? 删除/maintainer docs）；Issue inventory +7 新 issue；dependency graph 说明更新 | [human] · Claude Opus 4.8 |
+| v1.25 | 2026-09-03 | Pζ Plan = Done；overall spec 四表同步 | [human] · Claude Opus 4.8 |

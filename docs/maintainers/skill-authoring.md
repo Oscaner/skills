@@ -163,6 +163,10 @@ When auditing a node, check only the patterns relevant to that element.
 |---|---|---|
 | Insufficient granularity | One node handles multiple distinct responsibilities | Split into separate nodes with clear Exit handoff |
 
+**Anti-pattern: Issue-Number as Behavioral Baseline**
+
+Behavioral logic in SKILL.md, templates, and docs must not reference GitHub issue numbers as authoritative sources. Issues are the forum for design discussion; once conclusions are committed to documentation, issue numbers should be removed from behavioral logic. Issue references in change history are exempt.
+
 ---
 
 ## Change history

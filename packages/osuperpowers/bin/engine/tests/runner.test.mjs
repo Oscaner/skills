@@ -191,8 +191,8 @@ test("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 blo
   assert.equal(res.exitCode, 1);
   const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
   assert.equal(handoff.status, "BLOCKED");
-  assert.match(handoff.blocker, /boom from fake cli/);
-  assert.match(handoff.blocker, /exit/);
+  assert.match(handoff.blocker, /cli exited 3 without writing handoff/);
+  assert.match(handoff.blocker, /re-dispatch task 1/);
 });
 
 test("taskNumbersFromPlan: 提取 ### Task N: 并排序（含 0）", () => {
@@ -643,7 +643,7 @@ test("runTask: timeout → handoff status TIMEOUT + blocker + partial findings",
     assert.ok(existsSync(hp), "handoff file should exist after timeout");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     assert.equal(h.status, "TIMEOUT");
-    assert.match(h.blocker, /timeout after/);
+    assert.match(h.blocker, /timed out after/);
     // Partial artifacts preserved in handoff
     assert.equal(h.task, 1);
   } finally {

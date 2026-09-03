@@ -275,11 +275,11 @@ export function h1FourLines(raw) {
 // artifacts 仅当存在时输出（与 bash 一致）。
 export function h1FromHandoff(handoffPath) {
   if (!handoffPath || !existsSync(handoffPath)) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception");
+    return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors");
   }
   const h = readJson(handoffPath);
   if (!h) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception");
+    return h1FourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch");
   }
   const out = [
     `status: ${h.status ?? "BLOCKED"}`,
@@ -464,8 +464,9 @@ export async function runTask(harness, taskNum, opts = {}) {
         task: taskNum,
         phase: mode,
         status: "BLOCKED",
-        blocker: "process unkillable",
-        findings: existingHandoff?.findings ?? [],
+        findings: [],
+        artifacts: {},
+        blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${taskNum}`,
       });
       return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "process unkillable", noExit);
     }
@@ -475,8 +476,9 @@ export async function runTask(harness, taskNum, opts = {}) {
       task: taskNum,
       phase: mode,
       status: "TIMEOUT",
-      blocker: `timeout after ${timeoutMs}ms`,
-      findings: existingHandoff?.findings ?? [],
+      findings: [],
+      artifacts: {},
+      blocker: `cli timed out after ${timeoutMs}ms → simplify task ${taskNum} scope or increase timeout, then re-dispatch`,
     });
     // Increment timeoutCount in progress.json
     const progressDir = path.dirname(env.CDD_LEDGER);
@@ -492,7 +494,14 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (existingHandoff) {
       const sv = validateHandoffSchema(existingHandoff);
       if (!sv.valid) {
-        writeHandoff(env.CDD_HANDOFF_PATH, { task: taskNum, status: "BLOCKED", phase: mode, findings: [], blocker: sv.reason });
+        writeHandoff(env.CDD_HANDOFF_PATH, {
+          task: taskNum,
+          phase: mode,
+          status: "BLOCKED",
+          findings: [],
+          artifacts: {},
+          blocker: `handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${env.CDD_HANDOFF_PATH} and re-dispatch task ${taskNum}`,
+        });
         return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
       }
     }
@@ -516,16 +525,14 @@ export async function runTask(harness, taskNum, opts = {}) {
   //     stderr CDD_BLOCKED 诊断 + exit 1（对齐 bash cdd_exit_blocked）。唯一 sanctioned divergence：
   //     Node 额外写 handoff（§spec 2.1 stderr-surfacing）—— bash 为 emit 原始 agent H1 + exit 1。
   if (agentRc !== 0 && !existsSync(env.CDD_HANDOFF_PATH)) {
-    const stderrText = cliStderr.trim();
-    const blocker = stderrText
-      ? `cli exited ${agentRc}: ${stderrText}`
-      : `cli exited ${agentRc} and handoff missing`;
     writeHandoff(env.CDD_HANDOFF_PATH, {
       task: taskNum,
       phase: mode,
       status: "BLOCKED",
       commits: { base: "unknown" },
-      blocker,
+      findings: [],
+      artifacts: {},
+      blocker: `cli exited ${agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${taskNum}`,
     });
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }

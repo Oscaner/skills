@@ -51,8 +51,9 @@ Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) 
 6. Set status by severity: any `blocker` → `CHANGES_REQUESTED`; otherwise → `APPROVED`.
 7. On CHANGES_REQUESTED: write open-findings JSON (non-deferred = blocker findings only) beside handoff.
 8. `commits.base` = `TASK_BASE`; `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
-9. **`phase` field is required** — always write `"phase": "task-review"` in the handoff JSON. Missing `phase` causes schema validation failure on next dispatch.
-10. **`findings` field is required** — always write `"findings": [...]` in the handoff JSON. Missing `findings` causes schema validation failure on next dispatch.
+9. **`task` field is required** — always write `"task": {{TASK}}` (integer) in the handoff JSON. Missing `task` causes schema validation failure.
+10. **`phase` field is required** — always write `"phase": "task-review"` in the handoff JSON. Missing `phase` causes schema validation failure on next dispatch.
+11. **`findings` field is required** — always write `"findings": [...]` in the handoff JSON. Missing `findings` causes schema validation failure on next dispatch.
 
 ### Self-validate
 

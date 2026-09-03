@@ -70,8 +70,8 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 ## 快速开始
 
 1. 从市场或 npm 安装插件（见上文）。
-2. 每个项目跑一次 **`init router`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中初始化 override 触发表。
-3. 照常调用 superpowers 工作流——路由器会自动路由到对应的 osuperpowers / mattpocock 目标。
+2. 每个项目跑一次 **`/init harness`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中设置 harness 配置。
+3. 照常调用 superpowers 工作流——osuperpowers skills 会自动拦截上游触发器并路由到对应目标。
 
 ## 架构
 

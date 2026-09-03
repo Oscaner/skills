@@ -70,8 +70,8 @@ Full per-harness details: [docs/gate-install.md](docs/gate-install.md).
 ## Quick start
 
 1. Install plugins from the marketplace or npm (see above).
-2. Run **`init router`** once per project -- re-run after plugin upgrades. This initializes the override trigger table in your project's CLAUDE.md / Cursor rules.
-3. Invoke the superpowers workflow as you normally would -- the router routes to the matching osuperpowers / mattpocock target automatically.
+2. Run **`/init harness`** in each project -- re-run after plugin upgrades. This sets up harness config in your project's CLAUDE.md / Cursor rules.
+3. Invoke the superpowers workflow as you normally would -- osuperpowers skills intercept upstream triggers and route to the matching target automatically.
 
 ## Architecture
 

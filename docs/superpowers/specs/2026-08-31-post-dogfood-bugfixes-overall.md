@@ -51,6 +51,7 @@ Charter only — no implementation detail。
 | Pζ | [#219](https://github.com/Oscaner/skills/issues/219) | CDD handoff schema 缺乏 unit test 覆盖——runner 写入路径、agent 模板、workspace slug 一致性均无测试，仅靠 dogfood 发现 |
 | Pζ | [#220](https://github.com/Oscaner/skills/issues/220) | cdd-task.mjs task-review mode：agent 退出 0 但不写 handoff——H1 output missing，runner 保留旧 implement handoff |
 | Pζ | [#221](https://github.com/Oscaner/skills/issues/221) | CDD handoff templates 旁路 schema SOT——required fields 在 prose 中手动维护而非从 handoff-schema.json 派生 |
+| Pζ | [#222](https://github.com/Oscaner/skills/issues/222) | CDD handoff 各阶段共用 task-N-handoff.json——implement/task-review/fix 相互覆盖，无各阶段独立审计记录 |
 
 ---
 
@@ -63,7 +64,7 @@ Charter only — no implementation detail。
 | Pγ | anti-patterns + brainstorming 重写：#206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-gamma-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-gamma.md) | Done | 见 phase spec | Pδ |
 | Pδ | CDD 重构：#207 CDD 执行流程绕过修复 + #210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | [design](./2026-09-01-post-dogfood-bugfixes-p-delta-design.md) | [plan](../plans/2026-09-01-post-dogfood-bugfixes-p-delta.md) | Done | Pending | 见 phase spec | Pε |
 | Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 + issue 编号清理 + review 3-pass 强制 + #216 heading 格式防回归 + #217 Task1/2 原子性约束 + #218 runner BLOCKED handoff phase 修复 | [design](./2026-09-02-post-dogfood-bugfixes-p-epsilon-design.md) | [plan](../plans/2026-09-02-post-dogfood-bugfixes-p-epsilon.md) | Done | ① osuperpowers-router 插件删除（#209）；② emit + version 流程 router 清理；③ osuperpowers 内部 router 引用移除；④ CLAUDE.md 语言政策 zh-CN 镜像退役 + router refs 清理；⑤ report-issue 隐私脱敏指引（#208）；⑥ issue 编号更新（#216/#217/#218）；⑦ skills/ 下 .zh-CN.md 全删；⑧ writing-plans I2 移除 + I3→I2/I4→I3/I5→I4 重编号（#71）；⑨ validate 绿 | Pζ |
-| Pζ | CDD handoff schema + templates 全流程重构：#219 unit test 全覆盖 + #220 task-review handoff 写入修复 + #221 schema SOT 统一（stub injection 或 schema reference，消除 templates prose 重复）+ implement/task-review/fix templates 重构 + runner 写入路径审计 + workspace slug 一致性；允许全面重构，不留技术债务 | Pending | Pending | Pending | 见 phase spec | — |
+| Pζ | CDD handoff schema + templates + 文件架构 全面重构：#219 unit test 全覆盖 + #220 task-review handoff 写入修复 + #221 schema SOT 统一 + #222 per-phase/per-round 独立 handoff 文件架构；允许全面重构，不留技术债务 | Pending | Pending | Pending | 见 phase spec | — |
 
 ---
 
@@ -104,4 +105,5 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.20 | 2026-09-02 | 新增 Pζ（handoff schema 深度修复）：#219 全面重构验证体系；Pε Downstream → Pζ；依赖链更新 | [human] · Claude Opus 4.8 |
 | v1.21 | 2026-09-02 | Pζ scope 扩展：+#220 task-review handoff 写入修复 + templates 全流程重构；Pζ Phase inventory 更新 | [human] · Claude Opus 4.8 |
 | v1.22 | 2026-09-02 | Pζ +#221 schema SOT bypass——templates prose 重复 required fields；Pζ scope 更新为 schema stub injection 方案 | [human] · Claude Opus 4.8 |
+| v1.23 | 2026-09-02 | Pζ +#222 per-phase handoff 文件架构——各阶段共用 task-N-handoff.json 相互覆盖；Pζ scope 扩展为文件架构重构 | [human] · Claude Opus 4.8 |
 | v1.23 | 2026-09-03 | Pε Status = Done；Phase inventory Deliverables 填充；Constraints 语言政策 zh-CN 镜像移除 | [human] · Claude Opus 4.8 |

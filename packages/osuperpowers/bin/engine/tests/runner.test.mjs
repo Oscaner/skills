@@ -202,26 +202,31 @@ test("taskNumbersFromPlan: 提取 ### Task N: 并排序（含 0）", () => {
   assert.deepEqual(taskNumbersFromPlan(plan), [0, 1, 2, 3]);
 });
 
-test("isTaskPending / handoffStatus: ledger complete / APPROVED → false；DONE / MISSING → true", () => {
+test("isTaskPending / handoffStatus: progressData round 0 → MISSING / pending；APPROVED/DONE → not pending", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-pending-"));
-  const ledger = path.join(dir, "progress.md");
-  const handoff = path.join(dir, "task-1-handoff.json");
 
-  assert.equal(handoffStatus(handoff), "MISSING");
-  assert.equal(isTaskPending(1, ledger, handoff), true);
+  // reviewRound = 0 (no task-review recorded) → MISSING / pending
+  const noReviewProgress = { tasks: [] };
+  assert.equal(handoffStatus(1, dir, noReviewProgress), "MISSING");
+  assert.equal(isTaskPending(1, dir, noReviewProgress), true);
 
-  writeFileSync(handoff, JSON.stringify({ status: "DONE" }));
+  // reviewRound = 1, handoff DONE → normalized APPROVED → not pending
+  const progressR1 = { tasks: [{ task: 1, rounds: { "task-review": 1 } }] };
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "DONE" }));
   // T2: DONE normalized to APPROVED by handoffStatus()
-  assert.equal(handoffStatus(handoff), "APPROVED");
+  assert.equal(handoffStatus(1, dir, progressR1), "APPROVED");
   // T2: DONE normalized to APPROVED → isTaskPending returns false (not pending)
-  assert.equal(isTaskPending(1, ledger, handoff), false);
+  assert.equal(isTaskPending(1, dir, progressR1), false);
 
-  writeFileSync(handoff, JSON.stringify({ status: "APPROVED" }));
-  assert.equal(handoffStatus(handoff), "APPROVED");
-  assert.equal(isTaskPending(1, ledger, handoff), false);
+  // APPROVED explicitly → not pending
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "APPROVED" }));
+  assert.equal(handoffStatus(1, dir, progressR1), "APPROVED");
+  assert.equal(isTaskPending(1, dir, progressR1), false);
 
-  writeFileSync(ledger, "# CDD ledger\nTask 1: complete (commits a..b, review clean)\n");
-  assert.equal(isTaskPending(1, ledger, handoff), false);
+  // BLOCKED → still pending
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "BLOCKED" }));
+  assert.equal(handoffStatus(1, dir, progressR1), "BLOCKED");
+  assert.equal(isTaskPending(1, dir, progressR1), true);
 });
 
 // ---- findSuperpowersScriptsDir / byVersion（T7 补回：删除 common-functions.test.mjs 后
@@ -499,7 +504,8 @@ test("runTask #168: fix mode + --scope deferred-sweep → env has CDD_FINDINGS_S
   // Use a fake CLI that records the env and exits 0
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-scope-bin-"));
   const envLog = path.join(ws, "scope-env-log.txt");
-  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nexit 0\n`);
+  // Write handoff to CDD_HANDOFF_PATH so step 10.5 does not trigger BLOCKED
+  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nprintf '%s' '{"task":1,"phase":"fix","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`);
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
@@ -526,7 +532,8 @@ test("runTask #168: fix mode + default scope → env has CDD_FINDINGS_SCOPE=bloc
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-scope-def-bin-"));
   const envLog = path.join(ws, "scope-env-log.txt");
-  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nexit 0\n`);
+  // Write handoff to CDD_HANDOFF_PATH so step 10.5 does not trigger BLOCKED
+  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nprintf '%s' '{"task":1,"phase":"fix","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`);
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
@@ -557,7 +564,7 @@ test("runTask #168: --scope invalid → RunBlocked exit 1", async () => {
   assert.equal(res.exitCode, 1);
 });
 
-test("runTask #187: CLI succeeds + no handoff → fallback handoff status=APPROVED", async () => {
+test("runTask #187→Pζ: CLI succeeds + no handoff → BLOCKED (not APPROVED fallback)", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-ok-cli-"));
   writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
@@ -575,42 +582,43 @@ test("runTask #187: CLI succeeds + no handoff → fallback handoff status=APPROV
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
-    assert.equal(res.exitCode, 0, `expected exit 0`);
+    assert.equal(res.exitCode, 1, `expected exit 1 (Pζ: absent handoff after exit 0 → BLOCKED)`);
     const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
-    assert.equal(handoff.status, "APPROVED", "fallback handoff should be APPROVED, not DONE (#187)");
+    assert.equal(handoff.status, "BLOCKED", "absent handoff should write BLOCKED (Pζ step 10.5)");
     assert.equal(handoff.phase, "implement");
+    assert.match(handoff.blocker, /not written after exit 0/);
   } finally {
     process.env.PATH = origPath;
   }
 });
 
 // T2: handoffStatus() 归一化 DONE/OK/COMPLETED → APPROVED（#187 fix 模式 re-review 残留）
-test("handoffStatus: DONE → APPROVED normalization", () => {
+// New signature: handoffStatus(taskNum, workspace, progressData) reads task-N-task-review-R.json
+function makeHandoffStatusFixture(status) {
   const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "DONE" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const progressData = { tasks: [{ task: 1, rounds: { "task-review": 1 } }] };
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status }));
+  return { dir, progressData };
+}
+
+test("handoffStatus: DONE → APPROVED normalization", () => {
+  const { dir, progressData } = makeHandoffStatusFixture("DONE");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 test("handoffStatus: OK → APPROVED normalization", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-ok-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "OK" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const { dir, progressData } = makeHandoffStatusFixture("OK");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 test("handoffStatus: COMPLETED → APPROVED normalization", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-comp-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "COMPLETED" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const { dir, progressData } = makeHandoffStatusFixture("COMPLETED");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 test("handoffStatus: APPROVED unchanged", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-ap-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "APPROVED" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const { dir, progressData } = makeHandoffStatusFixture("APPROVED");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 // ---- P12 timeout path ----
@@ -960,7 +968,7 @@ test("runTask Pζ T3: task-review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POI
   const envLog = path.join(ws, "fp-env-log.txt");
   writeFileSync(
     path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nexit 0\n`,
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
   );
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
@@ -999,7 +1007,7 @@ test("runTask Pζ T3: task-review round 2 → FIXED_POINT derived from task-1-fi
   const envLog = path.join(ws, "fp-r2-log.txt");
   writeFileSync(
     path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nexit 0\n`,
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
   );
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");

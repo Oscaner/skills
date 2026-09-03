@@ -569,24 +569,20 @@ export async function runTask(harness, taskNum, opts = {}) {
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
-  // 10.5. CLI succeeded but no handoff (or stale handoff from different phase) →
-  // write APPROVED fallback (#187: status APPROVED, not DONE).
-  // Phase mismatch: handoff exists but phase !== mode → agent ran but didn't overwrite
-  // (e.g. task-review agent exits 0 without writing new handoff over implement handoff).
+  // 10.5. CLI succeeded but no handoff → BLOCKED (file-existence check, not phase-mismatch fallback).
+  // Agent exits 0 without writing handoff = error, not success — write BLOCKED and return exit 1.
   // dry-run excluded: bash dry-run 不写 handoff, Node 亦不写.
-  if (agentRc === 0 && !dryRun) {
-    const existingHandoff = existsSync(env.CDD_HANDOFF_PATH) ? readJson(env.CDD_HANDOFF_PATH) : null;
-    const phaseMismatch = existingHandoff && existingHandoff.phase !== mode;
-    if (!existingHandoff || phaseMismatch) {
-      writeHandoff(env.CDD_HANDOFF_PATH, {
-        task: taskNum,
-        phase: mode,
-        status: "APPROVED",
-        commits: { base: existingHandoff?.commits?.head ?? "unknown" },
-        findings: existingHandoff?.findings ?? [],
-      });
-      if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
-    }
+  if (agentRc === 0 && !dryRun && !existsSync(env.CDD_HANDOFF_PATH)) {
+    writeHandoff(env.CDD_HANDOFF_PATH, {
+      task: taskNum,
+      phase: mode,
+      status: "BLOCKED",
+      findings: [],
+      artifacts: {},
+      blocker: `${path.basename(env.CDD_HANDOFF_PATH)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${env.CDD_HANDOFF_PATH} before exit`,
+    });
+    incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `${mode} agent did not write handoff`, noExit);
   }
 
   // 11. H1 四行（来自 agent stdout / dry-run 块）
@@ -620,18 +616,22 @@ function ledgerComplete(n, ledgerPath) {
   return new RegExp(`^Task ${n}: complete`).test(readFileSync(ledgerPath, "utf8"));
 }
 
-// 对齐 _handoff_status：缺失 → "MISSING"；损坏 → "UNKNOWN"；否则 status // "UNKNOWN"。
-export function handoffStatus(handoffPath) {
-  if (!handoffPath || !existsSync(handoffPath)) return "MISSING";
+// 读取最新 task-review handoff 的 status（progressData.rounds["task-review"] 轮次）。
+// reviewRound=0 → 无 task-review 完成记录 → "MISSING"；损坏 → "UNKNOWN"。
+export function handoffStatus(taskNum, workspace, progressData) {
+  // For latest review: reads task-N-task-review-R.json where R = rounds["task-review"]
+  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
+  if (reviewRound === 0) return "MISSING";
+  const handoffPath = path.join(workspace, `task-${taskNum}-task-review-${reviewRound}.json`);
+  if (!existsSync(handoffPath)) return "MISSING";
   try {
     return normalizeHandoffStatus(JSON.parse(readFileSync(handoffPath, "utf8")).status ?? "UNKNOWN");
-  } catch {
-    return "UNKNOWN";
-  }
+  } catch { return "UNKNOWN"; }
 }
 
-// 对齐 _task_pending：非 ledger-complete 且 handoff status ≠ APPROVED。
-export function isTaskPending(n, ledgerPath, handoffPath) {
-  if (ledgerComplete(n, ledgerPath)) return false;
-  return handoffStatus(handoffPath) !== "APPROVED";
+// task-review 轮次=0 → 从未完成 task-review → pending；否则读最新 task-review handoff status。
+export function isTaskPending(taskNum, workspace, progressData) {
+  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
+  if (reviewRound === 0) return true; // no task-review ever completed
+  return handoffStatus(taskNum, workspace, progressData) !== "APPROVED";
 }

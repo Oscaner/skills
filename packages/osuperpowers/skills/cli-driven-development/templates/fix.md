@@ -4,7 +4,7 @@
 
 **Task brief:** {{BRIEF}}
 
-**Open findings (scope: {{FINDINGS_SCOPE}}):** {{FINDINGS}}
+**Open findings:** {{FINDINGS}}
 
 **Handoff path (read for context, then update per fragment below):** {{HANDOFF}}
 
@@ -12,14 +12,10 @@
 
 ## Instructions
 
-1. Read open-findings at **`{{FINDINGS}}`** and the task brief at **`{{BRIEF}}`**
+1. Read open-findings at **`{{FINDINGS}}`** (the task-review handoff for this round) and the task brief at **`{{BRIEF}}`**
    (paths only for handoff context — do not paste full review axis bodies into prompts).
-   **Scope `{{FINDINGS_SCOPE}}`**: `blocker-only` (default) → open-findings contains only
-   non-deferred blocker findings; `deferred-sweep` → open-findings contains the deferred
-   items selected by the user at deferred-disposition. open-findings covers only findings
-   within the current scope; deferred items (in blocker-only scope) ride in handoff
-   `findings[]` across rounds and do not enter the fix loop.
-2. Fix issues per open-findings; stay within fix-loop scope (H4 incremental re-review uses `FIX_BASE..HEAD`).
+   Fix ALL findings listed in open-findings: blockers, warns, and nits.
+2. Fix issues per open-findings; H4 incremental re-review uses `FIX_BASE..HEAD`.
 3. Update `<workspace>/task-N-test-evidence.json` after running verification commands.
 4. Update the implementer report at the path from the brief (or as the brief specifies for fix rounds).
 5. **Commit (base/head contract):**
@@ -51,14 +47,10 @@ Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) 
 
 ### Segment: fix
 
-1. Read handoff.json + open-findings.json.
-2. Resolve non-deferred findings per fix outcome (remove fixed / update remaining).
-3. **Preserve all `deferred: true` findings** from prior handoff `findings[]` — deferred
-   items never enter the fix loop and never drop across rounds (blocker-only scope).
-   **Exception: deferred-sweep scope** — sweep-resolved findings are removed from `findings[]`
-   (fully resolved, not retained as deferred); unresolved findings remain `deferred: true`.
-4. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
-5. `commits.base` = `{{FIXED_POINT}}` (fix dispatch `FIX_BASE`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
+1. Read handoff.json + open-findings.json (the task-review handoff).
+2. Fix ALL findings (blocker + warn + nit); remove fixed findings from `findings[]`.
+3. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
+4. `commits.base` = `{{FIXED_POINT}}` (fix dispatch `FIX_BASE`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
 
 Write the following JSON stub to `{{HANDOFF}}` (fill in your actual values):
 
@@ -68,7 +60,7 @@ Rules:
 - `task` must be a JSON integer (no quotes)
 - `phase`: "fix"
 - `status`: APPROVED (fixes applied, pending re-review) or BLOCKED
-- `findings`: array with remaining / deferred findings (preserve `deferred: true` items)
+- `findings`: array with remaining findings
 - `artifacts`: record file paths produced (e.g. `{"brief": "...", "report": "..."}`)
 
 ### Self-validate

@@ -86,28 +86,6 @@ test("renderTemplate: 缺失模板 → 抛错", () => {
   assert.throws(() => renderTemplate("no-such-template", {}, "test"), /template not found/);
 });
 
-// #168 FINDINGS_SCOPE placeholder rendering
-test("renderModePrompt #168: fix mode + FINDINGS_SCOPE=deferred-sweep → rendered", () => {
-  const env = {
-    WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
-    CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "1",
-    FINDINGS_SCOPE: "deferred-sweep",
-  };
-  const out = renderModePrompt("fix", env);
-  assert.ok(out.includes("deferred-sweep"), "FINDINGS_SCOPE should be rendered in fix mode");
-  assert.ok(!out.includes("{{FINDINGS_SCOPE}}"), "no residual FINDINGS_SCOPE placeholder");
-});
-
-test("renderModePrompt #168: fix mode + default FINDINGS_SCOPE → blocker-only", () => {
-  const env = {
-    WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
-    CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "1",
-    FINDINGS_SCOPE: "blocker-only",
-  };
-  const out = renderModePrompt("fix", env);
-  assert.ok(out.includes("blocker-only"), "default FINDINGS_SCOPE should render");
-  assert.ok(!out.includes("{{FINDINGS_SCOPE}}"), "no residual placeholder");
-});
 
 test("lineBudget: 真实阈值", () => {
   assert.equal(lineBudget("sdd"), 210);
@@ -158,13 +136,11 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   const fix = readRel("skills/cli-driven-development/templates/fix.md");
   const dispatch = readRel("skills/_docs/docs-review.md");
 
-  // inline Handoff Output segment：deferred 保留 + blocker-only open-findings + merge
+  // inline Handoff Output segment：内联 + merge
   assert.ok(implement.includes("### Segment: implement"), "implement inline segment");
   assert.ok(review.includes("### Segment: task-review"), "task-review inline segment");
   assert.ok(fix.includes("### Segment: fix"), "fix inline segment");
-  assert.ok(review.includes("deferred: true"), "review deferred marking");
   assert.ok(review.includes("non-deferred = blocker findings only"), "review blocker-only open-findings");
-  assert.ok(/Preserve all `deferred: true` findings/.test(fix), "fix segment preserves deferred");
   assert.ok(/never replace wholesale/.test(review), "review segment merge semantics");
 
   // task-review.md: blocker → CHANGES_REQUESTED（新措辞）替换旧 empty → APPROVED
@@ -172,9 +148,8 @@ test("governance: D3/review/fix 语义锚点 + 禁用措辞", () => {
   assert.ok(/warn\/nit → APPROVED/.test(review), "review warn/nit mapping (replaces old 'empty → APPROVED')");
   assert.ok(!review.includes("empty → APPROVED"), "old 'empty → APPROVED' removed");
 
-  // fix.md: deferred + open-findings blocker-only
-  assert.ok(fix.includes("deferred"), "fix deferred");
-  assert.ok(fix.includes("blocker-only"), "fix open-findings blocker-only");
+  // fix.md: no deferred language
+  assert.ok(!fix.includes("deferred:"), "no deferred field in fix template");
 
   // D3 severity behavioral anchors
   assert.ok(dispatch.includes("must fix before merge"), "D3 blocker anchor");
@@ -207,7 +182,6 @@ test("templates #T2: fix.md 渲染后 handoff 指令不含 DONE 关键词", () =
   const env = {
     WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
     CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "1",
-    FINDINGS_SCOPE: "blocker-only",
   };
   const out = renderModePrompt("fix", env);
   // fix 模板的 H1 Return 行和 handoff 段不应包含 DONE 作为 status 选项
@@ -317,7 +291,7 @@ test("renderModePrompt: fix — no residual {{HANDOFF_STUB}}, stub has phase=fix
   const env = {
     WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
     CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "2",
-    FINDINGS_SCOPE: "blocker-only", FIXED_POINT: "abc",
+    FIXED_POINT: "abc",
   };
   const out = renderModePrompt("fix", env);
   assert.ok(!out.includes("{{HANDOFF_STUB}}"), "no residual {{HANDOFF_STUB}} in fix output");

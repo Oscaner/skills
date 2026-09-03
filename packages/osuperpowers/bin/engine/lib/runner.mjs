@@ -96,9 +96,8 @@ export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
 
 // 对齐 _cdd_set_task_env：workspace 派生路径，未设置才默认（`${VAR:-default}` 语义）；
 // CDD_WORKSPACE / CDD_MODE / CDD_HARNESS 强制。返回新 env 对象（不改 baseEnv）。
-// scope：fix mode 时注入 CDD_FINDINGS_SCOPE（#168：fix 双通道 scope env 映射）。
 // round：task-review/fix mode 时派生 per-round handoff 路径；implement 固定为 task-N-implement.json。
-export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope, round = 1 } = {}) {
+export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 1 } = {}) {
   const env = { ...baseEnv };
   env.CDD_WORKSPACE = workspace;
   env.CDD_HARNESS = harness;
@@ -111,8 +110,13 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope, r
   env.CDD_HANDOFF_PATH = path.join(workspace, handoffFile); // unconditional assignment
   env.CDD_PLAN_CONSTRAINTS ||= path.join(workspace, "plan-constraints.md");
   env.CDD_MODE = mode;
-  env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
-  if (scope) env.CDD_FINDINGS_SCOPE = scope;
+  if (mode !== "fix") {
+    env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
+  }
+  if (mode === "fix") {
+    // CDD_FINDINGS: path to task-review-R.json for this fix round (runner-derived, no scope filter)
+    env.CDD_FINDINGS = prevHandoffPath(workspace, task, mode, round);
+  }
   return env;
 }
 
@@ -177,7 +181,7 @@ function requireEnv(env, mode) {
   return missing.length > 0 ? `Missing required env: ${missing.join(" ")}` : null;
 }
 
-// renderModePrompt 的 {{PLACEHOLDER}} env 映射（bash 6 键 + TASK + FINDINGS_SCOPE 超集键）。
+// renderModePrompt 的 {{PLACEHOLDER}} env 映射（bash 6 键 + TASK 超集键）。
 function promptEnv(env, taskNum) {
   return {
     WORKSPACE: env.CDD_WORKSPACE,
@@ -187,7 +191,6 @@ function promptEnv(env, taskNum) {
     CONSTRAINTS: env.CDD_PLAN_CONSTRAINTS,
     FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT ?? "",  // empty string if cross-phase read returned nothing
     TASK: String(taskNum),
-    FINDINGS_SCOPE: env.CDD_FINDINGS_SCOPE ?? "blocker-only",
   };
 }
 
@@ -333,7 +336,7 @@ function dryRunH1Block(env, taskNum) {
 // scriptsDir：DI 透传至 runReviewPackage（测试 seam，不改生产行为）。
 // 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
-  const { mode, planFile, dryRun = false, noExit = false, scope } = opts;
+  const { mode, planFile, dryRun = false, noExit = false } = opts;
   const probeSkills = opts.probeSkills;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
   const channelMap = opts.channelMap ?? probeConfig.channel;
@@ -416,21 +419,11 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
-  // 3. Scope validation (fix mode only; #168 dual-channel)
-  const VALID_SCOPES = ["blocker-only", "deferred-sweep"];
-  const effectiveScope = scope ?? "blocker-only";
-  if (mode === "fix") {
-    if (!VALID_SCOPES.includes(effectiveScope)) {
-      return finish(1, [], `invalid scope: ${effectiveScope} (must be one of: ${VALID_SCOPES.join(", ")})`, noExit);
-    }
-  }
-
   // 4. Set env
   const progressDir = path.dirname(baseEnv.CDD_LEDGER ?? path.join(workspace, "progress.json"));
   const progressData = readProgressJSON(progressDir);
   const round = mode === "implement" ? 1 : getRound(progressData, taskNum, mode);
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
-    scope: mode === "fix" ? effectiveScope : undefined,
     round,
   });
 
@@ -535,20 +528,6 @@ export async function runTask(harness, taskNum, opts = {}) {
         if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
         return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
       }
-    }
-  }
-
-  // 8.9 Open-findings.json pre-generation (fix mode) — filter handoff findings by scope
-  //     and write to CDD_FINDINGS path so downstream processing has them.
-  if (mode === "fix" && scope && existsSync(env.CDD_HANDOFF_PATH)) {
-    const fixHandoff = readJson(env.CDD_HANDOFF_PATH);
-    if (fixHandoff?.findings) {
-      const openFindings = fixHandoff.findings.filter(f => {
-        if (scope === "blocker-only") return !f.deferred;
-        if (scope === "deferred-sweep") return f.deferred;
-        return false;
-      });
-      writeFileSync(env.CDD_FINDINGS, JSON.stringify({ findings: openFindings }, null, 2));
     }
   }
 

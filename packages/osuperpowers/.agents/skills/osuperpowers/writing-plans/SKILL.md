@@ -38,7 +38,7 @@ flowchart TD
 
 ### `plan-review`
 
-- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `docs-task` CLI call: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template plan-review --doc <path> --param PASS=<pass-type> --param SPEC=<spec-path>`. Follow D2/D3 from [docs-review.md](../_docs/docs-review.md) (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (see I3): ① run 3-pass → ② blocker found → fix → re-run only that pass → loop until re-review output shows blocker=0 → ③ all passes blocker=0 → present warn/nit to user → proceed. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `docs-task` CLI call: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template plan-review --doc <path> --param SPEC=<spec-path>`. Follow D2/D3 from [docs-review.md](../_docs/docs-review.md) (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I4): follow [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md. Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Plan document + spec document + [docs-review.md](../_docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?` (present warn/nit)
 - **Fail**: Re-run review after blocker=0 → violates I3. New cdd-review call for warn/nit → violates I3
@@ -64,7 +64,7 @@ flowchart TD
 | I1 | **Read, not Skill-invoke** — upstream skill files are Read only, never Skill-invoked |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
 | I3 | **Review Stopping** — re-run driven only by blockers; stop only when re-review output (cdd-review CLI) shows 0 blockers for that pass — fixing locally and declaring blocker=0 without re-running cdd-review on that pass is insufficient; no new cdd-review call to obtain warn/nit (read from already-captured output of the current review cycle). |
-| I4 | **Task Heading H3** — Plan task headings MUST use H3 (`### Task N:` format), matching brief.mjs extraction pattern (line 11 in `packages/osuperpowers/bin/engine/lib/brief.mjs`). H2 or any other level will cause brief extraction failure at CDD dispatch time |
+| I4 | **Review Stopping** — see [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md |
 
 ## Failure Modes
 

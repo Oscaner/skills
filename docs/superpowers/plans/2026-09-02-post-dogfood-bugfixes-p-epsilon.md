@@ -270,6 +270,17 @@ install 文字移除 router
 
 upstream（vendored submodule）不改。
 
+### Task 12: writing-plans 标题格式防回归
+
+**依赖**：Task 9
+
+**`writing-plans/SKILL.md`** — `write-plan` 节点 Do 字段：
+将 "Write the complete plan document" 改为：
+
+> Write the complete plan document. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction pattern (`/^### Task \d+:/`). Em dash (`—`), Chinese colon (`：`), or any other delimiter will cause brief extraction failure at CDD dispatch time.
+
+**背景**：Pβ #184/#198 在 invariant I5 声明了 H3 + `### Task N:` 格式要求，但 `write-plan` 执行节点未显式包含此指令。writing-plans agent 产出 Pε plan 时使用了 em dash (`—`) 分隔符，导致 brief.mjs 解析失败。仅靠 invariant 约束不够——执行节点 Do 字段必须显式包含格式指令。
+
 ---
 
 ### Task 10: 收尾

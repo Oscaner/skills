@@ -273,9 +273,14 @@ upstream（vendored submodule）不改。
 - Invariant I4（Task 9 重编号后为 I3，实施时以内容匹配定位）：同 brainstorming I5 语义修正
 - Failure Modes（同上重编号后定位）：同上
 
-#### 不变
+### Task 12 — writing-plans 标题格式防回归
 
-Review Stopping 的其他语义保留：re-run only that pass（不重跑全部 pass）；warn/nit 不触发 re-run。
+**`writing-plans/SKILL.md`** — `write-plan` 节点 Do 字段：
+将 "Write the complete plan document" 改为：
+
+> Write the complete plan document. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction pattern (`/^### Task \d+:/`). Em dash (`—`), Chinese colon (`：`), or any other delimiter will cause brief extraction failure at CDD dispatch time.
+
+这是 Pβ #184/#198 的防回归措施：#198 当初只在 invariant I5 声明格式要求，但没有在 `write-plan` 执行节点中显式要求。本次 dogfood 发现 writing-plans agent 产出时仍会出现 em dash 格式，证明仅靠 invariant 约束不够——执行节点必须包含显式的格式指令。
 
 ---
 
@@ -287,7 +292,7 @@ Task 1 (纯删除) ──→ Task 2 (emit pipeline)
                 ──→ Task 4 (内部引用) ──→ Task 5 (report-issue 重构)
                                      ──→ Task 6 (issue 编号清理)
 Task 7 (zh-CN 删除) ──→ Task 8 (CLAUDE.md + README) ←── Task 1 (router 引用)
-Task 9 (I2 移除，独立)
+Task 9 (I2 移除，独立) ──→ Task 12 (标题格式防回归)
 Task 11 (review 3-pass 重构，独立)
 Task 10 (收尾，等全部完成)
 ```

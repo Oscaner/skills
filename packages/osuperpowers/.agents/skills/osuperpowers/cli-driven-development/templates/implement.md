@@ -32,6 +32,8 @@ Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) 
 2. Gate: Complex/`behavior_change:true` → hard (require command/passed/exit_code); Simple → soft (WARN).
 3. Set `status: APPROVED` on success; blocker finding → `status: BLOCKED`.
 4. `commits.base` = `TASK_BASE`; `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
+5. **`phase` field is required** — always write `"phase": "implement"` in the handoff JSON. Missing `phase` causes schema validation failure on next dispatch.
+6. **`findings` field is required** — always write `"findings": []` (or populated array) in the handoff JSON. Missing `findings` causes schema validation failure on next dispatch.
 
 ### Self-validate
 

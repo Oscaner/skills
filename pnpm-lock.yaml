@@ -26,8 +26,6 @@ importers:
 
   packages/osuperpowers: {}
 
-  packages/osuperpowers-router: {}
-
 packages:
 
   '@changesets/apply-release-plan@8.0.0':

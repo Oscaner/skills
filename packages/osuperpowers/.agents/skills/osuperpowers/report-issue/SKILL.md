@@ -1,11 +1,11 @@
 ---
 name: report-issue
-description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Component labels classify findings into osuperpowers / osuperpowers-router. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
+description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Component label is fixed to osuperpowers. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 ---
 
 # Osuperpowers Report Issue
 
-Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then file issues against `Oscaner/skills` via `gh`. The flow is a digraph: `analyze → classify → confirm → dedup → {resolve-hit} → file → report`. Component labels classify each finding's affected package (`osuperpowers` / `osuperpowers-router`). Manual trigger only.
+Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then file issues against `Oscaner/skills` via `gh`. The flow is a digraph: `analyze → classify → confirm → dedup → {resolve-hit} → file → report`. Component label is fixed to `osuperpowers`. Manual trigger only.
 
 ## Flow Digraph
 
@@ -40,11 +40,7 @@ flowchart TD
 
 - **Do**: Classify each finding as `bug` (tool/script behavior does not match spec — timeouts, wrong exit codes, gate misjudgment, handoff schema errors) or `enhancement` (process can be improved but not broken — DX gaps, missing docs, insufficient CI coverage, template gaps). Each finding includes **Title** (short, usable as issue title directly), **one-line description**, **affected component** (skill name / script path / command), and **evidence** (specific error output or ledger entry). Apply the **Component-label classification** to the affected component (see below). When component is ambiguous (cross-plugin or undeterminable), default to `osuperpowers` — do not add an interactive prompt; the user can correct the classification at the `confirm` node.
 
-  **Component-label classification** (which package owns the affected component):
-  - ① Affected component ∈ `packages/osuperpowers/` (cdd-task.mjs / runner.mjs / cli-select / orchestration skills / gate) → label `osuperpowers`.
-  - ② Affected component ∈ `packages/osuperpowers-router/` (hooks / overrides manifest / prompt-expansion / cursor hooks) → label `osuperpowers-router`.
-  - ③ Cross-plugin or undeterminable → default `osuperpowers` (no interactive prompt; user can correct at `confirm`).
-  - **CDD dimension**: if the finding involves CDD / cdd-task.mjs / orchestrator / handoff, append `cdd` to the label set.
+  **Component-label classification** (which package owns the affected component): all findings use component `osuperpowers`. When component is ambiguous, default to `osuperpowers` — do not add an interactive prompt; the user can correct the classification at the `confirm` node.
 
 - **Read**: findings output by `analyze`
 - **Exit**: classification complete → `confirm`
@@ -52,7 +48,7 @@ flowchart TD
 
 ### `confirm`
 
-- **Do**: Present the findings as a numbered list and ask: "Is this accurate overall? Any additions or removals?" Do **not** pre-create any gh issue before explicit confirmation. If the user believes a component classification (`osuperpowers` / `osuperpowers-router` / `cdd`) is wrong, let them correct it here before filing.
+- **Do**: Present the findings as a numbered list and ask: "Is this accurate overall? Any additions or removals?" Do **not** pre-create any gh issue before explicit confirmation.
 - **Read**: classified findings
 - **Exit**: user confirms → `dedup`; user rejects → BLOCKED (user-reject)
 - **Fail**: no response / explicit rejection → BLOCKED (user-reject, flow terminates)
@@ -102,7 +98,7 @@ flowchart TD
 | # | Invariant |
 |---|---|
 | I1 | **Confirm Gate** — no gh issue is pre-created before explicit user confirmation (hard gate at `confirm`) |
-| I2 | **Component-Label** — label classifies by the affected package (`osuperpowers` / `osuperpowers-router`), never hardcodes `osuperpowers-router` |
+| I2 | **Component-Label** — label is always `osuperpowers`; never hardcodes a deleted package name |
 | I3 | **Manual Trigger Only** — report-issue runs only on manual trigger, never automatically |
 | I4 | **Closed Issue Awareness** — dedup queries `--state all` (not just open); closed matches present reopen+comment option; regressions against closed issues must not silently create duplicates |
 

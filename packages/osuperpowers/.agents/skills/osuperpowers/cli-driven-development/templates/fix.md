@@ -59,6 +59,8 @@ Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) 
    (fully resolved, not retained as deferred); unresolved findings remain `deferred: true`.
 4. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
 5. `commits.base` = `{{FIXED_POINT}}` (fix dispatch `FIX_BASE`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
+6. **`phase` field is required** — always write `"phase": "fix"` in the handoff JSON. Missing `phase` causes schema validation failure on next dispatch.
+7. **`findings` field is required** — always write `"findings": [...]` (or empty array) in the handoff JSON. Missing `findings` causes schema validation failure on next dispatch.
 
 ### Self-validate
 

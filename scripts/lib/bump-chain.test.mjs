@@ -69,14 +69,14 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
     );
   });
 
-  it("targets packages/osuperpowers-router/ for superpowers bump writes", () => {
+  it("targets superpowers bump write files (marketplace/source.json)", () => {
     for (const rel of SUPERPOWERS_BUMP_TARGETS) {
       assert.ok(existsSync(join(root, rel)), `${rel} missing`);
     }
   });
 
   it("has no stale root plugins/ layout literals in the bump scripts", () => {
-    const stale = /(?<!cursor-)plugins\/(?:superpowers|impeccable|mattpocock-skills|osuperpowers-router)/;
+    const stale = /(?<!cursor-)plugins\/(?:superpowers|impeccable|mattpocock-skills)/;
     for (const rel of [
       "scripts/bump-submodule.mjs",
     ]) {

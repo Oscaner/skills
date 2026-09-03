@@ -41,7 +41,9 @@ export async function runDocsTask(mode, {
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
 
   // Spawn agent (spawnCapture(command, args, opts) — opts: {cwd, env, timeoutMs}; see cli-shared.mjs)
-  const { code, stdout, stderr } = await spawnCapture(harness, prompt, {});
+  // Split harness into executable + invoke flags, then append prompt as the final arg (string[]).
+  const harnessTokens = harness.split(/\s+/).filter(Boolean);
+  const { code, stdout, stderr } = await spawnCapture(harnessTokens[0], [...harnessTokens.slice(1), prompt], {});
 
   // Read handoff from disk (agent writes it)
   if (!existsSync(handoffPath)) {

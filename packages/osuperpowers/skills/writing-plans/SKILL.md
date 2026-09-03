@@ -38,17 +38,17 @@ flowchart TD
 
 ### `plan-review`
 
-- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `docs-task` CLI call: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template plan-review --doc <path> --param SPEC=<spec-path>`. Follow D2/D3 from [docs-review.md](../_docs/docs-review.md) (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I3): ① run review passes; ② if blocker>0 → fix all findings (blocker + warn + nit) → re-run; ③ if blocker=0 → fix remaining warn/nit from captured output → done (no re-run; declaring blocker=0 after local fix without re-running cdd-review on that pass is not permitted). Only Pass 2 is delta-scoped; Pass 3 is always full-doc
+- **Do**: Execute 3-pass plan-review (completeness & spec alignment / task decomposition / buildability & type consistency), each pass dispatches an independent `docs-task` CLI call: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template plan-review --doc <path> --param SPEC=<spec-path> --param PASS=<lens>`, where `<lens>` is `completeness` (Pass 1), `decomposition` (Pass 2), or `buildability` (Pass 3). Follow D2/D3 from [docs-review.md](../_docs/docs-review.md) (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I4): ① run review passes; ② if blocker>0 → fix all findings (blocker + warn + nit) → re-run; ③ if blocker=0 → fix remaining warn/nit from captured output → done (no re-run; declaring blocker=0 after local fix without re-running cdd-review on that pass is not permitted). Only Pass 2 is delta-scoped; Pass 3 is always full-doc
 - **Read**: Plan document + spec document + [docs-review.md](../_docs/docs-review.md)
 - **Exit**: blocker=0 → `user-ok?` (present warn/nit)
-- **Fail**: Re-run review after blocker=0 → violates I3. New cdd-review call for warn/nit → violates I3
+- **Fail**: Re-run review after blocker=0 → violates I4. New cdd-review call for warn/nit → violates I4
 
 ### `user-ok?`
 
 - **Do**: Present warn/nit list from plan-review output. User options: ① Proceed to Execution Handoff ② Fix selected warns/nits. Re-run is never offered after blocker=0
 - **Read**: warn/nit findings from plan-review output (read from already-captured output; no new cdd-review call)
 - **Exit**: Proceed → `commit-plan`; fix selected → apply fixes (intermediate step, not modeled as separate node) → `commit-plan` (no review re-run)
-- **Fail**: Re-run review → violates I3
+- **Fail**: Re-run review → violates I4
 
 ### `commit-plan`
 
@@ -63,8 +63,8 @@ flowchart TD
 |---|---|
 | I1 | **Read, not Skill-invoke** — upstream skill files are Read only, never Skill-invoked |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
-| I3 | **Review Stopping** — re-run driven only by blockers; stop only when re-review output (cdd-review CLI) shows 0 blockers for that pass — fixing locally and declaring blocker=0 without re-running cdd-review on that pass is insufficient; no new cdd-review call to obtain warn/nit (read from already-captured output of the current review cycle). |
-| I4 | **Task Heading Format** — plan task headings must use `### Task N:` (H3 + colon); matches brief.mjs extraction pattern (`/^### Task \d+:/`); em dash (`—`), Chinese colon (`：`), or any other delimiter causes brief extraction failure at CDD dispatch time |
+| I3 | **Task Heading H3** — Plan task headings MUST use H3 (`### Task N:` format), matching brief.mjs extraction pattern. H2 or any other level will cause brief extraction failure at CDD dispatch time |
+| I4 | **Review Stopping** — see [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md |
 
 ## Failure Modes
 
@@ -72,4 +72,4 @@ flowchart TD
 |---|---|---|
 | Upstream superpowers:writing-plans SKILL.md missing | BLOCKED (with install superpowers plugin guidance) | Block policy: no silent fallback |
 | Git commit error | report + fail-open | Do not block user plan review |
-| plan-review re-run after blocker=0 | Violates I3 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd-review on that pass |
+| plan-review re-run after blocker=0 | Violates I4 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd-review on that pass |

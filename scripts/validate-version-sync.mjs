@@ -6,25 +6,8 @@ const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
 
 const s = readJson("marketplace/source.json");
 const m = readJson(".claude-plugin/marketplace.json");
-const p = readJson("packages/osuperpowers-router/package.json");
-const j = readJson("packages/osuperpowers-router/.claude-plugin/plugin.json");
-const src = s.plugins.find((x) => x.name === "osuperpowers-router");
-const entry = m.plugins.find((x) => x.name === "osuperpowers-router");
-const v = [p.version, src.version, j.version, entry.version];
-if (new Set(v).size !== 1) {
-  throw new Error(`version mismatch: ${v.join(" ")}`);
-}
-const THREE_SEG = /^\d+\.\d+\.\d+-router\.\d+\.\d+\.\d+$/;
-if (!THREE_SEG.test(p.version)) {
-  throw new Error(`Invalid router version format: ${p.version}`);
-}
-console.log("OK —", p.version);
 
-const sp = s.plugins.find((x) => x.name === "superpowers").version;
-if (!p.version.startsWith(`${sp}-router.`)) {
-  throw new Error(`${p.version} not aligned to superpowers ${sp}`);
-}
-console.log("OK");
+// router deleted — router version sync section removed (#209)
 
 const sj = readJson("vendors/superpowers/.claude-plugin/plugin.json");
 const srcSp = s.plugins.find((x) => x.name === "superpowers").version;

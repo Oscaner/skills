@@ -22,7 +22,9 @@ rm -f docs/maintainers/osuperpowers-router-plugin.md
 rm -f docs/maintainers/osuperpowers-router-plugin.zh-CN.md
 ```
 
-验证：`pnpm run emit:check` 会报 drift（预期，待 Task 2 修复）。`git status` 确认仅删除文件。
+验证：`git status` 确认仅删除文件。
+
+> ⚠️ **不要运行 `pnpm run emit` 或 `pnpm run validate`**。`scripts/emit.mjs` 仍然 import `overrides.mjs`（已被删除），该 import 由 Task 2 负责移除。在 Task 2 完成前运行 emit 会报 `ERR_MODULE_NOT_FOUND`。本 task 的验证仅限 `git status`。（见 [#217](https://github.com/Oscaner/skills/issues/217)）
 
 ---
 

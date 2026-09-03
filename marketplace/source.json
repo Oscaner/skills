@@ -111,35 +111,6 @@
         "codex": "./.codex-plugin/hooks/hooks.json",
         "qoder": "./.qoder-plugin/hooks/hooks.json"
       }
-    },
-    {
-      "name": "osuperpowers-router",
-      "contentRoot": "packages/osuperpowers-router",
-      "cursor": {
-        "emitMode": "plugin-root"
-      },
-      "version": "6.2.0-router.0.15.4",
-      "description": "Trigger router for osuperpowers: intercepts upstream superpowers triggers and routes to osuperpowers / mattpocock targets.",
-      "author": {
-        "name": "Oscaner Miao",
-        "email": "oscaner1997@gmail.com"
-      },
-      "homepage": "https://github.com/Oscaner/skills",
-      "repository": "https://github.com/Oscaner/skills",
-      "license": "MIT",
-      "claude": {
-        "category": "workflow",
-        "tags": [
-          "superpowers",
-          "mattpocock",
-          "overrides",
-          "subagents"
-        ]
-      },
-      "hooks": {
-        "claude": "./hooks/hooks.json",
-        "cursor": "./hooks/hooks-cursor.json"
-      }
     }
   ]
 }

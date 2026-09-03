@@ -18,12 +18,9 @@ const VENDORED_PLUGIN_JSON = {
   impeccable: "vendors/impeccable/plugin/.claude-plugin/plugin.json",
 };
 
-// The bump chain writes these on a superpowers bump (bump-submodule.mjs +
-// sync-router-versions.mjs). A move back to root plugins/ layout breaks them.
+// The bump chain writes these on a superpowers bump (bump-submodule.mjs).
+// router deleted — only marketplace/source.json remains.
 const SUPERPOWERS_BUMP_TARGETS = [
-  "packages/osuperpowers-router/package.json",
-  "packages/osuperpowers-router/.claude-plugin/plugin.json",
-  "packages/osuperpowers-router/CHANGELOG.md",
   "marketplace/source.json",
 ];
 
@@ -82,7 +79,6 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
     const stale = /(?<!cursor-)plugins\/(?:superpowers|impeccable|mattpocock-skills|osuperpowers-router)/;
     for (const rel of [
       "scripts/bump-submodule.mjs",
-      "scripts/sync-router-versions.mjs",
     ]) {
       assert.doesNotMatch(read(rel), stale, `${rel} reverts to root plugins/ layout`);
     }

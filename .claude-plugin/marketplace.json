@@ -86,26 +86,6 @@
         "droid",
         "pi"
       ]
-    },
-    {
-      "name": "osuperpowers-router",
-      "source": "./packages/osuperpowers-router",
-      "description": "Trigger router for osuperpowers: intercepts upstream superpowers triggers and routes to osuperpowers / mattpocock targets.",
-      "author": {
-        "name": "Oscaner Miao",
-        "email": "oscaner1997@gmail.com"
-      },
-      "homepage": "https://github.com/Oscaner/skills",
-      "repository": "https://github.com/Oscaner/skills",
-      "license": "MIT",
-      "version": "6.2.0-router.0.15.4",
-      "category": "workflow",
-      "tags": [
-        "superpowers",
-        "mattpocock",
-        "overrides",
-        "subagents"
-      ]
     }
   ]
 }

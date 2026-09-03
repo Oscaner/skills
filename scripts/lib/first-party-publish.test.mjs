@@ -36,8 +36,8 @@ function changesetsActionStep(yml) {
 }
 
 describe("first-party publish wiring", () => {
-  it("flags both first-party packages publishable (private: false)", () => {
-    for (const pkg of ["osuperpowers", "osuperpowers-router"]) {
+  it("flags first-party packages publishable (private: false)", () => {
+    for (const pkg of ["osuperpowers"]) {
       const p = readJson(`packages/${pkg}/package.json`);
       assert.equal(
         p.private,

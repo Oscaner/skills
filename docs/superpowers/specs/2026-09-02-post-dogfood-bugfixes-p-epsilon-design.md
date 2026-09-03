@@ -36,6 +36,8 @@ router 插件不再需要，从代码库中完全移除。
 | `docs/maintainers/osuperpowers-router-plugin.md` | 文件 |
 | `docs/maintainers/osuperpowers-router-plugin.zh-CN.md` | 文件 |
 
+> ⚠️ **Task 1/2 原子性约束（见 [#217](https://github.com/Oscaner/skills/issues/217)）**：Task 1 删除 `overrides.mjs` 后，`scripts/emit.mjs` 仍 import 该文件（该 import 由 Task 2 移除）。因此 Task 1 完成后**不可运行 `pnpm run emit` 或 `pnpm run validate`**——会报 `ERR_MODULE_NOT_FOUND`。Task 1 验证仅限 `git status`；emit 验证推迟到 Task 2 完成后。
+
 #### Task 2 — emit pipeline 清理
 
 **`scripts/emit.mjs`**：

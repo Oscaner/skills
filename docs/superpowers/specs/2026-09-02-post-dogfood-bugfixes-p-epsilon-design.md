@@ -284,6 +284,24 @@ upstream（vendored submodule）不改。
 
 这是 Pβ #184/#198 的防回归措施：#198 当初只在 invariant I5 声明格式要求，但没有在 `write-plan` 执行节点中显式要求。本次 dogfood 发现 writing-plans agent 产出时仍会出现 em dash 格式，证明仅靠 invariant 约束不够——执行节点必须包含显式的格式指令。
 
+### Task 13 — runner.mjs BLOCKED handoff 缺 phase 字段修复
+
+**`packages/osuperpowers/bin/engine/lib/runner.mjs`** — step 8.8 schema validation BLOCKED 写入路径（line 495）：
+
+```js
+// Before（缺 phase — 导致下次 dispatch schema validation 循环）
+writeHandoff(env.CDD_HANDOFF_PATH, { status: "BLOCKED", blocker: sv.reason });
+
+// After
+writeHandoff(env.CDD_HANDOFF_PATH, { status: "BLOCKED", phase: mode, blocker: sv.reason });
+```
+
+**同时检查**：runner.mjs 中所有其他 `writeHandoff` BLOCKED 写入路径是否同样缺少 `phase` 字段，一并修复。
+
+**防回归**：在 `packages/osuperpowers/bin/engine/tests/` 中补充测试——当 schema validation 触发 BLOCKED 时，写入的 handoff 必须包含 `phase` 字段。
+
+> **注意**：本 task 已在 CDD 执行中作为 out-of-band 紧急修复（dogfood 发现立即修）。Task 13 的 CDD dispatch 验证该修复的完整性（其他写入路径 + 测试覆盖）。（见 [#218](https://github.com/Oscaner/skills/issues/218)）
+
 ---
 
 ## 依赖关系
@@ -295,6 +313,7 @@ Task 1 (纯删除) ──→ Task 2 (emit pipeline)
                                      ──→ Task 6 (issue 编号清理)
 Task 7 (zh-CN 删除) ──→ Task 8 (CLAUDE.md + README) ←── Task 1 (router 引用)
 Task 9 (I2 移除，独立) ──→ Task 12 (标题格式防回归)
+Task 9 (I2 移除，独立) ──→ Task 13 (runner BLOCKED handoff phase 修复)
 Task 11 (review 3-pass 重构，独立)
 Task 10 (收尾，等全部完成)
 ```

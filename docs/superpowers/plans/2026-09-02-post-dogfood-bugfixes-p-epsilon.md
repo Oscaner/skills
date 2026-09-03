@@ -339,3 +339,15 @@ upstream（vendored submodule）不改。
 Review Stopping 的其他语义保留：re-run only that pass（不重跑全部 pass）；warn/nit 不触发 re-run。
 
 > **注意**：writing-plans 行号在 Task 9（I2 移除 + invariant 重编号）之后会偏移。Task 11 实施时应以内容匹配（Do/Exit/Invariant 字段名）定位，不依赖行号。若 Task 9 与 Task 11 并行执行，需在 Task 9 完成后再合并 writing-plans/SKILL.md 的变更。
+
+### Task 13: runner.mjs BLOCKED handoff phase 字段修复
+
+**依赖**：无（独立）
+
+**背景**：Pε CDD Task 4 dispatch 时，runner.mjs step 8.8 schema validation 写 BLOCKED handoff 缺 `phase` 字段，导致下次 dispatch 再次 schema validation 失败，陷入无限循环。紧急 out-of-band 修复已在 runner.mjs line 495 完成（见 [#218](https://github.com/Oscaner/skills/issues/218)）。本 task 完成完整性验证：
+
+1. **全量扫描**：检查 runner.mjs 中所有 `writeHandoff` BLOCKED 写入路径，确认全部包含 `phase: mode`
+2. **测试补充**：在 `packages/osuperpowers/bin/engine/tests/` 中添加测试——当 step 8.8 schema validation 触发 BLOCKED 时，写入的 handoff 必须包含 `phase` 字段
+3. **commit**：`fix(engine): runner.mjs BLOCKED handoff missing phase — schema validation loop (#218)`
+
+> **已完成**：line 495 紧急修复已提交。Task 13 CDD dispatch 验证完整性 + 补测试。

@@ -492,7 +492,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (existingHandoff) {
       const sv = validateHandoffSchema(existingHandoff);
       if (!sv.valid) {
-        writeHandoff(env.CDD_HANDOFF_PATH, { status: "BLOCKED", blocker: sv.reason });
+        writeHandoff(env.CDD_HANDOFF_PATH, { status: "BLOCKED", phase: mode, blocker: sv.reason });
         return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
       }
     }

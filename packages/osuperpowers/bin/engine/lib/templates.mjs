@@ -5,9 +5,11 @@
 // {{PLACEHOLDER}} env 替换。TASK 不在 bash `_cdd_template_value` 的 6 键内 —— 片段内联后
 // 需它才能渲染完整，故为超集键（fragment 头部声明 {{TASK}} 是其合法占位符）。
 // renderTemplate 读 skills/_templates/<name>.md 并做全参数替换（migrated from cdd-review.mjs）。
+// renderHandoffStub 由 loadHandoffSchema 驱动，生成 schema 合规的 handoff JSON 示例代码块。
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadHandoffSchema } from "./schema-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,8 +47,29 @@ export function pluginRoot() {
   }
 }
 
+// 生成 schema 合规的 handoff JSON 示例代码块（供模板 {{HANDOFF_STUB}} 替换）。
+// schema: loadHandoffSchema() 返回的 JSON Schema 对象。
+// mode: "implement" | "task-review" | "fix" 等（写入 stub.phase）。
+// taskNum: 整数（undefined 时回退 0；docs 任务传 undefined）。
+// { docPath }: docs 任务专用；CDD 任务省略。
+export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
+  const stub = {};
+  for (const field of schema.required ?? []) {
+    switch (field) {
+      case "task":     stub.task = typeof taskNum === "number" ? taskNum : 0; break;
+      case "phase":    stub.phase = mode;                                      break;
+      case "status":   stub.status = "APPROVED";                               break;
+      case "findings": stub.findings = [];                                     break;
+      case "artifacts":stub.artifacts = {};                                    break;
+      case "doc_path": stub.doc_path = docPath ?? "";                          break;
+    }
+  }
+  return "```json\n" + JSON.stringify(stub, null, 2) + "\n```";
+}
+
 // 渲染 mode 提示词：mode 模板 env 变量替换 {{KEY}}。
 // 缺失 mode 模板 → 抛错（对齐 cdd_render_template 的 missing template 分支）。
+// {{HANDOFF_STUB}} 由 renderHandoffStub 动态生成（schema 驱动），不经由 PLACEHOLDERS。
 export function renderModePrompt(mode, env = {}) {
   const modePath = path.join(PKG_ROOT, "skills", "cli-driven-development", "templates", `${mode}.md`);
   if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);
@@ -55,6 +78,11 @@ export function renderModePrompt(mode, env = {}) {
     const value = env[key] ?? "";
     content = content.split(`{{${key}}}`).join(value);
   }
+  // {{HANDOFF_STUB}} 动态替换：schema 合规 JSON 示例代码块。
+  const schema = loadHandoffSchema();
+  const taskNumInt = parseInt(env.TASK) || 0;
+  const stub = renderHandoffStub(schema, mode, taskNumInt);
+  content = content.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   return content;
 }
 

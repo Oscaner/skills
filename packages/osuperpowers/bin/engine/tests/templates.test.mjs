@@ -11,7 +11,7 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderModePrompt, renderTemplate, lineBudget, LINE_BUDGETS } from "../lib/templates.mjs";
+import { renderModePrompt, renderTemplate, lineBudget, LINE_BUDGETS, renderHandoffStub } from "../lib/templates.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = path.resolve(HERE, "../../.."); // packages/osuperpowers
@@ -228,4 +228,105 @@ test("templates #T2: implement.md H1 使用 APPROVED 而非 DONE", () => {
   const out = renderModePrompt("implement", env);
   // implement 模板的 H1 Return 行应使用 APPROVED 而非 DONE
   assert.ok(!out.match(/status:.*\bDONE\b/), "implement template H1 must not use DONE as status option");
+});
+
+// ---- renderHandoffStub ----
+
+import { loadHandoffSchema } from "../lib/schema-utils.mjs";
+
+test("renderHandoffStub: renders JSON code block with all required fields", () => {
+  const schema = loadHandoffSchema();
+  const out = renderHandoffStub(schema, "implement", 3);
+  assert.ok(out.startsWith("```json\n"), "output starts with JSON code fence");
+  assert.ok(out.endsWith("\n```"), "output ends with closing fence");
+  const inner = JSON.parse(out.replace(/^```json\n/, "").replace(/\n```$/, ""));
+  assert.equal(inner.task, 3, "task = taskNum");
+  assert.equal(inner.phase, "implement", "phase = mode");
+  assert.equal(inner.status, "APPROVED", "status = APPROVED");
+  assert.deepEqual(inner.findings, [], "findings = []");
+  assert.deepEqual(inner.artifacts, {}, "artifacts = {}");
+});
+
+test("renderHandoffStub: mode=task-review sets phase correctly", () => {
+  const schema = loadHandoffSchema();
+  const out = renderHandoffStub(schema, "task-review", 7);
+  const inner = JSON.parse(out.replace(/^```json\n/, "").replace(/\n```$/, ""));
+  assert.equal(inner.phase, "task-review");
+  assert.equal(inner.task, 7);
+});
+
+test("renderHandoffStub: mode=fix sets phase correctly", () => {
+  const schema = loadHandoffSchema();
+  const out = renderHandoffStub(schema, "fix", 2);
+  const inner = JSON.parse(out.replace(/^```json\n/, "").replace(/\n```$/, ""));
+  assert.equal(inner.phase, "fix");
+  assert.equal(inner.task, 2);
+});
+
+test("renderHandoffStub: taskNum undefined → task=0", () => {
+  const schema = loadHandoffSchema();
+  const out = renderHandoffStub(schema, "implement", undefined);
+  const inner = JSON.parse(out.replace(/^```json\n/, "").replace(/\n```$/, ""));
+  assert.equal(inner.task, 0);
+});
+
+test("renderHandoffStub: taskNum=0 → task=0", () => {
+  const schema = loadHandoffSchema();
+  const out = renderHandoffStub(schema, "implement", 0);
+  const inner = JSON.parse(out.replace(/^```json\n/, "").replace(/\n```$/, ""));
+  assert.equal(inner.task, 0);
+});
+
+test("renderHandoffStub: docPath provided → doc_path in stub (if schema requires it)", () => {
+  // The CDD handoff schema does not require doc_path; this verifies the function handles
+  // the doc_path case without erroring (docs schema variant would include it).
+  const schema = { required: ["task", "phase", "status", "artifacts", "findings", "doc_path"], properties: {} };
+  const out = renderHandoffStub(schema, "implement", 1, { docPath: "/path/to/doc.md" });
+  const inner = JSON.parse(out.replace(/^```json\n/, "").replace(/\n```$/, ""));
+  assert.equal(inner.doc_path, "/path/to/doc.md", "doc_path from option");
+});
+
+test("renderHandoffStub: docPath absent → doc_path empty string", () => {
+  const schema = { required: ["doc_path"], properties: {} };
+  const out = renderHandoffStub(schema, "implement", 1);
+  const inner = JSON.parse(out.replace(/^```json\n/, "").replace(/\n```$/, ""));
+  assert.equal(inner.doc_path, "");
+});
+
+// ---- {{HANDOFF_STUB}} replacement in renderModePrompt ----
+
+test("renderModePrompt: implement — no residual {{HANDOFF_STUB}} in rendered output", () => {
+  const env = { WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json", CONSTRAINTS: "/ws/c.md", TASK: "5" };
+  const out = renderModePrompt("implement", env);
+  assert.ok(!out.includes("{{HANDOFF_STUB}}"), "no residual {{HANDOFF_STUB}} in implement output");
+  // Stub content should be present: valid JSON block
+  assert.ok(out.includes("```json"), "JSON code block injected by HANDOFF_STUB");
+  assert.ok(out.includes('"phase": "implement"'), "stub contains phase=implement");
+  assert.ok(out.includes('"task": 5'), "stub contains task=5 (integer)");
+});
+
+test("renderModePrompt: task-review — no residual {{HANDOFF_STUB}}, stub has phase=task-review", () => {
+  const env = { WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json", CONSTRAINTS: "/ws/c.md", TASK: "3", FIXED_POINT: "abc" };
+  const out = renderModePrompt("task-review", env);
+  assert.ok(!out.includes("{{HANDOFF_STUB}}"), "no residual {{HANDOFF_STUB}} in task-review output");
+  assert.ok(out.includes('"phase": "task-review"'), "stub has phase=task-review");
+  assert.ok(out.includes('"task": 3'), "stub has task=3");
+});
+
+test("renderModePrompt: fix — no residual {{HANDOFF_STUB}}, stub has phase=fix", () => {
+  const env = {
+    WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json",
+    CONSTRAINTS: "/ws/c.md", FINDINGS: "/ws/f.json", TASK: "2",
+    FINDINGS_SCOPE: "blocker-only", FIXED_POINT: "abc",
+  };
+  const out = renderModePrompt("fix", env);
+  assert.ok(!out.includes("{{HANDOFF_STUB}}"), "no residual {{HANDOFF_STUB}} in fix output");
+  assert.ok(out.includes('"phase": "fix"'), "stub has phase=fix");
+  assert.ok(out.includes('"task": 2'), "stub has task=2");
+});
+
+test("renderModePrompt: TASK env not set → stub.task=0 (parseInt fallback)", () => {
+  const env = { WORKSPACE: "/ws", BRIEF: "/ws/b.md", HANDOFF: "/ws/h.json", CONSTRAINTS: "/ws/c.md" };
+  const out = renderModePrompt("implement", env);
+  assert.ok(out.includes('"task": 0'), "stub.task=0 when TASK env missing");
 });

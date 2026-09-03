@@ -51,10 +51,17 @@ Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) 
 6. Set status by severity: any `blocker` → `CHANGES_REQUESTED`; otherwise → `APPROVED`.
 7. On CHANGES_REQUESTED: write open-findings JSON (non-deferred = blocker findings only) beside handoff.
 8. `commits.base` = `TASK_BASE`; `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
-9. **`task` field is required and must be an integer** — write `"task": {{TASK}}` as a JSON integer (no quotes). Writing `"task": "{{TASK}}"` (string) causes schema validation failure.
-10. **`phase` field is required** — always write `"phase": "task-review"` in the handoff JSON. Missing `phase` causes schema validation failure on next dispatch.
-11. **`findings` field is required** — always write `"findings": [...]` in the handoff JSON. Missing `findings` causes schema validation failure on next dispatch.
-12. **`artifacts` field is required** — always write `"artifacts": { "brief": "...", "report": "..." }`. Missing `artifacts` causes schema validation failure.
+
+Write the following JSON stub to `{{HANDOFF}}` (fill in your actual values):
+
+{{HANDOFF_STUB}}
+
+Rules:
+- `task` must be a JSON integer (no quotes)
+- `phase`: "task-review"
+- `status`: APPROVED (no blockers) or CHANGES_REQUESTED (blocker findings found) or BLOCKED
+- `findings`: array of finding objects (include deferred items)
+- `artifacts`: record file paths produced (e.g. `{"brief": "...", "report": "..."}`)
 
 ### Self-validate
 

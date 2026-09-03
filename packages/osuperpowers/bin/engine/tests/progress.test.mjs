@@ -1,5 +1,5 @@
 // engine/tests/progress.test.mjs — progress.json module unit tests.
-// Tests: read/write/create/migrate/migrateIfNeeded + deriveProgressMD.
+// Tests: read/write/create/migrate/migrateIfNeeded + deriveProgressMD + getRound/incrementRound.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
@@ -13,6 +13,8 @@ import {
   migrateFromProgressMD,
   deriveProgressMD,
   migrateIfNeeded,
+  getRound,
+  incrementRound,
 } from "../lib/progress.mjs";
 
 function tmpDir(prefix) {
@@ -183,4 +185,40 @@ test("deriveProgressMD: produces markdown with plan and tasks", () => {
   assert.ok(!md.match(/Task 2: complete/), "pending task should not appear");
   assert.match(md, /## timeoutCount: 2/);
   assert.match(md, /## engine-recovery-count: 1/);
+});
+
+// ---- getRound ----
+
+test("getRound: no prior rounds → returns 1", () => {
+  const data = { tasks: [] };
+  assert.equal(getRound(data, 1, "task-review"), 1);
+});
+
+test("getRound: completed round 2 → returns 3", () => {
+  const data = { tasks: [{ task: 1, status: "pending", rounds: { "task-review": 2 } }] };
+  assert.equal(getRound(data, 1, "task-review"), 3);
+});
+
+// ---- incrementRound ----
+
+test("incrementRound: creates task entry + sets round 1", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "prog-"));
+  writeFileSync(path.join(dir, "progress.json"), JSON.stringify({
+    plan: "/p.md", timeoutCount: 0, engineRecoveryCount: 0,
+    lastDispatchHead: "", tasks: [], degradationLog: [],
+  }));
+  incrementRound(dir, 1, "task-review");
+  const data = readProgressJSON(dir);
+  assert.equal(data.tasks[0].rounds["task-review"], 1);
+});
+
+test("incrementRound: BLOCKED handoff still increments round", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "prog-"));
+  writeFileSync(path.join(dir, "progress.json"), JSON.stringify({
+    plan: "/p.md", timeoutCount: 0, engineRecoveryCount: 0,
+    lastDispatchHead: "", tasks: [{ task: 1, status: "pending", rounds: { "task-review": 1 } }], degradationLog: [],
+  }));
+  incrementRound(dir, 1, "task-review");
+  const data = readProgressJSON(dir);
+  assert.equal(data.tasks[0].rounds["task-review"], 2);
 });

@@ -189,7 +189,7 @@ test("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 blo
     }
   })();
   assert.equal(res.exitCode, 1);
-  const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
+  const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
   assert.equal(handoff.status, "BLOCKED");
   assert.match(handoff.blocker, /cli exited 3 without writing handoff/);
   assert.match(handoff.blocker, /re-dispatch task 1/);
@@ -576,7 +576,7 @@ test("runTask #187: CLI succeeds + no handoff → fallback handoff status=APPROV
       registryPath: regPath, noExit: true,
     });
     assert.equal(res.exitCode, 0, `expected exit 0`);
-    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
+    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
     assert.equal(handoff.status, "APPROVED", "fallback handoff should be APPROVED, not DONE (#187)");
     assert.equal(handoff.phase, "implement");
   } finally {
@@ -639,7 +639,7 @@ test("runTask: timeout → handoff status TIMEOUT + blocker + partial findings",
       env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
-    const hp = path.join(ws, "task-1-handoff.json");
+    const hp = path.join(ws, "task-1-implement.json");
     assert.ok(existsSync(hp), "handoff file should exist after timeout");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     assert.equal(h.status, "TIMEOUT");
@@ -715,7 +715,7 @@ test("runTask #open-findings: fix + blocker-only scope → open-findings.json ha
   writeFileSync(regPath, JSON.stringify(reg));
 
   // Pre-populate handoff with mixed findings (blocker + deferred warn/nit)
-  const handoffPath = path.join(ws, "task-1-handoff.json");
+  const handoffPath = path.join(ws, "task-1-fix-1.json");
   writeFileSync(handoffPath, JSON.stringify({
     task: 1, phase: "fix", status: "APPROVED",
     artifacts: {}, findings: [
@@ -756,7 +756,7 @@ test("runTask #open-findings: fix + deferred-sweep scope → open-findings.json 
   reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
-  const handoffPath = path.join(ws, "task-1-handoff.json");
+  const handoffPath = path.join(ws, "task-1-fix-1.json");
   writeFileSync(handoffPath, JSON.stringify({
     task: 1, phase: "fix", status: "APPROVED",
     artifacts: {}, findings: [
@@ -796,7 +796,7 @@ test("runTask #open-findings: fix mode + no scope → no open-findings.json writ
   reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
-  const handoffPath = path.join(ws, "task-1-handoff.json");
+  const handoffPath = path.join(ws, "task-1-fix-1.json");
   writeFileSync(handoffPath, JSON.stringify({
     task: 1, phase: "fix", status: "APPROVED",
     artifacts: {}, findings: [
@@ -832,7 +832,7 @@ test("runTask #open-findings: fix mode + empty findings → open-findings.json w
   reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
-  const handoffPath = path.join(ws, "task-1-handoff.json");
+  const handoffPath = path.join(ws, "task-1-fix-1.json");
   writeFileSync(handoffPath, JSON.stringify({
     task: 1, phase: "fix", status: "APPROVED",
     artifacts: {}, findings: [],
@@ -898,7 +898,7 @@ test("runTask #218: step 8.8 schema-validation BLOCKED → handoff contains phas
       registryPath: regPath, noExit: true,
     });
     assert.equal(res.exitCode, 1, "schema validation failure should exit 1");
-    const hp = path.join(ws, "task-1-handoff.json");
+    const hp = path.join(ws, "task-1-implement.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     assert.equal(h.status, "BLOCKED", "overwritten handoff must be BLOCKED");
     assert.equal(h.phase, "implement", "BLOCKED handoff must include phase field (#218: missing phase caused schema-loop)");
@@ -934,7 +934,7 @@ test("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (u
       registryPath: regPath, noExit: true,
     });
     assert.equal(res.exitCode, 1, "schema validation failure should exit 1");
-    const hp = path.join(ws, "task-1-handoff.json");
+    const hp = path.join(ws, "task-1-implement.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     assert.equal(h.status, "BLOCKED", "overwritten handoff must be BLOCKED");
     assert.equal(h.phase, "implement", "phase in BLOCKED handoff must match the runner mode (#218)");

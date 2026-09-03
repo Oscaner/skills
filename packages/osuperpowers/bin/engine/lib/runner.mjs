@@ -17,7 +17,7 @@ import { writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mj
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 import { spawnCapture, invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
-import { readProgressJSON, writeProgressJSON, migrateIfNeeded } from "./progress.mjs";
+import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound } from "./progress.mjs";
 import { validateHandoffSchema } from "./schema-utils.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
@@ -97,13 +97,18 @@ export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
 // 对齐 _cdd_set_task_env：workspace 派生路径，未设置才默认（`${VAR:-default}` 语义）；
 // CDD_WORKSPACE / CDD_MODE / CDD_HARNESS 强制。返回新 env 对象（不改 baseEnv）。
 // scope：fix mode 时注入 CDD_FINDINGS_SCOPE（#168：fix 双通道 scope env 映射）。
-export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope } = {}) {
+// round：task-review/fix mode 时派生 per-round handoff 路径；implement 固定为 task-N-implement.json。
+export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope, round = 1 } = {}) {
   const env = { ...baseEnv };
   env.CDD_WORKSPACE = workspace;
   env.CDD_HARNESS = harness;
   env.CDD_LEDGER ||= path.join(workspace, "progress.json");
   env.CDD_TASK_BRIEF ||= path.join(workspace, `task-${task}-brief.md`);
-  env.CDD_HANDOFF_PATH ||= path.join(workspace, `task-${task}-handoff.json`);
+  // Per-phase per-round handoff path (unconditional — always derive from round):
+  const handoffFile = mode === "implement"
+    ? `task-${task}-implement.json`
+    : `task-${task}-${mode}-${round}.json`;
+  env.CDD_HANDOFF_PATH = path.join(workspace, handoffFile); // unconditional assignment
   env.CDD_PLAN_CONSTRAINTS ||= path.join(workspace, "plan-constraints.md");
   env.CDD_MODE = mode;
   env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
@@ -406,8 +411,12 @@ export async function runTask(harness, taskNum, opts = {}) {
   }
 
   // 4. Set env
+  const progressDir = path.dirname(baseEnv.CDD_LEDGER ?? path.join(workspace, "progress.json"));
+  const progressData = readProgressJSON(progressDir);
+  const round = mode === "implement" ? 1 : getRound(progressData, taskNum, mode);
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
     scope: mode === "fix" ? effectiveScope : undefined,
+    round,
   });
 
   // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
@@ -468,6 +477,7 @@ export async function runTask(harness, taskNum, opts = {}) {
         artifacts: {},
         blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${taskNum}`,
       });
+      if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
       return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "process unkillable", noExit);
     }
     // Normal timeout: TIMEOUT partial handoff
@@ -480,11 +490,11 @@ export async function runTask(harness, taskNum, opts = {}) {
       artifacts: {},
       blocker: `cli timed out after ${timeoutMs}ms → simplify task ${taskNum} scope or increase timeout, then re-dispatch`,
     });
+    if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
     // Increment timeoutCount in progress.json
-    const progressDir = path.dirname(env.CDD_LEDGER);
-    const progressData = readProgressJSON(progressDir);
-    progressData.timeoutCount++;
-    writeProgressJSON(progressDir, progressData);
+    const timeoutProgressData = readProgressJSON(path.dirname(env.CDD_LEDGER));
+    timeoutProgressData.timeoutCount++;
+    writeProgressJSON(path.dirname(env.CDD_LEDGER), timeoutProgressData);
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
@@ -502,6 +512,7 @@ export async function runTask(harness, taskNum, opts = {}) {
           artifacts: {},
           blocker: `handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${env.CDD_HANDOFF_PATH} and re-dispatch task ${taskNum}`,
         });
+        if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
         return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
       }
     }
@@ -534,6 +545,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       artifacts: {},
       blocker: `cli exited ${agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${taskNum}`,
     });
+    if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
@@ -553,6 +565,7 @@ export async function runTask(harness, taskNum, opts = {}) {
         commits: { base: existingHandoff?.commits?.head ?? "unknown" },
         findings: existingHandoff?.findings ?? [],
       });
+      if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
     }
   }
 

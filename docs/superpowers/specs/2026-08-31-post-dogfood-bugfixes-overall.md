@@ -48,6 +48,7 @@ Charter only — no implementation detail。
 | Pε | [#216](https://github.com/Oscaner/skills/issues/216) | writing-plans write-plan Do 字段缺显式 `### Task N:` 冒号格式要求——agent 产出 em dash 导致 brief.mjs 提取失败 |
 | Pε | [#217](https://github.com/Oscaner/skills/issues/217) | Pε CDD Task 1/2 原子性违反——agent 删除 overrides.mjs 后运行 emit，import 未清理导致 ERR_MODULE_NOT_FOUND |
 | Pε | [#218](https://github.com/Oscaner/skills/issues/218) | runner.mjs: BLOCKED handoff 写入时缺 `phase` 字段——下次 dispatch 时 schema validation 循环无法退出 |
+| Pζ | [#219](https://github.com/Oscaner/skills/issues/219) | CDD handoff schema 缺乏 unit test 覆盖——runner 写入路径、agent 模板、workspace slug 一致性均无测试，仅靠 dogfood 发现 |
 
 ---
 
@@ -59,17 +60,18 @@ Charter only — no implementation detail。
 | Pβ | skill-fixes：#198/#184 task heading 强制 + #195/#196 docs-review 重写 + #194 report-issue dedup 扩展 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-beta-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-beta.md) | Pending | 见 phase spec | Pγ |
 | Pγ | anti-patterns + brainstorming 重写：#206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-gamma-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-gamma.md) | Done | 见 phase spec | Pδ |
 | Pδ | CDD 重构：#207 CDD 执行流程绕过修复 + #210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | [design](./2026-09-01-post-dogfood-bugfixes-p-delta-design.md) | [plan](../plans/2026-09-01-post-dogfood-bugfixes-p-delta.md) | Done | Pending | 见 phase spec | Pε |
-| Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 + issue 编号清理 + review 3-pass 强制 + #216 heading 格式防回归 + #217 Task1/2 原子性约束 + #218 runner BLOCKED handoff phase 修复 | [design](./2026-09-02-post-dogfood-bugfixes-p-epsilon-design.md) | [plan](../plans/2026-09-02-post-dogfood-bugfixes-p-epsilon.md) | Pending | 见 phase spec | Pδ |
+| Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 + issue 编号清理 + review 3-pass 强制 + #216 heading 格式防回归 + #217 Task1/2 原子性约束 + #218 runner BLOCKED handoff phase 修复 | [design](./2026-09-02-post-dogfood-bugfixes-p-epsilon-design.md) | [plan](../plans/2026-09-02-post-dogfood-bugfixes-p-epsilon.md) | Pending | 见 phase spec | Pζ |
+| Pζ | CDD handoff schema 深度修复：#219 全面重构 handoff schema 验证体系——runner 写入路径、agent 模板、workspace slug、schema-utils 单测全覆盖；允许全面重构，不留技术债务 | Pending | Pending | Pending | 见 phase spec | — |
 
 ---
 
 ## Dependency graph (ASCII)
 
 ```
-Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + brainstorming) ──→ Pδ (CDD refactoring) ──→ Pε (cleanup + simplification)
+Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + brainstorming) ──→ Pδ (CDD refactoring) ──→ Pε (cleanup + simplification) ──→ Pζ (handoff schema 深度修复)
 ```
 
-**说明**：Pα→Pβ→Pγ→Pδ→Pε 串行依赖。Pδ 的 CDD 重构依赖 Pγ 的 brainstorming 重写完成（确保 CDD skill 本身格式规范后再重构）。Pε 为收尾 phase：#208 隐私脱敏 + #209 router 删除 + #71 writing-plans I2 移除 + zh-CN 镜像清理。
+**说明**：Pα→Pβ→Pγ→Pδ→Pε→Pζ 串行依赖。Pζ 为深度修复 phase：全面重构 CDD handoff schema 验证体系，允许重构，不留技术债务。
 
 ---
 
@@ -97,3 +99,4 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.17 | 2026-09-02 | Pε +#216 writing-plans heading format bug；plan hotfix（em dash → colon）+ Task 12 added | [human] · Claude Opus 4.8 |
 | v1.18 | 2026-09-02 | Pε +#217 Task 1/2 原子性违反——overrides.mjs 删除后 emit import 未清理；spec + plan 加 Task 1/2 原子性约束 | [human] · Claude Opus 4.8 |
 | v1.19 | 2026-09-02 | Pε +#218 runner.mjs BLOCKED handoff 缺 phase 字段——schema validation 循环；spec + plan 加 Task 13 修复 | [human] · Claude Opus 4.8 |
+| v1.20 | 2026-09-02 | 新增 Pζ（handoff schema 深度修复）：#219 全面重构验证体系；Pε Downstream → Pζ；依赖链更新 | [human] · Claude Opus 4.8 |

@@ -13,7 +13,7 @@ describe('branch-review dry-run', () => {
     const planPath = path.join(REPO_ROOT, 'docs', 'superpowers', 'plans', 'test-plan-br.md');
     const slug = 'test-plan-br';
     const handoffPath = path.join(REPO_ROOT, '.superpowers', 'cdd', slug,
-                                  'branch-review-abc1234..def5678.json');
+                                  'branch-review-abc1234..def5678-r1.json');
 
     if (existsSync(handoffPath)) unlinkSync(handoffPath);
 

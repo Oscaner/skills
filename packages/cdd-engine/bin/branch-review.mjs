@@ -4,7 +4,7 @@
 // Uses CDD handoff schema (status/commits/findings/artifacts/blocker, no doc_path).
 import { Command } from 'commander';
 import path from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { loadRegistry, checkHarness, CddBlockedError } from './lib/registry.mjs';
 import { renderTemplate } from './lib/templates.mjs';
 import { loadHandoffSchema } from './lib/schema-utils.mjs';
@@ -12,7 +12,6 @@ import { renderHandoffStub, PKG_ROOT } from './lib/templates.mjs';
 import { invokeCliWithRetry, resolveTimeoutMs } from './lib/cli-shared.mjs';
 import { gitToplevel, writeHandoff } from './lib/contract.mjs';
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from './utils/exit.mjs';
-import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const REG_PATH = fileURLToPath(new URL('./harness-registry.json', import.meta.url));
@@ -49,7 +48,8 @@ program
     const base7  = String(base).slice(0, 7);
     const head7  = String(head).slice(0, 7);
     const workspace  = path.join(repoRoot, '.superpowers', 'cdd', slug);
-    const handoffFile = `branch-review-${base7}..${head7}.json`;
+    // Per-round handoff filename: round 1 → ..._r1.json (branch-fix-loop re-reviews reuse distinct files)
+    const handoffFile = `branch-review-${base7}..${head7}-r${round}.json`;
     const handoffPath = path.join(workspace, handoffFile);
     mkdirSync(workspace, { recursive: true });
 

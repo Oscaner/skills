@@ -4,14 +4,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnCapture } from "./cli-shared.mjs";
+import { invokeCli } from "./cli-shared.mjs";
+import { loadRegistry, checkHarness } from "./registry.mjs";
 import { validateHandoffSchema } from "./schema-utils.mjs";
 import { writeHandoff } from "./contract.mjs";
-import { renderHandoffStub, renderTemplate } from "./templates.mjs";
+import { renderHandoffStub, renderTemplate, pluginRoot } from "./templates.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(HERE, "../../..");
 const DOCS_SCHEMA_PATH = path.join(PKG_ROOT, "skills", "_templates", "docs-handoff-schema.json");
+const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 
 export async function runDocsTask(mode, {
   harness,
@@ -40,10 +42,11 @@ export async function runDocsTask(mode, {
   }, "docs-runner");
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
 
-  // Spawn agent (spawnCapture(command, args, opts) — opts: {cwd, env, timeoutMs}; see cli-shared.mjs)
-  // Split harness into executable + invoke flags, then append prompt as the final arg (string[]).
-  const harnessTokens = harness.split(/\s+/).filter(Boolean);
-  const { code, stdout, stderr } = await spawnCapture(harnessTokens[0], [...harnessTokens.slice(1), prompt], {});
+  // Spawn agent using harness registry (provides -p, --output-format, etc.)
+  const reg = loadRegistry(REG_PATH);
+  const { entry } = checkHarness(harness, reg);
+  const workspace = path.dirname(handoffPath);
+  const { code } = await invokeCli(entry, prompt, mode, {}, workspace, undefined);
 
   // Read handoff from disk (agent writes it)
   if (!existsSync(handoffPath)) {

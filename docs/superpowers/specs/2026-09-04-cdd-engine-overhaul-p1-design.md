@@ -176,6 +176,34 @@ async function invokeCliWithRetry(entry, prompt, mode, env, cwd, timeoutMs) {
 
 `execa` `reject:false` 不 throw，`p-retry` 的 shouldRetry 永不触发，故直接手写 loop。
 
+### 2.3b Enh P — harness-registry prefix/suffix 通用注入（per mode）
+
+`invokeCli` 的 `task_review_prefix` 单字段（仅 task-review 模式）泛化为 per-mode `prefix` / `suffix` 注入。
+
+**harness-registry.json**：
+```json
+{
+  "claude": {
+    "invoke": "-p --output-format text --dangerously-skip-permissions",
+    "prefix": {
+      "implement": "Skill(mattpocock-skills:tdd)",
+      "task-review": "Skill(mattpocock-skills:code-review)",
+      "fix": ""
+    },
+    "suffix": { }
+  }
+}
+```
+
+**`cli-shared.mjs invokeCli` 渲染**：
+```js
+const p = entry.prefix?.[mode] ?? '';
+const s = entry.suffix?.[mode] ?? '';
+const promptArg = [p, prompt, s].filter(Boolean).join('\n');  // 换行分隔，prefix/suffix 独立成行
+```
+
+`task_review_prefix` 字段废弃。implement 模式注入 `Skill(mattpocock-skills:tdd)`（显式激活 tdd skill，与 implement.md 模板第 1 步一致）。
+
 ### 2.4 Bug 修复
 
 #### Bug B + Enh D — branch-review.mjs 独立 CLI
@@ -415,6 +443,7 @@ const sessionMode = process.env.CDD_GATE_MODE ?? '';
 7. **#137**：subprocess env 不含 `ANTHROPIC_API_KEY`；timeout 路径由 execa 内置处理（无手写 SIGTERM timer 代码）
 8. **#139**：`extractStreamJsonFinal` 无手写 scanner 代码；`cli-shared.mjs` 行数减少 ≥ 40 行
 9. **#109**：`runner.mjs` 含 `invokeCliWithRetry` 手写 loop；overloaded/rate_limit/529 响应触发 retry，timeout 不 retry（Vitest mock 验证）
+9b. **Enh P**：`harness-registry.json` 含 `prefix`/`suffix` per-mode 对象；`invokeCli` 用 `[p, prompt, s].filter(Boolean).join('\n')`；`task_review_prefix` 无残留（Vitest mock 验证 prefix 注入 + 换行分隔）
 10. **Enh G**：`/init` 无参数 → 探测当前 harness → 安装；无 `harness` 子命令；`--harness claude` 可用
 11. **Vitest**：`pnpm -F @oscaner-skills/cdd-engine test` 全部通过；`node:test` import 无残留；`invokeCliOverride` 参数从 `runTask` 签名中删除
 12. **所有关联 issues**（§2.8）标记 closed

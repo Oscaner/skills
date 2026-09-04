@@ -1895,7 +1895,7 @@ git commit -m "feat(osuperpowers): remove bin/engine/, add @oscaner-skills/cdd-e
 
 ---
 
-### Task 12: SKILL.md 更新 + gate env 传播（Enh F detect-engine + Enh G init 单命令 + Bug M deferred/ledger 清理 + Bug O Step 5b gate env 传播 + Bug N Review Stopping）+ emit
+### Task 12: SKILL.md 更新 + gate env 传播 + prefix/suffix 注入（Enh F detect-engine + Enh G init 单命令 + Bug M deferred/ledger 清理 + Bug O Step 5b gate env 传播 + Bug N Review Stopping + Enh P prefix/suffix 通用注入）+ emit
 
 **Files:**
 - Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（Enh F + Bug M + Bug N）
@@ -2082,6 +2082,50 @@ flowchart TD
   H -->|detected| R[run-harness]
   H -->|not detected + no --harness| Z3((BLOCKED: specify --harness))
   R -->|done| A((APPROVED: harness-installed))
+```
+
+- [ ] **Step 2b: harness-registry prefix/suffix 通用注入（Enh P）**
+
+修改 `packages/cdd-engine/bin/harness-registry.json`，将 `task_review_prefix` 泛化为 per-mode `prefix` / `suffix`：
+
+```json
+{
+  "claude": {
+    "invoke": "-p --output-format text --dangerously-skip-permissions",
+    "prefix": {
+      "implement": "Skill(mattpocock-skills:tdd)",
+      "task-review": "Skill(mattpocock-skills:code-review)",
+      "fix": ""
+    },
+    "suffix": { }
+  }
+}
+```
+
+（其他 harness 按需；`task_review_prefix` 字段删除。）
+
+修改 `packages/cdd-engine/bin/lib/cli-shared.mjs` 的 `invokeCli`：
+
+```js
+// 旧
+const promptArg = mode === 'task-review' && task_review_prefix
+  ? `${task_review_prefix} ${prompt}` : prompt;
+
+// 新（泛化 prefix/suffix，`\n` 分隔）
+const { prefix, suffix } = entry;
+const p = prefix?.[mode] ?? '';
+const s = suffix?.[mode] ?? '';
+const promptArg = [p, prompt, s].filter(Boolean).join('\n');
+```
+
+单测（`cli-shared.test.mjs` 追加）：
+- claude implement → prompt 首行为 `Skill(mattpocock-skills:tdd)`，第二行开始为模板 prompt
+- claude task-review → 首行 `Skill(mattpocock-skills:code-review)`
+- 无 prefix/suffix 的 entry → prompt 原样
+- 验证 `\n` 分隔（prefix 独立成行）
+
+```bash
+cd packages/cdd-engine && node_modules/.bin/vitest run bin/tests/cli-shared.test.mjs
 ```
 
 - [ ] **Step 3: 更新 init/harness.md（detect-engine 节点）**

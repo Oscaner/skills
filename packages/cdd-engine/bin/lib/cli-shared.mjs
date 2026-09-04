@@ -58,6 +58,9 @@ export async function spawnCapture(command, args, opts = {}) {
 // joined with `\n` so the prefix forms its own first line.
 // Bug O Step 5b: workspace propagates to the spawned CLI via CDD_GATE_WORKSPACE /
 // CDD_GATE_MODE env (gate hooks run inside the CLI subprocess and inherit them).
+// Nested task agents are ORCHESTRATOR SUBAGENTS (implement/task-review/fix must edit
+// the repo, run git) — default CDD_GATE_MODE=subagent (gate allows). Only an explicit
+// CDD_SESSION_MODE=cli re-arms strict gating (operator-CLI threat model).
 export async function invokeCli(entry, prompt, mode, env, cwd, timeoutMs) {
   const { cli, invoke, output } = entry;
   const { prefix, suffix } = entry;
@@ -68,7 +71,7 @@ export async function invokeCli(entry, prompt, mode, env, cwd, timeoutMs) {
   const workspace = env?.CDD_WORKSPACE ?? '';
   const gateEnv = {
     ...cleanEnv(env ?? process.env),
-    ...(workspace ? { CDD_GATE_WORKSPACE: workspace, CDD_GATE_MODE: process.env.CDD_SESSION_MODE ?? 'cli' } : {}),
+    ...(workspace ? { CDD_GATE_WORKSPACE: workspace, CDD_GATE_MODE: process.env.CDD_SESSION_MODE ?? 'subagent' } : {}),
   };
   const res = await spawnCapture(cli, args, { cwd, env: gateEnv, timeoutMs });
   if (res.ok && output === 'stream-json') {

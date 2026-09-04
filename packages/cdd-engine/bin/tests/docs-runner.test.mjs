@@ -22,6 +22,7 @@ vi.mock("../lib/registry.mjs", () => ({
 }));
 
 vi.mock("../lib/templates.mjs", () => ({
+  PKG_ROOT: "/mock/pkg/root",
   renderHandoffStub: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
   renderTemplate: vi.fn(() => "mocked docs review prompt"),
 }));

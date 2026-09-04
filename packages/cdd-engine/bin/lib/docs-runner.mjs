@@ -9,10 +9,8 @@ import { invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
 import { gitToplevel, writeHandoff } from "./contract.mjs";
 import { loadRegistry, checkHarness } from "./registry.mjs";
 import { validateHandoffSchema } from "./schema-utils.mjs";
-import { renderHandoffStub, renderTemplate } from "./templates.mjs";
+import { PKG_ROOT, renderHandoffStub, renderTemplate } from "./templates.mjs";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PKG_ROOT = path.resolve(HERE, "../../..");
 const DOCS_SCHEMA_PATH = path.join(PKG_ROOT, "templates", "docs-handoff-schema.json");
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 

@@ -346,9 +346,10 @@ export async function runTask(harness, taskNum, opts = {}) {
   const registryPath = opts.registryPath ?? REG_PATH;
 
   // 1. Registry ship gate + CLI preflight
+  // invokeCliOverride 存在时跳过 cliInPath 检查（test seam — CLI 未安装的 CI 环境）。
   let entry;
   try {
-    entry = checkHarness(loadRegistry(registryPath), harness, { dryRun });
+    entry = checkHarness(loadRegistry(registryPath), harness, { dryRun: dryRun || !!invokeCliOverride });
   } catch (e) {
     if (e instanceof CddBlockedError) {
       return finish(e.exitCode, [], e.message, noExit, {

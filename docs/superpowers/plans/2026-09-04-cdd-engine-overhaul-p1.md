@@ -29,13 +29,13 @@
 
 | 文件 | 说明 |
 |------|------|
-| `packages/cdd-engine/package.json` | 新包定义（bin 6 CLIs + deps） |
+| `packages/cdd-engine/package.json` | 新包定义（bin 5 CLIs + deps） |
 | `packages/cdd-engine/vitest.config.mjs` | Vitest 配置 |
 | `packages/cdd-engine/bin/cdd-task.mjs` | 从 osuperpowers 迁移 + Commander |
 | `packages/cdd-engine/bin/docs-task.mjs` | 迁移 + Commander + Bug K fix |
 | `packages/cdd-engine/bin/branch-review.mjs` | 全新 CLI（Enh D） |
 | `packages/cdd-engine/bin/cdd-select.mjs` | 迁移 + Commander |
-| `packages/cdd-engine/bin/cdd-session-activate.mjs` | 迁移 + Commander |
+| `packages/cdd-engine/bin/cdd-session-activate.mjs` | ~~迁移~~ → **删除**（Bug O：孤儿代码） |
 | `packages/cdd-engine/bin/cdd-research.mjs` | 迁移 + Commander |
 | `packages/cdd-engine/bin/review-loop.mjs` | 迁移（无改动） |
 | `packages/cdd-engine/bin/harness-registry.json` | 迁移（无改动） |
@@ -74,8 +74,8 @@
 | 路径 | 说明 |
 |------|------|
 | `packages/osuperpowers/bin/engine/` | 全部迁移到 cdd-engine 后删除 |
-| `packages/osuperpowers/templates/` | 迁移到 cdd-engine 后删除 |
-| `packages/osuperpowers/templates/` | 迁移到 cdd-engine 后删除 |
+| `packages/osuperpowers/skills/_templates/` | 迁移到 cdd-engine 后删除 |
+| `packages/osuperpowers/skills/cli-driven-development/templates/` | 迁移到 cdd-engine 后删除 |
 | `packages/cdd-engine/skills/` | Task 1 脚手架遗留，Task 7 删除（替换为 templates/） |
 
 ---
@@ -107,7 +107,6 @@
     "docs-task":            "./bin/docs-task.mjs",
     "branch-review":        "./bin/branch-review.mjs",
     "cdd-select":           "./bin/cdd-select.mjs",
-    "cdd-session-activate": "./bin/cdd-session-activate.mjs",
     "cdd-research":         "./bin/cdd-research.mjs"
   },
   "scripts": {
@@ -1268,7 +1267,6 @@ git commit -m "feat(cdd-engine): migrate templates + fix Bug C (task-review node
 - Create: `packages/cdd-engine/bin/cdd-task.mjs`（Commander + Bug A parseInt coercion）
 - Create: `packages/cdd-engine/bin/docs-task.mjs`（Commander + Bug K workspace）
 - Create: `packages/cdd-engine/bin/cdd-select.mjs`（Commander）
-- Create: `packages/cdd-engine/bin/cdd-session-activate.mjs`（Commander）
 - Create: `packages/cdd-engine/bin/cdd-research.mjs`（Commander）
 - Create: `packages/cdd-engine/bin/tests/task.test.mjs`
 - Create: `packages/cdd-engine/bin/tests/docs-task.test.mjs`
@@ -1278,7 +1276,7 @@ git commit -m "feat(cdd-engine): migrate templates + fix Bug C (task-review node
 **Interfaces:**
 - Consumes: `runTask` from `./lib/runner.mjs`（Task 5，注意：`invokeCliOverride` 已删除）
 - Consumes: `gitToplevel` from `./lib/contract.mjs`（docs-task Bug K）
-- Produces: 6 个 npm bin 入口（`cdd-task`, `docs-task`, `cdd-select`, `cdd-session-activate`, `cdd-research`）
+- Produces: 5 个 npm bin 入口（`cdd-task`, `docs-task`, `cdd-select`, `cdd-research`；cdd-session-activate 删除 - Bug O）
 
 - [ ] **Step 1: 写 cdd-task.mjs（Commander + Bug A）**
 
@@ -1451,11 +1449,53 @@ cp packages/osuperpowers/bin/utils/skills-probe.config.mjs packages/cdd-engine/b
 cp packages/osuperpowers/bin/utils/skills-probe.mjs       packages/cdd-engine/bin/utils/
 ```
 
-- [ ] **Step 5: 写 cdd-session-activate.mjs 和 cdd-research.mjs（Commander 版）**
+
+- [ ] **Step 5: 写 cdd-research.mjs（Commander 版）+ 删除 cdd-session-activate.mjs（Bug O）**
 
 类似方式将原文件复制到 `packages/cdd-engine/bin/`，替换 import 路径（`exit.mjs` 等）；Commander 主要提供 `--help`，原有 positional args 逻辑保持不变（Commander `.argument()` 或继续手解析）。
 
-> cdd-session-activate.mjs 使用 positional args（`minimal <session_key> <repo_root>`），用 Commander `.argument()` 重构。
+> **Bug O**：`cdd-session-activate.mjs` 不迁移。若 Task 8 已复制该文件到 cdd-engine/bin/，执行 `rm packages/cdd-engine/bin/cdd-session-activate.mjs` 移除。其 pending-cdd 机制由 gate env 传播替代（见下方新增 Step 5b）。
+
+- [ ] **Step 5b: gate env 传播（Bug O 二部曲）**
+
+修改 `packages/osuperpowers/bin/gate/cdd-gate-core.mjs`：
+
+```js
+// 删除：DEFAULT_PENDING_ROOT / pendingPathFor / pendingExpired / CDD_PENDING_TTL / CDD_PENDING_ROOT 相关逻辑
+// gateDecide 改为 env 读取：
+
+// 旧：读 TMPDIR pending 文件
+const pendingPath = pendingPathFor(sessionKey);
+let pending = null;
+try { pending = JSON.parse(readFileSync(pendingPath, 'utf8')); } catch { pending = null; }
+if (!pending) return allowResult();
+
+// 新：读环境变量（hook 在子进程内运行，继承 runner spawn env）
+const gateWorkspace = process.env.CDD_GATE_WORKSPACE ?? '';
+const sessionMode = process.env.CDD_GATE_MODE ?? '';
+if (!gateWorkspace) return allowResult();
+```
+
+修改 `packages/osuperpowers/bin/engine/lib/runner.mjs`（或 cdd-engine `bin/lib/runner.mjs`）invokeCli 的 spawn env：
+
+```js
+// invokeCli 内，cleanEnv 基础上增加 gate env（当 workspace 已知时）
+const gateEnv = {
+  ...cleanEnv,
+  ...(workspace ? { CDD_GATE_WORKSPACE: workspace, CDD_GATE_MODE: process.env.CDD_SESSION_MODE ?? 'cli' } : {}),
+};
+```
+
+**验证**：
+```bash
+grep -c "pendingPathFor\|CDD_PENDING" packages/osuperpowers/bin/gate/cdd-gate-core.mjs
+# 预期：0（已删除）
+grep -c "CDD_GATE_WORKSPACE" packages/osuperpowers/bin/engine/lib/runner.mjs
+# 预期：>= 1（spawn env 已设置）
+```
+
+修改 `packages/osuperpowers/bin/gate/adapters/.mjs`（claude/cursor/codex 等）：
+- `gateDecide` 调用处不再依赖 pending.repo_root；repoRoot 来自 `process.env.CDD_GATE_WORKSPACE`
 
 - [ ] **Step 6: 迁移并运行 CLI 测试**
 
@@ -1836,7 +1876,7 @@ git commit -m "test(cdd-engine): complete Vitest migration — all tests pass"
 }
 ```
 
-删除所有 `bin` 条目（`docs-task`, `cdd-task`, `cdd-select`, `cdd-session-activate`, `cdd-research`）。
+删除所有 `bin` 条目（`docs-task`, `cdd-task`, `cdd-select`, `cdd-research`；cdd-session-activate 已删除 - Bug O）。
 
 - [ ] **Step 2: 安装并验证 workspace 链接**
 
@@ -2147,7 +2187,7 @@ pnpm run changeset
 feat: extract @oscaner-skills/cdd-engine as independent package
 
 - Migrate all 6 CLIs (cdd-task, docs-task, branch-review, cdd-select,
-  cdd-session-activate, cdd-research) to @oscaner-skills/cdd-engine
+  cdd-select, cdd-research) to @oscaner-skills/cdd-engine
 - Commander.js v15 for all CLIs; execa v9 replaces spawnCapture; ajv v8
   for schema validation; Vitest v3 replaces node:test
 - Bug A fix: --task parseInt coercion; Bug B/D: branch-review.mjs new

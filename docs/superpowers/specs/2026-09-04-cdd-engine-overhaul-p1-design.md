@@ -35,7 +35,7 @@ P1 增量。跨 phase 惯例见 [overall](./2026-09-04-cdd-engine-overhaul-overa
 `@oscaner-skills/cdd-engine` 作为独立 npm package，位于 `packages/cdd-engine/`，通过 pnpm workspace 链接到 osuperpowers。
 
 **cdd-engine 包含**（engine 运行时必需）：
-- 所有 6 个 CLI 入口（见 §2.3）
+- 所有 5 个 CLI 入口（见 §2.3；cdd-session-activate 删除 - Bug O）
 - `bin/lib/`：runner、docs-runner、cli-shared、contract、ledger、progress、registry、research、schema-utils、templates、brief（**全部迁移**）
 - `bin/review-loop.mjs`（**迁移**，位于 `bin/engine/review-loop.mjs`，非 lib/ 内）
 - `bin/harness-registry.json`
@@ -63,7 +63,6 @@ P1 增量。跨 phase 惯例见 [overall](./2026-09-04-cdd-engine-overhaul-overa
     "docs-task":            "./bin/docs-task.mjs",
     "branch-review":        "./bin/branch-review.mjs",
     "cdd-select":           "./bin/cdd-select.mjs",
-    "cdd-session-activate": "./bin/cdd-session-activate.mjs",
     "cdd-research":         "./bin/cdd-research.mjs"
   },
   "dependencies": {
@@ -376,6 +375,32 @@ P1 完成后应关闭：
 | #133 | Enh G init 单命令 + Enh F gate 联线 |
 | #134 | 同上 |
 | #132 | Enh G detect-harness 多 harness 感知 |
+
+### 2.8 Bug O — cdd-session-activate.mjs 删除 + gate env 传播
+
+**根因**：`cdd-session-activate.mjs`（bash `cdd-session-activate.sh` 的 Node port）写 pending-cdd JSON（`${TMPDIR}/osuperpowers/pending-cdd/`）供 gate hooks 读取。bash 时代由 `cdd-common.sh` 调用；Node 迁移后 production 无任何调用方 → 孤儿代码 + gate 恒 fail-open。
+
+**修复**：
+1. **删除** `packages/osuperpowers/bin/engine/cdd-session-activate.mjs`（不迁入 cdd-engine）
+2. **gate 激活通道改为 env 传播**：`runner.mjs` spawn CLI 子进程时设置 `CDD_GATE_WORKSPACE`（task workspace）+ `CDD_GATE_MODE`（`cli` 等）；PreToolUse hook 在子进程内继承该 env
+3. `cdd-gate-core.mjs`：`gateDecide` 改为从 `process.env.CDD_GATE_WORKSPACE` 读取，删除 `pendingPathFor` / `DEFAULT_PENDING_ROOT` / TTL 过期 / pending 文件读取逻辑
+4. **移除 Task 8 已迁移到 cdd-engine/bin 的 `cdd-session-activate.mjs`**
+
+**gate core 变更**（`cdd-gate-core.mjs`）：
+
+```js
+// 旧：读 TMPDIR pending 文件
+const pendingPath = pendingPathFor(sessionKey);
+let pending = JSON.parse(readFileSync(pendingPath, 'utf8')) ?? null;
+if (!pending) return allowResult();
+
+// 新：读环境变量（hook 在子进程内运行，继承 runner spawn env）
+const workspace = process.env.CDD_GATE_WORKSPACE ?? '';
+if (!workspace) return allowResult();
+const sessionMode = process.env.CDD_GATE_MODE ?? '';
+```
+
+**gate adapters**：`gateDecide` 的 `repoRoot` 判定改为结合 `process.env.CDD_GATE_WORKSPACE`（替代依赖 pending.repo_root）。
 
 ### 2.9 Acceptance criteria
 

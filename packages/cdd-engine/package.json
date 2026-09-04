@@ -1,0 +1,34 @@
+{
+  "name": "@oscaner-skills/cdd-engine",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CDD engine CLIs: task runner, docs reviewer, branch reviewer, harness selector.",
+  "engines": { "node": ">=22.12.0" },
+  "bin": {
+    "cdd-task":             "./bin/cdd-task.mjs",
+    "docs-task":            "./bin/docs-task.mjs",
+    "branch-review":        "./bin/branch-review.mjs",
+    "cdd-select":           "./bin/cdd-select.mjs",
+    "cdd-session-activate": "./bin/cdd-session-activate.mjs",
+    "cdd-research":         "./bin/cdd-research.mjs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "commander": "^15",
+    "execa":     "^9",
+    "ajv":       "^8",
+    "semver":    "^7"
+  },
+  "devDependencies": {
+    "vitest": "^3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oscaner/skills",
+    "directory": "packages/cdd-engine"
+  },
+  "license": "MIT"
+}

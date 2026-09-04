@@ -2084,7 +2084,70 @@ flowchart TD
   R -->|done| A((APPROVED: harness-installed))
 ```
 
-- [ ] **Step 2b: harness-registry prefix/suffix 通用注入（Enh P）**
+- [ ] **Step 2b: templates 目录结构重构（flat → 按消费目的分组）**
+
+将 `packages/cdd-engine/templates/` 从 8 个平铺文件重组为：
+
+```
+packages/cdd-engine/templates/
+├── task/                 # CDD per-task 模式模板（cdd-task.mjs 消费）
+│   ├── implement.md
+│   ├── task-review.md
+│   └── fix.md
+├── review/               # 文档审查模板（docs-task / branch-review 消费）
+│   ├── spec-review.md
+│   ├── plan-review.md
+│   └── branch-review.md
+└── schema/               # handoff JSON schemas
+    ├── cdd-handoff-schema.json
+    └── docs-handoff-schema.json
+```
+
+```bash
+mkdir -p packages/cdd-engine/templates/{task,review,schema}
+mv packages/cdd-engine/templates/implement.md      packages/cdd-engine/templates/task/
+mv packages/cdd-engine/templates/task-review.md    packages/cdd-engine/templates/task/
+mv packages/cdd-engine/templates/fix.md            packages/cdd-engine/templates/task/
+mv packages/cdd-engine/templates/spec-review.md    packages/cdd-engine/templates/review/
+mv packages/cdd-engine/templates/plan-review.md    packages/cdd-engine/templates/review/
+mv packages/cdd-engine/templates/branch-review.md  packages/cdd-engine/templates/review/
+mv packages/cdd-engine/templates/cdd-handoff-schema.json packages/cdd-engine/templates/schema/
+mv packages/cdd-engine/templates/docs-handoff-schema.json packages/cdd-engine/templates/schema/
+```
+
+修改 `packages/cdd-engine/bin/lib/templates.mjs` 路径解析（group-aware）：
+
+```js
+// mode → template 分组
+const MODE_GROUPS = {
+  implement: 'task', 'task-review': 'task', fix: 'task',
+  'spec-review': 'review', 'plan-review': 'review', 'branch-review': 'review',
+};
+export function templatePath(name) {
+  const group = MODE_GROUPS[name];
+  if (!group) throw new Error(`unknown template: ${name}`);
+  return path.join(PKG_ROOT, 'templates', group, `${name}.md`);
+}
+// renderModePrompt: templatePath(mode) → PKG_ROOT/templates/task/<mode>.md
+// renderTemplate:   templatePath(name) → PKG_ROOT/templates/review/<name>.md
+// schema:           path.join(PKG_ROOT, 'templates', 'schema', '<name>.json')
+```
+
+同步更新所有引用模板路径的文件：
+- `templates.mjs`（renderModePrompt / renderTemplate 路径）
+- `schema-utils.mjs`（HANDOFF_SCHEMA_PATH → `schema/cdd-handoff-schema.json`）
+- `docs-runner.mjs`（DOCS_SCHEMA_PATH → `schema/docs-handoff-schema.json`）
+- `branch-review.mjs`（模板渲染路径）
+- 回归测试 `templates.content.test.mjs` 的路径断言
+
+**验证**：
+```bash
+ls packages/cdd-engine/templates/task/ packages/cdd-engine/templates/review/ packages/cdd-engine/templates/schema/
+cd packages/cdd-engine && node_modules/.bin/vitest run
+```
+预期：全量测试 pass（路径已更新）。
+
+- [ ] **Step 2c: harness-registry prefix/suffix 通用注入（Enh P）**
 
 修改 `packages/cdd-engine/bin/harness-registry.json`，将 `task_review_prefix` 泛化为 per-mode `prefix` / `suffix`：
 

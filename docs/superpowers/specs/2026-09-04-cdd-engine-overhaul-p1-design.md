@@ -40,7 +40,10 @@ P1 增量。跨 phase 惯例见 [overall](./2026-09-04-cdd-engine-overhaul-overa
 - `bin/review-loop.mjs`（**迁移**，位于 `bin/engine/review-loop.mjs`，非 lib/ 内）
 - `bin/harness-registry.json`
 - `bin/tests/`（随代码迁移）
-- `templates/`：所有模板 flat 目录，取代 `skills/` 层级（implement.md、task-review.md、fix.md、spec-review.md、plan-review.md、branch-review.md、cdd-handoff-schema.json、docs-handoff-schema.json，**迁移**）
+- `templates/`：模板按消费目的分组（取代 `skills/` 层级与 flat 布局）
+  - `templates/task/`：implement.md、task-review.md、fix.md（cdd-task 模式模板）
+  - `templates/review/`：spec-review.md、plan-review.md、branch-review.md（文档审查模板）
+  - `templates/schema/`：cdd-handoff-schema.json、docs-handoff-schema.json（handoff JSON schemas）
 
 **osuperpowers 保留**：
 - `bin/gate/`（跨 harness gate hooks）

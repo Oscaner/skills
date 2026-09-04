@@ -1952,6 +1952,43 @@ grep -c "deferred\|ledger\|sweep\|any-deferred" packages/osuperpowers/skills/cli
 # 预期：0（无残留）
 ```
 
+**Bug N 修复 — handoff-status Review Stopping 对齐**（在 Bug M 清理后、Enh F 之前）：
+
+更新 `handoff-status` 节点，区分 blocker=0 和 blocker>0 两条路径：
+
+```markdown
+### `handoff-status` (decision node)
+
+- **Do**: Read `handoff.json` `status` + scan `findings[]` for blocker-severity items.
+  Then route:
+  - `APPROVED` + `findings[blocker].length = 0` → `task-complete?` (done)
+  - `APPROVED` + `findings[warn/nit].length > 0` → fix warn/nit inline → `task-complete?`
+    (no re-run of task-review — Review Stopping: blocker=0 → fix → done)
+  - `CHANGES_REQUESTED` (blockers > 0) → `dispatch-mode` (fix mode) → `task-review` → repeat
+  - `BLOCKED` → `engine-recovery`
+  - `TIMEOUT` → `timeout-decision`
+- **Exit**: per above routing
+```
+
+更新 flowchart digraph：
+```
+# 旧
+D -->|APPROVED| E{task-complete?}
+D -->|CHANGES_REQUESTED| F{fix-rounds >= 5?}
+
+# 新（区分 blocker 路径）
+D -->|APPROVED, no findings| E{task-complete?}
+D -->|APPROVED, warn/nit only| FIX_INLINE[fix-inline]
+FIX_INLINE --> E
+D -->|CHANGES_REQUESTED, blockers>0| F{fix-rounds >= 5?}
+```
+
+验证：
+```bash
+grep -c "blocker=0\|Review Stopping\|blockers > 0" packages/osuperpowers/skills/cli-driven-development/SKILL.md
+# 预期：>= 2（新路径说明存在）
+```
+
 **Enh F detect-engine 步骤**（Bug M 清理后追加）：
 
 在 `cli-driven-development/SKILL.md` 的 `select-harness` 节点之前，添加 `detect-engine` 步骤：

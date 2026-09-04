@@ -298,6 +298,9 @@ export function gateDecide(input) {
   if (isShellTool(toolName)) {
     const command = ti.command ?? "";
     if (shellAllowed(command)) return allowResult();
+    // 模式感知（spec §E，与 Write 分支一致）：mode 空 / in-session / subagent → Bash 放行
+    // （嵌套 task agent 需 git add/commit、pnpm run emit、vitest 等）；cli 严格。
+    if (sessionMode === "in-session" || sessionMode === "subagent" || sessionMode === "") return allowResult();
     if (phase === "inactive" || phase === "task_complete") return allowResult();
     return denyResult(harness, workspace, repoRoot);
   }

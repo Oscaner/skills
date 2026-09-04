@@ -14,11 +14,9 @@
   },
   "homepage": "https://github.com/Oscaner/skills",
   "license": "MIT",
-  "bin": {
-    "docs-task": "./bin/engine/docs-task.mjs",
-    "cdd-task": "./bin/engine/cdd-task.mjs",
-    "cdd-select": "./bin/engine/cdd-select.mjs",
-    "cdd-research": "./bin/engine/cdd-research.mjs"
+  "bin": {},
+  "dependencies": {
+    "@oscaner-skills/cdd-engine": "workspace:*"
   },
   "main": "./bin/gate/adapters/opencode.mjs",
   "pi": {

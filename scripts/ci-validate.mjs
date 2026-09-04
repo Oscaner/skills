@@ -134,16 +134,12 @@ function checkOsuperpowersGateHooks() {
   for (const f of [
     "bin/gate/adapters/claude.mjs",
     "bin/gate/adapters/cursor.mjs",
-    "bin/engine/cdd-task.mjs",
-    "bin/engine/docs-task.mjs",
-    "bin/engine/cdd-select.mjs",
-    "bin/engine/cdd-session-activate.mjs",
   ]) {
     assert(isExecutable(path.join(p, f)), `not executable: ${f}`);
   }
-  console.log("OK — osuperpowers gate hooks + engine entries executable");
+  console.log("OK — osuperpowers gate hooks executable");
 }
-checkStep("5b2. osuperpowers gate hooks + engine entries executable", checkOsuperpowersGateHooks);
+checkStep("5b2. osuperpowers gate hooks executable", checkOsuperpowersGateHooks);
 
 // 5c. engine zero-residue grep (sdd_/spor- — must not regress)
 const RESIDUE_TARGETS = [

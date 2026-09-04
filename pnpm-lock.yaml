@@ -43,7 +43,11 @@ importers:
         specifier: ^3
         version: 3.2.7(yaml@2.9.0)
 
-  packages/osuperpowers: {}
+  packages/osuperpowers:
+    dependencies:
+      '@oscaner-skills/cdd-engine':
+        specifier: workspace:*
+        version: link:../cdd-engine
 
 packages:
 

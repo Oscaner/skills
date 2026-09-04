@@ -44,7 +44,7 @@ describe('extractStreamJsonFinal via invokeCli', () => {
 describe('invokeCli prefix/suffix injection (Enh P)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('claude implement → prompt 首行为 Skill(mattpocock-skills:tdd)，次行起为模板 prompt', async () => {
+  it('claude implement → prompt first line is Skill(mattpocock-skills:tdd), template follows', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = {
@@ -58,7 +58,7 @@ describe('invokeCli prefix/suffix injection (Enh P)', () => {
     expect(promptArg.split('\n').slice(1).join('\n')).toBe('line one\nline two');
   });
 
-  it('claude task-review → prompt 首行为 Skill(mattpocock-skills:code-review)', async () => {
+  it('claude task-review → prompt first line is Skill(mattpocock-skills:code-review)', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = {
@@ -72,7 +72,7 @@ describe('invokeCli prefix/suffix injection (Enh P)', () => {
     expect(promptArg.split('\n')[1]).toBe('review prompt');
   });
 
-  it('无 prefix/suffix 的 entry → prompt 原样', async () => {
+  it('entry without prefix/suffix → prompt unchanged', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
@@ -81,7 +81,7 @@ describe('invokeCli prefix/suffix injection (Enh P)', () => {
     expect(promptArg).toBe('plain prompt');
   });
 
-  it('suffix 追加到 prompt 末尾（`\\n` 分隔）', async () => {
+  it('suffix appended after prompt (newline separated)', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: {}, suffix: { implement: '[END]' } };
@@ -90,7 +90,7 @@ describe('invokeCli prefix/suffix injection (Enh P)', () => {
     expect(promptArg).toBe('middle\n[END]');
   });
 
-  it('prefix 与 suffix 同存 → `<prefix>\\n<prompt>\\n<suffix>`', async () => {
+  it('prefix+suffix together → `<prefix>\\n<prompt>\\n<suffix>`', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: { implement: '[P]' }, suffix: { implement: '[S]' } };
@@ -103,17 +103,17 @@ describe('invokeCli prefix/suffix injection (Enh P)', () => {
 describe('invokeCli gate env propagation (Bug O Step 5b)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('env.CDD_WORKSPACE 存在 → spawn env 增加 CDD_GATE_WORKSPACE + CDD_GATE_MODE 默认 cli', async () => {
+  it('env.CDD_WORKSPACE set → spawn env adds CDD_GATE_WORKSPACE + CDD_GATE_MODE default subagent', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
     await invokeCli(entry, 'prompt', 'implement', { CDD_WORKSPACE: '/ws' }, '/tmp', undefined);
     const spawnEnv = execa.mock.calls[0][2].env;
     expect(spawnEnv.CDD_GATE_WORKSPACE).toBe('/ws');
-    expect(spawnEnv.CDD_GATE_MODE).toBe('cli');
+    expect(spawnEnv.CDD_GATE_MODE).toBe('subagent');
   });
 
-  it('env 无 CDD_WORKSPACE → 不注入 gate env', async () => {
+  it('env missing CDD_WORKSPACE → no gate env injected', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
@@ -123,7 +123,7 @@ describe('invokeCli gate env propagation (Bug O Step 5b)', () => {
     expect(spawnEnv.CDD_GATE_MODE).toBeUndefined();
   });
 
-  it('CDD_SESSION_MODE env 覆盖 CDD_GATE_MODE 默认值', async () => {
+  it('CDD_SESSION_MODE env overrides CDD_GATE_MODE default', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const prev = process.env.CDD_SESSION_MODE;
     process.env.CDD_SESSION_MODE = 'in-session';

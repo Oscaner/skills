@@ -125,7 +125,7 @@ The gate is fail-open until an active task resolves (spec security property / da
 | Tool | Condition | Decision |
 |------|-----------|----------|
 | any | adapter exception — adapter catches and returns allow (stderr recorded) | **allow** (fail-open) |
-| any | no pending file for the session | **allow** (fail-open) |
+| any | no `CDD_GATE_WORKSPACE` env (non-CDD subprocess) | **allow** (fail-open) |
 | any | pending expired (>24h) → pending cleared | **allow** (fail-open) |
 | Write/Edit | path under `active_ws` | **allow** |
 | Write/Edit | path under `.superpowers/cdd/**`, phase `orchestrating` | **allow** |

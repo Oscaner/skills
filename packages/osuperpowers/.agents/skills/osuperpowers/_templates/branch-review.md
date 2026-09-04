@@ -30,22 +30,28 @@ git diff {{BASE}}..{{HEAD}}
 
 Categorize by actual severity. Not everything is Critical. Acknowledge strengths before listing issues.
 
+## Handoff Output
+
+Write the following JSON to `{{HANDOFF}}` (do not print to stdout):
+
+{{HANDOFF_STUB}}
+
+Set `status` to `APPROVED` if no blockers; `CHANGES_REQUESTED` if blockers exist.
+Set `findings` to the array of review findings (see Output Format below).
+Set `doc_path` to `{{DOC}}`.
+
 ## Output Format
 
-Return **only** a JSON object:
+Each finding in `findings[]`:
 
 ```json
 {
-  "findings": [
-    {
-      "severity": "blocker|warn|nit",
-      "file": "repo-relative path",
-      "line": 0,
-      "summary": "one-line description",
-      "fix": "one-line suggested fix"
-    }
-  ]
+  "severity": "blocker|warn|nit",
+  "file": "repo-relative path",
+  "line": 0,
+  "summary": "one-line description",
+  "fix": "one-line suggested fix"
 }
 ```
 
-Empty findings array = approved. No other output.
+Empty findings array = APPROVED with no issues.

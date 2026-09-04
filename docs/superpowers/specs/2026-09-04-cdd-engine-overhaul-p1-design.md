@@ -40,8 +40,7 @@ P1 增量。跨 phase 惯例见 [overall](./2026-09-04-cdd-engine-overhaul-overa
 - `bin/review-loop.mjs`（**迁移**，位于 `bin/engine/review-loop.mjs`，非 lib/ 内）
 - `bin/harness-registry.json`
 - `bin/tests/`（随代码迁移）
-- `skills/cli-driven-development/templates/`：implement.md、task-review.md、fix.md（engine runtime templates，**迁移**）
-- `skills/_templates/`：spec-review.md、plan-review.md、branch-review.md、handoff-schema.json、docs-handoff-schema.json（**迁移**）
+- `templates/`：所有模板 flat 目录，取代 `skills/` 层级（implement.md、task-review.md、fix.md、spec-review.md、plan-review.md、branch-review.md、handoff-schema.json、docs-handoff-schema.json，**迁移**）
 
 **osuperpowers 保留**：
 - `bin/gate/`（跨 harness gate hooks）
@@ -193,7 +192,7 @@ branch-review --harness <name> --plan <path> --base <sha> --head <sha> [--round 
 
 - 使用 **CDD handoff schema**（`status / commits / findings / artifacts / blocker`，无 `doc_path`）
 - Handoff 路径：`<repoRoot>/.superpowers/cdd/<plan-slug>/branch-review-<base7>..<head7>.json`
-- 模板 `skills/_templates/branch-review.md` 更新：
+- 模板 `templates/branch-review.md` 更新：
   - 删除 `{{DOC}}` 字段（语义错误）
   - `commits: base={{BASE}} head={{HEAD}}` 写入 handoff
 - `docs-task.mjs` 删除 `--template branch-review` 路径（breaking change）

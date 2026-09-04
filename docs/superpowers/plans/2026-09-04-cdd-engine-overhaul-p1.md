@@ -51,14 +51,14 @@
 | `packages/cdd-engine/bin/lib/research.mjs` | 迁移（无改动） |
 | `packages/cdd-engine/bin/lib/brief.mjs` | 迁移（无改动） |
 | `packages/cdd-engine/bin/tests/*.test.mjs` | 所有测试从 node:test 迁移到 Vitest |
-| `packages/cdd-engine/skills/cli-driven-development/templates/implement.md` | 迁移 |
-| `packages/cdd-engine/skills/cli-driven-development/templates/task-review.md` | 迁移 + Bug C fix |
-| `packages/cdd-engine/skills/cli-driven-development/templates/fix.md` | 迁移 |
-| `packages/cdd-engine/skills/_templates/spec-review.md` | 迁移 |
-| `packages/cdd-engine/skills/_templates/plan-review.md` | 迁移 |
-| `packages/cdd-engine/skills/_templates/branch-review.md` | 迁移 + 语义修正 |
-| `packages/cdd-engine/skills/_templates/handoff-schema.json` | 迁移 |
-| `packages/cdd-engine/skills/_templates/docs-handoff-schema.json` | 迁移 |
+| `packages/cdd-engine/templates/implement.md` | 迁移（原 templates/） |
+| `packages/cdd-engine/templates/task-review.md` | 迁移 + Bug C fix（原 templates/） |
+| `packages/cdd-engine/templates/fix.md` | 迁移（原 templates/） |
+| `packages/cdd-engine/templates/spec-review.md` | 迁移（原 templates/） |
+| `packages/cdd-engine/templates/plan-review.md` | 迁移（原 templates/） |
+| `packages/cdd-engine/templates/branch-review.md` | 迁移 + 语义修正（原 templates/） |
+| `packages/cdd-engine/templates/handoff-schema.json` | 迁移（原 templates/） |
+| `packages/cdd-engine/templates/docs-handoff-schema.json` | 迁移（原 templates/） |
 
 ### 修改文件（osuperpowers 包）
 
@@ -74,8 +74,9 @@
 | 路径 | 说明 |
 |------|------|
 | `packages/osuperpowers/bin/engine/` | 全部迁移到 cdd-engine 后删除 |
-| `packages/osuperpowers/skills/_templates/` | 迁移到 cdd-engine 后删除 |
-| `packages/osuperpowers/skills/cli-driven-development/templates/` | 迁移到 cdd-engine 后删除 |
+| `packages/osuperpowers/templates/` | 迁移到 cdd-engine 后删除 |
+| `packages/osuperpowers/templates/` | 迁移到 cdd-engine 后删除 |
+| `packages/cdd-engine/skills/` | Task 1 脚手架遗留，Task 7 删除（替换为 templates/） |
 
 ---
 
@@ -87,8 +88,7 @@
 - Create: `packages/cdd-engine/bin/.gitkeep`（占位，确保 bin/ 存在）
 - Create: `packages/cdd-engine/bin/lib/.gitkeep`
 - Create: `packages/cdd-engine/bin/tests/.gitkeep`
-- Create: `packages/cdd-engine/skills/cli-driven-development/templates/.gitkeep`
-- Create: `packages/cdd-engine/skills/_templates/.gitkeep`
+- Create: `packages/cdd-engine/templates/.gitkeep`（平铺目录，取代 skills/ 层级）
 
 **Interfaces:**
 - Produces: `@oscaner-skills/cdd-engine` package 可被 pnpm workspace 链接；Vitest 可运行
@@ -149,13 +149,11 @@ export default defineConfig({
 
 ```bash
 mkdir -p packages/cdd-engine/bin/lib packages/cdd-engine/bin/tests \
-         packages/cdd-engine/skills/cli-driven-development/templates \
-         packages/cdd-engine/skills/_templates
+         packages/cdd-engine/templates packages/cdd-engine/bin/utils
 touch packages/cdd-engine/bin/.gitkeep \
       packages/cdd-engine/bin/lib/.gitkeep \
       packages/cdd-engine/bin/tests/.gitkeep \
-      packages/cdd-engine/skills/cli-driven-development/templates/.gitkeep \
-      packages/cdd-engine/skills/_templates/.gitkeep
+      packages/cdd-engine/templates/.gitkeep
 ```
 
 - [ ] **Step 4: 在 monorepo 根 pnpm-workspace.yaml 确认 packages/cdd-engine 已纳入**
@@ -448,7 +446,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // From bin/lib/ → packages/cdd-engine/
 const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
-const HANDOFF_SCHEMA_PATH = path.join(PKG_ROOT, 'skills', '_templates', 'handoff-schema.json');
+const HANDOFF_SCHEMA_PATH = path.join(PKG_ROOT, 'templates', 'handoff-schema.json');
 
 // Lazy-initialized ajv instance + compiled validator.
 let _validator = null;
@@ -479,7 +477,7 @@ export function validateHandoffSchema(obj) {
 }
 ```
 
-> **注意**：`handoff-schema.json` 在 Task 7 中才迁移到 `packages/cdd-engine/skills/_templates/`。Task 3 执行时，`PKG_ROOT` 指向 `packages/cdd-engine/`，该路径下 `handoff-schema.json` 尚不存在。因此 schema-utils.mjs 在 Task 7 之前无法通过文件路径测试，Unit test 使用 mock 绕过文件读取。
+> **注意**：`handoff-schema.json` 在 Task 7 中才迁移到 `packages/cdd-engine/templates/`。Task 3 执行时，`PKG_ROOT` 指向 `packages/cdd-engine/`，该路径下 `handoff-schema.json` 尚不存在。因此 schema-utils.mjs 在 Task 7 之前无法通过文件路径测试，Unit test 使用 mock 绕过文件读取。
 
 - [ ] **Step 2: 写 schema-utils 测试（mock 文件读取）**
 
@@ -598,7 +596,7 @@ export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
 }
 
 export function renderModePrompt(mode, env = {}) {
-  const modePath = path.join(PKG_ROOT, 'skills', 'cli-driven-development', 'templates', `${mode}.md`);
+  const modePath = path.join(PKG_ROOT, 'templates', `${mode}.md`);
   if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);
   let content = readFileSync(modePath, 'utf8');
   for (const key of PLACEHOLDERS) {
@@ -612,9 +610,9 @@ export function renderModePrompt(mode, env = {}) {
 }
 
 export function renderTemplate(name, params, programName) {
-  const templatePath = path.join(PKG_ROOT, 'skills', '_templates', `${name}.md`);
+  const templatePath = path.join(PKG_ROOT, 'templates', `${name}.md`);
   if (!existsSync(templatePath)) {
-    throw new Error(`${programName}: template not found: _templates/${name}.md`);
+    throw new Error(`${programName}: template not found: templates/${name}.md`);
   }
   let content = readFileSync(templatePath, 'utf8');
   for (const [key, value] of Object.entries(params)) {
@@ -644,7 +642,7 @@ vi.mock('node:fs', async (importOriginal) => {
       if (String(p).includes('handoff-schema.json')) {
         return JSON.stringify({ type: 'object', required: ['task', 'phase', 'status', 'findings', 'artifacts', 'blocker'], properties: { task: { type: 'integer' }, phase: { type: 'string' }, status: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' }, blocker: { type: 'string' } } });
       }
-      if (String(p).includes('implement.md')) return 'brief: {{BRIEF}}\nhandoff: {{HANDOFF}}\n{{HANDOFF_STUB}}';
+      if (String(p).endsWith('implement.md')) return 'brief: {{BRIEF}}\nhandoff: {{HANDOFF}}\n{{HANDOFF_STUB}}';
       if (String(p).includes('spec-review.md')) return 'doc: {{DOC}}\npass: {{PASS}}';
       return '';
     }),
@@ -1105,17 +1103,17 @@ git commit -m "fix(cdd-engine): docs-runner Bug L — subprocess cwd = gitToplev
 
 ---
 
-### Task 7: 迁移 templates/ 和 skills/_templates/（包含 Bug C 修复）
+### Task 7: 迁移 templates/ 和 templates/（包含 Bug C 修复）
 
 **Files:**
-- Create: `packages/cdd-engine/skills/cli-driven-development/templates/implement.md`
-- Create: `packages/cdd-engine/skills/cli-driven-development/templates/task-review.md`（Bug C 修复）
-- Create: `packages/cdd-engine/skills/cli-driven-development/templates/fix.md`
-- Create: `packages/cdd-engine/skills/_templates/spec-review.md`
-- Create: `packages/cdd-engine/skills/_templates/plan-review.md`
-- Create: `packages/cdd-engine/skills/_templates/branch-review.md`（语义修正）
-- Create: `packages/cdd-engine/skills/_templates/handoff-schema.json`
-- Create: `packages/cdd-engine/skills/_templates/docs-handoff-schema.json`
+- Create: `packages/cdd-engine/templates/implement.md`
+- Create: `packages/cdd-engine/templates/task-review.md`（Bug C 修复）
+- Create: `packages/cdd-engine/templates/fix.md`
+- Create: `packages/cdd-engine/templates/spec-review.md`
+- Create: `packages/cdd-engine/templates/plan-review.md`
+- Create: `packages/cdd-engine/templates/branch-review.md`（语义修正）
+- Create: `packages/cdd-engine/templates/handoff-schema.json`
+- Create: `packages/cdd-engine/templates/docs-handoff-schema.json`
 - Create: `packages/cdd-engine/bin/tests/templates.content.test.mjs`
 
 **Interfaces:**
@@ -1124,20 +1122,20 @@ git commit -m "fix(cdd-engine): docs-runner Bug L — subprocess cwd = gitToplev
 - [ ] **Step 1: 复制 cli-driven-development templates**
 
 ```bash
-cp packages/osuperpowers/skills/cli-driven-development/templates/implement.md \
-   packages/cdd-engine/skills/cli-driven-development/templates/
-cp packages/osuperpowers/skills/cli-driven-development/templates/fix.md \
-   packages/cdd-engine/skills/cli-driven-development/templates/
+cp packages/osuperpowers/templates/implement.md \
+   packages/cdd-engine/templates/
+cp packages/osuperpowers/templates/fix.md \
+   packages/cdd-engine/templates/
 ```
 
 - [ ] **Step 2: 复制并修复 task-review.md（Bug C）**
 
 ```bash
-cp packages/osuperpowers/skills/cli-driven-development/templates/task-review.md \
-   packages/cdd-engine/skills/cli-driven-development/templates/
+cp packages/osuperpowers/templates/task-review.md \
+   packages/cdd-engine/templates/
 ```
 
-编辑 `packages/cdd-engine/skills/cli-driven-development/templates/task-review.md`：
+编辑 `packages/cdd-engine/templates/task-review.md`：
 
 **Bug C 修复**：将 `## Handoff Output` 节移至 `## Return (H1 — stdout only)` 节之前，并在 `## Instructions` 列表之后插入 HARD GATE：
 
@@ -1166,19 +1164,19 @@ cp packages/osuperpowers/skills/cli-driven-development/templates/task-review.md 
 - [ ] **Step 3: 复制 _templates 文件**
 
 ```bash
-cp packages/osuperpowers/skills/_templates/spec-review.md      packages/cdd-engine/skills/_templates/
-cp packages/osuperpowers/skills/_templates/plan-review.md      packages/cdd-engine/skills/_templates/
-cp packages/osuperpowers/skills/_templates/handoff-schema.json packages/cdd-engine/skills/_templates/
-cp packages/osuperpowers/skills/_templates/docs-handoff-schema.json packages/cdd-engine/skills/_templates/
+cp packages/osuperpowers/templates/spec-review.md      packages/cdd-engine/templates/
+cp packages/osuperpowers/templates/plan-review.md      packages/cdd-engine/templates/
+cp packages/osuperpowers/templates/handoff-schema.json packages/cdd-engine/templates/
+cp packages/osuperpowers/templates/docs-handoff-schema.json packages/cdd-engine/templates/
 ```
 
 - [ ] **Step 4: 复制并修正 branch-review.md（语义修正）**
 
 ```bash
-cp packages/osuperpowers/skills/_templates/branch-review.md packages/cdd-engine/skills/_templates/
+cp packages/osuperpowers/templates/branch-review.md packages/cdd-engine/templates/
 ```
 
-编辑 `packages/cdd-engine/skills/_templates/branch-review.md`：
+编辑 `packages/cdd-engine/templates/branch-review.md`：
 
 删除 `doc_path` 字段相关指令（该字段属于 docs handoff schema，branch-review 使用 CDD schema）：
 
@@ -1214,7 +1212,7 @@ const PKG_ROOT = path.resolve(__dirname, '..', '..');
 describe('task-review.md Bug C regression', () => {
   it('## Handoff Output appears before ## Return (H1)', () => {
     const content = readFileSync(
-      path.join(PKG_ROOT, 'skills', 'cli-driven-development', 'templates', 'task-review.md'),
+      path.join(PKG_ROOT, 'templates', 'task-review.md'),
       'utf8'
     );
     const handoffIdx = content.indexOf('## Handoff Output');
@@ -1226,7 +1224,7 @@ describe('task-review.md Bug C regression', () => {
 
   it('contains HARD GATE instruction', () => {
     const content = readFileSync(
-      path.join(PKG_ROOT, 'skills', 'cli-driven-development', 'templates', 'task-review.md'),
+      path.join(PKG_ROOT, 'templates', 'task-review.md'),
       'utf8'
     );
     expect(content).toContain('HARD GATE');
@@ -1237,7 +1235,7 @@ describe('task-review.md Bug C regression', () => {
 describe('branch-review.md semantic fix', () => {
   it('does not contain doc_path field instruction', () => {
     const content = readFileSync(
-      path.join(PKG_ROOT, 'skills', '_templates', 'branch-review.md'), 'utf8'
+      path.join(PKG_ROOT, 'templates', 'branch-review.md'), 'utf8'
     );
     expect(content).not.toContain('`doc_path`');
   });
@@ -1255,7 +1253,9 @@ cd packages/cdd-engine && node_modules/.bin/vitest run bin/tests/templates.conte
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/cdd-engine/skills/ packages/cdd-engine/bin/tests/templates.content.test.mjs
+git add packages/cdd-engine/templates/ packages/cdd-engine/bin/tests/templates.content.test.mjs
+# Also remove old skills/ placeholder if it still exists:
+git rm -rf packages/cdd-engine/skills/ 2>/dev/null || true
 git commit -m "feat(cdd-engine): migrate templates + fix Bug C (task-review node order) + branch-review semantic"
 ```
 
@@ -1815,8 +1815,8 @@ git commit -m "test(cdd-engine): complete Vitest migration — all tests pass"
 **Files:**
 - Modify: `packages/osuperpowers/package.json`
 - Delete: `packages/osuperpowers/bin/engine/`（整个目录）
-- Delete: `packages/osuperpowers/skills/_templates/`（迁移到 cdd-engine）
-- Delete: `packages/osuperpowers/skills/cli-driven-development/templates/`（迁移到 cdd-engine）
+- Delete: `packages/osuperpowers/templates/`（迁移到 cdd-engine）
+- Delete: `packages/osuperpowers/templates/`（迁移到 cdd-engine）
 
 **Interfaces:**
 - Produces: `packages/osuperpowers` 依赖 `@oscaner-skills/cdd-engine: "workspace:*"`
@@ -1858,8 +1858,8 @@ rm -rf packages/osuperpowers/bin/engine/
 - [ ] **Step 4: 删除迁移后的 templates 目录**
 
 ```bash
-rm -rf packages/osuperpowers/skills/_templates/
-rm -rf packages/osuperpowers/skills/cli-driven-development/templates/
+rm -rf packages/osuperpowers/templates/
+rm -rf packages/osuperpowers/templates/
 ```
 
 - [ ] **Step 5: 验证 osuperpowers 测试仍通过**
@@ -1884,8 +1884,8 @@ pnpm run emit:check
 ```bash
 git add packages/osuperpowers/package.json
 git rm -r packages/osuperpowers/bin/engine/ \
-          packages/osuperpowers/skills/_templates/ \
-          packages/osuperpowers/skills/cli-driven-development/templates/
+          packages/osuperpowers/templates/ \
+          packages/osuperpowers/templates/
 git commit -m "feat(osuperpowers): remove bin/engine/, add @oscaner-skills/cdd-engine dep"
 ```
 

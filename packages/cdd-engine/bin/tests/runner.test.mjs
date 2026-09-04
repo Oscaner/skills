@@ -173,7 +173,7 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const origPath = process.env.PATH;
@@ -445,7 +445,7 @@ it("runTask #187→Pζ: CLI succeeds + no handoff → BLOCKED (not APPROVED fall
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const origPath = process.env.PATH;
@@ -509,7 +509,7 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const origPath = process.env.PATH;
@@ -538,7 +538,7 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const origPath = process.env.PATH;
@@ -607,7 +607,7 @@ it("runTask #218: step 8.8 schema-validation BLOCKED → handoff contains phase 
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const origPath = process.env.PATH;
@@ -641,7 +641,7 @@ it("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (unk
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const origPath = process.env.PATH;
@@ -683,7 +683,7 @@ it("runTask Pζ T3: task-review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const implBase = "aabbccddeeff1234567890aabbccddeeff12345678";
@@ -730,7 +730,7 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
   writeFileSync(regPath, JSON.stringify(reg));
 
   const origPath = process.env.PATH;

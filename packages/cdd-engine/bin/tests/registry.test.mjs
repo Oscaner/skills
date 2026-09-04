@@ -65,7 +65,7 @@ it("checkHarness: CLI preflight — full harness 缺二进制 → cli-missing（
   const ghost = "cdd-nonexistent-cli-xyz";
   const fixture = {
     ...reg,
-    ghost: { cli: ghost, invoke: "-p", output: "text", task_review_prefix: "", ship: "full" },
+    ghost: { cli: ghost, invoke: "-p", output: "text", ship: "full" },
   };
   expect(() => checkHarness(fixture, "ghost")).toThrow();
   try {
@@ -81,7 +81,7 @@ it("checkHarness: dryRun 跳过 CLI 存在校验", () => {
   const reg = loadRegistry(REG_PATH);
   const fixture = {
     ...reg,
-    ghost: { cli: "cdd-nonexistent-cli-xyz", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" },
+    ghost: { cli: "cdd-nonexistent-cli-xyz", invoke: "-p", output: "text", ship: "full" },
   };
   const entry = checkHarness(fixture, "ghost", { dryRun: true });
   expect(entry.cli).toBe("cdd-nonexistent-cli-xyz");
@@ -91,7 +91,14 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
   const reg = loadRegistry(REG_PATH);
   expect(registryField(reg, "claude", "cli")).toBe("claude");
   expect(registryField(reg, "claude", "invoke")).toBe("-p --output-format text --dangerously-skip-permissions");
-  expect(registryField(reg, "claude", "task_review_prefix")).toBe("Skill(mattpocock-skills:code-review)");
+  // Enh P: task_review_prefix 泛化为 per-mode prefix/suffix（Enh P 后已删除）
+  expect(registryField(reg, "claude", "task_review_prefix")).toBe("");
+  expect(registryField(reg, "claude", "prefix")).toEqual({
+    implement: "Skill(mattpocock-skills:tdd)",
+    "task-review": "Skill(mattpocock-skills:code-review)",
+    fix: "",
+  });
+  expect(registryField(reg, "claude", "suffix")).toEqual({});
   expect(registryField(reg, "claude", "no-such-field")).toBe("");
   expect(registryField(reg, "no-such-harness", "cli")).toBe("");
   expect(registryField(reg, "codex", "invoke")).toBe(""); // not-supported 不带 invoke（schema）

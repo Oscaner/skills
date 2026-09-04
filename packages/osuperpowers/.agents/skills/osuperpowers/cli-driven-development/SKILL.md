@@ -1,6 +1,6 @@
 ---
 name: cli-driven-development
-description: Independent cli-driven-development orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Selects harness via cli-select, determines base via shared doc, dispatches CDD three-mode chain (implement / task-review / fix), aggregates deferred findings via deferred-disposition gate, runs branch-review, hands off to finishing. Callable standalone; referenced by no other skill.
+description: Independent cli-driven-development orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Selects harness via cli-select, determines base via shared doc, dispatches CDD three-mode chain (implement / task-review / fix), runs branch-review, hands off to finishing. Callable standalone; referenced by no other skill.
 ---
 
 # CLI-Driven Development (cdd)
@@ -11,31 +11,29 @@ Execute planned tasks with the selected harness CLI via a three-mode chain. This
 
 ```mermaid
 flowchart TD
-  A[select-harness] -->|harness chosen| B[determine-base]
-  A -->|no harness| Z1((BLOCKED: no-harness))
-  B -->|base confirmed| C[dispatch-mode]
-  B -->|user refuses| Z2((BLOCKED: base-undecided))
-  C -->|implement| D{handoff-status}
-  C -->|task-review| D
-  C -->|fix| D
-  D -->|APPROVED| E{task-complete?}
-  D -->|CHANGES_REQUESTED| F{fix-rounds >= 5?}
-  D -->|BLOCKED| R{engine-recovery}
-  D -->|TIMEOUT| T{timeout-decision}
-  E -->|more tasks remain| C
-  E -->|all complete| G{any-deferred?}
-  F -->|no| C
-  F -->|yes| Z4((BLOCKED: fix-loop-exhausted))
-  R -->|yes, fixable & retry<2| C
+  A[detect-engine] -->|cdd-task in PATH| B[select-harness]
+  A -->|not found| Z0((BLOCKED: cdd-engine-not-installed))
+  B -->|harness chosen| C[determine-base]
+  B -->|no harness| Z1((BLOCKED: no-harness))
+  C -->|base confirmed| D[dispatch-mode]
+  C -->|user refuses| Z2((BLOCKED: base-undecided))
+  D -->|implement| E{handoff-status}
+  D -->|task-review| E
+  D -->|fix| E
+  E -->|APPROVED, no findings| F{task-complete?}
+  E -->|APPROVED, warn/nit only| FIX_INLINE[fix-inline]
+  FIX_INLINE --> F
+  E -->|CHANGES_REQUESTED, blockers>0| G{fix-rounds >= 5?}
+  E -->|BLOCKED| R{engine-recovery}
+  E -->|TIMEOUT| T{timeout-decision}
+  F -->|more tasks remain| D
+  F -->|all complete| K[branch-review]
+  G -->|no| D
+  G -->|yes| Z4((BLOCKED: fix-loop-exhausted))
+  R -->|yes, fixable & retry<2| D
   R -->|no| Z3((BLOCKED: engine-error))
-  T -->|timeoutCount < 2 & CLI stdout| C
+  T -->|timeoutCount < 2 & CLI stdout| D
   T -->|timeoutCount >= 2 or SIGKILL / zero output| Z6((BLOCKED: timeout-exhausted))
-  G -->|no| K[branch-review]
-  G -->|yes| H[deferred-disposition]
-  H -->|fix-now| I[deferred-sweep-loop]
-  H -->|carry-skip| K
-  H -->|3x unrecognized| Z5((BLOCKED: menu-exhausted))
-  I -->|per-task sweep + re-review| K
   K -->|no-blocker| L[handoff-finishing]
   K -->|blocker| J[branch-fix-loop]
   J -->|fix + re-review| K
@@ -43,6 +41,16 @@ flowchart TD
 ```
 
 ## Node Definitions
+
+### `detect-engine`
+
+- **Do**: Verify `cdd-task` is in PATH (`command -v cdd-task`).
+  - Found → proceed
+  - Not found → BLOCKED: `@oscaner-skills/cdd-engine` not installed.
+    Run: `npm i -g @oscaner-skills/cdd-engine`, then retry.
+- **Read**: PATH environment variable
+- **Exit**: Found → next node; not found → BLOCKED (soft exit with install guidance)
+- **Fail**: Fail-open if PATH check errors; proceed with warning
 
 ### `select-harness`
 
@@ -65,20 +73,35 @@ flowchart TD
   2. Record dispatch-time HEAD: `git rev-parse HEAD` → write to `progress.json.lastDispatchHead`
   3. For task-review mode: generate review diff via review-package script
   4. **Three-mode chain enforcement**: For fix mode — verify task-review handoff exists for this task AND status = APPROVED; refuse dispatch otherwise (report to user)
-  5. Dispatch: `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode> [--scope blocker-only|deferred-sweep]` (`--scope` only valid for `--mode fix`; default `blocker-only`). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index). Scope defaults to `blocker-only`; `deferred-sweep` only when deferred-disposition decision is fix-now.
+  5. Dispatch: `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode>`. **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index).
 - **Read**: `CDD_HANDOFF_PATH` (`task-N-handoff.json`) + open-findings (fix mode) + brief-dependent plan sections + `progress.json` (timeoutCount, on timeout).
 - **Exit**: construct CLI command and spawn → enter `handoff-status` (decision node, routes by handoff status). On timeout → enter `timeout-decision`.
 - **Fail**: nested CLI failure with missing handoff → runner.mjs has written BLOCKED handoff (stderr in blocker field); this node reads and routes to BLOCKED: engine-error. Three-mode chain enforcement violation (fix dispatch without prior task-review APPROVED) → report to user, refuse dispatch.
 
 ### `handoff-status` (decision node)
 
-- **Do**: Read `handoff.json` `status` field. Before routing, perform commit-contract validation:
+- **Do**: Read `handoff.json` `status` field + scan `findings[]` for blocker-severity items.
+  Before routing, perform commit-contract validation:
   1. `node bin/engine/lib/contract.mjs --check-dirty` — dirty tree → route to BLOCKED: engine-error
   2. `node bin/engine/lib/contract.mjs --check-head --handoff <path> --progress <path>` — head mismatch → route to BLOCKED: engine-error
-  Then route by status: `APPROVED` → `task-complete?`; `CHANGES_REQUESTED` → dispatch-mode (fix mode, blocker-only scope; dispatch-mode internally maintains fix-round counter, ≥ 5 routes to BLOCKED: fix-loop-exhausted); `BLOCKED` → `engine-recovery` (decision node — reads blocker to determine fixability; if fixable + retry<2 → re-dispatch dispatch-mode with same mode; if not fixable or retry≥2 → BLOCKED: engine-error; retry counter managed via `progress.json` `engine-recovery-count`, not `handoff.json.retryCount` — see §D deviation note below); `TIMEOUT` → `timeout-decision` (decision node — reads `progress.json` `timeoutCount`; < 2 + CLI stdout present → retry via dispatch-mode; ≥ 2 or SIGKILL / zero output → BLOCKED: timeout-exhausted); `NEEDS_CONTEXT` → **implicit fail-open** (orchestrator manually investigates then redispatches dispatch-mode with the same mode; not a digraph edge).
+  Then route by status × findings severity (Review Stopping alignment):
+  - `APPROVED` + blockers = 0 → `task-complete?` (done)
+  - `APPROVED` + warn/nit findings only → fix warn/nit inline → `task-complete?`
+    (no re-run of task-review — Review Stopping: blocker=0 → fix → done)
+  - `CHANGES_REQUESTED` (blockers > 0) → `dispatch-mode` (fix mode; dispatch-mode internally maintains fix-round counter — ≥ 5 routes to BLOCKED: fix-loop-exhausted) → `task-review` → repeat
+  - `BLOCKED` → `engine-recovery` (decision node — reads blocker to determine fixability; if fixable + retry<2 → re-dispatch dispatch-mode with same mode; if not fixable or retry≥2 → BLOCKED: engine-error; retry counter managed via `progress.json` `engine-recovery-count`, not `handoff.json.retryCount` — see §D deviation note below)
+  - `TIMEOUT` → `timeout-decision` (decision node — reads `progress.json` `timeoutCount`; < 2 + CLI stdout present → retry via dispatch-mode; ≥ 2 or SIGKILL / zero output → BLOCKED: timeout-exhausted)
+  - `NEEDS_CONTEXT` → **implicit fail-open** (orchestrator manually investigates then redispatches dispatch-mode with the same mode; not a digraph edge).
 - **Read**: `handoff.json`.
-- **Exit**: Route per status → see Do field above.
+- **Exit**: Route per status × findings → see Do field above.
 - **Fail**: commit-contract validation fails (dirty tree or head mismatch) → BLOCKED: engine-error. `status` field missing or illegal (not one of APPROVED / CHANGES_REQUESTED / BLOCKED; NEEDS_CONTEXT is a known but implicitly handled status handled by the Exit field's fail-open path, not this Fail branch).
+
+### `fix-inline`
+
+- **Do**: Fix the warn/nit findings from the current task-review handoff inline (orchestrator session, no nested CLI dispatch). Per Review Stopping: blocker=0 → fix → done — **no re-run of task-review**.
+- **Read**: latest `task-N-task-review-R.json` `findings[]` (warn/nit severity items)
+- **Exit**: fixes applied → `task-complete?`
+- **Fail**: fixes cannot be completed in-session → **implicit fail-open** (stop + report to user; branch preserved)
 
 ### `engine-recovery` (decision node)
 
@@ -98,40 +121,20 @@ flowchart TD
 
 ### `task-complete?` (decision node)
 
-- **Do**: Check ledger `progress.json` + all task handoffs: ① if ledger already has `Task N: complete` for this task and more tasks remain → continue dispatch; ② if ledger has all tasks' complete lines → enter `any-deferred?`. **task-review is unskippable**: every task must go through the full implement → task-review → (fix if needed) → ledger chain; skipping task-review from implement directly to ledger is forbidden. **Ledger append discipline**: only append `Task N: complete` when handoff `status: APPROVED` (CLI subprocesses do not write ledger).
-- **Read**: `progress.json` (CDD_LEDGER) + all `task-N-handoff.json`.
-- **Exit**: more tasks remain → `dispatch-mode` (next task's implement); all tasks APPROVED → `any-deferred?`.
-- **Fail**: task handoff missing or status non-APPROVED but ledger lacks the task's complete line → BLOCKED: engine-error.
-
-### `any-deferred?` (decision node)
-
-- **Do**: Scan all `task-N-handoff.json` `findings[]`, extract `deferred: true` items; group by task (generate in-memory deferred rollup); non-empty → `deferred-disposition`; empty → `branch-review`.
-- **Read**: all `task-N-handoff.json` `findings[]`.
-- **Exit**: `deferred: true` items exist → `deferred-disposition`; none → `branch-review`.
-- **Fail**: handoff file corrupt or unparseable → BLOCKED: engine-error.
-
-### `deferred-disposition`
-
-- **Do**: Present accumulated deferred findings to the user (grouped by task): for each task, list `findings[].deferred=true` items (severity + summary + recommended fix); **user chooses**: ① fix-now (enter deferred-sweep-loop; sweep processes ALL deferred findings — no exemptions for "pure record" nits; sweep completion = findings[] cleared for all items regardless of whether code was changed; no per-task secondary confirmation after sweep) ② carry-skip (carry along, proceed to branch-review). Present with explanation that deferred items are warn/nit severity, do not affect APPROVED semantics, but fixing yields a cleaner branch.
-- **Read**: deferred rollup aggregated by the any-deferred? node.
-- **Exit**: fix-now → `deferred-sweep-loop`; carry-skip → `branch-review`.
-- **Fail**: user refuses decision (present-menu accumulates 3 exhausted chances, same model as P6 finishing `present-menu`) → BLOCKED: menu-exhausted.
-
-### `deferred-sweep-loop`
-
-- **Do**: Run deferred-sweep per task: for each task's `findings[].deferred=true` items, dispatch `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode fix --scope deferred-sweep` (fix dual-channel: deferred-sweep); sweep processes ALL deferred findings — no exemptions for "pure record" nits. After fix CLI returns:
-  - If agent exit code = 0: task-review re-reviews (verify fixes); if re-review returns new blockers → enter fix loop (≤ 5 rounds); re-review APPROVED → (1) `node bin/engine/lib/contract.mjs --clear-findings --handoff <path>` (clear `findings[]` in-place), (2) set handoff.status = "APPROVED", (3) append `Task N: complete` to ledger → continue next task's sweep.
-  - If agent exit code ≠ 0: report failure for this task; continue next task's sweep (findings[] retained, status untouched).
-  **Controller restriction**: deferred findings fix must go through `--mode fix` dispatch via this node; hand-writing fixes outside the engine CLI path is forbidden (see I7).
-- **Read**: each task's handoff + fix mode returned handoff updates.
-- **Exit**: all deferred-sweep tasks complete (re-review APPROVED) → `branch-review`.
-- **Fail**: task sweep hits fix-loop-exhausted → BLOCKED: fix-loop-exhausted.
+- **Do**: Check `progress.json` + all task handoffs: task N is complete when
+  `rounds["task-review"] >= 1` AND latest task-review handoff `status: APPROVED`.
+  **task-review is unskippable**: every task must go through implement → task-review →
+  (fix if CHANGES_REQUESTED) chain; skipping task-review is forbidden.
+- **Read**: `progress.json` + `task-N-task-review-R.json`
+- **Exit**: more tasks remain → `dispatch-mode` (next task's implement);
+  all tasks APPROVED → `branch-review`.
+- **Fail**: task-review handoff missing or status non-APPROVED → BLOCKED: engine-error.
 
 ### `branch-review`
 
 - **Do**: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template branch-review --doc <doc-path> --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>` (BASE read from artifact, **removes `origin/develop` hardcode**). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode). **Persist diff + report to workspace**: write `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md` (content from docs-task output + findings extraction).
 - **Read**: `base-branch.json` (for base name) + branch HEAD + plan path + docs-task output.
-- **Exit**: no blockers → `handoff-finishing`; blockers present → `branch-fix-loop`; only deferred → `handoff-finishing` (deferred items do not block finishing).
+- **Exit**: no blockers → `handoff-finishing`; blockers present → `branch-fix-loop`.
 - **Fail**: docs-task fails with no handoff → BLOCKED: engine-error.
 
 ### `branch-fix-loop`
@@ -143,8 +146,8 @@ flowchart TD
 
 ### `handoff-finishing`
 
-- **Do**: Prepare handoff to `osuperpowers:finishing`: ensure `.superpowers/cdd/<slug>/base-branch.json` is written (finishing's `read-base` node consumes the same artifact); summarize branch state (commits count / base / unresolved deferred count); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard four options).
-- **Read**: `base-branch.json` + ledger + all handoffs + branch-review final state.
+- **Do**: Prepare handoff to `osuperpowers:finishing`: ensure `.superpowers/cdd/<slug>/base-branch.json` is written (finishing's `read-base` node consumes the same artifact); summarize branch state (commits count / base); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard four options).
+- **Read**: `base-branch.json` + all handoffs + branch-review final state.
 - **Exit**: handoff complete → APPROVED: finishing.
 - **Fail**: finishing takeover fails → **implicit fail-open** (branch preserved; user manually finishes).
 
@@ -155,10 +158,8 @@ flowchart TD
 | I1 | **Explicit Propagation** — Selected harness is passed to downstream (`cdd-task.mjs` / `docs-task.mjs`) only as `--harness <name>` explicit CLI argument; no implicit environment variable propagation between skill and engine layers (`CDD_HARNESS` / `HARNESS_NAME` etc. all forbidden) — extends P7 I1. |
 | I2 | **CLI Background Execution** — All CLI mode calls (`cdd-task.mjs` / `docs-task.mjs`) must run in background — harness `run_in_background` when supported; timeout + poll otherwise (overall spec v1.9 program-level enforcement). |
 | I3 | **No --resume / -c** — All nested CLI calls forbid carrying historical session flags (`--resume` / `-c` etc.); use one-shot print mode. |
-| I4 | **Fix Dual-Channel Contract** — fix mode two channels: `--scope blocker-only` (default; fix.md only processes non-deferred items; deferred items stay in handoff `findings[]` across rounds, do not enter fix loop) \| `--scope deferred-sweep` (after user decision; processes deferred items). `runner.mjs` maps scope to `CDD_FINDINGS_SCOPE` env; `fix.md` `{{FINDINGS_SCOPE}}` placeholder expands per env. |
-| I5 | **Three-Mode Chain Completeness** — Every task must go through the full implement → task-review → (fix if needed) → ledger chain; skipping task-review from implement directly to ledger is forbidden. |
-| I6 | **No Controller Bypass** — When the engine is available (cdd-task.mjs / docs-task.mjs can run), the orchestrator must not hand-write control-flow bypasses that skip engine processing. All task execution, review, and fix dispatch must go through engine CLI calls; direct orchestrator-side manipulation of handoff/ledger state as a substitute for engine processing is forbidden. |
-| I7 | **No Hand-Written Deferred Fix** — Deferred findings repair must go through `--mode fix` dispatch (`deferred-disposition` fix-now → `deferred-sweep-loop`); the controller must not hand-write fixes for deferred findings outside the engine CLI path. **Degradation path**: when the engine is completely unavailable (exit 3 / harness missing / retry count hits the `engine-recovery` hard cap retry≥2), the controller may directly fix but **must record the degradation reason in `progress.json`** (severity + summary + reason); after engine recovery, supplement a `--mode fix` re-review. |
+| I5 | **Three-Mode Chain Completeness** — Every task must go through the full implement → task-review → (fix if CHANGES_REQUESTED) chain; skipping task-review from implement directly to completion is forbidden. |
+| I6 | **No Controller Bypass** — When the engine is available (cdd-task.mjs / docs-task.mjs can run), the orchestrator must not hand-write control-flow bypasses that skip engine processing. All task execution, review, and fix dispatch must go through engine CLI calls; direct orchestrator-side manipulation of handoff state as a substitute for engine processing is forbidden. |
 | I8 | **Timeout Retry with Cap** — When `dispatch-mode` returns `TIMEOUT`, `timeout-decision` checks `progress.json` `timeoutCount`. If `timeoutCount < 2` and CLI produced partial stdout (non-empty output before timeout), increment `timeoutCount` and retry via `dispatch-mode`. If `timeoutCount >= 2` or CLI was killed by SIGKILL or produced zero output → terminal `BLOCKED: timeout-exhausted`. `timeoutCount` is persisted in `progress.json` (same pattern as `engine-recovery-count`). |
 
 ## Failure Modes
@@ -169,16 +170,15 @@ Cross-node failure behavior mapping (complements Node Fail fields):
 |---------|----------|--------|----------|
 | `cli-select` BLOCKED | BLOCKED: no-harness | Cannot obtain harness name | Handled by cli-select node's report-issue path |
 | determine-base user refuses confirmation | BLOCKED: base-undecided | Wrong base for merge/PR is costly | User re-runs CDD and gets re-prompted |
+| `cdd-task` not in PATH | BLOCKED: cdd-engine-not-installed | `@oscaner-skills/cdd-engine` package not installed | Run `npm i -g @oscaner-skills/cdd-engine`, then retry |
 | Nested CLI failure + handoff missing | BLOCKED: engine-error | Engine bug signal | Report via `osuperpowers:report-issue` with labels `bug, dogfood, osuperpowers, cdd` |
 | handoff `status: BLOCKED` | `engine-recovery` decision → re-dispatch or BLOCKED: engine-error | runner.mjs has captured blocker (dirty tree / CLI failure) | engine-recovery reads blocker: fixable + retry<2 → re-dispatch; otherwise terminal BLOCKED |
 | handoff `status: TIMEOUT` | `timeout-decision` → retry or BLOCKED: timeout-exhausted | CLI timed out before completing | timeout-decision reads `timeoutCount`: < 2 + partial stdout → retry (increment count); ≥ 2 or SIGKILL / zero output → terminal BLOCKED: timeout-exhausted |
 | timeout exhaustion (timeoutCount ≥ 2) | BLOCKED: timeout-exhausted | Retry cap reached; CLI consistently times out | Review timeout configuration; check workspace resources; increase timeout or fix underlying performance issue |
 | Task-level fix-loop ≥ 5 rounds | BLOCKED: fix-loop-exhausted | Prevent task-level infinite loop | User decides: manual fix / re-scope review / abandon |
 | handoff JSON corrupt or status field illegal | BLOCKED: engine-error | Contract violation (runner self-validate should have caught) | Report via report-issue |
-| deferred-disposition accumulates 3 exhausted presentations | BLOCKED: menu-exhausted | Cannot obtain user decision | User re-runs CDD |
 | branch-fix-loop blockers persist after multiple rounds | **implicit fail-open** | Branch-level blockers may need manual investigation (no hard cap; recommended ≤ 3 rounds; beyond that, user decides) | Stop + report; branch preserved; user manually finishes |
 | `osuperpowers:finishing` takeover fails | **implicit fail-open** | finishing's own issue | Branch preserved; user manually finishes |
-| controller bypass engine | **implicit fail-open** (degradation) | Engine completely unavailable (exit 3 / harness missing / retry≥2 hard cap); controller directly hand-writes fix for deferred findings | Record degradation reason in `progress.json` (severity + summary + reason); after engine recovery, supplement `--mode fix` re-review |
 
 **Fail-open vs BLOCKED convention**:
 

@@ -1,12 +1,18 @@
 // gate/cdd-gate-core.mjs — P4b Node CDD gate core (T2)。
 // 从 bin/lib/cdd-orchestrator-gate.sh 逐函数移植（行为为准）；cli 严格模式落到
-// cdd_write_allowed / cdd_gate_phase 的等价判定。副作用仅：清除过期 pending（删文件）、
-// 只读 git exec（rev-parse / cat-file，execFileSync + catch → fail-open）；不写 workspace、不 commit。
+// cdd_write_allowed / cdd_gate_phase 的等价判定。副作用仅：只读 git exec
+// （rev-parse / cat-file / show-toplevel，execFileSync + catch → fail-open）；
+// 不写 workspace、不 commit。
+//
+// Bug O Step 5b: gate 状态经 **runner spawn env** 传播（hook 在 CLI 子进程内运行，
+// 继承 env）：CDD_GATE_WORKSPACE（workspace 路径，repo root 由 git toplevel 推导）、
+// CDD_GATE_MODE（cli | in-session | subagent）、CDD_GATE_PLAN（deny 文案 plan basename）。
+// TMPDIR pending 文件机制（pending 路径 / TTL env）已随转 env 一并删除。
 //
 // 导出：gateDecide(input) + isWriteTool / isShellTool / readonlyGitVerbs / gitVerbAllowed /
 // denyMessage（adapter 用 r.context 渲染 deny 文案）。CLI 与 11 个 adapter（T3/T4）都调用 gateDecide。
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,10 +27,6 @@ export const readonlyGitVerbs = [
 
 // branch/remote 只放行只读子参数（对齐 cdd_git_verb_allowed）。
 const BRANCH_REMOTE_READONLY_ARGS = new Set(["-a", "-r", "-v", "--show-current"]);
-
-// bash `:-` 语义（对齐引擎 ${TMPDIR:-/tmp}）：TMPDIR 未设或空串 → /tmp。
-const DEFAULT_PENDING_ROOT = path.join(process.env.TMPDIR?.trim() || "/tmp", "osuperpowers", "pending-cdd");
-const DEFAULT_PENDING_TTL = 86400;
 
 export function isWriteTool(name) {
   return WRITE_TOOLS.has(name);
@@ -75,17 +77,14 @@ function shellAllowed(command) {
   return gitVerbAllowed(command);
 }
 
-// pending 路径 —— 与引擎 cdd_pending_path 同一路径（否则生产 gate 找不到 pending → 静默 fail-open）。
-// CDD_PENDING_ROOT 空串 → 回退默认（bash `:-` 语义），与 TMPDIR 处理一致。
-export function pendingPathFor(sessionKey) {
-  const root = process.env.CDD_PENDING_ROOT?.trim() || DEFAULT_PENDING_ROOT;
-  return path.join(root, `${sessionKey}.json`);
-}
-
-// 过期判定对齐 cdd_pending_expired：(now - detected_at) > TTL。
-function pendingExpired(detectedAt, ttl) {
-  const nowSec = Math.floor(Date.now() / 1000);
-  return nowSec - detectedAt > ttl;
+// CDD_GATE_WORKSPACE 的 repo root —— git toplevel，CWD 无关（对齐 git rev-parse
+// --show-toplevel）。非 git 仓库 / exec 失败 → ""（调用方 fail-open allow）。
+function gitToplevel(dir) {
+  try {
+    return execFileSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+  } catch {
+    return "";
+  }
 }
 
 // cdd_is_under_path：path 等于 prefix 或在其下。
@@ -147,33 +146,6 @@ function handoffApproved(handoffPath) {
   }
 }
 
-// 找当前活跃 workspace：扫 cdd_root 下各子目录，返回第一个「brief 带真实 TASK_BASE 且
-// handoff 未 APPROVED」的目录。git toplevel 由 `git -C cdd_root rev-parse` 探测，
-// 不依赖固定上溯级数 —— 对齐 cdd_find_active_workspace。
-function findActiveWorkspace(cddRoot) {
-  if (!existsSync(cddRoot)) return null;
-  let repoRoot;
-  try {
-    repoRoot = execFileSync("git", ["-C", cddRoot, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-  } catch {
-    return null;
-  }
-  if (!repoRoot) return null;
-  for (const entry of readdirSync(cddRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const dir = path.join(cddRoot, entry.name);
-    let n = 1;
-    while (existsSync(path.join(dir, `task-${n}-brief.md`))) {
-      if (briefHasTaskBase(path.join(dir, `task-${n}-brief.md`), repoRoot)
-        && !handoffApproved(path.join(dir, `task-${n}-handoff.json`))) {
-        return dir;
-      }
-      n += 1;
-    }
-  }
-  return null;
-}
-
 // 前沿任务号 —— 对齐 cdd_frontier_task（空 workspace → 0，对齐 `while [[ -n "$workspace" ]]`）。
 function frontierTask(workspace, repoRoot) {
   if (!workspace) return 0;
@@ -192,6 +164,7 @@ function frontierTask(workspace, repoRoot) {
 }
 
 // phase 判定 —— 对齐 cdd_gate_phase：inactive | orchestrating | task_active | task_complete。
+// workspace 显式来自 CDD_GATE_WORKSPACE env（Bug O Step 5b），无 pending 文件的扫描回退。
 function gatePhase(repoRoot, workspace) {
   if (!workspace) return "orchestrating";
   const n = frontierTask(workspace, repoRoot);
@@ -230,7 +203,7 @@ function writeAllowed(absPath, repoRoot, workspace, phase) {
 
 // deny 消息 —— 等价 cdd_deny_message（含恢复指引）。os_root 为 osuperpowers 插件根。
 // 导出供 adapter（T3）用 r.context（taskNum/planBase）渲染 deny 文案。
-export function denyMessage(harness, taskNum, planBasename) {
+export function denyMessage(harness, taskNum, planBasename_) {
   const osRoot = pluginRoot();
   const verbs = formatVerbs(readonlyGitVerbs);
   return `CDD orchestrator gate — direct repo edits forbidden during active task.
@@ -241,7 +214,7 @@ ${verbs}
   sdd-workspace / task-brief / review-package
 
 Allowed Write:
-  .superpowers/cdd/${planBasename}/
+  .superpowers/cdd/${planBasename_}/
 
 Repo changes flow only through:
   ${osRoot}/bin/engine/cdd-task.mjs --harness ${harness} --task ${taskNum} --mode implement
@@ -274,9 +247,9 @@ function activeTaskNum(workspace, repoRoot) {
   return frontierTask(workspace, repoRoot);
 }
 
-// plan basename —— 对齐 cdd_plan_basename：pending.plan_path → progress.md 首行 → workspace 名。
-function planBasename(workspace, pending) {
-  const planPath = pending.plan_path ?? "";
+// plan basename —— 对齐 cdd_plan_basename：CDD_GATE_PLAN env → progress.md 首行 → workspace 名。
+function planBasename(workspace) {
+  const planPath = process.env.CDD_GATE_PLAN ?? "";
   if (planPath) return path.basename(planPath).replace(/\.md$/, "");
   if (workspace) {
     const progress = path.join(workspace, "progress.md");
@@ -294,10 +267,10 @@ function allowResult() {
   return { decision: "allow", reason: "", context: {} };
 }
 
-function denyResult(harness, workspace, repoRoot, pending) {
+function denyResult(harness, workspace, repoRoot) {
   let taskNum = activeTaskNum(workspace, repoRoot);
   if (!(taskNum > 0)) taskNum = 1;
-  const planBase = planBasename(workspace, pending);
+  const planBase = planBasename(workspace);
   return {
     decision: "deny",
     reason: denyMessage(harness, taskNum, planBase),
@@ -305,54 +278,28 @@ function denyResult(harness, workspace, repoRoot, pending) {
   };
 }
 
-// 核心入口 —— 对齐 cdd_gate_decide。input: { harness, toolName, toolInput, sessionKey, repoRoot }。
-// repo_root 取自 pending JSON（行为为准：无 repo_root → fail-open allow），input.repoRoot
-// 为调用方工作目录上下文，不参与 repo_root 判定。
+// 核心入口 —— 对齐 cdd_gate_decide。input: { harness, toolName, toolInput, sessionKey }。
+// Bug O Step 5b: repo_root 不再来自 pending JSON，由 CDD_GATE_WORKSPACE 的 git toplevel
+// 推导；input.repoRoot / sessionKey 为调用方上下文，不参与 gate 判定（无 repo_root 可推导
+// → fail-open allow，行为与 pending 时代一致）。
 export function gateDecide(input) {
-  const { harness, toolName, toolInput, sessionKey } = input ?? {};
+  const { harness, toolName, toolInput } = input ?? {};
   const ti = toolInput ?? {};
 
-  const pendingPath = pendingPathFor(sessionKey);
-  let pending = null;
-  try {
-    pending = JSON.parse(readFileSync(pendingPath, "utf8"));
-  } catch {
-    pending = null;
-  }
-  if (!pending) return allowResult();
-
-  // 过期 pending → 清除 + allow。CDD_PENDING_TTL 空串 → 回退默认（`||` 而非 `??`：
-  // Number("")=0 会把空串 env 解析成 TTL=0 → 秒过期；对齐 TMPDIR 的空串回退语义）。
-  const detectedAt = pending.detected_at ?? 0;
-  const ttl = Number(process.env.CDD_PENDING_TTL || DEFAULT_PENDING_TTL);
-  if (pendingExpired(detectedAt, ttl)) {
-    try { rmSync(pendingPath, { force: true }); } catch { /* 清除失败仍 fail-open */ }
-    return allowResult();
-  }
-
-  const repoRoot = pending.repo_root ?? "";
+  // 读环境变量（hook 在子进程内运行，继承 runner spawn env）。
+  const gateWorkspace = process.env.CDD_GATE_WORKSPACE ?? "";
+  if (!gateWorkspace) return allowResult();
+  const repoRoot = gitToplevel(gateWorkspace);
   if (!repoRoot) return allowResult();
-
-  // 模式感知（spec §E）：mode 空 / in-session / subagent → Write/Edit 放行；cli 严格。
-  const sessionMode = pending.mode ?? "";
-
-  const cddRoot = process.env.CDD_GATE_FIXTURES_ROOT ?? path.join(repoRoot, ".superpowers", "cdd");
-
-  let workspace = pending.workspace ?? "";
-  if (!workspace) {
-    workspace = findActiveWorkspace(cddRoot);
-    // Transition: in-flight plans 仍在 .superpowers/sdd/ —— 回退扫描（fixtures root 设置时跳过）。
-    if (!workspace && !process.env.CDD_GATE_FIXTURES_ROOT) {
-      workspace = findActiveWorkspace(path.join(repoRoot, ".superpowers", "sdd"));
-    }
-  }
+  const sessionMode = process.env.CDD_GATE_MODE ?? "";
+  const workspace = gateWorkspace;
   const phase = gatePhase(repoRoot, workspace);
 
   if (isShellTool(toolName)) {
     const command = ti.command ?? "";
     if (shellAllowed(command)) return allowResult();
     if (phase === "inactive" || phase === "task_complete") return allowResult();
-    return denyResult(harness, workspace, repoRoot, pending);
+    return denyResult(harness, workspace, repoRoot);
   }
 
   if (isWriteTool(toolName)) {
@@ -363,9 +310,10 @@ export function gateDecide(input) {
     const rawPath = ti.path || ti.file_path || "";
     if (!rawPath) return allowResult();
     const absPath = normalizeAbs(rawPath, repoRoot);
+    // 模式感知（spec §E）：mode 空 / in-session / subagent → Write/Edit 放行；cli 严格。
     if (sessionMode === "in-session" || sessionMode === "subagent" || sessionMode === "") return allowResult();
     if (writeAllowed(absPath, repoRoot, workspace, phase)) return allowResult();
-    return denyResult(harness, workspace, repoRoot, pending);
+    return denyResult(harness, workspace, repoRoot);
   }
 
   return allowResult();

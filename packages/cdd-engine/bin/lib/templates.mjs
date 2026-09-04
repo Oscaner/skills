@@ -11,6 +11,26 @@ const __dirname = path.dirname(__filename);
 // Replaces pluginRoot() walk — cdd-engine is self-contained.
 export const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
+// template → 分组映射（Step 2b: flat → task/review/schema 目录）。
+// task/             cdd-task 按 mode 渲染（cdd-task.mjs 消费）
+// review/           docs 审查模板（docs-task / branch-review 消费）
+// schema/           handoff JSON schemas
+const MODE_GROUPS = {
+  implement: 'task',
+  'task-review': 'task',
+  fix: 'task',
+  'spec-review': 'review',
+  'plan-review': 'review',
+  'branch-review': 'review',
+};
+
+// template 名 → 绝对路径（group-aware）。未知模板名 → throw。
+export function templatePath(name) {
+  const group = MODE_GROUPS[name];
+  if (!group) throw new Error(`unknown template: ${name}`);
+  return path.join(PKG_ROOT, 'templates', group, `${name}.md`);
+}
+
 export const LINE_BUDGETS = Object.freeze({
   sdd: 210, ctrl: 50, tier1: 260, tier2: 331,
 });
@@ -43,7 +63,7 @@ export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
 }
 
 export function renderModePrompt(mode, env = {}) {
-  const modePath = path.join(PKG_ROOT, 'templates', `${mode}.md`);
+  const modePath = templatePath(mode);
   if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);
   let content = readFileSync(modePath, 'utf8');
   for (const key of PLACEHOLDERS) {
@@ -57,11 +77,11 @@ export function renderModePrompt(mode, env = {}) {
 }
 
 export function renderTemplate(name, params, programName) {
-  const templatePath = path.join(PKG_ROOT, 'templates', `${name}.md`);
-  if (!existsSync(templatePath)) {
-    throw new Error(`${programName}: template not found: templates/${name}.md`);
+  const templatePath_ = templatePath(name);
+  if (!existsSync(templatePath_)) {
+    throw new Error(`${programName}: template not found: ${templatePath_}`);
   }
-  let content = readFileSync(templatePath, 'utf8');
+  let content = readFileSync(templatePath_, 'utf8');
   for (const [key, value] of Object.entries(params)) {
     content = content.split(`{{${key}}}`).join(value);
   }

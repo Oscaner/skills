@@ -54,12 +54,23 @@ export async function spawnCapture(command, args, opts = {}) {
 }
 
 // Invoke CLI: build args from entry, handle stream-json output mode.
+// Enh P: per-mode `prefix`/`suffix` injection (generalizes legacy task_review_prefix),
+// joined with `\n` so the prefix forms its own first line.
+// Bug O Step 5b: workspace propagates to the spawned CLI via CDD_GATE_WORKSPACE /
+// CDD_GATE_MODE env (gate hooks run inside the CLI subprocess and inherit them).
 export async function invokeCli(entry, prompt, mode, env, cwd, timeoutMs) {
-  const { cli, invoke, output, task_review_prefix } = entry;
-  const promptArg = mode === 'task-review' && task_review_prefix
-    ? `${task_review_prefix} ${prompt}` : prompt;
+  const { cli, invoke, output } = entry;
+  const { prefix, suffix } = entry;
+  const p = prefix?.[mode] ?? '';
+  const s = suffix?.[mode] ?? '';
+  const promptArg = [p, prompt, s].filter(Boolean).join('\n');
   const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];
-  const res = await spawnCapture(cli, args, { cwd, env, timeoutMs });
+  const workspace = env?.CDD_WORKSPACE ?? '';
+  const gateEnv = {
+    ...cleanEnv(env ?? process.env),
+    ...(workspace ? { CDD_GATE_WORKSPACE: workspace, CDD_GATE_MODE: process.env.CDD_SESSION_MODE ?? 'cli' } : {}),
+  };
+  const res = await spawnCapture(cli, args, { cwd, env: gateEnv, timeoutMs });
   if (res.ok && output === 'stream-json') {
     const finalText = extractStreamJsonFinal(res.stdout);
     if (!finalText) {

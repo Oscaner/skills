@@ -19,8 +19,7 @@ export async function cddGate({ directory }) {
           harness: "opencode",
           toolName: canonicalToolName(input?.tool),
           toolInput: args,
-          sessionKey: input?.sessionID,
-          repoRoot: directory ?? process.cwd(),
+          sessionKey: input?.sessionID, // Bug O Step 5b: repoRoot 由 CDD_GATE_WORKSPACE env 推导，不再经 input
         });
         if (r.decision === "deny") throw new Error(r.reason);
       } catch (e) {

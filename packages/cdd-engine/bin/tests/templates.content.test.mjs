@@ -10,7 +10,7 @@ const PKG_ROOT = path.resolve(__dirname, '..', '..');
 describe('task-review.md Bug C regression', () => {
   it('## Handoff Output appears before ## Return (H1)', () => {
     const content = readFileSync(
-      path.join(PKG_ROOT, 'templates', 'task-review.md'),
+      path.join(PKG_ROOT, 'templates', 'task', 'task-review.md'),
       'utf8'
     );
     const handoffIdx = content.indexOf('## Handoff Output');
@@ -22,7 +22,7 @@ describe('task-review.md Bug C regression', () => {
 
   it('contains HARD GATE instruction', () => {
     const content = readFileSync(
-      path.join(PKG_ROOT, 'templates', 'task-review.md'),
+      path.join(PKG_ROOT, 'templates', 'task', 'task-review.md'),
       'utf8'
     );
     expect(content).toContain('HARD GATE');
@@ -33,7 +33,7 @@ describe('task-review.md Bug C regression', () => {
 describe('branch-review.md semantic fix', () => {
   it('does not contain doc_path field instruction', () => {
     const content = readFileSync(
-      path.join(PKG_ROOT, 'templates', 'branch-review.md'), 'utf8'
+      path.join(PKG_ROOT, 'templates', 'review', 'branch-review.md'), 'utf8'
     );
     expect(content).not.toContain('`doc_path`');
   });

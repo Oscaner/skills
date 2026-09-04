@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { cddGate } from "../adapters/opencode.mjs";
-import { makeGateTestEnv, gitFixtureRoot, writePending, now, activePlan } from "./helpers.mjs";
+import { makeGateTestEnv, gitFixtureRoot, writePending, clearGateEnv, now, activePlan } from "./helpers.mjs";
 
 const { root, pendingRoot } = makeGateTestEnv();
 
@@ -68,6 +68,7 @@ test("opencode plugin: cli 严格 + Write 出 workspace → throw 阻断", async
 });
 
 test("opencode plugin: 无 pending → allow（不 throw）", async () => {
+  clearGateEnv(); // Bug O Step 5b: env 泄漏防护 —— 无 gate env → fail-open allow
   const hooks = await cddGate({ directory: root });
   const before = hooks["tool.execute.before"];
   await assert.doesNotReject(
@@ -81,9 +82,10 @@ test("opencode plugin: 畸形 input（undefined）→ allow（不抛错）", asy
   await assert.doesNotReject(() => before(undefined, undefined));
 });
 
-test("opencode plugin: 畸形 sessionID（Symbol）→ gateDecide 抛错 → catch → fail-open allow（不 throw）", async () => {
-  // Symbol sessionID 在 pendingPathFor 的模板字面量处抛 TypeError（Symbol 不能插值）——
-  // 穿过 gateDecide 落到 adapter 的 catch → fail-open allow。验证 catch 分支真实可达。
+test("opencode plugin: 畸形 sessionID（Symbol）被忽略 → allow（不 throw）", async () => {
+  // Bug O Step 5b: gate 不再用 sessionKey 查 pending 文件 —— Symbol sessionID 被 gateDecide
+  // 忽略（不参与 gate 状态读取），不会在路径模板处抛 TypeError。无 gate env → fail-open allow。
+  clearGateEnv();
   const hooks = await cddGate({ directory: root });
   const before = hooks["tool.execute.before"];
   await assert.doesNotReject(

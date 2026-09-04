@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // From bin/lib/ → packages/cdd-engine/
 const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
-const HANDOFF_SCHEMA_PATH = path.join(PKG_ROOT, 'templates', 'cdd-handoff-schema.json');
+const HANDOFF_SCHEMA_PATH = path.join(PKG_ROOT, 'templates', 'schema', 'cdd-handoff-schema.json');
 
 // Lazy-initialized ajv instance + compiled validator.
 let _validator = null;

@@ -13,7 +13,6 @@ try {
     toolName: input.tool_name,
     toolInput: input.tool_input ?? {},
     sessionKey: sessionKeyFromJson(input),
-    repoRoot: process.cwd(),
   });
   if (r.decision === "deny") {
     process.stdout.write(JSON.stringify({ decision: "deny", reason: denyMessageFor(r, "kiro") }));

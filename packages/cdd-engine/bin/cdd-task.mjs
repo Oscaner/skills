@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 // bin/cdd-task.mjs — CDD per-task runner. Commander.js v15.
-//   cdd-task --harness <name> --task N --mode implement|task-review|fix [--plan PATH] [--scope SCOPE]
-// --plan optional: sets PLAN_FILE env for workspace resolution. --scope optional
-// (fix mode only): blocker-only (default) | deferred-sweep. CDD_DRY_RUN=1 skips the
-// harness CLI (argument parsing / orchestration smoke tests).
+//   cdd-task --harness <name> --task N --mode implement|task-review|fix [--plan PATH]
+// --plan optional: sets PLAN_FILE env for workspace resolution.
+// CDD_DRY_RUN=1 skips the harness CLI (argument parsing / orchestration smoke tests).
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { runTask } from './lib/runner.mjs';
 import { exitOk, exitCliMissing } from './utils/exit.mjs';
 
-const USAGE = 'usage: cdd-task --harness <name> --task N --mode implement|task-review|fix [--plan PATH] [--scope SCOPE]';
+const USAGE = 'usage: cdd-task --harness <name> --task N --mode implement|task-review|fix [--plan PATH]';
 
 const program = new Command();
 program
@@ -25,7 +24,6 @@ program
   })
   .requiredOption('--mode <mode>', 'implement|task-review|fix')
   .option('--plan <path>', 'plan file path (sets PLAN_FILE for workspace resolution)')
-  .option('--scope <scope>', 'fix mode scope: blocker-only (default) | deferred-sweep')
   .action(async (opts) => {
     const env = { ...process.env };
     if (opts.plan) env.PLAN_FILE = opts.plan;
@@ -33,7 +31,6 @@ program
       mode: opts.mode,
       dryRun: process.env.CDD_DRY_RUN === '1',
       env,
-      scope: opts.scope,
     });
   });
 

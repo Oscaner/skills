@@ -4,7 +4,7 @@
 // Uses CDD handoff schema (status/commits/findings/artifacts/blocker, no doc_path).
 import { Command } from 'commander';
 import path from 'node:path';
-import { existsSync, mkdirSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { loadRegistry, checkHarness, CddBlockedError } from './lib/registry.mjs';
 import { renderTemplate } from './lib/templates.mjs';
 import { loadHandoffSchema } from './lib/schema-utils.mjs';
@@ -91,6 +91,22 @@ program
       }
       process.stderr.write(`CDD_BLOCKED: branch-review failed (exit ${res.code})\n`);
       exitWithCode(1);
+    }
+
+    // Agent wrote handoff — validate against the CDD schema (mirrors runner step 8.8).
+    if (existsSync(handoffPath)) {
+      const { validateHandoffSchema } = await import('./lib/schema-utils.mjs');
+      const agentHandoff = JSON.parse(readFileSync(handoffPath, 'utf8'));
+      const sv = validateHandoffSchema(agentHandoff, 'cdd');
+      if (!sv.valid) {
+        writeHandoff(handoffPath, {
+          task: 1, phase: 'branch-review', status: 'BLOCKED',
+          commits: { base, head }, findings: [], artifacts: {},
+          blocker: `branch-review handoff schema invalid: ${sv.reason} → fix and re-run branch-review`,
+        });
+        process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
+        exitWithCode(1);
+      }
     }
 
     exitOk();

@@ -28,18 +28,8 @@
 6. Write handoff per `## Handoff Output` below.
 7. Do **not** write ledger.
 
-## Return (H1 — stdout only)
-
-Return **exactly 4 lines** to stdout; make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
-
-```
-status: <APPROVED|BLOCKED>
-commits: base=<sha> head=<sha>
-artifacts: brief=<path> report=<path> test_evidence=<path>
-blocker: <none|one-line>
-```
-
-Fix prose and test output live in files only.
+> ⚠️ HARD GATE — Write `{{HANDOFF}}` BEFORE outputting H1.
+> H1 output without a written handoff file = BLOCKED (runner exit 1).
 
 ## Handoff Output
 
@@ -70,3 +60,18 @@ Before H1: `jq . {{HANDOFF}}` → check status/commits.base/commits.head non-nul
 ### Atomicity
 
 Implement+handoff in one process. Handoff write fails → H1 `status: BLOCKED`. Retry → full mode re-run (idempotent).
+
+## Return (H1 — stdout only)
+
+Return **exactly 4 lines** to stdout; make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
+
+```
+status: <APPROVED|BLOCKED>
+commits: base=<sha> head=<sha>
+artifacts: brief=<path> report=<path> test_evidence=<path>
+blocker: <none|one-line>
+```
+
+Fix prose and test output live in files only.
+
+

@@ -105,7 +105,8 @@ test("shell git branch -D x → deny", () => {
 
 test("task_complete phase → Write allow", () => {
   const { dir, ws } = activeWorkspace();
-  writeFileSync(path.join(ws, "task-1-handoff.json"), JSON.stringify({ status: "APPROVED" }));
+  // Node runner writes per-round task-review handoffs (latest approved → task complete)
+  writeFileSync(path.join(ws, "task-1-task-review-1.json"), JSON.stringify({ status: "APPROVED" }));
   writePending(pendingRoot, "s-complete", { workspace: ws, mode: "cli" });
   const r = gateDecide({ harness: "claude", toolName: "Write", toolInput: { file_path: `${dir}/anywhere.md` } });
   assert.equal(r.decision, "allow");

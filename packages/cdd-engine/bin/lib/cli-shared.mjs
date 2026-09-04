@@ -17,7 +17,9 @@ export function resolveTimeoutMs(env, mode) {
   }
   const globalRaw = env.CDD_CLI_TIMEOUT;
   if (globalRaw !== undefined) {
-    const seconds = Math.max(1, Math.ceil(Number(globalRaw) / STEP_SECONDS) * STEP_SECONDS);
+    const n = Number(globalRaw);
+    if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid → default
+    const seconds = Math.max(1, Math.ceil(n / STEP_SECONDS) * STEP_SECONDS);
     return seconds * 1000;
   }
   const legacyKey = LEGACY_MODE_ENV[mode];

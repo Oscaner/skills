@@ -107,7 +107,7 @@ All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1-H5).
 
-**Harness registry:** `bin/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `task_review_prefix` / `ship`; the engine reads it via `cdd-task` (no more per-harness scripts).
+**Harness registry:** `bin/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `prefix`/`suffix` (per-mode) / `ship`; the engine reads it via `cdd-task` (no more per-harness scripts).
 
 | Ship | Harnesses |
 |------|-----------|

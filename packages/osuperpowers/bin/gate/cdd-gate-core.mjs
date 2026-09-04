@@ -12,7 +12,7 @@
 // 导出：gateDecide(input) + isWriteTool / isShellTool / readonlyGitVerbs / gitVerbAllowed /
 // denyMessage（adapter 用 r.context 渲染 deny 文案）。CLI 与 11 个 adapter（T3/T4）都调用 gateDecide。
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -147,16 +147,37 @@ function handoffApproved(handoffPath) {
   }
 }
 
+// The Node runner writes per-phase handoffs (task-N-implement.json,
+// task-N-task-review-{R}.json, task-N-fix-{R}.json) — not the legacy
+// task-N-handoff.json. A task is "approved" when its LATEST task-review
+// handoff (highest round number) is APPROVED.
+function latestReviewApproved(workspace, taskNum) {
+  const prefix = `task-${taskNum}-task-review-`;
+  let files;
+  try {
+    files = readdirSync(workspace).filter((f) => f.startsWith(prefix) && f.endsWith(".json"));
+  } catch {
+    return false;
+  }
+  if (files.length === 0) return false;
+  // highest round = highest numeric suffix
+  const rounds = files
+    .map((f) => Number(f.slice(prefix.length, -".json".length)))
+    .filter((n) => Number.isInteger(n));
+  if (rounds.length === 0) return false;
+  const latest = path.join(workspace, `${prefix}${Math.max(...rounds)}.json`);
+  return handoffApproved(latest);
+}
+
 // 前沿任务号 —— 对齐 cdd_frontier_task（空 workspace → 0，对齐 `while [[ -n "$workspace" ]]`）。
 function frontierTask(workspace, repoRoot) {
   if (!workspace) return 0;
   let n = 1;
   for (;;) {
     const brief = path.join(workspace, `task-${n}-brief.md`);
-    const handoff = path.join(workspace, `task-${n}-handoff.json`);
     if (!existsSync(brief)) return n - 1;
     if (briefHasTaskBase(brief, repoRoot)) {
-      if (!handoffApproved(handoff)) return n;
+      if (!latestReviewApproved(workspace, n)) return n;
     } else {
       return n - 1;
     }
@@ -172,9 +193,8 @@ function gatePhase(repoRoot, workspace) {
   if (n === 0) return "orchestrating";
   const brief = path.join(workspace, `task-${n}-brief.md`);
   const nextBrief = path.join(workspace, `task-${n + 1}-brief.md`);
-  const handoff = path.join(workspace, `task-${n}-handoff.json`);
-  if (briefHasTaskBase(brief, repoRoot) && !handoffApproved(handoff)) return "task_active";
-  if (handoffApproved(handoff) && !briefHasTaskBase(nextBrief, repoRoot)) return "task_complete";
+  if (briefHasTaskBase(brief, repoRoot) && !latestReviewApproved(workspace, n)) return "task_active";
+  if (latestReviewApproved(workspace, n) && !briefHasTaskBase(nextBrief, repoRoot)) return "task_complete";
   if (briefHasTaskBase(brief, repoRoot)) return "task_active";
   return "orchestrating";
 }

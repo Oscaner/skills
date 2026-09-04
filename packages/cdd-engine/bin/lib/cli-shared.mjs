@@ -38,9 +38,9 @@ export async function spawnCapture(command, args, opts = {}) {
   const res = await execa(command, args, {
     cwd,
     env: cleanEnv(env ?? process.env),
-    timeout: timeoutMs,             // execa 内置 watchdog
+    timeout: timeoutMs,             // execa built-in watchdog
     forceKillAfterDelay: 5000,      // SIGKILL fallback (#137)
-    reject: false,                  // 不 throw
+    reject: false,                  // never throws
     all: false,
   });
   const timedOut = res.timedOut ?? false;

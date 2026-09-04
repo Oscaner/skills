@@ -46,7 +46,7 @@ flowchart TD
 
 ### `select-harness`
 
-- **Do**: Invoke the [ask](../cli-select/SKILL.md#ask) node of [cli-select](../cli-select/SKILL.md) (cross-skill call) to obtain the user's selected harness name; pass `--harness <name>` as an **explicit CLI argument** to all downstream `cdd-task.mjs` / `cdd-review.mjs` calls (no implicit env var propagation — extends P7 I1).
+- **Do**: Invoke the [ask](../cli-select/SKILL.md#ask) node of [cli-select](../cli-select/SKILL.md) (cross-skill call) to obtain the user's selected harness name; pass `--harness <name>` as an **explicit CLI argument** to all downstream `cdd-task.mjs` / `docs-task.mjs` calls (no implicit env var propagation — extends P7 I1).
 - **Read**: harness name returned by cli-select's `ask` node.
 - **Exit**: harness selected → `determine-base`; cli-select BLOCKED → BLOCKED: no-harness.
 - **Fail**: cli-select returns BLOCKED (engine bug / user cancellation) → this node same BLOCKED.
@@ -129,10 +129,10 @@ flowchart TD
 
 ### `branch-review`
 
-- **Do**: `node {pluginRoot}/bin/engine/cdd-review.mjs --harness <name> --template branch-review --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>` (BASE read from artifact, **removes `origin/develop` hardcode**). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode). **Persist diff + report to workspace**: write `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md` (content from cdd-review output + findings extraction).
-- **Read**: `base-branch.json` (for base name) + branch HEAD + plan path + cdd-review output.
+- **Do**: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template branch-review --doc <doc-path> --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>` (BASE read from artifact, **removes `origin/develop` hardcode**). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode). **Persist diff + report to workspace**: write `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md` (content from docs-task output + findings extraction).
+- **Read**: `base-branch.json` (for base name) + branch HEAD + plan path + docs-task output.
 - **Exit**: no blockers → `handoff-finishing`; blockers present → `branch-fix-loop`; only deferred → `handoff-finishing` (deferred items do not block finishing).
-- **Fail**: cdd-review fails with no handoff → BLOCKED: engine-error.
+- **Fail**: docs-task fails with no handoff → BLOCKED: engine-error.
 
 ### `branch-fix-loop`
 
@@ -152,12 +152,12 @@ flowchart TD
 
 | # | Invariant |
 |---|-----------|
-| I1 | **Explicit Propagation** — Selected harness is passed to downstream (`cdd-task.mjs` / `cdd-review.mjs`) only as `--harness <name>` explicit CLI argument; no implicit environment variable propagation between skill and engine layers (`CDD_HARNESS` / `HARNESS_NAME` etc. all forbidden) — extends P7 I1. |
-| I2 | **CLI Background Execution** — All CLI mode calls (`cdd-task.mjs` / `cdd-review.mjs`) must run in background — harness `run_in_background` when supported; timeout + poll otherwise (overall spec v1.9 program-level enforcement). |
+| I1 | **Explicit Propagation** — Selected harness is passed to downstream (`cdd-task.mjs` / `docs-task.mjs`) only as `--harness <name>` explicit CLI argument; no implicit environment variable propagation between skill and engine layers (`CDD_HARNESS` / `HARNESS_NAME` etc. all forbidden) — extends P7 I1. |
+| I2 | **CLI Background Execution** — All CLI mode calls (`cdd-task.mjs` / `docs-task.mjs`) must run in background — harness `run_in_background` when supported; timeout + poll otherwise (overall spec v1.9 program-level enforcement). |
 | I3 | **No --resume / -c** — All nested CLI calls forbid carrying historical session flags (`--resume` / `-c` etc.); use one-shot print mode. |
 | I4 | **Fix Dual-Channel Contract** — fix mode two channels: `--scope blocker-only` (default; fix.md only processes non-deferred items; deferred items stay in handoff `findings[]` across rounds, do not enter fix loop) \| `--scope deferred-sweep` (after user decision; processes deferred items). `runner.mjs` maps scope to `CDD_FINDINGS_SCOPE` env; `fix.md` `{{FINDINGS_SCOPE}}` placeholder expands per env. |
 | I5 | **Three-Mode Chain Completeness** — Every task must go through the full implement → task-review → (fix if needed) → ledger chain; skipping task-review from implement directly to ledger is forbidden. |
-| I6 | **No Controller Bypass** — When the engine is available (cdd-task.mjs / cdd-review.mjs can run), the orchestrator must not hand-write control-flow bypasses that skip engine processing. All task execution, review, and fix dispatch must go through engine CLI calls; direct orchestrator-side manipulation of handoff/ledger state as a substitute for engine processing is forbidden. |
+| I6 | **No Controller Bypass** — When the engine is available (cdd-task.mjs / docs-task.mjs can run), the orchestrator must not hand-write control-flow bypasses that skip engine processing. All task execution, review, and fix dispatch must go through engine CLI calls; direct orchestrator-side manipulation of handoff/ledger state as a substitute for engine processing is forbidden. |
 | I7 | **No Hand-Written Deferred Fix** — Deferred findings repair must go through `--mode fix` dispatch (`deferred-disposition` fix-now → `deferred-sweep-loop`); the controller must not hand-write fixes for deferred findings outside the engine CLI path. **Degradation path**: when the engine is completely unavailable (exit 3 / harness missing / retry count hits the `engine-recovery` hard cap retry≥2), the controller may directly fix but **must record the degradation reason in `progress.json`** (severity + summary + reason); after engine recovery, supplement a `--mode fix` re-review. |
 | I8 | **Timeout Retry with Cap** — When `dispatch-mode` returns `TIMEOUT`, `timeout-decision` checks `progress.json` `timeoutCount`. If `timeoutCount < 2` and CLI produced partial stdout (non-empty output before timeout), increment `timeoutCount` and retry via `dispatch-mode`. If `timeoutCount >= 2` or CLI was killed by SIGKILL or produced zero output → terminal `BLOCKED: timeout-exhausted`. `timeoutCount` is persisted in `progress.json` (same pattern as `engine-recovery-count`). |
 

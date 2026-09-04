@@ -49,6 +49,13 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 
 For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
 
+## Review Stopping (CDD + doc-review)
+
+Unified rule in `packages/osuperpowers/skills/_docs/docs-review.md` § Rule: Review Stopping.
+- blocker > 0: `cli-fix-all-findings` → re-run review
+- blocker = 0: `cli-fix-all-findings` → done (no re-review after blocker=0)
+All findings (blocker + warn + nit) are fixed in both paths.
+
 ## Per-package documentation
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide

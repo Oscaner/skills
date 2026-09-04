@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { runTask, invokeCli, taskNumbersFromPlan, isTaskPending, handoffStatus,
          findSuperpowersScriptsDir, byVersion, runReviewPackage, resolveRepoRoot,
          spawnCapture, buildTaskEnv } from "../lib/runner.mjs";
+import { getRound } from "../lib/progress.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -189,10 +190,10 @@ test("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 blo
     }
   })();
   assert.equal(res.exitCode, 1);
-  const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
+  const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
   assert.equal(handoff.status, "BLOCKED");
-  assert.match(handoff.blocker, /boom from fake cli/);
-  assert.match(handoff.blocker, /exit/);
+  assert.match(handoff.blocker, /cli exited 3 without writing handoff/);
+  assert.match(handoff.blocker, /re-dispatch task 1/);
 });
 
 test("taskNumbersFromPlan: 提取 ### Task N: 并排序（含 0）", () => {
@@ -202,26 +203,31 @@ test("taskNumbersFromPlan: 提取 ### Task N: 并排序（含 0）", () => {
   assert.deepEqual(taskNumbersFromPlan(plan), [0, 1, 2, 3]);
 });
 
-test("isTaskPending / handoffStatus: ledger complete / APPROVED → false；DONE / MISSING → true", () => {
+test("isTaskPending / handoffStatus: progressData round 0 → MISSING / pending；APPROVED/DONE → not pending", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-pending-"));
-  const ledger = path.join(dir, "progress.md");
-  const handoff = path.join(dir, "task-1-handoff.json");
 
-  assert.equal(handoffStatus(handoff), "MISSING");
-  assert.equal(isTaskPending(1, ledger, handoff), true);
+  // reviewRound = 0 (no task-review recorded) → MISSING / pending
+  const noReviewProgress = { tasks: [] };
+  assert.equal(handoffStatus(1, dir, noReviewProgress), "MISSING");
+  assert.equal(isTaskPending(1, dir, noReviewProgress), true);
 
-  writeFileSync(handoff, JSON.stringify({ status: "DONE" }));
+  // reviewRound = 1, handoff DONE → normalized APPROVED → not pending
+  const progressR1 = { tasks: [{ task: 1, rounds: { "task-review": 1 } }] };
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "DONE" }));
   // T2: DONE normalized to APPROVED by handoffStatus()
-  assert.equal(handoffStatus(handoff), "APPROVED");
+  assert.equal(handoffStatus(1, dir, progressR1), "APPROVED");
   // T2: DONE normalized to APPROVED → isTaskPending returns false (not pending)
-  assert.equal(isTaskPending(1, ledger, handoff), false);
+  assert.equal(isTaskPending(1, dir, progressR1), false);
 
-  writeFileSync(handoff, JSON.stringify({ status: "APPROVED" }));
-  assert.equal(handoffStatus(handoff), "APPROVED");
-  assert.equal(isTaskPending(1, ledger, handoff), false);
+  // APPROVED explicitly → not pending
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "APPROVED" }));
+  assert.equal(handoffStatus(1, dir, progressR1), "APPROVED");
+  assert.equal(isTaskPending(1, dir, progressR1), false);
 
-  writeFileSync(ledger, "# CDD ledger\nTask 1: complete (commits a..b, review clean)\n");
-  assert.equal(isTaskPending(1, ledger, handoff), false);
+  // BLOCKED → still pending
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "BLOCKED" }));
+  assert.equal(handoffStatus(1, dir, progressR1), "BLOCKED");
+  assert.equal(isTaskPending(1, dir, progressR1), true);
 });
 
 // ---- findSuperpowersScriptsDir / byVersion（T7 补回：删除 common-functions.test.mjs 后
@@ -480,84 +486,24 @@ test("spawnCapture: preserves non-subagent env vars", async () => {
   assert.match(res.stdout.trim(), /hello-test/);
 });
 
-// ---- P8 #187 #168: status APPROVED fallback + CDD_FINDINGS_SCOPE scope env ----
+// ---- fix mode CDD_FINDINGS → task-review handoff path (no scope/pre-gen) ----
 
-test("buildTaskEnv #168: fix mode + scope → env.CDD_FINDINGS_SCOPE set", () => {
+test("buildTaskEnv: fix mode → CDD_FINDINGS = task-review handoff path (no scope filter)", () => {
   const ws = setupWorkspace();
-  const env = buildTaskEnv(baseEnv(ws), ws, 1, "fix", "claude", { scope: "deferred-sweep" });
-  assert.equal(env.CDD_FINDINGS_SCOPE, "deferred-sweep");
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "fix", "claude", { round: 1 });
+  assert.match(env.CDD_FINDINGS, /task-1-task-review-1\.json$/);
+  assert.ok(!env.CDD_FINDINGS.includes("open-findings"), "fix mode CDD_FINDINGS must not be open-findings");
+  assert.equal(env.CDD_FINDINGS_SCOPE, undefined, "CDD_FINDINGS_SCOPE removed from buildTaskEnv");
 });
 
-test("buildTaskEnv #168: implement mode → no CDD_FINDINGS_SCOPE", () => {
+test("buildTaskEnv: implement mode → CDD_FINDINGS = open-findings path, no CDD_FINDINGS_SCOPE", () => {
   const ws = setupWorkspace();
   const env = buildTaskEnv(baseEnv(ws), ws, 1, "implement", "claude");
+  assert.match(env.CDD_FINDINGS, /task-1-open-findings\.json$/);
   assert.equal(env.CDD_FINDINGS_SCOPE, undefined);
 });
 
-test("runTask #168: fix mode + --scope deferred-sweep → env has CDD_FINDINGS_SCOPE", async () => {
-  const ws = setupWorkspace();
-  // Use a fake CLI that records the env and exits 0
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-scope-bin-"));
-  const envLog = path.join(ws, "scope-env-log.txt");
-  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nexit 0\n`);
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    const res = await runTask("ghost", 1, {
-      mode: "fix", scope: "deferred-sweep", probeSkills: NOOP_PROBE,
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
-    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
-    assert.ok(existsSync(envLog), "env log file should exist");
-    assert.match(readFileSync(envLog, "utf8"), /deferred-sweep/);
-  } finally {
-    process.env.PATH = origPath;
-  }
-});
-
-test("runTask #168: fix mode + default scope → env has CDD_FINDINGS_SCOPE=blocker-only", async () => {
-  const ws = setupWorkspace();
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-scope-def-bin-"));
-  const envLog = path.join(ws, "scope-env-log.txt");
-  writeFileSync(path.join(binDir, "fake-cli"), `#!/usr/bin/env bash\nprintenv CDD_FINDINGS_SCOPE > "${envLog}"\nexit 0\n`);
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    const res = await runTask("ghost", 1, {
-      mode: "fix", probeSkills: NOOP_PROBE,
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
-    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
-    assert.match(readFileSync(envLog, "utf8"), /blocker-only/);
-  } finally {
-    process.env.PATH = origPath;
-  }
-});
-
-test("runTask #168: --scope invalid → RunBlocked exit 1", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("claude", 1, {
-    mode: "fix", scope: "invalid", dryRun: true, probeSkills: NOOP_PROBE,
-    env: baseEnv(ws), noExit: true,
-  });
-  assert.equal(res.exitCode, 1);
-});
-
-test("runTask #187: CLI succeeds + no handoff → fallback handoff status=APPROVED", async () => {
+test("runTask #187→Pζ: CLI succeeds + no handoff → BLOCKED (not APPROVED fallback)", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-ok-cli-"));
   writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
@@ -575,42 +521,43 @@ test("runTask #187: CLI succeeds + no handoff → fallback handoff status=APPROV
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
-    assert.equal(res.exitCode, 0, `expected exit 0`);
-    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-handoff.json"), "utf8"));
-    assert.equal(handoff.status, "APPROVED", "fallback handoff should be APPROVED, not DONE (#187)");
+    assert.equal(res.exitCode, 1, `expected exit 1 (Pζ: absent handoff after exit 0 → BLOCKED)`);
+    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
+    assert.equal(handoff.status, "BLOCKED", "absent handoff should write BLOCKED (Pζ step 10.5)");
     assert.equal(handoff.phase, "implement");
+    assert.match(handoff.blocker, /not written after exit 0/);
   } finally {
     process.env.PATH = origPath;
   }
 });
 
 // T2: handoffStatus() 归一化 DONE/OK/COMPLETED → APPROVED（#187 fix 模式 re-review 残留）
-test("handoffStatus: DONE → APPROVED normalization", () => {
+// New signature: handoffStatus(taskNum, workspace, progressData) reads task-N-task-review-R.json
+function makeHandoffStatusFixture(status) {
   const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "DONE" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const progressData = { tasks: [{ task: 1, rounds: { "task-review": 1 } }] };
+  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status }));
+  return { dir, progressData };
+}
+
+test("handoffStatus: DONE → APPROVED normalization", () => {
+  const { dir, progressData } = makeHandoffStatusFixture("DONE");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 test("handoffStatus: OK → APPROVED normalization", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-ok-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "OK" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const { dir, progressData } = makeHandoffStatusFixture("OK");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 test("handoffStatus: COMPLETED → APPROVED normalization", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-comp-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "COMPLETED" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const { dir, progressData } = makeHandoffStatusFixture("COMPLETED");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 test("handoffStatus: APPROVED unchanged", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-ap-"));
-  const hp = path.join(dir, "h.json");
-  writeFileSync(hp, JSON.stringify({ status: "APPROVED" }));
-  assert.equal(handoffStatus(hp), "APPROVED");
+  const { dir, progressData } = makeHandoffStatusFixture("APPROVED");
+  assert.equal(handoffStatus(1, dir, progressData), "APPROVED");
 });
 
 // ---- P12 timeout path ----
@@ -639,11 +586,11 @@ test("runTask: timeout → handoff status TIMEOUT + blocker + partial findings",
       env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
-    const hp = path.join(ws, "task-1-handoff.json");
+    const hp = path.join(ws, "task-1-implement.json");
     assert.ok(existsSync(hp), "handoff file should exist after timeout");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     assert.equal(h.status, "TIMEOUT");
-    assert.match(h.blocker, /timeout after/);
+    assert.match(h.blocker, /timed out after/);
     // Partial artifacts preserved in handoff
     assert.equal(h.task, 1);
   } finally {
@@ -702,161 +649,9 @@ test("runTask: unkillable → handoff status BLOCKED + blocker process unkillabl
   assert.deepEqual(h.findings, [{ severity: "warn", title: "pre-existing" }]);
 });
 
-// ---- Open-findings pre-generation (fix mode) ----
+// ---- Open-findings pre-generation removed (fix mode now uses task-review handoff) ----
 
-test("runTask #open-findings: fix + blocker-only scope → open-findings.json has only non-deferred blockers", async () => {
-  const ws = setupWorkspace();
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-of-bo-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  // Pre-populate handoff with mixed findings (blocker + deferred warn/nit)
-  const handoffPath = path.join(ws, "task-1-handoff.json");
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "fix", status: "APPROVED",
-    artifacts: {}, findings: [
-      { severity: "blocker", summary: "must fix", deferred: false },
-      { severity: "warn", summary: "style issue", deferred: true },
-      { severity: "nit", summary: "minor nit", deferred: true },
-    ],
-  }));
-
-  const findingsPath = path.join(ws, "task-1-open-findings.json");
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    const res = await runTask("ghost", 1, {
-      mode: "fix", scope: "blocker-only", probeSkills: NOOP_PROBE,
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
-    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
-    // Mock CLI doesn't touch handoff → pre-gen runs on pre-populated handoff
-    assert.ok(existsSync(findingsPath), "open-findings.json should exist");
-    const of = JSON.parse(readFileSync(findingsPath, "utf8"));
-    assert.equal(of.findings.length, 1, "blocker-only should have 1 finding");
-    assert.equal(of.findings[0].severity, "blocker");
-    assert.equal(of.findings[0].summary, "must fix");
-  } finally {
-    process.env.PATH = origPath;
-  }
-});
-
-test("runTask #open-findings: fix + deferred-sweep scope → open-findings.json has only deferred items", async () => {
-  const ws = setupWorkspace();
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-of-ds-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const handoffPath = path.join(ws, "task-1-handoff.json");
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "fix", status: "APPROVED",
-    artifacts: {}, findings: [
-      { severity: "blocker", summary: "must fix", deferred: false },
-      { severity: "warn", summary: "style issue", deferred: true },
-      { severity: "nit", summary: "minor nit", deferred: true },
-    ],
-  }));
-
-  const findingsPath = path.join(ws, "task-1-open-findings.json");
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    const res = await runTask("ghost", 1, {
-      mode: "fix", scope: "deferred-sweep", probeSkills: NOOP_PROBE,
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
-    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
-    assert.ok(existsSync(findingsPath), "open-findings.json should exist");
-    const of = JSON.parse(readFileSync(findingsPath, "utf8"));
-    assert.equal(of.findings.length, 2, "deferred-sweep should have 2 findings");
-    assert.equal(of.findings[0].severity, "warn");
-    assert.equal(of.findings[1].severity, "nit");
-  } finally {
-    process.env.PATH = origPath;
-  }
-});
-
-test("runTask #open-findings: fix mode + no scope → no open-findings.json written", async () => {
-  const ws = setupWorkspace();
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-of-noscope-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const handoffPath = path.join(ws, "task-1-handoff.json");
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "fix", status: "APPROVED",
-    artifacts: {}, findings: [
-      { severity: "blocker", summary: "must fix" },
-      { severity: "warn", summary: "style issue", deferred: true },
-    ],
-  }));
-
-  const findingsPath = path.join(ws, "task-1-open-findings.json");
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    const res = await runTask("ghost", 1, {
-      mode: "fix", probeSkills: NOOP_PROBE,
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
-    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
-    // No scope → open-findings pre-gen is skipped
-    assert.ok(!existsSync(findingsPath), "open-findings.json should NOT exist without scope");
-  } finally {
-    process.env.PATH = origPath;
-  }
-});
-
-test("runTask #open-findings: fix mode + empty findings → open-findings.json with empty array", async () => {
-  const ws = setupWorkspace();
-  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-of-empty-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const handoffPath = path.join(ws, "task-1-handoff.json");
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "fix", status: "APPROVED",
-    artifacts: {}, findings: [],
-  }));
-
-  const findingsPath = path.join(ws, "task-1-open-findings.json");
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
-  try {
-    const res = await runTask("ghost", 1, {
-      mode: "fix", scope: "blocker-only", probeSkills: NOOP_PROBE,
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
-    assert.equal(res.exitCode, 0, `stderr: ${JSON.stringify(res)}`);
-    assert.ok(existsSync(findingsPath), "open-findings.json should exist even with empty findings");
-    const of = JSON.parse(readFileSync(findingsPath, "utf8"));
-    assert.deepEqual(of.findings, [], "empty findings should produce empty array");
-  } finally {
-    process.env.PATH = origPath;
-  }
-});
-
-test("runTask #open-findings: implement mode → no open-findings.json (pre-gen is fix-only)", async () => {
+test("runTask #open-findings: implement mode → no open-findings.json (implement mode never writes it)", async () => {
   const ws = setupWorkspace();
   const findingsPath = path.join(ws, "task-1-open-findings.json");
   const res = await runTask("claude", 1, {
@@ -898,7 +693,7 @@ test("runTask #218: step 8.8 schema-validation BLOCKED → handoff contains phas
       registryPath: regPath, noExit: true,
     });
     assert.equal(res.exitCode, 1, "schema validation failure should exit 1");
-    const hp = path.join(ws, "task-1-handoff.json");
+    const hp = path.join(ws, "task-1-implement.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     assert.equal(h.status, "BLOCKED", "overwritten handoff must be BLOCKED");
     assert.equal(h.phase, "implement", "BLOCKED handoff must include phase field (#218: missing phase caused schema-loop)");
@@ -934,7 +729,7 @@ test("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (u
       registryPath: regPath, noExit: true,
     });
     assert.equal(res.exitCode, 1, "schema validation failure should exit 1");
-    const hp = path.join(ws, "task-1-handoff.json");
+    const hp = path.join(ws, "task-1-implement.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     assert.equal(h.status, "BLOCKED", "overwritten handoff must be BLOCKED");
     assert.equal(h.phase, "implement", "phase in BLOCKED handoff must match the runner mode (#218)");
@@ -942,4 +737,217 @@ test("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (u
   } finally {
     process.env.PATH = origPath;
   }
+});
+
+// ---- Pζ T3: cross-phase fixed-point derivation ----
+
+test("runTask Pζ T3: task-review dry-run without prior implement handoff → exits 0 (requireEnv no longer gates on FIXED_POINT)", async () => {
+  const ws = setupWorkspace();
+  // No prior implement handoff — FIXED_POINT falls back to HEAD~1 (dry-run) then template ?? "" guard
+  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  assert.equal(res.exitCode, 0, "task-review without prior handoff should exit 0");
+  assert.equal(res.h1[0], "status: APPROVED");
+});
+
+test("runTask Pζ T3: task-review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT set from implement.json commits.base", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-"));
+  const envLog = path.join(ws, "fp-env-log.txt");
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  // Write prior implement handoff with a known commits.base SHA
+  const implBase = "aabbccddeeff1234567890aabbccddeeff12345678";
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    commits: { base: implBase, head: "deadbeefdeadbeefdeadbeef1234567890abcdef" },
+    findings: [], artifacts: {},
+  }));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 0, `task-review should exit 0: ${JSON.stringify(res)}`);
+    assert.ok(existsSync(envLog), "env log should exist");
+    assert.match(readFileSync(envLog, "utf8").trim(), new RegExp(implBase),
+      "CDD_TASK_REVIEW_FIXED_POINT should equal implement.json commits.base");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask Pζ T3: task-review round 2 → FIXED_POINT derived from task-1-fix-1.json (not implement.json)", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-r2-"));
+  const envLog = path.join(ws, "fp-r2-log.txt");
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", task_review_prefix: "", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const implBase = "implement-base-sha1234567890abcdef12345678";
+  const fix1Base = "fix1-base-sha1234567890abcdef1234567890ab";
+
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    commits: { base: implBase, head: "impl-head-sha" },
+    findings: [], artifacts: {},
+  }));
+  writeFileSync(path.join(ws, "task-1-fix-1.json"), JSON.stringify({
+    task: 1, phase: "fix", status: "APPROVED",
+    commits: { base: fix1Base, head: "fix1-head-sha" },
+    findings: [], artifacts: {},
+  }));
+
+  // Set rounds["task-review"] = 1 → getRound returns 2 → prevHandoffPath → task-1-fix-1.json
+  const progressData = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+  progressData.tasks = [{ task: 1, status: "pending", rounds: { "task-review": 1 } }];
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify(progressData, null, 2));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    assert.equal(res.exitCode, 0, `task-review round 2 should exit 0: ${JSON.stringify(res)}`);
+    assert.ok(existsSync(envLog), "env log should exist");
+    const capturedFP = readFileSync(envLog, "utf8").trim();
+    assert.match(capturedFP, new RegExp(fix1Base), "round 2 FIXED_POINT should come from fix-1 (not implement)");
+    assert.ok(!capturedFP.includes(implBase), "implement base should NOT be used in round 2");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
+test("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT not set (template gets empty string)", async () => {
+  const ws = setupWorkspace();
+  // Write implement handoff with 'unknown' base (BLOCKED/TIMEOUT handoff — not a valid SHA)
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "BLOCKED",
+    commits: { base: "unknown" },
+    findings: [], artifacts: {},
+  }));
+  // dry-run sets HEAD~1 fallback → still exits 0
+  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  assert.equal(res.exitCode, 0, "task-review with 'unknown' base should still exit 0 (dryRun HEAD~1 fallback)");
+  assert.equal(res.h1[0], "status: APPROVED");
+});
+
+// ---- T13: invokeCliOverride seam tests ----
+
+// Helper: assert a handoff file has artifacts + → message
+function assertBlockedHandoffValid(handoffPath) {
+  assert.ok(existsSync(handoffPath), `BLOCKED handoff must be written: ${handoffPath}`);
+  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+  assert.equal(h.status, "BLOCKED");
+  assert.ok(h.artifacts !== undefined, "BLOCKED handoff must have artifacts: {}");
+  assert.match(h.blocker, /→/, "BLOCKED blocker must contain → action");
+}
+
+test("runTask: step 8.8 BLOCKED handoff is schema-valid (has artifacts)", async () => {
+  const ws = setupWorkspace();
+  // Pre-seed an invalid handoff (missing artifacts) at the per-round path.
+  // invokeCliOverride exits 0 without touching the file, so step 8.8 reads the pre-seeded invalid handoff.
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED", findings: [],
+    // no artifacts — schema invalid → triggers step 8.8
+  }));
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 0, stdout: "", stderr: "" }),
+  });
+  assert.equal(res.exitCode, 1);
+  assertBlockedHandoffValid(path.join(ws, "task-1-implement.json"));
+});
+
+test("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action message", async () => {
+  const ws = setupWorkspace();
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 1, stdout: "", stderr: "some error" }),
+  });
+  assert.equal(res.exitCode, 1);
+  assertBlockedHandoffValid(path.join(ws, "task-1-implement.json"));
+});
+
+test("runTask: step 10.5 BLOCKED when cli exits 0 but handoff not written", async () => {
+  const ws = setupWorkspace();
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    findings: [], artifacts: {}, commits: { base: "a".repeat(40) },
+  }));
+  const res = await runTask("claude", 1, {
+    mode: "task-review", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 0, stdout: "", stderr: "" }),
+  });
+  assert.equal(res.exitCode, 1, "step 10.5 BLOCKED must exit 1");
+  assertBlockedHandoffValid(path.join(ws, "task-1-task-review-1.json"));
+});
+
+test("runTask: per-round buildTaskEnv — task-review derives task-1-task-review-1.json", async () => {
+  const ws = setupWorkspace();
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "task-review", "claude", { round: 1 });
+  assert.ok(env.CDD_HANDOFF_PATH.endsWith("task-1-task-review-1.json"),
+    `expected task-1-task-review-1.json, got: ${env.CDD_HANDOFF_PATH}`);
+});
+
+test("runTask: implement derives task-1-implement.json (no round suffix)", async () => {
+  const ws = setupWorkspace();
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "implement", "claude", { round: 1 });
+  assert.ok(env.CDD_HANDOFF_PATH.endsWith("task-1-implement.json"),
+    `expected task-1-implement.json, got: ${env.CDD_HANDOFF_PATH}`);
+});
+
+test("runTask: BLOCKED message contains diagnosis → action format", async () => {
+  const ws = setupWorkspace();
+  await runTask("claude", 1, {
+    mode: "implement", dryRun: false, probeSkills: NOOP_PROBE,
+    env: baseEnv(ws), noExit: true,
+    invokeCliOverride: async () => ({ rc: 1, stdout: "", stderr: "test error" }),
+  });
+  if (existsSync(path.join(ws, "task-1-implement.json"))) {
+    const h = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
+    if (h.blocker) assert.match(h.blocker, /→/, "BLOCKED message must contain →");
+  }
+});
+
+test("runTask: round-2 buildTaskEnv derives task-1-task-review-2.json", async () => {
+  const ws = setupWorkspace();
+  const progressPath = path.join(ws, "progress.json");
+  const prog = JSON.parse(readFileSync(progressPath, "utf8"));
+  if (!prog.tasks.find(t => t.task === 1)) prog.tasks.push({ task: 1, status: "pending", rounds: {} });
+  prog.tasks.find(t => t.task === 1).rounds = { "task-review": 1 }; // round 1 completed
+  writeFileSync(progressPath, JSON.stringify(prog, null, 2));
+
+  // buildTaskEnv with round=2 derives task-1-task-review-2.json
+  const taskEnv = buildTaskEnv(baseEnv(ws), ws, 1, "task-review", "claude", { round: 2 });
+  assert.ok(taskEnv.CDD_HANDOFF_PATH.endsWith("task-1-task-review-2.json"),
+    `expected task-1-task-review-2.json, got: ${taskEnv.CDD_HANDOFF_PATH}`);
+
+  // getRound returns 2 (last completed=1, next=2)
+  const updated = JSON.parse(readFileSync(progressPath, "utf8"));
+  assert.equal(getRound(updated, 1, "task-review"), 2);
 });

@@ -6,7 +6,7 @@ import path from "node:path";
 
 const PROGRESS_SCHEMA = {
   required: ["plan", "timeoutCount", "engineRecoveryCount", "lastDispatchHead", "tasks", "degradationLog"],
-  tasksItem: { required: ["task", "status"], statusEnum: ["pending", "complete"] },
+  tasksItem: { required: ["task", "status", "rounds"], statusEnum: ["pending", "complete"] },
   degradationLogItem: {
     required: ["task", "mode", "severity", "summary", "reason", "timestamp"],
     scopeEnum: ["deferred-sweep", "blocker-only"],
@@ -47,6 +47,27 @@ export function createEmptyProgress(plan) {
     tasks: [],
     degradationLog: [],
   };
+}
+
+// getRound: returns the round number to dispatch next (last completed + 1, or 1 if none).
+export function getRound(progressData, taskNum, mode) {
+  const taskEntry = progressData.tasks.find((t) => t.task === taskNum);
+  const lastCompleted = taskEntry?.rounds?.[mode] ?? 0;
+  return lastCompleted + 1;
+}
+
+// incrementRound: record that a round has been dispatched (call after any handoff is written to disk,
+// including BLOCKED/TIMEOUT). Creates task entry if absent.
+export function incrementRound(progressDir, taskNum, mode) {
+  const data = readProgressJSON(progressDir);
+  let taskEntry = data.tasks.find((t) => t.task === taskNum);
+  if (!taskEntry) {
+    taskEntry = { task: taskNum, status: "pending", rounds: {} };
+    data.tasks.push(taskEntry);
+  }
+  taskEntry.rounds ??= {}; // migrate pre-rounds task entries that lack the field
+  taskEntry.rounds[mode] = (taskEntry.rounds[mode] ?? 0) + 1;
+  writeProgressJSON(progressDir, data);
 }
 
 // migrateFromProgressMD: parse progress.md and return a structured progress object.

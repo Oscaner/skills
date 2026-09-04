@@ -1,6 +1,6 @@
 # Post-Dogfood Bugfixes + Anti-Pattern Elimination — Overall Spec
 
-- **Version**: v1.23 · 2026-09-03
+- **Version**: v1.25 · 2026-09-03
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming dogfood session)
 - **Constraints**:
@@ -52,6 +52,13 @@ Charter only — no implementation detail。
 | Pζ | [#220](https://github.com/Oscaner/skills/issues/220) | cdd-task.mjs task-review mode：agent 退出 0 但不写 handoff——H1 output missing，runner 保留旧 implement handoff |
 | Pζ | [#221](https://github.com/Oscaner/skills/issues/221) | CDD handoff templates 旁路 schema SOT——required fields 在 prose 中手动维护而非从 handoff-schema.json 派生 |
 | Pζ | [#222](https://github.com/Oscaner/skills/issues/222) | CDD handoff 各阶段共用 task-N-handoff.json——implement/task-review/fix 相互覆盖，无各阶段独立审计记录 |
+| Pζ | [#224](https://github.com/Oscaner/skills/issues/224) | deferred-sweep-loop 消除——fix 不再区分 scope，所有 findings 统一处理 |
+| Pζ | [#225](https://github.com/Oscaner/skills/issues/225) | Review Stopping 语义统一——unified digraph SOT 写入 docs-review.md，brainstorming/writing-plans 对齐 |
+| Pζ | [#226](https://github.com/Oscaner/skills/issues/226) | review-loop.mjs 共享模块提取——CDD + doc-review 复用同一 review→fix loop 抽象 |
+| Pζ | [#227](https://github.com/Oscaner/skills/issues/227) | cdd-review.mjs → docs-task.mjs 重构——新增 review/fix 双 mode，对称 cdd-task.mjs |
+| Pζ | [#228](https://github.com/Oscaner/skills/issues/228) | fix-mode 简化——删除 CDD_FINDINGS_SCOPE/deferred/open-findings，全量 findings |
+| Pζ | [#229](https://github.com/Oscaner/skills/issues/229) | user-ok? 节点删除——brainstorming spec-review 后不再有用户 warn/nit 介入点 |
+| Pζ | [#230](https://github.com/Oscaner/skills/issues/230) | CLAUDE.md + maintainer docs 更新——BLOCKED message 格式、Review Stopping、per-phase-per-round 架构 |
 
 ---
 
@@ -64,7 +71,7 @@ Charter only — no implementation detail。
 | Pγ | anti-patterns + brainstorming 重写：#206 spec-review 跳过修复 + #205 phase planning before overall + #204 grilling 执行检查点 + skill-authoring Anti-patterns §10 + brainstorming 反模式消除 | Done | [design](./2026-08-31-post-dogfood-bugfixes-p-gamma-design.md) | [plan](../plans/2026-08-31-post-dogfood-bugfixes-p-gamma.md) | Done | 见 phase spec | Pδ |
 | Pδ | CDD 重构：#207 CDD 执行流程绕过修复 + #210 commit-contract scope-aware（F1/D2 适配 deferred-sweep）+ #211 engine 契约修复 + agent 文件定向加固 + degradation 标准化（三模式链不简化） | [design](./2026-09-01-post-dogfood-bugfixes-p-delta-design.md) | [plan](../plans/2026-09-01-post-dogfood-bugfixes-p-delta.md) | Done | Pending | 见 phase spec | Pε |
 | Pε | cleanup + simplification：#208 report-issue 隐私脱敏 + #209 删除 osuperpowers-router + #71 writing-plans I2 移除 + zh-CN 镜像清理 + issue 编号清理 + review 3-pass 强制 + #216 heading 格式防回归 + #217 Task1/2 原子性约束 + #218 runner BLOCKED handoff phase 修复 | [design](./2026-09-02-post-dogfood-bugfixes-p-epsilon-design.md) | [plan](../plans/2026-09-02-post-dogfood-bugfixes-p-epsilon.md) | Done | ① osuperpowers-router 插件删除（#209）；② emit + version 流程 router 清理；③ osuperpowers 内部 router 引用移除；④ CLAUDE.md 语言政策 zh-CN 镜像退役 + router refs 清理；⑤ report-issue 隐私脱敏指引（#208）；⑥ issue 编号更新（#216/#217/#218）；⑦ skills/ 下 .zh-CN.md 全删；⑧ writing-plans I2 移除 + I3→I2/I4→I3/I5→I4 重编号（#71）；⑨ validate 绿 | Pζ |
-| Pζ | CDD handoff schema + templates + 文件架构 全面重构：#219 unit test 全覆盖 + #220 task-review handoff 写入修复 + #221 schema SOT 统一 + #222 per-phase/per-round 独立 handoff 文件架构；允许全面重构，不留技术债务 | Pending | Pending | Pending | 见 phase spec | — |
+| Pζ | CDD handoff schema + templates + 文件架构 全面重构：#219/#220/#221/#222 + deferred-sweep 消除 + Review Stopping 统一 + review-loop.mjs 共享 + docs-task.mjs + fix-mode 简化 + user-ok? 删除 + maintainer docs 更新；允许破坏性更新，不留技术债务 | [design](./2026-09-03-post-dogfood-bugfixes-p-zeta-design.md) | [plan](../plans/2026-09-03-post-dogfood-bugfixes-p-zeta.md) | Pending | 见 phase spec | — |
 
 ---
 
@@ -74,7 +81,7 @@ Charter only — no implementation detail。
 Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + brainstorming) ──→ Pδ (CDD refactoring) ──→ Pε (cleanup + simplification) ──→ Pζ (handoff schema 深度修复)
 ```
 
-**说明**：Pα→Pβ→Pγ→Pδ→Pε→Pζ 串行依赖。Pζ 为深度修复 phase：全面重构 CDD handoff schema 验证体系 + templates 重构，修复 #219 unit test 缺口 + #220 task-review handoff 写入，允许重构，不留技术债务。
+**说明**：Pα→Pβ→Pγ→Pδ→Pε→Pζ 串行依赖。Pζ 为全面重构 phase：per-phase-per-round handoff 文件架构 + Review Stopping 统一 + review-loop.mjs 共享模块 + docs-task.mjs（替代 cdd-review.mjs）+ fix-mode 简化 + 全覆盖测试，允许破坏性更新，不留技术债务。
 
 ---
 
@@ -107,3 +114,5 @@ Pα (engine-fixes) ──→ Pβ (skill-fixes) ──→ Pγ (anti-patterns + br
 | v1.22 | 2026-09-02 | Pζ +#221 schema SOT bypass——templates prose 重复 required fields；Pζ scope 更新为 schema stub injection 方案 | [human] · Claude Opus 4.8 |
 | v1.23 | 2026-09-02 | Pζ +#222 per-phase handoff 文件架构——各阶段共用 task-N-handoff.json 相互覆盖；Pζ scope 扩展为文件架构重构 | [human] · Claude Opus 4.8 |
 | v1.23 | 2026-09-03 | Pε Status = Done；Phase inventory Deliverables 填充；Constraints 语言政策 zh-CN 镜像移除 | [human] · Claude Opus 4.8 |
+| v1.24 | 2026-09-03 | Pζ Design spec = Done；scope 扩展为全面重构（+deferred-sweep 消除/Review Stopping 统一/review-loop.mjs/docs-task.mjs/fix-mode 简化/user-ok? 删除/maintainer docs）；Issue inventory +7 新 issue；dependency graph 说明更新 | [human] · Claude Opus 4.8 |
+| v1.25 | 2026-09-03 | Pζ Plan = Done；Issue inventory placeholder labels replaced with real issue numbers | [human] · Claude Opus 4.8 |

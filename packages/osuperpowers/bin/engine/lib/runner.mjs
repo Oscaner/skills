@@ -17,7 +17,7 @@ import { writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mj
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../../utils/exit.mjs";
 import { config as probeConfig } from "../../utils/skills-probe.config.mjs";
 import { spawnCapture, invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
-import { readProgressJSON, writeProgressJSON, migrateIfNeeded } from "./progress.mjs";
+import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound } from "./progress.mjs";
 import { validateHandoffSchema } from "./schema-utils.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
@@ -96,18 +96,27 @@ export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
 
 // 对齐 _cdd_set_task_env：workspace 派生路径，未设置才默认（`${VAR:-default}` 语义）；
 // CDD_WORKSPACE / CDD_MODE / CDD_HARNESS 强制。返回新 env 对象（不改 baseEnv）。
-// scope：fix mode 时注入 CDD_FINDINGS_SCOPE（#168：fix 双通道 scope env 映射）。
-export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { scope } = {}) {
+// round：task-review/fix mode 时派生 per-round handoff 路径；implement 固定为 task-N-implement.json。
+export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 1 } = {}) {
   const env = { ...baseEnv };
   env.CDD_WORKSPACE = workspace;
   env.CDD_HARNESS = harness;
   env.CDD_LEDGER ||= path.join(workspace, "progress.json");
   env.CDD_TASK_BRIEF ||= path.join(workspace, `task-${task}-brief.md`);
-  env.CDD_HANDOFF_PATH ||= path.join(workspace, `task-${task}-handoff.json`);
+  // Per-phase per-round handoff path (unconditional — always derive from round):
+  const handoffFile = mode === "implement"
+    ? `task-${task}-implement.json`
+    : `task-${task}-${mode}-${round}.json`;
+  env.CDD_HANDOFF_PATH = path.join(workspace, handoffFile); // unconditional assignment
   env.CDD_PLAN_CONSTRAINTS ||= path.join(workspace, "plan-constraints.md");
   env.CDD_MODE = mode;
-  env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
-  if (scope) env.CDD_FINDINGS_SCOPE = scope;
+  if (mode !== "fix") {
+    env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
+  }
+  if (mode === "fix") {
+    // CDD_FINDINGS: path to task-review-R.json for this fix round (runner-derived, no scope filter)
+    env.CDD_FINDINGS = prevHandoffPath(workspace, task, mode, round);
+  }
   return env;
 }
 
@@ -140,6 +149,22 @@ function readJson(filePath) {
   }
 }
 
+// Returns the path of the handoff written by the previous phase for this task.
+// task-review round 1: reads task-N-implement.json
+// task-review round R>1: reads task-N-fix-(R-1).json
+// fix round R: reads task-N-task-review-R.json
+function prevHandoffPath(workspace, task, mode, round) {
+  if (mode === "task-review") {
+    return round === 1
+      ? path.join(workspace, `task-${task}-implement.json`)
+      : path.join(workspace, `task-${task}-fix-${round - 1}.json`);
+  }
+  if (mode === "fix") {
+    return path.join(workspace, `task-${task}-task-review-${round}.json`);
+  }
+  return null; // implement has no prior phase
+}
+
 // 对齐 cdd_require_env 的 mode 有效性检查。
 function validateMode(mode) {
   if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|task-review|fix (got: ${mode})`;
@@ -152,12 +177,11 @@ function requireEnv(env, mode) {
   for (const v of ["CDD_WORKSPACE", "CDD_TASK_BRIEF", "CDD_LEDGER", "CDD_MODE", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS"]) {
     if (!env[v]) missing.push(v);
   }
-  if (mode === "task-review" && !env.CDD_TASK_REVIEW_FIXED_POINT) missing.push("CDD_TASK_REVIEW_FIXED_POINT");
   if (mode === "fix" && !env.CDD_FINDINGS) missing.push("CDD_FINDINGS");
   return missing.length > 0 ? `Missing required env: ${missing.join(" ")}` : null;
 }
 
-// renderModePrompt 的 {{PLACEHOLDER}} env 映射（bash 6 键 + TASK + FINDINGS_SCOPE 超集键）。
+// renderModePrompt 的 {{PLACEHOLDER}} env 映射（bash 6 键 + TASK 超集键）。
 function promptEnv(env, taskNum) {
   return {
     WORKSPACE: env.CDD_WORKSPACE,
@@ -165,9 +189,8 @@ function promptEnv(env, taskNum) {
     HANDOFF: env.CDD_HANDOFF_PATH,
     FINDINGS: env.CDD_FINDINGS,
     CONSTRAINTS: env.CDD_PLAN_CONSTRAINTS,
-    FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT,
+    FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT ?? "",  // empty string if cross-phase read returned nothing
     TASK: String(taskNum),
-    FINDINGS_SCOPE: env.CDD_FINDINGS_SCOPE ?? "blocker-only",
   };
 }
 
@@ -275,11 +298,11 @@ export function h1FourLines(raw) {
 // artifacts 仅当存在时输出（与 bash 一致）。
 export function h1FromHandoff(handoffPath) {
   if (!handoffPath || !existsSync(handoffPath)) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception");
+    return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors");
   }
   const h = readJson(handoffPath);
   if (!h) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception");
+    return h1FourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch");
   }
   const out = [
     `status: ${h.status ?? "BLOCKED"}`,
@@ -309,11 +332,12 @@ function dryRunH1Block(env, taskNum) {
 
 // ---- runTask / runPlan ----
 
-// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot, scriptsDir }。
+// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap, noExit, pluginRoot, scriptsDir, invokeCliOverride }。
 // scriptsDir：DI 透传至 runReviewPackage（测试 seam，不改生产行为）。
+// invokeCliOverride：test seam — async (briefPath, workspace, env) => { rc, stdout, stderr }。
 // 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
 export async function runTask(harness, taskNum, opts = {}) {
-  const { mode, planFile, dryRun = false, noExit = false, scope } = opts;
+  const { mode, planFile, dryRun = false, noExit = false, invokeCliOverride = null } = opts;
   const probeSkills = opts.probeSkills;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
   const channelMap = opts.channelMap ?? probeConfig.channel;
@@ -322,9 +346,10 @@ export async function runTask(harness, taskNum, opts = {}) {
   const registryPath = opts.registryPath ?? REG_PATH;
 
   // 1. Registry ship gate + CLI preflight
+  // invokeCliOverride 存在时跳过 cliInPath 检查（test seam — CLI 未安装的 CI 环境）。
   let entry;
   try {
-    entry = checkHarness(loadRegistry(registryPath), harness, { dryRun });
+    entry = checkHarness(loadRegistry(registryPath), harness, { dryRun: dryRun || !!invokeCliOverride });
   } catch (e) {
     if (e instanceof CddBlockedError) {
       return finish(e.exitCode, [], e.message, noExit, {
@@ -396,27 +421,26 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
-  // 3. Scope validation (fix mode only; #168 dual-channel)
-  const VALID_SCOPES = ["blocker-only", "deferred-sweep"];
-  const effectiveScope = scope ?? "blocker-only";
-  if (mode === "fix") {
-    if (!VALID_SCOPES.includes(effectiveScope)) {
-      return finish(1, [], `invalid scope: ${effectiveScope} (must be one of: ${VALID_SCOPES.join(", ")})`, noExit);
-    }
-  }
-
   // 4. Set env
+  const progressDir = path.dirname(baseEnv.CDD_LEDGER ?? path.join(workspace, "progress.json"));
+  const progressData = readProgressJSON(progressDir);
+  const round = mode === "implement" ? 1 : getRound(progressData, taskNum, mode);
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
-    scope: mode === "fix" ? effectiveScope : undefined,
+    round,
   });
 
   // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
 
-  // 5. Task-review fixed-point + review-package
-  if (mode === "task-review") {
+  // 5. Task-review / fix fixed-point — derive from prior-phase handoff (cross-phase read).
+  if (mode === "task-review" || mode === "fix") {
     if (!env.CDD_TASK_REVIEW_FIXED_POINT) {
-      const handoffBase = readJsonField(env.CDD_HANDOFF_PATH, ["commits", "base"]);
-      if (handoffBase) env.CDD_TASK_REVIEW_FIXED_POINT = handoffBase;
+      const prev = prevHandoffPath(workspace, taskNum, mode, round);
+      if (prev) {
+        const prevCommitsBase = readJsonField(prev, ["commits", "base"]);
+        if (prevCommitsBase && prevCommitsBase !== "unknown") {
+          env.CDD_TASK_REVIEW_FIXED_POINT = prevCommitsBase;
+        }
+      }
     }
     if (dryRun && !env.CDD_TASK_REVIEW_FIXED_POINT) env.CDD_TASK_REVIEW_FIXED_POINT = "HEAD~1";
   }
@@ -443,6 +467,14 @@ export async function runTask(harness, taskNum, opts = {}) {
   let unkillable = false;
   if (dryRun) {
     agentOut = dryRunH1Block(env, taskNum);
+  } else if (invokeCliOverride) {
+    // Test seam: invokeCliOverride(briefPath, workspace, env) → { rc, stdout, stderr }
+    const { rc, stdout, stderr } = await invokeCliOverride(env.CDD_TASK_BRIEF, workspace, env);
+    agentRc = rc !== 0 ? rc : 0;
+    agentOut = rc === 0 ? stdout : "";
+    cliStderr = stderr;
+    timedOut = false;
+    unkillable = false;
   } else {
     const timeoutMs = resolveTimeoutMs(env, "task");
     const res = await invokeCli(entry, prompt, mode, env, cwd, timeoutMs);
@@ -464,9 +496,11 @@ export async function runTask(harness, taskNum, opts = {}) {
         task: taskNum,
         phase: mode,
         status: "BLOCKED",
-        blocker: "process unkillable",
-        findings: existingHandoff?.findings ?? [],
+        findings: [],
+        artifacts: {},
+        blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${taskNum}`,
       });
+      if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
       return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "process unkillable", noExit);
     }
     // Normal timeout: TIMEOUT partial handoff
@@ -475,14 +509,15 @@ export async function runTask(harness, taskNum, opts = {}) {
       task: taskNum,
       phase: mode,
       status: "TIMEOUT",
-      blocker: `timeout after ${timeoutMs}ms`,
-      findings: existingHandoff?.findings ?? [],
+      findings: [],
+      artifacts: {},
+      blocker: `cli timed out after ${timeoutMs}ms → simplify task ${taskNum} scope or increase timeout, then re-dispatch`,
     });
+    if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
     // Increment timeoutCount in progress.json
-    const progressDir = path.dirname(env.CDD_LEDGER);
-    const progressData = readProgressJSON(progressDir);
-    progressData.timeoutCount++;
-    writeProgressJSON(progressDir, progressData);
+    const timeoutProgressData = readProgressJSON(progressDir);
+    timeoutProgressData.timeoutCount++;
+    writeProgressJSON(progressDir, timeoutProgressData);
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
@@ -492,23 +527,17 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (existingHandoff) {
       const sv = validateHandoffSchema(existingHandoff);
       if (!sv.valid) {
-        writeHandoff(env.CDD_HANDOFF_PATH, { task: taskNum, status: "BLOCKED", phase: mode, findings: [], blocker: sv.reason });
+        writeHandoff(env.CDD_HANDOFF_PATH, {
+          task: taskNum,
+          phase: mode,
+          status: "BLOCKED",
+          findings: [],
+          artifacts: {},
+          blocker: `handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${env.CDD_HANDOFF_PATH} and re-dispatch task ${taskNum}`,
+        });
+        if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
         return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
       }
-    }
-  }
-
-  // 8.9 Open-findings.json pre-generation (fix mode) — filter handoff findings by scope
-  //     and write to CDD_FINDINGS path so downstream processing has them.
-  if (mode === "fix" && scope && existsSync(env.CDD_HANDOFF_PATH)) {
-    const fixHandoff = readJson(env.CDD_HANDOFF_PATH);
-    if (fixHandoff?.findings) {
-      const openFindings = fixHandoff.findings.filter(f => {
-        if (scope === "blocker-only") return !f.deferred;
-        if (scope === "deferred-sweep") return f.deferred;
-        return false;
-      });
-      writeFileSync(env.CDD_FINDINGS, JSON.stringify({ findings: openFindings }, null, 2));
     }
   }
 
@@ -516,37 +545,33 @@ export async function runTask(harness, taskNum, opts = {}) {
   //     stderr CDD_BLOCKED 诊断 + exit 1（对齐 bash cdd_exit_blocked）。唯一 sanctioned divergence：
   //     Node 额外写 handoff（§spec 2.1 stderr-surfacing）—— bash 为 emit 原始 agent H1 + exit 1。
   if (agentRc !== 0 && !existsSync(env.CDD_HANDOFF_PATH)) {
-    const stderrText = cliStderr.trim();
-    const blocker = stderrText
-      ? `cli exited ${agentRc}: ${stderrText}`
-      : `cli exited ${agentRc} and handoff missing`;
     writeHandoff(env.CDD_HANDOFF_PATH, {
       task: taskNum,
       phase: mode,
       status: "BLOCKED",
       commits: { base: "unknown" },
-      blocker,
+      findings: [],
+      artifacts: {},
+      blocker: `cli exited ${agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${taskNum}`,
     });
+    if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
-  // 10.5. CLI succeeded but no handoff (or stale handoff from different phase) →
-  // write APPROVED fallback (#187: status APPROVED, not DONE).
-  // Phase mismatch: handoff exists but phase !== mode → agent ran but didn't overwrite
-  // (e.g. task-review agent exits 0 without writing new handoff over implement handoff).
+  // 10.5. CLI succeeded but no handoff → BLOCKED (file-existence check, not phase-mismatch fallback).
+  // Agent exits 0 without writing handoff = error, not success — write BLOCKED and return exit 1.
   // dry-run excluded: bash dry-run 不写 handoff, Node 亦不写.
-  if (agentRc === 0 && !dryRun) {
-    const existingHandoff = existsSync(env.CDD_HANDOFF_PATH) ? readJson(env.CDD_HANDOFF_PATH) : null;
-    const phaseMismatch = existingHandoff && existingHandoff.phase !== mode;
-    if (!existingHandoff || phaseMismatch) {
-      writeHandoff(env.CDD_HANDOFF_PATH, {
-        task: taskNum,
-        phase: mode,
-        status: "APPROVED",
-        commits: { base: existingHandoff?.commits?.head ?? "unknown" },
-        findings: existingHandoff?.findings ?? [],
-      });
-    }
+  if (agentRc === 0 && !dryRun && !existsSync(env.CDD_HANDOFF_PATH)) {
+    writeHandoff(env.CDD_HANDOFF_PATH, {
+      task: taskNum,
+      phase: mode,
+      status: "BLOCKED",
+      findings: [],
+      artifacts: {},
+      blocker: `${path.basename(env.CDD_HANDOFF_PATH)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${env.CDD_HANDOFF_PATH} before exit`,
+    });
+    incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `${mode} agent did not write handoff`, noExit);
   }
 
   // 11. H1 四行（来自 agent stdout / dry-run 块）
@@ -580,18 +605,22 @@ function ledgerComplete(n, ledgerPath) {
   return new RegExp(`^Task ${n}: complete`).test(readFileSync(ledgerPath, "utf8"));
 }
 
-// 对齐 _handoff_status：缺失 → "MISSING"；损坏 → "UNKNOWN"；否则 status // "UNKNOWN"。
-export function handoffStatus(handoffPath) {
-  if (!handoffPath || !existsSync(handoffPath)) return "MISSING";
+// 读取最新 task-review handoff 的 status（progressData.rounds["task-review"] 轮次）。
+// reviewRound=0 → 无 task-review 完成记录 → "MISSING"；损坏 → "UNKNOWN"。
+export function handoffStatus(taskNum, workspace, progressData) {
+  // For latest review: reads task-N-task-review-R.json where R = rounds["task-review"]
+  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
+  if (reviewRound === 0) return "MISSING";
+  const handoffPath = path.join(workspace, `task-${taskNum}-task-review-${reviewRound}.json`);
+  if (!existsSync(handoffPath)) return "MISSING";
   try {
     return normalizeHandoffStatus(JSON.parse(readFileSync(handoffPath, "utf8")).status ?? "UNKNOWN");
-  } catch {
-    return "UNKNOWN";
-  }
+  } catch { return "UNKNOWN"; }
 }
 
-// 对齐 _task_pending：非 ledger-complete 且 handoff status ≠ APPROVED。
-export function isTaskPending(n, ledgerPath, handoffPath) {
-  if (ledgerComplete(n, ledgerPath)) return false;
-  return handoffStatus(handoffPath) !== "APPROVED";
+// task-review 轮次=0 → 从未完成 task-review → pending；否则读最新 task-review handoff status。
+export function isTaskPending(taskNum, workspace, progressData) {
+  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
+  if (reviewRound === 0) return true; // no task-review ever completed
+  return handoffStatus(taskNum, workspace, progressData) !== "APPROVED";
 }

@@ -9,13 +9,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PKG_ROOT = path.resolve(__dirname, '..', '..', '..');
 
-export function loadHandoffSchema() {
-  const schemaPath = path.join(PKG_ROOT, 'skills', '_templates', 'handoff-schema.json');
-  return JSON.parse(readFileSync(schemaPath, 'utf8'));
+export function loadHandoffSchema(schemaPath) {
+  const p = schemaPath ?? path.join(PKG_ROOT, 'skills', '_templates', 'handoff-schema.json');
+  return JSON.parse(readFileSync(p, 'utf8'));
 }
 
-export function validateHandoffSchema(handoff) {
-  const schema = loadHandoffSchema();
+export function validateHandoffSchema(handoff, schemaPath) {
+  const schema = loadHandoffSchema(schemaPath);
   // Check required fields
   for (const field of schema.required) {
     if (!(field in handoff)) return { valid: false, reason: `missing required field: ${field}` };

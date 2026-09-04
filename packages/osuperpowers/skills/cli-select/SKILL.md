@@ -39,7 +39,7 @@ flowchart TD
 
 | # | Invariant |
 |---|---|
-| I1 | **Explicit Propagation** — selected harness is propagated to downstream tools (`cdd-task.mjs` / `cdd-review.mjs`) only via explicit `--harness <name>` CLI argument; any form of implicit environment variable propagation at both skill and engine layers is forbidden (`CDD_HARNESS`, `HARNESS_NAME`, etc. are all disallowed). **Engine status confirmation**: `cdd-select.mjs` only reads env vars for host harness detection purposes (`CURSOR_TRACE_ID` / `CLAUDE_CODE_SESSION_ID` / `AI_AGENT` — identifies host identity only, does not select target harness); it does not read any harness selection env var, so the I1 engine-layer constraint confirms current behavior with no engine changes needed |
+| I1 | **Explicit Propagation** — selected harness is propagated to downstream tools (`cdd-task.mjs` / `docs-task.mjs`) only via explicit `--harness <name>` CLI argument; any form of implicit environment variable propagation at both skill and engine layers is forbidden (`CDD_HARNESS`, `HARNESS_NAME`, etc. are all disallowed). **Engine status confirmation**: `cdd-select.mjs` only reads env vars for host harness detection purposes (`CURSOR_TRACE_ID` / `CLAUDE_CODE_SESSION_ID` / `AI_AGENT` — identifies host identity only, does not select target harness); it does not read any harness selection env var, so the I1 engine-layer constraint confirms current behavior with no engine changes needed |
 
 ## Failure Modes
 

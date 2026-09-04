@@ -4,7 +4,7 @@
 // Uses CDD handoff schema (status/commits/findings/artifacts/blocker, no doc_path).
 import { Command } from 'commander';
 import path from 'node:path';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { loadRegistry, checkHarness, CddBlockedError } from './lib/registry.mjs';
 import { renderTemplate } from './lib/templates.mjs';
 import { loadHandoffSchema } from './lib/schema-utils.mjs';
@@ -12,7 +12,7 @@ import { renderHandoffStub } from './lib/templates.mjs';
 import { invokeCliWithRetry, resolveTimeoutMs } from './lib/cli-shared.mjs';
 import { gitToplevel, writeHandoff } from './lib/contract.mjs';
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from './utils/exit.mjs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REG_PATH = fileURLToPath(new URL('./harness-registry.json', import.meta.url));
 const DRY_RUN = process.env.CDD_DRY_RUN === '1';
@@ -59,7 +59,7 @@ program
 
     if (DRY_RUN) {
       writeHandoff(handoffPath, {
-        task: 0, phase: 'branch-review', status: 'APPROVED',
+        task: 1, phase: 'branch-review', status: 'APPROVED',
         commits: { base, head }, findings: [], artifacts: {}, blocker: 'dry-run',
       });
       process.stdout.write(`status: APPROVED\ncommits: base=${base} head=${head}\nartifacts: \nblocker: dry-run\n`);
@@ -82,7 +82,7 @@ program
     if (!res.ok) {
       if (!existsSync(handoffPath)) {
         writeHandoff(handoffPath, {
-          task: 0, phase: 'branch-review', status: 'BLOCKED',
+          task: 1, phase: 'branch-review', status: 'BLOCKED',
           commits: { base, head }, findings: [], artifacts: {},
           blocker: `cli exited ${res.code} without writing handoff`,
         });
@@ -94,7 +94,21 @@ program
     exitOk();
   });
 
-program.parseAsync().catch((e) => {
-  process.stderr.write(`${e.message}\n`);
-  exitCliMissing();
-});
+// Execute only when run as the main entry (imports from tests must be inert).
+const isMain =
+  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+if (isMain) {
+  program.exitOverride();
+  program.configureOutput({ outputError: () => {} });
+  program.parseAsync(process.argv).catch((e) => {
+    if (e.code === 'commander.helpDisplayed') {
+      exitOk();
+    }
+    if (typeof e.code === 'string' && e.code.startsWith('commander.')) {
+      process.stderr.write(errorUsage());
+    } else {
+      process.stderr.write(`${e.message}\n`);
+    }
+    exitCliMissing();
+  });
+}

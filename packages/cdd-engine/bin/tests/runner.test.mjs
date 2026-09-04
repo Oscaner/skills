@@ -721,6 +721,58 @@ it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT no
   expect(res.h1[0]).toBe("status: APPROVED");
 });
 
+it("runTask Pζ T3: task-review round 2 → FIXED_POINT from task-N-fix-1.json (cross-phase fix round), not implement.json", async () => {
+  const ws = setupWorkspace();
+  // Set progress so task-review dispatches round 2 (last completed fix round = 1).
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
+    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "",
+    tasks: [{ task: 1, status: "in-progress", rounds: { implement: 1, "task-review": 1, fix: 1 } }],
+    degradationLog: [],
+  }, null, 2));
+
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-r2-"));
+  const envLog = path.join(ws, "fp-env-log-r2.txt");
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  // Round-1 fix handoff exists; round-2 review must NOT read implement.json's base.
+  const fixBase = "5588aabbccddeeff1234567890aabbccddeeff1234";
+  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
+    task: 1, phase: "implement", status: "APPROVED",
+    commits: { base: "implement-base-should-not-win-00000000000000", head: "deadbeefdeadbeefdeadbeef1234567890abcdef" },
+    findings: [], artifacts: {},
+  }));
+  writeFileSync(path.join(ws, "task-1-fix-1.json"), JSON.stringify({
+    task: 1, phase: "fix", status: "APPROVED",
+    commits: { base: fixBase, head: "deadbeefdeadbeefdeadbeef1234567890abcdef" },
+    findings: [], artifacts: {},
+  }));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    expect(existsSync(envLog)).toBe(true);
+    // FIXED_POINT comes from task-1-fix-1.json round, NOT implement.json
+    expect(readFileSync(envLog, "utf8").trim()).toMatch(new RegExp(fixBase));
+    expect(readFileSync(envLog, "utf8")).not.toContain("implement-base-should-not-win");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
 // ---- step 10 CLI failed no handoff → BLOCKED ----
 
 it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action message", async () => {

@@ -8,10 +8,9 @@ import { fileURLToPath } from "node:url";
 import { invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
 import { gitToplevel, writeHandoff } from "./contract.mjs";
 import { loadRegistry, checkHarness } from "./registry.mjs";
-import { validateHandoffSchema } from "./schema-utils.mjs";
-import { PKG_ROOT, renderHandoffStub, renderTemplate } from "./templates.mjs";
+import { loadHandoffSchema, validateHandoffSchema } from "./schema-utils.mjs";
+import { renderHandoffStub, renderTemplate } from "./templates.mjs";
 
-const DOCS_SCHEMA_PATH = path.join(PKG_ROOT, "templates", "schema", "docs-handoff-schema.json");
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 
 export async function runDocsTask({
@@ -40,7 +39,7 @@ export async function runDocsTask({
 
   // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}},
   // then replace {{HANDOFF_STUB}} with schema-derived stub).
-  const schema = JSON.parse(readFileSync(DOCS_SCHEMA_PATH, "utf8"));
+  const schema = loadHandoffSchema("docs");
   const stub = renderHandoffStub(schema, mode, undefined, { docPath: doc });
   const templateName = mode === "fix"
     ? template.replace(/-review$/, "") + "-fix"
@@ -53,11 +52,12 @@ export async function runDocsTask({
 
   // Spawn agent using harness registry (provides -p, --output-format, etc.).
   // cwd = repoRoot (Bug L fix: was path.dirname(handoffPath) / workspace before).
+  // env = process.env so invokeCli's cleanEnv can strip credentials (Warn #137 posture)
+  // and inject CDD_GATE_WORKSPACE when CDD_WORKSPACE is set.
   const reg = loadRegistry(REG_PATH);
   const entry = checkHarness(reg, harness);
-  const env = {};
   const timeoutMs = resolveTimeoutMs(process.env, "review");
-  const res = await invokeCli(entry, prompt, mode, env, repoRoot, timeoutMs);
+  const res = await invokeCli(entry, prompt, mode, process.env, repoRoot, timeoutMs);
 
   // Read handoff from disk (agent writes it).
   if (!existsSync(resolvedHandoffPath)) {

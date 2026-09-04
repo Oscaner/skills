@@ -8,32 +8,40 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // From bin/lib/ → packages/cdd-engine/
 const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
-const HANDOFF_SCHEMA_PATH = path.join(PKG_ROOT, 'templates', 'schema', 'cdd-handoff-schema.json');
+// Two handoff schemas ship in templates/schema/:
+//   cdd  — task handoffs (implement/task-review/fix; task/phase enums, commits objects)
+//   docs — doc review handoffs (spec-review/plan-review/branch-review/spec-fix/plan-fix;
+//          required doc_path, no task/commits)
+const SCHEMA_PATHS = {
+  cdd:  path.join(PKG_ROOT, 'templates', 'schema', 'cdd-handoff-schema.json'),
+  docs: path.join(PKG_ROOT, 'templates', 'schema', 'docs-handoff-schema.json'),
+};
 
-// Lazy-initialized ajv instance + compiled validator.
-let _validator = null;
-let _schema = null;
+// Per-schema lazy caches: { validator, schema }.
+const CACHE = new Map();
 
-function getValidator() {
-  if (_validator) return _validator;
-  _schema = JSON.parse(readFileSync(HANDOFF_SCHEMA_PATH, 'utf8'));
+function getEntry(schemaName = 'cdd') {
+  if (CACHE.has(schemaName)) return CACHE.get(schemaName);
+  const schemaPath = SCHEMA_PATHS[schemaName];
+  if (!schemaPath) throw new Error(`unknown handoff schema: ${schemaName}`);
+  const schema = JSON.parse(readFileSync(schemaPath, 'utf8'));
   const ajv = new Ajv({ allErrors: true });
-  _validator = ajv.compile(_schema);
-  return _validator;
+  const entry = { schema, validator: ajv.compile(schema) };
+  CACHE.set(schemaName, entry);
+  return entry;
 }
 
 // Returns the raw JSON Schema object (for renderHandoffStub).
-export function loadHandoffSchema() {
-  getValidator(); // ensure _schema is loaded
-  return _schema;
+export function loadHandoffSchema(schemaName = 'cdd') {
+  return getEntry(schemaName).schema;
 }
 
-// Validates a handoff object against cdd-handoff-schema.json.
+// Validates a handoff object against the named schema ('cdd' | 'docs').
 // Returns {valid: true} or {valid: false, reason: string}.
-export function validateHandoffSchema(obj) {
-  const validate = getValidator();
-  const valid = validate(obj);
+export function validateHandoffSchema(obj, schemaName = 'cdd') {
+  const { validator } = getEntry(schemaName);
+  const valid = validator(obj);
   if (valid) return { valid: true };
-  const reason = validate.errors?.map(e => `${e.instancePath} ${e.message}`).join('; ') ?? 'unknown';
+  const reason = validator.errors?.map(e => `${e.instancePath} ${e.message}`).join('; ') ?? 'unknown';
   return { valid: false, reason };
 }

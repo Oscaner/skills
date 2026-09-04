@@ -69,7 +69,7 @@ flowchart TD
 ### `dispatch-mode`
 
 - **Do**: Before dispatching cdd-task.mjs:
-  1. Generate brief: `node "$(dirname "$(command -v cdd-task)")/lib/brief.mjs" --task N --plan <path> --output <workspace>/task-N-brief.md`
+  1. Generate brief: `node "$(dirname "$(realpath "$(command -v cdd-task)")")/lib/brief.mjs" --task N --plan <path> --output <workspace>/task-N-brief.md`
   2. Record dispatch-time HEAD: `git rev-parse HEAD` → write to `progress.json.lastDispatchHead`
   3. For task-review mode: generate review diff via review-package script
   4. **Three-mode chain enforcement**: For fix mode — verify task-review handoff exists for this task AND status = APPROVED; refuse dispatch otherwise (report to user)
@@ -82,8 +82,8 @@ flowchart TD
 
 - **Do**: Read `handoff.json` `status` field + scan `findings[]` for blocker-severity items.
   Before routing, perform commit-contract validation:
-  1. `node "$(dirname "$(command -v cdd-task)")/lib/contract.mjs" --check-dirty` — dirty tree → route to BLOCKED: engine-error
-  2. `node "$(dirname "$(command -v cdd-task)")/lib/contract.mjs" --check-head --handoff <path> --progress <path>` — head mismatch → route to BLOCKED: engine-error
+  1. `node "$(dirname "$(realpath "$(command -v cdd-task)")")/lib/contract.mjs" --check-dirty` — dirty tree → route to BLOCKED: engine-error
+  2. `node "$(dirname "$(realpath "$(command -v cdd-task)")")/lib/contract.mjs" --check-head --handoff <path> --progress <path>` — head mismatch → route to BLOCKED: engine-error
   Then route by status × findings severity (Review Stopping alignment):
   - `APPROVED` + blockers = 0 → `task-complete?` (done)
   - `APPROVED` + warn/nit findings only → fix warn/nit inline → `task-complete?`

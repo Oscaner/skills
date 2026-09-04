@@ -20,11 +20,11 @@ flowchart TD
 
 ### `detect`
 
-- **Do**: Run `{plugin_root}/bin/engine/cdd-select.mjs` to discover available harnesses and parse its 3-line output:
+- **Do**: Run `cdd-select` to discover available harnesses and parse its 3-line output:
   - `available:<csv>` — harnesses with `channel=install-and-use` that are installed (participate in recommendation + user selection; referred to as "full harness")
   - `unsupported_installed:<csv>` — harnesses with `channel≠install-and-use` that are installed (informational only, excluded from recommendations; referred to as "not-supported harness")
   - `recommended:<name>` — recommended default (engine computes priority: `droid > pi > current harness > alphabetical`)
-- **Read**: `{plugin_root}/bin/engine/cdd-select.mjs` stdout (3-line fixed format)
+- **Read**: `cdd-select` stdout (3-line fixed format)
 - **Exit**: `available` contains ≥ 1 item → `ask`; `available` is empty or script exits non-zero → BLOCKED (engine bug)
 - **Fail**: Node.js error / script not found / non-zero exit → same BLOCKED (engine bug); recovery per Failure Modes table
 

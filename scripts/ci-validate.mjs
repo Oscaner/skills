@@ -117,7 +117,6 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", [
   "--test",
   "packages/osuperpowers/tests/*.test.mjs",
-  "packages/osuperpowers/bin/engine/tests/*.test.mjs",
   "packages/osuperpowers/bin/gate/tests/*.test.mjs",
   "packages/osuperpowers/bin/init/tests/*.test.mjs",
   "packages/osuperpowers/bin/utils/tests/*.test.mjs",

@@ -28,6 +28,7 @@ vi.mock("../lib/templates.mjs", () => ({
 }));
 
 vi.mock("../lib/schema-utils.mjs", () => ({
+  loadHandoffSchema: () => ({ type: 'object', required: ['phase', 'status', 'findings', 'artifacts', 'doc_path'], properties: { phase: { type: 'string' }, status: { type: 'string' }, doc_path: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' } } }),
   validateHandoffSchema: vi.fn(() => ({ valid: true })),
 }));
 

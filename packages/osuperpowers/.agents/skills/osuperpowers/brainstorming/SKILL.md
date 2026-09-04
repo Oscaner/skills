@@ -160,7 +160,7 @@ flowchart TD
 
 ### `spec-review?`
 
-- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template spec-review --doc <path>`. **Self-review, manual checks, or any other substitute for docs-task CLI invocation is forbidden.** Follow D2/D3 from `_docs/docs-review.md` (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I5): follow [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md — blocker>0: cli-fix-all-findings → re-run; blocker=0: cli-fix-all-findings → done. No re-run after blocker=0.
+- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `node docs-task --harness <name> --mode review --template spec-review --doc <path>`. **Self-review, manual checks, or any other substitute for docs-task CLI invocation is forbidden.** Follow D2/D3 from `_docs/docs-review.md` (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I5): follow [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md — blocker>0: cli-fix-all-findings → re-run; blocker=0: cli-fix-all-findings → done. No re-run after blocker=0.
 - **Read**: Spec document + `_docs/docs-review.md`
 - **Exit**: blocker=0 → `cli-fix-all-findings` → `user-confirm-commit?`
 - **Fail**: Re-run review after blocker=0 → violates I5 (Review Stopping).

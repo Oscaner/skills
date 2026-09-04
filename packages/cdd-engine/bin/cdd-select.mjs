@@ -9,10 +9,7 @@
 import { Command } from 'commander';
 import { detectInstalledHarnesses } from './utils/harness-detect.mjs';
 import { config } from './utils/skills-probe.config.mjs';
-import { exitBlocked, exitCliMissing } from './utils/exit.mjs';
-
-// Note: cdd-select forwards harness-detect from osuperpowers utils (migrated into
-// the import path may need adjustment.
+import { exitBlocked, exitCliMissing, exitOk } from './utils/exit.mjs';
 
 const program = new Command();
 program
@@ -25,6 +22,9 @@ program.configureOutput({ outputError: () => {} });
 try {
   program.parse(process.argv);
 } catch (e) {
+  if (e.code === 'commander.helpDisplayed') {
+    exitOk();
+  }
   if (typeof e.code === 'string' && e.code.startsWith('commander.')) {
     process.stderr.write('usage: cdd-select [--help]\n');
     exitCliMissing();

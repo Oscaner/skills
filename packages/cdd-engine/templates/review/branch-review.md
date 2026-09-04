@@ -37,7 +37,7 @@ When done reviewing, use the Write tool to write the following JSON to `{{HANDOF
 
 Rules:
 - `status`: `APPROVED` if no blockers; `CHANGES_REQUESTED` if blockers exist
-- `commits`: `base={{BASE}} head={{HEAD}}`
+- `commits`: JSON object `{"base": "{{BASE}}", "head": "{{HEAD}}"}` (full 40-hex SHAs — CDD schema requires an object, not a string)
 - `findings`: array of review findings (empty array `[]` if none). Each finding:
   ```json
   { "severity": "blocker|warn|nit", "file": "repo-relative path", "line": 0, "summary": "one-line description", "fix": "one-line suggested fix" }

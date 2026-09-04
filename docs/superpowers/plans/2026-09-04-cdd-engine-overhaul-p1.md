@@ -1456,46 +1456,9 @@ cp packages/osuperpowers/bin/utils/skills-probe.mjs       packages/cdd-engine/bi
 
 > **Bug O**：`cdd-session-activate.mjs` 不迁移。若 Task 8 已复制该文件到 cdd-engine/bin/，执行 `rm packages/cdd-engine/bin/cdd-session-activate.mjs` 移除。其 pending-cdd 机制由 gate env 传播替代（见下方新增 Step 5b）。
 
-- [ ] **Step 5b: gate env 传播（Bug O 二部曲）**
+- [ ] **Step 5b: ~~gate env 传播~~ → DEFERRED（移入 Task 12，见执行与 gate wiring 同步）**
 
-修改 `packages/osuperpowers/bin/gate/cdd-gate-core.mjs`：
-
-```js
-// 删除：DEFAULT_PENDING_ROOT / pendingPathFor / pendingExpired / CDD_PENDING_TTL / CDD_PENDING_ROOT 相关逻辑
-// gateDecide 改为 env 读取：
-
-// 旧：读 TMPDIR pending 文件
-const pendingPath = pendingPathFor(sessionKey);
-let pending = null;
-try { pending = JSON.parse(readFileSync(pendingPath, 'utf8')); } catch { pending = null; }
-if (!pending) return allowResult();
-
-// 新：读环境变量（hook 在子进程内运行，继承 runner spawn env）
-const gateWorkspace = process.env.CDD_GATE_WORKSPACE ?? '';
-const sessionMode = process.env.CDD_GATE_MODE ?? '';
-if (!gateWorkspace) return allowResult();
-```
-
-修改 `packages/osuperpowers/bin/engine/lib/runner.mjs`（或 cdd-engine `bin/lib/runner.mjs`）invokeCli 的 spawn env：
-
-```js
-// invokeCli 内，cleanEnv 基础上增加 gate env（当 workspace 已知时）
-const gateEnv = {
-  ...cleanEnv,
-  ...(workspace ? { CDD_GATE_WORKSPACE: workspace, CDD_GATE_MODE: process.env.CDD_SESSION_MODE ?? 'cli' } : {}),
-};
-```
-
-**验证**：
-```bash
-grep -c "pendingPathFor\|CDD_PENDING" packages/osuperpowers/bin/gate/cdd-gate-core.mjs
-# 预期：0（已删除）
-grep -c "CDD_GATE_WORKSPACE" packages/osuperpowers/bin/engine/lib/runner.mjs
-# 预期：>= 1（spawn env 已设置）
-```
-
-修改 `packages/osuperpowers/bin/gate/adapters/.mjs`（claude/cursor/codex 等）：
-- `gateDecide` 调用处不再依赖 pending.repo_root；repoRoot 来自 `process.env.CDD_GATE_WORKSPACE`
+> **Deferral note（2026-09-04）**：Task 8 执行期间确认 Bug O（删除 cdd-session-activate）。删除已完成（· cdd-engine/bin/cdd-session-activate.mjs 移除 · 两包 package.json bin 清理 · `--scope` 残留清理）。gate env 传播（gateDecision 改 env 读取 + runner spawn env + 11 adapters + 13 测试文件）为恢复性改造，涉及面大，移入 Task 12 与 Enh F detect-engine / Bug M / Bug N 的 gate wiring 阶段一并完成。Task 8 完成后 gate 保持 fail-open（与删除前一致，无功能回归）。
 
 - [ ] **Step 6: 迁移并运行 CLI 测试**
 
@@ -1932,16 +1895,62 @@ git commit -m "feat(osuperpowers): remove bin/engine/, add @oscaner-skills/cdd-e
 
 ---
 
-### Task 12: SKILL.md 更新（Enh F detect-engine + Enh G init 单命令 + Bug M deferred/ledger 清理）+ emit
+### Task 12: SKILL.md 更新 + gate env 传播（Enh F detect-engine + Enh G init 单命令 + Bug M deferred/ledger 清理 + Bug O Step 5b gate env 传播 + Bug N Review Stopping）+ emit
 
 **Files:**
-- Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（Enh F + Bug M）
+- Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（Enh F + Bug M + Bug N）
+- Modify: `packages/osuperpowers/bin/gate/cdd-gate-core.mjs`（Bug O Step 5b：pending 文件 → env）
+- Modify: `packages/osuperpowers/bin/gate/adapters/*.mjs`（Bug O Step 5b：repoRoot 来自 env）
+- Modify: `packages/cdd-engine/bin/lib/cli-shared.mjs`（Bug O Step 5b：spawn env 增加 CDD_GATE_WORKSPACE）
 - Modify: `packages/osuperpowers/skills/init/SKILL.md`（Enh G）
 - Modify: `packages/osuperpowers/skills/init/harness.md`（Enh G + detect-engine 节点）
 
 **Interfaces:**
 - Produces: `init` 无需 `harness` 子命令；`init --harness claude` 直接安装
 - Produces: `cli-driven-development` SKILL.md 在调用 cdd-select 前检测 cdd-engine
+
+- [ ] **Step 0: gate env 传播（Bug O Step 5b 移入 — gate wiring 与 Enh F/Bug M/N 同步落地）**
+
+修改 `packages/osuperpowers/bin/gate/cdd-gate-core.mjs`：
+
+```js
+// 删除：DEFAULT_PENDING_ROOT / pendingPathFor / pendingExpired / CDD_PENDING_TTL / CDD_PENDING_ROOT 相关逻辑
+// gateDecide 改为 env 读取：
+
+// 旧：读 TMPDIR pending 文件
+const pendingPath = pendingPathFor(sessionKey);
+let pending = null;
+try { pending = JSON.parse(readFileSync(pendingPath, 'utf8')); } catch { pending = null; }
+if (!pending) return allowResult();
+
+// 新：读环境变量（hook 在子进程内运行，继承 runner spawn env）
+const gateWorkspace = process.env.CDD_GATE_WORKSPACE ?? '';
+const sessionMode = process.env.CDD_GATE_MODE ?? '';
+if (!gateWorkspace) return allowResult();
+```
+
+修改 runner 的 invokeCli 的 spawn env（cdd-engine `bin/lib/cli-shared.mjs` 或 `runner.mjs`）：
+
+```js
+// invokeCli 内，cleanEnv 基础上增加 gate env（当 workspace 已知时）
+const gateEnv = {
+  ...cleanEnv,
+  ...(workspace ? { CDD_GATE_WORKSPACE: workspace, CDD_GATE_MODE: process.env.CDD_SESSION_MODE ?? 'cli' } : {}),
+};
+```
+
+更新 gate 测试（`packages/osuperpowers/bin/gate/tests/`）：`writePending` helper 改为设置 `process.env.CDD_GATE_WORKSPACE / CDD_GATE_MODE / CDD_GATE_PLAN`，移除 pending 文件写入 / CDD_PENDING_ROOT 环境；`cdd-gate-core.test.mjs` 的 pending 用例改为 env 注入。
+
+**验证**：
+```bash
+grep -c "pendingPathFor\|CDD_PENDING" packages/osuperpowers/bin/gate/cdd-gate-core.mjs
+# 预期：0（已删除）
+grep -c "CDD_GATE_WORKSPACE" packages/cdd-engine/bin/lib/cli-shared.mjs
+# 预期：>= 1（spawn env 已设置）
+```
+
+修改 `packages/osuperpowers/bin/gate/adapters/.mjs`（claude/cursor/codex 等）：
+- `gateDecide` 调用处不再依赖 pending.repo_root；repoRoot 来自 `process.env.CDD_GATE_WORKSPACE`
 
 - [ ] **Step 1: 更新 cli-driven-development/SKILL.md（Enh F + Bug M）**
 

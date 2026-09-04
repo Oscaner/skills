@@ -1,11 +1,15 @@
 {
   "name": "@oscaner-skills/cdd-engine",
   "version": "1.0.0",
-  "type": "module",
   "description": "CDD engine CLIs: task runner, docs reviewer, branch reviewer, harness selector.",
+  "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
+  "files": [
+    "bin/",
+    "templates/"
+  ],
   "bin": {
     "cdd-task": "./bin/cdd-task.mjs",
     "docs-task": "./bin/docs-task.mjs",

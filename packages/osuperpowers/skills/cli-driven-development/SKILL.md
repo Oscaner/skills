@@ -69,11 +69,11 @@ flowchart TD
 ### `dispatch-mode`
 
 - **Do**: Before dispatching cdd-task.mjs:
-  1. Generate brief: `node bin/engine/lib/brief.mjs --task N --plan <path> --output <workspace>/task-N-brief.md`
+  1. Generate brief: `node "$(dirname "$(command -v cdd-task)")/lib/brief.mjs" --task N --plan <path> --output <workspace>/task-N-brief.md`
   2. Record dispatch-time HEAD: `git rev-parse HEAD` → write to `progress.json.lastDispatchHead`
   3. For task-review mode: generate review diff via review-package script
   4. **Three-mode chain enforcement**: For fix mode — verify task-review handoff exists for this task AND status = APPROVED; refuse dispatch otherwise (report to user)
-  5. Dispatch: `node {pluginRoot}/bin/engine/cdd-task.mjs --harness <name> --task N --mode <mode>`. **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index).
+  5. Dispatch: `cdd-task --harness <name> --task N --mode <mode>` (cdd-engine bin on PATH; `{pluginRoot}` no longer hosts engine code). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index).
 - **Read**: `CDD_HANDOFF_PATH` (`task-N-handoff.json`) + open-findings (fix mode) + brief-dependent plan sections + `progress.json` (timeoutCount, on timeout).
 - **Exit**: construct CLI command and spawn → enter `handoff-status` (decision node, routes by handoff status). On timeout → enter `timeout-decision`.
 - **Fail**: nested CLI failure with missing handoff → runner.mjs has written BLOCKED handoff (stderr in blocker field); this node reads and routes to BLOCKED: engine-error. Three-mode chain enforcement violation (fix dispatch without prior task-review APPROVED) → report to user, refuse dispatch.
@@ -82,8 +82,8 @@ flowchart TD
 
 - **Do**: Read `handoff.json` `status` field + scan `findings[]` for blocker-severity items.
   Before routing, perform commit-contract validation:
-  1. `node bin/engine/lib/contract.mjs --check-dirty` — dirty tree → route to BLOCKED: engine-error
-  2. `node bin/engine/lib/contract.mjs --check-head --handoff <path> --progress <path>` — head mismatch → route to BLOCKED: engine-error
+  1. `node "$(dirname "$(command -v cdd-task)")/lib/contract.mjs" --check-dirty` — dirty tree → route to BLOCKED: engine-error
+  2. `node "$(dirname "$(command -v cdd-task)")/lib/contract.mjs" --check-head --handoff <path> --progress <path>` — head mismatch → route to BLOCKED: engine-error
   Then route by status × findings severity (Review Stopping alignment):
   - `APPROVED` + blockers = 0 → `task-complete?` (done)
   - `APPROVED` + warn/nit findings only → fix warn/nit inline → `task-complete?`
@@ -132,7 +132,7 @@ flowchart TD
 
 ### `branch-review`
 
-- **Do**: `node {pluginRoot}/bin/engine/docs-task.mjs --harness <name> --mode review --template branch-review --doc <doc-path> --param BASE=<read from base-branch.json#base> --param HEAD=<head> --param PLAN=<plan-path>` (BASE read from artifact, **removes `origin/develop` hardcode**). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode). **Persist diff + report to workspace**: write `<workspace>/branch-review.diff` + `<workspace>/branch-review-report.md` (content from docs-task output + findings extraction).
+- **Do**: Dispatch `branch-review --harness <name> --plan <plan-path> --base <merge-base(develop, HEAD)> --head <HEAD> [--round N]` (cdd-engine bin; BASE = `git merge-base HEAD origin/<base>` where `<base>` = `base-branch.json#base`, HEAD = `git rev-parse HEAD`; Enh D standalone CLI, not docs-task). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode; handoff at `<workspace>/branch-review-<base7>..<head7>-r<round>.json`). **Persist diff to workspace**: write `<workspace>/branch-review.diff` (`git diff <base>..<head> --stat` + findings extraction).
 - **Read**: `base-branch.json` (for base name) + branch HEAD + plan path + docs-task output.
 - **Exit**: no blockers → `handoff-finishing`; blockers present → `branch-fix-loop`.
 - **Fail**: docs-task fails with no handoff → BLOCKED: engine-error.

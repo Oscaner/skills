@@ -123,6 +123,13 @@ subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", 
   "packages/osuperpowers/bin/utils/tests/*.test.mjs",
 ]);
 
+// 5b1. cdd-engine Vitest suite (engine code moved out of bin/engine in Task 11)
+subprocessStep("5b1. cdd-engine Vitest engine suite", "pnpm", [
+  "-C",
+  "packages/cdd-engine",
+  "test",
+]);
+
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
 
 // 5b2. osuperpowers gate hooks

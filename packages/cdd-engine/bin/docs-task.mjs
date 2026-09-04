@@ -3,6 +3,7 @@
 // Bug K fix: workspace = <repoRoot>/.superpowers/docs-review/ (not dirname(doc)).
 //   docs-task --harness <name> --mode review|fix --template <name> --doc <path> [--param KEY=VALUE]
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { runDocsTask } from './lib/docs-runner.mjs';
@@ -19,6 +20,7 @@ program
   .requiredOption('--mode <mode>', 'review|fix')
   .requiredOption('--template <name>', 'template name (e.g. spec-review, plan-review)')
   .requiredOption('--doc <path>', 'path to document being reviewed')
+  .option('--findings <path>', 'path to review handoff (fix mode)')
   .option('--param <kv>', 'template parameter KEY=VALUE (repeatable)', (v, prev) => {
     const [k, ...rest] = v.split('=');
     return { ...(prev || {}), [k]: rest.join('=') };
@@ -41,6 +43,7 @@ export async function docsTaskAction(opts) {
     mode: opts.mode,
     template: opts.template,
     doc: opts.doc,
+    findingsPath: opts.findings,
     params: opts.param,
     workspace,
     repoRoot,
@@ -50,7 +53,7 @@ export async function docsTaskAction(opts) {
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).
 const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 if (isMain) {
   program.exitOverride();
   program.configureOutput({ outputError: () => {} });

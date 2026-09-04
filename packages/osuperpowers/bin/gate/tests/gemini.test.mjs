@@ -27,7 +27,7 @@ test("gemini hook: cli 严格 + Bash git commit → block + reason 恢复指引"
     { conversation_id: "s-cli-commit", tool_name: "Bash", tool_input: { command: "git commit -m x" } },
   );
   assert.equal(out.decision, "block");
-  assert.match(out.reason, /cdd-task.mjs --harness gemini/);
+  assert.match(out.reason, /cdd-task --harness gemini/);
   assert.match(out.reason, /plan-a/);
 });
 

@@ -33,7 +33,7 @@ test("opencode plugin: cli 严格 + Bash git commit → throw 阻断", async () 
     () => before({ tool: "bash", sessionID: "s-oc-commit", callID: "c1" }, { args: { command: "git commit -m x" } }),
     (e) => {
       assert.match(e.message, /CDD orchestrator gate/);
-      assert.match(e.message, /cdd-task.mjs --harness opencode/);
+      assert.match(e.message, /cdd-task --harness opencode/);
       assert.match(e.message, /plan-a/);
       return true;
     },

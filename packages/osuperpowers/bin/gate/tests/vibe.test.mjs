@@ -27,7 +27,7 @@ test("vibe hook: cli 严格 + Bash git commit → deny + reason 恢复指引", (
     { session_id: "s-cli-commit", tool_name: "Bash", tool_input: { command: "git commit -m x" } },
   );
   assert.equal(out.decision, "deny");
-  assert.match(out.reason, /cdd-task.mjs --harness vibe/);
+  assert.match(out.reason, /cdd-task --harness vibe/);
   assert.match(out.reason, /plan-a/);
 });
 

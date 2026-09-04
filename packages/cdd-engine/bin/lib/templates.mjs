@@ -22,6 +22,8 @@ const MODE_GROUPS = {
   'spec-review': 'review',
   'plan-review': 'review',
   'branch-review': 'review',
+  'spec-fix': 'review',
+  'plan-fix': 'review',
 };
 
 // template 名 → 绝对路径（group-aware）。未知模板名 → throw。

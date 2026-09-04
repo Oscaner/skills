@@ -30,7 +30,7 @@ test("pi.ts extension: cli 严格 + Bash git commit → { block: true, reason }"
     ctxFor(dir, "s-pi-ts-commit"),
   );
   assert.equal(out.block, true);
-  assert.match(out.reason, /cdd-task.mjs --harness pi/);
+  assert.match(out.reason, /cdd-task --harness pi/);
   assert.match(out.reason, /plan-a/);
 });
 

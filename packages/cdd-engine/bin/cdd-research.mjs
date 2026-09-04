@@ -5,7 +5,7 @@
 // Spawns the harness CLI directly (spawnCapture, NOT invokeCli) with the research
 // prompt. CDD_DRY_RUN=1 skips harness invocation (argument parsing / smoke tests).
 // RESEARCH_TIMEOUT env overrides the research timeout (default 1800000ms).
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Command } from 'commander';
@@ -67,9 +67,14 @@ program
 
     let result;
     try {
+      // #137 subprocess-security posture: strip credentials from the harness env
+      // (consistent with cli-shared.invokeCli's cleanEnv).
+      const secureEnv = { ...process.env };
+      delete secureEnv.ANTHROPIC_API_KEY;
+      delete secureEnv.CLAUDE_CODE_SUBAGENT_MODEL;
       result = await spawnCapture(cli, cliArgs, {
         cwd: process.cwd(),
-        env: process.env,
+        env: secureEnv,
         timeoutMs,
       });
     } catch (err) {
@@ -96,7 +101,7 @@ program
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).
 const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 if (isMain) {
   program.exitOverride();
   // Silence Commander's own error lines — this CLI prints its own usage/message below.

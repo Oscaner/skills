@@ -505,7 +505,7 @@ it("normalizeHandoffStatus: TIMEOUT passthrough", async () => {
 it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-timeout-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nsleep 5\nexit 0\n");
+  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
@@ -534,7 +534,7 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
 it("runTask: timeout → timeoutCount incremented in progress.json", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-tc-inc-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nsleep 5\nexit 0\n");
+  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
   const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));

@@ -210,14 +210,14 @@ export function denyMessage(harness, taskNum, planBasename_) {
 
 Allowed Bash (read-only diagnostics):
 ${verbs}
-  ${osRoot}/bin/engine/cdd-task.mjs --harness ${harness}
+  cdd-task --harness ${harness}   (@oscaner-skills/cdd-engine bin)
   sdd-workspace / task-brief / review-package
 
 Allowed Write:
   .superpowers/cdd/${planBasename_}/
 
 Repo changes flow only through:
-  ${osRoot}/bin/engine/cdd-task.mjs --harness ${harness} --task ${taskNum} --mode implement
+  cdd-task --harness ${harness} --task ${taskNum} --mode implement   (@oscaner-skills/cdd-engine bin)
 
 Full matrix: ${osRoot}/skills/cli-driven-development/docs/cdd-reference.md (CDD gate matrix)
 See cli-driven-development Rule: Three-Mode Chain.`;

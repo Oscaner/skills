@@ -9,10 +9,9 @@
 import { Command } from 'commander';
 import { detectInstalledHarnesses } from './utils/harness-detect.mjs';
 import { config } from './utils/skills-probe.config.mjs';
-import { exitBlocked } from './utils/exit.mjs';
+import { exitBlocked, exitCliMissing } from './utils/exit.mjs';
 
 // Note: cdd-select forwards harness-detect from osuperpowers utils (migrated into
-// cdd-engine/bin/utils per plan Task 8 方案 B). After osuperpowers cleanup (Task 11),
 // the import path may need adjustment.
 
 const program = new Command();
@@ -21,7 +20,17 @@ program
   .description('Detect installed harness CLIs and recommend default')
   .action(() => { /* no-op: action defined by program.parse() side effect below */ });
 
-program.parse();
+program.exitOverride();
+program.configureOutput({ outputError: () => {} });
+try {
+  program.parse(process.argv);
+} catch (e) {
+  if (typeof e.code === 'string' && e.code.startsWith('commander.')) {
+    process.stderr.write('usage: cdd-select [--help]\n');
+    exitCliMissing();
+  }
+  throw e;
+}
 
 // detect_current_harness：CURSOR_TRACE_ID → cursor-agent；CLAUDE_CODE_SESSION_ID → claude；
 // AI_AGENT=claude-code* → claude；否则空。

@@ -8,7 +8,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { loadRegistry, checkHarness, CddBlockedError } from './lib/registry.mjs';
 import { renderTemplate } from './lib/templates.mjs';
 import { loadHandoffSchema } from './lib/schema-utils.mjs';
-import { renderHandoffStub, PKG_ROOT } from './lib/templates.mjs';
+import { renderHandoffStub } from './lib/templates.mjs';
 import { invokeCliWithRetry, resolveTimeoutMs } from './lib/cli-shared.mjs';
 import { gitToplevel, writeHandoff } from './lib/contract.mjs';
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from './utils/exit.mjs';
@@ -25,7 +25,11 @@ program
   .requiredOption('--plan <path>',   'path to plan file (used for workspace slug + context)')
   .requiredOption('--base <sha>',    'base commit SHA')
   .requiredOption('--head <sha>',    'head commit SHA')
-  .option('--round <n>', 'review round number', (v) => parseInt(v, 10), 1)
+  .option('--round <n>', 'review round number', (v) => {
+    const n = parseInt(v, 10);
+    if (isNaN(n) || n < 1) throw new Error(`--round must be a positive integer, got: ${v}`);
+    return n;
+  }, 1)
   .action(async (opts) => {
     const { harness, plan, base, head, round } = opts;
 

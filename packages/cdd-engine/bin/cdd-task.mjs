@@ -4,6 +4,7 @@
 // --plan optional: sets PLAN_FILE env for workspace resolution.
 // CDD_DRY_RUN=1 skips the harness CLI (argument parsing / orchestration smoke tests).
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { runTask } from './lib/runner.mjs';
@@ -36,7 +37,7 @@ program
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).
 const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 if (isMain) {
   program.exitOverride();
   // Silence Commander's own error lines — this CLI prints its own usage/message below.

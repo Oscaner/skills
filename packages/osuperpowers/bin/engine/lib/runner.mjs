@@ -514,9 +514,9 @@ export async function runTask(harness, taskNum, opts = {}) {
     });
     if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
     // Increment timeoutCount in progress.json
-    const timeoutProgressData = readProgressJSON(path.dirname(env.CDD_LEDGER));
+    const timeoutProgressData = readProgressJSON(progressDir);
     timeoutProgressData.timeoutCount++;
-    writeProgressJSON(path.dirname(env.CDD_LEDGER), timeoutProgressData);
+    writeProgressJSON(progressDir, timeoutProgressData);
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 

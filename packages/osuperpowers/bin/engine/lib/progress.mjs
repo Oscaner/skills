@@ -65,7 +65,7 @@ export function incrementRound(progressDir, taskNum, mode) {
     taskEntry = { task: taskNum, status: "pending", rounds: {} };
     data.tasks.push(taskEntry);
   }
-  taskEntry.rounds = taskEntry.rounds ?? {};
+  taskEntry.rounds ??= {}; // migrate pre-rounds task entries that lack the field
   taskEntry.rounds[mode] = (taskEntry.rounds[mode] ?? 0) + 1;
   writeProgressJSON(progressDir, data);
 }

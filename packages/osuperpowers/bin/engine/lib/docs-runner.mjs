@@ -44,7 +44,7 @@ export async function runDocsTask(mode, {
 
   // Spawn agent using harness registry (provides -p, --output-format, etc.)
   const reg = loadRegistry(REG_PATH);
-  const { entry } = checkHarness(harness, reg);
+  const entry = checkHarness(reg, harness);  // checkHarness(reg, harness) — reg first
   const workspace = path.dirname(handoffPath);
   const { code } = await invokeCli(entry, prompt, mode, {}, workspace, undefined);
 

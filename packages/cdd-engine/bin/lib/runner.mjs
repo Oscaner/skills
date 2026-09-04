@@ -405,15 +405,16 @@ export async function runTask(harness, taskNum, opts = {}) {
   }
 
   // 2.55 Templates existence check — BLOCKED exit 1 if missing (not exit 3).
+  // cdd-engine is self-contained: templates live at <pkg>/templates (migration task 7
+  // removed the legacy skills/cli-driven-development/templates + skills/_templates layout).
   {
     try {
-      const modeDir = path.join(pluginRootFn(), "skills", "cli-driven-development", "templates");
-      const sharedDir = path.join(pluginRootFn(), "skills", "_templates");
-      if (!existsSync(modeDir) && !existsSync(sharedDir)) {
-        return finish(1, [], `templates missing: ${modeDir}`, noExit);
+      const tplDir = path.join(pluginRootFn(), "templates");
+      if (!existsSync(tplDir)) {
+        return finish(1, [], `templates missing: ${tplDir}`, noExit);
       }
     } catch {
-      return finish(1, [], "templates missing: osuperpowers plugin root not found", noExit);
+      return finish(1, [], "templates missing: cdd-engine package root not found", noExit);
     }
   }
 

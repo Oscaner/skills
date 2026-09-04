@@ -1,0 +1,33 @@
+{
+  "claude": {
+    "cli": "claude",
+    "invoke": "-p --output-format text --dangerously-skip-permissions",
+    "output": "text",
+    "task_review_prefix": "Skill(mattpocock-skills:code-review)",
+    "ship": "full"
+  },
+  "cursor-agent": {
+    "cli": "cursor-agent",
+    "invoke": "--print --output-format text --force",
+    "output": "text",
+    "task_review_prefix": "",
+    "ship": "full"
+  },
+  "droid": {
+    "cli": "droid",
+    "invoke": "exec --auto medium --output-format stream-json",
+    "output": "stream-json",
+    "task_review_prefix": "",
+    "ship": "full"
+  },
+  "pi": {
+    "cli": "pi",
+    "invoke": "-p --no-session --no-approve",
+    "output": "text",
+    "task_review_prefix": "",
+    "ship": "full"
+  },
+  "codex": { "cli": "codex", "ship": "not-supported" },
+  "copilot": { "cli": "copilot", "ship": "not-supported" },
+  "gemini": { "cli": "gemini", "ship": "not-supported" }
+}

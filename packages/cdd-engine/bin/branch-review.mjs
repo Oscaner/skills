@@ -93,6 +93,17 @@ program
       exitWithCode(1);
     }
 
+    // Agent exited 0 but never wrote the handoff — BLOCKED (mirrors runner step 10.5).
+    if (!existsSync(handoffPath)) {
+      writeHandoff(handoffPath, {
+        task: 1, phase: 'branch-review', status: 'BLOCKED',
+        commits: { base, head }, findings: [], artifacts: {},
+        blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run branch-review`,
+      });
+      process.stderr.write(`CDD_BLOCKED: branch-review handoff not written\n`);
+      exitWithCode(1);
+    }
+
     // Agent wrote handoff — validate against the CDD schema (mirrors runner step 8.8).
     if (existsSync(handoffPath)) {
       const { validateHandoffSchema } = await import('./lib/schema-utils.mjs');

@@ -231,8 +231,7 @@ export function denyMessage(harness, taskNum, planBasename_) {
 
 Allowed Bash (read-only diagnostics):
 ${verbs}
-  cdd-task --harness ${harness}   (@oscaner-skills/cdd-engine bin)
-  sdd-workspace / task-brief / review-package
+  cdd-task / docs-task / branch-review   (@oscaner-skills/cdd-engine bins)
 
 Allowed Write:
   .superpowers/cdd/${planBasename_}/

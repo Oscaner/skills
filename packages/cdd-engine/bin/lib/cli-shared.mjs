@@ -24,7 +24,11 @@ export function resolveTimeoutMs(env, mode) {
   }
   const legacyKey = LEGACY_MODE_ENV[mode];
   const legacy = legacyKey ? env[legacyKey] : undefined;
-  if (legacy !== undefined) return Math.max(1, Number(legacy)) * 1000;
+  if (legacy !== undefined) {
+    const n = Number(legacy);
+    if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode];
+    return Math.max(1, n) * 1000;
+  }
   if (DEFAULT_TIMEOUTS[mode] != null) return DEFAULT_TIMEOUTS[mode];
   return undefined;
 }

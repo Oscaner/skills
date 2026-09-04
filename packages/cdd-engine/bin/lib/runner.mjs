@@ -1,10 +1,10 @@
 // packages/cdd-engine/bin/lib/runner.mjs — CDD per-task runner (Node port of cdd_run_task).
-// H1 四行输出独占（spec v3）：本模块负责格式化 status/commits/artifacts/blocker。
-// runTask 有序契约：registry ship gate → CLI preflight → workspace/env → ledger PLAN_FILE
-// backfill → review fixed-point → require env → renderModePrompt → 嵌套 CLI spawn（捕获 stderr，
-// 非 2>/dev/null 吞）→ commit-contract → H1 四行 → handoff 处理。
-// noExit=true 时返回 { exitCode, h1 } 而非 exit helpers —— 单测的 seam。
-// 落地退出委托 utils/exit.mjs（统一出口，无 inline process.exit）。
+// H1 four-line output is exclusive (spec v3): this module is responsible for formatting status/commits/artifacts/blocker.
+// runTask ordered contract: registry ship gate → CLI preflight → workspace/env → ledger PLAN_FILE
+// backfill → review fixed-point → require env → renderModePrompt → nested CLI spawn (captures stderr,
+// not swallowed via 2>/dev/null) → commit-contract → H1 four lines → handoff processing.
+// noExit=true returns { exitCode, h1 } instead of exit helpers — the unit-test seam.
+// Final exit delegated to utils/exit.mjs (unified exit point, no inline process.exit).
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -33,7 +33,7 @@ const DEFAULT_CHANNEL_MAP = {
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "task-review", "fix"];
 
-// 本地编排错误：携带退出码；runTask/runPlan 捕获后 finish。
+// Local orchestration error: carries exit code; caught by runTask/runPlan then finish().
 class RunBlocked extends Error {
   constructor(message, exitCode = 1) {
     super(message);
@@ -41,8 +41,8 @@ class RunBlocked extends Error {
   }
 }
 
-// 落地退出：noExit=false → 写 H1（若 h1 非空）到 stdout + stderr 消息 + exitWithCode；
-// noExit=true → 仅返回 { exitCode, h1 }（runPlan 组合 / 单测）。
+// Final exit: noExit=false → write H1 lines (if non-empty) to stdout + stderr message + exitWithCode;
+// noExit=true → return { exitCode, h1 } only (runPlan composition / unit tests).
 function finish(exitCode, h1, msg, noExit, { stderrPrefix = "CDD_BLOCKED" } = {}) {
   if (msg) process.stderr.write(`${stderrPrefix}: ${msg}\n`);
   if (!noExit) {
@@ -54,15 +54,15 @@ function finish(exitCode, h1, msg, noExit, { stderrPrefix = "CDD_BLOCKED" } = {}
 
 // ---- workspace / env ----
 
-// 有效 plan 三来源合成（opt ‖ env.PLAN_FILE ‖ ledger backfill）。
-// resolveRepoRoot 的分支判断与错误信息均基于该有效 plan（#173：永不回退 cwd）。
-// 分支规则：
-//   有有效 plan → plan 派生分支：existsSync 前置（"plan file not found"）→
-//     repoRoot = gitToplevel(dirname(plan))，失败 → "not in a git repo"；
+// Effective plan is resolved from three sources (opt ‖ env.PLAN_FILE ‖ ledger backfill).
+// resolveRepoRoot branch logic and error messages are all based on this effective plan (#173: never fall back to cwd).
+// Branch rules:
+//   plan exists → plan-derived branch: existsSync pre-check ("plan file not found") →
+//     repoRoot = gitToplevel(dirname(plan)), failure → "not in a git repo";
 //     workspace = <repoRoot>/.superpowers/cdd/<slug>/
-//   无有效 plan 且有 CDD_WORKSPACE → 直设分支（现行为）：workspace = env 原值；
-//     repoRoot = gitToplevel(workspace)，允许 null（下游容忍）
-//   两者皆无 → RunBlocked "cannot resolve repo root: provide --plan or CDD_WORKSPACE"
+//   no plan + CDD_WORKSPACE present → direct-set branch (current behavior): workspace = env value as-is;
+//     repoRoot = gitToplevel(workspace), null allowed (tolerated downstream)
+//   neither → RunBlocked "cannot resolve repo root: provide --plan or CDD_WORKSPACE"
 export function resolveRepoRoot({ planFile, env, ledgerPath }) {
   let plan = planFile || env.PLAN_FILE || "";
   if (!plan && ledgerPath) plan = backfillPlanFromLedger(ledgerPath);
@@ -73,20 +73,20 @@ export function resolveRepoRoot({ planFile, env, ledgerPath }) {
     return { plan, repoRoot: root };
   }
   if (env.CDD_WORKSPACE) {
-    // repoRoot 允许为 null（下游容忍：scripts-dir 跳过 submodule 探测 / relpath 回退绝对路径）。
+    // repoRoot may be null (tolerated downstream: scripts-dir skips submodule probe / relpath falls back to absolute path).
     return { plan: "", repoRoot: gitToplevel(env.CDD_WORKSPACE) };
   }
   throw new RunBlocked("cannot resolve repo root: provide --plan or CDD_WORKSPACE");
 }
 
-// 纯派生（根由 resolveRepoRoot 解析后经第 3 参注入）：有 plan → <repoRoot>/.superpowers/cdd/<slug>/；
-// 无 plan + CDD_WORKSPACE → env 原值；两者皆无 → RunBlocked。
-// workspace 解析（#173 后为纯派生，repoRoot 由 resolveRepoRoot 给出）：
-//   有 plan（planFile 参数 = 有效 plan，含 env.PLAN_FILE/backfill 来源）→ 派生分支
-//     <repoRoot>/.superpowers/cdd/<slug>/；
-//   无 plan 且 env.CDD_WORKSPACE → 直设分支（现行为）：workspace = env 原值。
-// 分支选择由 planSource 显式声明（"plan" | "workspace"）——调用方据 resolveRepoRoot
-// 结果决定，消除「伪造空 env 驱动内部分支」的控制耦合。
+// Pure derivation (root resolved by resolveRepoRoot, injected as the third param): plan → <repoRoot>/.superpowers/cdd/<slug>/;
+// no plan + CDD_WORKSPACE → env value as-is; neither → RunBlocked.
+// Workspace resolution (purely derived after #173, repoRoot provided by resolveRepoRoot):
+//   plan present (planFile = effective plan, including env.PLAN_FILE/backfill sources) → plan-derived branch
+//     <repoRoot>/.superpowers/cdd/<slug>/;
+//   no plan + env.CDD_WORKSPACE → direct-set branch (current behavior): workspace = env value as-is.
+// Branch selection explicitly declared via planSource ("plan" | "workspace") — caller decides based on resolveRepoRoot
+// result, eliminating the control coupling of "faking an empty env to drive internal branching".
 export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
   if (planSource === "plan") {
     if (!repoRoot) throw new RunBlocked("not in a git repo");
@@ -101,9 +101,9 @@ export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
   throw new RunBlocked("CDD_WORKSPACE unset and --plan not provided");
 }
 
-// 对齐 _cdd_set_task_env：workspace 派生路径，未设置才默认（`${VAR:-default}` 语义）；
-// CDD_WORKSPACE / CDD_MODE / CDD_HARNESS 强制。返回新 env 对象（不改 baseEnv）。
-// round：task-review/fix mode 时派生 per-round handoff 路径；implement 固定为 task-N-implement.json。
+// Aligns _cdd_set_task_env: workspace-derived paths, defaulted only when unset (`${VAR:-default}` semantics);
+// CDD_WORKSPACE / CDD_MODE / CDD_HARNESS are forced. Returns a new env object (does not mutate baseEnv).
+// round: derives per-round handoff path for task-review/fix modes; implement always produces task-N-implement.json.
 export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 1 } = {}) {
   const env = { ...baseEnv };
   env.CDD_WORKSPACE = workspace;
@@ -127,8 +127,8 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 
   return env;
 }
 
-// 对齐 _cdd_plan_from_ledger：legacy fallback — 仅对迁移前的 progress.md（首行
-// `# CDD ledger — plan: <path>`）生效；progress.json 不含该行，正则不匹配时返回 ""。
+// Aligns _cdd_plan_from_ledger: legacy fallback — only effective for pre-migration progress.md (first line
+// `# CDD ledger — plan: <path>`); progress.json does not contain that line, returns "" when regex does not match.
 function backfillPlanFromLedger(ledgerPath) {
   if (!ledgerPath || !existsSync(ledgerPath)) return "";
   const first = readFileSync(ledgerPath, "utf8").split("\n", 1)[0] ?? "";
@@ -136,7 +136,7 @@ function backfillPlanFromLedger(ledgerPath) {
   return m ? m[1].trim() : "";
 }
 
-// 读 JSON 嵌套字段（commits.base / commits.head）；缺失/损坏 → ""。
+// Read nested JSON field (commits.base / commits.head); missing/corrupt → "".
 function readJsonField(filePath, keys) {
   if (!filePath || !existsSync(filePath)) return "";
   try {
@@ -172,13 +172,13 @@ function prevHandoffPath(workspace, task, mode, round) {
   return null; // implement has no prior phase
 }
 
-// 对齐 cdd_require_env 的 mode 有效性检查。
+// Aligns cdd_require_env mode validation.
 function validateMode(mode) {
   if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|task-review|fix (got: ${mode})`;
   return null;
 }
 
-// 对齐 cdd_require_env：必需 CDD_* + mode 特例（task-review → CDD_TASK_REVIEW_FIXED_POINT；fix → CDD_FINDINGS）。
+// Aligns cdd_require_env: required CDD_* vars + mode-specific extras (task-review → CDD_TASK_REVIEW_FIXED_POINT; fix → CDD_FINDINGS).
 function requireEnv(env, mode) {
   const missing = [];
   for (const v of ["CDD_WORKSPACE", "CDD_TASK_BRIEF", "CDD_LEDGER", "CDD_MODE", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS"]) {
@@ -188,7 +188,7 @@ function requireEnv(env, mode) {
   return missing.length > 0 ? `Missing required env: ${missing.join(" ")}` : null;
 }
 
-// renderModePrompt 的 {{PLACEHOLDER}} env 映射（bash 6 键 + TASK 超集键）。
+// {{PLACEHOLDER}} env mapping for renderModePrompt (bash 6 keys + TASK superset key).
 function promptEnv(env, taskNum) {
   return {
     WORKSPACE: env.CDD_WORKSPACE,
@@ -201,11 +201,11 @@ function promptEnv(env, taskNum) {
   };
 }
 
-// ---- review-package（非 dry-run review 模式）----
+// ---- review-package (non-dry-run review mode) ----
 
-// 对齐 cdd_superpowers_scripts_dir：repo submodule → Claude/Cursor plugin cache（版本目录升序）。
-// 第 1 参数为 repoRoot（#173：submodule 探测从项目仓库找 vendors，与调用方 cwd 解耦）。
-// 导出供单测。semver 升序排序（替换手写 byVersion —— 对齐 bash sort -V）。
+// Aligns cdd_superpowers_scripts_dir: repo submodule → Claude/Cursor plugin cache (version dirs in ascending order).
+// First arg is repoRoot (#173: submodule probe finds vendors under the project repo, decoupled from caller cwd).
+// Exported for unit tests. semver ascending sort (replaces hand-written byVersion — aligns with bash sort -V).
 export function findSuperpowersScriptsDir(repoRoot) {
   if (repoRoot) {
     const probe = path.join(repoRoot, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
@@ -218,8 +218,8 @@ export function findSuperpowersScriptsDir(repoRoot) {
   for (const cache of cacheRoots) {
     if (!existsSync(cache)) continue;
     const versions = readdirSync(cache)
-      .filter(v => semver.valid(v))   // 过滤非合法版本目录名
-      .sort(semver.compare);           // semver.compare(a,b) 返回 -1|0|1（升序）
+      .filter(v => semver.valid(v))   // filter out non-valid semver directory names
+      .sort(semver.compare);           // semver.compare(a,b) returns -1|0|1 (ascending order)
     for (const ver of versions) {
       const scripts = path.join(cache, ver, "skills", "subagent-driven-development", "scripts");
       if (existsSync(path.join(scripts, "sdd-workspace"))) return scripts;
@@ -228,27 +228,27 @@ export function findSuperpowersScriptsDir(repoRoot) {
   return null;
 }
 
-// 对齐 _cdd_relpath_from_repo：repo 内路径 → 相对 repo；否则绝对路径。
-// 第 2 参数为 repoRoot（#173：由调用方 resolveRepoRoot 下传；无根 → 回退绝对路径）。
+// Aligns _cdd_relpath_from_repo: path inside repo → relative to repo; otherwise absolute path.
+// Second arg is repoRoot (#173: passed down from caller resolveRepoRoot; no root → falls back to absolute path).
 function relpathFromRepo(abs, repoRoot) {
   const resolved = path.resolve(abs);
   if (repoRoot && resolved.startsWith(`${repoRoot}/`)) return resolved.slice(repoRoot.length + 1);
   return resolved;
 }
 
-// 对齐 cdd_run_review_package：diff 文件名用 base/head 前 7 位。
+// Aligns cdd_run_review_package: diff filename uses first 7 chars of base/head.
 function shortSha(sha) {
   return String(sha).slice(0, 7);
 }
 
-// 对齐 _cdd_run_review_package：spawn 上游 review-package 脚本，解析末行 `wrote <diff>:`，
-// 把 diff 相对路径写进 handoff artifacts（Node 无 jq —— 直接 JSON 读写）。
-// bash 对齐：`[[ -x review-package ]]` 可执行检查（spawn 前 accessSync X_OK）+ `wrote <diff>:`
-// progress 行落到 stdout（operator 可见）。
-// scriptsDir DI：单测可 override findSuperpowersScriptsDir（避免触达 repo/cache 真实路径）。
-// cwd 选项语义 = 子进程执行目录（#173：调用方传 repoRoot —— review-package 在 plan 仓库内跑）。
-// repoRoot 选项：#173 后调用方传入项目仓库根（bash 子进程 cwd 与 relpath 基准均基于它）；
-// 键名沿用 `cwd`（历史直测 source-compatible），语义即「子进程工作目录 = repoRoot」。
+// Aligns _cdd_run_review_package: spawns upstream review-package script, parses the last `wrote <diff>:` line,
+// writes the diff relative path into handoff artifacts (no jq in Node — reads/writes JSON directly).
+// bash alignment: `[[ -x review-package ]]` executability check (accessSync X_OK before spawn) + `wrote <diff>:`
+// progress line printed to stdout (visible to operator).
+// scriptsDir DI: unit tests can override findSuperpowersScriptsDir (avoids touching real repo/cache paths).
+// cwd option semantics = subprocess working directory (#173: caller passes repoRoot — review-package runs inside the plan repo).
+// repoRoot option: after #173 caller passes project repo root (bash subprocess cwd and relpath base both derived from it);
+// key name kept as `cwd` (historically source-compatible), semantics: subprocess working directory = repoRoot.
 export async function runReviewPackage(plan, base, head, handoffPath, { cwd: repoRoot, env, scriptsDir: scriptsDirOverride }) {
   const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(repoRoot);
   if (!scriptsDir) throw new RunBlocked("upstream review-package script not found");
@@ -266,14 +266,14 @@ export async function runReviewPackage(plan, base, head, handoffPath, { cwd: rep
   if (!diffPath || !existsSync(diffPath)) {
     throw new RunBlocked(`review-package did not produce diff file (output: ${outLine})`);
   }
-  process.stdout.write(`${outLine}\n`); // 对齐 bash：`wrote <diff>:` progress 行（stdout）
+  process.stdout.write(`${outLine}\n`); // aligns bash: `wrote <diff>:` progress line (stdout)
   const h = readJson(handoffPath) ?? {};
   writeHandoff(handoffPath, { artifacts: { ...(h.artifacts ?? {}), diff: relpathFromRepo(diffPath, repoRoot) } });
 }
 
-// ---- H1 输出 ----
+// ---- H1 output ----
 
-// 对齐 _cdd_emit_h1_four_lines：从 agent stdout 文本取最后一个 ^key: 行；缺 → "<missing>"。
+// Aligns _cdd_emit_h1_four_lines: picks the last ^key: line from agent stdout; missing → "<missing>".
 export function h1FourLines(raw) {
   const lines = String(raw).split("\n");
   const keys = ["status", "commits", "artifacts", "blocker"];
@@ -291,8 +291,8 @@ export function h1FourLines(raw) {
   return out;
 }
 
-// 对齐 _cdd_emit_h1_from_handoff（无 jq 依赖）：读 handoff JSON，缺失/损坏 → BLOCKED 兜底。
-// artifacts 仅当存在时输出（与 bash 一致）。
+// Aligns _cdd_emit_h1_from_handoff (no jq dependency): reads handoff JSON, missing/corrupt → BLOCKED fallback.
+// artifacts only emitted when present (consistent with bash).
 export function h1FromHandoff(handoffPath) {
   if (!handoffPath || !existsSync(handoffPath)) {
     return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors");
@@ -314,9 +314,9 @@ export function h1FromHandoff(handoffPath) {
   return out;
 }
 
-// ---- dry-run 仿真 ----
+// ---- dry-run simulation ----
 
-// 对齐 bash dry-run 分支的硬编码 H1 块（CDD_DRY_RUN=1）。
+// Aligns bash dry-run branch hardcoded H1 block (CDD_DRY_RUN=1).
 function dryRunH1Block(env, taskNum) {
   const ws = env.CDD_WORKSPACE;
   return [
@@ -329,10 +329,10 @@ function dryRunH1Block(env, taskNum) {
 
 // ---- runTask / runPlan ----
 
-// 对齐 cdd_run_task。opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap,
+// Aligns cdd_run_task. opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap,
 //   noExit, pluginRoot, scriptsDir }.
-// scriptsDir：DI 透传至 runReviewPackage（测试 seam，不改生产行为）。
-// 返回 { exitCode, h1 }（noExit=true 时不 exitWithCode）。
+// scriptsDir: DI passed through to runReviewPackage (test seam, does not change production behavior).
+// Returns { exitCode, h1 } (does not call exitWithCode when noExit=true).
 export async function runTask(harness, taskNum, opts = {}) {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
   const probeSkills = opts.probeSkills;
@@ -355,19 +355,19 @@ export async function runTask(harness, taskNum, opts = {}) {
     throw e;
   }
 
-  const scriptsDir = opts.scriptsDir; // DI 透传至 runReviewPackage（测试 seam，不改生产行为）
+  const scriptsDir = opts.scriptsDir; // DI passed through to runReviewPackage (test seam, does not change production behavior)
 
-  // 2. 有效 plan 合成 + repoRoot 解析（#173：入口统一，永不回退 cwd）+ workspace
+  // 2. Effective plan synthesis + repoRoot resolution (#173: unified entry, never falls back to cwd) + workspace
   let workspace;
   let repoRoot;
   let plan;
   try {
     const rr = resolveRepoRoot({ planFile, env: baseEnv, ledgerPath: baseEnv.CDD_LEDGER });
     plan = rr.plan;
-    repoRoot = rr.repoRoot; // 存入作用域——brief/review-package/scripts-dir 调用点使用
+    repoRoot = rr.repoRoot; // stored in scope — used by brief/review-package/scripts-dir call sites
     workspace = resolveWorkspace({
       plan: rr.plan,
-      planSource: rr.plan ? "plan" : "workspace", // 有效 plan → 派生分支；否则直设分支读 baseEnv.CDD_WORKSPACE
+      planSource: rr.plan ? "plan" : "workspace", // plan present → derived branch; otherwise direct-set branch reads baseEnv.CDD_WORKSPACE
       env: baseEnv,
       repoRoot,
     });
@@ -425,7 +425,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     round,
   });
 
-  // （旧步骤 4 ledger PLAN_FILE backfill 已删除——plan 已在入口 resolveRepoRoot 定稿）
+  // (old step 4 ledger PLAN_FILE backfill removed — plan is finalized at the entry in resolveRepoRoot)
 
   // 5. Task-review / fix fixed-point — derive from prior-phase handoff (cross-phase read).
   if (mode === "task-review" || mode === "fix") {
@@ -455,7 +455,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     return finish(1, [], `template render failed: ${e.message}`, noExit);
   }
 
-  // 8. Invoke CLI（或 dry-run 仿真）
+  // 8. Invoke CLI (or dry-run simulation)
   let agentOut = "";
   let agentRc = 0;
   let cliStderr = "";
@@ -473,10 +473,10 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (!res.ok && !timedOut) agentRc = res.code;
   }
 
-  // 8.5 Timeout path — 在 commit-contract 验证前写入 partial handoff。
-  //   timedOut && !unkillable → TIMEOUT partial handoff（status=TIMEOUT + blocker + 已有 findings）；
-  //   timedOut && unkillable  → BLOCKED handoff（process unkillable）。
-  //   进度：递增 progress.md timeoutCount。
+  // 8.5 Timeout path — write partial handoff before commit-contract validation.
+  //   timedOut && !unkillable → TIMEOUT partial handoff (status=TIMEOUT + blocker + existing findings);
+  //   timedOut && unkillable  → BLOCKED handoff (process unkillable).
+  //   Progress: increment progress.md timeoutCount.
   if (timedOut) {
     const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
     if (unkillable) {
@@ -529,9 +529,9 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
-  // 10. 嵌套 CLI 失败且无 handoff → 写 BLOCKED handoff（stderr 进 blocker）+ H1-from-handoff +
-  //     stderr CDD_BLOCKED 诊断 + exit 1（对齐 bash cdd_exit_blocked）。唯一 sanctioned divergence：
-  //     Node 额外写 handoff（§spec 2.1 stderr-surfacing）—— bash 为 emit 原始 agent H1 + exit 1。
+  // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + H1-from-handoff +
+  //     stderr CDD_BLOCKED diagnostic + exit 1 (aligns bash cdd_exit_blocked). Only sanctioned divergence:
+  //     Node additionally writes handoff (§spec 2.1 stderr-surfacing) — bash emits raw agent H1 + exit 1.
   if (agentRc !== 0 && !existsSync(env.CDD_HANDOFF_PATH)) {
     writeHandoff(env.CDD_HANDOFF_PATH, {
       task: taskNum,
@@ -548,7 +548,7 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // 10.5. CLI succeeded but no handoff → BLOCKED (file-existence check, not phase-mismatch fallback).
   // Agent exits 0 without writing handoff = error, not success — write BLOCKED and return exit 1.
-  // dry-run excluded: bash dry-run 不写 handoff, Node 亦不写.
+  // dry-run excluded: bash dry-run does not write handoff, Node does not either.
   if (agentRc === 0 && !dryRun && !existsSync(env.CDD_HANDOFF_PATH)) {
     writeHandoff(env.CDD_HANDOFF_PATH, {
       task: taskNum,
@@ -562,22 +562,22 @@ export async function runTask(harness, taskNum, opts = {}) {
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `${mode} agent did not write handoff`, noExit);
   }
 
-  // 11. H1 四行（来自 agent stdout / dry-run 块）
+  // 11. H1 four lines (from agent stdout / dry-run block)
   const h1 = h1FourLines(agentOut);
 
-  // 12. agent 失败但 handoff 存在 → exit agent_rc
+  // 12. agent failed but handoff exists → exit agent_rc
   if (agentRc !== 0) {
     return finish(agentRc, h1, "", noExit);
   }
 
-  // 13. OK（dry-run 不写 handoff —— 对齐 bash：bash dry-run 分支不写，Node 亦不写）
+  // 13. OK (dry-run does not write handoff — aligns bash: bash dry-run branch does not write, Node does not either)
   return finish(0, h1, "", noExit);
 }
 
 
-// ---- plan 構建块（纯函数，单测 seam）----
+// ---- plan building blocks (pure functions, unit-test seam) ----
 
-// 对齐 _task_numbers_from_plan：`^### Task N:` → 数字排序。
+// Aligns _task_numbers_from_plan: `^### Task N:` → numeric sort.
 export function taskNumbersFromPlan(planFile) {
   const nums = [];
   for (const line of readFileSync(planFile, "utf8").split("\n")) {
@@ -587,14 +587,14 @@ export function taskNumbersFromPlan(planFile) {
   return nums.sort((a, b) => a - b);
 }
 
-// 对齐 _ledger_complete：ledger 含 `^Task N: complete` 行。
+// Aligns _ledger_complete: ledger contains `^Task N: complete` line.
 function ledgerComplete(n, ledgerPath) {
   if (!ledgerPath || !existsSync(ledgerPath)) return false;
   return new RegExp(`^Task ${n}: complete`).test(readFileSync(ledgerPath, "utf8"));
 }
 
-// 读取最新 task-review handoff 的 status（progressData.rounds["task-review"] 轮次）。
-// reviewRound=0 → 无 task-review 完成记录 → "MISSING"；损坏 → "UNKNOWN"。
+// Read the status of the latest task-review handoff (progressData.rounds["task-review"] round).
+// reviewRound=0 → no task-review completion record → "MISSING"; corrupt → "UNKNOWN".
 export function handoffStatus(taskNum, workspace, progressData) {
   // For latest review: reads task-N-task-review-R.json where R = rounds["task-review"]
   const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
@@ -606,7 +606,7 @@ export function handoffStatus(taskNum, workspace, progressData) {
   } catch { return "UNKNOWN"; }
 }
 
-// task-review 轮次=0 → 从未完成 task-review → pending；否则读最新 task-review handoff status。
+// task-review round=0 → task-review never completed → pending; otherwise read latest task-review handoff status.
 export function isTaskPending(taskNum, workspace, progressData) {
   const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
   if (reviewRound === 0) return true; // no task-review ever completed

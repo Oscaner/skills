@@ -1,10 +1,10 @@
-// packages/cdd-engine/bin/tests/runner.test.mjs — runner 模块单测（Vitest port）。
-// runTask dry-run：H1 四行 + 不写 handoff（对齐 bash —— bash dry-run 分支不写 handoff）。
-// 另锁：ship gate（unknown/not-supported → blocked exit 1）；invalid mode 拒绝；
-// 嵌套 CLI 失败无 handoff → 写 BLOCKED handoff（stderr 进 blocker）+ exit 1（对齐 bash；
-// stderr-surfacing handoff 写为唯一 sanctioned divergence）；commit-contract 拦截 → stderr CDD_BLOCKED；
-// review-package 不可执行 → CDD_BLOCKED。
-// invokeCliOverride seam 已移除（§ P1 Task 5）—— CLI 模拟改用真实 fake-cli shell 脚本。
+// packages/cdd-engine/bin/tests/runner.test.mjs — runner module unit tests (Vitest port).
+// runTask dry-run: H1 4-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
+// Also locks: ship gate (unknown/not-supported → blocked exit 1); invalid mode rejected;
+// nested CLI failed no handoff → write BLOCKED handoff (stderr into blocker) + exit 1 (aligns bash;
+// stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED;
+// review-package not executable → CDD_BLOCKED.
+// invokeCliOverride seam removed (§ P1 Task 5) — CLI simulation now uses real fake-cli shell scripts.
 import { it, expect, describe } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
@@ -25,7 +25,7 @@ const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.u
 // No-op probeSkills stub — environment independence for all runTask calls.
 const NOOP_PROBE = async () => ({ missing: [], probeFailed: false });
 
-// 非 git 临时 workspace —— CDD_WORKSPACE 指向 TMPDIR，commit-contract fail-open。
+// Non-git temp workspace — CDD_WORKSPACE points to TMPDIR, commit-contract fails open.
 function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
   const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "", tasks: [], degradationLog: [] };
@@ -35,18 +35,18 @@ function setupWorkspace() {
   return ws;
 }
 
-// 测试 env：清掉外部会话可能继承的 CDD_*（测试进程运行在 orchestrator env 下 —— CDD_HANDOFF_PATH
-// 等若泄漏，runTask 会写到真实 workspace）；仅保留测试可控的 CDD_WORKSPACE（+extra）。
+// Test env: strip CDD_* vars that may be inherited from an outer session (test process runs under orchestrator env —
+// leaked CDD_HANDOFF_PATH etc. would cause runTask to write to real workspaces); keep only test-controlled CDD_WORKSPACE (+extra).
 function baseEnv(ws, extra = {}) {
   return { ...filteredEnv(), CDD_WORKSPACE: ws, ...extra };
 }
 
-// 跨仓用例 env：复用 filteredEnv 过滤，但不注入任何 workspace。
+// Cross-repo test env: reuses filteredEnv filtering, but does not inject any workspace.
 function cleanEnv(extra = {}) {
   return { ...filteredEnv(), ...extra };
 }
 
-// 过滤宿主 env 的 CDD_* 与 PLAN_FILE。
+// Filter CDD_* and PLAN_FILE from the host env.
 function filteredEnv() {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
@@ -55,24 +55,24 @@ function filteredEnv() {
   return env;
 }
 
-// git init + 空提交。
+// git init + empty commit.
 import { gitCommit, gitInit } from "./helpers.mjs";
 
-// gitInit + realpath 归一（macOS /tmp → /private/tmp）。
+// gitInit + realpath normalization (macOS /tmp → /private/tmp).
 function gitInitReal(dir) {
   const real = realpathSync(dir);
   gitInit(real);
   return real;
 }
 
-// 在已 init 的仓库写入 plan 文件并 add+commit——保持工作树干净。
+// Commit a plan file into an already-initialized repo (add + commit) — keeps working tree clean.
 function commitPlan(repoDir, planFile) {
   writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
   gitCommit(repoDir);
   return planFile;
 }
 
-// 捕获 runTask（noExit:false）的 process.exit + stdout/stderr。
+// Capture process.exit + stdout/stderr from runTask (noExit:false).
 async function capture(runFn) {
   const origExit = process.exit;
   const origOut = process.stdout.write.bind(process.stdout);
@@ -106,9 +106,9 @@ async function capture(runFn) {
   return { code, stdout, stderr };
 }
 
-// ---- dry-run 场景 ----
+// ---- dry-run scenarios ----
 
-it("runTask: dry-run implement → H1 四行 APPROVED + 不写 handoff（对齐 bash）", async () => {
+it("runTask: dry-run implement → H1 4-line APPROVED + no handoff written (aligns bash)", async () => {
   const ws = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(0);
@@ -120,7 +120,7 @@ it("runTask: dry-run implement → H1 四行 APPROVED + 不写 handoff（对齐 
   expect(existsSync(path.join(ws, "task-1-handoff.json"))).toBe(false);
 });
 
-it("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
+it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
   const ws = setupWorkspace();
   const { code, stdout } = await capture(() =>
     runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws) }),
@@ -132,7 +132,7 @@ it("runTask: dry-run 输出 H1 四行到 stdout + exit 0", async () => {
   expect(lines[3]).toBe("blocker: none");
 });
 
-it("runTask: dry-run task-review/fix 三模式 → H1 DONE + 不写 handoff（对齐 bash）", async () => {
+it("runTask: dry-run task-review/fix three modes → H1 APPROVED + no handoff written (aligns bash)", async () => {
   for (const mode of ["task-review", "fix"]) {
     const ws = setupWorkspace();
     const res = await runTask("claude", 1, { mode, dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
@@ -144,7 +144,7 @@ it("runTask: dry-run task-review/fix 三模式 → H1 DONE + 不写 handoff（�
 
 // ---- mode validation ----
 
-it("runTask: 非法 mode → 拒绝（非零退出）", async () => {
+it("runTask: invalid mode → rejected (non-zero exit)", async () => {
   const ws = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "handoff", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(1);
@@ -166,7 +166,7 @@ it("runTask: not-supported harness → blocked exit 1", async () => {
 
 // ---- CLI failure + BLOCKED handoff ----
 
-it("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 blocker）+ exit 1", async () => {
+it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into blocker) + exit 1", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-bin-"));
   writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\necho 'boom from fake cli' >&2\nexit 3\n");
@@ -198,14 +198,14 @@ it("runTask: 嵌套 CLI 失败无 handoff → BLOCKED handoff（stderr 进 block
 
 // ---- pure function tests ----
 
-it("taskNumbersFromPlan: 提取 ### Task N: 并排序（含 0）", () => {
+it("taskNumbersFromPlan: extracts ### Task N: and sorts (including 0)", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-plan-"));
   const plan = path.join(dir, "plan.md");
   writeFileSync(plan, "# P\n### Task 3: a\n### Task 1: b\n### Task 0: skip\n### Task 2: c\n");
   expect(taskNumbersFromPlan(plan)).toEqual([0, 1, 2, 3]);
 });
 
-it("isTaskPending / handoffStatus: progressData round 0 → MISSING / pending；APPROVED/DONE → not pending", () => {
+it("isTaskPending / handoffStatus: progressData round 0 → MISSING / pending; APPROVED/DONE → not pending", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-pending-"));
 
   const noReviewProgress = { tasks: [] };
@@ -228,7 +228,7 @@ it("isTaskPending / handoffStatus: progressData round 0 → MISSING / pending；
 
 // ---- findSuperpowersScriptsDir (semver upgrade — byVersion removed) ----
 
-it("findSuperpowersScriptsDir: repo submodule 优先", () => {
+it("findSuperpowersScriptsDir: repo submodule takes priority", () => {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-scripts-repo-")));
   execFileSync("git", ["init", "-q", dir]);
   const scripts = path.join(dir, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
@@ -237,7 +237,7 @@ it("findSuperpowersScriptsDir: repo submodule 优先", () => {
   expect(findSuperpowersScriptsDir(dir)).toBe(scripts);
 });
 
-it("findSuperpowersScriptsDir: cache 版本序（oldest-first via semver）+ Claude 优先 Cursor", () => {
+it("findSuperpowersScriptsDir: cache version order (oldest-first via semver) + Claude before Cursor", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-scripts-cache-"));
   const claudeRoot = path.join(dir, ".claude", "plugins", "cache", "oscaner", "superpowers");
   const cursorRoot = path.join(dir, ".cursor", "plugins", "cache", "oscaner", "superpowers");
@@ -260,7 +260,7 @@ it("findSuperpowersScriptsDir: cache 版本序（oldest-first via semver）+ Cla
   }
 });
 
-it("findSuperpowersScriptsDir: 无 repo submodule + 无 cache → null", () => {
+it("findSuperpowersScriptsDir: no repo submodule + no cache → null", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-scripts-none-"));
   const origHome = process.env.HOME;
   process.env.HOME = path.join(dir, "nohome");
@@ -273,7 +273,7 @@ it("findSuperpowersScriptsDir: 无 repo submodule + 无 cache → null", () => {
 
 // ---- brief + plan constraints ----
 
-it("runTask: brief 已存在 + 含 TASK_BASE: → pass（dry-run exit 0）", async () => {
+it("runTask: brief exists + contains TASK_BASE: → pass (dry-run exit 0)", async () => {
   const ws = setupWorkspace();
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
@@ -283,7 +283,7 @@ it("runTask: brief 已存在 + 含 TASK_BASE: → pass（dry-run exit 0）", asy
   expect(res.h1[0]).toBe("status: APPROVED");
 });
 
-it("runTask #173: plan 路径不存在 → 'plan file not found'", async () => {
+it("runTask #173: plan path does not exist → 'plan file not found'", async () => {
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
     env: { ...baseEnv(tmpdir()), PLAN_FILE: "/nonexistent/plan.md" },
@@ -294,7 +294,7 @@ it("runTask #173: plan 路径不存在 → 'plan file not found'", async () => {
 
 // ---- runReviewPackage ----
 
-it("runReviewPackage: 传第 4 参数 OUTFILE = <workspace>/review-<base7>..<head7>.diff", async () => {
+it("runReviewPackage: passes 4th arg OUTFILE = <workspace>/review-<base7>..<head7>.diff", async () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-outfile-"));
   const mockDir = mkdtempSync(path.join(tmpdir(), "mock-scripts-"));
 
@@ -324,9 +324,9 @@ it("runReviewPackage: 传第 4 参数 OUTFILE = <workspace>/review-<base7>..<hea
   expect(captured.startsWith(ws)).toBe(true);
 });
 
-// ---- P1 #173 跨仓回归（plan 派生分支）----
+// ---- P1 #173 cross-repo regression (plan-derived branch) ----
 
-it("runTask #173: plan 在仓库 A、cwd 在仓库 B → workspace 落于 A，B 内无 .superpowers", async () => {
+it("runTask #173: plan in repo A, cwd in repo B → workspace lands in A, B has no .superpowers", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a-")));
   const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b-")));
   gitInit(repoA);
@@ -343,7 +343,7 @@ it("runTask #173: plan 在仓库 A、cwd 在仓库 B → workspace 落于 A，B 
   expect(existsSync(path.join(repoB, ".superpowers"))).toBe(false);
 });
 
-it("runTask #173: 无 plan 无 CDD_WORKSPACE → 'cannot resolve repo root'", async () => {
+it("runTask #173: no plan no CDD_WORKSPACE → 'cannot resolve repo root'", async () => {
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
     env: cleanEnv(), cwd: mkdtempSync(path.join(tmpdir(), "cdd-bare-")), noExit: true,
@@ -351,7 +351,7 @@ it("runTask #173: 无 plan 无 CDD_WORKSPACE → 'cannot resolve repo root'", as
   expect(res.exitCode).toBe(1);
 });
 
-// 直设分支黑盒变体：CDD_TASK_BRIEF/CDD_HANDOFF_PATH 指到仓库外路径，brief 预写含 TASK_BASE 行。
+// Direct-set branch black-box variant: CDD_TASK_BRIEF/CDD_HANDOFF_PATH point outside the repo, brief pre-written with TASK_BASE line.
 function directWorkspaceCase(wsDir, extraEnv = {}) {
   const briefOut = mkdtempSync(path.join(tmpdir(), "cdd-brief-out-"));
   const env = cleanEnv({
@@ -366,20 +366,20 @@ function directWorkspaceCase(wsDir, extraEnv = {}) {
   });
 }
 
-it("runTask #173: CDD_WORKSPACE 直设（git 目录）→ exit 0", async () => {
+it("runTask #173: CDD_WORKSPACE direct-set (git directory) → exit 0", async () => {
   const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
   gitInit(wsGit);
   const res = await directWorkspaceCase(wsGit);
   expect(res.exitCode).toBe(0);
 });
 
-it("runTask #173: CDD_WORKSPACE 直设（裸 TMPDIR 非 git）→ exit 0（repoRoot 容忍语义）", async () => {
+it("runTask #173: CDD_WORKSPACE direct-set (bare TMPDIR, non-git) → exit 0 (repoRoot tolerance semantics)", async () => {
   const bare = mkdtempSync(path.join(tmpdir(), "cdd-ws-bare-"));
   const res = await directWorkspaceCase(bare);
   expect(res.exitCode).toBe(0);
 });
 
-it("resolveRepoRoot #173: CDD_WORKSPACE 直设 → repoRoot=git toplevel；裸 TMPDIR → null", () => {
+it("resolveRepoRoot #173: CDD_WORKSPACE direct-set → repoRoot=git toplevel; bare TMPDIR → null", () => {
   const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
   gitInit(wsGit);
   expect(resolveRepoRoot({ env: { CDD_WORKSPACE: wsGit } }).repoRoot).toBe(wsGit);
@@ -387,7 +387,7 @@ it("resolveRepoRoot #173: CDD_WORKSPACE 直设 → repoRoot=git toplevel；裸 T
   expect(resolveRepoRoot({ env: { CDD_WORKSPACE: bare } }).repoRoot).toBeNull();
 });
 
-it("runTask #173: CDD_WORKSPACE 与 plan 同给 → workspace 落 plan 派生路径，env 被忽略", async () => {
+it("runTask #173: CDD_WORKSPACE + plan both given → workspace lands at plan-derived path, env ignored", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-both-")));
   gitInit(repoA);
   const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));

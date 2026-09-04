@@ -67,7 +67,7 @@
 | `packages/osuperpowers/package.json` | 删除 bin 条目，新增 cdd-engine 依赖 |
 | `packages/osuperpowers/skills/init/SKILL.md` | Enh G：移除 harness 子命令 |
 | `packages/osuperpowers/skills/init/harness.md` | 新增 detect-engine 节点 |
-| `packages/osuperpowers/skills/cli-driven-development/SKILL.md` | Enh F：detect-engine 步骤 |
+| `packages/osuperpowers/skills/cli-driven-development/SKILL.md` | Enh F：detect-engine 步骤 + Bug M：删除 deferred/ledger 节点 |
 
 ### 删除目录
 
@@ -1891,10 +1891,10 @@ git commit -m "feat(osuperpowers): remove bin/engine/, add @oscaner-skills/cdd-e
 
 ---
 
-### Task 12: SKILL.md 更新（Enh F detect-engine + Enh G init 单命令）+ emit
+### Task 12: SKILL.md 更新（Enh F detect-engine + Enh G init 单命令 + Bug M deferred/ledger 清理）+ emit
 
 **Files:**
-- Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（Enh F）
+- Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（Enh F + Bug M）
 - Modify: `packages/osuperpowers/skills/init/SKILL.md`（Enh G）
 - Modify: `packages/osuperpowers/skills/init/harness.md`（Enh G + detect-engine 节点）
 
@@ -1902,9 +1902,58 @@ git commit -m "feat(osuperpowers): remove bin/engine/, add @oscaner-skills/cdd-e
 - Produces: `init` 无需 `harness` 子命令；`init --harness claude` 直接安装
 - Produces: `cli-driven-development` SKILL.md 在调用 cdd-select 前检测 cdd-engine
 
-- [ ] **Step 1: 更新 cli-driven-development/SKILL.md（Enh F）**
+- [ ] **Step 1: 更新 cli-driven-development/SKILL.md（Enh F + Bug M）**
 
-在 `cli-driven-development/SKILL.md` 的 harness 选择节点（`select-harness` 或等价节点）之前，添加 `detect-engine` 步骤：
+**Bug M 清理**（在 Enh F detect-engine 步骤之前先执行）：
+
+从 `cli-driven-development/SKILL.md` 中删除以下内容：
+
+1. **删除 flowchart 中的 deferred 分支**：
+```
+# 删除以下行：
+E -->|all complete| G{any-deferred?}
+G -->|no| K[branch-review]
+G -->|yes| H[deferred-disposition]
+H -->|fix-now| I[deferred-sweep-loop]
+H -->|carry-skip| K
+H -->|3x unrecognized| Z5((BLOCKED: menu-exhausted))
+I -->|per-task sweep + re-review| K
+
+# 替换为：
+E -->|all complete| K[branch-review]
+```
+
+2. **删除节点定义**：删除 `any-deferred?`、`deferred-disposition`、`deferred-sweep-loop` 的完整节点定义块
+
+3. **更新 `task-complete?` 节点**：删除 ledger 概念，改为：
+```markdown
+### `task-complete?` (decision node)
+
+- **Do**: Check `progress.json` + all task handoffs: task N is complete when
+  `rounds["task-review"] >= 1` AND latest task-review handoff `status: APPROVED`.
+  **task-review is unskippable**: every task must go through implement → task-review →
+  (fix if CHANGES_REQUESTED) chain; skipping task-review is forbidden.
+- **Read**: `progress.json` + `task-N-task-review-R.json`
+- **Exit**: more tasks remain → `dispatch-mode` (next task's implement);
+  all tasks APPROVED → `branch-review`.
+- **Fail**: task-review handoff missing or status non-APPROVED → BLOCKED: engine-error.
+```
+
+4. **删除 `dispatch-mode` 中的 `--scope` 参数描述**：移除 `[--scope blocker-only|deferred-sweep]` 部分
+
+5. **删除 Invariant I4**（Fix Dual-Channel Contract）
+
+6. **删除 Failure Modes 中的 deferred-disposition 相关条目**
+
+验证：
+```bash
+grep -c "deferred\|ledger\|sweep\|any-deferred" packages/osuperpowers/skills/cli-driven-development/SKILL.md
+# 预期：0（无残留）
+```
+
+**Enh F detect-engine 步骤**（Bug M 清理后追加）：
+
+在 `cli-driven-development/SKILL.md` 的 `select-harness` 节点之前，添加 `detect-engine` 步骤：
 
 ```markdown
 ### detect-engine

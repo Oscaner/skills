@@ -57,7 +57,7 @@
 | `packages/cdd-engine/templates/spec-review.md` | 迁移（原 templates/） |
 | `packages/cdd-engine/templates/plan-review.md` | 迁移（原 templates/） |
 | `packages/cdd-engine/templates/branch-review.md` | 迁移 + 语义修正（原 templates/） |
-| `packages/cdd-engine/templates/handoff-schema.json` | 迁移（原 templates/） |
+| `packages/cdd-engine/templates/cdd-handoff-schema.json` | 迁移（原 templates/） |
 | `packages/cdd-engine/templates/docs-handoff-schema.json` | 迁移（原 templates/） |
 
 ### 修改文件（osuperpowers 包）
@@ -446,7 +446,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // From bin/lib/ → packages/cdd-engine/
 const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
-const HANDOFF_SCHEMA_PATH = path.join(PKG_ROOT, 'templates', 'handoff-schema.json');
+const HANDOFF_SCHEMA_PATH = path.join(PKG_ROOT, 'templates', 'cdd-handoff-schema.json');
 
 // Lazy-initialized ajv instance + compiled validator.
 let _validator = null;
@@ -466,7 +466,7 @@ export function loadHandoffSchema() {
   return _schema;
 }
 
-// Validates a handoff object against handoff-schema.json.
+// Validates a handoff object against cdd-handoff-schema.json.
 // Returns {valid: true} or {valid: false, reason: string}.
 export function validateHandoffSchema(obj) {
   const validate = getValidator();
@@ -477,7 +477,7 @@ export function validateHandoffSchema(obj) {
 }
 ```
 
-> **注意**：`handoff-schema.json` 在 Task 7 中才迁移到 `packages/cdd-engine/templates/`。Task 3 执行时，`PKG_ROOT` 指向 `packages/cdd-engine/`，该路径下 `handoff-schema.json` 尚不存在。因此 schema-utils.mjs 在 Task 7 之前无法通过文件路径测试，Unit test 使用 mock 绕过文件读取。
+> **注意**：`cdd-handoff-schema.json` 在 Task 7 中才迁移到 `packages/cdd-engine/templates/`。Task 3 执行时，`PKG_ROOT` 指向 `packages/cdd-engine/`，该路径下 `cdd-handoff-schema.json` 尚不存在。因此 schema-utils.mjs 在 Task 7 之前无法通过文件路径测试，Unit test 使用 mock 绕过文件读取。
 
 - [ ] **Step 2: 写 schema-utils 测试（mock 文件读取）**
 
@@ -491,7 +491,7 @@ vi.mock('node:fs', async (importOriginal) => {
   return {
     ...actual,
     readFileSync: vi.fn((p, enc) => {
-      if (String(p).endsWith('handoff-schema.json')) {
+      if (String(p).endsWith('cdd-handoff-schema.json')) {
         return JSON.stringify({
           type: 'object',
           required: ['task', 'phase', 'status', 'findings', 'artifacts', 'blocker'],
@@ -639,7 +639,7 @@ vi.mock('node:fs', async (importOriginal) => {
     ...actual,
     existsSync: vi.fn((p) => String(p).endsWith('.md') || String(p).endsWith('.json')),
     readFileSync: vi.fn((p) => {
-      if (String(p).includes('handoff-schema.json')) {
+      if (String(p).includes('cdd-handoff-schema.json')) {
         return JSON.stringify({ type: 'object', required: ['task', 'phase', 'status', 'findings', 'artifacts', 'blocker'], properties: { task: { type: 'integer' }, phase: { type: 'string' }, status: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' }, blocker: { type: 'string' } } });
       }
       if (String(p).endsWith('implement.md')) return 'brief: {{BRIEF}}\nhandoff: {{HANDOFF}}\n{{HANDOFF_STUB}}';
@@ -959,8 +959,8 @@ vi.mock('node:fs', async (importOriginal) => {
     ...actual,
     existsSync: vi.fn((p) => true),  // pretend all template files exist
     readFileSync: vi.fn((p, enc) => {
-      // Stub handoff-schema.json for schema-utils
-      if (String(p).endsWith('handoff-schema.json')) {
+      // Stub cdd-handoff-schema.json for schema-utils
+      if (String(p).endsWith('cdd-handoff-schema.json')) {
         return JSON.stringify({ type: 'object', required: ['task','phase','status','findings','artifacts','blocker'], properties: { task:{type:'integer'}, phase:{type:'string'}, status:{type:'string'}, findings:{type:'array'}, artifacts:{type:'object'}, blocker:{type:'string'} } });
       }
       // Stub implement.md template
@@ -1112,7 +1112,7 @@ git commit -m "fix(cdd-engine): docs-runner Bug L — subprocess cwd = gitToplev
 - Create: `packages/cdd-engine/templates/spec-review.md`
 - Create: `packages/cdd-engine/templates/plan-review.md`
 - Create: `packages/cdd-engine/templates/branch-review.md`（语义修正）
-- Create: `packages/cdd-engine/templates/handoff-schema.json`
+- Create: `packages/cdd-engine/templates/cdd-handoff-schema.json`
 - Create: `packages/cdd-engine/templates/docs-handoff-schema.json`
 - Create: `packages/cdd-engine/bin/tests/templates.content.test.mjs`
 
@@ -1164,10 +1164,11 @@ cp packages/osuperpowers/templates/task-review.md \
 - [ ] **Step 3: 复制 _templates 文件**
 
 ```bash
-cp packages/osuperpowers/templates/spec-review.md      packages/cdd-engine/templates/
-cp packages/osuperpowers/templates/plan-review.md      packages/cdd-engine/templates/
-cp packages/osuperpowers/templates/handoff-schema.json packages/cdd-engine/templates/
-cp packages/osuperpowers/templates/docs-handoff-schema.json packages/cdd-engine/templates/
+cp packages/osuperpowers/skills/_templates/spec-review.md      packages/cdd-engine/templates/
+cp packages/osuperpowers/skills/_templates/plan-review.md      packages/cdd-engine/templates/
+# 改名迁移：handoff-schema.json → cdd-handoff-schema.json（语义明确化）
+cp packages/osuperpowers/skills/_templates/handoff-schema.json packages/cdd-engine/templates/cdd-handoff-schema.json
+cp packages/osuperpowers/skills/_templates/docs-handoff-schema.json packages/cdd-engine/templates/
 ```
 
 - [ ] **Step 4: 复制并修正 branch-review.md（语义修正）**
@@ -1195,7 +1196,7 @@ cp packages/osuperpowers/templates/branch-review.md packages/cdd-engine/template
 {{HANDOFF_STUB}}
 ```
 
-（`renderHandoffStub` 会根据 `handoff-schema.json` 生成正确 stub。）
+（`renderHandoffStub` 会根据 `cdd-handoff-schema.json` 生成正确 stub。）
 
 - [ ] **Step 5: 验证 task-review.md 节顺序（Bug C 回归测试）**
 

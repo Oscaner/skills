@@ -40,7 +40,7 @@ P1 增量。跨 phase 惯例见 [overall](./2026-09-04-cdd-engine-overhaul-overa
 - `bin/review-loop.mjs`（**迁移**，位于 `bin/engine/review-loop.mjs`，非 lib/ 内）
 - `bin/harness-registry.json`
 - `bin/tests/`（随代码迁移）
-- `templates/`：所有模板 flat 目录，取代 `skills/` 层级（implement.md、task-review.md、fix.md、spec-review.md、plan-review.md、branch-review.md、handoff-schema.json、docs-handoff-schema.json，**迁移**）
+- `templates/`：所有模板 flat 目录，取代 `skills/` 层级（implement.md、task-review.md、fix.md、spec-review.md、plan-review.md、branch-review.md、cdd-handoff-schema.json、docs-handoff-schema.json，**迁移**）
 
 **osuperpowers 保留**：
 - `bin/gate/`（跨 harness gate hooks）
@@ -116,7 +116,7 @@ Commander 自动生成 `--help`；parse 失败自动 exit 2（对齐现有行为
 | 替换项 | 旧实现 | 新实现 | 理由 |
 |--------|--------|--------|------|
 | subprocess | 手写 `spawnCapture`（timeout/SIGTERM/SIGKILL/unkillable） | **`execa` v9** | 内置 timeout、forceKill、env strip，消除 ~60 行手写逻辑 |
-| JSON Schema 验证 | 手写 `schema-utils.mjs` | **`ajv` v8** | 直接消费现有 `handoff-schema.json`，无需重写 |
+| JSON Schema 验证 | 手写 `schema-utils.mjs` | **`ajv` v8** | 直接消费现有 `cdd-handoff-schema.json`，无需重写 |
 | 版本排序 | 手写 `byVersion` | **`semver`** | 边界覆盖更完整 |
 | stream-json 解析 | 手写 `extractStreamJsonFinal`（复杂 scanner） | 行级 `JSON.parse`（无第三方） | Claude stream-json 输出为 NDJSON，split+parse 即可 |
 | transient 重试 | 无 | 手写 retry loop（无第三方） | p-retry 基于 throw 触发，与 `reject:false` 的 execa 不兼容；手写 loop 更简洁 |
@@ -153,7 +153,7 @@ export async function invokeCli(entry, prompt, mode, env, cwd, timeoutMs) {
 
 `spawnCapture` 同理替换，接口不变（调用方零改动）。`invokeCliOverride` DI 参数**删除**（由 Vitest 模块 mock 替代）。
 
-**`ajv` 替换范围**（`schema-utils.mjs`）：仅 `validateHandoffSchema` 函数用 ajv 替换（读 `handoff-schema.json` → ajv compile → validate）；`loadHandoffSchema`（读 JSON 文件）保留但可能简化为 ajv 内部持有 schema。`schema-utils.mjs` 文件保留，不删除。
+**`ajv` 替换范围**（`schema-utils.mjs`）：仅 `validateHandoffSchema` 函数用 ajv 替换（读 `cdd-handoff-schema.json` → ajv compile → validate）；`loadHandoffSchema`（读 JSON 文件）保留但可能简化为 ajv 内部持有 schema。`schema-utils.mjs` 文件保留，不删除。
 
 **`p-retry` 不引入**。Bug #109 transient 重试改用手写 retry loop（`runner.mjs` 内）：
 

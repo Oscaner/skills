@@ -16,7 +16,7 @@ export const LINE_BUDGETS = Object.freeze({
 });
 
 const PLACEHOLDERS = ['WORKSPACE', 'BRIEF', 'HANDOFF', 'FINDINGS', 'CONSTRAINTS',
-                      'FIXED_POINT', 'TASK', 'FINDINGS_SCOPE'];
+                      'FIXED_POINT', 'TASK'];
 
 export function lineBudget(tier) {
   if (!(tier in LINE_BUDGETS)) throw new Error(`unknown line budget tier: ${tier}`);

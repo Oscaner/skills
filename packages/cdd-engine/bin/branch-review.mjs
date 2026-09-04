@@ -15,6 +15,8 @@ import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from './utils/exit.
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REG_PATH = fileURLToPath(new URL('./harness-registry.json', import.meta.url));
+const USAGE = 'usage: branch-review --harness <name> --plan <path> --base <sha> --head <sha> [--round <n>]';
+const errorUsage = () => USAGE + '\n';
 const DRY_RUN = process.env.CDD_DRY_RUN === '1';
 
 const program = new Command();
@@ -69,7 +71,7 @@ program
 
     // Render branch-review template
     const schema = loadHandoffSchema();
-    const handoffStub = renderHandoffStub(schema, 'branch-review', 0);
+    const handoffStub = renderHandoffStub(schema, 'branch-review', 1); // task minimum 1 in CDD schema
     const prompt = renderTemplate('branch-review', {
       BASE: base, HEAD: head, PLAN: plan,
       HANDOFF: handoffPath, HANDOFF_STUB: handoffStub,

@@ -27,7 +27,7 @@
 
 ## Handoff Output
 
-Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) from file paths only (per [`controller-handoff.md`](../docs/controller-handoff.md) H1–H2 file-only discipline).
+Write/update `{{HANDOFF}}` with only JSON fields shown below (file-only; the same schema ships at templates/schema/cdd-handoff-schema.json). Do not embed report bodies in the handoff — point at files via `artifacts`.
 
 ### Segment: task-review
 

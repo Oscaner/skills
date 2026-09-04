@@ -10,7 +10,11 @@ export function resolveTimeoutMs(env, mode) {
   const modeEnv = { task: 'CDD_TASK_TIMEOUT', review: 'CDD_REVIEW_TIMEOUT', research: 'CDD_RESEARCH_TIMEOUT' };
   const modeKey = modeEnv[mode];
   const perMode = modeKey ? env[modeKey] : undefined;
-  if (perMode !== undefined) return Math.max(1, Number(perMode)) * 1000;
+  if (perMode !== undefined) {
+    const n = Number(perMode);
+    if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid input → default, not ~1ms SIGTERM
+    return Math.max(1, n) * 1000;
+  }
   const globalRaw = env.CDD_CLI_TIMEOUT;
   if (globalRaw !== undefined) {
     const seconds = Math.max(1, Math.ceil(Number(globalRaw) / STEP_SECONDS) * STEP_SECONDS);

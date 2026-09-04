@@ -73,7 +73,8 @@ export function gitVerbAllowed(command) {
 // 否则落到只读 git 白名单。引擎入口为 cdd-task.mjs。
 function shellAllowed(command) {
   if (typeof command !== "string") return false;
-  if (/(^|\/)cdd-task\.mjs|sdd-workspace|task-brief|review-package/.test(command)) return true;
+  // cdd-engine bins on PATH (cdd-task / docs-task / branch-review) are the sanctioned entry points.
+  if (/(^|\s)(cdd-task|docs-task|branch-review)(\s|$)/.test(command)) return true;
   return gitVerbAllowed(command);
 }
 

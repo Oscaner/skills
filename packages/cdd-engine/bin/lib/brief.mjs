@@ -1,4 +1,4 @@
-// packages/osuperpowers/bin/engine/lib/brief.mjs — CDD task brief generator + validator.
+// packages/cdd-engine/bin/lib/brief.mjs — CDD task brief generator + validator.
 // generateBrief: mechanically extract ### Task N: section from plan, append TASK_BASE, write file.
 //   第 4 参数 repoRoot：取该目录所在仓库的 HEAD 作 TASK_BASE（#173 —— 与调用方 cwd 解耦）。
 // validateBrief: check brief contains TASK_BASE: line.

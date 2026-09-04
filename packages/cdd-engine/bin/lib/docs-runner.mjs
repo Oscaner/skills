@@ -73,7 +73,7 @@ export async function runDocsTask({
   }
 
   const handoff = JSON.parse(readFileSync(resolvedHandoffPath, "utf8"));
-  const sv = validateHandoffSchema(handoff);
+  const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
   if (!sv.valid) {
     writeHandoff(resolvedHandoffPath, {
       phase: mode,

@@ -19,11 +19,11 @@
 3. Update `<workspace>/task-N-test-evidence.json` after running verification commands.
 4. Update the implementer report at the path from the brief (or as the brief specifies for fix rounds).
 5. **Commit (base/head contract):**
-   - `base` = `{{FIXED_POINT}}`（fix 派发时的 `FIX_BASE`，即上次 handoff `commits.head`）。
-   - 修复验证通过后：若本轮已产生**一个或多个**常规提交覆盖 fix 范围改动 → `head` = `git rev-parse HEAD`（不重复提交）。
-   - 否则：创建**一个**常规提交（`fix:` 为主，或匹配改动的 `feat:`/`refactor:`），subject 对齐 fix 范围；无署名 / co-author / AI 生成尾注；然后 `head` = `git rev-parse HEAD`。
-   - 本轮无 fix 范围改动（相对 `FIX_BASE` 无 diff）→ 不提交，`head` 保持原样。
-   - 返回时仍有未提交改动 → `status: BLOCKED`（`cdd-task.mjs --harness <name>` 会强制校验）。
+   - `base` = `{{FIXED_POINT}}` (the `FIX_BASE` of this fix dispatch — the prior handoff's `commits.head`).
+   - After the fix verifies: if this round already produced **one or more** conventional commits covering the fix scope → set `head` = `git rev-parse HEAD` (do not create duplicate commits).
+   - Otherwise: create **one** conventional commit (`fix:` primary, or a matching `feat:`/`refactor:`), subject aligned to the fix scope; no attribution / co-author / AI-generation trailers; then `head` = `git rev-parse HEAD`.
+   - No fix-scope diff this round (relative to `FIX_BASE`) → no commit; keep `head` unchanged.
+   - Uncommitted changes at return → `status: BLOCKED` (the `cdd-task` runner enforces the commit contract).
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
 6. Write handoff per `## Handoff Output` below.
 7. Do **not** write ledger.
@@ -43,7 +43,7 @@ Fix prose and test output live in files only.
 
 ## Handoff Output
 
-Write/update `{{HANDOFF}}` per [`handoff-schema.md`](../docs/handoff-schema.md) from file paths only (per [`controller-handoff.md`](../docs/controller-handoff.md) H1–H2 file-only discipline).
+Write/update `{{HANDOFF}}` with only JSON fields shown below (file-only; the same schema ships at templates/schema/cdd-handoff-schema.json). Do not embed report bodies in the handoff — point at files via `artifacts`.
 
 ### Segment: fix
 

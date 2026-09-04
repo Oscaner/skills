@@ -44,7 +44,7 @@ CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 valida
 - `scripts/emit.mjs` — unified emit tool (derives source.json + all harness manifests)
 - `scripts/ci-validate.mjs` — Node validation orchestration
 - `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
-- `packages/osuperpowers/bin/engine/` — CDD engine (cdd-task.mjs, cdd-review.mjs, runner.mjs, registry, templates)
+- `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters
 
 For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).

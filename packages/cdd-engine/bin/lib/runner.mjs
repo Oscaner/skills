@@ -571,7 +571,11 @@ export async function runTask(harness, taskNum, opts = {}) {
     return finish(agentRc, h1, "", noExit);
   }
 
-  // 13. OK (dry-run does not write handoff — aligns bash: bash dry-run branch does not write, Node does not either)
+  // 13. OK (dry-run does not write handoff — aligns bash: bash dry-run branch does not write, Node does not either).
+  //     Advance the round counter on success too — rounds[mode] must reflect the last COMPLETED dispatch so
+  //     handoffStatus/isTaskPending (rounds["task-review"] >= 1) see successful reviews as done (Bug N
+  //     task-complete? contract). Previously only failure paths incremented, leaving successes at round 0.
+  if (!dryRun && mode !== "implement") incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
   return finish(0, h1, "", noExit);
 }
 

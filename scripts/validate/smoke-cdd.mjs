@@ -7,9 +7,9 @@
 // Prereq: the cdd-task / branch-review bins must be on PATH — run `cd packages/cdd-engine && npm link`
 // first (CI does this via the link-cdd-engine action). Failures surface a clear retry hint below.
 
-import { execaCommandSync } from "execa";
+import { execaCommandSync, execaSync } from "execa";
 
-const root = process.cwd(); // repo toplevel（run.mjs 以仓库根为 cwd 调用）
+const root = process.cwd(); // repo toplevel (run.mjs invokes with the repo root as cwd)
 
 // Clear hint when the engine bins are not linked (npm link prerequisite).
 function requireBin(bin) {
@@ -35,8 +35,12 @@ export function main() {
     ["branch-review", "--harness", "claude", "--plan", plan, "--base", head, "--head", head],
   ];
   for (const [i, args] of cmds.entries()) {
-    const out = execaCommandSync(args.join(" "), { env: { ...process.env, CDD_DRY_RUN: "1" }, cwd: root });
+    // Array form (no shell join) — every arg is a fixed constant today; keeps arg quoting if they ever change.
+    const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CDD_DRY_RUN: "1" }, cwd: root });
     const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
+    // The four literals mirror the engine's 4-line H1 contract verbatim. Authoritative emitters:
+    // packages/cdd-engine/bin/lib/runner.mjs dryRunH1Block (cdd-task modes) and
+    // packages/cdd-engine/bin/branch-review.mjs DRY_RUN block — coordinate H1 shape changes there too.
     const ok = /status: APPROVED/m.test(lastBlock)
       && /commits: base=/.test(lastBlock)
       && /artifacts: /.test(lastBlock)

@@ -8,7 +8,7 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 ## When to add a changeset
 
-Run `pnpm changeset` when you change behavior or wiring under `packages/osuperpowers/`. Version bumps are computed by `node scripts/version-packages.mjs`:
+Run `pnpm changeset` when you change behavior or wiring under `packages/osuperpowers/`. Version bumps are computed by `pnpm run version` (`node scripts/run.mjs version`):
 
 - `@oscaner-skills/osuperpowers` → plain semver bump (patch / minor / major per the changeset's declared type)
 

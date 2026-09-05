@@ -4,7 +4,7 @@
 
 ## Marketplace --> plugin --> skill chain
 
-**Package-as-source:** the canonical registry [marketplace/source.json](../../marketplace/source.json) is **derived**, not hand-edited. `pnpm run emit` ([scripts/emit.mjs](../../scripts/emit.mjs)) rebuilds it from first-party `package.json#oscaner-plugin` fields (`packages/`) plus vendored assembly templates ([scripts/lib/publish-vendor.mjs](../../scripts/lib/publish-vendor.mjs)), then regenerates every harness-specific manifest:
+**Package-as-source:** the canonical registry [marketplace/source.json](../../marketplace/source.json) is **derived**, not hand-edited. `pnpm run emit` ([scripts/emit/all.mjs](../../scripts/emit/all.mjs), wired as `run.mjs emit`) rebuilds it from first-party `package.json#oscaner-plugin` fields (`packages/`) plus vendored assembly templates ([scripts/release/vendor-assembly.mjs](../../scripts/release/vendor-assembly.mjs)), then regenerates every harness-specific manifest:
 
 1. `packages/<plugin>/package.json` --> `oscaner-plugin` field -- first-party source of truth (name/version/contentRoot/harnesses/hooks).
 2. `vendors/<name>/` + assembly templates -- vendored plugin descriptors (upstream submodules; version read from the vendored files).
@@ -94,11 +94,11 @@ Missing the skill dir --> the skill is invisible to Claude Code. Skipping `pnpm 
 
 **Add a new first-party plugin** -- the marketplace is **package-as-source**, so wiring is automatic:
 
-1. Create `packages/<name>/package.json` with the `oscaner-plugin` field (`contentRoot`, `harnesses`, optional `hooks`). `deriveFirstPartyNames` ([scripts/lib/emit/manifests.mjs](../../scripts/lib/emit/manifests.mjs)) discovers it by scanning `packages/*` for that field -- no hand registration.
+1. Create `packages/<name>/package.json` with the `oscaner-plugin` field (`contentRoot`, `harnesses`, optional `hooks`). `deriveFirstPartyNames` ([scripts/emit/manifests.mjs](../../scripts/emit/manifests.mjs)) discovers it by scanning `packages/*` for that field -- no hand registration.
 2. `pnpm run emit` derives `marketplace/source.json` from it and regenerates the marketplace documents; `pnpm-workspace.yaml` (`packages/*`) already picks it up.
-3. Add a changeset naming it --> released as `@oscaner-skills/<name>` by [scripts/version-packages.mjs](../../scripts/version-packages.mjs).
+3. Add a changeset naming it --> released as `@oscaner-skills/<name>` by [scripts/release/version-packages.mjs](../../scripts/release/version-packages.mjs) (wired as `run.mjs version`).
 
-Per-harness hooks: map harness --> path under `oscaner-plugin.hooks`; emit writes the hooks file. `oscaner-plugin.harnesses` is **declarative-only / informational** -- no script consumes it (the `harnessesNote` in each `packages/*/package.json` documents this), and emit hardcodes the per-plugin manifest set. Adding a genuinely new harness manifest requires an emitter in `scripts/emit.mjs` (see the caveat below). Caveat: the per-plugin harness emission in `scripts/emit.mjs` is currently bespoke for `osuperpowers` -- a new plugin type needs an emitter added there (or committed manifests that satisfy the cursor path assertions). Vendoring an upstream plugin is the opposite path (`vendors/<name>` submodule + `listVendors`/`ASSEMBLY_TEMPLATE` in `scripts/lib/publish-vendor.mjs` + `VENDOR_PLUGINS` in `scripts/lib/emit/source.mjs`).
+Per-harness hooks: map harness --> path under `oscaner-plugin.hooks`; emit writes the hooks file. `oscaner-plugin.harnesses` is **declarative-only / informational** -- no script consumes it (the `harnessesNote` in each `packages/*/package.json` documents this), and emit hardcodes the per-plugin manifest set. Adding a genuinely new harness manifest requires an emitter in `scripts/emit/osuperpowers.mjs` (see the caveat below). Caveat: the per-plugin harness emission in `scripts/emit/osuperpowers.mjs` is currently bespoke for `osuperpowers` -- a new plugin type needs an emitter added there (or committed manifests that satisfy the cursor path assertions). Vendoring an upstream plugin is the opposite path (`vendors/<name>` submodule + `listVendors` in `scripts/release/vendor-registry.mjs` + `ASSEMBLY_TEMPLATE` in `scripts/release/vendor-assembly.mjs` + `VENDOR_PLUGINS` in `scripts/emit/source.mjs`).
 
 ## Verifying a change didn't break the marketplace
 
@@ -134,7 +134,7 @@ for d in packages/osuperpowers/skills/*/; do
 done && echo "OK -- all osuperpowers skill dirs have SKILL.md"
 ```
 
-**3. No skill on disk is missing from `plugin.json`** (the reverse breakage -- only applies to explicit-list manifests; a directory-form manifest *is* the declaration, so there is no orphan concept). None of the current plugins use the list form -- `pnpm run validate` step 0/1 covers this via `scripts/emit.mjs --check`:
+**3. No skill on disk is missing from `plugin.json`** (the reverse breakage -- only applies to explicit-list manifests; a directory-form manifest *is* the declaration, so there is no orphan concept). None of the current plugins use the list form -- `pnpm run validate` step 0 (emit freshness) covers this via `scripts/emit/check.mjs` (wired as `run.mjs emit-check`):
 ```bash
 pnpm run emit:check
 ```
@@ -151,17 +151,17 @@ All three pass --> the marketplace still resolves.
 
 **5. Unified emit validates:**
 ```bash
-pnpm run emit:check        # scripts/emit.mjs --check -- drift --> exit 1
+pnpm run emit:check        # run.mjs emit-check (scripts/emit/check.mjs) -- drift --> exit 1
 ```
 
-**Note:** on a fresh clone, run `git submodule update --init` before `emit --check` -- `emit`/validate resolve the `superpowers` submodule for version sync (`marketplace-utils.mjs` / `validate-version-sync.mjs`). The emitter does **not** copy upstream skills into `.agents/skills/` (osuperpowers skills only; osuperpowers Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
+**Note:** on a fresh clone, run `git submodule update --init` before `emit:check` -- `emit`/`validate` resolve the `superpowers` submodule for version sync (`marketplace-utils.mjs` / `scripts/validate/version-sync.mjs`). The emitter does **not** copy upstream skills into `.agents/skills/` (osuperpowers skills only; osuperpowers Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
 
 **6-9. Full local CI (recommended):**
 ```bash
 pnpm run validate
 ```
 
-This runs steps 1-5 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.mjs](../../scripts/ci-validate.mjs); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
+This runs steps 1-5 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/validate/index.mjs](../../scripts/validate/index.mjs) (wired as `run.mjs validate`); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
 
 ## CDD Engine internals
 
@@ -226,7 +226,7 @@ One plugin is versioned from this repo: **`osuperpowers`** (independent semver).
 
 **Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](../../.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `vendors/superpowers` (the marketplace version then derives from the vendored files), run `pnpm run emit` (regenerates marketplace/source.json). Merge to `develop`, then release via `develop --> main` as above.
 
-**Version scheme:** `osuperpowers` uses plain semver (`0.1.x`); changesets bump it and release independently as `osuperpowers@{version}`. Driven by `node scripts/version-packages.mjs` and validated by `node scripts/validate-version-sync.mjs`. See [.changeset/README.md](../../.changeset/README.md).
+**Version scheme:** `osuperpowers` uses plain semver (`0.1.x`); changesets bump it and release independently as `osuperpowers@{version}`. Driven by `scripts/release/version-packages.mjs` (wired as `run.mjs version`) and validated by `scripts/validate/version-sync.mjs` (a `run.mjs validate` block). See [.changeset/README.md](../../.changeset/README.md).
 
 **Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with `node scripts/run.mjs apply-rules <protect-develop|protect-main>` (`protect-develop`, `protect-main`; no bypass actors).
 

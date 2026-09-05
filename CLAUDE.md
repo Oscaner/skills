@@ -35,14 +35,14 @@ pnpm run version    # apply changesets to bump versions
 
 > **CRITICAL — emit after every source change:** After editing ANY file under `skills/*/SKILL.md`, `skills/*/docs/*.md`, `docs/*.md`, `hooks/`, or `package.json#oscaner-plugin`, you MUST run `pnpm run emit` before committing. The `.agents/` directory is **derived output** — never edit it directly. If you forget emit, the CI will fail with emit drift. This is the most common mistake in this repo.
 
-CI runs `node scripts/ci-validate.mjs` on PRs to `develop` and `main` (12 validation blocks: emit freshness, plugin.json resolution, skill dirs, hooks, overrides build, rule-reference integrity, engine tests, version sync).
+CI runs `node scripts/run.mjs validate` on PRs to `develop` and `main` (13 validation blocks: emit freshness, plugin.json resolution, skill dirs, hooks, rule-reference integrity, engine tests, version sync).
 
 ## Architecture details
 
 - `packages/` — first-party plugins (osuperpowers)
 - `vendors/` — upstream submodules (superpowers / mattpocock-skills / impeccable); not edited in-tree
-- `scripts/emit.mjs` — unified emit tool (derives source.json + all harness manifests)
-- `scripts/ci-validate.mjs` — Node validation orchestration
+- `scripts/run.mjs emit` — unified emit tool (derives source.json + all harness manifests)
+- `scripts/run.mjs validate` — Node validation orchestration
 - `packages/osuperpowers/hooks/` — PreToolUse gate hooks for Claude + Cursor
 - `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
 - `packages/osuperpowers/bin/gate/adapters/` — per-harness gate adapters

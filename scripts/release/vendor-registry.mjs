@@ -1,7 +1,7 @@
 /**
  * vendor-registry — registry/repository probing for the vendored plugin
- * publish flow (was scripts/lib/publish-vendor.mjs, split out in the release
- * domain extraction).
+ * publish flow (split out of the pre-P2 monolithic publish script in the
+ * release domain extraction).
  *
  * Probe family (all fail-closed: an unexpected registry/network error throws
  * or returns PROBE.ERROR, aborting the release rather than skipping a publish),

@@ -1,7 +1,7 @@
 /**
- * Emit orchestration helpers extracted from `scripts/emit.mjs` so they can be
- * unit-tested in isolation. All take their inputs as parameters — no module
- * state, no repo-root closure.
+ * Emit orchestration helpers extracted from the pre-P2 emit orchestrator so
+ * they can be unit-tested in isolation. All take their inputs as parameters —
+ * no module state, no repo-root closure.
  */
 
 import { existsSync, readdirSync, rmSync, mkdirSync, writeFileSync } from "node:fs";

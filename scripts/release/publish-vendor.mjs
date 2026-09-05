@@ -64,7 +64,7 @@ export function defaultStageRoot(root) {
 }
 
 /**
- * Assemble + publish every vendor; 输出 registry 全量差集到 stdout。
+ * Assemble + publish every vendor; print the full registry gap diff to stdout.
  * @param {string} root repo root
  * @param {{ dryRun?: boolean }} opts
  */
@@ -73,44 +73,44 @@ export function publishAll(root, { dryRun = false } = {}) {
   rmSync(stageRoot, { recursive: true, force: true });
   mkdirSync(stageRoot, { recursive: true });
 
-  // 缓存 vendor 列表 + 版本：避免 publish 循环与 gap 循环重复 listVendors + resolveVendorVersion I/O
+  // Cache the vendor list + versions — avoids repeating listVendors + resolveVendorVersion I/O in the publish and gap loops
   const vendorList = listVendors(root);
   const vendorData = vendorList.map((name) => ({ name, version: resolveVendorVersion(name, root) }));
 
-  const publishedThisRun = []; // 成功发布 / EPUBLISHCONFLICT 归一化的 vendor name 列表
+  const publishedThisRun = []; // vendor names normalized as published (success or EPUBLISHCONFLICT)
 
   // ── Phase 1: stage + publish ────────────────────────────────────────────
   for (const { name, version } of vendorData) {
     const dest = stageVendor(name, root, stageRoot);
 
     if (dryRun) {
-      // dry-run：不探测、不发布，stdout 在函数末尾统一输出 []
+      // dry-run: nothing probed or published — stdout prints [] at the end of the function
       continue;
     }
 
-    // probe（三态）
+    // probe (tri-state)
     const probe = probeRegistryVersion(`@oscaner-skills/${name}`, version);
-    const decision = decideProbe(probe); // E404→publish / exit0→skip / error→throw（release 中止）
+    const decision = decideProbe(probe); // E404→publish / exit0→skip / error→throw (aborts the release)
 
     if (decision === PROBE_CLASS.PUBLISHED) {
       process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published\n`);
-      // 继续：该版本可能缺 tag/Release，由差集补建
+      // Continue: this version may lack a tag/Release — rebuilt out by the gap diff
     }
 
     if (decision === PROBE_CLASS.SHOULD_PUBLISH) {
       try {
         const { stderr } = $.sync({ cwd: dest })`npm publish --access public`;
-        // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
+        // Always write npm logs to stderr (keeps stdout clean)
         if (stderr) process.stderr.write(stderr);
         process.stderr.write(`[publish] @oscaner-skills/${name}@${version} → npm\n`);
         publishedThisRun.push(name);
       } catch (e) {
         const stdout = e.stdout ?? "";
         const stderr = e.stderr ?? "";
-        // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
+        // Always write npm logs to stderr (keeps stdout clean)
         if (stderr) process.stderr.write(stderr);
         if (/EPUBLISHCONFLICT/i.test(stdout + stderr)) {
-          // TOCTOU 归一化：已发布 skip + 记录进 publishedThisRun（进差集）
+          // TOCTOU normalization: skip as already published + record into publishedThisRun (goes into the gap diff)
           process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published (EPUBLISHCONFLICT)\n`);
           publishedThisRun.push(name);
         } else {
@@ -125,16 +125,16 @@ export function publishAll(root, { dryRun = false } = {}) {
     return stageRoot;
   }
 
-  // ── Phase 2: registry 全量差集 ──────────────────────────────────────────
+  // ── Phase 2: registry gap diff ─────────────────────────────────────────
   const items = [];
   for (const { name, version: currentVersion } of vendorData) {
     const registryVersions = listRegistryVersions(`@oscaner-skills/${name}`);
-    // union：registry + 本轮发布（防 TOCTOU registry 索引滞后）
+    // union: registry + this run's publishes (protects against TOCTOU registry index lag)
     const publishedVersion = publishedThisRun.includes(name) ? currentVersion : null;
     const allVersions = [...new Set([...registryVersions, ...(publishedVersion ? [publishedVersion] : [])])];
     if (allVersions.length === 0) continue;
 
-    // 构建本仓库 tag/release 索引
+    // build the in-repo tag/release index
     const tagIndex = new Set();
     const releaseIndex = new Set();
     for (const v of allVersions) {
@@ -154,19 +154,21 @@ export function publishAll(root, { dryRun = false } = {}) {
     }
   }
 
-  // ── stdout 契约：单行合法 JSON 数组（bin 不再写 stdout）──────────────────
+  // ── stdout contract: single-line valid JSON array (the bin no longer writes stdout) ──
   process.stdout.write(JSON.stringify(items) + "\n");
   return stageRoot;
 }
 
 /** run.mjs dispatcher entry (`node scripts/run.mjs publish-vendor [--dry-run]`). */
-export function main() {
+export function main({ dryRun } = {}) {
   const root = repoRootFromImportMeta(import.meta.url);
-  const dryRun = process.argv.includes("--dry-run");
+  // Forwarded commander option wins under run.mjs dispatch; the argv read
+  // covers the isMain direct-run path, which passes no options.
+  const isDryRun = dryRun ?? process.argv.includes("--dry-run");
 
   try {
-    const stageRoot = publishAll(root, { dryRun });
-    process.stderr.write(`OK — ${dryRun ? "dry-run" : "publish"} complete for @oscaner-skills/*\n`);
+    const stageRoot = publishAll(root, { dryRun: isDryRun });
+    process.stderr.write(`OK — ${isDryRun ? "dry-run" : "publish"} complete for @oscaner-skills/*\n`);
     process.stderr.write(`staged at ${stageRoot}\n`);
   } catch (err) {
     process.stderr.write(`publish-vendor failed: ${err.message}\n`);

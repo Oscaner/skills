@@ -32,8 +32,9 @@ const cmd = (name, desc, fn) =>
     });
 
 // `--dry-run` declared so Commander accepts it on the release commands. The
-// handler receives the parsed action args (options object, plus the position
-// arg for bump-submodule); version/publish-vendor read `--dry-run` from argv.
+// parsed options object is forwarded as the first action arg, so each release
+// main reads its `dryRun` from there (authoritative when present); the isMain
+// direct-run wrappers fall back to `process.argv` for `--dry-run`.
 const cmdDry = (name, desc, fn) =>
   program
     .command(name)

@@ -19,11 +19,14 @@ const changesetDir = join(root, ".changeset");
  * any versioning (previous footgun — silently ignored args ran a real version).
  * @returns {number} exit code (0 = ok, 1 = usage error)
  */
-export async function main() {
-  // ---- CLI 参数：run.mjs 分发时 argv 带子命令前缀 "version"，直接执行时没有 ----
+export async function main({ dryRun } = {}) {
+  // ---- CLI args: argv carries the "version" subcommand prefix under run.mjs
+  // dispatch but not in direct runs. The forwarded commander option (when
+  // present) is authoritative; the argv read only covers the isMain direct
+  // run, which passes no options. ----
   const args = process.argv.slice(2);
   const argv = args[0] === "version" ? args.slice(1) : args;
-  const DRY = argv.includes("--dry-run");
+  const DRY = dryRun ?? argv.includes("--dry-run");
   const unknownArgs = argv.filter((a) => a !== "--dry-run");
   if (unknownArgs.length > 0) {
     process.stderr.write(`usage: run.mjs version [--dry-run]\n`);

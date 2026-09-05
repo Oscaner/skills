@@ -28,9 +28,9 @@ export function decideProbe(probeResult) {
 }
 
 /**
- * @param {string[]} allVersions   合并后版本列表（registryVersions ∪ publishedThisRun 去重）
- * @param {Set<string>} tagIndex   已有 tag 的 `version` 集合
- * @param {Set<string>} releaseIndex  已有 Release 的 `version` 集合
+ * @param {string[]} allVersions   merged version list (registryVersions ∪ publishedThisRun, deduplicated)
+ * @param {Set<string>} tagIndex   the `version` set that already has a tag
+ * @param {Set<string>} releaseIndex  the `version` set that already has a Release
  * @returns {{ version: string }[]}
  */
 export function collectGaps(allVersions, tagIndex, releaseIndex) {
@@ -40,10 +40,10 @@ export function collectGaps(allVersions, tagIndex, releaseIndex) {
 }
 
 /**
- * @param {string}   version 当前版本
+ * @param {string}   version current version
  * @param {{ headVersion: string|null, headTag: string|null }} ctx
- * @param {(tagRef: string) => boolean} tagExists  注入的 tag 探测（纯函数可注入 stub）
- * @returns {string|null} upstreamTag（null = 双失败 → 省略）
+ * @param {(tagRef: string) => boolean} tagExists  injected tag probe (pure function — stubbable)
+ * @returns {string|null} upstreamTag (null = both candidates fail → omitted)
  */
 export function resolveUpstreamTag(version, ctx, tagExists) {
   if (ctx.headVersion === version && ctx.headTag) return ctx.headTag;
@@ -54,13 +54,13 @@ export function resolveUpstreamTag(version, ctx, tagExists) {
   return null;
 }
 
-/** npm view stderr 判定：含 E404/Not found → "E404"；否则 → "error" */
+/** Classify npm view stderr: E404/Not found → PROBE.UNPUBLISHED; otherwise → PROBE.ERROR */
 export function classifyProbeError(stderr) {
   if (/E404|Not found/i.test(stderr)) return PROBE.UNPUBLISHED;
   return PROBE.ERROR;
 }
 
-/** 三态探测：npm view <name>@<version> → PROBE.PUBLISHED | PROBE.UNPUBLISHED | PROBE.ERROR */
+/** Tri-state probe: npm view <name>@<version> → PROBE.PUBLISHED | PROBE.UNPUBLISHED | PROBE.ERROR */
 export function probeRegistryVersion(name, version) {
   try {
     $.sync`npm view ${name + "@" + version} version`;
@@ -70,7 +70,7 @@ export function probeRegistryVersion(name, version) {
   }
 }
 
-/** 枚举已发布版本；E404 → []（未首次发布）；其他错误 → throw（与 probe fail-closed 一致） */
+/** List published versions; E404 → [] (not yet first-published); other errors → throw (fail-closed, like the probes) */
 export function listRegistryVersions(name) {
   try {
     const { stdout } = $.sync`npm view ${name} versions --json`;
@@ -83,7 +83,7 @@ export function listRegistryVersions(name) {
   }
 }
 
-/** git ls-remote 检查 tag 是否存在于 origin */
+/** git ls-remote: check whether the tag exists on origin */
 export function probeTagExists(name, version) {
   try {
     $.sync({ stdio: "ignore" })`git ls-remote --exit-code --tags origin refs/tags/${name}@${version}`;
@@ -93,7 +93,7 @@ export function probeTagExists(name, version) {
   }
 }
 
-/** gh release view 检查 Release 是否存在（runner 注入 GITHUB_TOKEN env） */
+/** gh release view: check whether the Release exists (the runner injects the GITHUB_TOKEN env) */
 export function probeReleaseExists(name, version) {
   try {
     $.sync({ stdio: "ignore" })`gh release view ${name + "@" + version}`;
@@ -103,7 +103,7 @@ export function probeReleaseExists(name, version) {
   }
 }
 
-/** 解析 .gitmodules，返回 vendor 上游 owner/repo（GitHub 返回 "owner/repo"，非 GitHub 返回 null） */
+/** Parse .gitmodules, returning the vendor upstream owner/repo (GitHub → "owner/repo"; non-GitHub → null) */
 export function readGitmodules(root, vendorName) {
   const content = readFileSync(join(root, ".gitmodules"), "utf8");
   const sectionRegex = /\[submodule "([^"]+)"\][^[]*?url\s*=\s*([^\n]+)/gs;
@@ -116,7 +116,7 @@ export function readGitmodules(root, vendorName) {
   return null;
 }
 
-/** git ls-remote 探测上游 repo 是否有指定 tag（host 非 GitHub → false） */
+/** git ls-remote: probe whether the upstream repo has the given tag (non-GitHub host → false) */
 export function probeUpstreamTagExists(root, vendorName, tagRef) {
   const upstreamRepo = readGitmodules(root, vendorName);
   if (!upstreamRepo) return false;
@@ -129,7 +129,7 @@ export function probeUpstreamTagExists(root, vendorName, tagRef) {
   }
 }
 
-/** 取 submodule HEAD 上匹配 TAG_PATTERNS 的 tag（null = 无匹配） */
+/** Find the tag on the submodule HEAD that matches TAG_PATTERNS (null = no match) */
 export function headTagAtHead(root, vendorName) {
   const submodulePath = join(root, SUBMODULE_PATHS[vendorName]);
   try {

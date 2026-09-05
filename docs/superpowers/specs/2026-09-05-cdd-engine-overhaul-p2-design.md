@@ -212,6 +212,7 @@ CDD_DRY_RUN=1 branch-review --harness claude --plan packages/cdd-engine/bin/test
 - **P3（Skills+模板）**：session_report.yml 表单骨架由 P3 Enh J 消费（report-issue session 聚合）；report-issue `.md` body 模板与 yml 字段 mirror 已在 P3 验收。
 - **P3（Skills+模板）追加（Enh R）**：writing-plans `user-ok?`「Fix selected」死选项移除（与 docs-review Review Stopping 「always fix all findings」对齐）—— 本 P2 plan-review 期发现（2026-09-05），已 file #232 comment 5549870456 + overall v1.10 跟踪，P3 实施。
 - **P3（Skills+模板）追加（Enh S / Enh T）**：cdd-engine review 模板 deferred 孤儿机制清理 + fix handoff schema 加可选 `notes` 字段 —— 本 P2 deferred-sweep 期实测发现（2026-09-05），已 file #232 comments 5552903094 / 5552904440 + overall v1.11 跟踪，P3 实施。P2 侧已通过 `contract.mjs --clear-findings` 收敛 sweep（8 个 review/fix 模板相关文件 P3 一并清理）。
+- **P2 CI 集成约定（Enh U，已修复）**：本地 composite action 首步需显式 checkout + npm global bin 跨 job step 需 `$GITHUB_PATH` —— PR #237 CI 连挂两轮发现并修复（commits 2689284/b37f47d/3482306/ec5989f），已 file #232 comment 5553063867 + overall v1.12 跟踪，沉淀为 workflow 编写约定。
 - **release 稳定性**：当前 `version-packages.mjs` 有 router 死代码崩溃风险，P2 修复后 release 流程恢复健壮。
 - **测试框架过渡**：scripts 迁移 vitest 后，osuperpowers/tests 仍为 node:test（P3 范畴），仓库暂留双框架——P3 可考虑统一。
 

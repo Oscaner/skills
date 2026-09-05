@@ -1,6 +1,6 @@
 # CDD Engine 重构 + 生态完善 — Overall Spec
 
-- **Version**: v1.11 · 2026-09-05
+- **Version**: v1.12 · 2026-09-05
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
 - **Constraints**:
@@ -47,6 +47,7 @@ Charter only — no implementation detail。
 | P2 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5535261581) | Enhancement I — GitHub Workflows 重构 + scripts 全面重组 + Issue Templates 统一（scope 扩展：从 scripts/validate 模块化扩大为整个 scripts/ 目录重构，2026-09-05 用户决定） |
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5535307962) | Enhancement J — report-issue skill 重构（session 聚合 + 无 reopen + overall 模板 comment ref） |
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5536710343) | Enhancement K — brainstorming explore-context 主动读取 GitHub issue comments（`gh issue view NNN --json body,comments`，fail-open） |
+| P2 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5553063867) | Enhancement U — CI 集成两处根因（本地 composite 首步需 checkout + npm global bin 跨 step 继承）；P2 实现期已修复（#237 2689284/b37f47d/3482306/ec5989f），沉淀 workflow 编写约定 |
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5549870456) | Enhancement R — writing-plans `user-ok?`「Fix selected」死选项移除（与 docs-review Review Stopping 「always fix all findings」对齐） |
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5552903094) | Enhancement S — cdd-engine review 模板 deferred 孤儿机制清理（P1 Bug M 清理不彻底：task-review.md 仍无条件 defer + contract/progress/schema/docs 引用） |
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5552904440) | Enhancement T — fix handoff schema 拒 `notes` 字段（fix agent 证据说明丢失；加可选 notes 或放宽 additionalProperties） |
@@ -125,3 +126,4 @@ P1 (CDD Engine 全面重构) ──→ P2 (基础设施整治) ──→ P3 (Ski
 | v1.9 | 2026-09-05 | P2 scope 扩展（Enh I 扩展为 scripts/ 全面重组 + 成熟第三方依赖替换自维护组件 + smoke Level 0 决策）；#232 comment 5535261581 | [human] · Claude Opus 4.8 |
 | v1.10 | 2026-09-05 | +Enhancement R（writing-plans `user-ok?`「Fix selected」死选项移除，Review Stopping 一致性）；P3 scope + Issue inventory 更新；#232 comment 5549870456 | [human] · Claude Opus 4.8 |
 | v1.11 | 2026-09-05 | +Enhancement S（cdd-engine review 模板 deferred 孤儿机制清理）+ Enhancement T（fix handoff schema 加可选 notes 字段）；P3 scope + Issue inventory 更新；#232 comments 5552903094 / 5552904440 | [human] · Claude Opus 4.8 |
+| v1.12 | 2026-09-06 | +Enhancement U（CI 集成两处根因：本地 composite 首步需 checkout + npm global bin 跨 step 继承）；P2 实现期已修复（PR #237）；Issue inventory 更新；#232 comment 5553063867 | [human] · Claude Opus 4.8 |

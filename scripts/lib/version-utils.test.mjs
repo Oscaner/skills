@@ -40,6 +40,10 @@ describe("computeNextIndependentVersion", () => {
   it("throws on unknown bump level", () => {
     expect(() => computeNextIndependentVersion("0.1.0", "none")).toThrow(/Unknown bump level/);
   });
+
+  it("validates bump level before current version on doubly-invalid input", () => {
+    expect(() => computeNextIndependentVersion("bad", "none")).toThrow(/Unknown bump level/);
+  });
 });
 
 describe("highestBumpLevel", () => {

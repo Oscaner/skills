@@ -16,7 +16,8 @@ export function parseSemver(version) {
  * @param {"patch"|"minor"|"major"} bumpLevel
  */
 export function computeNextIndependentVersion(current, bumpLevel) {
-  // 保留既有错误契约：未知 bumpLevel → Unknown bump level（semver.inc 对非法 level 返回 null，需前置校验）
+  // Preserve the legacy error contract: unknown bumpLevel → "Unknown bump level".
+  // semver.inc returns null for illegal levels, so validate bumpLevel up front.
   if (!BUMP_LEVELS.has(bumpLevel)) throw new Error(`Unknown bump level: ${bumpLevel}`);
   const next = semverInc(current, bumpLevel);
   if (!next) throw new Error(`Invalid semver: ${current}`);

@@ -1,0 +1,14 @@
+name: Validate
+description: Install dependencies with a frozen lockfile and run the full validation suite (run.mjs validate).
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: |
+        pnpm install --frozen-lockfile
+    - name: Run validation suite
+      shell: bash
+      run: |
+        node scripts/run.mjs validate

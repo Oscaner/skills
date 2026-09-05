@@ -1,0 +1,19 @@
+name: PR Validate
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/link-cdd-engine
+      - uses: ./.github/actions/validate
+      - uses: ./.github/actions/install-harness
+      - run: node scripts/run.mjs smoke-cdd

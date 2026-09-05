@@ -1,4 +1,4 @@
-<!-- scripts/emit.mjs — do not edit -->
+<!-- scripts/run.mjs emit — do not edit -->
 @./skills/brainstorming/SKILL.md
 @./skills/cli-driven-development/SKILL.md
 @./skills/cli-research/SKILL.md

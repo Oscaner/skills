@@ -1,0 +1,39 @@
+name: Session report
+description: File a dogfood/CDD session report (aggregated findings)
+labels: ["session", "osuperpowers"]
+body:
+  - type: textarea
+    id: session-context
+    attributes:
+      label: Session context
+      description: "Dogfood/CDD session metadata: branch, date, harness; list skills one per line (multi-select list)"
+      placeholder: |
+        Branch: feat/my-feature
+        Date: YYYY-MM-DD
+        Harness: claude-code
+        Skills:
+        - osuperpowers:cli-driven-development
+        - osuperpowers:writing-plans
+    validations:
+      required: true
+  - type: textarea
+    id: findings
+    attributes:
+      label: Findings
+      description: |
+        Aggregated findings, one per line, each formatted as `[severity] component — summary`.
+        Severity must be one of: blocker / warn / nit.
+      placeholder: |
+        [blocker] osuperpowers:cli-driven-development — session state corrupted
+        [warn] cdd-engine — key verification step failed
+        [nit] osuperpowers:writing-plans — typo in output
+    validations:
+      required: true
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to the overall spec or related issues, if known
+      placeholder: "Overall spec: docs/superpowers/specs/2026-09-04-cdd-engine-overhaul-overall.md"
+    validations:
+      required: false

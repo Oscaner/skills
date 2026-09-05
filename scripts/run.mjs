@@ -8,6 +8,7 @@
  *   emit             — regenerate unified first-party manifests (write mode)
  *   emit-check       — verify emitted products are fresh (drift → exit 1)
  *   validate         — run the full 13-block validate suite
+ *   smoke-cdd        — cdd-engine dry-run smoke (4-command H1 chain)
  *   version          — apply changesets to bump versions (--dry-run supported)
  *   publish-vendor   — assemble + publish vendored plugins (--dry-run supported)
  *   bump-submodule   — bump a vendored submodule to its latest release tag
@@ -46,6 +47,7 @@ const cmdDry = (name, desc, fn) =>
 cmd("emit", "regenerate unified first-party manifests", "./emit/all.mjs");
 cmd("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.mjs");
 cmd("validate", "run the full validate suite (13 blocks)", "./validate/index.mjs");
+cmd("smoke-cdd", "run cdd-engine dry-run smoke (4-command H1 chain)", "./validate/smoke-cdd.mjs");
 
 cmdDry("version", "apply changesets to bump versions", "./release/version-packages.mjs");
 cmdDry("publish-vendor", "assemble + publish vendored plugins", "./release/publish-vendor.mjs");

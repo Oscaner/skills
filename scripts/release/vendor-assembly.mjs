@@ -288,7 +288,13 @@ export function stageVendor(name, root, stageRoot) {
   rmSync(dest, { recursive: true, force: true });
   // cpSync (recursive, filter) replaces the former hand-written recursive copy —
   // submodule checkouts carry `.git` (the gitlink file) and often a populated
-  // `node_modules`; neither belongs in a published npm package.
+  // `node_modules`; neither belongs in a published npm package. Symlink delta
+  // vs. the former copy: with `verbatimSymlinks` false (default) a staged
+  // symlink is re-targeted to the *source submodule's* realpath rather than
+  // keeping its original relative link text (e.g. `AGENTS.md` →
+  // `/…/vendors/superpowers/CLAUDE.md`), so the staged link is only valid while
+  // the source checkout exists — pack before the source moves. The published
+  // tarball is unaffected: npm drops symlinks.
   cpSync(submodulePath, dest, {
     recursive: true,
     filter: (p) => !COPY_EXCLUDE.has(basename(p)),

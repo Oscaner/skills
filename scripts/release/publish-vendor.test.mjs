@@ -8,6 +8,8 @@ import {
   existsSync,
   readFileSync,
   symlinkSync,
+  readlinkSync,
+  realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -456,7 +458,7 @@ test("stageVendor excludes .git and node_modules, preserves files and symlinks",
   mkdirSync(join(src, "node_modules"), { recursive: true });
   writeFileSync(join(src, ".git", "HEAD"), "ref\n");
   writeFileSync(join(src, "node_modules", "x"), "x\n");
-  // Content + symlink are preserved; nested node_modules excluded too
+  // Content carried over (skills.md); nested node_modules excluded too
   writeFileSync(join(src, "plugin", "skills.md"), "# skill\n");
   mkdirSync(join(src, "plugin", "node_modules"), { recursive: true });
   writeFileSync(join(src, "plugin", "node_modules", "deep.js"), "x\n");
@@ -467,6 +469,15 @@ test("stageVendor excludes .git and node_modules, preserves files and symlinks",
   expect(existsSync(join(dest, "LICENSE"))).toBeTruthy();
   expect(existsSync(join(dest, "plugin", "skills.md"))).toBeTruthy();
   expect(existsSync(join(dest, "LICENSE.link"))).toBeTruthy();
+  // The staged symlink is re-targeted to the source submodule's LICENSE
+  // (verbatimSymlinks defaults to false — the original relative link text is
+  // rewritten), so assert the rewritten target resolves to the canonical source
+  // path rather than implying an identical copy. npm drops symlinks from the
+  // published tarball either way.
+  expect(readlinkSync(join(dest, "LICENSE.link"))).not.toBe("LICENSE");
+  expect(realpathSync(join(dest, "LICENSE.link"))).toBe(
+    realpathSync(join(src, "LICENSE")),
+  );
   expect(existsSync(join(dest, ".git"))).toBe(false);
   expect(existsSync(join(dest, "node_modules"))).toBe(false);
   expect(existsSync(join(dest, "plugin", "node_modules"))).toBe(false);

@@ -11,6 +11,7 @@
  *   version          — apply changesets to bump versions (--dry-run supported)
  *   publish-vendor   — assemble + publish vendored plugins (--dry-run supported)
  *   bump-submodule   — bump a vendored submodule to its latest release tag
+ *   apply-rules      — apply a GitHub branch Ruleset (protect-develop | protect-main)
  */
 
 import { Command } from "commander";
@@ -49,6 +50,19 @@ cmd("validate", "run the full validate suite (13 blocks)", "./validate/index.mjs
 cmdDry("version", "apply changesets to bump versions", "./release/version-packages.mjs");
 cmdDry("publish-vendor", "assemble + publish vendored plugins", "./release/publish-vendor.mjs");
 cmdDry("bump-submodule <name>", "bump a vendored submodule to its latest release tag", "./release/bump-submodule.mjs");
+
+// Command with a single mandatory positional arg but no options: forwards the
+// operand to main(target); the trailing options/command objects are dropped.
+const cmdArg = (name, desc, fn) =>
+  program
+    .command(name)
+    .description(desc)
+    .action(async (...args) => {
+      const code = await import(fn).then((m) => m.main(args[0]));
+      if (typeof code === "number") process.exitCode = code;
+    });
+
+cmdArg("apply-rules <target>", "apply a GitHub branch Ruleset (protect-develop | protect-main)", "./rulesets/apply.mjs");
 
 program.parseAsync(process.argv).catch((e) => {
   console.error(e.message);

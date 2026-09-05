@@ -228,7 +228,7 @@ One plugin is versioned from this repo: **`osuperpowers`** (independent semver).
 
 **Version scheme:** `osuperpowers` uses plain semver (`0.1.x`); changesets bump it and release independently as `osuperpowers@{version}`. Driven by `node scripts/version-packages.mjs` and validated by `node scripts/validate-version-sync.mjs`. See [.changeset/README.md](../../.changeset/README.md).
 
-**Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with [`scripts/gh-branch-rulesets.mjs`](../../scripts/gh-branch-rulesets.mjs) (`protect-develop`, `protect-main`; no bypass actors).
+**Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with `node scripts/run.mjs apply-rules <protect-develop|protect-main>` (`protect-develop`, `protect-main`; no bypass actors).
 
 ## Git conventions for this repo
 

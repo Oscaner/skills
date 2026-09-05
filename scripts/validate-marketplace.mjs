@@ -1,30 +1,26 @@
+import Ajv from "ajv";
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { execSync } from "node:child_process";
 
 const root = process.cwd();
+const ajv = new Ajv();
 
 function validateSourceSchemaJson() {
-  try {
-    execSync(
-      `python3 -c "
-import json
-from jsonschema import validate
-source = json.load(open('marketplace/source.json'))
-schema = json.load(open('marketplace/source.schema.json'))
-validate(source, schema)
-print('OK — source.json schema')
-"`,
-      { cwd: root, stdio: "pipe" },
+  const source = JSON.parse(
+    readFileSync(join(root, "marketplace/source.json"), "utf8"),
+  );
+  const schema = JSON.parse(
+    readFileSync(join(root, "marketplace/source.schema.json"), "utf8"),
+  );
+  const validate = ajv.compile(schema);
+  if (!validate(source)) {
+    throw new Error(
+      `source.json schema invalid:\n${validate.errors
+        .map((e) => `  ${e.instancePath || "/"} ${e.message}`)
+        .join("\n")}`,
     );
-    console.log("OK — source.json schema");
-  } catch (e) {
-    if (String(e.stderr ?? e.message).includes("No module named 'jsonschema'")) {
-      console.log("SKIP — jsonschema not installed (minimal checks only)");
-      return;
-    }
-    throw e;
   }
+  console.log("OK — source.json schema");
 }
 
 function isPluginRoot(p) {

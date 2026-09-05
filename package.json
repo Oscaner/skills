@@ -5,8 +5,8 @@
     "changeset": "changeset",
     "validate": "npm run emit:check && node scripts/ci-validate.mjs",
     "version": "node scripts/version-packages.mjs",
-    "emit": "node scripts/emit.mjs",
-    "emit:check": "node scripts/emit.mjs --check",
+    "emit": "node scripts/run.mjs emit",
+    "emit:check": "node scripts/run.mjs emit-check",
     "prepare": "husky",
     "test": "vitest run"
   },

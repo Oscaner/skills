@@ -62,8 +62,8 @@ function checkStep(name, fn, meta = {}) {
   steps.push({ name, run: fn, ...meta });
 }
 
-// 0. unified emit freshness — --check against committed products (no write)
-subprocessStep("0. unified emit freshness (--check)", "node", ["scripts/emit.mjs", "--check"]);
+// 0. unified emit freshness — emit-check against committed products (no write)
+subprocessStep("0. unified emit freshness (emit-check)", "node", ["scripts/run.mjs", "emit-check"]);
 
 // 5b. osuperpowers plugin validation
 checkStep("5b. osuperpowers plugin validation", () => console.log("OK — osuperpowers plugin validation"));

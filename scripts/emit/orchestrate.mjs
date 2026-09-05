@@ -4,9 +4,25 @@
  * state, no repo-root closure.
  */
 
-import { existsSync, readdirSync, rmSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readdirSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, relative, dirname } from "node:path";
 import { globSync } from "tinyglobby";
+
+/**
+ * Write a text product into `outRoot` (mkdir -p the parent) and record the
+ * repo-relative path in `generatedPaths` so the --check diff sees it.
+ */
+export function writeText(outRoot, rel, content, generatedPaths) {
+  const p = join(outRoot, rel);
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, content);
+  generatedPaths.push(rel);
+}
+
+/** `writeText` for JSON documents (pretty-printed + trailing newline). */
+export function writeJsonDoc(outRoot, rel, data, generatedPaths) {
+  writeText(outRoot, rel, JSON.stringify(data, null, 2) + "\n", generatedPaths);
+}
 
 /**
  * Detect committed product files the generator no longer produces (stale).

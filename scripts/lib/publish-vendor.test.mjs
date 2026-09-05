@@ -28,7 +28,7 @@ import {
   PROBE,
   PROBE_CLASS,
 } from "./publish-vendor.mjs";
-import { thinGeminiExtension } from "./emit/manifests.mjs";
+import { thinGeminiExtension } from "../emit/manifests.mjs";
 
 let dir;
 function makeRoot() {

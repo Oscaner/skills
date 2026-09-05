@@ -26,7 +26,10 @@ import { deriveSource, SOURCE_TOP } from "./source.mjs";
 import {
   findStaleCommittedFiles,
   pruneStaleAgentsNamespaces,
+  writeText,
+  writeJsonDoc,
 } from "./orchestrate.mjs";
+import { emitAll } from "./all.mjs";
 
 // First-party versions are read from the live package.json SOTs so these
 // assertions hold at any released version. A stale hardcoded version broke the
@@ -35,7 +38,7 @@ import {
 // expect the bumped version).
 const readPkgVersion = (rel) =>
   JSON.parse(
-    readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"),
+    readFileSync(new URL(`../../${rel}/package.json`, import.meta.url), "utf8"),
   ).version;
 const OS_VERSION = readPkgVersion("packages/osuperpowers");
 
@@ -91,7 +94,7 @@ test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () =
   expect(m.version).toBe(OS_VERSION);
   expect(m.license).toBe("MIT");
   expect(m._generated).toBeTruthy();
-  expect(m._generated).toMatch(/scripts\/emit\.mjs/);
+  expect(m._generated).toMatch(/scripts\/run\.mjs/);
 });
 
 test("codexPluginManifest includes skills, codex gate hooks path, and interface", () => {
@@ -155,7 +158,7 @@ test("codexPluginManifest points hooks at the codex plugin-root hooks channel", 
 test("codexHooksJson wires PreToolUse gate to the codex adapter (manifest-relative ../bin)", () => {
   const hooks = codexHooksJson();
   expect(hooks._generated).toBeTruthy();
-  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
+  expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   expect(pre.length).toBe(2);
   expect(pre[0].matcher).toBe("Write|Edit");
@@ -326,13 +329,13 @@ test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () 
   expect(m.skills).toBe("../skills/");
   expect(m.hooks).toBe("./hooks/hooks.json");
   expect(m._generated).toBeTruthy();
-  expect(m._generated).toMatch(/scripts\/emit\.mjs/);
+  expect(m._generated).toMatch(/scripts\/run\.mjs/);
 });
 
 test("qoderHooksJson wires PreToolUse gate to the qoder adapter (manifest-relative ../bin)", () => {
   const hooks = qoderHooksJson();
   expect(hooks._generated).toBeTruthy();
-  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
+  expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   expect(pre.length).toBe(2);
   expect(pre[0].matcher).toBe("Write|Edit");
@@ -484,7 +487,7 @@ test("deriveSource vendor entries merge assembly-template fields + vendored file
 test("osuperpowersClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
   const hooks = osuperpowersClaudeHooks();
   expect(hooks._generated).toBeTruthy();
-  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
+  expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   expect(pre.length).toBe(2);
   expect(pre[0].matcher).toBe("Write|Edit");
@@ -501,7 +504,7 @@ test("osuperpowersClaudeHooks gates Write|Edit and Bash via the cdd gate", () =>
 test("osuperpowersCursorHooks wires the cursor cdd gate preToolUse", () => {
   const hooks = osuperpowersCursorHooks();
   expect(hooks._generated).toBeTruthy();
-  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
+  expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   expect(hooks.version).toBe(1);
   expect(hooks.hooks.preToolUse).toEqual([
     { command: "./bin/gate/adapters/cursor.mjs" },
@@ -610,6 +613,57 @@ test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", ()
       ["osuperpowers", join(tmp, "src")],
     ]);
     expect(removed).toEqual([]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("writeJsonDoc/writeText write into outRoot (mkdir -p) and track generatedPaths", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-writers-"));
+  try {
+    const generatedPaths = [];
+    writeText(tmp, "a/b.txt", "hello", generatedPaths);
+    writeJsonDoc(tmp, "c/d.json", { ok: true }, generatedPaths);
+    expect(generatedPaths).toEqual(["a/b.txt", "c/d.json"]);
+    expect(readFileSync(join(tmp, "a/b.txt"), "utf8")).toBe("hello");
+    expect(JSON.parse(readFileSync(join(tmp, "c/d.json"), "utf8"))).toEqual({ ok: true });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("emitAll into a temp tree produces the full product set and tracks every path", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-emitall-"));
+  try {
+    const generatedPaths = [];
+    emitAll(tmp, { generatedPaths });
+    for (const rel of [
+      "marketplace/source.json",
+      ".claude-plugin/marketplace.json",
+      ".cursor-plugin/marketplace.json",
+      "cursor-plugins/mattpocock-skills/.cursor-plugin/plugin.json",
+      "packages/osuperpowers/.claude-plugin/plugin.json",
+      "packages/osuperpowers/.codex-plugin/plugin.json",
+      "packages/osuperpowers/.qoder-plugin/plugin.json",
+      "packages/osuperpowers/.kimi-plugin/plugin.json",
+      "packages/osuperpowers/gemini-extension.json",
+      "packages/osuperpowers/GEMINI.md",
+      "packages/osuperpowers/hooks/hooks.json",
+    ]) {
+      expect(existsSync(join(tmp, rel))).toBe(true);
+      expect(generatedPaths.includes(rel)).toBe(true);
+    }
+    // the shared .agents/skills/ namespace copy is tracked too
+    expect(
+      generatedPaths.some((r) =>
+        r.startsWith("packages/osuperpowers/.agents/skills/osuperpowers/"),
+      ),
+    ).toBe(true);
+    // every recorded path resolves to a real temp-tree file, no duplicates
+    for (const rel of generatedPaths) {
+      expect(existsSync(join(tmp, rel))).toBe(true);
+    }
+    expect(new Set(generatedPaths).size).toBe(generatedPaths.length);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

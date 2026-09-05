@@ -3,17 +3,17 @@
  *
  * These are pure functions: given a plugin descriptor (a row from
  * marketplace/source.json) and a resolved version, they return the document
- * for a single harness. The unified emit tool (`scripts/emit.mjs`) writes them
- * into each first-party plugin directory. "Thin manifest" means every harness
- * manifest points at the canonical `./skills/` tree — no per-harness copies of
- * the skill bodies (the one exception is the shared `.agents/skills/` copy,
- * which is handled by the emit orchestrator, not here).
+ * for a single harness. The unified emit dispatcher (`scripts/run.mjs emit`)
+ * writes them into each first-party plugin directory. "Thin manifest" means
+ * every harness manifest points at the canonical `./skills/` tree — no
+ * per-harness copies of the skill bodies (the one exception is the shared
+ * `.agents/skills/` copy, which is handled by the emit orchestrator, not here).
  */
 
 import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export const generatedBanner = "scripts/emit.mjs — do not edit";
+export const generatedBanner = "scripts/run.mjs emit — do not edit";
 
 /**
  * Derive first-party plugin package names from `packages/*` dirs whose

@@ -3,7 +3,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listVendors, resolveVendorVersion } from "./publish-vendor.mjs";
 
-const GENERATED = "scripts/emit.mjs — do not edit";
+const GENERATED = "scripts/run.mjs emit — do not edit";
 
 /** @param {string} root */
 export function readSource(root) {
@@ -139,7 +139,7 @@ export function assertCursorPathsExist(root, plugin) {
   }
 }
 
-/** @deprecated router deleted — kept as no-op so call sites in emit.mjs do not require a separate cleanup commit */
+/** @deprecated router deleted — kept as no-op so call sites in the emit dispatcher do not require a separate cleanup commit */
 export function assertPrereleasePrefix(_root, _source) {}
 
 export function claudeMarketplaceDocument(source, plugins) {

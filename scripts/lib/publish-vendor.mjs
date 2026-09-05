@@ -34,7 +34,7 @@ import {
   TAG_PATTERNS,
   semverFromNearestTag,
 } from "./submodule-tags.mjs";
-import { thinGeminiExtension, geminiMarkdown } from "./emit/manifests.mjs";
+import { thinGeminiExtension, geminiMarkdown } from "../emit/manifests.mjs";
 
 // ---------------------------------------------------------------------------
 // Pure helpers for vendor publish I/O (Task 1)

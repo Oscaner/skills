@@ -38,6 +38,10 @@ function applyBump(bumpName, result, newTag, submodulePath) {
     checkoutTag(newTag, submodulePath);
     const newVer = readJson("vendors/superpowers/.claude-plugin/plugin.json").version;
     result.semverChanged = oldVer !== newVer;
+    // marketplace/source.json is a derived emit product — emit re-derives the
+    // superpowers version from the vendored plugin.json, so no direct
+    // source.json write (aligned with the mattpocock-skills / impeccable paths).
+    execaCommandSync("pnpm run emit", { stdio: "inherit", cwd: root });
     return;
   }
 

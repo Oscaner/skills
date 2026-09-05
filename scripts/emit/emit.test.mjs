@@ -30,6 +30,7 @@ import {
   writeJsonDoc,
 } from "./orchestrate.mjs";
 import { emitAll } from "./all.mjs";
+import { assertVersionBump } from "./compare.mjs";
 
 // First-party versions are read from the live package.json SOTs so these
 // assertions hold at any released version. A stale hardcoded version broke the
@@ -666,6 +667,48 @@ test("emitAll into a temp tree produces the full product set and tracks every pa
       expect(existsSync(join(tmp, rel))).toBe(true);
     }
     expect(new Set(generatedPaths).size).toBe(generatedPaths.length);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("emitAll returns an identical wrapper-root set per run (no shared-state accumulation)", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-emitall-roots-"));
+  try {
+    const wrapperRoots = emitAll(tmp, { generatedPaths: [] });
+    // non-plugin-root vendors only — osuperpowers/superpowers run plugin-root
+    expect(wrapperRoots).toEqual([
+      "cursor-plugins/mattpocock-skills",
+      "cursor-plugins/impeccable",
+    ]);
+    // a second emit returns the identical set — the base product-root constant
+    // is never mutated (regression: marketplace used to push into the exported
+    // shared array, so repeated emitAll calls accumulated wrappers)
+    expect(emitAll(tmp, { generatedPaths: [] })).toEqual(wrapperRoots);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("assertVersionBump validates the passed committedRoot, not the module root", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "oscaner-version-bump-"));
+  try {
+    const pluginRoot = join(tmp, "packages", "osuperpowers");
+    mkdirSync(pluginRoot, { recursive: true });
+    writeFileSync(join(pluginRoot, "package.json"), JSON.stringify({ version: "1.0.0" }));
+    mkdirSync(join(pluginRoot, ".claude-plugin"), { recursive: true });
+    writeFileSync(
+      join(pluginRoot, ".claude-plugin", "plugin.json"),
+      JSON.stringify({ version: "9.9.9" }),
+    );
+    writeFileSync(
+      join(pluginRoot, ".version-bump.json"),
+      JSON.stringify({ files: [{ path: ".claude-plugin/plugin.json", field: "version" }] }),
+    );
+    // staged manifest (9.9.9) drifts from staged package.json (1.0.0) → must
+    // throw on the passed root; closing over the module root would read the
+    // in-sync repo root instead and pass silently
+    expect(() => assertVersionBump(tmp)).toThrow(/version drift/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

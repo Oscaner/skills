@@ -22,8 +22,8 @@ export function main() {
   const generatedPaths = [];
   const tempRoot = mkdtempSync(join(tmpdir(), "oscaner-emit-"));
   try {
-    emitAll(tempRoot, { generatedPaths });
-    compareTrees(root, tempRoot, { generatedPaths });
+    const wrapperRoots = emitAll(tempRoot, { generatedPaths });
+    compareTrees(root, tempRoot, { generatedPaths, wrapperRoots });
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

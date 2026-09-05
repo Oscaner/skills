@@ -10,7 +10,9 @@
  *
  * The downstream emitters each take `(outRoot, ..., generatedPaths)` — no
  * module-level state, so a full tree can be generated into a temp root by
- * `emit/check.mjs` without touching the working tree.
+ * `emit/check.mjs` without touching the working tree. `emitAll` returns the
+ * cursor wrapper roots it emitted so the caller can fold them into the
+ * drift-check product-root set (`emit/compare.mjs` owns the base set).
  */
 
 import { resolve, dirname } from "node:path";
@@ -28,6 +30,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * Generate the full emit product set into `outRoot`.
  * @param {string} outRoot absolute output root (repo root in write mode, a temp tree in check mode)
  * @param {{ generatedPaths: string[] }} opts repo-relative paths produced by this run
+ * @returns {string[]} `cursor-plugins/<name>` wrapper roots emitted (see
+ *   `emitMarketplaceDocs`) — folded into the drift-check product roots by the caller
  */
 export function emitAll(outRoot, { generatedPaths }) {
   const source = deriveSource(root);
@@ -39,10 +43,12 @@ export function emitAll(outRoot, { generatedPaths }) {
     }
   }
 
-  emitMarketplaceDocs(outRoot, source, generatedPaths);
+  const wrapperRoots = emitMarketplaceDocs(outRoot, source, generatedPaths);
 
   // source.json is itself a derived emit product (package-as-source).
   writeJsonDoc(outRoot, "marketplace/source.json", source, generatedPaths);
+
+  return wrapperRoots;
 }
 
 export function main() {

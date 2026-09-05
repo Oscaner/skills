@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +19,7 @@ const readText = (rel) => readFileSync(join(root, rel), "utf8");
 function changesetsActionStep(yml) {
   const lines = yml.split("\n");
   const start = lines.findIndex((l) => l.includes("uses: changesets/action@"));
-  assert.ok(start !== -1, "changesets/action step not found in release.yml");
+  if (start === -1) throw new Error("changesets/action step not found in release.yml");
   const stepIndent = lines[start].match(/^\s*/)[0].length;
   const block = [lines[start]];
   for (let i = start + 1; i < lines.length; i++) {
@@ -39,27 +38,23 @@ describe("first-party publish wiring", () => {
   it("flags first-party packages publishable (private: false)", () => {
     for (const pkg of ["osuperpowers"]) {
       const p = readJson(`packages/${pkg}/package.json`);
-      assert.equal(
-        p.private,
-        false,
-        `packages/${pkg}/package.json must have private:false so changesets/npm can publish it`,
-      );
+      expect(p.private).toBe(false);
     }
   });
 
   it("sets changesets access to public (scoped @oscaner-skills/* need public)", () => {
     const cfg = readJson(".changeset/config.json");
-    assert.equal(cfg.access, "public");
+    expect(cfg.access).toBe("public");
   });
 
   it("release.yml changesets/action step runs changeset publish, not bare changeset tag", () => {
     const step = changesetsActionStep(readText(".github/workflows/release.yml"));
-    assert.match(step, /publish:\s*pnpm exec changeset publish/);
-    assert.doesNotMatch(step, /publish:\s*pnpm exec changeset tag/);
+    expect(step).toMatch(/publish:\s*pnpm exec changeset publish/);
+    expect(step).not.toMatch(/publish:\s*pnpm exec changeset tag/);
   });
 
   it("release.yml changesets/action step wires npm auth for changeset publish", () => {
     const step = changesetsActionStep(readText(".github/workflows/release.yml"));
-    assert.match(step, /NPM_TOKEN:\s*\$\{\{ secrets\.NPM_TOKEN \}\}/);
+    expect(step).toMatch(/NPM_TOKEN:\s*\$\{\{ secrets\.NPM_TOKEN \}\}/);
   });
 });

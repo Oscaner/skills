@@ -170,16 +170,8 @@ checkStep("5c. engine zero-residue grep", checkZeroResidue, { grepTargets: RESID
 // 6. marketplace validate
 subprocessStep("6. marketplace validate", "node", ["scripts/validate-marketplace.mjs"]);
 
-// 7. lib unit tests
-subprocessStep("7. lib unit tests", "node", [
-  "--test",
-  "scripts/lib/version-utils.test.mjs",
-  "scripts/lib/emit/emit.test.mjs",
-  "scripts/lib/publish-vendor.test.mjs",
-  "scripts/lib/bump-chain.test.mjs",
-  "scripts/lib/first-party-publish.test.mjs",
-  "scripts/lib/submodule-tags.test.mjs",
-]);
+// 7. scripts unit tests (vitest) — vitest.config.mjs include: scripts/**/*.test.mjs
+subprocessStep("7. scripts unit tests (vitest)", "pnpm", ["exec", "vitest", "run"]);
 
 // 8–10. version sync
 subprocessStep("8-10. version sync", "node", ["scripts/validate-version-sync.mjs"]);

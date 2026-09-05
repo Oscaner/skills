@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import {
   parseSemver,
   computeNextIndependentVersion,
@@ -9,7 +8,7 @@ import {
 
 describe("parseSemver", () => {
   it("parses plain semver", () => {
-    assert.deepEqual(parseSemver("0.1.0"), {
+    expect(parseSemver("0.1.0")).toEqual({
       major: 0,
       minor: 1,
       patch: 0,
@@ -17,43 +16,43 @@ describe("parseSemver", () => {
   });
 
   it("rejects non-version strings", () => {
-    assert.equal(parseSemver("not-a-version"), null);
+    expect(parseSemver("not-a-version")).toBe(null);
   });
 });
 
 describe("computeNextIndependentVersion", () => {
   it("increments patch", () => {
-    assert.equal(computeNextIndependentVersion("0.1.0", "patch"), "0.1.1");
+    expect(computeNextIndependentVersion("0.1.0", "patch")).toBe("0.1.1");
   });
 
   it("increments minor and resets patch", () => {
-    assert.equal(computeNextIndependentVersion("0.1.3", "minor"), "0.2.0");
+    expect(computeNextIndependentVersion("0.1.3", "minor")).toBe("0.2.0");
   });
 
   it("increments major and resets minor+patch", () => {
-    assert.equal(computeNextIndependentVersion("0.9.7", "major"), "1.0.0");
+    expect(computeNextIndependentVersion("0.9.7", "major")).toBe("1.0.0");
   });
 
   it("throws on invalid current version", () => {
-    assert.throws(() => computeNextIndependentVersion("bad", "patch"), /Invalid semver/);
+    expect(() => computeNextIndependentVersion("bad", "patch")).toThrow(/Invalid semver/);
   });
 
   it("throws on unknown bump level", () => {
-    assert.throws(() => computeNextIndependentVersion("0.1.0", "none"), /Unknown bump level/);
+    expect(() => computeNextIndependentVersion("0.1.0", "none")).toThrow(/Unknown bump level/);
   });
 });
 
 describe("highestBumpLevel", () => {
   it("picks minor over patch", () => {
-    assert.equal(highestBumpLevel(["patch", "minor"]), "minor");
+    expect(highestBumpLevel(["patch", "minor"])).toBe("minor");
   });
 
   it("picks major over minor", () => {
-    assert.equal(highestBumpLevel(["minor", "patch", "major"]), "major");
+    expect(highestBumpLevel(["minor", "patch", "major"])).toBe("major");
   });
 
   it("defaults to patch for empty list", () => {
-    assert.equal(highestBumpLevel([]), "patch");
+    expect(highestBumpLevel([])).toBe("patch");
   });
 });
 
@@ -68,18 +67,16 @@ describe("changesetsForPlugin", () => {
         ],
       },
     ];
-    assert.deepEqual(
+    expect(
       changesetsForPlugin(changesets, "@oscaner-skills/osuperpowers").map(
         (cs) => cs.id,
       ),
-      ["b", "c"],
-    );
+    ).toEqual(["b", "c"]);
   });
 
   it("returns empty for missing releases array", () => {
-    assert.deepEqual(
+    expect(
       changesetsForPlugin([{ id: "x" }], "@oscaner-skills/osuperpowers"),
-      [],
-    );
+    ).toEqual([]);
   });
 });

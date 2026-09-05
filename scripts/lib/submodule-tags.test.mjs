@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import {
   parseSemverFromTag,
   sortTagsBySemver,
@@ -8,13 +7,12 @@ import {
 
 describe("parseSemverFromTag", () => {
   it("parses superpowers v tag", () => {
-    assert.equal(parseSemverFromTag("v6.2.0", TAG_PATTERNS.superpowers), "6.2.0");
+    expect(parseSemverFromTag("v6.2.0", TAG_PATTERNS.superpowers)).toBe("6.2.0");
   });
   it("parses impeccable skill-v tag", () => {
-    assert.equal(
+    expect(
       parseSemverFromTag("skill-v4.0.4", TAG_PATTERNS.impeccable),
-      "4.0.4",
-    );
+    ).toBe("4.0.4");
   });
 });
 
@@ -24,15 +22,14 @@ describe("sortTagsBySemver", () => {
       ["v6.1.0", "v6.2.0", "v6.0.3"],
       TAG_PATTERNS.superpowers,
     );
-    assert.equal(sorted.at(-1), "v6.2.0");
+    expect(sorted.at(-1)).toBe("v6.2.0");
   });
 });
 
 describe("semverFromNearestTag", () => {
   it("derives semver from tag name", () => {
-    assert.equal(
+    expect(
       parseSemverFromTag("v1.1.0", TAG_PATTERNS["mattpocock-skills"]),
-      "1.1.0",
-    );
+    ).toBe("1.1.0");
   });
 });

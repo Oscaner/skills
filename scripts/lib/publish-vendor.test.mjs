@@ -1,5 +1,4 @@
-import { test, afterEach } from "node:test";
-import assert from "node:assert/strict";
+import { test, afterEach, expect } from "vitest";
 import { execSync } from "node:child_process";
 import {
   mkdtempSync,
@@ -181,15 +180,15 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 test("decideProbe — published → skip", () => {
-  assert.equal(decideProbe(PROBE.PUBLISHED), PROBE_CLASS.PUBLISHED);
+  expect(decideProbe(PROBE.PUBLISHED)).toBe(PROBE_CLASS.PUBLISHED);
 });
 
 test("decideProbe — unpublished → publish", () => {
-  assert.equal(decideProbe(PROBE.UNPUBLISHED), PROBE_CLASS.SHOULD_PUBLISH);
+  expect(decideProbe(PROBE.UNPUBLISHED)).toBe(PROBE_CLASS.SHOULD_PUBLISH);
 });
 
 test("decideProbe — error → throws", () => {
-  assert.throws(() => decideProbe(PROBE.ERROR), /probe error.*aborting release/);
+  expect(() => decideProbe(PROBE.ERROR)).toThrow(/probe error.*aborting release/);
 });
 
 // ---------------------------------------------------------------------------
@@ -199,33 +198,33 @@ test("decideProbe — error → throws", () => {
 test("collectGaps — version with tag+release → excluded", () => {
   const tagIdx = new Set(["6.2.0"]);
   const relIdx = new Set(["6.2.0"]);
-  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), []);
+  expect(collectGaps(["6.2.0"], tagIdx, relIdx)).toEqual([]);
 });
 
 test("collectGaps — missing tag → included", () => {
   const tagIdx = new Set();
   const relIdx = new Set(["6.2.0"]);
-  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), [{ version: "6.2.0" }]);
+  expect(collectGaps(["6.2.0"], tagIdx, relIdx)).toEqual([{ version: "6.2.0" }]);
 });
 
 test("collectGaps — missing release → included", () => {
   const tagIdx = new Set(["6.2.0"]);
   const relIdx = new Set();
-  assert.deepEqual(collectGaps(["6.2.0"], tagIdx, relIdx), [{ version: "6.2.0" }]);
+  expect(collectGaps(["6.2.0"], tagIdx, relIdx)).toEqual([{ version: "6.2.0" }]);
 });
 
 test("collectGaps — TOCTOU union via caller: registry+publishedThisRun both included", () => {
   const allVersions = ["6.0.0", "6.2.0"];
   const tagIdx = new Set(["6.0.0"]);
   const relIdx = new Set(["6.0.0", "6.2.0"]);
-  assert.deepEqual(collectGaps(allVersions, tagIdx, relIdx), [{ version: "6.2.0" }]);
+  expect(collectGaps(allVersions, tagIdx, relIdx)).toEqual([{ version: "6.2.0" }]);
 });
 
 test("collectGaps — all present → empty", () => {
   const allVersions = ["1.0.0", "1.1.0"];
   const tagIdx = new Set(["1.0.0", "1.1.0"]);
   const relIdx = new Set(["1.0.0", "1.1.0"]);
-  assert.deepEqual(collectGaps(allVersions, tagIdx, relIdx), []);
+  expect(collectGaps(allVersions, tagIdx, relIdx)).toEqual([]);
 });
 
 // ---------------------------------------------------------------------------
@@ -234,19 +233,19 @@ test("collectGaps — all present → empty", () => {
 
 test("resolveUpstreamTag — version matches HEAD → returns headTag", () => {
   const tag = resolveUpstreamTag("6.2.0", { headVersion: "6.2.0", headTag: "v6.2.0" }, () => false);
-  assert.equal(tag, "v6.2.0");
+  expect(tag).toBe("v6.2.0");
 });
 
 test("resolveUpstreamTag — fall through to upstream probe → returns matched tag", () => {
   const probe = (ref) => ref === "refs/tags/v6.0.0";
   const tag = resolveUpstreamTag("6.0.0", { headVersion: "6.2.0", headTag: "v6.2.0" }, probe);
-  assert.equal(tag, "v6.0.0");
+  expect(tag).toBe("v6.0.0");
 });
 
 test("resolveUpstreamTag — skill-v HEAD match (impeccable current version)", () => {
   const probe = (ref) => ref === "refs/tags/skill-v4.0.4";
   const tag = resolveUpstreamTag("4.0.4", { headVersion: "4.0.4", headTag: "skill-v4.0.4" }, probe);
-  assert.equal(tag, "skill-v4.0.4");
+  expect(tag).toBe("skill-v4.0.4");
 });
 
 test("resolveUpstreamTag — v-candidate fails, skill-v succeeds via probe loop (historical impeccable)", () => {
@@ -254,12 +253,12 @@ test("resolveUpstreamTag — v-candidate fails, skill-v succeeds via probe loop 
   // v<version> fails at tier-1 → skill-v<version> succeeds at tier-2
   const probe = (ref) => ref === "refs/tags/skill-v4.0.0";
   const tag = resolveUpstreamTag("4.0.0", { headVersion: "4.0.4", headTag: "skill-v4.0.4" }, probe);
-  assert.equal(tag, "skill-v4.0.0");
+  expect(tag).toBe("skill-v4.0.0");
 });
 
 test("resolveUpstreamTag — both probes fail → returns null", () => {
   const tag = resolveUpstreamTag("2.0.0", { headVersion: "1.0.0", headTag: "v1.0.0" }, () => false);
-  assert.equal(tag, null);
+  expect(tag).toBe(null);
 });
 
 // ---------------------------------------------------------------------------
@@ -268,17 +267,17 @@ test("resolveUpstreamTag — both probes fail → returns null", () => {
 
 test("resolveVendorVersion — superpowers from submodule v-tag", () => {
   const root = makeSuperpowersFixture();
-  assert.equal(resolveVendorVersion("superpowers", root), "6.2.0");
+  expect(resolveVendorVersion("superpowers", root)).toBe("6.2.0");
 });
 
 test("resolveVendorVersion — mattpocock-skills from submodule v-tag", () => {
   const root = makeMattpocockFixture();
-  assert.equal(resolveVendorVersion("mattpocock-skills", root), "1.1.0");
+  expect(resolveVendorVersion("mattpocock-skills", root)).toBe("1.1.0");
 });
 
 test("resolveVendorVersion — impeccable from plugin.json truth (non-v tags)", () => {
   const root = makeImpeccableFixture();
-  assert.equal(resolveVendorVersion("impeccable", root), "4.0.4");
+  expect(resolveVendorVersion("impeccable", root)).toBe("4.0.4");
 });
 
 test("resolveVendorVersion — non-v tag on submodule HEAD throws (no matching release)", () => {
@@ -292,7 +291,7 @@ test("resolveVendorVersion — non-v tag on submodule HEAD throws (no matching r
   execSync(`git remote add origin ${join(root, "bare-origin.git")}`, {
     cwd: repo,
   });
-  assert.throws(() => resolveVendorVersion("superpowers", root), /release tag/);
+  expect(() => resolveVendorVersion("superpowers", root)).toThrow(/release tag/);
 });
 
 test("resolveVendorVersion — impeccable without plugin.json version throws", () => {
@@ -300,7 +299,7 @@ test("resolveVendorVersion — impeccable without plugin.json version throws", (
   const p = join(root, "vendors", "impeccable", "plugin", ".claude-plugin");
   mkdirSync(p, { recursive: true });
   writeFileSync(join(p, "plugin.json"), JSON.stringify({ name: "impeccable" }));
-  assert.throws(() => resolveVendorVersion("impeccable", root), /version/);
+  expect(() => resolveVendorVersion("impeccable", root)).toThrow(/version/);
 });
 
 // ---------------------------------------------------------------------------
@@ -312,7 +311,7 @@ test("listVendors returns sorted vendor dir names from vendors/", () => {
   mkdirSync(join(root, "vendors", "superpowers"), { recursive: true });
   mkdirSync(join(root, "vendors", "impeccable"), { recursive: true });
   mkdirSync(join(root, "vendors", "mattpocock-skills"), { recursive: true });
-  assert.deepEqual(listVendors(root), [
+  expect(listVendors(root)).toEqual([
     "impeccable",
     "mattpocock-skills",
     "superpowers",
@@ -324,7 +323,7 @@ test("listVendors ignores non-directory entries in vendors/", () => {
   mkdirSync(join(root, "vendors"), { recursive: true });
   writeFileSync(join(root, "vendors", ".DS_Store"), "");
   mkdirSync(join(root, "vendors", "superpowers"), { recursive: true });
-  assert.deepEqual(listVendors(root), ["superpowers"]);
+  expect(listVendors(root)).toEqual(["superpowers"]);
 });
 
 // ---------------------------------------------------------------------------
@@ -332,27 +331,25 @@ test("listVendors ignores non-directory entries in vendors/", () => {
 // ---------------------------------------------------------------------------
 
 test("assemblyTemplate returns the template entry for a known vendor", () => {
-  assert.deepEqual(assemblyTemplate("impeccable"), { contentRoot: "plugin" });
-  assert.deepEqual(assemblyTemplate("superpowers"), { contentRoot: "." });
+  expect(assemblyTemplate("impeccable")).toEqual({ contentRoot: "plugin" });
+  expect(assemblyTemplate("superpowers")).toEqual({ contentRoot: "." });
 });
 
 test("assemblyTemplate throws a clear error for a vendor without a template", () => {
   const root = makeRoot();
   mkdirSync(join(root, "vendors", "mystery"), { recursive: true });
-  assert.deepEqual(listVendors(root), ["mystery"]);
-  assert.throws(
+  expect(listVendors(root)).toEqual(["mystery"]);
+  expect(
     () => assemblyTemplate("mystery"),
-    /no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s,
-  );
+  ).toThrow(/no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s);
 });
 
 test("resolveVendorVersion surfaces the template guard for an unknown vendor", () => {
   const root = makeRoot();
   mkdirSync(join(root, "vendors", "mystery"), { recursive: true });
-  assert.throws(
+  expect(
     () => resolveVendorVersion("mystery", root),
-    /no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s,
-  );
+  ).toThrow(/no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s);
 });
 
 // ---------------------------------------------------------------------------
@@ -362,7 +359,7 @@ test("resolveVendorVersion surfaces the template guard for an unknown vendor", (
 test("derivePiKey — superpowers preserves upstream pi from package.json", () => {
   const root = makeSuperpowersFixture();
   const pi = derivePiKey(join(root, "vendors", "superpowers"), ".");
-  assert.deepEqual(pi, {
+  expect(pi).toEqual({
     extensions: ["./.pi/extensions/superpowers.ts"],
     skills: ["./skills"],
   });
@@ -371,14 +368,14 @@ test("derivePiKey — superpowers preserves upstream pi from package.json", () =
 test("derivePiKey — mattpocock reads skills from .claude-plugin/plugin.json", () => {
   const root = makeMattpocockFixture();
   const pi = derivePiKey(join(root, "vendors", "mattpocock-skills"), ".");
-  assert.ok(Array.isArray(pi.skills));
-  assert.ok(pi.skills.length >= 21);
+  expect(Array.isArray(pi.skills)).toBeTruthy();
+  expect(pi.skills.length >= 21).toBeTruthy();
 });
 
 test("derivePiKey — impeccable derives from .pi/skills/impeccable (pi convention)", () => {
   const root = makeImpeccableFixture();
   const pi = derivePiKey(join(root, "vendors", "impeccable"), "plugin");
-  assert.deepEqual(pi.skills, ["./.pi/skills/impeccable"]);
+  expect(pi.skills).toEqual(["./.pi/skills/impeccable"]);
 });
 
 test("derivePiKey — no pi source returns empty skills", () => {
@@ -387,7 +384,7 @@ test("derivePiKey — no pi source returns empty skills", () => {
   mkdirSync(p, { recursive: true });
   writeFileSync(join(p, "package.json"), JSON.stringify({ name: "bare" }));
   const pi = derivePiKey(p, ".");
-  assert.deepEqual(pi, { skills: [] });
+  expect(pi).toEqual({ skills: [] });
 });
 
 test("derivePiKey — fallback skills/ directory glob picks subdirectories", () => {
@@ -397,7 +394,7 @@ test("derivePiKey — fallback skills/ directory glob picks subdirectories", () 
   mkdirSync(join(p, "skills", "beta"), { recursive: true });
   writeFileSync(join(p, "package.json"), JSON.stringify({ name: "skills-only" }));
   const pi = derivePiKey(p, ".");
-  assert.deepEqual(pi, { skills: ["./skills/alpha", "./skills/beta"] });
+  expect(pi).toEqual({ skills: ["./skills/alpha", "./skills/beta"] });
 });
 
 // ---------------------------------------------------------------------------
@@ -407,13 +404,13 @@ test("derivePiKey — fallback skills/ directory glob picks subdirectories", () 
 test("assemblePackageJson — superpowers scoped pkg (tags + plugin.json metadata)", () => {
   const root = makeSuperpowersFixture();
   const pkg = assemblePackageJson("superpowers", root);
-  assert.equal(pkg.name, "@oscaner-skills/superpowers");
-  assert.equal(pkg.version, "6.2.0");
-  assert.equal(pkg.license, "MIT");
-  assert.equal(pkg.description, "Core skills library for Claude Code");
+  expect(pkg.name).toBe("@oscaner-skills/superpowers");
+  expect(pkg.version).toBe("6.2.0");
+  expect(pkg.license).toBe("MIT");
+  expect(pkg.description).toBe("Core skills library for Claude Code");
   // pi at top level (not nested in oscaner-plugin), preserving upstream
-  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "." });
-  assert.deepEqual(pkg.pi, {
+  expect(pkg["oscaner-plugin"]).toEqual({ contentRoot: "." });
+  expect(pkg.pi).toEqual({
     extensions: ["./.pi/extensions/superpowers.ts"],
     skills: ["./skills"],
   });
@@ -422,28 +419,28 @@ test("assemblePackageJson — superpowers scoped pkg (tags + plugin.json metadat
 test("assemblePackageJson — impeccable version from plugin.json truth, contentRoot plugin", () => {
   const root = makeImpeccableFixture();
   const pkg = assemblePackageJson("impeccable", root);
-  assert.equal(pkg.name, "@oscaner-skills/impeccable");
-  assert.equal(pkg.version, "4.0.4");
-  assert.equal(pkg.license, "Apache-2.0");
-  assert.deepEqual(pkg.author, {
+  expect(pkg.name).toBe("@oscaner-skills/impeccable");
+  expect(pkg.version).toBe("4.0.4");
+  expect(pkg.license).toBe("Apache-2.0");
+  expect(pkg.author).toEqual({
     name: "Paul Bakaus",
     email: "paul@paulbakaus.com",
   });
   // pi at top level, derived from .pi/skills/impeccable (not plugin.json)
-  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "plugin" });
-  assert.deepEqual(pkg.pi, { skills: ["./.pi/skills/impeccable"] });
+  expect(pkg["oscaner-plugin"]).toEqual({ contentRoot: "plugin" });
+  expect(pkg.pi).toEqual({ skills: ["./.pi/skills/impeccable"] });
 });
 
 test("assemblePackageJson — mattpocock drops upstream private flag", () => {
   const root = makeMattpocockFixture();
   const pkg = assemblePackageJson("mattpocock-skills", root);
-  assert.equal(pkg.version, "1.1.0");
-  assert.equal(pkg.license, "MIT");
-  assert.equal(pkg.private, undefined);
+  expect(pkg.version).toBe("1.1.0");
+  expect(pkg.license).toBe("MIT");
+  expect(pkg.private).toBe(undefined);
   // pi at top level, derived from .claude-plugin/plugin.json skills array
-  assert.deepEqual(pkg["oscaner-plugin"], { contentRoot: "." });
-  assert.ok(Array.isArray(pkg.pi.skills));
-  assert.ok(pkg.pi.skills.length >= 21);
+  expect(pkg["oscaner-plugin"]).toEqual({ contentRoot: "." });
+  expect(Array.isArray(pkg.pi.skills)).toBeTruthy();
+  expect(pkg.pi.skills.length >= 21).toBeTruthy();
 });
 
 // ---------------------------------------------------------------------------
@@ -465,11 +462,11 @@ test("copyTree excludes .git and node_modules, preserves files and symlinks", ()
 
   copyTree(src, dest);
 
-  assert.ok(existsSync(join(dest, "LICENSE")));
-  assert.ok(existsSync(join(dest, "plugin", "skills", "impeccable.md")));
-  assert.ok(existsSync(join(dest, "LICENSE.link")));
-  assert.equal(existsSync(join(dest, ".git")), false);
-  assert.equal(existsSync(join(dest, "node_modules")), false);
+  expect(existsSync(join(dest, "LICENSE"))).toBeTruthy();
+  expect(existsSync(join(dest, "plugin", "skills", "impeccable.md"))).toBeTruthy();
+  expect(existsSync(join(dest, "LICENSE.link"))).toBeTruthy();
+  expect(existsSync(join(dest, ".git"))).toBe(false);
+  expect(existsSync(join(dest, "node_modules"))).toBe(false);
 });
 
 // ---------------------------------------------------------------------------
@@ -478,36 +475,34 @@ test("copyTree excludes .git and node_modules, preserves files and symlinks", ()
 
 test("assertSubmoduleCheckedOut throws with update hint when submodule missing", () => {
   const root = makeRoot();
-  assert.throws(
+  expect(
     () => assertSubmoduleCheckedOut("superpowers", root),
-    /git submodule update --init/,
-  );
+  ).toThrow(/git submodule update --init/);
 });
 
 test("assertSubmoduleCheckedOut throws when dir exists but not checked out", () => {
   const root = makeRoot();
   mkdirSync(join(root, "vendors", "impeccable"), { recursive: true });
-  assert.throws(
+  expect(
     () => assertSubmoduleCheckedOut("impeccable", root),
-    /git submodule update --init/,
-  );
+  ).toThrow(/git submodule update --init/);
 });
 
 test("assertSubmoduleCheckedOut passes for a checked-out submodule", () => {
   const root = makeSuperpowersFixture();
-  assert.doesNotThrow(() => assertSubmoduleCheckedOut("superpowers", root));
+  expect(() => assertSubmoduleCheckedOut("superpowers", root)).not.toThrow();
 });
 
 test("assertLicensePresent throws when LICENSE missing", () => {
   const root = makeRoot();
   mkdirSync(join(root, "vendors", "mattpocock-skills"), { recursive: true });
   writeFileSync(join(root, "vendors", "mattpocock-skills", "package.json"), "{}\n");
-  assert.throws(() => assertLicensePresent("mattpocock-skills", root), /LICENSE/);
+  expect(() => assertLicensePresent("mattpocock-skills", root)).toThrow(/LICENSE/);
 });
 
 test("assertLicensePresent passes when LICENSE present", () => {
   const root = makeSuperpowersFixture();
-  assert.doesNotThrow(() => assertLicensePresent("superpowers", root));
+  expect(() => assertLicensePresent("superpowers", root)).not.toThrow();
 });
 
 // ---------------------------------------------------------------------------
@@ -519,14 +514,14 @@ test("stageVendor copies content, writes scoped package.json + LICENSE", () => {
   const stageRoot = join(root, "stage");
   const dest = stageVendor("impeccable", root, stageRoot);
 
-  assert.equal(dest, join(stageRoot, "impeccable"));
-  assert.ok(existsSync(join(dest, "LICENSE")));
-  assert.ok(existsSync(join(dest, "plugin", ".claude-plugin", "plugin.json")));
+  expect(dest).toBe(join(stageRoot, "impeccable"));
+  expect(existsSync(join(dest, "LICENSE"))).toBeTruthy();
+  expect(existsSync(join(dest, "plugin", ".claude-plugin", "plugin.json"))).toBeTruthy();
   const pkg = JSON.parse(readFileSync(join(dest, "package.json"), "utf8"));
-  assert.equal(pkg.name, "@oscaner-skills/impeccable");
-  assert.equal(pkg.version, "4.0.4");
+  expect(pkg.name).toBe("@oscaner-skills/impeccable");
+  expect(pkg.version).toBe("4.0.4");
   // pi at top level, derived from .pi/skills/impeccable
-  assert.deepEqual(pkg.pi, { skills: ["./.pi/skills/impeccable"] });
+  expect(pkg.pi).toEqual({ skills: ["./.pi/skills/impeccable"] });
 });
 
 // ---------------------------------------------------------------------------
@@ -538,17 +533,17 @@ test("thinGeminiExtension produces name/version/skills/contextFileName, no hooks
     "./skills/tdd",
     "./skills/grilling",
   ]);
-  assert.equal(ext.name, "mattpocock-skills");
-  assert.equal(ext.version, "1.1.0");
-  assert.deepEqual(ext.skills, ["./skills/tdd", "./skills/grilling"]);
-  assert.equal(ext.contextFileName, "GEMINI.md");
-  assert.equal(ext.hooks, undefined);
+  expect(ext.name).toBe("mattpocock-skills");
+  expect(ext.version).toBe("1.1.0");
+  expect(ext.skills).toEqual(["./skills/tdd", "./skills/grilling"]);
+  expect(ext.contextFileName).toBe("GEMINI.md");
+  expect(ext.hooks).toBe(undefined);
 });
 
 test("thinGeminiExtension omits description when not provided", () => {
   const ext = thinGeminiExtension("x", "0.0.1", []);
-  assert.equal(ext.description, undefined);
-  assert.equal(ext.hooks, undefined);
+  expect(ext.description).toBe(undefined);
+  expect(ext.hooks).toBe(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -561,16 +556,16 @@ test("stageVendor mattpocock produces thin gemini-extension.json", () => {
   const dest = stageVendor("mattpocock-skills", root, stageRoot);
 
   const geminiPath = join(dest, "gemini-extension.json");
-  assert.ok(existsSync(geminiPath), "gemini-extension.json should exist");
+  expect(existsSync(geminiPath)).toBeTruthy();
   const ext = JSON.parse(readFileSync(geminiPath, "utf8"));
   // Name is the scoped package name (from assemblePackageJson)
-  assert.equal(ext.name, "@oscaner-skills/mattpocock-skills");
-  assert.equal(ext.version, "1.1.0");
-  assert.equal(ext.contextFileName, "GEMINI.md");
-  assert.ok(Array.isArray(ext.skills), "skills should be an array");
-  assert.ok(ext.skills.length >= 2, "skills should include fixture dirs");
+  expect(ext.name).toBe("@oscaner-skills/mattpocock-skills");
+  expect(ext.version).toBe("1.1.0");
+  expect(ext.contextFileName).toBe("GEMINI.md");
+  expect(Array.isArray(ext.skills)).toBeTruthy();
+  expect(ext.skills.length >= 2).toBeTruthy();
   // No BeforeTool hooks in the thin extension
-  assert.equal(ext.hooks, undefined);
+  expect(ext.hooks).toBe(undefined);
 });
 
 test("stageVendor mattpocock produces GEMINI.md with skill imports", () => {
@@ -579,12 +574,12 @@ test("stageVendor mattpocock produces GEMINI.md with skill imports", () => {
   const dest = stageVendor("mattpocock-skills", root, stageRoot);
 
   const geminiMdPath = join(dest, "GEMINI.md");
-  assert.ok(existsSync(geminiMdPath), "GEMINI.md should exist");
+  expect(existsSync(geminiMdPath)).toBeTruthy();
   const content = readFileSync(geminiMdPath, "utf8");
   // Skills come from the fixture's .claude-plugin/plugin.json skills array
-  assert.ok(content.includes("@./skills/claude-api/SKILL.md"), "should import claude-api skill");
-  assert.ok(content.includes("@./skills/grilling/SKILL.md"), "should import grilling skill");
-  assert.ok(!content.includes("hooks"), "thin extension GEMINI.md should not reference hooks");
+  expect(content.includes("@./skills/claude-api/SKILL.md")).toBeTruthy();
+  expect(content.includes("@./skills/grilling/SKILL.md")).toBeTruthy();
+  expect(!content.includes("hooks")).toBeTruthy();
 });
 
 // ---------------------------------------------------------------------------
@@ -599,10 +594,9 @@ test("stageVendor throws when upstream already has gemini-extension.json", () =>
     JSON.stringify({ name: "upstream" }),
   );
   const stageRoot = join(root, "stage");
-  assert.throws(
+  expect(
     () => stageVendor("mattpocock-skills", root, stageRoot),
-    /gemini-extension\.json/,
-  );
+  ).toThrow(/gemini-extension\.json/);
 });
 
 // ---------------------------------------------------------------------------
@@ -613,14 +607,14 @@ test("stageVendor superpowers does not produce gemini-extension.json", () => {
   const root = makeSuperpowersFixture();
   const stageRoot = join(root, "stage");
   const dest = stageVendor("superpowers", root, stageRoot);
-  assert.ok(!existsSync(join(dest, "gemini-extension.json")));
+  expect(!existsSync(join(dest, "gemini-extension.json"))).toBeTruthy();
 });
 
 test("stageVendor impeccable does not produce gemini-extension.json", () => {
   const root = makeImpeccableFixture();
   const stageRoot = join(root, "stage");
   const dest = stageVendor("impeccable", root, stageRoot);
-  assert.ok(!existsSync(join(dest, "gemini-extension.json")));
+  expect(!existsSync(join(dest, "gemini-extension.json"))).toBeTruthy();
 });
 
 // ---------------------------------------------------------------------------
@@ -628,19 +622,19 @@ test("stageVendor impeccable does not produce gemini-extension.json", () => {
 // ---------------------------------------------------------------------------
 
 test("classifyProbeError — E404 → unpublished", () => {
-  assert.equal(classifyProbeError("npm ERR! code E404\nnpm ERR! 404 Not found - GET https://registry.npmjs.org/@oscaner-skills%2fimpeccable"), PROBE.UNPUBLISHED);
+  expect(classifyProbeError("npm ERR! code E404\nnpm ERR! 404 Not found - GET https://registry.npmjs.org/@oscaner-skills%2fimpeccable")).toBe(PROBE.UNPUBLISHED);
 });
 
 test("classifyProbeError — Not found → E404", () => {
-  assert.equal(classifyProbeError("npm ERR! 404 Not found"), PROBE.UNPUBLISHED);
+  expect(classifyProbeError("npm ERR! 404 Not found")).toBe(PROBE.UNPUBLISHED);
 });
 
 test("classifyProbeError — other error → error", () => {
-  assert.equal(classifyProbeError("npm ERR! code E403\nnpm ERR! 403 Forbidden"), PROBE.ERROR);
+  expect(classifyProbeError("npm ERR! code E403\nnpm ERR! 403 Forbidden")).toBe(PROBE.ERROR);
 });
 
 test("classifyProbeError — empty stderr → error", () => {
-  assert.equal(classifyProbeError(""), PROBE.ERROR);
+  expect(classifyProbeError("")).toBe(PROBE.ERROR);
 });
 
 // ---------------------------------------------------------------------------
@@ -658,8 +652,8 @@ test("publish-vendor --dry-run stdout is exactly []", () => {
     [binPath, "--dry-run"],
     { encoding: "utf8", cwd: root },
   );
-  assert.equal(status, 0, `dry-run should exit 0, got ${status}, stderr: ${stderr.slice(0, 500)}`);
-  assert.equal(stdout.trim(), "[]");
-  assert.ok(stderr.includes("OK — dry-run complete"), "stderr should contain OK line");
-  assert.ok(stderr.includes("staged at"), "stderr should contain staged-at line");
+  expect(status).toBe(0);
+  expect(stdout.trim()).toBe("[]");
+  expect(stderr.includes("OK — dry-run complete")).toBeTruthy();
+  expect(stderr.includes("staged at")).toBeTruthy();
 });

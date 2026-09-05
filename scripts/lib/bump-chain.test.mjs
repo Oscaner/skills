@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,52 +25,47 @@ const SUPERPOWERS_BUMP_TARGETS = [
 
 describe("submodule bump chain — vendors/ + packages/ migration contract", () => {
   it("maps all three submodules to vendors/<name>", () => {
-    assert.deepEqual(Object.keys(SUBMODULE_PATHS).sort(), [
+    expect(Object.keys(SUBMODULE_PATHS).sort()).toEqual([
       "impeccable",
       "mattpocock-skills",
       "superpowers",
     ]);
     for (const [name, submodulePath] of Object.entries(SUBMODULE_PATHS)) {
-      assert.equal(submodulePath, `vendors/${name}`);
-      assert.ok(existsSync(join(root, submodulePath)), `${submodulePath} missing`);
+      expect(submodulePath).toBe(`vendors/${name}`);
+      expect(existsSync(join(root, submodulePath))).toBeTruthy();
     }
   });
 
   it("resolves a parseable plugin.json for every vendored submodule", () => {
-    for (const [name, pluginJson] of Object.entries(VENDORED_PLUGIN_JSON)) {
-      assert.ok(existsSync(join(root, pluginJson)), `${pluginJson} missing`);
-      assert.doesNotThrow(
+    for (const [, pluginJson] of Object.entries(VENDORED_PLUGIN_JSON)) {
+      expect(existsSync(join(root, pluginJson))).toBeTruthy();
+      expect(
         () => JSON.parse(read(pluginJson)),
-        `${name} plugin.json must be valid JSON`,
-      );
+      ).not.toThrow();
     }
   });
 
   it("keeps the submodule-sync matrix in lockstep with SUBMODULE_PATHS", () => {
     const yaml = read(".github/workflows/submodule-sync.yml");
     const m = yaml.match(/submodule:\s*\[([^\]]+)\]/);
-    assert.ok(m, "matrix.submodule list not found in submodule-sync.yml");
+    expect(m).toBeTruthy();
     const matrix = m[1].split(",").map((s) => s.trim());
-    assert.deepEqual(
+    expect(
       matrix.slice().sort(),
-      Object.keys(SUBMODULE_PATHS).sort(),
-      "workflow matrix must cover every SUBMODULE_PATHS entry and nothing more",
-    );
+    ).toEqual(Object.keys(SUBMODULE_PATHS).sort());
   });
 
   it("resolves bump paths through the script, not hard-coded layout, in the reusable workflow", () => {
     const yaml = read(".github/workflows/bump-submodule-reusable.yml");
-    assert.match(yaml, /node scripts\/bump-submodule\.mjs/);
-    assert.doesNotMatch(
+    expect(yaml).toMatch(/node scripts\/bump-submodule\.mjs/);
+    expect(
       yaml,
-      /vendors\/(superpowers|impeccable|mattpocock-skills)\b/,
-      "workflow must not hard-code the vendor layout — path resolution stays in the script",
-    );
+    ).not.toMatch(/vendors\/(superpowers|impeccable|mattpocock-skills)\b/);
   });
 
   it("targets superpowers bump write files (marketplace/source.json)", () => {
     for (const rel of SUPERPOWERS_BUMP_TARGETS) {
-      assert.ok(existsSync(join(root, rel)), `${rel} missing`);
+      expect(existsSync(join(root, rel))).toBeTruthy();
     }
   });
 
@@ -80,7 +74,7 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
     for (const rel of [
       "scripts/bump-submodule.mjs",
     ]) {
-      assert.doesNotMatch(read(rel), stale, `${rel} reverts to root plugins/ layout`);
+      expect(read(rel)).not.toMatch(stale);
     }
   });
 });

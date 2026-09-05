@@ -1,5 +1,4 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
+import { test, expect } from "vitest";
 import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -63,7 +62,7 @@ const ROUTER = null; // router deleted
 
 test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no hooks field)", () => {
   const m = claudePluginManifest(OS_ENG, OS_VERSION);
-  assert.deepEqual(m, {
+  expect(m).toEqual({
     _generated: generatedBanner,
     name: "osuperpowers",
     description:
@@ -75,10 +74,9 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no 
     category: "osuperpowers",
     keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
   });
-  assert.ok(
+  expect(
     !("hooks" in m),
-    "standard hooks/hooks.json is auto-loaded by Claude Code — manifest must not reference it (duplicate load fails plugin startup)",
-  );
+  ).toBeTruthy();
 });
 
 // router deleted — test removed
@@ -86,26 +84,26 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no 
 
 test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () => {
   const m = cursorPluginManifest(OS_ENG, OS_VERSION);
-  assert.equal(m.name, "osuperpowers");
-  assert.equal(m.displayName, "osuperpowers");
-  assert.equal(m.skills, "./skills/");
-  assert.equal(m.hooks, "./hooks/hooks-cursor.json");
-  assert.equal(m.version, OS_VERSION);
-  assert.equal(m.license, "MIT");
-  assert.ok(m._generated);
-  assert.match(m._generated, /scripts\/emit\.mjs/);
+  expect(m.name).toBe("osuperpowers");
+  expect(m.displayName).toBe("osuperpowers");
+  expect(m.skills).toBe("./skills/");
+  expect(m.hooks).toBe("./hooks/hooks-cursor.json");
+  expect(m.version).toBe(OS_VERSION);
+  expect(m.license).toBe("MIT");
+  expect(m._generated).toBeTruthy();
+  expect(m._generated).toMatch(/scripts\/emit\.mjs/);
 });
 
 test("codexPluginManifest includes skills, codex gate hooks path, and interface", () => {
   const m = codexPluginManifest(OS_ENG, OS_VERSION);
-  assert.equal(m.skills, "../skills/");
-  assert.equal(m.hooks, "./hooks/hooks.json");
-  assert.equal(m.name, "osuperpowers");
-  assert.equal(m.version, OS_VERSION);
-  assert.ok(m.interface, "codex manifest must carry an interface");
-  assert.equal(m.interface.displayName, "osuperpowers");
-  assert.ok(Array.isArray(m.interface.capabilities));
-  assert.ok(m.interface.capabilities.length > 0);
+  expect(m.skills).toBe("../skills/");
+  expect(m.hooks).toBe("./hooks/hooks.json");
+  expect(m.name).toBe("osuperpowers");
+  expect(m.version).toBe(OS_VERSION);
+  expect(m.interface).toBeTruthy();
+  expect(m.interface.displayName).toBe("osuperpowers");
+  expect(Array.isArray(m.interface.capabilities)).toBeTruthy();
+  expect(m.interface.capabilities.length > 0).toBeTruthy();
 });
 
 test("claudePluginManifest emits hooks only for non-canonical hook files", () => {
@@ -118,7 +116,7 @@ test("claudePluginManifest emits hooks only for non-canonical hook files", () =>
     },
     OS_VERSION,
   );
-  assert.equal(custom.hooks, "./hooks/claude.json");
+  expect(custom.hooks).toBe("./hooks/claude.json");
   // The canonical ./hooks/hooks.json is auto-loaded by Claude Code — naming it
   // in manifest.hooks duplicates the load and fails plugin startup, so it is
   // omitted even when `oscaner-plugin.hooks.claude` maps to it explicitly.
@@ -126,10 +124,9 @@ test("claudePluginManifest emits hooks only for non-canonical hook files", () =>
     { ...OS_ENG, hooks: { claude: "./hooks/hooks.json" } },
     OS_VERSION,
   );
-  assert.ok(
+  expect(
     !("hooks" in canonical),
-    "canonical ./hooks/hooks.json is auto-loaded — must be omitted from manifest.hooks",
-  );
+  ).toBeTruthy();
 });
 
 test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () => {
@@ -140,36 +137,35 @@ test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () 
     },
     OS_VERSION,
   );
-  assert.equal(m.hooks, "./hooks/cursor.json");
+  expect(m.hooks).toBe("./hooks/cursor.json");
 });
 
 test("codexPluginManifest points hooks at the codex plugin-root hooks channel", () => {
   // codex 插件 hooks 走 plugin-root `hooks/hooks.json`（manifest 位于 .codex-plugin/，
   // manifest-relative 为 ./hooks/hooks.json）；emit 按 package-relative 映射写文件。
   // skills 同为 manifest-relative（../skills/ → 包根 skills/）—— 统一 base。
-  assert.equal(codexPluginManifest(OS_ENG, OS_VERSION).hooks, "./hooks/hooks.json");
+  expect(codexPluginManifest(OS_ENG, OS_VERSION).hooks).toBe("./hooks/hooks.json");
   const mapped = codexPluginManifest(
     { ...OS_ENG, hooks: { codex: "./.codex-plugin/hooks/hooks.json" } },
     OS_VERSION,
   );
-  assert.equal(mapped.hooks, "./hooks/hooks.json");
+  expect(mapped.hooks).toBe("./hooks/hooks.json");
 });
 
 test("codexHooksJson wires PreToolUse gate to the codex adapter (manifest-relative ../bin)", () => {
   const hooks = codexHooksJson();
-  assert.ok(hooks._generated, "hooks.json must carry the generated banner");
-  assert.match(hooks._generated, /scripts\/emit\.mjs/);
+  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
   const pre = hooks.hooks.PreToolUse;
-  assert.equal(pre.length, 2);
-  assert.equal(pre[0].matcher, "Write|Edit");
-  assert.equal(pre[1].matcher, "Bash");
+  expect(pre.length).toBe(2);
+  expect(pre[0].matcher).toBe("Write|Edit");
+  expect(pre[1].matcher).toBe("Bash");
   for (const e of pre) {
-    assert.equal(e.hooks.length, 1);
-    assert.equal(e.hooks[0].type, "command");
-    assert.equal(
+    expect(e.hooks.length).toBe(1);
+    expect(e.hooks[0].type).toBe("command");
+    expect(
       e.hooks[0].command,
-      "../bin/gate/adapters/codex.mjs",
-    );
+    ).toBe("../bin/gate/adapters/codex.mjs");
   }
 });
 
@@ -183,9 +179,9 @@ test("assertAdapterPathsExist: every generated osuperpowers hooks command resolv
       qoder: "./.qoder-plugin/hooks/hooks.json",
     },
   };
-  assert.doesNotThrow(() =>
+  expect(() =>
     assertAdapterPathsExist(plugin, "packages/osuperpowers", OS_VERSION),
-  );
+  ).not.toThrow();
 });
 
 test("assertAdapterPathsExist: throws when a generated hooks command adapter is missing", () => {
@@ -196,30 +192,26 @@ test("assertAdapterPathsExist: throws when a generated hooks command adapter is 
       hooks: { claude: "./hooks/hooks.json" },
     };
     // empty temp dir has no bin/gate/adapters/* — the guard must fail loud
-    assert.throws(() => assertAdapterPathsExist(plugin, tmp, OS_VERSION), /adapter/i);
+    expect(() => assertAdapterPathsExist(plugin, tmp, OS_VERSION)).toThrow(/adapter/i);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
 
 test("adapterRelFromCommand: ../bin manifest-relative shape is recognized (ADAPTER_CMD_RE cover)", () => {
-  assert.equal(
+  expect(
     adapterRelFromCommand("../bin/gate/adapters/codex.mjs"),
-    "bin/gate/adapters/codex.mjs",
-  );
-  assert.equal(
+  ).toBe("bin/gate/adapters/codex.mjs");
+  expect(
     adapterRelFromCommand("../bin/gate/adapters/qoder.mjs"),
-    "bin/gate/adapters/qoder.mjs",
-  );
-  assert.equal(
+  ).toBe("bin/gate/adapters/qoder.mjs");
+  expect(
     adapterRelFromCommand("./bin/gate/adapters/cursor.mjs"),
-    "bin/gate/adapters/cursor.mjs",
-  );
-  assert.equal(
+  ).toBe("bin/gate/adapters/cursor.mjs");
+  expect(
     adapterRelFromCommand("${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs"),
-    "bin/gate/adapters/claude.mjs",
-  );
-  assert.equal(adapterRelFromCommand("python3 /tmp/x.py"), null);
+  ).toBe("bin/gate/adapters/claude.mjs");
+  expect(adapterRelFromCommand("python3 /tmp/x.py")).toBe(null);
 });
 
 test("assertAdapterPathsExist: ../bin manifest-relative adapter missing → throws (guard covers ../)", () => {
@@ -230,7 +222,7 @@ test("assertAdapterPathsExist: ../bin manifest-relative adapter missing → thro
       hooks: { codex: "./.codex-plugin/hooks/hooks.json" },
     };
     // 空 temp dir 无 bin/gate/adapters/codex.mjs —— 即使命令是 ../ 前缀也必须失败
-    assert.throws(() => assertAdapterPathsExist(plugin, tmp, OS_VERSION), /adapter/i);
+    expect(() => assertAdapterPathsExist(plugin, tmp, OS_VERSION)).toThrow(/adapter/i);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -245,23 +237,22 @@ test("collectHookCommands walks nested hook docs and returns every command strin
       ],
     },
   });
-  assert.deepEqual(cmds, ["/a.mjs", "/b.mjs"]);
+  expect(cmds).toEqual(["/a.mjs", "/b.mjs"]);
 });
 
 test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface", () => {
   const m = kimiPluginManifest(OS_ENG, OS_VERSION);
-  assert.equal(m.skills, "./skills/");
-  assert.deepEqual(m.sessionStart, { skill: "init" });
-  assert.ok(
+  expect(m.skills).toBe("./skills/");
+  expect(m.sessionStart).toEqual({ skill: "init" });
+  expect(
     typeof m.skillInstructions === "string" && m.skillInstructions.length > 0,
-    "kimi manifest must carry tool-mapping prose",
-  );
-  assert.ok(m.interface);
-  assert.equal(m.interface.displayName, "osuperpowers");
+  ).toBeTruthy();
+  expect(m.interface).toBeTruthy();
+  expect(m.interface.displayName).toBe("osuperpowers");
 });
 
 test("geminiExtension carries BeforeTool gate hooks + contextFileName", () => {
-  assert.deepEqual(geminiExtension(OS_ENG, OS_VERSION), {
+  expect(geminiExtension(OS_ENG, OS_VERSION)).toEqual({
     _generated: generatedBanner,
     name: "osuperpowers",
     description:
@@ -291,8 +282,9 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () 
     "cli-select",
     "sample-skill",
   ]);
-  assert.equal(
+  expect(
     md,
+  ).toBe(
     `<!-- ${generatedBanner} -->\n` +
       "@./skills/cli-select/SKILL.md\n" +
       "@./skills/init/SKILL.md\n" +
@@ -301,26 +293,23 @@ test("geminiMarkdown @-imports each skill's SKILL.md sorted under a banner", () 
 });
 
 test("piPackageKey carries the pi gate extension (.ts) when passed, pure skills otherwise", () => {
-  assert.deepEqual(
+  expect(
     piPackageKey({ extensions: ["./bin/gate/adapters/pi.ts"] }),
-    { extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] },
-  );
-  assert.deepEqual(piPackageKey(), { skills: ["./skills"] });
+  ).toEqual({ extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] });
+  expect(piPackageKey()).toEqual({ skills: ["./skills"] });
 });
 
 test("piPackageKey first-party: osuperpowers pi key (skills + extensions)", () => {
-  assert.deepEqual(
+  expect(
     piPackageKey({ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }),
-    { skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] },
-  );
+  ).toEqual({ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] });
 });
 
 test("piPackageKey first-party: overrides pi key (extensions only, no skills)", () => {
   // router deleted — test kept with osuperpowers-only variant
-  assert.deepEqual(
+  expect(
     piPackageKey({ extensions: ["./bin/gate/adapters/pi.ts"] }),
-    { extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] },
-  );
+  ).toEqual({ extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] });
 });
 
 // router deleted — test removed
@@ -328,33 +317,32 @@ test("piPackageKey first-party: overrides pi key (extensions only, no skills)", 
 
 test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () => {
   const m = qoderPluginManifest(OS_ENG, OS_VERSION);
-  assert.equal(m.name, "osuperpowers");
-  assert.equal(m.version, OS_VERSION);
-  assert.equal(m.description, OS_ENG.description);
-  assert.equal(m.author.name, "Oscaner Miao");
-  assert.equal(m.license, "MIT");
-  assert.deepEqual(m.keywords, OS_ENG.claude.keywords);
-  assert.equal(m.skills, "../skills/");
-  assert.equal(m.hooks, "./hooks/hooks.json");
-  assert.ok(m._generated);
-  assert.match(m._generated, /scripts\/emit\.mjs/);
+  expect(m.name).toBe("osuperpowers");
+  expect(m.version).toBe(OS_VERSION);
+  expect(m.description).toBe(OS_ENG.description);
+  expect(m.author.name).toBe("Oscaner Miao");
+  expect(m.license).toBe("MIT");
+  expect(m.keywords).toEqual(OS_ENG.claude.keywords);
+  expect(m.skills).toBe("../skills/");
+  expect(m.hooks).toBe("./hooks/hooks.json");
+  expect(m._generated).toBeTruthy();
+  expect(m._generated).toMatch(/scripts\/emit\.mjs/);
 });
 
 test("qoderHooksJson wires PreToolUse gate to the qoder adapter (manifest-relative ../bin)", () => {
   const hooks = qoderHooksJson();
-  assert.ok(hooks._generated, "qoder hooks.json must carry the generated banner");
-  assert.match(hooks._generated, /scripts\/emit\.mjs/);
+  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
   const pre = hooks.hooks.PreToolUse;
-  assert.equal(pre.length, 2);
-  assert.equal(pre[0].matcher, "Write|Edit");
-  assert.equal(pre[1].matcher, "Bash");
+  expect(pre.length).toBe(2);
+  expect(pre[0].matcher).toBe("Write|Edit");
+  expect(pre[1].matcher).toBe("Bash");
   for (const e of pre) {
-    assert.equal(e.hooks.length, 1);
-    assert.equal(e.hooks[0].type, "command");
-    assert.equal(
+    expect(e.hooks.length).toBe(1);
+    expect(e.hooks[0].type).toBe("command");
+    expect(
       e.hooks[0].command,
-      "../bin/gate/adapters/qoder.mjs",
-    );
+    ).toBe("../bin/gate/adapters/qoder.mjs");
   }
 });
 
@@ -371,12 +359,12 @@ test(".version-bump.json tracks every per-harness manifest version (incl .qoder-
     ".kimi-plugin/plugin.json",
     "gemini-extension.json",
   ]) {
-    assert.ok(paths.includes(p), `${p} 应在 version-bump files 内`);
+    expect(paths.includes(p)).toBeTruthy();
   }
 });
 
 test("deriveFirstPartyNames discovers packages with oscaner-plugin (sorted)", () => {
-  assert.deepEqual(deriveFirstPartyNames("packages"), [
+  expect(deriveFirstPartyNames("packages")).toEqual([
     "osuperpowers",
   ]);
 });
@@ -394,7 +382,7 @@ test("deriveFirstPartyNames ignores dirs without oscaner-plugin / package.json",
     writeFileSync(join(tmp, "helper", "package.json"), JSON.stringify({ name: "helper" }));
     // no package.json → excluded
     mkdirSync(join(tmp, "empty"), { recursive: true });
-    assert.deepEqual(deriveFirstPartyNames(tmp), ["real"]);
+    expect(deriveFirstPartyNames(tmp)).toEqual(["real"]);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -406,32 +394,31 @@ test("deriveFirstPartyNames ignores dirs without oscaner-plugin / package.json",
 
 test("deriveSource top-level fields come from emit constants", () => {
   const source = deriveSource(".");
-  assert.equal(source.name, SOURCE_TOP.name);
-  assert.deepEqual(source.owner, SOURCE_TOP.owner);
-  assert.deepEqual(source.metadata, SOURCE_TOP.metadata);
-  assert.equal(source.$schema, SOURCE_TOP.$schema);
+  expect(source.name).toBe(SOURCE_TOP.name);
+  expect(source.owner).toEqual(SOURCE_TOP.owner);
+  expect(source.metadata).toEqual(SOURCE_TOP.metadata);
+  expect(source.$schema).toBe(SOURCE_TOP.$schema);
 });
 
 test("deriveSource enumerates vendors + first-party packages in stable order", () => {
   const source = deriveSource(".");
-  assert.deepEqual(
+  expect(
     source.plugins.map((p) => p.name),
-    ["mattpocock-skills", "impeccable", "superpowers", "osuperpowers"],
-  );
+  ).toEqual(["mattpocock-skills", "impeccable", "superpowers", "osuperpowers"]);
   // schema-required fields present on every plugin
   for (const p of source.plugins) {
-    assert.ok(p.name, "plugin name");
-    assert.ok(p.description, `${p.name} description`);
-    assert.ok(p.author?.name, `${p.name} author.name`);
-    assert.ok(p.contentRoot, `${p.name} contentRoot`);
-    assert.ok(p.cursor, `${p.name} cursor`);
+    expect(p.name).toBeTruthy();
+    expect(p.description).toBeTruthy();
+    expect(p.author?.name).toBeTruthy();
+    expect(p.contentRoot).toBeTruthy();
+    expect(p.cursor).toBeTruthy();
   }
 });
 
 test("deriveSource first-party entries carry oscaner-plugin + package metadata", () => {
   const source = deriveSource(".");
   const eng = source.plugins.find((p) => p.name === "osuperpowers");
-  assert.deepEqual(eng, {
+  expect(eng).toEqual({
     name: "osuperpowers",
     version: OS_VERSION,
     description:
@@ -460,87 +447,84 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
 test("deriveSource vendor entries merge assembly-template fields + vendored files", () => {
   const source = deriveSource(".");
   const mp = source.plugins.find((p) => p.name === "mattpocock-skills");
-  assert.equal(mp.version, "1.1.0");
-  assert.deepEqual(mp.author, {
+  expect(mp.version).toBe("1.1.0");
+  expect(mp.author).toEqual({
     name: "Matt Pocock",
     url: "https://github.com/mattpocock",
   });
-  assert.equal(mp.contentRoot, "vendors/mattpocock-skills");
-  assert.equal(mp.repository, "https://github.com/mattpocock/skills");
-  assert.equal(mp.license, "MIT");
-  assert.deepEqual(mp.cursor, {
+  expect(mp.contentRoot).toBe("vendors/mattpocock-skills");
+  expect(mp.repository).toBe("https://github.com/mattpocock/skills");
+  expect(mp.license).toBe("MIT");
+  expect(mp.cursor).toEqual({
     displayName: "Matt Pocock Skills",
     skills: "../../vendors/mattpocock-skills/skills",
   });
 
   const imp = source.plugins.find((p) => p.name === "impeccable");
-  assert.equal(imp.version, "4.0.4");
-  assert.equal(imp.contentRoot, "vendors/impeccable/plugin");
-  assert.deepEqual(imp.author, {
+  expect(imp.version).toBe("4.0.4");
+  expect(imp.contentRoot).toBe("vendors/impeccable/plugin");
+  expect(imp.author).toEqual({
     name: "Paul Bakaus",
     email: "paul@paulbakaus.com",
   });
-  assert.equal(imp.repository, "https://github.com/pbakaus/impeccable");
-  assert.equal(imp.license, "Apache-2.0");
-  assert.deepEqual(imp.cursor, {
+  expect(imp.repository).toBe("https://github.com/pbakaus/impeccable");
+  expect(imp.license).toBe("Apache-2.0");
+  expect(imp.cursor).toEqual({
     displayName: "Impeccable",
     skills: "../../vendors/impeccable/plugin/skills",
   });
 
   const sp = source.plugins.find((p) => p.name === "superpowers");
-  assert.equal(sp.version, "6.2.0");
-  assert.equal(sp.contentRoot, "vendors/superpowers");
-  assert.deepEqual(sp.author, { name: "Jesse Vincent", email: "jesse@fsck.com" });
-  assert.deepEqual(sp.cursor, { emitMode: "plugin-root" });
+  expect(sp.version).toBe("6.2.0");
+  expect(sp.contentRoot).toBe("vendors/superpowers");
+  expect(sp.author).toEqual({ name: "Jesse Vincent", email: "jesse@fsck.com" });
+  expect(sp.cursor).toEqual({ emitMode: "plugin-root" });
 });
 
 test("osuperpowersClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
   const hooks = osuperpowersClaudeHooks();
-  assert.ok(hooks._generated, "hooks.json must carry the generated banner");
-  assert.match(hooks._generated, /scripts\/emit\.mjs/);
+  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
   const pre = hooks.hooks.PreToolUse;
-  assert.equal(pre.length, 2);
-  assert.equal(pre[0].matcher, "Write|Edit");
-  assert.equal(pre[1].matcher, "Bash");
+  expect(pre.length).toBe(2);
+  expect(pre[0].matcher).toBe("Write|Edit");
+  expect(pre[1].matcher).toBe("Bash");
   for (const e of pre) {
-    assert.equal(e.hooks.length, 1);
-    assert.equal(e.hooks[0].type, "command");
-    assert.equal(
+    expect(e.hooks.length).toBe(1);
+    expect(e.hooks[0].type).toBe("command");
+    expect(
       e.hooks[0].command,
-      "${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs",
-    );
+    ).toBe("${CLAUDE_PLUGIN_ROOT}/bin/gate/adapters/claude.mjs");
   }
 });
 
 test("osuperpowersCursorHooks wires the cursor cdd gate preToolUse", () => {
   const hooks = osuperpowersCursorHooks();
-  assert.ok(hooks._generated, "hooks-cursor.json must carry the generated banner");
-  assert.match(hooks._generated, /scripts\/emit\.mjs/);
-  assert.equal(hooks.version, 1);
-  assert.deepEqual(hooks.hooks.preToolUse, [
+  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated).toMatch(/scripts\/emit\.mjs/);
+  expect(hooks.version).toBe(1);
+  expect(hooks.hooks.preToolUse).toEqual([
     { command: "./bin/gate/adapters/cursor.mjs" },
   ]);
 });
 
 test("osuperpowersHooksFor dispatches per harness, fail-fast on unknown", () => {
   const claude = osuperpowersHooksFor("claude");
-  assert.equal(claude.hooks.PreToolUse[0].matcher, "Write|Edit");
+  expect(claude.hooks.PreToolUse[0].matcher).toBe("Write|Edit");
   const cursor = osuperpowersHooksFor("cursor");
-  assert.equal(cursor.version, 1);
-  assert.deepEqual(cursor.hooks.preToolUse, [
+  expect(cursor.version).toBe(1);
+  expect(cursor.hooks.preToolUse).toEqual([
     { command: "./bin/gate/adapters/cursor.mjs" },
   ]);
   const codex = osuperpowersHooksFor("codex");
-  assert.equal(
+  expect(
     codex.hooks.PreToolUse[0].hooks[0].command,
-    "../bin/gate/adapters/codex.mjs",
-  );
+  ).toBe("../bin/gate/adapters/codex.mjs");
   const qoder = osuperpowersHooksFor("qoder");
-  assert.equal(
+  expect(
     qoder.hooks.PreToolUse[0].hooks[0].command,
-    "../bin/gate/adapters/qoder.mjs",
-  );
-  assert.throws(() => osuperpowersHooksFor("kimi"), /kimi/);
+  ).toBe("../bin/gate/adapters/qoder.mjs");
+  expect(() => osuperpowersHooksFor("kimi")).toThrow(/kimi/);
 });
 
 // ---------------------------------------------------------------------------
@@ -566,7 +550,7 @@ test("findStaleCommittedFiles flags emitted products no longer generated", () =>
       extraStale: ["cursor-plugins/osuperpowers/"],
       root: tmp,
     });
-    assert.deepEqual(stale.sort(), [
+    expect(stale.sort()).toEqual([
       "cursor-plugins/osuperpowers/",
       "products/stale.json",
     ]);
@@ -586,7 +570,7 @@ test("findStaleCommittedFiles returns empty when every product is generated", ()
       productFiles: [],
       root: tmp,
     });
-    assert.deepEqual(stale, []);
+    expect(stale).toEqual([]);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -609,10 +593,10 @@ test("pruneStaleAgentsNamespaces removes deleted/missing namespace dirs", () => 
       ["superpowers", join(tmp, "no-such-source")],
     ];
     const removed = pruneStaleAgentsNamespaces(outAgents, namespaces);
-    assert.deepEqual(removed.sort(), ["ghost", "superpowers"]);
-    assert.ok(existsSync(join(outAgents, "osuperpowers")), "kept namespace survives");
-    assert.ok(!existsSync(join(outAgents, "superpowers")), "missing-source namespace pruned");
-    assert.ok(!existsSync(join(outAgents, "ghost")), "unmapped namespace pruned");
+    expect(removed.sort()).toEqual(["ghost", "superpowers"]);
+    expect(existsSync(join(outAgents, "osuperpowers"))).toBeTruthy();
+    expect(!existsSync(join(outAgents, "superpowers"))).toBeTruthy();
+    expect(!existsSync(join(outAgents, "ghost"))).toBeTruthy();
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -625,7 +609,7 @@ test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", ()
     const removed = pruneStaleAgentsNamespaces(outAgents, [
       ["osuperpowers", join(tmp, "src")],
     ]);
-    assert.deepEqual(removed, []);
+    expect(removed).toEqual([]);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

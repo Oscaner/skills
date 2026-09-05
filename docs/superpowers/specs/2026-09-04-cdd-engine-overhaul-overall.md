@@ -1,6 +1,6 @@
 # CDD Engine 重构 + 生态完善 — Overall Spec
 
-- **Version**: v1.7 · 2026-09-05
+- **Version**: v1.8 · 2026-09-05
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
 - **Constraints**:
@@ -49,6 +49,7 @@ Charter only — no implementation detail。
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5536710343) | Enhancement K — brainstorming explore-context 主动读取 GitHub issue comments（`gh issue view NNN --json body,comments`，fail-open） |
 | P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5537274607) | Bug M — cli-driven-development SKILL.md deferred/ledger 节点清理 + 引擎层 ledger 写入机制删除（ledger.mjs/ledgerComplete/deriveProgressMD） |
 | P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5537602084) | Bug N — cli-driven-development SKILL.md handoff-status 未区分 blocker=0 路径，未对齐 Review Stopping 语义 |
+| P4 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5549287756) | Enhancement Q — cdd-gate 冗余且不生效 → 整体删除（gate core + 11 adapters + hooks + init/emit 联动 + cli-shared CDD_GATE 注入） |
 | P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5539077124) | Bug O — cdd-session-activate.mjs 孤儿代码 → 删除；gate 激活改 env 传播 |
 | P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5539300882) | Enhancement P — harness-registry prefix/suffix 通用注入（per mode，`
 ` 分隔） |
@@ -74,6 +75,7 @@ The following 3 scenarios MUST sync Issue inventory + version bump + change hist
 |---|---|---|---|---|---|---|
 | P1 | CDD Engine 全面重构：#231 taskNum parseInt + Bug B branch-review 架构修复 + Bug C task-review handoff 加固 + Bug K docs-task handoff 路径修复 + Bug L subprocess cwd 挂死修复 + Enh D branch-review.mjs 独立 CLI + Enh E @oscaner-skills/cdd-engine 独立 npm package（全部 CLIs 迁入：cdd-task / docs-task / branch-review / cdd-select / cdd-session-activate / cdd-research）+ Enh F skills gate + Enh G init 单命令 + Bug M cli-driven-development SKILL.md deferred/ledger 清理 + Bug N handoff-status Review Stopping 对齐 + Bug O cdd-session-activate 删除 + gate env 传播 + Enh P prefix/suffix 通用注入 | Done | Pending | `npm i -g @oscaner-skills/cdd-engine` 可用且包含全部 CLI 入口；osuperpowers 零 engine 代码（纯 skill / hook 插件）；branch-review.mjs 独立语义不共享 docs-task runner；docs-task handoff 写入 `.superpowers/<type>/` 目录；subprocess 从正确 cwd 启动不挂死；skills gate 在 engine 缺失时输出标准 BLOCKED 消息；init 单命令完成 engine 安装 + harness 配置；cli-driven-development SKILL.md 无 deferred/ledger 节点；handoff-status 对齐 Review Stopping（blockers=0→fix→done，blockers>0→fix→re-review）；cdd-session-activate.mjs 删除 + gate 通过 env 传播激活；harness-registry prefix/suffix per-mode 注入 + `\n` 分隔生效；`pnpm run validate` 绿 | 无（program 起点） |
 | P2 | 基础设施整治：Enh H composite actions + cdd-engine smoke test + Enh I GitHub Workflows 重命名/重构 + scripts/validate/ 模块化（ci-validate.mjs 内部拆分）+ Issue Templates 更新（component / session-type 下拉 + osuperpowers label + session-report template） | Pending | Pending | composite actions 提取（setup / validate / install-harness / link-cdd-engine）；workflow 命名规范统一（pr-validate / release / submodule-* / sync-*）；`scripts/validate/*.mjs` 各模块独立可运行，ci-validate.mjs 仅组合调用；Issue Templates 含 component + session-type 下拉；CI cdd-engine smoke test 通过 | P1（hard：CI smoke test 需 cdd-engine 已发布） |
+| P4 | Gate 移除 + 简化：Enh Q cdd-gate 整体删除（gate core + 11 adapters + configs + 63 tests + hooks PreToolUse + install-harness gate config + emit/ci-validate gate 套件 + cli-shared CDD_GATE 注入） | Pending | Pending | `packages/osuperpowers/bin/gate/` 目录不存在；hooks.json/hooks-cursor.json 无 PreToolUse gate hook；install-harness 不写 gate config；emit 无 gate hook 生成；ci-validate 无 gate suite；cli-shared.mjs 无 `CDD_GATE` 引用；`pnpm run validate` 绿 | P1（soft：移除 P1 Bug O Step 5b 的 gate env 传播产物） |
 | P3 | Skills + 模板重构：Enh J report-issue session master issue + findings 以 comment 追加 + 永不 reopen + overall spec 模板 Issue inventory 附 comment URL（`#issuecomment-NNN` 锚点格式）；Enh K brainstorming explore-context 主动读取关联 issue comments（`gh issue view NNN --json body,comments`，fail-open） | Pending | Pending | 同 session findings 全部 comment 追加到 session master issue，不新建独立 issue；closed issue 命中时创建新 comment + reference，永不 reopen；overall spec 模板 Issue ref 列支持 comment URL 锚点；本 overall 自身 Issue inventory 已按新格式填写；brainstorming 在 phase-within-program 模式下主动读取 overall Issue inventory 中所有 `#NNN` 的 comments | P1（hard）；P2（soft：串行管理约定，P3 与 P2 无技术强依赖） |
 
 ---
@@ -82,10 +84,10 @@ The following 3 scenarios MUST sync Issue inventory + version bump + change hist
 
 ```
 P1 (CDD Engine 全面重构) ──→ P2 (基础设施整治) ──→ P3 (Skills + 模板重构)
-                         └──────────────────────→ (soft)
+                         └──────────────────────→ P4 (Gate 移除) (soft)
 ```
 
-**说明**：P1→P2 hard；P1→P3 hard（engine 稳定后 report-issue 才能锁定语义）；P2→P3 soft（串行管理约定，无技术强依赖，可与 P2 并行执行）。
+**说明**：P1→P2 hard；P1→P3 hard（engine 稳定后 report-issue 才能锁定语义）；P2→P3 soft（串行管理约定，无技术强依赖，可与 P2 并行执行）；P1→P4 soft（P4 移除 P1 的 gate env 传播产物，管理上在 P1 之后执行，无技术强依赖）。
 
 ---
 
@@ -116,3 +118,4 @@ P1 (CDD Engine 全面重构) ──→ P2 (基础设施整治) ──→ P3 (Ski
 | v1.5 | 2026-09-04 | +Bug O (cdd-session-activate 删除 + gate env 传播)；P1 scope + Issue inventory 更新；#232 comment 5539077124 | [human] · Claude Opus 4.8 |
 | v1.6 | 2026-09-04 | +Enhancement P (harness-registry prefix/suffix 通用注入)；P1 scope + Issue inventory 更新；#232 comment 5539300882 | [human] · Claude Opus 4.8 |
 | v1.7 | 2026-09-05 | Bug M 完成范围扩展（引擎层 ledger 写入机制删除）；#232 comment 5549272087 | [human] · Claude Opus 4.8 |
+| v1.8 | 2026-09-05 | +Enhancement Q (cdd-gate 整体删除)；新增 P4 phase；#232 comment 5549287756 | [human] · Claude Opus 4.8 |

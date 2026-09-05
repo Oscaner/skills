@@ -32,15 +32,16 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
     ]);
     for (const [name, submodulePath] of Object.entries(SUBMODULE_PATHS)) {
       expect(submodulePath).toBe(`vendors/${name}`);
-      expect(existsSync(join(root, submodulePath))).toBeTruthy();
+      expect(existsSync(join(root, submodulePath)), `${submodulePath} missing`).toBeTruthy();
     }
   });
 
   it("resolves a parseable plugin.json for every vendored submodule", () => {
-    for (const [, pluginJson] of Object.entries(VENDORED_PLUGIN_JSON)) {
-      expect(existsSync(join(root, pluginJson))).toBeTruthy();
+    for (const [name, pluginJson] of Object.entries(VENDORED_PLUGIN_JSON)) {
+      expect(existsSync(join(root, pluginJson)), `${pluginJson} missing`).toBeTruthy();
       expect(
         () => JSON.parse(read(pluginJson)),
+        `${name} plugin.json must be valid JSON`,
       ).not.toThrow();
     }
   });
@@ -48,10 +49,11 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
   it("keeps the submodule-sync matrix in lockstep with SUBMODULE_PATHS", () => {
     const yaml = read(".github/workflows/submodule-sync.yml");
     const m = yaml.match(/submodule:\s*\[([^\]]+)\]/);
-    expect(m).toBeTruthy();
+    expect(m, "matrix.submodule list not found in submodule-sync.yml").toBeTruthy();
     const matrix = m[1].split(",").map((s) => s.trim());
     expect(
       matrix.slice().sort(),
+      "workflow matrix must cover every SUBMODULE_PATHS entry and nothing more",
     ).toEqual(Object.keys(SUBMODULE_PATHS).sort());
   });
 
@@ -60,12 +62,13 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
     expect(yaml).toMatch(/node scripts\/run\.mjs bump-submodule\b/);
     expect(
       yaml,
+      "workflow must not hard-code the vendor layout — path resolution stays in the script",
     ).not.toMatch(/vendors\/(superpowers|impeccable|mattpocock-skills)\b/);
   });
 
   it("targets superpowers bump write files (marketplace/source.json)", () => {
     for (const rel of SUPERPOWERS_BUMP_TARGETS) {
-      expect(existsSync(join(root, rel))).toBeTruthy();
+      expect(existsSync(join(root, rel)), `${rel} missing`).toBeTruthy();
     }
   });
 
@@ -74,7 +77,7 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
     for (const rel of [
       "scripts/release/bump-submodule.mjs",
     ]) {
-      expect(read(rel)).not.toMatch(stale);
+      expect(read(rel), `${rel} reverts to root plugins/ layout`).not.toMatch(stale);
     }
   });
 });

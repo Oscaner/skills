@@ -103,7 +103,7 @@ test("codexPluginManifest includes skills, codex gate hooks path, and interface"
   expect(m.hooks).toBe("./hooks/hooks.json");
   expect(m.name).toBe("osuperpowers");
   expect(m.version).toBe(OS_VERSION);
-  expect(m.interface).toBeTruthy();
+  expect(m.interface, "codex manifest must carry an interface").toBeTruthy();
   expect(m.interface.displayName).toBe("osuperpowers");
   expect(Array.isArray(m.interface.capabilities)).toBeTruthy();
   expect(m.interface.capabilities.length > 0).toBeTruthy();
@@ -144,9 +144,10 @@ test("cursorPluginManifest resolves hooks from plugin.hooks.cursor mapping", () 
 });
 
 test("codexPluginManifest points hooks at the codex plugin-root hooks channel", () => {
-  // codex 插件 hooks 走 plugin-root `hooks/hooks.json`（manifest 位于 .codex-plugin/，
-  // manifest-relative 为 ./hooks/hooks.json）；emit 按 package-relative 映射写文件。
-  // skills 同为 manifest-relative（../skills/ → 包根 skills/）—— 统一 base。
+  // codex plugin hooks route through the plugin-root `hooks/hooks.json` (manifest
+  // lives in .codex-plugin/, so manifest-relative would be ./hooks/hooks.json);
+  // emit writes files by package-relative mapping. skills are likewise
+  // manifest-relative (../skills/ → package-root skills/) — one unified base.
   expect(codexPluginManifest(OS_ENG, OS_VERSION).hooks).toBe("./hooks/hooks.json");
   const mapped = codexPluginManifest(
     { ...OS_ENG, hooks: { codex: "./.codex-plugin/hooks/hooks.json" } },
@@ -157,7 +158,7 @@ test("codexPluginManifest points hooks at the codex plugin-root hooks channel", 
 
 test("codexHooksJson wires PreToolUse gate to the codex adapter (manifest-relative ../bin)", () => {
   const hooks = codexHooksJson();
-  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated, "hooks.json must carry the generated banner").toBeTruthy();
   expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   expect(pre.length).toBe(2);
@@ -224,7 +225,7 @@ test("assertAdapterPathsExist: ../bin manifest-relative adapter missing → thro
       name: "osuperpowers",
       hooks: { codex: "./.codex-plugin/hooks/hooks.json" },
     };
-    // 空 temp dir 无 bin/gate/adapters/codex.mjs —— 即使命令是 ../ 前缀也必须失败
+    // empty temp dir has no bin/gate/adapters/codex.mjs — even a ../ prefix command must fail
     expect(() => assertAdapterPathsExist(plugin, tmp, OS_VERSION)).toThrow(/adapter/i);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -249,6 +250,7 @@ test("kimiPluginManifest includes sessionStart + tool-mapping prose + interface"
   expect(m.sessionStart).toEqual({ skill: "init" });
   expect(
     typeof m.skillInstructions === "string" && m.skillInstructions.length > 0,
+    "kimi manifest must carry tool-mapping prose",
   ).toBeTruthy();
   expect(m.interface).toBeTruthy();
   expect(m.interface.displayName).toBe("osuperpowers");
@@ -334,7 +336,7 @@ test("qoderPluginManifest emits the qoder plugin manifest (skills + hooks)", () 
 
 test("qoderHooksJson wires PreToolUse gate to the qoder adapter (manifest-relative ../bin)", () => {
   const hooks = qoderHooksJson();
-  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated, "qoder hooks.json must carry the generated banner").toBeTruthy();
   expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   expect(pre.length).toBe(2);
@@ -486,7 +488,7 @@ test("deriveSource vendor entries merge assembly-template fields + vendored file
 
 test("osuperpowersClaudeHooks gates Write|Edit and Bash via the cdd gate", () => {
   const hooks = osuperpowersClaudeHooks();
-  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated, "hooks.json must carry the generated banner").toBeTruthy();
   expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   const pre = hooks.hooks.PreToolUse;
   expect(pre.length).toBe(2);
@@ -503,7 +505,7 @@ test("osuperpowersClaudeHooks gates Write|Edit and Bash via the cdd gate", () =>
 
 test("osuperpowersCursorHooks wires the cursor cdd gate preToolUse", () => {
   const hooks = osuperpowersCursorHooks();
-  expect(hooks._generated).toBeTruthy();
+  expect(hooks._generated, "hooks-cursor.json must carry the generated banner").toBeTruthy();
   expect(hooks._generated).toMatch(/scripts\/run\.mjs/);
   expect(hooks.version).toBe(1);
   expect(hooks.hooks.preToolUse).toEqual([

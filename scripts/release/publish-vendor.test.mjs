@@ -177,7 +177,7 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// decideProbe — 三态判定
+// decideProbe — three-state classification
 // ---------------------------------------------------------------------------
 
 test("decideProbe — published → skip", () => {
@@ -193,7 +193,7 @@ test("decideProbe — error → throws", () => {
 });
 
 // ---------------------------------------------------------------------------
-// collectGaps — 全量差集
+// collectGaps — full-set difference
 // ---------------------------------------------------------------------------
 
 test("collectGaps — version with tag+release → excluded", () => {
@@ -229,7 +229,7 @@ test("collectGaps — all present → empty", () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveUpstreamTag — 三级链
+// resolveUpstreamTag — three-tier chain
 // ---------------------------------------------------------------------------
 
 test("resolveUpstreamTag — version matches HEAD → returns headTag", () => {
@@ -621,7 +621,7 @@ test("stageVendor impeccable does not produce gemini-extension.json", () => {
 });
 
 // ---------------------------------------------------------------------------
-// classifyProbeError — stderr regex 判定 (Task 2)
+// classifyProbeError — stderr regex classification (Task 2)
 // ---------------------------------------------------------------------------
 
 test("classifyProbeError — E404 → unpublished", () => {

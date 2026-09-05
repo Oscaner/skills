@@ -4,35 +4,44 @@
 // CDD_DRY_RUN=1 and asserts each command's last stdout block is the 4-line H1 contract
 // (status/commits/artifacts/blocker). Depends only on Node built-ins + execa (no engine imports).
 //
-// Prereq: the cdd-task / branch-review bins must be on PATH — run `cd packages/cdd-engine && npm link`
-// first (CI does this via the link-cdd-engine action). Failures surface a clear retry hint below.
+// Bin resolution: PATH-first (exercises the `npm link` install when the bin is linked — CI
+// link-cdd-engine asserts `command -v cdd-task`), falling back to the repo-relative node entry
+// (`node packages/cdd-engine/bin/<entry>.mjs`) so the smoke is robust to runner PATH quirks.
 
 import { execaCommandSync, execaSync } from "execa";
 
 const root = process.cwd(); // repo toplevel (run.mjs invokes with the repo root as cwd)
 
-// Clear hint when the engine bins are not linked (npm link prerequisite).
-function requireBin(bin) {
+const ENTRIES = {
+  "cdd-task": "packages/cdd-engine/bin/cdd-task.mjs",
+  "branch-review": "packages/cdd-engine/bin/branch-review.mjs",
+};
+
+// Resolve a bin to its argv prefix: PATH bin when present, else `node <repo-relative entry>`.
+function resolveBin(bin) {
   try {
     execaCommandSync(`command -v ${bin}`, { cwd: root });
+    return [bin];
   } catch {
-    throw new Error(
-      `${bin} not found on PATH — run \`cd packages/cdd-engine && npm link\` first, then retry smoke-cdd`,
-    );
+    return ["node", ENTRIES[bin]];
   }
 }
 
 export function main() {
-  requireBin("cdd-task");
-  requireBin("branch-review");
+  const cddTask = resolveBin("cdd-task");
+  const branchReview = resolveBin("branch-review");
+  const viaPath = cddTask[0] === "cdd-task" && branchReview[0] === "branch-review";
+  if (!viaPath) {
+    console.log(`smoke: PATH bins not linked — falling back to repo-relative node entries (${cddTask[0]} / ${branchReview[0]})`);
+  }
 
   const plan = "packages/cdd-engine/bin/tests/fixtures/smoke-plan.md";
   const head = execaCommandSync("git rev-parse HEAD", { cwd: root }).stdout.trim();
   const cmds = [
-    ["cdd-task", "--harness", "claude", "--task", "1", "--mode", "implement", "--plan", plan],
-    ["cdd-task", "--harness", "claude", "--task", "1", "--mode", "task-review", "--plan", plan],
-    ["cdd-task", "--harness", "claude", "--task", "1", "--mode", "fix", "--plan", plan],
-    ["branch-review", "--harness", "claude", "--plan", plan, "--base", head, "--head", head],
+    [...cddTask, "--harness", "claude", "--task", "1", "--mode", "implement", "--plan", plan],
+    [...cddTask, "--harness", "claude", "--task", "1", "--mode", "task-review", "--plan", plan],
+    [...cddTask, "--harness", "claude", "--task", "1", "--mode", "fix", "--plan", plan],
+    [...branchReview, "--harness", "claude", "--plan", plan, "--base", head, "--head", head],
   ];
   for (const [i, args] of cmds.entries()) {
     // Array form (no shell join) — every arg is a fixed constant today; keeps arg quoting if they ever change.

@@ -54,7 +54,7 @@ scripts/
 | `validate` | validate/index.mjs | scripts/ci-validate.mjs |
 | `emit` | emit/all.mjs | scripts/emit.mjs（写路径） |
 | `emit-check` | emit/check.mjs | scripts/emit.mjs --check |
-| `version` | release/version-packages.mjs | scripts/version-packages.mjs |
+| `version [--dry-run]` | release/version-packages.mjs | scripts/version-packages.mjs |
 | `publish-vendor [--dry-run]` | release/publish-vendor.mjs | scripts/publish-vendor.mjs |
 | `bump-submodule <name> [--dry-run]` | release/bump-submodule.mjs | scripts/bump-submodule.mjs |
 | `apply-rules <protect-develop\|protect-main>` | rulesets/apply.mjs | scripts/gh-branch-rulesets.mjs |
@@ -208,6 +208,7 @@ CDD_DRY_RUN=1 branch-review --harness claude --plan packages/cdd-engine/bin/test
 
 - **P4（Gate 移除）**：validate/gate-hooks.mjs 是 P4 删除点——P4 只需删该模块 + 对应 osuperpowers gate 文件；P2 保留不删。同理 install-harness 的 gate config 写入是 P4 目标。
 - **P3（Skills+模板）**：session_report.yml 表单骨架由 P3 Enh J 消费（report-issue session 聚合）；report-issue `.md` body 模板与 yml 字段 mirror 已在 P3 验收。
+- **P3（Skills+模板）追加（Enh R）**：writing-plans `user-ok?`「Fix selected」死选项移除（与 docs-review Review Stopping 「always fix all findings」对齐）—— 本 P2 plan-review 期发现（2026-09-05），已 file #232 comment 5549870456 + overall v1.10 跟踪，P3 实施。
 - **release 稳定性**：当前 `version-packages.mjs` 有 router 死代码崩溃风险，P2 修复后 release 流程恢复健壮。
 - **测试框架过渡**：scripts 迁移 vitest 后，osuperpowers/tests 仍为 node:test（P3 范畴），仓库暂留双框架——P3 可考虑统一。
 

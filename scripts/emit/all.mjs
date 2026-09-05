@@ -18,7 +18,6 @@
 import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";
-import { assertPrereleasePrefix } from "../lib/marketplace-utils.mjs";
 import { deriveSource } from "./source.mjs";
 import { writeJsonDoc } from "./orchestrate.mjs";
 import { emitOsuperpowers } from "./osuperpowers.mjs";
@@ -35,7 +34,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  */
 export function emitAll(outRoot, { generatedPaths }) {
   const source = deriveSource(root);
-  assertPrereleasePrefix(root, source);
 
   for (const plugin of source.plugins) {
     if (plugin.name === "osuperpowers") {

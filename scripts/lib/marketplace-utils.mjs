@@ -140,9 +140,6 @@ export function assertCursorPathsExist(root, plugin) {
   }
 }
 
-/** @deprecated router deleted — kept as no-op so call sites in the emit dispatcher do not require a separate cleanup commit */
-export function assertPrereleasePrefix(_root, _source) {}
-
 export function claudeMarketplaceDocument(source, plugins) {
   return {
     _generated: GENERATED,

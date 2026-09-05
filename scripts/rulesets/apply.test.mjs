@@ -15,6 +15,13 @@ describe("apply.mjs — target validation", () => {
   beforeEach(() => {
     delete process.env.GITHUB_REPOSITORY;
     mocked.mockReset();
+    // 静默未知-target / 创建路径的真实 console 输出（branch-review nit：vitest 噪音）
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("returns exit code 1 for an unknown target", () => {

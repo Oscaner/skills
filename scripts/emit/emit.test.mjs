@@ -56,10 +56,6 @@ const OS_ENG = {
   },
 };
 
-const MANIFEST_PATH = ""; // router deleted — kept as placeholder to avoid breaking test line refs
-
-const ROUTER = null; // router deleted
-
 // ---------------------------------------------------------------------------
 // manifests.mjs — generic first-party per-harness manifest builders
 // ---------------------------------------------------------------------------
@@ -82,9 +78,6 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no 
     !("hooks" in m),
   ).toBeTruthy();
 });
-
-// router deleted — test removed
-// test("claudePluginManifest with noSkills omits skills but keeps full metadata", ...)
 
 test("cursorPluginManifest points skills at canonical ./skills/ (no copy)", () => {
   const m = cursorPluginManifest(OS_ENG, OS_VERSION);

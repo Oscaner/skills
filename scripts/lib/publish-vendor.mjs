@@ -24,13 +24,11 @@ import {
   existsSync,
   readdirSync,
   mkdirSync,
-  copyFileSync,
-  symlinkSync,
-  readlinkSync,
+  cpSync,
   writeFileSync,
   rmSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import {
   SUBMODULE_PATHS,
   TAG_PATTERNS,
@@ -371,31 +369,6 @@ export function assemblePackageJson(name, root) {
 /** Dir entries never copied into the staged assembly. */
 const COPY_EXCLUDE = new Set([".git", "node_modules"]);
 
-/**
- * Recursively copy `src` into `dest` (created if missing), skipping `.git` and
- * `node_modules` and preserving symlinks. Submodule checkouts carry `.git`
- * (the gitlink file) and often a populated `node_modules` — neither belongs in
- * a published npm package.
- * @param {string} src
- * @param {string} dest
- */
-export function copyTree(src, dest) {
-  mkdirSync(dest, { recursive: true });
-  for (const entry of readdirSync(src, { withFileTypes: true })) {
-    if (COPY_EXCLUDE.has(entry.name)) continue;
-    const s = join(src, entry.name);
-    const d = join(dest, entry.name);
-    if (entry.isDirectory()) {
-      mkdirSync(d, { recursive: true });
-      copyTree(s, d);
-    } else if (entry.isSymbolicLink()) {
-      symlinkSync(readlinkSync(s), d);
-    } else if (entry.isFile()) {
-      copyFileSync(s, d);
-    }
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Preflight checks
 // ---------------------------------------------------------------------------
@@ -467,7 +440,13 @@ export function stageVendor(name, root, stageRoot) {
   const submodulePath = join(root, SUBMODULE_PATHS[name]);
   const dest = join(stageRoot, name);
   rmSync(dest, { recursive: true, force: true });
-  copyTree(submodulePath, dest);
+  // cpSync (recursive, filter) replaces the former hand-written recursive copy —
+  // submodule checkouts carry `.git` (the gitlink file) and often a populated
+  // `node_modules`; neither belongs in a published npm package.
+  cpSync(submodulePath, dest, {
+    recursive: true,
+    filter: (p) => !COPY_EXCLUDE.has(basename(p)),
+  });
   const pkg = assemblePackageJson(name, root);
   writeFileSync(join(dest, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
   // mattpocock-skills: thin gemini-extension.json + GEMINI.md

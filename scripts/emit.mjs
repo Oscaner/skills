@@ -40,9 +40,10 @@ import {
   cpSync,
   chmodSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { execaSync } from "execa";
+import { globSync } from "tinyglobby";
 import {
   resolveVersion,
   claudeMarketplaceEntry,
@@ -214,18 +215,11 @@ function emitAgentsSkillsCopy(outRoot, contentRoot) {
     rmSync(dest, { recursive: true, force: true });
     cpSync(sourceRoot, dest, { recursive: true });
   }
-  collectTree(outAgents, `${contentRoot}/.agents/skills`);
-}
-
-function collectTree(absDir, relPrefix) {
-  for (const entry of readdirSync(absDir, { withFileTypes: true })) {
-    const abs = join(absDir, entry.name);
-    const rel = `${relPrefix}/${entry.name}`;
-    if (entry.isDirectory()) {
-      collectTree(abs, rel);
-    } else {
-      generatedPaths.push(rel);
-    }
+  // Record every copied file so --check diffs it. `dot: true` is required —
+  // the emitted tree lives in the hidden `.agents/` dir (tinyglobby replaces
+  // the hand-written collectTree recursion).
+  for (const abs of globSync("**/*", { cwd: outAgents, absolute: true, dot: true })) {
+    generatedPaths.push(`${contentRoot}/.agents/skills/${relative(outAgents, abs)}`);
   }
 }
 

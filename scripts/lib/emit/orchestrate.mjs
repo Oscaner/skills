@@ -5,26 +5,8 @@
  */
 
 import { existsSync, readdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
-
-/** Recursively collect repo-relative file paths under a directory root. */
-export function collectFilesUnder(relRoot, root) {
-  const abs = join(root, relRoot);
-  const files = [];
-  if (!existsSync(abs)) return files;
-  const walk = (rel, absDir) => {
-    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
-      const childRel = `${rel}/${entry.name}`;
-      if (entry.isDirectory()) {
-        walk(childRel, join(absDir, entry.name));
-      } else {
-        files.push(childRel);
-      }
-    }
-  };
-  walk(relRoot, abs);
-  return files;
-}
+import { join, relative } from "node:path";
+import { globSync } from "tinyglobby";
 
 /**
  * Detect committed product files the generator no longer produces (stale).
@@ -33,6 +15,10 @@ export function collectFilesUnder(relRoot, root) {
  * files. `extraStale` holds whole-directory staleness markers — a repo-relative
  * dir that must be gone entirely (e.g. the retired cursor wrapper) — pushed
  * with a trailing slash when present.
+ *
+ * A single tinyglobby scan across `root` replaces the hand-written per-root
+ * recursive walk; `dot: true` is mandatory because product roots like
+ * `.claude-plugin/` and `.agents/` are hidden directories.
  */
 export function findStaleCommittedFiles({
   generatedSet,
@@ -42,10 +28,10 @@ export function findStaleCommittedFiles({
   root,
 }) {
   const stale = [];
-  for (const relRoot of productRoots) {
-    for (const rel of collectFilesUnder(relRoot, root)) {
-      if (!generatedSet.has(rel)) stale.push(rel);
-    }
+  for (const abs of globSync("**/*", { cwd: root, absolute: true, dot: true })) {
+    const rel = relative(root, abs);
+    if (!productRoots.some((r) => rel.startsWith(`${r}/`))) continue;
+    if (!generatedSet.has(rel)) stale.push(rel);
   }
   for (const rel of productFiles) {
     if (existsSync(join(root, rel)) && !generatedSet.has(rel)) stale.push(rel);

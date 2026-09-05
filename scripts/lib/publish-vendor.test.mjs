@@ -15,7 +15,6 @@ import { join } from "node:path";
 import {
   resolveVendorVersion,
   assemblePackageJson,
-  copyTree,
   assertSubmoduleCheckedOut,
   assertLicensePresent,
   stageVendor,
@@ -444,29 +443,31 @@ test("assemblePackageJson — mattpocock drops upstream private flag", () => {
 });
 
 // ---------------------------------------------------------------------------
-// copyTree — stage copy exclusions
+// stageVendor — cpSync stage copy exclusions (hand-written copy removed)
 // ---------------------------------------------------------------------------
 
-test("copyTree excludes .git and node_modules, preserves files and symlinks", () => {
-  const root = makeRoot();
-  const src = join(root, "src");
-  const dest = join(root, "dest");
+test("stageVendor excludes .git and node_modules, preserves files and symlinks", () => {
+  const root = makeImpeccableFixture();
+  const src = join(root, "vendors", "impeccable");
+  // Submodule markers + populated deps must not reach the staged package
   mkdirSync(join(src, ".git"), { recursive: true });
   mkdirSync(join(src, "node_modules"), { recursive: true });
-  mkdirSync(join(src, "plugin", "skills"), { recursive: true });
   writeFileSync(join(src, ".git", "HEAD"), "ref\n");
   writeFileSync(join(src, "node_modules", "x"), "x\n");
-  writeFileSync(join(src, "LICENSE"), "MIT\n");
-  writeFileSync(join(src, "plugin", "skills", "impeccable.md"), "# skill\n");
+  // Content + symlink are preserved; nested node_modules excluded too
+  writeFileSync(join(src, "plugin", "skills.md"), "# skill\n");
+  mkdirSync(join(src, "plugin", "node_modules"), { recursive: true });
+  writeFileSync(join(src, "plugin", "node_modules", "deep.js"), "x\n");
   symlinkSync("LICENSE", join(src, "LICENSE.link"));
 
-  copyTree(src, dest);
+  const dest = stageVendor("impeccable", root, join(root, "stage"));
 
   expect(existsSync(join(dest, "LICENSE"))).toBeTruthy();
-  expect(existsSync(join(dest, "plugin", "skills", "impeccable.md"))).toBeTruthy();
+  expect(existsSync(join(dest, "plugin", "skills.md"))).toBeTruthy();
   expect(existsSync(join(dest, "LICENSE.link"))).toBeTruthy();
   expect(existsSync(join(dest, ".git"))).toBe(false);
   expect(existsSync(join(dest, "node_modules"))).toBe(false);
+  expect(existsSync(join(dest, "plugin", "node_modules"))).toBe(false);
 });
 
 // ---------------------------------------------------------------------------

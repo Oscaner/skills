@@ -15,6 +15,7 @@ import { execaSync } from "execa";
 import { accessSync, constants, existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { globSync } from "tinyglobby";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, "..");
@@ -40,16 +41,6 @@ function countSkillsWithMarkdown(dir) {
   return readdirSync(dir, { withFileTypes: true })
     .filter((e) => e.isDirectory() && existsSync(path.join(dir, e.name, "SKILL.md")))
     .length;
-}
-
-function walk(dir, out = []) {
-  if (!existsSync(dir)) return out;
-  for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, ent.name);
-    if (ent.isDirectory()) walk(p, out);
-    else if (ent.isFile()) out.push(p);
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +147,9 @@ const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
 function checkZeroResidue() {
   const hits = [];
   for (const t of RESIDUE_TARGETS) {
-    for (const f of walk(path.join(ROOT, t))) {
+    // tinyglobby replaces the hand-written recursive walk; `dot: true` is
+    // required so hidden dirs (e.g. .claude-plugin/) are scanned too.
+    for (const f of globSync("**/*", { cwd: path.join(ROOT, t), absolute: true, dot: true })) {
       const buf = readFileSync(f);
       if (buf.includes(0)) continue; // binary — grep -rn reports, doesn't content-match
       if (RESIDUE_RE.test(buf.toString("utf8"))) hits.push(path.relative(ROOT, f));

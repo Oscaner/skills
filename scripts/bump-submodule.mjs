@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import { computeNextVersion } from "./lib/version-utils.mjs";
 import {
   TAG_PATTERNS,
   SUBMODULE_PATHS,
@@ -37,15 +36,6 @@ function checkoutTag(tag) {
   execSync(`git -C ${submodulePath} checkout ${tag}`, { stdio: "inherit" });
 }
 
-/** @param {string} version @param {string} line */
-function prependChangelog(version, line) {
-  const changelogPath = join(root, "packages/osuperpowers-router/CHANGELOG.md");
-  const header = "# osuperpowers-router\n\n";
-  const entry = `## ${version}\n\n### Patch Changes\n\n- ${line}\n\n`;
-  const existing = readFileSync(changelogPath, "utf8");
-  writeFileSync(changelogPath, header + entry + existing.slice(header.length));
-}
-
 /**
  * @param {string} bumpName
  * @param {{ oldSuperpowersVer?: string, semverChanged: boolean, files: string[] }} result
@@ -57,27 +47,6 @@ function applyBump(bumpName, result, newTag) {
     checkoutTag(newTag);
     const newVer = readJson("vendors/superpowers/.claude-plugin/plugin.json").version;
     result.semverChanged = oldVer !== newVer;
-    if (result.semverChanged) {
-      const currentOverrides = readJson("packages/osuperpowers-router/package.json")
-        .version;
-      const overridesVer = computeNextVersion(currentOverrides, newVer);
-      // marketplace/source.json is a derived emit product — the
-      // sync-router-versions.mjs run below re-derives it via `pnpm run emit`
-      // from package.json, so no direct source.json write.
-      const pkgPath = "packages/osuperpowers-router/package.json";
-      const pkg = readJson(pkgPath);
-      pkg.version = overridesVer;
-      writeFileSync(join(root, pkgPath), JSON.stringify(pkg, null, 2) + "\n");
-      result.files.push(pkgPath);
-      prependChangelog(overridesVer, `Align with superpowers ${newVer}`);
-      result.files.push("packages/osuperpowers-router/CHANGELOG.md");
-      execSync("node scripts/sync-router-versions.mjs", {
-        stdio: "inherit",
-        cwd: root,
-      });
-    } else {
-      execSync("pnpm run emit", { stdio: "inherit", cwd: root });
-    }
     return;
   }
 

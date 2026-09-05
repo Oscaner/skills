@@ -1,11 +1,8 @@
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
 import getChangesets from "@changesets/read";
 import changelogFunctions from "@changesets/changelog-github";
 import {
-  computeNextVersion,
-  parseRouterVersion,
   computeNextIndependentVersion,
   highestBumpLevel,
   changesetsForPlugin,
@@ -68,45 +65,6 @@ if (!superpowersVersion) {
 
 const changelogOptions = { repo: "Oscaner/skills" };
 
-// ---- osuperpowers-router (superpowers-relative scheme) ----
-const overridesPkgPath = "packages/osuperpowers-router/package.json";
-const overridesChangelogPath = join(
-  root,
-  "packages/osuperpowers-router/CHANGELOG.md",
-);
-const overridesCS = changesetsForPlugin(
-  changesets,
-  "@oscaner-skills/osuperpowers-router",
-);
-const overridesPkg = readJson(overridesPkgPath);
-const overridesParsed = parseRouterVersion(overridesPkg.version);
-const overridesBaseReset =
-  overridesParsed !== null && overridesParsed.base !== superpowersVersion;
-const overridesNext = !existsSync(overridesChangelogPath)
-  ? `${superpowersVersion}-router.0.0.0`
-  : computeNextVersion(overridesPkg.version, superpowersVersion);
-
-// Bump overrides only when it has changesets, or the superpowers base moved
-// (realignment release). An osuperpowers-only changeset must not produce an
-// empty overrides release.
-if (overridesCS.length > 0 || overridesBaseReset) {
-  const releaseLines = [];
-  if (overridesBaseReset) {
-    releaseLines.push(`\n- Align with superpowers ${superpowersVersion}`);
-  }
-  for (const cs of overridesCS) {
-    if (overridesBaseReset && cs.id.startsWith("auto-align-")) continue;
-    releaseLines.push(
-      await changelogFunctions.getReleaseLine(cs, "patch", changelogOptions),
-    );
-  }
-  const overridesHeader = "# osuperpowers-router\n\n";
-  const overridesEntry = `## ${overridesNext}\n\n### Patch Changes${releaseLines.join("")}\n\n`;
-  prependChangelog(overridesHeader, overridesEntry, overridesChangelogPath);
-  overridesPkg.version = overridesNext;
-  writeJson(overridesPkgPath, overridesPkg);
-}
-
 // ---- osuperpowers (independent semver) ----
 const osuperpowersPkgPath = "packages/osuperpowers/package.json";
 const osuperpowersChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
@@ -148,11 +106,9 @@ if (osuperpowersCS.length > 0) {
 
   // Sync osuperpowers version to the init self-check stamp (the only SOT outside
   // package.json besides the manifest and derived emit products). SKILL.md holds
-  // the version marker. The legacy router.md stamp target was removed in P9 task 1
-  // (design spec §1.1 — `init router` deleted), so only SKILL.md is synced here.
+  // the version marker, so only SKILL.md is synced here.
   // marketplace/source.json and the per-harness manifests are derived emit products
-  // — the emit that sync-router-versions.mjs runs below re-derives them from
-  // package.json, so no direct source.json write.
+  // — the emit re-derives them from package.json, so no direct source.json write.
   for (const initPath of [
     "packages/osuperpowers/skills/init/SKILL.md",
   ]) {
@@ -179,9 +135,6 @@ if (osuperpowersCS.length > 0) {
 // Version PR commits it alongside the version bumps; it persists into the
 // publish-mode push that follows the Version PR merge.
 const versioned = [];
-if (overridesCS.length > 0 || overridesBaseReset) {
-  versioned.push("osuperpowers-router");
-}
 if (osuperpowersCS.length > 0) {
   versioned.push("osuperpowers");
 }
@@ -202,18 +155,6 @@ if (DRY) {
   for (const cs of changesets) {
     unlinkSync(join(changesetDir, `${cs.id}.md`));
   }
-}
-
-// ---- sync overrides version + regenerate marketplace emits ----
-// Runs after both plugin versions are written so the emit resolves
-// source.json against the freshly bumped package.json versions.
-if (DRY) {
-  console.log("  [dry-run] would run sync-router-versions.mjs (re-derive marketplace + manifests)");
-} else {
-  execSync("node scripts/sync-router-versions.mjs", {
-    stdio: "inherit",
-    cwd: root,
-  });
 }
 
 console.log(DRY ? "OK — would version (dry-run, nothing written)" : "OK — versioned");

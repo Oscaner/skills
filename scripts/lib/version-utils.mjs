@@ -2,27 +2,6 @@ import { parse as semverParse, inc as semverInc } from "semver";
 
 const BUMP_LEVELS = new Set(["major", "minor", "patch"]);
 
-/** @param {string} version e.g. "6.2.0-router.0.15.0" */
-export function parseRouterVersion(version) {
-  const m = /^(\d+\.\d+\.\d+)-router\.(\d+)\.(\d+)\.(\d+)$/.exec(version);
-  if (!m) return null;
-  return {
-    base: m[1],
-    major: Number(m[2]),
-    minor: Number(m[3]),
-    patch: Number(m[4]),
-  };
-}
-
-/** @param {string} current @param {string} superpowersVersion */
-export function computeNextVersion(current, superpowersVersion) {
-  const parsed = parseRouterVersion(current);
-  if (!parsed || parsed.base !== superpowersVersion) {
-    return `${superpowersVersion}-router.0.0.0`;
-  }
-  return `${parsed.base}-router.${parsed.major}.${parsed.minor}.${parsed.patch + 1}`;
-}
-
 /** @param {string} version e.g. "0.1.0" */
 export function parseSemver(version) {
   const p = semverParse(version);

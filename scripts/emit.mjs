@@ -3,9 +3,8 @@
  * Unified emit tool.
  *
  * Replaces `scripts/emit-marketplace.mjs` and the former per-plugin generator
- * scripts (`packages/osuperpowers-router/build/generate-all.sh` + render-*).
- * Derives `marketplace/source.json` from packages/ + vendors/ (package-as-source)
- * and generates every first-party artifact:
+ * scripts. Derives `marketplace/source.json` from packages/ + vendors/
+ * (package-as-source) and generates every first-party artifact:
  *
  *  - repo-root marketplace manifests (`.claude-plugin/` + `.cursor-plugin/`)
  *  - the derived `marketplace/source.json` aggregate (emit product)

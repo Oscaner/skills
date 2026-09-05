@@ -11,8 +11,7 @@ export default function cddGate(pi: any): void {
         harness: "pi",
         toolName: canonicalToolName(event.toolName),
         toolInput: event.input ?? {},
-        sessionKey: await piSessionKey(ctx),
-        repoRoot: ctx.cwd ?? process.cwd(),
+        sessionKey: await piSessionKey(ctx), // Bug O Step 5b: repoRoot 由 CDD_GATE_WORKSPACE env 推导，不再经 ctx
       });
       if (r.decision === "deny") return { block: true, reason: r.reason };
       return {};

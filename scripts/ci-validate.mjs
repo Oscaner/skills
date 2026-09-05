@@ -117,10 +117,16 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", [
   "--test",
   "packages/osuperpowers/tests/*.test.mjs",
-  "packages/osuperpowers/bin/engine/tests/*.test.mjs",
   "packages/osuperpowers/bin/gate/tests/*.test.mjs",
   "packages/osuperpowers/bin/init/tests/*.test.mjs",
   "packages/osuperpowers/bin/utils/tests/*.test.mjs",
+]);
+
+// 5b1. cdd-engine Vitest suite (engine code moved out of bin/engine in Task 11)
+subprocessStep("5b1. cdd-engine Vitest engine suite", "pnpm", [
+  "-C",
+  "packages/cdd-engine",
+  "test",
 ]);
 
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
@@ -134,16 +140,12 @@ function checkOsuperpowersGateHooks() {
   for (const f of [
     "bin/gate/adapters/claude.mjs",
     "bin/gate/adapters/cursor.mjs",
-    "bin/engine/cdd-task.mjs",
-    "bin/engine/docs-task.mjs",
-    "bin/engine/cdd-select.mjs",
-    "bin/engine/cdd-session-activate.mjs",
   ]) {
     assert(isExecutable(path.join(p, f)), `not executable: ${f}`);
   }
-  console.log("OK — osuperpowers gate hooks + engine entries executable");
+  console.log("OK — osuperpowers gate hooks executable");
 }
-checkStep("5b2. osuperpowers gate hooks + engine entries executable", checkOsuperpowersGateHooks);
+checkStep("5b2. osuperpowers gate hooks executable", checkOsuperpowersGateHooks);
 
 // 5c. engine zero-residue grep (sdd_/spor- — must not regress)
 const RESIDUE_TARGETS = [

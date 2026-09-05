@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import piExtension from "../adapters/pi.ts";
-import { makeGateTestEnv, gitFixtureRoot, writePending, now, activePlan } from "./helpers.mjs";
+import { makeGateTestEnv, gitFixtureRoot, writePending, clearGateEnv, now, activePlan } from "./helpers.mjs";
 
 const { root, pendingRoot } = makeGateTestEnv();
 
@@ -30,7 +30,7 @@ test("pi.ts extension: cli 严格 + Bash git commit → { block: true, reason }"
     ctxFor(dir, "s-pi-ts-commit"),
   );
   assert.equal(out.block, true);
-  assert.match(out.reason, /cdd-task.mjs --harness pi/);
+  assert.match(out.reason, /cdd-task --harness pi/);
   assert.match(out.reason, /plan-a/);
 });
 
@@ -62,6 +62,7 @@ test("pi.ts extension: cli 严格 + Bash git status → allow（{}）", async ()
 });
 
 test("pi.ts extension: 无 pending → allow（{}）", async () => {
+  clearGateEnv(); // Bug O Step 5b: env 泄漏防护 —— 无 gate env → fail-open allow
   const { pi, handlers } = makePi();
   piExtension(pi);
   const out = await handlers.tool_call(

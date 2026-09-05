@@ -1,24 +1,30 @@
 // gate/tests/helpers.mjs — P4b T11: 共享 adapter 测试 fixture。
-// 从 cdd-gate-core.test.mjs / 各 adapter 测试提取的公共帮手（pending-root 环境设置、
-// gitFixtureRoot / writePending / runAdapter / now / activePlan），消除 10+ 份逐字复制
-//（对应 T3–T5 的 Duplicated Code 记录）。所有 adapter 测试签名保持一致：
+// Bug O Step 5b: gate 状态改经 env 传播（CDD_GATE_WORKSPACE / CDD_GATE_MODE /
+// CDD_GATE_PLAN，由 runner 在 spawn env 设置、hook 在 CLI 子进程内继承），
+// pending 文件 / CDD_PENDING_ROOT 已删除。所有 adapter 测试签名保持一致：
 //   const { root, pendingRoot } = makeGateTestEnv();
-//   gitFixtureRoot(root) / writePending(pendingRoot, key, data)
+//   gitFixtureRoot(root) / writePending(pendingRoot, key, data) / clearGateEnv()
 //   runAdapter(ADAPTER, env, input, raw?)
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
-// 隔离测试环境：CDD_PENDING_ROOT 指向临时 pending 目录，TTL 用默认值（86400），
-// fixtures root 由各 deny 用例显式传入（不全局设）。
+// 隔离测试环境：清空 gate env（初始 fail-open allow），fixtures root 由各 deny 用例显式传。
+// pendingRoot 为向后兼容保留（writePending 已不再写文件），仅用于标识老签名的 root。
 export function makeGateTestEnv() {
   const root = mkdtempSync("/tmp/gate-adapter-");
   const pendingRoot = path.join(root, "pending");
-  mkdirSync(pendingRoot, { recursive: true });
-  process.env.CDD_PENDING_ROOT = pendingRoot;
-  delete process.env.CDD_PENDING_TTL;
+  clearGateEnv();
   delete process.env.CDD_GATE_FIXTURES_ROOT;
   return { root, pendingRoot };
+}
+
+// 清空 gate env —— allow 用例（无 gate 上下文 → fail-open allow）必须在 gateDecide 前调用，
+// 避免先前 writePending 的 env 泄漏（node:test 同文件内串行执行）。
+export function clearGateEnv() {
+  process.env.CDD_GATE_WORKSPACE = "";
+  process.env.CDD_GATE_MODE = "";
+  process.env.CDD_GATE_PLAN = "";
 }
 
 export const now = () => Math.floor(Date.now() / 1000);
@@ -35,8 +41,19 @@ export function gitFixtureRoot(root) {
   return { dir, sha };
 }
 
-export function writePending(pendingRoot, key, data) {
-  writeFileSync(path.join(pendingRoot, `${key}.json`), JSON.stringify(data));
+// Bug O Step 5b: writePending 从写 pending 文件改为设置 gate env（签名保持
+// `writePending(pendingRoot, key, data)` 向后兼容；pendingRoot/key 参数已不使用）。
+//   { mode, workspace, plan_path } → CDD_GATE_WORKSPACE / CDD_GATE_MODE / CDD_GATE_PLAN。
+// workspace 缺省时按 repo_root 推导到 activePlan 的默认 slug（plan-a）—— 与 adapter
+// deny 用例的 fixture 布局一致。
+export function writePending(_pendingRoot, _key, data) {
+  process.env.CDD_GATE_WORKSPACE = data.workspace ?? defaultWorkspace(data.repo_root);
+  process.env.CDD_GATE_MODE = data.mode ?? "";
+  process.env.CDD_GATE_PLAN = data.plan_path ?? "";
+}
+
+function defaultWorkspace(repoRoot) {
+  return repoRoot ? path.join(repoRoot, ".superpowers", "cdd", "plan-a") : "";
 }
 
 // 以子进程运行 CLI adapter（stdin hook JSON → stdout 决策 JSON）。

@@ -1,0 +1,41 @@
+{
+  "claude": {
+    "cli": "claude",
+    "invoke": "-p --output-format text --dangerously-skip-permissions",
+    "output": "text",
+    "prefix": {
+      "implement": "Skill(mattpocock-skills:tdd)",
+      "task-review": "Skill(mattpocock-skills:code-review)",
+      "fix": ""
+    },
+    "suffix": {},
+    "ship": "full"
+  },
+  "cursor-agent": {
+    "cli": "cursor-agent",
+    "invoke": "--print --output-format text --force",
+    "output": "text",
+    "prefix": {},
+    "suffix": {},
+    "ship": "full"
+  },
+  "droid": {
+    "cli": "droid",
+    "invoke": "exec --auto medium --output-format stream-json",
+    "output": "stream-json",
+    "prefix": {},
+    "suffix": {},
+    "ship": "full"
+  },
+  "pi": {
+    "cli": "pi",
+    "invoke": "-p --no-session --no-approve",
+    "output": "text",
+    "prefix": {},
+    "suffix": {},
+    "ship": "full"
+  },
+  "codex": { "cli": "codex", "ship": "not-supported" },
+  "copilot": { "cli": "copilot", "ship": "not-supported" },
+  "gemini": { "cli": "gemini", "ship": "not-supported" }
+}

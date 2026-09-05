@@ -75,7 +75,7 @@ test("5b node:test 跑行为 + 引擎两棵树；旧 shell 测试不 invoke", ()
   const nt = behaviorNodeTestStep();
   assert.ok(nt, "5b node:test 步骤缺失");
   assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/tests/*.test.mjs")), "行为树 glob 缺失");
-  assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/engine/tests/*.test.mjs")), "引擎模块树 glob 缺失");
+  assert.ok(steps.some((s) => s.name.startsWith("5b1. cdd-engine Vitest")), "cdd-engine Vitest suite (5b1) not wired");
   const idx = steps.indexOf(nt);
   assert.ok(idx > markerIndex, "node:test 步骤位于 5b marker 之前");
   for (const t of OLD_SHELL_TESTS) {
@@ -99,7 +99,7 @@ test("node:test 步骤含 gate + init + engine 套件 glob", () => {
   assert.ok(nt, "5b node:test 步骤缺失");
   assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/gate/tests/*.test.mjs")), "gate suite glob missing");
   assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/init/tests/*.test.mjs")), "init suite glob missing");
-  assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/engine/tests/*.test.mjs")), "engine suite glob missing");
+  assert.ok(steps.some((s) => s.name.startsWith("5b1. cdd-engine Vitest")), "engine suite (5b1 cdd-engine vitest) missing");
 });
 
 // 6. engine zero-residue check present (grep targets + OK echo)

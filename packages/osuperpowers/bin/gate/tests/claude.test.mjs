@@ -30,7 +30,7 @@ test("claude hook: cli 严格 + Write 出 workspace → deny + 恢复指引", ()
   );
   assert.equal(out.hookSpecificOutput.hookEventName, "PreToolUse");
   assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /cdd-task.mjs --harness claude/);
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /cdd-task --harness claude/);
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /plan-a/);
 });
 

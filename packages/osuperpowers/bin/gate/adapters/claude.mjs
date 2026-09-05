@@ -12,7 +12,6 @@ try {
     toolName: input.tool_name,
     toolInput: input.tool_input ?? {},
     sessionKey: sessionKeyFromJson(input),
-    repoRoot: process.cwd(),
   });
   const deny = r.decision === "deny";
   process.stdout.write(JSON.stringify({

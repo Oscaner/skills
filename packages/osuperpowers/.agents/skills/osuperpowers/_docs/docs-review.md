@@ -1,7 +1,7 @@
 # Docs Review
 
 > **Scope:** Applies to 3-pass AI-orchestrated doc reviews (spec-review / plan-review) only.
-> Task-review uses Fix Loop in `cli-driven-development/SKILL.md`. Branch-review uses `cli-driven-development` + `node {pluginRoot}/bin/engine/docs-task.mjs` (--mode review --template branch-review).
+> Task-review uses Fix Loop in `cli-driven-development/SKILL.md`. Branch-review uses `cli-driven-development` + `docs-task` (--mode review --template branch-review).
 
 Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). Cited by review-pass rules in brainstorming / writing-plans.
 
@@ -11,7 +11,7 @@ Cross-cutting reference: dispatch discipline for multi-pass reviews (D1/D2/D3). 
 
 Pass 1 runs independently first. Fix first, then run subsequent passes concurrently.
 
-**CLI review:** each pass is an independent `node {pluginRoot}/bin/engine/docs-task.mjs` invocation (stateless fresh nested session).
+**CLI review:** each pass is an independent `docs-task` invocation (stateless fresh nested session).
 
 ### Rule: D2 Delta Review
 
@@ -62,9 +62,9 @@ flowchart TD
 **Scope:** spec-review and plan-review only. Task-review uses $CDD_HANDOFF_PATH
 (unchanged). Branch-review: out of scope for this rule.
 
-Path convention (enforced by docs-task engine — `node {pluginRoot}/bin/engine/docs-task.mjs --mode review --doc <path>`):
-  - spec-review: `<cdd-workspace>/spec-review-handoff.json`
-  - plan-review: `<cdd-workspace>/plan-review-handoff.json`
+Path convention (enforced by docs-task engine — `docs-task --mode review --doc <path>`):
+  - spec-review: `<cdd-workspace>/spec-review-{round}.json`
+  - plan-review: `<cdd-workspace>/plan-review-{round}.json`
 
 `<cdd-workspace>` = `.superpowers/cdd/<plan-slug>/`
 

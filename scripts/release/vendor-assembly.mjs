@@ -158,7 +158,7 @@ export function resolveVendorVersion(name, root) {
   // Release-tag fallback only makes sense for a checked-out submodule (a `.git`
   // marker — dir for a normal checkout, file for a gitlinked submodule). A bare
   // dir (no checkout) can't carry tags, so throw directly instead of running
-  // git and letting the execSync stderr leak.
+  // git and letting the subprocess stderr leak.
   if (existsSync(join(submodulePath, ".git"))) {
     const version = semverFromNearestTag(submodulePath, TAG_PATTERNS[name]);
     if (version) return version;

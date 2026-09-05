@@ -86,7 +86,7 @@ export function listRegistryVersions(name) {
 /** git ls-remote 检查 tag 是否存在于 origin */
 export function probeTagExists(name, version) {
   try {
-    $.sync({ stdio: "ignore" })`git ls-remote --exit-code --tags origin ${`refs/tags/${name}@${version}`}`;
+    $.sync({ stdio: "ignore" })`git ls-remote --exit-code --tags origin refs/tags/${name}@${version}`;
     return true;
   } catch {
     return false;

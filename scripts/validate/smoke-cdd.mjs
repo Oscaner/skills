@@ -32,7 +32,9 @@ export function main() {
   const branchReview = resolveBin("branch-review");
   const viaPath = cddTask[0] === "cdd-task" && branchReview[0] === "branch-review";
   if (!viaPath) {
-    console.log(`smoke: PATH bins not linked — falling back to repo-relative node entries (${cddTask[0]} / ${branchReview[0]})`);
+    // Show the actual fallback targets (argv after the leading `node`), not the generic argv[0].
+    const target = (resolved) => resolved.slice(1).join(" ");
+    console.log(`smoke: PATH bins unavailable — using repo-relative node entries (${target(cddTask)} / ${target(branchReview)})`);
   }
 
   const plan = "packages/cdd-engine/bin/tests/fixtures/smoke-plan.md";

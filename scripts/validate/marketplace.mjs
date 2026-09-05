@@ -1,8 +1,14 @@
-import Ajv from "ajv";
-import { readFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+#!/usr/bin/env node
+// scripts/validate/marketplace.mjs — block 6: marketplace validate (moved up from the
+// scripts/ root). The four source.json / manifest checks run in-process as a single step
+// descriptor; standalone (`node scripts/validate/marketplace.mjs`) executes the same checks.
 
-const root = process.cwd();
+import Ajv from "ajv";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ajv = new Ajv();
 
 function validateSourceSchemaJson() {
@@ -148,7 +154,38 @@ function validateMarketplaceSources() {
   console.log("OK — marketplace plugin sources exist");
 }
 
-validateSourceSchemaJson();
-validateSourceSchema();
-validateWrapperPaths();
-validateMarketplaceSources();
+export const steps = [
+  {
+    name: "6. marketplace validate",
+    run: () => {
+      validateSourceSchemaJson();
+      validateSourceSchema();
+      validateWrapperPaths();
+      validateMarketplaceSources();
+    },
+  },
+];
+
+function main(stepsArg = steps) {
+  for (const s of stepsArg) {
+    try {
+      console.log(`== ${s.name} ==`);
+      s.run();
+      console.log("OK");
+    } catch (e) {
+      console.error(`== FAIL: ${s.name} ==`);
+      console.error(e?.message ?? String(e));
+      return 1;
+    }
+  }
+  console.log("ALL PASS");
+  return 0;
+}
+
+const isMain =
+  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+if (isMain) {
+  Promise.resolve(main())
+    .then((code) => process.exit(code != null ? code : 1))
+    .catch(() => process.exit(1));
+}

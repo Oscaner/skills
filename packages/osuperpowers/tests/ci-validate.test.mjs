@@ -1,5 +1,5 @@
 // packages/osuperpowers/tests/ci-validate.test.mjs — T4: validate 编排的 osuperpowers 接线守卫。
-// Node port of ci-validate-wiring.test.sh: guards scripts/ci-validate.mjs so future edits
+// Node port of ci-validate-wiring.test.sh: guards scripts/validate/index.mjs so future edits
 // cannot drop osuperpowers coverage from `pnpm run validate`. Unlike the bash guard (source
 // grep), this imports the orchestrator and inspects the exported `steps` array — wiring is
 // asserted on real step registration, not string matching. Also covers failure propagation:
@@ -10,11 +10,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { steps, main } from "../../../scripts/ci-validate.mjs";
+import { steps, main } from "../../../scripts/validate/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
-const VAL = path.join(REPO_ROOT, "scripts/ci-validate.mjs");
+const VAL = path.join(REPO_ROOT, "scripts/validate/index.mjs");
 
 // 捕获 main() 的 stdout/stderr（对齐 runner.test.mjs capture 模式，无需 mock process.exit）。
 async function capture(fn) {

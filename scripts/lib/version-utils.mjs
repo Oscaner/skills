@@ -1,3 +1,7 @@
+import { parse as semverParse, inc as semverInc } from "semver";
+
+const BUMP_LEVELS = new Set(["major", "minor", "patch"]);
+
 /** @param {string} version e.g. "6.2.0-router.0.15.0" */
 export function parseRouterVersion(version) {
   const m = /^(\d+\.\d+\.\d+)-router\.(\d+)\.(\d+)\.(\d+)$/.exec(version);
@@ -21,13 +25,10 @@ export function computeNextVersion(current, superpowersVersion) {
 
 /** @param {string} version e.g. "0.1.0" */
 export function parseSemver(version) {
-  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-  if (!m) return null;
-  return {
-    major: Number(m[1]),
-    minor: Number(m[2]),
-    patch: Number(m[3]),
-  };
+  const p = semverParse(version);
+  return p && !p.prerelease.length && !p.build.length
+    ? { major: p.major, minor: p.minor, patch: p.patch }
+    : null;
 }
 
 /**
@@ -36,18 +37,11 @@ export function parseSemver(version) {
  * @param {"patch"|"minor"|"major"} bumpLevel
  */
 export function computeNextIndependentVersion(current, bumpLevel) {
-  const parsed = parseSemver(current);
-  if (!parsed) throw new Error(`Invalid semver: ${current}`);
-  switch (bumpLevel) {
-    case "major":
-      return `${parsed.major + 1}.0.0`;
-    case "minor":
-      return `${parsed.major}.${parsed.minor + 1}.0`;
-    case "patch":
-      return `${parsed.major}.${parsed.minor}.${parsed.patch + 1}`;
-    default:
-      throw new Error(`Unknown bump level: ${bumpLevel}`);
-  }
+  // 保留既有错误契约：未知 bumpLevel → Unknown bump level（semver.inc 对非法 level 返回 null，需前置校验）
+  if (!BUMP_LEVELS.has(bumpLevel)) throw new Error(`Unknown bump level: ${bumpLevel}`);
+  const next = semverInc(current, bumpLevel);
+  if (!next) throw new Error(`Invalid semver: ${current}`);
+  return next;
 }
 
 const BUMP_RANK = { patch: 0, minor: 1, major: 2 };

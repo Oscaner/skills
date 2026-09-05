@@ -42,7 +42,7 @@ jobs:
       - uses: changesets/action@v2
         id: changesets
         with:
-          version: node scripts/version-packages.mjs
+          version: node scripts/run.mjs version
           publish: pnpm exec changeset publish
           createGithubReleases: false
           commit: "chore: release plugins"
@@ -69,7 +69,7 @@ jobs:
       - name: Assemble + publish vendored plugins, emit registry gap list
         id: publish
         run: |
-          to_tag=$(node scripts/publish-vendor.mjs)
+          to_tag=$(node scripts/run.mjs publish-vendor)
           echo "to_tag=$to_tag" >> "$GITHUB_OUTPUT"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

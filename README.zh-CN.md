@@ -85,7 +85,7 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> hooks 文件（按 harness）
 ```
 
-一方插件无需手动注册。vendored 插件通过 `scripts/lib/publish-vendor.mjs` 从 `vendors/` submodule 装配。
+一方插件无需手动注册。vendored 插件通过 `scripts/release/vendor-assembly.mjs` 从 `vendors/` submodule 装配。
 
 完整架构说明：[CLAUDE.md](CLAUDE.md)。
 

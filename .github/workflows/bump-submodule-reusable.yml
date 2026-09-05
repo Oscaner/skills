@@ -33,7 +33,7 @@ jobs:
 
       - id: detect
         run: |
-          json=$(node scripts/bump-submodule.mjs "${{ inputs.submodule }}" --dry-run)
+          json=$(node scripts/run.mjs bump-submodule "${{ inputs.submodule }}" --dry-run)
           echo "$json" | node -e "
             const j = JSON.parse(require('fs').readFileSync(0, 'utf8'));
             const fs = require('fs');
@@ -45,7 +45,7 @@ jobs:
 
       - name: Apply bump
         if: steps.detect.outputs.updated == 'true'
-        run: node scripts/bump-submodule.mjs "${{ inputs.submodule }}"
+        run: node scripts/run.mjs bump-submodule "${{ inputs.submodule }}"
 
       - id: find-issue
         if: steps.detect.outputs.updated == 'true'

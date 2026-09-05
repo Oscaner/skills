@@ -57,7 +57,7 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
 
   it("resolves bump paths through the script, not hard-coded layout, in the reusable workflow", () => {
     const yaml = read(".github/workflows/bump-submodule-reusable.yml");
-    expect(yaml).toMatch(/node scripts\/bump-submodule\.mjs/);
+    expect(yaml).toMatch(/node scripts\/run\.mjs bump-submodule\b/);
     expect(
       yaml,
     ).not.toMatch(/vendors\/(superpowers|impeccable|mattpocock-skills)\b/);
@@ -72,7 +72,7 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
   it("has no stale root plugins/ layout literals in the bump scripts", () => {
     const stale = /(?<!cursor-)plugins\/(?:superpowers|impeccable|mattpocock-skills)/;
     for (const rel of [
-      "scripts/bump-submodule.mjs",
+      "scripts/release/bump-submodule.mjs",
     ]) {
       expect(read(rel)).not.toMatch(stale);
     }

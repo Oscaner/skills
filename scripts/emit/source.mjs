@@ -19,11 +19,11 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join, posix } from "node:path";
-import { SUBMODULE_PATHS } from "../lib/submodule-tags.mjs";
+import { SUBMODULE_PATHS } from "../release/submodule-tags.mjs";
 import {
   assemblyTemplate,
   resolveVendorVersion,
-} from "../lib/publish-vendor.mjs";
+} from "../release/vendor-assembly.mjs";
 import { deriveFirstPartyNames } from "./manifests.mjs";
 
 /** Top-level source.json fields — emit constants (never hand-edited). */

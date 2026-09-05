@@ -4,7 +4,7 @@
   "scripts": {
     "changeset": "changeset",
     "validate": "node scripts/run.mjs validate",
-    "version": "node scripts/version-packages.mjs",
+    "version": "node scripts/run.mjs version",
     "emit": "node scripts/run.mjs emit",
     "emit:check": "node scripts/run.mjs emit-check",
     "prepare": "husky",

@@ -1,6 +1,6 @@
 # Marketplace source registry
 
-The marketplace is **package-as-source**: `packages/<name>/package.json#oscaner-plugin` (first-party) and the vendored submodule descriptors (`vendors/<name>` + the assembly template in `scripts/lib/publish-vendor.mjs`) are the single source of truth. [source.json](./source.json) is a **derived emit product** — do not hand-edit it. All marketplace manifests are generated from the same source.
+The marketplace is **package-as-source**: `packages/<name>/package.json#oscaner-plugin` (first-party) and the vendored submodule descriptors (`vendors/<name>` + the assembly template in `scripts/release/vendor-assembly.mjs`) are the single source of truth. [source.json](./source.json) is a **derived emit product** — do not hand-edit it. All marketplace manifests are generated from the same source.
 
 ## Edit workflow
 
@@ -21,7 +21,7 @@ pnpm run validate
 
 4. Commit `package.json` and all generated files together.
 
-Vendored plugins (`mattpocock-skills`, `impeccable`, `superpowers`): changes belong upstream — bump the submodule (weekly sync workflow, or `git submodule update --remote <name>`). The version resolves from the vendored `.claude-plugin/plugin.json` with a release-tag fallback, shared between `publish-vendor.mjs` and the emit chain so the published npm version and the marketplace declaration never disagree. There is no in-repo package.json to edit. These vendored plugins are assembled and published to npm (`@oscaner-skills/*`) during each publish-mode release via `publish-vendor.mjs`, with skip-if-published idempotency and a registry full-consistency sweep for git tags and GitHub Releases.
+Vendored plugins (`mattpocock-skills`, `impeccable`, `superpowers`): changes belong upstream — bump the submodule (weekly sync workflow, or `git submodule update --remote <name>`). The version resolves from the vendored `.claude-plugin/plugin.json` with a release-tag fallback, shared between `scripts/release/publish-vendor.mjs` and the emit chain so the published npm version and the marketplace declaration never disagree. There is no in-repo package.json to edit. These vendored plugins are assembled and published to npm (`@oscaner-skills/*`) during each publish-mode release via `scripts/release/publish-vendor.mjs`, with skip-if-published idempotency and a registry full-consistency sweep for git tags and GitHub Releases.
 
 ## Generated outputs (do not hand-edit)
 

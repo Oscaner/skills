@@ -1,11 +1,11 @@
 /**
- * publish-vendor — build-time assembly of the vendored submodule plugins as
+ * vendor-assembly — build-time assembly of the vendored submodule plugins as
  * scoped npm packages (`@oscaner-skills/<name>`).
  *
  * Each vendor is an upstream git submodule (`vendors/<name>`, never edited
- * in-tree). This module reads the submodule content, stages a copy with a
- * scoped package.json (name/version/contentRoot/pi key, preserving the
- * upstream LICENSE), and runs `npm publish [--dry-run]`.
+ * in-tree). This module reads the submodule content and stages a copy with a
+ * scoped package.json (name/version/contentRoot/pi key, preserving the upstream
+ * LICENSE) for the publish-vendor orchestration.
  *
  * The version is resolved by `resolveVendorVersion` with one priority shared
  * with the marketplace emit chain (source.mjs deriveVendor and marketplace-utils
@@ -18,7 +18,6 @@
  * duplicating the template.
  */
 
-import { $ } from "execa";
 import {
   readFileSync,
   existsSync,
@@ -35,159 +34,6 @@ import {
   semverFromNearestTag,
 } from "./submodule-tags.mjs";
 import { thinGeminiExtension, geminiMarkdown } from "../emit/manifests.mjs";
-
-// ---------------------------------------------------------------------------
-// Pure helpers for vendor publish I/O (Task 1)
-// ---------------------------------------------------------------------------
-
-/** @enum {string} probe result constants */
-export const PROBE = Object.freeze({ PUBLISHED: "published", UNPUBLISHED: "unpublished", ERROR: "error" });
-
-/** classifyProbe return values */
-export const PROBE_CLASS = Object.freeze({ PUBLISHED: "skip", SHOULD_PUBLISH: "publish" });
-
-/** @param {typeof PROBE[keyof typeof PROBE]} probeResult */
-export function decideProbe(probeResult) {
-  if (probeResult === PROBE.PUBLISHED) return PROBE_CLASS.PUBLISHED;
-  if (probeResult === PROBE.UNPUBLISHED) return PROBE_CLASS.SHOULD_PUBLISH;
-  throw new Error(`probe error (${probeResult}) — aborting release`);
-}
-
-/**
- * @param {string[]} allVersions   合并后版本列表（registryVersions ∪ publishedThisRun 去重）
- * @param {Set<string>} tagIndex   已有 tag 的 `version` 集合
- * @param {Set<string>} releaseIndex  已有 Release 的 `version` 集合
- * @returns {{ version: string }[]}
- */
-export function collectGaps(allVersions, tagIndex, releaseIndex) {
-  return allVersions
-    .filter((v) => !tagIndex.has(v) || !releaseIndex.has(v))
-    .map((version) => ({ version }));
-}
-
-/**
- * @param {string}   version 当前版本
- * @param {{ headVersion: string|null, headTag: string|null }} ctx
- * @param {(tagRef: string) => boolean} tagExists  注入的 tag 探测（纯函数可注入 stub）
- * @returns {string|null} upstreamTag（null = 双失败 → 省略）
- */
-export function resolveUpstreamTag(version, ctx, tagExists) {
-  if (ctx.headVersion === version && ctx.headTag) return ctx.headTag;
-  const candidates = [`v${version}`, `skill-v${version}`];
-  for (const tag of candidates) {
-    if (tagExists(`refs/tags/${tag}`)) return tag;
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// I/O helpers for vendor publish (Task 2)
-// ---------------------------------------------------------------------------
-
-/** npm view stderr 判定：含 E404/Not found → "E404"；否则 → "error" */
-export function classifyProbeError(stderr) {
-  if (/E404|Not found/i.test(stderr)) return PROBE.UNPUBLISHED;
-  return PROBE.ERROR;
-}
-
-/** 三态探测：npm view <name>@<version> → PROBE.PUBLISHED | PROBE.UNPUBLISHED | PROBE.ERROR */
-export function probeRegistryVersion(name, version) {
-  try {
-    $.sync`npm view ${name + "@" + version} version`;
-    return PROBE.PUBLISHED;
-  } catch (e) {
-    return classifyProbeError(e.stderr ?? "");
-  }
-}
-
-/** 枚举已发布版本；E404 → []（未首次发布）；其他错误 → throw（与 probe fail-closed 一致） */
-export function listRegistryVersions(name) {
-  try {
-    const { stdout } = $.sync`npm view ${name} versions --json`;
-    return JSON.parse(stdout ?? "[]");
-  } catch (e) {
-    if (/E404|Not found/i.test(e.stderr ?? "")) return [];
-    throw new Error(
-      `npm view versions failed for ${name}: ${(e.stdout ?? "") + (e.stderr ?? "")}`,
-    );
-  }
-}
-
-/** git ls-remote 检查 tag 是否存在于 origin */
-export function probeTagExists(name, version) {
-  try {
-    $.sync({ stdio: "ignore" })`git ls-remote --exit-code --tags origin ${`refs/tags/${name}@${version}`}`;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** gh release view 检查 Release 是否存在（runner 注入 GITHUB_TOKEN env） */
-export function probeReleaseExists(name, version) {
-  try {
-    $.sync({ stdio: "ignore" })`gh release view ${name + "@" + version}`;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** 解析 .gitmodules，返回 vendor 上游 owner/repo（GitHub 返回 "owner/repo"，非 GitHub 返回 null） */
-export function readGitmodules(root, vendorName) {
-  const content = readFileSync(join(root, ".gitmodules"), "utf8");
-  const sectionRegex = /\[submodule "([^"]+)"\][^[]*?url\s*=\s*([^\n]+)/gs;
-  for (const [, subName, url] of content.matchAll(sectionRegex)) {
-    if (subName === vendorName) {
-      const m = url.trim().match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-      return m ? `${m[1]}/${m[2]}` : null;
-    }
-  }
-  return null;
-}
-
-/** git ls-remote 探测上游 repo 是否有指定 tag（host 非 GitHub → false） */
-export function probeUpstreamTagExists(root, vendorName, tagRef) {
-  const upstreamRepo = readGitmodules(root, vendorName);
-  if (!upstreamRepo) return false;
-  const url = `https://github.com/${upstreamRepo}.git`;
-  try {
-    $.sync({ stdio: "ignore" })`git ls-remote --exit-code --tags ${url} ${tagRef}`;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** 取 submodule HEAD 上匹配 TAG_PATTERNS 的 tag（null = 无匹配） */
-function headTagAtHead(root, vendorName) {
-  const submodulePath = join(root, SUBMODULE_PATHS[vendorName]);
-  try {
-    const { stdout } = $.sync`git -C ${submodulePath} tag --points-at HEAD`;
-    return (
-      stdout.split("\n").find((t) => t && TAG_PATTERNS[vendorName].test(t)) ??
-      null
-    );
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Discover the vendored plugin set from the `vendors/` directory, sorted.
- * cwd-independent — the caller passes the repo root. A vendor is any
- * subdirectory (submodule checkout); non-directory entries (e.g. `.DS_Store`)
- * are ignored. A dir present here but missing an `ASSEMBLY_TEMPLATE` entry
- * fails later via `assemblyTemplate` with a clear error, never a bare
- * TypeError.
- * @param {string} root repo root
- */
-export function listVendors(root) {
-  return readdirSync(join(root, "vendors"), { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-    .sort();
-}
 
 /**
  * Assembly template per vendor — single source of truth for the assembly
@@ -211,9 +57,9 @@ export function assemblyTemplate(name) {
   const tpl = ASSEMBLY_TEMPLATE[name];
   if (!tpl) {
     throw new Error(
-      `${name}: no ASSEMBLY_TEMPLATE entry in scripts/lib/publish-vendor.mjs — ` +
+      `${name}: no ASSEMBLY_TEMPLATE entry in scripts/release/vendor-assembly.mjs — ` +
         "add the vendor's contentRoot to assemble it (and SUBMODULE_PATHS/TAG_PATTERNS " +
-        "in scripts/lib/submodule-tags.mjs)",
+        "in scripts/release/submodule-tags.mjs)",
     );
   }
   return tpl;
@@ -460,125 +306,4 @@ export function stageVendor(name, root, stageRoot) {
     writeFileSync(join(dest, "GEMINI.md"), geminiMd);
   }
   return dest;
-}
-
-// ---------------------------------------------------------------------------
-// Orchestration
-// ---------------------------------------------------------------------------
-
-/**
- * Stage one vendor and run `npm publish` in the staged dir.
- * @param {string} name vendor name
- * @param {string} root repo root
- * @param {{ dryRun?: boolean, stageRoot: string }} opts
- */
-export function publishVendor(name, root, { dryRun = false, stageRoot }) {
-  assemblyTemplate(name);
-  assertSubmoduleCheckedOut(name, root);
-  assertLicensePresent(name, root);
-  const dest = stageVendor(name, root, stageRoot);
-  const flags = ["publish", "--access", "public", ...(dryRun ? ["--dry-run"] : [])];
-  $.sync({ cwd: dest, stdio: "inherit" })`npm ${flags}`;
-  return dest;
-}
-
-/** Default staging parent for all assembled vendor packages. */
-export function defaultStageRoot(root) {
-  return join(root, "tmp", "publish-vendor");
-}
-
-/**
- * Assemble + publish every vendor; 输出 registry 全量差集到 stdout。
- * @param {string} root repo root
- * @param {{ dryRun?: boolean }} opts
- */
-export function publishAll(root, { dryRun = false } = {}) {
-  const stageRoot = defaultStageRoot(root);
-  rmSync(stageRoot, { recursive: true, force: true });
-  mkdirSync(stageRoot, { recursive: true });
-
-  // 缓存 vendor 列表 + 版本：避免 publish 循环与 gap 循环重复 listVendors + resolveVendorVersion I/O
-  const vendorList = listVendors(root);
-  const vendorData = vendorList.map((name) => ({ name, version: resolveVendorVersion(name, root) }));
-
-  const publishedThisRun = []; // 成功发布 / EPUBLISHCONFLICT 归一化的 vendor name 列表
-
-  // ── Phase 1: stage + publish ────────────────────────────────────────────
-  for (const { name, version } of vendorData) {
-    const dest = stageVendor(name, root, stageRoot);
-
-    if (dryRun) {
-      // dry-run：不探测、不发布，stdout 在函数末尾统一输出 []
-      continue;
-    }
-
-    // probe（三态）
-    const probe = probeRegistryVersion(`@oscaner-skills/${name}`, version);
-    const decision = decideProbe(probe); // E404→publish / exit0→skip / error→throw（release 中止）
-
-    if (decision === PROBE_CLASS.PUBLISHED) {
-      process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published\n`);
-      // 继续：该版本可能缺 tag/Release，由差集补建
-    }
-
-    if (decision === PROBE_CLASS.SHOULD_PUBLISH) {
-      try {
-        const { stderr } = $.sync({ cwd: dest })`npm publish --access public`;
-        // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
-        if (stderr) process.stderr.write(stderr);
-        process.stderr.write(`[publish] @oscaner-skills/${name}@${version} → npm\n`);
-        publishedThisRun.push(name);
-      } catch (e) {
-        const stdout = e.stdout ?? "";
-        const stderr = e.stderr ?? "";
-        // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
-        if (stderr) process.stderr.write(stderr);
-        if (/EPUBLISHCONFLICT/i.test(stdout + stderr)) {
-          // TOCTOU 归一化：已发布 skip + 记录进 publishedThisRun（进差集）
-          process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published (EPUBLISHCONFLICT)\n`);
-          publishedThisRun.push(name);
-        } else {
-          throw new Error(`npm publish failed for ${name}@${version}: ${stdout + stderr}`);
-        }
-      }
-    }
-  }
-
-  if (dryRun) {
-    process.stdout.write("[]\n");
-    return stageRoot;
-  }
-
-  // ── Phase 2: registry 全量差集 ──────────────────────────────────────────
-  const items = [];
-  for (const { name, version: currentVersion } of vendorData) {
-    const registryVersions = listRegistryVersions(`@oscaner-skills/${name}`);
-    // union：registry + 本轮发布（防 TOCTOU registry 索引滞后）
-    const publishedVersion = publishedThisRun.includes(name) ? currentVersion : null;
-    const allVersions = [...new Set([...registryVersions, ...(publishedVersion ? [publishedVersion] : [])])];
-    if (allVersions.length === 0) continue;
-
-    // 构建本仓库 tag/release 索引
-    const tagIndex = new Set();
-    const releaseIndex = new Set();
-    for (const v of allVersions) {
-      if (probeTagExists(name, v)) tagIndex.add(v);
-      if (probeReleaseExists(name, v)) releaseIndex.add(v);
-    }
-
-    const gaps = collectGaps(allVersions, tagIndex, releaseIndex);
-    const upstreamRepo = readGitmodules(root, name);
-    const headTag = headTagAtHead(root, name);
-
-    for (const gap of gaps) {
-      const upstreamTag = resolveUpstreamTag(gap.version, { headVersion: currentVersion, headTag }, (ref) =>
-        probeUpstreamTagExists(root, name, ref),
-      );
-      items.push({ name, version: gap.version, upstreamRepo, upstreamTag });
-    }
-  }
-
-  // ── stdout 契约：单行合法 JSON 数组（bin 不再写 stdout）──────────────────
-  process.stdout.write(JSON.stringify(items) + "\n");
-  return stageRoot;
 }

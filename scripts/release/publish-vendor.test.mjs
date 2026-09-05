@@ -18,16 +18,18 @@ import {
   assertSubmoduleCheckedOut,
   assertLicensePresent,
   stageVendor,
-  listVendors,
   assemblyTemplate,
   derivePiKey,
+} from "./vendor-assembly.mjs";
+import {
+  listVendors,
   decideProbe,
   collectGaps,
   resolveUpstreamTag,
   classifyProbeError,
   PROBE,
   PROBE_CLASS,
-} from "./publish-vendor.mjs";
+} from "./vendor-registry.mjs";
 import { thinGeminiExtension } from "../emit/manifests.mjs";
 
 let dir;
@@ -340,7 +342,7 @@ test("assemblyTemplate throws a clear error for a vendor without a template", ()
   expect(listVendors(root)).toEqual(["mystery"]);
   expect(
     () => assemblyTemplate("mystery"),
-  ).toThrow(/no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s);
+  ).toThrow(/no ASSEMBLY_TEMPLATE entry.*vendor-assembly\.mjs/s);
 });
 
 test("resolveVendorVersion surfaces the template guard for an unknown vendor", () => {
@@ -348,7 +350,7 @@ test("resolveVendorVersion surfaces the template guard for an unknown vendor", (
   mkdirSync(join(root, "vendors", "mystery"), { recursive: true });
   expect(
     () => resolveVendorVersion("mystery", root),
-  ).toThrow(/no ASSEMBLY_TEMPLATE entry.*publish-vendor\.mjs/s);
+  ).toThrow(/no ASSEMBLY_TEMPLATE entry.*vendor-assembly\.mjs/s);
 });
 
 // ---------------------------------------------------------------------------
@@ -642,14 +644,14 @@ test("classifyProbeError — empty stderr → error", () => {
 // dry-run stdout contract
 // ---------------------------------------------------------------------------
 
-import { repoRootFromImportMeta } from "./marketplace-utils.mjs";
+import { repoRootFromImportMeta } from "../lib/marketplace-utils.mjs";
 
 test("publish-vendor --dry-run stdout is exactly []", () => {
   const root = repoRootFromImportMeta(import.meta.url);
-  const binPath = join(root, "publish-vendor.mjs");
+  const binPath = join(root, "scripts", "run.mjs");
   const { exitCode, stdout, stderr } = execaSync(
     "node",
-    [binPath, "--dry-run"],
+    [binPath, "publish-vendor", "--dry-run"],
     { cwd: root, reject: false },
   );
   expect(exitCode).toBe(0);

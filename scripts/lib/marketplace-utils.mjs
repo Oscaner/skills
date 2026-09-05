@@ -1,7 +1,8 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { listVendors, resolveVendorVersion } from "./publish-vendor.mjs";
+import { listVendors } from "../release/vendor-registry.mjs";
+import { resolveVendorVersion } from "../release/vendor-assembly.mjs";
 
 const GENERATED = "scripts/run.mjs emit — do not edit";
 
@@ -163,7 +164,18 @@ export function cursorMarketplaceDocument(source, plugins) {
   };
 }
 
-/** @param {string} root */
+/**
+ * Repo root for a module URL, resolved by walking up until a `package.json`
+ * is found — works from any scripts/ depth (scripts/ top-level entries and
+ * scripts/release/ submodules alike).
+ * @param {string} importMetaUrl
+ */
 export function repoRootFromImportMeta(importMetaUrl) {
-  return resolve(dirname(fileURLToPath(importMetaUrl)), "..");
+  let dir = dirname(fileURLToPath(importMetaUrl));
+  while (!existsSync(join(dir, "package.json"))) {
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return dir;
 }

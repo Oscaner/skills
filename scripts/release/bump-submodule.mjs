@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { execaCommandSync } from "execa";
 import {
   TAG_PATTERNS,
@@ -9,30 +10,19 @@ import {
   latestTag,
   pinnedSha,
   nearestTag,
-} from "./lib/submodule-tags.mjs";
+} from "./submodule-tags.mjs";
 
 const VALID = new Set(Object.keys(SUBMODULE_PATHS));
-const dryRun = process.argv.includes("--dry-run");
-const name = process.argv.find((a) => VALID.has(a));
-
-if (!name) {
-  console.error(
-    "Usage: bump-submodule.mjs <mattpocock-skills|superpowers|impeccable> [--dry-run]",
-  );
-  process.exit(1);
-}
 
 const root = process.cwd();
-const submodulePath = SUBMODULE_PATHS[name];
-const pattern = TAG_PATTERNS[name];
 
 /** @param {string} p */
 function readJson(p) {
   return JSON.parse(readFileSync(join(root, p), "utf8"));
 }
 
-/** @param {string} tag */
-function checkoutTag(tag) {
+/** @param {string} tag @param {string} submodulePath */
+function checkoutTag(tag, submodulePath) {
   execaCommandSync(`git -C ${submodulePath} checkout ${tag}`, { stdio: "inherit" });
 }
 
@@ -40,17 +30,18 @@ function checkoutTag(tag) {
  * @param {string} bumpName
  * @param {{ oldSuperpowersVer?: string, semverChanged: boolean, files: string[] }} result
  * @param {string} newTag
+ * @param {string} submodulePath
  */
-function applyBump(bumpName, result, newTag) {
+function applyBump(bumpName, result, newTag, submodulePath) {
   if (bumpName === "superpowers") {
     const oldVer = result.oldSuperpowersVer;
-    checkoutTag(newTag);
+    checkoutTag(newTag, submodulePath);
     const newVer = readJson("vendors/superpowers/.claude-plugin/plugin.json").version;
     result.semverChanged = oldVer !== newVer;
     return;
   }
 
-  checkoutTag(newTag);
+  checkoutTag(newTag, submodulePath);
 
   if (bumpName === "mattpocock-skills") {
     execaCommandSync("pnpm run emit", { stdio: "inherit", cwd: root });
@@ -65,7 +56,22 @@ function applyBump(bumpName, result, newTag) {
   }
 }
 
-function main() {
+/**
+ * Bump a vendored submodule to its latest release tag.
+ * @param {string} name submodule name (mattpocock-skills | superpowers | impeccable)
+ * @param {{ dryRun?: boolean }} opts
+ * @returns {number} exit code (1 = usage error)
+ */
+export function main(name, { dryRun = false } = {}) {
+  if (!name || !VALID.has(name)) {
+    console.error(
+      "Usage: run.mjs bump-submodule <mattpocock-skills|superpowers|impeccable> [--dry-run]",
+    );
+    return 1;
+  }
+  const submodulePath = SUBMODULE_PATHS[name];
+  const pattern = TAG_PATTERNS[name];
+
   const oldPinSha = pinnedSha(submodulePath).slice(0, 7);
   const oldTag = nearestTag(submodulePath, pattern);
   fetchTags(submodulePath);
@@ -73,7 +79,7 @@ function main() {
 
   if (pinnedSha(submodulePath) === newSha) {
     if (dryRun) console.log(JSON.stringify({ updated: false, submodule: name }));
-    return;
+    return 0;
   }
 
   /** @type {{ updated: boolean, submodule: string, oldPinSha: string, oldTag: string | null, newTag: string, semverChanged: boolean, files: string[], oldSuperpowersVer?: string }} */
@@ -102,11 +108,18 @@ function main() {
 
   if (dryRun) {
     console.log(JSON.stringify(result));
-    return;
+    return 0;
   }
 
-  applyBump(name, result, newTag);
+  applyBump(name, result, newTag, submodulePath);
   console.log(JSON.stringify(result));
+  return 0;
 }
 
-main();
+const isMain =
+  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+if (isMain) {
+  const name = process.argv.find((a) => VALID.has(a));
+  const dryRun = process.argv.includes("--dry-run");
+  process.exit(main(name, { dryRun }));
+}

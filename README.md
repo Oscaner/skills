@@ -85,7 +85,7 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> hooks files (per harness)
 ```
 
-No hand-registration needed for first-party plugins. Vendored plugins are assembled from `vendors/` submodules via `scripts/lib/publish-vendor.mjs`.
+No hand-registration needed for first-party plugins. Vendored plugins are assembled from `vendors/` submodules via `scripts/release/vendor-assembly.mjs`.
 
 Full architecture: [CLAUDE.md](CLAUDE.md).
 

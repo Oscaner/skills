@@ -1,6 +1,6 @@
 # CDD Engine 重构 + 生态完善 — Overall Spec
 
-- **Version**: v1.6 · 2026-09-04
+- **Version**: v1.7 · 2026-09-05
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
 - **Constraints**:
@@ -47,7 +47,7 @@ Charter only — no implementation detail。
 | P2 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5535261581) | Enhancement I — GitHub Workflows 重构 + scripts 重构 + Issue Templates 统一 |
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5535307962) | Enhancement J — report-issue skill 重构（session 聚合 + 无 reopen + overall 模板 comment ref） |
 | P3 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5536710343) | Enhancement K — brainstorming explore-context 主动读取 GitHub issue comments（`gh issue view NNN --json body,comments`，fail-open） |
-| P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5537274607) | Bug M — cli-driven-development SKILL.md 包含已删除的 deferred 节点和 ledger 概念（与 6b8b192 引擎变更不同步） |
+| P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5537274607) | Bug M — cli-driven-development SKILL.md deferred/ledger 节点清理 + 引擎层 ledger 写入机制删除（ledger.mjs/ledgerComplete/deriveProgressMD） |
 | P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5537602084) | Bug N — cli-driven-development SKILL.md handoff-status 未区分 blocker=0 路径，未对齐 Review Stopping 语义 |
 | P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5539077124) | Bug O — cdd-session-activate.mjs 孤儿代码 → 删除；gate 激活改 env 传播 |
 | P1 | [#232](https://github.com/Oscaner/skills/issues/232#issuecomment-5539300882) | Enhancement P — harness-registry prefix/suffix 通用注入（per mode，`
@@ -115,3 +115,4 @@ P1 (CDD Engine 全面重构) ──→ P2 (基础设施整治) ──→ P3 (Ski
 | v1.4 | 2026-09-04 | +Bug N (handoff-status Review Stopping 对齐)；P1 scope + Issue inventory 更新；#232 comment 5537602084 | [human] · Claude Opus 4.8 |
 | v1.5 | 2026-09-04 | +Bug O (cdd-session-activate 删除 + gate env 传播)；P1 scope + Issue inventory 更新；#232 comment 5539077124 | [human] · Claude Opus 4.8 |
 | v1.6 | 2026-09-04 | +Enhancement P (harness-registry prefix/suffix 通用注入)；P1 scope + Issue inventory 更新；#232 comment 5539300882 | [human] · Claude Opus 4.8 |
+| v1.7 | 2026-09-05 | Bug M 完成范围扩展（引擎层 ledger 写入机制删除）；#232 comment 5549272087 | [human] · Claude Opus 4.8 |

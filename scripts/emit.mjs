@@ -42,7 +42,7 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
-import { execSync } from "node:child_process";
+import { execaSync } from "execa";
 import {
   resolveVersion,
   claudeMarketplaceEntry,
@@ -328,7 +328,7 @@ function compareTrees(generatedRoot) {
       process.exit(1);
     }
     try {
-      execSync(`diff -u "${committed}" "${generated}"`, { stdio: "pipe" });
+      execaSync("diff", ["-u", committed, generated], { stdio: "pipe", cwd: root });
     } catch (e) {
       console.error(`DRIFT: ${rel}\n${e.stdout?.toString() ?? ""}`);
       process.exit(1);

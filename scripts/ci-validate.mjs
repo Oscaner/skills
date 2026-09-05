@@ -3,7 +3,7 @@
 //
 // The marketplace's "does the manifest chain still resolve" IS the test — this
 // orchestrator runs every sub-check that guards it. Subprocess steps use
-// execFileSync (emit/version/marketplace/node:test); structural checks run
+// execa (emit/version/marketplace/node:test); structural checks run
 // in-process. Failure is structured:
 // `console.error("== FAIL: <step> ==")` + message, exit code 1.
 //
@@ -11,7 +11,7 @@
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers coverage
 // is not dropped — mirroring the legacy bash wiring guard.
 
-import { execFileSync } from "node:child_process";
+import { execaSync } from "execa";
 import { accessSync, constants, existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,7 +63,7 @@ function subprocessStep(name, cmd, args, opts = {}) {
     name,
     cmd,
     args,
-    run: () => execFileSync(cmd, args, { cwd: ROOT, stdio: "inherit", ...opts }),
+    run: () => execaSync(cmd, args, { cwd: ROOT, stdio: "inherit", ...opts }),
   });
 }
 

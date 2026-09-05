@@ -1,5 +1,5 @@
 import { test, afterEach, expect } from "vitest";
-import { execSync } from "node:child_process";
+import { execaSync } from "execa";
 import {
   mkdtempSync,
   mkdirSync,
@@ -41,12 +41,12 @@ function makeRoot() {
 function makeGitRepo(path, tag) {
   mkdirSync(path, { recursive: true });
   writeFileSync(join(path, "tracked.txt"), "x\n");
-  execSync(`git init -q`, { cwd: path });
-  execSync(`git config user.email t@t.t`, { cwd: path });
-  execSync(`git config user.name t`, { cwd: path });
-  execSync(`git add -A`, { cwd: path });
-  execSync(`git commit -qm init`, { cwd: path });
-  execSync(`git tag ${tag}`, { cwd: path });
+  execaSync("git", ["init", "-q"], { cwd: path });
+  execaSync("git", ["config", "user.email", "t@t.t"], { cwd: path });
+  execaSync("git", ["config", "user.name", "t"], { cwd: path });
+  execaSync("git", ["add", "-A"], { cwd: path });
+  execaSync("git", ["commit", "-qm", "init"], { cwd: path });
+  execaSync("git", ["tag", tag], { cwd: path });
 }
 
 function makeSuperpowersFixture() {
@@ -287,8 +287,8 @@ test("resolveVendorVersion — non-v tag on submodule HEAD throws (no matching r
   // Hermetic origin: `semverFromNearestTag` falls back to `git fetch --tags
   // origin` when no local tag matches — point it at an empty local bare repo
   // so the fetch succeeds (no network / no stderr noise) yet finds no tag.
-  execSync(`git init -q --bare ${join(root, "bare-origin.git")}`);
-  execSync(`git remote add origin ${join(root, "bare-origin.git")}`, {
+  execaSync("git", ["init", "-q", "--bare", join(root, "bare-origin.git")]);
+  execaSync("git", ["remote", "add", "origin", join(root, "bare-origin.git")], {
     cwd: repo,
   });
   expect(() => resolveVendorVersion("superpowers", root)).toThrow(/release tag/);
@@ -641,18 +641,17 @@ test("classifyProbeError — empty stderr → error", () => {
 // dry-run stdout contract
 // ---------------------------------------------------------------------------
 
-import { spawnSync } from "node:child_process";
 import { repoRootFromImportMeta } from "./marketplace-utils.mjs";
 
 test("publish-vendor --dry-run stdout is exactly []", () => {
   const root = repoRootFromImportMeta(import.meta.url);
   const binPath = join(root, "publish-vendor.mjs");
-  const { status, stdout, stderr } = spawnSync(
+  const { exitCode, stdout, stderr } = execaSync(
     "node",
     [binPath, "--dry-run"],
-    { encoding: "utf8", cwd: root },
+    { cwd: root, reject: false },
   );
-  expect(status).toBe(0);
+  expect(exitCode).toBe(0);
   expect(stdout.trim()).toBe("[]");
   expect(stderr.includes("OK — dry-run complete")).toBeTruthy();
   expect(stderr.includes("staged at")).toBeTruthy();

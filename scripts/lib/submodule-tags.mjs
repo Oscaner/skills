@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execaCommandSync } from "execa";
 
 export const TAG_PATTERNS = {
   "mattpocock-skills": /^v(\d+\.\d+\.\d+)$/,
@@ -32,7 +32,7 @@ export function sortTagsBySemver(tags, pattern) {
 
 /** @param {string} submodulePath @param {string} args */
 function git(submodulePath, args) {
-  return execSync(`git -C ${submodulePath} ${args}`, { encoding: "utf8" }).trim();
+  return execaCommandSync(`git -C ${submodulePath} ${args}`).stdout.trim();
 }
 
 /** @param {string} submodulePath */

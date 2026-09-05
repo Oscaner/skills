@@ -18,8 +18,7 @@
  * duplicating the template.
  */
 
-import { execSync } from "node:child_process";
-import { spawnSync } from "node:child_process";
+import { $ } from "execa";
 import {
   readFileSync,
   existsSync,
@@ -95,33 +94,45 @@ export function classifyProbeError(stderr) {
 
 /** 三态探测：npm view <name>@<version> → PROBE.PUBLISHED | PROBE.UNPUBLISHED | PROBE.ERROR */
 export function probeRegistryVersion(name, version) {
-  const { status, stderr } = spawnSync("npm", ["view", `${name}@${version}`, "version"], { encoding: "utf8" });
-  if (status === 0) return PROBE.PUBLISHED;
-  return classifyProbeError(stderr ?? "");
+  try {
+    $.sync`npm view ${name + "@" + version} version`;
+    return PROBE.PUBLISHED;
+  } catch (e) {
+    return classifyProbeError(e.stderr ?? "");
+  }
 }
 
 /** 枚举已发布版本；E404 → []（未首次发布）；其他错误 → throw（与 probe fail-closed 一致） */
 export function listRegistryVersions(name) {
-  const { status, stdout, stderr } = spawnSync("npm", ["view", name, "versions", "--json"], { encoding: "utf8" });
-  if (status === 0) return JSON.parse(stdout ?? "[]");
-  if (/E404|Not found/i.test(stderr ?? "")) return [];
-  throw new Error(`npm view versions failed for ${name}: ${(stdout ?? "") + (stderr ?? "")}`);
+  try {
+    const { stdout } = $.sync`npm view ${name} versions --json`;
+    return JSON.parse(stdout ?? "[]");
+  } catch (e) {
+    if (/E404|Not found/i.test(e.stderr ?? "")) return [];
+    throw new Error(
+      `npm view versions failed for ${name}: ${(e.stdout ?? "") + (e.stderr ?? "")}`,
+    );
+  }
 }
 
 /** git ls-remote 检查 tag 是否存在于 origin */
 export function probeTagExists(name, version) {
-  const { status } = spawnSync(
-    "git",
-    ["ls-remote", "--exit-code", "--tags", "origin", `refs/tags/${name}@${version}`],
-    { stdio: "ignore" },
-  );
-  return status === 0;
+  try {
+    $.sync({ stdio: "ignore" })`git ls-remote --exit-code --tags origin ${`refs/tags/${name}@${version}`}`;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** gh release view 检查 Release 是否存在（runner 注入 GITHUB_TOKEN env） */
 export function probeReleaseExists(name, version) {
-  const { status } = spawnSync("gh", ["release", "view", `${name}@${version}`], { stdio: "ignore" });
-  return status === 0;
+  try {
+    $.sync({ stdio: "ignore" })`gh release view ${name + "@" + version}`;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** 解析 .gitmodules，返回 vendor 上游 owner/repo（GitHub 返回 "owner/repo"，非 GitHub 返回 null） */
@@ -142,16 +153,23 @@ export function probeUpstreamTagExists(root, vendorName, tagRef) {
   const upstreamRepo = readGitmodules(root, vendorName);
   if (!upstreamRepo) return false;
   const url = `https://github.com/${upstreamRepo}.git`;
-  const { status } = spawnSync("git", ["ls-remote", "--exit-code", "--tags", url, tagRef], { stdio: "ignore" });
-  return status === 0;
+  try {
+    $.sync({ stdio: "ignore" })`git ls-remote --exit-code --tags ${url} ${tagRef}`;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** 取 submodule HEAD 上匹配 TAG_PATTERNS 的 tag（null = 无匹配） */
 function headTagAtHead(root, vendorName) {
   const submodulePath = join(root, SUBMODULE_PATHS[vendorName]);
   try {
-    const { stdout } = spawnSync("git", ["-C", submodulePath, "tag", "--points-at", "HEAD"], { encoding: "utf8" });
-    return stdout.split("\n").find((t) => t && TAG_PATTERNS[vendorName].test(t)) ?? null;
+    const { stdout } = $.sync`git -C ${submodulePath} tag --points-at HEAD`;
+    return (
+      stdout.split("\n").find((t) => t && TAG_PATTERNS[vendorName].test(t)) ??
+      null
+    );
   } catch {
     return null;
   }
@@ -481,7 +499,7 @@ export function publishVendor(name, root, { dryRun = false, stageRoot }) {
   assertLicensePresent(name, root);
   const dest = stageVendor(name, root, stageRoot);
   const flags = ["publish", "--access", "public", ...(dryRun ? ["--dry-run"] : [])];
-  execSync(`npm ${flags.join(" ")}`, { cwd: dest, stdio: "inherit" });
+  $.sync({ cwd: dest, stdio: "inherit" })`npm ${flags}`;
   return dest;
 }
 
@@ -525,22 +543,24 @@ export function publishAll(root, { dryRun = false } = {}) {
     }
 
     if (decision === PROBE_CLASS.SHOULD_PUBLISH) {
-      const { status, stdout, stderr } = spawnSync(
-        "npm",
-        ["publish", "--access", "public"],
-        { cwd: dest, encoding: "utf8" },
-      );
-      // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
-      if (stderr) process.stderr.write(stderr);
-      if (status === 0) {
+      try {
+        const { stderr } = $.sync({ cwd: dest })`npm publish --access public`;
+        // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
+        if (stderr) process.stderr.write(stderr);
         process.stderr.write(`[publish] @oscaner-skills/${name}@${version} → npm\n`);
         publishedThisRun.push(name);
-      } else if (/EPUBLISHCONFLICT/i.test((stdout ?? "") + (stderr ?? ""))) {
-        // TOCTOU 归一化：已发布 skip + 记录进 publishedThisRun（进差集）
-        process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published (EPUBLISHCONFLICT)\n`);
-        publishedThisRun.push(name);
-      } else {
-        throw new Error(`npm publish failed for ${name}@${version}: ${(stdout ?? "") + (stderr ?? "")}`);
+      } catch (e) {
+        const stdout = e.stdout ?? "";
+        const stderr = e.stderr ?? "";
+        // 始终将 npm 日志写入 stderr（保持 stdout 清洁）
+        if (stderr) process.stderr.write(stderr);
+        if (/EPUBLISHCONFLICT/i.test(stdout + stderr)) {
+          // TOCTOU 归一化：已发布 skip + 记录进 publishedThisRun（进差集）
+          process.stderr.write(`[skip] @oscaner-skills/${name}@${version} already published (EPUBLISHCONFLICT)\n`);
+          publishedThisRun.push(name);
+        } else {
+          throw new Error(`npm publish failed for ${name}@${version}: ${stdout + stderr}`);
+        }
       }
     }
   }

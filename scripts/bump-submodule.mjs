@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
+import { execaCommandSync } from "execa";
 import {
   TAG_PATTERNS,
   SUBMODULE_PATHS,
@@ -33,7 +33,7 @@ function readJson(p) {
 
 /** @param {string} tag */
 function checkoutTag(tag) {
-  execSync(`git -C ${submodulePath} checkout ${tag}`, { stdio: "inherit" });
+  execaCommandSync(`git -C ${submodulePath} checkout ${tag}`, { stdio: "inherit" });
 }
 
 /**
@@ -53,7 +53,7 @@ function applyBump(bumpName, result, newTag) {
   checkoutTag(newTag);
 
   if (bumpName === "mattpocock-skills") {
-    execSync("pnpm run emit", { stdio: "inherit", cwd: root });
+    execaCommandSync("pnpm run emit", { stdio: "inherit", cwd: root });
     return;
   }
 
@@ -61,7 +61,7 @@ function applyBump(bumpName, result, newTag) {
     // marketplace/source.json is a derived emit product — the emit below
     // re-derives the impeccable version from the vendored plugin.json, so no
     // direct source.json write.
-    execSync("pnpm run emit", { stdio: "inherit", cwd: root });
+    execaCommandSync("pnpm run emit", { stdio: "inherit", cwd: root });
   }
 }
 
@@ -93,9 +93,9 @@ function main() {
       (p) => p.name === "superpowers",
     ).version;
     const newVerAtTag = JSON.parse(
-      execSync(`git -C ${submodulePath} show ${newTag}:.claude-plugin/plugin.json`, {
-        encoding: "utf8",
-      }),
+      execaCommandSync(
+        `git -C ${submodulePath} show ${newTag}:.claude-plugin/plugin.json`,
+      ).stdout.trim(),
     ).version;
     result.semverChanged = result.oldSuperpowersVer !== newVerAtTag;
   }

@@ -8,7 +8,7 @@
 //
 // Not wired into any package.json script — it is a maintenance helper
 // referenced from CLAUDE.md (Branch protection section).
-import { execFileSync } from "node:child_process";
+import { execaSync } from "execa";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,7 +16,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = process.env.GITHUB_REPOSITORY || "Oscaner/skills";
 
 function gh(args, opts = {}) {
-  return execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts });
+  return execaSync("gh", args, { stdio: ["ignore", "pipe", "pipe"], ...opts }).stdout;
 }
 
 function applyRuleset(name, file) {

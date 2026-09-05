@@ -10,7 +10,7 @@
 #     publish-vendor (npm assembly publish + registry gap sweep → to_tag JSON)
 #     → release-vendor (git tag + GitHub Release per gap item; upstream-sync body).
 #     release-plugin and sync-develop block on publish-vendor (atomicity).
-name: Release
+name: Release (main)
 
 on:
   push:

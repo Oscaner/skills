@@ -1,0 +1,15 @@
+name: PR Validate
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/link-cdd-engine
+      - uses: ./.github/actions/validate
+      - uses: ./.github/actions/install-harness
+      # smoke-cdd 步骤于 Task 12 追加

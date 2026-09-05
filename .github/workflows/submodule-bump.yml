@@ -1,4 +1,4 @@
-name: Bump Submodule (reusable)
+name: Submodule Bump
 
 on:
   workflow_call:

@@ -1,4 +1,4 @@
-name: Main Source Gate
+name: PR Gate Main
 
 on:
   pull_request:

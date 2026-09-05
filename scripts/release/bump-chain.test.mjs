@@ -56,7 +56,7 @@ describe("submodule bump chain — vendors/ + packages/ migration contract", () 
   });
 
   it("resolves bump paths through the script, not hard-coded layout, in the reusable workflow", () => {
-    const yaml = read(".github/workflows/bump-submodule-reusable.yml");
+    const yaml = read(".github/workflows/submodule-bump.yml");
     expect(yaml).toMatch(/node scripts\/run\.mjs bump-submodule\b/);
     expect(
       yaml,

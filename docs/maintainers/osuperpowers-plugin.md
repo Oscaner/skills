@@ -63,7 +63,7 @@ git add vendors/mattpocock-skills
 git commit -m "chore: bump mattpocock-skills submodule"
 ```
 
-**Automated submodule sync (all three submodules):** GitHub Actions --> Submodule Sync --> Run workflow, or wait for weekly cron (Mon 09:00 Asia/Shanghai). Matrix caller [`.github/workflows/submodule-sync.yml`](../../.github/workflows/submodule-sync.yml) invokes reusable [`.github/workflows/bump-submodule-reusable.yml`](../../.github/workflows/bump-submodule-reusable.yml) per submodule (`create-pull-request` + Issue Action chain; no bash glue).
+**Automated submodule sync (all three submodules):** GitHub Actions --> Submodule Sync --> Run workflow, or wait for weekly cron (Mon 09:00 Asia/Shanghai). Matrix caller [`.github/workflows/submodule-sync.yml`](../../.github/workflows/submodule-sync.yml) invokes reusable [`.github/workflows/submodule-bump.yml`](../../.github/workflows/submodule-bump.yml) per submodule (`create-pull-request` + Issue Action chain; no bash glue).
 
 **One-time label bootstrap** (required before first sync):
 
@@ -76,7 +76,7 @@ gh label create submodule:impeccable --color EDEDED
 
 If migrating from v1 tracking Issues, add `submodule-bump` + `submodule:<name>` to existing open Issues to avoid duplicates.
 
-**Note:** PRs opened by the default `GITHUB_TOKEN` do not trigger `ci.yml` on `pull_request`; re-run CI manually or close/reopen the PR.
+**Note:** PRs opened by the default `GITHUB_TOKEN` do not trigger `pr-validate.yml` on `pull_request`; re-run CI manually or close/reopen the PR.
 
 Use `chore:` (not `feat:`) -- the change is a pointer bump, not a feature.
 
@@ -161,7 +161,7 @@ pnpm run emit:check        # scripts/emit.mjs --check -- drift --> exit 1
 pnpm run validate
 ```
 
-This runs steps 1-5 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.mjs](../../scripts/ci-validate.mjs); mirrored on PRs by [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
+This runs steps 1-5 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/ci-validate.mjs](../../scripts/ci-validate.mjs); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
 
 ## CDD Engine internals
 

@@ -1,0 +1,30 @@
+name: Setup
+description: Checkout repo, install pnpm, and set up Node.js (default 24) for this repo's CI.
+
+inputs:
+  node-version:
+    description: Node.js version to install via actions/setup-node.
+    required: false
+    default: "24"
+  token:
+    description: Token used by actions/checkout for submodule access; defaults to the job token when empty.
+    required: false
+    default: ""
+  submodules:
+    description: Submodule fetch strategy passed to actions/checkout.
+    required: false
+    default: recursive
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+        submodules: ${{ inputs.submodules }}
+        token: ${{ inputs.token || github.token }}
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm

@@ -1,0 +1,14 @@
+name: Link CDD Engine
+description: Globally link packages/cdd-engine (npm link) and assert the cdd-task bin is on PATH.
+
+runs:
+  using: composite
+  steps:
+    - name: npm link cdd-engine
+      shell: bash
+      run: |
+        cd packages/cdd-engine && npm link
+    - name: Assert cdd-task bin on PATH
+      shell: bash
+      run: |
+        command -v cdd-task

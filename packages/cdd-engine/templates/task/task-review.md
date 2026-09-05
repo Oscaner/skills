@@ -19,7 +19,7 @@
    - `task-N-review-spec.md` (Spec axis)
 4. Each axis file **must** end with a `## Findings (D3)` section containing a JSON block `{"findings": [...]}` (D3 findings-only discipline).
 5. Write handoff per `## Handoff Output` below. After axes complete, parse D3 findings and set status per `## Handoff Output` review segment (spec D1: blocker → CHANGES_REQUESTED; warn/nit → APPROVED + deferred).
-6. Do **not** write ledger.
+6. 
 7. **Findings output:** Review findings MUST be written to `{{HANDOFF}}` (the JSON handoff file). Do not return findings via stdout alone. If the handoff `findings[]` is empty or missing at return, the runner treats this as no findings found.
 
 > ⚠️ HARD GATE — Write `{{HANDOFF}}` BEFORE outputting H1.

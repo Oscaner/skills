@@ -26,7 +26,6 @@
    - Uncommitted changes at return → `status: BLOCKED` (the `cdd-task` runner enforces the commit contract).
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
 6. Write handoff per `## Handoff Output` below.
-7. Do **not** write ledger.
 
 > ⚠️ HARD GATE — Write `{{HANDOFF}}` BEFORE outputting H1.
 > H1 output without a written handoff file = BLOCKED (runner exit 1).
@@ -73,5 +72,3 @@ blocker: <none|one-line>
 ```
 
 Fix prose and test output live in files only.
-
-

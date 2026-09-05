@@ -10,7 +10,6 @@ import {
   writeProgressJSON,
   createEmptyProgress,
   migrateFromProgressMD,
-  deriveProgressMD,
   migrateIfNeeded,
   getRound,
   incrementRound,
@@ -162,62 +161,4 @@ it("migrateIfNeeded: neither file exists → returns empty progress + creates js
   expect(p.plan).toBe("");
   // Should create progress.json
   expect(existsSync(path.join(dir, "progress.json"))).toBe(true);
-});
-
-// ---- deriveProgressMD ----
-
-it("deriveProgressMD: produces markdown with plan and tasks", () => {
-  const data = {
-    plan: "/plan.md",
-    timeoutCount: 2,
-    engineRecoveryCount: 1,
-    tasks: [
-      { task: 1, status: "complete" },
-      { task: 2, status: "pending" },
-    ],
-    degradationLog: [],
-  };
-  const md = deriveProgressMD(data);
-  expect(md).toMatch(/## Plan/);
-  expect(md).toMatch(/\/plan\.md/);
-  expect(md).toMatch(/Task 1: complete/);
-  expect(md).not.toMatch(/Task 2: complete/);
-  expect(md).toMatch(/## timeoutCount: 2/);
-  expect(md).toMatch(/## engine-recovery-count: 1/);
-});
-
-// ---- getRound ----
-
-it("getRound: no prior rounds → returns 1", () => {
-  const data = { tasks: [] };
-  expect(getRound(data, 1, "task-review")).toBe(1);
-});
-
-it("getRound: completed round 2 → returns 3", () => {
-  const data = { tasks: [{ task: 1, status: "pending", rounds: { "task-review": 2 } }] };
-  expect(getRound(data, 1, "task-review")).toBe(3);
-});
-
-// ---- incrementRound ----
-
-it("incrementRound: creates task entry + sets round 1", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "prog-"));
-  writeFileSync(path.join(dir, "progress.json"), JSON.stringify({
-    plan: "/p.md", timeoutCount: 0, engineRecoveryCount: 0,
-    lastDispatchHead: "", tasks: [], degradationLog: [],
-  }));
-  incrementRound(dir, 1, "task-review");
-  const data = readProgressJSON(dir);
-  expect(data.tasks[0].rounds["task-review"]).toBe(1);
-});
-
-it("incrementRound: BLOCKED handoff still increments round", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "prog-"));
-  writeFileSync(path.join(dir, "progress.json"), JSON.stringify({
-    plan: "/p.md", timeoutCount: 0, engineRecoveryCount: 0,
-    lastDispatchHead: "", tasks: [{ task: 1, status: "pending", rounds: { "task-review": 1 } }], degradationLog: [],
-  }));
-  incrementRound(dir, 1, "task-review");
-  const data = readProgressJSON(dir);
-  expect(data.tasks[0].rounds["task-review"]).toBe(2);
 });

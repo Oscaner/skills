@@ -109,20 +109,6 @@ export function migrateFromProgressMD(progressDir) {
   };
 }
 
-// deriveProgressMD: derive progress.md content from a progress.json object.
-// Used only for backward compatibility if needed.
-export function deriveProgressMD(data) {
-  const lines = [];
-  if (data.plan) lines.push(`## Plan\n${data.plan}\n`);
-  lines.push(`## Ledger`);
-  for (const t of data.tasks) {
-    if (t.status === "complete") lines.push(`Task ${t.task}: complete`);
-  }
-  lines.push(`\n## engine-recovery-count: ${data.engineRecoveryCount}`);
-  lines.push(`## timeoutCount: ${data.timeoutCount}`);
-  return lines.join("\n") + "\n";
-}
-
 // migrateIfNeeded: transparent migration.
 // 1. progress.json exists → return it
 // 2. progress.md exists → migrate to progress.json, return migrated data

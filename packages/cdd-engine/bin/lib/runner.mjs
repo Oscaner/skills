@@ -14,7 +14,6 @@ import semver from "semver";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
-import { appendLedger } from "./ledger.mjs";
 import { writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
@@ -590,12 +589,6 @@ export function taskNumbersFromPlan(planFile) {
     if (m) nums.push(Number(m[1]));
   }
   return nums.sort((a, b) => a - b);
-}
-
-// Aligns _ledger_complete: ledger contains `^Task N: complete` line.
-function ledgerComplete(n, ledgerPath) {
-  if (!ledgerPath || !existsSync(ledgerPath)) return false;
-  return new RegExp(`^Task ${n}: complete`).test(readFileSync(ledgerPath, "utf8"));
 }
 
 // Read the status of the latest task-review handoff (progressData.rounds["task-review"] round).

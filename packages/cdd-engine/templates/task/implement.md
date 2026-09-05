@@ -10,7 +10,7 @@
 
 ## Instructions
 
-1. Read **only** the task brief and plan constraints at the paths above. Do **not** read the full plan file or ledger. **Scope lock:** implement exactly what the brief specifies — no extra features, no tangential refactors, no scope creep beyond the brief's Files/Interfaces/Steps.
+1. Read **only** the task brief and plan constraints at the paths above. Do **not** read the full plan file. **Scope lock:** implement exactly what the brief specifies — no extra features, no tangential refactors, no scope creep beyond the brief's Files/Interfaces/Steps.
 2. **Confirm seams first:** If the task brief includes `CONFIRMED_SEAMS` (test boundaries already confirmed by the orchestrator with the user), apply those seams when invoking tdd — no re-negotiation. Otherwise, propose the test boundaries in the report ("I'll test at these seams: [X, Y]. Not testing: [Z]") and proceed (non-blocking; the orchestrator owns seam confirmation). Then invoke **`mattpocock-skills:tdd`** (Read the skill via `agent_skills` fullPath) to implement per the brief.
 3. Write a full implementer report to the path named in the brief (typically `<workspace>/task-N-report.md`).
 4. Write `<workspace>/task-N-test-evidence.json` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable).
@@ -20,7 +20,7 @@
    - Otherwise: create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the task brief; no attribution / co-author / AI-generation trailers; then `head` = `git rev-parse HEAD`.
    - Uncommitted changes at return → `status: BLOCKED`.
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
-6. Write handoff per `## Handoff Output` below. Do **not** write ledger.
+6. Write handoff per `## Handoff Output` below. 
 
 ## Handoff Output
 

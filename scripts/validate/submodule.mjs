@@ -4,9 +4,11 @@
 // `git submodule update --init` skips; real resolution errors are caught by
 // the version-sync block).
 
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import { runIfMain } from "./runner.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -26,26 +28,4 @@ export const steps = [
   },
 ];
 
-function main(stepsArg = steps) {
-  for (const s of stepsArg) {
-    try {
-      console.log(`== ${s.name} ==`);
-      s.run();
-      console.log("OK");
-    } catch (e) {
-      console.error(`== FAIL: ${s.name} ==`);
-      console.error(e?.message ?? String(e));
-      return 1;
-    }
-  }
-  console.log("ALL PASS");
-  return 0;
-}
-
-const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-if (isMain) {
-  Promise.resolve(main())
-    .then((code) => process.exit(code != null ? code : 1))
-    .catch(() => process.exit(1));
-}
+runIfMain(import.meta.url, steps);

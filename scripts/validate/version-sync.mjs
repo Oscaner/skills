@@ -5,9 +5,11 @@
 // Single step descriptor; standalone (`node scripts/validate/version-sync.mjs`) runs the
 // same checks.
 
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import { runIfMain } from "./runner.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
@@ -79,6 +81,10 @@ function checkVersionSync() {
   console.log("OK — init SKILL.md stamp", osuperpowersPkg.version);
 }
 
+// Single in-process step (not a `node scripts/validate/version-sync.mjs` subprocess,
+// plan Step 2's literal form): a self-spawning run() would recurse infinitely on the
+// standalone path, where main() IS this module's main. In-process keeps suite and
+// standalone output byte-identical.
 export const steps = [
   {
     name: "8-10. version sync",
@@ -86,26 +92,4 @@ export const steps = [
   },
 ];
 
-function main(stepsArg = steps) {
-  for (const s of stepsArg) {
-    try {
-      console.log(`== ${s.name} ==`);
-      s.run();
-      console.log("OK");
-    } catch (e) {
-      console.error(`== FAIL: ${s.name} ==`);
-      console.error(e?.message ?? String(e));
-      return 1;
-    }
-  }
-  console.log("ALL PASS");
-  return 0;
-}
-
-const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-if (isMain) {
-  Promise.resolve(main())
-    .then((code) => process.exit(code != null ? code : 1))
-    .catch(() => process.exit(1));
-}
+runIfMain(import.meta.url, steps);

@@ -4,9 +4,11 @@
 // descriptor; standalone (`node scripts/validate/marketplace.mjs`) executes the same checks.
 
 import Ajv from "ajv";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import { runIfMain } from "./runner.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ajv = new Ajv();
@@ -154,6 +156,10 @@ function validateMarketplaceSources() {
   console.log("OK — marketplace plugin sources exist");
 }
 
+// Single in-process step, not a `node scripts/validate/marketplace.mjs` subprocess
+// (plan Step 2's literal form): a run() that spawned this very module would recurse
+// infinitely on standalone execution — main() here IS this module's main. In-process
+// keeps suite and standalone paths byte-identical.
 export const steps = [
   {
     name: "6. marketplace validate",
@@ -166,26 +172,4 @@ export const steps = [
   },
 ];
 
-function main(stepsArg = steps) {
-  for (const s of stepsArg) {
-    try {
-      console.log(`== ${s.name} ==`);
-      s.run();
-      console.log("OK");
-    } catch (e) {
-      console.error(`== FAIL: ${s.name} ==`);
-      console.error(e?.message ?? String(e));
-      return 1;
-    }
-  }
-  console.log("ALL PASS");
-  return 0;
-}
-
-const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-if (isMain) {
-  Promise.resolve(main())
-    .then((code) => process.exit(code != null ? code : 1))
-    .catch(() => process.exit(1));
-}
+runIfMain(import.meta.url, steps);

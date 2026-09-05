@@ -4,14 +4,10 @@
 // per-block step descriptors from scripts/validate/*.mjs into the original run
 // order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers
-// coverage is not dropped.
+// coverage is not dropped. The runner loop + isMain guard live in runner.mjs.
 //
 // Failure is structured: `console.error("== FAIL: <step> ==")` + message, and
 // main() returns 1 (run.mjs turns a numeric return into process.exitCode).
-
-import { realpathSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { steps as emitCheckSteps } from "./emit-check.mjs";
 import { steps as osuperpowersSteps } from "./osuperpowers.mjs";
@@ -22,6 +18,8 @@ import { steps as marketplaceSteps } from "./marketplace.mjs";
 import { steps as libTestsSteps } from "./lib-tests.mjs";
 import { steps as versionSyncSteps } from "./version-sync.mjs";
 import { steps as submoduleSteps } from "./submodule.mjs";
+
+import { main as runSteps, runIfMain } from "./runner.mjs";
 
 // Original step order: the 5b1 engine suite sits between the 5b node:test tree
 // (osuperpowers steps 0-3) and the 5b wiring guard (osuperpowers step 4) —
@@ -40,26 +38,8 @@ export const steps = [
   ...submoduleSteps,
 ];
 
-export async function main(stepsArg = steps) {
-  for (const s of stepsArg) {
-    try {
-      console.log(`== ${s.name} ==`);
-      s.run();
-      console.log("OK");
-    } catch (e) {
-      console.error(`== FAIL: ${s.name} ==`);
-      console.error(e?.message ?? String(e));
-      return 1;
-    }
-  }
-  console.log("ALL PASS");
-  return 0;
+export function main(stepsArg = steps) {
+  return runSteps(stepsArg);
 }
 
-const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-if (isMain) {
-  Promise.resolve(main())
-    .then((code) => process.exit(code != null ? code : 1))
-    .catch(() => process.exit(1));
-}
+runIfMain(import.meta.url, steps);

@@ -7,16 +7,11 @@
 //   wiring guard (ci-validate.test.mjs).
 
 import { execaSync } from "execa";
-import {
-  constants,
-  existsSync,
-  readdirSync,
-  readFileSync,
-  accessSync,
-  realpathSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import { runIfMain } from "./runner.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -77,10 +72,12 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
   "packages/osuperpowers/tests/rule-reference.test.mjs",
 ]);
 
-// node:test 两棵树：行为/集成树 packages/osuperpowers/tests/（helpers.mjs + rule-reference +
-// ci-validate.test.mjs）+ 模块树 bin/engine/tests/ + gate + init + utils。
-// 用 glob 而非裸目录（本环境 node --test <dir> 会把目录当模块加载而失败；glob 由 runner 展开）。
-// 旧 bash engine 测试已全部迁移 → Node 等价实现由 runner/registry/templates/exec 模块测试覆盖。
+// node:test trees: behavior/integration (packages/osuperpowers/tests: helpers.mjs +
+// rule-reference + ci-validate.test.mjs) and module (bin/engine/tests/ + gate + init
+// + utils). Globs rather than bare directories — node --test <dir> loads the dir as a
+// module here and fails; the runner expands the globs. The legacy bash engine tests
+// were fully migrated, so their Node equivalents are covered by the
+// runner/registry/templates/exec module tests.
 subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", [
   "--test",
   "packages/osuperpowers/tests/*.test.mjs",
@@ -91,26 +88,4 @@ subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", 
 
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
 
-function main(stepsArg = steps) {
-  for (const s of stepsArg) {
-    try {
-      console.log(`== ${s.name} ==`);
-      s.run();
-      console.log("OK");
-    } catch (e) {
-      console.error(`== FAIL: ${s.name} ==`);
-      console.error(e?.message ?? String(e));
-      return 1;
-    }
-  }
-  console.log("ALL PASS");
-  return 0;
-}
-
-const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
-if (isMain) {
-  Promise.resolve(main())
-    .then((code) => process.exit(code != null ? code : 1))
-    .catch(() => process.exit(1));
-}
+runIfMain(import.meta.url, steps);

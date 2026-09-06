@@ -3,12 +3,17 @@
 // select/research 内联、brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
 import { describe, it, expect } from "vitest";
 import { execaSync } from "execa";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const REPO_ROOT = "/Users/kang/Projects/oscaner-skills";   // 显式 cwd（vitest 默认 cwd=packages/cdd-engine，相对 smoke-plan 不可达）
-const CDD_MJS = path.join(REPO_ROOT, "packages", "cdd-engine", "bin", "cdd.mjs");   // absolute（contract 测试换 cwd 到临时 repo）
+// Repo-root derivation via fileURLToPath (task.test.mjs convention) — no hardcoded machine
+// path, so the suite also passes under CI checkouts (STD-4). CDD_MJS must be absolute:
+// contract tests switch cwd to a temp repo and a relative path would break there.
+const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-engine/bin/tests
+const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..");
+const CDD_MJS = path.join(REPO_ROOT, "packages", "cdd-engine", "bin", "cdd.mjs");
 const SMOKE_PLAN = "packages/cdd-engine/bin/tests/fixtures/smoke-plan.md";
 const NODE = process.execPath;
 
@@ -90,6 +95,76 @@ describe("cdd CLI", () => {
     const r = runCli(["review", "--type", "branch", "--harness", "claude", "--plan", SMOKE_PLAN]);
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/--base/);
+  });
+
+  it("review --type plan 非 dry-run：{{SPEC}} 注入后停在 harness gate（SP-3）", () => {
+    // plan-review.md requires {{SPEC}}; --spec defaults to "" so the plan path never throws
+    // docs-runner missing-param before the harness gate. Both default and explicit --spec
+    // must land on "unknown harness: nonexistent" (exit 2), not on a render crash.
+    const r = runCli(["review", "--type", "plan", "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
+    expect(r.stderr).toMatch(/unknown harness: nonexistent/);
+    expect(r.stderr).not.toMatch(/template/);
+    const r2 = runCli(["review", "--type", "plan", "--harness", "nonexistent", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN]);
+    expect(r2.stderr).toMatch(/unknown harness: nonexistent/);
+    expect(r2.stderr).not.toMatch(/template/);
+  });
+
+  it("dry-run review --type plan --spec → exit 0（SP-3 --spec 接线）", () => {
+    const r = runCli(["review", "--type", "plan", "--harness", "claude", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1" } });
+    expect(r.exitCode).toBe(0);
+  });
+
+  it("--task 非整数 → 校验回退 exit 2（STD-3 Bug A 契约回归）", () => {
+    // parseInt NaN must not leak into runTask (task-NaN-* garbage + fake APPROVED H1);
+    // the Commander coercion rejects at parse time → exit 2 (legacy cdd-task contract).
+    const r = runCli(["review", "--type", "task", "--harness", "claude", "--task", "abc", "--plan", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1" } });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/must be an integer, got: abc/);
+  });
+
+  // --- SP-4 Review Stopping status criterion: a BLOCKED/TIMEOUT failure round (findings:[])
+  //     must remain re-dispatchable; only an APPROVED round with blocker=0 stops a re-run. ---
+
+  // Seed helper: temp git repo + plan file + a seeded task-N-task-review-N.json round.
+  function seedTaskReviewHandoff(status) {
+    const dir = mkdtempSync(path.join(tmpdir(), "cdd-stop-"));
+    execaSync("git", ["-C", dir, "init", "-q"]);
+    execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
+      "commit", "--allow-empty", "-qm", "fixture"]);
+    const plan = path.join(dir, "zz-stop-test.md");
+    writeFileSync(plan, "### Task 1: fixture\n");
+    const ws = path.join(dir, ".superpowers", "cdd", "zz-stop-test");
+    mkdirSync(ws, { recursive: true });
+    writeFileSync(path.join(ws, "task-1-task-review-1.json"),
+      JSON.stringify({ task: 1, phase: "task-review", status, findings: [], ...(status !== "APPROVED" ? { blocker: "boom" } : {}) }));
+    return { dir, plan };
+  }
+
+  it("review --type task：status:BLOCKED 失败轮 → 可重派（SP-4）", () => {
+    const { dir, plan } = seedTaskReviewHandoff("BLOCKED");
+    try {
+      const r = runCli(["review", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan],
+        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toMatch(/status: APPROVED/);
+      expect(r.stderr).not.toMatch(/already APPROVED/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("review --type task：status:APPROVED + blocker=0 已通过轮 → 拒绝重派 exit 3（SP-4 保留 Stopping）", () => {
+    const { dir, plan } = seedTaskReviewHandoff("APPROVED");
+    try {
+      const r = runCli(["review", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan],
+        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      expect(r.exitCode).toBe(3);
+      expect(r.stderr).toMatch(/already APPROVED\/blocker=0/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("select 无可用 harness → BLOCKED exit 1", () => {

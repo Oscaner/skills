@@ -32,7 +32,7 @@ const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 // Per-subcommand usage lines (print on parse/usage errors in place of Commander's own output).
 const SUBCOMMAND_USAGE = {
   implement: "usage: cdd implement --harness <name> --task <n> [--plan <path>]",
-  review: "usage: cdd review --type <task|branch|spec|plan> --harness <name> [--task <n>] [--doc <path>] [--plan <path>] [--base <sha> --head <sha>] [--round <n>]",
+  review: "usage: cdd review --type <task|branch|spec|plan> --harness <name> [--task <n>] [--doc <path>] [--plan <path>] [--base <sha> --head <sha>] [--round <n>] [--spec <path>]",
   fix: "usage: cdd fix --type <task|spec|plan> --harness <name> [--task <n>] [--findings <path>] [--doc <path>] [--plan <path>]",
   select: "usage: cdd select",
   research: "usage: cdd research --harness <name> --brief <path> --output <path>",
@@ -45,6 +45,15 @@ function usageError(command) {
 }
 
 // ---- review/fix shared helpers ----
+
+// Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse
+// time (exit 2 + message) instead of letting parseInt leak NaN into runTask and fabricate
+// task-NaN-* artifacts with a false APPROVED H1 (STD-3).
+function intTask(v) {
+  const n = parseInt(v, 10);
+  if (isNaN(n)) throw new Error(`--task must be an integer, got: ${v}`);
+  return n;
+}
 
 // Docs review workspace: <repoRoot>/.superpowers/docs-review/ (matches docs-task Bug K fix).
 function docsReviewWorkspace() {
@@ -61,10 +70,14 @@ function blockerCount(handoff) {
   return (handoff?.findings ?? []).filter((f) => f?.severity === "blocker").length;
 }
 
-// Review Stopping: reject a re-dispatch of a (type, ref) whose previous round reached blocker=0.
+// Review Stopping: reject a re-dispatch of a (type, ref) whose previous round reached
+// APPROVED with blocker=0. A failure round (status BLOCKED/TIMEOUT) is NOT "done" — it
+// must be re-dispatchable, so the gate requires status === "APPROVED" in addition to
+// blockerCount === 0 (SP-4): runner 8.5/8.8/10/10.5 and docs-runner failure paths write
+// status:BLOCKED|TIMEOUT with findings:[] → blockerCount alone would misjudge them as passed.
 function stoppedExit3(type, round, ref, blocker) {
   process.stderr.write(
-    `${ref} round ${round} (${type}) already blocker=0 — Review Stopping: do not re-run (exit 3)\n` +
+    `${ref} round ${round} (${type}) already APPROVED/blocker=0 — Review Stopping: do not re-run (exit 3)\n` +
     (blocker ? `last blocker: ${blocker}` : ""));
   process.exit(3);
 }
@@ -101,14 +114,17 @@ async function runReview(opts) {
       process.exit(2);
     }
     const prev = existingRoundHandoff(ws, opts.type, round - 1);
-    // Stopping only rejects a re-run of the SAME ref (doc); a changed ref = a new review.
-    if (prev && (prev.doc_path ?? "") === opts.doc && blockerCount(prev) === 0) {
+    // Stopping only rejects a re-run of the SAME ref (doc) whose previous round is APPROVED
+    // with blocker=0; a changed ref = a new review, and a BLOCKED/TIMEOUT round = re-dispatchable (SP-4).
+    if (prev && prev.status === "APPROVED" && (prev.doc_path ?? "") === opts.doc && blockerCount(prev) === 0) {
       stoppedExit3(opts.type, round, opts.doc, prev?.blocker);
     }
     // Pre-Task-4: legacy spec-review/plan-review templates require {{PASS}} — pass a placeholder
     // to avoid renderTemplate throwing on a missing param (Task 4 swaps to review.md params).
+    // plan-review additionally requires {{SPEC}}; --spec is optional here and defaults to "" so
+    // the plan path never throws missing-param before the harness gate (SP-3).
     const template = opts.type === "spec" ? "spec-review" : "plan-review";
-    const extra = { PASS: "completeness" };
+    const extra = { PASS: "completeness", ...(opts.type === "plan" ? { SPEC: opts.spec ?? "" } : {}) };
     await runDocsTask({
       harness: opts.harness, mode: "review", template, doc: opts.doc,
       round, handoffPath: path.join(ws, `${opts.type}-${round}.json`),
@@ -143,10 +159,12 @@ async function runReview(opts) {
     .sort((a, b) => a - b).at(-1);
   if (latestRound) {
     const th = JSON.parse(readFileSync(path.join(taskWs, `task-${opts.task}-task-review-${latestRound}.json`), "utf8"));
-    if (blockerCount(th) === 0) stoppedExit3("task", latestRound, opts.plan, th?.blocker);
+    // Stop only on an APPROVED round with blocker=0 — a BLOCKED/TIMEOUT failure round
+    // (findings:[]) must remain re-dispatchable (SP-4).
+    if (th?.status === "APPROVED" && blockerCount(th) === 0) stoppedExit3("task", latestRound, opts.plan, th?.blocker);
   }
   const { runTask } = await import("./lib/runner.mjs");
-  await runTask(opts.harness, parseInt(opts.task, 10), {
+  await runTask(opts.harness, opts.task, {
     mode: "task-review", dryRun: DRY_RUN(),
     env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
   });
@@ -186,7 +204,9 @@ async function runBranchReview(opts) {
   }
   const prevPath = path.join(workspace, `branch-review-${base7}..${head7}-r${round - 1}.json`);
   const prev = existsSync(prevPath) ? JSON.parse(readFileSync(prevPath, "utf8")) : null;
-  if (prev && blockerCount(prev) === 0) {
+  // Stop only on an APPROVED round with blocker=0 (SP-4) — a BLOCKED/TIMEOUT branch review
+  // round with findings:[] must be re-dispatchable, not rejected as "already done".
+  if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) {
     stoppedExit3("branch", round, `${base7}..${head7}`, prev?.blocker);
   }
 
@@ -274,7 +294,7 @@ async function runFix(opts) {
       process.stderr.write("cdd fix --type task: missing required --task <n>\n");
       process.exit(2);
     }
-    await runTask(opts.harness, parseInt(opts.task, 10), {
+    await runTask(opts.harness, opts.task, {
       mode: "fix", dryRun: DRY_RUN(),
       findingsPath: opts.findings,
       env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
@@ -433,11 +453,11 @@ program
 program
   .command("implement")
   .requiredOption("--harness <name>", "harness name")
-  .requiredOption("--task <n>", "task number")
+  .requiredOption("--task <n>", "task number", intTask)
   .option("--plan <path>", "plan file path")
   .action(async (opts) => {
     const { runTask } = await import("./lib/runner.mjs");
-    await runTask(opts.harness, parseInt(opts.task, 10), {
+    await runTask(opts.harness, opts.task, {
       mode: "implement",
       dryRun: DRY_RUN(),
       env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
@@ -449,12 +469,13 @@ program
   .command("review")
   .requiredOption("--type <t>", "task|branch|spec|plan")
   .requiredOption("--harness <name>", "harness name")
-  .option("--task <n>", "task number (type=task)")
+  .option("--task <n>", "task number (type=task)", intTask)
   .option("--doc <path>", "document path (type=spec|plan)")
   .option("--plan <path>", "plan path")
   .option("--base <sha>", "base commit (type=task|branch)")
   .option("--head <sha>", "head commit (type=task|branch)")
   .option("--round <n>", "round backfill (validate against engine auto-increment)")
+  .option("--spec <path>", "spec document path (type=plan — plan-review {{SPEC}})")
   .action(async (opts) => {
     await runReview(opts);
   });
@@ -464,7 +485,7 @@ program
   .command("fix")
   .requiredOption("--type <t>", "task|spec|plan")
   .requiredOption("--harness <name>", "harness name")
-  .option("--task <n>", "task number (type=task)")
+  .option("--task <n>", "task number (type=task)", intTask)
   .option("--findings <path>", "findings handoff path for this fix round")
   .option("--doc <path>", "document path (type=spec|plan)")
   .option("--plan <path>", "plan path")

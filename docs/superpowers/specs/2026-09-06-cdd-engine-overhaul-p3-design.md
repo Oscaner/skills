@@ -1,10 +1,12 @@
 # CDD Engine 重构 + 生态完善 — P3 设计 Spec
 
-- **Version**: v1.0 · 2026-09-06
+- **Version**: v1.1 · 2026-09-06
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) (v1.15)
+- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) (v1.16)
 - **Depends on**: P1（engine 已发布 + PR #236 合入 develop）· P2（scripts/CI 重组 + PR #237 合入 develop）
+
+> **阶段拆分标注（v1.16，2026-09-06）**：本 spec 按用户决策拆为两个阶段执行——**P3（URC 引擎架构统一）** 使用 §2.6 + §2.4（Enh X + S + T + 审阅节点迁移，AC 12-17 + AC 9-11 的引擎项）；**P4（Skills + 模板重构）** 使用 §2.2 + §2.3 + §2.5（Enh J + K + R + finding-meta + issue templates，AC 1-8）。§3 Deviations / §4 Notes 按两阶段各自归集。
 
 ---
 

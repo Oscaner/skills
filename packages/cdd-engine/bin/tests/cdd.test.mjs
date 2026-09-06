@@ -75,6 +75,23 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
+  it("fix --type spec|plan 非 dry-run：pre-Task-4 fallback 模板可渲染（SP-1 回归）", () => {
+    // SP-1 回归：docs-runner fix mode 恒做 `-review`→`-fix` 派生，fallback 传 spec-review/plan-review
+    // 才得到可渲染的 spec-fix/plan-fix（传 spec-fix → spec-fix-fix unknown template，崩在 render）。
+    // nonexistent harness 保证停在 harness gate（"unknown harness"），不进入 spawn/写 handoff。
+    for (const type of ["spec", "plan"]) {
+      const r = runCli(["fix", "--type", type, "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
+      expect(r.stderr).toMatch(/unknown harness: nonexistent/);
+      expect(r.stderr).not.toMatch(/template/);
+    }
+  });
+
+  it("review --type branch 缺 --base/--head → 必填守卫 exit 2（SP-2）", () => {
+    const r = runCli(["review", "--type", "branch", "--harness", "claude", "--plan", SMOKE_PLAN]);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/--base/);
+  });
+
   it("select 无可用 harness → BLOCKED exit 1", () => {
     const r = runCli(["select"], { env: { PATH: "/nonexistent" } });
     expect(r.exitCode).toBe(1);

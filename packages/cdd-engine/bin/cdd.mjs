@@ -78,6 +78,12 @@ async function runReview(opts) {
       process.stderr.write("cdd review --type branch: missing required --plan <path>\n");
       process.exit(2);
     }
+    // --base/--head were requiredOption in the inlined branch-review.mjs; the inline keeps
+    // that contract — missing values would otherwise render garbage ("undefin" file slugs  + undefined in H1).
+    if (!opts.base || !opts.head) {
+      process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
+      process.exit(2);
+    }
     return await runBranchReview(opts);
   }
 
@@ -290,7 +296,10 @@ async function runFix(opts) {
     const { reviewTypeConfig } = await import("./lib/templates.mjs");
     template = reviewTypeConfig(opts.type).fixTemplate;
   } catch {
-    template = opts.type === "spec" ? "spec-fix" : "plan-fix";
+    // Pre-Task-4 fallback: pass the *review* template name — docs-runner derives the legacy
+    // spec-fix/plan-fix template via `-review` → `-fix` (passing spec-fix/plan-fix directly
+    // would double-suffix → unknown template spec-fix-fix/plan-fix-fix, SP-1).
+    template = opts.type === "spec" ? "spec-review" : "plan-review";
   }
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({

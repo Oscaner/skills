@@ -1,0 +1,20 @@
+name: Install Harness Smoke
+description: Install the claude-code CLI globally, run osuperpowers install-harness under a hermetic HOME, and assert the CLI is on PATH.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude Code CLI
+      shell: bash
+      run: |
+        npm i -g @anthropic-ai/claude-code
+    - name: Run install-harness under hermetic HOME
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/oshome"
+        export HOME="$RUNNER_TEMP/oshome"
+        node packages/osuperpowers/bin/init/install-harness.mjs --harness claude
+    - name: Assert CLI bin on PATH
+      shell: bash
+      run: |
+        command -v claude

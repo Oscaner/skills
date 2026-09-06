@@ -1,5 +1,5 @@
 {
-  "_generated": "scripts/emit.mjs — do not edit",
+  "_generated": "scripts/run.mjs emit — do not edit",
   "name": "osuperpowers",
   "version": "0.1.1",
   "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",

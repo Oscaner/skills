@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-node scripts/ci-validate.mjs
+pnpm run validate

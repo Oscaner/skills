@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         submodule: [mattpocock-skills, superpowers, impeccable]
-    uses: ./.github/workflows/bump-submodule-reusable.yml
+    uses: ./.github/workflows/submodule-bump.yml
     with:
       submodule: ${{ matrix.submodule }}
     secrets: inherit

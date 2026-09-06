@@ -1,0 +1,17 @@
+name: Setup
+description: Install pnpm and set up Node.js (default 24) for this repo's CI. Assumes the repo is already checked out (local composite actions resolve only after a workflow checkout step).
+
+inputs:
+  node-version:
+    description: Node.js version to install via actions/setup-node.
+    required: false
+    default: "24"
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm

@@ -1,5 +1,5 @@
 {
-  "_generated": "scripts/emit.mjs — do not edit",
+  "_generated": "scripts/run.mjs emit — do not edit",
   "name": "mattpocock-skills",
   "displayName": "Matt Pocock Skills",
   "description": "Matt Pocock's agent skills for real engineering",

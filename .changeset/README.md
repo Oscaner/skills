@@ -1,6 +1,6 @@
 # Changesets
 
-We use [changesets](https://github.com/changesets/changesets) to manage releases for two packages: **`@oscaner-skills/osuperpowers-router`** (superpowers-relative scheme) and **`@oscaner-skills/osuperpowers`** (independent semver). Both are workspace packages under `packages/`; each releases independently when a changeset names it.
+We use [changesets](https://github.com/changesets/changesets) to manage releases for the first-party plugin **`@oscaner-skills/osuperpowers`** (independent semver). It is a workspace package under `packages/`; it releases when a changeset names it.
 
 **Integration branch:** `develop` — feature PRs merge here and accumulate `.changeset/*.md` files.
 
@@ -8,21 +8,13 @@ We use [changesets](https://github.com/changesets/changesets) to manage releases
 
 ## When to add a changeset
 
-Run `pnpm changeset` when you change behavior or wiring under `packages/osuperpowers-router/` or `packages/osuperpowers/`. Select the plugin(s) the change affects — a changeset may name both. Version bumps are computed per plugin by `node scripts/version-packages.mjs`:
+Run `pnpm changeset` when you change behavior or wiring under `packages/osuperpowers/`. Version bumps are computed by `pnpm run version` (`node scripts/run.mjs version`):
 
-- `@oscaner-skills/osuperpowers-router` → `{superpowers-semver}-router.{major}.{minor}.{patch}` (patch increment on the same superpowers base)
 - `@oscaner-skills/osuperpowers` → plain semver bump (patch / minor / major per the changeset's declared type)
 
-You do **not** need a changeset when you only bump the vendored `superpowers` submodule — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR against `develop` that sets `{semver}-router.0.0.0` directly; release happens after merging `develop → main`. This resets **overrides only**; osuperpowers keeps its independent semver.
+You do **not** need a changeset when you only bump a vendored submodule (`superpowers` / `mattpocock-skills` / `impeccable`) — the [submodule-sync workflow](.github/workflows/submodule-sync.yml) opens a PR against `develop` with the new pin; osuperpowers keeps its independent semver.
 
 ## Version scheme
-
-`@oscaner-skills/osuperpowers-router` follows `{superpowers-semver}-router.{major}.{minor}.{patch}`:
-
-- `6.2.0-router.0.0.0` — aligned with superpowers 6.2.0, no overrides changes yet
-- `6.2.0-router.0.15.0` — fifteenth overrides-only release on superpowers 6.2.0 base (minor segment tracks release count on base)
-- `6.2.0-router.0.15.1` — next patch increment from changesets on the same base
-- `6.3.0-router.0.0.0` — resets when superpowers base moves to 6.3.0 (any semver segment change, including patch, resets to `0.0.0`)
 
 `@oscaner-skills/osuperpowers` follows plain semver (`0.1.x`), bumped independently of superpowers:
 
@@ -37,7 +29,7 @@ Its version is synced across `package.json`, `.claude-plugin/plugin.json` (SOT),
 2. Open a PR **`develop → main`**
 3. Merge to **`main`** → [release.yml](.github/workflows/release.yml) opens a Version PR targeting **`main`**
 4. Merge the Version PR on **`main`** → publish mode: `publish-vendor` job runs npm assembly publish for each vendor (skip-if-published idempotency), then emits a `to_tag` registry gap list → `release-vendor` creates git tag (`superpowers@6.2.0` etc.) + GitHub Release (body: assembled from upstream `<repo>@<tag>`) for each gap item
-5. In the same publish mode push: per-plugin git tag + GitHub Release for each first-party plugin that had a changeset (`osuperpowers-router@{version}` and/or `osuperpowers@{version}`)
+5. In the same publish mode push: per-plugin git tag + GitHub Release for each first-party plugin that had a changeset (`osuperpowers@{version}`)
 6. When `main` is ahead of `develop`, an automated **`main → develop`** sync PR opens — merge it manually to align `develop` with the released version
 
 Version mode (merging to `main` while opening a Version PR — `hasChangesets=true`): `publish-vendor` and `release-vendor` do not run; vendor publish is deferred to the next publish-mode push after the Version PR merges.

@@ -7,6 +7,22 @@ settings:
 importers:
 
   .:
+    dependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+      execa:
+        specifier: ^9.6.1
+        version: 9.6.1
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
+      tinyglobby:
+        specifier: ^0.2.17
+        version: 0.2.17
     devDependencies:
       '@changesets/changelog-github':
         specifier: ^1.0.0
@@ -23,6 +39,9 @@ importers:
       husky:
         specifier: ^9.1.7
         version: 9.1.7
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(yaml@2.9.0)
 
   packages/cdd-engine:
     dependencies:

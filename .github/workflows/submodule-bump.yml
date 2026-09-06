@@ -1,0 +1,134 @@
+name: Submodule Bump
+
+on:
+  workflow_call:
+    inputs:
+      submodule:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - id: detect
+        run: |
+          json=$(node scripts/run.mjs bump-submodule "${{ inputs.submodule }}" --dry-run)
+          echo "$json" | node -e "
+            const j = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+            const fs = require('fs');
+            const o = (k, v) => fs.appendFileSync(process.env.GITHUB_OUTPUT, k + '=' + String(v) + '\n');
+            o('updated', j.updated === true);
+            o('new_tag', j.newTag ?? '');
+            o('old_label', j.oldTag ?? j.oldPinSha ?? '');
+          "
+
+      - name: Apply bump
+        if: steps.detect.outputs.updated == 'true'
+        run: node scripts/run.mjs bump-submodule "${{ inputs.submodule }}"
+
+      - id: find-issue
+        if: steps.detect.outputs.updated == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const labels = ['submodule-bump', `submodule:${{ inputs.submodule }}`];
+            const { data: issues } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              labels: labels.join(','),
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 1,
+            });
+            const issue = issues[0];
+            if (issue) {
+              core.setOutput('has-found', 'true');
+              core.setOutput('issue-number', String(issue.number));
+            } else {
+              core.setOutput('has-found', 'false');
+              core.setOutput('issue-number', '');
+            }
+
+      - id: write-issue-body
+        if: steps.detect.outputs.updated == 'true' && steps.find-issue.outputs.has-found != 'true'
+        run: |
+          mkdir -p .github/issue-bodies
+          printf 'Automated submodule sync tracking for `%s`.\n' "${{ inputs.submodule }}" \
+            > ".github/issue-bodies/${{ inputs.submodule }}.md"
+
+      - id: create-issue
+        if: steps.detect.outputs.updated == 'true' && steps.find-issue.outputs.has-found != 'true'
+        uses: peter-evans/create-issue-from-file@v6
+        with:
+          title: "Submodule bump: ${{ inputs.submodule }}"
+          content-filepath: .github/issue-bodies/${{ inputs.submodule }}.md
+          labels: |
+            submodule-bump
+            submodule:${{ inputs.submodule }}
+
+      - id: issue-number
+        if: steps.detect.outputs.updated == 'true'
+        run: |
+          if [ "${{ steps.find-issue.outputs.has-found }}" = "true" ]; then
+            echo "number=${{ steps.find-issue.outputs.issue-number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ steps.create-issue.outputs.issue-number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: pr-body
+        if: steps.detect.outputs.updated == 'true'
+        run: |
+          if [ "${{ inputs.submodule }}" = "mattpocock-skills" ]; then
+            {
+              echo 'rollback_note<<EOF'
+              echo "> **Note:** Pin was not aligned to latest release tag; this PR syncs to \`${{ steps.detect.outputs.new_tag }}\`."
+              echo EOF
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "rollback_note=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: cpr
+        if: steps.detect.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: chore/bump-${{ inputs.submodule }}
+          base: develop
+          title: "chore: bump ${{ inputs.submodule }} submodule"
+          commit-message: "chore: bump ${{ inputs.submodule }} submodule"
+          labels: |
+            submodule-bump
+            automated
+          body: |
+            Tracking Issue: #${{ steps.issue-number.outputs.number }}
+
+            Automated tag sync.
+            ${{ steps.pr-body.outputs.rollback_note }}
+
+      - name: Comment on tracking issue
+        if: steps.detect.outputs.updated == 'true'
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ steps.issue-number.outputs.number }}
+          body: "Updated: ${{ steps.detect.outputs.old_label }} → ${{ steps.detect.outputs.new_tag }}"

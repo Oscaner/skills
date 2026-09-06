@@ -1,17 +1,43 @@
 name: Enhancement
-description: Suggest an improvement to spor skills or workflow
-labels: ["enhancement"]
+description: Suggest an improvement to osuperpowers skills or workflow
+labels: ["enhancement", "osuperpowers"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template to suggest improvements found during dogfood use of spor skills.
+        Use this template to suggest improvements found during dogfood use of osuperpowers skills.
         Additional labels (`dogfood` and `cdd` for CDD-related findings) will be appended automatically when the issue is filed via the report-issue skill.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component does this finding relate to?
+      options:
+        - osuperpowers (general)
+        - cdd-engine
+        - osuperpowers:init
+        - osuperpowers:brainstorming
+        - osuperpowers:writing-plans
+        - osuperpowers:cli-driven-development
+        - osuperpowers:report-issue
+        - osuperpowers:finishing
+    validations:
+      required: true
+  - type: dropdown
+    id: session-type
+    attributes:
+      label: Session type
+      description: Was this finding surfaced during a dogfood (CDD session) or a standalone run?
+      options:
+        - dogfood (CDD session)
+        - standalone
+    validations:
+      required: true
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: "Dogfood session context: branch, date, which spor skills were in use"
+      description: "Dogfood session context: branch, date, which osuperpowers skills were in use"
       placeholder: "Branch: feat/my-feature, Date: YYYY-MM-DD, Skills: cli-driven-development"
     validations:
       required: true

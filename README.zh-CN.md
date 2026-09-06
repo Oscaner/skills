@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-[![CI](https://github.com/Oscaner/skills/actions/workflows/ci.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/ci.yml)
+[![PR Validate](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml)
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -85,7 +85,7 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> hooks 文件（按 harness）
 ```
 
-一方插件无需手动注册。vendored 插件通过 `scripts/lib/publish-vendor.mjs` 从 `vendors/` submodule 装配。
+一方插件无需手动注册。vendored 插件通过 `scripts/release/vendor-assembly.mjs` 从 `vendors/` submodule 装配。
 
 完整架构说明：[CLAUDE.md](CLAUDE.md)。
 

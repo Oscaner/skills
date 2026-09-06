@@ -166,7 +166,7 @@ flowchart TD
 | `packages/cdd-engine/templates/schema/cdd-handoff-schema.json`（Enh T） | properties 加可选 `notes: {"type": "string"}` |
 | `packages/cdd-engine/templates/task/fix.md`（Enh T） | Handoff Output 明示：证据说明写入 `notes` 字段；`test_evidence`/`artifacts` 指命令输出文件；避免 T2 复现 |
 
-**残留删除面（与 AC9 同一 scope）**：`grep -rn "deferred" packages/cdd-engine packages/osuperpowers/skills` 清零；**显式豁免清单**：① `_docs/review.md`（随 `docs-review.md` 重命名迁移）保留的 `deferred findings channel (eliminated)` 记录短语（Pζ 消除记录）；② `packages/osuperpowers/tests/fixtures/cdd-gate/**` 中 `deferred:true` JSON（P4 删除域）；③ `.changeset/` 历史文件与 `docs/maintainers/` 不在范围。
+**残留删除面（与 AC9 同一 scope）**：`grep -rn "deferred" packages/cdd-engine packages/osuperpowers/skills` 清零；**显式豁免清单**：① `_docs/review.md`（随 `docs-review.md` 重命名迁移）保留的 `deferred findings channel (eliminated)` 记录短语（Pζ 消除记录）；② `packages/osuperpowers/tests/fixtures/cdd-gate/**` 中 `deferred:true` JSON（P5 删除域，overall v1.16 三阶段拆分后 Gate 移除 = P5）；③ `.changeset/` 历史文件与 `docs/maintainers/` 不在范围。
 
 ### 2.5 Skill 微调（Enh R + Enh K）
 
@@ -298,7 +298,7 @@ URC 落地后，全仓 review 系 md 处置（**不留死档**）：
 
 ## Section 4: Notes for downstream
 
-- **P4（Gate 移除）**：不受本 phase 影响；validate/gate-hooks.mjs 仍为 P4 删除点；`tests/fixtures/cdd-gate/**` 的 `deferred:true` JSON 属 P4 删除域（§2.4 豁免清单）。
+- **P5（Gate 移除，原 P4）**：不受本 phase 影响；validate/gate-hooks.mjs 仍为 P5 删除点；`tests/fixtures/cdd-gate/**` 的 `deferred:true` JSON 属 P5 删除域（§2.4 豁免清单）。
 - **消费者视角**：`finding-meta.json` 随 osuperpowers 插件发布（contentRoot `.`）；report-issue 新 digraph 在消费者环境须缺省 gh/网络时 fail-open 可走。
 - **测试双框架**：scripts 已 vitest；osuperpowers/tests 仍 node:test——本 phase 不统一（非 P3 范畴）。
 - **emit 面**：`finding-meta.json` 变更 → 必须 `pnpm run emit`（生成 yml）再提交。

@@ -23,7 +23,12 @@ import { readdirSync } from "node:fs";
 //                  existing round naming; task-N-handoff.json is untouched)
 //   branch       : `<workspace>/branch-review-<base7>..<head7>-r<round>.json` (branch-review naming)
 export function reviewRoundPattern(type, opts = {}) {
-  if (type === "task") return new RegExp(`^task-${opts.task}-task-review-(\\d+)\\.json$`);
+  if (type === "task") {
+    const t = opts.task;
+    // 两参形式（无 task）不得造出 `task-undefined-` 幻影模式静默匹配 → 返回不匹配空正则。
+    if (t == null) return /$^/;
+    return new RegExp(`^task-${t}-task-review-(\\d+)\\.json$`);
+  }
   if (type === "branch") return /^branch-review-.*-r(\d+)\.json$/;
   return new RegExp(`^${type}-(\\d+)\\.json$`);
 }
@@ -35,7 +40,10 @@ export function resolveNextRound(workspace, type, opts = {}) {
       const m = f.match(reviewRoundPattern(type, opts));
       if (m) max = Math.max(max, Number(m[1]));
     }
-  } catch { /* workspace missing → round 1 */ }
+  } catch (err) {
+    // 仅 workspace 缺失（ENOENT）归默认 round 1；其余真实错误（EACCES/EISDIR…）上抛，不吞。
+    if (err?.code !== "ENOENT") throw err;
+  }
   return max + 1;
 }
 

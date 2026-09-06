@@ -1,9 +1,9 @@
 // bin/tests/review-loop.test.mjs
 import { it, expect } from 'vitest';
-import { runReviewLoop, resolveNextRound, reviewStoppedError } from "../lib/review-loop.mjs";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { runReviewLoop, resolveNextRound, reviewStoppedError } from '../lib/review-loop.mjs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 it("runReviewLoop: blocker=0 on first round → calls runFix once, exits", async () => {
   const calls = [];

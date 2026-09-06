@@ -159,8 +159,9 @@ export function validateCommitContract(mode, repoRoot, opts = {}) {
 }
 
 // --- CLI entry point (orchestrator calls via node contract.mjs --check-head ...) ---
-if (process.argv[1] && process.argv[1].endsWith("contract.mjs") && process.argv.length > 2) {
-  const args = process.argv.slice(2);
+// Extracted as an exported function so bin/cdd.mjs (merge surface) can forward to it.
+// Direct-invocation guard retained below (Task 3 removes the standalone entry).
+export async function runContractCli(args) {
   const flag = args[0];
   const handoffIdx = args.indexOf("--handoff");
   const progressIdx = args.indexOf("--progress");
@@ -204,4 +205,8 @@ if (process.argv[1] && process.argv[1].endsWith("contract.mjs") && process.argv.
     process.stdout.write(JSON.stringify({ cleared: true }));
     process.exit(0);
   }
+}
+
+if (process.argv[1] && process.argv[1].endsWith("contract.mjs") && process.argv.length > 2) {
+  runContractCli(process.argv.slice(2));
 }

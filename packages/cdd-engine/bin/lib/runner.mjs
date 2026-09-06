@@ -103,7 +103,9 @@ export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
 // Aligns _cdd_set_task_env: workspace-derived paths, defaulted only when unset (`${VAR:-default}` semantics);
 // CDD_WORKSPACE / CDD_MODE / CDD_HARNESS are forced. Returns a new env object (does not mutate baseEnv).
 // round: derives per-round handoff path for task-review/fix modes; implement always produces task-N-implement.json.
-export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 1 } = {}) {
+// findingsPath (cdd fix --findings): explicit handoff path for this fix round — takes precedence over the
+//   runner-derived prev-phase path (otherwise the fix CLI's --findings would be dead code).
+export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 1, findingsPath } = {}) {
   const env = { ...baseEnv };
   env.CDD_WORKSPACE = workspace;
   env.CDD_HARNESS = harness;
@@ -120,8 +122,9 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 
     env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
   }
   if (mode === "fix") {
-    // CDD_FINDINGS: path to task-review-R.json for this fix round (runner-derived, no scope filter)
-    env.CDD_FINDINGS = prevHandoffPath(workspace, task, mode, round);
+    // CDD_FINDINGS: cdd fix --findings opt wins when provided; otherwise the runner-derived
+    // task-review-R.json path for this fix round (no scope filter).
+    env.CDD_FINDINGS = findingsPath ?? prevHandoffPath(workspace, task, mode, round);
   }
   return env;
 }
@@ -329,7 +332,9 @@ function dryRunH1Block(env, taskNum) {
 // ---- runTask / runPlan ----
 
 // Aligns cdd_run_task. opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap,
-//   noExit, pluginRoot, scriptsDir }.
+//   noExit, pluginRoot, scriptsDir, findingsPath }.
+// findingsPath: explicit CDD_FINDINGS path for fix mode (cdd fix --findings) — wins over
+//   buildTaskEnv's runner-derived prev-phase handoff path.
 // scriptsDir: DI passed through to runReviewPackage (test seam, does not change production behavior).
 // Returns { exitCode, h1 } (does not call exitWithCode when noExit=true).
 export async function runTask(harness, taskNum, opts = {}) {
@@ -423,6 +428,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   const round = mode === "implement" ? 1 : getRound(progressData, taskNum, mode);
   const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
     round,
+    findingsPath: opts.findingsPath,
   });
 
   // (old step 4 ledger PLAN_FILE backfill removed — plan is finalized at the entry in resolveRepoRoot)

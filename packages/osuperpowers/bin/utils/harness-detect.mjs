@@ -3,7 +3,7 @@
 //   cli 源 = config.harnesses[h].cli ?? h（显式 cli 字段优先；cursor-agent = "cursor-agent"）
 //   installed = command -v <cli> 存在且可执行（对齐 engine/lib/registry.mjs cliInPath）
 //   channel = "install-and-use" | "init"（从 config.channel 派生）
-// cdd-select + init 共用。
+// cdd select + init 共用。
 import { statSync } from "node:fs";
 import path from "node:path";
 

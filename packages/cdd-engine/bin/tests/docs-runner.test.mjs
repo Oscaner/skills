@@ -12,14 +12,27 @@ vi.mock("../lib/contract.mjs", () => ({
   writeHandoff: vi.fn(),
 }));
 
-vi.mock("../lib/registry.mjs", () => ({
-  loadRegistry: vi.fn(() => ({})),
-  checkHarness: vi.fn(() => ({
-    cli: "claude",
-    invoke: "-p --output-format text --dangerously-skip-permissions",
-    output: "text",
-  })),
-}));
+vi.mock("../lib/registry.mjs", async () => {
+  // Task 5: cli-shared 从 registry 导入 resolveInjection —— mock 复用真实实现，
+  // checkHarness 返回带完整 operation×type prefix 的条目（验证 docs-runner type 透传注入）。
+  const { resolveInjection, resolveSuffix } = await vi.importActual("../lib/registry.mjs");
+  return {
+    loadRegistry: vi.fn(() => ({})),
+    checkHarness: vi.fn(() => ({
+      cli: "claude",
+      invoke: "-p --output-format text --dangerously-skip-permissions",
+      output: "text",
+      prefix: {
+        implement: "/mattpocock-skills:tdd",
+        review: { task: "/mattpocock-skills:code-review", branch: "/mattpocock-skills:code-review", spec: "", plan: "" },
+        fix: "/mattpocock-skills:tdd",
+      },
+      suffix: {},
+    })),
+    resolveInjection,
+    resolveSuffix,
+  };
+});
 
 vi.mock("../lib/templates.mjs", () => ({
   PKG_ROOT: "/mock/pkg/root",
@@ -39,7 +52,7 @@ vi.mock("node:fs", async (importOriginal) => {
     ...actual,
     existsSync: vi.fn((p) => {
       // Handoff file "exists" so we take the read-and-validate path (not writeHandoff BLOCKED path).
-      if (String(p).includes("spec-review")) return true;
+      if (String(p).includes("review")) return true;
       return actual.existsSync(p);
     }),
     readFileSync: vi.fn((p, enc) => {
@@ -55,7 +68,7 @@ vi.mock("node:fs", async (importOriginal) => {
           },
         });
       }
-      if (String(p).includes("spec-review")) {
+      if (String(p).includes("review")) {
         return JSON.stringify({
           phase: "review", status: "APPROVED",
           findings: [], artifacts: {}, doc_path: "/doc.md",
@@ -77,7 +90,7 @@ describe("runDocsTask", () => {
     const result = await runDocsTask({
       harness: "claude",
       mode: "review",
-      template: "spec-review",
+      template: "review",
       doc: "/spec.md",
       workspace: "/tmp/ws",
       dryRun: true,
@@ -98,9 +111,9 @@ describe("runDocsTask", () => {
     await runDocsTask({
       harness:   "claude",
       mode:      "review",
-      template:  "spec-review",
+      template:  "review",
       doc:       "/repo/root/docs/superpowers/specs/my-spec.md",
-      params:    { PASS: "completeness" },
+      params:    { TYPE: "spec" },
       workspace: "/repo/root/.superpowers/docs-review",
       repoRoot:  "/repo/root",  // accepted in opts but gitToplevel() is used (Bug L fix)
       dryRun:    false,
@@ -110,5 +123,36 @@ describe("runDocsTask", () => {
     const callOpts = execa.mock.calls[0][2];
     expect(callOpts.cwd).toBe("/repo/root");
     expect(callOpts.cwd).not.toContain("docs/superpowers");
+  });
+
+  it("Task 5: type opt 透传 invokeCli (op, type) —— review×spec 无注入、fix×spec 得 tdd 首行", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/docs-runner.mjs");
+    // review×spec → prefix.review.spec="" → 无注入，prompt 保持模板渲染结果（首行）
+    await runDocsTask({
+      harness: "claude", mode: "review", template: "review", type: "spec",
+      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      params: { TYPE: "spec" },
+      workspace: "/repo/root/.superpowers/docs-review",
+      dryRun: false,
+    });
+    let promptArg = execa.mock.calls[0][1].at(-1);
+    expect(promptArg.split("\n")[0]).toBe("mocked docs review prompt");
+
+    // fix×spec → prefix.fix="/mattpocock-skills:tdd"（flat string）→ 注入首行
+    execa.mockClear();
+    await runDocsTask({
+      harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
+      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      findingsPath: "/repo/root/docs/findings.md",
+      workspace: "/repo/root/.superpowers/docs-review",
+      dryRun: false,
+    });
+    promptArg = execa.mock.calls[0][1].at(-1);
+    expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
+    expect(promptArg.split("\n")[1]).toBe("mocked docs review prompt");
   });
 });

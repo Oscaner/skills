@@ -9,7 +9,6 @@ const PROGRESS_SCHEMA = {
   tasksItem: { required: ["task", "status", "rounds"], statusEnum: ["pending", "complete"] },
   degradationLogItem: {
     required: ["task", "mode", "severity", "summary", "reason", "timestamp"],
-    scopeEnum: ["deferred-sweep", "blocker-only"],
     severityEnum: ["head-mismatch", "engine-error", "timeout", "dirty-tree"],
   },
 };

@@ -69,12 +69,14 @@ export function gitVerbAllowed(command) {
   return readonlyGitVerbs.includes(verb);
 }
 
-// cdd_shell_allowed：cdd-task / sdd-workspace / task-brief / review-package 直接放行，
-// 否则落到只读 git 白名单。引擎入口为 cdd-task.mjs。
+// cdd_shell_allowed：cdd / sdd-workspace / task-brief / review-package 直接放行，
+// 否则落到只读 git 白名单。引擎入口为 cdd（单一 CLI，五旧 bin 已移除）。
 function shellAllowed(command) {
   if (typeof command !== "string") return false;
-  // cdd-engine bins on PATH (cdd-task / docs-task / branch-review) are the sanctioned entry points.
-  if (/(^|\s)(cdd-task|docs-task|branch-review)(\s|$)/.test(command)) return true;
+  // cdd-engine bin on PATH (cdd) is the sanctioned entry point (single merged CLI;
+  // legacy cdd-task / docs-task / branch-review unfolded into `cdd <subcommand>`).
+  // 测宽到已知子命令 token（短 bin 名 + 任意后续命令会被误放行，STD-3 收缩）。
+  if (/(^|\s)cdd\s+(implement|review|fix|select|research|brief|contract)(\s|$|--)/.test(command)) return true;
   return gitVerbAllowed(command);
 }
 
@@ -231,13 +233,13 @@ export function denyMessage(harness, taskNum, planBasename_) {
 
 Allowed Bash (read-only diagnostics):
 ${verbs}
-  cdd-task / docs-task / branch-review   (@oscaner-skills/cdd-engine bins)
+  cdd                              (@oscaner-skills/cdd-engine bin)
 
 Allowed Write:
   .superpowers/cdd/${planBasename_}/
 
 Repo changes flow only through:
-  cdd-task --harness ${harness} --task ${taskNum} --mode implement   (@oscaner-skills/cdd-engine bin)
+  cdd implement --harness ${harness} --task ${taskNum}   (@oscaner-skills/cdd-engine bin)
 
 Full matrix: ${osRoot}/skills/cli-driven-development/docs/cdd-reference.md (CDD gate matrix)
 See cli-driven-development Rule: Three-Mode Chain.`;

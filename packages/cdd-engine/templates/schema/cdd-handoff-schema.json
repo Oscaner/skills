@@ -73,6 +73,9 @@
     "blocker": {
       "type": "string"
     },
+    "notes": {
+      "type": "string"
+    },
     "test_evidence": {
       "type": "object"
     }

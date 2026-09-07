@@ -11,19 +11,16 @@ const __dirname = path.dirname(__filename);
 // Replaces pluginRoot() walk — cdd-engine is self-contained.
 export const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
-// template → 分组映射（Step 2b: flat → task/review/schema 目录）。
-// task/             cdd-task 按 mode 渲染（cdd-task.mjs 消费）
-// review/           docs 审查模板（docs-task / branch-review 消费）
+// template → 分组映射（URC: review 模板数据化 — 六旧 review/fix 模板删除，
+// 共享壳 review.md + doc-fix.md 由 reviews.json 配置驱动）。
+// task/             cdd 按 mode 渲染（implement/fix 子命令消费）
+// review/           review 共享壳 + docs fix 壳（cdd review --type task|branch|spec|plan / cdd fix --type spec|plan）
 // schema/           handoff JSON schemas
 const MODE_GROUPS = {
   implement: 'task',
-  'task-review': 'task',
   fix: 'task',
-  'spec-review': 'review',
-  'plan-review': 'review',
-  'branch-review': 'review',
-  'spec-fix': 'review',
-  'plan-fix': 'review',
+  review: 'review',
+  'doc-fix': 'review',
 };
 
 // template 名 → 绝对路径（group-aware）。未知模板名 → throw。
@@ -64,7 +61,56 @@ export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
   return '```json\n' + JSON.stringify(stub, null, 2) + '\n```';
 }
 
+// ---- Review 模板数据化（reviews.json per-type 配置 + review.md 共享壳） ----
+
+export function loadReviews() {
+  return JSON.parse(readFileSync(path.join(PKG_ROOT, 'templates', 'review', 'reviews.json'), 'utf8'));
+}
+
+// reviews.json[type] → { lensEnum, ref, axesGuide, returnMode, handoffType, fixTemplate }。
+// task/branch 的 ref 是 git-range 符号（TASK_BASE..HEAD / BASE..HEAD，调用方具体化注入）；
+// spec/plan 的 ref 是关系描述（doc vs spec），实际 doc 路径由调用方落到 REFERENCE。
+export function reviewTypeConfig(type) {
+  const cfg = loadReviews()[type];
+  if (!cfg) throw new Error(`unknown review type: ${type}`);
+  return cfg;
+}
+
+// returnMode=h1 类型（task/branch）注入 {{H1_BLOCK}} 的四行 H1 合同；spec/plan 不渲染（空串）。
+// 前置空行：模板的 {{H1_BLOCK}} 紧跟 Handoff 段末行，补一行才与 ## Return 标题分隔。
+export const REVIEW_H1_BLOCK = `\n## Return (H1 — stdout only)
+
+Return **exactly 4 lines** to stdout; make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
+
+\`\`\`
+status: <APPROVED|BLOCKED>
+commits: base=<sha> head=<sha>
+artifacts: brief=<path> report=<path> test_evidence=<path>
+blocker: <none|one-line>
+\`\`\``;
+
 export function renderModePrompt(mode, env = {}) {
+  // task-review 改经 reviews.json type=task 路由（不再读旧 task-review.md）；
+  // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
+  if (mode === 'task-review') {
+    const cfg = reviewTypeConfig('task');
+    let prompt = renderTemplate('review', {
+      TYPE: 'task',
+      WORKSPACE: env.WORKSPACE ?? '',
+      LENS_GUIDE: cfg.lensEnum.join(' · '),
+      REFERENCE: env.FIXED_POINT ? `${env.FIXED_POINT}..HEAD` : cfg.ref,
+      AXES: cfg.axesGuide,
+      HANDOFF: env.HANDOFF ?? '',
+      HANDOFF_TYPE: cfg.handoffType,
+      RETURN_MODE: cfg.returnMode,
+      H1_BLOCK: REVIEW_H1_BLOCK,
+      PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
+    });
+    // HANDOFF_STUB：共享壳槽位在 task-review 早退路径须显式替换（与 generic 路径 line 118 一致）。
+    const schema = loadHandoffSchema();
+    const stub = renderHandoffStub(schema, 'task-review', parseInt(env.TASK) || 0);
+    return prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
+  }
   const modePath = templatePath(mode);
   if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);
   let content = readFileSync(modePath, 'utf8');

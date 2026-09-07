@@ -773,6 +773,46 @@ it("runTask Pζ T3: task-review round 2 → FIXED_POINT from task-N-fix-1.json (
   }
 });
 
+// ---- Task 5: mode → (op, type) 注入映射（runner invokeCliWithRetry 调用点） ----
+
+it("runTask Task 5: task-review → invokeCli (op=review,type=task) → code-review prefix 注入 prompt 首行", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-inj-cli-"));
+  const promptLog = path.join(ws, "prompt-log.txt");
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = {
+    cli: "fake-cli", invoke: "-p", output: "text", ship: "full",
+    prefix: {
+      implement: "/mattpocock-skills:tdd",
+      review: { task: "/mattpocock-skills:code-review", branch: "/mattpocock-skills:code-review", spec: "", plan: "" },
+      fix: "/mattpocock-skills:tdd",
+    },
+    suffix: {},
+  };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "task-review", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    const logged = readFileSync(promptLog, "utf8");
+    expect(logged.split("\n")[0]).toBe("/mattpocock-skills:code-review");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
 // ---- step 10 CLI failed no handoff → BLOCKED ----
 
 it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action message", async () => {

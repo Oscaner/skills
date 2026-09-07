@@ -28,8 +28,9 @@ export function validateBrief(briefPath) {
 }
 
 // --- CLI entry point (orchestrator calls via node brief.mjs --task N --plan <path> --output <path>) ---
-if (process.argv[1] && process.argv[1].endsWith("brief.mjs") && process.argv.length > 2) {
-  const args = process.argv.slice(2);
+// Extracted as an exported function so bin/cdd.mjs (merge surface) can forward to it.
+// Direct-invocation guard retained below (the standalone CLI entry now lives under `cdd` subcommands; the guard stays for direct node invocation).
+export function runBriefCli(args) {
   const taskIdx = args.indexOf("--task");
   const planIdx = args.indexOf("--plan");
   const outputIdx = args.indexOf("--output");
@@ -46,4 +47,8 @@ if (process.argv[1] && process.argv[1].endsWith("brief.mjs") && process.argv.len
     process.stderr.write(e.message);
     process.exit(1);
   }
+}
+
+if (process.argv[1] && process.argv[1].endsWith("brief.mjs") && process.argv.length > 2) {
+  runBriefCli(process.argv.slice(2));
 }

@@ -1,4 +1,8 @@
-// bin/tests/task.test.mjs — Vitest port of cdd-task.mjs CLI contract tests.
+// bin/tests/task.test.mjs — Vitest port of the legacy cdd-task CLI contract tests, now
+// exercised through the merged single CLI (bin/cdd.mjs). Invocations map:
+//   cdd-task --mode implement    → cdd implement
+//   cdd-task --mode task-review  → cdd review --type task
+//   cdd-task --mode fix          → cdd fix --type task
 // CDD_DRY_RUN=1 skips real CLI invocation; runTask still walks registry ship gate /
 // template render / workspace resolution / commit-contract. Asserts H1 four-line
 // output + exit codes.
@@ -15,7 +19,7 @@ import { gitCommit, gitInit } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/bin/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..', '..');
-const TASK_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd-task.mjs');
+const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
 
 // Test env: strip any CDD_* inherited from an orchestrator session, then overlay test extras.
 function cleanEnv(extra) {
@@ -28,7 +32,7 @@ function cleanEnv(extra) {
 
 // Spawn the CLI as a subprocess (cwd = repo root); returns { status, stdout, stderr }.
 function run(args, extraEnv = {}, opts = {}) {
-  const res = spawnSync('node', [TASK_MJS, ...args], {
+  const res = spawnSync('node', [CDD_MJS, ...args], {
     cwd: opts.cwd ?? REPO_ROOT,
     env: cleanEnv(extraEnv),
     encoding: 'utf8',
@@ -48,11 +52,11 @@ function setupWorkspace() {
   return real;
 }
 
-describe('cdd-task.mjs CLI contract', () => {
+describe('cdd implement/review/fix CLI contract', () => {
   it('dry-run implement → H1 four lines APPROVED + exit 0', () => {
     const ws = setupWorkspace();
     const res = run(
-      ['--harness', 'claude', '--task', '1', '--mode', 'implement', '--plan', path.join(ws, 'plan.md')],
+      ['implement', '--harness', 'claude', '--task', '1', '--plan', path.join(ws, 'plan.md')],
       { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
     );
     expect(res.status).toBe(0);
@@ -64,14 +68,18 @@ describe('cdd-task.mjs CLI contract', () => {
     expect(lines[3]).toBe('blocker: none');
   });
 
-  it('dry-run task-review/fix → status APPROVED + exit 0', () => {
-    for (const mode of ['task-review', 'fix']) {
+  it('dry-run review/fix (type task) → status APPROVED + exit 0', () => {
+    const cases = [
+      ['review', '--type', 'task'],
+      ['fix', '--type', 'task'],
+    ];
+    for (const [sub, , type] of cases) {
       const ws = setupWorkspace();
       const res = run(
-        ['--harness', 'claude', '--task', '1', '--mode', mode, '--plan', path.join(ws, 'plan.md')],
+        [sub, '--type', type, '--harness', 'claude', '--task', '1', '--plan', path.join(ws, 'plan.md')],
         { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
       );
-      expect(res.status, `mode ${mode}`).toBe(0);
+      expect(res.status, `cdd ${sub} --type task`).toBe(0);
       expect(res.stdout).toMatch(/^status: APPROVED$/m);
     }
   });
@@ -80,26 +88,26 @@ describe('cdd-task.mjs CLI contract', () => {
     for (const flag of ['-h', '--help']) {
       const res = run([flag]);
       expect(res.status, `flag ${flag}`).toBe(0);
-      expect(res.stdout).toMatch(/^Usage: cdd-task/);
+      expect(res.stdout).toMatch(/^Usage: cdd/);
     }
   });
 
   it('missing --harness → usage stderr + exit 2', () => {
-    const res = run(['--task', '1', '--mode', 'implement']);
+    const res = run(['implement', '--task', '1']);
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/^usage: /);
   });
 
-  it('missing --mode → usage stderr + exit 2', () => {
-    const res = run(['--harness', 'claude', '--task', '1']);
+  it('unknown subcommand → usage stderr + exit 2', () => {
+    const res = run(['frobnicate']);
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/^usage: /);
   });
 
-  it('--plan without --task → usage stderr + exit 2', () => {
+  it('implement --plan without --task → usage stderr + exit 2', () => {
     const ws = setupWorkspace();
     const res = run(
-      ['--harness', 'claude', '--plan', path.join(ws, 'plan.md')],
+      ['implement', '--harness', 'claude', '--plan', path.join(ws, 'plan.md')],
       { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
     );
     expect(res.status).toBe(2);
@@ -107,25 +115,25 @@ describe('cdd-task.mjs CLI contract', () => {
   });
 
   it('unknown option → usage stderr + exit 2', () => {
-    const res = run(['--harness', 'claude', '--task', '1', '--mode', 'implement', '--bogus', 'x']);
+    const res = run(['implement', '--harness', 'claude', '--task', '1', '--bogus', 'x']);
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/^usage: /);
   });
 
-  it('invalid mode → CDD_BLOCKED exit 1 (runTask mode validation)', () => {
+  it('review unknown --type → error stderr + exit 2 (runReview type validation)', () => {
     const ws = setupWorkspace();
     const res = run(
-      ['--harness', 'claude', '--task', '1', '--mode', 'handoff', '--plan', path.join(ws, 'plan.md')],
+      ['review', '--type', 'handoff', '--harness', 'claude', '--task', '1', '--plan', path.join(ws, 'plan.md')],
       { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
     );
-    expect(res.status).toBe(1);
-    expect(res.stderr).toMatch(/CDD_MODE must be implement\|task-review\|fix \(got: handoff\)/);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/unknown review --type: handoff/);
   });
 
   it('Bug A regression: --task with non-integer string exits with error', async () => {
     expect(() => execFileSync('node', [
-      TASK_MJS,
-      '--harness', 'claude', '--task', 'abc', '--mode', 'implement',
+      CDD_MJS,
+      'implement', '--harness', 'claude', '--task', 'abc',
     ], { encoding: 'utf8', stdio: 'pipe' })).toThrow();
   });
 });

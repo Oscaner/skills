@@ -1,4 +1,7 @@
 // packages/cdd-engine/bin/tests/branch-review.test.mjs
+// Branch-review dry-run through the merged single CLI:
+//   (legacy standalone branch-review bin) --harness <h> --plan <p> --base <b> --head <h>
+//   → cdd review --type branch --harness <h> --plan <p> --base <b> --head <h>
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, rmSync } from 'node:fs';
@@ -21,7 +24,8 @@ describe('branch-review dry-run', () => {
     writeFileSync(PLAN_FILE, '# Test branch review plan\n\n### Task 1: n/a (branch-level smoke)\n');
 
     const out = execFileSync('node', [
-      path.join(REPO_ROOT, 'packages', 'cdd-engine', 'bin', 'branch-review.mjs'),
+      path.join(REPO_ROOT, 'packages', 'cdd-engine', 'bin', 'cdd.mjs'),
+      'review', '--type', 'branch',
       '--harness', 'claude',
       '--plan', planPath,
       '--base', 'abc1234',

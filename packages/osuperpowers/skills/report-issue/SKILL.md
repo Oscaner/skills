@@ -31,7 +31,7 @@ flowchart TD
 
 ### `analyze`
 
-- **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.superpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `deferred` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns. Do not paste API keys, tokens, or secrets — replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before including in findings.
+- **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.superpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns. Do not paste API keys, tokens, or secrets — replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before including in findings.
 - **Read**: session context; `{repo}/.superpowers/{sdd,cdd}/*/progress.md`; git log
 - **Exit**: extracted findings → `classify`
 - **Fail**: ledger / git log unavailable → use session context only (fail-open, never block)
@@ -52,7 +52,7 @@ flowchart TD
 
 ### `dedup`
 
-- **Do**: For each confirmed finding, check for duplicates: `gh issue list --repo Oscaner/skills --state all --limit 100 --json number,title,body,state`. Match keywords — the **affected component name** (e.g. `cdd-task.mjs`, `handoff-writer`, `gate`) plus **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`) — case-insensitively against existing issue titles and bodies.
+- **Do**: For each confirmed finding, check for duplicates: `gh issue list --repo Oscaner/skills --state all --limit 100 --json number,title,body,state`. Match keywords — the **affected component name** (e.g. `cdd`, `handoff-writer`, `gate`) plus **core behavior words** (e.g. `timeout`, `CHANGES_REQUESTED`, `exit 137`) — case-insensitively against existing issue titles and bodies.
 - **Read**: `gh issue list` output; confirmed findings
 - **Exit**: hit → `resolve-hit`; no-hit → `file`
 - **Fail**: `gh` unavailable / network failure → fail-open (report, skip filing, suggest manual)

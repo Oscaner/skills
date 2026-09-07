@@ -28,8 +28,24 @@ export function registryField(reg, harness, field) {
   return entry[field] ?? "";
 }
 
+// operation×type prefix 解析（对齐 cli-shared.invokeCli 的 (op, type) 参数）：
+//   entry.prefix[op] 为 string（implement/fix，或 legacy 扁平 mode 键 task-review/branch-review）→ 直接注入；
+//   entry.prefix[op] 为 object（review 子键 type: task|branch|spec|plan）→ 按 type 取，无 type → 空；
+//   缺省（无 prefix / 无 op / 子键缺失）→ 空串，避免静默注入假值。
+// 兜底语义：op 传 legacy mode 键（"task-review" 等）时直接命中扁平键 —— 未迁移的
+// registry（/CDD_REGISTRY_PATH 覆盖）不会静默空注入。
+function resolveInjectionField(entry, field, op, type) {
+  const v = entry?.[field]?.[op] ?? "";
+  if (v && typeof v === "object") return type ? (v[type] ?? "") : "";
+  return typeof v === "string" ? v : "";
+}
+
+// prefix 注入解析（entry.prefix[op][type?]）；suffix 走 resolveSuffix（同构薄别名，单一实现）。
+export function resolveInjection(entry, op, type) { return resolveInjectionField(entry, "prefix", op, type); }
+export function resolveSuffix(entry, op, type)  { return resolveInjectionField(entry, "suffix", op, type); }
+
 // PATH 查找可执行文件 —— 对齐 cdd_check_cli 的 `command -v`。
-// 导出供 cdd-select.mjs（T3）复用 —— 检测已装 harness CLI 的单一来源。
+// 导出供 cdd select 复用 —— 检测已装 harness CLI 的单一来源。
 export function cliInPath(cli) {
   const pathDirs = (process.env.PATH ?? "").split(path.delimiter);
   for (const dir of pathDirs) {

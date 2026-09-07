@@ -1,11 +1,11 @@
 ---
 name: cli-research
-description: Independent cli-research orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Reads mattpocock-skills research SKILL.md as upstream baseline, selects harness via cli-select, prepares a research brief, dispatches cdd-research.mjs in background, and reports findings. Callable standalone.
+description: Independent cli-research orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Reads mattpocock-skills research SKILL.md as upstream baseline, selects harness via cli-select, prepares a research brief, dispatches cdd research in background, and reports findings. Callable standalone.
 ---
 
 # Osuperpowers CLI Research
 
-Delegate a research question to a background agent via cdd-research.mjs: read upstream baseline, select harness, prepare brief, dispatch CLI, report findings.
+Delegate a research question to a background agent via `cdd research`: read upstream baseline, select harness, prepare brief, dispatch CLI, report findings.
 
 ## Flow Digraph
 
@@ -48,14 +48,14 @@ flowchart TD
 
 ### `dispatch-research`
 
-- **Do**: Execute `cdd-research --harness <name> --brief <brief-path> --output <findings-path>` as a background process. Monitor for completion; do not block the main session — the CLI runs asynchronously.
-- **Read**: `cdd-research` (CLI script)
+- **Do**: Execute `cdd research --harness <name> --brief <brief-path> --output <findings-path>` as a background process. Monitor for completion; do not block the main session — the CLI runs asynchronously.
+- **Read**: `cdd research` (CLI script)
 - **Exit**: CLI exits 0 and findings file is written → `report`; CLI exits non-zero → BLOCKED (CLI failed); CLI times out → `report` (fail-open — read partial findings if available, then proceed to report; timeout is not retryable in research context)
 - **Fail**: CLI execution error / non-zero exit → BLOCKED (CLI failed); CLI timeout → fail-open to `report` (research is optional enhancement, partial findings are valuable; no timeout-count increment); record stderr for diagnostics
 
 ### `report`
 
-- **Do**: Read the findings file produced by cdd-research.mjs and present the results to the user. Summarize key findings and cite sources as documented in the upstream research framework.
+- **Do**: Read the findings file produced by `cdd research` and present the results to the user. Summarize key findings and cite sources as documented in the upstream research framework.
 - **Read**: `<findings-path>` (output from dispatch-research)
 - **Exit**: Findings presented to user → APPROVED
 - **Fail**: Findings file missing or empty → report error to user with diagnostics from dispatch-research stderr
@@ -65,8 +65,8 @@ flowchart TD
 | # | Invariant |
 |---|---|
 | I1 | **Read not Skill-invoke** — the upstream mattpocock-skills research SKILL.md is consumed via the Read tool as reference material; it is never invoked as a sub-skill (no `Skill("research")` call). The research framework is loaded as context, not executed as a separate skill flow |
-| I2 | **CLI Background Execution** — `cdd-research.mjs` must run as a background process (spawn, not exec). The main session must not block waiting for CLI completion. Timeout and completion are monitored asynchronously |
-| I3 | **Findings Path Caller-Determined** — the output path for findings is determined by the caller (user or invoking skill) and passed via `--output` to cdd-research.mjs. The skill does not choose or override the findings path |
+| I2 | **CLI Background Execution** — `cdd research` must run as a background process (spawn, not exec). The main session must not block waiting for CLI completion. Timeout and completion are monitored asynchronously |
+| I3 | **Findings Path Caller-Determined** — the output path for findings is determined by the caller (user or invoking skill) and passed via `--output` to `cdd research`. The skill does not choose or override the findings path |
 
 ## Failure Modes
 
@@ -75,6 +75,6 @@ flowchart TD
 | Upstream SKILL.md missing | BLOCKED (upstream missing) | Block policy: no silent fallback when baseline is missing | Install vendored submodules: `git submodule update --init` |
 | No harness available | BLOCKED (no harness) | Cannot dispatch research without a target harness | Install a supported harness per cli-select documentation |
 | Brief write failure | BLOCKED (brief failed) | Cannot dispatch without a valid brief file | Check workspace permissions and disk space |
-| cdd-research.mjs CLI error | BLOCKED (CLI failed) | CLI failure may indicate engine bug or harness misconfiguration | Check stderr diagnostics; invoke `osuperpowers:report-issue` if engine bug suspected |
-| cdd-research.mjs timeout | fail-open → report | Long-running research exceeded timeout; partial findings may exist | Read partial findings file if available; report to user with timeout note; research is optional enhancement, not worth blocking |
-| Findings file missing | report error with diagnostics | CLI may have exited 0 but failed to write output | Check cdd-research.mjs stderr; verify output path permissions |
+| `cdd research` CLI error | BLOCKED (CLI failed) | CLI failure may indicate engine bug or harness misconfiguration | Check stderr diagnostics; invoke `osuperpowers:report-issue` if engine bug suspected |
+| `cdd research` timeout | fail-open → report | Long-running research exceeded timeout; partial findings may exist | Read partial findings file if available; report to user with timeout note; research is optional enhancement, not worth blocking |
+| Findings file missing | report error with diagnostics | CLI may have exited 0 but failed to write output | Check `cdd research` stderr; verify output path permissions |

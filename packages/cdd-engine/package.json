@@ -11,11 +11,7 @@
     "templates/"
   ],
   "bin": {
-    "cdd-task": "./bin/cdd-task.mjs",
-    "docs-task": "./bin/docs-task.mjs",
-    "branch-review": "./bin/branch-review.mjs",
-    "cdd-select": "./bin/cdd-select.mjs",
-    "cdd-research": "./bin/cdd-research.mjs"
+    "cdd": "./bin/cdd.mjs"
   },
   "scripts": {
     "test": "vitest run",

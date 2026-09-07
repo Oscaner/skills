@@ -1,5 +1,5 @@
-// packages/cdd-engine/bin/lib/docs-runner.mjs — lightweight runner for docs-task.mjs.
-// No commit-contract, no ledger, no probeSkills.
+// packages/cdd-engine/bin/lib/docs-runner.mjs — lightweight runner for cdd review/fix
+// --type spec|plan (legacy docs-task surface). No commit-contract, no ledger, no probeSkills.
 // Spawns doc agent CLI; validates handoff against docs-handoff-schema.json.
 // Bug L fix: subprocess cwd = gitToplevel(process.cwd()), not workspace/doc directory.
 import { existsSync, readFileSync } from "node:fs";
@@ -17,6 +17,7 @@ export async function runDocsTask({
   harness,
   mode,
   template,
+  type,          // review/fix 子类型（spec|plan）→ invokeCli (op, type) 注入参数（无模板名可依）
   doc,           // path to the document being reviewed/fixed
   findingsPath,
   handoffPath,
@@ -39,10 +40,12 @@ export async function runDocsTask({
 
   // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}},
   // then replace {{HANDOFF_STUB}} with schema-derived stub).
+  // templateName: URC 后 fix 模板直接给 "doc-fix"（reviews.json fixTemplate）——只有旧式
+  // `-review` 名（legacy 兼容）才做 `-review`→`-fix` 派生；doc-fix/review 直传，不得 double-suffix。
   const schema = loadHandoffSchema("docs");
   const stub = renderHandoffStub(schema, mode, undefined, { docPath: doc });
-  const templateName = mode === "fix"
-    ? template.replace(/-review$/, "") + "-fix"
+  const templateName = mode === "fix" && template.endsWith("-review")
+    ? template.slice(0, -"-review".length) + "-fix"
     : template;
   let prompt = renderTemplate(templateName, {
     DOC: doc, FINDINGS: findingsPath ?? "", HANDOFF: resolvedHandoffPath,
@@ -57,7 +60,9 @@ export async function runDocsTask({
   const reg = loadRegistry(REG_PATH);
   const entry = checkHarness(reg, harness);
   const timeoutMs = resolveTimeoutMs(process.env, "review");
-  const res = await invokeCli(entry, prompt, mode, process.env, repoRoot, timeoutMs);
+  // invokeCli 注入参数 = (op, type)——review/fix 分别对 prefix.review[type?] /
+  // prefix.fix（flat string）解析；type 由 cdd review/fix --type 经 runDocsTask 透传。
+  const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, repoRoot, timeoutMs);
 
   // Read handoff from disk (agent writes it).
   if (!existsSync(resolvedHandoffPath)) {

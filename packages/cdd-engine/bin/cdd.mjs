@@ -279,11 +279,7 @@ async function runBranchReview(opts) {
 
   // Agent exited 0 but never wrote the handoff — BLOCKED (mirrors runner step 10.5).
   if (!existsSync(handoffPath)) {
-    writeHandoff(handoffPath, {
-      task: 1, phase: "branch-review", status: "BLOCKED",
-      commits: { base, head }, findings: [], artifacts: {},
-      blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run branch-review`,
-    });
+    writeBranchBlocked(handoffPath, { base, head, code: 0, reason: `${path.basename(handoffPath)} not written after exit 0 → re-run branch-review` });
     process.stderr.write(`CDD_BLOCKED: branch-review handoff not written\n`);
     exitWithCode(1);
   }
@@ -293,11 +289,7 @@ async function runBranchReview(opts) {
     const agentHandoff = JSON.parse(readFileSync(handoffPath, "utf8"));
     const sv = validateHandoffSchema(agentHandoff, "cdd");
     if (!sv.valid) {
-      writeHandoff(handoffPath, {
-        task: 1, phase: "branch-review", status: "BLOCKED",
-        commits: { base, head }, findings: [], artifacts: {},
-        blocker: `branch-review handoff schema invalid: ${sv.reason} → fix and re-run branch-review`,
-      });
+      writeBranchBlocked(handoffPath, { base, head, code: 0, reason: `branch-review handoff schema invalid: ${sv.reason} → fix and re-run branch-review` });
       process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
       exitWithCode(1);
     }

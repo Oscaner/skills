@@ -9,7 +9,7 @@ description: Parameterized initialization tool. Installs per-harness osuperpower
 flowchart TD
   D[dispatch] -->|valid args| E[detect-engine]
   D -->|unknown arg| Z1((BLOCKED: bad-param))
-  E -->|cdd-task in PATH| H[detect-harness]
+  E -->|cdd in PATH| H[detect-harness]
   E -->|not found| Z2((BLOCKED: run npm i -g @oscaner-skills/cdd-engine))
   H -->|detected| R[run-harness]
   H -->|not detected + no --harness| Z3((BLOCKED: specify --harness))
@@ -29,7 +29,7 @@ flowchart TD
 
 ### detect-engine
 
-- **Do**: Check if `cdd-task` is in PATH (`command -v cdd-task` or equivalent).
+- **Do**: Check if `cdd` is in PATH (`command -v cdd` or equivalent).
   - In PATH → proceed to `detect-harness`
   - Not in PATH → BLOCKED (soft): output install guidance:
     `@oscaner-skills/cdd-engine not installed. Run: npm i -g @oscaner-skills/cdd-engine`

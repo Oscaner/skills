@@ -23,7 +23,7 @@
    - After the fix verifies: if this round already produced **one or more** conventional commits covering the fix scope → set `head` = `git rev-parse HEAD` (do not create duplicate commits).
    - Otherwise: create **one** conventional commit (`fix:` primary, or a matching `feat:`/`refactor:`), subject aligned to the fix scope; no attribution / co-author / AI-generation trailers; then `head` = `git rev-parse HEAD`.
    - No fix-scope diff this round (relative to `FIX_BASE`) → no commit; keep `head` unchanged.
-   - Uncommitted changes at return → `status: BLOCKED` (the `cdd-task` runner enforces the commit contract).
+   - Uncommitted changes at return → `status: BLOCKED` (the `cdd` runner enforces the commit contract).
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
 6. Write handoff per `## Handoff Output` below.
 

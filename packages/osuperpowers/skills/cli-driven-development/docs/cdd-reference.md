@@ -6,15 +6,15 @@
 
 ## H6 — CLI dispatch (p1)
 
-Per-task execution uses **cdd-engine** Node CLI bins (`cdd-task` / `docs-task` / `branch-review`) — one CLI agent invocation per mode; process exit destroys context.
+Per-task execution uses the **cdd-engine** single CLI bin (`cdd`) — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Detect harness** → via [cli-select](../skills/cli-select/SKILL.md) to select harness → `cdd-task --harness <name>` (orchestrator selects once; **no** runtime re-detection).
+1. **Detect harness** → via [cli-select](../skills/cli-select/SKILL.md) to select harness → `cdd <subcommand> --harness <name>` (orchestrator selects once; **no** runtime re-detection).
 2. **Three modes** — one invocation each:
 
 | `CDD_MODE` | Responsibility |
 |------------|----------------|
 | `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 four-line contract |
-| `task-review` | `review-package` shell (archive diff); axis review via `docs-task.mjs` direct dispatch (D4; axis files; Step 5 override) + handoff write |
+| `task-review` | `review-package` shell (archive diff); axis review via `cdd review --type spec|plan` direct dispatch (D4; axis files; Step 5 override) + handoff write |
 | `fix` | fix implementer + handoff write; reads open-findings; **+ commit contract** (post-run gate, see below) |
 
 3. **Env contract** (paths only — **never** paste full plan into CLI env):
@@ -43,8 +43,8 @@ Per-task execution uses **cdd-engine** Node CLI bins (`cdd-task` / `docs-task` /
 **Typical per-task CLI sequence (thin orchestrator):**
 
 ```bash
-cdd-task --harness <name> --task N --mode implement
-cdd-task --harness <name> --task N --mode task-review
+cdd implement --harness <name> --task N
+cdd review --type task --harness <name> --task N
 ```
 
 Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CLI invocation; CLI **does not** Read the full plan file.
@@ -91,9 +91,9 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 
 ## H7 — No consumer-repo CLI scripts
 
-Orchestrator / skill **must not** create `cdd-task*` or `scripts/cdd-*` in the consumer repo.
+Orchestrator / skill **must not** create `cdd-*` wrappers or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd-task` / `docs-task` / `branch-review` / `cdd-select` / `cdd-research`, installed globally); runtime templates in `packages/cdd-engine/templates/` (`task/` / `review/` / `schema/`). Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd`, installed globally); runtime templates in `packages/cdd-engine/templates/` (`task/` / `review/` / `schema/`). Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
 
 ## H8 — CLI opt-in / opt-out
 
@@ -107,7 +107,7 @@ All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1-H5).
 
-**Harness registry:** `bin/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `prefix`/`suffix` (per-mode) / `ship`; the engine reads it via `cdd-task` (no more per-harness scripts).
+**Harness registry:** `bin/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `prefix`/`suffix` (per-mode) / `ship`; the engine reads it via `cdd` (no more per-harness scripts).
 
 | Ship | Harnesses |
 |------|-----------|
@@ -131,7 +131,7 @@ The gate is fail-open until an active task resolves (spec security property / da
 | Write/Edit | path under `.superpowers/cdd/**`, phase `orchestrating` | **allow** |
 | Write/Edit | phase `inactive` / `task_complete` | **allow** |
 | Write/Edit | any other repo path | **deny** |
-| Bash/Shell | allowlist (`cdd-task.mjs --harness <name>` / `task-brief` / `review-package`) | **allow** |
+| Bash/Shell | allowlist (`cdd <subcommand> --harness <name>` / `task-brief` / `review-package`) | **allow** |
 | Bash/Shell | read-only git verb (allowlist below) | **allow** |
 | Bash/Shell | anything else — mutating git, `ls`/`echo`, heredoc writes, compound commands | **deny** |
 | Bash/Shell | phase `inactive` / `task_complete` | **allow** |
@@ -140,7 +140,7 @@ The gate is fail-open until an active task resolves (spec security property / da
 **Shell contract:**
 
 - Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> ...`, `git -C <path> <verb> ...`, `git --git-dir=<path> <verb> ...`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
-- Repo changes flow **only** through the H6 implement shell (`cdd-task --harness <name> --task N --mode implement`) or Write under the bound workspace — never via Bash (heredocs are rejected).
+- Repo changes flow **only** through the H6 implement shell (`cdd implement --harness <name> --task N`) or Write under the bound workspace — never via Bash (heredocs are rejected).
 - Non-git read-only commands (`ls`, `echo`, ...) are intentionally still denied (slim read-only set decision; see spec section Non-goals).
 
 **Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.

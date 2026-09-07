@@ -1,6 +1,7 @@
-// bin/tests/select.test.mjs — Vitest port of cdd-select.mjs detection + recommendation tests
-// (hermetic mock PATH). Commander migration: cdd-select has no explicit args — Commander
-// primarily provides --help; detection/recommendation logic is unchanged.
+// bin/tests/select.test.mjs — Vitest port of the legacy cdd-select detection + recommendation tests
+// (hermetic mock PATH), now through the merged single CLI (bin/cdd.mjs `select` subcommand).
+// Commander migration: `cdd select` has no explicit args — Commander primarily provides
+// --help; detection/recommendation logic is unchanged.
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, chmodSync, statSync, rmSync } from 'node:fs';
@@ -12,7 +13,7 @@ import { config } from '../utils/skills-probe.config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/bin/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..', '..');
-const SELECT_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd-select.mjs');
+const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
 
 // Test env: strip any CDD_* inherited from an orchestrator session.
 function cleanEnv(extra) {
@@ -51,7 +52,7 @@ function harnessFreePath() {
 function runSelect(extraEnv = {}) {
   const env = cleanEnv(extraEnv);
   env.PATH = `${mock}${path.delimiter}${harnessFreePath()}`;
-  const res = spawnSync('node', [SELECT_MJS], { cwd: REPO_ROOT, env, encoding: 'utf8' });
+  const res = spawnSync('node', [CDD_MJS, 'select'], { cwd: REPO_ROOT, env, encoding: 'utf8' });
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
@@ -61,7 +62,7 @@ function resetMock(bins) {
   mock = mockDirWithBins(bins);
 }
 
-describe('cdd-select.mjs detection + recommendation', () => {
+describe('cdd select detection + recommendation', () => {
   it('droid+pi+claude+codex installed → available alphabetically + recommended=droid', () => {
     resetMock(['droid', 'pi', 'claude', 'codex']);
     const res = runSelect();

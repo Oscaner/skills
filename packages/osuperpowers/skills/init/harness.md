@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-  A[detect-engine] -->|cdd-task in PATH| D[detect-harness]
+  A[detect-engine] -->|cdd in PATH| D[detect-harness]
   A -->|not found| W((BLOCKED: cdd-engine-not-installed))
   D -->|target resolved| B[guide]
   D -->|cannot resolve target| X((BLOCKED: specify --harness))
@@ -20,7 +20,7 @@ flowchart TD
 
 ### detect-engine
 
-- **Do**: Check if `cdd-task` is in PATH (`command -v cdd-task` or equivalent).
+- **Do**: Check if `cdd` is in PATH (`command -v cdd` or equivalent).
   - In PATH → proceed to `detect-harness`
   - Not in PATH → BLOCKED (soft): output install guidance:
     `@oscaner-skills/cdd-engine not installed. Run: npm i -g @oscaner-skills/cdd-engine`
@@ -81,7 +81,7 @@ flowchart TD
 
 | failure | behavior | reason | recovery |
 |---|---|---|---|
-| `cdd-task` not in PATH | BLOCKED (soft) | `@oscaner-skills/cdd-engine` not installed | Run `npm i -g @oscaner-skills/cdd-engine` |
+| `cdd` not in PATH | BLOCKED (soft) | `@oscaner-skills/cdd-engine` not installed | Run `npm i -g @oscaner-skills/cdd-engine` |
 | Unknown `--harness` | exit 1 / BLOCKED (bad-param) | Util rejects unknown harness | Suggest the list of available harnesses |
 | No `--harness` + cannot auto-detect | BLOCKED (specify `--harness`) | Cannot determine target harness | Pass `--harness <name>` explicitly |
 | `config` file write failure | fail-open (report + keep parts written) | Filesystem permission / wrong path | Prompt the user to check path permissions manually |

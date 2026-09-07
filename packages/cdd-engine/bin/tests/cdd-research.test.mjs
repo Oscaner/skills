@@ -1,18 +1,19 @@
-// bin/tests/cdd-research.test.mjs — T2: cdd-research CLI 单测。
-// 测试 --help 退出码、必需参数校验、dry-run 模式、端到端 mock harness。
+// bin/tests/cdd-research.test.mjs — T2: `cdd research` CLI 单测（原 cdd-research 独立 bin，
+// 现经合并 CLI bin/cdd.mjs 的 research 子命令）。测试 --help 退出码、必需参数校验、
+// dry-run 模式、端到端 mock harness。
 import { it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, chmodSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const CLI = path.resolve(import.meta.dirname, "../cdd-research.mjs");
+const CLI = path.resolve(import.meta.dirname, "../cdd.mjs");
 
 function runCli(args = [], opts = {}) {
   const { env: extraEnv, ...spawnOpts } = opts;
   const env = { ...process.env, ...extraEnv };
   try {
-    const stdout = execFileSync(process.execPath, [CLI, ...args], {
+    const stdout = execFileSync(process.execPath, [CLI, "research", ...args], {
       timeout: 10_000,
       encoding: "utf8",
       env,
@@ -30,27 +31,27 @@ function runCli(args = [], opts = {}) {
 
 // --- Slice 1: CLI exit codes ---
 
-it("cdd-research: --help 退出 exit 0", () => {
+it("cdd research: --help 退出 exit 0", () => {
   const r = runCli(["--help"]);
   expect(r.exitCode).toBe(0);
 });
 
-it("cdd-research: 缺少 --harness 退出 exit 2", () => {
+it("cdd research: 缺少 --harness 退出 exit 2", () => {
   const r = runCli(["--brief", "/tmp/x.md", "--output", "/tmp/o.md"]);
   expect(r.exitCode).toBe(2);
 });
 
-it("cdd-research: 缺少 --brief 退出 exit 2", () => {
+it("cdd research: 缺少 --brief 退出 exit 2", () => {
   const r = runCli(["--harness", "claude", "--output", "/tmp/o.md"]);
   expect(r.exitCode).toBe(2);
 });
 
-it("cdd-research: 缺少 --output 退出 exit 2", () => {
+it("cdd research: 缺少 --output 退出 exit 2", () => {
   const r = runCli(["--harness", "claude", "--brief", "/tmp/x.md"]);
   expect(r.exitCode).toBe(2);
 });
 
-it("cdd-research: 未知 --harness 退出 exit 1", () => {
+it("cdd research: 未知 --harness 退出 exit 1", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-harness-"));
   const briefPath = path.join(dir, "brief.md");
   writeFileSync(briefPath, "# test brief\n");
@@ -65,7 +66,7 @@ it("cdd-research: 未知 --harness 退出 exit 1", () => {
 
 // --- Slice 2: Dry-run mode ---
 
-it("cdd-research: dry-run 跳过 harness 执行 (exit 0)", () => {
+it("cdd research: dry-run 跳过 harness 执行 (exit 0)", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-dry-"));
   const briefPath = path.join(dir, "brief.md");
   writeFileSync(briefPath, "# test brief\n");
@@ -80,7 +81,7 @@ it("cdd-research: dry-run 跳过 harness 执行 (exit 0)", () => {
 
 // --- Slice 3: End-to-end mock harness ---
 
-it("cdd-research: mock harness + 有效 brief → dry-run 验证参数解析", () => {
+it("cdd research: mock harness + 有效 brief → dry-run 验证参数解析", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-e2e-"));
 
   // 创建 mock harness binary
@@ -114,7 +115,7 @@ it("cdd-research: mock harness + 有效 brief → dry-run 验证参数解析", (
   expect(r.exitCode).toBe(0);
 });
 
-it("cdd-research: 端到端 mock harness → stdout 写入 output 文件", () => {
+it("cdd research: 端到端 mock harness → stdout 写入 output 文件", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-e2e-write-"));
 
   // 创建 mock harness binary（输出 research findings 内容）
@@ -154,7 +155,7 @@ it("cdd-research: 端到端 mock harness → stdout 写入 output 文件", () =>
 
 // --- Slice 4: Error paths ---
 
-it("cdd-research: brief 文件不存在 → exit 1", () => {
+it("cdd research: brief 文件不存在 → exit 1", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-nobrief-"));
   const outputPath = path.join(dir, "findings.md");
   const r = runCli([
@@ -165,7 +166,7 @@ it("cdd-research: brief 文件不存在 → exit 1", () => {
   expect(r.exitCode).toBe(1);
 });
 
-it("cdd-research: 未知参数 → exit 2", () => {
+it("cdd research: 未知参数 → exit 2", () => {
   const r = runCli(["--unknown-flag"]);
   expect(r.exitCode).toBe(2);
 });
@@ -195,7 +196,7 @@ function makeTimeoutRegistry(dir) {
   return registryPath;
 }
 
-it("cdd-research: timeout → 写 partial findings + TIMEOUT frontmatter + exit 1", () => {
+it("cdd research: timeout → 写 partial findings + TIMEOUT frontmatter + exit 1", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-timeout-"));
   makeHangHarness(dir);
   const registryPath = makeTimeoutRegistry(dir);
@@ -220,7 +221,7 @@ it("cdd-research: timeout → 写 partial findings + TIMEOUT frontmatter + exit 
   expect(content).toContain("TIMEOUT");
 });
 
-it("cdd-research: 旧 RESEARCH_TIMEOUT 向后兼容（秒级，仍生效）", () => {
+it("cdd research: 旧 RESEARCH_TIMEOUT 向后兼容（秒级，仍生效）", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-legacy-"));
   makeHangHarness(dir);
   const registryPath = makeTimeoutRegistry(dir);
@@ -246,7 +247,7 @@ it("cdd-research: 旧 RESEARCH_TIMEOUT 向后兼容（秒级，仍生效）", ()
   expect(readFileSync(outputPath, "utf8")).toContain("TIMEOUT");
 });
 
-it("cdd-research: CDD_RESEARCH_TIMEOUT 优先于旧 RESEARCH_TIMEOUT（秒级）", () => {
+it("cdd research: CDD_RESEARCH_TIMEOUT 优先于旧 RESEARCH_TIMEOUT（秒级）", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-prio-"));
   makeHangHarness(dir);
   const registryPath = makeTimeoutRegistry(dir);
@@ -271,7 +272,7 @@ it("cdd-research: CDD_RESEARCH_TIMEOUT 优先于旧 RESEARCH_TIMEOUT（秒级）
   expect(readFileSync(outputPath, "utf8")).toContain("TIMEOUT");
 });
 
-it("cdd-research: 充足 timeout 下挂起 harness 正常完成（不误判 timeout）", () => {
+it("cdd research: 充足 timeout 下挂起 harness 正常完成（不误判 timeout）", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-okto-"));
   const mockCli = path.join(dir, "sleep-harness.sh");
   writeFileSync(mockCli, "#!/bin/sh\necho \"# Research Findings\n\nSlept then finished.\"\n");

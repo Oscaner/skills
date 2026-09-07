@@ -1,5 +1,5 @@
 name: Link CDD Engine
-description: Globally link packages/cdd-engine (npm link) and add the npm global bin to the job PATH so downstream steps resolve cdd-task.
+description: Globally link packages/cdd-engine (npm link) and add the npm global bin to the job PATH so downstream steps resolve cdd.
 
 runs:
   using: composite
@@ -9,7 +9,7 @@ runs:
       run: |
         cd packages/cdd-engine && npm link
         echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
-    - name: Assert cdd-task bin on PATH
+    - name: Assert cdd bin on PATH
       shell: bash
       run: |
-        command -v cdd-task
+        command -v cdd && cdd --help

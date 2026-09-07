@@ -73,6 +73,6 @@ The finishing skill's `read-base` node reads the `base-branch.json` artifact. If
 
 At CDD session startup, the orchestrator runs the determine-base methodology and writes the result to the artifact before any task execution begins.
 
-### CDD branch-review
+### CDD branch review
 
-The CDD branch-review reads the artifact to obtain the `BASE` parameter, replacing the previous hardcoded `origin/develop` reference.
+The CDD branch-review node (`cdd review --type branch`) reads the artifact to obtain the `BASE` parameter, replacing the previous hardcoded `origin/develop` reference.

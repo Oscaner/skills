@@ -29,7 +29,7 @@ export function registryField(reg, harness, field) {
 }
 
 // PATH 查找可执行文件 —— 对齐 cdd_check_cli 的 `command -v`。
-// 导出供 cdd-select.mjs（T3）复用 —— 检测已装 harness CLI 的单一来源。
+// 导出供 cdd select 复用 —— 检测已装 harness CLI 的单一来源。
 export function cliInPath(cli) {
   const pathDirs = (process.env.PATH ?? "").split(path.delimiter);
   for (const dir of pathDirs) {

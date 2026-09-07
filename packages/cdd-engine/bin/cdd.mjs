@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bin/cdd.mjs — the single CDD engine CLI (URC merge surface). Commander.js v15.
-// Subcommands = operation × (type | no type). All legacy bins (cdd-task / docs-task /
-// branch-review / cdd-select / cdd-research) converge here; Task 3 removes the sources.
+// Subcommands = operation × (type | no type). The five legacy bins (cdd-task / docs-task /
+// branch-review / cdd-select / cdd-research) are gone — this binary is the only entry point.
 //   cdd implement --harness <name> --task <n> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> --harness <name> [...]
 //   cdd fix --type <task|spec|plan> --harness <name> [...]
@@ -56,7 +56,7 @@ function intTask(v) {
 }
 
 // Docs review workspace: <repoRoot>/.superpowers/docs-review/ (matches docs-task Bug K fix).
-function docsReviewWorkspace() {
+export function docsReviewWorkspace() {
   return path.join(gitToplevel(process.cwd()), ".superpowers", "docs-review");
 }
 
@@ -85,13 +85,13 @@ function stoppedExit3(type, round, ref, blocker) {
 // ---- review dispatch ----
 
 async function runReview(opts) {
-  // type=branch: independent git-diff-level path (inline of branch-review.mjs action + AC15 wiring).
+  // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
   if (opts.type === "branch") {
     if (!opts.plan) {
       process.stderr.write("cdd review --type branch: missing required --plan <path>\n");
       process.exit(2);
     }
-    // --base/--head were requiredOption in the inlined branch-review.mjs; the inline keeps
+    // --base/--head were requiredOption in the old branch-review bin; the inline keeps
     // that contract — missing values would otherwise render garbage ("undefin" file slugs  + undefined in H1).
     if (!opts.base || !opts.head) {
       process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
@@ -170,7 +170,7 @@ async function runReview(opts) {
   });
 }
 
-// Inline of the branch-review.mjs action body, wired with AC15 round sequence +
+// Inline of the former branch-review bin action body, wired with AC15 round sequence +
 // Review Stopping (previous-round lookup filtered by base7..head7 embedded in the filename;
 // a ref change = a new review, never falsely rejected).
 async function runBranchReview(opts) {
@@ -329,7 +329,7 @@ async function runFix(opts) {
   });
 }
 
-// ---- select / research (inline of cdd-select.mjs / cdd-research.mjs action logic) ----
+// ---- select / research (inline of the former cdd-select / cdd-research bin action logic) ----
 
 // detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
 // AI_AGENT=claude-code* → claude; otherwise empty.

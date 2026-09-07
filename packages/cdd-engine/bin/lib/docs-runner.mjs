@@ -1,5 +1,5 @@
-// packages/cdd-engine/bin/lib/docs-runner.mjs — lightweight runner for docs-task.mjs.
-// No commit-contract, no ledger, no probeSkills.
+// packages/cdd-engine/bin/lib/docs-runner.mjs — lightweight runner for cdd review/fix
+// --type spec|plan (legacy docs-task surface). No commit-contract, no ledger, no probeSkills.
 // Spawns doc agent CLI; validates handoff against docs-handoff-schema.json.
 // Bug L fix: subprocess cwd = gitToplevel(process.cwd()), not workspace/doc directory.
 import { existsSync, readFileSync } from "node:fs";

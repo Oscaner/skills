@@ -12,8 +12,8 @@ const __dirname = path.dirname(__filename);
 export const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
 // template → 分组映射（Step 2b: flat → task/review/schema 目录）。
-// task/             cdd-task 按 mode 渲染（cdd-task.mjs 消费）
-// review/           docs 审查模板（docs-task / branch-review 消费）
+// task/             cdd 按 mode 渲染（implement/review/fix 子命令消费）
+// review/           docs 审查模板（cdd review --type spec|plan 消费）
 // schema/           handoff JSON schemas
 const MODE_GROUPS = {
   implement: 'task',

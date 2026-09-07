@@ -54,6 +54,7 @@ describe('review type config (Task 4: 模板数据化)', () => {
     expect(out).toContain('code-review smell baseline');   // axesGuide → code-review 焦点
     expect(out).toContain('/ws/task-1-task-review-1.json');
     expect(out.indexOf('## Handoff')).toBeLessThan(out.indexOf('## Return (H1')); // Bug C 排序保持
+    expect(out).not.toContain('{{HANDOFF_STUB}}'); // r2-r3 泄漏回归：共享壳 stub 槽必须被替换
   });
 });
 

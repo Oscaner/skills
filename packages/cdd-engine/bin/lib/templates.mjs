@@ -90,7 +90,7 @@ blocker: <none|one-line>
 \`\`\``;
 
 export function renderModePrompt(mode, env = {}) {
-  // Task 4: task-review 改经 reviews.json type=task 路由（不再读旧 task-review.md）；
+  // task-review 改经 reviews.json type=task 路由（不再读旧 task-review.md）；
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
   if (mode === 'task-review') {
     const cfg = reviewTypeConfig('task');

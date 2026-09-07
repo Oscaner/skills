@@ -35,48 +35,78 @@ describe('extractStreamJsonFinal via invokeCli', () => {
     });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p --output-format stream-json', output: 'stream-json' };
-    const res = await invokeCli(entry, 'prompt', 'implement', {}, '/tmp', undefined);
+    const res = await invokeCli(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
     expect(res.ok).toBe(true);
     expect(res.stdout).toBe('done');
   });
 });
 
-describe('invokeCli prefix/suffix injection (Enh P)', () => {
+describe('invokeCli prefix/suffix injection (operation×type)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('claude implement → prompt first line is Skill(mattpocock-skills:tdd), template follows', async () => {
+  // Task 5 registry set: implement/fix → tdd；review×task/branch → code-review；review×spec/plan → 空。
+  const prefix = {
+    implement: '/mattpocock-skills:tdd',
+    review: { task: '/mattpocock-skills:code-review', branch: '/mattpocock-skills:code-review', spec: '', plan: '' },
+    fix: '/mattpocock-skills:tdd',
+  };
+
+  it('implement → prompt first line is /mattpocock-skills:tdd, template follows', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
-    const entry = {
-      cli: 'claude', invoke: '-p', output: 'text',
-      prefix: { implement: 'Skill(mattpocock-skills:tdd)', 'task-review': 'Skill(mattpocock-skills:code-review)', fix: '' },
-      suffix: {},
-    };
-    await invokeCli(entry, 'line one\nline two', 'implement', {}, '/tmp', undefined);
+    const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
+    await invokeCli(entry, 'line one\nline two', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
-    expect(promptArg.split('\n')[0]).toBe('Skill(mattpocock-skills:tdd)');
+    expect(promptArg.split('\n')[0]).toBe('/mattpocock-skills:tdd');
     expect(promptArg.split('\n').slice(1).join('\n')).toBe('line one\nline two');
   });
 
-  it('claude task-review → prompt first line is Skill(mattpocock-skills:code-review)', async () => {
+  it('review×task → prompt first line is /mattpocock-skills:code-review', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
-    const entry = {
-      cli: 'claude', invoke: '-p', output: 'text',
-      prefix: { implement: 'Skill(mattpocock-skills:tdd)', 'task-review': 'Skill(mattpocock-skills:code-review)', fix: '' },
-      suffix: {},
-    };
-    await invokeCli(entry, 'review prompt', 'task-review', {}, '/tmp', undefined);
+    const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
+    await invokeCli(entry, 'review prompt', { op: 'review', type: 'task' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
-    expect(promptArg.split('\n')[0]).toBe('Skill(mattpocock-skills:code-review)');
+    expect(promptArg.split('\n')[0]).toBe('/mattpocock-skills:code-review');
     expect(promptArg.split('\n')[1]).toBe('review prompt');
+  });
+
+  it('review×spec（共享 review.md，无注入）→ prompt unchanged', async () => {
+    execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
+    const { invokeCli } = await import('../lib/cli-shared.mjs');
+    const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
+    await invokeCli(entry, 'spec prompt', { op: 'review', type: 'spec' }, {}, '/tmp', undefined);
+    const promptArg = execa.mock.calls[0][1].at(-1);
+    expect(promptArg).toBe('spec prompt');
+  });
+
+  it('fix → prompt first line is /mattpocock-skills:tdd', async () => {
+    execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
+    const { invokeCli } = await import('../lib/cli-shared.mjs');
+    const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
+    await invokeCli(entry, 'fix prompt', { op: 'fix', type: 'task' }, {}, '/tmp', undefined);
+    const promptArg = execa.mock.calls[0][1].at(-1);
+    expect(promptArg.split('\n')[0]).toBe('/mattpocock-skills:tdd');
+  });
+
+  it('legacy 扁平 mode 键兜底：op=task-review → 直接命 prefix["task-review"]（未迁移 registry）', async () => {
+    execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
+    const { invokeCli } = await import('../lib/cli-shared.mjs');
+    const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: { 'task-review': '/legacy-review' }, suffix: {} };
+    await invokeCli(entry, 'legacy prompt', { op: 'task-review' }, {}, '/tmp', undefined);
+    const promptArg = execa.mock.calls[0][1].at(-1);
+    expect(promptArg.split('\n')[0]).toBe('/legacy-review');
+    // 旧位置 mode 字符串参数也归一 → 同走扁平键兜底
+    execa.mockClear();
+    await invokeCli(entry, 'legacy prompt', 'task-review', {}, '/tmp', undefined);
+    expect(execa.mock.calls[0][1].at(-1).split('\n')[0]).toBe('/legacy-review');
   });
 
   it('entry without prefix/suffix → prompt unchanged', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-    await invokeCli(entry, 'plain prompt', 'implement', {}, '/tmp', undefined);
+    await invokeCli(entry, 'plain prompt', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg).toBe('plain prompt');
   });
@@ -85,7 +115,7 @@ describe('invokeCli prefix/suffix injection (Enh P)', () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: {}, suffix: { implement: '[END]' } };
-    await invokeCli(entry, 'middle', 'implement', {}, '/tmp', undefined);
+    await invokeCli(entry, 'middle', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg).toBe('middle\n[END]');
   });
@@ -94,7 +124,7 @@ describe('invokeCli prefix/suffix injection (Enh P)', () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: { implement: '[P]' }, suffix: { implement: '[S]' } };
-    await invokeCli(entry, 'mid', 'implement', {}, '/tmp', undefined);
+    await invokeCli(entry, 'mid', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg).toBe('[P]\nmid\n[S]');
   });
@@ -107,7 +137,7 @@ describe('invokeCli gate env propagation (Bug O Step 5b)', () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-    await invokeCli(entry, 'prompt', 'implement', { CDD_WORKSPACE: '/ws' }, '/tmp', undefined);
+    await invokeCli(entry, 'prompt', { op: 'implement' }, { CDD_WORKSPACE: '/ws' }, '/tmp', undefined);
     const spawnEnv = execa.mock.calls[0][2].env;
     expect(spawnEnv.CDD_GATE_WORKSPACE).toBe('/ws');
     expect(spawnEnv.CDD_GATE_MODE).toBe('subagent');
@@ -117,7 +147,7 @@ describe('invokeCli gate env propagation (Bug O Step 5b)', () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-    await invokeCli(entry, 'prompt', 'implement', {}, '/tmp', undefined);
+    await invokeCli(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
     const spawnEnv = execa.mock.calls[0][2].env;
     expect(spawnEnv.CDD_GATE_WORKSPACE).toBeUndefined();
     expect(spawnEnv.CDD_GATE_MODE).toBeUndefined();
@@ -130,7 +160,7 @@ describe('invokeCli gate env propagation (Bug O Step 5b)', () => {
     try {
       const { invokeCli } = await import('../lib/cli-shared.mjs');
       const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-      await invokeCli(entry, 'prompt', 'implement', { CDD_WORKSPACE: '/ws' }, '/tmp', undefined);
+      await invokeCli(entry, 'prompt', { op: 'implement' }, { CDD_WORKSPACE: '/ws' }, '/tmp', undefined);
       const spawnEnv = execa.mock.calls[0][2].env;
       expect(spawnEnv.CDD_GATE_MODE).toBe('in-session');
     } finally {
@@ -154,7 +184,7 @@ describe('invokeCliWithRetry', () => {
     const { invokeCliWithRetry } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
     // Start the call, advance fake timers past the retry delay, then collect.
-    const promise = invokeCliWithRetry(entry, 'prompt', 'implement', {}, '/tmp', undefined);
+    const promise = invokeCliWithRetry(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
     await vi.runAllTimersAsync();
     const res = await promise;
     expect(res.ok).toBe(true);
@@ -165,7 +195,7 @@ describe('invokeCliWithRetry', () => {
     execa.mockResolvedValue({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
     const { invokeCliWithRetry } = await import('../lib/cli-shared.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-    const res = await invokeCliWithRetry(entry, 'prompt', 'implement', {}, '/tmp', undefined);
+    const res = await invokeCliWithRetry(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
     expect(res.timedOut).toBe(true);
     expect(execa).toHaveBeenCalledTimes(1);
   });

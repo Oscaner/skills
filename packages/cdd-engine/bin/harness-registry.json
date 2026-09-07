@@ -3,37 +3,69 @@
     "cli": "claude",
     "invoke": "-p --output-format text --dangerously-skip-permissions",
     "output": "text",
+    "ship": "full",
     "prefix": {
-      "implement": "Skill(mattpocock-skills:tdd)",
-      "task-review": "Skill(mattpocock-skills:code-review)",
-      "fix": ""
+      "implement": "/mattpocock-skills:tdd",
+      "review": {
+        "task": "/mattpocock-skills:code-review",
+        "branch": "/mattpocock-skills:code-review",
+        "spec": "",
+        "plan": ""
+      },
+      "fix": "/mattpocock-skills:tdd"
     },
-    "suffix": {},
-    "ship": "full"
+    "suffix": {}
   },
   "cursor-agent": {
     "cli": "cursor-agent",
     "invoke": "--print --output-format text --force",
     "output": "text",
-    "prefix": {},
-    "suffix": {},
-    "ship": "full"
+    "ship": "full",
+    "prefix": {
+      "implement": "/mattpocock-skills:tdd",
+      "review": {
+        "task": "/mattpocock-skills:code-review",
+        "branch": "/mattpocock-skills:code-review",
+        "spec": "",
+        "plan": ""
+      },
+      "fix": "/mattpocock-skills:tdd"
+    },
+    "suffix": {}
   },
   "droid": {
     "cli": "droid",
     "invoke": "exec --auto medium --output-format stream-json",
     "output": "stream-json",
-    "prefix": {},
-    "suffix": {},
-    "ship": "full"
+    "ship": "full",
+    "prefix": {
+      "implement": "/mattpocock-skills:tdd",
+      "review": {
+        "task": "/mattpocock-skills:code-review",
+        "branch": "/mattpocock-skills:code-review",
+        "spec": "",
+        "plan": ""
+      },
+      "fix": "/mattpocock-skills:tdd"
+    },
+    "suffix": {}
   },
   "pi": {
     "cli": "pi",
     "invoke": "-p --no-session --no-approve",
     "output": "text",
-    "prefix": {},
-    "suffix": {},
-    "ship": "full"
+    "ship": "full",
+    "prefix": {
+      "implement": "/mattpocock-skills:tdd",
+      "review": {
+        "task": "/mattpocock-skills:code-review",
+        "branch": "/mattpocock-skills:code-review",
+        "spec": "",
+        "plan": ""
+      },
+      "fix": "/mattpocock-skills:tdd"
+    },
+    "suffix": {}
   },
   "codex": { "cli": "codex", "ship": "not-supported" },
   "copilot": { "cli": "copilot", "ship": "not-supported" },

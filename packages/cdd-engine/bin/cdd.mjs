@@ -124,7 +124,7 @@ async function runReview(opts) {
     // 符号经具体化注入）；其余占位由 reviews.json 配置 + 注入参数补齐（renderTemplate 缺参即抛）。
     const cfg = reviewTypeConfig(opts.type);
     await runDocsTask({
-      harness: opts.harness, mode: "review", template: "review", doc: opts.doc,
+      harness: opts.harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
       round, handoffPath: path.join(ws, `${opts.type}-${round}.json`),
       params: {
         TYPE: opts.type,
@@ -249,9 +249,10 @@ async function runBranchReview(opts) {
     PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
   }, "cdd review");
 
-  // Invoke harness CLI.
+  // Invoke harness CLI. Task 5: 注入参数 (op, type)——branch review → ("review","branch")，
+  // 解析到 prefix.review.branch（前身 branch-review.mjs 已随 Task 3 删除，迁移目标在此内联）。
   const timeoutMs = resolveTimeoutMs(process.env, "review");
-  const res = await invokeCliWithRetry(entry, prompt, "branch-review", process.env, repoRoot, timeoutMs);
+  const res = await invokeCliWithRetry(entry, prompt, { op: "review", type: "branch" }, process.env, repoRoot, timeoutMs);
 
   if (!res.ok) {
     if (!existsSync(handoffPath)) {
@@ -331,7 +332,7 @@ async function runFix(opts) {
   const template = reviewTypeConfig(opts.type).fixTemplate;
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
-    harness: opts.harness, mode: "fix", template, doc: opts.doc,
+    harness: opts.harness, mode: "fix", template, type: opts.type, doc: opts.doc,
     findingsPath: opts.findings, workspace: docsReviewWorkspace(),
     repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
   });

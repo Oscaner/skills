@@ -32,6 +32,15 @@ const DEFAULT_CHANNEL_MAP = {
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "task-review", "fix"];
 
+// Task 5: mode → invokeCli (op, type?) 注入参数。
+//   task-review → ("review","task")；fix → ("fix","task")；implement → ("implement", null)。
+//   prefix 值经 registry resolveInjection（entry.prefix[op][type?]）解析（见 cli-shared.mjs）。
+const INVOKE_PARAMS = {
+  "task-review": { op: "review", type: "task" },
+  fix: { op: "fix", type: "task" },
+  implement: { op: "implement" },
+};
+
 // Local orchestration error: carries exit code; caught by runTask/runPlan then finish().
 class RunBlocked extends Error {
   constructor(message, exitCode = 1) {
@@ -471,7 +480,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     agentOut = dryRunH1Block(env, taskNum);
   } else {
     const timeoutMs = resolveTimeoutMs(env, "task");
-    const res = await invokeCliWithRetry(entry, prompt, mode, env, cwd, timeoutMs);
+    const res = await invokeCliWithRetry(entry, prompt, INVOKE_PARAMS[mode] ?? { op: mode }, env, cwd, timeoutMs);
     agentOut = res.ok ? res.stdout : "";
     cliStderr = res.stderr;
     timedOut = res.timedOut === true;

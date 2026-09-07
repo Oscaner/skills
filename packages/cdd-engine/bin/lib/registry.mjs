@@ -28,6 +28,18 @@ export function registryField(reg, harness, field) {
   return entry[field] ?? "";
 }
 
+// operation×type prefix 解析（Task 5，对齐 cli-shared.invokeCli 的 (op, type) 参数）：
+//   entry.prefix[op] 为 string（implement/fix，或 legacy 扁平 mode 键 task-review/branch-review）→ 直接注入；
+//   entry.prefix[op] 为 object（review 子键 type: task|branch|spec|plan）→ 按 type 取，无 type → 空；
+//   缺省（无 prefix / 无 op / 子键缺失）→ 空串，避免静默注入假值。
+// 兜底语义：op 传 legacy mode 键（"task-review" 等）时直接命中扁平键 —— 未迁移的
+// registry（/CDD_REGISTRY_PATH 覆盖）不会静默空注入。
+export function resolveInjection(entry, op, type) {
+  const p = entry?.prefix?.[op] ?? "";
+  if (p && typeof p === "object") return type ? (p[type] ?? "") : "";
+  return typeof p === "string" ? p : "";
+}
+
 // PATH 查找可执行文件 —— 对齐 cdd_check_cli 的 `command -v`。
 // 导出供 cdd select 复用 —— 检测已装 harness CLI 的单一来源。
 export function cliInPath(cli) {

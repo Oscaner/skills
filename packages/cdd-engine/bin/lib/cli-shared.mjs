@@ -1,5 +1,6 @@
 // packages/cdd-engine/bin/lib/cli-shared.mjs
 import { execa } from 'execa';
+import { resolveInjection } from './registry.mjs';
 
 // Default timeouts by mode (30 minutes).
 const DEFAULT_TIMEOUTS = { task: 1_800_000, review: 1_800_000, research: 1_800_000 };
@@ -64,18 +65,27 @@ export async function spawnCapture(command, args, opts = {}) {
 }
 
 // Invoke CLI: build args from entry, handle stream-json output mode.
-// Enh P: per-mode `prefix`/`suffix` injection (generalizes legacy task_review_prefix),
+// Task 5: params = { op, type? } — operation×type injection replaces the positional mode
+//   arg. op: implement|review|fix（review 带 type: task|branch|spec|plan）。解析在
+//   registry.mjs resolveInjection（entry.prefix[op][type?]），suffix 在调用点同构镜像。
+//   legacy 兼容：op 传扁平 mode 键（"task-review" 等）时 resolveInjection 直接命中旧键。
 // joined with `\n` so the prefix forms its own first line.
 // Bug O Step 5b: workspace propagates to the spawned CLI via CDD_GATE_WORKSPACE /
 // CDD_GATE_MODE env (gate hooks run inside the CLI subprocess and inherit them).
 // Nested task agents are ORCHESTRATOR SUBAGENTS (implement/task-review/fix must edit
 // the repo, run git) — default CDD_GATE_MODE=subagent (gate allows). Only an explicit
 // CDD_SESSION_MODE=cli re-arms strict gating (operator-CLI threat model).
-export async function invokeCli(entry, prompt, mode, env, cwd, timeoutMs) {
+export async function invokeCli(entry, prompt, params, env, cwd, timeoutMs) {
   const { cli, invoke, output } = entry;
   const { prefix, suffix } = entry;
-  const p = prefix?.[mode] ?? '';
-  const s = suffix?.[mode] ?? '';
+  // 兜底：params 为 string（旧位置 mode 参数）时归一为 { op } —— op=扁平米键直解
+  // （未迁移 registry 的 "task-review" 等键），避免静默空注入；真正缺席时回退空注入。
+  const paramsObj = typeof params === "string" ? { op: params } : (typeof params === "object" && params ? params : {});
+  const { op, type } = paramsObj;
+  const p = resolveInjection(entry, op, type);
+  const s = typeof suffix?.[op] === "object"
+    ? (type ? (suffix[op][type] ?? "") : "")
+    : (suffix?.[op] ?? '');
   const promptArg = [p, prompt, s].filter(Boolean).join('\n');
   const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];
   const workspace = env?.CDD_WORKSPACE ?? '';
@@ -112,12 +122,13 @@ function extractStreamJsonFinal(raw) {
 
 // Transient retry wrapper for invokeCli (#109 fix).
 // Retries only on overloaded/rate_limit/529 stderr, never on timeout.
+// Task 5: params { op, type? } 签名与 invokeCli 同步透传。
 const RETRY_DELAYS_MS = [5_000, 15_000];
 
-export async function invokeCliWithRetry(entry, prompt, mode, env, cwd, timeoutMs) {
+export async function invokeCliWithRetry(entry, prompt, params, env, cwd, timeoutMs) {
   const MAX_RETRIES = RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const result = await invokeCli(entry, prompt, mode, env, cwd, timeoutMs);
+    const result = await invokeCli(entry, prompt, params, env, cwd, timeoutMs);
     if (result.ok || result.timedOut) return result;
     const isTransient = /overloaded|rate_limit|529/.test(result.stderr ?? '');
     if (isTransient && attempt < MAX_RETRIES) {

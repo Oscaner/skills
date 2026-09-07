@@ -28,7 +28,7 @@ flowchart TD
 - **Do**: Execute one review per cycle — one dispatch: `cdd review --type <task|branch|spec|plan> --harness <name> [--doc <path>]`. Findings carry a `lens` label; status `APPROVED` / `CHANGES_REQUESTED` / `BLOCKED`.
 - **Read**: document / diff under review (spec and plan: `--doc <path>`; task/branch: git range).
 - **Exit**: Count blockers from findings. blocker=0 → `cli-fix-all-findings` (done path); blocker>0 → `cli-fix-all-findings` (re-run path, round auto-incremented by the engine).
-- **Invariant**: must not re-run after blocker=0 output — the engine layer rejects a re-run of the same ref whose previous round is APPROVED with blocker=0 (Review Stopping violation).
+- **Invariant**: must not re-run after blocker=0 output — the engine layer rejects a re-run of the same ref whose previous round is APPROVED with blocker=0 (Review Stopping violation). **Orchestrator obligation (all four types, incl. branch)**: after a blocker=0 review, fix ALL captured findings (blocker+warn+nit) and finish — do NOT re-dispatch a review of the target even when your own fix commits changed the ref (the engine cannot detect ref-changed re-runs; the stop is the orchestrator's discipline — Enh Y).
 
 ### `cli-fix-all-findings`
 

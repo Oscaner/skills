@@ -25,6 +25,6 @@ Write/update `{{HANDOFF}}` JSON per the schema shown below (schema family: {{HAN
 
 ## Self-validate
 
-`{{HANDOFF}}` → `status`/`phase`/`artifacts`/`findings` non-null（h1 类另要求 `commits.base`/`commits.head`）。Fail → `status: BLOCKED`。
+`{{HANDOFF}}` → `status`/`phase`/`artifacts`/`findings` non-null (h1 mode additionally requires `commits.base`/`commits.head`). Fail → `status: BLOCKED`.
 
 {{H1_BLOCK}}

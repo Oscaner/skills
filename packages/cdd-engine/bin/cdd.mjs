@@ -236,7 +236,9 @@ async function runBranchReview(opts) {
 
   // Task 4: branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
   const cfg = reviewTypeConfig("branch");
-  const prompt = renderTemplate("review", {
+  const { renderHandoffStub, REVIEW_H1_BLOCK } = await import("./lib/templates.mjs");
+  const { loadHandoffSchema } = await import("./lib/schema-utils.mjs");
+  let prompt = renderTemplate("review", {
     TYPE: "branch",
     WORKSPACE: workspace,
     LENS_GUIDE: cfg.lensEnum.join(" · "),
@@ -248,9 +250,11 @@ async function runBranchReview(opts) {
     H1_BLOCK: REVIEW_H1_BLOCK,
     PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
   }, "cdd review");
+  // HANDOFF_STUB：共享壳槽位在此路径须显式替换（docs 路径 runDocsTask 自理、runner 路径 renderModePrompt 自理）。
+  prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g,
+    renderHandoffStub(loadHandoffSchema("cdd"), "review", 1, {}));
 
-  // Invoke harness CLI. Task 5: 注入参数 (op, type)——branch review → ("review","branch")，
-  // 解析到 prefix.review.branch（前身 branch-review.mjs 已随 Task 3 删除，迁移目标在此内联）。
+  // Invoke harness CLI. (op,type) 注入解析到 prefix.review.branch（旧 branch-review 独立 bin 已随 Task 3 删除，逻辑内联于此）。
   const timeoutMs = resolveTimeoutMs(process.env, "review");
   const res = await invokeCliWithRetry(entry, prompt, { op: "review", type: "branch" }, process.env, repoRoot, timeoutMs);
 

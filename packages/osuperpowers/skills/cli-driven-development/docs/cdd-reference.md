@@ -14,7 +14,7 @@ Per-task execution uses the **cdd-engine** single CLI bin (`cdd`) — one CLI ag
 | `CDD_MODE` | Responsibility |
 |------------|----------------|
 | `implement` | implementer + `mattpocock-skills:tdd` → report + test-evidence.json + handoff write + H1 four-line contract |
-| `task-review` | `review-package` shell (archive diff); axis review via `cdd review --type spec|plan` direct dispatch (D4; axis files; Step 5 override) + handoff write |
+| `task-review` | `review-package` shell (archive diff); axis review via `cdd review --type task` direct dispatch (D4; axis files; Step 5 override) + handoff write |
 | `fix` | fix implementer + handoff write; reads open-findings; **+ commit contract** (post-run gate, see below) |
 
 3. **Env contract** (paths only — **never** paste full plan into CLI env):

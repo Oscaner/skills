@@ -173,7 +173,7 @@ describe("cdd CLI", () => {
       const r = runCli(["review", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan],
         { cwd: dir, env: { CDD_DRY_RUN: "1" } });
       expect(r.exitCode).toBe(3);
-      expect(r.stderr).toMatch(/already APPROVED\/blocker=0/);
+      expect(r.stderr).toMatch(/already blocker=0 — Review Stopping/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

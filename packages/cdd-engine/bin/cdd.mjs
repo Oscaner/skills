@@ -76,9 +76,8 @@ function blockerCount(handoff) {
 // blockerCount === 0 (SP-4): runner 8.5/8.8/10/10.5 and docs-runner failure paths write
 // status:BLOCKED|TIMEOUT with findings:[] → blockerCount alone would misjudge them as passed.
 function stoppedExit3(type, round, ref, blocker) {
-  process.stderr.write(
-    `${ref} round ${round} (${type}) already APPROVED/blocker=0 — Review Stopping: do not re-run (exit 3)\n` +
-    (blocker ? `last blocker: ${blocker}` : ""));
+  const e = reviewStoppedError(type, round, ref);   // structured error + message, single authority
+  process.stderr.write(`${e.message}\n` + (blocker ? `last blocker: ${blocker}\n` : ""));
   process.exit(3);
 }
 
@@ -131,7 +130,7 @@ async function runReview(opts) {
     // Stopping only rejects a re-run of the SAME ref (doc) whose previous round is APPROVED
     // with blocker=0; a changed ref = a new review, and a BLOCKED/TIMEOUT round = re-dispatchable (SP-4).
     if (prev && (prev.doc_path ?? "") === opts.doc) reviewStoppingGuard(prev, opts.type, round, opts.doc);
-    /// review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
+    // review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
     // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
     // 符号经具体化注入）；其余占位由 reviews.json 配置 + 注入参数补齐（renderTemplate 缺参即抛）。
     const cfg = reviewTypeConfig(opts.type);
@@ -245,7 +244,7 @@ async function runBranchReview(opts) {
     return;
   }
 
-  /// branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
+  // branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
   const cfg = reviewTypeConfig("branch");
   const { renderHandoffStub, REVIEW_H1_BLOCK } = await import("./lib/templates.mjs");
   const { loadHandoffSchema } = await import("./lib/schema-utils.mjs");
@@ -330,7 +329,7 @@ async function runFix(opts) {
     process.stderr.write(`cdd fix --type ${opts.type}: missing required --doc <path>\n`);
     process.exit(2);
   }
-  /// fix 模板统一走 reviews.json fixTemplate（spec/plan → "doc-fix" 共享壳）。
+  // fix 模板统一走 reviews.json fixTemplate（spec/plan → "doc-fix" 共享壳）。
   // 旧 spec-fix/plan-fix 已删，无 fallback；docs-runner 对非 `-review` 名直传（不再 double-suffix）。
   const template = reviewTypeConfig(opts.type).fixTemplate;
   const { runDocsTask } = await import("./lib/docs-runner.mjs");

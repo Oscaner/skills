@@ -57,6 +57,7 @@ describe('reviews.json per-type config (Task 4)', () => {
     });
     expect(out).toContain('# CDD review — task');
     expect(out).toContain('standards · spec');
+    expect(out).not.toContain('{{HANDOFF_STUB}}');
     expect(out).toContain('blocker: <none|one-line>'); // H1 四行合同在渲染输出内
     expect(out.indexOf('## Handoff')).toBeLessThan(out.indexOf('## Return (H1')); // Bug C 回归
   });

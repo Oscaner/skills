@@ -134,14 +134,14 @@ flowchart TD
 
 - **Do**: Dispatch `cdd review --type branch --harness <name> --plan <plan-path> --base <merge-base(develop, HEAD)> --head <HEAD>` (cdd-engine bin; BASE = `git merge-base HEAD origin/<base>` where `<base>` = `base-branch.json#base`, HEAD = `git rev-parse HEAD`; Enh D standalone CLI). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode; handoff at `<workspace>/branch-review-<base7>..<head7>-r<round>.json`). **Persist diff to workspace**: write `<workspace>/branch-review.diff` (`git diff <base>..<head> --stat` + findings extraction).
 - **Read**: `base-branch.json` (for base name) + branch HEAD + plan path + branch-review handoff output.
-- **Exit**: no blockers → **fix remaining warn/nit findings inline**（与 task `fix-inline` 同语义）→ `handoff-finishing`（**blocker=0 后不再 re-review**——Review Stopping，见 [review.md#rule-review-stopping](../_docs/review.md#rule-review-stopping)；即使自身 fix 引入新 commit 变更 ref 也不重审）；blockers present → `branch-fix-loop`.
+- **Exit**: no blockers → **fix the remaining warn/nit findings inline** (same semantics as task-level `fix-inline`), then → `handoff-finishing`. **No re-review after blocker=0** — Review Stopping, see [review.md#rule-review-stopping](../_docs/review.md#rule-review-stopping): even if the inline fixes add new commits (which change the ref), do NOT re-dispatch branch-review; blockers present → `branch-fix-loop`.
 - **Fail**: `cdd review --type branch` exits with no handoff → BLOCKED: engine-error.
 
 ### `branch-fix-loop`
 
-- **Do**: Based on branch-review blocker findings, orchestrator directly (or dispatches nested CLI) fixes; after fix, **re-run branch-review**（back to `branch-review` node）**只当上一 review 存在 blocker**。Once a branch-review returns blocker=0 → **stop re-reviewing**（Review Stopping：fix 全部已捕获 findings——blocker+warn+nit——inline 后直接 `handoff-finishing`；不因自身 fix 变更 ref 而重审）。Branch-level fix loop 无硬顶（建议 ≤3 轮；超限用户决定）。
+- **Do**: Based on branch-review blocker findings, orchestrator directly (or dispatches nested CLI) fixes; after fix, **re-run branch-review** (back to the `branch-review` node) **only when the previous review had blockers**. Once a branch-review returns blocker=0 → **stop re-reviewing**: fix ALL captured findings (blocker + warn + nit) inline, then go straight to `handoff-finishing` (Review Stopping — do not re-review just because your own fix commits changed the ref). No hard cap on the loop (recommended ≤ 3 rounds; beyond that, user decides).
 - **Read**: branch-review findings (from handoff `findings[]`).
-- **Exit**: 上一 review `blocker=0` → 修全部已捕获 findings → `handoff-finishing`（**不再 re-review**，统一 _docs/review.md Review Stopping）；`blocker>0` → 修后 re-review（回 `branch-review`）.
+- **Exit**: previous review `blocker=0` → fix all captured findings → `handoff-finishing` (no re-review — unified `_docs/review.md` Review Stopping); previous `blocker>0` → fix, then re-review (back to `branch-review`).
 - **Fail**: blockers persist after multiple rounds → **implicit fail-open** (stop + report to user; branch preserved; user decides manually).
 
 ### `handoff-finishing`

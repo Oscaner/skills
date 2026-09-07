@@ -17,7 +17,7 @@ export async function runDocsTask({
   harness,
   mode,
   template,
-  type,          /// review/fix 子类型（spec|plan）→ invokeCli (op, type) 注入参数（无模板名可依）
+  type,          // review/fix 子类型（spec|plan）→ invokeCli (op, type) 注入参数（无模板名可依）
   doc,           // path to the document being reviewed/fixed
   findingsPath,
   handoffPath,
@@ -60,7 +60,7 @@ export async function runDocsTask({
   const reg = loadRegistry(REG_PATH);
   const entry = checkHarness(reg, harness);
   const timeoutMs = resolveTimeoutMs(process.env, "review");
-  /// invokeCli 注入参数 = (op, type)——review/fix 分别对 prefix.review[type?] /
+  // invokeCli 注入参数 = (op, type)——review/fix 分别对 prefix.review[type?] /
   // prefix.fix（flat string）解析；type 由 cdd review/fix --type 经 runDocsTask 透传。
   const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, repoRoot, timeoutMs);
 

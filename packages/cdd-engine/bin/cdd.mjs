@@ -166,6 +166,11 @@ async function runReview(opts) {
   const latestRound = reviewFiles
     .map((f) => Number(f.match(/(\d+)\.json$/)[1]))
     .sort((a, b) => a - b).at(-1);
+  // --round 校验回填（task 侧：next round = latest+1；冲突 exit 2，对齐 spec/plan/branch）。
+  if (opts.round && Number(opts.round) !== (latestRound ?? 0) + 1) {
+    process.stderr.write(`--round ${opts.round} ≠ engine round ${(latestRound ?? 0) + 1}\n`);
+    process.exit(2);
+  }
   if (latestRound) {
     const th = JSON.parse(readFileSync(path.join(taskWs, `task-${opts.task}-task-review-${latestRound}.json`), "utf8"));
     // Stop only on an APPROVED round with blocker=0 — a BLOCKED/TIMEOUT failure round
@@ -488,7 +493,7 @@ program
   .option("--base <sha>", "base commit (type=task|branch)")
   .option("--head <sha>", "head commit (type=task|branch)")
   .option("--round <n>", "round backfill (validate against engine auto-increment)")
-  .option("--spec <path>", "spec document path (type=plan; reviews.json plan 轴经 axesGuide 引用 spec 覆盖，取值不内嵌文档；兼容旧 --param SPEC= 语义)")
+  .option("--spec <path>", "spec document path (type=plan; plan axis references spec coverage via reviews.json axesGuide; kept as a compatibility param, value is not inlined into the doc)")
   .action(async (opts) => {
     await runReview(opts);
   });

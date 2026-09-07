@@ -94,7 +94,7 @@ export function renderModePrompt(mode, env = {}) {
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
   if (mode === 'task-review') {
     const cfg = reviewTypeConfig('task');
-    return renderTemplate('review', {
+    let prompt = renderTemplate('review', {
       TYPE: 'task',
       WORKSPACE: env.WORKSPACE ?? '',
       LENS_GUIDE: cfg.lensEnum.join(' · '),
@@ -106,6 +106,10 @@ export function renderModePrompt(mode, env = {}) {
       H1_BLOCK: REVIEW_H1_BLOCK,
       PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
     });
+    // HANDOFF_STUB：共享壳槽位在 task-review 早退路径须显式替换（与 generic 路径 line 118 一致）。
+    const schema = loadHandoffSchema();
+    const stub = renderHandoffStub(schema, 'task-review', parseInt(env.TASK) || 0);
+    return prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   }
   const modePath = templatePath(mode);
   if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);

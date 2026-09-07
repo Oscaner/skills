@@ -97,10 +97,10 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
   expect(registryField(reg, "claude", "prefix")).toEqual({
     implement: "/mattpocock-skills:tdd",
     review: {
-      task: "/mattpocock-skills:code-review",
-      branch: "/mattpocock-skills:code-review",
-      spec: "", // spec/plan 走共享 review.md 模板（URC 规则内嵌），无独立 skill 注入
-      plan: "",
+      task: expect.stringMatching(/^\/mattpocock-skills:code-review.*single agent/),
+      branch: expect.stringMatching(/^\/mattpocock-skills:code-review/),
+      spec: expect.stringMatching(/URC \(_docs\/review\.md\)/),
+      plan: expect.stringMatching(/URC \(_docs\/review\.md\)/),
     },
     fix: "/mattpocock-skills:tdd",
   });
@@ -116,12 +116,13 @@ it("resolveInjection: claude implement/fix → /mattpocock-skills:tdd", () => {
   expect(resolveInjection(reg.claude, "fix")).toBe("/mattpocock-skills:tdd");
 });
 
-it("resolveInjection: claude review×type — task/branch → code-review；spec/plan → 空串（共享 review.md）", () => {
+it("resolveInjection: claude review×type — task/branch → code-review(单 agent)；spec/plan → URC 指针", () => {
   const reg = loadRegistry(REG_PATH);
-  expect(resolveInjection(reg.claude, "review", "task")).toBe("/mattpocock-skills:code-review");
-  expect(resolveInjection(reg.claude, "review", "branch")).toBe("/mattpocock-skills:code-review");
-  expect(resolveInjection(reg.claude, "review", "spec")).toBe("");
-  expect(resolveInjection(reg.claude, "review", "plan")).toBe("");
+  expect(resolveInjection(reg.claude, "review", "task")).toContain("code-review");
+  expect(resolveInjection(reg.claude, "review", "task")).toContain("single agent");
+  expect(resolveInjection(reg.claude, "review", "branch")).toContain("code-review");
+  expect(resolveInjection(reg.claude, "review", "spec")).toMatch(/URC \(_docs\/review\.md\)/);
+  expect(resolveInjection(reg.claude, "review", "plan")).toMatch(/URC \(_docs\/review\.md\)/);
 });
 
 it("resolveInjection: pi/droid/cursor-agent 同 claude set（全 harness 同 set 非空）", () => {
@@ -129,10 +130,10 @@ it("resolveInjection: pi/droid/cursor-agent 同 claude set（全 harness 同 set
   for (const h of ["cursor-agent", "droid", "pi"]) {
     expect(resolveInjection(reg[h], "implement")).toBe("/mattpocock-skills:tdd");
     expect(resolveInjection(reg[h], "fix")).toBe("/mattpocock-skills:tdd");
-    expect(resolveInjection(reg[h], "review", "task")).toBe("/mattpocock-skills:code-review");
-    expect(resolveInjection(reg[h], "review", "branch")).toBe("/mattpocock-skills:code-review");
-    expect(resolveInjection(reg[h], "review", "spec")).toBe("");
-    expect(resolveInjection(reg[h], "review", "plan")).toBe("");
+    expect(resolveInjection(reg[h], "review", "task")).toContain("code-review");
+    expect(resolveInjection(reg[h], "review", "branch")).toContain("code-review");
+    expect(resolveInjection(reg[h], "review", "spec")).toMatch(/URC \(_docs\/review\.md\)/);
+    expect(resolveInjection(reg[h], "review", "plan")).toMatch(/URC \(_docs\/review\.md\)/);
     // 同 set 非空：implement/review.task/review.branch/fix 四个注入点都有值
     expect(
       [resolveInjection(reg[h], "implement"), resolveInjection(reg[h], "fix"),

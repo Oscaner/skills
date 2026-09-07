@@ -28,7 +28,7 @@ export function registryField(reg, harness, field) {
   return entry[field] ?? "";
 }
 
-// operation×type prefix 解析（Task 5，对齐 cli-shared.invokeCli 的 (op, type) 参数）：
+// operation×type prefix 解析（对齐 cli-shared.invokeCli 的 (op, type) 参数）：
 //   entry.prefix[op] 为 string（implement/fix，或 legacy 扁平 mode 键 task-review/branch-review）→ 直接注入；
 //   entry.prefix[op] 为 object（review 子键 type: task|branch|spec|plan）→ 按 type 取，无 type → 空；
 //   缺省（无 prefix / 无 op / 子键缺失）→ 空串，避免静默注入假值。

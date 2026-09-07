@@ -265,7 +265,7 @@ async function runBranchReview(opts) {
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g,
     renderHandoffStub(loadHandoffSchema("cdd"), "review", 1, {}));
 
-  // Invoke harness CLI. (op,type) 注入解析到 prefix.review.branch（旧 branch-review 独立 bin 已随 Task 3 删除，逻辑内联于此）。
+  // Invoke harness CLI. (op,type) 注入解析到 prefix.review.branch（旧 branch-review 独立 bin 已删除，逻辑内联于此）。
   const timeoutMs = resolveTimeoutMs(process.env, "review");
   const res = await invokeCliWithRetry(entry, prompt, { op: "review", type: "branch" }, process.env, repoRoot, timeoutMs);
 
@@ -321,7 +321,7 @@ async function runFix(opts) {
     });
     return;
   }
-  // spec/plan: fix 模板来自 reviews.json fixTemplate（Task 4，见下方注入点）。
+  // spec/plan: fix 模板来自 reviews.json fixTemplate（URC 注入点）。
   if (opts.type !== "spec" && opts.type !== "plan") {
     process.stderr.write(`unknown fix --type: ${opts.type}\n`);
     process.exit(2);

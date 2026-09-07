@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 // Replaces pluginRoot() walk — cdd-engine is self-contained.
 export const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
-// template → 分组映射（Task 4: review 模板数据化 — 六旧 review/fix 模板删除，
+// template → 分组映射（URC: review 模板数据化 — 六旧 review/fix 模板删除，
 // 共享壳 review.md + doc-fix.md 由 reviews.json 配置驱动）。
 // task/             cdd 按 mode 渲染（implement/fix 子命令消费）
 // review/           review 共享壳 + docs fix 壳（cdd review --type task|branch|spec|plan / cdd fix --type spec|plan）
@@ -61,7 +61,7 @@ export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
   return '```json\n' + JSON.stringify(stub, null, 2) + '\n```';
 }
 
-// ---- Task 4: review 模板数据化（reviews.json per-type 配置 + review.md 共享壳） ----
+// ---- Review 模板数据化（reviews.json per-type 配置 + review.md 共享壳） ----
 
 export function loadReviews() {
   return JSON.parse(readFileSync(path.join(PKG_ROOT, 'templates', 'review', 'reviews.json'), 'utf8'));

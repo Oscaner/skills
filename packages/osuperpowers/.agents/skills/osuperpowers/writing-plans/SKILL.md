@@ -37,7 +37,7 @@ flowchart TD
 
 ### `plan-review`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --harness <name> --doc <path>` (covers completeness / decomposition / buildability in a single run; findings are lens-tagged; round auto-increments in the engine). **Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden.** Review Stopping (I4): follow [Review Stopping](../_docs/review.md#rule-review-stopping) in review.md — blocker>0: cli-fix-all-findings (`cdd fix --type plan --harness <name> --doc <path> --findings <handoff-path>`) → re-run; blocker=0: all findings already fixed → done (no re-run)
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --harness <name> --doc <path> --spec <spec-path>` (covers completeness / decomposition / buildability in a single run; findings are lens-tagged; round auto-increments in the engine; `--spec` carries the approved spec doc as the plan's reference pointer). **Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden.** Review Stopping (I4): follow [Review Stopping](../_docs/review.md#rule-review-stopping) in review.md — blocker>0: cli-fix-all-findings (`cdd fix --type plan --harness <name> --doc <path> --findings <handoff-path>`) → re-run; blocker=0: all findings already fixed → done (no re-run)
 - **Read**: Plan document + spec document + [review.md](../_docs/review.md)
 - **Exit**: blocker=0 → `user-ok?`
 - **Fail**: Re-run review after blocker=0 → violates I4 (Review Stopping)

@@ -39,10 +39,12 @@ export async function runDocsTask({
 
   // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}},
   // then replace {{HANDOFF_STUB}} with schema-derived stub).
+  // templateName: Task 4 后 fix 模板直接给 "doc-fix"（reviews.json fixTemplate）——只有旧式
+  // `-review` 名（legacy 兼容）才做 `-review`→`-fix` 派生；doc-fix/review 直传，不得 double-suffix。
   const schema = loadHandoffSchema("docs");
   const stub = renderHandoffStub(schema, mode, undefined, { docPath: doc });
-  const templateName = mode === "fix"
-    ? template.replace(/-review$/, "") + "-fix"
+  const templateName = mode === "fix" && template.endsWith("-review")
+    ? template.slice(0, -"-review".length) + "-fix"
     : template;
   let prompt = renderTemplate(templateName, {
     DOC: doc, FINDINGS: findingsPath ?? "", HANDOFF: resolvedHandoffPath,

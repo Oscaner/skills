@@ -14,8 +14,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
-import { renderTemplate, renderHandoffStub } from "./lib/templates.mjs";
-import { loadHandoffSchema, validateHandoffSchema } from "./lib/schema-utils.mjs";
+import { renderTemplate, reviewTypeConfig, REVIEW_H1_BLOCK } from "./lib/templates.mjs";
+import { validateHandoffSchema } from "./lib/schema-utils.mjs";
 import { resolveNextRound } from "./lib/review-loop.mjs";
 import { writeHandoff, gitToplevel } from "./lib/contract.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
@@ -119,16 +119,24 @@ async function runReview(opts) {
     if (prev && prev.status === "APPROVED" && (prev.doc_path ?? "") === opts.doc && blockerCount(prev) === 0) {
       stoppedExit3(opts.type, round, opts.doc, prev?.blocker);
     }
-    // Pre-Task-4: legacy spec-review/plan-review templates require {{PASS}} — pass a placeholder
-    // to avoid renderTemplate throwing on a missing param (Task 4 swaps to review.md params).
-    // plan-review additionally requires {{SPEC}}; --spec is optional here and defaults to "" so
-    // the plan path never throws missing-param before the harness gate (SP-3).
-    const template = opts.type === "spec" ? "spec-review" : "plan-review";
-    const extra = { PASS: "completeness", ...(opts.type === "plan" ? { SPEC: opts.spec ?? "" } : {}) };
+    // Task 4: review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
+    // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
+    // 符号经具体化注入）；其余占位由 reviews.json 配置 + 注入参数补齐（renderTemplate 缺参即抛）。
+    const cfg = reviewTypeConfig(opts.type);
     await runDocsTask({
-      harness: opts.harness, mode: "review", template, doc: opts.doc,
+      harness: opts.harness, mode: "review", template: "review", doc: opts.doc,
       round, handoffPath: path.join(ws, `${opts.type}-${round}.json`),
-      params: extra, workspace: ws, repoRoot: gitToplevel(process.cwd()),
+      params: {
+        TYPE: opts.type,
+        LENS_GUIDE: cfg.lensEnum.join(" · "),
+        WORKSPACE: ws,
+        REFERENCE: opts.doc,
+        AXES: cfg.axesGuide,
+        RETURN_MODE: cfg.returnMode,
+        HANDOFF_TYPE: cfg.handoffType,
+        H1_BLOCK: "",
+      },
+      workspace: ws, repoRoot: gitToplevel(process.cwd()),
       dryRun: DRY_RUN(),
     });
     return;
@@ -225,12 +233,18 @@ async function runBranchReview(opts) {
     return;
   }
 
-  // Render branch-review template.
-  const schema = loadHandoffSchema();
-  const handoffStub = renderHandoffStub(schema, "branch-review", 1); // task minimum 1 in CDD schema
-  const prompt = renderTemplate("branch-review", {
-    BASE: base, HEAD: head, PLAN: plan,
-    HANDOFF: handoffPath, HANDOFF_STUB: handoffStub,
+  // Task 4: branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
+  const cfg = reviewTypeConfig("branch");
+  const prompt = renderTemplate("review", {
+    TYPE: "branch",
+    WORKSPACE: workspace,
+    LENS_GUIDE: cfg.lensEnum.join(" · "),
+    REFERENCE: `${base}..${head}`,
+    AXES: cfg.axesGuide,
+    HANDOFF: handoffPath,
+    HANDOFF_TYPE: cfg.handoffType,
+    RETURN_MODE: cfg.returnMode,
+    H1_BLOCK: REVIEW_H1_BLOCK,
   }, "cdd review");
 
   // Invoke harness CLI.
@@ -301,8 +315,7 @@ async function runFix(opts) {
     });
     return;
   }
-  // spec/plan: fix template comes from reviews.json fixTemplate (Task 4); pre-Task-4,
-  // reviewTypeConfig doesn't exist yet → fall back to the legacy spec-fix/plan-fix templates.
+  // spec/plan: fix 模板来自 reviews.json fixTemplate（Task 4，见下方注入点）。
   if (opts.type !== "spec" && opts.type !== "plan") {
     process.stderr.write(`unknown fix --type: ${opts.type}\n`);
     process.exit(2);
@@ -311,16 +324,9 @@ async function runFix(opts) {
     process.stderr.write(`cdd fix --type ${opts.type}: missing required --doc <path>\n`);
     process.exit(2);
   }
-  let template;
-  try {
-    const { reviewTypeConfig } = await import("./lib/templates.mjs");
-    template = reviewTypeConfig(opts.type).fixTemplate;
-  } catch {
-    // Pre-Task-4 fallback: pass the *review* template name — docs-runner derives the legacy
-    // spec-fix/plan-fix template via `-review` → `-fix` (passing spec-fix/plan-fix directly
-    // would double-suffix → unknown template spec-fix-fix/plan-fix-fix, SP-1).
-    template = opts.type === "spec" ? "spec-review" : "plan-review";
-  }
+  // Task 4: fix 模板统一走 reviews.json fixTemplate（spec/plan → "doc-fix" 共享壳）。
+  // 旧 spec-fix/plan-fix 已删，无 fallback；docs-runner 对非 `-review` 名直传（不再 double-suffix）。
+  const template = reviewTypeConfig(opts.type).fixTemplate;
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
     harness: opts.harness, mode: "fix", template, doc: opts.doc,
@@ -475,7 +481,7 @@ program
   .option("--base <sha>", "base commit (type=task|branch)")
   .option("--head <sha>", "head commit (type=task|branch)")
   .option("--round <n>", "round backfill (validate against engine auto-increment)")
-  .option("--spec <path>", "spec document path (type=plan — plan-review {{SPEC}})")
+  .option("--spec <path>", "spec document path (type=plan; reviews.json plan 轴经 axesGuide 引用 spec 覆盖，压缩文档不内嵌)")
   .action(async (opts) => {
     await runReview(opts);
   });

@@ -10,7 +10,7 @@ const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
 // Two handoff schemas ship in templates/schema/:
 //   cdd  — task handoffs (implement/task-review/fix; task/phase enums, commits objects)
-//   docs — doc review handoffs (spec-review/plan-review/branch-review/spec-fix/plan-fix;
+//   docs — doc review handoffs (review.md shared shell spec/plan; doc-fix;
 //          required doc_path, no task/commits)
 const SCHEMA_PATHS = {
   cdd:  path.join(PKG_ROOT, 'templates', 'schema', 'cdd-handoff-schema.json'),

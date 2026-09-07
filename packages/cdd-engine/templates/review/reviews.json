@@ -1,0 +1,14 @@
+{
+  "task":   { "lensEnum": ["standards","spec"], "ref": "TASK_BASE..HEAD",
+              "axesGuide": "standards 轴（仓库编码规范 + code-review smell baseline）+ spec 轴（task brief / 计划要求）；单 agent 双轴、禁并行 sub-agents",
+              "returnMode": "h1", "handoffType": "cdd", "fixTemplate": "task-fix" },
+  "branch": { "lensEnum": ["standards","spec"], "ref": "BASE..HEAD",
+              "axesGuide": "同 task 双轴（全分支健康度：diff BASE..HEAD + 计划符合性）",
+              "returnMode": "h1", "handoffType": "cdd", "fixTemplate": null },
+  "spec":   { "lensEnum": ["completeness","consistency","clarity"], "ref": "doc vs spec",
+              "axesGuide": "URC 规则指针：遵循 _docs/review.md 单周期、findings 带 lens 标签（完整性/一致性/清晰度三视角内嵌）",
+              "returnMode": "json", "handoffType": "docs", "fixTemplate": "doc-fix" },
+  "plan":   { "lensEnum": ["completeness","decomposition","buildability"], "ref": "doc vs spec",
+              "axesGuide": "URC 规则指针：spec 覆盖（completeness）/ task 边界与接口（decomposition）/ 类型一致与占位扫描（buildability）",
+              "returnMode": "json", "handoffType": "docs", "fixTemplate": "doc-fix" }
+}

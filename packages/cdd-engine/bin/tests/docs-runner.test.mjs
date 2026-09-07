@@ -39,7 +39,7 @@ vi.mock("node:fs", async (importOriginal) => {
     ...actual,
     existsSync: vi.fn((p) => {
       // Handoff file "exists" so we take the read-and-validate path (not writeHandoff BLOCKED path).
-      if (String(p).includes("spec-review")) return true;
+      if (String(p).includes("review")) return true;
       return actual.existsSync(p);
     }),
     readFileSync: vi.fn((p, enc) => {
@@ -55,7 +55,7 @@ vi.mock("node:fs", async (importOriginal) => {
           },
         });
       }
-      if (String(p).includes("spec-review")) {
+      if (String(p).includes("review")) {
         return JSON.stringify({
           phase: "review", status: "APPROVED",
           findings: [], artifacts: {}, doc_path: "/doc.md",
@@ -77,7 +77,7 @@ describe("runDocsTask", () => {
     const result = await runDocsTask({
       harness: "claude",
       mode: "review",
-      template: "spec-review",
+      template: "review",
       doc: "/spec.md",
       workspace: "/tmp/ws",
       dryRun: true,
@@ -98,9 +98,9 @@ describe("runDocsTask", () => {
     await runDocsTask({
       harness:   "claude",
       mode:      "review",
-      template:  "spec-review",
+      template:  "review",
       doc:       "/repo/root/docs/superpowers/specs/my-spec.md",
-      params:    { PASS: "completeness" },
+      params:    { TYPE: "spec" },
       workspace: "/repo/root/.superpowers/docs-review",
       repoRoot:  "/repo/root",  // accepted in opts but gitToplevel() is used (Bug L fix)
       dryRun:    false,

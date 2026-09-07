@@ -82,15 +82,24 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
-  it("fix --type spec|plan 非 dry-run：pre-Task-4 fallback 模板可渲染（SP-1 回归）", () => {
-    // SP-1 回归：docs-runner fix mode 恒做 `-review`→`-fix` 派生，fallback 传 spec-review/plan-review
-    // 才得到可渲染的 spec-fix/plan-fix（传 spec-fix → spec-fix-fix unknown template，崩在 render）。
-    // nonexistent harness 保证停在 harness gate（"unknown harness"），不进入 spawn/写 handoff。
+  it("fix --type spec|plan 非 dry-run：doc-fix 模板渲染后停在 harness gate（Task 4 SP-1 回归）", () => {
+    // Task 4：fix 模板统一走 reviews.json fixTemplate（spec/plan → doc-fix 共享壳），
+    // docs-runner 不再做 `-review`→`-fix` 派生（doc-fix 直传，不得 double-suffix）。
+    // nonexistent harness 保证停在 harness gate（"unknown harness"），不进入 spawn/写 handoff；
+    // 若 doc-fix 缺失/渲染崩，stderr 会出现 template 字样 → not.toMatch(/template/) 拦截。
     for (const type of ["spec", "plan"]) {
       const r = runCli(["fix", "--type", type, "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
       expect(r.stderr).toMatch(/unknown harness: nonexistent/);
       expect(r.stderr).not.toMatch(/template/);
     }
+  });
+
+  it("review --type spec 非 dry-run：review.md 共享壳渲染后停在 harness gate（Task 4 路由回归）", () => {
+    // runDocsTask 先 render 共享壳 review.md（reviews.json type=spec 补全占位）再进 harness gate；
+    // 渲染崩（缺参/模板缺失）→ stderr 出现 template → not.toMatch(/template/) 拦截。
+    const r = runCli(["review", "--type", "spec", "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
+    expect(r.stderr).toMatch(/unknown harness: nonexistent/);
+    expect(r.stderr).not.toMatch(/template/);
   });
 
   it("review --type branch 缺 --base/--head → 必填守卫 exit 2（SP-2）", () => {
@@ -99,10 +108,10 @@ describe("cdd CLI", () => {
     expect(r.stderr).toMatch(/--base/);
   });
 
-  it("review --type plan 非 dry-run：{{SPEC}} 注入后停在 harness gate（SP-3）", () => {
-    // plan-review.md requires {{SPEC}}; --spec defaults to "" so the plan path never throws
-    // docs-runner missing-param before the harness gate. Both default and explicit --spec
-    // must land on "unknown harness: nonexistent" (exit 2), not on a render crash.
+  it("review --type plan 非 dry-run：review.md 共享壳渲染后停在 harness gate（SP-3）", () => {
+    // Task 4：plan 走共享壳 review.md（reviews.json type=plan 配置，占位由注入参数补齐），
+    // 不再要求 {{SPEC}}/{{PASS}}。--spec 保留为可选（不内嵌文档），默认/显式都必须
+    // 落在 "unknown harness: nonexistent"（exit 2），而不是渲染崩溃。
     const r = runCli(["review", "--type", "plan", "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
     expect(r.stderr).toMatch(/unknown harness: nonexistent/);
     expect(r.stderr).not.toMatch(/template/);

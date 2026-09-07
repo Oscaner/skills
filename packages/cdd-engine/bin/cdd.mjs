@@ -82,6 +82,20 @@ function stoppedExit3(type, round, ref, blocker) {
   process.exit(3);
 }
 
+// Unified Stopping gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
+// round (findings:[]) must stay re-dispatchable (SP-4). ref is the type's target signature.
+function reviewStoppingGuard(prev, type, round, ref) {
+  if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker);
+}
+
+function writeBranchBlocked(handoffPath, { base, head, code, reason }) {
+  writeHandoff(handoffPath, {
+    task: 1, phase: "branch-review", status: "BLOCKED",
+    commits: { base, head }, findings: [], artifacts: {},
+    blocker: reason ?? `cli exited ${code} without writing handoff`,
+  });
+}
+
 // ---- review dispatch ----
 
 async function runReview(opts) {
@@ -116,10 +130,8 @@ async function runReview(opts) {
     const prev = existingRoundHandoff(ws, opts.type, round - 1);
     // Stopping only rejects a re-run of the SAME ref (doc) whose previous round is APPROVED
     // with blocker=0; a changed ref = a new review, and a BLOCKED/TIMEOUT round = re-dispatchable (SP-4).
-    if (prev && prev.status === "APPROVED" && (prev.doc_path ?? "") === opts.doc && blockerCount(prev) === 0) {
-      stoppedExit3(opts.type, round, opts.doc, prev?.blocker);
-    }
-    // Task 4: review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
+    if (prev && (prev.doc_path ?? "") === opts.doc) reviewStoppingGuard(prev, opts.type, round, opts.doc);
+    /// review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
     // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
     // 符号经具体化注入）；其余占位由 reviews.json 配置 + 注入参数补齐（renderTemplate 缺参即抛）。
     const cfg = reviewTypeConfig(opts.type);
@@ -160,22 +172,18 @@ async function runReview(opts) {
   // task-{N}-task-review-{R}.json and rejects when its blockers = 0.
   const slug = path.basename(opts.plan, ".md");
   const taskWs = path.join(gitToplevel(process.cwd()), ".superpowers", "cdd", slug);
-  const reviewFiles = existsSync(taskWs)
-    ? readdirSync(taskWs).filter((f) => f.match(new RegExp(`^task-${opts.task}-task-review-(\\d+)\\.json$`)))
-    : [];
-  const latestRound = reviewFiles
-    .map((f) => Number(f.match(/(\d+)\.json$/)[1]))
-    .sort((a, b) => a - b).at(-1);
-  // --round 校验回填（task 侧：next round = latest+1；冲突 exit 2，对齐 spec/plan/branch）。
-  if (opts.round && Number(opts.round) !== (latestRound ?? 0) + 1) {
-    process.stderr.write(`--round ${opts.round} ≠ engine round ${(latestRound ?? 0) + 1}\n`);
+  // task round 经 review-loop 层 type-aware resolveNextRound 推导（复用 reviewRoundPattern 的
+  // task-{N}-task-review-{R}.json 模式，不再手搓 readdirSync）。
+  const nextTaskRound = resolveNextRound(taskWs, "task", { task: opts.task });
+  // --round 校验回填（task 侧：next round 推导值；冲突 exit 2，对齐 spec/plan/branch）。
+  if (opts.round && Number(opts.round) !== nextTaskRound) {
+    process.stderr.write(`--round ${opts.round} ≠ engine round ${nextTaskRound}\n`);
     process.exit(2);
   }
-  if (latestRound) {
-    const th = JSON.parse(readFileSync(path.join(taskWs, `task-${opts.task}-task-review-${latestRound}.json`), "utf8"));
-    // Stop only on an APPROVED round with blocker=0 — a BLOCKED/TIMEOUT failure round
-    // (findings:[]) must remain re-dispatchable (SP-4).
-    if (th?.status === "APPROVED" && blockerCount(th) === 0) stoppedExit3("task", latestRound, opts.plan, th?.blocker);
+  if (nextTaskRound > 1) {
+    const prevR = nextTaskRound - 1;
+    const th = JSON.parse(readFileSync(path.join(taskWs, `task-${opts.task}-task-review-${prevR}.json`), "utf8"));
+    reviewStoppingGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
   }
   const { runTask } = await import("./lib/runner.mjs");
   await runTask(opts.harness, opts.task, {
@@ -220,9 +228,7 @@ async function runBranchReview(opts) {
   const prev = existsSync(prevPath) ? JSON.parse(readFileSync(prevPath, "utf8")) : null;
   // Stop only on an APPROVED round with blocker=0 (SP-4) — a BLOCKED/TIMEOUT branch review
   // round with findings:[] must be re-dispatchable, not rejected as "already done".
-  if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) {
-    stoppedExit3("branch", round, `${base7}..${head7}`, prev?.blocker);
-  }
+  if (prev) reviewStoppingGuard(prev, "branch", round, `${base7}..${head7}`);
 
   // Per-round handoff filename (branch-fix-loop re-reviews reuse distinct files).
   const handoffFile = `branch-review-${base7}..${head7}-r${round}.json`;
@@ -239,7 +245,7 @@ async function runBranchReview(opts) {
     return;
   }
 
-  // Task 4: branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
+  /// branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
   const cfg = reviewTypeConfig("branch");
   const { renderHandoffStub, REVIEW_H1_BLOCK } = await import("./lib/templates.mjs");
   const { loadHandoffSchema } = await import("./lib/schema-utils.mjs");
@@ -265,11 +271,7 @@ async function runBranchReview(opts) {
 
   if (!res.ok) {
     if (!existsSync(handoffPath)) {
-      writeHandoff(handoffPath, {
-        task: 1, phase: "branch-review", status: "BLOCKED",
-        commits: { base, head }, findings: [], artifacts: {},
-        blocker: `cli exited ${res.code} without writing handoff`,
-      });
+      writeBranchBlocked(handoffPath, { base, head, code: res.code });
     }
     process.stderr.write(`CDD_BLOCKED: branch-review failed (exit ${res.code})\n`);
     exitWithCode(1);
@@ -336,7 +338,7 @@ async function runFix(opts) {
     process.stderr.write(`cdd fix --type ${opts.type}: missing required --doc <path>\n`);
     process.exit(2);
   }
-  // Task 4: fix 模板统一走 reviews.json fixTemplate（spec/plan → "doc-fix" 共享壳）。
+  /// fix 模板统一走 reviews.json fixTemplate（spec/plan → "doc-fix" 共享壳）。
   // 旧 spec-fix/plan-fix 已删，无 fallback；docs-runner 对非 `-review` 名直传（不再 double-suffix）。
   const template = reviewTypeConfig(opts.type).fixTemplate;
   const { runDocsTask } = await import("./lib/docs-runner.mjs");

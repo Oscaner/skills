@@ -8,7 +8,7 @@
     "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements); single agent, dual axis, no parallel sub-agents",
     "returnMode": "h1",
     "handoffType": "cdd",
-    "fixTemplate": "fix"
+    "fixTemplate": "task-fix"
   },
   "branch": {
     "lensEnum": [

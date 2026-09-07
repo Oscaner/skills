@@ -65,7 +65,7 @@ export async function spawnCapture(command, args, opts = {}) {
 }
 
 // Invoke CLI: build args from entry, handle stream-json output mode.
-// Task 5: params = { op, type? } — operation×type injection replaces the positional mode
+/// params = { op, type? } — operation×type injection replaces the positional mode
 //   arg. op: implement|review|fix（review 带 type: task|branch|spec|plan）。解析在
 //   registry.mjs resolveInjection/resolveSuffix（entry.{prefix,suffix}[op][type?]）统一解析，不再调用点内联镜像。
 //   legacy 兼容：op 传扁平 mode 键（"task-review" 等）时 resolveInjection 直接命中旧键。
@@ -119,7 +119,7 @@ function extractStreamJsonFinal(raw) {
 
 // Transient retry wrapper for invokeCli (#109 fix).
 // Retries only on overloaded/rate_limit/529 stderr, never on timeout.
-// Task 5: params { op, type? } 签名与 invokeCli 同步透传。
+/// params { op, type? } 签名与 invokeCli 同步透传。
 const RETRY_DELAYS_MS = [5_000, 15_000];
 
 export async function invokeCliWithRetry(entry, prompt, params, env, cwd, timeoutMs) {

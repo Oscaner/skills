@@ -34,18 +34,15 @@ export function registryField(reg, harness, field) {
 //   缺省（无 prefix / 无 op / 子键缺失）→ 空串，避免静默注入假值。
 // 兜底语义：op 传 legacy mode 键（"task-review" 等）时直接命中扁平键 —— 未迁移的
 // registry（/CDD_REGISTRY_PATH 覆盖）不会静默空注入。
-export function resolveInjection(entry, op, type) {
-  const p = entry?.prefix?.[op] ?? "";
-  if (p && typeof p === "object") return type ? (p[type] ?? "") : "";
-  return typeof p === "string" ? p : "";
+function resolveInjectionField(entry, field, op, type) {
+  const v = entry?.[field]?.[op] ?? "";
+  if (v && typeof v === "object") return type ? (v[type] ?? "") : "";
+  return typeof v === "string" ? v : "";
 }
 
-// suffix 注入解析（与 resolveInjection 同构；调用点不得内联第二份阶梯，见 cli-shared）。
-export function resolveSuffix(entry, op, type) {
-  const s = entry?.suffix?.[op] ?? "";
-  if (s && typeof s === "object") return type ? (s[type] ?? "") : "";
-  return typeof s === "string" ? s : "";
-}
+// prefix 注入解析（entry.prefix[op][type?]）；suffix 走 resolveSuffix（同构薄别名，单一实现）。
+export function resolveInjection(entry, op, type) { return resolveInjectionField(entry, "prefix", op, type); }
+export function resolveSuffix(entry, op, type)  { return resolveInjectionField(entry, "suffix", op, type); }
 
 // PATH 查找可执行文件 —— 对齐 cdd_check_cli 的 `command -v`。
 // 导出供 cdd select 复用 —— 检测已装 harness CLI 的单一来源。

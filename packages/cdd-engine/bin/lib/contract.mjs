@@ -153,7 +153,7 @@ export function validateCommitContract(mode, repoRoot, opts = {}) {
 
 // --- CLI entry point (orchestrator calls via node contract.mjs --check-head ...) ---
 // Extracted as an exported function so bin/cdd.mjs (merge surface) can forward to it.
-// Direct-invocation guard retained below (Task 3 removes the standalone entry).
+// Direct-invocation guard retained below (the standalone CLI entry now lives under `cdd` subcommands; the guard stays for direct node invocation).
 export async function runContractCli(args) {
   const flag = args[0];
   const handoffIdx = args.indexOf("--handoff");

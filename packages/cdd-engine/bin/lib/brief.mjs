@@ -29,7 +29,7 @@ export function validateBrief(briefPath) {
 
 // --- CLI entry point (orchestrator calls via node brief.mjs --task N --plan <path> --output <path>) ---
 // Extracted as an exported function so bin/cdd.mjs (merge surface) can forward to it.
-// Direct-invocation guard retained below (Task 3 removes the standalone entry).
+// Direct-invocation guard retained below (the standalone CLI entry now lives under `cdd` subcommands; the guard stays for direct node invocation).
 export function runBriefCli(args) {
   const taskIdx = args.indexOf("--task");
   const planIdx = args.indexOf("--plan");

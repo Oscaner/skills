@@ -32,7 +32,7 @@ const DEFAULT_CHANNEL_MAP = {
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "task-review", "fix"];
 
-// Task 5: mode → invokeCli (op, type?) 注入参数。
+/// mode → invokeCli (op, type?) 注入参数。
 //   task-review → ("review","task")；fix → ("fix","task")；implement → ("implement", null)。
 //   prefix 值经 registry resolveInjection（entry.prefix[op][type?]）解析（见 cli-shared.mjs）。
 const INVOKE_PARAMS = {

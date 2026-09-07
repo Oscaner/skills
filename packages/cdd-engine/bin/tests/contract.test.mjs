@@ -3,9 +3,9 @@
 //   dirty-tree → blocked + handoff.status=BLOCKED；head-mismatch → blocked（F1）；
 //   clean-tree → pass；非 git → fail-open ok:true；review 模式 → no-op。
 // 移植 cdd-severity-contract.test.sh（30 断言）的语义核心（非 grep 散文，而是可执行契约）：
-//   classifySeverity：blocker→CHANGES_REQUESTED；warn/nit→deferred；unverifiable/needs_context→STOP。
+//   classifySeverity：blocker→CHANGES_REQUESTED；warn/nit→APPROVED；unverifiable/needs_context→STOP。
 //   rollupStatus：warn/nit→APPROVED；含 blocker→CHANGES_REQUESTED；unverifiable/plan_conflicts→BLOCKED。
-//   markDeferred：warn/nit 无条件 deferred:true。
+//   validateHandoffSchema：notes 可选字段被 schema 接受（AC10，Enh T）。
 // writeHandoff：按 docs/handoff-schema.md 写 + 合并已有（H6 链 update 语义）。
 import { it, expect } from 'vitest';
 import { execFileSync } from "node:child_process";
@@ -21,10 +21,10 @@ import {
   writeHandoff,
   classifySeverity,
   rollupStatus,
-  markDeferred,
   normalizeHandoffStatus,
   gitCatFileCommitExists,
 } from "../lib/contract.mjs";
+import { validateHandoffSchema } from "../lib/schema-utils.mjs";
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -169,9 +169,9 @@ it("classifySeverity: blocker → CHANGES_REQUESTED", () => {
   expect(classifySeverity("blocker")).toBe("CHANGES_REQUESTED");
 });
 
-it("classifySeverity: warn/nit → deferred", () => {
-  expect(classifySeverity("warn")).toBe("deferred");
-  expect(classifySeverity("nit")).toBe("deferred");
+it("classifySeverity: warn/nit → APPROVED（Enh S）", () => {
+  expect(classifySeverity("warn")).toBe("APPROVED");
+  expect(classifySeverity("nit")).toBe("APPROVED");
 });
 
 it("classifySeverity: unverifiable / needs_context → STOP", () => {
@@ -198,11 +198,16 @@ it("rollupStatus: unverifiable / plan_conflicts 非空 → BLOCKED", () => {
   expect(rollupStatus([], [], [{ plan_section: "§2", finding_summary: "x" }])).toBe("BLOCKED");
 });
 
-it("markDeferred: warn/nit 无条件 deferred:true，blocker 不标", () => {
-  const out = markDeferred([{ severity: "warn" }, { severity: "nit" }, { severity: "blocker" }]);
-  expect(out[0].deferred).toBe(true);
-  expect(out[1].deferred).toBe(true);
-  expect(out[2].deferred).toBeUndefined();
+it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => {
+  const r = validateHandoffSchema({
+    task: 1,
+    phase: "fix",
+    status: "APPROVED",
+    artifacts: {},
+    findings: [],
+    notes: "test-evidence re-recorded after fixing findings",
+  });
+  expect(r).toEqual({ valid: true });
 });
 
 it("normalizeHandoffStatus: TIMEOUT → TIMEOUT（透传，无映射）", () => {

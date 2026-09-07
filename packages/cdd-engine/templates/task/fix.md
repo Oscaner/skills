@@ -41,6 +41,9 @@ Write/update `{{HANDOFF}}` with only JSON fields shown below (file-only; the sam
 3. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
 4. `commits.base` = `{{FIXED_POINT}}` (fix dispatch `FIX_BASE`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
 
+Evidence notes (why this fix / why test-evidence was re-recorded) go in the `notes` field (optional string);
+command output files are referenced via `test_evidence` / `artifacts` — never inline output bodies.
+
 Write the following JSON stub to `{{HANDOFF}}` (fill in your actual values):
 
 {{HANDOFF_STUB}}

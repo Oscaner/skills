@@ -1,6 +1,6 @@
 // engine/lib/contract.mjs — CDD commit-contract validator + handoff write（Node port of
 // cdd_validate_commit_contract / _cdd_rewrite_handoff_blocked + skills/cli-driven-development/docs/handoff-schema.md 写入）。
-// classifySeverity / rollupStatus / markDeferred 是 severity→status+deferred 决策的 Node 钉死契约
+// classifySeverity / rollupStatus 是 severity→status 决策的 Node 钉死契约
 // （spec D1/D4/D5a；port 自 cdd-severity-contract.test.sh 的语义而非其 grep 散文）。
 // runner.mjs（T2）在嵌套 CLI 失败时用 writeHandoff 捕获 stderr 进 blocker（唯一 sanctioned divergence）。
 import { execFileSync } from "node:child_process";
@@ -86,7 +86,7 @@ export function normalizeHandoffStatus(status) {
 }
 
 // severity → 决策。契约钉死（spec D1/D4/D5a）：
-//   "blocker" → "CHANGES_REQUESTED"；"warn"|"nit" → "deferred"（APPROVED 且 findings deferred）；
+//   "blocker" → "CHANGES_REQUESTED"；"warn"|"nit" → "APPROVED"（warn/nit 同样全量进入 fix loop 修复）；
 //   "unverifiable" / "needs_context" → "STOP"（BLOCKED）。未知 → 抛错（契约违规）。
 export function classifySeverity(sev) {
   const s = String(sev).toLowerCase().replaceAll("-", "_");
@@ -95,7 +95,7 @@ export function classifySeverity(sev) {
       return "CHANGES_REQUESTED";
     case "warn":
     case "nit":
-      return "deferred";
+      return "APPROVED";
     case "unverifiable":
     case "needs_context":
       return "STOP";
@@ -105,19 +105,12 @@ export function classifySeverity(sev) {
 }
 
 // findings[] roll-up → handoff status（对齐 handoff-schema「Severity → status mapping」表）：
-//   空 → APPROVED；仅 warn/nit（deferred）→ APPROVED；含 blocker → CHANGES_REQUESTED；
+//   空 → APPROVED；仅 warn/nit → APPROVED；含 blocker → CHANGES_REQUESTED；
 //   unverifiable[] / plan_conflicts[] 非空 → BLOCKED。
 export function rollupStatus(findings = [], unverifiable = [], planConflicts = []) {
   if (unverifiable.length > 0 || planConflicts.length > 0) return "BLOCKED";
   const hasBlocker = findings.some((f) => f?.severity === "blocker");
   return hasBlocker ? "CHANGES_REQUESTED" : "APPROVED";
-}
-
-// 任何 warn/nit finding 无条件标 deferred:true（防止 minor 被错误拖入 fix loop）。
-export function markDeferred(findings = []) {
-  return findings.map((f) =>
-    f?.severity === "warn" || f?.severity === "nit" ? { ...f, deferred: true } : f,
-  );
 }
 
 // ---- commit-contract validator ----

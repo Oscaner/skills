@@ -16,12 +16,14 @@ Single source of truth for task-N-handoff.json — cited by [`controller-handoff
 | `findings[]` content | handoff `status` |
 |---|---|
 | Empty | `APPROVED` (review clean) |
-| Only `warn`/`nit` (deferred) | `APPROVED` (with deferred details) |
+| Only `warn`/`nit` | `APPROVED` (fixed in the subsequent fix round) |
 | Contains `blocker` (regardless of accompanying `warn`/`nit`) | `CHANGES_REQUESTED` |
 | `unverifiable[]` non-empty | `BLOCKED` (unchanged) |
 | `plan_conflicts[]` non-empty | `BLOCKED` (orchestrator STOP, unchanged) |
 
-**Any `warn`/`nit` finding is unconditionally marked `deferred: true` — regardless of whether `blocker` is also present in the same round (prevents minor findings from being incorrectly dragged into the fix loop).** In mixed rounds (blocker + warn/nit), warn/nit are still marked deferred — the deferred flag and the status decision are two independent steps.
+**All findings — `blocker`, `warn`, and `nit` — are fixed in full during the fix round (always-fix-all); there is no exemption channel.** The status decision and the fix set are independent: any `blocker` → `CHANGES_REQUESTED`; only `warn`/`nit` (or empty) → `APPROVED`, with warn/nit fixes still applied by the subsequent fix round.
+
+`notes`: optional string — fix-phase evidence clarification (why this fix / test-evidence re-record note).
 
 ## Single task
 
@@ -54,7 +56,7 @@ Single source of truth for task-N-handoff.json — cited by [`controller-handoff
 }
 ```
 
-Example — review segment with a deferred minor (warn/nit → APPROVED):
+Example — review segment with only a warn/nit finding (→ APPROVED):
 
 ```json
 {
@@ -72,8 +74,7 @@ Example — review segment with a deferred minor (warn/nit → APPROVED):
       "severity": "nit",
       "section": "§4.1",
       "summary": "...",
-      "fix": "...",
-      "deferred": true
+      "fix": "..."
     }
   ],
   "unverifiable": [],
@@ -115,9 +116,9 @@ Full 40-char SHA from `git rev-parse HEAD`. Never use `--short`, `git log --form
 
 ## Review arrays
 
-**`findings[]`** — review findings: `[{lens, severity, section|file, line?, summary, fix, deferred?}]`. Parsed from the axis report findings JSON block; merged on review/fix segments. Same shape as `task-N-open-findings.json`.
+**`findings[]`** — review findings: `[{lens, severity, section|file, line?, summary, fix}]`. Parsed from the axis report findings JSON block; merged on review/fix segments. Same shape as `task-N-open-findings.json`.
 
-`deferred` is an optional field: `blocker` findings have no such field (or `false`); `warn`/`nit` findings are `deferred: true`. See the annotation in the "Severity -> status mapping" table above for marking rules. Roll-up aggregation uses `filter(.deferred == true)`; deferred items do not enter the fix loop.
+Findings carry no exemption flag — minor findings are no longer exempt from the fix loop (see the review contract §Eliminated). All findings (`blocker` + `warn` + `nit`) enter the fix loop and are fixed in full; the severity → status decision is made by the mapping table above.
 
 **`unverifiable[]`** — string list of items axis reports flag as "cannot verify" / "unverifiable". Non-empty → set `status: BLOCKED`.
 

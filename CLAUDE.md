@@ -51,7 +51,7 @@ For osuperpowers plugin internals (hooks matrix, overrides pattern, emit details
 
 ## Review Stopping (CDD + doc-review)
 
-Unified rule in `packages/osuperpowers/skills/_docs/docs-review.md` § Rule: Review Stopping.
+Unified rule in `packages/osuperpowers/skills/_docs/review.md` § Rule: Review Stopping. Single-cycle, single-dispatch (all review types — task / branch / spec / plan).
 - blocker > 0: `cli-fix-all-findings` → re-run review
 - blocker = 0: `cli-fix-all-findings` → done (no re-review after blocker=0)
 All findings (blocker + warn + nit) are fixed in both paths.

@@ -160,17 +160,17 @@ flowchart TD
 
 ### `spec-review?`
 
-- **Do**: Execute 3-pass spec review (completeness / consistency&scope / clarity&YAGNI). Each pass **must** dispatch `docs-task --harness <name> --mode review --template spec-review --doc <path> --param PASS=<lens>`. **Self-review, manual checks, or any other substitute for docs-task CLI invocation is forbidden.** Follow D2/D3 from `_docs/docs-review.md` (D1 skip-on-clean does not apply — all 3 passes are mandatory). Review Stopping (I5): follow [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md — blocker>0: cli-fix-all-findings → re-run; blocker=0: cli-fix-all-findings → done. No re-run after blocker=0.
-- **Read**: Spec document + `_docs/docs-review.md`
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --harness <name> --doc <path>` (covers completeness / consistency / clarity in a single run; findings are lens-tagged; round auto-increments in the engine). **Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden.** Review Stopping (I5): follow [Review Stopping](../_docs/review.md#rule-review-stopping) in `_docs/review.md` (node-anchored SSoT) — blocker>0: cli-fix-all-findings → re-run; blocker=0: cli-fix-all-findings → done. No re-run after blocker=0.
+- **Read**: Spec document + `_docs/review.md`
 - **Exit**: blocker=0 → `cli-fix-all-findings` → `user-confirm-commit?`
 - **Fail**: Re-run review after blocker=0 → violates I5 (Review Stopping).
 
 ### `cli-fix-all-findings`
 
-- **Do**: Apply all findings from the captured docs-task review output to the spec document. No new review invocation — work from findings already captured in the current review cycle. When routed from blocker>0: fix blockers, then route back to `spec-review?`. When routed from blocker=0: fix warns/nits (optional), then proceed to `user-confirm-commit?`.
-- **Read**: captured docs-task review output (findings from current review cycle)
+- **Do**: Fix ALL findings from the captured cdd review handoff (blocker + warn + nit) — `cdd fix --type spec --harness <name> --doc <path> --findings <handoff-path>`. No new review invocation — work from findings already captured in the current review cycle. When routed from blocker>0: fix, then route back to `spec-review?`. When routed from blocker=0: fix all findings, then proceed to `user-confirm-commit?`.
+- **Read**: captured cdd review handoff (findings from current review cycle)
 - **Exit**: blocker>0 path → `spec-review?`; blocker=0 path → `user-confirm-commit?`
-- **Fail**: Invoke new docs-task call instead of reading from captured review output → violates I5 (Review Stopping).
+- **Fail**: Invoke a new cdd review call instead of fixing from captured findings → violates I5 (Review Stopping).
 
 ### `commit-spec`
 
@@ -208,7 +208,7 @@ flowchart TD
 | I2 | **Research requires user confirmation** — spawn research agents only after explicit user confirmation; never auto-trigger |
 | I3 | **Design first** — no implementation actions until design is user-approved |
 | I4 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
-| I5 | **Review Stopping** — see [Review Stopping](../_docs/docs-review.md#rule-review-stopping) in docs-review.md; never re-run after blocker=0; fixing without re-running docs-task does not satisfy blocker=0 |
+| I5 | **Review Stopping** — see [Review Stopping](../_docs/review.md#rule-review-stopping) in review.md; never re-run after blocker=0; fixing without re-running cdd review does not satisfy blocker=0 |
 | I6 | **Register-before-grill** (scope: `phase-within-program` mode) — grilling runs only for phases already present in the overall Phase inventory. `new-program` mode passes through the `claim-phase` node but **skips the inventory check** to reach grilling directly (digraph `E -->|new-program mode| F`). In `phase-within-program` mode, if mid-grill a phase split / new issue emerges → route back to `claim-phase` → `sync-overall`; never grill unregistered scope. |
 | I7 | **Serial-phase** — when `sync-overall` registers a new phase, verify its hard-dependency predecessor has **Design spec column = `Done`** in the overall Phase inventory; if not shipped (Design spec ≠ `Done`) → hard `BLOCKED: overall-sync-failed` (same terminal as §2.3; never release grilling for an unmet phase — this is exactly the v1.19c anti-pattern to block). |
 | I8 | **Mode-aware flow** — `grilling-mode?` node branches behavior based on `read-program` mode: `new-program` → scope-level grilling → `propose-phase-approaches`; `phase-within-program` → implementation grilling → `propose-approaches`. `write-spec` node determines write granularity based on mode: `new-program` → charter-only (no implementation details); `phase-within-program` → phase-level detailed design. Mode marker is carried throughout the flow. |
@@ -225,7 +225,7 @@ flowchart TD
 | Parent overall spec unparseable / multiple matches | BLOCKED (overall-parse-failed) | mode resolution cannot proceed | prompt user to specify the unique parent overall path |
 | Phase inventory missing or unparseable | BLOCKED (overall-sync-failed) | claim-phase / sync-overall cannot gate | user supplies or fixes the overall Phase inventory |
 | Four-table sync inconsistent (dependency not shipped / dangling ref) | BLOCKED (overall-sync-failed) | refuse to grill an unregistered / unmet-dependency phase | fix the overall four tables, then re-run sync-overall |
-| spec-review re-run after blocker=0 | Violates I5 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running docs-task on that pass |
+| spec-review re-run after blocker=0 | Violates I5 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd review on that pass |
 | Grilling self-check fails 2 consecutive times | BLOCKED (grilling discipline broken) | Self-check mechanism failed, user intervention required |
-| spec-review does not invoke docs-task CLI | Violates spec-review Do — must re-execute | Review substitution anti-pattern |
+| spec-review does not invoke cdd review CLI | Violates spec-review Do — must re-execute | Review substitution anti-pattern |
 | write-spec template missing/unreadable | BLOCKED (missing template) | Cannot determine write format |

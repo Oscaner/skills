@@ -115,7 +115,7 @@ Full 40-char SHA from `git rev-parse HEAD`. Never use `--short`, `git log --form
 
 ## Review arrays
 
-**`findings[]`** — D3 review findings: `[{lens, severity, section|file, line?, summary, fix, deferred?}]`. Parsed from axis report `## Findings (D3)` JSON block; merged on review/fix segments. Same shape as `task-N-open-findings.json`.
+**`findings[]`** — review findings: `[{lens, severity, section|file, line?, summary, fix, deferred?}]`. Parsed from the axis report findings JSON block; merged on review/fix segments. Same shape as `task-N-open-findings.json`.
 
 `deferred` is an optional field: `blocker` findings have no such field (or `false`); `warn`/`nit` findings are `deferred: true`. See the annotation in the "Severity -> status mapping" table above for marking rules. Roll-up aggregation uses `filter(.deferred == true)`; deferred items do not enter the fix loop.
 

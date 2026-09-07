@@ -39,7 +39,7 @@ Hooks ship inside the osuperpowers plugin and activate only when the plugin is i
 
 `packages/osuperpowers/docs/` held two cross-cutting reference docs that have been relocated during P3:
 
-- `docs-review.md` (D1/D2/D3 + Review Stopping + Handoff Output) → `skills/brainstorming/docs/docs-review.md`
+- `review.md` (URC — Review Stopping + Handoff Output; the former `docs-review.md` renamed during P3) → `skills/_docs/review.md`
 - `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
 Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-review and branch-review use their own mechanisms.
@@ -188,7 +188,7 @@ Any handoff written to disk (including BLOCKED/TIMEOUT) increments the round cou
 ### Docs review/fix (`cdd review|fix --type spec|plan`)
 
 Document review flows through the merged `cdd` CLI (the former `docs-task` bin).
-- `cdd review --type spec|plan --doc <path>`: runs D1/D2/D3 doc review, writes `<workspace>/spec-<round>.json` / `<workspace>/plan-<round>.json`
+- `cdd review --type spec|plan --harness <name> --doc <path>`: runs the single-cycle doc review (URC contract in `skills/_docs/review.md`), writes `<workspace>/spec-<round>.json` / `<workspace>/plan-<round>.json`
 - `cdd fix --type spec|plan --doc <path> --findings <review-N-handoff-path>`: fixes all findings, writes the fix round handoff
 - branch-level review is a separate path: `cdd review --type branch` (not a docs review; no `--doc`)
 

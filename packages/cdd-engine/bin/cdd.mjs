@@ -509,13 +509,17 @@ program
     await runResearch(opts);
   });
 
-// --- brief / contract (delegated to lib module CLI entries) ---
+// --- brief / contract (delegated to lib module CLI entries; Commander opts → 结构化 argv，不二次解析 process.argv) ---
 program
   .command("brief")
   .requiredOption("--task <n>", "task number")
   .requiredOption("--plan <path>", "plan path")
   .option("--output <path>", "brief output path")
-  .action(() => runBriefCli(process.argv.slice(3)));
+  .action((opts) => runBriefCli([
+    "--task", String(opts.task),
+    "--plan", opts.plan,
+    ...(opts.output ? ["--output", opts.output] : []),
+  ]));
 
 program
   .command("contract")
@@ -524,7 +528,13 @@ program
   .option("--handoff <path>")
   .option("--progress <path>")
   .option("--clear-findings")
-  .action(() => runContractCli(process.argv.slice(3)));
+  .action((opts) => runContractCli([
+    ...(opts.checkDirty ? ["--check-dirty"] : []),
+    ...(opts.checkHead ? ["--check-head"] : []),
+    ...(opts.handoff ? ["--handoff", opts.handoff] : []),
+    ...(opts.progress ? ["--progress", opts.progress] : []),
+    ...(opts.clearFindings ? ["--clear-findings"] : []),
+  ]));
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).
 const isMain =

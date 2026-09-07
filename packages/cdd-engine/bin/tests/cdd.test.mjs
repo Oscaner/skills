@@ -55,11 +55,13 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
-  it("dry-run review --type branch → H1 + exit 0（随机 base/head 避免 Review Stopping 误拒）", () => {
+  it("dry-run review --type branch → H1 + exit 0（随机 base/head 避免 Review Stopping 误拒；tmp plan 避免向真实 workspace 写副作用）", () => {
     const base = `base${Date.now().toString(16).slice(-4)}`;
     const head = `head${Date.now().toString(16).slice(-8, -4)}`;
+    const tmpPlan = path.join(mkdtempSync(path.join(tmpdir(), "cdd-br-")), "plan.md");
+    writeFileSync(tmpPlan, "### Task 1:\n- base: develop\n");
     const r = runCli(["review", "--type", "branch", "--harness", "claude",
-      "--plan", SMOKE_PLAN, "--base", base, "--head", head],
+      "--plan", tmpPlan, "--base", base, "--head", head],
       { env: { CDD_DRY_RUN: "1" } });
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/status: APPROVED/);
@@ -138,7 +140,8 @@ describe("cdd CLI", () => {
     const ws = path.join(dir, ".superpowers", "cdd", "zz-stop-test");
     mkdirSync(ws, { recursive: true });
     writeFileSync(path.join(ws, "task-1-task-review-1.json"),
-      JSON.stringify({ task: 1, phase: "task-review", status, findings: [], ...(status !== "APPROVED" ? { blocker: "boom" } : {}) }));
+      JSON.stringify({ task: 1, phase: "task-review", status, artifacts: {}, findings: [],
+        ...(status !== "APPROVED" ? { blocker: "boom" } : {}) }));
     return { dir, plan };
   }
 

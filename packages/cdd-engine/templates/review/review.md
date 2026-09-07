@@ -4,16 +4,27 @@
 
 **Reference:** {{REFERENCE}}
 
+{{PLAN_LINE}}
+
 ## Review focus
 
 {{AXES}}
 
-## Findings output
+## Return contract
 
-Return findings only, JSON: `{"findings":[{ "lens": "'{{LENS_GUIDE}}'任一", "severity": "blocker|warn|nit", "section": "...", "line": 0, "summary": "...", "fix": "..." }]}`.
-每条 finding 必须带 lens（防混排）；空数组 = approved。
+This review's `returnMode` is **{{RETURN_MODE}}**:
+
+- `json` (spec/plan): return findings ONLY as a JSON object `{"findings":[{ "lens": "<one of {{LENS_GUIDE}}>", "severity": "blocker|warn|nit", "section": "...", "line": 0, "summary": "...", "fix": "..." }]}`. Every finding MUST carry its `lens` label (prevents axis mixing); empty `findings` array = approved. No additional prose.
+- `h1` (task/branch): collect findings into `{{HANDOFF}}` `findings[]` (do not print them), then output the H1 block below to stdout; the H1 four-line contract is the ONLY stdout content.
 
 ## Handoff
 
-Write handoff JSON to `{{HANDOFF}}`（schema: {{HANDOFF_TYPE}}; returnMode: {{RETURN_MODE}}）。
+Write/update `{{HANDOFF}}` JSON per the schema shown below (schema family: {{HANDOFF_TYPE}}).
+
+{{HANDOFF_STUB}}
+
+## Self-validate
+
+`{{HANDOFF}}` → `status`/`phase`/`artifacts`/`findings` non-null（h1 类另要求 `commits.base`/`commits.head`）。Fail → `status: BLOCKED`。
+
 {{H1_BLOCK}}

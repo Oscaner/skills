@@ -1,7 +1,7 @@
 {
   "task":   { "lensEnum": ["standards","spec"], "ref": "TASK_BASE..HEAD",
               "axesGuide": "standards 轴（仓库编码规范 + code-review smell baseline）+ spec 轴（task brief / 计划要求）；单 agent 双轴、禁并行 sub-agents",
-              "returnMode": "h1", "handoffType": "cdd", "fixTemplate": "task-fix" },
+              "returnMode": "h1", "handoffType": "cdd", "fixTemplate": "fix" },
   "branch": { "lensEnum": ["standards","spec"], "ref": "BASE..HEAD",
               "axesGuide": "同 task 双轴（全分支健康度：diff BASE..HEAD + 计划符合性）",
               "returnMode": "h1", "handoffType": "cdd", "fixTemplate": null },

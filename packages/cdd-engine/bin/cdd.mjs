@@ -135,6 +135,7 @@ async function runReview(opts) {
         RETURN_MODE: cfg.returnMode,
         HANDOFF_TYPE: cfg.handoffType,
         H1_BLOCK: "",
+        PLAN_LINE: opts.spec ? `**Spec:** ${opts.spec}` : "",
       },
       workspace: ws, repoRoot: gitToplevel(process.cwd()),
       dryRun: DRY_RUN(),
@@ -245,6 +246,7 @@ async function runBranchReview(opts) {
     HANDOFF_TYPE: cfg.handoffType,
     RETURN_MODE: cfg.returnMode,
     H1_BLOCK: REVIEW_H1_BLOCK,
+    PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
   }, "cdd review");
 
   // Invoke harness CLI.
@@ -481,7 +483,7 @@ program
   .option("--base <sha>", "base commit (type=task|branch)")
   .option("--head <sha>", "head commit (type=task|branch)")
   .option("--round <n>", "round backfill (validate against engine auto-increment)")
-  .option("--spec <path>", "spec document path (type=plan; reviews.json plan 轴经 axesGuide 引用 spec 覆盖，压缩文档不内嵌)")
+  .option("--spec <path>", "spec document path (type=plan; reviews.json plan 轴经 axesGuide 引用 spec 覆盖，取值不内嵌文档；兼容旧 --param SPEC= 语义)")
   .action(async (opts) => {
     await runReview(opts);
   });

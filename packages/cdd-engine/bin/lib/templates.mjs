@@ -104,6 +104,7 @@ export function renderModePrompt(mode, env = {}) {
       HANDOFF_TYPE: cfg.handoffType,
       RETURN_MODE: cfg.returnMode,
       H1_BLOCK: REVIEW_H1_BLOCK,
+      PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
     });
   }
   const modePath = templatePath(mode);

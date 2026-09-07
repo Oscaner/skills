@@ -40,6 +40,13 @@ export function resolveInjection(entry, op, type) {
   return typeof p === "string" ? p : "";
 }
 
+// suffix 注入解析（与 resolveInjection 同构；调用点不得内联第二份阶梯，见 cli-shared）。
+export function resolveSuffix(entry, op, type) {
+  const s = entry?.suffix?.[op] ?? "";
+  if (s && typeof s === "object") return type ? (s[type] ?? "") : "";
+  return typeof s === "string" ? s : "";
+}
+
 // PATH 查找可执行文件 —— 对齐 cdd_check_cli 的 `command -v`。
 // 导出供 cdd select 复用 —— 检测已装 harness CLI 的单一来源。
 export function cliInPath(cli) {

@@ -15,7 +15,7 @@ vi.mock("../lib/contract.mjs", () => ({
 vi.mock("../lib/registry.mjs", async () => {
   // Task 5: cli-shared 从 registry 导入 resolveInjection —— mock 复用真实实现，
   // checkHarness 返回带完整 operation×type prefix 的条目（验证 docs-runner type 透传注入）。
-  const { resolveInjection } = await vi.importActual("../lib/registry.mjs");
+  const { resolveInjection, resolveSuffix } = await vi.importActual("../lib/registry.mjs");
   return {
     loadRegistry: vi.fn(() => ({})),
     checkHarness: vi.fn(() => ({
@@ -30,6 +30,7 @@ vi.mock("../lib/registry.mjs", async () => {
       suffix: {},
     })),
     resolveInjection,
+    resolveSuffix,
   };
 });
 

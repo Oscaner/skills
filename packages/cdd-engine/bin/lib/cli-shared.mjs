@@ -1,6 +1,6 @@
 // packages/cdd-engine/bin/lib/cli-shared.mjs
 import { execa } from 'execa';
-import { resolveInjection } from './registry.mjs';
+import { resolveInjection, resolveSuffix } from './registry.mjs';
 
 // Default timeouts by mode (30 minutes).
 const DEFAULT_TIMEOUTS = { task: 1_800_000, review: 1_800_000, research: 1_800_000 };
@@ -67,7 +67,7 @@ export async function spawnCapture(command, args, opts = {}) {
 // Invoke CLI: build args from entry, handle stream-json output mode.
 // Task 5: params = { op, type? } — operation×type injection replaces the positional mode
 //   arg. op: implement|review|fix（review 带 type: task|branch|spec|plan）。解析在
-//   registry.mjs resolveInjection（entry.prefix[op][type?]），suffix 在调用点同构镜像。
+//   registry.mjs resolveInjection/resolveSuffix（entry.{prefix,suffix}[op][type?]）统一解析，不再调用点内联镜像。
 //   legacy 兼容：op 传扁平 mode 键（"task-review" 等）时 resolveInjection 直接命中旧键。
 // joined with `\n` so the prefix forms its own first line.
 // Bug O Step 5b: workspace propagates to the spawned CLI via CDD_GATE_WORKSPACE /
@@ -77,15 +77,12 @@ export async function spawnCapture(command, args, opts = {}) {
 // CDD_SESSION_MODE=cli re-arms strict gating (operator-CLI threat model).
 export async function invokeCli(entry, prompt, params, env, cwd, timeoutMs) {
   const { cli, invoke, output } = entry;
-  const { prefix, suffix } = entry;
   // 兜底：params 为 string（旧位置 mode 参数）时归一为 { op } —— op=扁平米键直解
   // （未迁移 registry 的 "task-review" 等键），避免静默空注入；真正缺席时回退空注入。
   const paramsObj = typeof params === "string" ? { op: params } : (typeof params === "object" && params ? params : {});
   const { op, type } = paramsObj;
   const p = resolveInjection(entry, op, type);
-  const s = typeof suffix?.[op] === "object"
-    ? (type ? (suffix[op][type] ?? "") : "")
-    : (suffix?.[op] ?? '');
+  const s = resolveSuffix(entry, op, type);
   const promptArg = [p, prompt, s].filter(Boolean).join('\n');
   const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];
   const workspace = env?.CDD_WORKSPACE ?? '';

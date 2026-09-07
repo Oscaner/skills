@@ -480,7 +480,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     agentOut = dryRunH1Block(env, taskNum);
   } else {
     const timeoutMs = resolveTimeoutMs(env, "task");
-    const res = await invokeCliWithRetry(entry, prompt, INVOKE_PARAMS[mode] ?? { op: mode }, env, cwd, timeoutMs);
+    const res = await invokeCliWithRetry(entry, prompt, INVOKE_PARAMS[mode], env, cwd, timeoutMs);
     agentOut = res.ok ? res.stdout : "";
     cliStderr = res.stderr;
     timedOut = res.timedOut === true;

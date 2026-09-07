@@ -13,7 +13,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
       - uses: ./.github/actions/setup
-      - uses: ./.github/actions/link-cdd-engine
       - uses: ./.github/actions/validate
+      - uses: ./.github/actions/link-cdd-engine
       - uses: ./.github/actions/install-harness
       - run: node scripts/run.mjs smoke-cdd

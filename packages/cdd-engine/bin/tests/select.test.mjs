@@ -1,4 +1,4 @@
-// bin/tests/select.test.mjs — Vitest port of the legacy cdd-select detection + recommendation tests
+// bin/tests/select.test.mjs — Vitest port of the legacy cdd-select detection + recommendation tests（现为 cdd select 子命令）
 // (hermetic mock PATH), now through the merged single CLI (bin/cdd.mjs `select` subcommand).
 // Commander migration: `cdd select` has no explicit args — Commander primarily provides
 // --help; detection/recommendation logic is unchanged.

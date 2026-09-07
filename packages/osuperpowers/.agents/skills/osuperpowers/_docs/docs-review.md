@@ -63,8 +63,8 @@ flowchart TD
 (unchanged). Branch-review: out of scope for this rule.
 
 Path convention (enforced by the cdd engine — `cdd review --type spec|plan --doc <path>`):
-  - spec-review: `<cdd-workspace>/spec-review-{round}.json`
-  - plan-review: `<cdd-workspace>/plan-review-{round}.json`
+  - spec-review: `<cdd-workspace>/spec-{round}.json`（cdd review --type spec 的显式 handoffPath）
+  - plan-review: `<cdd-workspace>/plan-{round}.json`（cdd review --type plan 的显式 handoffPath）
 
 `<cdd-workspace>` = `.superpowers/cdd/<plan-slug>/`
 

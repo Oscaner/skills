@@ -75,7 +75,8 @@ function shellAllowed(command) {
   if (typeof command !== "string") return false;
   // cdd-engine bin on PATH (cdd) is the sanctioned entry point (single merged CLI;
   // legacy cdd-task / docs-task / branch-review unfolded into `cdd <subcommand>`).
-  if (/(^|\s)cdd(\s|$)/.test(command)) return true;
+  // 测宽到已知子命令 token（短 bin 名 + 任意后续命令会被误放行，STD-3 收缩）。
+  if (/(^|\s)cdd\s+(implement|review|fix|select|research|brief|contract)(\s|$|--)/.test(command)) return true;
   return gitVerbAllowed(command);
 }
 

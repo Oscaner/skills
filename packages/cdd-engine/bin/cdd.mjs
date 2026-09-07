@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
 import { renderTemplate, reviewTypeConfig, REVIEW_H1_BLOCK } from "./lib/templates.mjs";
 import { validateHandoffSchema } from "./lib/schema-utils.mjs";
-import { resolveNextRound } from "./lib/review-loop.mjs";
+import { resolveNextRound, reviewStoppedError } from "./lib/review-loop.mjs";
 import { writeHandoff, gitToplevel } from "./lib/contract.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";

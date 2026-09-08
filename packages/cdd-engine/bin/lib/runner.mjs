@@ -15,6 +15,7 @@ import semver from "semver";
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mjs";
+import { handoffName } from "./handoff-naming.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound } from "./progress.mjs";
@@ -30,13 +31,13 @@ const DEFAULT_CHANNEL_MAP = {
 };
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
-const VALID_MODES = ["implement", "task-review", "fix"];
+const VALID_MODES = ["implement", "review", "fix"];
 
 // mode → invokeCli (op, type?) 注入参数。
-//   task-review → ("review","task")；fix → ("fix","task")；implement → ("implement", null)。
+//   review → ("review","task")；fix → ("fix","task")；implement → ("implement", null)。
 //   prefix 值经 registry resolveInjection（entry.prefix[op][type?]）解析（见 cli-shared.mjs）。
 const INVOKE_PARAMS = {
-  "task-review": { op: "review", type: "task" },
+  review: { op: "review", type: "task" },
   fix: { op: "fix", type: "task" },
   implement: { op: "implement" },
 };
@@ -111,7 +112,7 @@ export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
 
 // Aligns _cdd_set_task_env: workspace-derived paths, defaulted only when unset (`${VAR:-default}` semantics);
 // CDD_WORKSPACE / CDD_MODE / CDD_HARNESS are forced. Returns a new env object (does not mutate baseEnv).
-// round: derives per-round handoff path for task-review/fix modes; implement always produces task-N-implement.json.
+// round: derives per-round handoff path for review/fix modes; implement always produces task-N-implement.json.
 // findingsPath (cdd fix --findings): explicit handoff path for this fix round — takes precedence over the
 //   runner-derived prev-phase path (otherwise the fix CLI's --findings would be dead code).
 export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 1, findingsPath } = {}) {
@@ -120,10 +121,17 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 
   env.CDD_HARNESS = harness;
   env.CDD_LEDGER ||= path.join(workspace, "progress.json");
   env.CDD_TASK_BRIEF ||= path.join(workspace, `task-${task}-brief.md`);
-  // Per-phase per-round handoff path (unconditional — always derive from round):
-  const handoffFile = mode === "implement"
-    ? `task-${task}-implement.json`
-    : `task-${task}-${mode}-${round}.json`;
+  // Per-phase per-round handoff path (unconditional — canonical handoff-naming 派生):
+  // implement 用 fixed 族（无 round）；review/fix 用 round 族。非法 mode 回落旧拼字
+  // （派生层只认 canonical 族名，未知族 throw 会打乱后续 validateMode 的拒绝路径）。
+  let handoffFile;
+  if (mode === "implement") {
+    handoffFile = handoffName("implement", "task", { task });
+  } else if (mode === "review" || mode === "fix") {
+    handoffFile = handoffName(mode, "task", { task, round });
+  } else {
+    handoffFile = `task-${task}-${mode}-${round}.json`;
+  }
   env.CDD_HANDOFF_PATH = path.join(workspace, handoffFile); // unconditional assignment
   env.CDD_PLAN_CONSTRAINTS ||= path.join(workspace, "plan-constraints.md");
   env.CDD_MODE = mode;
@@ -132,7 +140,7 @@ export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 
   }
   if (mode === "fix") {
     // CDD_FINDINGS: cdd fix --findings opt wins when provided; otherwise the runner-derived
-    // task-review-R.json path for this fix round (no scope filter).
+    // review-R.json path for this fix round (no scope filter).
     env.CDD_FINDINGS = findingsPath ?? prevHandoffPath(workspace, task, mode, round);
   }
   return env;
@@ -167,29 +175,30 @@ function readJson(filePath) {
   }
 }
 
-// Returns the path of the handoff written by the previous phase for this task.
-// task-review round 1: reads task-N-implement.json
-// task-review round R>1: reads task-N-fix-(R-1).json
-// fix round R: reads task-N-task-review-R.json
+// Returns the path of the handoff written by the previous phase for this task
+//（文件名经 canonical handoff-naming 派生；跨族 prev 表语义保留）。
+// review round 1: reads task-N-implement.json（canonical review.task prev.round1）
+// review round R>1: reads task-N-fix-(R-1).json（canonical review.task prev.roundR）
+// fix round R: reads task-N-review-R.json（canonical fix.task prev.roundR）
 function prevHandoffPath(workspace, task, mode, round) {
-  if (mode === "task-review") {
+  if (mode === "review") {
     return round === 1
-      ? path.join(workspace, `task-${task}-implement.json`)
-      : path.join(workspace, `task-${task}-fix-${round - 1}.json`);
+      ? path.join(workspace, handoffName("implement", "task", { task }))
+      : path.join(workspace, handoffName("fix", "task", { task, round: round - 1 }));
   }
   if (mode === "fix") {
-    return path.join(workspace, `task-${task}-task-review-${round}.json`);
+    return path.join(workspace, handoffName("review", "task", { task, round }));
   }
   return null; // implement has no prior phase
 }
 
 // Aligns cdd_require_env mode validation.
 function validateMode(mode) {
-  if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|task-review|fix (got: ${mode})`;
+  if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|review|fix (got: ${mode})`;
   return null;
 }
 
-// Aligns cdd_require_env: required CDD_* vars + mode-specific extras (task-review → CDD_TASK_REVIEW_FIXED_POINT; fix → CDD_FINDINGS).
+// Aligns cdd_require_env: required CDD_* vars + mode-specific extras (review → CDD_TASK_REVIEW_FIXED_POINT; fix → CDD_FINDINGS).
 function requireEnv(env, mode) {
   const missing = [];
   for (const v of ["CDD_WORKSPACE", "CDD_TASK_BRIEF", "CDD_LEDGER", "CDD_MODE", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS"]) {
@@ -443,7 +452,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   // (old step 4 ledger PLAN_FILE backfill removed — plan is finalized at the entry in resolveRepoRoot)
 
   // 5. Task-review / fix fixed-point — derive from prior-phase handoff (cross-phase read).
-  if (mode === "task-review" || mode === "fix") {
+  if (mode === "review" || mode === "fix") {
     if (!env.CDD_TASK_REVIEW_FIXED_POINT) {
       const prev = prevHandoffPath(workspace, taskNum, mode, round);
       if (prev) {
@@ -587,7 +596,7 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // 13. OK (dry-run does not write handoff — aligns bash: bash dry-run branch does not write, Node does not either).
   //     Advance the round counter on success too — rounds[mode] must reflect the last COMPLETED dispatch so
-  //     handoffStatus/isTaskPending (rounds["task-review"] >= 1) see successful reviews as done (Bug N
+  //     handoffStatus/isTaskPending (rounds["review"] >= 1) see successful reviews as done (Bug N
   //     task-complete? contract). Previously only failure paths incremented, leaving successes at round 0.
   if (!dryRun && mode !== "implement") incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
   return finish(0, h1, "", noExit);
@@ -606,22 +615,22 @@ export function taskNumbersFromPlan(planFile) {
   return nums.sort((a, b) => a - b);
 }
 
-// Read the status of the latest task-review handoff (progressData.rounds["task-review"] round).
-// reviewRound=0 → no task-review completion record → "MISSING"; corrupt → "UNKNOWN".
+// Read the status of the latest review handoff (progressData.rounds["review"] round).
+// reviewRound=0 → no review completion record → "MISSING"; corrupt → "UNKNOWN".
 export function handoffStatus(taskNum, workspace, progressData) {
-  // For latest review: reads task-N-task-review-R.json where R = rounds["task-review"]
-  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
+  // For latest review: reads task-N-review-R.json where R = rounds["review"]
+  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["review"] ?? 0;
   if (reviewRound === 0) return "MISSING";
-  const handoffPath = path.join(workspace, `task-${taskNum}-task-review-${reviewRound}.json`);
+  const handoffPath = path.join(workspace, handoffName("review", "task", { task: taskNum, round: reviewRound }));
   if (!existsSync(handoffPath)) return "MISSING";
   try {
     return normalizeHandoffStatus(JSON.parse(readFileSync(handoffPath, "utf8")).status ?? "UNKNOWN");
   } catch { return "UNKNOWN"; }
 }
 
-// task-review round=0 → task-review never completed → pending; otherwise read latest task-review handoff status.
+// review round=0 → review never completed → pending; otherwise read latest review handoff status.
 export function isTaskPending(taskNum, workspace, progressData) {
-  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["task-review"] ?? 0;
-  if (reviewRound === 0) return true; // no task-review ever completed
+  const reviewRound = progressData?.tasks?.find(t => t.task === taskNum)?.rounds?.["review"] ?? 0;
+  if (reviewRound === 0) return true; // no review ever completed
   return handoffStatus(taskNum, workspace, progressData) !== "APPROVED";
 }

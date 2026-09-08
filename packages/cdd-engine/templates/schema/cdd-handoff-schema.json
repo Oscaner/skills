@@ -17,7 +17,7 @@
       "type": "string",
       "enum": [
         "implement",
-        "task-review",
+        "review",
         "fix",
         "branch-review"
       ]

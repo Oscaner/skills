@@ -19,7 +19,7 @@ import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK
 // 的命名、轮次、Stopping prev、workspace 全部走这里 —— 不再有第二处命名字面量 / 第二处 workspace 推导。
 import * as handoffNaming from "./lib/handoff-naming.mjs";
 import { validateHandoffSchema } from "./lib/schema-utils.mjs";
-import { resolveNextRound, reviewStoppedError } from "./lib/review-loop.mjs";
+import { reviewStoppedError } from "./lib/review-loop.mjs";
 import { writeHandoff, gitToplevel } from "./lib/contract.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
@@ -159,7 +159,7 @@ export async function runReview(opts) {
     return;
   }
 
-  // type=task: task review (runner internally tracks task-N-task-review-{R}.json round sequence).
+  // type=task: task review (runner internally tracks task-N-review-{R}.json round sequence).
   if (opts.type !== "task") {
     process.stderr.write(`unknown review --type: ${opts.type}\n`);
     process.exit(2);
@@ -173,12 +173,12 @@ export async function runReview(opts) {
     process.exit(2);
   }
   // Workspace slug derives from the plan filename; task Stopping reads the latest
-  // task-{N}-task-review-{R}.json and rejects when its blockers = 0.
+  // task-{N}-review-{R}.json and rejects when its blockers = 0.
   const slug = path.basename(opts.plan, ".md");
   const taskWs = path.join(gitToplevel(process.cwd()), ".superpowers", "cdd", slug);
-  // task round 经 review-loop 层 type-aware resolveNextRound 推导（复用 reviewRoundPattern 的
-  // task-{N}-task-review-{R}.json 模式，不再手搓 readdirSync）。
-  const nextTaskRound = resolveNextRound(taskWs, "task", { task: opts.task });
+  // task round 经 canonical 派生层 type-aware resolveNextRound 推导（op/type 四参签名；
+  // 显式透传 {task} pin → 防 scan 形态 {task}→\d+ 跨 task 混计 rounds）。
+  const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { task: opts.task });
   // --round 校验回填（task 侧：next round 推导值；冲突 exit 2，对齐 spec/plan/branch）。
   if (opts.round && Number(opts.round) !== nextTaskRound) {
     process.stderr.write(`--round ${opts.round} ≠ engine round ${nextTaskRound}\n`);
@@ -186,12 +186,15 @@ export async function runReview(opts) {
   }
   if (nextTaskRound > 1) {
     const prevR = nextTaskRound - 1;
-    const th = JSON.parse(readFileSync(path.join(taskWs, `task-${opts.task}-task-review-${prevR}.json`), "utf8"));
+    // Stopping prev 读同族 round-1 算术（canonical review.task 名 → task-{N}-review-{prevR}.json）。
+    // 不得用 prevHandoffPath：该函数对此族解析跨族 prev 表（round1=implement / fix:R-1），
+    // 会读到实体化 implement 的 APPROVED+[] → Stopping 误锁。
+    const th = JSON.parse(readFileSync(path.join(taskWs, handoffNaming.handoffName("review", "task", { task: opts.task, round: prevR })), "utf8"));
     reviewStoppingGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
   }
   const { runTask } = await import("./lib/runner.mjs");
   await runTask(opts.harness, opts.task, {
-    mode: "task-review", dryRun: DRY_RUN(),
+    mode: "review", dryRun: DRY_RUN(),
     env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
   });
 }

@@ -68,17 +68,17 @@ describe('review type config (Task 4: 模板数据化)', () => {
     expect(() => reviewArtifactConfig('nope')).toThrow(/unknown handoff family/);
   });
 
-  it('renderModePrompt(task-review) routes via review.md + reviews.json type=task (code-review focus)', async () => {
+  it('renderModePrompt(review) routes via review.md + reviews.json type=task (code-review focus)', async () => {
     vi.resetModules();
     const { renderModePrompt } = await import('../lib/templates.mjs');
-    const out = renderModePrompt('task-review', {
-      WORKSPACE: '/ws', HANDOFF: '/ws/task-1-task-review-1.json', FIXED_POINT: '7a7327b',
+    const out = renderModePrompt('review', {
+      WORKSPACE: '/ws', HANDOFF: '/ws/task-1-review-1.json', FIXED_POINT: '7a7327b',
     });
     expect(out).toContain('# CDD review — task');
     expect(out).toContain('standards · spec');            // lensEnum joined
     expect(out).toContain('7a7327b..HEAD');               // ref 具体化为 FIXED_POINT..HEAD
     expect(out).toContain('code-review smell baseline');   // axesGuide → code-review 焦点
-    expect(out).toContain('/ws/task-1-task-review-1.json');
+    expect(out).toContain('/ws/task-1-review-1.json');
     expect(out.indexOf('## Handoff')).toBeLessThan(out.indexOf('## Return (H1')); // Bug C 排序保持
     expect(out).not.toContain('{{HANDOFF_STUB}}'); // r2-r3 泄漏回归：共享壳 stub 槽必须被替换
   });

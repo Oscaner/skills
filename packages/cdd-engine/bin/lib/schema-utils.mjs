@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
 // Two handoff schemas ship in templates/schema/:
-//   cdd  — task handoffs (implement/task-review/fix; task/phase enums, commits objects)
+//   cdd  — task handoffs (implement/review/fix; task/phase enums, commits objects)
 //   docs — doc review handoffs (review.md shared shell spec/plan; doc-fix;
 //          required doc_path, no task/commits)
 const SCHEMA_PATHS = {

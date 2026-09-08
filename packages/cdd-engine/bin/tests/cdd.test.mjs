@@ -157,7 +157,7 @@ describe("cdd CLI", () => {
   // --- SP-4 Review Stopping status criterion: a BLOCKED/TIMEOUT failure round (findings:[])
   //     must remain re-dispatchable; only an APPROVED round with blocker=0 stops a re-run. ---
 
-  // Seed helper: temp git repo + plan file + a seeded task-N-task-review-N.json round.
+  // Seed helper: temp git repo + plan file + a seeded task-N-review-N.json round.
   function seedTaskReviewHandoff(status) {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-stop-"));
     execaSync("git", ["-C", dir, "init", "-q"]);
@@ -167,8 +167,8 @@ describe("cdd CLI", () => {
     writeFileSync(plan, "### Task 1: fixture\n");
     const ws = path.join(dir, ".superpowers", "cdd", "zz-stop-test");
     mkdirSync(ws, { recursive: true });
-    writeFileSync(path.join(ws, "task-1-task-review-1.json"),
-      JSON.stringify({ task: 1, phase: "task-review", status, artifacts: {}, findings: [],
+    writeFileSync(path.join(ws, "task-1-review-1.json"),
+      JSON.stringify({ task: 1, phase: "review", status, artifacts: {}, findings: [],
         ...(status !== "APPROVED" ? { blocker: "boom" } : {}) }));
     return { dir, plan };
   }

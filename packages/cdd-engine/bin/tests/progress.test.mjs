@@ -162,3 +162,15 @@ it("migrateIfNeeded: neither file exists → returns empty progress + creates js
   // Should create progress.json
   expect(existsSync(path.join(dir, "progress.json"))).toBe(true);
 });
+
+// ---- T4: rounds key 归一（"review"，task-review 剔除）——progress 层已 mode 参数化，直测键语义 ----
+
+it("getRound: incrementRound('review') 后 round=2（rounds['review'] 归一键）", () => {
+  const dir = tmpDir("prog-round-review-");
+  expect(getRound(readProgressJSON(dir), 1, "review")).toBe(1);
+  incrementRound(dir, 1, "review");
+  expect(getRound(readProgressJSON(dir), 1, "review")).toBe(2);
+  const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
+  expect(saved.tasks[0].rounds).toEqual({ review: 1 });
+  expect(saved.tasks[0].rounds["task-review"]).toBeUndefined();
+});

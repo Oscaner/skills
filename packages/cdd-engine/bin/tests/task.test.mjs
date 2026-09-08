@@ -1,7 +1,7 @@
 // bin/tests/task.test.mjs — Vitest port of the legacy cdd-task CLI contract tests, now
 // exercised through the merged single CLI (bin/cdd.mjs). Invocations map:
 //   cdd-task --mode implement    → cdd implement
-//   cdd-task --mode task-review  → cdd review --type task
+//   cdd-task --mode task-review  → cdd review --type task (mode 名归一后 runner CDD_MODE=review)
 //   cdd-task --mode fix          → cdd fix --type task
 // CDD_DRY_RUN=1 skips real CLI invocation; runTask still walks registry ship gate /
 // template render / workspace resolution / commit-contract. Asserts H1 four-line

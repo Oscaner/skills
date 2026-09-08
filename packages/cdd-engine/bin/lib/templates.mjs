@@ -101,9 +101,9 @@ blocker: <none|one-line>
 \`\`\``;
 
 export function renderModePrompt(mode, env = {}) {
-  // task-review 改经 reviews.json type=task 路由（不再读旧 task-review.md）；
+  // review mode 走 review.md 共享壳（reviews.json type=task 配置）；不再有旧 task-review 模板。
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
-  if (mode === 'task-review') {
+  if (mode === 'review') {
     const cfg = reviewTypeConfig('task');
     const art = reviewArtifactConfig('task');
     let prompt = renderTemplate('review', {
@@ -118,9 +118,9 @@ export function renderModePrompt(mode, env = {}) {
       H1_BLOCK: REVIEW_H1_BLOCK,
       PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
     });
-    // HANDOFF_STUB：共享壳槽位在 task-review 早退路径须显式替换（与 generic 路径 line 118 一致）。
+    // HANDOFF_STUB：共享壳槽位在 review 早退路径须显式替换（与 generic 路径一致）。
     const schema = loadHandoffSchema();
-    const stub = renderHandoffStub(schema, 'task-review', parseInt(env.TASK) || 0);
+    const stub = renderHandoffStub(schema, 'review', parseInt(env.TASK) || 0);
     return prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   }
   const modePath = templatePath(mode);

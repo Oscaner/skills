@@ -132,8 +132,8 @@ it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
   expect(lines[3]).toBe("blocker: none");
 });
 
-it("runTask: dry-run task-review/fix three modes → H1 APPROVED + no handoff written (aligns bash)", async () => {
-  for (const mode of ["task-review", "fix"]) {
+it("runTask: dry-run review/fix modes → H1 APPROVED + no handoff written (aligns bash)", async () => {
+  for (const mode of ["review", "fix"]) {
     const ws = setupWorkspace();
     const res = await runTask("claude", 1, { mode, dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
     expect(res.exitCode).toBe(0);
@@ -205,23 +205,23 @@ it("taskNumbersFromPlan: extracts ### Task N: and sorts (including 0)", () => {
   expect(taskNumbersFromPlan(plan)).toEqual([0, 1, 2, 3]);
 });
 
-it("isTaskPending / handoffStatus: progressData round 0 → MISSING / pending; APPROVED/DONE → not pending", () => {
+it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending; APPROVED/DONE → not pending", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-pending-"));
 
   const noReviewProgress = { tasks: [] };
   expect(handoffStatus(1, dir, noReviewProgress)).toBe("MISSING");
   expect(isTaskPending(1, dir, noReviewProgress)).toBe(true);
 
-  const progressR1 = { tasks: [{ task: 1, rounds: { "task-review": 1 } }] };
-  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "DONE" }));
+  const progressR1 = { tasks: [{ task: 1, rounds: { review: 1 } }] };
+  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status: "DONE" }));
   expect(handoffStatus(1, dir, progressR1)).toBe("APPROVED");
   expect(isTaskPending(1, dir, progressR1)).toBe(false);
 
-  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "APPROVED" }));
+  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status: "APPROVED" }));
   expect(handoffStatus(1, dir, progressR1)).toBe("APPROVED");
   expect(isTaskPending(1, dir, progressR1)).toBe(false);
 
-  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status: "BLOCKED" }));
+  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status: "BLOCKED" }));
   expect(handoffStatus(1, dir, progressR1)).toBe("BLOCKED");
   expect(isTaskPending(1, dir, progressR1)).toBe(true);
 });
@@ -421,10 +421,10 @@ it("spawnCapture: preserves non-subagent env vars", async () => {
 
 // ---- buildTaskEnv ----
 
-it("buildTaskEnv: fix mode → CDD_FINDINGS = task-review handoff path (no scope filter)", () => {
+it("buildTaskEnv: fix mode → CDD_FINDINGS = review handoff path (no scope filter)", () => {
   const ws = setupWorkspace();
   const env = buildTaskEnv(baseEnv(ws), ws, 1, "fix", "claude", { round: 1 });
-  expect(env.CDD_FINDINGS).toMatch(/task-1-task-review-1\.json$/);
+  expect(env.CDD_FINDINGS).toMatch(/task-1-review-1\.json$/);
   expect(env.CDD_FINDINGS).not.toMatch(/open-findings/);
   expect(env.CDD_FINDINGS_SCOPE).toBeUndefined();
 });
@@ -470,8 +470,8 @@ it("runTask #187→Pζ: CLI succeeds + no handoff → BLOCKED (not APPROVED fall
 
 function makeHandoffStatusFixture(status) {
   const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-"));
-  const progressData = { tasks: [{ task: 1, rounds: { "task-review": 1 } }] };
-  writeFileSync(path.join(dir, "task-1-task-review-1.json"), JSON.stringify({ status }));
+  const progressData = { tasks: [{ task: 1, rounds: { review: 1 } }] };
+  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status }));
   return { dir, progressData };
 }
 
@@ -665,20 +665,20 @@ it("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (unk
 
 // ---- Pζ T3: cross-phase fixed-point derivation ----
 
-it("runTask Pζ T3: task-review dry-run without prior implement handoff → exits 0", async () => {
+it("runTask Pζ T3: review dry-run without prior implement handoff → exits 0", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
 });
 
-it("runTask Pζ T3: task-review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT set from implement.json commits.base", async () => {
+it("runTask Pζ T3: review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT set from implement.json commits.base", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-"));
   const envLog = path.join(ws, "fp-env-log.txt");
   writeFileSync(
     path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
   );
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
@@ -697,7 +697,7 @@ it("runTask Pζ T3: task-review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "task-review", probeSkills: NOOP_PROBE,
+      mode: "review", probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -716,17 +716,17 @@ it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT no
     commits: { base: "unknown" },
     findings: [], artifacts: {},
   }));
-  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
 });
 
-it("runTask Pζ T3: task-review round 2 → FIXED_POINT from task-N-fix-1.json (cross-phase fix round), not implement.json", async () => {
+it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross-phase fix round), not implement.json", async () => {
   const ws = setupWorkspace();
-  // Set progress so task-review dispatches round 2 (last completed fix round = 1).
+  // Set progress so review dispatches round 2 (last completed fix round = 1).
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
     plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "",
-    tasks: [{ task: 1, status: "in-progress", rounds: { implement: 1, "task-review": 1, fix: 1 } }],
+    tasks: [{ task: 1, status: "in-progress", rounds: { implement: 1, review: 1, fix: 1 } }],
     degradationLog: [],
   }, null, 2));
 
@@ -734,7 +734,7 @@ it("runTask Pζ T3: task-review round 2 → FIXED_POINT from task-N-fix-1.json (
   const envLog = path.join(ws, "fp-env-log-r2.txt");
   writeFileSync(
     path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
+    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
   );
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
@@ -759,7 +759,7 @@ it("runTask Pζ T3: task-review round 2 → FIXED_POINT from task-N-fix-1.json (
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "task-review", probeSkills: NOOP_PROBE,
+      mode: "review", probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -775,13 +775,13 @@ it("runTask Pζ T3: task-review round 2 → FIXED_POINT from task-N-fix-1.json (
 
 // ---- Task 5: mode → (op, type) 注入映射（runner invokeCliWithRetry 调用点） ----
 
-it("runTask Task 5: task-review → invokeCli (op=review,type=task) → code-review prefix 注入 prompt 首行", async () => {
+it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review prefix 注入 prompt 首行", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-inj-cli-"));
   const promptLog = path.join(ws, "prompt-log.txt");
   writeFileSync(
     path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"task-review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
   );
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
   const regPath = path.join(ws, "registry.json");
@@ -801,7 +801,7 @@ it("runTask Task 5: task-review → invokeCli (op=review,type=task) → code-rev
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "task-review", probeSkills: NOOP_PROBE,
+      mode: "review", probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -847,10 +847,11 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
 
 // ---- per-round buildTaskEnv ----
 
-it("runTask: per-round buildTaskEnv — task-review derives task-1-task-review-1.json", async () => {
+it("runTask: per-round buildTaskEnv — review derives task-1-review-1.json", async () => {
   const ws = setupWorkspace();
-  const env = buildTaskEnv(baseEnv(ws), ws, 1, "task-review", "claude", { round: 1 });
-  expect(env.CDD_HANDOFF_PATH.endsWith("task-1-task-review-1.json")).toBe(true);
+  const env = buildTaskEnv(baseEnv(ws), ws, 1, "review", "claude", { round: 1 });
+  expect(env.CDD_HANDOFF_PATH.endsWith("task-1-review-1.json")).toBe(true);
+  expect(env.CDD_HANDOFF_PATH.includes("task-review")).toBe(false); // 旧 task-review 命名零产出
 });
 
 it("runTask: implement derives task-1-implement.json (no round suffix)", async () => {
@@ -859,17 +860,45 @@ it("runTask: implement derives task-1-implement.json (no round suffix)", async (
   expect(env.CDD_HANDOFF_PATH.endsWith("task-1-implement.json")).toBe(true);
 });
 
-it("runTask: round-2 buildTaskEnv derives task-1-task-review-2.json", async () => {
+it("runTask: round-2 buildTaskEnv derives task-1-review-2.json", async () => {
   const ws = setupWorkspace();
   const progressPath = path.join(ws, "progress.json");
   const prog = JSON.parse(readFileSync(progressPath, "utf8"));
   if (!prog.tasks.find(t => t.task === 1)) prog.tasks.push({ task: 1, status: "pending", rounds: {} });
-  prog.tasks.find(t => t.task === 1).rounds = { "task-review": 1 };
+  prog.tasks.find(t => t.task === 1).rounds = { review: 1 };
   writeFileSync(progressPath, JSON.stringify(prog, null, 2));
 
-  const taskEnv = buildTaskEnv(baseEnv(ws), ws, 1, "task-review", "claude", { round: 2 });
-  expect(taskEnv.CDD_HANDOFF_PATH.endsWith("task-1-task-review-2.json")).toBe(true);
+  const taskEnv = buildTaskEnv(baseEnv(ws), ws, 1, "review", "claude", { round: 2 });
+  expect(taskEnv.CDD_HANDOFF_PATH.endsWith("task-1-review-2.json")).toBe(true);
 
   const updated = JSON.parse(readFileSync(progressPath, "utf8"));
-  expect(getRound(updated, 1, "task-review")).toBe(2);
+  expect(getRound(updated, 1, "review")).toBe(2);
+});
+
+// ---- T4: mode 归一（task-review → review）----
+
+it("runTask: mode task-review（旧名）→ rejected：CDD_MODE must be implement|review|fix", async () => {
+  const ws = setupWorkspace();
+  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  expect(res.exitCode).toBe(1);
+  expect(res.h1).toEqual([]);
+});
+
+it("runTask: mode review dry-run → H1 APPROVED + no handoff written", async () => {
+  const ws = setupWorkspace();
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  expect(res.exitCode).toBe(0);
+  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(existsSync(path.join(ws, "task-1-review-1.json"))).toBe(false);
+});
+
+it("schema: phase 'review' task-review handoff 通过 Ajv 校验（phase enum 已归一）", async () => {
+  const { validateHandoffSchema } = await import("../lib/schema-utils.mjs");
+  expect(validateHandoffSchema({
+    task: 1, phase: "review", status: "APPROVED",
+    commits: { base: "a".repeat(40), head: "b".repeat(40) },
+    findings: [], artifacts: {},
+  })).toEqual({ valid: true });
+  // 旧 task-review phase 不再合法（未归一会被 runner 8.8 Ajv 判 invalid 覆写 BLOCKED）
+  expect(validateHandoffSchema({ task: 1, phase: "task-review", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
 });

@@ -60,11 +60,12 @@ export function handoffName(op, type, params) {
 }
 
 // resolveNextRound(workspace, op, type, opts) → maxR+1（round:"increment" 家族用）。
-// scan 形态 = 不传 task pin（roundPattern 以 params.task 缺席判别宽匹配）；branch 传 concrete
-// base7/head7 做 per-ref 轮次。cdd.mjs 消费方（spec/plan/branch）T3 起全部走本层。
+// 形态由 opts 判别：不给 task pin → scan 宽匹配（跨 task 扫 rounds）；task 族传 {task}
+// → taskPinned 精确该 task 的轮次（cdd.mjs task review 推导防跨 task 混计 rounds）；
+// branch 传 concrete base7/head7 做 per-ref 轮次。cdd.mjs 消费方（spec/plan/branch/task）全部走本层。
 export function resolveNextRound(workspace, op, type, opts = {}) {
   // scan 形态：task 族不 pin（跨 task 扫 rounds）；branch/spec/plan 天然无 task 字段。
-  const re = roundPattern(op, type, { ...opts, task: undefined });
+  const re = roundPattern(op, type, opts);
   let max = 0;
   try {
     for (const f of readdirSync(workspace)) {

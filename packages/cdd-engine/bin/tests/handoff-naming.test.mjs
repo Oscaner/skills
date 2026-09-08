@@ -36,6 +36,15 @@ it("resolveNextRound: 写 spec-review-1.json 后 → 2", () => {
   writeFileSync(join(ws, "spec-review-1.json"), "{}");
   expect(resolveNextRound(ws, "review", "spec")).toBe(2);
 });
+it("resolveNextRound: task pin 精确扫描——跨 task 不混计 rounds", () => {
+  const ws = mkdtempSync(join(tmpdir(), "hn-taskpin-"));
+  writeFileSync(join(ws, "task-1-review-1.json"), "{}");
+  writeFileSync(join(ws, "task-1-review-2.json"), "{}");
+  writeFileSync(join(ws, "task-2-review-1.json"), "{}");
+  expect(resolveNextRound(ws, "review", "task", { task: 1 })).toBe(3);
+  expect(resolveNextRound(ws, "review", "task", { task: 2 })).toBe(2);
+  expect(resolveNextRound(ws, "review", "task", { task: 9 })).toBe(1);
+});
 it("prevHandoffPath: 同族 round-1（review.spec R=2 → spec-review-1.json）", () => {
   expect(prevHandoffPath("/ws", "review", "spec", 2)).toBe("/ws/spec-review-1.json");
 });

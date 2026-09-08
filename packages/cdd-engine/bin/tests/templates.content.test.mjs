@@ -59,10 +59,10 @@ describe('reviews.json per-type config (Task 4)', () => {
     expect(() => reviewTypeConfig('nope')).toThrow(/unknown review type/);
   });
 
-  it('renderModePrompt(task-review) renders review.md via the type=task config', async () => {
+  it('renderModePrompt(review) renders review.md via the type=task config', async () => {
     const { renderModePrompt } = await import('../lib/templates.mjs');
-    const out = renderModePrompt('task-review', {
-      WORKSPACE: '/ws', HANDOFF: '/ws/task-1-task-review-1.json', FIXED_POINT: '7a7327b',
+    const out = renderModePrompt('review', {
+      WORKSPACE: '/ws', HANDOFF: '/ws/task-1-review-1.json', FIXED_POINT: '7a7327b',
     });
     expect(out).toContain('# CDD review — task');
     expect(out).toContain('standards · spec');

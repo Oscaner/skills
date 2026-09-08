@@ -20,21 +20,21 @@ const findingMeta = JSON.parse(readFileSync(path.resolve(
 describe("report-templates", () => {
   it("renderYml 复现现任 bug_report.yml （round-trip ①，过渡性断言）", () => {
     const form = findingMeta.formFieldDefs.bug_report;
-    expect(renderYml(form, "bug_report")).toBe(
+    expect(renderYml(form)).toBe(
       readFileSync(path.join(TEMPLATES, "bug_report.yml"), "utf8")
     ); // 逐字节相等：EOF 换行亦在断言范围（spec §2.3 round-trip ①）
   });
 
   it("renderYml 复现现任 enhancement.yml （round-trip ①，过渡性断言）", () => {
     const form = findingMeta.formFieldDefs.enhancement;
-    expect(renderYml(form, "enhancement")).toBe(
+    expect(renderYml(form)).toBe(
       readFileSync(path.join(TEMPLATES, "enhancement.yml"), "utf8")
     );
   });
 
   it("renderYml 复现现任 session_report.yml （round-trip ①，过渡性断言）", () => {
     const form = findingMeta.formFieldDefs.session_report;
-    expect(renderYml(form, "session_report")).toBe(
+    expect(renderYml(form)).toBe(
       readFileSync(path.join(TEMPLATES, "session_report.yml"), "utf8")
     );
   });

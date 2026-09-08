@@ -63,7 +63,6 @@
   },
   "formFieldDefs": {
     "bug_report": {
-      "name": "bug_report",
       "frontmatter": {
         "name": "Bug report",
         "description": "Report a bug found while using osuperpowers skills (dogfood)",
@@ -158,7 +157,6 @@
       ]
     },
     "enhancement": {
-      "name": "enhancement",
       "frontmatter": {
         "name": "Enhancement",
         "description": "Suggest an improvement to osuperpowers skills or workflow",
@@ -253,7 +251,6 @@
       ]
     },
     "session_report": {
-      "name": "session_report",
       "frontmatter": {
         "name": "Session report",
         "description": "File a dogfood/CDD session report (aggregated findings)",

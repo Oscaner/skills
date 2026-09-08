@@ -37,10 +37,17 @@ function emitScalar(value) {
         .join("\n")
     );
   }
-  if (value.includes(": ") || value.includes("—")) {
-    return `"${value.replaceAll('"', '\\"').replaceAll("\\", "\\\\")}"`;
+  if (value.includes(": ") || value.includes("—") || isPlainUnsafe(value)) {
+    // 转义顺序：先 `\` 再 `"`（先用反引号会把已插入的 `\` 双重转义）。
+    return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
   }
   return value;
+}
+
+// YAML plain-scalar 陷阱守卫：前导特殊字符 / YAML 1.1 bool·null / 类数字或日期
+// 样式串若按 plain 输出会被解析器误读 → 一律转 double-quoted（当前语料安全，守卫防御未来键值）。
+function isPlainUnsafe(value) {
+  return /^(?:true|false|null|yes|no|on|off|~|[-+]?(?:\d|\.\d)|\d{4}-)|^[][{}*&!|>'"%@`]|:-/.test(value);
 }
 
 function pushAttribute(lines, key, value) {
@@ -48,7 +55,9 @@ function pushAttribute(lines, key, value) {
 }
 
 // --- formFieldDefs -> .github/ISSUE_TEMPLATE/<name>.yml -------------------
-export function renderYml(formDef, name) {
+// 表单键 = formFieldDefs 对象键（finding-meta.json）；frontmatter.name 承载表单名，
+// 渲染仅消费 formDef——无二次标识（name 参数已去冗余）。
+export function renderYml(formDef) {
   const { frontmatter, body } = formDef;
   const lines = [];
   lines.push(`name: ${frontmatter.name}`);
@@ -84,10 +93,10 @@ export function renderTitle(masterDef, { slugOrStandalone, date }) {
     .replace("<YYYY-MM-DD>", date);
 }
 
-/** report-meta 六字段 bullet — shared by finding comment and master body. */
+/** report-meta 六字段 bullet — canonical metaFields（key+label 对）驱动，零硬编码。 */
 export function renderMeta(meta) {
-  return ["Skill", "Harness", "Kind", "Step", "CDD", "Date"]
-    .map((label) => `- ${label}: ${meta[label.toLowerCase()] ?? ""}`)
+  return findingMeta.metaFields
+    .map(({ key, label }) => `- ${label}: ${meta[key] ?? ""}`)
     .join("\n");
 }
 
@@ -134,5 +143,5 @@ if (isCli) {
   const modeIndex = process.argv.indexOf("--mode");
   const mode = modeIndex === -1 ? "comment" : process.argv[modeIndex + 1];
   const input = JSON.parse(readFileSync(0, "utf8"));
-  process.stdout.write(mode === "master" ? renderMasterBody(input) : renderComment(input));
+  process.stdout.write((mode === "master" ? renderMasterBody(input) : renderComment(input)) + "\n");
 }

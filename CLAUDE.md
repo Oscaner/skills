@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Data-driven template convention
 
-模板性内容收敛为一事实源：canonical JSON → 单一渲染器 → emit 生成派生产物（含 `pnpm run emit:check` drift 守卫 + 运行时组合）。完整规范见 [docs/maintainers/data-driven-templates.md](docs/maintainers/data-driven-templates.md)。
+Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/data-driven-templates.md](docs/maintainers/data-driven-templates.md).
 
 ## Repository purpose
 

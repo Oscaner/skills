@@ -72,6 +72,8 @@ flowchart TD
 ### `explore-context`
 
 - **Do**: Carry the mode marker resolved by `read-program` (`new-program` / `phase-within-program`). Explore project context in that mode (files / docs / git log / existing research findings); from this, judge whether the current request needs a new phase or a phase split. Optional research still triggers only via the Confirm Gate (I2).
+
+  **Full-scope issue retrospective (phase-within-program mode):** Enumerate every unique `#NNN` in the parent overall's Issue inventory (**including the Side-effect closures block**). For each parent issue, run `gh issue view NNN --json body,comments` and read the **full body + all comments** (including parts not anchored in the inventory). Anchors are lookup entries, **not** the read scope — do not anchor-pick individual comments. Include the content in exploration context. Fail-open: gh unavailable / rate-limited → log warning and continue without blocking.
 - **Read**: project files, docs, git log, research findings; parent overall (phase-within-program mode).
 - **Exit**: exploration complete → `claim-phase` (carrying the mode marker). Note: `explore-context`'s "needs new phase?" judgment is only a suggestive probe; `claim-phase`'s Phase inventory lookup is the sole authoritative decision (on conflict, claim-phase wins).
 - **Fail**: Research agent error/timeout → log stderr, fail-open (do not block flow). CLI path failure → fall back to Agent tool path.

@@ -6,9 +6,8 @@ body:
     id: session-context
     attributes:
       label: Session context
-      description: "Dogfood/CDD session metadata: branch, date, harness; list skills one per line (multi-select list)"
+      description: "Dogfood/CDD session metadata: date, harness; list skills one per line (multi-select list)"
       placeholder: |
-        Branch: feat/my-feature
         Date: YYYY-MM-DD
         Harness: claude-code
         Skills:

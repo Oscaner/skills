@@ -1,6 +1,6 @@
 # Skill Authoring Specification
 
-- **Version**: v1.0 · 2026-08-26
+- **Version**: v1.1 · 2026-09-08
 - **Scope**: Sole format authority for all P4–P9 osuperpowers skill SKILL.md rewrites
 - **Audience**: This repository's maintainers + AI agents executing refactors
 - **Language**: English primary + zh-CN mirror (Strategy A — maintainer doc)
@@ -167,8 +167,13 @@ When auditing a node, check only the patterns relevant to that element.
 
 Behavioral logic in SKILL.md, templates, and docs must not reference GitHub issue numbers as authoritative sources. Issues are the forum for design discussion; once conclusions are committed to documentation, issue numbers should be removed from behavioral logic. Issue references in change history are exempt.
 
+## 11. Data-driven Template Convention
+
+When a new skill introduces template body text that is data-izable — text-shaped, referenced by multiple consumers, drift-prone (form field definitions, enumeration lists, section-label tables, issue-template bodies) — route it through the data-driven-templates convention: **canonical JSON single source → one pure renderer → emitted/derived products guarded by `pnpm run emit:check`**. Nodes defined here apply to prose control flow; template body text follows [data-driven-templates.md](data-driven-templates.md) (digraph `canonical → renderer → {emit product · runtime product} → round-trip guard`).
+
 ---
 
 ## Change history
 
+- v1.1 · 2026-09-08 — Add §11 Data-driven template convention (data-izable template body text → canonical + renderer + emit guard).
 - v1.0 · 2026-08-26 — Initial version (P3 docs-infra): 9-section skeleton + read-grilling illustrative example + init legacy exemption rule.

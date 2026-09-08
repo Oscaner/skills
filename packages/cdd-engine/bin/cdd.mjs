@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
-import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK } from "./lib/templates.mjs";
+import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK, reviewHardGate } from "./lib/templates.mjs";
 // handoff 命名/workspace 的唯一派生层（canonical handoff-namespace.json）。docs 侧（spec/plan/branch）
 // 的命名、轮次、Stopping prev、workspace 全部走这里 —— 不再有第二处命名字面量 / 第二处 workspace 推导。
 import * as handoffNaming from "./lib/handoff-naming.mjs";
@@ -139,9 +139,10 @@ export async function runReview(opts) {
     // （HANDOFF_TYPE/RETURN_MODE）读 canonical review.{type} 族（renderTemplate 缺参即抛）。
     const cfg = reviewTypeConfig(opts.type);
     const art = reviewArtifactConfig(opts.type);
+    const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
     await runDocsTask({
       harness: opts.harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
-      handoffPath: path.join(ws, handoffNaming.handoffName("review", opts.type, { round })),
+      handoffPath,
       params: {
         TYPE: opts.type,
         LENS_GUIDE: cfg.lensEnum.join(" · "),
@@ -152,6 +153,7 @@ export async function runReview(opts) {
         HANDOFF_TYPE: art.schema,
         H1_BLOCK: "",
         PLAN_LINE: opts.spec ? `**Spec:** ${opts.spec}` : "",
+        HARD_GATE: reviewHardGate(art.return, handoffPath),
       },
       workspace: ws, repoRoot: gitToplevel(process.cwd()),
       dryRun: DRY_RUN(),
@@ -268,6 +270,7 @@ async function runBranchReview(opts) {
     RETURN_MODE: art.return,
     H1_BLOCK: REVIEW_H1_BLOCK,
     PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
+    HARD_GATE: reviewHardGate(art.return, handoffPath),
   }, "cdd review");
   // HANDOFF_STUB：共享壳槽位在此路径须显式替换（docs 路径 runDocsTask 自理、runner 路径 renderModePrompt 自理）。
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g,

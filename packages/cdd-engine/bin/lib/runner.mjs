@@ -14,7 +14,7 @@ import semver from "semver";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
-import { writeHandoff, gitToplevel, normalizeHandoffStatus, applyDerivedStatus } from "./contract.mjs";
+import { writeHandoff, gitToplevel, gitRevParseHead, normalizeHandoffStatus, applyDerivedStatus } from "./contract.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-naming.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
@@ -333,6 +333,59 @@ export function h1FromHandoff(handoffPath) {
   return out;
 }
 
+// ---- implement handoff 实体化（T6）----
+
+// TASK_BASE → implement commits.base 唯一权威。brief 缺失 / 无 TASK_BASE 行 → null
+//（降级不实体化：dry-run 与 smoke 链均走此处，绝不允许 ENOENT 崩溃 runner）。
+export function taskBaseFromBrief(briefPath) {
+  if (!briefPath || !existsSync(briefPath)) return null;
+  try {
+    return readFileSync(briefPath, "utf8").match(/^TASK_BASE: (\S+)/m)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// H1 `artifacts:` 行（key=value 空白分隔）→ artifacts 对象；缺行/空值 → {}。
+function artifactsFromH1Line(line) {
+  const m = String(line).match(/^artifacts:\s*(.*)$/);
+  if (!m || !m[1].trim()) return {};
+  const artifacts = {};
+  for (const pair of m[1].trim().split(/\s+/)) {
+    const eq = pair.indexOf("=");
+    if (eq > 0) artifacts[pair.slice(0, eq)] = pair.slice(eq + 1);
+  }
+  return artifacts;
+}
+
+// H1 `status:` 行 → 实体化 status。schema 只收 APPROVED/BLOCKED —— 非 APPROVED
+//（NEEDS_CONTEXT / <missing> 等）一律折叠为 BLOCKED，raw 供 blocker 透传（H1 与 handoff/exit 一致）。
+function implementStatusFromH1(line) {
+  const raw = String(line).replace(/^status:\s*/, "").trim();
+  return { status: raw === "APPROVED" ? "APPROVED" : "BLOCKED", raw };
+}
+
+// H1 `blocker:` 行 → blocker。缺行（<missing>）/ 成功缺省（none）→ ""（不落 blocker 字段，
+// h1FromHandoff 按 status 缺省 none / commit-contract 文案）。
+function h1Blocker(line) {
+  const v = String(line).replace(/^blocker:\s*/, "").trim();
+  return v && v !== "<missing>" && v !== "none" ? v : "";
+}
+
+// Evidence gate（仅 implement 非 dry-run 实体化路径）：机械硬档唯一触发源 = test-evidence 的
+// behavior_change:true（brief.mjs 只输出 ### Task N 段 + TASK_BASE 行，仓库无复杂度档位机械来源）。
+// hard → 覆写 BLOCKED；其余（simple / 无 behavior_change / 文件缺失不可解析）→ soft WARN 注记。
+function evidenceGate(workspace, taskNum) {
+  const ev = readJson(path.join(workspace, `task-${taskNum}-test-evidence.json`));
+  if (!ev) return { hard: false, warn: `test-evidence missing or unparseable for task ${taskNum} (soft WARN)` };
+  if (ev.behavior_change !== true) return { hard: false, warn: "" };
+  const missing = ["command", "passed", "exit_code"].filter((k) => !(k in ev));
+  if (missing.length > 0) {
+    return { hard: true, warn: `test_evidence gate: hard 要求 command/passed/exit_code (missing: ${missing.join(", ")})` };
+  }
+  return { hard: false, warn: "" };
+}
+
 // ---- dry-run simulation ----
 
 // Aligns bash dry-run branch hardcoded H1 block (CDD_DRY_RUN=1).
@@ -572,7 +625,9 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 10.5. CLI succeeded but no handoff → BLOCKED (file-existence check, not phase-mismatch fallback).
   // Agent exits 0 without writing handoff = error, not success — write BLOCKED and return exit 1.
   // dry-run excluded: bash dry-run does not write handoff, Node does not either.
-  if (agentRc === 0 && !dryRun && !existsSync(env.CDD_HANDOFF_PATH)) {
+  // implement excluded (T6): runner 实体化写盘在 13 步 OK 路径 —— implement 分支本检查不触发
+  //（实现链 agent 经 implement.md 不再写 handoff，残留检查会误 BLOCKED 每次成功实现）。
+  if (agentRc === 0 && !dryRun && mode !== "implement" && !existsSync(env.CDD_HANDOFF_PATH)) {
     writeHandoff(env.CDD_HANDOFF_PATH, {
       task: taskNum,
       phase: mode,
@@ -599,6 +654,42 @@ export async function runTask(harness, taskNum, opts = {}) {
   //     task-complete? contract). Previously only failure paths incremented, leaving successes at round 0.
   //     T5: status 单一权威 — review 型 handoff 由 engine 从 findings 派生覆写（SP-4 豁免失败轮次）；
   //     成功路径读回 handoff 覆写并持久化，H1 同步用 h1FromHandoff（T6 收敛 H1 单源）。
+  //     T6: implement 实体化 — agent 不写 handoff（implement.md 已删 Handoff Output 段），runner 从
+  //     H1 四行 + brief TASK_BASE + git HEAD 构造 task-N-implement.json（commits 单一权威），
+  //     evidence-gate 回读校验（behavior_change:true → hard；其余 → soft WARN），H1 改 h1FromHandoff 重发。
+  if (!dryRun && mode === "implement") {
+    const base = taskBaseFromBrief(env.CDD_TASK_BRIEF);
+    if (!base) {
+      // 降级不实体化：保留 agent 原样 H1 + stderr WARN（dry-run 与 smoke 链均走此处，绝不允许 ENOENT 崩溃）。
+      process.stderr.write(`CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${env.CDD_TASK_BRIEF}\n`);
+    } else {
+      const { status, raw } = implementStatusFromH1(h1[0] ?? "");
+      let blocker = h1Blocker(h1[3] ?? "");
+      if (raw !== "APPROVED" && !blocker) blocker = `implement H1 status "${raw}" without blocker`;
+      const head = repoRoot ? gitRevParseHead(repoRoot) : null;
+      const gate = evidenceGate(env.CDD_WORKSPACE, taskNum);
+      if (gate.hard) {
+        blocker = gate.warn;
+      } else if (gate.warn) {
+        process.stderr.write(`CDD_WARN: ${gate.warn}\n`);
+      }
+      const handoff = {
+        task: taskNum,
+        phase: "implement",
+        status: gate.hard ? "BLOCKED" : status,
+        artifacts: artifactsFromH1Line(h1[2] ?? ""),
+        findings: [],
+        commits: { base, ...(head ? { head } : {}) },
+      };
+      if (blocker) handoff.blocker = blocker;
+      writeHandoff(env.CDD_HANDOFF_PATH, handoff);
+      h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
+      // 实体化后 H1 与 handoff/exit 一致：hard gate 或 agent 声明 BLOCKED → exit 1。
+      if (gate.hard || handoff.status === "BLOCKED") {
+        return finish(1, h1, gate.hard ? gate.warn : "", noExit);
+      }
+    }
+  }
   if (!dryRun && mode === "review") {
     const reviewHandoff = readJson(env.CDD_HANDOFF_PATH);
     if (reviewHandoff) {

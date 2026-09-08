@@ -15,7 +15,7 @@ describe('review.md shared shell (Task 4)', () => {
   const review = readFileSync(path.join(PKG_ROOT, 'templates', 'review', 'review.md'), 'utf8');
 
   it('carries the review shell placeholders', () => {
-    for (const p of ['TYPE', 'LENS_GUIDE', 'WORKSPACE', 'REFERENCE', 'AXES', 'HANDOFF', 'HANDOFF_TYPE', 'RETURN_MODE', 'H1_BLOCK']) {
+    for (const p of ['TYPE', 'LENS_GUIDE', 'WORKSPACE', 'REFERENCE', 'AXES', 'HANDOFF', 'HANDOFF_TYPE', 'RETURN_MODE', 'H1_BLOCK', 'HARD_GATE']) {
       expect(review).toContain(`{{${p}}}`);
     }
   });
@@ -88,5 +88,67 @@ describe('legacy review/fix templates removed (Task 4)', () => {
     for (const name of ['task-review', 'spec-review', 'plan-review', 'branch-review', 'spec-fix', 'plan-fix']) {
       expect(() => templatePath(name)).toThrow(/unknown template/);
     }
+  });
+});
+
+describe('review.md HARD GATE（T6: returnMode 分写 + engine 读回确认）', () => {
+  it('共享壳带 {{HARD_GATE}} 槽（Handoff 段内、H1 block 之前）', () => {
+    const review = readFileSync(path.join(PKG_ROOT, 'templates', 'review', 'review.md'), 'utf8');
+    const handoffIdx = review.indexOf('## Handoff');
+    const gateIdx = review.indexOf('{{HARD_GATE}}');
+    expect(gateIdx).toBeGreaterThan(handoffIdx);
+    expect(gateIdx).toBeLessThan(review.indexOf('{{H1_BLOCK}}'));
+  });
+
+  it('renderModePrompt(review, returnMode=h1) → "BEFORE outputting H1"', async () => {
+    const { renderModePrompt } = await import('../lib/templates.mjs');
+    const out = renderModePrompt('review', {
+      WORKSPACE: '/ws', HANDOFF: '/ws/task-1-review-1.json', FIXED_POINT: '7a7327b',
+    });
+    expect(out).toMatch(/HARD GATE[^\n]*BEFORE outputting H1/);
+    expect(out).not.toContain('BEFORE outputting the JSON return');
+    expect(out).toContain('/ws/task-1-review-1.json'); // 注入实际 handoff 路径
+  });
+
+  it('renderTemplate(spec, returnMode=json) → "BEFORE outputting the JSON return"', async () => {
+    const { renderTemplate, reviewHardGate } = await import('../lib/templates.mjs');
+    const out = renderTemplate('review', {
+      TYPE: 'spec', WORKSPACE: '/ws', LENS_GUIDE: 'completeness · consistency · clarity',
+      REFERENCE: '/tmp/spec.md', AXES: 'URC', HANDOFF: '/tmp/spec-review-1.json',
+      HANDOFF_TYPE: 'docs', RETURN_MODE: 'json', H1_BLOCK: '', PLAN_LINE: '',
+      HARD_GATE: reviewHardGate('json', '/tmp/spec-review-1.json'),
+    });
+    expect(out).toMatch(/HARD GATE[\s\S]*BEFORE outputting the JSON return/);
+    expect(out).not.toContain('BEFORE outputting H1');
+    expect(out).toContain('/tmp/spec-review-1.json');
+  });
+});
+
+describe('implement.md（T6: 实体化 + 无 Handoff Output 段 + evidence-gate 指引）', () => {
+  const impl = readFileSync(path.join(PKG_ROOT, 'templates', 'task', 'implement.md'), 'utf8');
+
+  it('删除了 Handoff Output 段（agent 不再手写 handoff / JSON stub / jq self-validate）', () => {
+    expect(impl).not.toContain('## Handoff Output');
+    expect(impl).not.toContain('{{HANDOFF_STUB}}');
+    expect(impl).not.toContain('jq .');
+  });
+
+  it('头部行声明本模式不写 handoff（runner 从 H1 + TASK_BASE + git HEAD 实体化）', () => {
+    expect(impl).toMatch(/does not write a handoff/i);
+    expect(impl).toContain('task-{{TASK}}-implement.json');
+    expect(impl).toContain('TASK_BASE');
+    expect(impl).toContain('{{TASK}}');
+  });
+
+  it('evidence-gate 指引说明 engine 读回校验（hard: command/passed/exit_code；soft: WARN）', () => {
+    expect(impl).toContain('behavior_change');
+    expect(impl).toContain('command');
+    expect(impl).toContain('passed');
+    expect(impl).toContain('exit_code');
+  });
+
+  it('保留 Return (H1 — stdout only) 段 + H1 四行合同', () => {
+    expect(impl).toContain('## Return (H1 — stdout only)');
+    expect(impl).toContain('status: <APPROVED|BLOCKED|NEEDS_CONTEXT>');
   });
 });

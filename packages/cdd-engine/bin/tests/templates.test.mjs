@@ -92,10 +92,12 @@ describe('renderTemplate', () => {
       TYPE: 'spec', WORKSPACE: '/ws', LENS_GUIDE: 'completeness · consistency · clarity',
       REFERENCE: '/tmp/spec.md', AXES: 'URC 规则指针', HANDOFF: '/tmp/spec-review-1.json',
       HANDOFF_TYPE: 'docs', RETURN_MODE: 'json', H1_BLOCK: '', PLAN_LINE: '',
+      HARD_GATE: '> ⚠️ HARD GATE — Write `/tmp/spec-review-1.json` BEFORE outputting the JSON return.',
     }, 'test');
     expect(out).toContain('/tmp/spec.md');
     expect(out).toContain('completeness · consistency · clarity');
     expect(out).toContain('/tmp/spec-review-1.json');
+    expect(out).toContain('HARD GATE');
   });
 
   it('throws on missing param', async () => {

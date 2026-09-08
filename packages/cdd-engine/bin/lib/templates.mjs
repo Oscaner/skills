@@ -104,6 +104,15 @@ artifacts: brief=<path> report=<path> test_evidence=<path>
 blocker: <none|one-line>
 \`\`\``;
 
+// review.md HARD GATE（T6）：returnMode 分写 — h1 → "BEFORE outputting H1"；json → "BEFORE outputting
+// the JSON return"。注入实际 handoff 路径（与 fix.md 渲染结果一致；值内不含 {{HANDOFF}} 占位，避免
+// 渲染期占位嵌套依赖 param 遍历顺序）。returnMode 非法 → 按 h1 缺省（未知族不崩渲染）。
+export function reviewHardGate(returnMode, handoffPath) {
+  const before = returnMode === "json" ? "BEFORE outputting the JSON return." : "BEFORE outputting H1.";
+  const target = handoffPath ?? "{{HANDOFF}}";
+  return `> ⚠️ HARD GATE — Write \`${target}\` ${before}\n> Returning without a written handoff file = BLOCKED (runner exit 1).`;
+}
+
 export function renderModePrompt(mode, env = {}) {
   // review mode 走 review.md 共享壳（reviews.json type=task 配置）；不再有旧 task-review 模板。
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
@@ -121,6 +130,7 @@ export function renderModePrompt(mode, env = {}) {
       RETURN_MODE: art.return,
       H1_BLOCK: REVIEW_H1_BLOCK,
       PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
+      HARD_GATE: reviewHardGate(art.return, env.HANDOFF),
     });
     // HANDOFF_STUB：共享壳槽位在 review 早退路径须显式替换（与 generic 路径一致）。
     const schema = loadHandoffSchema();

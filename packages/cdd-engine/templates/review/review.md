@@ -19,6 +19,8 @@ This review's `returnMode` is **{{RETURN_MODE}}**:
 
 ## Handoff
 
+{{HARD_GATE}}
+
 Write/update `{{HANDOFF}}` JSON per the schema shown below (schema family: {{HANDOFF_TYPE}}).
 
 {{HANDOFF_STUB}}

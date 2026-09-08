@@ -438,7 +438,7 @@ it("buildTaskEnv: implement mode → CDD_FINDINGS = open-findings path, no CDD_F
 
 // ---- CLI succeeds + no handoff → BLOCKED (Pζ) ----
 
-it("runTask #187→Pζ: CLI succeeds + no handoff → BLOCKED (not APPROVED fallback)", async () => {
+it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍守卫 review/fix；implement 由 T6 实体化接管）", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-ok-cli-"));
   writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
@@ -452,14 +452,14 @@ it("runTask #187→Pζ: CLI succeeds + no handoff → BLOCKED (not APPROVED fall
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "review", probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
+    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
     expect(handoff.status).toBe("BLOCKED");
-    expect(handoff.phase).toBe("implement");
+    expect(handoff.phase).toBe("review");
     expect(handoff.blocker).toMatch(/not written after exit 0/);
   } finally {
     process.env.PATH = origPath;
@@ -945,4 +945,139 @@ it("schema: phase 'review' task-review handoff 通过 Ajv 校验（phase enum �
   })).toEqual({ valid: true });
   // 旧 task-review phase 不再合法（未归一会被 runner 8.8 Ajv 判 invalid 覆写 BLOCKED）
   expect(validateHandoffSchema({ task: 1, phase: "task-review", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
+});
+
+// ---- T6: implement handoff 实体化 + evidence-gate + H1 h1FromHandoff（commits 单一权威）----
+
+// T6 fixture：git repo workspace + 40-hex TASK_BASE brief（commits.base 唯一权威）。返回 registry/HEAD 现场。
+function t6Workspace(extraFiles = {}) {
+  const ws = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
+  const taskBase = "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63";
+  writeFileSync(path.join(ws, "task-1-brief.md"), `# task 1\nTASK_BASE: ${taskBase}\n`);
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
+    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "", tasks: [], degradationLog: [],
+  }, null, 2));
+  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
+  for (const [f, v] of Object.entries(extraFiles)) writeFileSync(path.join(ws, f), v);
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t6-bin-"));
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+  const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ws, encoding: "utf8" }).trim();
+  return { ws, taskBase, actualHead, binDir, regPath };
+}
+
+// T6 ghost 运行封装：写 fake-cli（body）→ 注入 PATH 运行 runTask（implement/non-dry）→ 还原 PATH。
+async function runT6Ghost(t6, body) {
+  const cli = path.join(t6.binDir, "fake-cli");
+  writeFileSync(cli, body);
+  chmodSync(cli, 0o755);
+  const origPath = process.env.PATH;
+  process.env.PATH = `${t6.binDir}${path.delimiter}${origPath}`;
+  try {
+    return await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(t6.ws, { PATH: `${t6.binDir}${path.delimiter}${origPath}` }),
+      registryPath: t6.regPath, noExit: true,
+    });
+  } finally {
+    process.env.PATH = origPath;
+  }
+}
+
+it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.json（H1 stdout → 文件；commits 单一权威）", async () => {
+  const t6 = t6Workspace();
+  const report = path.join(t6.ws, "task-1-report.md");
+  const tev = path.join(t6.ws, "task-1-test-evidence.json");
+  writeFileSync(report, "report body\n");
+  // evidence 齐 command/passed/exit_code（behavior_change 非 true 或齐全是 soft）→ 不拦
+  writeFileSync(tev, JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }));
+  const res = await runT6Ghost(t6, [
+    "#!/usr/bin/env bash",
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=agent-wrong-base head=agent-wrong-head'",
+    `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
+    "printf '%s\\n' 'blocker: none'",
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(0);
+  const hp = path.join(t6.ws, "task-1-implement.json");
+  expect(existsSync(hp)).toBe(true);
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  expect(h.task).toBe(1);
+  expect(h.phase).toBe("implement");
+  expect(h.status).toBe("APPROVED");
+  expect(h.commits.base).toBe(t6.taskBase);      // brief TASK_BASE 权威（agent 行被忽略）
+  expect(h.commits.head).toBe(t6.actualHead);    // git HEAD 权威
+  expect(h.findings).toEqual([]);
+  expect(h.artifacts.report).toBe(report);
+  expect(h.blocker).toBeUndefined();             // blocker: none → 省略（h1FromHandoff 按 APPROVED 缺省 none）
+  // H1 由实体化 handoff 重发（h1FromHandoff）
+  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.h1[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
+});
+
+it("runTask T6: implement 不写 handoff 也不触发 10.5 BLOCKED（runner 实体化兜底）", async () => {
+  // fake-cli 只回 H1 四行、不写任何文件（连 test-evidence 都没有 → evidence-gate soft WARN）→ 仍 exit 0 + 实体化。
+  const t6 = t6Workspace();
+  const res = await runT6Ghost(t6, [
+    "#!/usr/bin/env bash",
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=x head=y'",
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    "printf '%s\\n' 'blocker: none'",
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(0);
+  const hp = path.join(t6.ws, "task-1-implement.json");
+  expect(existsSync(hp)).toBe(true);
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  // 10.5 未触发：status 为 APPROVED（若命中 10.5 会被覆写 BLOCKED + exit 1）
+  expect(h.status).toBe("APPROVED");
+  expect(h.phase).toBe("implement");
+  expect(h.commits.base).toBe(t6.taskBase);
+});
+
+it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_code → handoff 覆写 BLOCKED + exit 1", async () => {
+  const t6 = t6Workspace();
+  const res = await runT6Ghost(t6, [
+    "#!/usr/bin/env bash",
+    // 模拟 agent 写了 test-evidence：behavior_change:true 但缺必需三键
+    `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "$CDD_WORKSPACE/task-1-test-evidence.json"`,
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=x head=y'",
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    "printf '%s\\n' 'blocker: none'",
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(1);
+  const hp = path.join(t6.ws, "task-1-implement.json");
+  expect(existsSync(hp)).toBe(true);
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  expect(h.status).toBe("BLOCKED");
+  expect(h.blocker).toMatch(/test_evidence gate: hard/);
+  expect(h.blocker).toContain("command");
+  // H1 同步为 BLOCKED（h1FromHandoff 与覆写后 handoff 一致）
+  expect(res.h1[0]).toBe("status: BLOCKED");
+});
+
+it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺省 blocker 由实体化 handoff 重发覆写", async () => {
+  const t6 = t6Workspace();
+  // agent 谎报 commits + 无 blocker 行 → 最终 H1 必须来自实体化 handoff（brief TASK_BASE + git HEAD + blocker: none）
+  const res = await runT6Ghost(t6, [
+    "#!/usr/bin/env bash",
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=fakefakefakefakefakefakefakefakefakefake head=fakefakefakefakefakefakefakefakefakefake'",
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(0);
+  expect(res.h1.length).toBe(4);
+  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.h1[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
+  expect(res.h1[3]).toBe("blocker: none");
+  const h = JSON.parse(readFileSync(path.join(t6.ws, "task-1-implement.json"), "utf8"));
+  expect(h.commits.base).toBe(t6.taskBase);
+  expect(h.blocker).toBeUndefined();
 });

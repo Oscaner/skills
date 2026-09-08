@@ -15,38 +15,18 @@
 //   for future cdd-run-review.mjs / docs-run-review.mjs CLI wrappers.
 
 import { readdirSync } from "node:fs";
+import { roundPattern, resolveNextRound as hnResolveNextRound } from "./handoff-naming.mjs";
 
-// Round helpers — type-aware naming pattern so each artifact type keeps its own
-// monotonically increasing round sequence (canonical handoff-namespace.json 命名；T3 同步 spec/plan)：
-//   spec / plan : `<workspace>/<type>-review-<round>.json`（spec-review-1.json, spec-review-2.json）
-//   task         : `<workspace>/task-<taskN>-task-review-<round>.json`（the runner's
-//                  existing round naming; task-N-handoff.json is untouched）
-//   branch       : `<workspace>/branch-review-<base7>..<head7>-r<round>.json`（branch-review naming）
+// Round helpers — T3 后命名单一真相移交 handoff-naming（canonical handoff-namespace.json）。
+// 本模块仅保留 runReviewLoop（URC 引用实现）；round 模式委托给 handoff-naming.roundPattern —
+// 不再有第二处命名字面量（task 分支退役 `task-{N}-task-review-{R}` 模式，统一 task-{N}-review-{R}）。
 export function reviewRoundPattern(type, opts = {}) {
-  if (type === "task") {
-    const t = opts.task;
-    // 两参形式（无 task）不得造出 `task-undefined-` 幻影模式静默匹配 → 返回不匹配空正则。
-    if (t == null) return /$^/;
-    return new RegExp(`^task-${t}-task-review-(\\d+)\\.json$`);
-  }
-  if (type === "branch") return /^branch-review-.*-r(\d+)\.json$/;
-  if (type === "spec") return /^spec-review-(\d+)\.json$/;
-  if (type === "plan") return /^plan-review-(\d+)\.json$/;
-  throw new Error(`unknown review type: ${type}`);
+  if (type === "task" && opts.task == null) return /$^/; // 两参形式（无 task）不得造幻影模式
+  return roundPattern("review", type, opts);
 }
 
 export function resolveNextRound(workspace, type, opts = {}) {
-  let max = 0;
-  try {
-    for (const f of readdirSync(workspace)) {
-      const m = f.match(reviewRoundPattern(type, opts));
-      if (m) max = Math.max(max, Number(m[1]));
-    }
-  } catch (err) {
-    // 仅 workspace 缺失（ENOENT）归默认 round 1；其余真实错误（EACCES/EISDIR…）上抛，不吞。
-    if (err?.code !== "ENOENT") throw err;
-  }
-  return max + 1;
+  return hnResolveNextRound(workspace, "review", type, opts);
 }
 
 // Review Stopping: a second dispatch for the same (type, ref) after its previous

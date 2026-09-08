@@ -15,7 +15,7 @@ import semver from "semver";
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mjs";
-import { handoffName } from "./handoff-naming.mjs";
+import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-naming.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound } from "./progress.mjs";
@@ -177,19 +177,12 @@ function readJson(filePath) {
 
 // Returns the path of the handoff written by the previous phase for this task
 //（文件名经 canonical handoff-naming 派生；跨族 prev 表语义保留）。
-// review round 1: reads task-N-implement.json（canonical review.task prev.round1）
-// review round R>1: reads task-N-fix-(R-1).json（canonical review.task prev.roundR）
-// fix round R: reads task-N-review-R.json（canonical fix.task prev.roundR）
+// runner 的 prev 依赖收口到 handoff-naming（canonical prev 表）：
+// mode "review" → review.task，mode "fix" → fix.task（跨族 prev 语义在 canonical 表内）。
+// 返回路径或 null（implement 无 prior）。task-mode 三合一（review/filexce）。
 function prevHandoffPath(workspace, task, mode, round) {
-  if (mode === "review") {
-    return round === 1
-      ? path.join(workspace, handoffName("implement", "task", { task }))
-      : path.join(workspace, handoffName("fix", "task", { task, round: round - 1 }));
-  }
-  if (mode === "fix") {
-    return path.join(workspace, handoffName("review", "task", { task, round }));
-  }
-  return null; // implement has no prior phase
+  if (mode !== "review" && mode !== "fix") return null; // implement has no prior phase
+  return hnPreHandoffPath(workspace, mode, "task", round, { task });
 }
 
 // Aligns cdd_require_env mode validation.

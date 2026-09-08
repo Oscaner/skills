@@ -55,6 +55,10 @@ it("prevHandoffPath: 跨族 task review R=1 → implement；R>1 → fix.task:R-1
 it("prevHandoffPath: fix 族 → 源 review 同 round", () => {
   expect(prevHandoffPath("/ws", "fix", "spec", 2)).toBe("/ws/spec-review-2.json");
 });
+it("prevHandoffPath: fix.task round1 无专属表项 → 回退 roundR（跨轮次同依赖）", () => {
+  expect(prevHandoffPath("/ws", "fix", "task", 1, { task: 5 })).toBe("/ws/task-5-review-1.json");
+  expect(prevHandoffPath("/ws", "fix", "task", 3, { task: 5 })).toBe("/ws/task-5-review-3.json");
+});
 it("resolveWorkspace: spec-design.md 与 plan.md 收敛同 slug workspace", () => {
   const specWs = resolveWorkspace("/repo/docs/superpowers/specs/2026-09-08-foo-design.md");
   const planWs = resolveWorkspace("/repo/docs/superpowers/plans/2026-09-08-foo.md");

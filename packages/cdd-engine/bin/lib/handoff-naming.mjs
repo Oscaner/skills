@@ -85,7 +85,8 @@ export function resolveNextRound(workspace, op, type, opts = {}) {
 export function prevHandoffPath(workspace, op, type, round, opts = {}) {
   const f = family(op, type);
   // 跨族依赖表优先（prev 表仅存在于 review.task 与 fix 族）。
-  const prevExpr = f.prev?.[round === 1 ? "round1" : "roundR"];
+  // round1 无专属行（fix 族）时回退 roundR 表项——依赖表达式跨轮次相同。
+  const prevExpr = f.prev?.[round === 1 ? "round1" : "roundR"] ?? f.prev?.["roundR"];
   if (prevExpr) {
     const [prevFamily, roundRef] = prevExpr.split(":");
     const [prevOp, prevType] = prevFamily.split(".");

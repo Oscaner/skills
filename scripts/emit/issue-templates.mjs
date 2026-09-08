@@ -4,8 +4,8 @@
 // session_report) from the canonical `finding-meta.json` via the report-issue
 // renderer single point (report-templates.renderYml). Data-driven convention:
 // form field definitions live solely in the canonical JSON — nothing hardcoded
-// here. Round-trip ①: the first render must reproduce the committed yml
-// byte-for-byte (drift-checked by the emit diff).
+// here. Emitter output is drift-guarded by `emit:check` (committed yml are
+// products of this emitter + the canonical).
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";

@@ -22,7 +22,7 @@ const findingMeta = JSON.parse(readFileSync(path.resolve(
 
 describe("report-templates", () => {
   it("隐私迁移后 3 个 yml 渲染产物无 Branch", () => {
-    for (const n of ["bug_report", "enhancement", "session_report"]) {
+    for (const n of Object.keys(findingMeta.formFieldDefs)) {
       expect(renderYml(findingMeta.formFieldDefs[n])).not.toMatch(/Branch/);
     }
   });
@@ -165,9 +165,12 @@ describe("issue-templates emitter", () => {
       for (const name of Object.keys(findingMeta.formFieldDefs)) {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
         expect(existsSync(path.join(tmp, rel))).toBe(true);
-        expect(readFileSync(path.join(tmp, rel), "utf8")).toBe(
-          readFileSync(path.join(TEMPLATES, `${name}.yml`), "utf8"),
-        ); // 首渲染 = 现状（round-trip ①，过渡性断言；隐私迁移后随 committed yml 同步更新）
+        const emitted = readFileSync(path.join(tmp, rel), "utf8");
+        // 内容不变量（非 byte-golden——emit:check 已承担 drift 守卫，此处验关键形态）
+        expect(emitted).toContain(
+          `name: ${findingMeta.formFieldDefs[name].frontmatter.name}`,
+        );
+        expect(emitted).not.toMatch(/Branch/);
       }
     } finally {
       rmSync(tmp, { recursive: true, force: true });

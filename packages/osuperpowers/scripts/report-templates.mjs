@@ -19,8 +19,8 @@ const findingMeta = JSON.parse(
 const { sectionLabels, masterDef } = findingMeta;
 
 // --- YAML scalar emission ------------------------------------------------
-// Deterministic style rules reproducing the current .github/ISSUE_TEMPLATE
-// sources byte-for-byte (round-trip ①):
+// Deterministic style rules reproducing the .github/ISSUE_TEMPLATE sources
+// (canonical-driven; drift-guarded by emit:check):
 //   1. embedded newline            -> literal block (`|`, content at 8 spaces)
 //   2. ": " or em-dash "—"         -> double-quoted (colon-space must be quoted
 //                                     in YAML; upstream also authored the

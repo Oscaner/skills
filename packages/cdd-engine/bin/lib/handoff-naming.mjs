@@ -59,9 +59,9 @@ export function handoffName(op, type, params) {
   return fillName(family(op, type).name, params);
 }
 
-// resolveNextRound(workspace, op, type, opts) → maxR+1（round:"increment" 家族用；
-// review-loop 旧 spec-(N).json 扫描语义由 T3 切换消费方时对齐）。
-// scan 形态 = 不传 task pin（roundPattern 以 params.task 缺席判别宽匹配）。
+// resolveNextRound(workspace, op, type, opts) → maxR+1（round:"increment" 家族用）。
+// scan 形态 = 不传 task pin（roundPattern 以 params.task 缺席判别宽匹配）；branch 传 concrete
+// base7/head7 做 per-ref 轮次。cdd.mjs 消费方（spec/plan/branch）T3 起全部走本层。
 export function resolveNextRound(workspace, op, type, opts = {}) {
   // scan 形态：task 族不 pin（跨 task 扫 rounds）；branch/spec/plan 天然无 task 字段。
   const re = roundPattern(op, type, { ...opts, task: undefined });

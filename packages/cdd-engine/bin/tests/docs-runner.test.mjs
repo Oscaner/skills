@@ -52,7 +52,8 @@ vi.mock("node:fs", async (importOriginal) => {
     ...actual,
     existsSync: vi.fn((p) => {
       // Handoff file "exists" so we take the read-and-validate path (not writeHandoff BLOCKED path).
-      if (String(p).includes("review")) return true;
+      // T3: 以 canonical fake ws 前缀判别（不再按 template 名含 "review"）—— spec-fix-1.json 等也视为存在。
+      if (String(p).includes(".superpowers/cdd/foo/")) return true;
       return actual.existsSync(p);
     }),
     readFileSync: vi.fn((p, enc) => {
@@ -68,7 +69,7 @@ vi.mock("node:fs", async (importOriginal) => {
           },
         });
       }
-      if (String(p).includes("review")) {
+      if (String(p).includes(".superpowers/cdd/foo/")) {
         return JSON.stringify({
           phase: "review", status: "APPROVED",
           findings: [], artifacts: {}, doc_path: "/doc.md",
@@ -114,7 +115,8 @@ describe("runDocsTask", () => {
       template:  "review",
       doc:       "/repo/root/docs/superpowers/specs/my-spec.md",
       params:    { TYPE: "spec" },
-      workspace: "/repo/root/.superpowers/docs-review",
+      workspace: "/repo/root/.superpowers/cdd/foo",
+      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
       repoRoot:  "/repo/root",  // accepted in opts but gitToplevel() is used (Bug L fix)
       dryRun:    false,
     });
@@ -136,7 +138,8 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "review", template: "review", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       params: { TYPE: "spec" },
-      workspace: "/repo/root/.superpowers/docs-review",
+      workspace: "/repo/root/.superpowers/cdd/foo",
+      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
       dryRun: false,
     });
     let promptArg = execa.mock.calls[0][1].at(-1);
@@ -148,11 +151,43 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       findingsPath: "/repo/root/docs/findings.md",
-      workspace: "/repo/root/.superpowers/docs-review",
+      workspace: "/repo/root/.superpowers/cdd/foo",
+      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-fix-1.json",
       dryRun: false,
     });
     promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
     expect(promptArg.split("\n")[1]).toBe("mocked docs review prompt");
+  });
+
+  // ---- P6 T3：handoffPath 显式必传（no template fallback）+ 模板名直传（-review→-fix 派生已删） ----
+
+  it("T3: 非 dry-run 缺 handoffPath → throw（canonical naming；无 template-round fallback）", async () => {
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/docs-runner.mjs");
+    await expect(runDocsTask({
+      harness: "claude", mode: "review", template: "review",
+      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      workspace: "/repo/root/.superpowers/cdd/foo",
+      dryRun: false,
+    })).rejects.toThrow(/handoffPath required/);
+  });
+
+  it("T3: fix 模板名直传 —— `-review`→`-fix` legacy 派生分支已删（renderTemplate 收 template 原值）", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    const { renderTemplate } = await import("../lib/templates.mjs");
+
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/docs-runner.mjs");
+    await runDocsTask({
+      harness: "claude", mode: "fix", template: "critiques-review", type: "spec",
+      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      workspace: "/repo/root/.superpowers/cdd/foo",
+      // 含 "review" 段 → node:fs fixture 的 existsSync 视为存在 → 走 read-and-validate 路径。
+      handoffPath: "/repo/root/.superpowers/cdd/foo/critiques-review-1.json",
+      dryRun: false,
+    });
+    expect(renderTemplate.mock.calls.at(-1)?.[0]).toBe("critiques-review");
   });
 });

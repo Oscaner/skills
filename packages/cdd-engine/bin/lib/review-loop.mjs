@@ -17,11 +17,11 @@
 import { readdirSync } from "node:fs";
 
 // Round helpers — type-aware naming pattern so each artifact type keeps its own
-// monotonically increasing round sequence:
-//   spec / plan : `<workspace>/<type>-<round>.json` (AC15: spec-1.json, spec-2.json)
-//   task         : `<workspace>/task-<taskN>-task-review-<round>.json` (the runner's
-//                  existing round naming; task-N-handoff.json is untouched)
-//   branch       : `<workspace>/branch-review-<base7>..<head7>-r<round>.json` (branch-review naming)
+// monotonically increasing round sequence (canonical handoff-namespace.json 命名；T3 同步 spec/plan)：
+//   spec / plan : `<workspace>/<type>-review-<round>.json`（spec-review-1.json, spec-review-2.json）
+//   task         : `<workspace>/task-<taskN>-task-review-<round>.json`（the runner's
+//                  existing round naming; task-N-handoff.json is untouched）
+//   branch       : `<workspace>/branch-review-<base7>..<head7>-r<round>.json`（branch-review naming）
 export function reviewRoundPattern(type, opts = {}) {
   if (type === "task") {
     const t = opts.task;
@@ -30,7 +30,9 @@ export function reviewRoundPattern(type, opts = {}) {
     return new RegExp(`^task-${t}-task-review-(\\d+)\\.json$`);
   }
   if (type === "branch") return /^branch-review-.*-r(\d+)\.json$/;
-  return new RegExp(`^${type}-(\\d+)\\.json$`);
+  if (type === "spec") return /^spec-review-(\d+)\.json$/;
+  if (type === "plan") return /^plan-review-(\d+)\.json$/;
+  throw new Error(`unknown review type: ${type}`);
 }
 
 export function resolveNextRound(workspace, type, opts = {}) {

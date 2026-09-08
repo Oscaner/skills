@@ -90,12 +90,12 @@ describe('renderTemplate', () => {
     const { renderTemplate } = await import('../lib/templates.mjs');
     const out = renderTemplate('review', {
       TYPE: 'spec', WORKSPACE: '/ws', LENS_GUIDE: 'completeness · consistency · clarity',
-      REFERENCE: '/tmp/spec.md', AXES: 'URC 规则指针', HANDOFF: '/tmp/spec-1.json',
+      REFERENCE: '/tmp/spec.md', AXES: 'URC 规则指针', HANDOFF: '/tmp/spec-review-1.json',
       HANDOFF_TYPE: 'docs', RETURN_MODE: 'json', H1_BLOCK: '', PLAN_LINE: '',
     }, 'test');
     expect(out).toContain('/tmp/spec.md');
     expect(out).toContain('completeness · consistency · clarity');
-    expect(out).toContain('/tmp/spec-1.json');
+    expect(out).toContain('/tmp/spec-review-1.json');
   });
 
   it('throws on missing param', async () => {

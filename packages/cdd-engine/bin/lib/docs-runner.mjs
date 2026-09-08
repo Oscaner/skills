@@ -21,8 +21,8 @@ export async function runDocsTask({
   doc,           // path to the document being reviewed/fixed
   findingsPath,
   handoffPath,
-  workspace,
-  round = 1,
+  workspace,     // accepted but no longer participates in path derivation (T3: handoffPath is canonical)
+  round = 1,     // accepted but no longer participates in path derivation (handoffPath already carries the round)
   dryRun = false,
   params = {},   // additional template params from --param KEY=VALUE flags
   // repoRoot accepted in opts but ignored — gitToplevel(process.cwd()) is always used (Bug L fix)
@@ -35,20 +35,18 @@ export async function runDocsTask({
   const repoRoot = gitToplevel(process.cwd());
   if (!repoRoot) throw new Error("docs-runner: not in a git repo");
 
-  // Derive handoffPath from workspace + template + round if not provided explicitly.
-  const resolvedHandoffPath = handoffPath ?? path.join(workspace, `${template}-${round}.json`);
+  // T3: handoffPath must be passed by the caller (cdd.mjs passes canonical handoff-naming filenames).
+  // The legacy `${template}-${round}.json` derivation is removed — no second naming site.
+  if (!handoffPath) throw new Error("docs-runner: handoffPath required (canonical naming; no template fallback)");
 
   // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}},
   // then replace {{HANDOFF_STUB}} with schema-derived stub).
-  // templateName: URC 后 fix 模板直接给 canonical 的 fixTemplate 值（"doc-fix"）——只有旧式
-  // `-review` 名（legacy 兼容）才做 `-review`→`-fix` 派生；doc-fix/review 直传，不得 double-suffix。
+  // T3: URC 后 fix 模板直接收 canonical fixTemplate 值（"doc-fix"）—— `-review`→`-fix` legacy
+  // 派生分支已删，模板名直传（doc-fix/review 不得 double-suffix）。
   const schema = loadHandoffSchema("docs");
   const stub = renderHandoffStub(schema, mode, undefined, { docPath: doc });
-  const templateName = mode === "fix" && template.endsWith("-review")
-    ? template.slice(0, -"-review".length) + "-fix"
-    : template;
-  let prompt = renderTemplate(templateName, {
-    DOC: doc, FINDINGS: findingsPath ?? "", HANDOFF: resolvedHandoffPath,
+  let prompt = renderTemplate(template, {
+    DOC: doc, FINDINGS: findingsPath ?? "", HANDOFF: handoffPath,
     ...params,
   }, "docs-runner");
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
@@ -65,30 +63,30 @@ export async function runDocsTask({
   const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, repoRoot, timeoutMs);
 
   // Read handoff from disk (agent writes it).
-  if (!existsSync(resolvedHandoffPath)) {
-    writeHandoff(resolvedHandoffPath, {
+  if (!existsSync(handoffPath)) {
+    writeHandoff(handoffPath, {
       phase: mode,
       status: "BLOCKED",
       findings: [],
       artifacts: {},
       doc_path: doc,
-      blocker: `${path.basename(resolvedHandoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${resolvedHandoffPath} before exit`,
+      blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${handoffPath} before exit`,
     });
-    return { exitCode: 1, handoff: JSON.parse(readFileSync(resolvedHandoffPath, "utf8")) };
+    return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
   }
 
-  const handoff = JSON.parse(readFileSync(resolvedHandoffPath, "utf8"));
+  const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
   const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
   if (!sv.valid) {
-    writeHandoff(resolvedHandoffPath, {
+    writeHandoff(handoffPath, {
       phase: mode,
       status: "BLOCKED",
       findings: [],
       artifacts: {},
       doc_path: doc,
-      blocker: `docs handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${resolvedHandoffPath} and re-run ${mode}`,
+      blocker: `docs handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
     });
-    return { exitCode: 1, handoff: JSON.parse(readFileSync(resolvedHandoffPath, "utf8")) };
+    return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
   }
 
   return { exitCode: res.code, handoff };

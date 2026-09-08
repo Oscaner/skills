@@ -59,8 +59,8 @@ it("runReviewLoop: onRoundDone called with final round + findings", async () => 
 
 it("resolveNextRound: per-type 命名模式", () => {
   const ws = mkdtempSync(join(tmpdir(), "rloop-"));
-  writeFileSync(join(ws, "spec-1.json"), "{}");
-  writeFileSync(join(ws, "spec-2.json"), "{}");
+  writeFileSync(join(ws, "spec-review-1.json"), "{}");
+  writeFileSync(join(ws, "spec-review-2.json"), "{}");
   expect(resolveNextRound(ws, "spec")).toBe(3);
   writeFileSync(join(ws, "task-2-task-review-1.json"), "{}");
   writeFileSync(join(ws, "task-2-task-review-3.json"), "{}");

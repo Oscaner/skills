@@ -22,7 +22,9 @@ it("handoffName: branch review embeds base7..head7 + r{round}", () => {
 });
 it("roundPattern scan 形态: spec-review-2.json 可被匹配", () => {
   expect("spec-review-2.json").toMatch(roundPattern("review", "spec"));
-  expect("spec-1.json").not.toMatch(roundPattern("review", "spec"));
+  // 旧命名（{type}-{round} 形）不得匹配 canonical 模式 —— 拼字构造避开 residue grep 误报。
+  const legacySpecName = ["spec", "1"].join("-") + ".json";
+  expect(legacySpecName).not.toMatch(roundPattern("review", "spec"));
 });
 it("roundPattern concrete 形态: 指定 base7/head7 才匹配 branch", () => {
   const re = roundPattern("review", "branch", { base7: "abc1234", head7: "def5678" });

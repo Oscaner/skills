@@ -42,7 +42,7 @@ flowchart TD
 - **lens-tag** — every finding carries a `lens` label (prevents axis mixing).
 - **Review Stopping** — blocker=0 is never re-run; the engine layer rejects the same-ref re-run.
 - **Severity** — `blocker` must be fixed before merge (correctness / contract violation); `warn` is a minor but real issue (still fixed); `nit` is pure style (still fixed). All findings are always fixed.
-- **Handoff Output** — docs reviews (`cdd review --type spec|plan --doc <path>`) write `<workspace>/spec-{round}.json` / `<workspace>/plan-{round}.json`; `<workspace>` = `<repoRoot>/.superpowers/docs-review/`; round auto-incremented by the engine. Handoff schema: `{ "status": "APPROVED|CHANGES_REQUESTED", "findings": [...] }`.
+- **Handoff Output** — docs reviews (`cdd review --type spec|plan --doc <path>`) write `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`; `<workspace>` = `<repoRoot>/.superpowers/cdd/<slug>/` (slug = reviewed doc filename with `.md` and a trailing `-design` stripped, derived by the engine's `resolveWorkspace`; e.g. `2026-09-08-spec-design.md` and `2026-09-08-plan.md` converge on the same workspace), round auto-incremented by the engine per review family. Fix rounds reuse the source review's round: `cdd fix --type spec|plan --doc <path> --findings <workspace>/spec-review-{R}.json` writes `<workspace>/spec-fix-{R}.json` / `<workspace>/plan-fix-{R}.json`. Handoff schema: `{ "status": "APPROVED|CHANGES_REQUESTED", "findings": [...] }`.
 
 ## Invariants
 

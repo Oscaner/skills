@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
@@ -10,6 +11,8 @@ import {
   renderComment,
   renderMasterBody,
 } from "../../packages/osuperpowers/scripts/report-templates.mjs";
+import { emitIssueTemplates } from "./issue-templates.mjs";
+import { emitAll } from "./all.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = path.resolve(HERE, "../../.github/ISSUE_TEMPLATE");
@@ -160,5 +163,44 @@ describe("report-templates", () => {
     expect(labels.problem).toBe("## Problem");
     expect(labels.impact).toBe("## Impact");
     expect(labels.suggestedFix).toBe("## Suggested fix");
+  });
+});
+
+describe("issue-templates emitter", () => {
+  it("emitIssueTemplates 写 3 个 yml 到 outRoot/.github/ISSUE_TEMPLATE 并 track generatedPaths", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-issue-templates-"));
+    try {
+      const generatedPaths = [];
+      emitIssueTemplates(tmp, {}, { generatedPaths });
+      expect(generatedPaths).toEqual([
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        ".github/ISSUE_TEMPLATE/enhancement.yml",
+        ".github/ISSUE_TEMPLATE/session_report.yml",
+      ]);
+      for (const name of ["bug_report", "enhancement", "session_report"]) {
+        const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
+        expect(existsSync(path.join(tmp, rel))).toBe(true);
+        expect(readFileSync(path.join(tmp, rel), "utf8")).toBe(
+          readFileSync(path.join(TEMPLATES, `${name}.yml`), "utf8"),
+        ); // 首渲染 = 现状（round-trip ①，过渡性断言；隐私迁移后随 committed yml 同步更新）
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("emitAll 接线：全量 emit 亦产出 3 个 issue 模板并 track（all.mjs 挂入校验）", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-emitall-issues-"));
+    try {
+      const generatedPaths = [];
+      emitAll(tmp, { generatedPaths });
+      for (const name of ["bug_report", "enhancement", "session_report"]) {
+        const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
+        expect(existsSync(path.join(tmp, rel))).toBe(true);
+        expect(generatedPaths.includes(rel)).toBe(true);
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

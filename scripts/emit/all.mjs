@@ -5,7 +5,8 @@
  * Derives `marketplace/source.json` (package-as-source) and generates every
  * first-party artifact into the repo root: osuperpowers per-harness manifests,
  * hooks, shared `.agents/skills/` copy, plus the repo-root marketplace
- * documents and vendored cursor wrappers. The `generatedPaths` array records
+ * documents, vendored cursor wrappers, and the data-driven
+ * `.github/ISSUE_TEMPLATE` forms. The `generatedPaths` array records
  * every repo-relative path produced (input for the emit-check drift diff).
  *
  * The downstream emitters each take `(outRoot, ..., generatedPaths)` — no
@@ -22,6 +23,7 @@ import { deriveSource } from "./source.mjs";
 import { writeJsonDoc } from "./orchestrate.mjs";
 import { emitOsuperpowers } from "./osuperpowers.mjs";
 import { emitMarketplaceDocs } from "./marketplace.mjs";
+import { emitIssueTemplates } from "./issue-templates.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -42,6 +44,10 @@ export function emitAll(outRoot, { generatedPaths }) {
   }
 
   const wrapperRoots = emitMarketplaceDocs(outRoot, source, generatedPaths);
+
+  // Repo-root data-driven forms, rendered from the canonical finding-meta.json
+  // (single source of truth) via the report-issue renderer.
+  emitIssueTemplates(outRoot, source, { generatedPaths });
 
   // source.json is itself a derived emit product (package-as-source).
   writeJsonDoc(outRoot, "marketplace/source.json", source, generatedPaths);

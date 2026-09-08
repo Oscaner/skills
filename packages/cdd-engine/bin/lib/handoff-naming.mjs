@@ -19,9 +19,9 @@ function family(op, type) {
   return f;
 }
 
-// familyConfig(op, type) → canonical 族配置（readonly 对象）。reviews.json 裁 artifact 轴后，
-// schema/return/fixTemplate 等 artifact 字段的唯一读取点（templates.mjs reviewArtifactConfig /
-// cdd.mjs runFix 消费；命名不重复字面量）。
+// familyConfig(op, type) → canonical 族配置（活引用 canonical 的 families 对象——readonly 契约，
+// 调用方不得修改返回对象）。reviews.json 裁 artifact 轴后，schema/return/fixTemplate 等
+// artifact 字段的唯一读取点（templates.mjs reviewArtifactConfig / cdd.mjs runFix 消费；命名不重复字面量）。
 export function familyConfig(op, type) {
   return family(op, type);
 }

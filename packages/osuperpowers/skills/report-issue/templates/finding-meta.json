@@ -72,7 +72,7 @@
         {
           "type": "markdown",
           "attributes": {
-            "value": "Use this template to report bugs found during dogfood use of osuperpowers skills.\nAdditional labels (`dogfood` and `cdd` for CDD-related findings) will be appended automatically when the issue is filed via the report-issue skill.\n"
+            "value": "Use this template to report bugs found during dogfood use of osuperpowers skills.\n"
           }
         },
         {
@@ -112,8 +112,8 @@
           "id": "context",
           "attributes": {
             "label": "Context",
-            "description": "Dogfood session context: branch, date, which osuperpowers skills were in use",
-            "placeholder": "Branch: feat/my-feature, Date: YYYY-MM-DD, Skills: cli-driven-development, writing-plans"
+            "description": "Dogfood session context: date, harness, which osuperpowers skills were in use",
+            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development, writing-plans"
           },
           "validations": { "required": true }
         },
@@ -166,7 +166,7 @@
         {
           "type": "markdown",
           "attributes": {
-            "value": "Use this template to suggest improvements found during dogfood use of osuperpowers skills.\nAdditional labels (`dogfood` and `cdd` for CDD-related findings) will be appended automatically when the issue is filed via the report-issue skill.\n"
+            "value": "Use this template to suggest improvements found during dogfood use of osuperpowers skills.\n"
           }
         },
         {
@@ -206,8 +206,8 @@
           "id": "context",
           "attributes": {
             "label": "Context",
-            "description": "Dogfood session context: branch, date, which osuperpowers skills were in use",
-            "placeholder": "Branch: feat/my-feature, Date: YYYY-MM-DD, Skills: cli-driven-development"
+            "description": "Dogfood session context: date, harness, which osuperpowers skills were in use",
+            "placeholder": "Date: YYYY-MM-DD, Harness: claude-code, Skills: cli-driven-development"
           },
           "validations": { "required": true }
         },
@@ -262,8 +262,8 @@
           "id": "session-context",
           "attributes": {
             "label": "Session context",
-            "description": "Dogfood/CDD session metadata: branch, date, harness; list skills one per line (multi-select list)",
-            "placeholder": "Branch: feat/my-feature\nDate: YYYY-MM-DD\nHarness: claude-code\nSkills:\n- osuperpowers:cli-driven-development\n- osuperpowers:writing-plans\n"
+            "description": "Dogfood/CDD session metadata: date, harness; list skills one per line (multi-select list)",
+            "placeholder": "Date: YYYY-MM-DD\nHarness: claude-code\nSkills:\n- osuperpowers:cli-driven-development\n- osuperpowers:writing-plans\n"
           },
           "validations": { "required": true }
         },

@@ -1,5 +1,7 @@
 # CDD Engine 重构 — P4 Skills + 模板重构 实施计划
 
+**Spec:** [2026-09-08-cdd-engine-overhaul-p4-design.md](docs/superpowers/specs/2026-09-08-cdd-engine-overhaul-p4-design.md)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 完成 report-issue 双通道重构（program/session + session master + 永不 reopen + 派生 report-meta + 隐私守则）、模板单一事实源 + 统一渲染器（finding-meta.json + report-templates.mjs + issue-templates emitter）、方法论规范（data-driven-templates.md + CLAUDE.md 指针）、Enh K 全量回顾、Enh R pre-consumed 核验记账、旧语汇清零守卫。

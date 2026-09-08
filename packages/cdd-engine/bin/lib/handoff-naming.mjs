@@ -10,7 +10,8 @@ const NAMESPACE = JSON.parse(
   readFileSync(new URL("../../templates/handoff-namespace.json", import.meta.url), "utf8"));
 const { families } = NAMESPACE;
 
-export function familyKey(op, type) { return `${op}.${type}`; }
+// familyKey(op, type) → canonical family key（`${op}.${type}`）。内部 helper，非公共 API。
+function familyKey(op, type) { return `${op}.${type}`; }
 
 function family(op, type) {
   const f = families[familyKey(op, type)];
@@ -28,18 +29,21 @@ function fillName(name, params) {
 }
 
 // roundPattern(op, type, params) → ^...$ RegExp，两形态：
-//   scan 形态（无 task 参数）：{round}→(\d+)、{task}→\d+、{base7}/{head7}→[0-9a-f]{7}，用于 workspace 扫描；
-//   concrete 形态（opts 提供 {task}/{base7}/{head7}）：占位符→字面量，精确 ref 匹配。
+//   scan 形态（params.task 缺席——workspace 轮次扫描）：{round}→(\d+)、{task}→\d+、
+//     {base7}/{head7}→[0-9a-f]{7}，宽匹配（同族任意 task/ref 都命中 round 捕获组）；
+//   concrete 形态（params 提供 {task}/{base7}/{head7} 字面量——Stopping prev / round 校验）：
+//     占位符→字面量，精确 ref 匹配。
+// 形态判别 = params.task 是否提供（task 族），无 probe 标志位。
+// 注：line 41 的单点 `.` 转义已同时覆盖 `..`（branch 的 base7..head7 段逐字符转义为 `\.\.`），无需单独处理。
 export function roundPattern(op, type, params = {}) {
   const f = family(op, type);
-  const hasOpArg = ["task"].includes(type) && params?.task != null;
+  const taskPinned = ["task"].includes(type) && params?.task != null;
   let pattern = f.name
     .replaceAll("{round}", "(\\d+)")
-    .replaceAll("{task}", hasOpArg ? String(params.task) : "\\d+")
+    .replaceAll("{task}", taskPinned ? String(params.task) : "\\d+")
     .replaceAll("{base7}", params?.base7 ? params.base7 : "[0-9a-f]{7}")
     .replaceAll("{head7}", params?.head7 ? params.head7 : "[0-9a-f]{7}")
-    .replaceAll(".", "\\.")
-    .replaceAll("..", "\\.\\.");
+    .replaceAll(".", "\\.");
   return new RegExp(`^${pattern}$`);
 }
 
@@ -50,8 +54,10 @@ export function handoffName(op, type, params) {
 
 // resolveNextRound(workspace, op, type, opts) → maxR+1（round:"increment" 家族用；
 // review-loop 旧 spec-(N).json 扫描语义由 T3 切换消费方时对齐）。
+// scan 形态 = 不传 task pin（roundPattern 以 params.task 缺席判别宽匹配）。
 export function resolveNextRound(workspace, op, type, opts = {}) {
-  const re = roundPattern(op, type, { probe: true });
+  // scan 形态：task 族不 pin（跨 task 扫 rounds）；branch/spec/plan 天然无 task 字段。
+  const re = roundPattern(op, type, { ...opts, task: undefined });
   let max = 0;
   try {
     for (const f of readdirSync(workspace)) {

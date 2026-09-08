@@ -90,7 +90,7 @@ Two distinct language strategies implement this, depending on file type:
 
 ### Strategy B extension — maintainer docs (docs/maintainers/)
 
-`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the package's `contentRoot` is `"."` so `packages/*/` is what publishes). They are written **in Chinese**, may carry Chinese labels, and need **no** `.zh-CN.md` mirror. They are excluded from the Strategy A rule that `docs/*.md` must be English-only.
+`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the package's `contentRoot` is `"."` so `packages/*/` is what publishes). They follow the repo's **English-primary** policy (English authoritative source, no Chinese content, no `.zh-CN.md` mirror). They are excluded from the Strategy A emit-and-consumer rules but not from the English-primary rule.
 
 **Emit regenerates `.agents/`**: after editing any `skills/*.md` or `docs/*.md`, **you MUST run `pnpm run emit`** to propagate changes to `.agents/`. This is not optional — omitting it causes CI failure. Running `pnpm run emit:check` verifies no drift.
 

@@ -59,10 +59,10 @@ export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
       case 'doc_path': stub.doc_path = docPath ?? ''; break;
     }
   }
-  // T5: status 已从 schema.required 条件化（review 族可缺省）——但 stub 恒渲染 status 缺省：
-  // work 型（implement/fix）agent 仍须声明 status（schema conditional 强制），review 型引擎派生覆写，
-  // stub 提供缺省结果无害（「可缺省/可覆写」语义）。
-  if (!('status' in stub)) stub.status = 'APPROVED';
+  // T5: status 已从 schema.required 条件化（review 族可缺省、engine 派生覆写）。
+  // work 型（implement/fix）仍须声明 status（schema conditional else 强制）→ stub 补 APPROVED 引导；
+  // review 型 stub 不再渲染 status（可缺省语义，agent 不写、engine 覆写）——与「review 可缺省」契约一致。
+  if (mode !== "review" && !("status" in stub)) stub.status = "APPROVED";
   return '```json\n' + JSON.stringify(stub, null, 2) + '\n```';
 }
 

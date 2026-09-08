@@ -323,7 +323,13 @@ export function h1FromHandoff(handoffPath) {
     if (h.artifacts?.[key]) arts.push(`${key}=${h.artifacts[key]}`);
   }
   if (arts.length > 0) out.push(`artifacts: ${arts.join(" ")}`);
-  out.push(`blocker: ${h.blocker ?? "uncommitted changes at return"}`);
+  // T5 nit：review 成功 round 缺省 blocker 应为 none（而非 commit-contract 缺省文案）；
+  // review handoff 的 blocker 为可选字段（review.md Self-validate 不指导写），
+  // 缺省按 status 判定——APPROVED/CHANGES_REQUESTED 均为「无阻断」语义 → none。
+  const defaultBlocker = h.status === "APPROVED" || h.status === "CHANGES_REQUESTED"
+    ? "none"
+    : "uncommitted changes at return";
+  out.push(`blocker: ${h.blocker ?? defaultBlocker}`);
   return out;
 }
 

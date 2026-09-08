@@ -849,6 +849,9 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     ]);
     // H1 同步从 handoff 重发（h1FromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
     expect(res.h1[0]).toBe("status: APPROVED");
+    // T5 nit：review 成功 round 缺省 blocker → none（非 commit-contract 缺省文案）
+    // blocker 是 h1 最后一行（artifacts 存在时为 h1[3]，absent 时为 h1[2]）
+    expect(res.h1.at(-1)).toMatch(/^blocker: none$/);
   } finally {
     process.env.PATH = origPath;
   }

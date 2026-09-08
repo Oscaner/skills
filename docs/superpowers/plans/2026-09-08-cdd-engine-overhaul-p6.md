@@ -653,6 +653,10 @@ it("post-run validateCommitContract：dirty tree → handoff BLOCKED（task-revi
 it("cdd contract 子命令不存在", async () => {
   // spawn cdd contract --check-dirty → exit non-zero / unknown command
 });
+it("branch-review 读回覆写（T5 nit4 补测）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 APPROVED", async () => {
+  // 复用 cdd.test 既有 fake-CLI seam（PATH 注入 + registry ghost entry）；
+  // 断言 branch-review-<base7>..<head7>-r1.json 文件 status 被 applyDerivedStatus 覆写为 APPROVED
+});
 ```
 Expected: FAIL。
 

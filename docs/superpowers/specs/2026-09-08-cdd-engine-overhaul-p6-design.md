@@ -1,16 +1,16 @@
 # CDD Engine 重构 — P6 P4-dogfood 修复 + Handoff 契约统一 设计
 
-- **Version**: v1.2 · 2026-09-08（v1.0 起草 · v1.1 spec-review r1 修正 · v1.2 spec-review r2 blocker=0 修正；详细见 §5 self-review 记录）
+- **Version**: v1.3 · 2026-09-08（v1.0 起草 · v1.1 spec-review r1 修正 · v1.2 spec-review r2 blocker=0 修正 · v1.3 writing-plans grilling 高维度：workspace 归入 artifact 契约派生层；详细见 §5 self-review 记录）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) · **v1.20**（起草时 v1.19；§3 deviations 已回写 v1.20）
+- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) · **v1.21**（起草时 v1.20；§3 deviations 已回写 v1.20 + v1.21）
 - **Depends on**: P1–P4 全部已合（HEAD = develop 528d499, P4 PR #244）
 
 ---
 
 ## Section 0: Incremental warning
 
-P6 increment only。Cross-phase conventions in overall（v1.20）；overall wins on conflict。本 phase 修复 P4 执行期 dogfood 产出的 F1–F6 六个 findings，并基于「允许破坏性更新 / 不留技术债务」将 F3/F6 上探为 **Handoff 契约统一**（见 §1 / §2.3）。P5（Gate 移除）保持不动。
+P6 increment only。Cross-phase conventions in overall（v1.21）；overall wins on conflict。本 phase 修复 P4 执行期 dogfood 产出的 F1–F6 六个 findings，并基于「允许破坏性更新 / 不留技术债务」将 F3/F6 上探为 **Handoff 契约统一**（见 §1 / §2.3），并在 writing-plans grilling 阶段将 **Workspace 归入同一契约派生层**（见 §2.1。P5（Gate 移除）保持不动。
 
 ---
 
@@ -26,17 +26,20 @@ P6 increment only。Cross-phase conventions in overall（v1.20）；overall wins
 
 ## Section 2: Design body
 
-### 2.1 Handoff 命名契约（canonical）— 核心统一（F3/F6 上探）
+### 2.1 Handoff 命名 + Workspace 契约（canonical）— 核心统一（F3/F6 上探）
 
-**根因**：handoff 文件命名由 6 处各自为政的字面量产生（`runner.mjs` buildTaskEnv / prevHandoffPath、`cdd.mjs` spec·plan·branch、`docs-runner.mjs` fallback、`review-loop.mjs` reviewRoundPattern），writer 与 scanner 可在 P3→P4 式迁移时静默分歧；docs fix 命名 `doc-fix-{round}` 丢 type、round 恒 1；task 命名含冗余 `task-review` 段。
+**根因**：handoff 文件命名由 6 处各自为政的字面量产生（`runner.mjs` buildTaskEnv / prevHandoffPath、`cdd.mjs` spec·plan·branch、`docs-runner.mjs` fallback、`review-loop.mjs` reviewRoundPattern），writer 与 scanner 可在 P3→P4 式迁移时静默分歧；docs fix 命名 `doc-fix-{round}` 丢 type、round 恒 1；task 命名含冗余 `task-review` 段。**Workspace 同样散点**：4 处推导点（cdd.mjs docs/task/branch + runner.mjs）、2 个根（`.superpowers/cdd/<slug>/` 与 flat `.superpowers/docs-review/`）；flat root 无 per-phase 隔离导致跨 phase round 污染（P6 实测：P4 的 `plan-1/2.json` 把 P6 plan review 首轮顶到 3）。
 
-**决策**：新建单一 canonical `packages/cdd-engine/templates/handoff-namespace.json`，一表统治全部 handoff 家族（name / round / status / schema / return / fixTemplate / prev）。派生层 `packages/cdd-engine/bin/lib/handoff-naming.mjs` 暴露四个纯函数，全部消费 canonical；**name 是唯一真相，roundPattern 由 name 派生** — writer 与 scanner 结构上不可能分歧。
+**决策**：新建单一 canonical `packages/cdd-engine/templates/handoff-namespace.json`，一表统治全部 handoff 家族（name / round / status / schema / return / fixFamily / prev）+ **workspace 顶层字段（workspaceRoot / slugRule）**。派生层 `packages/cdd-engine/bin/lib/handoff-naming.mjs` 暴露**五个**纯函数，全部消费 canonical；**name 是唯一真相，roundPattern 由 name 派生；workspace 是唯一真相，slug 由被审文档推出** — writer/scanner 结构上不可能分歧，workspace 不再有第二处推导。
 
 **canonical 结构**（示例形状）：
 
 ```jsonc
 {
   "schema": 1,
+  // Workspace 顶层契约：单根 + slug 推导规则（全部 handoff 家族共享）
+  "workspaceRoot": ".superpowers/cdd",
+  "slugRule": "strip .md, then strip trailing -design",   // 被审文档文件名 → phase slug（spec/plan 收敛同值）
   "families": {
     "implement.task": { "name": "task-{task}-implement.json",   "round": "fixed",   "status": "contract", "schema": "cdd" },
     "review.task":    { "name": "task-{task}-review-{round}.json", "round": "increment", "status": "rollup",  "schema": "cdd",
@@ -69,13 +72,14 @@ P6 increment only。Cross-phase conventions in overall（v1.20）；overall wins
 
 **round 三语义**：`fixed`（implement 恒 1 单次）· `increment`（resolveNextRound 扫描自增）· `source`（fix 的 round = 源 review handoff 的 round，`--findings spec-review-2` → `spec-fix-2.json`；同轮 BLOCKED 重试写同名同槽，证据即该轮 notes）。
 
-**派生函数**：
+**派生函数（五个，全部消费 canonical）**：
 - `handoffName(op, type, params)` → 文件名（填占位，type→family 查找）
 - `roundPattern(op, type, opts)` → RegExp，由 `name` 派生（固定段 escape + 占位符按 op/type 映射），**占位符翻译规则两种形态**：
   - **scan 形态**（给 resolveNextRound）：`{round}`→`(\d+)`，`{task}`→`\d+`，`{base7}`/`{head7}`→`[0-9a-f]{7}`，ref-agnostic（branch 的 `{base7}..{head7}` 段→`[0-9a-f]{7}\.\.[0-9a-f]{7}`）——扫描 workspace 找下一 round
   - **concrete 形态**（给 Stopping prev 读取 / `--round` 校验）：占位符经 `opts` 具体化（`{task}`→`5`，`{base7}`→`abc1234`），精确匹配特定 ref——prev 文件路径校验
 - `resolveNextRound(workspace, op, type, opts)` → maxR+1（替代 review-loop 现有实现，行为等价，round 语义入表）
 - `prevHandoffPath(workspace, op, type, round, opts)` → prev 依赖（替代 runner 的 prevHandoffPath）
+- `resolveWorkspace(doc)` → `<repoRoot>/<workspaceRoot>/<slug>/`（第五派生；slug = workspaceSlug(doc) 按 slugRule：被审文档文件名去 `.md`、再去尾 `-design` — spec/plan 收敛同值；只依赖文件名，不依赖 plan 文件存在；替代 cdd.mjs 四处 + runner.mjs resolveWorkspace 的全部推导）
   - **两种 prev 机制划界（同一函数名内含语义拆分）**：
     - **同族 round-1 prev（Review Stopping 判定用）**：review 族对任意 type 的「上一轮 review」= `handoffName(同族, round-1, concreteParams)` 直接算术解析（如 reviewer.spec R 的 prev = `spec-review-(R-1).json`），**不走 canonical prev 表**（review.spec/plan/branch 无 prev 行）
     - **跨族 prev（依赖链用）**：fix → 源 review、task review round1 → implement、task review roundR → fix:R-1 —— 走 canonical `prev` 表 / prevHandoffPath
@@ -93,6 +97,10 @@ P6 increment only。Cross-phase conventions in overall（v1.20）；overall wins
 8. **`runner.mjs` handoffStatus**（`task-${taskNum}-task-review-${reviewRound}.json` + `rounds["task-review"]` 键，F1 回写与 isTaskPending 的读取面）→ canonical 族名 + `rounds["review"]` 键
 9. **`cdd.mjs` task Stopping prev 读取**（`task-${opts.task}-task-review-${prevR}.json`）→ 派生 prevHandoffPath
 10. `runner.mjs` 的 task prev 读取（`task-${task}-fix-${round-1}.json`）→ 派生 prevHandoffPath
+11. **`cdd.mjs` `docsReviewWorkspace()` 签名删除** → 派生 `resolveWorkspace(doc)`（spec/plan review 传 doc、task/branch 传 plan）
+12. **`cdd.mjs` task/branch workspace 拼装**（:173/:217 `path.join(gitToplevel, ".superpowers", "cdd", slug)`）→ `resolveWorkspace(opts.plan)`
+13. **`runner.mjs` `resolveWorkspace`**（plan→slug 拼装）→ 复用 `handoff-naming.resolveWorkspace`（或委托同一 workspaceSlug helper）
+14. **`docs-runner.mjs` 无 workspace 依赖**（handoffPath 由调用方显式传；workspace 仅作 prompt 注入）→ 不改，cwd 基线仍 gitToplevel
 
 > **reader 侧必清**：命名改 canonical 后，若 reader（existingRoundHandoff / handoffStatus / Stopping prev 读取）仍按旧格式构文件名，spec/plan 与 task 的 Review Stopping prev 解析全空（guard 静默失效）、handoffStatus 恒 MISSING（F1 回写与 pending 判定全断）。「writer 与 scanner 结构上不可能分歧」对 9 个站点全部成立的前提是 reader 全走派生函数。**迁移后残留 grep 必须零命中**：旧 mode 子串 `task-review` 与旧命名 pattern（`spec-1\.json`/`plan-1\.json`/`doc-fix-`）在 `packages/cdd-engine`（bin + templates + tests）中为零（断言规格见 §2.6）。
 
@@ -176,6 +184,8 @@ P6 increment only。Cross-phase conventions in overall（v1.20）；overall wins
   - 旧文档名（skills + cdd-engine + templates）：`docs-review\.md`（→ `review.md`）、`PASS=<`、词边界 `D1|D2|D3`（不误伤 D13）
   - resolver/gateway（skills + cdd-engine）：`resolve-hit`、`gh issue reopen`
   - 旧 mode 名 / P4 退化名（cdd-engine bin + templates）：旧 mode 子串 `task-review`（修正 §2.5 grep 笔误 `task-review|`）、`spec-1\.json`／`plan-1\.json`／`doc-fix-`（canonical 命名族断言；templates 亦须防 doc-fix 残名回渗）
+  - **flat workspace 回落断言（cdd-engine bin）**：`.superpowers/docs-review` 路径零引用（§2.8 单根收编后防回落）；`resolveWorkspace` 为唯一 workspace 推导入口
+  - **cdd/ 根杂讯目录一次性清理**（非 grep 断言，Phase-0 动作）：`.superpowers/cdd/{p,plan,smoke-plan,smoke-test,test-plan-br,.tmp-smoke-plan,.test-fixtures}` 移入 archive 或删除（测试残留，弃置性 state）
 - **零豁免注册表**（现实命中全是 canonical 合法语汇/历史注释 — `dogfood (CDD session)` 是产品语汇不是 label 残渣）
 - **清 cli-select 悬空引用**：`same labels as above`（line 49 recovery 列指代式引用、指向 line 48 的久远 label 条款）→ 改写为写明白的 recovery 文案（「Invoke `osuperpowers:report-issue`（无 manual labels — per-finding comments carry none；仅 session master 带 `session, osuperpowers`）」）。理由 = **指代式引用可读性差**（同 find-row 近义残留，未来行序/条款变动易恍参照对象），非「引用已删除条款」
 
@@ -185,13 +195,14 @@ P6 increment only。Cross-phase conventions in overall（v1.20）；overall wins
 
 **P4 plan 已在执行期手动补了该行**（`**Spec:** [2026-09-08-cdd-engine-overhaul-p4-design.md](…)`）— 即本轮修复要规范化的正是 P4 曾缺、后手动补的同一处。P2/P3 历史 plan 不回填（历史锚定，report-issue 解析对其已完成 phase 无实际影响）。
 
-### 2.8 F6 — 收口
+### 2.8 F6 — 收口（Workspace 单一化 + flat root 废弃）
 
+- **全部 handoff 收编 `.superpowers/cdd/<slug>/`**：spec-review/plan-review/spec-fix/plan-fix + task-*/branch-review/progress/briefs/report-target/base-branch 同住一个 phase 域（slug 由被审文档推出，见 §2.1 `resolveWorkspace`）。`.superpowers/docs-review/` flat root **整体删除**（一次性归档后废弃，engine 不再产出/reference 该路径）。
 - 新 named canonical 族 = P3 时代的正确名（spec-review-1 等）— **P4 的 spec-1/plan-1/doc-fix-1 是退化名**
-- **归档范围 = P6 迁移前 `.superpowers/docs-review/` 全部现有 handoff 产物**（含 P3 时代的 `spec-review-1.json`/`plan-review-1.json` 这类与 canonical **同名同形**的旧文件）一次性移入 `archive-<date>/`（gitignored 本地 state，保历史，不上代码）。**不能只清退化名**：canonical pattern（`^spec-review-(\d+)$` 等）会命中 P3 旧文件 → resolveNextRound 从 2 起跳、Stopping prev 会把陈年 P3 文件当 prev 解析 — 必须整体归档让 workspace 从空开始，由本 phase 新引擎重新产生干净产物
-- **`.superpowers/cdd/<slug>/` task 族产物处置**：为弃置性本地 state（随 session 弃置、无 resume 契约），**不纳入归档**（改名后旧 `task-{N}-task-review-*.json` 对 roundPattern 不可匹配 → 安全孤儿，与 spec-1.json 同论证）；但若未来引入 resume 语义，须补 progress rounds 键迁移（`rounds["task-review"]` → `rounds["review"]`），本 phase 记录此悬项不再扩散
+- **归档范围 = P6 迁移前 `.superpowers/docs-review/` 全部现有 handoff 产物**（含 P3 时代的 `spec-review-1.json`/`plan-review-1.json` 这类与 canonical **同名同形**的旧文件）一次性移入 `archive-<date>/`（gitignored 本地 state，保历史，不上代码）。**不能只清退化名**：canonical pattern（`^spec-review-(\d+)$` 等）会命中 P3 旧文件 → resolveNextRound 从 2 起跳、Stopping prev 会把陈年 P3 文件当 prev 解析 — 必须整体归档让 workspace 从空开始，由本 phase 新引擎在 **per-slug 新 workspace** 重新产生干净产物
+- **`.superpowers/cdd/<slug>/` 现存 task 族产物处置**：为弃置性本地 state（随 session 弃置、无 resume 契约），**不纳入归档**（改名后旧 `task-{N}-task-review-*.json` 对 roundPattern 不可匹配 → 安全孤儿，与 spec-1.json 同论证）；但若未来引入 resume 语义，须补 progress rounds 键迁移（`rounds["task-review"]` → `rounds["review"]`），本 phase 记录此悬项不再扩散
 - **round 扫描只认 canonical pattern**：`^spec-review-(\d+)$` 等；legacy `spec-1.json` 不匹配 → 结构上成为不可误捕的孤儿
-- residue 断言（§2.6）防退化名回渗
+- residue 断言（§2.6）防退化名回渗 + 防 flat root 回落（engine 代码 `.superpowers/docs-review` 零引用）+ cdd/ 根杂讯目录（`p|plan|smoke-*|test-plan-br|.tmp-*|.test-fixtures`）一次性清理
 
 ### 2.9 依赖与风险
 
@@ -214,16 +225,17 @@ P6 increment only。Cross-phase conventions in overall（v1.20）；overall wins
 | P6 F5 验收：「`pnpm run validate` 含 stale-lexicon 检查（豁免清单数据化）」 | 上探：stale-lexicon 并入 residue.mjs 结构断言、**零豁免注册表**（豁免数据化 → 被判定为清单债，取消） | **Yes — v1.20** |
 | P6 F6 验收：「doc-review workspace 无 plan-review-*/spec-review-* 旧产物」 | 上探：命名合同单点化（handoff-namespace.json）+ `doc-fix` 残名清除；F6 从「归档遗留」升级为「命名契约统一」 | **Yes — v1.20** |
 | P6 scope 只含 6 findings | +**handoff-namespace canonical / reviews.json 裁轴 / status 单一权威 / cdd contract 删除**（F3/F6 上探 + F1 附带） | **Yes — v1.20** |
+| P6 F6 workspace 模型沿用 `.superpowers/docs-review/` flat root（仅改归档范围） | **Workspace 归入 artifact 契约派生层（v1.3 上探）**：canonical 增 `workspaceRoot`/`slugRule` 顶层字段 + 派生五函数新增 `resolveWorkspace(doc)`；spec/plan/task/branch 全部 handoff 收编 `.superpowers/cdd/<slug>/`；flat `.superpowers/docs-review/` 整体删除（一次性归档后废弃）；跨 phase round 污染结构性消失 | **Yes — v1.21 · 2026-09-08** |
 
-> 全部 deviations 须在 spec review 前回写 overall v1.20（overall 四表 + change history）。完成后本表全 Yes。
+> 全部 deviations 已回写 overall v1.20 + v1.21（overall 四表 + change history）。完成后本表全 Yes。
 
 ---
 
 ## Section 4: Notes for downstream
 
 - **P5**（Gate 移除）不受影响 — 本 phase 不触碰 `packages/osuperpowers/bin/gate/`
-- **未来 phase 新增 review/fix 类型**（如 `review.api`）：往 handoff-namespace.json 加一族即可，无需再改 runner/cdd-mjs/docs-runner 命名逻辑
-- **消费者升级路径**：旧 workspace 的 `spec-1.json`（P4 退化名）不会被新 roundPattern 匹配 → 安全孤儿；P6 执行期归档一次后无历史包袱
+- **未来 phase 新增 review/fix 类型**（如 `review.api`）：往 handoff-namespace.json 加一族即可，无需再改 runner/cdd-mjs/docs-runner 命名逻辑；**workspace 自动获得**（`resolveWorkspace` 从 doc 推出，不依赖 family 配置）
+- **消费者升级路径**：旧 `.superpowers/docs-review/` 的 `spec-1.json`（P4 退化名）不会被新 roundPattern 匹配 → 安全孤儿；P6 执行期一次性归档后 flat root 废弃，新产物全部落在 `.superpowers/cdd/<slug>/`
 - **`task-review` 模式名剔除**：CDD_MODE/VALID_MODES/progress rounds key 从 `task-review` 归一为 `review`（op 维度）；**handoff `phase` 字段同步归一**（cdd-handoff-schema theme 的 phase enum `["implement","task-review","fix","branch-review"]` → `["implement","review","fix","branch-review"]`，renderHandoffStub 以 mode 填 phase 的分支同步改；docs-handoff-schema 的 phase enum `["review","fix"]` 不变且与归一后一致）；**canonical 表同步增补 `phase` 列**（= 该族 op 在 handoff 内 phase 字段的值），§2.3 item 2 的 status conditional 判定键 = `phase ∈ review 族则 status 可缺省/可覆写，implement/fix 仍 required`。两轴分离后 reviews.json（type 键）与 canonical（op+type）无命名冲突；`reviews.json` 仍以 type 键（task/branch/spec/plan）组织内容契约。
 
 ---
@@ -242,3 +254,4 @@ Rule: URC — `cdd review --type spec --harness <name> --doc <path>` 单周期�
   ⑤ residue scope 未含 cdd-engine + grep 笔误 → §2.6 扩展 RESIDUE_TARGETS + 修正 regex
   ⑥ phase 字段归一未明 + canonical 无 phase 列 → §4 归一 + §2.3 conditional 判定键
   ⑦ task workspace 归档范围 + rounds 键迁移悬项 → §2.8 补处置说明
+- **v1.3（writing-plans grilling 高维度上探，用户「统一规划抽象」）**：workspace 归入 artifact 契约派生层 — canonical 增 `workspaceRoot`/`slugRule`、派生五函数新增 `resolveWorkspace`、全部产物收编 `.superpowers/cdd/<slug>/`、flat `.superpowers/docs-review/` 删除；overall 同步 v1.21；§2.1/§2.6/§2.8/§3/§4 相应更新

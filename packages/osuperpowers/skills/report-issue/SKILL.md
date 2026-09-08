@@ -52,6 +52,8 @@ flowchart TD
 
 - **Do**: Resolve the reporting channel for the confirmed findings.
   - **Cache-first**: read `.superpowers/cdd/<slug>/report-target.json` in the current session workspace. Hit `program` → reuse that issue number (never a new issue); hit `session` → reuse the existing master (date unchanged). The cache is CDD-scope only; a standalone run never consumes or writes it.
+- **Cache schema**: `.superpowers/cdd/<slug>/report-target.json` = `{ "kind": "program"|"consumer-cdd"|"standalone", "issue"?: <issue-number>, "slug": <workspace-slug>, "resolved_at": <ISO-date> }` — `issue` present only for the program channel.
+- **Channel → kind mapping** (derivation for report-meta `kind`): program channel → `program`; session channel + CDD workspace slug present → `consumer-cdd`; session channel with no workspace (standalone run) → `standalone`. Every finding comment and master body carries exactly this resolved `kind` (I7).
   - **Cache miss**: resolve the program chain — `progress.json#plan` → plan-header **`Spec:`** field (`**Spec:** [<name>-design.md](…)`, the plan's design-spec link) → overall spec → the phase-owning issue of this program (e.g. #232). Success → program channel.
   - **Guard**: resolution failure / missing progress / standalone run → session channel (fail-open, never block). The program channel never creates an issue; the only `gh issue create` in the flow is the session master at `ensure-session`.
   - Persist the resolved target back to the cache so subsequent findings in this session reuse it.

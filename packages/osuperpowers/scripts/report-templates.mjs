@@ -38,7 +38,7 @@ function emitScalar(value) {
     );
   }
   if (value.includes(": ") || value.includes("—") || isPlainUnsafe(value)) {
-    // 转义顺序：先 `\` 再 `"`（先用反引号会把已插入的 `\` 双重转义）。
+    // 转义顺序：先 `\` 再 `"`（若先转义双引号，随之插入的 `\` 会被后续反斜杠 replaceAll 二次转义）。
     return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
   }
   return value;

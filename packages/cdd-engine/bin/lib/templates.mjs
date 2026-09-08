@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadHandoffSchema } from './schema-utils.mjs';
+import { familyConfig } from './handoff-naming.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,13 +68,23 @@ export function loadReviews() {
   return JSON.parse(readFileSync(path.join(PKG_ROOT, 'templates', 'review', 'reviews.json'), 'utf8'));
 }
 
-// reviews.json[type] → { lensEnum, ref, axesGuide, returnMode, handoffType, fixTemplate }。
+// reviews.json[type] → 纯内容契约 { lensEnum, ref, axesGuide }（T2 裁轴：returnMode/handoffType/
+// fixTemplate 已迁 canonical，artifact 读取走 reviewArtifactConfig）。
 // task/branch 的 ref 是 git-range 符号（TASK_BASE..HEAD / BASE..HEAD，调用方具体化注入）；
 // spec/plan 的 ref 是关系描述（doc vs spec），实际 doc 路径由调用方落到 REFERENCE。
 export function reviewTypeConfig(type) {
   const cfg = loadReviews()[type];
   if (!cfg) throw new Error(`unknown review type: ${type}`);
   return cfg;
+}
+
+// reviewArtifactConfig(type) → 读 canonical handoff-namespace.json 的 review.{type} 族，
+// 返回 { schema, return, fixFamily }——HANDOFF_TYPE / RETURN_MODE 模板参数的唯一来源：
+// handoffType 字段名退位 → canonical 的 schema（"cdd"/"docs"），returnMode → canonical 的
+// return（"h1"/"json"）；fixFamily 供需要时解析 fix 族 fixTemplate。
+export function reviewArtifactConfig(type) {
+  const cfg = familyConfig('review', type);
+  return { schema: cfg.schema, return: cfg.return, fixFamily: cfg.fixFamily };
 }
 
 // returnMode=h1 类型（task/branch）注入 {{H1_BLOCK}} 的四行 H1 合同；spec/plan 不渲染（空串）。
@@ -94,6 +105,7 @@ export function renderModePrompt(mode, env = {}) {
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
   if (mode === 'task-review') {
     const cfg = reviewTypeConfig('task');
+    const art = reviewArtifactConfig('task');
     let prompt = renderTemplate('review', {
       TYPE: 'task',
       WORKSPACE: env.WORKSPACE ?? '',
@@ -101,8 +113,8 @@ export function renderModePrompt(mode, env = {}) {
       REFERENCE: env.FIXED_POINT ? `${env.FIXED_POINT}..HEAD` : cfg.ref,
       AXES: cfg.axesGuide,
       HANDOFF: env.HANDOFF ?? '',
-      HANDOFF_TYPE: cfg.handoffType,
-      RETURN_MODE: cfg.returnMode,
+      HANDOFF_TYPE: art.schema,
+      RETURN_MODE: art.return,
       H1_BLOCK: REVIEW_H1_BLOCK,
       PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
     });

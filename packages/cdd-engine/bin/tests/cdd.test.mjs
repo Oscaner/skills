@@ -83,7 +83,7 @@ describe("cdd CLI", () => {
   });
 
   it("fix --type spec|plan 非 dry-run：doc-fix 模板渲染后停在 harness gate（Task 4 SP-1 回归）", () => {
-    // Task 4：fix 模板统一走 reviews.json fixTemplate（spec/plan → doc-fix 共享壳），
+    // fix 模板统一从 canonical fix.{type} 族 fixTemplate 读（spec/plan → doc-fix 共享壳），
     // docs-runner 不再做 `-review`→`-fix` 派生（doc-fix 直传，不得 double-suffix）。
     // nonexistent harness 保证停在 harness gate（"unknown harness"），不进入 spawn/写 handoff；
     // 若 doc-fix 缺失/渲染崩，stderr 会出现 template 字样 → not.toMatch(/template/) 拦截。

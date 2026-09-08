@@ -5,10 +5,7 @@
       "spec"
     ],
     "ref": "TASK_BASE..HEAD",
-    "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements); single agent, dual axis, no parallel sub-agents",
-    "returnMode": "h1",
-    "handoffType": "cdd",
-    "fixTemplate": "fix"
+    "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements); single agent, dual axis, no parallel sub-agents"
   },
   "branch": {
     "lensEnum": [
@@ -16,10 +13,7 @@
       "spec"
     ],
     "ref": "BASE..HEAD",
-    "axesGuide": "Same dual axis as task (branch-wide health: diff BASE..HEAD + plan conformance)",
-    "returnMode": "h1",
-    "handoffType": "cdd",
-    "fixTemplate": null
+    "axesGuide": "Same dual axis as task (branch-wide health: diff BASE..HEAD + plan conformance)"
   },
   "spec": {
     "lensEnum": [
@@ -28,10 +22,7 @@
       "clarity"
     ],
     "ref": "doc vs spec",
-    "axesGuide": "Follow URC (_docs/review.md): single-cycle; lens-tag every finding (completeness / consistency / clarity)",
-    "returnMode": "json",
-    "handoffType": "docs",
-    "fixTemplate": "doc-fix"
+    "axesGuide": "Follow URC (_docs/review.md): single-cycle; lens-tag every finding (completeness / consistency / clarity)"
   },
   "plan": {
     "lensEnum": [
@@ -40,9 +31,6 @@
       "buildability"
     ],
     "ref": "doc vs spec",
-    "axesGuide": "Follow URC (_docs/review.md): spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability)",
-    "returnMode": "json",
-    "handoffType": "docs",
-    "fixTemplate": "doc-fix"
+    "axesGuide": "Follow URC (_docs/review.md): spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability)"
   }
 }

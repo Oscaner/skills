@@ -19,6 +19,13 @@ function family(op, type) {
   return f;
 }
 
+// familyConfig(op, type) → canonical 族配置（readonly 对象）。reviews.json 裁 artifact 轴后，
+// schema/return/fixTemplate 等 artifact 字段的唯一读取点（templates.mjs reviewArtifactConfig /
+// cdd.mjs runFix 消费；命名不重复字面量）。
+export function familyConfig(op, type) {
+  return family(op, type);
+}
+
 // 占位符具体替换（regexp escape 由 roundPattern 负责，此处不转义）。
 function fillName(name, params) {
   return name

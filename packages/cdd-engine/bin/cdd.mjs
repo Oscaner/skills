@@ -14,7 +14,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
-import { renderTemplate, reviewTypeConfig, REVIEW_H1_BLOCK } from "./lib/templates.mjs";
+import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK } from "./lib/templates.mjs";
+import { familyConfig } from "./lib/handoff-naming.mjs";
 import { validateHandoffSchema } from "./lib/schema-utils.mjs";
 import { resolveNextRound, reviewStoppedError } from "./lib/review-loop.mjs";
 import { writeHandoff, gitToplevel } from "./lib/contract.mjs";
@@ -132,8 +133,10 @@ async function runReview(opts) {
     if (prev && (prev.doc_path ?? "") === opts.doc) reviewStoppingGuard(prev, opts.type, round, opts.doc);
     // review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
     // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
-    // 符号经具体化注入）；其余占位由 reviews.json 配置 + 注入参数补齐（renderTemplate 缺参即抛）。
+    // 符号经具体化注入）；内容占位（lensEnum/axesGuide）由 reviews.json 配置注入，artifact 参数
+    // （HANDOFF_TYPE/RETURN_MODE）读 canonical review.{type} 族（renderTemplate 缺参即抛）。
     const cfg = reviewTypeConfig(opts.type);
+    const art = reviewArtifactConfig(opts.type);
     await runDocsTask({
       harness: opts.harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
       round, handoffPath: path.join(ws, `${opts.type}-${round}.json`),
@@ -143,8 +146,8 @@ async function runReview(opts) {
         WORKSPACE: ws,
         REFERENCE: opts.doc,
         AXES: cfg.axesGuide,
-        RETURN_MODE: cfg.returnMode,
-        HANDOFF_TYPE: cfg.handoffType,
+        RETURN_MODE: art.return,
+        HANDOFF_TYPE: art.schema,
         H1_BLOCK: "",
         PLAN_LINE: opts.spec ? `**Spec:** ${opts.spec}` : "",
       },
@@ -244,8 +247,9 @@ async function runBranchReview(opts) {
     return;
   }
 
-  // branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
+  // branch review 走共享壳 review.md（reviews.json type=branch 内容配置 + canonical branch 族 artifact 参数）+ H1 四行合同。
   const cfg = reviewTypeConfig("branch");
+  const art = reviewArtifactConfig("branch");
   const { renderHandoffStub, REVIEW_H1_BLOCK } = await import("./lib/templates.mjs");
   const { loadHandoffSchema } = await import("./lib/schema-utils.mjs");
   let prompt = renderTemplate("review", {
@@ -255,8 +259,8 @@ async function runBranchReview(opts) {
     REFERENCE: `${base}..${head}`,
     AXES: cfg.axesGuide,
     HANDOFF: handoffPath,
-    HANDOFF_TYPE: cfg.handoffType,
-    RETURN_MODE: cfg.returnMode,
+    HANDOFF_TYPE: art.schema,
+    RETURN_MODE: art.return,
     H1_BLOCK: REVIEW_H1_BLOCK,
     PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
   }, "cdd review");
@@ -320,7 +324,7 @@ async function runFix(opts) {
     });
     return;
   }
-  // spec/plan: fix 模板来自 reviews.json fixTemplate（URC 注入点）。
+  // spec/plan: fix 模板从 canonical fix.{type} 族读 fixTemplate（T2 裁轴后 reviews.json 不再承载 artifact）。
   if (opts.type !== "spec" && opts.type !== "plan") {
     process.stderr.write(`unknown fix --type: ${opts.type}\n`);
     process.exit(2);
@@ -329,9 +333,9 @@ async function runFix(opts) {
     process.stderr.write(`cdd fix --type ${opts.type}: missing required --doc <path>\n`);
     process.exit(2);
   }
-  // fix 模板统一走 reviews.json fixTemplate（spec/plan → "doc-fix" 共享壳）。
+  // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
   // 旧 spec-fix/plan-fix 已删，无 fallback；docs-runner 对非 `-review` 名直传（不再 double-suffix）。
-  const template = reviewTypeConfig(opts.type).fixTemplate;
+  const template = familyConfig("fix", opts.type).fixTemplate;
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
     harness: opts.harness, mode: "fix", template, type: opts.type, doc: opts.doc,

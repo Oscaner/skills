@@ -1,6 +1,7 @@
 // packages/cdd-engine/bin/tests/templates.test.mjs
 import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal();
@@ -11,7 +12,10 @@ vi.mock('node:fs', async (importOriginal) => {
       if (String(p).includes('cdd-handoff-schema.json')) {
         return JSON.stringify({ type: 'object', required: ['task', 'phase', 'status', 'findings', 'artifacts', 'blocker'], properties: { task: { type: 'integer' }, phase: { type: 'string' }, status: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' }, blocker: { type: 'string' } } });
       }
-      // reviews.json / review.md：透传真实文件（不内联副本 → 消除 drift；模板真身由 templates.content.test.mjs 锚定）。
+      // canonical JSON（reviews.json / handoff-namespace.json / review.md）：透传真实文件
+      // （不内联副本 → 消除 drift；模板真身由 templates.content.test.mjs 锚定）。
+      // handoff-namespace.json 名的字符串含 "namespace" 至 "reviews.json" 判断之前不误伤（先判 namespace）。
+      if (String(p).includes('handoff-namespace.json')) return actual.readFileSync(p, 'utf8');
       if (String(p).includes('reviews.json')) return actual.readFileSync(p, 'utf8');
       if (String(p).includes('review.md')) return actual.readFileSync(p, 'utf8');
       if (String(p).endsWith('implement.md')) return 'brief: {{BRIEF}}\nhandoff: {{HANDOFF}}\n{{HANDOFF_STUB}}';
@@ -34,12 +38,34 @@ describe('review type config (Task 4: 模板数据化)', () => {
     expect(Object.keys(loadReviews())).toEqual(['task', 'branch', 'spec', 'plan']);
   });
 
-  it('reviewTypeConfig: known type → config; unknown → throw', async () => {
+  it('reviews.json 纯内容契约：无 artifact 字段（T2 裁轴）', () => {
+    // 直接读真实 reviews.json（经 fs mock 透传）：returnMode/handoffType/fixTemplate
+    // 已迁 canonical（review.{type} 族 schema/return + fix 族 fixTemplate），reviews.json 只剩内容轴。
+    const REVIEWS = JSON.parse(readFileSync(new URL('../../templates/review/reviews.json', import.meta.url), 'utf8'));
+    for (const cfg of Object.values(REVIEWS)) {
+      expect(cfg).not.toHaveProperty('returnMode');
+      expect(cfg).not.toHaveProperty('handoffType');
+      expect(cfg).not.toHaveProperty('fixTemplate');
+    }
+  });
+
+  it('reviewTypeConfig: known type → content-only config; unknown → throw', async () => {
     vi.resetModules();
     const { reviewTypeConfig } = await import('../lib/templates.mjs');
-    expect(reviewTypeConfig('task').returnMode).toBe('h1');
-    expect(reviewTypeConfig('spec').fixTemplate).toBe('doc-fix');
+    expect(reviewTypeConfig('task').lensEnum).toEqual(['standards', 'spec']);
+    expect(reviewTypeConfig('task')).not.toHaveProperty('returnMode');
+    expect(reviewTypeConfig('task')).not.toHaveProperty('fixTemplate');
     expect(() => reviewTypeConfig('nope')).toThrow('unknown review type: nope');
+  });
+
+  it('reviewArtifactConfig: canonical review.{type} 族 → { schema, return, fixFamily }（T2 裁轴）', async () => {
+    vi.resetModules();
+    const { reviewArtifactConfig } = await import('../lib/templates.mjs');
+    expect(reviewArtifactConfig('task')).toEqual({ schema: 'cdd', return: 'h1', fixFamily: 'fix.task' });
+    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'cdd', return: 'h1' }); // branch 无 fix 族 → fixFamily 缺省
+    expect(reviewArtifactConfig('spec')).toEqual({ schema: 'docs', return: 'json', fixFamily: 'fix.spec' });
+    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json', fixFamily: 'fix.plan' });
+    expect(() => reviewArtifactConfig('nope')).toThrow(/unknown handoff family/);
   });
 
   it('renderModePrompt(task-review) routes via review.md + reviews.json type=task (code-review focus)', async () => {

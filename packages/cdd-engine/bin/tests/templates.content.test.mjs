@@ -29,24 +29,33 @@ describe('review.md shared shell (Task 4)', () => {
 });
 
 describe('reviews.json per-type config (Task 4)', () => {
-  it('loadReviews exposes four types with required fields', async () => {
-    const { loadReviews, reviewTypeConfig } = await import('../lib/templates.mjs');
+  it('loadReviews exposes four types with content fields (artifact axis removed in T2)', async () => {
+    const { loadReviews, reviewTypeConfig, reviewArtifactConfig } = await import('../lib/templates.mjs');
+    const { familyConfig } = await import('../lib/handoff-naming.mjs');
     const reviews = loadReviews();
     expect(Object.keys(reviews)).toEqual(['task', 'branch', 'spec', 'plan']);
     for (const [type, cfg] of Object.entries(reviews)) {
+      // 内容轴（reviews.json）：lensEnum/ref/axesGuide；artifact 词退位 → canonical 读取
       expect(Array.isArray(cfg.lensEnum)).toBe(true);
       expect(typeof cfg.ref).toBe('string');
       expect(typeof cfg.axesGuide).toBe('string');
-      expect(['h1', 'json']).toContain(cfg.returnMode);
-      expect(['cdd', 'docs']).toContain(cfg.handoffType);
-      expect(typeof cfg.fixTemplate === 'string' || cfg.fixTemplate === null).toBe(true);
+      expect(cfg).not.toHaveProperty('returnMode');
+      expect(cfg).not.toHaveProperty('handoffType');
+      expect(cfg).not.toHaveProperty('fixTemplate');
+      // artifact 轴（canonical review.{type} 族）：schema/return 从 canonical 派生
+      const art = reviewArtifactConfig(type);
+      expect(['h1', 'json']).toContain(art.return);
+      expect(['cdd', 'docs']).toContain(art.schema);
     }
     // type-specific truth pinned by the plan (TASK_BASE..HEAD / BASE..HEAD 供具体化注入)
     expect(reviewTypeConfig('task').ref).toBe('TASK_BASE..HEAD');
-    expect(reviewTypeConfig('branch').returnMode).toBe('h1');
-    expect(reviewTypeConfig('branch').fixTemplate).toBeNull();
-    expect(reviewTypeConfig('plan').handoffType).toBe('docs');
+    expect(reviewArtifactConfig('task')).toEqual({ schema: 'cdd', return: 'h1', fixFamily: 'fix.task' });
+    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'cdd', return: 'h1' }); // branch 无 fix 族
+    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json', fixFamily: 'fix.plan' });
     expect(reviewTypeConfig('spec').lensEnum).toEqual(['completeness', 'consistency', 'clarity']);
+    // fixTemplate 仅在 fix 族定义（fixTemplate 从 canonical fix.{type} 尾解）
+    expect(familyConfig('fix', 'spec').fixTemplate).toBe('doc-fix');
+    expect(familyConfig('fix', 'task').fixTemplate).toBe('fix');
     expect(() => reviewTypeConfig('nope')).toThrow(/unknown review type/);
   });
 

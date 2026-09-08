@@ -177,7 +177,7 @@ describe("issue-templates emitter", () => {
         ".github/ISSUE_TEMPLATE/enhancement.yml",
         ".github/ISSUE_TEMPLATE/session_report.yml",
       ]);
-      for (const name of ["bug_report", "enhancement", "session_report"]) {
+      for (const name of Object.keys(findingMeta.formFieldDefs)) {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
         expect(existsSync(path.join(tmp, rel))).toBe(true);
         expect(readFileSync(path.join(tmp, rel), "utf8")).toBe(
@@ -194,7 +194,7 @@ describe("issue-templates emitter", () => {
     try {
       const generatedPaths = [];
       emitAll(tmp, { generatedPaths });
-      for (const name of ["bug_report", "enhancement", "session_report"]) {
+      for (const name of Object.keys(findingMeta.formFieldDefs)) {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
         expect(existsSync(path.join(tmp, rel))).toBe(true);
         expect(generatedPaths.includes(rel)).toBe(true);

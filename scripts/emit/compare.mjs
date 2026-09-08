@@ -38,6 +38,11 @@ export const productFiles = [
   "marketplace/source.json",
   "packages/osuperpowers/gemini-extension.json",
   "packages/osuperpowers/GEMINI.md",
+  // .github/ISSUE_TEMPLATE product (issue-templates emitter, P4) — stale-walk
+  // inventory: if the generator stops producing these, emit-check flags them.
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  ".github/ISSUE_TEMPLATE/enhancement.yml",
+  ".github/ISSUE_TEMPLATE/session_report.yml",
 ];
 
 function readJson(committedRoot, rel) {

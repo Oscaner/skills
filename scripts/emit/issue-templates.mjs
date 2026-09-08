@@ -18,19 +18,16 @@ const META_PATH = fileURLToPath(
   ),
 );
 
-const FORM_NAMES = ["bug_report", "enhancement", "session_report"];
-
+// 表单名 = canonical formFieldDefs 对象键（单源；无第二处字面量列表）。
 /**
  * Emit `.github/ISSUE_TEMPLATE/*.yml` into `outRoot`.
  * @param {string} outRoot absolute output root (repo root in write mode, temp tree in check mode)
- * @param {unknown} _source unused — the forms come from the canonical
- *   finding-meta.json, not the marketplace source tree (kept for the uniform
- *   emitter signature)
+ * @param {unknown} _source unused — forms come from the canonical finding-meta.json
  * @param {{ generatedPaths: string[] }} opts repo-relative paths produced by this emitter
  */
 export function emitIssueTemplates(outRoot, _source, { generatedPaths }) {
   const meta = JSON.parse(readFileSync(META_PATH, "utf8"));
-  for (const name of FORM_NAMES) {
+  for (const name of Object.keys(meta.formFieldDefs)) {
     const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
     const file = join(outRoot, rel);
     mkdirSync(dirname(file), { recursive: true });

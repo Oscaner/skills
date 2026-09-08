@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
-import { gitToplevel, writeHandoff } from "./contract.mjs";
+import { gitToplevel, writeHandoff, applyDerivedStatus } from "./contract.mjs";
 import { loadRegistry, checkHarness } from "./registry.mjs";
 import { loadHandoffSchema, validateHandoffSchema } from "./schema-utils.mjs";
 import { renderHandoffStub, renderTemplate } from "./templates.mjs";
@@ -85,6 +85,16 @@ export async function runDocsTask({
       blocker: `docs handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
     });
     return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
+  }
+
+  // T5: status 单一权威 — review 型 handoff 由 engine 从 findings 派生覆写（SP-4 豁免失败轮次）；
+  // fix 型（work）status 由 agent 声明，不派生。派生有变化才写盘；返回 handoff 与文件一致。
+  if (mode === "review") {
+    const derived = applyDerivedStatus(handoff);
+    if (derived) {
+      writeHandoff(handoffPath, derived);
+      handoff.status = derived.status;
+    }
   }
 
   return { exitCode: res.code, handoff };

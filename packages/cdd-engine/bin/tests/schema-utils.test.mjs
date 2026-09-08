@@ -48,3 +48,25 @@ describe('validateHandoffSchema (real schema)', () => {
     expect(res.valid).toBe(false);
   });
 });
+
+describe('status conditional — review 族可缺省 / implement·fix required（T5 status 单一权威）', () => {
+  it('review phase: status 缺省 → valid（engine 从 findings 派生，缺省合法）', () => {
+    const { status, ...noStatus } = { ...VALID_HANDOFF, phase: 'review' };
+    expect(validateHandoffSchema(noStatus)).toEqual({ valid: true });
+  });
+
+  it('branch-review phase: status 缺省 → valid', () => {
+    const { status, ...noStatus } = { ...VALID_HANDOFF, phase: 'branch-review' };
+    expect(validateHandoffSchema(noStatus)).toEqual({ valid: true });
+  });
+
+  it('review phase: status 显式提供 → valid', () => {
+    expect(validateHandoffSchema({ ...VALID_HANDOFF, phase: 'review' })).toEqual({ valid: true });
+  });
+
+  it('implement / fix phase: status 缺省 → invalid（work 型 status 必需）', () => {
+    const { status, ...noStatus } = { ...VALID_HANDOFF, phase: 'implement' };
+    expect(validateHandoffSchema(noStatus).valid).toBe(false);
+    expect(validateHandoffSchema({ ...noStatus, phase: 'fix' }).valid).toBe(false);
+  });
+});

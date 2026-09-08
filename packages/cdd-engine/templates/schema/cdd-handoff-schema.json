@@ -4,7 +4,6 @@
   "required": [
     "task",
     "phase",
-    "status",
     "artifacts",
     "findings"
   ],
@@ -80,5 +79,30 @@
       "type": "object"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "enum": [
+              "review",
+              "branch-review"
+            ]
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "required": []
+      },
+      "else": {
+        "required": [
+          "status"
+        ]
+      }
+    }
+  ],
   "additionalProperties": false
 }

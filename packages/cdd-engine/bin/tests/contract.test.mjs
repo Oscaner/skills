@@ -21,6 +21,7 @@ import {
   writeHandoff,
   classifySeverity,
   rollupStatus,
+  deriveReviewStatus,
   normalizeHandoffStatus,
   gitCatFileCommitExists,
 } from "../lib/contract.mjs";
@@ -196,6 +197,33 @@ it("rollupStatus: 含 blocker（即使兼有 warn/nit）→ CHANGES_REQUESTED", 
 it("rollupStatus: unverifiable / plan_conflicts 非空 → BLOCKED", () => {
   expect(rollupStatus([], ["cannot verify"])).toBe("BLOCKED");
   expect(rollupStatus([], [], [{ plan_section: "§2", finding_summary: "x" }])).toBe("BLOCKED");
+});
+
+// ---- T5: deriveReviewStatus — review 型 status 派生（engine 单一权威）+ SP-4 失败轮次豁免 ----
+
+it("deriveReviewStatus: warn/nit only → APPROVED（覆写 agent CHANGES_REQUESTED）", () => {
+  const h = { status: "CHANGES_REQUESTED", findings: [{ severity: "warn" }, { severity: "nit" }] };
+  expect(deriveReviewStatus(h)).toBe("APPROVED");
+});
+
+it("deriveReviewStatus: blocker present → CHANGES_REQUESTED", () => {
+  const h = { status: "APPROVED", findings: [{ severity: "blocker" }] };
+  expect(deriveReviewStatus(h)).toBe("CHANGES_REQUESTED");
+});
+
+it("deriveReviewStatus SP-4 豁免：agent status BLOCKED + findings:[] → 保持 BLOCKED", () => {
+  const h = { status: "BLOCKED", findings: [] };
+  expect(deriveReviewStatus(h)).toBe("BLOCKED");
+});
+
+it("deriveReviewStatus SP-4 豁免：engine TIMEOUT + findings:[] → 保持 TIMEOUT", () => {
+  const h = { status: "TIMEOUT", findings: [] };
+  expect(deriveReviewStatus(h)).toBe("TIMEOUT");
+});
+
+it("deriveReviewStatus: findings 空 + status APPROVED → 保持 APPROVED（空载通过不误变）", () => {
+  const h = { status: "APPROVED", findings: [] };
+  expect(deriveReviewStatus(h)).toBe("APPROVED");
 });
 
 it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => {

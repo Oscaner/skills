@@ -14,7 +14,7 @@ import semver from "semver";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
-import { writeHandoff, gitToplevel, normalizeHandoffStatus } from "./contract.mjs";
+import { writeHandoff, gitToplevel, normalizeHandoffStatus, applyDerivedStatus } from "./contract.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-naming.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
@@ -580,7 +580,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   }
 
   // 11. H1 four lines (from agent stdout / dry-run block)
-  const h1 = h1FourLines(agentOut);
+  let h1 = h1FourLines(agentOut);
 
   // 12. agent failed but handoff exists → exit agent_rc
   if (agentRc !== 0) {
@@ -591,6 +591,19 @@ export async function runTask(harness, taskNum, opts = {}) {
   //     Advance the round counter on success too — rounds[mode] must reflect the last COMPLETED dispatch so
   //     handoffStatus/isTaskPending (rounds["review"] >= 1) see successful reviews as done (Bug N
   //     task-complete? contract). Previously only failure paths incremented, leaving successes at round 0.
+  //     T5: status 单一权威 — review 型 handoff 由 engine 从 findings 派生覆写（SP-4 豁免失败轮次）；
+  //     成功路径读回 handoff 覆写并持久化，H1 同步用 h1FromHandoff（T6 收敛 H1 单源）。
+  if (!dryRun && mode === "review") {
+    const reviewHandoff = readJson(env.CDD_HANDOFF_PATH);
+    if (reviewHandoff) {
+      const derived = applyDerivedStatus(reviewHandoff);
+      if (derived) {
+        writeHandoff(env.CDD_HANDOFF_PATH, derived);
+        reviewHandoff.status = derived.status;
+      }
+      h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
+    }
+  }
   if (!dryRun && mode !== "implement") incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
   return finish(0, h1, "", noExit);
 }

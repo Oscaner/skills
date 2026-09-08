@@ -20,7 +20,7 @@ import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK
 import * as handoffNaming from "./lib/handoff-naming.mjs";
 import { validateHandoffSchema } from "./lib/schema-utils.mjs";
 import { reviewStoppedError } from "./lib/review-loop.mjs";
-import { writeHandoff, gitToplevel } from "./lib/contract.mjs";
+import { writeHandoff, gitToplevel, applyDerivedStatus } from "./lib/contract.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
 import { runBriefCli } from "./lib/brief.mjs";
@@ -301,6 +301,10 @@ async function runBranchReview(opts) {
       process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
       exitWithCode(1);
     }
+    // T5: status 单一权威 — branch review（review 族）由 engine 从 findings 派生覆写（SP-4 豁免失败轮次）。
+    // 分支手写（非 runner/docs-runner 共享读回）；有变化才写盘持久化。
+    const derived = applyDerivedStatus(agentHandoff);
+    if (derived) writeHandoff(handoffPath, derived);
   }
 
   exitOk();

@@ -813,6 +813,47 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
   }
 });
 
+// ---- T5: status 单一权威 — review 读回覆写（agent 写 CHANGES_REQUESTED warn-only → 覆写 APPROVED） ----
+
+it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTED warn-only → 覆写 APPROVED", async () => {
+  const ws = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-review-derive-"));
+  writeFileSync(
+    path.join(binDir, "fake-cli"),
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"},{"severity":"nit","summary":"n"}],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\n` +
+      `exit 0\n`,
+  );
+  chmodSync(path.join(binDir, "fake-cli"), 0o755);
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "review", probeSkills: NOOP_PROBE,
+      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      registryPath: regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    const hp = path.join(ws, "task-1-review-1.json");
+    expect(existsSync(hp)).toBe(true);
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    // warn/nit = 0 blocker → status 被引擎派生覆写为 APPROVED（findings 保留）
+    expect(h.status).toBe("APPROVED");
+    expect(h.findings).toEqual([
+      { severity: "warn", summary: "w" }, { severity: "nit", summary: "n" },
+    ]);
+    // H1 同步从 handoff 重发（h1FromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
+    expect(res.h1[0]).toBe("status: APPROVED");
+  } finally {
+    process.env.PATH = origPath;
+  }
+});
+
 // ---- step 10 CLI failed no handoff → BLOCKED ----
 
 it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action message", async () => {

@@ -7,10 +7,16 @@ import { vi, it, expect, describe, beforeEach } from "vitest";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
-vi.mock("../lib/contract.mjs", () => ({
-  gitToplevel: vi.fn(() => "/repo/root"),
-  writeHandoff: vi.fn(),
-}));
+vi.mock("../lib/contract.mjs", async () => {
+  // T5: deriveReviewStatus/applyDerivedStatus 走真实实现（mock 只替 gitToplevel/writeHandoff），
+  // 保证 docs-runner 读回覆写测试覆盖的是真实派生逻辑，而非 mock 出来的假 status。
+  const actual = await vi.importActual("../lib/contract.mjs");
+  return {
+    ...actual,
+    gitToplevel: vi.fn(() => "/repo/root"),
+    writeHandoff: vi.fn(),
+  };
+});
 
 vi.mock("../lib/registry.mjs", async () => {
   // Task 5: cli-shared 从 registry 导入 resolveInjection —— mock 复用真实实现，
@@ -183,5 +189,51 @@ describe("runDocsTask", () => {
       dryRun: false,
     });
     expect(renderTemplate.mock.calls.at(-1)?.[0]).toBe("critiques-review");
+  });
+
+  // ---- T5：status 单一权威 — review 型读回覆写（agent 写 warn-only CHANGES_REQUESTED → 覆写 APPROVED） ----
+
+  it("docs-runner 读回覆写：agent 写 warn-only CHANGES_REQUESTED → 文件 status 覆写为 APPROVED", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/docs-runner.mjs");
+    const { writeHandoff } = await import("../lib/contract.mjs");
+    const fs = await import("node:fs");
+    const origRead = fs.readFileSync.getMockImplementation();
+    // 覆写读回 fixture：同一 canonical ws 前缀下，agent 写 status:CHANGES_REQUESTED + warn/nit findings
+    //（engine 应派生覆写为 APPROVED 并持久化；findings 原样保留）。
+    fs.readFileSync.mockImplementation((p, enc) => {
+      if (String(p).includes(".superpowers/cdd/foo/")) {
+        return JSON.stringify({
+          phase: "review", status: "CHANGES_REQUESTED",
+          findings: [{ severity: "warn", summary: "w" }, { severity: "nit", summary: "n" }],
+          artifacts: {}, doc_path: "/spec.md",
+        });
+      }
+      return origRead(p, enc);
+    });
+    try {
+      const result = await runDocsTask({
+        harness: "claude", mode: "review", template: "review", type: "spec",
+        doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+        handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+        dryRun: false,
+      });
+      expect(result.exitCode).toBe(0);
+      // 返回/读回后 status 已被派生覆写为 APPROVED（warn/nit = 0 blocker）
+      expect(result.handoff.status).toBe("APPROVED");
+      expect(result.handoff.findings).toHaveLength(2);
+      // 覆写持久化：writeHandoff 收到 status=APPROVED 的完整 handoff
+      const writeCall = writeHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
+      expect(writeCall).toBeDefined();
+      expect(writeCall[1].status).toBe("APPROVED");
+      expect(writeCall[1].findings).toEqual([
+        { severity: "warn", summary: "w" }, { severity: "nit", summary: "n" },
+      ]);
+    } finally {
+      fs.readFileSync.mockImplementation(origRead);
+    }
   });
 });

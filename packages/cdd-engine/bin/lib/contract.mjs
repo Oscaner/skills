@@ -113,6 +113,27 @@ export function rollupStatus(findings = [], unverifiable = [], planConflicts = [
   return hasBlocker ? "CHANGES_REQUESTED" : "APPROVED";
 }
 
+// ---- review 型 handoff status 派生（T5 status 单一权威）----
+
+// review 型 handoff status 派生（唯 engine 权威）：schema 校验后由 findings roll-up 覆写 agent 声明的 status。
+// SP-4 豁免：失败轮次（engine 自写 BLOCKED/TIMEOUT、agent status ∈ {BLOCKED, TIMEOUT}）不覆写。
+// 仅 findings.length > 0 时触发 rollup（plan-constraints「status 单一权威」）；findings 空时
+// CHANGES_REQUESTED（0 blocker）→ APPROVED（URC：无 findings 即无 blocker），APPROVED 空载保持，缺省 → APPROVED。
+export function deriveReviewStatus(handoff = {}) {
+  const { status, findings = [], unverifiable = [] } = handoff;
+  // schema 字段为 snake_case：plan_conflicts（勿解构 camelCase planConflicts — 永空）
+  const planConflicts = handoff.plan_conflicts ?? [];
+  if (status === "BLOCKED" || status === "TIMEOUT") return status;
+  if (findings.length === 0) return status === "CHANGES_REQUESTED" ? "APPROVED" : status ?? "APPROVED";
+  return rollupStatus(findings, unverifiable, planConflicts);
+}
+
+// 读回路径统一入口：status 需覆写 → 返回覆写后的新 handoff（原对象不变）；无变化 → null（caller 不写盘）。
+export function applyDerivedStatus(handoff = {}) {
+  const d = deriveReviewStatus(handoff);
+  return d === handoff.status ? null : { ...handoff, status: d };
+}
+
 // ---- commit-contract validator ----
 
 // Core commit-contract validator（spec §4.2，port cdd_validate_commit_contract）。

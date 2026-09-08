@@ -20,9 +20,7 @@ export async function runDocsTask({
   type,          // review/fix 子类型（spec|plan）→ invokeCli (op, type) 注入参数（无模板名可依）
   doc,           // path to the document being reviewed/fixed
   findingsPath,
-  handoffPath,
-  workspace,     // accepted but no longer participates in path derivation (T3: handoffPath is canonical)
-  round = 1,     // accepted but no longer participates in path derivation (handoffPath already carries the round)
+  handoffPath,   // canonical 命名权威（handoff-naming 派生）；无 template-fallback
   dryRun = false,
   params = {},   // additional template params from --param KEY=VALUE flags
   // repoRoot accepted in opts but ignored — gitToplevel(process.cwd()) is always used (Bug L fix)

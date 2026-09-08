@@ -141,7 +141,7 @@ export async function runReview(opts) {
     const art = reviewArtifactConfig(opts.type);
     await runDocsTask({
       harness: opts.harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
-      round, handoffPath: path.join(ws, handoffNaming.handoffName("review", opts.type, { round })),
+      handoffPath: path.join(ws, handoffNaming.handoffName("review", opts.type, { round })),
       params: {
         TYPE: opts.type,
         LENS_GUIDE: cfg.lensEnum.join(" · "),
@@ -346,6 +346,10 @@ export async function runFix(opts) {
     process.exit(2);
   }
   const fixRound = Number(roundMatch[1]);
+  if (!Number.isInteger(fixRound) || fixRound < 1) {
+    process.stderr.write(`cdd fix --type ${opts.type}: --findings round must be >= 1 (round derived from the source review); got: ${opts.findings}\n`);
+    process.exit(2);
+  }
   // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
   // workspace 与 review 同源 resolveWorkspace(doc)；handoffPath 显式传 canonical fix.{type} 名。
   const template = handoffNaming.familyConfig("fix", opts.type).fixTemplate;
@@ -353,7 +357,7 @@ export async function runFix(opts) {
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
     harness: opts.harness, mode: "fix", template, type: opts.type, doc: opts.doc,
-    findingsPath: opts.findings, workspace: ws, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
+    findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
 }

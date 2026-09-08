@@ -303,7 +303,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       await runFix({ type: "spec", harness: "claude", doc: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-fix-2.json");
-      expect(call.workspace).toBe("/repo/root/.superpowers/cdd/foo");
+      expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）
       expect(call.findingsPath).toBe(findings);
     } finally {
       delete process.env.CDD_DRY_RUN;
@@ -346,6 +346,14 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       { env: { CDD_DRY_RUN: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/spec-review-\{R\}\.json/);
+  });
+
+  it("fix --findings spec-review-0.json（round<1）→ exit 2 拒（round 须 >= 1）", () => {
+    const r = runCli(["fix", "--type", "spec", "--harness", "claude", "--doc", SMOKE_PLAN,
+      "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", "spec-review-0.json")],
+      { env: { CDD_DRY_RUN: "1" } });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/round must be >= 1/);
   });
 
   it("review --type branch 同 ref 已 APPROVED r1 → Stopping exit 3（prev 经 concrete base7..head7 匹配）", () => {

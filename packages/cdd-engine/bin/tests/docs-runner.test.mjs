@@ -93,7 +93,6 @@ describe("runDocsTask", () => {
       mode: "review",
       template: "review",
       doc: "/spec.md",
-      workspace: "/tmp/ws",
       dryRun: true,
     });
     expect(result.exitCode).toBe(0);
@@ -115,7 +114,6 @@ describe("runDocsTask", () => {
       template:  "review",
       doc:       "/repo/root/docs/superpowers/specs/my-spec.md",
       params:    { TYPE: "spec" },
-      workspace: "/repo/root/.superpowers/cdd/foo",
       handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
       repoRoot:  "/repo/root",  // accepted in opts but gitToplevel() is used (Bug L fix)
       dryRun:    false,
@@ -138,7 +136,6 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "review", template: "review", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       params: { TYPE: "spec" },
-      workspace: "/repo/root/.superpowers/cdd/foo",
       handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
       dryRun: false,
     });
@@ -151,7 +148,6 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       findingsPath: "/repo/root/docs/findings.md",
-      workspace: "/repo/root/.superpowers/cdd/foo",
       handoffPath: "/repo/root/.superpowers/cdd/foo/spec-fix-1.json",
       dryRun: false,
     });
@@ -168,7 +164,6 @@ describe("runDocsTask", () => {
     await expect(runDocsTask({
       harness: "claude", mode: "review", template: "review",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
-      workspace: "/repo/root/.superpowers/cdd/foo",
       dryRun: false,
     })).rejects.toThrow(/handoffPath required/);
   });
@@ -183,7 +178,6 @@ describe("runDocsTask", () => {
     await runDocsTask({
       harness: "claude", mode: "fix", template: "critiques-review", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
-      workspace: "/repo/root/.superpowers/cdd/foo",
       // 含 "review" 段 → node:fs fixture 的 existsSync 视为存在 → 走 read-and-validate 路径。
       handoffPath: "/repo/root/.superpowers/cdd/foo/critiques-review-1.json",
       dryRun: false,

@@ -2,7 +2,7 @@
 // 移植 cdd-commit-gate-smoke.sh（16 断言）的核心行为：
 //   dirty-tree → blocked + handoff.status=BLOCKED；head-mismatch → blocked（F1）；
 //   clean-tree → pass；非 git / 无 repoRoot → fail-open ok:true；
-//   review 模式 → dirty-only（T7：跳过 head 校验 —— review handoff 的 commits 语义为被审 commit）。
+//   review 模式 → dirty-only（T8：跳过 head 校验 —— review handoff 的 commits 语义为被审 commit）。
 // 移植 cdd-severity-contract.test.sh（30 断言）的语义核心（非 grep 散文，而是可执行契约）：
 //   classifySeverity：blocker→CHANGES_REQUESTED；warn/nit→APPROVED；unverifiable/needs_context→STOP。
 //   rollupStatus：warn/nit→APPROVED；含 blocker→CHANGES_REQUESTED；unverifiable/plan_conflicts→BLOCKED。
@@ -161,7 +161,7 @@ it("commit-contract: 非 git 目录 → fail-open ok:true", () => {
   expect(r.ok).toBe(true);
 });
 
-// ---- T7: review 模式（归一后 task-review）—— 仅 dirty 校验，跳过 head ----
+// ---- T8: review 模式（归一后 task-review）—— 仅 dirty 校验，跳过 head ----
 
 it("commit-contract: review 模式 → dirty tree BLOCKED（review 亦校验 dirty；不再 no-op）", () => {
   const repo = setupRepo();

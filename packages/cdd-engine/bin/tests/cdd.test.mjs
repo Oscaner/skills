@@ -29,7 +29,11 @@ function cleanEnv(extra) {
 function runCli(args = [], opts = {}) {
   const { env: extraEnv = {}, cwd = REPO_ROOT } = opts;
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env: cleanEnv(extraEnv), encoding: "utf8" });
+    // extendEnv:false —— execa 默认 extendEnv:true 会把父进程 env 合入 child，覆盖 cleanEnv 的
+    // CDD_* 剥离（orchestrator 携带的 CDD_REVIEW_TIMEOUT 等泄漏回测试 child，见 T8 回归：
+    // 秒值 ×1000 溢出 setTimeout 32 位上限 → ~1ms 瞬时 SIGTERM → 非 dry-run 用例确定性 FAIL）。
+    // 关闭 extendEnv 后 child 只见 cleanEnv 显式清单，测试与调度侧环境变量零耦合。
+    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env: cleanEnv(extraEnv), encoding: "utf8", extendEnv: false });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e) {
     return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
@@ -50,12 +54,12 @@ vi.mock("../lib/docs-runner.mjs", () => docsRunnerMock);
 
 describe("cdd CLI", () => {
   it("-h → help", () => {
-    const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv() });
+    const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false });
     expect(r.stdout).toMatch(/implement|review|fix|select|research|brief/);
   });
 
   it("review missing --type → usage exit 2", () => {
-    expect(() => execaSync(NODE, [CDD_MJS, "review"], { cwd: REPO_ROOT, env: cleanEnv({ CDD_DRY_RUN: "1" }) }))
+    expect(() => execaSync(NODE, [CDD_MJS, "review"], { cwd: REPO_ROOT, env: cleanEnv({ CDD_DRY_RUN: "1" }), extendEnv: false }))
       .toThrow(/required option|--type/);
   });
 

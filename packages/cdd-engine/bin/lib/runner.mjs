@@ -606,7 +606,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   //     evidence-gate 回读校验（behavior_change:true → hard；其余 → soft WARN），H1 改 h1FromHandoff 重发。
   //     T7: handoff 载体 engine 归位 — implement/review 定稿统一走 finalizeHandoff（三消费方共享单点），
   //     定稿写盘用 writeOwnHandoff（engine 载体唯一作者，全量覆盖替换），H1 一律从定稿 h1FromHandoff 重发。
-  //     T7: post-run commit-contract 全 mode 接线（13.5）+ APPROVED review 回写 task.status=complete。
+  //     T8: post-run commit-contract 全 mode 接线（13.5）+ APPROVED review 回写 task.status=complete。
   if (!dryRun && mode === "implement") {
     const finalized = finalizeHandoff({
       mode,
@@ -630,7 +630,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     // 绝不允许 ENOENT 崩溃 runner。「implement 后 handoff 必在」断言仅对正常实体化路径成立。
   }
 
-  // 13.5 T7: post-run commit-contract —— 全 task mode 接线（implement/fix/review）。
+  // 13.5 T8: post-run commit-contract —— 全 task mode 接线（implement/fix/review）。
   //   implement/fix：dirty + head 校验（validateCommitContract 已内建 rewriteHandoffBlocked）；
   //   review：仅 dirty（review handoff 的 commits 语义为被审 commit，跳过 head）。
   //   !dryRun 守卫：dry-run 不写任何 handoff 不变式 —— 否则 dirty 工作树（如未提交 emit 产物的
@@ -645,7 +645,7 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，
   // SP-4 豁免失败轮次）；成功路径读回定稿并持久化（writeOwnHandoff 全量覆盖），H1 同步用 h1FromHandoff。
-  // T7: APPROVED task-review 回写 progress task.status=complete（读回握手 finalizeHandoff 之后，
+  // T8: APPROVED task-review 回写 progress task.status=complete（读回握手 finalizeHandoff 之后，
   // 且在 post-run validate 通过之后 —— dirty 失败轮不标 complete）。
   if (!dryRun && mode === "review") {
     const reviewHandoff = readJson(env.CDD_HANDOFF_PATH);

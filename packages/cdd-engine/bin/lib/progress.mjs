@@ -4,7 +4,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-// T7: progress schema 删除 lastDispatchHead/degradationLog（死字段；check-head/engine-recovery 退化，
+// T8: progress schema 删除 lastDispatchHead/degradationLog（死字段；check-head/engine-recovery 退化，
 //  deriveReviewStatus/engineRecoveryCount 取代），degradationLogItem 随 degradationLog 一并废弃。
 const PROGRESS_SCHEMA = {
   required: ["plan", "timeoutCount", "engineRecoveryCount", "tasks"],
@@ -29,13 +29,19 @@ export function readProgressJSON(progressDir) {
 }
 
 // writeProgressJSON: write data to progress.json in progressDir.
+// 死字段（lastDispatchHead/degradationLog）随 schema 删除后，写前仍剥除一次 —— 存量
+// progress.json（check-head/engine-recovery 退化前的 live 文件）若已带旧键，首次回写即完成
+// 一次性垃圾回收。仅在序列化副本上删键，不修改调用者内存对象。
+const PROGRESS_DEAD_KEYS = ["lastDispatchHead", "degradationLog"];
 export function writeProgressJSON(progressDir, data) {
   const jsonPath = path.join(progressDir, "progress.json");
-  writeFileSync(jsonPath, JSON.stringify(data, null, 2));
+  const clean = { ...data };
+  for (const k of PROGRESS_DEAD_KEYS) delete clean[k];
+  writeFileSync(jsonPath, JSON.stringify(clean, null, 2));
 }
 
 // createEmptyProgress: create a fresh progress object for a given plan.
-// T7: 死字段（lastDispatchHead/degradationLog）已删 —— progress.json 顶层仅 plan/timeoutCount/engineRecoveryCount/tasks。
+// T8: 死字段（lastDispatchHead/degradationLog）已删 —— progress.json 顶层仅 plan/timeoutCount/engineRecoveryCount/tasks。
 export function createEmptyProgress(plan) {
   return {
     plan: plan || "",

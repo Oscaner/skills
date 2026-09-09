@@ -19,6 +19,15 @@ describe('resolveTimeoutMs', () => {
   it('default task timeout is 30min', () => {
     expect(resolveTimeoutMs({}, 'task')).toBe(1_800_000);
   });
+  it('per-mode 巨大秒值 → 钳到安全天花板（T8 回归：setTimeout 32 位溢出 → ~1ms 瞬时 SIGTERM）', () => {
+    // 2700000s × 1000 = 2.7e9 ms > 2^31-1（2147483647 ms）；溢出触发 V8 TimeoutOverflowWarning
+    // 把 timeout 钳到 ~1ms → 一次正常 dispatch 变成瞬时 kill（CDD_REVIEW_TIMEOUT 泄漏时序回归）。
+    expect(resolveTimeoutMs({ CDD_REVIEW_TIMEOUT: '2700000' }, 'review')).toBeLessThanOrEqual(2_000_000_000);
+    expect(resolveTimeoutMs({ CDD_REVIEW_TIMEOUT: '2700000' }, 'review')).toBeGreaterThan(0);
+  });
+  it('CDD_CLI_TIMEOUT 巨大秒值同样钳制（全局路径同溢出面）', () => {
+    expect(resolveTimeoutMs({ CDD_CLI_TIMEOUT: '2700000' }, 'task')).toBeLessThanOrEqual(2_000_000_000);
+  });
   it('unknown mode returns undefined', () => {
     expect(resolveTimeoutMs({}, 'unknown')).toBeUndefined();
   });

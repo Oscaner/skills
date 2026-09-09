@@ -1,9 +1,9 @@
 # CDD Engine 重构 — P6 P4-dogfood 修复 + Handoff 契约统一 设计
 
-- **Version**: v1.3 · 2026-09-08（v1.0 起草 · v1.1 spec-review r1 修正 · v1.2 spec-review r2 blocker=0 修正 · v1.3 writing-plans grilling 高维度：workspace 归入 artifact 契约派生层；详细见 §5 self-review 记录）
+- **Version**: v1.4 · 2026-09-09（v1.0 起草 · v1.1 spec-review r1 修正 · v1.2 spec-review r2 blocker=0 修正 · v1.3 writing-plans grilling 高维度：workspace 归入 artifact 契约派生层 · v1.4 P6 执行期 dogfood：handoff 载体 engine 归位（finalizeHandoff）；详细见 §5 self-review 记录）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) · **v1.21**（起草时 v1.20；§3 deviations 已回写 v1.20 + v1.21）
+- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) · **v1.22**（起草时 v1.20；§3 deviations 已回写 v1.20 + v1.21 + v1.22）
 - **Depends on**: P1–P4 全部已合（HEAD = develop 528d499, P4 PR #244）
 
 ---
@@ -159,6 +159,20 @@ P6 increment only。Cross-phase conventions in overall（v1.21）；overall wins
 
 **分级**：implement 实体化为 engine 代码（runner.mjs）；模板侧 review/fix 补 HARD GATE + 文档化。
 
+### 2.4b handoff 载体 engine 归位 — finalizeHandoff 定稿统一（P6 执行期 dogfood 追加，v1.4）
+
+**根因（P6 原 T7 implement 实测，上报 #232 comment 5595863520）**：T6 规定 implement agent 不写 handoff（模板明示 "This mode does not write a handoff. The runner materializes..."），但 agent 仍按 P1 旧假设手写残缺 handoff（缺 task/phase/findings）→ runner step 8.8（所有 mode 无差别校验 existing handoff）判 schema-invalid → BLOCKED；删文件重派**确定性复现**（agent 每次都写）。本质：**载体作者已从 agent 换成 engine（T6），但 8.8 的「agent 是完整文件作者」校验假设未同步** —— 系统性接口残留，非一次性失误。
+
+**架构决策（不写「残留兼容层」）**：handoff 是「载体 + 内容」两层。**engine 是载体唯一作者，agent 只贡献内容分片（findings/blocker/artifacts/notes）**。据此：
+- **`lib/handoff-finalize.mjs`（新模块，与 handoff-naming 平级）**：`finalizeHandoff({ mode, h1, agentHandoff, brief, repoRoot, workspace, taskNum })` → `{ handoff, exitCode }`。按 canonical family `status` 规则分派：review 族 → rollup 派生（applyDerivedStatus）；implement 族 → 实体化（**输入无 agentHandoff 槽位**）；fix 族 → agent 声明 + commit-contract 层否决。H1 一律从定稿 h1FromHandoff 重发。
+- **8.8 implement 门控**：`if (mode !== "implement")` 才校验 existing handoff —— implement 的 HANDOFF 路径对 agent 不是输入通道，engine **不去读**（非「读了再丢」）。
+- **`writeOwnHandoff` 全量覆盖写盘**（contract.mjs 新增）：engine 载体写入不读 existing、不浅合并 —— agent 若真写了文件，被覆盖是「engine 私有写入槽」的自然语义，非检测到再清理。
+- **无残留 WARN / 无残留检测 / 无丢弃分支**：implement 分支类型上不接收 agentHandoff —— 不存在的路径不需维护逻辑（对未来零死代码）。
+- **消费者收敛**：runner.mjs（task）/ docs-runner.mjs（spec·plan）/ cdd.mjs（branch）三处 read-back 统一走 finalizeHandoff —— 替代 T5/T6 各自的手写 applyDerivedStatus / 实体化接线（同构点收敛为单点）。
+- **保留**：review/fix 的 agent findings schema 校验是**内容契约**（agent 是 findings 合法作者），非兼容层 —— 不删。
+
+**验收**：`finalizeHandoff` 三消费方共用（runner/docs-runner/branch 无各自手写定稿）；implement 分支参数表无 agentHandoff；`writeOwnHandoff` 全量覆盖（existing 垃圾字段不入新载体）；8.8 对 implement 不读 existing handoff（mode 门控）；无 `CDD_WARN: ...残留` 类逻辑存在。
+
 ### 2.5 `cdd contract` 删除 + 提交契约 engine 归位（F1 附带）
 
 **根因**：提交门禁从未真正落到 engine——`validateCommitContract`（定义+测试完备，文档声称 post-run 执行）是**死代码**；orchestrator 靠 `cdd contract --check-dirty` 重复兜底 + 一个语义错误的 `--check-head`（dispatch-head vs post-commit-head 恒不等，空字段才不炸）；`--clear-findings` 零调用者（deferred 已删）。
@@ -226,15 +240,17 @@ P6 increment only。Cross-phase conventions in overall（v1.21）；overall wins
 | P6 F6 验收：「doc-review workspace 无 plan-review-*/spec-review-* 旧产物」 | 上探：命名合同单点化（handoff-namespace.json）+ `doc-fix` 残名清除；F6 从「归档遗留」升级为「命名契约统一」 | **Yes — v1.20** |
 | P6 scope 只含 6 findings | +**handoff-namespace canonical / reviews.json 裁轴 / status 单一权威 / cdd contract 删除**（F3/F6 上探 + F1 附带） | **Yes — v1.20** |
 | P6 F6 workspace 模型沿用 `.superpowers/docs-review/` flat root（仅改归档范围） | **Workspace 归入 artifact 契约派生层（v1.3 上探）**：canonical 增 `workspaceRoot`/`slugRule` 顶层字段 + 派生五函数新增 `resolveWorkspace(doc)`；spec/plan/task/branch 全部 handoff 收编 `.superpowers/cdd/<slug>/`；flat `.superpowers/docs-review/` 整体删除（一次性归档后废弃）；跨 phase round 污染结构性消失 | **Yes — v1.21 · 2026-09-08** |
+| P6 执行期（原 T7）改走现状 runner 8.8 全模式校验 | **handoff 载体 engine 归位（v1.4 追加）**：T6 实体化后 8.8 仍按 agent 作者校验 → agent 手写残缺 handoff 必 BLOCKED；`finalizeHandoff` 定稿统一（8.8 implement 门控 / `writeOwnHandoff` 全量覆盖 / 三消费方收敛 / implement 无 agentHandoff 输入槽；无残留兼容层）；计划插 Task 7、原 T7→T8/T8→T9/T9→T10 | **Yes — v1.22 · 2026-09-09** |
 
-> 全部 deviations 已回写 overall v1.20 + v1.21（overall 四表 + change history）。完成后本表全 Yes。
+> 全部 deviations 已回写 overall v1.20 + v1.21 + v1.22（overall 四表 + change history）。完成后本表全 Yes。
 
 ---
 
 ## Section 4: Notes for downstream
 
 - **P5**（Gate 移除）不受影响 — 本 phase 不触碰 `packages/osuperpowers/bin/gate/`
-- **未来 phase 新增 review/fix 类型**（如 `review.api`）：往 handoff-namespace.json 加一族即可，无需再改 runner/cdd-mjs/docs-runner 命名逻辑；**workspace 自动获得**（`resolveWorkspace` 从 doc 推出，不依赖 family 配置）
+- **未来 phase 新增 review/fix 类型**（如 `review.api`）：往 handoff-namespace.json 加一族即可（命名 + workspace 自动获得）；**handoff 定稿**经 `finalizeHandoff` 统一入口（新 family 只需在 finalize 的 status 规则分派处登记族名，不再为单 mode 手写定稿逻辑）
+- **`engine-recovery-count` 语义提醒（Task 8 SKILL 重述）**：skill §D 条文为「per-recovery-session」，实现为 progress.json workspace 单调累加 —— 跨任务上下文共享预算会把旧任务恢复消耗算到新任务头上；Task 8 的 cli-driven-development SKILL engine-recovery 节点重述 count 语义（或按 task 键域重置），P6 内不重置既有 2/2 事实（非 gaming，guard 语义修正另行记账）
 - **消费者升级路径**：旧 `.superpowers/docs-review/` 的 `spec-1.json`（P4 退化名）不会被新 roundPattern 匹配 → 安全孤儿；P6 执行期一次性归档后 flat root 废弃，新产物全部落在 `.superpowers/cdd/<slug>/`
 - **`task-review` 模式名剔除**：CDD_MODE/VALID_MODES/progress rounds key 从 `task-review` 归一为 `review`（op 维度）；**handoff `phase` 字段同步归一**（cdd-handoff-schema theme 的 phase enum `["implement","task-review","fix","branch-review"]` → `["implement","review","fix","branch-review"]`，renderHandoffStub 以 mode 填 phase 的分支同步改；docs-handoff-schema 的 phase enum `["review","fix"]` 不变且与归一后一致）；**canonical 表同步增补 `phase` 列**（= 该族 op 在 handoff 内 phase 字段的值），§2.3 item 2 的 status conditional 判定键 = `phase ∈ review 族则 status 可缺省/可覆写，implement/fix 仍 required`。两轴分离后 reviews.json（type 键）与 canonical（op+type）无命名冲突；`reviews.json` 仍以 type 键（task/branch/spec/plan）组织内容契约。
 
@@ -255,3 +271,4 @@ Rule: URC — `cdd review --type spec --harness <name> --doc <path>` 单周期�
   ⑥ phase 字段归一未明 + canonical 无 phase 列 → §4 归一 + §2.3 conditional 判定键
   ⑦ task workspace 归档范围 + rounds 键迁移悬项 → §2.8 补处置说明
 - **v1.3（writing-plans grilling 高维度上探，用户「统一规划抽象」）**：workspace 归入 artifact 契约派生层 — canonical 增 `workspaceRoot`/`slugRule`、派生五函数新增 `resolveWorkspace`、全部产物收编 `.superpowers/cdd/<slug>/`、flat `.superpowers/docs-review/` 删除；overall 同步 v1.21；§2.1/§2.6/§2.8/§3/§4 相应更新
+- **v1.4（P6 执行期 dogfood——原 T7 implement，用户「handoff 应 engine 还是 agent 写」grilling 深化）**：T6 实体化后 agent 手写残缺 handoff → 8.8 误拦 → 上报 #232 5595863520 → **handoff 载体 engine 归位**：解耦「载体 + 内容」两层（engine 载体唯一作者 / agent 只贡献内容分片）、`finalizeHandoff` 定稿单点（§2.4b 新增）、8.8 implement 门控 + `writeOwnHandoff` 全量覆盖 + 三消费方收敛；**无残留兼容层**（grilling 裁定：残留检测/WARN/丢弃 = 为不存在路径写维护逻辑 = 死代码）；overall v1.22；计划插 Task 7、原 T7→T8/T8→T9/T9→T10；§2.4b/§3/§4 相应更新

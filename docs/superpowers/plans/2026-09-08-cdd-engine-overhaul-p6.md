@@ -14,7 +14,7 @@
 
 - **单一真相**：`packages/cdd-engine/templates/handoff-namespace.json` 是 handoff 工件契约唯一 canonical；**含 `workspaceRoot`/`slugRule` 顶层字段**；所有字面量命名站点与 workspace 推导点改走派生函数，禁止第二处命名字面量 / 第二处 workspace 推导。
 - **Workspace 单一根**：全部 handoff 收编 `.superpowers/cdd/<slug>/`（slug = 被审文档文件名去 `.md`、再去尾 `-design`，见 `resolveWorkspace` 第五派生函数）；`.superpowers/docs-review/` flat root **删除**（Phase-0 一次性归档后废弃）；engine 代码 `.superpowers/docs-review` 零引用。
-- **命名统一**：`{type}-{op}[-{round}]` —— spec-review-{R}/spec-fix-{R}/plan-review-{R}/plan-fix-{R}/task-{N}-implement/task-{N}-review-{R}/task-{N}-fix-{R}/branch-review-{base7}..{head7}-r{R}；`task-review` mode 名归一为 `review`（CDD_MODE/VALID_MODES/progress `rounds["review"]`/handoff `phase:"review"`）；**`cdd-handoff-schema.json` phase enum 同步改 `["implement","review","fix","branch-review"]`（T4 内完成，配「phase:review 通过 schema 校验」绿测试）**；`doc-fix` 退位为纯模板名（reviews.json fixTemplate 指向）。旧命名（`spec-1\.json`/`plan-1\.json`/`doc-fix-`/旧 `task-{N}-task-review-{R}`）在 engine 代码中零残留（T7/tests grep）。
+- **命名统一**：`{type}-{op}[-{round}]` —— spec-review-{R}/spec-fix-{R}/plan-review-{R}/plan-fix-{R}/task-{N}-implement/task-{N}-review-{R}/task-{N}-fix-{R}/branch-review-{base7}..{head7}-r{R}；`task-review` mode 名归一为 `review`（CDD_MODE/VALID_MODES/progress `rounds["review"]`/handoff `phase:"review"`）；**`cdd-handoff-schema.json` phase enum 同步改 `["implement","review","fix","branch-review"]`（T4 内完成，配「phase:review 通过 schema 校验」绿测试）**；`doc-fix` 退位为纯模板名（reviews.json fixTemplate 指向）。旧命名（`spec-1\.json`/`plan-1\.json`/`doc-fix-`/旧 `task-{N}-task-review-{R}`）在 engine 代码中零残留（T9/tests grep，Task 9 Step 2b 残留清理 + 守卫）。
 - **status 单一权威**：review 型（task/spec/plan/branch）由 `rollupStatus(findings)` 派生覆写；work 型（implement/fix）agent 声明 + `validateCommitContract` 否决。**SP-4 失败轮次豁免**：engine 自写 BLOCKED/TIMEOUT 与 agent status ∈ {BLOCKED,TIMEOUT} 一律不覆写；仅 `findings.length > 0` 且 status ∈ {APPROVED, CHANGES_REQUESTED} 时触发 rollup。
 - **implement 实体化**：implement handoff 由 runner 从 H1 + TASK_BASE(brief) + git HEAD 实体化（commits.base 权威 = brief TASK_BASE；commits.head = git HEAD；H1 改 h1FromHandoff 重发）；implement 的 commit-contract 收敛 dirty-only；head 校验仅 fix。
 - **docs 通道不接 dirty 断言**（docs fix 产出未提交 doc 属常态；docs review 派发时外层树普遍 dirty）。
@@ -22,8 +22,8 @@
 - **`cdd contract` 子命令删除**（check-dirty/check-head/clear-findings 全灭）；progress schema 删 `lastDispatchHead`/`degradationLog`；`task.status=complete` 由 runner 在 APPROVED task-review 后回写。
 - **stale-lexicon 零豁免**：并入 `scripts/validate/residue.mjs`，只查机制位置（label 语法位 `labels..dogfood`/`"dogfood"`、旧文档名 `docs-review\.md`/`PASS=`/词边界 `D1|D2|D3`、resolver `resolve-hit`/`gh issue reopen`、旧 mode `task-review`/退化名 `spec-1|plan-1|doc-fix-`）；不得误报 canonical 合法语汇（finding-meta.json `dogfood (CDD session)` 下拉）。RESIDUE_TARGETS 扩含 `packages/cdd-engine`（bin+templates）。
 - **F6 收口（Workspace 单一化 + flat root 废弃）**：全部 handoff 收编 `.superpowers/cdd/<slug>/`；P6 迁移前 `.superpowers/docs-review/` 全部现有产物（含 P3 同名 `spec-review-1.json`/`plan-review-1.json`）移入 `archive-<date>/`，此后 flat root 废弃不再写；`.superpowers/cdd/<slug>/` 现存 task 族不归档（弃置性本地 state，安全孤儿）；`.superpowers/cdd/` 根杂讯测试目录（`p|plan|smoke-plan|smoke-test|test-plan-br|.tmp-smoke-plan|.test-fixtures`）一次性移入 archive 或删除。
-- **清单**：每 task 结束 `pnpm run validate` 绿；SKILL.md/templates/docs 变更后 `pnpm run emit`；commit 每次 task 完成；changeset 于 T9。
-- **`**Spec:**` 头**：本文件头部已按 F2 约定产出（T9 将 writing-plans write-plan 节点固化该约定）。
+- **清单**：每 task 结束 `pnpm run validate` 绿；SKILL.md/templates/docs 变更后 `pnpm run emit`；commit 每次 task 完成；changeset 于 T10。
+- **`**Spec:**` 头**：本文件头部已按 F2 约定产出（T10 将 writing-plans write-plan 节点固化该约定）。
 
 ---
 
@@ -44,7 +44,7 @@ for d in p plan smoke-plan smoke-test test-plan-br .tmp-smoke-plan .test-fixture
 done
 ```
 
-> `.superpowers/cdd/<slug>/` 现存 task 族产物不归档（弃置性本地 state；改名后旧名安全孤儿）。此后 T9 仅收尾复核 + 增量归档（防新旧 pd 混合再发生）。
+> `.superpowers/cdd/<slug>/` 现存 task 族产物不归档（弃置性本地 state；改名后旧名安全孤儿）。此后 T10 仅收尾复核 + 增量归档（防新旧 pd 混合再发生）。
 >
 > **progress rounds 迁移悬项**（设计 §2.8 记录，本 phase 不实施）：未来若引入 CDD resume 语义，须补 `rounds["task-review"] → rounds["review"]` 迁移（详见 Global Constraints 对应条目）；本 phase workspace 为弃置性本地 state，无 resume 契约，不迁移。
 
@@ -446,7 +446,7 @@ Expected: PASS。`pnpm run validate`（templates.test 里 task-review 引用同�
 - [ ] **Step 4: full validate + smoke**
 
 Run: `pnpm run validate && node scripts/run.mjs smoke-cdd`
-Expected: ALL PASS；smoke H1 链通过（smoke-cdd.mjs 的旧命名断言在 T8 同步，见 Task 8 Step 2b）。
+Expected: ALL PASS；smoke H1 链通过（smoke-cdd.mjs 的旧命名断言在 T9 同步，见 Task 9 Step 2b）。
 
 - [ ] **Step 5: Commit**
 
@@ -615,7 +615,112 @@ git commit -m "feat(cdd-engine): implement handoff runner 实体化 + HARD GATE 
 
 ---
 
-### Task 7: `cdd contract` 删除 + validateCommitContract 全模式接线 + progress 死字段 + status=complete（TDD）
+### Task 7: handoff 载体 engine 归位 — finalizeHandoff 定稿统一（P6 dogfood 新增 Task：P6 执行期 implement 实测 agent 写残缺 handoff → 8.8 误拦，engine 载体单一作者落地）（TDD）
+
+> **插因（P6 执行期 dogfood）**：T6 实体化语义规定 implement agent 不写 handoff（模板明示 "This mode does not write a handoff. The runner materializes..."），但 P6 执行期（重编号前）T7 implement dispatch 实测 agent 仍按旧 P1 假设手写残缺 handoff（缺 task/phase/findings 三 required）→ runner step 8.8（对所有 mode 无差别地校验 existing handoff）判 schema-invalid 覆写 BLOCKED → 整轮 BLOCKED 且删文件重派必复现。上报 #232（comment 5595863520，程序通道）：「handoff 载体 engine 归位未闭环——8.8 仍按 agent 完整作者校验；本质是载体作者已换、校验假设未换的系统性接口残留」。本 task 将载体归位落地为 `finalizeHandoff` 定稿统一（不是「残留兼容」——见下 Step 0 设计契约）。
+
+**Files:**
+- Create: `packages/cdd-engine/bin/lib/handoff-finalize.mjs`（定稿单点：agent 内容 → 定稿 handoff → 全量替换写盘 → H1 重发）
+- Modify: `packages/cdd-engine/bin/lib/runner.mjs`（8.8 改 `mode !== "implement"` 门控；step 13 review/implement 定稿改走 finalizeHandoff；`writeOwnHandoff` 全量替换）
+- Modify: `packages/cdd-engine/bin/lib/docs-runner.mjs`（review/fix 读回 → finalizeHandoff（派生 + 写盘替换）；删浅合并写回）
+- Modify: `packages/cdd-engine/bin/cdd.mjs`（branch review 读回 → finalizeHandoff）
+- Modify: `packages/cdd-engine/bin/lib/contract.mjs`（新增 `writeOwnHandoff`：全量覆盖写，非浅合并）
+- Test: `packages/cdd-engine/bin/tests/handoff-finalize.test.mjs`（新建）+ `runner.test.mjs` / `docs-runner.test.mjs` / `cdd.test.mjs` / `contract.test.mjs`
+
+**Interfaces:**
+- Consumes: Task 5 的 `deriveReviewStatus`/`applyDerivedStatus`；Task 6 的实体化辅助（implementStatusFromH1/h1Blocker/artifactsFromH1Line/taskBaseFromBrief）
+- Produces:
+  - `finalizeHandoff({ mode, h1, agentHandoff, brief, repoRoot, workspace, taskNum })` → `{ handoff, exitCode }`（按 canonical family `status` 规则分派：review 族 rollup 派生 / implement 族实体化 / work 族 agent 声明 + 契约否决；H1 一律从定稿 h1FromHandoff 重发）
+  - `writeOwnHandoff(path, data)` → 全量替换写盘（非浅合并；engine 是载体唯一作者，无既有字段保留语义）
+
+- [ ] **Step 0: 设计契约 — 无残留兼容层（grilling 裁定，最高约束）**
+
+> **不得为「agent 写残缺 handoff」这条在正确模型下不存在的路径写任何维护逻辑**：
+> - ❌ 无 implement 残留检测 / 无残留 WARN / 无「丢弃残留」专用分支 —— 那是对现状的症状兼容，未来是死代码（grilling 用户裁定）
+> - ✅ 结构重构消灭路径本身：① 8.8 不再对 implement 读 existing handoff（`mode !== "implement"` 门控 —— HANDOFF 路径对 agent 不是输入通道，engine 不去读）；② 载体写入全量覆盖（writeOwnHandoff —— agent 写入进不了载体，覆盖是私有写入槽的自然语义）；③ finalizeHandoff 的 implement 分支**输入无 agentHandoff 槽位**（类型上不存在）
+> - ✅ reviewer/fix 的 `applyDerivedStatus` 校验是内容契约（agent 是 findings 合法作者），不是兼容层，保留
+
+- [ ] **Step 1: 写失败测试 — 定稿统一 + 无残留路径**
+
+`handoff-finalize.test.mjs`（新建，vitest）：
+```js
+it("finalizeHandoff review 族：agent 写 warn-only CHANGES_REQUESTED → 定稿 APPROVED（rollup 派生）", () => {
+  const h = finalizeHandoff({ mode: "review", agentHandoff: { status: "CHANGES_REQUESTED", findings: [{ severity: "warn" }] }, ... });
+  expect(h.handoff.status).toBe("APPROVED");
+});
+it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型避免残留路径）", () => {
+  // TS/JS 层面断言 finalizeHandoff 不读 agentHandoff 于 implement 分支 — 用 spread 白名单或参数校验
+  const h = finalizeHandoff({ mode: "implement", h1: ["status: APPROVED", ...], brief, repoRoot, workspace, taskNum });
+  expect(h.handoff.phase).toBe("implement");
+});
+it("writeOwnHandoff 全量覆盖：existing 含垃圾字段 → 新载体不含它", () => {
+  writeOwnHandoff(p, { junk: true, task: 1 });
+  writeOwnHandoff(p, { task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+  expect(JSON.parse(readFileSync(p, "utf8"))).not.toHaveProperty("junk");
+});
+it("branch/docs/runner 三消费方共享同一 finalizeHandoff（非各自接线）", () => { /* 导入断言 */ });
+```
+Expected: FAIL（finalizeHandoff / writeOwnHandoff 不存在）。
+
+- [ ] **Step 2: 实现 handoff-finalize.mjs + writeOwnHandoff**
+
+`handoff-finalize.mjs`（新模块，与 handoff-naming 平级——定稿是独立关切）：
+```js
+// handoff 载体定稿单点：agent 内容 → 定稿 handoff → 全量替换写盘 → H1 重发。
+// 架构：engine 是载体唯一作者（T5/T6/T7 统一），agent 只贡献内容分片（findings/blocker/artifacts/notes）。
+// 按 canonical family `status` 规则分派：review.*→rollup / implement→实体化(无 agentHandoff) / fix→agent声明+契约否决。
+// 无残留兼容层：implement 分支不接收 agentHandoff 输入参数（残留无通道附着）。
+export function finalizeHandoff({ mode, h1 = [], agentHandoff = null, brief, repoRoot, workspace, taskNum } = {}) {
+  if (mode === "review") {
+    const derived = applyDerivedStatus(agentHandoff ?? {});
+    if (derived) return { handoff: derived, exitCode: 0 };
+    return { handoff: agentHandoff, exitCode: 0 };
+  }
+  if (mode === "implement") {
+    // 输入无 agentHandoff：从 H1 + brief TASK_BASE + git HEAD 实体化（T6 逻辑迁入）
+    // evidence-gate（behavior_change:true → hard）保留；H1 从定稿重发。
+    return finalizeImplement({ h1, brief, repoRoot, workspace, taskNum });
+  }
+  if (mode === "fix") return { handoff: agentHandoff, exitCode: 0 }; // work 型：agent 声明保留，契约在 commit-contract 层否决
+  throw new Error(`finalizeHandoff: unknown mode ${mode}`);
+}
+```
+> `finalizeImplement` 从 runner 实体化块（T6）迁入，保持现有 behavior（含 `!dryRun` 守卫、降级 fail-open 不实体化）；`writeOwnHandoff` 放 contract.mjs：
+```js
+// 全量覆盖写盘（engine 载体唯一作者）。非浅合并：existing 字段一律不保留（实现前不读盘）。
+export function writeOwnHandoff(handoffPath, data) {
+  mkdirSync(path.dirname(handoffPath), { recursive: true });
+  writeFileSync(handoffPath, `${JSON.stringify(data, null, 2)}\n`);
+}
+```
+
+- [ ] **Step 3: 三消费方收敛 + 8.8 门控**
+
+- runner.mjs step 8.8：`{ if (existingHandoff) { ... } }` 包一层 `if (mode !== "implement")` —— implement 的 HANDOFF 路径对 agent 不是输入通道，不读不校验；review/fix 保留（内容契约）
+- runner.mjs step 13：review/implement 定稿块改调 `finalizeHandoff`（删除 runner 内 applyDerivedStatus/实体化的手写行，改委派）；`writeHandoff` → `writeOwnHandoff`（定稿写盘全量覆盖）
+- docs-runner.mjs（:90-98 review 读回）：`applyDerivedStatus` 手写块 → `finalizeHandoff({ mode: "review", agentHandoff: handoff })`；写盘改 `writeOwnHandoff`
+- cdd.mjs（branch review 读回 :304-307）：同样收敛到 `finalizeHandoff`
+
+- [ ] **Step 4: 跑测试确认通过**
+
+Run: `npx vitest run --config packages/cdd-engine/vitest.config.mjs bin/tests/handoff-finalize.test.mjs bin/tests/runner.test.mjs bin/tests/docs-runner.test.mjs bin/tests/cdd.test.mjs bin/tests/contract.test.mjs`
+Expected: PASS（含既有 T5/T6 回读用例迁移后仍绿）。
+
+- [ ] **Step 5: full validate**
+
+Run: `pnpm run validate`
+Expected: ALL PASS。
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/cdd-engine/bin/lib/handoff-finalize.mjs packages/cdd-engine/bin/lib/contract.mjs packages/cdd-engine/bin/lib/runner.mjs packages/cdd-engine/bin/lib/docs-runner.mjs packages/cdd-engine/bin/cdd.mjs packages/cdd-engine/bin/tests/handoff-finalize.test.mjs packages/cdd-engine/bin/tests/runner.test.mjs packages/cdd-engine/bin/tests/docs-runner.test.mjs packages/cdd-engine/bin/tests/cdd.test.mjs
+git commit -m "feat(cdd-engine): handoff 载体 engine 归位 — finalizeHandoff 定稿统一（8.8 implement 门控 + writeOwnHandoff 全量覆盖 + 三消费方收敛；无残留兼容层）"
+```
+
+---
+
+### Task 8: `cdd contract` 删除 + validateCommitContract 全模式接线 + progress 死字段 + status=complete（TDD）
 
 **Files:**
 - Modify: `packages/cdd-engine/bin/cdd.mjs`（删 contract subcommand + runContractCli 调用 + --clear-findings/--check-* 全部）
@@ -626,7 +731,7 @@ git commit -m "feat(cdd-engine): implement handoff runner 实体化 + HARD GATE 
 - Test: `packages/cdd-engine/bin/tests/progress.test.mjs`, `packages/cdd-engine/bin/tests/contract.test.mjs`, `packages/cdd-engine/bin/tests/runner.test.mjs`, `packages/cdd-engine/bin/tests/cdd.test.mjs`
 
 **Interfaces:**
-- Consumes: Task 5 的 deriveReviewStatus 与 schema；Task 6 的 handoff 实体化
+- Consumes: Task 5 的 deriveReviewStatus 与 schema；Task 6 的 handoff 实体化；Task 7 的 finalizeHandoff/writeOwnHandoff
 - Produces: `cdd contract` 不存在；progress.json 无死字段；`task.status=complete` 由 runner 回写；SKILL 无 `cdd contract` 引用
 
 - [ ] **Step 1: 写失败测试**
@@ -678,7 +783,7 @@ Expected: FAIL。
 
 - [ ] **Step 5: emit + 跑测试确认通过**
 
-**T7 修改了 cli-driven-development SKILL.md（handoff-status / engine-recovery）——必须先 `pnpm run emit` 再 validate**（validate 含 emit-check 块，SKILL 未 emit 即漂移 → T7 自身门槛必失败）。
+**T8 修改了 cli-driven-development SKILL.md（handoff-status / engine-recovery）——必须先 `pnpm run emit` 再 validate**（validate 含 emit-check 块，SKILL 未 emit 即漂移 → T7 自身门槛必失败）。
 
 Run: `pnpm run emit && npx vitest run packages/cdd-engine/bin/tests/progress.test.mjs packages/cdd-engine/bin/tests/contract.test.mjs packages/cdd-engine/bin/tests/runner.test.mjs packages/cdd-engine/bin/tests/cdd.test.mjs && pnpm run validate`
 Expected: ALL PASS（emit fresh 派生 `.agents/` 无漂移；engine vitest + scripts 全绿）。
@@ -692,7 +797,7 @@ git commit -m "feat(cdd-engine): cdd contract 删除 + validateCommitContract �
 
 ---
 
-### Task 8: stale-lexicon 守卫并入 residue + cli-select 指代修复（TDD）
+### Task 9: stale-lexicon 守卫并入 residue + cli-select 指代修复（TDD）
 
 **Files:**
 - Modify: `scripts/validate/residue.mjs`（RESIDUE_TARGETS 扩 cdd-engine；新增 stale-lexicon 断言组）
@@ -701,7 +806,7 @@ git commit -m "feat(cdd-engine): cdd contract 删除 + validateCommitContract �
 - Test: `scripts/validate/emit-check.test.mjs` 或新增 `scripts/validate/residue.test.mjs`（断言组行为）；`packages/cdd-engine/bin/tests/` 已有 grep 断言
 
 **Interfaces:**
-- Consumes: T1–T7 的命名终态（零旧名残留前提）
+- Consumes: T1–T8 的命名终态（零旧名残留前提）
 - Produces: `pnpm run validate` 含 stale-lexicon 断言；`RESIDUE_TARGETS` 含 cdd-engine；`dogfood (CDD session)` canonical 不误报
 
 - [ ] **Step 1: 写失败测试 — residue 断言行为**
@@ -758,7 +863,7 @@ Expected: FAIL（断言逻辑未实现）。
 
 - [ ] **Step 5: 跑测试 / validate**
 
-**T8 Step 3 修改了 cli-select SKILL.md — 必须先 `pnpm run emit` 再 validate**（`pnpm run validate` 第 0 块 emit freshness 因 `.agents` 未重派生而漂移失败，与 T7 Step 5 同理）。
+**T9 Step 3 修改了 cli-select SKILL.md — 必须先 `pnpm run emit` 再 validate**（`pnpm run validate` 第 0 块 emit freshness 因 `.agents` 未重派生而漂移失败，与 T8 Step 5 同理）。
 
 Run: `pnpm run emit && npx vitest run scripts/validate/residue.test.mjs && pnpm run validate`
 Expected: ALL PASS（含 5c residue 单步内双断言；emit fresh）。
@@ -772,17 +877,17 @@ git commit -m "feat(validate): stale-lexicon 机制位置守卫并入 residue（
 
 ---
 
-### Task 9: F2 writing-plans Spec 头 + F6 归档 + emit + changeset + 收官验证（TDD）
+### Task 10: F2 writing-plans Spec 头 + F6 归档 + emit + changeset + 收官验证（TDD）
 
 **Files:**
 - Modify: `packages/osuperpowers/skills/writing-plans/SKILL.md`（write-plan 节点补 `**Spec:**` 头产出约定）
 - Modify: `docs/maintainers/skill-authoring.md`（若含 plan 模板约定则同步——可选）
-- Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（T7 未提交部分——SKILL.md 变更归此处 emit）
+- Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（T8 未提交部分——SKILL.md 变更归此处 emit）
 - 归档操作（非代码）：`.superpowers/docs-review/` 全部现有产物 → `archive-<date>/`
 - Test: `packages/osuperpowers/tests/`（若 writing-plans 有直测）；`pnpm run emit:check`（SKILL 变更后 emit）
 
 **Interfaces:**
-- Consumes: T1–T8 全部产出的最终状态
+- Consumes: T1–T9 全部产出的最终状态
 - Produces: writing-plans 新 plan 头部含 `**Spec:**` 链接；flat `.superpowers/docs-review/` 已废弃无旧产物；`.superpowers/cdd/<slug>/` 复核通过；emit fresh；changeset
 
 - [ ] **Step 1: writing-plans write-plan 节点补 Spec 头**
@@ -822,34 +927,42 @@ git commit -m "feat(skills): writing-plans plan **Spec:** 头约定 + F6 workspa
 ## Self-review（write-plan 后、plan-review 前）
 
 **1. Spec coverage**：
-- F1（progress 回写 + cdd contract）→ T7 status=complete + cdd contract 删除；progress 死字段清除
-- F2（Spec 头）→ T9 Step 1
+- F1（progress 回写 + cdd contract）→ T8 status=complete + cdd contract 删除；progress 死字段清除
+- F2（Spec 头）→ T10 Step 1
 - F3（status rollup）→ T5 deriveReviewStatus + schema conditional
-- F4（Bug C implement）→ T6 implement 实体化 + HARD GATE + retry 文档化（T7 SKILL）
-- F5（守卫脚本化）→ T8 residue stale-lexicon
-- F6（命名/Workspace 收口）→ T1 canonical + T3/T4 命名统一 + T3 workspace 接线 + Phase-0 归档 + T9 复核
+- F4（Bug C implement）→ T6 implement 实体化 + HARD GATE + retry 文档化（T8 SKILL）
+- F5（守卫脚本化）→ T9 residue stale-lexicon
+- F6（命名/Workspace 收口）→ T1 canonical + T3/T4 命名统一 + T3 workspace 接线 + Phase-0 归档 + T10 复核
 - reviews.json 裁轴 → T2
 - handoff-namespace/canonical + 派生五函数（含 resolveWorkspace）→ T1
-- workspace 单一根（`.superpowers/cdd/<slug>/` + flat docs-review 废弃 + cdd/ 根杂讯清理）→ T3 + Phase-0 + T8（flat root 零引用）+ T9
-- status 单一权威 + SP-4 豁免 → T5 + T7 验证契约
-- cdd contract 删除 → T7
-- validateCommitContract 全模式接线（dirty 仅 runner 三 mode）→ T7
-- implement 实体化 + commits 单一权威 + H1 h1FromHandoff → T6
+- workspace 单一根（`.superpowers/cdd/<slug>/` + flat docs-review 废弃 + cdd/ 根杂讯清理）→ T3 + Phase-0 + T9（flat root 零引用）+ T10
+- status 单一权威 + SP-4 豁免 → T5 + T7 验证契约（finalizeHandoff 统一派生入口）
+- cdd contract 删除 → T8
+- validateCommitContract 全模式接线（dirty 仅 runner 三 mode）→ T8
+- implement 实体化 + commits 单一权威 + H1 h1FromHandoff → T6 + T7（finalize 收敛）
+- handoff 载体 engine 归位（8.8 implement 门控 + writeOwnHandoff 全量覆盖 + 三消费方收敛；无残留兼容层）→ T7（P6 执行期 dogfood 新增）
 - HARD GATE returnMode 分写 → T6
-- stale-lexicon 零豁免 + RESIDUE_TARGETS 扩 cdd-engine + flat root 断言 → T8
-- cli-select 指代修复 → T8
-- F6 归档范围（整体）→ Phase-0 + T9 Step 2
+- stale-lexicon 零豁免 + RESIDUE_TARGETS 扩 cdd-engine + flat root 断言 → T9
+- cli-select 指代修复 → T9
+- F6 归档范围（整体）→ Phase-0 + T10 Step 2
 
-**2. Placeholder 扫描**：无 TODO/TBD；Step 4 的实现「精确改点以测试 + validate 为 contract」为 TDD 引导语，非待办占位。
+**2. Placeholder 扫描**：无 TODO/TBD；Step 0 设计契约 / Step 4 的实现「以测试 + validate 为 contract」为设计/TDD 引导语，非待办占位。
 
-**3. Type consistency**：`handoffName(op,type,params)`/`roundPattern(op,type,opts)`/`resolveNextRound(ws,op,type,opts)`/`prevHandoffPath(ws,op,type,round,opts)`/`resolveWorkspace(doc)` 签名跨 T1–T7 一致；`deriveReviewStatus(handoff)` 于 T5 定义、T6/T7 消费；`status="complete"` 于 T7 写入 progress。canonical family key `{op}.{type}`（`review.spec`/`fix.task`）+ 顶层 `workspaceRoot`/`slugRule` 全 plan 一致。
+**3. Type consistency**：`handoffName`/`roundPattern`/`resolveNextRound`/`prevHandoffPath`/`resolveWorkspace` 五派生签名跨 T1–T10 一致；`deriveReviewStatus(handoff)` T5 定义、T7（finalizeHandoff）消费、T6/T8 沿用；`finalizeHandoff({mode,h1,agentHandoff,brief,repoRoot,workspace,taskNum})`/`writeOwnHandoff(path,data)` T7 定义、T8/T9/T10 复用；`status="complete"` T8 写入 progress。canonical family key `{op}.{type}` + 顶层 `workspaceRoot`/`slugRule` 全 plan 一致。
 
-**任务边界检查**：9 个 task 各自独立可测（canonical→消费→命名→status→实体化→契约→守卫→收口），无跨 task 接口依赖缺口（T3 消费 T1 派生层、T5 消费 T1 status 族、T6 消费 T4 命名、T7 消费 T5 derive——均已前置）。
+**任务边界检查**：10 个 task 各自独立可测（canonical→消费→命名→status→实体化→**载体归位**→契约→守卫→收口），无跨 task 接口依赖缺口（T3 消费 T1 派生层、T5 消费 T1 status 族、T6 消费 T4 命名、T7 消费 T5/T6、T8 消费 T5/T7——均已前置）。
 
-**Spec 头引用**：`**Spec:**` 行指向 p6-design **v1.3**（与 T9 要固化的约定一致）。
+**Spec 头引用**：`**Spec:**` 行指向 p6-design **v1.3**（与 T10 要固化的约定一致）。
 
 **Grilling-as-review 记录（user 引导，plan-4 之后的 workspace 上探）**：
 - plan-review engine 两轮（plan-3 CHANGES_REQUESTED 2 blocker → 修 12 项 → plan-4 **blocker=0** 8 warn+5 nit → 修 13 项）已覆盖内容主体（命名/status/实体化/契约/守卫）
 - 随后 user 指出两个 workspace 问题（① 产出应收编 `.superpowers/cdd/` ② 即便 docs-review 也应有 per-slug 目录）→ 取证证实 **flat `.superpowers/docs-review/` 跨 phase round 污染真实存在**（P4 plan-1/2.json 把 P6 plan round 顶到 3）→ user 选 A 单根 → user 追问「统一规划抽象」→ 上探为 **workspace 归入 artifact 契约派生层**（canonical 增 workspaceRoot/slugRule + 第五派生函数 resolveWorkspace + `workspaceSlug`；4 处推导点 → 单函数；flat root 废弃）
 - overall 同步 **v1.21**、spec 同步 **v1.3**、本 plan 全文同步（Phase-0 含 flat root 归档 + cdd/ 根杂讯清理、T1/T3/T8/T9 相应改点）
 - 引擎 Review Stopping：同 ref（`--doc` 路径不变）plan-4 已 blocker=0 → 重审被拒（exit 3，合法 backstop、无 bypass 路径）；grilling 即 workspace delta 的人工 review（user 决策分支逐层审查），与 plan-4 引擎审合为完整覆盖
+
+**Grilling-as-review 记录②（user 引导，P6 执行期 dogfood —— Task 7 插入）**：
+- **P6 执行期 dogfood（重编号前 T7 dispatch）**：T6 实体化语义规定 implement agent 不写 handoff，但该 implement agent 手写残缺 handoff（缺 task/phase/findings）→ runner 8.8 无差别校验 → BLOCKED；删文件重派**确定性复现**（agent 每次都写）→ 上报 #232 comment 5595863520（「handoff 载体 engine 归位未闭环」）
+- user 决策：插入修复 task（方案 3）→ grilling：① 范围 ①②+③ → ② A 统一抽象（finalizeHandoff 定稿单点 + writeOwnHandoff 全量覆盖 + 三消费方收敛）→ ③ user 追问「handoff 应 engine 还是 agent 写」→ 解耦「载体+内容」两层（engine 载体作者 / agent 内容贡献者）→ ④ user 追问「是否基于允许破坏性更新前提」→ 驳「重置 count/gaming guard」、修「count per-task recovery-session 语义」→ ⑤ user 追问「中和残留是否仅为现状兼容」→ **确认为错误：残留检测/WARN/丢弃 = 兼容死代码；改为结构消灭路径**（8.8 implement 门控不读路径 + writeOwnHandoff 全量覆盖 + finalizeHandoff implement 分支无 agentHandoff 输入槽）
+- **Task 编号**：插入新 **Task 7**（finalizeHandoff 定稿统一）；当前 T7→T8、T8→T9、T9→T10（plan 全文同步；workspace 为弃置性本地 state，重编号随 canonical）
+- **engine-recovery count**：**不重置**（保留 2/2 事实）；连同「workspace 单调计数 vs skill 条文 per-recovery-session 语义」一并记入 Task 8 的 SKILL 修正（engine-recovery 节点重述 count 语义）
+- overall/spec 同步：变更待 commit（overall v1.22 / spec v1.4 见 change history）

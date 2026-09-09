@@ -89,9 +89,10 @@ export async function runDocsTask({
   }
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，
-  // SP-4 豁免失败轮次）；fix 型（work）status 由 agent 声明，不派生。定稿写盘用 writeOwnHandoff
-  //（engine 载体唯一作者，全量覆盖替换）；派生无变化 → 返回原引用 skip 写盘；返回 handoff 与文件一致。
-  if (mode === "review") {
+  // SP-4 豁免失败轮次）；fix 型（work）status 由 agent 声明，走 finalizeHandoff fix passthrough 分支
+  //（同引用 skip 写盘；work 型声明保留，契约在 commit-contract 层否决）。定稿写盘用
+  // writeOwnHandoff（engine 载体唯一作者，全量覆盖替换）；派生无变化 → 返回原引用 skip 写盘。
+  if (mode === "review" || mode === "fix") {
     const finalized = finalizeHandoff({ mode, agentHandoff: handoff });
     if (finalized.handoff && finalized.handoff !== handoff) {
       writeOwnHandoff(handoffPath, finalized.handoff);

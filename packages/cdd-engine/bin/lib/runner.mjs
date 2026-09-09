@@ -14,7 +14,7 @@ import semver from "semver";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
-import { writeHandoff, writeOwnHandoff, gitToplevel, normalizeHandoffStatus, validateCommitContract } from "./contract.mjs";
+import { writeHandoff, writeOwnHandoff, readJson, gitToplevel, normalizeHandoffStatus, validateCommitContract } from "./contract.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-naming.mjs";
 import { finalizeHandoff } from "./handoff-finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
@@ -168,13 +168,7 @@ function readJsonField(filePath, keys) {
   }
 }
 
-function readJson(filePath) {
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8"));
-  } catch {
-    return null;
-  }
-}
+// readJson 收口 contract.mjs（T7 nit2：三处私有副本统一单点；本文件历史私有 readJson 已删）。
 
 // Returns the path of the handoff written by the previous phase for this task
 //（文件名经 canonical handoff-naming 派生；跨族 prev 表语义保留）。

@@ -44,12 +44,18 @@ function gitStatusPorcelain(cwd) {
 
 // ---- handoff read/write ----
 
-function safeParse(filePath) {
+// T7 nit2: 统一 JSON read —— lib/ 三处同形私有 readJson/safeParse 收敛到 contract.mjs 单点。
+// （runner.mjs / handoff-finalize.mjs import 本实现，删除各自私有副本。）
+export function readJson(filePath) {
   try {
     return JSON.parse(readFileSync(filePath, "utf8"));
   } catch {
     return null;
   }
+}
+// safeParse 别名保留（writeHandoff/validateCommitContract 历史使用；与 readJson 同实现）。
+function safeParse(filePath) {
+  return readJson(filePath);
 }
 
 // 按 skills/cli-driven-development/docs/handoff-schema.md 写 handoff。已有文件 → 浅合并（H6 链 update 语义：

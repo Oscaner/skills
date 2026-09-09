@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { applyDerivedStatus, gitRevParseHead } from "./contract.mjs";
+import { applyDerivedStatus, gitRevParseHead, readJson } from "./contract.mjs";
 
 // 定稿单点入口：按 mode 分派返回 { handoff, exitCode }。H1 由消费方从定稿 h1FromHandoff 重发。
 // 三消费方（runner.mjs step 13 / docs-runner.mjs 读回 / cdd.mjs branch review 读回）共享同一实现。
@@ -33,14 +33,7 @@ export function finalizeHandoff({ mode, h1 = [], agentHandoff = null, brief, rep
 }
 
 // ---- implement 实体化（T6 实体化块迁入，保持现有 behavior）----
-
-function readJson(filePath) {
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8"));
-  } catch {
-    return null;
-  }
-}
+// readJson 收口 contract.mjs（T7 nit2：三处私有副本统一单点）。
 
 // TASK_BASE → implement commits.base 唯一权威。brief 缺失 / 无 TASK_BASE 行 → null
 //（降级不实体化：dry-run 与 smoke 链均走此处，绝不允许 ENOENT 崩溃 runner）。

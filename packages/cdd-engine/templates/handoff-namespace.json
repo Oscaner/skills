@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "workspaceRoot": ".superpowers/cdd",
+  "slugRule": "strip .md, then strip trailing -design",
+  "families": {
+    "implement.task": { "name": "task-{task}-implement.json", "round": "fixed", "status": "contract", "schema": "cdd", "phase": "implement" },
+    "review.task":    { "name": "task-{task}-review-{round}.json", "round": "increment", "status": "rollup", "schema": "cdd", "return": "h1", "phase": "review", "fixFamily": "fix.task", "prev": { "round1": "implement.task", "roundR": "fix.task:R-1" } },
+    "fix.task":       { "name": "task-{task}-fix-{round}.json", "round": "source", "status": "contract", "schema": "cdd", "fixTemplate": "fix", "phase": "fix", "prev": { "roundR": "review.task:R" } },
+    "review.spec":    { "name": "spec-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "return": "json", "phase": "review", "fixFamily": "fix.spec" },
+    "fix.spec":       { "name": "spec-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "doc-fix", "return": "json", "phase": "fix", "prev": { "roundR": "review.spec:R" } },
+    "review.plan":    { "name": "plan-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "return": "json", "phase": "review", "fixFamily": "fix.plan" },
+    "fix.plan":       { "name": "plan-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "doc-fix", "return": "json", "phase": "fix", "prev": { "roundR": "review.plan:R" } },
+    "review.branch":  { "name": "branch-review-{base7}..{head7}-r{round}.json", "round": "increment", "status": "rollup", "schema": "cdd", "return": "h1", "phase": "branch-review" }
+  }
+}

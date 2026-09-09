@@ -19,12 +19,14 @@ This review's `returnMode` is **{{RETURN_MODE}}**:
 
 ## Handoff
 
+{{HARD_GATE}}
+
 Write/update `{{HANDOFF}}` JSON per the schema shown below (schema family: {{HANDOFF_TYPE}}).
 
 {{HANDOFF_STUB}}
 
 ## Self-validate
 
-`{{HANDOFF}}` → `status`/`phase`/`artifacts`/`findings` non-null (h1 mode additionally requires `commits.base`/`commits.head`). Fail → `status: BLOCKED`.
+`{{HANDOFF}}` → `phase`/`artifacts`/`findings` non-null (h1 mode additionally requires `commits.base`/`commits.head`); fail → `status: BLOCKED`. Write findings, not `status` — the engine derives `status` from `findings`.
 
 {{H1_BLOCK}}

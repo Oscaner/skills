@@ -12,7 +12,7 @@
 
 ## Instructions
 
-1. Read open-findings at **`{{FINDINGS}}`** (the task-review handoff for this round) and the task brief at **`{{BRIEF}}`**
+1. Read open-findings at **`{{FINDINGS}}`** (the review handoff for this round) and the task brief at **`{{BRIEF}}`**
    (paths only for handoff context — do not paste full review axis bodies into prompts).
    Fix ALL findings listed in open-findings: blockers, warns, and nits.
 2. Fix issues per open-findings; H4 incremental re-review uses `FIX_BASE..HEAD`.
@@ -36,7 +36,7 @@ Write/update `{{HANDOFF}}` with only JSON fields shown below (file-only; the sam
 
 ### Segment: fix
 
-1. Read handoff.json + open-findings.json (the task-review handoff).
+1. Read handoff.json + open-findings.json (the review handoff).
 2. Fix ALL findings (blocker + warn + nit); remove fixed findings from `findings[]`.
 3. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
 4. `commits.base` = `{{FIXED_POINT}}` (fix dispatch `FIX_BASE`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).

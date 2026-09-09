@@ -26,9 +26,12 @@ it("createEmptyProgress: returns empty structure with defaults", () => {
   expect(p.plan).toBe("");
   expect(p.timeoutCount).toBe(0);
   expect(p.engineRecoveryCount).toBe(0);
-  expect(p.lastDispatchHead).toBe("");
   expect(p.tasks).toEqual([]);
-  expect(p.degradationLog).toEqual([]);
+});
+
+it("progress schema 不含 lastDispatchHead/degradationLog（T8 死字段清除）", () => {
+  // Object.keys 词法排序 —— 期望字面量用词法序，勿用插入序断言。
+  expect(Object.keys(createEmptyProgress("/p")).sort()).toEqual(["engineRecoveryCount", "plan", "tasks", "timeoutCount"]);
 });
 
 it("createEmptyProgress: plan parameter is used", () => {
@@ -65,6 +68,18 @@ it("writeProgressJSON: creates progress.json file", () => {
   expect(existsSync(jsonPath)).toBe(true);
   const written = JSON.parse(readFileSync(jsonPath, "utf8"));
   expect(written.timeoutCount).toBe(0);
+});
+
+it("writeProgressJSON: 写前剥除死字段 lastDispatchHead/degradationLog（T8 存量 progress.json 首次回写即回收）", () => {
+  const dir = tmpDir("prog-strip-");
+  const data = createEmptyProgress("");
+  data.lastDispatchHead = "8e95ac735540c264cd4500d4c1ca659971bd2f11";
+  data.degradationLog = [{ at: "2026-09-08", reason: "legacy pre-T8" }];
+  writeProgressJSON(dir, data);
+  const written = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
+  expect(written).not.toHaveProperty("lastDispatchHead");
+  expect(written).not.toHaveProperty("degradationLog");
+  expect(written.plan).toBe("");
 });
 
 it("readProgressJSON: corrupted progress.json falls through to migration", () => {
@@ -161,4 +176,15 @@ it("migrateIfNeeded: neither file exists → returns empty progress + creates js
   expect(p.plan).toBe("");
   // Should create progress.json
   expect(existsSync(path.join(dir, "progress.json"))).toBe(true);
+});
+
+// ---- T4: rounds key 归一（"review" 为唯一 task mode 键）——progress 层已 mode 参数化，直测键语义 ----
+
+it("getRound: incrementRound('review') 后 round=2（rounds['review'] 归一键）", () => {
+  const dir = tmpDir("prog-round-review-");
+  expect(getRound(readProgressJSON(dir), 1, "review")).toBe(1);
+  incrementRound(dir, 1, "review");
+  expect(getRound(readProgressJSON(dir), 1, "review")).toBe(2);
+  const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
+  expect(saved.tasks[0].rounds).toEqual({ review: 1 });
 });

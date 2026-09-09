@@ -19,6 +19,15 @@ describe('resolveTimeoutMs', () => {
   it('default task timeout is 30min', () => {
     expect(resolveTimeoutMs({}, 'task')).toBe(1_800_000);
   });
+  it('per-mode 巨大秒值 → 钳到安全天花板（T8 回归：setTimeout 32 位溢出 → ~1ms 瞬时 SIGTERM）', () => {
+    // 2700000s × 1000 = 2.7e9 ms > 2^31-1（2147483647 ms）；溢出触发 V8 TimeoutOverflowWarning
+    // 把 timeout 钳到 ~1ms → 一次正常 dispatch 变成瞬时 kill（CDD_REVIEW_TIMEOUT 泄漏时序回归）。
+    expect(resolveTimeoutMs({ CDD_REVIEW_TIMEOUT: '2700000' }, 'review')).toBeLessThanOrEqual(2_000_000_000);
+    expect(resolveTimeoutMs({ CDD_REVIEW_TIMEOUT: '2700000' }, 'review')).toBeGreaterThan(0);
+  });
+  it('CDD_CLI_TIMEOUT 巨大秒值同样钳制（全局路径同溢出面）', () => {
+    expect(resolveTimeoutMs({ CDD_CLI_TIMEOUT: '2700000' }, 'task')).toBeLessThanOrEqual(2_000_000_000);
+  });
   it('unknown mode returns undefined', () => {
     expect(resolveTimeoutMs({}, 'unknown')).toBeUndefined();
   });
@@ -89,16 +98,16 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
     expect(promptArg.split('\n')[0]).toBe('/mattpocock-skills:tdd');
   });
 
-  it('legacy 扁平 mode 键兜底：op=task-review → 直接命 prefix["task-review"]（未迁移 registry）', async () => {
+  it('legacy 扁平 mode 键兜底：op=扁平米键 → 直接命 prefix 同键（未迁移 registry）', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../lib/cli-shared.mjs');
-    const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: { 'task-review': '/legacy-review' }, suffix: {} };
-    await invokeCli(entry, 'legacy prompt', { op: 'task-review' }, {}, '/tmp', undefined);
+    const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: { 'legacy-review': '/legacy-review' }, suffix: {} };
+    await invokeCli(entry, 'legacy prompt', { op: 'legacy-review' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg.split('\n')[0]).toBe('/legacy-review');
     // 旧位置 mode 字符串参数也归一 → 同走扁平键兜底
     execa.mockClear();
-    await invokeCli(entry, 'legacy prompt', 'task-review', {}, '/tmp', undefined);
+    await invokeCli(entry, 'legacy prompt', 'legacy-review', {}, '/tmp', undefined);
     expect(execa.mock.calls[0][1].at(-1).split('\n')[0]).toBe('/legacy-review');
   });
 

@@ -40,14 +40,14 @@ export function main() {
   // stale round so a re-run never trips Review Stopping on the previous APPROVED round.
   rmSync(path.join(root, ".superpowers", "cdd", slug), { recursive: true, force: true });
 
-  // review --type task would produce .superpowers/cdd/<slug>/task-1-task-review-1.json in a
+  // review --type task would produce .superpowers/cdd/<slug>/task-1-review-1.json in a
   // real run; fix consumes it via --findings (parseReview→fix wiring). Under dry-run neither
   // writes nor reads the file — only the arg plumbing is exercised.
   const cmds = [
     [...cdd, "implement", "--harness", "claude", "--task", "1", "--plan", plan],
     [...cdd, "review", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan],
     [...cdd, "fix", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan,
-      "--findings", path.join(".superpowers", "cdd", slug, "task-1-task-review-1.json")],
+      "--findings", path.join(".superpowers", "cdd", slug, "task-1-review-1.json")],
     [...cdd, "review", "--type", "branch", "--harness", "claude", "--plan", plan, "--base", head, "--head", head],
   ];
   for (const [i, args] of cmds.entries()) {

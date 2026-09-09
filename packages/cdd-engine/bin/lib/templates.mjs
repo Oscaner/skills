@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadHandoffSchema } from './schema-utils.mjs';
+import { familyConfig } from './handoff-naming.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +59,10 @@ export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
       case 'doc_path': stub.doc_path = docPath ?? ''; break;
     }
   }
+  // T5: status 已从 schema.required 条件化（review 族可缺省、engine 派生覆写）。
+  // work 型（implement/fix）仍须声明 status（schema conditional else 强制）→ stub 补 APPROVED 引导；
+  // review 型 stub 不再渲染 status（可缺省语义，agent 不写、engine 覆写）——与「review 可缺省」契约一致。
+  if (mode !== "review" && !("status" in stub)) stub.status = "APPROVED";
   return '```json\n' + JSON.stringify(stub, null, 2) + '\n```';
 }
 
@@ -67,13 +72,23 @@ export function loadReviews() {
   return JSON.parse(readFileSync(path.join(PKG_ROOT, 'templates', 'review', 'reviews.json'), 'utf8'));
 }
 
-// reviews.json[type] → { lensEnum, ref, axesGuide, returnMode, handoffType, fixTemplate }。
+// reviews.json[type] → 纯内容契约 { lensEnum, ref, axesGuide }（T2 裁轴：returnMode/handoffType/
+// fixTemplate 已迁 canonical，artifact 读取走 reviewArtifactConfig）。
 // task/branch 的 ref 是 git-range 符号（TASK_BASE..HEAD / BASE..HEAD，调用方具体化注入）；
 // spec/plan 的 ref 是关系描述（doc vs spec），实际 doc 路径由调用方落到 REFERENCE。
 export function reviewTypeConfig(type) {
   const cfg = loadReviews()[type];
   if (!cfg) throw new Error(`unknown review type: ${type}`);
   return cfg;
+}
+
+// reviewArtifactConfig(type) → 读 canonical handoff-namespace.json 的 review.{type} 族，
+// 返回 { schema, return }——HANDOFF_TYPE / RETURN_MODE 模板参数的唯一来源：
+// handoffType 字段名退位 → canonical 的 schema（"cdd"/"docs"），returnMode → canonical 的
+// return（"h1"/"json"）。fixTemplate 不被此层返回（runFix 直读 fix 族，无第二读取点）。
+export function reviewArtifactConfig(type) {
+  const cfg = familyConfig('review', type);
+  return { schema: cfg.schema, return: cfg.return };
 }
 
 // returnMode=h1 类型（task/branch）注入 {{H1_BLOCK}} 的四行 H1 合同；spec/plan 不渲染（空串）。
@@ -89,11 +104,21 @@ artifacts: brief=<path> report=<path> test_evidence=<path>
 blocker: <none|one-line>
 \`\`\``;
 
+// review.md HARD GATE（T6）：returnMode 分写 — h1 → "BEFORE outputting H1"；json → "BEFORE outputting
+// the JSON return"。注入实际 handoff 路径（与 fix.md 渲染结果一致；值内不含 {{HANDOFF}} 占位，避免
+// 渲染期占位嵌套依赖 param 遍历顺序）。returnMode 非法 → 按 h1 缺省（未知族不崩渲染）。
+export function reviewHardGate(returnMode, handoffPath) {
+  const before = returnMode === "json" ? "BEFORE outputting the JSON return." : "BEFORE outputting H1.";
+  const target = handoffPath ?? "{{HANDOFF}}";
+  return `> ⚠️ HARD GATE — Write \`${target}\` ${before}\n> Returning without a written handoff file = BLOCKED (runner exit 1).`;
+}
+
 export function renderModePrompt(mode, env = {}) {
-  // task-review 改经 reviews.json type=task 路由（不再读旧 task-review.md）；
+  // review mode 走 review.md 共享壳（reviews.json type=task 配置）；旧拼装模板已删除。
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
-  if (mode === 'task-review') {
+  if (mode === 'review') {
     const cfg = reviewTypeConfig('task');
+    const art = reviewArtifactConfig('task');
     let prompt = renderTemplate('review', {
       TYPE: 'task',
       WORKSPACE: env.WORKSPACE ?? '',
@@ -101,14 +126,15 @@ export function renderModePrompt(mode, env = {}) {
       REFERENCE: env.FIXED_POINT ? `${env.FIXED_POINT}..HEAD` : cfg.ref,
       AXES: cfg.axesGuide,
       HANDOFF: env.HANDOFF ?? '',
-      HANDOFF_TYPE: cfg.handoffType,
-      RETURN_MODE: cfg.returnMode,
+      HANDOFF_TYPE: art.schema,
+      RETURN_MODE: art.return,
       H1_BLOCK: REVIEW_H1_BLOCK,
       PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
+      HARD_GATE: reviewHardGate(art.return, env.HANDOFF),
     });
-    // HANDOFF_STUB：共享壳槽位在 task-review 早退路径须显式替换（与 generic 路径 line 118 一致）。
+    // HANDOFF_STUB：共享壳槽位在 review 早退路径须显式替换（与 generic 路径一致）。
     const schema = loadHandoffSchema();
-    const stub = renderHandoffStub(schema, 'task-review', parseInt(env.TASK) || 0);
+    const stub = renderHandoffStub(schema, 'review', parseInt(env.TASK) || 0);
     return prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   }
   const modePath = templatePath(mode);

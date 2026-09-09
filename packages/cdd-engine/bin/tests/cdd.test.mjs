@@ -1,9 +1,9 @@
 // bin/tests/cdd.test.mjs — 合并面 CLI（bin/cdd.mjs）契约测试。
 // 覆盖：帮助/用法、review 的 round+Stopping 接线（dry-run smoke）、fix --findings 接线、
 // select/research 内联、brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { execaSync } from "execa";
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-eng
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages", "cdd-engine", "bin", "cdd.mjs");
 const SMOKE_PLAN = "packages/cdd-engine/bin/tests/fixtures/smoke-plan.md";
+// T10 warn: SMOKE_PLAN 派生 workspace = .superpowers/cdd/smoke-plan/（resolveWorkspace md 名→slug）。
+// 测试 teardown 清理，避免 validate 后根杂讯污染 F6 单一根。
+afterAll(() => {
+  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan"), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
+});
 const NODE = process.execPath;
 
 // Test env: strip 任何从 orchestrator session 继承的 CDD_*，再叠加测试 extras（与 task.test.mjs 一致）。
@@ -29,21 +35,37 @@ function cleanEnv(extra) {
 function runCli(args = [], opts = {}) {
   const { env: extraEnv = {}, cwd = REPO_ROOT } = opts;
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env: cleanEnv(extraEnv), encoding: "utf8" });
+    // extendEnv:false —— execa 默认 extendEnv:true 会把父进程 env 合入 child，覆盖 cleanEnv 的
+    // CDD_* 剥离（orchestrator 携带的 CDD_REVIEW_TIMEOUT 等泄漏回测试 child，见 T8 回归：
+    // 秒值 ×1000 溢出 setTimeout 32 位上限 → ~1ms 瞬时 SIGTERM → 非 dry-run 用例确定性 FAIL）。
+    // 关闭 extendEnv 后 child 只见 cleanEnv 显式清单，测试与调度侧环境变量零耦合。
+    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env: cleanEnv(extraEnv), encoding: "utf8", extendEnv: false });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e) {
     return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
   }
 }
 
+// P6 T3 单元 seam：vi.mock docs-runner 动态 import，直接断言 cdd.mjs runReview/runFix 传给
+// runDocsTask 的 handoffPath/workspace（canonical 派生命名）。cdd.mjs 以
+// `await import("./lib/docs-runner.mjs")` 动态加载 → vitest 按解析 id 拦截同一模块。
+// CLI 黑盒用例走独立 node 子进程，不经此 mock。
+const docsRunnerMock = vi.hoisted(() => ({
+  runDocsTask: vi.fn(async () => ({
+    exitCode: 0,
+    handoff: { phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: "" },
+  })),
+}));
+vi.mock("../lib/docs-runner.mjs", () => docsRunnerMock);
+
 describe("cdd CLI", () => {
   it("-h → help", () => {
-    const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv() });
-    expect(r.stdout).toMatch(/implement|review|fix|select|research|brief|contract/);
+    const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false });
+    expect(r.stdout).toMatch(/implement|review|fix|select|research|brief/);
   });
 
   it("review missing --type → usage exit 2", () => {
-    expect(() => execaSync(NODE, [CDD_MJS, "review"], { cwd: REPO_ROOT, env: cleanEnv({ CDD_DRY_RUN: "1" }) }))
+    expect(() => execaSync(NODE, [CDD_MJS, "review"], { cwd: REPO_ROOT, env: cleanEnv({ CDD_DRY_RUN: "1" }), extendEnv: false }))
       .toThrow(/required option|--type/);
   });
 
@@ -55,17 +77,22 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
-  it("dry-run review --type branch → H1 + exit 0（随机 base/head 避免 Review Stopping 误拒；tmp plan 避免向真实 workspace 写副作用）", () => {
+  it("dry-run review --type branch → H1 + exit 0（随机 base/head 避免 Review Stopping 误拒；tmp git repo 内 plan 供 resolveWorkspace 推导，避免向真实 workspace 写副作用）", () => {
     const base = `base${Date.now().toString(16).slice(-4)}`;
     const head = `head${Date.now().toString(16).slice(-8, -4)}`;
-    const tmpPlan = path.join(mkdtempSync(path.join(tmpdir(), "cdd-br-")), "plan.md");
-    writeFileSync(tmpPlan, "### Task 1:\n- base: develop\n");
-    const r = runCli(["review", "--type", "branch", "--harness", "claude",
-      "--plan", tmpPlan, "--base", base, "--head", head],
-      { env: { CDD_DRY_RUN: "1" } });
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/status: APPROVED/);
-    expect(r.stdout).toMatch(new RegExp(`commits: base=${base} head=${head}`));
+    const dir = tmpGitRepo();
+    try {
+      const tmpPlan = path.join(dir, "plan.md");
+      writeFileSync(tmpPlan, "### Task 1:\n- base: develop\n");
+      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+        "--plan", tmpPlan, "--base", base, "--head", head],
+        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toMatch(/status: APPROVED/);
+      expect(r.stdout).toMatch(new RegExp(`commits: base=${base} head=${head}`));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("dry-run review --type spec → exit 0", () => {
@@ -82,13 +109,15 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
-  it("fix --type spec|plan 非 dry-run：doc-fix 模板渲染后停在 harness gate（Task 4 SP-1 回归）", () => {
-    // Task 4：fix 模板统一走 reviews.json fixTemplate（spec/plan → doc-fix 共享壳），
+  it("fix --type spec|plan 非 dry-run：doc-fix 模板渲染后停在 harness gate（Task 4 SP-1 回归 + T3 round-from-findings）", () => {
+    // fix 模板统一从 canonical fix.{type} 族 fixTemplate 读（spec/plan → doc-fix 共享壳），
     // docs-runner 不再做 `-review`→`-fix` 派生（doc-fix 直传，不得 double-suffix）。
     // nonexistent harness 保证停在 harness gate（"unknown harness"），不进入 spawn/写 handoff；
     // 若 doc-fix 缺失/渲染崩，stderr 会出现 template 字样 → not.toMatch(/template/) 拦截。
-    for (const type of ["spec", "plan"]) {
-      const r = runCli(["fix", "--type", type, "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
+    // T3：fix round 从 --findings 名解析（<type>-review-{R}.json）→ 用例须带合法 findings 名。
+    for (const [type, reviewFile] of [["spec", "spec-review-1.json"], ["plan", "plan-review-1.json"]]) {
+      const r = runCli(["fix", "--type", type, "--harness", "nonexistent", "--doc", SMOKE_PLAN,
+        "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", reviewFile)]);
       expect(r.stderr).toMatch(/unknown harness: nonexistent/);
       expect(r.stderr).not.toMatch(/template/);
     }
@@ -138,7 +167,7 @@ describe("cdd CLI", () => {
   // --- SP-4 Review Stopping status criterion: a BLOCKED/TIMEOUT failure round (findings:[])
   //     must remain re-dispatchable; only an APPROVED round with blocker=0 stops a re-run. ---
 
-  // Seed helper: temp git repo + plan file + a seeded task-N-task-review-N.json round.
+  // Seed helper: temp git repo + plan file + a seeded task-N-review-N.json round.
   function seedTaskReviewHandoff(status) {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-stop-"));
     execaSync("git", ["-C", dir, "init", "-q"]);
@@ -148,8 +177,8 @@ describe("cdd CLI", () => {
     writeFileSync(plan, "### Task 1: fixture\n");
     const ws = path.join(dir, ".superpowers", "cdd", "zz-stop-test");
     mkdirSync(ws, { recursive: true });
-    writeFileSync(path.join(ws, "task-1-task-review-1.json"),
-      JSON.stringify({ task: 1, phase: "task-review", status, artifacts: {}, findings: [],
+    writeFileSync(path.join(ws, "task-1-review-1.json"),
+      JSON.stringify({ task: 1, phase: "review", status, artifacts: {}, findings: [],
         ...(status !== "APPROVED" ? { blocker: "boom" } : {}) }));
     return { dir, plan };
   }
@@ -210,15 +239,203 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("contract --check-dirty（临时 git repo）→ dirty:false", () => {
+  // ---- T8: `cdd contract` 子命令删除 + branch-review 读回覆写（T5 nit4 补测） ----
+
+  it("cdd contract 子命令不存在（check-dirty/check-head/clear-findings 全灭）→ 未知命令 exit 2", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-contract-"));
     try {
       execaSync("git", ["-C", dir, "init", "-q"]);
       execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
         "commit", "--allow-empty", "-qm", "fixture"]);
-      const r = runCli(["contract", "--check-dirty"], { cwd: dir });
+      // 已删除子命令不得仍可调用（旧 contract --check-dirty 会 exit 0）
+      for (const args of [["contract", "--check-dirty"], ["contract", "--check-head"], ["contract", "--clear-findings"], ["contract"]]) {
+        const r = runCli(args, { cwd: dir });
+        expect(r.exitCode).not.toBe(0);
+        expect(r.stderr).toMatch(/usage: cdd/);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("branch-review 读回定稿（T5/T7 finalizeHandoff 单点）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 APPROVED", () => {
+    const dir = tmpGitRepo();
+    try {
+      const plan = path.join(dir, "plan.md");
+      writeFileSync(plan, "### Task 1:\n- base: develop\n");
+      const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-fake-"));
+      const ws = path.join(dir, ".superpowers", "cdd", "plan");
+      const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
+      // fake claude：PATH 遮蔽 registry cli 名（cdd.mjs REG_PATH 无 registry override seam）。
+      // 非 dry-run 真实走 runBranchReview：agent 写 warn-only CHANGES_REQUESTED → engine finalizeHandoff
+      //（三消费方共享定稿单点）rollup 派生覆写 APPROVED + writeOwnHandoff 持久化。
+      writeFileSync(path.join(binDir, "claude"),
+        "#!/usr/bin/env bash\n" +
+        `mkdir -p "${ws}"\n` +
+        `printf '%s' '{"task":1,"phase":"branch-review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"}],"artifacts":{}}' > "${handoffPath}"\n` +
+        "exit 0\n");
+      chmodSync(path.join(binDir, "claude"), 0o755);
+      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+        "--plan", plan, "--base", "eeee555", "--head", "ffff666"],
+        { cwd: dir, env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` } });
       expect(r.exitCode).toBe(0);
-      expect(JSON.parse(r.stdout)).toEqual({ dirty: false });
+      const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+      // warn/nit = 0 blocker → status 被 finalizeHandoff（applyDerivedStatus rollup）覆写为 APPROVED
+      expect(h.status).toBe("APPROVED");
+      expect(h.findings).toEqual([{ severity: "warn", summary: "w" }]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---- P6 T3：docs 命名统一 — spec/plan/branch handoff 走派生层（canonical naming + resolveWorkspace） ----
+// 单元 seam（docsRunnerMock）断言 runReview/runFix 传给 runDocsTask 的 handoffPath/workspace；
+// CLI 黑盒用 canonical seed 驱动 Review Stopping / 轮次，端到端验证命名 + workspace 接线。
+
+// 临时 git 仓库：供 resolveWorkspace 推导 git root；每个用例独立 seed，不留真实 repo 副作用。
+function tmpGitRepo() {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-p6-"));
+  execaSync("git", ["-C", dir, "init", "-q"]);
+  execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
+    "commit", "--allow-empty", "-qm", "fixture"]);
+  return dir;
+}
+
+// seed 一条 canonical <type>-review-1.json（status APPROVED + blocker=0）→ 命中 Review Stopping。
+// ws = <repo>/.superpowers/cdd/foo —— 覆盖 spec（foo-design.md 去 -design）与 plan（foo.md）同 slug 收敛。
+// doc 父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel，父目录缺失会回退失败。
+function seedDocsReviewRound(repo, doc, fileName) {
+  const ws = path.join(repo, ".superpowers", "cdd", "foo");
+  mkdirSync(path.dirname(doc), { recursive: true });
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(path.join(ws, fileName), JSON.stringify({
+    task: 0, phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc,
+  }));
+  return ws;
+}
+
+describe("P6 T3: docs handoff 命名走派生层", () => {
+  // ---- 单元 seam：runReview/runFix（cdd.mjs 导出）→ mocked runDocsTask 参数断言 ----
+
+  it("review --type spec → runDocsTask handoffPath=<ws>/spec-review-1.json + workspace=<ws>（canonical 派生命名，非 flat-root/旧体）", async () => {
+    process.env.CDD_DRY_RUN = "1";
+    try {
+      const { runReview } = await import("../cdd.mjs");
+      await runReview({ type: "spec", harness: "claude", doc: "/repo/root/docs/superpowers/specs/foo-design.md" });
+      const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
+      expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-review-1.json");
+      expect(call.workspace).toBe("/repo/root/.superpowers/cdd/foo");
+    } finally {
+      delete process.env.CDD_DRY_RUN;
+      docsRunnerMock.runDocsTask.mockClear();
+    }
+  });
+
+  it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
+    const { resolveWorkspace } = await import("../lib/handoff-naming.mjs");
+    expect(resolveWorkspace("/repo/root/docs/superpowers/plans/foo.md"))
+      .toBe("/repo/root/.superpowers/cdd/foo");
+    expect(resolveWorkspace("/repo/root/docs/superpowers/specs/foo-design.md"))
+      .toBe("/repo/root/.superpowers/cdd/foo");
+  });
+
+  it("fix --findings spec-review-2.json → runDocsTask handoffPath=<ws>/spec-fix-2.json（round 从 findings 名经 roundPattern 解析）", async () => {
+    process.env.CDD_DRY_RUN = "1";
+    try {
+      const { runFix } = await import("../cdd.mjs");
+      const findings = "/repo/root/.superpowers/cdd/foo/spec-review-2.json";
+      await runFix({ type: "spec", harness: "claude", doc: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
+      const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
+      expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-fix-2.json");
+      expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）
+      expect(call.findingsPath).toBe(findings);
+    } finally {
+      delete process.env.CDD_DRY_RUN;
+      docsRunnerMock.runDocsTask.mockClear();
+    }
+  });
+
+  // ---- CLI 黑盒：canonical seed 驱动 Stopping / 轮次 ----
+
+  it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .superpowers/cdd/foo/ → Stopping exit 3", () => {
+    const dir = tmpGitRepo();
+    try {
+      const doc = path.join(dir, "docs", "foo-design.md");
+      seedDocsReviewRound(dir, doc, "spec-review-1.json");
+      const r = runCli(["review", "--type", "spec", "--harness", "claude", "--doc", doc],
+        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      expect(r.exitCode).toBe(3);
+      expect(r.stderr).toMatch(/Review Stopping/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("review --type plan：canonical plan-review-1.json（doc_path 同 doc，foo.md → 同 slug foo）→ Stopping exit 3", () => {
+    const dir = tmpGitRepo();
+    try {
+      const doc = path.join(dir, "plans", "foo.md");
+      seedDocsReviewRound(dir, doc, "plan-review-1.json");
+      const r = runCli(["review", "--type", "plan", "--harness", "claude", "--doc", doc],
+        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      expect(r.exitCode).toBe(3);
+      expect(r.stderr).toMatch(/Review Stopping/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fix --type spec 缺 --findings（round 无源）→ exit 2 提示 <type>-review-{R}.json", () => {
+    const r = runCli(["fix", "--type", "spec", "--harness", "claude", "--doc", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1" } });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/spec-review-\{R\}\.json/);
+  });
+
+  it("fix --findings spec-review-0.json（round<1）→ exit 2 拒（round 须 >= 1）", () => {
+    const r = runCli(["fix", "--type", "spec", "--harness", "claude", "--doc", SMOKE_PLAN,
+      "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", "spec-review-0.json")],
+      { env: { CDD_DRY_RUN: "1" } });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/round must be >= 1/);
+  });
+
+  it("review --type branch 同 ref 已 APPROVED r1 → Stopping exit 3（prev 经 concrete base7..head7 匹配）", () => {
+    const dir = tmpGitRepo();
+    try {
+      const plan = path.join(dir, "plan.md");
+      writeFileSync(plan, "### Task 1:\n- base: develop\n");
+      const wsPath = path.join(dir, ".superpowers", "cdd", "plan");
+      mkdirSync(wsPath, { recursive: true });
+      writeFileSync(path.join(wsPath, "branch-review-eeee555..ffff666-r1.json"),
+        JSON.stringify({ task: 1, phase: "branch-review", status: "APPROVED", findings: [], artifacts: {}, blocker: "" }));
+      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+        "--plan", plan, "--base", "eeee555", "--head", "ffff666"],
+        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      expect(r.exitCode).toBe(3);
+      expect(r.stderr).toMatch(/Review Stopping/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("review --type branch 轮次 per-ref：他 ref 已有 r1 时，新 ref dry-run 产出 -r1（非全局递增 r2）", () => {
+    const dir = tmpGitRepo();
+    try {
+      const plan = path.join(dir, "plan.md");
+      writeFileSync(plan, "### Task 1:\n- base: develop\n");
+      const wsPath = path.join(dir, ".superpowers", "cdd", "plan");
+      mkdirSync(wsPath, { recursive: true });
+      // 他 ref（aaaa111..bbbb222）已有 r1 —— 全局轮次已被推到 r2；新 ref 应各自从 r1 起（ref 名内嵌）。
+      writeFileSync(path.join(wsPath, "branch-review-aaaa111..bbbb222-r1.json"), "{}");
+      const newHead = "cccc333";
+      const newBase = "dddd444";
+      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+        "--plan", plan, "--base", newBase, "--head", newHead],
+        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      expect(r.exitCode).toBe(0);
+      expect(existsSync(path.join(wsPath, `branch-review-${newBase}..${newHead}-r1.json`))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

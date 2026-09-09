@@ -7,21 +7,23 @@
 //   cdd fix --type <task|spec|plan> --harness <name> [...]
 //   cdd select | cdd research --harness <name> --brief <path> --output <path>
 //   cdd brief --task <n> --plan <path> [--output <path>]
-//   cdd contract [--check-dirty] [--check-head] [--handoff <path>] [--progress <path>] [--clear-findings]
 import { Command } from "commander";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./lib/registry.mjs";
-import { renderTemplate, reviewTypeConfig, REVIEW_H1_BLOCK } from "./lib/templates.mjs";
+import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK, reviewHardGate } from "./lib/templates.mjs";
+// handoff 命名/workspace 的唯一派生层（canonical handoff-namespace.json）。docs 侧（spec/plan/branch）
+// 的命名、轮次、Stopping prev、workspace 全部走这里 —— 不再有第二处命名字面量 / 第二处 workspace 推导。
+import * as handoffNaming from "./lib/handoff-naming.mjs";
 import { validateHandoffSchema } from "./lib/schema-utils.mjs";
-import { resolveNextRound, reviewStoppedError } from "./lib/review-loop.mjs";
-import { writeHandoff, gitToplevel } from "./lib/contract.mjs";
+import { reviewStoppedError } from "./lib/review-loop.mjs";
+import { writeHandoff, gitToplevel, writeOwnHandoff } from "./lib/contract.mjs";
+import { finalizeHandoff } from "./lib/handoff-finalize.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
 import { runBriefCli } from "./lib/brief.mjs";
-import { runContractCli } from "./lib/contract.mjs";
 import { detectInstalledHarnesses } from "./utils/harness-detect.mjs";
 import { config } from "./utils/skills-probe.config.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "./utils/exit.mjs";
@@ -37,7 +39,6 @@ const SUBCOMMAND_USAGE = {
   select: "usage: cdd select",
   research: "usage: cdd research --harness <name> --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
-  contract: "usage: cdd contract [--check-dirty] [--check-head] [--handoff <path>] [--progress <path>] [--clear-findings]",
 };
 
 function usageError(command) {
@@ -55,14 +56,12 @@ function intTask(v) {
   return n;
 }
 
-// Docs review workspace: <repoRoot>/.superpowers/docs-review/ (matches docs-task Bug K fix).
-export function docsReviewWorkspace() {
-  return path.join(gitToplevel(process.cwd()), ".superpowers", "docs-review");
-}
+// Docs workspace 全走 handoff-naming.resolveWorkspace(doc)（.superpowers/cdd/<slug>/，slug 经 slugRule
+// 派生；Phase-0 flat root 已废弃，engine 代码零引用）。
 
 function existingRoundHandoff(ws, type, round) {
   if (round < 1) return null;
-  const p = path.join(ws, `${type}-${round}.json`);
+  const p = path.join(ws, handoffNaming.handoffName("review", type, { round }));
   return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
 }
 
@@ -97,7 +96,8 @@ function writeBranchBlocked(handoffPath, { base, head, code, reason }) {
 
 // ---- review dispatch ----
 
-async function runReview(opts) {
+// 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
+export async function runReview(opts) {
   // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
   if (opts.type === "branch") {
     if (!opts.plan) {
@@ -119,9 +119,10 @@ async function runReview(opts) {
       process.exit(2);
     }
     const { runDocsTask } = await import("./lib/docs-runner.mjs");
-    // spec/plan: round = engine auto-increment; --round only validates backfill (conflict → exit 2).
-    const ws = docsReviewWorkspace();
-    const round = resolveNextRound(ws, opts.type);
+    // spec/plan: round = engine auto-increment（canonical review.{type} 族模式扫描）；--round only
+    // validates backfill (conflict → exit 2).
+    const ws = handoffNaming.resolveWorkspace(opts.doc);
+    const round = handoffNaming.resolveNextRound(ws, "review", opts.type);
     if (opts.round && Number(opts.round) !== round) {
       process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);
       process.exit(2);
@@ -132,21 +133,25 @@ async function runReview(opts) {
     if (prev && (prev.doc_path ?? "") === opts.doc) reviewStoppingGuard(prev, opts.type, round, opts.doc);
     // review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
     // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
-    // 符号经具体化注入）；其余占位由 reviews.json 配置 + 注入参数补齐（renderTemplate 缺参即抛）。
+    // 符号经具体化注入）；内容占位（lensEnum/axesGuide）由 reviews.json 配置注入，artifact 参数
+    // （HANDOFF_TYPE/RETURN_MODE）读 canonical review.{type} 族（renderTemplate 缺参即抛）。
     const cfg = reviewTypeConfig(opts.type);
+    const art = reviewArtifactConfig(opts.type);
+    const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
     await runDocsTask({
       harness: opts.harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
-      round, handoffPath: path.join(ws, `${opts.type}-${round}.json`),
+      handoffPath,
       params: {
         TYPE: opts.type,
         LENS_GUIDE: cfg.lensEnum.join(" · "),
         WORKSPACE: ws,
         REFERENCE: opts.doc,
         AXES: cfg.axesGuide,
-        RETURN_MODE: cfg.returnMode,
-        HANDOFF_TYPE: cfg.handoffType,
+        RETURN_MODE: art.return,
+        HANDOFF_TYPE: art.schema,
         H1_BLOCK: "",
         PLAN_LINE: opts.spec ? `**Spec:** ${opts.spec}` : "",
+        HARD_GATE: reviewHardGate(art.return, handoffPath),
       },
       workspace: ws, repoRoot: gitToplevel(process.cwd()),
       dryRun: DRY_RUN(),
@@ -154,7 +159,7 @@ async function runReview(opts) {
     return;
   }
 
-  // type=task: task review (runner internally tracks task-N-task-review-{R}.json round sequence).
+  // type=task: task review (runner internally tracks task-N-review-{R}.json round sequence).
   if (opts.type !== "task") {
     process.stderr.write(`unknown review --type: ${opts.type}\n`);
     process.exit(2);
@@ -168,12 +173,12 @@ async function runReview(opts) {
     process.exit(2);
   }
   // Workspace slug derives from the plan filename; task Stopping reads the latest
-  // task-{N}-task-review-{R}.json and rejects when its blockers = 0.
+  // task-{N}-review-{R}.json and rejects when its blockers = 0.
   const slug = path.basename(opts.plan, ".md");
   const taskWs = path.join(gitToplevel(process.cwd()), ".superpowers", "cdd", slug);
-  // task round 经 review-loop 层 type-aware resolveNextRound 推导（复用 reviewRoundPattern 的
-  // task-{N}-task-review-{R}.json 模式，不再手搓 readdirSync）。
-  const nextTaskRound = resolveNextRound(taskWs, "task", { task: opts.task });
+  // task round 经 canonical 派生层 type-aware resolveNextRound 推导（op/type 四参签名；
+  // 显式透传 {task} pin → 防 scan 形态 {task}→\d+ 跨 task 混计 rounds）。
+  const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { task: opts.task });
   // --round 校验回填（task 侧：next round 推导值；冲突 exit 2，对齐 spec/plan/branch）。
   if (opts.round && Number(opts.round) !== nextTaskRound) {
     process.stderr.write(`--round ${opts.round} ≠ engine round ${nextTaskRound}\n`);
@@ -181,12 +186,15 @@ async function runReview(opts) {
   }
   if (nextTaskRound > 1) {
     const prevR = nextTaskRound - 1;
-    const th = JSON.parse(readFileSync(path.join(taskWs, `task-${opts.task}-task-review-${prevR}.json`), "utf8"));
+    // Stopping prev 读同族 round-1 算术（canonical review.task 名 → task-{N}-review-{prevR}.json）。
+    // 不得用 prevHandoffPath：该函数对此族解析跨族 prev 表（round1=implement / fix:R-1），
+    // 会读到实体化 implement 的 APPROVED+[] → Stopping 误锁。
+    const th = JSON.parse(readFileSync(path.join(taskWs, handoffNaming.handoffName("review", "task", { task: opts.task, round: prevR })), "utf8"));
     reviewStoppingGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
   }
   const { runTask } = await import("./lib/runner.mjs");
   await runTask(opts.harness, opts.task, {
-    mode: "task-review", dryRun: DRY_RUN(),
+    mode: "review", dryRun: DRY_RUN(),
     env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
   });
 }
@@ -211,27 +219,27 @@ async function runBranchReview(opts) {
 
   const repoRoot = gitToplevel(process.cwd());
   if (!repoRoot) { process.stderr.write("cdd review: not in a git repo\n"); exitBlocked(); }
-  const slug = path.basename(plan, ".md");
   const base7 = String(base).slice(0, 7);
   const head7 = String(head).slice(0, 7);
-  const workspace = path.join(repoRoot, ".superpowers", "cdd", slug);
+  // workspace 与其他 review 型同源：resolveWorkspace(plan)（.superpowers/cdd/<slug>/）。
+  const workspace = handoffNaming.resolveWorkspace(plan);
 
-  // AC15 wiring: engine round seq (branch-review-*-r{round} pattern) + --round backfill
-  // validation (conflict → exit 2) + Stopping on the previous round for THIS ref.
-  const round = resolveNextRound(workspace, "branch");
+  // AC15 wiring: per-ref round seq（ref 内嵌文件名 → resolveNextRound 传 concrete base7/head7
+  // 做 per-ref 轮次，他 ref 的轮次不干扰本 ref）+ --round backfill 校验（conflict → exit 2）+
+  // Stopping 读上一轮（prevHandoffPath concrete 匹配同一 ref）。
+  const round = handoffNaming.resolveNextRound(workspace, "review", "branch", { base7, head7 });
   if (opts.round && Number(opts.round) !== round) {
     process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);
     process.exit(2);
   }
-  const prevPath = path.join(workspace, `branch-review-${base7}..${head7}-r${round - 1}.json`);
-  const prev = existsSync(prevPath) ? JSON.parse(readFileSync(prevPath, "utf8")) : null;
+  const prevPath = handoffNaming.prevHandoffPath(workspace, "review", "branch", round, { base7, head7 });
+  const prev = prevPath && existsSync(prevPath) ? JSON.parse(readFileSync(prevPath, "utf8")) : null;
   // Stop only on an APPROVED round with blocker=0 (SP-4) — a BLOCKED/TIMEOUT branch review
   // round with findings:[] must be re-dispatchable, not rejected as "already done".
   if (prev) reviewStoppingGuard(prev, "branch", round, `${base7}..${head7}`);
 
-  // Per-round handoff filename (branch-fix-loop re-reviews reuse distinct files).
-  const handoffFile = `branch-review-${base7}..${head7}-r${round}.json`;
-  const handoffPath = path.join(workspace, handoffFile);
+  // Per-round handoff filename（canonical review.branch 族；branch-fix-loop re-reviews reuse distinct files）。
+  const handoffPath = path.join(workspace, handoffNaming.handoffName("review", "branch", { base7, head7, round }));
   mkdirSync(workspace, { recursive: true });
 
   if (DRY_RUN()) {
@@ -244,8 +252,9 @@ async function runBranchReview(opts) {
     return;
   }
 
-  // branch review 走共享壳 review.md（reviews.json type=branch 配置）+ H1 四行合同。
+  // branch review 走共享壳 review.md（reviews.json type=branch 内容配置 + canonical branch 族 artifact 参数）+ H1 四行合同。
   const cfg = reviewTypeConfig("branch");
+  const art = reviewArtifactConfig("branch");
   const { renderHandoffStub, REVIEW_H1_BLOCK } = await import("./lib/templates.mjs");
   const { loadHandoffSchema } = await import("./lib/schema-utils.mjs");
   let prompt = renderTemplate("review", {
@@ -255,10 +264,11 @@ async function runBranchReview(opts) {
     REFERENCE: `${base}..${head}`,
     AXES: cfg.axesGuide,
     HANDOFF: handoffPath,
-    HANDOFF_TYPE: cfg.handoffType,
-    RETURN_MODE: cfg.returnMode,
+    HANDOFF_TYPE: art.schema,
+    RETURN_MODE: art.return,
     H1_BLOCK: REVIEW_H1_BLOCK,
     PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
+    HARD_GATE: reviewHardGate(art.return, handoffPath),
   }, "cdd review");
   // HANDOFF_STUB：共享壳槽位在此路径须显式替换（docs 路径 runDocsTask 自理、runner 路径 renderModePrompt 自理）。
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g,
@@ -292,6 +302,11 @@ async function runBranchReview(opts) {
       process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
       exitWithCode(1);
     }
+    // T5/T7: status 单一权威 — branch review（review 族）读回经 finalizeHandoff 定稿（rollup 派生
+    // 覆写，SP-4 豁免失败轮次）；定稿写盘用 writeOwnHandoff（engine 载体唯一作者，全量覆盖替换）。
+    // 三消费方（runner/docs-runner/cdd）共享同一 finalizeHandoff 单点，非各自接线。
+    const finalized = finalizeHandoff({ mode: "review", agentHandoff });
+    if (finalized.handoff && finalized.handoff !== agentHandoff) writeOwnHandoff(handoffPath, finalized.handoff);
   }
 
   exitOk();
@@ -299,7 +314,8 @@ async function runBranchReview(opts) {
 
 // ---- fix dispatch ----
 
-async function runFix(opts) {
+// 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
+export async function runFix(opts) {
   const { runTask } = await import("./lib/runner.mjs");
   // type=task fix: --findings is plumbed through runTask's `findingsPath` opt — the runner
   // overrides env.CDD_FINDINGS with the previous-phase handoff in fix mode, so the opt takes
@@ -320,7 +336,7 @@ async function runFix(opts) {
     });
     return;
   }
-  // spec/plan: fix 模板来自 reviews.json fixTemplate（URC 注入点）。
+  // spec/plan: fix 模板从 canonical fix.{type} 族读 fixTemplate（T2 裁轴后 reviews.json 不再承载 artifact）。
   if (opts.type !== "spec" && opts.type !== "plan") {
     process.stderr.write(`unknown fix --type: ${opts.type}\n`);
     process.exit(2);
@@ -329,14 +345,29 @@ async function runFix(opts) {
     process.stderr.write(`cdd fix --type ${opts.type}: missing required --doc <path>\n`);
     process.exit(2);
   }
-  // fix 模板统一走 reviews.json fixTemplate（spec/plan → "doc-fix" 共享壳）。
-  // 旧 spec-fix/plan-fix 已删，无 fallback；docs-runner 对非 `-review` 名直传（不再 double-suffix）。
-  const template = reviewTypeConfig(opts.type).fixTemplate;
+  // fix round 从 --findings 源解析：roundPattern("review", type) 匹配 findings 文件名
+  // （<type>-review-{R}.json）→ 提取 R 作为 fix 轮次（fix 输出 <type>-fix-{R}.json）。
+  // findings 缺失或文件名不匹配 → 提示 + exit 2（无源不可推导轮次）。
+  const findingsBase = opts.findings ? path.basename(opts.findings) : null;
+  const roundMatch = findingsBase ? findingsBase.match(handoffNaming.roundPattern("review", opts.type)) : null;
+  if (!roundMatch) {
+    process.stderr.write(`cdd fix --type ${opts.type}: --findings must name a ${opts.type}-review-{R}.json file (round derived from the source review); got: ${opts.findings ?? "(missing)"}\n`);
+    process.exit(2);
+  }
+  const fixRound = Number(roundMatch[1]);
+  if (!Number.isInteger(fixRound) || fixRound < 1) {
+    process.stderr.write(`cdd fix --type ${opts.type}: --findings round must be >= 1 (round derived from the source review); got: ${opts.findings}\n`);
+    process.exit(2);
+  }
+  // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
+  // workspace 与 review 同源 resolveWorkspace(doc)；handoffPath 显式传 canonical fix.{type} 名。
+  const template = handoffNaming.familyConfig("fix", opts.type).fixTemplate;
+  const ws = handoffNaming.resolveWorkspace(opts.doc);
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
     harness: opts.harness, mode: "fix", template, type: opts.type, doc: opts.doc,
-    findingsPath: opts.findings, workspace: docsReviewWorkspace(),
-    repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
+    findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
+    handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
 }
 
@@ -457,7 +488,7 @@ program.exitOverride();
 program.configureOutput({ outputError: () => {} });
 program
   .name("cdd")
-  .description("CDD engine CLI — implement/review/fix/select/research/brief/contract")
+  .description("CDD engine CLI — implement/review/fix/select/research/brief")
   .helpOption("-h, --help", "display help for command");
 
 // --- implement (formerly cdd-task --mode implement) ---
@@ -475,7 +506,7 @@ program
     });
   });
 
-// --- review (formerly cdd-task --mode task-review / docs-task review / branch-review) ---
+// --- review (consolidates the former cdd-task / docs-task / branch-review commands) ---
 program
   .command("review")
   .requiredOption("--type <t>", "task|branch|spec|plan")
@@ -520,7 +551,7 @@ program
     await runResearch(opts);
   });
 
-// --- brief / contract (delegated to lib module CLI entries; Commander opts → 结构化 argv，不二次解析 process.argv) ---
+// --- brief (delegated to lib module CLI entry; Commander opts → 结构化 argv，不二次解析 process.argv) ---
 program
   .command("brief")
   .requiredOption("--task <n>", "task number")
@@ -530,21 +561,6 @@ program
     "--task", String(opts.task),
     "--plan", opts.plan,
     ...(opts.output ? ["--output", opts.output] : []),
-  ]));
-
-program
-  .command("contract")
-  .option("--check-dirty")
-  .option("--check-head")
-  .option("--handoff <path>")
-  .option("--progress <path>")
-  .option("--clear-findings")
-  .action((opts) => runContractCli([
-    ...(opts.checkDirty ? ["--check-dirty"] : []),
-    ...(opts.checkHead ? ["--check-head"] : []),
-    ...(opts.handoff ? ["--handoff", opts.handoff] : []),
-    ...(opts.progress ? ["--progress", opts.progress] : []),
-    ...(opts.clearFindings ? ["--clear-findings"] : []),
   ]));
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).

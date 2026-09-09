@@ -149,7 +149,7 @@ it("resolveInjection: 兜底 —— 缺省 prefix/op/type 回退空串，legacy 
   expect(resolveInjection({ prefix: { review: { task: "/x" } } }, "review")).toBe(""); // 无 type → 空
   expect(resolveInjection({ prefix: { review: {} } }, "review", "task")).toBe("");      // type 缺该子键 → 空
   // legacy 扁平 mode 键兜底：未迁移 registry / CDD_REGISTRY_PATH 覆盖仍直接命中
-  expect(resolveInjection({ prefix: { "task-review": "/legacy-review" } }, "task-review")).toBe("/legacy-review");
-  // 新 registry 不再有扁平 task-review 键 → 空
-  expect(resolveInjection(loadRegistry(REG_PATH).claude, "task-review")).toBe("");
+  expect(resolveInjection({ prefix: { "legacy-review": "/legacy-review" } }, "legacy-review")).toBe("/legacy-review");
+  // 新 registry 不再有扁平旧 mode 键 → 空
+  expect(resolveInjection(loadRegistry(REG_PATH).claude, "legacy-review")).toBe("");
 });

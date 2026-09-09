@@ -78,12 +78,12 @@ it("implement: superpowers missing → exit 3 + stderr install hint, no CLI invo
   expect(r.stderr).toMatch(/plugin install/);
 });
 
-it("task-review: install-and-use missing → exit 3 + stderr install hint", async () => {
+it("review: install-and-use missing → exit 3 + stderr install hint", async () => {
   const ws = setupWorkspace();
   const missing = [{ plugin: "osuperpowers", installHint: "/plugin install osuperpowers@oscaner-skills" }];
   const fakeProbe = async () => ({ missing, probeFailed: false });
   const r = await capture(() =>
-    runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: fakeProbe, env: baseEnv(ws) }),
   );
   expect(r.code).toBe(3);
   expect(r.stderr).toMatch(/plugin install/);

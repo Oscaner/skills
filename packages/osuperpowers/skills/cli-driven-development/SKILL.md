@@ -70,10 +70,9 @@ flowchart TD
 
 - **Do**: Before dispatching `cdd`:
   1. Generate brief: `cdd brief --task N --plan <path> --output <workspace>/task-N-brief.md`
-  2. Record dispatch-time HEAD: `git rev-parse HEAD` → write to `progress.json.lastDispatchHead`
-  3. For task-review mode: generate review diff via review-package script
-  4. **Three-mode chain enforcement**: For fix mode — verify task-review handoff exists for this task AND status = APPROVED; refuse dispatch otherwise (report to user)
-  5. Dispatch per mode — `cdd` (cdd-engine bin on PATH; `{pluginRoot}` no longer hosts engine code): `cdd implement --harness <name> --task N` (implement) · `cdd review --type task --harness <name> --task N` (task-review) · `cdd fix --type task --harness <name> --task N` (fix; pass `--findings <task-N-task-review-R.json>` when the orchestrator wants an explicit fix round). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index).
+  2. For task-review mode: generate review diff via review-package script
+  3. **Three-mode chain enforcement**: For fix mode — verify task-review handoff exists for this task AND status = APPROVED; refuse dispatch otherwise (report to user)
+  4. Dispatch per mode — `cdd` (cdd-engine bin on PATH; `{pluginRoot}` no longer hosts engine code): `cdd implement --harness <name> --task N` (implement) · `cdd review --type task --harness <name> --task N` (task-review) · `cdd fix --type task --harness <name> --task N` (fix; pass `--findings <task-N-task-review-R.json>` when the orchestrator wants an explicit fix round). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index). (No `progress.json.lastDispatchHead` bookkeeping — that field was removed with the `cdd contract` subcommand in T8; the engine's post-run commit-contract validation uses the live git tree instead.)
 - **Read**: `CDD_HANDOFF_PATH` (`task-N-handoff.json`) + open-findings (fix mode) + brief-dependent plan sections + `progress.json` (timeoutCount, on timeout).
 - **Exit**: construct CLI command and spawn → enter `handoff-status` (decision node, routes by handoff status). On timeout → enter `timeout-decision`.
 - **Fail**: nested CLI failure with missing handoff → runner.mjs has written BLOCKED handoff (stderr in blocker field); this node reads and routes to BLOCKED: engine-error. Three-mode chain enforcement violation (fix dispatch without prior task-review APPROVED) → report to user, refuse dispatch.
@@ -81,10 +80,12 @@ flowchart TD
 ### `handoff-status` (decision node)
 
 - **Do**: Read `handoff.json` `status` field + scan `findings[]` for blocker-severity items.
-  Before routing, perform commit-contract validation:
-  1. `cdd contract --check-dirty` — dirty tree → route to BLOCKED: engine-error
-  2. `cdd contract --check-head --handoff <path> --progress <path>` — head mismatch → route to BLOCKED: engine-error
-  Then route by status × findings severity (Review Stopping alignment):
+  Commit-contract validation is performed by the engine at the end of every task dispatch
+  (runner post-run step): a dirty working tree rewrites the handoff to `status: BLOCKED`
+  (`validateCommitContract` / `rewriteHandoffBlocked`); for implement/fix it additionally checks
+  `commits.head` against the live `HEAD`. This node does **not** call `cdd contract` — the
+  `contract` subcommand was removed (T8) — it routes directly on the handoff status the engine
+  has already settled. Then route by status × findings severity (Review Stopping alignment):
   - `APPROVED` + blockers = 0 → `task-complete?` (done)
   - `APPROVED` + warn/nit findings only → fix warn/nit inline → `task-complete?`
     (no re-run of task-review — Review Stopping: blocker=0 → fix → done)
@@ -94,7 +95,7 @@ flowchart TD
   - `NEEDS_CONTEXT` → **implicit fail-open** (orchestrator manually investigates then redispatches dispatch-mode with the same mode; not a digraph edge).
 - **Read**: `handoff.json`.
 - **Exit**: Route per status × findings → see Do field above.
-- **Fail**: commit-contract validation fails (dirty tree or head mismatch) → BLOCKED: engine-error. `status` field missing or illegal (not one of APPROVED / CHANGES_REQUESTED / BLOCKED; NEEDS_CONTEXT is a known but implicitly handled status handled by the Exit field's fail-open path, not this Fail branch).
+- **Fail**: `status` field missing or illegal (not one of APPROVED / CHANGES_REQUESTED / BLOCKED; NEEDS_CONTEXT is a known but implicitly handled status handled by the Exit field's fail-open path, not this Fail branch).
 
 ### `fix-inline`
 
@@ -111,6 +112,8 @@ flowchart TD
 - **Fail**: blocker field empty or unparseable → terminal `BLOCKED: engine-error`.
 
 > **§D deviation note (deliberate spec §2.3 step 4 departure)**: Spec §2.3 prescribes reusing `handoff.json.retryCount` (managed by engine-layer `runner.mjs`). This plan uses `progress.json` `engine-recovery-count` (managed by orchestrator-layer skill) instead. Rationale: P10 scope is limited to "no control-flow changes to engine" (design §1 scope boundary); `runner.mjs` currently has no retry infrastructure, and retry is a skill-digraph `engine-recovery` decision-node concern (orchestrator layer), not an engine loop — the orchestrator preserves the count across re-dispatches without modifying `runner.mjs`.
+
+> **§E retry semantics (exit-0-no-handoff)**: when the engine marks a review/fix dispatch `BLOCKED` because the CLI exited 0 without writing a handoff (runner step 10.5), that BLOCKED handoff routes here like any other engine-written BLOCKED — if the blocker is fixable and `progress.json` `engine-recovery-count` < 2, re-dispatching the same mode via `dispatch-mode` is the **expected** recovery (the runner increments the round counter on that failure path, so the retry is a fresh round, not an overwrite).
 
 ### `timeout-decision` (decision node)
 

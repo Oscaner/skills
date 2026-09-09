@@ -1,0 +1,17 @@
+---
+"@oscaner-skills/cdd-engine": major
+"@oscaner-skills/osuperpowers": minor
+---
+
+feat(cdd-engine): P6 overhaul — handoff contract unification + review mode normalization + stale-lexicon guard
+
+**BREAKING（`cdd-engine` major bump）**：`cdd contract` 子命令删除 + implement handoff 改为 runner 实体化（agent 不再手写 handoff 文件）+ review-mode 归一（`task-review`→`review`）——下游若依赖这些旧行为需迁移（P6 plan T10 Step 4 原示 minor，实际 breaking，故选 major）。
+
+- **Handoff naming canonical single-source** (`templates/handoff-namespace.json`): `{type}-{op}[-{round}]` — `spec-review-{R}` / `spec-fix-{R}` / `plan-review-{R}` / `plan-fix-{R}` / `task-{N}-implement` / `task-{N}-review-{R}` / `task-{N}-fix-{R}` / `branch-review-{base7}..{head7}-r{R}`; all literal naming sites + workspace derivation route through the derived `handoff-naming` layer (no second literal / second workspace derivation).
+- **workspace single-root**: all handoffs collect under `.superpowers/cdd/<slug>/`; the flat `.superpowers/docs-review/` root is retired.
+- **mode normalization**: `task-review` mode → `review` (CDD_MODE / VALID_MODES / progress `rounds["review"]` / handoff `phase:"review"`; `cdd-handoff-schema.json` phase enum → `["implement","review","fix","branch-review"]`).
+- **status single-authority**: review-type handoff status derived from `rollupStatus(findings)` (SP-4 failure-round exemptions); implement handoffs runner-materialized from H1 + brief `TASK_BASE` + git HEAD (commits single-authority); `cdd contract` subcommand removed.
+- **finalizeHandoff 定稿统一**: `writeOwnHandoff` full-overwrite; implement/review/fix converge on one finalize path; post-run commit-contract enforced.
+- **stale-lexicon zero-residue guard**: `scripts/validate/residue.mjs` — `RESIDUE_TARGETS` extended to cdd-engine `bin`+`templates`; new `STALE_LEXICON_CHECKS` (zero-exemption) merged into the 5c step (13 blocks unchanged); canonical vocabulary (`dogfood (CDD session)` dropdown, `spec-review-1.json`, contract `spec D1/D4/D5a` comments) must not false-positive.
+- osuperpowers: cli-select failure-mode recovery drops "same labels as above" — explicit no-manual-labels (only the session master carries `session, osuperpowers`).
+- osuperpowers: writing-plans `write-plan` node mandates the plan-header `**Spec:**` line-2 convention — `**Spec:** [<name>-design.md](docs/superpowers/specs/<name>-design.md)` — same source as the `plan-review --spec` pointer (first hop of report-issue `resolve-destination` program chain).

@@ -4,7 +4,7 @@
 
 **Task brief:** {{BRIEF}}
 
-**Handoff path (write at end of this mode):** {{HANDOFF}}
+**This mode does not write a handoff.** The runner materializes `task-{{TASK}}-implement.json` from your H1 four lines + the brief's `TASK_BASE` + `git HEAD`. The runner is the single authority for `commits` and for re-emitting your H1.
 
 **Plan constraints:** {{CONSTRAINTS}}
 
@@ -12,54 +12,35 @@
 
 1. Read **only** the task brief and plan constraints at the paths above. Do **not** read the full plan file. **Scope lock:** implement exactly what the brief specifies — no extra features, no tangential refactors, no scope creep beyond the brief's Files/Interfaces/Steps.
 2. **Confirm seams first:** If the task brief includes `CONFIRMED_SEAMS` (test boundaries already confirmed by the orchestrator with the user), apply those seams when invoking tdd — no re-negotiation. Otherwise, propose the test boundaries in the report ("I'll test at these seams: [X, Y]. Not testing: [Z]") and proceed (non-blocking; the orchestrator owns seam confirmation). Then invoke **`mattpocock-skills:tdd`** (Read the skill via `agent_skills` fullPath) to implement per the brief.
-3. Write a full implementer report to the path named in the brief (typically `<workspace>/task-N-report.md`).
-4. Write `<workspace>/task-N-test-evidence.json` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable).
+3. Write a full implementer report to the path named in the brief (typically `{{WORKSPACE}}/task-{{TASK}}-report.md`).
+4. Write `{{WORKSPACE}}/task-{{TASK}}-test-evidence.json` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable).
 5. **Commit (base/head contract):**
-   - `base` = SHA in the task brief as `TASK_BASE` (orchestrator writes this immediately before the H6 implement shell — `git rev-parse HEAD` at chain start). Batch blocks: use `FIRST_TASK_BASE` from brief.
+   - `base` = SHA in the task brief as `TASK_BASE` (orchestrator writes this immediately before the implement dispatch — `git rev-parse HEAD` at chain start). Batch blocks: use `FIRST_TASK_BASE` from brief.
    - After tests pass: if TDD already created **one or more** conventional commits covering this task's changes, set `head` = `git rev-parse HEAD` (do not create duplicate commits).
    - Otherwise: create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the task brief; no attribution / co-author / AI-generation trailers; then `head` = `git rev-parse HEAD`.
    - Uncommitted changes at return → `status: BLOCKED`.
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
-6. Write handoff per `## Handoff Output` below. 
 
-## Handoff Output
+## Evidence gate (the runner reads back)
 
-Write/update `{{HANDOFF}}` with only JSON fields shown below (file-only; the same schema ships at templates/schema/cdd-handoff-schema.json). Do not embed report bodies in the handoff — point at files via `artifacts`.
+After you exit, the runner reads `{{WORKSPACE}}/task-{{TASK}}-test-evidence.json`:
 
-### Segment: implement
-
-1. Read `{{WORKSPACE}}/task-{{TASK}}-test-evidence.json` (omit `behavior_change` in handoff).
-2. Gate: Complex/`behavior_change:true` → hard (require command/passed/exit_code); Simple → soft (WARN).
-3. Set `status: APPROVED` on success; blocker finding → `status: BLOCKED`.
-4. `commits.base` = `TASK_BASE`; `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
-
-Write the following JSON stub to `{{HANDOFF}}` (fill in your actual values):
-
-{{HANDOFF_STUB}}
-
-Rules:
-- `task` must be a JSON integer (no quotes)
-- `status`: APPROVED (implementation complete) or BLOCKED (cannot proceed — explain in blocker field)
-- `findings`: empty array [] for implement mode
-- `artifacts`: record file paths produced (e.g. `{"brief": "{{BRIEF}}", "report": "...", "test_evidence": "..."}`)
-
-### Self-validate
-
-Before H1: `jq . {{HANDOFF}}` → check status/commits.base/commits.head non-null. Fail → `status: BLOCKED`.
-
-### Atomicity
-
-Implement+handoff in one process. Handoff write fails → H1 `status: BLOCKED`. Retry → full mode re-run (idempotent).
+- **hard gate** — if your evidence records `behavior_change: true`, the runner requires `command`, `passed`, and `exit_code`. Missing any of the three → the materialized handoff is overridden to `status: BLOCKED` (exit 1).
+- **soft gate** — otherwise (no `behavior_change`, or the evidence file is missing/unparseable) the runner only attaches a WARN note; your declared status stands.
 
 ## Return (H1 — stdout only)
 
 Return **exactly 4 lines** to stdout (no other prose); make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
 
 ```
-status: <APPROVED|BLOCKED|NEEDS_CONTEXT>
+status: <APPROVED|BLOCKED>
 commits: base=<sha> head=<sha>
 artifacts: brief=<path> report=<path> test_evidence=<path>
 blocker: <none|one-line>
 ```
+
+Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the runner to `BLOCKED` (schema accepts only APPROVED/BLOCKED) + exit 1.
+
+The runner re-emits your H1 from the materialized handoff — `status`, `commits: base=<TASK_BASE> head=<git HEAD>`, and `blocker` are the runner's authority; anything you print on the `commits:`/`blocker:` lines that disagrees is overwritten.
 
 Report bodies, test stdout, and diff text live in files only — never in the return.

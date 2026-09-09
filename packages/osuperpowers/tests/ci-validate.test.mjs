@@ -108,6 +108,8 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr, "zero-residue check missing");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/skills"), "zero-residue grep misses osuperpowers/skills");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/bin"), "zero-residue grep misses osuperpowers/bin");
+  assert.ok(zr.grepTargets?.includes("packages/cdd-engine/bin"), "zero-residue grep misses cdd-engine/bin");
+  assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });
 
 // 7. 5b2 osuperpowers gate hooks check present

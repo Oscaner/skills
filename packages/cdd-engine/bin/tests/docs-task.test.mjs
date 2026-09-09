@@ -2,19 +2,27 @@
 // exercised through the merged single CLI (bin/cdd.mjs). Invocation map:
 //   docs-task --mode review --template <t>  → cdd review --type spec|plan [--doc <path>]
 //   docs-task --mode fix --template <t>     → cdd fix --type spec|plan [--doc <path>]
-// Covers: Commander usage/help, dry-run review/fix, and Bug K regression
-// (docs workspace = <repoRoot>/.superpowers/docs-review/) via the exported
-// merged-surface helper.
-import { describe, it, expect } from 'vitest';
+// P6 T3: docs workspace 全走 resolveWorkspace(doc)（.superpowers/cdd/<slug>/）—— 测试须传
+// repo 内 doc 供 workspace 推导；fix round 从 --findings 名解析（<type>-review-{R}.json）。
+import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import { docsReviewWorkspace } from '../cdd.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/bin/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..', '..');
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
+const SMOKE_PLAN = path.join('packages', 'cdd-engine', 'bin', 'tests', 'fixtures', 'smoke-plan.md');
+// T10 warn: SMOKE_PLAN 派生 workspace = .superpowers/cdd/smoke-plan/——测试 teardown 清理，
+// 避免 validate 后根杂讯污染 F6 单一根（与 branch-review/cdd.test 的 tmp/teardown 迁移同语义）。
+afterAll(() => {
+  rmSync(path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan'), { recursive: true, force: true });
+});
+
+// 合法 findings 名（round 源）—— 路径无需真实存在，docs 通道不接 dirty/存在性断言。
+const SPEC_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'spec-review-1.json');
+const PLAN_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'plan-review-1.json');
 
 function run(args, extraEnv = {}) {
   const env = {};
@@ -49,7 +57,7 @@ describe('cdd review/fix --type spec|plan CLI contract', () => {
 
   it('dry-run review --type spec → exit 0', () => {
     const r = run(
-      ['review', '--type', 'spec', '--harness', 'claude', '--doc', '/x.md'],
+      ['review', '--type', 'spec', '--harness', 'claude', '--doc', SMOKE_PLAN],
       { CDD_DRY_RUN: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
@@ -57,15 +65,15 @@ describe('cdd review/fix --type spec|plan CLI contract', () => {
 
   it('dry-run review --type plan → exit 0', () => {
     const r = run(
-      ['review', '--type', 'plan', '--harness', 'claude', '--doc', '/x.md'],
+      ['review', '--type', 'plan', '--harness', 'claude', '--doc', SMOKE_PLAN],
       { CDD_DRY_RUN: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
-  it('dry-run fix --type spec → exit 0', () => {
+  it('dry-run fix --type spec → exit 0（T3: round 从 --findings spec-review-{R}.json 名解析）', () => {
     const r = run(
-      ['fix', '--type', 'spec', '--harness', 'claude', '--doc', '/x.md'],
+      ['fix', '--type', 'spec', '--harness', 'claude', '--doc', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
       { CDD_DRY_RUN: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
@@ -73,20 +81,9 @@ describe('cdd review/fix --type spec|plan CLI contract', () => {
 
   it('dry-run fix --type plan → exit 0', () => {
     const r = run(
-      ['fix', '--type', 'plan', '--harness', 'claude', '--doc', '/x.md'],
+      ['fix', '--type', 'plan', '--harness', 'claude', '--doc', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
       { CDD_DRY_RUN: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
-  });
-});
-
-// ---- Bug K regression: docs workspace derives from repo root, not dirname(doc) ----
-
-describe('Bug K: cdd docs review workspace', () => {
-  it('resolves <repoRoot>/.superpowers/docs-review/ from the git toplevel', () => {
-    // gitToplevel(process.cwd()) — vitest runs with cwd inside packages/cdd-engine,
-    // which walks up to the repo root. dirname(doc)=/x would be /x/.superpowers/…
-    // if the workspace wrongly derived from the doc path (Bug K).
-    expect(docsReviewWorkspace()).toBe(path.join(REPO_ROOT, '.superpowers', 'docs-review'));
   });
 });

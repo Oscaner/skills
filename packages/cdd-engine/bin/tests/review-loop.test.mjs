@@ -1,6 +1,7 @@
 // bin/tests/review-loop.test.mjs
 import { it, expect } from 'vitest';
-import { runReviewLoop, resolveNextRound, reviewStoppedError } from '../lib/review-loop.mjs';
+import { runReviewLoop, reviewStoppedError } from '../lib/review-loop.mjs';
+import { resolveNextRound } from '../lib/handoff-naming.mjs'; // T9 nit④：round 派生唯一真相在 handoff-naming
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -57,17 +58,17 @@ it("runReviewLoop: onRoundDone called with final round + findings", async () => 
   expect(doneCalled.f).toEqual([]);
 });
 
-it("resolveNextRound: per-type 命名模式", () => {
+it("resolveNextRound: per-type 命名模式（T4 后统一 canonical：task-{N}-review-{R}）", () => {
   const ws = mkdtempSync(join(tmpdir(), "rloop-"));
-  writeFileSync(join(ws, "spec-1.json"), "{}");
-  writeFileSync(join(ws, "spec-2.json"), "{}");
-  expect(resolveNextRound(ws, "spec")).toBe(3);
-  writeFileSync(join(ws, "task-2-task-review-1.json"), "{}");
-  writeFileSync(join(ws, "task-2-task-review-3.json"), "{}");
-  expect(resolveNextRound(ws, "task", { task: 2 })).toBe(4); // task 用既有 round 命名
+  writeFileSync(join(ws, "spec-review-1.json"), "{}");
+  writeFileSync(join(ws, "spec-review-2.json"), "{}");
+  expect(resolveNextRound(ws, "review", "spec")).toBe(3);
+  writeFileSync(join(ws, "task-2-review-1.json"), "{}");
+  writeFileSync(join(ws, "task-2-review-3.json"), "{}");
+  expect(resolveNextRound(ws, "review", "task", { task: 2 })).toBe(4); // canonical task-{N}-review-{R}
   writeFileSync(join(ws, "branch-review-abc1234..def5678-r1.json"), "{}");
-  expect(resolveNextRound(ws, "branch")).toBe(2);
-  expect(resolveNextRound(join(ws, "nope"), "spec")).toBe(1);
+  expect(resolveNextRound(ws, "review", "branch")).toBe(2);
+  expect(resolveNextRound(join(ws, "nope"), "review", "spec")).toBe(1);
 });
 
 it("reviewStoppedError: 携带 type/round/ref 的 Error", () => {

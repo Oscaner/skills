@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["phase", "status", "findings", "artifacts", "doc_path"],
+  "required": ["phase", "findings", "artifacts", "doc_path"],
   "properties": {
     "phase":     { "type": "string", "enum": ["review", "fix"] },
     "status":    { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"] },
@@ -11,5 +11,23 @@
     "round":     { "type": "integer" },
     "blocker":   { "type": "string" }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "review"
+          }
+        },
+        "required": ["phase"]
+      },
+      "then": {
+        "required": []
+      },
+      "else": {
+        "required": ["status"]
+      }
+    }
+  ],
   "additionalProperties": false
 }

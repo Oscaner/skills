@@ -44,12 +44,18 @@ function gitStatusPorcelain(cwd) {
 
 // ---- handoff read/write ----
 
-function safeParse(filePath) {
+// T7 nit2: 统一 JSON read —— lib/ 三处同形私有 readJson/safeParse 收敛到 contract.mjs 单点。
+// （runner.mjs / handoff-finalize.mjs import 本实现，删除各自私有副本。）
+export function readJson(filePath) {
   try {
     return JSON.parse(readFileSync(filePath, "utf8"));
   } catch {
     return null;
   }
+}
+// safeParse 别名保留（writeHandoff/validateCommitContract 历史使用；与 readJson 同实现）。
+function safeParse(filePath) {
+  return readJson(filePath);
 }
 
 // 按 skills/cli-driven-development/docs/handoff-schema.md 写 handoff。已有文件 → 浅合并（H6 链 update 语义：
@@ -61,6 +67,15 @@ export function writeHandoff(handoffPath, data) {
   mkdirSync(path.dirname(handoffPath), { recursive: true });
   writeFileSync(handoffPath, `${JSON.stringify(merged, null, 2)}\n`);
   return merged;
+}
+
+// 全量覆盖写盘（T7：engine 是载体唯一作者，定稿写盘专用）。非浅合并：实现前不读盘，
+// existing 字段一律不保留 —— agent 写残留进不了载体（私有写入槽位的自然语义）。
+// 父目录不存在自动创建；返回写入的完整对象。
+export function writeOwnHandoff(handoffPath, data) {
+  mkdirSync(path.dirname(handoffPath), { recursive: true });
+  writeFileSync(handoffPath, `${JSON.stringify(data, null, 2)}\n`);
+  return data;
 }
 
 // 对齐 _cdd_rewrite_handoff_blocked：把 handoff 重写为 status=BLOCKED + blocker + artifacts: {}。
@@ -113,25 +128,55 @@ export function rollupStatus(findings = [], unverifiable = [], planConflicts = [
   return hasBlocker ? "CHANGES_REQUESTED" : "APPROVED";
 }
 
+// ---- review 型 handoff status 派生（T5 status 单一权威）----
+
+// review 型 handoff status 派生（唯 engine 权威）：schema 校验后由 findings roll-up 覆写 agent 声明的 status。
+// SP-4 豁免：失败轮次（engine 自写 BLOCKED/TIMEOUT、agent status ∈ {BLOCKED, TIMEOUT}）不覆写。
+// 仅 findings.length > 0 时触发 rollup（plan-constraints「status 单一权威」）；findings 空时
+// CHANGES_REQUESTED（0 blocker）→ APPROVED（URC：无 findings 即无 blocker），APPROVED 空载保持，缺省 → APPROVED。
+// BRANCH NIT⑥：空-findings 短路前先 consult plan_conflicts/unverifiable —— 二者非空即使 findings 空也是
+// BLOCKED 信道（rollup 的 unverifiable/planConflicts 通道不依赖 findings 承载），此前被短路盗走误标 APPROVED。
+export function deriveReviewStatus(handoff = {}) {
+  const { status, findings = [], unverifiable = [] } = handoff;
+  // schema 字段为 snake_case：plan_conflicts（勿解构 camelCase planConflicts — 永空）
+  const planConflicts = handoff.plan_conflicts ?? [];
+  if (status === "BLOCKED" || status === "TIMEOUT") return status;
+  if (unverifiable.length > 0 || planConflicts.length > 0) return "BLOCKED";
+  if (findings.length === 0) return status === "CHANGES_REQUESTED" ? "APPROVED" : status ?? "APPROVED";
+  return rollupStatus(findings, unverifiable, planConflicts);
+}
+
+// 读回路径统一入口：status 需覆写 → 返回覆写后的新 handoff（原对象不变）；无变化 → null（caller 不写盘）。
+export function applyDerivedStatus(handoff = {}) {
+  const d = deriveReviewStatus(handoff);
+  return d === handoff.status ? null : { ...handoff, status: d };
+}
+
 // ---- commit-contract validator ----
 
 // Core commit-contract validator（spec §4.2，port cdd_validate_commit_contract）。
-// mode implement/fix 才校验；task-review → no-op。非 git / git-error → fail-open。
+// T8: 全 task mode 接线 —— implement/fix 校验 dirty + head（F1）；review（归一后）
+//     仅校验 dirty（review handoff 的 commits 语义为被审 commit，非本 dispatch 产物 → 跳过 head）。
+//     非三种 mode → no-op。非 git / git-error / 无 repoRoot → fail-open。
 // 两个正交信号：dirty working tree（D2）；干净树但 handoff.commits.head ≠ 真实 HEAD（F1）。
 // 任一击中 → rewriteHandoffBlocked + 返回 { ok:false, blocker }。
-// repoRoot = 传入目录（对齐 `git -C "${CDD_WORKSPACE:-.}"`）；handoff 路径取 opts.handoffPath
-// 或 env CDD_HANDOFF_PATH。head 校验对齐 bash：无哨兵特殊值（dry-run 不写 handoff，
-// 任何 handoff.commits.head ≠ 真实 HEAD 一律视为 mismatch）。
+// repoRoot = 传入目录（对齐 `git -C "${CDD_WORKSPACE:-.}"`，direct-set 非 git workspace → null
+//   即 fail-open，不得回退检查 caller cwd）；handoff 路径取 opts.handoffPath 或 env CDD_HANDOFF_PATH。
+// head 校验对齐 bash：无哨兵特殊值（dry-run 不写 handoff，任何 handoff.commits.head ≠ 真实 HEAD
+// 一律视为 mismatch）。
 export function validateCommitContract(mode, repoRoot, opts = {}) {
-  if (mode !== "implement" && mode !== "fix") return { ok: true, blocker: "" };
+  if (mode !== "implement" && mode !== "fix" && mode !== "review") return { ok: true, blocker: "" };
   const handoffPath = opts.handoffPath ?? process.env.CDD_HANDOFF_PATH ?? "";
 
+  if (!repoRoot) return { ok: true, blocker: "" }; // 直接-set 非 git workspace → fail-open（不得误检 caller cwd）
   const root = gitToplevel(repoRoot);
   if (!root) return { ok: true, blocker: "" };
   const porcelain = gitStatusPorcelain(root);
   if (porcelain === null) return { ok: true, blocker: "" };
 
   if (porcelain === "") {
+    // 干净树：head 校验仅 implement/fix —— review 跳过（commits = 被审 commit，非本 dispatch 产物）。
+    if (mode === "review") return { ok: true, blocker: "" };
     // 干净树：校验 handoff 的 commits.head 是否等于真实 HEAD（F1）。
     // strict equal primary; prefix fallback for legacy 7-char handoffs (#186)
     const handoffHead = safeParse(handoffPath)?.commits?.head;
@@ -149,57 +194,4 @@ export function validateCommitContract(mode, repoRoot, opts = {}) {
   const blocker = `uncommitted changes at return (${mode}): dirty working tree`;
   rewriteHandoffBlocked(handoffPath, blocker);
   return { ok: false, blocker };
-}
-
-// --- CLI entry point (orchestrator calls via node contract.mjs --check-head ...) ---
-// Extracted as an exported function so bin/cdd.mjs (merge surface) can forward to it.
-// Direct-invocation guard retained below (the standalone CLI entry now lives under `cdd` subcommands; the guard stays for direct node invocation).
-export async function runContractCli(args) {
-  const flag = args[0];
-  const handoffIdx = args.indexOf("--handoff");
-  const progressIdx = args.indexOf("--progress");
-  const handoffPath = handoffIdx >= 0 ? args[handoffIdx + 1] : null;
-  const progressPath = progressIdx >= 0 ? args[progressIdx + 1] : null;
-
-  if (flag === "--check-head") {
-    const progress = JSON.parse(readFileSync(progressPath, "utf8"));
-    const lastDispatchHead = progress.lastDispatchHead;
-    const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-    const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
-    const { validateHandoffSchema } = await import("./schema-utils.mjs");
-    const sv = validateHandoffSchema(handoff);
-    if (!sv.valid) {
-      process.stdout.write(JSON.stringify({ valid: false, reason: sv.reason }));
-      process.exit(1);
-    }
-    if (lastDispatchHead && lastDispatchHead !== actualHead) {
-      process.stdout.write(JSON.stringify({ valid: false, reason: `head mismatch: dispatch=${lastDispatchHead} actual=${actualHead}` }));
-      process.exit(1);
-    }
-    process.stdout.write(JSON.stringify({ valid: true }));
-    process.exit(0);
-  }
-
-  if (flag === "--check-dirty") {
-    const status = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim();
-    if (status) {
-      const files = status.split("\n").map(l => l.substring(3));
-      process.stdout.write(JSON.stringify({ dirty: true, files }));
-      process.exit(1);
-    }
-    process.stdout.write(JSON.stringify({ dirty: false }));
-    process.exit(0);
-  }
-
-  if (flag === "--clear-findings") {
-    const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
-    handoff.findings = [];
-    writeFileSync(handoffPath, JSON.stringify(handoff, null, 2));
-    process.stdout.write(JSON.stringify({ cleared: true }));
-    process.exit(0);
-  }
-}
-
-if (process.argv[1] && process.argv[1].endsWith("contract.mjs") && process.argv.length > 2) {
-  runContractCli(process.argv.slice(2));
 }

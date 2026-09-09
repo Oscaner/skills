@@ -4,13 +4,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+// T7: progress schema 删除 lastDispatchHead/degradationLog（死字段；check-head/engine-recovery 退化，
+//  deriveReviewStatus/engineRecoveryCount 取代），degradationLogItem 随 degradationLog 一并废弃。
 const PROGRESS_SCHEMA = {
-  required: ["plan", "timeoutCount", "engineRecoveryCount", "lastDispatchHead", "tasks", "degradationLog"],
+  required: ["plan", "timeoutCount", "engineRecoveryCount", "tasks"],
   tasksItem: { required: ["task", "status", "rounds"], statusEnum: ["pending", "complete"] },
-  degradationLogItem: {
-    required: ["task", "mode", "severity", "summary", "reason", "timestamp"],
-    severityEnum: ["head-mismatch", "engine-error", "timeout", "dirty-tree"],
-  },
 };
 
 // readProgressJSON: read progress.json from progressDir.
@@ -37,14 +35,13 @@ export function writeProgressJSON(progressDir, data) {
 }
 
 // createEmptyProgress: create a fresh progress object for a given plan.
+// T7: 死字段（lastDispatchHead/degradationLog）已删 —— progress.json 顶层仅 plan/timeoutCount/engineRecoveryCount/tasks。
 export function createEmptyProgress(plan) {
   return {
     plan: plan || "",
     timeoutCount: 0,
     engineRecoveryCount: 0,
-    lastDispatchHead: "",
     tasks: [],
-    degradationLog: [],
   };
 }
 
@@ -102,9 +99,7 @@ export function migrateFromProgressMD(progressDir) {
     plan: "",
     timeoutCount,
     engineRecoveryCount,
-    lastDispatchHead: "", // empty — in-flight migration out of scope
     tasks: tasks.sort((a, b) => a.task - b.task),
-    degradationLog: [], // existing prose degradation logs are not parsed (freeform format)
   };
 }
 

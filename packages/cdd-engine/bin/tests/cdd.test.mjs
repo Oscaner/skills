@@ -3,7 +3,7 @@
 // select/research 内联、brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
 import { describe, it, expect, vi } from "vitest";
 import { execaSync } from "execa";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,7 +51,7 @@ vi.mock("../lib/docs-runner.mjs", () => docsRunnerMock);
 describe("cdd CLI", () => {
   it("-h → help", () => {
     const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv() });
-    expect(r.stdout).toMatch(/implement|review|fix|select|research|brief|contract/);
+    expect(r.stdout).toMatch(/implement|review|fix|select|research|brief/);
   });
 
   it("review missing --type → usage exit 2", () => {
@@ -229,15 +229,49 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("contract --check-dirty（临时 git repo）→ dirty:false", () => {
+  // ---- T7: `cdd contract` 子命令删除 + branch-review 读回覆写（T5 nit4 补测） ----
+
+  it("cdd contract 子命令不存在（check-dirty/check-head/clear-findings 全灭）→ 未知命令 exit 2", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-contract-"));
     try {
       execaSync("git", ["-C", dir, "init", "-q"]);
       execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
         "commit", "--allow-empty", "-qm", "fixture"]);
-      const r = runCli(["contract", "--check-dirty"], { cwd: dir });
+      // 已删除子命令不得仍可调用（旧 contract --check-dirty 会 exit 0）
+      for (const args of [["contract", "--check-dirty"], ["contract", "--check-head"], ["contract", "--clear-findings"], ["contract"]]) {
+        const r = runCli(args, { cwd: dir });
+        expect(r.exitCode).not.toBe(0);
+        expect(r.stderr).toMatch(/usage: cdd/);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("branch-review 读回覆写（T5 nit4 补测）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 APPROVED", () => {
+    const dir = tmpGitRepo();
+    try {
+      const plan = path.join(dir, "plan.md");
+      writeFileSync(plan, "### Task 1:\n- base: develop\n");
+      const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-fake-"));
+      const ws = path.join(dir, ".superpowers", "cdd", "plan");
+      const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
+      // fake claude：PATH 遮蔽 registry cli 名（cdd.mjs REG_PATH 无 registry override seam）。
+      // 非 dry-run 真实走 runBranchReview：agent 写 warn-only CHANGES_REQUESTED → engine applyDerivedStatus 覆写 APPROVED。
+      writeFileSync(path.join(binDir, "claude"),
+        "#!/usr/bin/env bash\n" +
+        `mkdir -p "${ws}"\n` +
+        `printf '%s' '{"task":1,"phase":"branch-review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"}],"artifacts":{}}' > "${handoffPath}"\n` +
+        "exit 0\n");
+      chmodSync(path.join(binDir, "claude"), 0o755);
+      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+        "--plan", plan, "--base", "eeee555", "--head", "ffff666"],
+        { cwd: dir, env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` } });
       expect(r.exitCode).toBe(0);
-      expect(JSON.parse(r.stdout)).toEqual({ dirty: false });
+      const h = JSON.parse(readFileSync(handoffPath, "utf8"));
+      // warn/nit = 0 blocker → status 被 applyDerivedStatus（deriveReviewStatus rollup）覆写为 APPROVED
+      expect(h.status).toBe("APPROVED");
+      expect(h.findings).toEqual([{ severity: "warn", summary: "w" }]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -26,9 +26,12 @@ it("createEmptyProgress: returns empty structure with defaults", () => {
   expect(p.plan).toBe("");
   expect(p.timeoutCount).toBe(0);
   expect(p.engineRecoveryCount).toBe(0);
-  expect(p.lastDispatchHead).toBe("");
   expect(p.tasks).toEqual([]);
-  expect(p.degradationLog).toEqual([]);
+});
+
+it("progress schema 不含 lastDispatchHead/degradationLog（T7 死字段清除）", () => {
+  // Object.keys 词法排序 —— 期望字面量用词法序，勿用插入序断言。
+  expect(Object.keys(createEmptyProgress("/p")).sort()).toEqual(["engineRecoveryCount", "plan", "tasks", "timeoutCount"]);
 });
 
 it("createEmptyProgress: plan parameter is used", () => {

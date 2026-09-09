@@ -14,7 +14,7 @@ import semver from "semver";
 
 import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
-import { writeHandoff, gitToplevel, gitRevParseHead, normalizeHandoffStatus, applyDerivedStatus } from "./contract.mjs";
+import { writeHandoff, gitToplevel, gitRevParseHead, normalizeHandoffStatus, applyDerivedStatus, validateCommitContract } from "./contract.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-naming.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
@@ -659,6 +659,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   //     T6: implement 实体化 — agent 不写 handoff（implement.md 已删 Handoff Output 段），runner 从
   //     H1 四行 + brief TASK_BASE + git HEAD 构造 task-N-implement.json（commits 单一权威），
   //     evidence-gate 回读校验（behavior_change:true → hard；其余 → soft WARN），H1 改 h1FromHandoff 重发。
+  //     T7: post-run commit-contract 全 mode 接线（13.5）+ APPROVED review 回写 task.status=complete。
   if (!dryRun && mode === "implement") {
     const base = taskBaseFromBrief(env.CDD_TASK_BRIEF);
     if (!base) {
@@ -696,6 +697,24 @@ export async function runTask(harness, taskNum, opts = {}) {
       }
     }
   }
+
+  // 13.5 T7: post-run commit-contract —— 全 task mode 接线（implement/fix/review）。
+  //   implement/fix：dirty + head 校验（validateCommitContract 已内建 rewriteHandoffBlocked）；
+  //   review：仅 dirty（review handoff 的 commits 语义为被审 commit，跳过 head）。
+  //   !dryRun 守卫：dry-run 不写任何 handoff 不变式 —— 否则 dirty 工作树（如未提交 emit 产物的
+  //   smoke 链）会经 rewriteHandoffBlocked 真写 BLOCKED 文件、污染 dry-run 语义。
+  //   必须先于 review 的 status=complete 回写：dirty 失败轮不误标 complete。
+  if (!dryRun) {
+    const cv = validateCommitContract(mode, repoRoot ?? "", { handoffPath: env.CDD_HANDOFF_PATH });
+    if (!cv.ok) {
+      return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), cv.blocker, noExit);
+    }
+  }
+
+  // T5: status 单一权威 — review 型 handoff 由 engine 从 findings 派生覆写（SP-4 豁免失败轮次）；
+  // 成功路径读回 handoff 覆写并持久化，H1 同步用 h1FromHandoff（T6 收敛 H1 单源）。
+  // T7: APPROVED task-review 回写 progress task.status=complete（读回握手 deriveReviewStatus 之后，
+  // 且在 post-run validate 通过之后 —— dirty 失败轮不标 complete）。
   if (!dryRun && mode === "review") {
     const reviewHandoff = readJson(env.CDD_HANDOFF_PATH);
     if (reviewHandoff) {
@@ -705,6 +724,17 @@ export async function runTask(harness, taskNum, opts = {}) {
         reviewHandoff.status = derived.status;
       }
       h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
+      if (normalizeHandoffStatus(reviewHandoff.status) === "APPROVED") {
+        const progressDir2 = path.dirname(env.CDD_LEDGER);
+        const progressData2 = readProgressJSON(progressDir2);
+        let taskEntry = progressData2.tasks.find((t) => t.task === taskNum);
+        if (!taskEntry) {
+          taskEntry = { task: taskNum, status: "pending", rounds: {} };
+          progressData2.tasks.push(taskEntry);
+        }
+        taskEntry.status = "complete";
+        writeProgressJSON(progressDir2, progressData2);
+      }
     }
   }
   if (!dryRun && mode !== "implement") incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);

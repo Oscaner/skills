@@ -7,7 +7,6 @@
 //   cdd fix --type <task|spec|plan> --harness <name> [...]
 //   cdd select | cdd research --harness <name> --brief <path> --output <path>
 //   cdd brief --task <n> --plan <path> [--output <path>]
-//   cdd contract [--check-dirty] [--check-head] [--handoff <path>] [--progress <path>] [--clear-findings]
 import { Command } from "commander";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
@@ -24,7 +23,6 @@ import { writeHandoff, gitToplevel, applyDerivedStatus } from "./lib/contract.mj
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
 import { runBriefCli } from "./lib/brief.mjs";
-import { runContractCli } from "./lib/contract.mjs";
 import { detectInstalledHarnesses } from "./utils/harness-detect.mjs";
 import { config } from "./utils/skills-probe.config.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "./utils/exit.mjs";
@@ -40,7 +38,6 @@ const SUBCOMMAND_USAGE = {
   select: "usage: cdd select",
   research: "usage: cdd research --harness <name> --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
-  contract: "usage: cdd contract [--check-dirty] [--check-head] [--handoff <path>] [--progress <path>] [--clear-findings]",
 };
 
 function usageError(command) {
@@ -489,7 +486,7 @@ program.exitOverride();
 program.configureOutput({ outputError: () => {} });
 program
   .name("cdd")
-  .description("CDD engine CLI — implement/review/fix/select/research/brief/contract")
+  .description("CDD engine CLI — implement/review/fix/select/research/brief")
   .helpOption("-h, --help", "display help for command");
 
 // --- implement (formerly cdd-task --mode implement) ---
@@ -552,7 +549,7 @@ program
     await runResearch(opts);
   });
 
-// --- brief / contract (delegated to lib module CLI entries; Commander opts → 结构化 argv，不二次解析 process.argv) ---
+// --- brief (delegated to lib module CLI entry; Commander opts → 结构化 argv，不二次解析 process.argv) ---
 program
   .command("brief")
   .requiredOption("--task <n>", "task number")
@@ -562,21 +559,6 @@ program
     "--task", String(opts.task),
     "--plan", opts.plan,
     ...(opts.output ? ["--output", opts.output] : []),
-  ]));
-
-program
-  .command("contract")
-  .option("--check-dirty")
-  .option("--check-head")
-  .option("--handoff <path>")
-  .option("--progress <path>")
-  .option("--clear-findings")
-  .action((opts) => runContractCli([
-    ...(opts.checkDirty ? ["--check-dirty"] : []),
-    ...(opts.checkHead ? ["--check-head"] : []),
-    ...(opts.handoff ? ["--handoff", opts.handoff] : []),
-    ...(opts.progress ? ["--progress", opts.progress] : []),
-    ...(opts.clearFindings ? ["--clear-findings"] : []),
   ]));
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).

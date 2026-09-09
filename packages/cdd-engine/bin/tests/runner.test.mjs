@@ -7,7 +7,7 @@
 // invokeCliOverride seam removed (§ P1 Task 5) — CLI simulation now uses real fake-cli shell scripts.
 import { it, expect, describe } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, appendFileSync, chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +28,7 @@ const NOOP_PROBE = async () => ({ missing: [], probeFailed: false });
 // Non-git temp workspace — CDD_WORKSPACE points to TMPDIR, commit-contract fails open.
 function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
-  const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "", tasks: [], degradationLog: [] };
+  const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, tasks: [] };
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify(progressData, null, 2));
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
   writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
@@ -725,9 +725,8 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
   const ws = setupWorkspace();
   // Set progress so review dispatches round 2 (last completed fix round = 1).
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "",
+    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0,
     tasks: [{ task: 1, status: "in-progress", rounds: { implement: 1, review: 1, fix: 1 } }],
-    degradationLog: [],
   }, null, 2));
 
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-r2-"));
@@ -950,12 +949,19 @@ it("schema: phase 'review' task-review handoff 通过 Ajv 校验（phase enum �
 // ---- T6: implement handoff 实体化 + evidence-gate + H1 h1FromHandoff（commits 单一权威）----
 
 // T6 fixture：git repo workspace + 40-hex TASK_BASE brief（commits.base 唯一权威）。返回 registry/HEAD 现场。
+// workspace 收编 .superpowers/cdd/plan（对齐生产：.superpowers/cdd/.gitignore `*` gitignore 整棵 ws 树）
+// —— T7 post-run commit-contract 的 dirty 校验要求 tracked tree 干净，ws 未提交产物不得误触发 BLOCKED。
 function t6Workspace(extraFiles = {}) {
-  const ws = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
+  const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
+  const cddDir = path.join(repo, ".superpowers", "cdd");
+  mkdirSync(cddDir, { recursive: true });
+  writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
+  const ws = path.join(cddDir, "plan");
+  mkdirSync(ws, { recursive: true });
   const taskBase = "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63";
   writeFileSync(path.join(ws, "task-1-brief.md"), `# task 1\nTASK_BASE: ${taskBase}\n`);
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, lastDispatchHead: "", tasks: [], degradationLog: [],
+    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, tasks: [],
   }, null, 2));
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
   for (const [f, v] of Object.entries(extraFiles)) writeFileSync(path.join(ws, f), v);
@@ -1080,4 +1086,117 @@ it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺�
   const h = JSON.parse(readFileSync(path.join(t6.ws, "task-1-implement.json"), "utf8"));
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.blocker).toBeUndefined();
+});
+
+// ---- T7: post-run validateCommitContract（全 mode 接线）+ task.status=complete 回写 ----
+
+// T7 fixture：git repo（tracked source + ws 收编 .superpowers/cdd/plan）。
+// dirty=true → tracked.txt 追加（porcelain ` M`）→ post-run commit-contract 必 BLOCKED。
+// 返回 { repo, ws, actualHead, binDir, regPath }。
+function t7Workspace({ dirty = false } = {}) {
+  const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t7-ws-")));
+  writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
+  gitCommit(repo);
+  const cddDir = path.join(repo, ".superpowers", "cdd");
+  mkdirSync(cddDir, { recursive: true });
+  writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
+  const ws = path.join(cddDir, "plan");
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
+    plan: "plan.md", timeoutCount: 0, engineRecoveryCount: 0, tasks: [],
+  }, null, 2));
+  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
+  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: 9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63\n");
+  if (dirty) appendFileSync(path.join(repo, "tracked.txt"), "dirty\n");
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t7-bin-"));
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
+  writeFileSync(regPath, JSON.stringify(reg));
+  const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ws, encoding: "utf8" }).trim();
+  return { repo, ws, actualHead, binDir, regPath };
+}
+
+// T7 review ghost 运行封装：fake-cli 写 APPROVED review handoff → 运行 runTask review（non-dry）→ 还原 PATH。
+async function runT7ReviewGhost(t7, body) {
+  const cli = path.join(t7.binDir, "fake-cli");
+  writeFileSync(cli, body);
+  chmodSync(cli, 0o755);
+  const origPath = process.env.PATH;
+  process.env.PATH = `${t7.binDir}${path.delimiter}${origPath}`;
+  try {
+    return await runTask("ghost", 1, {
+      mode: "review", probeSkills: NOOP_PROBE,
+      env: baseEnv(t7.ws, { PATH: `${t7.binDir}${path.delimiter}${origPath}` }),
+      registryPath: t7.regPath, noExit: true,
+    });
+  } finally {
+    process.env.PATH = origPath;
+  }
+}
+
+it("runTask T7: task-review APPROVED → progress task.status=complete（rounds[review]=1）", async () => {
+  const t7 = t7Workspace();
+  const res = await runT7ReviewGhost(t7, [
+    "#!/usr/bin/env bash",
+    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"`,
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(0);
+  expect(res.h1[0]).toBe("status: APPROVED");
+  const progress = JSON.parse(readFileSync(path.join(t7.ws, "progress.json"), "utf8"));
+  expect(progress.tasks[0].status).toBe("complete");
+  expect(progress.tasks[0].rounds["review"]).toBe(1);
+  // handoff 保持 APPROVED（clean tree 通过 post-run validate；review 跳过 head 校验）
+  const h = JSON.parse(readFileSync(path.join(t7.ws, "task-1-review-1.json"), "utf8"));
+  expect(h.status).toBe("APPROVED");
+});
+
+it("runTask T7: post-run validateCommitContract — dirty tree → handoff BLOCKED（task-review 亦校验）+ exit 1", async () => {
+  const t7 = t7Workspace({ dirty: true });
+  const res = await runT7ReviewGhost(t7, [
+    "#!/usr/bin/env bash",
+    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"`,
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(1);
+  expect(res.h1[0]).toBe("status: BLOCKED");
+  const hp = path.join(t7.ws, "task-1-review-1.json");
+  expect(existsSync(hp)).toBe(true);
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  expect(h.status).toBe("BLOCKED");
+  expect(h.blocker).toMatch(/uncommitted changes at return/);
+  // 失败轮不误标 complete（APPROVED 判定在 post-run validate 之后）
+  const progress = JSON.parse(readFileSync(path.join(t7.ws, "progress.json"), "utf8"));
+  expect(progress.tasks[0]?.status).not.toBe("complete");
+});
+
+it("runTask T7: post-run validateCommitContract — implement dirty tree → 实体化 handoff 覆写 BLOCKED + exit 1", async () => {
+  const t7 = t7Workspace({ dirty: true });
+  const cli = path.join(t7.binDir, "fake-cli");
+  writeFileSync(cli, [
+    "#!/usr/bin/env bash",
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=x head=y'",
+    `printf '%s\\n' 'artifacts: report=${path.join(t7.ws, "task-1-report.md")}'`,
+    "exit 0",
+  ].join("\n"));
+  chmodSync(cli, 0o755);
+  const origPath = process.env.PATH;
+  process.env.PATH = `${t7.binDir}${path.delimiter}${origPath}`;
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "implement", probeSkills: NOOP_PROBE,
+      env: baseEnv(t7.ws, { PATH: `${t7.binDir}${path.delimiter}${origPath}` }),
+      registryPath: t7.regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.h1[0]).toBe("status: BLOCKED");
+    const hp = path.join(t7.ws, "task-1-implement.json");
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h.status).toBe("BLOCKED");
+    expect(h.blocker).toMatch(/uncommitted changes at return/);
+  } finally {
+    process.env.PATH = origPath;
+  }
 });

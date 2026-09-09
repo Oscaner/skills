@@ -1,7 +1,8 @@
 // engine/tests/contract.test.mjs — T2: commit-contract + handoff write 模块单测（Node port）。
 // 移植 cdd-commit-gate-smoke.sh（16 断言）的核心行为：
 //   dirty-tree → blocked + handoff.status=BLOCKED；head-mismatch → blocked（F1）；
-//   clean-tree → pass；非 git → fail-open ok:true；review 模式 → no-op。
+//   clean-tree → pass；非 git / 无 repoRoot → fail-open ok:true；
+//   review 模式 → dirty-only（T7：跳过 head 校验 —— review handoff 的 commits 语义为被审 commit）。
 // 移植 cdd-severity-contract.test.sh（30 断言）的语义核心（非 grep 散文，而是可执行契约）：
 //   classifySeverity：blocker→CHANGES_REQUESTED；warn/nit→APPROVED；unverifiable/needs_context→STOP。
 //   rollupStatus：warn/nit→APPROVED；含 blocker→CHANGES_REQUESTED；unverifiable/plan_conflicts→BLOCKED。
@@ -159,7 +160,31 @@ it("commit-contract: 非 git 目录 → fail-open ok:true", () => {
   expect(r.ok).toBe(true);
 });
 
-it("commit-contract: task-review 模式 → no-op ok:true", () => {
+// ---- T7: review 模式（归一后 task-review）—— 仅 dirty 校验，跳过 head ----
+
+it("commit-contract: review 模式 → dirty tree BLOCKED（review 亦校验 dirty；不再 no-op）", () => {
+  const repo = setupRepo();
+  appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
+  const r = validateCommitContract("review", repo);
+  expect(r.ok).toBe(false);
+  expect(r.blocker).toMatch(/uncommitted changes at return \(review\)/);
+});
+
+it("commit-contract: review 模式 → clean tree 跳过 head 校验（handoff.commits.head≠HEAD 不 BLOCKED）", () => {
+  const repo = setupRepo();
+  const head = headOf(repo);
+  const wrong = "0000000000000000000000000000000000000000";
+  const handoff = seedHandoff(repo, 1, { base: head, head: wrong });
+  const r = validateCommitContract("review", repo, { handoffPath: handoff });
+  expect(r.ok).toBe(true);
+});
+
+it("commit-contract: 无 repoRoot → fail-open ok:true（直接-set 非 git workspace；不得误检 caller cwd）", () => {
+  const r = validateCommitContract("implement", null);
+  expect(r.ok).toBe(true);
+});
+
+it("commit-contract: 旧 mode 名 task-review → no-op ok:true（T4 归一后已非合法 mode）", () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
   const r = validateCommitContract("task-review", repo);
@@ -311,87 +336,4 @@ it("gitCatFileCommitExists: empty string → false", () => {
 it("gitCatFileCommitExists: null → false", () => {
   const repo = setupRepo();
   expect(gitCatFileCommitExists(null, repo)).toBe(false);
-});
-
-// --- CLI entry point tests ---
-
-const CONTRACT_MJS = path.resolve(HERE, "../lib/contract.mjs");
-
-function cliRun(repo, ...args) {
-  try {
-    const stdout = execFileSync(process.execPath, [CONTRACT_MJS, ...args], {
-      cwd: repo,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return { exitCode: 0, stdout: stdout.trim() };
-  } catch (e) {
-    return { exitCode: e.status, stdout: (e.stdout || "").trim() };
-  }
-}
-
-it("CLI --check-dirty: clean tree → exit 0, dirty:false", () => {
-  const repo = setupRepo();
-  const r = cliRun(repo, "--check-dirty");
-  expect(r.exitCode).toBe(0);
-  expect(JSON.parse(r.stdout)).toEqual({ dirty: false });
-});
-
-it("CLI --check-dirty: dirty tree → exit 1, dirty:true + files", () => {
-  const repo = setupRepo();
-  writeFileSync(path.join(repo, "untracked.txt"), "oops");
-  const r = cliRun(repo, "--check-dirty");
-  expect(r.exitCode).toBe(1);
-  const parsed = JSON.parse(r.stdout);
-  expect(parsed.dirty).toBe(true);
-  expect(Array.isArray(parsed.files)).toBe(true);
-});
-
-it("CLI --clear-findings: clears findings array in handoff", () => {
-  const repo = setupRepo();
-  const handoffPath = path.join(repo, "cdd", "task-1-handoff.json");
-  mkdirSync(path.join(repo, "cdd"), { recursive: true });
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "implement", status: "APPROVED",
-    artifacts: {}, findings: [{ severity: "blocker", summary: "x" }],
-  }));
-  const r = cliRun(repo, "--clear-findings", "--handoff", handoffPath);
-  expect(r.exitCode).toBe(0);
-  expect(JSON.parse(r.stdout)).toEqual({ cleared: true });
-  const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-  expect(h.findings).toEqual([]);
-});
-
-it("CLI --check-head: valid head (matches) → exit 0, valid:true", () => {
-  const repo = setupRepo();
-  const head = headOf(repo);
-  const handoffPath = path.join(repo, "cdd", "task-1-handoff.json");
-  const progressPath = path.join(repo, "cdd", "progress.json");
-  mkdirSync(path.join(repo, "cdd"), { recursive: true });
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "implement", status: "APPROVED",
-    artifacts: {}, findings: [], commits: { base: head, head },
-  }));
-  writeFileSync(progressPath, JSON.stringify({ lastDispatchHead: head }));
-  const r = cliRun(repo, "--check-head", "--handoff", handoffPath, "--progress", progressPath);
-  expect(r.exitCode).toBe(0);
-  expect(JSON.parse(r.stdout)).toEqual({ valid: true });
-});
-
-it("CLI --check-head: head mismatch → exit 1, valid:false + reason", () => {
-  const repo = setupRepo();
-  const head = headOf(repo);
-  const handoffPath = path.join(repo, "cdd", "task-1-handoff.json");
-  const progressPath = path.join(repo, "cdd", "progress.json");
-  mkdirSync(path.join(repo, "cdd"), { recursive: true });
-  writeFileSync(handoffPath, JSON.stringify({
-    task: 1, phase: "implement", status: "APPROVED",
-    artifacts: {}, findings: [], commits: { base: head, head },
-  }));
-  writeFileSync(progressPath, JSON.stringify({ lastDispatchHead: "0000000000000000000000000000000000000000" }));
-  const r = cliRun(repo, "--check-head", "--handoff", handoffPath, "--progress", progressPath);
-  expect(r.exitCode).toBe(1);
-  const parsed = JSON.parse(r.stdout);
-  expect(parsed.valid).toBe(false);
-  expect(parsed.reason).toMatch(/head mismatch/);
 });

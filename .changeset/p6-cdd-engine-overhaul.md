@@ -5,6 +5,8 @@
 
 feat(cdd-engine): P6 overhaul — handoff contract unification + review mode normalization + stale-lexicon guard
 
+**BREAKING（`cdd-engine` major bump）**：`cdd contract` 子命令删除 + implement handoff 改为 runner 实体化（agent 不再手写 handoff 文件）+ review-mode 归一（`task-review`→`review`）——下游若依赖这些旧行为需迁移（P6 plan T10 Step 4 原示 minor，实际 breaking，故选 major）。
+
 - **Handoff naming canonical single-source** (`templates/handoff-namespace.json`): `{type}-{op}[-{round}]` — `spec-review-{R}` / `spec-fix-{R}` / `plan-review-{R}` / `plan-fix-{R}` / `task-{N}-implement` / `task-{N}-review-{R}` / `task-{N}-fix-{R}` / `branch-review-{base7}..{head7}-r{R}`; all literal naming sites + workspace derivation route through the derived `handoff-naming` layer (no second literal / second workspace derivation).
 - **workspace single-root**: all handoffs collect under `.superpowers/cdd/<slug>/`; the flat `.superpowers/docs-review/` root is retired.
 - **mode normalization**: `task-review` mode → `review` (CDD_MODE / VALID_MODES / progress `rounds["review"]` / handoff `phase:"review"`; `cdd-handoff-schema.json` phase enum → `["implement","review","fix","branch-review"]`).

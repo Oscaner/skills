@@ -134,11 +134,14 @@ export function rollupStatus(findings = [], unverifiable = [], planConflicts = [
 // SP-4 豁免：失败轮次（engine 自写 BLOCKED/TIMEOUT、agent status ∈ {BLOCKED, TIMEOUT}）不覆写。
 // 仅 findings.length > 0 时触发 rollup（plan-constraints「status 单一权威」）；findings 空时
 // CHANGES_REQUESTED（0 blocker）→ APPROVED（URC：无 findings 即无 blocker），APPROVED 空载保持，缺省 → APPROVED。
+// BRANCH NIT⑥：空-findings 短路前先 consult plan_conflicts/unverifiable —— 二者非空即使 findings 空也是
+// BLOCKED 信道（rollup 的 unverifiable/planConflicts 通道不依赖 findings 承载），此前被短路盗走误标 APPROVED。
 export function deriveReviewStatus(handoff = {}) {
   const { status, findings = [], unverifiable = [] } = handoff;
   // schema 字段为 snake_case：plan_conflicts（勿解构 camelCase planConflicts — 永空）
   const planConflicts = handoff.plan_conflicts ?? [];
   if (status === "BLOCKED" || status === "TIMEOUT") return status;
+  if (unverifiable.length > 0 || planConflicts.length > 0) return "BLOCKED";
   if (findings.length === 0) return status === "CHANGES_REQUESTED" ? "APPROVED" : status ?? "APPROVED";
   return rollupStatus(findings, unverifiable, planConflicts);
 }

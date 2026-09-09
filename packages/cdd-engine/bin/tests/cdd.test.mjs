@@ -1,7 +1,7 @@
 // bin/tests/cdd.test.mjs — 合并面 CLI（bin/cdd.mjs）契约测试。
 // 覆盖：帮助/用法、review 的 round+Stopping 接线（dry-run smoke）、fix --findings 接线、
 // select/research 内联、brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { execaSync } from "execa";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,6 +15,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-eng
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages", "cdd-engine", "bin", "cdd.mjs");
 const SMOKE_PLAN = "packages/cdd-engine/bin/tests/fixtures/smoke-plan.md";
+// T10 warn: SMOKE_PLAN 派生 workspace = .superpowers/cdd/smoke-plan/（resolveWorkspace md 名→slug）。
+// 测试 teardown 清理，避免 validate 后根杂讯污染 F6 单一根。
+afterAll(() => {
+  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan"), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
+});
 const NODE = process.execPath;
 
 // Test env: strip 任何从 orchestrator session 继承的 CDD_*，再叠加测试 extras（与 task.test.mjs 一致）。

@@ -16,7 +16,7 @@ import { loadRegistry, checkHarness, CddBlockedError } from "./registry.mjs";
 import { renderModePrompt, pluginRoot } from "./templates.mjs";
 import { writeHandoff, writeOwnHandoff, readJson, gitToplevel, normalizeHandoffStatus, validateCommitContract } from "./contract.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-naming.mjs";
-import { finalizeHandoff } from "./handoff-finalize.mjs";
+import { finalizeHandoff, persistFinalized } from "./handoff-finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound } from "./progress.mjs";
@@ -651,11 +651,8 @@ export async function runTask(harness, taskNum, opts = {}) {
     const reviewHandoff = readJson(env.CDD_HANDOFF_PATH);
     if (reviewHandoff) {
       const finalized = finalizeHandoff({ mode, agentHandoff: reviewHandoff });
-      // applyDerivedStatus 无变化 → finalizeHandoff 返回原引用 → skip 写盘（不产生 no-op 覆盖）。
-      if (finalized.handoff && finalized.handoff !== reviewHandoff) {
-        writeOwnHandoff(env.CDD_HANDOFF_PATH, finalized.handoff);
-        reviewHandoff.status = finalized.handoff.status;
-      }
+      // persistFinalized：派生无变化（同引用）→ skip 写盘（不产生 no-op 覆盖）；有变化 → 全量覆盖 + sync。
+      persistFinalized(env.CDD_HANDOFF_PATH, reviewHandoff, finalized);
       h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
       if (normalizeHandoffStatus(reviewHandoff.status) === "APPROVED") {
         const progressDir2 = path.dirname(env.CDD_LEDGER);

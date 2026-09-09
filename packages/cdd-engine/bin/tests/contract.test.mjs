@@ -252,6 +252,11 @@ it("deriveReviewStatus: findings 空 + status APPROVED → 保持 APPROVED（空
   expect(deriveReviewStatus(h)).toBe("APPROVED");
 });
 
+it("deriveReviewStatus branch nit⑥：findings 空 + plan_conflicts 非空 → BLOCKED（BLOCKED 通道不依赖 findings 承载）", () => {
+  expect(deriveReviewStatus({ status: "APPROVED", findings: [], plan_conflicts: ["c1"] })).toBe("BLOCKED");
+  expect(deriveReviewStatus({ status: "APPROVED", findings: [], unverifiable: ["u1"] })).toBe("BLOCKED");
+});
+
 it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => {
   const r = validateHandoffSchema({
     task: 1,

@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { applyDerivedStatus, gitRevParseHead, readJson } from "./contract.mjs";
+import { applyDerivedStatus, gitRevParseHead, readJson, writeOwnHandoff } from "./contract.mjs";
 
 // 定稿单点入口：按 mode 分派返回 { handoff, exitCode }。H1 由消费方从定稿 h1FromHandoff 重发。
 // 三消费方（runner.mjs step 13 / docs-runner.mjs 读回 / cdd.mjs branch review 读回）共享同一实现。
@@ -30,6 +30,16 @@ export function finalizeHandoff({ mode, h1 = [], agentHandoff = null, brief, rep
     return { handoff: agentHandoff, exitCode: 0 };
   }
   throw new Error(`finalizeHandoff: unknown mode ${mode}`);
+}
+
+// 定稿写回单点（branch nit③：docs-runner/runner 共用，去重两处近-verbatim write-back）：
+//   finalized.handoff 与 local 同引用（派生无变化）→ skip 写盘（不产生 no-op 覆盖），返回 false；
+//   否则 writeOwnHandoff 全量覆盖 + sync local.status 到定稿值，返回 true。
+export function persistFinalized(handoffPath, local, finalized) {
+  if (!finalized?.handoff || finalized.handoff === local) return false;
+  writeOwnHandoff(handoffPath, finalized.handoff);
+  local.status = finalized.handoff.status;
+  return true;
 }
 
 // ---- implement 实体化（T6 实体化块迁入，保持现有 behavior）----

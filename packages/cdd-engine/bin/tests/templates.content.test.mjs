@@ -49,9 +49,9 @@ describe('reviews.json per-type config (Task 4)', () => {
     }
     // type-specific truth pinned by the plan (TASK_BASE..HEAD / BASE..HEAD 供具体化注入)
     expect(reviewTypeConfig('task').ref).toBe('TASK_BASE..HEAD');
-    expect(reviewArtifactConfig('task')).toEqual({ schema: 'cdd', return: 'h1', fixFamily: 'fix.task' });
+    expect(reviewArtifactConfig('task')).toEqual({ schema: 'cdd', return: 'h1' });
     expect(reviewArtifactConfig('branch')).toEqual({ schema: 'cdd', return: 'h1' }); // branch 无 fix 族
-    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json', fixFamily: 'fix.plan' });
+    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json' });
     expect(reviewTypeConfig('spec').lensEnum).toEqual(['completeness', 'consistency', 'clarity']);
     // fixTemplate 仅在 fix 族定义（fixTemplate 从 canonical fix.{type} 尾解）
     expect(familyConfig('fix', 'spec').fixTemplate).toBe('doc-fix');

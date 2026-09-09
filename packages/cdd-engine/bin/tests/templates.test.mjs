@@ -58,13 +58,13 @@ describe('review type config (Task 4: 模板数据化)', () => {
     expect(() => reviewTypeConfig('nope')).toThrow('unknown review type: nope');
   });
 
-  it('reviewArtifactConfig: canonical review.{type} 族 → { schema, return, fixFamily }（T2 裁轴）', async () => {
+  it('reviewArtifactConfig: canonical review.{type} 族 → { schema, return }（T2 裁轴；fixFamily 已删——runFix 直读 fix 族）', async () => {
     vi.resetModules();
     const { reviewArtifactConfig } = await import('../lib/templates.mjs');
-    expect(reviewArtifactConfig('task')).toEqual({ schema: 'cdd', return: 'h1', fixFamily: 'fix.task' });
-    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'cdd', return: 'h1' }); // branch 无 fix 族 → fixFamily 缺省
-    expect(reviewArtifactConfig('spec')).toEqual({ schema: 'docs', return: 'json', fixFamily: 'fix.spec' });
-    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json', fixFamily: 'fix.plan' });
+    expect(reviewArtifactConfig('task')).toEqual({ schema: 'cdd', return: 'h1' });
+    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'cdd', return: 'h1' });
+    expect(reviewArtifactConfig('spec')).toEqual({ schema: 'docs', return: 'json' });
+    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json' });
     expect(() => reviewArtifactConfig('nope')).toThrow(/unknown handoff family/);
   });
 

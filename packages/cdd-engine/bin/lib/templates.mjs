@@ -83,12 +83,12 @@ export function reviewTypeConfig(type) {
 }
 
 // reviewArtifactConfig(type) → 读 canonical handoff-namespace.json 的 review.{type} 族，
-// 返回 { schema, return, fixFamily }——HANDOFF_TYPE / RETURN_MODE 模板参数的唯一来源：
+// 返回 { schema, return }——HANDOFF_TYPE / RETURN_MODE 模板参数的唯一来源：
 // handoffType 字段名退位 → canonical 的 schema（"cdd"/"docs"），returnMode → canonical 的
-// return（"h1"/"json"）；fixFamily 供需要时解析 fix 族 fixTemplate。
+// return（"h1"/"json"）。fixTemplate 不被此层返回（runFix 直读 fix 族，无第二读取点）。
 export function reviewArtifactConfig(type) {
   const cfg = familyConfig('review', type);
-  return { schema: cfg.schema, return: cfg.return, fixFamily: cfg.fixFamily };
+  return { schema: cfg.schema, return: cfg.return };
 }
 
 // returnMode=h1 类型（task/branch）注入 {{H1_BLOCK}} 的四行 H1 合同；spec/plan 不渲染（空串）。

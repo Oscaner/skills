@@ -895,7 +895,6 @@ it("runTask: per-round buildTaskEnv — review derives task-1-review-1.json", as
   const ws = setupWorkspace();
   const env = buildTaskEnv(baseEnv(ws), ws, 1, "review", "claude", { round: 1 });
   expect(env.CDD_HANDOFF_PATH.endsWith("task-1-review-1.json")).toBe(true);
-  expect(env.CDD_HANDOFF_PATH.includes("task-review")).toBe(false); // 旧 task-review 命名零产出
 });
 
 it("runTask: implement derives task-1-implement.json (no round suffix)", async () => {
@@ -919,11 +918,11 @@ it("runTask: round-2 buildTaskEnv derives task-1-review-2.json", async () => {
   expect(getRound(updated, 1, "review")).toBe(2);
 });
 
-// ---- T4: mode 归一（task-review → review）----
+// ---- T4: mode 归一（review）----
 
-it("runTask: mode task-review（旧名）→ rejected：CDD_MODE must be implement|review|fix", async () => {
+it("runTask: 未知 mode → rejected：CDD_MODE must be implement|review|fix", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "task-review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "bogus", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(1);
   expect(res.h1).toEqual([]);
 });
@@ -936,15 +935,15 @@ it("runTask: mode review dry-run → H1 APPROVED + no handoff written", async ()
   expect(existsSync(path.join(ws, "task-1-review-1.json"))).toBe(false);
 });
 
-it("schema: phase 'review' task-review handoff 通过 Ajv 校验（phase enum 已归一）", async () => {
+it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）", async () => {
   const { validateHandoffSchema } = await import("../lib/schema-utils.mjs");
   expect(validateHandoffSchema({
     task: 1, phase: "review", status: "APPROVED",
     commits: { base: "a".repeat(40), head: "b".repeat(40) },
     findings: [], artifacts: {},
   })).toEqual({ valid: true });
-  // 旧 task-review phase 不再合法（未归一会被 runner 8.8 Ajv 判 invalid 覆写 BLOCKED）
-  expect(validateHandoffSchema({ task: 1, phase: "task-review", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
+  // 非法 phase 不再合法（未归一会被 runner 8.8 Ajv 判 invalid 覆写 BLOCKED）
+  expect(validateHandoffSchema({ task: 1, phase: "bogus", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
 });
 
 // ---- T6: implement handoff 实体化 + evidence-gate + H1 h1FromHandoff（commits 单一权威）----
@@ -1165,7 +1164,7 @@ async function runT8ReviewGhost(t8, body) {
   }
 }
 
-it("runTask T8: task-review APPROVED → progress task.status=complete（rounds[review]=1）", async () => {
+it("runTask T8: review APPROVED → progress task.status=complete（rounds[review]=1）", async () => {
   const t8 = t8Workspace();
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
@@ -1182,7 +1181,7 @@ it("runTask T8: task-review APPROVED → progress task.status=complete（rounds[
   expect(h.status).toBe("APPROVED");
 });
 
-it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCKED（task-review 亦校验）+ exit 1", async () => {
+it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCKED（review 亦校验）+ exit 1", async () => {
   const t8 = t8Workspace({ dirty: true });
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",

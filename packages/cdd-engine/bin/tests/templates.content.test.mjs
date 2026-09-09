@@ -83,9 +83,9 @@ describe('doc-fix.md shared docs fix shell (Task 4)', () => {
 });
 
 describe('legacy review/fix templates removed (Task 4)', () => {
-  it('the six legacy template names are unmapped in MODE_GROUPS', async () => {
+  it('the legacy review/fix template names are unmapped in MODE_GROUPS', async () => {
     const { templatePath } = await import('../lib/templates.mjs');
-    for (const name of ['task-review', 'spec-review', 'plan-review', 'branch-review', 'spec-fix', 'plan-fix']) {
+    for (const name of ['spec-review', 'plan-review', 'branch-review', 'spec-fix', 'plan-fix']) {
       expect(() => templatePath(name)).toThrow(/unknown template/);
     }
   });

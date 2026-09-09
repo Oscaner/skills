@@ -161,7 +161,7 @@ it("commit-contract: 非 git 目录 → fail-open ok:true", () => {
   expect(r.ok).toBe(true);
 });
 
-// ---- T8: review 模式（归一后 task-review）—— 仅 dirty 校验，跳过 head ----
+// ---- T8: review 模式 —— 仅 dirty 校验，跳过 head ----
 
 it("commit-contract: review 模式 → dirty tree BLOCKED（review 亦校验 dirty；不再 no-op）", () => {
   const repo = setupRepo();
@@ -185,10 +185,10 @@ it("commit-contract: 无 repoRoot → fail-open ok:true（直接-set 非 git wor
   expect(r.ok).toBe(true);
 });
 
-it("commit-contract: 旧 mode 名 task-review → no-op ok:true（T4 归一后已非合法 mode）", () => {
+it("commit-contract: 未知 mode 名 → no-op ok:true（非法 mode 不接线）", () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-  const r = validateCommitContract("task-review", repo);
+  const r = validateCommitContract("bogus", repo);
   expect(r.ok).toBe(true);
 });
 

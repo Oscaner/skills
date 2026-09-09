@@ -152,9 +152,9 @@ export function applyDerivedStatus(handoff = {}) {
 // ---- commit-contract validator ----
 
 // Core commit-contract validator（spec §4.2，port cdd_validate_commit_contract）。
-// T8: 全 task mode 接线 —— implement/fix 校验 dirty + head（F1）；review（归一后 task-review）
+// T8: 全 task mode 接线 —— implement/fix 校验 dirty + head（F1）；review（归一后）
 //     仅校验 dirty（review handoff 的 commits 语义为被审 commit，非本 dispatch 产物 → 跳过 head）。
-//     非三种 mode（含旧名 task-review）→ no-op。非 git / git-error / 无 repoRoot → fail-open。
+//     非三种 mode → no-op。非 git / git-error / 无 repoRoot → fail-open。
 // 两个正交信号：dirty working tree（D2）；干净树但 handoff.commits.head ≠ 真实 HEAD（F1）。
 // 任一击中 → rewriteHandoffBlocked + 返回 { ok:false, blocker }。
 // repoRoot = 传入目录（对齐 `git -C "${CDD_WORKSPACE:-.}"`，direct-set 非 git workspace → null

@@ -46,7 +46,7 @@ flowchart TD
 | failure | behavior | reason | recovery |
 |---|---|---|---|
 | `available:` is empty | BLOCKED (engine bug) | The orchestrator's host harness necessarily exists (`detectCurrentHarness` should detect at least the host); empty list = engine detection bug signal, not user-side absence | Invoke `osuperpowers:report-issue` (no manual labels — per-finding comments carry none; only the session master carries `session, osuperpowers`) |
-| `cdd select` execution failure | BLOCKED (same as above) | Engine script execution failure = engine bug (workspace resolution was stabilized in P1, not an expected scenario) | Invoke `osuperpowers:report-issue`; same labels as above |
+| `cdd select` execution failure | BLOCKED (same as above) | Engine script execution failure = engine bug (workspace resolution was stabilized in P1, not an expected scenario) | Invoke `osuperpowers:report-issue` (no manual labels — per-finding comments carry none; only the session master carries `session, osuperpowers`) |
 
 **Fail-open vs BLOCKED convention**:
 

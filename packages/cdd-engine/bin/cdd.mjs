@@ -506,7 +506,7 @@ program
     });
   });
 
-// --- review (formerly cdd-task --mode task-review / docs-task review / branch-review) ---
+// --- review (consolidates the former cdd-task / docs-task / branch-review commands) ---
 program
   .command("review")
   .requiredOption("--type <t>", "task|branch|spec|plan")

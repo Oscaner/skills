@@ -88,7 +88,7 @@ it("finalizeHandoff fix 族：agent 声明保留（不派生覆写）", () => {
 });
 
 it("finalizeHandoff 未知 mode → 抛错（定稿分派契约）", () => {
-  expect(() => finalizeHandoff({ mode: "task-review", agentHandoff: {} })).toThrow(/unknown mode/);
+  expect(() => finalizeHandoff({ mode: "bogus", agentHandoff: {} })).toThrow(/unknown mode/);
 });
 
 // ---- writeOwnHandoff：全量覆盖写盘（engine 载体唯一作者）----

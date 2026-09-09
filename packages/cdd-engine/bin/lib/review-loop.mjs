@@ -19,7 +19,7 @@ import { roundPattern, resolveNextRound as hnResolveNextRound } from "./handoff-
 
 // Round helpers — T3 后命名单一真相移交 handoff-naming（canonical handoff-namespace.json）。
 // 本模块仅保留 runReviewLoop（URC 引用实现）；round 模式委托给 handoff-naming.roundPattern —
-// 不再有第二处命名字面量（task 分支退役 `task-{N}-task-review-{R}` 模式，统一 task-{N}-review-{R}）。
+// 不再有第二处命名字面量（task 分支统一 task-{N}-review-{R} 命名）。
 export function reviewRoundPattern(type, opts = {}) {
   if (type === "task" && opts.task == null) return /$^/; // 两参形式（无 task）不得造幻影模式
   return roundPattern("review", type, opts);

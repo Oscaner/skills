@@ -29,10 +29,10 @@ export function registryField(reg, harness, field) {
 }
 
 // operation×type prefix 解析（对齐 cli-shared.invokeCli 的 (op, type) 参数）：
-//   entry.prefix[op] 为 string（implement/fix，或 legacy 扁平 mode 键 task-review/branch-review）→ 直接注入；
+//   entry.prefix[op] 为 string（implement/fix，或 legacy 扁平 string mode 键）→ 直接注入；
 //   entry.prefix[op] 为 object（review 子键 type: task|branch|spec|plan）→ 按 type 取，无 type → 空；
 //   缺省（无 prefix / 无 op / 子键缺失）→ 空串，避免静默注入假值。
-// 兜底语义：op 传 legacy mode 键（"task-review" 等）时直接命中扁平键 —— 未迁移的
+// 兜底语义：op 传 legacy mode 键（扁平 string 键）时直接命中 —— 未迁移的
 // registry（/CDD_REGISTRY_PATH 覆盖）不会静默空注入。
 function resolveInjectionField(entry, field, op, type) {
   const v = entry?.[field]?.[op] ?? "";

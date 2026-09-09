@@ -114,7 +114,7 @@ export function reviewHardGate(returnMode, handoffPath) {
 }
 
 export function renderModePrompt(mode, env = {}) {
-  // review mode 走 review.md 共享壳（reviews.json type=task 配置）；不再有旧 task-review 模板。
+  // review mode 走 review.md 共享壳（reviews.json type=task 配置）；旧拼装模板已删除。
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
   if (mode === 'review') {
     const cfg = reviewTypeConfig('task');

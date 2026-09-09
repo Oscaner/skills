@@ -645,7 +645,7 @@ export async function runTask(harness, taskNum, opts = {}) {
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，
   // SP-4 豁免失败轮次）；成功路径读回定稿并持久化（writeOwnHandoff 全量覆盖），H1 同步用 h1FromHandoff。
-  // T8: APPROVED task-review 回写 progress task.status=complete（读回握手 finalizeHandoff 之后，
+  // T8: APPROVED review 回写 progress task.status=complete（读回握手 finalizeHandoff 之后，
   // 且在 post-run validate 通过之后 —— dirty 失败轮不标 complete）。
   if (!dryRun && mode === "review") {
     const reviewHandoff = readJson(env.CDD_HANDOFF_PATH);

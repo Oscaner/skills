@@ -79,17 +79,17 @@ export async function spawnCapture(command, args, opts = {}) {
 // params = { op, type? } — operation×type injection replaces the positional mode
 //   arg. op: implement|review|fix（review 带 type: task|branch|spec|plan）。解析在
 //   registry.mjs resolveInjection/resolveSuffix（entry.{prefix,suffix}[op][type?]）统一解析，不再调用点内联镜像。
-//   legacy 兼容：op 传扁平 mode 键（"task-review" 等）时 resolveInjection 直接命中旧键。
+//   legacy 兼容：op 传扁平 mode 键（旧 registry string 键）时 resolveInjection 直接命中。
 // joined with `\n` so the prefix forms its own first line.
 // Bug O Step 5b: workspace propagates to the spawned CLI via CDD_GATE_WORKSPACE /
 // CDD_GATE_MODE env (gate hooks run inside the CLI subprocess and inherit them).
-// Nested task agents are ORCHESTRATOR SUBAGENTS (implement/task-review/fix must edit
+// Nested task agents are ORCHESTRATOR SUBAGENTS (implement/review/fix must edit
 // the repo, run git) — default CDD_GATE_MODE=subagent (gate allows). Only an explicit
 // CDD_SESSION_MODE=cli re-arms strict gating (operator-CLI threat model).
 export async function invokeCli(entry, prompt, params, env, cwd, timeoutMs) {
   const { cli, invoke, output } = entry;
   // 兜底：params 为 string（旧位置 mode 参数）时归一为 { op } —— op=扁平米键直解
-  // （未迁移 registry 的 "task-review" 等键），避免静默空注入；真正缺席时回退空注入。
+  // （未迁移 registry 的扁平 string 键），避免静默空注入；真正缺席时回退空注入。
   const paramsObj = typeof params === "string" ? { op: params } : (typeof params === "object" && params ? params : {});
   const { op, type } = paramsObj;
   const p = resolveInjection(entry, op, type);

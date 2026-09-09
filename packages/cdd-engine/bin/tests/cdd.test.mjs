@@ -233,7 +233,7 @@ describe("cdd CLI", () => {
     }
   });
 
-  // ---- T7: `cdd contract` 子命令删除 + branch-review 读回覆写（T5 nit4 补测） ----
+  // ---- T8: `cdd contract` 子命令删除 + branch-review 读回覆写（T5 nit4 补测） ----
 
   it("cdd contract 子命令不存在（check-dirty/check-head/clear-findings 全灭）→ 未知命令 exit 2", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-contract-"));

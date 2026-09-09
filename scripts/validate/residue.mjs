@@ -21,6 +21,8 @@ const ROOT = path.resolve(HERE, "..", "..");
 const OSKILLS = ["packages/osuperpowers/skills"];
 const CDD_ENGINE_BIN = ["packages/cdd-engine/bin"];
 const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/templates"];
+// T9 nit3（DRY）：跨 skills + cdd-engine（bin+templates）的机制位置集合 —— 5 个 check 共享。
+const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
 
 const RESIDUE_TARGETS = [
   "packages/osuperpowers/bin",
@@ -36,11 +38,13 @@ const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
 // （退化 `(spec|plan)-1\.json` 才命）、contract.mjs 现存合法注释「spec D1/D4/D5a」与
 // 「dirty working tree（D2）」（lens 语境限 `D[123]:` 前缀形式才命）。
 const STALE_LEXICON_CHECKS = [
-  { label: "old docs-review filename", re: /docs-review\.md/, scope: [...OSKILLS, ...CDD_ENGINE] },
-  { label: "PASS= lens param", re: /PASS=</, scope: [...OSKILLS, ...CDD_ENGINE] },
-  { label: "lens names D1|D2|D3 (lens-context)", re: /\bD[123][:：]/, scope: [...OSKILLS, ...CDD_ENGINE] },
-  { label: "resolve-hit", re: /resolve-hit/, scope: [...OSKILLS, ...CDD_ENGINE] },
-  { label: "gh issue reopen", re: /gh issue reopen/, scope: [...OSKILLS, ...CDD_ENGINE] },
+  { label: "old docs-review filename", re: /docs-review\.md/, scope: ALL_MECH_POSITIONS },
+  { label: "PASS= lens param", re: /PASS=</, scope: ALL_MECH_POSITIONS },
+  { label: "lens names D1|D2|D3 (lens-context)", re: /\bD[123][:：]/, scope: ALL_MECH_POSITIONS },
+  { label: "resolve-hit", re: /resolve-hit/, scope: ALL_MECH_POSITIONS },
+  { label: "gh issue reopen", re: /gh issue reopen/, scope: ALL_MECH_POSITIONS },
+  // T9 nit6：task-review 旧 mode 名 scope 用 CDD_ENGINE（bin+templates）而非仅 CDD_ENGINE_BIN ——
+  // templates（implement/fix/review）历史引用旧 mode 名已成回渗源，templates 也须入扫。
   { label: "old mode task-review", re: /task-review/, scope: CDD_ENGINE },
   { label: "P4 degraded names", re: /(spec|plan)-1\.json|doc-fix-/, scope: CDD_ENGINE },
   { label: "flat docs-review root 回退", re: /\.superpowers\/docs-review/, scope: CDD_ENGINE_BIN },

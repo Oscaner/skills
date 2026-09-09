@@ -37,10 +37,14 @@ describe("stale-lexicon：机制位置精确性", () => {
     expect(hasHit(["resolve-hit: 2"])).toBe(true);
     expect(hasHit(["gh issue reopen 42"])).toBe(true);
   });
-  it("len 语境 D[123]: 命中；spec/工作树注释非语境不误报", () => {
+  it("lens 语境 D[123]: 命中；spec/工作树注释非语境不误报", () => {
     expect(hasHit(["lens D1: 重复"])).toBe(true);
     expect(hasHit(["spec D1/D4/D5a"])).toBe(false);
     expect(hasHit(["dirty working tree（D2）"])).toBe(false);
+  });
+  it("flat docs-review root 回退路径命中（T9 nit4 补测）", () => {
+    expect(hasHit([".superpowers/docs-review/task-1.json"])).toBe(true);
+    expect(hasHit([".superpowers/cdd/foo/spec-review-1.json"])).toBe(false); // 规范家族名不误报
   });
 });
 

@@ -20,6 +20,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 import {
   validateCommitContract,
   writeHandoff,
+  writeOwnHandoff,
   classifySeverity,
   rollupStatus,
   deriveReviewStatus,
@@ -315,6 +316,25 @@ it("writeHandoff: 父目录不存在自动创建 + 已有非 JSON 覆盖为合�
   writeFileSync(p, "garbage");
   writeHandoff(p, { status: "BLOCKED" });
   expect(JSON.parse(readFileSync(p, "utf8")).status).toBe("BLOCKED");
+});
+
+// ---- T7: writeOwnHandoff — 全量覆盖写盘（engine 载体唯一作者，非浅合并）----
+
+it("writeOwnHandoff: 全量覆盖替换（非浅合并）—— existing 字段一律不保留", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-woh-"));
+  const p = path.join(dir, "sub", "task-1-implement.json");
+  writeOwnHandoff(p, { junk: true, task: 1, phase: "implement", status: "APPROVED" });
+  writeOwnHandoff(p, { task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+  const h = JSON.parse(readFileSync(p, "utf8"));
+  expect(h).not.toHaveProperty("junk");
+  expect(h).toEqual({ task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+});
+
+it("writeOwnHandoff: 父目录递归创建 + 2-space 换行格式", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-woh2-"));
+  const p = path.join(dir, "a", "b", "h.json");
+  writeOwnHandoff(p, { task: 1 });
+  expect(readFileSync(p, "utf8")).toBe(`${JSON.stringify({ task: 1 }, null, 2)}\n`);
 });
 
 it("gitCatFileCommitExists: real commit → true", () => {

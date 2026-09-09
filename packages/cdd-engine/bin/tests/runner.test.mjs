@@ -593,15 +593,16 @@ it("runTask #open-findings: implement mode → no open-findings.json (implement 
 });
 
 // ---- Pε #218: step 8.8 schema-validation BLOCKED handoff must include phase ----
+// T7: 8.8 对 implement 门控（not 输入通道）—— 本用例迁移到 review（review/fix 保留读取校验内容契约）。
 
-it("runTask #218: step 8.8 schema-validation BLOCKED → handoff contains phase field", async () => {
+it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff contains phase field", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-blocked-"));
   // Fake CLI exits 0 but writes a schema-invalid handoff (missing required 'findings').
   writeFileSync(
     path.join(binDir, "fake-cli"),
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{}}' > "$CDD_HANDOFF_PATH"\n` +
+      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{}}' > "$CDD_HANDOFF_PATH"\n` +
       `exit 0\n`,
   );
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
@@ -614,28 +615,28 @@ it("runTask #218: step 8.8 schema-validation BLOCKED → handoff contains phase 
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "review", probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "task-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("BLOCKED");
-    expect(h.phase).toBe("implement");
+    expect(h.phase).toBe("review");
     expect(h.blocker).toMatch(/must have required property/);
   } finally {
     process.env.PATH = origPath;
   }
 });
 
-it("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (unknown property variant)", async () => {
+it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → phase matches mode (unknown property variant)", async () => {
   const ws = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-unk-"));
   writeFileSync(
     path.join(binDir, "fake-cli"),
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{},"findings":[],"unknownField":"bad"}' > "$CDD_HANDOFF_PATH"\n` +
+      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{},"findings":[],"unknownField":"bad"}' > "$CDD_HANDOFF_PATH"\n` +
       `exit 0\n`,
   );
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
@@ -648,15 +649,15 @@ it("runTask #218: step 8.8 schema-validation BLOCKED → phase matches mode (unk
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "review", probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "task-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("BLOCKED");
-    expect(h.phase).toBe("implement");
+    expect(h.phase).toBe("review");
     expect(h.blocker).toMatch(/must NOT have additional properties/);
   } finally {
     process.env.PATH = origPath;
@@ -1086,6 +1087,35 @@ it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺�
   const h = JSON.parse(readFileSync(path.join(t6.ws, "task-1-implement.json"), "utf8"));
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.blocker).toBeUndefined();
+});
+
+// ---- T7: implement 8.8 门控 — HANDOFF 非 implement 输入通道（#232 残留路径从结构上消灭）----
+
+it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留被实体化 writeOwnHandoff 全量覆盖 APPROVED", async () => {
+  // 旧 P1 假设：agent 手写残缺 handoff（缺 findings）→ 8.8 无差别校验 → 误拦 BLOCKED（#232）。
+  // T7：engine 是载体唯一作者，implement 的 HANDOFF 路径对 agent 不是输入通道，8.8 门控跳过；
+  // step 13 finalizeHandoff 实体化 + writeOwnHandoff 全量覆盖 → APPROVED（残留进不了载体）。
+  const t6 = t6Workspace();
+  const res = await runT6Ghost(t6, [
+    "#!/usr/bin/env bash",
+    // 模拟旧 P1 agent 残留：schema-invalid（缺 findings）existing handoff
+    `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{}}' > "$CDD_HANDOFF_PATH"`,
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=x head=y'",
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    "printf '%s\\n' 'blocker: none'",
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(0);
+  const hp = path.join(t6.ws, "task-1-implement.json");
+  expect(existsSync(hp)).toBe(true);
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  // 未被 8.8 判 invalid 覆写 BLOCKED：最终载体是实体化结果（commits.base = brief TASK_BASE 权威）
+  expect(h.status).toBe("APPROVED");
+  expect(h.phase).toBe("implement");
+  expect(h.commits.base).toBe(t6.taskBase);
+  expect(h.findings).toEqual([]);
+  expect(res.h1[0]).toBe("status: APPROVED");
 });
 
 // ---- T7: post-run validateCommitContract（全 mode 接线）+ task.status=complete 回写 ----

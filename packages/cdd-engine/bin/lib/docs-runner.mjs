@@ -6,7 +6,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { invokeCli, resolveTimeoutMs } from "./cli-shared.mjs";
-import { gitToplevel, writeHandoff, applyDerivedStatus } from "./contract.mjs";
+import { gitToplevel, writeHandoff, writeOwnHandoff } from "./contract.mjs";
+import { finalizeHandoff } from "./handoff-finalize.mjs";
 import { loadRegistry, checkHarness } from "./registry.mjs";
 import { loadHandoffSchema, validateHandoffSchema } from "./schema-utils.mjs";
 import { renderHandoffStub, renderTemplate } from "./templates.mjs";
@@ -87,13 +88,14 @@ export async function runDocsTask({
     return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
   }
 
-  // T5: status 单一权威 — review 型 handoff 由 engine 从 findings 派生覆写（SP-4 豁免失败轮次）；
-  // fix 型（work）status 由 agent 声明，不派生。派生有变化才写盘；返回 handoff 与文件一致。
+  // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，
+  // SP-4 豁免失败轮次）；fix 型（work）status 由 agent 声明，不派生。定稿写盘用 writeOwnHandoff
+  //（engine 载体唯一作者，全量覆盖替换）；派生无变化 → 返回原引用 skip 写盘；返回 handoff 与文件一致。
   if (mode === "review") {
-    const derived = applyDerivedStatus(handoff);
-    if (derived) {
-      writeHandoff(handoffPath, derived);
-      handoff.status = derived.status;
+    const finalized = finalizeHandoff({ mode, agentHandoff: handoff });
+    if (finalized.handoff && finalized.handoff !== handoff) {
+      writeOwnHandoff(handoffPath, finalized.handoff);
+      handoff.status = finalized.handoff.status;
     }
   }
 

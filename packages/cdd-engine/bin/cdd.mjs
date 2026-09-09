@@ -19,7 +19,8 @@ import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK
 import * as handoffNaming from "./lib/handoff-naming.mjs";
 import { validateHandoffSchema } from "./lib/schema-utils.mjs";
 import { reviewStoppedError } from "./lib/review-loop.mjs";
-import { writeHandoff, gitToplevel, applyDerivedStatus } from "./lib/contract.mjs";
+import { writeHandoff, gitToplevel, writeOwnHandoff } from "./lib/contract.mjs";
+import { finalizeHandoff } from "./lib/handoff-finalize.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
 import { runBriefCli } from "./lib/brief.mjs";
@@ -301,10 +302,11 @@ async function runBranchReview(opts) {
       process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
       exitWithCode(1);
     }
-    // T5: status 单一权威 — branch review（review 族）由 engine 从 findings 派生覆写（SP-4 豁免失败轮次）。
-    // 分支手写（非 runner/docs-runner 共享读回）；有变化才写盘持久化。
-    const derived = applyDerivedStatus(agentHandoff);
-    if (derived) writeHandoff(handoffPath, derived);
+    // T5/T7: status 单一权威 — branch review（review 族）读回经 finalizeHandoff 定稿（rollup 派生
+    // 覆写，SP-4 豁免失败轮次）；定稿写盘用 writeOwnHandoff（engine 载体唯一作者，全量覆盖替换）。
+    // 三消费方（runner/docs-runner/cdd）共享同一 finalizeHandoff 单点，非各自接线。
+    const finalized = finalizeHandoff({ mode: "review", agentHandoff });
+    if (finalized.handoff && finalized.handoff !== agentHandoff) writeOwnHandoff(handoffPath, finalized.handoff);
   }
 
   exitOk();

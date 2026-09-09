@@ -248,7 +248,7 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("branch-review 读回覆写（T5 nit4 补测）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 APPROVED", () => {
+  it("branch-review 读回定稿（T5/T7 finalizeHandoff 单点）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 APPROVED", () => {
     const dir = tmpGitRepo();
     try {
       const plan = path.join(dir, "plan.md");
@@ -257,7 +257,8 @@ describe("cdd CLI", () => {
       const ws = path.join(dir, ".superpowers", "cdd", "plan");
       const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
       // fake claude：PATH 遮蔽 registry cli 名（cdd.mjs REG_PATH 无 registry override seam）。
-      // 非 dry-run 真实走 runBranchReview：agent 写 warn-only CHANGES_REQUESTED → engine applyDerivedStatus 覆写 APPROVED。
+      // 非 dry-run 真实走 runBranchReview：agent 写 warn-only CHANGES_REQUESTED → engine finalizeHandoff
+      //（三消费方共享定稿单点）rollup 派生覆写 APPROVED + writeOwnHandoff 持久化。
       writeFileSync(path.join(binDir, "claude"),
         "#!/usr/bin/env bash\n" +
         `mkdir -p "${ws}"\n` +
@@ -269,7 +270,7 @@ describe("cdd CLI", () => {
         { cwd: dir, env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` } });
       expect(r.exitCode).toBe(0);
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-      // warn/nit = 0 blocker → status 被 applyDerivedStatus（deriveReviewStatus rollup）覆写为 APPROVED
+      // warn/nit = 0 blocker → status 被 finalizeHandoff（applyDerivedStatus rollup）覆写为 APPROVED
       expect(h.status).toBe("APPROVED");
       expect(h.findings).toEqual([{ severity: "warn", summary: "w" }]);
     } finally {

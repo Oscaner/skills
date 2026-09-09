@@ -8,13 +8,15 @@ import { vi, it, expect, describe, beforeEach } from "vitest";
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
 vi.mock("../lib/contract.mjs", async () => {
-  // T5: deriveReviewStatus/applyDerivedStatus 走真实实现（mock 只替 gitToplevel/writeHandoff），
-  // 保证 docs-runner 读回覆写测试覆盖的是真实派生逻辑，而非 mock 出来的假 status。
+  // T5/T7: deriveReviewStatus/applyDerivedStatus 走真实实现（mock 只替 gitToplevel/writeHandoff/
+  // writeOwnHandoff），保证 docs-runner 读回定稿测试（finalizeHandoff → rollup 派生）覆盖的是
+  // 真实派生逻辑，而非 mock 出来的假 status。
   const actual = await vi.importActual("../lib/contract.mjs");
   return {
     ...actual,
     gitToplevel: vi.fn(() => "/repo/root"),
     writeHandoff: vi.fn(),
+    writeOwnHandoff: vi.fn(),
   };
 });
 
@@ -193,13 +195,13 @@ describe("runDocsTask", () => {
 
   // ---- T5：status 单一权威 — review 型读回覆写（agent 写 warn-only CHANGES_REQUESTED → 覆写 APPROVED） ----
 
-  it("docs-runner 读回覆写：agent 写 warn-only CHANGES_REQUESTED → 文件 status 覆写为 APPROVED", async () => {
+  it("docs-runner 读回定稿（T7 writeOwnHandoff）：agent 写 warn-only CHANGES_REQUESTED → 文件 status 覆写为 APPROVED", async () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
     vi.resetModules();
     const { runDocsTask } = await import("../lib/docs-runner.mjs");
-    const { writeHandoff } = await import("../lib/contract.mjs");
+    const { writeOwnHandoff } = await import("../lib/contract.mjs");
     const fs = await import("node:fs");
     const origRead = fs.readFileSync.getMockImplementation();
     // 覆写读回 fixture：同一 canonical ws 前缀下，agent 写 status:CHANGES_REQUESTED + warn/nit findings
@@ -225,8 +227,8 @@ describe("runDocsTask", () => {
       // 返回/读回后 status 已被派生覆写为 APPROVED（warn/nit = 0 blocker）
       expect(result.handoff.status).toBe("APPROVED");
       expect(result.handoff.findings).toHaveLength(2);
-      // 覆写持久化：writeHandoff 收到 status=APPROVED 的完整 handoff
-      const writeCall = writeHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
+      // 覆写持久化：writeOwnHandoff 收到 status=APPROVED 的完整 handoff（全量覆盖，非浅合并）
+      const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
       expect(writeCall).toBeDefined();
       expect(writeCall[1].status).toBe("APPROVED");
       expect(writeCall[1].findings).toEqual([

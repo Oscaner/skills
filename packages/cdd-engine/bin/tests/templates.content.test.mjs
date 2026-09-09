@@ -149,6 +149,6 @@ describe('implement.md（T6: 实体化 + 无 Handoff Output 段 + evidence-gate 
 
   it('保留 Return (H1 — stdout only) 段 + H1 四行合同', () => {
     expect(impl).toContain('## Return (H1 — stdout only)');
-    expect(impl).toContain('status: <APPROVED|BLOCKED|NEEDS_CONTEXT>');
+    expect(impl).toContain('status: <APPROVED|BLOCKED>');
   });
 });

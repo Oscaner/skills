@@ -33,11 +33,13 @@ After you exit, the runner reads `{{WORKSPACE}}/task-{{TASK}}-test-evidence.json
 Return **exactly 4 lines** to stdout (no other prose); make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
 
 ```
-status: <APPROVED|BLOCKED|NEEDS_CONTEXT>
+status: <APPROVED|BLOCKED>
 commits: base=<sha> head=<sha>
 artifacts: brief=<path> report=<path> test_evidence=<path>
 blocker: <none|one-line>
 ```
+
+Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the runner to `BLOCKED` (schema accepts only APPROVED/BLOCKED) + exit 1.
 
 The runner re-emits your H1 from the materialized handoff — `status`, `commits: base=<TASK_BASE> head=<git HEAD>`, and `blocker` are the runner's authority; anything you print on the `commits:`/`blocker:` lines that disagrees is overwritten.
 

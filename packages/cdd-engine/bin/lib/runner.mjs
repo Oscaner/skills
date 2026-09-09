@@ -306,6 +306,14 @@ export function h1FourLines(raw) {
 
 // Aligns _cdd_emit_h1_from_handoff (no jq dependency): reads handoff JSON, missing/corrupt → BLOCKED fallback.
 // artifacts only emitted when present (consistent with bash).
+// blocker 缺省单点（T6 nit4）：review 成功/无阻断语义 → none；其余 → commit-contract 缺省文案。
+// h1FromHandoff 缺省与 h1Blocker 折叠共用此映射（两处不再各写一份）。
+function defaultBlockerFor(status) {
+  return status === "APPROVED" || status === "CHANGES_REQUESTED"
+    ? "none"
+    : "uncommitted changes at return";
+}
+
 export function h1FromHandoff(handoffPath) {
   if (!handoffPath || !existsSync(handoffPath)) {
     return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors");
@@ -323,13 +331,7 @@ export function h1FromHandoff(handoffPath) {
     if (h.artifacts?.[key]) arts.push(`${key}=${h.artifacts[key]}`);
   }
   if (arts.length > 0) out.push(`artifacts: ${arts.join(" ")}`);
-  // T5 nit：review 成功 round 缺省 blocker 应为 none（而非 commit-contract 缺省文案）；
-  // review handoff 的 blocker 为可选字段（review.md Self-validate 不指导写），
-  // 缺省按 status 判定——APPROVED/CHANGES_REQUESTED 均为「无阻断」语义 → none。
-  const defaultBlocker = h.status === "APPROVED" || h.status === "CHANGES_REQUESTED"
-    ? "none"
-    : "uncommitted changes at return";
-  out.push(`blocker: ${h.blocker ?? defaultBlocker}`);
+  out.push(`blocker: ${h.blocker ?? defaultBlockerFor(h.status)}`);
   return out;
 }
 
@@ -366,7 +368,7 @@ function implementStatusFromH1(line) {
 }
 
 // H1 `blocker:` 行 → blocker。缺行（<missing>）/ 成功缺省（none）→ ""（不落 blocker 字段，
-// h1FromHandoff 按 status 缺省 none / commit-contract 文案）。
+// h1FromHandoff 按 defaultBlockerFor(status) 缺省呈显层）。
 function h1Blocker(line) {
   const v = String(line).replace(/^blocker:\s*/, "").trim();
   return v && v !== "<missing>" && v !== "none" ? v : "";
@@ -660,11 +662,15 @@ export async function runTask(harness, taskNum, opts = {}) {
   if (!dryRun && mode === "implement") {
     const base = taskBaseFromBrief(env.CDD_TASK_BRIEF);
     if (!base) {
-      // 降级不实体化：保留 agent 原样 H1 + stderr WARN（dry-run 与 smoke 链均走此处，绝不允许 ENOENT 崩溃）。
+      // 降级例外（T6 nit2，文档化）：brief 缺失 / 无 TASK_BASE 行 → 不实体化（task-{N}-implement.json 缺省），
+      // 保留 agent 原样 H1 + stderr WARN。dry-run 与 smoke 链均走此处 —— 绝不允许 ENOENT 崩溃 runner。
+      // 「implement 后 handoff 必在」断言仅对正常实体化路径成立；此降级为有意的 fail-open（编辑手痕迹）。
       process.stderr.write(`CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${env.CDD_TASK_BRIEF}\n`);
     } else {
-      const { status, raw } = implementStatusFromH1(h1[0] ?? "");
-      let blocker = h1Blocker(h1[3] ?? "");
+      // T6 nit3: 解构命名替代 h1[0]/[2]/[3] 魔数下标（commits 行按设计忽略——实体化 head 以 git 权威）。
+      const [statusLine, , artifactsLine, blockerLine] = h1;
+      const { status, raw } = implementStatusFromH1(statusLine ?? "");
+      let blocker = h1Blocker(blockerLine ?? "");
       if (raw !== "APPROVED" && !blocker) blocker = `implement H1 status "${raw}" without blocker`;
       const head = repoRoot ? gitRevParseHead(repoRoot) : null;
       const gate = evidenceGate(env.CDD_WORKSPACE, taskNum);
@@ -677,7 +683,7 @@ export async function runTask(harness, taskNum, opts = {}) {
         task: taskNum,
         phase: "implement",
         status: gate.hard ? "BLOCKED" : status,
-        artifacts: artifactsFromH1Line(h1[2] ?? ""),
+        artifacts: artifactsFromH1Line(artifactsLine ?? ""),
         findings: [],
         commits: { base, ...(head ? { head } : {}) },
       };

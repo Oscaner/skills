@@ -19,7 +19,7 @@ import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-nami
 import { finalizeHandoff, persistFinalized } from "./handoff-finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
-import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound } from "./progress.mjs";
+import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "./progress.mjs";
 import { validateHandoffSchema } from "./schema-utils.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
@@ -472,7 +472,10 @@ export async function runTask(harness, taskNum, opts = {}) {
         artifacts: {},
         blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${taskNum}`,
       });
-      if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+      if (!dryRun) {
+        incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+        incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（BLOCKED/engine-error 判定路径）
+      }
       return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "process unkillable", noExit);
     }
     // Normal timeout: TIMEOUT partial handoff
@@ -510,7 +513,10 @@ export async function runTask(harness, taskNum, opts = {}) {
           artifacts: {},
           blocker: `handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${env.CDD_HANDOFF_PATH} and re-dispatch task ${taskNum}`,
         });
-        if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+        if (!dryRun) {
+          incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+          incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
+        }
         return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
       }
     }
@@ -529,7 +535,10 @@ export async function runTask(harness, taskNum, opts = {}) {
       artifacts: {},
       blocker: `cli exited ${agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${taskNum}`,
     });
-    if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    if (!dryRun) {
+      incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+      incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
+    }
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
@@ -548,6 +557,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       blocker: `${path.basename(env.CDD_HANDOFF_PATH)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${env.CDD_HANDOFF_PATH} before exit`,
     });
     incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（10.5 退出码 0 未写 handoff 判定路径）
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `${mode} agent did not write handoff`, noExit);
   }
 
@@ -603,6 +613,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   if (!dryRun) {
     const cv = validateCommitContract(mode, repoRoot ?? "", { handoffPath: env.CDD_HANDOFF_PATH });
     if (!cv.ok) {
+      incrementRecovery(progressDir); // D14: engine 自写 BLOCKED（commit-contract 重写）→ engineRecoveryCount 自增
       return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), cv.blocker, noExit);
     }
   }

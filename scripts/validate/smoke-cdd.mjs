@@ -44,15 +44,17 @@ export function main() {
   // real run; fix consumes it via --findings (parseReview→fix wiring). Under dry-run neither
   // writes nor reads the file — only the arg plumbing is exercised.
   const cmds = [
-    [...cdd, "implement", "--harness", "claude", "--task", "1", "--plan", plan],
-    [...cdd, "review", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan],
-    [...cdd, "fix", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan,
+    [...cdd, "implement", "--task", "1", "--plan", plan],
+    [...cdd, "review", "--type", "task", "--task", "1", "--plan", plan],
+    [...cdd, "fix", "--type", "task", "--task", "1", "--plan", plan,
       "--findings", path.join(".superpowers", "cdd", slug, "task-1-review-1.json")],
-    [...cdd, "review", "--type", "branch", "--harness", "claude", "--plan", plan, "--base", head, "--head", head],
+    [...cdd, "review", "--type", "branch", "--plan", plan, "--base", head, "--head", head],
   ];
   for (const [i, args] of cmds.entries()) {
     // Array form (no shell join) — every arg is a fixed constant today; keeps arg quoting if they ever change.
-    const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CDD_DRY_RUN: "1" }, cwd: root });
+    // T3: harness flag removed — host resolution is env-driven; inject CLAUDE_CODE_SESSION_ID=1
+    // so the smoke's four commands resolve the host as claude deterministically (CI has no session markers).
+    const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
     const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
     // The four literals mirror the engine's 4-line H1 contract verbatim. Authoritative emitters:
     // packages/cdd-engine/bin/lib/runner.mjs dryRunH1Block (implement/review/fix) and

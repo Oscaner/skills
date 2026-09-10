@@ -1,7 +1,7 @@
 // packages/cdd-engine/bin/tests/branch-review.test.mjs
-// Branch-review dry-run through the merged single CLI:
-//   (legacy standalone branch-review bin) --harness <h> --plan <p> --base <b> --head <h>
-//   → cdd review --type branch --harness <h> --plan <p> --base <b> --head <h>
+// Branch-review dry-run through the merged single CLI (harness resolved from the ambient host):
+//   (legacy standalone branch-review bin: -h <name> flag) --plan <p> --base <b> --head <h>
+//   → cdd review --type branch --plan <p> --base <b> --head <h> + CLAUDE_CODE_SESSION_ID=1 env
 // T10 warn: fixture plan/workspace 用临时 git 仓库（临时目录），不写真实 repo 的 .superpowers/cdd/ ——
 // 避免 validate 轮次污染 F6 单一根（smoke-plan/test-plan-br 再生）。
 import { describe, it, expect } from 'vitest';
@@ -36,11 +36,10 @@ describe('branch-review dry-run', () => {
       const out = execaSync('node', [
         path.join(REPO_ROOT, 'packages', 'cdd-engine', 'bin', 'cdd.mjs'),
         'review', '--type', 'branch',
-        '--harness', 'claude',
         '--plan', planPath,
         '--base', 'abc1234',
         '--head', 'def5678',
-      ], { env: { ...process.env, CDD_DRY_RUN: '1' }, encoding: 'utf8' }).stdout;
+      ], { env: { ...process.env, CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' }, encoding: 'utf8' }).stdout;
 
       expect(out).toContain('status: APPROVED');
       expect(out).toContain('commits: base=abc1234 head=def5678');

@@ -2,10 +2,10 @@
 // bin/cdd.mjs — the single CDD engine CLI (URC merge surface). Commander.js v15.
 // Subcommands = operation × (type | no type). The five legacy bins (cdd-task / docs-task /
 // branch-review / cdd-select / cdd-research) are gone — this binary is the only entry point.
-//   cdd implement --harness <name> --task <n> [--plan <path>]
-//   cdd review --type <task|branch|spec|plan> --harness <name> [...]
-//   cdd fix --type <task|spec|plan> --harness <name> [...]
-//   cdd research --harness <name> --brief <path> --output <path>
+//   cdd implement --task <n> [--plan <path>]
+//   cdd review --type <task|branch|spec|plan> [...]
+//   cdd fix --type <task|spec|plan> [...]
+//   cdd research --brief <path> --output <path>
 //   cdd brief --task <n> --plan <path> [--output <path>]
 import { Command } from "commander";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
@@ -31,15 +31,38 @@ const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of Commander's own output).
 const SUBCOMMAND_USAGE = {
-  implement: "usage: cdd implement --harness <name> --task <n> [--plan <path>]",
-  review: "usage: cdd review --type <task|branch|spec|plan> --harness <name> [--task <n>] [--doc <path>] [--plan <path>] [--base <sha> --head <sha>] [--round <n>] [--spec <path>]",
-  fix: "usage: cdd fix --type <task|spec|plan> --harness <name> [--task <n>] [--findings <path>] [--doc <path>] [--plan <path>]",
-  research: "usage: cdd research --harness <name> --brief <path> --output <path>",
+  implement: "usage: cdd implement --task <n> [--plan <path>]",
+  review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] [--doc <path>] [--plan <path>] [--base <sha> --head <sha>] [--round <n>] [--spec <path>]",
+  fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] [--doc <path>] [--plan <path>]",
+  research: "usage: cdd research --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
 };
 
 function usageError(command) {
   process.stderr.write((SUBCOMMAND_USAGE[command] ?? "usage: cdd <command> [options]") + "\n");
+}
+
+// ---- host harness detection ----
+
+// detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
+// AI_AGENT=claude-code* → claude; otherwise empty. T3 扩展：唯一 host 事实源（空 → BLOCK）。
+// Exported (test seam) — the CLI resolves the harness here and no longer accepts a harness flag.
+export function detectCurrentHarness(env) {
+  if (env.CURSOR_TRACE_ID) return "cursor-agent";
+  if (env.CLAUDE_CODE_SESSION_ID) return "claude";
+  if ((env.AI_AGENT ?? "").startsWith("claude-code")) return "claude";
+  return "";
+}
+
+// Host harness gate: 4 子命令 action 的唯一 harness 来源（cdd.mjs 负责解析，runner 签名不动）。
+// 空 host → CDD_BLOCKED + exit 1 —— cdd 必须从受支持的 harness 会话内运行，registry 由该 host 键查找。
+function requireHostHarness() {
+  const harness = detectCurrentHarness(process.env);
+  if (!harness) {
+    process.stderr.write("CDD_BLOCKED: no host harness detected (run cdd from within a supported harness)\n");
+    exitWithCode(1);
+  }
+  return harness;
 }
 
 // ---- review/fix shared helpers ----
@@ -95,6 +118,8 @@ function writeBranchBlocked(handoffPath, { base, head, code, reason }) {
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runReview(opts) {
+  // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
+  const harness = requireHostHarness();
   // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
   if (opts.type === "branch") {
     if (!opts.plan) {
@@ -107,7 +132,7 @@ export async function runReview(opts) {
       process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
       process.exit(2);
     }
-    return await runBranchReview(opts);
+    return await runBranchReview({ ...opts, harness });
   }
 
   if (opts.type === "spec" || opts.type === "plan") {
@@ -136,7 +161,7 @@ export async function runReview(opts) {
     const art = reviewArtifactConfig(opts.type);
     const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
     await runDocsTask({
-      harness: opts.harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
+      harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
       handoffPath,
       params: {
         TYPE: opts.type,
@@ -190,7 +215,7 @@ export async function runReview(opts) {
     reviewStoppingGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
   }
   const { runTask } = await import("./lib/runner.mjs");
-  await runTask(opts.harness, opts.task, {
+  await runTask(harness, opts.task, {
     mode: "review", dryRun: DRY_RUN(),
     env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
   });
@@ -313,6 +338,8 @@ async function runBranchReview(opts) {
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runFix(opts) {
+  // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
+  const harness = requireHostHarness();
   const { runTask } = await import("./lib/runner.mjs");
   // type=task fix: --findings is plumbed through runTask's `findingsPath` opt — the runner
   // overrides env.CDD_FINDINGS with the previous-phase handoff in fix mode, so the opt takes
@@ -326,7 +353,7 @@ export async function runFix(opts) {
       process.stderr.write("cdd fix --type task: missing required --task <n>\n");
       process.exit(2);
     }
-    await runTask(opts.harness, opts.task, {
+    await runTask(harness, opts.task, {
       mode: "fix", dryRun: DRY_RUN(),
       findingsPath: opts.findings,
       env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
@@ -362,7 +389,7 @@ export async function runFix(opts) {
   const ws = handoffNaming.resolveWorkspace(opts.doc);
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
-    harness: opts.harness, mode: "fix", template, type: opts.type, doc: opts.doc,
+    harness, mode: "fix", template, type: opts.type, doc: opts.doc,
     findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
@@ -370,20 +397,13 @@ export async function runFix(opts) {
 
 // ---- research (inline of the former cdd-research bin action logic) ----
 
-// detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
-// AI_AGENT=claude-code* → claude; otherwise empty. T3 扩展：唯一 host 事实源（空 → BLOCK）。
-function detectCurrentHarness(env) {
-  if (env.CURSOR_TRACE_ID) return "cursor-agent";
-  if (env.CLAUDE_CODE_SESSION_ID) return "claude";
-  if ((env.AI_AGENT ?? "").startsWith("claude-code")) return "claude";
-  return "";
-}
-
 // Standalone research runner (spawnCapture, not invokeCli — research output is written verbatim).
 async function runResearch(opts) {
   const NAME = "cdd research";
+  // Host harness gate — the registry is indexed by the resolved host key (T3; resolved from host).
+  const harness = requireHostHarness();
 
-  // Brief validation (before the harness gate — pure file check, no PATH dependency).
+  // Brief validation (before the registry gate — pure file check, no PATH dependency).
   let briefContent;
   try {
     briefContent = readFileSync(opts.brief, "utf8");
@@ -392,11 +412,11 @@ async function runResearch(opts) {
     exitBlocked();
   }
 
-  // Harness registry gate.
+  // Harness registry gate (host key → registry entry).
   let entry;
   try {
     const reg = loadRegistry(process.env.CDD_REGISTRY_PATH || REG_PATH);
-    entry = checkHarness(reg, opts.harness, { dryRun: DRY_RUN() });
+    entry = checkHarness(reg, harness, { dryRun: DRY_RUN() });
   } catch (err) {
     if (err instanceof CddBlockedError) {
       if (err.kind === "cli-missing") exitCliMissing(err.message);
@@ -461,12 +481,12 @@ program
 // --- implement (formerly cdd-task --mode implement) ---
 program
   .command("implement")
-  .requiredOption("--harness <name>", "harness name")
   .requiredOption("--task <n>", "task number", intTask)
   .option("--plan <path>", "plan file path")
   .action(async (opts) => {
+    const harness = requireHostHarness();
     const { runTask } = await import("./lib/runner.mjs");
-    await runTask(opts.harness, opts.task, {
+    await runTask(harness, opts.task, {
       mode: "implement",
       dryRun: DRY_RUN(),
       env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
@@ -477,7 +497,6 @@ program
 program
   .command("review")
   .requiredOption("--type <t>", "task|branch|spec|plan")
-  .requiredOption("--harness <name>", "harness name")
   .option("--task <n>", "task number (type=task)", intTask)
   .option("--doc <path>", "document path (type=spec|plan)")
   .option("--plan <path>", "plan path")
@@ -493,7 +512,6 @@ program
 program
   .command("fix")
   .requiredOption("--type <t>", "task|spec|plan")
-  .requiredOption("--harness <name>", "harness name")
   .option("--task <n>", "task number (type=task)", intTask)
   .option("--findings <path>", "findings handoff path for this fix round")
   .option("--doc <path>", "document path (type=spec|plan)")
@@ -507,7 +525,6 @@ program
 program
   .command("research")
   .description("Standalone research runner (independent of implement/review)")
-  .requiredOption("--harness <name>", "harness name")
   .requiredOption("--brief <path>", "path to research brief markdown")
   .requiredOption("--output <path>", "path to write findings markdown")
   .action(async (opts) => {

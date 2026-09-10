@@ -33,13 +33,22 @@ function cleanEnv(extra) {
 }
 
 function runCli(args = [], opts = {}) {
-  const { env: extraEnv = {}, cwd = REPO_ROOT } = opts;
+  const { env: extraEnv = {}, cwd = REPO_ROOT, noHost = false } = opts;
+  const env = cleanEnv(extraEnv);
+  // T3: host detection is ambient-env driven (CLAUDE_CODE_SESSION_ID / AI_AGENT) — a no-host
+  // case must explicitly delete the three host markers; stripping CDD_* alone leaks detection
+  // through the parent session (see host-detection.test.mjs B1 blocker).
+  if (noHost) {
+    delete env.CLAUDE_CODE_SESSION_ID;
+    delete env.CURSOR_TRACE_ID;
+    delete env.AI_AGENT;
+  }
   try {
     // extendEnv:false —— execa 默认 extendEnv:true 会把父进程 env 合入 child，覆盖 cleanEnv 的
     // CDD_* 剥离（orchestrator 携带的 CDD_REVIEW_TIMEOUT 等泄漏回测试 child，见 T8 回归：
     // 秒值 ×1000 溢出 setTimeout 32 位上限 → ~1ms 瞬时 SIGTERM → 非 dry-run 用例确定性 FAIL）。
     // 关闭 extendEnv 后 child 只见 cleanEnv 显式清单，测试与调度侧环境变量零耦合。
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env: cleanEnv(extraEnv), encoding: "utf8", extendEnv: false });
+    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env, encoding: "utf8", extendEnv: false });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e) {
     return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
@@ -71,8 +80,8 @@ describe("cdd CLI", () => {
 
   it("dry-run review --type task → H1 + exit 0", () => {
     const r = runCli(["review", "--type", "task",
-      "--harness", "claude", "--task", "1", "--plan", SMOKE_PLAN],
-      { env: { CDD_DRY_RUN: "1" } });
+      "--task", "1", "--plan", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
@@ -84,9 +93,9 @@ describe("cdd CLI", () => {
     try {
       const tmpPlan = path.join(dir, "plan.md");
       writeFileSync(tmpPlan, "### Task 1:\n- base: develop\n");
-      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+      const r = runCli(["review", "--type", "branch",
         "--plan", tmpPlan, "--base", base, "--head", head],
-        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+        { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toMatch(/status: APPROVED/);
       expect(r.stdout).toMatch(new RegExp(`commits: base=${base} head=${head}`));
@@ -96,70 +105,69 @@ describe("cdd CLI", () => {
   });
 
   it("dry-run review --type spec → exit 0", () => {
-    const r = runCli(["review", "--type", "spec", "--harness", "claude", "--doc", SMOKE_PLAN],
-      { env: { CDD_DRY_RUN: "1" } });
+    const r = runCli(["review", "--type", "spec", "--doc", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
   });
 
   it("dry-run fix --type task → H1 + exit 0", () => {
-    const r = runCli(["fix", "--type", "task", "--harness", "claude", "--task", "1",
+    const r = runCli(["fix", "--type", "task", "--task", "1",
       "--findings", SMOKE_PLAN, "--plan", SMOKE_PLAN],
-      { env: { CDD_DRY_RUN: "1" } });
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
-  it("fix --type spec|plan 非 dry-run：doc-fix 模板渲染后停在 harness gate（Task 4 SP-1 回归 + T3 round-from-findings）", () => {
-    // fix 模板统一从 canonical fix.{type} 族 fixTemplate 读（spec/plan → doc-fix 共享壳），
-    // docs-runner 不再做 `-review`→`-fix` 派生（doc-fix 直传，不得 double-suffix）。
-    // nonexistent harness 保证停在 harness gate（"unknown harness"），不进入 spawn/写 handoff；
-    // 若 doc-fix 缺失/渲染崩，stderr 会出现 template 字样 → not.toMatch(/template/) 拦截。
-    // T3：fix round 从 --findings 名解析（<type>-review-{R}.json）→ 用例须带合法 findings 名。
+  it("fix --type spec|plan 非 dry-run：无 host env → CDD_BLOCKED exit 1（T3 — 无 harness 停闸，host 由环境判定）", () => {
+    // 原"unknown harness 停闸"用例已随 harness 参数删除淘汰：entry 层 host 判定为空即 BLOCK，
+    // 不再存在未知 harness 需停闸（host 必然是 claude/cursor-agent 两合法键）——T3 改断言无-host BLOCK。
+    // 保留 not.toMatch(/template/)：BLOCK 消息不得来自 doc-fix 模板渲染错误。
     for (const [type, reviewFile] of [["spec", "spec-review-1.json"], ["plan", "plan-review-1.json"]]) {
-      const r = runCli(["fix", "--type", type, "--harness", "nonexistent", "--doc", SMOKE_PLAN,
-        "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", reviewFile)]);
-      expect(r.stderr).toMatch(/unknown harness: nonexistent/);
+      const r = runCli(["fix", "--type", type, "--doc", SMOKE_PLAN,
+        "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", reviewFile)],
+        { noHost: true });
+      expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
       expect(r.stderr).not.toMatch(/template/);
     }
   });
 
-  it("review --type spec 非 dry-run：review.md 共享壳渲染后停在 harness gate（Task 4 路由回归）", () => {
-    // runDocsTask 先 render 共享壳 review.md（reviews.json type=spec 补全占位）再进 harness gate；
-    // 渲染崩（缺参/模板缺失）→ stderr 出现 template → not.toMatch(/template/) 拦截。
-    const r = runCli(["review", "--type", "spec", "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
-    expect(r.stderr).toMatch(/unknown harness: nonexistent/);
+  it("review --type spec 非 dry-run：无 host env → CDD_BLOCKED exit 1（原 harness-gate 停闸用例，T3 改断言）", () => {
+    // runDocsTask 原在 harness gate 前 render 共享壳 review.md；host 判定现于 entry 先发 BLOCK。
+    // 渲染崩（缺参/模板缺失）→ stderr 出现 template → not.toMatch(/template/) 仍拦截。
+    const r = runCli(["review", "--type", "spec", "--doc", SMOKE_PLAN], { noHost: true });
+    expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
     expect(r.stderr).not.toMatch(/template/);
   });
 
   it("review --type branch 缺 --base/--head → 必填守卫 exit 2（SP-2）", () => {
-    const r = runCli(["review", "--type", "branch", "--harness", "claude", "--plan", SMOKE_PLAN]);
+    const r = runCli(["review", "--type", "branch", "--plan", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/--base/);
   });
 
-  it("review --type plan 非 dry-run：review.md 共享壳渲染后停在 harness gate（SP-3）", () => {
-    // Task 4：plan 走共享壳 review.md（reviews.json type=plan 配置，占位由注入参数补齐），
-    // 不再要求 {{SPEC}}/{{PASS}}。--spec 保留为可选（不内嵌文档），默认/显式都必须
-    // 落在 "unknown harness: nonexistent"（exit 2），而不是渲染崩溃。
-    const r = runCli(["review", "--type", "plan", "--harness", "nonexistent", "--doc", SMOKE_PLAN]);
-    expect(r.stderr).toMatch(/unknown harness: nonexistent/);
+  it("review --type plan 非 dry-run：无 host env → CDD_BLOCKED exit 1（原 harness-gate 停闸用例，T3 改断言）", () => {
+    // Task 4 曾验证 plan 走共享壳 review.md 渲染后停在 harness gate；T3 后 host 判定 entry 先发 BLOCK。
+    // --spec 保留为可选参数；两种调用形态都必须命中 CDD_BLOCKED（exit 1），而非渲染崩溃。
+    const r = runCli(["review", "--type", "plan", "--doc", SMOKE_PLAN], { noHost: true });
+    expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
     expect(r.stderr).not.toMatch(/template/);
-    const r2 = runCli(["review", "--type", "plan", "--harness", "nonexistent", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN]);
-    expect(r2.stderr).toMatch(/unknown harness: nonexistent/);
+    const r2 = runCli(["review", "--type", "plan", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN], { noHost: true });
+    expect(r2.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
     expect(r2.stderr).not.toMatch(/template/);
   });
 
   it("dry-run review --type plan --spec → exit 0（SP-3 --spec 接线）", () => {
-    const r = runCli(["review", "--type", "plan", "--harness", "claude", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN],
-      { env: { CDD_DRY_RUN: "1" } });
+    const r = runCli(["review", "--type", "plan", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
   });
 
   it("--task 非整数 → 校验回退 exit 2（STD-3 Bug A 契约回归）", () => {
     // parseInt NaN must not leak into runTask (task-NaN-* garbage + fake APPROVED H1);
     // the Commander coercion rejects at parse time → exit 2 (legacy cdd-task contract).
-    const r = runCli(["review", "--type", "task", "--harness", "claude", "--task", "abc", "--plan", SMOKE_PLAN],
-      { env: { CDD_DRY_RUN: "1" } });
+    const r = runCli(["review", "--type", "task", "--task", "abc", "--plan", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/must be an integer, got: abc/);
   });
@@ -186,8 +194,8 @@ describe("cdd CLI", () => {
   it("review --type task：status:BLOCKED 失败轮 → 可重派（SP-4）", () => {
     const { dir, plan } = seedTaskReviewHandoff("BLOCKED");
     try {
-      const r = runCli(["review", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan],
-        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      const r = runCli(["review", "--type", "task", "--task", "1", "--plan", plan],
+        { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toMatch(/status: APPROVED/);
       expect(r.stderr).not.toMatch(/already APPROVED/);
@@ -199,8 +207,8 @@ describe("cdd CLI", () => {
   it("review --type task：status:APPROVED + blocker=0 已通过轮 → 拒绝重派 exit 3（SP-4 保留 Stopping）", () => {
     const { dir, plan } = seedTaskReviewHandoff("APPROVED");
     try {
-      const r = runCli(["review", "--type", "task", "--harness", "claude", "--task", "1", "--plan", plan],
-        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      const r = runCli(["review", "--type", "task", "--task", "1", "--plan", plan],
+        { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/already blocker=0 — Review Stopping/);
     } finally {
@@ -213,8 +221,8 @@ describe("cdd CLI", () => {
     try {
       const brief = path.join(dir, "brief.md");
       writeFileSync(brief, "# test brief\n");
-      const r = runCli(["research", "--harness", "claude", "--brief", brief, "--output", path.join(dir, "findings.md")],
-        { env: { CDD_DRY_RUN: "1" } });
+      const r = runCli(["research", "--brief", brief, "--output", path.join(dir, "findings.md")],
+        { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -269,9 +277,9 @@ describe("cdd CLI", () => {
         `printf '%s' '{"task":1,"phase":"branch-review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"}],"artifacts":{}}' > "${handoffPath}"\n` +
         "exit 0\n");
       chmodSync(path.join(binDir, "claude"), 0o755);
-      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+      const r = runCli(["review", "--type", "branch",
         "--plan", plan, "--base", "eeee555", "--head", "ffff666"],
-        { cwd: dir, env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` } });
+        { cwd: dir, env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}`, CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(0);
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       // warn/nit = 0 blocker → status 被 finalizeHandoff（applyDerivedStatus rollup）覆写为 APPROVED
@@ -314,14 +322,16 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
 
   it("review --type spec → runDocsTask handoffPath=<ws>/spec-review-1.json + workspace=<ws>（canonical 派生命名，非 flat-root/旧体）", async () => {
     process.env.CDD_DRY_RUN = "1";
+    process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runReview resolves host from process.env
     try {
       const { runReview } = await import("../cdd.mjs");
-      await runReview({ type: "spec", harness: "claude", doc: "/repo/root/docs/superpowers/specs/foo-design.md" });
+      await runReview({ type: "spec", doc: "/repo/root/docs/superpowers/specs/foo-design.md" });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-review-1.json");
       expect(call.workspace).toBe("/repo/root/.superpowers/cdd/foo");
     } finally {
       delete process.env.CDD_DRY_RUN;
+      delete process.env.CLAUDE_CODE_SESSION_ID;
       docsRunnerMock.runDocsTask.mockClear();
     }
   });
@@ -336,16 +346,18 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
 
   it("fix --findings spec-review-2.json → runDocsTask handoffPath=<ws>/spec-fix-2.json（round 从 findings 名经 roundPattern 解析）", async () => {
     process.env.CDD_DRY_RUN = "1";
+    process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runFix resolves host from process.env
     try {
       const { runFix } = await import("../cdd.mjs");
       const findings = "/repo/root/.superpowers/cdd/foo/spec-review-2.json";
-      await runFix({ type: "spec", harness: "claude", doc: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
+      await runFix({ type: "spec", doc: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-fix-2.json");
       expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）
       expect(call.findingsPath).toBe(findings);
     } finally {
       delete process.env.CDD_DRY_RUN;
+      delete process.env.CLAUDE_CODE_SESSION_ID;
       docsRunnerMock.runDocsTask.mockClear();
     }
   });
@@ -357,8 +369,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const doc = path.join(dir, "docs", "foo-design.md");
       seedDocsReviewRound(dir, doc, "spec-review-1.json");
-      const r = runCli(["review", "--type", "spec", "--harness", "claude", "--doc", doc],
-        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      const r = runCli(["review", "--type", "spec", "--doc", doc],
+        { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/Review Stopping/);
     } finally {
@@ -371,8 +383,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const doc = path.join(dir, "plans", "foo.md");
       seedDocsReviewRound(dir, doc, "plan-review-1.json");
-      const r = runCli(["review", "--type", "plan", "--harness", "claude", "--doc", doc],
-        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+      const r = runCli(["review", "--type", "plan", "--doc", doc],
+        { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/Review Stopping/);
     } finally {
@@ -381,16 +393,16 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   });
 
   it("fix --type spec 缺 --findings（round 无源）→ exit 2 提示 <type>-review-{R}.json", () => {
-    const r = runCli(["fix", "--type", "spec", "--harness", "claude", "--doc", SMOKE_PLAN],
-      { env: { CDD_DRY_RUN: "1" } });
+    const r = runCli(["fix", "--type", "spec", "--doc", SMOKE_PLAN],
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/spec-review-\{R\}\.json/);
   });
 
   it("fix --findings spec-review-0.json（round<1）→ exit 2 拒（round 须 >= 1）", () => {
-    const r = runCli(["fix", "--type", "spec", "--harness", "claude", "--doc", SMOKE_PLAN,
+    const r = runCli(["fix", "--type", "spec", "--doc", SMOKE_PLAN,
       "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", "spec-review-0.json")],
-      { env: { CDD_DRY_RUN: "1" } });
+      { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/round must be >= 1/);
   });
@@ -404,9 +416,9 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       mkdirSync(wsPath, { recursive: true });
       writeFileSync(path.join(wsPath, "branch-review-eeee555..ffff666-r1.json"),
         JSON.stringify({ task: 1, phase: "branch-review", status: "APPROVED", findings: [], artifacts: {}, blocker: "" }));
-      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+      const r = runCli(["review", "--type", "branch",
         "--plan", plan, "--base", "eeee555", "--head", "ffff666"],
-        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+        { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/Review Stopping/);
     } finally {
@@ -425,9 +437,9 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       writeFileSync(path.join(wsPath, "branch-review-aaaa111..bbbb222-r1.json"), "{}");
       const newHead = "cccc333";
       const newBase = "dddd444";
-      const r = runCli(["review", "--type", "branch", "--harness", "claude",
+      const r = runCli(["review", "--type", "branch",
         "--plan", plan, "--base", newBase, "--head", newHead],
-        { cwd: dir, env: { CDD_DRY_RUN: "1" } });
+        { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(0);
       expect(existsSync(path.join(wsPath, `branch-review-${newBase}..${newHead}-r1.json`))).toBe(true);
     } finally {

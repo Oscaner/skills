@@ -24,10 +24,17 @@ afterAll(() => {
 const SPEC_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'spec-review-1.json');
 const PLAN_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'plan-review-1.json');
 
-function run(args, extraEnv = {}) {
+function run(args, extraEnv = {}, opts = {}) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith('CDD_')) env[k] = v;
+  }
+  // T3: host detection is ambient-env driven — a no-host test must explicitly delete the
+  // host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT).
+  if (opts.noHost) {
+    delete env.CLAUDE_CODE_SESSION_ID;
+    delete env.CURSOR_TRACE_ID;
+    delete env.AI_AGENT;
   }
   return spawnSync('node', [CDD_MJS, ...args], {
     cwd: REPO_ROOT,
@@ -43,46 +50,46 @@ describe('cdd review/fix --type spec|plan CLI contract', () => {
     expect(r.stdout).toMatch(/^Usage: cdd/);
   });
 
-  it('missing --harness → usage stderr + exit 2', () => {
-    const r = run(['review', '--type', 'spec', '--doc', '/x.md']);
-    expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/^usage: /);
+  it('no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)', () => {
+    const r = run(['review', '--type', 'spec', '--doc', '/x.md'], {}, { noHost: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
   });
 
   it('missing --doc → stderr + exit 2', () => {
-    const r = run(['review', '--type', 'spec', '--harness', 'claude']);
+    const r = run(['review', '--type', 'spec'], { CLAUDE_CODE_SESSION_ID: '1' });
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/missing required --doc/);
   });
 
   it('dry-run review --type spec → exit 0', () => {
     const r = run(
-      ['review', '--type', 'spec', '--harness', 'claude', '--doc', SMOKE_PLAN],
-      { CDD_DRY_RUN: '1' },
+      ['review', '--type', 'spec', '--doc', SMOKE_PLAN],
+      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run review --type plan → exit 0', () => {
     const r = run(
-      ['review', '--type', 'plan', '--harness', 'claude', '--doc', SMOKE_PLAN],
-      { CDD_DRY_RUN: '1' },
+      ['review', '--type', 'plan', '--doc', SMOKE_PLAN],
+      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run fix --type spec → exit 0（T3: round 从 --findings spec-review-{R}.json 名解析）', () => {
     const r = run(
-      ['fix', '--type', 'spec', '--harness', 'claude', '--doc', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
-      { CDD_DRY_RUN: '1' },
+      ['fix', '--type', 'spec', '--doc', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
+      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run fix --type plan → exit 0', () => {
     const r = run(
-      ['fix', '--type', 'plan', '--harness', 'claude', '--doc', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
-      { CDD_DRY_RUN: '1' },
+      ['fix', '--type', 'plan', '--doc', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
+      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });

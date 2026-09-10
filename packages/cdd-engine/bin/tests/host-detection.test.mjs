@@ -9,6 +9,7 @@ import { it, expect } from "vitest";
 import { execaSync } from "execa";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { detectCurrentHarness } from "../cdd.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-engine/bin/tests
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..");
@@ -44,4 +45,15 @@ it("CLAUDE_CODE_SESSION_ID=1 → host 判定成功（dry-run exit 0）", () => {
   const r = runCli(["implement", "--task", "1", "--plan", PLAN_FIXTURE],
     { env: { CLAUDE_CODE_SESSION_ID: "1", CDD_DRY_RUN: "1" } });
   expect(r.exitCode).toBe(0);
+});
+
+// N④: detectCurrentHarness 直接单测（table-driven marker 优先级）—— export 的 test seam 由真实消费.
+it.each([
+  ["CURSOR_TRACE_ID 优先 → cursor-agent", { CURSOR_TRACE_ID: "1", CLAUDE_CODE_SESSION_ID: "1" }, "cursor-agent"],
+  ["CLAUDE_CODE_SESSION_ID → claude", { CLAUDE_CODE_SESSION_ID: "1" }, "claude"],
+  ["AI_AGENT=claude-code* → claude", { AI_AGENT: "claude-code-1.0" }, "claude"],
+  ["AI_AGENT 非 claude → empty", { AI_AGENT: "codex" }, ""],
+  ["全空 → empty（BLOCK 判定）", {}, ""],
+])("%s", (_t, env, expected) => {
+  expect(detectCurrentHarness(env)).toBe(expected);
 });

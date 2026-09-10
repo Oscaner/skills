@@ -7,7 +7,6 @@ import {
   renderYml,
   renderTitle,
   renderMeta,
-  renderSummaryTable,
   renderComment,
   renderMasterBody,
 } from "../../packages/osuperpowers/scripts/report-templates.mjs";
@@ -27,16 +26,22 @@ describe("report-templates", () => {
     }
   });
 
-  it("renderTitle 替换 <slug|standalone> 与 <YYYY-MM-DD>", () => {
+  it("renderTitle 替换 <subject> 与 <YYYY-MM-DD>", () => {
     expect(
       renderTitle(
-        { title: "[Session report] <slug|standalone> <YYYY-MM-DD>" },
-        { slugOrStandalone: "cdd-engine-overhaul-p4", date: "2026-09-08" }
+        { title: "[Session report] <subject> <YYYY-MM-DD>" },
+        { subject: "cdd-engine-overhaul-p4", date: "2026-09-08" }
       )
     ).toBe("[Session report] cdd-engine-overhaul-p4 2026-09-08");
     expect(
-      renderTitle(findingMeta.masterDef, { slugOrStandalone: "standalone", date: "2026-09-08" })
-    ).toBe("[Session report] standalone 2026-09-08");
+      renderTitle(findingMeta.masterDef, { subject: "session workspace misrouting fix", date: "2026-09-08" })
+    ).toBe("[Session report] session workspace misrouting fix 2026-09-08");
+  });
+
+  it("masterDef 契约：subject 占位、无 summaryTable、无 <slug|standalone>", () => {
+    expect(findingMeta.masterDef.title).toBe("[Session report] <subject> <YYYY-MM-DD>");
+    expect(findingMeta.masterDef.title).not.toContain("<slug|standalone>");
+    expect(findingMeta.masterDef).not.toHaveProperty("summaryTable");
   });
 
   it("renderMeta 输出 report-meta 六字段 bullet（skill/harness/kind/step/cdd/date）", () => {
@@ -59,27 +64,7 @@ describe("report-templates", () => {
     );
   });
 
-  it("renderSummaryTable 表头 = #/Type/Component/Title（取 masterDef.summaryTable.cols 渲染序）", () => {
-    expect(findingMeta.masterDef.summaryTable.cols).toEqual([
-      "#", "Type", "Component", "Title",
-    ]);
-    const findings = [
-      { type: "bug", component: "cdd-engine", title: "session state corrupted" },
-      { type: "enhancement", component: "osuperpowers:init", title: "simplify first-run install" },
-    ];
-    const table = renderSummaryTable(findings);
-    const cols = findingMeta.masterDef.summaryTable.cols;
-    expect(table.startsWith(`| ${cols.join(" | ")} |`)).toBe(true);
-    expect(table).toContain(`| ${cols.map(() => "---").join(" | ")} |`);
-    expect(table).toContain("| 1 | bug | cdd-engine | session state corrupted |");
-    expect(table).toContain("| 2 | enhancement | osuperpowers:init | simplify first-run install |");
-    expect(table.endsWith(findingMeta.masterDef.summaryTable.placeholder)).toBe(true);
-  });
-
-  it("renderMasterBody 结构常驻断言（Session 元数据 + Findings Summary 表 + 六字段 Report meta）", () => {
-    const findings = [
-      { type: "bug", component: "cdd-engine", title: "session state corrupted" },
-    ];
+  it("renderMasterBody 结构常驻断言（Session 块 + 指针行 + Report meta · 无 Findings Summary）", () => {
     const meta = {
       session: "cdd-engine-overhaul-p4",
       skill: "report-issue",
@@ -89,12 +74,12 @@ describe("report-templates", () => {
       cdd: "2026-09-08-cdd-engine-overhaul-p4",
       date: "2026-09-08",
     };
-    const body = renderMasterBody({ kind: "program", meta, findings });
+    const body = renderMasterBody({ kind: "program", meta });
     expect(body.startsWith(
       "## Session\n\n- Session: cdd-engine-overhaul-p4\n- Kind: program\n- Date: 2026-09-08"
     )).toBe(true);
-    expect(body).toContain("## Findings Summary");
-    expect(body).toContain("| 1 | bug | cdd-engine | session state corrupted |");
+    expect(body).toContain("_Findings are appended as comments below");
+    expect(body).not.toContain("## Findings Summary");
     expect(body.endsWith(`## Report meta (auto)\n${renderMeta(meta)}`)).toBe(true);
     for (const field of ["Skill", "Harness", "Kind", "Step", "CDD", "Date"]) {
       expect(body).toContain(`- ${field}:`);
@@ -110,7 +95,7 @@ describe("report-templates", () => {
       cdd: "st-42",
       date: "2026-09-08",
     };
-    const body = renderMasterBody({ kind: "standalone", meta, findings: [] });
+    const body = renderMasterBody({ kind: "standalone", meta });
     expect(body).toContain("- Session: standalone");
   });
 

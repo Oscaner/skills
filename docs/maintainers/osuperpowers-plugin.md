@@ -177,26 +177,6 @@ Document review flows through the merged `cdd` CLI (the former `docs-task` bin).
 
 Schema: `skills/_templates/docs-handoff-schema.json`
 
-## CDD CLI pre-check (skills-missing gate)
-
-The CDD engine (`cdd` --> `runner.mjs`) runs a **skills-missing pre-check** before spawning nested CLI agents, in all three modes (implement/task-review/fix). This is distinct from the exit-code hierarchy:
-
-| Exit | Meaning | Trigger |
-|------|---------|---------|
-| 0 | OK | task completed successfully |
-| 1 | BLOCKED | task prerequisite error (brief/templates missing, plan not found, harness not-supported) |
-| 2 | CLI missing | selected harness CLI not in PATH |
-| 3 | **skills-missing** | install-and-use channel missing required skills plugins (CLI present but plugins not installed) |
-
-**Channel classification** (12 harnesses, configuration-driven via `packages/osuperpowers/bin/utils/skills-probe.config.mjs`):
-
-- **install-and-use** (8): claude / cursor-agent / droid / grok / qoder / codex / gemini / pi --> missing --> **exit 3** + stderr per-plugin install hint
-- **init** (4): opencode / trae / vibe / kiro --> missing --> stderr hint `init harness <name>` (not exit 3); task runs anyway
-
-**Required plugins** (closed set, configuration-driven): `superpowers` + `mattpocock-skills` + `osuperpowers`. Probe detection varies by harness: `plugin-list` (claude/grok), `skill-dir` (cursor-agent/droid/qoder/codex/gemini), `package-list` (pi). Probe failure (CLI error / no permission) --> **fail-open allow** (exit 0 + warn).
-
-Implementation: `packages/osuperpowers/bin/utils/skills-probe.mjs` / `packages/osuperpowers/bin/utils/skills-probe.config.mjs`.
-
 ## Releasing
 
 One plugin is versioned from this repo: **`osuperpowers`** (independent semver). Integration branch is **`develop`**; **`main`** receives releases only via PRs from `develop`.

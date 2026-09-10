@@ -1,7 +1,5 @@
 # @oscaner-skills/osuperpowers
 
-[English](README.md) | [简体中文](README.zh-CN.md)
-
 osuperpowers skills for Claude Code — orchestration family and the cli-* CDD engine skills.
 
 ## What it does

@@ -370,6 +370,15 @@ export async function runFix(opts) {
 
 // ---- research (inline of the former cdd-research bin action logic) ----
 
+// detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
+// AI_AGENT=claude-code* → claude; otherwise empty. T3 扩展：唯一 host 事实源（空 → BLOCK）。
+function detectCurrentHarness(env) {
+  if (env.CURSOR_TRACE_ID) return "cursor-agent";
+  if (env.CLAUDE_CODE_SESSION_ID) return "claude";
+  if ((env.AI_AGENT ?? "").startsWith("claude-code")) return "claude";
+  return "";
+}
+
 // Standalone research runner (spawnCapture, not invokeCli — research output is written verbatim).
 async function runResearch(opts) {
   const NAME = "cdd research";

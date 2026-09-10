@@ -155,7 +155,7 @@ it("runTask: unknown harness → blocked exit 1", async () => {
   expect(res.exitCode).toBe(1);
 });
 
-it("runTask: not-supported harness → blocked exit 1", async () => {
+it("runTask: 两键 registry 下 codex（原 not-supported 键）→ unknown harness blocked exit 1", async () => {
   const ws = setupWorkspace();
   const res = await runTask("codex", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(1);

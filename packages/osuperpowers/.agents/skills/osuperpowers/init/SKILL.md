@@ -22,11 +22,7 @@ flowchart TD
 
 ### guide-install
 
-- **Do**: Guide the user through installing the osuperpowers plugin from the harness's own marketplace
-  mechanism. claude/cursor-agent are install-and-use channel harnesses — no per-harness config file
-  or trust ceremony is written by this skill (the harness selection/detection/install layer was
-  removed: registry converged to claude/cursor-agent). Also check whether the `cdd` engine CLI is in
-  PATH (`command -v cdd`); when missing, print install guidance —
+- **Do**: Guide the user through installing the osuperpowers plugin from the harness's own plugin marketplace. osuperpowers installs through each harness's own plugin marketplace; claude/cursor-agent need no per-harness config file or trust ceremony. Also check whether the `cdd` engine CLI is in PATH (`command -v cdd`); when missing, print install guidance —
   `@oscaner-skills/cdd-engine not installed. Run: npm i -g @oscaner-skills/cdd-engine`
   `--dry-run` → preview only (no install performed).
 - **Read**: PATH environment

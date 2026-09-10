@@ -8,12 +8,13 @@
 
 **Tech Stack:** Node ESM（`packages/cdd-engine/bin/`）+ osuperpowers skills/emit/validate + vitest/node:test + tinyglobby。
 
-**Spec:** [2026-09-09-cdd-engine-overhaul-p5-design.md](docs/superpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md)（v1.1，plan-review 期 D13 追加）
+**Spec:** [2026-09-09-cdd-engine-overhaul-p5-design.md](docs/superpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md)（v1.2，P5 执行期 D14 追加）
 
 ## Global Constraints
 
-- **决策编号 D1–D13** 是权威引用（spec §2.3），task 内引用须一致，禁止错标（D11=命令面统一，D12=测试迁移，D13=vendored gemini 清净）。
+- **决策编号 D1–D14** 是权威引用（spec §2.3），task 内引用须一致，禁止错标（D11=命令面统一，D12=测试迁移，D13=vendored gemini 清净，D14=progress 所有权 engine）。
 - **D13**：vendored 发布面 gemini 装配清净 —— `vendor-assembly.mjs` 去 mattpocock gemini 分支 + `thinGeminiExtension`/`geminiMarkdown` 整删；superpowers 自带 gemini 产物保留（submodule 不可改）。
+- **D14（P5 执行期追加）**：progress.json 所有权收归 engine —— engineRecoveryCount 由 runner 写入（当前零 engine 写入点）；cli-driven-development §engine-recovery/§timeout-decision 去「orchestrator 递增 progress.json」指令；orchestrator 只读不写。证据：orchestrator 手写 tasks 对象 → `progressData.tasks.find is not a function` dispatch 失败（[#232 comment 5612106797](https://github.com/Oscaner/skills/issues/232#issuecomment-5612106797)）。
 - **原子提交**：每个 task 的"删文件 + 改产生者 + 清引用/测试"必须在同一 commit —— 删除类变更拆分会导致中间态 validate 红。
 - **保留机制不动**（spec §2.5）：`detectCurrentHarness`（扩展空→BLOCK）、registry 两键、`validateCommitContract`/模板 `HARD GATE`/URC Review Stopping、runner runTask 链。
 - **residue guard 豁免**：`validateCommitContract` / `HARD GATE` / `cdd-commit-gate-smoke` fixtures 不在 gate 语汇注册表（这些 "gate" 与 cdd-gate 同名不同物）。
@@ -382,7 +383,7 @@
 
 **Files:**
 - Create: `.changeset/p5-cdd-engine-overhaul.md`
-- Modify: `docs/superpowers/specs/2026-09-04-cdd-engine-overhaul-overall.md`（P5 行 Implementation plan → Done；change-history +v1.24；version v1.24）
+- Modify: `docs/superpowers/specs/2026-09-04-cdd-engine-overhaul-overall.md`（P5 行 Implementation plan → Done；change-history +v1.25；version v1.25）
 - Modify: `docs/superpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md`（Status: Draft → Approved/Plan pending → Plan done 标记，§Section 5 review record）
 
 - [ ] **Step 1: 写 changeset**
@@ -391,16 +392,55 @@
   "@oscaner-skills/cdd-engine": major
   "@oscaner-skills/osuperpowers": major
   ---
-  feat(cdd-engine): P5 — remove cdd-gate + harness selection layer, drop --harness/--doc, converge to host-harness model
+  feat(cdd-engine): P5 — remove cdd-gate + harness selection layer, drop --harness/--doc, converge to host-harness model + progress.json engine-owned
   ```
-- [ ] **Step 2: overall v1.24 四表 sync**（P5 plan → Done + change-history）
+- [ ] **Step 2: overall v1.25 四表 sync**（P5 plan → Done + change-history）
 - [ ] **Step 3: `pnpm run validate` 绿**
 - [ ] **Step 4: Commit**
   ```bash
   git add -A
-  git commit -m "chore(cdd-engine): P5 changeset + overall v1.24 sync"
+  git commit -m "chore(cdd-engine): P5 changeset + overall v1.25 sync"
   ```
 - [ ] **Step 5: `osuperpowers:finishing` takeover**（branch review → merge/PR/keep/discard）
+
+---
+
+### Task 9: progress.json 所有权收归 engine（D14，P5 执行期追加）
+
+<thinking>原子范围：engine 补 engineRecoveryCount 写入点（runner BLOCKED/engine-recovery 自增）+ cli-driven-development §engine-recovery/§timeout-decision 去「orchestrator 递增 progress.json」指令 + 确认 orchestrator 只读不写。根因：[#232 comment 5612106797]（orchestrator 手写 tasks 对象当数组 → tasks.find is not a function dispatch 失败；engineRecoveryCount 零 engine 写入点）。v1.25 已登记。</thinking>
+
+**Files:**
+- Modify: `packages/cdd-engine/bin/lib/runner.mjs`（engineRecoveryCount 自增：在 BLOCKED/engine-error 判定路径或 engine-recovery 适配点写入；若无天然落点，随 progress.mjs schema 新导出统一写 —— 交接时务实最小改）
+- Modify: `packages/cdd-engine/bin/lib/progress.mjs`（如 runner 落点需新 helper：`incrementRecovery(progressDir)` 配套导出 + 注释）
+- Modify: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`（§engine-recovery「increment recovery counter in progress.json」→「engine 自递增，orchestrator 只读 engineRecoveryCount 判 retry」；§timeout-decision 同；dispatch-mode 去任何 progress 写入）
+- Modify: `packages/cdd-engine/bin/tests/runner.test.mjs`（如有 engineRecoveryCount 相关断言更新）
+- Modify: `packages/cdd-engine/bin/tests/progress.test.mjs` 或新测试（engineRecoveryCount 自增断言，TDD）
+
+**Interfaces:**
+- Consumes: spec D14 + [#232 comment 5612106797]
+- Produces: progress.json 全字段（tasks/timeoutCount/engineRecoveryCount/status）由 engine 单选；skill 层零 orchestrator 写入指令
+
+- [ ] **Step 1: 写 failing async**（engineRecoveryCount 自增断言）
+  Add `packages/cdd-engine/bin/tests/progress-owner.test.mjs`（vitest）:
+  ```js
+  import { describe, it, expect } from 'vitest';
+  import { readProgressJSON } from '../lib/progress.mjs';
+  // tmp workspace + fresh progress.json；断言 dispatch BLOCKED 后 engineRecoveryCount 由 engine 自增
+  it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orchestrator 只读）", () => {
+    // 前置：prog.engineRecoveryCount == 0；触发一次 engine-level BLOCKED（如 cdd implement 非法参数）
+    // 断言：重读 progress.json engineRecoveryCount == 1（无需 orchestrator 写）
+  });
+  ```
+  Expected: FAIL（当前 engine 无该写入点）
+- [ ] **Step 2: runner.mjs 加 engineRecoveryCount 自增点**（+ progress.mjs helper 如需要）
+- [ ] **Step 3: cli-driven-development SKILL.md 去 orchestrator 递增指令**（§engine-recovery / §timeout-decision / dispatch-mode）
+- [ ] **Step 4: 测试通过 + `grep -rn 'progress.json' packages/osuperpowers/skills` 仅剩只读引用**
+- [ ] **Step 5: `pnpm run validate` 绿**
+- [ ] **Step 6: Commit**
+  ```bash
+  git add -A
+  git commit -m "refactor(cdd-engine): progress.json engine-owned — engineRecoveryCount engine-write + orchestrator read-only (D14)"
+  ```
 
 ---
 
@@ -413,7 +453,7 @@
 - ④ skill/docs 层 → T4（命令形态）+ T5（概念出清）✓
 - ⑤ CI/workflow 面 → T1（`.github/actions/install-harness/` + pr-validate.yml — review blocker F1 内联）✓
 - ⑥ 引擎测试/smoke 迁移面 → T3 ✓
-- spec §2.3 D1–D13 全覆盖 ✓（**D1→T1（CI action + pr-validate.yml）+ T2（bin/init + install-harness.mjs）**、D2→T6、D3→T2、D4→T2、D5/D6→T3、D7→T2、D8→T2、D9→T2、D10→T3、D11→T4、D12→T3、D13→T1）
+- spec §2.3 D1–D14 全覆盖 ✓（**D1→T1（CI action + pr-validate.yml）+ T2（bin/init + install-harness.mjs）**、D2→T6、D3→T2、D4→T2、D5/D6→T3、D7→T2、D8→T2、D9→T2、D10→T3、D11→T4、D12→T3、D13→T1、**D14→T9**）
 
 **2. Placeholder scan**：无 TODO/TBD；所有 step 有明确 Run 命令或 Modify 内容。
 

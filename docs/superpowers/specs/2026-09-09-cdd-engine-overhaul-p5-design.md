@@ -1,7 +1,7 @@
 # CDD Engine Overhaul — P5 Design: Gate 移除 + harness 层全面清理
 
-- **Version**: v1.1
-- **Status**: Draft（plan-review 期 D13 追加）
+- **Version**: v1.2
+- **Status**: Draft（P5 执行期 D14 追加）
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) **v1.23**
 - **Depends on**: P1 (soft) — gate env 传播产物；P2 (vendored superpowers 自带 per-harness manifests 保留)；P6 (handoff 三消费方收敛，已合并 #245)
@@ -63,6 +63,7 @@ cdd.mjs import 了 `skills-probe.config.mjs` 但 **从不注入 `probeSkills`**�
 | D11 | **review/fix 命令面统一被审目标参数**：`--doc` 退役，改 `--spec`（type=spec 被审）`--plan`（type=plan/task/branch 被审）；`--spec` 在 type=plan 时 = 上游 spec 参照。workspace slug 从被审目标派生 | 语义自解释，省 `--doc` 的文档说明 + token |
 | D12 | 引擎测试 / smoke 迁移（~50 处 `--harness` 调用点 + smoke-cdd 四命令链）配套改造；测试/CI host-marker 策略：spawn env 注入现有 marker（`CLAUDE_CODE_SESSION_ID` / `CURSOR_TRACE_ID`）即判定 host | D5/D6 落地必需，见 2.4 ⑥ |
 | D13 | **vendored 发布面 gemini 装配清净**：`vendor-assembly.mjs` 删 mattpocock gemini 分支（`thinGeminiExtension` + `geminiMarkdown` 补写 + `assertNoUpstreamGeminiExtension` guard）；`thinGeminiExtension`/`geminiMarkdown` 函数整删；publish-vendor.test / emit.test 对应用例删。superpowers 自带 gemini 产物（submodule 提交）保留不可改 | 收敛 claude/cursor-agent 后 vendored 补写 gemini = 未验证通道死代码（用户拍板） |
+| D14 | **progress.json 所有权收归 engine**（P5 执行期 finding，[#232 comment 5612106797]）：engineRecoveryCount 的维护移入 engine（当前零 engine 写入点，仅 skill 文档要求 orchestrator 写）；cli-driven-development §engine-recovery / §timeout-decision 去掉「orchestrator 递增 progress.json」指令，orchestrator 只读 progress 判路由、完全不写 | 实测 orchestrator 手写 tasks 结构错（对象当数组）→ `progressData.tasks.find is not a function` dispatch 失败；progress 已全权归 engine（tasks/timeoutCount/status），仅 engineRecoveryCount 归于不清（用户拍板） |
 
 ### 2.4 删除面
 
@@ -203,6 +204,7 @@ scripts/validate/smoke-cdd.mjs：四命令链（implement/review task/fix/branch
 - `pnpm run validate` 绿（13-block 结构，gate-hooks block 移除后 block 数更新）
 - `pnpm run emit` 后无 drift（`emit:check` 绿）；被删 harness 的现存产物（`.codex-plugin/` / `.qoder-plugin/` / `.kimi-plugin/` / `gemini-extension.json` / `GEMINI.md`）已清；**保留 harness 产物（`.claude-plugin/` / `.cursor-plugin/`）正常生成且存在**
 - `vendor-assembly.mjs` 无 gemini 装配（mattpocock 分支删）；`thinGeminiExtension` / `geminiMarkdown` 引用消失；superpowers 自带 gemini 产物原样保留（submodule）—— **D13**
+- **progress.json 所有权（D14）**：engine 侧写入 engineRecoveryCount（runner BLOCKED/engine-recovery 路径自增）；cli-driven-development §engine-recovery / §timeout-decision 无「orchestrator 递增 progress.json」指令；orchestrator（skill 层）不写 progress.json —— grep `progress.json` + `increment` in skills 归零（只读引用除外）
 - changeset 提交（`cdd-engine` / `osuperpowers` 版本语义见 plan）
 
 ---
@@ -215,6 +217,7 @@ scripts/validate/smoke-cdd.mjs：四命令链（implement/review task/fix/branch
 | P5 acceptance：`install-harness 不写 gate config`（隐含保留）| `install-harness` 整体删除 + init 收缩为 marketplace 指引 | Yes — v1.23 · 2026-09-09 |
 | dependency：P1（soft）| 新增 P2 关联（vendored superpowers 自带 per-harness manifests 保留）已注 §Depends；无新 hard edge | Yes — v1.23 · 2026-09-09 |
 | P5 六类删除面（v1.23）| **D13（plan-review 期追加）**：vendored 发布面 gemini 装配清净 —— mattpocock 补写 gemini 分支（vendor-assembly）+ `thinGeminiExtension`/`geminiMarkdown` 整删；superpowers 自带 gemini 保留（submodule） | Yes — v1.24 · 2026-09-10 |
+| P5 scope（v1.24）| **D14（P5 执行期追加，[#232 comment 5612106797]）**：progress.json 所有权收归 engine —— engineRecoveryCount 由 runner 写入（当前零 engine 写入点）、skill 文档去 orchestrator 递增指令、orchestrator 只读不写 | Yes — v1.25 · 2026-09-10 |
 
 ---
 

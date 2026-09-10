@@ -5,7 +5,7 @@ description: Analyzes the current SDD/CDD session for bugs and enhancement oppor
 
 # Osuperpowers Report Issue
 
-Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then attach findings to `Oscaner/skills` issues via `gh`. Findings go through one of two channels — the **program channel** (comments on the current program's phase-owning issue) or the **session channel** (comments on a find-or-create session master). The flow is a digraph: `analyze → classify → confirm → resolve-destination → {program · session} → dedup → append-comment → report`. All issue bodies are produced by the renderer CLI at `scripts/report-templates.mjs`; `pluginRoot` is resolved by ascending to the nearest `.claude-plugin/plugin.json` (same discovery as the gate hook). Manual trigger only.
+Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then attach findings to `Oscaner/skills` issues via `gh`. Findings go through one of two channels — the **program channel** (comments on the current program's phase-owning issue) or the **session channel** (comments on a find-or-create session master). The flow is a digraph: `analyze → classify → confirm → resolve-destination → {program · session} → dedup → append-comment → report`. All issue bodies are produced by the renderer CLI at `scripts/report-templates.mjs`; `pluginRoot` is resolved by ascending to the nearest `.claude-plugin/plugin.json`. Manual trigger only.
 
 ## Flow Digraph
 

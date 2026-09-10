@@ -32,8 +32,8 @@ const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 // Per-subcommand usage lines (print on parse/usage errors in place of Commander's own output).
 const SUBCOMMAND_USAGE = {
   implement: "usage: cdd implement --task <n> [--plan <path>]",
-  review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] [--doc <path>] [--plan <path>] [--base <sha> --head <sha>] [--round <n>] [--spec <path>]",
-  fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] [--doc <path>] [--plan <path>]",
+  review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
+  fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
   research: "usage: cdd research --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
 };
@@ -136,14 +136,17 @@ export async function runReview(opts) {
   }
 
   if (opts.type === "spec" || opts.type === "plan") {
-    if (!opts.doc) {
-      process.stderr.write(`cdd review --type ${opts.type}: missing required --doc <path>\n`);
+    // D11: type-self-describing target param — type=spec reviews the --spec doc;
+    // type=plan reviews the --plan doc (optional --spec carries the upstream reference).
+    const doc = opts.type === "spec" ? opts.spec : opts.plan;
+    if (!doc) {
+      process.stderr.write(`cdd review --type ${opts.type}: missing required --${opts.type} <path>\n`);
       process.exit(2);
     }
     const { runDocsTask } = await import("./lib/docs-runner.mjs");
     // spec/plan: round = engine auto-increment（canonical review.{type} 族模式扫描）；--round only
     // validates backfill (conflict → exit 2).
-    const ws = handoffNaming.resolveWorkspace(opts.doc);
+    const ws = handoffNaming.resolveWorkspace(doc);
     const round = handoffNaming.resolveNextRound(ws, "review", opts.type);
     if (opts.round && Number(opts.round) !== round) {
       process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);
@@ -152,7 +155,7 @@ export async function runReview(opts) {
     const prev = existingRoundHandoff(ws, opts.type, round - 1);
     // Stopping only rejects a re-run of the SAME ref (doc) whose previous round is APPROVED
     // with blocker=0; a changed ref = a new review, and a BLOCKED/TIMEOUT round = re-dispatchable (SP-4).
-    if (prev && (prev.doc_path ?? "") === opts.doc) reviewStoppingGuard(prev, opts.type, round, opts.doc);
+    if (prev && (prev.doc_path ?? "") === doc) reviewStoppingGuard(prev, opts.type, round, doc);
     // review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
     // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
     // 符号经具体化注入）；内容占位（lensEnum/axesGuide）由 reviews.json 配置注入，artifact 参数
@@ -161,18 +164,19 @@ export async function runReview(opts) {
     const art = reviewArtifactConfig(opts.type);
     const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
     await runDocsTask({
-      harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
+      harness, mode: "review", template: "review", type: opts.type, doc,
       handoffPath,
       params: {
         TYPE: opts.type,
         LENS_GUIDE: cfg.lensEnum.join(" · "),
         WORKSPACE: ws,
-        REFERENCE: opts.doc,
+        REFERENCE: doc,
         AXES: cfg.axesGuide,
         RETURN_MODE: art.return,
         HANDOFF_TYPE: art.schema,
         H1_BLOCK: "",
-        PLAN_LINE: opts.spec ? `**Spec:** ${opts.spec}` : "",
+        // type=plan: PLAN_LINE 注入上游 spec 参照；type=spec 无 plan 参照，保持空串。
+        PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
         HARD_GATE: reviewHardGate(art.return, handoffPath),
       },
       workspace: ws, repoRoot: gitToplevel(process.cwd()),
@@ -365,8 +369,11 @@ export async function runFix(opts) {
     process.stderr.write(`unknown fix --type: ${opts.type}\n`);
     process.exit(2);
   }
-  if (!opts.doc) {
-    process.stderr.write(`cdd fix --type ${opts.type}: missing required --doc <path>\n`);
+  // D11: type-self-describing target param — type=spec fixes the --spec doc;
+  // type=plan fixes the --plan doc.
+  const doc = opts.type === "spec" ? opts.spec : opts.plan;
+  if (!doc) {
+    process.stderr.write(`cdd fix --type ${opts.type}: missing required --${opts.type} <path>\n`);
     process.exit(2);
   }
   // fix round 从 --findings 源解析：roundPattern("review", type) 匹配 findings 文件名
@@ -386,10 +393,10 @@ export async function runFix(opts) {
   // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
   // workspace 与 review 同源 resolveWorkspace(doc)；handoffPath 显式传 canonical fix.{type} 名。
   const template = handoffNaming.familyConfig("fix", opts.type).fixTemplate;
-  const ws = handoffNaming.resolveWorkspace(opts.doc);
+  const ws = handoffNaming.resolveWorkspace(doc);
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
-    harness, mode: "fix", template, type: opts.type, doc: opts.doc,
+    harness, mode: "fix", template, type: opts.type, doc,
     findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
@@ -498,12 +505,11 @@ program
   .command("review")
   .requiredOption("--type <t>", "task|branch|spec|plan")
   .option("--task <n>", "task number (type=task)", intTask)
-  .option("--doc <path>", "document path (type=spec|plan)")
-  .option("--plan <path>", "plan path")
+  .option("--plan <path>", "plan path (type=task|branch; type=plan: review target)")
   .option("--base <sha>", "base commit (type=task|branch)")
   .option("--head <sha>", "head commit (type=task|branch)")
   .option("--round <n>", "round backfill (validate against engine auto-increment)")
-  .option("--spec <path>", "spec document path (type=plan; plan axis references spec coverage via reviews.json axesGuide; kept as a compatibility param, value is not inlined into the doc)")
+  .option("--spec <path>", "spec document path (type=spec: review target; type=plan: upstream reference pointer)")
   .action(async (opts) => {
     await runReview(opts);
   });
@@ -514,8 +520,8 @@ program
   .requiredOption("--type <t>", "task|spec|plan")
   .option("--task <n>", "task number (type=task)", intTask)
   .option("--findings <path>", "findings handoff path for this fix round")
-  .option("--doc <path>", "document path (type=spec|plan)")
-  .option("--plan <path>", "plan path")
+  .option("--spec <path>", "spec document path (type=spec)")
+  .option("--plan <path>", "plan path (type=task|plan)")
   .action(async (opts) => {
     await runFix(opts);
   });

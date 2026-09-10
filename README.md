@@ -22,7 +22,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine, cross-harness gate (11 adapters) |
+| **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine |
 | **[superpowers](vendors/superpowers/)** | Vendored | Upstream workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
 | **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd`, `to-tickets` |
 | **[impeccable](vendors/impeccable/)** | Vendored | Frontend design skills |
@@ -60,12 +60,6 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 | Codex | install-and-use | install plugin + `/hooks` trust |
 | Gemini | install-and-use | `gemini extensions install <repo-url>` |
 | Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
-| Trae | init | `init harness trae` |
-| Vibe | init | `init harness vibe` |
-| Kiro | init | `init harness kiro` |
-| OpenCode | init | `init harness opencode` |
-
-Full per-harness details: [docs/gate-install.md](docs/gate-install.md).
 
 ## Quick start
 
@@ -91,8 +85,7 @@ Full architecture: [CLAUDE.md](CLAUDE.md).
 
 ## Per-package docs
 
-- [packages/osuperpowers/](packages/osuperpowers/) -- skills, CDD engine, gate
-- [docs/gate-install.md](docs/gate-install.md) -- per-harness gate installation
+- [packages/osuperpowers/](packages/osuperpowers/) -- skills, CDD engine
 
 ## Development
 

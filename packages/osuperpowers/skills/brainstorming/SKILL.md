@@ -162,14 +162,14 @@ flowchart TD
 
 ### `spec-review?`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --harness <name> --doc <path>` (covers completeness / consistency / clarity in a single run; findings are lens-tagged; round auto-increments in the engine). **Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden.** Review Stopping (I5): follow [Review Stopping](../_docs/review.md#rule-review-stopping) in `_docs/review.md` (node-anchored SSoT) — blocker>0: cli-fix-all-findings → re-run; blocker=0: cli-fix-all-findings → done. No re-run after blocker=0.
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --spec <path>` (covers completeness / consistency / clarity in a single run; findings are lens-tagged; round auto-increments in the engine; `--spec` is the type-self-describing review target — the spec doc under review). **Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden.** Review Stopping (I5): follow [Review Stopping](../_docs/review.md#rule-review-stopping) in `_docs/review.md` (node-anchored SSoT) — blocker>0: cli-fix-all-findings → re-run; blocker=0: cli-fix-all-findings → done. No re-run after blocker=0.
 - **Read**: Spec document + `_docs/review.md`
 - **Exit**: blocker=0 → `cli-fix-all-findings` → `user-confirm-commit?`
 - **Fail**: Re-run review after blocker=0 → violates I5 (Review Stopping).
 
 ### `cli-fix-all-findings`
 
-- **Do**: Fix ALL findings from the captured cdd review handoff (blocker + warn + nit) — `cdd fix --type spec --harness <name> --doc <path> --findings <handoff-path>`. No new review invocation — work from findings already captured in the current review cycle. When routed from blocker>0: fix, then route back to `spec-review?`. When routed from blocker=0: fix all findings, then proceed to `user-confirm-commit?`.
+- **Do**: Fix ALL findings from the captured cdd review handoff (blocker + warn + nit) — `cdd fix --type spec --spec <path> --findings <handoff-path>`. No new review invocation — work from findings already captured in the current review cycle. When routed from blocker>0: fix, then route back to `spec-review?`. When routed from blocker=0: fix all findings, then proceed to `user-confirm-commit?`.
 - **Read**: captured cdd review handoff (findings from current review cycle)
 - **Exit**: blocker>0 path → `spec-review?`; blocker=0 path → `user-confirm-commit?`
 - **Fail**: Invoke a new cdd review call instead of fixing from captured findings → violates I5 (Review Stopping).

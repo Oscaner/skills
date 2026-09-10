@@ -1,20 +1,18 @@
 ---
 name: cli-driven-development
-description: Independent cli-driven-development orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Selects harness via cli-select, determines base via shared doc, dispatches CDD three-mode chain (implement / task-review / fix), runs branch-review, hands off to finishing. Callable standalone; referenced by no other skill.
+description: Independent cli-driven-development orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Determines base via shared doc, dispatches CDD three-mode chain (implement / task-review / fix), runs branch-review, hands off to finishing. Callable standalone; referenced by no other skill.
 ---
 
 # CLI-Driven Development (cdd)
 
-Execute planned tasks with the selected harness CLI via a three-mode chain. This skill is both orchestrator and engine: it executes AND makes orchestrator decisions (mode chain, Final Review).
+Execute planned tasks with the host harness CLI (ambient detection — no selection step) via a three-mode chain. This skill is both orchestrator and engine: it executes AND makes orchestrator decisions (mode chain, Final Review).
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[detect-engine] -->|cdd in PATH| B[select-harness]
+  A[detect-engine] -->|cdd in PATH| C[determine-base]
   A -->|not found| Z0((BLOCKED: cdd-engine-not-installed))
-  B -->|harness chosen| C[determine-base]
-  B -->|no harness| Z1((BLOCKED: no-harness))
   C -->|base confirmed| D[dispatch-mode]
   C -->|user refuses| Z2((BLOCKED: base-undecided))
   D -->|implement| E{handoff-status}
@@ -52,13 +50,6 @@ flowchart TD
 - **Exit**: Found → next node; not found → BLOCKED (soft exit with install guidance)
 - **Fail**: Fail-open if PATH check errors; proceed with warning
 
-### `select-harness`
-
-- **Do**: Invoke the [ask](../cli-select/SKILL.md#ask) node of [cli-select](../cli-select/SKILL.md) (cross-skill call) to obtain the user's selected harness name; pass `--harness <name>` as an **explicit CLI argument** to all downstream `cdd` calls (no implicit env var propagation — extends P7 I1).
-- **Read**: harness name returned by cli-select's `ask` node.
-- **Exit**: harness selected → `determine-base`; cli-select BLOCKED → BLOCKED: no-harness.
-- **Fail**: cli-select returns BLOCKED (engine bug / user cancellation) → this node same BLOCKED.
-
 ### `determine-base`
 
 - **Do**: Follow the [base-branch.md](./docs/base-branch.md) methodology, trying sources in order: ① plan document `base` field ② branch upstream (`git rev-parse --abbrev-ref @{u}`) ③ conversation context (explicit base mention in prior messages) ④ fallback: ask user. Once determined, write to `.superpowers/cdd/<slug>/base-branch.json` (schema: `{base, source: "plan-field"|"branch-upstream"|"conversation-context"|"user-confirmed", confirmed_at}`; slug = CDD workspace slug; source has four values matching the four inference sources). **Scope resolution**: CDD scenario scope = `cdd`, slug = CDD workspace slug.
@@ -72,7 +63,7 @@ flowchart TD
   1. Generate brief: `cdd brief --task N --plan <path> --output <workspace>/task-N-brief.md`
   2. For task-review mode: generate review diff via review-package script
   3. **Three-mode chain enforcement**: For fix mode — verify task-review handoff exists for this task AND status = APPROVED; refuse dispatch otherwise (report to user)
-  4. Dispatch per mode — `cdd` (cdd-engine bin on PATH; `{pluginRoot}` no longer hosts engine code): `cdd implement --harness <name> --task N` (implement) · `cdd review --type task --harness <name> --task N` (task-review) · `cdd fix --type task --harness <name> --task N` (fix; pass `--findings <task-N-task-review-R.json>` when the orchestrator wants an explicit fix round). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index). (No `progress.json.lastDispatchHead` bookkeeping — that field was removed with the `cdd contract` subcommand in T8; the engine's post-run commit-contract validation uses the live git tree instead.)
+  4. Dispatch per mode — `cdd` (cdd-engine bin on PATH; `{pluginRoot}` no longer hosts engine code; host harness is ambient-detected by the engine, no `--harness` flag): `cdd implement --task N` (implement) · `cdd review --type task --task N` (task-review) · `cdd fix --type task --task N` (fix; pass `--findings <task-N-task-review-R.json>` when the orchestrator wants an explicit fix round). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph). Brief generation uses `--task N` index (CDD-level unique index). (No `progress.json.lastDispatchHead` bookkeeping — that field was removed with the `cdd contract` subcommand in T8; the engine's post-run commit-contract validation uses the live git tree instead.)
 - **Read**: `CDD_HANDOFF_PATH` (`task-N-handoff.json`) + open-findings (fix mode) + brief-dependent plan sections + `progress.json` (timeoutCount, on timeout).
 - **Exit**: construct CLI command and spawn → enter `handoff-status` (decision node, routes by handoff status). On timeout → enter `timeout-decision`.
 - **Fail**: nested CLI failure with missing handoff → runner.mjs has written BLOCKED handoff (stderr in blocker field); this node reads and routes to BLOCKED: engine-error. Three-mode chain enforcement violation (fix dispatch without prior task-review APPROVED) → report to user, refuse dispatch.
@@ -135,7 +126,7 @@ flowchart TD
 
 ### `branch-review`
 
-- **Do**: Dispatch `cdd review --type branch --harness <name> --plan <plan-path> --base <merge-base(develop, HEAD)> --head <HEAD>` (cdd-engine bin; BASE = `git merge-base HEAD origin/<base>` where `<base>` = `base-branch.json#base`, HEAD = `git rev-parse HEAD`; Enh D standalone CLI). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode; handoff at `<workspace>/branch-review-<base7>..<head7>-r<round>.json`). **Persist diff to workspace**: write `<workspace>/branch-review.diff` (`git diff <base>..<head> --stat` + findings extraction).
+- **Do**: Dispatch `cdd review --type branch --plan <plan-path> --base <merge-base(develop, HEAD)> --head <HEAD>` (cdd-engine bin; BASE = `git merge-base HEAD origin/<base>` where `<base>` = `base-branch.json#base`, HEAD = `git rev-parse HEAD`; Enh D standalone CLI). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode; handoff at `<workspace>/branch-review-<base7>..<head7>-r<round>.json`). **Persist diff to workspace**: write `<workspace>/branch-review.diff` (`git diff <base>..<head> --stat` + findings extraction).
 - **Read**: `base-branch.json` (for base name) + branch HEAD + plan path + branch-review handoff output.
 - **Exit**: no blockers → **fix the remaining warn/nit findings inline** (same semantics as task-level `fix-inline`), then → `handoff-finishing`. **No re-review after blocker=0** — Review Stopping, see [review.md#rule-review-stopping](../_docs/review.md#rule-review-stopping): even if the inline fixes add new commits (which change the ref), do NOT re-dispatch branch-review; blockers present → `branch-fix-loop`.
 - **Fail**: `cdd review --type branch` exits with no handoff → BLOCKED: engine-error.
@@ -158,7 +149,7 @@ flowchart TD
 
 | # | Invariant |
 |---|-----------|
-| I1 | **Explicit Propagation** — Selected harness is passed to downstream (`cdd`) only as `--harness <name>` explicit CLI argument; no implicit environment variable propagation between skill and engine layers (`CDD_HARNESS` / `HARNESS_NAME` etc. all forbidden) — extends P7 I1. |
+| I1 | **Host Harness Autodetection** — `cdd` accepts no `--harness` flag; the engine resolves the host harness internally from ambient environment markers (`CLAUDE_CODE_SESSION_ID` → claude, `CURSOR_TRACE_ID` → cursor-agent; empty → BLOCK). The orchestrator never passes a harness name down to `cdd`. |
 | I2 | **CLI Background Execution** — All CLI mode calls (`cdd <subcommand>`) must run in background — harness `run_in_background` when supported; timeout + poll otherwise (overall spec v1.9 program-level enforcement). |
 | I3 | **No --resume / -c** — All nested CLI calls forbid carrying historical session flags (`--resume` / `-c` etc.); use one-shot print mode. |
 | I5 | **Three-Mode Chain Completeness** — Every task must go through the full implement → task-review → (fix if CHANGES_REQUESTED) chain; skipping task-review from implement directly to completion is forbidden. |
@@ -171,7 +162,6 @@ Cross-node failure behavior mapping (complements Node Fail fields):
 
 | failure | behavior | reason | recovery |
 |---------|----------|--------|----------|
-| `cli-select` BLOCKED | BLOCKED: no-harness | Cannot obtain harness name | Handled by cli-select node's report-issue path |
 | determine-base user refuses confirmation | BLOCKED: base-undecided | Wrong base for merge/PR is costly | User re-runs CDD and gets re-prompted |
 | `cdd` not in PATH | BLOCKED: cdd-engine-not-installed | `@oscaner-skills/cdd-engine` package not installed | Run `npm i -g @oscaner-skills/cdd-engine`, then retry |
 | Nested CLI failure + handoff missing | BLOCKED: engine-error | Engine bug signal | Report via `osuperpowers:report-issue` (no manual labels — per-finding comments carry none; only the session master carries `session, osuperpowers`) |

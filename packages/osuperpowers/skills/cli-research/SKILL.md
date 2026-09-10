@@ -1,20 +1,18 @@
 ---
 name: cli-research
-description: Independent cli-research orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Reads mattpocock-skills research SKILL.md as upstream baseline, selects harness via cli-select, prepares a research brief, dispatches cdd research in background, and reports findings. Callable standalone.
+description: Independent cli-research orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Reads mattpocock-skills research SKILL.md as upstream baseline, prepares a research brief, dispatches cdd research in background, and reports findings. Callable standalone.
 ---
 
 # Osuperpowers CLI Research
 
-Delegate a research question to a background agent via `cdd research`: read upstream baseline, select harness, prepare brief, dispatch CLI, report findings.
+Delegate a research question to a background agent via `cdd research`: read upstream baseline, prepare brief, dispatch CLI, report findings.
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[read-upstream] -->|baseline loaded| B[select-harness]
+  A[read-upstream] -->|baseline loaded| C[prepare-brief]
   A -->|upstream missing| Z((BLOCKED: upstream missing))
-  B -->|harness chosen| C[prepare-brief]
-  B -->|no harness available| Z2((BLOCKED: no harness))
   C -->|brief written| D[dispatch-research]
   C -->|brief write failed| Z3((BLOCKED: brief failed))
   D -->|research complete| E[report]
@@ -29,15 +27,8 @@ flowchart TD
 
 - **Do**: Read the mattpocock-skills research SKILL.md to load the research framework and methodology. This is a Read operation, not a Skill invocation — the upstream skill is consumed as reference material, not invoked as a sub-skill.
 - **Read**: `vendors/mattpocock-skills/skills/engineering/research/SKILL.md`
-- **Exit**: File exists and is readable → `select-harness`; file missing or unreadable → BLOCKED (upstream missing)
+- **Exit**: File exists and is readable → `prepare-brief`; file missing or unreadable → BLOCKED (upstream missing)
 - **Fail**: File read error → BLOCKED (upstream missing) with installation guidance
-
-### `select-harness`
-
-- **Do**: Call the cli-select ask node (cross-skill call via `osuperpowers:cli-select`) to detect available harnesses and ask the user to select one. The selected harness name is returned for use in `dispatch-research`.
-- **Read**: cli-select node output (selected harness name)
-- **Exit**: User selects a harness → `prepare-brief`; no harnesses available or user cancels → BLOCKED (no harness)
-- **Fail**: cli-select execution failure → BLOCKED (no harness); user cancellation → treated as user-side, not counted in Failure Modes
 
 ### `prepare-brief`
 
@@ -48,7 +39,7 @@ flowchart TD
 
 ### `dispatch-research`
 
-- **Do**: Execute `cdd research --harness <name> --brief <brief-path> --output <findings-path>` as a background process. Monitor for completion; do not block the main session — the CLI runs asynchronously.
+- **Do**: Execute `cdd research --brief <brief-path> --output <findings-path>` as a background process. Monitor for completion; do not block the main session — the CLI runs asynchronously. (Host harness is ambient-detected by the engine — no `--harness` flag.)
 - **Read**: `cdd research` (CLI script)
 - **Exit**: CLI exits 0 and findings file is written → `report`; CLI exits non-zero → BLOCKED (CLI failed); CLI times out → `report` (fail-open — read partial findings if available, then proceed to report; timeout is not retryable in research context)
 - **Fail**: CLI execution error / non-zero exit → BLOCKED (CLI failed); CLI timeout → fail-open to `report` (research is optional enhancement, partial findings are valuable; no timeout-count increment); record stderr for diagnostics
@@ -73,7 +64,6 @@ flowchart TD
 | failure | behavior | reason | recovery |
 |---|---|---|---|
 | Upstream SKILL.md missing | BLOCKED (upstream missing) | Block policy: no silent fallback when baseline is missing | Install vendored submodules: `git submodule update --init` |
-| No harness available | BLOCKED (no harness) | Cannot dispatch research without a target harness | Install a supported harness per cli-select documentation |
 | Brief write failure | BLOCKED (brief failed) | Cannot dispatch without a valid brief file | Check workspace permissions and disk space |
 | `cdd research` CLI error | BLOCKED (CLI failed) | CLI failure may indicate engine bug or harness misconfiguration | Check stderr diagnostics; invoke `osuperpowers:report-issue` if engine bug suspected |
 | `cdd research` timeout | fail-open → report | Long-running research exceeded timeout; partial findings may exist | Read partial findings file if available; report to user with timeout note; research is optional enhancement, not worth blocking |

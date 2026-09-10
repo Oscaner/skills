@@ -105,7 +105,7 @@ describe("cdd CLI", () => {
   });
 
   it("dry-run review --type spec → exit 0", () => {
-    const r = runCli(["review", "--type", "spec", "--doc", SMOKE_PLAN],
+    const r = runCli(["review", "--type", "spec", "--spec", SMOKE_PLAN],
       { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
   });
@@ -123,7 +123,9 @@ describe("cdd CLI", () => {
     // 不再存在未知 harness 需停闸（host 必然是 claude/cursor-agent 两合法键）——T3 改断言无-host BLOCK。
     // 保留 not.toMatch(/template/)：BLOCK 消息不得来自 doc-fix 模板渲染错误。
     for (const [type, reviewFile] of [["spec", "spec-review-1.json"], ["plan", "plan-review-1.json"]]) {
-      const r = runCli(["fix", "--type", type, "--doc", SMOKE_PLAN,
+      // D11 target param: type=spec → --spec, type=plan → --plan（--doc 退役）。
+      const targetParam = type === "spec" ? "--spec" : "--plan";
+      const r = runCli(["fix", "--type", type, targetParam, SMOKE_PLAN,
         "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", reviewFile)],
         { noHost: true });
       expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
@@ -134,7 +136,7 @@ describe("cdd CLI", () => {
   it("review --type spec 非 dry-run：无 host env → CDD_BLOCKED exit 1（原 harness-gate 停闸用例，T3 改断言）", () => {
     // runDocsTask 原在 harness gate 前 render 共享壳 review.md；host 判定现于 entry 先发 BLOCK。
     // 渲染崩（缺参/模板缺失）→ stderr 出现 template → not.toMatch(/template/) 仍拦截。
-    const r = runCli(["review", "--type", "spec", "--doc", SMOKE_PLAN], { noHost: true });
+    const r = runCli(["review", "--type", "spec", "--spec", SMOKE_PLAN], { noHost: true });
     expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
     expect(r.stderr).not.toMatch(/template/);
   });
@@ -149,16 +151,16 @@ describe("cdd CLI", () => {
   it("review --type plan 非 dry-run：无 host env → CDD_BLOCKED exit 1（原 harness-gate 停闸用例，T3 改断言）", () => {
     // Task 4 曾验证 plan 走共享壳 review.md 渲染后停在 harness gate；T3 后 host 判定 entry 先发 BLOCK。
     // --spec 保留为可选参数；两种调用形态都必须命中 CDD_BLOCKED（exit 1），而非渲染崩溃。
-    const r = runCli(["review", "--type", "plan", "--doc", SMOKE_PLAN], { noHost: true });
+    const r = runCli(["review", "--type", "plan", "--plan", SMOKE_PLAN], { noHost: true });
     expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
     expect(r.stderr).not.toMatch(/template/);
-    const r2 = runCli(["review", "--type", "plan", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN], { noHost: true });
+    const r2 = runCli(["review", "--type", "plan", "--plan", SMOKE_PLAN, "--spec", SMOKE_PLAN], { noHost: true });
     expect(r2.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
     expect(r2.stderr).not.toMatch(/template/);
   });
 
   it("dry-run review --type plan --spec → exit 0（SP-3 --spec 接线）", () => {
-    const r = runCli(["review", "--type", "plan", "--doc", SMOKE_PLAN, "--spec", SMOKE_PLAN],
+    const r = runCli(["review", "--type", "plan", "--plan", SMOKE_PLAN, "--spec", SMOKE_PLAN],
       { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
   });
@@ -325,7 +327,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runReview resolves host from process.env
     try {
       const { runReview } = await import("../cdd.mjs");
-      await runReview({ type: "spec", doc: "/repo/root/docs/superpowers/specs/foo-design.md" });
+      // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
+      await runReview({ type: "spec", spec: "/repo/root/docs/superpowers/specs/foo-design.md" });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-review-1.json");
       expect(call.workspace).toBe("/repo/root/.superpowers/cdd/foo");
@@ -350,7 +353,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const { runFix } = await import("../cdd.mjs");
       const findings = "/repo/root/.superpowers/cdd/foo/spec-review-2.json";
-      await runFix({ type: "spec", doc: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
+      // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
+      await runFix({ type: "spec", spec: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-fix-2.json");
       expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）
@@ -369,7 +373,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const doc = path.join(dir, "docs", "foo-design.md");
       seedDocsReviewRound(dir, doc, "spec-review-1.json");
-      const r = runCli(["review", "--type", "spec", "--doc", doc],
+      const r = runCli(["review", "--type", "spec", "--spec", doc],
         { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/Review Stopping/);
@@ -383,7 +387,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const doc = path.join(dir, "plans", "foo.md");
       seedDocsReviewRound(dir, doc, "plan-review-1.json");
-      const r = runCli(["review", "--type", "plan", "--doc", doc],
+      const r = runCli(["review", "--type", "plan", "--plan", doc],
         { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/Review Stopping/);
@@ -393,14 +397,14 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   });
 
   it("fix --type spec 缺 --findings（round 无源）→ exit 2 提示 <type>-review-{R}.json", () => {
-    const r = runCli(["fix", "--type", "spec", "--doc", SMOKE_PLAN],
+    const r = runCli(["fix", "--type", "spec", "--spec", SMOKE_PLAN],
       { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/spec-review-\{R\}\.json/);
   });
 
   it("fix --findings spec-review-0.json（round<1）→ exit 2 拒（round 须 >= 1）", () => {
-    const r = runCli(["fix", "--type", "spec", "--doc", SMOKE_PLAN,
+    const r = runCli(["fix", "--type", "spec", "--spec", SMOKE_PLAN,
       "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", "spec-review-0.json")],
       { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);

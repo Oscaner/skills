@@ -52,8 +52,7 @@ export async function runDocsTask({
 
   // Spawn agent using harness registry (provides -p, --output-format, etc.).
   // cwd = repoRoot (Bug L fix: was path.dirname(handoffPath) / workspace before).
-  // env = process.env so invokeCli's cleanEnv can strip credentials (Warn #137 posture)
-  // and inject CDD_GATE_WORKSPACE when CDD_WORKSPACE is set.
+  // env = process.env so invokeCli's cleanEnv can strip credentials (Warn #137 posture).
   const reg = loadRegistry(REG_PATH);
   const entry = checkHarness(reg, harness);
   const timeoutMs = resolveTimeoutMs(process.env, "review");

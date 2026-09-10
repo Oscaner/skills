@@ -22,9 +22,6 @@ const REPO_ROOT = path.resolve(HERE, "../../../../..");
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 
-// No-op probeSkills stub — environment independence for all runTask calls.
-const NOOP_PROBE = async () => ({ missing: [], probeFailed: false });
-
 // Non-git temp workspace — CDD_WORKSPACE points to TMPDIR, commit-contract fails open.
 function setupWorkspace() {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
@@ -110,7 +107,7 @@ async function capture(runFn) {
 
 it("runTask: dry-run implement → H1 4-line APPROVED + no handoff written (aligns bash)", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1.length).toBe(4);
   expect(res.h1[0]).toBe("status: APPROVED");
@@ -123,7 +120,7 @@ it("runTask: dry-run implement → H1 4-line APPROVED + no handoff written (alig
 it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
   const ws = setupWorkspace();
   const { code, stdout } = await capture(() =>
-    runTask("claude", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws) }),
   );
   expect(code).toBe(0);
   const lines = stdout.trim().split("\n");
@@ -135,7 +132,7 @@ it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
 it("runTask: dry-run review/fix modes → H1 APPROVED + no handoff written (aligns bash)", async () => {
   for (const mode of ["review", "fix"]) {
     const ws = setupWorkspace();
-    const res = await runTask("claude", 1, { mode, dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+    const res = await runTask("claude", 1, { mode, dryRun: true, env: baseEnv(ws), noExit: true });
     expect(res.exitCode).toBe(0);
     expect(res.h1[0]).toBe("status: APPROVED");
     expect(existsSync(path.join(ws, "task-1-handoff.json"))).toBe(false);
@@ -146,7 +143,7 @@ it("runTask: dry-run review/fix modes → H1 APPROVED + no handoff written (alig
 
 it("runTask: invalid mode → rejected (non-zero exit)", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "handoff", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "handoff", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(1);
 });
 
@@ -154,13 +151,13 @@ it("runTask: invalid mode → rejected (non-zero exit)", async () => {
 
 it("runTask: unknown harness → blocked exit 1", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("no-such-harness", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("no-such-harness", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(1);
 });
 
 it("runTask: not-supported harness → blocked exit 1", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("codex", 1, { mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("codex", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(1);
 });
 
@@ -181,7 +178,6 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
   try {
     const res = await runTask("ghost", 1, {
       mode: "implement",
-      probeSkills: NOOP_PROBE,
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath,
       noExit: true,
@@ -276,7 +272,7 @@ it("findSuperpowersScriptsDir: no repo submodule + no cache → null", () => {
 it("runTask: brief exists + contains TASK_BASE: → pass (dry-run exit 0)", async () => {
   const ws = setupWorkspace();
   const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    mode: "implement", dryRun: true,
     env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
   });
   expect(res.exitCode).toBe(0);
@@ -285,7 +281,7 @@ it("runTask: brief exists + contains TASK_BASE: → pass (dry-run exit 0)", asyn
 
 it("runTask #173: plan path does not exist → 'plan file not found'", async () => {
   const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    mode: "implement", dryRun: true,
     env: { ...baseEnv(tmpdir()), PLAN_FILE: "/nonexistent/plan.md" },
     noExit: true,
   });
@@ -333,7 +329,7 @@ it("runTask #173: plan in repo A, cwd in repo B → workspace lands in A, B has 
   gitInit(repoB);
   const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
   const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    mode: "implement", dryRun: true,
     env: { ...cleanEnv(), PLAN_FILE: planFile },
     cwd: repoB, noExit: true,
   });
@@ -345,7 +341,7 @@ it("runTask #173: plan in repo A, cwd in repo B → workspace lands in A, B has 
 
 it("runTask #173: no plan no CDD_WORKSPACE → 'cannot resolve repo root'", async () => {
   const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    mode: "implement", dryRun: true,
     env: cleanEnv(), cwd: mkdtempSync(path.join(tmpdir(), "cdd-bare-")), noExit: true,
   });
   expect(res.exitCode).toBe(1);
@@ -362,7 +358,7 @@ function directWorkspaceCase(wsDir, extraEnv = {}) {
   });
   writeFileSync(env.CDD_TASK_BRIEF, "# task 1\nTASK_BASE: abc123\n");
   return runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE, env, noExit: true,
+    mode: "implement", dryRun: true, env, noExit: true,
   });
 }
 
@@ -393,7 +389,7 @@ it("runTask #173: CDD_WORKSPACE + plan both given → workspace lands at plan-de
   const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
   const ignored = mkdtempSync(path.join(tmpdir(), "cdd-ws-ignored-"));
   const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    mode: "implement", dryRun: true,
     env: { ...cleanEnv(), CDD_WORKSPACE: ignored, PLAN_FILE: planFile },
     cwd: repoA, noExit: true,
   });
@@ -452,7 +448,7 @@ it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍�
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -516,7 +512,7 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "implement",
       env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -545,14 +541,14 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "implement",
       env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress.timeoutCount).toBe(1);
     await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "implement",
       env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -585,7 +581,7 @@ it("runTask #open-findings: implement mode → no open-findings.json (implement 
   const ws = setupWorkspace();
   const findingsPath = path.join(ws, "task-1-open-findings.json");
   const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true, probeSkills: NOOP_PROBE,
+    mode: "implement", dryRun: true,
     env: baseEnv(ws), noExit: true,
   });
   expect(res.exitCode).toBe(0);
@@ -615,7 +611,7 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff c
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -649,7 +645,7 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → phase mat
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -668,7 +664,7 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → phase mat
 
 it("runTask Pζ T3: review dry-run without prior implement handoff → exits 0", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
 });
@@ -698,7 +694,7 @@ it("runTask Pζ T3: review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT set 
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -717,7 +713,7 @@ it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT no
     commits: { base: "unknown" },
     findings: [], artifacts: {},
   }));
-  const res = await runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
 });
@@ -759,7 +755,7 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -801,7 +797,7 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -834,7 +830,7 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -873,7 +869,7 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "implement",
       env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
       registryPath: regPath, noExit: true,
     });
@@ -922,14 +918,14 @@ it("runTask: round-2 buildTaskEnv derives task-1-review-2.json", async () => {
 
 it("runTask: 未知 mode → rejected：CDD_MODE must be implement|review|fix", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "bogus", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "bogus", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(1);
   expect(res.h1).toEqual([]);
 });
 
 it("runTask: mode review dry-run → H1 APPROVED + no handoff written", async () => {
   const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "review", dryRun: true, probeSkills: NOOP_PROBE, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, env: baseEnv(ws), noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
   expect(existsSync(path.join(ws, "task-1-review-1.json"))).toBe(false);
@@ -983,7 +979,7 @@ async function runT6Ghost(t6, body) {
   process.env.PATH = `${t6.binDir}${path.delimiter}${origPath}`;
   try {
     return await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "implement",
       env: baseEnv(t6.ws, { PATH: `${t6.binDir}${path.delimiter}${origPath}` }),
       registryPath: t6.regPath, noExit: true,
     });
@@ -1155,7 +1151,7 @@ async function runT8ReviewGhost(t8, body) {
   process.env.PATH = `${t8.binDir}${path.delimiter}${origPath}`;
   try {
     return await runTask("ghost", 1, {
-      mode: "review", probeSkills: NOOP_PROBE,
+      mode: "review",
       env: baseEnv(t8.ws, { PATH: `${t8.binDir}${path.delimiter}${origPath}` }),
       registryPath: t8.regPath, noExit: true,
     });
@@ -1215,7 +1211,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
   process.env.PATH = `${t8.binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
-      mode: "implement", probeSkills: NOOP_PROBE,
+      mode: "implement",
       env: baseEnv(t8.ws, { PATH: `${t8.binDir}${path.delimiter}${origPath}` }),
       registryPath: t8.regPath, noExit: true,
     });

@@ -1,57 +1,41 @@
 ---
 name: init
-description: Parameterized initialization tool. Installs per-harness osuperpowers configuration with optional --harness targeting and --dry-run preview.
+description: Marketplace installation guide for the osuperpowers plugin. Checks for the cdd engine CLI and points to the harness marketplace install path.
 ---
 
 <!-- osuperpowers-version: 0.1.1 -->
 
 ```mermaid
 flowchart TD
-  D[dispatch] -->|valid args| E[detect-engine]
+  D[dispatch] -->|valid args| G[guide-install]
   D -->|unknown arg| Z1((BLOCKED: bad-param))
-  E -->|cdd in PATH| H[detect-harness]
-  E -->|not found| Z2((BLOCKED: run npm i -g @oscaner-skills/cdd-engine))
-  H -->|detected| R[run-harness]
-  H -->|not detected + no --harness| Z3((BLOCKED: specify --harness))
-  R -->|done| A((APPROVED: harness-installed))
+  G -->|guidance done| A((APPROVED))
 ```
 
 ### dispatch
 
-- **Do**: Parse invocation arguments. `init` accepts `[--harness <name>] [--dry-run]`.
-  No subcommand is required — `harness` subcommand is removed.
-  `init` alone → auto-detect current harness.
-  `init --harness claude` → install for claude specifically.
-  Any positional argument → BLOCKED (bad-param, suggest correct usage).
+- **Do**: Parse invocation arguments. `init` accepts `[--dry-run]`.
+  Any positional argument → BLOCKED (bad-param, suggest `init [--dry-run]`).
 - **Read**: Invocation arguments
-- **Exit**: Valid args → `detect-engine`; unknown positional arg → BLOCKED (bad-param)
-- **Fail**: Unknown arg → BLOCKED (bad-param, suggest `init [--harness <name>]`)
+- **Exit**: Valid args → `guide-install`; unknown positional arg → BLOCKED (bad-param)
+- **Fail**: Unknown arg → BLOCKED (bad-param)
 
-### detect-engine
+### guide-install
 
-- **Do**: Check if `cdd` is in PATH (`command -v cdd` or equivalent).
-  - In PATH → proceed to `detect-harness`
-  - Not in PATH → BLOCKED (soft): output install guidance:
-    `@oscaner-skills/cdd-engine not installed. Run: npm i -g @oscaner-skills/cdd-engine`
-  - `--dry-run` → skip install check (preview only)
+- **Do**: Guide the user through installing the osuperpowers plugin from the harness's own marketplace
+  mechanism. claude/cursor-agent are install-and-use channel harnesses — no per-harness config file
+  or trust ceremony is written by this skill (the harness selection/detection/install layer was
+  removed: registry converged to claude/cursor-agent). Also check whether the `cdd` engine CLI is in
+  PATH (`command -v cdd`); when missing, print install guidance —
+  `@oscaner-skills/cdd-engine not installed. Run: npm i -g @oscaner-skills/cdd-engine`
+  `--dry-run` → preview only (no install performed).
 - **Read**: PATH environment
-- **Exit**: Found → `detect-harness`; not found → BLOCKED (soft, not process.exit)
+- **Exit**: Guidance done → APPROVED
 - **Fail**: PATH check error → fail-open (log warning, continue)
 
-### detect-harness
+## Failure Modes
 
-- **Do**: Determine target harness from `--harness <name>` or auto-detect from environment
-  (`CLAUDE_CODE_SESSION_ID` → `claude`; `CURSOR_TRACE_ID` → `cursor-agent`; etc.).
-  `--harness` flag takes precedence over auto-detection.
-  Auto-detected + not in `config.harnesses` → BLOCKED (unknown harness).
-  No `--harness` + cannot auto-detect → BLOCKED (specify `--harness`).
-- **Read**: `--harness` flag; `process.env` (`CLAUDE_CODE_SESSION_ID`, `CURSOR_TRACE_ID`, `AI_AGENT`)
-- **Exit**: Detected → `run-harness` (existing config flow continues); not detected → BLOCKED
-- **Fail**: Unknown `--harness` value → BLOCKED (bad-param)
-
-### run-harness
-
-- **Do**: Execute the node-anchored flow in `harness.md` (detect-engine → detect-harness → guide → config → trust → summarize).
-- **Read**: `harness.md`
-- **Exit**: Complete → APPROVED (harness-installed)
-- **Fail**: See the `Fail` field of each node in `harness.md` + Failure Modes
+| failure | behavior | reason | recovery |
+|---|---|---|---|
+| `cdd` not in PATH | BLOCKED (soft) | `@oscaner-skills/cdd-engine` not installed | Run `npm i -g @oscaner-skills/cdd-engine` |
+| Unknown positional arg | BLOCKED (bad-param) | Arg misuse | Suggest `init [--dry-run]` |

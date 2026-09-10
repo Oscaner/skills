@@ -92,11 +92,13 @@ test("rule-reference.test.mjs invoked via node --test", () => {
   assert.ok(rr.args.some((a) => a.includes("rule-reference.test.mjs")), "rule-reference.test.mjs path missing");
 });
 
-// 5. node:test init + engine suites wired
-test("node:test 步骤含 init + engine 套件 glob", () => {
+// 5. node:test behavior + engine suites wired (T2 removed init/utils suite globs — the
+//    harness selection/detection/install layers are deleted)
+test("node:test 步骤含 behavior glob、不含 init/utils 套件 glob（T2）+ engine 套件仍在", () => {
   const nt = behaviorNodeTestStep();
   assert.ok(nt, "5b node:test 步骤缺失");
-  assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/init/tests/*.test.mjs")), "init suite glob missing");
+  assert.ok(!nt.args.some((a) => a.includes("packages/osuperpowers/bin/init/tests/*.test.mjs")), "init suite glob 残留");
+  assert.ok(!nt.args.some((a) => a.includes("packages/osuperpowers/bin/utils/tests/*.test.mjs")), "utils suite glob 残留");
   assert.ok(steps.some((s) => s.name.startsWith("5b1. cdd-engine Vitest")), "engine suite (5b1 cdd-engine vitest) missing");
 });
 

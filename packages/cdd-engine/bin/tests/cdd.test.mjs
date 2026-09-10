@@ -61,7 +61,7 @@ vi.mock("../lib/docs-runner.mjs", () => docsRunnerMock);
 describe("cdd CLI", () => {
   it("-h → help", () => {
     const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false });
-    expect(r.stdout).toMatch(/implement|review|fix|select|research|brief/);
+    expect(r.stdout).toMatch(/implement|review|fix|research|brief/);
   });
 
   it("review missing --type → usage exit 2", () => {
@@ -206,12 +206,6 @@ describe("cdd CLI", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
-
-  it("select 无可用 harness → BLOCKED exit 1", () => {
-    const r = runCli(["select"], { env: { PATH: "/nonexistent" } });
-    expect(r.exitCode).toBe(1);
-    expect(r.stderr).toMatch(/BLOCKED: no full harness installed/);
   });
 
   it("dry-run research → exit 0", () => {

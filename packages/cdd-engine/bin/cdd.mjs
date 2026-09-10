@@ -5,7 +5,7 @@
 //   cdd implement --harness <name> --task <n> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> --harness <name> [...]
 //   cdd fix --type <task|spec|plan> --harness <name> [...]
-//   cdd select | cdd research --harness <name> --brief <path> --output <path>
+//   cdd research --harness <name> --brief <path> --output <path>
 //   cdd brief --task <n> --plan <path> [--output <path>]
 import { Command } from "commander";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
@@ -24,8 +24,6 @@ import { finalizeHandoff } from "./lib/handoff-finalize.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
 import { runBriefCli } from "./lib/brief.mjs";
-import { detectInstalledHarnesses } from "./utils/harness-detect.mjs";
-import { config } from "./utils/skills-probe.config.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "./utils/exit.mjs";
 
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
@@ -36,7 +34,6 @@ const SUBCOMMAND_USAGE = {
   implement: "usage: cdd implement --harness <name> --task <n> [--plan <path>]",
   review: "usage: cdd review --type <task|branch|spec|plan> --harness <name> [--task <n>] [--doc <path>] [--plan <path>] [--base <sha> --head <sha>] [--round <n>] [--spec <path>]",
   fix: "usage: cdd fix --type <task|spec|plan> --harness <name> [--task <n>] [--findings <path>] [--doc <path>] [--plan <path>]",
-  select: "usage: cdd select",
   research: "usage: cdd research --harness <name> --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
 };
@@ -371,46 +368,7 @@ export async function runFix(opts) {
   });
 }
 
-// ---- select / research (inline of the former cdd-select / cdd-research bin action logic) ----
-
-// detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
-// AI_AGENT=claude-code* → claude; otherwise empty.
-function detectCurrentHarness(env) {
-  if (env.CURSOR_TRACE_ID) return "cursor-agent";
-  if (env.CLAUDE_CODE_SESSION_ID) return "claude";
-  if ((env.AI_AGENT ?? "").startsWith("claude-code")) return "claude";
-  return "";
-}
-
-function runSelect() {
-  const detected = detectInstalledHarnesses(config, { env: process.env });
-  const available = detected.filter((h) => h.installed && h.channel === "install-and-use").map((h) => h.name);
-  const unsupported = detected.filter((h) => h.installed && h.channel !== "install-and-use").map((h) => h.name);
-
-  if (available.length === 0) {
-    process.stdout.write("available:\n");
-    process.stdout.write(`unsupported_installed:${unsupported.join(",")}\n`);
-    process.stdout.write("recommended:\n");
-    process.stderr.write(`BLOCKED: no full harness installed (registry: ${detected.map((h) => h.name).join(" ")} )\n`);
-    exitBlocked();
-  }
-
-  // Recommendation priority: droid > pi > current harness (full) > first alphabetic available.
-  let recommended = "";
-  if (available.includes("droid")) {
-    recommended = "droid";
-  } else if (available.includes("pi")) {
-    recommended = "pi";
-  } else {
-    const current = detectCurrentHarness(process.env);
-    if (current && available.includes(current)) recommended = current;
-    else recommended = available[0];
-  }
-
-  process.stdout.write(`available:${available.join(",")}\n`);
-  process.stdout.write(`unsupported_installed:${unsupported.join(",")}\n`);
-  process.stdout.write(`recommended:${recommended}\n`);
-}
+// ---- research (inline of the former cdd-research bin action logic) ----
 
 // Standalone research runner (spawnCapture, not invokeCli — research output is written verbatim).
 async function runResearch(opts) {
@@ -488,7 +446,7 @@ program.exitOverride();
 program.configureOutput({ outputError: () => {} });
 program
   .name("cdd")
-  .description("CDD engine CLI — implement/review/fix/select/research/brief")
+  .description("CDD engine CLI — implement/review/fix/research/brief")
   .helpOption("-h, --help", "display help for command");
 
 // --- implement (formerly cdd-task --mode implement) ---
@@ -535,12 +493,8 @@ program
     await runFix(opts);
   });
 
-// --- select / research (inline action logic; no library module) ---
-program
-  .command("select")
-  .description("Detect installed harness CLIs and recommend default")
-  .action(() => { runSelect(); });
-
+// --- select removed (T2): harness selection/detection/install layer deleted — registry
+//     converged to claude/cursor-agent; research remains (inline action logic; no library module).
 program
   .command("research")
   .description("Standalone research runner (independent of implement/review)")

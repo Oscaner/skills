@@ -61,7 +61,7 @@ export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
 }
 
 /**
- * Shared `.agents/skills/` copy for codex/gemini/pi/qoder/opencode scanners.
+ * Shared `.agents/skills/` copy（agent-harness 消费方）。
  * Contains ONLY the osuperpowers skills namespace — upstream superpowers
  * skills are NOT vendored (osuperpowers Read Upstream is a when-available enhancement).
  */

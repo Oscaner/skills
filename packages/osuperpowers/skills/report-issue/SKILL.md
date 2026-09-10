@@ -59,7 +59,7 @@ Derivations (pure functions):
 ### `confirm`
 
 - **Do**: Present the findings as a numbered list and ask: "Is this accurate overall? Any additions or removals?" Findings never include branch names, absolute paths, or filenames by default; such context is added only when the user opts in at this gate (I6). Do **not** pre-create or pre-comment on any gh issue before explicit confirmation.
-  For standalone sessions, also present the **recommended subject topic** — a model-derived short phrase from the first finding (type/component labels stripped, ≤ 60 chars) — which the user may confirm or replace. Do **not** pre-create or pre-comment on any gh issue before explicit confirmation.
+  For standalone sessions, also present the **recommended subject topic** — a model-derived short phrase from the first finding (type/component labels stripped, ≤ 60 chars) — which the user may confirm or replace.
 - **Read**: classified findings
 - **Exit**: user confirms → `resolve-destination`; user rejects → BLOCKED (user-reject)
 - **Fail**: no response / explicit rejection → BLOCKED (user-reject, flow terminates)

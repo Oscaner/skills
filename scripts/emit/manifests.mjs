@@ -36,9 +36,6 @@ export function deriveFirstPartyNames(packagesRoot) {
     .sort();
 }
 
-/** osuperpowers has no bundled assets — interface omits icon/logo paths. */
-const DEFAULT_REPO_URL = "https://github.com/Oscaner/skills";
-
 function keywords(plugin) {
   return plugin.claude?.keywords ?? plugin.claude?.tags ?? [];
 }
@@ -89,70 +86,4 @@ export function cursorPluginManifest(plugin, version) {
   return m;
 }
 
-/**
- * `.qoder-plugin/plugin.json` — Qoder plugin manifest (Claude-mirror plugin).
- * Completes the sibling shape: skills（manifest-relative base：`../skills/` → 包根
- * skills/）。
- */
-export function qoderPluginManifest(plugin, version) {
-  const m = {
-    _generated: generatedBanner,
-    name: plugin.name,
-    version,
-    description: plugin.description,
-  };
-  if (plugin.author) m.author = plugin.author;
-  if (plugin.license) m.license = plugin.license;
-  const kw = keywords(plugin);
-  if (kw.length) m.keywords = kw;
-  m.skills = "../skills/";
-  return m;
-}
-
-/** `.codex-plugin/plugin.json` — skills + interface. */
-export function codexPluginManifest(plugin, version) {
-  const m = {
-    _generated: generatedBanner,
-    name: plugin.name,
-    version,
-    description: plugin.description,
-    author: plugin.author,
-  };
-  if (plugin.license) m.license = plugin.license;
-  const kw = keywords(plugin);
-  if (kw.length) m.keywords = kw;
-  // codex 插件统一 manifest-relative base：manifest 位于 `.codex-plugin/`，故
-  // `../skills/` → 包根 skills/。
-  m.skills = "../skills/";
-  m.interface = codexInterface(plugin);
-  return m;
-}
-
-/**
- * `package.json#pi` — Pi key for both vendored assemblies and first-party plugins.
- * Pi packages support a `package.json` `pi` key (skills/prompts/themes delivery
- * via `pi install`). First-party emit passes `{ skills, extensions }` explicitly;
- * vendored assemblies use the default pure-skills shape.
- * @param {{ skills?: string[], extensions?: string[] }} [opts]
- */
-export function piPackageKey({ skills = ["./skills"], extensions = [] } = {}) {
-  const key = { skills };
-  if (extensions.length > 0) key.extensions = extensions;
-  return key;
-}
-
-function codexInterface(plugin) {
-  return {
-    displayName: plugin.cursor?.displayName ?? plugin.name,
-    shortDescription: plugin.description,
-    longDescription: plugin.description,
-    developerName: plugin.author?.name ?? plugin.name,
-    category: "Developer Tools",
-    capabilities: ["Interactive", "Read", "Write"],
-    defaultPrompt: [
-      "I've got an idea for something I'd like to build.",
-      "Let's add a feature to this project.",
-    ],
-    websiteURL: DEFAULT_REPO_URL,
-  };
-}
+// pi 字段由 package.json 手写 / vendor-assembly 自提取（assemblePackageJson），无 emit 函数承载。

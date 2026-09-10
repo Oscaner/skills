@@ -113,6 +113,17 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("单文件 target 分支命中（README.md 场景；scanTargets isDirectory()===false → [abs]）", () => {
+    const f = path.join(mkdtempSync(path.join(tmpdir(), "residue-gate-file-")), "single.md");
+    writeFileSync(f, "cdd-gate bin/gate/adapters/pi.ts\n", "utf8");
+    try {
+      const hits = collectGateLexiconHits([f]);
+      expect(hits.length).toBeGreaterThan(0);
+      expect(hits[0].file.endsWith("single.md")).toBe(true);
+    } finally {
+      rmSync(path.dirname(f), { recursive: true, force: true });
+    }
+  });
   it("collectGateLexiconHits() === []（机制/文档表层零残留；docs/superpowers + CHANGELOG 豁免）", () => {
     expect(collectGateLexiconHits()).toEqual([]);
   });

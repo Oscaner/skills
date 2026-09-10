@@ -5,11 +5,8 @@ import { join } from "node:path";
 import {
   claudePluginManifest,
   cursorPluginManifest,
-  codexPluginManifest,
-  piPackageKey,
   generatedBanner,
   deriveFirstPartyNames,
-  qoderPluginManifest,
 } from "./manifests.mjs";
 import { deriveSource, SOURCE_TOP } from "./source.mjs";
 import {
@@ -80,18 +77,6 @@ test("cursorPluginManifest points skills at canonical ./skills/, no hooks", () =
   expect(m._generated).toMatch(/scripts\/run\.mjs/);
 });
 
-test("codexPluginManifest includes skills and interface, no hooks", () => {
-  const m = codexPluginManifest(OS_ENG, OS_VERSION);
-  expect(m.skills).toBe("../skills/");
-  expect(!("hooks" in m)).toBeTruthy();
-  expect(m.name).toBe("osuperpowers");
-  expect(m.version).toBe(OS_VERSION);
-  expect(m.interface, "codex manifest must carry an interface").toBeTruthy();
-  expect(m.interface.displayName).toBe("osuperpowers");
-  expect(Array.isArray(m.interface.capabilities)).toBeTruthy();
-  expect(m.interface.capabilities.length > 0).toBeTruthy();
-});
-
 test("claudePluginManifest emits hooks only for non-canonical hook files", () => {
   // A non-default `oscaner-plugin.hooks.claude` (an additional hook file beyond
   // the auto-loaded standard) is still emitted in manifest.hooks.
@@ -124,51 +109,6 @@ test("cursorPluginManifest never emits a hooks field (gate hooks removed)", () =
     OS_VERSION,
   );
   expect(!("hooks" in m)).toBeTruthy();
-});
-
-test("codexPluginManifest never emits a hooks field (gate hooks removed)", () => {
-  const mapped = codexPluginManifest(
-    { ...OS_ENG, hooks: { codex: "./.codex-plugin/hooks/hooks.json" } },
-    OS_VERSION,
-  );
-  expect(!("hooks" in mapped)).toBeTruthy();
-});
-
-test("piPackageKey carries the pi gate extension (.ts) when passed, pure skills otherwise", () => {
-  expect(
-    piPackageKey({ extensions: ["./bin/gate/adapters/pi.ts"] }),
-  ).toEqual({ extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] });
-  expect(piPackageKey()).toEqual({ skills: ["./skills"] });
-});
-
-test("piPackageKey first-party: osuperpowers pi key (skills + extensions)", () => {
-  expect(
-    piPackageKey({ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] }),
-  ).toEqual({ skills: ["./skills"], extensions: ["./bin/gate/adapters/pi.ts"] });
-});
-
-test("piPackageKey first-party: overrides pi key (extensions only, no skills)", () => {
-  // router deleted — test kept with osuperpowers-only variant
-  expect(
-    piPackageKey({ extensions: ["./bin/gate/adapters/pi.ts"] }),
-  ).toEqual({ extensions: ["./bin/gate/adapters/pi.ts"], skills: ["./skills"] });
-});
-
-// router deleted — test removed
-// test("first-party pi keys: osuperpowers pi = skills + gate extension (.ts), overrides pi = router extension (.ts)", ...)
-
-test("qoderPluginManifest emits the qoder plugin manifest (skills, no hooks)", () => {
-  const m = qoderPluginManifest(OS_ENG, OS_VERSION);
-  expect(m.name).toBe("osuperpowers");
-  expect(m.version).toBe(OS_VERSION);
-  expect(m.description).toBe(OS_ENG.description);
-  expect(m.author.name).toBe("Oscaner Miao");
-  expect(m.license).toBe("MIT");
-  expect(m.keywords).toEqual(OS_ENG.claude.keywords);
-  expect(m.skills).toBe("../skills/");
-  expect(!("hooks" in m)).toBeTruthy();
-  expect(m._generated).toBeTruthy();
-  expect(m._generated).toMatch(/scripts\/run\.mjs/);
 });
 
 test(".version-bump.json tracks the versioned emit manifest set (.claude-plugin + .cursor-plugin)", () => {

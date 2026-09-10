@@ -1,6 +1,6 @@
 /**
- * osuperpowers emit — per-harness thin manifests + PreToolUse gate hooks +
- * shared `.agents/skills/` copy.
+ * osuperpowers emit — per-harness thin manifests (.claude-plugin / .cursor-plugin)
+ * + shared `.agents/skills/` copy.
  *
  * `generatedPaths` records every repo-relative path produced (the emit-check
  * drift diff input); all writers are passed in, no module-level state.
@@ -14,17 +14,9 @@ import { resolveVersion } from "../lib/marketplace-utils.mjs";
 import {
   claudePluginManifest,
   cursorPluginManifest,
-  codexPluginManifest,
-  kimiPluginManifest,
-  geminiExtension,
-  geminiMarkdown,
-  osuperpowersHooksFor,
-  qoderPluginManifest,
-  assertAdapterPathsExist,
 } from "./manifests.mjs";
 import {
   writeJsonDoc,
-  writeText,
   pruneStaleAgentsNamespaces,
 } from "./orchestrate.mjs";
 
@@ -41,10 +33,9 @@ export function collectTree(dir) {
 export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
   const version = resolveVersion(root, plugin).version;
   const contentRoot = plugin.contentRoot;
-  const pluginDir = join(root, contentRoot);
 
   // Canonical skills list (12 emitters + init).
-  const skillsDir = join(pluginDir, "skills");
+  const skillsDir = join(root, contentRoot, "skills");
   const skillNames = readdirSync(skillsDir, { withFileTypes: true })
     .filter(
       (d) =>
@@ -65,53 +56,8 @@ export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
     cursorPluginManifest(plugin, version),
     generatedPaths,
   );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.codex-plugin/plugin.json`,
-    codexPluginManifest(plugin, version),
-    generatedPaths,
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.qoder-plugin/plugin.json`,
-    qoderPluginManifest(plugin, version),
-    generatedPaths,
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/.kimi-plugin/plugin.json`,
-    kimiPluginManifest(plugin, version),
-    generatedPaths,
-  );
-  writeJsonDoc(
-    outRoot,
-    `${contentRoot}/gemini-extension.json`,
-    geminiExtension(plugin, version),
-    generatedPaths,
-  );
-  writeText(
-    outRoot,
-    `${contentRoot}/GEMINI.md`,
-    geminiMarkdown(plugin, skillNames),
-    generatedPaths,
-  );
-  // Per-harness hooks written at the paths named by `oscaner-plugin.hooks`
-  // (claude → hooks/hooks.json, cursor → hooks/hooks-cursor.json). The mapping
-  // is the single SOT — adding a harness mapping here produces its hooks file.
-  for (const [harness, rel] of Object.entries(plugin.hooks ?? {})) {
-    writeJsonDoc(
-      outRoot,
-      `${contentRoot}/${rel.replace(/^\.\//, "")}`,
-      osuperpowersHooksFor(harness),
-      generatedPaths,
-    );
-  }
 
   emitAgentsSkillsCopy(outRoot, contentRoot, generatedPaths);
-
-  // I3 guard: generated hooks commands must resolve to real adapter files
-  // (runs in write + --check modes; fail loud on a missing adapter).
-  assertAdapterPathsExist(plugin, pluginDir, version);
 }
 
 /**

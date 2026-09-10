@@ -32,7 +32,6 @@ import {
   PROBE,
   PROBE_CLASS,
 } from "./vendor-registry.mjs";
-import { thinGeminiExtension } from "../emit/manifests.mjs";
 
 let dir;
 function makeRoot() {
@@ -166,7 +165,6 @@ function makeMattpocockFixture() {
     }),
   );
   writeFileSync(join(p, "LICENSE"), "MIT\n");
-  // Skill directories for gemini-extension assembly verification
   mkdirSync(join(p, "skills", "tdd"), { recursive: true });
   writeFileSync(join(p, "skills", "tdd", "SKILL.md"), "# tdd\n");
   mkdirSync(join(p, "skills", "grilling"), { recursive: true });
@@ -536,81 +534,6 @@ test("stageVendor copies content, writes scoped package.json + LICENSE", () => {
   expect(pkg.version).toBe("4.0.4");
   // pi at top level, derived from .pi/skills/impeccable
   expect(pkg.pi).toEqual({ skills: ["./.pi/skills/impeccable"] });
-});
-
-// ---------------------------------------------------------------------------
-// thinGeminiExtension — mattpocock thin extension (no BeforeTool hooks)
-// ---------------------------------------------------------------------------
-
-test("thinGeminiExtension produces name/version/skills/contextFileName, no hooks", () => {
-  const ext = thinGeminiExtension("mattpocock-skills", "1.1.0", [
-    "./skills/tdd",
-    "./skills/grilling",
-  ]);
-  expect(ext.name).toBe("mattpocock-skills");
-  expect(ext.version).toBe("1.1.0");
-  expect(ext.skills).toEqual(["./skills/tdd", "./skills/grilling"]);
-  expect(ext.contextFileName).toBe("GEMINI.md");
-  expect(ext.hooks).toBe(undefined);
-});
-
-test("thinGeminiExtension omits description when not provided", () => {
-  const ext = thinGeminiExtension("x", "0.0.1", []);
-  expect(ext.description).toBe(undefined);
-  expect(ext.hooks).toBe(undefined);
-});
-
-// ---------------------------------------------------------------------------
-// stageVendor gemini-extension — mattpocock assembly produces thin extension + GEMINI.md
-// ---------------------------------------------------------------------------
-
-test("stageVendor mattpocock produces thin gemini-extension.json", () => {
-  const root = makeMattpocockFixture();
-  const stageRoot = join(root, "stage");
-  const dest = stageVendor("mattpocock-skills", root, stageRoot);
-
-  const geminiPath = join(dest, "gemini-extension.json");
-  expect(existsSync(geminiPath)).toBeTruthy();
-  const ext = JSON.parse(readFileSync(geminiPath, "utf8"));
-  // Name is the scoped package name (from assemblePackageJson)
-  expect(ext.name).toBe("@oscaner-skills/mattpocock-skills");
-  expect(ext.version).toBe("1.1.0");
-  expect(ext.contextFileName).toBe("GEMINI.md");
-  expect(Array.isArray(ext.skills)).toBeTruthy();
-  expect(ext.skills.length >= 2).toBeTruthy();
-  // No BeforeTool hooks in the thin extension
-  expect(ext.hooks).toBe(undefined);
-});
-
-test("stageVendor mattpocock produces GEMINI.md with skill imports", () => {
-  const root = makeMattpocockFixture();
-  const stageRoot = join(root, "stage");
-  const dest = stageVendor("mattpocock-skills", root, stageRoot);
-
-  const geminiMdPath = join(dest, "GEMINI.md");
-  expect(existsSync(geminiMdPath)).toBeTruthy();
-  const content = readFileSync(geminiMdPath, "utf8");
-  // Skills come from the fixture's .claude-plugin/plugin.json skills array
-  expect(content.includes("@./skills/claude-api/SKILL.md")).toBeTruthy();
-  expect(content.includes("@./skills/grilling/SKILL.md")).toBeTruthy();
-  expect(!content.includes("hooks")).toBeTruthy();
-});
-
-// ---------------------------------------------------------------------------
-// stageVendor upstream guard — upstream gemini-extension.json triggers error
-// ---------------------------------------------------------------------------
-
-test("stageVendor throws when upstream already has gemini-extension.json", () => {
-  const root = makeMattpocockFixture();
-  // Plant an upstream gemini-extension.json in the vendor
-  writeFileSync(
-    join(root, "vendors", "mattpocock-skills", "gemini-extension.json"),
-    JSON.stringify({ name: "upstream" }),
-  );
-  const stageRoot = join(root, "stage");
-  expect(
-    () => stageVendor("mattpocock-skills", root, stageRoot),
-  ).toThrow(/gemini-extension\.json/);
 });
 
 // ---------------------------------------------------------------------------

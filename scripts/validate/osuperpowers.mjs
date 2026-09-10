@@ -73,15 +73,14 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 ]);
 
 // node:test trees: behavior/integration (packages/osuperpowers/tests: helpers.mjs +
-// rule-reference + ci-validate.test.mjs) and module (bin/engine/tests/ + gate + init
-// + utils). Globs rather than bare directories — node --test <dir> loads the dir as a
+// rule-reference + ci-validate.test.mjs) and module (bin/engine/tests/ + init +
+// utils). Globs rather than bare directories — node --test <dir> loads the dir as a
 // module here and fails; the runner expands the globs. The legacy bash engine tests
 // were fully migrated, so their Node equivalents are covered by the
 // runner/registry/templates/exec module tests.
-subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", [
+subprocessStep("5b. node:test engine + init + utils + behavior", "node", [
   "--test",
   "packages/osuperpowers/tests/*.test.mjs",
-  "packages/osuperpowers/bin/gate/tests/*.test.mjs",
   "packages/osuperpowers/bin/init/tests/*.test.mjs",
   "packages/osuperpowers/bin/utils/tests/*.test.mjs",
 ]);

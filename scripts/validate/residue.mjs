@@ -95,7 +95,7 @@ function checkStaleLexicon() {
   console.log("OK — stale-lexicon zero in mechanism positions");
 }
 
-// 块数不变（13）：checkStaleLexicon 并入既有 5c.run 同一步内部 —— 先 checkZeroResidue
+// 块数不变（12）：checkStaleLexicon 并入既有 5c.run 同一步内部 —— 先 checkZeroResidue
 // 再 checkStaleLexicon；grepTargets 扩为含 cdd-engine bin+templates 供 wiring guard 钉死。
 export const steps = [
   {

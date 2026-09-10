@@ -32,7 +32,7 @@
 
 ---
 
-## Task 1: Gate 子系统整体删除（osuperpowers + emit + validate + 产物）
+### Task 1: Gate 子系统整体删除（osuperpowers + emit + validate + 产物）
 
 <thinking>原子范围：gate 目录物理删除 + hooks 文件删除 + fixtures 删除 + emit 产生者改造（manifests/osuperpowers/compare）+ emit.test 断言清理 + validate gate-hooks block + ci-validate 断言 + package.json 字段 + 现存 per-harness 产物删除。全部在一个 commit，保证删后 emit/validate 绿。</thinking>
 
@@ -104,7 +104,7 @@
 
 ---
 
-## Task 2: Harness 选择/探测/安装层删除 + registry 收敛
+### Task 2: Harness 选择/探测/安装层删除 + registry 收敛
 
 <thinking>原子范围：cdd select 子命令 + cli-select skill + harness-detect×2 + skills-probe×2 + install-harness/init + 相关 tests / cdd.mjs select wiring / runner DEFAULT_CHANNEL_MAP/probeSkills / harness-detect import + registry 7→2 键 + cli-shared CDD_GATE env。cdd select 删除同时清 cdd.test/select.test 里 select 用例（否则 validate 红）。</thinking>
 
@@ -159,7 +159,7 @@
 
 ---
 
-## Task 3: `--harness` 参数删除 + host 检测接线（engine）
+### Task 3: `--harness` 参数删除 + host 检测接线（engine）
 
 <thinking>原子范围：cdd.mjs 4 个子命令删 --harness requiredOption/usage + runReview/runFix/runResearch/implement 的 harness 参数 → detectCurrentHarness 内部判定 + D6 空→BLOCK + cli-shared/registry 链核对。此 task 同时迁移所有 engine 测试与 smoke 的 --harness 调用点（否则 validate 红）→ 与 D12 一起落地。registry 由 host 查找（claude/cursor-agent 两键）。</thinking>
 
@@ -221,7 +221,7 @@
 
 ---
 
-## Task 4: review/fix 命令面 `--doc` → `--spec`/`--plan` 统一（D11）
+### Task 4: review/fix 命令面 `--doc` → `--spec`/`--plan` 统一（D11）
 
 <thinking>原子范围：cdd.mjs review/fix 命令 option 改 + runReview/runFix 分支归一 + workspace slug 派生改 + 引擎测试 --doc 调用点改 + _docs/review.md 命令引用 + brainstorming/writing-plans skills 调用形态 + cdd-reference + report-issue 措辞。D11 决策：--doc 退役；type=spec→--spec 被审，type=plan→--plan 被审 + --spec 上游参照，type=task/branch→--plan。</thinking>
 
@@ -285,7 +285,7 @@
 
 ---
 
-## Task 5: skill 层 harness 概念出清（cli-driven-development / cli-research / init / docs）
+### Task 5: skill 层 harness 概念出清（cli-driven-development / cli-research / init / docs）
 
 <thinking>原子范围：cli-driven-development 删 select-harness 节点 + I1 invariant + dispatch-mode --harness 文本；cli-research 删 select-harness → 直连 prepare-brief（host 引擎内部判定）；README/maintainers docs 清理；init SKILL.md 已 Task 2 收缩，此处确认 skill 文本层 finish。</thinking>
 
@@ -319,7 +319,7 @@
 
 ---
 
-## Task 6: Gate 语汇 residue guard（并入 residue.mjs，零豁免）
+### Task 6: Gate 语汇 residue guard（并入 residue.mjs，零豁免）
 
 <thinking>原子范围：mirror P6 F5 模式——residue.mjs 新增 gate 专属语汇零豁免检查（bin/gate/ 路径、CDD_GATE env、cdd-gate-core、gateDecide、被删 adapter 文件名），潜在压入 check。豁免 `validateCommitContract`/HARD GATE/commit-gate fixtures（合法语义）。residue.test.mjs 增 positive/negative 用例。</thinking>
 
@@ -346,7 +346,7 @@
 
 ---
 
-## Task 7: 全量验证 + 残留清零确认
+### Task 7: 全量验证 + 残留清零确认
 
 <thinking>原子范围：机械化 grep 断言删除面全零 + emit/validate 双绿 + per-harness 产物现状核对。这是计划级终验（非新 review）。</thinking>
 
@@ -376,7 +376,7 @@
 
 ---
 
-## Task 8: Changeset + overall/plan 状态同步 + closeout
+### Task 8: Changeset + overall/plan 状态同步 + closeout
 
 <thinking>原子范围：.changeset 创建（P5 breaking/gate removal — cdd-engine major + osuperpowers major 语义见 spec changeset 说明）；overall P5 行 Implementation plan → Done、Design spec 保持 P5-design；change-history v1.24 行记录 plan；branch 收尾交 finishing。</thinking>
 

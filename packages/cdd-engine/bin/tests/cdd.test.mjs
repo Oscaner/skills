@@ -123,7 +123,7 @@ describe("cdd CLI", () => {
     // 不再存在未知 harness 需停闸（host 必然是 claude/cursor-agent 两合法键）——T3 改断言无-host BLOCK。
     // 保留 not.toMatch(/template/)：BLOCK 消息不得来自 doc-fix 模板渲染错误。
     for (const [type, reviewFile] of [["spec", "spec-review-1.json"], ["plan", "plan-review-1.json"]]) {
-      // D11 target param: type=spec → --spec, type=plan → --plan（--doc 退役）。
+      // D11 target param: type=spec → --spec, type=plan → --plan（type 自解释）。
       const targetParam = type === "spec" ? "--spec" : "--plan";
       const r = runCli(["fix", "--type", type, targetParam, SMOKE_PLAN,
         "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", reviewFile)],

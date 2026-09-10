@@ -39,7 +39,7 @@ flowchart TD
 
 ### `dispatch-research`
 
-- **Do**: Execute `cdd research --brief <brief-path> --output <findings-path>` as a background process. Monitor for completion; do not block the main session — the CLI runs asynchronously. (Host harness is ambient-detected by the engine — no `--harness` flag.)
+- **Do**: Execute `cdd research --brief <brief-path> --output <findings-path>` as a background process. Monitor for completion; do not block the main session — the CLI runs asynchronously. (Host harness is ambient-detected by the engine.)
 - **Read**: `cdd research` (CLI script)
 - **Exit**: CLI exits 0 and findings file is written → `report`; CLI exits non-zero → BLOCKED (CLI failed); CLI times out → `report` (fail-open — read partial findings if available, then proceed to report; timeout is not retryable in research context)
 - **Fail**: CLI execution error / non-zero exit → BLOCKED (CLI failed); CLI timeout → fail-open to `report` (research is optional enhancement, partial findings are valuable; no timeout-count increment); record stderr for diagnostics

@@ -170,7 +170,7 @@ Any handoff written to disk (including BLOCKED/TIMEOUT) increments the round cou
 
 ### Docs review/fix (`cdd review|fix --type spec|plan`)
 
-Document review flows through the merged `cdd` CLI (the former `docs-task` bin). The target parameter is type-self-describing (D11, `--doc` retired): type=spec → `--spec <path>`, type=plan → `--plan <path>` (`--harness` no longer exists — the engine resolves the host harness from the ambient environment).
+Document review flows through the merged `cdd` CLI (the former `docs-task` bin). The target parameter is type-self-describing (D11): type=spec → `--spec <path>`, type=plan → `--plan <path>`. The engine resolves the host harness from the ambient environment — no harness selection exists.
 - `cdd review --type spec --spec <path>` / `cdd review --type plan --plan <path>`: runs the single-cycle doc review (URC contract in `skills/_docs/review.md`), writes `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`
 - `cdd fix --type spec --spec <path> --findings <review-N-handoff-path>` / `cdd fix --type plan --plan <path> --findings <review-N-handoff-path>`: fixes all findings, writes the fix round handoff
 - branch-level review is a separate path: `cdd review --type branch` (not a docs review; takes `--plan` for the workspace slug)

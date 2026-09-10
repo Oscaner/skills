@@ -1,5 +1,5 @@
 // bin/tests/docs-task.test.mjs — Vitest port of the docs review/fix CLI tests, now
-// exercised through the merged single CLI (bin/cdd.mjs). Invocation map (D11: --doc 退役 → type
+// exercised through the merged single CLI (bin/cdd.mjs). Invocation map (D11: type
 // 自解释 target 参数):
 //   docs-task --mode review --template <t>  → cdd review --type spec|plan [--spec/--plan <path>]
 //   docs-task --mode fix --template <t>     → cdd fix --type spec|plan [--spec/--plan <path>]

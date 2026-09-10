@@ -8,7 +8,7 @@
 
 Per-task execution uses the **cdd-engine** single CLI bin (`cdd`) — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Host harness** → resolved by the engine from ambient environment markers (`CLAUDE_CODE_SESSION_ID` → claude, `CURSOR_TRACE_ID` → cursor-agent; empty → BLOCK) — there is no harness selection step and `cdd` accepts no `--harness` flag (T2/T3).
+1. **Host harness** → resolved by the engine from ambient environment markers (`CLAUDE_CODE_SESSION_ID` → claude, `CURSOR_TRACE_ID` → cursor-agent; empty → BLOCK) — there is no harness selection step; detection is entirely ambient (T2/T3).
 2. **Three modes** — one invocation each:
 
 | `CDD_MODE` | Responsibility |
@@ -84,7 +84,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 
 Orchestrator / skill **must not** create `cdd-*` wrappers or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd`, installed globally); runtime templates in `packages/cdd-engine/templates/` (`task/` / `review/` / `schema/`). Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` — the cdd-engine `lib/templates.mjs` `PKG_ROOT` constant (P6 migrated into the engine; engine is self-contained, no gate-core / cli-select resolution).
+All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd`, installed globally); runtime templates in `packages/cdd-engine/templates/` (`task/` / `review/` / `schema/`). Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` — the cdd-engine `lib/templates.mjs` `PKG_ROOT` constant (P6 migrated into the engine; engine is self-contained, no gate-core / selector-helper resolution).
 
 ## H8 — CLI opt-in / opt-out
 

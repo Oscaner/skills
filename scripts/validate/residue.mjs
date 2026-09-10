@@ -77,7 +77,8 @@ function assert(cond, msg) {
 // 复用扫描：tinyglobby 替换手写递归；`dot: true` 扫隐藏子目录（.claude-plugin/）。
 // T6：目录 target glob **/*，单文件 target（根 README.md）直接读；target 可取仓库相对
 // 路径或绝对路径（后者供 collectGateLexiconHits 测试注入临时目录）。
-function scanTargets(targets, re) {
+// T7：export 供 smoke-cdd.mjs 最终核对（deletion-surface sweep）复用，不重复实现。
+export function scanTargets(targets, re) {
   const hits = [];
   for (const t of targets) {
     const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);

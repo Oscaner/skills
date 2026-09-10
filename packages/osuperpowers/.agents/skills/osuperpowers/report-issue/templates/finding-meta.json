@@ -291,10 +291,6 @@
     }
   },
   "masterDef": {
-    "title": "[Session report] <slug|standalone> <YYYY-MM-DD>",
-    "summaryTable": {
-      "cols": ["#", "Type", "Component", "Title"],
-      "placeholder": "_Each row corresponds to one finding comment appended below._"
-    }
+    "title": "[Session report] <subject> <YYYY-MM-DD>"
   }
 }

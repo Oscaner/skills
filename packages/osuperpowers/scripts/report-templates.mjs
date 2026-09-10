@@ -87,9 +87,9 @@ export function renderYml(formDef) {
 }
 
 // --- master body pieces ----------------------------------------------------
-export function renderTitle(masterDef, { slugOrStandalone, date }) {
+export function renderTitle(masterDef, { subject, date }) {
   return masterDef.title
-    .replace("<slug|standalone>", slugOrStandalone)
+    .replace("<subject>", subject)
     .replace("<YYYY-MM-DD>", date);
 }
 
@@ -98,16 +98,6 @@ export function renderMeta(meta) {
   return findingMeta.metaFields
     .map(({ key, label }) => `- ${label}: ${meta[key] ?? ""}`)
     .join("\n");
-}
-
-export function renderSummaryTable(findings) {
-  const { cols, placeholder } = masterDef.summaryTable; // 表头/占位取自 canonical，不硬编码（R1）
-  const header = `| ${cols.join(" | ")} |`;
-  const sep = `| ${cols.map(() => "---").join(" | ")} |`;
-  const rows = findings.map(
-    (f, i) => `| ${i + 1} | ${f.type} | ${f.component} | ${f.title} |`,
-  );
-  return `${header}\n${sep}\n${rows.join("\n")}\n\n${placeholder}`;
 }
 
 // --- finding comment / master body ---------------------------------------
@@ -124,12 +114,10 @@ export function renderComment({ finding, lang = "en", related, meta }) {
   return body.join("\n\n");
 }
 
-export function renderMasterBody({ kind, meta, findings }) {
-  // Session 元数据块 + Findings Summary 表 + 末端 `## Report meta (auto)`
-  // （与 finding comment 同规，Global §report-meta）
+export function renderMasterBody({ kind, meta }) {
   return [
     `## Session\n\n- Session: ${meta.session ?? "standalone"}\n- Kind: ${kind}\n- Date: ${meta.date}`,
-    `## Findings Summary\n\n${renderSummaryTable(findings)}`,
+    "_Findings are appended as comments below — this body is created once and not maintained._",
     `## Report meta (auto)\n${renderMeta(meta)}`,
   ].join("\n\n");
 }

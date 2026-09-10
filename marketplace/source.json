@@ -86,7 +86,7 @@
         "emitMode": "plugin-root"
       },
       "version": "0.1.1",
-      "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
+      "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
       "author": {
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"
@@ -104,12 +104,6 @@
           "droid",
           "pi"
         ]
-      },
-      "hooks": {
-        "claude": "./hooks/hooks.json",
-        "cursor": "./hooks/hooks-cursor.json",
-        "codex": "./.codex-plugin/hooks/hooks.json",
-        "qoder": "./.qoder-plugin/hooks/hooks.json"
       }
     }
   ]

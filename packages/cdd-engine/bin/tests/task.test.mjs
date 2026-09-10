@@ -32,9 +32,17 @@ function cleanEnv(extra) {
 
 // Spawn the CLI as a subprocess (cwd = repo root); returns { status, stdout, stderr }.
 function run(args, extraEnv = {}, opts = {}) {
+  const env = cleanEnv(extraEnv);
+  // T3: host detection is ambient-env driven — a test that needs a truly host-free env must
+  // explicitly delete the host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT).
+  if (opts.noHost) {
+    delete env.CLAUDE_CODE_SESSION_ID;
+    delete env.CURSOR_TRACE_ID;
+    delete env.AI_AGENT;
+  }
   const res = spawnSync('node', [CDD_MJS, ...args], {
     cwd: opts.cwd ?? REPO_ROOT,
-    env: cleanEnv(extraEnv),
+    env,
     encoding: 'utf8',
   });
   return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
@@ -56,8 +64,8 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('dry-run implement → H1 four lines APPROVED + exit 0', () => {
     const ws = setupWorkspace();
     const res = run(
-      ['implement', '--harness', 'claude', '--task', '1', '--plan', path.join(ws, 'plan.md')],
-      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
+      ['implement', '--task', '1', '--plan', path.join(ws, 'plan.md')],
+      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(res.status).toBe(0);
     const lines = res.stdout.trim().split('\n');
@@ -76,8 +84,8 @@ describe('cdd implement/review/fix CLI contract', () => {
     for (const [sub, , type] of cases) {
       const ws = setupWorkspace();
       const res = run(
-        [sub, '--type', type, '--harness', 'claude', '--task', '1', '--plan', path.join(ws, 'plan.md')],
-        { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
+        [sub, '--type', type, '--task', '1', '--plan', path.join(ws, 'plan.md')],
+        { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
       );
       expect(res.status, `cdd ${sub} --type task`).toBe(0);
       expect(res.stdout).toMatch(/^status: APPROVED$/m);
@@ -92,10 +100,10 @@ describe('cdd implement/review/fix CLI contract', () => {
     }
   });
 
-  it('missing --harness → usage stderr + exit 2', () => {
-    const res = run(['implement', '--task', '1']);
-    expect(res.status).toBe(2);
-    expect(res.stderr).toMatch(/^usage: /);
+  it('no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)', () => {
+    const res = run(['implement', '--task', '1'], {}, { noHost: true });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
   });
 
   it('unknown subcommand → usage stderr + exit 2', () => {
@@ -107,15 +115,15 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('implement --plan without --task → usage stderr + exit 2', () => {
     const ws = setupWorkspace();
     const res = run(
-      ['implement', '--harness', 'claude', '--plan', path.join(ws, 'plan.md')],
-      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
+      ['implement', '--plan', path.join(ws, 'plan.md')],
+      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/^usage: /);
   });
 
   it('unknown option → usage stderr + exit 2', () => {
-    const res = run(['implement', '--harness', 'claude', '--task', '1', '--bogus', 'x']);
+    const res = run(['implement', '--task', '1', '--bogus', 'x'], { CLAUDE_CODE_SESSION_ID: '1' });
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/^usage: /);
   });
@@ -123,8 +131,8 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('review unknown --type → error stderr + exit 2 (runReview type validation)', () => {
     const ws = setupWorkspace();
     const res = run(
-      ['review', '--type', 'handoff', '--harness', 'claude', '--task', '1', '--plan', path.join(ws, 'plan.md')],
-      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws },
+      ['review', '--type', 'handoff', '--task', '1', '--plan', path.join(ws, 'plan.md')],
+      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/unknown review --type: handoff/);
@@ -133,7 +141,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('Bug A regression: --task with non-integer string exits with error', async () => {
     expect(() => execFileSync('node', [
       CDD_MJS,
-      'implement', '--harness', 'claude', '--task', 'abc',
+      'implement', '--task', 'abc',
     ], { encoding: 'utf8', stdio: 'pipe' })).toThrow();
   });
 });

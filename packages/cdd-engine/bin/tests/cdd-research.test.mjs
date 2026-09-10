@@ -10,8 +10,15 @@ import { execFileSync } from "node:child_process";
 const CLI = path.resolve(import.meta.dirname, "../cdd.mjs");
 
 function runCli(args = [], opts = {}) {
-  const { env: extraEnv, ...spawnOpts } = opts;
-  const env = { ...process.env, ...extraEnv };
+  const { env: extraEnv, noHost = false, ...spawnOpts } = opts;
+  const env = { ...process.env, ...(extraEnv ?? {}) };
+  // T3: host detection is ambient-env driven — a no-host case must explicitly delete the
+  // three host markers (parent orchestrator session sets CLAUDE_CODE_SESSION_ID/AI_AGENT).
+  if (noHost) {
+    delete env.CLAUDE_CODE_SESSION_ID;
+    delete env.CURSOR_TRACE_ID;
+    delete env.AI_AGENT;
+  }
   try {
     const stdout = execFileSync(process.execPath, [CLI, "research", ...args], {
       timeout: 10_000,
@@ -36,32 +43,27 @@ it("cdd research: --help 退出 exit 0", () => {
   expect(r.exitCode).toBe(0);
 });
 
-it("cdd research: 缺少 --harness 退出 exit 2", () => {
-  const r = runCli(["--brief", "/tmp/x.md", "--output", "/tmp/o.md"]);
-  expect(r.exitCode).toBe(2);
-});
-
-it("cdd research: 缺少 --brief 退出 exit 2", () => {
-  const r = runCli(["--harness", "claude", "--output", "/tmp/o.md"]);
-  expect(r.exitCode).toBe(2);
-});
-
-it("cdd research: 缺少 --output 退出 exit 2", () => {
-  const r = runCli(["--harness", "claude", "--brief", "/tmp/x.md"]);
-  expect(r.exitCode).toBe(2);
-});
-
-it("cdd research: 未知 --harness 退出 exit 1", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-harness-"));
+it("cdd research: 无 host env → CDD_BLOCKED exit 1（harness 由环境 host 判定，无参数）", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-nohost-"));
   const briefPath = path.join(dir, "brief.md");
   writeFileSync(briefPath, "# test brief\n");
   const outputPath = path.join(dir, "findings.md");
   const r = runCli([
-    "--harness", "nonexistent-harness-xyz",
     "--brief", briefPath,
     "--output", outputPath,
-  ]);
+  ], { noHost: true });
   expect(r.exitCode).toBe(1);
+  expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
+});
+
+it("cdd research: 缺少 --brief 退出 exit 2", () => {
+  const r = runCli(["--output", "/tmp/o.md"]);
+  expect(r.exitCode).toBe(2);
+});
+
+it("cdd research: 缺少 --output 退出 exit 2", () => {
+  const r = runCli(["--brief", "/tmp/x.md"]);
+  expect(r.exitCode).toBe(2);
 });
 
 // --- Slice 2: Dry-run mode ---
@@ -72,10 +74,9 @@ it("cdd research: dry-run 跳过 harness 执行 (exit 0)", () => {
   writeFileSync(briefPath, "# test brief\n");
   const outputPath = path.join(dir, "findings.md");
   const r = runCli([
-    "--harness", "claude",
     "--brief", briefPath,
     "--output", outputPath,
-  ], { env: { CDD_DRY_RUN: "1" } });
+  ], { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
   expect(r.exitCode).toBe(0);
 });
 
@@ -96,10 +97,11 @@ it("cdd research: mock harness + 有效 brief → dry-run 验证参数解析", (
   writeFileSync(briefPath, "# Research Brief\n\nAnalyze the auth module.");
   const outputPath = path.join(dir, "findings.md");
 
-  // 创建 mock registry（cli 字段用 basename，靠 PATH 指向 dir）
+  // 创建 mock registry — T3 后 registry 按 host 键查找（claude/cursor-agent），mock harness
+  // 须 re-key 为 claude；cli 字段用 basename，靠 PATH 指向 dir。
   const registryPath = path.join(dir, "registry.json");
   writeFileSync(registryPath, JSON.stringify({
-    "mock-test-harness": {
+    "claude": {
       ship: "full",
       cli: "mock-harness.sh",
       invoke: "-p",
@@ -108,10 +110,9 @@ it("cdd research: mock harness + 有效 brief → dry-run 验证参数解析", (
   }));
 
   const r = runCli([
-    "--harness", "mock-test-harness",
     "--brief", briefPath,
     "--output", outputPath,
-  ], { env: { CDD_DRY_RUN: "1", CDD_REGISTRY_PATH: registryPath } });
+  ], { env: { CDD_DRY_RUN: "1", CDD_REGISTRY_PATH: registryPath, CLAUDE_CODE_SESSION_ID: "1" } });
   expect(r.exitCode).toBe(0);
 });
 
@@ -130,10 +131,10 @@ it("cdd research: 端到端 mock harness → stdout 写入 output 文件", () =>
   writeFileSync(briefPath, "Analyze the auth module.");
   const outputPath = path.join(dir, "findings.md");
 
-  // 创建 mock registry（cli 字段用 basename，靠 PATH 指向 dir）
+  // 创建 mock registry（T3 re-key 为 host 键 claude；cli 字段用 basename，靠 PATH 指向 dir）
   const registryPath = path.join(dir, "registry.json");
   writeFileSync(registryPath, JSON.stringify({
-    "mock-test-harness": {
+    "claude": {
       ship: "full",
       cli: "mock-harness.sh",
       invoke: "-p",
@@ -142,10 +143,9 @@ it("cdd research: 端到端 mock harness → stdout 写入 output 文件", () =>
   }));
 
   const r = runCli([
-    "--harness", "mock-test-harness",
     "--brief", briefPath,
     "--output", outputPath,
-  ], { env: { CDD_REGISTRY_PATH: registryPath, PATH: `${dir}:${process.env.PATH}` } });
+  ], { env: { CDD_REGISTRY_PATH: registryPath, PATH: `${dir}:${process.env.PATH}`, CLAUDE_CODE_SESSION_ID: "1" } });
   expect(r.exitCode).toBe(0);
   expect(existsSync(outputPath), "output file should exist").toBe(true);
   const content = readFileSync(outputPath, "utf8");
@@ -159,10 +159,9 @@ it("cdd research: brief 文件不存在 → exit 1", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-res-nobrief-"));
   const outputPath = path.join(dir, "findings.md");
   const r = runCli([
-    "--harness", "claude",
     "--brief", "/nonexistent/brief.md",
     "--output", outputPath,
-  ]);
+  ], { env: { CLAUDE_CODE_SESSION_ID: "1" } });
   expect(r.exitCode).toBe(1);
 });
 
@@ -185,8 +184,9 @@ function makeHangHarness(dir) {
 
 function makeTimeoutRegistry(dir) {
   const registryPath = path.join(dir, "registry.json");
+  // T3 re-key: research registry 按 host 键（claude）查找，mock timeout harness 挂到 claude 键下。
   writeFileSync(registryPath, JSON.stringify({
-    "mock-timeout-harness": {
+    "claude": {
       ship: "full",
       cli: "hang-harness.sh",
       invoke: "-p",
@@ -205,7 +205,6 @@ it("cdd research: timeout → 写 partial findings + TIMEOUT frontmatter + exit 
   const outputPath = path.join(dir, "findings.md");
 
   const r = runCli([
-    "--harness", "mock-timeout-harness",
     "--brief", briefPath,
     "--output", outputPath,
   ], {
@@ -213,6 +212,7 @@ it("cdd research: timeout → 写 partial findings + TIMEOUT frontmatter + exit 
       CDD_REGISTRY_PATH: registryPath,
       PATH: `${dir}:${process.env.PATH}`,
       CDD_RESEARCH_TIMEOUT: "1",
+      CLAUDE_CODE_SESSION_ID: "1",
     },
   });
   expect(r.exitCode).toBe(1);
@@ -232,7 +232,6 @@ it("cdd research: 旧 RESEARCH_TIMEOUT 向后兼容（秒级，仍生效）", ()
   // RESEARCH_TIMEOUT=1（秒）→ 极短 timeout → 挂起 harness 超时退出 1。
   // 若旧 env 未被读取，会退回 1800000ms 默认，sleep 30 在 execFileSync 10s 截断内未超时 → exit 0 ≠ 1。
   const r = runCli([
-    "--harness", "mock-timeout-harness",
     "--brief", briefPath,
     "--output", outputPath,
   ], {
@@ -240,6 +239,7 @@ it("cdd research: 旧 RESEARCH_TIMEOUT 向后兼容（秒级，仍生效）", ()
       CDD_REGISTRY_PATH: registryPath,
       PATH: `${dir}:${process.env.PATH}`,
       RESEARCH_TIMEOUT: "1",
+      CLAUDE_CODE_SESSION_ID: "1",
     },
   });
   expect(r.exitCode).toBe(1, "legacy RESEARCH_TIMEOUT=1 should trigger timeout");
@@ -257,7 +257,6 @@ it("cdd research: CDD_RESEARCH_TIMEOUT 优先于旧 RESEARCH_TIMEOUT（秒级）
 
   // CDD_RESEARCH_TIMEOUT=1（优先）→ 超时；RESEARCH_TIMEOUT=900 不应生效（否则 30s 内 sleep 完成 exit 0）。
   const r = runCli([
-    "--harness", "mock-timeout-harness",
     "--brief", briefPath,
     "--output", outputPath,
   ], {
@@ -266,6 +265,7 @@ it("cdd research: CDD_RESEARCH_TIMEOUT 优先于旧 RESEARCH_TIMEOUT（秒级）
       PATH: `${dir}:${process.env.PATH}`,
       CDD_RESEARCH_TIMEOUT: "1",
       RESEARCH_TIMEOUT: "900",
+      CLAUDE_CODE_SESSION_ID: "1",
     },
   });
   expect(r.exitCode).toBe(1, "new CDD_RESEARCH_TIMEOUT=1 should win over RESEARCH_TIMEOUT=900");
@@ -278,8 +278,9 @@ it("cdd research: 充足 timeout 下挂起 harness 正常完成（不误判 time
   writeFileSync(mockCli, "#!/bin/sh\necho \"# Research Findings\n\nSlept then finished.\"\n");
   chmodSync(mockCli, 0o755);
   const registryPath = path.join(dir, "registry.json");
+  // T3 re-key: 按 host 键 claude 挂 mock cli。
   writeFileSync(registryPath, JSON.stringify({
-    "mock-timeout-harness": { ship: "full", cli: "sleep-harness.sh", invoke: "-p", output: "text" },
+    "claude": { ship: "full", cli: "sleep-harness.sh", invoke: "-p", output: "text" },
   }));
   const briefPath = path.join(dir, "brief.md");
   writeFileSync(briefPath, "Analyze the auth module.");
@@ -287,7 +288,6 @@ it("cdd research: 充足 timeout 下挂起 harness 正常完成（不误判 time
 
   // RESEARCH_TIMEOUT=900（足够）→ 立即完成的 echo harness → exit 0，无 TIMEOUT。
   const r = runCli([
-    "--harness", "mock-timeout-harness",
     "--brief", briefPath,
     "--output", outputPath,
   ], {
@@ -295,6 +295,7 @@ it("cdd research: 充足 timeout 下挂起 harness 正常完成（不误判 time
       CDD_REGISTRY_PATH: registryPath,
       PATH: `${dir}:${process.env.PATH}`,
       RESEARCH_TIMEOUT: "900",
+      CLAUDE_CODE_SESSION_ID: "1",
     },
   });
   expect(r.exitCode).toBe(0, "sufficient timeout should not trigger timeout path");

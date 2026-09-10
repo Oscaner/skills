@@ -43,8 +43,8 @@ function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 8; // 7 emitters + init (P5 removed three legacy skills, #169 removed cli-task, P2 removed debugging+verification, P11 added cli-research)
-  const EMITTERS_LABEL = "7 emitters + init";
+  const EXPECTED = 7; // 6 emitters + init (T2 removed cli-select; P5 removed three legacy skills)
+  const EMITTERS_LABEL = "6 emitters + init";
   let n;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");
@@ -73,17 +73,15 @@ subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
 ]);
 
 // node:test trees: behavior/integration (packages/osuperpowers/tests: helpers.mjs +
-// rule-reference + ci-validate.test.mjs) and module (bin/engine/tests/ + gate + init
-// + utils). Globs rather than bare directories — node --test <dir> loads the dir as a
-// module here and fails; the runner expands the globs. The legacy bash engine tests
-// were fully migrated, so their Node equivalents are covered by the
+// rule-reference + ci-validate.test.mjs). T2 removed the harness selection/detection/
+// install layers — the init-suite and utils-suite globs (bin/init/tests, bin/utils/tests)
+// are gone with them. Globs rather than bare directories — node --test <dir> loads the
+// dir as a module here and fails; the runner expands the globs. The legacy bash engine
+// tests were fully migrated, so their Node equivalents are covered by the
 // runner/registry/templates/exec module tests.
-subprocessStep("5b. node:test engine + gate + init + utils + behavior", "node", [
+subprocessStep("5b. node:test behavior", "node", [
   "--test",
   "packages/osuperpowers/tests/*.test.mjs",
-  "packages/osuperpowers/bin/gate/tests/*.test.mjs",
-  "packages/osuperpowers/bin/init/tests/*.test.mjs",
-  "packages/osuperpowers/bin/utils/tests/*.test.mjs",
 ]);
 
 subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);

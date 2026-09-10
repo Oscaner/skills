@@ -19,17 +19,11 @@ import { handoffName, prevHandoffPath as hnPreHandoffPath } from "./handoff-nami
 import { finalizeHandoff, persistFinalized } from "./handoff-finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../utils/exit.mjs";
 import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "./cli-shared.mjs";
-import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound } from "./progress.mjs";
+import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "./progress.mjs";
 import { validateHandoffSchema } from "./schema-utils.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from runner.mjs).
 export { spawnCapture, invokeCli };
-
-// Default channel classification for skills probe DI.
-const DEFAULT_CHANNEL_MAP = {
-  "install-and-use": ["claude", "cursor-agent", "droid", "grok", "qoder", "codex", "gemini", "pi"],
-  "init": ["opencode", "trae", "vibe", "kiro"],
-};
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 const VALID_MODES = ["implement", "review", "fix"];
@@ -345,7 +339,7 @@ function dryRunH1Block(env, taskNum) {
 
 // ---- runTask / runPlan ----
 
-// Aligns cdd_run_task. opts: { mode, planFile, dryRun, env, cwd, registryPath, probeSkills, channelMap,
+// Aligns cdd_run_task. opts: { mode, planFile, dryRun, env, cwd, registryPath,
 //   noExit, pluginRoot, scriptsDir, findingsPath }.
 // findingsPath: explicit CDD_FINDINGS path for fix mode (cdd fix --findings) — wins over
 //   buildTaskEnv's runner-derived prev-phase handoff path.
@@ -353,9 +347,7 @@ function dryRunH1Block(env, taskNum) {
 // Returns { exitCode, h1 } (does not call exitWithCode when noExit=true).
 export async function runTask(harness, taskNum, opts = {}) {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
-  const probeSkills = opts.probeSkills;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
-  const channelMap = opts.channelMap ?? DEFAULT_CHANNEL_MAP;
   const cwd = opts.cwd ?? process.cwd();
   const baseEnv = opts.env ?? process.env;
   const registryPath = opts.registryPath ?? REG_PATH;
@@ -394,35 +386,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     throw e;
   }
 
-  // 2.5 Skills gate — probe for required skill plugins via DI seam.
-  //   probeSkills(harness, { cwd, env }) → { missing: [{plugin, installHint}], probeFailed }.
-  //   Channel classification: install-and-use → exit 3; init → stderr hint + continue;
-  //   probeFailed → fail-open (exit 0, warn).
-  if (probeSkills) {
-    let probeResult;
-    try {
-      probeResult = await probeSkills(harness, { cwd, env: baseEnv });
-    } catch {
-      probeResult = { missing: [], probeFailed: true };
-    }
-    if (probeResult.probeFailed) {
-      process.stderr.write(`skills-probe: probe failed for ${harness}, failing open\n`);
-    } else if (probeResult.missing.length > 0) {
-      if (channelMap["install-and-use"]?.includes(harness)) {
-        for (const m of probeResult.missing) {
-          process.stderr.write(`${m.plugin}: ${m.installHint}\n`);
-        }
-        return finish(3, [], `missing skills: ${probeResult.missing.map((m) => m.plugin).join(", ")}`, noExit);
-      } else {
-        // init channel or unknown — warn and continue
-        for (const m of probeResult.missing) {
-          process.stderr.write(`skills-probe: ${m.plugin}: ${m.installHint}\n`);
-        }
-      }
-    }
-  }
-
-  // 2.55 Templates existence check — BLOCKED exit 1 if missing (not exit 3).
+  // 2.5 Templates existence check — BLOCKED exit 1 if missing (not exit 3).
   // cdd-engine is self-contained: templates live at <pkg>/templates (migration task 7
   // removed the legacy skills/cli-driven-development/templates + skills/_templates layout).
   {
@@ -508,7 +472,10 @@ export async function runTask(harness, taskNum, opts = {}) {
         artifacts: {},
         blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${taskNum}`,
       });
-      if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+      if (!dryRun) {
+        incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+        incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（BLOCKED/engine-error 判定路径）
+      }
       return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "process unkillable", noExit);
     }
     // Normal timeout: TIMEOUT partial handoff
@@ -546,7 +513,10 @@ export async function runTask(harness, taskNum, opts = {}) {
           artifacts: {},
           blocker: `handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${env.CDD_HANDOFF_PATH} and re-dispatch task ${taskNum}`,
         });
-        if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+        if (!dryRun) {
+          incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+          incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
+        }
         return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
       }
     }
@@ -565,7 +535,10 @@ export async function runTask(harness, taskNum, opts = {}) {
       artifacts: {},
       blocker: `cli exited ${agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${taskNum}`,
     });
-    if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    if (!dryRun) {
+      incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+      incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
+    }
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
@@ -584,6 +557,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       blocker: `${path.basename(env.CDD_HANDOFF_PATH)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${env.CDD_HANDOFF_PATH} before exit`,
     });
     incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（10.5 退出码 0 未写 handoff 判定路径）
     return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `${mode} agent did not write handoff`, noExit);
   }
 
@@ -622,6 +596,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
       // 实体化后 H1 与 handoff/exit 一致：hard gate 或 agent 声明 BLOCKED → exit 1。
       if (finalized.exitCode !== 0) {
+        incrementRecovery(progressDir); // D14: implement 实体化 BLOCKED 落点（hard evidence-gate / agent H1 非 APPROVED）
         return finish(finalized.exitCode, h1, "", noExit);
       }
     }
@@ -639,6 +614,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   if (!dryRun) {
     const cv = validateCommitContract(mode, repoRoot ?? "", { handoffPath: env.CDD_HANDOFF_PATH });
     if (!cv.ok) {
+      incrementRecovery(progressDir); // D14: engine 自写 BLOCKED（commit-contract 重写）→ engineRecoveryCount 自增
       return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), cv.blocker, noExit);
     }
   }

@@ -139,46 +139,6 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
   });
 });
 
-describe('invokeCli gate env propagation (Bug O Step 5b)', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('env.CDD_WORKSPACE set → spawn env adds CDD_GATE_WORKSPACE + CDD_GATE_MODE default subagent', async () => {
-    execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/cli-shared.mjs');
-    const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-    await invokeCli(entry, 'prompt', { op: 'implement' }, { CDD_WORKSPACE: '/ws' }, '/tmp', undefined);
-    const spawnEnv = execa.mock.calls[0][2].env;
-    expect(spawnEnv.CDD_GATE_WORKSPACE).toBe('/ws');
-    expect(spawnEnv.CDD_GATE_MODE).toBe('subagent');
-  });
-
-  it('env missing CDD_WORKSPACE → no gate env injected', async () => {
-    execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/cli-shared.mjs');
-    const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-    await invokeCli(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
-    const spawnEnv = execa.mock.calls[0][2].env;
-    expect(spawnEnv.CDD_GATE_WORKSPACE).toBeUndefined();
-    expect(spawnEnv.CDD_GATE_MODE).toBeUndefined();
-  });
-
-  it('CDD_SESSION_MODE env overrides CDD_GATE_MODE default', async () => {
-    execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
-    const prev = process.env.CDD_SESSION_MODE;
-    process.env.CDD_SESSION_MODE = 'in-session';
-    try {
-      const { invokeCli } = await import('../lib/cli-shared.mjs');
-      const entry = { cli: 'claude', invoke: '-p', output: 'text' };
-      await invokeCli(entry, 'prompt', { op: 'implement' }, { CDD_WORKSPACE: '/ws' }, '/tmp', undefined);
-      const spawnEnv = execa.mock.calls[0][2].env;
-      expect(spawnEnv.CDD_GATE_MODE).toBe('in-session');
-    } finally {
-      if (prev === undefined) delete process.env.CDD_SESSION_MODE;
-      else process.env.CDD_SESSION_MODE = prev;
-    }
-  });
-});
-
 describe('invokeCliWithRetry', () => {
   // Use fake timers so the 5 s / 15 s retry delays don't slow down the suite.
   beforeAll(() => vi.useFakeTimers());

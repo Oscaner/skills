@@ -44,8 +44,7 @@ function resolveInjectionField(entry, field, op, type) {
 export function resolveInjection(entry, op, type) { return resolveInjectionField(entry, "prefix", op, type); }
 export function resolveSuffix(entry, op, type)  { return resolveInjectionField(entry, "suffix", op, type); }
 
-// PATH 查找可执行文件 —— 对齐 cdd_check_cli 的 `command -v`。
-// 导出供 cdd select 复用 —— 检测已装 harness CLI 的单一来源。
+// PATH 查找可执行文件 —— 对齐 cdd_check_cli 的 `command -v`（checkHarness CLI preflight 使用）。
 export function cliInPath(cli) {
   const pathDirs = (process.env.PATH ?? "").split(path.delimiter);
   for (const dir of pathDirs) {

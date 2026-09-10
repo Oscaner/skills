@@ -72,6 +72,16 @@ export function incrementRound(progressDir, taskNum, mode) {
   writeProgressJSON(progressDir, data);
 }
 
+// incrementRecovery: engineRecoveryCount 自增（D14 — progress.json 全字段由 engine 单选）。
+// runner.mjs 在每次 engine 写 BLOCKED handoff（BLOCKED/engine-error 判定路径）时调用；
+// orchestrator 层 skill（cli-driven-development §engine-recovery）只读该值判 retry
+//（count < 2 → re-dispatch；count ≥ 2 → terminal engine-error），不再自行递增。
+export function incrementRecovery(progressDir) {
+  const data = readProgressJSON(progressDir);
+  data.engineRecoveryCount = (data.engineRecoveryCount ?? 0) + 1;
+  writeProgressJSON(progressDir, data);
+}
+
 // migrateFromProgressMD: parse progress.md and return a structured progress object.
 // Returns null if progress.md does not exist.
 export function migrateFromProgressMD(progressDir) {

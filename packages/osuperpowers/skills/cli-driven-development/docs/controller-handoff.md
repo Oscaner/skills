@@ -1,6 +1,6 @@
 # Controller Handoff (H1-H5)
 
-The discipline by which the orchestrator (cli-driven-development) drives the cdd engine. Cited by cli-driven-development, cli-select, and the orchestrator skill. Cross-skill references use markdown links (semantic rule name + `#rule-<kebab>` anchor, e.g. `[Return Block](controller-handoff.md#rule-return-block)`).
+The discipline by which the orchestrator (cli-driven-development) drives the cdd engine. Cited by cli-driven-development and the orchestrator skill. Cross-skill references use markdown links (semantic rule name + `#rule-<kebab>` anchor, e.g. `[Return Block](controller-handoff.md#rule-return-block)`).
 
 ## Rules
 
@@ -39,4 +39,4 @@ Handoff writes are inlined in each mode template (`templates/{implement,task-rev
 
 ---
 
-H6-H8 (CLI dispatch / opt-in / harness registry / gate matrix) → [`cdd-reference.md`](cdd-reference.md).
+H6-H8 (CLI dispatch / opt-in / harness registry) → [`cdd-reference.md`](cdd-reference.md).

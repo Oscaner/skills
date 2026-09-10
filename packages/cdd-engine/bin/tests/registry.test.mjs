@@ -10,12 +10,18 @@ import { loadRegistry, checkHarness, registryField, resolveInjection } from "../
 
 const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
 
-it("loadRegistry: 读取 7 harness", () => {
+it("loadRegistry: 读取 2 harness（T2 收敛 claude/cursor-agent）", () => {
   const reg = loadRegistry(REG_PATH);
-  expect(Object.keys(reg).length).toBe(7);
-  for (const name of ["claude", "cursor-agent", "droid", "pi", "codex", "copilot", "gemini"]) {
+  expect(Object.keys(reg).length).toBe(2);
+  for (const name of ["claude", "cursor-agent"]) {
     expect(reg[name]).toBeTruthy();
   }
+});
+
+// Task 2 (P5): harness 选择/探测/安装层删除 → registry 收敛两键 claude/cursor-agent。
+it("registry 收敛两键 claude/cursor-agent", () => {
+  const reg = loadRegistry(REG_PATH);
+  expect(Object.keys(reg).sort()).toEqual(["claude", "cursor-agent"]);
 });
 
 it("checkHarness: claude 通过 ship gate（dryRun 跳过 PATH 校验）", () => {
@@ -25,26 +31,18 @@ it("checkHarness: claude 通过 ship gate（dryRun 跳过 PATH 校验）", () =>
   expect(entry.ship).toBe("full");
 });
 
-it("checkHarness: not-supported harness → blocked（exitCode 1）", () => {
+it("checkHarness: not-supported harness → blocked（exitCode 1；T2 收敛后 registry 无 not-supported 键，经 fixture 注入覆盖该 ship-gate 分支）", () => {
   const reg = loadRegistry(REG_PATH);
+  const fixture = { ...reg, legacy: { cli: "droid", ship: "not-supported" } };
   expect(
-    () => checkHarness(reg, "codex"),
+    () => checkHarness(fixture, "legacy"),
   ).toThrow();
   try {
-    checkHarness(reg, "codex");
+    checkHarness(fixture, "legacy");
   } catch (e) {
     expect(e.kind).toBe("blocked");
     expect(e.exitCode).toBe(1);
-    expect(e.message).toMatch(/harness not supported: codex/);
-  }
-  expect(
-    () => checkHarness(reg, "gemini"),
-  ).toThrow();
-  try {
-    checkHarness(reg, "gemini");
-  } catch (e) {
-    expect(e.kind).toBe("blocked");
-    expect(e.exitCode).toBe(1);
+    expect(e.message).toMatch(/harness not supported: legacy/);
   }
 });
 
@@ -107,7 +105,7 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
   expect(registryField(reg, "claude", "suffix")).toEqual({});
   expect(registryField(reg, "claude", "no-such-field")).toBe("");
   expect(registryField(reg, "no-such-harness", "cli")).toBe("");
-  expect(registryField(reg, "codex", "invoke")).toBe(""); // not-supported 不带 invoke（schema）
+  expect(registryField(reg, "gemini", "invoke")).toBe(""); // T2 收敛后 gemini 非 registry 键 → 缺失回退空串
 });
 
 it("resolveInjection: claude implement/fix → /mattpocock-skills:tdd", () => {
@@ -125,9 +123,9 @@ it("resolveInjection: claude review×type — task/branch → code-review(单 ag
   expect(resolveInjection(reg.claude, "review", "plan")).toMatch(/URC \(_docs\/review\.md\)/);
 });
 
-it("resolveInjection: pi/droid/cursor-agent 同 claude set（全 harness 同 set 非空）", () => {
+it("resolveInjection: 全 registry harness（claude/cursor-agent）同 claude set 非空", () => {
   const reg = loadRegistry(REG_PATH);
-  for (const h of ["cursor-agent", "droid", "pi"]) {
+  for (const h of Object.keys(reg)) {
     expect(resolveInjection(reg[h], "implement")).toBe("/mattpocock-skills:tdd");
     expect(resolveInjection(reg[h], "fix")).toBe("/mattpocock-skills:tdd");
     expect(resolveInjection(reg[h], "review", "task")).toContain("code-review");

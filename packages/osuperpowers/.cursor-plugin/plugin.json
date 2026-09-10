@@ -2,7 +2,7 @@
   "_generated": "scripts/run.mjs emit — do not edit",
   "name": "osuperpowers",
   "displayName": "osuperpowers",
-  "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
+  "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
   "version": "0.1.1",
   "author": {
     "name": "Oscaner Miao",
@@ -17,6 +17,5 @@
     "droid",
     "pi"
   ],
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks-cursor.json"
+  "skills": "./skills/"
 }

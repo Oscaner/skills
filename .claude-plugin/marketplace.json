@@ -68,7 +68,7 @@
     {
       "name": "osuperpowers",
       "source": "./packages/osuperpowers",
-      "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
+      "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
       "author": {
         "name": "Oscaner Miao",
         "email": "oscaner1997@gmail.com"

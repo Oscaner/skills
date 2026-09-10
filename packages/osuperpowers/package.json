@@ -2,7 +2,7 @@
   "name": "@oscaner-skills/osuperpowers",
   "version": "0.1.1",
   "private": false,
-  "description": "Standalone osuperpowers skills: orchestration + cli-* family, CDD engine, cross-harness gate.",
+  "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine.",
   "author": {
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"
@@ -18,13 +18,9 @@
   "dependencies": {
     "@oscaner-skills/cdd-engine": "workspace:*"
   },
-  "main": "./bin/gate/adapters/opencode.mjs",
   "pi": {
     "skills": [
       "./skills"
-    ],
-    "extensions": [
-      "./bin/gate/adapters/pi.ts"
     ]
   },
   "oscaner-plugin": {
@@ -41,19 +37,8 @@
     },
     "contentRoot": ".",
     "harnesses": [
-      "cursor",
-      "codex",
-      "kimi",
-      "gemini",
-      "pi",
-      "qoder"
+      "cursor"
     ],
-    "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set",
-    "hooks": {
-      "claude": "./hooks/hooks.json",
-      "cursor": "./hooks/hooks-cursor.json",
-      "codex": "./.codex-plugin/hooks/hooks.json",
-      "qoder": "./.qoder-plugin/hooks/hooks.json"
-    }
+    "harnessesNote": "declarative-only / informational — no script consumes this list; emit hardcodes the per-plugin manifest set"
   }
 }

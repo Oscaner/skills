@@ -8,7 +8,7 @@
 
 Per-task execution uses the **cdd-engine** single CLI bin (`cdd`) — one CLI agent invocation per mode; process exit destroys context.
 
-1. **Detect harness** → via [cli-select](../skills/cli-select/SKILL.md) to select harness → `cdd <subcommand> --harness <name>` (orchestrator selects once; **no** runtime re-detection).
+1. **Host harness** → resolved by the engine from ambient environment markers (`CLAUDE_CODE_SESSION_ID` → claude, `CURSOR_TRACE_ID` → cursor-agent; empty → BLOCK) — there is no harness selection step; detection is entirely ambient (T2/T3).
 2. **Three modes** — one invocation each:
 
 | `CDD_MODE` | Responsibility |
@@ -43,8 +43,8 @@ Per-task execution uses the **cdd-engine** single CLI bin (`cdd`) — one CLI ag
 **Typical per-task CLI sequence (thin orchestrator):**
 
 ```bash
-cdd implement --harness <name> --task N
-cdd review --type task --harness <name> --task N
+cdd implement --task N
+cdd review --type task --task N
 ```
 
 Orchestrator / plan script sets `CDD_WORKSPACE` and path env vars before each CLI invocation; CLI **does not** Read the full plan file.
@@ -70,16 +70,7 @@ Batch blocks still run **one** 3-mode CLI chain; filenames use batch prefix:
 | Review reports | `batch-*-review-standards.md` / `batch-*-review-spec.md` |
 | Diff scope | `FIRST_TASK_BASE..LAST_HEAD` |
 
-**Exit codes:** `0` = OK; `1` = BLOCKED / not-supported harness (`CDD_BLOCKED:` on stderr); `2` = CLI missing → orchestrator **BLOCKED** (no p0 fallback); `3` = skills-missing → install-and-use channel missing upstream plugin → `CDD_BLOCKED: missing skills: <plugins>` on stderr + per-plugin install hint, orchestrator **BLOCKED** (distinguished from 2 = harness CLI does not exist; exit 3 = CLI exists but skills plugin is not installed). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec section 2.1 stderr-surfacing).
-
-**Skills-missing gate** (runTask step 2.5, `bin/utils/skills-probe.mjs` + `skills-probe.config.mjs`): across all modes (implement/task-review/fix), before entering nested CLI, per-harness probing of required plugins (`superpowers` + `mattpocock-skills` + `osuperpowers`, config-driven):
-
-| Channel | Harnesses | Missing behavior |
-|------|-----------|----------|
-| install-and-use | claude / cursor-agent / droid / grok / qoder / codex / gemini / pi | **exit 3** + stderr per-plugin install hint (does not enter nested CLI) |
-| init | opencode / trae / vibe / kiro | stderr hint `init harness <name>` (not exit 3), task runs anyway |
-
-Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent/droid/qoder/codex/gemini), package-list (pi). Probe itself fails (CLI query error / no permission) → **fail-open allow** (exit 0 + warn). The `harnesses` set in `skills-probe.config.mjs` = 12, and MUST be one-to-one consistent with P6b section 2.5 channel classification.
+**Exit codes:** `0` = OK; `1` = BLOCKED (`CDD_BLOCKED:` on stderr); `2` = host harness CLI missing → orchestrator **BLOCKED** (no p0 fallback). Nested CLI failure with no handoff → exit **1** (bash `cdd_exit_blocked` parity) + stderr `CDD_BLOCKED:` diagnostic; Node additionally writes a BLOCKED handoff with the CLI stderr in `blocker` — the only sanctioned divergence (spec section 2.1 stderr-surfacing).
 
 **Post-run commit gate** (Node module `lib/contract.mjs` — `validateCommitContract`, spec section 4.2): modes **implement**, **fix**, and **review** are validated on return (T7 wired review into the runner's post-run step). Signal is `git status --porcelain` against the repo resolved from the workspace — a **dirty working tree** (untracked files count as dirty — full strictness) rewrites the handoff to `status: BLOCKED` (`rewriteHandoffBlocked`), prints `CDD_BLOCKED:` on stderr, and exits non-zero; H1 then reads the rewritten handoff (`h1FromHandoff`), so `status: BLOCKED` reaches the orchestrator even when the agent reported DONE. On a clean tree, **implement/fix** additionally check `handoff.commits.head` against the live `HEAD` (F1); **review** skips the head check — its `commits` describe the reviewed commit, not this dispatch's product.
 
@@ -93,11 +84,11 @@ Probe path varies by harness: plugin-list (claude/grok), skill-dir (cursor-agent
 
 Orchestrator / skill **must not** create `cdd-*` wrappers or `scripts/cdd-*` in the consumer repo.
 
-All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd`, installed globally); runtime templates in `packages/cdd-engine/templates/` (`task/` / `review/` / `schema/`). Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` (`bin/gate/cdd-gate-core.mjs`) / [cli-select](../skills/cli-select/SKILL.md).
+All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd`, installed globally); runtime templates in `packages/cdd-engine/templates/` (`task/` / `review/` / `schema/`). Version syncs with plugin release. `{plugin_root}` resolution via `pluginRoot()` — the cdd-engine `lib/templates.mjs` `PKG_ROOT` constant (P6 migrated into the engine; engine is self-contained, no gate-core / selector-helper resolution).
 
 ## H8 — CLI opt-in / opt-out
 
-**Opt-in (default):** selected harness CLI in PATH and registry `ship: full` → CDD H6 three-mode chain is **mandated**.
+**Opt-in (default):** host harness CLI in PATH and registry `ship: full` → CDD H6 three-mode chain is **mandated**.
 
 **Opt-out priority (high → low):**
 
@@ -107,42 +98,6 @@ All CLI entry scripts live in the `@oscaner-skills/cdd-engine` npm package (`cdd
 
 Any opt-out hit → **p0** in-session (Rule 5/6 + H1-H5).
 
-**Harness registry:** `bin/harness-registry.json` declares each harness's `cli` / `invoke` / `output` / `prefix`/`suffix` (per-mode) / `ship`; the engine reads it via `cdd` (no more per-harness scripts).
+**Harness registry:** `bin/harness-registry.json` (in the cdd-engine package) declares the host harness's `cli` / `invoke` / `output` / `prefix`/`suffix` (per-mode) / `ship`; the engine reads it via `cdd`. The registry is converged to the two host-detected harnesses (T2): **claude** and **cursor-agent** (both `ship: full`) — there are no not-supported entries.
 
-| Ship | Harnesses |
-|------|-----------|
-| **Full** | claude, cursor-agent, droid, pi |
-| **Not-supported** | codex, copilot, gemini |
-
-Not-supported harness selected → exit 1 → orchestrator **BLOCKED** (no p0 fallback). Selected harness CLI not in PATH → exit 2 → orchestrator **BLOCKED**.
-
-## CDD gate matrix
-
-The orchestrator PreToolUse gate (Node core `packages/osuperpowers/bin/gate/cdd-gate-core.mjs`, P4b migrated to Node) blocks direct repo edits while a task is active. Judgment is one decision point — `gateDecide` resolves the active workspace **once** (`pending.workspace` bound first, `findActiveWorkspace` scan only when unbound) and threads that same workspace through both phase and write checks.
-
-The gate is fail-open until an active task resolves (spec security property / data-flow step 1):
-
-| Tool | Condition | Decision |
-|------|-----------|----------|
-| any | adapter exception — adapter catches and returns allow (stderr recorded) | **allow** (fail-open) |
-| any | no `CDD_GATE_WORKSPACE` env (non-CDD subprocess) | **allow** (fail-open) |
-
-| Write/Edit | path under `active_ws` | **allow** |
-| Write/Edit | path under `.superpowers/cdd/**`, phase `orchestrating` | **allow** |
-| Write/Edit | phase `inactive` / `task_complete` | **allow** |
-| Write/Edit | any other repo path | **deny** |
-| Bash/Shell | allowlist (`cdd <subcommand> --harness <name>` / `task-brief` / `review-package`) | **allow** |
-| Bash/Shell | read-only git verb (allowlist below) | **allow** |
-| Bash/Shell | anything else — mutating git, `ls`/`echo`, heredoc writes, compound commands | **deny** |
-| Bash/Shell | phase `inactive` / `task_complete` | **allow** |
-| other tools | — | allow |
-
-**Shell contract:**
-
-- Read-only git diagnostics are allowed in every phase: `git status` / `git diff` / `git log` / `git show` / `git rev-parse` / `git branch` (read-only flags only `-a|-r|-v|--show-current`) / `git remote` (read-only flags only) / `git ls-files` / `git diff-tree`. Accepted forms: `git <verb> ...`, `git -C <path> <verb> ...`, `git --git-dir=<path> <verb> ...`. Anything else — compound commands (`` && | ; > < $( ` ``), `git -C <path> -c k=v <verb>`, unknown flags, or a quote in the verb token or a branch/remote argument — fails verb extraction → **deny** (fail-closed).
-- Repo changes flow **only** through the H6 implement shell (`cdd implement --harness <name> --task N`) or Write under the bound workspace — never via Bash (heredocs are rejected).
-- Non-git read-only commands (`ls`, `echo`, ...) are intentionally still denied (slim read-only set decision; see spec section Non-goals).
-
-**Anti-hijack (stale workspace):** a task brief activates only when its `TASK_BASE` is a real git object — `git -C <repo> cat-file -e <sha>` (CWD-independent). Stub SHAs (`TASK_BASE: abc`) never activate a workspace. When the session is bound (`pending.workspace`), the bound workspace wins and the gate never scans unrelated workspaces.
-
-**Test override:** `CDD_GATE_FIXTURES_ROOT` replaces `.superpowers/cdd` resolution in `findActiveWorkspace` / `gateDecide` — the Node gate tests point it at temp copies of `tests/fixtures/cdd-gate/` (git-init'ed, brief `<SHA>` placeholders injected) and never touch the real tree. See `packages/osuperpowers/bin/gate/tests/cdd-gate-core.test.mjs`.
+Host harness CLI not in PATH → exit 2 → orchestrator **BLOCKED**.

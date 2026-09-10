@@ -2,10 +2,10 @@
 // bin/cdd.mjs — the single CDD engine CLI (URC merge surface). Commander.js v15.
 // Subcommands = operation × (type | no type). The five legacy bins (cdd-task / docs-task /
 // branch-review / cdd-select / cdd-research) are gone — this binary is the only entry point.
-//   cdd implement --harness <name> --task <n> [--plan <path>]
-//   cdd review --type <task|branch|spec|plan> --harness <name> [...]
-//   cdd fix --type <task|spec|plan> --harness <name> [...]
-//   cdd select | cdd research --harness <name> --brief <path> --output <path>
+//   cdd implement --task <n> [--plan <path>]
+//   cdd review --type <task|branch|spec|plan> [...]
+//   cdd fix --type <task|spec|plan> [...]
+//   cdd research --brief <path> --output <path>
 //   cdd brief --task <n> --plan <path> [--output <path>]
 import { Command } from "commander";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
@@ -24,8 +24,6 @@ import { finalizeHandoff } from "./lib/handoff-finalize.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs, spawnCapture } from "./lib/cli-shared.mjs";
 import { buildResearchPrompt, writeFindings } from "./lib/research.mjs";
 import { runBriefCli } from "./lib/brief.mjs";
-import { detectInstalledHarnesses } from "./utils/harness-detect.mjs";
-import { config } from "./utils/skills-probe.config.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "./utils/exit.mjs";
 
 const REG_PATH = fileURLToPath(new URL("./harness-registry.json", import.meta.url));
@@ -33,11 +31,10 @@ const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of Commander's own output).
 const SUBCOMMAND_USAGE = {
-  implement: "usage: cdd implement --harness <name> --task <n> [--plan <path>]",
-  review: "usage: cdd review --type <task|branch|spec|plan> --harness <name> [--task <n>] [--doc <path>] [--plan <path>] [--base <sha> --head <sha>] [--round <n>] [--spec <path>]",
-  fix: "usage: cdd fix --type <task|spec|plan> --harness <name> [--task <n>] [--findings <path>] [--doc <path>] [--plan <path>]",
-  select: "usage: cdd select",
-  research: "usage: cdd research --harness <name> --brief <path> --output <path>",
+  implement: "usage: cdd implement --task <n> [--plan <path>]",
+  review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
+  fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
+  research: "usage: cdd research --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
 };
 
@@ -45,7 +42,42 @@ function usageError(command) {
   process.stderr.write((SUBCOMMAND_USAGE[command] ?? "usage: cdd <command> [options]") + "\n");
 }
 
+// ---- host harness detection ----
+
+// detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
+// AI_AGENT=claude-code* → claude; otherwise empty. T3 扩展：唯一 host 事实源（空 → BLOCK）。
+// Exported (test seam) — the CLI resolves the harness here and no longer accepts a harness flag.
+export function detectCurrentHarness(env) {
+  if (env.CURSOR_TRACE_ID) return "cursor-agent";
+  if (env.CLAUDE_CODE_SESSION_ID) return "claude";
+  if ((env.AI_AGENT ?? "").startsWith("claude-code")) return "claude";
+  return "";
+}
+
+// Host harness gate: 4 子命令 action 的唯一 harness 来源（cdd.mjs 负责解析，runner 签名不动）。
+// 空 host → CDD_BLOCKED + exit 1 —— cdd 必须从受支持的 harness 会话内运行，registry 由该 host 键查找。
+function requireHostHarness() {
+  const harness = detectCurrentHarness(process.env);
+  if (!harness) {
+    process.stderr.write("CDD_BLOCKED: no host harness detected (run cdd from within a supported harness)\n");
+    exitWithCode(1);
+  }
+  return harness;
+}
+
 // ---- review/fix shared helpers ----
+
+// D11（review/fix 共享）：被审目标解析 + 缺参守卫单点。type=spec → --spec（被审文档本身）；
+// type=plan → --plan（被审 plan，可选 --spec 携带上游参照）；缺参 → `cdd <verb> --type <type>:
+// missing required --<type> <path>` + exit 2。runReview / runFix 双调用点共用，禁止重复。
+function resolveTargetDoc(opts, verb) {
+  const doc = opts.type === "spec" ? opts.spec : opts.plan;
+  if (!doc) {
+    process.stderr.write(`cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`);
+    process.exit(2);
+  }
+  return doc;
+}
 
 // Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse
 // time (exit 2 + message) instead of letting parseInt leak NaN into runTask and fabricate
@@ -98,6 +130,8 @@ function writeBranchBlocked(handoffPath, { base, head, code, reason }) {
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runReview(opts) {
+  // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
+  const harness = requireHostHarness();
   // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
   if (opts.type === "branch") {
     if (!opts.plan) {
@@ -110,18 +144,17 @@ export async function runReview(opts) {
       process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
       process.exit(2);
     }
-    return await runBranchReview(opts);
+    return await runBranchReview({ ...opts, harness });
   }
 
   if (opts.type === "spec" || opts.type === "plan") {
-    if (!opts.doc) {
-      process.stderr.write(`cdd review --type ${opts.type}: missing required --doc <path>\n`);
-      process.exit(2);
-    }
+    // D11: type-self-describing target param — type=spec reviews the --spec doc;
+    // type=plan reviews the --plan doc (optional --spec carries the upstream reference).
+    const doc = resolveTargetDoc(opts, "review");
     const { runDocsTask } = await import("./lib/docs-runner.mjs");
     // spec/plan: round = engine auto-increment（canonical review.{type} 族模式扫描）；--round only
     // validates backfill (conflict → exit 2).
-    const ws = handoffNaming.resolveWorkspace(opts.doc);
+    const ws = handoffNaming.resolveWorkspace(doc);
     const round = handoffNaming.resolveNextRound(ws, "review", opts.type);
     if (opts.round && Number(opts.round) !== round) {
       process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);
@@ -130,7 +163,7 @@ export async function runReview(opts) {
     const prev = existingRoundHandoff(ws, opts.type, round - 1);
     // Stopping only rejects a re-run of the SAME ref (doc) whose previous round is APPROVED
     // with blocker=0; a changed ref = a new review, and a BLOCKED/TIMEOUT round = re-dispatchable (SP-4).
-    if (prev && (prev.doc_path ?? "") === opts.doc) reviewStoppingGuard(prev, opts.type, round, opts.doc);
+    if (prev && (prev.doc_path ?? "") === doc) reviewStoppingGuard(prev, opts.type, round, doc);
     // review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
     // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
     // 符号经具体化注入）；内容占位（lensEnum/axesGuide）由 reviews.json 配置注入，artifact 参数
@@ -139,18 +172,19 @@ export async function runReview(opts) {
     const art = reviewArtifactConfig(opts.type);
     const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
     await runDocsTask({
-      harness: opts.harness, mode: "review", template: "review", type: opts.type, doc: opts.doc,
+      harness, mode: "review", template: "review", type: opts.type, doc,
       handoffPath,
       params: {
         TYPE: opts.type,
         LENS_GUIDE: cfg.lensEnum.join(" · "),
         WORKSPACE: ws,
-        REFERENCE: opts.doc,
+        REFERENCE: doc,
         AXES: cfg.axesGuide,
         RETURN_MODE: art.return,
         HANDOFF_TYPE: art.schema,
         H1_BLOCK: "",
-        PLAN_LINE: opts.spec ? `**Spec:** ${opts.spec}` : "",
+        // type=plan: PLAN_LINE 注入上游 spec 参照；type=spec 无 plan 参照，保持空串。
+        PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
         HARD_GATE: reviewHardGate(art.return, handoffPath),
       },
       workspace: ws, repoRoot: gitToplevel(process.cwd()),
@@ -193,7 +227,7 @@ export async function runReview(opts) {
     reviewStoppingGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
   }
   const { runTask } = await import("./lib/runner.mjs");
-  await runTask(opts.harness, opts.task, {
+  await runTask(harness, opts.task, {
     mode: "review", dryRun: DRY_RUN(),
     env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
   });
@@ -316,6 +350,8 @@ async function runBranchReview(opts) {
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runFix(opts) {
+  // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
+  const harness = requireHostHarness();
   const { runTask } = await import("./lib/runner.mjs");
   // type=task fix: --findings is plumbed through runTask's `findingsPath` opt — the runner
   // overrides env.CDD_FINDINGS with the previous-phase handoff in fix mode, so the opt takes
@@ -329,7 +365,7 @@ export async function runFix(opts) {
       process.stderr.write("cdd fix --type task: missing required --task <n>\n");
       process.exit(2);
     }
-    await runTask(opts.harness, opts.task, {
+    await runTask(harness, opts.task, {
       mode: "fix", dryRun: DRY_RUN(),
       findingsPath: opts.findings,
       env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
@@ -341,10 +377,9 @@ export async function runFix(opts) {
     process.stderr.write(`unknown fix --type: ${opts.type}\n`);
     process.exit(2);
   }
-  if (!opts.doc) {
-    process.stderr.write(`cdd fix --type ${opts.type}: missing required --doc <path>\n`);
-    process.exit(2);
-  }
+  // D11: type-self-describing target param — type=spec fixes the --spec doc;
+  // type=plan fixes the --plan doc.
+  const doc = resolveTargetDoc(opts, "fix");
   // fix round 从 --findings 源解析：roundPattern("review", type) 匹配 findings 文件名
   // （<type>-review-{R}.json）→ 提取 R 作为 fix 轮次（fix 输出 <type>-fix-{R}.json）。
   // findings 缺失或文件名不匹配 → 提示 + exit 2（无源不可推导轮次）。
@@ -362,61 +397,24 @@ export async function runFix(opts) {
   // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
   // workspace 与 review 同源 resolveWorkspace(doc)；handoffPath 显式传 canonical fix.{type} 名。
   const template = handoffNaming.familyConfig("fix", opts.type).fixTemplate;
-  const ws = handoffNaming.resolveWorkspace(opts.doc);
+  const ws = handoffNaming.resolveWorkspace(doc);
   const { runDocsTask } = await import("./lib/docs-runner.mjs");
   await runDocsTask({
-    harness: opts.harness, mode: "fix", template, type: opts.type, doc: opts.doc,
+    harness, mode: "fix", template, type: opts.type, doc,
     findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
 }
 
-// ---- select / research (inline of the former cdd-select / cdd-research bin action logic) ----
-
-// detect_current_harness: CURSOR_TRACE_ID → cursor-agent; CLAUDE_CODE_SESSION_ID → claude;
-// AI_AGENT=claude-code* → claude; otherwise empty.
-function detectCurrentHarness(env) {
-  if (env.CURSOR_TRACE_ID) return "cursor-agent";
-  if (env.CLAUDE_CODE_SESSION_ID) return "claude";
-  if ((env.AI_AGENT ?? "").startsWith("claude-code")) return "claude";
-  return "";
-}
-
-function runSelect() {
-  const detected = detectInstalledHarnesses(config, { env: process.env });
-  const available = detected.filter((h) => h.installed && h.channel === "install-and-use").map((h) => h.name);
-  const unsupported = detected.filter((h) => h.installed && h.channel !== "install-and-use").map((h) => h.name);
-
-  if (available.length === 0) {
-    process.stdout.write("available:\n");
-    process.stdout.write(`unsupported_installed:${unsupported.join(",")}\n`);
-    process.stdout.write("recommended:\n");
-    process.stderr.write(`BLOCKED: no full harness installed (registry: ${detected.map((h) => h.name).join(" ")} )\n`);
-    exitBlocked();
-  }
-
-  // Recommendation priority: droid > pi > current harness (full) > first alphabetic available.
-  let recommended = "";
-  if (available.includes("droid")) {
-    recommended = "droid";
-  } else if (available.includes("pi")) {
-    recommended = "pi";
-  } else {
-    const current = detectCurrentHarness(process.env);
-    if (current && available.includes(current)) recommended = current;
-    else recommended = available[0];
-  }
-
-  process.stdout.write(`available:${available.join(",")}\n`);
-  process.stdout.write(`unsupported_installed:${unsupported.join(",")}\n`);
-  process.stdout.write(`recommended:${recommended}\n`);
-}
+// ---- research (inline of the former cdd-research bin action logic) ----
 
 // Standalone research runner (spawnCapture, not invokeCli — research output is written verbatim).
 async function runResearch(opts) {
   const NAME = "cdd research";
+  // Host harness gate — the registry is indexed by the resolved host key (T3; resolved from host).
+  const harness = requireHostHarness();
 
-  // Brief validation (before the harness gate — pure file check, no PATH dependency).
+  // Brief validation (before the registry gate — pure file check, no PATH dependency).
   let briefContent;
   try {
     briefContent = readFileSync(opts.brief, "utf8");
@@ -425,11 +423,11 @@ async function runResearch(opts) {
     exitBlocked();
   }
 
-  // Harness registry gate.
+  // Harness registry gate (host key → registry entry).
   let entry;
   try {
     const reg = loadRegistry(process.env.CDD_REGISTRY_PATH || REG_PATH);
-    entry = checkHarness(reg, opts.harness, { dryRun: DRY_RUN() });
+    entry = checkHarness(reg, harness, { dryRun: DRY_RUN() });
   } catch (err) {
     if (err instanceof CddBlockedError) {
       if (err.kind === "cli-missing") exitCliMissing(err.message);
@@ -488,18 +486,18 @@ program.exitOverride();
 program.configureOutput({ outputError: () => {} });
 program
   .name("cdd")
-  .description("CDD engine CLI — implement/review/fix/select/research/brief")
+  .description("CDD engine CLI — implement/review/fix/research/brief")
   .helpOption("-h, --help", "display help for command");
 
 // --- implement (formerly cdd-task --mode implement) ---
 program
   .command("implement")
-  .requiredOption("--harness <name>", "harness name")
   .requiredOption("--task <n>", "task number", intTask)
   .option("--plan <path>", "plan file path")
   .action(async (opts) => {
+    const harness = requireHostHarness();
     const { runTask } = await import("./lib/runner.mjs");
-    await runTask(opts.harness, opts.task, {
+    await runTask(harness, opts.task, {
       mode: "implement",
       dryRun: DRY_RUN(),
       env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
@@ -510,14 +508,12 @@ program
 program
   .command("review")
   .requiredOption("--type <t>", "task|branch|spec|plan")
-  .requiredOption("--harness <name>", "harness name")
   .option("--task <n>", "task number (type=task)", intTask)
-  .option("--doc <path>", "document path (type=spec|plan)")
-  .option("--plan <path>", "plan path")
+  .option("--plan <path>", "plan path (type=task|branch; type=plan: review target)")
   .option("--base <sha>", "base commit (type=task|branch)")
   .option("--head <sha>", "head commit (type=task|branch)")
   .option("--round <n>", "round backfill (validate against engine auto-increment)")
-  .option("--spec <path>", "spec document path (type=plan; plan axis references spec coverage via reviews.json axesGuide; kept as a compatibility param, value is not inlined into the doc)")
+  .option("--spec <path>", "spec document path (type=spec: review target; type=plan: upstream reference pointer)")
   .action(async (opts) => {
     await runReview(opts);
   });
@@ -526,25 +522,19 @@ program
 program
   .command("fix")
   .requiredOption("--type <t>", "task|spec|plan")
-  .requiredOption("--harness <name>", "harness name")
   .option("--task <n>", "task number (type=task)", intTask)
   .option("--findings <path>", "findings handoff path for this fix round")
-  .option("--doc <path>", "document path (type=spec|plan)")
-  .option("--plan <path>", "plan path")
+  .option("--spec <path>", "spec document path (type=spec)")
+  .option("--plan <path>", "plan path (type=task|plan)")
   .action(async (opts) => {
     await runFix(opts);
   });
 
-// --- select / research (inline action logic; no library module) ---
-program
-  .command("select")
-  .description("Detect installed harness CLIs and recommend default")
-  .action(() => { runSelect(); });
-
+// --- select removed (T2): harness selection/detection/install layer deleted — registry
+//     converged to claude/cursor-agent; research remains (inline action logic; no library module).
 program
   .command("research")
   .description("Standalone research runner (independent of implement/review)")
-  .requiredOption("--harness <name>", "harness name")
   .requiredOption("--brief <path>", "path to research brief markdown")
   .requiredOption("--output <path>", "path to write findings markdown")
   .action(async (opts) => {

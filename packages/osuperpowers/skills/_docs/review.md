@@ -25,14 +25,14 @@ flowchart TD
 
 ### `run-review`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type <task|branch|spec|plan> --harness <name> [--doc <path>]`. Findings carry a `lens` label; status `APPROVED` / `CHANGES_REQUESTED` / `BLOCKED`.
-- **Read**: document / diff under review (spec and plan: `--doc <path>`; task/branch: git range).
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type <task|branch|spec|plan> (--plan <path> | --spec <path>)`. The target parameter is type-self-describing: type=spec → `--spec <path>` (doc under review); type=plan → `--plan <path>` (doc under review; `--spec <path>` carries the upstream spec reference); type=task/branch → `--plan <path>` (workspace slug + Stopping). Findings carry a `lens` label; status `APPROVED` / `CHANGES_REQUESTED` / `BLOCKED`.
+- **Read**: document / diff under review (spec: `--spec <path>`; plan: `--plan <path>`; task/branch: git range).
 - **Exit**: Count blockers from findings. blocker=0 → `cli-fix-all-findings` (done path); blocker>0 → `cli-fix-all-findings` (re-run path, round auto-incremented by the engine).
 - **Invariant**: must not re-run after blocker=0 output — the engine layer rejects a re-run of the same ref whose previous round is APPROVED with blocker=0 (Review Stopping violation). **Orchestrator obligation (all four types, incl. branch)**: after a blocker=0 review, fix ALL captured findings (blocker+warn+nit) and finish — do NOT re-dispatch a review of the target even when your own fix commits changed the ref (the engine cannot detect ref-changed re-runs; the stop is the orchestrator's discipline — Enh Y).
 
 ### `cli-fix-all-findings`
 
-- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type <X> --harness <name> --doc <path> --findings <handoff-path>` (the `--findings` flag is required so the fix template resolves to actual findings; without it the fix agent receives nothing to act on). No new review dispatch — work from findings already captured in the current cycle. Fix agent writes its handoff with schema validation.
+- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type <X> (--spec <path> | --plan <path>) --findings <handoff-path>` (the target parameter matches the review's type — type=spec → `--spec <path>`, type=plan → `--plan <path>`, type=task → `--plan <path>` — and the `--findings` flag is required so the fix template resolves to actual findings; without it the fix agent receives nothing to act on). No new review dispatch — work from findings already captured in the current cycle. Fix agent writes its handoff with schema validation.
 - **Exit**: Returns to `run-review` if entered via the blocker>0 path; terminates (done) if entered via the blocker=0 path. Routing is path-inherited.
 - **Fail**: Invoking a new review instead of fixing from captured findings → violates the single-cycle rule.
 
@@ -42,7 +42,7 @@ flowchart TD
 - **lens-tag** — every finding carries a `lens` label (prevents axis mixing).
 - **Review Stopping** — blocker=0 is never re-run; the engine layer rejects the same-ref re-run.
 - **Severity** — `blocker` must be fixed before merge (correctness / contract violation); `warn` is a minor but real issue (still fixed); `nit` is pure style (still fixed). All findings are always fixed.
-- **Handoff Output** — docs reviews (`cdd review --type spec|plan --doc <path>`) write `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`; `<workspace>` = `<repoRoot>/.superpowers/cdd/<slug>/` (slug = reviewed doc filename with `.md` and a trailing `-design` stripped, derived by the engine's `resolveWorkspace`; e.g. `2026-09-08-spec-design.md` and `2026-09-08-plan.md` converge on the same workspace), round auto-incremented by the engine per review family. Fix rounds reuse the source review's round: `cdd fix --type spec|plan --doc <path> --findings <workspace>/spec-review-{R}.json` writes `<workspace>/spec-fix-{R}.json` / `<workspace>/plan-fix-{R}.json`. Handoff schema: `{ "status": "APPROVED|CHANGES_REQUESTED", "findings": [...] }`.
+- **Handoff Output** — docs reviews (`cdd review --type spec --spec <path>` / `cdd review --type plan --plan <path>`) write `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`; `<workspace>` = `<repoRoot>/.superpowers/cdd/<slug>/` (slug = reviewed doc filename with `.md` and a trailing `-design` stripped, derived by the engine's `resolveWorkspace`; e.g. `2026-09-08-spec-design.md` and `2026-09-08-plan.md` converge on the same workspace), round auto-incremented by the engine per review family. Fix rounds reuse the source review's round: `cdd fix --type spec --spec <path> --findings <workspace>/spec-review-{R}.json` / `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json` write `<workspace>/spec-fix-{R}.json` / `<workspace>/plan-fix-{R}.json`. Handoff schema: `{ "status": "APPROVED|CHANGES_REQUESTED", "findings": [...] }`.
 
 ## Invariants
 

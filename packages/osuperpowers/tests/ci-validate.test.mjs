@@ -61,7 +61,6 @@ const OLD_SHELL_TESTS = [
   "registry-schema.test.sh",
   "cdd-select.test.sh",
   "cdd-cli-dry-run-smoke.sh",
-  "cdd-commit-gate-smoke.sh",
   "cdd-common-functions.test.sh",
   "cdd-severity-contract.test.sh",
   "cdd-orchestrator-line-budget.test.sh",
@@ -93,12 +92,13 @@ test("rule-reference.test.mjs invoked via node --test", () => {
   assert.ok(rr.args.some((a) => a.includes("rule-reference.test.mjs")), "rule-reference.test.mjs path missing");
 });
 
-// 5. node:test gate + init + engine suites wired (T1-T3 node:test aggregation)
-test("node:test 步骤含 gate + init + engine 套件 glob", () => {
+// 5. node:test behavior + engine suites wired (T2 removed init/utils suite globs — the
+//    harness selection/detection/install layers are deleted)
+test("node:test 步骤含 behavior glob、不含 init/utils 套件 glob（T2）+ engine 套件仍在", () => {
   const nt = behaviorNodeTestStep();
   assert.ok(nt, "5b node:test 步骤缺失");
-  assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/gate/tests/*.test.mjs")), "gate suite glob missing");
-  assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/bin/init/tests/*.test.mjs")), "init suite glob missing");
+  assert.ok(!nt.args.some((a) => a.includes("packages/osuperpowers/bin/init/tests/*.test.mjs")), "init suite glob 残留");
+  assert.ok(!nt.args.some((a) => a.includes("packages/osuperpowers/bin/utils/tests/*.test.mjs")), "utils suite glob 残留");
   assert.ok(steps.some((s) => s.name.startsWith("5b1. cdd-engine Vitest")), "engine suite (5b1 cdd-engine vitest) missing");
 });
 
@@ -112,18 +112,13 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });
 
-// 7. 5b2 osuperpowers gate hooks check present
-test("5b2 osuperpowers gate hooks step present", () => {
-  assert.ok(steps.some((s) => s.name.startsWith("5b2.")), "5b2 gate hooks check missing");
-});
-
-// 8. the wiring guard itself is invoked by the orchestrator (guards the guard)
+// 7. the wiring guard itself is invoked by the orchestrator (guards the guard)
 test("orchestrator invokes ci-validate.test.mjs wiring guard", () => {
   const guard = steps.find((s) => s.args?.some((a) => a.includes("ci-validate.test.mjs")));
   assert.ok(guard, "ci-validate.test.mjs not invoked by orchestrator");
 });
 
-// 9. failure propagation — a throwing step → structured FAIL + return 1
+// 8. failure propagation — a throwing step → structured FAIL + return 1
 test("main: failing step → structured FAIL on stderr + return 1", async () => {
   const { stdout, stderr, ret } = await capture(() => main([{ name: "boom", run() { throw new Error("kaboom"); } }]));
   assert.equal(ret, 1);
@@ -132,7 +127,7 @@ test("main: failing step → structured FAIL on stderr + return 1", async () => 
   assert.match(stderr, /kaboom/);
 });
 
-// 10. success path — all-green steps → OK markers + ALL PASS + return 0
+// 9. success path — all-green steps → OK markers + ALL PASS + return 0
 test("main: all-green → OK + ALL PASS + return 0", async () => {
   const { stdout, stderr, ret } = await capture(() => main([{ name: "ok", run() {} }]));
   assert.equal(ret, 0);

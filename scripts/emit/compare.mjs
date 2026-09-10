@@ -26,18 +26,12 @@ export const BASE_PRODUCT_ROOTS = [
   ".cursor-plugin",
   "packages/osuperpowers/.claude-plugin",
   "packages/osuperpowers/.cursor-plugin",
-  "packages/osuperpowers/.codex-plugin",
-  "packages/osuperpowers/.kimi-plugin",
-  "packages/osuperpowers/.qoder-plugin",
-  "packages/osuperpowers/hooks",
   "packages/osuperpowers/.agents",
 ];
 
 /** Standalone repo-relative product files (not inside a product root). */
 export const productFiles = [
   "marketplace/source.json",
-  "packages/osuperpowers/gemini-extension.json",
-  "packages/osuperpowers/GEMINI.md",
   // .github/ISSUE_TEMPLATE product (issue-templates emitter, P4) — stale-walk
   // inventory: if the generator stops producing these, emit-check flags them.
   ".github/ISSUE_TEMPLATE/bug_report.yml",

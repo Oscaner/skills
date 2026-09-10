@@ -1,9 +1,9 @@
 # CDD Engine Overhaul — P5 Design: Gate 移除 + harness 层全面清理
 
-- **Version**: v1.2
-- **Status**: Draft（P5 执行期 D14 追加）
+- **Version**: v1.3
+- **Status**: Approved（P5 closeout — Plan done）
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) **v1.23**
+- **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) **v1.26**
 - **Depends on**: P1 (soft) — gate env 传播产物；P2 (vendored superpowers 自带 per-harness manifests 保留)；P6 (handoff 三消费方收敛，已合并 #245)
 
 ---
@@ -231,4 +231,27 @@ scripts/validate/smoke-cdd.mjs：四命令链（implement/review task/fix/branch
 
 ## Section 5: Review
 
-一次 cdd review `--type spec`（blocker=0 后 cli-fix-all-findings → 不重跑）。通过后 commit-spec（含 overall four-table sync）。
+**Spec review**（cdd review `--type spec`，单周期 + cli-fix-all-findings；blocker=0 后不重跑）:
+
+- spec-review-1 — CHANGES_REQUESTED（1 blocker / 4 warn / 3 nit，全部并入）
+- spec-review-2 — CHANGES_REQUESTED（1 blocker / 3 warn / 4 nit，全部并入）
+- spec-review-3 — **APPROVED**（0 blocker / 4 warn / 1 nit，全部并入）
+
+→ **Design approved**
+
+**Plan review**（writing-plans plan-review 单周期）:
+
+- plan-review-1 — CHANGES_REQUESTED（4 blocker / 4 warn / 1 nit，全部并入正文）
+- plan-review-2 — CHANGES_REQUESTED（1 blocker / 2 warn / 3 nit，全部并入）
+- plan-review-3 — CHANGES_REQUESTED（2 blocker / 3 warn / 1 nit，全部并入）
+- plan-review-4 — CHANGES_REQUESTED（2 blocker / 1 warn / 3 nit，全部并入）
+- plan-review-5 — BLOCKED（0 findings — 引擎 termination guard 实证，无 blocker）
+- plan-review-6 — **APPROVED**（0 blocker / 3 warn / 2 nit）
+
+→ **Plan approved**（P5 implementation plan → Done）
+
+**Plan execution**（cdd implement T1–T8，P5 执行期 D14 追加为 plan Task 9）:
+
+- T1–T7 + T9（D14 progress.json 所有权收归 engine）完整实施并通过 task-review（各 1 轮）；
+- T8（本 closeout：changeset + overall/plan 状态同步）→ Implementation plan → Done → branch 收尾移交 finishing；
+- Changeset：`.changeset/p5-cdd-engine-overhaul.md`（`@oscaner-skills/cdd-engine` major + `@oscaner-skills/osuperpowers` major）。

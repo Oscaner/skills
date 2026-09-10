@@ -67,6 +67,18 @@ function requireHostHarness() {
 
 // ---- review/fix shared helpers ----
 
+// D11（review/fix 共享）：被审目标解析 + 缺参守卫单点。type=spec → --spec（被审文档本身）；
+// type=plan → --plan（被审 plan，可选 --spec 携带上游参照）；缺参 → `cdd <verb> --type <type>:
+// missing required --<type> <path>` + exit 2。runReview / runFix 双调用点共用，禁止重复。
+function resolveTargetDoc(opts, verb) {
+  const doc = opts.type === "spec" ? opts.spec : opts.plan;
+  if (!doc) {
+    process.stderr.write(`cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`);
+    process.exit(2);
+  }
+  return doc;
+}
+
 // Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse
 // time (exit 2 + message) instead of letting parseInt leak NaN into runTask and fabricate
 // task-NaN-* artifacts with a false APPROVED H1 (STD-3).
@@ -138,11 +150,7 @@ export async function runReview(opts) {
   if (opts.type === "spec" || opts.type === "plan") {
     // D11: type-self-describing target param — type=spec reviews the --spec doc;
     // type=plan reviews the --plan doc (optional --spec carries the upstream reference).
-    const doc = opts.type === "spec" ? opts.spec : opts.plan;
-    if (!doc) {
-      process.stderr.write(`cdd review --type ${opts.type}: missing required --${opts.type} <path>\n`);
-      process.exit(2);
-    }
+    const doc = resolveTargetDoc(opts, "review");
     const { runDocsTask } = await import("./lib/docs-runner.mjs");
     // spec/plan: round = engine auto-increment（canonical review.{type} 族模式扫描）；--round only
     // validates backfill (conflict → exit 2).
@@ -371,11 +379,7 @@ export async function runFix(opts) {
   }
   // D11: type-self-describing target param — type=spec fixes the --spec doc;
   // type=plan fixes the --plan doc.
-  const doc = opts.type === "spec" ? opts.spec : opts.plan;
-  if (!doc) {
-    process.stderr.write(`cdd fix --type ${opts.type}: missing required --${opts.type} <path>\n`);
-    process.exit(2);
-  }
+  const doc = resolveTargetDoc(opts, "fix");
   // fix round 从 --findings 源解析：roundPattern("review", type) 匹配 findings 文件名
   // （<type>-review-{R}.json）→ 提取 R 作为 fix 轮次（fix 输出 <type>-fix-{R}.json）。
   // findings 缺失或文件名不匹配 → 提示 + exit 2（无源不可推导轮次）。

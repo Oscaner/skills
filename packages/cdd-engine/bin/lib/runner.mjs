@@ -596,6 +596,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
       // 实体化后 H1 与 handoff/exit 一致：hard gate 或 agent 声明 BLOCKED → exit 1。
       if (finalized.exitCode !== 0) {
+        incrementRecovery(progressDir); // D14: implement 实体化 BLOCKED 落点（hard evidence-gate / agent H1 非 APPROVED）
         return finish(finalized.exitCode, h1, "", noExit);
       }
     }

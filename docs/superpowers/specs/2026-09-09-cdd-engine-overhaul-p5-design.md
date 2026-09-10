@@ -1,7 +1,7 @@
 # CDD Engine Overhaul — P5 Design: Gate 移除 + harness 层全面清理
 
-- **Version**: v1.0
-- **Status**: Draft
+- **Version**: v1.1
+- **Status**: Draft（plan-review 期 D13 追加）
 - **Author**: [human] · Claude Opus 4.8 (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-04-cdd-engine-overhaul-overall.md](2026-09-04-cdd-engine-overhaul-overall.md) **v1.23**
 - **Depends on**: P1 (soft) — gate env 传播产物；P2 (vendored superpowers 自带 per-harness manifests 保留)；P6 (handoff 三消费方收敛，已合并 #245)
@@ -62,6 +62,7 @@ cdd.mjs import 了 `skills-probe.config.mjs` 但 **从不注入 `probeSkills`**�
 | D10 | `cdd research` 删 `--harness`；cli-research 保留但去 select-harness 节点 | D5 全一致 |
 | D11 | **review/fix 命令面统一被审目标参数**：`--doc` 退役，改 `--spec`（type=spec 被审）`--plan`（type=plan/task/branch 被审）；`--spec` 在 type=plan 时 = 上游 spec 参照。workspace slug 从被审目标派生 | 语义自解释，省 `--doc` 的文档说明 + token |
 | D12 | 引擎测试 / smoke 迁移（~50 处 `--harness` 调用点 + smoke-cdd 四命令链）配套改造；测试/CI host-marker 策略：spawn env 注入现有 marker（`CLAUDE_CODE_SESSION_ID` / `CURSOR_TRACE_ID`）即判定 host | D5/D6 落地必需，见 2.4 ⑥ |
+| D13 | **vendored 发布面 gemini 装配清净**：`vendor-assembly.mjs` 删 mattpocock gemini 分支（`thinGeminiExtension` + `geminiMarkdown` 补写 + `assertNoUpstreamGeminiExtension` guard）；`thinGeminiExtension`/`geminiMarkdown` 函数整删；publish-vendor.test / emit.test 对应用例删。superpowers 自带 gemini 产物（submodule 提交）保留不可改 | 收敛 claude/cursor-agent 后 vendored 补写 gemini = 未验证通道死代码（用户拍板） |
 
 ### 2.4 删除面
 
@@ -76,7 +77,7 @@ packages/osuperpowers/bin/gate/                     ← 41 文件 / ~1720 行
 packages/osuperpowers/hooks/hooks.json + hooks-cursor.json
 packages/osuperpowers/tests/fixtures/cdd-gate/**
 scripts/emit/manifests.mjs 中 gate hook 生成：cddGatePreToolUseHooks / osuperpowersClaudeHooks /
-  osuperpowersCursorHooks / osuperpowersCodexHooks / osuperpowersQoderHooks / osuperpowersHooksFor /
+  osuperpowersCursorHooks / **codexHooksJson / qoderHooksJson / hooksFor** / osuperpowersHooksFor /
   assertAdapterPathsExist / gemini BeforeTool hook 相关
 scripts/emit/osuperpowers.mjs 中 hooks write loop + assertAdapterPathsExist 调用
 scripts/emit/emit.test.mjs 中 gate hooks 断言（~15 处）
@@ -108,6 +109,12 @@ packages/cdd-engine/bin/harness-registry.json：7 键 → 2 键（claude / curso
 packages/osuperpowers/.codex-plugin/ .qoder-plugin/ .kimi-plugin/ gemini-extension.json GEMINI.md
   （emit 生成产物目录/文件，随 emitOsuperpowers 裁减而不再生成 → 现存文件删除）
 scripts/emit/compare.mjs BASE_PRODUCT_ROOTS + productFiles 同步裁减
+scripts/release/vendor-assembly.mjs：mattpocock gemini 分支删（import + assertNoUpstreamGeminiExtension +
+  stageVendor 内补写块）—— superpowers 自带 gemini 产物（submodule）保留
+scripts/emit/manifests.mjs：`thinGeminiExtension` / `geminiMarkdown` 整删（D13；`kimiPluginManifest` / `geminiExtension`
+  亦整删 —— 无其他消费者；vendor-assembly 是 geminiMarkdown 仅剩消费方，随 D13 消失）
+scripts/release/publish-vendor.test.mjs：thinGeminiExtension/stageVendor gemini 用例如（L542-590 段）
+scripts/emit/emit.test.mjs：geminiMarkdown 用例（L278）+ GEMINI.md 产物断言（L646）删
 ```
 
 **④ skill/docs 层（harness 概念出清）**
@@ -195,6 +202,7 @@ scripts/validate/smoke-cdd.mjs：四命令链（implement/review task/fix/branch
 - **host-marker 策略落地**：smoke-cdd.mjs 四命令链无 `--harness`；engine 测试无残留 `--harness` 调用；CI 在无真实 harness session 的 step 注入 host env
 - `pnpm run validate` 绿（13-block 结构，gate-hooks block 移除后 block 数更新）
 - `pnpm run emit` 后无 drift（`emit:check` 绿）；被删 harness 的现存产物（`.codex-plugin/` / `.qoder-plugin/` / `.kimi-plugin/` / `gemini-extension.json` / `GEMINI.md`）已清；**保留 harness 产物（`.claude-plugin/` / `.cursor-plugin/`）正常生成且存在**
+- `vendor-assembly.mjs` 无 gemini 装配（mattpocock 分支删）；`thinGeminiExtension` / `geminiMarkdown` 引用消失；superpowers 自带 gemini 产物原样保留（submodule）—— **D13**
 - changeset 提交（`cdd-engine` / `osuperpowers` 版本语义见 plan）
 
 ---
@@ -206,6 +214,7 @@ scripts/validate/smoke-cdd.mjs：四命令链（implement/review task/fix/branch
 | P5 scope = gate 移除（Enh Q 列表）| P5 scope 扩展：+ cdd select/cli-select/skills-probe/harness-detect 删除 + `--harness` 参数删除 + channel 收敛到 claude/cursor-agent + per-harness 产物清理 + **review/fix `--doc`→`--spec`/`--plan` 参数统一（D11）** | Yes — v1.23 · 2026-09-09 |
 | P5 acceptance：`install-harness 不写 gate config`（隐含保留）| `install-harness` 整体删除 + init 收缩为 marketplace 指引 | Yes — v1.23 · 2026-09-09 |
 | dependency：P1（soft）| 新增 P2 关联（vendored superpowers 自带 per-harness manifests 保留）已注 §Depends；无新 hard edge | Yes — v1.23 · 2026-09-09 |
+| P5 六类删除面（v1.23）| **D13（plan-review 期追加）**：vendored 发布面 gemini 装配清净 —— mattpocock 补写 gemini 分支（vendor-assembly）+ `thinGeminiExtension`/`geminiMarkdown` 整删；superpowers 自带 gemini 保留（submodule） | Yes — v1.24 · 2026-09-10 |
 
 ---
 

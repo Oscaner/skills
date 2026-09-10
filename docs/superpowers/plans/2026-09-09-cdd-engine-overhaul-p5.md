@@ -355,11 +355,11 @@
 - Run: 全量 grep 清零清单
 - Modify: `scripts/validate/smoke-cdd.mjs`（最终核对）
 
-- [ ] **Step 1: 残留 grep 全零**（范围含 docs/ + 根 README + docs/maintainers；**注册豁免**：`docs/superpowers/`（本 plan/spec 及历史 spec/plan 描述删除面必然携带 gate 语汇）+ `packages/osuperpowers/CHANGELOG.md`（历史 changelog，非机制位置，保留不改）—— T7 grep/T6 guard 均排除）
+- [ ] **Step 1: 残留 grep 全零**（范围含 docs/ + 根 README + docs/maintainers；**注册豁免**：`docs/superpowers/`（本 plan/spec 及历史 spec/plan 描述删除面必然携带 gate 语汇）+ `packages/osuperpowers/CHANGELOG.md`（历史 changelog，非机制位置，保留不改）+ **guard/test 位置**（`scripts/validate/smoke-cdd.mjs` 自身 G-regex 必携 `--harness` 断言缺席、`packages/cdd-engine/bin/tests/` cli-shape 必携 `--doc` 断言拒绝 —— 与 residue.mjs G1 自豁免同构）—— T7 grep/T6 guard 均排除）
   ```
   grep -rn 'bin/gate/\|cdd-gate-core\|gateDecide\|CDD_GATE' packages/cdd-engine packages/osuperpowers scripts docs/maintainers README.md   # 0（豁免 docs/superpowers/ + CHANGELOG.md）
-  grep -rn -- '--harness' packages/cdd-engine packages/osuperpowers/skills scripts/validate docs/maintainers  # 0
-  grep -rn -- '--doc' packages/osuperpowers/skills packages/cdd-engine/bin/cdd.mjs packages/cdd-engine/bin/tests docs/maintainers  # 0（仅内部 doc_path 保留）
+  grep -rn -- '--harness' packages/cdd-engine packages/osuperpowers/skills docs/maintainers  # 0（豁免 scripts/validate + bin/tests：guard/test 必携 token）
+  grep -rn -- '--doc' packages/osuperpowers/skills packages/cdd-engine/bin/cdd.mjs docs/maintainers  # 0（仅内部 doc_path 保留；豁免 bin/tests：cli-shape 必携 --doc）
   grep -rn 'cli-select\|select-harness' packages/osuperpowers/skills  # 0
   grep -rn 'skills-missing\|skills-probe' docs/maintainers/osuperpowers-plugin.md packages/osuperpowers/README.md  # 0
   grep -n 'cli-select\|droid\|pi' packages/osuperpowers/README.md  # 0

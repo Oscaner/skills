@@ -78,7 +78,7 @@ export function main() {
 // package's own dir (scripts/validate) self-exempt, mirroring the residue.mjs gate guard's
 // target design — guards must reference retired tokens to assert their absence.
 const OSKILLS = ["packages/osuperpowers/skills"];
-const ENGINE = ["packages/cdd-engine"];
+const ENGINE = ["packages/cdd-engine/bin"];      // N②: 不含 bin/tests —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」doctrine 对齐（同 residue G1）
 const MAINTAINERS = ["docs/maintainers"];
 const MAINTAINERS_DOC = [path.join("docs", "maintainers", "osuperpowers-plugin.md")];
 const ROOT_README = [path.join("packages", "osuperpowers", "README.md")];
@@ -110,7 +110,8 @@ function checkDeletionSurface() {
   assertNoResidue("G5 skills-missing/skills-probe", /skills-missing|skills-probe/, [...MAINTAINERS_DOC, ...ROOT_README]);
 
   // G6 harness-select vocab in the consumer-facing README (cli-select / droid / pi).
-  assertNoResidue("G6 README cli-select/droid/pi", /cli-select|droid|pi/, ROOT_README);
+  // N④: `pi` 用词边界符（\bpi\b）防 pipeline/principle 等英文词误报（裸 `pi` 子串在 durability gate 对任意未来编辑敏感）。
+  assertNoResidue("G6 README cli-select/droid/pi", /cli-select|droid|\bpi\b/, ROOT_README);
 
   // G7 deleted paths stay deleted.
   for (const gone of [path.join("docs", "gate-install.md"), path.join(".github", "actions", "install-harness")]) {

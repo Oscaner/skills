@@ -10,7 +10,7 @@
 // The grepTargets meta is consumed by the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
 
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "tinyglobby";
@@ -78,10 +78,15 @@ function assert(cond, msg) {
 // T6：目录 target glob **/*，单文件 target（根 README.md）直接读；target 可取仓库相对
 // 路径或绝对路径（后者供 collectGateLexiconHits 测试注入临时目录）。
 // T7：export 供 smoke-cdd.mjs 最终核对（deletion-surface sweep）复用，不重复实现。
+// T7 N③: 缺失 target → statSync ENOENT 晦涩崩溃；改为带 target 的清晰 Error（对齐 G7/G8
+// 「deleted path has returned」风格），未来文件改名/删除以可读 guard 失败呈现而非 crash。
 export function scanTargets(targets, re) {
   const hits = [];
   for (const t of targets) {
     const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
+    if (!existsSync(abs)) {
+      throw new Error(`scanTargets: target missing — ${t} (deleted file? adjust target set or this sweep scope)`);
+    }
     const paths = statSync(abs).isDirectory()
       ? globSync("**/*", { cwd: abs, absolute: true, dot: true })
       : [abs];

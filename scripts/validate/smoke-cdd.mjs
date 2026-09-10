@@ -119,11 +119,14 @@ function checkDeletionSurface() {
   }
 
   // G8 per-harness artifact baseline — kept harnesses present, retired ones absent.
+  // Anchored at the package product home (packages/osuperpowers/…), not repo root —
+  // the P5 per-harness manifests live under the package (spec §2.7 artifact baseline).
+  const OS_ARTIFACTS = path.join("packages", "osuperpowers");
   for (const kept of [".claude-plugin", ".cursor-plugin"]) {
-    if (!existsSync(path.join(root, kept))) throw new Error(`G8 kept harness artifact missing: ${kept}`);
+    if (!existsSync(path.join(root, OS_ARTIFACTS, kept))) throw new Error(`G8 kept harness artifact missing: ${kept}`);
   }
-  for (const removed of [".codex-plugin", ".qoder-plugin", ".kimi-plugin", "gemini-extension.json"]) {
-    if (existsSync(path.join(root, removed))) throw new Error(`G8 retired harness artifact present: ${removed}`);
+  for (const removed of [".codex-plugin", ".qoder-plugin", ".kimi-plugin", "gemini-extension.json", "GEMINI.md"]) {
+    if (existsSync(path.join(root, OS_ARTIFACTS, removed))) throw new Error(`G8 retired harness artifact present: ${removed}`);
   }
 
   console.log("OK — deletion-surface zero residue (T7 final check)");

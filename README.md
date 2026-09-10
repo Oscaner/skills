@@ -50,21 +50,17 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 
 ### Per-harness install
 
-| Harness | Channel | Install method |
-|---------|---------|---------------|
-| Claude Code | install-and-use | marketplace install |
-| Cursor Agent | install-and-use | marketplace install |
-| Droid | install-and-use | copy skills to `.agents/skills/` |
-| Grok | install-and-use | marketplace install (Claude compat) |
-| Qoder | install-and-use | install plugin |
-| Codex | install-and-use | install plugin + `/hooks` trust |
-| Gemini | install-and-use | `gemini extensions install <repo-url>` |
-| Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
+| Harness | Install method |
+|---------|---------------|
+| Claude Code | marketplace install |
+| Cursor Agent | marketplace install |
+
+osuperpowers installs through each harness's own plugin marketplace; claude and cursor-agent need no per-harness config file or trust ceremony.
 
 ## Quick start
 
 1. Install plugins from the marketplace or npm (see above).
-2. Run **`/init harness`** in each project -- re-run after plugin upgrades. This sets up harness config in your project's CLAUDE.md / Cursor rules.
+2. Run **`/init`** in each project -- re-run after plugin upgrades. `init` guides the marketplace install and checks the `cdd` engine CLI.
 3. Invoke the superpowers workflow as you normally would -- osuperpowers skills intercept upstream triggers and route to the matching target automatically.
 
 ## Architecture

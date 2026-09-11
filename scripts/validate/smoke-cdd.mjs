@@ -35,7 +35,7 @@ export function main() {
     console.log(`smoke: PATH bin unavailable — using repo-relative node entry (${cdd.slice(1).join(" ")})`);
   }
 
-  const plan = "packages/cdd-engine/bin/tests/fixtures/smoke-plan.md";
+  const plan = "packages/cdd-engine/tests/fixtures/smoke-plan.md";
   const slug = path.basename(plan, ".md");
   const head = execaCommandSync("git rev-parse HEAD", { cwd: root }).stdout.trim();
   // Branch-review dry-run writes a handoff into the (gitignored) smoke workspace — drop any
@@ -78,7 +78,9 @@ export function main() {
 // package's own dir (scripts/validate) self-exempt, mirroring the residue.mjs gate guard's
 // target design — guards must reference retired tokens to assert their absence.
 const OSKILLS = ["packages/osuperpowers/skills"];
-const ENGINE = ["packages/cdd-engine/bin"];      // N②: 不含 bin/tests —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」doctrine 对齐（同 residue G1）
+// N②: 不含 tests —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」
+// doctrine 对齐（同 residue G1）。re-org 后 ENGINE 扩为 bin+lib（--harness 词表随 parse.mjs 移入 lib/）。
+const ENGINE = ["packages/cdd-engine/bin", "packages/cdd-engine/lib"];
 const MAINTAINERS = ["docs/maintainers"];
 const MAINTAINERS_DOC = [path.join("docs", "maintainers", "osuperpowers-plugin.md")];
 const ROOT_README = [path.join("packages", "osuperpowers", "README.md")];
@@ -99,9 +101,10 @@ function checkDeletionSurface() {
   // (this guard and residue.mjs carry the retired token by design).
   assertNoResidue("G2 --harness flag", /--harness/, [...ENGINE, ...OSKILLS, ...MAINTAINERS]);
 
-  // G3 --doc — shipped skills + engine entry + maintainers. bin/tests is out of scope:
-  // cli-shape.test.mjs must pass the retired token to assert its rejection (exit 2).
-  assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "bin", "cdd.mjs"), ...MAINTAINERS]);
+  // G3 --doc — shipped skills + engine entry + maintainers. tests/ 与 cli-shape.test 自豁免：
+  // cli-shape.test.mjs 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 lib/cli/parse.mjs
+  //（薄入口化后命令定义与 --doc 词表唯一落点）。
+  assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "lib", "cli", "parse.mjs"), ...MAINTAINERS]);
 
   // G4 select vocab in shipped skills.
   assertNoResidue("G4 cli-select/select-harness", /cli-select|select-harness/, OSKILLS);

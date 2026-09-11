@@ -179,7 +179,7 @@ flowchart TD
 - **Do**: Commit spec document to git. Spec approved = commit immediately (I4); do not wait for dev merge.
 
   **Pre-commit overall spec 4-table sync check** (only when this phase is a sub-phase of an overall program; single-spec projects skip this check):
-  - Issue inventory: all `#NNN` issue numbers mentioned in this phase's spec or plan are registered in the overall Issue inventory (added or updated) — registration semantics (anchored-syntax levels + trigger scenarios) in [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5
+  - Issue inventory: every anchored-form `#NNN` this phase mentions is registered in the overall Issue inventory — registration semantics (anchored-syntax levels + 3 trigger scenarios) in [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5; bare `#NNN` is not machine-enforced (manual discretion)
   - Phase inventory: this phase row's scope / design spec / plan / acceptance criteria / dependency fields are updated to latest state
   - Dependency graph: if this phase adds or removes dependency relationships, the ASCII graph is synced
   - Change history: this phase's change has been appended as one row (including version + date + summary)

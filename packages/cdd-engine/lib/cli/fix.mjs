@@ -5,9 +5,11 @@ import path from "node:path";
 import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./review.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
+import { stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runFix(opts) {
+  try {
   // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
   const harness = requireHostHarness();
   const { runTask } = await import("../runner/run-task.mjs");
@@ -62,4 +64,8 @@ export async function runFix(opts) {
     findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
+  } finally {
+    stopIdleMonitor();
+    await teardownAll({ graceMs: 5000 });   // fix 出口兜底（幂等）——task 支路走 runTask，spec/plan 走 runDocsTask
+  }
 }

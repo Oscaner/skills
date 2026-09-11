@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { invokeCli, resolveTimeoutMs } from "../lifecycle/cli.mjs";
+import { startIdleMonitor, stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { writeHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
@@ -30,6 +31,8 @@ export async function runDocsTask({
     return { exitCode: 0, handoff: { phase: mode, status: "APPROVED", findings: [], artifacts: {}, doc_path: doc } };
   }
 
+  startIdleMonitor({ intervalMs: 30_000 });   // 进程内 idle 监视（幂等；dry-run 不注册任何组——监视空转）
+  try {
   // Bug L fix: use gitToplevel(process.cwd()) as subprocess cwd, not workspace (doc directory).
   const repoRoot = gitToplevel(process.cwd());
   if (!repoRoot) throw new Error("docs-runner: not in a git repo");
@@ -97,4 +100,8 @@ export async function runDocsTask({
   }
 
   return { exitCode: res.code, handoff };
+  } finally {
+    stopIdleMonitor();
+    await teardownAll({ graceMs: 5000 });   // docs 出口双兜（幂等）
+  }
 }

@@ -10,6 +10,7 @@ import * as handoffNaming from "../handoff/naming.mjs";
 import { reviewStoppedError } from "../runner/review-loop.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { exitWithCode } from "../exit.mjs";
+import { stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
 
 export const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 
@@ -93,6 +94,7 @@ export function reviewStoppingGuard(prev, type, round, ref) {
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runReview(opts) {
+  try {
   // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
   const harness = requireHostHarness();
   // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
@@ -195,4 +197,8 @@ export async function runReview(opts) {
     mode: "review", dryRun: DRY_RUN(),
     env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
   });
+  } finally {
+    stopIdleMonitor();
+    await teardownAll({ graceMs: 5000 });   // review 出口兜底（幂等）——task/branch 支路本层兜一层
+  }
 }

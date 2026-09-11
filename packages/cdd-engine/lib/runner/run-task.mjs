@@ -19,7 +19,7 @@ import { handoffName, prevHandoffPath as hnPreHandoffPath } from "../handoff/nam
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../handoff/finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
-import { spawnManaged, markAllDispatchesDone } from "../lifecycle/proc.mjs";
+import { spawnManaged, markAllDispatchesDone, startIdleMonitor, stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
 import { validateHandoffSchema } from "../handoff/schema.mjs";
 
@@ -347,6 +347,9 @@ function dryRunH1Block(env, taskNum) {
 // scriptsDir: DI passed through to runReviewPackage (test seam, does not change production behavior).
 // Returns { exitCode, h1 } (does not call exitWithCode when noExit=true).
 export async function runTask(harness, taskNum, opts = {}) {
+  startIdleMonitor({ intervalMs: 30_000 });   // 进程内 idle 监视（§2.2 C / §2.4，幂等：已启动 no-op）——
+                                              // 长 run 低频清理 dispatch 已返回仍存活的超时孤儿/残留 server
+  try {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
   const cwd = opts.cwd ?? process.cwd();
@@ -646,6 +649,10 @@ export async function runTask(harness, taskNum, opts = {}) {
   }
   if (!dryRun && mode !== "implement") incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
   return finish(0, h1, "", noExit);
+  } finally {
+    stopIdleMonitor();
+    await teardownAll({ graceMs: 5000 });   // run 边界双兜：覆盖全部 exit 路径（含 timeout/BLOCKED）
+  }
 }
 
 

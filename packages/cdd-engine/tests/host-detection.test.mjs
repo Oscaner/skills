@@ -8,6 +8,7 @@
 import { it, expect } from "vitest";
 import { execaSync } from "execa";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 // 薄入口化（spec §2.3）：detectCurrentHarness 随守卫簇移 lib/cli/review.mjs —— 测试 seam 改指。
 import { detectCurrentHarness } from "../lib/cli/review.mjs";
@@ -17,12 +18,16 @@ const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
 const PLAN_FIXTURE = path.join(REPO_ROOT, "packages/cdd-engine/tests/fixtures/smoke-plan.md");
 const NODE = process.execPath;
+// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 另一 fork in-flight 组（ownerPid 异判为 orphan）。
+const LIFECYCLE_PATH = path.join(os.tmpdir(), `cdd-lifecycle-hostdetect-${process.pid}.json`);
 
 // Full-replacement child env from scratch (PATH only + test extras) — parent CDD_* / host
 // markers cannot leak in (extendEnv:false). noHost deletes the three host markers explicitly.
 function runCli(args = [], opts = {}) {
   const { env: extraEnv = {}, cwd = REPO_ROOT, noHost = false } = opts;
-  const childEnv = { PATH: process.env.PATH, ...extraEnv };
+  const childEnv = { PATH: process.env.PATH, ...extraEnv, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH };
   if (noHost) {
     delete childEnv.CLAUDE_CODE_SESSION_ID;
     delete childEnv.CURSOR_TRACE_ID;

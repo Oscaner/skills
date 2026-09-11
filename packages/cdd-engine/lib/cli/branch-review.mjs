@@ -12,6 +12,7 @@ import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { finalizeHandoff } from "../handoff/finalize.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
+import { stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 import { DRY_RUN, reviewStoppingGuard } from "./review.mjs";
 
@@ -27,6 +28,7 @@ export function writeBranchBlocked(handoffPath, { base, head, code, reason }) {
 // Review Stopping (previous-round lookup filtered by base7..head7 embedded in the filename;
 // a ref change = a new review, never falsely rejected).
 export async function runBranchReview(opts) {
+  try {
   const { harness, plan, base, head } = opts;
 
   // Harness registry gate.
@@ -132,4 +134,8 @@ export async function runBranchReview(opts) {
   }
 
   exitOk();
+  } finally {
+    stopIdleMonitor();
+    await teardownAll({ graceMs: 5000 });   // branch-review 出口兜底（幂等）
+  }
 }

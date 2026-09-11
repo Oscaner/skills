@@ -22,6 +22,10 @@ afterAll(() => {
   rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
 });
 const NODE = process.execPath;
+// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 另一 fork in-flight 组（ownerPid 异判为 orphan；本文件 branch-review 真实 dispatch + 黑盒 CLI 并发尤为相关）。
+const LIFECYCLE_PATH = path.join(tmpdir(), `cdd-lifecycle-cdd-${process.pid}.json`);
 
 // Test env: strip 任何从 orchestrator session 继承的 CDD_*，再叠加测试 extras（与 task.test.mjs 一致）。
 function cleanEnv(extra) {
@@ -29,7 +33,7 @@ function cleanEnv(extra) {
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
-  return { ...env, ...extra };
+  return { ...env, ...extra, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH };
 }
 
 function runCli(args = [], opts = {}) {

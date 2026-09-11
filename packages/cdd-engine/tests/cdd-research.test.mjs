@@ -9,9 +9,14 @@ import { execFileSync } from "node:child_process";
 
 const CLI = path.resolve(import.meta.dirname, "../bin/cdd.mjs");
 
+// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 另一 fork in-flight 组（ownerPid 异判为 orphan；本例自带挂起 harness 的 timeout/长驻组尤需隔离）。
+const LIFECYCLE_PATH = path.join(tmpdir(), `cdd-lifecycle-research-${process.pid}.json`);
+
 function runCli(args = [], opts = {}) {
   const { env: extraEnv, noHost = false, ...spawnOpts } = opts;
-  const env = { ...process.env, ...(extraEnv ?? {}) };
+  const env = { ...process.env, ...(extraEnv ?? {}), CDD_LIFECYCLE_PATH: LIFECYCLE_PATH };
   // T3: host detection is ambient-env driven — a no-host case must explicitly delete the
   // three host markers (parent orchestrator session sets CLAUDE_CODE_SESSION_ID/AI_AGENT).
   if (noHost) {

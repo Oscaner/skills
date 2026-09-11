@@ -13,8 +13,9 @@ const KILL_SIGNAL = "SIGTERM";
 const FORCE_SIGNAL = "SIGKILL";
 
 // ---- registry（内存 + 落盘双写）----
-// 条目 { pgid, label, createdAt, ownerPid, done } —— ownerPid 支撑跨 run 孤儿判定、
-// done = dispatch 已返回（idle 监视回收依据）。弃设计初稿的 dispatch 字段（spec §2.2 A v1.1 定案）。
+// 条目 { pgid, label, createdAt, ownerPid, done } —— ownerPid 支撑跨 run 孤儿判定。
+// 注册即时化：spawn 成功即入组（in-flight done=false 亦在盘上——信号 teardownAll / 跨 run 兜底
+// 的前提）；done = dispatch 已返回（idle 监视回收依据）。弃设计初稿的 dispatch 字段（spec §2.2 A v1.1 定案）。
 let registry = [];            // [{ pgid, label, createdAt, ownerPid, done }]
 let diskPath = "";            // initProcLifecycle 设置；未设置则不落盘（测试内省态）
 let idleTimer = null;
@@ -49,7 +50,7 @@ function cleanEnv(env) {
   return e;
 }
 
-// 统一工厂：detached 进程组 + 注册。保持五字段契约 {ok, code, stdout, stderr, timedOut}。
+// 统一工厂：detached 进程组 + 即时注册。保持五字段契约 {ok, code, stdout, stderr, timedOut}。
 export async function spawnManaged(command, args, opts = {}) {
   const { cwd, env, timeoutMs } = opts;
   // execa 返回体 = subprocess（promise × child_process 混合体）：pid 挂在 subprocess 上，
@@ -64,8 +65,11 @@ export async function spawnManaged(command, args, opts = {}) {
     all: false,
   });
   const pid = sub.pid;
-  const res = await sub;
-  // 派生失败（reject:false 下 ENOENT 等令 pid 缺失）不注册组条目——空的 pgid/owner 对孤儿
+  // 注册即时化（spawn 成功即入 registry，早于 execa resolve）——两个消费方依赖：
+  // 1) CLI 信号 teardownAll 连根回收 in-flight 组（spec §2.6）；
+  // 2) 跨 run 孤儿兜底登记「引擎中途被杀」的组——若等 resolve 才 push，mid-dispatch 崩溃的
+  //     detached 组永不落盘、永久泄漏（spec §2.2 A 父死场景由下次启动扫回的前提即在飞组已在盘上）。
+  // 派生失败（reject:false 下 ENOENT 等令 pid 缺失）仍不注册组条目——空的 pgid/owner 对孤儿
   // 判定无意义，避免污染磁盘 registry（spec §2.2 A 条目契约：pgid 必须有值）。
   if (pid != null) {
     registry.push({
@@ -77,16 +81,18 @@ export async function spawnManaged(command, args, opts = {}) {
     });
     await persistRegistry();
   }
+  const res = await sub;
   const timedOut = res.timedOut ?? false;
   return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut };
 }
 
 // dispatch（含 retry 的每个 attempt）返回后调用：组标 done，供 idle 监视 reapDone 回收。
-// registry 恒为「dispatch 已返回」集合（spawnManaged 在 execa resolve 后才 push）。
+// registry 从 spawn 即时注册（spec §2.2 A：in-flight 亦在盘上——信号 teardownAll / 跨 run
+// 孤儿兜底的前提）；done 标记「该组 dispatch 已返回」。
 // **显式不变式（spec §2.2 C，lifecycle 层集中此语义）**：派发严格串行——任一时刻 in-flight
-// 组至多一批（invokeCli 每 dispatch 单 spawn）。「全量标记 = 标记刚返回的这批组」仅在该不变式
-// 下成立；未来若引入重迭派发，须改按 spawnManaged 返回的组标识精确标 done，否则进程内 idle
-// 监视的 reapDone 会误标并连根回收 in-flight 组。断言在打破不变式时立即炸出，而非静默泄漏。
+// 组至多一批（invokeCli 每 dispatch 单 spawn）。「全量标记未 done 组 = 标记刚返回的这批组」仅
+// 在该不变式下成立；未来若引入重迭派发，须改按 spawnManaged 返回的组标识精确标 done，否则进程内
+// idle 监视的 reapDone 会误标并连根回收 in-flight 组。断言在打破不变式时立即炸出，而非静默泄漏。
 export function markAllDispatchesDone() {
   const inFlight = registry.filter(g => !g.done);
   if (inFlight.length > 1) {

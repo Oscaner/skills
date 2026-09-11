@@ -13,6 +13,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..'); // tests → packages/cdd-engine → packages → repo
+// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 另一 fork in-flight 组（ownerPid 异判为 orphan）。
+const LIFECYCLE_PATH = path.join(tmpdir(), `cdd-lifecycle-branch-${process.pid}.json`);
 
 function tmpGitRepo() {
   const dir = mkdtempSync(path.join(tmpdir(), 'cdd-br-'));
@@ -39,7 +43,7 @@ describe('branch-review dry-run', () => {
         '--plan', planPath,
         '--base', 'abc1234',
         '--head', 'def5678',
-      ], { env: { ...process.env, CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' }, encoding: 'utf8' }).stdout;
+      ], { env: { ...process.env, CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1', CDD_LIFECYCLE_PATH: LIFECYCLE_PATH }, encoding: 'utf8' }).stdout;
 
       expect(out).toContain('status: APPROVED');
       expect(out).toContain('commits: base=abc1234 head=def5678');

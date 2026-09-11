@@ -9,6 +9,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
@@ -24,6 +25,10 @@ afterAll(() => {
 // 合法 findings 名（round 源）—— 路径无需真实存在，docs 通道不接 dirty/存在性断言。
 const SPEC_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'spec-review-1.json');
 const PLAN_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'plan-review-1.json');
+// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 另一 fork in-flight 组（ownerPid 异判为 orphan）。
+const LIFECYCLE_PATH = path.join(os.tmpdir(), `cdd-lifecycle-doctask-${process.pid}.json`);
 
 function run(args, extraEnv = {}, opts = {}) {
   const env = {};
@@ -39,7 +44,7 @@ function run(args, extraEnv = {}, opts = {}) {
   }
   return spawnSync('node', [CDD_MJS, ...args], {
     cwd: REPO_ROOT,
-    env: { ...env, ...extraEnv },
+    env: { ...env, ...extraEnv, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH },
     encoding: 'utf8',
   });
 }

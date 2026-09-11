@@ -20,6 +20,10 @@ import { gitCommit, gitInit } from './helpers.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
+// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 另一 fork in-flight 组（ownerPid 异判为 orphan）。
+const LIFECYCLE_PATH = path.join(tmpdir(), `cdd-lifecycle-task-${process.pid}.json`);
 
 // Test env: strip any CDD_* inherited from an orchestrator session, then overlay test extras.
 function cleanEnv(extra) {
@@ -27,7 +31,7 @@ function cleanEnv(extra) {
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith('CDD_')) env[k] = v;
   }
-  return { ...env, ...extra };
+  return { ...env, ...extra, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH };
 }
 
 // Spawn the CLI as a subprocess (cwd = repo root); returns { status, stdout, stderr }.
@@ -142,6 +146,6 @@ describe('cdd implement/review/fix CLI contract', () => {
     expect(() => execFileSync('node', [
       CDD_MJS,
       'implement', '--task', 'abc',
-    ], { encoding: 'utf8', stdio: 'pipe' })).toThrow();
+    ], { encoding: 'utf8', stdio: 'pipe', env: cleanEnv() })).toThrow();
   });
 });

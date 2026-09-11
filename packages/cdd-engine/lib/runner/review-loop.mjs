@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
 // engine/lib/review-loop.mjs — shared review→fix loop (CDD + docs).
 // runReviewLoop → Promise<handoff>
 // runFix(round, findings) → Promise<handoff>
@@ -22,6 +25,17 @@ export function reviewStoppedError(type, round, ref) {
   return new Error(
     `round ${round} (${type}, ${ref}) already blocker=0 — Review Stopping: do not re-run; change ref to open a new review`,
   );
+}
+
+// 内容状态 token（spec §2.1/§2.3.1）：被审文档的全字节 sha256 hex。
+// 尺度选择（§2.2 bullet 1）：不归一化——白空格/行尾异动会触发新一轮，单轮 review dispatch 是良性代价。
+// 缺失/读失败 → "" 哨兵（与真实 hex 永不等）：gate 按「ref 变了」放行，下游 runDocsTask 对幽灵 doc 自然失败。
+export function hashFile(doc) {
+  try {
+    return createHash("sha256").update(readFileSync(doc)).digest("hex");
+  } catch {
+    return "";
+  }
 }
 
 export async function runReviewLoop({ runReview, runFix, getBlockers, onRoundDone }) {

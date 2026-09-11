@@ -3,6 +3,7 @@
 // select/research 内联、brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { execaSync } from "execa";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { forkLifecyclePath } from './helpers.mjs';
@@ -314,13 +315,17 @@ function tmpGitRepo() {
 // seed 一条 canonical <type>-review-1.json（status APPROVED + blocker=0）→ 命中 Review Stopping。
 // ws = <repo>/.superpowers/cdd/foo —— 覆盖 spec（foo-design.md 去 -design）与 plan（foo.md）同 slug 收敛。
 // doc 父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel，父目录缺失会回退失败。
-function seedDocsReviewRound(repo, doc, fileName) {
+// content 实写 doc 文件（hashFile 读实时文件）：默认 content="" → 既有 legacy seed 调用写空 doc，
+// 语义（status APPROVED + blocker=0）不变仍 exit 3；docHash 显式传入才落 handoff.doc_hash。
+function sha256(s) { return createHash("sha256").update(s).digest("hex"); }
+function seedDocsReviewRound(repo, doc, fileName, { docHash, content = "" } = {}) {
   const ws = path.join(repo, ".superpowers", "cdd", "foo");
   mkdirSync(path.dirname(doc), { recursive: true });
   mkdirSync(ws, { recursive: true });
-  writeFileSync(path.join(ws, fileName), JSON.stringify({
-    task: 0, phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc,
-  }));
+  writeFileSync(doc, content);                 // hashFile 读实时文件——内容由用例显式控制
+  const handoff = { task: 0, phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc };
+  if (docHash) handoff.doc_hash = docHash;
+  writeFileSync(path.join(ws, fileName), JSON.stringify(handoff));
   return ws;
 }
 
@@ -454,5 +459,127 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  describe("P2 F5: spec/plan Stopping ref 内容状态维度（doc_hash 双签名矩阵）", () => {
+    it("内容未变 + doc_hash 相等 + APPROVED+0 → exit 3（U1 保留；unchanged 消息，无旧 impossible 措辞）", () => {
+      const dir = tmpGitRepo();
+      try {
+        const doc = path.join(dir, "docs", "foo-design.md");
+        seedDocsReviewRound(dir, doc, "spec-review-1.json", { docHash: sha256("v1"), content: "v1" });
+        const r = runCli(["review", "--type", "spec", "--spec", doc],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(r.exitCode).toBe(3);
+        expect(r.stderr).toMatch(/already blocker=0 — Review Stopping/);
+        expect(r.stderr).toMatch(/doc content unchanged/);
+        expect(r.stderr).toMatch(/edit the doc content or open a new doc/);
+        expect(r.stderr).not.toMatch(/change ref to open a new review/);
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it("内容演进 + doc_hash 异 + APPROVED+0 → 放行新一轮（round 2 + CDD_INFO）", () => {
+      const dir = tmpGitRepo();
+      try {
+        const doc = path.join(dir, "docs", "foo-design.md");
+        seedDocsReviewRound(dir, doc, "spec-review-1.json", { docHash: sha256("v1"), content: "v2" }); // 内容实为 v2，旧 review 验的是 v1
+        const r = runCli(["review", "--type", "spec", "--spec", doc],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(r.exitCode).toBe(0);
+        expect(r.stderr).toMatch(/CDD_INFO: doc content changed since round-1 clean review/);
+        expect(r.stderr).toMatch(/new review round 2/);
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it("legacy handoff（无 doc_hash）+ APPROVED+0 → exit 3（内容状态未知硬停；legacy 消息不给改动指引）", () => {
+      const dir = tmpGitRepo();
+      try {
+        const doc = path.join(dir, "docs", "foo-design.md");
+        seedDocsReviewRound(dir, doc, "spec-review-1.json", { content: "v1" });   // 不传 docHash → legacy
+        const r = runCli(["review", "--type", "spec", "--spec", doc],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(r.exitCode).toBe(3);
+        expect(r.stderr).toMatch(/content state unknown/);
+        expect(r.stderr).toMatch(/open a new doc or remove the stale/);
+        expect(r.stderr).not.toMatch(/edit the doc content/);   // legacy 不给不可达改动指引
+        expect(r.stderr).not.toMatch(/change ref to open a new review/);   // §2.5 item 8 双场景禁用（与 case 1 对称）
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it("CHANGES_REQUESTED prev + 同内容同 hash → 无声放行（SP-4；CDD_INFO 抑制）", () => {
+      const dir = tmpGitRepo();
+      try {
+        const doc = path.join(dir, "docs", "foo-design.md");
+        const ws = seedDocsReviewRound(dir, doc, "spec-review-1.json", { docHash: sha256("v1"), content: "v1" });
+        // 覆写 status = CHANGES_REQUESTED（同 hash 同内容）→ 应无声放行、无 CDD_INFO
+        const hf = path.join(ws, "spec-review-1.json");
+        const h = JSON.parse(readFileSync(hf, "utf8")); h.status = "CHANGES_REQUESTED";
+        writeFileSync(hf, JSON.stringify(h));
+        const r = runCli(["review", "--type", "spec", "--spec", doc],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(r.exitCode).toBe(0);                    // 放行（blocker>0 重审权 SP-4）
+        expect(r.stderr).not.toMatch(/CDD_INFO/);      // 非 clean prev → 自文档化抑制（§2.3.2）
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it("BLOCKED prev + 内容演进（hash 异）→ 无声放行、无 CDD_INFO（SP-4 §2.4 失败轮照旧；else-if 不进入）", () => {
+      const dir = tmpGitRepo();
+      try {
+        const doc = path.join(dir, "docs", "foo-design.md");
+        const ws = seedDocsReviewRound(dir, doc, "spec-review-1.json", { docHash: sha256("v1"), content: "v2" });
+        // 覆写 status = BLOCKED（内容 v2 ≠ 旧 review 验的 v1）→ 无声放行，else-if（仅 clean prev）不进入 → 无 CDD_INFO
+        const hf = path.join(ws, "spec-review-1.json");
+        const h = JSON.parse(readFileSync(hf, "utf8")); h.status = "BLOCKED";
+        writeFileSync(hf, JSON.stringify(h));
+        const r = runCli(["review", "--type", "spec", "--spec", doc],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(r.exitCode).toBe(0);                    // 失败轮重派（SP-4）
+        expect(r.stderr).not.toMatch(/CDD_INFO/);      // 非 clean prev → 自文档化抑制
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it("内容演进 + 显式 --round 2（= engine 推导）→ 放行；--round 1（≠ 推导）→ exit 2 backfill 冲突", () => {
+      const dir = tmpGitRepo();
+      try {
+        const doc = path.join(dir, "docs", "foo-design.md");
+        seedDocsReviewRound(dir, doc, "spec-review-1.json", { docHash: sha256("v1"), content: "v2" });
+        const ok = runCli(["review", "--type", "spec", "--spec", doc, "--round", "2"],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(ok.exitCode).toBe(0);
+        expect(ok.stderr).toMatch(/new review round 2/);
+        const bad = runCli(["review", "--type", "spec", "--spec", doc, "--round", "1"],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(bad.exitCode).toBe(2);
+        expect(bad.stderr).toMatch(/≠ engine round/);
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it("plan 家族镜像：内容未变 → exit 3；内容演进 → 放行（plan-review 族同矩阵）", () => {
+      const dir = tmpGitRepo();
+      try {
+        const plan = path.join(dir, "plans", "foo.md");
+        seedDocsReviewRound(dir, plan, "plan-review-1.json", { docHash: sha256("p1"), content: "p1" });
+        const same = runCli(["review", "--type", "plan", "--plan", plan],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(same.exitCode).toBe(3);
+        writeFileSync(plan, "p2-different");          // 内容演进
+        const ev = runCli(["review", "--type", "plan", "--plan", plan],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(ev.exitCode).toBe(0);
+        expect(ev.stderr).toMatch(/CDD_INFO.*new review round 2/);
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it("doc 文件缺失（hashFile → 空哨兵 ≠ prev.hash）→ 按 ref 变静默放行、无 CDD_INFO、下游自然失败", () => {
+      const dir = tmpGitRepo();
+      try {
+        const doc = path.join(dir, "docs", "foo-design.md");
+        seedDocsReviewRound(dir, doc, "spec-review-1.json", { docHash: sha256("v1"), content: "v1" });
+        rmSync(doc);                                   // 删除现档——gate 放行（幽灵 doc 下游失败/或 dry-run 直接 exit 0）
+        const r = runCli(["review", "--type", "spec", "--spec", doc],
+          { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
+        expect(r.exitCode).toBe(0);                    // dry-run 下放行即 exit 0（真实模式由 runDocsTask 自然报错）
+        expect(r.stderr).not.toMatch(/CDD_INFO/);      // 空串哨兵抑制「内容演进」误导消息（gate `&& docHash` 条款）
+      } finally { rmSync(dir, { recursive: true, force: true }); }
+    });
   });
 });

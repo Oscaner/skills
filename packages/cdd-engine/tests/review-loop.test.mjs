@@ -1,10 +1,11 @@
 // packages/cdd-engine/tests/review-loop.test.mjs
-import { it, expect } from 'vitest';
+import { it, expect, describe } from 'vitest';
 import { runReviewLoop, reviewStoppedError } from '../lib/runner/review-loop.mjs';
 import { resolveNextRound } from '../lib/handoff/naming.mjs'; // T9 nit④：round 派生唯一真相在 handoff-naming
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 
 it("runReviewLoop: blocker=0 on first round → calls runFix once, exits", async () => {
   const calls = [];
@@ -74,4 +75,24 @@ it("resolveNextRound: per-type 命名模式（T4 后统一 canonical：task-{N}-
 it("reviewStoppedError: 携带 type/round/ref 的 Error", () => {
   const e = reviewStoppedError("spec", 2, "docs/x.md");
   expect(e.message).toMatch(/blocker=0/);
+});
+
+describe("hashFile（§2.3.1 内容状态 token：sha256 hex / 缺失 → 空串哨兵）", () => {
+  it("真实文件 → 64-char sha256 hex", async () => {
+    const { hashFile } = await import("../lib/runner/review-loop.mjs");
+    const dir = mkdtempSync(join(tmpdir(), "hashf-"));
+    const doc = join(dir, "a.md");
+    writeFileSync(doc, "hello p2");
+    const expectHex = createHash("sha256").update("hello p2").digest("hex");
+    expect(hashFile(doc)).toBe(expectHex);
+    expect(hashFile(doc)).toMatch(/^[0-9a-f]{64}$/);
+  });
+  it("缺失文件 → 空串哨兵（≠ 任何真实 hex）", async () => {
+    const { hashFile } = await import("../lib/runner/review-loop.mjs");
+    expect(hashFile(join(tmpdir(), "nope-p2-" + Date.now() + ".md"))).toBe("");
+  });
+  it("目录（readFileSync EISDIR）→ 空串哨兵（读失败统一归哨兵）", async () => {
+    const { hashFile } = await import("../lib/runner/review-loop.mjs");
+    expect(hashFile(tmpdir())).toBe("");
+  });
 });

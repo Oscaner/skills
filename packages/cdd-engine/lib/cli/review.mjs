@@ -7,7 +7,7 @@ import path from "node:path";
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, reviewHardGate } from "../templates.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
-import { reviewStoppedError } from "../runner/review-loop.mjs";
+import { reviewStoppedError, hashFile } from "../runner/review-loop.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { exitWithCode } from "../exit.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
@@ -78,16 +78,17 @@ export function blockerCount(handoff) {
 // must be re-dispatchable, so the gate requires status === "APPROVED" in addition to
 // blockerCount === 0 (SP-4): runner 8.5/8.8/10/10.5 and docs-runner failure paths write
 // status:BLOCKED|TIMEOUT with findings:[] → blockerCount alone would misjudge them as passed.
-export function stoppedExit3(type, round, ref, blocker) {
-  const e = reviewStoppedError(type, round, ref);   // structured error + message, single authority
+export function stoppedExit3(type, round, ref, blocker, opts) {
+  const e = reviewStoppedError(type, round, ref, opts);   // structured error + message, single authority
   process.stderr.write(`${e.message}\n` + (blocker ? `last blocker: ${blocker}\n` : ""));
   exitWithCode(3);
 }
 
 // Unified Stopping gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
 // round (findings:[]) must stay re-dispatchable (SP-4). ref is the type's target signature.
-export function reviewStoppingGuard(prev, type, round, ref) {
-  if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker);
+// opts 透传 reviewStoppedError reason（legacy/unchanged）——task/branch 调用面无 opts → 缺省文案不变。
+export function reviewStoppingGuard(prev, type, round, ref, opts) {
+  if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
 }
 
 // ---- review dispatch ----
@@ -127,9 +128,21 @@ export async function runReview(opts) {
       exitWithCode(2);
     }
     const prev = existingRoundHandoff(ws, opts.type, round - 1);
-    // Stopping only rejects a re-run of the SAME ref (doc) whose previous round is APPROVED
-    // with blocker=0; a changed ref = a new review, and a BLOCKED/TIMEOUT round = re-dispatchable (SP-4).
-    if (prev && (prev.doc_path ?? "") === doc) reviewStoppingGuard(prev, opts.type, round, doc);
+    // Stopping ref 状态绑定位（spec §2.3.2）：同路径 + 同 doc_hash → 同 ref（U1 硬停）；
+    // 内容演进 → 新 ref（自动放行新一轮）；legacy（无 doc_hash）→ 内容状态未知 → 保险硬停（§2.2 bullet 3）。
+    // BLOCKED/TIMEOUT 失败轮无视 hash 无声放行（SP-4）。
+    if (prev && (prev.doc_path ?? "") === doc) {
+      const docHash = hashFile(doc);
+      const legacy = prev.doc_hash == null;
+      const contentSame = !legacy && prev.doc_hash === docHash;
+      if (legacy || contentSame) {
+        reviewStoppingGuard(prev, opts.type, round, doc, { reason: legacy ? "legacy" : "unchanged" });
+      } else if (prev.status === "APPROVED" && docHash) {
+        // 内容演进 + 既有 clean review → 新 ref → 放行 + 自文档化。
+        // docHash 空串哨兵（ghost doc，§2.4）不印 CDD_INFO —— 已删文档非「演进」：静默放行、下游自然失败。
+        process.stderr.write(`CDD_INFO: doc content changed since round-${round - 1} clean review (${prev.doc_hash.slice(0, 8)} → ${docHash.slice(0, 8)}) → new review round ${round}\n`);
+      }
+    }
     // review 模板数据化 — spec/plan 走共享壳 review.md（reviews.json type=spec|plan 配置）。
     // REFERENCE 注入具体 doc 路径（cfg.ref "doc vs spec" 是关系概念，类比 task/branch 的 git-range
     // 符号经具体化注入）；内容占位（lensEnum/axesGuide）由 reviews.json 配置注入，artifact 参数

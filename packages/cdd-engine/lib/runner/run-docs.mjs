@@ -7,13 +7,29 @@ import path from "node:path";
 import { invokeCli, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
-import { writeHandoff } from "../handoff/write.mjs";
+import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
 import { loadRegistry, checkHarness, REG_PATH } from "../registry.mjs";
 import { loadHandoffSchema, validateHandoffSchema } from "../handoff/schema.mjs";
 import { renderHandoffStub, renderTemplate } from "../templates.mjs";
+import { hashFile } from "./review-loop.mjs";
 
 // REG_PATH 统一由 lib/registry.mjs 导出（spec §2.3 深度派生常数专项：run-docs 不再自算第二来源）。
+
+// BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / schema 无效两分支同形——
+// 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ writeHandoff → 读回返回。
+function writeBlocked({ handoffPath, mode, doc, blocker }) {
+  writeHandoff(handoffPath, {
+    phase: mode,
+    status: "BLOCKED",
+    findings: [],
+    artifacts: {},
+    doc_path: doc,
+    doc_hash: hashFile(doc),
+    blocker,
+  });
+  return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
+}
 
 export async function runDocsTask({
   harness,
@@ -64,29 +80,19 @@ export async function runDocsTask({
 
   // Read handoff from disk (agent writes it).
   if (!existsSync(handoffPath)) {
-    writeHandoff(handoffPath, {
-      phase: mode,
-      status: "BLOCKED",
-      findings: [],
-      artifacts: {},
-      doc_path: doc,
+    return writeBlocked({
+      handoffPath, mode, doc,
       blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${handoffPath} before exit`,
     });
-    return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
   }
 
   const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
   const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
   if (!sv.valid) {
-    writeHandoff(handoffPath, {
-      phase: mode,
-      status: "BLOCKED",
-      findings: [],
-      artifacts: {},
-      doc_path: doc,
+    return writeBlocked({
+      handoffPath, mode, doc,
       blocker: `docs handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
     });
-    return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
   }
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，
@@ -95,7 +101,17 @@ export async function runDocsTask({
   // persistFinalized（全量覆盖替换；派生无变化 → 同引用 skip 写盘，返回 false 不产生 no-op 覆盖）。
   if (mode === "review" || mode === "fix") {
     const finalized = finalizeHandoff({ mode, agentHandoff: handoff });
-    persistFinalized(handoffPath, handoff, finalized);
+    if (mode === "review") {
+      // P2 F5（§2.3.3）：review-mode 恒注入内容状态 token——引擎定稿（载体唯一作者 T7），
+      // 恒有 doc_hash 变更 → writeOwnHandoff 全量覆盖（不再复用 persistFinalized 的 skip-write）。
+      // 内存返回值与磁盘定稿一致：派生 status 覆写回写 local + doc_hash 同步。
+      const merged = { ...(finalized.handoff ?? handoff), doc_hash: hashFile(doc) };
+      writeOwnHandoff(handoffPath, merged);
+      handoff.status = merged.status;
+      handoff.doc_hash = merged.doc_hash;
+    } else {
+      persistFinalized(handoffPath, handoff, finalized);   // fix-mode 原样（无注入，负向对称）
+    }
   }
 
   return { exitCode: res.code, handoff };

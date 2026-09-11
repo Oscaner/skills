@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          findSuperpowersScriptsDir, runReviewPackage, resolveRepoRoot,
          buildTaskEnv } from "../lib/runner/run-task.mjs";
+import { ExitRequested } from "../lib/exit.mjs";
 import { spawnManaged, markAllDispatchesDone } from "../lib/lifecycle/proc.mjs";
 import { REG_PATH } from "../lib/registry.mjs";
 import { getRound } from "../lib/state/progress.mjs";
@@ -93,7 +94,8 @@ async function capture(runFn) {
     try {
       await runFn();
     } catch (e) {
-      if (!/process\.exit/.test(e.message)) throw e;
+      if (e instanceof ExitRequested) { code = e.code; }   // exit helpers 现 throw 哨兵（Task 3 review warn 修复）
+      else if (!/process\.exit/.test(e.message)) throw e;
     }
   } finally {
     process.exit = origExit;

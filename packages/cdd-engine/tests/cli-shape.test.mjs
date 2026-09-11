@@ -8,7 +8,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { execaSync } from 'execa';
 import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
@@ -27,7 +27,7 @@ const NODE = process.execPath;
 // CDD_LIFECYCLE_PATH（默认 <cwd>/.superpowers/cdd/lifecycle.json）。vitest pool:'forks' 并发
 // fork 若共用该文件，任一 fork 启动 reapStale 读到另一 fork 刚落盘的 in-flight 组（ownerPid ≠
 // 本 cdd）会按 orphan 连根误杀 → 每 fork 注入唯一 tmp 路径（process.pid 随 fork 唯一）（spec §2.2 A / §2.6）。
-const LIFECYCLE_PATH = path.join(os.tmpdir(), `cdd-lifecycle-clishape-${process.pid}.json`);
+const LIFECYCLE_PATH = forkLifecyclePath("clishape");
 
 // T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .superpowers/cdd/smoke-plan/{smoke-spec}/ ——
 // smoke 用例 teardown 清理（dry-run 不写盘，防御性清理兜底）。

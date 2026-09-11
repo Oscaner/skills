@@ -1,28 +1,28 @@
 // packages/cdd-engine/tests/exit.test.mjs — T1: exit helpers 模块单测（Node port of cdd_exit_*）。
 // 退出码契约：0=OK；1=BLOCKED；2=CLI missing。消息前缀 CDD_BLOCKED: / CDD_CLI_MISSING:。
-// process.exit 会终结进程 —— 测试内 stub 并捕获退出码，stderr 捕获写入文本。
+// T3 review warn 修复后 exit helpers throw ExitRequested（先展开 finally，bin 边界才 exit）——
+// 单测改为捕获该哨兵读退出码；stderr 捕获写入文本。
 import { it, expect } from 'vitest';
 
-import { exitOk, exitBlocked, exitCliMissing } from "../lib/exit.mjs";
+import { exitOk, exitBlocked, exitCliMissing, ExitRequested } from "../lib/exit.mjs";
 
-// 捕获 fn(...args) 触发的 process.exit(code) + stderr 写入；返回 { code, stderr }。
+// 捕获 fn(...args) 触发的 ExitRequested(code) + stderr 写入；返回 { code, stderr }。
 function captureExit(fn, ...args) {
-  const origExit = process.exit;
   const origWrite = process.stderr.write.bind(process.stderr);
   let code = null;
   let stderr = "";
-  process.exit = (c) => {
-    code = c;
-    throw new Error(`process.exit(${c})`);
-  };
   process.stderr.write = (s) => {
     stderr += s;
     return true;
   };
   try {
-    expect(() => fn(...args)).toThrow(/process\.exit/);
+    try {
+      fn(...args);
+    } catch (e) {
+      if (e instanceof ExitRequested) code = e.code;
+      else throw e;
+    }
   } finally {
-    process.exit = origExit;
     process.stderr.write = origWrite;
   }
   return { code, stderr };

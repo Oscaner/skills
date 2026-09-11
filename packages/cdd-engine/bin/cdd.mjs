@@ -14,7 +14,7 @@ import path from "node:path";
 
 import { initProcLifecycle, reapStale, teardownAll } from "../lib/lifecycle/proc.mjs";
 import { program, usageError } from "../lib/cli/parse.mjs";
-import { exitOk, exitCliMissing } from "../lib/exit.mjs";
+import { ExitRequested } from "../lib/exit.mjs";
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).
 const isMain =
@@ -40,16 +40,19 @@ if (isMain) {
   }
 
   program.parseAsync(process.argv).catch((e) => {
-    if (e.code === "commander.helpDisplayed") {
-      exitOk();
-    }
-    // Commander parse/usage errors (missing required option, unknown option, unknown command, ...) → usage + exit 2.
+    // 正常 run* 退出路径：exit helpers throw ExitRequested（先展开 run 边界 try/finally →
+    // teardownAll 连根回收），此处拦截 → process.exit(code)。直接 process.exit 是边界语义：
+    // 已无 finally 需要展开。不回收则 spec §2.2 B「run 边界连根回收」在 CLI 主线成死代码
+    //（进程 exit 不展开我们自己的 finally）。
+    if (e instanceof ExitRequested) process.exit(e.code);
+    // Commander parse/usage errors (missing required option, unknown option, unknown command, ...) → usage + exit 2。
+    if (e.code === "commander.helpDisplayed") process.exit(0);
     if (typeof e.code === "string" && e.code.startsWith("commander.")) {
       usageError(process.argv[2]);
     } else {
-      // Action errors → error message + exit 2.
+      // 非 ExitRequested 的 action/参数错误（如 intTask 抛的原始 Error）—— 既有语义统一 exit 2。
       process.stderr.write(`${e.message}\n`);
     }
-    exitCliMissing();
+    process.exit(2);
   });
 }

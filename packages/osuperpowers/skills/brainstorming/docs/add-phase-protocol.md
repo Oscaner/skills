@@ -16,6 +16,14 @@ Consistency check (must all hold before `sync-overall` exits):
 2. Every phase referenced by the Dependency graph exists in Phase inventory.
 3. Every hard-dependency predecessor of the new phase has **Design spec column = `Done`** (not shipped → hard BLOCKED).
 
+## 1.5 Issue-reference syntax levels (registration domain)
+
+The mechanical guard (`scripts/validate/overall-consistency.mjs`) scans only **anchored-form** issue references:
+- **Anchored form `#NNN#issuecomment-<digits>`** — canonical machine-checkable reference: whenever any document (overall / phase spec / plan) contains an anchor, `#NNN` must be registered in the Issue inventory (a new issue must be registered, or `pnpm run validate` exits 1).
+- **Bare `#NNN`** — ambiguous token (AC numbers / PR numbers / legacy references share `#`), not machine-disambiguable — no membership enforcement, judged by hand.
+- **Issue inventory = the registration domain**: every issue the program touches (owned finding + related/follow-up + pre-consume + re-assign destination) should appear in the table.
+- **3 trigger scenarios** (inherited from overall-spec-template semantics): ① a new issue discovered during phase execution → declare ownership + add a row; ② pre-consume → add a row + mark "pre-consumed" + note the actual fixing phase; ③ re-assign → update the Phase column.
+
 ## 2. Anti-pattern (live example, v1.19c)
 
 While writing v1.19c, P10 had only completed its design spec (not yet plan→dev→merge), yet this session parallel-expanded P14's design spec + 3-pass review — violating two disciplines at once:

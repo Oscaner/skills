@@ -91,11 +91,11 @@ flowchart TD
 ### `sync-overall`
 
 - **Do**: Read the parent overall → perform the four-table sync (procedure + checklist in [add-phase-protocol.md](./docs/add-phase-protocol.md)):
-  ① **Issue inventory** — append a new issue row (`#NNN` + owning phase; if this only splits an existing issue, fill the phase-ownership column);
+  ① **Issue inventory** — registration semantics (anchored-syntax levels + 3 trigger scenarios) delegate to [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5;
   ② **Phase inventory** — append a new phase row (scope / design spec / plan / acceptance / dependency);
   ③ **Dependency graph** — add hard/soft edges (the new phase's dependency on predecessors + successors' dependency on the new phase);
   ④ **version bump + change-history** entry (record the reason, user decision, scope boundary).
-  Then run the **four-table consistency check**: any `#NNN` referenced by the phase spec/plan must be in Issue inventory; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
+  Then run the **four-table consistency check**: the `#NNN` registration assertion (anchored-form refs must be registered in Issue inventory) delegates to [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
 - **Read**: full parent overall spec (the Design spec column of Phase inventory).
 - **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling-mode?`.
 - **Fail**: four tables inconsistent (e.g. dependency phase not shipped, dangling reference) → terminal `BLOCKED: overall-sync-failed`; never allow grilling an unregistered phase.
@@ -179,7 +179,7 @@ flowchart TD
 - **Do**: Commit spec document to git. Spec approved = commit immediately (I4); do not wait for dev merge.
 
   **Pre-commit overall spec 4-table sync check** (only when this phase is a sub-phase of an overall program; single-spec projects skip this check):
-  - Issue inventory: all `#NNN` issue numbers mentioned in this phase's spec or plan are registered in the overall Issue inventory (added or updated)
+  - Issue inventory: all `#NNN` issue numbers mentioned in this phase's spec or plan are registered in the overall Issue inventory (added or updated) — registration semantics (anchored-syntax levels + trigger scenarios) in [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5
   - Phase inventory: this phase row's scope / design spec / plan / acceptance criteria / dependency fields are updated to latest state
   - Dependency graph: if this phase adds or removes dependency relationships, the ASCII graph is synced
   - Change history: this phase's change has been appended as one row (including version + date + summary)

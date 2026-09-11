@@ -1,6 +1,6 @@
 # Session Report #246 收尾批次 — Overall Spec
 
-- **Version**: v1.13 · 2026-09-11
+- **Version**: v1.14 · 2026-09-12
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -62,11 +62,7 @@ Charter only — no implementation detail。
 | P7 | [#246#issuecomment-5616673296](https://github.com/Oscaner/skills/issues/246#issuecomment-5616673296) | F7 — submodule bump 自动创建 per-submodule 跟踪 issue 且永不关闭（#240/#241/#242 待归档） |
 | P7 | [#246#issuecomment-5616675016](https://github.com/Oscaner/skills/issues/246#issuecomment-5616675016) | F8 — submodule bump 陈旧 open PR 无回收机制（#117/#118 待关闭） |
 
-### Update trigger conditions
-
-phase 执行期发现新 issue / pre-consume / 重新归属：按 [add-phase-protocol](../../packages/osuperpowers/skills/brainstorming/docs/add-phase-protocol.md) 四处同步（Issue inventory + version bump + change history + Phase inventory/Dependency）。
-
-**Missed-update detection**：任何 phase spec / plan 引用具体 issue 编号（`#NNN` 或 `#246#issuecomment-…` 锚点）而未出现在本 overall Issue inventory，即为 sync 违例；P4 机械守卫落地前由人工检测把握。
+Issue 注册域语义（新发现 / pre-consume / re-assign 触发 + 锚点语法定级）见 [add-phase-protocol](../../packages/osuperpowers/skills/brainstorming/docs/add-phase-protocol.md) §1.5。
 
 ---
 
@@ -133,3 +129,4 @@ P7 独立（workflow 精简）
 | v1.11 | 2026-09-11 | P2 spec → v1.1（plan-review r1-r2 驱动）：gate CDD_INFO 增 `&& docHash` 抑制 ghost-doc 误导消息 + §2.4/§2.5 补 BLOCKED 失败轮无声放行、ghost 边角断言、真实 schema 往返；plan 全量 review 收敛 APPROVED（r1 1 blocker + 1 warn + 4 nit 全 fix → r2 blocker=0）；P2 Design-spec 列 v1.0→v1.1（v1.10→v1.11） | [human] · Claude Opus 5 (1M context) |
 | v1.12 | 2026-09-11 | P2 dev shipped：CDD 四任务全 APPROVED（hashFile → gate 双签名 + reason 消息 + 矩阵 → doc_hash 定稿注入 → review.md docs + emit + changeset）+ branch-review r1 APPROVED（1 nit fix-inline：changeset EOF；task-3 nit：writeBlocked 收敛）；PR 待建（base develop）；Phase inventory P2 plan 列回填（[Pending]→Done）——F13 closeout 检查点执行（v1.11→v1.12） | [human] · Claude Opus 5 (1M context) |
 | v1.13 | 2026-09-11 | P4 design spec（`...-p4-design.md` v1.0）：高维度方案——canonical 7 列头专属守卫 + 回填声明↔列双向 shipped 判定（Q2）+ 声明式 issue 注册域（锚点形式唯一机器可判，Q3 上探）+ slug 后缀 glob（跨日期 phase 文档）+ 非 canonical 全文件 skip；spec-review r1 1 blocker（日期前缀推导伪报 shipped）先修 → r1' APPROVED blocker=0（10 findings 全 fix，含 §2.6.7 engine hardening 狗食发现）；P4 scope 扩展（用户「skills/docs 臃肿」指令 + 狗食发现：登记规则 5 站收敛 1 SSoT + CDD 死档清除 + engine 两处健壮性修复 + changeset 增 cdd-engine patch）；Phase inventory P4 scope/acceptance 更新 + Design-spec 列回填（[Pending]→P4-design v1.0）——§2.6 项 4（overall 自身段落委托 add-phase-protocol §注册域）随 P4 dev 落盘协议后执行（v1.12→v1.13） | [human] · Claude Opus 5 (1M context) |
+| v1.14 | 2026-09-12 | 登记规则收敛：add-phase-protocol §1.5（锚点语法定级 + 注册域 + 3 触发场景）成唯一 SSoT → overall-spec-template §Update trigger conditions + §Missed-update detection 独立表述删除改委托一行、SKILL.md commit-spec 清单 Issue inventory 行 + sync-overall ① 注册语义与 consistency check `#NNN` 注册断言委托（② ③ ④ 结构性行保留本地）；本 overall 自身段落（§Update trigger conditions / §Missed-update detection）同改委托 add-phase-protocol §1.5，删除「P4 机械守卫落地前由人工检测把握」过期措辞（守卫已随本 phase 落地）（v1.13→v1.14） | [human] · Claude Opus 5 (1M context) |

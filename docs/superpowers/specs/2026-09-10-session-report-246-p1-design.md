@@ -1,6 +1,6 @@
 # P1 cdd-engine 进程生命周期统一管理 + 结构重排 — Phase Spec
 
-- **Version**: v1.0
+- **Version**: v1.2（v1.0 → v1.1：registry 条目字段定案 `ownerPid/done` + 进程内 idle 监视细化；v1.1 → v1.2：`CDD_LIFECYCLE_PATH` 注入缝 + 执行顺序验证纪律（node --check 中间态收敛）+ `.npmignore` 保留 `**/.gitkeep` 活条目——均 plant-review r1-r4 驱动，2026-09-11）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-10-session-report-246-overall.md](2026-09-10-session-report-246-overall.md)（v1.4 → 本 phase 扩展后 v1.5）
@@ -49,7 +49,8 @@ F1 实测：连续多次 CDD 运行后 `claude -p` implementer 驻留进程累�
 
 - spawn 语义：`detached: true` → 独立进程组（pgid = 子 PID）；stdout/stderr 管道继承不变（stream-json 契约不动）。**弃用 execa `cleanup: true`**——实测 execa v9 在 `detached: true` 下 cleanup 终止钩子不安装（`execa/lib/terminate/cleanup.js` 首行 `if (!cleanup || detached) return;`），`cleanup: true` 是静默 no-op；父死回收改由下述跨 run 机制承担。
 - 父死回收机制（引擎被杀兜底；替代被弃用的 cleanup）：run 级 registry 双写内存 + 落盘（`.superpowers/cdd/lifecycle.json`，跨 run 复用同一路径）；引擎被 SIGKILL/crash 时同进程无处理器可执行（SIGKILL 不可捕获），回收延后至下次引擎启动：启动先做跨 run `reapStale()` —— 读 registry 持久项 + `ps` 扫描孤儿 pgid（组内 leader 已死而组仍存活）→ 走 §2.2 B 连根回收。
-- 注册：每个派生组写入 run 级 registry `{ pgid, label, dispatch, createdAt }`。
+- 注册：每个派生组写入 run 级 registry `{ pgid, label, createdAt, ownerPid, done }`——`ownerPid` 支撑跨 run 孤儿判定（组 leader 存活而 owner 引擎已死 = 残留）；`done` = 该组所属 dispatch 已返回（由 invokeCli/直调点每 attempt 落 `markAllDispatchesDone()`），供进程内空闲监视回收（v1.1 定案：弃设计初稿的 `dispatch` 字段，`createdAt`+`label` 已足诊断）。
+- 落盘路径默认 `<cwd>/.superpowers/cdd/lifecycle.json`（相对启动 cwd）；**测试/多进程并发场景经环境变量 `CDD_LIFECYCLE_PATH` 覆盖**（vitest `pool:'forks'` 下各 fork 注入唯一 tmp 路径，避免跨 fork 共享文件时启动 reapStale 误杀在途组）。
 
 **B. `teardownAll()` 统一回收点** —— run 边界 + CLI 信号：
 
@@ -58,8 +59,8 @@ F1 实测：连续多次 CDD 运行后 `claude -p` implementer 驻留进程累�
 
 **C. Idle backstop（超时兜底）** —— dispatch 已返回而进程组仍存活者（超时孤儿 / 正常退出残留 server）：
 
-- run 边界与长 run 低频监视点执行 `reapStale()`：registry 中存活超时组 → 走 B 的连根回收；
-- 跨 run 兜底：引擎被 SIGKILL/crash 的孤儿组无同进程处理器可即时回收，registry 落盘项在下次引擎启动时被跨 run `reapStale()` 扫回（`ps` 孤儿 pgid → 连根回收，见 A）。
+- **进程内空闲监视**（v1.1 细化）：每次 dispatch（含 retry 的每个 attempt）返回后 `markAllDispatchesDone()` 把相应组标 done；run 入口 `startIdleMonitor({ intervalMs })` 启动低频定时器，周期 `reapDone()`：registry 中 **done 且存活** 的组 → 走 B 的连根回收（长 run 中 retry 失败 attempt、残留 server 不等到 run 边界）；run 边界 `stopIdleMonitor()` + teardownAll 双兜。
+- **跨 run 兜底**：引擎被 SIGKILL/crash 的孤儿组无同进程处理器可即时回收，registry 落盘项在下次引擎启动时被跨 run `reapStale()` 扫回（`ownerPid` ≠ 本进程 + `ps` 孤儿 pgid → 连根回收，见 A）。
 
 **D. 契约不变与反悖守卫** ——
 
@@ -122,24 +123,24 @@ packages/cdd-engine/
   - `bin/tests/registry.test.mjs` L11 同形 `REG_PATH = new URL("../harness-registry.json", import.meta.url)` 随 tests 移顶层后指向 `packages/cdd-engine/harness-registry.json`（文件已在 `lib/`）必坏——改从 `lib/registry.mjs` 导入或改 `../lib/harness-registry.json`，列入 re-org 回归断言清单；
   - 保留 templates.content / schema-utils 全套测试作绿灯凭据。
 - `package.json#files` 由 `["bin/","templates/"]` 收敛为 `["bin/","lib/","templates/"]` —— 修「tests 随包发进 npm」发布面债（`npm pack --dry-run` 断言）；
-- `.npmignore` 死条目清理：`bin/tests/`（tests 移顶层）与 `**/.gitkeep`（gitkeep 标记随目录位移 bin → lib / tests）删除或改指新位置，隔离统一由 `files` 白名单承担；
+- `.npmignore` 死条目清理：仅删 `bin/tests/`（tests 移顶层）；**保留 `**/.gitkeep`**——`bin/.gitkeep` / `lib/.gitkeep` 仍驻 bin/lib 目录族，files 白名单（`["bin/","lib/","templates/"]`）下若无该排除，空目录标记会随包发布（实测 `npm pack` tarball 含 `bin/.gitkeep`），该条是活过滤器而非死条目；隔离由 `files` 白名单 + `**/.gitkeep` 双承担；
 - `scripts/validate/residue.mjs` 机制位置 → `bin + lib + templates`；
 - `scripts/validate/smoke-cdd.mjs`：① entry + fixture 路径；② `checkDeletionSurface` 的 `ENGINE` 作用域 const（`["packages/cdd-engine/bin"]` → `["packages/cdd-engine/bin", "packages/cdd-engine/lib"]`）——G2 --harness 词表扫描随 commander 参数定义移入 `lib/cli/parse.mjs`，ENGINE 覆盖扩至 lib；③ G3 --doc 扫描 scope 用的是**独立单文件入口路径**（`path.join("packages","cdd-engine","bin","cdd.mjs")`，非 ENGINE）——bin/cdd.mjs 薄入口化后零 flag 定义，该路径须改指 `lib/cli/parse.mjs`，否则 G3 退役 flag 语汇守卫对 engine 覆盖静默丢失；②③ 同步后 AC4「机制位置同步」对 G2/G3 均兑现；
 - `docs/superpowers/{specs,plans}/*` 历史文档路径不改（记录豁免，residue 已豁免 docs）；
 - 发布 CLI 接口（`cdd <subcommand>`）不变 —— 消费方（cli-driven-development SKILL 等）零破坏。
 
-**执行顺序：先纯机械 re-org（git mv + import 更新，每步 validate 绿）→ proc-lifecycle 落在新布局**——每个模块只动一次。
+**执行顺序：先纯机械 re-org（git mv + import 更新；中间步骤以 `node --check` 语法闭环为凭据——批次 mv 语义下中间态允许暂时红、禁止提前修未收敛中间态；Step 4 收敛后恢复全量套件，Step 7 全量 validate 闭环）→ proc-lifecycle 落在新布局**——每个模块只动一次。
 
 ### 2.4 数据流（lifecycle）
 
 ```
 spawn（任一 dispatch）──→ spawnManaged（detached + pgid）──→ registry.push({pgid,...})
                                                                         │
-dispatch 完成/超时/被杀 ──→ run 边界 finally ──→ teardownAll()
+dispatch 返回 ──────────→ markAllDispatchesDone()（组置 done）──→ 空闲监视 reapDone()（done+存活 → 连根回收）
+dispatch 完成/超时/被杀 ──→ run 边界 finally ──→ stopIdleMonitor + teardownAll()
         │                                            ├─ SIGTERM(−pgid) → 5s → SIGKILL(−pgid)
         │                                            └─ registry.clear()
-长 run 低频监视 ────────→ reapStale()：存活超时组 → 连根回收
-引擎进程被杀 ───────────→ registry 落盘留存 → 下次启动跨 run reapStale()（ps 孤儿 pgid）→ 连根回收
+引擎进程被杀 ───────────→ registry 落盘留存（ownerPid）→ 下次启动跨 run reapStale() → 连根回收
 ```
 
 ### 2.5 错误与边界处理
@@ -154,10 +155,11 @@ dispatch 完成/超时/被杀 ──→ run 边界 finally ──→ teardownAll
 - **proc-lifecycle 单测**（`tests/lifecycle.proc.test.mjs`）：
   - 派生组触发隔离：子进程 spawn 孙进程，teardown 后孙进程必死（环境不允许时 skip 保护）；
   - `teardownAll()` 后 registry 为空；存活组被 SIGTERM/SIGKILL 连根回收；
-  - `reapStale()` 对存活超时组执行回收、对已消失组 fail-open；
-  - SIGINT/SIGTERM 路径触发 teardown；
-  - 跨 run 父死回收：registry 落盘 → 模拟引擎被 SIGKILL（`kill -9`）→ 新进程启动跨 run `reapStale()`，`ps` 确认孤儿组（leader 已死、组仍存活，含孙代 session server）被连根收回；
-  - 架构违例守卫：引擎派生点全部经 `spawnManaged`（registry 覆盖度）。
+  - `reapStale()` 对存活超时组执行回收（构造存活组断言 SIGTERM/SIGKILL 落）、对已消失组 fail-open；
+  - `reapDone()` 对 done+存活组执行回收（长 run 空闲监视语义）；
+  - SIGINT/SIGTERM 路径触发 teardown（对 `bin/cdd.mjs` 子进程发信号，断言退出语义与组回收）；
+  - 跨 run 父死回收：registry 落盘 → 新 proc 模块实例（ownerPid 异，模拟引擎被 SIGKILL）`reapStale()`，`pgrep` 确认孤儿组（leader 已死、组仍存活，含孙代 session server）被连根收回；
+  - 架构违例守卫：引擎全部派生经 `spawnManaged`（registry 覆盖度；execa 直接 import 仅允许 `lib/lifecycle/proc.mjs`）。
   - 兼容 `pool: 'forks'`（现有 vitest config 不变）。
 - **re-org 回归**：既有全套 engine 测试（`pnpm -C packages/cdd-engine test`）在 mv 后全绿；residue / smoke 路径断言更新后 `pnpm run validate` 12 块全绿。
 

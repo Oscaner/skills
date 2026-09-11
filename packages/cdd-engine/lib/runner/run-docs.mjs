@@ -4,16 +4,15 @@
 // Bug L fix: subprocess cwd = gitToplevel(process.cwd()), not workspace/doc directory.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { invokeCli, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { writeHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
-import { loadRegistry, checkHarness } from "../registry.mjs";
+import { loadRegistry, checkHarness, REG_PATH } from "../registry.mjs";
 import { loadHandoffSchema, validateHandoffSchema } from "../handoff/schema.mjs";
 import { renderHandoffStub, renderTemplate } from "../templates.mjs";
 
-const REG_PATH = fileURLToPath(new URL("../harness-registry.json", import.meta.url));
+// REG_PATH 统一由 lib/registry.mjs 导出（spec §2.3 深度派生常数专项：run-docs 不再自算第二来源）。
 
 export async function runDocsTask({
   harness,

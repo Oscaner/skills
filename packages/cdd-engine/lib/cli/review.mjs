@@ -5,16 +5,11 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
-import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK, reviewHardGate, renderHandoffStub } from "../templates.mjs";
+import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, reviewHardGate } from "../templates.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
-import { validateHandoffSchema, loadHandoffSchema } from "../handoff/schema.mjs";
 import { reviewStoppedError } from "../runner/review-loop.mjs";
-import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
-import { finalizeHandoff } from "../handoff/finalize.mjs";
-import { invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
-import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
-import { runBranchReview } from "./branch-review.mjs";
+import { exitWithCode } from "../exit.mjs";
 
 export const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 
@@ -112,6 +107,7 @@ export async function runReview(opts) {
       process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
       process.exit(2);
     }
+    const { runBranchReview } = await import("./branch-review.mjs");   // lazy: breaks review↔branch-review import cycle
     return await runBranchReview({ ...opts, harness });
   }
 

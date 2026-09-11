@@ -189,7 +189,7 @@ git commit -m "feat(validate): overall-consistency parser core + table well-form
 - Create: `scripts/validate/fixtures/overall-consistency/specs/drift-claimvs-pending-overall.md`
 - Create: `scripts/validate/fixtures/overall-consistency/specs/drift-missingdoc-overall.md`
 - Create: `scripts/validate/fixtures/overall-consistency/specs/drift-anchor-unregistered-overall.md`
-- Create: `scripts/validate/fixtures/overall-consistency/specs/drift-anchor-unregistered-p1.md`（phase 文档，含 `#999#issuecomment-123456789` 锚点）
+- Create: `scripts/validate/fixtures/overall-consistency/specs/drift-anchor-unregistered-p1.md`（phase 文档，含未注册 issue 锚点示例——fixture 内字形见 Step 1 用例，此处不写全锚点字形以免被 ④a 守卫自扫描误判）
 - Create: `scripts/validate/fixtures/overall-consistency/specs/drift-designclaim-fail-overall.md`
 - Create: `scripts/validate/fixtures/overall-consistency/specs/drift-noclaim-done-overall.md`
 - Create: `scripts/validate/fixtures/overall-consistency/specs/span-mixed-overall.md`（date 2026-09-05）

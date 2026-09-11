@@ -1,13 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/overall-consistency.mjs — P4 block 12: overall-consistency
-// mechanical guard, part 1 (parser core + table well-formedness checks ③/④b/④c;
-// backfill/design-plan checks ①/② + dependency-graph membership wire into Task 3).
-//
-// Canonical gate: only overall specs whose Phase inventory header is the canonical
-// 7-column form (…| Design spec | Implementation plan | Acceptance criteria |
-// Dependency |) are guarded; non-canonical files (e.g. post-dogfood 8-column legacy)
-// are logged and skipped, never fail. A missing/broken Phase inventory table is
-// §2.4 malformed — loadOverallFile returns { ok: false } and main() skips, not fail.
+// mechanical guard (parser core + four-table consistency).
 //
 // Checks in this module:
 //   ③ change history versions strictly ascending (`v<major>.<minor>` tuple), no
@@ -16,6 +9,22 @@
 //      column predecessors all ∈ Phase inventory ids.
 //   ④c Issue inventory ref 列宽松读取（`#\d+` 起始可带说明文字 / 含
 //      `#issuecomment-\d+` / `none` / `(…)` 文本）+ Phase 列 ∈ Phase inventory ids.
+//   ① Backfill claim ↔ Phase inventory column bidirectional — change history
+//      closeout declarations（`Pending → <target>`，brackets optional、ranges
+//      `P1–P4/P6` 含端点）: mand-forward (claim ⇒ column) for plan + design,
+//      reverse (shipped plan column ⇒ claim) for plan only.
+//   ② plan/design document existence — slug-suffix glob
+//      `*-<slug>-p<n>{,-design}.md` across specs/ + plans/ (cross-date phase
+//      docs hit via suffix, not date prefix); design column asserts only its own
+//      `P<n>-design` token (cross-refs like （源 P3-design） ignored); >1 hit → dup.
+//   ④a Anchor registry — `#(\d+)#issuecomment-\d+` anchors in phase docs must
+//      reference an issue number present in the Issue inventory ref set.
+//
+// Canonical gate: only overall specs whose Phase inventory header is the canonical
+// 7-column form (…| Design spec | Implementation plan | Acceptance criteria |
+// Dependency |) are guarded; non-canonical files (e.g. post-dogfood 8-column legacy)
+// are logged and skipped, never fail. A missing/broken Phase inventory table is
+// §2.4 malformed — loadOverallFile returns { ok: false } and main() skips, not fail.
 //
 // Standalone (`node scripts/validate/overall-consistency.mjs`) scans
 // docs/superpowers/specs/*-overall.md; exposed via `steps` for index.mjs (Task 3).
@@ -26,6 +35,7 @@ import { join } from "node:path";
 import { runIfMain } from "./runner.mjs";
 
 const SPECS_DIR = join(process.cwd(), "docs", "superpowers", "specs");
+const PLANS_DIR = join(process.cwd(), "docs", "superpowers", "plans");
 
 // `| # | Phase | …` — canonical Phase inventory header row (7 columns, the marker
 // for the "four tables" mechanical guard surface). The `#` + `Phase` prefix pins the
@@ -50,13 +60,34 @@ function sectionRange(lines, headingRe) {
   return { start, end };
 }
 
+// Split a table row into cells on unescaped `|`: a `\|` inside a cell (markdown
+// escaped pipe, e.g. real cdd-overhaul scope `task\|branch\|spec\|plan`) stays a
+// literal pipe within the cell instead of shifting every later column.
+function splitCells(t) {
+  const cells = [];
+  let buf = "";
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === "\\" && t[i + 1] === "|") {
+      buf += "|";
+      i++;
+    } else if (t[i] === "|" && t[i - 1] !== "\\") {
+      cells.push(buf.trim());
+      buf = "";
+    } else {
+      buf += t[i];
+    }
+  }
+  cells.push(buf.trim());
+  return cells;
+}
+
 // Table rows between section headings (inclusive of the table header/separator
 // rows — caller filters those). A row is a line trimmed to `| … |`.
 function tableRows(lines, range) {
   const rows = [];
   for (let i = range.start + 1; i < range.end; i++) {
     const t = lines[i].trim();
-    if (t.startsWith("|") && t.endsWith("|")) rows.push(t.split("|").map((s) => s.trim()));
+    if (t.startsWith("|") && t.endsWith("|")) rows.push(splitCells(t));
   }
   return rows;
 }
@@ -105,7 +136,7 @@ export function loadOverallFile(filePath) {
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const t = lines[i].trim();
     if (t.startsWith("| P") && t.endsWith("|")) {
-      const c = t.split("|").map((s) => s.trim());
+      const c = splitCells(t);
       if (c.length >= 8) {
         phaseIds.push(c[1]);
         base.phases.push({ id: c[1], design: c[3], plan: c[4], dependency: c[6] });
@@ -220,6 +251,197 @@ export function checkDepGraphMembership(graphTokens, phaseIds, phases) {
   }
 }
 
+// ---------- Task 2: semantic checks ①/②/④a ----------
+
+// Claim clause boundary: `；`/`;` separates change-history sentences, and a claim
+// only attaches the phases of its own clause (cdd-overhaul v1.27 carries a plan
+// claim clause AND a design claim clause in one history row).
+const CLAUSE_SEP = /[；;]/;
+// `Pending → <target>` with brackets optional; target stops at whitespace /
+// CJK punctuation / brackets so `→ **Done**（PR …` or `→ P4-design v1.0）` do not
+// over-capture.
+const CLAIM_RE = /(Pending|\[Pending\])\s*(?:→|->)\s*([^\s；;，,、（）()【】\[\]]+)/i;
+const PLAN_CLAIM_LK = /(?:plan|计划)/i; // plan claim: summary mentions a plan-word
+const DESIGN_CLAIM_LK = /Design[-\s]?spec/i; // design claim: mentions Design [-]spec
+// Range expansion includes endpoints: `P1–P4/P6` → P1..P4 + P6 (`–` en-dash).
+const RANGE_RE = /P(\d+)(?![0-9])(?:[a-z])?\s*[–—\-]\s*P(\d+)(?![0-9])(?:[a-z])?/g;
+const SINGLE_PHASE_RE = /P(\d+)(?![0-9])[a-z]?/g;
+
+// A claim target normalized to a comparable key: `P<n>-design` token for design
+// claims, else the bare `Done`-style token (`**`/（…） 剥除）。
+function claimKey(raw) {
+  const t = (raw ?? "").replace(/\*\*/g, "").trim().replace(/[）】\]]+$/u, "");
+  const d = t.match(/(P\d+(?![0-9])[a-z]?-design)/i);
+  return d ? d[1] : t;
+}
+
+function isPendingText(v) {
+  const t = (v ?? "").trim().toLowerCase();
+  return t === "" || t === "pending" || t === "[pending]";
+}
+
+function columnValue(v) {
+  return (v ?? "").replace(/\*\*/g, "").trim();
+}
+
+// The phase's own design-spec token `P<n>-design` in its Design spec column
+// （cross-references like `（源 P3-design）` are NOT the own token）.
+function ownDesignToken(col, phaseId) {
+  const num = phaseId.replace(/^P/i, "");
+  const m = (col ?? "").match(new RegExp(`P${num}(?![0-9])-design`, "i"));
+  return m ? m[0] : null;
+}
+
+// ① 回填声明抽取：遍历 change-history summary，逐句（clause）识别
+// `plan`/`Design spec` 词的 `Pending → <target>` 回填声明，句中 phase 引用做
+// 区间展开（含端点）；返回 plan/design 两组 { phaseId → target key }。
+export function extractClaimRows(historyRows) {
+  const planClaims = new Map();
+  const designClaims = new Map();
+  for (const row of historyRows) {
+    for (const clause of (row.summary ?? "").split(CLAUSE_SEP)) {
+      if (PLAN_CLAIM_LK.test(clause)) {
+        const m = clause.match(CLAIM_RE);
+        if (m) {
+          const key = claimKey(m[2]);
+          // design-token 目标是 design claim；plan claim 目标须为 plain 词（Done 等）
+          if (key && !isPendingText(key) && !/P\d+(?![0-9])[a-z]?-design/i.test(key)) {
+            for (const pid of phaseIdsIn(clause)) planClaims.set(pid, key);
+          }
+        }
+      }
+      if (DESIGN_CLAIM_LK.test(clause)) {
+        const m = clause.match(CLAIM_RE);
+        if (m) {
+          const key = claimKey(m[2]);
+          if (key && /P\d+(?![0-9])[a-z]?-design/i.test(key)) {
+            for (const pid of phaseIdsIn(clause)) designClaims.set(pid, key);
+          }
+        }
+      }
+    }
+  }
+  return { planClaims, designClaims };
+}
+
+function phaseIdsIn(clause) {
+  const ids = new Set();
+  for (const m of clause.matchAll(RANGE_RE)) {
+    const a = +m[1];
+    const b = +m[2];
+    for (let n = Math.min(a, b); n <= Math.max(a, b); n++) ids.add(`P${n}`);
+  }
+  for (const m of clause.matchAll(SINGLE_PHASE_RE)) ids.add(`P${m[1]}`);
+  return [...ids];
+}
+
+// ① Backfill claim ↔ Phase inventory column bidirectional（正向 claim→列 +
+// 反向 仅 plan：shipped plan 列必须有 closeout 声明）。
+export function checkBackfillClaims(phases, historyRows) {
+  const { planClaims, designClaims } = extractClaimRows(historyRows);
+  const byId = new Map(phases.map((p) => [p.id, p]));
+  for (const [pid, key] of planClaims) {
+    const p = byId.get(pid);
+    if (!p) throw new Error(`backfill claim 引用 Phase inventory 之外的 ${pid}（claim → 未知 phase）`);
+    if (columnValue(p.plan) !== key) {
+      throw new Error(
+        `backfill claim 与列不一致（① 正向 plan）: ${pid} Implementation plan 列 ${JSON.stringify(p.plan)} ≠ claim ${key}（shipped 需回填列）`,
+      );
+    }
+  }
+  for (const [pid, key] of designClaims) {
+    const p = byId.get(pid);
+    if (!p) throw new Error(`backfill claim 引用 Phase inventory 之外的 ${pid}（claim → 未知 phase）`);
+    const own = ownDesignToken(p.design, pid);
+    if (!own || own.toLowerCase() !== key.toLowerCase()) {
+      throw new Error(
+        `backfill claim 与列不一致（① 正向 design）: ${pid} Design spec 列需含自身 ${key} token（实际 ${JSON.stringify(p.design)}）`,
+      );
+    }
+  }
+  for (const p of phases) {
+    if (isPendingText(p.plan)) continue;
+    if (!planClaims.has(p.id)) {
+      throw new Error(`plan 列已完成但 change history 无对应 plan-claim（① 反向 missing backfill claim）: ${p.id}`);
+    }
+  }
+}
+
+// ② plan/design 文档存在性：slug 后缀 glob `*-<slug>-p<n>{,-design}.md`（跨日期
+// phase 文档经后缀命中，非日期前缀）；design 列仅断言自身 `P<n>-design` token；
+// glob（同 slug+phase）命中 >1 → 重复文档。
+export function checkDocExistence(phases, slug, specsRoot, plansRoot) {
+  let specs = [];
+  let plans = [];
+  try {
+    specs = readdirSync(specsRoot);
+    plans = readdirSync(plansRoot);
+  } catch {
+    // 目录缺 → 视为无文档，由下方 missing 判定兜底
+  }
+  const planSuffix = (id) => `-${slug}-${id.toLowerCase()}.md`;
+  const designSuffix = (id) => `-${slug}-${id.toLowerCase()}-design.md`;
+  for (const p of phases) {
+    if (!isPendingText(p.plan)) {
+      const hits = plans.filter((n) => n.endsWith(planSuffix(p.id)));
+      if (hits.length === 0) {
+        throw new Error(`plan 文档缺失（missing plan doc）: 需 *${planSuffix(p.id)}（${p.id} plan 列非 Pending）`);
+      }
+      if (hits.length > 1) {
+        throw new Error(`plan 文档重复（duplicate plan doc）: ${hits.join(", ")}`);
+      }
+    }
+    const own = ownDesignToken(p.design, p.id);
+    if (own) {
+      const hits = specs.filter((n) => n.endsWith(designSuffix(p.id)));
+      if (hits.length === 0) {
+        throw new Error(`design 文档缺失（missing design doc）: 需 *${designSuffix(p.id)}（${p.id} Design spec 列含 ${own}）`);
+      }
+      if (hits.length > 1) {
+        throw new Error(`design 文档重复（duplicate design doc）: ${hits.join(", ")}`);
+      }
+    }
+  }
+}
+
+// ④a 锚点注册域：被扫描文件中的 `#NNN#issuecomment-\d+` 锚点，其 issue 编号必须
+// 属于 Issue inventory ref 列的 `#\d+` token 集。
+export function checkAnchorRegistry(issues, scanFiles) {
+  const universe = new Set();
+  for (const { ref } of issues) {
+    for (const m of (ref ?? "").matchAll(/#(\d+)/g)) universe.add(m[1]);
+  }
+  for (const file of scanFiles) {
+    let raw;
+    try {
+      raw = readFileSync(file, "utf8");
+    } catch {
+      continue; // 文件不可读 → 无可扫描内容
+    }
+    for (const m of raw.matchAll(/#(\d+)#issuecomment-\d+/g)) {
+      if (!universe.has(m[1])) {
+        throw new Error(`锚点 issue #${m[1]} 不在 Issue inventory 注册域（unregistered anchor）: ${file}`);
+      }
+    }
+  }
+}
+
+// ④a scan 面 = overall 自身 + 同 slug 的全部 phase 文档（specs + plans 双目录）。
+function anchorScanFiles(overallFile, slug) {
+  const files = [overallFile];
+  const re = new RegExp(`-${slug}-p\\d+(?:-design)?\\.md$`);
+  for (const dir of [SPECS_DIR, PLANS_DIR]) {
+    let names;
+    try {
+      names = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const n of names) if (re.test(n)) files.push(join(dir, n));
+  }
+  return files;
+}
+
 export function main() {
   if (!existsSync(SPECS_DIR)) {
     console.log("SKIP — no docs/superpowers/specs");
@@ -230,7 +452,8 @@ export function main() {
   for (const name of readdirSync(SPECS_DIR).sort()) {
     if (!name.endsWith("-overall.md")) continue;
     total++;
-    const o = loadOverallFile(join(SPECS_DIR, name));
+    const file = join(SPECS_DIR, name);
+    const o = loadOverallFile(file);
     if (!o.ok) {
       console.error(`CDD_INFO: malformed ${name} — skipped (${o.reason})`);
       continue;
@@ -243,6 +466,9 @@ export function main() {
     checkVersionAscending(o.historyRows);
     checkDepGraphMembership(o.graphTokens, phaseIds, o.phases);
     checkIssueRefsWellFormed(o.issues, phaseIds);
+    checkBackfillClaims(o.phases, o.historyRows); // ① 回填声明 ↔ 列双向
+    checkDocExistence(o.phases, o.slug, SPECS_DIR, PLANS_DIR); // ② 文档存在性 glob
+    checkAnchorRegistry(o.issues, anchorScanFiles(file, o.slug)); // ④a 锚点注册域
     checked++;
     console.log(`OK — ${name} (${o.phases.length} phases)`);
   }

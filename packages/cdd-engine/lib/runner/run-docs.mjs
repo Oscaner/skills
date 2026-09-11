@@ -16,6 +16,21 @@ import { hashFile } from "./review-loop.mjs";
 
 // REG_PATH 统一由 lib/registry.mjs 导出（spec §2.3 深度派生常数专项：run-docs 不再自算第二来源）。
 
+// BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / schema 无效两分支同形——
+// 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ writeHandoff → 读回返回。
+function writeBlocked({ handoffPath, mode, doc, blocker }) {
+  writeHandoff(handoffPath, {
+    phase: mode,
+    status: "BLOCKED",
+    findings: [],
+    artifacts: {},
+    doc_path: doc,
+    doc_hash: hashFile(doc),
+    blocker,
+  });
+  return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
+}
+
 export async function runDocsTask({
   harness,
   mode,
@@ -65,31 +80,19 @@ export async function runDocsTask({
 
   // Read handoff from disk (agent writes it).
   if (!existsSync(handoffPath)) {
-    writeHandoff(handoffPath, {
-      phase: mode,
-      status: "BLOCKED",
-      findings: [],
-      artifacts: {},
-      doc_path: doc,
-      doc_hash: hashFile(doc),
+    return writeBlocked({
+      handoffPath, mode, doc,
       blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${handoffPath} before exit`,
     });
-    return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
   }
 
   const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
   const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
   if (!sv.valid) {
-    writeHandoff(handoffPath, {
-      phase: mode,
-      status: "BLOCKED",
-      findings: [],
-      artifacts: {},
-      doc_path: doc,
-      doc_hash: hashFile(doc),
+    return writeBlocked({
+      handoffPath, mode, doc,
       blocker: `docs handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
     });
-    return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
   }
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，

@@ -1,6 +1,6 @@
 # Session Report #246 收尾批次 — Overall Spec
 
-- **Version**: v1.8 · 2026-09-11
+- **Version**: v1.9 · 2026-09-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -74,7 +74,7 @@ phase 执行期发现新 issue / pre-consume / 重新归属：按 [add-phase-pro
 
 | # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
 |---|---|---|---|---|---|---|
-| P1 | cdd-engine 进程生命周期统一管理 + 结构重排：全部引擎派生点（task implement/review/fix · docs review/fix · branch-review · research）纳入 run 级进程组所有权（spawnManaged 统一工厂 + run 边界/信号 teardownAll 连根回收——退出续跑会话、释放整场派生进程 + idle backstop 兜底）；cdd-engine 目录重排（bin 薄入口 + lib 分簇 + tests 顶层，npm 不再发 tests） | P1-design（2026-09-11，v1.3：派生点 4 收敛 + owner-liveness + withLifecycle + exit 哨兵） | [Pending] | 连续多次 CDD 运行后无 `claude -p` implementer 驻留累积（RSS 不随运行次数增长；run 结束后 proc-registry 为空）；run 完成/超时/被杀三态下进程组连根回收、续跑会话退出；驻留进程有 idle backstop 兜底；cdd-engine 结构重排（bin/lib/tests 布局、npm pack 不含 tests、residue/smoke 机制位置同步）；`pnpm run validate` 12 块全绿 | 无（program 起点） |
+| P1 | cdd-engine 进程生命周期统一管理 + 结构重排：全部引擎派生点（task implement/review/fix · docs review/fix · branch-review · research）纳入 run 级进程组所有权（spawnManaged 统一工厂 + run 边界/信号 teardownAll 连根回收——退出续跑会话、释放整场派生进程 + idle backstop 兜底）；cdd-engine 目录重排（bin 薄入口 + lib 分簇 + tests 顶层，npm 不再发 tests） | P1-design（2026-09-11，v1.3：派生点 4 收敛 + owner-liveness + withLifecycle + exit 哨兵） | Done | 连续多次 CDD 运行后无 `claude -p` implementer 驻留累积（RSS 不随运行次数增长；run 结束后 proc-registry 为空）；run 完成/超时/被杀三态下进程组连根回收、续跑会话退出；驻留进程有 idle backstop 兜底；cdd-engine 结构重排（bin/lib/tests 布局、npm pack 不含 tests、residue/smoke 机制位置同步）；`pnpm run validate` 12 块全绿 | 无（program 起点） |
 | P2 | cdd review Stopping ref 增内容指纹维度：spec/plan 内容实质演进即新 ref、可开新 review cycle（同 ref + blocker=0 仍禁止 re-run）；文档化 spec 演进重审路径 | [Pending] | [Pending] | 同一 spec/plan 文档内容修改后 `cdd review --round 2` 可开新 review cycle；内容未变仍 exit 3；无复制文档到新路径重审的双文件漂移 anti-pattern | 无 |
 | P3 | cdd fix 模式存续性决策：盘点 fix 机械实际派发（含 cdd-engine-overhaul P6 已实测路径）→ 对齐 `_docs/review.md` §cli-fix-all-findings 与 CDD skill fix-inline 两处文案 → 拍板存续/移除并落地（保留则补 doc fix 真实派发路径；移除则删机械） | [Pending] | [Pending] | 决策经 evidence 拍板并记入 P3 design；review.md 与 CDD skill 规则文案唯一化、无冲突；实测路径（fix-inline 或 cdd fix）与文案一致；charter Issue inventory 状态随拍板同步 | 无（决策 phase） |
 | P4 | overall 四表一致性机械校验：`scripts/validate/` 新增 overall-consistency 模块——四表 = Issue inventory、Phase inventory、Dependency graph、Change history；① phase shipped → plan 列 = Done；② plan 文档存在性断言；③ change-history 版本升序；④ 四表交叉引用（#NNN ∈ Issue inventory、Dependency graph 引用的 phase ∈ Phase inventory）；F13：closeout 强制回填检查点（phase shipped 时 finishing 前回填 Phase inventory plan/design 列 + change-history entry，机械守卫落地前由 closeout 人工执行） | [Pending] | [Pending] | 四表漂移时 `pnpm run validate` exit 1；正常状态绿如常通过；不误报现有 shipped 程序；F13：phase shipped 后无未回填漂移可再跳关（P6 式漏回填不再发生） | 无 |
@@ -128,3 +128,4 @@ P7 独立（workflow 精简）
 | v1.6 | 2026-09-11 | P1 spec → v1.1（plan-review r1 驱动）：registry 条目字段定案（弃 `dispatch` 增 `ownerPid`/`done`，支撑跨 run 孤儿判定与进程内空闲监视）+ §2.2 C 细化（markAllDispatchesDone + startIdleMonitor/reapDone 低频回收）+ §2.6 补三项测试（reapDone/信号/跨 run 父死）；Design-spec 列 v1.0→v1.1（v1.5→v1.6） | [human] · Claude Opus 5 (1M context) |
 | v1.7 | 2026-09-11 | P1 spec → v1.2（plan-review r2-r4 驱动）：`CDD_LIFECYCLE_PATH` 注入缝（vitest forks 并发隔离）+ 执行顺序验证纪律登记（`node --check` 中间态、Step 7 全量闭环）+ `.npmignore` 保留 `**/.gitkeep` 活条目（files 白名单下防空目录标记发布）；plan 全量 review 收敛 APPROVED；Design-spec 列 v1.1→v1.2（v1.6→v1.7） | [human] · Claude Opus 5 (1M context) |
 | v1.8 | 2026-09-11 | P1 spec → v1.3（branch-review r1，4 warn + 5 nit 全 fix-inline）：派生点收敛 4 处（review-package 死码实证删除）+ 跨 run 孤儿判定 owner-liveness 守卫（并发引擎不误杀）+ 出口统一 `withLifecycle` + exit 哨兵机制（`process.exit` 短路 finally 修复）+ `#137` 凭证剥离单点；Design-spec 列 v1.2→v1.3（v1.7→v1.8） | [human] · Claude Opus 5 (1M context) |
+| v1.9 | 2026-09-11 | P1 dev shipped：CDD 四任务全 APPROVED（re-org → proc-lifecycle → wiring → changeset，含 timeout 续派）+ branch-review r1 APPROVED（4 warn + 5 nit fix-inline）+ finishing PR #251（base develop）；Phase inventory P1 plan 列回填（[Pending]→Done）——F13 closeout 检查点执行（v1.8→v1.9） | [human] · Claude Opus 5 (1M context) |

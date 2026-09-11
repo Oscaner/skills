@@ -358,4 +358,39 @@ describe("runDocsTask", () => {
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("plan-review-1.json"));
     expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
   });
+
+  // ---- T8 hardening：agent 手写坏 JSON（未转义 \d）→ BLOCKED handoff 非 throw ----
+
+  it("T8-hardening: agent 手写坏 JSON（未转义 \\d）→ BLOCKED handoff 非 throw", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    const dir = mkdtempSync(join(tmpdir(), "p8bad-"));
+    const doc = join(dir, "spec.md");
+    writeFileSync(doc, "blocked content");
+    // agent 手写坏 JSON 到 canonical handoff 路径：`"#\d+ 未转义"` —— \d 非合法 JSON escape →
+    // JSON.parse 必 throw（P4 dogfood 实证：agent 手写 handoff 含未转义 regex 记号）。
+    const handoffPath = join(dir, "ws", "spec-review-1.json");
+    mkdirSync(path.dirname(handoffPath), { recursive: true });
+    writeFileSync(handoffPath,
+      '{"phase":"review","status":"APPROVED","findings":[{"summary":"#\\d+ 未转义"}],"artifacts":{},"doc_path":"/spec.md"}');
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { writeHandoff } = await import("../lib/handoff/write.mjs");
+    // 真实落盘 mock：BLOCKED 分支写盘后 JSON.parse(readFileSync(handoffPath)) 同步读回必须成功。
+    writeHandoff.mockImplementation((p, data) => {
+      mkdirSync(path.dirname(p), { recursive: true });
+      writeFileSync(p, JSON.stringify(data, null, 2) + "\n");
+      return data;
+    });
+    const result = await runDocsTask({
+      harness: "claude", mode: "review", template: "review", type: "spec", doc,
+      handoffPath,
+      dryRun: false,
+    });
+    // 非 throw —— BLOCKED handoff（doc_hash 载体 uniform），而非 exit 2 / 无 handoff 静默丢失。
+    expect(result.exitCode).toBe(1);
+    expect(result.handoff.status).toBe("BLOCKED");
+    expect(result.handoff.blocker).toContain("JSON unparseable");
+    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("blocked content").digest("hex"));
+  });
 });

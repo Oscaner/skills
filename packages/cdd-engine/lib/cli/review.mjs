@@ -66,7 +66,13 @@ export function intTask(v) {
 export function existingRoundHandoff(ws, type, round) {
   if (round < 1) return null;
   const p = path.join(ws, handoffNaming.handoffName("review", type, { round }));
-  return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
+  if (!existsSync(p)) return null;
+  try {
+    return JSON.parse(readFileSync(p, "utf8"));
+  } catch (e) {
+    // corrupt prev → 视为无 prev（fail-open：不因 corrupted prev 锁死重审；最坏多一轮 review，绝不自锁）
+    return null;
+  }
 }
 
 export function blockerCount(handoff) {

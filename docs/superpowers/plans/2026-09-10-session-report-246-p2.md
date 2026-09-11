@@ -357,7 +357,7 @@ Expected: validate ALL PASS；commit 成功。
 
 ### Task 3: docs review 定稿注入 `doc_hash` + schema 扩展 + docs-runner 断言
 
-<thinking>原子单元：① run-docs.mjs review-mode 定稿路径改 `writeOwnHandoff` 恒写（merge doc_hash）+ 内存返回值同步（status/doc_hash）+ 两条 BLOCKED 失败写盘并入 doc_hash；fix-mode 保持 persistFinalized（不注入）；② docs-handoff-schema.json 增 `doc_hash` optional；③ docs-runner.test.mjs 断言四则（T5 回归扩展 / 真实内容 hex / fix 负向 / BLOCKED 注入）。</thinking>
+<thinking>原子单元：① run-docs.mjs review-mode 定稿路径改 `writeOwnHandoff` 恒写（merge doc_hash）+ 内存返回值同步（status/doc_hash）+ 两条 BLOCKED 失败写盘并入 doc_hash；fix-mode 保持 persistFinalized（不注入）；② docs-handoff-schema.json 增 `doc_hash` optional；③ docs-runner.test.mjs 断言（T5 回归扩展 / 真实内容 hex / fix 负向 / BLOCKED 注入 / plan 镜像，r2 补 plan 族双族断言）；④ schema-utils.test.mjs 真实 schema 往返 3 例（r2 补，防 schema 属性删改无测试拦截）。</thinking>
 
 **Files:**
 - Modify: `packages/cdd-engine/lib/runner/run-docs.mjs`

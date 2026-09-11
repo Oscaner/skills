@@ -17,6 +17,7 @@ import {
   checkIssueRefsWellFormed,
   checkDepGraphMembership,
   checkBackfillClaims,
+  extractClaimRows,
   checkDocExistence,
   checkAnchorRegistry,
 } from "./overall-consistency.mjs";
@@ -108,6 +109,18 @@ describe("overall-consistency：① 回填声明 ↔ 列 双向（Task 2）", ()
   it("①区间展开：P1–P4/P6 声明 → P1..P4+P6 全列 Done 断言", () => {
     const o = loadOverallFile(join(SPECS, "span-mixed-overall.md"));
     expect(() => checkBackfillClaims(o.phases, o.historyRows)).not.toThrow();
+  });
+  it("①单行混合（cdd v1.27 形态）：同一行 plan 区间 + design 声明 → 全断言", () => {
+    const o = loadOverallFile(join(SPECS, "one-row-mixed-overall.md"));
+    expect(() => checkBackfillClaims(o.phases, o.historyRows)).not.toThrow();
+  });
+  it("①CLAIM_RE 尾随标点防御（warn fix 回归）：`Pending → Done。` / `→ Done——` 目标不含标点", () => {
+    const { planClaims } = extractClaimRows([
+      { summary: "P1 四表回填：Implementation plan 列 Pending → Done。但 P2 未同步——" },
+      { summary: "P2 回填：plan 列 Pending → Done——后续处理", version: [1,1], date: "2026-09-05" },
+    ]);
+    expect(planClaims.get("P1")).toBe("Done");
+    expect(planClaims.get("P2")).toBe("Done");
   });
   it("①design-claim 列 [Pending] → throw（指定 §2.5 item 8）", () => {
     const o = loadOverallFile(join(SPECS, "drift-designclaim-fail-overall.md"));

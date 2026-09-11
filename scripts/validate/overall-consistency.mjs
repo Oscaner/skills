@@ -260,7 +260,7 @@ const CLAUSE_SEP = /[；;]/;
 // `Pending → <target>` with brackets optional; target stops at whitespace /
 // CJK punctuation / brackets so `→ **Done**（PR …` or `→ P4-design v1.0）` do not
 // over-capture.
-const CLAIM_RE = /(Pending|\[Pending\])\s*(?:→|->)\s*([^\s；;，,、（）()【】\[\]]+)/i;
+const CLAIM_RE = /(Pending|\[Pending\])\s*(?:→|->)\s*([^\s；;，,、（）()【】\[\]。.—…]+)/i;
 const PLAN_CLAIM_LK = /(?:plan|计划)/i; // plan claim: summary mentions a plan-word
 const DESIGN_CLAIM_LK = /Design[-\s]?spec/i; // design claim: mentions Design [-]spec
 // Range expansion includes endpoints: `P1–P4/P6` → P1..P4 + P6 (`–` en-dash).

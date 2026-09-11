@@ -54,7 +54,7 @@ function filteredEnv() {
 }
 
 // git init + empty commit.
-import { gitCommit, gitInit, processGroupReapingSupported } from "./helpers.mjs";
+import { gitCommit, gitInit, processGroupReapingSupported, pgrepCount } from "./helpers.mjs";
 const GROUP_SUPPORTED = processGroupReapingSupported();  // spec §2.6 skip 保护（CI 容器组语义不可靠）
 
 // gitInit + realpath normalization (macOS /tmp → /private/tmp).
@@ -139,7 +139,7 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally t
   // 模拟 dispatch 留下的 session server：leader 触发孙进程 P1EXIT 后退出，孙进程驻留（组 pgid 存活语义）。
   const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EXIT']).unref();process.exit(0)`;
   await spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
-  const p1exitAlive = () => Number(execSync("pgrep -f P1EXIT | wc -l").toString().trim());
+  const p1exitAlive = () => pgrepCount("P1EXIT");   // 括号技巧消 pgrep 自匹配（helpers.mjs）
   expect(p1exitAlive()).toBeGreaterThan(0);
   let code = null;
   try {

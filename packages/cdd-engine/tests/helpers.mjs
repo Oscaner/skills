@@ -1,6 +1,6 @@
 // tests/helpers.mjs — 跨测试文件共享的 git fixture / 生命周期路径 / 进程组能力 helper。
 // git init + 空提交（-c 内联身份：无全局 user.name/email 的环境（CI runner）也能 commit）。
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -17,6 +17,14 @@ export function processGroupReapingSupported() {
   } catch {
     return false;
   }
+}
+
+// 标记进程计数（CI 实测：Linux 下 `sh -c "pgrep -f P1LLWC | wc -l"` 的命令行含模式本身会被
+// pgrep -f 自匹配 → 计数恒 ≥1。括号技巧 `[P]1LLWC`：正则仍匹配其他进程里的字面 P1LLWC，
+// 但执行 shell 的 cmdline 是 `[P]1LLWC`（带括号）不匹配 → 自匹配消除，macOS/Linux 行为一致）。
+export function pgrepCount(marker) {
+  const pat = `[${marker[0]}]${marker.slice(1)}`;
+  return Number(execSync(`pgrep -f "${pat}" | wc -l`).toString().trim());
 }
 
 export function gitInit(dir) {

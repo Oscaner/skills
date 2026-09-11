@@ -4,21 +4,27 @@
 //（SIGINT/SIGTERM/SIGHUP → teardownAll 连根回收 → 128+signo 退出码）。CLI 信号用例以 PATH 遮蔽
 // harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch 经 spawnManaged 派生
 // P1SIG 标记驻留组；对 bin/cdd.mjs 发信号断言组连根退出（spec §2.6 三信号全覆盖）。
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { readdirSync, readFileSync, rmSync, writeFileSync, mkdtempSync } from "node:fs";
 import { spawn, execSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { processGroupReapingSupported } from "./helpers.mjs";
+import { processGroupReapingSupported, pgrepCount } from "./helpers.mjs";
 
 const LIB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "lib");
 const REPO_ROOT = path.resolve(LIB, "..", "..", "..");
 // spec §2.6「环境不允许时 skip 保护」：信号用例依赖真进程组回收（P1SIG 组随 teardownAll 连根退出），
 // CI 容器下组语义不可靠 → skipIf 门控；形构守卫（execa 收敛 / withLifecycle 接线）不受影响始终运行。
 const GROUP_SUPPORTED = processGroupReapingSupported();
-const alive = m => Number(execSync(`pgrep -f ${m} | wc -l`).toString().trim());
+const alive = m => pgrepCount(m);   // 括号技巧消 pgrep -f 自匹配（helpers.mjs）
 const waitFor = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } throw new Error("waitFor timeout"); };
+
+afterAll(() => {
+  // 失败用例（waitFor 超时路径无显式 cleanup）残留的标记进程清理 —— 防跨 run pgrep 命名空间污染。
+  // 括号技巧：pkill -f '[P]1SIG' 不匹配执行 shell 自身 cmdline。
+  try { execSync("pkill -9 -f '[P]1SIG' || true"); } catch {}
+});
 
 describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
   it("execa 直接 import 仅允许出现在 lib/lifecycle/proc.mjs", () => {
@@ -72,13 +78,13 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
       "packages/cdd-engine/bin/cdd.mjs", "review", "--type", "plan",
       "--plan", "packages/cdd-engine/tests/fixtures/smoke-plan.md",
     ], { cwd: REPO_ROOT, env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}`, CLAUDE_CODE_SESSION_ID: "1", CDD_LIFECYCLE_PATH: path.join(stubDir, "lifecycle.json") }, stdio: ["ignore", "pipe", "pipe"] });
-    await waitFor(() => alive("P1SIG") > 0, 10_000);
+    await waitFor(() => alive("P1SIG") > 0, 30_000);
     child.kill(sig);
     const [code, signal] = await new Promise(res => child.on("exit", (c, s) => res([c, s])));
     // handler 拦截后正常 exit（signal = null），退出码 = 128 + signo（SIGINT→130 / SIGTERM→143 / SIGHUP→129）；
     // signal 非 null 仅容 handler 未装（注册失败/竞态）的退化路径。
     expect(code === expectCode || signal === sig).toBe(true);
-    await waitFor(() => alive("P1SIG") === 0, 10_000);   // 组随 teardownAll 连根退出
+    await waitFor(() => alive("P1SIG") === 0, 30_000);   // 组随 teardownAll 连根退出（全套负载下给足预算）
     rmSync(stubDir, { recursive: true, force: true });
   });
   });

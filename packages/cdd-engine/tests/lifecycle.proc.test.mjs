@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { processGroupReapingSupported } from "./helpers.mjs";
+import { processGroupReapingSupported, pgrepCount } from "./helpers.mjs";
 
 const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 // spec §2.6「环境不允许时 skip 保护」：CI 容器（Ubuntu runner sandbox）下 detached 组 + kill(-pgid)
@@ -20,7 +20,7 @@ async function loadModule() {
   proc = await import("../lib/lifecycle/proc.mjs");
 }
 
-const markerAlive = m => Number(execSync(`pgrep -f ${m} | wc -l`).toString().trim());
+const markerAlive = m => pgrepCount(m);   // 括号技巧消除 pgrep -f 自匹配（helpers.mjs，CI Linux 实测）
 const waitFor = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } throw new Error("waitFor timeout"); };
 
 describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
@@ -36,10 +36,10 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();setInterval(()=>{},10000)`;
     const r = await proc.spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
     expect(typeof r.code).toBe("number");
-    const before = execSync("pgrep -f P1LLWC | wc -l").toString().trim();
+    const before = String(pgrepCount("P1LLWC"));
     expect(Number(before)).toBeGreaterThan(0);
     await proc.teardownAll({ graceMs: 500 });
-    const after = execSync("pgrep -f P1LLWC | wc -l").toString().trim();
+    const after = String(pgrepCount("P1LLWC"));
     expect(Number(after)).toBe(0);
   });
 

@@ -267,10 +267,13 @@ const DESIGN_CLAIM_LK = /Design[-\s]?spec/i; // design claim: mentions Design [-
 const RANGE_RE = /P(\d+)(?![0-9])(?:[a-z])?\s*[–—\-]\s*P(\d+)(?![0-9])(?:[a-z])?/g;
 const SINGLE_PHASE_RE = /P(\d+)(?![0-9])[a-z]?/g;
 
+// markdown 加粗剥离 + trim 归一化 helper（claimKey/columnValue 共用，branch-review nit fix）。
+const stripCellMarkup = (v) => (v ?? "").replace(/\*\*/g, "").trim();
+
 // A claim target normalized to a comparable key: `P<n>-design` token for design
-// claims, else the bare `Done`-style token (`**`/（…） 剥除）。
+// claims, else the bare `Done`-style token (尾随闭括号剥除)。
 function claimKey(raw) {
-  const t = (raw ?? "").replace(/\*\*/g, "").trim().replace(/[）】\]]+$/u, "");
+  const t = stripCellMarkup(raw).replace(/[）】\]]+$/u, "");
   const d = t.match(/(P\d+(?![0-9])[a-z]?-design)/i);
   return d ? d[1] : t;
 }
@@ -281,7 +284,7 @@ function isPendingText(v) {
 }
 
 function columnValue(v) {
-  return (v ?? "").replace(/\*\*/g, "").trim();
+  return stripCellMarkup(v);
 }
 
 // The phase's own design-spec token `P<n>-design` in its Design spec column

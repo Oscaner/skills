@@ -1,6 +1,7 @@
-// packages/cdd-engine/lib/lifecycle/cli.mjs
-import { execa } from 'execa';
+// packages/cdd-engine/lib/lifecycle/cli.mjs — invoke 契约层（ex cli-shared.mjs）。
+// 注入/超时/重试/NDJSON 解析保留；spawn 派生统一收敛到 spawnManaged（proc.mjs）。
 import { resolveInjection, resolveSuffix } from '../registry.mjs';
+import { spawnManaged, markAllDispatchesDone } from './proc.mjs';
 
 // Default timeouts by mode (30 minutes).
 const DEFAULT_TIMEOUTS = { task: 1_800_000, review: 1_800_000, research: 1_800_000 };
@@ -53,28 +54,6 @@ function cleanEnv(env) {
   return e;
 }
 
-// Raw subprocess capture via execa (reject:false = never throws).
-// Returns {ok, code, stdout, stderr, timedOut}.
-export async function spawnCapture(command, args, opts = {}) {
-  const { cwd, env, timeoutMs } = opts;
-  const res = await execa(command, args, {
-    cwd,
-    env: cleanEnv(env ?? process.env),
-    timeout: timeoutMs,             // execa built-in watchdog
-    forceKillAfterDelay: 5000,      // SIGKILL fallback (#137)
-    reject: false,                  // never throws
-    all: false,
-  });
-  const timedOut = res.timedOut ?? false;
-  return {
-    ok:      res.exitCode === 0 && !timedOut,
-    code:    res.exitCode ?? 1,
-    stdout:  res.stdout ?? '',
-    stderr:  res.stderr ?? '',
-    timedOut,
-  };
-}
-
 // Invoke CLI: build args from entry, handle stream-json output mode.
 // params = { op, type? } — operation×type injection replaces the positional mode
 //   arg. op: implement|review|fix（review 带 type: task|branch|spec|plan）。解析在
@@ -91,7 +70,8 @@ export async function invokeCli(entry, prompt, params, env, cwd, timeoutMs) {
   const s = resolveSuffix(entry, op, type);
   const promptArg = [p, prompt, s].filter(Boolean).join('\n');
   const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];
-  const res = await spawnCapture(cli, args, { cwd, env: cleanEnv(env ?? process.env), timeoutMs });
+  const res = await spawnManaged(cli, args, { cwd, env: cleanEnv(env ?? process.env), timeoutMs });
+  markAllDispatchesDone();          // dispatch（含 retry 每 attempt）返回 → 组标 done（spec §2.2 C idle 监视依据）
   if (res.ok && output === 'stream-json') {
     const finalText = extractStreamJsonFinal(res.stdout);
     if (!finalText) {

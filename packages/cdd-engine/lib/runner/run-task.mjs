@@ -18,12 +18,13 @@ import { gitToplevel, validateCommitContract } from "../contract/commit.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath } from "../handoff/naming.mjs";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../handoff/finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
-import { spawnCapture, invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
+import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
+import { spawnManaged, markAllDispatchesDone } from "../lifecycle/proc.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
 import { validateHandoffSchema } from "../handoff/schema.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from run-task.mjs).
-export { spawnCapture, invokeCli };
+export { invokeCli };
 
 const VALID_MODES = ["implement", "review", "fix"];
 
@@ -261,7 +262,8 @@ export async function runReviewPackage(plan, base, head, handoffPath, { cwd: rep
   }
   const wsDir = path.dirname(handoffPath);
   const outFile = path.join(wsDir, `review-${shortSha(base)}..${shortSha(head)}.diff`);
-  const res = await spawnCapture("bash", [reviewPkg, plan, base, head, outFile], { cwd: repoRoot, env });
+  const res = await spawnManaged("bash", [reviewPkg, plan, base, head, outFile], { cwd: repoRoot, env });
+  markAllDispatchesDone();          // review-package 亦为一次 dispatch：返回即标 done（registry 恒为「dispatch 已返回」集合）
   const outLine = res.stdout.trim().split("\n").filter(Boolean).pop() ?? "";
   const diffPath = outLine.match(/^wrote ([^:]+):/)?.[1] ?? "";
   if (!diffPath || !existsSync(diffPath)) {

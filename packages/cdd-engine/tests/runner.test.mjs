@@ -14,7 +14,8 @@ import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          findSuperpowersScriptsDir, runReviewPackage, resolveRepoRoot,
-         spawnCapture, buildTaskEnv } from "../lib/runner/run-task.mjs";
+         buildTaskEnv } from "../lib/runner/run-task.mjs";
+import { spawnManaged, markAllDispatchesDone } from "../lib/lifecycle/proc.mjs";
 import { REG_PATH } from "../lib/registry.mjs";
 import { getRound } from "../lib/state/progress.mjs";
 
@@ -397,19 +398,21 @@ it("runTask #173: CDD_WORKSPACE + plan both given → workspace lands at plan-de
   expect(existsSync(path.join(ignored, ".superpowers"))).toBe(false);
 });
 
-// ---- spawnCapture env leak regression (P5) ----
+// ---- spawnManaged env leak regression (P5 - re-targeted from spawnCapture) ----
 
-it("spawnCapture: strips CLAUDE_CODE_SUBAGENT_MODEL from child env", async () => {
+it("spawnManaged: strips CLAUDE_CODE_SUBAGENT_MODEL from child env", async () => {
   const env = { ...process.env, CLAUDE_CODE_SUBAGENT_MODEL: "qwen3.7-max" };
-  const res = await spawnCapture("printenv", ["CLAUDE_CODE_SUBAGENT_MODEL"], { cwd: process.cwd(), env });
+  const res = await spawnManaged("printenv", ["CLAUDE_CODE_SUBAGENT_MODEL"], { cwd: process.cwd(), env });
+  markAllDispatchesDone(); // registry 双写内省态无落盘；dispatch 返回即标 done（不扰动后续用例 in-flight 计数）
   // cleanEnv removes CLAUDE_CODE_SUBAGENT_MODEL from the passed env — injected value must not leak.
   // Note: execa v9 extendEnv:true merges back process.env; we verify our VALUE (qwen3.7-max) is stripped.
   expect(res.stdout.includes("qwen3.7-max")).toBe(false);
 });
 
-it("spawnCapture: preserves non-subagent env vars", async () => {
+it("spawnManaged: preserves non-subagent env vars", async () => {
   const env = { ...process.env, CDD_CUSTOM_VAR: "hello-test" };
-  const res = await spawnCapture("printenv", ["CDD_CUSTOM_VAR"], { cwd: process.cwd(), env });
+  const res = await spawnManaged("printenv", ["CDD_CUSTOM_VAR"], { cwd: process.cwd(), env });
+  markAllDispatchesDone();
   expect(res.ok).toBe(true);
   expect(res.stdout.trim()).toMatch(/hello-test/);
 });

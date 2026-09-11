@@ -5,7 +5,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
-import { spawnCapture, resolveTimeoutMs } from "../lifecycle/cli.mjs";
+import { spawnManaged, markAllDispatchesDone } from "../lifecycle/proc.mjs";
+import { resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { requireHostHarness, DRY_RUN } from "./review.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 
@@ -47,7 +48,7 @@ export function writeFindings(outputPath, content) {
   writeFileSync(outputPath, content, "utf8");
 }
 
-// Standalone research runner (spawnCapture, not invokeCli — research output is written verbatim).
+// Standalone research runner (spawnManaged, not invokeCli — research output is written verbatim).
 export async function runResearch(opts) {
   const NAME = "cdd research";
   // Host harness gate — the registry is indexed by the resolved host key (T3; resolved from host).
@@ -91,7 +92,8 @@ export async function runResearch(opts) {
     const secureEnv = { ...process.env };
     delete secureEnv.ANTHROPIC_API_KEY;
     delete secureEnv.CLAUDE_CODE_SUBAGENT_MODEL;
-    result = await spawnCapture(cli, cliArgs, { cwd: process.cwd(), env: secureEnv, timeoutMs });
+    result = await spawnManaged(cli, cliArgs, { cwd: process.cwd(), env: secureEnv, timeoutMs });
+    markAllDispatchesDone();          // dispatch 返回 → 组标 done（registry 恒为「dispatch 已返回」集合）
   } catch (err) {
     process.stderr.write(`${NAME}: spawn error: ${err.message}\n`);
     exitWithCode(1);

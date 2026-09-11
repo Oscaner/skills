@@ -1,6 +1,6 @@
 # P1 cdd-engine 进程生命周期统一管理 + 结构重排 — Phase Spec
 
-- **Version**: v1.2（v1.0 → v1.1：registry 条目字段定案 `ownerPid/done` + 进程内 idle 监视细化；v1.1 → v1.2：`CDD_LIFECYCLE_PATH` 注入缝 + 执行顺序验证纪律（node --check 中间态收敛）+ `.npmignore` 保留 `**/.gitkeep` 活条目——均 plant-review r1-r4 驱动，2026-09-11）
+- **Version**: v1.3（v1.0 → v1.1：registry 条目字段定案 `ownerPid/done` + 进程内 idle 监视细化；v1.1 → v1.2：`CDD_LIFECYCLE_PATH` 注入缝 + 执行顺序验证纪律（node --check 中间态收敛）+ `.npmignore` 保留 `**/.gitkeep` 活条目；v1.2 → v1.3（branch-review r1 驱动）：派生点表删 review-package 行（死码实证删除）+ 跨 run 孤儿判定加 owner-liveness 守卫（并发引擎在途组不再被误杀）+ 出口统一 `withLifecycle` + exit 哨兵机制——均 2026-09-11）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-10-session-report-246-overall.md](2026-09-10-session-report-246-overall.md)（v1.4 → 本 phase 扩展后 v1.5）
@@ -45,7 +45,8 @@ F1 实测：连续多次 CDD 运行后 `claude -p` implementer 驻留进程累�
 | 2 | docs spec/plan review/fix | `spawnManaged` |
 | 3 | branch-review | `spawnManaged` |
 | 4 | research | `spawnManaged` |
-| 5 | review-package bash | `spawnManaged` |
+
+（v1.3：原第 5 行 review-package bash 删除——branch-review 实证其为生产零调用死码，派生点实为 4 处；wiring guard 断言相应收敛。）
 
 - spawn 语义：`detached: true` → 独立进程组（pgid = 子 PID）；stdout/stderr 管道继承不变（stream-json 契约不动）。**弃用 execa `cleanup: true`**——实测 execa v9 在 `detached: true` 下 cleanup 终止钩子不安装（`execa/lib/terminate/cleanup.js` 首行 `if (!cleanup || detached) return;`），`cleanup: true` 是静默 no-op；父死回收改由下述跨 run 机制承担。
 - 父死回收机制（引擎被杀兜底；替代被弃用的 cleanup）：run 级 registry 双写内存 + 落盘（`.superpowers/cdd/lifecycle.json`，跨 run 复用同一路径）；引擎被 SIGKILL/crash 时同进程无处理器可执行（SIGKILL 不可捕获），回收延后至下次引擎启动：启动先做跨 run `reapStale()` —— 读 registry 持久项 + `ps` 扫描孤儿 pgid（组内 leader 已死而组仍存活）→ 走 §2.2 B 连根回收。
@@ -54,17 +55,18 @@ F1 实测：连续多次 CDD 运行后 `claude -p` implementer 驻留进程累�
 
 **B. `teardownAll()` 统一回收点** —— run 边界 + CLI 信号：
 
-- 挂接：`runTask` / docs / branch-review / research 各入口 `finally`；`bin/cdd.mjs` 安装 SIGINT/SIGTERM/SIGHUP handler。
+- 挂接（v1.3：六个派发模块统一经 `withLifecycle(fn, {intervalMs, graceMs})` 共享包装——startIdleMonitor → fn → finally stop + teardownAll，清除 per-module 重复 finally 双行）；`bin/cdd.mjs` 安装 SIGINT/SIGTERM/SIGHUP handler。
 - 语义：遍历 registry → `process.kill(-pgid, 'SIGTERM')` → 宽限 5s（对齐现 `forceKillAfterDelay`）→ SIGKILL → 注销。`claude` 的 session server 是组内后代，随组连根退出 = F1「退出续跑会话、释放整场派生进程」。
+- **exit 哨兵机制（branch-review warn 2 定案）**：lib 内退出一律经 `exit.mjs` 的 `ExitRequested` throw —— `process.exit` 不展开 try/finally（实测 `try{process.exit(3)}finally{…}` 跳过 finally），run 边界 teardownAll 会被短路成死代码；throw 先展开 run* finally（生命周期回收跑）再由 bin/cdd.mjs 边界拦截 `process.exit(code)`。lib/ 内禁止直调 `process.exit`（wiring guard 断言）。
 
 **C. Idle backstop（超时兜底）** —— dispatch 已返回而进程组仍存活者（超时孤儿 / 正常退出残留 server）：
 
 - **进程内空闲监视**（v1.1 细化）：每次 dispatch（含 retry 的每个 attempt）返回后 `markAllDispatchesDone()` 把相应组标 done；run 入口 `startIdleMonitor({ intervalMs })` 启动低频定时器，周期 `reapDone()`：registry 中 **done 且存活** 的组 → 走 B 的连根回收（长 run 中 retry 失败 attempt、残留 server 不等到 run 边界）；run 边界 `stopIdleMonitor()` + teardownAll 双兜。
-- **跨 run 兜底**：引擎被 SIGKILL/crash 的孤儿组无同进程处理器可即时回收，registry 落盘项在下次引擎启动时被跨 run `reapStale()` 扫回（`ownerPid` ≠ 本进程 + `ps` 孤儿 pgid → 连根回收，见 A）。
+- **跨 run 兜底**：引擎被 SIGKILL/crash 的孤儿组无同进程处理器可即时回收，registry 落盘项在下次引擎启动时被跨 run `reapStale()` 扫回（v1.3：孤儿判定 = foreign AND **owner 确证已死**——`pidAlive(ownerPid)` 守卫排除并发同 cwd 引擎的在途组，避免下次启动误杀仍在运行的 session，branch-review warn 4 定案）。
 
 **D. 契约不变与反悖守卫** ——
 
-- `spawnManaged` 保持 `{ok, code, stdout, stderr, timedOut}` 五字段（合并原 `spawnCapture`，不保留薄封装）；`invokeCli / invokeCliWithRetry` 原样透传；现直调 spawnCapture 的两处派生点（`runResearch` standalone 采集、runner review-package bash）改直调 `spawnManaged`，调用点只换内部实现；
+- `spawnManaged` 保持 `{ok, code, stdout, stderr, timedOut}` 五字段（合并原 `spawnCapture`，不保留薄封装）；`invokeCli / invokeCliWithRetry` 原样透传；直调点（`runResearch` standalone 采集）改直调 `spawnManaged`；凭证剥离（#137）单点收敛于 proc.mjs `spawnManaged`，invoke 层不再维护重复 cleanEnv（branch-review warn 1 定案）；
 - 架构违例守卫测试：断言引擎全部派生经 `spawnManaged` 注册（registry 覆盖度），绕过即红。
 
 **E. CLI 布局（随 §2.3 重排）** —— `lib/lifecycle/proc.mjs`（spawnManaged / teardownAll / reapStale）+ `lib/lifecycle/cli.mjs`（ex `cli-shared.mjs`：注入 / 超时 / 重试 / NDJSON 解析保留；内部经 proc.mjs 落 execa）。
@@ -140,7 +142,7 @@ dispatch 返回 ──────────→ markAllDispatchesDone()（组�
 dispatch 完成/超时/被杀 ──→ run 边界 finally ──→ stopIdleMonitor + teardownAll()
         │                                            ├─ SIGTERM(−pgid) → 5s → SIGKILL(−pgid)
         │                                            └─ registry.clear()
-引擎进程被杀 ───────────→ registry 落盘留存（ownerPid）→ 下次启动跨 run reapStale() → 连根回收
+引擎进程被杀 ───────────→ registry 落盘留存（ownerPid）→ 下次启动跨 run reapStale()（foreign AND owner 确证已死）→ 连根回收
 ```
 
 ### 2.5 错误与边界处理

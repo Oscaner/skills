@@ -31,14 +31,25 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("全部引擎派发出口含 teardownAll + idle 监视接线", () => {
-    // runner.runTask 与 docs-runner 的 finally/return 路径须调用 teardownAll；run 入口须装 idle 监视
+  it("全部引擎派发出口经 withLifecycle 统一接线", () => {
+    // 六个派发模块统一用 withLifecycle（startIdleMonitor → fn → finally stop + teardownAll）——
+    // 不再 per-file token 匹配 finally 双行（branch-review nit C）；guard 断言包装器被使用即接线成立。
     const runTask = readFileSync(path.join(LIB, "runner", "run-task.mjs"), "utf8");
     const runDocs = readFileSync(path.join(LIB, "runner", "run-docs.mjs"), "utf8");
+    const review = readFileSync(path.join(LIB, "cli", "review.mjs"), "utf8");
+    const branchReview = readFileSync(path.join(LIB, "cli", "branch-review.mjs"), "utf8");
+    const fix = readFileSync(path.join(LIB, "cli", "fix.mjs"), "utf8");
+    const research = readFileSync(path.join(LIB, "cli", "research.mjs"), "utf8");
+    for (const [name, src] of [["run-task", runTask], ["run-docs", runDocs], ["review", review],
+                               ["branch-review", branchReview], ["fix", fix], ["research", research]]) {
+      expect(src, `${name} 经 withLifecycle 出口`).toMatch(/withLifecycle/);
+    }
+    const proc = readFileSync(path.join(LIB, "lifecycle", "proc.mjs"), "utf8");
+    expect(proc).toMatch(/withLifecycle/);            // 包装器本体驻 lifecycle
+    expect(proc).toMatch(/startIdleMonitor/);          // 包装器内含 idle 监视
+    expect(proc).toMatch(/stopIdleMonitor/);
+    expect(proc).toMatch(/teardownAll/);
     const cliMjs = readFileSync(path.join(LIB, "lifecycle", "cli.mjs"), "utf8");
-    expect(runTask).toMatch(/teardownAll/);
-    expect(runTask).toMatch(/startIdleMonitor/);       // §2.2 C 进程内 idle 监视
-    expect(runDocs).toMatch(/teardownAll/);
     expect(cliMjs).toMatch(/markAllDispatchesDone/);   // dispatch 返回落 done
     expect(cliMjs).not.toMatch(/^(?:export|const)[^\n]*spawnCapture/m);  // §2.2 D 无死导出（注释提及不受影响）
   });

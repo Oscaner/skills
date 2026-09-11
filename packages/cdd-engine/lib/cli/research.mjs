@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
-import { spawnManaged, markAllDispatchesDone, stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
+import { spawnManaged, markAllDispatchesDone, withLifecycle } from "../lifecycle/proc.mjs";
 import { resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { requireHostHarness, DRY_RUN } from "./review.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
@@ -50,7 +50,7 @@ export function writeFindings(outputPath, content) {
 
 // Standalone research runner (spawnManaged, not invokeCli — research output is written verbatim).
 export async function runResearch(opts) {
-  try {
+  return withLifecycle(async () => {
   const NAME = "cdd research";
   // Host harness gate — the registry is indexed by the resolved host key (T3; resolved from host).
   const harness = requireHostHarness();
@@ -115,8 +115,5 @@ export async function runResearch(opts) {
 
   writeFindings(opts.output, result.stdout);
   exitOk();
-  } finally {
-    stopIdleMonitor();
-    await teardownAll({ graceMs: 5000 });   // research 出口 finally 兜底（spawn 底改已在 Task 2 完成，本步仅补出口）
-  }
+  });
 }

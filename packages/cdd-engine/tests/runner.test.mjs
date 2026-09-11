@@ -2,8 +2,8 @@
 // runTask dry-run: H1 4-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
 // Also locks: ship gate (unknown/not-supported → blocked exit 1); invalid mode rejected;
 // nested CLI failed no handoff → write BLOCKED handoff (stderr into blocker) + exit 1 (aligns bash;
-// stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED;
-// review-package not executable → CDD_BLOCKED.
+// stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED.
+// review-package / findSuperpowersScriptsDir 已随 branch-review warn 3 删除（生产零调用死码）。
 // invokeCliOverride seam removed (§ P1 Task 5) — CLI simulation now uses real fake-cli shell scripts.
 import { it, expect, describe } from "vitest";
 import { execFileSync, execSync } from "node:child_process";
@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
-         findSuperpowersScriptsDir, runReviewPackage, resolveRepoRoot,
+         resolveRepoRoot,
          buildTaskEnv } from "../lib/runner/run-task.mjs";
 import { ExitRequested } from "../lib/exit.mjs";
 import { spawnManaged, markAllDispatchesDone } from "../lib/lifecycle/proc.mjs";
@@ -243,51 +243,6 @@ it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending;
   expect(isTaskPending(1, dir, progressR1)).toBe(true);
 });
 
-// ---- findSuperpowersScriptsDir (semver upgrade — byVersion removed) ----
-
-it("findSuperpowersScriptsDir: repo submodule takes priority", () => {
-  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-scripts-repo-")));
-  execFileSync("git", ["init", "-q", dir]);
-  const scripts = path.join(dir, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
-  mkdirSync(scripts, { recursive: true });
-  writeFileSync(path.join(scripts, "sdd-workspace"), "");
-  expect(findSuperpowersScriptsDir(dir)).toBe(scripts);
-});
-
-it("findSuperpowersScriptsDir: cache version order (oldest-first via semver) + Claude before Cursor", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "cdd-scripts-cache-"));
-  const claudeRoot = path.join(dir, ".claude", "plugins", "cache", "oscaner", "superpowers");
-  const cursorRoot = path.join(dir, ".cursor", "plugins", "cache", "oscaner", "superpowers");
-  for (const ver of ["1.0.0", "2.0.0"]) {
-    const scripts = path.join(claudeRoot, ver, "skills", "subagent-driven-development", "scripts");
-    mkdirSync(scripts, { recursive: true });
-    writeFileSync(path.join(scripts, "sdd-workspace"), "");
-  }
-  const cursorScripts = path.join(cursorRoot, "3.0.0", "skills", "subagent-driven-development", "scripts");
-  mkdirSync(cursorScripts, { recursive: true });
-  writeFileSync(path.join(cursorScripts, "sdd-workspace"), "");
-
-  const origHome = process.env.HOME;
-  process.env.HOME = dir;
-  try {
-    const got = findSuperpowersScriptsDir(dir);
-    expect(got).toBe(path.join(claudeRoot, "1.0.0", "skills", "subagent-driven-development", "scripts"));
-  } finally {
-    process.env.HOME = origHome;
-  }
-});
-
-it("findSuperpowersScriptsDir: no repo submodule + no cache → null", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "cdd-scripts-none-"));
-  const origHome = process.env.HOME;
-  process.env.HOME = path.join(dir, "nohome");
-  try {
-    expect(findSuperpowersScriptsDir(dir)).toBeNull();
-  } finally {
-    process.env.HOME = origHome;
-  }
-});
-
 // ---- brief + plan constraints ----
 
 it("runTask: brief exists + contains TASK_BASE: → pass (dry-run exit 0)", async () => {
@@ -307,38 +262,6 @@ it("runTask #173: plan path does not exist → 'plan file not found'", async () 
     noExit: true,
   });
   expect(res.exitCode).toBe(1);
-});
-
-// ---- runReviewPackage ----
-
-it("runReviewPackage: passes 4th arg OUTFILE = <workspace>/review-<base7>..<head7>.diff", async () => {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-outfile-"));
-  const mockDir = mkdtempSync(path.join(tmpdir(), "mock-scripts-"));
-
-  const captureFile = path.join(ws, "captured-outfile.txt");
-  writeFileSync(
-    path.join(mockDir, "review-package"),
-    `#!/bin/sh\nprintf '%s' "$4" > "${captureFile}"\nmkdir -p "$(dirname "$4")"\ntouch "$4"\nprintf 'wrote %s: 1 commit(s), 10 bytes\\n' "$4"\n`,
-  );
-  chmodSync(path.join(mockDir, "review-package"), 0o755);
-
-  const planFile = path.join(ws, "plan.md");
-  writeFileSync(planFile, "# Plan\n");
-  const handoffPath = path.join(ws, "task-1-handoff.json");
-  writeFileSync(handoffPath, "{}");
-
-  const base = "abc1234abcdefabc1234abcdefabc1234abcdefab";
-  const head = "def5678defabcdef5678defabcdef5678defabcd";
-
-  await runReviewPackage(planFile, base, head, handoffPath, {
-    cwd: ws,
-    env: process.env,
-    scriptsDir: mockDir,
-  });
-
-  const captured = readFileSync(captureFile, "utf8");
-  expect(captured).toMatch(/review-abc1234\.\.def5678\.diff$/);
-  expect(captured.startsWith(ws)).toBe(true);
 });
 
 // ---- P1 #173 cross-repo regression (plan-derived branch) ----

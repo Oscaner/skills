@@ -24,8 +24,13 @@ export function initProcLifecycle({ diskPath: dp }) {
   diskPath = dp ?? "";
 }
 
-export function __registryForTest() { return registry; }
-export function __resetForTest() { registry = []; stopIdleMonitor(); }
+// 测试内省 seam（vitest NODE_ENV=test 才导出；生产/发布态为 undefined —— 不构成发布面测试表）。
+// `__registryForTest` / `__resetForTest`：`__` 前缀标记测试专用；随包发布但仅在测试环境有值。
+const TEST_SEAM = process.env.NODE_ENV === "test";
+export const __registryForTest = TEST_SEAM ? () => registry : undefined;
+export const __resetForTest = TEST_SEAM
+  ? () => { registry = []; stopIdleMonitor(); }
+  : undefined;
 
 export async function persistRegistry() {
   if (!diskPath) return;
@@ -37,6 +42,13 @@ export async function persistRegistry() {
 
 function pgidAlive(pgid) {
   try { process.kill(-pgid, 0); return true; } catch { return false; }
+}
+
+// owner 进程 liveness（branch-review warn 4）：并发同 cwd 引擎的在途组（ownerPid ≠ 本进程但 owner 存活）
+// 不得被启动 reapStale 当跨 run 孤儿杀。孤儿判定 = foreign AND owner 确证已死（kill(ownerPid,0) 抛 ESRCH）。
+function pidAlive(pid) {
+  if (pid == null) return false;
+  try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
 function killGroup(pgid, signal) {
@@ -159,6 +171,20 @@ export function stopIdleMonitor() {
 }
 
 // 回收 done 且存活的组（idle 监视语义）；注销 + 落盘。
+
+// 共享生命周期包装（branch-review nit C 抽取）：startIdleMonitor → fn → finally stop + teardownAll。
+// 六个派发模块（run-task / run-docs / review / branch-review / fix / research）统一经此出口，
+// 清除各模块重复的 finally 双行样板；wiring guard 断言使用而非 token 匹配 6 文件。
+export async function withLifecycle(fn, { intervalMs = 30_000, graceMs = 5000 } = {}) {
+  startIdleMonitor({ intervalMs });
+  try {
+    return await fn();
+  } finally {
+    stopIdleMonitor();
+    await teardownAll({ graceMs });
+  }
+}
+
 export async function reapDone({ graceMs = 1000 } = {}) {
   const targets = registry.filter(g => g.done);
   for (const g of targets) await reapGroup(g, graceMs);
@@ -176,8 +202,9 @@ export async function reapStale({ graceMs = 5000 } = {}) {
       pending = JSON.parse(readFileSync(diskPath, "utf8")) ?? [];
     }
   } catch { pending = []; }
-  // 语义：orphans 与 stale 两集合交汇后统一连根回收（组内全部进程随 pgid 清除）。
-  const orphans = pending.filter(g => g.ownerPid !== process.pid);
+  // 语义：orphans（foreign AND owner 确证已死 —— 并发引擎在途组被排除，branch-review warn 4）
+  // 与 stale（本进程 dispatch 已返回仍存活）两集合交汇后统一连根回收（组内全部进程随 pgid 清除）。
+  const orphans = pending.filter(g => g.ownerPid !== process.pid && !pidAlive(g.ownerPid));
   const stale = pending.filter(g => g.ownerPid === process.pid && pgidAlive(g.pgid));
   const targets = [];
   for (const g of [...orphans, ...stale]) {

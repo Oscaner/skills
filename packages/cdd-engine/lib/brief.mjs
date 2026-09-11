@@ -4,6 +4,7 @@
 // validateBrief: check brief contains TASK_BASE: line.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { gitRevParseHead, gitToplevel } from "./contract/commit.mjs";
+import { exitWithCode, ExitRequested } from "./exit.mjs";
 
 export function generateBrief(planFile, taskNum, outPath, repoRoot) {
   if (!existsSync(planFile)) throw new Error(`plan file not found: ${planFile}`);
@@ -42,13 +43,21 @@ export function runBriefCli(args) {
     const repoRoot = gitToplevel();
     generateBrief(planPath, taskNum, outputPath, repoRoot);
     process.stdout.write(JSON.stringify({ brief: outputPath }));
-    process.exit(0);
+    exitWithCode(0);
   } catch (e) {
+    // exit helpers throw ExitRequested —— 不得被本层 catch 误当成生成失败（Task 3 review warn 机制）。
+    if (e instanceof ExitRequested) throw e;
     process.stderr.write(e.message);
-    process.exit(1);
+    exitWithCode(1);
   }
 }
 
+// 直接 node 调用（cdd.test 等 fixture 路径）—— exit helpers throw ExitRequested，此处边界拦截 → exit(code)。
 if (process.argv[1] && process.argv[1].endsWith("brief.mjs") && process.argv.length > 2) {
-  runBriefCli(process.argv.slice(2));
+  try {
+    runBriefCli(process.argv.slice(2));
+  } catch (e) {
+    if (e instanceof ExitRequested) process.exit(e.code);
+    throw e;
+  }
 }

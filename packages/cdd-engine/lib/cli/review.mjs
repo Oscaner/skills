@@ -10,7 +10,7 @@ import * as handoffNaming from "../handoff/naming.mjs";
 import { reviewStoppedError } from "../runner/review-loop.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { exitWithCode } from "../exit.mjs";
-import { stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
+import { withLifecycle } from "../lifecycle/proc.mjs";
 
 export const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 
@@ -46,7 +46,7 @@ export function resolveTargetDoc(opts, verb) {
   const doc = opts.type === "spec" ? opts.spec : opts.plan;
   if (!doc) {
     process.stderr.write(`cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`);
-    process.exit(2);
+    exitWithCode(2);
   }
   return doc;
 }
@@ -81,7 +81,7 @@ export function blockerCount(handoff) {
 export function stoppedExit3(type, round, ref, blocker) {
   const e = reviewStoppedError(type, round, ref);   // structured error + message, single authority
   process.stderr.write(`${e.message}\n` + (blocker ? `last blocker: ${blocker}\n` : ""));
-  process.exit(3);
+  exitWithCode(3);
 }
 
 // Unified Stopping gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
@@ -94,20 +94,20 @@ export function reviewStoppingGuard(prev, type, round, ref) {
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runReview(opts) {
-  try {
+  return withLifecycle(async () => {
   // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
   const harness = requireHostHarness();
   // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
   if (opts.type === "branch") {
     if (!opts.plan) {
       process.stderr.write("cdd review --type branch: missing required --plan <path>\n");
-      process.exit(2);
+      exitWithCode(2);
     }
     // --base/--head were requiredOption in the old branch-review bin; the inline keeps
     // that contract — missing values would otherwise render garbage ("undefin" file slugs  + undefined in H1).
     if (!opts.base || !opts.head) {
       process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
-      process.exit(2);
+      exitWithCode(2);
     }
     const { runBranchReview } = await import("./branch-review.mjs");   // lazy: breaks review↔branch-review import cycle
     return await runBranchReview({ ...opts, harness });
@@ -124,7 +124,7 @@ export async function runReview(opts) {
     const round = handoffNaming.resolveNextRound(ws, "review", opts.type);
     if (opts.round && Number(opts.round) !== round) {
       process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);
-      process.exit(2);
+      exitWithCode(2);
     }
     const prev = existingRoundHandoff(ws, opts.type, round - 1);
     // Stopping only rejects a re-run of the SAME ref (doc) whose previous round is APPROVED
@@ -162,15 +162,15 @@ export async function runReview(opts) {
   // type=task: task review (runner internally tracks task-N-review-{R}.json round sequence).
   if (opts.type !== "task") {
     process.stderr.write(`unknown review --type: ${opts.type}\n`);
-    process.exit(2);
+    exitWithCode(2);
   }
   if (!opts.plan) {
     process.stderr.write("cdd review --type task: missing required --plan <path> (workspace slug + Stopping)\n");
-    process.exit(2);
+    exitWithCode(2);
   }
   if (opts.task == null) {
     process.stderr.write("cdd review --type task: missing required --task <n>\n");
-    process.exit(2);
+    exitWithCode(2);
   }
   // Workspace slug derives from the plan filename; task Stopping reads the latest
   // task-{N}-review-{R}.json and rejects when its blockers = 0.
@@ -182,7 +182,7 @@ export async function runReview(opts) {
   // --round 校验回填（task 侧：next round 推导值；冲突 exit 2，对齐 spec/plan/branch）。
   if (opts.round && Number(opts.round) !== nextTaskRound) {
     process.stderr.write(`--round ${opts.round} ≠ engine round ${nextTaskRound}\n`);
-    process.exit(2);
+    exitWithCode(2);
   }
   if (nextTaskRound > 1) {
     const prevR = nextTaskRound - 1;
@@ -197,8 +197,5 @@ export async function runReview(opts) {
     mode: "review", dryRun: DRY_RUN(),
     env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
   });
-  } finally {
-    stopIdleMonitor();
-    await teardownAll({ graceMs: 5000 });   // review 出口兜底（幂等）——task/branch 支路本层兜一层
-  }
+  });
 }

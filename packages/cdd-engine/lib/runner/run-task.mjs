@@ -5,11 +5,8 @@
 // not swallowed via 2>/dev/null) → commit-contract → H1 four lines → handoff processing.
 // noExit=true returns { exitCode, h1 } instead of exit helpers — the unit-test seam.
 // Final exit delegated to lib/exit.mjs (unified exit point, no inline process.exit).
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
-import os from "node:os";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-
-import semver from "semver";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
 import { renderModePrompt, pluginRoot } from "../templates.mjs";
@@ -19,7 +16,7 @@ import { handoffName, prevHandoffPath as hnPreHandoffPath } from "../handoff/nam
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../handoff/finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
-import { spawnManaged, markAllDispatchesDone, startIdleMonitor, stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
+import { withLifecycle } from "../lifecycle/proc.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
 import { validateHandoffSchema } from "../handoff/schema.mjs";
 
@@ -203,77 +200,6 @@ function promptEnv(env, taskNum) {
   };
 }
 
-// ---- review-package (non-dry-run review mode) ----
-
-// Aligns cdd_superpowers_scripts_dir: repo submodule → Claude/Cursor plugin cache (version dirs in ascending order).
-// First arg is repoRoot (#173: submodule probe finds vendors under the project repo, decoupled from caller cwd).
-// Exported for unit tests. semver ascending sort (replaces hand-written byVersion — aligns with bash sort -V).
-export function findSuperpowersScriptsDir(repoRoot) {
-  if (repoRoot) {
-    const probe = path.join(repoRoot, "vendors", "superpowers", "skills", "subagent-driven-development", "scripts");
-    if (existsSync(path.join(probe, "sdd-workspace"))) return probe;
-  }
-  const cacheRoots = [
-    path.join(os.homedir(), ".claude", "plugins", "cache", "oscaner", "superpowers"),
-    path.join(os.homedir(), ".cursor", "plugins", "cache", "oscaner", "superpowers"),
-  ];
-  for (const cache of cacheRoots) {
-    if (!existsSync(cache)) continue;
-    const versions = readdirSync(cache)
-      .filter(v => semver.valid(v))   // filter out non-valid semver directory names
-      .sort(semver.compare);           // semver.compare(a,b) returns -1|0|1 (ascending order)
-    for (const ver of versions) {
-      const scripts = path.join(cache, ver, "skills", "subagent-driven-development", "scripts");
-      if (existsSync(path.join(scripts, "sdd-workspace"))) return scripts;
-    }
-  }
-  return null;
-}
-
-// Aligns _cdd_relpath_from_repo: path inside repo → relative to repo; otherwise absolute path.
-// Second arg is repoRoot (#173: passed down from caller resolveRepoRoot; no root → falls back to absolute path).
-function relpathFromRepo(abs, repoRoot) {
-  const resolved = path.resolve(abs);
-  if (repoRoot && resolved.startsWith(`${repoRoot}/`)) return resolved.slice(repoRoot.length + 1);
-  return resolved;
-}
-
-// Aligns cdd_run_review_package: diff filename uses first 7 chars of base/head.
-function shortSha(sha) {
-  return String(sha).slice(0, 7);
-}
-
-// Aligns _cdd_run_review_package: spawns upstream review-package script, parses the last `wrote <diff>:` line,
-// writes the diff relative path into handoff artifacts (no jq in Node — reads/writes JSON directly).
-// bash alignment: `[[ -x review-package ]]` executability check (accessSync X_OK before spawn) + `wrote <diff>:`
-// progress line printed to stdout (visible to operator).
-// scriptsDir DI: unit tests can override findSuperpowersScriptsDir (avoids touching real repo/cache paths).
-// cwd option semantics = subprocess working directory (#173: caller passes repoRoot — review-package runs inside the plan repo).
-// repoRoot option: after #173 caller passes project repo root (bash subprocess cwd and relpath base both derived from it);
-// key name kept as `cwd` (historically source-compatible), semantics: subprocess working directory = repoRoot.
-export async function runReviewPackage(plan, base, head, handoffPath, { cwd: repoRoot, env, scriptsDir: scriptsDirOverride }) {
-  const scriptsDir = scriptsDirOverride ?? findSuperpowersScriptsDir(repoRoot);
-  if (!scriptsDir) throw new RunBlocked("upstream review-package script not found");
-  const reviewPkg = path.join(scriptsDir, "review-package");
-  try {
-    accessSync(reviewPkg, constants.X_OK);
-  } catch {
-    throw new RunBlocked(`review-package not executable: ${reviewPkg}`);
-  }
-  const wsDir = path.dirname(handoffPath);
-  const outFile = path.join(wsDir, `review-${shortSha(base)}..${shortSha(head)}.diff`);
-  const res = await spawnManaged("bash", [reviewPkg, plan, base, head, outFile], { cwd: repoRoot, env });
-  markAllDispatchesDone();          // review-package 亦为一次 dispatch：返回即标 done（registry 恒为「dispatch 已返回」集合）
-  const outLine = res.stdout.trim().split("\n").filter(Boolean).pop() ?? "";
-  const diffPath = outLine.match(/^wrote ([^:]+):/)?.[1] ?? "";
-  if (!diffPath || !existsSync(diffPath)) {
-    throw new RunBlocked(`review-package did not produce diff file (output: ${outLine})`);
-  }
-  process.stdout.write(`${outLine}\n`); // aligns bash: `wrote <diff>:` progress line (stdout)
-  const h = readJson(handoffPath) ?? {};
-  writeHandoff(handoffPath, { artifacts: { ...(h.artifacts ?? {}), diff: relpathFromRepo(diffPath, repoRoot) } });
-}
-
 // ---- H1 output ----
 
 // Aligns _cdd_emit_h1_four_lines: picks the last ^key: line from agent stdout; missing → "<missing>".
@@ -341,15 +267,12 @@ function dryRunH1Block(env, taskNum) {
 // ---- runTask / runPlan ----
 
 // Aligns cdd_run_task. opts: { mode, planFile, dryRun, env, cwd, registryPath,
-//   noExit, pluginRoot, scriptsDir, findingsPath }.
+//   noExit, pluginRoot, findingsPath }.
 // findingsPath: explicit CDD_FINDINGS path for fix mode (cdd fix --findings) — wins over
 //   buildTaskEnv's runner-derived prev-phase handoff path.
-// scriptsDir: DI passed through to runReviewPackage (test seam, does not change production behavior).
 // Returns { exitCode, h1 } (does not call exitWithCode when noExit=true).
 export async function runTask(harness, taskNum, opts = {}) {
-  startIdleMonitor({ intervalMs: 30_000 });   // 进程内 idle 监视（§2.2 C / §2.4，幂等：已启动 no-op）——
-                                              // 长 run 低频清理 dispatch 已返回仍存活的超时孤儿/残留 server
-  try {
+  return withLifecycle(async () => {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
   const cwd = opts.cwd ?? process.cwd();
@@ -368,8 +291,6 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
     throw e;
   }
-
-  const scriptsDir = opts.scriptsDir; // DI passed through to runReviewPackage (test seam, does not change production behavior)
 
   // 2. Effective plan synthesis + repoRoot resolution (#173: unified entry, never falls back to cwd) + workspace
   let workspace;
@@ -649,10 +570,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   }
   if (!dryRun && mode !== "implement") incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
   return finish(0, h1, "", noExit);
-  } finally {
-    stopIdleMonitor();
-    await teardownAll({ graceMs: 5000 });   // run 边界双兜：覆盖全部 exit 路径（含 timeout/BLOCKED）
-  }
+  });
 }
 
 

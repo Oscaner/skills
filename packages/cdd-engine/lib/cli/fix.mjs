@@ -5,11 +5,12 @@ import path from "node:path";
 import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./review.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
-import { stopIdleMonitor, teardownAll } from "../lifecycle/proc.mjs";
+import { withLifecycle } from "../lifecycle/proc.mjs";
+import { exitWithCode } from "../exit.mjs";
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
 export async function runFix(opts) {
-  try {
+  return withLifecycle(async () => {
   // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
   const harness = requireHostHarness();
   const { runTask } = await import("../runner/run-task.mjs");
@@ -19,11 +20,11 @@ export async function runFix(opts) {
   if (opts.type === "task") {
     if (!opts.plan) {
       process.stderr.write("cdd fix --type task: missing required --plan <path>\n");
-      process.exit(2);
+      exitWithCode(2);
     }
     if (opts.task == null) {
       process.stderr.write("cdd fix --type task: missing required --task <n>\n");
-      process.exit(2);
+      exitWithCode(2);
     }
     await runTask(harness, opts.task, {
       mode: "fix", dryRun: DRY_RUN(),
@@ -35,7 +36,7 @@ export async function runFix(opts) {
   // spec/plan: fix 模板从 canonical fix.{type} 族读 fixTemplate（T2 裁轴后 reviews.json 不再承载 artifact）。
   if (opts.type !== "spec" && opts.type !== "plan") {
     process.stderr.write(`unknown fix --type: ${opts.type}\n`);
-    process.exit(2);
+    exitWithCode(2);
   }
   // D11: type-self-describing target param — type=spec fixes the --spec doc;
   // type=plan fixes the --plan doc.
@@ -47,12 +48,12 @@ export async function runFix(opts) {
   const roundMatch = findingsBase ? findingsBase.match(handoffNaming.roundPattern("review", opts.type)) : null;
   if (!roundMatch) {
     process.stderr.write(`cdd fix --type ${opts.type}: --findings must name a ${opts.type}-review-{R}.json file (round derived from the source review); got: ${opts.findings ?? "(missing)"}\n`);
-    process.exit(2);
+    exitWithCode(2);
   }
   const fixRound = Number(roundMatch[1]);
   if (!Number.isInteger(fixRound) || fixRound < 1) {
     process.stderr.write(`cdd fix --type ${opts.type}: --findings round must be >= 1 (round derived from the source review); got: ${opts.findings}\n`);
-    process.exit(2);
+    exitWithCode(2);
   }
   // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
   // workspace 与 review 同源 resolveWorkspace(doc)；handoffPath 显式传 canonical fix.{type} 名。
@@ -64,8 +65,5 @@ export async function runFix(opts) {
     findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
-  } finally {
-    stopIdleMonitor();
-    await teardownAll({ graceMs: 5000 });   // fix 出口兜底（幂等）——task 支路走 runTask，spec/plan 走 runDocsTask
-  }
+  });
 }

@@ -3,7 +3,7 @@
 // / reapDone（进程内 idle 监视）/ reapStale（跨 run 孤儿兜底）。用真进程树验证组隔离与回收。
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawn, execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
@@ -87,5 +87,25 @@ describe("proc-lifecycle spawnManaged", () => {
     await proc.initProcLifecycle({ diskPath: disk });
     await proc.reapStale({ graceMs: 500 });
     expect(markerAlive("P1ORPHAN")).toBe(0);       // 孤儿组（含孙代 session server）被连根收回
+  });
+
+  it("reapStale 排除并发引擎在途组：foreign owner 存活不回收、owner 已死才回收（branch-review warn 4）", async () => {
+    const disk = path.join(os.tmpdir(), `p1owner-${process.pid}-${Date.now()}.json`);
+    await proc.initProcLifecycle({ diskPath: disk });
+    const pgAlive = (pgid) => { try { process.kill(-pgid, 0); return true; } catch { return false; } };
+    // 两个驻留组（detached 组 = 独立 pgid）+ 一个「并发引擎」存活进程（foreign in-flight owner）。
+    const g1 = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" });
+    const g2 = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" });
+    const foreignOwnerAlive = spawn(process.execPath, ["-e", "setInterval(()=>{},5000)"], { detached: true, stdio: "ignore" });
+    // 手写落盘 registry：g1 归 foreign-存活 owner（并发在途组）→ 跳过；g2 归必死 pid → 回收。
+    writeFileSync(disk, JSON.stringify([
+      { pgid: g1.pid, ownerPid: foreignOwnerAlive.pid },
+      { pgid: g2.pid, ownerPid: 99999999 },
+    ]));
+    await proc.reapStale({ graceMs: 300 });
+    expect(pgAlive(g2.pid)).toBe(false);   // owner 确证已死 → 孤儿回收
+    expect(pgAlive(g1.pid)).toBe(true);    // owner 存活 → 不误杀并发在途组
+    try { process.kill(-g1.pid, "SIGKILL"); } catch {}
+    try { process.kill(-foreignOwnerAlive.pid, "SIGKILL"); } catch {}
   });
 });

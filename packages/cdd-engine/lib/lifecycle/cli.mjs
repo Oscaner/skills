@@ -46,13 +46,8 @@ export function resolveTimeoutMs(env, mode) {
   return undefined;
 }
 
-// Strip credentials from subprocess env (#137 security fix).
-function cleanEnv(env) {
-  const e = { ...env };
-  delete e.CLAUDE_CODE_SUBAGENT_MODEL;
-  delete e.ANTHROPIC_API_KEY;
-  return e;
-}
+// Strip credentials (#137 security fix) lives at the single spawn choke point in
+// proc.mjs (spawnManaged) — cli.mjs 不再维护重复 cleanEnv（branch-review warn 1：双重剥离是死代码）。
 
 // Invoke CLI: build args from entry, handle stream-json output mode.
 // params = { op, type? } — operation×type injection replaces the positional mode
@@ -70,7 +65,7 @@ export async function invokeCli(entry, prompt, params, env, cwd, timeoutMs) {
   const s = resolveSuffix(entry, op, type);
   const promptArg = [p, prompt, s].filter(Boolean).join('\n');
   const args = [...invoke.split(/\s+/).filter(Boolean), promptArg];
-  const res = await spawnManaged(cli, args, { cwd, env: cleanEnv(env ?? process.env), timeoutMs });
+  const res = await spawnManaged(cli, args, { cwd, env: env ?? process.env, timeoutMs });
   markAllDispatchesDone();          // dispatch（含 retry 每 attempt）返回 → 组标 done（spec §2.2 C idle 监视依据）
   if (res.ok && output === 'stream-json') {
     const finalText = extractStreamJsonFinal(res.stdout);

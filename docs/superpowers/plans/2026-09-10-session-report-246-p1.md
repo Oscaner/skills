@@ -464,7 +464,8 @@ export async function reapDone({ graceMs = 1000 } = {}) {
 }
 
 // 跨 run 孤儿兜底 + 存活超时组清理：读落盘 registry，两类——
-// orphans（ownerPid 非本进程 = 引擎已换/被杀）+ stale（本进程 dispatch 已返回仍存活）。
+// orphans（foreign AND owner 确证已死 = 引擎被杀；并发引擎在途组经 owner liveness 排除，branch-review warn 4）
+// + stale（owner → 本进程，dispatch 已返回仍存活）。
 // 引擎启动时调用兜上次 SIGKILL 残留；组 leader 已死而组仍存活者在此连根回收。
 export async function reapStale({ graceMs = 5000 } = {}) {
   let pending = [];
@@ -474,16 +475,23 @@ export async function reapStale({ graceMs = 5000 } = {}) {
     }
   } catch { pending = []; }
   // 语义：orphans 与 stale 两集合交汇后统一连根回收（组内全部进程随 pgid 清除）。
-  const orphans = pending.filter(g => g.ownerPid !== process.pid);
+  const orphans = pending.filter(g => g.ownerPid !== process.pid && !pidAlive(g.ownerPid));
   const stale = pending.filter(g => g.ownerPid === process.pid && pgidAlive(g.pgid));
+  const targets = [];
   for (const g of [...orphans, ...stale]) {
     if (pgidAlive(g.pgid)) {
       killGroup(g.pgid, KILL_SIGNAL);
       await new Promise(r => setTimeout(r, Math.min(graceMs, 1000)));
       killGroup(g.pgid, FORCE_SIGNAL);
+      targets.push(g);
     }
   }
-  if (diskPath) { try { writeFileSync(diskPath, "[]\n"); } catch {} }  // 收完清盘
+  await waitForDeath(targets, 2000);
+  // 收完写回：仅保留「尚未确认消亡」条目（SIGKILL 未遂 / D-state）供下次启动再兜 —— 语义定案 71d8952。
+  const survivors = pending.filter(g => pgidAlive(g.pgid));
+  if (diskPath) {
+    try { writeFileSync(diskPath, JSON.stringify(survivors, null, 2) + "\n"); } catch {}
+  }
 }
 ```
 

@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "commander": "^15",
-    "execa": "^9",
+    "execa": "^10",
     "ajv": "^8",
     "semver": "^7"
   },

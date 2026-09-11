@@ -105,6 +105,17 @@ vi.mock("node:fs", async (importOriginal) => {
 
 // --- Tests ---
 
+// 真实落盘 mock helper（P4 nit fix 4 DRY）：模块级 vi.mock 把 writeHandoff 换成 vi.fn() 不落盘
+// → BLOCKED 分支写盘后 JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT。注入真实写盘实现
+// 让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
+function mockRealWriteBack(writeHandoff) {
+  writeHandoff.mockImplementation((p, data) => {
+    mkdirSync(path.dirname(p), { recursive: true });
+    writeFileSync(p, JSON.stringify(data, null, 2) + "\n");
+    return data;
+  });
+}
+
 describe("runDocsTask", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -323,11 +334,7 @@ describe("runDocsTask", () => {
     // 真实落盘 mock：模块级 vi.mock 把 writeHandoff 换成 vi.fn() 不落盘 → BLOCKED 分支写盘后
     // JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT（orphan 路径 node:fs mock 透传真实 fs）。
     // 注入真实写盘实现让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
-    writeHandoff.mockImplementation((p, data) => {
-      mkdirSync(path.dirname(p), { recursive: true });
-      writeFileSync(p, JSON.stringify(data, null, 2) + "\n");
-      return data;
-    });
+    mockRealWriteBack(writeHandoff);
     const orphanPath = join(dir, "ws", "spec-review-1.json");  // 非 .superpowers/cdd/foo 前缀 → existsSync mock 走真实 → 文件不存在 → BLOCKED 写盘
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
@@ -377,11 +384,7 @@ describe("runDocsTask", () => {
     const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
     const { writeHandoff } = await import("../lib/handoff/write.mjs");
     // 真实落盘 mock：BLOCKED 分支写盘后 JSON.parse(readFileSync(handoffPath)) 同步读回必须成功。
-    writeHandoff.mockImplementation((p, data) => {
-      mkdirSync(path.dirname(p), { recursive: true });
-      writeFileSync(p, JSON.stringify(data, null, 2) + "\n");
-      return data;
-    });
+    mockRealWriteBack(writeHandoff);
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
       handoffPath,

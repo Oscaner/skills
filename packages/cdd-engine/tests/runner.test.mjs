@@ -6,7 +6,7 @@
 // review-package not executable → CDD_BLOCKED.
 // invokeCliOverride seam removed (§ P1 Task 5) — CLI simulation now uses real fake-cli shell scripts.
 import { it, expect, describe } from "vitest";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, appendFileSync, chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -129,6 +129,25 @@ it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
   expect(lines.length).toBe(4);
   expect(lines[0]).toBe("status: APPROVED");
   expect(lines[3]).toBe("blocker: none");
+});
+
+it("runTask: 正常 exit（noExit=false）→ finally teardownAll 先于 ExitRequested 传播（residual group reaped）", async () => {
+  // Task 3 review warn 回归：process.exit 不展开 try/finally —— exit helpers 改 throw ExitRequested
+  // 后，run 边界 finally（teardownAll）必须先行连根回收 dispatch 残留组，哨兵才向外传播。
+  const ws = setupWorkspace();
+  // 模拟 dispatch 留下的 session server：leader 触发孙进程 P1EXIT 后退出，孙进程驻留（组 pgid 存活语义）。
+  const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EXIT']).unref();process.exit(0)`;
+  await spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+  const p1exitAlive = () => Number(execSync("pgrep -f P1EXIT | wc -l").toString().trim());
+  expect(p1exitAlive()).toBeGreaterThan(0);
+  let code = null;
+  try {
+    await runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws) });   // noExit=false
+  } catch (e) {
+    if (e instanceof ExitRequested) code = e.code; else throw e;
+  }
+  expect(code).toBe(0);                  // 出口码语义保留（0=OK）
+  expect(p1exitAlive()).toBe(0);         // 驻留组已随 finally teardownAll 连根回收
 });
 
 it("runTask: dry-run review/fix modes → H1 APPROVED + no handoff written (aligns bash)", async () => {

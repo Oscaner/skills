@@ -7,7 +7,7 @@
 //   classifySeverity：blocker→CHANGES_REQUESTED；warn/nit→APPROVED；unverifiable/needs_context→STOP。
 //   rollupStatus：warn/nit→APPROVED；含 blocker→CHANGES_REQUESTED；unverifiable/plan_conflicts→BLOCKED。
 //   validateHandoffSchema：notes 可选字段被 schema 接受（AC10，Enh T）。
-// writeHandoff：按 docs/handoff-schema.md 写 + 合并已有（H6 链 update 语义）。
+// writeHandoff：按 skills/cli-driven-development/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写 + 合并已有（H6 链 update 语义）。
 import { it, expect } from 'vitest';
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, appendFileSync } from "node:fs";

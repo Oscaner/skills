@@ -1,6 +1,6 @@
 # P2 — cdd review spec/plan Stopping ref 增内容状态维度（演进重审通道）— Design
 
-- **Version**: v1.0 · 2026-09-11
+- **Version**: v1.1 · 2026-09-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-10-session-report-246-overall.md](../specs/2026-09-10-session-report-246-overall.md) v1.9
@@ -65,14 +65,15 @@ spec/plan 的 Stopping ref 只比对 `prev.doc_path === doc`（`review.mjs:132`�
      if (legacy || contentSame) {
        // 两类锁死场景走同一 guard，消息按 reason 分写（§2.3.4 单点）
        reviewStoppingGuard(prev, opts.type, round, doc, { reason: legacy ? "legacy" : "unchanged" });
-     } else if (prev.status === "APPROVED") {
-       // 内容演进 + 既有 clean review → 新 ref → 放行 + 自文档化
+     } else if (prev.status === "APPROVED" && docHash) {
+       // 内容演进 + 既有 clean review → 新 ref → 放行 + 自文档化。
+       // docHash 空串哨兵（ghost doc，§2.4）不印 CDD_INFO —— 已删文档非「演进」：静默放行、下游自然失败。
        process.stderr.write(`CDD_INFO: doc content changed since round-${round-1} clean review (${prev.doc_hash.slice(0,8)} → ${docHash.slice(0,8)}) → new review round ${round}\n`);
      }
      // 其余 prev（BLOCKED/CHANGES_REQUESTED）→ 无声放行重派（SP-4：失败轮永不锁死）
    }
    ```
-   语义：legacy（hash 缺失）或 内容未变 → 既有 gate（exit 3，消息按 reason 分场景）；内容演进 + prev clean（APPROVED）→ `CDD_INFO` + 放行；非 clean prev 无视 hash、无声放行（SP-4）。
+   语义：legacy（hash 缺失）或 内容未变 → 既有 gate（exit 3，消息按 reason 分场景）；内容演进 + prev clean（APPROVED）→ `CDD_INFO` + 放行；ghost doc（docHash 空哨兵）→ 静默放行不印 CDD_INFO；非 clean prev 无视 hash、无声放行（SP-4）。
 3. **写盘注入**（`lib/runner/run-docs.mjs` review-mode 定稿路径）：`finalizeHandoff` 后，`writeOwnHandoff(handoffPath, { ...(finalized.handoff ?? handoff), doc_hash: hashFile(doc) })`——review-mode 恒有 doc_hash 变更 → 恒写（不再复用 `persistFinalized` 的 skip-write）；fix-mode 保持原 `persistFinalized`。BLOCKED 两条失败写盘（handoff 未写 / schema 无效）同样并入 `doc_hash`。**内存返回值同步**：新写盘路径必须同时维护 runDocsTask 返回的 `{ handoff }`——`local.status = finalized.handoff.status`（warn-only rollup 覆写 APPROVED 不得丢失）+ `local.doc_hash = hashFile(doc)`，返回对象与磁盘定稿一致；docs-runner.test.mjs 既有 T5 回归（`result.handoff.status === "APPROVED"`）列为硬性断言。
 4. **消息单点**：`reviewStoppingGuard` / `reviewStoppedError` 增选参 `{ reason }`（`"legacy" | "unchanged"`）——同一 guard 出口，消息按场景分写（§2.2 bullet 3）：`unchanged` → *"doc content unchanged since round-{R} clean review — edit the doc content or open a new doc to start a new review"*；`legacy` → *"pre-content-hash review handoff (no doc_hash) — content state unknown; open a new doc or remove the stale round-{R-1} review handoff to re-review"*。缺省 reason 保留现消息（task/branch 调用面不变）。
 
@@ -81,10 +82,10 @@ spec/plan 的 Stopping ref 只比对 `prev.doc_path === doc`（`review.mjs:132`�
 | 情形 | 行为 |
 |---|---|
 | 内容未变 + APPROVED+0 prev | exit 3（Review Stopping，U1 保留）；reason=`unchanged` 消息：「编辑 doc 内容 或 新建 doc 可开新 review」 |
-| 内容演进 + APPROVED+0 prev | `CDD_INFO` 一行（仅此场景打印）+ 放行 review round N |
+| 内容演进 + APPROVED+0 prev | `CDD_INFO` 一行（仅此场景打印，且 docHash 非空）+ 放行 review round N |
 | legacy prev（无 doc_hash） | 按内容未知 → 同 ref → exit 3（现行为保留）；reason=`legacy` 消息：「新建 doc 或 移除陈旧 review handoff 以重开 workspace」——不给对 legacy 不可达的改动指引 |
-| BLOCKED/TIMEOUT prev | 照旧放行（SP-4：失败轮永不锁死） |
-| doc 文件缺失/读失败 | `hashFile` → `""` → 按 ref 变放行 → 下游 runDocsTask 自然失败 |
+| BLOCKED/TIMEOUT prev | 照旧放行（SP-4：失败轮永不锁死）；无声（无 CDD_INFO） |
+| doc 文件缺失/读失败 | `hashFile` → `""` → 按 ref 变静默放行（不印 CDD_INFO——ghost doc 非演进）→ 下游 runDocsTask 自然失败 |
 | `--round` 与 engine 推导不一致 | exit 2（既有 backfill 校验） |
 
 ### §2.5 测试
@@ -94,11 +95,12 @@ spec/plan 的 Stopping ref 只比对 `prev.doc_path === doc`（`review.mjs:132`�
 1. **既有用例零改动保持绿**（legacy seed 无 doc_hash + APPROVED+0 → exit 3）——回归护栏：不意外重开；其 stderr 含 `legacy` reason 可行指引（「新建 doc / 移除陈旧 review handoff」），非改动指引
 2. seed `doc_hash` == 现档 hash + APPROVED+0 → **exit 3**（内容未变，U1/precise）；stderr 含 `unchanged` reason 指引（「编辑 doc 内容 或 新建 doc」）
 3. seed `doc_hash` ≠ 现档 hash + APPROVED+0 → **放行**：round 自增至 2、dry-run exit 0、stderr 含 `CDD_INFO`
-4. CHANGES_REQUESTED prev + 同内容同 hash → **无声放行**（blocker>0 重审权 SP-4），`CDD_INFO` 不打印（非 clean prev 自文档化抑制）
+4. CHANGES_REQUESTED prev + 同内容同 hash → **无声放行**（blocker>0 重审权 SP-4），`CDD_INFO` 不打印（非 clean prev 自文档化抑制）；BLOCKED prev + 内容演进 → 同样无声放行（失败轮永不锁死，§2.4）
 5. hash 演进 + 显式 `--round 2`（= engine 推导值）→ CDD_INFO + 放行 exit 0；`--round 1`（≠ 推导）→ exit 2 backfill 冲突——演进放行与 `--round` 共存双分支
 6. spec + plan 两家族镜像（至少各一放行/硬停代表例）
-7. `docs-runner.test.mjs`：review-mode 定稿 writeOwnHandoff 产物含 `doc_hash`（schema 校验过 + 字段值 == hashFile(doc)）；BLOCKED 失败写盘亦含；**fix-mode 负向对称**——fix 定稿路径维持 `persistFinalized`，产物无 `doc_hash`（防误扩展注入）
-8. 消息断言：exit-3 stderr 不再含旧「change ref to open a new review」的 impossible 措辞；`reason` 双消息 + `CDD_INFO` 禁打场景逐条对照（承接第 1–5 条）
+7. `docs-runner.test.mjs`：review-mode 定稿 writeOwnHandoff 产物含 `doc_hash`（字段值 == hashFile(doc)）；**plan 家族镜像**（type:plan 同断言）；BLOCKED 失败写盘亦含；**fix-mode 负向对称**——fix 定稿路径维持 `persistFinalized`，产物无 `doc_hash`（防误扩展注入）；`schema-utils.test.mjs` **真实 schema 往返**（docs schema 收 doc_path+doc_hash 同携、doc_hash optional、未知属性拒）
+8. 消息断言：exit-3 stderr 不再含旧「change ref to open a new review」的 impossible 措辞（unchanged + legacy 双场景）；`reason` 双消息 + `CDD_INFO` 禁打场景（非 clean prev / ghost doc）逐条对照
+9. ghost doc 边角：现档被删 → hashFile `""` → 静默放行、不印 CDD_INFO（§2.4 doc 缺失行落地为断言）
 
 ### §2.6 文档
 

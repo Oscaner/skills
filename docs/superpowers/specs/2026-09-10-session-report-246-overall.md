@@ -1,6 +1,6 @@
 # Session Report #246 收尾批次 — Overall Spec
 
-- **Version**: v1.4 · 2026-09-10
+- **Version**: v1.5 · 2026-09-11
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -74,7 +74,7 @@ phase 执行期发现新 issue / pre-consume / 重新归属：按 [add-phase-pro
 
 | # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
 |---|---|---|---|---|---|---|
-| P1 | cdd-engine 运行收尾：implement 收尾后 runner 显式终止/回收派生子进程 + run 级 teardown（退出续跑会话、释放整场派生进程）+ 驻留进程超时兜底 | [Pending] | [Pending] | 连续多次 CDD 运行后无 `claude -p` implementer 驻留累积（RSS 不随运行次数增长）；run 完成后续跑会话退出；驻留进程有超时兜底 | 无（program 起点） |
+| P1 | cdd-engine 进程生命周期统一管理 + 结构重排：全部引擎派生点（task implement/review/fix · docs review/fix · branch-review · research · review-package）纳入 run 级进程组所有权（spawnManaged 统一工厂 + run 边界/信号 teardownAll 连根回收——退出续跑会话、释放整场派生进程 + idle backstop 兜底）；cdd-engine 目录重排（bin 薄入口 + lib 分簇 + tests 顶层，npm 不再发 tests） | P1-design（2026-09-11 本文件 v1.0） | [Pending] | 连续多次 CDD 运行后无 `claude -p` implementer 驻留累积（RSS 不随运行次数增长；run 结束后 proc-registry 为空）；run 完成/超时/被杀三态下进程组连根回收、续跑会话退出；驻留进程有 idle backstop 兜底；cdd-engine 结构重排（bin/lib/tests 布局、npm pack 不含 tests、residue/smoke 机制位置同步）；`pnpm run validate` 12 块全绿 | 无（program 起点） |
 | P2 | cdd review Stopping ref 增内容指纹维度：spec/plan 内容实质演进即新 ref、可开新 review cycle（同 ref + blocker=0 仍禁止 re-run）；文档化 spec 演进重审路径 | [Pending] | [Pending] | 同一 spec/plan 文档内容修改后 `cdd review --round 2` 可开新 review cycle；内容未变仍 exit 3；无复制文档到新路径重审的双文件漂移 anti-pattern | 无 |
 | P3 | cdd fix 模式存续性决策：盘点 fix 机械实际派发（含 cdd-engine-overhaul P6 已实测路径）→ 对齐 `_docs/review.md` §cli-fix-all-findings 与 CDD skill fix-inline 两处文案 → 拍板存续/移除并落地（保留则补 doc fix 真实派发路径；移除则删机械） | [Pending] | [Pending] | 决策经 evidence 拍板并记入 P3 design；review.md 与 CDD skill 规则文案唯一化、无冲突；实测路径（fix-inline 或 cdd fix）与文案一致；charter Issue inventory 状态随拍板同步 | 无（决策 phase） |
 | P4 | overall 四表一致性机械校验：`scripts/validate/` 新增 overall-consistency 模块——四表 = Issue inventory、Phase inventory、Dependency graph、Change history；① phase shipped → plan 列 = Done；② plan 文档存在性断言；③ change-history 版本升序；④ 四表交叉引用（#NNN ∈ Issue inventory、Dependency graph 引用的 phase ∈ Phase inventory）；F13：closeout 强制回填检查点（phase shipped 时 finishing 前回填 Phase inventory plan/design 列 + change-history entry，机械守卫落地前由 closeout 人工执行） | [Pending] | [Pending] | 四表漂移时 `pnpm run validate` exit 1；正常状态绿如常通过；不误报现有 shipped 程序；F13：phase shipped 后无未回填漂移可再跳关（P6 式漏回填不再发生） | 无 |
@@ -124,3 +124,4 @@ P7 独立（workflow 精简）
 | v1.2 | 2026-09-10 | P6 design spec shipped（`2026-09-10-session-report-246-p6-design.md` v1.0，F2/F3/F4/F12 四案经 cdd review round-1 blocker=0 + fix 闭环）；P6 Phase inventory Design-spec 列回填（[Pending]→P6-design v1.0）（v1.1→v1.2） | [human] · Claude Opus 5 (1M context) |
 | v1.3 | 2026-09-10 | P6 dev shipped（CDD 三 task 全 APPROVED + branch-review r1 APPROVED）：renderer subject 契约 + SKILL Session context 模型 + I6 两向契约 + master 只建不更；changeset minor 落盘；PR #249（base develop）已建；Phase inventory P6 plan 列回填（[Pending]→Done）（v1.2→v1.3） | [human] · Claude Opus 5 (1M context) |
 | v1.4 | 2026-09-10 | F13 登记（P6 closeout 实测）：phase shipped 后 overall 四表未自动回填（P6 plan 列 [Pending] 至人工提醒），F6 同源实证 → 归入 P4（scope 增 closeout 强制回填检查点 + acceptance 增漏回填不再发生）；Issue inventory +F13 行（v1.3→v1.4） | [human] · Claude Opus 5 (1M context) |
+| v1.5 | 2026-09-11 | P1 design spec（`...-p1-design.md` v1.0）：F1 根因统一抽象（spawnManaged 统一工厂 + teardownAll 连根回收 + idle backstop，覆盖全部引擎派生点）× cdd-engine 结构重排（用户请求：bin 薄入口 + lib 分簇 + tests 顶层，允许破坏性更新）；P1 Phase inventory scope/acceptance 回填 + Design-spec 列（[Pending]→P1-design v1.0）（v1.4→v1.5） | [human] · Claude Opus 5 (1M context) |

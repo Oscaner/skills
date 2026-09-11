@@ -3,6 +3,8 @@
 // / teardownAll（run 边界 + CLI 信号连根回收）/ reapDone（进程内 idle 监视低频回收）
 // / reapStale（跨 run 孤儿兜底）。registry 双写内存 + 落盘（.superpowers/cdd/lifecycle.json），
 // 父死场景由下次启动跨 run 扫回。
+// `__registryForTest` / `__resetForTest` 为测试内省导出（vitest seam）；`__` 前缀标记测试专用，
+// 随包发布但无副作用（仅读内置 registry / 重置模块态，非正式 API）。
 import { execa } from "execa";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -63,14 +65,18 @@ export async function spawnManaged(command, args, opts = {}) {
   });
   const pid = sub.pid;
   const res = await sub;
-  registry.push({
-    pgid: pid,
-    label: `${command} ${(args ?? []).join(" ")}`.slice(0, 80),
-    createdAt: Date.now(),
-    ownerPid: process.pid,
-    done: false,
-  });
-  await persistRegistry();
+  // 派生失败（reject:false 下 ENOENT 等令 pid 缺失）不注册组条目——空的 pgid/owner 对孤儿
+  // 判定无意义，避免污染磁盘 registry（spec §2.2 A 条目契约：pgid 必须有值）。
+  if (pid != null) {
+    registry.push({
+      pgid: pid,
+      label: `${command} ${(args ?? []).join(" ")}`.slice(0, 80),
+      createdAt: Date.now(),
+      ownerPid: process.pid,
+      done: false,
+    });
+    await persistRegistry();
+  }
   const timedOut = res.timedOut ?? false;
   return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut };
 }
@@ -177,5 +183,10 @@ export async function reapStale({ graceMs = 5000 } = {}) {
     }
   }
   await waitForDeath(targets, 2000);              // 孤儿/超时组确定消失（含 init 收尸窗口）
-  if (diskPath) { try { writeFileSync(diskPath, "[]\n"); } catch {} }  // 收完清盘
+  // 收完写回：仅保留「尚未确认消亡」的条目（SIGKILL 未遂 / D-state 未随窗口消失）——
+  // 跨 run 兜底对未回收组永久失联即失去兜底价值，保留下次启动再兜。
+  const survivors = pending.filter(g => pgidAlive(g.pgid));
+  if (diskPath) {
+    try { writeFileSync(diskPath, JSON.stringify(survivors, null, 2) + "\n"); } catch {}
+  }
 }

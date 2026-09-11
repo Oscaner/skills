@@ -40,7 +40,7 @@ describe("proc-lifecycle spawnManaged", () => {
   });
 
   it("teardownAll 后 registry 为空", async () => {
-    await proc.spawnManaged("sleep", ["10"], {});
+    await proc.spawnManaged("sleep", ["1"], {});
     await proc.teardownAll();
     expect(proc.__registryForTest().length).toBe(0);
   });

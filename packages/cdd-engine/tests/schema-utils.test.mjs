@@ -70,3 +70,22 @@ describe('status conditional — review 族可缺省 / implement·fix required�
     expect(validateHandoffSchema({ ...noStatus, phase: 'fix' }).valid).toBe(false);
   });
 });
+
+// docs schema（§2.5.7「schema 校验过」）：真实 docs-handoff-schema 既收 doc_path 又收 doc_hash
+//（additionalProperties:false 下已声明属性不误伤；未知属性仍拒）——若 schema 属性被删/拼错即红。
+describe('docs handoff schema (doc_hash)', () => {
+  const DOCS = {
+    phase: 'review', status: 'APPROVED',
+    findings: [], artifacts: {}, doc_path: '/x.md', doc_hash: 'a'.repeat(64),
+  };
+  it('doc_path + doc_hash 同携 valid（schema 显式声明 doc_hash 属性）', () => {
+    expect(validateHandoffSchema(DOCS, 'docs')).toEqual({ valid: true });
+  });
+  it('doc_hash optional（无 doc_hash 的 legacy handoff 仍 valid）', () => {
+    const { doc_hash, ...legacy } = DOCS;
+    expect(validateHandoffSchema(legacy, 'docs')).toEqual({ valid: true });
+  });
+  it('additionalProperties:false 仍桩——未知属性拒绝', () => {
+    expect(validateHandoffSchema({ ...DOCS, bogus: 1 }, 'docs').valid).toBe(false);
+  });
+});

@@ -2,6 +2,10 @@
 // Covers: dry-run path + Bug L regression (subprocess cwd = gitToplevel not doc directory).
 // All file-touching modules are mocked for isolation (no real CLI, no real schema files needed).
 import { vi, it, expect, describe, beforeEach } from "vitest";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import path, { join } from "node:path";
+import { tmpdir } from "node:os";
 
 // --- Module mocks (hoisted before imports) ---
 
@@ -248,5 +252,110 @@ describe("runDocsTask", () => {
     } finally {
       fs.readFileSync.mockImplementation(origRead);
     }
+  });
+
+  // ---- P2 F5：review-mode doc_hash 定稿注入（载体唯一作者 T7）----
+
+  it("review-mode 定稿注入 doc_hash：缺失 doc（mock 环境 ENOENT）→ 空串哨兵 + 内存返回值同步", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const result = await runDocsTask({
+      harness: "claude", mode: "review", template: "review", type: "spec",
+      doc: "/repo/root/docs/superpowers/specs/my-spec.md",   // 不存在 → hashFile "" 哨兵
+      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+      dryRun: false,
+    });
+    expect(result.handoff.status).toBe("APPROVED");
+    expect(result.handoff.doc_hash).toBe("");                // 内存返回值同步（§2.3.3）
+    const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
+    expect(writeCall[1].doc_hash).toBe("");                  // 磁盘定稿含 doc_hash
+    expect(writeCall[1].status).toBe("APPROVED");
+  });
+
+  it("review-mode doc_hash = 真实内容 sha256 hex（temp doc + 非 ws 前缀不被 mock 拦截）", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    const dir = mkdtempSync(join(tmpdir(), "p2hash-"));
+    const doc = join(dir, "spec.md");
+    writeFileSync(doc, "real content p2");
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const result = await runDocsTask({
+      harness: "claude", mode: "review", template: "review", type: "spec", doc,
+      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+      dryRun: false,
+    });
+    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("real content p2").digest("hex"));
+    const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
+    expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
+  });
+
+  it("fix-mode 不注入 doc_hash（p persistFinalized 原样；负向对称防误扩展）", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    await runDocsTask({
+      harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
+      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      findingsPath: "/repo/root/docs/findings.md",
+      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-fix-1.json",
+      dryRun: false,
+    });
+    const fixCalls = writeOwnHandoff.mock.calls.filter(([p]) => String(p).includes("spec-fix-"));
+    expect(fixCalls).toHaveLength(0);                       // fix-mode 无注入写
+    expect(writeOwnHandoff).not.toHaveBeenCalledWith(expect.any(String),
+      expect.objectContaining({ doc_hash: expect.anything() }));
+  });
+
+  it("BLOCKED 失败写盘（handoff 未写）亦注入 doc_hash（uniform 载体）", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "p2block-"));
+    const doc = join(dir, "spec.md");
+    writeFileSync(doc, "blocked content");
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { writeHandoff } = await import("../lib/handoff/write.mjs");
+    // 真实落盘 mock：模块级 vi.mock 把 writeHandoff 换成 vi.fn() 不落盘 → BLOCKED 分支写盘后
+    // JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT（orphan 路径 node:fs mock 透传真实 fs）。
+    // 注入真实写盘实现让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
+    writeHandoff.mockImplementation((p, data) => {
+      mkdirSync(path.dirname(p), { recursive: true });
+      writeFileSync(p, JSON.stringify(data, null, 2) + "\n");
+      return data;
+    });
+    const orphanPath = join(dir, "ws", "spec-review-1.json");  // 非 .superpowers/cdd/foo 前缀 → existsSync mock 走真实 → 文件不存在 → BLOCKED 写盘
+    const result = await runDocsTask({
+      harness: "claude", mode: "review", template: "review", type: "spec", doc,
+      handoffPath: orphanPath,
+      dryRun: false,
+    });
+    expect(result.exitCode).toBe(1);
+    const writeCall = writeHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
+    expect(writeCall[1].status).toBe("BLOCKED");
+    expect(writeCall[1].doc_hash).toBe(createHash("sha256").update("blocked content").digest("hex"));
+  });
+
+  it("plan 家族镜像：review-mode type:plan 定稿注入 doc_hash（真实双族 handoff 断言）", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    const dir = mkdtempSync(join(tmpdir(), "p2planh-"));
+    const doc = join(dir, "plan.md");
+    writeFileSync(doc, "plan content p2");
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const result = await runDocsTask({
+      harness: "claude", mode: "review", template: "review", type: "plan", doc,
+      handoffPath: "/repo/root/.superpowers/cdd/foo/plan-review-1.json",
+      dryRun: false,
+    });
+    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("plan content p2").digest("hex"));
+    const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("plan-review-1.json"));
+    expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
   });
 });

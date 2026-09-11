@@ -35,11 +35,11 @@ const CANONICAL_COL_TOKEN = /Implementation plan\b/;
 
 // Phase ids use a digit boundary so a future P10/P11 never prefix-matches P1
 // (design spec §2.3.2). Graph / dependency-column references are the same token.
-const PHASE_TOKEN_RE = /\bP\d+(?!\d)/g;
+const PHASE_TOKEN_RE = /\bP\d+(?![0-9])[a-z]?/g;
 
 function sectionRange(lines, headingRe) {
   const start = lines.findIndex((l) => headingRe.test(l));
-  if (start === -1) return -1;
+  if (start === -1) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
     if (/^## /.test(lines[i])) {
@@ -71,7 +71,13 @@ function fileNameSlug(filePath) {
 }
 
 export function loadOverallFile(filePath) {
-  const raw = readFileSync(filePath, "utf8");
+  let raw;
+  try {
+    raw = readFileSync(filePath, "utf8");
+  } catch (e) {
+    // §2.4: 读失败（EISDIR 等）→ malformed skip，不向 runner 传播 throw
+    return { ok: false, canonical: false, reason: `read failed: ${e.message}` };
+  }
   const lines = raw.split("\n");
   const headerIdx = lines.findIndex((l) => HEADER_RE.test(l));
   if (headerIdx === -1) {
@@ -110,7 +116,7 @@ export function loadOverallFile(filePath) {
   }
 
   const issueRange = sectionRange(lines, /^## Issue inventory/);
-  if (issueRange !== -1) {
+  if (issueRange !== null) {
     for (const c of tableRows(lines, issueRange)) {
       if (isSeparatorRow(c) || c[1]?.toLowerCase() === "phase") continue;
       base.issues.push({ phase: c[1] ?? "", ref: c[2] ?? "" });
@@ -118,7 +124,7 @@ export function loadOverallFile(filePath) {
   }
 
   const graphRange = sectionRange(lines, /^## Dependency graph/);
-  if (graphRange !== -1) {
+  if (graphRange !== null) {
     const tokens = new Set();
     let inBlock = false;
     for (let i = graphRange.start + 1; i < graphRange.end; i++) {
@@ -134,7 +140,7 @@ export function loadOverallFile(filePath) {
   }
 
   const historyRange = sectionRange(lines, /^## Change history/);
-  if (historyRange !== -1) {
+  if (historyRange !== null) {
     for (const c of tableRows(lines, historyRange)) {
       if (isSeparatorRow(c) || c[1]?.toLowerCase() === "version") continue;
       const m = (c[1] ?? "").match(/^v(\d+)\.(\d+)$/);
@@ -190,7 +196,7 @@ export function checkIssueRefsWellFormed(issues, phaseIds) {
       if (/#issuecomment-\d+/.test(refTxt)) continue;
       throw new Error(`issue ref 畸形（malformed anchor, #issuecomment- 后非数字）: ${refTxt}`);
     }
-    if (/^#\d+([（(]|\s|$)/.test(refTxt)) continue;
+    if (/^#\d+(?![\w])/.test(refTxt)) continue;
     if (/^\[\s*#\d+\s*\]/.test(refTxt)) continue;
     if (/^[（(][^）)]*[）)]$/.test(refTxt)) continue;
     throw new Error(`issue ref 无法识别（unrecognized ref）: ${refTxt}`);
@@ -226,7 +232,7 @@ export function main() {
     total++;
     const o = loadOverallFile(join(SPECS_DIR, name));
     if (!o.ok) {
-      console.error(`CDD_INFO: malformed skip ${name} (${o.reason})`);
+      console.error(`CDD_INFO: malformed ${name} — skipped (${o.reason})`);
       continue;
     }
     if (!o.canonical) {

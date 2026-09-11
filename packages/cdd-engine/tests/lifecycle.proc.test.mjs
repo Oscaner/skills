@@ -7,8 +7,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+import { processGroupReapingSupported } from "./helpers.mjs";
 
 const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
+// spec §2.6「环境不允许时 skip 保护」：CI 容器（Ubuntu runner sandbox）下 detached 组 + kill(-pgid)
+// 不可靠（组提升/组信号不达成员），导致 teardownAll 后标记进程仍存活。探针实测支持才运行。
+const GROUP_SUPPORTED = processGroupReapingSupported();
 
 // 延迟导入，便于每用例重建 registry 状态
 let proc;
@@ -19,7 +23,7 @@ async function loadModule() {
 const markerAlive = m => Number(execSync(`pgrep -f ${m} | wc -l`).toString().trim());
 const waitFor = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } throw new Error("waitFor timeout"); };
 
-describe("proc-lifecycle spawnManaged", () => {
+describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   beforeEach(async () => {
     await loadModule();
     proc.__resetForTest?.();

@@ -54,7 +54,8 @@ function filteredEnv() {
 }
 
 // git init + empty commit.
-import { gitCommit, gitInit } from "./helpers.mjs";
+import { gitCommit, gitInit, processGroupReapingSupported } from "./helpers.mjs";
+const GROUP_SUPPORTED = processGroupReapingSupported();  // spec §2.6 skip 保护（CI 容器组语义不可靠）
 
 // gitInit + realpath normalization (macOS /tmp → /private/tmp).
 function gitInitReal(dir) {
@@ -131,7 +132,7 @@ it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
   expect(lines[3]).toBe("blocker: none");
 });
 
-it("runTask: 正常 exit（noExit=false）→ finally teardownAll 先于 ExitRequested 传播（residual group reaped）", async () => {
+it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally teardownAll 先于 ExitRequested 传播（residual group reaped）", async () => {
   // Task 3 review warn 回归：process.exit 不展开 try/finally —— exit helpers 改 throw ExitRequested
   // 后，run 边界 finally（teardownAll）必须先行连根回收 dispatch 残留组，哨兵才向外传播。
   const ws = setupWorkspace();

@@ -10,9 +10,13 @@ import { spawn, execSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+import { processGroupReapingSupported } from "./helpers.mjs";
 
 const LIB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "lib");
 const REPO_ROOT = path.resolve(LIB, "..", "..", "..");
+// spec §2.6「环境不允许时 skip 保护」：信号用例依赖真进程组回收（P1SIG 组随 teardownAll 连根退出），
+// CI 容器下组语义不可靠 → skipIf 门控；形构守卫（execa 收敛 / withLifecycle 接线）不受影响始终运行。
+const GROUP_SUPPORTED = processGroupReapingSupported();
 const alive = m => Number(execSync(`pgrep -f ${m} | wc -l`).toString().trim());
 const waitFor = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } throw new Error("waitFor timeout"); };
 
@@ -54,6 +58,7 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     expect(cliMjs).not.toMatch(/^(?:export|const)[^\n]*spawnCapture/m);  // §2.2 D 无死导出（注释提及不受影响）
   });
 
+  describe.skipIf(!GROUP_SUPPORTED)("CLI 信号安全出口（进程组依赖）", () => {
   it.each([["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]])(
     "CLI 信号安全出口 %s → teardownAll 连根回收 + 退出码 %i（128+signo）",
     async (sig, expectCode) => {
@@ -75,5 +80,6 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     expect(code === expectCode || signal === sig).toBe(true);
     await waitFor(() => alive("P1SIG") === 0, 10_000);   // 组随 teardownAll 连根退出
     rmSync(stubDir, { recursive: true, force: true });
+  });
   });
 });

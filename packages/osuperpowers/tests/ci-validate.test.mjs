@@ -109,6 +109,7 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/skills"), "zero-residue grep misses osuperpowers/skills");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/bin"), "zero-residue grep misses osuperpowers/bin");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/bin"), "zero-residue grep misses cdd-engine/bin");
+  assert.ok(zr.grepTargets?.includes("packages/cdd-engine/lib"), "zero-residue grep misses cdd-engine/lib (re-org: mechanism files moved into lib/)");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });
 

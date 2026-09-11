@@ -21,15 +21,17 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
 const OSKILLS = ["packages/osuperpowers/skills"];
-const CDD_ENGINE_BIN = ["packages/cdd-engine/bin"];
+// re-org（spec §2.3）：cdd-engine 机制文件迁入 lib/ —— scope 常量统一扩为 bin+lib（templates 原已在 CDD_ENGINE）。
+const CDD_ENGINE_BIN = ["packages/cdd-engine/bin", "packages/cdd-engine/lib"];
 const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/templates"];
-// T9 nit3（DRY）：跨 skills + cdd-engine（bin+templates）的机制位置集合 —— 5 个 check 共享。
+// T9 nit3（DRY）：跨 skills + cdd-engine（bin+lib+templates）的机制位置集合 —— 5 个 check 共享。
 const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
 
 const RESIDUE_TARGETS = [
   "packages/osuperpowers/bin",
   "packages/osuperpowers/skills",
   "packages/cdd-engine/bin",
+  "packages/cdd-engine/lib",
   "packages/cdd-engine/templates",
 ];
 const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
@@ -45,7 +47,7 @@ const STALE_LEXICON_CHECKS = [
   { label: "lens names D1|D2|D3 (lens-context)", re: /\bD[123][:：]/, scope: ALL_MECH_POSITIONS },
   { label: "resolve-hit", re: /resolve-hit/, scope: ALL_MECH_POSITIONS },
   { label: "gh issue reopen", re: /gh issue reopen/, scope: ALL_MECH_POSITIONS },
-  // T9 nit6：task-review 旧 mode 名 scope 用 CDD_ENGINE（bin+templates）而非仅 CDD_ENGINE_BIN ——
+  // T9 nit6：task-review 旧 mode 名 scope 用 CDD_ENGINE（bin+lib+templates）而非仅 CDD_ENGINE_BIN ——
   // templates（implement/fix/review）历史引用旧 mode 名已成回渗源，templates 也须入扫。
   { label: "old mode task-review", re: /task-review/, scope: CDD_ENGINE },
   { label: "P4 degraded names", re: /(spec|plan)-1\.json|doc-fix-/, scope: CDD_ENGINE },
@@ -146,7 +148,7 @@ function checkGateLexicon() {
 
 // 块数不变（12）：checkStaleLexicon 与 T6 的 checkGateLexicon 并入既有 5c.run 同一步内部 ——
 // 先 checkZeroResidue 再 checkStaleLexicon 后 checkGateLexicon；grepTargets 扩为含
-// cdd-engine bin+templates 供 wiring guard 钉死。
+// cdd-engine bin+lib+templates 供 wiring guard 钉死。
 export const steps = [
   {
     name: "5c. engine zero-residue grep",

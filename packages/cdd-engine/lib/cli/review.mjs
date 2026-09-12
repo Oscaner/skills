@@ -101,11 +101,11 @@ export function reviewStoppingGuard(prev, type, round, ref, opts) {
 }
 
 // review --type task 的 task workspace 派生（task 派生点：与 run-task resolveWorkspace 同源 workspaceSlug）。
-// plan 文件名 → <repoRoot>/.superpowers/cdd/<slug>——slug 经 handoff-naming.workspaceSlug 收敛
-// （-design/-plan 单层 strip），两派生点防分叉回归见 tests/cli-shared.test.mjs（§2.9 row 6）。
-// 导出为纯函数（test seam）：gitToplevel 由调用方注入，避免本模块耦合 cwd 的 git 推导。
+// plan 文件名 → <repoRoot>/<workspaceRoot>/<slug>——slug 经 handoff-naming.workspaceSlug 收敛
+// （-design/-plan 单层 strip），基路径经 workspaceRoot 常量（不硬编码字面量），两派生点防分叉回归
+// 见 tests/cli-shared.test.mjs（§2.9 row 6）。导出为纯函数（test seam）：gitToplevel 由调用方注入。
 export function taskReviewWorkspace(plan, repoRoot) {
-  return path.join(repoRoot, ".superpowers", "cdd", handoffNaming.workspaceSlug(plan));
+  return path.join(repoRoot, handoffNaming.workspaceRoot, handoffNaming.workspaceSlug(plan));
 }
 
 // ---- review dispatch ----

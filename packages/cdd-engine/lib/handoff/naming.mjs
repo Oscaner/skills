@@ -10,6 +10,11 @@ const NAMESPACE = JSON.parse(
   readFileSync(new URL("../../templates/handoff-namespace.json", import.meta.url), "utf8"));
 const { families } = NAMESPACE;
 
+// workspaceRoot：`.superpowers/<workspaceRoot>/` 基路径段的唯一真相（值 `.superpowers/cdd`）。
+// workspaceSlug / resolveWorkspace / task workspace 派生（run-task / review.mjs）统一经此常量，
+// 不各自硬编码字面量（P5 task-1 review nit：三处除 naming 外均直写字面量）。
+export const workspaceRoot = NAMESPACE.workspaceRoot;
+
 // familyKey(op, type) → canonical family key（`${op}.${type}`）。内部 helper，非公共 API。
 function familyKey(op, type) { return `${op}.${type}`; }
 

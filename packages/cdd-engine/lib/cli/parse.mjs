@@ -7,8 +7,8 @@ import { Command } from "commander";
 import { runReview } from "./review.mjs";
 import { runFix } from "./fix.mjs";
 import { runResearch } from "./research.mjs";
-import { requireHostHarness, intTask, DRY_RUN } from "./review.mjs";
-import { runBriefCli } from "../brief.mjs";
+import { requireHostHarness, intTask, DRY_RUN } from "./shared.mjs";
+import { runBriefCli } from "./brief.mjs";
 import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.mjs";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of Commander's own output).

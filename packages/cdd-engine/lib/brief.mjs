@@ -1,10 +1,11 @@
-// packages/cdd-engine/lib/brief.mjs — CDD task brief generator + validator.
+// packages/cdd-engine/lib/brief.mjs — CDD task brief generator + validator（纯库模块）。
 // generateBrief: mechanically extract ### Task N: section from plan, append TASK_BASE, write file.
 //   第 4 参数 repoRoot：取该目录所在仓库的 HEAD 作 TASK_BASE（#173 —— 与调用方 cwd 解耦）。
 // validateBrief: check brief contains TASK_BASE: line.
+// CLI 处理器（runBriefCli + 直调 guard）已迁 lib/cli/brief.mjs（spec §2.6 归 cli 簇）——本文件
+// 无 process.argv 直调 guard：`node lib/brief.mjs` 是 inert 库加载（无 CLI 行为）。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { gitRevParseHead, gitToplevel } from "./contract/commit.mjs";
-import { exitWithCode, ExitRequested } from "./exit.mjs";
+import { gitRevParseHead } from "./contract/commit.mjs";
 
 export function generateBrief(planFile, taskNum, outPath, repoRoot) {
   if (!existsSync(planFile)) throw new Error(`plan file not found: ${planFile}`);
@@ -26,38 +27,4 @@ export function generateBrief(planFile, taskNum, outPath, repoRoot) {
 export function validateBrief(briefPath) {
   if (!existsSync(briefPath)) return false;
   return readFileSync(briefPath, "utf8").split("\n").some((l) => l.startsWith("TASK_BASE:"));
-}
-
-// --- CLI entry point (orchestrator calls via node brief.mjs --task N --plan <path> --output <path>) ---
-// Extracted as an exported function so bin/cdd.mjs (merge surface) can forward to it.
-// Direct-invocation guard retained below (the standalone CLI entry now lives under `cdd` subcommands; the guard stays for direct node invocation).
-export function runBriefCli(args) {
-  const taskIdx = args.indexOf("--task");
-  const planIdx = args.indexOf("--plan");
-  const outputIdx = args.indexOf("--output");
-  const taskNum = parseInt(args[taskIdx + 1]);
-  const planPath = planIdx >= 0 ? args[planIdx + 1] : undefined;
-  const outputPath = outputIdx >= 0 ? args[outputIdx + 1] : undefined;
-
-  try {
-    const repoRoot = gitToplevel();
-    generateBrief(planPath, taskNum, outputPath, repoRoot);
-    process.stdout.write(JSON.stringify({ brief: outputPath }));
-    exitWithCode(0);
-  } catch (e) {
-    // exit helpers throw ExitRequested —— 不得被本层 catch 误当成生成失败（Task 3 review warn 机制）。
-    if (e instanceof ExitRequested) throw e;
-    process.stderr.write(e.message);
-    exitWithCode(1);
-  }
-}
-
-// 直接 node 调用（cdd.test 等 fixture 路径）—— exit helpers throw ExitRequested，此处边界拦截 → exit(code)。
-if (process.argv[1] && process.argv[1].endsWith("brief.mjs") && process.argv.length > 2) {
-  try {
-    runBriefCli(process.argv.slice(2));
-  } catch (e) {
-    if (e instanceof ExitRequested) process.exit(e.code);
-    throw e;
-  }
 }

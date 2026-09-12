@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
 import { spawnManaged, markAllDispatchesDone, withLifecycle } from "../lifecycle/proc.mjs";
 import { resolveTimeoutMs } from "../lifecycle/cli.mjs";
-import { requireHostHarness, DRY_RUN } from "./review.mjs";
+import { requireHostHarness, DRY_RUN } from "./shared.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 
 export const RESEARCH_METHODOLOGY = `## Research Methodology

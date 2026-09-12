@@ -24,8 +24,10 @@ export function briefPath({ workspace, task }) {
 }
 
 // validateBaseBranch(obj) → {ok:true} | {ok:false, errors: []}。
-// schema：{ base: 非空 string, source: enum(4 值) }；confirmed_at 由 writeBaseBranch 恒定写 ISO，
-// 读取侧语义权威是 base，不额外校验时间戳格式。
+// schema：{ base: 非空 string, source: enum(4 值), confirmed_at: ISO8601 形 }。confirmed_at 由
+// writeBaseBranch 恒定写 ISO，但读取侧（cdd base-branch get）会校验存量 artifact（可能含手工
+// 旧件）——畸形时间戳 → errors，不静默放过。ISO8601 宽松形：`YYYY-MM-DDTHH:MM…` 含 T。
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T/;
 export function validateBaseBranch(obj) {
   const errors = [];
   if (!obj || typeof obj.base !== "string" || obj.base === "") {
@@ -34,6 +36,9 @@ export function validateBaseBranch(obj) {
   if (!BASE_BRANCH_SOURCES.includes(obj?.source)) {
     errors.push(`source must be one of: ${BASE_BRANCH_SOURCES.join(", ")}`);
   }
+  if (obj && obj.confirmed_at != null && !ISO_DATE_RE.test(obj.confirmed_at)) {
+    errors.push(`confirmed_at must be ISO8601 (YYYY-MM-DDTHH:MM…), got: ${JSON.stringify(obj.confirmed_at)}`);
+  }
   return errors.length > 0 ? { ok: false, errors } : { ok: true };
 }
 
@@ -41,10 +46,17 @@ export function validateBaseBranch(obj) {
 //   不存在            → 写 + confirmed_at=now；
 //   存在且 base 同    → 重写文件但 base 权威不变（source 追新、confirmed_at 保真——语义上等价 no-op）；
 //   存在且 base 异    → throw 拒绝（不动现有权威），force 才覆盖（新 base → 新 confirmed_at）。
+// 入口先经 validateBaseBranch gate（clone 入参补齐 confirmed_at 桩后校验）——防漏传 base / 非法
+// source 静默落盘 schema-invalid artifact（JSON.stringify 会丢 undefined 键）。CLI 层（Task 3）
+// 虽为规划中的校验闸门，但本模块自称 engine 唯一写入口，必须自持入参守卫，不依赖下游。
 // 写前 mkdirSync(dirname, {recursive:true}) 做 workspace 目录 bootstrap —— determine-base
 // 在 implement 前跑，workspace 目录届时尚不存在（naming.resolveWorkspace 不 mkdir），
 // 否则首秀 set 即 ENOENT。返回目标路径。
 export function writeBaseBranch({ base, source, workspace, force = false }) {
+  const gate = validateBaseBranch({ base, source, confirmed_at: new Date().toISOString() });
+  if (!gate.ok) {
+    throw new Error(`writeBaseBranch: invalid args — ${gate.errors.join("; ")}`);
+  }
   const target = baseBranchPath({ workspace });
   const existing = existsSync(target) ? JSON.parse(readFileSync(target, "utf8")) : null;
   const sameBase = !!existing && existing.base === base;

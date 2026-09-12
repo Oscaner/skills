@@ -2,7 +2,7 @@
 // workspace-artifacts 单一权威层 unit tests（P5 spec §2.2 / task-2 brief）。
 // Tests: baseBranchPath / briefPath 路径派生 + validateBaseBranch schema 校验 +
 // writeBaseBranch 幂等矩阵（新建 / 同 base 追新 / 异 base 拒绝 / --force 覆盖 / dir bootstrap）。
-import { it, expect } from 'vitest';
+import { it, expect } from "vitest";
 import { existsSync, readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -116,4 +116,18 @@ it("writeBaseBranch: --force → 覆盖（新 base + 新 confirmed_at）", () =>
   expect(saved.base).toBe("main");
   expect(saved.source).toBe("user-confirmed");
   expect(saved.confirmed_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+});
+
+it("validateBaseBranch: 畸形 confirmed_at → {ok:false, errors}（读取侧不静默放过）", () => {
+  const r = validateBaseBranch({ base: "develop", source: "plan-field", confirmed_at: "2026-09-12" });
+  expect(r.ok).toBe(false);
+  expect(r.errors.join(" ")).toMatch(/confirmed_at/);
+});
+
+it("writeBaseBranch: 漏传 base / 非法 source → 入参 gate 拒绝，不静默落盘坏 artifact", () => {
+  const workspace = tmpDir("ws-art-gate-");
+  expect(() => writeBaseBranch({ source: "plan-field", workspace })).toThrow(/base is required/);
+  expect(() => writeBaseBranch({ base: "develop", source: "bogus", workspace })).toThrow(/source must be one of/);
+  // 两处拒绝后均未写入
+  expect(existsSync(path.join(workspace, "base-branch.json"))).toBe(false);
 });

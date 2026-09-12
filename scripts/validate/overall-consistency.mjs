@@ -13,10 +13,12 @@
 //      closeout declarations（`Pending → <target>`，brackets optional、ranges
 //      `P1–P4/P6` 含端点）: mand-forward (claim ⇒ column) for plan + design,
 //      reverse (shipped plan column ⇒ claim) for plan only.
-//   ② plan/design document existence — slug-suffix glob
-//      `*-<slug>-p<n>{,-design}.md` across specs/ + plans/ (cross-date phase
-//      docs hit via suffix, not date prefix); design column asserts only its own
-//      `P<n>-design` token (cross-refs like （源 P3-design） ignored); >1 hit → dup.
+// ② plan/design document existence — slug-suffix glob across specs/ + plans/
+// (cross-date phase docs hit via suffix, not date prefix). Plan docs accept
+// BOTH forms: bare `*-<slug>-p<n>.md` (shipped path) and the P5 `-plan`
+// convention `*-<slug>-p<n>-plan.md`; design asserts `*-<slug>-p<n>-design.md`.
+// Design column asserts only its own `P<n>-design` token (cross-refs like
+// （源 P3-design） ignored); >1 hit → dup.
 //   ④a Anchor registry — `#(\d+)#issuecomment-\d+` anchors in phase docs must
 //      reference an issue number present in the Issue inventory ref set.
 //
@@ -370,9 +372,10 @@ export function checkBackfillClaims(phases, historyRows) {
   }
 }
 
-// ② plan/design 文档存在性：slug 后缀 glob `*-<slug>-p<n>{,-design}.md`（跨日期
-// phase 文档经后缀命中，非日期前缀）；design 列仅断言自身 `P<n>-design` token；
-// glob（同 slug+phase）命中 >1 → 重复文档。
+// ② plan/design 文档存在性：slug 后缀 glob（跨日期 phase 文档经后缀命中，非日期
+// 前缀）；design 列仅断言自身 `P<n>-design` token。plan 双形：
+// `*-<slug>-p<n>.md`（既有 shipped 路径）+ `*-<slug>-p<n>-plan.md`（P5 `-plan`
+// 命名约定），任一命中即算存在，两形并存 → 重复文档。
 export function checkDocExistence(phases, slug, specsRoot, plansRoot) {
   let specs = [];
   let plans = [];
@@ -382,16 +385,23 @@ export function checkDocExistence(phases, slug, specsRoot, plansRoot) {
   } catch {
     // 目录缺 → 视为无文档，由下方 missing 判定兜底
   }
-  const planSuffix = (id) => `-${slug}-${id.toLowerCase()}.md`;
+  // plan 双后缀：bare（既有 shipped 路径） + `-plan` 变体（P5 命名约定）。
+  const planSuffixes = (id) => [
+    `-${slug}-${id.toLowerCase()}.md`,
+    `-${slug}-${id.toLowerCase()}-plan.md`,
+  ];
   const designSuffix = (id) => `-${slug}-${id.toLowerCase()}-design.md`;
   for (const p of phases) {
     if (!isPendingText(p.plan)) {
-      const hits = plans.filter((n) => n.endsWith(planSuffix(p.id)));
+      const suffixes = planSuffixes(p.id);
+      const hits = plans.filter((n) => suffixes.some((s) => n.endsWith(s)));
       if (hits.length === 0) {
-        throw new Error(`plan 文档缺失（missing plan doc）: 需 *${planSuffix(p.id)}（${p.id} plan 列非 Pending）`);
+        throw new Error(
+          `plan 文档缺失（missing plan doc）: 需 ${suffixes.map((s) => `*${s}`).join(" 或 ")}（${p.id} plan 列非 Pending）`,
+        );
       }
       if (hits.length > 1) {
-        throw new Error(`plan 文档重复（duplicate plan doc）: ${hits.join(", ")}`);
+        throw new Error(`plan 文档重复（duplicate plan doc，双形并存）: ${hits.join(", ")}`);
       }
     }
     const own = ownDesignToken(p.design, p.id);
@@ -430,10 +440,11 @@ export function checkAnchorRegistry(issues, scanFiles) {
 }
 
 // ④a scan 面 = overall 自身 + 同 slug 的全部 phase 文档（specs + plans 双目录）。
-function anchorScanFiles(overallFile, slug) {
+// roots 可注入（fixture 测试用；缺省真实目录）。plan 双形：bare + `-plan` 变体。
+export function anchorScanFiles(overallFile, slug, specsRoot = SPECS_DIR, plansRoot = PLANS_DIR) {
   const files = [overallFile];
-  const re = new RegExp(`-${slug}-p\\d+(?:-design)?\\.md$`);
-  for (const dir of [SPECS_DIR, PLANS_DIR]) {
+  const re = new RegExp(`-${slug}-p\\d+(?:-design|-plan)?\\.md$`);
+  for (const dir of [specsRoot, plansRoot]) {
     let names;
     try {
       names = readdirSync(dir);

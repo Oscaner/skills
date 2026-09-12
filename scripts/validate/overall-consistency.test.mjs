@@ -5,7 +5,8 @@
 // via slug suffix glob / ④a anchor registry). clean fixture exercises all green
 // paths; drift fixtures pin each throw; malformed + legacy fixtures pin
 // ok:false / canonical:false skip paths; span-mixed pins cross-date + range +
-// bracket-optional + design cross-ref green paths.
+// bracket-optional + design cross-ref green paths. Task 6: plan-suffix dual-form
+// glob (bare + -plan variant) cross-check on checkDocExistence + anchorScanFiles.
 
 import { describe, it, expect } from "vitest";
 import { join, dirname } from "node:path";
@@ -20,6 +21,7 @@ import {
   extractClaimRows,
   checkDocExistence,
   checkAnchorRegistry,
+  anchorScanFiles,
 } from "./overall-consistency.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -154,5 +156,30 @@ describe("overall-consistency：④a 锚点注册域（Task 2）", () => {
       join(SPECS, "drift-anchor-unregistered-p1.md"),
     ];
     expect(() => checkAnchorRegistry(o.issues, scan)).toThrow(/999/);
+  });
+});
+
+describe("overall-consistency：②/④a 双形 glob（Task 6: P5 -plan 命名）", () => {
+  it("②plan 双形：无后缀 plan 命中（既有 shipped 路径 span-mixed 回归）→ 通过", () => {
+    const phases = [{ id: "P1", design: "Pending", plan: "Done", dependency: "" }];
+    expect(() => checkDocExistence(phases, "span-mixed", SPECS, PLANS)).not.toThrow();
+  });
+  it("②plan 双形：`-plan.md` 变体命中（planvar p2 仅 -plan 形）→ 通过", () => {
+    const phases = [{ id: "P2", design: "Pending", plan: "Done", dependency: "" }];
+    expect(() => checkDocExistence(phases, "planvar", SPECS, PLANS)).not.toThrow();
+  });
+  it("②plan 双形：两形并存（bare + -plan）→ duplicate（跨形并存重复检测）", () => {
+    const phases = [{ id: "P1", design: "Pending", plan: "Done", dependency: "" }];
+    expect(() => checkDocExistence(phases, "planvar", SPECS, PLANS)).toThrow(/duplicate|dup|重复/i);
+  });
+  it("④a anchorScanFiles 双形：scan 面含 -plan 变体 + bare 形，跨 slug 不串", () => {
+    const overall = join(SPECS, "span-mixed-overall.md");
+    const files = anchorScanFiles(overall, "planvar", SPECS, PLANS);
+    expect(files[0]).toBe(overall);
+    expect(files).toContain(join(PLANS, "2026-09-07-planvar-p1.md"));
+    expect(files).toContain(join(PLANS, "2026-09-07-planvar-p1-plan.md"));
+    expect(files).toContain(join(PLANS, "2026-09-07-planvar-p2-plan.md"));
+    // planvar glob 不命中 span-mixed 文档（跨 slug 隔离）
+    expect(files).not.toContain(join(PLANS, "2026-09-07-span-mixed-p1.md"));
   });
 });

@@ -1,6 +1,20 @@
-# Handoff Schema (task-N-handoff.json)
+# Handoff Schema
 
-Single source of truth for task-N-handoff.json — cited by [`controller-handoff.md`](controller-handoff.md) (H2 / H4 / H5) and each segment of the CDD mode templates ([`implement.md`](../templates/implement.md), [`task-review.md`](../templates/task-review.md), [`fix.md`](../templates/fix.md)).
+Single source of truth for the CDD handoff JSON family — cited by the engine handoff write path (`packages/cdd-engine/lib/handoff/write.mjs`) and each segment of the CDD mode templates shipped with the engine (`packages/cdd-engine/templates/task/implement.md`, `packages/cdd-engine/templates/task/fix.md`, `packages/cdd-engine/templates/review/review.md`).
+
+**Source of truth:** handoff naming and workspace rules → `packages/cdd-engine/templates/handoff-namespace.json`; JSON schema → `packages/cdd-engine/templates/schema/cdd-handoff-schema.json` (task/branch) and `packages/cdd-engine/templates/schema/docs-handoff-schema.json` (spec/plan).
+
+## Naming
+
+Handoff filenames follow the naming families in `handoff-namespace.json`; review/fix rounds append the round number:
+
+| Family | File pattern |
+|--------|--------------|
+| implement | `task-N-implement.json` |
+| task-review (round R) | `task-N-review-R.json` |
+| fix (round R) | `task-N-fix-R.json` |
+
+The workspace ledger is `progress.json` (engine `lib/state/progress.mjs`); the legacy `progress.md` name is obsolete.
 
 ## Status by segment
 
@@ -25,9 +39,9 @@ Single source of truth for task-N-handoff.json — cited by [`controller-handoff
 
 `notes`: optional string — fix-phase evidence clarification (why this fix / test-evidence re-record note).
 
-## Single task
+## Handoff object
 
-`task` field — mutually exclusive with `tasks[]`:
+`task` field — the owning CDD task number:
 
 ```json
 {
@@ -82,33 +96,12 @@ Example — review segment with only a warn/nit finding (→ APPROVED):
 }
 ```
 
-## Batch
-
-`tasks[]` — no `task` field:
-
-```json
-{
-  "tasks": [2, 3, 4],
-  "phase": "task-review",
-  "status": "APPROVED",
-  "commits": { "base": "<FIRST_TASK_BASE>", "head": "<full 40-char SHA from git rev-parse HEAD>" },
-  "complexity": "batch",
-  "review_scope": "batch",
-  "artifacts": {},
-  "test_evidence": {},
-  "findings": [],
-  "unverifiable": [],
-  "plan_conflicts": []
-}
-```
-
 ## `commits.base` alignment
 
 | review_scope | commits.base |
 |--------------|--------------|
 | `task` | `TASK_BASE` |
 | `plan` | `PLAN_BASE` |
-| `batch` | `FIRST_TASK_BASE` |
 
 ## `commits.head`
 

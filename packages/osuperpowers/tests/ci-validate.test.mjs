@@ -137,3 +137,8 @@ test("main: all-green → OK + ALL PASS + return 0", async () => {
   assert.match(stdout, /OK/);
   assert.match(stdout, /ALL PASS/);
 });
+
+// 10. overall-consistency block wired (P4 block 12) — wired steps 11→12
+test("12. overall consistency step present", () => {
+  assert.ok(steps.some((s) => s.name === "12. overall consistency"), "overall consistency step missing");
+});

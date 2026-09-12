@@ -7,7 +7,7 @@
  * Wired so far:
  *   emit             — regenerate unified first-party manifests (write mode)
  *   emit-check       — verify emitted products are fresh (drift → exit 1)
- *   validate         — run the full 12-block validate suite
+ *   validate         — run the full 13-block validate suite
  *   smoke-cdd        — cdd-engine dry-run smoke (4-command H1 chain)
  *   version          — apply changesets to bump versions (--dry-run supported)
  *   publish-vendor   — assemble + publish vendored plugins (--dry-run supported)
@@ -45,7 +45,7 @@ const command = (name, desc, fn, { dryRun = false, args = "all" } = {}) => {
 
 command("emit", "regenerate unified first-party manifests", "./emit/all.mjs", { args: "none" });
 command("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.mjs", { args: "none" });
-command("validate", "run the full validate suite (12 blocks)", "./validate/index.mjs", { args: "none" });
+command("validate", "run the full validate suite (13 blocks)", "./validate/index.mjs", { args: "none" });
 command("smoke-cdd", "run cdd-engine dry-run smoke (4-command H1 chain)", "./validate/smoke-cdd.mjs", { args: "none" });
 
 command("version", "apply changesets to bump versions", "./release/version-packages.mjs", { dryRun: true });

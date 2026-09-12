@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/index.mjs — validate orchestration (`node scripts/run.mjs
-// validate` / standalone `node scripts/validate/index.mjs`). Composes the 12
+// validate` / standalone `node scripts/validate/index.mjs`). Composes the 13
 // per-block step descriptors from scripts/validate/*.mjs into the original run
 // order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers
@@ -17,12 +17,13 @@ import { steps as marketplaceSteps } from "./marketplace.mjs";
 import { steps as libTestsSteps } from "./lib-tests.mjs";
 import { steps as versionSyncSteps } from "./version-sync.mjs";
 import { steps as submoduleSteps } from "./submodule.mjs";
+import { steps as overallConsistencySteps } from "./overall-consistency.mjs";
 
 import { main as runSteps, runIfMain } from "./runner.mjs";
 
 // Original step order: the 5b1 engine suite sits between the 5b node:test tree
 // (osuperpowers steps 0-3) and the 5b wiring guard (osuperpowers step 4) —
-// interleave engine between the two osuperpowers slices to keep the 12 names
+// interleave engine between the two osuperpowers slices to keep the 13 names
 // and their order literal.
 export const steps = [
   ...emitCheckSteps,
@@ -34,6 +35,7 @@ export const steps = [
   ...libTestsSteps,
   ...versionSyncSteps,
   ...submoduleSteps,
+  ...overallConsistencySteps,
 ];
 
 export function main(stepsArg = steps) {

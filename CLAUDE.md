@@ -39,7 +39,7 @@ pnpm run version    # apply changesets to bump versions
 
 > **CRITICAL — emit after every source change:** After editing ANY file under `skills/*/SKILL.md`, `skills/*/docs/*.md`, `docs/*.md`, or `package.json#oscaner-plugin`, you MUST run `pnpm run emit` before committing. The `.agents/` directory is **derived output** — never edit it directly. If you forget emit, the CI will fail with emit drift. This is the most common mistake in this repo.
 
-CI runs `node scripts/run.mjs validate` on PRs to `develop` and `main` (12 validation blocks: emit freshness, plugin.json resolution, skill dirs, rule-reference integrity, engine tests, version sync).
+CI runs `node scripts/run.mjs validate` on PRs to `develop` and `main` (13 validation blocks: emit freshness, plugin.json resolution, skill dirs, rule-reference integrity, engine tests, version sync, overall consistency).
 
 ## Architecture details
 

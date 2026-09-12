@@ -86,7 +86,18 @@ export async function runDocsTask({
     });
   }
 
-  const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
+  // T8 hardening（P4 dogfood 实证：agent 手写 handoff 含未转义 \d）——unparseable handoff 不得
+  // 作为裸 throw 传播（review 派发 exit 2 无 handoff 静默丢失）；降级为「handoff 未写 / schema
+  // 无效」同构的 BLOCKED 写盘分支（含 doc_hash 内容状态 token，uniform 载体）。
+  let handoff;
+  try {
+    handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
+  } catch (e) {
+    return writeBlocked({
+      handoffPath, mode, doc,
+      blocker: `handoff JSON unparseable: ${e.message} → fix the handoff at ${handoffPath} or re-run ${mode}`,
+    });
+  }
   const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
   if (!sv.valid) {
     return writeBlocked({

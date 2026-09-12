@@ -66,7 +66,16 @@ export function intTask(v) {
 export function existingRoundHandoff(ws, type, round) {
   if (round < 1) return null;
   const p = path.join(ws, handoffNaming.handoffName("review", type, { round }));
-  return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
+  if (!existsSync(p)) return null;
+  try {
+    return JSON.parse(readFileSync(p, "utf8"));
+  } catch {
+    // corrupt prev → 视为无 prev（fail-open：不因 corrupted prev 锁死重审；最坏多一轮 review，绝不自锁）。
+    // P4 健壮性 hardening：诊断落 stderr，避免静默吞错（corrupt 的 round-1 被忽略时，重派为何未触发
+    // Stopping 锁定对用户透明）。
+    process.stderr.write(`CDD_INFO: corrupt prev handoff ${p} ignored → fail-open (new review round)\n`);
+    return null;
+  }
 }
 
 export function blockerCount(handoff) {

@@ -24,9 +24,10 @@ export function briefPath({ workspace, task }) {
 }
 
 // validateBaseBranch(obj) → {ok:true} | {ok:false, errors: []}。
-// schema：{ base: 非空 string, source: enum(4 值), confirmed_at: ISO8601 形 }。confirmed_at 由
-// writeBaseBranch 恒定写 ISO，但读取侧（cdd base-branch get）会校验存量 artifact（可能含手工
-// 旧件）——畸形时间戳 → errors，不静默放过。ISO8601 宽松形：`YYYY-MM-DDTHH:MM…` 含 T。
+// schema：{ base: 非空 string, source: enum(4 值), confirmed_at: ISO8601 形 }——三字段全必填。
+// confirmed_at 由 writeBaseBranch 恒定写 ISO，但读取侧（cdd base-branch get）会校验存量 artifact
+// （可能含人工/遗留旧件）：缺失或非 string 或畸形时间戳 → errors，不静默放过（§2.3 get 契约
+// 「schema 非法 → 非零退出」，F10 governs 的手写 population 正是校验对象）。ISO8601 宽松形：`YYYY-MM-DDTHH:MM…` 含 T。
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T/;
 export function validateBaseBranch(obj) {
   const errors = [];
@@ -36,8 +37,8 @@ export function validateBaseBranch(obj) {
   if (!BASE_BRANCH_SOURCES.includes(obj?.source)) {
     errors.push(`source must be one of: ${BASE_BRANCH_SOURCES.join(", ")}`);
   }
-  if (obj && obj.confirmed_at != null && !ISO_DATE_RE.test(obj.confirmed_at)) {
-    errors.push(`confirmed_at must be ISO8601 (YYYY-MM-DDTHH:MM…), got: ${JSON.stringify(obj.confirmed_at)}`);
+  if (!obj || typeof obj.confirmed_at !== "string" || !ISO_DATE_RE.test(obj.confirmed_at)) {
+    errors.push(`confirmed_at is required and must be ISO8601 (YYYY-MM-DDTHH:MM…), got: ${JSON.stringify(obj?.confirmed_at)}`);
   }
   return errors.length > 0 ? { ok: false, errors } : { ok: true };
 }
@@ -66,7 +67,13 @@ export function writeBaseBranch({ base, source, workspace, force = false }) {
     );
   }
   // base 权威不变（同 base）→ 保真原 confirmed_at 与主体；异 base + force → 新确认时间戳。
-  const confirmed_at = sameBase ? existing.confirmed_at : new Date().toISOString();
+  // confirmed_at 保真仅当存量值是合法 ISO string —— 缺失/非法（F10 governs 的人工写旧件）则
+  // 回落新 Date().toISOString()，绝不复制 undefined（JSON.stringify 会静默丢键 → 重产 schema 不完整）。
+  const existingConfirmedAt =
+    typeof existing?.confirmed_at === "string" && ISO_DATE_RE.test(existing.confirmed_at)
+      ? existing.confirmed_at
+      : null;
+  const confirmed_at = sameBase && existingConfirmedAt ? existingConfirmedAt : new Date().toISOString();
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(target, JSON.stringify({ base, source, confirmed_at }, null, 2));
   return target;

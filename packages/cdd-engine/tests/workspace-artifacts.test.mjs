@@ -3,7 +3,7 @@
 // Tests: baseBranchPath / briefPath 路径派生 + validateBaseBranch schema 校验 +
 // writeBaseBranch 幂等矩阵（新建 / 同 base 追新 / 异 base 拒绝 / --force 覆盖 / dir bootstrap）。
 import { it, expect } from "vitest";
-import { existsSync, readFileSync, mkdtempSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -116,6 +116,38 @@ it("writeBaseBranch: --force → 覆盖（新 base + 新 confirmed_at）", () =>
   expect(saved.base).toBe("main");
   expect(saved.source).toBe("user-confirmed");
   expect(saved.confirmed_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+});
+
+it("validateBaseBranch: 缺 confirmed_at → {ok:false, errors}（F10 governs 人工旧件，get 不静默放过）", () => {
+  const { confirmed_at, ...legacy } = VALID;
+  const res = validateBaseBranch(legacy);
+  expect(res.ok).toBe(false);
+  expect(res.errors.join(" ")).toMatch(/confirmed_at/);
+});
+
+it("validateBaseBranch: confirmed_at null / 非 string → {ok:false, errors}", () => {
+  for (const bad of [null, undefined, 12345, {}]) {
+    const res = validateBaseBranch({ ...VALID, confirmed_at: bad });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(" ")).toMatch(/confirmed_at/);
+  }
+});
+
+it("writeBaseBranch: 同 base + 存量缺 confirmed_at（legacy 旧件）→ 回落新 ISO，不复制 undefined", () => {
+  // branch-review r1 warn 复合边：人工旧件缺 confirmed_at 时同 base 重写不得复制 undefined
+  // （JSON.stringify 静默丢键 → 重产 schema 不完整）；回落 new Date().toISOString() 保证写后合法。
+  const workspace = tmpDir("ws-art-legacy-");
+  writeBaseBranch({ base: "develop", source: "plan-field", workspace });
+  const target = baseBranchPath({ workspace });
+  // 手工制造 legacy 旧件（缺 confirmed_at —— F10 governs 的手写 population 代表样本）
+  writeFileSync(
+    target,
+    JSON.stringify({ base: "develop", source: "conversation-context" }, null, 2),
+  );
+  writeBaseBranch({ base: "develop", source: "plan-field", workspace });
+  const saved = readBaseBranch(workspace);
+  expect(saved.confirmed_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  expect(validateBaseBranch(saved).ok).toBe(true);
 });
 
 it("validateBaseBranch: 畸形 confirmed_at → {ok:false, errors}（读取侧不静默放过）", () => {

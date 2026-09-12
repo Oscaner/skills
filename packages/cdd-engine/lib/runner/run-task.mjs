@@ -313,10 +313,17 @@ export async function runTask(harness, taskNum, opts = {}) {
     // F11: self-provision the task brief at plan finalization（三源 plan 任一生效即生成）。
     //   产物 = workspace-artifacts.briefPath（CDD_TASK_BRIEF 缺省派生同源）；生成失败（task 越界/
     //   plan 缺失/HEAD 不可取）→ RunBlocked → BLOCKED exit 1 —— 不静默降级读既有/放行。
+    //   CDD_TASK_BRIEF override（读侧 L119 的 `||=` 保 caller-set 值）在写侧同样生效 —— 写 target
+    //   用同一解析：baseEnv.CDD_TASK_BRIEF 非空 → 写 override 路径，否则缺省派生。否则 override set 时
+    //   新鲜 brief 落缺省路径而 implement agent 读 override 路径 → stale-brief/TASK_BASE 分叉。
     //   纯 CDD_WORKSPACE（无 plan）→ 跳过，读既有 brief（兼容 branch）。
     if (plan) {
       try {
-        generateBrief(plan, taskNum, briefPath({ workspace, task: taskNum }), repoRoot);
+        const briefTarget = baseEnv.CDD_TASK_BRIEF || briefPath({ workspace, task: taskNum });
+        // 写前 dirname bootstrap（同 writeBaseBranch 的 workspace bootstrap 惯例）——override 常指向
+        // 尚未存在的子目录，writeFileSync 直写会 ENOENT；自供应语义下 engine 应能自愈建目录。
+        mkdirSync(path.dirname(briefTarget), { recursive: true });
+        generateBrief(plan, taskNum, briefTarget, repoRoot);
       } catch (e) {
         throw new RunBlocked(`brief generation failed: ${e.message}`);
       }

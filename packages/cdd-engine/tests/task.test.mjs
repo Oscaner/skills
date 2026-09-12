@@ -103,6 +103,27 @@ describe('cdd implement/review/fix CLI contract', () => {
     expect(readFileSync(brief, 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
   });
 
+  // F11 override 对齐（branch-review r1 nit）：写侧 `CDD_TASK_BRIEF || briefPath` 与读侧
+  // buildTaskEnv `CDD_TASK_BRIEF ||= <派生>` 同一解析 —— override set 时 self-provision 落 override
+  // 路径（非缺省派生），杜绝 fresh-brief/read 分叉。dry-run 下 brief 生成照常执行（同 L94 变体）。
+  it('implement --plan with CDD_TASK_BRIEF override → self-provisions to the override path (b/read parity)', () => {
+    const ws = setupWorkspace();
+    const override = path.join(ws, 'alt', 'task-1-brief.md');
+    const res = run(
+      ['implement', '--task', '1', '--plan', path.join(ws, 'plan.md')],
+      {
+        CDD_DRY_RUN: '1',
+        CDD_WORKSPACE: ws,
+        CDD_TASK_BRIEF: override,
+        CLAUDE_CODE_SESSION_ID: '1',
+      },
+    );
+    expect(res.status).toBe(0);
+    expect(readFileSync(override, 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
+    // 缺省派生路径保持未生成（写侧已 honor override，未双写）
+    expect(existsSync(path.join(ws, '.superpowers', 'cdd', 'plan', 'task-1-brief.md'))).toBe(false);
+  });
+
   // F11 越界保护：plan 有 Task 1 无 Task 9 → BLOCKED + exit 1（不静默降级为「读既有/空 brief 放行」）。
   it('implement --plan with task missing from plan (out of bounds) → BLOCKED + exit 1 (no silent degradation)', () => {
     const ws = setupWorkspace();

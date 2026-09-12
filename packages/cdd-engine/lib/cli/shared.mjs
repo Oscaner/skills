@@ -55,9 +55,6 @@ export function intTask(v) {
   return n;
 }
 
-// Docs workspace 全走 handoff-naming.resolveWorkspace(doc)（.superpowers/cdd/<slug>/，slug 经 slugRule
-// 派生；Phase-0 flat root 已废弃，engine 代码零引用）。
-
 export function blockerCount(handoff) {
   return (handoff?.findings ?? []).filter((f) => f?.severity === "blocker").length;
 }

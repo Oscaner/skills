@@ -17,6 +17,8 @@ import { DRY_RUN, requireHostHarness, resolveTargetDoc, reviewStoppingGuard } fr
 
 // ---- review-specific helpers ----
 
+// Docs workspace 全走 handoff-naming.resolveWorkspace(doc)（.superpowers/cdd/<slug>/，slug 经 slugRule
+// 派生；Phase-0 flat root 已废弃，engine 代码零引用）。
 export function existingRoundHandoff(ws, type, round) {
   if (round < 1) return null;
   const p = path.join(ws, handoffNaming.handoffName("review", type, { round }));

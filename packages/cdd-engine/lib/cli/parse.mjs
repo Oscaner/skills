@@ -9,6 +9,7 @@ import { runFix } from "./fix.mjs";
 import { runResearch } from "./research.mjs";
 import { requireHostHarness, intTask, DRY_RUN } from "./review.mjs";
 import { runBriefCli } from "../brief.mjs";
+import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.mjs";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of Commander's own output).
 const SUBCOMMAND_USAGE = {
@@ -17,6 +18,9 @@ const SUBCOMMAND_USAGE = {
   fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
   research: "usage: cdd research --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
+  // base-branch: usageError 只读 process.argv[2] 首 token —— 二级命令 (set/get) 的坏 flag/未知
+  // 子命令全部回退到 base-branch 单词键这一行，双词键 `base-branch set` 永不可达。
+  "base-branch": "usage: cdd base-branch <set|get> [--plan <path> | --scope standalone --slug <slug>] [set: --base <branch> --source <source>] [--force]",
 };
 
 export function usageError(command) {
@@ -32,7 +36,7 @@ program.exitOverride();
 program.configureOutput({ outputError: () => {} });
 program
   .name("cdd")
-  .description("CDD engine CLI — implement/review/fix/research/brief")
+  .description("CDD engine CLI — implement/review/fix/research/brief/base-branch")
   .helpOption("-h, --help", "display help for command");
 
 // --- implement (formerly cdd-task --mode implement) ---
@@ -98,5 +102,30 @@ program
     "--plan", opts.plan,
     ...(opts.output ? ["--output", opts.output] : []),
   ]));
+
+// --- base-branch (P5 spec §2.3): 纯 artifact 命令 —— 双场景 base-branch.json 读写（无 harness/lifecycle 依赖）。
+//    set: --base <branch> --source <enum> [--plan <path> | --scope standalone --slug <slug>] [--force]
+//    get: [--plan <path> | --scope standalone --slug <slug>]
+//    flag 边界（互斥 / 缺 target / standalone 组必填）裁决在 base-branch.mjs resolveBaseBranchWorkspace 单一落点。
+const baseBranch = program
+  .command("base-branch")
+  .description("read/write base-branch.json (CDD --plan or standalone --scope standalone --slug)");
+
+baseBranch
+  .command("set")
+  .option("--base <branch>", "base branch name")
+  .option("--source <source>", "base-branch source (plan-field|branch-upstream|conversation-context|user-confirmed)")
+  .option("--plan <path>", "CDD scope target: plan file → resolveWorkspace(plan)")
+  .option("--scope <scope>", "standalone scope (only value: standalone)")
+  .option("--slug <slug>", "standalone slug → <gitRoot>/<standalone-root>/<slug>/")
+  .option("--force", "override an existing base-branch with a different base")
+  .action(async (opts) => { await runBaseBranchSet(opts); });
+
+baseBranch
+  .command("get")
+  .option("--plan <path>", "CDD scope target: plan file → resolveWorkspace(plan)")
+  .option("--scope <scope>", "standalone scope (only value: standalone)")
+  .option("--slug <slug>", "standalone slug → <gitRoot>/<standalone-root>/<slug>/")
+  .action(async (opts) => { await runBaseBranchGet(opts); });
 
 export { program };

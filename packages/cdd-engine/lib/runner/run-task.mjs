@@ -1,9 +1,10 @@
 // packages/cdd-engine/lib/runner/run-task.mjs — CDD per-task runner (Node port of cdd_run_task).
 // H1 four-line output is exclusive (spec v3): this module is responsible for formatting status/commits/artifacts/blocker.
-// runTask ordered contract: registry ship gate → CLI preflight → workspace/env → brief self-provision
-// (three-source plan → generateBrief at plan finalization; BLOCKED on failure) → ledger PLAN_FILE
-// backfill → review fixed-point → require env → renderModePrompt → nested CLI spawn (captures stderr,
-// not swallowed via 2>/dev/null) → commit-contract → H1 four lines → handoff processing.
+// runTask ordered contract: registry ship gate → CLI preflight → workspace/env
+//（resolveRepoRoot 内部完成三源 plan 收口：--plan ‖ env.PLAN_FILE ‖ ledger backfill）→ brief self-provision
+//（effective plan 定稿后 generateBrief；BLOCKED on failure）→ review fixed-point → require env →
+// renderModePrompt → nested CLI spawn (captures stderr, not swallowed via 2>/dev/null) → commit-contract
+// → H1 four lines → handoff processing.
 // noExit=true returns { exitCode, h1 } instead of exit helpers — the unit-test seam.
 // Final exit delegated to lib/exit.mjs (unified exit point, no inline process.exit).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

@@ -1,6 +1,7 @@
 // packages/cdd-engine/lib/runner/run-task.mjs — CDD per-task runner (Node port of cdd_run_task).
 // H1 four-line output is exclusive (spec v3): this module is responsible for formatting status/commits/artifacts/blocker.
-// runTask ordered contract: registry ship gate → CLI preflight → workspace/env → ledger PLAN_FILE
+// runTask ordered contract: registry ship gate → CLI preflight → workspace/env → brief self-provision
+// (three-source plan → generateBrief at plan finalization; BLOCKED on failure) → ledger PLAN_FILE
 // backfill → review fixed-point → require env → renderModePrompt → nested CLI spawn (captures stderr,
 // not swallowed via 2>/dev/null) → commit-contract → H1 four lines → handoff processing.
 // noExit=true returns { exitCode, h1 } instead of exit helpers — the unit-test seam.
@@ -12,6 +13,8 @@ import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../regist
 import { renderModePrompt, pluginRoot } from "../templates.mjs";
 import { writeHandoff, writeOwnHandoff, readJson } from "../handoff/write.mjs";
 import { gitToplevel, validateCommitContract } from "../contract/commit.mjs";
+import { generateBrief } from "../brief.mjs";
+import { briefPath } from "../state/workspace-artifacts.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, workspaceRoot } from "../handoff/naming.mjs";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../handoff/finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
@@ -306,6 +309,17 @@ export async function runTask(harness, taskNum, opts = {}) {
       env: baseEnv,
       repoRoot,
     });
+    // F11: self-provision the task brief at plan finalization（三源 plan 任一生效即生成）。
+    //   产物 = workspace-artifacts.briefPath（CDD_TASK_BRIEF 缺省派生同源）；生成失败（task 越界/
+    //   plan 缺失/HEAD 不可取）→ RunBlocked → BLOCKED exit 1 —— 不静默降级读既有/放行。
+    //   纯 CDD_WORKSPACE（无 plan）→ 跳过，读既有 brief（兼容 branch）。
+    if (plan) {
+      try {
+        generateBrief(plan, taskNum, briefPath({ workspace, task: taskNum }), repoRoot);
+      } catch (e) {
+        throw new RunBlocked(`brief generation failed: ${e.message}`);
+      }
+    }
   } catch (e) {
     if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
     throw e;

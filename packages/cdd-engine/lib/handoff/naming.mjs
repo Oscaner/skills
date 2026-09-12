@@ -104,10 +104,11 @@ export function prevHandoffPath(workspace, op, type, round, opts = {}) {
 }
 
 // ---- workspace 派生（第五/六派生函数）----
-// slugRule：被审文档文件名 去 `.md` → 再去尾 `-design`。spec/plan 收敛同值；只依赖文件名不依赖文件存在。
+// slugRule：被审文档文件名 去 `.md` → 单层 strip 尾 `-design` 或 `-plan`（锚定互斥，天然不级联）。
+// spec/plan（-design.md / -plan.md / 无 suffix）收敛同值；只依赖文件名不依赖文件存在。
 export function workspaceSlug(doc) {
   const base = path.basename(doc).replace(/\.md$/, "");
-  return base.endsWith("-design") ? base.slice(0, -"-design".length) : base;
+  return base.replace(/-(?:design|plan)$/, "");
 }
 
 // resolveWorkspace(doc) → <gitRoot>/<workspaceRoot>/<slug>。

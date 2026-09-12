@@ -100,6 +100,14 @@ export function reviewStoppingGuard(prev, type, round, ref, opts) {
   if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
 }
 
+// review --type task 的 task workspace 派生（task 派生点：与 run-task resolveWorkspace 同源 workspaceSlug）。
+// plan 文件名 → <repoRoot>/.superpowers/cdd/<slug>——slug 经 handoff-naming.workspaceSlug 收敛
+// （-design/-plan 单层 strip），两派生点防分叉回归见 tests/cli-shared.test.mjs（§2.9 row 6）。
+// 导出为纯函数（test seam）：gitToplevel 由调用方注入，避免本模块耦合 cwd 的 git 推导。
+export function taskReviewWorkspace(plan, repoRoot) {
+  return path.join(repoRoot, ".superpowers", "cdd", handoffNaming.workspaceSlug(plan));
+}
+
 // ---- review dispatch ----
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
@@ -194,10 +202,9 @@ export async function runReview(opts) {
     process.stderr.write("cdd review --type task: missing required --task <n>\n");
     exitWithCode(2);
   }
-  // Workspace slug derives from the plan filename; task Stopping reads the latest
-  // task-{N}-review-{R}.json and rejects when its blockers = 0.
-  const slug = path.basename(opts.plan, ".md");
-  const taskWs = path.join(gitToplevel(process.cwd()), ".superpowers", "cdd", slug);
+  // Workspace slug derives from the plan filename (workspaceSlug 收敛 -design/-plan 单层 strip);
+  // task Stopping reads the latest task-{N}-review-{R}.json and rejects when its blockers = 0.
+  const taskWs = taskReviewWorkspace(opts.plan, gitToplevel(process.cwd()));
   // task round 经 canonical 派生层 type-aware resolveNextRound 推导（op/type 四参签名；
   // 显式透传 {task} pin → 防 scan 形态 {task}→\d+ 跨 task 混计 rounds）。
   const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { task: opts.task });

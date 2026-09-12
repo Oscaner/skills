@@ -12,7 +12,7 @@ import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../regist
 import { renderModePrompt, pluginRoot } from "../templates.mjs";
 import { writeHandoff, writeOwnHandoff, readJson } from "../handoff/write.mjs";
 import { gitToplevel, validateCommitContract } from "../contract/commit.mjs";
-import { handoffName, prevHandoffPath as hnPreHandoffPath } from "../handoff/naming.mjs";
+import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug } from "../handoff/naming.mjs";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../handoff/finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
@@ -91,7 +91,7 @@ export function resolveRepoRoot({ planFile, env, ledgerPath }) {
 export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
   if (planSource === "plan") {
     if (!repoRoot) throw new RunBlocked("not in a git repo");
-    const slug = path.basename(plan, ".md");
+    const slug = workspaceSlug(plan);
     if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
     const base = path.join(repoRoot, ".superpowers", "cdd");
     mkdirSync(path.join(base, slug), { recursive: true });

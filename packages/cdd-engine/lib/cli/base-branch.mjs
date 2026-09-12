@@ -21,8 +21,8 @@ export const STANDALONE_ROOT = ".superpowers/standalone";
 //   --plan 与 --scope/--slug 并存   → 互斥 exit 2；
 //   --scope 非 standalone / scope 无 slug → 各按缺失面 exit 2（standalone 组必填）；
 //   均缺                          → 默认 CDD 语义，但 CDD 必须 --plan → 明确报错 exit 2。
-// 导出为纯函数形态（test seam 友好）：git root 注入为参数，action 侧传 process.cwd()。
-export function resolveBaseBranchWorkspace(opts, cwd = process.cwd()) {
+// git root 按进程 cwd 解析（standalone 场景；CDD 场景经 resolveWorkspace 以 plan 所在仓库为准）。
+export function resolveBaseBranchWorkspace(opts) {
   const hasPlan = !!opts.plan;
   const hasScope = opts.scope != null || opts.slug != null;
   if (hasPlan && hasScope) {
@@ -39,7 +39,7 @@ export function resolveBaseBranchWorkspace(opts, cwd = process.cwd()) {
       process.stderr.write("cdd base-branch: standalone scope requires --slug <slug>\n");
       exitWithCode(2);
     }
-    const root = gitToplevel(cwd);
+    const root = gitToplevel(process.cwd());
     if (!root) {
       process.stderr.write("cdd base-branch: standalone scope needs a git repo (gitToplevel failed)\n");
       exitWithCode(2);

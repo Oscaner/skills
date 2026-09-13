@@ -47,7 +47,7 @@ export async function runBranchReview(opts) {
   if (!repoRoot) { process.stderr.write("cdd review: not in a git repo\n"); exitBlocked(); }
   const base7 = String(base).slice(0, 7);
   const head7 = String(head).slice(0, 7);
-  // workspace 与其他 review 型同源：resolveWorkspace(plan)（.superpowers/cdd/<slug>/）。
+  // workspace 与其他 review 型同源：resolveWorkspace(plan)（.osuperpowers/cdd/<slug>/）。
   const workspace = handoffNaming.resolveWorkspace(plan);
 
   // AC15 wiring: per-ref round seq（ref 内嵌文件名 → resolveNextRound 传 concrete base7/head7

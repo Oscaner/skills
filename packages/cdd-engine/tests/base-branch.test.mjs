@@ -5,7 +5,7 @@
 // SUBCOMMAND_USAGE 单词键回退。模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
 // 此处只验证 CLI→模块接线 + CLI 自有的 flag 边界与报错面（exit 非零）。
 // 每条用例用独立 tmp git repo（mkdtemp）隔离副作用；CDD_LIFECYCLE_PATH 每 fork 唯一，
-// 避免 bin 启动 reapStale 并发误杀 + 保持 repo 内 .superpowers 仅为被测命令所写。
+// 避免 bin 启动 reapStale 并发误杀 + 保持 repo 内 .osuperpowers（cdd）与 .superpowers（standalone）仅为被测命令所写。
 import { describe, it, expect, afterAll } from "vitest";
 import { execaSync } from "execa";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
@@ -57,7 +57,7 @@ function seedPlan(repo) {
 }
 
 function cddWorkspace(repo) {
-  return path.join(repo, ".superpowers", "cdd", "app");
+  return path.join(repo, ".osuperpowers", "cdd", "app");
 }
 
 function standaloneDir(repo, slug = "tool-x") {
@@ -320,6 +320,6 @@ describe("cdd base-branch — 命令面（SUBCOMMAND_USAGE + help 标题）", ()
 
 // 清理：本文件所有 set 落点都在 tmp repo 内，无 repo-root 副作用 —— 仅兜底清理（无实际残留）。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "app"), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "app"), { recursive: true, force: true });
   rmSync(path.join(REPO_ROOT, ".superpowers", "standalone"), { recursive: true, force: true });
 });

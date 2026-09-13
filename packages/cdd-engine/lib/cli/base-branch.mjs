@@ -1,6 +1,6 @@
 // packages/cdd-engine/lib/cli/base-branch.mjs — `cdd base-branch set/get` action 主体
 // （P5 spec §2.3 / task-3 brief）。双场景落点统一 CLI：CDD `--plan <path>` → resolveWorkspace(plan)
-// （.superpowers/cdd/<slug>/）；standalone `--scope standalone --slug <s>` →
+// （.osuperpowers/cdd/<slug>/）；standalone `--scope standalone --slug <s>` →
 // <gitRoot>/.superpowers/standalone/<s>/。复用 workspace-artifacts 单一权威层（writeBaseBranch /
 // validateBaseBranch / baseBranchPath）——CLI 只承担 flag 边界 + 目标解析 + 报错面，写语义零复制。
 import { existsSync, readFileSync } from "node:fs";
@@ -11,7 +11,7 @@ import { resolveWorkspace } from "../handoff/naming.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { exitWithCode } from "../exit.mjs";
 
-// STANDALONE_ROOT：standalone 场景基路径段（workspaceRoot `.superpowers/cdd` 之外的第二基路径）。
+// STANDALONE_ROOT：standalone 场景基路径段（workspaceRoot `.osuperpowers/cdd` 之外的第二基路径）。
 // 与 handoff-naming.workspaceRoot 同制的单真相常量 —— 不散落硬编码字面量（P5 task-1 review nit 同款）。
 export const STANDALONE_ROOT = ".superpowers/standalone";
 

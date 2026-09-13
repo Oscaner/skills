@@ -14,10 +14,11 @@ The base branch is determined by trying the following sources **in order** and t
 
 ## Artifact Schema
 
-The determined base branch is persisted as a JSON file at:
+The determined base branch is persisted as a JSON file at the scope-dependent workspace root:
 
 ```
-.superpowers/<scope>/<slug>/base-branch.json
+.osuperpowers/cdd/<slug>/base-branch.json       (CDD-driven sessions)
+.superpowers/standalone/<slug>/base-branch.json (standalone finishing)
 ```
 
 ### Schema
@@ -69,7 +70,7 @@ The engine CLI is the write/read path for the artifact (orchestrator skills do n
 
 | Subcommand | CDD (`--plan <path>`) | Standalone (`--scope standalone --slug <slug>`) |
 |------------|----------------------|-------------------------------------------------|
-| `set` | `cdd base-branch set --base <branch> --source <source> --plan <path>` → `<repoRoot>/.superpowers/cdd/<slug>/base-branch.json` | `cdd base-branch set --base <branch> --source <source> --scope standalone --slug <slug>` → `<gitRoot>/.superpowers/standalone/<slug>/base-branch.json` |
+| `set` | `cdd base-branch set --base <branch> --source <source> --plan <path>` → `<repoRoot>/.osuperpowers/cdd/<slug>/base-branch.json` | `cdd base-branch set --base <branch> --source <source> --scope standalone --slug <slug>` → `<gitRoot>/.superpowers/standalone/<slug>/base-branch.json` |
 | `get` | `cdd base-branch get --plan <path>` → artifact JSON on stdout | `cdd base-branch get --scope standalone --slug <slug>` → artifact JSON on stdout |
 
 `set` is **idempotent**: artifact absent → written with `confirmed_at` = now; same `base` present → rewritten with `source` updated and `base` / `confirmed_at` preserved (semantic no-op); different `base` present → refused (exit 2, existing authority untouched) unless `--force` overrides (new base → new `confirmed_at`).

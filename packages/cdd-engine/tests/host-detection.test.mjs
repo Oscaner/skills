@@ -21,7 +21,7 @@ const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
 const PLAN_FIXTURE = path.join(REPO_ROOT, "packages/cdd-engine/tests/fixtures/smoke-plan.md");
 const NODE = process.execPath;
 // Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
 // 另一 fork in-flight 组（ownerPid 异判为 orphan）。
 const LIFECYCLE_PATH = forkLifecyclePath("hostdetect");
 

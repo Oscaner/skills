@@ -17,15 +17,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-eng
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
 const SMOKE_PLAN = "packages/cdd-engine/tests/fixtures/smoke-plan.md";
-// T10 warn: SMOKE_PLAN 派生 workspace = .superpowers/cdd/smoke-plan/（resolveWorkspace md 名→slug）。
+// T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke-plan/（resolveWorkspace md 名→slug）。
 // 测试 teardown 清理，避免 validate 后根杂讯污染 F6 单一根。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan"), { recursive: true, force: true });
-  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
+  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke-plan"), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
 });
 const NODE = process.execPath;
 // Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
 // 另一 fork in-flight 组（ownerPid 异判为 orphan；本文件 branch-review 真实 dispatch + 黑盒 CLI 并发尤为相关）。
 const LIFECYCLE_PATH = forkLifecyclePath("cdd");
 
@@ -132,7 +132,7 @@ describe("cdd CLI", () => {
       // D11 target param: type=spec → --spec, type=plan → --plan（type 自解释）。
       const targetParam = type === "spec" ? "--spec" : "--plan";
       const r = runCli(["fix", "--type", type, targetParam, SMOKE_PLAN,
-        "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", reviewFile)],
+        "--findings", path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke-plan", reviewFile)],
         { noHost: true });
       expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
       expect(r.stderr).not.toMatch(/template/);
@@ -191,7 +191,7 @@ describe("cdd CLI", () => {
       "commit", "--allow-empty", "-qm", "fixture"]);
     const plan = path.join(dir, "zz-stop-test.md");
     writeFileSync(plan, "### Task 1: fixture\n");
-    const ws = path.join(dir, ".superpowers", "cdd", "zz-stop-test");
+    const ws = path.join(dir, ".osuperpowers", "cdd", "zz-stop-test");
     mkdirSync(ws, { recursive: true });
     writeFileSync(path.join(ws, "task-1-review-1.json"),
       JSON.stringify({ task: 1, phase: "review", status, artifacts: {}, findings: [],
@@ -274,7 +274,7 @@ describe("cdd CLI", () => {
       const plan = path.join(dir, "plan.md");
       writeFileSync(plan, "### Task 1:\n- base: develop\n");
       const binDir = mkdtempSync(path.join(tmpdir(), "cdd-br-fake-"));
-      const ws = path.join(dir, ".superpowers", "cdd", "plan");
+      const ws = path.join(dir, ".osuperpowers", "cdd", "plan");
       const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
       // fake claude：PATH 遮蔽 registry cli 名（cdd.mjs REG_PATH 无 registry override seam）。
       // 非 dry-run 真实走 runBranchReview：agent 写 warn-only CHANGES_REQUESTED → engine finalizeHandoff
@@ -313,13 +313,13 @@ function tmpGitRepo() {
 }
 
 // seed 一条 canonical <type>-review-1.json（status APPROVED + blocker=0）→ 命中 Review Stopping。
-// ws = <repo>/.superpowers/cdd/foo —— 覆盖 spec（foo-design.md 去 -design）与 plan（foo.md）同 slug 收敛。
+// ws = <repo>/.osuperpowers/cdd/foo —— 覆盖 spec（foo-design.md 去 -design）与 plan（foo.md）同 slug 收敛。
 // doc 父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel，父目录缺失会回退失败。
 // content 实写 doc 文件（hashFile 读实时文件）：默认 content="" → 既有 legacy seed 调用写空 doc，
 // 语义（status APPROVED + blocker=0）不变仍 exit 3；docHash 显式传入才落 handoff.doc_hash。
 function sha256(s) { return createHash("sha256").update(s).digest("hex"); }
 function seedDocsReviewRound(repo, doc, fileName, { docHash, content = "" } = {}) {
-  const ws = path.join(repo, ".superpowers", "cdd", "foo");
+  const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
   mkdirSync(path.dirname(doc), { recursive: true });
   mkdirSync(ws, { recursive: true });
   writeFileSync(doc, content);                 // hashFile 读实时文件——内容由用例显式控制
@@ -340,8 +340,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       await runReview({ type: "spec", spec: "/repo/root/docs/superpowers/specs/foo-design.md" });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
-      expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-review-1.json");
-      expect(call.workspace).toBe("/repo/root/.superpowers/cdd/foo");
+      expect(call.handoffPath).toBe("/repo/root/.osuperpowers/cdd/foo/spec-review-1.json");
+      expect(call.workspace).toBe("/repo/root/.osuperpowers/cdd/foo");
     } finally {
       delete process.env.CDD_DRY_RUN;
       delete process.env.CLAUDE_CODE_SESSION_ID;
@@ -352,9 +352,9 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
     const { resolveWorkspace } = await import("../lib/handoff/naming.mjs");
     expect(resolveWorkspace("/repo/root/docs/superpowers/plans/foo.md"))
-      .toBe("/repo/root/.superpowers/cdd/foo");
+      .toBe("/repo/root/.osuperpowers/cdd/foo");
     expect(resolveWorkspace("/repo/root/docs/superpowers/specs/foo-design.md"))
-      .toBe("/repo/root/.superpowers/cdd/foo");
+      .toBe("/repo/root/.osuperpowers/cdd/foo");
   });
 
   it("fix --findings spec-review-2.json → runDocsTask handoffPath=<ws>/spec-fix-2.json（round 从 findings 名经 roundPattern 解析）", async () => {
@@ -362,11 +362,11 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runFix resolves host from process.env
     try {
       const { runFix } = await import("../lib/cli/fix.mjs");
-      const findings = "/repo/root/.superpowers/cdd/foo/spec-review-2.json";
+      const findings = "/repo/root/.osuperpowers/cdd/foo/spec-review-2.json";
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       await runFix({ type: "spec", spec: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
-      expect(call.handoffPath).toBe("/repo/root/.superpowers/cdd/foo/spec-fix-2.json");
+      expect(call.handoffPath).toBe("/repo/root/.osuperpowers/cdd/foo/spec-fix-2.json");
       expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）
       expect(call.findingsPath).toBe(findings);
     } finally {
@@ -378,7 +378,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
 
   // ---- CLI 黑盒：canonical seed 驱动 Stopping / 轮次 ----
 
-  it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .superpowers/cdd/foo/ → Stopping exit 3", () => {
+  it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .osuperpowers/cdd/foo/ → Stopping exit 3", () => {
     const dir = tmpGitRepo();
     try {
       const doc = path.join(dir, "docs", "foo-design.md");
@@ -415,7 +415,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
 
   it("fix --findings spec-review-0.json（round<1）→ exit 2 拒（round 须 >= 1）", () => {
     const r = runCli(["fix", "--type", "spec", "--spec", SMOKE_PLAN,
-      "--findings", path.join(REPO_ROOT, ".superpowers", "cdd", "smoke-plan", "spec-review-0.json")],
+      "--findings", path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke-plan", "spec-review-0.json")],
       { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/round must be >= 1/);
@@ -426,7 +426,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const plan = path.join(dir, "plan.md");
       writeFileSync(plan, "### Task 1:\n- base: develop\n");
-      const wsPath = path.join(dir, ".superpowers", "cdd", "plan");
+      const wsPath = path.join(dir, ".osuperpowers", "cdd", "plan");
       mkdirSync(wsPath, { recursive: true });
       writeFileSync(path.join(wsPath, "branch-review-eeee555..ffff666-r1.json"),
         JSON.stringify({ task: 1, phase: "branch-review", status: "APPROVED", findings: [], artifacts: {}, blocker: "" }));
@@ -445,7 +445,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const plan = path.join(dir, "plan.md");
       writeFileSync(plan, "### Task 1:\n- base: develop\n");
-      const wsPath = path.join(dir, ".superpowers", "cdd", "plan");
+      const wsPath = path.join(dir, ".osuperpowers", "cdd", "plan");
       mkdirSync(wsPath, { recursive: true });
       // 他 ref（aaaa111..bbbb222）已有 r1 —— 全局轮次已被推到 r2；新 ref 应各自从 r1 起（ref 名内嵌）。
       writeFileSync(path.join(wsPath, "branch-review-aaaa111..bbbb222-r1.json"), "{}");

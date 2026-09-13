@@ -76,7 +76,7 @@ vi.mock("node:fs", async (importOriginal) => {
     existsSync: vi.fn((p) => {
       // Handoff file "exists" so we take the read-and-validate path (not writeHandoff BLOCKED path).
       // T3: 以 canonical fake ws 前缀判别（不再按 template 名含 "review"）—— spec-fix-1.json 等也视为存在。
-      if (String(p).includes(".superpowers/cdd/foo/")) return true;
+      if (String(p).includes(".osuperpowers/cdd/foo/")) return true;
       return actual.existsSync(p);
     }),
     readFileSync: vi.fn((p, enc) => {
@@ -92,7 +92,7 @@ vi.mock("node:fs", async (importOriginal) => {
           },
         });
       }
-      if (String(p).includes(".superpowers/cdd/foo/")) {
+      if (String(p).includes(".osuperpowers/cdd/foo/")) {
         return JSON.stringify({
           phase: "review", status: "APPROVED",
           findings: [], artifacts: {}, doc_path: "/doc.md",
@@ -148,7 +148,7 @@ describe("runDocsTask", () => {
       template:  "review",
       doc:       "/repo/root/docs/superpowers/specs/my-spec.md",
       params:    { TYPE: "spec" },
-      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       repoRoot:  "/repo/root",  // accepted in opts but gitToplevel() is used (Bug L fix)
       dryRun:    false,
     });
@@ -170,7 +170,7 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "review", template: "review", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       params: { TYPE: "spec" },
-      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       dryRun: false,
     });
     let promptArg = execa.mock.calls[0][1].at(-1);
@@ -182,7 +182,7 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       findingsPath: "/repo/root/docs/findings.md",
-      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-fix-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
       dryRun: false,
     });
     promptArg = execa.mock.calls[0][1].at(-1);
@@ -213,7 +213,7 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "fix", template: "critiques-review", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       // 含 "review" 段 → node:fs fixture 的 existsSync 视为存在 → 走 read-and-validate 路径。
-      handoffPath: "/repo/root/.superpowers/cdd/foo/critiques-review-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/critiques-review-1.json",
       dryRun: false,
     });
     expect(renderTemplate.mock.calls.at(-1)?.[0]).toBe("critiques-review");
@@ -233,7 +233,7 @@ describe("runDocsTask", () => {
     // 覆写读回 fixture：同一 canonical ws 前缀下，agent 写 status:CHANGES_REQUESTED + warn/nit findings
     //（engine 应派生覆写为 APPROVED 并持久化；findings 原样保留）。
     fs.readFileSync.mockImplementation((p, enc) => {
-      if (String(p).includes(".superpowers/cdd/foo/")) {
+      if (String(p).includes(".osuperpowers/cdd/foo/")) {
         return JSON.stringify({
           phase: "review", status: "CHANGES_REQUESTED",
           findings: [{ severity: "warn", summary: "w" }, { severity: "nit", summary: "n" }],
@@ -246,7 +246,7 @@ describe("runDocsTask", () => {
       const result = await runDocsTask({
         harness: "claude", mode: "review", template: "review", type: "spec",
         doc: "/repo/root/docs/superpowers/specs/my-spec.md",
-        handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+        handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
         dryRun: false,
       });
       expect(result.exitCode).toBe(0);
@@ -276,7 +276,7 @@ describe("runDocsTask", () => {
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",   // 不存在 → hashFile "" 哨兵
-      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       dryRun: false,
     });
     expect(result.handoff.status).toBe("APPROVED");
@@ -297,7 +297,7 @@ describe("runDocsTask", () => {
     const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
-      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       dryRun: false,
     });
     expect(result.handoff.doc_hash).toBe(createHash("sha256").update("real content p2").digest("hex"));
@@ -315,7 +315,7 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
       doc: "/repo/root/docs/superpowers/specs/my-spec.md",
       findingsPath: "/repo/root/docs/findings.md",
-      handoffPath: "/repo/root/.superpowers/cdd/foo/spec-fix-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
       dryRun: false,
     });
     const fixCalls = writeOwnHandoff.mock.calls.filter(([p]) => String(p).includes("spec-fix-"));
@@ -335,7 +335,7 @@ describe("runDocsTask", () => {
     // JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT（orphan 路径 node:fs mock 透传真实 fs）。
     // 注入真实写盘实现让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
     mockRealWriteBack(writeHandoff);
-    const orphanPath = join(dir, "ws", "spec-review-1.json");  // 非 .superpowers/cdd/foo 前缀 → existsSync mock 走真实 → 文件不存在 → BLOCKED 写盘
+    const orphanPath = join(dir, "ws", "spec-review-1.json");  // 非 .osuperpowers/cdd/foo 前缀 → existsSync mock 走真实 → 文件不存在 → BLOCKED 写盘
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
       handoffPath: orphanPath,
@@ -358,7 +358,7 @@ describe("runDocsTask", () => {
     const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "plan", doc,
-      handoffPath: "/repo/root/.superpowers/cdd/foo/plan-review-1.json",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/plan-review-1.json",
       dryRun: false,
     });
     expect(result.handoff.doc_hash).toBe(createHash("sha256").update("plan content p2").digest("hex"));

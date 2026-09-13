@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "workspaceRoot": ".superpowers/cdd",
+  "workspaceRoot": ".osuperpowers/cdd",
   "slugRule": "strip .md, then a single trailing -design or -plan suffix",
   "families": {
     "implement.task": { "name": "task-{task}-implement.json", "round": "fixed", "status": "contract", "schema": "cdd", "phase": "implement" },

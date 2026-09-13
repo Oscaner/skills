@@ -36,20 +36,21 @@ export function main() {
   }
 
   const plan = "packages/cdd-engine/tests/fixtures/smoke-plan.md";
-  const slug = path.basename(plan, ".md");
+  const planBase = path.basename(plan, ".md");
+  const slug = planBase.replace(/-(?:design|plan)$/, ""); // smoke-plan.md → smoke（与 engine workspaceSlug 同规则）
   const head = execaCommandSync("git rev-parse HEAD", { cwd: root }).stdout.trim();
   // Branch-review dry-run writes a handoff into the (gitignored) smoke workspace — drop any
   // stale round so a re-run never trips Review Stopping on the previous APPROVED round.
-  rmSync(path.join(root, ".superpowers", "cdd", slug), { recursive: true, force: true });
+  rmSync(path.join(root, ".osuperpowers", "cdd", slug), { recursive: true, force: true });
 
-  // review --type task would produce .superpowers/cdd/<slug>/task-1-review-1.json in a
+  // review --type task would produce .osuperpowers/cdd/<slug>/task-1-review-1.json in a
   // real run; fix consumes it via --findings (parseReview→fix wiring). Under dry-run neither
   // writes nor reads the file — only the arg plumbing is exercised.
   const cmds = [
     [...cdd, "implement", "--task", "1", "--plan", plan],
     [...cdd, "review", "--type", "task", "--task", "1", "--plan", plan],
     [...cdd, "fix", "--type", "task", "--task", "1", "--plan", plan,
-      "--findings", path.join(".superpowers", "cdd", slug, "task-1-review-1.json")],
+      "--findings", path.join(".osuperpowers", "cdd", slug, "task-1-review-1.json")],
     [...cdd, "review", "--type", "branch", "--plan", plan, "--base", head, "--head", head],
   ];
   for (const [i, args] of cmds.entries()) {

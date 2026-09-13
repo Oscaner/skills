@@ -172,15 +172,15 @@ describe('invokeCliWithRetry', () => {
 });
 
 describe('review.mjs task 派生点（taskReviewWorkspace — workspaceSlug 收敛）', () => {
-  // review --type task 的 task workspace 路径派生 = <repoRoot>/.superpowers/cdd/<slug>，
+  // review --type task 的 task workspace 路径派生 = <repoRoot>/.osuperpowers/cdd/<slug>，
   // slug 经 handoff-naming.workspaceSlug 收敛（-design/-plan 单层 strip）。
   // run-task 侧派生点（resolveWorkspace）由 runner.test.mjs 回归 —— 两派生点同源防分叉。
-  it('--plan xxx-p5-plan.md → task workspace .superpowers/cdd/xxx-p5（Stopping prev 命中）', async () => {
+  it('--plan xxx-p5-plan.md → task workspace .osuperpowers/cdd/xxx-p5（Stopping prev 命中）', async () => {
     const { taskReviewWorkspace } = await import('../lib/cli/review.mjs');
-    expect(taskReviewWorkspace('xxx-p5-plan.md', '/repo')).toBe(path.join('/repo', '.superpowers', 'cdd', 'xxx-p5'));
+    expect(taskReviewWorkspace('xxx-p5-plan.md', '/repo')).toBe(path.join('/repo', '.osuperpowers', 'cdd', 'xxx-p5'));
   });
   it('--plan xxx-p5.md → 与 -plan.md 变体收敛同 workspace', async () => {
     const { taskReviewWorkspace } = await import('../lib/cli/review.mjs');
-    expect(taskReviewWorkspace('xxx-p5.md', '/repo')).toBe(path.join('/repo', '.superpowers', 'cdd', 'xxx-p5'));
+    expect(taskReviewWorkspace('xxx-p5.md', '/repo')).toBe(path.join('/repo', '.osuperpowers', 'cdd', 'xxx-p5'));
   });
 });

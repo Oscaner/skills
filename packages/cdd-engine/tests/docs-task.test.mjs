@@ -3,7 +3,7 @@
 // 自解释 target 参数):
 //   docs-task --mode review --template <t>  → cdd review --type spec|plan [--spec/--plan <path>]
 //   docs-task --mode fix --template <t>     → cdd fix --type spec|plan [--spec/--plan <path>]
-// P6 T3: docs workspace 全走 resolveWorkspace(doc)（.superpowers/cdd/<slug>/）—— 测试须传
+// P6 T3: docs workspace 全走 resolveWorkspace(doc)（.osuperpowers/cdd/<slug>/）—— 测试须传
 // repo 内 doc 供 workspace 推导；fix round 从 --findings 名解析（<type>-review-{R}.json）。
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -16,17 +16,17 @@ const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engin
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
 const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md');
-// T10 warn: SMOKE_PLAN 派生 workspace = .superpowers/cdd/smoke-plan/——测试 teardown 清理，
+// T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke-plan/——测试 teardown 清理，
 // 避免 validate 后根杂讯污染 F6 单一根（与 branch-review/cdd.test 的 tmp/teardown 迁移同语义）。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan'), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-plan'), { recursive: true, force: true });
 });
 
 // 合法 findings 名（round 源）—— 路径无需真实存在，docs 通道不接 dirty/存在性断言。
-const SPEC_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'spec-review-1.json');
-const PLAN_FINDINGS = path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan', 'plan-review-1.json');
+const SPEC_FINDINGS = path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-plan', 'spec-review-1.json');
+const PLAN_FINDINGS = path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-plan', 'plan-review-1.json');
 // Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
 // 另一 fork in-flight 组（ownerPid 异判为 orphan）。
 const LIFECYCLE_PATH = forkLifecyclePath("doctask");
 

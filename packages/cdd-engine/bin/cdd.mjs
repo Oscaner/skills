@@ -22,9 +22,9 @@ const isMain =
 if (isMain) {
   // 进程生命周期：启动跨 run 兜底（回收上一次引擎被杀 SIGKILL/crash 残留的孤儿组）+ 信号安全出口
   //（spec §2.2 A / §2.6）。CDD_LIFECYCLE_PATH 覆盖（spec 定案：测试/多进程并发注入唯一路径）；
-  // 生产默认 <cwd>/.superpowers/cdd/lifecycle.json（相对启动 cwd，跨 run 复用）。
+  // 生产默认 <cwd>/.osuperpowers/cdd/lifecycle.json（相对启动 cwd，跨 run 复用）。
   const cwd = process.cwd();
-  const lifecyclePath = process.env.CDD_LIFECYCLE_PATH ?? path.join(cwd, ".superpowers", "cdd", "lifecycle.json");
+  const lifecyclePath = process.env.CDD_LIFECYCLE_PATH ?? path.join(cwd, ".osuperpowers", "cdd", "lifecycle.json");
   initProcLifecycle({ diskPath: lifecyclePath });
   await reapStale({ graceMs: 2000 });   // 启动兜底：跨 run 孤儿组连根回收（幂等，空盘 no-op）
 

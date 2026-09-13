@@ -89,11 +89,17 @@ jobs:
               head,
             });
             for (const pr of pulls) {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: pr.number,
-                body: `Auto-reconcile: \`${{ inputs.submodule }}\` is already up to date — closing superseded bump PR.`,
-              });
+              try {
+                await github.rest.issues.createComment({
+                  ...context.repo,
+                  issue_number: pr.number,
+                  body: `Auto-reconcile: \`${{ inputs.submodule }}\` is already up to date — closing superseded bump PR.`,
+                });
+              } catch (e) {
+                // branch-review r1 warn: audit comment 失败（403/429）不得阻断 close + deleteRef
+                // （spec §2.6：reconcile 的 close + deleteRef 仍须正确执行；故障经 warning 可观测，不静默）
+                core.warning(`reconcile: comment on PR #${pr.number} failed (${e.message})`);
+              }
               await github.rest.pulls.update({
                 ...context.repo,
                 pull_number: pr.number,

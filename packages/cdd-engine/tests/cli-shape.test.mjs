@@ -29,10 +29,11 @@ const NODE = process.execPath;
 // 本 cdd）会按 orphan 连根误杀 → 每 fork 注入唯一 tmp 路径（process.pid 随 fork 唯一）（spec §2.2 A / §2.6）。
 const LIFECYCLE_PATH = forkLifecyclePath("clishape");
 
-// T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .osuperpowers/cdd/smoke-plan/{smoke-spec}/ ——
+// T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ ——
+  //（engine workspaceSlug strip 尾 -plan：smoke-plan.md → smoke）
 // smoke 用例 teardown 清理（dry-run 不写盘，防御性清理兜底）。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-plan'), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke'), { recursive: true, force: true });
   rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-spec'), { recursive: true, force: true });
 });
 

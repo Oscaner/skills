@@ -17,10 +17,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-eng
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
 const SMOKE_PLAN = "packages/cdd-engine/tests/fixtures/smoke-plan.md";
-// T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke-plan/（resolveWorkspace md 名→slug）。
+// T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
+// strip 尾 -plan：smoke-plan.md → smoke）。
 // 测试 teardown 清理，避免 validate 后根杂讯污染 F6 单一根。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke-plan"), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke"), { recursive: true, force: true });
   rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
 });
 const NODE = process.execPath;
@@ -132,7 +133,7 @@ describe("cdd CLI", () => {
       // D11 target param: type=spec → --spec, type=plan → --plan（type 自解释）。
       const targetParam = type === "spec" ? "--spec" : "--plan";
       const r = runCli(["fix", "--type", type, targetParam, SMOKE_PLAN,
-        "--findings", path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke-plan", reviewFile)],
+        "--findings", path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke", reviewFile)],
         { noHost: true });
       expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
       expect(r.stderr).not.toMatch(/template/);
@@ -415,7 +416,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
 
   it("fix --findings spec-review-0.json（round<1）→ exit 2 拒（round 须 >= 1）", () => {
     const r = runCli(["fix", "--type", "spec", "--spec", SMOKE_PLAN,
-      "--findings", path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke-plan", "spec-review-0.json")],
+      "--findings", path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke", "spec-review-0.json")],
       { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/round must be >= 1/);

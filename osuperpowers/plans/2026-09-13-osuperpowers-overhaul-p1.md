@@ -272,9 +272,12 @@ git status --short   # 空 = 本 task 无 commit（runtime 删除仅文件系统
 
 ### Task 5: changeset + 全量收口
 
+> **T5 review-1 follow-up（非本任务缺陷，记录供下游）**：vitest 多 worker 并行下 fork 出的 cdd CLI 偶发 5b1 flake（host-detection `CLAUDE_CODE_SESSION_ID=1 → exit 1`，370 passed/1 failed 一次，隔离复跑 371 全绿 + 手工重复 exit 0）。根因 = 基线并发脆弱点（fork CLI 启动期 reapStale 互踩 lifecycle/workspace）。建议后续统一 per-fork 隔离（`CDD_LIFECYCLE_PATH` 唯一化 + 每 fork 独立 workspace slug）或 engine 套件 worker 串行。
+
 **Files:**
 - Create: `.changeset/<slugs>.md`（cdd-engine minor）
 - Test: `node scripts/run.mjs validate` + `pnpm run emit:check` + `node scripts/run.mjs version --dry-run`（可选）
+- Note: changeset 文件必须 POSIX 结尾换行（`\n` 终止；缺失会触发 `No newline at end of file` nit——c2e9b7d 先例复发，T5 review nit 已修）
 
 **Interfaces:**
 - Consumes: Task 1-4（全量落地）

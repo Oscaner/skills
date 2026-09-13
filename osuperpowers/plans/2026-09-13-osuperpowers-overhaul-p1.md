@@ -250,7 +250,7 @@ Expected: `.superpowers/` 仅 `sdd/`；`.osuperpowers/cdd/smoke/` 由 smoke-cdd 
 ```bash
 CDD_DRY_RUN=1 CLAUDE_CODE_SESSION_ID=1 node packages/cdd-engine/bin/cdd.mjs review --type spec --spec osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p1-design.md
 ```
-Expected: 输出 4 行 H1 contract（status/commits/artifacts/blocker），artifacts 落 `.osuperpowers/cdd/2026-09-13-osuperpowers-overhaul-p1/`（新根）；stdout 或 dryRun 返回不含 `.superpowers` 路径段。engine 运行期零 `.superpowers` 写入由构造保证（resolveWorkspace 全走新根）。
+Expected: **exit 0 静默返回**（spec/plan 型 dry-run 经 run-docs.mjs `if (dryRun)` 早返回，不打印 4 行 H1——仅 implement/task-review/fix/branch-review 四型才打印），仅验证：落点解析至 `.osuperpowers/cdd/<slug>/`（新根）+ 运行期零 `.superpowers` 写入 + stdout 无 `.superpowers` 路径段；不产生新 review round。engine 运行期零 `.superpowers` 写入由构造保证（resolveWorkspace 全走新根）。
 
 - [ ] **Step 5: 全量 validate**
 
@@ -265,6 +265,8 @@ Expected: 13 块全绿。
 ```bash
 git status --short   # 空 = 本 task 无 commit（runtime 删除仅文件系统）
 ```
+
+> **T4 review-1 follow-up（非本任务缺陷，记录供下游）**：smoke-cdd.mjs:44 对共享 gitignored workspace（`.osuperpowers/cdd/smoke/`）的 `rmSync` 在同机多 claude 会话并发时可能误删他会话证据（T4 review 期间实测发生一次）。建议后续为 smoke-cdd 加并发保护（进程锁或写入后即时不可变命名），或 review 前以重跑复现为验证手段。落 P6 或独立 follow-up 处理。
 
 ---
 

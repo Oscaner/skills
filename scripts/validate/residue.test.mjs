@@ -48,9 +48,11 @@ describe("stale-lexicon：机制位置精确性", () => {
     expect(hasHit(["spec D1/D4/D5a"])).toBe(false);
     expect(hasHit(["dirty working tree（D2）"])).toBe(false);
   });
-  it("flat docs-review root 回退路径命中（T9 nit4 补测）", () => {
+  it("flat docs-review root 回退路径命中（T9 nit4 补测）+ 新 <cdd> / standalone 守卫 + sdd 放行", () => {
     expect(hasHit([".superpowers/docs-review/task-1.json"])).toBe(true);
-    expect(hasHit([".superpowers/cdd/foo/spec-review-1.json"])).toBe(false); // 规范家族名不误报
+    expect(hasHit([".superpowers/cdd/foo/spec-review-1.json"])).toBe(true); // 新 <cdd> 守卫命中
+    expect(hasHit([".superpowers/standalone/x/base-branch.json"])).toBe(true); // standalone 守卫命中
+    expect(hasHit([".superpowers/sdd/foo/progress.json"])).toBe(false);      // sdd 保留面放行
   });
 });
 

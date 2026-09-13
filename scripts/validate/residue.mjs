@@ -52,6 +52,8 @@ const STALE_LEXICON_CHECKS = [
   { label: "old mode task-review", re: /task-review/, scope: CDD_ENGINE },
   { label: "P4 degraded names", re: /(spec|plan)-1\.json|doc-fix-/, scope: CDD_ENGINE },
   { label: "flat docs-review root 回退", re: /\.superpowers\/docs-review/, scope: CDD_ENGINE_BIN },
+  { label: "old runtime root .superpowers/cdd", re: /\.superpowers\/cdd/, scope: ALL_MECH_POSITIONS },
+  { label: "deleted standalone root", re: /\.superpowers\/standalone/, scope: ALL_MECH_POSITIONS },
   { label: "dogfood as label", re: /labels [^\n]*dogfood|"dogfood",/, scope: OSKILLS },
 ];
 

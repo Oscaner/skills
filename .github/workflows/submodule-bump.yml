@@ -10,7 +10,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  issues: write
 
 jobs:
   sync:
@@ -47,55 +46,6 @@ jobs:
         if: steps.detect.outputs.updated == 'true'
         run: node scripts/run.mjs bump-submodule "${{ inputs.submodule }}"
 
-      - id: find-issue
-        if: steps.detect.outputs.updated == 'true'
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const labels = ['submodule-bump', `submodule:${{ inputs.submodule }}`];
-            const { data: issues } = await github.rest.issues.listForRepo({
-              ...context.repo,
-              state: 'open',
-              labels: labels.join(','),
-              sort: 'updated',
-              direction: 'desc',
-              per_page: 1,
-            });
-            const issue = issues[0];
-            if (issue) {
-              core.setOutput('has-found', 'true');
-              core.setOutput('issue-number', String(issue.number));
-            } else {
-              core.setOutput('has-found', 'false');
-              core.setOutput('issue-number', '');
-            }
-
-      - id: write-issue-body
-        if: steps.detect.outputs.updated == 'true' && steps.find-issue.outputs.has-found != 'true'
-        run: |
-          mkdir -p .github/issue-bodies
-          printf 'Automated submodule sync tracking for `%s`.\n' "${{ inputs.submodule }}" \
-            > ".github/issue-bodies/${{ inputs.submodule }}.md"
-
-      - id: create-issue
-        if: steps.detect.outputs.updated == 'true' && steps.find-issue.outputs.has-found != 'true'
-        uses: peter-evans/create-issue-from-file@v6
-        with:
-          title: "Submodule bump: ${{ inputs.submodule }}"
-          content-filepath: .github/issue-bodies/${{ inputs.submodule }}.md
-          labels: |
-            submodule-bump
-            submodule:${{ inputs.submodule }}
-
-      - id: issue-number
-        if: steps.detect.outputs.updated == 'true'
-        run: |
-          if [ "${{ steps.find-issue.outputs.has-found }}" = "true" ]; then
-            echo "number=${{ steps.find-issue.outputs.issue-number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "number=${{ steps.create-issue.outputs.issue-number }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - id: pr-body
         if: steps.detect.outputs.updated == 'true'
         run: |
@@ -120,15 +70,39 @@ jobs:
           labels: |
             submodule-bump
             automated
+          delete-branch: true
           body: |
-            Tracking Issue: #${{ steps.issue-number.outputs.number }}
-
             Automated tag sync.
             ${{ steps.pr-body.outputs.rollback_note }}
 
-      - name: Comment on tracking issue
-        if: steps.detect.outputs.updated == 'true'
-        uses: peter-evans/create-or-update-comment@v5
+      - name: Reconcile stale bump PRs
+        if: steps.detect.outputs.updated == 'false'
+        uses: actions/github-script@v9
         with:
-          issue-number: ${{ steps.issue-number.outputs.number }}
-          body: "Updated: ${{ steps.detect.outputs.old_label }} → ${{ steps.detect.outputs.new_tag }}"
+          script: |
+            const branch = `chore/bump-${{ inputs.submodule }}`;
+            const head = `${context.repo.owner}:${branch}`;
+            const { data: pulls } = await github.rest.pulls.list({
+              ...context.repo,
+              state: 'open',
+              base: 'develop',
+              head,
+            });
+            for (const pr of pulls) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: pr.number,
+                body: `Auto-reconcile: \`${{ inputs.submodule }}\` is already up to date — closing superseded bump PR.`,
+              });
+              await github.rest.pulls.update({
+                ...context.repo,
+                pull_number: pr.number,
+                state: 'closed',
+              });
+            }
+            try {
+              await github.rest.git.deleteRef({ ...context.repo, ref: `heads/${branch}` });
+            } catch (e) {
+              if (![404, 422].includes(e.status)) throw e;
+              core.info(`reconcile: branch ${branch} delete skipped (${e.message})`);
+            }

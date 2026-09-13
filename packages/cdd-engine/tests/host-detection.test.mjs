@@ -10,8 +10,10 @@ import { execaSync } from "execa";
 import path from "node:path";
 import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from "node:url";
-// 薄入口化（spec §2.3）：detectCurrentHarness 随守卫簇移 lib/cli/review.mjs —— 测试 seam 改指。
-import { detectCurrentHarness } from "../lib/cli/review.mjs";
+// 薄入口化（spec §2.3）：detectCurrentHarness 随守卫簇移 lib/cli/shared.mjs（spec §2.6 守卫簇拆
+// cli/shared，闭包完备性：reviewStoppingGuard → stoppedExit3 + blockerCount + reviewStoppedError 全簇
+// 随迁）—— 测试 seam 改指 shared.mjs。
+import { detectCurrentHarness } from "../lib/cli/shared.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");

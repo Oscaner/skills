@@ -69,3 +69,12 @@ it("resolveWorkspace: 仅文件名派生，不依赖 plan 文件存在", () => {
   expect(workspaceSlug("2026-09-08-foo-design.md")).toBe("2026-09-08-foo");
   expect(workspaceSlug("2026-09-08-foo.md")).toBe("2026-09-08-foo");
 });
+it("workspaceSlug: 双 suffix 收敛 — -design/-plan 单层 strip 后同值", () => {
+  expect(workspaceSlug("xxx-p5.md")).toBe("xxx-p5");
+  expect(workspaceSlug("xxx-p5-design.md")).toBe("xxx-p5");
+  expect(workspaceSlug("xxx-p5-plan.md")).toBe("xxx-p5");
+});
+it("workspaceSlug: 单 suffix 不级联 — xxx-a-plan.md → xxx-a；xxx-plan-plan.md → xxx-plan", () => {
+  expect(workspaceSlug("xxx-a-plan.md")).toBe("xxx-a");
+  expect(workspaceSlug("xxx-plan-plan.md")).toBe("xxx-plan");
+});

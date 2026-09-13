@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
-         resolveRepoRoot,
+         resolveRepoRoot, resolveWorkspace,
          buildTaskEnv } from "../lib/runner/run-task.mjs";
 import { ExitRequested } from "../lib/exit.mjs";
 import { spawnManaged, markAllDispatchesDone } from "../lib/lifecycle/proc.mjs";
@@ -242,6 +242,14 @@ it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending;
   writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status: "BLOCKED" }));
   expect(handoffStatus(1, dir, progressR1)).toBe("BLOCKED");
   expect(isTaskPending(1, dir, progressR1)).toBe(true);
+});
+
+it("resolveWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace（run-task 派生点回归）", () => {
+  const base = mkdtempSync(path.join(tmpdir(), "cdd-rw-"));
+  const wsPlan = resolveWorkspace({ plan: path.join(base, "xxx-p5-plan.md"), planSource: "plan", repoRoot: base, env: {} });
+  const wsPlain = resolveWorkspace({ plan: path.join(base, "xxx-p5.md"), planSource: "plan", repoRoot: base, env: {} });
+  expect(wsPlan).toBe(wsPlain);
+  expect(wsPlain).toBe(path.join(base, ".superpowers", "cdd", "xxx-p5"));
 });
 
 // ---- brief + plan constraints ----

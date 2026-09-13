@@ -11,7 +11,7 @@
 //   - Bug A: --task <n> parseInt coercion rejects non-integers with exit 2.
 import { describe, it, expect } from 'vitest';
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,6 +64,15 @@ function setupWorkspace() {
   return real;
 }
 
+// F11: 纯 CDD_WORKSPACE 直设分支 fixture（非 git，plan 缺省）—— progress/plan-constraints 最小集，
+// brief 由用例自写（读既有兼容断言）或留空（不生成断言）。
+function setupPlainWorkspace() {
+  const ws = mkdtempSync(path.join(tmpdir(), `cdd-task-ws-${Date.now()}-${Math.random().toString(36).slice(2)}`));
+  writeFileSync(path.join(ws, 'progress.json'), JSON.stringify({ plan: '', timeoutCount: 0, engineRecoveryCount: 0, tasks: [] }));
+  writeFileSync(path.join(ws, 'plan-constraints.md'), 'constraints\n');
+  return ws;
+}
+
 describe('cdd implement/review/fix CLI contract', () => {
   it('dry-run implement → H1 four lines APPROVED + exit 0', () => {
     const ws = setupWorkspace();
@@ -78,6 +87,76 @@ describe('cdd implement/review/fix CLI contract', () => {
     expect(lines[1]).toBe('commits: base=dry-run');
     expect(lines[2]).toMatch(/^artifacts: brief=/);
     expect(lines[3]).toBe('blocker: none');
+  });
+
+  // F11: implement --plan 无前置 brief → runTask 自供应（plan 定稿处 generateBrief）；
+  // 产物 = <plan-derived ws>/task-N-brief.md + TASK_BASE: <HEAD>。
+  it('implement --plan without a pre-existing brief → self-provisions task-N-brief.md with TASK_BASE:', () => {
+    const ws = setupWorkspace();
+    const res = run(
+      ['implement', '--task', '1', '--plan', path.join(ws, 'plan.md')],
+      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
+    );
+    expect(res.status).toBe(0);
+    const brief = path.join(ws, '.superpowers', 'cdd', 'plan', 'task-1-brief.md');
+    expect(existsSync(brief)).toBe(true);
+    expect(readFileSync(brief, 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
+  });
+
+  // F11 override 对齐（branch-review r1 nit）：写侧 `CDD_TASK_BRIEF || briefPath` 与读侧
+  // buildTaskEnv `CDD_TASK_BRIEF ||= <派生>` 同一解析 —— override set 时 self-provision 落 override
+  // 路径（非缺省派生），杜绝 fresh-brief/read 分叉。dry-run 下 brief 生成照常执行（同 L94 变体）。
+  it('implement --plan with CDD_TASK_BRIEF override → self-provisions to the override path (b/read parity)', () => {
+    const ws = setupWorkspace();
+    const override = path.join(ws, 'alt', 'task-1-brief.md');
+    const res = run(
+      ['implement', '--task', '1', '--plan', path.join(ws, 'plan.md')],
+      {
+        CDD_DRY_RUN: '1',
+        CDD_WORKSPACE: ws,
+        CDD_TASK_BRIEF: override,
+        CLAUDE_CODE_SESSION_ID: '1',
+      },
+    );
+    expect(res.status).toBe(0);
+    expect(readFileSync(override, 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
+    // 缺省派生路径保持未生成（写侧已 honor override，未双写）
+    expect(existsSync(path.join(ws, '.superpowers', 'cdd', 'plan', 'task-1-brief.md'))).toBe(false);
+  });
+
+  // F11 越界保护：plan 有 Task 1 无 Task 9 → BLOCKED + exit 1（不静默降级为「读既有/空 brief 放行」）。
+  it('implement --plan with task missing from plan (out of bounds) → BLOCKED + exit 1 (no silent degradation)', () => {
+    const ws = setupWorkspace();
+    const res = run(
+      ['implement', '--task', '9', '--plan', path.join(ws, 'plan.md')],
+      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
+    );
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/CDD_BLOCKED/);
+    expect(res.stderr).toMatch(/task 9 not found/);
+  });
+
+  // F11 兼容分支：纯 CDD_WORKSPACE（无 plan）→ 不生成，读既有 brief（直设分支语义不变）。
+  it('pure CDD_WORKSPACE without plan → no auto-generation, pre-existing brief read as-is (compat)', () => {
+    const ws = setupPlainWorkspace();
+    writeFileSync(path.join(ws, 'task-1-brief.md'), '# task 1\nTASK_BASE: abc123\n');
+    const res = run(
+      ['implement', '--task', '1'],
+      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
+    );
+    expect(res.status).toBe(0);
+    expect(readFileSync(path.join(ws, 'task-1-brief.md'), 'utf8')).toContain('TASK_BASE: abc123');
+    expect(existsSync(path.join(ws, 'task-2-brief.md'))).toBe(false);
+  });
+
+  it('pure CDD_WORKSPACE without plan + no brief → exit 0, no brief auto-created', () => {
+    const ws = setupPlainWorkspace();
+    const res = run(
+      ['implement', '--task', '1'],
+      { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
+    );
+    expect(res.status).toBe(0);
+    expect(existsSync(path.join(ws, 'task-1-brief.md'))).toBe(false);
   });
 
   it('dry-run review/fix (type task) → status APPROVED + exit 0', () => {

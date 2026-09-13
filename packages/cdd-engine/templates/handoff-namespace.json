@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "workspaceRoot": ".superpowers/cdd",
-  "slugRule": "strip .md, then strip trailing -design",
+  "slugRule": "strip .md, then a single trailing -design or -plan suffix",
   "families": {
     "implement.task": { "name": "task-{task}-implement.json", "round": "fixed", "status": "contract", "schema": "cdd", "phase": "implement" },
     "review.task":    { "name": "task-{task}-review-{round}.json", "round": "increment", "status": "rollup", "schema": "cdd", "return": "h1", "phase": "review", "fixFamily": "fix.task", "prev": { "round1": "implement.task", "roundR": "fix.task:R-1" } },

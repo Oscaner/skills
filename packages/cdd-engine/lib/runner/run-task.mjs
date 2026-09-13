@@ -1,8 +1,10 @@
 // packages/cdd-engine/lib/runner/run-task.mjs — CDD per-task runner (Node port of cdd_run_task).
 // H1 four-line output is exclusive (spec v3): this module is responsible for formatting status/commits/artifacts/blocker.
-// runTask ordered contract: registry ship gate → CLI preflight → workspace/env → ledger PLAN_FILE
-// backfill → review fixed-point → require env → renderModePrompt → nested CLI spawn (captures stderr,
-// not swallowed via 2>/dev/null) → commit-contract → H1 four lines → handoff processing.
+// runTask ordered contract: registry ship gate → CLI preflight → workspace/env
+//（resolveRepoRoot 内部完成三源 plan 收口：--plan ‖ env.PLAN_FILE ‖ ledger backfill）→ brief self-provision
+//（effective plan 定稿后 generateBrief；BLOCKED on failure）→ review fixed-point → require env →
+// renderModePrompt → nested CLI spawn (captures stderr, not swallowed via 2>/dev/null) → commit-contract
+// → H1 four lines → handoff processing.
 // noExit=true returns { exitCode, h1 } instead of exit helpers — the unit-test seam.
 // Final exit delegated to lib/exit.mjs (unified exit point, no inline process.exit).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -12,7 +14,9 @@ import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../regist
 import { renderModePrompt, pluginRoot } from "../templates.mjs";
 import { writeHandoff, writeOwnHandoff, readJson } from "../handoff/write.mjs";
 import { gitToplevel, validateCommitContract } from "../contract/commit.mjs";
-import { handoffName, prevHandoffPath as hnPreHandoffPath } from "../handoff/naming.mjs";
+import { generateBrief } from "../brief.mjs";
+import { briefPath } from "../state/workspace-artifacts.mjs";
+import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, workspaceRoot } from "../handoff/naming.mjs";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../handoff/finalize.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
@@ -91,9 +95,9 @@ export function resolveRepoRoot({ planFile, env, ledgerPath }) {
 export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
   if (planSource === "plan") {
     if (!repoRoot) throw new RunBlocked("not in a git repo");
-    const slug = path.basename(plan, ".md");
+    const slug = workspaceSlug(plan);
     if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
-    const base = path.join(repoRoot, ".superpowers", "cdd");
+    const base = path.join(repoRoot, workspaceRoot);
     mkdirSync(path.join(base, slug), { recursive: true });
     writeFileSync(path.join(base, ".gitignore"), "*\n");
     return path.join(base, slug);
@@ -306,6 +310,24 @@ export async function runTask(harness, taskNum, opts = {}) {
       env: baseEnv,
       repoRoot,
     });
+    // F11: self-provision the task brief at plan finalization（三源 plan 任一生效即生成）。
+    //   产物 = workspace-artifacts.briefPath（CDD_TASK_BRIEF 缺省派生同源）；生成失败（task 越界/
+    //   plan 缺失/HEAD 不可取）→ RunBlocked → BLOCKED exit 1 —— 不静默降级读既有/放行。
+    //   CDD_TASK_BRIEF override（读侧 L119 的 `||=` 保 caller-set 值）在写侧同样生效 —— 写 target
+    //   用同一解析：baseEnv.CDD_TASK_BRIEF 非空 → 写 override 路径，否则缺省派生。否则 override set 时
+    //   新鲜 brief 落缺省路径而 implement agent 读 override 路径 → stale-brief/TASK_BASE 分叉。
+    //   纯 CDD_WORKSPACE（无 plan）→ 跳过，读既有 brief（兼容 branch）。
+    if (plan) {
+      try {
+        const briefTarget = baseEnv.CDD_TASK_BRIEF || briefPath({ workspace, task: taskNum });
+        // 写前 dirname bootstrap（同 writeBaseBranch 的 workspace bootstrap 惯例）——override 常指向
+        // 尚未存在的子目录，writeFileSync 直写会 ENOENT；自供应语义下 engine 应能自愈建目录。
+        mkdirSync(path.dirname(briefTarget), { recursive: true });
+        generateBrief(plan, taskNum, briefTarget, repoRoot);
+      } catch (e) {
+        throw new RunBlocked(`brief generation failed: ${e.message}`);
+      }
+    }
   } catch (e) {
     if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
     throw e;

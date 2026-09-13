@@ -14,7 +14,7 @@ import { finalizeHandoff } from "../handoff/finalize.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
-import { DRY_RUN, reviewStoppingGuard } from "./review.mjs";
+import { DRY_RUN, reviewStoppingGuard } from "./shared.mjs";
 
 export function writeBranchBlocked(handoffPath, { base, head, code, reason }) {
   writeHandoff(handoffPath, {

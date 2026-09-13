@@ -1,8 +1,8 @@
 // packages/cdd-engine/lib/cli/fix.mjs — `cdd fix`（task/spec/plan 三型）。
-// spec §2.3 拆分（原 bin/cdd.mjs 合并面）：runFix 归本文件；共享守卫从 ./review.mjs 导入。
+// spec §2.3 拆分（原 bin/cdd.mjs 合并面）：runFix 归本文件；共享守卫从 ./shared.mjs 导入。
 import path from "node:path";
 
-import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./review.mjs";
+import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./shared.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
 import { gitToplevel } from "../contract/commit.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";

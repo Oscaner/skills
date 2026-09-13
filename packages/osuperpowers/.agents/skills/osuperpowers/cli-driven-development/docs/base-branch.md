@@ -38,11 +38,11 @@ The determined base branch is persisted as a JSON file at the CDD workspace root
 
 ## Scope Resolution
 
-The `<scope>` path segment depends on the execution context:
+The scope path segment is fixed to `cdd`; the artifact always lives at `.osuperpowers/cdd/<slug>/base-branch.json`. The only per-session variable is the `slug`:
 
-| Scenario | `scope` | `slug` source |
-|----------|---------|---------------|
-| CDD-driven session | `cdd` | CDD workspace slug (derived by the engine's `workspaceSlug`: plan doc filename with `.md` and a single trailing `-design` / `-plan` stripped) |
+| Slug source | Derivation |
+|---|---|
+| CDD workspace slug | Derived by the engine's `workspaceSlug`: plan doc filename with `.md` and a single trailing `-design` / `-plan` stripped |
 
 ## CLI Usage
 

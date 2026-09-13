@@ -54,18 +54,13 @@ git add vendors/mattpocock-skills
 git commit -m "chore: bump mattpocock-skills submodule"
 ```
 
-**Automated submodule sync (all three submodules):** GitHub Actions --> Submodule Sync --> Run workflow, or wait for weekly cron (Mon 09:00 Asia/Shanghai). Matrix caller [`.github/workflows/submodule-sync.yml`](../../.github/workflows/submodule-sync.yml) invokes reusable [`.github/workflows/submodule-bump.yml`](../../.github/workflows/submodule-bump.yml) per submodule (`create-pull-request` + Issue Action chain; no bash glue).
+**Automated submodule sync (all three submodules):** GitHub Actions --> Submodule Sync --> Run workflow, or wait for weekly cron (Mon 09:00 Asia/Shanghai). Matrix caller [`.github/workflows/submodule-sync.yml`](../../.github/workflows/submodule-sync.yml) invokes reusable [`.github/workflows/submodule-bump.yml`](../../.github/workflows/submodule-bump.yml) per submodule (`create-pull-request` `chore/bump-<name>` branch PR; no bash glue).
 
 **One-time label bootstrap** (required before first sync):
 
 ```bash
 gh label create submodule-bump --color EDEDED --description "Automated submodule sync tracking"
-gh label create submodule:mattpocock-skills --color EDEDED
-gh label create submodule:superpowers --color EDEDED
-gh label create submodule:impeccable --color EDEDED
 ```
-
-If migrating from v1 tracking Issues, add `submodule-bump` + `submodule:<name>` to existing open Issues to avoid duplicates.
 
 **Note:** PRs opened by the default `GITHUB_TOKEN` do not trigger `pr-validate.yml` on `pull_request`; re-run CI manually or close/reopen the PR.
 

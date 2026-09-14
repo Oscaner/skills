@@ -173,8 +173,8 @@ export function stopIdleMonitor() {
 // 回收 done 且存活的组（idle 监视语义）；注销 + 落盘。
 
 // 共享生命周期包装（branch-review nit C 抽取）：startIdleMonitor → fn → finally stop + teardownAll。
-// 六个派发模块（run-task / run-docs / review / branch-review / fix / research）统一经此出口，
-// 清除各模块重复的 finally 双行样板；wiring guard 断言使用而非 token 匹配 6 文件。
+// 五个派发模块（run-task / run-docs / review / branch-review / fix）统一经此出口，
+// 清除各模块重复的 finally 双行样板；wiring guard 断言使用而非 token 匹配 5 文件。
 export async function withLifecycle(fn, { intervalMs = 30_000, graceMs = 5000 } = {}) {
   startIdleMonitor({ intervalMs });
   try {

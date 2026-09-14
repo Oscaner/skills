@@ -86,4 +86,12 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
       { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
     expect(r.exitCode).toBe(2);
   });
+
+  // P3 退役子命令：完整调用形态（bare 形态在删前亦 exit 2——Commander required-option 缺省——是假绿）
+  it('cdd research（完整形态）→ unknown command exit 2（子命令退役）', () => {
+    const r = runCli(['research', '--brief', SMOKE_PLAN, '--output', '/tmp/p3-retired-research.md'],
+      { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/usage: cdd/);
+  });
 });

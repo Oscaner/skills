@@ -1,6 +1,6 @@
 // tests/cdd.test.mjs — 合并面 CLI（bin/cdd.mjs 薄入口 + lib/cli/ 命令面）契约测试。
 // 覆盖：帮助/用法、review 的 round+Stopping 接线（dry-run smoke）、fix --findings 接线、
-// select/research 内联、brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
+// brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { execaSync } from "execa";
 import { createHash } from "node:crypto";
@@ -220,19 +220,6 @@ describe("cdd CLI", () => {
         { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/already blocker=0 — Review Stopping/);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("dry-run research → exit 0", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-research-"));
-    try {
-      const brief = path.join(dir, "brief.md");
-      writeFileSync(brief, "# test brief\n");
-      const r = runCli(["research", "--brief", brief, "--output", path.join(dir, "findings.md")],
-        { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
-      expect(r.exitCode).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

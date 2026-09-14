@@ -1,5 +1,5 @@
 // packages/cdd-engine/tests/lifecycle.wiring.test.mjs — 全派生点生命周期接线架构守卫。
-// spec §2.6：引擎五派生点全部经 spawnManaged（execxa 直接 import 仅允许 lib/lifecycle/proc.mjs）；
+// spec §2.6：引擎全派生点全部经 spawnManaged（execxa 直接 import 仅允许 lib/lifecycle/proc.mjs）；
 // 全部派发出口（runTask / docs-runner / cli 层）接 idle 监视 + teardownAll；bin/cdd.mjs 信号安全出口
 //（SIGINT/SIGTERM/SIGHUP → teardownAll 连根回收 → 128+signo 退出码）。CLI 信号用例以 PATH 遮蔽
 // harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch 经 spawnManaged 派生
@@ -42,16 +42,15 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
   });
 
   it("全部引擎派发出口经 withLifecycle 统一接线", () => {
-    // 六个派发模块统一用 withLifecycle（startIdleMonitor → fn → finally stop + teardownAll）——
+    // 五个派发模块统一用 withLifecycle（startIdleMonitor → fn → finally stop + teardownAll）——
     // 不再 per-file token 匹配 finally 双行（branch-review nit C）；guard 断言包装器被使用即接线成立。
     const runTask = readFileSync(path.join(LIB, "runner", "run-task.mjs"), "utf8");
     const runDocs = readFileSync(path.join(LIB, "runner", "run-docs.mjs"), "utf8");
     const review = readFileSync(path.join(LIB, "cli", "review.mjs"), "utf8");
     const branchReview = readFileSync(path.join(LIB, "cli", "branch-review.mjs"), "utf8");
     const fix = readFileSync(path.join(LIB, "cli", "fix.mjs"), "utf8");
-    const research = readFileSync(path.join(LIB, "cli", "research.mjs"), "utf8");
     for (const [name, src] of [["run-task", runTask], ["run-docs", runDocs], ["review", review],
-                               ["branch-review", branchReview], ["fix", fix], ["research", research]]) {
+                               ["branch-review", branchReview], ["fix", fix]]) {
       expect(src, `${name} 经 withLifecycle 出口`).toMatch(/withLifecycle/);
     }
     const proc = readFileSync(path.join(LIB, "lifecycle", "proc.mjs"), "utf8");

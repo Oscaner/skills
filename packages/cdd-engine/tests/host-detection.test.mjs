@@ -1,5 +1,5 @@
 // tests/host-detection.test.mjs — T3: host harness detection (harness flag removed).
-// cdd implement/review/fix/research no longer take a harness flag — the harness is resolved from
+// cdd implement/review/fix no longer take a harness flag — the harness is resolved from
 // the ambient host session (detectCurrentHarness markers: CURSOR_TRACE_ID → cursor-agent;
 // CLAUDE_CODE_SESSION_ID / AI_AGENT=claude-code* → claude). Empty host → CDD_BLOCKED + exit 1.
 // Crucially, the no-host env MUST explicitly delete all three host markers — a parent

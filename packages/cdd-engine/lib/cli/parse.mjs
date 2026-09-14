@@ -1,12 +1,11 @@
 // packages/cdd-engine/lib/cli/parse.mjs — Commander program definition（bin/cdd.mjs 薄入口的唯一命令面）。
 // spec §2.3 拆分：program 装配（exitOverride / configureOutput / 子命令注册与 action）+ SUBCOMMAND_USAGE /
-// usageError（parse 错误归一）归本文件；runReview/runFix/runResearch 为静态导入的 action 主体。
+// usageError（parse 错误归一）归本文件；runReview/runFix 为静态导入的 action 主体。
 // 本文件可被测试静态读（cli-shape），import 后无副作用 —— parseAsync 由 bin/cdd.mjs 薄入口 isMain 触发。
 import { Command } from "commander";
 
 import { runReview } from "./review.mjs";
 import { runFix } from "./fix.mjs";
-import { runResearch } from "./research.mjs";
 import { requireHostHarness, intTask, DRY_RUN } from "./shared.mjs";
 import { runBriefCli } from "./brief.mjs";
 import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.mjs";
@@ -16,7 +15,6 @@ const SUBCOMMAND_USAGE = {
   implement: "usage: cdd implement --task <n> [--plan <path>]",
   review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
   fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
-  research: "usage: cdd research --brief <path> --output <path>",
   brief: "usage: cdd brief --task <n> --plan <path> [--output <path>]",
   // base-branch: usageError 只读 process.argv[2] 首 token —— 二级命令 (set/get) 的坏 flag/未知
   // 子命令全部回退到 base-branch 单词键这一行，双词键 `base-branch set` 永不可达。
@@ -36,7 +34,7 @@ program.exitOverride();
 program.configureOutput({ outputError: () => {} });
 program
   .name("cdd")
-  .description("CDD engine CLI — implement/review/fix/research/brief/base-branch")
+  .description("CDD engine CLI — implement/review/fix/brief/base-branch")
   .helpOption("-h, --help", "display help for command");
 
 // --- implement (formerly cdd-task --mode implement) ---
@@ -81,15 +79,7 @@ program
   });
 
 // --- select removed (T2): harness selection/detection/install layer deleted — registry
-//     converged to claude/cursor-agent; research remains (inline action logic; no library module).
-program
-  .command("research")
-  .description("Standalone research runner (independent of implement/review)")
-  .requiredOption("--brief <path>", "path to research brief markdown")
-  .requiredOption("--output <path>", "path to write findings markdown")
-  .action(async (opts) => {
-    await runResearch(opts);
-  });
+//     converged to claude/cursor-agent.
 
 // --- brief (delegated to lib module CLI entry; Commander opts → 结构化 argv，不二次解析 process.argv) ---
 program

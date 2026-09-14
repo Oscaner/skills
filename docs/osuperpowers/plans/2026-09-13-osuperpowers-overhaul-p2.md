@@ -301,7 +301,7 @@ git commit -m "docs(osuperpowers): docs 根路径同步 docs/osuperpowers/ + tic
 ### Task 5: residue 守卫 + grep-sweep 过滤收敛
 
 **Files:**
-- Modify: `scripts/validate/residue.mjs:3-10,44-58,63`
+- Modify: `scripts/validate/residue.mjs:3-10,44-58,59,63,67-68`（`:59` = `DOC_SURFACE_TARGETS` export；`:67-68` = GATE 注释块尾 + `GATE_TARGETS` 旁新增刻意重叠注释）
 - Modify: `scripts/validate/residue.test.mjs:129`（+ 新命中断言）
 - Modify: `packages/osuperpowers/tests/grep-sweep-regression.test.mjs:14,65,72`
 - Test: `pnpm exec vitest run scripts/validate/residue.test.mjs` + `pnpm run validate`（5b/5c）
@@ -321,7 +321,6 @@ git commit -m "docs(osuperpowers): docs 根路径同步 docs/osuperpowers/ + tic
 export const DOC_SURFACE_TARGETS = ["CLAUDE.md", "README.md", "packages/osuperpowers/README.md", "docs/maintainers"];
 ```
 `GATE_TARGETS`（`residue.mjs:68`）与 `DOC_SURFACE_TARGETS` 有 2 项重叠（`docs/maintainers` / 根 `README.md`）——**刻意重叠**（两者服务不同语汇：gate 移除 vs 旧 docs 根；且根 `README.md` 对 stale-lexicon 属新增覆盖，`GATE_TARGETS` 仅被 `GATE_LEXICON_CHECKS` 消费）。在 `GATE_TARGETS` 旁加一行注释声明该刻意重叠，使命中面**同步重指向**、不静默漂移。
-```
 line 63 GATE 豁免注释同步：`docs/superpowers/` → `docs/osuperpowers/{specs,plans}`（历史文档新落点；gate targets 不含之）。
 
 **另：文件头 3-10 行的 check 枚举注释**（「…old docs-review filenames, PASS=< lens params, D1|D2|D3 lens names, resolve-hit / gh issue reopen resolver vocabulary, the task-review mode, and P4 degraded filenames…」）追加 `the old docs root (pre-P2)`——本仓 stale-lexicon 以「注释即契约」维护，枚举须与 `STALE_LEXICON_CHECKS` 实现一致（P6 收口项会读该枚举）。

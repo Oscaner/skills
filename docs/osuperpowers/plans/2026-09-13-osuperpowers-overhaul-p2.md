@@ -335,9 +335,9 @@ expect(hasHit([`${OLD_DOCS_ROOT}/specs/foo.md`])).toBe(true);   // 新守卫命�
 expect(hasHit(["docs/osuperpowers/specs/foo.md"])).toBe(false);      // 新根放行
 ```
 
-- [ ] **Step 3: grep-sweep 过滤器重指向（已随 docs 根纠正落地，本 task 复跑确认）**
+- [ ] **Step 3: grep-sweep 过滤器重指向（已随 docs 根纠正落地）+ `tickets` 死过滤删除**
 
-`grep-sweep-regression.test.mjs` 三处命令（line 14, 65, 72）的 `grep -v` 过滤器由 `docs/superpowers/{specs,plans,tickets}` **重指向 `docs/osuperpowers/{specs,plans,tickets}`**——docs 根纠正（overall v1.8）后历史文档落 `docs/osuperpowers/`，**仍在 sweep scope（`packages/ docs/ README.md marketplace/`）内**，过滤器**不可删除**（否则 `executing-plans` / `subagent-driven-development` / `docs/cdd-reference` 各 sweep 立即非零命中，实测 17/17/1）。该重指向已随 docs 根纠正提交落地；本 Step 仅复跑确认。
+`grep-sweep-regression.test.mjs` 三处命令（line 14, 65, 72）的 `grep -v` 过滤器由 `docs/superpowers/{specs,plans,tickets}` **重指向 `docs/osuperpowers/{specs,plans,tickets}`**——docs 根纠正（overall v1.8）后历史文档落 `docs/osuperpowers/`，**仍在 sweep scope（`packages/ docs/ README.md marketplace/`）内**，过滤器**不可删除**（否则 `executing-plans` / `subagent-driven-development` / `docs/cdd-reference` 各 sweep 立即非零命中，实测 17/17/1）。该重指向已随 docs 根纠正提交落地。**另删 `tickets` 过滤器**——`docs/superpowers/tickets/` 与 `docs/osuperpowers/tickets/` 两代根下**均无该目录**（死过滤），且其字面 `tickets` 是 AC5「零 `ticket`/`tickets` 引用（范围外：vendored 物理目录 + 在途程序文档）」下**最后的非豁免命中**（全仓实测：除本过滤链仅剩在途 p2 文档 + .pnpm-store）。删除后复跑确认各 sweep 仍 0 命中。
 
 - [ ] **Step 4: 跑测试**
 

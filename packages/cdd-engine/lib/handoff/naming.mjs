@@ -126,6 +126,8 @@ export function resolveWorkspace(doc) {
 }
 
 // canonical 布局推导：<root>/docs/osuperpowers/{specs,plans}/… 中 `docs`+`osuperpowers` 段之前的路径即 gitRoot。
+// ⚠️ 引擎内独立副本：本段对须与仓工具链单源 `scripts/lib/doc-root.mjs#DOC_ROOT_SEGMENTS` 同步变更
+// （引擎为可独立发布的包，不 import 本仓 scripts/——故以注释交叉引用而非共享模块）。
 // 严格配对（`osuperpowers` 后须随 `specs`/`plans`）——运行根 `.osuperpowers/cdd/…` 的 `.osuperpowers`
 // 段带前导点 ≠ `osuperpowers`，段相等性天然不串。
 function rootFromDocPath(doc) {

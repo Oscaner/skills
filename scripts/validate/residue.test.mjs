@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 
-import { hasHit, collectStaleLexiconHits, collectGateLexiconHits } from "./residue.mjs";
+import { hasHit, collectStaleLexiconHits, collectGateLexiconHits, DOC_SURFACE_TARGETS } from "./residue.mjs";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
   it("dogfood (CDD session) 下拉不误报（非裸 \"dogfood\" label）", () => {
@@ -134,6 +134,23 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
       expect(hits[0].file.endsWith("single.md")).toBe(true);
     } finally {
       rmSync(path.dirname(f), { recursive: true, force: true });
+    }
+  });
+  it("含旧 docs 根字面（拼接构造）的临时文件被 collectStaleLexiconHits 命中——doc-surface 面在扫面内", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-docroot-"));
+    const f = path.join(dir, "CLAUDE.md");
+    writeFileSync(f, "Strategy B: `" + ["docs", "superpowers"].join("/") + "/specs/*.md`\n", "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toBe("old docs root (pre-P2)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("DOC_SURFACE_TARGETS 覆盖治理文件面（scope 缩小即失败）", () => {
+    for (const p of ["CLAUDE.md", "README.md", "packages/osuperpowers/README.md", "docs/maintainers"]) {
+      expect(DOC_SURFACE_TARGETS).toContain(p);
     }
   });
   it("collectGateLexiconHits() === []（机制/文档表层零残留；docs/osuperpowers/{specs,plans} 历史文档 + CHANGELOG 豁免）", () => {

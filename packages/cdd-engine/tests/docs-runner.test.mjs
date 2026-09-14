@@ -157,9 +157,11 @@ describe("runDocsTask", () => {
     });
 
     // execa called with cwd = '/repo/root' (gitToplevel mock value), NOT the doc directory.
+    // （原另有一条 `not.toContain("/docs/osuperpowers/specs")` 反向断言，经 branch-review 判定为
+    //  **不可失败**——上行已 pin cwd === "/repo/root"，且两条 cwd 来源（mock gitToplevel 与
+    //  rootFromDocPath 回落）对同一假路径均得 repo root；已删，见 P2 plan T3 follow-up。）
     const callOpts = execa.mock.calls[0][2];
     expect(callOpts.cwd).toBe("/repo/root");
-    expect(callOpts.cwd).not.toContain("/docs/osuperpowers/specs");   // 原断言为旧 docs 根字面（见 P2 T5 守卫口径）
   });
 
   it("Task 5: type opt 透传 invokeCli (op, type) —— review×spec 无注入、fix×spec 得 tdd 首行", async () => {

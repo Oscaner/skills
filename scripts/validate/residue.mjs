@@ -127,10 +127,12 @@ export function hasHit(lines) {
   return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) => lines.some((line) => re.test(line)));
 }
 
-export function collectStaleLexiconHits() {
+// targetsOverride 与 collectGateLexiconHits 同构——供测试注入临时目标，验证 **doc-surface 面**
+// （DOC_SURFACE_TARGETS）确实在扫面内（否则该 scope 缩小不会被任何断言察觉）。
+export function collectStaleLexiconHits(targetsOverride) {
   const hits = [];
   for (const { label, re, scope } of STALE_LEXICON_CHECKS) {
-    for (const f of scanTargets(scope, re)) hits.push({ label, file: f });
+    for (const f of scanTargets(targetsOverride ?? scope, re)) hits.push({ label, file: f });
   }
   return hits;
 }

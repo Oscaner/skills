@@ -187,7 +187,7 @@ git commit -m "refactor(validate): overall-consistency 单根 docs/osuperpowers/
 // 段带前导点 ≠ `osuperpowers`，段相等性天然不串。
 function rootFromDocPath(doc) {
   const segments = path.resolve(doc).split(path.sep);
-  for (let i = 0; i < segments.length - 1; i++) {
+  for (let i = 0; i < segments.length - 2; i++) {
     if (segments[i] === "docs" && segments[i + 1] === "osuperpowers" && ["specs", "plans"].includes(segments[i + 2])) {
       return segments.slice(0, i).join(path.sep) || path.sep;
     }
@@ -225,6 +225,8 @@ Expected: 371 tests 全绿（`handoff-naming` / `cdd` / `docs-runner` 新布局 
 git add packages/cdd-engine
 git commit -m "refactor(cdd-engine): rootFromDocPath 识别 docs/osuperpowers/{specs,plans} 布局（drop docs/superpowers 旧 marker）"
 ```
+
+> **T3 review-1 + branch-review fix-inline（2026-09-14）**：① marker 循环上界 `segments.length - 1` → **`- 2`**（与 `i + 2` 读取面一致；本文件 Step 1 片段已同步，见 `6127e36`）；② `docs-runner.test.mjs` 行尾注释的旧根字面删除（防 §2.7 全仓 grep 第三类命中）；③ 同文件 8 处重复夹具字面提取为 `SPEC_DOC` 常量（后续根迁移一行改动）；④ 原 `not.toContain("/docs/osuperpowers/specs")` 反向断言经 **branch-review 判定为不可失败**（上行已 pin `cwd === "/repo/root"`，两条 cwd 来源对同一假路径均得 repo root）→ **删除**，改为注释记录。engine 套件 **372 tests 全绿**。
 
 ---
 

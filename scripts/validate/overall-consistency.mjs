@@ -35,9 +35,11 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { runIfMain } from "./runner.mjs";
+import { DOC_SPECS_SEGMENTS, DOC_PLANS_SEGMENTS } from "../lib/doc-root.mjs";
 
-const SPECS_DIR = join(process.cwd(), "docs", "osuperpowers", "specs");
-const PLANS_DIR = join(process.cwd(), "docs", "osuperpowers", "plans");
+// docs 根单源（scripts/lib/doc-root.mjs）——不在此重复字面。
+const SPECS_DIR = join(process.cwd(), ...DOC_SPECS_SEGMENTS);
+const PLANS_DIR = join(process.cwd(), ...DOC_PLANS_SEGMENTS);
 
 // `| # | Phase | …` — canonical Phase inventory header row (7 columns, the marker
 // for the "four tables" mechanical guard surface). The `#` + `Phase` prefix pins the

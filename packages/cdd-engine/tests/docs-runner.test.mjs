@@ -116,6 +116,9 @@ function mockRealWriteBack(writeHandoff) {
   });
 }
 
+// 夹具常量：单一来源（根迁移一行改动，免 9 处机械编辑）
+const SPEC_DOC = "/repo/root/docs/osuperpowers/specs/my-spec.md";
+
 describe("runDocsTask", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -146,7 +149,7 @@ describe("runDocsTask", () => {
       harness:   "claude",
       mode:      "review",
       template:  "review",
-      doc:       "/repo/root/docs/superpowers/specs/my-spec.md",
+      doc:       SPEC_DOC,
       params:    { TYPE: "spec" },
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       repoRoot:  "/repo/root",  // accepted in opts but gitToplevel() is used (Bug L fix)
@@ -154,9 +157,11 @@ describe("runDocsTask", () => {
     });
 
     // execa called with cwd = '/repo/root' (gitToplevel mock value), NOT the doc directory.
+    // （原另有一条 `not.toContain("/docs/osuperpowers/specs")` 反向断言，经 branch-review 判定为
+    //  **不可失败**——上行已 pin cwd === "/repo/root"，且两条 cwd 来源（mock gitToplevel 与
+    //  rootFromDocPath 回落）对同一假路径均得 repo root；已删，见 P2 plan T3 follow-up。）
     const callOpts = execa.mock.calls[0][2];
     expect(callOpts.cwd).toBe("/repo/root");
-    expect(callOpts.cwd).not.toContain("docs/superpowers");
   });
 
   it("Task 5: type opt 透传 invokeCli (op, type) —— review×spec 无注入、fix×spec 得 tdd 首行", async () => {
@@ -168,7 +173,7 @@ describe("runDocsTask", () => {
     // review×spec → prefix.review.spec="" → 无注入，prompt 保持模板渲染结果（首行）
     await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec",
-      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      doc: SPEC_DOC,
       params: { TYPE: "spec" },
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       dryRun: false,
@@ -180,7 +185,7 @@ describe("runDocsTask", () => {
     execa.mockClear();
     await runDocsTask({
       harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
-      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
       dryRun: false,
@@ -197,7 +202,7 @@ describe("runDocsTask", () => {
     const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
     await expect(runDocsTask({
       harness: "claude", mode: "review", template: "review",
-      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      doc: SPEC_DOC,
       dryRun: false,
     })).rejects.toThrow(/handoffPath required/);
   });
@@ -211,7 +216,7 @@ describe("runDocsTask", () => {
     const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
     await runDocsTask({
       harness: "claude", mode: "fix", template: "critiques-review", type: "spec",
-      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      doc: SPEC_DOC,
       // 含 "review" 段 → node:fs fixture 的 existsSync 视为存在 → 走 read-and-validate 路径。
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/critiques-review-1.json",
       dryRun: false,
@@ -245,7 +250,7 @@ describe("runDocsTask", () => {
     try {
       const result = await runDocsTask({
         harness: "claude", mode: "review", template: "review", type: "spec",
-        doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+        doc: SPEC_DOC,
         handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
         dryRun: false,
       });
@@ -275,7 +280,7 @@ describe("runDocsTask", () => {
     const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec",
-      doc: "/repo/root/docs/superpowers/specs/my-spec.md",   // 不存在 → hashFile "" 哨兵
+      doc: SPEC_DOC,   // 不存在 → hashFile "" 哨兵
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       dryRun: false,
     });
@@ -313,7 +318,7 @@ describe("runDocsTask", () => {
     const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
     await runDocsTask({
       harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
-      doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+      doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
       dryRun: false,

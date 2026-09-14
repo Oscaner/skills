@@ -60,10 +60,16 @@ it("prevHandoffPath: fix.task round1 无专属表项 → 回退 roundR（跨轮�
   expect(prevHandoffPath("/ws", "fix", "task", 3, { task: 5 })).toBe("/ws/task-5-review-3.json");
 });
 it("resolveWorkspace: spec-design.md 与 plan.md 收敛同 slug workspace", () => {
-  const specWs = resolveWorkspace("/repo/docs/superpowers/specs/2026-09-08-foo-design.md");
-  const planWs = resolveWorkspace("/repo/docs/superpowers/plans/2026-09-08-foo.md");
+  const specWs = resolveWorkspace("/repo/docs/osuperpowers/specs/2026-09-08-foo-design.md");
+  const planWs = resolveWorkspace("/repo/docs/osuperpowers/plans/2026-09-08-foo.md");
   expect(specWs).toBe("/repo/.osuperpowers/cdd/2026-09-08-foo");
   expect(planWs).toBe(specWs);
+});
+it("resolveWorkspace: AC2 反射 — 非 canonical 段位不误匹配（运行根 .osuperpowers/… / osuperpowers 后无 specs|plans）", () => {
+  // AC2：严格配对（osuperpowers 后须随 specs|plans）下，运行根 `.osuperpowers/…` 不被识别为 docs 根
+  expect(() => resolveWorkspace("/repo/.osuperpowers/cdd/x/review-1.json")).toThrow(/not in a git repo/);
+  // 段对严格性：`docs`+`osuperpowers` 齐备但第三段非 specs|plans → 同样不识别（防宽松双段匹配回退）
+  expect(() => resolveWorkspace("/repo/docs/osuperpowers/notes/x-design.md")).toThrow(/not in a git repo/);
 });
 it("resolveWorkspace: 仅文件名派生，不依赖 plan 文件存在", () => {
   expect(workspaceSlug("2026-09-08-foo-design.md")).toBe("2026-09-08-foo");

@@ -1,6 +1,6 @@
 # P4 overall 四表一致性机械守卫 + 程序文档收敛 — Implementation Plan
 
-**Spec:** [2026-09-10-session-report-246-p4-design.md](docs/superpowers/specs/2026-09-10-session-report-246-p4-design.md)（v1.0：canonical 7 列头专属守卫 + 回填声明↔列双向 shipped 判定 + 声明式 issue 注册域（锚点形式唯一机器可判）+ slug 后缀 glob（跨日期 phase 文档）+ 非 canonical 全文件 skip；登记规则 5 站收敛 1 SSoT + CDD 死档清除 + engine 健壮性 hardening）
+**Spec:** [2026-09-10-session-report-246-p4-design.md](docs/osuperpowers/specs/2026-09-10-session-report-246-p4-design.md)（v1.0：canonical 7 列头专属守卫 + 回填声明↔列双向 shipped 判定 + 声明式 issue 注册域（锚点形式唯一机器可判）+ slug 后缀 glob（跨日期 phase 文档）+ 非 canonical 全文件 skip；登记规则 5 站收敛 1 SSoT + CDD 死档清除 + engine 健壮性 hardening）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -286,7 +286,7 @@ const DESIGN_CLAIM_RE = /(?=.*(?:Design[-\s]?spec))(Pending|\[Pending\])\s*→\s
 // scanFiles.forEach: `#(\d+)#issuecomment-\d+` → miss if !universe.has(n)
 ```
 
-`main()` 串联（canonical 才跑）：`checkVersionAscending → checkIssueRefsWellFormed → checkDepGraphMembership → checkBackfillClaims → checkDocExistence → checkAnchorRegistry（scan 面含 overall + `docs/superpowers/{specs,plans}/*-(slug)-p*.md`）`。
+`main()` 串联（canonical 才跑）：`checkVersionAscending → checkIssueRefsWellFormed → checkDepGraphMembership → checkBackfillClaims → checkDocExistence → checkAnchorRegistry（scan 面含 overall + `docs/osuperpowers/{specs,plans}/*-(slug)-p*.md`）`。
 
 - [ ] **Step 4: 跑测试 + 三真实 overall 实证**
 
@@ -368,7 +368,7 @@ git commit -m "feat(validate): wire overall-consistency as block 12 (12→13 val
 - Modify: `packages/osuperpowers/skills/brainstorming/docs/add-phase-protocol.md`（§注册域）
 - Modify: `packages/osuperpowers/skills/brainstorming/docs/overall-spec-template.md`（两段落 → 委托）
 - Modify: `packages/osuperpowers/skills/brainstorming/SKILL.md`（commit-spec 清单 + sync-overall 节点委托）
-- Modify: `docs/superpowers/specs/2026-09-10-session-report-246-overall.md`（v1.14：自身段落委托 + change-history）
+- Modify: `docs/osuperpowers/specs/2026-09-10-session-report-246-overall.md`（v1.14：自身段落委托 + change-history）
 
 **Interfaces:**
 - Consumes: 无（纯文档）
@@ -411,7 +411,7 @@ grep 四站残留：`grep -n "Missed-update\|Update trigger" packages/osuperpowe
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/osuperpowers/skills/brainstorming/ docs/superpowers/specs/2026-09-10-session-report-246-overall.md
+git add packages/osuperpowers/skills/brainstorming/ docs/osuperpowers/specs/2026-09-10-session-report-246-overall.md
 git commit -m "docs(brainstorming): registration-rule convergence — add-phase-protocol §1.5 sole SSoT + template/SKILL delegation (overall v1.14)"
 ```
 

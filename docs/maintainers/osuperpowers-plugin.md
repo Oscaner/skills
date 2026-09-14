@@ -21,7 +21,7 @@ If a skill's SKILL.md exists on disk but is not under the plugin's declared `ski
 The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodies for orchestration. Each skill follows a fixed shape:
 
 - Frontmatter `description` names the upstream it reads (`Read upstream superpowers:<target> as baseline`) and the personal rules it adds.
-- Body opens with `## Rules`, semantic `### Rule: <Name>` headings (no numbers; `#rule-<kebab>` anchors). Each rule takes one of three shapes: (a) **replaces** upstream behavior (self-review --> fresh-subagent passes); (b) **delegates** to a `mattpocock-skills:*` skill (grilling, tdd, to-tickets); (c) **partial-delegate** -- wraps the upstream skill's Steps 0-K unchanged and overrides Step K+1 locally (writing-plans Rule: Tickets Publish Redirect is the canonical example: Steps 1-4 of `/to-tickets` are delegated verbatim, Step 5 "publish" is redirected to a single local `docs/superpowers/tickets/<date>-<feature>-tickets.md`, keeping the upstream single-file shape). Partial-delegate rules must state up front which steps are delegated and which are overridden -- the split is what prevents Step K+1 from silently reverting to upstream defaults.
+- Body opens with `## Rules`, semantic `### Rule: <Name>` headings (no numbers; `#rule-<kebab>` anchors). Each rule takes one of three shapes: (a) **replaces** upstream behavior (self-review --> fresh-subagent passes); (b) **delegates** to a `mattpocock-skills:*` skill (grilling, tdd); (c) **partial-delegate** -- wraps the upstream skill's Steps 0-K unchanged and overrides Step K+1 locally. Partial-delegate rules must state up front which steps are delegated and which are overridden -- the split is what prevents Step K+1 from silently reverting to upstream defaults.
 - When one rule has multiple internal enforcement mechanisms (e.g. "locate the delegate", "redirect publish target", "structure the user-approval quiz"), decompose it into sub-rules `Rule Na` / `Rule Nb` / `Rule Nc` under a single umbrella heading. Sub-rules are cheaper than sibling top-level rules when the mechanisms share a triggering context but attack different failure modes.
 - Body closes with `## Red Flags` (thoughts that should stop you). Load-bearing -- the orchestrator is designed to catch drift, so removing this section defeats the point.
 - New rules go **inside** the `osuperpowers` skill as `### Rule: <Name>`, never in the user's global `~/.claude/CLAUDE.md`.
@@ -35,12 +35,12 @@ The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodie
 
 Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-review and branch-review use their own mechanisms.
 
-## `docs/superpowers/` conventions
+## `docs/osuperpowers/` conventions
 
 The skill flow `brainstorming --> writing-plans --> cli-driven-development` produces documents under two sibling directories:
 
-- [docs/superpowers/specs/](../../docs/superpowers/specs/) -- `YYYY-MM-DD-<feature>-design.md`, output of the brainstorming skill (spec doc, reviewed via `brainstorming` Rule 1).
-- [docs/superpowers/plans/](../../docs/superpowers/plans/) -- `YYYY-MM-DD-<feature>.md`, output of the writing-plans skill (implementation plan, reviewed via `writing-plans` Rule 2).
+- [docs/osuperpowers/specs/](../osuperpowers/specs/) -- `YYYY-MM-DD-<feature>-design.md`, output of the brainstorming skill (spec doc, reviewed via `brainstorming` Rule 1).
+- [docs/osuperpowers/plans/](../osuperpowers/plans/) -- `YYYY-MM-DD-<feature>.md`, output of the writing-plans skill (implementation plan, reviewed via `writing-plans` Rule 2).
 
 ## Common operations
 
@@ -199,6 +199,6 @@ One plugin is versioned from this repo: **`osuperpowers`** (independent semver).
 
 **Default:** do not commit unless the user explicitly asks (`commit`, `Tn commit`, `提交`, `push`).
 
-**SDD / ticket execution:** when the user approved plan/tickets and started execution, and the plan/ticket specifies a commit for that ticket -- commit after the ticket without asking again. If the plan omits commits, finish uncommitted and ask once at end-of-run.
+**Plan execution (per unit):** when the user approved the plan and started execution, and the plan specifies a commit for a unit -- commit after that unit without asking again. If the plan omits commits, finish uncommitted and ask once at end-of-run.
 
-**Execution continuity:** during approved plan runs, do not stop after each ticket to ask "要继续吗？" -- see `.cursor/rules/execution-continuity.mdc` (Cursor) or mirror this section in Claude Code sessions.
+**Execution continuity:** during approved plan runs, do not stop after each unit to ask "要继续吗？" -- see `.cursor/rules/execution-continuity.mdc` (Cursor) or mirror this section in Claude Code sessions.

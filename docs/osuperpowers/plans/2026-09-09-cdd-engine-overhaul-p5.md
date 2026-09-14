@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node ESM（`packages/cdd-engine/bin/`）+ osuperpowers skills/emit/validate + vitest/node:test + tinyglobby。
 
-**Spec:** [2026-09-09-cdd-engine-overhaul-p5-design.md](docs/superpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md)（v1.2，P5 执行期 D14 追加）
+**Spec:** [2026-09-09-cdd-engine-overhaul-p5-design.md](docs/osuperpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md)（v1.2，P5 执行期 D14 追加）
 
 ## Global Constraints
 
@@ -257,7 +257,7 @@
   // runCli: spawnSync(CDD_MJS, ...) → { exitCode, stdout, stderr }（同 cdd.test.mjs）
   const HOST_ENV = { CLAUDE_CODE_SESSION_ID: "1" };  // cursor-agent 分支用 { CURSOR_TRACE_ID: "1" }
   // fixtures 目录仅有 smoke-plan.md，无 spec fixture → SMOKE_SPEC 用本 repo 现有 spec 文档路径
-  const SMOKE_SPEC = path.join(REPO_ROOT, "docs/superpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md");
+  const SMOKE_SPEC = path.join(REPO_ROOT, "docs/osuperpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md");
   const SMOKE_PLAN = path.join(REPO_ROOT, "packages/cdd-engine/bin/tests/fixtures/smoke-plan.md");
   it("review 无 --doc option（D11 退役）", () => {
     const src = readFileSync(CDD_MJS, "utf8");
@@ -336,7 +336,7 @@
 - [ ] **Step 1: 核对前置清理**（T2 Step 4 已删 docs-runner.mjs L55-56 CDD_GATE 注释，此处仅核对无残留；如仍存在则删）
 - [ ] **Step 2: 写 failing test**（residue.test.mjs：构造含 `bin/gate/` 引用的临时文件 → 期望命中）
   Expected: FAIL（guard 未实现）
-- [ ] **Step 3: 实现 guard**（target：cdd-engine bin/ + osuperpowers skills/ + docs/maintainers + 根 README；**注册豁免**：`docs/superpowers/`（spec/plan 描述删除面必携 gate 语汇）+ `packages/osuperpowers/CHANGELOG.md`（历史记录，非机制位置）—— 与 T7 grep1 口径一致）
+- [ ] **Step 3: 实现 guard**（target：cdd-engine bin/ + osuperpowers skills/ + docs/maintainers + 根 README；**注册豁免**：`docs/osuperpowers/`（spec/plan 描述删除面必携 gate 语汇）+ `packages/osuperpowers/CHANGELOG.md`（历史记录，非机制位置）—— 与 T7 grep1 口径一致）
 - [ ] **Step 4: 反例确认**（合法 `HARD GATE`/`validateCommitContract` 不命中）
 - [ ] **Step 5: `pnpm run validate` 绿**
 - [ ] **Step 6: Commit**
@@ -355,9 +355,9 @@
 - Run: 全量 grep 清零清单
 - Modify: `scripts/validate/smoke-cdd.mjs`（最终核对）
 
-- [ ] **Step 1: 残留 grep 全零**（范围含 docs/ + 根 README + docs/maintainers；**注册豁免**：`docs/superpowers/`（本 plan/spec 及历史 spec/plan 描述删除面必然携带 gate 语汇）+ `packages/osuperpowers/CHANGELOG.md`（历史 changelog，非机制位置，保留不改）+ **guard/test 位置**（`scripts/validate/smoke-cdd.mjs` 自身 G-regex 必携 `--harness` 断言缺席、`packages/cdd-engine/bin/tests/` cli-shape 必携 `--doc` 断言拒绝 —— 与 residue.mjs G1 自豁免同构）—— T7 grep/T6 guard 均排除）
+- [ ] **Step 1: 残留 grep 全零**（范围含 docs/ + 根 README + docs/maintainers；**注册豁免**：`docs/osuperpowers/`（本 plan/spec 及历史 spec/plan 描述删除面必然携带 gate 语汇）+ `packages/osuperpowers/CHANGELOG.md`（历史 changelog，非机制位置，保留不改）+ **guard/test 位置**（`scripts/validate/smoke-cdd.mjs` 自身 G-regex 必携 `--harness` 断言缺席、`packages/cdd-engine/bin/tests/` cli-shape 必携 `--doc` 断言拒绝 —— 与 residue.mjs G1 自豁免同构）—— T7 grep/T6 guard 均排除）
   ```
-  grep -rn 'bin/gate/\|cdd-gate-core\|gateDecide\|CDD_GATE' packages/cdd-engine packages/osuperpowers scripts docs/maintainers README.md   # 0（豁免 docs/superpowers/ + CHANGELOG.md）
+  grep -rn 'bin/gate/\|cdd-gate-core\|gateDecide\|CDD_GATE' packages/cdd-engine packages/osuperpowers scripts docs/maintainers README.md   # 0（豁免 docs/osuperpowers/ + CHANGELOG.md）
   grep -rn -- '--harness' packages/cdd-engine packages/osuperpowers/skills docs/maintainers  # 0（豁免 scripts/validate + bin/tests：guard/test 必携 token）
   grep -rn -- '--doc' packages/osuperpowers/skills packages/cdd-engine/bin/cdd.mjs docs/maintainers  # 0（仅内部 doc_path 保留；豁免 bin/tests：cli-shape 必携 --doc）
   grep -rn 'cli-select\|select-harness' packages/osuperpowers/skills  # 0
@@ -383,8 +383,8 @@
 
 **Files:**
 - Create: `.changeset/p5-cdd-engine-overhaul.md`
-- Modify: `docs/superpowers/specs/2026-09-04-cdd-engine-overhaul-overall.md`（P5 行 Implementation plan → Done；change-history +v1.25；version v1.25）
-- Modify: `docs/superpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md`（Status: Draft → Approved/Plan pending → Plan done 标记，§Section 5 review record）
+- Modify: `docs/osuperpowers/specs/2026-09-04-cdd-engine-overhaul-overall.md`（P5 行 Implementation plan → Done；change-history +v1.25；version v1.25）
+- Modify: `docs/osuperpowers/specs/2026-09-09-cdd-engine-overhaul-p5-design.md`（Status: Draft → Approved/Plan pending → Plan done 标记，§Section 5 review record）
 
 - [ ] **Step 1: 写 changeset**
   ```markdown
@@ -483,7 +483,7 @@
 
 - **B1 ⛔** T3 host-detection 用 `.code` 但 runCli 返回 `.exitCode` + implement 缺 `--plan` → ✓ Step 1 snippet 对齐
 - **W ①** 13-block 硬编码位（`scripts/run.mjs:10,48` + CLAUDE.md:42）未触达 → ✓ T1 增 run.mjs + CLAUDE.md 12-block 同步
-- **W ②** grep1 `docs/` 范围含 P5 plan/spec 本体 gate 语汇 → 机械不可达 → ✓ 注册豁免 `docs/superpowers/`
+- **W ②** grep1 `docs/` 范围含 P5 plan/spec 本体 gate 语汇 → 机械不可达 → ✓ 注册豁免 `docs/osuperpowers/`
 - **N ③** T2 两个 Step 8 → ✓ 顺延 Step 9/10
 - **N ④** runner.test.mjs ~33 处 `probeSkills: NOOP_PROBE` 未列 → ✓ T2 Files/Step 4
 - **N ⑤** round-1 补丁头 3/3/3 计数错（实 4/4/1）→ ✓ 已改

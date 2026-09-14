@@ -86,7 +86,7 @@ grep -rn "\.superpowers/cdd\|\.superpowers/{sdd,cdd}" packages/cdd-engine/bin pa
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/cdd-engine/templates packages/cdd-engine/bin packages/cdd-engine/lib packages/cdd-engine/tests packages/osuperpowers/skills scripts/validate/smoke-cdd.mjs .gitignore osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p1.md
+git add packages/cdd-engine/templates packages/cdd-engine/bin packages/cdd-engine/lib packages/cdd-engine/tests packages/osuperpowers/skills scripts/validate/smoke-cdd.mjs .gitignore docs/osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p1.md
 git commit -m "refactor(cdd-engine): runtime root .superpowers/cdd → .osuperpowers/cdd (single-source flip + full literal migration)"
 ```
 （Plan 自身文件可在 Task 1 一并 commit 或独立 commit，任选；plan 文档不属 engine 产物。）
@@ -248,7 +248,7 @@ Expected: `.superpowers/` 仅 `sdd/`；`.osuperpowers/cdd/smoke/` 由 smoke-cdd 
 
 用 smoke-cdd 同款 dry-run 模式验证落点（`CDD_DRY_RUN=1` 不 spawn review agent，仅解析 workspace 显示落点——不产生新 review round/findings；若取真实 review 会派发 agent 且给 findings 无处理契约，故禁）：
 ```bash
-CDD_DRY_RUN=1 CLAUDE_CODE_SESSION_ID=1 node packages/cdd-engine/bin/cdd.mjs review --type spec --spec osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p1-design.md
+CDD_DRY_RUN=1 CLAUDE_CODE_SESSION_ID=1 node packages/cdd-engine/bin/cdd.mjs review --type spec --spec docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p1-design.md
 ```
 Expected: **exit 0 静默返回**（spec/plan 型 dry-run 经 run-docs.mjs `if (dryRun)` 早返回，不打印 4 行 H1——仅 implement/task-review/fix/branch-review 四型才打印），仅验证：落点解析至 `.osuperpowers/cdd/<slug>/`（新根）+ 运行期零 `.superpowers` 写入 + stdout 无 `.superpowers` 路径段；不产生新 review round。engine 运行期零 `.superpowers` 写入由构造保证（resolveWorkspace 全走新根）。
 

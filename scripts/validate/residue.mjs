@@ -3,8 +3,9 @@
 // (sdd_/SDD_/sdd-run-/spor- must not regress in engine executable products; the
 // stale-lexicon checks pin the P4/P6 migration end-state — old docs-review
 // filenames, PASS=< lens params, D1|D2|D3 lens names, resolve-hit / gh issue
-// reopen resolver vocabulary, the task-review mode, and P4 degraded filenames —
-// plus the P5 gate-lexicon checks pin the cdd-gate subsystem removal (bin/gate/
+// reopen resolver vocabulary, the task-review mode, P4 degraded filenames, and
+// the old docs root (pre-P2) — plus the P5 gate-lexicon checks pin the cdd-gate
+// subsystem removal (bin/gate/
 // path, CDD_GATE env, cdd-gate-core, gateDecide, deleted gate adapters) — must
 // not creep back into mechanism/document positions.)
 // The grepTargets meta is consumed by the wiring guard
@@ -26,6 +27,10 @@ const CDD_ENGINE_BIN = ["packages/cdd-engine/bin", "packages/cdd-engine/lib"];
 const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/templates"];
 // T9 nit3（DRY）：跨 skills + cdd-engine（bin+lib+templates）的机制位置集合 —— 5 个 check 共享。
 const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
+// Task 5（P2）：文档表层 target —— 治理文件面（旧 docs 根残留最可能的回渗点）：
+// 根 CLAUDE.md（活跃约定入口）、根 README.md / 插件 README.md（发布面）、maintainer 文档目录。
+// 路径字面一律不写入本文件（守卫本体不得成为被守卫语汇的载体，见 GATE_TARGETS 旁注释）。
+export const DOC_SURFACE_TARGETS = ["CLAUDE.md", "README.md", "packages/osuperpowers/README.md", "docs/maintainers"];
 
 const RESIDUE_TARGETS = [
   "packages/osuperpowers/bin",
@@ -55,16 +60,25 @@ const STALE_LEXICON_CHECKS = [
   { label: "old runtime root .superpowers/cdd", re: /\.superpowers\/cdd/, scope: ALL_MECH_POSITIONS },
   { label: "deleted standalone root", re: /\.superpowers\/standalone/, scope: ALL_MECH_POSITIONS },
   { label: "dogfood as label", re: /labels [^\n]*dogfood|"dogfood",/, scope: OSKILLS },
+  // Task 5（P2）：旧 docs 根（pre-P2 归一前的 superpowers 布局）守卫 —— 机制位置零豁免
+  // 并入文档表层（DOC_SURFACE_TARGETS）；正则以 `\/` 转义、label 不含路径字面，守卫本体
+  // 因此不会把被守卫的旧根字面写回 scripts/（否则全仓校验会多出第三类命中）。
+  { label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
 ];
 
 // T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。
 // cdd-gate 子系统（packages/osuperpowers/bin/gate/ 全树删除）后，语汇不得回渗机制/文档表层：
 // cdd-engine bin + osuperpowers skills + docs/maintainers + 根 README。豁免（注册非目标）：
-// docs/superpowers/（spec/plan 描述删除面必携 gate 语汇）、packages/osuperpowers/CHANGELOG.md
+// docs/osuperpowers/{specs,plans}（历史文档新落点；spec/plan 描述删除面必携 gate 语汇，
+// 且不在 gate targets 内）、packages/osuperpowers/CHANGELOG.md
 // （历史记录，非机制位置）、osuperpowers/cdd-engine tests/（no-gate.test.mjs 反向守卫须
 // 引用该语汇，collectGateLexiconHits 不经其扫描）——与 T2 Step 4 docs-runner CDD_GATE 注释
 // 清理口径一致，靠「模式取紧致形（路径/门字形）」而非裸 `gate`/`cdd-gate-` 避免误报：
 // ship gate / evidence-gate / {{HARD_GATE}} / cdd-gate-test git 身份均零命中。
+// Task 5（P2）：GATE_TARGETS 与 DOC_SURFACE_TARGETS 有 2 项**刻意重叠**（`docs/maintainers`
+// / 根 `README.md`）—— 两者服务不同语汇（gate 子系统移除 vs 旧 docs 根），非重复声明；
+// 根 `README.md` 对 stale-lexicon 属新增覆盖（GATE_TARGETS 仅被 GATE_LEXICON_CHECKS 消费）。
+// 命中面须同步重指向，不得静默漂移。
 const GATE_TARGETS = [...CDD_ENGINE_BIN, ...OSKILLS, "docs/maintainers", "README.md"];
 const GATE_LEXICON_CHECKS = [
   { label: "deleted gate dir bin/gate/", re: /\bbin\/gate\b/, scope: GATE_TARGETS },
@@ -113,10 +127,12 @@ export function hasHit(lines) {
   return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) => lines.some((line) => re.test(line)));
 }
 
-export function collectStaleLexiconHits() {
+// targetsOverride 与 collectGateLexiconHits 同构——供测试注入临时目标，验证 **doc-surface 面**
+// （DOC_SURFACE_TARGETS）确实在扫面内（否则该 scope 缩小不会被任何断言察觉）。
+export function collectStaleLexiconHits(targetsOverride) {
   const hits = [];
   for (const { label, re, scope } of STALE_LEXICON_CHECKS) {
-    for (const f of scanTargets(scope, re)) hits.push({ label, file: f });
+    for (const f of scanTargets(targetsOverride ?? scope, re)) hits.push({ label, file: f });
   }
   return hits;
 }

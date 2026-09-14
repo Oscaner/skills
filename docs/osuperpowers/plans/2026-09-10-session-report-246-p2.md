@@ -1,6 +1,6 @@
 # P2 cdd review spec/plan Stopping ref 内容状态维度（演进重审通道）— Implementation Plan
 
-**Spec:** [2026-09-10-session-report-246-p2-design.md](docs/superpowers/specs/2026-09-10-session-report-246-p2-design.md)（v1.1：v1.0 + ghost-doc CDD_INFO 抑制细化（gate `&& docHash`）、§2.4/§2.5 双补 BLOCKED 失败轮 + ghost 边角 + 真实 schema 往返——plan-review r2 驱动；review 绑定内容状态 token 统一原则——四 type 收敛 task/branch=git-range / spec/plan=doc_hash；`(doc_path, doc_hash)` 双签名 Stopping ref；内容演进即新 ref 自动放行、未变仍 exit 3）
+**Spec:** [2026-09-10-session-report-246-p2-design.md](docs/osuperpowers/specs/2026-09-10-session-report-246-p2-design.md)（v1.1：v1.0 + ghost-doc CDD_INFO 抑制细化（gate `&& docHash`）、§2.4/§2.5 双补 BLOCKED 失败轮 + ghost 边角 + 真实 schema 往返——plan-review r2 驱动；review 绑定内容状态 token 统一原则——四 type 收敛 task/branch=git-range / spec/plan=doc_hash；`(doc_path, doc_hash)` 双签名 Stopping ref；内容演进即新 ref 自动放行、未变仍 exit 3）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -392,7 +392,7 @@ it("review-mode 定稿注入 doc_hash：缺失 doc（mock 环境 ENOENT）→ �
   const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
   const result = await runDocsTask({
     harness: "claude", mode: "review", template: "review", type: "spec",
-    doc: "/repo/root/docs/superpowers/specs/my-spec.md",   // 不存在 → hashFile "" 哨兵
+    doc: "/repo/root/docs/osuperpowers/specs/my-spec.md",   // 不存在 → hashFile "" 哨兵
     handoffPath: "/repo/root/.superpowers/cdd/foo/spec-review-1.json",
     dryRun: false,
   });
@@ -430,7 +430,7 @@ it("fix-mode 不注入 doc_hash（p persistFinalized 原样；负向对称防误
   const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
   await runDocsTask({
     harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
-    doc: "/repo/root/docs/superpowers/specs/my-spec.md",
+    doc: "/repo/root/docs/osuperpowers/specs/my-spec.md",
     findingsPath: "/repo/root/docs/findings.md",
     handoffPath: "/repo/root/.superpowers/cdd/foo/spec-fix-1.json",
     dryRun: false,

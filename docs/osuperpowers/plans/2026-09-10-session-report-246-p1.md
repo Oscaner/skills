@@ -1,6 +1,6 @@
 # P1 cdd-engine 进程生命周期统一管理 + 结构重排 — Implementation Plan
 
-**Spec:** [2026-09-10-session-report-246-p1-design.md](docs/superpowers/specs/2026-09-10-session-report-246-p1-design.md)（v1.1：registry 条目 `ownerPid/done` 定案 + 进程内 idle 监视细化——`markAllDispatchesDone`/`startIdleMonitor`/`reapDone` + §2.3 re-org 验证纪律登记（`node --check` 为凭据）+ §2.2 A `CDD_LIFECYCLE_PATH` 并发隔离，plan-review r1 驱动）
+**Spec:** [2026-09-10-session-report-246-p1-design.md](docs/osuperpowers/specs/2026-09-10-session-report-246-p1-design.md)（v1.1：registry 条目 `ownerPid/done` 定案 + 进程内 idle 监视细化——`markAllDispatchesDone`/`startIdleMonitor`/`reapDone` + §2.3 re-org 验证纪律登记（`node --check` 为凭据）+ §2.2 A `CDD_LIFECYCLE_PATH` 并发隔离，plan-review r1 驱动）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

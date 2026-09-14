@@ -16,7 +16,7 @@
 - Commit only when user explicitly asks; changeset before final commit
 - Task headings MUST use `### Task N:` (colon) format
 - Breaking changes approved for this phase: `CDD_HANDOFF_PATH` semantics, `cdd-review.mjs` deletion, `fix.md` simplification, `user-ok?` node deletion, deferred-sweep elimination
-- Design spec: `docs/superpowers/specs/2026-09-03-post-dogfood-bugfixes-p-zeta-design.md`
+- Design spec: `docs/osuperpowers/specs/2026-09-03-post-dogfood-bugfixes-p-zeta-design.md`
 
 ---
 
@@ -53,7 +53,7 @@
 - `packages/osuperpowers/bin/engine/tests/progress.test.mjs` — getRound/incrementRound tests (T2)
 - `docs/maintainers/osuperpowers-plugin.md` — BLOCKED format, Review Stopping, architecture (T14)
 - `CLAUDE.md` — BLOCKED format, docs-task, per-round architecture (T14)
-- `docs/superpowers/specs/2026-08-31-post-dogfood-bugfixes-overall.md` — issues + Plan=Done (T15)
+- `docs/osuperpowers/specs/2026-08-31-post-dogfood-bugfixes-overall.md` — issues + Plan=Done (T15)
 
 **Deleted files:**
 - `packages/osuperpowers/bin/engine/cdd-review.mjs` (T8)
@@ -1739,7 +1739,7 @@
 ### Task 15: overall spec update
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-08-31-post-dogfood-bugfixes-overall.md`
+- Modify: `docs/osuperpowers/specs/2026-08-31-post-dogfood-bugfixes-overall.md`
 
 **Interfaces:**
 - Consumes: T14 (everything complete)

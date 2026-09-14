@@ -339,7 +339,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     try {
       const { runReview } = await import("../lib/cli/review.mjs");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
-      await runReview({ type: "spec", spec: "/repo/root/docs/superpowers/specs/foo-design.md" });
+      await runReview({ type: "spec", spec: "/repo/root/docs/osuperpowers/specs/foo-design.md" });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       expect(call.handoffPath).toBe("/repo/root/.osuperpowers/cdd/foo/spec-review-1.json");
       expect(call.workspace).toBe("/repo/root/.osuperpowers/cdd/foo");
@@ -352,9 +352,9 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
 
   it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
     const { resolveWorkspace } = await import("../lib/handoff/naming.mjs");
-    expect(resolveWorkspace("/repo/root/docs/superpowers/plans/foo.md"))
+    expect(resolveWorkspace("/repo/root/docs/osuperpowers/plans/foo.md"))
       .toBe("/repo/root/.osuperpowers/cdd/foo");
-    expect(resolveWorkspace("/repo/root/docs/superpowers/specs/foo-design.md"))
+    expect(resolveWorkspace("/repo/root/docs/osuperpowers/specs/foo-design.md"))
       .toBe("/repo/root/.osuperpowers/cdd/foo");
   });
 
@@ -365,7 +365,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const { runFix } = await import("../lib/cli/fix.mjs");
       const findings = "/repo/root/.osuperpowers/cdd/foo/spec-review-2.json";
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
-      await runFix({ type: "spec", spec: "/repo/root/docs/superpowers/specs/foo-design.md", findings });
+      await runFix({ type: "spec", spec: "/repo/root/docs/osuperpowers/specs/foo-design.md", findings });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       expect(call.handoffPath).toBe("/repo/root/.osuperpowers/cdd/foo/spec-fix-2.json");
       expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）

@@ -1,6 +1,6 @@
 # CDD Engine 重构 — P4 Skills + 模板重构 实施计划
 
-**Spec:** [2026-09-08-cdd-engine-overhaul-p4-design.md](docs/superpowers/specs/2026-09-08-cdd-engine-overhaul-p4-design.md)
+**Spec:** [2026-09-08-cdd-engine-overhaul-p4-design.md](docs/osuperpowers/specs/2026-09-08-cdd-engine-overhaul-p4-design.md)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

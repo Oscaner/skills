@@ -125,7 +125,7 @@ cdd-engine **minor**（`.superpowers` → `.osuperpowers` 属行为变更；stan
 
 ## Section 4: Notes for downstream
 
-- **P2（docs 根迁移）**：`naming.mjs rootFromDocPath` 的 `docs/superpowers` fallback 识别留待 P2 迁移 docs 根 `osuperpowers/` 时同步；P1 不动。
+- **P2（docs 根迁移）**：`naming.mjs rootFromDocPath` 的 `docs/superpowers` fallback 识别留待 P2 迁移 docs 根 `docs/osuperpowers/` 时同步；P1 不动。
 - **P3（命令面）**：standalone CLI 面已在 P1 消除，P3 只剩 brief 自包含 + research 移除 + usage 同步。
 - **P4（skills 重写）**：finishing read-base 无 artifact 推断语义在 P4 finishing 重写时定型；cli-research（P4 删除）路径文本 P1 已同步一致，删除时无残留。
 

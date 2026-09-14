@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **唯一 CLI 入口**：`package.json` bin 只暴露 `cdd`；`cdd-task/docs-task/branch-review/cdd-select/cdd-research` 五 bin 删除（AC17 残留 grep 兜底：`grep -rnE "cdd-task\.mjs|docs-task\.mjs|branch-review\.mjs|cdd-select\.mjs|cdd-research\.mjs" packages/ .github/ docs/maintainers/` 为空，排除 `docs/superpowers/`、`vendors/`、`.agents/`）。
+- **唯一 CLI 入口**：`package.json` bin 只暴露 `cdd`；`cdd-task/docs-task/branch-review/cdd-select/cdd-research` 五 bin 删除（AC17 残留 grep 兜底：`grep -rnE "cdd-task\.mjs|docs-task\.mjs|branch-review\.mjs|cdd-select\.mjs|cdd-research\.mjs" packages/ .github/ docs/maintainers/` 为空，排除 `docs/osuperpowers/`、`vendors/`、`.agents/`）。
 - **`cdd` 子命令面**（verb×type）：`cdd implement --harness --task N --plan` · `cdd review --type task|branch|spec|plan [--harness] [--task N] [--doc] [--plan] [--base] [--head] [--round N] [--spec <path>]` · `cdd fix --type task|spec|plan [--harness] [--findings Path] [--doc] [--plan]` · `cdd select` · `cdd research` · `cdd brief --task N --plan --output` · `cdd contract --check-dirty|--check-head|--clear-findings`。**`cdd review-loop` CLI 不进本 phase**。
 - **单周期 + 引擎 round**：review = 单次 dispatch；round 由引擎自增（scan `${type}-*.json` → max+1）；同 (type, ref) 且上一 round blocker=0 再 `cdd review` → exit 3 拒绝（Review Stopping）；`--round N` 仅校验回填（冲突报错）。
 - **模板数据化**：`templates/review/` 终态 = `review.md` + `reviews.json` + **`doc-fix.md`**（spec/plan 共用 fix 壳，Task 4 新建）；`templates/task/` 终态 `implement.md` + `fix.md`；spec-review/plan-review/branch-review/spec-fix/plan-fix/task-review 六 md 删除。
@@ -378,7 +378,7 @@ git commit -m "feat(cdd-engine): 合并面 — bin/cdd.mjs 单一 CLI 骨架（i
 - Modify: **skill 调用方**（五 skill + 关联 docs）：`packages/osuperpowers/skills/{cli-select, cli-research, cli-driven-development}/SKILL.md` dispatch 行 + `cli-driven-development/docs/*` 与 Invariants 表中旧 bin 引用 · `packages/osuperpowers/docs/cdd-reference.md`（若有旧 bin，改 `cdd`）
 - Modify: **影响面其余**：`README.md` / `README.zh-CN.md` · `docs/maintainers/osuperpowers-plugin.md` · `.changeset/README.md` · `bin/lib/cli-shared.mjs` 注释 · `report-issue/SKILL.md` 示例字面（l.55 附近）· **`packages/osuperpowers/skills/init/{SKILL.md, harness.md}`**（`command -v cdd-task` → `command -v cdd`——无 `.mjs` 后缀，AC17正则未覆盖，需显式）
 - Delete: `packages/cdd-engine/bin/cdd-task.mjs` `bin/docs-task.mjs` `bin/branch-review.mjs` `bin/cdd-select.mjs` `bin/cdd-research.mjs`（select/research 逻辑已在 `cdd.mjs` 内）
-- Check: AC17 grep `grep -rnE "cdd-task\.mjs|docs-task\.mjs|branch-review\.mjs|cdd-select\.mjs|cdd-research\.mjs" packages/ .github/ docs/maintainers/ --exclude-dir=node_modules`（排除 `docs/superpowers/`、`vendors/`、`.agents/`）为空
+- Check: AC17 grep `grep -rnE "cdd-task\.mjs|docs-task\.mjs|branch-review\.mjs|cdd-select\.mjs|cdd-research\.mjs" packages/ .github/ docs/maintainers/ --exclude-dir=node_modules`（排除 `docs/osuperpowers/`、`vendors/`、`.agents/`）为空
 
 **Interfaces:**
 - Consumes: Task 2 的 `cdd` 子命令面。
@@ -443,7 +443,7 @@ grep -rnE "(^|[[:space:]])cdd-task|docs-task\.mjs|branch-review([[:space:]])" \
 
 **Gate 核心同步（必改，非「如有」）**：`packages/osuperpowers/bin/gate/cdd-gate-core.mjs` 放行正则（l.77 `/(^|\s)(cdd-task|docs-task|branch-review)(\s|$)/`）改为识别 `cdd`（含子命令）；reason 文案同步；`packages/osuperpowers/tests/*.test.mjs` 中 gate 断言（pi-gate/kiro/opencode/gemini 等 `cdd-task --harness <h>`）改 `cdd review/implement …`。否则五 bin 移除后 gate deny 文案与测试全挂 validate。
 
-（影响应的 `docs/superpowers/` 历史 spec/plan 与 `vendors/`、`.agents/` 排除在 AC17 grep 外；本步不改写历史文档。AC17 grep 须 `--exclude-dir=node_modules`——否则 `packages/osuperpowers/node_modules/.bin/*` cmd-shims 会被五-bin 正则命中而永不 clean。）
+（影响应的 `docs/osuperpowers/` 历史 spec/plan 与 `vendors/`、`.agents/` 排除在 AC17 grep 外；本步不改写历史文档。AC17 grep 须 `--exclude-dir=node_modules`——否则 `packages/osuperpowers/node_modules/.bin/*` cmd-shims 会被五-bin 正则命中而永不 clean。）
 
 - [ ] **Step 5c: emit（SKILL.md/docs 改动后必须）**
 

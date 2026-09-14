@@ -29,15 +29,17 @@
 // §2.4 malformed — loadOverallFile returns { ok: false } and main() skips, not fail.
 //
 // Standalone (`node scripts/validate/overall-consistency.mjs`) scans
-// docs/superpowers/specs/*-overall.md; exposed via `steps` for index.mjs (Task 3).
+// docs/osuperpowers/specs/*-overall.md; exposed via `steps` for index.mjs (Task 3).
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { runIfMain } from "./runner.mjs";
+import { DOC_SPECS_SEGMENTS, DOC_PLANS_SEGMENTS } from "../lib/doc-root.mjs";
 
-const SPECS_DIR = join(process.cwd(), "docs", "superpowers", "specs");
-const PLANS_DIR = join(process.cwd(), "docs", "superpowers", "plans");
+// docs 根单源（scripts/lib/doc-root.mjs）——不在此重复字面。
+const SPECS_DIR = join(process.cwd(), ...DOC_SPECS_SEGMENTS);
+const PLANS_DIR = join(process.cwd(), ...DOC_PLANS_SEGMENTS);
 
 // `| # | Phase | …` — canonical Phase inventory header row (7 columns, the marker
 // for the "four tables" mechanical guard surface). The `#` + `Phase` prefix pins the
@@ -458,7 +460,7 @@ export function anchorScanFiles(overallFile, slug, specsRoot = SPECS_DIR, plansR
 
 export function main() {
   if (!existsSync(SPECS_DIR)) {
-    console.log("SKIP — no docs/superpowers/specs");
+    console.log("SKIP — no docs/osuperpowers/specs");
     return 0;
   }
   let total = 0;

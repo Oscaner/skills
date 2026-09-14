@@ -577,7 +577,7 @@
   ```bash
   grep -rnE "scripts/ci-validate\.mjs|scripts/lib/|scripts/gh-branch-rulesets|scripts/emit\.mjs|scripts/version-packages\.mjs|scripts/publish-vendor\.mjs|scripts/bump-submodule\.mjs|scripts/validate-marketplace\.mjs|scripts/validate-version-sync\.mjs" . \
     --include="*.mjs" --include="*.json" --include="*.yml" --include="*.md" \
-    --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.superpowers --exclude-dir=docs/superpowers --exclude-dir=vendors
+    --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.superpowers --exclude-dir=osuperpowers --exclude-dir=vendors
   grep -rnE "function walk\(|copyTree" scripts/
   grep -rn "child_process" scripts/
   ```

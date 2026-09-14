@@ -177,18 +177,18 @@ CDD_DRY_RUN=1 branch-review --harness claude --plan packages/cdd-engine/bin/test
 
 1. **run.mjs 命令面**：`node scripts/run.mjs <command> --help` 各命令可执行；8 命令存在。exit 0 验证限本地安全子集（validate / emit / emit-check / version --dry-run / publish-vendor --dry-run / smoke-cdd）；`bump-submodule` / `apply-rules` 涉及真实 git/网络副作用，仅验收 `--help` + 参数校验路径（不要求在本地真跑）。
 2. **路由**：`node scripts/run.mjs emit-check` 对含 drift 的树 exit 1（破坏性测试可选），干净树 exit 0。
-3. **validate 组合**：`node scripts/run.mjs validate` 输出含原 13 块 step 名（`== <name> ==`），全绿 exit 0；wiring guard 测试（osuperpowers/tests/ci-validate.test.mjs）通过且断言零语义改动（step 名/顺序断言原样匹配）。
+3. **validate 组合**：`node scripts/run.mjs validate` 输出含原 13 块 step 名（`== <name> ==`），全绿 exit 0；wiring guard 测试（packages/osuperpowers/tests/ci-validate.test.mjs）通过且断言零语义改动（step 名/顺序断言原样匹配）。
 4. **各模块独立可运行**：`node scripts/validate/marketplace.mjs` / `node scripts/validate/version-sync.mjs` / `node scripts/emit/check.mjs` 可直接直跑。**isMain 检测采用 cdd-engine 已验证的 `realpathSync(process.argv[1]) + pathToFileURL` 模式**（Node 18/20/22/24 全兼容；不依赖 experimental `import.meta.main`）。
 5. **builtin 规范化**：`grep -rn "child_process" scripts/` 为空；**手写业务 argv 解析仅存于 run.mjs**（域模块允许出现标准 isMain 守卫所需的 `process.argv[1]` 读取，见 #4）。
 6. **python 移除**：`requirements-dev.txt` 删除；`.github/actions/setup/action.yml` 无 setup-python / pip install；root `.github/workflows/` 无 python 相关步骤。
-7. **死代码删除**：存活代码范围 grep 为空 —— `grep -rn "osuperpowers-router\|sync-router-versions\|parseRouterVersion\|computeNextVersion" scripts/ CLAUDE.md .github/workflows/ README.md README.zh-CN.md .changeset/README.md docs/maintainers/`（**排除 `docs/superpowers/` 历史 spec/plan 记录**——它们是冻结文档，含 router 字样属正常）；`node scripts/run.mjs version --dry-run` 不崩溃。
+7. **死代码删除**：存活代码范围 grep 为空 —— `grep -rn "osuperpowers-router\|sync-router-versions\|parseRouterVersion\|computeNextVersion" scripts/ CLAUDE.md .github/workflows/ README.md README.zh-CN.md .changeset/README.md docs/maintainers/`（**排除 `docs/osuperpowers/` 历史 spec/plan 记录**——它们是冻结文档，含 router 字样属正常）；`node scripts/run.mjs version --dry-run` 不崩溃。
 8. **wiring 验收**：`pnpm run validate`（= `run.mjs validate`，其 block 0 含 emit-check）全绿。
 9. **composite actions 存在**：`.github/actions/{setup,validate,install-harness,link-cdd-engine}/action.yml` 四文件存在。
 10. **workflow 命名**：`.github/workflows/` 含 pr-validate.yml / pr-gate-main.yml / submodule-bump.yml / release.yml / submodule-sync.yml / sync-main-to-develop.yml；旧名（ci.yml / main-source-gate.yml / bump-submodule-reusable.yml）不存在；submodule-sync.yml 引用 submodule-bump.yml。
 11. **Issue Templates**：bug_report.yml / enhancement.yml 含 component + session-type 下拉、labels 含 `osuperpowers`、无 `spor`；session_report.yml 存在。
 12. **vitest**：`pnpm run test` 全绿（根 vitest 配置 `include: scripts/**`，不拉入 osuperpowers node:test 树、不重复跑 cdd-engine）；block 7 不再显式列 6 文件。
 13. **smoke-cdd**：`node scripts/run.mjs smoke-cdd`（repo 内、git 仓库条件下）按 §2.3.3 CLI 序列输出 4 组 H1 四行合同（各 `status: APPROVED`）+ exit 0。
-14. **旧路径残留**：`grep -rnE "scripts/ci-validate\.mjs|scripts/lib/|scripts/gh-branch-rulesets|scripts/emit\.mjs|scripts/version-packages\.mjs|scripts/publish-vendor\.mjs|scripts/bump-submodule\.mjs|scripts/validate-marketplace\.mjs|scripts/validate-version-sync\.mjs" . --include="*.mjs" --include="*.json" --include="*.yml" --include="*.md" --exclude="CHANGELOG.md" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.superpowers --exclude-dir=superpowers --exclude-dir=vendors --exclude-dir=tmp` 为空。排除说明：`vendors/` 子模块不改；`CHANGELOG.md` 历史发布记录不改写；`superpowers` basename 目录（docs/superpowers 历史 spec/plan；grep `--exclude-dir` 按 basename 匹配，斜杠路径语法无效）；`tmp/` 为 vendor 暂存产物（gitignored）。
+14. **旧路径残留**：`grep -rnE "scripts/ci-validate\.mjs|scripts/lib/|scripts/gh-branch-rulesets|scripts/emit\.mjs|scripts/version-packages\.mjs|scripts/publish-vendor\.mjs|scripts/bump-submodule\.mjs|scripts/validate-marketplace\.mjs|scripts/validate-version-sync\.mjs" . --include="*.mjs" --include="*.json" --include="*.yml" --include="*.md" --exclude="CHANGELOG.md" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.superpowers --exclude-dir=superpowers --exclude-dir=vendors --exclude-dir=tmp` 为空。排除说明：`vendors/` 子模块不改；`CHANGELOG.md` 历史发布记录不改写；`superpowers` basename 目录（osuperpowers 历史 spec/plan；grep `--exclude-dir` 按 basename 匹配，斜杠路径语法无效）；`tmp/` 为 vendor 暂存产物（gitignored）。
 15. **composite actions 实际使用 + 成功断言**：pr-validate.yml 明确 `uses: ./.github/actions/{setup,link-cdd-engine,validate,install-harness}`，并含 `run: node scripts/run.mjs smoke-cdd` 步骤（CI smoke 真实执行）；`install-harness` 在 hermetic HOME 运行 **exit 0 + `command -v claude` 断言 CLI 安装成功**（claude 为 install-and-use 通道，不写 `$HOME` init 产物 —— 不为此断言 HOME 文件；init-config 通道由 `configs/` 内 init-channel harness 覆盖）；`link-cdd-engine` 断言 `command -v cdd-task` 存在。
 16. **自维护实现清零**：`grep -rnE "function walk\(|copyTree" scripts/` 为空（手写 walk 递归与 copyTree 已被 tinyglobby / `fs.cpSync` 替代）。
 
@@ -201,7 +201,7 @@ CDD_DRY_RUN=1 branch-review --harness claude --plan packages/cdd-engine/bin/test
 | Enh I scope 仅 scripts/validate 模块化 | 扩展为 scripts/ 全面重组 + 成熟第三方依赖 + 命名统一 + 文件内拆分 + router 死代码删除 | Yes — v1.9 · 2026-09-05 |
 | CI smoke 未设层级 | Level 0（dry-run + hermetic init，无真实 agent） | Yes — v1.9 · 2026-09-05 |
 | report-issue 模板未在 P2 提及 | 明确推迟至 P3（半改不如不改），P3 验收补充 mirror 要求 | Yes — v1.9 · 2026-09-05 |
-| 验收 AC#14 grep 范围 | 修正排除项：`--exclude-dir` 按 basename 匹配（`superpowers` 覆盖 docs/superpowers 与 vendors/superpowers）、加 `CHANGELOG.md`/`tmp` 排除（历史记录不改写）—— plan-review/deferred-sweep 期发现原语法无效 | N/A（acceptance 措辞细化，无跨 phase 影响）· 2026-09-05 |
+| 验收 AC#14 grep 范围 | 修正排除项：`--exclude-dir` 按 basename 匹配（`superpowers` 覆盖 osuperpowers 与 vendors/superpowers）、加 `CHANGELOG.md`/`tmp` 排除（历史记录不改写）—— plan-review/deferred-sweep 期发现原语法无效 | N/A（acceptance 措辞细化，无跨 phase 影响）· 2026-09-05 |
 | 验收 AC#15 install-harness 断言 | 改为 exit 0 + `command -v claude`（claude 通道为 install-and-use 不写 HOME 产物；原 `$HOME` init 产物断言不可满足）—— T11/branch-review 双确认 | N/A（acceptance 措辞细化，无跨 phase 影响）· 2026-09-05 |
 
 **Generated-banner 字面量（补充说明，非 deviation）**：市场/清单产品头部 `Generated by scripts/emit.mjs — do not edit` 字面量（位于 `scripts/lib/marketplace-utils.mjs` 的 generatedBanner 等）须随入口迁移更新为 `scripts/run.mjs emit`；emit 再生成后产品含新 banner（旧 banner 残留由 §Acceptance 14 的 `scripts/emit\.mjs` pattern 兜底）。
@@ -215,7 +215,7 @@ CDD_DRY_RUN=1 branch-review --harness claude --plan packages/cdd-engine/bin/test
 - **P2 CI 集成约定（Enh U，已修复）**：本地 composite action 首步需显式 checkout + npm global bin 跨 job step 需 `$GITHUB_PATH` —— PR #237 CI 连挂两轮发现并修复（commits 2689284/b37f47d/3482306/ec5989f），已 file #232 comment 5553063867 + overall v1.12 跟踪，沉淀为 workflow 编写约定。
 - **P3（Skills+模板）追加（Enh V / Enh W）**：report-issue filing 内嵌 GitHub tasklist + finishing 收官勾选 done —— 2026-09-06 用户建议；已 retrofit R/S/T/U 四条 comment tasklist（`gh api PATCH`，U 的 P2 项预勾 `- [x]`）+ file #232 comments 5553108929 / 5553110014 + overall v1.13 跟踪，P3 实施（filing/收官 skill 行为）。**→ 更正（2026-09-06 P3 brainstorm）**：V/W 标 **superseded**——tasklist 机制不移入 skill（report-issue 定位消费者会话汇报渠道；maintainer phase 追踪 canonical = overall 四表）；已 retrofit tasklist 留历史快照。详见 P3 设计 spec / overall v1.14。
 - **release 稳定性**：当前 `version-packages.mjs` 有 router 死代码崩溃风险，P2 修复后 release 流程恢复健壮。
-- **测试框架过渡**：scripts 迁移 vitest 后，osuperpowers/tests 仍为 node:test（P3 范畴），仓库暂留双框架——P3 可考虑统一。
+- **测试框架过渡**：scripts 迁移 vitest 后，packages/osuperpowers/tests 仍为 node:test（P3 范畴），仓库暂留双框架——P3 可考虑统一。
 
 ## Section 5: Review
 

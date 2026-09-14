@@ -244,7 +244,7 @@ branch-review --harness <name> --plan <path> --base <sha> --head <sha> [--round 
 
 #### Bug K — docs-task handoff 路径
 
-**根因**：`workspace = path.dirname(values.doc)` 将 handoff 写到文档同目录（如 `docs/superpowers/specs/`）。
+**根因**：`workspace = path.dirname(values.doc)` 将 handoff 写到文档同目录（如 `docs/osuperpowers/specs/`）。
 
 **修复**（`docs-task.mjs`）：
 ```js
@@ -437,11 +437,11 @@ const sessionMode = process.env.CDD_GATE_MODE ?? '';
 
 每条独立可验证：
 
-1. **包结构**：`packages/cdd-engine/package.json` 存在，`bin` 含 6 个 CLI；`packages/osuperpowers/bin/engine/` 目录不存在；`osuperpowers/package.json#dependencies` 含 `@oscaner-skills/cdd-engine`
+1. **包结构**：`packages/cdd-engine/package.json` 存在，`bin` 含 6 个 CLI；`packages/osuperpowers/bin/engine/` 目录不存在；`packages/osuperpowers/package.json#dependencies` 含 `@oscaner-skills/cdd-engine`
 2. **Bug A**：`cdd-task --harness claude --task 2 --mode implement --plan test.md` 中 `taskNum` 类型为 number；`progressData.tasks.find(t => t.task === 2)` 能匹配（`===` 不再失败）
 3. **Bug B/Enh D**：`branch-review --harness claude --plan <path> --base HEAD~1 --head HEAD`（dry-run 下）写出 `.superpowers/cdd/<slug>/branch-review-*.json`，schema 符合 CDD handoff
 4. **Bug C**：`task-review.md` 中 `## Handoff Output` 节出现在 `## Return (H1)` 节之前；顶部含 HARD GATE 文本
-5. **Bug K**：`docs-task --mode review --template spec-review --doc docs/x.md` 写出 `.superpowers/docs-review/spec-review-1.json`（不再写到 `docs/superpowers/specs/`）
+5. **Bug K**：`docs-task --mode review --template spec-review --doc docs/x.md` 写出 `.superpowers/docs-review/spec-review-1.json`（不再写到 `docs/osuperpowers/specs/`）
 6. **Bug L**：`docs-task` 调用 `invokeCli` 时 cwd = `gitToplevel(process.cwd())`；subprocess 从 project root 启动（集成测试可验证）
 7. **#137**：subprocess env 不含 `ANTHROPIC_API_KEY`；timeout 路径由 execa 内置处理（无手写 SIGTERM timer 代码）
 8. **#139**：`extractStreamJsonFinal` 无手写 scanner 代码；`cli-shared.mjs` 行数减少 ≥ 40 行

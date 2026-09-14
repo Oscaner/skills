@@ -1,6 +1,6 @@
 # CDD Engine 重构 — P6 Handoff 契约统一 实施计划
 
-**Spec:** [2026-09-08-cdd-engine-overhaul-p6-design.md](docs/superpowers/specs/2026-09-08-cdd-engine-overhaul-p6-design.md)
+**Spec:** [2026-09-08-cdd-engine-overhaul-p6-design.md](docs/osuperpowers/specs/2026-09-08-cdd-engine-overhaul-p6-design.md)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -132,8 +132,8 @@ it("prevHandoffPath: fix 族 → 源 review 同 round", () => {
   expect(prevHandoffPath("/ws", "fix", "spec", 2)).toBe("/ws/spec-review-2.json");
 });
 it("resolveWorkspace: spec-design.md 与 plan.md 收敛同 slug workspace", () => {
-  const specWs = resolveWorkspace("/repo/docs/superpowers/specs/2026-09-08-foo-design.md");
-  const planWs = resolveWorkspace("/repo/docs/superpowers/plans/2026-09-08-foo.md");
+  const specWs = resolveWorkspace("/repo/docs/osuperpowers/specs/2026-09-08-foo-design.md");
+  const planWs = resolveWorkspace("/repo/docs/osuperpowers/plans/2026-09-08-foo.md");
   expect(specWs).toBe("/repo/.superpowers/cdd/2026-09-08-foo");
   expect(planWs).toBe(specWs);
 });

@@ -406,6 +406,8 @@ ls docs/                         # maintainers + osuperpowers
 ```bash
 git add .changeset
 git commit -m "chore(cdd-engine): changeset — P2 docs 根落点迁移 (minor)"
+
+> **T6 review-1 follow-up（非本任务缺陷，记录供下游 → 归 P6）**：**engine changeset 的版本效果不会落地**——`scripts/release/version-packages.mjs` 零 `cdd-engine` 引用（`changesetsForPlugin` 唯一调用点为 `:84` 且参数即 osuperpowers）、`.changeset/versioned-plugins.json` 仅记 `["osuperpowers"]`、`packages/cdd-engine/package.json` 停在 `1.0.0`、无 `packages/cdd-engine/CHANGELOG.md`；CI 的 version 入口（`.github/workflows/release.yml`）走 `node scripts/run.mjs version`，release 模式下该 changeset 被 `unlinkSync` 直接消费 → 无 bump / 无 CHANGELOG / 无 `cdd-engine@` tag。**P1 `p1-cdd-runtime-layout-singleton.md` 同形** → 本程序「P1–P3 engine patch/minor」惯例下 engine changeset 全为**记录性质**。二选一（归 **P6**「逐 phase changeset 复核」）：① `version-packages.mjs` 增补 cdd-engine 段（bump + CHANGELOG + versioned-plugins 记入）；② 若确为 records-only，在 `.changeset/README.md` 写明。本 task 文件面无改动（changeset 内容与 design §2.8 byte-equal，已核实）。
 ```
 
 ---

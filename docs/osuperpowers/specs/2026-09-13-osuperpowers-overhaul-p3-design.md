@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P3 — cdd 命令面与契约收敛设计
 
-- **Version**: v1.2 · 2026-09-14（v1.0 起草 · v1.1 spec-review r1 修正：blocker ×2 + warn ×4 + nit ×2 · v1.2 spec-review r2 修正：warn ×1 + nit ×4——overall:69 req 6 主行括注互斥、行号锚点 ×2（`lib/lifecycle/cli.mjs:7`/`:9`、`tests/task.test.mjs:128`）、用例计数 11→13、`tests/host-detection.test.mjs:2` 陈旧枚举）
+- **Version**: v1.2 · 2026-09-14（v1.0 起草 · v1.1 spec-review r1 修正：blocker ×2 + warn ×4 + nit ×2 · v1.2 spec-review r2 修正：warn ×1 + nit ×4——overall:69 req 6 主行括注互斥、行号锚点 ×2（`lib/lifecycle/cli.mjs:7`/`:9`、`tests/task.test.mjs:128`）、用例计数 11→13、`tests/host-detection.test.mjs:2` 陈旧枚举 · **plan 期 design 回填已并入 §2.5 `lifecycle.wiring.test.mjs` 行**（overall v1.6 规则；按 P1/P2 惯例不另行 bump）：「五派生点」出处/计数不可核验 → 收敛为去计数 + 记录该偏移）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.10](./2026-09-13-osuperpowers-overhaul-overall.md)（req 4 / req 6 / req 7）
@@ -89,7 +89,7 @@
 | 整删 | `tests/cdd.test.mjs` 的 `dry-run research → exit 0`、`brief --task --plan --output` 两用例 |
 | 裁剪 | `tests/brief.test.mjs` → 仅留 `generateBrief` 家族（删 CLI 用例组、`validateBrief` 3 例、`node lib/brief.mjs 直跑` 例、以及指向已删 CLI 簇的注释） |
 | 改写 | `tests/cdd.test.mjs:80` `-h → help` 断言（`/implement\|review\|fix\|research\|brief/` → 四命令形）+ 文件头 L3 注释「`select/research` 内联、`brief/contract` 模块转发」去 select/research 旧命令叙述 |
-| 改写 | `tests/lifecycle.wiring.test.mjs` — 删 L52 `readFileSync(LIB, "cli", "research.mjs")` 与 L53-56 列表中的 `["research", research]` 项（**六派发模块 → 五**，L45 注释「六个派发模块」同步）；文件头 L2「引擎五派生点」计数措辞同步收敛（P1 spec v1.3 表列 4 派生点，删 research 行后为 3）——**不删则整文件 ENOENT 红**（§2.3.3 整删该模块） |
+| 改写 | `tests/lifecycle.wiring.test.mjs` — ① **必需**：删 L52 `readFileSync(LIB, "cli", "research.mjs")` 与 L53-56 列表中的 `["research", research]` 项（**六派发模块 → 五**，L45 注释「六个派发模块」同步）——**不删则整文件 ENOENT 红**（§2.3.3 整删该模块）；② **说明文字同步**：文件头 L2 的「引擎五派生点」去计数（改为「引擎全派生点」，保留其同行的守卫语义「execa 直接 import 仅允许 `lib/lifecycle/proc.mjs`」）。**plan 期回填（2026-09-14，v1.6 规则）**：本条原写「P1 spec v1.3 表列 4 派生点，删 research 行后为 3」——实测该出处与计数**均不可核验**（`docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p1-design.md` 无「派生点」表；「五派生点」实出 `docs/osuperpowers/plans/2026-09-10-session-report-246-p1.md:547`，其枚举**含** `lib/cli/research.mjs`）；且本文件真正的守卫是 `readdirSync(LIB)` + execa-import 扫描（**无计数断言**），故去计数是唯一可核验的收敛形态 |
 | 改写 | `tests/host-detection.test.mjs:2` — 文件头枚举「cdd implement/review/fix/**research** no longer take a harness flag」收敛为 `cdd implement/review/fix`（**非守卫命中面**：tests 不在 check 2 scope，且裸 `research` 刻意放行，本条属说明文字同步，不改则静默留存为陈旧说明——与 §2.4 对 `lib/lifecycle/proc.mjs:176` / `lib/cli/review.mjs:5` 的同类枚举收敛同族） |
 | **新增** | `tests/cli-shape.test.mjs` 追加「已退役子命令」断言 |
 
@@ -113,6 +113,8 @@
 > prune 机制成立（非缺机制，仅口径）：orchestrate prune 落 namespace 级——`osuperpowers.mjs:82-83` 对整 namespace `rmSync` + `cpSync` 重新拷贝，源技能目录删除即随之消失。
 
 **零注册面已实测**：`packages/osuperpowers/package.json`（无 skill 枚举，目录扫描发现）/ `marketplace/source.json` / 根 `README.md` / `packages/osuperpowers/README.md` / `docs/maintainers/*.md` / `scripts/**` **以及 `packages/osuperpowers/.agents/**`（当前唯一含 `cli-research` 的注册面，由上条 emit prune 收敛）** 均无 `cli-research` 引用（emit 面除外——其内容由源派生）；`packages/osuperpowers/tests/digraph-consistency.test.mjs` 走 `readdirSync(SKILLS_DIR)` 无硬编码清单 → 目录删除后自动收敛，无需同步。
+
+> **注册面口径补充（plan 期回填，overall v1.6 规则）**：「`scripts/**` 零引用」仅对**字符串**成立，存在一处**计数耦合**——`scripts/validate/osuperpowers.mjs:46-47` 的 `EXPECTED = 7` / `EMITTERS_LABEL = "6 emitters + init"` 是 skills **目录计数**断言（块 5b，L53/L59/L64 三处 `assert(n === EXPECTED)`）。删 `cli-research` 后目录数为 6 → 该常量须同步收敛（`EXPECTED = 6` / `EMITTERS_LABEL = "5 emitters + init"`），否则块 5b 必红、本 phase 的「`pnpm run validate` 13 块全绿」不可达。此耦合**无字符串可循**（skill 名不出现，仅计数变化）——是「零引用」自检方法的盲区，故单列。
 
 **过渡态**：`cli-driven-development/SKILL.md` 磁盘版**不含** `cdd brief` 调用（其 `dispatch-mode` 步骤 1 是 review-diff 生成），故 P3 交付后 skills 面无悬空调用；该 skill 的全面重写仍归 P4。
 

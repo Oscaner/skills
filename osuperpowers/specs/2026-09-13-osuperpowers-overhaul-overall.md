@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 — Overall Spec
 
-- **Version**: v1.5 · 2026-09-14
+- **Version**: v1.6 · 2026-09-14
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -182,6 +182,9 @@ Read phase spec template
 
 ```
 Run `/superpowers:writing-plans` session
+  -> 若 plan 过程中发现 design 存在实质性偏移（事实性错误 / 缺失约束 / 需新增实施步骤）→
+     **先回填 design spec**（修订 spec + 记录该偏移），令 spec 与 plan 一致后再进入 plan-review
+     （2026-09-14 用户补充：writing-plans 阶段是 design 的最后一道实况校验；涉跨 phase 事项仍按 Boundary rules 回填上级 overall）
   -> `cdd review` plan-1 -> `cdd fix` plan-1
   -> ... (plan-review-fix loop)
   -> until review 输出 blocker = 0 and fixed all findings（termination-semantics，见下）
@@ -249,3 +252,4 @@ explore-current-session
 | v1.3 | 2026-09-13 | **P1 brainstorm 收敛 + P1 design v1.0 落盘**：grilling 三案定稿——**① 存量 `.superpowers/cdd/*` 工作区由「保留转只读」升格为全量删除**（gitignored 死档零 reader，破坏性重构授权下遗留即删）；**② standalone 由「并入 `cdd/<slug>`」升格为整体移除**（实证零真实派发：`.superpowers/standalone/` 从未创建、13 个历史 base-branch.json 全在 `cdd/`、finishing 正常入口必经 CDD workspace → STANDALONE_ROOT/`--scope`/`--slug` 全删、base-branch CLI 单调 `--plan`、finishing 无 artifact 推断后不落盘；`--plan`/`--slug` 并存之问 → standalone 伪功能即证删除，无内容路径/落点分裂）；**③ `--spec`/`--plan` 不并入 `--slug`**（content-bearing 文档路径 vs location-bearing 纯落点，review/fix/implement 全 content、base-branch 为唯一 artifact 命令——后者因 standalone 删除反而单调化）。overall 同步：P1 scope/acceptance 措辞更新 + P1 Design-spec 列回填（[Pending]→P1-design v1.0）+ Dependency graph P1→P3 边措辞（standalone CLI 面归 P1）+ change-history（v1.2→v1.3） | [human] · Claude Opus 5 (1M context) |
 | v1.4 | 2026-09-13 | **目标架构参考补充（用户 2026-09-13）**：§brainstorming phase program 分支——`size 合适`时**若 phase scope 有变更，先 Run /osuperpowers:writing-overall-spec sync new scope/changes 到上级 overall，再 Run /osuperpowers:writing-phase-spec**（顺序定案：先 sync 后写 phase spec）（P4 brainstorm 锚点更新，与本程序 P1 无关；对 P1 design 无 scope 影响）（v1.3→v1.4） | [human] · Claude Opus 5 (1M context) |
 | v1.5 | 2026-09-14 | **P1 dev shipped**（CDD 5-task 全串行闭环 + branch-review develop..HEAD APPROVED 0 findings）：workspaceRoot 单源翻转 `.superpowers/cdd`→`.osuperpowers/cdd`（engine 产物/handoff/progress/lifecycle/base-branch/report-target 全落新根）+ 全 literal 迁移（13 测试文件 + engine 源注释 + 7 skills/docs + smoke-cdd + gitignore）；standalone 整体移除（`cdd base-branch` 单调 `--plan`、STANDALONE_ROOT/`--scope`/`--slug` 全删、finishing read-base 无 artifact 推断不落盘）；存量旧根死档全量删除（`.superpowers/` 仅存 `sdd/`）；stale-lexicon 守卫 `.superpowers/cdd`/`standalone` 防回渗 + sdd 放行；changeset cdd-engine minor（p1-cdd-runtime-layout-singleton）；**F13 closeout 检查点执行**（P1 Phase inventory plan 列回填 [Pending]→Done + closeout 行声明）（v1.4→v1.5） | [human] · Claude Opus 5 (1M context) |
+| v1.6 | 2026-09-14 | **writing-plans design 回填步骤（用户 2026-09-14 补充，与 P2 scope 无关）**：目标 skills 架构参考 §writing-plans 增一步——**plan 过程中若发现 design 存在实质性偏移（事实性错误 / 缺失约束 / 需新增实施步骤）→ 先回填 design spec（修订 + 记录该偏移），令 spec 与 plan 一致后再进入 plan-review**；涉跨 phase 事项仍按 Boundary rules 回填本 overall。固化 P2 plan 阶段实况：写 plan 时发现 P2 design §2.3 缺「新 overall canonical 列归一」要求（overall-consistency ① 回填声明 ↔ 列字面等价）→ 当场补注 design spec（v1.5→v1.6） | [human] · Claude Opus 5 (1M context) |

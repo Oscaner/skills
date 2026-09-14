@@ -10,6 +10,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from 'node:url';
+import { program } from '../lib/cli/parse.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
@@ -101,5 +102,25 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
     const r = runCli(['brief', '--task', '1', '--plan', SMOKE_PLAN, '--output', '/tmp/p3-retired-brief.md']);
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/usage: cdd/);
+  });
+});
+
+// P3：命令面收敛为四（implement / review / fix / base-branch）。
+// 静态实例断言优先于文本正则——commander 的 program.commands 只含**直接**子命令，
+// 嵌套的 baseBranch.command("set") / ("get") 自然不入集（parse.mjs 文件头明载
+// 「本文件可被测试静态读（cli-shape），import 后无副作用」；parseAsync 由 bin 薄入口 isMain 触发）。
+// 注意：Commander 隐式注册的 help [command] 只进 `--help` 文本的 Commands 段、不入 program.commands
+// ——故集合判据只能取下面的实例断言，任何基于 `--help` 文本的「恰为四」计数会数到 5 项而假失败。
+describe('P3 命令面收敛：顶层子命令恰为四', () => {
+  it('program.commands 名称集合 === {base-branch, fix, implement, review}', () => {
+    expect(program.commands.map((c) => c.name()).sort()).toEqual(
+      ['base-branch', 'fix', 'implement', 'review'],
+    );
+  });
+
+  it('源码面无 .command("brief") / .command("research") 注册', () => {
+    const src = readFileSync(PARSE_MJS, 'utf8');
+    expect(src).not.toMatch(/\.command\("brief"\)/);
+    expect(src).not.toMatch(/\.command\("research"\)/);
   });
 });

@@ -77,7 +77,8 @@ vi.mock("../lib/runner/run-docs.mjs", () => docsRunnerMock);
 describe("cdd CLI", () => {
   it("-h → help", () => {
     const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false });
-    expect(r.stdout).toMatch(/implement|review|fix|research|brief/);
+    expect(r.stdout).toMatch(/implement\/review\/fix\/base-branch/);
+    expect(r.stdout).not.toMatch(/\bbrief\b|\bresearch\b/);
   });
 
   it("review missing --type → usage exit 2", () => {

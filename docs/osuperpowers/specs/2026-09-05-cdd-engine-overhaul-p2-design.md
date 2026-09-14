@@ -177,7 +177,7 @@ CDD_DRY_RUN=1 branch-review --harness claude --plan packages/cdd-engine/bin/test
 
 1. **run.mjs 命令面**：`node scripts/run.mjs <command> --help` 各命令可执行；8 命令存在。exit 0 验证限本地安全子集（validate / emit / emit-check / version --dry-run / publish-vendor --dry-run / smoke-cdd）；`bump-submodule` / `apply-rules` 涉及真实 git/网络副作用，仅验收 `--help` + 参数校验路径（不要求在本地真跑）。
 2. **路由**：`node scripts/run.mjs emit-check` 对含 drift 的树 exit 1（破坏性测试可选），干净树 exit 0。
-3. **validate 组合**：`node scripts/run.mjs validate` 输出含原 13 块 step 名（`== <name> ==`），全绿 exit 0；wiring guard 测试（docs/osuperpowers/tests/ci-validate.test.mjs）通过且断言零语义改动（step 名/顺序断言原样匹配）。
+3. **validate 组合**：`node scripts/run.mjs validate` 输出含原 13 块 step 名（`== <name> ==`），全绿 exit 0；wiring guard 测试（packages/osuperpowers/tests/ci-validate.test.mjs）通过且断言零语义改动（step 名/顺序断言原样匹配）。
 4. **各模块独立可运行**：`node scripts/validate/marketplace.mjs` / `node scripts/validate/version-sync.mjs` / `node scripts/emit/check.mjs` 可直接直跑。**isMain 检测采用 cdd-engine 已验证的 `realpathSync(process.argv[1]) + pathToFileURL` 模式**（Node 18/20/22/24 全兼容；不依赖 experimental `import.meta.main`）。
 5. **builtin 规范化**：`grep -rn "child_process" scripts/` 为空；**手写业务 argv 解析仅存于 run.mjs**（域模块允许出现标准 isMain 守卫所需的 `process.argv[1]` 读取，见 #4）。
 6. **python 移除**：`requirements-dev.txt` 删除；`.github/actions/setup/action.yml` 无 setup-python / pip install；root `.github/workflows/` 无 python 相关步骤。
@@ -215,7 +215,7 @@ CDD_DRY_RUN=1 branch-review --harness claude --plan packages/cdd-engine/bin/test
 - **P2 CI 集成约定（Enh U，已修复）**：本地 composite action 首步需显式 checkout + npm global bin 跨 job step 需 `$GITHUB_PATH` —— PR #237 CI 连挂两轮发现并修复（commits 2689284/b37f47d/3482306/ec5989f），已 file #232 comment 5553063867 + overall v1.12 跟踪，沉淀为 workflow 编写约定。
 - **P3（Skills+模板）追加（Enh V / Enh W）**：report-issue filing 内嵌 GitHub tasklist + finishing 收官勾选 done —— 2026-09-06 用户建议；已 retrofit R/S/T/U 四条 comment tasklist（`gh api PATCH`，U 的 P2 项预勾 `- [x]`）+ file #232 comments 5553108929 / 5553110014 + overall v1.13 跟踪，P3 实施（filing/收官 skill 行为）。**→ 更正（2026-09-06 P3 brainstorm）**：V/W 标 **superseded**——tasklist 机制不移入 skill（report-issue 定位消费者会话汇报渠道；maintainer phase 追踪 canonical = overall 四表）；已 retrofit tasklist 留历史快照。详见 P3 设计 spec / overall v1.14。
 - **release 稳定性**：当前 `version-packages.mjs` 有 router 死代码崩溃风险，P2 修复后 release 流程恢复健壮。
-- **测试框架过渡**：scripts 迁移 vitest 后，docs/osuperpowers/tests 仍为 node:test（P3 范畴），仓库暂留双框架——P3 可考虑统一。
+- **测试框架过渡**：scripts 迁移 vitest 后，packages/osuperpowers/tests 仍为 node:test（P3 范畴），仓库暂留双框架——P3 可考虑统一。
 
 ## Section 5: Review
 

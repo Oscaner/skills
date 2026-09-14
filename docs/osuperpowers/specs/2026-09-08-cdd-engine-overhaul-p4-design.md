@@ -255,7 +255,7 @@ P4 交付前全仓核查（scope = `packages/osuperpowers/skills packages/cdd-en
 
 - **P5（Gate 移除）**：不受本 phase 影响；`packages/osuperpowers/scripts/`（本 phase 新增）与 `bin/gate/` 相互独立，P5 不触碰 report-templates.mjs；`tests/fixtures/cdd-gate/**` 删除域不变。
 - **消费者视角**：finding-meta.json + report-templates.mjs 随 osuperpowers 插件发布（contentRoot "."；无 `scripts/` 依赖）；消费者环境 report-issue 运行时 `node ${pluginRoot}/scripts/report-templates.mjs` 可调用渲染器；gh 缺省/网络失败 fail-open 可走。
-- **测试双框架**：渲染器测试放 `scripts/emit/issue-templates.test.mjs`（vitest，emit 链同域），import 插件内模块断言；本 phase 不统一 docs/osuperpowers/tests node:test 域。
+- **测试双框架**：渲染器测试放 `scripts/emit/issue-templates.test.mjs`（vitest，emit 链同域），import 插件内模块断言；本 phase 不统一 packages/osuperpowers/tests node:test 域。
 - **emit 面**：finding-meta.json 变更 → 必须 `pnpm run emit`（重生成 yml）再提交；新增 emitter 进 `generatedPaths`。
 - **已完成记录**：Enh K addendum 已入 #232 comment 5536710343（2026-09-08）。
 

@@ -300,7 +300,7 @@ URC 落地后，全仓 review 系 md 处置（**不留死档**）：
 
 - **P5（Gate 移除，原 P4）**：不受本 phase 影响；validate/gate-hooks.mjs 仍为 P5 删除点；`tests/fixtures/cdd-gate/**` 的 `deferred:true` JSON 属 P5 删除域（§2.4 豁免清单）。
 - **消费者视角**：`finding-meta.json` 随 osuperpowers 插件发布（contentRoot `.`）；report-issue 新 digraph 在消费者环境须缺省 gh/网络时 fail-open 可走。
-- **测试双框架**：scripts 已 vitest；docs/osuperpowers/tests 仍 node:test——本 phase 不统一（非 P3 范畴）。
+- **测试双框架**：scripts 已 vitest；packages/osuperpowers/tests 仍 node:test——本 phase 不统一（非 P3 范畴）。
 - **emit 面**：`finding-meta.json` 变更 → 必须 `pnpm run emit`（生成 yml）再提交。
 - **新增发现（已闭合）**：`docs-task` 不传 round → render 竞态（P3 3-pass 实测并发空跑）→ 本 phase **URC**（引擎 round 自增 + 单周期）闭合；D1「fix-first」违例 → URC 单周期消除。
 

@@ -37,15 +37,15 @@
 | `docs/superpowers/specs/*.md` | `docs/osuperpowers/specs/` | 21 |
 | `docs/superpowers/plans/*.md` | `docs/osuperpowers/plans/` | 18 |
 
-落盘终态（**P2 完成时点**度量）：`docs/osuperpowers/specs/` ＝ 21 历史 + 3 在途（overall + P1-design + **P2-design 自身**）＝ **24**；`docs/osuperpowers/plans/` ＝ 18 历史 + 2 在途（P1 + **P2 plan**——writing-plans 于本 phase 流程内产出）＝ **20**。`docs/superpowers/` 移空后目录自然消失（git 不跟踪空目录）；`docs/` 仅余 `maintainers/`（含 `docs/maintainers/*.md`，保留原地）。
+落盘终态（**P2 完成时点**度量）：`docs/osuperpowers/specs/` ＝ 21 历史 + 3 在途（overall + P1-design + **P2-design 自身**）＝ **24**；`docs/osuperpowers/plans/` ＝ 18 历史 + 2 在途（P1 + **P2 plan**——writing-plans 于本 phase 流程内产出）＝ **20**。`docs/superpowers/` 移空后目录消失（git 不跟踪空目录）→ 终态 `docs/` = `maintainers/` + `osuperpowers/`（含 `docs/maintainers/*.md`，保留原地）。
 
-**内容重写（54 次出现 / 53 行）**：21 个历史文件（39 中 21 个含 `docs/superpowers` 字符串，specs/plans 均有）统一机械 `docs/superpowers` → `docs/osuperpowers`（54 次字符串出现分布于 53 行——`2026-09-10-session-report-246-p4-design.md:68` 单行含两处；纯路径字符串；plan 的 `**Spec:**` 跨文件链接指向迁移后 spec ✓；validator 扫描面描述 / 命令豁免示例 / 假路径 fixture 随之指向新根，记录内在有效）。**例外注记（3 处历史代码 literal）**：`plans/2026-09-04-cdd-engine-overhaul-p1.md:1084,1539`（`not.toContain('docs/superpowers')` / `stringContaining('docs/superpowers')` 断言）与 `plans/2026-09-05-cdd-engine-overhaul-p2.md:580`（`--exclude-dir=docs/superpowers` 命令）机械重写后作为**迁移前断言/命令的历史描述**——新布局下 cwd `.osuperpowers/cdd/…` 恒含 `osuperpowers` 子串，其字面语义不可在迁移后成立（活断言在 §2.2 以 `not.toContain('/osuperpowers/specs')` 精确形式迁移）；属 §2.7 记录豁免性质。剩余 18 个文件零引用，纯 git-mv。
+**内容重写（54 次出现 / 53 行）**：21 个历史文件（39 中 21 个含 `docs/superpowers` 字符串，specs/plans 均有）统一机械 `docs/superpowers` → `docs/osuperpowers`（54 次字符串出现分布于 53 行——`2026-09-10-session-report-246-p4-design.md:68` 单行含两处；纯路径字符串；plan 的 `**Spec:**` 跨文件链接指向迁移后 spec ✓；validator 扫描面描述 / 命令豁免示例 / 假路径 fixture 随之指向新根，记录内在有效）。**例外注记（3 处历史代码 literal）**：`plans/2026-09-04-cdd-engine-overhaul-p1.md:1084,1539`（现为 `not.toContain('osuperpowers')` / `stringContaining('osuperpowers')`——经 f672add + fd6f003 两代重写后的裸词形态）与 `plans/2026-09-05-cdd-engine-overhaul-p2.md:580`（现为 `--exclude-dir=osuperpowers` 命令）机械重写后作为**迁移前断言/命令的历史描述**——新布局下 cwd `.osuperpowers/cdd/…` 恒含 `osuperpowers` 子串，其字面语义不可在迁移后成立（活断言在 §2.2 以 `not.toContain("/docs/osuperpowers/specs")` 精确形式迁移）；属 §2.7 记录豁免性质。**重写须按域限定**（仅 `docs/superpowers`→`docs/osuperpowers` 与 `osuperpowers/{specs,plans}`→`docs/osuperpowers/{specs,plans}` 两类）——**禁止裸 token pass**：fd6f003 曾把 `packages/osuperpowers/*` 的简写形态（`osuperpowers/bin|tests|package.json`）误加 `docs/` 前缀，共 7 处 over-match（已全部修正回包路径；穷尽审计 `docs/osuperpowers/<segment>` 现仅 `specs`/`plans`）。剩余 18 个文件零引用，纯 git-mv。
 
 ### §2.2 engine — `naming.mjs rootFromDocPath` 新布局识别
 
 - **marker 段对变更**：`["docs","superpowers"]` → **严格 `["docs", "osuperpowers"]`（+ `specs`|`plans`）**——`osuperpowers` 段后必须随 `specs` 或 `plans` 才命中（防 `.osuperpowers/cdd/<slug>/…` 运行根误匹配：`.osuperpowers` 段带前导点 ≠ `osuperpowers`，段相等性天然安全）。
 - **drop 旧 marker**：`resolveWorkspace` 真实路径经 `gitToplevel` 优先解析，`rootFromDocPath` 仅服务非 git 假路径（测试 / dry-run）；本程序迁移后零旧布局在途消费者。残留 `docs/superpowers` 路径的 review/fix 调用（若有）本就会在 git 内文件读时失败，非行为回退。
-- **engine 测试夹具迁移**：`tests/handoff-naming.test.mjs:63-64`、`tests/cdd.test.mjs:355-357`、`tests/docs-runner.test.mjs` 多处 `/repo/root/docs/superpowers/{specs,plans}/…` 假路径 → `/repo/root/osuperpowers/{specs,plans}/…`。`docs-runner.test.mjs` 的 `expect(callOpts.cwd).not.toContain("docs/superpowers")` 断言须精确化：workspace 路径 `<root>/.osuperpowers/cdd/<slug>` 本身含 `osuperpowers` 子串，改为 `not.toContain("/osuperpowers/specs")`（防文档目录被误判为 cwd）。
+- **engine 测试夹具迁移**：`tests/handoff-naming.test.mjs:63-64`、`tests/cdd.test.mjs:355-357`、`tests/docs-runner.test.mjs` 多处 `/repo/root/docs/superpowers/{specs,plans}/…` 假路径 → `/repo/root/docs/osuperpowers/{specs,plans}/…`。`docs-runner.test.mjs` 的 `expect(callOpts.cwd).not.toContain("docs/superpowers")` 断言须精确化：workspace 路径 `<root>/.osuperpowers/cdd/<slug>` 本身含 `osuperpowers` 子串，改为 `not.toContain("/docs/osuperpowers/specs")`（防文档目录被误判为 cwd）。
 
 ### §2.3 validator — `overall-consistency` 单根收敛
 
@@ -57,7 +57,7 @@
 
 ### §2.4 residue 守卫 + grep-sweep 过滤收敛
 
-- **residue.mjs 新增 stale-lexicon**（P1 `.superpowers/cdd`/`standalone` 守卫同构）：`{ label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: ALL_MECH_POSITIONS }`——机制位置（engine bin/lib/templates + osuperpowers skills）零豁免防回渗；历史文档在 `docs/osuperpowers/{specs,plans}` 不在机制扫描面，零误伤。`residue.test.mjs` 增命中/放行断言，**经字符串拼接构造**（`"docs" + "/superpowers"`）——**守卫本体与其测试不得把字面 `docs/superpowers` 写回 `scripts/`**（label 不含路径、regex 以 `\/` 转义已天然规避），否则 §2.7 全仓 grep 出现第三类命中、AC3「其余全零」不可满足。
+- **residue.mjs 新增 stale-lexicon**（P1 `.superpowers/cdd`/`standalone` 守卫同构）：`{ label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] }`——机制位置（engine bin/lib/templates + osuperpowers skills）**+ 文档表层**（`DOC_SURFACE_TARGETS` = `CLAUDE.md` / 根 `README.md` / `packages/osuperpowers/README.md` / `docs/maintainers`——§2.7「其余 live tree 零 docs/superpowers」的治理文件面）零豁免防回渗；历史文档在 `docs/osuperpowers/{specs,plans}` 不在扫描面，零误伤。`residue.test.mjs` 增命中/放行断言，**经字符串拼接构造**（`"docs" + "/superpowers"`）——**守卫本体与其测试不得把字面 `docs/superpowers` 写回 `scripts/`**（label 不含路径、regex 以 `\/` 转义已天然规避），否则 §2.7 全仓 grep 出现第三类命中、AC3「其余全零」不可满足。
 - **residue.mjs:63 GATE 豁免注释 + residue.test.mjs:129 it() 标题**同步（两处字面 `docs/superpowers` 豁免语义措辞 → 历史文档已迁 `docs/osuperpowers/{specs,plans}`、gate targets 不含之；residue.test.mjs 属 `scripts/` 机制位置，随迁清理其字面引防 §2.7 全仓 grep 额外命中，且其描述的 GATE 豁免语义随迁移同步变化后标题本身过期）。
 - **grep-sweep-regression.test.mjs:14,65,72 过滤重指向**：三个 `grep -v` 过滤器由 `docs/superpowers/{specs,plans,tickets}` **重指向 `docs/osuperpowers/{specs,plans,tickets}`**——**docs 根纠正（overall v1.8）后历史文档落 `docs/osuperpowers/`，仍在 sweep scope（`packages/ docs/ README.md marketplace/`）内**，故过滤器**不可删除、必须重指向**（原「移出 scope → 变死代码」前提随纠正失效）。重指向后 grepCount 基线复跑各 sweep 0 命中（纠正前实测：`executing-plans` 17 / `subagent-driven-development` 17 / `docs/cdd-reference` 1 命中）。
 
@@ -113,12 +113,12 @@ tickets 系统经脑暴实证**全死**（writing-plans SKILL.md 无 Rules、无
 3. `node scripts/run.mjs validate` — 13 块全绿（5c 新 stale-lexicon 零命中；12 overall-consistency 4 overall 全过）
 4. `pnpm run emit:check` — drift 0
 5. 残留 grep（§2.7）恰等于记录豁免集
-6. `ls docs/` → 仅 `maintainers/`；`docs/superpowers/` 不存在
+6. `ls docs/` → `maintainers/` + `osuperpowers/`；`docs/superpowers/` 不存在
 
 ### Acceptance criteria
 
-- `AC1` `docs/superpowers/` 目录不存在（`ls docs/` 仅 `maintainers/`）；`docs/osuperpowers/specs/` = 24 文件（21 历史 + overall + P1-design + P2-design）、`docs/osuperpowers/plans/` = 20 文件（18 历史 + P1 + P2 plan）——**P2 完成时点**度量；39 文件 git mv 历史保留（`git log --follow` 可追溯）
-- `AC2` `rootFromDocPath("/repo/osuperpowers/specs/foo-design.md")` → `/repo`；`rootFromDocPath("/repo/.osuperpowers/cdd/x/review-1.json")` → null（运行根不误匹配）；`naming.mjs` 零 `docs/superpowers` 字符串
+- `AC1` `docs/superpowers/` 目录不存在（`ls docs/` = `maintainers/` + `osuperpowers/`）；`docs/osuperpowers/specs/` = 24 文件（21 历史 + overall + P1-design + P2-design）、`docs/osuperpowers/plans/` = 20 文件（18 历史 + P1 + P2 plan）——**P2 完成时点**度量；39 文件 git mv 历史保留（`git log --follow` 可追溯）
+- `AC2` `rootFromDocPath("/repo/docs/osuperpowers/specs/foo-design.md")` → `/repo`；`rootFromDocPath("/repo/.osuperpowers/cdd/x/review-1.json")` → null（运行根不误匹配）；`naming.mjs` 零 `docs/superpowers` 字符串
 - `AC3` 21 个历史文件 54 次 `docs/superpowers` 出现（53 行）已重写为 `docs/osuperpowers`；`grep -rl "docs/superpowers" docs/osuperpowers/` 命中 == 在途 `2026-09-13-osuperpowers-overhaul*` 文件集（§2.7 度量口径）；**全部 plan 的 `**Spec:**` 头链接迁移后均指向存在文件**（行为性断言，实测量 10 处以 plan 阶段为准，不作为计数验收）
 - `AC4` `node scripts/run.mjs validate` 13 块全绿；residue 5c 新增 `docs/superpowers` stale-lexicon 机制位置零命中；grep-sweep 各 sweep（old bin 名 / cdd-reference / subagent-driven-development / HARD-GATE / --prompt）在过滤移除后仍 0 命中
 - `AC5` active 约定文档（writing-plans / brainstorming SKILL.md、overall-spec-template、finding-meta、根 CLAUDE.md、packages/osuperpowers/README.md、maintainer-doc）零 `docs/superpowers` 路径字符串；tickets 移除面 **10 处**全部落地——零 `ticket`/`tickets` 引用（范围外：vendored 物理目录 + 在途程序文档的移除叙述）

@@ -437,7 +437,7 @@ const sessionMode = process.env.CDD_GATE_MODE ?? '';
 
 每条独立可验证：
 
-1. **包结构**：`packages/cdd-engine/package.json` 存在，`bin` 含 6 个 CLI；`packages/osuperpowers/bin/engine/` 目录不存在；`docs/osuperpowers/package.json#dependencies` 含 `@oscaner-skills/cdd-engine`
+1. **包结构**：`packages/cdd-engine/package.json` 存在，`bin` 含 6 个 CLI；`packages/osuperpowers/bin/engine/` 目录不存在；`packages/osuperpowers/package.json#dependencies` 含 `@oscaner-skills/cdd-engine`
 2. **Bug A**：`cdd-task --harness claude --task 2 --mode implement --plan test.md` 中 `taskNum` 类型为 number；`progressData.tasks.find(t => t.task === 2)` 能匹配（`===` 不再失败）
 3. **Bug B/Enh D**：`branch-review --harness claude --plan <path> --base HEAD~1 --head HEAD`（dry-run 下）写出 `.superpowers/cdd/<slug>/branch-review-*.json`，schema 符合 CDD handoff
 4. **Bug C**：`task-review.md` 中 `## Handoff Output` 节出现在 `## Return (H1)` 节之前；顶部含 HARD GATE 文本

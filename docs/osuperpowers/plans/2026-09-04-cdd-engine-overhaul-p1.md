@@ -735,7 +735,7 @@ grep -l "utils/exit\|utils/skills" packages/cdd-engine/bin/lib/*.mjs
 若有，将 `../../utils/exit.mjs` 等路径替换为从 `packages/osuperpowers` 的相对路径，或（推荐）将 `exit.mjs` 也复制到 cdd-engine：
 
 ```bash
-# 检查哪些 lib 文件引用了 docs/osuperpowers/bin/utils/
+# 检查哪些 lib 文件引用了 packages/osuperpowers/bin/utils/
 grep -rn "from.*utils/" packages/cdd-engine/bin/lib/
 ```
 
@@ -1826,7 +1826,7 @@ git commit -m "test(cdd-engine): complete Vitest migration — all tests pass"
 - Produces: `packages/osuperpowers` 依赖 `@oscaner-skills/cdd-engine: "workspace:*"`
 - Produces: osuperpowers 中无 engine 代码残留
 
-- [ ] **Step 1: 更新 docs/osuperpowers/package.json**
+- [ ] **Step 1: 更新 packages/osuperpowers/package.json**
 
 编辑 `packages/osuperpowers/package.json`：
 

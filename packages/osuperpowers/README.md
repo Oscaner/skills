@@ -6,7 +6,7 @@ osuperpowers skills for Claude Code — orchestration family and the cli-* CDD e
 
 This plugin provides two skill families:
 
-- **osuperpowers orchestration** — flow orchestrators that read upstream `superpowers` baselines and apply personal rules (clarifying questions via `grilling`, spec review via fresh subagent passes, ticket publish redirection, etc.)
+- **osuperpowers orchestration** — flow orchestrators that read upstream `superpowers` baselines and apply personal rules (clarifying questions via `grilling`, spec review via fresh subagent passes, etc.)
 - **cli-\* CDD engine** — harness CLI three-mode chain (implement / review / fix) that dispatches coding tasks to external AI CLIs (`claude`, `cursor-agent`)
 
 ## Skills
@@ -14,7 +14,7 @@ This plugin provides two skill families:
 | Skill | Type | Description |
 |-------|------|-------------|
 | `brainstorming` | Orchestrator | Delegates discovery to `grilling`; subagent spec review; overall/phase for large scope |
-| `writing-plans` | Orchestrator | Section-by-section plan writes + review; tickets to `docs/superpowers/tickets/` |
+| `writing-plans` | Orchestrator | Section-by-section plan writes + review |
 | `cli-driven-development` | Orchestrator + Engine | Plan executor (cli-only); harness CLI three-mode chain dispatcher + final branch-review CLI |
 | `finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
 | `init` | Utility | Marketplace installation guide — points to the harness's plugin marketplace; checks for the `cdd` engine CLI |

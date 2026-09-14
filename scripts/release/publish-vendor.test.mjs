@@ -160,7 +160,6 @@ function makeMattpocockFixture() {
         "./skills/subagent-driven-development",
         "./skills/tdd",
         "./skills/test-driven-development",
-        "./skills/to-tickets",
       ],
     }),
   );
@@ -370,7 +369,7 @@ test("derivePiKey — mattpocock reads skills from .claude-plugin/plugin.json", 
   const root = makeMattpocockFixture();
   const pi = derivePiKey(join(root, "vendors", "mattpocock-skills"), ".");
   expect(Array.isArray(pi.skills)).toBeTruthy();
-  expect(pi.skills.length >= 21).toBeTruthy();
+  expect(pi.skills.length >= 20).toBeTruthy();
 });
 
 test("derivePiKey — impeccable derives from .pi/skills/impeccable (pi convention)", () => {
@@ -441,7 +440,7 @@ test("assemblePackageJson — mattpocock drops upstream private flag", () => {
   // pi at top level, derived from .claude-plugin/plugin.json skills array
   expect(pkg["oscaner-plugin"]).toEqual({ contentRoot: "." });
   expect(Array.isArray(pkg.pi.skills)).toBeTruthy();
-  expect(pkg.pi.skills.length >= 21).toBeTruthy();
+  expect(pkg.pi.skills.length >= 20).toBeTruthy();
 });
 
 // ---------------------------------------------------------------------------

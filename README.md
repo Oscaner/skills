@@ -24,7 +24,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 |--------|------|-------------|
 | **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine |
 | **[superpowers](vendors/superpowers/)** | Vendored | Upstream workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
-| **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd`, `to-tickets` |
+| **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd` |
 | **[impeccable](vendors/impeccable/)** | Vendored | Frontend design skills |
 
 All plugins are published as scoped npm packages under `@oscaner-skills/*`.

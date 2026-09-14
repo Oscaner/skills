@@ -24,7 +24,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 |------|------|------|
 | **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（osuperpowers 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
 | **[superpowers](vendors/superpowers/)** | vendored | 上游工作流技能——brainstorming、writing plans、SDD、verification、branch finish |
-| **[mattpocock-skills](vendors/mattpocock-skills/)** | vendored | 精准工具——`grilling`、`tdd`、`to-tickets` |
+| **[mattpocock-skills](vendors/mattpocock-skills/)** | vendored | 精准工具——`grilling`、`tdd` |
 | **[impeccable](vendors/impeccable/)** | vendored | 前端设计技能 |
 
 所有插件均以 `@oscaner-skills/*` scoped npm 包发布。

@@ -33,14 +33,13 @@ Charter only — no implementation detail.
 
 ## File paths
 
-One program date + feature slug under `docs/superpowers/`:
+One program date + feature slug under `docs/osuperpowers/`:
 
 | Artifact | Path |
 |---|---|
 | Overall | `specs/YYYY-MM-DD-<feature>-overall.md` |
 | Phase spec | `specs/YYYY-MM-DD-<feature>-<phase-id>-design.md` |
 | Phase plan | `plans/YYYY-MM-DD-<feature>-<phase-id>.md` |
-| Phase tickets | `tickets/YYYY-MM-DD-<feature>-<phase-id>-tickets.md` |
 
 `<phase-id>` lowercase (`p1`, `p2a`, ...). Inventory columns link here once files exist.
 

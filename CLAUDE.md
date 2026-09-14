@@ -18,7 +18,7 @@ Four plugins ship here:
 
 1. **osuperpowers** — first-party, in-tree at `packages/osuperpowers/`. osuperpowers orchestration + cli-* family + CDD engine.
 2. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by osuperpowers orchestrators.
-3. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, to-tickets, research).
+3. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, research).
 4. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
 
 ## Package-as-source architecture
@@ -84,7 +84,7 @@ Two distinct language strategies implement this, depending on file type:
 
 ### Strategy B — Chinese-primary, no mirror (specs and plans)
 
-`docs/superpowers/specs/*.md` and `docs/superpowers/plans/*.md` are internal developer documents written **in Chinese**. No `.zh-CN.md` mirror is needed or maintained for these files.
+`docs/osuperpowers/specs/*.md` and `docs/osuperpowers/plans/*.md` are internal developer documents written **in Chinese**. No `.zh-CN.md` mirror is needed or maintained for these files.
 
 ### Strategy B extension — maintainer docs (docs/maintainers/)
 

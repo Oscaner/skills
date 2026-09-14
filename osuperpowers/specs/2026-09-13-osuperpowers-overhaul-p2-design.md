@@ -49,12 +49,14 @@
 ### §2.3 validator — `overall-consistency` 单根收敛
 
 - `SPECS_DIR`/`PLANS_DIR`（`scripts/validate/overall-consistency.mjs:39-40`）→ `osuperpowers/{specs,plans}`；line 32 注释 + line 461 `SKIP` 文案（`"no docs/superpowers/specs"` → `"no osuperpowers/specs"`）同步。
-- **行为变化（预期）**：单一 `-overall.md` glob 现命中 **4 个 overall**（post-dogfood 非 canonical → skip；cdd-overhaul + session-246 继续受守卫；**新 overall `2026-09-13-osuperpowers-overhaul-overall.md` 首次进入守卫面**——其 canonical 头 + P1 design/plan 文档存在性已满足，须全绿不误报）。
+- **行为变化（预期）**：单一 `-overall.md` glob 现命中 **4 个 overall**（post-dogfood 非 canonical → skip；cdd-overhaul + session-246 继续受守卫；**新 overall `2026-09-13-osuperpowers-overhaul-overall.md` 首次进入守卫面**——canonical 头 + P1 design/plan 文档存在性已满足）。新 overall 须两项归一（实测：两项齐备后 6 项检查全过）：
+  1. **canonical 列归一**：P1 `Implementation plan` 列现为 `**Done**（2026-09-14 shipped…）`，与 ① 回填声明 target key `Done` **字面不等**（`claimKey` 取 `Done`、`columnValue` 留全括号长尾 → checkBackfillClaims 抛错）——归一为裸 `Done`（canonical 形，同 cdd-overhaul P1 列）+ 追加 change-history v1.7 记录；
+  2. **change-history v1.3 行 claim 句切分**：该行末句「…P1 Design-spec 列回填（[Pending]→P1-design v1.0）+ Dependency graph P1→P3 边措辞…」未被 `；` 切分，`extractClaimRows` 抽出 design claim `P1-design` 而 `phaseIdsIn` 从「P1→P3」同时收进 P3 → P3 被要求命中同一 token（实际 `[Pending]`）→ ① 正向 design 抛错；在 ` + Dependency graph` 前插 `；` 使该 claim 句只含 P1。
 - 测试 fixtures（`scripts/validate/fixtures/overall-consistency/`）零 `docs/superpowers` 字符串、经注入 roots，无需内容迁移（复跑确认）。
 
 ### §2.4 residue 守卫 + grep-sweep 过滤收敛
 
-- **residue.mjs 新增 stale-lexicon**（P1 `.superpowers/cdd`/`standalone` 守卫同构）：`{ label: "old docs root docs/superpowers", re: /docs\/superpowers/, scope: ALL_MECH_POSITIONS }`——机制位置（engine bin/lib/templates + osuperpowers skills）零豁免防回渗；历史文档在 `osuperpowers/{specs,plans}` 不在机制扫描面，零误伤。`residue.test.mjs` 增命中断言（`["docs/superpowers/specs/foo.md"]` → hasHit true）。
+- **residue.mjs 新增 stale-lexicon**（P1 `.superpowers/cdd`/`standalone` 守卫同构）：`{ label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: ALL_MECH_POSITIONS }`——机制位置（engine bin/lib/templates + osuperpowers skills）零豁免防回渗；历史文档在 `osuperpowers/{specs,plans}` 不在机制扫描面，零误伤。`residue.test.mjs` 增命中/放行断言，**经字符串拼接构造**（`"docs" + "/superpowers"`）——**守卫本体与其测试不得把字面 `docs/superpowers` 写回 `scripts/`**（label 不含路径、regex 以 `\/` 转义已天然规避），否则 §2.7 全仓 grep 出现第三类命中、AC3「其余全零」不可满足。
 - **residue.mjs:63 GATE 豁免注释 + residue.test.mjs:129 it() 标题**同步（两处字面 `docs/superpowers` 豁免语义措辞 → 历史文档已迁 `osuperpowers/{specs,plans}`、gate targets 不含之；residue.test.mjs 属 `scripts/` 机制位置，随迁清理其字面引防 §2.7 全仓 grep 额外命中，且其描述的 GATE 豁免语义随迁移同步变化后标题本身过期）。
 - **grep-sweep-regression.test.mjs:14,65,72 过滤删除**：`docs/superpowers/{specs,plans,tickets}` 三个 `grep -v` 过滤器移除——迁移后历史文档落 `osuperpowers/` 根下，不在 sweep scope（`packages/ docs/ README.md marketplace/`），过滤器变死代码。grepCount 基线复跑确认各 sweep 仍 0 命中。
 
@@ -83,9 +85,12 @@ tickets 系统经脑暴实证**全死**（writing-plans SKILL.md 无 Rules、无
 | `docs/maintainers/osuperpowers-plugin.md:24` | ① Tickets Publish Redirect canonical 示例**重写**为真实委托形态——当前 writing-plans 全量委托上游 session 无 tickets 步骤——清除 `docs/superpowers/tickets/…` 路径字符串；② **(b) delegates 列表去 `to-tickets`**（当前无任何 skills 委托之，虚假委托声明） |
 | `docs/maintainers/osuperpowers-plugin.md:202` | SDD/ticket execution 规则**去 ticket 框架**：保留执行纪律意图（approved plan 内逐 unit commit 后不追问），措辞改为 task/unit |
 | `docs/maintainers/osuperpowers-plugin.md:204` | Execution continuity「each ticket」→ 去 ticket 措辞（保留「plan 运行中不逐问『要继续吗』」discipline） |
-| `scripts/release/publish-vendor.test.mjs:163` | 删 fixture 行 `"./skills/to-tickets",`（合成清单，非真实 vendored manifest；probe 逻辑不依赖成员集合） |
+| `scripts/release/publish-vendor.test.mjs:163,373,444` | ① 删 fixture 行 `"./skills/to-tickets",`（合成清单 21 → 20 项）；② **连带阈值同步**——`:373`/`:444` 的 `expect(…skills.length >= 21)` → `>= 20`（实测删行后 `2 failed \| 43 passed`；该测试的成员数阈值确依赖此 fixture 集合） |
+| `README.md:27` | vendored 表行去 `to-tickets`（`Precision tools -- \`grilling\`, \`tdd\``）——本仓文档只列本体系实际采用的 vendored skills（用户 2026-09-14 补充裁定） |
+| `README.zh-CN.md:27` | 同（`精准工具——\`grilling\`、\`tdd\``） |
+| `CLAUDE.md:21` | mattpocock-skills 描述行去 `to-tickets`（`Engineering precision skills (grilling, tdd, research)`） |
 
-**豁免/保留（vendored 包内容清点）**：`vendors/mattpocock-skills/skills/engineering/to-tickets/` 物理目录（vendored 子模块不可改）；root `README.md:27` / `README.zh-CN.md:27` 的 vendored 表行「Precision tools -- `grilling`, `tdd`, `to-tickets`」为 **vendored 包内容清点**（包物理含该 skill，描述如实），非本体系委托/模板残留 → 保留。铁律：本体系**生产/委托/模板/发布面**引用（上表 7 处）全部清除。`.changeset/` 历史记录不涉 tickets 措辞。
+**范围外**：① `vendors/mattpocock-skills/skills/engineering/to-tickets/` 物理目录——vendored 子模块不可改，无生产引用即无残留；② **在途程序文档**（`osuperpowers/{specs,plans}/2026-09-13-osuperpowers-overhaul*`）——本 phase 的 tickets 移除叙述必现身其中（与 §2.7 同构豁免）。**目标终态 = 全仓（除上述两类 + `tmp/`〔gitignored publish-vendor 副本来场〕+ `.osuperpowers/`〔gitignored 运行时面〕）零 `ticket`/`tickets` 引用**——39 历史文档与 `.changeset/` 实证零提及。铁律：本体系**生产/委托/模板/发布面/文档清单**引用（上表 10 处）全部清除。
 
 ### §2.7 记录豁免集（grilling Q1 → 决策 A：务实字面零 + 在途记录豁免，用户 2026-09-14 确认）
 
@@ -94,7 +99,7 @@ tickets 系统经脑暴实证**全死**（writing-plans SKILL.md 无 Rules、无
 - ① `osuperpowers/{specs,plans}/2026-09-13-osuperpowers-overhaul*`（在途 program 全部文档：overall File paths 节 + P1-design/P1-plan「P2 职责」注记 + **本 P2-design 自身的迁移叙述 + P2-plan（writing-plans 后续产出）**——凡在途 program 文档必携迁移前因，一律豁免）
 - ② `.changeset/`（历史记录；不在 `osuperpowers/` grep scope 内，仅全仓 grep 时出现）
 
-验证 grep 口径与豁免集**同 scope 相对**（保证「命中集 == 豁免集」字面可满足）：① `grep -rn "docs/superpowers" osuperpowers/` → 命中集 == 豁免集 ①（在途 `2026-09-13-osuperpowers-overhaul*` 文件）；② 全仓 `grep -rn "docs/superpowers" --exclude-dir=vendors --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.osuperpowers` → 命中集 == 豁免集 ①∪②。**`.osuperpowers/` 显式排除**：运行时仓 gitignored，其 review/fix handoffs 必引述被审文档旧语汇（spec-review-1.json 已含 5 次 `docs/superpowers`）——非残留度量面；本机 shell grep 对点目录的跳过行为不可依赖，故显式传 `--exclude-dir`（等价可用 `git grep` 仅扫 tracked）。其余（历史 39 重写后、engine/skills/scripts/README/CLAUDE.md/maintainer、`.agents/` 与 `.github/ISSUE_TEMPLATE/session_report.yml` emit 再生后）全零。**度量口径：文件级**（`grep -rl`；54 次/53 行是 §2.1 重写度量，非残留校验度量）。
+验证 grep 口径与豁免集**同 scope 相对**（保证「命中集 == 豁免集」字面可满足）：① `grep -rn "docs/superpowers" osuperpowers/` → 命中集 == 豁免集 ①（在途 `2026-09-13-osuperpowers-overhaul*` 文件）；② 全仓 `grep -rn "docs/superpowers" --exclude-dir=vendors --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.osuperpowers --exclude-dir=tmp` → 命中集 == 豁免集 ①∪②。**`.osuperpowers/` + `tmp/` 显式排除**：前者 gitignored 运行时面（review/fix handoffs 必引述被审文档旧语汇——spec-review-1.json 已含 5 次）；后者 gitignored（publish-vendor 测试反复再生的 vendored 副本，实测全仓 `docs/superpowers` 261 行中 93 行、`ticket` 512 行中 453 行来自 `tmp/`）。**本机 shell 的 grep 包裹行为（respect .gitignore）不可依赖**，故显式传 `--exclude-dir`（等价可用 `git grep` 仅扫 tracked）。**`ticket`/`tickets` 残留同口径**：本 phase 移除叙述必现身于在途程序文档（p2-design / p2-plan），故 `ticket` 度量与 `docs/superpowers` 同构——扫面相同、命中集同样 == 在途 `2026-09-13-osuperpowers-overhaul*`。其余（历史 39 重写后、engine/skills/scripts/README/CLAUDE.md/maintainer、`.agents/` 与 `.github/ISSUE_TEMPLATE/session_report.yml` emit 再生后）全零。**度量口径：文件级**（`grep -rl`；54 次/53 行是 §2.1 重写度量，非残留校验度量）。
 
 ### §2.8 changeset 与版本
 
@@ -115,7 +120,7 @@ tickets 系统经脑暴实证**全死**（writing-plans SKILL.md 无 Rules、无
 - `AC2` `rootFromDocPath("/repo/osuperpowers/specs/foo-design.md")` → `/repo`；`rootFromDocPath("/repo/.osuperpowers/cdd/x/review-1.json")` → null（运行根不误匹配）；`naming.mjs` 零 `docs/superpowers` 字符串
 - `AC3` 21 个历史文件 54 次 `docs/superpowers` 出现（53 行）已重写为 `osuperpowers`；`grep -rl "docs/superpowers" osuperpowers/` 命中 == 在途 `2026-09-13-osuperpowers-overhaul*` 文件集（§2.7 度量口径）；**全部 plan 的 `**Spec:**` 头链接迁移后均指向存在文件**（行为性断言，实测量 10 处以 plan 阶段为准，不作为计数验收）
 - `AC4` `node scripts/run.mjs validate` 13 块全绿；residue 5c 新增 `docs/superpowers` stale-lexicon 机制位置零命中；grep-sweep 各 sweep（old bin 名 / cdd-reference / subagent-driven-development / HARD-GATE / --prompt）在过滤移除后仍 0 命中
-- `AC5` active 约定文档（writing-plans / brainstorming SKILL.md、overall-spec-template、finding-meta、根 CLAUDE.md、packages/osuperpowers/README.md、maintainer-doc）零 `docs/superpowers` 路径字符串；tickets 移除面 7 处全部落地——生产/active 文档零 tickets **工作流/artifact/委托**引用（除外：vendored 包内容清点的合法名称引用——root `README.md:27` / `README.zh-CN.md:27` vendored 表行，包物理含 `to-tickets`）
+- `AC5` active 约定文档（writing-plans / brainstorming SKILL.md、overall-spec-template、finding-meta、根 CLAUDE.md、packages/osuperpowers/README.md、maintainer-doc）零 `docs/superpowers` 路径字符串；tickets 移除面 **10 处**全部落地——零 `ticket`/`tickets` 引用（范围外：vendored 物理目录 + 在途程序文档的移除叙述）
 - `AC6` overall-consistency 对 4 个 overall 全过（新 overall 首次入守卫不误报）；`pnpm run emit` fresh / `emit:check` drift 0
 - `AC7` engine suite vitest 全绿（handoff-naming / cdd / docs-runner 新布局 fixture）
 

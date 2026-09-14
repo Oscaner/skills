@@ -56,6 +56,16 @@ describe("stale-lexicon：机制位置精确性", () => {
   });
 });
 
+// Task 5（P2）：old docs root 守卫（机制位置 + 文档表层）。测试自身同样不得写回字面 ——
+// 经字符串拼接构造旧根，否则本文件会成为 Task 6 全仓 grep 的第三类命中。
+describe("stale-lexicon：old docs root 守卫（Task 5）", () => {
+  const OLD_DOCS_ROOT = "docs" + "/superpowers";
+  it("旧 docs 根命中（机制/文档表层）；新根 docs/osuperpowers/ 放行", () => {
+    expect(hasHit([`${OLD_DOCS_ROOT}/specs/foo.md`])).toBe(true); // 新守卫命中
+    expect(hasHit(["docs/osuperpowers/specs/foo.md"])).toBe(false); // 新根放行
+  });
+});
+
 describe("live repo：5c 同源扫描零残留", () => {
   it("collectStaleLexiconHits() === []（templates/fix.md 与 engine 测试同样入扫）", () => {
     expect(collectStaleLexiconHits()).toEqual([]);
@@ -126,7 +136,7 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
       rmSync(path.dirname(f), { recursive: true, force: true });
     }
   });
-  it("collectGateLexiconHits() === []（机制/文档表层零残留；docs/superpowers + CHANGELOG 豁免）", () => {
+  it("collectGateLexiconHits() === []（机制/文档表层零残留；docs/osuperpowers/{specs,plans} 历史文档 + CHANGELOG 豁免）", () => {
     expect(collectGateLexiconHits()).toEqual([]);
   });
 });

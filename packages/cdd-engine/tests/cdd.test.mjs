@@ -225,18 +225,6 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("brief --task --plan --output → 生成 brief + {brief} JSON", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-brief-"));
-    try {
-      const out = path.join(dir, "task-1-brief.md");
-      const r = runCli(["brief", "--task", "1", "--plan", SMOKE_PLAN, "--output", out]);
-      expect(r.exitCode).toBe(0);
-      expect(JSON.parse(r.stdout)).toEqual({ brief: out });
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
   // ---- T8: `cdd contract` 子命令删除 + branch-review 读回覆写（T5 nit4 补测） ----
 
   it("cdd contract 子命令不存在（check-dirty/check-head/clear-findings 全灭）→ 未知命令 exit 2", () => {

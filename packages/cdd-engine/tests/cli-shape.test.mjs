@@ -94,4 +94,12 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/usage: cdd/);
   });
+
+  // P3 T2 退役子命令：brief 全量移除（命令面 + CLI 处理器）。同 research —— 完整调用形态
+  //（bare 形态在删前亦 exit 2：Commander required-option 缺省 —— 是假绿）。
+  it('cdd brief（完整形态）→ unknown command exit 2（子命令退役）', () => {
+    const r = runCli(['brief', '--task', '1', '--plan', SMOKE_PLAN, '--output', '/tmp/p3-retired-brief.md']);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/usage: cdd/);
+  });
 });

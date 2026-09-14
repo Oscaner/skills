@@ -1,14 +1,14 @@
-// engine/tests/brief.test.mjs — T2: brief 生成/校验模块单测（Node port）。
+// engine/tests/brief.test.mjs — brief 生成模块单测（Node port）。
 // generateBrief：从 plan 机械提取 ### Task N: 段落，追加 TASK_BASE: <sha>，写入 brief。
 //   plan 缺失 → throw；task 段落缺失 → throw；git HEAD 不可取 → throw。
-// validateBrief：含 TASK_BASE: 行 → true；文件不存在 / 无 TASK_BASE: → false。
+//   （`cdd brief` CLI 与校验导出已于 P3 移除——本文件仅覆盖保留面 generateBrief。）
 import { it, expect } from 'vitest';
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, realpathSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateBrief, validateBrief } from "../lib/brief.mjs";
+import { generateBrief } from "../lib/brief.mjs";
 import { gitCommit, gitInit } from "./helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -44,24 +44,6 @@ it("generateBrief: plan 不存在 → throw plan file not found", () => {
   expect(
     () => generateBrief(path.join(dir, "missing.md"), 1, path.join(dir, "out.md"), REPO_ROOT),
   ).toThrow(/plan file not found/);
-});
-
-it("validateBrief: 含 TASK_BASE: → true", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "brief-test-"));
-  const f = path.join(dir, "brief.md");
-  writeFileSync(f, "### Task 1: Foo\nDo something\nTASK_BASE: abc123\n");
-  expect(validateBrief(f)).toBe(true);
-});
-
-it("validateBrief: 无 TASK_BASE: → false", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "brief-test-"));
-  const f = path.join(dir, "brief.md");
-  writeFileSync(f, "### Task 1: Foo\nDo something\n");
-  expect(validateBrief(f)).toBe(false);
-});
-
-it("validateBrief: 文件不存在 → false", () => {
-  expect(validateBrief("/nonexistent/no-such-brief.md")).toBe(false);
 });
 
 // #173 回归钉死：generateBrief 第 4 参数语义 = repoRoot（取该目录所在仓库的 HEAD），cwd 无关。
@@ -101,65 +83,4 @@ it("generateBrief #185: task 2 不存在（仅 Task 1）→ throw CDD-level inde
   expect(
     () => generateBrief(planFile, 2, path.join(dir, "out.md"), REPO_ROOT),
   ).toThrow(/task 2 not found \(CDD-level index; plan must contain '### Task N:' heading\)/);
-});
-
-// --- CLI entry point tests ---
-
-// runBriefCli 归位（spec §2.6）：CLI 处理器迁 lib/cli/brief.mjs —— CLI 用例改指 cli 簇入口；
-// lib/brief.mjs 纯库模块（直调 guard 已删）→ `node lib/brief.mjs` 无 CLI 行为。
-const BRIEF_MJS = path.resolve(HERE, "../lib/cli/brief.mjs");
-const LIB_BRIEF_MJS = path.resolve(HERE, "../lib/brief.mjs");
-
-function cliRun(script, repo, ...args) {
-  try {
-    const stdout = execFileSync(process.execPath, [script, ...args], {
-      cwd: repo,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return { exitCode: 0, stdout: stdout.trim() };
-  } catch (e) {
-    return { exitCode: e.status, stdout: (e.stdout || "").trim() };
-  }
-}
-
-it("CLI --task N --plan --output: success → exit 0, brief path", () => {
-  const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "brief-cli-")));
-  gitInit(repo);
-  const planFile = path.join(repo, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: First task\nDo stuff\n");
-  gitCommit(repo);
-  const outPath = path.join(repo, "task-1-brief.md");
-  const r = cliRun(BRIEF_MJS, repo, "--task", "1", "--plan", planFile, "--output", outPath);
-  expect(r.exitCode).toBe(0);
-  const parsed = JSON.parse(r.stdout);
-  expect(parsed.brief).toBe(outPath);
-  const content = readFileSync(outPath, "utf8");
-  expect(content).toMatch(/^### Task 1:/m);
-  expect(content).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
-});
-
-it("CLI --task N: missing task → exit 1, stderr contains error", () => {
-  const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "brief-cli-err-")));
-  gitInit(repo);
-  const planFile = path.join(repo, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: First task\nDo stuff\n");
-  gitCommit(repo);
-  const outPath = path.join(repo, "task-99-brief.md");
-  const r = cliRun(BRIEF_MJS, repo, "--task", "99", "--plan", planFile, "--output", outPath);
-  expect(r.exitCode).toBe(1);
-});
-
-it("node lib/brief.mjs 直跑 → 无 CLI 行为（runBriefCli 已迁 lib/cli/brief.mjs，纯库模块无直调 guard）", () => {
-  const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "brief-lib-")));
-  gitInit(repo);
-  const planFile = path.join(repo, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: First task\nDo stuff\n");
-  gitCommit(repo);
-  const outPath = path.join(repo, "task-1-brief.md");
-  const r = cliRun(LIB_BRIEF_MJS, repo, "--task", "1", "--plan", planFile, "--output", outPath);
-  // 库模块不解析 argv：不生成 brief（outPath 不存在）+ 无 CLI stdout（无 {"brief": ...} JSON）
-  expect(r.exitCode).toBe(0);
-  expect(r.stdout).toBe("");
-  expect(existsSync(outPath)).toBe(false);
 });

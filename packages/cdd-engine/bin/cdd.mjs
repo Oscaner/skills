@@ -5,7 +5,6 @@
 //   cdd implement --task <n> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> [...]
 //   cdd fix --type <task|spec|plan> [...]
-//   cdd brief --task <n> --plan <path> [--output <path>]
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { realpathSync } from "node:fs";

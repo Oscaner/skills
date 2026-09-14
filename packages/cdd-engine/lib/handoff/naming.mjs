@@ -130,7 +130,7 @@ export function resolveWorkspace(doc) {
 // 段带前导点 ≠ `osuperpowers`，段相等性天然不串。
 function rootFromDocPath(doc) {
   const segments = path.resolve(doc).split(path.sep);
-  for (let i = 0; i < segments.length - 1; i++) {
+  for (let i = 0; i < segments.length - 2; i++) {
     if (segments[i] === "docs" && segments[i + 1] === "osuperpowers" && ["specs", "plans"].includes(segments[i + 2])) {
       return segments.slice(0, i).join(path.sep) || path.sep;
     }

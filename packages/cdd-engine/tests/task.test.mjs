@@ -21,7 +21,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engin
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
 // Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
 // 另一 fork in-flight 组（ownerPid 异判为 orphan）。
 const LIFECYCLE_PATH = forkLifecyclePath("task");
 
@@ -98,7 +98,7 @@ describe('cdd implement/review/fix CLI contract', () => {
       { CDD_DRY_RUN: '1', CDD_WORKSPACE: ws, CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(res.status).toBe(0);
-    const brief = path.join(ws, '.superpowers', 'cdd', 'plan', 'task-1-brief.md');
+    const brief = path.join(ws, '.osuperpowers', 'cdd', 'plan', 'task-1-brief.md');
     expect(existsSync(brief)).toBe(true);
     expect(readFileSync(brief, 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
   });
@@ -121,7 +121,7 @@ describe('cdd implement/review/fix CLI contract', () => {
     expect(res.status).toBe(0);
     expect(readFileSync(override, 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
     // 缺省派生路径保持未生成（写侧已 honor override，未双写）
-    expect(existsSync(path.join(ws, '.superpowers', 'cdd', 'plan', 'task-1-brief.md'))).toBe(false);
+    expect(existsSync(path.join(ws, '.osuperpowers', 'cdd', 'plan', 'task-1-brief.md'))).toBe(false);
   });
 
   // F11 越界保护：plan 有 Task 1 无 Task 9 → BLOCKED + exit 1（不静默降级为「读既有/空 brief 放行」）。

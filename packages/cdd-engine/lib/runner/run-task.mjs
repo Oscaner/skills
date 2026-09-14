@@ -64,7 +64,7 @@ function finish(exitCode, h1, msg, noExit, { stderrPrefix = "CDD_BLOCKED" } = {}
 // Branch rules:
 //   plan exists → plan-derived branch: existsSync pre-check ("plan file not found") →
 //     repoRoot = gitToplevel(dirname(plan)), failure → "not in a git repo";
-//     workspace = <repoRoot>/.superpowers/cdd/<slug>/
+//     workspace = <repoRoot>/.osuperpowers/cdd/<slug>/
 //   no plan + CDD_WORKSPACE present → direct-set branch (current behavior): workspace = env value as-is;
 //     repoRoot = gitToplevel(workspace), null allowed (tolerated downstream)
 //   neither → RunBlocked "cannot resolve repo root: provide --plan or CDD_WORKSPACE"
@@ -84,11 +84,11 @@ export function resolveRepoRoot({ planFile, env, ledgerPath }) {
   throw new RunBlocked("cannot resolve repo root: provide --plan or CDD_WORKSPACE");
 }
 
-// Pure derivation (root resolved by resolveRepoRoot, injected as the third param): plan → <repoRoot>/.superpowers/cdd/<slug>/;
+// Pure derivation (root resolved by resolveRepoRoot, injected as the third param): plan → <repoRoot>/.osuperpowers/cdd/<slug>/;
 // no plan + CDD_WORKSPACE → env value as-is; neither → RunBlocked.
 // Workspace resolution (purely derived after #173, repoRoot provided by resolveRepoRoot):
 //   plan present (planFile = effective plan, including env.PLAN_FILE/backfill sources) → plan-derived branch
-//     <repoRoot>/.superpowers/cdd/<slug>/;
+//     <repoRoot>/.osuperpowers/cdd/<slug>/;
 //   no plan + env.CDD_WORKSPACE → direct-set branch (current behavior): workspace = env value as-is.
 // Branch selection explicitly declared via planSource ("plan" | "workspace") — caller decides based on resolveRepoRoot
 // result, eliminating the control coupling of "faking an empty env to drive internal branching".

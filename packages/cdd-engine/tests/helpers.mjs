@@ -42,7 +42,7 @@ export function gitCommit(dir, message = "plan") {
 }
 
 // 唯一 CDD_LIFECYCLE_PATH（每 fork 独立）—— vitest pool:'forks' 并发下各 fork 注入独立 tmp 路径，
-// 避免共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀并发在途组（spec §2.2 A）。
+// 避免共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀并发在途组（spec §2.2 A）。
 export function forkLifecyclePath(tag) {
   return path.join(os.tmpdir(), `cdd-lifecycle-${tag}-${process.pid}.json`);
 }

@@ -47,9 +47,9 @@ flowchart TD
 
 ### `read-base`
 
-- **Do**: Determine the base branch (merge / PR target). Read the workspace artifact `.superpowers/<scope>/<slug>/base-branch.json` — methodology (inference sources in order ①–④), artifact schema, and dual-scope slug resolution are delegated to [base-branch.md](../cli-driven-development/docs/base-branch.md). Artifact missing (standalone finishing scenario) → **run the inference sources in order (base-branch.md), taking the first definitive result; all exhausted → ask the user to confirm** → write the artifact via `cdd base-branch set --scope standalone --slug <sanitized>` (slug = sanitized feature branch name per base-branch.md slug rules)
-- **Read**: `.superpowers/{cdd,standalone}/<slug>/base-branch.json` (optional) + plan document + `git rev-parse --abbrev-ref @{u}` + conversation context
-- **Exit**: Base confirmed (artifact exists or written this invocation) → `present-menu`
+- **Do**: Determine the base branch (merge / PR target). Read the workspace artifact `.osuperpowers/cdd/<slug>/base-branch.json` — methodology (inference sources in order ①–④), artifact schema, and slug derivation are delegated to [base-branch.md](../cli-driven-development/docs/base-branch.md). Artifact present (CDD run) → use it directly. Artifact missing (hand-made feature branch, no plan) → **run the inference sources in order (base-branch.md), taking the first definitive result; all exhausted → ask the user to confirm** → pass the determined base directly to `present-menu` — **no base-branch.json is written in this case**
+- **Read**: `.osuperpowers/cdd/<slug>/base-branch.json` (optional) + plan document + `git rev-parse --abbrev-ref @{u}` + conversation context
+- **Exit**: Base confirmed (artifact read from `.osuperpowers/cdd/<slug>/base-branch.json`, or base inferred via the inference sequence this invocation) → `present-menu`
 - **Fail**: User refuses to confirm → BLOCKED (base undecided; do not proceed with merge/PR)
 
 ### `present-menu`

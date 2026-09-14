@@ -24,16 +24,17 @@ const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md')
 const SMOKE_SPEC = path.join('packages/cdd-engine/tests/fixtures/smoke-spec.md');
 const NODE = process.execPath;
 // Task 3 全派生接线后 fork 隔离：bin/cdd.mjs 启动经 initProcLifecycle + reapStale 读写
-// CDD_LIFECYCLE_PATH（默认 <cwd>/.superpowers/cdd/lifecycle.json）。vitest pool:'forks' 并发
+// CDD_LIFECYCLE_PATH（默认 <cwd>/.osuperpowers/cdd/lifecycle.json）。vitest pool:'forks' 并发
 // fork 若共用该文件，任一 fork 启动 reapStale 读到另一 fork 刚落盘的 in-flight 组（ownerPid ≠
 // 本 cdd）会按 orphan 连根误杀 → 每 fork 注入唯一 tmp 路径（process.pid 随 fork 唯一）（spec §2.2 A / §2.6）。
 const LIFECYCLE_PATH = forkLifecyclePath("clishape");
 
-// T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .superpowers/cdd/smoke-plan/{smoke-spec}/ ——
+// T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ ——
+  //（engine workspaceSlug strip 尾 -plan：smoke-plan.md → smoke）
 // smoke 用例 teardown 清理（dry-run 不写盘，防御性清理兜底）。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-plan'), { recursive: true, force: true });
-  rmSync(path.join(REPO_ROOT, '.superpowers', 'cdd', 'smoke-spec'), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke'), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-spec'), { recursive: true, force: true });
 });
 
 // runCli: spawnSync-style { exitCode, stdout, stderr }，与 cdd.test.mjs 同构（execaSync +

@@ -2,7 +2,7 @@
 // Branch-review dry-run through the merged single CLI (harness resolved from the ambient host):
 //   (legacy standalone branch-review bin: -h <name> flag) --plan <p> --base <b> --head <h>
 //   → cdd review --type branch --plan <p> --base <b> --head <h> + CLAUDE_CODE_SESSION_ID=1 env
-// T10 warn: fixture plan/workspace 用临时 git 仓库（临时目录），不写真实 repo 的 .superpowers/cdd/ ——
+// T10 warn: fixture plan/workspace 用临时 git 仓库（临时目录），不写真实 repo 的 .osuperpowers/cdd/ ——
 // 避免 validate 轮次污染 F6 单一根（smoke-plan/test-plan-br 再生）。
 import { describe, it, expect } from 'vitest';
 import { execaSync } from 'execa';
@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..'); // tests → packages/cdd-engine → packages → repo
 // Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.superpowers/cdd/lifecycle.json 时启动 reapStale 误杀
+// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
 // 另一 fork in-flight 组（ownerPid 异判为 orphan）。
 const LIFECYCLE_PATH = forkLifecyclePath("branch");
 
@@ -28,11 +28,11 @@ function tmpGitRepo() {
 }
 
 describe('branch-review dry-run', () => {
-  it('writes CDD handoff to .superpowers/cdd/<slug>/ with CDD schema fields', () => {
+  it('writes CDD handoff to .osuperpowers/cdd/<slug>/ with CDD schema fields', () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-br';
     const planPath = path.join(dir, 'test-plan-br.md');
-    const handoffPath = path.join(dir, '.superpowers', 'cdd', slug,
+    const handoffPath = path.join(dir, '.osuperpowers', 'cdd', slug,
                                   'branch-review-abc1234..def5678-r1.json');
 
     writeFileSync(planPath, '# Test branch review plan\n\n### Task 1: n/a (branch-level smoke)\n');

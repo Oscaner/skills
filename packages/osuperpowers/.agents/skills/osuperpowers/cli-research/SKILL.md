@@ -32,7 +32,7 @@ flowchart TD
 
 ### `prepare-brief`
 
-- **Do**: Extract the research question and findings output path from user input. Write a brief Markdown file with three sections: `## Research Questions`, `## Scope`, `## Expected Output`. The brief file is written to a temporary path under the workspace `.superpowers/` directory.
+- **Do**: Extract the research question and findings output path from user input. Write a brief Markdown file with three sections: `## Research Questions`, `## Scope`, `## Expected Output`. The brief file is written to a temporary path under the workspace `.osuperpowers/` directory.
 - **Read**: User input (research question, optional output path override)
 - **Exit**: Brief file written successfully → `dispatch-research`; file write error → BLOCKED (brief failed)
 - **Fail**: Filesystem write error (permissions, disk full) → BLOCKED (brief failed)

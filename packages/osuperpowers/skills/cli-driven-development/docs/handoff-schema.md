@@ -52,9 +52,9 @@ The workspace ledger is `progress.json` (engine `lib/state/progress.mjs`); the l
   "complexity": "simple",
   "review_scope": "task",
   "artifacts": {
-    "brief": ".superpowers/cdd/.../task-2-brief.md",
-    "report": ".superpowers/cdd/.../task-2-report.md",
-    "diff": ".superpowers/cdd/.../task-2-review-package.diff",
+    "brief": ".osuperpowers/cdd/.../task-2-brief.md",
+    "report": ".osuperpowers/cdd/.../task-2-report.md",
+    "diff": ".osuperpowers/cdd/.../task-2-review-package.diff",
     "review_standards": ".../task-2-review-standards.md",
     "review_spec": ".../task-2-review-spec.md"
   },

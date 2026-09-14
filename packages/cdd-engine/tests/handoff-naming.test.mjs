@@ -62,7 +62,7 @@ it("prevHandoffPath: fix.task round1 无专属表项 → 回退 roundR（跨轮�
 it("resolveWorkspace: spec-design.md 与 plan.md 收敛同 slug workspace", () => {
   const specWs = resolveWorkspace("/repo/docs/superpowers/specs/2026-09-08-foo-design.md");
   const planWs = resolveWorkspace("/repo/docs/superpowers/plans/2026-09-08-foo.md");
-  expect(specWs).toBe("/repo/.superpowers/cdd/2026-09-08-foo");
+  expect(specWs).toBe("/repo/.osuperpowers/cdd/2026-09-08-foo");
   expect(planWs).toBe(specWs);
 });
 it("resolveWorkspace: 仅文件名派生，不依赖 plan 文件存在", () => {

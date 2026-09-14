@@ -1,11 +1,11 @@
 // packages/cdd-engine/tests/base-branch.test.mjs
 // `cdd base-branch set/get` CLI blackbox（P5 spec §2.3 / task-3 brief）。
-// 唯一 seam = CLI 公共面（bin/cdd.mjs 薄入口 + base-branch 子命令）：双落点（CDD --plan /
-// standalone --scope --slug）、schema/flag 校验、幂等 + --force、get JSON 往返、
-// SUBCOMMAND_USAGE 单词键回退。模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
+// 唯一 seam = CLI 公共面（bin/cdd.mjs 薄入口 + base-branch 子命令）：单一 `--plan` 落点、
+// schema/flag 校验、幂等 + --force、get JSON 往返、SUBCOMMAND_USAGE 单词键回退。
+// 模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
 // 此处只验证 CLI→模块接线 + CLI 自有的 flag 边界与报错面（exit 非零）。
 // 每条用例用独立 tmp git repo（mkdtemp）隔离副作用；CDD_LIFECYCLE_PATH 每 fork 唯一，
-// 避免 bin 启动 reapStale 并发误杀 + 保持 repo 内 .superpowers 仅为被测命令所写。
+// 避免 bin 启动 reapStale 并发误杀 + 保持 repo 内 .osuperpowers（cdd）仅为被测命令所写。
 import { describe, it, expect, afterAll } from "vitest";
 import { execaSync } from "execa";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
@@ -57,18 +57,14 @@ function seedPlan(repo) {
 }
 
 function cddWorkspace(repo) {
-  return path.join(repo, ".superpowers", "cdd", "app");
-}
-
-function standaloneDir(repo, slug = "tool-x") {
-  return path.join(repo, ".superpowers", "standalone", slug);
+  return path.join(repo, ".osuperpowers", "cdd", "app");
 }
 
 function readBaseBranch(dir) {
   return JSON.parse(readFileSync(path.join(dir, "base-branch.json"), "utf8"));
 }
 
-describe("cdd base-branch set — 双落点 + 幂等/force 矩阵", () => {
+describe("cdd base-branch set — 单一 --plan 落点 + 幂等/force 矩阵", () => {
   it("set --plan CDD → base-branch.json 落于 resolveWorkspace(plan) + exit 0", () => {
     const repo = tmpGitRepo();
     try {
@@ -79,21 +75,6 @@ describe("cdd base-branch set — 双落点 + 幂等/force 矩阵", () => {
       expect(saved.base).toBe("develop");
       expect(saved.source).toBe("plan-field");
       expect(saved.confirmed_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it("set --scope standalone --slug → <gitRoot>/.superpowers/standalone/<slug>/base-branch.json", () => {
-    const repo = tmpGitRepo();
-    try {
-      const r = runCli(["base-branch", "set", "--base", "develop", "--source", "user-confirmed",
-        "--scope", "standalone", "--slug", "tool-x"], { cwd: repo });
-      expect(r.exitCode).toBe(0);
-      const saved = readBaseBranch(standaloneDir(repo));
-      expect(saved.base).toBe("develop");
-      expect(saved.source).toBe("user-confirmed");
-      expect(saved.confirmed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -129,20 +110,6 @@ describe("cdd base-branch set — 双落点 + 幂等/force 矩阵", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
-
-  it("set standalone --force → 覆盖成功（新 base）", () => {
-    const repo = tmpGitRepo();
-    try {
-      runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field",
-        "--scope", "standalone", "--slug", "tool-x"], { cwd: repo });
-      const r = runCli(["base-branch", "set", "--base", "main", "--source", "user-confirmed",
-        "--scope", "standalone", "--slug", "tool-x", "--force"], { cwd: repo });
-      expect(r.exitCode).toBe(0);
-      expect(readBaseBranch(standaloneDir(repo)).base).toBe("main");
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
 });
 
 describe("cdd base-branch set — 校验失败面（exit 非零 + errors）", () => {
@@ -160,10 +127,11 @@ describe("cdd base-branch set — 校验失败面（exit 非零 + errors）", ()
     }
   });
 
-  it("standalone 组缺 --base/--source → exit 非零 + 明确报错", () => {
+  it("CDD set 缺 --base/--source → exit 非零 + 明确报错", () => {
     const repo = tmpGitRepo();
     try {
-      const r = runCli(["base-branch", "set", "--scope", "standalone", "--slug", "tool-x"], { cwd: repo });
+      const plan = seedPlan(repo);
+      const r = runCli(["base-branch", "set", "--plan", plan], { cwd: repo });
       expect(r.exitCode).not.toBe(0);
       expect(r.stderr).toMatch(/--base/);
     } finally {
@@ -171,44 +139,19 @@ describe("cdd base-branch set — 校验失败面（exit 非零 + errors）", ()
     }
   });
 
-  it("缺 target（CDD 无 plan / 无 scope）→ exit 非零 + 明确报错（CDD 需 --plan）", () => {
+  it("缺 --plan → exit 非零 + 明确报『CDD 需 --plan』", () => {
     const repo = tmpGitRepo();
     try {
       const r = runCli(["base-branch", "set", "--base", "develop", "--source", "plan-field"], { cwd: repo });
       expect(r.exitCode).not.toBe(0);
-      expect(r.stderr).toMatch(/--plan/);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it("flag 边界：--plan 与 --scope/--slug 并存 → 互斥 exit 2", () => {
-    const repo = tmpGitRepo();
-    try {
-      const plan = seedPlan(repo);
-      const r = runCli(["base-branch", "set", "--base", "x", "--source", "plan-field",
-        "--plan", plan, "--scope", "standalone", "--slug", "s"], { cwd: repo });
-      expect(r.exitCode).toBe(2);
-      expect(r.stderr).toMatch(/mutually exclusive/);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it("flag 边界：--scope 非 standalone → exit 2", () => {
-    const repo = tmpGitRepo();
-    try {
-      const r = runCli(["base-branch", "set", "--base", "x", "--source", "plan-field",
-        "--scope", "cdd", "--slug", "s"], { cwd: repo });
-      expect(r.exitCode).toBe(2);
-      expect(r.stderr).toMatch(/standalone/);
+      expect(r.stderr).toMatch(/missing --plan/);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
   });
 });
 
-describe("cdd base-branch get — 双场景读 + 缺失/schema 非法", () => {
+describe("cdd base-branch get — 单一 --plan 读 + 缺失/schema 非法", () => {
   it("get --plan CDD 读回 JSON 往返（base/source/confirmed_at 保持）", () => {
     const repo = tmpGitRepo();
     try {
@@ -227,27 +170,12 @@ describe("cdd base-branch get — 双场景读 + 缺失/schema 非法", () => {
     }
   });
 
-  it("get --scope standalone --slug 读回 JSON 往返", () => {
-    const repo = tmpGitRepo();
-    try {
-      runCli(["base-branch", "set", "--base", "develop", "--source", "user-confirmed",
-        "--scope", "standalone", "--slug", "tool-x"], { cwd: repo });
-      const r = runCli(["base-branch", "get", "--scope", "standalone", "--slug", "tool-x"], { cwd: repo });
-      expect(r.exitCode).toBe(0);
-      const got = JSON.parse(r.stdout);
-      expect(got.base).toBe("develop");
-      expect(got.confirmed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it("get 无 target → exit 非零 + 明确报错", () => {
+  it("get 缺 --plan → exit 非零 + 明确报错", () => {
     const repo = tmpGitRepo();
     try {
       const r = runCli(["base-branch", "get"], { cwd: repo });
       expect(r.exitCode).not.toBe(0);
-      expect(r.stderr).toMatch(/--plan/);
+      expect(r.stderr).toMatch(/missing --plan/);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -320,6 +248,5 @@ describe("cdd base-branch — 命令面（SUBCOMMAND_USAGE + help 标题）", ()
 
 // 清理：本文件所有 set 落点都在 tmp repo 内，无 repo-root 副作用 —— 仅兜底清理（无实际残留）。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".superpowers", "cdd", "app"), { recursive: true, force: true });
-  rmSync(path.join(REPO_ROOT, ".superpowers", "standalone"), { recursive: true, force: true });
+  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "app"), { recursive: true, force: true });
 });

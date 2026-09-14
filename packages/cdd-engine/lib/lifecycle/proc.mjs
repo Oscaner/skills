@@ -1,7 +1,7 @@
 // packages/cdd-engine/lib/lifecycle/proc.mjs — Process-Lifecycle Manager.
 // 引擎全部派生点的出生与回收单点：spawnManaged（detached 进程组 + run 级 registry）
 // / teardownAll（run 边界 + CLI 信号连根回收）/ reapDone（进程内 idle 监视低频回收）
-// / reapStale（跨 run 孤儿兜底）。registry 双写内存 + 落盘（.superpowers/cdd/lifecycle.json），
+// / reapStale（跨 run 孤儿兜底）。registry 双写内存 + 落盘（.osuperpowers/cdd/lifecycle.json），
 // 父死场景由下次启动跨 run 扫回。
 // `__registryForTest` / `__resetForTest` 为测试内省导出（vitest seam）；`__` 前缀标记测试专用，
 // 随包发布但无副作用（仅读内置 registry / 重置模块态，非正式 API）。

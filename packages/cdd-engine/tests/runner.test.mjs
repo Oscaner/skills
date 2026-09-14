@@ -249,7 +249,7 @@ it("resolveWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace
   const wsPlan = resolveWorkspace({ plan: path.join(base, "xxx-p5-plan.md"), planSource: "plan", repoRoot: base, env: {} });
   const wsPlain = resolveWorkspace({ plan: path.join(base, "xxx-p5.md"), planSource: "plan", repoRoot: base, env: {} });
   expect(wsPlan).toBe(wsPlain);
-  expect(wsPlain).toBe(path.join(base, ".superpowers", "cdd", "xxx-p5"));
+  expect(wsPlain).toBe(path.join(base, ".osuperpowers", "cdd", "xxx-p5"));
 });
 
 // ---- brief + plan constraints ----
@@ -275,7 +275,7 @@ it("runTask #173: plan path does not exist → 'plan file not found'", async () 
 
 // ---- P1 #173 cross-repo regression (plan-derived branch) ----
 
-it("runTask #173: plan in repo A, cwd in repo B → workspace lands in A, B has no .superpowers", async () => {
+it("runTask #173: plan in repo A, cwd in repo B → workspace lands in A, B has no .osuperpowers", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a-")));
   const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b-")));
   gitInit(repoA);
@@ -288,8 +288,8 @@ it("runTask #173: plan in repo A, cwd in repo B → workspace lands in A, B has 
   });
   expect(res.exitCode).toBe(0);
   const slug = path.basename(planFile, ".md");
-  expect(existsSync(path.join(repoA, ".superpowers", "cdd", slug))).toBe(true);
-  expect(existsSync(path.join(repoB, ".superpowers"))).toBe(false);
+  expect(existsSync(path.join(repoA, ".osuperpowers", "cdd", slug))).toBe(true);
+  expect(existsSync(path.join(repoB, ".osuperpowers"))).toBe(false);
 });
 
 it("runTask #173: no plan no CDD_WORKSPACE → 'cannot resolve repo root'", async () => {
@@ -347,8 +347,8 @@ it("runTask #173: CDD_WORKSPACE + plan both given → workspace lands at plan-de
     cwd: repoA, noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(existsSync(path.join(repoA, ".superpowers", "cdd", "plan"))).toBe(true);
-  expect(existsSync(path.join(ignored, ".superpowers"))).toBe(false);
+  expect(existsSync(path.join(repoA, ".osuperpowers", "cdd", "plan"))).toBe(true);
+  expect(existsSync(path.join(ignored, ".osuperpowers"))).toBe(false);
 });
 
 // ---- spawnManaged env leak regression (P5 - re-targeted from spawnCapture) ----
@@ -900,11 +900,11 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
 // ---- T6: implement handoff 实体化 + evidence-gate + H1 h1FromHandoff（commits 单一权威）----
 
 // T6 fixture：git repo workspace + 40-hex TASK_BASE brief（commits.base 唯一权威）。返回 registry/HEAD 现场。
-// workspace 收编 .superpowers/cdd/plan（对齐生产：.superpowers/cdd/.gitignore `*` gitignore 整棵 ws 树）
+// workspace 收编 .osuperpowers/cdd/plan（对齐生产：.osuperpowers/cdd/.gitignore `*` gitignore 整棵 ws 树）
 // —— T8 post-run commit-contract 的 dirty 校验要求 tracked tree 干净，ws 未提交产物不得误触发 BLOCKED。
 function t6Workspace(extraFiles = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
-  const cddDir = path.join(repo, ".superpowers", "cdd");
+  const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");
@@ -1073,14 +1073,14 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
 
 // ---- T8: post-run validateCommitContract（全 mode 接线）+ task.status=complete 回写 ----
 
-// T8 fixture：git repo（tracked source + ws 收编 .superpowers/cdd/plan）。
+// T8 fixture：git repo（tracked source + ws 收编 .osuperpowers/cdd/plan）。
 // dirty=true → tracked.txt 追加（porcelain ` M`）→ post-run commit-contract 必 BLOCKED。
 // 返回 { repo, ws, actualHead, binDir, regPath }。
 function t8Workspace({ dirty = false } = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t8-ws-")));
   writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
   gitCommit(repo);
-  const cddDir = path.join(repo, ".superpowers", "cdd");
+  const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");

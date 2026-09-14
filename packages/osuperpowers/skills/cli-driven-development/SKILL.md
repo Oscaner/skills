@@ -52,8 +52,8 @@ flowchart TD
 
 ### `determine-base`
 
-- **Do**: Follow the [base-branch.md](./docs/base-branch.md) methodology (inference sources in order ①–④, artifact schema, dual-scope slug resolution). Once determined, persist the artifact via the engine CLI — **inference → `cdd base-branch set --base <branch> --source <source> --plan <plan-path>`** (writes `.superpowers/cdd/<slug>/base-branch.json`; slug = CDD workspace slug per base-branch.md scope resolution).
-- **Read**: plan document + `git rev-parse --abbrev-ref @{u}` + conversation context + `.superpowers/cdd/<slug>/base-branch.json` (optional — skip inference if already exists).
+- **Do**: Follow the [base-branch.md](./docs/base-branch.md) methodology (inference sources in order ①–④, artifact schema, single `--plan` target — the engine derives the slug via `resolveWorkspace`). Once determined, persist the artifact via the engine CLI — **inference → `cdd base-branch set --base <branch> --source <source> --plan <plan-path>`** (writes `.osuperpowers/cdd/<slug>/base-branch.json`; slug = CDD workspace slug per base-branch.md scope resolution).
+- **Read**: plan document + `git rev-parse --abbrev-ref @{u}` + conversation context + `.osuperpowers/cdd/<slug>/base-branch.json` (optional — skip inference if already exists).
 - **Exit**: base confirmed (artifact written or already exists) → `dispatch-mode` (first task's implement).
 - **Fail**: user refuses to confirm → BLOCKED: base-undecided.
 
@@ -138,7 +138,7 @@ flowchart TD
 
 ### `handoff-finishing`
 
-- **Do**: Prepare handoff to `osuperpowers:finishing`: ensure `.superpowers/cdd/<slug>/base-branch.json` is written (finishing's `read-base` node consumes the same artifact); summarize branch state (commits count / base); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard four options).
+- **Do**: Prepare handoff to `osuperpowers:finishing`: ensure `.osuperpowers/cdd/<slug>/base-branch.json` is written (finishing's `read-base` node consumes the same artifact); summarize branch state (commits count / base); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard four options).
 - **Read**: `base-branch.json` + all handoffs + branch-review final state.
 - **Exit**: handoff complete → APPROVED: finishing.
 - **Fail**: finishing takeover fails → **implicit fail-open** (branch preserved; user manually finishes).

@@ -5,7 +5,7 @@ description: Analyzes the current SDD/CDD session for bugs and enhancement oppor
 
 # Osuperpowers Report Issue
 
-Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.superpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then attach findings to `Oscaner/skills` issues via `gh`. Findings go through one of two channels — the **program channel** (comments on the current program's phase-owning issue) or the **session channel** (comments on a find-or-create session master). The flow is a digraph: `analyze → classify → confirm → resolve-destination → {program · session} → dedup → append-comment → report`. All issue bodies are produced by the renderer CLI at `scripts/report-templates.mjs`; `pluginRoot` is resolved by ascending to the nearest `.claude-plugin/plugin.json`. Manual trigger only.
+Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.osuperpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then attach findings to `Oscaner/skills` issues via `gh`. Findings go through one of two channels — the **program channel** (comments on the current program's phase-owning issue) or the **session channel** (comments on a find-or-create session master). The flow is a digraph: `analyze → classify → confirm → resolve-destination → {program · session} → dedup → append-comment → report`. All issue bodies are produced by the renderer CLI at `scripts/report-templates.mjs`; `pluginRoot` is resolved by ascending to the nearest `.claude-plugin/plugin.json`. Manual trigger only.
 
 ## Flow Digraph
 
@@ -30,7 +30,7 @@ flowchart TD
 The snapshot of the session taken at the start of the flow (before `analyze`); every downstream node derives from this snapshot, never from the live cwd.
 
 - **root**: git top-level of the harness launch cwd (`git rev-parse --show-toplevel`). Captured once at report start; never re-derived from the real-time cwd (`cd` during exploration does not change it).
-- **workspace**: `.superpowers/cdd/<run-slug>/` of the current CDD run — present only when this session is a CDD run; a standalone run has no run slug and therefore no workspace. Cross-repo reuse is forbidden: the CDD run's workspace must resolve under `root`.
+- **workspace**: `.osuperpowers/cdd/<run-slug>/` of the current CDD run — present only when this session is a CDD run; a standalone run has no run slug and therefore no workspace. Cross-repo reuse is forbidden: the CDD run's workspace must resolve under `root`.
 - **channel**: `program` when a workspace exists and the cached `report-target.json` (or the program chain) resolves a program target; otherwise `session`.
 - **subject**: the master title subject — the workspace slug (run slug with the `YYYY-MM-DD-` prefix stripped, e.g. `cdd-engine-overhaul-p4`) for program/consumer-cdd; the confirm-confirmed topic for standalone (model-derived from the first finding, never empty; `standalone` is never used as subject).
 
@@ -43,8 +43,8 @@ Derivations (pure functions):
 
 ### `analyze`
 
-- **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.superpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns. Do not paste API keys, tokens, or secrets — replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before including in findings.
-- **Read**: session context; `{repo}/.superpowers/{sdd,cdd}/*/progress.md`; git log
+- **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.osuperpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns. Do not paste API keys, tokens, or secrets — replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before including in findings.
+- **Read**: session context; `{repo}/.superpowers/sdd/*/progress.md` + `{repo}/.osuperpowers/cdd/*/progress.md`; git log
 - **Exit**: extracted findings → `classify`
 - **Fail**: ledger / git log unavailable → use session context only (fail-open, never block)
 
@@ -67,11 +67,11 @@ Derivations (pure functions):
 ### `resolve-destination`
 
 - **Do**: Resolve the reporting channel for the confirmed findings from the Session Context ([§ Session Context](#session-context-captured-once-at-report-start-pure-function-downstream)).
-  - **CDD run** (has run slug): locate the workspace by identity as `root/.superpowers/cdd/<run-slug>/` — never by scanning the live cwd. **Cache-first**: read `report-target.json` in that workspace. Hit `program` → reuse that issue number (never a new issue); hit `session` → reuse the existing master (date unchanged). On **cache miss**, resolve the program chain — `progress.json#plan` → plan-header `**Spec:**` → overall spec → the phase-owning issue of this program. Persist the resolved target back to the cache so subsequent findings in this session reuse it.
+  - **CDD run** (has run slug): locate the workspace by identity as `root/.osuperpowers/cdd/<run-slug>/` — never by scanning the live cwd. **Cache-first**: read `report-target.json` in that workspace. Hit `program` → reuse that issue number (never a new issue); hit `session` → reuse the existing master (date unchanged). On **cache miss**, resolve the program chain — `progress.json#plan` → plan-header `**Spec:**` → overall spec → the phase-owning issue of this program. Persist the resolved target back to the cache so subsequent findings in this session reuse it.
   - **Standalone run** (no run slug): no workspace, no cache read, no program chain — direct to the session channel (fail-open, never block).
-- **Cache schema**: `.superpowers/cdd/<slug>/report-target.json` = `{ "kind": "program"|"consumer-cdd"|"standalone", "issue"?: <issue-number>, "slug": <workspace-slug>, "resolved_at": <ISO-date> }` — `issue` present only for the program channel.
+- **Cache schema**: `.osuperpowers/cdd/<slug>/report-target.json` = `{ "kind": "program"|"consumer-cdd"|"standalone", "issue"?: <issue-number>, "slug": <workspace-slug>, "resolved_at": <ISO-date> }` — `issue` present only for the program channel.
 - **Channel → kind mapping** (derivation for report-meta `kind`): program channel → `program`; session channel + CDD workspace slug present → `consumer-cdd`; session channel with no workspace (standalone) → `standalone`. Every finding comment and master body carries exactly this resolved `kind` (I7).
-- **Read**: Session Context; `.superpowers/cdd/<run-slug>/report-target.json` (CDD runs only); `progress.json#plan`; plan-header spec chain; phase-owning issue number
+- **Read**: Session Context; `.osuperpowers/cdd/<run-slug>/report-target.json` (CDD runs only); `progress.json#plan`; plan-header spec chain; phase-owning issue number
 - **Exit**: program → `dedup`; session → `ensure-session`
 - **Fail**: program-chain resolution fails → session channel (fail-open, never block)
 

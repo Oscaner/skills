@@ -90,6 +90,10 @@ git add -A docs/ osuperpowers/
 git commit -m "refactor(docs): specs/plans 单根迁移 — docs/superpowers → osuperpowers（39 文件 git-mv + 54 处内部路径重写）"
 ```
 
+> **T1 review-1 follow-up（非本任务缺陷，记录供下游）**：implement handoff 的 `commits.base` 与 `head` 同值（= 任务自身提交 `f672add`）——正确 base 应为 `f672add^`（`bbeec5c`；同任务的 `task-1-test-evidence.json` 与 `report` 均正确记录 `TASK_BASE`）。后果是**行为性**：任何从 `task-N-implement.json` 推导 review range 的消费者（重派 task-review / branch-review / report-issue resolve-destination）会看到 `f672add..HEAD` 空 diff 而对 39 文件迁移静默放行。**P1 程序 task-4 handoff（db3c4f2/db3c4f2）同形 → 疑系统性**（implement 记 base 时取自身提交，或 runner 实体化以 post-commit HEAD 为 base）。本 task artifact 已就地修正；系统性根因（runner base 解析 / implement 提示词契约）留 **P6 或独立 follow-up**。
+
+> **T1 遗留告警（过渡态，Task 4 收口）**：`docs/maintainers/osuperpowers-plugin.md:42,43` 现为**悬空相对链接**（`../../docs/superpowers/specs/` 目标目录已不存在）——Task 4 Step 3 正是重写这两行的动作；branch-review 前须确认 Task 4 已落地。
+
 ---
 
 ### Task 2: validator 单根收敛 + 新 overall guard 归一

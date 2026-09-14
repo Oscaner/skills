@@ -735,7 +735,7 @@ grep -l "utils/exit\|utils/skills" packages/cdd-engine/bin/lib/*.mjs
 若有，将 `../../utils/exit.mjs` 等路径替换为从 `packages/osuperpowers` 的相对路径，或（推荐）将 `exit.mjs` 也复制到 cdd-engine：
 
 ```bash
-# 检查哪些 lib 文件引用了 osuperpowers/bin/utils/
+# 检查哪些 lib 文件引用了 docs/osuperpowers/bin/utils/
 grep -rn "from.*utils/" packages/cdd-engine/bin/lib/
 ```
 
@@ -1072,7 +1072,7 @@ it('subprocess cwd = gitToplevel(process.cwd()) not doc directory', async () => 
     harness:   'claude',
     mode:      'review',
     template:  'spec-review',
-    doc:       '/repo/root/osuperpowers/specs/my-spec.md',
+    doc:       '/repo/root/docs/osuperpowers/specs/my-spec.md',
     params:    { PASS: 'completeness' },
     workspace: '/repo/root/.superpowers/docs-review',
     repoRoot:  '/repo/root',
@@ -1524,7 +1524,7 @@ describe('Bug K: docs-task workspace', () => {
       harness:  'claude',
       mode:     'review',
       template: 'spec-review',
-      doc:      '/repo/root/osuperpowers/specs/my-spec.md',
+      doc:      '/repo/root/docs/osuperpowers/specs/my-spec.md',
       param:    { PASS: 'completeness' },
     });
 
@@ -1826,7 +1826,7 @@ git commit -m "test(cdd-engine): complete Vitest migration — all tests pass"
 - Produces: `packages/osuperpowers` 依赖 `@oscaner-skills/cdd-engine: "workspace:*"`
 - Produces: osuperpowers 中无 engine 代码残留
 
-- [ ] **Step 1: 更新 osuperpowers/package.json**
+- [ ] **Step 1: 更新 docs/osuperpowers/package.json**
 
 编辑 `packages/osuperpowers/package.json`：
 

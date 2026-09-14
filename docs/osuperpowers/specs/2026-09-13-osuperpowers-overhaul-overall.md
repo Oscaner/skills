@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 — Overall Spec
 
-- **Version**: v1.7 · 2026-09-14
+- **Version**: v1.8 · 2026-09-14
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -22,13 +22,13 @@ Charter only — no implementation detail。
 
 ## File paths
 
-新布局**前瞻执行**：本 overall 即 `osuperpowers/` 根下第一个文档（req 2 落点）；`docs/superpowers/` 下 39 个历史 spec/plan 由 P2 git-mv 迁入，验证器届时收敛单 glob。
+新布局**前瞻执行**：本 overall 即 `docs/osuperpowers/` 根下第一个文档（req 2 落点）；`docs/superpowers/` 下 39 个历史 spec/plan 由 P2 git-mv 迁入，验证器届时收敛单 glob。
 
 | Artifact | Path |
 |---|---|
-| Overall | `osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md` |
-| Phase spec | `osuperpowers/specs/2026-09-13-osuperpowers-overhaul-<phase-id>-design.md` |
-| Phase plan | `osuperpowers/plans/2026-09-13-osuperpowers-overhaul-<phase-id>.md` |
+| Overall | `docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md` |
+| Phase spec | `docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-<phase-id>-design.md` |
+| Phase plan | `docs/osuperpowers/plans/2026-09-13-osuperpowers-overhaul-<phase-id>.md` |
 
 `<phase-id>` 小写（`p1`…`p6`）。Inventory 列在文件落盘后链入。
 
@@ -36,7 +36,7 @@ Charter only — no implementation detail。
 
 ## Program charter
 
-将 osuperpowers 插件 + cdd-engine 从「多根命名、读上游基线的大体积 SKILL、冗余命令面」收敛为「**单根 artifact 布局（`.osuperpowers/` 运行时 + `osuperpowers/` 文档）、命令面精简（implement/review/fix/base-branch）、session-call 简洁 skill 树（不读上游、纯 `/xxx` 调用、保留节点锚定骨架）**」的收敛程序。九项需求（req 1–9，含用户初始 skills 箭头流程）全部源自用户 2026-09-13 的 new-program 脑暴；skills 的目标架构（含 `writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` 新 skill 与 report-issues 改名）定案于本 program charter，P4/P5 按其执行。
+将 osuperpowers 插件 + cdd-engine 从「多根命名、读上游基线的大体积 SKILL、冗余命令面」收敛为「**单根 artifact 布局（`.osuperpowers/` 运行时 + `docs/osuperpowers/` 文档）、命令面精简（implement/review/fix/base-branch）、session-call 简洁 skill 树（不读上游、纯 `/xxx` 调用、保留节点锚定骨架）**」的收敛程序。九项需求（req 1–9，含用户初始 skills 箭头流程）全部源自用户 2026-09-13 的 new-program 脑暴；skills 的目标架构（含 `writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` 新 skill 与 report-issues 改名）定案于本 program charter，P4/P5 按其执行。
 
 **cdd-engine 服务化主线（2026-09-13 用户升维）**：本程序**包括 cdd-engine 的重构**——engine 不是被路径/命令清理的被动对象，而是重构为**服务整个体系的底层服务层**：workspace 布局（单根 `.osuperpowers/cdd/<slug>` + standalone 并入）→ 命令面（implement/review/fix/base-branch 四命令收敛）→ host harness 检测自包含 → 渲染/模板数据化 → artifact 写权全归 engine。skills 全面变薄后，engine 是唯一 artifact 写者 + 唯一 harness 解析者 + 唯一命令持有者——「engine 服务，skills 编排」是本次重构的边界原则。
 
@@ -49,7 +49,7 @@ Charter only — no implementation detail。
 **Cross-cutting constraints**：
 - **节点锚定式规则保留**：简洁模式 ≠ 无结构——所有 SKILL.md 仍须 digraph + 节点定义 + exit/fail 语义（skill-authoring 已确立的骨架不变），只是 Content 改为 session-call 命令链
 - **skills 内容全重写**：不再读上游 skill 文档；完全依赖 `Run a /xxx session` 调用（grill-me 范本：frontmatter + 命令链）；删除旧规则机械（read-upstream 基线、Invariants 冗余表、failure-mode 长表、`_docs/review.md` URC）
-- **artifacts 单落点**：`.osuperpowers/cdd/<slug>/`（standalone 并入，不同 feature 独立 base-branch）；文档单根 `osuperpowers/{specs,plans}`
+- **artifacts 单落点**：`.osuperpowers/cdd/<slug>/`（standalone 并入，不同 feature 独立 base-branch）；文档单根 `docs/osuperpowers/{specs,plans}`
 - **host harness 自检自包含**：全部在 cdd-engine 内（`requireHostHarness` + harness-registry.json）；skills 不承载 harness 特判 prose
 - **改动前置**：见 Boundary rules——mid-phase 需求变更先回填本 overall 再继续
 
@@ -64,7 +64,7 @@ Charter only — no implementation detail。
 | P1 | req 1（用户 2026-09-13） | cdd handoff JSON 产出根收敛为 `.osuperpowers/cdd/<slug>`（`.superpowers/cdd` 迁移） |
 | P1 | 补充拍板（2026-09-13 P1 brainstorm 升格） | `.superpowers/standalone/` **零真实派发**（伪功能，无任何消费实体）→ standalone 概念**整体移除**（非「并入 `cdd/<slug>`」）：STANDALONE_ROOT / `--scope` / `--slug` 全删，base-branch CLI 单调 `--plan`，finishing 无 artifact 场景推断后不落盘 |
 | P1 | 补充指令（2026-09-13） | `.superpowers/{docs-review, archive-*}` 等 legacy 残留移除（迁移前提=真实需要，遗留即删） |
-| P2 | req 2 | specs/plans 产出到 `[repo]/osuperpowers/[specs\|plans]`（`docs/superpowers/` 迁移；39 历史文件 git-mv 已拍板） |
+| P2 | req 2 | specs/plans 产出到 `[repo]/docs/osuperpowers/[specs\|plans]`（`docs/superpowers/` 迁移；39 历史文件 git-mv 已拍板） |
 | P3 | req 4 | `cdd brief` 不单独构建，自包含到 `cdd implement` 内（独立命令删除，lib/brief.mjs 保留供 run-task） |
 | P3 | req 6 | 清理 `cdd research` 独立命令（skill 删除归 P4） |
 | P3 | req 7 | 清理冗余 cdd 命令；base-branch CLI `--scope standalone` 已归 P1（standalone 整体移除） |
@@ -84,7 +84,7 @@ Charter only — no implementation detail。
 | # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
 |---|---|---|---|---|---|---|
 | P1 | **cdd-engine 服务化重构① · runtime 布局**：workspace 根 `.superpowers/cdd` → `.osuperpowers/cdd`（handoff-namespace.json#workspaceRoot / lifecycle / progress / registry 路径随迁）；**standalone 整体移除**（零真实派发伪功能——`.superpowers/standalone/` 从未创建、13 个历史 base-branch.json 全在 `cdd/` 下）：STANDALONE_ROOT / `--scope` / `--slug` 全删、base-branch CLI 单调 `--plan`、finishing read-base 无 artifact 推断后不落盘；`.superpowers/{docs-review, archive-*}` 残留清除；**存量 `.superpowers/cdd/*` 工作区全量删除**（18 历史程序 + lifecycle.json + smoke + archive + docs-review——gitignored 死档无 reader，破坏性重构授权下遗留即删；本程序自身 spec-review-1/2 落在旧根已消费完毕，P1 后后续 phase review/fix 在新根重开 round——doc_hash 双签名使 Stopping 语义不因分根断裂）；gitignore（保留 `.superpowers` 含 sdd + 增 `.osuperpowers`）/ residue guard（stale-lexicon 防 `.superpowers/cdd`/`standalone` 回渗，`.superpowers/sdd` 放行）/ smoke-cdd / engine tests / skills docs 路径 / report-issue 读取路径同步（`.superpowers/sdd` 保留——superpowers 所属，不在本程序迁移域） | P1-design v1.0（2026-09-13） | Done | 引擎运行期零 `.superpowers` 写入（superpowers 的 sdd 保留面除外，resolveWorkspace 全走新根）；`.superpowers/` 下**仅存 `sdd/`**（cdd 全 workspace / lifecycle / smoke / archive / docs-review 已删，git status 干净）；`cdd base-branch set/get` 仅 `--plan` 目标（`--scope`/`--slug` 标识不存在）；finishing read-base 无 artifact → 推断 base 传给 present-menu 不落盘；新增 `.superpowers/cdd` / `.superpowers/standalone` stale-lexicon 守卫机制位置零命中（`.superpowers/sdd` 引用放行）；根 `.gitignore` 同时含 `.superpowers` + `.osuperpowers`；`pnpm run validate` 13 块全绿 | 无（program 起点） |
-| P2 | specs/plans 落点迁移：`docs/superpowers/{specs,plans}` 39 个历史文件 git-mv → `osuperpowers/{specs,plans}`；`naming.mjs rootFromDocPath` 识别新布局；`overall-consistency` validator glob + fixtures 迁移；residue 豁免路径；skills / templates 内 path 文本、README / CLAUDE.md / maintainer docs 同步；空 `docs/superpowers` 清理 | [Pending] | [Pending] | 单一 spec/plan 根 `osuperpowers/` 且 validator 单 glob；历史 39 + 在途程序经迁移后验证全绿不误报；零 `docs/superpowers` 引用残留（git 历史无关）；`pnpm run validate` 全绿 | 无 |
+| P2 | specs/plans 落点迁移：`docs/superpowers/{specs,plans}` 39 个历史文件 git-mv → `docs/osuperpowers/{specs,plans}`；`naming.mjs rootFromDocPath` 识别新布局；`overall-consistency` validator glob + fixtures 迁移；residue 豁免路径；skills / templates 内 path 文本、README / CLAUDE.md / maintainer docs 同步；空 `docs/superpowers` 清理 | [Pending] | [Pending] | 单一 spec/plan 根 `docs/osuperpowers/` 且 validator 单 glob；历史 39 + 在途程序经迁移后验证全绿不误报；零 `docs/superpowers` 引用残留（git 历史无关）；`pnpm run validate` 全绿 | 无 |
 | P3 | **cdd-engine 服务化重构② · 命令面与契约**：`cdd brief` 自包含入 implement（删独立命令 + 相对 `packages/cdd-engine/` 的 `lib/cli/brief.mjs`，保留 `lib/brief.mjs generateBrief` 供 run-task）；`cdd research` 移除（删 CLI + `lib/cli/research.mjs` + tests + SUBCOMMAND_USAGE【位于 `lib/cli/parse.mjs`】+ bin 注释【位于 `bin/cdd.mjs`】）；base-branch CLI `--scope standalone` 已随 P1 移除；usage / README CDD CLI 表同步 | [Pending] | [Pending] | `cdd --help` 子命令集合收敛为 implement/review/fix/base-branch；零 brief/research 残留引用（历史 plan/spec 文档除外）；engine 相关 tests 与命令面同步；`pnpm run validate` 全绿 | P1 ->(soft) P3（standalone 面已并） |
 | P4 | skills 全面重写：8 skill 全量 session-call 简洁模式（grill-me 范本——frontmatter + `Run a /xxx session` 命令链 + `cdd review/fix` 循环 + 判定门；**保留节点锚定式骨架** digraph + 节点定义）；新树 = brainstorming（委托重构）/ writing-single-spec（新）/ writing-overall-spec（新）/ writing-phase-spec（新）/ writing-plans / cli-driven-development（**每 Task 串行闭环：implement → review1 → fix1 → review2 → fix2 → … → review 输出 blocker=0 + findings 全 fix 后才进下一 Task implement**）/ finishing / report-issues（改名归 P5，P4 定树）；`init` 删除、`cli-research` 删除、`_docs/review.md` URC 折叠（Review Stopping 一行入各 skill）；templates 就近迁移（overall-spec-template → writing-overall-spec、phase-spec-template → writing-phase-spec、add-phase-protocol 随附、finding-meta.json 随 report-issues——component 列表更新归 P5）；harness prose 收敛（engine 自检，skills 零特判）；digraph-consistency.test 更新（init 豁免移除） | [Pending] | [Pending] | 新 skill 树 8 skill 全节点锚定（digraph+节点定义）；**所有 skill（含 brainstorming）零上游文档 read——流程基线一律 `Run a /xxx session` 会话调用（grill-me 模式），无 authoring-read 例外；brainstorming 的「Run `/superpowers:brainstorming` 作为 baseline」即会话调用，非 read**；cli-driven-development 每 Task 闭环语义可执行（T1 loop 全完才进 T2）；emit 无 drift；README / 发布面零 cli-research / init 残留；`pnpm run validate` 全绿（含 digraph-consistency 无豁免） | P3 ->(soft) P4（research CLI 移除先行） |
 | P5 | report-issue → report-issues 改名与流程精炼：skill 目录 / SKILL.md frontmatter / context 引用 / finding-meta.json components 更新（init 移除 + 改名）/ `.github/ISSUE_TEMPLATE` re-render（emit）/ README；findings 聚合流程精炼（explore-current-session → collect → reform【privacy 剥离 + maintainer-friendly】→ confirm → gh dedup【open+closed】→ **单新 issue 聚合** + dedup links + friendly 标题） | [Pending] | [Pending] | 零 `report-issue` 引用残留（CHANGELOG 豁免）；新聚合流程落盘于 SKILL.md；`pnpm run emit` 后 `.github/ISSUE_TEMPLATE` 与 finding-meta 一致；`pnpm run validate` 全绿 | P4 ->(soft) P5（skill 树定案后改名） |
@@ -254,3 +254,4 @@ explore-current-session
 | v1.5 | 2026-09-14 | **P1 dev shipped**（CDD 5-task 全串行闭环 + branch-review develop..HEAD APPROVED 0 findings）：workspaceRoot 单源翻转 `.superpowers/cdd`→`.osuperpowers/cdd`（engine 产物/handoff/progress/lifecycle/base-branch/report-target 全落新根）+ 全 literal 迁移（13 测试文件 + engine 源注释 + 7 skills/docs + smoke-cdd + gitignore）；standalone 整体移除（`cdd base-branch` 单调 `--plan`、STANDALONE_ROOT/`--scope`/`--slug` 全删、finishing read-base 无 artifact 推断不落盘）；存量旧根死档全量删除（`.superpowers/` 仅存 `sdd/`）；stale-lexicon 守卫 `.superpowers/cdd`/`standalone` 防回渗 + sdd 放行；changeset cdd-engine minor（p1-cdd-runtime-layout-singleton）；**F13 closeout 检查点执行**（P1 Phase inventory plan 列回填 [Pending]→Done + closeout 行声明）（v1.4→v1.5） | [human] · Claude Opus 5 (1M context) |
 | v1.6 | 2026-09-14 | **writing-plans design 回填步骤（用户 2026-09-14 补充，与 P2 scope 无关）**：目标 skills 架构参考 §writing-plans 增一步——**plan 过程中若发现 design 存在实质性偏移（事实性错误 / 缺失约束 / 需新增实施步骤）→ 先回填 design spec（修订 + 记录该偏移），令 spec 与 plan 一致后再进入 plan-review**；涉跨 phase 事项仍按 Boundary rules 回填本 overall。固化 P2 plan 阶段实况：写 plan 时发现 P2 design §2.3 缺「新 overall canonical 列归一」要求（overall-consistency ① 回填声明 ↔ 列字面等价）→ 当场补注 design spec（v1.5→v1.6） | [human] · Claude Opus 5 (1M context) |
 | v1.7 | 2026-09-14 | **P2 canonical 列归一**：P1 `Implementation plan` 列由 `**Done**（2026-09-14 shipped…）` 收敛为裸 `Done`——① 回填声明 target key 与列字面等价（canonical 形同 cdd-overhaul P1 列），令新 overall 通过 overall-consistency 四表守卫；交付详情见 v1.5（v1.6→v1.7） | [human] · Claude Opus 5 (1M context) |
+| v1.8 | 2026-09-14 | **docs 根纠正（用户 2026-09-14 指令；program 级需求变更，Boundary rules 回填）**：docs 单根由 `osuperpowers/{specs,plans}` 纠正为 **`docs/osuperpowers/{specs,plans}`**（与既有 `docs/maintainers/` 同处 `docs/` 根；亦避免与 `packages/osuperpowers/`、`.osuperpowers/` 的命名混淆）。本表 File paths 三行 + P2 scope/acceptance 同步；P2 design/plan 全路径面重写；validator `SPECS_DIR`/`PLANS_DIR` = `docs/osuperpowers/{specs,plans}`；`rootFromDocPath` marker 相应为 `docs`+`osuperpowers`（+ `specs`|`plans`）。T1/T2 已执行产物按纠正重落（v1.7→v1.8） | [human] · Claude Opus 5 (1M context) |

@@ -1,19 +1,21 @@
 # osuperpowers 架构重构 P2 — docs 根落点迁移实施计划
 
-**Spec:** [2026-09-13-osuperpowers-overhaul-p2-design.md](osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p2-design.md)
+**Spec:** [2026-09-13-osuperpowers-overhaul-p2-design.md](docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p2-design.md)
 
-**Goal:** docs 单根收敛——`docs/superpowers/{specs,plans}` 39 历史文件 git-mv → `osuperpowers/{specs,plans}`（54 次内部路径引用重写），`rootFromDocPath` 识别新布局、validator 单 glob、residue 守卫防回渗、active 约定文档同步、tickets 死引用全移除。
+**Goal:** docs 单根收敛——`docs/superpowers/{specs,plans}` 39 历史文件 git-mv → `docs/osuperpowers/{specs,plans}`（54 次内部路径引用重写），`rootFromDocPath` 识别新布局、validator 单 glob、residue 守卫防回渗、active 约定文档同步、tickets 死引用全移除。
 
-**Architecture:** 迁移分两层——**数据层**（39 文件物理移动 + 机械字符串重写，保持跨文件链接与 validator 扫描面内在一致）与**机制层**（engine `rootFromDocPath` marker 翻新 + `overall-consistency` SPECS_DIR/PLANS_DIR 单根 + residue stale-lexicon 新守卫 + grep-sweep 死过滤器清理）。in-flight program 文档（`2026-09-13-osuperpowers-overhaul*`）作为迁移前因记录豁免（与 CHANGELOG 同性）；新 overall 首次进入 guard 面需 canonical 列归一（P1 plan 列 `**Done**（…）` → 裸 `Done`）。
+**Architecture:** 迁移分两层——**数据层**（39 文件物理移动 + 机械字符串重写，保持跨文件链接与 validator 扫描面内在一致）与**机制层**（engine `rootFromDocPath` marker 翻新 + `overall-consistency` SPECS_DIR/PLANS_DIR 单根 + residue stale-lexicon 新守卫 + grep-sweep 过滤器重指向）。in-flight program 文档（`2026-09-13-osuperpowers-overhaul*`）作为迁移前因记录豁免（与 CHANGELOG 同性）；新 overall 首次进入 guard 面需 canonical 列归一（P1 plan 列 `**Done**（…）` → 裸 `Done`）。
 
 **Tech Stack:** Node ESM (engine lib/tests + validate 脚本) · Vitest (engine + scripts suites) · tinyglobby · git mv/sed
+
+> **docs 根纠正（2026-09-14 / overall v1.8，用户指令）**：目标落点已由 `osuperpowers/{specs,plans}` 纠正为 **`docs/osuperpowers/{specs,plans}`**（`docs/maintainers/` 同处 `docs/` 根）。**T1/T2 已按旧根执行完毕，并由本次纠正重落**（`git mv osuperpowers docs/osuperpowers` + 全路径面重写 + validator 常量改 `docs`+`osuperpowers`）；**T3–T6 按本文件现行路径执行**——T3 的 `rootFromDocPath` marker 即 `["docs","osuperpowers"]`（+ `specs`|`plans`）。
 
 ## Global Constraints
 
 从 overall + P2 design copy：
 - `workspaceRoot` 单源 `.osuperpowers/cdd`（`packages/cdd-engine/templates/handoff-namespace.json`）为 P1 定案，本 phase 不动
-- 记录豁免集（§2.7 模式）：`osuperpowers/{specs,plans}/2026-09-13-osuperpowers-overhaul*` + `.changeset/`；其余 live tree 零 `docs/superpowers`
-- 39 文件迁移后 `docs/` 仅余 `maintainers/`；`osuperpowers/specs/` = 24、`osuperpowers/plans/` = 20（P2 完成时点）
+- 记录豁免集（§2.7 模式）：`docs/osuperpowers/{specs,plans}/2026-09-13-osuperpowers-overhaul*` + `.changeset/`；其余 live tree 零 `docs/superpowers`
+- 39 文件迁移后 `docs/` 仅余 `maintainers/`；`docs/osuperpowers/specs/` = 24、`docs/osuperpowers/plans/` = 20（P2 完成时点）
 - 所有改动须过 `pnpm run validate`（13 块）+ `pnpm run emit:check` 无 drift；**emit 唯一入口 = 仓库根 `pnpm run emit`**（`packages/osuperpowers/package.json` 无 scripts 字段）
 - changeset：`@oscaner-skills/cdd-engine` minor；osuperpowers 本次不 bump（P4 再计）
 - vendored 子模块不可改（`vendors/mattpocock-skills/.../to-tickets/` 物理目录保留，无生产引用即无残留）
@@ -24,23 +26,23 @@
 ### Task 1: docs 根迁移 — 39 文件 git-mv + 54 次内容重写 + 空目录清理
 
 **Files:**
-- Move: `docs/superpowers/specs/*.md`（21）→ `osuperpowers/specs/`；`docs/superpowers/plans/*.md`（18）→ `osuperpowers/plans/`
-- Modify（重写，21 个历史文件内 54 次出现/53 行）：机械 `docs/superpowers` → `osuperpowers`
+- Move: `docs/superpowers/specs/*.md`（21）→ `docs/osuperpowers/specs/`；`docs/superpowers/plans/*.md`（18）→ `docs/osuperpowers/plans/`
+- Modify（重写，21 个历史文件内 54 次出现/53 行）：机械 `docs/superpowers` → `docs/osuperpowers`
 - Remove: `docs/superpowers/`（移空后目录）
 - Test: shell 计数 + `pnpm run validate`（block 12 本轮预期 SKIP——validator 仍指旧根，Task 2 收敛）
 
 **Interfaces:**
 - Consumes: P2 design §2.1 迁移面
-- Produces: docs 单根 `osuperpowers/{specs,plans}`（24/20 文件）；历史 39 文件内部路径引用指向新根；`docs/superpowers/` 不存在
-- **前置条件**：在途程序文档（overall v1.6 / p2-design / p2-plan）须**已各自 commit**（brainstorming 的 `commit-spec` + writing-plans 的 `commit-plan` gate），工作区对 `osuperpowers/` 干净后再执行——否则 `git add -A docs/ osuperpowers/` 会把无关在途改动卷入迁移 commit。
+- Produces: docs 单根 `docs/osuperpowers/{specs,plans}`（24/20 文件）；历史 39 文件内部路径引用指向新根；`docs/superpowers/` 不存在
+- **前置条件**：在途程序文档（overall v1.6 / p2-design / p2-plan）须**已各自 commit**（brainstorming 的 `commit-spec` + writing-plans 的 `commit-plan` gate），工作区对 `docs/osuperpowers/` 干净后再执行——否则 `git add -A docs/` 会把无关在途改动卷入迁移 commit。
 
 - [ ] **Step 1: 先重写内容（旧目录内，避免误伤 in-flight 豁免记录）**
 
-**必须在 git mv 之前**在旧目录内执行——`grep -rl` 若在迁移后按 `osuperpowers/` 扫，会命中须豁免的 in-flight 文档（overall / p1-design / p1-plan / p2-design / 本 plan）。
+**必须在 git mv 之前**在旧目录内执行——`grep -rl` 若在迁移后按 `docs/osuperpowers/` 扫，会命中须豁免的 in-flight 文档（overall / p1-design / p1-plan / p2-design / 本 plan）。
 
 ```bash
 cd /Users/kang/Projects/oscaner-skills
-grep -rl "docs/superpowers" docs/superpowers/ | xargs sed -i '' 's#docs/superpowers#osuperpowers#g'
+grep -rl "docs/superpowers" docs/superpowers/ | xargs sed -i '' 's#docs/superpowers#docs/osuperpowers#g'
 grep -r "docs/superpowers" docs/superpowers/ | wc -l   # 期望 0
 ```
 Expected: 21 个文件被改写（54 次出现 → 0）。**例外注记（design §2.1）**：`plans/2026-09-04-cdd-engine-overhaul-p1.md:1084,1539` 与 `plans/2026-09-05-cdd-engine-overhaul-p2.md:580` 为历史代码 literal（断言/命令），机械重写后作为迁移前描述——同批处理，无需特殊分支。
@@ -48,8 +50,8 @@ Expected: 21 个文件被改写（54 次出现 → 0）。**例外注记（desig
 - [ ] **Step 2: git mv 39 文件**
 
 ```bash
-git mv docs/superpowers/specs/*.md osuperpowers/specs/
-git mv docs/superpowers/plans/*.md osuperpowers/plans/
+git mv docs/superpowers/specs/*.md docs/osuperpowers/specs/
+git mv docs/superpowers/plans/*.md docs/osuperpowers/plans/
 ```
 Expected: 39 个 rename（21 含内容修改）。目标目录无同名冲突（in-flight 文档命名 `2026-09-13-osuperpowers-overhaul*` 与新迁入历史文件名不同日期前缀）。
 
@@ -59,18 +61,18 @@ Expected: 39 个 rename（21 含内容修改）。目标目录无同名冲突（
 find docs/superpowers -type f | head     # 期望：无输出（已移空）
 rm -rf docs/superpowers
 ls docs/                                   # 期望：仅 maintainers/
-ls osuperpowers/specs/*.md | wc -l         # 期望 24（21 历史 + overall + p1-design + p2-design）
-ls osuperpowers/plans/*.md | wc -l         # 期望 20（18 历史 + p1 + p2 plan）
-ls osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p2-design.md   # 存在
-ls osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p2.md          # 存在
+ls docs/osuperpowers/specs/*.md | wc -l         # 期望 24（21 历史 + overall + p1-design + p2-design）
+ls docs/osuperpowers/plans/*.md | wc -l         # 期望 20（18 历史 + p1 + p2 plan）
+ls docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p2-design.md   # 存在
+ls docs/osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p2.md          # 存在
 git status --short                         # 期望：39 rename（21 显示 modified）——前置条件满足时无其他条目
 ```
 
 - [ ] **Step 4: plan `**Spec:**` 链接解析验证（行为性）**
 
 ```bash
-for f in osuperpowers/plans/*.md; do
-  t=$(grep -m1 -o '(osuperpowers/specs/[^)]*)' "$f" | tr -d '()')
+for f in docs/osuperpowers/plans/*.md; do
+  t=$(grep -m1 -o '(docs/osuperpowers/specs/[^)]*)' "$f" | tr -d '()')
   if [ -n "$t" ] && [ ! -f "$t" ]; then echo "UNRESOLVED: $f → $t"; fi
 done
 ```
@@ -81,13 +83,13 @@ Expected: 无 `UNRESOLVED` 行（历史 plan 的 `**Spec:**` 链接重写后指�
 ```bash
 node scripts/run.mjs validate
 ```
-Expected: 全绿。**block 12（overall consistency）本轮预期打印 `SKIP — no docs/superpowers/specs`**——validator 常量仍指旧根（Task 2 收敛为 `osuperpowers/`）；此为本 task 的预期过渡态，非缺陷。其余 12 块 + emit freshness 全 OK。
+Expected: 全绿。**block 12（overall consistency）本轮预期打印 `SKIP — no docs/superpowers/specs`**——validator 常量仍指旧根（Task 2 收敛为 `docs/osuperpowers/`）；此为本 task 的预期过渡态，非缺陷。其余 12 块 + emit freshness 全 OK。
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add -A docs/ osuperpowers/
-git commit -m "refactor(docs): specs/plans 单根迁移 — docs/superpowers → osuperpowers（39 文件 git-mv + 54 处内部路径重写）"
+git add -A docs/
+git commit -m "refactor(docs): specs/plans 单根迁移 — docs/superpowers → docs/osuperpowers（39 文件 git-mv + 54 处内部路径重写）"
 ```
 
 > **T1 review-1 follow-up（非本任务缺陷，记录供下游）**：implement handoff 的 `commits.base` 与 `head` 同值（= 任务自身提交 `f672add`）——正确 base 应为 `f672add^`（`bbeec5c`；同任务的 `task-1-test-evidence.json` 与 `report` 均正确记录 `TASK_BASE`）。后果是**行为性**：任何从 `task-N-implement.json` 推导 review range 的消费者（重派 task-review / branch-review / report-issue resolve-destination）会看到 `f672add..HEAD` 空 diff 而对 39 文件迁移静默放行。**P1 程序 task-4 handoff（db3c4f2/db3c4f2）同形 → 疑系统性**（implement 记 base 时取自身提交，或 runner 实体化以 post-commit HEAD 为 base）。本 task artifact 已就地修正；系统性根因（runner base 解析 / implement 提示词契约）留 **P6 或独立 follow-up**。
@@ -100,28 +102,28 @@ git commit -m "refactor(docs): specs/plans 单根迁移 — docs/superpowers →
 
 **Files:**
 - Modify: `scripts/validate/overall-consistency.mjs:32,39,40,461`
-- Modify: `osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md`（header version、P1 Phase inventory plan 列、change-history v1.3 行 claim 句切分、change-history 追加 v1.7）
+- Modify: `docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md`（header version、P1 Phase inventory plan 列、change-history v1.3 行 claim 句切分、change-history 追加 v1.7）
 - Test: `node scripts/run.mjs validate`（block 12）+ `pnpm exec vitest run scripts/validate/overall-consistency.test.mjs`
 
 **Interfaces:**
 - Consumes: Task 1（docs 已落新根）
-- Produces: `SPECS_DIR`/`PLANS_DIR` = `osuperpowers/{specs,plans}`；新 overall 满足 canonical 4-table 守卫；block 12 恢复启用（3 canonical OK + 1 skip）
+- Produces: `SPECS_DIR`/`PLANS_DIR` = `docs/osuperpowers/{specs,plans}`；新 overall 满足 canonical 4-table 守卫；block 12 恢复启用（3 canonical OK + 1 skip）
 
 - [ ] **Step 1: 收敛 validator 常量**
 
 `scripts/validate/overall-consistency.mjs`：
 ```js
-const SPECS_DIR = join(process.cwd(), "osuperpowers", "specs");
-const PLANS_DIR = join(process.cwd(), "osuperpowers", "plans");
+const SPECS_DIR = join(process.cwd(), "docs", "osuperpowers", "specs");
+const PLANS_DIR = join(process.cwd(), "docs", "osuperpowers", "plans");
 ```
-- line 32 注释：`Standalone (…) scans docs/superpowers/specs/*-overall.md` → `osuperpowers/specs/*-overall.md`
-- line 461 `SKIP` 文案：`"SKIP — no docs/superpowers/specs"` → `"SKIP — no osuperpowers/specs"`
+- line 32 注释：`Standalone (…) scans docs/superpowers/specs/*-overall.md` → `docs/osuperpowers/specs/*-overall.md`
+- line 461 `SKIP` 文案：`"SKIP — no docs/superpowers/specs"` → `"SKIP — no docs/osuperpowers/specs"`
 
 - [ ] **Step 2: 新 overall canonical 列归一**
 
 > 注：本 phase 开始前 overall 已达 **v1.6**（2026-09-14 用户补充的 §writing-plans design 回填步骤，与本 task 无关；见 change-history v1.6）。本 task 的归一即 **v1.6 → v1.7**。
 
-`osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md`：
+`docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md`：
 - Phase inventory P1 行 `Implementation plan` 列：`**Done**（2026-09-14 shipped，plan v1.0 5-tasks 全闭环 + branch-review APPROVED）` → 裸 `Done`（canonical 形——`claimKey` 取 `Done`，列须字面等价；详情已存 change-history v1.5）
 - header：`- **Version**: v1.6 · 2026-09-14` → `v1.7 · 2026-09-14`
 - Change history 追加一行（**不得含 `Pending` + `→` 组合**，避免生成伪 claim）：
@@ -155,8 +157,8 @@ ALL PASS — 3/4 canonical overall files consistent
 - [ ] **Step 4: Commit**
 
 ```bash
-git add scripts/validate/overall-consistency.mjs osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md
-git commit -m "refactor(validate): overall-consistency 单根 osuperpowers/ + 新 overall canonical 列归一（v1.7）"
+git add scripts/validate/overall-consistency.mjs docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-overall.md
+git commit -m "refactor(validate): overall-consistency 单根 docs/osuperpowers/ + 新 overall canonical 列归一（v1.7）"
 ```
 
 ---
@@ -172,13 +174,13 @@ git commit -m "refactor(validate): overall-consistency 单根 osuperpowers/ + �
 
 **Interfaces:**
 - Consumes: Task 1（新根已落）
-- Produces: `rootFromDocPath` 识别 `<root>/osuperpowers/{specs,plans}/…`；旧 `docs/superpowers` marker 不存在
+- Produces: `rootFromDocPath` 识别 `<root>/docs/osuperpowers/{specs,plans}/…`；旧 `docs/superpowers` marker 不存在
 
 - [ ] **Step 1: 翻新 marker**
 
-`naming.mjs` `rootFromDocPath`（line 128-137）——段对 `["docs","superpowers"]` → **`["osuperpowers", "specs"|"plans"]`**：
+`naming.mjs` `rootFromDocPath`（line 128-137）——段对 `["docs","superpowers"]` → **`["docs", "osuperpowers"]`（+ `specs`|`plans`）**：
 ```js
-// canonical 布局推导：<root>/osuperpowers/{specs,plans}/… 中 `osuperpowers` 段之前的路径即 gitRoot。
+// canonical 布局推导：<root>/docs/osuperpowers/{specs,plans}/… 中 `docs`+`osuperpowers` 段之前的路径即 gitRoot。
 // 严格配对（`osuperpowers` 后须随 `specs`/`plans`）——运行根 `.osuperpowers/cdd/…` 的 `.osuperpowers`
 // 段带前导点 ≠ `osuperpowers`，段相等性天然不串。
 function rootFromDocPath(doc) {
@@ -191,7 +193,7 @@ function rootFromDocPath(doc) {
   return null;
 }
 ```
-同步 line 119-121 `resolveWorkspace` 头注释：canonical 布局标记 `docs/superpowers/` → `osuperpowers/{specs,plans}/`。
+同步 line 119-121 `resolveWorkspace` 头注释：canonical 布局标记 `docs/superpowers/` → `docs/osuperpowers/{specs,plans}/`。
 
 - [ ] **Step 2: 迁移 3 个夹具文件假路径 + AC2 反射例**
 
@@ -199,7 +201,7 @@ function rootFromDocPath(doc) {
 
 `docs-runner.test.mjs:159` 断言精确化——workspace 路径 `<root>/.osuperpowers/cdd/<slug>` 含 `osuperpowers` 子串，裸断言会误命中：
 ```js
-expect(callOpts.cwd).not.toContain("/osuperpowers/specs");   // 原 not.toContain("docs/superpowers")
+expect(callOpts.cwd).not.toContain("/docs/osuperpowers/specs");   // 原 not.toContain("docs/superpowers")
 ```
 
 **AC2 反射例（运行根不误匹配）**——`handoff-naming.test.mjs` 的 resolveWorkspace 用例旁补：
@@ -219,7 +221,7 @@ Expected: 371 tests 全绿（`handoff-naming` / `cdd` / `docs-runner` 新布局 
 
 ```bash
 git add packages/cdd-engine
-git commit -m "refactor(cdd-engine): rootFromDocPath 识别 osuperpowers/{specs,plans} 布局（drop docs/superpowers 旧 marker）"
+git commit -m "refactor(cdd-engine): rootFromDocPath 识别 docs/osuperpowers/{specs,plans} 布局（drop docs/superpowers 旧 marker）"
 ```
 
 ---
@@ -245,11 +247,11 @@ git commit -m "refactor(cdd-engine): rootFromDocPath 识别 osuperpowers/{specs,
 
 - [ ] **Step 1: skills / template / CLI 文档路径同步**
 
-- `writing-plans/SKILL.md:34`：`docs/superpowers/plans/YYYY-MM-DD-<feature>.md` → `osuperpowers/plans/…`；spec-link `(docs/superpowers/specs/<name>-design.md)` → `(osuperpowers/specs/<name>-design.md)`
-- `brainstorming/SKILL.md:67,68`：`docs/superpowers/specs/*-overall.md` → `osuperpowers/specs/*-overall.md`（Do + Read 两段）
-- `brainstorming/docs/overall-spec-template.md:36`：`docs/superpowers/` → `osuperpowers/`
-- `finding-meta.json:286`：placeholder → `Overall spec: osuperpowers/specs/2026-09-04-cdd-engine-overhaul-overall.md`
-- `CLAUDE.md:87`：Strategy B `docs/superpowers/specs/*.md` / `docs/superpowers/plans/*.md` → `osuperpowers/specs/*.md` / `osuperpowers/plans/*.md`
+- `writing-plans/SKILL.md:34`：`docs/superpowers/plans/YYYY-MM-DD-<feature>.md` → `docs/osuperpowers/plans/…`；spec-link `(docs/superpowers/specs/<name>-design.md)` → `(docs/osuperpowers/specs/<name>-design.md)`
+- `brainstorming/SKILL.md:67,68`：`docs/superpowers/specs/*-overall.md` → `docs/osuperpowers/specs/*-overall.md`（Do + Read 两段）
+- `brainstorming/docs/overall-spec-template.md:36`：`docs/superpowers/` → `docs/osuperpowers/`
+- `finding-meta.json:286`：placeholder → `Overall spec: docs/osuperpowers/specs/2026-09-04-cdd-engine-overhaul-overall.md`
+- `CLAUDE.md:87`：Strategy B `docs/superpowers/specs/*.md` / `docs/superpowers/plans/*.md` → `docs/osuperpowers/specs/*.md` / `docs/osuperpowers/plans/*.md`
 
 - [ ] **Step 2: tickets 死引用移除（10 处）**
 
@@ -267,8 +269,8 @@ git commit -m "refactor(cdd-engine): rootFromDocPath 识别 osuperpowers/{specs,
 - [ ] **Step 3: maintainer doc conventions 节路径 + 相对链接**
 
 `docs/maintainers/osuperpowers-plugin.md:38-43`：
-- 标题 `## \`docs/superpowers/\` conventions` → `## \`osuperpowers/\` conventions`
-- 链接 `[docs/superpowers/specs/](../../docs/superpowers/specs/)` → `[osuperpowers/specs/](../../osuperpowers/specs/)`（`docs/maintainers/` 上溯两级）；plans 行同
+- 标题 `## \`docs/superpowers/\` conventions` → `## \`docs/osuperpowers/\` conventions`
+- 链接 `[docs/superpowers/specs/](../../docs/superpowers/specs/)` → `[docs/osuperpowers/specs/](../../osuperpowers/specs/)`（`docs/maintainers/` 上溯两级）；plans 行同
 
 - [ ] **Step 4: emit + validate + grep 复核**
 
@@ -289,7 +291,7 @@ grep -rni "ticket" packages/osuperpowers/skills packages/osuperpowers/README.md 
 ```bash
 git add packages/osuperpowers CLAUDE.md README.md README.zh-CN.md docs/maintainers scripts/release/publish-vendor.test.mjs .github/ISSUE_TEMPLATE/session_report.yml
 git status --short   # 复核仅列预期文件；emit 派生物（.agents/ + ISSUE_TEMPLATE/session_report.yml）与 canonical 同一次落账
-git commit -m "docs(osuperpowers): docs 根路径同步 osuperpowers/ + tickets 死引用全移除（10 处）+ emit"
+git commit -m "docs(osuperpowers): docs 根路径同步 docs/osuperpowers/ + tickets 死引用全移除（10 处）+ emit"
 ```
 
 ---
@@ -304,7 +306,7 @@ git commit -m "docs(osuperpowers): docs 根路径同步 osuperpowers/ + tickets 
 
 **Interfaces:**
 - Consumes: Task 1-4（机制 + active 面已清零——守卫在清零后接入）
-- Produces: `docs/superpowers` stale-lexicon 守卫（机制位置零豁免）；grep-sweep 死过滤器移除
+- Produces: `docs/superpowers` stale-lexicon 守卫（机制位置零豁免）；grep-sweep 过滤器重指向 `docs/osuperpowers/`
 
 - [ ] **Step 1: residue.mjs 新增守卫**
 
@@ -312,30 +314,30 @@ git commit -m "docs(osuperpowers): docs 根路径同步 osuperpowers/ + tickets 
 ```js
 { label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: ALL_MECH_POSITIONS },
 ```
-line 63 GATE 豁免注释同步：`docs/superpowers/` → `osuperpowers/{specs,plans}`（历史文档新落点；gate targets 不含之）。
+line 63 GATE 豁免注释同步：`docs/superpowers/` → `docs/osuperpowers/{specs,plans}`（历史文档新落点；gate targets 不含之）。
 
 **另：文件头 3-10 行的 check 枚举注释**（「…old docs-review filenames, PASS=< lens params, D1|D2|D3 lens names, resolve-hit / gh issue reopen resolver vocabulary, the task-review mode, and P4 degraded filenames…」）追加 `the old docs root (pre-P2)`——本仓 stale-lexicon 以「注释即契约」维护，枚举须与 `STALE_LEXICON_CHECKS` 实现一致（P6 收口项会读该枚举）。
 
 - [ ] **Step 2: residue.test.mjs 断言 + 标题同步**
 
-- line 129 `it()` 标题：`（机制/文档表层零残留；docs/superpowers + CHANGELOG 豁免）` → `（机制/文档表层零残留；osuperpowers/{specs,plans} 历史文档 + CHANGELOG 豁免）`
+- line 129 `it()` 标题：`（机制/文档表层零残留；docs/superpowers + CHANGELOG 豁免）` → `（机制/文档表层零残留；docs/osuperpowers/{specs,plans} 历史文档 + CHANGELOG 豁免）`
 - 新增命中/放行断言——**经字符串拼接构造**（测试同样不得写回字面）：
 ```js
 const OLD_DOCS_ROOT = "docs" + "/superpowers";
 expect(hasHit([`${OLD_DOCS_ROOT}/specs/foo.md`])).toBe(true);   // 新守卫命中
-expect(hasHit(["osuperpowers/specs/foo.md"])).toBe(false);      // 新根放行
+expect(hasHit(["docs/osuperpowers/specs/foo.md"])).toBe(false);      // 新根放行
 ```
 
-- [ ] **Step 3: grep-sweep 过滤器移除**
+- [ ] **Step 3: grep-sweep 过滤器重指向（已随 docs 根纠正落地，本 task 复跑确认）**
 
-`grep-sweep-regression.test.mjs` 三处命令（line 14, 65, 72）删去 `| grep -v "docs/superpowers/specs/" | grep -v "docs/superpowers/plans/" | grep -v "docs/superpowers/tickets/"`（line 65 为单条 `| grep -v "docs/superpowers/"`）——迁移后历史文档在 `osuperpowers/` 根下，不在 sweep scope（`packages/ docs/ README.md marketplace/`），过滤器成死代码。
+`grep-sweep-regression.test.mjs` 三处命令（line 14, 65, 72）的 `grep -v` 过滤器由 `docs/superpowers/{specs,plans,tickets}` **重指向 `docs/osuperpowers/{specs,plans,tickets}`**——docs 根纠正（overall v1.8）后历史文档落 `docs/osuperpowers/`，**仍在 sweep scope（`packages/ docs/ README.md marketplace/`）内**，过滤器**不可删除**（否则 `executing-plans` / `subagent-driven-development` / `docs/cdd-reference` 各 sweep 立即非零命中，实测 17/17/1）。该重指向已随 docs 根纠正提交落地；本 Step 仅复跑确认。
 
 - [ ] **Step 4: 跑测试**
 
 ```bash
 pnpm exec vitest run scripts/validate/residue.test.mjs
 node scripts/run.mjs validate
-grep -rni "ticket" --exclude-dir=vendors --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.osuperpowers --exclude-dir=tmp --exclude-dir=.agents .   # 命中集 == 在途 2026-09-13-osuperpowers-overhaul*（grep-sweep 过滤器已在本 Step 3 删除）
+grep -rni "ticket" --exclude-dir=vendors --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.osuperpowers --exclude-dir=tmp --exclude-dir=.agents .   # 命中集 == 在途 2026-09-13-osuperpowers-overhaul*（grep-sweep 过滤器已在本 Step 3 重指向）
 ```
 Expected: residue.test.mjs 全绿（含新增命中/放行断言）；validate 5b grep-sweep 各 sweep 仍 0 命中、5c stale-lexicon 零命中；tickets 全仓 grep 命中集恰为在途程序文档（p2-design / p2-plan 的移除叙述）。
 
@@ -343,7 +345,7 @@ Expected: residue.test.mjs 全绿（含新增命中/放行断言）；validate 5
 
 ```bash
 git add scripts/validate/residue.mjs scripts/validate/residue.test.mjs packages/osuperpowers/tests/grep-sweep-regression.test.mjs
-git commit -m "feat(validate): docs/superpowers stale-lexicon 守卫 + grep-sweep 死过滤器清理"
+git commit -m "feat(validate): docs/superpowers stale-lexicon 守卫 + grep-sweep 过滤器重指向"
 ```
 
 ---
@@ -369,14 +371,14 @@ cd /Users/kang/Projects/oscaner-skills && pnpm run changeset
 "@oscaner-skills/cdd-engine": minor
 ---
 
-P2 docs 根落点迁移: rootFromDocPath 识别 osuperpowers/{specs,plans} 布局（drop docs/superpowers 旧 marker）; overall-consistency 单根收敛; docs/superpowers stale-lexicon 守卫。
+P2 docs 根落点迁移: rootFromDocPath 识别 docs/osuperpowers/{specs,plans} 布局（drop docs/superpowers 旧 marker）; overall-consistency 单根收敛; docs/superpowers stale-lexicon 守卫。
 ```
 （若 `pnpm run changeset` 交互不可用——@changesets/cli 依次提示选包与 bump 类型，在无人值守 shell 中阻塞 stdin——手动写 `.changeset/p2-docs-root-migration.md`，内容如上。）
 
 - [ ] **Step 2: §2.7 残留 grep 口径校验**
 
 ```bash
-grep -rn "docs/superpowers" osuperpowers/                     # 命中集 == 在途 2026-09-13-osuperpowers-overhaul* 文件集
+grep -rn "docs/superpowers" docs/osuperpowers/                     # 命中集 == 在途 2026-09-13-osuperpowers-overhaul* 文件集
 grep -rn "docs/superpowers" --exclude-dir=vendors --exclude-dir=.git --exclude-dir=node_modules \
   --exclude-dir=.osuperpowers --exclude-dir=tmp --exclude-dir=.agents .   # 命中集 == 在途文档集 ∪ .changeset/
 grep -rni "ticket" --exclude-dir=vendors --exclude-dir=.git --exclude-dir=node_modules \

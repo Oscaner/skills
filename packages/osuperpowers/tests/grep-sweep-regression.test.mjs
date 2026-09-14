@@ -11,7 +11,7 @@ const REPO = path.resolve(HERE, "..", "..", "..");
 
 function grepCount(pattern, extraArgs = "") {
   try {
-    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "docs/superpowers/specs/" | grep -v "docs/superpowers/plans/" | grep -v "docs/superpowers/tickets/" | grep -v "validate-overrides-build.mjs" | grep -v "docs/maintainers/osuperpowers-plugin" | grep -v "skill-authoring.md" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
+    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "docs/osuperpowers/specs/" | grep -v "docs/osuperpowers/plans/" | grep -v "docs/osuperpowers/tickets/" | grep -v "validate-overrides-build.mjs" | grep -v "docs/maintainers/osuperpowers-plugin" | grep -v "skill-authoring.md" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
     return parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   } catch { return 0; }
 }
@@ -62,14 +62,14 @@ test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () =
 
 // docs/cdd-reference old path (should not appear as ../docs/cdd-reference)
 test('grep sweep: "docs/cdd-reference" old path → 0 hits', () => {
-  const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "docs/superpowers/" | grep -v "cli-driven-development/docs/cdd-reference" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
+  const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "docs/osuperpowers/" | grep -v "cli-driven-development/docs/cdd-reference" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   assert.equal(count, 0, `"docs/cdd-reference" old path has ${count} hits`);
 });
 
 // Special token: subagent-driven-development (allowed in vendor path + maintainer docs)
 test("grep sweep: subagent-driven-development in non-vendor/non-maintainer code → 0 hits", () => {
-  const cmd = `grep -rn "subagent-driven-development" packages/osuperpowers/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "docs/superpowers/specs/" | grep -v "docs/superpowers/plans/" | grep -v "docs/superpowers/tickets/" | grep -v "runner.mjs" | grep -v "runner.test.mjs" | grep -v "overrides.manifest.json" | grep -v "prompt-expansion.mjs" | grep -v "cursor-detect.mjs" | grep -v "docs/maintainers/" | wc -l`;
+  const cmd = `grep -rn "subagent-driven-development" packages/osuperpowers/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" | grep -v "docs/osuperpowers/specs/" | grep -v "docs/osuperpowers/plans/" | grep -v "docs/osuperpowers/tickets/" | grep -v "runner.mjs" | grep -v "runner.test.mjs" | grep -v "overrides.manifest.json" | grep -v "prompt-expansion.mjs" | grep -v "cursor-detect.mjs" | grep -v "docs/maintainers/" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   assert.equal(count, 0, `subagent-driven-development has ${count} non-vendor/non-maintainer hits`);
 });

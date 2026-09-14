@@ -235,7 +235,7 @@ packages/osuperpowers/skills/
 
 ```json
 {
-  "plan": "osuperpowers/plans/...",
+  "plan": "docs/osuperpowers/plans/...",
   "timeoutCount": 0,
   "engineRecoveryCount": 0,
   "lastDispatchHead": "abc123...",

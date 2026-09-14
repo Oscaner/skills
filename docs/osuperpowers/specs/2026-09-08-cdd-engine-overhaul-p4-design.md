@@ -78,7 +78,7 @@ flowchart TD
 
 - **缓存首查（唯一解析注入点）**：`resolve-destination` 首先读 `.superpowers/cdd/<slug>/report-target.json`（schema：`{kind, issue?, slug, resolved_at}`）——命中 `{kind: program, issue: NNN}` → 直接复用该 `#NNN`（跨 run 稳定追加同一程序 issue，**跳过重解析**）；命中 session 记录 → 复用缓存 master（§2.2.5 同一读取路径）。仅 cache miss 才走下述「程序联动」解析；解析结果写回同文件后返回。
 - **程序联动（解析，cache miss 时）**：CDD workspace `.superpowers/cdd/<slug>/progress.json#plan`（progress.mjs required 字段，dispatch 时已记录 plan 路径）→ plan 头部 spec 链接 → overall `*-overall.md` → plan 所属 phase（overall Phase inventory 行）→ 该 phase 的 owning issue（多 `#NNN` 时取 Dependency graph 的 program root/tracking issue，本 program = #232）→ `{kind: program, issue: NNN}` → 写入`.superpowers/cdd/<slug>/report-target.json`。
-- **其余**（解析失败 / standalone / plan 不在 `osuperpowers/plans/` 下）→ `{kind: session}` → `ensure-session`。
+- **其余**（解析失败 / standalone / plan 不在 `docs/osuperpowers/plans/` 下）→ `{kind: session}` → `ensure-session`。
 - **通道→kind 映射**：program → `program`；session + CDD workspace slug 存在 → `consumer-cdd`；session + 无 workspace（standalone）→ `standalone`。
 - **程序通道守卫**：resolved overall 须为已知程序 overall（Issue inventory 可查）且 inventory 命中 `#NNN` 真实存在；任一失败 → 回落 session 通道（消费者自有 repo 不得误路由到 Oscaner 编号）。
 - **branch 仅作 in-session 路由上下文**（resolve-destination 内部使用），**绝不写入 issue / comment / 身份字段**。
@@ -219,7 +219,7 @@ P4 交付前全仓核查（scope = `packages/osuperpowers/skills packages/cdd-en
 
 - **URC 语汇** `PASS=<` / `docs-review.md` / `D1|D2|D3` → **保持 0 命中**（2026-09-08 已证为 0；作回归守卫防未来回渗——「会话内 skill context 混入旧版文本」类问题即由此类残留引起）。
 - **report-issue 旧 digraph 语汇** `resolve-hit` / `gh issue reopen` / `dogfood,<type>` / `[Session] <branch>` → 随 Enh J 重构清零（重构完成后 grep 为 0）。
-- **豁免**：旧 bin 名（`cdd-task` / `docs-task` / `branch-review`）出现在迁移注释 / 测试文件名（`bin/cdd.mjs`、`bin/lib/docs-runner.mjs`、`bin/tests/docs-task.test.mjs`、`bin/gate/cdd-gate-core.mjs`、`docs/maintainers/osuperpowers-plugin.md`「former docs-task bin」）为历史迁移说明，保留；`osuperpowers/` 历史 spec/plan 不在 scope。
+- **豁免**：旧 bin 名（`cdd-task` / `docs-task` / `branch-review`）出现在迁移注释 / 测试文件名（`bin/cdd.mjs`、`bin/lib/docs-runner.mjs`、`bin/tests/docs-task.test.mjs`、`bin/gate/cdd-gate-core.mjs`、`docs/maintainers/osuperpowers-plugin.md`「former docs-task bin」）为历史迁移说明，保留；`docs/osuperpowers/` 历史 spec/plan 不在 scope。
 
 ### Acceptance criteria
 
@@ -255,7 +255,7 @@ P4 交付前全仓核查（scope = `packages/osuperpowers/skills packages/cdd-en
 
 - **P5（Gate 移除）**：不受本 phase 影响；`packages/osuperpowers/scripts/`（本 phase 新增）与 `bin/gate/` 相互独立，P5 不触碰 report-templates.mjs；`tests/fixtures/cdd-gate/**` 删除域不变。
 - **消费者视角**：finding-meta.json + report-templates.mjs 随 osuperpowers 插件发布（contentRoot "."；无 `scripts/` 依赖）；消费者环境 report-issue 运行时 `node ${pluginRoot}/scripts/report-templates.mjs` 可调用渲染器；gh 缺省/网络失败 fail-open 可走。
-- **测试双框架**：渲染器测试放 `scripts/emit/issue-templates.test.mjs`（vitest，emit 链同域），import 插件内模块断言；本 phase 不统一 osuperpowers/tests node:test 域。
+- **测试双框架**：渲染器测试放 `scripts/emit/issue-templates.test.mjs`（vitest，emit 链同域），import 插件内模块断言；本 phase 不统一 docs/osuperpowers/tests node:test 域。
 - **emit 面**：finding-meta.json 变更 → 必须 `pnpm run emit`（重生成 yml）再提交；新增 emitter 进 `generatedPaths`。
 - **已完成记录**：Enh K addendum 已入 #232 comment 5536710343（2026-09-08）。
 

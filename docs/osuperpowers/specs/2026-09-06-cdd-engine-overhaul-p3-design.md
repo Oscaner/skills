@@ -70,8 +70,8 @@ flowchart TD
 
 #### 2.2.4 `resolve-destination` — 双通道判定
 
-- **程序联动**（判别机制精确化）：CDD workspace `.superpowers/cdd/<slug>/` → 读 `progress.json#plan`（dispatch 时已记录 plan 路径）→ 若 plan 位于 `osuperpowers/plans/*.md` → 读 plan 头部 spec 链接 → overall `*-overall.md` → **命中规则见 §2.2.8**（plan 所属 phase → owning issue → Dependency graph root/tracking issue，本 program = #232，resolve-destination 内不重复描述）→ `{kind: program, issue: NNN}`。解析结果缓存于 `report-target.json`。
-- **其余**（解析失败 / standalone / plan 不在 `osuperpowers/plans/` 下）→ `{kind: session}` → `ensure-session`。
+- **程序联动**（判别机制精确化）：CDD workspace `.superpowers/cdd/<slug>/` → 读 `progress.json#plan`（dispatch 时已记录 plan 路径）→ 若 plan 位于 `docs/osuperpowers/plans/*.md` → 读 plan 头部 spec 链接 → overall `*-overall.md` → **命中规则见 §2.2.8**（plan 所属 phase → owning issue → Dependency graph root/tracking issue，本 program = #232，resolve-destination 内不重复描述）→ `{kind: program, issue: NNN}`。解析结果缓存于 `report-target.json`。
+- **其余**（解析失败 / standalone / plan 不在 `docs/osuperpowers/plans/` 下）→ `{kind: session}` → `ensure-session`。
 - **branch 仅作本 session 路由上下文**（`resolve-destination` 内部使用），**绝不写入 issue / comment / 身份字段**（隐私守则）。
 - fail-open：`progress.json` / plan / overall 任一读取失败 → 默认 session 通道，不阻塞。
 - **通道→kind 映射**：路由通道（program / session）→ kind 枚举（`program | consumer-cdd | standalone`）：program → `program`；session + CDD workspace slug 存在 → `consumer-cdd`；session + 无 workspace（standalone 手动上报）→ `standalone`。`report-target.json` 缓存三值 kind（非通道值）。
@@ -280,7 +280,7 @@ URC 落地后，全仓 review 系 md 处置（**不留死档**）：
 14. **规则 SSoT**：`_docs/review.md` 存在且节点锚定（digraph + node definitions）；`grep -rn "D1\|D2\|D3\|PASS=<" packages/osuperpowers/skills packages/cdd-engine/templates` 为空。
 15. **round 竞态闭合**：`cdd review --type spec` 同 doc 连续两次 review 产出不同 handoff（`spec-1.json` / `spec-2.json`）；engine 自增 round（引擎测试覆盖）。review 后 blocker=0 再 dispatch 被 engine 拒（Review Stopping 结构性）。
 16. **注入单一机制**：prompt 注入只经 `bin/harness-registry.json`（Enh P 机制）——prefix/suffix 键扩展为 `operation × type`，注入风格统一 **`/` 模式**：`review:{task,branch}` 注入 `/mattpocock-skills:code-review`（单 agent 双轴、无并行 sub-agents）、`review:{spec,plan}` 注入 URC 规则指针；`implement` 与 `fix` 均注入 `/mattpocock-skills:tdd`。**全部受支持 harness（claude/cursor-agent/droid/pi）补齐同一 operation×type 注入**；`reviews.json` **不含** prompt 注入位（无双机制）；测试断言 render 产物含各 harness registry 注入。
-17. **旧 bin 残留**：`grep -rnE "cdd-task\.mjs|docs-task\.mjs|branch-review\.mjs|cdd-select\.mjs|cdd-research\.mjs" packages/ .github/ docs/maintainers/`（排除 `osuperpowers/` 历史 spec/plan、vendors、.agents）为空（skill dispatch / gate adapters / smoke / CI / 维护文档全部改走 `cdd`）。
+17. **旧 bin 残留**：`grep -rnE "cdd-task\.mjs|docs-task\.mjs|branch-review\.mjs|cdd-select\.mjs|cdd-research\.mjs" packages/ .github/ docs/maintainers/`（排除 `docs/osuperpowers/` 历史 spec/plan、vendors、.agents）为空（skill dispatch / gate adapters / smoke / CI / 维护文档全部改走 `cdd`）。
 
 ---
 
@@ -300,7 +300,7 @@ URC 落地后，全仓 review 系 md 处置（**不留死档**）：
 
 - **P5（Gate 移除，原 P4）**：不受本 phase 影响；validate/gate-hooks.mjs 仍为 P5 删除点；`tests/fixtures/cdd-gate/**` 的 `deferred:true` JSON 属 P5 删除域（§2.4 豁免清单）。
 - **消费者视角**：`finding-meta.json` 随 osuperpowers 插件发布（contentRoot `.`）；report-issue 新 digraph 在消费者环境须缺省 gh/网络时 fail-open 可走。
-- **测试双框架**：scripts 已 vitest；osuperpowers/tests 仍 node:test——本 phase 不统一（非 P3 范畴）。
+- **测试双框架**：scripts 已 vitest；docs/osuperpowers/tests 仍 node:test——本 phase 不统一（非 P3 范畴）。
 - **emit 面**：`finding-meta.json` 变更 → 必须 `pnpm run emit`（生成 yml）再提交。
 - **新增发现（已闭合）**：`docs-task` 不传 round → render 竞态（P3 3-pass 实测并发空跑）→ 本 phase **URC**（引擎 round 自增 + 单周期）闭合；D1「fix-first」违例 → URC 单周期消除。
 

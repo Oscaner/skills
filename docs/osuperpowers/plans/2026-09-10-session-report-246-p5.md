@@ -1,6 +1,6 @@
 # P5 CDD 编排硬化 — Implementation Plan
 
-**Spec:** [2026-09-10-session-report-246-p5-design.md](osuperpowers/specs/2026-09-10-session-report-246-p5-design.md)（v1.0：engine 全权 `.superpowers/**` artifact 写平面——workspace-artifacts 单源 + `cdd base-branch set/get` 双场景写入口 + implement 自供应 brief + slug 收敛（`-design`/`-plan` trim）+ 代码目录/文件/CLI 整理 + skills/docs 死说明收敛 + P4 守卫双形 glob 交叉面）
+**Spec:** [2026-09-10-session-report-246-p5-design.md](docs/osuperpowers/specs/2026-09-10-session-report-246-p5-design.md)（v1.0：engine 全权 `.superpowers/**` artifact 写平面——workspace-artifacts 单源 + `cdd base-branch set/get` 双场景写入口 + implement 自供应 brief + slug 收敛（`-design`/`-plan` trim）+ 代码目录/文件/CLI 整理 + skills/docs 死说明收敛 + P4 守卫双形 glob 交叉面）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -105,7 +105,7 @@
 
 - [ ] **8a. changeset**：`.changeset/p5-session-report-246-orchestration-hardening.md`——`@oscaner-skills/osuperpowers` minor（SKILL 行为收敛）+ `@oscaner-skills/cdd-engine` patch（set/get 新子命令 + self-brief + slug 收敛 + shared 拆分——加显式 note：`cdd base-branch set/get` 可用、orchestrator 旧 `cdd brief` 前置调用兼容可删）。
 - [ ] **8b. 全量 validate**：`pnpm run validate` —— 13 块全绿 + `pnpm run emit:check` 绿 + engine suite 全绿（契约面：`cdd --help` 含 base-branch、`bin/lib`/`bin/.gitkeep` 不在、shared 守卫导出齐）。
-- [ ] **8c. overall 终态**：`osuperpowers/specs/2026-09-10-session-report-246-overall.md`——P5 Phase inventory `Implementation plan` 列回填（[Pending]→Done）+ change-history 追加 v1.17（P5 dev shipped：8 task 全 APPROVED + branch-review + changeset + PR）；F13 closeout 检查点执行（守卫对自身五 phase ① 双向自证）。
+- [ ] **8c. overall 终态**：`docs/osuperpowers/specs/2026-09-10-session-report-246-overall.md`——P5 Phase inventory `Implementation plan` 列回填（[Pending]→Done）+ change-history 追加 v1.17（P5 dev shipped：8 task 全 APPROVED + branch-review + changeset + PR）；F13 closeout 检查点执行（守卫对自身五 phase ① 双向自证）。
 - [ ] **8d. 终态验证**：`node scripts/validate/overall-consistency.mjs` —— session-246 OK（P5 plan 列 Done ↔ closeout 行声明一致）；`pnpm run validate` 全绿。
 - [ ] **8e. commit**：`docs(superpowers): F13 closeout — P5 plan column Done + change-history v1.17 (guard self-proof)`
 

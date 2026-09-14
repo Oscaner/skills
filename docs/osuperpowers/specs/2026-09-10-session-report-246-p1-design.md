@@ -128,7 +128,7 @@ packages/cdd-engine/
 - `.npmignore` 死条目清理：仅删 `bin/tests/`（tests 移顶层）；**保留 `**/.gitkeep`**——`bin/.gitkeep` / `lib/.gitkeep` 仍驻 bin/lib 目录族，files 白名单（`["bin/","lib/","templates/"]`）下若无该排除，空目录标记会随包发布（实测 `npm pack` tarball 含 `bin/.gitkeep`），该条是活过滤器而非死条目；隔离由 `files` 白名单 + `**/.gitkeep` 双承担；
 - `scripts/validate/residue.mjs` 机制位置 → `bin + lib + templates`；
 - `scripts/validate/smoke-cdd.mjs`：① entry + fixture 路径；② `checkDeletionSurface` 的 `ENGINE` 作用域 const（`["packages/cdd-engine/bin"]` → `["packages/cdd-engine/bin", "packages/cdd-engine/lib"]`）——G2 --harness 词表扫描随 commander 参数定义移入 `lib/cli/parse.mjs`，ENGINE 覆盖扩至 lib；③ G3 --doc 扫描 scope 用的是**独立单文件入口路径**（`path.join("packages","cdd-engine","bin","cdd.mjs")`，非 ENGINE）——bin/cdd.mjs 薄入口化后零 flag 定义，该路径须改指 `lib/cli/parse.mjs`，否则 G3 退役 flag 语汇守卫对 engine 覆盖静默丢失；②③ 同步后 AC4「机制位置同步」对 G2/G3 均兑现；
-- `osuperpowers/{specs,plans}/*` 历史文档路径不改（记录豁免，residue 已豁免 docs）；
+- `docs/osuperpowers/{specs,plans}/*` 历史文档路径不改（记录豁免，residue 已豁免 docs）；
 - 发布 CLI 接口（`cdd <subcommand>`）不变 —— 消费方（cli-driven-development SKILL 等）零破坏。
 
 **执行顺序：先纯机械 re-org（git mv + import 更新；中间步骤以 `node --check` 语法闭环为凭据——批次 mv 语义下中间态允许暂时红、禁止提前修未收敛中间态；Step 4 收敛后恢复全量套件，Step 7 全量 validate 闭环）→ proc-lifecycle 落在新布局**——每个模块只动一次。

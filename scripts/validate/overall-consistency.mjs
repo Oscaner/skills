@@ -29,15 +29,15 @@
 // §2.4 malformed — loadOverallFile returns { ok: false } and main() skips, not fail.
 //
 // Standalone (`node scripts/validate/overall-consistency.mjs`) scans
-// osuperpowers/specs/*-overall.md; exposed via `steps` for index.mjs (Task 3).
+// docs/osuperpowers/specs/*-overall.md; exposed via `steps` for index.mjs (Task 3).
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { runIfMain } from "./runner.mjs";
 
-const SPECS_DIR = join(process.cwd(), "osuperpowers", "specs");
-const PLANS_DIR = join(process.cwd(), "osuperpowers", "plans");
+const SPECS_DIR = join(process.cwd(), "docs", "osuperpowers", "specs");
+const PLANS_DIR = join(process.cwd(), "docs", "osuperpowers", "plans");
 
 // `| # | Phase | …` — canonical Phase inventory header row (7 columns, the marker
 // for the "four tables" mechanical guard surface). The `#` + `Phase` prefix pins the
@@ -458,7 +458,7 @@ export function anchorScanFiles(overallFile, slug, specsRoot = SPECS_DIR, plansR
 
 export function main() {
   if (!existsSync(SPECS_DIR)) {
-    console.log("SKIP — no osuperpowers/specs");
+    console.log("SKIP — no docs/osuperpowers/specs");
     return 0;
   }
   let total = 0;

@@ -94,7 +94,7 @@ git add -A docs/
 git commit -m "refactor(docs): specs/plans 单根迁移 — docs/superpowers → docs/osuperpowers（39 文件 git-mv + 54 处内部路径重写）"
 ```
 
-> **T1 review-1 follow-up（非本任务缺陷，记录供下游）**：implement handoff 的 `commits.base` 与 `head` 同值（= 任务自身提交 `f672add`）——正确 base 应为 `f672add^`（`bbeec5c`；同任务的 `task-1-test-evidence.json` 与 `report` 均正确记录 `TASK_BASE`）。后果是**行为性**：任何从 `task-N-implement.json` 推导 review range 的消费者（重派 task-review / branch-review / report-issue resolve-destination）会看到 `f672add..HEAD` 空 diff 而对 39 文件迁移静默放行。**P1 程序 task-4 handoff（db3c4f2/db3c4f2）同形 → 疑系统性**（implement 记 base 时取自身提交，或 runner 实体化以 post-commit HEAD 为 base）。本 task artifact 已就地修正；系统性根因（runner base 解析 / implement 提示词契约）留 **P6 或独立 follow-up**。
+> **T1 review-1 follow-up（非本任务缺陷，记录供下游）**：implement handoff 的 `commits.base` 与 `head` 同值（= 任务自身提交 `f672add`）——正确 base 应为 `f672add^`（`bbeec5c`；同任务的 `task-1-test-evidence.json` 与 `report` 均正确记录 `TASK_BASE`）。后果是**行为性**：任何从 `task-N-implement.json` 推导 review range 的消费者（重派 task-review / branch-review / report-issue resolve-destination）会看到 `f672add..HEAD` 空 diff 而对 39 文件迁移静默放行。**P1 程序 task-4 handoff（db3c4f2/db3c4f2）同形 → 疑系统性**（implement 记 base 时取自身提交，或 runner 实体化以 post-commit HEAD 为 base）。本 task artifact 已就地修正；系统性根因（runner base 解析 / implement 提示词契约）留 **P6 或独立 follow-up**。 **T2 task-review-2 warn 扩展（2026-09-14）**：同形亦出现在 **brief 物化**——`task-2-brief.md` 的 `TASK_BASE` == HEAD，使 round-2 声明 range `TASK_BASE..HEAD` 为空 diff（7 文件修复不可见）。即根因不止 implement handoff，已触及 **review range**；follow-up 范围相应扩为「**materialization（handoff + brief）记 post-commit HEAD 为 base/TASK_BASE**」。该 round owning base 按实取 `fd6f003`（`298f473^`）。
 
 > **T1 遗留告警（过渡态，Task 4 收口）**：`docs/maintainers/osuperpowers-plugin.md:42,43` 现为**悬空相对链接**（`../../docs/superpowers/specs/` 目标目录已不存在）——Task 4 Step 3 正是重写这两行的动作；branch-review 前须确认 Task 4 已落地。
 
@@ -188,7 +188,7 @@ git commit -m "refactor(validate): overall-consistency 单根 docs/osuperpowers/
 function rootFromDocPath(doc) {
   const segments = path.resolve(doc).split(path.sep);
   for (let i = 0; i < segments.length - 1; i++) {
-    if (segments[i] === "osuperpowers" && ["specs", "plans"].includes(segments[i + 1])) {
+    if (segments[i] === "docs" && segments[i + 1] === "osuperpowers" && ["specs", "plans"].includes(segments[i + 2])) {
       return segments.slice(0, i).join(path.sep) || path.sep;
     }
   }
@@ -199,7 +199,7 @@ function rootFromDocPath(doc) {
 
 - [ ] **Step 2: 迁移 3 个夹具文件假路径 + AC2 反射例**
 
-`/repo/root/docs/superpowers/{specs,plans}/…` → `/repo/root/osuperpowers/{specs,plans}/…`（`handoff-naming.test.mjs` 用 `/repo/…` 无 `root`）。`cdd.test.mjs` **四处全改**——`:342`（runReview 的 `spec:`）/ `:368`（runFix 的 `spec:`）两处经 `review.mjs:75` / `fix.mjs:61` 走 `resolveWorkspace(doc)`，假路径无 git → 唯一回落 `rootFromDocPath`；**漏改则新 marker 返回 null、`resolveWorkspace` 抛 `not in a git repo` 两用例必红**。期望值 `/repo/root/.osuperpowers/cdd/foo` 不变。
+`/repo/root/docs/superpowers/{specs,plans}/…` → `/repo/root/docs/osuperpowers/{specs,plans}/…`（`handoff-naming.test.mjs` 用 `/repo/…` 无 `root`）。**片段形态须与 canonical 布局逐段一致**——`/repo/root/docs/osuperpowers/specs/foo-design.md` 经段对 marker → `/repo/root`（**切点在 `docs` 段之前**）；`cdd.test.mjs` **四处全改**——`:342`（runReview 的 `spec:`）/ `:368`（runFix 的 `spec:`）两处经 `review.mjs:75` / `fix.mjs:61` 走 `resolveWorkspace(doc)`，假路径无 git → 唯一回落 `rootFromDocPath`；**漏改则新 marker 返回 null、`resolveWorkspace` 抛 `not in a git repo` 两用例必红**。期望值 `/repo/root/.osuperpowers/cdd/foo` 不变（`/repo/root` + `.osuperpowers/cdd/foo`）。
 
 `docs-runner.test.mjs:159` 断言精确化——workspace 路径 `<root>/.osuperpowers/cdd/<slug>` 含 `osuperpowers` 子串，裸断言会误命中：
 ```js
@@ -319,6 +319,8 @@ git commit -m "docs(osuperpowers): docs 根路径同步 docs/osuperpowers/ + tic
 并新增文档表层 target 常量（治理文件面——残留最可能回渗点）：
 ```js
 export const DOC_SURFACE_TARGETS = ["CLAUDE.md", "README.md", "packages/osuperpowers/README.md", "docs/maintainers"];
+```
+`GATE_TARGETS`（`residue.mjs:68`）与 `DOC_SURFACE_TARGETS` 有 2 项重叠（`docs/maintainers` / 根 `README.md`）——**刻意重叠**（两者服务不同语汇：gate 移除 vs 旧 docs 根；且根 `README.md` 对 stale-lexicon 属新增覆盖，`GATE_TARGETS` 仅被 `GATE_LEXICON_CHECKS` 消费）。在 `GATE_TARGETS` 旁加一行注释声明该刻意重叠，使命中面**同步重指向**、不静默漂移。
 ```
 line 63 GATE 豁免注释同步：`docs/superpowers/` → `docs/osuperpowers/{specs,plans}`（历史文档新落点；gate targets 不含之）。
 

@@ -22,7 +22,7 @@ Charter only — no implementation detail。
 
 ## File paths
 
-单批次固定 date + slug 于 `docs/superpowers/`：
+单批次固定 date + slug 于 `osuperpowers/`：
 
 | Artifact | Path |
 |---|---|

@@ -1072,7 +1072,7 @@ it('subprocess cwd = gitToplevel(process.cwd()) not doc directory', async () => 
     harness:   'claude',
     mode:      'review',
     template:  'spec-review',
-    doc:       '/repo/root/docs/superpowers/specs/my-spec.md',
+    doc:       '/repo/root/osuperpowers/specs/my-spec.md',
     params:    { PASS: 'completeness' },
     workspace: '/repo/root/.superpowers/docs-review',
     repoRoot:  '/repo/root',
@@ -1081,7 +1081,7 @@ it('subprocess cwd = gitToplevel(process.cwd()) not doc directory', async () => 
   // execa called with cwd = '/repo/root', NOT the doc directory
   const callOpts = execa.mock.calls[0][2]; // spawn opts {cwd, env, timeout, ...}
   expect(callOpts.cwd).toBe('/repo/root');
-  expect(callOpts.cwd).not.toContain('docs/superpowers');
+  expect(callOpts.cwd).not.toContain('osuperpowers');
 });
 ```
 
@@ -1524,7 +1524,7 @@ describe('Bug K: docs-task workspace', () => {
       harness:  'claude',
       mode:     'review',
       template: 'spec-review',
-      doc:      '/repo/root/docs/superpowers/specs/my-spec.md',
+      doc:      '/repo/root/osuperpowers/specs/my-spec.md',
       param:    { PASS: 'completeness' },
     });
 
@@ -1536,7 +1536,7 @@ describe('Bug K: docs-task workspace', () => {
     );
     expect(runDocsTask).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        workspace: expect.stringContaining('docs/superpowers'),
+        workspace: expect.stringContaining('osuperpowers'),
       })
     );
   });

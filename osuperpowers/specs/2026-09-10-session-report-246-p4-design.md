@@ -49,13 +49,13 @@
 - **④ 反向的取舍**：plan 列反向（列 Done + 无 claim → 报）——两 canonical 程序全 phase 均成立（cdd v1.26/27、session-246 v1.3/9/12），保留；**design 列反向不做**——cdd-overhaul P3 design 列具名（`P3-design §2.6+§2.4`）但全史无「Pending→」声明（旧程序记录 style），强制会误报 shipped 程序 → design 仅正向（声明 → 列非 [Pending]）。
 - **plan 列语义**：canonical 程序 plan 列取值 = `Done` / `[Pending]` 二值；「shipped」= 非 `[Pending]`。F13 在途容忍：plan 文档已写、列仍 `[Pending]`、无声明 → 合法（不报）。
 - **文档存在性派生（BLOCKER 修复：日期无关 slug 后缀 glob）**：以 overall 文件名剥去前导日期 + 尾部 `-overall.md` 后的 **slug** 为根（`cdd-engine-overhaul` / `session-report-246`），计划/设计文档用后缀 glob `*-(slug)-p<n>{,-design}.md` 定位（允许独立于 overall 日期的每-phase 文件日期）。实证：cdd-overhaul p2–p6 各自携带独立日期（p2=2026-09-05、p3=2026-09-06、p4=2026-09-08、p6=2026-09-08、p5=2026-09-09），按 `<X>-p<n>` 日期前缀推导会全 404 → 伪报 shipped 程序；slug 后缀 glob 将 cdd p2 正确解析到 `plans/2026-09-05-cdd-engine-overhaul-p2.md`。plan 列 shipped → glob 命中一处文档存在断言；design 列具名 → **仅取该 phase 自身的 `P<n>-design` token**（phase-id 匹配；cell 中其他 `P\d+-design` 为跨引用不入 glob——实证 cdd P4 design 列 `P4-design §2.2–§2.5（源 P3-design §2.2 + §2.3 + §2.5）` 只断言 p4-design 文档）；glob >1 → FAIL（歧义）；`Done`/`[Pending]` design 列 → 不断言（`Done` 为旧程序 legacy 形态无可派生名，实证 cdd P1）。
-- **注册域扫描面**：overall + `docs/superpowers/{specs,plans}/*-(slug)-p*.md`（同日期无关 glob）的 `#NNN#issuecomment-\d+` 锚点；`#NNN` ∈ Issue inventory block 全 token 集。
+- **注册域扫描面**：overall + `osuperpowers/{specs,plans}/*-(slug)-p*.md`（同日期无关 glob）的 `#NNN#issuecomment-\d+` 锚点；`#NNN` ∈ Issue inventory block 全 token 集。
 - **撤销无候选**：不做「版本行感知 / 全局 #NNN 强制 / marker sidecar / allowlist」——四者或依赖较弱纪律（版本头）、或在 GH 共享编号空间下不可成立（PR/issue 同号）、或新增 artifact 增加写义务（yyds 声明文本已在 change-history）。
 - **改动面最小化**：新块单模块只读；index.mjs 追加一行 spread；既有模块零改动。
 
 ### §2.3 组件与数据流
 
-1. **`scripts/validate/overall-consistency.mjs`**（新，导入-only + 独立可运行）：导出 `steps`（`{name: "12. overall consistency", run}`）+ `runIfMain` 守卫（模式同 version-sync.mjs）。`main()`：发现 `docs/superpowers/specs/*-overall.md` → 逐文件 parse → 检查 ①-④ → 全过打 `OK — <file> (N phases)`；任一 fail → throw（runner 转 exit 1 + `== FAIL ==`）。scan-set 空 → SKIP（无 overall 不 fail）。
+1. **`scripts/validate/overall-consistency.mjs`**（新，导入-only + 独立可运行）：导出 `steps`（`{name: "12. overall consistency", run}`）+ `runIfMain` 守卫（模式同 version-sync.mjs）。`main()`：发现 `osuperpowers/specs/*-overall.md` → 逐文件 parse → 检查 ①-④ → 全过打 `OK — <file> (N phases)`；任一 fail → throw（runner 转 exit 1 + `== FAIL ==`）。scan-set 空 → SKIP（无 overall 不 fail）。
 2. **检查 ① 回填声明 ↔ 列**（§2.2 shipped 判定落地）：
    ```
    // change-history 每行 summary：
@@ -65,10 +65,10 @@
    //  plan-claim → X.plan == "Done"-ish；design-claim → X.design ≠ [Pending]
    // 反向（仅 plan）：X.plan shipped ∧ 无任何行含 plan-claim(X) → FAIL（无 shipping 记录却宣称 Done）
    ```
-3. **检查 ② 文档存在性（slug 后缀 glob）**：对每 phase——plan 列 shipped → `docs/superpowers/plans/*-<slug>-p<n>.md` glob 命中 1 处（含独立日期，如 cdd p2 → `2026-09-05-cdd-engine-overhaul-p2.md`）；design 列具名 → `docs/superpowers/specs/*-<slug>-p<n>-design.md` glob 命中；glob >1 → FAIL（歧义）。
+3. **检查 ② 文档存在性（slug 后缀 glob）**：对每 phase——plan 列 shipped → `osuperpowers/plans/*-<slug>-p<n>.md` glob 命中 1 处（含独立日期，如 cdd p2 → `2026-09-05-cdd-engine-overhaul-p2.md`）；design 列具名 → `osuperpowers/specs/*-<slug>-p<n>-design.md` glob 命中；glob >1 → FAIL（歧义）。
 4. **检查 ③ change-history 升序**：行版本 `v<major>.<minor>` 严格递增（tuple 比较）+ 版本不重复 + 版本/日期列非空。
 5. **检查 ④ 交叉引用**：
-   - **④a 注册域**：overall + `docs/superpowers/{specs,plans}/*-<slug>-p*.md`（同日期无关 glob）的 `#NNN#issuecomment-\d+` 锚点 → `#NNN` ∈ Issue inventory token 集（未注册 → FAIL）。纯 `#NNN` 不扫。
+   - **④a 注册域**：overall + `osuperpowers/{specs,plans}/*-<slug>-p*.md`（同日期无关 glob）的 `#NNN#issuecomment-\d+` 锚点 → `#NNN` ∈ Issue inventory token 集（未注册 → FAIL）。纯 `#NNN` 不扫。
    - **④b**：Dependency graph ASCII block 全部 `P\d+` token ∈ Phase ids；Phase inventory Dependency 列 `P\d+` 前驱 ∈ Phase ids。
    - **④c**：Issue inventory 每行 ref 列**宽松读取**——以 `#\d+` 起始（可带尾随说明文字，实证：session-246 F12/F13 行 `#246（session master body…）`/`#246（P6 closeout 实测…）`）或含 `#issuecomment-\d+`，或纯 `none`/`(…)` 文本；Phase 列 ∈ Phase ids。
 6. **非 canonical 跳过**：头行不匹配 → `CDD_INFO: skip <file> (non-canonical phase inventory header)` 日志 + continue（不 exit）。
@@ -98,7 +98,7 @@
   10. 非 canonical 头 → skip + 不 fail
   11. 声明混合行：plan 区间 `P1–P4/P6` 展开 + design 正向声明（cdd v1.27 形态，同一行内）→ 逐 phase 断言（无 design 反向语义）
   12. 跨日期 phase 文档（fixture 内 p2 文档 vs overall 不同日期）→ slug 后缀 glob 命中，② 通过（防 BLOCKER 回归）
-- **实证绿**（测试内对 `docs/superpowers/specs/` 三个真实 overall）：cdd-overhaul + session-246 → pass；post-dogfood → skip（非 canonical 头断言）。
+- **实证绿**（测试内对 `osuperpowers/specs/` 三个真实 overall）：cdd-overhaul + session-246 → pass；post-dogfood → skip（非 canonical 头断言）。
 - **集成**：`ci-validate.test.mjs` 增「12. overall consistency 步骤存在」接线断言；计数同步（见 §2.7）。
 
 ### §2.6 文档（skill + docs 收敛）

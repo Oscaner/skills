@@ -1,6 +1,6 @@
 # P6 report-issue 四案 — Implementation Plan
 
-**Spec:** [2026-09-10-session-report-246-p6-design.md](docs/superpowers/specs/2026-09-10-session-report-246-p6-design.md)（v1.0）
+**Spec:** [2026-09-10-session-report-246-p6-design.md](osuperpowers/specs/2026-09-10-session-report-246-p6-design.md)（v1.0）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -1,6 +1,6 @@
 // tests/cdd.test.mjs — 合并面 CLI（bin/cdd.mjs 薄入口 + lib/cli/ 命令面）契约测试。
 // 覆盖：帮助/用法、review 的 round+Stopping 接线（dry-run smoke）、fix --findings 接线、
-// brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
+// contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { execaSync } from "execa";
 import { createHash } from "node:crypto";

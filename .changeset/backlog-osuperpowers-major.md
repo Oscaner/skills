@@ -1,0 +1,8 @@
+---
+"@oscaner-skills/osuperpowers": major
+---
+
+引擎独立化 + gate/harness 选择层整体移除（**BREAKING**，含 `cdd-engine` 侧同名声明）：
+
+- **`@oscaner-skills/cdd-engine` 抽为独立包**（v1.0.0，5 CLI + lib + templates 单独发布）：osuperpowers 删除 `bin/engine/`，改依赖 `@oscaner-skills/cdd-engine`（workspace:* → 发布时转 npm）。Commander v15 / execa v9 取代手写子进程 / ajv v8 schema 校验 / semver / Vitest v3 取代 node:test。Bug A–P 修复与增强：`--task` parseInt 强制（A）、standalone branch-review CLI（B/D）、task-review 模板节点序（C）、docs-task workspace 与子进程 cwd=git toplevel（K/L）、删 cdd-session-activate + gate 激活改 `CDD_GATE_WORKSPACE`/`CDD_GATE_MODE`（O）、cli-driven-development 去 deferred/ledger 节点并对齐 Review Stopping（M/N）、detect-engine gate（F）、init 单命令（G）、per-mode prefix/suffix 模板注入（P）；`#137`（子进程 env 剥离 ANTHROPIC_API_KEY + execa timeout）、`#139`（NDJSON 行解析器取代手写 stream-json 扫描）、`#109`（`invokeCliWithRetry`）。模板重组为 `templates/{task,review,schema}/`。
+- **gate 子系统 + harness 选择/探测/安装层整体删除**：`bin/gate/`（core + 11 adapters + configs/tests + `tests/fixtures/cdd-gate/**`）、PreToolUse gate hooks、`bin/init/` + install-harness + `.github/actions/install-harness/` + pr-validate 引用、`cdd select` 子命令 + `cli-select` skill + `harness-detect.mjs`（双份）+ skills-probe（双份）。`--harness` 删除（宿主即目标：`detectCurrentHarness(env)`，空 → BLOCK exit 1；marker 优先级 CURSOR_TRACE_ID > CLAUDE_CODE_SESSION_ID > AI_AGENT=claude-code*）；`--doc` 退役（D11：`--spec`/`--plan` 目标参数统一）；`harness-registry.json` 7→2 键（claude / cursor-agent），per-harness emit 产物（.codex/.qoder/.kimi/gemini/GEMINI.md）删除；`progress.json` 所有权收归 engine（D14）。osuperpowers 侧：`init` 收缩为 single-node marketplace 指引、`cli-driven-development` / `cli-research` 去 select-harness 节点与 I1 Explicit Propagation invariant、brainstorming / writing-plans 审阅节点改 `--spec`/`--plan` 形态。

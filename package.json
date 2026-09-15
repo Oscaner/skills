@@ -11,10 +11,10 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^1.0.0",
-    "@changesets/cli": "^3.0.1",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.2",
     "@changesets/config": "^4.0.0",
-    "@changesets/read": "^1.0.0",
+    "@changesets/read": "^1.0.1",
     "husky": "^9.1.7",
     "vitest": "^3.2.7"
   },

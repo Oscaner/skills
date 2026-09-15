@@ -138,8 +138,8 @@ describe("runDocsTask", () => {
     expect(result.handoff.doc_path).toBe("/spec.md");
   });
 
-  it("subprocess cwd = gitToplevel(process.cwd()) not doc directory", async () => {
-    // Bug L regression: cwd must be gitToplevel ('/repo/root'), never the doc path or workspace.
+  it("subprocess cwd = 注入的 repoRoot not doc directory", async () => {
+    // Bug L regression: cwd must be the repo root ('/repo/root'), never the doc path or workspace.
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
@@ -152,11 +152,11 @@ describe("runDocsTask", () => {
       doc:       SPEC_DOC,
       params:    { TYPE: "spec" },
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
-      repoRoot:  "/repo/root",  // accepted in opts but gitToplevel() is used (Bug L fix)
+      repoRoot:  "/repo/root",  // 注入缝：run-docs 真用该值（P4 §2.4.1 单根权威）
       dryRun:    false,
     });
 
-    // execa called with cwd = '/repo/root' (gitToplevel mock value), NOT the doc directory.
+    // execa called with cwd = '/repo/root' (注入的 repoRoot), NOT the doc directory.
     // （原另有一条 `not.toContain("/docs/osuperpowers/specs")` 反向断言，经 branch-review 判定为
     //  **不可失败**——上行已 pin cwd === "/repo/root"，且两条 cwd 来源（mock gitToplevel 与
     //  rootFromDocPath 回落）对同一假路径均得 repo root；已删，见 P2 plan T3 follow-up。）
@@ -176,6 +176,7 @@ describe("runDocsTask", () => {
       doc: SPEC_DOC,
       params: { TYPE: "spec" },
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     let promptArg = execa.mock.calls[0][1].at(-1);
@@ -188,6 +189,7 @@ describe("runDocsTask", () => {
       doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     promptArg = execa.mock.calls[0][1].at(-1);
@@ -203,6 +205,7 @@ describe("runDocsTask", () => {
     await expect(runDocsTask({
       harness: "claude", mode: "review", template: "review",
       doc: SPEC_DOC,
+      repoRoot: "/repo/root",
       dryRun: false,
     })).rejects.toThrow(/handoffPath required/);
   });
@@ -219,6 +222,7 @@ describe("runDocsTask", () => {
       doc: SPEC_DOC,
       // 含 "review" 段 → node:fs fixture 的 existsSync 视为存在 → 走 read-and-validate 路径。
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/critiques-review-1.json",
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     expect(renderTemplate.mock.calls.at(-1)?.[0]).toBe("critiques-review");
@@ -252,6 +256,7 @@ describe("runDocsTask", () => {
         harness: "claude", mode: "review", template: "review", type: "spec",
         doc: SPEC_DOC,
         handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+        repoRoot: "/repo/root",
         dryRun: false,
       });
       expect(result.exitCode).toBe(0);
@@ -282,6 +287,7 @@ describe("runDocsTask", () => {
       harness: "claude", mode: "review", template: "review", type: "spec",
       doc: SPEC_DOC,   // 不存在 → hashFile "" 哨兵
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     expect(result.handoff.status).toBe("APPROVED");
@@ -303,6 +309,7 @@ describe("runDocsTask", () => {
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     expect(result.handoff.doc_hash).toBe(createHash("sha256").update("real content p2").digest("hex"));
@@ -321,6 +328,7 @@ describe("runDocsTask", () => {
       doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     const fixCalls = writeOwnHandoff.mock.calls.filter(([p]) => String(p).includes("spec-fix-"));
@@ -344,6 +352,7 @@ describe("runDocsTask", () => {
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
       handoffPath: orphanPath,
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     expect(result.exitCode).toBe(1);
@@ -364,6 +373,7 @@ describe("runDocsTask", () => {
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "plan", doc,
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/plan-review-1.json",
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     expect(result.handoff.doc_hash).toBe(createHash("sha256").update("plan content p2").digest("hex"));
@@ -393,6 +403,7 @@ describe("runDocsTask", () => {
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
       handoffPath,
+      repoRoot: "/repo/root",
       dryRun: false,
     });
     // 非 throw —— BLOCKED handoff（doc_hash 载体 uniform），而非 exit 2 / 无 handoff 静默丢失。

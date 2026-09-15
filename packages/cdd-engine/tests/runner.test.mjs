@@ -5,7 +5,7 @@
 // stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED.
 // review-package / findSuperpowersScriptsDir 已随 branch-review warn 3 删除（生产零调用死码）。
 // invokeCliOverride seam removed (§ P1 Task 5) — CLI simulation now uses real fake-cli shell scripts.
-import { it, expect, describe } from "vitest";
+import { it, expect, describe, vi } from "vitest";
 import { execFileSync, execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, appendFileSync, chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,6 +22,14 @@ import { getRound } from "../lib/state/progress.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
+
+// P4 §2.4.1 seam：runTask 的子进程 cwd 取唯一 root 权威（lib/root.mjs），该权威在运行时由 bin 的
+// preAction 初始化——vitest 直调 runTask 不走 bin → 单例未初始化。以真仓根打桩（真实存在的目录，
+// 与进程内旧行为同坐标系），使 in-process 用例不必自建 root。黑盒 CLI 用例走独立 node 子进程，不经此桩。
+vi.mock("../lib/root.mjs", () => ({
+  initRoot: () => REPO_ROOT,
+  getRoot: () => REPO_ROOT,
+}));
 
 // Non-git temp workspace — CDD_WORKSPACE points to TMPDIR, commit-contract fails open.
 function setupWorkspace() {

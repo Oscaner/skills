@@ -2,14 +2,23 @@
 // engineRecoveryCount 由 engine 在 BLOCKED/engine-error 判定路径自增（runner.mjs 写 BLOCKED handoff 时），
 // orchestrator 层 skill（cli-driven-development §engine-recovery / §timeout-decision）只读判 retry，
 // 不再写 progress.json（[#232 comment 5612106797]：orchestrator 手写 tasks 当数组 → dispatch 失败）。
-import { it, expect } from 'vitest';
+import { it, expect, vi } from 'vitest';
 import { mkdtempSync, writeFileSync, chmodSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { runTask } from "../lib/runner/run-task.mjs";
 import { readProgressJSON, incrementRecovery } from "../lib/state/progress.mjs";
 import { REG_PATH } from "../lib/registry.mjs";
+
+// P4 §2.4.1 seam：runTask 的子进程 cwd 取唯一 root 权威（lib/root.mjs），运行时由 bin 的 preAction
+// 初始化——vitest 直调 runTask 不走 bin → 单例未初始化。以真仓根打桩（真实存在的目录）。
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+vi.mock("../lib/root.mjs", () => ({
+  initRoot: () => REPO_ROOT,
+  getRoot: () => REPO_ROOT,
+}));
 
 // Non-git temp workspace（commit-contract fail-open）→ CDD_WORKSPACE 指向 TMPDIR。
 function setupWorkspace() {

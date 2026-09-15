@@ -10,9 +10,9 @@ import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../regist
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, reviewHardGate } from "../templates.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
 import { hashFile } from "../runner/review-loop.mjs";
-import { gitToplevel } from "../contract/commit.mjs";
 import { exitWithCode } from "../exit.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
+import { getRoot } from "../root.mjs";
 import { DRY_RUN, requireHostHarness, resolveTargetDoc, reviewStoppingGuard } from "./shared.mjs";
 
 // ---- review-specific helpers ----
@@ -37,7 +37,7 @@ export function existingRoundHandoff(ws, type, round) {
 // review --type task 的 task workspace 派生（task 派生点：与 run-task resolveWorkspace 同源 workspaceSlug）。
 // plan 文件名 → <repoRoot>/<workspaceRoot>/<slug>——slug 经 handoff-naming.workspaceSlug 收敛
 // （-design/-plan 单层 strip），基路径经 workspaceRoot 常量（不硬编码字面量），两派生点防分叉回归
-// 见 tests/cli-shared.test.mjs（§2.9 row 6）。导出为纯函数（test seam）：gitToplevel 由调用方注入。
+// 见 tests/cli-shared.test.mjs（§2.9 row 6）。导出为纯函数（test seam）：repoRoot 由调用方注入。
 export function taskReviewWorkspace(plan, repoRoot) {
   return path.join(repoRoot, handoffNaming.workspaceRoot, handoffNaming.workspaceSlug(plan));
 }
@@ -117,7 +117,7 @@ export async function runReview(opts) {
         PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
         HARD_GATE: reviewHardGate(art.return, handoffPath),
       },
-      workspace: ws, repoRoot: gitToplevel(process.cwd()),
+      workspace: ws, repoRoot: getRoot(),
       dryRun: DRY_RUN(),
     });
     return;
@@ -138,7 +138,7 @@ export async function runReview(opts) {
   }
   // Workspace slug derives from the plan filename (workspaceSlug 收敛 -design/-plan 单层 strip);
   // task Stopping reads the latest task-{N}-review-{R}.json and rejects when its blockers = 0.
-  const taskWs = taskReviewWorkspace(opts.plan, gitToplevel(process.cwd()));
+  const taskWs = taskReviewWorkspace(opts.plan, getRoot());
   // task round 经 canonical 派生层 type-aware resolveNextRound 推导（op/type 四参签名；
   // 显式透传 {task} pin → 防 scan 形态 {task}→\d+ 跨 task 混计 rounds）。
   const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { task: opts.task });

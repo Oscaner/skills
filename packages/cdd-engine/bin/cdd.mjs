@@ -12,19 +12,24 @@ import path from "node:path";
 
 import { initProcLifecycle, reapStale, teardownAll } from "../lib/lifecycle/proc.mjs";
 import { program, usageError } from "../lib/cli/parse.mjs";
+import { initRoot } from "../lib/root.mjs";
 import { ExitRequested } from "../lib/exit.mjs";
 
 // Only parse argv when executed as the main entry (imports from tests must be inert).
 const isMain =
   process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 if (isMain) {
+  // root 首次被需要时初始化：--help 由 commander 在 preAction 之前处理并 exit 0
+  //（§2.4.2 退出码表：0 = OK 含 --help，**不含 --version**——`parse.mjs` 无 `.version()` 声明，
+  //  `cdd --version` 是 unknown option → exit 2）——initRoot() 不得无条件前置于 parseAsync。
   // 进程生命周期：启动跨 run 兜底（回收上一次引擎被杀 SIGKILL/crash 残留的孤儿组）+ 信号安全出口
-  //（spec §2.2 A / §2.6）。CDD_LIFECYCLE_PATH 覆盖（spec 定案：测试/多进程并发注入唯一路径）；
-  // 生产默认 <cwd>/.osuperpowers/cdd/lifecycle.json（相对启动 cwd，跨 run 复用）。
-  const cwd = process.cwd();
-  const lifecyclePath = process.env.CDD_LIFECYCLE_PATH ?? path.join(cwd, ".osuperpowers", "cdd", "lifecycle.json");
-  initProcLifecycle({ diskPath: lifecyclePath });
-  await reapStale({ graceMs: 2000 });   // 启动兜底：跨 run 孤儿组连根回收（幂等，空盘 no-op）
+  //（spec §2.2 A / §2.6）。lifecycle 路径纯派生：单一 root 权威（lib/root.mjs）下的固定相对路径，
+  // 无环境变量覆写缝、无启动 cwd 读取（P4 §2.4.1）。
+  program.hook("preAction", async () => {
+    const repoRoot = initRoot();
+    initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
+    await reapStale({ graceMs: 2000 });   // 启动兜底：跨 run 孤儿组连根回收（仍在任何 action / dispatch 之前）
+  });
 
   // 信号安全出口：SIGINT/SIGTERM/SIGHUP → teardownAll → 按信号映射的退出码退出。
   // 退出码 = 128 + signo，对齐 shell 约定（SIGINT=2→130、SIGTERM=15→143、SIGHUP=1→129）——

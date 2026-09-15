@@ -74,6 +74,14 @@ const docsRunnerMock = vi.hoisted(() => ({
 }));
 vi.mock("../lib/runner/run-docs.mjs", () => docsRunnerMock);
 
+// 同族 seam：runReview/runFix 是 CLI 层，按 P4 §2.4.1 从唯一 root 权威（lib/root.mjs）取 root 后注入
+// runDocsTask。该权威在进程内由 bin 的 preAction 初始化，vitest 直调 CLI 层不走 bin → 以同值假路径
+// "/repo/root"（本文件既有字面量）打桩，使 in-process 单测与本文件黑盒用例的坐标系统一致。
+vi.mock("../lib/root.mjs", () => ({
+  initRoot: () => "/repo/root",
+  getRoot: () => "/repo/root",
+}));
+
 describe("cdd CLI", () => {
   it("-h → help", () => {
     const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false });

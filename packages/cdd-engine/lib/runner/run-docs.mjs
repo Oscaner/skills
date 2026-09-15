@@ -1,12 +1,13 @@
 // packages/cdd-engine/lib/runner/run-docs.mjs — lightweight runner for cdd review/fix
 // --type spec|plan (legacy docs-task surface). No commit-contract, no ledger, no probeSkills.
 // Spawns doc agent CLI; validates handoff against docs-handoff-schema.json.
-// Bug L fix: subprocess cwd = gitToplevel(process.cwd()), not workspace/doc directory.
+// Bug L fix: subprocess cwd = repo root, not workspace/doc directory.
+// P4 §2.4.1：root 由调用方注入（root 单一权威 lib/root.mjs）；本文件不自算第二权威。
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { invokeCli, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
-import { gitToplevel } from "../contract/commit.mjs";
+import { getRoot } from "../root.mjs";
 import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
 import { loadRegistry, checkHarness, REG_PATH } from "../registry.mjs";
@@ -41,16 +42,22 @@ export async function runDocsTask({
   handoffPath,   // canonical 命名权威（handoff-naming 派生）；无 template-fallback
   dryRun = false,
   params = {},   // additional template params from --param KEY=VALUE flags
-  // repoRoot accepted in opts but ignored — gitToplevel(process.cwd()) is always used (Bug L fix)
+  // repoRoot 注入缝：调用方（CLI 层）经单一 root 权威 lib/root.mjs 派生后传入；
+  // 缺省回落 engine 单根（同一权威），本文件不自算 root。
+  repoRoot,
 }) {
   if (dryRun) {
     return { exitCode: 0, handoff: { phase: mode, status: "APPROVED", findings: [], artifacts: {}, doc_path: doc } };
   }
 
   return withLifecycle(async () => {
-  // Bug L fix: use gitToplevel(process.cwd()) as subprocess cwd, not workspace (doc directory).
-  const repoRoot = gitToplevel(process.cwd());
-  if (!repoRoot) throw new Error("docs-runner: not in a git repo");
+  // Bug L fix: use the repo root as subprocess cwd, not workspace (doc directory).
+  // 注入值优先；未注入 → 取 engine 单根（lib/root.mjs）。求值在 dry-run 早退之后：
+  // dry-run 路径不构造 root，也不触碰未初始化的单根。
+  const root = repoRoot ?? getRoot();
+  // backstop：两条 root 来源（注入值 / 单根权威）正常路径下恒为真值，非 git 仓已在 initRoot() 处
+  // BLOCKED exit 1 判定；保留仅为防御第二权威来源被重新引入。
+  if (!root) throw new Error("docs-runner: not in a git repo");
 
   // T3: handoffPath must be passed by the caller (cdd.mjs passes canonical handoff-naming filenames).
   // The legacy `${template}-${round}.json` derivation is removed — no second naming site.
@@ -69,14 +76,14 @@ export async function runDocsTask({
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
 
   // Spawn agent using harness registry (provides -p, --output-format, etc.).
-  // cwd = repoRoot (Bug L fix: was path.dirname(handoffPath) / workspace before).
+  // cwd = root (Bug L fix: was path.dirname(handoffPath) / workspace before).
   // env = process.env so invokeCli's cleanEnv can strip credentials (Warn #137 posture).
   const reg = loadRegistry(REG_PATH);
   const entry = checkHarness(reg, harness);
   const timeoutMs = resolveTimeoutMs(process.env, "review");
   // invokeCli 注入参数 = (op, type)——review/fix 分别对 prefix.review[type?] /
   // prefix.fix（flat string）解析；type 由 cdd review/fix --type 经 runDocsTask 透传。
-  const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, repoRoot, timeoutMs);
+  const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, root, timeoutMs);
 
   // Read handoff from disk (agent writes it).
   if (!existsSync(handoffPath)) {

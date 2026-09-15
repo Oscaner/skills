@@ -4,8 +4,8 @@ import path from "node:path";
 
 import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./shared.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
-import { gitToplevel } from "../contract/commit.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
+import { getRoot } from "../root.mjs";
 import { exitWithCode } from "../exit.mjs";
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
@@ -62,7 +62,7 @@ export async function runFix(opts) {
   const { runDocsTask } = await import("../runner/run-docs.mjs");
   await runDocsTask({
     harness, mode: "fix", template, type: opts.type, doc,
-    findingsPath: opts.findings, repoRoot: gitToplevel(process.cwd()), dryRun: DRY_RUN(),
+    findingsPath: opts.findings, repoRoot: getRoot(), dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
   });

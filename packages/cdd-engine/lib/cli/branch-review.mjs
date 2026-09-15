@@ -9,8 +9,8 @@ import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK
 import * as handoffNaming from "../handoff/naming.mjs";
 import { validateHandoffSchema, loadHandoffSchema } from "../handoff/schema.mjs";
 import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
-import { gitToplevel } from "../contract/commit.mjs";
 import { finalizeHandoff } from "../handoff/finalize.mjs";
+import { getRoot } from "../root.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
@@ -43,7 +43,9 @@ export async function runBranchReview(opts) {
     throw e;
   }
 
-  const repoRoot = gitToplevel(process.cwd());
+  // root 单一权威（lib/root.mjs）：initRoot() 已在 bin 的 preAction 内完成「非 git 仓 → BLOCKED exit 1」
+  // 判定，故本处守卫仅为 backstop，正常路径不可达。
+  const repoRoot = getRoot();
   if (!repoRoot) { process.stderr.write("cdd review: not in a git repo\n"); exitBlocked(); }
   const base7 = String(base).slice(0, 7);
   const head7 = String(head).slice(0, 7);

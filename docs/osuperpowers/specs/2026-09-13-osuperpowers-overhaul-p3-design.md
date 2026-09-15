@@ -77,7 +77,7 @@
 
 连带注释面（三处）：
 
-- **`lib/lifecycle/cli.mjs:20`** — `// per-mode env（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT / CDD_RESEARCH_TIMEOUT）契约单位为秒 ——` 枚举收敛为 `CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT`（**L21 的秒级契约说明整段保留**）。**本处是守卫命中面**：check 2 `/CDD_RESEARCH_TIMEOUT|RESEARCH_TIMEOUT/` 的 scope `CDD_ENGINE`（= `bin` + `lib` + `templates`）覆盖之——删表内三行后若不同步删本行，则 **live-repo 仍非零命中 → `collectStaleLexiconHits() === []`（AC4）与块 5c 红 → AC2 / AC5 不可达**。
+- **`lib/lifecycle/cli.mjs:20`** — `// per-mode env（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT / CDD_RESEARCH_TIMEOUT）契约单位为秒 ——` 枚举收敛为 `CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT`（**L21 的秒级契约说明整段保留**）。**本处是守卫命中面**：check 2 `/RESEARCH_TIMEOUT/`（原 alternation 的 `CDD_` 前缀分支为死分支，T5 review-1 收敛为后缀单分支——`CDD_RESEARCH_TIMEOUT` 由其子串语义覆盖） 的 scope `CDD_ENGINE`（= `bin` + `lib` + `templates`）覆盖之——删表内三行后若不同步删本行，则 **live-repo 仍非零命中 → `collectStaleLexiconHits() === []`（AC4）与块 5c 红 → AC2 / AC5 不可达**。
 - `lib/lifecycle/proc.mjs:176` — 「六个派发模块（run-task / run-docs / review / branch-review / fix / research）」→ 五个（**非守卫命中面**：bare `research` 刻意放行，本条属说明文字同步，不改则静默留存为陈旧注释）
 - `lib/cli/review.mjs:5` — 「4 消费方（fix/parse/branch-review/research）」→ 3（同上，非守卫命中面）
 
@@ -125,7 +125,7 @@
 ```js
 // Task N（P3）：已删 cdd 子命令（命令形，非裸词——P4 可合法引入 /mattpocock-skills:research 会话调用）
 { label: "removed cdd subcommand (pre-P3)", re: /\bcdd (brief|research)\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
-{ label: "removed research timeout env", re: /CDD_RESEARCH_TIMEOUT|RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
+{ label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },  // 单分支覆盖 CDD_ 前缀与 legacy 裸名两形态
 ```
 
 **命令形是设计要点**：裸 `research` 会误伤 P4 合法的 `/mattpocock-skills:research`（`vendors/mattpocock-skills/skills/engineering/research/` 实存）；裸 `brief` 会误伤**活体文本** `packages/osuperpowers/skills/cli-driven-development/SKILL.md:66` 的 `brief-dependent plan sections`。两条均为反射例，必须放行。
@@ -135,7 +135,7 @@
 
 ### §2.8 changeset
 
-**8.1 本程序** — 新增一条**双包** `.changeset/p3-cdd-command-surface.md`：`@oscaner-skills/cdd-engine: minor` + `@oscaner-skills/osuperpowers: minor`（对齐 `p3-cdd-engine-overhaul.md` 的既有多包先例）。正文显式记录：**命令删除实为 breaking（semver 应为 major），但 engine changeset 的版本效果不落地**（`scripts/release/version-packages.mjs:82` 只处理 `packages/osuperpowers/package.json`；`.changeset/versioned-plugins.json = ["osuperpowers"]` 实证）→ 该项随 **P6** 统一复核。
+**8.1 本程序** — 新增一条**双包** `.changeset/p3-cdd-command-surface.md`：`@oscaner-skills/cdd-engine: minor` + `@oscaner-skills/osuperpowers: minor`（对齐 `p3-cdd-engine-overhaul.md` 的既有多包先例）。正文显式记录：**命令删除实为 breaking（semver 应为 major），但 engine changeset 的版本效果不落地**（`scripts/release/version-packages.mjs:82` 只处理 `packages/osuperpowers/package.json`；`.changeset/versioned-plugins.json = ["osuperpowers"]` 实证）→ 该项随 **P6** 统一复核。 **本仓内部理由（`version-packages.mjs:82` 路径 / `versioned-plugins.json` 内容 / P6 排期）刻意只留在本 spec，不进 changeset 正文**——changeset 会被 `version-packages.mjs:96-115` 渲染进 `packages/osuperpowers/CHANGELOG.md`（发布包内、消费者可见），而 CLAUDE.md「Consumer perspective」条明载消费环境无 monorepo 布局、无本仓工具链（T6 review-1 nit 收敛）。
 
 **8.2 存量 backlog 归并（Q6）** — `.changeset/` 中 4 个历史程序的 **14 条**未消费 changeset 按 **(package × bump level)** 归并为 **6 条**面向发布的声明：
 

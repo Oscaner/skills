@@ -13,7 +13,7 @@
 从 overall v1.11 + P3 design v1.2 copy：
 - **命令面目标集合** = `{implement, review, fix, base-branch}`（`lib/cli/parse.mjs` 顶层命令集合恰为此四）。**`--help` 计数陷阱**：Commander 自动注册的 `help [command]` 只进 `--help` 文本的 Commands 段、**不进 `program.commands`**，故删 brief/research 后实跑 `cdd --help` 的 Commands 段为 **5 行**而非 4——集合判定只能取实例断言，任何基于 `--help` 文本的「恰为四」计数都是假阴性陷阱（详见 T3 Interfaces）
 - **零残留作用域**（AC2/AC3）= engine 机制位置 `packages/cdd-engine/{bin,lib,templates}` 零字面残留 + `packages/osuperpowers/skills` 零 `cli-research`；`.agents/` 由 emit 派生收敛（其源即 skills，不手改）；历史 `docs/osuperpowers/{specs,plans}/*.md` 豁免
-- **守卫取命令形**：`/\bcdd (brief|research)\b/` + `/CDD_RESEARCH_TIMEOUT|RESEARCH_TIMEOUT/`；**绝不裸词** —— 裸 `research` 会误伤 P4 合法的 `/mattpocock-skills:research`（`vendors/mattpocock-skills/skills/engineering/research/` 实存），裸 `brief` 会误伤活体文本 `packages/osuperpowers/skills/cli-driven-development/SKILL.md:66` 的 `brief-dependent plan sections`
+- **守卫取命令形**：`/\bcdd (brief|research)\b/` + `/RESEARCH_TIMEOUT/`；**绝不裸词** —— 裸 `research` 会误伤 P4 合法的 `/mattpocock-skills:research`（`vendors/mattpocock-skills/skills/engineering/research/` 实存），裸 `brief` 会误伤活体文本 `packages/osuperpowers/skills/cli-driven-development/SKILL.md:66` 的 `brief-dependent plan sections`
 - **测试断言禁假绿**：黑盒退役断言必须用**完整调用形态**（`cdd research --brief x --output y` / `cdd brief --task 1 --plan x --output y`）——bare 形态在删前亦 exit 2（Commander required-option 缺省），是假绿
 - 所有改动须过 `pnpm run validate`（13 块）+ `pnpm run emit:check` 无 drift；**emit 唯一入口 = 仓库根 `pnpm run emit`**（`packages/osuperpowers/package.json` 无 scripts 字段）
 - **破坏性重构已授权**（2026-09-13 用户显式：允许破坏性变更、确保最佳实践、不留技术债务、遗留即删）：两处命令删除、级联死配置连根（含 `LEGACY_MODE_ENV` 整表与 `resolveTimeoutMs` legacy 分支、零生产者的 `validateBrief`）、存量 changeset 归并
@@ -681,9 +681,9 @@ P3 cdd 命令面收敛：`cdd` 子命令由 6 收敛为 4（implement / review /
 - **`cdd brief` 删除**：零消费者——engine 已在 implement 的 plan 定稿处自给 brief（`run-task.mjs` F11：`generateBrief` + `CDD_TASK_BRIEF` override 写/读同源 + dir bootstrap）；`lib/brief.mjs#generateBrief` 保留供 run-task。
 - **`cdd research` 删除**：唯一消费者 `cli-research` skill 一并删除（删除命令必须同步其唯一调用方）；`lib/cli/research.mjs`（`RESEARCH_METHODOLOGY` / `buildResearchPrompt` / `writeFindings` / `runResearch`）与 `lib/cli/brief.mjs`（`runBriefCli`）整文件移除。
 - **级联死配置连根**：`DEFAULT_TIMEOUTS.research` / `modeEnv.research`（`CDD_RESEARCH_TIMEOUT`）/ `LEGACY_MODE_ENV` 整表及 `resolveTimeoutMs` 的 legacy 分支 / 零生产者的 `lib/brief.mjs#validateBrief`。
-- **防回渗守卫**：`scripts/validate/residue.mjs` 新增 stale-lexicon 两条（命令形 `/\bcdd (brief|research)\b/` + `/CDD_RESEARCH_TIMEOUT|RESEARCH_TIMEOUT/`）——命令形刻意非裸词，保留 `/mattpocock-skills:research` 会话调用的合法空间。
+- **防回渗守卫**：`scripts/validate/residue.mjs` 新增 stale-lexicon 两条（命令形 `/\bcdd (brief|research)\b/` + `/RESEARCH_TIMEOUT/`）——命令形刻意非裸词，保留 `/mattpocock-skills:research` 会话调用的合法空间。
 
-> **semver 说明**：命令删除实为 **breaking**（如实应为 `cdd-engine` major）。标 minor 的原因有二——① 对齐 overall P6 既定口径（P1–P3 engine patch/minor）；② engine changeset 的**版本效果不落地**（`scripts/release/version-packages.mjs` 只处理 `packages/osuperpowers/package.json`；`.changeset/versioned-plugins.json = ["osuperpowers"]`）。该失真已显式记录，随 **P6** 统一复核。
+> **semver 说明**：`cdd brief` / `cdd research` 的删除实为 **breaking**（如实应为 `cdd-engine` major），本次按 minor 发布。
 ```
 
 - [ ] **Step 2: 写归并声明（六条，内容 = 14 条历史 backlog 的去重合并；`closes #NNN` 全保留）**
@@ -712,9 +712,9 @@ P3 cdd 命令面收敛：`cdd` 子命令由 6 收敛为 4（implement / review /
 - **单 bin + URC review contract + harness operation×type 注入**：五个 legacy bin（cdd-task / docs-task / branch-review / cdd-select / cdd-research）删除，实现/review×{task,branch,spec,plan}/fix/select/research/brief/contract 全部经单一 Commander 入口；六个 legacy review/fix 模板收敛为 `templates/review/` = `review.md` 共享壳 + `reviews.json` per-type 配置 + `doc-fix.md`，`templates/task/` = `implement.md` + `fix.md`；Review Stopping（URC）单周期单派发 + always-fix-all（APPROVED/blocker=0 拒绝同 ref 重派 → exit 3）；`harness-registry.json` prefix/suffix 按 `(op, type)` 解析；handoff schema 增可选 `notes`（Enh T）、删 `markDeferred` 残留（Enh S）；规则 SSoT 收敛到 `skills/_docs/review.md`（取代 docs-review.md，D1/D2/D3/`PASS=<` 旧语汇清除）。
 - **report-issue 双通道重构 + finding-meta 渲染器 + 方法论规范 + Enh K 全量回顾**：程序通道（→ phase-owning issue）vs 会话通道（→ find-or-create `[Session report] <slug|standalone> <date>` master，labels `session`, `osuperpowers`）；新 digraph `analyze → classify → confirm → resolve-destination → {program · session} → dedup → append-comment → report`；无 resolve-hit / `gh issue reopen` / `dogfood,<type>[,cdd]` labels；`.superpowers/cdd/<slug>/report-target.json` 缓存（CDD scope only）；never-reopen dedup；派生 report-meta 六字段 + 隐私码（不含 branch/绝对路径/文件名）；gh 操作一律 `--repo Oscaner/skills`。`report-issue/templates/finding-meta.json` 单一权威 → `scripts/report-templates.mjs` 纯渲染器 → emit 生成 `.github/ISSUE_TEMPLATE/*.yml`。brainstorming `explore-context` 全量 issue 回顾（含 Side-effect closures，读全 body + 全部评论，fail-open）。Enh R 预消费、Enh V/W 证实被取代。
 - **skills 面收口（p6-cdd-engine-overhaul 的 osuperpowers 侧）**：`cli-select` failure-mode recovery 去「same labels as above」——显式 no-manual-labels（仅 session master 携带 `session`, `osuperpowers`）；`writing-plans` 的 `write-plan` 节点钉死 plan 头 `**Spec:**` 二行约定 —— `**Spec:** [<name>-design.md](docs/superpowers/specs/<name>-design.md)`，与 `plan-review --spec` 指针同源（report-issue `resolve-destination` program 链首跳）。
-- **report-issue session context 模型 + evidence 双向契约 + master 只建不更（p6-report-issue-session-context）**：session context（root / workspace / channel / subject）由纯函数派生 —— standalone 不再误路由到程序 issue；evidence 撰稿双向契约（consumer-neutral + maintainer-reproducible，取代 I6 排除清单）；master 标题 subject 化（standalone 带 topic，kind 词不入标题）；master 只建不更（废除 Findings Summary 表镜像，findings 一律评论 append-only）（`#246` F2/F3/F4/F12）。
-- **overall 四表机械守卫 + 登记规则收敛 + CDD 死档清除（p4-session-report-246 的 osuperpowers 侧）**：validate block 12（`#246` F6/F13）。
-- **skills/docs 编排收敛（p5-session-report-246 的 osuperpowers 侧）**：`dispatch-mode` 删 brief 前置步、`determine-base` / `read-base` 委托只读、`base-branch.md` 4 值 enum + 双 slug 拆分、`_docs/review.md` slug 同步（`#246` F10/F11）。
+- **report-issue session context 模型 + evidence 双向契约 + master 只建不更（p6-report-issue-session-context）**：session context（root / workspace / channel / subject）由纯函数派生 —— standalone 不再误路由到程序 issue；evidence 撰稿双向契约（consumer-neutral + maintainer-reproducible，取代 I6 排除清单）；master 标题 subject 化（standalone 带 topic，kind 词不入标题）；master 只建不更（废除 Findings Summary 表镜像，findings 一律评论 append-only）（closes `#246` F2/F3/F4/F12）。
+- **overall 四表机械守卫 + 登记规则收敛 + CDD 死档清除（p4-session-report-246 的 osuperpowers 侧）**：validate block 12（Closes `#246` F6/F13）。
+- **skills/docs 编排收敛（p5-session-report-246 的 osuperpowers 侧）**：`dispatch-mode` 删 brief 前置步、`determine-base` / `read-base` 委托只读、`base-branch.md` 4 值 enum + 双 slug 拆分、`_docs/review.md` slug 同步（Closes `#246` F10/F11）。
 ```
 
 `.changeset/backlog-osuperpowers-patch.md`：
@@ -749,8 +749,8 @@ P3 cdd 命令面收敛：`cdd` 子命令由 6 收敛为 4（implement / review /
 "@oscaner-skills/cdd-engine": minor
 ---
 
-- `cdd review --type spec|plan` 的 Stopping ref 升级为 (doc_path, doc_hash) 内容状态双签名：内容实质演进即新 ref、可开新 review cycle；未变内容仍 exit 3；legacy handoff 硬停保留（`#246` F5）。
-- 进程生命周期统一管理：全部派生点纳入进程组所有权（`spawnManaged` detached 进程组 + `teardownAll` run 边界连根回收 + 跨 run `reapStale` 孤儿兜底），修长时间运行后 `claude -p` 驻留进程累积；目录结构重排（bin 薄入口 + lib 分簇 + tests 顶层，npm 发布不再含 tests）（`#246` F1）。
+- `cdd review --type spec|plan` 的 Stopping ref 升级为 (doc_path, doc_hash) 内容状态双签名：内容实质演进即新 ref、可开新 review cycle；未变内容仍 exit 3；legacy handoff 硬停保留（关 `#246` F5）。
+- 进程生命周期统一管理：全部派生点纳入进程组所有权（`spawnManaged` detached 进程组 + `teardownAll` run 边界连根回收 + 跨 run `reapStale` 孤儿兜底），修长时间运行后 `claude -p` 驻留进程累积；目录结构重排（bin 薄入口 + lib 分簇 + tests 顶层，npm 发布不再含 tests）（closes `#246` F1）。
 ```
 
 `.changeset/backlog-cdd-engine-patch.md`：
@@ -760,8 +760,8 @@ P3 cdd 命令面收敛：`cdd` 子命令由 6 收敛为 4（implement / review /
 "@oscaner-skills/cdd-engine": patch
 ---
 
-- overall 四表机械守卫（validate block 12）+ 登记规则收敛 + CDD 死档清除；无记录 handoff 读健壮性修复（坏 JSON → BLOCKED / corrupt prev → fail-open）（`#246` F6/F13）。
-- CDD 编排硬化：`cdd base-branch set/get` 子命令（base-branch artifact 由 engine 唯一写入，schema 4 值 enum + `confirmed_at` 必填 + 幂等 + `--force` + CDD 落点）；implement dispatch 自供应 brief（`cdd implement --plan` 单次调用拿全实现上下文）；workspace slug 收敛（strip 单一 `-design`/`-plan` suffix）；代码目录/CLI 整理（删 bin `.gitkeep`、拆 `cli/shared`）；`cdd brief` 前置调用兼容保留、可以安全删除（P3 已兑现）（`#246` F10/F11）。
+- overall 四表机械守卫（validate block 12）+ 登记规则收敛 + CDD 死档清除；无记录 handoff 读健壮性修复（坏 JSON → BLOCKED / corrupt prev → fail-open）（Closes `#246` F6/F13）。
+- CDD 编排硬化：`cdd base-branch set/get` 子命令（base-branch artifact 由 engine 唯一写入，schema 4 值 enum + `confirmed_at` 必填 + 幂等 + `--force` + CDD 落点）；implement dispatch 自供应 brief（`cdd implement --plan` 单次调用拿全实现上下文）；workspace slug 收敛（strip 单一 `-design`/`-plan` suffix）；代码目录/CLI 整理（删 bin `.gitkeep`、拆 `cli/shared`）；`cdd brief` 前置调用兼容保留、可以安全删除（P3 已兑现）（Closes `#246` F10/F11）。
 ```
 
 - [ ] **Step 3: 删 14 条历史 backlog changeset**

@@ -1,5 +1,6 @@
 // scripts/validate/residue.test.mjs — T9: stale-lexicon 断言组行为（unit）+ live-repo 零残留；
 // T6（P5）补 gate-lexicon 断言组（正例命中 + 反射例零误报 + 临时文件扫描命中）。
+// T5（P2/P3）补 old-docs-root 与 removed-cdd-subcommand 守卫断言组（命令形正例 + 反射例零误报 + 临时文件扫描命中）。
 // hasHit 模拟 residue.mjs 5c 步的扫描语义（任一 check 正则命中任一行即 hit），钉死
 // canonical 合法语汇（finding-meta.json `dogfood (CDD session)` 下拉、spec-review-1.json 家族名、
 // contract.mjs spec D1/D4/D5a 与 dirty working tree（D2）注释）不得误报；gate 反射例

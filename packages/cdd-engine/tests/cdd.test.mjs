@@ -6,7 +6,7 @@ import { execaSync } from "execa";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { forkLifecyclePath, mockRoot } from './helpers.mjs';
+import { forkLifecyclePath } from './helpers.mjs';
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -75,10 +75,9 @@ const docsRunnerMock = vi.hoisted(() => ({
 }));
 vi.mock("../lib/runner/run-docs.mjs", () => docsRunnerMock);
 
-// 同族 seam：runReview/runFix 是 CLI 层，按 P4 §2.4.1 从唯一 root 权威（lib/root.mjs）取 root 后注入
-// runDocsTask。该权威在进程内由 bin 的 preAction 初始化，vitest 直调 CLI 层不走 bin → 以同值假路径
-// "/repo/root"（本文件既有字面量）打桩，使 in-process 单测与本文件黑盒用例的坐标系统一致。
-vi.mock("../lib/root.mjs", () => mockRoot(() => "/repo/root"));
+// 根权威（lib/root.mjs）在本文件**不再打桩**：in-process 用例一律经 `root` 注入位（T3 根注入契约：
+// 无 reset / 无 env / 无 ForTest 缝）显式传入真仓路径，getRoot() 单例在这些路径上不再被消费。
+// 黑盒用例走独立 node 子进程，由 bin 的 preAction → initRoot() 初始化真实单例。
 
 describe("cdd CLI", () => {
   it("-h → help", () => {
@@ -314,48 +313,67 @@ function seedDocsReviewRound(repo, doc, fileName, { docHash, content = "" } = {}
 
 describe("P6 T3: docs handoff 命名走派生层", () => {
   // ---- 单元 seam：runReview/runFix（cdd.mjs 导出）→ mocked runDocsTask 参数断言 ----
+  // 合规通道（P4 §2.3.1 根注入契约）：真仓（mkdtemp + gitInit）+ 真 doc + `root: repo` 注入。
+  // 假路径 `/repo/root/docs/...` 在 T2 后必红（resolveDocArg 查盘 → exit 1 打死 worker），故全部作废。
+  // ⚠ 过渡态：`CDD_DRY_RUN` env 在本任务是过渡态（in-process 不解析 argv，program 级 `--dry-run`
+  //   对其物理不适用）；`setDryRun(true)` 的替换动作显式归 T3 Step 3/5。
 
   it("review --type spec → runDocsTask handoffPath=<ws>/spec-review-1.json + workspace=<ws>（canonical 派生命名，非 flat-root/旧体）", async () => {
+    const repo = tmpGitRepo();
     process.env.CDD_DRY_RUN = "1";
     process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runReview resolves host from process.env
     try {
+      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "# foo design\n");
       const { runReview } = await import("../lib/cli/review.mjs");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
-      await runReview({ type: "spec", spec: "/repo/root/docs/osuperpowers/specs/foo-design.md" });
+      await runReview({ type: "spec", spec: doc, root: repo });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
-      expect(call.handoffPath).toBe("/repo/root/.osuperpowers/cdd/foo/spec-review-1.json");
-      expect(call.workspace).toBe("/repo/root/.osuperpowers/cdd/foo");
+      const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+      expect(call.handoffPath).toBe(path.join(ws, "spec-review-1.json"));
+      expect(call.workspace).toBe(ws);
     } finally {
       delete process.env.CDD_DRY_RUN;
       delete process.env.CLAUDE_CODE_SESSION_ID;
       docsRunnerMock.runDocsTask.mockClear();
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
   it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
     const { resolveWorkspace } = await import("../lib/handoff/naming.mjs");
-    expect(resolveWorkspace("/repo/root/docs/osuperpowers/plans/foo.md"))
+    // root 显式注入（不调 initRoot()、不 chdir）——POSIX 路径字面量，无盘上依赖。
+    expect(resolveWorkspace("/repo/root/docs/osuperpowers/plans/foo.md", "/repo/root"))
       .toBe("/repo/root/.osuperpowers/cdd/foo");
-    expect(resolveWorkspace("/repo/root/docs/osuperpowers/specs/foo-design.md"))
+    expect(resolveWorkspace("/repo/root/docs/osuperpowers/specs/foo-design.md", "/repo/root"))
       .toBe("/repo/root/.osuperpowers/cdd/foo");
   });
 
   it("fix --findings spec-review-2.json → runDocsTask handoffPath=<ws>/spec-fix-2.json（round 从 findings 名经 roundPattern 解析）", async () => {
+    const repo = tmpGitRepo();
     process.env.CDD_DRY_RUN = "1";
     process.env.CLAUDE_CODE_SESSION_ID = "1"; // in-process seam: runFix resolves host from process.env
     try {
+      const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "# foo design\n");
+      const findings = path.join(repo, ".osuperpowers", "cdd", "foo", "spec-review-2.json");
+      mkdirSync(path.dirname(findings), { recursive: true });
+      writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }));
       const { runFix } = await import("../lib/cli/fix.mjs");
-      const findings = "/repo/root/.osuperpowers/cdd/foo/spec-review-2.json";
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
-      await runFix({ type: "spec", spec: "/repo/root/docs/osuperpowers/specs/foo-design.md", findings });
+      await runFix({ type: "spec", spec: doc, findings, root: repo });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
-      expect(call.handoffPath).toBe("/repo/root/.osuperpowers/cdd/foo/spec-fix-2.json");
+      const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
+      expect(call.handoffPath).toBe(path.join(ws, "spec-fix-2.json"));
       expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）
       expect(call.findingsPath).toBe(findings);
     } finally {
       delete process.env.CDD_DRY_RUN;
       delete process.env.CLAUDE_CODE_SESSION_ID;
       docsRunnerMock.runDocsTask.mockClear();
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
@@ -552,15 +570,18 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       } finally { rmSync(dir, { recursive: true, force: true }); }
     });
 
-    it("doc 文件缺失（hashFile → 空哨兵 ≠ prev.hash）→ 按 ref 变静默放行、无 CDD_INFO、下游自然失败", () => {
+    it("doc 文件缺失 → resolveDocArg 拦在 Stopping gate 之前（exit 1 三行诊断；幽灵 doc 静默放行不再可达）", () => {
       const dir = tmpGitRepo();
       try {
         const doc = path.join(dir, "docs", "foo-design.md");
         seedDocsReviewRound(dir, doc, "spec-review-1.json", { docHash: sha256("v1"), content: "v1" });
-        rmSync(doc);                                   // 删除现档——gate 放行（幽灵 doc 下游失败/或 dry-run 直接 exit 0）
+        rmSync(doc);                                   // 删除现档——T2 单一坐标系下已无法进入 gate
         const r = runCli(["review", "--type", "spec", "--spec", doc],
           { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
-        expect(r.exitCode).toBe(0);                    // dry-run 下放行即 exit 0（真实模式由 runDocsTask 自然报错）
+        // 内容路径归一（read point ⑤）是 Stopping gate 的前置：不存在 → exit 1（§2.4.2「运行期不可继续」）。
+        // hashFile 的空串哨兵分支因此在本 CLI 路径上不可达（无 ghost doc 能到 gate）。
+        expect(r.exitCode).toBe(1);
+        expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found/);
         expect(r.stderr).not.toMatch(/CDD_INFO/);      // 空串哨兵抑制「内容演进」误导消息（gate `&& docHash` 条款）
       } finally { rmSync(dir, { recursive: true, force: true }); }
     });

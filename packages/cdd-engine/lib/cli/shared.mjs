@@ -6,6 +6,7 @@
 // review.mjs 私有（review.mjs runReview 仍经本簇导入，shared 零反向依赖）。
 import { reviewStoppedError } from "../runner/review-loop.mjs";
 import { exitWithCode } from "../exit.mjs";
+import { getRoot, resolveDocArg } from "../root.mjs";
 
 export const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
 
@@ -37,13 +38,15 @@ export function requireHostHarness() {
 // D11（review/fix 共享）：被审目标解析 + 缺参守卫单点。type=spec → --spec（被审文档本身）；
 // type=plan → --plan（被审 plan，可选 --spec 携带上游参照）；缺参 → `cdd <verb> --type <type>:
 // missing required --<type> <path>` + exit 2。runReview / runFix 双调用点共用，禁止重复。
+// 出口经 resolveDocArg 归一（仓根相对 → 绝对；不存在 → exit 1 三行诊断，§2.4.2）——本函数是
+// review / fix 的 `--plan` / `--spec` 公共入口，一个 call site 覆盖四处 read point。
 export function resolveTargetDoc(opts, verb) {
   const doc = opts.type === "spec" ? opts.spec : opts.plan;
   if (!doc) {
     process.stderr.write(`cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`);
     exitWithCode(2);
   }
-  return doc;
+  return resolveDocArg(doc, opts.root ?? getRoot(), opts.type === "spec" ? "spec" : "plan");
 }
 
 // Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse

@@ -4,6 +4,9 @@
 //   → cdd review --type branch --plan <p> --base <b> --head <h> + CLAUDE_CODE_SESSION_ID=1 env
 // T10 warn: fixture plan/workspace 用临时 git 仓库（临时目录），不写真实 repo 的 .osuperpowers/cdd/ ——
 // 避免 validate 轮次污染 F6 单一根（smoke-plan/test-plan-br 再生）。
+// P4 T2 单一坐标系：branch review 的 workspace 由**注入 root**（= cwd 的 git toplevel，bin preAction
+// 经 initRoot 初始化）派生，不再由 plan 路径形状反推 —— 故调用必须 `cwd: dir` 让 root 落在本 tmp 仓，
+// 否则产物落到 vitest 进程 cwd 所在的仓根（旧 doc-path 派生行为已删）。
 import { describe, it, expect } from 'vitest';
 import { execaSync } from 'execa';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -45,7 +48,7 @@ describe('branch-review dry-run', () => {
         '--plan', planPath,
         '--base', 'abc1234',
         '--head', 'def5678',
-      ], { env: { ...process.env, CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1', CDD_LIFECYCLE_PATH: LIFECYCLE_PATH }, encoding: 'utf8' }).stdout;
+      ], { cwd: dir, env: { ...process.env, CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1', CDD_LIFECYCLE_PATH: LIFECYCLE_PATH }, encoding: 'utf8' }).stdout;
 
       expect(out).toContain('status: APPROVED');
       expect(out).toContain('commits: base=abc1234 head=def5678');

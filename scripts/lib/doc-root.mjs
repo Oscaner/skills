@@ -4,9 +4,6 @@
 //   - scripts/validate/overall-consistency.mjs   → SPECS_DIR / PLANS_DIR
 //   - packages/osuperpowers/tests/grep-sweep-regression.test.mjs → grep -v 排除后缀
 //
-// ⚠️ 引擎内独立副本：`packages/cdd-engine/lib/handoff/naming.mjs` 的 `rootFromDocPath`
-//   段对（`docs` + `osuperpowers`）**不** import 本模块——引擎是可独立发布/安装的包，
-//   不依赖本仓 `scripts/`。该处须随本常量同步变更（其注释含交叉引用）。
 export const DOC_ROOT_SEGMENTS = ["docs", "osuperpowers"];
 
 /** `<cwd>/docs/osuperpowers/specs` 的段数组（供 path.join 展开）。 */

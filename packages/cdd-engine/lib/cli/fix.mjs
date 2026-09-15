@@ -5,7 +5,7 @@ import path from "node:path";
 import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./shared.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
-import { getRoot } from "../root.mjs";
+import { getRoot, resolveDocArg } from "../root.mjs";
 import { exitWithCode } from "../exit.mjs";
 
 // 导出（测试 seam）：cdd.test.mjs 注入 docs-runner mock 断言 runDocsTask 参数。
@@ -13,6 +13,9 @@ export async function runFix(opts) {
   return withLifecycle(async () => {
   // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
   const harness = requireHostHarness();
+  // 根注入位（P4 §2.3.1 根注入契约）：进程内调用方可显式注入 root（无 reset / env / ForTest 缝），
+  // 黑盒路径回落 initRoot() 已初始化的单例。本文件所有 root 消费点统一用它。
+  const root = opts.root ?? getRoot();
   const { runTask } = await import("../runner/run-task.mjs");
   // type=task fix: --findings is plumbed through runTask's `findingsPath` opt — the runner
   // overrides env.CDD_FINDINGS with the previous-phase handoff in fix mode, so the opt takes
@@ -58,11 +61,14 @@ export async function runFix(opts) {
   // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
   // workspace 与 review 同源 resolveWorkspace(doc)；handoffPath 显式传 canonical fix.{type} 名。
   const template = handoffNaming.familyConfig("fix", opts.type).fixTemplate;
-  const ws = handoffNaming.resolveWorkspace(doc);
+  const ws = handoffNaming.resolveWorkspace(doc, root);
+  // `--findings` 归一（read point ⑦）：仓根相对 → 绝对、不存在 → exit 1 三行诊断。位置在 round
+  // 派生校验**之后**——round 无源 / round<1 仍须先按用法错 exit 2（§2.4.2：2 = 用法 / 环境错）。
+  const findingsPath = opts.findings ? resolveDocArg(opts.findings, root, "findings") : null;
   const { runDocsTask } = await import("../runner/run-docs.mjs");
   await runDocsTask({
     harness, mode: "fix", template, type: opts.type, doc,
-    findingsPath: opts.findings, repoRoot: getRoot(), dryRun: DRY_RUN(),
+    findingsPath, repoRoot: root, dryRun: DRY_RUN(),
     handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
   });
   });

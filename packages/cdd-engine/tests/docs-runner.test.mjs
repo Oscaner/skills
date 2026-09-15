@@ -158,8 +158,7 @@ describe("runDocsTask", () => {
 
     // execa called with cwd = '/repo/root' (注入的 repoRoot), NOT the doc directory.
     // （原另有一条 `not.toContain("/docs/osuperpowers/specs")` 反向断言，经 branch-review 判定为
-    //  **不可失败**——上行已 pin cwd === "/repo/root"，且两条 cwd 来源（mock gitToplevel 与
-    //  rootFromDocPath 回落）对同一假路径均得 repo root；已删，见 P2 plan T3 follow-up。）
+    //  **不可失败**——上行已 pin cwd === "/repo/root"；已删，见 P2 plan T3 follow-up。）
     const callOpts = execa.mock.calls[0][2];
     expect(callOpts.cwd).toBe("/repo/root");
   });

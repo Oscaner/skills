@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { execaSync } from "execa";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { gitInit } from "./helpers.mjs";
+
 const CDD_MJS = path.resolve(import.meta.dirname, "../bin/cdd.mjs");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
 describe("lib/root.mjs — 单根权威", () => {
   it("非 git 目录 → CDD_BLOCKED + exit 1", () => {
@@ -24,5 +27,50 @@ describe("lib/root.mjs — 单根权威", () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/Usage: cdd/);
     expect(r.stderr).not.toMatch(/not in a git repository/);
+  });
+});
+
+describe("lib/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）", () => {
+  it("子目录 + 仓根相对 --spec → 无幽灵根（自给自足真仓；不依赖本机残留）", () => {
+    // 自给自足：mkdtemp 真 git 仓 + 真 doc 文件。**不得**断言 `REPO_ROOT/.osuperpowers/...`——
+    // `.osuperpowers` 被 `.gitignore` 忽略，fresh clone / CI 上不存在；且 dry-run 路径下
+    // runDocsTask 在 `if (dryRun) return` 处早退、resolveNextRound 只读不建（ENOENT 归 round 1），
+    // **没有任何代码会创建该 workspace**——该断言在 CI 必然红（AC13 不可达）。
+    const repo = mkdtempSync(path.join(tmpdir(), "cdd-subdir-"));
+    gitInit(repo);
+    const rel = "docs/osuperpowers/specs/2026-09-13-foo-design.md";
+    mkdirSync(path.join(repo, "docs/osuperpowers/specs"), { recursive: true });
+    writeFileSync(path.join(repo, rel), "# foo design\n");
+    const sub = path.join(repo, "packages/cdd-engine");
+    mkdirSync(sub, { recursive: true });
+    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", rel],
+      // ⚠ 过渡态：`CDD_DRY_RUN` env 在此保留（program 级 `--dry-run` argv 由 T3 声明）；
+      //   **T3 Step 5 必须把本项改为 argv 前置 `--dry-run` 并删该 env 项**——否则 T3 删净 env 读取后
+      //   该用例会真实派发 agent CLI。
+      { cwd: sub, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1", CDD_DRY_RUN: "1" }, reject: false, encoding: "utf8" });
+    expect(r.exitCode).toBe(0);
+    expect(existsSync(path.join(sub, ".osuperpowers"))).toBe(false);      // 无幽灵根（子目录下不得出现）
+  });
+
+  it("不存在的仓根相对路径 → exit 1 + BLOCKED 三行诊断（含仓根相对指导）", () => {
+    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", "docs/nope.md"],
+      { cwd: REPO_ROOT, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });
+    expect(r.exitCode).toBe(1);                                     // §2.4.2：1 = 运行期不可继续（**不是** 2）
+    expect(r.stderr.trimEnd().split("\n").length).toBe(3);          // 三行诊断（行数是可区分形态，非恒真断言）
+    expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: docs\/nope\.md/);
+    expect(r.stderr).toMatch(/Tried \(against repo root .+\): /);
+    expect(r.stderr).toMatch(/Hint: cdd resolves paths against the repo root\. Verify the path is correct relative to the repo root\./);
+  });
+
+  it("不存在的绝对路径 → exit 1 + BLOCKED 三行诊断（绝对路径形措辞；与相对形可区分）", () => {
+    const abs = path.join(REPO_ROOT, "docs/nope-abs.md");          // 绝对路径直用分支的负例（Global Constraints 的第二种形态）
+    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", abs],
+      { cwd: REPO_ROOT, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });
+    expect(r.exitCode).toBe(1);                                     // 与相对形同码（§2.4.2：1，**不是** 2）
+    expect(r.stderr.trimEnd().split("\n").length).toBe(3);          // 两形态同为三行（行数锚点）
+    expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: .*nope-abs\.md/);   // ① 与相对形逐字同形
+    expect(r.stderr).toMatch(/Absolute path does not exist\./);                   // ② 绝对路径形
+    expect(r.stderr).toMatch(/Hint: pass a repo-root-relative path instead\./);   // ③ 绝对路径形
+    expect(r.stderr).not.toMatch(/Tried \(against repo root/);                    // 绝对形不得出现仓根尝试行（可区分形态）
   });
 });

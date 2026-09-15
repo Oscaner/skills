@@ -49,7 +49,7 @@ export async function runBranchReview(opts) {
   const base7 = String(base).slice(0, 7);
   const head7 = String(head).slice(0, 7);
   // workspace 与其他 review 型同源：resolveWorkspace(plan)（.osuperpowers/cdd/<slug>/）。
-  const workspace = handoffNaming.resolveWorkspace(plan);
+  const workspace = handoffNaming.resolveWorkspace(plan, repoRoot);
 
   // AC15 wiring: per-ref round seq（ref 内嵌文件名 → resolveNextRound 传 concrete base7/head7
   // 做 per-ref 轮次，他 ref 的轮次不干扰本 ref）+ --round backfill 校验（conflict → exit 2）+

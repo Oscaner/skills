@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P4 — skills 全面重写 + engine 契约面收敛 设计
 
-- **Version**: v1.0 · 2026-09-15（起草）
+- **Version**: v1.0 · 2026-09-15（起草；**plan 期 design 回填已并入 §2.5.2**——`failure_category` 入 handoff schema + `reviewStoppingGuard` 的未完成-dispatch 排除，overall v1.6 规则；按 P1/P2/P3 惯例不另行 bump）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.13](./2026-09-13-osuperpowers-overhaul-overall.md)（req 3 / req 5 / req 7 / req 8 + cdd 运行根约定 + 本次新增 A/B/C/D 族）→ 本 phase 回填至 **v1.14**
@@ -278,6 +278,12 @@ export function getRoot() {
 2. **计数器隔离**：`contractViolationCount` / `engineSelfWrittenCount` 为**独立 `progress.json` 字段**，各持终态（见上表），**不消耗 `engineRecoveryCount` 额度**（B2 保持已解）；`engineRecoveryCount` 只被 `EXECUTION_FAILURE` 消耗。
 
 **`counters` 的发布面（round-3 finding #2 裁定）**：`counters` 落**命令 stdout 状态块**——既有 H1 块的扩展行（`counters: timeout=<n> contract-violation=<n> engine-self-written=<n> recovery=<n>`），**不改 handoff schema**（两份 schema 的 properties 计数不变）。理由：handoff 是 **agent 写**的评审工件，计数是**引擎自持**的运行状态，二者不得混入同一契约——混入即把「生成侧的契约」与「引擎侧的状态」再度耦合，正是 R6 要根治的形态。取值来源 = `progress.json` 的四个字段（`timeoutCount` / `contractViolationCount` / `engineSelfWrittenCount` / `engineRecoveryCount`）；skills 只读该输出行，**不读 `progress.json`**（AC5）。
+
+**`failure_category` 落 handoff schema（plan 期回填，overall v1.6 规则）**：上条「不改 handoff schema」**只约束 `counters`**；**失败类目必须进 schema**——理由是它与 `counters` 性质相反：**类目描述的是「本轮 dispatch 的结局」**，属 handoff 契约的一部分（生成侧与引擎侧都要表达），而计数是引擎自持的运行状态。
+
+- 两份 schema（`cdd-handoff-schema.json` / `docs-handoff-schema.json`）的 `properties` 各增 `failure_category`（`enum` = 六类，可选；缺省 = agent 正常产出 → 非失败）。
+- **`additionalProperties: false` 前提**：schema 是 SOT，新增键必须同步入 schema，否则引擎自写的 handoff 会被自身校验拒绝。
+- **B3 的机制修法（#250[8]）**：`reviewStoppingGuard` 的 `prev` 判定增一条排除——`prev.failure_category ∈ { ENGINE_SELF_WRITTEN, CONTRACT_VIOLATION }` → 该轮**视为未完成的 dispatch**，**不触发 exit 3**，重派可正常进行。这是**唯一**使 `ENGINE_SELF_WRITTEN` 的「计入 Review Stopping = no」在控制流上成立的位置——仅写文案不足以修 B3。
 
 → 一次解掉 B1（超时未识别）/ B2（计数器共享）/ B3（自写 BLOCKED 指引与 Stopping 矛盾，#250[8]）/ B4（cap 后无合规重试，#250[2]）/ A4（校验失败丢弃 findings）。
 
@@ -591,7 +597,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 - **AC2** 子目录 + 仓根相对 `--plan`/`--spec`/`--findings` → 正常执行且 artifact 落**仓根** workspace；零幽灵 `<子目录>/.osuperpowers`；路径不存在 → **exit 1** + BLOCKED 诊断（首行 `CDD_BLOCKED: --<flag> not found: <arg>`，含仓根相对指导；退出码语义见 §2.4.2 退出码表：1 = 运行期不可继续 / 2 = 用法·环境 / 3 = Review Stopping，skills 只按 code 粗分流、具体路由读 stderr 首行前缀）
 - **AC3** `process.env` 取值直读 ⊆ canonical 白名单（**7 键**：3 宿主识别 + `PATH` + 3 timeouts；见 §2.4.4 ①）+ 整表透传点 ⊆ §2.4.4 ② 清单（8 处）+ 零 spread 注入；`packages/cdd-engine/templates/` 内零 `$CDD` 引用；子进程零 `CDD_*` 注入；测试零旁路缝（`filteredEnv` 类补丁零命中）；`CDD_LIFECYCLE_PATH` / `CDD_REGISTRY_PATH` / `NODE_ENV` / `CDD_DRY_RUN` / `PLAN_FILE` / `CDD_HANDOFF_PATH` 键名零命中
 - **AC4** `packages/cdd-engine/templates/context-contract.json`（**声明**）存在且被**运行期组合**消费（**承重**——`lib/context.mjs` 内 flag 名 / env 白名单 / timeout 默认值零硬编码）；**运行期 context 零落盘**——engine 内零「写 context 到任意路径」调用
-- **AC5** 每次派发输出 `status`/`commits`/`artifacts`（绝对路径）/`blocker`/`counters`；engine **零回读自身输出**；skills 面零 `CDD_*` 名、零 `progress.json`、零 handoff 文件名模式
+- **AC5** 每次派发输出 `status`/`commits`/`artifacts`（绝对路径）/`blocker`/`counters`；engine **零回读自身输出**；**编排型 skill**（brainstorming / writing-{single,overall,phase}-spec / writing-plans / cli-driven-development / finishing）零 `CDD_*` 名、零 `progress.json`、零 handoff 文件名模式。**例外（设计内，非缺口）**：`report-issue` 的 `progress.json#plan` 读取是 **program 通道的首跳**（§2.5.4 的目的正是使其可用），不属「引擎内部结构依赖」——该处的去留归 P5 的目标流程（届时可改指命令输出契约）
 - **AC6** **输出契约单源**：提示词注入的 handoff 结构由 **schema 派生**（携带允许键集 / `type` / `enum` / 嵌套形状 / `allOf` 条件）；**engine 写侧经同一 schema 构造**；校验报错含**违规键名 + JSON 指针**；engine 内零手写 schema 字段清单、零手写 handoff 对象字面量
 - **AC7** **失败类目化**：`TIMEOUT` / `CONTRACT_VIOLATION` / `ENGINE_SELF_WRITTEN` / `EXECUTION_FAILURE` / `UNVERIFIABLE` / `PLAN_CONFLICT` 六类显式声明；`CONTRACT_VIOLATION` 走**归一化重校验**且 findings **全额保留**；`ENGINE_SELF_WRITTEN` **不计入 Review Stopping**；**仅 `EXECUTION_FAILURE` 消耗 recovery 额度**；超时判定**引擎自持**（零 `res.timedOut` 单点依赖）；默认 `task 90 / review 60` 分钟
 - **AC8** `progress.json#plan` 与 `--plan` 入参一致（program 通道首跳可解析）

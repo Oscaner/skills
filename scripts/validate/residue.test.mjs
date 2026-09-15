@@ -78,9 +78,11 @@ describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
     expect(hasHit(["brief-dependent plan sections"])).toBe(false);
     expect(hasHit(["cddr research"])).toBe(false);        // 词边界：非 `cdd ` 前缀
   });
-  it("research timeout env 命中；task/review timeout 放行", () => {
-    expect(hasHit([`${"CDD_RESEARCH"}_TIMEOUT=2700`])).toBe(true);
-    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true);
+  it("research timeout env 命中（单分支覆盖两种被删形态）；task/review timeout 放行", () => {
+    // `RESEARCH_TIMEOUT` 为无锚定子串匹配 → `CDD_RESEARCH_TIMEOUT` 由其覆盖（T5 review-1 nit：
+    // 原 alternation 的 `CDD_` 前缀分支为死分支，两行断言实际等价）。此处显式断言两形态同源覆盖。
+    expect(hasHit([`${"CDD_RESEARCH"}_TIMEOUT=2700`])).toBe(true); // CDD_ 前缀形态（由后缀分支覆盖）
+    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true);     // legacy 裸名形态
     expect(hasHit(["CDD_TASK_TIMEOUT=60"])).toBe(false);
     expect(hasHit(["CDD_REVIEW_TIMEOUT=60"])).toBe(false);
   });

@@ -70,7 +70,10 @@ const STALE_LEXICON_CHECKS = [
   // 会话调用与活体文本 cli-driven-development/SKILL.md:66 的 `brief-dependent plan sections`
   // 均须放行）+ research 专属 timeout env（随 LEGACY_MODE_ENV/modeEnv.research 连根删除）。
   { label: "removed cdd subcommand (pre-P3)", re: /\bcdd (brief|research)\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
-  { label: "removed research timeout env", re: /CDD_RESEARCH_TIMEOUT|RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
+  //   `RESEARCH_TIMEOUT` 单分支即覆盖两种被删形态（`CDD_RESEARCH_TIMEOUT` 与 legacy 裸名）
+  //   ——无锚定 alternation 的子串语义使 `CDD_` 前缀分支为死分支（T5 review-1 nit，实测等价），
+  //   故取后缀单分支；`CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` 不命中（保留面）。
+  { label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
 ];
 
 // T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。

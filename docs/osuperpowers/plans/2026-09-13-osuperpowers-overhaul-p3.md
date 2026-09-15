@@ -834,4 +834,5 @@ git commit -m "chore(changeset): T6 — P3 双包 changeset（cdd-engine/osuperp
 - `implement`/`brief` 物化记 post-commit HEAD 为 base → 声明 range 空 diff（**系统性**，P1 task-4 / P2 T1/T2 同形；归 **P6**）
 - engine changeset 的版本效果不落地（`version-packages.mjs` 只处理 osuperpowers；P1/P2/P3 同形；归 **P6**）
 - smoke-cdd 共享 workspace 并发脆弱 + vitest fork 并发 flake（承 P1/P2）
+- **`66774ae` 为 orchestrator 越序（out-of-band）commit**（2026-09-15 overall v1.12「templates JSON 结构面单源」需求登记——用户指令的 program 级 Boundary-rules 回填），其**落在 T5 的声明 review 区间 `c213d73..41a469a` 之内**。T5 的交接账目（`task-5-report.md` §5「exactly 2」/ `task-5-test-evidence.json` `commits: 1`）按 brief File list 记，**不含**该 commit——**branch-review / phase 收口聚合 T5 交付面时须剔除它**。（T5 review-1 nit 记录；未改引擎侧 artifact 以守 I6 No Controller Bypass。）
 - phase design 版本惯例外：P1/P2 design 均定格 v1.0（含 review 修正后未 bump），P3 沿用 v1.2 内联记录（不 bump 于 plan 期回填）——若 P6 要统一，需一并定案

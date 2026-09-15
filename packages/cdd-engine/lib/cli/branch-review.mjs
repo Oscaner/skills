@@ -45,7 +45,10 @@ export async function runBranchReview(opts) {
 
   // root 单一权威（lib/root.mjs）：initRoot() 已在 bin 的 preAction 内完成「非 git 仓 → BLOCKED exit 1」
   // 判定，故本处无守卫——getRoot() 恒返回非空串，空值回退（第二 root 来源）已随收口删净。
-  const repoRoot = getRoot();
+  // 根注入契约（P4 §2.3.1，与 runReview/runFix 同形）：进程内调用方经 opts.root 显式注入，
+  // 黑盒路径回落 initRoot() 已初始化的单例——runReview 的 branch 分支转交本函数时原样透传 opts.root，
+  // 此处若只读单例即形成「接受但忽略」的静默缝（未 initRoot() 的进程内调用方拿到 throw）。
+  const repoRoot = opts.root ?? getRoot();
   const base7 = String(base).slice(0, 7);
   const head7 = String(head).slice(0, 7);
   // workspace 与其他 review 型同源：resolveWorkspace(plan)（.osuperpowers/cdd/<slug>/）。

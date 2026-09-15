@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { gitToplevel } from "./contract/commit.mjs";
+import { exitWithCode } from "./exit.mjs";
 
 let _root = null;
 
@@ -26,6 +27,9 @@ export function getRoot() {
 // 内容路径入参的唯一归一函数：仓根相对（绝对路径直用）。不保留 cwd 相对回落。
 // 退出码 = 1（§2.4.2 表：路径不存在属「运行期不可继续」——**不是** 2「用法 / 环境错」）。
 // 诊断恒为三行（行数即断言锚点，不得增删）。
+// 退出经 exitWithCode（THROW ExitRequested，非直调 process.exit）：本函数在 withLifecycle 内被调用
+// （cli/review.mjs / cli/fix.mjs 经 resolveTargetDoc），直调 process.exit 会短路其 finally 的
+// stopIdleMonitor/teardownAll —— run 边界连根回收即死代码（lib/exit.mjs:6-10 的仓标准）。
 export function resolveDocArg(arg, root, flag = "path") {
   if (path.isAbsolute(arg)) {
     if (existsSync(arg)) return arg;
@@ -33,7 +37,7 @@ export function resolveDocArg(arg, root, flag = "path") {
       `CDD_BLOCKED: --${flag} not found: ${arg}\n` +
       `  Absolute path does not exist.\n` +
       `  Hint: pass a repo-root-relative path instead.\n`);
-    process.exit(1);
+    exitWithCode(1);
   }
   const resolved = path.join(root, arg);
   if (existsSync(resolved)) return resolved;
@@ -41,5 +45,5 @@ export function resolveDocArg(arg, root, flag = "path") {
     `CDD_BLOCKED: --${flag} not found: ${arg}\n` +
     `  Tried (against repo root ${root}): ${resolved}\n` +
     `  Hint: cdd resolves paths against the repo root. Verify the path is correct relative to the repo root.\n`);
-  process.exit(1);
+  exitWithCode(1);
 }

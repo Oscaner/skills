@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { execaSync } from "execa";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -31,11 +31,18 @@ describe("lib/root.mjs — 单根权威", () => {
 });
 
 describe("lib/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）", () => {
-  it("子目录 + 仓根相对 --spec → 无幽灵根（自给自足真仓；不依赖本机残留）", () => {
+  it("子目录 cwd + 仓根相对 --spec → 归一仍命中仓根（cwd 相对回落即 exit 1）", () => {
     // 自给自足：mkdtemp 真 git 仓 + 真 doc 文件。**不得**断言 `REPO_ROOT/.osuperpowers/...`——
-    // `.osuperpowers` 被 `.gitignore` 忽略，fresh clone / CI 上不存在；且 dry-run 路径下
+    // `.osuperpowers` 被 `.gitignore` 忽略，fresh clone / CI 上不存在。
+    //
+    // **本用例只断言 exit 0，不设「无幽灵根」落点断言**（T2 review nit）：dry-run 路径下
     // runDocsTask 在 `if (dryRun) return` 处早退、resolveNextRound 只读不建（ENOENT 归 round 1），
-    // **没有任何代码会创建该 workspace**——该断言在 CI 必然红（AC13 不可达）。
+    // **没有任何代码会创建该 workspace**——故 `!existsSync(<sub>/.osuperpowers)` 在改造前后恒真，
+    // 是可失败性为零的假绿源，已删除。真正可失败的是本断言：把仓根相对回落成 cwd 相对时
+    // `path.join(<sub>, "docs/...")` 不存在 → resolveDocArg exit 1（而仓根相对 → exit 0）。
+    // 落点（workspace 实体创建在仓根、子目录下零落点）由非 dry-run 路径承担：
+    // `cdd.test.mjs` 的 PATH-shim 黑盒用例（`.osuperpowers/cdd/plan/branch-review-*.json` 真实落盘断言）
+    // 与 `progress-owner.test.mjs`（注入 root + 真仓，断言 `<repo>/.osuperpowers/…` 产物）。
     const repo = mkdtempSync(path.join(tmpdir(), "cdd-subdir-"));
     gitInit(repo);
     const rel = "docs/osuperpowers/specs/2026-09-13-foo-design.md";
@@ -49,7 +56,6 @@ describe("lib/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）
       //   该用例会真实派发 agent CLI。
       { cwd: sub, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1", CDD_DRY_RUN: "1" }, reject: false, encoding: "utf8" });
     expect(r.exitCode).toBe(0);
-    expect(existsSync(path.join(sub, ".osuperpowers"))).toBe(false);      // 无幽灵根（子目录下不得出现）
   });
 
   it("不存在的仓根相对路径 → exit 1 + BLOCKED 三行诊断（含仓根相对指导）", () => {

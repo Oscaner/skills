@@ -4,9 +4,8 @@ import { resolveInjection, resolveSuffix } from '../registry.mjs';
 import { spawnManaged, markAllDispatchesDone } from './proc.mjs';
 
 // Default timeouts by mode (30 minutes).
-const DEFAULT_TIMEOUTS = { task: 1_800_000, review: 1_800_000, research: 1_800_000 };
+const DEFAULT_TIMEOUTS = { task: 1_800_000, review: 1_800_000 };
 const STEP_SECONDS = 1800;
-const LEGACY_MODE_ENV = { research: 'RESEARCH_TIMEOUT' };
 // setTimeout 32 位上限（2^31-1 ≈ 24.8 天）内的安全天花板。任何数值输入 ×1000 一旦越过该界，
 // V8 触发 TimeoutOverflowWarning 把 timer 钳到 ~1ms —— 一次正常 dispatch 会被瞬时 SIGTERM 秒杀
 // （T8 回归：CDD_REVIEW_TIMEOUT=2700000 泄漏 → timeout 2.7e9 ms → fake claude 被即时强杀）。
@@ -17,10 +16,10 @@ function scaleToMs(seconds) {
   return Math.min(Math.max(1, seconds) * 1000, MAX_TIMEOUT_MS);
 }
 
-// per-mode env（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT / CDD_RESEARCH_TIMEOUT）契约单位为秒 ——
+// per-mode env（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT）契约单位为秒 ——
 // 45 分钟写 2700 而不是 2700000（ms 会 ≥8.3e8 → 溢出钳成 ~1ms 秒杀）。调度侧取值必须按秒契约。
 export function resolveTimeoutMs(env, mode) {
-  const modeEnv = { task: 'CDD_TASK_TIMEOUT', review: 'CDD_REVIEW_TIMEOUT', research: 'CDD_RESEARCH_TIMEOUT' };
+  const modeEnv = { task: 'CDD_TASK_TIMEOUT', review: 'CDD_REVIEW_TIMEOUT' };
   const modeKey = modeEnv[mode];
   const perMode = modeKey ? env[modeKey] : undefined;
   if (perMode !== undefined) {
@@ -34,13 +33,6 @@ export function resolveTimeoutMs(env, mode) {
     if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid → default
     const seconds = Math.max(1, Math.ceil(n / STEP_SECONDS) * STEP_SECONDS);
     return scaleToMs(seconds);
-  }
-  const legacyKey = LEGACY_MODE_ENV[mode];
-  const legacy = legacyKey ? env[legacyKey] : undefined;
-  if (legacy !== undefined) {
-    const n = Number(legacy);
-    if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode];
-    return scaleToMs(n);
   }
   if (DEFAULT_TIMEOUTS[mode] != null) return DEFAULT_TIMEOUTS[mode];
   return undefined;

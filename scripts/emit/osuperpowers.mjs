@@ -34,7 +34,8 @@ export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
   const version = resolveVersion(root, plugin).version;
   const contentRoot = plugin.contentRoot;
 
-  // Canonical skills list (12 emitters + init).
+  // Canonical skills list (directory-discovered — no count kept here; the count is asserted
+  // once, in scripts/validate/osuperpowers.mjs EXPECTED/EMITTERS_LABEL).
   const skillsDir = join(root, contentRoot, "skills");
   const skillNames = readdirSync(skillsDir, { withFileTypes: true })
     .filter(

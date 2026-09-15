@@ -1,6 +1,9 @@
 // tests/cli-shape.test.mjs — D11 CLI-surface shape test. 静态断言 command 定义面
 //（lib/cli/parse.mjs，薄入口后命令定义唯一落点）的 review/fix option 形态（--doc 退役 →
 // type 自解释 --spec/--plan）+ 新形态 dry-run smoke。
+// P3 命令面收敛守卫：退役命令（`cdd research` / `cdd brief`）黑盒完整形态 exit 2、
+// `program.commands` 顶层命令集合恰为四、`parse.mjs` 命令注册面零回渗
+//（无 `.command("brief")` / `.command("research")`）。
 // 用静态断言而非 CLI 级旧形态运行 —— 旧 `--doc` 现为 unknown option（exit 2），且新形态若
 // 未落地则 silent-accept 后触发真实 dispatch（副作用）。env 注入 CLAUDE_CODE_SESSION_ID="1"
 // 判 host（否则 BLOCK），CDD_DRY_RUN="1" 短路真实 harness 调用。
@@ -10,6 +13,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from 'node:url';
+import { program } from '../lib/cli/parse.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
@@ -85,5 +89,41 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
     const r = runCli(['review', '--type', 'spec', '--doc', SMOKE_PLAN],
       { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
     expect(r.exitCode).toBe(2);
+  });
+
+  // P3 退役子命令：完整调用形态（bare 形态在删前亦 exit 2——Commander required-option 缺省——是假绿）
+  it('cdd research（完整形态）→ unknown command exit 2（子命令退役）', () => {
+    const r = runCli(['research', '--brief', SMOKE_PLAN, '--output', '/tmp/p3-retired-research.md'],
+      { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/usage: cdd/);
+  });
+
+  // P3 T2 退役子命令：brief 全量移除（命令面 + CLI 处理器）。同 research —— 完整调用形态
+  //（bare 形态在删前亦 exit 2：Commander required-option 缺省 —— 是假绿）。
+  it('cdd brief（完整形态）→ unknown command exit 2（子命令退役）', () => {
+    const r = runCli(['brief', '--task', '1', '--plan', SMOKE_PLAN, '--output', '/tmp/p3-retired-brief.md']);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/usage: cdd/);
+  });
+});
+
+// P3：命令面收敛为四（implement / review / fix / base-branch）。
+// 静态实例断言优先于文本正则——commander 的 program.commands 只含**直接**子命令，
+// 嵌套的 baseBranch.command("set") / ("get") 自然不入集（parse.mjs 文件头明载
+// 「本文件可被测试静态读（cli-shape），import 后无副作用」；parseAsync 由 bin 薄入口 isMain 触发）。
+// 注意：Commander 隐式注册的 help [command] 只进 `--help` 文本的 Commands 段、不入 program.commands
+// ——故集合判据只能取下面的实例断言，任何基于 `--help` 文本的「恰为四」计数会数到 5 项而假失败。
+describe('P3 命令面收敛：顶层子命令恰为四', () => {
+  it('program.commands 名称集合 === {base-branch, fix, implement, review}', () => {
+    expect(program.commands.map((c) => c.name()).sort()).toEqual(
+      ['base-branch', 'fix', 'implement', 'review'],
+    );
+  });
+
+  it('源码面无 .command("brief") / .command("research") 注册', () => {
+    const src = readFileSync(PARSE_MJS, 'utf8');
+    expect(src).not.toMatch(/\.command\("brief"\)/);
+    expect(src).not.toMatch(/\.command\("research"\)/);
   });
 });

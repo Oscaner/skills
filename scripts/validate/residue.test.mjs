@@ -1,5 +1,6 @@
 // scripts/validate/residue.test.mjs — T9: stale-lexicon 断言组行为（unit）+ live-repo 零残留；
 // T6（P5）补 gate-lexicon 断言组（正例命中 + 反射例零误报 + 临时文件扫描命中）。
+// T5（P2/P3）补 old-docs-root 与 removed-cdd-subcommand 守卫断言组（命令形正例 + 反射例零误报 + 临时文件扫描命中）。
 // hasHit 模拟 residue.mjs 5c 步的扫描语义（任一 check 正则命中任一行即 hit），钉死
 // canonical 合法语汇（finding-meta.json `dogfood (CDD session)` 下拉、spec-review-1.json 家族名、
 // contract.mjs spec D1/D4/D5a 与 dirty working tree（D2）注释）不得误报；gate 反射例
@@ -63,6 +64,40 @@ describe("stale-lexicon：old docs root 守卫（Task 5）", () => {
   it("旧 docs 根命中（机制/文档表层）；新根 docs/osuperpowers/ 放行", () => {
     expect(hasHit([`${OLD_DOCS_ROOT}/specs/foo.md`])).toBe(true); // 新守卫命中
     expect(hasHit(["docs/osuperpowers/specs/foo.md"])).toBe(false); // 新根放行
+  });
+});
+
+// Task 5（P3）：已删 cdd 子命令守卫。字面经字符串拼接构造（P2 先例）——本文件不在任何
+// 守卫 scope 内（守卫 scope = OSKILLS + CDD_ENGINE + DOC_SURFACE_TARGETS，无 scripts/），
+// 但守卫测试保持零字面，可在 scope 未来扩张时不反噬自身。
+describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
+  const CDD = "cd" + "d";
+  it("命令形命中；裸 research / brief 放行（P4 合法调用面）", () => {
+    expect(hasHit([`Run \`${CDD} research --brief x --output y\``])).toBe(true);
+    expect(hasHit([`Run \`${CDD} brief --task 1 --plan p --output o\``])).toBe(true);
+    expect(hasHit(["/mattpocock-skills:research 会话调用"])).toBe(false);
+    expect(hasHit(["brief-dependent plan sections"])).toBe(false);
+    expect(hasHit(["cddr research"])).toBe(false);        // 词边界：非 `cdd ` 前缀
+  });
+  it("research timeout env 命中（单分支覆盖两种被删形态）；task/review timeout 放行", () => {
+    // `RESEARCH_TIMEOUT` 为无锚定子串匹配 → `CDD_RESEARCH_TIMEOUT` 由其覆盖（T5 review-1 nit：
+    // 原 alternation 的 `CDD_` 前缀分支为死分支，两行断言实际等价）。此处显式断言两形态同源覆盖。
+    expect(hasHit([`${"CDD_RESEARCH"}_TIMEOUT=2700`])).toBe(true); // CDD_ 前缀形态（由后缀分支覆盖）
+    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true);     // legacy 裸名形态
+    expect(hasHit(["CDD_TASK_TIMEOUT=60"])).toBe(false);
+    expect(hasHit(["CDD_REVIEW_TIMEOUT=60"])).toBe(false);
+  });
+  it("含命令形的临时文件被 collectStaleLexiconHits 命中（扫描面在扫）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-p3-"));
+    const f = path.join(dir, "note.md");
+    writeFileSync(f, `Run \`${CDD} research --brief b\`\n`, "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toBe("removed cdd subcommand (pre-P3)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

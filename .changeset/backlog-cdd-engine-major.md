@@ -1,0 +1,8 @@
+---
+"@oscaner-skills/cdd-engine": major
+---
+
+- **包抽离（v1.0.0）**：新包 `@oscaner-skills/cdd-engine`——5 CLI（cdd-task / docs-task / branch-review / cdd-select / cdd-research）+ `lib/` + `templates/` 独立发布；Commander v15 / execa v9 / ajv v8 / semver / Vitest v3 落位。Bug A–P 与 Enh F/G/P 修复见 osuperpowers major 条目（同批变更的双包声明）。`#137` `#139` `#109`。
+- **单 bin + URC review contract（BREAKING）**：五个 legacy bin 删除，收敛为单一 `bin/cdd.mjs` Commander 入口；模板数据化（`templates/review/` + `reviews.json`）；Review Stopping 单周期单派发 + always-fix-all + per-type round 序列（`resolveNextRound`）；`harness-registry.json` 按 `(op,type)` 注入；`cdd contract --check-dirty/--check-head/--clear-findings`；`CDD_DRY_RUN=1` dry-run。
+- **去 gate + harness 选择层（BREAKING）**：`cdd-gate` 子系统整体删除；`--harness` / `--doc` 参数删除；host 判定自包含（宿主即目标）；`progress.json` engine-owned（D14：`engineRecoveryCount` 由 runner 自写，orchestrator 只读）。
+- **handoff 契约统一 + review mode 归一 + stale-lexicon 守卫（BREAKING）**：`cdd contract` 子命令删除；implement handoff 改由 runner 实体化（agent 不再手写 handoff）；`task-review` mode → `review`（`CDD_MODE` / `VALID_MODES` / progress `rounds["review"]` / handoff `phase`；schema phase enum → `["implement","review","fix","branch-review"]`）；handoff 命名 canonical 单一权威（`templates/handoff-namespace.json`，`{type}-{op}[-{round}]`）；workspace 单根 `.superpowers/cdd/<slug>/`（flat `.superpowers/docs-review/` 退役）；status 由 `rollupStatus(findings)` 派生（SP-4 失败轮豁免）；`writeOwnHandoff` 全量覆写定稿统一 + post-run commit-contract；`scripts/validate/residue.mjs` stale-lexicon 零豁免守卫入 5c 步。

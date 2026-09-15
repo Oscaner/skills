@@ -2,7 +2,7 @@
 // spec §2.3 拆分（原 bin/cdd.mjs 合并面）：review 分发归本文件；共享 host 检测 + Stopping 守卫簇
 // （detectCurrentHarness/requireHostHarness/DRY_RUN/intTask/resolveTargetDoc/blockerCount/
 // stoppedExit3/reviewStoppingGuard）已迁 lib/cli/shared.mjs（spec §2.6 拆 shared，闭包完备性定归属），
-// 4 消费方（fix/parse/branch-review/research）与本文件经 shared 复用（单一 host 事实源）。
+// 3 消费方（fix/parse/branch-review）与本文件经 shared 复用（单一 host 事实源）。
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 

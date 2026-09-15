@@ -1,6 +1,6 @@
 // tests/cdd.test.mjs — 合并面 CLI（bin/cdd.mjs 薄入口 + lib/cli/ 命令面）契约测试。
 // 覆盖：帮助/用法、review 的 round+Stopping 接线（dry-run smoke）、fix --findings 接线、
-// select/research 内联、brief/contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
+// contract 模块转发。CDD_DRY_RUN=1 跳过真实 harness 调用。
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { execaSync } from "execa";
 import { createHash } from "node:crypto";
@@ -77,7 +77,8 @@ vi.mock("../lib/runner/run-docs.mjs", () => docsRunnerMock);
 describe("cdd CLI", () => {
   it("-h → help", () => {
     const r = execaSync(NODE, [CDD_MJS, "--help"], { cwd: REPO_ROOT, env: cleanEnv(), extendEnv: false });
-    expect(r.stdout).toMatch(/implement|review|fix|research|brief/);
+    expect(r.stdout).toMatch(/implement\/review\/fix\/base-branch/);
+    expect(r.stdout).not.toMatch(/\bbrief\b|\bresearch\b/);
   });
 
   it("review missing --type → usage exit 2", () => {
@@ -220,31 +221,6 @@ describe("cdd CLI", () => {
         { cwd: dir, env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/already blocker=0 — Review Stopping/);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("dry-run research → exit 0", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-research-"));
-    try {
-      const brief = path.join(dir, "brief.md");
-      writeFileSync(brief, "# test brief\n");
-      const r = runCli(["research", "--brief", brief, "--output", path.join(dir, "findings.md")],
-        { env: { CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" } });
-      expect(r.exitCode).toBe(0);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("brief --task --plan --output → 生成 brief + {brief} JSON", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-brief-"));
-    try {
-      const out = path.join(dir, "task-1-brief.md");
-      const r = runCli(["brief", "--task", "1", "--plan", SMOKE_PLAN, "--output", out]);
-      expect(r.exitCode).toBe(0);
-      expect(JSON.parse(r.stdout)).toEqual({ brief: out });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

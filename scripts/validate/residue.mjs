@@ -4,7 +4,9 @@
 // stale-lexicon checks pin the P4/P6 migration end-state — old docs-review
 // filenames, PASS=< lens params, D1|D2|D3 lens names, resolve-hit / gh issue
 // reopen resolver vocabulary, the task-review mode, P4 degraded filenames, and
-// the old docs root (pre-P2) — plus the P5 gate-lexicon checks pin the cdd-gate
+// the old docs root (pre-P2), the removed cdd subcommands `brief` / `research`
+// (pre-P3, command-form only — bare words stay legal), and the removed research
+// timeout envs — plus the P5 gate-lexicon checks pin the cdd-gate
 // subsystem removal (bin/gate/
 // path, CDD_GATE env, cdd-gate-core, gateDecide, deleted gate adapters) — must
 // not creep back into mechanism/document positions.)
@@ -64,6 +66,14 @@ const STALE_LEXICON_CHECKS = [
   // 并入文档表层（DOC_SURFACE_TARGETS）；正则以 `\/` 转义、label 不含路径字面，守卫本体
   // 因此不会把被守卫的旧根字面写回 scripts/（否则全仓校验会多出第三类命中）。
   { label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  // Task 5（P3）：已删 cdd 子命令（**命令形**，非裸词——P4 合法的 /mattpocock-skills:research
+  // 会话调用与活体文本 cli-driven-development/SKILL.md:66 的 `brief-dependent plan sections`
+  // 均须放行）+ research 专属 timeout env（随 LEGACY_MODE_ENV/modeEnv.research 连根删除）。
+  { label: "removed cdd subcommand (pre-P3)", re: /\bcdd (brief|research)\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  //   `RESEARCH_TIMEOUT` 单分支即覆盖两种被删形态（`CDD_RESEARCH_TIMEOUT` 与 legacy 裸名）
+  //   ——无锚定 alternation 的子串语义使 `CDD_` 前缀分支为死分支（T5 review-1 nit，实测等价），
+  //   故取后缀单分支；`CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` 不命中（保留面）。
+  { label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
 ];
 
 // T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。

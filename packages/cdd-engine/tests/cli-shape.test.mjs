@@ -1,6 +1,9 @@
 // tests/cli-shape.test.mjs — D11 CLI-surface shape test. 静态断言 command 定义面
 //（lib/cli/parse.mjs，薄入口后命令定义唯一落点）的 review/fix option 形态（--doc 退役 →
 // type 自解释 --spec/--plan）+ 新形态 dry-run smoke。
+// P3 命令面收敛守卫：退役命令（`cdd research` / `cdd brief`）黑盒完整形态 exit 2、
+// `program.commands` 顶层命令集合恰为四、`parse.mjs` 命令注册面零回渗
+//（无 `.command("brief")` / `.command("research")`）。
 // 用静态断言而非 CLI 级旧形态运行 —— 旧 `--doc` 现为 unknown option（exit 2），且新形态若
 // 未落地则 silent-accept 后触发真实 dispatch（副作用）。env 注入 CLAUDE_CODE_SESSION_ID="1"
 // 判 host（否则 BLOCK），CDD_DRY_RUN="1" 短路真实 harness 调用。

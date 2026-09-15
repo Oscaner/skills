@@ -10,7 +10,6 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
@@ -35,11 +34,8 @@ const PLAN_FINDINGS = path.join(FINDINGS_DIR, 'plan-review-1.json');
 for (const f of [SPEC_FINDINGS, PLAN_FINDINGS]) {
   writeFileSync(f, JSON.stringify({ status: 'CHANGES_REQUESTED', findings: [] }));
 }
-// CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已 **inert**（bin 侧读取点已删）：lifecycle 恒落
-// <repoRoot>/.osuperpowers/cdd/lifecycle.json，各 fork 共用；并发安全由 reapStale 的 owner 存活判定
-// 承担，不依赖路径分离（spec §2.2 A / §2.6；详见 helpers.mjs forkLifecyclePath 注释）。注入保留至
-// §2.4.4「测试缝删净」退场。
-const LIFECYCLE_PATH = forkLifecyclePath("doctask");
+// lifecycle 路径纯派生：恒落 <repoRoot>/.osuperpowers/cdd/lifecycle.json；并发安全由 reapStale 的
+// owner 存活判定承担，不依赖路径分离。
 
 function run(args, extraEnv = {}, opts = {}) {
   const env = {};
@@ -55,7 +51,7 @@ function run(args, extraEnv = {}, opts = {}) {
   }
   return spawnSync('node', [CDD_MJS, ...args], {
     cwd: REPO_ROOT,
-    env: { ...env, ...extraEnv, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH },
+    env: { ...env, ...extraEnv },
     encoding: 'utf8',
   });
 }
@@ -81,32 +77,32 @@ describe('cdd review/fix --type spec|plan CLI contract', () => {
 
   it('dry-run review --type spec → exit 0', () => {
     const r = run(
-      ['review', '--type', 'spec', '--spec', SMOKE_PLAN],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'review', '--type', 'spec', '--spec', SMOKE_PLAN],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run review --type plan → exit 0', () => {
     const r = run(
-      ['review', '--type', 'plan', '--plan', SMOKE_PLAN],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'review', '--type', 'plan', '--plan', SMOKE_PLAN],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run fix --type spec → exit 0（T3: round 从 --findings spec-review-{R}.json 名解析）', () => {
     const r = run(
-      ['fix', '--type', 'spec', '--spec', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'fix', '--type', 'spec', '--spec', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run fix --type plan → exit 0', () => {
     const r = run(
-      ['fix', '--type', 'plan', '--plan', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'fix', '--type', 'plan', '--plan', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });

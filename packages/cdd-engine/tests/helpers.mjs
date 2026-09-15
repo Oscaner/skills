@@ -1,8 +1,6 @@
-// tests/helpers.mjs — 跨测试文件共享的 git fixture / 生命周期路径 / 进程组能力 helper。
+// tests/helpers.mjs — 跨测试文件共享的 git fixture / 进程组能力 helper。
 // git init + 空提交（-c 内联身份：无全局 user.name/email 的环境（CI runner）也能 commit）。
 import { execFileSync, execSync, spawn } from "node:child_process";
-import os from "node:os";
-import path from "node:path";
 
 // 进程组回收能力探针（spec §2.6「环境不允许时 skip 保护」）：
 // detached 组 + kill(-pgid) 在部分 CI 容器（Ubuntu runner sandbox）下不可靠 —— 组提升失败或
@@ -39,17 +37,6 @@ export function gitCommit(dir, message = "plan") {
   execFileSync("git", ["-C", dir, "add", "-A"]);
   execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
     "commit", "-q", "-m", message]);
-}
-
-// CDD_LIFECYCLE_PATH —— 历史形态是「每 fork 注入唯一 tmp 路径」，用以避免跨 fork 共享
-// <repoRoot>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀并发在途组（spec §2.2 A）。
-// P4 §2.4.1 删除 bin 侧读取点后该注入**已 inert**：lifecycle 路径改为纯派生（无 env 缝），
-// 落点恒为 <repoRoot>/.osuperpowers/cdd/lifecycle.json —— 并发 fork 在仓根下**共用同一文件**。
-// 并发隔离现由 reapStale 的 owner 存活判定承担（lib/lifecycle/proc.mjs pidAlive：ownerPid ≠ 本进程
-// 且 owner 确证已死才判孤儿），不再依赖路径分离。helper 与各调用点的 env 注入保留至
-// §2.4.4「测试缝删净」一并退场。
-export function forkLifecyclePath(tag) {
-  return path.join(os.tmpdir(), `cdd-lifecycle-${tag}-${process.pid}.json`);
 }
 
 // 单根权威（lib/root.mjs）打桩 —— 同一 seam 的构造知识集中在此，避免各测试文件各写一份。

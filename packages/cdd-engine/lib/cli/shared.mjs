@@ -8,7 +8,16 @@ import { reviewStoppedError } from "../runner/review-loop.mjs";
 import { exitWithCode } from "../exit.mjs";
 import { getRoot, resolveDocArg } from "../root.mjs";
 
-export const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
+// DRY_RUN —— program 级 `--dry-run` flag 的解析结果（模块态）。写入侧唯一入口 setDryRun：
+// 黑盒路径由 bin/cdd.mjs 的 preAction 从 program.opts() 注入；进程内用例（argv 不被解析、
+// preAction 不触发）经 setDryRun(true) 显式注入并在 finally 复位。**引擎零 env 读取**。
+let dryRun = false;
+
+export const DRY_RUN = () => dryRun;
+
+export function setDryRun(enabled) {
+  dryRun = enabled === true;
+}
 
 // ---- host harness detection ----
 

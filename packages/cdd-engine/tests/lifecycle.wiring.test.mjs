@@ -76,7 +76,7 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     const child = spawn(process.execPath, [
       "packages/cdd-engine/bin/cdd.mjs", "review", "--type", "plan",
       "--plan", "packages/cdd-engine/tests/fixtures/smoke-plan.md",
-    ], { cwd: REPO_ROOT, env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}`, CLAUDE_CODE_SESSION_ID: "1", CDD_LIFECYCLE_PATH: path.join(stubDir, "lifecycle.json") }, stdio: ["ignore", "pipe", "pipe"] });
+    ], { cwd: REPO_ROOT, env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}`, CLAUDE_CODE_SESSION_ID: "1" }, stdio: ["ignore", "pipe", "pipe"] });
     await waitFor(() => alive("P1SIG") > 0, 30_000);
     child.kill(sig);
     const [code, signal] = await new Promise(res => child.on("exit", (c, s) => res([c, s])));

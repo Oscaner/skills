@@ -12,6 +12,7 @@ import path from "node:path";
 
 import { initProcLifecycle, reapStale, teardownAll } from "../lib/lifecycle/proc.mjs";
 import { program, usageError } from "../lib/cli/parse.mjs";
+import { setDryRun } from "../lib/cli/shared.mjs";
 import { initRoot } from "../lib/root.mjs";
 import { ExitRequested } from "../lib/exit.mjs";
 
@@ -26,6 +27,8 @@ if (isMain) {
   //（spec §2.2 A / §2.6）。lifecycle 路径纯派生：单一 root 权威（lib/root.mjs）下的固定相对路径，
   // 无环境变量覆写缝、无启动 cwd 读取（P4 §2.4.1）。
   program.hook("preAction", async () => {
+    // program 级 `--dry-run` 的唯一解析点：声明在 lib/cli/parse.mjs，读取在此（零命令定义）。
+    setDryRun(program.opts().dryRun === true);
     const repoRoot = initRoot();
     initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
     await reapStale({ graceMs: 2000 });   // 启动兜底：跨 run 孤儿组连根回收（仍在任何 action / dispatch 之前）

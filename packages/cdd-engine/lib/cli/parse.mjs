@@ -33,6 +33,7 @@ program.configureOutput({ outputError: () => {} });
 program
   .name("cdd")
   .description("CDD engine CLI — implement/review/fix/base-branch")
+  .option("--dry-run", "simulate without writing handoff artifacts")
   .helpOption("-h, --help", "display help for command");
 
 // --- implement (formerly cdd-task --mode implement) ---
@@ -46,7 +47,7 @@ program
     await runTask(harness, opts.task, {
       mode: "implement",
       dryRun: DRY_RUN(),
-      env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
+      planFile: opts.plan,
     });
   });
 

@@ -6,12 +6,11 @@
 //（无 `.command("brief")` / `.command("research")`）。
 // 用静态断言而非 CLI 级旧形态运行 —— 旧 `--doc` 现为 unknown option（exit 2），且新形态若
 // 未落地则 silent-accept 后触发真实 dispatch（副作用）。env 注入 CLAUDE_CODE_SESSION_ID="1"
-// 判 host（否则 BLOCK），CDD_DRY_RUN="1" 短路真实 harness 调用。
+// 判 host（否则 BLOCK），program 级 argv 前置 `--dry-run` 短路真实 harness 调用。
 import { describe, it, expect, afterAll } from 'vitest';
 import { execaSync } from 'execa';
 import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from 'node:url';
 import { program } from '../lib/cli/parse.mjs';
 
@@ -27,11 +26,6 @@ const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md')
 // exit 3（round 递增 + prev.doc_path 匹配），使 new-shape smoke 因 Stopping 而非形态错误失败。
 const SMOKE_SPEC = path.join('packages/cdd-engine/tests/fixtures/smoke-spec.md');
 const NODE = process.execPath;
-// CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已 **inert**（bin 侧读取点已删）：lifecycle 恒落
-// <repoRoot>/.osuperpowers/cdd/lifecycle.json，各 fork 共用；并发安全由 reapStale 的 owner 存活判定
-// 承担，不依赖路径分离（spec §2.2 A / §2.6；详见 helpers.mjs forkLifecyclePath 注释）。注入保留至
-// §2.4.4「测试缝删净」退场。
-const LIFECYCLE_PATH = forkLifecyclePath("clishape");
 
 // T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ ——
   //（engine workspaceSlug strip 尾 -plan：smoke-plan.md → smoke）
@@ -49,7 +43,7 @@ function runCli(args, { env: extraEnv = {} } = {}) {
     if (!k.startsWith('CDD_')) env[k] = v;
   }
   try {
-    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd: REPO_ROOT, env: { ...env, ...extraEnv, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH }, encoding: 'utf8', extendEnv: false });
+    const r = execaSync(NODE, [CDD_MJS, ...args], { cwd: REPO_ROOT, env: { ...env, ...extraEnv }, encoding: 'utf8', extendEnv: false });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
   } catch (e) {
     return { exitCode: e.exitCode ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
@@ -72,29 +66,29 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
     expect(src).toMatch(/\.option\("--plan <path>"/);
   });
 
-  // 新形态 smoke（dry-run 防真实 dispatch；SMOKE_SPEC/SMOKE_PLAN 仅作参数存在性，dry-run 不读内容）:
+  // 新形态 smoke（argv 前置 `--dry-run` 防真实 dispatch；SMOKE_SPEC/SMOKE_PLAN 仅作参数存在性，dry-run 不读内容）:
   it('review --type spec --spec 形态 dry-run 可过（new shape）', () => {
-    const r = runCli(['review', '--type', 'spec', '--spec', SMOKE_SPEC, '--plan', SMOKE_PLAN],
-      { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
+    const r = runCli(['--dry-run', 'review', '--type', 'spec', '--spec', SMOKE_SPEC, '--plan', SMOKE_PLAN],
+      { env: { ...HOST_ENV } });
     expect(r.exitCode).toBe(0);
   });
 
   it('review --type plan --plan 形态 dry-run 可过（new shape）', () => {
-    const r = runCli(['review', '--type', 'plan', '--plan', SMOKE_PLAN],
-      { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
+    const r = runCli(['--dry-run', 'review', '--type', 'plan', '--plan', SMOKE_PLAN],
+      { env: { ...HOST_ENV } });
     expect(r.exitCode).toBe(0);
   });
 
   it('review 传已被删除的 --doc → unknown option exit 2（旧形态退役）', () => {
-    const r = runCli(['review', '--type', 'spec', '--doc', SMOKE_PLAN],
-      { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
+    const r = runCli(['--dry-run', 'review', '--type', 'spec', '--doc', SMOKE_PLAN],
+      { env: { ...HOST_ENV } });
     expect(r.exitCode).toBe(2);
   });
 
   // P3 退役子命令：完整调用形态（bare 形态在删前亦 exit 2——Commander required-option 缺省——是假绿）
   it('cdd research（完整形态）→ unknown command exit 2（子命令退役）', () => {
-    const r = runCli(['research', '--brief', SMOKE_PLAN, '--output', '/tmp/p3-retired-research.md'],
-      { env: { ...HOST_ENV, CDD_DRY_RUN: '1' } });
+    const r = runCli(['--dry-run', 'research', '--brief', SMOKE_PLAN, '--output', '/tmp/p3-retired-research.md'],
+      { env: { ...HOST_ENV } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/usage: cdd/);
   });

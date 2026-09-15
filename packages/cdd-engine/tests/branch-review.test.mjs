@@ -11,17 +11,11 @@ import { describe, it, expect } from 'vitest';
 import { execaSync } from 'execa';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { forkLifecyclePath } from './helpers.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..'); // tests → packages/cdd-engine → packages → repo
-// CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已 **inert**（bin 侧读取点已删）：lifecycle 恒落
-// <repoRoot>/.osuperpowers/cdd/lifecycle.json，各 fork 共用；并发安全由 reapStale 的 owner 存活判定
-// 承担，不依赖路径分离（spec §2.2 A / §2.6；详见 helpers.mjs forkLifecyclePath 注释）。注入保留至
-// §2.4.4「测试缝删净」退场。
-const LIFECYCLE_PATH = forkLifecyclePath("branch");
 
 function tmpGitRepo() {
   const dir = mkdtempSync(path.join(tmpdir(), 'cdd-br-'));
@@ -44,11 +38,11 @@ describe('branch-review dry-run', () => {
     try {
       const out = execaSync('node', [
         path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs'),
-        'review', '--type', 'branch',
+        '--dry-run', 'review', '--type', 'branch',
         '--plan', planPath,
         '--base', 'abc1234',
         '--head', 'def5678',
-      ], { cwd: dir, env: { ...process.env, CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1', CDD_LIFECYCLE_PATH: LIFECYCLE_PATH }, encoding: 'utf8' }).stdout;
+      ], { cwd: dir, env: { ...process.env, CLAUDE_CODE_SESSION_ID: '1' }, encoding: 'utf8' }).stdout;
 
       expect(out).toContain('status: APPROVED');
       expect(out).toContain('commits: base=abc1234 head=def5678');

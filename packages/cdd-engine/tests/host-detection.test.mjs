@@ -8,7 +8,6 @@
 import { it, expect } from "vitest";
 import { execaSync } from "execa";
 import path from "node:path";
-import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from "node:url";
 // 薄入口化（spec §2.3）：detectCurrentHarness 随守卫簇移 lib/cli/shared.mjs（spec §2.6 守卫簇拆
 // cli/shared，闭包完备性：reviewStoppingGuard → stoppedExit3 + blockerCount + reviewStoppedError 全簇
@@ -20,17 +19,12 @@ const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
 const PLAN_FIXTURE = path.join(REPO_ROOT, "packages/cdd-engine/tests/fixtures/smoke-plan.md");
 const NODE = process.execPath;
-// CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已 **inert**（bin 侧读取点已删）：lifecycle 恒落
-// <repoRoot>/.osuperpowers/cdd/lifecycle.json，各 fork 共用；并发安全由 reapStale 的 owner 存活判定
-// 承担，不依赖路径分离（spec §2.2 A / §2.6；详见 helpers.mjs forkLifecyclePath 注释）。注入保留至
-// §2.4.4「测试缝删净」退场。
-const LIFECYCLE_PATH = forkLifecyclePath("hostdetect");
 
 // Full-replacement child env from scratch (PATH only + test extras) — parent CDD_* / host
 // markers cannot leak in (extendEnv:false). noHost deletes the three host markers explicitly.
 function runCli(args = [], opts = {}) {
   const { env: extraEnv = {}, cwd = REPO_ROOT, noHost = false } = opts;
-  const childEnv = { PATH: process.env.PATH, ...extraEnv, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH };
+  const childEnv = { PATH: process.env.PATH, ...extraEnv };
   if (noHost) {
     delete childEnv.CLAUDE_CODE_SESSION_ID;
     delete childEnv.CURSOR_TRACE_ID;
@@ -51,8 +45,8 @@ it("无 host env → cdd implement BLOCK exit 1 + CDD_BLOCKED", () => {
 });
 
 it("CLAUDE_CODE_SESSION_ID=1 → host 判定成功（dry-run exit 0）", () => {
-  const r = runCli(["implement", "--task", "1", "--plan", PLAN_FIXTURE],
-    { env: { CLAUDE_CODE_SESSION_ID: "1", CDD_DRY_RUN: "1" } });
+  const r = runCli(["--dry-run", "implement", "--task", "1", "--plan", PLAN_FIXTURE],
+    { env: { CLAUDE_CODE_SESSION_ID: "1" } });
   expect(r.exitCode).toBe(0);
 });
 

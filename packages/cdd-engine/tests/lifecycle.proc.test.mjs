@@ -23,11 +23,16 @@ async function loadModule() {
 const markerAlive = m => pgrepCount(m);   // 括号技巧消除 pgrep -f 自匹配（helpers.mjs，CI Linux 实测）
 const waitFor = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } throw new Error("waitFor timeout"); };
 
+// 本文件专用落盘 registry 路径（每用例经真实边界重建，见 beforeEach）。
+const DISK = path.join(os.tmpdir(), `p1lifecycle-${process.pid}.json`);
+
 describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   beforeEach(async () => {
     await loadModule();
-    proc.__resetForTest?.();
-    proc.initProcLifecycle({ diskPath: path.join(os.tmpdir(), `p1lifecycle-${process.pid}.json`) });
+    // registry 由 run 边界自持（§2.3.1 规则⑤：无 `__*ForTest` 后门缝）——initProcLifecycle 重建落盘态，
+    // 随后一轮真实 teardownAll 把模块态内存 registry 连根收回，得到每条用例的干净初态。
+    proc.initProcLifecycle({ diskPath: DISK });
+    await proc.teardownAll();
   });
   afterEach(async () => { await proc.teardownAll(); });
 
@@ -43,10 +48,15 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
     expect(Number(after)).toBe(0);
   });
 
-  it("teardownAll 后 registry 为空", async () => {
-    await proc.spawnManaged("sleep", ["1"], {});
-    await proc.teardownAll();
-    expect(proc.__registryForTest().length).toBe(0);
+  it("teardownAll 后 registry 为空（可观测边界结果：组连根死 + 盘上记录清零）", async () => {
+    const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EMPTY']).unref();process.exit(0)`;
+    await proc.spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+    // 注册即时化：in-flight 组亦在盘上（spawn 成功即入组，早于 dispatch 返回）
+    expect(JSON.parse(readFileSync(DISK, "utf8")).length).toBe(1);
+    expect(markerAlive("P1EMPTY")).toBeGreaterThan(0);
+    await proc.teardownAll({ graceMs: 500 });
+    expect(markerAlive("P1EMPTY")).toBe(0);                    // 组内后代随 pgid 连根回收
+    expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]); // registry 清空并落盘（不再有在册组）
   });
 
   it("reapStale 对已消失组 fail-open", async () => {
@@ -68,10 +78,9 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();process.exit(0)`;
     await proc.spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
     await proc.markAllDispatchesDone();            // dispatch 返回 → 组标 done
-    expect(proc.__registryForTest().every(g => g.done)).toBe(true);
     await proc.reapDone({ graceMs: 500 });
-    expect(markerAlive("P1LLWC")).toBe(0);
-    expect(proc.__registryForTest().length).toBe(0);
+    expect(markerAlive("P1LLWC")).toBe(0);         // done + 存活的组被连根回收（可观测边界结果）
+    expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]);  // 盘上 registry 同步注销该组
   });
 
   it("跨 run 父死回收：外部引擎落盘 registry 被 SIGKILL → 新 proc 实例 reapStale 连根回收", async () => {

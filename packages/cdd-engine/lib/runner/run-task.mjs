@@ -1,8 +1,8 @@
 // packages/cdd-engine/lib/runner/run-task.mjs — CDD per-task runner (Node port of cdd_run_task).
 // H1 four-line output is exclusive (spec v3): this module is responsible for formatting status/commits/artifacts/blocker.
-// runTask ordered contract: registry ship gate → CLI preflight → workspace/env
-//（resolveRepoRoot 内部完成三源 plan 收口：--plan ‖ env.PLAN_FILE ‖ ledger backfill）→ brief self-provision
-//（effective plan 定稿后 generateBrief；BLOCKED on failure）→ review fixed-point → require env →
+// runTask ordered contract: registry ship gate → CLI preflight → plan/workspace/ctx
+//（plan 由 `--plan` 显式参数唯一提供，root 经 `opts.root` 注入（缺省 getRoot()）→ brief self-provision
+//（effective plan 定稿后 generateBrief；BLOCKED on failure）→ review fixed-point → require ctx →
 // renderModePrompt → nested CLI spawn (captures stderr, not swallowed via 2>/dev/null) → commit-contract
 // → H1 four lines → handoff processing.
 // noExit=true returns { exitCode, h1 } instead of exit helpers — the unit-test seam.
@@ -13,15 +13,14 @@ import path from "node:path";
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
 import { renderModePrompt, pluginRoot } from "../templates.mjs";
 import { writeHandoff, writeOwnHandoff, readJson } from "../handoff/write.mjs";
-import { gitToplevel, validateCommitContract } from "../contract/commit.mjs";
+import { validateCommitContract } from "../contract/commit.mjs";
 import { generateBrief } from "../brief.mjs";
-import { briefPath } from "../state/workspace-artifacts.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, workspaceRoot } from "../handoff/naming.mjs";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../handoff/finalize.mjs";
-import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
+import { exitOk, exitBlocked, exitCliMissing, exitWithCode, ExitRequested } from "../exit.mjs";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
-import { getRoot } from "../root.mjs";
+import { getRoot, resolveDocArg } from "../root.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
 import { validateHandoffSchema } from "../handoff/schema.mjs";
 
@@ -58,98 +57,64 @@ function finish(exitCode, h1, msg, noExit, { stderrPrefix = "CDD_BLOCKED" } = {}
   return { exitCode, h1 };
 }
 
-// ---- workspace / env ----
+// ---- workspace / ctx ----
 
-// Effective plan is resolved from three sources (opt ‖ env.PLAN_FILE ‖ ledger backfill).
-// resolveRepoRoot branch logic and error messages are all based on this effective plan (#173: never fall back to cwd).
-// Branch rules:
-//   plan exists → plan-derived branch: existsSync pre-check ("plan file not found") →
-//     repoRoot = gitToplevel(dirname(plan)), failure → "not in a git repo";
-//     workspace = <repoRoot>/.osuperpowers/cdd/<slug>/
-//   no plan + CDD_WORKSPACE present → direct-set branch (current behavior): workspace = env value as-is;
-//     repoRoot = gitToplevel(workspace), null allowed (tolerated downstream)
-//   neither → RunBlocked "cannot resolve repo root: provide --plan or CDD_WORKSPACE"
-export function resolveRepoRoot({ planFile, env, ledgerPath }) {
-  let plan = planFile || env.PLAN_FILE || "";
-  if (!plan && ledgerPath) plan = backfillPlanFromLedger(ledgerPath);
-  if (plan) {
-    if (!existsSync(plan)) throw new RunBlocked(`plan file not found: ${plan}`);
-    const root = gitToplevel(path.dirname(plan));
-    if (!root) throw new RunBlocked("not in a git repo");
-    return { plan, repoRoot: root };
-  }
-  if (env.CDD_WORKSPACE) {
-    // repoRoot may be null (tolerated downstream: scripts-dir skips submodule probe / relpath falls back to absolute path).
-    return { plan: "", repoRoot: gitToplevel(env.CDD_WORKSPACE) };
-  }
-  throw new RunBlocked("cannot resolve repo root: provide --plan or CDD_WORKSPACE");
+// Workspace derivation is purely plan-derived (P4 §2.4.1): root comes from the injected single
+// root authority (lib/root.mjs — the engine's only cwd conversion point), the effective plan from
+// the explicit `--plan` argument. The former direct-set branch (a second coordinate system keyed
+// off a workspace env var) is gone: there is exactly one way to name a workspace.
+//   plan → <repoRoot>/<workspaceRoot>/<slug>/
+export function resolveWorkspace({ plan, repoRoot }) {
+  if (!repoRoot) throw new RunBlocked("not in a git repo");
+  const slug = workspaceSlug(plan);
+  if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
+  const base = path.join(repoRoot, workspaceRoot);
+  mkdirSync(path.join(base, slug), { recursive: true });
+  writeFileSync(path.join(base, ".gitignore"), "*\n");
+  return path.join(base, slug);
 }
 
-// Pure derivation (root resolved by resolveRepoRoot, injected as the third param): plan → <repoRoot>/.osuperpowers/cdd/<slug>/;
-// no plan + CDD_WORKSPACE → env value as-is; neither → RunBlocked.
-// Workspace resolution (purely derived after #173, repoRoot provided by resolveRepoRoot):
-//   plan present (planFile = effective plan, including env.PLAN_FILE/backfill sources) → plan-derived branch
-//     <repoRoot>/.osuperpowers/cdd/<slug>/;
-//   no plan + env.CDD_WORKSPACE → direct-set branch (current behavior): workspace = env value as-is.
-// Branch selection explicitly declared via planSource ("plan" | "workspace") — caller decides based on resolveRepoRoot
-// result, eliminating the control coupling of "faking an empty env to drive internal branching".
-export function resolveWorkspace({ plan, planSource, env, repoRoot }) {
-  if (planSource === "plan") {
-    if (!repoRoot) throw new RunBlocked("not in a git repo");
-    const slug = workspaceSlug(plan);
-    if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
-    const base = path.join(repoRoot, workspaceRoot);
-    mkdirSync(path.join(base, slug), { recursive: true });
-    writeFileSync(path.join(base, ".gitignore"), "*\n");
-    return path.join(base, slug);
-  }
-  if (env.CDD_WORKSPACE) return env.CDD_WORKSPACE;
-  throw new RunBlocked("CDD_WORKSPACE unset and --plan not provided");
-}
-
-// Aligns _cdd_set_task_env: workspace-derived paths, defaulted only when unset (`${VAR:-default}` semantics);
-// CDD_WORKSPACE / CDD_MODE / CDD_HARNESS are forced. Returns a new env object (does not mutate baseEnv).
+// buildCtx(root, taskNum, opts) — 引擎内部状态（ctx）的唯一构造点。ctx 一律经返回值传递，
+// **不得借道 env**：workspace / handoff / brief / ledger / constraints / findings 全部在此一次派生。
+// root 由调用方注入（runTask 传 `opts.root ?? getRoot()`，测试直接传真仓根；无 reset / env / ForTest 缝）。
+// plan 经 `--plan` 显式提供：opts.plan 已是归一后的绝对路径；否则由 opts.planFile 经 resolveDocArg
+// 归一到仓根坐标系（不存在 → exit 1 三行诊断）。两者皆缺 → RunBlocked。
 // round: derives per-round handoff path for review/fix modes; implement always produces task-N-implement.json.
 // findingsPath (cdd fix --findings): explicit handoff path for this fix round — takes precedence over the
 //   runner-derived prev-phase path (otherwise the fix CLI's --findings would be dead code).
-export function buildTaskEnv(baseEnv, workspace, task, mode, harness, { round = 1, findingsPath } = {}) {
-  const env = { ...baseEnv };
-  env.CDD_WORKSPACE = workspace;
-  env.CDD_HARNESS = harness;
-  env.CDD_LEDGER ||= path.join(workspace, "progress.json");
-  env.CDD_TASK_BRIEF ||= path.join(workspace, `task-${task}-brief.md`);
+export function buildCtx(root, taskNum, opts = {}) {
+  const { mode, harness, round = 1, findingsPath } = opts;
+  const plan = opts.plan ?? (opts.planFile ? resolveDocArg(opts.planFile, root, "plan") : "");
+  if (!plan) throw new RunBlocked("cannot resolve repo root: provide --plan");
+  const workspace = resolveWorkspace({ plan, repoRoot: root });
   // Per-phase per-round handoff path (unconditional — canonical handoff-naming 派生):
   // implement 用 fixed 族（无 round）；review/fix 用 round 族。非法 mode 回落旧拼字
-  // （派生层只认 canonical 族名，未知族 throw 会打乱后续 validateMode 的拒绝路径）。
+  //（派生层只认 canonical 族名，未知族 throw 会打乱后续 validateMode 的拒绝路径）。
   let handoffFile;
   if (mode === "implement") {
-    handoffFile = handoffName("implement", "task", { task });
+    handoffFile = handoffName("implement", "task", { task: taskNum });
   } else if (mode === "review" || mode === "fix") {
-    handoffFile = handoffName(mode, "task", { task, round });
+    handoffFile = handoffName(mode, "task", { task: taskNum, round });
   } else {
-    handoffFile = `task-${task}-${mode}-${round}.json`;
+    handoffFile = `task-${taskNum}-${mode}-${round}.json`;
   }
-  env.CDD_HANDOFF_PATH = path.join(workspace, handoffFile); // unconditional assignment
-  env.CDD_PLAN_CONSTRAINTS ||= path.join(workspace, "plan-constraints.md");
-  env.CDD_MODE = mode;
-  if (mode !== "fix") {
-    env.CDD_FINDINGS ||= path.join(workspace, `task-${task}-open-findings.json`);
-  }
-  if (mode === "fix") {
-    // CDD_FINDINGS: cdd fix --findings opt wins when provided; otherwise the runner-derived
-    // review-R.json path for this fix round (no scope filter).
-    env.CDD_FINDINGS = findingsPath ?? prevHandoffPath(workspace, task, mode, round);
-  }
-  return env;
-}
-
-// Aligns _cdd_plan_from_ledger: legacy fallback — only effective for pre-migration progress.md (first line
-// `# CDD ledger — plan: <path>`); progress.json does not contain that line, returns "" when regex does not match.
-function backfillPlanFromLedger(ledgerPath) {
-  if (!ledgerPath || !existsSync(ledgerPath)) return "";
-  const first = readFileSync(ledgerPath, "utf8").split("\n", 1)[0] ?? "";
-  const m = first.match(/^# CDD ledger — plan: (.+)$/);
-  return m ? m[1].trim() : "";
+  return {
+    plan,
+    round,
+    workspace,
+    handoffPath: path.join(workspace, handoffFile),          // unconditional derivation
+    briefPath: path.join(workspace, `task-${taskNum}-brief.md`),
+    ledgerPath: path.join(workspace, "progress.json"),
+    constraintsPath: path.join(workspace, "plan-constraints.md"),
+    // fix: cdd fix --findings opt wins when provided; otherwise the runner-derived review-R.json
+    // path for this fix round (no scope filter). implement/review: the open-findings path.
+    findingsPath: mode === "fix"
+      ? (findingsPath ?? prevHandoffPath(workspace, taskNum, mode, round))
+      : path.join(workspace, `task-${taskNum}-open-findings.json`),
+    mode,
+    harness,
+    fixedPoint: "",
+  };
 }
 
 // Read nested JSON field (commits.base / commits.head); missing/corrupt → "".
@@ -182,26 +147,28 @@ function validateMode(mode) {
   return null;
 }
 
-// Aligns cdd_require_env: required CDD_* vars + mode-specific extras (review → CDD_TASK_REVIEW_FIXED_POINT; fix → CDD_FINDINGS).
-function requireEnv(env, mode) {
+// Aligns cdd_require_env: required ctx fields + mode-specific extras (fix → findingsPath).
+function requireCtx(ctx, mode) {
   const missing = [];
-  for (const v of ["CDD_WORKSPACE", "CDD_TASK_BRIEF", "CDD_LEDGER", "CDD_MODE", "CDD_HANDOFF_PATH", "CDD_PLAN_CONSTRAINTS"]) {
-    if (!env[v]) missing.push(v);
+  for (const k of ["workspace", "briefPath", "ledgerPath", "mode", "handoffPath", "constraintsPath"]) {
+    if (!ctx[k]) missing.push(k);
   }
-  if (mode === "fix" && !env.CDD_FINDINGS) missing.push("CDD_FINDINGS");
-  return missing.length > 0 ? `Missing required env: ${missing.join(" ")}` : null;
+  if (mode === "fix" && !ctx.findingsPath) missing.push("findingsPath");
+  return missing.length > 0 ? `Missing required ctx fields: ${missing.join(" ")}` : null;
 }
 
-// {{PLACEHOLDER}} env mapping for renderModePrompt (bash 6 keys + TASK superset key).
-function promptEnv(env, taskNum) {
+// {{PLACEHOLDER}} template params (6 keys + TASK superset key). PLAN_LINE is derived from the
+// explicit plan path held by ctx — the template receives no env-sourced plan key.
+export function buildPromptParams(ctx, taskNum) {
   return {
-    WORKSPACE: env.CDD_WORKSPACE,
-    BRIEF: env.CDD_TASK_BRIEF,
-    HANDOFF: env.CDD_HANDOFF_PATH,
-    FINDINGS: env.CDD_FINDINGS,
-    CONSTRAINTS: env.CDD_PLAN_CONSTRAINTS,
-    FIXED_POINT: env.CDD_TASK_REVIEW_FIXED_POINT ?? "",  // empty string if cross-phase read returned nothing
+    WORKSPACE: ctx.workspace,
+    BRIEF: ctx.briefPath,
+    HANDOFF: ctx.handoffPath,
+    FINDINGS: ctx.findingsPath ?? "",
+    CONSTRAINTS: ctx.constraintsPath,
+    FIXED_POINT: ctx.fixedPoint ?? "",  // empty string if cross-phase read returned nothing
     TASK: String(taskNum),
+    PLAN_LINE: ctx.plan ? `**Plan:** ${ctx.plan}` : "",
   };
 }
 
@@ -258,29 +225,31 @@ export function h1FromHandoff(handoffPath) {
 
 // ---- dry-run simulation ----
 
-// Aligns bash dry-run branch hardcoded H1 block (CDD_DRY_RUN=1).
-function dryRunH1Block(env, taskNum) {
-  const ws = env.CDD_WORKSPACE;
+// Aligns bash dry-run branch hardcoded H1 block (the dry-run flag short-circuits the dispatch).
+function dryRunH1Block(ctx, taskNum) {
   return [
     "status: APPROVED",
     "commits: base=dry-run",
-    `artifacts: brief=${env.CDD_TASK_BRIEF} report=${ws}/task-${taskNum}-report.md test_evidence=${ws}/task-${taskNum}-test-evidence.json`,
+    `artifacts: brief=${ctx.briefPath} report=${ctx.workspace}/task-${taskNum}-report.md test_evidence=${ctx.workspace}/task-${taskNum}-test-evidence.json`,
     "blocker: none",
   ].join("\n");
 }
 
 // ---- runTask / runPlan ----
 
-// Aligns cdd_run_task. opts: { mode, planFile, dryRun, env, cwd, registryPath,
-//   noExit, pluginRoot, findingsPath }.
-// findingsPath: explicit CDD_FINDINGS path for fix mode (cdd fix --findings) — wins over
-//   buildTaskEnv's runner-derived prev-phase handoff path.
+// Aligns cdd_run_task. opts: { mode, planFile, root, dryRun, env, noExit, registryPath,
+//   findingsPath, pluginRoot } — 签名外的键一律不用（T7 新增用例同此约束）。
+// root 经参数注入（缺省 getRoot()）：进程内测试不注入即 throw（该 throw 即正确失败面，不得兜底）。
+// env = 宿主环境（spawnManaged 已做凭证剥离）；引擎自身零 env 派生值读取。
+// findingsPath: explicit findings path for fix mode (cdd fix --findings) — wins over the
+//   buildCtx runner-derived prev-phase handoff path.
 // Returns { exitCode, h1 } (does not call exitWithCode when noExit=true).
 export async function runTask(harness, taskNum, opts = {}) {
   return withLifecycle(async () => {
   const { mode, planFile, dryRun = false, noExit = false } = opts;
   const pluginRootFn = opts.pluginRoot ?? pluginRoot;
-  const baseEnv = opts.env ?? process.env;
+  const hostEnv = opts.env ?? process.env;
+  const root = opts.root ?? getRoot();
   const registryPath = opts.registryPath ?? REG_PATH;
 
   // 1. Registry ship gate + CLI preflight
@@ -296,40 +265,31 @@ export async function runTask(harness, taskNum, opts = {}) {
     throw e;
   }
 
-  // 2. Effective plan synthesis + repoRoot resolution (#173: unified entry, never falls back to cwd) + workspace
-  let workspace;
-  let repoRoot;
-  let plan;
+  // 2. Plan → workspace → ctx (#173: unified entry; single root authority, never falls back to cwd)
+  let ctx;
   try {
-    const rr = resolveRepoRoot({ planFile, env: baseEnv, ledgerPath: baseEnv.CDD_LEDGER });
-    plan = rr.plan;
-    repoRoot = rr.repoRoot; // stored in scope — used by brief/review-package/scripts-dir call sites
-    workspace = resolveWorkspace({
-      plan: rr.plan,
-      planSource: rr.plan ? "plan" : "workspace", // plan present → derived branch; otherwise direct-set branch reads baseEnv.CDD_WORKSPACE
-      env: baseEnv,
-      repoRoot,
-    });
-    // F11: self-provision the task brief at plan finalization（三源 plan 任一生效即生成）。
-    //   产物 = workspace-artifacts.briefPath（CDD_TASK_BRIEF 缺省派生同源）；生成失败（task 越界/
+    // round 需 workspace 定位 progress.json，而 handoffPath 需 round —— 先派生 workspace，再算 round，
+    // 最后落入 ctx（ctx 是 round/handoff 派生值的唯一承载体）。
+    const plan = planFile ? resolveDocArg(planFile, root, "plan") : "";
+    if (!plan) throw new RunBlocked("cannot resolve repo root: provide --plan");
+    const workspace = resolveWorkspace({ plan, repoRoot: root });
+    const round = mode === "implement" ? 1 : getRound(readProgressJSON(workspace), taskNum, mode);
+    ctx = buildCtx(root, taskNum, { mode, harness, plan, round, findingsPath: opts.findingsPath });
+    // F11: self-provision the task brief at plan finalization（--plan 生效即生成）。
+    //   产物 = workspace-artifacts.briefPath（与 ctx.briefPath 同源）；生成失败（task 越界/
     //   plan 缺失/HEAD 不可取）→ RunBlocked → BLOCKED exit 1 —— 不静默降级读既有/放行。
-    //   CDD_TASK_BRIEF override（读侧 L119 的 `||=` 保 caller-set 值）在写侧同样生效 —— 写 target
-    //   用同一解析：baseEnv.CDD_TASK_BRIEF 非空 → 写 override 路径，否则缺省派生。否则 override set 时
-    //   新鲜 brief 落缺省路径而 implement agent 读 override 路径 → stale-brief/TASK_BASE 分叉。
-    //   纯 CDD_WORKSPACE（无 plan）→ 跳过，读既有 brief（兼容 branch）。
-    if (plan) {
-      try {
-        const briefTarget = baseEnv.CDD_TASK_BRIEF || briefPath({ workspace, task: taskNum });
-        // 写前 dirname bootstrap（同 writeBaseBranch 的 workspace bootstrap 惯例）——override 常指向
-        // 尚未存在的子目录，writeFileSync 直写会 ENOENT；自供应语义下 engine 应能自愈建目录。
-        mkdirSync(path.dirname(briefTarget), { recursive: true });
-        generateBrief(plan, taskNum, briefTarget, repoRoot);
-      } catch (e) {
-        throw new RunBlocked(`brief generation failed: ${e.message}`);
-      }
+    //   写前 dirname bootstrap（同 writeBaseBranch 的 workspace bootstrap 惯例）。
+    try {
+      mkdirSync(path.dirname(ctx.briefPath), { recursive: true });
+      generateBrief(plan, taskNum, ctx.briefPath, root);
+    } catch (e) {
+      throw new RunBlocked(`brief generation failed: ${e.message}`);
     }
   } catch (e) {
     if (e instanceof RunBlocked) return finish(1, [], e.message, noExit);
+    // resolveDocArg 的路径不存在诊断走 exitWithCode（THROW ExitRequested）—— 归一到同一出口，
+    // 使 noExit=true 的进程内调用方仍拿到 { exitCode:1 } 而非异常穿透。
+    if (e instanceof ExitRequested) return finish(e.code, [], "", noExit);
     throw e;
   }
 
@@ -347,41 +307,32 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
-  // 4. Set env
-  const progressDir = path.dirname(baseEnv.CDD_LEDGER ?? path.join(workspace, "progress.json"));
-  const progressData = readProgressJSON(progressDir);
-  const round = mode === "implement" ? 1 : getRound(progressData, taskNum, mode);
-  const env = buildTaskEnv(baseEnv, workspace, taskNum, mode, harness, {
-    round,
-    findingsPath: opts.findingsPath,
-  });
-
-  // (old step 4 ledger PLAN_FILE backfill removed — plan is finalized at the entry in resolveRepoRoot)
+  const progressDir = path.dirname(ctx.ledgerPath);
 
   // 5. Task-review / fix fixed-point — derive from prior-phase handoff (cross-phase read).
   if (mode === "review" || mode === "fix") {
-    if (!env.CDD_TASK_REVIEW_FIXED_POINT) {
-      const prev = prevHandoffPath(workspace, taskNum, mode, round);
+    if (!ctx.fixedPoint) {
+      const prev = prevHandoffPath(ctx.workspace, taskNum, mode, ctx.round ?? 1);
       if (prev) {
         const prevCommitsBase = readJsonField(prev, ["commits", "base"]);
         if (prevCommitsBase && prevCommitsBase !== "unknown") {
-          env.CDD_TASK_REVIEW_FIXED_POINT = prevCommitsBase;
+          ctx.fixedPoint = prevCommitsBase;
         }
       }
     }
-    if (dryRun && !env.CDD_TASK_REVIEW_FIXED_POINT) env.CDD_TASK_REVIEW_FIXED_POINT = "HEAD~1";
+    if (dryRun && !ctx.fixedPoint) ctx.fixedPoint = "HEAD~1";
   }
 
-  // 6. require env / mode validation
+  // 6. require ctx / mode validation
   const modeErr = validateMode(mode);
   if (modeErr) return finish(1, [], modeErr, noExit);
-  const missing = requireEnv(env, mode);
+  const missing = requireCtx(ctx, mode);
   if (missing) return finish(1, [], missing, noExit);
 
   // 7. Render prompt
   let prompt;
   try {
-    prompt = renderModePrompt(mode, promptEnv(env, taskNum));
+    prompt = renderModePrompt(mode, buildPromptParams(ctx, taskNum));
   } catch (e) {
     return finish(1, [], `template render failed: ${e.message}`, noExit);
   }
@@ -393,12 +344,12 @@ export async function runTask(harness, taskNum, opts = {}) {
   let timedOut = false;
   let unkillable = false;
   if (dryRun) {
-    agentOut = dryRunH1Block(env, taskNum);
+    agentOut = dryRunH1Block(ctx, taskNum);
   } else {
-    const timeoutMs = resolveTimeoutMs(env, "task");
-    // 子进程 cwd = 唯一 root 权威（lib/root.mjs）——本函数不直读启动 cwd，也无第二注入缝。
-    // 求值落在本分支内：dry-run / 早期 BLOCKED 路径不经 cwd，也不触碰未初始化的单根。
-    const res = await invokeCliWithRetry(entry, prompt, INVOKE_PARAMS[mode], env, getRoot(), timeoutMs);
+    const timeoutMs = resolveTimeoutMs(hostEnv, "task");
+    // 子进程 cwd = 注入的 root（唯一 root 权威 lib/root.mjs；本函数不直读启动 cwd，也无第二注入缝）。
+    // 子进程 env = 宿主 env（零 CDD_* 注入 —— 引擎内部状态经 ctx 传递，不过 env 边界）。
+    const res = await invokeCliWithRetry(entry, prompt, INVOKE_PARAMS[mode], hostEnv, root, timeoutMs);
     agentOut = res.ok ? res.stdout : "";
     cliStderr = res.stderr;
     timedOut = res.timedOut === true;
@@ -411,9 +362,9 @@ export async function runTask(harness, taskNum, opts = {}) {
   //   timedOut && unkillable  → BLOCKED handoff (process unkillable).
   //   Progress: increment progress.md timeoutCount.
   if (timedOut) {
-    const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
+    const existingHandoff = readJson(ctx.handoffPath);
     if (unkillable) {
-      writeHandoff(env.CDD_HANDOFF_PATH, {
+      writeHandoff(ctx.handoffPath, {
         task: taskNum,
         phase: mode,
         status: "BLOCKED",
@@ -422,14 +373,14 @@ export async function runTask(harness, taskNum, opts = {}) {
         blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${taskNum}`,
       });
       if (!dryRun) {
-        incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+        incrementRound(progressDir, taskNum, mode);
         incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（BLOCKED/engine-error 判定路径）
       }
-      return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), "process unkillable", noExit);
+      return finish(1, h1FromHandoff(ctx.handoffPath), "process unkillable", noExit);
     }
     // Normal timeout: TIMEOUT partial handoff
-    const timeoutMs = resolveTimeoutMs(env, "task");
-    writeHandoff(env.CDD_HANDOFF_PATH, {
+    const timeoutMs = resolveTimeoutMs(hostEnv, "task");
+    writeHandoff(ctx.handoffPath, {
       task: taskNum,
       phase: mode,
       status: "TIMEOUT",
@@ -437,12 +388,12 @@ export async function runTask(harness, taskNum, opts = {}) {
       artifacts: {},
       blocker: `cli timed out after ${timeoutMs}ms → simplify task ${taskNum} scope or increase timeout, then re-dispatch`,
     });
-    if (!dryRun) incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    if (!dryRun) incrementRound(progressDir, taskNum, mode);
     // Increment timeoutCount in progress.json
     const timeoutProgressData = readProgressJSON(progressDir);
     timeoutProgressData.timeoutCount++;
     writeProgressJSON(progressDir, timeoutProgressData);
-    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli timed out after ${timeoutMs}ms`, noExit);
+    return finish(1, h1FromHandoff(ctx.handoffPath), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
   // 8.8 Handoff JSON Schema validation — reject malformed handoffs before downstream processing.
@@ -450,23 +401,23 @@ export async function runTask(harness, taskNum, opts = {}) {
   //（engine 是载体唯一作者，implement agent 经 implement.md 不写 handoff，13 步由 finalizeHandoff 实体化）。
   // review/fix 保留读取校验（agent 是内容作者，findings 内容契约）。
   if (mode !== "implement") {
-    const existingHandoff = readJson(env.CDD_HANDOFF_PATH);
+    const existingHandoff = readJson(ctx.handoffPath);
     if (existingHandoff) {
       const sv = validateHandoffSchema(existingHandoff);
       if (!sv.valid) {
-        writeHandoff(env.CDD_HANDOFF_PATH, {
+        writeHandoff(ctx.handoffPath, {
           task: taskNum,
           phase: mode,
           status: "BLOCKED",
           findings: [],
           artifacts: {},
-          blocker: `handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${env.CDD_HANDOFF_PATH} and re-dispatch task ${taskNum}`,
+          blocker: `handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch task ${taskNum}`,
         });
         if (!dryRun) {
-          incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+          incrementRound(progressDir, taskNum, mode);
           incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
         }
-        return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `schema validation failed: ${sv.reason}`, noExit);
+        return finish(1, h1FromHandoff(ctx.handoffPath), `schema validation failed: ${sv.reason}`, noExit);
       }
     }
   }
@@ -474,8 +425,8 @@ export async function runTask(harness, taskNum, opts = {}) {
   // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + H1-from-handoff +
   //     stderr CDD_BLOCKED diagnostic + exit 1 (aligns bash cdd_exit_blocked). Only sanctioned divergence:
   //     Node additionally writes handoff (§spec 2.1 stderr-surfacing) — bash emits raw agent H1 + exit 1.
-  if (agentRc !== 0 && !existsSync(env.CDD_HANDOFF_PATH)) {
-    writeHandoff(env.CDD_HANDOFF_PATH, {
+  if (agentRc !== 0 && !existsSync(ctx.handoffPath)) {
+    writeHandoff(ctx.handoffPath, {
       task: taskNum,
       phase: mode,
       status: "BLOCKED",
@@ -485,10 +436,10 @@ export async function runTask(harness, taskNum, opts = {}) {
       blocker: `cli exited ${agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${taskNum}`,
     });
     if (!dryRun) {
-      incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+      incrementRound(progressDir, taskNum, mode);
       incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
     }
-    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `cli exited ${agentRc} and handoff missing`, noExit);
+    return finish(1, h1FromHandoff(ctx.handoffPath), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
   // 10.5. CLI succeeded but no handoff → BLOCKED (file-existence check, not phase-mismatch fallback).
@@ -496,18 +447,18 @@ export async function runTask(harness, taskNum, opts = {}) {
   // dry-run excluded: bash dry-run does not write handoff, Node does not either.
   // implement excluded (T6): runner 实体化写盘在 13 步 OK 路径 —— implement 分支本检查不触发
   //（实现链 agent 经 implement.md 不再写 handoff，残留检查会误 BLOCKED 每次成功实现）。
-  if (agentRc === 0 && !dryRun && mode !== "implement" && !existsSync(env.CDD_HANDOFF_PATH)) {
-    writeHandoff(env.CDD_HANDOFF_PATH, {
+  if (agentRc === 0 && !dryRun && mode !== "implement" && !existsSync(ctx.handoffPath)) {
+    writeHandoff(ctx.handoffPath, {
       task: taskNum,
       phase: mode,
       status: "BLOCKED",
       findings: [],
       artifacts: {},
-      blocker: `${path.basename(env.CDD_HANDOFF_PATH)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${env.CDD_HANDOFF_PATH} before exit`,
+      blocker: `${path.basename(ctx.handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${ctx.handoffPath} before exit`,
     });
-    incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+    incrementRound(progressDir, taskNum, mode);
     incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（10.5 退出码 0 未写 handoff 判定路径）
-    return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), `${mode} agent did not write handoff`, noExit);
+    return finish(1, h1FromHandoff(ctx.handoffPath), `${mode} agent did not write handoff`, noExit);
   }
 
   // 11. H1 four lines (from agent stdout / dry-run block)
@@ -534,15 +485,15 @@ export async function runTask(harness, taskNum, opts = {}) {
     const finalized = finalizeHandoff({
       mode,
       h1,
-      brief: env.CDD_TASK_BRIEF,
-      repoRoot,
-      workspace: env.CDD_WORKSPACE,
+      brief: ctx.briefPath,
+      repoRoot: root,
+      workspace: ctx.workspace,
       taskNum,
     });
     if (finalized.handoff) {
       // 定稿写盘全量覆盖：agent 写残留进不了载体（无残留兼容层）。
-      writeOwnHandoff(env.CDD_HANDOFF_PATH, finalized.handoff);
-      h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
+      writeOwnHandoff(ctx.handoffPath, finalized.handoff);
+      h1 = h1FromHandoff(ctx.handoffPath);
       // 实体化后 H1 与 handoff/exit 一致：hard gate 或 agent 声明 BLOCKED → exit 1。
       if (finalized.exitCode !== 0) {
         incrementRecovery(progressDir); // D14: implement 实体化 BLOCKED 落点（hard evidence-gate / agent H1 非 APPROVED）
@@ -561,38 +512,37 @@ export async function runTask(harness, taskNum, opts = {}) {
   //   smoke 链）会经 rewriteHandoffBlocked 真写 BLOCKED 文件、污染 dry-run 语义。
   //   必须先于 review 的 status=complete 回写：dirty 失败轮不误标 complete。
   if (!dryRun) {
-    const cv = validateCommitContract(mode, repoRoot ?? "", { handoffPath: env.CDD_HANDOFF_PATH });
+    const cv = validateCommitContract(mode, root ?? "", { handoffPath: ctx.handoffPath });
     if (!cv.ok) {
       incrementRecovery(progressDir); // D14: engine 自写 BLOCKED（commit-contract 重写）→ engineRecoveryCount 自增
-      return finish(1, h1FromHandoff(env.CDD_HANDOFF_PATH), cv.blocker, noExit);
+      return finish(1, h1FromHandoff(ctx.handoffPath), cv.blocker, noExit);
     }
   }
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，
   // SP-4 豁免失败轮次）；成功路径读回定稿并持久化（writeOwnHandoff 全量覆盖），H1 同步用 h1FromHandoff。
   // T8: APPROVED review 回写 progress task.status=complete（读回握手 finalizeHandoff 之后，
-  // 且在 post-run validate 通过之后 —— dirty 失败轮不标 complete）。
+  // 且在 post-run validate 通过之后 —— dirty 失败轮不误标 complete）。
   if (!dryRun && mode === "review") {
-    const reviewHandoff = readJson(env.CDD_HANDOFF_PATH);
+    const reviewHandoff = readJson(ctx.handoffPath);
     if (reviewHandoff) {
       const finalized = finalizeHandoff({ mode, agentHandoff: reviewHandoff });
       // persistFinalized：派生无变化（同引用）→ skip 写盘（不产生 no-op 覆盖）；有变化 → 全量覆盖 + sync。
-      persistFinalized(env.CDD_HANDOFF_PATH, reviewHandoff, finalized);
-      h1 = h1FromHandoff(env.CDD_HANDOFF_PATH);
+      persistFinalized(ctx.handoffPath, reviewHandoff, finalized);
+      h1 = h1FromHandoff(ctx.handoffPath);
       if (normalizeHandoffStatus(reviewHandoff.status) === "APPROVED") {
-        const progressDir2 = path.dirname(env.CDD_LEDGER);
-        const progressData2 = readProgressJSON(progressDir2);
+        const progressData2 = readProgressJSON(progressDir);
         let taskEntry = progressData2.tasks.find((t) => t.task === taskNum);
         if (!taskEntry) {
           taskEntry = { task: taskNum, status: "pending", rounds: {} };
           progressData2.tasks.push(taskEntry);
         }
         taskEntry.status = "complete";
-        writeProgressJSON(progressDir2, progressData2);
+        writeProgressJSON(progressDir, progressData2);
       }
     }
   }
-  if (!dryRun && mode !== "implement") incrementRound(path.dirname(env.CDD_LEDGER), taskNum, mode);
+  if (!dryRun && mode !== "implement") incrementRound(progressDir, taskNum, mode);
   return finish(0, h1, "", noExit);
   });
 }

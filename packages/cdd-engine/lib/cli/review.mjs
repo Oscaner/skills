@@ -164,7 +164,7 @@ export async function runReview(opts) {
   const { runTask } = await import("../runner/run-task.mjs");
   await runTask(harness, opts.task, {
     mode: "review", dryRun: DRY_RUN(),
-    env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
+    planFile: opts.plan,
   });
   });
 }

@@ -2,48 +2,39 @@
 // engineRecoveryCount 由 engine 在 BLOCKED/engine-error 判定路径自增（runner.mjs 写 BLOCKED handoff 时），
 // orchestrator 层 skill（cli-driven-development §engine-recovery / §timeout-decision）只读判 retry，
 // 不再写 progress.json（[#232 comment 5612106797]：orchestrator 手写 tasks 当数组 → dispatch 失败）。
-import { it, expect, vi } from 'vitest';
-import { mkdtempSync, writeFileSync, chmodSync, readFileSync } from "node:fs";
+import { it, expect } from 'vitest';
+import { mkdirSync, mkdtempSync, writeFileSync, chmodSync, readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { mockRoot } from "./helpers.mjs";
+import { gitInit, gitCommit } from "./helpers.mjs";
 import { runTask } from "../lib/runner/run-task.mjs";
 import { readProgressJSON, incrementRecovery } from "../lib/state/progress.mjs";
 import { REG_PATH } from "../lib/registry.mjs";
 
-// P4 §2.4.1 seam：runTask 的子进程 cwd 取唯一 root 权威（lib/root.mjs），运行时由 bin 的 preAction
-// 初始化——vitest 直调 runTask 不走 bin → 单例未初始化。以真仓根打桩（真实存在的目录）。
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-vi.mock("../lib/root.mjs", () => mockRoot(() => REPO_ROOT));
-
-// Non-git temp workspace（commit-contract fail-open）→ CDD_WORKSPACE 指向 TMPDIR。
+// 真仓 fixture（P4 §2.3.1 根注入契约）：root 经 runTask 的 `opts.root` 显式注入（真 mkdtemp 仓根），
+// 不调 initRoot()、不 chdir、无 env 缝。workspace 纯由 `--plan` 派生（<repo>/.osuperpowers/cdd/<slug>）。
 function setupWorkspace() {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-progress-owner-"));
-  const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, tasks: [] };
-  writeFileSync(path.join(ws, "progress.json"), JSON.stringify(progressData, null, 2));
+  const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-progress-owner-")));
+  gitInit(repo);
+  const plans = path.join(repo, "docs", "osuperpowers", "plans");
+  mkdirSync(plans, { recursive: true });
+  const planFile = path.join(plans, "plan.md");
+  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
+  gitCommit(repo);                                   // plan 入 tracked（工作树干净 —— commit-contract 前提）
+  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  mkdirSync(cddDir, { recursive: true });
+  writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
+  const ws = path.join(cddDir, "plan");
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify(
+    { plan: planFile, timeoutCount: 0, engineRecoveryCount: 0, tasks: [] }, null, 2));
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
-  return ws;
-}
-
-// 剥 CDD_* 继承环境（测试进程在 orchestrator env 下运行，泄漏 CDD_HANDOFF_PATH 等会写真实 workspace），
-// 只留测试控制的 CDD_WORKSPACE。
-function filteredEnv() {
-  const env = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
-  }
-  return env;
-}
-
-function baseEnv(ws, extra = {}) {
-  return { ...filteredEnv(), CDD_WORKSPACE: ws, ...extra };
+  return { repo, planFile, ws };
 }
 
 it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orchestrator 只读）", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-progress-owner-bin-"));
   writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\necho 'boom from fake cli' >&2\nexit 3\n");
   chmodSync(path.join(binDir, "fake-cli"), 0o755);
@@ -61,7 +52,8 @@ it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orches
     // 触发一次 engine-level BLOCKED：嵌套 CLI 失败（exit 3）且未写 handoff → runner 自写 BLOCKED handoff
     const res = await runTask("ghost", 1, {
       mode: "implement",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile,
+      root: repo,
       registryPath: regPath,
       noExit: true,
     });

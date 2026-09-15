@@ -17,9 +17,9 @@ export async function runFix(opts) {
   // 黑盒路径回落 initRoot() 已初始化的单例。本文件所有 root 消费点统一用它。
   const root = opts.root ?? getRoot();
   const { runTask } = await import("../runner/run-task.mjs");
-  // type=task fix: --findings is plumbed through runTask's `findingsPath` opt — the runner
-  // overrides env.CDD_FINDINGS with the previous-phase handoff in fix mode, so the opt takes
-  // precedence inside buildTaskEnv (otherwise --findings would be dead code).
+  // type=task fix: --findings is plumbed through runTask's `findingsPath` opt — buildCtx
+  // derives the findings path for fix mode, so the opt takes precedence inside buildCtx
+  // (otherwise --findings would be dead code).
   if (opts.type === "task") {
     if (!opts.plan) {
       process.stderr.write("cdd fix --type task: missing required --plan <path>\n");
@@ -32,7 +32,7 @@ export async function runFix(opts) {
     await runTask(harness, opts.task, {
       mode: "fix", dryRun: DRY_RUN(),
       findingsPath: opts.findings,
-      env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
+      planFile: opts.plan,
     });
     return;
   }

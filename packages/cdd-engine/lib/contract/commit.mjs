@@ -58,13 +58,13 @@ export function rewriteHandoffBlocked(handoffPath, reason) {
 //     非三种 mode → no-op。非 git / git-error / 无 repoRoot → fail-open。
 // 两个正交信号：dirty working tree（D2）；干净树但 handoff.commits.head ≠ 真实 HEAD（F1）。
 // 任一击中 → rewriteHandoffBlocked + 返回 { ok:false, blocker }。
-// repoRoot = 传入目录（对齐 `git -C "${CDD_WORKSPACE:-.}"`，direct-set 非 git workspace → null
-//   即 fail-open，不得回退检查 caller cwd）；handoff 路径取 opts.handoffPath 或 env CDD_HANDOFF_PATH。
+// repoRoot = 传入目录（对齐 `git -C <dir>`，非 git workspace → null 即 fail-open，
+//   不得回退检查 caller cwd）；handoff 路径唯一取 `opts.handoffPath`（引擎派生值经 ctx 传递，零 env 通道）。
 // head 校验对齐 bash：无哨兵特殊值（dry-run 不写 handoff，任何 handoff.commits.head ≠ 真实 HEAD
 // 一律视为 mismatch）。
 export function validateCommitContract(mode, repoRoot, opts = {}) {
   if (mode !== "implement" && mode !== "fix" && mode !== "review") return { ok: true, blocker: "" };
-  const handoffPath = opts.handoffPath ?? process.env.CDD_HANDOFF_PATH ?? "";
+  const handoffPath = opts.handoffPath ?? "";
 
   if (!repoRoot) return { ok: true, blocker: "" }; // 直接-set 非 git workspace → fail-open（不得误检 caller cwd）
   const root = gitToplevel(repoRoot);

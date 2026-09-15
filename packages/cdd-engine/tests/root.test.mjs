@@ -50,11 +50,8 @@ describe("lib/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）
     writeFileSync(path.join(repo, rel), "# foo design\n");
     const sub = path.join(repo, "packages/cdd-engine");
     mkdirSync(sub, { recursive: true });
-    const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", rel],
-      // ⚠ 过渡态：`CDD_DRY_RUN` env 在此保留（program 级 `--dry-run` argv 由 T3 声明）；
-      //   **T3 Step 5 必须把本项改为 argv 前置 `--dry-run` 并删该 env 项**——否则 T3 删净 env 读取后
-      //   该用例会真实派发 agent CLI。
-      { cwd: sub, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1", CDD_DRY_RUN: "1" }, reject: false, encoding: "utf8" });
+    const r = execaSync(process.execPath, [CDD_MJS, "--dry-run", "review", "--type", "spec", "--spec", rel],
+      { cwd: sub, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });
     expect(r.exitCode).toBe(0);
   });
 

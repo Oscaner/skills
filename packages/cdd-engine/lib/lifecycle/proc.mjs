@@ -3,8 +3,6 @@
 // / teardownAll（run 边界 + CLI 信号连根回收）/ reapDone（进程内 idle 监视低频回收）
 // / reapStale（跨 run 孤儿兜底）。registry 双写内存 + 落盘（.osuperpowers/cdd/lifecycle.json），
 // 父死场景由下次启动跨 run 扫回。
-// `__registryForTest` / `__resetForTest` 为测试内省导出（vitest seam）；`__` 前缀标记测试专用，
-// 随包发布但无副作用（仅读内置 registry / 重置模块态，非正式 API）。
 import { execa } from "execa";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -23,14 +21,6 @@ let idleTimer = null;
 export function initProcLifecycle({ diskPath: dp }) {
   diskPath = dp ?? "";
 }
-
-// 测试内省 seam（vitest NODE_ENV=test 才导出；生产/发布态为 undefined —— 不构成发布面测试表）。
-// `__registryForTest` / `__resetForTest`：`__` 前缀标记测试专用；随包发布但仅在测试环境有值。
-const TEST_SEAM = process.env.NODE_ENV === "test";
-export const __registryForTest = TEST_SEAM ? () => registry : undefined;
-export const __resetForTest = TEST_SEAM
-  ? () => { registry = []; stopIdleMonitor(); }
-  : undefined;
 
 export async function persistRegistry() {
   if (!diskPath) return;

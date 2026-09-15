@@ -112,7 +112,10 @@ export function reviewHardGate(returnMode, handoffPath) {
   return `> ⚠️ HARD GATE — Write \`${target}\` ${before}\n> Returning without a written handoff file = BLOCKED (runner exit 1).`;
 }
 
-export function renderModePrompt(mode, env = {}) {
+// params = promptParams（buildPromptParams 产出）：模板插值键 + PLAN_LINE。
+// PLAN_LINE 由调用方从**显式 plan 路径**派生后经 params 传入 —— 本层零 env 读取，
+// 且不引入以 plan 路径为值的 env 键名（该键名是「派生值不得借道 env」守卫的命中面）。
+export function renderModePrompt(mode, params = {}) {
   // review mode 走 review.md 共享壳（reviews.json type=task 配置）；旧拼装模板已删除。
   // REFERENCE 具体化为 FIXED_POINT..HEAD。fix/implement 保持旧 task/ 模板。
   if (mode === 'review') {
@@ -120,30 +123,30 @@ export function renderModePrompt(mode, env = {}) {
     const art = reviewArtifactConfig('task');
     let prompt = renderTemplate('review', {
       TYPE: 'task',
-      WORKSPACE: env.WORKSPACE ?? '',
+      WORKSPACE: params.WORKSPACE ?? '',
       LENS_GUIDE: cfg.lensEnum.join(' · '),
-      REFERENCE: env.FIXED_POINT ? `${env.FIXED_POINT}..HEAD` : cfg.ref,
+      REFERENCE: params.FIXED_POINT ? `${params.FIXED_POINT}..HEAD` : cfg.ref,
       AXES: cfg.axesGuide,
-      HANDOFF: env.HANDOFF ?? '',
+      HANDOFF: params.HANDOFF ?? '',
       HANDOFF_TYPE: art.schema,
       RETURN_MODE: art.return,
       H1_BLOCK: REVIEW_H1_BLOCK,
-      PLAN_LINE: env.PLAN_FILE ? `**Plan:** ${env.PLAN_FILE}` : '',
-      HARD_GATE: reviewHardGate(art.return, env.HANDOFF),
+      PLAN_LINE: params.PLAN_LINE ?? '',
+      HARD_GATE: reviewHardGate(art.return, params.HANDOFF),
     });
     // HANDOFF_STUB：共享壳槽位在 review 早退路径须显式替换（与 generic 路径一致）。
     const schema = loadHandoffSchema();
-    const stub = renderHandoffStub(schema, 'review', parseInt(env.TASK) || 0);
+    const stub = renderHandoffStub(schema, 'review', parseInt(params.TASK) || 0);
     return prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   }
   const modePath = templatePath(mode);
   if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);
   let content = readFileSync(modePath, 'utf8');
   for (const key of PLACEHOLDERS) {
-    content = content.split(`{{${key}}}`).join(env[key] ?? '');
+    content = content.split(`{{${key}}}`).join(params[key] ?? '');
   }
   const schema = loadHandoffSchema();
-  const taskNumInt = parseInt(env.TASK) || 0;
+  const taskNumInt = parseInt(params.TASK) || 0;
   const stub = renderHandoffStub(schema, mode, taskNumInt);
   content = content.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   return content;

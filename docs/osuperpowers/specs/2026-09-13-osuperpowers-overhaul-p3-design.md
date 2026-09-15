@@ -114,7 +114,7 @@
 
 **零注册面已实测**：`packages/osuperpowers/package.json`（无 skill 枚举，目录扫描发现）/ `marketplace/source.json` / 根 `README.md` / `packages/osuperpowers/README.md` / `docs/maintainers/*.md` / `scripts/**` **以及 `packages/osuperpowers/.agents/**`（当前唯一含 `cli-research` 的注册面，由上条 emit prune 收敛）** 均无 `cli-research` 引用（emit 面除外——其内容由源派生）；`packages/osuperpowers/tests/digraph-consistency.test.mjs` 走 `readdirSync(SKILLS_DIR)` 无硬编码清单 → 目录删除后自动收敛，无需同步。
 
-> **注册面口径补充（plan 期回填，overall v1.6 规则）**：「`scripts/**` 零引用」仅对**字符串**成立，存在一处**计数耦合**——`scripts/validate/osuperpowers.mjs:46-47` 的 `EXPECTED = 7` / `EMITTERS_LABEL = "6 emitters + init"` 是 skills **目录计数**断言（块 5b，L53/L59/L64 三处 `assert(n === EXPECTED)`）。删 `cli-research` 后目录数为 6 → 该常量须同步收敛（`EXPECTED = 6` / `EMITTERS_LABEL = "5 emitters + init"`），否则块 5b 必红、本 phase 的「`pnpm run validate` 13 块全绿」不可达。此耦合**无字符串可循**（skill 名不出现，仅计数变化）——是「零引用」自检方法的盲区，故单列。
+> **注册面口径补充（plan 期回填，overall v1.6 规则）**：「`scripts/**` 零引用」仅对**字符串**成立，存在一处**计数耦合**——`scripts/validate/osuperpowers.mjs:46-47` 的 `EXPECTED = 7` / `EMITTERS_LABEL = "6 emitters + init"` 是 skills **目录计数**断言（块 5b，L53/L59/L64 三处 `assert(n === EXPECTED)`）。删 `cli-research` 后目录数为 6 → 该常量须同步收敛（`EXPECTED = 6` / `EMITTERS_LABEL = "5 emitters + init"`），否则块 5b 必红、本 phase 的「`pnpm run validate` 13 块全绿」不可达。此耦合**无字符串可循**（skill 名不出现，仅计数变化）——是「零引用」自检方法的盲区，故单列。**同族第二处（T4 review-1 补充）**：`scripts/emit/osuperpowers.mjs:37` 的 `// Canonical skills list (12 emitters + init).` 是**非断言型**陈旧计数注释（其下 `skillNames` 走 `readdirSync` 目录发现，注释纯说明、无 emit 产物影响）。处置取「去数字」形（`directory-discovered`）而非再对一次数——该处每删一次 skill 就陈旧一轮，计数只在 validator 的 `EXPECTED`/`EMITTERS_LABEL` 单点维护。
 
 **过渡态**：`cli-driven-development/SKILL.md` 磁盘版**不含** `cdd brief` 调用（其 `dispatch-mode` 步骤 1 是 review-diff 生成），故 P3 交付后 skills 面无悬空调用；该 skill 的全面重写仍归 P4。
 

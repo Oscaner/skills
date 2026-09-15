@@ -66,6 +66,38 @@ describe("stale-lexicon：old docs root 守卫（Task 5）", () => {
   });
 });
 
+// Task 5（P3）：已删 cdd 子命令守卫。字面经字符串拼接构造（P2 先例）——本文件不在任何
+// 守卫 scope 内（守卫 scope = OSKILLS + CDD_ENGINE + DOC_SURFACE_TARGETS，无 scripts/），
+// 但守卫测试保持零字面，可在 scope 未来扩张时不反噬自身。
+describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
+  const CDD = "cd" + "d";
+  it("命令形命中；裸 research / brief 放行（P4 合法调用面）", () => {
+    expect(hasHit([`Run \`${CDD} research --brief x --output y\``])).toBe(true);
+    expect(hasHit([`Run \`${CDD} brief --task 1 --plan p --output o\``])).toBe(true);
+    expect(hasHit(["/mattpocock-skills:research 会话调用"])).toBe(false);
+    expect(hasHit(["brief-dependent plan sections"])).toBe(false);
+    expect(hasHit(["cddr research"])).toBe(false);        // 词边界：非 `cdd ` 前缀
+  });
+  it("research timeout env 命中；task/review timeout 放行", () => {
+    expect(hasHit([`${"CDD_RESEARCH"}_TIMEOUT=2700`])).toBe(true);
+    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true);
+    expect(hasHit(["CDD_TASK_TIMEOUT=60"])).toBe(false);
+    expect(hasHit(["CDD_REVIEW_TIMEOUT=60"])).toBe(false);
+  });
+  it("含命令形的临时文件被 collectStaleLexiconHits 命中（扫描面在扫）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-p3-"));
+    const f = path.join(dir, "note.md");
+    writeFileSync(f, `Run \`${CDD} research --brief b\`\n`, "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toBe("removed cdd subcommand (pre-P3)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("live repo：5c 同源扫描零残留", () => {
   it("collectStaleLexiconHits() === []（templates/fix.md 与 engine 测试同样入扫）", () => {
     expect(collectStaleLexiconHits()).toEqual([]);

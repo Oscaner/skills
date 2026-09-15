@@ -1,13 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { execaSync } from "execa";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { gitInit } from "./helpers.mjs";
-
 const CDD_MJS = path.resolve(import.meta.dirname, "../bin/cdd.mjs");
-const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
 describe("lib/root.mjs — 单根权威", () => {
   it("非 git 目录 → CDD_BLOCKED + exit 1", () => {

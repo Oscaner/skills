@@ -20,9 +20,10 @@ import { gitCommit, gitInit, forkLifecyclePath } from './helpers.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
-// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
-// 另一 fork in-flight 组（ownerPid 异判为 orphan）。
+// CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已 **inert**（bin 侧读取点已删）：lifecycle 恒落
+// <repoRoot>/.osuperpowers/cdd/lifecycle.json，各 fork 共用；并发安全由 reapStale 的 owner 存活判定
+// 承担，不依赖路径分离（spec §2.2 A / §2.6；详见 helpers.mjs forkLifecyclePath 注释）。注入保留至
+// §2.4.4「测试缝删净」退场。
 const LIFECYCLE_PATH = forkLifecyclePath("task");
 
 // Test env: strip any CDD_* inherited from an orchestrator session, then overlay test extras.

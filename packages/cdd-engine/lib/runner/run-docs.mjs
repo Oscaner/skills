@@ -53,11 +53,9 @@ export async function runDocsTask({
   return withLifecycle(async () => {
   // Bug L fix: use the repo root as subprocess cwd, not workspace (doc directory).
   // 注入值优先；未注入 → 取 engine 单根（lib/root.mjs）。求值在 dry-run 早退之后：
-  // dry-run 路径不构造 root，也不触碰未初始化的单根。
+  // dry-run 路径不构造 root，也不触碰未初始化的单根。两条来源均恒为真值（非 git 仓已在
+  // initRoot() 处 BLOCKED exit 1），故无空值守卫。
   const root = repoRoot ?? getRoot();
-  // backstop：两条 root 来源（注入值 / 单根权威）正常路径下恒为真值，非 git 仓已在 initRoot() 处
-  // BLOCKED exit 1 判定；保留仅为防御第二权威来源被重新引入。
-  if (!root) throw new Error("docs-runner: not in a git repo");
 
   // T3: handoffPath must be passed by the caller (cdd.mjs passes canonical handoff-naming filenames).
   // The legacy `${template}-${round}.json` derivation is removed — no second naming site.

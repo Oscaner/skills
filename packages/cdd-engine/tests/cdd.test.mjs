@@ -6,7 +6,7 @@ import { execaSync } from "execa";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { forkLifecyclePath } from './helpers.mjs';
+import { forkLifecyclePath, mockRoot } from './helpers.mjs';
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,9 +25,10 @@ afterAll(() => {
   rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
 });
 const NODE = process.execPath;
-// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
-// 另一 fork in-flight 组（ownerPid 异判为 orphan；本文件 branch-review 真实 dispatch + 黑盒 CLI 并发尤为相关）。
+// CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已 **inert**（bin 侧读取点已删）：lifecycle 恒落
+// <repoRoot>/.osuperpowers/cdd/lifecycle.json，各 fork 共用；并发安全由 reapStale 的 owner 存活判定
+// 承担，不依赖路径分离（spec §2.2 A / §2.6；详见 helpers.mjs forkLifecyclePath 注释）。注入保留至
+// §2.4.4「测试缝删净」退场。
 const LIFECYCLE_PATH = forkLifecyclePath("cdd");
 
 // Test env: strip 任何从 orchestrator session 继承的 CDD_*，再叠加测试 extras（与 task.test.mjs 一致）。
@@ -77,10 +78,7 @@ vi.mock("../lib/runner/run-docs.mjs", () => docsRunnerMock);
 // 同族 seam：runReview/runFix 是 CLI 层，按 P4 §2.4.1 从唯一 root 权威（lib/root.mjs）取 root 后注入
 // runDocsTask。该权威在进程内由 bin 的 preAction 初始化，vitest 直调 CLI 层不走 bin → 以同值假路径
 // "/repo/root"（本文件既有字面量）打桩，使 in-process 单测与本文件黑盒用例的坐标系统一致。
-vi.mock("../lib/root.mjs", () => ({
-  initRoot: () => "/repo/root",
-  getRoot: () => "/repo/root",
-}));
+vi.mock("../lib/root.mjs", () => mockRoot(() => "/repo/root"));
 
 describe("cdd CLI", () => {
   it("-h → help", () => {

@@ -44,9 +44,8 @@ export async function runBranchReview(opts) {
   }
 
   // root 单一权威（lib/root.mjs）：initRoot() 已在 bin 的 preAction 内完成「非 git 仓 → BLOCKED exit 1」
-  // 判定，故本处守卫仅为 backstop，正常路径不可达。
+  // 判定，故本处无守卫——getRoot() 恒返回非空串，空值回退（第二 root 来源）已随收口删净。
   const repoRoot = getRoot();
-  if (!repoRoot) { process.stderr.write("cdd review: not in a git repo\n"); exitBlocked(); }
   const base7 = String(base).slice(0, 7);
   const head7 = String(head).slice(0, 7);
   // workspace 与其他 review 型同源：resolveWorkspace(plan)（.osuperpowers/cdd/<slug>/）。

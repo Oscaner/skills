@@ -4,8 +4,10 @@
 // schema/flag 校验、幂等 + --force、get JSON 往返、SUBCOMMAND_USAGE 单词键回退。
 // 模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
 // 此处只验证 CLI→模块接线 + CLI 自有的 flag 边界与报错面（exit 非零）。
-// 每条用例用独立 tmp git repo（mkdtemp）隔离副作用；CDD_LIFECYCLE_PATH 每 fork 唯一，
-// 避免 bin 启动 reapStale 并发误杀 + 保持 repo 内 .osuperpowers（cdd）仅为被测命令所写。
+// 每条用例用独立 tmp git repo（mkdtemp）隔离副作用。CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已
+// **inert**（bin 侧读取点已删）：lifecycle 恒落 <repoRoot>/.osuperpowers/cdd/lifecycle.json —— 即各
+// 用例自己的 tmp repo（`cwd` 缺省为仓根时回落本仓根）；并发安全由 reapStale 的 owner 存活判定承担，
+// 不依赖路径分离（详见 helpers.mjs forkLifecyclePath 注释）。注入保留至 §2.4.4「测试缝删净」退场。
 import { describe, it, expect, afterAll } from "vitest";
 import { execaSync } from "execa";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";

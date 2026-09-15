@@ -41,8 +41,25 @@ export function gitCommit(dir, message = "plan") {
     "commit", "-q", "-m", message]);
 }
 
-// 唯一 CDD_LIFECYCLE_PATH（每 fork 独立）—— vitest pool:'forks' 并发下各 fork 注入独立 tmp 路径，
-// 避免共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀并发在途组（spec §2.2 A）。
+// CDD_LIFECYCLE_PATH —— 历史形态是「每 fork 注入唯一 tmp 路径」，用以避免跨 fork 共享
+// <repoRoot>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀并发在途组（spec §2.2 A）。
+// P4 §2.4.1 删除 bin 侧读取点后该注入**已 inert**：lifecycle 路径改为纯派生（无 env 缝），
+// 落点恒为 <repoRoot>/.osuperpowers/cdd/lifecycle.json —— 并发 fork 在仓根下**共用同一文件**。
+// 并发隔离现由 reapStale 的 owner 存活判定承担（lib/lifecycle/proc.mjs pidAlive：ownerPid ≠ 本进程
+// 且 owner 确证已死才判孤儿），不再依赖路径分离。helper 与各调用点的 env 注入保留至
+// §2.4.4「测试缝删净」一并退场。
 export function forkLifecyclePath(tag) {
   return path.join(os.tmpdir(), `cdd-lifecycle-${tag}-${process.pid}.json`);
+}
+
+// 单根权威（lib/root.mjs）打桩 —— 同一 seam 的构造知识集中在此，避免各测试文件各写一份。
+// 两条 vi.mock 提升语义（实测，改前请先读）：
+//   ① 工厂本体在 **import 阶段**即被调用（被 mock 的模块首次被 import 时），故取值必须以 thunk
+//      传入：`mockRoot(() => REPO_ROOT)`。直传模块级 const 会在那一刻求值并 TDZ
+//      （实测 `Cannot access 'REPO_ROOT' before initialization`）；thunk 把求值推迟到方法被调用时。
+//      三处调用点一律用 thunk 形态，避免同一 helper 出现两种写法。
+//   ② 本 helper 的 import 必须排在**任何 transitively 加载 lib/root.mjs 的 import 之前**
+//      （如 run-task.mjs / lib/cli/*），否则 `mockRoot` 这个绑定自身在工厂被调用时尚未初始化。
+export function mockRoot(resolve) {
+  return { initRoot: resolve, getRoot: resolve };
 }

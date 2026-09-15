@@ -396,11 +396,9 @@ export async function runTask(harness, taskNum, opts = {}) {
     agentOut = dryRunH1Block(env, taskNum);
   } else {
     const timeoutMs = resolveTimeoutMs(env, "task");
-    // 子进程 cwd = 唯一 root 权威（lib/root.mjs）——本函数不再直读启动 cwd；调用方显式注入的
-    // opts.cwd 仍优先（跨仓用例的注入缝）。求值落在本分支内：dry-run / 早期 BLOCKED 路径不经 cwd，
-    // 也不触碰未初始化的单根。T2 把 root 解析点改为 resolveDocArg(planFile, getRoot(), "plan") 后，
-    // 本函数内已解析的 repoRoot 与 getRoot() 同值，链上无需第二项。
-    const res = await invokeCliWithRetry(entry, prompt, INVOKE_PARAMS[mode], env, opts.cwd ?? getRoot(), timeoutMs);
+    // 子进程 cwd = 唯一 root 权威（lib/root.mjs）——本函数不直读启动 cwd，也无第二注入缝。
+    // 求值落在本分支内：dry-run / 早期 BLOCKED 路径不经 cwd，也不触碰未初始化的单根。
+    const res = await invokeCliWithRetry(entry, prompt, INVOKE_PARAMS[mode], env, getRoot(), timeoutMs);
     agentOut = res.ok ? res.stdout : "";
     cliStderr = res.stderr;
     timedOut = res.timedOut === true;

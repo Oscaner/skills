@@ -12,6 +12,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// 须排在 ../lib/runner/run-task.mjs 之前：其模块图加载 lib/root.mjs，会在 import 阶段触发下方
+// vi.mock 工厂，届时 mockRoot 绑定必须已初始化（见 helpers.mjs mockRoot 注释的两条提升语义）。
+import { mockRoot } from "./helpers.mjs";
+
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          resolveRepoRoot, resolveWorkspace,
          buildTaskEnv } from "../lib/runner/run-task.mjs";
@@ -26,10 +30,7 @@ const REPO_ROOT = path.resolve(HERE, "../../..");
 // P4 §2.4.1 seam：runTask 的子进程 cwd 取唯一 root 权威（lib/root.mjs），该权威在运行时由 bin 的
 // preAction 初始化——vitest 直调 runTask 不走 bin → 单例未初始化。以真仓根打桩（真实存在的目录，
 // 与进程内旧行为同坐标系），使 in-process 用例不必自建 root。黑盒 CLI 用例走独立 node 子进程，不经此桩。
-vi.mock("../lib/root.mjs", () => ({
-  initRoot: () => REPO_ROOT,
-  getRoot: () => REPO_ROOT,
-}));
+vi.mock("../lib/root.mjs", () => mockRoot(() => REPO_ROOT));
 
 // Non-git temp workspace — CDD_WORKSPACE points to TMPDIR, commit-contract fails open.
 function setupWorkspace() {

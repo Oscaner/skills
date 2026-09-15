@@ -27,10 +27,10 @@ const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md')
 // exit 3（round 递增 + prev.doc_path 匹配），使 new-shape smoke 因 Stopping 而非形态错误失败。
 const SMOKE_SPEC = path.join('packages/cdd-engine/tests/fixtures/smoke-spec.md');
 const NODE = process.execPath;
-// Task 3 全派生接线后 fork 隔离：bin/cdd.mjs 启动经 initProcLifecycle + reapStale 读写
-// CDD_LIFECYCLE_PATH（默认 <cwd>/.osuperpowers/cdd/lifecycle.json）。vitest pool:'forks' 并发
-// fork 若共用该文件，任一 fork 启动 reapStale 读到另一 fork 刚落盘的 in-flight 组（ownerPid ≠
-// 本 cdd）会按 orphan 连根误杀 → 每 fork 注入唯一 tmp 路径（process.pid 随 fork 唯一）（spec §2.2 A / §2.6）。
+// CDD_LIFECYCLE_PATH 注入在 P4 §2.4.1 后已 **inert**（bin 侧读取点已删）：lifecycle 恒落
+// <repoRoot>/.osuperpowers/cdd/lifecycle.json，各 fork 共用；并发安全由 reapStale 的 owner 存活判定
+// 承担，不依赖路径分离（spec §2.2 A / §2.6；详见 helpers.mjs forkLifecyclePath 注释）。注入保留至
+// §2.4.4「测试缝删净」退场。
 const LIFECYCLE_PATH = forkLifecyclePath("clishape");
 
 // T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ ——

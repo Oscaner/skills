@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P4 — skills 全面重写 + engine 契约面收敛 设计
 
-- **Version**: v1.0 · 2026-09-15（起草；**plan 期 design 回填已并入 §2.5.2**——`failure_category` 入 handoff schema + `reviewStoppingGuard` 的未完成-dispatch 排除，overall v1.6 规则；按 P1/P2/P3 惯例不另行 bump）
+- **Version**: v1.0 · 2026-09-15（起草；**plan 期 design 回填已并入 §2.5.2**——`failure_category` 入 handoff schema + `reviewStoppingGuard` 的未完成-dispatch 排除；**dev 期 design 回填已并入 §2.5.1 / §2.5.5**——用户 2026-09-16 裁定「schema 原样注入取代手写 render」+「templates 结构与命名单源」，见 Deviations；均按 P1/P2/P3 惯例不另行 bump）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.13](./2026-09-13-osuperpowers-overhaul-overall.md)（req 3 / req 5 / req 7 / req 8 + cdd 运行根约定 + 本次新增 A/B/C/D 族）→ 本 phase 回填至 **v1.14**
@@ -241,12 +241,18 @@ export function getRoot() {
 
 #### §2.5.1 契约单源（§2.3.2 第 1 条）
 
+> **本小节经用户 2026-09-16 裁定修正（dev 期发现；Boundary rules 回填，overall v1.15）**：原措辞「注入内容**由 schema 全形派生**」被 T5 实现为 **schema 的手写解释器**（`stubAnnotation` / `satisfiesProp` / `patternSample` / `requiredKeys` / `stubScalar`）——task-review 实证其「忠实但仍是第二实现」：含**越权的第二校验器**（`satisfiesProp` 重实现 `enum`/`const`/`pattern`/`minimum`/`type` 判定）、**形状受限的正则展开器**（`patternSample` 只认 `^\[<char-class>\]\{n\}$`）、**漏 `items` 分支**（数组元素形状不进骨架）、并产出**违反自身 schema** 的占位值（`base: ""` 违反 `pattern: ^[0-9a-f]{40}$`；`task: 0` 违反 `minimum: 1`）。
+> **裁定**：不得手写「简洁版」**也不得手写「忠实版」渲染器** → **schema 原样注入**（`JSON.stringify`）。任何 render 都不再对契约有编辑权。
+
 | 现状 | 目标 |
 |---|---|
-| 提示词注入 = `renderHandoffStub` 遍历 `schema.required` + **硬编码 switch**（仅填空键，不携带 `type`/`enum`/嵌套/`allOf`） | 注入内容**由 schema 全形派生**；`cdd-handoff-schema.json`（13 properties + 1 `allOf`）与 `docs-handoff-schema.json`（8 properties + 1 `allOf`）的约束**全部可见** |
-| 模板散文另述规则（如 `Write findings, not status — the engine derives status from findings`，与 schema `allOf` 是同一规则的**第二处陈述**） | 单一 SOT 派生，散文不重复 |
+| 提示词注入 = `renderHandoffStub` 遍历 `schema.required` + **硬编码 switch** | **注入 schema 本体**（`JSON.stringify`）——零 render、零解释器。两份 schema 的 `type` / `enum` / 嵌套形状 / `allOf` 条件约束**逐字可见** |
+| 模板散文另述规则（如 `Write findings, not status — the engine derives status from findings`，与 schema `allOf` 是同一规则的**第二处陈述**） | 规则**迁入 schema 的 `description`**（现两份 schema 零 description：cdd 0/13、docs 0/8 properties，顶层亦无），随注入同行；模板散文**零重复**（**one truth**） |
 | agent 写入未定义键（`review_notes`）→ `additionalProperties:false` 拒绝、报错**不含违规键名** | 允许键集可见；报错携带**违规键名 + JSON 指针**（取自校验器 `params.additionalProperty`） |
 | engine 写侧手写对象字面量（`blocker` 省略）而 schema 声明 `type: string` | 写侧**从同一 schema 构造**，写者与校验者不再可能不一致 |
+| — | **engine 内零手写 schema 字段清单 / 零第二校验器**（守卫，见 §2.8） |
+
+**T5 的 renderer 由 T18 取代**——**有计划的替换，非遗留债务**：T5 交付的其余四面（归一化后重校验 · 保留 findings · 报错含违规键名 · 序列化全转义）在 T18 之后**存续**。
 
 #### §2.5.2 失败类目化与配额隔离（§2.3.2 第 2 条）
 
@@ -300,6 +306,37 @@ export function getRoot() {
 #### §2.5.4 `progress.json#plan` 透传（§2.3.2 第 4 条 / `#260[2]`）
 
 `lib/state/progress.mjs` 的 `migrateIfNeeded(progressDir)` 无 plan 参数，「两者都不存在」分支硬编码 `createEmptyProgress("")`；而 `--plan` 在上游**已解析出**真实 plan（Q1 后该解析由 `resolveDocArg(planFile, getRoot(), "plan")` 承接）——**路径在上游可得，却在 progress 初始化时被丢弃**（`createEmptyProgress(plan)` 本身支持真实 plan，故该参数在此路径上是死参数）。后果：report-issue 的 program chain **首跳即断**，`resolve-destination` 恒 fail-open 退化到 session 通道 → program 通道永不触发。→ `migrateIfNeeded` 增 plan 参数并透传；补断言 `progress.json#plan` 与 `--plan` 一致。
+
+#### §2.5.5 templates 结构与命名单源（用户 2026-09-16 裁定；overall v1.15）
+
+**实证现状——4 层不一致**：
+
+| 层 | 现状 |
+|---|---|
+| **段名** | 同一概念**三种名**：`Handoff Output`（`task/fix.md` · `review/doc-fix.md`）· `Handoff`（`review/review.md`）· **无独立段**（`task/implement.md`） |
+| **段序** | **两套**：`review/review.md` = `Return contract` → `Handoff` → `Self-validate`；`task/fix.md` = `Handoff Output` → `Return` |
+| **Return 段** | **名两种**（`Return (H1 — stdout only)` / `Return contract`）+ **`review/doc-fix.md` 完全缺失**；`Self-validate` 仅 `review/review.md` 有 |
+| **标题形** | **四种**：`CDD implement — CLI session` · `CDD fix — CLI session` · `CDD review — {{TYPE}} ({{LENS_GUIDE}})` · `Docs Fix — CLI session` |
+| **命名** | schema 前缀**三种**（`cdd-` 产品缩写 / `docs-` 作用域名 / `handoff-namespace.json` 无前缀）；**目录分组错位**——`doc-fix.md`（docs 面的 **fix**）住在 `review/` |
+
+**目标骨架**（所有模板同构；**功能差异只允许出现在 `## Instructions`**）：
+
+```
+# <Title>
+## Instructions      ← 唯一功能差异段
+## Handoff           ← 共享壳（一份）
+## Return            ← 共享壳（一份）
+```
+
+| 收敛项 | 形态 |
+|---|---|
+| `## Handoff` 壳 | schema **原样注入**（§2.5.1）+ HARD GATE（写盘先于 return）+ 派发类型差异经参数注入；**`Self-validate` 并入本段**，不再独立成段 |
+| `## Return` 壳 | H1 四行（task 族）或 JSON return（docs 族），经参数注入；**`review/doc-fix.md` 补齐** |
+| 段序 | 统一 `Instructions → Handoff → Return`（消除 review.md 的 Return-先-于-Handoff） |
+| **命名** | schema 前缀统一为**作用域名**（`cdd-handoff-schema.json` → **`task-handoff-schema.json`**，与 `docs-handoff-schema.json` 同法）；`review/doc-fix.md` 迁出 `review/`，模板目录与 (op,type) 派发面对齐 |
+| **描述** | 两份 schema 的 `description` 承接写协议规则；模板散文**零重复** |
+
+**收益（one truth）**：Handoff Rules 由「模板内多地维护、可各自漂移」变为「**schema 单点声明 + 随注入同行**」——改契约只改 schema。
 
 ### §2.6 单源收敛与删除
 
@@ -570,7 +607,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | **shipped 非 emit 面（`skills/**` · 插件 README）零版本字面量**——scope 定义与 §2.6.2 反向守卫行逐字同一（**发布面**；`.changeset/README.md` 属协作者面，不在本断言 scope 内） | §2.6.2 |
 | `old mode task-review`（`residue.mjs:59`）scope 扩至 `ALL_MECH_POSITIONS`，**且正则收敛为 `/(?<!run-)task-review/`**（豁免本 phase 新语汇 `run-task-review`；wiring 面只钉 scope、不钉正则，无需随迁） | §2.6.3 |
 
-### §2.9 overall 回填（Boundary rules，v1.13 → v1.14）
+### §2.9 overall 回填（Boundary rules，v1.13 → v1.15）
 
 | 表 | 变更 |
 |---|---|
@@ -607,6 +644,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 - **AC12** `skill-authoring.md` 按「唯一执法点」重写（session-call 语义 + 两类形态 + 删 §7/§9 + §4 例外口子收敛）
 - **AC13** `pnpm run validate` 13 块全绿 + `emit:check` 无 drift + engine 套件全绿
 - **AC14** **失败类目 canonical**：类目表落 `packages/cdd-engine/templates/failure-categories.json`（类目 / 是否计入 Stopping / 各自计数器 / 恢复策略）；**engine 侧从 canonical 读取**（承重，非装饰）；**skills 侧**短 Failure Modes 表的**类目名集合 ⊆ canonical**，且不复述类目语义（见 §2.5.2 通道 ② 两条断言）
+- **AC15** **templates 结构与命名单源**（§2.5.5）：4 个提示词模板**同一文档骨架**（段名与段序一致：`# Title` / `## Instructions` / `## Handoff` / `## Return`；功能差异只在 `## Instructions`；`Self-validate` 并入 `## Handoff`；`review/doc-fix.md` 补齐 `## Return`）；`## Handoff` 与 `## Return` **各为一份共享壳**；**Handoff 段为 schema 原样注入**（`JSON.stringify`）；**engine 内零手写 render**（零 `stubAnnotation` / `satisfiesProp` / `patternSample` / `requiredKeys` / `stubScalar`，零第二校验器，零手写 schema 字段清单）；两份 schema **均含 `description`** 且模板内**零重复 Handoff Rules**；schema 前缀统一为作用域名（`task-handoff-schema.json` / `docs-handoff-schema.json`）；模板目录分组与 (op,type) 派发面对齐
 
 ---
 
@@ -622,6 +660,9 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | P4「8 skill 全量 session-call 简洁模式」 | `report-issue` 只做**形态精简**；其**目标流程**归 P5 | Yes — v1.14 |
 | — | `cdd 运行根约定`的修复形态定为 **engine 侧单根权威**（非 skill 侧约定） | Yes — v1.14 |
 | — | 新增**统一抽象**（输入闭包 + 输出契约单源）与 `cdd context` canonical | Yes — v1.14 |
+| P4 原设「提示词注入由 schema **全形派生**」 | 修正为 **schema 原样注入**（`JSON.stringify`）——T5 的「全形派生」实为 schema 的**手写解释器**（含越权的第二校验器 `satisfiesProp`、形状受限的 `patternSample`、漏 `items`、产出违反自身 schema 的占位值），用户 2026-09-16 裁定**不得手写任何 render** | Yes — v1.15 |
+| — | **templates 结构与命名单源**（4 层不一致：段名三种 / 段序两套 / Return 段名两种且一处缺失 / 标题形四种；schema 前缀三种；`doc-fix.md` 目录错位）→ 同一骨架 + 共享壳 + 命名统一 + schema `description` 补全 | Yes — v1.15 |
+| — | T5 的 renderer **由新增 T18 取代**（有计划的替换，非遗留债务） | Yes — v1.15 |
 | — | `finishing` 的 personal-rule 层（`I1 No Worktrees` / `I2 Conventional Commits + No Attribution` / typed-discard 严格性）**换载体不丢规则**——Invariants 节 + 节点 Fail 字段承载，节点名与序列不保留 | No — 相位内承载形态，overall 无需改 |
 | — | **两条 legacy 规则有意丢弃**（`Read, not Skill-invoke`：brainstorming `I1` / writing-plans `I1` / finishing `I3`；`Research requires user confirmation`：brainstorming `I2`）——前者立论随 `overrides` router 机制消失而失效（R4），后者目标流程无 research 节点。**这是「载体换、规则不丢」的例外（非遗漏）**，逐条去向见 §2.7.4 表 | No — 相位内规则处置，overall 无需改 |
 | overall v1.4 定序「phase scope 有变更 → **先** Run `writing-overall-spec` sync、**再** Run `writing-phase-spec`」（表述在 §brainstorming 分支内） | 定序本体不变、**承载位下移**：该步由 brainstorming 侧整体移入 `writing-phase-spec` 内部的首个判据节点 `B2{scope changed?}`（§2.7.2 骨架）；overall §brainstorming 的文字表述仍逐字成立（「先 sync 后写」未被改动），变的只是承载位 | No — 定序语义不变，承载位属相位内实现形态 |

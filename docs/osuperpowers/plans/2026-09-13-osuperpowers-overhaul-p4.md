@@ -656,7 +656,9 @@ git commit -m "feat(cdd-engine): context-contract canonical + 运行期组合（
 
 ---
 
-### Task 5: 输出契约单源 — schema 全形派生 + 写侧同源 + 校验失败保留 findings + 序列化
+### Task 5: 输出契约单源 — schema 注入 + 写侧同源 + 校验失败保留 findings + 序列化
+
+> **2026-09-16 更正**：本任务标题原为「schema **全形派生**」，该措辞已被用户裁定废弃——dev 期 task-review 实证 T5 的「全形派生」实为 **schema 的手写解释器**（越权第二校验器 `satisfiesProp` / 形状受限 `patternSample` / 漏 `items` / 产出违反自身 schema 的占位值）。本任务交付的**四面存续**（归一化后重校验 · 保留 findings · 报错含违规键名 · 序列化全转义）；其 `renderHandoffStub` 手写 render **由 T18 取代**（有计划的替换，非遗留债务）。本任务 Steps 中凡涉及 stub 骨架渲染者，**以 T18 为终态**。
 
 **Files:**
 - Modify: `packages/cdd-engine/lib/templates.mjs:49-66`（`renderHandoffStub` → schema 全形派生）
@@ -1492,6 +1494,109 @@ flowchart TD
 - [ ] **Step 1:** 写 changeset（面向发布者、消费者中立）
 - [ ] **Step 2:** `pnpm run version --dry-run` 复核 next 版本
 - [ ] **Step 3: Commit** — `chore(changeset): P4 双包声明（cdd-engine minor + osuperpowers minor）`
+
+---
+
+### Task 18: templates 结构与命名单源 — schema 原样注入 + 共享 Handoff/Return 壳 + schema description
+
+> **用户 2026-09-16 裁定新增（dev 期发现；Boundary rules 回填 overall v1.15 / design §2.5.1 + §2.5.5 + AC15）**。**本任务取代 T5 的 renderer**——T5 交付的「归一化后重校验 / 保留 findings / 报错含违规键名 / 序列化全转义」四面**存续**，仅 `renderHandoffStub` 的手写 render 被取代（有计划的替换，非遗留债务）。
+
+**Files:**
+- Modify: `packages/cdd-engine/lib/templates.mjs`（**删除** `stubAnnotation` · `satisfiesProp`（越权第二校验器）· `patternSample` · `requiredKeys` · `stubScalar` · `stubSkeletonLines` · `renderAllOfConditions`；`renderHandoffStub(schema)` → **原样注入**）
+- Modify: `packages/cdd-engine/templates/task/implement.md` · `task/fix.md` · `review/review.md` · `review/doc-fix.md`（收敛为同一骨架）
+- Rename: `packages/cdd-engine/templates/schema/cdd-handoff-schema.json` → `task-handoff-schema.json`
+- Modify: `packages/cdd-engine/lib/handoff/schema.mjs`（`HANDOFF_SCHEMA_PATH` 映射随改名）
+- Rename: `packages/cdd-engine/templates/review/doc-fix.md` → `packages/cdd-engine/templates/fix/docs.md`（迁出 `review/`，与 (op,type) 派发面对齐）
+- Modify: `packages/cdd-engine/templates/review/reviews.json`（`fixTemplate` / 模板名映射随迁）
+- Modify: **两份 schema**（补 `description`：顶层 + 逐 property；写协议规则迁入）
+- Modify: `packages/cdd-engine/tests/templates.test.mjs` · `tests/handoff-stub.test.mjs` · `tests/schema-utils.test.mjs` · `tests/docs-runner.test.mjs`（随改名与形态同步）
+
+**Interfaces:**
+- Consumes: T5 的 `normalizeHandoff` / `recoverHandoff`（**存续**）
+- Produces: `renderHandoffStub(schema)` 返回 ```` ```json\n<JSON.stringify(schema, null, 2)>\n``` ````——**零 render、零解释器、零第二校验器**；4 模板同骨架；共享 `## Handoff` / `## Return` 壳；schema 前缀统一（`task-` / `docs-`）
+- **前置**：T5（其 renderer 被本任务取代）
+
+**目标骨架（所有模板同构；功能差异只允许出现在 `## Instructions`）**
+
+```markdown
+# <Title>
+## Instructions      ← 唯一功能差异段
+## Handoff           ← 共享壳：schema 原样注入 + HARD GATE（写盘先于 return）
+## Return            ← 共享壳：H1 四行（task 族）或 JSON return（docs 族）
+```
+
+- [ ] **Step 1: 写失败测试（红）— 模板同骨架 + 零手写 render + schema 有 description**
+
+追加到 `packages/cdd-engine/tests/templates.test.mjs`：
+
+```js
+it("4 模板同一骨架：每份含且仅含 Instructions / Handoff / Return 三个二级段", () => {
+  for (const f of ["task/implement.md", "task/fix.md", "review/review.md", "fix/docs.md"]) {
+    const src = readFileSync(path.join(TEMPLATES, f), "utf8");
+    const secs = [...src.matchAll(/^## (.+)$/gm)].map(m => m[1]);
+    expect(secs).toEqual(["Instructions", "Handoff", "Return"]);
+  }
+});
+
+it("Handoff 段为 schema 原样注入（含 description，零手写 render）", () => {
+  const schema = loadHandoffSchema("task");
+  const stub = renderHandoffStub(schema);
+  expect(JSON.parse(stub.replace(/^```json\n|\n```$/g, ""))).toEqual(schema);
+});
+
+it("零手写 render 符号", () => {
+  const src = readFileSync(path.join(ENGINE, "lib/templates.mjs"), "utf8");
+  for (const gone of ["stubAnnotation", "satisfiesProp", "patternSample", "requiredKeys", "stubScalar", "renderAllOfConditions"]) {
+    expect(src).not.toMatch(new RegExp(`\\b${gone}\\b`));
+  }
+});
+```
+
+- [ ] **Step 2: 跑测试确认红** — Run: `pnpm --filter @oscaner-skills/cdd-engine test -- templates.test.mjs`；Expected: FAIL（段名/段序不一、stub ≠ schema、六个符号仍在）
+
+- [ ] **Step 3: `renderHandoffStub` 改为原样注入**
+
+```js
+// Handoff 契约的注入 = schema 本体。零 render：不解释、不简化、不预填。
+// 契约唯一（schema）→ 注入唯一（它的字符串形式）→ 规则由 schema 的 description 承载。
+export function renderHandoffStub(schema) {
+  return '```json\n' + JSON.stringify(schema, null, 2) + '\n```';
+}
+```
+**删除** `stubAnnotation` / `satisfiesProp` / `patternSample` / `requiredKeys` / `stubScalar` / `stubSkeletonLines` / `renderAllOfConditions` 全部函数与其调用面。`ctx.values` 真值注入面随之删除（不再有骨架可填）。
+
+- [ ] **Step 4: schema 补 `description`（写协议规则迁入）**
+
+两份 schema 顶层加 `"description"`，逐 property 加 `"description"`。**迁移清单**（源 = 模板散文中被删的规则句）：
+- `status` ← `Write findings, not status — the engine derives status from findings`（语义：engine 由 `findings[]` 派生 `status`；review 族可省略）
+- `findings` ← `[{lens, severity, section|file, line?, summary, fix}]`；severity 枚举语义（含 blocker → CHANGES_REQUESTED）
+- `artifacts` ← `point at files, do not embed report bodies`
+- `commits.head` ← `full 40-char SHA；never --short / %h / any truncated form`
+- `blocker` ← 无阻塞时**省略**（非 `null`）
+- `doc_path` / `doc_hash` ← docs 族的 review 目标与内容状态 token
+
+- [ ] **Step 5: 4 模板收敛为同一骨架**
+
+每份模板改为 `# <Title>` / `## Instructions`（**原功能内容全量保留**，唯一差异段）/ `## Handoff`（**共享壳**，内容一致：`{{HARD_GATE}}` + `{{HANDOFF_STUB}}` + 一句 "Write/update `{{HANDOFF}}` per the schema above"）/ `## Return`（**共享壳**，task 族 = `{{H1_BLOCK}}`；docs 族 = JSON return 说明）。
+- `task/implement.md` 的 `## Evidence gate` 并入 `## Instructions`（属功能面）
+- `review/review.md` 的 `## Review focus` / `## Return contract` 分别并入 `## Instructions` / `## Return`；`## Self-validate` 并入 `## Handoff`
+- `review/doc-fix.md` **补齐 `## Return`**（现状缺失）并迁至 `templates/fix/docs.md`
+
+- [ ] **Step 6: 改名与映射随迁**
+
+`git mv templates/schema/cdd-handoff-schema.json templates/schema/task-handoff-schema.json`；`lib/handoff/schema.mjs` 的路径映射改 `cdd:` → `task:`；`reviews.json` 的模板名与 `fixTemplate` 随 `doc-fix.md` → `fix/docs.md` 同步；全仓零 `cdd-handoff-schema` 残留。
+
+- [ ] **Step 7: 跑 engine 套件 + validate**
+
+Run: `pnpm --filter @oscaner-skills/cdd-engine test && pnpm run validate`
+Expected: 全绿；`grep -rn "cdd-handoff-schema\|stubScalar\|satisfiesProp" packages/cdd-engine | wc -l` = 0
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/cdd-engine
+git commit -m "refactor(cdd-engine): templates 结构与命名单源 — schema 原样注入（删手写 render）+ 共享 Handoff/Return 壳 + description 补全"
+```
 
 ---
 

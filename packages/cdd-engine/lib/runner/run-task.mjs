@@ -1,7 +1,7 @@
 // packages/cdd-engine/lib/runner/run-task.mjs — CDD per-task runner (Node port of cdd_run_task).
 // H1 four-line output is exclusive (spec v3): this module is responsible for formatting status/commits/artifacts/blocker.
 // runTask ordered contract: registry ship gate → CLI preflight → plan/workspace/ctx
-//（plan 由 `--plan` 显式参数唯一提供，root 经 `opts.root` 注入（缺省 getRoot()）→ brief self-provision
+//（plan 由 `--plan` 显式参数唯一提供；root 经 `opts.root` 注入，缺省 `getRoot()`）→ brief self-provision
 //（effective plan 定稿后 generateBrief；BLOCKED on failure）→ review fixed-point → require ctx →
 // renderModePrompt → nested CLI spawn (captures stderr, not swallowed via 2>/dev/null) → commit-contract
 // → H1 four lines → handoff processing.
@@ -22,6 +22,7 @@ import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cl
 import { withLifecycle } from "../lifecycle/proc.mjs";
 import { getRoot, resolveDocArg } from "../root.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
+import { briefPath } from "../state/workspace-artifacts.mjs";
 import { validateHandoffSchema } from "../handoff/schema.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from run-task.mjs).
@@ -74,19 +75,28 @@ export function resolveWorkspace({ plan, repoRoot }) {
   return path.join(base, slug);
 }
 
+// resolvePlanWorkspace({ planFile, root }) — plan → workspace 的**唯一**派生点：
+// `--plan` 显式参数经 resolveDocArg 归一到仓根坐标系（不存在 → exit 1 三行诊断），随后派生 workspace。
+// 「缺 plan → RunBlocked」守卫文案只此一处 —— runTask step 2 与 buildCtx 直调入口共用本函数，
+// 两条入口不再各写一份派生（同形逻辑双份即漂移源）。
+export function resolvePlanWorkspace({ planFile, root }) {
+  const plan = planFile ? resolveDocArg(planFile, root, "plan") : "";
+  if (!plan) throw new RunBlocked("cannot resolve repo root: provide --plan");
+  return { plan, workspace: resolveWorkspace({ plan, repoRoot: root }) };
+}
+
 // buildCtx(root, taskNum, opts) — 引擎内部状态（ctx）的唯一构造点。ctx 一律经返回值传递，
 // **不得借道 env**：workspace / handoff / brief / ledger / constraints / findings 全部在此一次派生。
 // root 由调用方注入（runTask 传 `opts.root ?? getRoot()`，测试直接传真仓根；无 reset / env / ForTest 缝）。
-// plan 经 `--plan` 显式提供：opts.plan 已是归一后的绝对路径；否则由 opts.planFile 经 resolveDocArg
-// 归一到仓根坐标系（不存在 → exit 1 三行诊断）。两者皆缺 → RunBlocked。
+// plan/workspace 由 opts.planWorkspace（resolvePlanWorkspace 的返回值）注入 —— runTask 已为算 round
+// 派生过一次，二次调用会白做 mkdirSync/writeFileSync 副作用；缺省则本函数自派（测试直调入口），
+// 两条路径同一函数、同一守卫文案。
 // round: derives per-round handoff path for review/fix modes; implement always produces task-N-implement.json.
 // findingsPath (cdd fix --findings): explicit handoff path for this fix round — takes precedence over the
 //   runner-derived prev-phase path (otherwise the fix CLI's --findings would be dead code).
 export function buildCtx(root, taskNum, opts = {}) {
   const { mode, harness, round = 1, findingsPath } = opts;
-  const plan = opts.plan ?? (opts.planFile ? resolveDocArg(opts.planFile, root, "plan") : "");
-  if (!plan) throw new RunBlocked("cannot resolve repo root: provide --plan");
-  const workspace = resolveWorkspace({ plan, repoRoot: root });
+  const { plan, workspace } = opts.planWorkspace ?? resolvePlanWorkspace({ planFile: opts.planFile, root });
   // Per-phase per-round handoff path (unconditional — canonical handoff-naming 派生):
   // implement 用 fixed 族（无 round）；review/fix 用 round 族。非法 mode 回落旧拼字
   //（派生层只认 canonical 族名，未知族 throw 会打乱后续 validateMode 的拒绝路径）。
@@ -103,7 +113,7 @@ export function buildCtx(root, taskNum, opts = {}) {
     round,
     workspace,
     handoffPath: path.join(workspace, handoffFile),          // unconditional derivation
-    briefPath: path.join(workspace, `task-${taskNum}-brief.md`),
+    briefPath: briefPath({ workspace, task: taskNum }),
     ledgerPath: path.join(workspace, "progress.json"),
     constraintsPath: path.join(workspace, "plan-constraints.md"),
     // fix: cdd fix --findings opt wins when provided; otherwise the runner-derived review-R.json
@@ -141,9 +151,9 @@ function prevHandoffPath(workspace, task, mode, round) {
   return hnPreHandoffPath(workspace, mode, "task", round, { task });
 }
 
-// Aligns cdd_require_env mode validation.
+// Aligns cdd_require_env mode validation（mode 已非 env 通道 —— 文案不再指向已删的 CDD_MODE）。
 function validateMode(mode) {
-  if (!VALID_MODES.includes(mode)) return `CDD_MODE must be implement|review|fix (got: ${mode})`;
+  if (!VALID_MODES.includes(mode)) return `mode must be implement|review|fix (got: ${mode})`;
   return null;
 }
 
@@ -270,18 +280,16 @@ export async function runTask(harness, taskNum, opts = {}) {
   try {
     // round 需 workspace 定位 progress.json，而 handoffPath 需 round —— 先派生 workspace，再算 round，
     // 最后落入 ctx（ctx 是 round/handoff 派生值的唯一承载体）。
-    const plan = planFile ? resolveDocArg(planFile, root, "plan") : "";
-    if (!plan) throw new RunBlocked("cannot resolve repo root: provide --plan");
-    const workspace = resolveWorkspace({ plan, repoRoot: root });
-    const round = mode === "implement" ? 1 : getRound(readProgressJSON(workspace), taskNum, mode);
-    ctx = buildCtx(root, taskNum, { mode, harness, plan, round, findingsPath: opts.findingsPath });
+    const planWorkspace = resolvePlanWorkspace({ planFile, root });
+    const round = mode === "implement" ? 1 : getRound(readProgressJSON(planWorkspace.workspace), taskNum, mode);
+    ctx = buildCtx(root, taskNum, { mode, harness, planWorkspace, round, findingsPath: opts.findingsPath });
     // F11: self-provision the task brief at plan finalization（--plan 生效即生成）。
     //   产物 = workspace-artifacts.briefPath（与 ctx.briefPath 同源）；生成失败（task 越界/
     //   plan 缺失/HEAD 不可取）→ RunBlocked → BLOCKED exit 1 —— 不静默降级读既有/放行。
     //   写前 dirname bootstrap（同 writeBaseBranch 的 workspace bootstrap 惯例）。
     try {
       mkdirSync(path.dirname(ctx.briefPath), { recursive: true });
-      generateBrief(plan, taskNum, ctx.briefPath, root);
+      generateBrief(planWorkspace.plan, taskNum, ctx.briefPath, root);
     } catch (e) {
       throw new RunBlocked(`brief generation failed: ${e.message}`);
     }
@@ -307,6 +315,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     }
   }
 
+  // 4. ctx → progressDir（ledgerPath 的目录即 workspace；原 "Set env" 步随 buildTaskEnv 拆分删除）
   const progressDir = path.dirname(ctx.ledgerPath);
 
   // 5. Task-review / fix fixed-point — derive from prior-phase handoff (cross-phase read).

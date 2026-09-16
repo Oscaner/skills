@@ -20,9 +20,11 @@ const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
 const SMOKE_PLAN = "packages/cdd-engine/tests/fixtures/smoke-plan.md";
 // T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
 // strip 尾 -plan：smoke-plan.md → smoke）。
-// 测试 teardown 清理，避免 validate 后根杂讯污染 F6 单一根。
+// **不清理 smoke/**：该 workspace 由 engine 跑测时自建，且被 cli-shape / docs-task / host-detection /
+// lifecycle.wiring 同 slug 共用 —— 任一文件的 afterAll 删它都会与另一些文件的 brief 自供应竞态
+//（resolveWorkspace 的 mkdirSync 与 generateBrief 的写之间目录被删 → ENOENT 假红；本仓已复现）。
+// `.osuperpowers` 已 gitignore，残留不污染版本树 —— 只清理本文件独占的 slug。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "smoke"), { recursive: true, force: true });
   rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
 });
 const NODE = process.execPath;

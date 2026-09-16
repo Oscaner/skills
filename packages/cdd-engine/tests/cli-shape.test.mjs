@@ -30,8 +30,9 @@ const NODE = process.execPath;
 // T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ ——
   //（engine workspaceSlug strip 尾 -plan：smoke-plan.md → smoke）
 // smoke 用例 teardown 清理（dry-run 不写盘，防御性清理兜底）。
+// **只清 smoke-spec**（本文件独占 slug）：smoke/ 被 cdd / docs-task / host-detection / lifecycle.wiring
+// 同 slug 共用，删它即与那些文件的 brief 自供应竞态（mkdirSync 与 generateBrief 之间目录被删 → ENOENT 假红）。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke'), { recursive: true, force: true });
   rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-spec'), { recursive: true, force: true });
 });
 

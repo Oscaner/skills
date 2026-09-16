@@ -19,9 +19,11 @@ const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md')
 // T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
 // strip 尾 -plan：smoke-plan.md → smoke）——测试 teardown 清理，
 // 避免 validate 后根杂讯污染 F6 单一根（与 branch-review/cdd.test 的 tmp/teardown 迁移同语义）。
+// **不清理 smoke/**：该 workspace 由 engine 跑测时自建，且被 cdd / cli-shape / host-detection /
+// lifecycle.wiring 同 slug 共用 —— 删它即与那些文件的 brief 自供应竞态（mkdirSync 与 generateBrief
+// 之间目录被删 → ENOENT 假红）。`.osuperpowers` 已 gitignore，残留不污染版本树。
 afterAll(() => {
   rmSync(FINDINGS_DIR, { recursive: true, force: true });
-  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke'), { recursive: true, force: true });
 });
 
 // 合法 findings 名（round 源）—— P4 T2 起 `--findings` 经 resolveDocArg 归一（仓根相对 → 绝对、

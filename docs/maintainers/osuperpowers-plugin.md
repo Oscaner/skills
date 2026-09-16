@@ -33,7 +33,7 @@ The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodie
 - `review.md` (URC — Review Stopping + Handoff Output; the former `docs-review.md` renamed during P3) → dissolved (P4): the unified review contract now lives as the `Review Stopping` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The technical contract (Handoff Output / round / `doc_hash`) is documented under [CDD Engine internals → Docs review/fix](#docs-reviewfix-cdd-reviewfix-type-specplan).
 - `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
-All four review types (task / branch / spec / plan) run the same single-cycle digraph — `run-review` → blocker>0 → fix → re-review; blocker=0 → fix → done — through `cli-driven-development`; each orchestrator skill carries the stopping discipline in its own Invariants.
+All four review types (task / branch / spec / plan) run the same single-cycle digraph — `run-review` → blocker>0 → fix → re-review; blocker=0 → fix → done — via the engine's `cdd review --type <task|branch|spec|plan>` CLI; each orchestrator skill carries the stopping discipline in its own Invariants.
 
 ## `docs/osuperpowers/` conventions
 

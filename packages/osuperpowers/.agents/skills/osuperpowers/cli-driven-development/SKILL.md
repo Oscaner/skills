@@ -1,177 +1,124 @@
 ---
 name: cli-driven-development
-description: Independent cli-driven-development orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Determines base via shared doc, dispatches CDD three-mode chain (implement / task-review / fix), runs branch-review, hands off to finishing. Callable standalone; referenced by no other skill.
+description: Independent cli-driven-development orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Determines base via shared doc, dispatches CDD three-mode chain (implement / review / fix), runs branch-review, hands off to finishing. Callable standalone; referenced by no other skill.
 ---
 
 # CLI-Driven Development (cdd)
 
-Execute planned tasks with the host harness CLI (ambient detection — no selection step) via a three-mode chain. This skill is both orchestrator and engine: it executes AND makes orchestrator decisions (mode chain, Final Review).
+Execute planned tasks with the host harness CLI (ambient detection — no selection step) via a three-mode chain. This skill is both orchestrator and engine: it executes AND makes orchestrator decisions (mode chain, final review).
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[detect-engine] -->|cdd in PATH| C[determine-base]
-  A -->|not found| Z0((BLOCKED: cdd-engine-not-installed))
-  C -->|base confirmed| D[dispatch-mode]
-  C -->|user refuses| Z2((BLOCKED: base-undecided))
-  D -->|implement| E{handoff-status}
-  D -->|task-review| E
-  D -->|fix| E
-  E -->|APPROVED, no findings| F{task-complete?}
-  E -->|APPROVED, warn/nit only| FIX_INLINE[fix-inline]
-  FIX_INLINE --> F
-  E -->|CHANGES_REQUESTED, blockers>0| G{fix-rounds >= 5?}
-  E -->|BLOCKED| R{engine-recovery}
-  E -->|TIMEOUT| T{timeout-decision}
-  F -->|more tasks remain| D
-  F -->|all complete| K[branch-review]
-  G -->|no| D
-  G -->|yes| Z4((BLOCKED: fix-loop-exhausted))
-  R -->|yes, fixable & retry<2| D
-  R -->|no| Z3((BLOCKED: engine-error))
-  T -->|timeoutCount < 2 & CLI stdout| D
-  T -->|timeoutCount >= 2 or SIGKILL / zero output| Z6((BLOCKED: timeout-exhausted))
-  K -->|no-blocker| L[handoff-finishing]
-  K -->|blocker| J[branch-fix-loop]
-  J -->|fix + re-review| K
-  L --> M((APPROVED: finishing))
+  A[detect-engine] -->|found| B[determine-base]
+  A -->|missing| Z0((BLOCKED: cdd-engine-not-installed))
+  B --> C[set-base-branch]
+  C --> D[implement-task]
+  D --> E[run-task-review]
+  E --> F{blocker=0?}
+  F -->|no| G[fix-task]
+  F -->|yes| G
+  G -->|entered via blocker>0| E
+  G -->|entered via blocker=0| H{more-tasks?}
+  H -->|yes| D
+  H -->|no| I[branch-review]
+  I --> J{blocker=0?}
+  J -->|no| K[branch-fix]
+  J -->|yes| K
+  K -->|entered via blocker>0| I
+  K -->|entered via blocker=0| L[handoff-finishing]
 ```
 
 ## Node Definitions
 
 ### `detect-engine`
 
-- **Do**: Verify `cdd` is in PATH (`command -v cdd`).
-  - Found → proceed
-  - Not found → BLOCKED: `@oscaner-skills/cdd-engine` not installed.
-    Run: `npm i -g @oscaner-skills/cdd-engine`, then retry.
+- **Do**: Verify the engine is installed: `command -v cdd`. Found → `determine-base`; missing → BLOCKED: cdd-engine-not-installed — run `npm i -g @oscaner-skills/cdd-engine`, then retry.
 - **Read**: PATH environment variable
-- **Exit**: Found → next node; not found → BLOCKED (soft exit with install guidance)
-- **Fail**: Fail-open if PATH check errors; proceed with warning
+- **Exit**: Found → `determine-base`; missing → BLOCKED: cdd-engine-not-installed (soft exit with install guidance)
+- **Fail**: PATH check errors → fail-open, proceed with a warning
 
 ### `determine-base`
 
-- **Do**: Follow the [base-branch.md](./docs/base-branch.md) methodology (inference sources in order ①–④, artifact schema, single `--plan` target — the engine derives the slug via `resolveWorkspace`). Once determined, persist the artifact via the engine CLI — **inference → `cdd base-branch set --base <branch> --source <source> --plan <plan-path>`** (writes `.osuperpowers/cdd/<slug>/base-branch.json`; slug = CDD workspace slug per base-branch.md scope resolution).
-- **Read**: plan document + `git rev-parse --abbrev-ref @{u}` + conversation context + `.osuperpowers/cdd/<slug>/base-branch.json` (optional — skip inference if already exists).
-- **Exit**: base confirmed (artifact written or already exists) → `dispatch-mode` (first task's implement).
-- **Fail**: user refuses to confirm → BLOCKED: base-undecided.
+- **Do**: Follow the [base-branch.md](./docs/base-branch.md) methodology — inference sources in order: plan `base` field → branch upstream (`git rev-parse --abbrev-ref @{u}`) → conversation context. If none yields a definitive base, AskUserQuestion — do not guess. Base may already be present in the artifact (skip inference).
+- **Read**: plan document + git upstream + conversation context + `cdd base-branch get --plan <path>` (skip inference when the artifact is present)
+- **Exit**: base resolved → `set-base-branch`
+- **Fail**: user refuses to confirm → BLOCKED: base-undecided
 
-### `dispatch-mode`
+### `set-base-branch`
 
-- **Do**: Before dispatching `cdd`:
-  1. For task-review mode: generate review diff via review-package script
-  2. **Three-mode chain enforcement**: For fix mode — verify task-review handoff exists for this task AND status = APPROVED; refuse dispatch otherwise (report to user)
-  3. Dispatch per mode — `cdd` (cdd-engine bin on PATH; host harness is ambient-detected by the engine): `cdd implement --task N` (implement) · `cdd review --type task --task N` (task-review) · `cdd fix --type task --task N` (fix; pass `--findings <task-N-task-review-R.json>` when the orchestrator wants an explicit fix round). **Background execution** (program-level enforcement): must run CLI in background mode (harness `run_in_background` when supported; timeout + poll otherwise). After return, **must read handoff.json to determine status** (orchestrator handoff check obligation): parse `status` field (APPROVED / CHANGES_REQUESTED / BLOCKED / TIMEOUT); **never judge changes by stdout emptiness**. **Timeout handling**: if `invokeCli` returns `timedOut: true`, read `progress.json` `timeoutCount` and route to `timeout-decision` (decision node in digraph).
-- **Read**: `CDD_HANDOFF_PATH` (`task-N-handoff.json`) + open-findings (fix mode) + brief-dependent plan sections + `progress.json` (timeoutCount, on timeout).
-- **Exit**: construct CLI command and spawn → enter `handoff-status` (decision node, routes by handoff status). On timeout → enter `timeout-decision`.
-- **Fail**: nested CLI failure with missing handoff → runner.mjs has written BLOCKED handoff (stderr in blocker field); this node reads and routes to BLOCKED: engine-error. Three-mode chain enforcement violation (fix dispatch without prior task-review APPROVED) → report to user, refuse dispatch.
+- **Do**: Persist the base via the engine CLI — `cdd base-branch set --plan <path> --base <branch> --source <enum>`, where `source` is `plan-field` | `branch-upstream` | `conversation-context` | `user-confirmed`. The engine is the sole write/read path for the artifact — never hand-write it; `set` is idempotent, refusals and validation errors are engine-handled (exit 2).
+- **Read**: `cdd base-branch get --plan <path>` (artifact JSON on stdout)
+- **Exit**: artifact written (or already present) → `implement-task`
+- **Fail**: engine refusal / validation error → report to user; user decides (no hand-written artifact)
 
-### `handoff-status` (decision node)
+### `implement-task`
 
-- **Do**: Read `handoff.json` `status` field + scan `findings[]` for blocker-severity items.
-  Commit-contract validation is performed by the engine at the end of every task dispatch
-  (runner post-run step): a dirty working tree rewrites the handoff to `status: BLOCKED`
-  (`validateCommitContract` / `rewriteHandoffBlocked`); for implement/fix it additionally checks
-  `commits.head` against the live `HEAD`. This node routes directly on the handoff status the
-  engine has already settled. Then route by status × findings severity (Review Stopping alignment):
-  - `APPROVED` + blockers = 0 → `task-complete?` (done)
-  - `APPROVED` + warn/nit findings only → fix warn/nit inline → `task-complete?`
-    (no re-run of task-review — Review Stopping: blocker=0 → fix → done)
-  - `CHANGES_REQUESTED` (blockers > 0) → `dispatch-mode` (fix mode; dispatch-mode internally maintains fix-round counter — ≥ 5 routes to BLOCKED: fix-loop-exhausted) → `task-review` → repeat
-  - `BLOCKED` → `engine-recovery` (decision node — reads blocker to determine fixability; if fixable + retry<2 → re-dispatch dispatch-mode with same mode; if not fixable or retry≥2 → BLOCKED: engine-error; retry counter is `progress.json` `engineRecoveryCount`, engine-incremented on each engine-written BLOCKED dispatch, not `handoff.json.retryCount` — see §D deviation note below)
-  - `TIMEOUT` → `timeout-decision` (decision node — reads `progress.json` `timeoutCount`; < 2 + CLI stdout present → retry via dispatch-mode; ≥ 2 or SIGKILL / zero output → BLOCKED: timeout-exhausted)
-  - `NEEDS_CONTEXT` → **implicit fail-open** (orchestrator manually investigates then redispatches dispatch-mode with the same mode; not a digraph edge).
-- **Read**: `handoff.json`.
-- **Exit**: Route per status × findings → see Do field above.
-- **Fail**: `status` field missing or illegal (not one of APPROVED / CHANGES_REQUESTED / BLOCKED; NEEDS_CONTEXT is a known but implicitly handled status handled by the Exit field's fail-open path, not this Fail branch).
+- **Do**: Dispatch `cdd implement --task <n> --plan <path>` — background execution (harness `run_in_background` when supported; timeout + poll otherwise). One task at a time.
+- **Read**: output contract — `status` / `blocker` / `artifacts` (absolute paths) / `counters`
+- **Exit**: dispatch complete → `run-task-review`
+- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issue`)
 
-### `fix-inline`
+### `run-task-review`
 
-- **Do**: Fix the warn/nit findings from the current task-review handoff inline (orchestrator session, no nested CLI dispatch). Per Review Stopping: blocker=0 → fix → done — **no re-run of task-review**.
-- **Read**: latest `task-N-task-review-R.json` `findings[]` (warn/nit severity items)
-- **Exit**: fixes applied → `task-complete?`
-- **Fail**: fixes cannot be completed in-session → **implicit fail-open** (stop + report to user; branch preserved)
+- **Do**: Dispatch `cdd review --type task --task <n> --plan <path>` — background execution. Every task goes through implement → review → (fix if blockers); review is unskippable — a task never goes straight from implement to completion.
+- **Read**: output contract — `status` + captured review `findings[]`; routes by blocker severity
+- **Exit**: `blocker=0?` routes to `fix-task` (both branches; the re-run path is determined by the entry edge)
+- **Fail**: review exits with no output → BLOCKED: engine-error
 
-### `engine-recovery` (decision node)
+### `fix-task`
 
-- **Do**: Read the blocker field from the current `handoff.json` and determine fixability: ① if the blocker describes a fixable condition (e.g., dirty tree → commit first, missing artifact → regenerate) **and** `progress.json` `engineRecoveryCount` < 2 → re-dispatch `dispatch-mode` with the same mode and task (the engine self-incremented `engineRecoveryCount` when it wrote this BLOCKED handoff — the orchestrator reads only, it never writes `progress.json`); ② if not fixable or `engineRecoveryCount` ≥ 2 → terminal `BLOCKED: engine-error`.
-- **Read**: `handoff.json` (blocker field) + `progress.json` (`engineRecoveryCount` — engine-incremented per engine-written BLOCKED dispatch; orchestrator read-only).
-- **Exit**: fixable + `engineRecoveryCount` < 2 → `dispatch-mode` (same mode, same task); not fixable or `engineRecoveryCount` ≥ 2 → `BLOCKED: engine-error`.
-- **Fail**: blocker field empty or unparseable → terminal `BLOCKED: engine-error`.
-
-> **§D deviation note (validated 2026-09-13 — matches current engine)**: Spec §2.3 prescribes reusing `handoff.json.retryCount`. This plan uses `progress.json` `engineRecoveryCount` instead — the engine owns the counter: `runner.mjs` self-increments on every engine-written BLOCKED dispatch (BLOCKED/engine-error landing paths), so the orchestrator `engine-recovery` decision node is a pure reader (reads the counter, decides retry; never writes `progress.json`).
-
-> **§E retry semantics (exit-0-no-handoff, validated 2026-09-13 — matches current engine)**: when the engine marks a review/fix dispatch `BLOCKED` because the CLI exited 0 without writing a handoff (runner step 10.5), that BLOCKED handoff routes here like any other engine-written BLOCKED — if the blocker is fixable and `progress.json` `engineRecoveryCount` < 2, re-dispatching the same mode via `dispatch-mode` is the **expected** recovery (the runner increments the round counter on that failure path, so the retry is a fresh round, not an overwrite).
-
-### `timeout-decision` (decision node)
-
-- **Do**: Read `progress.json` `timeoutCount` to determine timeout retry eligibility: ① if `timeoutCount < 2` **and** CLI produced partial stdout (non-empty output before timeout) → re-dispatch `dispatch-mode` (same task, same mode — retry with partial handoff context; the engine already incremented `timeoutCount` when it wrote the TIMEOUT handoff — the orchestrator reads only, it never writes `progress.json`); ② if `timeoutCount >= 2` **or** CLI was killed by SIGKILL **or** CLI produced zero output → terminal `BLOCKED: timeout-exhausted`. `timeoutCount` is persisted in `progress.json` (same pattern as `engineRecoveryCount`), not in `handoff.json`.
-- **Read**: `progress.json` (timeoutCount) + CLI stdout presence check from the timed-out dispatch.
-- **Exit**: timeoutCount < 2 & CLI stdout exists → `dispatch-mode` (retry); timeoutCount >= 2 or SIGKILL / zero output → `BLOCKED: timeout-exhausted`.
-- **Fail**: `progress.json` unreadable or timeoutCount unparseable → terminal `BLOCKED: timeout-exhausted`.
-
-### `task-complete?` (decision node)
-
-- **Do**: Check `progress.json` + all task handoffs: task N is complete when
-  `rounds["task-review"] >= 1` AND latest task-review handoff `status: APPROVED`.
-  **task-review is unskippable**: every task must go through implement → task-review →
-  (fix if CHANGES_REQUESTED) chain; skipping task-review is forbidden.
-- **Read**: `progress.json` + `task-N-task-review-R.json`
-- **Exit**: more tasks remain → `dispatch-mode` (next task's implement);
-  all tasks APPROVED → `branch-review`.
-- **Fail**: task-review handoff missing or status non-APPROVED → BLOCKED: engine-error.
+- **Do**: Fix ALL review findings (blocker + warn + nit) via `cdd fix --type task --task <n> --plan <path> --findings <handoff>` — `<handoff>` is the current cycle's handoff path from `artifacts`. No new review invocation — work from the findings already captured in this cycle.
+- **Read**: captured review handoff `findings[]` (path from `artifacts`)
+- **Exit**: entered via blocker>0 → `run-task-review` (re-run); entered via blocker=0 → `more-tasks?` (no re-run after blocker=0)
+- **Fail**: invoking a new review instead of fixing from captured findings → violates the review-stopping discipline
 
 ### `branch-review`
 
-- **Do**: Dispatch `cdd review --type branch --plan <plan-path> --base <merge-base(develop, HEAD)> --head <HEAD>` (cdd-engine bin; BASE = `git merge-base HEAD origin/<base>` where `<base>` is read from the artifact via `cdd base-branch get --plan <plan-path>` (see [base-branch.md](./docs/base-branch.md)), HEAD = `git rev-parse HEAD`; Enh D standalone CLI). **Background execution** (program-level enforcement). After return, **read handoff.json to determine status** (same discipline as dispatch-mode; handoff at `<workspace>/branch-review-<base7>..<head7>-r<round>.json`). **Persist diff to workspace**: write `<workspace>/branch-review.diff` (`git diff <base>..<head> --stat` + findings extraction).
-- **Read**: `cdd base-branch get --plan <plan-path>` (base name) + branch HEAD + plan path + branch-review handoff output.
-- **Exit**: no blockers → **fix the remaining warn/nit findings inline** (same semantics as task-level `fix-inline`), then → `handoff-finishing`. **No re-review after blocker=0** — Review Stopping, see [review.md#rule-review-stopping](../_docs/review.md#rule-review-stopping): even if the inline fixes add new commits (which change the ref), do NOT re-dispatch branch-review; blockers present → `branch-fix-loop`.
-- **Fail**: `cdd review --type branch` exits with no handoff → BLOCKED: engine-error.
+- **Do**: Dispatch `cdd review --type branch --plan <path> --base <merge-base> --head <head>` — `<merge-base>` = `git merge-base HEAD origin/<base>` with `<base>` from `cdd base-branch get --plan <path>`; `<head>` = `git rev-parse HEAD`; background execution. Persist the diff to the workspace (`git diff <base>..<head> --stat`).
+- **Read**: `cdd base-branch get` output + branch HEAD + review output contract
+- **Exit**: `blocker=0?` routes to `branch-fix` (both branches; the re-run path is determined by the entry edge)
+- **Fail**: review exits with no output → BLOCKED: engine-error
 
-### `branch-fix-loop`
+### `branch-fix`
 
-- **Do**: Based on branch-review blocker findings, orchestrator directly (or dispatches nested CLI) fixes; after fix, **re-run branch-review** (back to the `branch-review` node) **only when the previous review had blockers**. Once a branch-review returns blocker=0 → **stop re-reviewing**: fix ALL captured findings (blocker + warn + nit) inline, then go straight to `handoff-finishing` (Review Stopping — do not re-review just because your own fix commits changed the ref). No hard cap on the loop (recommended ≤ 3 rounds; beyond that, user decides).
-- **Read**: branch-review findings (from handoff `findings[]`).
-- **Exit**: previous review `blocker=0` → fix all captured findings → `handoff-finishing` (no re-review — unified `_docs/review.md` Review Stopping); previous `blocker>0` → fix, then re-review (back to `branch-review`).
-- **Fail**: blockers persist after multiple rounds → **implicit fail-open** (stop + report to user; branch preserved; user decides manually).
+- **Do**: Fix ALL branch-review findings (blocker + warn + nit) via `cdd fix --type branch --plan <path> --findings <handoff>` — `<handoff>` is the current cycle's branch-review handoff path from `artifacts`. No hard cap (recommended ≤ 3 rounds; beyond that, the user decides).
+- **Read**: captured branch-review handoff `findings[]` (path from `artifacts`)
+- **Exit**: entered via blocker>0 → `branch-review` (re-run); entered via blocker=0 → `handoff-finishing` (no re-review after blocker=0)
+- **Fail**: blockers persist after multiple rounds → implicit fail-open (stop + report; branch preserved; user decides)
 
 ### `handoff-finishing`
 
-- **Do**: Prepare handoff to `osuperpowers:finishing`: ensure `.osuperpowers/cdd/<slug>/base-branch.json` is written (finishing's `read-base` node consumes the same artifact); summarize branch state (commits count / base); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard four options).
-- **Read**: `base-branch.json` + all handoffs + branch-review final state.
-- **Exit**: handoff complete → APPROVED: finishing.
-- **Fail**: finishing takeover fails → **implicit fail-open** (branch preserved; user manually finishes).
+- **Do**: Prepare the handoff to `osuperpowers:finishing`: ensure the base-branch artifact is written (finishing's read-base node consumes the same artifact); summarize branch state (commits count / base); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard).
+- **Read**: `cdd base-branch get --plan <path>` output + final branch-review state
+- **Exit**: handoff complete → APPROVED: finishing
+- **Fail**: finishing takeover fails → implicit fail-open (branch preserved; user finishes manually)
 
 ## Invariants
 
 | # | Invariant |
 |---|-----------|
-| I1 | **Host Harness Autodetection** — the engine resolves the host harness internally from ambient environment markers (`CLAUDE_CODE_SESSION_ID` → claude, `CURSOR_TRACE_ID` → cursor-agent; empty → BLOCK). The orchestrator never passes a harness name down to `cdd`. |
-| I2 | **CLI Background Execution** — All CLI mode calls (`cdd <subcommand>`) must run in background — harness `run_in_background` when supported; timeout + poll otherwise (overall spec v1.9 program-level enforcement). |
-| I3 | **No --resume / -c** — All nested CLI calls forbid carrying historical session flags (`--resume` / `-c` etc.); use one-shot print mode. |
-| I5 | **Three-Mode Chain Completeness** — Every task must go through the full implement → task-review → (fix if CHANGES_REQUESTED) chain; skipping task-review from implement directly to completion is forbidden. |
-| I6 | **No Controller Bypass** — When the engine is available (`cdd` can run), the orchestrator must not hand-write control-flow bypasses that skip engine processing. All task execution, review, and fix dispatch must go through engine CLI calls; direct orchestrator-side manipulation of handoff state as a substitute for engine processing is forbidden. |
-| I8 | **Timeout Retry with Cap** — When `dispatch-mode` returns `TIMEOUT`, `timeout-decision` checks `progress.json` `timeoutCount` (engine-incremented when the runner wrote the TIMEOUT handoff). If `timeoutCount < 2` and CLI produced partial stdout (non-empty output before timeout), retry via `dispatch-mode`. If `timeoutCount >= 2` or CLI was killed by SIGKILL or produced zero output → terminal `BLOCKED: timeout-exhausted`. `timeoutCount` is persisted in `progress.json` (same pattern as `engineRecoveryCount`). |
+| I1 | **Host Harness Autodetection** — the engine resolves the host harness internally from ambient environment markers; the orchestrator never passes a harness name down to `cdd`. |
+| I2 | **CLI Background Execution** — all `cdd <subcommand>` calls run in background — harness `run_in_background` when supported; timeout + poll otherwise. |
+| I3 | **No --resume / -c** — nested CLI calls forbid carrying historical session flags (`--resume` / `-c`); use one-shot print mode. |
+| I5 | **Three-Mode Chain Completeness** — every task goes through the full implement → review → (fix if blockers) chain; review is unskippable, and fix dispatch requires a prior APPROVED review handoff for that task. |
+| I6 | **No Controller Bypass** — when the engine is available, the orchestrator must not hand-write control-flow bypasses; all task execution / review / fix dispatch go through engine CLI calls. |
 
 ## Failure Modes
 
-Cross-node failure behavior mapping (complements Node Fail fields):
+Cross-node failure handling (complements node Fail fields):
 
-| failure | behavior | reason | recovery |
-|---------|----------|--------|----------|
-| determine-base user refuses confirmation | BLOCKED: base-undecided | Wrong base for merge/PR is costly | User re-runs CDD and gets re-prompted |
-| `cdd` not in PATH | BLOCKED: cdd-engine-not-installed | `@oscaner-skills/cdd-engine` package not installed | Run `npm i -g @oscaner-skills/cdd-engine`, then retry |
-| Nested CLI failure + handoff missing | BLOCKED: engine-error | Engine bug signal | Report via `osuperpowers:report-issue` (no manual labels — per-finding comments carry none; only the session master carries `session, osuperpowers`) |
-| handoff `status: BLOCKED` | `engine-recovery` decision → re-dispatch or BLOCKED: engine-error | runner.mjs has captured blocker (dirty tree / CLI failure) | engine-recovery reads blocker: fixable + retry<2 → re-dispatch; otherwise terminal BLOCKED |
-| handoff `status: TIMEOUT` | `timeout-decision` → retry or BLOCKED: timeout-exhausted | CLI timed out before completing | timeout-decision reads `timeoutCount` (engine-incremented per TIMEOUT dispatch): < 2 + partial stdout → retry; ≥ 2 or SIGKILL / zero output → terminal BLOCKED: timeout-exhausted |
-| timeout exhaustion (timeoutCount ≥ 2) | BLOCKED: timeout-exhausted | Retry cap reached; CLI consistently times out | Review timeout configuration; check workspace resources; increase timeout or fix underlying performance issue |
-| Task-level fix-loop ≥ 5 rounds | BLOCKED: fix-loop-exhausted | Prevent task-level infinite loop | User decides: manual fix / re-scope review / abandon |
-| handoff JSON corrupt or status field illegal | BLOCKED: engine-error | Contract violation (runner self-validate should have caught) | Report via report-issue |
-| branch-fix-loop blockers persist after multiple rounds | **implicit fail-open** | Branch-level blockers may need manual investigation (no hard cap; recommended ≤ 3 rounds; beyond that, user decides) | Stop + report; branch preserved; user manually finishes |
-| `osuperpowers:finishing` takeover fails | **implicit fail-open** | finishing's own issue | Branch preserved; user manually finishes |
+| category | handling |
+|---|---|
+| TIMEOUT | routed from output contract `status`; retry within the counters cap, then terminal per the output contract |
+| CONTRACT_VIOLATION | blocker from output contract; report via `osuperpowers:report-issue`; no re-dispatch |
+| ENGINE_SELF_WRITTEN | blocker from output contract; report via `osuperpowers:report-issue`; orchestrator never rewrites handoff state |
+| EXECUTION_FAILURE | blocker from output contract; fixable + retry available → re-dispatch; else BLOCKED: engine-error |
+| UNVERIFIABLE | blocker from output contract; report to user; re-dispatch only on user confirmation |
+| PLAN_CONFLICT | blocker from output contract; surface to the user — never silently override the plan |
 
 **Fail-open vs BLOCKED convention**:
 
-- **BLOCKED**: explicit terminal node (digraph rounded circle); requires user intervention to recover.
+- **BLOCKED**: explicit terminal state; requires user intervention to recover.
 - **implicit fail-open**: node-level failure (not in digraph); flow stops + reports to user.

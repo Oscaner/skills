@@ -191,4 +191,31 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
     expect(rec.reason).toMatch(/^: /);
     expect(rec.preservedFindings).toEqual([]);
   });
+  it("非对象顶层输入收口为对象 → 载荷不漏索引键且自身合法（engine 是载体唯一作者）", () => {
+    // 缺陷面：`normalizeHandoff` 对非对象输入原样透传（`schema.mjs:87`，透传契约由本文件 :154 用例钉住），
+    // 失败分支把它放回 `handoff`，而三处消费方一律 `{ ...rec.handoff, … }` 组装落盘载荷——`{...x}` 对非对象是
+    // **索引展开**、不抛错 → engine 亲手写出含 `"0"`… 的 BLOCKED 载体，被自家 schema 的 additionalProperties
+    // 拒绝（T5 存在的唯一理由就是消灭这一类 CONTRACT_VIOLATION）。收口点选在 `recoverHandoff`（与校验器同
+    // 文件的单点），`normalizeHandoff` 的透传契约不动。
+    for (const bad of [[{ severity: "warn", summary: "x" }], "BLOCKED", 42, true]) {
+      const rec = recoverHandoff(bad, "cdd");
+      expect(rec.valid).toBe(false);
+      expect(Object.keys(rec.handoff)).not.toContain("0");       // 索引展开面
+      expect(Array.isArray(rec.preservedFindings)).toBe(true);
+      // 按 run-task.mjs 8.8 的载荷形状原样组装 → 必须过校验
+      const payload = {
+        ...rec.handoff, task: 1, phase: "review", status: "BLOCKED",
+        findings: rec.preservedFindings, artifacts: rec.handoff.artifacts ?? {},
+        blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
+      };
+      const r = validateHandoffSchema(payload, "cdd");
+      expect(r.valid, `${JSON.stringify(bad)} → ${r.reason}`).toBe(true);
+    }
+    // 顶层数组不是 findings 字段（收口为 `{}` → 无 findings 可留，与「无 findings 可留 → []」同语义）；
+    // 对象形的 findings 照旧全额保留（AC7）。
+    expect(recoverHandoff([{ severity: "warn" }], "cdd").preservedFindings).toEqual([]);
+    expect(recoverHandoff(
+      { phase: "review", artifacts: {}, findings: [{ severity: "warn" }], unknownField: 1 }, "cdd",
+    ).preservedFindings).toEqual([{ severity: "warn" }]);
+  });
 });

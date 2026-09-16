@@ -82,6 +82,19 @@ describe('doc-fix.md shared docs fix shell (Task 4)', () => {
   });
 });
 
+describe('fix-family status decision rule (T5 fix round 2)', () => {
+  it('fix 族模板都承载 status 决策句（同一判据不得三份模板三处置）', () => {
+    // stub 注释只承载**取值域**（enum: APPROVED | … | BLOCKED），allOf 行只承载「phase=fix 时 status 必需」；
+    // 「何时该声明 BLOCKED、blocker 装什么」是**决策语义**——docs fix 是 work 型（finalize 原样保留 agent
+    // 声明，engine 不做 status rollup），载体上的 status 又被 stub 按 enum[0] 预填，规则句缺席时残留 blocker
+    // 可随预填的 APPROVED 静默收场（doc-fix 属 Review Stopping 收尾路径，其后不再重评）。
+    for (const rel of [['task', 'fix.md'], ['review', 'doc-fix.md']]) {
+      const content = readFileSync(path.join(PKG_ROOT, 'templates', ...rel), 'utf8');
+      expect(content, rel.join('/')).toMatch(/^- `status`: APPROVED .*or BLOCKED/m);
+    }
+  });
+});
+
 describe('legacy review/fix templates removed (Task 4)', () => {
   it('the legacy review/fix template names are unmapped in MODE_GROUPS', async () => {
     const { templatePath } = await import('../lib/templates.mjs');

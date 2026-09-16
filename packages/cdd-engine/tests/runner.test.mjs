@@ -517,7 +517,7 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff c
   }
 });
 
-it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → phase matches mode (unknown property variant)", async () => {
+it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized and continues (exit 0, APPROVED)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-unk-"));
   const restore = withFakeCli(binDir, "fake-cli",

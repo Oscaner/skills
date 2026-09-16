@@ -37,6 +37,14 @@ pnpm run changeset  # create a changeset for versioning
 pnpm run version    # apply changesets to bump versions
 ```
 
+> **Development-time CDD invocation — direct, never global:** during development the CDD engine must be invoked straight from this repo's working tree:
+>
+> ```bash
+> node packages/cdd-engine/bin/cdd.mjs <subcommand> [options]
+> ```
+>
+> The global `cdd` command must NOT be used (the `npm link` was removed for this reason). A global link can go stale or resolve to an old copy, so any engine work (P4-era especially) must be exercised against the working tree via the direct invocation — it guarantees the engine under test is this repo's code.
+
 > **CRITICAL — emit after every source change:** After editing ANY file under `skills/*/SKILL.md`, `skills/*/docs/*.md`, `docs/*.md`, or `package.json#oscaner-plugin`, you MUST run `pnpm run emit` before committing. The `.agents/` directory is **derived output** — never edit it directly. If you forget emit, the CI will fail with emit drift. This is the most common mistake in this repo.
 
 CI runs `node scripts/run.mjs validate` on PRs to `develop` and `main` (13 validation blocks: emit freshness, plugin.json resolution, skill dirs, rule-reference integrity, engine tests, version sync, overall consistency).

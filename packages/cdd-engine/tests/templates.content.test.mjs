@@ -138,6 +138,20 @@ describe('review.md HARD GATE（T6: returnMode 分写 + engine 读回确认）',
   });
 });
 
+describe('fix/docs.md HARD GATE（Task 18 review-1 finding 2: fix return = 写盘，非 stdout JSON return）', () => {
+  it('docsFixHardGate 渲染文本与 fix return 语义一致（“BEFORE exiting” 而非 “BEFORE outputting the JSON return”）', async () => {
+    // fix 代理 stdout 上没有 JSON return（## Return「Your return IS the handoff written to …」）；
+    // review 的 json-return 门此前被 run-docs 缺省挪用给 fix 代理，此处钉住 fix 自身门文案。
+    const { docsFixHardGate } = await import('../lib/templates.mjs');
+    const gate = docsFixHardGate('/ws/spec-fix-2.json');
+    expect(gate).toMatch(/HARD GATE[^\n]*BEFORE exiting/);
+    expect(gate).not.toContain('JSON return');                                  // fix stdout 无 JSON return —— 门不得谈「输出 JSON return」
+    expect(gate).toContain('the engine reads the file, not your stdout');        // 与 fix/docs.md ## Return 互文（写盘即 return）
+    expect(gate).toContain('/ws/spec-fix-2.json');
+    expect(gate).toContain('BLOCKED (runner exit 1)');
+  });
+});
+
 describe('implement.md（T6: 实体化 + 无 Handoff Output 段 + evidence-gate 指引）', () => {
   const impl = readFileSync(path.join(PKG_ROOT, 'templates', 'task', 'implement.md'), 'utf8');
 

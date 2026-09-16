@@ -12,7 +12,7 @@ import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
 import { loadRegistry, checkHarness, REG_PATH } from "../registry.mjs";
 import { loadHandoffSchema, validateHandoffSchema, recoverHandoff } from "../handoff/schema.mjs";
-import { renderHandoffStub, renderTemplate, reviewHardGate } from "../templates.mjs";
+import { renderHandoffStub, renderTemplate, reviewHardGate, docsFixHardGate } from "../templates.mjs";
 import { hashFile } from "./review-loop.mjs";
 
 // REG_PATH 统一由 lib/registry.mjs 导出（spec §2.3 深度派生常数专项：run-docs 不再自算第二来源）。
@@ -78,9 +78,11 @@ export async function runDocsTask({
   const stub = renderHandoffStub(schema);
   let prompt = renderTemplate(template, {
     DOC: doc, FINDINGS: findingsPath ?? "", HANDOFF: handoffPath,
-    // Task 18: 共享 Handoff 壳的 {{HARD_GATE}} 槽；fix 族缺省 = json return 写盘门（review.mjs 经
-    // params 传入自算值，...params 展开在后 → 显式注入优先）。
-    HARD_GATE: reviewHardGate("json", handoffPath),
+    // Task 18 review-1 finding 2: 共享 Handoff 壳的 {{HARD_GATE}} 槽按 return 语义分派 ——
+    // review 族缺省 = json return 写盘门（review.mjs 经 params 传入自算值，...params 展开在后 →
+    // 显式注入优先）；fix 族 = docs 写盘门（fix 的 return = 文件本体，stdout 无 JSON return，
+    // 「BEFORE outputting the JSON return」对 fix 代理自相矛盾 —— reviewHardGate 不可挪用）。
+    HARD_GATE: mode === "fix" ? docsFixHardGate(handoffPath) : reviewHardGate("json", handoffPath),
     ...params,
   }, "docs-runner");
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);

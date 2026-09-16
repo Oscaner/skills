@@ -62,6 +62,7 @@ vi.mock("../lib/templates.mjs", () => ({
   renderHandoffStub: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
   renderTemplate: vi.fn(() => "mocked docs review prompt"),
   reviewHardGate: vi.fn((returnMode, handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE outputting the JSON return.`),
+  docsFixHardGate: vi.fn((handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE exiting: the engine reads the file, not your stdout.`),
 }));
 
 vi.mock("../lib/handoff/schema.mjs", () => ({
@@ -198,6 +199,26 @@ describe("runDocsTask", () => {
     promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
     expect(promptArg.split("\n")[1]).toBe("mocked docs review prompt");
+  });
+
+  it("Task 18 review-1 finding 2: fix 族 HARD_GATE = docsFixHardGate 写盘门（review 的 json-return 门不被挪用）", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    const { docsFixHardGate, reviewHardGate } = await import("../lib/templates.mjs");
+
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    await runDocsTask({
+      harness: "claude", mode: "fix", template: "docs", type: "spec",
+      doc: SPEC_DOC,
+      findingsPath: "/repo/root/docs/findings.md",
+      handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
+      repoRoot: "/repo/root",
+      dryRun: false,
+    });
+    // fix 的 return = 文件本体（stdout 无 JSON return）：门 = docsFixHardGate(handoffPath)
+    expect(docsFixHardGate).toHaveBeenCalledWith("/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json");
+    expect(reviewHardGate).not.toHaveBeenCalled();
   });
 
   // ---- P6 T3：handoffPath 显式必传（no template fallback）+ 模板名直传（-review→-fix 派生已删） ----

@@ -102,6 +102,15 @@ export function reviewHardGate(returnMode, handoffPath) {
   return `> ⚠️ HARD GATE — Write \`${target}\` ${before}\n> Returning without a written handoff file = BLOCKED (runner exit 1).`;
 }
 
+// docs 族 fix（cdd fix --type spec|plan）的 HARD GATE（Task 18 review-1 finding 2）：fix 的 return = 写盘
+// 本身（fix/docs.md ## Return「Your return IS the handoff written to … — the engine reads the file, not
+// your stdout」；stdout 无 JSON return）。不得复用 reviewHardGate("json")——「BEFORE outputting the JSON
+// return」对 fix 代理自相矛盾。门语义 = 写完盘再退出。
+export function docsFixHardGate(handoffPath) {
+  const target = handoffPath ?? "{{HANDOFF}}";
+  return `> ⚠️ HARD GATE — Write \`${target}\` BEFORE exiting: the engine reads the file, not your stdout. Returning without a written handoff file = BLOCKED (runner exit 1).`;
+}
+
 // implement 的 HARD GATE：本模式不写 handoff（runner 从 H1 四行 + TASK_BASE + git HEAD 实体化），
 // 与 fix/review 的「写盘先于 return」同构但语义相反 —— 共享 Handoff 壳的槽位注入值，非模板差异。
 // 产物（report + test evidence）先行：实体化 handoff 的 artifacts 全来自它们，缺席即 BLOCKED。

@@ -44,7 +44,7 @@ flowchart TD
 - **Do**: Write the complete plan document to `docs/osuperpowers/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — the same source as `plan-review`'s `--spec` pointer; report-issue `resolve-destination` resolves its program chain through this field as its first hop. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction (`/^### Task \d+:/`); em dash / Chinese colon / any other delimiter fails brief extraction at dispatch time. Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to plan-review
 - **Read**: approved spec + `backfill-design` output
 - **Exit**: Plan written + self-review passed → `plan-review`
-- **Fail**: —
+- **Fail**: Write error or self-review finds an unfixable defect → report + fail-open (do not block plan review)
 
 ### `plan-review`
 

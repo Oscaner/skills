@@ -1259,9 +1259,9 @@ flowchart TD
 ### Task 13: 委托型重写 — brainstorming / writing-plans / finishing
 
 **Files:**
-- Modify: `packages/osuperpowers/skills/brainstorming/SKILL.md`（233 行 → 约 80 行）
+- Modify: `packages/osuperpowers/skills/brainstorming/SKILL.md`（233 行 → **实落 126 行**；「约 80」为未含载体重量的乐观估计，review-1 nit 重基线——同款预算 T14「176 → 约 100」宜据实校准）
 - Modify: `packages/osuperpowers/skills/writing-plans/SKILL.md`
-- Modify: `packages/osuperpowers/skills/finishing/SKILL.md`（130 行 → 约 45 行）
+- Modify: `packages/osuperpowers/skills/finishing/SKILL.md`（130 行 → **实落 58 行**；「约 45」同上，review-1 nit 重基线）
 - Modify: `packages/osuperpowers/tests/writing-plans-spec.test.mjs`（措辞同步）
 
 **Interfaces:**

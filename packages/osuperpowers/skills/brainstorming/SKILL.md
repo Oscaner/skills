@@ -43,7 +43,7 @@ flowchart TD
 - **Do**: Explore project context in the resolved mode (code / issues / docs / git log) so the routing and the delegated sessions have what they need
 - **Read**: project files, docs, git log, the parent overall (phase-within-program mode)
 - **Exit**: Exploration complete → `mode?`
-- **Fail**: —
+- **Fail**: Context read fails → report + fail-open
 
 ### `mode?`
 

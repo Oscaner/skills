@@ -43,8 +43,8 @@ function checkOsuperpowersSkillsCount() {
   const p = path.join(ROOT, "packages/osuperpowers");
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
-  const EXPECTED = 5; // init 已删（T10）→ 5 skills；T12 建三新 skill → 8
-  const EMITTERS_LABEL = "5 skills (init removed)";
+  const EXPECTED = 8; // 5（init 已删 T10）+ 3 新 spec-writer（T12 writing-{single,overall,phase}-spec）
+  const EMITTERS_LABEL = "8 skills";
   let n;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");

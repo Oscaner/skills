@@ -80,7 +80,7 @@ flowchart TD
 
 ### `claim-phase`
 
-- **Do**: Based on `read-program`'s mode marker + the phase identifier in the user request (e.g. `/brainstorming P14`), judge whether that phase already exists in the parent overall's **Phase inventory** (the four-table sync procedure is in [add-phase-protocol.md](./docs/add-phase-protocol.md)):
+- **Do**: Based on `read-program`'s mode marker + the phase identifier in the user request (e.g. `/brainstorming P14`), judge whether that phase already exists in the parent overall's **Phase inventory** (the four-table sync procedure is in [add-phase-protocol.md](../writing-overall-spec/docs/add-phase-protocol.md)):
   - `new-program` mode → straight to `grilling-mode?` (program-level design ultimately reaches `overall-spec?`).
   - `phase-within-program` mode + phase **already in** Phase inventory → `grilling-mode?` (normal path).
   - `phase-within-program` mode + phase **not in** Phase inventory (new phase / split) → `sync-overall`.
@@ -90,12 +90,12 @@ flowchart TD
 
 ### `sync-overall`
 
-- **Do**: Read the parent overall → perform the four-table sync (procedure + checklist in [add-phase-protocol.md](./docs/add-phase-protocol.md)):
-  ① **Issue inventory** — registration semantics (anchored-syntax levels + 3 trigger scenarios) delegate to [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5;
+- **Do**: Read the parent overall → perform the four-table sync (procedure + checklist in [add-phase-protocol.md](../writing-overall-spec/docs/add-phase-protocol.md)):
+  ① **Issue inventory** — registration semantics (anchored-syntax levels + 3 trigger scenarios) delegate to [add-phase-protocol.md](../writing-overall-spec/docs/add-phase-protocol.md) §1.5;
   ② **Phase inventory** — append a new phase row (scope / design spec / plan / acceptance / dependency);
   ③ **Dependency graph** — add hard/soft edges (the new phase's dependency on predecessors + successors' dependency on the new phase);
   ④ **version bump + change-history** entry (record the reason, user decision, scope boundary).
-  Then run the **four-table consistency check**: the `#NNN` registration assertion (anchored-form refs must be registered in Issue inventory) delegates to [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
+  Then run the **four-table consistency check**: the `#NNN` registration assertion (anchored-form refs must be registered in Issue inventory) delegates to [add-phase-protocol.md](../writing-overall-spec/docs/add-phase-protocol.md) §1.5; any phase referenced by the Dependency graph must be in Phase inventory; the hard-dependency predecessor of the new phase must have **Design spec column = `Done`** in the parent overall's Phase inventory (same authority column as I7 in §2.5; no longer judged by plan cell / git state).
 - **Read**: full parent overall spec (the Design spec column of Phase inventory).
 - **Exit**: four tables consistent → back to `explore-context` (re-evaluate scope with the now-registered phase) → through `claim-phase` (phase now exists) → `grilling-mode?`.
 - **Fail**: four tables inconsistent (e.g. dependency phase not shipped, dangling reference) → terminal `BLOCKED: overall-sync-failed`; never allow grilling an unregistered phase.
@@ -153,10 +153,10 @@ flowchart TD
 ### `write-spec`
 
 - **Do**: Determine write granularity based on mode:
-  - **`new-program`** → charter-only: scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria. **No phase-level implementation details.** Use overall-spec-template.md (contains "Charter only — no implementation detail" GATE)
-  - **`phase-within-program`** → phase-level detailed design (including grilling outputs: root cause / fix direction / technical decisions). Use phase-spec-template.md
+  - **`new-program`** → charter-only: scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria. **No phase-level implementation details.** Use `../writing-overall-spec/docs/overall-spec-template.md` (contains "Charter only — no implementation detail" GATE)
+  - **`phase-within-program`** → phase-level detailed design (including grilling outputs: root cause / fix direction / technical decisions). Use `../writing-phase-spec/docs/phase-spec-template.md`
 
-- **Read**: mode marker + all design decisions + template (path: `packages/osuperpowers/skills/brainstorming/docs/`)
+- **Read**: mode marker + all design decisions + template (path: `packages/osuperpowers/skills/writing-overall-spec/docs/` · `packages/osuperpowers/skills/writing-phase-spec/docs/`)
 - **Exit**: File written → `spec-review?`
 - **Fail**: Template missing/unreadable → BLOCKED (missing template)
 
@@ -179,7 +179,7 @@ flowchart TD
 - **Do**: Commit spec document to git. Spec approved = commit immediately (I4); do not wait for dev merge.
 
   **Pre-commit overall spec 4-table sync check** (only when this phase is a sub-phase of an overall program; single-spec projects skip this check):
-  - Issue inventory: every anchored-form `#NNN` this phase mentions is registered in the overall Issue inventory — registration semantics (anchored-syntax levels + 3 trigger scenarios) in [add-phase-protocol.md](./docs/add-phase-protocol.md) §1.5; bare `#NNN` is not machine-enforced (manual discretion)
+  - Issue inventory: every anchored-form `#NNN` this phase mentions is registered in the overall Issue inventory — registration semantics (anchored-syntax levels + 3 trigger scenarios) in [add-phase-protocol.md](../writing-overall-spec/docs/add-phase-protocol.md) §1.5; bare `#NNN` is not machine-enforced (manual discretion)
   - Phase inventory: this phase row's scope / design spec / plan / acceptance criteria / dependency fields are updated to latest state
   - Dependency graph: if this phase adds or removes dependency relationships, the ASCII graph is synced
   - Change history: this phase's change has been appended as one row (including version + date + summary)

@@ -1,6 +1,6 @@
 # Overall Spec Template
 
-**Document structure only** — what an overall (program-level) spec contains. Per-phase increment lives in [phase-spec-template.md](./phase-spec-template.md). Read both before drafting a multi-phase program.
+**Document structure only** — what an overall (program-level) spec contains. Per-phase increment lives in [phase-spec-template.md](../writing-phase-spec/docs/phase-spec-template.md). Read both before drafting a multi-phase program.
 
 ---
 

@@ -1,6 +1,6 @@
 # Phase Spec Template
 
-**Increment only** — what a single phase spec contains. Program-level charter lives in [overall-spec-template.md](./overall-spec-template.md).
+**Increment only** — what a single phase spec contains. Program-level charter lives in [overall-spec-template.md](../writing-overall-spec/docs/overall-spec-template.md).
 
 > **GATE:** This phase spec is produced by a **full brainstorm -> plan -> dev cycle**. Jumping straight to implementation after overall approval alone is a violation of the overall flow.
 

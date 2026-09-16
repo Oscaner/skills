@@ -106,23 +106,33 @@ function assert(cond, msg) {
 // T6：目录 target glob **/*，单文件 target（根 README.md）直接读；target 可取仓库相对
 // 路径或绝对路径（后者供 collectGateLexiconHits 测试注入临时目录）。
 // T7：export 供 smoke-cdd.mjs 最终核对（deletion-surface sweep）复用，不重复实现。
-// T7 N③: 缺失 target → statSync ENOENT 晦涩崩溃；改为带 target 的清晰 Error（对齐 G7/G8
-// 「deleted path has returned」风格），未来文件改名/删除以可读 guard 失败呈现而非 crash。
-export function scanTargets(targets, re) {
-  const hits = [];
+// review-1 warn（Duplicated Code）：统一遍历辅助 —— scanTargets / scanLines / listTargetFiles
+// 原三份近相同 walk（target 解析 → 缺失 throw → glob 展开 → 二进制跳过）逐行复制，仅改其一
+// 即静默漂移；现收敛为单一 walkTargetFiles，三个消费端只做各自的匹配/映射。
+// 缺失 target → 带 target 的清晰 Error（对齐 G7/G8「deleted path has returned」风格），
+// 未来文件改名/删除以可读 guard 失败呈现而非 statSync ENOENT 晦涩崩溃。
+function walkTargetFiles(targets) {
+  const out = [];
   for (const t of targets) {
     const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
     if (!existsSync(abs)) {
-      throw new Error(`scanTargets: target missing — ${t} (deleted file? adjust target set or this sweep scope)`);
+      throw new Error(`walkTargetFiles: target missing — ${t} (deleted file? adjust target set or this sweep scope)`);
     }
     const paths = statSync(abs).isDirectory()
       ? globSync("**/*", { cwd: abs, absolute: true, dot: true })
       : [abs];
     for (const f of paths) {
-      const buf = readFileSync(f);
-      if (buf.includes(0)) continue; // binary — grep -rn reports, doesn't content-match
-      if (re.test(buf.toString("utf8"))) hits.push(path.relative(ROOT, f));
+      if (readFileSync(f).includes(0)) continue; // binary — grep -rn reports, doesn't content-match
+      out.push(f);
     }
+  }
+  return out;
+}
+
+export function scanTargets(targets, re) {
+  const hits = [];
+  for (const f of walkTargetFiles(targets)) {
+    if (re.test(readFileSync(f).toString("utf8"))) hits.push(path.relative(ROOT, f));
   }
   return hits;
 }
@@ -178,24 +188,13 @@ export const CANONICAL_ARGV_FLAGS = new Set(Object.values(CONTRACT.channels.argv
 const ROOT_FROM_DOC = "root" + "FromDoc" + "Path";
 const RESOLVE_REPO_ROOT = "resolve" + "Repo" + "Root";
 
-// 逐行扫描辅助（scanTargets 的文件级同构）：命中行回 { file, lineNo, text }。
+// 逐行扫描辅助（建立在 walkTargetFiles 的文件面之上）：命中行回 { file, lineNo, text }。
 export function scanLines(targets, re) {
   const hits = [];
-  for (const t of targets) {
-    const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
-    if (!existsSync(abs)) {
-      throw new Error(`scanLines: target missing — ${t} (deleted file? adjust target set or this sweep scope)`);
-    }
-    const paths = statSync(abs).isDirectory()
-      ? globSync("**/*", { cwd: abs, absolute: true, dot: true })
-      : [abs];
-    for (const f of paths) {
-      const buf = readFileSync(f);
-      if (buf.includes(0)) continue; // binary — grep -rn reports, doesn't content-match
-      const lines = buf.toString("utf8").split("\n");
-      for (let i = 0; i < lines.length; i++) {
-        if (re.test(lines[i])) hits.push({ file: path.relative(ROOT, f), lineNo: i + 1, text: lines[i] });
-      }
+  for (const f of walkTargetFiles(targets)) {
+    const lines = readFileSync(f).toString("utf8").split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (re.test(lines[i])) hits.push({ file: path.relative(ROOT, f), lineNo: i + 1, text: lines[i] });
     }
   }
   return hits;
@@ -203,22 +202,7 @@ export function scanLines(targets, re) {
 
 // 文件清单辅助（scanLines 的文件面）：目标集内全部非二进制文件的仓储相对路径（供结构断言/跨文件比对）。
 function listTargetFiles(targets) {
-  const out = [];
-  for (const t of targets) {
-    const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
-    if (!existsSync(abs)) {
-      throw new Error(`listTargetFiles: target missing — ${t} (deleted file? adjust target set or this sweep scope)`);
-    }
-    const paths = statSync(abs).isDirectory()
-      ? globSync("**/*", { cwd: abs, absolute: true, dot: true })
-      : [abs];
-    for (const f of paths) {
-      const buf = readFileSync(f);
-      if (buf.includes(0)) continue;
-      out.push(path.relative(ROOT, f));
-    }
-  }
-  return out;
+  return walkTargetFiles(targets).map((f) => path.relative(ROOT, f));
 }
 
 /** ① 行 1：engine bin+lib 内 process.cwd() 计数 = 1 且唯一命中文件 = lib/root.mjs（两项都写）。 */
@@ -298,7 +282,9 @@ export function collectSixEnvKeyHits(targetsOverride = CDD_ENGINE_BIN) {
 // ④ 行 4：路径类实参（--plan/--spec/--findings）全部经唯一 resolver。负断言 = 直用原参（绕过
 // resolveDocArg 归一）；正断言 = 5 个 call-site 文件（T2「归一入口闭包」）必须都引用 resolveDocArg。
 const PATH_ARG_SCOPE = ["packages/cdd-engine/lib/cli", "packages/cdd-engine/lib/runner/run-task.mjs"];
-const PATH_ARG_BYPASS_RE = /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
+// review-1 nit：旁路面补全 —— readFileSync 的 fs/promises 异步同胞 `readFile(opts.*)` 与动态
+// import 求值同一路径参（`import(opts.*)`）先前不在面内（机械面按实现者自选，此面须完整）。
+const PATH_ARG_BYPASS_RE = /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|readFile\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|import\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
 const RESOLVER_FILES = [
   "packages/cdd-engine/lib/cli/shared.mjs",
   "packages/cdd-engine/lib/cli/fix.mjs",
@@ -452,7 +438,9 @@ function canonicalFactTokens() {
   const toks = [];
   for (const a of Object.values(CONTRACT.channels.argv)) {
     if (a.flag) toks.push(a.flag);
-    if (a.alias) toks.push(a.alias);
+    // review-1 nit：单字符短别名（-h 一形）跳过裸 includes —— 两字符子串会对注释里偶发的
+    // "-h1" / "-handler" 一类连字符词误红；其长名 flag（--help）独立入 tok 集，守卫不失守。
+    if (a.alias && !/^-[^-]$/.test(a.alias)) toks.push(a.alias);
   }
   for (const ch of Object.values(CONTRACT.channels.env)) {
     if (ch.var) toks.push(ch.var);

@@ -352,6 +352,17 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("readFile（fs/promises）与 import(opts.*) 旁路形 → 命中（review-1 nit 补测）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "audit-arg-4-"));
+    writeFileSync(path.join(dir, "bypass.mjs"), "const p = readFile(opts.plan, \"utf8\");\nconst doc = await import(opts.findings);\n", "utf8");
+    try {
+      const hits = collectPathArgResolverHits([dir], []);
+      expect(hits.length).toBe(2);
+      expect(hits[0].label).toMatch(/解析器/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it("call-site 文件缺 resolveDocArg 引用 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-arg-3-"));
     const f = path.join(dir, "base-branch.mjs");
@@ -529,6 +540,16 @@ describe("channel audit：⑩ lib/context.mjs 零 canonical 事实名硬编码",
     const dir = mkdtempSync(path.join(tmpdir(), "audit-ctxmod-ok-"));
     const f = path.join(dir, "context.mjs");
     writeFileSync(f, "export function loadContract() { return CONTRACT; }\n", "utf8");
+    try {
+      expect(collectContextModuleHardcodeHits(f)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("反射例：单字符短别名不作裸子串 —— -h1 / -handler 注释不误红（review-1 nit 补测）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "audit-ctxmod-alias-"));
+    const f = path.join(dir, "context.mjs");
+    writeFileSync(f, "// per -h1 handoff note: use -handler-style naming\n", "utf8");
     try {
       expect(collectContextModuleHardcodeHits(f)).toEqual([]);
     } finally {

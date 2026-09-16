@@ -6,13 +6,14 @@ import { describe, it, expect } from "vitest";
 import { execaSync } from "execa";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { loadContract } from "../lib/context.mjs";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
-// spec §2.4.4 ① 的闭集（7 键：3 宿主识别 + PATH + 3 timeouts）。
-// T4 落地后改由 loadContract().channels.env 派生（见 T4 Files）——本任务先写字面，不得留陈旧第二份。
-const ALLOWED = ["CURSOR_TRACE_ID", "CLAUDE_CODE_SESSION_ID", "AI_AGENT",
-                 "PATH", "CDD_CLI_TIMEOUT", "CDD_TASK_TIMEOUT", "CDD_REVIEW_TIMEOUT"];
+// spec §2.4.4 ① 的闭集（7 键：3 宿主识别 + PATH + 3 timeouts）—— 由 canonical
+// `channels.env` 派生：`templates/context-contract.json` 是白名单的**唯一**声明点，
+// 本文件不留第二份字面（改 canonical 即改守卫，T4 同源）。
+const ALLOWED = Object.values(loadContract().channels.env).flatMap(v => (v.var ? [v.var] : v.markers));
 // AC3 的六键零命中（键名，含注释与 spread 形）
 const DELETED = ["CDD_LIFECYCLE_PATH", "CDD_REGISTRY_PATH", "NODE_ENV", "CDD_DRY_RUN", "PLAN_FILE", "CDD_HANDOFF_PATH"];
 

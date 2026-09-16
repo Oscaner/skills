@@ -2,10 +2,17 @@
 // 注入/超时/重试/NDJSON 解析保留；spawn 派生统一收敛到 spawnManaged（proc.mjs）。
 import { resolveInjection, resolveSuffix } from '../registry.mjs';
 import { spawnManaged, markAllDispatchesDone } from './proc.mjs';
+import { loadContract } from '../context.mjs';
 
-// Default timeouts by mode (30 minutes).
-const DEFAULT_TIMEOUTS = { task: 1_800_000, review: 1_800_000 };
-const STEP_SECONDS = 1800;
+// 超时与 env 名单源：canonical `templates/context-contract.json`（loadContract() 唯一入口）。
+// 本文件不保留任何硬编码 timeout 值或 env 键名字面——改 canonical 即改行为。
+const CONTRACT = loadContract();
+// Default timeouts by mode — canonical timeouts.defaults: task 90 分钟 / review 60 分钟。
+const DEFAULT_TIMEOUTS = CONTRACT.timeouts.defaults;
+// per-mode env 名（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT）与全局覆写 env 名（CDD_CLI_TIMEOUT）同取自 canonical。
+const PER_MODE_ENV = CONTRACT.timeouts.perModeOverride.env;
+const GLOBAL_ENV = CONTRACT.timeouts.globalOverride.env;
+const STEP_SECONDS = CONTRACT.timeouts.globalOverride.stepSeconds;
 // setTimeout 32 位上限（2^31-1 ≈ 24.8 天）内的安全天花板。任何数值输入 ×1000 一旦越过该界，
 // V8 触发 TimeoutOverflowWarning 把 timer 钳到 ~1ms —— 一次正常 dispatch 会被瞬时 SIGTERM 秒杀
 // （T8 回归：CDD_REVIEW_TIMEOUT=2700000 泄漏 → timeout 2.7e9 ms → fake claude 被即时强杀）。
@@ -16,18 +23,17 @@ function scaleToMs(seconds) {
   return Math.min(Math.max(1, seconds) * 1000, MAX_TIMEOUT_MS);
 }
 
-// per-mode env（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT）契约单位为秒 ——
+// per-mode env（canonical PER_MODE_ENV：CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT）契约单位为秒 ——
 // 45 分钟写 2700 而不是 2700000（ms 会 ≥8.3e8 → 溢出钳成 ~1ms 秒杀）。调度侧取值必须按秒契约。
 export function resolveTimeoutMs(env, mode) {
-  const modeEnv = { task: 'CDD_TASK_TIMEOUT', review: 'CDD_REVIEW_TIMEOUT' };
-  const modeKey = modeEnv[mode];
+  const modeKey = PER_MODE_ENV[mode];
   const perMode = modeKey ? env[modeKey] : undefined;
   if (perMode !== undefined) {
     const n = Number(perMode);
     if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid input → default, not ~1ms SIGTERM
     return scaleToMs(n);
   }
-  const globalRaw = env.CDD_CLI_TIMEOUT;
+  const globalRaw = env[GLOBAL_ENV];
   if (globalRaw !== undefined) {
     const n = Number(globalRaw);
     if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid → default

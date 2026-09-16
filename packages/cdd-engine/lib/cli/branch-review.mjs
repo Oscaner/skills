@@ -15,6 +15,7 @@ import { invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 import { DRY_RUN, reviewStoppingGuard } from "./shared.mjs";
+import { h1CountersLine } from "../state/progress.mjs";
 
 // BLOCKED 写盘单点。T5：`findings` 入参（默认 `[]`）+ `baseHandoff` = 已解析出的 handoff
 // （schema 无效分支传入归一化结果）→ writeOwnHandoff 全量覆盖，违规键不留盘、findings 全额保留。
@@ -91,7 +92,18 @@ export async function runBranchReview(opts) {
       task: 1, phase: "branch-review", status: "APPROVED",
       commits: { base, head }, findings: [], artifacts: {}, blocker: "dry-run",
     });
-    process.stdout.write(`status: APPROVED\ncommits: base=${base} head=${head}\nartifacts: \nblocker: dry-run\n`);
+    // T7（第三个 H1 生产者）：branch dry-run 的 H1 由数组拼接，末尾经 h1CountersLine(workspace) 追加
+    // counters 第 5 行 —— 与 h1FourLines / h1FromHandoff 同源于 lib/state/progress.mjs#h1CountersLine
+    //（唯一构造点）；不同步则 task 族 5 行、branch 族 4 行分叉（scripts/validate/smoke-cdd.mjs 的
+    // 第 5 条 counters presence 断言即守此处）。workspace 已在 :72-75 的 writeHandoff 作用域内。
+    const h1 = [
+      "status: APPROVED",
+      `commits: base=${base} head=${head}`,
+      "artifacts: ",
+      "blocker: dry-run",
+      h1CountersLine(workspace),
+    ];
+    for (const line of h1) process.stdout.write(`${line}\n`);
     exitOk();
     return;
   }

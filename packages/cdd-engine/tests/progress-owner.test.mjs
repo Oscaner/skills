@@ -77,3 +77,15 @@ it("incrementRecovery: 自增并持久化 engineRecoveryCount（缺省 0 → 1 �
   const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
   expect(saved.engineRecoveryCount).toBe(2);
 });
+
+it("progress.json#plan 与 --plan 入参一致（program 通道首跳可解析）", async () => {
+  const repo = mkdtempSync(path.join(tmpdir(), "cdd-plan-pass-"));
+  gitInit(repo);
+  const planRel = "docs/osuperpowers/plans/x.md";
+  mkdirSync(path.join(repo, "docs/osuperpowers/plans"), { recursive: true });
+  writeFileSync(path.join(repo, planRel), "# P\n\n### Task 1: t\n");
+  // 根经 opts.root 注入（T3 的根注入契约）——不调 initRoot()、不 process.chdir()
+  const res = await runTask("claude", 1, { mode: "implement", dryRun: true, planFile: planRel, root: repo, noExit: true });
+  const p = JSON.parse(readFileSync(path.join(repo, ".osuperpowers/cdd/x/progress.json"), "utf8"));
+  expect(p.plan).toBe(path.join(repo, planRel));
+});

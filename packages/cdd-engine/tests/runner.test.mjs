@@ -1,5 +1,5 @@
 // packages/cdd-engine/tests/runner.test.mjs — runner module unit tests (Vitest port).
-// runTask dry-run: H1 4-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
+// runTask dry-run: H1 5-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
 // Also locks: ship gate (unknown/not-supported → blocked exit 1); invalid mode rejected;
 // nested CLI failed no handoff → write BLOCKED handoff (stderr into blocker) + exit 1 (aligns bash;
 // stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED.
@@ -124,28 +124,32 @@ async function capture(runFn) {
 
 // ---- dry-run scenarios ----
 
-it("runTask: dry-run implement → H1 4-line APPROVED + no handoff written (aligns bash)", async () => {
+it("runTask: dry-run implement → H1 5-line APPROVED + no handoff written (aligns bash)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
-  expect(res.h1.length).toBe(4);
+  expect(res.h1.length).toBe(5);
   expect(res.h1[0]).toBe("status: APPROVED");
   expect(res.h1[1]).toBe("commits: base=dry-run");
   expect(res.h1[2]).toMatch(/^artifacts: brief=/);
   expect(res.h1[3]).toBe("blocker: none");
+  expect(res.h1[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
   expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
 });
 
-it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
+it("runTask: dry-run outputs H1 5 lines to stdout + exit 0", async () => {
   const { repo, planFile } = setupWorkspace();
   const { code, stdout } = await capture(() =>
     runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }),
   );
   expect(code).toBe(0);
   const lines = stdout.trim().split("\n");
-  expect(lines.length).toBe(4);
+  expect(lines.length).toBe(5);
+  // 可区分形态：五行各自是一键行（防退化回恒真行数断言）
+  expect(lines.filter(l => /^(status|commits|artifacts|blocker|counters):/.test(l)).length).toBe(5);
   expect(lines[0]).toBe("status: APPROVED");
   expect(lines[3]).toBe("blocker: none");
+  expect(lines[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
 });
 
 it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally teardownAll 先于 ExitRequested 传播（residual group reaped）", async () => {
@@ -760,8 +764,9 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     // H1 同步从 handoff 重发（h1FromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
     expect(res.h1[0]).toBe("status: APPROVED");
     // T5 nit：review 成功 round 缺省 blocker → none（非 commit-contract 缺省文案）
-    // blocker 是 h1 最后一行（artifacts 存在时为 h1[3]，absent 时为 h1[2]）
-    expect(res.h1.at(-1)).toMatch(/^blocker: none$/);
+    // blocker 之后仍有一行 counters（h1[3] 或 h1[2] 视 artifacts 而定，**末行恒为 counters**）
+    expect(res.h1.at(-2)).toMatch(/^blocker: none$/);
+    expect(res.h1.at(-1)).toMatch(/^counters: /);
   } finally {
     restore();
   }
@@ -985,10 +990,11 @@ it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺�
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  expect(res.h1.length).toBe(4);
+  expect(res.h1.length).toBe(5);
   expect(res.h1[0]).toBe("status: APPROVED");
   expect(res.h1[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
   expect(res.h1[3]).toBe("blocker: none");
+  expect(res.h1[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
   const h = JSON.parse(readFileSync(path.join(t6.ws, "task-1-implement.json"), "utf8"));
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.blocker).toBeUndefined();

@@ -21,7 +21,7 @@ import { exitOk, exitBlocked, exitCliMissing, exitWithCode, ExitRequested } from
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
 import { getRoot, resolveDocArg } from "../root.mjs";
-import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
+import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery, h1CountersLine } from "../state/progress.mjs";
 import { briefPath } from "../state/workspace-artifacts.mjs";
 import { validateHandoffSchema, recoverHandoff } from "../handoff/schema.mjs";
 import { FAILURE_CATEGORIES, counterFor } from "../failure.mjs";
@@ -56,6 +56,8 @@ class RunBlocked extends Error {
 function incrementFailureCounter(progressDir, category) {
   const field = counterFor(category);
   if (!field) return; // 无计数器类目（UNVERIFIABLE / PLAN_CONFLICT）：只记结局，不记计数
+  // T7: 本读保持单参（timeout 分支的计数落点也走这里）—— 失败分支执行时 progress.json 已由
+  // 初始化点建立（plan 已入档），plan 不再参与 createEmptyProgress 派生；单参是有意为之，非漏改。
   const data = readProgressJSON(progressDir);
   data[field] = (data[field] ?? 0) + 1;
   writeProgressJSON(progressDir, data);
@@ -199,7 +201,9 @@ export function buildPromptParams(ctx, taskNum) {
 // ---- H1 output ----
 
 // Aligns _cdd_emit_h1_four_lines: picks the last ^key: line from agent stdout; missing → "<missing>".
-export function h1FourLines(raw) {
+// T7: 追加 workspace 入参 —— 末尾经 h1CountersLine(workspace) 追加第 5 行 counters（stdout 面 +
+// res.h1 面同源于本函数，两侧同为 5 行）。agent 不产出 counters（canonical 裁定计数是引擎自持状态）。
+export function h1FourLines(raw, workspace) {
   const lines = String(raw).split("\n");
   const keys = ["status", "commits", "artifacts", "blocker"];
   const out = [];
@@ -213,6 +217,7 @@ export function h1FourLines(raw) {
     }
     out.push(found ?? `${key}: <missing>`);
   }
+  out.push(h1CountersLine(workspace));
   return out;
 }
 
@@ -220,19 +225,20 @@ export function h1FourLines(raw) {
 // artifacts only emitted when present (consistent with bash).
 // blocker 缺省单点（T6 nit4）：review 成功/无阻断语义 → none；其余 → commit-contract 缺省文案。
 // h1FromHandoff 缺省与 h1Blocker 折叠共用此映射（两处不再各写一份）。
+// T7: 追加 workspace 入参 —— 末尾经 h1CountersLine(workspace) 追加第 5 行 counters（回读重发面）。
 function defaultBlockerFor(status) {
   return status === "APPROVED" || status === "CHANGES_REQUESTED"
     ? "none"
     : "uncommitted changes at return";
 }
 
-export function h1FromHandoff(handoffPath) {
+export function h1FromHandoff(handoffPath, workspace) {
   if (!handoffPath || !existsSync(handoffPath)) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors");
+    return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors", workspace);
   }
   const h = readJson(handoffPath);
   if (!h) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch");
+    return h1FourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch", workspace);
   }
   const out = [
     `status: ${h.status ?? "BLOCKED"}`,
@@ -244,6 +250,7 @@ export function h1FromHandoff(handoffPath) {
   }
   if (arts.length > 0) out.push(`artifacts: ${arts.join(" ")}`);
   out.push(`blocker: ${h.blocker ?? defaultBlockerFor(h.status)}`);
+  out.push(h1CountersLine(workspace));
   return out;
 }
 
@@ -295,7 +302,12 @@ export async function runTask(harness, taskNum, opts = {}) {
     // round 需 workspace 定位 progress.json，而 handoffPath 需 round —— 先派生 workspace，再算 round，
     // 最后落入 ctx（ctx 是 round/handoff 派生值的唯一承载体）。
     const planWorkspace = resolvePlanWorkspace({ planFile, root });
-    const round = mode === "implement" ? 1 : getRound(readProgressJSON(planWorkspace.workspace), taskNum, mode);
+    // 初始化点（T7）：恒以 `--plan` 入参（绝对路径）落一次 readProgressJSON —— 首跳创建经
+    // createEmptyProgress(plan) 把 plan 入档（T7 的 progress.json#plan 断言落点即此处）。**不得**
+    // 挂在 getRound 分支上短路：implement 的 round 恒 1，若把读折叠进 getRound 参数，implement
+    // 首次派发就走不到创建路径，progress.json 永不落盘。
+    const progressData = readProgressJSON(planWorkspace.workspace, planWorkspace.plan);
+    const round = mode === "implement" ? 1 : getRound(progressData, taskNum, mode);
     ctx = buildCtx(root, taskNum, { mode, harness, planWorkspace, round, findingsPath: opts.findingsPath });
     // F11: self-provision the task brief at plan finalization（--plan 生效即生成）。
     //   产物 = workspace-artifacts.briefPath（与 ctx.briefPath 同源）；生成失败（task 越界/
@@ -400,7 +412,7 @@ export async function runTask(harness, taskNum, opts = {}) {
         incrementRound(progressDir, taskNum, mode);
         incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: 引擎自写 BLOCKED → engineSelfWrittenCount（不再消耗 recovery 额度）
       }
-      return finish(1, h1FromHandoff(ctx.handoffPath), "process unkillable", noExit);
+      return finish(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), "process unkillable", noExit);
     }
     // Normal timeout: TIMEOUT partial handoff
     const timeoutMs = resolveTimeoutMs(hostEnv, "task");
@@ -417,7 +429,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     // TIMEOUT 计数器 increment 落点：字段名经 canonical counterFor 派生，类目身份经
     // FAILURE_CATEGORIES 承重引用（取代原 timeoutCount++ 三板，T6 零手写计数器字面量）。
     incrementFailureCounter(progressDir, FAILURE_CATEGORIES.TIMEOUT.id);
-    return finish(1, h1FromHandoff(ctx.handoffPath), `cli timed out after ${timeoutMs}ms`, noExit);
+    return finish(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
   // 8.8 Handoff JSON Schema validation — reject malformed handoffs before downstream processing.
@@ -462,7 +474,7 @@ export async function runTask(harness, taskNum, opts = {}) {
             incrementRound(progressDir, taskNum, mode);
             incrementFailureCounter(progressDir, FAILURE_CATEGORIES.CONTRACT_VIOLATION.id); // T6: 生成侧格式错误 → contractViolationCount（不再消耗 recovery 额度）
           }
-          return finish(1, h1FromHandoff(ctx.handoffPath), `schema validation failed${rec.reason}`, noExit);
+          return finish(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `schema validation failed${rec.reason}`, noExit);
         }
       }
     }
@@ -486,7 +498,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       incrementRound(progressDir, taskNum, mode);
       incrementRecovery(progressDir); // T6: 真实执行失败（非超时、非引擎自写）→ EXECUTION_FAILURE —— 唯一消耗 recovery 额度的类目（AC7）
     }
-    return finish(1, h1FromHandoff(ctx.handoffPath), `cli exited ${agentRc} and handoff missing`, noExit);
+    return finish(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `cli exited ${agentRc} and handoff missing`, noExit);
   }
 
   // 10.5. CLI succeeded but no handoff → BLOCKED (file-existence check, not phase-mismatch fallback).
@@ -506,11 +518,11 @@ export async function runTask(harness, taskNum, opts = {}) {
     });
     incrementRound(progressDir, taskNum, mode);
     incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: 引擎自写 BLOCKED（exit 0 未写 handoff）→ engineSelfWrittenCount
-    return finish(1, h1FromHandoff(ctx.handoffPath), `${mode} agent did not write handoff`, noExit);
+    return finish(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `${mode} agent did not write handoff`, noExit);
   }
 
   // 11. H1 four lines (from agent stdout / dry-run block)
-  let h1 = h1FourLines(agentOut);
+  let h1 = h1FourLines(agentOut, ctx.workspace);
 
   // 12. agent failed but handoff exists → exit agent_rc
   if (agentRc !== 0) {
@@ -541,7 +553,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     if (finalized.handoff) {
       // 定稿写盘全量覆盖：agent 写残留进不了载体（无残留兼容层）。
       writeOwnHandoff(ctx.handoffPath, finalized.handoff);
-      h1 = h1FromHandoff(ctx.handoffPath);
+      h1 = h1FromHandoff(ctx.handoffPath, ctx.workspace);
       // 实体化后 H1 与 handoff/exit 一致：hard gate 或 agent 声明 BLOCKED → exit 1。
       if (finalized.exitCode !== 0) {
         incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount（T9 N② 落点迁移，不再消耗 recovery 额度）
@@ -563,7 +575,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     const cv = validateCommitContract(mode, root ?? "", { handoffPath: ctx.handoffPath });
     if (!cv.ok) {
       incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: commit-contract 重写 = 引擎自写 BLOCKED → engineSelfWrittenCount（不再消耗 recovery 额度）
-      return finish(1, h1FromHandoff(ctx.handoffPath), cv.blocker, noExit);
+      return finish(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), cv.blocker, noExit);
     }
   }
 
@@ -577,8 +589,10 @@ export async function runTask(harness, taskNum, opts = {}) {
       const finalized = finalizeHandoff({ mode, agentHandoff: reviewHandoff });
       // persistFinalized：派生无变化（同引用）→ skip 写盘（不产生 no-op 覆盖）；有变化 → 全量覆盖 + sync。
       persistFinalized(ctx.handoffPath, reviewHandoff, finalized);
-      h1 = h1FromHandoff(ctx.handoffPath);
+      h1 = h1FromHandoff(ctx.handoffPath, ctx.workspace);
       if (normalizeHandoffStatus(reviewHandoff.status) === "APPROVED") {
+        // T7: 本读保持单参 —— review 成功路径执行时 progress.json 已由初始化点建立（plan 已入档），
+        // plan 不再参与 createEmptyProgress 派生；单参是有意为之，非漏改。
         const progressData2 = readProgressJSON(progressDir);
         let taskEntry = progressData2.tasks.find((t) => t.task === taskNum);
         if (!taskEntry) {

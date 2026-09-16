@@ -7,7 +7,7 @@ import path from "node:path";
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK, reviewHardGate, renderHandoffStub } from "../templates.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
-import { validateHandoffSchema, loadHandoffSchema } from "../handoff/schema.mjs";
+import { validateHandoffSchema, loadHandoffSchema, normalizeHandoff } from "../handoff/schema.mjs";
 import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff } from "../handoff/finalize.mjs";
 import { getRoot } from "../root.mjs";
@@ -16,12 +16,18 @@ import { withLifecycle } from "../lifecycle/proc.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../exit.mjs";
 import { DRY_RUN, reviewStoppingGuard } from "./shared.mjs";
 
-export function writeBranchBlocked(handoffPath, { base, head, code, reason }) {
-  writeHandoff(handoffPath, {
+// BLOCKED 写盘单点。T5：`findings` 入参（默认 `[]`）+ `baseHandoff` = 已解析出的 handoff
+// （schema 无效分支传入归一化结果）→ writeOwnHandoff 全量覆盖，违规键不留盘、findings 全额保留。
+// 另两处调用点（`:107` CLI 未写 handoff / `:115` exit 0 后无 handoff）无已解析内容可留 → 仍是 `[]`。
+export function writeBranchBlocked(handoffPath, { base, head, code, reason, findings = [], baseHandoff = null }) {
+  const payload = {
+    ...(baseHandoff ?? {}),
     task: 1, phase: "branch-review", status: "BLOCKED",
-    commits: { base, head }, findings: [], artifacts: {},
+    commits: { base, head }, findings, artifacts: baseHandoff?.artifacts ?? {},
     blocker: reason ?? `cli exited ${code} without writing handoff`,
-  });
+  };
+  if (baseHandoff) writeOwnHandoff(handoffPath, payload);
+  else writeHandoff(handoffPath, payload);
 }
 
 // Inline of the former branch-review bin action body, wired with AC15 round sequence +
@@ -125,16 +131,31 @@ export async function runBranchReview(opts) {
   if (existsSync(handoffPath)) {
     const agentHandoff = JSON.parse(readFileSync(handoffPath, "utf8"));
     const sv = validateHandoffSchema(agentHandoff, "cdd");
+    // T5 CONTRACT_VIOLATION 恢复（spec §2.5.2，AC7 类目级：branch 派发与 task/spec/plan 同策略）：
+    // 归一化 → 重校验（最多一轮，不循环）。命中 → 写侧同源落盘 + 按归一化对象定稿；
+    // 仍失败 → BLOCKED 且保留已解析出的 findings（此前硬编码 findings: []，即 A4 缺陷）。
+    let handoff = agentHandoff;
     if (!sv.valid) {
-      writeBranchBlocked(handoffPath, { base, head, code: 0, reason: `branch-review handoff schema invalid: ${sv.reason} → fix and re-run branch-review` });
-      process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
-      exitWithCode(1);
+      const normalized = normalizeHandoff(agentHandoff, "cdd");
+      const svNorm = validateHandoffSchema(normalized, "cdd");
+      if (!svNorm.valid) {
+        writeBranchBlocked(handoffPath, {
+          base, head, code: 0,
+          baseHandoff: normalized,
+          findings: Array.isArray(normalized.findings) ? normalized.findings : [],
+          reason: `branch-review handoff schema invalid${svNorm.property ? ` (unexpected key: ${svNorm.property})` : ""}: ${svNorm.reason} → fix and re-run branch-review`,
+        });
+        process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
+        exitWithCode(1);
+      }
+      writeOwnHandoff(handoffPath, normalized);
+      handoff = normalized;
     }
     // T5/T7: status 单一权威 — branch review（review 族）读回经 finalizeHandoff 定稿（rollup 派生
     // 覆写，SP-4 豁免失败轮次）；定稿写盘用 writeOwnHandoff（engine 载体唯一作者，全量覆盖替换）。
     // 三消费方（runner/docs-runner/cdd）共享同一 finalizeHandoff 单点，非各自接线。
-    const finalized = finalizeHandoff({ mode: "review", agentHandoff });
-    if (finalized.handoff && finalized.handoff !== agentHandoff) writeOwnHandoff(handoffPath, finalized.handoff);
+    const finalized = finalizeHandoff({ mode: "review", agentHandoff: handoff });
+    if (finalized.handoff && finalized.handoff !== handoff) writeOwnHandoff(handoffPath, finalized.handoff);
   }
 
   exitOk();

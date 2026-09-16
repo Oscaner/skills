@@ -19,6 +19,13 @@ function safeParse(filePath) {
   return readJson(filePath);
 }
 
+// 序列化单点（T5）：handoff 落盘唯一形态 —— JSON.stringify 全转义（agent 手写的未转义记号，
+// 如 regex 里的 `\d`，永远进不了载体，即 R6 / #250[1] CONTRACT_VIOLATION 的根因面）。
+// 两个写盘入口（writeHandoff 浅合并 / writeOwnHandoff 全量覆盖）共用，不得各自拼串。
+function serializeHandoff(obj) {
+  return `${JSON.stringify(obj, null, 2)}\n`;
+}
+
 // 按 skills/cli-driven-development/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写 handoff。已有文件 → 浅合并（H6 链 update 语义：
 // review/validator 改 status/blocker 时保留 task/commits/findings 等字段）。
 // 父目录不存在自动创建；返回合并后的完整对象。
@@ -26,7 +33,7 @@ export function writeHandoff(handoffPath, data) {
   const existing = existsSync(handoffPath) ? safeParse(handoffPath) : null;
   const merged = { ...(existing ?? {}), ...data };
   mkdirSync(path.dirname(handoffPath), { recursive: true });
-  writeFileSync(handoffPath, `${JSON.stringify(merged, null, 2)}\n`);
+  writeFileSync(handoffPath, serializeHandoff(merged));
   return merged;
 }
 
@@ -35,6 +42,6 @@ export function writeHandoff(handoffPath, data) {
 // 父目录不存在自动创建；返回写入的完整对象。
 export function writeOwnHandoff(handoffPath, data) {
   mkdirSync(path.dirname(handoffPath), { recursive: true });
-  writeFileSync(handoffPath, `${JSON.stringify(data, null, 2)}\n`);
+  writeFileSync(handoffPath, serializeHandoff(data));
   return data;
 }

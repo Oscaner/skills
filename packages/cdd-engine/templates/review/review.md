@@ -25,8 +25,10 @@ Write/update `{{HANDOFF}}` JSON per the schema shown below (schema family: {{HAN
 
 {{HANDOFF_STUB}}
 
+The stub above is JSONC — the `//` lines are illustrative; write **valid JSON without comments** to `{{HANDOFF}}`.
+
 ## Self-validate
 
-`{{HANDOFF}}` → `phase`/`artifacts`/`findings` non-null (h1 mode additionally requires `commits.base`/`commits.head`); fail → `status: BLOCKED`. Write findings, not `status` — the engine derives `status` from `findings`.
+`{{HANDOFF}}` → `phase`/`artifacts`/`findings` non-null (h1 mode additionally requires `commits.base`/`commits.head`); fail → `status: BLOCKED`.
 
 {{H1_BLOCK}}

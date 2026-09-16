@@ -48,9 +48,9 @@ Write the following JSON stub to `{{HANDOFF}}` (fill in your actual values):
 
 {{HANDOFF_STUB}}
 
+The stub above is JSONC — the `//` lines are illustrative; write **valid JSON without comments** to `{{HANDOFF}}`.
+
 Rules:
-- `task` must be a JSON integer (no quotes)
-- `phase`: "fix"
 - `status`: APPROVED (fixes applied, pending re-review) or BLOCKED
 - `findings`: array with remaining findings
 - `artifacts`: record file paths produced (e.g. `{"brief": "...", "report": "..."}`)

@@ -11,24 +11,30 @@ import { getRoot } from "../root.mjs";
 import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
 import { loadRegistry, checkHarness, REG_PATH } from "../registry.mjs";
-import { loadHandoffSchema, validateHandoffSchema } from "../handoff/schema.mjs";
+import { loadHandoffSchema, validateHandoffSchema, normalizeHandoff } from "../handoff/schema.mjs";
 import { renderHandoffStub, renderTemplate } from "../templates.mjs";
 import { hashFile } from "./review-loop.mjs";
 
 // REG_PATH 统一由 lib/registry.mjs 导出（spec §2.3 深度派生常数专项：run-docs 不再自算第二来源）。
 
-// BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / schema 无效两分支同形——
-// 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ writeHandoff → 读回返回。
-function writeBlocked({ handoffPath, mode, doc, blocker }) {
-  writeHandoff(handoffPath, {
+// BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / 不可解析 / schema 无效三分支同形——
+// 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ 写盘 → 读回返回。
+// T5：`base` = 已解析出的 handoff（schema 无效分支传入**归一化结果**）→ writeOwnHandoff 全量覆盖，
+// 使违规键不留盘（浅合并会经 existing 回灌）；缺 base 的两分支（未写 / 不可解析）无已解析内容可留，
+// findings 仍是 `[]`（与「保留 findings」不冲突——无 findings 可留）。
+function writeBlocked({ handoffPath, mode, doc, blocker, findings = [], base = null }) {
+  const payload = {
+    ...(base ?? {}),
     phase: mode,
     status: "BLOCKED",
-    findings: [],
-    artifacts: {},
+    findings,
+    artifacts: base?.artifacts ?? {},
     doc_path: doc,
     doc_hash: hashFile(doc),
     blocker,
-  });
+  };
+  if (base) writeOwnHandoff(handoffPath, payload);
+  else writeHandoff(handoffPath, payload);
   return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
 }
 
@@ -105,10 +111,21 @@ export async function runDocsTask({
   }
   const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
   if (!sv.valid) {
-    return writeBlocked({
-      handoffPath, mode, doc,
-      blocker: `docs handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
-    });
+    // T5 CONTRACT_VIOLATION 恢复（spec §2.5.2，AC7 类目级：spec/plan 评审与 task 派发同策略）：
+    // 归一化 → 重校验（最多一轮，不循环）。命中 → 写侧同源落盘（违规键不留盘）+ 按归一化对象继续；
+    // 仍失败 → BLOCKED 且**保留已解析出的 findings**（此前该分支硬编码 findings: []，即 A4 缺陷）。
+    const normalized = normalizeHandoff(handoff, "docs");
+    const svNorm = validateHandoffSchema(normalized, "docs");
+    if (!svNorm.valid) {
+      return writeBlocked({
+        handoffPath, mode, doc,
+        base: normalized,
+        findings: Array.isArray(normalized.findings) ? normalized.findings : [],
+        blocker: `docs handoff schema invalid${svNorm.property ? ` (unexpected key: ${svNorm.property})` : ""}: ${svNorm.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
+      });
+    }
+    writeOwnHandoff(handoffPath, normalized);
+    handoff = normalized;
   }
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，

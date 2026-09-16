@@ -46,23 +46,87 @@ export function lineBudget(tier) {
 // （run-task step 2.5 存在性检查直接以 pluginRootFn() 为目标，不再拼接 'templates' 段）。
 export function pluginRoot() { return PKG_ROOT; }
 
-export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
-  const stub = {};
-  for (const field of schema.required ?? []) {
-    switch (field) {
-      case 'task':     stub.task = typeof taskNum === 'number' ? taskNum : 0; break;
-      case 'phase':    stub.phase = mode; break;
-      case 'status':   stub.status = 'APPROVED'; break;
-      case 'findings': stub.findings = []; break;
-      case 'artifacts':stub.artifacts = {}; break;
-      case 'doc_path': stub.doc_path = docPath ?? ''; break;
+// schema 属性 → 注释标注（键名不在标注里重复：行首键名即契约键）。
+function stubAnnotation(prop) {
+  const bits = [];
+  if (Array.isArray(prop.enum)) bits.push(`enum: ${prop.enum.join(' | ')}`);
+  else if (prop.const !== undefined) bits.push(`= ${JSON.stringify(prop.const)}`);
+  else if (prop.type) bits.push(prop.type);
+  if (prop.pattern) bits.push(`pattern: ${prop.pattern}`);
+  if (prop.minimum !== undefined) bits.push(`min: ${prop.minimum}`);
+  return bits.join(', ');
+}
+
+// 标量骨架值：按语义角色填（task/phase/status/doc_path 有调用方真值），其余按 schema `type` 取空值。
+function stubScalar(key, prop, { mode, taskNum, docPath }) {
+  if (key === 'task') return String(typeof taskNum === 'number' && Number.isFinite(taskNum) ? taskNum : 0);
+  if (key === 'phase') return JSON.stringify(mode);
+  if (key === 'status') return '"APPROVED"';
+  if (key === 'doc_path') return JSON.stringify(docPath ?? '');
+  if (Array.isArray(prop.enum) && prop.enum.length > 0) return JSON.stringify(prop.enum[0]);
+  if (prop.const !== undefined) return JSON.stringify(prop.const);
+  if (prop.type === 'array') return '[]';
+  if (prop.type === 'object') return '{}';
+  if (prop.type === 'integer' || prop.type === 'number') return '0';
+  if (prop.type === 'boolean') return 'true';
+  return '""';
+}
+
+// `schema.properties` 全形递归 → JSONC 骨架行（键不带引号：注释行只作形状说明，不得被字面复制）。
+function stubSkeletonLines(properties, ctx, indent) {
+  const keys = Object.keys(properties);
+  const lines = [];
+  keys.forEach((key, i) => {
+    const prop = properties[key] ?? {};
+    const tail = i < keys.length - 1 ? ',' : '';
+    const nested = prop.type === 'object' && prop.properties;
+    const note = nested ? '' : stubAnnotation(prop);
+    const suffix = note ? `  // ${note}` : '';
+    if (nested) {
+      lines.push(`${indent}${key}: {`);
+      lines.push(stubSkeletonLines(prop.properties, ctx, `${indent}  `));
+      lines.push(`${indent}}${tail}`);
+    } else {
+      lines.push(`${indent}${key}: ${stubScalar(key, prop, ctx)}${tail}${suffix}`);
+    }
+  });
+  return lines.join('\n');
+}
+
+// `allOf` 每条条件分支 → 固定措辞注释行。求值自 if.properties / then.required / else.required，
+// 不逐字抄 schema；`if.properties.<k>` 两形并存（磁盘实测：cdd 用 enum、docs 用 const）——
+// 只认 enum 会让 docs 形（spec/plan 评审注入的那一份）得到 undefined。
+export function renderAllOfConditions(allOf = []) {
+  const lines = [];
+  for (const branch of allOf) {
+    const conds = branch?.if?.properties ?? {};
+    const parts = Object.keys(conds).map((k) => {
+      const c = conds[k] ?? {};
+      if (Array.isArray(c.enum)) return `when ${k} ∈ [${c.enum.join(', ')}]`;
+      if (c.const !== undefined) return `when ${k} = ${c.const}`;
+      return null;
+    }).filter(Boolean);
+    if (parts.length === 0) continue;
+    const thenReq = branch?.then?.required ?? [];
+    const elseReq = branch?.else?.required ?? [];
+    for (const key of elseReq) {
+      if (thenReq.includes(key)) continue;   // 两分支同要求 → 无「可省」语义可述
+      lines.push(`// ${parts.join(' and ')} → ${key} may be omitted; otherwise ${key} is required`);
     }
   }
-  // T5: status 已从 schema.required 条件化（review 族可缺省、engine 派生覆写）。
-  // work 型（implement/fix）仍须声明 status（schema conditional else 强制）→ stub 补 APPROVED 引导；
-  // review 型 stub 不再渲染 status（可缺省语义，agent 不写、engine 覆写）——与「review 可缺省」契约一致。
-  if (mode !== "review" && !("status" in stub)) stub.status = "APPROVED";
-  return '```json\n' + JSON.stringify(stub, null, 2) + '\n```';
+  return lines;
+}
+
+// HANDOFF_STUB 单点：形状唯一来源 = schema（`properties` 全形派生，非仅 `required`）。
+// 原有硬编码 switch（手写 schema 字段清单，T8 ⑦ 命中面）已删 —— 键集/类型/枚举/嵌套/allOf 全部求值自 schema。
+// 载体是 ```jsonc（注释行落在 fence 之内）：带 // 的 json 块被字面复制即非法 JSON，正是 R6 / #250[1]
+// 的 CONTRACT_VIOLATION 形态；三份模板随之补「不得复制注释」的载体指令。
+export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
+  const ctx = { mode, taskNum, docPath };
+  const conditions = renderAllOfConditions(schema.allOf ?? []);
+  const body = stubSkeletonLines(schema.properties ?? {}, ctx, '  ');
+  const head = [...conditions, '{'].join('\n');
+  return '```jsonc\n' + head + '\n' + body + '\n}\n```';
 }
 
 // ---- Review 模板数据化（reviews.json per-type 配置 + review.md 共享壳） ----

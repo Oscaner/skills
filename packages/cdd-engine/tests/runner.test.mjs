@@ -531,12 +531,44 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → phase mat
       planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
-    expect(res.exitCode).toBe(1);
+    // T5 CONTRACT_VIOLATION 恢复（AC7 类目级，spec §2.5.2）：`additionalProperties` 违规键可归一化
+    // 剥除 → 重校验通过 → 正常继续（不再整轮判死）。原断言（exit 1 + BLOCKED + blocker 文案）
+    // 钉的是归一化落地前的行为，已由本任务取代。
+    expect(res.exitCode).toBe(0);
     const hp = path.join(ws, "task-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h).not.toHaveProperty("unknownField");   // 违规键被写侧同源剥除，不留盘
+    expect(h.phase).toBe("review");
+    expect(h.status).toBe("APPROVED");
+    expect(res.h1[0]).toBe("status: APPROVED");
+  } finally {
+    restore();
+  }
+});
+
+it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'task'）→ 仍 BLOCKED 但保留原 findings", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-keep-"));
+  // 缺 required 'task'（归一化无从补齐）+ 违规键 unknownField（可剥）→ 剥键后仍失败 → BLOCKED；
+  // 已解析出的 findings 必须全额保留（A4 缺陷面：此前该分支硬编码 findings: []，把内容一并清空）。
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"phase":"review","status":"CHANGES_REQUESTED","artifacts":{},"unknownField":"bad","findings":[{"severity":"blocker","summary":"keep me"}]}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "review",
+      planFile, root: repo,
+      registryPath: regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(1);
+    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
-    expect(h.blocker).toMatch(/must NOT have additional properties/);
+    expect(h.blocker).toMatch(/must have required property 'task'/);
+    expect(h.findings).toEqual([{ severity: "blocker", summary: "keep me" }]);   // 全额保留
+    expect(h).not.toHaveProperty("unknownField");                                  // 归一化先剥违规键
   } finally {
     restore();
   }

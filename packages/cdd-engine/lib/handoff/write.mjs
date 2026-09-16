@@ -1,5 +1,6 @@
 // engine/lib/handoff/write.mjs — handoff read/write（engine 载体唯一作者；按
-// skills/cli-driven-development/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写入）。T7 nit2 统一 JSON read 单点。
+// packages/cdd-engine/templates/schema/cdd-handoff-schema.json（docs 族 docs-handoff-schema.json；
+// 命名/workspace 见 handoff-namespace.json）写入）。T7 nit2 统一 JSON read 单点。
 // contract.mjs 符号拆分（spec §2.3）：write 三件（readJson / writeHandoff / writeOwnHandoff）归本文件。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -26,7 +27,8 @@ function serializeHandoff(obj) {
   return `${JSON.stringify(obj, null, 2)}\n`;
 }
 
-// 按 skills/cli-driven-development/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写 handoff。已有文件 → 浅合并（H6 链 update 语义：
+// 按 packages/cdd-engine/templates/schema/cdd-handoff-schema.json（docs 族 docs-handoff-schema.json；
+// 命名/workspace 见 handoff-namespace.json）写 handoff。已有文件 → 浅合并（H6 链 update 语义：
 // review/validator 改 status/blocker 时保留 task/commits/findings 等字段）。
 // 父目录不存在自动创建；返回合并后的完整对象。
 export function writeHandoff(handoffPath, data) {

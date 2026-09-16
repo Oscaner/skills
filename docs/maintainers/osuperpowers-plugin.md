@@ -170,7 +170,7 @@ Document review flows through the merged `cdd` CLI (the former `docs-task` bin).
 - `cdd fix --type spec --spec <path> --findings <review-N-handoff-path>` / `cdd fix --type plan --plan <path> --findings <review-N-handoff-path>`: fixes all findings, writes the fix round handoff
 - branch-level review is a separate path: `cdd review --type branch` (not a docs review; takes `--plan` for the workspace slug)
 
-Schema: `skills/_templates/docs-handoff-schema.json`
+Schema: `packages/cdd-engine/templates/schema/docs-handoff-schema.json`
 
 ## Releasing
 

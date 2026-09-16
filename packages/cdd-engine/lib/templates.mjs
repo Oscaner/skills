@@ -103,7 +103,7 @@ function requiredKeys(schema) {
 // 已删 —— 那是 engine 内的第二份 schema 字段清单（T8 ⑦ / AC6 命中面）；真值只由调用方经 `values`
 // 注入，其余一律求值自 schema 的 `type` / `enum` / `const` / `pattern` / `minimum`。
 // 可选枚举（`complexity` / `review_scope` 一类）无调用方真值 → 从骨架省略：枚举值按
-// docs/handoff-schema.md 是 agent 据实声明的字段，engine 不得代为预填 `enum[0]`。
+// cdd-handoff-schema.json（docs 族 docs-handoff-schema.json）是 agent 据实声明的字段，engine 不得代为预填 `enum[0]`。
 // `review_scope` 由派发类型决定，故由调用方注入；`complexity` 无机械来源（plan 无档位标注），
 // 只能省略。骨架的可区分性由注释行的 `enum:` / `pattern:` / `min:` 标注承载，不靠示例值。
 function stubScalar(prop, ctx, key, optional) {

@@ -39,6 +39,8 @@ import {
   collectShippedGuardHits,
   SHIPPED_SURFACE_TARGETS,
   INIT_REFERENCE_TARGETS,
+  collectHandoffSchemaHits,
+  HANDOFF_SCHEMA_TARGETS,
 } from "./residue.mjs";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
@@ -706,5 +708,68 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
   });
   it("live repo：shipped 非 emit 面零版本字面量 + shipped/协作者面零 /init", () => {
     expect(collectShippedGuardHits()).toEqual([]);
+  });
+});
+
+// ---- Task 11: handoff-schema.md 删除 反向守卫（design §2.8 行 14）----
+// `(?<!-)handoff-schema` 零命中条目：裸名形（`// 对齐 handoff-schema…表` cite）与路径形
+//（`docs/handoff-schema.md` / `skills/cli-driven-development/docs/handoff-schema.md`）一律命中；
+// canonical schema 文件名（`cdd-handoff-schema.json` / `docs-handoff-schema.json`）的
+// `handoff-schema` 均前接 `-` → 负向后顾豁免。scope 覆盖测试钉死 {bin,lib,tests} + osuperpowers
+// 全目录（含 .agents/ emit 副本面 —— 副本由 emit prune，删除动作与守卫同 commit）。
+// 行 21 的 task-review 守卫归 T15 Step 4b，本组不写其单测（写入会在本任务内不可转绿）。
+// scripts/ 不在 line-14 scope 内，本文件直接写字面无自噬风险。
+describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + scope 钉死", () => {
+  it("裸名形 handoff-schema → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-bare-"));
+    writeFileSync(path.join(dir, "note.md"), "// 对齐 handoff-schema「Severity → status mapping」表\n", "utf8");
+    try {
+      const hits = collectHandoffSchemaHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/handoff-schema/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("路径形 docs/handoff-schema.md 与 skills/…/handoff-schema.md → 各命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-path-"));
+    writeFileSync(
+      path.join(dir, "w.mjs"),
+      "// 按 skills/cli-driven-development/docs/handoff-schema.md（命名/workspace 见 handoff-namespace.json）写入\n",
+      "utf8",
+    );
+    writeFileSync(path.join(dir, "t.mjs"), "// docs/handoff-schema.md 是 agent 据实声明的字段\n", "utf8");
+    try {
+      const hits = collectHandoffSchemaHits([dir]);
+      expect(hits).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("反射例：canonical schema 文件（cdd/docs-handoff-schema.json）不命中（负向后顾豁免）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-canon-"));
+    writeFileSync(
+      path.join(dir, "ok.mjs"),
+      "// schema → packages/cdd-engine/templates/schema/cdd-handoff-schema.json + docs-handoff-schema.json\n",
+      "utf8",
+    );
+    try {
+      expect(collectHandoffSchemaHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("HANDOFF_SCHEMA_TARGETS 覆盖既定 scope（scope 缩小即失败）", () => {
+    for (const p of [
+      "packages/cdd-engine/bin",
+      "packages/cdd-engine/lib",
+      "packages/cdd-engine/tests",
+      "packages/osuperpowers",
+    ]) {
+      expect(HANDOFF_SCHEMA_TARGETS).toContain(p);
+    }
+  });
+  it("live repo：collectHandoffSchemaHits() === []（handoff-schema.md 已删 + 引用改指 engine canonical）", () => {
+    expect(collectHandoffSchemaHits()).toEqual([]);
   });
 });

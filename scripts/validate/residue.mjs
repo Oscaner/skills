@@ -13,6 +13,8 @@
 // T10 追加 shipped 面反向守卫两条（§2.8 行 19-20）：① shipped 非 emit 面（skills/** · 插件
 // README）零 osuperpowers-version 版本字面量；② shipped 面（根 README · 插件 README）+ 协作者面
 // （.changeset/README.md）零 `/init` 引用——init 删除 + 版本戳机制删除后的逆向残留检查。
+// T11 追加 handoff-schema 零命中守卫（§2.8 行 14）：`(?<!-)handoff-schema`（裸名/路径形）零命中，
+// 负向后顾豁免 canonical schema 文件名——handoff-schema.md 删除动作与守卫同 commit。
 // The grepTargets meta is consumed by the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
 
@@ -538,7 +540,8 @@ export function collectCountersContractHits({
   return hits;
 }
 
-// 汇总：行 14（(?<!-)handoff-schema）归 T11，不在本组 —— 12 条 engine 侧 + live-repo 零残留断言。
+// 汇总：行 14（(?<!-)handoff-schema）归 T11（collectHandoffSchemaHits，见下节），不在本组 ——
+// 12 条 engine 侧 + live-repo 零残留断言。
 export function collectChannelAuditHits() {
   return [
     ...collectProcessCwdAudit(),
@@ -652,11 +655,43 @@ function checkShippedGuards() {
   console.log("OK — shipped-surface guards（版本字面量 + /init 零残留）");
 }
 
+// =====================================================================
+// Task 11 — handoff-schema.md 删除 反向守卫（design §2.8 行 14）
+// =====================================================================
+// `(?<!-)handoff-schema` 零命中条目（行 14 由本任务唯一承接，删除动作与守卫同 commit）：
+// 裸名形（`// 对齐 …表` cite）与路径形（`docs/handoff-schema.md` / `skills/cli-driven-development/
+// docs/handoff-schema.md`）一律命中；负向后顾豁免 canonical schema 文件名（`cdd-handoff-schema.json`
+// / `docs-handoff-schema.json` 的 `handoff-schema` 均前接 `-`）。scope = packages/cdd-engine/​{bin,lib}
+// + tests + packages/osuperpowers 全目录（含 .agents/ emit 副本面 —— 副本由 emit prune）。
+// 本条目不计入 T8 的 collectChannelAuditHits（其 12 条指 §2.8 行 1–11、13）；行 21 的 task-review
+// 守卫归 T15 Step 4b，不在此。scripts/ 不在 scope 内，本文件写字面无自噬风险。
+export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/cdd-engine/tests", "packages/osuperpowers"];
+const HANDOFF_SCHEMA_RE = /(?<!-)handoff-schema/;
+
+/** targetsOverride 供测试注入临时目录；hits = { label, file } 列表。 */
+export function collectHandoffSchemaHits(targetsOverride) {
+  const hits = [];
+  for (const f of scanTargets(targetsOverride ?? HANDOFF_SCHEMA_TARGETS, HANDOFF_SCHEMA_RE)) {
+    hits.push({ label: "handoff-schema 回渗（已删文件/路径名，应指 engine canonical schema JSON）", file: f });
+  }
+  return hits;
+}
+
+function checkHandoffSchema() {
+  const hits = collectHandoffSchemaHits();
+  assert(
+    hits.length === 0,
+    `HANDOFF SCHEMA LEXICON FOUND — deleted handoff-schema.md path/name (§2.8 行 14):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+  );
+  console.log("OK — handoff-schema（§2.8 行 14）零残留");
+}
+
 // 块数不变（12）：checkStaleLexicon 与 T6 的 checkGateLexicon 并入既有 5c.run 同一步内部 —
 // 先 checkZeroResidue 再 checkStaleLexicon 后 checkGateLexicon；T8 追加 checkChannelAudit（§2.8
 // 行 1–11、13 的 engine 侧 12 条守卫）；T10 追加 checkShippedGuards（§2.8 行 19-20 的
-// shipped 面两条反向守卫）；grepTargets 扩为含 cdd-engine bin+lib+templates 供 wiring
-// guard 钉死。channelTargets = channel-audit 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
+// shipped 面两条反向守卫）；T11 追加 checkHandoffSchema（§2.8 行 14 的零命中守卫）；grepTargets
+// 扩为含 cdd-engine bin+lib+templates 供 wiring guard 钉死。channelTargets = channel-audit
+// 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
 export const steps = [
   {
     name: "5c. engine zero-residue + channel-audit grep",
@@ -666,6 +701,7 @@ export const steps = [
       checkGateLexicon();
       checkChannelAudit();
       checkShippedGuards();
+      checkHandoffSchema();
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

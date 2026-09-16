@@ -54,7 +54,7 @@ export function classifySeverity(sev) {
   }
 }
 
-// findings[] roll-up → handoff status（对齐 handoff-schema「Severity → status mapping」表）：
+// findings[] roll-up → handoff status（对齐 cdd/docs-handoff-schema.json 的 status 枚举；映射实现即本模块 rollupStatus）：
 //   空 → APPROVED；仅 warn/nit → APPROVED；含 blocker → CHANGES_REQUESTED；
 //   unverifiable[] / plan_conflicts[] 非空 → BLOCKED。
 export function rollupStatus(findings = [], unverifiable = [], planConflicts = []) {

@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
-         resolveWorkspace,
+         materializeWorkspace,
          buildCtx, buildPromptParams } from "../lib/runner/run-task.mjs";
 import { ExitRequested } from "../lib/exit.mjs";
 import { spawnManaged, markAllDispatchesDone } from "../lib/lifecycle/proc.mjs";
@@ -257,10 +257,10 @@ it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending;
   expect(isTaskPending(1, dir, progressR1)).toBe(true);
 });
 
-it("resolveWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace（run-task 派生点回归）", () => {
+it("materializeWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace（run-task 派生点回归）", () => {
   const base = mkdtempSync(path.join(tmpdir(), "cdd-rw-"));
-  const wsPlan = resolveWorkspace({ plan: path.join(base, "xxx-p5-plan.md"), repoRoot: base });
-  const wsPlain = resolveWorkspace({ plan: path.join(base, "xxx-p5.md"), repoRoot: base });
+  const wsPlan = materializeWorkspace({ plan: path.join(base, "xxx-p5-plan.md"), repoRoot: base });
+  const wsPlain = materializeWorkspace({ plan: path.join(base, "xxx-p5.md"), repoRoot: base });
   expect(wsPlan).toBe(wsPlain);
   expect(wsPlain).toBe(path.join(base, ".osuperpowers", "cdd", "xxx-p5"));
 });

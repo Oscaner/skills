@@ -1589,7 +1589,7 @@ export function renderHandoffStub(schema) {
 - [ ] **Step 7: 跑 engine 套件 + validate**
 
 Run: `pnpm --filter @oscaner-skills/cdd-engine test && pnpm run validate`
-Expected: 全绿；`grep -rn "cdd-handoff-schema\|stubScalar\|satisfiesProp" packages/cdd-engine | wc -l` = 0
+Expected: 全绿；`grep -rn "cdd-handoff-schema\|stubScalar\|satisfiesProp\|stubAnnotation\|patternSample\|requiredKeys\|renderAllOfConditions" packages/cdd-engine/lib packages/cdd-engine/templates | wc -l` = 0（**机制面** lib/ + templates/；tests 面排除——`tests/templates.test.mjs` 的零命中断言用拼接构造 token，自身不成为载体，见 branch-review finding [2]）
 
 - [ ] **Step 8: Commit**
 

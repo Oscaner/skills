@@ -143,7 +143,11 @@ describe('templates 结构命名单源（Task 18：schema 原样注入 + 共享 
 
   it('零手写 render 符号', () => {
     const src = readFileSync(path.join(ENGINE, 'lib/templates.mjs'), 'utf8');
-    for (const gone of ['stubAnnotation', 'satisfiesProp', 'patternSample', 'requiredKeys', 'stubScalar', 'renderAllOfConditions']) {
+    // 经拼接构造（residue.test 先例）：本文件不得成为被守卫语汇的载体 —— 否则 T18 Step 7 的
+    // 机制面 grep（lib/ + templates/）在含 tests/ 的全扫下会命中自身。
+    const GONE = [['stub', 'Annotation'], ['satis', 'fiesProp'], ['pattern', 'Sample'], ['required', 'Keys'], ['stub', 'Scalar'], ['renderAllOf', 'Conditions']]
+      .map(([a, b]) => a + b);
+    for (const gone of GONE) {
       expect(src, gone).not.toMatch(new RegExp(`\\b${gone}\\b`));
     }
   });

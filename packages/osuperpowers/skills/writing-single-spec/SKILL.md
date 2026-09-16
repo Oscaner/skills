@@ -46,7 +46,7 @@ flowchart TD
 - **Do**: Write the spec document to `docs/osuperpowers/specs/` from the session output. **No template (single variant) — free-form authoring**
 - **Read**: Session output
 - **Exit**: File written → `spec-review`
-- **Fail**: —
+- **Fail**: Session output unusable or write error → BLOCKED (missing design input)
 
 ### `spec-review`
 

@@ -959,6 +959,24 @@ describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix �
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("前一 fix 节点缺 cdd fix、后一 fix 节点含 → 前一节点必须命中（节断界 ### 级即停，review-1 nit 回归）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-fixnode-boundary-"));
+    writeFileSync(
+      path.join(dir, "SKILL.md"),
+      SKILL_MD(
+        "  A[fix-spec] --> B[fix-task]\n  B --> C((done))",
+        "### `fix-spec`\n\n- **Do**: Fix all findings via the editor.\n\n### `fix-task`\n\n- **Do**: Fix ALL findings via `cdd fix --type task --task <id>`.\n",
+      ),
+      "utf8",
+    );
+    try {
+      const hits = collectReviewLoopFixCddHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/fix-spec/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it("评审循环 fix 节点节含 cdd fix → 零命中（反射例）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-fixnode-ok-"));
     writeFileSync(path.join(dir, "SKILL.md"), SKILL_MD("  A[fix-spec] --> B((done))", "### `fix-spec`\n\n- **Do**: Fix ALL findings via `cdd fix --type spec --spec <path>`.\n"), "utf8");

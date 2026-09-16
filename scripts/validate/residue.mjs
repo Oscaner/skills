@@ -865,8 +865,11 @@ export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
         continue;
       }
       let section = [];
+      // 断界取 /^#{1,3} /（### 级别即停）：同一 ## 区块内的后续 ### `node` 节
+      // 是相邻节点、不属本节点散文——若只按 ## 断界，前一 fix 节点缺 cdd fix 会被
+      // 后一（含 cdd fix 的）fix 节点的节内容掩蔽而假绿（review-1 nit）。
       for (let i = start + 1; i < lines.length; i++) {
-        if (/^#{1,2} /.test(lines[i])) break;
+        if (/^#{1,3} /.test(lines[i])) break;
         section.push(lines[i]);
       }
       if (!/cdd fix/.test(section.join("\n"))) {

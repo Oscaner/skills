@@ -5,7 +5,9 @@ import { spawnManaged, markAllDispatchesDone } from './proc.mjs';
 import { loadContract } from '../context.mjs';
 
 // 超时与 env 名单源：canonical `templates/context-contract.json`（loadContract() 唯一入口）。
-// 本文件不保留任何硬编码 timeout 值或 env 键名字面——改 canonical 即改行为。
+// 本文件的 timeout 默认值 / per-mode 与全局覆写 env 名及其步长一律取自 canonical——改 canonical 即改行为；
+// `MAX_TIMEOUT_MS`（:19）是 setTimeout 32 位上限内的安全天花板，有意不入 canonical
+// （改它不影响 canonical，改 canonical 也不影响它）。
 const CONTRACT = loadContract();
 // Default timeouts by mode — canonical timeouts.defaults: task 90 分钟 / review 60 分钟。
 const DEFAULT_TIMEOUTS = CONTRACT.timeouts.defaults;

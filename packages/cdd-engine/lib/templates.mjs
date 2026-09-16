@@ -57,40 +57,98 @@ function stubAnnotation(prop) {
   return bits.join(', ');
 }
 
-// 标量骨架值：按语义角色填（task/phase/status/doc_path 有调用方真值），其余按 schema `type` 取空值。
-function stubScalar(key, prop, { mode, taskNum, docPath }) {
-  if (key === 'task') return String(typeof taskNum === 'number' && Number.isFinite(taskNum) ? taskNum : 0);
-  if (key === 'phase') return JSON.stringify(mode);
-  if (key === 'status') return '"APPROVED"';
-  if (key === 'doc_path') return JSON.stringify(docPath ?? '');
-  if (Array.isArray(prop.enum) && prop.enum.length > 0) return JSON.stringify(prop.enum[0]);
+// 骨架值必须**自身满足 schema**：逐字复制骨架（去注释 + 补键名引号后的机械还原）得到的 handoff
+// 仍须过校验。若占位值违规（如 `base: ""` 违反 `pattern`、`task: 0` 违反 `minimum: 1`），agent
+// 只补自己的值、留下占位即 CONTRACT_VIOLATION（R6 / #250[1] 形态），而 pattern/minimum 违规
+// 不可归一化剥除 → 白烧一轮 BLOCKED。
+// 本函数只保证**骨架文本**的值合法，不是第二校验器（handoff 校验仍归 ajv / validateHandoffSchema）；
+// 它同时收掉调用方注入值的垃圾面（`FIXED_POINT` 在测试/降级链上可能是 7 位短形或 "unknown"）。
+function satisfiesProp(prop, value) {
+  if (Array.isArray(prop.enum)) return prop.enum.includes(value);
+  if (prop.const !== undefined) return value === prop.const;
+  if (prop.pattern !== undefined) return typeof value === "string" && new RegExp(prop.pattern).test(value);
+  if (prop.minimum !== undefined) return typeof value === "number" && value >= prop.minimum;
+  if (prop.type === "array") return Array.isArray(value);
+  if (prop.type === "object") return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (prop.type === "integer") return Number.isInteger(value);
+  if (prop.type === "number") return typeof value === "number";
+  if (prop.type === "boolean") return typeof value === "boolean";
+  if (prop.type === "string") return typeof value === "string";
+  return true;
+}
+
+// `pattern` 声明的键 → 满足该约束的骨架示例：只机械展开 shipped schema 实际使用的形态
+// `^[<char-class>]{n}$`（cdd 的 `commits.base` = `^[0-9a-f]{40}$`）。无法展开 → null（该键从骨架省略）。
+function patternSample(pattern) {
+  const m = /^\^\[([^\]]+)\]\{(\d+)\}\$$/.exec(String(pattern ?? ''));
+  if (!m) return null;
+  const n = Number(m[2]);
+  const ch = m[1].includes('0-9') ? '0' : m[1].includes('a-f') ? 'a' : null;
+  return ch && n > 0 ? ch.repeat(n) : null;
+}
+
+// `allOf` 分支声明的**条件必需键**（cdd/docs 的 `status`）：它们在顶层 `required` 之外，但在某些
+// phase 下必需。骨架必须保留这类键（否则 work 型 agent 照骨架写完即缺 `status`）。
+// 求值自 `then`/`else.required`（不抄 schema）；`required` 并入顶层必需集。
+function requiredKeys(schema) {
+  const keys = new Set(schema.required ?? []);
+  for (const branch of schema.allOf ?? []) {
+    for (const k of [...(branch?.then?.required ?? []), ...(branch?.else?.required ?? [])]) keys.add(k);
+  }
+  return keys;
+}
+
+// 骨架标量值：调用方真值（`ctx.values[key]`，须自身满足 schema）> schema 派生示例 > 省略（null）。
+// 原有键名特判（`key === 'task' | 'phase' | 'status' | 'doc_path'`，且把 status 硬编码成 "APPROVED"）
+// 已删 —— 那是 engine 内的第二份 schema 字段清单（T8 ⑦ / AC6 命中面）；真值只由调用方经 `values`
+// 注入，其余一律求值自 schema 的 `type` / `enum` / `const` / `pattern` / `minimum`。
+// 可选枚举（`complexity` / `review_scope` 一类）无调用方真值 → 从骨架省略：枚举值按
+// docs/handoff-schema.md 是 agent 据实声明的字段，engine 不得代为预填 `enum[0]`。
+// `review_scope` 由派发类型决定，故由调用方注入；`complexity` 无机械来源（plan 无档位标注），
+// 只能省略。骨架的可区分性由注释行的 `enum:` / `pattern:` / `min:` 标注承载，不靠示例值。
+function stubScalar(prop, ctx, key, optional) {
+  const injected = ctx.values[key];
+  if (injected !== undefined && satisfiesProp(prop, injected)) return JSON.stringify(injected);
+  if (Array.isArray(prop.enum)) {
+    if (optional || prop.enum.length === 0) return null;
+    return JSON.stringify(prop.enum[0]);
+  }
   if (prop.const !== undefined) return JSON.stringify(prop.const);
+  if (prop.pattern !== undefined) {
+    const sample = patternSample(prop.pattern);
+    return sample === null ? null : JSON.stringify(sample);
+  }
   if (prop.type === 'array') return '[]';
   if (prop.type === 'object') return '{}';
-  if (prop.type === 'integer' || prop.type === 'number') return '0';
+  if (prop.type === 'integer' || prop.type === 'number') return String(prop.minimum ?? 0);
   if (prop.type === 'boolean') return 'true';
   return '""';
 }
 
 // `schema.properties` 全形递归 → JSONC 骨架行（键不带引号：注释行只作形状说明，不得被字面复制）。
-function stubSkeletonLines(properties, ctx, indent) {
-  const keys = Object.keys(properties);
-  const lines = [];
-  keys.forEach((key, i) => {
+// 给不出合法值的键从骨架省略；父对象若因此缺 required 子键 → 整棵省略（返回 null 上抛，由调用方
+// 决定省略还是上抛）。嵌套面只认 `required`（`allOf` 只在顶层——shipped 两份 schema 均如此）。
+// `items` 有意未处理：shipped 两份 schema 均无数组元素形状，无消费方不加码（扩展点待 P6）。
+function stubSkeletonLines(properties, required, ctx, indent) {
+  const entries = [];
+  for (const key of Object.keys(properties)) {
     const prop = properties[key] ?? {};
-    const tail = i < keys.length - 1 ? ',' : '';
-    const nested = prop.type === 'object' && prop.properties;
-    const note = nested ? '' : stubAnnotation(prop);
-    const suffix = note ? `  // ${note}` : '';
-    if (nested) {
-      lines.push(`${indent}${key}: {`);
-      lines.push(stubSkeletonLines(prop.properties, ctx, `${indent}  `));
-      lines.push(`${indent}}${tail}`);
-    } else {
-      lines.push(`${indent}${key}: ${stubScalar(key, prop, ctx)}${tail}${suffix}`);
+    const optional = !required.has(key);
+    if (prop.type === 'object' && prop.properties) {
+      const inner = stubSkeletonLines(prop.properties, new Set(prop.required ?? []),
+                                      { ...ctx, values: ctx.values[key] ?? {} }, `${indent}  `);
+      if (inner === null) { if (optional) continue; return null; }
+      entries.push({ text: `${indent}${key}: {\n${inner}\n${indent}}`, note: '' });
+      continue;
     }
-  });
-  return lines.join('\n');
+    const value = stubScalar(prop, ctx, key, optional);
+    if (value === null) { if (optional) continue; return null; }
+    entries.push({ text: `${indent}${key}: ${value}`, note: stubAnnotation(prop) });
+  }
+  // 逗号在注释**之前**（原布局）：`key: value,  // 标注`
+  return entries
+    .map((e, i) => `${e.text}${i < entries.length - 1 ? ',' : ''}${e.note ? `  // ${e.note}` : ''}`)
+    .join('\n');
 }
 
 // `allOf` 每条条件分支 → 固定措辞注释行。求值自 if.properties / then.required / else.required，
@@ -117,14 +175,25 @@ export function renderAllOfConditions(allOf = []) {
   return lines;
 }
 
+// TASK 模板参数 → 骨架用的任务号：缺省 / 非正整数 → undefined（渲染器按 schema 的 `minimum`
+// 取缺省值）。原 `parseInt(params.TASK) || 0` 的 0 兜底与 schema `minimum: 1` 相悖——逐字复制即
+// 校验失败，故不再兜底 0。
+function taskNumParam(params = {}) {
+  const n = Number.parseInt(params.TASK ?? '', 10);
+  return Number.isInteger(n) && n >= 1 ? n : undefined;
+}
+
 // HANDOFF_STUB 单点：形状唯一来源 = schema（`properties` 全形派生，非仅 `required`）。
 // 原有硬编码 switch（手写 schema 字段清单，T8 ⑦ 命中面）已删 —— 键集/类型/枚举/嵌套/allOf 全部求值自 schema。
+// `values` = 调用方真值（engine 侧零键名特判）：task/phase/doc_path 由 mode/taskNum/docPath 桥入，
+// 派发相关真值（如 branch 派发的 `phase: "branch-review"`、`review_scope`、`commits.base`）
+// 由调用方在 `values` 里显式给出；未给 / 给得不合法 → 回退 schema 示例值（见 stubScalar）。
 // 载体是 ```jsonc（注释行落在 fence 之内）：带 // 的 json 块被字面复制即非法 JSON，正是 R6 / #250[1]
 // 的 CONTRACT_VIOLATION 形态；三份模板随之补「不得复制注释」的载体指令。
-export function renderHandoffStub(schema, mode, taskNum, { docPath } = {}) {
-  const ctx = { mode, taskNum, docPath };
+export function renderHandoffStub(schema, mode, taskNum, { docPath, values } = {}) {
+  const ctx = { values: { task: taskNum, phase: mode, doc_path: docPath, ...values } };
   const conditions = renderAllOfConditions(schema.allOf ?? []);
-  const body = stubSkeletonLines(schema.properties ?? {}, ctx, '  ');
+  const body = stubSkeletonLines(schema.properties ?? {}, requiredKeys(schema), ctx, '  ');
   const head = [...conditions, '{'].join('\n');
   return '```jsonc\n' + head + '\n' + body + '\n}\n```';
 }
@@ -199,8 +268,12 @@ export function renderModePrompt(mode, params = {}) {
       HARD_GATE: reviewHardGate(art.return, params.HANDOFF),
     });
     // HANDOFF_STUB：共享壳槽位在 review 早退路径须显式替换（与 generic 路径一致）。
+    // 调用方真值：review 派发的 `review_scope` = "task"（branch 派发在 branch-review.mjs 传 "branch"）；
+    // `commits.base` = 被评审区间的 base（FIXED_POINT）——短形/空值由渲染器筛掉并回退示例值。
     const schema = loadHandoffSchema();
-    const stub = renderHandoffStub(schema, 'review', parseInt(params.TASK) || 0);
+    const stub = renderHandoffStub(schema, 'review', taskNumParam(params), {
+      values: { review_scope: 'task', commits: { base: params.FIXED_POINT } },
+    });
     return prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   }
   const modePath = templatePath(mode);
@@ -210,8 +283,10 @@ export function renderModePrompt(mode, params = {}) {
     content = content.split(`{{${key}}}`).join(params[key] ?? '');
   }
   const schema = loadHandoffSchema();
-  const taskNumInt = parseInt(params.TASK) || 0;
-  const stub = renderHandoffStub(schema, mode, taskNumInt);
+  const stub = renderHandoffStub(schema, mode, taskNumParam(params), {
+    // fix 派发：`commits.base` = FIXED_POINT（与 fix.md 的 commit 契约同一真值；implement 无 stub 槽位）。
+    values: { commits: { base: params.FIXED_POINT } },
+  });
   content = content.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
   return content;
 }

@@ -61,13 +61,20 @@ export function validateHandoffSchema(obj, schemaName = 'cdd') {
   return { valid: false, reason, property: err?.params?.additionalProperty };
 }
 
+// 数组守卫单点：agent 写的 `findings` / `unverifiable` / `plan_conflicts` 常是 `"none"` / `{}` /
+// 数字一类非数组值。rollupStatus 的 `findings.some(...)` 对非数组抛 TypeError，而该异常会沿 runner 的
+// withLifecycle（仅 try/**finally**，无 catch）逃到 bin 顶层 catch → exit 2、不写 BLOCKED handoff、
+// findings 全丢 —— 恢复路径在最该生效的输入类上崩溃。归一化与恢复载荷共用本守卫。
+const arr = (v) => (Array.isArray(v) ? v : []);
+
 // 归一化单点（T5，与校验器同文件 → 「归一化 → 重校验」是一个可单测单元）：三个 runner
 // （run-task / run-docs / branch-review）在 CONTRACT_VIOLATION 恢复路径上同源消费，使 findings
 // 得以全额保留（AC7 类目级要求，不区分 dispatch 类型）。规则三条：
 //   ① 剥除 schema 未声明键（additionalProperties 违规面）—— 键集唯一权威 = schema.properties；
 //   ② `blocker: null` → 省略（schema 声明为 string，null 非法）；
 //   ③ review 族缺 `status` → 按 findings roll-up 派生补上（work 型不补：schema 的 else.required
-//      强制 agent 声明，归一化不得绕过该约束）。
+//      强制 agent 声明，归一化不得绕过该约束）。rollup 的三个数组入参先过 `arr` 守卫——agent 值
+//      未经校验，直接喂 rollup 会把归一化单点变成崩溃点（本任务引入的回归）。
 // 无副作用：不改原对象，返回新对象；非对象输入原样透传。
 export function normalizeHandoff(obj, schemaName = 'cdd') {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
@@ -80,7 +87,35 @@ export function normalizeHandoff(obj, schemaName = 'cdd') {
     out[key] = value;
   }
   if (!("status" in out) && (out.phase === "review" || out.phase === "branch-review")) {
-    out.status = rollupStatus(out.findings ?? [], out.unverifiable ?? [], out.plan_conflicts ?? []);   // ③
+    out.status = rollupStatus(arr(out.findings), arr(out.unverifiable), arr(out.plan_conflicts));   // ③
   }
   return out;
+}
+
+// CONTRACT_VIOLATION 恢复单点（T5）：归一化 → 重校验（最多一轮，不循环）。三路 runner
+// （run-task 8.8 / run-docs schema 无效分支 / branch-review schema 无效分支）同源消费，各自只保留
+// **失败载荷差异**（BLOCKED 文案前缀 + 指引句 + 计数器分支）——此前三处各有一份同形拷贝，
+// 「违规键名后缀」与「findings 数组守卫」这两条规则在三份拷贝间漂移，且 finding 1 的崩溃
+// 在三处各有一份未守卫副本。
+// 返回：
+//   valid: true  → handoff = 归一化结果（调用方写侧同源落盘并继续）；
+//   valid: false → handoff = 归一化结果（违规键已剥除，可直接作 BLOCKED 载荷基底）、
+//                  property = 违规键名、reason = 失败明细（**含违规键名后缀的唯一拼装点**，
+//                  调用方只补自己的前缀：`handoff` / `docs handoff` / `branch-review handoff`）、
+//                  preservedFindings = 数组守卫后的原 findings（AC7「全额保留」，守卫只写一次）。
+export function recoverHandoff(obj, schemaName = "cdd") {
+  const handoff = normalizeHandoff(obj, schemaName);
+  const sv = validateHandoffSchema(handoff, schemaName);
+  if (sv.valid) return { handoff, valid: true };
+  // 违规键名取自**原对象**那一轮校验：归一化已剥除顶层未知键，重校验面上 additionalProperties
+  // 错误通常已消失——只有原对象的键名才能告诉 agent 到底是哪个键被拒（嵌套 additionalProperties
+  // 场景才可能由重校验面给出，故两者取先有者）。
+  const property = validateHandoffSchema(obj, schemaName).property ?? sv.property;
+  return {
+    handoff,
+    valid: false,
+    property,
+    reason: `${property ? ` (unexpected key: ${property})` : ""}: ${sv.reason}`,
+    preservedFindings: arr(handoff?.findings),
+  };
 }

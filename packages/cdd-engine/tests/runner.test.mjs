@@ -574,6 +574,37 @@ it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'task
   }
 });
 
+it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 status → BLOCKED（非崩溃）", async () => {
+  // fix round 1（review-1 finding 1）：agent 写的 `findings: "none"`（非数组）+ review 族缺 status
+  //（schema `allOf[0].then.required: []` 明确许可）曾让归一化单点直接调 rollupStatus →
+  // `TypeError: findings.some is not a function` → 沿 withLifecycle（仅 try/finally）逃到 bin 顶层
+  // catch → exit 2、**不写 handoff**、findings 全丢。恢复路径在最该生效的输入类上失效且为净回归。
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-nonarr-"));
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"review","artifacts":{},"findings":"none","unknownField":"bad"}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "review",
+      planFile, root: repo,
+      registryPath: regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(1);                                                  // 不是崩溃逃逸（exit 2）
+    expect(res.h1[0]).toBe("status: BLOCKED");
+    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
+    expect(h.status).toBe("BLOCKED");
+    expect(h.phase).toBe("review");
+    expect(h.findings).toEqual([]);                                                // 非数组 → 数组守卫成 []
+    expect(h.blocker).toMatch(/unexpected key: unknownField/);                     // 违规键名进 blocker 文案
+    expect(h).not.toHaveProperty("unknownField");
+  } finally {
+    restore();
+  }
+});
+
 // ---- Pζ T3: cross-phase fixed-point derivation ----
 
 it("runTask Pζ T3: review dry-run without prior implement handoff → exits 0", async () => {

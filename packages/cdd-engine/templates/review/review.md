@@ -29,6 +29,6 @@ The stub above is JSONC — the `//` lines are illustrative; write **valid JSON 
 
 ## Self-validate
 
-`{{HANDOFF}}` → `phase`/`artifacts`/`findings` non-null (h1 mode additionally requires `commits.base`/`commits.head`); fail → `status: BLOCKED`.
+`{{HANDOFF}}` → `phase`/`artifacts`/`findings` non-null (h1 mode additionally requires `commits.base`/`commits.head`); fail → `status: BLOCKED`. Write findings, not status — the engine derives status from findings.
 
 {{H1_BLOCK}}

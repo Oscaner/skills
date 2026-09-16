@@ -7,7 +7,7 @@ import path from "node:path";
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../registry.mjs";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK, reviewHardGate, renderHandoffStub } from "../templates.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
-import { validateHandoffSchema, loadHandoffSchema, normalizeHandoff } from "../handoff/schema.mjs";
+import { validateHandoffSchema, loadHandoffSchema, recoverHandoff } from "../handoff/schema.mjs";
 import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff } from "../handoff/finalize.mjs";
 import { getRoot } from "../root.mjs";
@@ -105,8 +105,12 @@ export async function runBranchReview(opts) {
     HARD_GATE: reviewHardGate(art.return, handoffPath),
   }, "cdd review");
   // HANDOFF_STUB：共享壳槽位在此路径须显式替换（docs 路径 runDocsTask 自理、runner 路径 renderModePrompt 自理）。
+  // 调用方真值（engine 侧零键名特判）：branch 派发的 handoff `phase` 是 `branch-review`（非 mode 名
+  // `review`）、`review_scope` 是 `branch`、`commits.base` = 本轮 base —— 三者都不由渲染器猜测。
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g,
-    renderHandoffStub(loadHandoffSchema("cdd"), "review", 1, {}));
+    renderHandoffStub(loadHandoffSchema("cdd"), "review", 1, {
+      values: { phase: "branch-review", review_scope: "branch", commits: { base } },
+    }));
 
   // Invoke harness CLI. (op,type) 注入解析到 prefix.review.branch（旧 branch-review 独立 bin 已删除，逻辑内联于此）。
   const timeoutMs = resolveTimeoutMs(process.env, "review");
@@ -136,20 +140,21 @@ export async function runBranchReview(opts) {
     // 仍失败 → BLOCKED 且保留已解析出的 findings（此前硬编码 findings: []，即 A4 缺陷）。
     let handoff = agentHandoff;
     if (!sv.valid) {
-      const normalized = normalizeHandoff(agentHandoff, "cdd");
-      const svNorm = validateHandoffSchema(normalized, "cdd");
-      if (!svNorm.valid) {
+      // 恢复单点 = lib/handoff/schema.mjs#recoverHandoff（归一化 → 重校验，最多一轮；违规键名后缀与
+      // findings 数组守卫在那里写一次，本路径只保留自己的失败载荷差异）。
+      const rec = recoverHandoff(agentHandoff, "cdd");
+      if (!rec.valid) {
         writeBranchBlocked(handoffPath, {
           base, head, code: 0,
-          baseHandoff: normalized,
-          findings: Array.isArray(normalized.findings) ? normalized.findings : [],
-          reason: `branch-review handoff schema invalid${svNorm.property ? ` (unexpected key: ${svNorm.property})` : ""}: ${svNorm.reason} → fix and re-run branch-review`,
+          baseHandoff: rec.handoff,
+          findings: rec.preservedFindings,
+          reason: `branch-review handoff schema invalid${rec.reason} → fix and re-run branch-review`,
         });
         process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
         exitWithCode(1);
       }
-      writeOwnHandoff(handoffPath, normalized);
-      handoff = normalized;
+      writeOwnHandoff(handoffPath, rec.handoff);
+      handoff = rec.handoff;
     }
     // T5/T7: status 单一权威 — branch review（review 族）读回经 finalizeHandoff 定稿（rollup 派生
     // 覆写，SP-4 豁免失败轮次）；定稿写盘用 writeOwnHandoff（engine 载体唯一作者，全量覆盖替换）。

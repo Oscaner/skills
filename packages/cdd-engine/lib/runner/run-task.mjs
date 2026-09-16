@@ -23,7 +23,7 @@ import { withLifecycle } from "../lifecycle/proc.mjs";
 import { getRoot, resolveDocArg } from "../root.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
 import { briefPath } from "../state/workspace-artifacts.mjs";
-import { validateHandoffSchema, normalizeHandoff } from "../handoff/schema.mjs";
+import { validateHandoffSchema, recoverHandoff } from "../handoff/schema.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from run-task.mjs).
 export { invokeCli };
@@ -415,32 +415,33 @@ export async function runTask(harness, taskNum, opts = {}) {
       const sv = validateHandoffSchema(existingHandoff);
       if (!sv.valid) {
         // T5 CONTRACT_VIOLATION 恢复（spec §2.5.2，AC7 类目级：不区分 dispatch 类型）：
-        // 归一化 → 重校验（最多一轮，不循环）。两条子分支都以**归一化对象**为准（违规键
-        // 无论如何不留盘），故写盘一律 writeOwnHandoff 全量覆盖 —— 浅合并会让磁盘上的
-        // 违规键经 existing 回灌，把刚剥掉的键又写回去。
-        const normalized = normalizeHandoff(existingHandoff, "cdd");
-        const svNorm = validateHandoffSchema(normalized);
-        if (svNorm.valid) {
+        // 归一化 → 重校验（最多一轮，不循环）——恢复单点是 lib/handoff/schema.mjs#recoverHandoff
+        // （三路 runner 同源消费：违规键名后缀 + findings 数组守卫只在那里写一次）。
+        // 两条子分支都以**归一化对象**为准（违规键无论如何不留盘），故写盘一律 writeOwnHandoff
+        // 全量覆盖 —— 浅合并会让磁盘上的违规键经 existing 回灌，把刚剥掉的键又写回去。
+        const rec = recoverHandoff(existingHandoff, "cdd");
+        if (rec.valid) {
           // ① 归一化命中 → 写侧同源落盘 →「正常继续」（后续 13 步 finalize / h1FromHandoff
           //    读回的都是归一化形态）。
-          writeOwnHandoff(ctx.handoffPath, normalized);
+          writeOwnHandoff(ctx.handoffPath, rec.handoff);
         } else {
           // ② 归一化不可救（缺 required / 类型或枚举不符）→ 仍 BLOCKED，但 findings 全额保留：
-          //    解析出的原 findings 原样进载体，不再整份改写为 []（A4 缺陷面）。
+          //    解析出的原 findings 原样进载体，不再整份改写为 []（A4 缺陷面）。数组守卫在
+          //    recoverHandoff 内（agent 写的 findings 可能是非数组——那正是本节曾经的崩溃面）。
           writeOwnHandoff(ctx.handoffPath, {
-            ...normalized,
+            ...rec.handoff,
             task: taskNum,
             phase: mode,
             status: "BLOCKED",
-            findings: Array.isArray(normalized.findings) ? normalized.findings : [],
-            artifacts: normalized.artifacts ?? {},
-            blocker: `handoff schema invalid${svNorm.property ? ` (unexpected key: ${svNorm.property})` : ""}: ${svNorm.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch task ${taskNum}`,
+            findings: rec.preservedFindings,
+            artifacts: rec.handoff.artifacts ?? {},
+            blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch task ${taskNum}`,
           });
           if (!dryRun) {
             incrementRound(progressDir, taskNum, mode);
             incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
           }
-          return finish(1, h1FromHandoff(ctx.handoffPath), `schema validation failed: ${svNorm.reason}`, noExit);
+          return finish(1, h1FromHandoff(ctx.handoffPath), `schema validation failed${rec.reason}`, noExit);
         }
       }
     }

@@ -66,9 +66,9 @@ vi.mock("../lib/templates.mjs", () => ({
 vi.mock("../lib/handoff/schema.mjs", () => ({
   loadHandoffSchema: () => ({ type: 'object', required: ['phase', 'status', 'findings', 'artifacts', 'doc_path'], properties: { phase: { type: 'string' }, status: { type: 'string' }, doc_path: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' } } }),
   validateHandoffSchema: vi.fn(() => ({ valid: true })),
-  // T5：mock 面镜射真实模块导出（run-docs schema 无效分支消费 normalizeHandoff，缺此导出即
+  // T5：mock 面镜射真实模块导出（run-docs schema 无效分支消费 recoverHandoff，缺此导出即
   // 「归一化 → 重校验」单点在 mock 环境下不可达）。
-  normalizeHandoff: vi.fn((o) => o),
+  recoverHandoff: vi.fn((o) => ({ handoff: o, valid: true })),
 }));
 
 // Selective node:fs mock: intercept schema + handoff reads; pass through everything else.

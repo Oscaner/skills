@@ -1,74 +1,89 @@
 ---
 name: writing-plans
-description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Reads upstream superpowers:writing-plans as baseline, layers personal rules (section-by-section writing / plan-review / commit discipline). Callable standalone; triggered by /writing-plans via overrides router.
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Delegates to a /superpowers:writing-plans session, backfills the design spec on substantive drift before authoring, runs the cdd plan review-fix loop, commits on approval, and hands off to cli-driven-development. Callable standalone; triggered by /writing-plans via overrides router.
 ---
 
 # Osuperpowers Writing-Plans
 
-Full plan-writing flow orchestration, callable standalone.
+Writes a plan document from an approved spec, backfills the design when planning surfaces substantive drift, reviews under the cdd plan contract, commits on approval, and hands off to cli-driven-development.
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[read-upstream] -->|loaded| B[write-plan]
-  A -->|missing| Z((BLOCKED: install superpowers))
-  B --> C[plan-review]
-  C -->|blocker found| C
-  C -->|blocker=0| D{user-ok?}
-  D -->|approved| E[commit-plan]
-  E --> F((HANDOFF: cli-driven-development))
+  A[run-writing-plans-session] -->|loaded| B[backfill-design]
+  A -->|missing| Z1((BLOCKED: install superpowers))
+  B --> C[author-plan]
+  C --> D[plan-review]
+  D --> E{blocker=0?}
+  E -->|no| F[fix-plan]
+  E -->|yes| F
+  F -->|entered via blocker>0| D
+  F -->|entered via blocker=0| H[commit-plan]
+  H --> I[handoff-cli-driven-development]
 ```
 
 ## Node Definitions
 
-### `read-upstream`
+### `run-writing-plans-session`
 
-- **Do**: Read upstream `superpowers:writing-plans` SKILL.md as the process baseline. **Read, not Skill-invoke** (Skill-invoke triggers router interception — I1). Resolution: ① harness plugin system locates the sibling `superpowers` plugin's SKILL.md; ② fallback to vendored path in the same repo. The baseline is the SKILL.md file only — harness-injected docs (CLAUDE.md, README, vendor contributor guides) are not the baseline
-- **Read**: Upstream `superpowers:writing-plans` SKILL.md file
-- **Exit**: File exists and readable → `write-plan`; missing → BLOCKED (install superpowers plugin)
-- **Fail**: Skill-invoke upstream → violates I1
+- **Do**: Run a /superpowers:writing-plans session — the harness loads the upstream skill and runs its flow to plan the approved spec (session-call; the upstream document is not read)
+- **Read**: nothing before the session; the session plans from the approved spec
+- **Exit**: Session loaded → `backfill-design`; upstream missing → BLOCKED (install superpowers)
+- **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
 
-### `write-plan`
+### `backfill-design`
 
-- **Do**: Write the complete plan document to `docs/osuperpowers/plans/YYYY-MM-DD-<feature>.md`. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction pattern (`/^### Task \d+:/`). Em dash (`—`), Chinese colon (`：`), or any other delimiter will cause brief extraction failure at CDD dispatch time. Plan header MUST carry the approved-design link as `**Spec:**` on line 2 (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — same source as the `plan-review` `--spec` pointer; report-issue `resolve-destination` resolves its program chain through this field as its first hop. Before writing, perform scope-check (if spec covers multiple subsystems, suggest splitting into separate plans). After writing, present the complete plan to the user in one message. Includes self-review (spec coverage check + placeholder scan + type consistency) — issues found during self-review are fixed inline, not looped or passed to plan-review
-- **Read**: Approved spec document + upstream plan template structure
+- **Do**: Check the session's plan against the approved design. Substantive drift (factual error / missing constraint / a new implementation step the design does not cover) → **backfill the design spec first** — revise the spec + record the drift — so spec and plan agree before plan-review (overall v1.6 rule). Cross-phase matters still backfill to the parent overall per Boundary rules
+- **Read**: approved spec + session output
+- **Exit**: spec ↔ plan consistent → `author-plan`
+- **Fail**: Entering plan-review with an un-backfilled drift → violates the design-backfill rule (overall v1.6)
+
+### `author-plan`
+
+- **Do**: Write the complete plan document to `docs/osuperpowers/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — the same source as `plan-review`'s `--spec` pointer; report-issue `resolve-destination` resolves its program chain through this field as its first hop. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction (`/^### Task \d+:/`); em dash / Chinese colon / any other delimiter fails brief extraction at dispatch time. Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to plan-review
+- **Read**: approved spec + `backfill-design` output
 - **Exit**: Plan written + self-review passed → `plan-review`
+- **Fail**: —
 
 ### `plan-review`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --plan <path> --spec <spec-path>` (covers completeness / decomposition / buildability in a single run; findings are lens-tagged; round auto-increments in the engine; `--plan` is the type-self-describing review target — the plan doc under review — and `--spec` carries the approved spec doc as the plan's reference pointer). **Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden.** Review Stopping (I4): follow [Review Stopping](../_docs/review.md#rule-review-stopping) in review.md — blocker>0: cli-fix-all-findings (`cdd fix --type plan --plan <path> --findings <handoff-path>`) → re-run; blocker=0: all findings already fixed → done (no re-run)
-- **Read**: Plan document + spec document + [review.md](../_docs/review.md)
-- **Exit**: blocker=0 → `user-ok?`
-- **Fail**: Re-run review after blocker=0 → violates I4 (Review Stopping)
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --plan <path> --spec <spec-path>` (completeness / decomposition / buildability in one run; findings are lens-tagged; round auto-increments in the engine). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. All findings are fixed from the captured handoff; `blocker=0` → no re-run
+- **Read**: plan document + spec document
+- **Exit**: Blockers routed via `blocker=0?` → `fix-plan` (both branches; the edge inherits the re-run routing)
+- **Fail**: Re-running the review after blocker=0 → violates the review-stopping discipline
 
-### `user-ok?`
+### `fix-plan`
 
-- **Do**: Confirm the plan is ready to commit. All findings (blocker + warn + nit) were already fixed by `cli-fix-all-findings`; no review re-run and no fix list is offered after blocker=0
-- **Read**: none — the plan was reviewed and all findings fixed in the cycle
-- **Exit**: user approves → `commit-plan`
-- **Fail**: Re-run review → violates I4
+- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle
+- **Read**: captured plan-review handoff (current cycle findings)
+- **Exit**: entered via blocker>0 → `plan-review` (re-run); entered via blocker=0 → `commit-plan` (no re-run)
+- **Fail**: Invoking a new review instead of fixing from captured findings → violates the review-stopping discipline
 
 ### `commit-plan`
 
-- **Do**: Commit plan document to git. Plan approved = commit immediately (I2); do not wait for dev merge
+- **Do**: `git add` the plan + conventional commit. Plan approved = commit immediately (I2); do not wait for dev merge
 - **Read**: Plan file path
-- **Exit**: Commit complete → HANDOFF: cli-driven-development
+- **Exit**: Commit complete → `handoff-cli-driven-development`
 - **Fail**: Git error → report + fail-open (do not block user plan review)
+
+### `handoff-cli-driven-development`
+
+- **Do**: Run a /osuperpowers:cli-driven-development session to implement the approved plan
+- **Read**: The committed plan file
+- **Exit**: Handoff session loaded → flow ends for this skill
+- **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ## Invariants
 
 | # | Invariant |
 |---|---|
-| I1 | **Read, not Skill-invoke** — upstream skill files are Read only, never Skill-invoked |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
-| I3 | **Task Heading H3** — Plan task headings MUST use H3 (`### Task N:` format), matching brief.mjs extraction pattern. H2 or any other level will cause brief extraction failure at CDD dispatch time |
-| I4 | **Review Stopping** — see [Review Stopping](../_docs/review.md#rule-review-stopping) in review.md |
 
 ## Failure Modes
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers:writing-plans SKILL.md missing | BLOCKED (with install superpowers plugin guidance) | Block policy: no silent fallback |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
+| Design drift not backfilled before plan-review | BLOCKED (design-backfill violation) | spec and plan must agree before review |
 | Git commit error | report + fail-open | Do not block user plan review |
-| plan-review re-run after blocker=0 | Violates I4 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd review on that pass |

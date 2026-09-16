@@ -113,6 +113,24 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });
 
+// 6b. channel-audit scope pinned (T8): the 5c step must carry channelTargets covering the
+// §2.8 行 1–11、13 guard scopes — a future edit silently narrowing one fails the wiring guard.
+test("5c channel-audit targets pinned (T8)", () => {
+  const zr = steps.find((s) => s.name.startsWith("5c."));
+  assert.ok(zr, "zero-residue check missing");
+  assert.ok(Array.isArray(zr.channelTargets), "5c step missing channelTargets meta");
+  for (const p of [
+    "packages/cdd-engine/bin",
+    "packages/cdd-engine/lib",
+    "packages/cdd-engine/templates/schema",
+    "packages/cdd-engine/tests",
+    "packages/osuperpowers/skills",
+    "scripts",
+  ]) {
+    assert.ok(zr.channelTargets.includes(p), `channel-audit scope misses ${p}`);
+  }
+});
+
 // 7. the wiring guard itself is invoked by the orchestrator (guards the guard)
 test("orchestrator invokes ci-validate.test.mjs wiring guard", () => {
   const guard = steps.find((s) => s.args?.some((a) => a.includes("ci-validate.test.mjs")));

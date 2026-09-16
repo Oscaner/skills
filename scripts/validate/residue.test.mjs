@@ -222,6 +222,35 @@ describe("gate-lexicon：扫描行为（T6 Step 2 临时文件）+ live-repo", (
   });
 });
 
+// ---- Task 15: old mode task-review 守卫扩容（design §2.8 行 21）----
+// 正则由裸子串收敛为 /(?<!run-)task-review/（负向后顾豁免新图节点名 run-task-review，scope
+// 由 CDD_ENGINE 扩至 ALL_MECH_POSITIONS——skills 面裸 task-review 已由 T11/T14/T15 三批清零，
+// 常驻防回归）。scripts/ 不在 scope 内，本文件直接写字面无自噬风险。
+describe("stale-lexicon：old mode task-review（T15 行 21 扩容）", () => {
+  it("裸 task-review 命中（旧 mode 名形，含 CDD_MODE 赋值形）", () => {
+    expect(hasHit(["CDD_MODE must be implement|task-review|fix"])).toBe(true);
+    expect(hasHit(['CDD_MODE = "task-review"'])).toBe(true);
+    expect(hasHit(["spec-review/plan-review 之外的 task-review 旧 mode"])).toBe(true);
+  });
+  it("新图节点名 run-task-review 不命中（负向后顾豁免）", () => {
+    expect(hasHit(["run-task-review 重新派发"])).toBe(false);
+    expect(hasHit(["exit run-task-review → cli-fix-all-findings"])).toBe(false);
+  });
+  it("含裸 task-review 的临时文件被 collectStaleLexiconHits 命中；仅 run-task-review 不命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t15-"));
+    writeFileSync(path.join(dir, "a.mjs"), "export const MODES = 'implement|task-review|fix';\n", "utf8");
+    writeFileSync(path.join(dir, "b.mjs"), "export const NODE = 'run-task-review';\n", "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toBe("old mode task-review");
+      expect(hits[0].file).toContain("a.mjs");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 // ---- Task 8: channel audit（design §2.8 行 1–11、13，engine 侧 12 条）----
 // 每个收集函数注入临时目录/文件构造违规形态 → 断言命中（Step 1 正例）；合法形 → 反射零命中；
 // 末尾 live-repo 断言 `collectChannelAuditHits() === []`（Step 3）。⑤ 的两个旧根语汇按拼接构造

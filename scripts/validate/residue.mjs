@@ -61,7 +61,10 @@ const STALE_LEXICON_CHECKS = [
   { label: "gh issue reopen", re: /gh issue reopen/, scope: ALL_MECH_POSITIONS },
   // T9 nit6：task-review 旧 mode 名 scope 用 CDD_ENGINE（bin+lib+templates）而非仅 CDD_ENGINE_BIN ——
   // templates（implement/fix/review）历史引用旧 mode 名已成回渗源，templates 也须入扫。
-  { label: "old mode task-review", re: /task-review/, scope: CDD_ENGINE },
+  // T15（design §2.8 行 21）：scope 扩至 ALL_MECH_POSITIONS —— skills 面裸 task-review 已由
+  // T11/T14/T15 三批清零（handoff-schema.md → cli-driven-development SKILL.md → _docs/review.md），
+  // 本 scope 为常驻防回归面；正则收敛为旧 mode 名形（负向后顾豁免新图节点名 run-task-review）。
+  { label: "old mode task-review", re: /(?<!run-)task-review/, scope: ALL_MECH_POSITIONS },
   { label: "P4 degraded names", re: /(spec|plan)-1\.json|doc-fix-/, scope: CDD_ENGINE },
   { label: "flat docs-review root 回退", re: /\.superpowers\/docs-review/, scope: CDD_ENGINE_BIN },
   { label: "old runtime root .superpowers/cdd", re: /\.superpowers\/cdd/, scope: ALL_MECH_POSITIONS },

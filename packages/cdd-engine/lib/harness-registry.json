@@ -9,8 +9,8 @@
       "review": {
         "task": "/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden",
         "branch": "/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden",
-        "spec": "Follow URC (_docs/review.md): single-cycle, lens-tagged findings (completeness/consistency/clarity)",
-        "plan": "Follow URC (_docs/review.md): single-cycle, lens-tagged findings (completeness/decomposition/buildability)"
+        "spec": "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity)",
+        "plan": "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability)"
       },
       "fix": "/mattpocock-skills:tdd"
     },
@@ -26,8 +26,8 @@
       "review": {
         "task": "/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden",
         "branch": "/mattpocock-skills:code-review — single agent, dual axis (standards + spec); parallel sub-agents forbidden",
-        "spec": "Follow URC (_docs/review.md): single-cycle, lens-tagged findings (completeness/consistency/clarity)",
-        "plan": "Follow URC (_docs/review.md): single-cycle, lens-tagged findings (completeness/decomposition/buildability)"
+        "spec": "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity)",
+        "plan": "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability)"
       },
       "fix": "/mattpocock-skills:tdd"
     },

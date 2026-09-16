@@ -28,12 +28,12 @@ The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodie
 
 ## Cross-cutting docs
 
-`packages/osuperpowers/docs/` held two cross-cutting reference docs that have been relocated during P3:
+`packages/osuperpowers/docs/` held two cross-cutting reference docs during P3; both are now **dissolved**:
 
-- `review.md` (URC — Review Stopping + Handoff Output; the former `docs-review.md` renamed during P3) → `skills/_docs/review.md`
+- `review.md` (URC — Review Stopping + Handoff Output; the former `docs-review.md` renamed during P3) → dissolved (P4): the unified review contract now lives as the `Review Stopping` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The technical contract (Handoff Output / round / `doc_hash`) is documented under [CDD Engine internals → Docs review/fix](#docs-reviewfix-cdd-reviewfix-type-specplan).
 - `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
-Cited by spec-review (brainstorming) and plan-review (writing-plans) only. Task-review and branch-review use their own mechanisms.
+All four review types (task / branch / spec / plan) run the same single-cycle digraph — `run-review` → blocker>0 → fix → re-review; blocker=0 → fix → done — through `cli-driven-development`; each orchestrator skill carries the stopping discipline in its own Invariants.
 
 ## `docs/osuperpowers/` conventions
 
@@ -166,11 +166,13 @@ Any handoff written to disk (including BLOCKED/TIMEOUT) increments the round cou
 ### Docs review/fix (`cdd review|fix --type spec|plan`)
 
 Document review flows through the merged `cdd` CLI (the former `docs-task` bin). The target parameter is type-self-describing (D11): type=spec → `--spec <path>`, type=plan → `--plan <path>`. The engine resolves the host harness from the ambient environment — no harness selection exists.
-- `cdd review --type spec --spec <path>` / `cdd review --type plan --plan <path>`: runs the single-cycle doc review (URC contract in `skills/_docs/review.md`), writes `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`
-- `cdd fix --type spec --spec <path> --findings <review-N-handoff-path>` / `cdd fix --type plan --plan <path> --findings <review-N-handoff-path>`: fixes all findings, writes the fix round handoff
+- `cdd review --type spec --spec <path>` / `cdd review --type plan --plan <path>`: runs the single-cycle doc review (URC — single-cycle, lens-tagged findings; the stopping discipline lives in each orchestrator skill's `## Invariants`), writes `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`
+- `cdd fix --type spec --spec <path> --findings <review-N-handoff-path>` / `cdd fix --type plan --plan <path> --findings <review-N-handoff-path>`: fixes all findings, writes the fix round handoff (`<workspace>/spec-fix-{R}.json` / `<workspace>/plan-fix-{R}.json`)
 - branch-level review is a separate path: `cdd review --type branch` (not a docs review; takes `--plan` for the workspace slug)
 
-Schema: `packages/cdd-engine/templates/schema/docs-handoff-schema.json`
+**Handoff Output / round / `doc_hash` (URC technical contract):** docs reviews write per-round handoffs under `<workspace>` = `<repoRoot>/.osuperpowers/cdd/<slug>/`, where `<slug>` = the reviewed doc filename with `.md` and a single trailing `-design` / `-plan` stripped (the engine's `resolveWorkspace`; `2026-09-08-foo-design.md` and `2026-09-08-foo-plan.md` converge on the workspace `2026-09-08-foo`). The round `{R}` auto-increments per review family; fix rounds reuse the source review's round (review `R` → fix `R`). Any written handoff — including BLOCKED/TIMEOUT — increments the round counter.
+
+Schema: `packages/cdd-engine/templates/schema/docs-handoff-schema.json` — `{ status, phase, round, doc_path, doc_hash, findings, artifacts, blocker, failure_category }` with `status: APPROVED | CHANGES_REQUESTED | BLOCKED`. Docs review handoffs carry `doc_hash` (the reviewed content's byte sha256, engine-attached at finalization) — the content-state half of the Review Stopping ref: the engine rejects a re-review of the same `(doc_path, doc_hash)` after a blocker=0 round, and a content edit changes the hash and legitimately opens a new round.
 
 ## Releasing
 

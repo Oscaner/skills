@@ -78,6 +78,7 @@ flowchart TD
 
 | # | Invariant |
 |---|---|
+| I1 | **Review Stopping** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run the same ref (for spec/plan the engine binds the ref to `(doc_path, doc_hash)` and rejects a same-ref re-run; editing the plan opens a new review round legitimately). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
 
 ## Failure Modes

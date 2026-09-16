@@ -10,6 +10,9 @@
 // subsystem removal (bin/gate/
 // path, CDD_GATE env, cdd-gate-core, gateDecide, deleted gate adapters) — must
 // not creep back into mechanism/document positions.)
+// T10 追加 shipped 面反向守卫两条（§2.8 行 19-20）：① shipped 非 emit 面（skills/** · 插件
+// README）零 osuperpowers-version 版本字面量；② shipped 面（根 README · 插件 README）+ 协作者面
+// （.changeset/README.md）零 `/init` 引用——init 删除 + 版本戳机制删除后的逆向残留检查。
 // The grepTargets meta is consumed by the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
 
@@ -593,9 +596,66 @@ function checkGateLexicon() {
   console.log("OK — gate-lexicon zero in mechanism positions");
 }
 
-// 块数不变（12）：checkStaleLexicon 与 T6 的 checkGateLexicon 并入既有 5c.run 同一步内部 ——
+// =====================================================================
+// Task 10 — init 删除 + 版本戳机制删除 反向守卫（design §2.6.2 / §2.8 行 19-20）
+// =====================================================================
+// ① shipped 非 emit 面（skills/** · 插件 README——contentRoot: "." 的发布面）零版本字面量
+//（osuperpowers-version 戳——写方 release/version-packages.mjs 与读方 validate/version-sync.mjs
+// 已连根删除，版本真相收敛为 package.json + emit 产物）；② shipped 面（根 README.md · 插件
+// README）+ 协作者面（.changeset/README.md）零 `/init` 引用（marketplace 安装指引已内联进
+// README 安装节，`/init` 入口不存在）。scope 与 §2.6.2 反向守卫行、§2.8 行 19/20 逐字同一；
+// `.changeset/README.md` 属协作者面（发布的是 packages/*/），不进 shipped 断言 scope。
+export const SHIPPED_SURFACE_TARGETS = [
+  "packages/osuperpowers/skills",
+  "packages/osuperpowers/README.md",
+];
+export const INIT_REFERENCE_TARGETS = [
+  "README.md",
+  "packages/osuperpowers/README.md",
+  ".changeset/README.md",
+];
+
+// 戳字面（机制唯一载体 = HTML 注释形 `<!-- osuperpowers-version: X -->`，子串匹配覆盖
+// 注释外的不规范形；与 R2 的「唯一载体 = skills/init/SKILL.md:6」删除面口径一致）。
+const VERSION_STAMP_RE = /osuperpowers-version/;
+const INIT_REFERENCE_RE = /\/init/;
+
+/** ① shipped 非 emit 面零版本字面量。targetsOverride 供测试注入临时目标。 */
+export function collectVersionStampHits(targetsOverride) {
+  const hits = [];
+  for (const f of scanTargets(targetsOverride ?? SHIPPED_SURFACE_TARGETS, VERSION_STAMP_RE)) {
+    hits.push({ label: "shipped 非 emit 面版本字面量（osuperpowers-version 戳）", file: f });
+  }
+  return hits;
+}
+
+/** ② shipped 面 + 协作者面零 `/init` 引用。targetsOverride 供测试注入临时目标。 */
+export function collectInitReferenceHits(targetsOverride) {
+  const hits = [];
+  for (const f of scanTargets(targetsOverride ?? INIT_REFERENCE_TARGETS, INIT_REFERENCE_RE)) {
+    hits.push({ label: "/init 引用（shipped + 协作者面）", file: f });
+  }
+  return hits;
+}
+
+/** 汇总（checkShippedGuards 与测试共用）：两条 guards 的命中 { label, file } 列表。 */
+export function collectShippedGuardHits() {
+  return [...collectVersionStampHits(), ...collectInitReferenceHits()];
+}
+
+function checkShippedGuards() {
+  const hits = collectShippedGuardHits();
+  assert(
+    hits.length === 0,
+    `SHIPPED GUARD FOUND — init/版本戳机制逆向残留（§2.8 行 19-20）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+  );
+  console.log("OK — shipped-surface guards（版本字面量 + /init 零残留）");
+}
+
+// 块数不变（12）：checkStaleLexicon 与 T6 的 checkGateLexicon 并入既有 5c.run 同一步内部 —
 // 先 checkZeroResidue 再 checkStaleLexicon 后 checkGateLexicon；T8 追加 checkChannelAudit（§2.8
-// 行 1–11、13 的 engine 侧 12 条守卫）；grepTargets 扩为含 cdd-engine bin+lib+templates 供 wiring
+// 行 1–11、13 的 engine 侧 12 条守卫）；T10 追加 checkShippedGuards（§2.8 行 19-20 的
+// shipped 面两条反向守卫）；grepTargets 扩为含 cdd-engine bin+lib+templates 供 wiring
 // guard 钉死。channelTargets = channel-audit 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
 export const steps = [
   {
@@ -605,6 +665,7 @@ export const steps = [
       checkStaleLexicon();
       checkGateLexicon();
       checkChannelAudit();
+      checkShippedGuards();
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

@@ -60,7 +60,7 @@ osuperpowers installs through each harness's own plugin marketplace; claude and 
 ## Quick start
 
 1. Install plugins from the marketplace or npm (see above).
-2. Run **`/init`** in each project -- re-run after plugin upgrades. `init` guides the marketplace install and checks the `cdd` engine CLI.
+2. Ensure the `cdd` engine CLI is on PATH (`command -v cdd`); if missing, run `npm i -g @oscaner-skills/cdd-engine`. `cli-driven-development`'s `detect-engine` node re-checks this at dispatch.
 3. Invoke the superpowers workflow as you normally would -- osuperpowers skills intercept upstream triggers and route to the matching target automatically.
 
 ## Architecture

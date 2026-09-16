@@ -21,7 +21,7 @@ You do **not** need a changeset when you only bump a vendored submodule (`superp
 - `0.1.0` → `0.1.1` for a `patch` changeset
 - `0.1.1` → `0.2.0` for a `minor` changeset
 
-Its version is synced across `package.json`, `.claude-plugin/plugin.json` (SOT), `marketplace/source.json`, the emitted marketplace manifests, and the `<!-- osuperpowers-version: … -->` stamp in `packages/osuperpowers/skills/init/SKILL.md`.
+Its version is synced across `package.json`, `.claude-plugin/plugin.json` (SOT), `marketplace/source.json`, and the emitted marketplace manifests.
 
 ## Release flow
 

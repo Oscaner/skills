@@ -34,6 +34,11 @@ import {
   collectContextModuleHardcodeHits,
   collectResidualRereadHits,
   collectCountersContractHits,
+  collectVersionStampHits,
+  collectInitReferenceHits,
+  collectShippedGuardHits,
+  SHIPPED_SURFACE_TARGETS,
+  INIT_REFERENCE_TARGETS,
 } from "./residue.mjs";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
@@ -632,5 +637,74 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
 describe("live repo：Task 8 channel audit（§2.8 行 1–11、13）零残留", () => {
   it("collectChannelAuditHits() === []（12 条 engine 侧守卫全绿）", () => {
     expect(collectChannelAuditHits()).toEqual([]);
+  });
+});
+
+// ---- Task 10: init 删除 + 版本戳机制删除 反向守卫（design §2.6.2 / §2.8 行 19-20）----
+// ① shipped 非 emit 面（skills/** · 插件 README）零版本字面量（osuperpowers-version 戳——
+// 版本真相收敛到 package.json + emit 产物后，戳写方/读方均已连根删除）；② shipped 面
+//（根 README · 插件 README）+ 协作者面（.changeset/README.md）零 `/init` 引用（marketplace
+// 安装指引已内联进 README 安装节）。scripts/ 不在两个 scope 内，本文件直接写字面无自噬风险。
+describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
+  it("osuperpowers-version 戳命中（shipped 非 emit 面）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-ver-"));
+    const f = path.join(dir, "SKILL.md");
+    writeFileSync(f, "<!-- osuperpowers-version: 0.1.1 -->\n", "utf8");
+    try {
+      const hits = collectVersionStampHits([dir]);
+      expect(hits.length).toBe(1);
+      expect(hits[0].file.endsWith("SKILL.md")).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("散文「osuperpowers version」不误报（非戳字面；无连字符）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-ver-ok-"));
+    writeFileSync(path.join(dir, "README.md"), "osuperpowers version is synced across manifests\n", "utf8");
+    try {
+      expect(collectVersionStampHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("`/init` 引用命中（shipped + 协作者面）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-init-"));
+    writeFileSync(path.join(dir, "README.md"), "2. Run **`/init`** in each project\n", "utf8");
+    try {
+      const hits = collectInitReferenceHits([dir]);
+      expect(hits.length).toBe(1);
+      expect(hits[0].file.endsWith("README.md")).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("路径形 skills/init/SKILL.md 内含 /init 也命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-init-2-"));
+    writeFileSync(path.join(dir, "note.md"), "stamp in packages/osuperpowers/skills/init/SKILL.md\n", "utf8");
+    try {
+      expect(collectInitReferenceHits([dir])).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("裸词 init / initialize 不误报（无斜杠前缀）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t10-init-ok-"));
+    writeFileSync(path.join(dir, "note.md"), "the init skill initialized the project\n", "utf8");
+    try {
+      expect(collectInitReferenceHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("SHIPPED_SURFACE_TARGETS / INIT_REFERENCE_TARGETS 覆盖既定 scope（scope 缩小即失败）", () => {
+    for (const p of ["packages/osuperpowers/skills", "packages/osuperpowers/README.md"]) {
+      expect(SHIPPED_SURFACE_TARGETS).toContain(p);
+    }
+    for (const p of ["README.md", "packages/osuperpowers/README.md", ".changeset/README.md"]) {
+      expect(INIT_REFERENCE_TARGETS).toContain(p);
+    }
+  });
+  it("live repo：shipped 非 emit 面零版本字面量 + shipped/协作者面零 /init", () => {
+    expect(collectShippedGuardHits()).toEqual([]);
   });
 });

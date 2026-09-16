@@ -88,17 +88,20 @@ export async function spawnManaged(command, args, opts = {}) {
     await persistRegistry();
   }
   const res = await sub;
-  // 自持判定三条任一命中即 timedOut。ε = 时钟/定时器边界抖动裕量，远小于任何真实 timeout
-  //（含测试面最小的 CDD_TASK_TIMEOUT=1s），避免在 timeoutMs 恰边界完成的正常 dispatch 被误标。
-  //   ① 计时：elapsed >= timeoutMs - ε（execa 超时后在 kill 周期上 resolve，elapsed 必越过该线；
-  //      res.timedOut 丢失时以此兜底）；
-  //   ② exit code 143（SIGTERM 默认处置退出码——execa 未置 timedOut 的 SIGTERM 形态；
-  //      §2.5.2 实证的 143 即此形态）；
-  //   ③ signal === "SIGTERM"（子进程吞信号但报告了 signal 字段）。
+  // 自持判定两条任一命中即 timedOut（res.timedOut 不是唯一来源——实证 §2.5.2：SIGTERM 终止的
+  // dispatch，execa 不置 timedOut，否则落入 agentRc!==0 分支、timeoutCount 停在 0）。
+  //   ① 计时：elapsed >= timeoutMs - ε。ε=100ms 把判定线**提前**到 timeoutMs - ε——逼近预算上限完成的
+  //      dispatch 一律按超时处理：保守分类，兜住 SIGTERM-race / SIGKILL 类形态进入 agentRc 分支；
+  //      不是「避免恰边界完成被误标」（若目标是放宽，判定式应为 >= timeoutMs + ε）。ε 远小于任何真实
+  //      timeout（含测试面最小的 CDD_TASK_TIMEOUT=1s），预设内正常完成（exitCode 0）不受影响。
+  //      execa 超时在 kill 周期上 resolve，elapsed 必越过该线——res.timedOut 丢失时以此兜底。
+  //   ② signal === "SIGTERM"：SIGTERM 形态的判定面是 res.signal（被信号终止/吞信号均报告 signal 字段）。
+  //      不以 exit code 143 判定——execa 9.6.1 的 res.code 只承载 spawn 错误（如 ENOENT），真实退出码
+  //      在 res.exitCode（SIGTERM 默认处置 → exitCode 143 / code undefined）；若改用 res.exitCode === 143，
+  //      预算内自然以 143 退出的 dispatch 会被误判为超时（与 ① 的「预设内完成不算超时」口径冲突）。
   const TIMEOUT_EPSILON_MS = 100;
   const timedOut = res.timedOut === true
     || (timeoutMs != null && Date.now() - start >= timeoutMs - TIMEOUT_EPSILON_MS)
-    || res.code === 143
     || res.signal === "SIGTERM";
   return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut };
 }

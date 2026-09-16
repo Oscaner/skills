@@ -6,7 +6,7 @@
 
 **Open findings:** {{FINDINGS}}
 
-**Handoff path (read for context, then update per fragment below):** {{HANDOFF}}
+**Handoff path (read for context, then update per the schema below):** {{HANDOFF}}
 
 **Plan constraints:** {{CONSTRAINTS}}
 
@@ -25,14 +25,7 @@
    - No fix-scope diff this round (relative to `FIX_BASE`) → no commit; keep `head` unchanged.
    - Uncommitted changes at return → `status: BLOCKED` (the `cdd` runner enforces the commit contract).
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
-6. Write handoff per `## Handoff Output` below.
-
-> ⚠️ HARD GATE — Write `{{HANDOFF}}` BEFORE outputting H1.
-> H1 output without a written handoff file = BLOCKED (runner exit 1).
-
-## Handoff Output
-
-Write/update `{{HANDOFF}}` with only JSON fields shown below (file-only; the same schema ships at templates/schema/cdd-handoff-schema.json). Do not embed report bodies in the handoff — point at files via `artifacts`.
+6. Write the handoff JSON to `{{HANDOFF}}` per `## Handoff` below.
 
 ### Segment: fix
 
@@ -41,19 +34,13 @@ Write/update `{{HANDOFF}}` with only JSON fields shown below (file-only; the sam
 3. Update findings; set status per fix outcome (re-review decides final APPROVED/CHANGES_REQUESTED).
 4. `commits.base` = `{{FIXED_POINT}}` (fix dispatch `FIX_BASE`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA; never `--short`).
 
-Evidence notes (why this fix / why test-evidence was re-recorded) go in the `notes` field (optional string);
-command output files are referenced via `test_evidence` / `artifacts` — never inline output bodies.
-
-Write the following JSON stub to `{{HANDOFF}}` (fill in your actual values):
-
-{{HANDOFF_STUB}}
-
 Rules:
-- `task` must be a JSON integer (no quotes)
-- `phase`: "fix"
 - `status`: APPROVED (fixes applied, pending re-review) or BLOCKED
 - `findings`: array with remaining findings
 - `artifacts`: record file paths produced (e.g. `{"brief": "...", "report": "..."}`)
+
+Evidence notes (why this fix / why test-evidence was re-recorded) go in the `notes` field (optional string);
+command output files are referenced via `test_evidence` / `artifacts` — never inline output bodies.
 
 ### Self-validate
 
@@ -63,15 +50,16 @@ Before H1: `jq . {{HANDOFF}}` → check status/commits.base/commits.head non-nul
 
 Implement+handoff in one process. Handoff write fails → H1 `status: BLOCKED`. Retry → full mode re-run (idempotent).
 
-## Return (H1 — stdout only)
-
-Return **exactly 4 lines** to stdout; make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
-
-```
-status: <APPROVED|BLOCKED>
-commits: base=<sha> head=<sha>
-artifacts: brief=<path> report=<path> test_evidence=<path>
-blocker: <none|one-line>
-```
-
 Fix prose and test output live in files only.
+
+## Handoff
+
+{{HARD_GATE}}
+
+Write/update `{{HANDOFF}}` per the schema above:
+
+{{HANDOFF_STUB}}
+
+## Return
+
+{{H1_BLOCK}}

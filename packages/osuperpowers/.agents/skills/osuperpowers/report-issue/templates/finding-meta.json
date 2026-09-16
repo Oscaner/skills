@@ -2,8 +2,10 @@
   "components": [
     "osuperpowers (general)",
     "cdd-engine",
-    "osuperpowers:init",
     "osuperpowers:brainstorming",
+    "osuperpowers:writing-single-spec",
+    "osuperpowers:writing-overall-spec",
+    "osuperpowers:writing-phase-spec",
     "osuperpowers:writing-plans",
     "osuperpowers:cli-driven-development",
     "osuperpowers:report-issue",
@@ -80,17 +82,7 @@
           "id": "component",
           "attributes": {
             "label": "Component",
-            "description": "Which component does this finding relate to?",
-            "options": [
-              "osuperpowers (general)",
-              "cdd-engine",
-              "osuperpowers:init",
-              "osuperpowers:brainstorming",
-              "osuperpowers:writing-plans",
-              "osuperpowers:cli-driven-development",
-              "osuperpowers:report-issue",
-              "osuperpowers:finishing"
-            ]
+            "description": "Which component does this finding relate to?"
           },
           "validations": { "required": true }
         },
@@ -99,11 +91,7 @@
           "id": "session-type",
           "attributes": {
             "label": "Session type",
-            "description": "Was this finding surfaced during a dogfood (CDD session) or a standalone run?",
-            "options": [
-              "dogfood (CDD session)",
-              "standalone"
-            ]
+            "description": "Was this finding surfaced during a dogfood (CDD session) or a standalone run?"
           },
           "validations": { "required": true }
         },
@@ -174,17 +162,7 @@
           "id": "component",
           "attributes": {
             "label": "Component",
-            "description": "Which component does this finding relate to?",
-            "options": [
-              "osuperpowers (general)",
-              "cdd-engine",
-              "osuperpowers:init",
-              "osuperpowers:brainstorming",
-              "osuperpowers:writing-plans",
-              "osuperpowers:cli-driven-development",
-              "osuperpowers:report-issue",
-              "osuperpowers:finishing"
-            ]
+            "description": "Which component does this finding relate to?"
           },
           "validations": { "required": true }
         },
@@ -193,11 +171,7 @@
           "id": "session-type",
           "attributes": {
             "label": "Session type",
-            "description": "Was this finding surfaced during a dogfood (CDD session) or a standalone run?",
-            "options": [
-              "dogfood (CDD session)",
-              "standalone"
-            ]
+            "description": "Was this finding surfaced during a dogfood (CDD session) or a standalone run?"
           },
           "validations": { "required": true }
         },

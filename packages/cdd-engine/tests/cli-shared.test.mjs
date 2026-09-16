@@ -17,8 +17,11 @@ describe('resolveTimeoutMs', () => {
     // 1801s → ceil to 3600s
     expect(resolveTimeoutMs({ CDD_CLI_TIMEOUT: '1801' }, 'task')).toBe(3_600_000);
   });
-  it('default task timeout is 30min', () => {
-    expect(resolveTimeoutMs({}, 'task')).toBe(1_800_000);
+  it('default task timeout is 90min (canonical timeouts.defaults.task)', () => {
+    expect(resolveTimeoutMs({}, 'task')).toBe(5_400_000);
+  });
+  it('default review timeout is 60min (canonical timeouts.defaults.review)', () => {
+    expect(resolveTimeoutMs({}, 'review')).toBe(3_600_000);
   });
   it('per-mode 巨大秒值 → 钳到安全天花板（T8 回归：setTimeout 32 位溢出 → ~1ms 瞬时 SIGTERM）', () => {
     // 2700000s × 1000 = 2.7e9 ms > 2^31-1（2147483647 ms）；溢出触发 V8 TimeoutOverflowWarning

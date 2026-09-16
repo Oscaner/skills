@@ -1,16 +1,29 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Docs-family handoff contract (spec / plan review + fix rounds, `templates/review/review.md` + `templates/fix/docs.md`). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule.",
   "type": "object",
   "required": ["phase", "findings", "artifacts", "doc_path"],
   "properties": {
-    "phase":     { "type": "string", "enum": ["review", "fix"] },
-    "status":    { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"] },
-    "doc_path":  { "type": "string" },
-    "doc_hash":  { "type": "string" },
-    "findings":  { "type": "array" },
-    "artifacts": { "type": "object" },
-    "round":     { "type": "integer" },
-    "blocker":   { "type": "string" }
+    "phase":     { "type": "string", "enum": ["review", "fix"], "description": "dispatch phase (review / fix); determined by the engine, not authored." },
+    "status":    { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"], "description": "Write findings, not status — the engine derives status from findings for review; fix (work type) declares it and the engine passes it through." },
+    "failure_category": {
+      "type": "string",
+      "enum": [
+        "TIMEOUT",
+        "CONTRACT_VIOLATION",
+        "ENGINE_SELF_WRITTEN",
+        "EXECUTION_FAILURE",
+        "UNVERIFIABLE",
+        "PLAN_CONFLICT"
+      ],
+      "description": "classifier for how the round ended; engine-written on failure paths."
+    },
+    "doc_path":  { "type": "string", "description": "the reviewed document's exact path — must match the doc argument, do not rewrite relative forms." },
+    "doc_hash":  { "type": "string", "description": "content state token (sha256 of the doc at review time); legacy handoffs may omit it." },
+    "findings":  { "type": "array", "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (review rolls up; fix keeps declared findings)." },
+    "artifacts": { "type": "object", "description": "point at files, do not embed report bodies — values are paths (e.g. {\"doc\": \"<path>\"}), never inline content." },
+    "round":     { "type": "integer", "description": "review/fix round number (engine-derived; canonical naming embeds it in the filename)." },
+    "blocker":   { "type": "string", "description": "omit when nothing blocks (NOT null) — null is invalid; BLOCKED rounds must carry a blocker explaining why." }
   },
   "allOf": [
     {

@@ -22,7 +22,7 @@
       "clarity"
     ],
     "ref": "doc vs spec",
-    "axesGuide": "Follow URC (_docs/review.md): single-cycle; lens-tag every finding (completeness / consistency / clarity)"
+    "axesGuide": "Follow URC: single-cycle; lens-tag every finding (completeness / consistency / clarity)"
   },
   "plan": {
     "lensEnum": [
@@ -31,6 +31,6 @@
       "buildability"
     ],
     "ref": "doc vs spec",
-    "axesGuide": "Follow URC (_docs/review.md): spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability)"
+    "axesGuide": "Follow URC: spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability)"
   }
 }

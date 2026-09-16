@@ -1,6 +1,6 @@
 # Base Branch Methodology & Artifact Schema
 
-Shared methodology for determining the **base branch** of a feature/fix, and the artifact schema used to persist the result. Consumed by the `cli-driven-development` (determine-base / branch-review) and `finishing` (read-base) orchestrator nodes via the `cdd base-branch` CLI.
+Shared methodology for determining the **base branch** of a feature/fix, and the artifact schema used to persist the result. Consumed by the `cli-driven-development` (determine-base · set-base-branch / branch-review) and `finishing` (read-base) orchestrator nodes via the `cdd base-branch` CLI.
 
 ## Methodology
 

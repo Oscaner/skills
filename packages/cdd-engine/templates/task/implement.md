@@ -21,26 +21,23 @@
    - Uncommitted changes at return → `status: BLOCKED`.
    - Only commit changes within this task brief scope. If you encounter uncommitted changes belonging to other tasks — do NOT stage, commit, or revert them; leave as-is. If out-of-scope uncommitted changes exist at return, write status: BLOCKED + `blocker:` listing the out-of-scope paths, so the orchestrator decides.
 
-## Evidence gate (the runner reads back)
+### Evidence gate (the runner reads back)
 
 After you exit, the runner reads `{{WORKSPACE}}/task-{{TASK}}-test-evidence.json`:
 
 - **hard gate** — if your evidence records `behavior_change: true`, the runner requires `command`, `passed`, and `exit_code`. Missing any of the three → the materialized handoff is overridden to `status: BLOCKED` (exit 1).
 - **soft gate** — otherwise (no `behavior_change`, or the evidence file is missing/unparseable) the runner only attaches a WARN note; your declared status stands.
 
-## Return (H1 — stdout only)
+Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the runner to `BLOCKED` (schema accepts only APPROVED/BLOCKED) + exit 1. Report bodies, test stdout, and diff text live in files only — never in the return.
 
-Return **exactly 4 lines** to stdout (no other prose); make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
+## Handoff
 
-```
-status: <APPROVED|BLOCKED>
-commits: base=<sha> head=<sha>
-artifacts: brief=<path> report=<path> test_evidence=<path>
-blocker: <none|one-line>
-```
+{{HARD_GATE}}
 
-Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the runner to `BLOCKED` (schema accepts only APPROVED/BLOCKED) + exit 1.
+Write/update `{{HANDOFF}}` per the schema above:
 
-The runner re-emits your H1 from the materialized handoff — `status`, `commits: base=<TASK_BASE> head=<git HEAD>`, and `blocker` are the runner's authority; anything you print on the `commits:`/`blocker:` lines that disagrees is overwritten.
+{{HANDOFF_STUB}}
 
-Report bodies, test stdout, and diff text live in files only — never in the return.
+## Return
+
+{{H1_BLOCK}}

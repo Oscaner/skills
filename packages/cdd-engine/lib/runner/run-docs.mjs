@@ -1,33 +1,43 @@
 // packages/cdd-engine/lib/runner/run-docs.mjs — lightweight runner for cdd review/fix
 // --type spec|plan (legacy docs-task surface). No commit-contract, no ledger, no probeSkills.
 // Spawns doc agent CLI; validates handoff against docs-handoff-schema.json.
-// Bug L fix: subprocess cwd = gitToplevel(process.cwd()), not workspace/doc directory.
+// Bug L fix: subprocess cwd = repo root, not workspace/doc directory.
+// P4 §2.4.1：root 由调用方注入（root 单一权威 lib/root.mjs）；本文件不自算第二权威。
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { invokeCli, resolveTimeoutMs } from "../lifecycle/cli.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
-import { gitToplevel } from "../contract/commit.mjs";
+import { getRoot } from "../root.mjs";
 import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
 import { loadRegistry, checkHarness, REG_PATH } from "../registry.mjs";
-import { loadHandoffSchema, validateHandoffSchema } from "../handoff/schema.mjs";
-import { renderHandoffStub, renderTemplate } from "../templates.mjs";
+import { loadHandoffSchema, validateHandoffSchema, recoverHandoff } from "../handoff/schema.mjs";
+import { renderHandoffStub, renderTemplate, reviewHardGate, docsFixHardGate } from "../templates.mjs";
 import { hashFile } from "./review-loop.mjs";
 
 // REG_PATH 统一由 lib/registry.mjs 导出（spec §2.3 深度派生常数专项：run-docs 不再自算第二来源）。
 
-// BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / schema 无效两分支同形——
-// 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ writeHandoff → 读回返回。
-function writeBlocked({ handoffPath, mode, doc, blocker }) {
-  writeHandoff(handoffPath, {
+// BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / 不可解析 / schema 无效三分支同形——
+// 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ 写盘 → 读回返回。
+// review-3 finding 1（warn）：payload 一律 **engine 自写字面量 + 仅 findings**，不再 `...(baseHandoff ?? {})`
+// spread——已声明键的 agent 原值（`notes: 5` / `findings: "none"` 一类类型违规，normalize 无权改其值）
+// 不得进载体（否则 spec/plan 评审的 BLOCKED handoff 违反自家 docs schema）。`baseHandoff` 只用于判定写盘
+// 方式：schema 无效分支传**归一化结果** → writeOwnHandoff 全量覆盖，使违规键不留盘（浅合并会经
+// existing 回灌；命名与 branch-review 的 writeBranchBlocked 对齐——同一含义在两处不得有两个名字）。
+// 缺 baseHandoff 的两分支（未写 / 不可解析）无已解析内容可留，findings 仍是 `[]`
+//（与「保留 findings」不冲突——无 findings 可留）。
+function writeBlocked({ handoffPath, mode, doc, blocker, findings = [], baseHandoff = null }) {
+  const payload = {
     phase: mode,
     status: "BLOCKED",
-    findings: [],
+    findings,
     artifacts: {},
     doc_path: doc,
     doc_hash: hashFile(doc),
     blocker,
-  });
+  };
+  if (baseHandoff) writeOwnHandoff(handoffPath, payload);
+  else writeHandoff(handoffPath, payload);
   return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) };
 }
 
@@ -41,42 +51,51 @@ export async function runDocsTask({
   handoffPath,   // canonical 命名权威（handoff-naming 派生）；无 template-fallback
   dryRun = false,
   params = {},   // additional template params from --param KEY=VALUE flags
-  // repoRoot accepted in opts but ignored — gitToplevel(process.cwd()) is always used (Bug L fix)
+  // repoRoot 注入缝：调用方（CLI 层）经单一 root 权威 lib/root.mjs 派生后传入；
+  // 缺省回落 engine 单根（同一权威），本文件不自算 root。
+  repoRoot,
 }) {
   if (dryRun) {
     return { exitCode: 0, handoff: { phase: mode, status: "APPROVED", findings: [], artifacts: {}, doc_path: doc } };
   }
 
   return withLifecycle(async () => {
-  // Bug L fix: use gitToplevel(process.cwd()) as subprocess cwd, not workspace (doc directory).
-  const repoRoot = gitToplevel(process.cwd());
-  if (!repoRoot) throw new Error("docs-runner: not in a git repo");
+  // Bug L fix: use the repo root as subprocess cwd, not workspace (doc directory).
+  // 注入值优先；未注入 → 取 engine 单根（lib/root.mjs）。求值在 dry-run 早退之后：
+  // dry-run 路径不构造 root，也不触碰未初始化的单根。两条来源均恒为真值（非 git 仓已在
+  // initRoot() 处 BLOCKED exit 1），故无空值守卫。
+  const root = repoRoot ?? getRoot();
 
   // T3: handoffPath must be passed by the caller (cdd.mjs passes canonical handoff-naming filenames).
   // The legacy `${template}-${round}.json` derivation is removed — no second naming site.
   if (!handoffPath) throw new Error("docs-runner: handoffPath required (canonical naming; no template fallback)");
 
-  // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}},
-  // then replace {{HANDOFF_STUB}} with schema-derived stub).
-  // T3: URC 后 fix 模板直接收 canonical fixTemplate 值（"doc-fix"）—— `-review`→`-fix` legacy
-  // 派生分支已删，模板名直传（doc-fix/review 不得 double-suffix）。
+  // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}}/{{HARD_GATE}},
+  // then replace {{HANDOFF_STUB}} with the raw schema).
+  // T3: URC 后 fix 模板直接收 canonical fixTemplate 值（"docs"）—— `-review`→`-fix` legacy
+  // 派生分支已删，模板名直传（docs/review 不得 double-suffix）。Task 18: doc-fix.md → fix/docs.md。
   const schema = loadHandoffSchema("docs");
-  const stub = renderHandoffStub(schema, mode, undefined, { docPath: doc });
+  const stub = renderHandoffStub(schema);
   let prompt = renderTemplate(template, {
     DOC: doc, FINDINGS: findingsPath ?? "", HANDOFF: handoffPath,
+    // Task 18 review-1 finding 2: 共享 Handoff 壳的 {{HARD_GATE}} 槽按 return 语义分派 ——
+    // review 族缺省 = json return 写盘门（review.mjs 经 params 传入自算值，...params 展开在后 →
+    // 显式注入优先）；fix 族 = docs 写盘门（fix 的 return = 文件本体，stdout 无 JSON return，
+    // 「BEFORE outputting the JSON return」对 fix 代理自相矛盾 —— reviewHardGate 不可挪用）。
+    HARD_GATE: mode === "fix" ? docsFixHardGate(handoffPath) : reviewHardGate("json", handoffPath),
     ...params,
   }, "docs-runner");
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
 
   // Spawn agent using harness registry (provides -p, --output-format, etc.).
-  // cwd = repoRoot (Bug L fix: was path.dirname(handoffPath) / workspace before).
+  // cwd = root (Bug L fix: was path.dirname(handoffPath) / workspace before).
   // env = process.env so invokeCli's cleanEnv can strip credentials (Warn #137 posture).
   const reg = loadRegistry(REG_PATH);
   const entry = checkHarness(reg, harness);
   const timeoutMs = resolveTimeoutMs(process.env, "review");
   // invokeCli 注入参数 = (op, type)——review/fix 分别对 prefix.review[type?] /
   // prefix.fix（flat string）解析；type 由 cdd review/fix --type 经 runDocsTask 透传。
-  const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, repoRoot, timeoutMs);
+  const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, root, timeoutMs);
 
   // Read handoff from disk (agent writes it).
   if (!existsSync(handoffPath)) {
@@ -100,10 +119,22 @@ export async function runDocsTask({
   }
   const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
   if (!sv.valid) {
-    return writeBlocked({
-      handoffPath, mode, doc,
-      blocker: `docs handoff schema invalid: ${sv.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
-    });
+    // T5 CONTRACT_VIOLATION 恢复（spec §2.5.2，AC7 类目级：spec/plan 评审与 task 派发同策略）：
+    // 恢复单点 = lib/handoff/schema.mjs#recoverHandoff（归一化 → 重校验，最多一轮；违规键名后缀与
+    // findings 数组守卫在那里写一次，本路径只保留自己的失败载荷差异）。命中 → 写侧同源落盘
+    // （违规键不留盘）+ 按归一化对象继续；仍失败 → BLOCKED 且**保留已解析出的 findings**
+    //（此前该分支硬编码 findings: []，即 A4 缺陷）。
+    const rec = recoverHandoff(handoff, "docs");
+    if (!rec.valid) {
+      return writeBlocked({
+        handoffPath, mode, doc,
+        baseHandoff: rec.handoff,
+        findings: rec.preservedFindings,
+        blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON at ${handoffPath} and re-run ${mode}`,
+      });
+    }
+    writeOwnHandoff(handoffPath, rec.handoff);
+    handoff = rec.handoff;
   }
 
   // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，

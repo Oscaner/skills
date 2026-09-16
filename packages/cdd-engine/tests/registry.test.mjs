@@ -94,8 +94,8 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
     review: {
       task: expect.stringMatching(/^\/mattpocock-skills:code-review.*single agent/),
       branch: expect.stringMatching(/^\/mattpocock-skills:code-review/),
-      spec: expect.stringMatching(/URC \(_docs\/review\.md\)/),
-      plan: expect.stringMatching(/URC \(_docs\/review\.md\)/),
+      spec: expect.stringMatching(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/),
+      plan: expect.stringMatching(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/),
     },
     fix: "/mattpocock-skills:tdd",
   });
@@ -116,8 +116,8 @@ it("resolveInjection: claude review×type — task/branch → code-review(单 ag
   expect(resolveInjection(reg.claude, "review", "task")).toContain("code-review");
   expect(resolveInjection(reg.claude, "review", "task")).toContain("single agent");
   expect(resolveInjection(reg.claude, "review", "branch")).toContain("code-review");
-  expect(resolveInjection(reg.claude, "review", "spec")).toMatch(/URC \(_docs\/review\.md\)/);
-  expect(resolveInjection(reg.claude, "review", "plan")).toMatch(/URC \(_docs\/review\.md\)/);
+  expect(resolveInjection(reg.claude, "review", "spec")).toMatch(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/consistency\/clarity\)$/);
+  expect(resolveInjection(reg.claude, "review", "plan")).toMatch(/^Follow URC: single-cycle, lens-tagged findings \(completeness\/decomposition\/buildability\)$/);
 });
 
 it("resolveInjection: 全 registry harness（claude/cursor-agent）同 claude set 非空", () => {
@@ -127,8 +127,8 @@ it("resolveInjection: 全 registry harness（claude/cursor-agent）同 claude se
     expect(resolveInjection(reg[h], "fix")).toBe("/mattpocock-skills:tdd");
     expect(resolveInjection(reg[h], "review", "task")).toContain("code-review");
     expect(resolveInjection(reg[h], "review", "branch")).toContain("code-review");
-    expect(resolveInjection(reg[h], "review", "spec")).toMatch(/URC \(_docs\/review\.md\)/);
-    expect(resolveInjection(reg[h], "review", "plan")).toMatch(/URC \(_docs\/review\.md\)/);
+    expect(resolveInjection(reg[h], "review", "spec")).toMatch(/^Follow URC: single-cycle, lens-tagged findings/);
+    expect(resolveInjection(reg[h], "review", "plan")).toMatch(/^Follow URC: single-cycle, lens-tagged findings/);
     // 同 set 非空：implement/review.task/review.branch/fix 四个注入点都有值
     expect(
       [resolveInjection(reg[h], "implement"), resolveInjection(reg[h], "fix"),

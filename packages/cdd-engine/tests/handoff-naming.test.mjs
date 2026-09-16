@@ -60,16 +60,17 @@ it("prevHandoffPath: fix.task round1 无专属表项 → 回退 roundR（跨轮�
   expect(prevHandoffPath("/ws", "fix", "task", 3, { task: 5 })).toBe("/ws/task-5-review-3.json");
 });
 it("resolveWorkspace: spec-design.md 与 plan.md 收敛同 slug workspace", () => {
-  const specWs = resolveWorkspace("/repo/docs/osuperpowers/specs/2026-09-08-foo-design.md");
-  const planWs = resolveWorkspace("/repo/docs/osuperpowers/plans/2026-09-08-foo.md");
+  // root 显式注入（T3 根注入契约：getRoot() 是模块级单例且无 reset 缝）——不调 initRoot()、不 chdir。
+  const specWs = resolveWorkspace("/repo/docs/osuperpowers/specs/2026-09-08-foo-design.md", "/repo");
+  const planWs = resolveWorkspace("/repo/docs/osuperpowers/plans/2026-09-08-foo.md", "/repo");
   expect(specWs).toBe("/repo/.osuperpowers/cdd/2026-09-08-foo");
   expect(planWs).toBe(specWs);
 });
-it("resolveWorkspace: AC2 反射 — 非 canonical 段位不误匹配（运行根 .osuperpowers/… / osuperpowers 后无 specs|plans）", () => {
-  // AC2：严格配对（osuperpowers 后须随 specs|plans）下，运行根 `.osuperpowers/…` 不被识别为 docs 根
-  expect(() => resolveWorkspace("/repo/.osuperpowers/cdd/x/review-1.json")).toThrow(/not in a git repo/);
-  // 段对严格性：`docs`+`osuperpowers` 齐备但第三段非 specs|plans → 同样不识别（防宽松双段匹配回退）
-  expect(() => resolveWorkspace("/repo/docs/osuperpowers/notes/x-design.md")).toThrow(/not in a git repo/);
+it("resolveWorkspace: 无 root 注入 → throw root required（旧路径形状派生已删）", () => {
+  // 改造前单参调用按**路径形状**派生 root（下列两条因形状非 canonical 而抛 `not in a git repo`）；
+  // 改造后 root 全由调用方注入，单参（root === undefined）一律抛 `root required` —— 正则不匹配即红。
+  expect(() => resolveWorkspace("/repo/.osuperpowers/cdd/x/review-1.json")).toThrow(/root required/);
+  expect(() => resolveWorkspace("/repo/docs/osuperpowers/notes/x-design.md")).toThrow(/root required/);
 });
 it("resolveWorkspace: 仅文件名派生，不依赖 plan 文件存在", () => {
   expect(workspaceSlug("2026-09-08-foo-design.md")).toBe("2026-09-08-foo");

@@ -4,13 +4,13 @@
 // schema/flag 校验、幂等 + --force、get JSON 往返、SUBCOMMAND_USAGE 单词键回退。
 // 模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
 // 此处只验证 CLI→模块接线 + CLI 自有的 flag 边界与报错面（exit 非零）。
-// 每条用例用独立 tmp git repo（mkdtemp）隔离副作用；CDD_LIFECYCLE_PATH 每 fork 唯一，
-// 避免 bin 启动 reapStale 并发误杀 + 保持 repo 内 .osuperpowers（cdd）仅为被测命令所写。
+// 每条用例用独立 tmp git repo（mkdtemp）隔离副作用。lifecycle 路径纯派生：恒落
+// <repoRoot>/.osuperpowers/cdd/lifecycle.json —— 即各用例自己的 tmp repo（`cwd` 缺省为仓根时回落本仓根）；
+// 并发安全由 reapStale 的 owner 存活判定承担，不依赖路径分离。
 import { describe, it, expect, afterAll } from "vitest";
 import { execaSync } from "execa";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { forkLifecyclePath } from "./helpers.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,7 +18,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-eng
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
 const NODE = process.execPath;
-const LIFECYCLE_PATH = forkLifecyclePath("bb");
 
 // 与 cdd.test.mjs 同构：剥离继承的 CDD_*，extendEnv:false 防 orchestrator 环境泄漏回 child。
 function cleanEnv(extra) {
@@ -26,7 +25,7 @@ function cleanEnv(extra) {
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith("CDD_")) env[k] = v;
   }
-  return { ...env, ...extra, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH };
+  return { ...env, ...extra };
 }
 
 function runCli(args, opts = {}) {

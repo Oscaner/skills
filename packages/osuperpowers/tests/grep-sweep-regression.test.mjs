@@ -66,8 +66,12 @@ test('grep sweep: "--prompt" in live code (excl. engine tests) → 0 hits', () =
 });
 
 // docs/cdd-reference old path (should not appear as ../docs/cdd-reference)
+// T16 Step 5: the cli-driven-development/docs/cdd-reference exclusion filter is
+// dropped — that doc tree is gone (the namespace/schema docs were deleted in P4),
+// the filter is dead (measured 0 hits either way) and would mask a future
+// re-appearance of the old path.
 test('grep sweep: "docs/cdd-reference" old path → 0 hits', () => {
-  const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_PREFIX}| grep -v "cli-driven-development/docs/cdd-reference" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
+  const cmd = `grep -rn "docs/cdd-reference" packages/ docs/ --include="*.md" --include="*.json" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_PREFIX}| grep -v "grep-sweep-regression.test.mjs" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   assert.equal(count, 0, `"docs/cdd-reference" old path has ${count} hits`);
 });

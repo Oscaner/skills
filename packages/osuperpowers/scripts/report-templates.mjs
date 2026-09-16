@@ -57,7 +57,17 @@ function pushAttribute(lines, key, value) {
 // --- formFieldDefs -> .github/ISSUE_TEMPLATE/<name>.yml -------------------
 // 表单键 = formFieldDefs 对象键（finding-meta.json）；frontmatter.name 承载表单名，
 // 渲染仅消费 formDef——无二次标识（name 参数已去冗余）。
-export function renderYml(formDef) {
+// 枚举注入（单源 §2.6.1）：dropdown 的 options 由第二实参 `enums`（`.components` /
+// `.sessionTypes`；canonical finding-meta.json 顶层即满足该形状）注入——form 定义内
+// 零 `options` 数组，不存在「两份实现需对齐」的同步面。仅 component / session-type
+// 两个 id 走注入；其余字段（含非枚举 dropdown 的内联 options）原样渲染。
+function resolveDropdownOptions(item, enums) {
+  if (item.type === "dropdown" && item.id === "component") return enums.components;
+  if (item.type === "dropdown" && item.id === "session-type") return enums.sessionTypes;
+  return item.attributes?.options;
+}
+
+export function renderYml(formDef, enums = {}) {
   const { frontmatter, body } = formDef;
   const lines = [];
   lines.push(`name: ${frontmatter.name}`);
@@ -70,13 +80,14 @@ export function renderYml(formDef) {
     lines.push(`  - type: ${item.type}`);
     if (item.id) lines.push(`    id: ${item.id}`);
     lines.push("    attributes:");
+    const options = resolveDropdownOptions(item, enums);
     for (const [key, value] of Object.entries(item.attributes)) {
-      if (key === "options") {
-        lines.push("      options:");
-        for (const option of value) lines.push(`        - ${option}`);
-      } else {
-        pushAttribute(lines, key, value);
-      }
+      if (key === "options") continue; // 单源化后无内联；防御未来非枚举 dropdown 表单
+      pushAttribute(lines, key, value);
+    }
+    if (options) {
+      lines.push("      options:");
+      for (const option of options) lines.push(`        - ${option}`);
     }
     if (item.validations?.required !== undefined) {
       lines.push("    validations:");

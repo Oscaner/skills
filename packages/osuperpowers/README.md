@@ -17,7 +17,6 @@ This plugin provides two skill families:
 | `writing-plans` | Orchestrator | Section-by-section plan writes + review |
 | `cli-driven-development` | Orchestrator + Engine | Plan executor (cli-only); harness CLI three-mode chain dispatcher + final branch-review CLI |
 | `finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
-| `init` | Utility | Marketplace installation guide — points to the harness's plugin marketplace; checks for the `cdd` engine CLI |
 | `report-issue` | Utility | Structured issue reporting |
 
 ## Installation
@@ -31,7 +30,7 @@ Or install from the oscaner-skills Claude Code marketplace.
 ## Quick start
 
 1. Install `superpowers`, `osuperpowers`, and `mattpocock-skills` from the marketplace.
-2. Run **`/init`** in each project to install osuperpowers from the harness's plugin marketplace.
+2. Ensure the `cdd` engine CLI is on PATH (`command -v cdd`); install with `npm i -g @oscaner-skills/cdd-engine` if missing. `cli-driven-development`'s `detect-engine` node re-checks this at dispatch.
 3. Invoke osuperpowers skills — use `/osuperpowers:<skill>` in Claude Code, or bare slash commands in Cursor.
 
 ### Claude Code

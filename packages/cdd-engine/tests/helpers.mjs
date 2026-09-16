@@ -1,8 +1,6 @@
-// tests/helpers.mjs — 跨测试文件共享的 git fixture / 生命周期路径 / 进程组能力 helper。
+// tests/helpers.mjs — 跨测试文件共享的 git fixture / 进程组能力 helper。
 // git init + 空提交（-c 内联身份：无全局 user.name/email 的环境（CI runner）也能 commit）。
 import { execFileSync, execSync, spawn } from "node:child_process";
-import os from "node:os";
-import path from "node:path";
 
 // 进程组回收能力探针（spec §2.6「环境不允许时 skip 保护」）：
 // detached 组 + kill(-pgid) 在部分 CI 容器（Ubuntu runner sandbox）下不可靠 —— 组提升失败或
@@ -41,8 +39,14 @@ export function gitCommit(dir, message = "plan") {
     "commit", "-q", "-m", message]);
 }
 
-// 唯一 CDD_LIFECYCLE_PATH（每 fork 独立）—— vitest pool:'forks' 并发下各 fork 注入独立 tmp 路径，
-// 避免共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀并发在途组（spec §2.2 A）。
-export function forkLifecyclePath(tag) {
-  return path.join(os.tmpdir(), `cdd-lifecycle-${tag}-${process.pid}.json`);
+// 单根权威（lib/root.mjs）打桩 —— 同一 seam 的构造知识集中在此，避免各测试文件各写一份。
+// 两条 vi.mock 提升语义（实测，改前请先读）：
+//   ① 工厂本体在 **import 阶段**即被调用（被 mock 的模块首次被 import 时），故取值必须以 thunk
+//      传入：`mockRoot(() => REPO_ROOT)`。直传模块级 const 会在那一刻求值并 TDZ
+//      （实测 `Cannot access 'REPO_ROOT' before initialization`）；thunk 把求值推迟到方法被调用时。
+//      三处调用点一律用 thunk 形态，避免同一 helper 出现两种写法。
+//   ② 本 helper 的 import 必须排在**任何 transitively 加载 lib/root.mjs 的 import 之前**
+//      （如 run-task.mjs / lib/cli/*），否则 `mockRoot` 这个绑定自身在工厂被调用时尚未初始化。
+export function mockRoot(resolve) {
+  return { initRoot: resolve, getRoot: resolve };
 }

@@ -2,10 +2,19 @@
 // 注入/超时/重试/NDJSON 解析保留；spawn 派生统一收敛到 spawnManaged（proc.mjs）。
 import { resolveInjection, resolveSuffix } from '../registry.mjs';
 import { spawnManaged, markAllDispatchesDone } from './proc.mjs';
+import { loadContract } from '../context.mjs';
 
-// Default timeouts by mode (30 minutes).
-const DEFAULT_TIMEOUTS = { task: 1_800_000, review: 1_800_000 };
-const STEP_SECONDS = 1800;
+// 超时与 env 名单源：canonical `templates/context-contract.json`（loadContract() 唯一入口）。
+// 本文件的 timeout 默认值 / per-mode 与全局覆写 env 名及其步长一律取自 canonical——改 canonical 即改行为；
+// `MAX_TIMEOUT_MS`（:19）是 setTimeout 32 位上限内的安全天花板，有意不入 canonical
+// （改它不影响 canonical，改 canonical 也不影响它）。
+const CONTRACT = loadContract();
+// Default timeouts by mode — canonical timeouts.defaults: task 90 分钟 / review 60 分钟。
+const DEFAULT_TIMEOUTS = CONTRACT.timeouts.defaults;
+// per-mode env 名（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT）与全局覆写 env 名（CDD_CLI_TIMEOUT）同取自 canonical。
+const PER_MODE_ENV = CONTRACT.timeouts.perModeOverride.env;
+const GLOBAL_ENV = CONTRACT.timeouts.globalOverride.env;
+const STEP_SECONDS = CONTRACT.timeouts.globalOverride.stepSeconds;
 // setTimeout 32 位上限（2^31-1 ≈ 24.8 天）内的安全天花板。任何数值输入 ×1000 一旦越过该界，
 // V8 触发 TimeoutOverflowWarning 把 timer 钳到 ~1ms —— 一次正常 dispatch 会被瞬时 SIGTERM 秒杀
 // （T8 回归：CDD_REVIEW_TIMEOUT=2700000 泄漏 → timeout 2.7e9 ms → fake claude 被即时强杀）。
@@ -16,18 +25,17 @@ function scaleToMs(seconds) {
   return Math.min(Math.max(1, seconds) * 1000, MAX_TIMEOUT_MS);
 }
 
-// per-mode env（CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT）契约单位为秒 ——
+// per-mode env（canonical PER_MODE_ENV：CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT）契约单位为秒 ——
 // 45 分钟写 2700 而不是 2700000（ms 会 ≥8.3e8 → 溢出钳成 ~1ms 秒杀）。调度侧取值必须按秒契约。
 export function resolveTimeoutMs(env, mode) {
-  const modeEnv = { task: 'CDD_TASK_TIMEOUT', review: 'CDD_REVIEW_TIMEOUT' };
-  const modeKey = modeEnv[mode];
+  const modeKey = PER_MODE_ENV[mode];
   const perMode = modeKey ? env[modeKey] : undefined;
   if (perMode !== undefined) {
     const n = Number(perMode);
     if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid input → default, not ~1ms SIGTERM
     return scaleToMs(n);
   }
-  const globalRaw = env.CDD_CLI_TIMEOUT;
+  const globalRaw = env[GLOBAL_ENV];
   if (globalRaw !== undefined) {
     const n = Number(globalRaw);
     if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid → default
@@ -61,11 +69,14 @@ export async function invokeCli(entry, prompt, params, env, cwd, timeoutMs) {
   markAllDispatchesDone();          // dispatch（含 retry 每 attempt）返回 → 组标 done（spec §2.2 C idle 监视依据）
   if (res.ok && output === 'stream-json') {
     const finalText = extractStreamJsonFinal(res.stdout);
+    // T6：timedOut 透传 spawnManaged 的自持判定 —— 此前两分支硬编码 timedOut: false 会把
+    // 超时 dispatch 的判定在 stream-json 出口丢掉（run-task 的 timedOut = res.timedOut 读到 false，
+    // 143/SIGTERM 形态落入 agentRc 失败分支而非 TIMEOUT 路径）。
     if (!finalText) {
       return { ok: false, code: 1, stdout: res.stdout,
-               stderr: 'stream-json produced no completion finalText', timedOut: false };
+               stderr: 'stream-json produced no completion finalText', timedOut: res.timedOut === true };
     }
-    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr, timedOut: false };
+    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr, timedOut: res.timedOut === true };
   }
   return res;
 }

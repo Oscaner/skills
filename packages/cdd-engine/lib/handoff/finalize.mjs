@@ -15,6 +15,10 @@ import path from "node:path";
 
 import { gitRevParseHead } from "../contract/commit.mjs";
 import { readJson, writeOwnHandoff } from "./write.mjs";
+// 写侧同源（T5）：implement 实体化的载体键集由 normalizeHandoff 过 schema —— 与 schema.mjs 互引
+// （该文件用本文件的 rollupStatus 补 review 族 status），两向都是函数声明、互不读对方模块级绑定，
+// 求值顺序无关（见 schema.mjs 顶部依赖说明）。
+import { normalizeHandoff } from "./schema.mjs";
 
 // ---- severity 契约 / status 派生（并入自 contract.mjs，spec §2.3 符号拆分）----
 
@@ -50,7 +54,7 @@ export function classifySeverity(sev) {
   }
 }
 
-// findings[] roll-up → handoff status（对齐 handoff-schema「Severity → status mapping」表）：
+// findings[] roll-up → handoff status（对齐 packages/cdd-engine/templates/schema/docs-handoff-schema.json 的 status 枚举；映射实现即本模块 rollupStatus）：
 //   空 → APPROVED；仅 warn/nit → APPROVED；含 blocker → CHANGES_REQUESTED；
 //   unverifiable[] / plan_conflicts[] 非空 → BLOCKED。
 export function rollupStatus(findings = [], unverifiable = [], planConflicts = []) {
@@ -188,15 +192,18 @@ export function finalizeImplement({ h1 = [], brief, repoRoot, workspace, taskNum
   } else if (gate.warn) {
     process.stderr.write(`CDD_WARN: ${gate.warn}\n`);
   }
-  const handoff = {
+  // 写侧经 schema 构造（T5）：候选值交 normalizeHandoff 过 schema 键集 —— 键集唯一权威是
+  // schema.properties，写侧不再自带第二份手写字段清单（未声明键进不了载体；`blocker` 空值/
+  // undefined 不落字段，取代原 `if (blocker) handoff.blocker = blocker` 的手写门控）。
+  const handoff = normalizeHandoff({
     task: taskNum,
     phase: "implement",
     status: gate.hard ? "BLOCKED" : status,
     artifacts: artifactsFromH1Line(artifactsLine ?? ""),
     findings: [],
     commits: { base, ...(head ? { head } : {}) },
-  };
-  if (blocker) handoff.blocker = blocker;
+    blocker: blocker || undefined,
+  }, "task");
   const exitCode = gate.hard || handoff.status === "BLOCKED" ? 1 : 0;
   return { handoff, exitCode };
 }

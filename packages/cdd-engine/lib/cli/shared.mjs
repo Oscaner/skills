@@ -6,8 +6,19 @@
 // review.mjs 私有（review.mjs runReview 仍经本簇导入，shared 零反向依赖）。
 import { reviewStoppedError } from "../runner/review-loop.mjs";
 import { exitWithCode } from "../exit.mjs";
+import { getRoot, resolveDocArg } from "../root.mjs";
+import { isIncompleteDispatch } from "../failure.mjs";
 
-export const DRY_RUN = () => process.env.CDD_DRY_RUN === "1";
+// DRY_RUN —— program 级 `--dry-run` flag 的解析结果（模块态）。写入侧唯一入口 setDryRun：
+// 黑盒路径由 bin/cdd.mjs 的 preAction 从 program.opts() 注入；进程内用例（argv 不被解析、
+// preAction 不触发）经 setDryRun(true) 显式注入并在 finally 复位。**引擎零 env 读取**。
+let dryRun = false;
+
+export const DRY_RUN = () => dryRun;
+
+export function setDryRun(enabled) {
+  dryRun = enabled === true;
+}
 
 // ---- host harness detection ----
 
@@ -37,13 +48,15 @@ export function requireHostHarness() {
 // D11（review/fix 共享）：被审目标解析 + 缺参守卫单点。type=spec → --spec（被审文档本身）；
 // type=plan → --plan（被审 plan，可选 --spec 携带上游参照）；缺参 → `cdd <verb> --type <type>:
 // missing required --<type> <path>` + exit 2。runReview / runFix 双调用点共用，禁止重复。
+// 出口经 resolveDocArg 归一（仓根相对 → 绝对；不存在 → exit 1 三行诊断，§2.4.2）——本函数是
+// review / fix 的 `--plan` / `--spec` 公共入口，一个 call site 覆盖四处 read point。
 export function resolveTargetDoc(opts, verb) {
   const doc = opts.type === "spec" ? opts.spec : opts.plan;
   if (!doc) {
     process.stderr.write(`cdd ${verb} --type ${opts.type}: missing required --${opts.type} <path>\n`);
     exitWithCode(2);
   }
-  return doc;
+  return resolveDocArg(doc, opts.root ?? getRoot(), opts.type === "spec" ? "spec" : "plan");
 }
 
 // Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse
@@ -73,6 +86,10 @@ export function stoppedExit3(type, round, ref, blocker, opts) {
 // Unified Stopping gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
 // round (findings:[]) must stay re-dispatchable (SP-4). ref is the type's target signature.
 // opts 透传 reviewStoppedError reason（legacy/unchanged）——task/branch 调用面无 opts → 缺省文案不变。
+// T6（B3，#250[8]）：ENGINE_SELF_WRITTEN / CONTRACT_VIOLATION = 本轮 dispatch 未完成 → 不构成
+// Stopping 依据（「计入 Review Stopping = no」的控制流落点）。判定经 canonical 派生
+// （isIncompleteDispatch），不手写类目名 —— 类目若在 canonical 被删除，此处引用即红名。
 export function reviewStoppingGuard(prev, type, round, ref, opts) {
-  if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
+  const incomplete = isIncompleteDispatch(prev?.failure_category);
+  if (!incomplete && prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
 }

@@ -31,7 +31,7 @@ export function emitIssueTemplates(outRoot, _source, { generatedPaths }) {
     const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
     const file = join(outRoot, rel);
     mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, renderYml(meta.formFieldDefs[name]));
+    writeFileSync(file, renderYml(meta.formFieldDefs[name], meta));
     generatedPaths.push(rel);
   }
 }

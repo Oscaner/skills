@@ -7,9 +7,9 @@
 // repo 内 doc 供 workspace 推导；fix round 从 --findings 名解析（<type>-review-{R}.json）。
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { forkLifecyclePath } from './helpers.mjs';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
@@ -19,17 +19,25 @@ const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md')
 // T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
 // strip 尾 -plan：smoke-plan.md → smoke）——测试 teardown 清理，
 // 避免 validate 后根杂讯污染 F6 单一根（与 branch-review/cdd.test 的 tmp/teardown 迁移同语义）。
+// **不清理 smoke/**：该 workspace 由 engine 跑测时自建，且被 cdd / cli-shape / host-detection /
+// lifecycle.wiring 同 slug 共用 —— 删它即与那些文件的 brief 自供应竞态（mkdirSync 与 generateBrief
+// 之间目录被删 → ENOENT 假红）。`.osuperpowers` 已 gitignore，残留不污染版本树。
 afterAll(() => {
-  rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke'), { recursive: true, force: true });
+  rmSync(FINDINGS_DIR, { recursive: true, force: true });
 });
 
-// 合法 findings 名（round 源）—— 路径无需真实存在，docs 通道不接 dirty/存在性断言。
-const SPEC_FINDINGS = path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke', 'spec-review-1.json');
-const PLAN_FINDINGS = path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke', 'plan-review-1.json');
-// Task 3 fork 隔离（spec §2.2 A / §2.6）：bin 启动 reapStale 读写 lifecycle 盘文件 —— 每 fork 注入
-// 唯一 tmp 路径，避免并发 fork 共享 <cwd>/.osuperpowers/cdd/lifecycle.json 时启动 reapStale 误杀
-// 另一 fork in-flight 组（ownerPid 异判为 orphan）。
-const LIFECYCLE_PATH = forkLifecyclePath("doctask");
+// 合法 findings 名（round 源）—— P4 T2 起 `--findings` 经 resolveDocArg 归一（仓根相对 → 绝对、
+// **不存在 → exit 1 三行诊断**，read point ⑦），故 fixture 必须真实落盘。落点用独立 tmp 目录而非
+// `.osuperpowers/cdd/smoke/`：后者是 SMOKE_PLAN 的 workspace，塞入 spec-review-1.json 会让 cdd.test.mjs
+// 的同 slug 用例命中 Review Stopping（跨文件共享盘面）。round 只从**文件名**解析，位置无关。
+const FINDINGS_DIR = mkdtempSync(path.join(tmpdir(), 'cdd-doctask-findings-'));
+const SPEC_FINDINGS = path.join(FINDINGS_DIR, 'spec-review-1.json');
+const PLAN_FINDINGS = path.join(FINDINGS_DIR, 'plan-review-1.json');
+for (const f of [SPEC_FINDINGS, PLAN_FINDINGS]) {
+  writeFileSync(f, JSON.stringify({ status: 'CHANGES_REQUESTED', findings: [] }));
+}
+// lifecycle 路径纯派生：恒落 <repoRoot>/.osuperpowers/cdd/lifecycle.json；并发安全由 reapStale 的
+// owner 存活判定承担，不依赖路径分离。
 
 function run(args, extraEnv = {}, opts = {}) {
   const env = {};
@@ -45,7 +53,7 @@ function run(args, extraEnv = {}, opts = {}) {
   }
   return spawnSync('node', [CDD_MJS, ...args], {
     cwd: REPO_ROOT,
-    env: { ...env, ...extraEnv, CDD_LIFECYCLE_PATH: LIFECYCLE_PATH },
+    env: { ...env, ...extraEnv },
     encoding: 'utf8',
   });
 }
@@ -71,32 +79,32 @@ describe('cdd review/fix --type spec|plan CLI contract', () => {
 
   it('dry-run review --type spec → exit 0', () => {
     const r = run(
-      ['review', '--type', 'spec', '--spec', SMOKE_PLAN],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'review', '--type', 'spec', '--spec', SMOKE_PLAN],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run review --type plan → exit 0', () => {
     const r = run(
-      ['review', '--type', 'plan', '--plan', SMOKE_PLAN],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'review', '--type', 'plan', '--plan', SMOKE_PLAN],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run fix --type spec → exit 0（T3: round 从 --findings spec-review-{R}.json 名解析）', () => {
     const r = run(
-      ['fix', '--type', 'spec', '--spec', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'fix', '--type', 'spec', '--spec', SMOKE_PLAN, '--findings', SPEC_FINDINGS],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });
 
   it('dry-run fix --type plan → exit 0', () => {
     const r = run(
-      ['fix', '--type', 'plan', '--plan', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
-      { CDD_DRY_RUN: '1', CLAUDE_CODE_SESSION_ID: '1' },
+      ['--dry-run', 'fix', '--type', 'plan', '--plan', SMOKE_PLAN, '--findings', PLAN_FINDINGS],
+      { CLAUDE_CODE_SESSION_ID: '1' },
     );
     expect(r.status, r.stderr).toBe(0);
   });

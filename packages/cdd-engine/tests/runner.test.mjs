@@ -1,57 +1,28 @@
 // packages/cdd-engine/tests/runner.test.mjs — runner module unit tests (Vitest port).
-// runTask dry-run: H1 4-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
+// runTask dry-run: H1 5-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
 // Also locks: ship gate (unknown/not-supported → blocked exit 1); invalid mode rejected;
 // nested CLI failed no handoff → write BLOCKED handoff (stderr into blocker) + exit 1 (aligns bash;
 // stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED.
 // review-package / findSuperpowersScriptsDir 已随 branch-review warn 3 删除（生产零调用死码）。
 // invokeCliOverride seam removed (§ P1 Task 5) — CLI simulation now uses real fake-cli shell scripts.
+// P4 §2.3.1 根注入契约：runTask 的 root 一律经 `opts.root` 显式注入（真 mkdtemp 仓根）；workspace 纯由
+// `--plan` 派生 —— 无 env 缝、无 initRoot()、无 chdir、无 ForTest 后门。同一文件内多仓只靠 opts.root 切换。
 import { it, expect, describe } from "vitest";
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, appendFileSync, chmodSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
-         resolveRepoRoot, resolveWorkspace,
-         buildTaskEnv } from "../lib/runner/run-task.mjs";
+         materializeWorkspace,
+         buildCtx, buildPromptParams } from "../lib/runner/run-task.mjs";
 import { ExitRequested } from "../lib/exit.mjs";
 import { spawnManaged, markAllDispatchesDone } from "../lib/lifecycle/proc.mjs";
 import { REG_PATH } from "../lib/registry.mjs";
-import { getRound } from "../lib/state/progress.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
-
-// Non-git temp workspace — CDD_WORKSPACE points to TMPDIR, commit-contract fails open.
-function setupWorkspace() {
-  const ws = mkdtempSync(path.join(tmpdir(), "cdd-task-runner-"));
-  const progressData = { plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, tasks: [] };
-  writeFileSync(path.join(ws, "progress.json"), JSON.stringify(progressData, null, 2));
-  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: abc123\n");
-  return ws;
-}
-
-// Test env: strip CDD_* vars that may be inherited from an outer session (test process runs under orchestrator env —
-// leaked CDD_HANDOFF_PATH etc. would cause runTask to write to real workspaces); keep only test-controlled CDD_WORKSPACE (+extra).
-function baseEnv(ws, extra = {}) {
-  return { ...filteredEnv(), CDD_WORKSPACE: ws, ...extra };
-}
-
-// Cross-repo test env: reuses filteredEnv filtering, but does not inject any workspace.
-function cleanEnv(extra = {}) {
-  return { ...filteredEnv(), ...extra };
-}
-
-// Filter CDD_* and PLAN_FILE from the host env.
-function filteredEnv() {
-  const env = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith("CDD_") && k !== "PLAN_FILE") env[k] = v;
-  }
-  return env;
-}
 
 // git init + empty commit.
 import { gitCommit, gitInit, processGroupReapingSupported, pgrepCount } from "./helpers.mjs";
@@ -64,11 +35,56 @@ function gitInitReal(dir) {
   return real;
 }
 
+// ---- real-repo fixture (root injection) ----
+
+// 仓根相对的 plan 路径（`--plan` 参数形态；engine 经 resolveDocArg 归一到 root 坐标系）。
+const PLAN_REL = path.join("docs", "osuperpowers", "plans", "plan.md");
+
+// 真仓 fixture：gitInit + 仓根内 plan（已 commit，工作树干净 —— commit-contract 前提）+ 预置 workspace
+// 元数据（progress.json / plan-constraints.md）。workspace 派生 = <repo>/.osuperpowers/cdd/plan
+//（slug 取 plan.md 去扩展名）；`.osuperpowers/cdd/.gitignore` 的 `*` 让 ws 产物不进 tracked 树。
+function setupWorkspace() {
+  const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-task-runner-")));
+  const planAbs = path.join(repo, PLAN_REL);
+  mkdirSync(path.dirname(planAbs), { recursive: true });
+  writeFileSync(planAbs, "# Plan\n\n### Task 1: x\nbody\n");
+  gitCommit(repo);
+  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  mkdirSync(cddDir, { recursive: true });
+  writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
+  const ws = path.join(cddDir, "plan");
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify(
+    { plan: PLAN_REL, timeoutCount: 0, engineRecoveryCount: 0, tasks: [] }, null, 2));
+  writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
+  return { repo, planFile: PLAN_REL, ws };
+}
+
 // Commit a plan file into an already-initialized repo (add + commit) — keeps working tree clean.
 function commitPlan(repoDir, planFile) {
+  mkdirSync(path.dirname(planFile), { recursive: true });
   writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
   gitCommit(repoDir);
   return planFile;
+}
+
+// fake-cli（registry cli 名遮蔽）：写脚本 + 注入 PATH，返回还原函数。
+function withFakeCli(binDir, name, body) {
+  writeFileSync(path.join(binDir, name), body);
+  chmodSync(path.join(binDir, name), 0o755);
+  const origPath = process.env.PATH;
+  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  return () => { process.env.PATH = origPath; };
+}
+
+// ghost registry：真实 harness-registry.json + 追加 fake-cli 条目。
+function ghostRegistry(ws, { prefix, suffix } = {}) {
+  const regPath = path.join(ws, "registry.json");
+  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
+  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full",
+                ...(prefix ? { prefix } : {}), ...(suffix ? { suffix } : {}) };
+  writeFileSync(regPath, JSON.stringify(reg));
+  return regPath;
 }
 
 // Capture process.exit + stdout/stderr from runTask (noExit:false).
@@ -108,34 +124,38 @@ async function capture(runFn) {
 
 // ---- dry-run scenarios ----
 
-it("runTask: dry-run implement → H1 4-line APPROVED + no handoff written (aligns bash)", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
+it("runTask: dry-run implement → H1 5-line APPROVED + no handoff written (aligns bash)", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const res = await runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
-  expect(res.h1.length).toBe(4);
+  expect(res.h1.length).toBe(5);
   expect(res.h1[0]).toBe("status: APPROVED");
   expect(res.h1[1]).toBe("commits: base=dry-run");
   expect(res.h1[2]).toMatch(/^artifacts: brief=/);
   expect(res.h1[3]).toBe("blocker: none");
-  expect(existsSync(path.join(ws, "task-1-handoff.json"))).toBe(false);
+  expect(res.h1[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
+  expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
 });
 
-it("runTask: dry-run outputs H1 4 lines to stdout + exit 0", async () => {
-  const ws = setupWorkspace();
+it("runTask: dry-run outputs H1 5 lines to stdout + exit 0", async () => {
+  const { repo, planFile } = setupWorkspace();
   const { code, stdout } = await capture(() =>
-    runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws) }),
+    runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }),
   );
   expect(code).toBe(0);
   const lines = stdout.trim().split("\n");
-  expect(lines.length).toBe(4);
+  expect(lines.length).toBe(5);
+  // 可区分形态：五行各自是一键行（防退化回恒真行数断言）
+  expect(lines.filter(l => /^(status|commits|artifacts|blocker|counters):/.test(l)).length).toBe(5);
   expect(lines[0]).toBe("status: APPROVED");
   expect(lines[3]).toBe("blocker: none");
+  expect(lines[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
 });
 
 it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally teardownAll 先于 ExitRequested 传播（residual group reaped）", async () => {
   // Task 3 review warn 回归：process.exit 不展开 try/finally —— exit helpers 改 throw ExitRequested
   // 后，run 边界 finally（teardownAll）必须先行连根回收 dispatch 残留组，哨兵才向外传播。
-  const ws = setupWorkspace();
+  const { repo, planFile } = setupWorkspace();
   // 模拟 dispatch 留下的 session server：leader 触发孙进程 P1EXIT 后退出，孙进程驻留（组 pgid 存活语义）。
   const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EXIT']).unref();process.exit(0)`;
   await spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
@@ -143,7 +163,7 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally t
   expect(p1exitAlive()).toBeGreaterThan(0);
   let code = null;
   try {
-    await runTask("claude", 1, { mode: "implement", dryRun: true, env: baseEnv(ws) });   // noExit=false
+    await runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo });   // noExit=false
   } catch (e) {
     if (e instanceof ExitRequested) code = e.code; else throw e;
   }
@@ -153,54 +173,47 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally t
 
 it("runTask: dry-run review/fix modes → H1 APPROVED + no handoff written (aligns bash)", async () => {
   for (const mode of ["review", "fix"]) {
-    const ws = setupWorkspace();
-    const res = await runTask("claude", 1, { mode, dryRun: true, env: baseEnv(ws), noExit: true });
+    const { repo, planFile, ws } = setupWorkspace();
+    const res = await runTask("claude", 1, { mode, dryRun: true, planFile, root: repo, noExit: true });
     expect(res.exitCode).toBe(0);
     expect(res.h1[0]).toBe("status: APPROVED");
-    expect(existsSync(path.join(ws, "task-1-handoff.json"))).toBe(false);
+    expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
   }
 });
 
 // ---- mode validation ----
 
 it("runTask: invalid mode → rejected (non-zero exit)", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "handoff", dryRun: true, env: baseEnv(ws), noExit: true });
+  const { repo, planFile } = setupWorkspace();
+  const res = await runTask("claude", 1, { mode: "handoff", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(1);
 });
 
 // ---- ship gate ----
 
 it("runTask: unknown harness → blocked exit 1", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("no-such-harness", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
+  const { repo, planFile } = setupWorkspace();
+  const res = await runTask("no-such-harness", 1, { mode: "implement", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(1);
 });
 
 it("runTask: 两键 registry 下 codex（原 not-supported 键）→ unknown harness blocked exit 1", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("codex", 1, { mode: "implement", dryRun: true, env: baseEnv(ws), noExit: true });
+  const { repo, planFile } = setupWorkspace();
+  const res = await runTask("codex", 1, { mode: "implement", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(1);
 });
 
 // ---- CLI failure + BLOCKED handoff ----
 
 it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into blocker) + exit 1", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-bin-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\necho 'boom from fake cli' >&2\nexit 3\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\necho 'boom from fake cli' >&2\nexit 3\n");
+  const regPath = ghostRegistry(ws);
   try {
     const res = await runTask("ghost", 1, {
       mode: "implement",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath,
       noExit: true,
     });
@@ -210,7 +223,7 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
     expect(handoff.blocker).toMatch(/cli exited 3 without writing handoff/);
     expect(handoff.blocker).toMatch(/re-dispatch task 1/);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
@@ -244,111 +257,74 @@ it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending;
   expect(isTaskPending(1, dir, progressR1)).toBe(true);
 });
 
-it("resolveWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace（run-task 派生点回归）", () => {
+it("materializeWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 workspace（run-task 派生点回归）", () => {
   const base = mkdtempSync(path.join(tmpdir(), "cdd-rw-"));
-  const wsPlan = resolveWorkspace({ plan: path.join(base, "xxx-p5-plan.md"), planSource: "plan", repoRoot: base, env: {} });
-  const wsPlain = resolveWorkspace({ plan: path.join(base, "xxx-p5.md"), planSource: "plan", repoRoot: base, env: {} });
+  const wsPlan = materializeWorkspace({ plan: path.join(base, "xxx-p5-plan.md"), repoRoot: base });
+  const wsPlain = materializeWorkspace({ plan: path.join(base, "xxx-p5.md"), repoRoot: base });
   expect(wsPlan).toBe(wsPlain);
   expect(wsPlain).toBe(path.join(base, ".osuperpowers", "cdd", "xxx-p5"));
 });
 
-// ---- brief + plan constraints ----
+// ---- brief self-provision ----
 
-it("runTask: brief exists + contains TASK_BASE: → pass (dry-run exit 0)", async () => {
-  const ws = setupWorkspace();
+it("runTask: plan given → brief self-provisioned with TASK_BASE, dry-run exit 0", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true,
-    env: baseEnv(ws, { CDD_TASK_BRIEF: path.join(ws, "task-1-brief.md") }), noExit: true,
+    planFile, root: repo, noExit: true,
   });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
+  expect(readFileSync(path.join(ws, "task-1-brief.md"), "utf8")).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
 });
 
-it("runTask #173: plan path does not exist → 'plan file not found'", async () => {
+it("runTask: plan path does not exist → '--plan not found' exit 1（resolveDocArg 三行诊断）", async () => {
+  const { repo } = setupWorkspace();
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true,
-    env: { ...baseEnv(tmpdir()), PLAN_FILE: "/nonexistent/plan.md" },
+    planFile: "/nonexistent/plan.md", root: repo,
     noExit: true,
   });
   expect(res.exitCode).toBe(1);
+  expect(res.h1).toEqual([]);
 });
 
-// ---- P1 #173 cross-repo regression (plan-derived branch) ----
+// ---- P1 #173: single root authority (injected), no cwd fallback ----
 
-it("runTask #173: plan in repo A, cwd in repo B → workspace lands in A, B has no .osuperpowers", async () => {
+it("runTask #173: plan in repo A + root=repo A → workspace lands in A, unrelated repo B untouched", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a-")));
   const repoB = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-b-")));
   gitInit(repoA);
   gitInit(repoB);
-  const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
+  const planFile = commitPlan(repoA, path.join(repoA, PLAN_REL));
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true,
-    env: { ...cleanEnv(), PLAN_FILE: planFile },
-    cwd: repoB, noExit: true,
+    planFile, root: repoA, noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  const slug = path.basename(planFile, ".md");
-  expect(existsSync(path.join(repoA, ".osuperpowers", "cdd", slug))).toBe(true);
+  expect(existsSync(path.join(repoA, ".osuperpowers", "cdd", "plan"))).toBe(true);
   expect(existsSync(path.join(repoB, ".osuperpowers"))).toBe(false);
 });
 
-it("runTask #173: no plan no CDD_WORKSPACE → 'cannot resolve repo root'", async () => {
+it("runTask #173: no --plan → 'cannot resolve repo root' exit 1（plan 是唯一 workspace 源）", async () => {
+  const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-bare-")));
+  gitInit(repo);
   const res = await runTask("claude", 1, {
-    mode: "implement", dryRun: true,
-    env: cleanEnv(), cwd: mkdtempSync(path.join(tmpdir(), "cdd-bare-")), noExit: true,
+    mode: "implement", dryRun: true, root: repo, noExit: true,
   });
   expect(res.exitCode).toBe(1);
 });
 
-// Direct-set branch black-box variant: CDD_TASK_BRIEF/CDD_HANDOFF_PATH point outside the repo, brief pre-written with TASK_BASE line.
-function directWorkspaceCase(wsDir, extraEnv = {}) {
-  const briefOut = mkdtempSync(path.join(tmpdir(), "cdd-brief-out-"));
-  const env = cleanEnv({
-    CDD_WORKSPACE: wsDir,
-    CDD_TASK_BRIEF: path.join(briefOut, "task-1-brief.md"),
-    CDD_HANDOFF_PATH: path.join(briefOut, "task-1-handoff.json"),
-    ...extraEnv,
-  });
-  writeFileSync(env.CDD_TASK_BRIEF, "# task 1\nTASK_BASE: abc123\n");
-  return runTask("claude", 1, {
-    mode: "implement", dryRun: true, env, noExit: true,
-  });
-}
-
-it("runTask #173: CDD_WORKSPACE direct-set (git directory) → exit 0", async () => {
-  const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
-  gitInit(wsGit);
-  const res = await directWorkspaceCase(wsGit);
-  expect(res.exitCode).toBe(0);
-});
-
-it("runTask #173: CDD_WORKSPACE direct-set (bare TMPDIR, non-git) → exit 0 (repoRoot tolerance semantics)", async () => {
-  const bare = mkdtempSync(path.join(tmpdir(), "cdd-ws-bare-"));
-  const res = await directWorkspaceCase(bare);
-  expect(res.exitCode).toBe(0);
-});
-
-it("resolveRepoRoot #173: CDD_WORKSPACE direct-set → repoRoot=git toplevel; bare TMPDIR → null", () => {
-  const wsGit = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-ws-git-")));
-  gitInit(wsGit);
-  expect(resolveRepoRoot({ env: { CDD_WORKSPACE: wsGit } }).repoRoot).toBe(wsGit);
-  const bare = mkdtempSync(path.join(tmpdir(), "cdd-ws-bare-"));
-  expect(resolveRepoRoot({ env: { CDD_WORKSPACE: bare } }).repoRoot).toBeNull();
-});
-
-it("runTask #173: CDD_WORKSPACE + plan both given → workspace lands at plan-derived path, env ignored", async () => {
+it("runTask #173: root 注入决定落点（无第二坐标系）→ workspace 恒在 root 派生的 plan 路径下", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-both-")));
   gitInit(repoA);
-  const planFile = commitPlan(repoA, path.join(repoA, "plan.md"));
-  const ignored = mkdtempSync(path.join(tmpdir(), "cdd-ws-ignored-"));
+  const planFile = commitPlan(repoA, path.join(repoA, PLAN_REL));
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true,
-    env: { ...cleanEnv(), CDD_WORKSPACE: ignored, PLAN_FILE: planFile },
-    cwd: repoA, noExit: true,
+    planFile, root: repoA, noExit: true,
   });
   expect(res.exitCode).toBe(0);
   expect(existsSync(path.join(repoA, ".osuperpowers", "cdd", "plan"))).toBe(true);
-  expect(existsSync(path.join(ignored, ".osuperpowers"))).toBe(false);
 });
 
 // ---- spawnManaged env leak regression (P5 - re-targeted from spawnCapture) ----
@@ -370,41 +346,34 @@ it("spawnManaged: preserves non-subagent env vars", async () => {
   expect(res.stdout.trim()).toMatch(/hello-test/);
 });
 
-// ---- buildTaskEnv ----
+// ---- buildCtx / buildPromptParams ----
 
-it("buildTaskEnv: fix mode → CDD_FINDINGS = review handoff path (no scope filter)", () => {
-  const ws = setupWorkspace();
-  const env = buildTaskEnv(baseEnv(ws), ws, 1, "fix", "claude", { round: 1 });
-  expect(env.CDD_FINDINGS).toMatch(/task-1-review-1\.json$/);
-  expect(env.CDD_FINDINGS).not.toMatch(/open-findings/);
-  expect(env.CDD_FINDINGS_SCOPE).toBeUndefined();
+it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)", () => {
+  const { repo, planFile } = setupWorkspace();
+  const ctx = buildCtx(repo, 1, { mode: "fix", harness: "claude", planFile, round: 1 });
+  expect(ctx.findingsPath).toMatch(/task-1-review-1\.json$/);
+  expect(ctx.findingsPath).not.toMatch(/open-findings/);
+  expect(ctx.findingsScope).toBeUndefined();
 });
 
-it("buildTaskEnv: implement mode → CDD_FINDINGS = open-findings path, no CDD_FINDINGS_SCOPE", () => {
-  const ws = setupWorkspace();
-  const env = buildTaskEnv(baseEnv(ws), ws, 1, "implement", "claude");
-  expect(env.CDD_FINDINGS).toMatch(/task-1-open-findings\.json$/);
-  expect(env.CDD_FINDINGS_SCOPE).toBeUndefined();
+it("buildCtx: implement mode → findingsPath = open-findings path, no scope key", () => {
+  const { repo, planFile } = setupWorkspace();
+  const ctx = buildCtx(repo, 1, { mode: "implement", harness: "claude", planFile });
+  expect(ctx.findingsPath).toMatch(/task-1-open-findings\.json$/);
+  expect(ctx.findingsScope).toBeUndefined();
 });
 
 // ---- CLI succeeds + no handoff → BLOCKED (Pζ) ----
 
 it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍守卫 review/fix；implement 由 T6 实体化接管）", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-ok-cli-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 0\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexit 0\n");
+  const regPath = ghostRegistry(ws);
   try {
     const res = await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
@@ -413,7 +382,7 @@ it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍�
     expect(handoff.phase).toBe("review");
     expect(handoff.blocker).toMatch(/not written after exit 0/);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
@@ -454,21 +423,15 @@ it("normalizeHandoffStatus: TIMEOUT passthrough", async () => {
 });
 
 it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-timeout-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
+  const regPath = ghostRegistry(ws);
   try {
     const res = await runTask("ghost", 1, {
       mode: "implement",
-      env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
+      env: { ...process.env, CDD_TASK_TIMEOUT: "1" },
       registryPath: regPath, noExit: true,
     });
     const hp = path.join(ws, "task-1-implement.json");
@@ -478,39 +441,25 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
     expect(h.blocker).toMatch(/timed out after/);
     expect(h.task).toBe(1);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 }, 10_000);
 
 it("runTask: timeout → timeoutCount incremented in progress.json", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-tc-inc-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
+  const regPath = ghostRegistry(ws);
+  const env = { ...process.env, CDD_TASK_TIMEOUT: "1" };
   try {
-    await runTask("ghost", 1, {
-      mode: "implement",
-      env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
+    await runTask("ghost", 1, { mode: "implement", planFile, root: repo, env, registryPath: regPath, noExit: true });
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress.timeoutCount).toBe(1);
-    await runTask("ghost", 1, {
-      mode: "implement",
-      env: baseEnv(ws, { CDD_TASK_TIMEOUT: "1", PATH: `${binDir}${path.delimiter}${origPath}` }),
-      registryPath: regPath, noExit: true,
-    });
+    await runTask("ghost", 1, { mode: "implement", planFile, root: repo, env, registryPath: regPath, noExit: true });
     const progress2 = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress2.timeoutCount).toBe(2);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 }, 15_000);
 
@@ -533,11 +482,11 @@ it("runTask: unkillable → handoff status BLOCKED + blocker process unkillable"
 // ---- implement mode → no open-findings.json ----
 
 it("runTask #open-findings: implement mode → no open-findings.json (implement mode never writes it)", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const findingsPath = path.join(ws, "task-1-open-findings.json");
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true,
-    env: baseEnv(ws), noExit: true,
+    planFile, root: repo, noExit: true,
   });
   expect(res.exitCode).toBe(0);
   expect(existsSync(findingsPath)).toBe(false);
@@ -547,27 +496,18 @@ it("runTask #open-findings: implement mode → no open-findings.json (implement 
 // T7: 8.8 对 implement 门控（not 输入通道）—— 本用例迁移到 review（review/fix 保留读取校验内容契约）。
 
 it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff contains phase field", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-blocked-"));
   // Fake CLI exits 0 but writes a schema-invalid handoff (missing required 'findings').
-  writeFileSync(
-    path.join(binDir, "fake-cli"),
+  const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{}}' > "$CDD_HANDOFF_PATH"\n` +
-      `exit 0\n`,
-  );
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
   try {
     const res = await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
@@ -577,66 +517,116 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff c
     expect(h.phase).toBe("review");
     expect(h.blocker).toMatch(/must have required property/);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
-it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → phase matches mode (unknown property variant)", async () => {
-  const ws = setupWorkspace();
+it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized and continues (exit 0, APPROVED)", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-unk-"));
-  writeFileSync(
-    path.join(binDir, "fake-cli"),
+  const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{},"findings":[],"unknownField":"bad"}' > "$CDD_HANDOFF_PATH"\n` +
-      `exit 0\n`,
-  );
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
-
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{},"findings":[],"unknownField":"bad"}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
   try {
     const res = await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
+      registryPath: regPath, noExit: true,
+    });
+    // T5 CONTRACT_VIOLATION 恢复（AC7 类目级，spec §2.5.2）：`additionalProperties` 违规键可归一化
+    // 剥除 → 重校验通过 → 正常继续（不再整轮判死）。原断言（exit 1 + BLOCKED + blocker 文案）
+    // 钉的是归一化落地前的行为，已由本任务取代。
+    expect(res.exitCode).toBe(0);
+    const hp = path.join(ws, "task-1-review-1.json");
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h).not.toHaveProperty("unknownField");   // 违规键被写侧同源剥除，不留盘
+    expect(h.phase).toBe("review");
+    expect(h.status).toBe("APPROVED");
+    expect(res.h1[0]).toBe("status: APPROVED");
+  } finally {
+    restore();
+  }
+});
+
+it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'task'）→ 仍 BLOCKED 但保留原 findings", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-keep-"));
+  // 缺 required 'task'（归一化无从补齐）+ 违规键 unknownField（可剥）→ 剥键后仍失败 → BLOCKED；
+  // 已解析出的 findings 必须全额保留（A4 缺陷面：此前该分支硬编码 findings: []，把内容一并清空）。
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"phase":"review","status":"CHANGES_REQUESTED","artifacts":{},"unknownField":"bad","findings":[{"severity":"blocker","summary":"keep me"}]}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "review",
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const hp = path.join(ws, "task-1-review-1.json");
-    const h = JSON.parse(readFileSync(hp, "utf8"));
+    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
-    expect(h.blocker).toMatch(/must NOT have additional properties/);
+    expect(h.blocker).toMatch(/must have required property 'task'/);
+    expect(h.findings).toEqual([{ severity: "blocker", summary: "keep me" }]);   // 全额保留
+    expect(h).not.toHaveProperty("unknownField");                                  // 归一化先剥违规键
   } finally {
-    process.env.PATH = origPath;
+    restore();
+  }
+});
+
+it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 status → BLOCKED（非崩溃）", async () => {
+  // fix round 1（review-1 finding 1）：agent 写的 `findings: "none"`（非数组）+ review 族缺 status
+  //（schema `allOf[0].then.required: []` 明确许可）曾让归一化单点直接调 rollupStatus →
+  // `TypeError: findings.some is not a function` → 沿 withLifecycle（仅 try/finally）逃到 bin 顶层
+  // catch → exit 2、**不写 handoff**、findings 全丢。恢复路径在最该生效的输入类上失效且为净回归。
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-nonarr-"));
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"review","artifacts":{},"findings":"none","unknownField":"bad"}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "review",
+      planFile, root: repo,
+      registryPath: regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(1);                                                  // 不是崩溃逃逸（exit 2）
+    expect(res.h1[0]).toBe("status: BLOCKED");
+    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
+    expect(h.status).toBe("BLOCKED");
+    expect(h.phase).toBe("review");
+    expect(h.findings).toEqual([]);                                                // 非数组 → 数组守卫成 []
+    expect(h.blocker).toMatch(/unexpected key: unknownField/);                     // 违规键名进 blocker 文案
+    expect(h).not.toHaveProperty("unknownField");
+  } finally {
+    restore();
   }
 });
 
 // ---- Pζ T3: cross-phase fixed-point derivation ----
 
 it("runTask Pζ T3: review dry-run without prior implement handoff → exits 0", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "review", dryRun: true, env: baseEnv(ws), noExit: true });
+  const { repo, planFile } = setupWorkspace();
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
 });
 
-it("runTask Pζ T3: review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT set from implement.json commits.base", async () => {
-  const ws = setupWorkspace();
+it("runTask Pζ T3: review fake-CLI round 1 → FIXED_POINT (brief/reference 注入) = implement.json commits.base", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-"));
-  const envLog = path.join(ws, "fp-env-log.txt");
-  writeFileSync(
-    path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
-  );
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
+  const promptLog = path.join(ws, "fp-prompt-log.txt");
+  // FIXED_POINT 的观测面 = 渲染后的 prompt（模板 REFERENCE 参数）——引擎内部状态经 ctx 传递，
+  // 不再经子进程 env（零 CDD_* 注入）；故捕获末位 prompt 实参而非 printenv。
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+  const regPath = ghostRegistry(ws);
 
   const implBase = "aabbccddeeff1234567890aabbccddeeff12345678";
   writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
@@ -645,53 +635,45 @@ it("runTask Pζ T3: review fake-CLI round 1 → CDD_TASK_REVIEW_FIXED_POINT set 
     findings: [], artifacts: {},
   }));
 
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(0);
-    expect(existsSync(envLog)).toBe(true);
-    expect(readFileSync(envLog, "utf8").trim()).toMatch(new RegExp(implBase));
+    expect(existsSync(promptLog)).toBe(true);
+    expect(readFileSync(promptLog, "utf8")).toMatch(new RegExp(implBase));
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
 it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT not set (template gets empty string)", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
     task: 1, phase: "implement", status: "BLOCKED",
     commits: { base: "unknown" },
     findings: [], artifacts: {},
   }));
-  const res = await runTask("claude", 1, { mode: "review", dryRun: true, env: baseEnv(ws), noExit: true });
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
 });
 
 it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross-phase fix round), not implement.json", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   // Set progress so review dispatches round 2 (last completed fix round = 1).
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0,
+    plan: PLAN_REL, timeoutCount: 0, engineRecoveryCount: 0,
     tasks: [{ task: 1, status: "in-progress", rounds: { implement: 1, review: 1, fix: 1 } }],
   }, null, 2));
 
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-r2-"));
-  const envLog = path.join(ws, "fp-env-log-r2.txt");
-  writeFileSync(
-    path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintenv CDD_TASK_REVIEW_FIXED_POINT > "${envLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
-  );
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
+  const promptLog = path.join(ws, "fp-prompt-log-r2.txt");
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-2.json")}"\nexit 0\n`);
+  const regPath = ghostRegistry(ws);
 
   // Round-1 fix handoff exists; round-2 review must NOT read implement.json's base.
   const fixBase = "5588aabbccddeeff1234567890aabbccddeeff1234";
@@ -706,87 +688,68 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
     findings: [], artifacts: {},
   }));
 
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(0);
-    expect(existsSync(envLog)).toBe(true);
+    expect(existsSync(promptLog)).toBe(true);
     // FIXED_POINT comes from task-1-fix-1.json round, NOT implement.json
-    expect(readFileSync(envLog, "utf8").trim()).toMatch(new RegExp(fixBase));
-    expect(readFileSync(envLog, "utf8")).not.toContain("implement-base-should-not-win");
+    expect(readFileSync(promptLog, "utf8")).toMatch(new RegExp(fixBase));
+    expect(readFileSync(promptLog, "utf8")).not.toContain("implement-base-should-not-win");
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
 // ---- Task 5: mode → (op, type) 注入映射（runner invokeCliWithRetry 调用点） ----
 
 it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review prefix 注入 prompt 首行", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-inj-cli-"));
   const promptLog = path.join(ws, "prompt-log.txt");
-  writeFileSync(
-    path.join(binDir, "fake-cli"),
-    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\nexit 0\n`,
-  );
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = {
-    cli: "fake-cli", invoke: "-p", output: "text", ship: "full",
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+  const regPath = ghostRegistry(ws, {
     prefix: {
       implement: "/mattpocock-skills:tdd",
       review: { task: "/mattpocock-skills:code-review", branch: "/mattpocock-skills:code-review", spec: "", plan: "" },
       fix: "/mattpocock-skills:tdd",
     },
     suffix: {},
-  };
-  writeFileSync(regPath, JSON.stringify(reg));
+  });
 
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(0);
     const logged = readFileSync(promptLog, "utf8");
     expect(logged.split("\n")[0]).toBe("/mattpocock-skills:code-review");
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
 // ---- T5: status 单一权威 — review 读回覆写（agent 写 CHANGES_REQUESTED warn-only → 覆写 APPROVED） ----
 
 it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTED warn-only → 覆写 APPROVED", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-review-derive-"));
-  writeFileSync(
-    path.join(binDir, "fake-cli"),
+  const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"},{"severity":"nit","summary":"n"}],"artifacts":{}}' > "$CDD_HANDOFF_PATH"\n` +
-      `exit 0\n`,
-  );
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
+      `printf '%s' '{"task":1,"phase":"review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"},{"severity":"nit","summary":"n"}],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
 
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(0);
@@ -801,31 +764,26 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     // H1 同步从 handoff 重发（h1FromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
     expect(res.h1[0]).toBe("status: APPROVED");
     // T5 nit：review 成功 round 缺省 blocker → none（非 commit-contract 缺省文案）
-    // blocker 是 h1 最后一行（artifacts 存在时为 h1[3]，absent 时为 h1[2]）
-    expect(res.h1.at(-1)).toMatch(/^blocker: none$/);
+    // blocker 之后仍有一行 counters（h1[3] 或 h1[2] 视 artifacts 而定，**末行恒为 counters**）
+    expect(res.h1.at(-2)).toMatch(/^blocker: none$/);
+    expect(res.h1.at(-1)).toMatch(/^counters: /);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
 // ---- step 10 CLI failed no handoff → BLOCKED ----
 
 it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action message", async () => {
-  const ws = setupWorkspace();
+  const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fail-no-handoff-"));
-  writeFileSync(path.join(binDir, "fake-cli"), "#!/usr/bin/env bash\nexit 1\n");
-  chmodSync(path.join(binDir, "fake-cli"), 0o755);
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexit 1\n");
+  const regPath = ghostRegistry(ws);
 
-  const origPath = process.env.PATH;
-  process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
       mode: "implement",
-      env: baseEnv(ws, { PATH: `${binDir}${path.delimiter}${origPath}` }),
+      planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
@@ -836,51 +794,51 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
     expect(h.artifacts).toBeDefined();
     expect(h.blocker).toMatch(/→/);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });
 
-// ---- per-round buildTaskEnv ----
+// ---- per-round buildCtx ----
 
-it("runTask: per-round buildTaskEnv — review derives task-1-review-1.json", async () => {
-  const ws = setupWorkspace();
-  const env = buildTaskEnv(baseEnv(ws), ws, 1, "review", "claude", { round: 1 });
-  expect(env.CDD_HANDOFF_PATH.endsWith("task-1-review-1.json")).toBe(true);
+it("runTask: per-round buildCtx — review derives task-1-review-1.json", () => {
+  const { repo, planFile } = setupWorkspace();
+  const ctx = buildCtx(repo, 1, { mode: "review", harness: "claude", planFile, round: 1 });
+  expect(ctx.handoffPath.endsWith("task-1-review-1.json")).toBe(true);
 });
 
-it("runTask: implement derives task-1-implement.json (no round suffix)", async () => {
-  const ws = setupWorkspace();
-  const env = buildTaskEnv(baseEnv(ws), ws, 1, "implement", "claude", { round: 1 });
-  expect(env.CDD_HANDOFF_PATH.endsWith("task-1-implement.json")).toBe(true);
+it("runTask: implement derives task-1-implement.json (no round suffix)", () => {
+  const { repo, planFile } = setupWorkspace();
+  const ctx = buildCtx(repo, 1, { mode: "implement", harness: "claude", planFile, round: 1 });
+  expect(ctx.handoffPath.endsWith("task-1-implement.json")).toBe(true);
 });
 
-it("runTask: round-2 buildTaskEnv derives task-1-review-2.json", async () => {
-  const ws = setupWorkspace();
-  const progressPath = path.join(ws, "progress.json");
-  const prog = JSON.parse(readFileSync(progressPath, "utf8"));
-  if (!prog.tasks.find(t => t.task === 1)) prog.tasks.push({ task: 1, status: "pending", rounds: {} });
-  prog.tasks.find(t => t.task === 1).rounds = { review: 1 };
-  writeFileSync(progressPath, JSON.stringify(prog, null, 2));
+it("runTask: round-2 buildCtx derives task-1-review-2.json + buildPromptParams 参数面同源", () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const ctx = buildCtx(repo, 1, { mode: "review", harness: "claude", planFile, round: 2 });
+  expect(ctx.handoffPath.endsWith("task-1-review-2.json")).toBe(true);
 
-  const taskEnv = buildTaskEnv(baseEnv(ws), ws, 1, "review", "claude", { round: 2 });
-  expect(taskEnv.CDD_HANDOFF_PATH.endsWith("task-1-review-2.json")).toBe(true);
-
-  const updated = JSON.parse(readFileSync(progressPath, "utf8"));
-  expect(getRound(updated, 1, "review")).toBe(2);
+  const params = buildPromptParams(ctx, 1);
+  expect(params.WORKSPACE).toBe(ws);
+  expect(params.HANDOFF).toBe(ctx.handoffPath);
+  expect(params.BRIEF).toBe(ctx.briefPath);
+  expect(params.CONSTRAINTS).toBe(ctx.constraintsPath);
+  expect(params.FINDINGS).toBe(ctx.findingsPath);
+  expect(params.TASK).toBe("1");
+  expect(params.PLAN_LINE).toBe(`**Plan:** ${ctx.plan}`);
 });
 
 // ---- T4: mode 归一（review）----
 
 it("runTask: 未知 mode → rejected：CDD_MODE must be implement|review|fix", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "bogus", dryRun: true, env: baseEnv(ws), noExit: true });
+  const { repo, planFile } = setupWorkspace();
+  const res = await runTask("claude", 1, { mode: "bogus", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(1);
   expect(res.h1).toEqual([]);
 });
 
 it("runTask: mode review dry-run → H1 APPROVED + no handoff written", async () => {
-  const ws = setupWorkspace();
-  const res = await runTask("claude", 1, { mode: "review", dryRun: true, env: baseEnv(ws), noExit: true });
+  const { repo, planFile, ws } = setupWorkspace();
+  const res = await runTask("claude", 1, { mode: "review", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.h1[0]).toBe("status: APPROVED");
   expect(existsSync(path.join(ws, "task-1-review-1.json"))).toBe(false);
@@ -899,47 +857,44 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
 
 // ---- T6: implement handoff 实体化 + evidence-gate + H1 h1FromHandoff（commits 单一权威）----
 
-// T6 fixture：git repo workspace + 40-hex TASK_BASE brief（commits.base 唯一权威）。返回 registry/HEAD 现场。
-// workspace 收编 .osuperpowers/cdd/plan（对齐生产：.osuperpowers/cdd/.gitignore `*` gitignore 整棵 ws 树）
-// —— T8 post-run commit-contract 的 dirty 校验要求 tracked tree 干净，ws 未提交产物不得误触发 BLOCKED。
+// T6 fixture：git repo + 仓根内已 commit 的 plan（`--plan`）+ 干净 tracked 树（commit-contract 前提）。
+// 返回 registry / HEAD 现场；root 经 opts.root 注入，workspace 纯派生 = <repo>/.osuperpowers/cdd/plan。
 function t6Workspace(extraFiles = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
+  const planAbs = path.join(repo, PLAN_REL);
+  mkdirSync(path.dirname(planAbs), { recursive: true });
+  writeFileSync(planAbs, "# Plan\n\n### Task 1: x\nbody\n");
+  gitCommit(repo);
   const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
   const ws = path.join(cddDir, "plan");
   mkdirSync(ws, { recursive: true });
-  const taskBase = "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63";
-  writeFileSync(path.join(ws, "task-1-brief.md"), `# task 1\nTASK_BASE: ${taskBase}\n`);
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: "/tmp/plan.md", timeoutCount: 0, engineRecoveryCount: 0, tasks: [],
+    plan: PLAN_REL, timeoutCount: 0, engineRecoveryCount: 0, tasks: [],
   }, null, 2));
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
   for (const [f, v] of Object.entries(extraFiles)) writeFileSync(path.join(ws, f), v);
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t6-bin-"));
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
+  const regPath = ghostRegistry(ws);
   const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ws, encoding: "utf8" }).trim();
-  return { ws, taskBase, actualHead, binDir, regPath };
+  // brief 由 engine 自供应（plan 定稿处 generateBrief），TASK_BASE 恒 = git HEAD → commits.base 权威即 HEAD。
+  // （旧 fixture 用 CDD_WORKSPACE 直设 + 手写 brief，故可自定 TASK_BASE；该通道已随直设分支删除。）
+  const taskBase = actualHead;
+  return { repo, ws, taskBase, actualHead, binDir, regPath, planFile: PLAN_REL };
 }
 
 // T6 ghost 运行封装：写 fake-cli（body）→ 注入 PATH 运行 runTask（implement/non-dry）→ 还原 PATH。
 async function runT6Ghost(t6, body) {
-  const cli = path.join(t6.binDir, "fake-cli");
-  writeFileSync(cli, body);
-  chmodSync(cli, 0o755);
-  const origPath = process.env.PATH;
-  process.env.PATH = `${t6.binDir}${path.delimiter}${origPath}`;
+  const restore = withFakeCli(t6.binDir, "fake-cli", body);
   try {
     return await runTask("ghost", 1, {
       mode: "implement",
-      env: baseEnv(t6.ws, { PATH: `${t6.binDir}${path.delimiter}${origPath}` }),
+      planFile: t6.planFile, root: t6.repo,
       registryPath: t6.regPath, noExit: true,
     });
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 }
 
@@ -1001,7 +956,7 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   const res = await runT6Ghost(t6, [
     "#!/usr/bin/env bash",
     // 模拟 agent 写了 test-evidence：behavior_change:true 但缺必需三键
-    `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "$CDD_WORKSPACE/task-1-test-evidence.json"`,
+    `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "${path.join(t6.ws, "task-1-test-evidence.json")}"`,
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
     `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
@@ -1017,9 +972,11 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(h.blocker).toContain("command");
   // H1 同步为 BLOCKED（h1FromHandoff 与覆写后 handoff 一致）
   expect(res.h1[0]).toBe("status: BLOCKED");
-  // N② (T9): implement 实体化 BLOCKED 落点自增 engineRecoveryCount
+  // N② (T9) → T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount
+  //（六类分派后不再消耗 recovery 额度 —— engineRecoveryCount 只被 EXECUTION_FAILURE 消耗）
   const progress = JSON.parse(readFileSync(path.join(t6.ws, "progress.json"), "utf8"));
-  expect(progress.engineRecoveryCount).toBe(1);
+  expect(progress.engineSelfWrittenCount).toBe(1);
+  expect(progress.engineRecoveryCount).toBe(0);
 });
 
 it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺省 blocker 由实体化 handoff 重发覆写", async () => {
@@ -1033,10 +990,11 @@ it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺�
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  expect(res.h1.length).toBe(4);
+  expect(res.h1.length).toBe(5);
   expect(res.h1[0]).toBe("status: APPROVED");
   expect(res.h1[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
   expect(res.h1[3]).toBe("blocker: none");
+  expect(res.h1[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
   const h = JSON.parse(readFileSync(path.join(t6.ws, "task-1-implement.json"), "utf8"));
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.blocker).toBeUndefined();
@@ -1052,7 +1010,7 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
   const res = await runT6Ghost(t6, [
     "#!/usr/bin/env bash",
     // 模拟旧 P1 agent 残留：schema-invalid（缺 findings）existing handoff
-    `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{}}' > "$CDD_HANDOFF_PATH"`,
+    `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{}}' > "${path.join(t6.ws, "task-1-implement.json")}"`,
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
     `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
@@ -1073,12 +1031,15 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
 
 // ---- T8: post-run validateCommitContract（全 mode 接线）+ task.status=complete 回写 ----
 
-// T8 fixture：git repo（tracked source + ws 收编 .osuperpowers/cdd/plan）。
+// T8 fixture：git repo（tracked source + plan 已 commit + ws 收编 .osuperpowers/cdd/plan）。
 // dirty=true → tracked.txt 追加（porcelain ` M`）→ post-run commit-contract 必 BLOCKED。
-// 返回 { repo, ws, actualHead, binDir, regPath }。
 function t8Workspace({ dirty = false } = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t8-ws-")));
   writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
+  gitCommit(repo);
+  const planAbs = path.join(repo, PLAN_REL);
+  mkdirSync(path.dirname(planAbs), { recursive: true });
+  writeFileSync(planAbs, "# Plan\n\n### Task 1: x\nbody\n");
   gitCommit(repo);
   const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
@@ -1086,35 +1047,27 @@ function t8Workspace({ dirty = false } = {}) {
   const ws = path.join(cddDir, "plan");
   mkdirSync(ws, { recursive: true });
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: "plan.md", timeoutCount: 0, engineRecoveryCount: 0, tasks: [],
+    plan: PLAN_REL, timeoutCount: 0, engineRecoveryCount: 0, tasks: [],
   }, null, 2));
   writeFileSync(path.join(ws, "plan-constraints.md"), "constraints\n");
-  writeFileSync(path.join(ws, "task-1-brief.md"), "# task 1\nTASK_BASE: 9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63\n");
   if (dirty) appendFileSync(path.join(repo, "tracked.txt"), "dirty\n");
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t8-bin-"));
-  const regPath = path.join(ws, "registry.json");
-  const reg = JSON.parse(readFileSync(REG_PATH, "utf8"));
-  reg.ghost = { cli: "fake-cli", invoke: "-p", output: "text", ship: "full" };
-  writeFileSync(regPath, JSON.stringify(reg));
+  const regPath = ghostRegistry(ws);
   const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ws, encoding: "utf8" }).trim();
-  return { repo, ws, actualHead, binDir, regPath };
+  return { repo, ws, actualHead, binDir, regPath, planFile: PLAN_REL };
 }
 
 // T8 review ghost 运行封装：fake-cli 写 APPROVED review handoff → 运行 runTask review（non-dry）→ 还原 PATH。
 async function runT8ReviewGhost(t8, body) {
-  const cli = path.join(t8.binDir, "fake-cli");
-  writeFileSync(cli, body);
-  chmodSync(cli, 0o755);
-  const origPath = process.env.PATH;
-  process.env.PATH = `${t8.binDir}${path.delimiter}${origPath}`;
+  const restore = withFakeCli(t8.binDir, "fake-cli", body);
   try {
     return await runTask("ghost", 1, {
       mode: "review",
-      env: baseEnv(t8.ws, { PATH: `${t8.binDir}${path.delimiter}${origPath}` }),
+      planFile: t8.planFile, root: t8.repo,
       registryPath: t8.regPath, noExit: true,
     });
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 }
 
@@ -1122,7 +1075,7 @@ it("runTask T8: review APPROVED → progress task.status=complete（rounds[revie
   const t8 = t8Workspace();
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
-    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"`,
+    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(t8.ws, "task-1-review-1.json")}"`,
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
@@ -1139,7 +1092,7 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
   const t8 = t8Workspace({ dirty: true });
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
-    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "$CDD_HANDOFF_PATH"`,
+    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(t8.ws, "task-1-review-1.json")}"`,
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(1);
@@ -1156,21 +1109,17 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
 
 it("runTask T8: post-run validateCommitContract — implement dirty tree → 实体化 handoff 覆写 BLOCKED + exit 1", async () => {
   const t8 = t8Workspace({ dirty: true });
-  const cli = path.join(t8.binDir, "fake-cli");
-  writeFileSync(cli, [
+  const restore = withFakeCli(t8.binDir, "fake-cli", [
     "#!/usr/bin/env bash",
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
     `printf '%s\\n' 'artifacts: report=${path.join(t8.ws, "task-1-report.md")}'`,
     "exit 0",
   ].join("\n"));
-  chmodSync(cli, 0o755);
-  const origPath = process.env.PATH;
-  process.env.PATH = `${t8.binDir}${path.delimiter}${origPath}`;
   try {
     const res = await runTask("ghost", 1, {
       mode: "implement",
-      env: baseEnv(t8.ws, { PATH: `${t8.binDir}${path.delimiter}${origPath}` }),
+      planFile: t8.planFile, root: t8.repo,
       registryPath: t8.regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
@@ -1180,6 +1129,6 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
     expect(h.status).toBe("BLOCKED");
     expect(h.blocker).toMatch(/uncommitted changes at return/);
   } finally {
-    process.env.PATH = origPath;
+    restore();
   }
 });

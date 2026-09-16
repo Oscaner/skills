@@ -1,5 +1,5 @@
 // packages/cdd-engine/tests/schema-utils.test.mjs
-// Validates against the REAL cdd-handoff-schema.json (no fabricated fs mock —
+// Validates against the REAL task-handoff-schema.json (no fabricated fs mock —
 // a fabricated schema would pass even if the shipped schema were corrupted).
 import { describe, it, expect } from 'vitest';
 import { validateHandoffSchema } from '../lib/handoff/schema.mjs';

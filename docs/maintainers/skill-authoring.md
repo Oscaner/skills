@@ -1,11 +1,11 @@
 # Skill Authoring Specification
 
-- **Version**: v1.1 · 2026-09-08
-- **Scope**: Sole format authority for all P4–P9 osuperpowers skill SKILL.md rewrites
-- **Audience**: This repository's maintainers + AI agents executing refactors
-- **Language**: English primary + zh-CN mirror (Strategy A — maintainer doc)
+- **Version**: v1.2 · 2026-09-16
+- **Scope**: Sole format authority for osuperpowers skill SKILL.md authoring (node-anchored form, post-P4)
+- **Audience**: This repository's maintainers + AI agents authoring skills
+- **Language**: English primary (authoritative source; no zh-CN mirrors)
 
-> **Reader notice**: This document is maintainer-only and is not shipped to the consumer environment with the plugin. Consumers see only content under `packages/*/`.
+> **Reader notice**: This document is maintainer-only and is not shipped to the consumer environment with the plugin (the package's `contentRoot` is `"."`, so only `packages/*/` publishes). Consumers see content under `packages/*/` only.
 
 ---
 
@@ -56,29 +56,29 @@ Every node's prose must include four elements: **Do / Read / Exit / Fail**:
 | **Exit** | Exit routing (success → next node; decision branch criteria) | Aligned with graph edges |
 | **Fail** | Failure mode → behavior (error / BLOCKED / retry / fail-open) | Complements the Failure Modes table |
 
-### Example: `read-grilling` node
+### Example: `run-grilling-session` node (delegated form)
 
 ```mermaid
 flowchart TD
-  A[read-grilling] -->|loaded| B[apply-grilling]
-  A -->|load failed| Z((BLOCKED))
+  A[run-grilling-session] -->|loaded| B[route]
+  A -->|missing| Z((BLOCKED))
 ```
 
-- **Do**: Read the grilling SKILL.md from mattpocock-skills and load its framework
-- **Read**: `vendors/mattpocock-skills/skills/productivity/grilling/SKILL.md`
-- **Exit**: File exists → `apply-grilling`; file missing → BLOCKED
-- **Fail**: Read error → report to user and ask for next step (skip or abort)
+- **Do**: Run a /mattpocock-skills:grilling session — the harness loads the upstream skill and runs its flow. Upstream flow steps are not restated here.
+- **Read**: nothing before the session — the delegated session resolves its own context; the node derives what it routes on from the session outcome
+- **Exit**: Session loaded → `route`; load failed (plugin/skill missing) → BLOCKED
+- **Fail**: Session exits with no usable outcome → report to user and ask for next step (skip or abort)
 
 ## 4. Invariants
 
 - Cross-node invariants, declared centrally in the `## Invariants` section
-- **Hard limit of 5** — if exceeded, check whether an item can be demoted to a node's Fail field (exception: `osuperpowers:brainstorming` holds 7 invariants due to P14's I6/I7 serialization/discipline rules; this exception was explicitly authorized in that skill's design spec v1.0 §2.4/§2.5 and is not a violation)
+- **Hard limit of 5** — if a skill's invariants approach the limit, the overflow must be demoted into node Fail fields, not accumulated. There is no project-specific exception to this limit: an invariant expressible inside a node belongs in that node's Do/Exit/Fail (the cross-node / node-local split decides placement), and exceeding the limit after demotion is a defect signal
 - Typical invariants:
   - Vendored submodules must not be modified
   - Commit discipline (commit when spec is approved)
-  - Language policy (English primary + zh-CN mirror)
-  - Block policy (missing Read-Upstream always → BLOCKED)
-  - Review Stopping (re-runs driven only by blockers)
+  - Language policy (English primary — no zh-CN mirrors)
+  - Session-call policy (delegated nodes invoke other plugins' flows only via `/plugin:skill` sessions — no upstream document reads)
+  - Review Stopping (re-runs driven only by blockers; fixes always dispatch via `cdd fix`)
 
 ## 5. Failure Modes Table
 
@@ -86,8 +86,8 @@ Cross-node failure-to-behavior mappings, located in the `## Failure Modes` secti
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream SKILL.md missing | BLOCKED (with install instructions) | Block policy: no silent fallback |
-| Sub-skill load failure | Report + ask user | Delegate Load Failure protocol |
+| Delegated session not installed | BLOCKED (with install instructions) | Block policy: no silent fallback |
+| Delegate load failure | Report + ask user | Delegate Load Failure protocol |
 | Harness not installed | BLOCKED (with registration prompt) | Cannot execute without a working harness |
 | Nested CLI timeout | Fail-open (log stderr) | Must not block the main flow |
 
@@ -102,35 +102,29 @@ BLOCKED node prose must include:
 2. **Recovery action**: Concrete install instructions or manual user steps
 3. **No silent fallback**: Explicit statement that degradation and skipping are prohibited
 
-**Block policy** (program-level constraint): All skills with Read-Upstream rules (brainstorming / writing-plans / finishing) must treat missing upstream baselines as an explicit BLOCKED node (with install instructions) — no degradation, no silent fallback.
+**Block policy** (program-level constraint): delegated skills (brainstorming / writing-plans / finishing) must treat a failed upstream session load (`A -->|missing| Z1((BLOCKED: install <plugin>))` terminal) as an explicit BLOCKED node with install instructions — no degradation, no silent fallback.
 
-## 7. init Legacy Content Exemption
+## 7. Session-call Primitive and Skill Forms
 
-- `skills/init/` harness-branch inline prose remains as-is (`router.md` was deleted in P9)
-- **Exemption scope**: Prose content inside harness branches (payload template text)
-- **Not exempted**: Branch structure, outer dispatch logic
-- **Exemption rationale**: init's payload is template text embedded in `harness.md`, not control flow — forcing node-anchoring would break payload readability
+All cross-skill invocation of another plugin's flow goes through the **session-call** primitive:
 
-## 8. Graph–Prose Consistency Checklist
+> `Run a /<plugin>:<skill> session`
 
-After P4–P9 rewrites, acceptance must pass these 4 checks:
+The harness loads the target skill and runs its flow as the session; the invoking node routes on the session outcome. Skills refer to upstream flows **only** in this slash form — never by upstream document path (zero upstream `vendors/` paths, zero upstream SKILL.md file paths, zero `Read-Upstream` wording), and a delegated flow's internal steps are never restated inside the node (the upstream session owns them).
 
-1. **Node coverage**: Every node ID in the graph has a corresponding prose section
-2. **Section alignment**: Every prose section heading aligns to a node ID (no orphaned sections)
-3. **No standalone Rules prose**: Rules must be attributed to a node (Do/Read/Exit/Fail) or to Invariants
-4. **No standalone Red Flags section**: Anti-patterns must be split into node Fail fields or Invariants
+Two SKILL.md forms follow from the primitive:
 
-## 9. Path String Edit Boundary (P3 Specific)
+**Delegated** — the skill is a thin orchestrator of upstream or sibling sessions: its nodes run `/<plugin>:<skill>` sessions and route on the outcome. Node **Do** = the session-call line plus the routing the node performs; node **Read** derives from the session outcome, not from upstream files. Examples: `brainstorming` (run-brainstorming-session → /superpowers:brainstorming; run-grilling-session → /mattpocock-skills:grilling), `writing-plans` (run-writing-plans-session → /superpowers:writing-plans), `finishing` (run-finishing-session → /superpowers:finishing-a-development-branch), and the spec-writers (→ /superpowers:brainstorming writing-spec design sessions).
 
-P3 permits edits to engine, template, and consumer SKILL.md limited to "documentation links / path strings only"; behavioral prose is deferred to P4–P9. Specific boundaries:
+**Native** — the skill executes its own flow via the engine CLI / local processing; there is no upstream session to delegate to, so control flow lives entirely in the skill's digraph and node **Do** fields state the engine invocation explicitly (command + args). Examples: `cli-driven-development` (the `cdd` implement → review → fix chain), `report-issue` (local session analysis + renderer/`gh` CLI).
 
-- ✅ Inter-document cross-reference links (`[text](path)`) — path portion only
-- ✅ Path strings in code comments
-- ✅ Path strings in test fixtures
-- ❌ Engine behavioral prose (control flow, exit codes, output contracts)
-- ❌ Skill Rules / Red Flags / Checklist prose structure
+A delegated skill may still contain native engine-CLI nodes (the spec-writers, for example, run the `cdd` review-fix loop natively after their delegated design session) — the form class names the skill's primary upstream-session delegation, not an exclusive node inventory.
 
-## 10. Anti-patterns (Node-anchored SKILL.md)
+## 8. Graph–Prose Consistency (single enforcement point)
+
+The four acceptance checks over every SKILL.md under `packages/osuperpowers/skills/` — node coverage, section alignment, no standalone `## Rules`, no standalone `## Red Flags` — are enforced by a single machine check: `packages/osuperpowers/tests/digraph-consistency.test.mjs` (no exemptions). Non-mechanical authoring judgment (naming, phrasing, rule placement) is manual.
+
+## 9. Anti-patterns (Node-anchored SKILL.md)
 
 Anti-patterns organized by the anatomy element where they manifest.
 When auditing a node, check only the patterns relevant to that element.
@@ -167,7 +161,7 @@ When auditing a node, check only the patterns relevant to that element.
 
 Behavioral logic in SKILL.md, templates, and docs must not reference GitHub issue numbers as authoritative sources. Issues are the forum for design discussion; once conclusions are committed to documentation, issue numbers should be removed from behavioral logic. Issue references in change history are exempt.
 
-## 11. Data-driven Template Convention
+## 10. Data-driven Template Convention
 
 When a new skill introduces template body text that is data-izable — text-shaped, referenced by multiple consumers, drift-prone (form field definitions, enumeration lists, section-label tables, issue-template bodies) — route it through the data-driven-templates convention: **canonical JSON single source → one pure renderer → emitted/derived products guarded by `pnpm run emit:check`**. Nodes defined here apply to prose control flow; template body text follows [data-driven-templates.md](data-driven-templates.md) (digraph `canonical → renderer → {emit product · runtime product} → round-trip guard`).
 
@@ -175,5 +169,6 @@ When a new skill introduces template body text that is data-izable — text-shap
 
 ## Change history
 
+- v1.2 · 2026-09-16 — Post-P4 rewrite: session-call primitive + delegated/native forms (§7); §8 collapsed to the single machine enforcement point (`digraph-consistency.test.mjs`); deleted §7 init legacy exemption (init removed) and §9 P3 path-string boundary (elapsed); §4 closes the spec-authorized exception escape hatch (limit remains a hard 5); language updated to English primary (zh-CN mirrors retired).
 - v1.1 · 2026-09-08 — Add §11 Data-driven template convention (data-izable template body text → canonical + renderer + emit guard).
 - v1.0 · 2026-08-26 — Initial version (P3 docs-infra): 9-section skeleton + read-grilling illustrative example + init legacy exemption rule.

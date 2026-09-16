@@ -6,17 +6,22 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { writeBaseBranch, validateBaseBranch, baseBranchPath } from "../state/workspace-artifacts.mjs";
 import { resolveWorkspace } from "../handoff/naming.mjs";
+import { getRoot, resolveDocArg } from "../root.mjs";
 import { exitWithCode } from "../exit.mjs";
 
 // resolveBaseBranchWorkspace(opts) → { workspace }。目标解析唯一落点：`--plan` 提供 →
-// CDD workspace（resolveWorkspace 经 workspaceSlug 收敛 slug）；缺 `--plan` →
-// CDD 必须 --plan → 明确报错 exit 2。
+// 先经 resolveDocArg 归一（仓根相对 → 绝对；不存在 → exit 1 三行诊断）再入
+// resolveWorkspace（workspaceSlug 收敛 slug）；缺 `--plan` → CDD 必须 --plan → 明确报错 exit 2。
+// base-branch 不经 resolveTargetDoc，是 `--plan` 的独立入口（read point ④）——两段不可只做后者，
+// 否则该命令保留第二套坐标系（仓根相对归一根本不发生）。
 export function resolveBaseBranchWorkspace(opts) {
   if (!opts.plan) {
     process.stderr.write("cdd base-branch: missing --plan — the sole target is --plan <path>\n");
     exitWithCode(2);
   }
-  return { workspace: resolveWorkspace(opts.plan) };
+  const root = opts.root ?? getRoot();
+  const normalizedPlan = resolveDocArg(opts.plan, root, "plan");
+  return { workspace: resolveWorkspace(normalizedPlan, root) };
 }
 
 // runBaseBranchSet(opts)：`set --base <branch> --source <enum> --plan <path> [--force]`。

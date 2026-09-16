@@ -63,22 +63,6 @@ function checkVersionSync() {
     }
   }
   console.log("OK —", osuperpowersPkg.version);
-
-  // init stamp: SKILL.md (version marker). router.md (written-table template) was
-  // deleted in P9 task 1 (design spec §1.1 — init router removed), so the stamp
-  // check covers SKILL.md only.
-  for (const rel of [
-    "packages/osuperpowers/skills/init/SKILL.md",
-  ]) {
-    const oeInit = readFileSync(join(root, rel), "utf8");
-    const stamp = oeInit.match(/<!-- osuperpowers-version: ([^ ]+) -->/);
-    if (!stamp || stamp[1] !== osuperpowersPkg.version) {
-      throw new Error(
-        `${rel} version stamp mismatch: ${stamp?.[1]} vs ${osuperpowersPkg.version}`,
-      );
-    }
-  }
-  console.log("OK — init SKILL.md stamp", osuperpowersPkg.version);
 }
 
 // Single in-process step (not a `node scripts/validate/version-sync.mjs` subprocess,

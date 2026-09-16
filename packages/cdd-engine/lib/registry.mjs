@@ -38,7 +38,7 @@ export function registryField(reg, harness, field) {
 //   entry.prefix[op] 为 object（review 子键 type: task|branch|spec|plan）→ 按 type 取，无 type → 空；
 //   缺省（无 prefix / 无 op / 子键缺失）→ 空串，避免静默注入假值。
 // 兜底语义：op 传 legacy mode 键（扁平 string 键）时直接命中 —— 未迁移的
-// registry（/CDD_REGISTRY_PATH 覆盖）不会静默空注入。
+// registry 不会静默空注入。
 function resolveInjectionField(entry, field, op, type) {
   const v = entry?.[field]?.[op] ?? "";
   if (v && typeof v === "object") return type ? (v[type] ?? "") : "";
@@ -66,7 +66,7 @@ export function cliInPath(cli) {
 
 // Registry ship gate + CLI preflight（对齐 cdd_check_harness 顺序：先 ship gate，
 // 后 CLI 校验）。返回解析到的 harness 条目（含 cli）。opts.dryRun 跳过 PATH 校验
-// （对齐 CDD_DRY_RUN=1 —— 参数解析/编排冒烟测试不得依赖真实 CLI 二进制）。
+// （dry-run —— 参数解析/编排冒烟测试不得依赖真实 CLI 二进制）。
 export function checkHarness(reg, harness, opts = {}) {
   const { dryRun = false } = opts ?? {};
   const entry = reg?.[harness];

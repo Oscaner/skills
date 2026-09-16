@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // scripts/validate/smoke-cdd.mjs — CDD engine dry-run smoke (`node scripts/run.mjs smoke-cdd`).
 // Runs the four-command chain (`cdd implement` / `cdd review --type task` /
-// `cdd fix --type task` / `cdd review --type branch`) with CDD_DRY_RUN=1 and asserts each
-// command's last stdout block is the 4-line H1 contract (status/commits/artifacts/blocker).
+// `cdd fix --type task` / `cdd review --type branch`) with the program-level `--dry-run` flag
+// (argv, ahead of the subcommand) and asserts each command's last stdout block is the 5-line H1
+// contract (status/commits/artifacts/blocker/counters).
 // Then runs the T7 deletion-surface sweep — the P5 clearance inventory as a durable gate
 // (retired gate/harness/select vocab must stay out of mechanism/document positions, dead
 // artifacts must stay absent). Depends on Node built-ins + execa + the sibling residue.mjs
@@ -47,26 +48,29 @@ export function main() {
   // real run; fix consumes it via --findings (parseReview→fix wiring). Under dry-run neither
   // writes nor reads the file — only the arg plumbing is exercised.
   const cmds = [
-    [...cdd, "implement", "--task", "1", "--plan", plan],
-    [...cdd, "review", "--type", "task", "--task", "1", "--plan", plan],
-    [...cdd, "fix", "--type", "task", "--task", "1", "--plan", plan,
+    [...cdd, "--dry-run", "implement", "--task", "1", "--plan", plan],
+    [...cdd, "--dry-run", "review", "--type", "task", "--task", "1", "--plan", plan],
+    [...cdd, "--dry-run", "fix", "--type", "task", "--task", "1", "--plan", plan,
       "--findings", path.join(".osuperpowers", "cdd", slug, "task-1-review-1.json")],
-    [...cdd, "review", "--type", "branch", "--plan", plan, "--base", head, "--head", head],
+    [...cdd, "--dry-run", "review", "--type", "branch", "--plan", plan, "--base", head, "--head", head],
   ];
   for (const [i, args] of cmds.entries()) {
     // Array form (no shell join) — every arg is a fixed constant today; keeps arg quoting if they ever change.
+    // `--dry-run` is a program-level flag and must lead the argv (commander only resolves it there).
     // T3: harness flag removed — host resolution is env-driven; inject CLAUDE_CODE_SESSION_ID=1
     // so the smoke's four commands resolve the host as claude deterministically (CI has no session markers).
-    const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CDD_DRY_RUN: "1", CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
+    const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
     const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
-    // The four literals mirror the engine's 4-line H1 contract verbatim. Authoritative emitters:
-    // packages/cdd-engine/bin/lib/runner.mjs dryRunH1Block (implement/review/fix) and
-    // packages/cdd-engine/bin/cdd.mjs runBranchReview DRY_RUN block — coordinate H1 shape there too.
+    // The five literals mirror the engine's 5-line H1 contract verbatim. Authoritative emitters:
+    // lib/runner/run-task.mjs h1FourLines（stdout/res.h1 面）· h1FromHandoff（回读重发面）·
+    // lib/cli/branch-review.mjs DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
+    // counters 行由 lib/state/progress.mjs h1CountersLine 派生（缺 progress.json 时零值兜底）。
     const ok = /status: APPROVED/m.test(lastBlock)
       && /commits: base=/.test(lastBlock)
       && /artifacts: /.test(lastBlock)
-      && /blocker: /.test(lastBlock);
-    if (!ok) throw new Error(`smoke step ${i + 1}: last block is not the 4-line H1 contract: ${JSON.stringify(lastBlock)}`);
+      && /blocker: /.test(lastBlock)
+      && /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/m.test(lastBlock);
+    if (!ok) throw new Error(`smoke step ${i + 1}: last block is not the 5-line H1 contract: ${JSON.stringify(lastBlock)}`);
   }
   console.log("OK — cdd-engine dry-run smoke (4 commands)");
   checkDeletionSurface();

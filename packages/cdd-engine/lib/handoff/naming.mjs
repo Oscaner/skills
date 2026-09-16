@@ -4,7 +4,6 @@
 // workspaceSlug / resolveWorkspace 实现 workspaceRoot + slugRule（.osuperpowers/cdd/<slug>/）。
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { gitToplevel } from "../contract/commit.mjs";
 
 const NAMESPACE = JSON.parse(
   readFileSync(new URL("../../templates/handoff-namespace.json", import.meta.url), "utf8"));
@@ -116,26 +115,9 @@ export function workspaceSlug(doc) {
   return base.replace(/-(?:design|plan)$/, "");
 }
 
-// resolveWorkspace(doc) → <gitRoot>/<workspaceRoot>/<slug>。
-// gitToplevel(dirname(doc)) 优先（真实 doc 路径必然在 repo 内）；无 git（测试/dry-run fake 路径）回落
-// canonical 布局标记 `docs/osuperpowers/{specs,plans}/` 推导 root。两者均失败 → throw。
-export function resolveWorkspace(doc) {
-  const root = gitToplevel(path.dirname(path.resolve(doc))) ?? rootFromDocPath(doc);
-  if (!root) throw new Error("resolveWorkspace: not in a git repo");
+// resolveWorkspace(doc, root) → <root>/<workspaceRoot>/<slug>。root 由调用方注入（getRoot()）。
+export function resolveWorkspace(doc, root) {
+  if (!root) throw new Error("resolveWorkspace: root required (injected from lib/root.mjs)");
   return path.join(root, NAMESPACE.workspaceRoot, workspaceSlug(doc));
 }
 
-// canonical 布局推导：<root>/docs/osuperpowers/{specs,plans}/… 中 `docs`+`osuperpowers` 段之前的路径即 gitRoot。
-// ⚠️ 引擎内独立副本：本段对须与仓工具链单源 `scripts/lib/doc-root.mjs#DOC_ROOT_SEGMENTS` 同步变更
-// （引擎为可独立发布的包，不 import 本仓 scripts/——故以注释交叉引用而非共享模块）。
-// 严格配对（`osuperpowers` 后须随 `specs`/`plans`）——运行根 `.osuperpowers/cdd/…` 的 `.osuperpowers`
-// 段带前导点 ≠ `osuperpowers`，段相等性天然不串。
-function rootFromDocPath(doc) {
-  const segments = path.resolve(doc).split(path.sep);
-  for (let i = 0; i < segments.length - 2; i++) {
-    if (segments[i] === "docs" && segments[i + 1] === "osuperpowers" && ["specs", "plans"].includes(segments[i + 2])) {
-      return segments.slice(0, i).join(path.sep) || path.sep;
-    }
-  }
-  return null;
-}

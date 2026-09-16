@@ -3,8 +3,6 @@
 // / teardownAll（run 边界 + CLI 信号连根回收）/ reapDone（进程内 idle 监视低频回收）
 // / reapStale（跨 run 孤儿兜底）。registry 双写内存 + 落盘（.osuperpowers/cdd/lifecycle.json），
 // 父死场景由下次启动跨 run 扫回。
-// `__registryForTest` / `__resetForTest` 为测试内省导出（vitest seam）；`__` 前缀标记测试专用，
-// 随包发布但无副作用（仅读内置 registry / 重置模块态，非正式 API）。
 import { execa } from "execa";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -23,14 +21,6 @@ let idleTimer = null;
 export function initProcLifecycle({ diskPath: dp }) {
   diskPath = dp ?? "";
 }
-
-// 测试内省 seam（vitest NODE_ENV=test 才导出；生产/发布态为 undefined —— 不构成发布面测试表）。
-// `__registryForTest` / `__resetForTest`：`__` 前缀标记测试专用；随包发布但仅在测试环境有值。
-const TEST_SEAM = process.env.NODE_ENV === "test";
-export const __registryForTest = TEST_SEAM ? () => registry : undefined;
-export const __resetForTest = TEST_SEAM
-  ? () => { registry = []; stopIdleMonitor(); }
-  : undefined;
 
 export async function persistRegistry() {
   if (!diskPath) return;
@@ -65,6 +55,10 @@ function cleanEnv(env) {
 // 统一工厂：detached 进程组 + 即时注册。保持五字段契约 {ok, code, stdout, stderr, timedOut}。
 export async function spawnManaged(command, args, opts = {}) {
   const { cwd, env, timeoutMs } = opts;
+  // 超时判定自持（T6，AC7）：spawn 时记录计时起点，返回时以 elapsed 与退出形态复核 ——
+  // res.timedOut 不再是唯一来源。实证（§2.5.2 现状）：30 分钟量级 dispatch 被 SIGTERM 后
+  // 以 exit 143 返回，execa 的 res.timedOut 未置位 → 落入 agentRc!==0 分支、timeoutCount 停在 0。
+  const start = Date.now();
   // execa 返回体 = subprocess（promise × child_process 混合体）：pid 挂在 subprocess 上，
   // await 后的结果对象不携带 pid（res.pid === undefined）—— 必须先取 sub.pid 再 await。
   const sub = execa(command, args, {
@@ -94,7 +88,21 @@ export async function spawnManaged(command, args, opts = {}) {
     await persistRegistry();
   }
   const res = await sub;
-  const timedOut = res.timedOut ?? false;
+  // 自持判定两条任一命中即 timedOut（res.timedOut 不是唯一来源——实证 §2.5.2：SIGTERM 终止的
+  // dispatch，execa 不置 timedOut，否则落入 agentRc!==0 分支、timeoutCount 停在 0）。
+  //   ① 计时：elapsed >= timeoutMs - ε。ε=100ms 把判定线**提前**到 timeoutMs - ε——逼近预算上限完成的
+  //      dispatch 一律按超时处理：保守分类，兜住 SIGTERM-race / SIGKILL 类形态进入 agentRc 分支；
+  //      不是「避免恰边界完成被误标」（若目标是放宽，判定式应为 >= timeoutMs + ε）。ε 远小于任何真实
+  //      timeout（含测试面最小的 CDD_TASK_TIMEOUT=1s），预设内正常完成（exitCode 0）不受影响。
+  //      execa 超时在 kill 周期上 resolve，elapsed 必越过该线——res.timedOut 丢失时以此兜底。
+  //   ② signal === "SIGTERM"：SIGTERM 形态的判定面是 res.signal（被信号终止/吞信号均报告 signal 字段）。
+  //      不以 exit code 143 判定——execa 9.6.1 的 res.code 只承载 spawn 错误（如 ENOENT），真实退出码
+  //      在 res.exitCode（SIGTERM 默认处置 → exitCode 143 / code undefined）；若改用 res.exitCode === 143，
+  //      预算内自然以 143 退出的 dispatch 会被误判为超时（与 ① 的「预设内完成不算超时」口径冲突）。
+  const TIMEOUT_EPSILON_MS = 100;
+  const timedOut = res.timedOut === true
+    || (timeoutMs != null && Date.now() - start >= timeoutMs - TIMEOUT_EPSILON_MS)
+    || res.signal === "SIGTERM";
   return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut };
 }
 

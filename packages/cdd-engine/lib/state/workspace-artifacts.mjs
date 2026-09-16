@@ -18,7 +18,8 @@ export function baseBranchPath({ workspace }) {
   return path.join(workspace, "base-branch.json");
 }
 
-// briefPath：与 run-task.mjs CDD_TASK_BRIEF 默认值同一派生（`<ws>/task-<N>-brief.md`），单一真相。
+// briefPath：brief 文件路径的单一派生点（`<ws>/task-<N>-brief.md`）—— run-task.mjs 的 buildCtx 经
+// 本函数取 ctx.briefPath（勿在消费侧内联同形字面量，否则单一权威名存实亡）。
 export function briefPath({ workspace, task }) {
   return path.join(workspace, `task-${task}-brief.md`);
 }

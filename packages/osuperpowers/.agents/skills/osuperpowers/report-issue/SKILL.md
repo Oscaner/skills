@@ -89,10 +89,10 @@ Derivations (pure functions):
 
 - **Do**: For each finding, query `gh issue list --repo Oscaner/skills --state all --limit 100 --json number,title,body,state`. Match case-insensitively by **affected component** + **core behavior words** (e.g. `timeout` / `CHANGES_REQUESTED` / `exit 137`) + **title/body keywords**:
   - **Open match** → append to the matched issue (dedup attach).
-  - **Closed match** → never reopen (I4); file on the resolved destination and pass `related` = `Regression / follow-up of #NNN (closed)`.
+  - **Closed match** → never reopen; file on the resolved destination and pass `related` = `Regression / follow-up of #NNN (closed)`.
   - **No match** → append to the resolved destination (resolution target or session master).
 - **Read**: `gh issue list` output; confirmed findings
-- **Exit**: dedup decisions complete → `append-comment`
+- **Exit**: dedup decisions complete — closed matches never reopened (filed with `## Related` = `Regression / follow-up of #NNN (closed)`) → `append-comment`
 - **Fail**: `gh` unavailable / network failure → fail-open (record stderr, keep finding for manual retry)
 
 ### `append-comment`
@@ -127,7 +127,6 @@ Derivations (pure functions):
 |---|---|
 | I1 | **Confirm Gate** — no gh issue is created or commented on before explicit user confirmation (hard gate at `confirm`) |
 | I3 | **Manual Trigger Only** — report-issue runs only on manual trigger, never automatically |
-| I4 | **Never Reopen** — dedup queries `--state all`; closed matches are never reopened — the finding is filed with `## Related` = `Regression / follow-up of #NNN (closed)` |
 | I5 | **Renderer Determinism** — every finding body and the master body is produced by `scripts/report-templates.mjs` (`--mode comment` / `--mode master`); no hand-assembled paragraph structure in this skill |
 | I6 | **Evidence Contract** — findings never carry consumer-identifiable data (branch names, absolute paths, filenames, process counts, RSS values, launch dirs, session habits) — such context enters only on consumer opt-in at `confirm` — AND findings always describe a maintainer-reproducible mechanism (trigger conditions / mechanism / expected behavior / reproduction steps; describe mechanism, not measurement) |
 | I7 | **Kind Enumerated** — every finding's report-meta `kind` is exactly one of `program` / `consumer-cdd` / `standalone`, derived from channel × workspace (Session Context), never an author-chosen input |

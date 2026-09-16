@@ -2,23 +2,29 @@
 import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { loadHandoffSchema } from '../lib/handoff/schema.mjs';
+import { renderHandoffStub } from '../lib/templates.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ENGINE = path.join(__dirname, '..');
+const TEMPLATES = path.join(ENGINE, 'templates');
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
     existsSync: vi.fn((p) => String(p).endsWith('.md') || String(p).endsWith('.json')),
-    readFileSync: vi.fn((p) => {
-      if (String(p).includes('cdd-handoff-schema.json')) {
-        return JSON.stringify({ type: 'object', required: ['task', 'phase', 'status', 'findings', 'artifacts', 'blocker'], properties: { task: { type: 'integer' }, phase: { type: 'string' }, status: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' }, blocker: { type: 'string' } } });
-      }
-      // canonical JSON（reviews.json / handoff-namespace.json / review.md）：透传真实文件
-      // （不内联副本 → 消除 drift；模板真身由 templates.content.test.mjs 锚定）。
-      // handoff-namespace.json 名的字符串含 "namespace" 至 "reviews.json" 判断之前不误伤（先判 namespace）。
+    readFileSync: vi.fn((p, enc) => {
+      // Task 18：schema / canonical JSON / 模板 一律透传真实文件（不内联副本 → 消除 drift）。
+      // 旧 fabricated schema 副本与 canned implement.md 字符串已删 ——
+      // schema 原样注入断言需读写的是**真身**（模板真身另由 templates.content.test.mjs 锚定）。
+      if (String(p).includes('task-handoff-schema.json')) return actual.readFileSync(p, 'utf8');
+      if (String(p).includes('docs-handoff-schema.json')) return actual.readFileSync(p, 'utf8');
       if (String(p).includes('handoff-namespace.json')) return actual.readFileSync(p, 'utf8');
       if (String(p).includes('reviews.json')) return actual.readFileSync(p, 'utf8');
       if (String(p).includes('review.md')) return actual.readFileSync(p, 'utf8');
-      if (String(p).endsWith('implement.md')) return 'brief: {{BRIEF}}\nhandoff: {{HANDOFF}}\n{{HANDOFF_STUB}}';
+      if (String(p).includes('templates') && String(p).endsWith('.md')) return actual.readFileSync(p, 'utf8');
       return '';
     }),
   };
@@ -62,8 +68,8 @@ describe('review type config (Task 4: 模板数据化)', () => {
   it('reviewArtifactConfig: canonical review.{type} 族 → { schema, return }（T2 裁轴；fixFamily 已删——runFix 直读 fix 族）', async () => {
     vi.resetModules();
     const { reviewArtifactConfig } = await import('../lib/templates.mjs');
-    expect(reviewArtifactConfig('task')).toEqual({ schema: 'cdd', return: 'h1' });
-    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'cdd', return: 'h1' });
+    expect(reviewArtifactConfig('task')).toEqual({ schema: 'task', return: 'h1' });
+    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'task', return: 'h1' });
     expect(reviewArtifactConfig('spec')).toEqual({ schema: 'docs', return: 'json' });
     expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json' });
     expect(() => reviewArtifactConfig('nope')).toThrow(/unknown handoff family/);
@@ -80,7 +86,7 @@ describe('review type config (Task 4: 模板数据化)', () => {
     expect(out).toContain('7a7327b..HEAD');               // ref 具体化为 FIXED_POINT..HEAD
     expect(out).toContain('code-review smell baseline');   // axesGuide → code-review 焦点
     expect(out).toContain('/ws/task-1-review-1.json');
-    expect(out.indexOf('## Handoff')).toBeLessThan(out.indexOf('## Return (H1')); // Bug C 排序保持
+    expect(out.indexOf('## Handoff')).toBeLessThan(out.indexOf('## Return')); // Bug C 排序保持（T18 后为共享 ## Return 壳）
     expect(out).not.toContain('{{HANDOFF_STUB}}'); // r2-r3 泄漏回归：共享壳 stub 槽必须被替换
   });
 });
@@ -105,5 +111,61 @@ describe('renderTemplate', () => {
     vi.resetModules();
     const { renderTemplate } = await import('../lib/templates.mjs');
     expect(() => renderTemplate('review', { TYPE: 'spec', WORKSPACE: '/ws' }, 'test')).toThrow('missing param');
+  });
+
+  it('模板名映射（Task 18）：`fix/docs.md` 经 name=docs 解析；doc-fix 名已删', async () => {
+    vi.resetModules();
+    const { templatePath } = await import('../lib/templates.mjs');
+    expect(templatePath('docs')).toMatch(/templates\/fix\/docs\.md$/);
+    expect(templatePath('fix')).toMatch(/templates\/task\/fix\.md$/);
+    expect(() => templatePath('doc-fix')).toThrow(/unknown template/);
+  });
+});
+
+// ---- Task 18：templates 结构与命名单源 — 4 模板同骨架 + schema 原样注入 + 零手写 render ----
+
+describe('templates 结构命名单源（Task 18：schema 原样注入 + 共享 Handoff/Return 壳）', () => {
+  const TEMPLATE_FILES = ['task/implement.md', 'task/fix.md', 'review/review.md', 'fix/docs.md'];
+
+  it('4 模板同一骨架：每份含且仅含 Instructions / Handoff / Return 三个二级段', () => {
+    for (const f of TEMPLATE_FILES) {
+      const src = readFileSync(path.join(TEMPLATES, f), 'utf8');
+      const secs = [...src.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+      expect(secs, f).toEqual(['Instructions', 'Handoff', 'Return']);
+    }
+  });
+
+  it('Handoff 段为 schema 原样注入（含 description，零手写 render）', () => {
+    const schema = loadHandoffSchema('task');
+    const stub = renderHandoffStub(schema);
+    expect(JSON.parse(stub.replace(/^```json\n/, '').replace(/\n```$/, ''))).toEqual(schema);
+  });
+
+  it('零手写 render 符号', () => {
+    const src = readFileSync(path.join(ENGINE, 'lib/templates.mjs'), 'utf8');
+    // 经拼接构造（residue.test 先例）：本文件不得成为被守卫语汇的载体 —— 否则 T18 Step 7 的
+    // 机制面 grep（lib/ + templates/）在含 tests/ 的全扫下会命中自身。
+    const GONE = [['stub', 'Annotation'], ['satis', 'fiesProp'], ['pattern', 'Sample'], ['required', 'Keys'], ['stub', 'Scalar'], ['renderAllOf', 'Conditions']]
+      .map(([a, b]) => a + b);
+    for (const gone of GONE) {
+      expect(src, gone).not.toMatch(new RegExp(`\\b${gone}\\b`));
+    }
+  });
+
+  it('共享壳骨架：每份 Handoff 段 HARD_GATE → 写入句 → HANDOFF_STUB 顺位；Return 段带 task/docs return 壳', () => {
+    for (const f of TEMPLATE_FILES) {
+      const src = readFileSync(path.join(TEMPLATES, f), 'utf8');
+      const handoff = src.slice(src.indexOf('## Handoff'), src.indexOf('## Return'));
+      expect(handoff, f).toContain('{{HARD_GATE}}');
+      expect(handoff, f).toContain('{{HANDOFF_STUB}}');
+      expect(handoff, f).toMatch(/Write\/update `\{\{HANDOFF\}\}` per the schema above/);
+      expect(handoff.indexOf('{{HARD_GATE}}'), f).toBeLessThan(handoff.indexOf('{{HANDOFF_STUB}}'));
+      const ret = src.slice(src.indexOf('## Return'));
+      if (f === 'fix/docs.md') {
+        expect(ret, f).not.toContain('{{H1_BLOCK}}');           // docs 族 return = JSON 说明
+      } else {
+        expect(ret, f).toContain('{{H1_BLOCK}}');               // task 族 return = 共享 H1 壳
+      }
+    }
   });
 });

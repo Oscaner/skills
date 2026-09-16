@@ -82,14 +82,15 @@ test("5b node:test 跑行为 + 引擎两棵树；旧 shell 测试不 invoke", ()
   }
 });
 
-// 4. rule-reference.test.mjs invoked via node --test (semantic mode is enforced
-// by the suite's real-scan test case, not CLI args)
-test("rule-reference.test.mjs invoked via node --test", () => {
-  const rr = steps.find((s) => s.name.includes("rule-reference.test.mjs"));
-  assert.ok(rr, "rule-reference.test.mjs not invoked");
-  assert.equal(rr.cmd, "node", "rule-reference must run under node");
-  assert.ok(rr.args.includes("--test"), "rule-reference must run via node --test");
-  assert.ok(rr.args.some((a) => a.includes("rule-reference.test.mjs")), "rule-reference.test.mjs path missing");
+// 4. rule-reference suite removed (T16 Step 2 ③) — reverse assertion: no step may
+// reference rule-reference (suite file + validate wiring + ci-validate wiring are
+// deleted in the same commit). The old case asserted the step EXISTS, which went red
+// the moment the validate wiring was removed — this keeps AC13 reachable.
+test("rule-reference step removed with the suite", () => {
+  assert.ok(
+    !steps.some((s) => s.name.includes("rule-reference")),
+    "rule-reference step must be removed with the suite",
+  );
 });
 
 // 5. node:test behavior + engine suites wired (T2 removed init/utils suite globs — the
@@ -111,6 +112,24 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/bin"), "zero-residue grep misses cdd-engine/bin");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/lib"), "zero-residue grep misses cdd-engine/lib (re-org: mechanism files moved into lib/)");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
+});
+
+// 6b. channel-audit scope pinned (T8): the 5c step must carry channelTargets covering the
+// §2.8 行 1–11、13 guard scopes — a future edit silently narrowing one fails the wiring guard.
+test("5c channel-audit targets pinned (T8)", () => {
+  const zr = steps.find((s) => s.name.startsWith("5c."));
+  assert.ok(zr, "zero-residue check missing");
+  assert.ok(Array.isArray(zr.channelTargets), "5c step missing channelTargets meta");
+  for (const p of [
+    "packages/cdd-engine/bin",
+    "packages/cdd-engine/lib",
+    "packages/cdd-engine/templates/schema",
+    "packages/cdd-engine/tests",
+    "packages/osuperpowers/skills",
+    "scripts",
+  ]) {
+    assert.ok(zr.channelTargets.includes(p), `channel-audit scope misses ${p}`);
+  }
 });
 
 // 7. the wiring guard itself is invoked by the orchestrator (guards the guard)

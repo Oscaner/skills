@@ -10,12 +10,13 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_DIR = path.resolve(HERE, "..", "skills");
 
-// Find all SKILL.md files (exclude init — legacy exemption per skill-authoring §7)
+// Find all SKILL.md files under the skills dir (no exemptions — the init legacy
+// exemption and the rule-reference suite are both gone, skill-authoring §7 deleted)
 import { readdirSync } from "node:fs";
 
 const SKILL_FILES = [];
 for (const ent of readdirSync(SKILLS_DIR, { withFileTypes: true })) {
-  if (ent.isDirectory() && ent.name !== "init") {
+  if (ent.isDirectory()) {
     const p = path.join(SKILLS_DIR, ent.name, "SKILL.md");
     try { readFileSync(p); SKILL_FILES.push({ name: ent.name, path: p }); } catch {}
   }

@@ -22,7 +22,7 @@ const findingMeta = JSON.parse(readFileSync(path.resolve(
 describe("report-templates", () => {
   it("隐私迁移后 3 个 yml 渲染产物无 Branch", () => {
     for (const n of Object.keys(findingMeta.formFieldDefs)) {
-      expect(renderYml(findingMeta.formFieldDefs[n])).not.toMatch(/Branch/);
+      expect(renderYml(findingMeta.formFieldDefs[n], findingMeta)).not.toMatch(/Branch/);
     }
   });
 

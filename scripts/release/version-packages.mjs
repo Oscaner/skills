@@ -116,29 +116,9 @@ export async function main({ dryRun } = {}) {
 
     osuperpowersPkg.version = osuperpowersNext;
     writeJson(osuperpowersPkgPath, osuperpowersPkg);
-
-    // Sync osuperpowers version to the init self-check stamp (the only SOT outside
-    // package.json besides the manifest and derived emit products). SKILL.md holds
-    // the version marker, so only SKILL.md is synced here.
-    // marketplace/source.json and the per-harness manifests are derived emit products
-    // — the emit re-derives them from package.json, so no direct source.json write.
-    for (const initPath of [
-      "packages/osuperpowers/skills/init/SKILL.md",
-    ]) {
-      const init = readFileSync(join(root, initPath), "utf8");
-      const stamped = init.replace(
-        /<!-- osuperpowers-version: [^ ]+ -->/,
-        `<!-- osuperpowers-version: ${osuperpowersNext} -->`,
-      );
-      if (stamped === init) {
-        throw new Error(`${initPath} missing osuperpowers-version stamp`);
-      }
-      if (DRY) {
-        console.log(`  [dry-run] stamp ${initPath} → osuperpowers-version ${osuperpowersNext}`);
-        continue;
-      }
-      writeFileSync(join(root, initPath), stamped);
-    }
+    // Version truth = package.json + emit products (.claude-plugin / .cursor-plugin /
+    // marketplace). The init self-check stamp (writer side) was removed with T10 — the
+    // reader side (validate/version-sync.mjs) dropped its stamp block in lockstep.
   }
 
   // ---- record which plugins were actually versioned (release workflow) ----

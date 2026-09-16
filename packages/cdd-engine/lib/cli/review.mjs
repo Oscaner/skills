@@ -10,9 +10,9 @@ import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../regist
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, reviewHardGate } from "../templates.mjs";
 import * as handoffNaming from "../handoff/naming.mjs";
 import { hashFile } from "../runner/review-loop.mjs";
-import { gitToplevel } from "../contract/commit.mjs";
 import { exitWithCode } from "../exit.mjs";
 import { withLifecycle } from "../lifecycle/proc.mjs";
+import { getRoot, resolveDocArg } from "../root.mjs";
 import { DRY_RUN, requireHostHarness, resolveTargetDoc, reviewStoppingGuard } from "./shared.mjs";
 
 // ---- review-specific helpers ----
@@ -37,7 +37,7 @@ export function existingRoundHandoff(ws, type, round) {
 // review --type task 的 task workspace 派生（task 派生点：与 run-task resolveWorkspace 同源 workspaceSlug）。
 // plan 文件名 → <repoRoot>/<workspaceRoot>/<slug>——slug 经 handoff-naming.workspaceSlug 收敛
 // （-design/-plan 单层 strip），基路径经 workspaceRoot 常量（不硬编码字面量），两派生点防分叉回归
-// 见 tests/cli-shared.test.mjs（§2.9 row 6）。导出为纯函数（test seam）：gitToplevel 由调用方注入。
+// 见 tests/cli-shared.test.mjs（§2.9 row 6）。导出为纯函数（test seam）：repoRoot 由调用方注入。
 export function taskReviewWorkspace(plan, repoRoot) {
   return path.join(repoRoot, handoffNaming.workspaceRoot, handoffNaming.workspaceSlug(plan));
 }
@@ -49,6 +49,9 @@ export async function runReview(opts) {
   return withLifecycle(async () => {
   // Host harness gate — harness 不再由 CLI 参数传入（T3），由环境 host 判定并向下传入。
   const harness = requireHostHarness();
+  // 根注入位（P4 §2.3.1 根注入契约）：进程内调用方可显式注入 root（无 reset / env / ForTest 缝），
+  // 黑盒路径回落 initRoot() 已初始化的单例。本文件所有 root 消费点统一用它。
+  const root = opts.root ?? getRoot();
   // type=branch: independent git-diff-level path (former branch-review bin action + AC15 wiring).
   if (opts.type === "branch") {
     if (!opts.plan) {
@@ -72,7 +75,7 @@ export async function runReview(opts) {
     const { runDocsTask } = await import("../runner/run-docs.mjs");
     // spec/plan: round = engine auto-increment（canonical review.{type} 族模式扫描）；--round only
     // validates backfill (conflict → exit 2).
-    const ws = handoffNaming.resolveWorkspace(doc);
+    const ws = handoffNaming.resolveWorkspace(doc, root);
     const round = handoffNaming.resolveNextRound(ws, "review", opts.type);
     if (opts.round && Number(opts.round) !== round) {
       process.stderr.write(`--round ${opts.round} ≠ engine round ${round}\n`);
@@ -117,7 +120,7 @@ export async function runReview(opts) {
         PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
         HARD_GATE: reviewHardGate(art.return, handoffPath),
       },
-      workspace: ws, repoRoot: gitToplevel(process.cwd()),
+      workspace: ws, repoRoot: root,
       dryRun: DRY_RUN(),
     });
     return;
@@ -138,7 +141,10 @@ export async function runReview(opts) {
   }
   // Workspace slug derives from the plan filename (workspaceSlug 收敛 -design/-plan 单层 strip);
   // task Stopping reads the latest task-{N}-review-{R}.json and rejects when its blockers = 0.
-  const taskWs = taskReviewWorkspace(opts.plan, gitToplevel(process.cwd()));
+  // `--plan` 二次消费点（read point ②）：先经 resolveDocArg 归一（仓根相对 → 绝对）再派生 workspace，
+  // 否则 task workspace 会保留第二套坐标系（cwd 相对）。
+  const taskPlan = resolveDocArg(opts.plan, root, "plan");
+  const taskWs = taskReviewWorkspace(taskPlan, root);
   // task round 经 canonical 派生层 type-aware resolveNextRound 推导（op/type 四参签名；
   // 显式透传 {task} pin → 防 scan 形态 {task}→\d+ 跨 task 混计 rounds）。
   const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { task: opts.task });
@@ -158,7 +164,7 @@ export async function runReview(opts) {
   const { runTask } = await import("../runner/run-task.mjs");
   await runTask(harness, opts.task, {
     mode: "review", dryRun: DRY_RUN(),
-    env: { ...process.env, ...(opts.plan ? { PLAN_FILE: opts.plan } : {}) },
+    planFile: opts.plan,
   });
   });
 }

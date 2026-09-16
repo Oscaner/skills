@@ -5,6 +5,17 @@
   "properties": {
     "phase":     { "type": "string", "enum": ["review", "fix"] },
     "status":    { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"] },
+    "failure_category": {
+      "type": "string",
+      "enum": [
+        "TIMEOUT",
+        "CONTRACT_VIOLATION",
+        "ENGINE_SELF_WRITTEN",
+        "EXECUTION_FAILURE",
+        "UNVERIFIABLE",
+        "PLAN_CONFLICT"
+      ]
+    },
     "doc_path":  { "type": "string" },
     "doc_hash":  { "type": "string" },
     "findings":  { "type": "array" },

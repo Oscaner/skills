@@ -6,10 +6,9 @@ import path from "node:path";
 
 // T8: progress schema 删除 lastDispatchHead/degradationLog（死字段；check-head/engine-recovery 退化，
 //  deriveReviewStatus/engineRecoveryCount 取代），degradationLogItem 随 degradationLog 一并废弃。
-const PROGRESS_SCHEMA = {
-  required: ["plan", "timeoutCount", "engineRecoveryCount", "tasks"],
-  tasksItem: { required: ["task", "status", "rounds"], statusEnum: ["pending", "complete"] },
-};
+// T6: 死常量 PROGRESS_SCHEMA 整块删除 —— 全仓零消费方（grep 仅命中定义行），改它没有任何可观察
+//  差异。progress.json 的键集落库形此后由 createEmptyProgress（初值形）+ migrateIfNeeded 补齐分支
+// （存量迁移形）二者共同承载，机械保障 = tests/progress.test.mjs 的六键词法序断言 + 补齐断言。
 
 // readProgressJSON: read progress.json from progressDir.
 // Transparent migration: if progress.json missing but progress.md exists, migrate first.
@@ -42,10 +41,14 @@ export function writeProgressJSON(progressDir, data) {
 
 // createEmptyProgress: create a fresh progress object for a given plan.
 // T8: 死字段（lastDispatchHead/degradationLog）已删 —— progress.json 顶层仅 plan/timeoutCount/engineRecoveryCount/tasks。
+// T6: 增 contractViolationCount / engineSelfWrittenCount 两计数器字段（初值 0）——六键与 canonical
+//  计数器列（templates/failure-categories.json）逐字一致（tests/progress.test.mjs 六键断言承载）。
 export function createEmptyProgress(plan) {
   return {
     plan: plan || "",
     timeoutCount: 0,
+    contractViolationCount: 0,
+    engineSelfWrittenCount: 0,
     engineRecoveryCount: 0,
     tasks: [],
   };
@@ -120,14 +123,22 @@ export function migrateFromProgressMD(progressDir) {
 }
 
 // migrateIfNeeded: transparent migration.
-// 1. progress.json exists → return it
+// 1. progress.json exists → return it（T6：按需补齐两键并回写 —— 存量四键旧形读出的对象必须已带
+//    contractViolationCount / engineSelfWrittenCount，stdout counters 行的取值来源才完整）
 // 2. progress.md exists → migrate to progress.json, return migrated data
 // 3. neither → return empty progress
 export function migrateIfNeeded(progressDir) {
   const jsonPath = path.join(progressDir, "progress.json");
   if (existsSync(jsonPath)) {
     try {
-      return JSON.parse(readFileSync(jsonPath, "utf8"));
+      const data = JSON.parse(readFileSync(jsonPath, "utf8"));
+      // T6: 补齐两键（初值 0），仅在确有补齐时回写 —— 无变化不产生 no-op 覆盖（与 persistFinalized 同口径）。
+      // 补齐判定按「缺失 / 非数字」而非恒写：存量合法数值（如已有 5）不得被清零。
+      let changed = false;
+      if (typeof data.contractViolationCount !== "number") { data.contractViolationCount = 0; changed = true; }
+      if (typeof data.engineSelfWrittenCount !== "number") { data.engineSelfWrittenCount = 0; changed = true; }
+      if (changed) writeProgressJSON(progressDir, data);
+      return data;
     } catch {
       // Corrupted — treat as missing, try migration
     }

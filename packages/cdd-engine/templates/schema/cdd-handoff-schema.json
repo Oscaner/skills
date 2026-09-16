@@ -30,6 +30,17 @@
         "TIMEOUT"
       ]
     },
+    "failure_category": {
+      "type": "string",
+      "enum": [
+        "TIMEOUT",
+        "CONTRACT_VIOLATION",
+        "ENGINE_SELF_WRITTEN",
+        "EXECUTION_FAILURE",
+        "UNVERIFIABLE",
+        "PLAN_CONFLICT"
+      ]
+    },
     "commits": {
       "type": "object",
       "required": [

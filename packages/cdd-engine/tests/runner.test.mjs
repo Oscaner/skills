@@ -967,9 +967,11 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(h.blocker).toContain("command");
   // H1 同步为 BLOCKED（h1FromHandoff 与覆写后 handoff 一致）
   expect(res.h1[0]).toBe("status: BLOCKED");
-  // N② (T9): implement 实体化 BLOCKED 落点自增 engineRecoveryCount
+  // N② (T9) → T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount
+  //（六类分派后不再消耗 recovery 额度 —— engineRecoveryCount 只被 EXECUTION_FAILURE 消耗）
   const progress = JSON.parse(readFileSync(path.join(t6.ws, "progress.json"), "utf8"));
-  expect(progress.engineRecoveryCount).toBe(1);
+  expect(progress.engineSelfWrittenCount).toBe(1);
+  expect(progress.engineRecoveryCount).toBe(0);
 });
 
 it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺省 blocker 由实体化 handoff 重发覆写", async () => {

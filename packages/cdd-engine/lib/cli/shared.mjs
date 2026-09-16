@@ -7,6 +7,7 @@
 import { reviewStoppedError } from "../runner/review-loop.mjs";
 import { exitWithCode } from "../exit.mjs";
 import { getRoot, resolveDocArg } from "../root.mjs";
+import { isIncompleteDispatch } from "../failure.mjs";
 
 // DRY_RUN —— program 级 `--dry-run` flag 的解析结果（模块态）。写入侧唯一入口 setDryRun：
 // 黑盒路径由 bin/cdd.mjs 的 preAction 从 program.opts() 注入；进程内用例（argv 不被解析、
@@ -85,6 +86,10 @@ export function stoppedExit3(type, round, ref, blocker, opts) {
 // Unified Stopping gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
 // round (findings:[]) must stay re-dispatchable (SP-4). ref is the type's target signature.
 // opts 透传 reviewStoppedError reason（legacy/unchanged）——task/branch 调用面无 opts → 缺省文案不变。
+// T6（B3，#250[8]）：ENGINE_SELF_WRITTEN / CONTRACT_VIOLATION = 本轮 dispatch 未完成 → 不构成
+// Stopping 依据（「计入 Review Stopping = no」的控制流落点）。判定经 canonical 派生
+// （isIncompleteDispatch），不手写类目名 —— 类目若在 canonical 被删除，此处引用即红名。
 export function reviewStoppingGuard(prev, type, round, ref, opts) {
-  if (prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
+  const incomplete = isIncompleteDispatch(prev?.failure_category);
+  if (!incomplete && prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
 }

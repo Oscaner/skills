@@ -29,9 +29,13 @@ it("createEmptyProgress: returns empty structure with defaults", () => {
   expect(p.tasks).toEqual([]);
 });
 
-it("progress schema 不含 lastDispatchHead/degradationLog（T8 死字段清除）", () => {
+it("progress schema 不含 lastDispatchHead/degradationLog（T8 死字段清除）——T6 增两键后为六键词法序", () => {
   // Object.keys 词法排序 —— 期望字面量用词法序，勿用插入序断言。
-  expect(Object.keys(createEmptyProgress("/p")).sort()).toEqual(["engineRecoveryCount", "plan", "tasks", "timeoutCount"]);
+  // T6（AC14「存储层落库形」）：progress.json 键集 = createEmptyProgress 初值形 + migrateIfNeeded
+  // 存量补齐形 二者共同承载 —— 六键与 canonical 计数器列逐字一致（contractViolationCount <
+  // engineRecoveryCount < engineSelfWrittenCount < plan < tasks < timeoutCount）。
+  expect(Object.keys(createEmptyProgress("/p")).sort())
+    .toEqual(["contractViolationCount", "engineRecoveryCount", "engineSelfWrittenCount", "plan", "tasks", "timeoutCount"]);
 });
 
 it("createEmptyProgress: plan parameter is used", () => {
@@ -176,6 +180,32 @@ it("migrateIfNeeded: neither file exists → returns empty progress + creates js
   expect(p.plan).toBe("");
   // Should create progress.json
   expect(existsSync(path.join(dir, "progress.json"))).toBe(true);
+});
+
+// T6 Step 5-3: migrateIfNeeded 的「补齐」要有实现落点 —— 存量四键旧形必须在读出时补两键。
+// 只断言内存对象、不断言回写会让「补齐未落盘」蒙对（下次读又缺键）；只断言键存在、不断言值
+// 为 0 则「补成 undefined」也通过 —— 内存 + 磁盘两形都要。
+it("migrateIfNeeded: 存量四键旧形 → 补齐两键并回写（内存对象 + 磁盘双断言）", () => {
+  const dir = tmpDir("prog-mig-backfill-");
+  writeFileSync(path.join(dir, "progress.json"), JSON.stringify({
+    plan: "/p.md",
+    timeoutCount: 3,
+    engineRecoveryCount: 2,
+    tasks: [{ task: 1, status: "complete" }],
+  }, null, 2));
+  const p = migrateIfNeeded(dir);
+  // 内存形：两键已补齐且值为 0；存量值不受影响
+  expect(p.contractViolationCount).toBe(0);
+  expect(p.engineSelfWrittenCount).toBe(0);
+  expect(p.timeoutCount).toBe(3);
+  expect(p.engineRecoveryCount).toBe(2);
+  expect(p.tasks).toEqual([{ task: 1, status: "complete" }]);
+  // 磁盘形：已被回写为六键
+  const disk = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
+  expect(Object.keys(disk).sort())
+    .toEqual(["contractViolationCount", "engineRecoveryCount", "engineSelfWrittenCount", "plan", "tasks", "timeoutCount"]);
+  expect(disk.contractViolationCount).toBe(0);
+  expect(disk.engineSelfWrittenCount).toBe(0);
 });
 
 // ---- T4: rounds key 归一（"review" 为唯一 task mode 键）——progress 层已 mode 参数化，直测键语义 ----

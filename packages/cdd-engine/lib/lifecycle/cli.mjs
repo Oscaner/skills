@@ -69,11 +69,14 @@ export async function invokeCli(entry, prompt, params, env, cwd, timeoutMs) {
   markAllDispatchesDone();          // dispatch（含 retry 每 attempt）返回 → 组标 done（spec §2.2 C idle 监视依据）
   if (res.ok && output === 'stream-json') {
     const finalText = extractStreamJsonFinal(res.stdout);
+    // T6：timedOut 透传 spawnManaged 的自持判定 —— 此前两分支硬编码 timedOut: false 会把
+    // 超时 dispatch 的判定在 stream-json 出口丢掉（run-task 的 timedOut = res.timedOut 读到 false，
+    // 143/SIGTERM 形态落入 agentRc 失败分支而非 TIMEOUT 路径）。
     if (!finalText) {
       return { ok: false, code: 1, stdout: res.stdout,
-               stderr: 'stream-json produced no completion finalText', timedOut: false };
+               stderr: 'stream-json produced no completion finalText', timedOut: res.timedOut === true };
     }
-    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr, timedOut: false };
+    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr, timedOut: res.timedOut === true };
   }
   return res;
 }

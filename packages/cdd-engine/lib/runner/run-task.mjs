@@ -24,6 +24,7 @@ import { getRoot, resolveDocArg } from "../root.mjs";
 import { readProgressJSON, writeProgressJSON, migrateIfNeeded, getRound, incrementRound, incrementRecovery } from "../state/progress.mjs";
 import { briefPath } from "../state/workspace-artifacts.mjs";
 import { validateHandoffSchema, recoverHandoff } from "../handoff/schema.mjs";
+import { FAILURE_CATEGORIES, counterFor } from "../failure.mjs";
 
 // Re-export for backward compatibility (existing tests and consumers import from run-task.mjs).
 export { invokeCli };
@@ -45,6 +46,19 @@ class RunBlocked extends Error {
     super(message);
     this.exitCode = exitCode;
   }
+}
+
+// ---- 失败类目分派（T6）----
+// 六类名的唯一声明点 = templates/failure-categories.json；本模块所有以「类目身份」出现的引用
+//（failure_category 赋值点 / 计数器 increment 落点）一律经 lib/failure.mjs 承重取值 ——
+// 类目若被 canonical 删除，入口引用（FAILURE_CATEGORIES.X）运行期立即炸出（AC14 承重，非装饰）。
+// 计数器 increment 落点单点：字段名经 canonical 的 counterFor 派生，本文件零手写计数器字面量。
+function incrementFailureCounter(progressDir, category) {
+  const field = counterFor(category);
+  if (!field) return; // 无计数器类目（UNVERIFIABLE / PLAN_CONFLICT）：只记结局，不记计数
+  const data = readProgressJSON(progressDir);
+  data[field] = (data[field] ?? 0) + 1;
+  writeProgressJSON(progressDir, data);
 }
 
 // Final exit: noExit=false → write H1 lines (if non-empty) to stdout + stderr message + exitWithCode;
@@ -377,13 +391,14 @@ export async function runTask(harness, taskNum, opts = {}) {
         task: taskNum,
         phase: mode,
         status: "BLOCKED",
+        failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
         findings: [],
         artifacts: {},
         blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${taskNum}`,
       });
       if (!dryRun) {
         incrementRound(progressDir, taskNum, mode);
-        incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（BLOCKED/engine-error 判定路径）
+        incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: 引擎自写 BLOCKED → engineSelfWrittenCount（不再消耗 recovery 额度）
       }
       return finish(1, h1FromHandoff(ctx.handoffPath), "process unkillable", noExit);
     }
@@ -393,15 +408,15 @@ export async function runTask(harness, taskNum, opts = {}) {
       task: taskNum,
       phase: mode,
       status: "TIMEOUT",
+      failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
       findings: [],
       artifacts: {},
       blocker: `cli timed out after ${timeoutMs}ms → simplify task ${taskNum} scope or increase timeout, then re-dispatch`,
     });
     if (!dryRun) incrementRound(progressDir, taskNum, mode);
-    // Increment timeoutCount in progress.json
-    const timeoutProgressData = readProgressJSON(progressDir);
-    timeoutProgressData.timeoutCount++;
-    writeProgressJSON(progressDir, timeoutProgressData);
+    // TIMEOUT 计数器 increment 落点：字段名经 canonical counterFor 派生，类目身份经
+    // FAILURE_CATEGORIES 承重引用（取代原 timeoutCount++ 三板，T6 零手写计数器字面量）。
+    incrementFailureCounter(progressDir, FAILURE_CATEGORIES.TIMEOUT.id);
     return finish(1, h1FromHandoff(ctx.handoffPath), `cli timed out after ${timeoutMs}ms`, noExit);
   }
 
@@ -438,13 +453,14 @@ export async function runTask(harness, taskNum, opts = {}) {
             task: taskNum,
             phase: mode,
             status: "BLOCKED",
+            failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
             findings: rec.preservedFindings,
             artifacts: {},
             blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch task ${taskNum}`,
           });
           if (!dryRun) {
             incrementRound(progressDir, taskNum, mode);
-            incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
+            incrementFailureCounter(progressDir, FAILURE_CATEGORIES.CONTRACT_VIOLATION.id); // T6: 生成侧格式错误 → contractViolationCount（不再消耗 recovery 额度）
           }
           return finish(1, h1FromHandoff(ctx.handoffPath), `schema validation failed${rec.reason}`, noExit);
         }
@@ -460,6 +476,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       task: taskNum,
       phase: mode,
       status: "BLOCKED",
+      failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
       commits: { base: "unknown" },
       findings: [],
       artifacts: {},
@@ -467,7 +484,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     });
     if (!dryRun) {
       incrementRound(progressDir, taskNum, mode);
-      incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增
+      incrementRecovery(progressDir); // T6: 真实执行失败（非超时、非引擎自写）→ EXECUTION_FAILURE —— 唯一消耗 recovery 额度的类目（AC7）
     }
     return finish(1, h1FromHandoff(ctx.handoffPath), `cli exited ${agentRc} and handoff missing`, noExit);
   }
@@ -482,12 +499,13 @@ export async function runTask(harness, taskNum, opts = {}) {
       task: taskNum,
       phase: mode,
       status: "BLOCKED",
+      failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
       findings: [],
       artifacts: {},
       blocker: `${path.basename(ctx.handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${ctx.handoffPath} before exit`,
     });
     incrementRound(progressDir, taskNum, mode);
-    incrementRecovery(progressDir); // D14: engine 自写 BLOCKED → engineRecoveryCount 自增（10.5 退出码 0 未写 handoff 判定路径）
+    incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: 引擎自写 BLOCKED（exit 0 未写 handoff）→ engineSelfWrittenCount
     return finish(1, h1FromHandoff(ctx.handoffPath), `${mode} agent did not write handoff`, noExit);
   }
 
@@ -526,7 +544,7 @@ export async function runTask(harness, taskNum, opts = {}) {
       h1 = h1FromHandoff(ctx.handoffPath);
       // 实体化后 H1 与 handoff/exit 一致：hard gate 或 agent 声明 BLOCKED → exit 1。
       if (finalized.exitCode !== 0) {
-        incrementRecovery(progressDir); // D14: implement 实体化 BLOCKED 落点（hard evidence-gate / agent H1 非 APPROVED）
+        incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount（T9 N② 落点迁移，不再消耗 recovery 额度）
         return finish(finalized.exitCode, h1, "", noExit);
       }
     }
@@ -544,7 +562,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   if (!dryRun) {
     const cv = validateCommitContract(mode, root ?? "", { handoffPath: ctx.handoffPath });
     if (!cv.ok) {
-      incrementRecovery(progressDir); // D14: engine 自写 BLOCKED（commit-contract 重写）→ engineRecoveryCount 自增
+      incrementFailureCounter(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id); // T6: commit-contract 重写 = 引擎自写 BLOCKED → engineSelfWrittenCount（不再消耗 recovery 额度）
       return finish(1, h1FromHandoff(ctx.handoffPath), cv.blocker, noExit);
     }
   }

@@ -55,6 +55,10 @@ function cleanEnv(env) {
 // 统一工厂：detached 进程组 + 即时注册。保持五字段契约 {ok, code, stdout, stderr, timedOut}。
 export async function spawnManaged(command, args, opts = {}) {
   const { cwd, env, timeoutMs } = opts;
+  // 超时判定自持（T6，AC7）：spawn 时记录计时起点，返回时以 elapsed 与退出形态复核 ——
+  // res.timedOut 不再是唯一来源。实证（§2.5.2 现状）：30 分钟量级 dispatch 被 SIGTERM 后
+  // 以 exit 143 返回，execa 的 res.timedOut 未置位 → 落入 agentRc!==0 分支、timeoutCount 停在 0。
+  const start = Date.now();
   // execa 返回体 = subprocess（promise × child_process 混合体）：pid 挂在 subprocess 上，
   // await 后的结果对象不携带 pid（res.pid === undefined）—— 必须先取 sub.pid 再 await。
   const sub = execa(command, args, {
@@ -84,7 +88,18 @@ export async function spawnManaged(command, args, opts = {}) {
     await persistRegistry();
   }
   const res = await sub;
-  const timedOut = res.timedOut ?? false;
+  // 自持判定三条任一命中即 timedOut。ε = 时钟/定时器边界抖动裕量，远小于任何真实 timeout
+  //（含测试面最小的 CDD_TASK_TIMEOUT=1s），避免在 timeoutMs 恰边界完成的正常 dispatch 被误标。
+  //   ① 计时：elapsed >= timeoutMs - ε（execa 超时后在 kill 周期上 resolve，elapsed 必越过该线；
+  //      res.timedOut 丢失时以此兜底）；
+  //   ② exit code 143（SIGTERM 默认处置退出码——execa 未置 timedOut 的 SIGTERM 形态；
+  //      §2.5.2 实证的 143 即此形态）；
+  //   ③ signal === "SIGTERM"（子进程吞信号但报告了 signal 字段）。
+  const TIMEOUT_EPSILON_MS = 100;
+  const timedOut = res.timedOut === true
+    || (timeoutMs != null && Date.now() - start >= timeoutMs - TIMEOUT_EPSILON_MS)
+    || res.code === 143
+    || res.signal === "SIGTERM";
   return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut };
 }
 

@@ -82,14 +82,15 @@ test("5b node:test 跑行为 + 引擎两棵树；旧 shell 测试不 invoke", ()
   }
 });
 
-// 4. rule-reference.test.mjs invoked via node --test (semantic mode is enforced
-// by the suite's real-scan test case, not CLI args)
-test("rule-reference.test.mjs invoked via node --test", () => {
-  const rr = steps.find((s) => s.name.includes("rule-reference.test.mjs"));
-  assert.ok(rr, "rule-reference.test.mjs not invoked");
-  assert.equal(rr.cmd, "node", "rule-reference must run under node");
-  assert.ok(rr.args.includes("--test"), "rule-reference must run via node --test");
-  assert.ok(rr.args.some((a) => a.includes("rule-reference.test.mjs")), "rule-reference.test.mjs path missing");
+// 4. rule-reference suite removed (T16 Step 2 ③) — reverse assertion: no step may
+// reference rule-reference (suite file + validate wiring + ci-validate wiring are
+// deleted in the same commit). The old case asserted the step EXISTS, which went red
+// the moment the validate wiring was removed — this keeps AC13 reachable.
+test("rule-reference step removed with the suite", () => {
+  assert.ok(
+    !steps.some((s) => s.name.includes("rule-reference")),
+    "rule-reference step must be removed with the suite",
+  );
 });
 
 // 5. node:test behavior + engine suites wired (T2 removed init/utils suite globs — the

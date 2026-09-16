@@ -689,10 +689,231 @@ function checkHandoffSchema() {
   console.log("OK — handoff-schema（§2.8 行 14）零残留");
 }
 
+// =====================================================================
+// Task 16 — skills 面守卫（design §2.8 行 12/15/16/17/18；AC5/AC11/AC14 的 skills 侧落点）
+// =====================================================================
+// 五条守卫并入 collectSkillSurfaceHits()（与 T8 的 collectChannelAuditHits() 同构），由
+// checkSkillSurface() 并入既有 5c 步（块数不变）。守卫 scope 全部落在 packages/osuperpowers/skills/
+// 内；scripts/ 不在任一 scope——守卫本体不成为被守卫语汇的载体。
+//   行 17 — 零上游文档 read（\bvendors\/ · \bsuperpowers\/.*SKILL\.md · Read[- ]Upstream ·
+//            \bread upstream\b）+ 上游引用一律 `/<plugin>:<skill>` 斜杠形（无斜杠前缀的上游
+//            plugin:skill 引用 → hit；同插件 `osuperpowers:` 引用不属上游）。
+//   行 15 — 零引擎内部结构依赖（\bCDD_[A-Z_]+\b · \bprogress\.json\b · task-\d+-(review|fix|
+//            implement)-\d*\.?json）。scope = design AC5 的 7 个编排型 skill 逐名枚举（见
+//            ORCHESTRATOR_SKILLS）。report-issue 显式排除——AC5 原文：「例外（设计内，非缺口）：
+//            report-issue 的 progress.json#plan 读取是 program 通道的首跳（§2.5.4 的目的正是使其
+//            可用），不属「引擎内部结构依赖」——该处的去留归 P5 的目标流程（届时可改指命令输出
+//            契约）」。排除只作用于本条；report-issue 仍在本组其余 4 条的 skills 面 scope 内
+//            （实测其对 CDD_* / fix-inline / vendors/ / _docs/ 均零命中）。7 名枚举（含 finishing，
+//            不是 6 个）为逐字同源清单，不得用 skills/** 通配覆盖——通配会让 guard 在 report-issue
+//            上不可达且漏扫未来新 skill。
+//   行 16 — 零 fix-inline（修复一律 `cdd fix` 形，§2.7.3）；且每个评审循环 fix 节点（mermaid 节点
+//            label 含 fix——fix-task / branch-fix / fix-spec / fix-plan）的 `### `label`` 节须出现
+//            `cdd fix` 命令形。
+//   行 12 — ① cli-driven-development/SKILL.md 的 `## Failure Modes` 短表数据行首列 ⊆ canonical
+//            类目集（FAILURE_CATEGORIES，本文件经 cdd-engine 唯一读取入口取，不写字面第二份）∪
+//            handoff 状态枚举白名单（声明点 = cdd-handoff-schema.json 的 status.enum；防御性放行，
+//            与 failure_category 的 enum 是两处独立声明——TIMEOUT 的重名不构成类目身份）；
+//            ② 类目语义零复述——engineRecoveryCount / countsTowardStopping / timeout-exhausted /
+//            计入 Stopping 措辞在 skills 面零命中（skills 只可引用类目名）。
+//   行 18 — 零 _docs/ 引用（\b_docs\/ 路径形 + rule-review-stopping 锚点形/裸提及）——T15
+//            一次性删除的常驻化；scope 恰为 skills 面（不扩至 engine 注入面 / 治理入口面）。
+export const ORCHESTRATOR_SKILLS = [
+  "packages/osuperpowers/skills/brainstorming/SKILL.md",
+  "packages/osuperpowers/skills/writing-single-spec/SKILL.md",
+  "packages/osuperpowers/skills/writing-overall-spec/SKILL.md",
+  "packages/osuperpowers/skills/writing-phase-spec/SKILL.md",
+  "packages/osuperpowers/skills/writing-plans/SKILL.md",
+  "packages/osuperpowers/skills/cli-driven-development/SKILL.md",
+  "packages/osuperpowers/skills/finishing/SKILL.md",
+];
+const CDD_SKILL = "packages/osuperpowers/skills/cli-driven-development/SKILL.md";
+
+// 负向语汇取「token 形」而非「/ 前缀形」：历史违规形态是反引号/空白前导的路径引用
+//（`vendors/mattpocock-skills/…` · `_docs/review.md`），`/` 前缀正则放行这些真形态；
+// \b（_ 为词字符）仍拒绝对含连字符的衍生词（如 svendors/）误报。
+const UPSTREAM_READ_RE = /\bvendors\/|\bsuperpowers\/.*SKILL\.md|Read[- ]Upstream|\bread upstream\b/i;
+const UPSTREAM_REF_SLASH_RE = /(?<!\/)\b(?:superpowers|mattpocock-skills|impeccable):[a-z0-9-]+\b/;
+const INTERNAL_DEP_RE = /\bCDD_[A-Z_]+\b|\bprogress\.json\b|task-\d+-(?:review|fix|implement)-\d*\.?json/;
+const FIX_INLINE_RE = /fix-inline/;
+const FAILURE_SEMANTICS_RE = /engineRecoveryCount|countsTowardStopping|timeout-exhausted|计入\s*Stopping/;
+const DOCS_REF_RE = /\b_docs\/|rule-review-stopping/;
+
+/** handoff 状态枚举白名单（声明点 = cdd-handoff-schema.json 的 status.enum；防御性放行）。 */
+function handoffStatusWhitelist() {
+  const schema = JSON.parse(
+    readFileSync(path.join(ROOT, "packages/cdd-engine/templates/schema/cdd-handoff-schema.json"), "utf8"),
+  );
+  return new Set(schema.properties.status.enum ?? []);
+}
+
+/** 行 12 ① 抽取：`## Failure Modes` 短表数据行首列（§2.5.2 派生通道 ② 的唯一消费方 =
+ *  cli-driven-development；抽取面为裁定面，实现不得自行发明扫面）。 */
+export function failureModeCandidates(skillText) {
+  const candidates = [];
+  const lines = skillText.split("\n");
+  let inSection = false;
+  let afterHeader = false;
+  for (const line of lines) {
+    if (/^## /.test(line)) {
+      if (inSection) break;
+      inSection = /^## Failure Modes\b/.test(line);
+      continue;
+    }
+    if (!inSection) continue;
+    const t = line.trim();
+    if (t.startsWith("|") && t !== "|") {
+      if (afterHeader) {
+        const cell = t.split("|")[1]?.trim();
+        if (cell) candidates.push(cell);
+      } else {
+        // markdown 分隔行（|---|---| 与 | --- |）：去掉 | 与空白后只剩 -/:/* 即分隔行。
+        const stripped = t.replace(/\|/g, "").trim();
+        if (stripped !== "" && /^[\s:*-]+$/.test(stripped)) afterHeader = true;
+      }
+    }
+  }
+  return candidates;
+}
+
+/** 行 12 ① 失败类目名集合 ⊆ canonical 类目集 ∪ 状态枚举白名单。fileOverride 供测试注入临时文件。 */
+export function collectFailureModeCategoryHits(fileOverride = CDD_SKILL) {
+  const abs = path.isAbsolute(fileOverride) ? fileOverride : path.join(ROOT, fileOverride);
+  const text = readFileSync(abs, "utf8");
+  const allowed = new Set([
+    ...Object.values(FAILURE_CATEGORIES).map((c) => c.id),
+    ...handoffStatusWhitelist(),
+  ]);
+  const hits = [];
+  for (const cand of failureModeCandidates(text)) {
+    if (!allowed.has(cand)) {
+      hits.push({ label: `失败类目名不在 canonical（§2.8 行 12）: ${cand}`, file: fileOverride });
+    }
+  }
+  return hits;
+}
+
+/** 行 12 ② 类目语义零复述（skills 面；skills 只可引用类目名）。 */
+export function collectFailureModeSemanticsHits(targetsOverride = OSKILLS) {
+  const hits = [];
+  for (const { file, lineNo, text } of scanLines(targetsOverride, FAILURE_SEMANTICS_RE)) {
+    hits.push({ label: `类目语义复述（skills 只可引用类目名）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+  }
+  return hits;
+}
+
+/** 行 17（负）零上游文档 read（skills 面）。 */
+export function collectUpstreamReadHits(targetsOverride = OSKILLS) {
+  const hits = [];
+  for (const f of scanTargets(targetsOverride, UPSTREAM_READ_RE)) {
+    hits.push({ label: "上游文档 read 回渗（vendors/ · 上游 SKILL.md · Read-Upstream）", file: f });
+  }
+  return hits;
+}
+
+/** 行 17（正）上游引用一律 `/plugin:skill` 斜杠形（skills 面；同插件 osuperpowers: 引用不属上游）。 */
+export function collectUpstreamSlashFormHits(targetsOverride = OSKILLS) {
+  const hits = [];
+  for (const { file, lineNo, text } of scanLines(targetsOverride, UPSTREAM_REF_SLASH_RE)) {
+    hits.push({ label: `上游引用非 /plugin:skill 斜杠形: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+  }
+  return hits;
+}
+
+/** 行 15 零引擎内部结构依赖。filesOverride = 7 个编排型 skill 的显式文件清单（测试注入临时文件）。 */
+export function collectInternalDependencyHits(filesOverride = ORCHESTRATOR_SKILLS) {
+  const hits = [];
+  for (const f of scanTargets(filesOverride, INTERNAL_DEP_RE)) {
+    hits.push({ label: "编排型 skill 引擎内部结构依赖（CDD_* · progress.json · handoff 文件名）", file: f });
+  }
+  return hits;
+}
+
+/** 行 16（负）零 fix-inline（skills 面）。 */
+export function collectFixInlineHits(targetsOverride = OSKILLS) {
+  const hits = [];
+  for (const f of scanTargets(targetsOverride, FIX_INLINE_RE)) {
+    hits.push({ label: "fix-inline 回渗（修复一律 cdd fix 形，§2.7.3）", file: f });
+  }
+  return hits;
+}
+
+/** mermaid 图内含 "fix" 的节点 label（评审循环的修节点形：fix-task / branch-fix / fix-spec / fix-plan）。 */
+function extractFixNodeLabels(src) {
+  const m = src.match(/```mermaid\n([\s\S]*?)```/);
+  if (!m) return [];
+  const labels = [];
+  for (const lm of m[1].matchAll(/(\w+)\[([^\]]+)\]/g)) {
+    const label = lm[2].trim();
+    if (/\bfix\b/.test(label)) labels.push(label);
+  }
+  return labels;
+}
+
+/** 行 16（正）每个评审循环 fix 节点（mermaid label 含 fix）的 `### `label`` 节须出现 `cdd fix`。 */
+export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
+  const hits = [];
+  for (const f of walkTargetFiles(targetsOverride)) {
+    if (!f.endsWith("SKILL.md")) continue;
+    const src = readFileSync(f).toString("utf8");
+    for (const label of extractFixNodeLabels(src)) {
+      const lines = src.split("\n");
+      const head = `### \`${label}\``;
+      const start = lines.findIndex((l) => l === head);
+      if (start === -1) {
+        hits.push({ label: `评审循环节点 ${label} 缺失 ### 节（digraph 已声明）`, file: path.relative(ROOT, f) });
+        continue;
+      }
+      let section = [];
+      for (let i = start + 1; i < lines.length; i++) {
+        if (/^#{1,2} /.test(lines[i])) break;
+        section.push(lines[i]);
+      }
+      if (!/cdd fix/.test(section.join("\n"))) {
+        hits.push({ label: `评审循环节点 ${label} 缺少 cdd fix 命令形（§2.8 行 16）`, file: path.relative(ROOT, f) });
+      }
+    }
+  }
+  return hits;
+}
+
+/** 行 18 零 _docs/ 引用（skills 面；T15 一次性删除的常驻化）。 */
+export function collectDocsRefHits(targetsOverride = OSKILLS) {
+  const hits = [];
+  for (const f of scanTargets(targetsOverride, DOCS_REF_RE)) {
+    hits.push({ label: "_docs/ 引用回渗（含 rule-review-stopping 锚点形/裸提及，§2.8 行 18）", file: f });
+  }
+  return hits;
+}
+
+/** 汇总（checkSkillSurface 与测试共用）：五条 skills 面守卫的命中 { label, file } 列表。 */
+export function collectSkillSurfaceHits() {
+  return [
+    ...collectUpstreamReadHits(),
+    ...collectUpstreamSlashFormHits(),
+    ...collectInternalDependencyHits(),
+    ...collectFixInlineHits(),
+    ...collectReviewLoopFixCddHits(),
+    ...collectFailureModeCategoryHits(),
+    ...collectFailureModeSemanticsHits(),
+    ...collectDocsRefHits(),
+  ];
+}
+
+function checkSkillSurface() {
+  const hits = collectSkillSurfaceHits();
+  assert(
+    hits.length === 0,
+    `SKILL SURFACE FOUND — skills 面守卫（§2.8 行 12/15/16/17/18）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+  );
+  console.log("OK — skills 面守卫（§2.8 行 12/15/16/17/18）零违规");
+}
+
 // 块数不变（12）：checkStaleLexicon 与 T6 的 checkGateLexicon 并入既有 5c.run 同一步内部 —
 // 先 checkZeroResidue 再 checkStaleLexicon 后 checkGateLexicon；T8 追加 checkChannelAudit（§2.8
 // 行 1–11、13 的 engine 侧 12 条守卫）；T10 追加 checkShippedGuards（§2.8 行 19-20 的
-// shipped 面两条反向守卫）；T11 追加 checkHandoffSchema（§2.8 行 14 的零命中守卫）；grepTargets
+// shipped 面两条反向守卫）；T11 追加 checkHandoffSchema（§2.8 行 14 的零命中守卫）；T16 追加
+// checkSkillSurface（§2.8 行 12/15/16/17/18 的 skills 面五条守卫）；grepTargets
 // 扩为含 cdd-engine bin+lib+templates 供 wiring guard 钉死。channelTargets = channel-audit
 // 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
 export const steps = [
@@ -705,6 +926,7 @@ export const steps = [
       checkChannelAudit();
       checkShippedGuards();
       checkHandoffSchema();
+      checkSkillSurface();
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

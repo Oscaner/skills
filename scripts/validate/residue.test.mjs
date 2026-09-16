@@ -7,7 +7,7 @@
 // （validateCommitContract / HARD GATE / cdd-commit-gate-smoke / ship gate / cdd-gate-test git 身份）
 // 同为合法语汇。collectStaleLexiconHits()/collectGateLexiconHits() 与 validate 5c 步同源扫描
 // —— unit 绿 + live-repo 零残留等于该 step 双断言行为。
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
@@ -41,6 +41,16 @@ import {
   INIT_REFERENCE_TARGETS,
   collectHandoffSchemaHits,
   HANDOFF_SCHEMA_TARGETS,
+  collectUpstreamReadHits,
+  collectUpstreamSlashFormHits,
+  collectInternalDependencyHits,
+  collectFixInlineHits,
+  collectReviewLoopFixCddHits,
+  collectFailureModeCategoryHits,
+  collectFailureModeSemanticsHits,
+  collectDocsRefHits,
+  collectSkillSurfaceHits,
+  ORCHESTRATOR_SKILLS,
 } from "./residue.mjs";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
@@ -800,5 +810,279 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
   });
   it("live repo：collectHandoffSchemaHits() === []（handoff-schema.md 已删 + 引用改指 engine canonical）", () => {
     expect(collectHandoffSchemaHits()).toEqual([]);
+  });
+});
+
+// ---- Task 16: skills 面守卫（design §2.8 行 12/15/16/17/18；AC5/AC11/AC14 的 skills 侧落点）----
+// 五条守卫并入 collectSkillSurfaceHits()（与 T8 的 collectChannelAuditHits() 同构）。守卫 scope 全部
+// 落在 packages/osuperpowers/skills/ 内，scripts/ 不在任一 scope——本文件直接写字面无自噬风险（T11 先例）。
+// 各行权威文本：行 17 零上游文档 read + 上游引用 /plugin:skill 斜杠形 · 行 15 零 CDD_*/progress.json/
+// handoff 文件名（AC5 七个编排型 skill 逐名枚举，report-issue 按 AC5 显式例外排除）· 行 16 零 fix-inline
+// + 评审循环 fix 节点须含 cdd fix 命令形 · 行 12 类目名 ⊆ canonical ∪ 状态枚举白名单 + 类目语义零复述
+//· 行 18 零 _docs/ 引用（含 rule-review-stopping 锚点形与裸提及）。
+describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用一律 /plugin:skill 斜杠形", () => {
+  it("vendors/ 路径 → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-vendors-"));
+    writeFileSync(path.join(dir, "a.md"), "**Read**: `vendors/mattpocock-skills/skills/productivity/grilling/SKILL.md`\n", "utf8");
+    try {
+      const hits = collectUpstreamReadHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/上游文档 read/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("上游 SKILL.md 路径（superpowers/…SKILL.md）→ 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-upstream-"));
+    writeFileSync(path.join(dir, "b.md"), "- **Do**: Read `superpowers/skills/brainstorming/SKILL.md` to load the framework\n", "utf8");
+    try {
+      expect(collectUpstreamReadHits([dir])).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("Read-Upstream / read upstream 措辞 → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-rup-"));
+    writeFileSync(path.join(dir, "c.md"), "Read-Upstream missing → BLOCKED\n", "utf8");
+    try {
+      expect(collectUpstreamReadHits([dir])).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("上游引用非斜杠形（superpowers:brainstorming 前无 /）→ 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-noslash-"));
+    writeFileSync(path.join(dir, "e.md"), "Delegates to a superpowers:brainstorming session.\n", "utf8");
+    try {
+      const hits = collectUpstreamSlashFormHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].file).toContain("e.md");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("反射例：slash 形 Run a /<plugin>:<skill> session 与同插件 osuperpowers:… 引用均不命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-ok-"));
+    writeFileSync(path.join(dir, "d.md"), "- **Do**: Run a /superpowers:brainstorming session — the harness loads the upstream skill and runs its flow.\n", "utf8");
+    writeFileSync(path.join(dir, "f.md"), "hands off to osuperpowers:writing-plans\n", "utf8");
+    try {
+      expect(collectUpstreamReadHits([dir])).toEqual([]);
+      expect(collectUpstreamSlashFormHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 七个编排型 skill 逐名枚举）", () => {
+  it("ORCHESTRATOR_SKILLS = AC5 全枚举（7 个，含 finishing；不含 report-issue），不用 skills/** 通配", () => {
+    const names = ORCHESTRATOR_SKILLS.map((p) => p.split("/").slice(-2).join("/"));
+    expect(names).toEqual([
+      "brainstorming/SKILL.md",
+      "writing-single-spec/SKILL.md",
+      "writing-overall-spec/SKILL.md",
+      "writing-phase-spec/SKILL.md",
+      "writing-plans/SKILL.md",
+      "cli-driven-development/SKILL.md",
+      "finishing/SKILL.md",
+    ]);
+  });
+  it("CDD_* 名 → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-cdd-"));
+    const file = path.join(dir, "writing-plans", "SKILL.md");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, "**Read**: `CDD_HANDOFF_PATH`\n", "utf8");
+    try {
+      const hits = collectInternalDependencyHits([file]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/CDD_\*|内部结构|CDD_HANDOFF_PATH/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("progress.json → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-prog-"));
+    const file = path.join(dir, "writing-plans", "SKILL.md");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, "- **Read**: `progress.json#plan`;\n", "utf8");
+    try {
+      expect(collectInternalDependencyHits([file])).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("handoff 文件名模式（task-N-implement.json）→ 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-handoff-"));
+    const file = path.join(dir, "writing-plans", "SKILL.md");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, "读 `task-3-implement.json` 与 `task-2-review-1.json`\n", "utf8");
+    try {
+      const hits = collectInternalDependencyHits([file]);
+      expect(hits.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("反射例：合法的输出契约语汇（every task goes through implement → review → fix）不命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-int-ok-"));
+    const file = path.join(dir, "cli-driven-development", "SKILL.md");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, "Every task goes through implement → review → (fix if blockers); routes by `status` + `findings[]` from the output contract.\n", "utf8");
+    try {
+      expect(collectInternalDependencyHits([file])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix 节点须含 cdd fix 命令形", () => {
+  const SKILL_MD = (graphLines, sections) =>
+    `# X\n\n## Flow Digraph\n\n\`\`\`mermaid\nflowchart TD\n${graphLines}\n\`\`\`\n\n${sections}\n`;
+  it("fix-inline → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-inline-"));
+    writeFileSync(path.join(dir, "s.md"), "fix-inline 修复禁止（§2.7.3）\n", "utf8");
+    try {
+      expect(collectFixInlineHits([dir])).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("评审循环 fix 节点节缺 cdd fix → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-fixnode-"));
+    writeFileSync(path.join(dir, "SKILL.md"), SKILL_MD("  A[fix-spec] --> B((done))", "### `fix-spec`\n\n- **Do**: Fix all findings via the editor.\n"), "utf8");
+    try {
+      const hits = collectReviewLoopFixCddHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/fix-spec/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("评审循环 fix 节点节含 cdd fix → 零命中（反射例）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-fixnode-ok-"));
+    writeFileSync(path.join(dir, "SKILL.md"), SKILL_MD("  A[fix-spec] --> B((done))", "### `fix-spec`\n\n- **Do**: Fix ALL findings via `cdd fix --type spec --spec <path>`.\n"), "utf8");
+    try {
+      expect(collectReviewLoopFixCddHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("非 fix 节点不参与正面检查（零命中）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-nofix-"));
+    writeFileSync(path.join(dir, "SKILL.md"), SKILL_MD("  A[run-review] --> B((done))", "### `run-review`\n\n- **Do**: Dispatch `cdd review`.\n"), "utf8");
+    try {
+      expect(collectReviewLoopFixCddHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("skills 面守卫（T16）：行 12 失败类目名 ⊆ canonical ∪ 状态枚举白名单 + 类目语义零复述", () => {
+  const FM = (rows) => `# X\n\n## Failure Modes\n\n| category | handling |\n|---|---|\n${rows}\n\n## Elsewhere\n`;
+  it("canonical 六类首列 → 零违规", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-fm-"));
+    const f = path.join(dir, "SKILL.md");
+    writeFileSync(
+      f,
+      FM([
+        "| TIMEOUT | routed from output contract |",
+        "| CONTRACT_VIOLATION | blocker |",
+        "| ENGINE_SELF_WRITTEN | blocker |",
+        "| EXECUTION_FAILURE | blocker |",
+        "| UNVERIFIABLE | blocker |",
+        "| PLAN_CONFLICT | surface to user |",
+      ].join("\n")),
+      "utf8",
+    );
+    try {
+      expect(collectFailureModeCategoryHits(f)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("handoff 状态枚举白名单值（APPROVED 等）放行", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-fm-ok-"));
+    const f = path.join(dir, "SKILL.md");
+    writeFileSync(f, FM("| APPROVED | 终态 |"), "utf8");
+    try {
+      expect(collectFailureModeCategoryHits(f)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("canonical 外类目名 → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-fm-bad-"));
+    const f = path.join(dir, "SKILL.md");
+    writeFileSync(f, FM("| TIMEOUTS | 拼写漂移 |"), "utf8");
+    try {
+      const hits = collectFailureModeCategoryHits(f);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/TIMEOUTS/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("类目语义复述（engineRecoveryCount / countsTowardStopping / timeout-exhausted / 计入 Stopping）→ 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-sem-"));
+    writeFileSync(path.join(dir, "a.md"), "engineRecoveryCount 上限与终止态\n", "utf8");
+    writeFileSync(path.join(dir, "b.md"), "countsTowardStopping=false 属语义复述\n", "utf8");
+    writeFileSync(path.join(dir, "c.md"), "BLOCKED: timeout-exhausted\n", "utf8");
+    writeFileSync(path.join(dir, "d.md"), "该失败不计入 Stopping\n", "utf8");
+    try {
+      const hits = collectFailureModeSemanticsHits([dir]);
+      expect(hits.length).toBeGreaterThanOrEqual(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("反射例：只引用类目名（TIMEOUT 裸名）不命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-sem-ok-"));
+    writeFileSync(path.join(dir, "a.md"), "| TIMEOUT | blocker from output contract |\n", "utf8");
+    try {
+      expect(collectFailureModeSemanticsHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review-stopping 锚点形/裸提及）", () => {
+  it("_docs/ 路径形 → 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-docs-"));
+    writeFileSync(path.join(dir, "a.md"), "见 _docs/review.md 的 Review Stopping\n", "utf8");
+    try {
+      const hits = collectDocsRefHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/_docs/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("rule-review-stopping 锚点形与裸提及 → 各命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-rule-"));
+    writeFileSync(path.join(dir, "a.md"), "#rule-review-stopping\n", "utf8");
+    writeFileSync(path.join(dir, "b.md"), "rule-review-stopping 裸提及\n", "utf8");
+    try {
+      expect(collectDocsRefHits([dir])).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("反射例：无 _docs 语汇零命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "skf-docs-ok-"));
+    writeFileSync(path.join(dir, "a.md"), "Review Stopping 入 Invariants\n", "utf8");
+    try {
+      expect(collectDocsRefHits([dir])).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("live repo：T16 skills 面守卫 5 条零残留", () => {
+  it("collectSkillSurfaceHits() === []（§2.8 行 12/15/16/17/18 全绿）", () => {
+    expect(collectSkillSurfaceHits()).toEqual([]);
   });
 });

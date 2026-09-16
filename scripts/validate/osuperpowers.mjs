@@ -3,7 +3,7 @@
 // Five step descriptors in original run order (the 5b1 cdd-engine Vitest suite
 // lives in engine.mjs and is spliced between the node:test tree and the wiring
 // guard by index.mjs):
-//   marker / skills-count / rule-reference (semantic) / node:test trees /
+//   marker / skills-count / node:test trees /
 //   wiring guard (ci-validate.test.mjs).
 
 import { execaSync } from "execa";
@@ -44,7 +44,7 @@ function checkOsuperpowersSkillsCount() {
   const manifest = JSON.parse(readFileSync(path.join(p, ".claude-plugin/plugin.json"), "utf8"));
   const skills = manifest.skills;
   const EXPECTED = 8; // 5（init 已删 T10）+ 3 新 spec-writer（T12 writing-{single,overall,phase}-spec）
-  const EMITTERS_LABEL = "8 skills";
+  const EMITTERS_LABEL = `${EXPECTED} skills`; // 纯计数标签（T16 去枚举——不重复写数值，EXPECTED 为唯一计数真相）
   let n;
   if (skills === null || skills === undefined) {
     const dir = path.join(p, "skills");
@@ -67,14 +67,9 @@ function checkOsuperpowersSkillsCount() {
 }
 checkStep("5b. osuperpowers skills-count", checkOsuperpowersSkillsCount);
 
-subprocessStep("5b. rule-reference.test.mjs (semantic)", "node", [
-  "--test",
-  "packages/osuperpowers/tests/rule-reference.test.mjs",
-]);
-
-// node:test trees: behavior/integration (packages/osuperpowers/tests: helpers.mjs +
-// rule-reference + ci-validate.test.mjs). T2 removed the harness selection/detection/
-// install layers — the init-suite and utils-suite globs (bin/init/tests, bin/utils/tests)
+// node:test trees: behavior/integration (packages/osuperpowers/tests: helpers.mjs
+// + ci-validate.test.mjs). T16 removed the rule-reference suite (semantic mode)
+// with its wiring. T2 removed the harness selection/detection/install layers — the init-suite and utils-suite globs (bin/init/tests, bin/utils/tests)
 // are gone with them. Globs rather than bare directories — node --test <dir> loads the
 // dir as a module here and fails; the runner expands the globs. The legacy bash engine
 // tests were fully migrated, so their Node equivalents are covered by the

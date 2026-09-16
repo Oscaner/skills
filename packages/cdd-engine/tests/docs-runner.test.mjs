@@ -414,4 +414,56 @@ describe("runDocsTask", () => {
     expect(result.handoff.blocker).toContain("JSON unparseable");
     expect(result.handoff.doc_hash).toBe(createHash("sha256").update("blocked content").digest("hex"));
   });
+
+  // ---- review-3 finding 4（standards nit）+ finding 1（warn）：schema 无效分支的端到端守卫 ----
+  // 此前该分支被 `validateHandoffSchema: vi.fn(() => ({ valid: true }))` mock 成恒 valid → writeBlocked 的
+  // baseHandoff→writeOwnHandoff 全量覆盖写盘在测试环境不可达，spec/plan 路的「违规键剥除 + findings 保留 +
+  // 全量覆盖」从未实测。此处仿 runner.test.mjs 的 8.8 归一化不可救用例补一条：agent 写 `findings: "none"`
+  // + 已声明键类型违规（`notes: 5`）→ 恢复面判不可救 → BLOCKED 载体**键集干净**（engine 自写字面量，
+  // 不 spread 归一化结果——review-3 finding 1 的失败分支载荷规则）、findings 守卫成 []、blocker 含违规键名。
+  it("schema-invalid handoff（findings 非数组 + notes:5）→ BLOCKED 载体键集干净 / findings [] / blocker 含违规键名", async () => {
+    const { execa } = await import("execa");
+    execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+    const dir = mkdtempSync(join(tmpdir(), "p5cv-"));
+    const doc = join(dir, "spec.md");
+    writeFileSync(doc, "cv content");
+    const handoffPath = join(dir, "ws", "spec-review-1.json");  // 非 `.osuperpowers/cdd/foo/` 前缀 → 真实 fs
+    mkdirSync(path.dirname(handoffPath), { recursive: true });
+    // agent 手写违规 handoff：findings 非数组 + `notes: 5`（已声明键类型违规，normalize 无权修改其值）
+    writeFileSync(handoffPath, JSON.stringify({
+      phase: "review", status: "APPROVED", findings: "none", notes: 5, artifacts: {}, doc_path: "/spec.md",
+    }));
+    const { validateHandoffSchema, recoverHandoff } = await import("../lib/handoff/schema.mjs");
+    validateHandoffSchema.mockImplementationOnce(
+      () => ({ valid: false, reason: "/findings must be array; /notes must be string" }));
+    // 沿真实 recoverHandoff 语义：归一化结果**保留已声明键原值**（notes: 5 仍在内——正是旧载荷的泄漏源），
+    // 重校验仍失败 → 调用方走 BLOCKED；findings 非数组 → preservedFindings 守卫成 []。
+    recoverHandoff.mockImplementationOnce(() => ({
+      handoff: { phase: "review", status: "APPROVED", findings: [], notes: 5, artifacts: {}, doc_path: "/spec.md" },
+      valid: false,
+      reason: ": /findings must be array; /notes must be string",
+      preservedFindings: [],
+    }));
+    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    mockRealWriteBack(writeOwnHandoff);   // 恢复面不可救 → writeBlocked 带 baseHandoff → 全量覆盖写盘
+
+    vi.resetModules();
+    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const result = await runDocsTask({
+      harness: "claude", mode: "review", template: "review", type: "spec", doc,
+      handoffPath, repoRoot: "/repo/root", dryRun: false,
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.handoff.status).toBe("BLOCKED");
+    // 键集干净：engine 字面量 + doc_path/doc_hash + findings（agent 的 notes 不得进载体）
+    expect(Object.keys(result.handoff).sort())
+      .toEqual(["artifacts", "blocker", "doc_hash", "doc_path", "findings", "phase", "status"]);
+    expect(result.handoff.findings).toEqual([]);                        // 非数组 findings → 数组守卫成 []
+    expect(result.handoff).not.toHaveProperty("notes");
+    expect(result.handoff.blocker).toMatch(/notes/);                    // 违规键名在 blocker 文案
+    // 写盘全量覆盖（writeOwnHandoff），磁盘上不再有 agent 的违规键
+    const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
+    expect(writeCall).toBeDefined();
+    expect(writeCall[1]).not.toHaveProperty("notes");
+  });
 });

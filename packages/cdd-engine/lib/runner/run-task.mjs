@@ -428,13 +428,18 @@ export async function runTask(harness, taskNum, opts = {}) {
           // ② 归一化不可救（缺 required / 类型或枚举不符）→ 仍 BLOCKED，但 findings 全额保留：
           //    解析出的原 findings 原样进载体，不再整份改写为 []（A4 缺陷面）。数组守卫在
           //    recoverHandoff 内（agent 写的 findings 可能是非数组——那正是本节曾经的崩溃面）。
+          // review-3 finding 1（warn）：BLOCKED 载荷 = **engine 自写字面量 + 仅保留 findings**，
+          //    不再 `{...rec.handoff}` spread——已声明键的 agent 原值（`notes: 5` / commits.base 短形 /
+          //    `artifacts: "x"` 一类类型/枚举违规，normalize 无权改其值）若经 spread 进载体，三处消费方
+          //    对它们不做类型/枚举守卫 → engine 亲手写出违反自家 schema 的 BLOCKED handoff（正是本任务
+          //    要消灭的 CONTRACT_VIOLATION 类目）。writeOwnHandoff 全量覆盖仍必要：浅合并会把磁盘上的
+          //    违规键经 existing 回灌。
           writeOwnHandoff(ctx.handoffPath, {
-            ...rec.handoff,
             task: taskNum,
             phase: mode,
             status: "BLOCKED",
             findings: rec.preservedFindings,
-            artifacts: rec.handoff.artifacts ?? {},
+            artifacts: {},
             blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch task ${taskNum}`,
           });
           if (!dryRun) {

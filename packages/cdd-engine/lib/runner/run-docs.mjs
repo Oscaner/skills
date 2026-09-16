@@ -19,17 +19,19 @@ import { hashFile } from "./review-loop.mjs";
 
 // BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / 不可解析 / schema 无效三分支同形——
 // 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ 写盘 → 读回返回。
-// `baseHandoff` = 已解析出的 handoff（schema 无效分支传入**归一化结果**；命名与 branch-review 的
-// writeBranchBlocked 对齐——同一含义在两处不得有两个名字）→ writeOwnHandoff 全量覆盖，使违规键
-// 不留盘（浅合并会经 existing 回灌）；缺 baseHandoff 的两分支（未写 / 不可解析）无已解析内容可留，
-// findings 仍是 `[]`（与「保留 findings」不冲突——无 findings 可留）。
+// review-3 finding 1（warn）：payload 一律 **engine 自写字面量 + 仅 findings**，不再 `...(baseHandoff ?? {})`
+// spread——已声明键的 agent 原值（`notes: 5` / `findings: "none"` 一类类型违规，normalize 无权改其值）
+// 不得进载体（否则 spec/plan 评审的 BLOCKED handoff 违反自家 docs schema）。`baseHandoff` 只用于判定写盘
+// 方式：schema 无效分支传**归一化结果** → writeOwnHandoff 全量覆盖，使违规键不留盘（浅合并会经
+// existing 回灌；命名与 branch-review 的 writeBranchBlocked 对齐——同一含义在两处不得有两个名字）。
+// 缺 baseHandoff 的两分支（未写 / 不可解析）无已解析内容可留，findings 仍是 `[]`
+//（与「保留 findings」不冲突——无 findings 可留）。
 function writeBlocked({ handoffPath, mode, doc, blocker, findings = [], baseHandoff = null }) {
   const payload = {
-    ...(baseHandoff ?? {}),
     phase: mode,
     status: "BLOCKED",
     findings,
-    artifacts: baseHandoff?.artifacts ?? {},
+    artifacts: {},
     doc_path: doc,
     doc_hash: hashFile(doc),
     blocker,

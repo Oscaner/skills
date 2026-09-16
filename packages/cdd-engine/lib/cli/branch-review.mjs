@@ -19,11 +19,16 @@ import { DRY_RUN, reviewStoppingGuard } from "./shared.mjs";
 // BLOCKED 写盘单点。T5：`findings` 入参（默认 `[]`）+ `baseHandoff` = 已解析出的 handoff
 // （schema 无效分支传入归一化结果）→ writeOwnHandoff 全量覆盖，违规键不留盘、findings 全额保留。
 // 另两处调用点（`:107` CLI 未写 handoff / `:115` exit 0 后无 handoff）无已解析内容可留 → 仍是 `[]`。
+// review-3 finding 1（warn）：payload 不再 `...(baseHandoff ?? {})` spread（已声明键的 agent 原值
+// 不得进载体）；`commits` 仅在 `base` 满足 schema 的 `^[0-9a-f]{40}$` 时写入——short 形 base（`abc1234`）
+// 经 AC15 的 base7..head7 文件名承载，载体省略 commits 仍合法；BLOCKED 载荷必须恒过自家校验。
 export function writeBranchBlocked(handoffPath, { base, head, code, reason, findings = [], baseHandoff = null }) {
+  const fullBase = typeof base === "string" && /^[0-9a-f]{40}$/.test(base) ? base : null;
   const payload = {
-    ...(baseHandoff ?? {}),
     task: 1, phase: "branch-review", status: "BLOCKED",
-    commits: { base, head }, findings, artifacts: baseHandoff?.artifacts ?? {},
+    ...(fullBase ? { commits: { base: fullBase, ...(typeof head === "string" && head ? { head } : {}) } } : {}),
+    findings,
+    artifacts: {},
     blocker: reason ?? `cli exited ${code} without writing handoff`,
   };
   if (baseHandoff) writeOwnHandoff(handoffPath, payload);
@@ -36,11 +41,14 @@ export function writeBranchBlocked(handoffPath, { base, head, code, reason, find
 export async function runBranchReview(opts) {
   return withLifecycle(async () => {
   const { harness, plan, base, head } = opts;
+  // 注册表路径测试缝（与 runTask 的 opts.registryPath 同形）：进程内用例注入 ghost registry，
+  // 黑盒路径回落 REG_PATH 单源（engine 不自算第二来源）。
+  const registryPath = opts.registryPath ?? REG_PATH;
 
   // Harness registry gate.
   let entry;
   try {
-    entry = checkHarness(loadRegistry(REG_PATH), harness, { dryRun: DRY_RUN() });
+    entry = checkHarness(loadRegistry(registryPath), harness, { dryRun: DRY_RUN() });
   } catch (e) {
     if (e instanceof CddBlockedError) {
       process.stderr.write(`${e.message}\n`);

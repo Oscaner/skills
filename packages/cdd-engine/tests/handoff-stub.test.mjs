@@ -202,10 +202,11 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
       expect(rec.valid).toBe(false);
       expect(Object.keys(rec.handoff)).not.toContain("0");       // 索引展开面
       expect(Array.isArray(rec.preservedFindings)).toBe(true);
-      // 按 run-task.mjs 8.8 的载荷形状原样组装 → 必须过校验
+      // 按 run-task.mjs 8.8 的载荷形状原样组装（review-3 起为 **engine 自写字面量 + 仅 findings**，
+      // 不再 spread rec.handoff——非对象输入收口为 {} 后本无键可漏，两形在此输入上等价）→ 必须过校验
       const payload = {
-        ...rec.handoff, task: 1, phase: "review", status: "BLOCKED",
-        findings: rec.preservedFindings, artifacts: rec.handoff.artifacts ?? {},
+        task: 1, phase: "review", status: "BLOCKED",
+        findings: rec.preservedFindings, artifacts: {},
         blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
       };
       const r = validateHandoffSchema(payload, "cdd");
@@ -217,5 +218,69 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
     expect(recoverHandoff(
       { phase: "review", artifacts: {}, findings: [{ severity: "warn" }], unknownField: 1 }, "cdd",
     ).preservedFindings).toEqual([{ severity: "warn" }]);
+  });
+});
+
+// ---- fix round 3（review-3 finding 1，warn）：不可救分支的 BLOCKED 载荷 = engine 自写字面量 + 仅 findings ----
+// 缺陷面：`{...rec.handoff}` 组装只剥**顶层未知键**，已声明键的 agent 原值（类型/枚举违规：`notes: 5` /
+// `commits.base` 短形 / `artifacts: "x"`）原样进载体 → 三处 BLOCKED 载荷违反自家 schema（review-3 实测
+// `notes: 5` → payload.valid=false，「engine 是载体唯一作者却写出非契约载体」正是本任务要消灭的类目）。
+// recoverHandoff 的归一化无权改这些已声明键的值（normalize 只剥未知键），故引擎不得把它们拼进自己的
+// 载体——三处消费方（run-task 8.8 / run-docs writeBlocked / branch-review writeBranchBlocked）一律改为
+// 自写字面量 + findings（数组守卫后），载荷与 agent 输入完全解耦。
+describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（engine 字面量 + 仅 findings，不 spread）", () => {
+  // 「已声明键类型/枚举违规」输入：normalize 对这些键束手无策（非 unknown key）→ 恢复面必然 valid:false。
+  const badInputs = [
+    { name: "notes: 5（已声明键类型违规）", handoff: { task: 1, phase: "review", artifacts: {}, findings: [], notes: 5 } },
+    { name: "commits.base 7 位短形（pattern 违规）", handoff: { task: 1, phase: "review", artifacts: {}, findings: [], commits: { base: "7a7327b" } } },
+    { name: "artifacts: 字符串（类型违规）", handoff: { task: 1, phase: "review", artifacts: "x", findings: [] } },
+    { name: "complexity 越枚举", handoff: { task: 1, phase: "review", artifacts: {}, findings: [], complexity: "bogus" } },
+    { name: "test_evidence / unverifiable 字符串", handoff: { task: 1, phase: "review", artifacts: {}, findings: [], test_evidence: "x", unverifiable: "x" } },
+  ];
+  for (const { name, handoff } of badInputs) {
+    it(`${name} → 三路 BLOCKED 载荷均 valid: true`, () => {
+      const rec = recoverHandoff(handoff, "cdd");
+      expect(rec.valid, "恢复面应判归一化不可救（已声明键违规不可剥除）").toBe(false);
+      // ① run-task 8.8 归一化不可救分支（lib/runner/run-task.mjs）——不 spread rec.handoff
+      const taskPayload = {
+        task: 1, phase: "review", status: "BLOCKED",
+        findings: rec.preservedFindings, artifacts: {},
+        blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
+      };
+      expect(validateHandoffSchema(taskPayload, "cdd").valid,
+        `run-task 形（${rec.reason}）`).toBe(true);
+      // ② run-docs writeBlocked（lib/runner/run-docs.mjs）——doc_path/doc_hash 为引擎真值
+      const docsPayload = {
+        phase: "review", status: "BLOCKED", findings: rec.preservedFindings,
+        artifacts: {}, doc_path: "docs/x.md", doc_hash: "abcd",
+        blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON and re-run review`,
+      };
+      expect(validateHandoffSchema(docsPayload, "docs").valid,
+        `docs 形（${rec.reason}）`).toBe(true);
+      // ③ branch-review writeBranchBlocked（lib/cli/branch-review.mjs）——commits 仅 base 全形时写入
+      const branchPayload = {
+        task: 1, phase: "branch-review", status: "BLOCKED",
+        commits: { base: "a".repeat(40), head: "b".repeat(40) },
+        findings: rec.preservedFindings, artifacts: {},
+        blocker: `branch-review handoff schema invalid${rec.reason} → fix and re-run branch-review`,
+      };
+      expect(validateHandoffSchema(branchPayload, "cdd").valid,
+        `branch 形（${rec.reason}）`).toBe(true);
+    });
+  }
+  it("回归锚：`{...rec.handoff, …}` spread 组装在声明键违规输入上必然 invalid（spread 面即缺陷根）", () => {
+    // 复现 review-3 实测：`notes: 5` 经收口后的 `rec.handoff`（已声明键原值保留）spread 进 payload →
+    // `payload.valid=false`（/notes must be string）。这恰是旧载荷形状不可逆的失败面——
+    // 若有人把三处消费方改回 spread 组装，本锚立即标明该载荷违反自家 schema。
+    const rec = recoverHandoff({ task: 1, phase: "review", artifacts: {}, findings: [], notes: 5 }, "cdd");
+    expect(rec.valid).toBe(false);
+    expect(rec.handoff.notes).toBe(5);                       // 已声明键原值被归一化保留（缺陷的泄漏源）
+    const legacy = {
+      ...rec.handoff, task: 1, phase: "review", status: "BLOCKED",
+      findings: rec.preservedFindings, artifacts: rec.handoff.artifacts ?? {},
+      blocker: `handoff schema invalid${rec.reason} → ...`,
+    };
+    expect(validateHandoffSchema(legacy, "cdd").valid).toBe(false);
+    expect(validateHandoffSchema(legacy, "cdd").reason).toMatch(/notes must be string/);
   });
 });

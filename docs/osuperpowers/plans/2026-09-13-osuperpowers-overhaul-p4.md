@@ -4,7 +4,7 @@
 
 **Goal:** 把 cdd-engine 的**跨边界契约面**收敛为单源（输入闭包三信道 + `cdd context` + 输出契约单源 + 失败六类化 + 超时自持判定），并据此把 osuperpowers 的 skills 树从 6 个 legacy skill 全量重写为 8 个节点锚定式 skill（委托型 6 / 原生型 2），删除 `init` / 版本戳机制 / `handoff-schema.md` / `_docs/review.md` 四处遗留。
 
-**Architecture:** 三段式，**engine 先行**——①**信道收口**（`lib/root.mjs` 唯一 `process.cwd()` + `resolveDocArg` 单一坐标系 + 9 项派生值去 env 化 + `context-contract.json` canonical）；②**输出契约单源**（提示词由 JSON Schema 全形派生 + engine 写侧同源 + 失败六类化 + 配额隔离 + 超时自持）；③**单源收敛与删除**（finding-meta 枚举单源 / init / 版本戳 / handoff-schema.md）；④**skills 重写**（8 skill + 模板迁移 + 文档重写 + 治理测试同步）。段的顺序即依赖顺序：段 ①② 冻结 CLI 与输出契约，段 ④ 才有唯一可依据的最终形态。
+**Architecture:** 三段式，**engine 先行**——①**信道收口**（`lib/root.mjs` 唯一 `process.cwd()` + `resolveDocArg` 单一坐标系 + 9 项派生值去 env 化 + `context-contract.json` canonical）；②**输出契约单源**（提示词由 JSON Schema **原样注入**（T18 终态）+ engine 写侧同源 + 失败六类化 + 配额隔离 + 超时自持）；③**单源收敛与删除**（finding-meta 枚举单源 / init / 版本戳 / handoff-schema.md）；④**skills 重写**（8 skill + 模板迁移 + 文档重写 + 治理测试同步）。段的顺序即依赖顺序：段 ①② 冻结 CLI 与输出契约，段 ④ 才有唯一可依据的最终形态。
 
 **Tech Stack:** Node ESM（cdd-engine lib/bin/tests）· Vitest（engine suite, pool=forks）· Commander v15 · execa · ajv（handoff schema 校验）· tinyglobby · Mermaid（SKILL.md digraph）· git rm / `pnpm run emit`
 
@@ -20,7 +20,7 @@
 - **退出码唯一口径 = design §2.4.2 表**：**0** = OK（正常完成 / `--dry-run` / `--help`）· **1** = 运行期不可继续（路径不存在 · 宿主缺失 · engine 自写 BLOCKED · 计数器终态耗尽）· **2** = 用法 / 环境错（commander 用法错误 · `CDD_CLI_MISSING`）· **3** = Review Stopping。**路径不存在取 1、不取 2**——与既有 `RunBlocked: plan file not found`（exit 1）同义：路径写错属「本次调用不可继续」，不属「命令行用错」。本计划内任何 `process.exit(2)` 凡为路径类 BLOCKED 一律为缺陷。
 - **输入闭包五规则**：① 单源 ② 坐标系一 ③ 派生单向（引擎自算值不得回流为输入）④ 无形状推断 ⑤ 隔离经边界（测试用 `mkdtemp` 真 git 仓，**禁止** env 旁路缝）。
 - **运行期 context 零落盘**：engine 内零「写 context 到任意路径」的调用。
-- **输出契约单源**：提示词注入的 handoff 结构由 `templates/schema/*.json` **全形派生**（含 `type` / `enum` / 嵌套形状 / `allOf` 条件）；**engine 写侧经同一 schema 构造**；校验失败**保留 findings** 且报错含**违规键名**；handoff 序列化统一 `JSON.stringify` 全转义。
+- **输出契约单源**：提示词注入的 handoff 结构由 `templates/schema/*.json` **原样注入**（`JSON.stringify`，T18 终态；`type` / `enum` / 嵌套形状 / `allOf` 条件随行可见）；**engine 写侧经同一 schema 构造**；校验失败**保留 findings** 且报错含**违规键名**；handoff 序列化统一 `JSON.stringify` 全转义。
 - **失败六类**：`TIMEOUT` / `CONTRACT_VIOLATION` / `ENGINE_SELF_WRITTEN` / `EXECUTION_FAILURE` / `UNVERIFIABLE` / `PLAN_CONFLICT`；**仅 `EXECUTION_FAILURE` 消耗 `engineRecoveryCount`**；`CONTRACT_VIOLATION` / `ENGINE_SELF_WRITTEN` 各持独立计数器与终态；**六类均不计入 Review Stopping**（Stopping 只读 review handoff 的 `findings[].severity === "blocker"` 计数）。
 - **超时**：`DEFAULT_TIMEOUTS = { task: 5_400_000, review: 3_600_000 }`（90 / 60 分钟）；判定**引擎自持**——**零 `res.timedOut` 单点依赖**。
 - **skills 面**：session-call 原语 = `Run a /<plugin>:<skill> session`；**零上游文档 read**（零 `vendors/` 路径、零上游 `SKILL.md` 路径、零 `Read-Upstream` 措辞）；**零 `fix-inline`**（修复一律 `cdd fix`）；**零引擎内部结构依赖**（零 `CDD_*` env 名、零 `progress.json`、零 handoff 文件名模式）——**scope 逐字取自 design AC5 = 7 个编排型 skill**（AC5 全枚举：`brainstorming` / `writing-single-spec` / `writing-overall-spec` / `writing-phase-spec` / `writing-plans` / `cli-driven-development` / `finishing`）；**`report-issue` 按 AC5 的显式例外排除**（其 `progress.json#plan` 读取是 program 通道首跳、非「引擎内部结构依赖」；去留归 P5 目标流程）——T16 守卫 2 的 scope 按此落地，见 T16 Step 4；Review Stopping 入各 skill 的 `## Invariants` 一行。
@@ -661,7 +661,7 @@ git commit -m "feat(cdd-engine): context-contract canonical + 运行期组合（
 > **2026-09-16 更正**：本任务标题原为「schema **全形派生**」，该措辞已被用户裁定废弃——dev 期 task-review 实证 T5 的「全形派生」实为 **schema 的手写解释器**（越权第二校验器 `satisfiesProp` / 形状受限 `patternSample` / 漏 `items` / 产出违反自身 schema 的占位值）。本任务交付的**四面存续**（归一化后重校验 · 保留 findings · 报错含违规键名 · 序列化全转义）；其 `renderHandoffStub` 手写 render **由 T18 取代**（有计划的替换，非遗留债务）。本任务 Steps 中凡涉及 stub 骨架渲染者，**以 T18 为终态**。
 
 **Files:**
-- Modify: `packages/cdd-engine/lib/templates.mjs:49-66`（`renderHandoffStub` → schema 全形派生）
+- Modify: `packages/cdd-engine/lib/templates.mjs:49-66`（`renderHandoffStub` → schema 原样注入，**T18 终态**）
 - Modify: `packages/cdd-engine/templates/task/fix.md`、`packages/cdd-engine/templates/review/review.md`、`packages/cdd-engine/templates/review/doc-fix.md`（删除与 schema 重复的散文规则）
 - Modify: `packages/cdd-engine/lib/handoff/schema.mjs`（校验报错携带违规键名 + JSON 指针；**新增归一化单点 `normalizeHandoff`**）
 - Modify: `packages/cdd-engine/lib/handoff/finalize.mjs`（写侧经 schema 构造，消灭手写对象字面量）

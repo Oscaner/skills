@@ -3,7 +3,7 @@
 - **Version**: v1.0 · 2026-09-15（起草；**plan 期 design 回填已并入 §2.5.2**——`failure_category` 入 handoff schema + `reviewStoppingGuard` 的未完成-dispatch 排除；**dev 期 design 回填已并入 §2.5.1 / §2.5.5**——用户 2026-09-16 裁定「schema 原样注入取代手写 render」+「templates 结构与命名单源」，见 Deviations；均按 P1/P2/P3 惯例不另行 bump）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.13](./2026-09-13-osuperpowers-overhaul-overall.md)（req 3 / req 5 / req 7 / req 8 + cdd 运行根约定 + 本次新增 A/B/C/D 族）→ 本 phase 回填至 **v1.14**
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.13](./2026-09-13-osuperpowers-overhaul-overall.md)（req 3 / req 5 / req 7 / req 8 + cdd 运行根约定 + 本次新增 A/B/C/D 族）→ 本 phase 回填至 **v1.15**
 - **Depends on**: P3 shipped（命令面四命令收敛 + `cli-research` 删除，PR #261 已 merge 至 develop，2026-09-15）
 
 ---
@@ -617,7 +617,7 @@ K -->|entered via blocker=0| L[handoff-finishing]
 | **Phase inventory · P5** | scope 增 E 族 6 条 finding；**`finding-meta` 取值同步口径注记**——overall 现行 P5 行括注（「**改名一处**——`init` 移除与 3 个新 skill **已由 P4 单源化时同步**」）即本 spec §2.6.1 的立场，**P5 行本体无需改**（round-2 的「引文失真」经逐字核对为已同向，§2.6.1 现按实际行文引述） |
 | **Phase inventory · P6** | 移除已上移的 templates 需求；保留 `.agents/` emit 面移除 / harness 宣称收缩 / flake follow-up |
 | **Dependency graph** | `P4 ->(soft) P5` 理由更新（engine 输出契约与失败类目定案后 P5 承接 report-issues 流程） |
-| **Change history** | 追加 v1.14 |
+| **Change history** | 追加 v1.15 |
 
 ### §2.10 验证
 

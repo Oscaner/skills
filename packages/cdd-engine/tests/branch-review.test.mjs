@@ -9,7 +9,7 @@
 // 否则产物落到 vitest 进程 cwd 所在的仓根（旧 doc-path 派生行为已删）。
 import { describe, it, expect } from 'vitest';
 import { execaSync } from 'execa';
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync, chmodSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +57,70 @@ describe('branch-review dry-run', () => {
       expect(handoff).toHaveProperty('blocker');
       expect(handoff).not.toHaveProperty('doc_path');
     } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---- review-3 finding 4（standards nit）+ finding 1（warn）：branch 路 schema-invalid 分支端到端 ----
+// 此前 branch-review.test.mjs 只有 dry-run 冒烟（subprocess 早退于 dry-run 分支）→ writeBranchBlocked
+// 的载荷组装只靠共享单元单测间接担保。此处仿 runner.test.mjs 的 8.8 归一化不可救用例：ghost registry +
+// fake-cli 真写违规 handoff → runBranchReview 进程内实跑（registryPath 测试缝注入 ghost registry）→
+// 断言 BLOCKED 载体键集干净（engine 字面量，不 spread 归一化结果）、findings 守卫成 []、blocker 含违规键名。
+describe('branch-review schema-invalid e2e', () => {
+  it('agent 写 findings 非数组 + notes:5 → BLOCKED 载体键集干净 / findings [] / blocker 含违规键名', async () => {
+    const dir = tmpGitRepo();
+    const slug = 'test-plan-br';
+    const planPath = path.join(dir, `${slug}.md`);
+    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const base = 'a'.repeat(40);
+    const head = 'b'.repeat(40);
+    const base7 = base.slice(0, 7);
+    const head7 = head.slice(0, 7);
+    // 与 runBranchReview 同派生的 handoff 路径（全新 workspace → round 1）
+    const { resolveWorkspace, handoffName, resolveNextRound } = await import('../lib/handoff/naming.mjs');
+    const workspace = resolveWorkspace(planPath, dir);
+    const round = resolveNextRound(workspace, 'review', 'branch', { base7, head7 });
+    const handoffPath = path.join(workspace, handoffName('review', 'branch', { base7, head7, round }));
+    // fake-cli：应引擎调用写出违规 handoff 后 exit 0（真实子进程，与 runner.test.mjs 的 fake-cli 同法）
+    const binDir = mkdtempSync(path.join(tmpdir(), 'cdd-br-sv-'));
+    writeFileSync(path.join(binDir, 'fake-cli'),
+      `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"branch-review","status":"APPROVED","commits":{"base":"${base}"},"findings":"none","notes":5,"artifacts":{}}' > "${handoffPath}"\n` +
+      `exit 0\n`);
+    chmodSync(path.join(binDir, 'fake-cli'), 0o755);
+    const origPath = process.env.PATH;
+    process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+    // ghost registry：真实 harness-registry.json + 追加 fake-cli（runBranchReview 经 opts.registryPath 注入）
+    const { REG_PATH } = await import('../lib/registry.mjs');
+    const regPath = path.join(dir, 'registry.json');
+    const reg = JSON.parse(readFileSync(REG_PATH, 'utf8'));
+    reg.ghost = { cli: 'fake-cli', invoke: '-p', output: 'text', ship: 'full' };
+    writeFileSync(regPath, JSON.stringify(reg, null, 2));
+    try {
+      const { ExitRequested } = await import('../lib/exit.mjs');
+      const { runBranchReview } = await import('../lib/cli/branch-review.mjs');
+      let exitCode = null;
+      try {
+        await runBranchReview({ harness: 'ghost', plan: planPath, base, head, root: dir, registryPath: regPath });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      expect(exitCode).toBe(1);
+      const h = JSON.parse(readFileSync(handoffPath, 'utf8'));
+      expect(h.status).toBe('BLOCKED');
+      expect(h.phase).toBe('branch-review');
+      // 键集干净：engine 字面量 + commits/findings（agent 的 notes / findings:"none" 不得进载体）
+      expect(Object.keys(h).sort())
+        .toEqual(['artifacts', 'blocker', 'commits', 'findings', 'phase', 'status', 'task']);
+      expect(h.findings).toEqual([]);          // 非数组 findings → 数组守卫成 []
+      expect(h.commits.base).toBe(base);       // branch 的 base/head 是引擎真值（AC15 文件名承载 short 形）
+      expect(h.commits.head).toBe(head);
+      expect(h).not.toHaveProperty('notes');
+      expect(h.blocker).toMatch(/notes/);      // 违规键名（ajv /notes must be string）在 blocker 文案
+    } finally {
+      process.env.PATH = origPath;
       rmSync(dir, { recursive: true, force: true });
     }
   });

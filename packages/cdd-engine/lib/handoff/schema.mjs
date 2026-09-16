@@ -17,18 +17,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(__dirname, '..', '..');
 
 // Two handoff schemas ship in templates/schema/:
-//   cdd  — task handoffs (implement/review/fix; task/phase enums, commits objects)
-//   docs — doc review handoffs (review.md shared shell spec/plan; doc-fix;
+//   task — task handoffs (implement/review/fix/branch-review; task/phase enums, commits objects)
+//   docs — doc review handoffs (review.md shared shell spec/plan; fix/docs.md;
 //          required doc_path, no task/commits)
+// Task 18: 文件名随前缀统一改名（cdd→task）；映射键随改名。
 const SCHEMA_PATHS = {
-  cdd:  path.join(PKG_ROOT, 'templates', 'schema', 'cdd-handoff-schema.json'),
+  task: path.join(PKG_ROOT, 'templates', 'schema', 'task-handoff-schema.json'),
   docs: path.join(PKG_ROOT, 'templates', 'schema', 'docs-handoff-schema.json'),
 };
 
 // Per-schema lazy caches: { validator, schema }.
 const CACHE = new Map();
 
-function getEntry(schemaName = 'cdd') {
+function getEntry(schemaName = 'task') {
   if (CACHE.has(schemaName)) return CACHE.get(schemaName);
   const schemaPath = SCHEMA_PATHS[schemaName];
   if (!schemaPath) throw new Error(`unknown handoff schema: ${schemaName}`);
@@ -40,16 +41,16 @@ function getEntry(schemaName = 'cdd') {
 }
 
 // Returns the raw JSON Schema object (for renderHandoffStub).
-export function loadHandoffSchema(schemaName = 'cdd') {
+export function loadHandoffSchema(schemaName = 'task') {
   return getEntry(schemaName).schema;
 }
 
-// Validates a handoff object against the named schema ('cdd' | 'docs').
+// Validates a handoff object against the named schema ('task' | 'docs').
 // Returns {valid: true} or {valid: false, reason: string, property?: string}.
 // T5: 失败形态携带违规键名 —— ajv 的 params.additionalProperty 同时落 `property`（消费方按键取用）
 // 与 `reason` 文案（人读）。`valid` / `reason` 键名与既有七处消费方逐字不变（改名会破坏三个 lib
 // 消费点 + 四个测试），本任务只新增 `property`。
-export function validateHandoffSchema(obj, schemaName = 'cdd') {
+export function validateHandoffSchema(obj, schemaName = 'task') {
   const { validator } = getEntry(schemaName);
   const valid = validator(obj);
   if (valid) return { valid: true };
@@ -83,7 +84,7 @@ const objOrEmpty = (o) => (o && typeof o === "object" && !Array.isArray(o) ? o :
 //      强制 agent 声明，归一化不得绕过该约束）。rollup 的三个数组入参先过 `arr` 守卫——agent 值
 //      未经校验，直接喂 rollup 会把归一化单点变成崩溃点（本任务引入的回归）。
 // 无副作用：不改原对象，返回新对象；非对象输入原样透传（透传契约由调用方判断——恢复面经 `objOrEmpty` 收口）。
-export function normalizeHandoff(obj, schemaName = 'cdd') {
+export function normalizeHandoff(obj, schemaName = 'task') {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
   const allowed = new Set(Object.keys(loadHandoffSchema(schemaName).properties ?? {}));
   const out = {};
@@ -113,7 +114,7 @@ export function normalizeHandoff(obj, schemaName = 'cdd') {
 // 两条返回路径的 `handoff` 都恒为**对象**（`objOrEmpty` 收口）：调用方的 `{ ...rec.handoff, … }`
 // 载荷组装不依赖输入的展开语义。非对象顶层输入（agent 写 `[{…findings…}]` / 裸字符串 / 数字）必然
 // 归为 invalid（`type: object` 不满足）→ 走 BLOCKED 分支，findings 无非数组字段可留 → `[]`。
-export function recoverHandoff(obj, schemaName = "cdd") {
+export function recoverHandoff(obj, schemaName = "task") {
   const handoff = objOrEmpty(normalizeHandoff(obj, schemaName));
   const sv = validateHandoffSchema(handoff, schemaName);
   if (sv.valid) return { handoff, valid: true };

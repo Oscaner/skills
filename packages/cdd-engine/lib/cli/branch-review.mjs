@@ -125,12 +125,10 @@ export async function runBranchReview(opts) {
     HARD_GATE: reviewHardGate(art.return, handoffPath),
   }, "cdd review");
   // HANDOFF_STUB：共享壳槽位在此路径须显式替换（docs 路径 runDocsTask 自理、runner 路径 renderModePrompt 自理）。
-  // 调用方真值（engine 侧零键名特判）：branch 派发的 handoff `phase` 是 `branch-review`（非 mode 名
-  // `review`）、`review_scope` 是 `branch`、`commits.base` = 本轮 base —— 三者都不由渲染器猜测。
+  // Task 18：stub = schema 原样注入（零 render；phase/review_scope/commits.base 等真值面已随
+  // 手写 render 一并删除 —— 契约由 schema 本体 + 其 description 承载）。
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g,
-    renderHandoffStub(loadHandoffSchema("cdd"), "review", 1, {
-      values: { phase: "branch-review", review_scope: "branch", commits: { base } },
-    }));
+    renderHandoffStub(loadHandoffSchema("task")));
 
   // Invoke harness CLI. (op,type) 注入解析到 prefix.review.branch（旧 branch-review 独立 bin 已删除，逻辑内联于此）。
   const timeoutMs = resolveTimeoutMs(process.env, "review");
@@ -154,7 +152,7 @@ export async function runBranchReview(opts) {
   // Agent wrote handoff — validate against the CDD schema (mirrors runner step 8.8).
   if (existsSync(handoffPath)) {
     const agentHandoff = JSON.parse(readFileSync(handoffPath, "utf8"));
-    const sv = validateHandoffSchema(agentHandoff, "cdd");
+    const sv = validateHandoffSchema(agentHandoff, "task");
     // T5 CONTRACT_VIOLATION 恢复（spec §2.5.2，AC7 类目级：branch 派发与 task/spec/plan 同策略）：
     // 归一化 → 重校验（最多一轮，不循环）。命中 → 写侧同源落盘 + 按归一化对象定稿；
     // 仍失败 → BLOCKED 且保留已解析出的 findings（此前硬编码 findings: []，即 A4 缺陷）。
@@ -162,7 +160,7 @@ export async function runBranchReview(opts) {
     if (!sv.valid) {
       // 恢复单点 = lib/handoff/schema.mjs#recoverHandoff（归一化 → 重校验，最多一轮；违规键名后缀与
       // findings 数组守卫在那里写一次，本路径只保留自己的失败载荷差异）。
-      const rec = recoverHandoff(agentHandoff, "cdd");
+      const rec = recoverHandoff(agentHandoff, "task");
       if (!rec.valid) {
         writeBranchBlocked(handoffPath, {
           base, head, code: 0,

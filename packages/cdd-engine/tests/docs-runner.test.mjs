@@ -61,6 +61,7 @@ vi.mock("../lib/templates.mjs", () => ({
   PKG_ROOT: "/mock/pkg/root",
   renderHandoffStub: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
   renderTemplate: vi.fn(() => "mocked docs review prompt"),
+  reviewHardGate: vi.fn((returnMode, handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE outputting the JSON return.`),
 }));
 
 vi.mock("../lib/handoff/schema.mjs", () => ({
@@ -187,7 +188,7 @@ describe("runDocsTask", () => {
     // fix×spec → prefix.fix="/mattpocock-skills:tdd"（flat string）→ 注入首行
     execa.mockClear();
     await runDocsTask({
-      harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
+      harness: "claude", mode: "fix", template: "docs", type: "spec",
       doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",
@@ -326,7 +327,7 @@ describe("runDocsTask", () => {
     const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
     const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
     await runDocsTask({
-      harness: "claude", mode: "fix", template: "doc-fix", type: "spec",
+      harness: "claude", mode: "fix", template: "docs", type: "spec",
       doc: SPEC_DOC,
       findingsPath: "/repo/root/docs/findings.md",
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-fix-1.json",

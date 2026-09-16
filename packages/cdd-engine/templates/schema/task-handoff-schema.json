@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "CDD task handoff contract (implement / review / fix / branch-review). The engine writes or materializes this file; the agent's job is the content of findings[] and the declared work fields below. Write findings, not status — the engine derives status from findings. Each property below documents its rule.",
+  "type": "object",
+  "required": [
+    "task",
+    "phase",
+    "artifacts",
+    "findings"
+  ],
+  "properties": {
+    "task": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "task number (1-indexed; the plan's `### Task N:` id)."
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "implement",
+        "review",
+        "fix",
+        "branch-review"
+      ],
+      "description": "dispatch phase; determined by the engine, not authored by the agent."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "APPROVED",
+        "BLOCKED",
+        "CHANGES_REQUESTED",
+        "TIMEOUT"
+      ],
+      "description": "Write findings, not status — the engine derives status from findings. The review family (review / branch-review) may omit this field (derived); implement / fix must declare it."
+    },
+    "failure_category": {
+      "type": "string",
+      "enum": [
+        "TIMEOUT",
+        "CONTRACT_VIOLATION",
+        "ENGINE_SELF_WRITTEN",
+        "EXECUTION_FAILURE",
+        "UNVERIFIABLE",
+        "PLAN_CONFLICT"
+      ],
+      "description": "classifier for how the round ended; engine-written on failure paths, declared by the agent only when it reports one."
+    },
+    "commits": {
+      "type": "object",
+      "required": [
+        "base"
+      ],
+      "description": "commit identity of the dispatch's review/fix range; the reviews.json check at 13.5 validates it.",
+      "properties": {
+        "base": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "range base (TASK_BASE / FIXED_POINT): full 40-char SHA; never --short / %h / any truncated form."
+        },
+        "head": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "full 40-char SHA; never --short / %h / any truncated form. Optional — omitted when the round has no head yet (e.g. some BLOCKED branch-review payloads)."
+        }
+      }
+    },
+    "complexity": {
+      "type": "string",
+      "enum": [
+        "simple",
+        "moderate",
+        "complex"
+      ],
+      "description": "agent-declared complexity estimate; optional."
+    },
+    "review_scope": {
+      "type": "string",
+      "enum": [
+        "task",
+        "branch"
+      ],
+      "description": "review dispatch scope (task vs branch); determined by the dispatch, not authored."
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "point at files, do not embed report bodies — values are paths (brief / report / test_evidence), never inline content."
+    },
+    "findings": {
+      "type": "array",
+      "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (the engine rolls findings up to status)."
+    },
+    "unverifiable": {
+      "type": "array",
+      "description": "claims the round could not verify (see plan/spec review); rolled into status along with findings."
+    },
+    "plan_conflicts": {
+      "type": "array",
+      "description": "plan conflicts discovered during the round; rolled into status along with findings."
+    },
+    "blocker": {
+      "type": "string",
+      "description": "omit when nothing blocks (NOT null) — null is invalid; a present value means the round cannot proceed."
+    },
+    "notes": {
+      "type": "string",
+      "description": "free-form evidence notes (why this fix / why test-evidence was re-recorded); optional."
+    },
+    "test_evidence": {
+      "type": "object",
+      "description": "reference to command outputs (paths), never inline output bodies."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "enum": [
+              "review",
+              "branch-review"
+            ]
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "required": []
+      },
+      "else": {
+        "required": [
+          "status"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

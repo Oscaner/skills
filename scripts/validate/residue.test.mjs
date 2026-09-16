@@ -651,10 +651,10 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
   });
   it("counter 泄漏进 handoff schema properties → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-schema-"));
-    const f = path.join(dir, "cdd-handoff-schema.json");
+    const f = path.join(dir, "task-handoff-schema.json");
     writeFileSync(f, '{ "properties": { "timeoutCount": { "type": "integer" }, "status": {} } }\n', "utf8");
     try {
-      const hits = collectCountersContractHits({ cddSchema: f });
+      const hits = collectCountersContractHits({ taskSchema: f });
       expect(hits.some((h) => h.label.match(/泄漏/))).toBe(true); // 泄漏 + 计数 14 双重命中，按泄漏面断言
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -753,7 +753,7 @@ describe("shipped guards：版本字面量 + /init 引用（T10）", () => {
 // ---- Task 11: handoff-schema.md 删除 反向守卫（design §2.8 行 14）----
 // `(?<!-)handoff-schema` 零命中条目：裸名形（`// 对齐 handoff-schema…表` cite）与路径形
 //（`docs/handoff-schema.md` / `skills/cli-driven-development/docs/handoff-schema.md`）一律命中；
-// canonical schema 文件名（`cdd-handoff-schema.json` / `docs-handoff-schema.json`）的
+// canonical schema 文件名（`task-handoff-schema.json` / `docs-handoff-schema.json`）的
 // `handoff-schema` 均前接 `-` → 负向后顾豁免。scope 覆盖测试钉死 {bin,lib,tests} + osuperpowers
 // 全目录（含 .agents/ emit 副本面 —— 副本由 emit prune，删除动作与守卫同 commit）。
 // 行 21 的 task-review 守卫归 T15 Step 4b，本组不写其单测（写入会在本任务内不可转绿）。
@@ -789,7 +789,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
     const dir = mkdtempSync(path.join(tmpdir(), "residue-t11-canon-"));
     writeFileSync(
       path.join(dir, "ok.mjs"),
-      "// schema → packages/cdd-engine/templates/schema/cdd-handoff-schema.json + docs-handoff-schema.json\n",
+      "// schema → packages/cdd-engine/templates/schema/task-handoff-schema.json + docs-handoff-schema.json\n",
       "utf8",
     );
     try {

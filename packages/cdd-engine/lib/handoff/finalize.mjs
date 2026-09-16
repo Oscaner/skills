@@ -203,7 +203,7 @@ export function finalizeImplement({ h1 = [], brief, repoRoot, workspace, taskNum
     findings: [],
     commits: { base, ...(head ? { head } : {}) },
     blocker: blocker || undefined,
-  }, "cdd");
+  }, "task");
   const exitCode = gate.hard || handoff.status === "BLOCKED" ? 1 : 0;
   return { handoff, exitCode };
 }

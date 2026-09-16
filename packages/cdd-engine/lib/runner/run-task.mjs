@@ -446,7 +446,7 @@ export async function runTask(harness, taskNum, opts = {}) {
         // （三路 runner 同源消费：违规键名后缀 + findings 数组守卫只在那里写一次）。
         // 两条子分支都以**归一化对象**为准（违规键无论如何不留盘），故写盘一律 writeOwnHandoff
         // 全量覆盖 —— 浅合并会让磁盘上的违规键经 existing 回灌，把刚剥掉的键又写回去。
-        const rec = recoverHandoff(existingHandoff, "cdd");
+        const rec = recoverHandoff(existingHandoff, "task");
         if (rec.valid) {
           // ① 归一化命中 → 写侧同源落盘 →「正常继续」（后续 13 步 finalize / h1FromHandoff
           //    读回的都是归一化形态）。

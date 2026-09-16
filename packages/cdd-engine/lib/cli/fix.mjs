@@ -58,7 +58,7 @@ export async function runFix(opts) {
     process.stderr.write(`cdd fix --type ${opts.type}: --findings round must be >= 1 (round derived from the source review); got: ${opts.findings}\n`);
     exitWithCode(2);
   }
-  // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "doc-fix" 共享壳）；
+  // fix 模板统一走 canonical fix.{type} 族 fixTemplate（spec/plan → "docs" 共享壳）；
   // workspace 与 review 同源 resolveWorkspace(doc)；handoffPath 显式传 canonical fix.{type} 名。
   const template = handoffNaming.familyConfig("fix", opts.type).fixTemplate;
   const ws = handoffNaming.resolveWorkspace(doc, root);

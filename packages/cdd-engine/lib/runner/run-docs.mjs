@@ -12,7 +12,7 @@ import { writeHandoff, writeOwnHandoff } from "../handoff/write.mjs";
 import { finalizeHandoff, persistFinalized } from "../handoff/finalize.mjs";
 import { loadRegistry, checkHarness, REG_PATH } from "../registry.mjs";
 import { loadHandoffSchema, validateHandoffSchema, recoverHandoff } from "../handoff/schema.mjs";
-import { renderHandoffStub, renderTemplate } from "../templates.mjs";
+import { renderHandoffStub, renderTemplate, reviewHardGate } from "../templates.mjs";
 import { hashFile } from "./review-loop.mjs";
 
 // REG_PATH 统一由 lib/registry.mjs 导出（spec §2.3 深度派生常数专项：run-docs 不再自算第二来源）。
@@ -70,14 +70,17 @@ export async function runDocsTask({
   // The legacy `${template}-${round}.json` derivation is removed — no second naming site.
   if (!handoffPath) throw new Error("docs-runner: handoffPath required (canonical naming; no template fallback)");
 
-  // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}},
-  // then replace {{HANDOFF_STUB}} with schema-derived stub).
-  // T3: URC 后 fix 模板直接收 canonical fixTemplate 值（"doc-fix"）—— `-review`→`-fix` legacy
-  // 派生分支已删，模板名直传（doc-fix/review 不得 double-suffix）。
+  // Render prompt from template (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/{{HANDOFF}}/{{HARD_GATE}},
+  // then replace {{HANDOFF_STUB}} with the raw schema).
+  // T3: URC 后 fix 模板直接收 canonical fixTemplate 值（"docs"）—— `-review`→`-fix` legacy
+  // 派生分支已删，模板名直传（docs/review 不得 double-suffix）。Task 18: doc-fix.md → fix/docs.md。
   const schema = loadHandoffSchema("docs");
-  const stub = renderHandoffStub(schema, mode, undefined, { docPath: doc });
+  const stub = renderHandoffStub(schema);
   let prompt = renderTemplate(template, {
     DOC: doc, FINDINGS: findingsPath ?? "", HANDOFF: handoffPath,
+    // Task 18: 共享 Handoff 壳的 {{HARD_GATE}} 槽；fix 族缺省 = json return 写盘门（review.mjs 经
+    // params 传入自算值，...params 展开在后 → 显式注入优先）。
+    HARD_GATE: reviewHardGate("json", handoffPath),
     ...params,
   }, "docs-runner");
   prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);

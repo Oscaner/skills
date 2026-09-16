@@ -506,7 +506,7 @@ const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function collectCountersContractHits({
   constructFiles = ["packages/cdd-engine/lib/state/progress.mjs", "packages/cdd-engine/lib/failure.mjs"],
   engineScope = CDD_ENGINE_BIN,
-  cddSchema = "packages/cdd-engine/templates/schema/cdd-handoff-schema.json",
+  taskSchema = "packages/cdd-engine/templates/schema/task-handoff-schema.json",
   docsSchema = "packages/cdd-engine/templates/schema/docs-handoff-schema.json",
 } = {}) {
   const hits = [];
@@ -528,14 +528,14 @@ export function collectCountersContractHits({
   for (const { file, lineNo, text } of scanLines(engineScope, failureCategoryRe)) {
     hits.push({ label: `类目以字符串字面量身份出现（应经 FAILURE_CATEGORIES 承重）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
-  for (const [name, schemaPath] of [["cdd", cddSchema], ["docs", docsSchema]]) {
+  for (const [name, schemaPath] of [["task", taskSchema], ["docs", docsSchema]]) {
     const abs = path.isAbsolute(schemaPath) ? schemaPath : path.join(ROOT, schemaPath);
     const schema = JSON.parse(readFileSync(abs, "utf8"));
     const props = Object.keys(schema.properties ?? {});
     for (const fld of COUNTER_FIELDS) {
       if (props.includes(fld)) hits.push({ label: `counter ${fld} 泄漏进 ${name} handoff schema（counters 不进契约）`, file: schemaPath });
     }
-    const expected = name === "cdd" ? 14 : 9;
+    const expected = name === "task" ? 14 : 9;
     if (props.length !== expected || !props.includes("failure_category")) {
       hits.push({ label: `${name} handoff schema properties 计数 ${props.length} ≠ ${expected}（除 failure_category 外不得增减）`, file: schemaPath });
     }
@@ -663,7 +663,7 @@ function checkShippedGuards() {
 // =====================================================================
 // `(?<!-)handoff-schema` 零命中条目（行 14 由本任务唯一承接，删除动作与守卫同 commit）：
 // 裸名形（`// 对齐 …表` cite）与路径形（`docs/handoff-schema.md` / `skills/cli-driven-development/
-// docs/handoff-schema.md`）一律命中；负向后顾豁免 canonical schema 文件名（`cdd-handoff-schema.json`
+// docs/handoff-schema.md`）一律命中；负向后顾豁免 canonical schema 文件名（`task-handoff-schema.json`
 // / `docs-handoff-schema.json` 的 `handoff-schema` 均前接 `-`）。scope = packages/cdd-engine/​{bin,lib}
 // + tests + packages/osuperpowers 全目录（含 .agents/ emit 副本面 —— 副本由 emit prune）。
 // 本条目不计入 T8 的 collectChannelAuditHits（其 12 条指 §2.8 行 1–11、13）；行 21 的 task-review
@@ -712,7 +712,7 @@ function checkHandoffSchema() {
 //            `cdd fix` 命令形。
 //   行 12 — ① cli-driven-development/SKILL.md 的 `## Failure Modes` 短表数据行首列 ⊆ canonical
 //            类目集（FAILURE_CATEGORIES，本文件经 cdd-engine 唯一读取入口取，不写字面第二份）∪
-//            handoff 状态枚举白名单（声明点 = cdd-handoff-schema.json 的 status.enum；防御性放行，
+//            handoff 状态枚举白名单（声明点 = task-handoff-schema.json 的 status.enum；防御性放行，
 //            与 failure_category 的 enum 是两处独立声明——TIMEOUT 的重名不构成类目身份）；
 //            ② 类目语义零复述——engineRecoveryCount / countsTowardStopping / timeout-exhausted /
 //            计入 Stopping 措辞在 skills 面零命中（skills 只可引用类目名）。
@@ -739,10 +739,10 @@ const FIX_INLINE_RE = /fix-inline/;
 const FAILURE_SEMANTICS_RE = /engineRecoveryCount|countsTowardStopping|timeout-exhausted|计入\s*Stopping/;
 const DOCS_REF_RE = /\b_docs\/|rule-review-stopping/;
 
-/** handoff 状态枚举白名单（声明点 = cdd-handoff-schema.json 的 status.enum；防御性放行）。 */
+/** handoff 状态枚举白名单（声明点 = task-handoff-schema.json 的 status.enum；防御性放行）。 */
 function handoffStatusWhitelist() {
   const schema = JSON.parse(
-    readFileSync(path.join(ROOT, "packages/cdd-engine/templates/schema/cdd-handoff-schema.json"), "utf8"),
+    readFileSync(path.join(ROOT, "packages/cdd-engine/templates/schema/task-handoff-schema.json"), "utf8"),
   );
   return new Set(schema.properties.status.enum ?? []);
 }

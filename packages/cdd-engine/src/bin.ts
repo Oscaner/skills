@@ -1,8 +1,12 @@
+#!/usr/bin/env node
 // src/bin.ts — P5 Task 1 占位 CLI 入口（薄转发，零命令定义）
 // 全量 TS 后 bin/cdd.mjs 将失效；Task 9 citty 化落地真实命令面（defineMainCommand 装配 → cli/ 派发，
 // spec §2.13 目录树），本文件届时整体替换。本 Task 仅保证入口可达：
 //   build / dev:stub 之下 dist/cli.mjs 转发到现有 bin/cdd.mjs commander 命令面，
 //   argv 与 stdio 原样透传，退出码逐位转发。不引入任何业务逻辑。
+//
+// 首行 #! 使产物 dist/cli.mjs（package.json 的 bin/main/exports 指向）可被直接执行（无 node 前缀）：
+// rollup 把入口 shebang 提升到产物首行，unbuild 依 SHEBANG_RE 对其 chmod 0o755（build/stub 两态原生透传）。
 //
 // 与 bin/cdd.mjs 的 isMain 守卫不同，这里**无条件**执行：unbuild 的 stub 产物（dist/cli.mjs）经 jiti
 // 即时加载本文件，argv[1] 指向 dist/ 而 import.meta.url 指 src/，import.meta.url 判主恒为 false；

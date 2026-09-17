@@ -37,11 +37,10 @@ pnpm run changeset  # create a changeset for versioning
 pnpm run version    # apply changesets to bump versions
 ```
 
-> **Development-time CDD invocation — direct, never global:** during development the CDD engine must be invoked straight from this repo's working tree (dev 与发布同走 dist 入口：`pnpm -C packages/cdd-engine dev:stub` 生成 jiti 即时加载桩，见 spec §2.13 开发调用链；bin/cdd.mjs 已随 P5 Task 3 并入 src/bin.ts，不再单独存在):
+> **Development-time CDD invocation — direct, never global:** during development the CDD engine must be invoked straight from this repo's working tree (dev 与发布同走 dist 入口：`pnpm --filter @oscaner-skills/cdd-engine dev:stub`（unbuild --stub）生成 jiti 即时加载桩——依赖变更后重跑；产物 `dist/cli.mjs`（gitignored），见 spec §2.13 开发调用链；`bin/cdd.mjs` 已随 P5 Task 3 并入 `src/bin.ts`，不再单独存在):
 >
 > ```bash
-> pnpm -C packages/cdd-engine dev:stub   # 依赖变更后重跑；产物 dist/cli.mjs（gitignored）
-> node packages/cdd-engine/dist/cli.mjs <subcommand> [options]
+> pnpm --filter @oscaner-skills/cdd-engine dev:stub && node packages/cdd-engine/dist/cli.mjs <subcommand>
 > ```
 >
 > The global `cdd` command must NOT be used (the `npm link` was removed for this reason). A global link can go stale or resolve to an old copy, so any engine work (P4-era especially) must be exercised against the working tree via the direct invocation — it guarantees the engine under test is this repo's code.

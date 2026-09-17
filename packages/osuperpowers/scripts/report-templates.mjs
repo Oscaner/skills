@@ -26,8 +26,11 @@ const findingMeta = JSON.parse(
 );
 const { sectionLabels, masterDef } = findingMeta;
 
-const FINDING_TYPES = ["bug", "enhancement"];
-const LANGS = ["en", "zh"];
+// 枚举单源：由 canonical sectionLabels 派生（消除与 canonical 的重复表达面）——FINDING_TYPES
+// = sectionLabels 顶层键（type），LANGS = 首个 type 的语言键（当前 canonical 各 type 语言
+// 同构 en/zh）。校验与渲染共用同一枚举源，canonical 日后增 type/lang 不产生静默分歧面。
+const FINDING_TYPES = Object.keys(sectionLabels);
+const LANGS = Object.keys(sectionLabels[FINDING_TYPES[0]] ?? {});
 const TEXT_FIELDS = ["context", "problem", "impact", "suggestedFix"];
 
 /** report-meta 两字段 bullet — canonical metaFields（key+label 对）驱动，零硬编码。 */

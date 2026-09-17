@@ -97,7 +97,7 @@
 ### Task 15: report-issues SKILL.md 重写（新聚合流程 digraph）
 
 - **Do**: 新 digraph（explore-current-session → collect → reform → confirm → dedup → create-issue? → {create-issue | report-links-only} → report）；节点定义含——工具链 scope 过滤（组件槽位 + 行为谓词 + 拒绝样例 def）、中性 topic 提炼（≤60 chars 含 type/component 剥离）、单趟 dedup（`updated:>90d` window 常量 + `gh issue list --search "updated:>=<ISO now-90d>"` 物化句 + 批量内存匹配）、不建空 issue 门；不动式：I1 Confirm Gate / I3 Manual / I5 Renderer Determinism / I6 Evidence Contract 保留，I7 删，I8 Dedup Window / I9 Program Link 新增；report-meta 终态 2+1
-- **验收**: SKILL.md 含完整新 digraph + 节点定义；零 `resolve-destination`/`ensure-session`/`append-comment`/master 复用/`[Session report] <slug> <date>` 壳前缀残留；`standalone` 兜底桶概念零表述
+- **验收**: SKILL.md 含完整新 digraph + 节点定义；零 `resolve-destination`/`ensure-session`/`append-comment`/master 复用/`[Session report] <slug> <date>` 壳前缀残留；零 `--mode`/`renderComment`/`renderTitle` 词形残留（renderer 已裸调用单入口，Task 14 删面——消费者按旧 SKILL.md 调用将撞死接口）；`standalone` 兜底桶概念零表述
 - **注**: spec §2.4 全节；`#explore-context` 措辞去枚举化（E-7）并入本 Task 复核
 
 ### Task 16: GitHub label rename + residue 防回渗守卫
@@ -109,7 +109,7 @@
 ### Task 17: README 更新 + CLAUDE.md dev 调用链 + 运维文档 third-party-dependencies.md
 
 - **Do**: `osuperpowers/README.md` 技能表 + engine 面同步；**CLAUDE.md dev 段**更新——`node packages/cdd-engine/bin/cdd.mjs` 随 bin 产品化作废 → `pnpm --filter @oscaner-skills/cdd-engine dev:stub && node packages/cdd-engine/dist/cli.mjs <subcommand>`（仍不 npm link 全局，说明原因）；新增 `docs/maintainers/third-party-dependencies.md`——登记全部第三方 pkg（citty/hookable/consola/simple-git/yaml/tinyglobby/handlebars/execa/ajv/semver/unbuild · 用途/版本约束/替换的手写面/维护锚点 · 不引清单：XState/tapable/emittery/oclif/isomorphic-git/js-yaml/husky-not-in-pkg + 理由）
-- **验收**: CLAUDE.md dev 调用链可直接复制执行（stub 后 clitty CLI 可用）；third-party-dependencies.md 覆盖全部 pkg + 不引清单；README 零 report-issue 残留
+- **验收**: CLAUDE.md dev 调用链可直接复制执行（stub 后 clitty CLI 可用）；third-party-dependencies.md 覆盖全部 pkg + 不引清单，且显式记录 yaml 隔离边界（仅 emit-only 模块 render-yaml.mjs 消费 · 仅 root devDependencies · 消费者运行时零第三方依赖——renderer 入口不得 import yaml；禁经 osuperpowers 发布为运行时依赖）；README 零 report-issue 残留
 - **注**: spec §2.13 运维文档 + 开发调用链；husky 边界说明（root dev-only 不进包）入文档
 
 ### Task 18: E-8 schema 紧凑注入 + E-7 explore-context 措辞

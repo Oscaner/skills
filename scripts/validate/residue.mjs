@@ -10,10 +10,10 @@
 // subsystem removal (bin/gate/
 // path, CDD_GATE env, cdd-gate-core, gateDecide, deleted gate adapters) — must
 // not creep back into mechanism/document positions.)
-// Task 16（P6）追加 report-issues 旧模型残留守卫（§2.8 行 1-13 的 skills 侧续）：裸 report-issue
-//（词边界，复数 report-issues skill 名放行）/ --mode 词形 / renderComment / renderTitle /
-// resolveDropdownOptions / sessionTypes / execFileSync("git")（手写 git 回渗）——全部机制位置
-// 零豁免。
+// Task 16（P5）追加 report-issues 旧模型残留守卫（p5 design §2.8「residue 守卫」条 —— AC1 词边界
+// 零命中 / AC5 renderer 零残留 的机制侧落点）：裸 report-issue（词边界，复数 report-issues skill
+// 名放行）/ --mode 词形 / renderComment / renderTitle / resolveDropdownOptions / sessionTypes /
+// execFileSync("git")（手写 git 回渗）——全部机制位置零豁免。
 // T10 追加 shipped 面反向守卫两条（§2.8 行 19-20）：① shipped 非 emit 面（skills/** · 插件
 // README）零 osuperpowers-version 版本字面量；② shipped 面（根 README · 插件 README）+ 协作者面
 // （.changeset/README.md）零 `/init` 引用——init 删除 + 版本戳机制删除后的逆向残留检查。
@@ -86,7 +86,7 @@ const STALE_LEXICON_CHECKS = [
   //   ——无锚定 alternation 的子串语义使 `CDD_` 前缀分支为死分支（T5 review-1 nit，实测等价），
   //   故取后缀单分支；`CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` 不命中（保留面）。
   { label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
-  // Task 16（P6）：report-issues 旧模型残留守卫 —— 旧模型语汇（--mode flag / renderComment /
+  // Task 16（P5）：report-issues 旧模型残留守卫 —— 旧模型语汇（--mode flag / renderComment /
   // renderTitle / resolveDropdownOptions / sessionTypes / 裸 report-issue）已清零（rewrite 收口轮），
   // 常驻防回归。`report-issue` 必须词边界（\b）——复数 `report-issues` skill 名与 `report-links-only`
   // 节点均合法（substring 会误报复数）。`--mode` 取词形（负向后顾/前瞻豁免内部 `mode:` 属性与

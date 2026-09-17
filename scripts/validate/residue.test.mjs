@@ -1091,7 +1091,7 @@ describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review
   });
 });
 
-// ---- Task 16（P6）：report-issues 旧模型残留守卫 ----
+// ---- Task 16（P5）：report-issues 旧模型残留守卫 ----
 // 旧模型语汇（resolve-destination / ensure-session / append-comment / --mode /
 // renderComment / renderTitle / resolveDropdownOptions / sessionTypes）已清零（rewrite 收口轮），
 // 此处为常驻防回归。`report-issue` 必须词边界（\b）——复数 `report-issues` skill 名合法（裸
@@ -1099,7 +1099,7 @@ describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review
 // 衍生 token）。`execFileSync("git")` 防手写 git 回渗（engine 唯一 spawn 通道 = proc.mjs 的
 // execa）。scope = ALL_MECH_POSITIONS（机制面零豁免）；scripts/ 不在 scope，本文件直接写字面
 // 无自噬风险（T15 先例）。
-describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16）", () => {
+describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16·P5）", () => {
   it("裸 report-issue（词边界）命中；复数 report-issues skill 名放行", () => {
     expect(hasHit(["report-issue 旧流程名"])).toBe(true);
     expect(hasHit(["`report-issue` 节点"])).toBe(true);

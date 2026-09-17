@@ -64,7 +64,7 @@ const INVOKE_PARAMS: Record<string, { op: string; type?: string }> = {
 // Local orchestration error: carries an exit code; caught by resolveContext then finish.
 class RunBlocked extends Error {}
 
-// ---- 失败类目分派（T6）----
+// ---- failure-category dispatch (T6) ----
 // Six category names declared once by templates/failure-categories.json; every "category
 // identity" reference here loads through src/rules/failure.ts (FAILURE_CATEGORIES / counterFor) —
 // a category deleted from the canonical blows up the entry reference at runtime (AC14
@@ -83,8 +83,8 @@ export function incrementFailureCounter(progressDir: string, category: string): 
   return data[field] as number;
 }
 
-// 终态门（T6 / AC7）：类目计数 ≥ 2 → 终态 blocker「BLOCKED: <category>-exhausted」，orchestrator
-// 据此停止重试（失败类目表的 *-exhausted 终态）。
+// Terminal gate (T6 / AC7): category count ≥ 2 → the terminal blocker「BLOCKED: <category>-exhausted」,
+// on which the orchestrator stops retrying (the failure-category table's *-exhausted terminal state).
 export function exhaustedBlocker(category: string, n: number): string | null {
   if (n < 2) return null;
   return `BLOCKED: ${category}-exhausted (${n} consecutive ${category.replace(/_/g, " ").toLowerCase()} failures) — stop and fix the underlying cause, then re-dispatch a fresh task`;
@@ -261,7 +261,8 @@ export function h1FourLines(raw: string, workspace: string): string[] {
   return out;
 }
 
-// blocker 缺省单点（T6 nit4）：review 成功/无阻断语义 → none；其余 → commit-contract 缺省文案。
+// Blocker default single point (T6 nit4): APPROVED / CHANGES_REQUESTED → "none"; otherwise the
+// commit-contract default text.
 function defaultBlockerFor(status: string | undefined): string {
   return status === "APPROVED" || status === "CHANGES_REQUESTED"
     ? "none"
@@ -609,7 +610,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       if (existingHandoff) {
         const sv = validateHandoffSchema(existingHandoff);
         if (!sv.valid) {
-          // T5 CONTRACT_VIOLATION 恢复 (spec §2.5.2, AC7 category-level): normalize → re-validate
+          // T5 CONTRACT_VIOLATION recovery (spec §2.5.2, AC7 category-level): normalize → re-validate
           // (at most one round) — the recovery single point is src/rules/schema.ts#recoverHandoff,
           // shared by all three runners. Both sub-branches write the NORMALIZED object (an invalid
           // key must never stay on disk) — full-replace writeOwnHandoff always, never a shallow

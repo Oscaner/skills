@@ -64,14 +64,18 @@ interface DocsResult {
   handoff: Record<string, unknown> | null;
 }
 
-// BLOCKED 失败写盘单点（nit 收敛）：handoff 未写 / 不可解析 / schema 无效三分支同形 ——
-// 构造 BLOCKED payload（含 doc_hash 内容状态 token，uniform 载体）→ 写盘 → 读回返回。
-// review-3 finding 1（warn）：payload 一律 engine 自写字面量 + 仅 findings，不再 `...(baseHandoff ?? {})`
-// spread —— 已声明键的 agent 原值（`notes: 5` / `findings: "none"` 一类类型违规，normalize 无权改其值）
-// 不得进载体（否则 spec/plan 评审的 BLOCKED handoff 违反自家 docs schema）。`baseHandoff` 只用于判定
-// 写盘方式：schema 无效分支传归一化结果 → writeOwnHandoff 全量覆盖，使违规键不留盘（浅合并会经
-// existing 回灌；命名与 branch-review 的 writeBranchBlocked 对齐 —— 同一含义在两处不得有两个名字）。
-// 缺 baseHandoff 的两分支（未写 / 不可解析）无已解析内容可留，findings 仍是 `[]`。
+// The single BLOCKED-failure write point (nit closure): the three branches — handoff not written /
+// unparseable / schema-invalid — share one shape: build a BLOCKED payload (incl. the doc_hash
+// content-state token; uniform carrier) → write it → read back + return.
+// review-3 finding 1 (warn): the payload is always engine-written literals + findings only — never
+// a `...(baseHandoff ?? {})` spread: an agent-declared value on a declared key (type violations
+// like `notes: 5` / `findings: "none"` — normalize is not allowed to change their value) must not
+// enter the carrier (otherwise a spec/plan review's BLOCKED handoff violates its own docs schema).
+// `baseHandoff` decides only the write path: the schema-invalid branch passes the normalized object
+// → writeOwnHandoff full-replace, so offending keys never stay on disk (a shallow merge would
+// re-feed them through `existing`; named like branch-review's writeBranchBlocked — one meaning
+// must not have two names). The two branches without baseHandoff (not written / unparseable) have
+// no parsed content to keep, so findings stays `[]`.
 function writeBlocked({
   handoffPath,
   mode,
@@ -215,9 +219,10 @@ export class DocsLifecycle extends DispatchLifecycle {
       return;
     }
 
-    // T8 hardening（P4 dogfood 实证：agent 手写 handoff 含未转义 \d）——unparseable handoff 不得
-    // 作为裸 throw 传播（review 派发 exit 2 无 handoff 静默丢失）；降级为「handoff 未写 / schema
-    // 无效」同构的 BLOCKED 写盘分支（含 doc_hash 内容状态 token，uniform 载体）。
+    // T8 hardening (P4 dogfood evidence: an agent-written handoff carried an unescaped \d) — an
+    // unparseable handoff must not propagate as a bare throw (a review dispatch would exit 2 and
+    // silently lose the handoff); degrade to the same BLOCKED-write branch as "not written / schema
+    // invalid" (incl. the doc_hash content-state token; uniform carrier).
     let handoff: Record<string, unknown>;
     try {
       handoff = JSON.parse(readFileSync(handoffPath, "utf8")) as Record<string, unknown>;
@@ -232,10 +237,13 @@ export class DocsLifecycle extends DispatchLifecycle {
     }
     const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
     if (!sv.valid) {
-      // T5 CONTRACT_VIOLATION 恢复（spec §2.5.2，AC7 类目级：spec/plan 评审与 task 派发同策略）：
-      // 恢复单点 = src/rules/schema.ts#recoverHandoff（归一化 → 重校验，最多一轮；违规键名后缀与
-      // findings 数组守卫在那里写一次，本路径只保留自己的失败载荷差异）。命中 → 写侧同源落盘
-      // （违规键不留盘）+ 按归一化对象继续；仍失败 → BLOCKED 且保留已解析出的 findings。
+      // T5 CONTRACT_VIOLATION recovery (spec §2.5.2, AC7 category-level: spec/plan reviews follow
+      // the same policy as task dispatch): the recovery single point is
+      // src/rules/schema.ts#recoverHandoff (normalize → re-validate, at most one round; the
+      // violating key-name suffix and the findings-array guard are written there once — this path
+      // only keeps its own failed-payload differences). On hit → the write side lands the
+      // normalized object (offending keys never stay on disk) + continue on it; still failing →
+      // BLOCKED with the parsed findings kept.
       const rec = recoverHandoff(handoff, "docs");
       if (!rec.valid) {
         this.#done(writeBlocked({
@@ -261,23 +269,27 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (this.#finished) return;
     const { mode, handoffPath } = this.#opts;
     const handoff: Record<string, unknown> = this.#handoff ?? {};
-    // T5/T7: status 单一权威 — review 型 handoff 由 engine 定稿（finalizeHandoff rollup 派生覆写，
-    // SP-4 豁免失败轮次）；fix 型（work）status 由 agent 声明，走 finalizeHandoff fix passthrough
-    // 分支（同引用 skip 写盘；work 型声明保留，契约在 commit-contract 层否决）。定稿写盘用
-    // persistFinalized（全量覆盖替换；派生无变化 → 同引用 skip 写盘，返回 false 不产生 no-op 覆盖）。
+    // T5/T7: status single authority — the review-type handoff is finalized by the engine
+    // (finalizeHandoff rollup derives/overwrites; SP-4 exempts failure rounds); the fix-type
+    // (work) status is agent-declared, going through finalizeHandoff's fix passthrough branch
+    // (same-reference skip-write; the work-type declaration is kept — the contract rejects it at
+    // the commit-contract layer). Finalization writes via persistFinalized (full-replace
+    // overwrite; no derived change → same-reference skip-write returning false — no no-op
+    // overwrite).
     if (mode === "review" || mode === "fix") {
       const finalized = await finalizeHandoff({ mode, agentHandoff: handoff });
       if (mode === "review") {
-        // P2 F5（§2.3.3）：review-mode 恒注入内容状态 token —— engine 定稿（载体唯一作者 T7），
-        // 恒有 doc_hash 变更 → writeOwnHandoff 全量覆盖（不再复用 persistFinalized 的 skip-write）。
-        // 内存返回值与磁盘定稿一致：派生 status 覆写回写 local + doc_hash 同步。
+        // P2 F5 (§2.3.3): review-mode always injects the content-state token — the engine is the
+        // finalizer (the carrier's sole author, T7), so doc_hash always changes → full-replace
+        // writeOwnHandoff (not the persistFinalized skip-write). The in-memory return matches the
+        // disk finalization: the derived status overwrite is written back to local + doc_hash synced.
         const merged: Record<string, unknown> = { ...(finalized.handoff ?? handoff), doc_hash: hashFile(this.#opts.doc) };
         writeOwnHandoff(handoffPath!, merged);
         handoff.status = merged.status;
         handoff.doc_hash = merged.doc_hash;
         this.#handoff = merged;
       } else {
-        persistFinalized(handoffPath!, handoff, finalized); // fix-mode 原样（无注入，负向对称）
+        persistFinalized(handoffPath!, handoff, finalized); // fix-mode verbatim (no injection; negative symmetry)
         this.#handoff = finalized.handoff ?? handoff;
       }
     }

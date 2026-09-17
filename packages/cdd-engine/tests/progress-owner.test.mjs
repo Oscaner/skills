@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { gitInit, gitCommit } from "./helpers.mjs";
-import { runTask } from "../src/dispatch/task.mjs";
-import { readProgressJSON, incrementRecovery } from "../src/artifacts/progress.mjs";
+import { runTask } from "../src/dispatch/task.ts";
+import { readProgressJSON, incrementRecovery } from "../src/artifacts/progress.ts";
 import { REG_PATH } from "../src/infra/registry.mjs";
 
 // 真仓 fixture（P4 §2.3.1 根注入契约）：root 经 runTask 的 `opts.root` 显式注入（真 mkdtemp 仓根），
@@ -85,6 +85,8 @@ it("progress.json#plan 与 --plan 入参一致（program 通道首跳可解析�
   mkdirSync(path.join(repo, "docs/osuperpowers/plans"), { recursive: true });
   writeFileSync(path.join(repo, planRel), "# P\n\n### Task 1: t\n");
   // 根经 opts.root 注入（T3 的根注入契约）——不调 initRoot()、不 process.chdir()
+  // Task 8: 入口门（pre-commit 干净树）先于 dispatch —— plan 必须已提交，否则起点 dirty 直接 BLOCKED。
+  gitCommit(repo);
   const res = await runTask("claude", 1, { mode: "implement", dryRun: true, planFile: planRel, root: repo, noExit: true });
   const p = JSON.parse(readFileSync(path.join(repo, ".osuperpowers/cdd/x/progress.json"), "utf8"));
   expect(p.plan).toBe(path.join(repo, planRel));

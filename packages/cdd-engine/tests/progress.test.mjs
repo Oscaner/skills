@@ -13,7 +13,7 @@ import {
   migrateIfNeeded,
   getRound,
   incrementRound,
-} from "../src/artifacts/progress.mjs";
+} from "../src/artifacts/progress.ts";
 
 function tmpDir(prefix) {
   return mkdtempSync(path.join(tmpdir(), prefix));

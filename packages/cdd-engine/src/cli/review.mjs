@@ -8,7 +8,7 @@ import path from "node:path";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.mjs";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, reviewHardGate } from "../render/templates.mjs";
-import * as handoffNaming from "../artifacts/handoff/naming.mjs";
+import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { hashFile } from "../dispatch/review-loop.mjs";
 import { exitWithCode } from "../infra/exit.mjs";
 import { withLifecycle } from "../infra/proc.mjs";
@@ -72,7 +72,7 @@ export async function runReview(opts) {
     // D11: type-self-describing target param — type=spec reviews the --spec doc;
     // type=plan reviews the --plan doc (optional --spec carries the upstream reference).
     const doc = resolveTargetDoc(opts, "review");
-    const { runDocsTask } = await import("../dispatch/docs.mjs");
+    const { runDocsTask } = await import("../dispatch/docs.ts");
     // spec/plan: round = engine auto-increment（canonical review.{type} 族模式扫描）；--round only
     // validates backfill (conflict → exit 2).
     const ws = handoffNaming.resolveWorkspace(doc, root);
@@ -161,7 +161,7 @@ export async function runReview(opts) {
     const th = JSON.parse(readFileSync(path.join(taskWs, handoffNaming.handoffName("review", "task", { task: opts.task, round: prevR })), "utf8"));
     reviewStoppingGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
   }
-  const { runTask } = await import("../dispatch/task.mjs");
+  const { runTask } = await import("../dispatch/task.ts");
   await runTask(harness, opts.task, {
     mode: "review", dryRun: DRY_RUN(),
     planFile: opts.plan,

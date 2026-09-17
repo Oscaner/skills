@@ -8,7 +8,7 @@ import { mkdtempSync, writeFileSync, readFileSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generateBrief } from "../src/render/brief.mjs";
+import { generateBrief } from "../src/render/brief.ts";
 import { gitCommit, gitInit } from "./helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

@@ -6,16 +6,16 @@ import path from "node:path";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.mjs";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK, reviewHardGate, renderHandoffStub } from "../render/templates.mjs";
-import * as handoffNaming from "../artifacts/handoff/naming.mjs";
-import { validateHandoffSchema, loadHandoffSchema, recoverHandoff } from "../rules/schema.mjs";
-import { writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.mjs";
-import { finalizeHandoff } from "../artifacts/handoff/finalize.mjs";
+import * as handoffNaming from "../artifacts/handoff/naming.ts";
+import { validateHandoffSchema, loadHandoffSchema, recoverHandoff } from "../rules/schema.ts";
+import { writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
+import { finalizeHandoff } from "../artifacts/handoff/finalize.ts";
 import { getRoot } from "../infra/root.mjs";
 import { invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.mjs";
 import { withLifecycle } from "../infra/proc.mjs";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../infra/exit.mjs";
 import { DRY_RUN, reviewStoppingGuard } from "./shared.mjs";
-import { h1CountersLine } from "../artifacts/progress.mjs";
+import { h1CountersLine } from "../artifacts/progress.ts";
 
 // BLOCKED 写盘单点。T5：`findings` 入参（默认 `[]`）+ `baseHandoff` = 已解析出的 handoff
 // （schema 无效分支传入归一化结果）→ writeOwnHandoff 全量覆盖，违规键不留盘、findings 全额保留。

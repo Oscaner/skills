@@ -7,7 +7,7 @@
 import { reviewStoppedError } from "../dispatch/review-loop.mjs";
 import { exitWithCode } from "../infra/exit.mjs";
 import { getRoot, resolveDocArg } from "../infra/root.mjs";
-import { isIncompleteDispatch } from "../rules/failure.mjs";
+import { isIncompleteDispatch } from "../rules/failure.ts";
 
 // DRY_RUN —— program 级 `--dry-run` flag 的解析结果（模块态）。写入侧唯一入口 setDryRun：
 // 黑盒路径由 bin/cdd.mjs 的 preAction 从 program.opts() 注入；进程内用例（argv 不被解析、

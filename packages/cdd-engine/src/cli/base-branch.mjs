@@ -4,8 +4,8 @@
 // validateBaseBranch / baseBranchPath）——CLI 只承担目标解析 + 报错面，写语义零复制。
 import { existsSync, readFileSync } from "node:fs";
 
-import { writeBaseBranch, validateBaseBranch, baseBranchPath } from "../artifacts/base-branch.mjs";
-import { resolveWorkspace } from "../artifacts/handoff/naming.mjs";
+import { writeBaseBranch, validateBaseBranch, baseBranchPath } from "../artifacts/base-branch.ts";
+import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 import { getRoot, resolveDocArg } from "../infra/root.mjs";
 import { exitWithCode } from "../infra/exit.mjs";
 

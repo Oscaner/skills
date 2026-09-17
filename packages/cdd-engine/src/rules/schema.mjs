@@ -9,7 +9,7 @@ import Ajv from 'ajv';
 // 同源）构成**有意的互引**——两者都是函数声明（提升），且互不读取对方的模块级绑定，故两种求值顺序
 // 下都安全（顶层只依赖 node: 内建与自身常数）。单点归属由 spec 钉死：normalizeHandoff 与校验器同文件
 // （使「归一化 → 重校验」可单测）、status 派生五件在 finalize.mjs（§2.3 符号拆分）。
-import { rollupStatus } from '../artifacts/handoff/finalize.mjs';
+import { rollupStatus } from '../artifacts/handoff/finalize.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // From src/rules/ → packages/cdd-engine/ (2 levels up — unchanged depth vs former lib/handoff/).

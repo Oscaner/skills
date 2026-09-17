@@ -1,7 +1,7 @@
 // packages/cdd-engine/tests/review-loop.test.mjs
 import { it, expect, describe } from 'vitest';
 import { runReviewLoop, reviewStoppedError } from '../src/dispatch/review-loop.mjs';
-import { resolveNextRound } from '../src/artifacts/handoff/naming.mjs'; // T9 nit④：round 派生唯一真相在 handoff-naming
+import { resolveNextRound } from '../src/artifacts/handoff/naming.ts'; // T9 nit④：round 派生唯一真相在 handoff-naming
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';

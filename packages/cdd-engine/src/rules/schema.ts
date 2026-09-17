@@ -3,16 +3,17 @@
 // ship in templates/schema/ (task — implement/review/fix/branch-review handoffs; docs — doc
 // review handoffs). Ajv validates against the canonical; the normalize → re-validate unit
 // (T5) keeps CONTRACT_VIOLATION recovery lossless across the three recovery consumers.
-// Status derivation reuse: rollupStatus stays in artifacts/handoff/finalize.mjs (its single
-// owner, spec §2.3) — this file never writes a second severity→status mapping. The legacy
-// schema.mjs↔finalize.mjs intentional mutual import is not replicated here: schema.ts → finalize.mjs
-// is one-directional (finalize.mjs still imports schema.mjs, the legacy copy, until Task 8).
+// Status derivation reuse: rollupStatus stays in artifacts/handoff/finalize.ts (its single
+// owner, spec §2.3) — this file never writes a second severity→status mapping. finalize.ts
+// imports normalizeHandoff from here (write-side same-source) — the intended mutual import
+// (both function declarations, each reads no module-level binding of the other; either
+// evaluation order is safe — same as the legacy schema.mjs↔finalize.mjs pair).
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 
-import { rollupStatus } from "../artifacts/handoff/finalize.mjs";
+import { rollupStatus } from "../artifacts/handoff/finalize.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // From src/rules/ → packages/cdd-engine/ (2 levels up — same relative depth as the legacy copy).
@@ -103,7 +104,7 @@ export function normalizeHandoff(
   }
   const phase = out.phase;
   if (!("status" in out) && (phase === "review" || phase === "branch-review")) {
-    out.status = rollupStatus(arr(out.findings), arr(out.unverifiable), arr(out.plan_conflicts)); // ③
+    out.status = rollupStatus(arr(out.findings) as Array<{ severity?: string }>, arr(out.unverifiable), arr(out.plan_conflicts)); // ③
   }
   return out;
 }

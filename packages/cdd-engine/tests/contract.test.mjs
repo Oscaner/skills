@@ -22,8 +22,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 // rules/commit.ts）。gitCatFileCommitExists 改指 infra/git.ts。
 import { validateCommitContract } from "../src/rules/commit.ts";
 import { gitCatFileCommitExists } from "../src/infra/git.ts";
-import { writeHandoff, writeOwnHandoff } from "../src/artifacts/handoff/write.mjs";
-import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../src/artifacts/handoff/finalize.mjs";
+import { writeHandoff, writeOwnHandoff } from "../src/artifacts/handoff/write.ts";
+import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../src/artifacts/handoff/finalize.ts";
 import { validateHandoffSchema } from "../src/rules/schema.mjs";
 
 function git(repo, ...args) {

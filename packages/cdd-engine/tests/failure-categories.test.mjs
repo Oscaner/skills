@@ -8,7 +8,7 @@ import path from "node:path";
 
 import { reviewStoppingGuard } from "../src/cli/shared.mjs";
 import { ExitRequested } from "../src/infra/exit.mjs";
-import { incrementFailureCounter, exhaustedBlocker, maybeExhaust } from "../src/dispatch/task.mjs";
+import { incrementFailureCounter, exhaustedBlocker, maybeExhaust } from "../src/dispatch/task.ts";
 import {
   FAILURE_CATEGORIES,
   counterFor,

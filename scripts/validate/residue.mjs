@@ -251,8 +251,8 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
 
 // ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（8 处，逐 site 形态分类；全行注释非透传点）。
 const ENV_PASSTHROUGH_SITES = [
-  { file: "packages/cdd-engine/src/dispatch/task.mjs", re: /opts\.env \?\? process\.env/ },
-  { file: "packages/cdd-engine/src/dispatch/docs.mjs", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, root, timeoutMs\)/ },
+  { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
+  { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
   { file: "packages/cdd-engine/src/infra/proc.mjs", re: /env \?\? process\.env/ },
   { file: "packages/cdd-engine/src/cli/shared.mjs", re: /detectCurrentHarness\(process\.env\)/ },
   { file: "packages/cdd-engine/src/infra/invoke.mjs", re: /env \?\? process\.env/ },
@@ -289,7 +289,7 @@ export function collectSixEnvKeyHits(targetsOverride = CDD_ENGINE_BIN) {
 
 // ④ 行 4：路径类实参（--plan/--spec/--findings）全部经唯一 resolver。负断言 = 直用原参（绕过
 // resolveDocArg 归一）；正断言 = 5 个 call-site 文件（T2「归一入口闭包」）必须都引用 resolveDocArg。
-const PATH_ARG_SCOPE = ["packages/cdd-engine/src/cli", "packages/cdd-engine/src/dispatch/task.mjs"];
+const PATH_ARG_SCOPE = ["packages/cdd-engine/src/cli", "packages/cdd-engine/src/dispatch/task.ts"];
 // review-1 nit：旁路面补全 —— readFileSync 的 fs/promises 异步同胞 `readFile(opts.*)` 与动态
 // import 求值同一路径参（`import(opts.*)`）先前不在面内（机械面按实现者自选，此面须完整）。
 const PATH_ARG_BYPASS_RE = /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|readFile\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|import\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
@@ -298,7 +298,7 @@ const RESOLVER_FILES = [
   "packages/cdd-engine/src/cli/fix.mjs",
   "packages/cdd-engine/src/cli/review.mjs",
   "packages/cdd-engine/src/cli/base-branch.mjs",
-  "packages/cdd-engine/src/dispatch/task.mjs",
+  "packages/cdd-engine/src/dispatch/task.ts",
 ];
 export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride) {
   const scope = scopeOverride ?? PATH_ARG_SCOPE;
@@ -352,7 +352,7 @@ export function collectTestSeamHits(targetsOverride) {
 //（schema 键集唯一权威，AC6）。文件作用域按 basename 判（override 供测试注入）。
 export function collectHandoffShapeHits(filesOverride = [
   "packages/cdd-engine/src/render/templates.mjs",
-  "packages/cdd-engine/src/artifacts/handoff/finalize.mjs",
+  "packages/cdd-engine/src/artifacts/handoff/finalize.ts",
 ]) {
   const hits = [];
   for (const f of filesOverride) {
@@ -361,7 +361,7 @@ export function collectHandoffShapeHits(filesOverride = [
     if (base === "templates.mjs" && /\bswitch\s*\(/.test(text)) {
       hits.push({ label: "手写 schema 字段清单（renderHandoffStub 原 switch 形态回渗）", file: f });
     }
-    if (base === "finalize.mjs") {
+    if (base === "finalize.ts") {
       if (/write(?:Own)?Handoff\([^,]+,\s*\{/.test(text)) {
         hits.push({ label: "finalize 写侧内联手写 handoff 对象字面量（应经 schema / 单点构造）", file: f });
       }
@@ -483,11 +483,11 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   const dirs = listTargetFiles(targetsOverride);
   for (const f of dirs) {
     const abs = path.isAbsolute(f) ? f : path.join(ROOT, f);
-    if (readFileSync(abs, "utf8").includes("readdirSync") && f !== "packages/cdd-engine/src/artifacts/handoff/naming.mjs") {
+    if (readFileSync(abs, "utf8").includes("readdirSync") && f !== "packages/cdd-engine/src/artifacts/handoff/naming.ts") {
       hits.push({ label: "readdirSync 白名单外（以目录扫描替代显式路径参数即「最近一次」回渗）", file: f });
     }
   }
-  const rtFile = "packages/cdd-engine/src/dispatch/task.mjs";
+  const rtFile = "packages/cdd-engine/src/dispatch/task.ts";
   const rt = readFileSync(path.join(ROOT, rtFile), "utf8");
   if (!rt.includes("prevHandoffPath")) {
     hits.push({ label: "prev-round handoff 显式路径读取（prevHandoffPath）缺失", file: rtFile });
@@ -504,7 +504,7 @@ const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function collectCountersContractHits({
-  constructFiles = ["packages/cdd-engine/src/artifacts/progress.mjs", "packages/cdd-engine/src/rules/failure.mjs"],
+  constructFiles = ["packages/cdd-engine/src/artifacts/progress.ts", "packages/cdd-engine/src/rules/failure.ts"],
   engineScope = CDD_ENGINE_BIN,
   taskSchema = "packages/cdd-engine/templates/schema/task-handoff-schema.json",
   docsSchema = "packages/cdd-engine/templates/schema/docs-handoff-schema.json",

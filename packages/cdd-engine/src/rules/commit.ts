@@ -16,7 +16,7 @@
 // fail-open ok, never a silent fallback to the caller's cwd). The handoff path is exclusively
 // opts.handoffPath (derived by the engine through ctx — zero env channel).
 import { gitTopLevel, gitRevParseHead, gitStatusPorcelain } from "../infra/git.ts";
-import { writeHandoff, readJson } from "../artifacts/handoff/write.mjs";
+import { writeHandoff, readJson } from "../artifacts/handoff/write.ts";
 
 export interface CommitGateResult {
   ok: boolean;
@@ -93,7 +93,7 @@ export async function validateCommitContract(
     if (mode === "review") return { ok: true, blocker: "" };
     // Validate handoff.commits.head against actual HEAD (F1).
     // strict equal primary; prefix fallback for legacy 7-char handoffs (#186)
-    const handoffHead = readJson(handoffPath)?.commits?.head as string | undefined;
+    const handoffHead = (((readJson(handoffPath) as Record<string, unknown> | null)?.commits as Record<string, unknown> | undefined)?.head) as string | undefined;
     if (handoffHead) {
       const actualHead = await gitRevParseHead(tree.root);
       if (actualHead && handoffHead !== actualHead && !actualHead.startsWith(handoffHead)) {

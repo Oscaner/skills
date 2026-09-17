@@ -2,8 +2,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadHandoffSchema } from '../rules/schema.mjs';
-import { familyConfig } from '../artifacts/handoff/naming.mjs';
+import { loadHandoffSchema } from '../rules/schema.ts';
+import { familyConfig } from '../artifacts/handoff/naming.ts';
 
 // PKG_ROOT = <pkg>/templates（re-org Step 5）：以 import.meta.url 相对 ../templates/ 重写，
 // 消除 path.resolve(__dirname, …) 计数链；语义收敛为该模板资源目录本身（消费方不再拼 'templates' 段）。

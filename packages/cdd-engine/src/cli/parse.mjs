@@ -43,7 +43,7 @@ program
   .option("--plan <path>", "plan file path")
   .action(async (opts) => {
     const harness = requireHostHarness();
-    const { runTask } = await import("../dispatch/task.mjs");
+    const { runTask } = await import("../dispatch/task.ts");
     await runTask(harness, opts.task, {
       mode: "implement",
       dryRun: DRY_RUN(),

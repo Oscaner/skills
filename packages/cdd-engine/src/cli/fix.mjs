@@ -3,7 +3,7 @@
 import path from "node:path";
 
 import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./shared.mjs";
-import * as handoffNaming from "../artifacts/handoff/naming.mjs";
+import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { withLifecycle } from "../infra/proc.mjs";
 import { getRoot, resolveDocArg } from "../infra/root.mjs";
 import { exitWithCode } from "../infra/exit.mjs";
@@ -16,7 +16,7 @@ export async function runFix(opts) {
   // 根注入位（P4 §2.3.1 根注入契约）：进程内调用方可显式注入 root（无 reset / env / ForTest 缝），
   // 黑盒路径回落 initRoot() 已初始化的单例。本文件所有 root 消费点统一用它。
   const root = opts.root ?? getRoot();
-  const { runTask } = await import("../dispatch/task.mjs");
+  const { runTask } = await import("../dispatch/task.ts");
   // type=task fix: --findings is plumbed through runTask's `findingsPath` opt — buildCtx
   // derives the findings path for fix mode, so the opt takes precedence inside buildCtx
   // (otherwise --findings would be dead code).
@@ -65,7 +65,7 @@ export async function runFix(opts) {
   // `--findings` 归一（read point ⑦）：仓根相对 → 绝对、不存在 → exit 1 三行诊断。位置在 round
   // 派生校验**之后**——round 无源 / round<1 仍须先按用法错 exit 2（§2.4.2：2 = 用法 / 环境错）。
   const findingsPath = opts.findings ? resolveDocArg(opts.findings, root, "findings") : null;
-  const { runDocsTask } = await import("../dispatch/docs.mjs");
+  const { runDocsTask } = await import("../dispatch/docs.ts");
   await runDocsTask({
     harness, mode: "fix", template, type: opts.type, doc,
     findingsPath, repoRoot: root, dryRun: DRY_RUN(),

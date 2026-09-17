@@ -28,13 +28,13 @@ afterAll(() => {
 
 describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
   it("execa 直接 import 仅允许出现在 src/infra/proc.mjs", () => {
-    const files = readdirSync(LIB, { recursive: true }).filter(f => String(f).endsWith(".mjs"));
+    const files = readdirSync(LIB, { recursive: true }).filter(f => String(f).endsWith(".mjs") || String(f).endsWith(".ts"));
     const offenders = [];
     for (const f of files) {
       const src = readFileSync(path.join(LIB, f), "utf8");
       // 仅匹配真实 import 语句（`import ... from "execa"`）——注释/文档中的 "execa" 字样不当 offenders，
       // 否则 invoke.mjs 等派生点注释提及 execa 历史（迁移叙事、spawnCapture 说明）会造成误伤。
-      if (/^\s*import\b[^;]*\bfrom\s*["']execa["']/m.test(src) && f !== "infra/proc.mjs") {
+      if (/^\s*import\b[^;]*\bfrom\s*["']execa["']/m.test(src) && f !== "infra/proc.mjs" && f !== "infra/proc.ts") {
         offenders.push(`${f}: ${src.match(/^\s*import\b[^;]*execa[^;]*;?/m)?.[0]?.trim() ?? "execa import"}`);
       }
     }
@@ -44,8 +44,8 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
   it("全部引擎派发出口经 withLifecycle 统一接线", () => {
     // 五个派发模块统一用 withLifecycle（startIdleMonitor → fn → finally stop + teardownAll）——
     // 不再 per-file token 匹配 finally 双行（branch-review nit C）；guard 断言包装器被使用即接线成立。
-    const runTask = readFileSync(path.join(LIB, "dispatch", "task.mjs"), "utf8");
-    const runDocs = readFileSync(path.join(LIB, "dispatch", "docs.mjs"), "utf8");
+    const runTask = readFileSync(path.join(LIB, "dispatch", "task.ts"), "utf8");
+    const runDocs = readFileSync(path.join(LIB, "dispatch", "docs.ts"), "utf8");
     const review = readFileSync(path.join(LIB, "cli", "review.mjs"), "utf8");
     const branchReview = readFileSync(path.join(LIB, "cli", "branch-review.mjs"), "utf8");
     const fix = readFileSync(path.join(LIB, "cli", "fix.mjs"), "utf8");

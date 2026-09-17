@@ -5,7 +5,7 @@ import { it, expect } from "vitest";
 import {
   handoffName, roundPattern, resolveNextRound, prevHandoffPath,
   resolveWorkspace, workspaceSlug,
-} from "../src/artifacts/handoff/naming.mjs";
+} from "../src/artifacts/handoff/naming.ts";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

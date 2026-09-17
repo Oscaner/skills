@@ -78,7 +78,7 @@ describe('branch-review schema-invalid e2e', () => {
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
     // 与 runBranchReview 同派生的 handoff 路径（全新 workspace → round 1）
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import('../src/artifacts/handoff/naming.mjs');
+    const { resolveWorkspace, handoffName, resolveNextRound } = await import('../src/artifacts/handoff/naming.ts');
     const workspace = resolveWorkspace(planPath, dir);
     const round = resolveNextRound(workspace, 'review', 'branch', { base7, head7 });
     const handoffPath = path.join(workspace, handoffName('review', 'branch', { base7, head7, round }));

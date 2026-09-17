@@ -1,11 +1,15 @@
-// packages/cdd-engine/src/render/brief.mjs（ex lib/brief.mjs）— CDD task brief generator（纯库模块）。
-// generateBrief: mechanically extract ### Task N: section from plan, append TASK_BASE, write file.
-//   第 4 参数 repoRoot：取该目录所在仓库的 HEAD 作 TASK_BASE（#173 —— 与调用方 cwd 解耦）。
-// Task 5 换底：git 判定经 infra/git.ts（simple-git 单点），不再经 rules/commit.mjs 手写 helper。
+// packages/cdd-engine/src/render/brief.ts — CDD task brief generator (Task 8 port of brief.mjs;
+// ex lib/brief.mjs; pure library module).
+// generateBrief: mechanically extract the `### Task N:` section from the plan, append TASK_BASE,
+// write the file.
+//   The 4th param repoRoot: resolves the repo's HEAD as TASK_BASE (#173 — decoupled from the
+//   caller's cwd).
+// Task 5 bottom-swap: git judgment via infra/git.ts (simple-git single point), no hand-written
+// git helpers.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { gitRevParseHead } from "../infra/git.ts";
 
-export async function generateBrief(planFile, taskNum, outPath, repoRoot) {
+export async function generateBrief(planFile: string, taskNum: number, outPath: string, repoRoot: string): Promise<void> {
   if (!existsSync(planFile)) throw new Error(`plan file not found: ${planFile}`);
   const lines = readFileSync(planFile, "utf8").split("\n");
   const header = `### Task ${taskNum}:`;

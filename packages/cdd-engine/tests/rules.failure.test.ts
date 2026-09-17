@@ -19,7 +19,7 @@ import {
   exhaustedBlocker,
   maybeExhaust,
 } from "../src/rules/failure.ts";
-import { writeHandoff } from "../src/artifacts/handoff/write.mjs";
+import { writeHandoff } from "../src/artifacts/handoff/write.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CAT: { categories: Array<Record<string, unknown>> } = JSON.parse(

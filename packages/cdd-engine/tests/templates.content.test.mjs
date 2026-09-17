@@ -31,7 +31,7 @@ describe('review.md shared shell (Task 4)', () => {
 describe('reviews.json per-type config (Task 4)', () => {
   it('loadReviews exposes four types with content fields (artifact axis removed in T2)', async () => {
     const { loadReviews, reviewTypeConfig, reviewArtifactConfig } = await import('../src/render/templates.mjs');
-    const { familyConfig } = await import('../src/artifacts/handoff/naming.mjs');
+    const { familyConfig } = await import('../src/artifacts/handoff/naming.ts');
     const reviews = loadReviews();
     expect(Object.keys(reviews)).toEqual(['task', 'branch', 'spec', 'plan']);
     for (const [type, cfg] of Object.entries(reviews)) {

@@ -411,7 +411,7 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
   });
   it("call-site 文件缺 resolveDocArg 引用 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-arg-3-"));
-    const f = path.join(dir, "base-branch.mjs");
+    const f = path.join(dir, "base-branch.ts");
     writeFileSync(f, "export function resolveBaseBranchWorkspace(opts) { return opts.plan; }\n", "utf8");
     try {
       const hits = collectPathArgResolverHits([], [f]);
@@ -507,7 +507,7 @@ describe("channel audit：⑦ 零手写 handoff 形状 / 零 res.timedOut 单点
   });
   it("finalize 写侧内联手写对象字面量 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-shape-2-"));
-    const f = path.join(dir, "finalize.mjs");
+    const f = path.join(dir, "finalize.ts");
     writeFileSync(f, "writeOwnHandoff(p, { status: \"BLOCKED\", findings: [] });\n", "utf8");
     try {
       const hits = collectHandoffShapeHits([f]);
@@ -629,7 +629,7 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
 describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 + 不进 handoff 契约）", () => {
   it("counters 构造点手写计数器字面量 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cnt-"));
-    const f = path.join(dir, "progress.mjs");
+    const f = path.join(dir, "progress.ts");
     writeFileSync(f, 'const parts = ["timeoutCount=" + n];\n', "utf8");
     try {
       const hits = collectCountersContractHits({ constructFiles: [f] });
@@ -641,7 +641,7 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
   });
   it("类目以字符串字面量身份出现（failure_category 赋值）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cat-"));
-    writeFileSync(path.join(dir, "run-task.mjs"), "failure_category: \"TIMEOUT\",\n", "utf8");
+    writeFileSync(path.join(dir, "run-task.ts"), "failure_category: \"TIMEOUT\",\n", "utf8");
     try {
       const hits = collectCountersContractHits({ engineScope: [dir] });
       expect(hits.length).toBe(1);

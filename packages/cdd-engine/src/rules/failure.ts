@@ -10,8 +10,8 @@
 // category's terminal state never leaks into another's counter.
 import { readFileSync } from "node:fs";
 
-import { readJson, writeHandoff } from "../artifacts/handoff/write.mjs";
-import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.mjs";
+import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
+import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
 
 export interface FailureCategory {
   id: string;
@@ -55,7 +55,8 @@ export function incrementFailureCounter(progressDir: string, category: string): 
   const field = counterFor(category);
   if (!field) return -1;
   const data = readProgressJSON(progressDir);
-  data[field] = (data[field] ?? 0) + 1;
+  const prev: number = typeof data[field] === "number" ? ((data[field] as number) ?? 0) : 0;
+  data[field] = prev + 1;
   writeProgressJSON(progressDir, data);
   return data[field] as number;
 }
@@ -74,7 +75,7 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
   const n = incrementFailureCounter(progressDir, category);
   const ex = exhaustedBlocker(category, n);
   if (ex) {
-    const obj = readJson(handoffPath);
+    const obj = readJson(handoffPath) ?? {};
     obj.blocker = ex;
     writeHandoff(handoffPath, obj);
   }

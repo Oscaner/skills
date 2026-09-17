@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          materializeWorkspace,
-         buildCtx, buildPromptParams } from "../src/dispatch/task.mjs";
+         buildCtx, buildPromptParams } from "../src/dispatch/task.ts";
 import { ExitRequested } from "../src/infra/exit.mjs";
 import { spawnManaged, markAllDispatchesDone } from "../src/infra/proc.mjs";
 import { REG_PATH } from "../src/infra/registry.mjs";
@@ -418,7 +418,7 @@ it("handoffStatus: APPROVED unchanged", () => {
 // ---- P12 timeout path ----
 
 it("normalizeHandoffStatus: TIMEOUT passthrough", async () => {
-  const { normalizeHandoffStatus } = await import("../src/artifacts/handoff/finalize.mjs");
+  const { normalizeHandoffStatus } = await import("../src/artifacts/handoff/finalize.ts");
   expect(normalizeHandoffStatus("TIMEOUT")).toBe("TIMEOUT");
 });
 
@@ -465,7 +465,7 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
 
 it("runTask: unkillable → handoff status BLOCKED + blocker process unkillable", async () => {
   // SIGKILL always kills on modern Unix; test contract-level behavior via writeHandoff directly.
-  const { writeHandoff } = await import("../src/artifacts/handoff/write.mjs");
+  const { writeHandoff } = await import("../src/artifacts/handoff/write.ts");
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-unkillable-ho-"));
   const hp = path.join(dir, "task-1-handoff.json");
   writeHandoff(hp, {
@@ -1089,10 +1089,13 @@ it("runTask T8: review APPROVED → progress task.status=complete（rounds[revie
 });
 
 it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCKED（review 亦校验）+ exit 1", async () => {
-  const t8 = t8Workspace({ dirty: true });
+  // Task 8: entry gate 先于 dispatch 强制干净树 —— 起点 dirty 会先在入口被 BLOCKED，出口门无从
+  // 触发。fixture 改为 dispatch 期间（fake-cli 内）弄脏树：入口干净、出口 dirty → 出口门判定。
+  const t8 = t8Workspace();
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
     `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(t8.ws, "task-1-review-1.json")}"`,
+    `printf '%s\n' 'dirty' >> "${path.join(t8.repo, "tracked.txt")}"`,
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(1);
@@ -1108,12 +1111,14 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
 });
 
 it("runTask T8: post-run validateCommitContract — implement dirty tree → 实体化 handoff 覆写 BLOCKED + exit 1", async () => {
-  const t8 = t8Workspace({ dirty: true });
+  // Task 8: 同 review 用例 —— 入口干净、dispatch 期间（fake-cli 内）弄脏，出口门触发。
+  const t8 = t8Workspace();
   const restore = withFakeCli(t8.binDir, "fake-cli", [
     "#!/usr/bin/env bash",
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
     `printf '%s\\n' 'artifacts: report=${path.join(t8.ws, "task-1-report.md")}'`,
+    `printf '%s\\n' 'dirty' >> "${path.join(t8.repo, "tracked.txt")}"`,
     "exit 0",
   ].join("\n"));
   try {

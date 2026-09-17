@@ -114,7 +114,7 @@
 
 ### Task 18: E-8 schema 紧凑注入 + E-7 explore-context 措辞
 
-- **Do**: `renderHandoffStub`（→ `render/templates.ts`）`JSON.stringify(schema, null, 2)` → `JSON.stringify(schema)` 紧凑（handlebars triple-stash 非转义注入）；`templates.test.mjs` 增紧凑格式断言（无 2-缩进模式）+ 省 tok 断言（可选）；`brainstorming/SKILL.md` #explore-context Do/Read 措辞去枚举化（code/issues/docs/git log = 参考性示例非固定 4 渠道）
+- **Do**: `renderHandoffStub`（→ `render/templates.mjs`）`JSON.stringify(schema, null, 2)` → `JSON.stringify(schema)` 紧凑（handlebars triple-stash 非转义注入）；`templates.test.mjs` 增紧凑格式断言（无 2-缩进模式）+ 省 tok 断言（可选）；`brainstorming/SKILL.md` #explore-context Do/Read 措辞去枚举化（code/issues/docs/git log = 参考性示例非固定 4 渠道）
 - **验收**: 注入 stub 为紧凑 JSON（`JSON.parse(stub) === schema` 保持）；无 2-缩进断言绿；brainstorming #explore-context 零「固定 4 渠道」表述
 - **注**: spec §2.10 E-8 断言 + §2.4 E-7 nodes 复核
 

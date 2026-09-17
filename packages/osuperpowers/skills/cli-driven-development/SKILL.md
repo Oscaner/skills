@@ -62,7 +62,7 @@ flowchart TD
 
 ### `run-task-review`
 
-- **Do**: Dispatch `cdd review --type task --task <n> --plan <path>` — background execution. Every task goes through implement → review → (fix if blockers); review is unskippable — a task never goes straight from implement to completion.
+- **Do**: Dispatch `cdd review --type task --task <n> --plan <path>` — background execution. Every task goes through implement → review → (fix if blockers); review is unskippable — a task never goes straight from implement to completion. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: output contract — `status` + captured review `findings[]`; routes by blocker severity
 - **Exit**: `blocker=0?` routes to `fix-task` (both branches; the re-run path is determined by the entry edge)
 - **Fail**: review exits with no output → BLOCKED: engine-error
@@ -76,7 +76,7 @@ flowchart TD
 
 ### `branch-review`
 
-- **Do**: Dispatch `cdd review --type branch --plan <path> --base <merge-base> --head <head>` — `<merge-base>` = `git merge-base HEAD origin/<base>` with `<base>` from `cdd base-branch get --plan <path>`; `<head>` = `git rev-parse HEAD`; background execution. Persist the diff to the workspace (`git diff <base>..<head> --stat`).
+- **Do**: Dispatch `cdd review --type branch --plan <path> --base <merge-base> --head <head>` — `<merge-base>` = `git merge-base HEAD origin/<base>` with `<base>` from `cdd base-branch get --plan <path>`; `<head>` = `git rev-parse HEAD`; background execution. Persist the diff to the workspace (`git diff <base>..<head> --stat`). Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: `cdd base-branch get` output + branch HEAD + review output contract
 - **Exit**: `blocker=0?` routes to `branch-fix` (both branches; the re-run path is determined by the entry edge)
 - **Fail**: review exits with no output → BLOCKED: engine-error

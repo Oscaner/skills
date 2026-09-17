@@ -81,6 +81,15 @@ describe('fix/docs.md shared docs fix shell (Task 18: doc-fix.md 迁出 review/)
     expect(content).toContain('{{HANDOFF_STUB}}');
     expect(content).toContain('{{HARD_GATE}}'); // 共享 Handoff 壳（T18）
   });
+
+  it('carries the docs-fix commit contract (Task 10, task-family isomorphic: fix agent commits the fixed doc)', () => {
+    const content = readFileSync(path.join(PKG_ROOT, 'templates', 'fix', 'docs.md'), 'utf8');
+    expect(content).toMatch(/conventional commit/);          // conventional commit
+    expect(content).toMatch(/attribution/);                  // no attribution / co-author trailers
+    expect(content).toMatch(/no commit/);                    // no doc diff → skip commit
+    expect(content).toMatch(/out-of-scope/);                 // out-of-scope changes untouched
+    expect(content).toMatch(/BLOCKED/);                      // uncommitted at return → exit gate BLOCKED
+  });
 });
 
 describe('fix-family status decision rule (T5 fix round 2)', () => {

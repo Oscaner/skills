@@ -58,7 +58,7 @@ flowchart TD
 
 ### `spec-review`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --spec <path>` (the overall spec document under review). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. Review Stopping (I1): after a blocker=0 review, fixing all captured findings finishes the cycle — no re-run
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --spec <path>` (the overall spec document under review). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. Review Stopping (I1): after a blocker=0 review, fixing all captured findings finishes the cycle — no re-run. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: The authored spec document
 - **Exit**: Blockers routed via `blocker=0?` → `fix-spec` (both branches; the edge inherits the re-run routing)
 - **Fail**: Re-run review after blocker=0 → violates I1 (Review Stopping)

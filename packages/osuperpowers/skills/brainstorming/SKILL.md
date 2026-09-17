@@ -89,21 +89,21 @@ flowchart TD
 
 ### `run-writing-single-spec`
 
-- **Do**: Run a /osuperpowers:writing-single-spec session — authors, reviews and commits the single spec (the program converges into one spec)
+- **Do**: Run a /osuperpowers:writing-single-spec session — authors, reviews and commits the single spec (the program converges into one spec). The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff session loaded → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-overall-spec`
 
-- **Do**: Run a /osuperpowers:writing-overall-spec session — authors, reviews and commits the overall spec (the program charter). Terminal write: the flow converges here and the session hands off to /compact or /osuperpowers:brainstorming [Px program]
+- **Do**: Run a /osuperpowers:writing-overall-spec session — authors, reviews and commits the overall spec (the program charter). Terminal write: the flow converges here and the session hands off to /compact or /osuperpowers:brainstorming [Px program]. The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff session loaded → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-phase-spec`
 
-- **Do**: Run a /osuperpowers:writing-phase-spec session — authors, reviews and commits the phase spec (this phase's increment)
+- **Do**: Run a /osuperpowers:writing-phase-spec session — authors, reviews and commits the phase spec (this phase's increment). The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + parent overall
 - **Exit**: Handoff session loaded → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)

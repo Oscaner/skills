@@ -1,8 +1,8 @@
 // packages/cdd-engine/src/cli/parse.mjs — citty command surface (Task 9; spec §2.3. The commander
 // program definition is retired — the full command tree lives here as ONE citty defineCommand
 // (mainCommand) with its four subcommands declared as citty subCommands: implement / review / fix
-// and base-branch with its nested set|get surface preserved via citty subCommands (base-branch 含
-// 嵌套 set/get 面，经 citty 声明保留). Each action run() assembles the DispatchLifecycle subclass
+// and base-branch with its nested set|get surface preserved via citty subCommands. Each action
+// run() assembles the DispatchLifecycle subclass
 // (TaskLifecycle / DocsLifecycle via runTask / runDocsTask / runBranchReview) and guards its flag
 // surface (guardArgs, src/cli/shared.mjs). src/bin.ts boots this tree: runCommand + the
 // --help pre-screen + parse/usage error normalization（exit code table §2.4.2）— the subcommand

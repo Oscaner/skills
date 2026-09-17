@@ -29,7 +29,7 @@ import { ExitRequested } from "./infra/exit.mjs";
 // citty renders usage/help with ANSI color — this entry prints plain text (commander-era parity +
 // deterministic test surface). Stripping happens at the two print points below, never via env
 // mutation (the engine's env surface guard pins zero non-whitelisted reads).
-const ANSI_RE = /[][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+const ANSI_RE = /[\u001B\u009B][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 function plain(text: unknown): string {
   return String(text).replace(ANSI_RE, "");
 }
@@ -58,7 +58,7 @@ async function main() {
     process.exit(0);
   }
 
-  // Boot（the former commander preAction hook，action 先决）: program-level `--dry-run` resolves
+  // Boot (the former commander preAction hook, the action precondition): program-level `--dry-run` resolves
   // position-independent from the FULL argv (parseArgs over the main args def tolerates the
   // subcommand surface), then the engine root + process lifecycle are initialized once per run.
   // 流程：启动跨 run 兜底（回收上一次引擎被杀 SIGKILL/crash 残留的孤儿组）+ 信号安全出口
@@ -89,8 +89,9 @@ async function main() {
     //（进程 exit 不展开我们自己的 finally）。
     if (raw instanceof ExitRequested) process.exit(raw.code);
     const e = raw as { message?: unknown; name?: unknown };
-    // citty parse/usage errors（CLIError name——含 guardArgs 的 CLIError 形未知 option 拒绝）:
-    // usage 行（deepestCommand 解析出的命令上下文）+ citty/guard 消息 + exit 2。
+    // citty parse/usage errors (CLIError name — including guardArgs' CLIError-shaped unknown-option
+    // rejection): the usage line (the resolved command context via deepestCommand) + citty/guard
+    // message + exit 2.
     if (e && e.name === "CLIError") {
       const [cmd, parent] = await deepestCommand(rawArgs);
       usageError(commandUsageKey(cmd, parent));

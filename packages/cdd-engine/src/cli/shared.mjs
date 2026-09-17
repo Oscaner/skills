@@ -83,10 +83,10 @@ function normFlag(name) {
 // Program-level flags (`--dry-run` / `--no-dry-run`) are accepted at any position — they are
 // declared on the main command only, but the canonical scope is "program" (position-independent).
 export function guardArgs(rawArgs, argDef) {
-  const declared = new Set();
+  const declared = new Map();             // normed flag name → its arg definition (canonical key + aliases)
   for (const key of Object.keys(argDef ?? {})) {
-    declared.add(normFlag(key));
-    for (const a of [].concat(argDef[key]?.alias ?? [])) declared.add(normFlag(String(a)));
+    declared.set(normFlag(key), argDef[key]);
+    for (const a of [].concat(argDef[key]?.alias ?? [])) declared.set(normFlag(String(a)), argDef[key]);
   }
   for (const tok of rawArgs ?? []) {
     if (tok === "--") break;              // everything after -- is positional, not a flag
@@ -94,7 +94,9 @@ export function guardArgs(rawArgs, argDef) {
     const name = tok.split("=")[0].replace(/^-+/, "");
     const n = normFlag(name);
     if (n === "dryrun" || n === "nodryrun") continue;                 // program-level option, any position
-    if (name.startsWith("no-") && declared.has(normFlag(name.slice(3)))) continue;  // --no-<bool> negation
+    // --no-<bool> negation is only meaningful for a boolean-typed declared arg; negating a
+    // string/enum arg (e.g. --no-plan) is an unknown option — rejected below.
+    if (name.startsWith("no-") && declared.get(normFlag(name.slice(3)))?.type === "boolean") continue;
     if (!declared.has(n)) {
       const err = new Error(`unknown option: ${tok}`);
       err.name = "CLIError";

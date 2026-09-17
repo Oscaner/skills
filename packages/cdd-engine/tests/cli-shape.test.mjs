@@ -120,3 +120,20 @@ describe('P3 命令面收敛：顶层子命令恰为四', () => {
     expect(mainCommand.subCommands).not.toHaveProperty('research');
   });
 });
+
+// T9 fix: guardArgs' --no-<bool> negation is boolean-only — negating a string/enum arg
+// (--no-plan) is an unknown-option rejection (exit 2), not a silent accept.
+describe('guardArgs: --no-* negation restricted to boolean args', () => {
+  it('base-branch get --no-plan → unknown option exit 2 (negating a string arg is rejected)', () => {
+    const r = runCli(['base-branch', 'get', '--no-plan', SMOKE_PLAN]);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/unknown option: --no-plan/);
+  });
+
+  it('base-branch set --no-force passes the guard (boolean negation still accepted)', () => {
+    const r = runCli(['base-branch', 'set', '--plan', SMOKE_PLAN, '--no-force']);
+    // Guard accepts --no-force; runBaseBranchSet then fails on the missing --base group —
+    // the error must NOT be "unknown option".
+    expect(r.stderr).not.toMatch(/unknown option/);
+  });
+});

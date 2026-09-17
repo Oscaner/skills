@@ -1,6 +1,6 @@
 # Data-driven Templates
 
-> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/review/reviews.json`, `packages/cdd-engine/src/infra/harness-registry.json`, `packages/osuperpowers/skills/report-issue/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived products like `.agents/`. This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
+> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/review/reviews.json`, `packages/cdd-engine/src/infra/harness-registry.json`, `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived products like `.agents/`. This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
 
 Cross-cutting reference: the single-source-of-truth convention for template body text. Cited when a new skill introduces template body text, when an existing template-shaped content is consolidated, and when emit-derived products need drift guarding.
 
@@ -44,7 +44,7 @@ flowchart LR
 
 ### `runtime product`
 
-- **Do**: products combined by the renderer at runtime and not committed (e.g. finding comment, session master body).
+- **Do**: products combined by the renderer at runtime and not committed (e.g. report-issues aggregate issue body).
 - **Read**: `renderer` output (external harnesses via a CLI contract: stdin JSON → stdout).
 - **Exit**: consumed directly by the consumer side.
 - **Fail**: runtime bypasses the renderer and hand-assembles sections → paragraph structure drifts from the canonical (Failure Modes "consumer-unusable").
@@ -87,10 +87,10 @@ flowchart LR
 |---|---|---|---|---|
 | harness routing (P1) | `packages/cdd-engine/src/infra/harness-registry.json` | cdd engine runtime (`src/bin.ts` · `src/dispatch/{task.mjs,docs.mjs,review-loop.mjs}` · `src/infra/registry.mjs`) | runtime harness routing (no emit product) | single-source JSON + engine validation |
 | review contract (P3) | `packages/cdd-engine/templates/review/reviews.json` | `src/render/templates.mjs` runtime (per-type config driving the shared review.md shell) + `_docs/review.md` URC as the prose contract | cdd review / fix template rendering (runtime) | engine tests + in-program single-source config |
-| finding/report body (P4 — first runtime render) | `packages/osuperpowers/skills/report-issue/templates/finding-meta.json` | `packages/osuperpowers/scripts/report-templates.mjs` (renderYml / renderTitle / renderMeta / renderComment / renderMasterBody pure functions) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + finding comment / session master body (runtime) | `scripts/emit/issue-templates.test.mjs` two-stage round-trip + `emit:check` |
-| issue form yml (P4) | same `formFieldDefs` | `renderYml` (emit stage via `scripts/emit/issue-templates.mjs` wired into emitAll) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` / `session_report.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |
+| finding/report body (P4 — first runtime render) | `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` | `packages/osuperpowers/scripts/report-templates.mjs` (renderYml / renderMeta / aggregate render pure functions — renderTitle / renderComment / renderMasterBody deleted in the §2.5 single-mode convergence) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + report-issues aggregate issue body (runtime) | `scripts/emit/issue-templates.test.mjs` two-stage round-trip + `emit:check` |
+| issue form yml (P4) | same `formFieldDefs` | `renderYml` (emit stage via `scripts/emit/issue-templates.mjs` wired into emitAll) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |
 
-> **First "one canonical, two-channel render" dogfood**: finding-meta.json drives both the emit product (issue form yml) and runtime products (report-issue finding comment / session master body) — P4 itself is the on-the-ground validation of this convention (AC12).
+> **First "one canonical, two-channel render" dogfood**: finding-meta.json drives both the emit product (issue form yml) and the runtime product (report-issues aggregate issue body) — P4 itself is the on-the-ground validation of this convention (AC12).
 
 ---
 

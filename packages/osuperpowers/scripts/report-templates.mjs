@@ -1,11 +1,19 @@
 // report-templates.mjs — report-issues rendering single point.
 //
-// Pure renderers over the canonical finding-meta.json; the renderers never
-// hand-assemble finding paragraph structure. Finding body paragraphs
-// (renderComment) and the session master body (renderMasterBody) share the
-// six-field report-meta bullet block (renderMeta). CLI entrypoint
-// (`--mode comment|master` + stdin JSON) is referenced by the report-issues
-// SKILL.md for external harness adapters.
+// Bare-call single entry (Task 14, §2.5): `node "${pluginRoot}/scripts/report-
+// templates.mjs" < stdin JSON` renders the aggregate body straight to stdout.
+// The CLI takes no mode flag and no per-finding comment mode — one mode, the
+// single self-contained report issue body. Finding body paragraphs are built from the
+// canonical finding-meta.json sectionLabels (four segments), each finding's
+// report-meta (`- Skill: <skill>` / `- Step: <step>`, metaFields 2-field
+// canonical) is placed directly after its four segments (location adjacency =
+// attribution; unambiguous across skills when N > 1), and the Dedup/Related
+// tail sections aggregate all open / closed / program hits. The CLI validates
+// the stdin contract (findings non-empty · type/lang enums · per-finding
+// fields · meta.skill/step · related structure) before rendering — violations
+// exit 1 with the offending field path (E-3 / R2 early report). The consumer
+// runtime imports zero third-party packages: `yaml` lives only in the
+// emit-only `render-yaml.mjs` module (repo root devDependencies, §2.13 (b)).
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
@@ -18,129 +26,167 @@ const findingMeta = JSON.parse(
 );
 const { sectionLabels, masterDef } = findingMeta;
 
-// --- YAML scalar emission ------------------------------------------------
-// Deterministic style rules reproducing the .github/ISSUE_TEMPLATE sources
-// (canonical-driven; drift-guarded by emit:check):
-//   1. embedded newline            -> literal block (`|`, content at 8 spaces)
-//   2. ": " or em-dash "—"         -> double-quoted (colon-space must be quoted
-//                                     in YAML; upstream also authored the
-//                                     em-dash descriptions double-quoted)
-//   3. otherwise                   -> plain scalar
-function emitScalar(value) {
-  if (value.includes("\n")) {
-    const content = value.endsWith("\n") ? value.slice(0, -1) : value;
-    return (
-      "|\n" +
-      content
-        .split("\n")
-        .map((line) => `        ${line}`)
-        .join("\n")
-    );
-  }
-  if (value.includes(": ") || value.includes("—") || isPlainUnsafe(value)) {
-    // 转义顺序：先 `\` 再 `"`（若先转义双引号，随之插入的 `\` 会被后续反斜杠 replaceAll 二次转义）。
-    return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-  }
-  return value;
-}
+const FINDING_TYPES = ["bug", "enhancement"];
+const LANGS = ["en", "zh"];
+const TEXT_FIELDS = ["context", "problem", "impact", "suggestedFix"];
 
-// YAML plain-scalar 陷阱守卫：前导特殊字符 / YAML 1.1 bool·null / 类数字或日期
-// 样式串若按 plain 输出会被解析器误读 → 一律转 double-quoted（当前语料安全，守卫防御未来键值）。
-function isPlainUnsafe(value) {
-  return /^(?:true|false|null|yes|no|on|off|~|[-+]?(?:\d|\.\d)|\d{4}-)|^[][{}*&!|>'"%@`]|:-/.test(value);
-}
-
-function pushAttribute(lines, key, value) {
-  lines.push(`      ${key}: ${emitScalar(value)}`);
-}
-
-// --- formFieldDefs -> .github/ISSUE_TEMPLATE/<name>.yml -------------------
-// 表单键 = formFieldDefs 对象键（finding-meta.json）；frontmatter.name 承载表单名，
-// 渲染仅消费 formDef——无二次标识（name 参数已去冗余）。
-// 枚举注入（单源 §2.6.1）：dropdown 的 options 由第二实参 `enums`（`.components` /
-// `.sessionTypes`；canonical finding-meta.json 顶层即满足该形状）注入——form 定义内
-// 零 `options` 数组，不存在「两份实现需对齐」的同步面。仅 component / session-type
-// 两个 id 走注入；其余字段（含非枚举 dropdown 的内联 options）原样渲染。
-function resolveDropdownOptions(item, enums) {
-  if (item.type === "dropdown" && item.id === "component") return enums.components;
-  if (item.type === "dropdown" && item.id === "session-type") return enums.sessionTypes;
-  return item.attributes?.options;
-}
-
-export function renderYml(formDef, enums = {}) {
-  const { frontmatter, body } = formDef;
-  const lines = [];
-  lines.push(`name: ${frontmatter.name}`);
-  lines.push(`description: ${emitScalar(frontmatter.description)}`);
-  lines.push(
-    `labels: [${frontmatter.labels.map((label) => `"${label}"`).join(", ")}]`,
-  );
-  lines.push("body:");
-  for (const item of body) {
-    lines.push(`  - type: ${item.type}`);
-    if (item.id) lines.push(`    id: ${item.id}`);
-    lines.push("    attributes:");
-    const options = resolveDropdownOptions(item, enums);
-    for (const [key, value] of Object.entries(item.attributes)) {
-      if (key === "options") continue; // 单源化后无内联；防御未来非枚举 dropdown 表单
-      pushAttribute(lines, key, value);
-    }
-    if (options) {
-      lines.push("      options:");
-      for (const option of options) lines.push(`        - ${option}`);
-    }
-    if (item.validations?.required !== undefined) {
-      lines.push("    validations:");
-      lines.push(`      required: ${item.validations.required}`);
-    }
-  }
-  return lines.join("\n") + "\n"; // EOF newline is in the round-trip contract
-}
-
-// --- master body pieces ----------------------------------------------------
-export function renderTitle(masterDef, { subject, date }) {
-  return masterDef.title
-    .replace("<subject>", subject)
-    .replace("<YYYY-MM-DD>", date);
-}
-
-/** report-meta 六字段 bullet — canonical metaFields（key+label 对）驱动，零硬编码。 */
+/** report-meta 两字段 bullet — canonical metaFields（key+label 对）驱动，零硬编码。 */
 export function renderMeta(meta) {
   return findingMeta.metaFields
     .map(({ key, label }) => `- ${label}: ${meta[key] ?? ""}`)
     .join("\n");
 }
 
-// --- finding comment / master body ---------------------------------------
-export function renderComment({ finding, lang = "en", related, meta }) {
-  const labels = sectionLabels[finding.type][lang]; // context/problem/impact/suggestedFix 段落序（oracle = canonical）
-  const body = [
+// --- 聚合 body 渲染 ----------------------------------------------------------
+// 布局（§2.5 钉死）：Session 一段（masterDef sessionTitle + harnessRow 一行）；
+// findings 分型分块 × N（sectionLabels[finding.type][lang] 四段逐一渲染、段间为原始
+// 文本，meta 两行紧随四段 = 归属声明）；尾收 Dedup（全部 open 命中）与 Related（全部
+// closed 命中 + program 归属）单段，不做 per-finding 分段。
+function renderFindingBlock(finding) {
+  const labels = sectionLabels[finding.type][finding.lang];
+  const segments = [
     `${labels.context}\n\n${finding.context}`,
     `${labels.problem}\n\n${finding.problem}`,
     `${labels.impact}\n\n${finding.impact}`,
     `${labels.suggestedFix}\n\n${finding.suggestedFix}`,
   ];
-  if (related) body.push(`## Related\n\n${related}`);
-  body.push(`## Report meta (auto)\n${renderMeta(meta)}`);
-  return body.join("\n\n");
+  return segments.join("\n\n") + `\n${renderMeta(finding.meta)}`;
 }
 
-export function renderMasterBody({ kind, meta }) {
-  return [
-    `## Session\n\n- Session: ${meta.session ?? "standalone"}\n- Kind: ${kind}\n- Date: ${meta.date}`,
-    "_Findings are appended as comments below — this body is created once and not maintained._",
-    `## Report meta (auto)\n${renderMeta(meta)}`,
-  ].join("\n\n");
+export function renderBody({ harness, findings, related }) {
+  const parts = [
+    [masterDef.sessionTitle, masterDef.harnessRow.replace("<harness>", harness)].join("\n"),
+    ...findings.map(renderFindingBlock),
+  ];
+  if (related?.open?.length) {
+    parts.push(
+      [
+        "## Dedup",
+        ...related.open.map(
+          ({ issue, component, reason }) =>
+            `- Dedup → #${issue} (open)：${component} · ${reason}`,
+        ),
+      ].join("\n"),
+    );
+  }
+  if (related?.closed?.length || related?.program) {
+    const lines = [];
+    if (related.closed?.length) {
+      lines.push(
+        ...related.closed.map(({ issue }) => `- Regression / follow-up of #${issue} (closed)`),
+      );
+    }
+    if (related.program) {
+      lines.push(`- Program: #${related.program.issue}`);
+    }
+    parts.push(["## Related", ...lines].join("\n"));
+  }
+  return parts.join("\n\n");
 }
 
-// --- CLI -------------------------------------------------------------------
+// --- 入参结构校验（E-3 / R2 处置）---------------------------------------------
+// 顶层 3 键 harness / findings[] / related? · per-finding 8 字段 · related 3 键，
+// 全量覆盖含枚举校验；手写结构断言（~40 行，零依赖），不引第二个 schema 体系。
+// 返回违规列表（`字段路径: 原因`），空数组 = 通过。
+export function validateInput(input) {
+  const errors = [];
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return ["input: expected an object with harness / findings / related?"];
+  }
+  if (typeof input.harness !== "string" || input.harness.length === 0) {
+    errors.push("harness: non-empty string required");
+  }
+  if (!Array.isArray(input.findings)) {
+    errors.push("findings: non-empty array required");
+  } else if (input.findings.length === 0) {
+    errors.push("findings: must not be empty");
+  } else {
+    input.findings.forEach((finding, i) => {
+      const base = `findings[${i}]`;
+      if (!FINDING_TYPES.includes(finding?.type)) {
+        errors.push(`${base}.type: must be one of ${FINDING_TYPES.join(" | ")}`);
+      }
+      if (!LANGS.includes(finding?.lang)) {
+        errors.push(`${base}.lang: must be one of ${LANGS.join(" | ")}`);
+      }
+      for (const field of TEXT_FIELDS) {
+        if (typeof finding?.[field] !== "string" || finding[field].length === 0) {
+          errors.push(`${base}.${field}: non-empty string required`);
+        }
+      }
+      if (!finding?.meta || typeof finding.meta !== "object" || Array.isArray(finding.meta)) {
+        errors.push(`${base}.meta: object with skill / step required`);
+      } else {
+        if (typeof finding.meta.skill !== "string" || finding.meta.skill.length === 0) {
+          errors.push(`${base}.meta.skill: non-empty string required`);
+        }
+        if (typeof finding.meta.step !== "string" || finding.meta.step.length === 0) {
+          errors.push(`${base}.meta.step: non-empty string required`);
+        }
+      }
+    });
+  }
+  if (input.related !== undefined) {
+    const r = input.related;
+    if (!r || typeof r !== "object" || Array.isArray(r)) {
+      errors.push("related: object with open[] / closed[] / program? expected");
+    } else {
+      if (r.open !== undefined) {
+        if (!Array.isArray(r.open)) {
+          errors.push("related.open: array of { issue, component, reason } expected");
+        } else {
+          r.open.forEach((hit, i) => {
+            const base = `related.open[${i}]`;
+            if (typeof hit?.issue !== "number") errors.push(`${base}.issue: number required`);
+            if (typeof hit?.component !== "string" || hit.component.length === 0) {
+              errors.push(`${base}.component: non-empty string required`);
+            }
+            if (typeof hit?.reason !== "string" || hit.reason.length === 0) {
+              errors.push(`${base}.reason: non-empty string required`);
+            }
+          });
+        }
+      }
+      if (r.closed !== undefined) {
+        if (!Array.isArray(r.closed)) {
+          errors.push("related.closed: array of { issue } expected");
+        } else {
+          r.closed.forEach((hit, i) => {
+            if (typeof hit?.issue !== "number") {
+              errors.push(`related.closed[${i}].issue: number required`);
+            }
+          });
+        }
+      }
+      if (r.program !== undefined) {
+        if (!r.program || typeof r.program.issue !== "number") {
+          errors.push("related.program: { issue: number } expected");
+        }
+      }
+    }
+  }
+  return errors;
+}
+
+// --- CLI（裸调用单入口）-------------------------------------------------------
 const isCli =
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 
 if (isCli) {
-  const modeIndex = process.argv.indexOf("--mode");
-  const mode = modeIndex === -1 ? "comment" : process.argv[modeIndex + 1];
-  const input = JSON.parse(readFileSync(0, "utf8"));
-  process.stdout.write((mode === "master" ? renderMasterBody(input) : renderComment(input)) + "\n");
+  let input;
+  try {
+    input = JSON.parse(readFileSync(0, "utf8"));
+  } catch (err) {
+    process.stderr.write(`input: invalid JSON — ${err.message}\n`);
+    process.exit(1);
+  }
+  const violations = validateInput(input);
+  if (violations.length > 0) {
+    process.stderr.write(
+      `Invalid report-issues input:\n${violations.map((v) => `  ${v}`).join("\n")}\n`,
+    );
+    process.exit(1);
+  }
+  process.stdout.write(renderBody(input) + "\n");
 }

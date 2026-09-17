@@ -3,120 +3,28 @@ import { readFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import {
-  renderYml,
-  renderTitle,
-  renderMeta,
-  renderComment,
-  renderMasterBody,
-} from "../../packages/osuperpowers/scripts/report-templates.mjs";
+import { renderYml } from "../../packages/osuperpowers/scripts/render-yaml.mjs";
 import { emitIssueTemplates } from "./issue-templates.mjs";
 import { emitAll } from "./all.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATES = path.resolve(HERE, "../../.github/ISSUE_TEMPLATE");
 const findingMeta = JSON.parse(readFileSync(path.resolve(
   HERE, "../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json"
 ), "utf8"));
 
-describe("report-templates", () => {
+describe("render-yaml (emit-only module)", () => {
   it("隐私迁移后 2 个 yml 渲染产物无 Branch", () => {
     for (const n of Object.keys(findingMeta.formFieldDefs)) {
       expect(renderYml(findingMeta.formFieldDefs[n], findingMeta)).not.toMatch(/Branch/);
     }
   });
 
-  it("renderTitle 替换 <subject> 与 <YYYY-MM-DD>", () => {
-    expect(
-      renderTitle(
-        { title: "[Session report] <subject> <YYYY-MM-DD>" },
-        { subject: "cdd-engine-overhaul-p4", date: "2026-09-08" }
-      )
-    ).toBe("[Session report] cdd-engine-overhaul-p4 2026-09-08");
-  });
-
-  it("masterDef 终态两键（§2.6）——Session 段 label + Harness 行模板，title 删", () => {
-    expect(findingMeta.masterDef).toEqual({
-      sessionTitle: "## Session",
-      harnessRow: "- Harness: <harness>",
-    });
-  });
-
-  it("renderMeta 输出 report-meta 二字段 bullet（skill/step，canonical metaFields 驱动）", () => {
-    expect(
-      renderMeta({ skill: "report-issues", step: "review" })
-    ).toBe("- Skill: report-issues\n- Step: review");
-  });
-
-  it("renderMasterBody 结构常驻断言（Session 块 + 指针行 + Report meta · 无 Findings Summary）", () => {
-    const meta = {
-      session: "cdd-engine-overhaul-p4",
-      skill: "report-issues",
-      harness: "claude-code",
-      kind: "program",
-      step: "review",
-      cdd: "2026-09-08-cdd-engine-overhaul-p4",
-      date: "2026-09-08",
-    };
-    const body = renderMasterBody({ kind: "program", meta });
-    expect(body.startsWith(
-      "## Session\n\n- Session: cdd-engine-overhaul-p4\n- Kind: program\n- Date: 2026-09-08"
-    )).toBe(true);
-    expect(body).toContain("_Findings are appended as comments below");
-    expect(body).not.toContain("## Findings Summary");
-    expect(body.endsWith(`## Report meta (auto)\n${renderMeta(meta)}`)).toBe(true);
-    for (const field of ["Skill", "Step"]) {
-      expect(body).toContain(`- ${field}:`);
+  it("component dropdown 直引顶层 components（消费方签名）", () => {
+    const yml = renderYml(findingMeta.formFieldDefs.bug_report, findingMeta);
+    for (const component of findingMeta.components) {
+      expect(yml).toContain(`        - ${component}`);
     }
-  });
-
-  it("renderMasterBody meta.session 缺省回退 standalone", () => {
-    const meta = {
-      skill: "report-issues",
-      harness: "claude-code",
-      kind: "standalone",
-      step: "nlx",
-      cdd: "st-42",
-      date: "2026-09-08",
-    };
-    const body = renderMasterBody({ kind: "standalone", meta });
-    expect(body).toContain("- Session: standalone");
-  });
-
-  it("renderComment 段落序 oracle = sectionLabels.bug[en]（Context→Problem→Impact→Suggested fix）", () => {
-    const labels = findingMeta.sectionLabels.bug.en;
-    const finding = {
-      type: "bug",
-      component: "cdd-engine",
-      title: "session state corrupted",
-      context: "Ran branch-review on cdd-engine-overhaul-p4",
-      problem: "Stopped before emitting findings",
-      impact: "Blocked the whole phase",
-      suggestedFix: "Skip idempotent reruns",
-    };
-    const meta = {
-      skill: "report-issues",
-      harness: "claude-code",
-      kind: "program",
-      step: "review",
-      cdd: "2026-09-08-cdd-engine-overhaul-p4",
-      date: "2026-09-08",
-    };
-    const comment = renderComment({ finding, lang: "en", related: "closes #232", meta });
-    const expected = [
-      `## Context\n\n${finding.context}`,
-      `## Problem\n\n${finding.problem}`,
-      `## Impact\n\n${finding.impact}`,
-      `## Suggested fix\n\n${finding.suggestedFix}`,
-      `## Related\n\ncloses #232`,
-      `## Report meta (auto)\n${renderMeta(meta)}`,
-    ].join("\n\n");
-    expect(comment).toBe(expected);
-    // oracle 取自 canonical（不读 Task 4 将删除的 bug-en.md）
-    expect(labels.context).toBe("## Context");
-    expect(labels.problem).toBe("## Problem");
-    expect(labels.impact).toBe("## Impact");
-    expect(labels.suggestedFix).toBe("## Suggested fix");
+    expect(yml).not.toContain("osuperpowers:init");
   });
 });
 
@@ -150,6 +58,13 @@ describe("finding-meta canonical（§2.6 终态）", () => {
   it("reportDef.labels 单点 = [osuperpowers, cdd-engine]", () => {
     expect(findingMeta.reportDef).toEqual({
       labels: ["osuperpowers", "cdd-engine"],
+    });
+  });
+
+  it("masterDef 终态两键（§2.6）——Session 段 label + Harness 行模板，title 删", () => {
+    expect(findingMeta.masterDef).toEqual({
+      sessionTitle: "## Session",
+      harnessRow: "- Harness: <harness>",
     });
   });
 

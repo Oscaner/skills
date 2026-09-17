@@ -1,6 +1,8 @@
 name: Enhancement
 description: Suggest an improvement to osuperpowers skills or workflow
-labels: ["enhancement", "osuperpowers"]
+labels:
+  - enhancement
+  - osuperpowers
 body:
   - type: markdown
     attributes:

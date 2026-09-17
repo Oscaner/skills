@@ -169,3 +169,27 @@ describe('templates 结构命名单源（Task 18：schema 原样注入 + 共享 
     }
   });
 });
+
+// ---- P5 Task 18（E-8）：handoff stub 紧凑注入 —— JSON.stringify(schema)（省 tok）----
+// 注入面 = 提示词 prompt（非磁盘工件）：handoff JSON 落盘仍走 2-缩进（write.ts/progress 等）。
+// 紧凑性来源 = JSON.stringify 无缩进 → 单行 body，无内嵌换行；2-缩进形态的 `\n  "` 模式即 drift。
+
+describe('renderHandoffStub 紧凑注入（P5 E-8：省 tok，零 2-缩进）', () => {
+  it('stub 无 2-缩进模式（`\\n  "` 模式）——格式 drift 守卫（spec §2.8）', () => {
+    const stub = renderHandoffStub(loadHandoffSchema('task'));
+    expect(stub).not.toMatch(/\n {2}"/);
+  });
+
+  it('紧凑 JSON 单行承载 + 契约保持：JSON.parse(stub) === schema（注入面压缩但不损内容）', () => {
+    const schema = loadHandoffSchema('task');
+    const body = renderHandoffStub(schema).replace(/^```json\n/, '').replace(/\n```$/, '');
+    expect(body).not.toContain('\n');        // JSON.stringify 无缩进 → body 恰一行
+    expect(JSON.parse(body)).toEqual(schema); // 既有 round-trip 断言在紧凑形态下保持
+  });
+
+  it('省 tok（R6）：紧凑 stub 短于同一 schema 的 2-缩进形态', () => {
+    const schema = loadHandoffSchema('task');
+    const pretty = '```json\n' + JSON.stringify(schema, null, 2) + '\n```';
+    expect(renderHandoffStub(schema).length).toBeLessThan(pretty.length);
+  });
+});

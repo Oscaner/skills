@@ -40,8 +40,8 @@ flowchart TD
 
 ### `explore-context`
 
-- **Do**: Explore project context in the resolved mode (code / issues / docs / git log) so the routing and the delegated sessions have what they need
-- **Read**: project files, docs, git log, the parent overall (phase-within-program mode)
+- **Do**: Explore project context in the resolved mode so the routing and the delegated sessions have what they need — code, issues, docs, and git log are reference examples of exploration surfaces, **not a fixed channel set**; scale the surface to what the task needs (exploration does not constitute a resolved-mode constraint)
+- **Read**: whatever the task needs — e.g. project files, docs, git log, the parent overall (phase-within-program mode)
 - **Exit**: Exploration complete → `mode?`
 - **Fail**: Context read fails → report + fail-open
 

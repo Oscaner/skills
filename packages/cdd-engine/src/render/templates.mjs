@@ -53,7 +53,7 @@ export function pluginRoot() { return PKG_ROOT; }
 // semantics：status「写 findings 不写 status」/ findings「{lens,severity,…}」/
 // artifacts「point at files」/ commits.head「40 位全形」/ blocker「无阻塞省略」）。
 export function renderHandoffStub(schema) {
-  return '```json\n' + JSON.stringify(schema, null, 2) + '\n```';
+  return '```json\n' + JSON.stringify(schema) + '\n```';
 }
 
 // ---- Review 模板数据化（reviews.json per-type 配置 + review.md 共享壳）----

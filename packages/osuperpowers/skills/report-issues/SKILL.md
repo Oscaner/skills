@@ -1,113 +1,114 @@
 ---
 name: report-issues
-description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Dual-channel reporting (program issue / session master) with report-meta; findings never auto-include branch names or paths. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
+description: Analyzes the current CDD session for bugs and enhancement opportunities and files a single aggregate GitHub issue against Oscaner/skills via gh CLI. Open dedup matches become links in the issue body (never comments); closed matches are flagged as regression follow-ups, never reopened. Findings never auto-include branch names or paths. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 ---
 
 # Osuperpowers Report Issues
 
-Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.osuperpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then attach findings to `Oscaner/skills` issues via `gh`. Findings go through one of two channels — the **program channel** (comments on the current program's phase-owning issue) or the **session channel** (comments on a find-or-create session master). The flow is a digraph: `analyze → classify → confirm → resolve-destination → {program · session} → dedup → append-comment → report`. All issue bodies are produced by the renderer CLI at `scripts/report-templates.mjs`; `pluginRoot` is resolved by ascending to the nearest `.claude-plugin/plugin.json`. Manual trigger only.
+Analyze the current CDD session (session context records + `{repo}/.osuperpowers/cdd/*/progress.md` ledger + git log) to find bugs and enhancements, then file **one aggregate issue** on `Oscaner/skills` via `gh`. Confirmed findings that dedup-match an existing open issue are recorded as links in the new issue body's Dedup region — no per-finding comments are filed, and no issue is ever touched outside its creation. The flow is a digraph: `explore-current-session → collect → reform → confirm → dedup → create-issue? → {create-issue | report-links-only} → report`. Findings never include branch names, absolute paths, or filenames by default. The issue body is produced by the renderer CLI at `scripts/report-templates.mjs` — a bare-call single entry (stdin JSON → aggregate body → stdout, no mode flag); `pluginRoot` is resolved by ascending to the nearest `.claude-plugin/plugin.json`. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[analyze] --> B[classify]
-  B --> C[confirm]
-  C -->|confirmed| D{resolve-destination}
-  C -->|rejected| Z1((BLOCKED: user-reject))
-  D -->|program| E[dedup]
-  D -->|session| F[ensure-session]
-  F --> E
-  E --> G[append-comment]
+  A[explore-current-session] --> B[collect]
+  B --> C[reform]
+  C --> D{confirm}
+  D -->|confirmed| E[dedup]
+  D -->|rejected| Z1((BLOCKED: user-reject))
+  E --> F{create-issue?}
+  F -->|has new findings| G[create-issue]
   G --> H[report]
+  F -->|all dedup-matched| I[report-links-only]
+  I --> H
   H --> J((APPROVED: report))
 ```
 
-7 process steps / 8 nodes: `analyze` · `classify` · `confirm` · `resolve-destination` (routing diamond) · `ensure-session` · `dedup` · `append-comment` · `report`.
+7 process steps / 9 nodes: `explore-current-session` · `collect` · `reform` · `confirm` (gate) · `dedup` · `create-issue?` (routing diamond) · `create-issue` · `report-links-only` · `report`.
 
-## Session Context (captured once at report start, pure-function downstream)
+## Session Context (snapshot captured once at report start, pure-function downstream)
 
-The snapshot of the session taken at the start of the flow (before `analyze`); every downstream node derives from this snapshot, never from the live cwd.
+The snapshot taken by `explore-current-session`; every downstream node derives from this snapshot, never from the live cwd.
 
-- **root**: git top-level of the harness launch cwd (`git rev-parse --show-toplevel`). Captured once at report start; never re-derived from the real-time cwd (`cd` during exploration does not change it).
-- **workspace**: `.osuperpowers/cdd/<run-slug>/` of the current CDD run — present only when this session is a CDD run; a standalone run has no run slug and therefore no workspace. Cross-repo reuse is forbidden: the CDD run's workspace must resolve under `root`.
-- **channel**: `program` when a workspace exists and the cached `report-target.json` (or the program chain) resolves a program target; otherwise `session`.
-- **subject**: the master title subject — the workspace slug (run slug with the `YYYY-MM-DD-` prefix stripped, e.g. `cdd-engine-overhaul-p4`) for program/consumer-cdd; the confirm-confirmed topic for standalone (model-derived from the first finding, never empty; `standalone` is never used as subject).
+- **root**: git top-level of the harness launch cwd (`git rev-parse --show-toplevel`). Captured once; never re-derived from the real-time cwd (`cd` during exploration does not change it).
+- **workspace**: `.osuperpowers/cdd/<run-slug>/` of the current CDD run — present only when this session is a CDD run. Cross-repo reuse is forbidden: the workspace must resolve under `root`.
+- **harness**: the harness this session runs in (e.g. `claude-code`) — the value of the Session region's `- Harness:` row (report-meta 2+1 session-level line).
+- **program-owning issue** (CDD runs only): the phase-owning issue of the current program, resolved from the run workspace — `progress.json#plan` → plan-header `**Spec:**` chain → the owning issue. A pure lookup feeding the Related region's Program link (I9), never a routing decision.
 
-Derivations (pure functions):
-- master title = `renderTitle(masterDef, { subject, date })` → `[Session report] <subject> <YYYY-MM-DD>`
-- cache (`report-target.json`) read/write admission: CDD runs only — a standalone run never reads or writes it
-- report-meta `kind` = `program` | `consumer-cdd` | `standalone`, derived from channel × workspace (never an author-chosen input)
+Exploration surfaces are described at reference level — the surface flexes with the task instead of being a fixed channel contract; whatever surfaces contribute still pass the toolchain scope filter at `collect`.
 
 ## Node Definitions
 
-### `analyze`
+### `explore-current-session`
 
-- **Do**: Read three sources in priority order — ① session context (primary): tool-call records / errors / handoff / review findings visible in this session; ② ledger: all files under `{repo}/.superpowers/sdd/*/progress.md` and `{repo}/.osuperpowers/cdd/*/progress.md`, extracting lines containing `fix round` / `BLOCKED` / `parked` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. Identify repeated fix-round patterns. Do not paste API keys, tokens, or secrets — replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before including in findings.
-- **Read**: session context; `{repo}/.superpowers/sdd/*/progress.md` + `{repo}/.osuperpowers/cdd/*/progress.md`; git log
-- **Exit**: extracted findings → `classify`
+- **Do**: Capture the Session Context snapshot for this report — root, workspace (CDD runs), harness, and (CDD runs) the program-owning issue ([§ Session Context](#session-context-snapshot-captured-once-at-report-start-pure-function-downstream)). The snapshot is taken once; downstream nodes are pure functions of it.
+- **Read**: harness launch cwd; (when CDD run) the run workspace
+- **Exit**: snapshot complete → `collect`
+- **Fail**: workspace cannot resolve under `root` → BLOCKED (cross-repo reuse forbidden)
+
+### `collect`
+
+- **Do**: Collect candidate findings from the session's reference sources — ① session context records: tool-call records / errors / handoff / review findings visible in this session; ② ledger: `{repo}/.osuperpowers/cdd/*/progress.md` files, extracting lines containing `fix round` / `BLOCKED` / `parked` / `CHANGES_REQUESTED`; ③ git log: `git log $(git merge-base HEAD origin/main)..HEAD --oneline`, falling back to `git log -20 --oneline` when `origin/main` is unavailable. These sources are described for reference, not as a fixed channel contract — in practice the surface flexes with the task; every candidate passes the **toolchain scope filter** regardless of how it surfaced.
+  Apply the **toolchain scope filter**: a candidate enters the list only when it satisfies both —
+  - **component slot**: the affected component is in the `components` enumeration (e.g. `osuperpowers:report-issues`, `cdd-engine`);
+  - **behavior predicate**: the finding touches a toolchain artifact — cdd command output / handoff / progress ledger / issue form / skill flow node.
+  Consumer-project domain rules (e.g. a missing ruff config in the consumer project, a project-specific test flake) are **rejected samples**: component-free findings never enter the list. The `.superpowers/sdd/*/progress.md` ledger is never scanned (SDD belongs to the superpowers domain; this toolchain's predicates face cdd artifacts only). Redact secrets: replace any match of `API_KEY=...` / `TOKEN=...` / `SECRET=...` / `PASSWORD=...` with `[REDACTED]` before a finding leaves this node.
+- **Read**: session context records; `{repo}/.osuperpowers/cdd/*/progress.md`; git log
+- **Exit**: filtered findings → `reform`
 - **Fail**: ledger / git log unavailable → use session context only (fail-open, never block)
 
-### `classify`
+### `reform`
 
-- **Do**: Classify each finding as `bug` (tool/script behavior does not match spec — timeouts, wrong exit codes, gate misjudgment, handoff schema errors) or `enhancement` (process can be improved but not broken — DX gaps, missing docs, insufficient CI coverage, template gaps). Each finding includes **Title** (short, usable as an issue or comment title directly), **one-line description**, **affected component** (skill name / script path / command), and **evidence** (specific error output or ledger entry). The type selects the renderer's `lang`-mapped section headings; findings carry no type labels (labels are not used on per-finding comments).
-  Evidence obeys the two-way **Evidence Contract** (I6): it must NOT carry consumer-identifiable data (branch names, absolute paths, filenames, process counts, RSS values, launch dirs, session habits) AND it must describe a maintainer-reproducible mechanism (trigger conditions, mechanism, expected behavior, reproduction steps — describe mechanism, not measurement). Findings failing either direction do not pass `confirm`.
-- **Read**: findings output by `analyze`
-- **Exit**: classification complete → `confirm`
-- **Fail**: type undeterminable → default `enhancement` (conservative)
+- **Do**: Prepare each finding for filing — **privacy strip** (Evidence Contract I6, both directions: no consumer-identifiable data + a maintainer-reproducible mechanism) and **maintainer-friendly formatting** (readable problem statement, impact, suggested fix). Then derive the **neutral topic**: a short phrase from the first finding with type/component labels stripped, ≤ 60 chars — the base for the issue title. The title is the topic itself: no shell prefix and no run slug leak into it (E-1), so the title stays stable for consumers.
+- **Read**: collected findings
+- **Exit**: reformed findings + topic → `confirm`
+- **Fail**: no finding survives reform → BLOCKED (nothing to report)
 
 ### `confirm`
 
-- **Do**: Present the findings as a numbered list and ask: "Is this accurate overall? Any additions or removals?" Findings never include branch names, absolute paths, or filenames by default; such context is added only when the user opts in at this gate (I6). Do **not** pre-create or pre-comment on any gh issue before explicit confirmation.
-  For standalone sessions, also present the **recommended subject topic** — a model-derived short phrase from the first finding (type/component labels stripped, ≤ 60 chars) — which the user may confirm or replace.
-- **Read**: classified findings
-- **Exit**: user confirms → `resolve-destination`; user rejects → BLOCKED (user-reject)
+- **Do**: Human gate — present the N findings as a numbered list **plus the recommended topic**; the user may add, remove, or edit findings and confirm or replace the topic. Do **not** pre-create or pre-comment on any gh issue before explicit confirmation (I1). Findings never include branch names, absolute paths, or filenames by default; such context is added only when the user opts in at this gate (I6).
+- **Read**: reformed findings + topic
+- **Exit**: user confirms → `dedup`; user rejects → BLOCKED (user-reject)
 - **Fail**: no response / explicit rejection → BLOCKED (user-reject, flow terminates)
-
-### `resolve-destination`
-
-- **Do**: Resolve the reporting channel for the confirmed findings from the Session Context ([§ Session Context](#session-context-captured-once-at-report-start-pure-function-downstream)).
-  - **CDD run** (has run slug): locate the workspace by identity as `root/.osuperpowers/cdd/<run-slug>/` — never by scanning the live cwd. **Cache-first**: read `report-target.json` in that workspace. Hit `program` → reuse that issue number (never a new issue); hit `session` → reuse the existing master (date unchanged). On **cache miss**, resolve the program chain — `progress.json#plan` → plan-header `**Spec:**` → overall spec → the phase-owning issue of this program. Persist the resolved target back to the cache so subsequent findings in this session reuse it.
-  - **Standalone run** (no run slug): no workspace, no cache read, no program chain — direct to the session channel (fail-open, never block).
-- **Cache schema**: `.osuperpowers/cdd/<slug>/report-target.json` = `{ "kind": "program"|"consumer-cdd"|"standalone", "issue"?: <issue-number>, "slug": <workspace-slug>, "resolved_at": <ISO-date> }` — `issue` present only for the program channel.
-- **Channel → kind mapping** (derivation for report-meta `kind`): program channel → `program`; session channel + CDD workspace slug present → `consumer-cdd`; session channel with no workspace (standalone) → `standalone`. Every finding comment and master body carries exactly this resolved `kind` (I7).
-- **Read**: Session Context; `.osuperpowers/cdd/<run-slug>/report-target.json` (CDD runs only); `progress.json#plan`; plan-header spec chain; phase-owning issue number
-- **Exit**: program → `dedup`; session → `ensure-session`
-- **Fail**: program-chain resolution fails → session channel (fail-open, never block)
-
-### `ensure-session`
-
-- **Do**: Find or create the session **master** issue. The master is **created once and never edited** — no body PATCH after creation; the comment thread on it is the authoritative findings aggregation.
-  - **Find**: reuse the cached session target, or an existing master with this session's title.
-  - **Create**: `gh issue create --repo Oscaner/skills` with labels `session`, `osuperpowers`. Title = `renderTitle(masterDef, { subject, date })` from the renderer module → `[Session report] <subject> <YYYY-MM-DD>`; `subject` = workspace slug (Session Context) for CDD runs, or the confirm-confirmed topic for standalone; `date` = creation day (reuse never changes it). Body = run `node "${pluginRoot}/scripts/report-templates.mjs" --mode master` on stdin JSON `{ kind, meta }` → Session metadata + a pointer line + `## Report meta (auto)` — no summary table; findings aggregate as comments on the master.
-  - The master is the aggregation point: session-channel findings are appended as comments to it.
-- **Read**: Session Context; report-target cache; renderer CLI
-- **Exit**: master found or created → `dedup`
-- **Fail**: master creation fails → degrade (prompt the user to create the master manually, then retry; keep findings)
 
 ### `dedup`
 
-- **Do**: For each finding, query `gh issue list --repo Oscaner/skills --state all --limit 100 --json number,title,body,state`. Match case-insensitively by **affected component** + **core behavior words** (e.g. `timeout` / `CHANGES_REQUESTED` / `exit 137`) + **title/body keywords**:
-  - **Open match** → append to the matched issue (dedup attach).
-  - **Closed match** → never reopen; file on the resolved destination and pass `related` = `Regression / follow-up of #NNN (closed)`.
-  - **No match** → append to the resolved destination (resolution target or session master).
-- **Read**: `gh issue list` output; confirmed findings
-- **Exit**: dedup decisions complete — closed matches never reopened (filed with `## Related` = `Regression / follow-up of #NNN (closed)`) → `append-comment`
+- **Do**: Run **single-pass dedup** over the repository's recent issue history. Window constant (I8): issues **updated within the last 90 days** — GitHub search accepts no relative duration, so materialize the window as an ISO absolute date: `date -v-90d +%F` → `YYYY-MM-DD`. Run one query, one network round-trip:
+  `gh issue list --repo Oscaner/skills --state all --limit 100 --search "updated:>=<now-90d-ISO>"`
+  `--state all` + `--search` covers open and closed issues in the same pass (search returns both states; no state is lost). Match each finding in memory, case-insensitively, by **affected component** + **core behavior words** (e.g. `timeout` / `CHANGES_REQUESTED` / `exit 137`) + **title/body keywords**:
+  - **Open match** → record the hit for the issue body's Dedup region (`- Dedup → #N (open): <component> · <reason>`); never append a comment to, or edit, the matched issue (I1).
+  - **Closed match** → record `Regression / follow-up of #N (closed)` for the Related region; never reopen.
+- **Read**: the single `gh issue list` output; confirmed findings
+- **Exit**: dedup decisions complete → `create-issue?`
 - **Fail**: `gh` unavailable / network failure → fail-open (record stderr, keep finding for manual retry)
 
-### `append-comment`
+### `create-issue?`
 
-- **Do**: For each finding in order, produce the comment body by running `node "${pluginRoot}/scripts/report-templates.mjs" --mode comment` on stdin JSON `{ finding, lang, related, meta }` → `renderComment` output (section headings per `finding.type` × `lang`, optional `## Related`, then `## Report meta (auto)` with `meta` = `{ skill, harness, kind, step, cdd, date }`). Then file it:
-  - **Program channel**: `gh issue comment --repo Oscaner/skills <target>` (resolution target or dedup-matched open issue).
-  - **Session channel**: `gh issue comment --repo Oscaner/skills <master>` — comment-only, append-only; the master body is created once at `ensure-session` and never edited after creation (no body PATCH on the master).
-  - Each finding's `kind` in report-meta is exactly one of `program` / `consumer-cdd` / `standalone` (I7).
-- **Read**: renderer CLI; resolved targets; confirmed findings
-- **Exit**: all comments appended → `report`
-- **Fail**: a single append fails → fail-open (report stderr, keep finding for manual retry)
+- **Do**: Gate (R1): if **all** confirmed findings matched an open issue in `dedup`, creating a new issue would be an empty issue → `report-links-only`. Otherwise (at least one unmatched new finding) → `create-issue`.
+- **Read**: dedup decisions
+- **Exit**: all findings open-dedup-matched → `report-links-only`; any new finding → `create-issue`
+- **Fail**: —
+
+### `create-issue`
+
+- **Do**: Compose and file the single aggregate issue.
+  1. **Render** the body with the bare-call single entry: `node "${pluginRoot}/scripts/report-templates.mjs"` with stdin JSON `{ harness, findings, related }` → aggregate body straight to stdout (I5). The stdin contract: top-level `harness` (Session row value) / `findings[]` (non-empty) / optional `related`; per finding, `type ∈ {bug, enhancement}` · `lang ∈ {en, zh}` · non-empty `context`/`problem`/`impact`/`suggestedFix` · `meta{skill, step}`. Input violations → `exit 1` with the offending field path (e.g. `findings[0].type: must be one of bug | enhancement`) — fix the stdin JSON and retry; never hand-assemble the body.
+  2. **Body layout** (renderer-produced, deterministic): `## Session` region with one `- Harness: <harness>` row (report-meta 2+1 — the session-level line); per finding, its four typed segments (section headings from the canonical `sectionLabels` oracle by type × lang) each followed by its 2-line report-meta `- Skill: <skill>` / `- Step: <step>` — position adjacency is the ownership declaration, unambiguous across skills when N > 1; single tail regions `## Dedup` (all open hits) and `## Related` (all closed hits + program ownership), never per-finding.
+  3. **Create** with `gh issue create --repo Oscaner/skills --title <topic> --labels osuperpowers,cdd-engine` and the rendered body. Labels come from `reportDef.labels` (the single SOT, not re-derived here). Program ownership — the session's program-owning issue (Session Context) — is passed as `related.program` and renders as `- Program: #N` in the Related region (I9).
+- **Read**: renderer CLI (bare call); confirmed findings + topic; dedup decisions; Session Context (harness / program-owning issue)
+- **Exit**: issue created → `report`
+- **Fail**: renderer rejects the stdin → exit 1 with field path (fix stdin, retry); `gh issue create` fails → fail-open (record stderr, keep finding for manual retry)
+
+### `report-links-only`
+
+- **Do**: Create nothing — every confirmed finding already matched an open issue (R1: no empty issue). Assemble the links-only list: each finding → matched issue number, with component and reason. No renderer run, no issue body.
+- **Read**: dedup decisions
+- **Exit**: links list complete → `report`
+- **Fail**: —
 
 ### `report`
 
-- **Do**: Print a summary of results: each appended comment → issue URL; created master → master URL; `Regression / follow-up of #NNN (closed)` notes → the closed issue number; failed or skipped finding → reason.
+- **Do**: Print the run summary — created issue URL (when `create-issue` ran) / the links-only list (when `report-links-only` ran); `Regression / follow-up of #N (closed)` notes with the closed issue number; the program ownership link; failed or skipped finding with reason.
 - **Read**: final action for each finding
 - **Exit**: summary presented → APPROVED (report)
 - **Fail**: none (display only)
@@ -116,17 +117,19 @@ Derivations (pure functions):
 
 | failure | behavior | reason | recovery |
 |---|---|---|---|
-| User rejects filing (confirm rejected) | BLOCKED (user-reject) | no issue or comment pre-created without confirmation (I1) | flow terminates, nothing filed |
+| User rejects filing (confirm rejected) | BLOCKED (user-reject) | no gh issue is created or commented on before confirmation (I1) | flow terminates, nothing filed |
 | `gh` CLI unavailable / network failure | fail-open (record stderr, keep finding) | external tool dependency | manual retry using the recorded stderr |
-| resolve-destination resolution failure | fail-open → session channel | program chain unavailable (missing progress / plan / overall) | findings still filed against a session master |
-| Session master creation fails | degrade (prompt manual creation + retry) | `gh issue create` may fail on title, labels, or permissions | user creates the master manually, then retry |
+| renderer rejects the stdin JSON | exit 1 + offending field path (early report) | renderer input contract is strict — body is never hand-assembled (I5) | fix the stdin JSON per the reported path, retry |
+| `gh issue create` fails | fail-open (record stderr, keep finding) | title / labels / network / permissions | manual retry, keep findings |
+| no finding survives collect/reform | BLOCKED (nothing to report) | toolchain scope filter rejected everything | revisit the session, re-run on manual trigger |
 
 ## Invariants
 
 | # | Invariant |
 |---|---|
-| I1 | **Confirm Gate** — no gh issue is created or commented on before explicit user confirmation (hard gate at `confirm`) |
+| I1 | **Confirm Gate** — no gh issue is created before explicit user confirmation (hard gate at `confirm`); dedup matches are recorded in the new issue body only, never acted on as comments on existing issues |
 | I3 | **Manual Trigger Only** — report-issues runs only on manual trigger, never automatically |
-| I5 | **Renderer Determinism** — every finding body and the master body is produced by `scripts/report-templates.mjs` (`--mode comment` / `--mode master`); no hand-assembled paragraph structure in this skill |
+| I5 | **Renderer Determinism** — the issue body is produced by `scripts/report-templates.mjs` as a bare call (stdin JSON → aggregate body → stdout, no mode flag, no hand-assembled paragraph structure in this skill) |
 | I6 | **Evidence Contract** — findings never carry consumer-identifiable data (branch names, absolute paths, filenames, process counts, RSS values, launch dirs, session habits) — such context enters only on consumer opt-in at `confirm` — AND findings always describe a maintainer-reproducible mechanism (trigger conditions / mechanism / expected behavior / reproduction steps; describe mechanism, not measurement) |
-| I7 | **Kind Enumerated** — every finding's report-meta `kind` is exactly one of `program` / `consumer-cdd` / `standalone`, derived from channel × workspace (Session Context), never an author-chosen input |
+| I8 | **Dedup Window** — dedup runs a single `gh issue list` pull (one network round-trip, batch in-memory matching); window constant = issues updated within the last 90 days; the search query injects the runtime-materialized ISO absolute date (`date -v-90d +%F` → `updated:>=YYYY-MM-DD`), never a relative duration |
+| I9 | **Program Link** — program ownership is presented only as the Related link in the issue body (`- Program: #N`), never routed back into a per-finding comment or filing model |

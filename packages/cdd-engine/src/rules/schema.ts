@@ -88,7 +88,10 @@ const objOrEmpty = (o: unknown): Record<string, unknown> =>
 export function normalizeHandoff(
   obj: unknown,
   schemaName = "task",
-): Record<string, unknown> | unknown {
+): unknown {
+  // Return `unknown` (not `Record<string, unknown>`): the object arm is only one branch — null /
+  // arrays / primitives pass through verbatim (a contract this file's tests pin, and the recovery
+  // face closes it via objOrEmpty), so a record-only annotation would misstate the shape.
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
   const allowed = new Set(Object.keys((loadHandoffSchema(schemaName) as Record<string, unknown>).properties ?? {}));
   const out: Record<string, unknown> = {};

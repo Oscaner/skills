@@ -35,6 +35,26 @@ export function rewriteHandoffBlocked(handoffPath: string | undefined, reason: s
   writeHandoff(handoffPath, { status: "BLOCKED", blocker: reason, artifacts: {} });
 }
 
+// Shared fail-open resolver for both gates — single definition of the three absent conditions
+// (no repoRoot / non-repo gitTopLevel / gitStatusPorcelain null → absent) so the entry and exit
+// gates' fail-open arms cannot drift independently in this high-risk rules layer. present →
+// { root, porcelain }: root is the resolved git top-level, reused by the exit gate's head check
+// (no second gitTopLevel call).
+type CleanTreeResolution =
+  | { present: false }
+  | { present: true; root: string; porcelain: string };
+
+async function resolveCleanTree(
+  repoRoot: string | null | undefined,
+): Promise<CleanTreeResolution> {
+  if (!repoRoot) return { present: false };
+  const root = await gitTopLevel(repoRoot);
+  if (!root) return { present: false };
+  const porcelain = await gitStatusPorcelain(root);
+  if (porcelain === null) return { present: false };
+  return { present: true, root, porcelain };
+}
+
 // Entry gate judgment (spec §2.12): pre-commit clean-tree check — dispatch must start from a
 // committed state so the exit gate can rely on a clean tree. Dirty → { ok:false, blocker } (the
 // BLOCKED signal; the mount writes the blocked handoff / CDD_BLOCKED diagnostic). Non-git or
@@ -42,12 +62,9 @@ export function rewriteHandoffBlocked(handoffPath: string | undefined, reason: s
 export async function entryGateCleanTree(
   repoRoot: string | null | undefined,
 ): Promise<CommitGateResult> {
-  if (!repoRoot) return { ok: true, blocker: "" };
-  const root = await gitTopLevel(repoRoot);
-  if (!root) return { ok: true, blocker: "" };
-  const porcelain = await gitStatusPorcelain(root);
-  if (porcelain === null) return { ok: true, blocker: "" };
-  if (porcelain !== "") {
+  const tree = await resolveCleanTree(repoRoot);
+  if (!tree.present) return { ok: true, blocker: "" };
+  if (tree.porcelain !== "") {
     return { ok: false, blocker: "uncommitted changes at entry: dirty working tree — commit or discard changes before dispatch" };
   }
   return { ok: true, blocker: "" };
@@ -66,20 +83,19 @@ export async function validateCommitContract(
   if (mode !== "implement" && mode !== "fix" && mode !== "review") return { ok: true, blocker: "" };
   const handoffPath = opts.handoffPath ?? "";
 
-  if (!repoRoot) return { ok: true, blocker: "" }; // direct-set non-git workspace → fail-open (never checks the caller's cwd)
-  const root = await gitTopLevel(repoRoot);
-  if (!root) return { ok: true, blocker: "" };
-  const porcelain = await gitStatusPorcelain(root);
-  if (porcelain === null) return { ok: true, blocker: "" };
+  // Any absent condition (no repoRoot / non-repo / git error) → fail-open. A direct-set non-git
+  // workspace never checks the caller's cwd.
+  const tree = await resolveCleanTree(repoRoot);
+  if (!tree.present) return { ok: true, blocker: "" };
 
-  if (porcelain === "") {
+  if (tree.porcelain === "") {
     // Clean tree: the head check covers implement/fix only — review skips it.
     if (mode === "review") return { ok: true, blocker: "" };
     // Validate handoff.commits.head against actual HEAD (F1).
     // strict equal primary; prefix fallback for legacy 7-char handoffs (#186)
     const handoffHead = readJson(handoffPath)?.commits?.head as string | undefined;
     if (handoffHead) {
-      const actualHead = await gitRevParseHead(root);
+      const actualHead = await gitRevParseHead(tree.root);
       if (actualHead && handoffHead !== actualHead && !actualHead.startsWith(handoffHead)) {
         const blocker = `handoff commits.head ${handoffHead} does not match HEAD ${actualHead} (${mode})`;
         rewriteHandoffBlocked(handoffPath, blocker);

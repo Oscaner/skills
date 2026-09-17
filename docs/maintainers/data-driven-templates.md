@@ -1,6 +1,6 @@
 # Data-driven Templates
 
-> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/review/reviews.json`, `packages/cdd-engine/bin/harness-registry.json`, `packages/osuperpowers/skills/report-issue/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived products like `.agents/`. This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
+> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/review/reviews.json`, `packages/cdd-engine/src/infra/harness-registry.json`, `packages/osuperpowers/skills/report-issue/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived products like `.agents/`. This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
 
 Cross-cutting reference: the single-source-of-truth convention for template body text. Cited when a new skill introduces template body text, when an existing template-shaped content is consolidated, and when emit-derived products need drift guarding.
 
@@ -85,8 +85,8 @@ flowchart LR
 
 | Template form | canonical (single source) | renderer / runtime consumer | derived products | guard |
 |---|---|---|---|---|
-| harness routing (P1) | `packages/cdd-engine/bin/harness-registry.json` | cdd engine runtime (`bin/cdd.mjs` · `lib/runner.mjs` · `lib/registry.mjs` · `lib/docs-runner.mjs`) | runtime harness routing (no emit product) | single-source JSON + engine validation |
-| review contract (P3) | `packages/cdd-engine/templates/review/reviews.json` | `bin/lib/templates.mjs` runtime (per-type config driving the shared review.md shell) + `_docs/review.md` URC as the prose contract | cdd review / fix template rendering (runtime) | engine tests + in-program single-source config |
+| harness routing (P1) | `packages/cdd-engine/src/infra/harness-registry.json` | cdd engine runtime (`src/bin.ts` · `src/dispatch/{task.mjs,docs.mjs,review-loop.mjs}` · `src/infra/registry.mjs`) | runtime harness routing (no emit product) | single-source JSON + engine validation |
+| review contract (P3) | `packages/cdd-engine/templates/review/reviews.json` | `src/render/templates.mjs` runtime (per-type config driving the shared review.md shell) + `_docs/review.md` URC as the prose contract | cdd review / fix template rendering (runtime) | engine tests + in-program single-source config |
 | finding/report body (P4 — first runtime render) | `packages/osuperpowers/skills/report-issue/templates/finding-meta.json` | `packages/osuperpowers/scripts/report-templates.mjs` (renderYml / renderTitle / renderMeta / renderComment / renderMasterBody pure functions) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + finding comment / session master body (runtime) | `scripts/emit/issue-templates.test.mjs` two-stage round-trip + `emit:check` |
 | issue form yml (P4) | same `formFieldDefs` | `renderYml` (emit stage via `scripts/emit/issue-templates.mjs` wired into emitAll) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` / `session_report.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |
 

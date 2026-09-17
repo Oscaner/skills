@@ -21,6 +21,7 @@
   "scripts": {
     "build": "unbuild",
     "dev:stub": "unbuild --stub",
+    "prepare": "pnpm run dev:stub",
     "test": "vitest run",
     "test:watch": "vitest"
   },

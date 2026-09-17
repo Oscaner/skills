@@ -31,6 +31,13 @@ function resolveBin(bin) {
 }
 
 export function main() {
+  // Self-sufficiency gate: the node-fallback entry (ENTRIES.cdd) is a gitignored dev-stub
+  // product — ensure it exists so a standalone `node scripts/run.mjs smoke-cdd` on a fresh
+  // checkout isn't ENOENT (validate's 5b0 step already materializes it in the same CI job;
+  // this covers direct invocation after `rm -rf packages/cdd-engine/dist`).
+  if (!existsSync(path.join(root, ENTRIES.cdd))) {
+    execaSync("pnpm", ["-C", "packages/cdd-engine", "dev:stub"], { cwd: root, stdio: "inherit" });
+  }
   const cdd = resolveBin("cdd");
   if (cdd[0] !== "cdd") {
     console.log(`smoke: PATH bin unavailable — using repo-relative node entry (${cdd.slice(1).join(" ")})`);

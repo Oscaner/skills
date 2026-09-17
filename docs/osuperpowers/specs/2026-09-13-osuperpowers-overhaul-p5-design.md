@@ -1,9 +1,9 @@
 # osuperpowers 架构重构 P5 — report-issues 改名与流程精炼 设计
 
-- **Version**: v1.0 · 2026-09-17（起草）
+- **Version**: v1.0 · 2026-09-17（起草；brainstorm 期七次 overall 回填 v1.18–v1.27 已并入，见 Deviations）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.24](./2026-09-13-osuperpowers-overhaul-overall.md)（P5 行 scope/acceptance 已含全部 brainstorm 收敛；v1.18–v1.24 六条 Boundary rules 回填行）
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.27](./2026-09-13-osuperpowers-overhaul-overall.md)（P5 行 scope/acceptance 已含全部 brainstorm 收敛；v1.18–v1.27 十条 Boundary rules 回填行）
 - **Depends on**: P4 shipped（skill 树 + engine 输出契约，PR #262 已 merge 至 develop，2026-09-16）
 
 ---
@@ -15,7 +15,7 @@
 
 **口径（用户 2026-09-13 拍板，overall §目标 skills 架构参考）**：目标流程 = `explore-current-session → collect → reform → confirm → gh dedup（open+closed）→ 单新 issue 聚合 + dedup links + friendly 标题`。P5 的**删除面**（旧双通道评论模型 / master 复用 / per-finding 评论 / report-meta 冗余字段）与**收敛面**（单新 issue 聚合 / 单模式 renderer / labels SOT 单点）一并执行——破坏性变更授权下遗留即删。
 
-**例外边界（精确）**：P5 对 engine **生产代码**的触达 = **两处**：`lib/templates.mjs#renderHandoffStub` 紧凑注入（E-8，1 行）+ `lib/runner/run-docs.mjs` 接 commit-contract 后验（docs fix 出口干净树，见 §2.12）+ `templates/fix/docs.md` 补 commit 指令（模板面）+ **第三方依赖收敛重写**（`contract/commit.mjs` 走 simple-git · `templates.mjs` 替换循环走 handlebars · glob 走 tinyglobby，见 §2.13）。engine **tests** 例外（`templates.test.mjs` 增紧凑格式断言 + `run-docs` 的 commit-contract 用例，见 §2.10 / AC 7 / AC 10）；其余 engine 生产面零改动。issue form（ISSUE_TEMPLATE）是 emit 派生面，改动落点 = `finding-meta.json` canonical（formFieldDefs / labels SOT），不在 `.github/` 手改。
+**例外边界（精确，v1.27 更新）**：P5 将 cdd-engine **全面重建**（全量 TS + unbuild · CLI 换 citty · 生命周期域抽象基类 + hookable 注册面 · 目录按功能重组 · v1.26 第三方收敛全项），**engine 黑盒契约零变化**（4 子命令 `cdd implement/review/fix/base-branch` 面 · handoff 输出 / 失败类目 / Stopping / commit-contract 判定语义 · session-call 输出）——**skills 与消费者面零感知**（engine 是发布产物，重建仅内部形态）。engine 重构详 §2.13。issue form（ISSUE_TEMPLATE）是 emit 派生面，改动落点 = `finding-meta.json` canonical（formFieldDefs / labels SOT），不在 `.github/` 手改。
 
 ---
 
@@ -235,10 +235,50 @@ engine 侧：`templates.test.mjs` 增 E-8 紧凑断言；`templates.content.test
 7. **handoff schema 紧凑注入**（E-8）：`renderHandoffStub` = `JSON.stringify(schema)`；`templates.test.mjs` 格式 drift 断言绿；task 注入省 ~265 tok 断言（可选）
 8. **repo label rename 已执行**：`gh label list` 有 `cdd-engine` 无 `cdd`；历史 issue 标签随迁
 9. `pnpm run validate` 全绿（14 块）+ `pnpm run emit:check` 无 drift
-10. **commit 边界管控落地**（AC 10）：`run-task.mjs` 入口门干净树校验（pre-commit）+ 既有出口门保留（post-commit，commit-contract 语义）· `run-docs.mjs` 接 validateCommitContract（docs fix 出口补齐）· `fix/docs.md` 含提交指令（agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip）· 6 个 review-fix skill 的 review 前「工作树干净」措辞
-11. **第三方依赖收敛落地**（AC 11）：`packages/cdd-engine` lib 零 `execFileSync("git")` 手写 git（经 simple-git）· 零 `emitScalar`/`isPlainUnsafe`（osuperpowers 经 `yaml`）· 零 `PLACEHOLDERS` 手写替换循环（经 handlebars）· cdd-engine glob 经 tinyglobby · husky 零 cdd-engine 依赖声明（仅 root devDependencies 存续）· `docs/maintainers/third-party-dependencies.md` 存在且登记全部 pkg（含不引清单与理由）；engine suite 全绿（simple-git/handlebars/yaml 换算后原语义不变）
+10. **commit 边界管控落地**（AC 10）：`lifecycle/task.ts`/`docs.ts` 继承 DispatchLifecycle：入口门（pre-commit 干净树）+ 出口门（post-commit validateCommitContract）挂 hook 基类· `fix/docs.md` 含提交指令（agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip）· 6 个 review-fix skill 的 review 前「工作树干净」措辞
+11. **第三方依赖收敛落地**（AC 11）：`packages/cdd-engine` src 零 `execFileSync("git")` 手写 git（经 simple-git）· 零 `emitScalar`/`isPlainUnsafe`（osuperpowers 经 `yaml`）· 零 `PLACEHOLDERS` 手写替换循环（经 handlebars）· cdd-engine glob 经 tinyglobby · husky 零 cdd-engine 依赖声明（仅 root devDependencies 存续）· `docs/maintainers/third-party-dependencies.md` 存在且登记全部 pkg（含不引清单与理由）；engine suite 全绿（simple-git/handlebars/yaml 换算后原语义不变）
 
-### §2.12 生命周期 commit 边界管控（pre-commit / post-commit 双门）
+### §2.12 生命周期 dispatch 阶段 + commit 边界管控（pre-commit / post-commit 双门）
+
+**第一部分：dispatch 生命周期阶段总览（术语化）**
+
+每个 cdd 命令（implement / fix / review / docs）都是一次 **dispatch**——engine 把 agent 会话作为子进程执行，生命周期 = 该次 dispatch 从准备到收尾的完整序列。三个阶段，每阶段含若干 engine 步骤：
+
+```
+dispatch lifecycle（engine 单点实现, run-task.mjs / run-docs.mjs）
+╔═ pre-flight（派发前 · engine 侧准备）═══════════════════════════╗
+║ 入口门 commit 管控【P5 新增】 工作树干净校验（git status）       ║
+║   1.  CLI 参数解析 + registry 装载（log ship gate）             ║
+║   2.  --plan → workspace → ctx（单根权威）                      ║
+║   2.5 模板存在性检查（缺失 → BLOCKED exit 1）                    ║
+║   4.  ctx → progressDir（ledger）                               ║
+║   5.  fixed-point 派生（task-review/fix 的前序 handoff）         ║
+║   6.  mode 校验（implement/review/fix 三态合法）                 ║
+╚═══════════════════════════════════════════════════════════════╝
+╔═ dispatch（agent 会话执行 · 黑盒）═════════════════════════════╗
+║   7.  渲染 prompt（模板 + schema 原样注入 + brief/H1 block）    ║
+║   8.  spawn agent CLI（execa，后台执行 + 超时）                 ║
+╚═══════════════════════════════════════════════════════════════╝
+╔═ post-flight（agent 返回后 · engine 侧收尾）═══════════════════╗
+║   8.5 超时路径（写 partial handoff，timeoutCount 自增）         ║
+║   8.8 handoff schema 校验（CONTRACT_VIOLATION 保留 findings）   ║
+║   10./10.5 失败无 handoff → BLOCKED（stderr 入 blocker）         ║
+║   11. H1 四行解析（status/commits/artifacts/blocker）           ║
+║   12./13. exit 归一（agent_rc / dry-run）                       ║
+║ 出口门 commit 管控【T8 既有】 validateCommitContract            ║
+║   （dirty → BLOCKED；implement/fix 另验 commits.head == HEAD）  ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+| 阶段 | 阶段责任 | 步骤（run-task.mjs 现状） | commit 边界 |
+|---|---|---|---|
+| **pre-flight** | 入口干净 + 上下文就绪 | 1 · 2 · 2.5 · 4 · 5 · 6 | **入口门【P5 新增】**——工作树干净校验，dirty → BLOCKED |
+| **dispatch** | agent 会话执行（黑盒） | 7 · 8 | 无（agent 期间零写树纪律，skill 侧义务） |
+| **post-flight** | 结果归一 + 契约校验 | 8.5 · 8.8 · 10 · 10.5 · 11 · 12 · 13 · 13.5 | **出口门【T8 既有】**——validateCommitContract（dirty → BLOCKED；implement/fix 另验 head） |
+
+**阶段责任划分原则**：pre-flight 与 post-flight 的 engine 步骤负责**机械性收尾**（上下文装载 / 校验 / 归一）——均无 agent 语义；dispatch 阶段是唯一的 agent 语义黑盒。commit 管控（本文第二部分）正是落在两端的引擎门。
+
+**第二部分：commit 边界管控（pre-commit / post-commit 双门）**
 
 **第一性原理**：commit-contract 已确立「dispatch 出口干净树」不变量（task 族强制）。P4 两次 dirty-tree BLOCKED（dispatch 期间改树 → 返回时 commit-contract 判 dirty → handoff 改写 BLOCKED）证明**仅凭出口后验不足**——需要**入口门**使出口必然干净。P5 把「谁产物谁提交」的归属直觉收敛为**一个统一机制**：dispatch 生命周期的**两端各一扇门**，engine 机械强制，**不区分产物归属**（主 agent 或 cdd 产物 — 生命周期不关心，只保证边界干净）。
 
@@ -286,30 +326,56 @@ dispatch lifecycle（engine 单点实现, run-task/run-docs）:
 
 | 面 | 手写实现（现状） | 替换 pkg | 替换理由（检索确认） | 落点 |
 |---|---|---|---|---|
-| **git 操作** | `contract/commit.mjs` 手写 `execFileSync("git")` helper ×5（toplevel / rev-parse HEAD / cat-file / status --porcelain）+ `brief.mjs`/`finalize.mjs`/`root.mjs` 零星 git | **`simple-git`** | Node CLI 侧事实标准、活跃维护；status/add/commit/log API 完备；isomorphic-git 纯 JS 偏浏览器、维护放缓弃 | `contract/commit.mjs` 重写（pre-flight/post-flight 执行者内部走 simple-git）；brief/finalize/root 收 git 调用 |
-| **YAML 序列化** | `osuperpowers/scripts/report-templates.mjs` 手写 `emitScalar`/`isPlainUnsafe`（~50 行 YAML builder） | **`yaml`**（eemeli） | 2026 现代标准：YAML 1.2 全 test-suite、零依赖、活跃维护；js-yaml 新有 CVE-2026-84375 弃；本场景只序列化（form YAML 直出） | renderYml 改 `yaml.stringify`（P5 本就在重写 renderer） |
-| **glob 遍历** | `handoff/naming.mjs` 手写 `readdirSync` 递归 | **`tinyglobby`** | 仓库 `scripts/` 已在用（residue/orchestrate/osuperpowers），同一工具链收敛一致 | naming.mjs 等收 glob 调用 |
-| **模板占位替换** | `templates.mjs` 手写 `PLACEHOLDERS` 数组 + `replace()` 循环（~15 行） | **`handlebars`** | 语法 `{{X}}` 与现有模板恰好兼容（零模板改动）；strict 编译顶替 missing-param 语义；schema/H1/brief 注入走 triple-stash `{{{X}}}` 防 HTML 转义破坏 | `renderTemplate`/`renderHandoffStub` 改 handlebars；`PLACEHOLDERS` 删除 |
+| **git 操作** | `contract/commit.mjs` 手写 `execFileSync("git")` helper ×5（toplevel / rev-parse HEAD / cat-file / status --porcelain）+ `brief.mjs`/`finalize.mjs`/`root.mjs` 零星 git | **`simple-git`** | Node CLI 侧事实标准、活跃维护；status/add/commit/log API 完备；isomorphic-git 纯 JS 偏浏览器、维护放缓弃 | `contract/commit.ts`（双门判定）+ `git/index.ts`（simple-git 封装）；brief/finalize/root 收 git 调用 |
+| **YAML 序列化** | `osuperpowers/scripts/report-templates.mjs` 手写 `emitScalar`/`isPlainUnsafe`（~50 行 YAML builder） | **`yaml`**（eemeli） | 2026 现代标准：YAML 1.2 全 test-suite、零依赖、活跃维护；js-yaml 新有 CVE-2026-84375 弃；本场景只序列化（form YAML 直出） | renderer 重写时改 `yaml.stringify` |
+| **glob 遍历** | `handoff/naming.ts` 手写 `readdirSync` 递归（TS 化收 glob） | **`tinyglobby`** | 仓库 `scripts/` 已在用（residue/orchestrate/osuperpowers），同一工具链收敛一致 | naming.ts 等收 glob 调用 |
+| **模板占位替换** | `templates.mjs` 手写 `PLACEHOLDERS` 数组 + `replace()` 循环（~15 行） | **`handlebars`** | 语法 `{{X}}` 与现有模板恰好兼容（零模板改动）；strict 编译顶替 missing-param 语义；schema/H1/brief 注入走 triple-stash `{{{X}}}` 防 HTML 转义破坏 | `lifecycle/render.ts`（handlebars）；`PLACEHOLDERS` 删除 |
 | **git hooks** | —（仓库 root 已有 husky） | **husky 不进包** | registry 依赖的 `prepare` 不运行（npm 仅 git deps/root 跑 prepare；pnpm 默认拦依赖 lifecycle 脚本）；即使跑也是 mutate 消费方 `.git/hooks`（安全反模式）；引擎生命周期 = 运行时 JS 非 git hooks | root devDependency 保留（本仓 pre-commit 门禁），cdd-engine 零依赖声明；消费方 hooks 经 simple-git commit 由 git 自然触发（不装不拦） |
 | **进程 spawn** | execa ✓（非轮子） | — | 已有 | — |
-| **CLI** | commander ✓（非轮子） | — | 已有 | — |
+| **CLI 解析** | commander ✓（有） | **`citty`**（unjs） | TS-first、`node:util.parseArgs` 零 args 依赖、与 hookable 同源同维护（检索 2026-09-17：oclif 重/plugin 约定过载、commander TS 弱） | `bin.ts` 用 defineCommand/defineMainCommand；parse.mjs/subcommand 声明重写 |
+| **生命周期注册面** | 无（P4 未建） | **`hookable`**（unjs） | 与 clitty 同源；命名 hook + async 优先；做 `dispatch:before`/`dispatch:after` 固定 hook 点（真注册面——用户裁定：做真注册面，故引） | `lifecycle/hooks.ts`；外部插件注册、内部变体走继承 |
+| **日志** | console 散用 | **`consola`**（unjs） | 同源生态、结构化日志、debug 分级 | core/ 统一日志出口 |
+| **构建/类型** | JS ESM 手写发布链 | **`unbuild` + TypeScript** | TS 化使抽象基类虚方法成为编译期约束（用户裁定全量 TS）；unbuild 构建/stub（dev 与发布同走 dist 入口） | `src/` 全量 TS + `build.config.ts`；`dist/` 产物 |
 | **schema** | ajv ✓（非轮子） | — | 已有 | — |
 | **版本** | semver ✓（非轮子） | — | 已有 | — |
 
-**不引清单**（运维文档明示，防未来误引）：**XState**（engine 已有收敛状态机语义——Review Stopping / 失败类目 / 配额隔离——400+ tests 锚定，引即推翻 P3/P4 收敛成果，破坏性风险零收益）· **hook 库三候选**（检索 2026-09-17 核实：Node 无单一主流 hook 库，是生态分裂——`hookable` 仅 unjs/Nuxt 子生态主流、`tapable` webpack 插件系统（9 种 hook 类型 + 按注册量动态代码生成，对 CLI 过重）、`emittery`（sindresorhus）为通用 async 事件库中最接近「通用主流」但语义是发布-订阅非生命周期编排）——cdd-engine 生命周期编排已由 **commander `.hook('preAction')`（bin/cdd.mjs 已在用，dry-run 注入）+ engine action 内显式阶段（数据化 `PHASES` 阶段表）** 覆盖；未来若出现第三方订阅 dispatch 事件的真实消费面，届时引 `emittery` 或 Node 内置 EventEmitter（一次 import），现在引 = 为不存在的外部消费面加依赖）· **模板引擎替代品**（handlebars 已选；ejs/nunjucks 语法不兼容需改模板）· **isomorphic-git / js-yaml**（各有 CVE 或维护放缓，见上表）。
+**不引清单**（运维文档明示，防未来误引）：**XState**（engine 已有收敛状态机语义——Review Stopping / 失败类目 / 配额隔离——400+ tests 锚定，引即推翻 P3/P4 收敛成果，破坏性风险零收益）· **tapable / emittery**（tapable webpack 生态过重；emittery 语义为发布-订阅非生命周期编排——hookable 已选且同源）· **模板引擎替代品**（handlebars 已选；ejs/nunjucks 语法不兼容需改模板）· **isomorphic-git / js-yaml**（各有 CVE 或维护放缓，见上表）· **oclif**（TS 强但 plugin manifest/自动更新约定对单 bin+内嵌引擎过载）。
 
-**组权重构**（用户授权重组）：
+**组权重构**（用户授权重组，v1.27 升维为全量重建）：
 ```
-packages/cdd-engine/lib/
-  contract/commit.mjs     # 重写：simple-git 封装 + pre-flight/post-flight（生命周期归属）
-  git/                    # 新增：simple-git 单点封装（add/commit/status/head）——旧手写 git 聚此
-  templates.mjs           # renderTemplate 改 handlebars；其余 lib/ 划分不动（contract/handoff/state/runner/lifecycle 已清晰）
+packages/cdd-engine/
+  src/                          # TS 源码（全量 TS + unbuild 构建）
+    bin.ts                      # 薄入口（citty defineMainCommand；dev = dist 经 stub）
+    cli/                        # 命令面（implement/review/fix/base-branch/branch-review 声明）
+      index.ts  review.ts  fix.ts  branch-review.ts  base-branch.ts  shared.ts
+    contract/                   # 契约判定（CDD 语义，仅此层）
+      commit.ts                 # simple-git 封装 + 入口/出口双门（pre-flight/post-flight commit 管控）
+      dispatch.ts               # 失败类目路由（原 failure.mjs）
+    git/                        # 新增：simple-git 单点封装（status/add/commit/head/log）
+      index.ts
+    handoff/                    # handoff 域
+      write.ts  schema.ts  finalize.ts  naming.ts
+    lifecycle/                  # 生命周期域（重建核心）
+      base.ts                   # DispatchLifecycle 抽象基类（模板方法骨架 + hook 默认实现）
+      task.ts                   # TaskLifecycle（task 功能：自身 hook 全覆盖写）
+      docs.ts                   # DocsLifecycle（docs 功能：spec/plan review/fix）
+      hooks.ts                  # hookable 注册面（dispatch:before/after 固定 hook 点，外部插件）
+      render.ts                 # handlebars 渲染（原 templates.mjs）
+      brief.ts  invoke.ts  proc.ts
+    core/                       # 根部基础设施（原根级散模块聚合）
+      root.ts  exit.ts  registry.ts  context.ts
+    state/                      # 状态域
+      progress.ts  workspace-artifacts.ts
+  dist/                         # unbuild 产物（dev 亦经此——stub 模式即时加载 src）
+  build.config.ts               # unbuild 配置
 ```
-迁移动机：`lib/git/` 收 simple-git 使「git 是基础设施、CDD 语义在 contract/runner」边界显式；不重命名既清晰模块（重命名风险 > 收益）。
+迁移动机：**功能聚簇**——`lifecycle/task.ts` 一个文件看全 task 功能（覆写了哪些 hook + 专有步骤），运维不再跨 handler 找齐；`git/` 收 simple-git 划清「git=基础设施、CDD 语义在 contract/lifecycle」；抽象基类使变体（task/docs）差异显式化。
 
-**运维文档**：新增 `docs/maintainers/third-party-dependencies.md`（English-primary，maintainer-only 豁免 emit 规则）——登记**全部**第三方 pkg：包 · 用途 · 版本约束 · 替换的手写面 · 维护状态锚点 · 不引清单及理由。覆盖：commander / execa / ajv / semver（存量）· tinyglobby（仓库已有）· simple-git / yaml / handlebars（P5 引入）· husky（root dev-only 边界说明）。
+**开发调用链**（CLAUDE.md dev 段随 bin 产品化同步更新）：全量 TS 后 `node packages/cdd-engine/bin/cdd.mjs` 失效 → **`unbuild --stub` 生成 `dist/` 入口（jiti 即时加载 TS 源码）→ `node packages/cdd-engine/dist/cli.mjs <subcommand>`**。dev 与发布同走 `dist` 入口路径（stub 模式源码即生效）；**仍不 npm link 全局**（本仓规约：global link 会陈旧，直接工作树直调）。
 
-**只维护功能逻辑的验证**：替换掉的都是通用基础设施（git 协议 / YAML 语法 / glob / 模板替换），留下的全是 CDD 语义（dispatch 生命周期 / commit-contract 判定 / 失败类目 / Stopping / handoff schema 注入规则）——边界清晰。
+**运维文档**：新增 `docs/maintainers/third-party-dependencies.md`（English-primary，maintainer-only 豁免 emit 规则）——登记**全部**第三方 pkg：包 · 用途 · 版本约束 · 替换的手写面 · 维护状态锚点 · 不引清单及理由。覆盖：citty / hookable / consola（新引入，替换 commander/console）· execa / ajv / semver（存量）· tinyglobby（仓库已有）· simple-git / yaml / handlebars（P5 引入）· husky（root dev-only 边界说明）· unbuild（TS 构建）。
+
+**只维护功能逻辑的验证**：替换掉的都是通用基础设施（git 协议 / YAML 语法 / glob / 模板替换 / CLI 解析 / hook 编排 / 日志 / 构建），留下的全是 CDD 语义（dispatch 生命周期骨架 / commit 双门判定 / 失败类目 / Stopping / handoff schema 注入规则）——边界清晰。
 
 ---
 

@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { gitInit, gitCommit } from "./helpers.mjs";
-import { gitTopLevel, gitRevParseHead, gitStatusPorcelain, gitAdd, gitCommit as sgCommit, gitLog } from "../src/infra/git.ts";
+import { gitTopLevel, gitRevParseHead, gitStatusPorcelain, gitAdd, gitCommit as sgCommit, gitLog, gitCatFileCommitExists } from "../src/infra/git.ts";
 
 let repo: string;
 
@@ -125,5 +125,29 @@ describe("infra/git.ts — gitAdd / gitCommit / gitLog", () => {
     } finally {
       rmSync(bare, { recursive: true, force: true });
     }
+  });
+});
+
+describe("infra/git.ts — gitCatFileCommitExists", () => {
+  it("real HEAD sha → true", async () => {
+    const sha = await gitRevParseHead(repo);
+    expect(sha).not.toBeNull();
+    expect(await gitCatFileCommitExists(repo, sha!)).toBe(true);
+  });
+
+  it("all-zero phantom sha → false", async () => {
+    expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(false);
+  });
+
+  it("empty string → false", async () => {
+    expect(await gitCatFileCommitExists(repo, "")).toBe(false);
+  });
+
+  it("null → false", async () => {
+    expect(await gitCatFileCommitExists(repo, null)).toBe(false);
+  });
+
+  it("undefined → false", async () => {
+    expect(await gitCatFileCommitExists(repo, undefined)).toBe(false);
   });
 });

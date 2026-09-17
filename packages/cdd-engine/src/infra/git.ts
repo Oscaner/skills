@@ -41,7 +41,7 @@ export async function gitRevParseHead(cwd: string): Promise<string | null> {
 /** `git status --porcelain` content; "" = clean tree (old gitStatusPorcelain). */
 export async function gitStatusPorcelain(cwd: string): Promise<string | null> {
   try {
-    return (await git(cwd).raw(["status", "--porcelain"])).trim() ?? null;
+    return (await git(cwd).raw(["status", "--porcelain"])).trim();
   } catch {
     return null;
   }

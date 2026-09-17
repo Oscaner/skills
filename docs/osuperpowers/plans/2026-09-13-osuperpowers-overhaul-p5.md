@@ -76,11 +76,11 @@
 - **验收**: `grep report-issue`（单数，词边界）机制面零命中（历史 plan/spec + CHANGELOG 豁免；作用域 = skills / finding-meta / renderer / emit / README / tests）；`pnpm run emit` + `emit:check` drift=0
 - **注**: spec §2.3 改名面全表；residue 守卫词形在 Task 16 加（防回渗）
 
-### Task 12: `writing-plans` 存活句重写 + `data-driven-templates.md` 全量词形同步
+### Task 12: `writing-plans` 存活句重写 + maintainer docs 全量词形同步
 
-- **Do**: `writing-plans/SKILL.md:44` 存活句整体重写——「report-issue `resolve-destination` resolves its program chain…」→ 新流程表述：`report-issues` resolves program attribution through `progress.json#plan` → **Spec:** → overall → Related 链接（spec review-2 [5] 裁定：不保留已删 resolve-destination 节点名）；配套 `writing-plans-spec.test.mjs:34` 断言换锚（如 `/progress\.json#plan.*first hop/`）；`docs/maintainers/data-driven-templates.md` 全部 report-issue 词形同步（:3/:90/:93 的 SOT 路径 + 渲染函数行 `renderTitle/renderComment/renderMasterBody` 随 §2.5 收敛删、`renderYml` 保留、:91 三表单表 → 两表单、:93 AC12 note → 聚合表述）
-- **验收**: 机制面 + maintainer docs 面零 `report-issue` 词形残留（含 `skills/report-issue/` 路径形）；writing-plans-spec 测试换锚后绿
-- **注**: maintainer docs 无机械守卫兜底（spec review-2 [4] 裁定）——全量枚举接管，本 Task 拥有整个 sweep
+- **Do**: `writing-plans/SKILL.md:44` 存活句整体重写——「report-issue `resolve-destination` resolves its program chain…」→ 新流程表述：`report-issues` resolves program attribution through `progress.json#plan` → **Spec:** → overall → Related 链接（spec review-2 [5] 裁定：不保留已删 resolve-destination 节点名）；配套 `writing-plans-spec.test.mjs:34` 断言换锚（如 `/progress\.json#plan.*first hop/`）；**`docs/maintainers/` 全量词形同步**（面级 sweep，不只枚举文件）：`data-driven-templates.md`（:3/:90/:93 的 SOT 路径 + 渲染函数行 `renderTitle/renderComment/renderMasterBody` 随 §2.5 收敛删、`renderYml` 保留、:91 三表单表 → 两表单、:93 AC12 note → 聚合表述）+ `skill-authoring.md:119`（Native 词例 `report-issue` → `report-issues`——Task 11 收口后的唯一边角）
+- **验收**: 机制面 + maintainer docs 面零 `report-issue` 词形残留（含 `skills/report-issue/` 路径形）；**实测 `grep -rnE '\breport-issue\b' docs/maintainers/` 零命中**（面级兜底，未枚举文件同受检）；writing-plans-spec 测试换锚后绿
+- **注**: maintainer docs 无机械守卫兜底（spec review-2 [4] 裁定）——全量枚举 + 验收面级 grep 双保险接管，本 Task 拥有整个 sweep
 
 ### Task 13: `finding-meta.json` 重构（report-meta 2+1 / formFieldDefs 2 键 / reportDef / masterDef）
 

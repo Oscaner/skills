@@ -25,7 +25,7 @@ describe("src/infra/root.mjs — 单根权威", () => {
       cwd: bare, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8",
     });
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/Usage: cdd/);
+    expect(r.stdout).toMatch(/USAGE cdd/);
     expect(r.stderr).not.toMatch(/not in a git repository/);
   });
 });

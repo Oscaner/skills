@@ -54,9 +54,6 @@ importers:
       citty:
         specifier: ^0.2
         version: 0.2.2
-      commander:
-        specifier: ^15
-        version: 15.0.0
       consola:
         specifier: ^3
         version: 3.4.2

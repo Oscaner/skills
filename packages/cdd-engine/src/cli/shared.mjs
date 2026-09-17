@@ -68,6 +68,42 @@ export function intTask(v) {
   return n;
 }
 
+// ---- flag-surface guard (citty Task 9) ----
+
+// Normalize a flag name for comparison: strip dashes / case (--base-branch == -baseBranch).
+function normFlag(name) {
+  return name.replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+
+// Unknown-option rejection. citty's parser is tolerant by design (strict:false — unknown flags
+// silently land in the parsed values), so a typo like `--taks 1` would otherwise be silently
+// ACCEPTED and run a real dispatch. Each action run() pre-scans its raw args against its declared
+// arg surface (parse.mjs args defs) and throws a CLIError-shaped error (name/code — the bin
+// wrapper normalizes it to the resolved command's usage line + exit 2, citty-parse-error parity).
+// Program-level flags (`--dry-run` / `--no-dry-run`) are accepted at any position — they are
+// declared on the main command only, but the canonical scope is "program" (position-independent).
+export function guardArgs(rawArgs, argDef) {
+  const declared = new Set();
+  for (const key of Object.keys(argDef ?? {})) {
+    declared.add(normFlag(key));
+    for (const a of [].concat(argDef[key]?.alias ?? [])) declared.add(normFlag(String(a)));
+  }
+  for (const tok of rawArgs ?? []) {
+    if (tok === "--") break;              // everything after -- is positional, not a flag
+    if (!tok.startsWith("-")) continue;   // positionals / flag values are not flags themselves
+    const name = tok.split("=")[0].replace(/^-+/, "");
+    const n = normFlag(name);
+    if (n === "dryrun" || n === "nodryrun") continue;                 // program-level option, any position
+    if (name.startsWith("no-") && declared.has(normFlag(name.slice(3)))) continue;  // --no-<bool> negation
+    if (!declared.has(n)) {
+      const err = new Error(`unknown option: ${tok}`);
+      err.name = "CLIError";
+      err.code = "E_UNKNOWN_OPTION";
+      throw err;
+    }
+  }
+}
+
 export function blockerCount(handoff) {
   return (handoff?.findings ?? []).filter((f) => f?.severity === "blocker").length;
 }

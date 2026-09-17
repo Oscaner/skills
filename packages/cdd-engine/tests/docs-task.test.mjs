@@ -59,10 +59,10 @@ function run(args, extraEnv = {}, opts = {}) {
 }
 
 describe('cdd review/fix --type spec|plan CLI contract', () => {
-  it('-h → Commander help on stdout + exit 0', () => {
+  it('-h → citty help on stdout + exit 0', () => {
     const r = run(['-h']);
     expect(r.status).toBe(0);
-    expect(r.stdout).toMatch(/^Usage: cdd/);
+    expect(r.stdout).toMatch(/USAGE cdd/);
   });
 
   it('no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)', () => {

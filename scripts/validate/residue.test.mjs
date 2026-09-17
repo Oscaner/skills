@@ -550,19 +550,12 @@ describe("channel audit：⑧ 运行期 context 零落盘", () => {
   });
 });
 
-describe("channel audit：⑨ commander help Options ⊆ canonical argv（单元）", () => {
-  it("Options 段只取长形 flag，跳过 -h 短形与 wrap 续行", () => {
-    const text = [
-      "Usage: cdd review [options]",
-      "",
-      "Options:",
-      "  --type <t>     task|branch|spec|plan",
-      "  --spec <path>  spec document path (type=spec: review target; type=plan:",
-      "                 upstream reference pointer)",
-      "  -h, --help     display help for command",
-      "",
-    ].join("\n");
-    expect(helpOptionFlags(text)).toEqual(["--type", "--spec", "--help"]);
+describe("channel audit：⑨ citty 声明 Options ⊆ canonical argv（单元）", () => {
+  it("Options 面 = 声明 args 键（kebab → --flag）+ citty 内建 --help", () => {
+    expect(helpOptionFlags({ type: { type: "string" }, spec: { type: "path" } }))
+      .toEqual(["--type", "--spec", "--help"]);
+    expect(helpOptionFlags({ "dry-run": { type: "boolean" } })).toEqual(["--dry-run", "--help"]);
+    expect(helpOptionFlags(undefined)).toEqual(["--help"]);
   });
   it("canonical argv 之外的 flag → 集合差出现在谓词结果", () => {
     expect(helpFlagsNotInCanonical(["--plan", "--help", "--ghost"])).toEqual(["--ghost"]);

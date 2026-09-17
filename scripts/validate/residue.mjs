@@ -182,7 +182,7 @@ export function collectGateLexiconHits(targetsOverride) {
 // 字面第二份 —— 守卫自身因此不成为被守卫语汇的载体。行 5 的两个旧根解析名按拼接构造（⑤ 的 target
 // 集含 scripts/，守卫本体不得书写被守词汇的连续字面，否则自命中）。
 import { loadContract } from "../../packages/cdd-engine/src/infra/context.mjs";
-import { program } from "../../packages/cdd-engine/src/cli/parse.mjs";
+import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.mjs";
 import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/src/rules/failure.mjs";
 
 const CONTRACT = loadContract();
@@ -399,22 +399,14 @@ export function collectContextWriteHits(targetsOverride = CDD_ENGINE_BIN) {
   return hits;
 }
 
-// ⑨ 行 9：cdd <sub> --help（commander help 输出的 Options 段；非 parse.mjs 的 SUBCOMMAND_USAGE 字面量）
-// 内出现的 --xxx flag ⊆ canonical argv 的 flag 集。-h/--help 在扫面内不设豁免（canonical 显式声明 help）。
-// helpInformation() 与 CLI --help 输出同渲染器（commander 同一帮助文案）。
-export function helpOptionFlags(helpText) {
-  const flags = [];
-  const lines = String(helpText).split("\n");
-  let inOptions = false;
-  for (const line of lines) {
-    const t = line.trim();
-    if (t === "Options:") { inOptions = true; continue; }
-    if (inOptions) {
-      if (t === "" || /^(Usage|Commands|Arguments|Examples|Options):/.test(t)) break; // Options 段结束
-      const m = line.match(/^\s{2}(?:-[a-zA-Z], )?--([a-z][\w-]*)/);
-      if (m) flags.push(`--${m[1]}`);
-    }
-  }
+// ⑨ 行 9：cdd <sub> --help 的 Options 面 ⊆ canonical argv 的 flag 集。-h/--help 在扫面内不设
+// 豁免（canonical 显式声明 help）。Task 9 迁移到 citty 声明——commander 的 program +
+// helpInformation() 文本解析随 parser 一并删除：citty 下帮助的 OPTIONS 面即 defineCommand 的
+// args 声明（renderUsage 由声明生成），守卫直接遍历声明树取 args 键（kebab → --flag），零子进程。
+// citty 内建 --help/-h 不是声明 arg，逐命令追加进 flag 集。
+export function helpOptionFlags(argDef) {
+  const flags = Object.keys(argDef ?? {}).map((key) => `--${key}`);
+  flags.push("--help");
   return flags;
 }
 
@@ -424,17 +416,16 @@ export function helpFlagsNotInCanonical(flags) {
 
 export function collectHelpFlagHits() {
   const hits = [];
-  const cmds = [];
-  for (const c of program.commands) {
-    cmds.push({ name: c.name(), cmd: c });
-    for (const sc of c.commands) cmds.push({ name: `${c.name()} ${sc.name()}`, cmd: sc });
-  }
-  for (const { name, cmd } of cmds) {
-    const flags = helpOptionFlags(cmd.helpInformation());
-    for (const f of flags) {
+  const stack = [[mainCommand, "cdd"]];
+  while (stack.length > 0) {
+    const [cmd, name] = stack.pop();
+    for (const f of helpOptionFlags(cmd.args)) {
       if (!CANONICAL_ARGV_FLAGS.has(f)) {
         hits.push({ label: `cdd ${name} --help Options 出现 canonical argv 外 flag: ${f}`, file: `cdd ${name} --help` });
       }
+    }
+    for (const [sub, def] of Object.entries(cmd.subCommands ?? {})) {
+      stack.push([def, `${name} ${sub}`]);
     }
   }
   return hits;

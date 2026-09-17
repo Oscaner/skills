@@ -8,9 +8,9 @@
 // output + exit codes.
 // P4 §2.3.1 根注入契约（黑盒形）：root = bin preAction 的 initRoot() = cwd 的 git toplevel —— 故每条
 // 用例用 `cwd: <tmp repo>` 把 root 落在自己的真仓里，plan 经 `--plan`（仓根相对）提供。
-// Commander.js v15 migration notes:
-//   - parse/usage errors are mapped to exit 2 + `usage:` on stderr (exitOverride);
-//   - Bug A: --task <n> parseInt coercion rejects non-integers with exit 2.
+// citty (Task 9) migration notes:
+//   - parse/usage errors are normalized to exit 2 + a `usage:` line on stderr (bin wrapper);
+//   - Bug A: --task <n> parseInt validation rejects non-integers with exit 2.
 import { describe, it, expect } from 'vitest';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
@@ -129,12 +129,26 @@ describe('cdd implement/review/fix CLI contract', () => {
     }
   });
 
-  it('-h/--help → Commander help on stdout + exit 0', () => {
+  it('-h/--help → citty help on stdout + exit 0', () => {
     for (const flag of ['-h', '--help']) {
       const res = run([flag]);
       expect(res.status, `flag ${flag}`).toBe(0);
-      expect(res.stdout).toMatch(/^Usage: cdd/);
+      expect(res.stdout).toMatch(/USAGE cdd/);
     }
+  });
+
+  // Task 9 (citty): program-level `--dry-run` stays position-independent — the bin wrapper
+  // resolves it from the FULL argv, so it works after the subcommand name too (commander parity).
+  it('program 级 --dry-run 位置无关：子命令名之后也生效', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['implement', '--task', '1', '--dry-run', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+    expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
   });
 
   it('no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)', () => {

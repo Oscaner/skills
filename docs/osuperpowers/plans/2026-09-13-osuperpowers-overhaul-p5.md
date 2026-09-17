@@ -31,13 +31,13 @@
 ### Task 4: `infra/` 基础设施层（git / proc / invoke / root / context / registry / exit / log）
 
 - **Do**: `infra/git.ts`（simple-git 单点封装：status/add/commit/head/log——替换 `contract/commit.mjs` 手写 `execFileSync("git")` helper 与 `brief/finalize/root` 零星 git）；`infra/proc.ts`（进程生命周期，execa 保留）；`infra/invoke.ts`（CLI 调用契约）；`infra/root.ts`（repoRoot 唯一 cwd 点）；`infra/context.ts`（context-contract 读取）；`infra/registry.ts`（harness registry）；`infra/exit.ts`；`infra/log.ts`（consola 统一日志）
-- **验收**: 手写 git 的 `execFileSync("git")` 在 `src/` 零残留（经 simple-git）；`process.cwd()` 计数 = 1（root.ts 唯一）；零 `console.log` 散用（经 consola）；既有 contract/commit 语义测试全绿（dirty→BLOCKED / head mismatch / review skip / fail-open —— 仅底层换 API）
+- **验收**: `infra/git.ts`/`root.ts`/`log.ts` 建成且为新实现的唯一依赖点（**本 Task 只建不拆**——旧调用随 Task 5/8 更换时改指，Task 4 结束边界旧实现仍驻留 `src/`，存量不要求归零）；既有 contract/commit 语义测试全绿（dirty→BLOCKED / head mismatch / review skip / fail-open）——**基线不回归 claim，非 API 换底**（换底唯一 owner = Task 5）；repo 级零残留指标（`execFileSync("git")` 零残留 → Task 5；`process.cwd()` 计数 = 1 / 零 `console.log` 散用 → Task 8/9）在此结清归属、不在 Task 4 claim
 - **注**: spec §2.13 git 行 + 只维护功能逻辑验证：infra 是零 CDD 语义层，随便换
 
 ### Task 5: `rules/` CDD 判定层（commit 双门 / stopping / failure / schema）
 
 - **Do**: `rules/commit.ts`——**commit 边界双门**（spec §2.12 第二部分：入口门 clean-tree 校验 dirty→BLOCKED + 出口门 validateCommitContract 语义含 rewriteHandoffBlocked，判定走 infra/git.ts simple-git）；`rules/stopping.ts`（Review Stopping 守卫簇：blockerCount/stoppedExit3/guard）；`rules/failure.ts`（失败六类 + 配额隔离 + maybeExhaust）；`rules/schema.ts`（handoff JSON schema 校验 validate/recover + handoff-namespace）
-- **验收**: 既有 commit-contract 语义测试全绿（dirty→BLOCKED / head mismatch / review skip / fail-open —— 仅底层换 simple-git）；failure/stopping 语义零变化（400+ tests 护栏）——入口门/出口门**生命周期用例**不在此 claim（判定挂载与用例单一 owner = Task 7 基类实现级测试；Task 10 只持 docs-fix 出口门用例）
+- **验收**: 既有 commit-contract 语义测试全绿（dirty→BLOCKED / head mismatch / review skip / fail-open —— 仅底层换 simple-git，**API 换底 claim 唯一 owner**）；**手写 git `execFileSync("git")` 在 `src/` 零残留——repo 级 git 零残留指标唯一落点（Task 4 已结清归属）**；failure/stopping 语义零变化（400+ tests 护栏）——入口门/出口门**生命周期用例**不在此 claim（判定挂载与用例单一 owner = Task 7 基类实现级测试；Task 10 只持 docs-fix 出口门用例）
 - **注**: 双门落点 = `rules/commit.ts`（判定）+ `dispatch/base.ts`（挂载，Task 7）；rules 层是「改须重想评审语义」的高风险层
 
 ### Task 6: `dispatch/hooks.ts` hookable 注册面 + `dispatch/phases.ts` 阶段表
@@ -55,24 +55,24 @@
 ### Task 8: `dispatch/task.ts` + `dispatch/docs.ts` 功能生命周期（继承覆写）
 
 - **Do**: `TaskLifecycle extends DispatchLifecycle`（task 功能：虚方法覆写——resolveContext 含 brief 生成/fixed-point 派生、dispatch 含 render→spawn agent、postFlight 含 H1 四行/exit 归一、双门继承基类）；`DocsLifecycle extends DispatchLifecycle`（docs 功能：spec/plan review/fix dispatch——**docs 面同消费入口门出口门**，spec review-2 [2] 裁定）；原 `run-task.mjs` 13.5 步逻辑迁入两功能类的 hook 覆写；**`artifacts/` + `render/` 剩余模块同步 TS 化**（Artifacts 层：`handoff/{write,finalize,naming}.ts` · `progress.ts` · `base-branch.ts`；Render 层：`brief.ts`——`naming.ts` glob 收拢为 `tinyglobby`，spec §2.13 表逐行）
-- **验收**: `cdd review --type spec|plan`（docs）与 `cdd implement/fix`（task）经新生命周期跑通——engine 黑盒契约（4 子命令 / handoff 输出）零变化；双门在 docs 面生效（docs review 起点 dirty → BLOCKED）；既有 task/docs 测试全绿；artifacts/render 全量 TS 化 + `naming` glob 经 tinyglobby——既有 naming/progress/base-branch/handoff/brief 测试转换后仍绿（AC11 全量 TS 兜底）
+- **验收**: `cdd review --type spec|plan`（docs）与 `cdd implement/fix`（task）经新生命周期跑通——engine 黑盒契约（4 子命令 / handoff 输出）零变化；双门在 docs 面生效（docs review 起点 dirty → BLOCKED）；既有 task/docs 测试全绿；artifacts/render 全量 TS 化 + `naming` glob 经 tinyglobby——既有 naming/progress/base-branch/handoff/brief 测试转换后仍绿（AC11 全量 TS 兜底）；**`process.cwd()` 计数 = 1（root.ts 唯一）+ 零 `console.log` 散用（经 consola）——repo 级 cwd/log 零残留指标在此达成**（旧消费面随本 Task 全量 TS 化改指 infra；Task 9 CLI 重建继续经 `infra/root.ts` + `infra/log.ts`，零回渗）
 - **注**: 功能聚簇——`task.ts` 一文件看全 task 功能；迁移动机 spec §2.13「运维导航验证」
 
 ### Task 9: CLI 换 citty（`src/bin.ts` + `cli/` 命令面）
 
 - **Do**: `bin.ts` 用 `defineMainCommand` + 子命令声明（implement/review/fix/base-branch 四子命令——spec review-2 [3] 裁定：无第五个 `docs` 子命令，docs 经 review/fix `--type spec|plan`）；`cli/` 各 action 装配 DispatchLifecycle 子类；`--dry-run` 保留 program 级；`--help`/usage 面经 citty 生成；**`commander` 随本 Task 从 cdd-engine dependencies 移除**（CLI 全量切 citty 后无消费者——本 Task 是移除唯一时点锚，Task 2 结束时刻意保留的 commander 在此归零）
-- **验收**: `cdd --help` 子命令集合 = implement/review/fix/base-branch（基线断言更新）；`cdd implement/review/fix` 黑盒行为与 commander 版一致（既有黑盒测试全绿）；SUBCOMMAND_USAGE/parse 相关测试迁移到 citty 声明；`cdd-engine/package.json` `commander` 零残留（Task 2 验收改指的锚点在此达成）
+- **验收**: `cdd --help` 子命令集合 = implement/review/fix/base-branch（基线断言更新）；implement/review/fix/**base-branch** 四子命令黑盒行为与 commander 版一致——**base-branch 含嵌套 set/get 面**（parse.mjs 现状二级命令 set/get，经 citty 声明保留或随 SUBCOMMAND_USAGE/parse 迁移行明确列出），既有黑盒测试全绿（含 base-branch.test.mjs）；SUBCOMMAND_USAGE/parse 相关测试迁移到 citty 声明；`cdd-engine/package.json` `commander` 零残留（Task 2 验收改指的锚点在此达成）
 - **注**: 这是命令面收敛（P3 已删 brief/research 后的终态四命令）；commander 残留零
 
 ### Task 10: commit 双门全接线 + `templates/fix/docs.md` 补提交指令
 
-- **Do**: **入口门无需 `cli/` 接线**——基类默认 hook（`commitPreCheck`）经 task/docs 继承自动生效（review dispatch 前 clean-tree 校验，dirty → BLOCKED；落点 `dispatch/base.ts` 见 Task 7，本 Task 只验证生效面、不重复实现）；出口门在 dispatch 返回后校验（含 docs fix）；`templates/fix/docs.md` 补提交指令（与 task 族同构：fix agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip + out-of-scope 不碰）
-- **验收**: docs fix 出口门用例（docs fix 后 dirty → BLOCKED）——本 Task 唯一用例（入口门用例 owner 已归 Task 7，不重复）；`templates.content.test.mjs` 断言 fix/docs.md 含提交指令；run-docs 的 "No commit-contract" 注释删除
-- **注**: spec §2.12 P5 落点 1-3 全落地——落点锚在 `dispatch/base.ts`/`rules/commit.ts`（review-2 [1] 归一后的面）
+- **Do**: **入口门无需 `cli/` 接线**——基类默认 hook（`commitPreCheck`）经 task/docs 继承自动生效（review dispatch 前 clean-tree 校验，dirty → BLOCKED；落点 `dispatch/base.ts` 见 Task 7，本 Task 只验证生效面、不重复实现）；出口门在 dispatch 返回后校验（含 docs fix）；`templates/fix/docs.md` 补提交指令（与 task 族同构：fix agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip + out-of-scope 不碰）；**六个 SKILL.md 的 review-fix 循环措辞统一为「进入 review 前确保工作树干净」**（writing-phase-spec / writing-single-spec / writing-overall-spec / writing-plans / brainstorming / cli-driven-development 六处——spec §2.12 落点 4 + AC10；主 agent dispatch 期间零写树，mechanism 由 engine 入口门强制，skill 只陈述义务、不重复实现）
+- **验收**: docs fix 出口门用例（docs fix 后 dirty → BLOCKED）——本 Task 唯一用例（入口门用例 owner 已归 Task 7，不重复）；`templates.content.test.mjs` 断言 fix/docs.md 含提交指令；dispatch/docs.ts 中若保留 "No commit-contract" 注释则删除（旧 run-docs.mjs 已成重建前文件，无需单独处理）；**六个 SKILL.md 逐个断言**（每 skill 一条）review-fix 循环措辞含「进入 review 前确保工作树干净」
+- **注**: spec §2.12 P5 落点 1-4 全落地——落点锚在 `dispatch/base.ts`/`rules/commit.ts`（review-2 [1] 归一后的面）+ 六 skill 描记面（落点 4）
 
 ### Task 11: report-issues 改名面（report-issue → report-issues）
 
-- **Do**: `git mv skills/report-issue/ skills/report-issues/`；SKILL.md frontmatter `name` + description；`finding-meta.json` components 枚举（**唯一改名源**）；`cli-driven-development/SKILL.md` ×3（:61/:115/:116 `osuperpowers:report-issue`）+ `writing-plans/SKILL.md` ×1（:44 裸 token `report-issue`）→ 新名；README:20 技能表；`report-templates.test.mjs` components 断言；`writing-plans-spec.test.mjs` resolve-destination 提及（换新锚，见 Task 12）；`scripts/validate/residue.mjs`:703-708 注释 + `residue.test.mjs`:820（ORCHESTRATOR_SKILLS 注释）/:878（测试描述）词形 `report-issue` → `report-issues`（spec §2.3 四文件同步——先于 Task 16 guard 引入轮完成，否则新 guard 命中陈旧词形）
+- **Do**: `git mv skills/report-issue/ skills/report-issues/`；SKILL.md frontmatter `name` + description；`finding-meta.json` components 枚举（**唯一改名源**）；**`finding-meta.json` 解析路径四处随 `git mv` 改指 `report-issues/`**——`packages/osuperpowers/scripts/report-templates.mjs`:15、`packages/osuperpowers/tests/report-templates.test.mjs`:16（`../skills/report-issue/...` 段）、`scripts/emit/issue-templates.mjs`:16（+ :4 注释 `via the report-issue`）、`scripts/emit/issue-templates.test.mjs`:19（`../../packages/osuperpowers/skills/report-issue/...` 段）；`cli-driven-development/SKILL.md` ×3（:61/:115/:116 `osuperpowers:report-issue`）+ `writing-plans/SKILL.md` ×1（:44 裸 token `report-issue`）→ 新名；README:20 技能表；`report-templates.test.mjs` components 断言；`writing-plans-spec.test.mjs` resolve-destination 提及（换新锚，见 Task 12）；`scripts/validate/residue.mjs`:703-708 注释 + `residue.test.mjs`:820（ORCHESTRATOR_SKILLS 注释）/:878（测试描述）词形 `report-issue` → `report-issues`（spec §2.3 四文件同步——先于 Task 16 guard 引入轮完成，否则新 guard 命中陈旧词形）
 - **验收**: `grep report-issue`（单数，词边界）机制面零命中（历史 plan/spec + CHANGELOG 豁免；作用域 = skills / finding-meta / renderer / emit / README / tests）；`pnpm run emit` + `emit:check` drift=0
 - **注**: spec §2.3 改名面全表；residue 守卫词形在 Task 16 加（防回渗）
 
@@ -84,7 +84,7 @@
 
 ### Task 13: `finding-meta.json` 重构（report-meta 2+1 / formFieldDefs 2 键 / reportDef / masterDef）
 
-- **Do**: `metaFields` 6→2（`skill`·`step` 删 harness/kind/cdd/date）；`kinds` 枚举删；`sessionTypes` 枚举删；`components` 改 `osuperpowers:report-issues`（Task 1 首启用）；`formFieldDefs` 3→2 键（删 session_report；bug_report/enhancement 删 session-type 下拉）；新增 `reportDef.labels` = `["osuperpowers","cdd-engine"]`；`masterDef.title` 删（标题中性 topic 直出）+ masterDef 收敛 `{ sessionTitle, harnessRow }`；**表单 emit 面连带同步（spec §2.3 四文件）**——`scripts/emit/issue-templates.test.mjs` :23/:140-148/:165 三处「3 个 yml」断言（含 session_report.yml）→ 2 个；`scripts/emit/compare.mjs`:39 `productFiles` 删 `session_report.yml` 项（否则 emit:check 陈旧 walk 报警）
+- **Do**: `metaFields` 6→2（`skill`·`step` 删 harness/kind/cdd/date）；`kinds` 枚举删；`sessionTypes` 枚举删；`components` 值经 Task 11 改名后继验（新值 `osuperpowers:report-issues`——改名单一 owner = Task 11，本 Task 只继验不重复 claim）；`formFieldDefs` 3→2 键（删 session_report；bug_report/enhancement 删 session-type 下拉）；新增 `reportDef.labels` = `["osuperpowers","cdd-engine"]`；`masterDef.title` 删（标题中性 topic 直出）+ masterDef 收敛 `{ sessionTitle, harnessRow }`；**表单 emit 面连带同步（spec §2.3 四文件）**——`scripts/emit/issue-templates.test.mjs` :23/:140-148/:165 三处「3 个 yml」断言（含 session_report.yml）→ 2 个；`scripts/emit/compare.mjs`:39 `productFiles` 删 `session_report.yml` 项（否则 emit:check 陈旧 walk 报警）
 - **验收**: finding-meta JSON 形状 = spec §2.6 终态表逐行；`reportDef.labels` 唯一 labels 定义点；emit:check drift=0（表单 emit 后同步）；issue-templates.test.mjs「3 个 yml」断言改「2 个 yml」绿 + compare.mjs productFiles 同步后陈旧 walk 零报警
 - **注**: spec §2.6 + ISSUE_TEMPLATE 瘦身面的 canonical 落点
 
@@ -102,8 +102,8 @@
 
 ### Task 16: GitHub label rename + residue 防回渗守卫
 
-- **Do**: **一次性 repo 数据迁移**（外向操作，独立 Task 不可并入命名重命名）：`gh label edit cdd --name cdd-engine --description "CDD orchestrator / engine / H6 CLI workflow / gate / handoff"` → `gh label list` 验证（有 cdd-engine 无 cdd，历史 issue 标签随迁）；residue stale-lexicon 加 `report-issue`（词边界 `\breport-issue\b`）+ `--mode`/`renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` 词形守卫 + `execFileSync("git")` guard（防手写 git 回渗）
-- **验收**: `gh label list` 有 `cdd-engine` 无 `cdd`；机制面词形守卫零命中（复数 `report-issues` 放行）；residue 测试绿
+- **Do**: **一次性 repo 数据迁移**（外向操作，独立 Task 不可并入命名重命名）：`gh label edit cdd --name cdd-engine --description "CDD orchestrator / engine / H6 CLI workflow / gate / handoff"` → `gh label list` 验证（有 cdd-engine 无 cdd，历史 issue 标签随迁）；residue stale-lexicon 加 `report-issue`（词边界 `\breport-issue\b`）+ `--mode`/`renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` 词形守卫 + `execFileSync("git")` guard（防手写 git 回渗）；**dedup 查询句实测（spec §2.4 dev 验证——与 label rename 同批兑现）**——以 `date -v-90d +%F` 物化 ISO 绝对日期执行 `gh issue list --state all --limit 100 --search "updated:>=<now-90d>"` 实测三判据：(a) 不报 search 语法错误；(b) 结果集含 open+closed 双态（search 端点默认双态，验证 `--state all` 与 `--search` 无状态丢失）；(c) 与仓库已知久未更新的 issue 号对照确认 90d 窗口生效
+- **验收**: `gh label list` 有 `cdd-engine` 无 `cdd`；机制面词形守卫零命中（复数 `report-issues` 放行）；residue 测试绿；dedup 查询句实测三判据 (a)/(b)/(c) 逐条通过（与 label rename 同批完成）
 - **注**: spec §2.8 residue 守卫 + §2.7 label rename；guard 词形在引入 guard 的同一 round 必须能绿（spec review-2 [7] 模式：裸 `report-issue` 会 substring 命中复数→ 必须词边界）
 
 ### Task 17: README 更新 + CLAUDE.md dev 调用链 + 运维文档 third-party-dependencies.md

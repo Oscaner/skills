@@ -2,7 +2,7 @@
 // Validates against the REAL task-handoff-schema.json (no fabricated fs mock —
 // a fabricated schema would pass even if the shipped schema were corrupted).
 import { describe, it, expect } from 'vitest';
-import { validateHandoffSchema } from '../lib/handoff/schema.mjs';
+import { validateHandoffSchema } from '../src/rules/schema.mjs';
 
 // Handoffs must satisfy the real shipped schema (task/phase/status/findings/
 // artifacts required; blocker optional; additionalProperties: false).

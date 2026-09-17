@@ -1,21 +1,21 @@
 // packages/cdd-engine/tests/failure-categories.test.mjs — T6 两组：
-// ① failure-categories.json canonical 承重（内容 + lib/failure.mjs 读取点导出，AC14「承重，非装饰」）；
+// ① failure-categories.json canonical 承重（内容 + src/rules/failure.mjs 读取点导出，AC14「承重，非装饰」）；
 // ② reviewStoppingGuard 未完成-dispatch 排除（AC7 的机械证据，B3 的控制流修法落点）。
 import { describe, it, expect } from "vitest";
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { reviewStoppingGuard } from "../lib/cli/shared.mjs";
-import { ExitRequested } from "../lib/exit.mjs";
-import { incrementFailureCounter, exhaustedBlocker, maybeExhaust } from "../lib/runner/run-task.mjs";
+import { reviewStoppingGuard } from "../src/cli/shared.mjs";
+import { ExitRequested } from "../src/infra/exit.mjs";
+import { incrementFailureCounter, exhaustedBlocker, maybeExhaust } from "../src/dispatch/task.mjs";
 import {
   FAILURE_CATEGORIES,
   counterFor,
   terminalFor,
   isIncompleteDispatch,
   counters,
-} from "../lib/failure.mjs";
+} from "../src/rules/failure.mjs";
 
 const CAT = JSON.parse(
   readFileSync(path.resolve(import.meta.dirname, "../templates/failure-categories.json"), "utf8"),
@@ -31,7 +31,7 @@ describe("failure-categories canonical", () => {
   it("六类均不计入 Review Stopping", () => {
     expect(CAT.categories.every(c => c.countsTowardStopping === false)).toBe(true);
   });
-  it("lib/failure.mjs 承重读取：导出与 canonical 逐字一致（AC14）", () => {
+  it("src/rules/failure.mjs 承重读取：导出与 canonical 逐字一致（AC14）", () => {
     const ids = CAT.categories.map(c => c.id);
     // FAILURE_CATEGORIES 键集 = canonical 六 id（无法达的引用在引擎入口立即炸出，非装饰）
     expect(Object.keys(FAILURE_CATEGORIES).sort()).toEqual([...ids].sort());

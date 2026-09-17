@@ -1,7 +1,7 @@
 // packages/cdd-engine/tests/cli-shared.test.mjs
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
-import { resolveTimeoutMs } from '../lib/lifecycle/cli.mjs';
+import { resolveTimeoutMs } from '../src/infra/invoke.mjs';
 
 vi.mock('execa', () => ({
   execa: vi.fn(),
@@ -46,7 +46,7 @@ describe('extractStreamJsonFinal via invokeCli', () => {
       stdout: '{"type":"text","text":"hello"}\n{"type":"completion","finalText":"done"}\n',
       stderr: '', timedOut: false,
     });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p --output-format stream-json', output: 'stream-json' };
     const res = await invokeCli(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
     expect(res.ok).toBe(true);
@@ -66,7 +66,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('implement → prompt first line is /mattpocock-skills:tdd, template follows', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
     await invokeCli(entry, 'line one\nline two', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -76,7 +76,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('review×task → prompt first line is /mattpocock-skills:code-review', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
     await invokeCli(entry, 'review prompt', { op: 'review', type: 'task' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -86,7 +86,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('review×spec（共享 review.md，无注入）→ prompt unchanged', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
     await invokeCli(entry, 'spec prompt', { op: 'review', type: 'spec' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -95,7 +95,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('fix → prompt first line is /mattpocock-skills:tdd', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'status: APPROVED', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };
     await invokeCli(entry, 'fix prompt', { op: 'fix', type: 'task' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -104,7 +104,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('legacy 扁平 mode 键兜底：op=扁平米键 → 直接命 prefix 同键（未迁移 registry）', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: { 'legacy-review': '/legacy-review' }, suffix: {} };
     await invokeCli(entry, 'legacy prompt', { op: 'legacy-review' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -117,7 +117,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('entry without prefix/suffix → prompt unchanged', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
     await invokeCli(entry, 'plain prompt', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -126,7 +126,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('suffix appended after prompt (newline separated)', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: {}, suffix: { implement: '[END]' } };
     await invokeCli(entry, 'middle', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -135,7 +135,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
 
   it('prefix+suffix together → `<prefix>\\n<prompt>\\n<suffix>`', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
-    const { invokeCli } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCli } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix: { implement: '[P]' }, suffix: { implement: '[S]' } };
     await invokeCli(entry, 'mid', { op: 'implement' }, {}, '/tmp', undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -154,7 +154,7 @@ describe('invokeCliWithRetry', () => {
     execa
       .mockResolvedValueOnce({ exitCode: 1, stdout: '', stderr: 'overloaded', timedOut: false })
       .mockResolvedValueOnce({ exitCode: 0, stdout: 'status: APPROVED\ncommits: base=abc head=def\nartifacts: \nblocker: none', stderr: '', timedOut: false });
-    const { invokeCliWithRetry } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCliWithRetry } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
     // Start the call, advance fake timers past the retry delay, then collect.
     const promise = invokeCliWithRetry(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
@@ -166,7 +166,7 @@ describe('invokeCliWithRetry', () => {
 
   it('does not retry on timeout', async () => {
     execa.mockResolvedValue({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
-    const { invokeCliWithRetry } = await import('../lib/lifecycle/cli.mjs');
+    const { invokeCliWithRetry } = await import('../src/infra/invoke.mjs');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
     const res = await invokeCliWithRetry(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
     expect(res.timedOut).toBe(true);
@@ -179,11 +179,11 @@ describe('review.mjs task 派生点（taskReviewWorkspace — workspaceSlug 收�
   // slug 经 handoff-naming.workspaceSlug 收敛（-design/-plan 单层 strip）。
   // run-task 侧派生点（resolveWorkspace）由 runner.test.mjs 回归 —— 两派生点同源防分叉。
   it('--plan xxx-p5-plan.md → task workspace .osuperpowers/cdd/xxx-p5（Stopping prev 命中）', async () => {
-    const { taskReviewWorkspace } = await import('../lib/cli/review.mjs');
+    const { taskReviewWorkspace } = await import('../src/cli/review.mjs');
     expect(taskReviewWorkspace('xxx-p5-plan.md', '/repo')).toBe(path.join('/repo', '.osuperpowers', 'cdd', 'xxx-p5'));
   });
   it('--plan xxx-p5.md → 与 -plan.md 变体收敛同 workspace', async () => {
-    const { taskReviewWorkspace } = await import('../lib/cli/review.mjs');
+    const { taskReviewWorkspace } = await import('../src/cli/review.mjs');
     expect(taskReviewWorkspace('xxx-p5.md', '/repo')).toBe(path.join('/repo', '.osuperpowers', 'cdd', 'xxx-p5'));
   });
 });

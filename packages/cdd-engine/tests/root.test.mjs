@@ -6,10 +6,10 @@ import path from "node:path";
 
 import { gitInit } from "./helpers.mjs";
 
-const CDD_MJS = path.resolve(import.meta.dirname, "../bin/cdd.mjs");
+const CDD_MJS = path.resolve(import.meta.dirname, '../dist/cli.mjs');
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
-describe("lib/root.mjs — 单根权威", () => {
+describe("src/infra/root.mjs — 单根权威", () => {
   it("非 git 目录 → CDD_BLOCKED + exit 1", () => {
     const bare = mkdtempSync(path.join(tmpdir(), "cdd-nogit-"));
     const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", "x.md"], {
@@ -30,7 +30,7 @@ describe("lib/root.mjs — 单根权威", () => {
   });
 });
 
-describe("lib/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）", () => {
+describe("src/infra/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）", () => {
   it("子目录 cwd + 仓根相对 --spec → 归一仍命中仓根（cwd 相对回落即 exit 1）", () => {
     // 自给自足：mkdtemp 真 git 仓 + 真 doc 文件。**不得**断言 `REPO_ROOT/.osuperpowers/...`——
     // `.osuperpowers` 被 `.gitignore` 忽略，fresh clone / CI 上不存在。

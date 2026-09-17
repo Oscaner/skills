@@ -17,10 +17,10 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-import { validateCommitContract, gitCatFileCommitExists } from "../lib/contract/commit.mjs";
-import { writeHandoff, writeOwnHandoff } from "../lib/handoff/write.mjs";
-import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../lib/handoff/finalize.mjs";
-import { validateHandoffSchema } from "../lib/handoff/schema.mjs";
+import { validateCommitContract, gitCatFileCommitExists } from "../src/rules/commit.mjs";
+import { writeHandoff, writeOwnHandoff } from "../src/artifacts/handoff/write.mjs";
+import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../src/artifacts/handoff/finalize.mjs";
+import { validateHandoffSchema } from "../src/rules/schema.mjs";
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();

@@ -39,14 +39,14 @@ export function gitCommit(dir, message = "plan") {
     "commit", "-q", "-m", message]);
 }
 
-// 单根权威（lib/root.mjs）打桩 —— 同一 seam 的构造知识集中在此，避免各测试文件各写一份。
+// 单根权威（src/infra/root.mjs）打桩 —— 同一 seam 的构造知识集中在此，避免各测试文件各写一份。
 // 两条 vi.mock 提升语义（实测，改前请先读）：
 //   ① 工厂本体在 **import 阶段**即被调用（被 mock 的模块首次被 import 时），故取值必须以 thunk
 //      传入：`mockRoot(() => REPO_ROOT)`。直传模块级 const 会在那一刻求值并 TDZ
 //      （实测 `Cannot access 'REPO_ROOT' before initialization`）；thunk 把求值推迟到方法被调用时。
 //      三处调用点一律用 thunk 形态，避免同一 helper 出现两种写法。
-//   ② 本 helper 的 import 必须排在**任何 transitively 加载 lib/root.mjs 的 import 之前**
-//      （如 run-task.mjs / lib/cli/*），否则 `mockRoot` 这个绑定自身在工厂被调用时尚未初始化。
+//   ② 本 helper 的 import 必须排在**任何 transitively 加载 src/infra/root.mjs 的 import 之前**
+//      （如 src/dispatch/task.mjs / src/cli/*），否则 `mockRoot` 这个绑定自身在工厂被调用时尚未初始化。
 export function mockRoot(resolve) {
   return { initRoot: resolve, getRoot: resolve };
 }

@@ -16,10 +16,10 @@ import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          materializeWorkspace,
-         buildCtx, buildPromptParams } from "../lib/runner/run-task.mjs";
-import { ExitRequested } from "../lib/exit.mjs";
-import { spawnManaged, markAllDispatchesDone } from "../lib/lifecycle/proc.mjs";
-import { REG_PATH } from "../lib/registry.mjs";
+         buildCtx, buildPromptParams } from "../src/dispatch/task.mjs";
+import { ExitRequested } from "../src/infra/exit.mjs";
+import { spawnManaged, markAllDispatchesDone } from "../src/infra/proc.mjs";
+import { REG_PATH } from "../src/infra/registry.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
@@ -418,7 +418,7 @@ it("handoffStatus: APPROVED unchanged", () => {
 // ---- P12 timeout path ----
 
 it("normalizeHandoffStatus: TIMEOUT passthrough", async () => {
-  const { normalizeHandoffStatus } = await import("../lib/handoff/finalize.mjs");
+  const { normalizeHandoffStatus } = await import("../src/artifacts/handoff/finalize.mjs");
   expect(normalizeHandoffStatus("TIMEOUT")).toBe("TIMEOUT");
 });
 
@@ -465,7 +465,7 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
 
 it("runTask: unkillable → handoff status BLOCKED + blocker process unkillable", async () => {
   // SIGKILL always kills on modern Unix; test contract-level behavior via writeHandoff directly.
-  const { writeHandoff } = await import("../lib/handoff/write.mjs");
+  const { writeHandoff } = await import("../src/artifacts/handoff/write.mjs");
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-unkillable-ho-"));
   const hp = path.join(dir, "task-1-handoff.json");
   writeHandoff(hp, {
@@ -845,7 +845,7 @@ it("runTask: mode review dry-run → H1 APPROVED + no handoff written", async ()
 });
 
 it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）", async () => {
-  const { validateHandoffSchema } = await import("../lib/handoff/schema.mjs");
+  const { validateHandoffSchema } = await import("../src/rules/schema.mjs");
   expect(validateHandoffSchema({
     task: 1, phase: "review", status: "APPROVED",
     commits: { base: "a".repeat(40), head: "b".repeat(40) },

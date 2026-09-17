@@ -281,22 +281,22 @@ describe("channel audit：① process.cwd() 单点收口", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("唯一 1 处但不在 lib/root.mjs → 命中（未收口到 root.mjs）", () => {
+  it("唯一 1 处但不在 src/infra/root.mjs → 命中（未收口到 root.mjs）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cwd-1-"));
     writeFileSync(path.join(dir, "other.mjs"), "const r = process.cwd();\n", "utf8");
     try {
       const hits = collectProcessCwdAudit([dir]);
       expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/未收口到 lib\/root\.mjs/);
+      expect(hits[0].label).toMatch(/未收口到 src\/infra\/root\.mjs/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("反射例：lib/root.mjs 内恰 1 处 → 零命中", () => {
+  it("反射例：src/infra/root.mjs 内恰 1 处 → 零命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cwd-ok-"));
-    const lib = path.join(dir, "lib");
-    require("node:fs").mkdirSync(lib, { recursive: true });
-    writeFileSync(path.join(lib, "root.mjs"), "_root = gitToplevel(process.cwd());\n", "utf8");
+    const chain = path.join(dir, "src", "infra");
+    require("node:fs").mkdirSync(chain, { recursive: true });
+    writeFileSync(path.join(chain, "root.mjs"), "_root = gitToplevel(process.cwd());\n", "utf8");
     try {
       expect(collectProcessCwdAudit([dir])).toEqual([]);
     } finally {
@@ -570,7 +570,7 @@ describe("channel audit：⑨ commander help Options ⊆ canonical argv（单元
   });
 });
 
-describe("channel audit：⑩ lib/context.mjs 零 canonical 事实名硬编码", () => {
+describe("channel audit：⑩ src/infra/context.mjs 零 canonical 事实名硬编码", () => {
   it("硬编码 flag/env 事实名 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-ctxmod-"));
     const f = path.join(dir, "context.mjs");
@@ -800,8 +800,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
   });
   it("HANDOFF_SCHEMA_TARGETS 覆盖既定 scope（scope 缩小即失败）", () => {
     for (const p of [
-      "packages/cdd-engine/bin",
-      "packages/cdd-engine/lib",
+      "packages/cdd-engine/src",
       "packages/cdd-engine/tests",
       "packages/osuperpowers",
     ]) {

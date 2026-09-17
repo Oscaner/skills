@@ -5,7 +5,7 @@
 // 真实 claude 二进制不在 PATH 的 CI 上，ship-gate 通过用例用 dryRun 跳过 CLI 校验（确定性）。
 import { it, expect } from 'vitest';
 
-import { loadRegistry, checkHarness, registryField, resolveInjection, REG_PATH } from "../lib/registry.mjs";
+import { loadRegistry, checkHarness, registryField, resolveInjection, REG_PATH } from "../src/infra/registry.mjs";
 
 it("loadRegistry: 读取 2 harness（T2 收敛 claude/cursor-agent）", () => {
   const reg = loadRegistry(REG_PATH);

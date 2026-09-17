@@ -1,7 +1,7 @@
 // packages/cdd-engine/tests/handoff-stub.test.mjs
 import { describe, it, expect } from "vitest";
-import { loadHandoffSchema, validateHandoffSchema, normalizeHandoff, recoverHandoff } from "../lib/handoff/schema.mjs";
-import { renderHandoffStub } from "../lib/templates.mjs";
+import { loadHandoffSchema, validateHandoffSchema, normalizeHandoff, recoverHandoff } from "../src/rules/schema.mjs";
+import { renderHandoffStub } from "../src/render/templates.mjs";
 
 // ---- Task 18：renderHandoffStub = schema 原样注入（零 render、零解释器、零第二校验器）----
 
@@ -174,7 +174,7 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
     it(`${name} → 三路 BLOCKED 载荷均 valid: true`, () => {
       const rec = recoverHandoff(handoff, "task");
       expect(rec.valid, "恢复面应判归一化不可救（已声明键违规不可剥除）").toBe(false);
-      // ① run-task 8.8 归一化不可救分支（lib/runner/run-task.mjs）——不 spread rec.handoff
+      // ① task 8.8 归一化不可救分支（src/dispatch/task.mjs）——不 spread rec.handoff
       const taskPayload = {
         task: 1, phase: "review", status: "BLOCKED",
         findings: rec.preservedFindings, artifacts: {},
@@ -182,7 +182,7 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
       };
       expect(validateHandoffSchema(taskPayload, "task").valid,
         `run-task 形（${rec.reason}）`).toBe(true);
-      // ② run-docs writeBlocked（lib/runner/run-docs.mjs）——doc_path/doc_hash 为引擎真值
+      // ② docs writeBlocked（src/dispatch/docs.mjs）——doc_path/doc_hash 为引擎真值
       const docsPayload = {
         phase: "review", status: "BLOCKED", findings: rec.preservedFindings,
         artifacts: {}, doc_path: "docs/x.md", doc_hash: "abcd",
@@ -190,7 +190,7 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
       };
       expect(validateHandoffSchema(docsPayload, "docs").valid,
         `docs 形（${rec.reason}）`).toBe(true);
-      // ③ branch-review writeBranchBlocked（lib/cli/branch-review.mjs）——commits 仅 base 全形时写入
+      // ③ branch-review writeBranchBlocked（src/cli/branch-review.mjs）——commits 仅 base 全形时写入
       const branchPayload = {
         task: 1, phase: "branch-review", status: "BLOCKED",
         commits: { base: "a".repeat(40), head: "b".repeat(40) },

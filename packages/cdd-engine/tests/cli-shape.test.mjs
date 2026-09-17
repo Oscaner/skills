@@ -1,5 +1,5 @@
 // tests/cli-shape.test.mjs — D11 CLI-surface shape test. 静态断言 command 定义面
-//（lib/cli/parse.mjs，薄入口后命令定义唯一落点）的 review/fix option 形态（--doc 退役 →
+//（src/cli/parse.mjs，薄入口后命令定义唯一落点）的 review/fix option 形态（--doc 退役 →
 // type 自解释 --spec/--plan）+ 新形态 dry-run smoke。
 // P3 命令面收敛守卫：退役命令（`cdd research` / `cdd brief`）黑盒完整形态 exit 2、
 // `program.commands` 顶层命令集合恰为四、`parse.mjs` 命令注册面零回渗
@@ -12,14 +12,14 @@ import { execaSync } from 'execa';
 import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { program } from '../lib/cli/parse.mjs';
+import { program } from '../src/cli/parse.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
-const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
-// 薄入口化（spec §2.3）：命令定义（option 形态）已移 lib/cli/parse.mjs —— 静态断言改读 parse.mjs；
-// CLI 黑盒 exec 入口仍 CDD_MJS（bin/cdd.mjs 薄入口拆包后行为不变）。
-const PARSE_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/lib/cli/parse.mjs');
+const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
+// 薄入口化（spec §2.3）：命令定义（option 形态）已移 src/cli/parse.mjs —— 静态断言改读 parse.mjs；
+// CLI 黑盒 exec 入口仍 CDD_MJS（dist/cli.mjs 由 src/bin.ts 构建，行为不变）。
+const PARSE_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/src/cli/parse.mjs');
 const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md');
 // SMOKE_SPEC 用 fixtures 自有 smoke-spec.md —— 不能用本 repo 真实 spec 路径（如 design.md）：
 // 真实 spec 已被 spec-review 轮次评过（APPROVED + blocker=0），会在 Review Stopping 守卫处

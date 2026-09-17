@@ -13,7 +13,7 @@ import {
   briefPath,
   validateBaseBranch,
   writeBaseBranch,
-} from "../lib/state/workspace-artifacts.mjs";
+} from "../src/artifacts/base-branch.mjs";
 
 function tmpDir(prefix) {
   return mkdtempSync(path.join(tmpdir(), prefix));

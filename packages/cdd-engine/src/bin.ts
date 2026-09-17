@@ -1,41 +1,67 @@
 #!/usr/bin/env node
-// src/bin.ts — P5 Task 1 占位 CLI 入口（薄转发，零命令定义）
-// 全量 TS 后 bin/cdd.mjs 将失效；Task 9 citty 化落地真实命令面（defineMainCommand 装配 → cli/ 派发，
-// spec §2.13 目录树），本文件届时整体替换。本 Task 仅保证入口可达：
-//   build / dev:stub 之下 dist/cli.mjs 转发到现有 bin/cdd.mjs commander 命令面，
-//   argv 与 stdio 原样透传，退出码逐位转发。不引入任何业务逻辑。
+// src/bin.ts — CDD engine CLI entry（spec §2.3；ex bin/cdd.mjs，P5 Task 3 真实现替换 Task 1 占位转发）。
+// 薄入口语义不变：所有命令定义在 src/cli/parse.mjs（review/fix actions + shared harness/Stopping
+// guards in src/cli/*）。Zero command definitions here — this file only boots the registered program
+// and normalizes Commander errors.
+//   cdd implement --task <n> [--plan <path>]
+//   cdd review --type <task|branch|spec|plan> [...]
+//   cdd fix --type <task|spec|plan> [...]
 //
-// 首行 #! 使产物 dist/cli.mjs（package.json 的 bin/main/exports 指向）可被直接执行（无 node 前缀）：
-// rollup 把入口 shebang 提升到产物首行，unbuild 依 SHEBANG_RE 对其 chmod 0o755（build/stub 两态原生透传）。
-//
-// 与 bin/cdd.mjs 的 isMain 守卫不同，这里**无条件**执行：unbuild 的 stub 产物（dist/cli.mjs）经 jiti
-// 即时加载本文件，argv[1] 指向 dist/ 而 import.meta.url 指 src/，import.meta.url 判主恒为 false；
-// 而本产物只作为 CLI 入口被 node 直接执行（package.json 的 bin/main/exports 均指向它，无库消费者
-// import 面），无条件 boot 是唯一可靠的方式。
+// 无条件 boot（无 isMain 守卫）：本产物只作为 CLI 入口被 node 直接执行（package.json 的
+// bin/main/exports 均指向 dist/cli.mjs，无库消费者 import 面）；`unbuild --stub` 的 dist/cli.mjs
+// 经 jiti 即时加载本文件，argv[1] 指向 dist/ 而 import.meta.url 指 src/，import.meta.url 判主恒为
+// false —— 无条件 boot 是唯一可靠的方式（Task 1 §4.2 占位转发的同判）。首行 #! 使产物
+//（build/stub 两态）可被无 node 前缀直跑（unbuild 原生透传，Task 1 §4.6）。
 import process from "node:process";
-import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 
-// bin/cdd.mjs 与 src/ 同处包根下：无论本模块解析为 src/bin.ts 还是 dist/cli.mjs（stub），
-// 相对 import.meta.url 的 "../bin/cdd.mjs" 恒指向同一文件（P4 环境面收口：零 cwd 读取、零环境变量覆写缝）。
-const binPath = fileURLToPath(new URL("../bin/cdd.mjs", import.meta.url));
+import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.mjs";
+import { program, usageError } from "./cli/parse.mjs";
+import { setDryRun } from "./cli/shared.mjs";
+import { initRoot } from "./infra/root.mjs";
+import { ExitRequested } from "./infra/exit.mjs";
 
-const child = spawn(process.execPath, [binPath, ...process.argv.slice(2)], {
-  stdio: "inherit", // --help 输出、交互输入、进度回显全部直通终端
+// root 首次被需要时初始化：--help 由 commander 在 preAction 之前处理并 exit 0
+//（§2.4.2 退出码表：0 = OK 含 --help，**不含 --version**——`parse.mjs` 无 `.version()` 声明，
+//  `cdd --version` 是 unknown option → exit 2）——initRoot() 不得无条件前置于 parseAsync。
+// 进程生命周期：启动跨 run 兜底（回收上一次引擎被杀 SIGKILL/crash 残留的孤儿组）+ 信号安全出口
+//（spec §2.2 A / §2.6）。lifecycle 路径纯派生：单一 root 权威（src/infra/root.mjs）下的固定相对路径，
+// 无环境变量覆写缝、无启动 cwd 读取（P4 §2.4.1）。
+program.hook("preAction", async () => {
+  // program 级 `--dry-run` 的唯一解析点：声明在 src/cli/parse.mjs，读取在此（零命令定义）。
+  setDryRun(program.opts().dryRun === true);
+  const repoRoot = initRoot();
+  initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
+  await reapStale({ graceMs: 2000 });   // 启动兜底：跨 run 孤儿组连根回收（仍在任何 action / dispatch 之前）
 });
 
-child.on("error", (err) => {
-  // 兜底报错（如打包产物缺引擎源码）：明确失败而非静默退出
-  process.stderr.write(`cdd: 无法启动引擎入口 ${binPath}: ${err.message}\n`);
-  process.exit(1);
-});
+// 信号安全出口：SIGINT/SIGTERM/SIGHUP → teardownAll → 按信号映射的退出码退出。
+// 退出码 = 128 + signo，对齐 shell 约定（SIGINT=2→130、SIGTERM=15→143、SIGHUP=1→129）——
+// 一律 130 仅对 SIGINT 成立，SIGTERM/SIGHUP 须各按 128+signo 定，不得复用常量 130。
+const SIGNAL_EXIT = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
+for (const [sig, code] of Object.entries(SIGNAL_EXIT)) {
+  process.on(sig, async () => {
+    process.stderr.write(`CDD: caught ${sig} — teardownAll + exit ${code}\n`);
+    try { await teardownAll({ graceMs: 2000 }); } finally { process.exit(code); }
+  });
+}
 
-child.on("exit", (code, signal) => {
-  if (signal !== null || code === null) {
-    // 子进程被信号杀死（非常路径；正常路径 bin/cdd.mjs 把信号转换成退出码）→ 对自身复抛同一信号，
-    // 保持 shell 的 128+signo 退出语义。
-    process.kill(process.pid, signal ?? "SIGTERM");
-    return;
+program.parseAsync(process.argv).catch((raw: unknown) => {
+  // raw: unknown（Promise.catch 形参经严格模式带类型）。ExitRequested 经 instanceof 判定（不依赖
+  // 字段访问）；其后访问 code/message 前给最小形状断言，分支语义与原 JS 逐条一致（未改逻辑）。
+  const e = raw as { code?: unknown; message?: unknown };
+  // 正常 run* 退出路径：exit helpers throw ExitRequested（先展开 run 边界 try/finally →
+  // teardownAll 连根回收），此处拦截 → process.exit(code)。直接 process.exit 是边界语义：
+  // 已无 finally 需要展开。不回收则 spec §2.2 B「run 边界连根回收」在 CLI 主线成死代码
+  //（进程 exit 不展开我们自己的 finally）。
+  if (raw instanceof ExitRequested) process.exit(raw.code);
+  // Commander parse/usage errors (missing required option, unknown option, unknown command, ...) → usage + exit 2。
+  if (e.code === "commander.helpDisplayed") process.exit(0);
+  if (typeof e.code === "string" && e.code.startsWith("commander.")) {
+    usageError(process.argv[2]);
+  } else {
+    // 非 ExitRequested 的 action/参数错误（如 intTask 抛的原始 Error）—— 既有语义统一 exit 2。
+    process.stderr.write(`${e.message}\n`);
   }
-  process.exit(code);
+  process.exit(2);
 });

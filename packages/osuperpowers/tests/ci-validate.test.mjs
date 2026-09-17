@@ -109,8 +109,7 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr, "zero-residue check missing");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/skills"), "zero-residue grep misses osuperpowers/skills");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/bin"), "zero-residue grep misses osuperpowers/bin");
-  assert.ok(zr.grepTargets?.includes("packages/cdd-engine/bin"), "zero-residue grep misses cdd-engine/bin");
-  assert.ok(zr.grepTargets?.includes("packages/cdd-engine/lib"), "zero-residue grep misses cdd-engine/lib (re-org: mechanism files moved into lib/)");
+  assert.ok(zr.grepTargets?.includes("packages/cdd-engine/src"), "zero-residue grep misses cdd-engine/src (re-org: mechanism files moved into src/)");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });
 
@@ -121,8 +120,7 @@ test("5c channel-audit targets pinned (T8)", () => {
   assert.ok(zr, "zero-residue check missing");
   assert.ok(Array.isArray(zr.channelTargets), "5c step missing channelTargets meta");
   for (const p of [
-    "packages/cdd-engine/bin",
-    "packages/cdd-engine/lib",
+    "packages/cdd-engine/src",
     "packages/cdd-engine/templates/schema",
     "packages/cdd-engine/tests",
     "packages/osuperpowers/skills",

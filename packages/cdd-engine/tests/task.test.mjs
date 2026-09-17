@@ -1,5 +1,5 @@
 // packages/cdd-engine/tests/task.test.mjs — Vitest port of the legacy cdd-task CLI contract tests, now
-// exercised through the merged single CLI (bin/cdd.mjs). Invocations map:
+// exercised through the merged single CLI (dist/cli.mjs). Invocations map:
 //   cdd-task --mode implement    → cdd implement
 //   (legacy review mode)         → cdd review --type task (mode 名归一后 runner CDD_MODE=review)
 //   cdd-task --mode fix          → cdd fix --type task
@@ -21,7 +21,7 @@ import { gitCommit, gitInit } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
-const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
+const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
 
 // Test env: strip any CDD_* inherited from an orchestrator session, then overlay test extras.
 function cleanEnv(extra) {

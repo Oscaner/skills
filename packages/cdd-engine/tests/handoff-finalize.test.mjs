@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { finalizeHandoff } from "../lib/handoff/finalize.mjs";
-import { writeOwnHandoff } from "../lib/handoff/write.mjs";
+import { finalizeHandoff } from "../src/artifacts/handoff/finalize.mjs";
+import { writeOwnHandoff } from "../src/artifacts/handoff/write.mjs";
 import { gitInit } from "./helpers.mjs";
 
 // ---- review 族：rollup 派生（applyDerivedStatus；SP-4 失败轮次豁免）----
@@ -105,13 +105,13 @@ it("writeOwnHandoff 全量覆盖：existing 含垃圾字段 → 新载体不含�
 // ---- 三消费方共享同一 finalizeHandoff（导入断言，非各自接线）----
 
 it("branch/docs/runner 三消费方共享同一 finalizeHandoff（非各自接线）", async () => {
-  // 导入断言：唯一定稿实现 = lib/handoff/finalize.mjs。三消费方（run-task / run-docs /
-  // branch-review，re-org 后路径随 lib/ 分层迁移）全部从该 canonical 模块导入 finalizeHandoff，
+  // 导入断言：唯一定稿实现 = src/artifacts/handoff/finalize.mjs。三消费方（task / docs /
+  // branch-review，re-org 后路径随 src/ 分层迁移）全部从该 canonical 模块导入 finalizeHandoff，
   // 且不再各自手写 applyDerivedStatus 读回接线（唯一定稿入口 = finalizeHandoff；
-  // applyDerivedStatus 只被 handoff/finalize.mjs 本身消费）。
+  // applyDerivedStatus 只被 artifact/handoff/finalize.mjs 本身消费）。
   const dir = new URL("../", import.meta.url); // packages/cdd-engine/
   const src = (rel) => readFileSync(new URL(rel, dir), "utf8");
-  for (const rel of ["lib/runner/run-task.mjs", "lib/runner/run-docs.mjs", "lib/cli/branch-review.mjs"]) {
+  for (const rel of ["src/dispatch/task.mjs", "src/dispatch/docs.mjs", "src/cli/branch-review.mjs"]) {
     expect(src(rel)).toMatch(/handoff\/finalize\.mjs/);
     // 不得再各自手写 applyDerivedStatus 调用接线（注释提及无害；唯一定稿入口 = finalizeHandoff）
     expect(src(rel)).not.toMatch(/applyDerivedStatus\s*\(/);

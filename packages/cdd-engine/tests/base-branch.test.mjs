@@ -1,6 +1,6 @@
 // packages/cdd-engine/tests/base-branch.test.mjs
 // `cdd base-branch set/get` CLI blackbox（P5 spec §2.3 / task-3 brief）。
-// 唯一 seam = CLI 公共面（bin/cdd.mjs 薄入口 + base-branch 子命令）：单一 `--plan` 落点、
+// 唯一 seam = CLI 公共面（dist/cli.mjs 入口 + base-branch 子命令）：单一 `--plan` 落点、
 // schema/flag 校验、幂等 + --force、get JSON 往返、SUBCOMMAND_USAGE 单词键回退。
 // 模块层幂等矩阵由 workspace-artifacts.test.mjs（Task 2）覆盖，
 // 此处只验证 CLI→模块接线 + CLI 自有的 flag 边界与报错面（exit 非零）。
@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
+const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
 const NODE = process.execPath;
 
 // 与 cdd.test.mjs 同构：剥离继承的 CDD_*，extendEnv:false 防 orchestrator 环境泄漏回 child。

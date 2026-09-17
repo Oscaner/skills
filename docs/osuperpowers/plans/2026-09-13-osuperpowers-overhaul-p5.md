@@ -12,20 +12,20 @@
 
 ### Task 1: cdd-engine 包转型 TypeScript + unbuild 构建骨架
 
-- **Do**: `packages/cdd-engine` 从 JS ESM 包转型为 TS 包：新增 `tsconfig.json`、`build.config.ts`（unbuild）、`package.json` 的 `main`/`exports`/`bin` 指向 `dist/` 产物、`files` 含 `dist/` + `templates/`；`vitest` 配置支持 TS 测试；`npm scripts`（`build`/`dev:stub`/`test`）落地
-- **验收**: `pnpm --filter @oscaner-skills/cdd-engine build` 产出 `dist/`；`unbuild --stub` 后 `node packages/cdd-engine/dist/cli.mjs --version` 可运行；engine suite 现存测试（JS 态）全绿（转换前的基线）
+- **Do**: `packages/cdd-engine` 从 JS ESM 包转型为 TS 包：新增 `tsconfig.json`、`build.config.ts`（unbuild）、`package.json` 的 `main`/`exports`/`bin` 指向 `dist/` 产物、`files` 含 `dist/` + `templates/`；`vitest` 配置支持 TS 测试；`npm scripts`（`build`/`dev:stub`/`test`）落地；建**最小 `src/bin.ts` 占位入口**（转发现有 `bin/cdd.mjs` commander 命令面，使 `build`/`dev:stub` 入口成立——真实命令面随 Task 9 citty 化落地，本 Task 仅保证入口可达）
+- **验收**: `pnpm --filter @oscaner-skills/cdd-engine build` 产出 `dist/`；`unbuild --stub` 后 `node packages/cdd-engine/dist/cli.mjs --help` 可运行（经占位入口转发现有 commander 命令面——`--version` 非现有执行面，parse.mjs 无 `.version()` 声明，属 unknown option，不作验收锚点）；engine suite 现存测试（JS 态）全绿（转换前的基线）
 - **注**: 本 Task 只建骨架，不改业务逻辑；JS→TS 逐文件迁移在后续 Task 随模块重构进行（任务组对齐 spec §2.13 目录树）
 
 ### Task 2: 第三方依赖引入（simple-git / yaml / tinyglobby / handlebars / consola / hookable / citty）
 
-- **Do**: `packages/cdd-engine/package.json` dependencies 增 `simple-git`、`tinyglobby`、`handlebars`、`hookable`、`citty`、`consola`（版本随生态 latest）；`osuperpowers/package.json` dependencies 增 `yaml`（renderer 运行时依赖——spec review-2 [8] 裁定 (a) 依赖新增，changeset 同步注明）；`commander` 移除（CLI 换 citty 后无消费者）
-- **验收**: `pnpm install` 解析成功；各包可 `import`；`commander` 在 cdd-engine package.json 零残留（迁移后，Task 4 前不做代码替换）
+- **Do**: 仓库根（root）devDependencies 增 `yaml`（emit 工具链——spec §2.13 裁定 (b)：**不进 osuperpowers `package.json#dependencies`**，消费者运行时零新增依赖）；`packages/cdd-engine/package.json` dependencies 增 `simple-git`、`tinyglobby`、`handlebars`、`hookable`、`citty`、`consola`（版本随生态 latest）；**`commander` 不在此移除**——待 Task 9 同一 Task 迁 citty 命令面后移除（本 Task 只引包不动解析入口，Task 3-8 既有测试 import commander 不断链）
+- **验收**: `pnpm install` 解析成功；各包可 `import`；`commander` 零残留的验收锚点移到 Task 9（本 Task 结束时刻意保留 commander——Task 9 迁 CLI 后 cdd-engine package.json 零残留）
 - **注**: 依赖引入先行——后续 Task 逐步替换手写实现（spec §2.13 表逐行）
 
 ### Task 3: 目录按依赖单向轴重组（cli → dispatch → {rules, artifacts, render} → infra）
 
-- **Do**: `packages/cdd-engine/lib/` → `src/` 按 spec §2.13 目录树重组：`cli/` 命令面 · `dispatch/` 生命周期域（base/task/docs/hooks/phases 预留）· `rules/`（commit/stopping/failure/schema）· `artifacts/`（handoff/progress/base-branch）· `render/`（templates/brief）· `infra/`（git/proc/invoke/root/context/registry/exit/log）；`templates/` 保持独立资源目录；`bin/cdd.mjs` → `src/bin.ts`；`build.config.ts` 入口对齐
-- **验收**: `git mv` 后全部既有测试（engine suite + validate 各块）仍绿——**纯搬移不改逻辑**，零行为变化（迁移护栏）
+- **Do**: `packages/cdd-engine/lib/` → `src/` 按 spec §2.13 目录树重组：`cli/` 命令面 · `dispatch/` 生命周期域（base/task/docs/hooks/phases 预留）· `rules/`（commit/stopping/failure/schema）· `artifacts/`（handoff/progress/base-branch）· `render/`（templates/brief）· `infra/`（git/proc/invoke/root/context/registry/exit/log）；`templates/` 保持独立资源目录；`bin/cdd.mjs` → `src/bin.ts`（Task 1 占位入口被真实现覆盖）；`build.config.ts` 入口对齐；**测试路径同步迁移（一任务内完成，否则 ENOENT/断链）**——全部 CDD_MJS exec 常量改指 `packages/cdd-engine/dist/cli.mjs`（依赖 Task 1 stub 产物）+ 全部 `../lib/*.mjs` 静态导入（含 vi.mock 的 helpers）改指 `../src/`
+- **验收**: `git mv` + 测试路径迁移后全部既有测试（engine suite + validate 各块）仍绿——8 个测试文件定义 CDD_MJS（约 13 处 exec 常量，cli-shape/host-detection/docs-task/base-branch/lifecycle.wiring/branch-review/root/task/cdd 等）改指 `dist/cli.mjs`、114 处 `../lib/` 导入（26 文件，含 vi.mock）改指 `../src/` 后零 ENOENT/断链；**纯搬移不改逻辑**，零行为变化（迁移护栏）
 - **注**: 目录重组是纯机械 move；模块内部重构（TS 化 + 拆分）随后续 Task——先结构后内容
 
 ### Task 4: `infra/` 基础设施层（git / proc / invoke / root / context / registry / exit / log）
@@ -37,7 +37,7 @@
 ### Task 5: `rules/` CDD 判定层（commit 双门 / stopping / failure / schema）
 
 - **Do**: `rules/commit.ts`——**commit 边界双门**（spec §2.12 第二部分：入口门 clean-tree 校验 dirty→BLOCKED + 出口门 validateCommitContract 语义含 rewriteHandoffBlocked，判定走 infra/git.ts simple-git）；`rules/stopping.ts`（Review Stopping 守卫簇：blockerCount/stoppedExit3/guard）；`rules/failure.ts`（失败六类 + 配额隔离 + maybeExhaust）；`rules/schema.ts`（handoff JSON schema 校验 validate/recover + handoff-namespace）
-- **验收**: 既有 commit-contract 语义测试全绿；入口门新用例（review 起点 dirty → BLOCKED）；failure/stopping 语义零变化（400+ tests 护栏）
+- **验收**: 既有 commit-contract 语义测试全绿（dirty→BLOCKED / head mismatch / review skip / fail-open —— 仅底层换 simple-git）；failure/stopping 语义零变化（400+ tests 护栏）——入口门/出口门**生命周期用例**不在此 claim（判定挂载与用例单一 owner = Task 7 基类实现级测试；Task 10 只持 docs-fix 出口门用例）
 - **注**: 双门落点 = `rules/commit.ts`（判定）+ `dispatch/base.ts`（挂载，Task 7）；rules 层是「改须重想评审语义」的高风险层
 
 ### Task 6: `dispatch/hooks.ts` hookable 注册面 + `dispatch/phases.ts` 阶段表
@@ -49,30 +49,30 @@
 ### Task 7: `dispatch/base.ts` DispatchLifecycle 抽象基类（模板方法骨架）
 
 - **Do**: `DispatchLifecycle` 抽象类（TS 虚方法编译期约束）：`run()` 模板方法 = `pre-flight → dispatch → post-flight` 骨架 + 默认 hook 实现（`commitPreCheck` 入口门 → `resolveContext` → `validateMode` → `dispatch` abstract → `schemaValidate` → `normalizeResult` → `commitPostCheck` 出口门）；构造注 `hooks`/`ctx`
-- **验收**: 基类无法实例化（abstract）；子类只需覆写关注 hook 即可运行（测试用最小 stub 子类跑通 run() 全流程）；模板方法序断言（pre → dispatch → post + commit 双门卷入）
+- **验收**: 基类无法实例化（abstract）；子类只需覆写关注 hook 即可运行（测试用最小 stub 子类跑通 run() 全流程）；模板方法序断言（pre → dispatch → post + commit 双门卷入）；**入口门用例（review 起点 dirty → BLOCKED）——单一 owner（本 Task 基类实现级测试；Task 5/10 不重复 claim）**
 - **注**: 这是 spec §2.12「抽象基类继承覆写」的落点——commit 双门挂基类默认 hook，task/docs 继承
 
 ### Task 8: `dispatch/task.ts` + `dispatch/docs.ts` 功能生命周期（继承覆写）
 
-- **Do**: `TaskLifecycle extends DispatchLifecycle`（task 功能：虚方法覆写——resolveContext 含 brief 生成/fixed-point 派生、dispatch 含 render→spawn agent、postFlight 含 H1 四行/exit 归一、双门继承基类）；`DocsLifecycle extends DispatchLifecycle`（docs 功能：spec/plan review/fix dispatch——**docs 面同消费入口门出口门**，spec review-2 [2] 裁定）；原 `run-task.mjs` 13.5 步逻辑迁入两功能类的 hook 覆写
-- **验收**: `cdd review --type spec|plan`（docs）与 `cdd implement/fix`（task）经新生命周期跑通——engine 黑盒契约（4 子命令 / handoff 输出）零变化；双门在 docs 面生效（docs review 起点 dirty → BLOCKED）；既有 task/docs 测试全绿
+- **Do**: `TaskLifecycle extends DispatchLifecycle`（task 功能：虚方法覆写——resolveContext 含 brief 生成/fixed-point 派生、dispatch 含 render→spawn agent、postFlight 含 H1 四行/exit 归一、双门继承基类）；`DocsLifecycle extends DispatchLifecycle`（docs 功能：spec/plan review/fix dispatch——**docs 面同消费入口门出口门**，spec review-2 [2] 裁定）；原 `run-task.mjs` 13.5 步逻辑迁入两功能类的 hook 覆写；**`artifacts/` + `render/` 剩余模块同步 TS 化**（Artifacts 层：`handoff/{write,finalize,naming}.ts` · `progress.ts` · `base-branch.ts`；Render 层：`brief.ts`——`naming.ts` glob 收拢为 `tinyglobby`，spec §2.13 表逐行）
+- **验收**: `cdd review --type spec|plan`（docs）与 `cdd implement/fix`（task）经新生命周期跑通——engine 黑盒契约（4 子命令 / handoff 输出）零变化；双门在 docs 面生效（docs review 起点 dirty → BLOCKED）；既有 task/docs 测试全绿；artifacts/render 全量 TS 化 + `naming` glob 经 tinyglobby——既有 naming/progress/base-branch/handoff/brief 测试转换后仍绿（AC11 全量 TS 兜底）
 - **注**: 功能聚簇——`task.ts` 一文件看全 task 功能；迁移动机 spec §2.13「运维导航验证」
 
 ### Task 9: CLI 换 citty（`src/bin.ts` + `cli/` 命令面）
 
-- **Do**: `bin.ts` 用 `defineMainCommand` + 子命令声明（implement/review/fix/base-branch 四子命令——spec review-2 [3] 裁定：无第五个 `docs` 子命令，docs 经 review/fix `--type spec|plan`）；`cli/` 各 action 装配 DispatchLifecycle 子类；`--dry-run` 保留 program 级；`--help`/usage 面经 citty 生成
-- **验收**: `cdd --help` 子命令集合 = implement/review/fix/base-branch（基线断言更新）；`cdd implement/review/fix` 黑盒行为与 commander 版一致（既有黑盒测试全绿）；SUBCOMMAND_USAGE/parse 相关测试迁移到 citty 声明
+- **Do**: `bin.ts` 用 `defineMainCommand` + 子命令声明（implement/review/fix/base-branch 四子命令——spec review-2 [3] 裁定：无第五个 `docs` 子命令，docs 经 review/fix `--type spec|plan`）；`cli/` 各 action 装配 DispatchLifecycle 子类；`--dry-run` 保留 program 级；`--help`/usage 面经 citty 生成；**`commander` 随本 Task 从 cdd-engine dependencies 移除**（CLI 全量切 citty 后无消费者——本 Task 是移除唯一时点锚，Task 2 结束时刻意保留的 commander 在此归零）
+- **验收**: `cdd --help` 子命令集合 = implement/review/fix/base-branch（基线断言更新）；`cdd implement/review/fix` 黑盒行为与 commander 版一致（既有黑盒测试全绿）；SUBCOMMAND_USAGE/parse 相关测试迁移到 citty 声明；`cdd-engine/package.json` `commander` 零残留（Task 2 验收改指的锚点在此达成）
 - **注**: 这是命令面收敛（P3 已删 brief/research 后的终态四命令）；commander 残留零
 
 ### Task 10: commit 双门全接线 + `templates/fix/docs.md` 补提交指令
 
-- **Do**: 入口门接入 `cli/` 各 review action 起点（review dispatch 前 clean-tree 校验，dirty → BLOCKED）；出口门在 dispatch 返回后校验（含 docs fix）；`templates/fix/docs.md` 补提交指令（与 task 族同构：fix agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip + out-of-scope 不碰）
-- **验收**: 入口门用例（review 起点 dirty → BLOCKED）；docs fix 出口门用例（docs fix 后 dirty → BLOCKED）；`templates.content.test.mjs` 断言 fix/docs.md 含提交指令；run-docs 的 "No commit-contract" 注释删除
+- **Do**: **入口门无需 `cli/` 接线**——基类默认 hook（`commitPreCheck`）经 task/docs 继承自动生效（review dispatch 前 clean-tree 校验，dirty → BLOCKED；落点 `dispatch/base.ts` 见 Task 7，本 Task 只验证生效面、不重复实现）；出口门在 dispatch 返回后校验（含 docs fix）；`templates/fix/docs.md` 补提交指令（与 task 族同构：fix agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip + out-of-scope 不碰）
+- **验收**: docs fix 出口门用例（docs fix 后 dirty → BLOCKED）——本 Task 唯一用例（入口门用例 owner 已归 Task 7，不重复）；`templates.content.test.mjs` 断言 fix/docs.md 含提交指令；run-docs 的 "No commit-contract" 注释删除
 - **注**: spec §2.12 P5 落点 1-3 全落地——落点锚在 `dispatch/base.ts`/`rules/commit.ts`（review-2 [1] 归一后的面）
 
 ### Task 11: report-issues 改名面（report-issue → report-issues）
 
-- **Do**: `git mv skills/report-issue/ skills/report-issues/`；SKILL.md frontmatter `name` + description；`finding-meta.json` components 枚举（**唯一改名源**）；`cli-driven-development/SKILL.md` ×3（:61/:115/:116 `osuperpowers:report-issue`）+ `writing-plans/SKILL.md` ×1（:44 裸 token `report-issue`）→ 新名；README:20 技能表；`report-templates.test.mjs` components 断言；`writing-plans-spec.test.mjs` resolve-destination 提及（换新锚，见 Task 12）
+- **Do**: `git mv skills/report-issue/ skills/report-issues/`；SKILL.md frontmatter `name` + description；`finding-meta.json` components 枚举（**唯一改名源**）；`cli-driven-development/SKILL.md` ×3（:61/:115/:116 `osuperpowers:report-issue`）+ `writing-plans/SKILL.md` ×1（:44 裸 token `report-issue`）→ 新名；README:20 技能表；`report-templates.test.mjs` components 断言；`writing-plans-spec.test.mjs` resolve-destination 提及（换新锚，见 Task 12）；`scripts/validate/residue.mjs`:703-708 注释 + `residue.test.mjs`:820（ORCHESTRATOR_SKILLS 注释）/:878（测试描述）词形 `report-issue` → `report-issues`（spec §2.3 四文件同步——先于 Task 16 guard 引入轮完成，否则新 guard 命中陈旧词形）
 - **验收**: `grep report-issue`（单数，词边界）机制面零命中（历史 plan/spec + CHANGELOG 豁免；作用域 = skills / finding-meta / renderer / emit / README / tests）；`pnpm run emit` + `emit:check` drift=0
 - **注**: spec §2.3 改名面全表；residue 守卫词形在 Task 16 加（防回渗）
 
@@ -84,15 +84,15 @@
 
 ### Task 13: `finding-meta.json` 重构（report-meta 2+1 / formFieldDefs 2 键 / reportDef / masterDef）
 
-- **Do**: `metaFields` 6→2（`skill`·`step` 删 harness/kind/cdd/date）；`kinds` 枚举删；`sessionTypes` 枚举删；`components` 改 `osuperpowers:report-issues`（Task 1 首启用）；`formFieldDefs` 3→2 键（删 session_report；bug_report/enhancement 删 session-type 下拉）；新增 `reportDef.labels` = `["osuperpowers","cdd-engine"]`；`masterDef.title` 删（标题中性 topic 直出）+ masterDef 收敛 `{ sessionTitle, harnessRow }`
-- **验收**: finding-meta JSON 形状 = spec §2.6 终态表逐行；`reportDef.labels` 唯一 labels 定义点；emit:check drift=0（表单 emit 后同步）
+- **Do**: `metaFields` 6→2（`skill`·`step` 删 harness/kind/cdd/date）；`kinds` 枚举删；`sessionTypes` 枚举删；`components` 改 `osuperpowers:report-issues`（Task 1 首启用）；`formFieldDefs` 3→2 键（删 session_report；bug_report/enhancement 删 session-type 下拉）；新增 `reportDef.labels` = `["osuperpowers","cdd-engine"]`；`masterDef.title` 删（标题中性 topic 直出）+ masterDef 收敛 `{ sessionTitle, harnessRow }`；**表单 emit 面连带同步（spec §2.3 四文件）**——`scripts/emit/issue-templates.test.mjs` :23/:140-148/:165 三处「3 个 yml」断言（含 session_report.yml）→ 2 个；`scripts/emit/compare.mjs`:39 `productFiles` 删 `session_report.yml` 项（否则 emit:check 陈旧 walk 报警）
+- **验收**: finding-meta JSON 形状 = spec §2.6 终态表逐行；`reportDef.labels` 唯一 labels 定义点；emit:check drift=0（表单 emit 后同步）；issue-templates.test.mjs「3 个 yml」断言改「2 个 yml」绿 + compare.mjs productFiles 同步后陈旧 walk 零报警
 - **注**: spec §2.6 + ISSUE_TEMPLATE 瘦身面的 canonical 落点
 
 ### Task 14: renderer 重写（`report-templates.mjs` 裸调用单模式 + yaml + 入参校验）
 
-- **Do**: 删 `--mode`（裸调用单入口）；删 `renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` 注入分支；`renderYml` 改 `yaml.stringify`（spec review-2 [8] 裁定 (a)：osuperpowers 依赖增 yaml）；聚合 body 渲染（Session 一行 Harness + findings 分型分段每 finding 后 2 行 meta + 尾收 Dedup/Related + 2 字段 report-meta）；CLI 入口入参结构校验（findings 非空 / type ∈ enums / lang ∈ en/zh / meta.skill/step 必填，失败 exit 1 + 字段路径）
-- **验收**: `report-templates.test.mjs`——入参校验用例（空/非法 → exit 1 + 字段路径）；聚合渲染用例（N-finding meta 关联：逐 finding 断言四段后紧随 Skill/Step 归属正确）；dedup/related 渲染用例（open → Dedup 行 / closed → Regression / program → Related）；零 `--mode`/`renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` 残留
-- **注**: spec §2.5 全表 + §2.10 测试面；裸调用 = `node report-templates.mjs < stdin`
+- **Do**: 删 `--mode`（裸调用单入口）；删 `renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` 注入分支；`renderYml` **隔离为 emit-only 模块**（`osuperpowers/scripts/render-yaml.mjs`，仅 `scripts/emit/*.mjs` 消费——spec §2.13 裁定 (b)：`yaml` 只入仓库根 devDependencies，不进 osuperpowers dependencies）后改 `yaml.stringify`；聚合 body 渲染（Session 一行 Harness + findings 分型分段每 finding 后 2 行 meta + 尾收 Dedup/Related + 2 字段 report-meta）；CLI 入口入参结构校验（findings 非空 / type ∈ enums / lang ∈ en/zh / meta.skill/step 必填，失败 exit 1 + 字段路径）
+- **验收**: `report-templates.test.mjs`——入参校验用例（空/非法 → exit 1 + 字段路径）；聚合渲染用例（N-finding meta 关联：逐 finding 断言四段后紧随 Skill/Step 归属正确）；dedup/related 渲染用例（open → Dedup 行 / closed → Regression / program → Related）；零 `--mode`/`renderComment`/`renderTitle`/`resolveDropdownOptions`/`sessionTypes` 残留；**聚合 body 裸调用入口零 `yaml` import**（消费者运行时零新增依赖——yaml 只经 emit-only 模块）
+- **注**: spec §2.5 全表 + §2.10 测试面 + §2.13 yaml 行（(b) 隔离裁定）；裸调用 = `node report-templates.mjs < stdin`
 
 ### Task 15: report-issues SKILL.md 重写（新聚合流程 digraph）
 
@@ -108,7 +108,7 @@
 
 ### Task 17: README 更新 + CLAUDE.md dev 调用链 + 运维文档 third-party-dependencies.md
 
-- **Do**: `osuperpowers/README.md` 技能表 + engine 面同步；**CLAUDE.md dev 段**更新——`node packages/cdd-engine/bin/cdd.mjs` 随 bin 产品化作废 → `pnpm --filter @oscaner-skills/cdd-engine build:stub && node packages/cdd-engine/dist/cli.mjs <subcommand>`（仍不 npm link 全局，说明原因）；新增 `docs/maintainers/third-party-dependencies.md`——登记全部第三方 pkg（citty/hookable/consola/simple-git/yaml/tinyglobby/handlebars/execa/ajv/semver/unbuild · 用途/版本约束/替换的手写面/维护锚点 · 不引清单：XState/tapable/emittery/oclif/isomorphic-git/js-yaml/husky-not-in-pkg + 理由）
+- **Do**: `osuperpowers/README.md` 技能表 + engine 面同步；**CLAUDE.md dev 段**更新——`node packages/cdd-engine/bin/cdd.mjs` 随 bin 产品化作废 → `pnpm --filter @oscaner-skills/cdd-engine dev:stub && node packages/cdd-engine/dist/cli.mjs <subcommand>`（仍不 npm link 全局，说明原因）；新增 `docs/maintainers/third-party-dependencies.md`——登记全部第三方 pkg（citty/hookable/consola/simple-git/yaml/tinyglobby/handlebars/execa/ajv/semver/unbuild · 用途/版本约束/替换的手写面/维护锚点 · 不引清单：XState/tapable/emittery/oclif/isomorphic-git/js-yaml/husky-not-in-pkg + 理由）
 - **验收**: CLAUDE.md dev 调用链可直接复制执行（stub 后 clitty CLI 可用）；third-party-dependencies.md 覆盖全部 pkg + 不引清单；README 零 report-issue 残留
 - **注**: spec §2.13 运维文档 + 开发调用链；husky 边界说明（root dev-only 不进包）入文档
 
@@ -120,9 +120,9 @@
 
 ### Task 19: changeset + 全量验证收口
 
-- **Do**: `.changeset/` 建 `p5-report-issues-aggregation.md`（osuperpowers minor：改名 + renderer 重构 + ISSUE_TEMPLATE 瘦身 + label 变更 + **yaml 依赖新增**）+ `p5-engine-rebuild-ts-lifecycle.md`（cdd-engine：TS 迁移 + 生命周期重建 + 第三方收敛 + citty 替换——patch/minor 随版本策略判定）；全量 `pnpm run validate`（全块）+ `pnpm run emit:check`
-- **验收**: 各 phase changeset 齐备（P6 acceptance 复核粒度）；validate 13 块 ALL PASS + emit:check 无 drift；engine suite（TS 化后）+ osuperpowers suite 全绿
-- **注**: 逐 phase changeset 纪律；yaml 依赖新增须在 changeset 说明（spec review-2 [8]）
+- **Do**: `.changeset/` 建 `p5-report-issues-aggregation.md`（osuperpowers minor：改名 + renderer 重构 + ISSUE_TEMPLATE 瘦身 + label 变更 + **renderYml/yaml 隔离 emit-only 模块**——`yaml` 仅入仓库根 devDependencies，插件 `package.json#dependencies` 零新增、消费者运行时零新增依赖）+ `p5-engine-rebuild-ts-lifecycle.md`（cdd-engine：TS 迁移 + 生命周期重建 + 第三方收敛 + citty 替换——patch/minor 随版本策略判定）；全量 `pnpm run validate`（全块）+ `pnpm run emit:check`
+- **验收**: 各 phase changeset 齐备（P6 acceptance 复核粒度）；`pnpm run validate`（全块）ALL PASS + emit:check 无 drift（不带块数措辞——仓库编排块数与注释自报存分歧，spec AC9 终态已收敛为无块数表述）；engine suite（TS 化后）+ osuperpowers suite 全绿
+- **注**: 逐 phase changeset 纪律；yaml 按 §2.13 (b) 在 changeset 说明：仅 root devDependencies、插件零新增运行时依赖（review-2 [8] 的 (a)/(b) 二选一已裁 (b)，不得表述为依赖新增）
 
 ---
 

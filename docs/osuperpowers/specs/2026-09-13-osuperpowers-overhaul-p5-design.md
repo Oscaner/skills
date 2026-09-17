@@ -224,10 +224,6 @@ engine 侧：`templates.test.mjs` 增 E-8 紧凑断言；`templates.content.test
 - yaml：`renderYml` 既有 issue-templates 用例全绿（form YAML 直出，emit:check 作为输出新鲜度守卫）
 - tinyglobby：`naming.mjs` glob 用例全绿（扫描结果集不变）
 
-### §2.14 Acceptance criteria（本 phase 验收，追加 AC 11）
-
-11. **第三方依赖收敛落地**：`packages/cdd-engine` lib 零 `execFileSync("git")` 手写 git（经 simple-git）· 零 `emitScalar`/`isPlainUnsafe`（osuperpowers 经 `yaml`）· 零 `PLACEHOLDERS` 手写替换循环（经 handlebars）· cdd-engine glob 经 tinyglobby · husky 零 cdd-engine 依赖声明（仅 root devDependencies 存续）· `docs/maintainers/third-party-dependencies.md` 存在且登记全部 pkg（含不引清单与理由）；engine suite 全绿（simple-git/handlebars/yaml 换算后原语义不变）
-
 ### §2.11 Acceptance criteria（本 phase 验收）
 
 1. `grep -E '\breport-issue\b'`（单数，**词边界**——不带 \b 的裸词形会 substring 命中新复数名 `report-issues`）机制面零命中（历史 plan/spec + CHANGELOG 豁免；作用域 = skills 目录 / finding-meta / renderer / emit / README / tests；复数 `report-issues` 不在此守卫命中面）
@@ -239,34 +235,48 @@ engine 侧：`templates.test.mjs` 增 E-8 紧凑断言；`templates.content.test
 7. **handoff schema 紧凑注入**（E-8）：`renderHandoffStub` = `JSON.stringify(schema)`；`templates.test.mjs` 格式 drift 断言绿；task 注入省 ~265 tok 断言（可选）
 8. **repo label rename 已执行**：`gh label list` 有 `cdd-engine` 无 `cdd`；历史 issue 标签随迁
 9. `pnpm run validate` 全绿（14 块）+ `pnpm run emit:check` 无 drift
-10. **commit 边界纪律落地**（AC 10）：`fix/docs.md` 含 commit 指令（fix agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip）· `run-docs.mjs` 接 validateCommitContract 后验（docs fix 出口干净树）· 6 个 review-fix skill 含 review 前 pre-commit 描记
+10. **commit 边界管控落地**（AC 10）：`run-task.mjs` 入口门干净树校验（pre-commit）+ 既有出口门保留（post-commit，commit-contract 语义）· `run-docs.mjs` 接 validateCommitContract（docs fix 出口补齐）· `fix/docs.md` 含提交指令（agent 完成时 commit 被修文档，conventional + 无 attribution + 无改动 skip）· 6 个 review-fix skill 的 review 前「工作树干净」措辞
+11. **第三方依赖收敛落地**（AC 11）：`packages/cdd-engine` lib 零 `execFileSync("git")` 手写 git（经 simple-git）· 零 `emitScalar`/`isPlainUnsafe`（osuperpowers 经 `yaml`）· 零 `PLACEHOLDERS` 手写替换循环（经 handlebars）· cdd-engine glob 经 tinyglobby · husky 零 cdd-engine 依赖声明（仅 root devDependencies 存续）· `docs/maintainers/third-party-dependencies.md` 存在且登记全部 pkg（含不引清单与理由）；engine suite 全绿（simple-git/handlebars/yaml 换算后原语义不变）
 
-### §2.12 commit 边界纪律（双向不变量 + 归属原则）
+### §2.12 生命周期 commit 边界管控（pre-commit / post-commit 双门）
 
-**第一性原理**：commit-contract 已确立「dispatch 出口干净树」（task 族强制）。P4 两次 dirty-tree BLOCKED（dispatch 期间改树 → 返回时 commit-contract 判 dirty → handoff 改写 BLOCKED）证明**仅凭出口后验不足**——需要**入口侧纪律**使出口必然干净。P5 把它升维为双向边界不变量 + 归属原则：
+**第一性原理**：commit-contract 已确立「dispatch 出口干净树」不变量（task 族强制）。P4 两次 dirty-tree BLOCKED（dispatch 期间改树 → 返回时 commit-contract 判 dirty → handoff 改写 BLOCKED）证明**仅凭出口后验不足**——需要**入口门**使出口必然干净。P5 把「谁产物谁提交」的归属直觉收敛为**一个统一机制**：dispatch 生命周期的**两端各一扇门**，engine 机械强制，**不区分产物归属**（主 agent 或 cdd 产物 — 生命周期不关心，只保证边界干净）。
 
-> **入口干净（pre-commit）**：派发任何 cdd review 前，主 agent 的产物（spec/plan/overall 回填）已全部提交 → review 基准 = 已提交状态；主 agent dispatch 期间零写树（skill 侧纪律）。
-> **出口干净（post-commit）**：任何产生文件修改的 dispatch 结束时修改已提交——**归属原则：「主 agent 处理 → 主 agent commit；cdd 处理 → cdd commit」**。
-> **engine 兜底**：validateCommitContract 后验（已实现），P5 扩展覆盖 docs fix 面。
+```
+dispatch lifecycle（engine 单点实现, run-task/run-docs）:
+  ┌ 入口门 pre-commit ──────────────────────────────
+  │ 进入 dispatch 前工作树必须干净；dirty → BLOCKED（指引提交/丢弃后重试）
+  │ ⇒ review 基准 = 已提交状态 · dispatch 期间零写树 ⇒ 出口必然干净
+  ├ dispatch ───────────────────────────────────────
+  │ agent 执行（既有流程不变）
+  └ 出口门 post-commit ─────────────────────────────
+     dispatch 结束后 engine 校验：① 修改已提交（HEAD 前移）② 工作树干净
+     未提交 → BLOCKED（rewriteHandoffBlocked，沿用既有 commit-contract 语义）
+```
 
-**闭环**：入口干净 + dispatch 期间零写树 ⇒ 出口必然干净 ⇒ 下一次 dispatch 入口天然干净——**dirty-tree BLOCKED 永不重演**。
+**关键简化**：
+1. **提交动作 = 产生内容的执行方在 dispatch 边界内完成**（task/docs agent 完成时提交，subject 语义在产生方；engine 不代写 message）——不再用「主 agent vs cdd」排比两条规则，统一由两端门机械强制
+2. **skills 义务收敛**：6 处 review-fix 循环从「罗列归属」简化为一句「**进入 review 前确保工作树干净**」
+3. **engine 变更单点**：`run-task.mjs` 增入口门干净树校验 + 既有出口门保留；`run-docs.mjs` 接出口门（docs fix 补齐）
+4. **机制可迁移**：这一机制**不绑定 cdd-engine 内部实现**——任何 future dispatch 边界（新 subcommand / hooks）天然继承
 
 **现状审计**（2026-09-17 实证）：
 
-| 面 | post-commit | pre-commit |
+| 面 | 出口门（post-commit） | 入口门（pre-commit） |
 |---|---|---|
-| task implement / task fix | **已有**——`task/implement.md` step 5 / `task/fix.md` step 5 强制 agent 完成时 commit（conventional + 无 attribution + 无改动 skip + out-of-scope 不碰）；engine commit-contract 后验 | 天然满足（implement 已提交） |
+| task implement / task fix | **已有**——`task/implement.md`/`task/fix.md` step 5 强制 agent 完成时 commit（conventional + 无 attribution + 无改动 skip + out-of-scope 不碰）；engine commit-contract 后验 | 天然满足（implement 已提交） |
 | **docs fix（spec/plan 的 fix）** | **缺口**——`fix/docs.md` 零 commit 指令；`run-docs.mjs` 注释 "No commit-contract" | — |
-| review / branch-review | 无（不产生修改） | **必须**——主 agent 产物先提交（否则 review 基准错位） |
+| review / branch-review | 无（不产生修改） | **必须**——工作树不干净则 BLOCKED（评审基准错位风险） |
 
 **P5 落点**：
-1. `templates/fix/docs.md` 补 commit 指令——与 task 族同构：fix agent 修完文档后 commit（`fix:` conventional + 无 attribution；无文档 diff 则 skip；out-of-scope 不碰）
-2. `lib/runner/run-docs.mjs` 接 `validateCommitContract("fix", …)` 后验——docs fix dispatch 出口校验工作树干净（复用 contract/commit.mjs，零新机制）
-3. skills 流程描记 6 处（writing-phase-spec / writing-single-spec / writing-overall-spec / writing-plans / brainstorming / cli-driven-development）：review-fix 循环加「**review 前 pre-commit**（主 agent 提交自己产物后派发）」+「**fix 后 post-commit**（cdd fix 由 engine 侧 commit，主 agent 不代劳；主 agent 修复 warn/nit 时由主 agent commit）」
-4. tests：`run-docs` 的 commit-contract 后验用例（docs fix 后 dirty → BLOCKED）+ `templates.content.test.mjs` 断言 fix/docs.md 含 commit 指令
-5. changeset：`cdd-engine`（原 E-8 行扩为「E-8 + docs-fix commit 边界」，仍 patch/minor 随版本策略）
+1. `templates/fix/docs.md` 补提交指令——与 task 族同构：fix agent 修完文档后 commit（`fix:` conventional + 无 attribution；无文档 diff 则 skip；out-of-scope 不碰）
+2. `lib/runner/run-docs.mjs` 接 `validateCommitContract("fix", …)` 出口门——docs fix dispatch 出口校验工作树干净（复用 contract/commit.mjs，零新机制）
+3. `lib/runner/run-task.mjs` 增入口门——review dispatch 起点校验 `git status --porcelain` 干净，dirty → BLOCKED（pre-commit 强制；review 亦消费入口门）
+4. skills 流程描记 6 处（writing-phase-spec / writing-single-spec / writing-overall-spec / writing-plans / brainstorming / cli-driven-development）：review-fix 循环改为「**进入 review 前确保工作树干净**」（主 agent dispatch 期间零写树，mechanism 由 engine 入口门强制，skill 只陈述义务）
+5. tests：`run-task` 入口门用例（review 起点 dirty → BLOCKED）+ `run-docs` 出口门用例（docs fix 后 dirty → BLOCKED）+ `templates.content.test.mjs` 断言 fix/docs.md 含提交指令
+6. changeset：`cdd-engine`（原 E-8 行扩为「E-8 + commit 边界管控」，仍 patch/minor 随版本策略）
 
-**边界**：本纪律**不引入** engine 自动提交的一切形式——「cdd 处理 → cdd commit」的落点 = **fix agent 完成后自己 commit**（docs 族补齐与 task 族同构指令），engine 只做校验与兜底（契约面，符合「engine 服务」原则）；不重建 EventEmitter/事件总线（dispatch 是固定序列非可插拔事件，见 §2.13 不引清单）。
+**边界**：本机制**不引入** engine 自动提交的一切形式——engine 不代写 commit、不需要知道 message（subject 语义在产生方）；engine 只做**两扇门**（入口干净树校验 + 出口干净树校验，契约面，符合「engine 服务」原则）。不重建 EventEmitter/事件总线（dispatch 是固定序列非可插拔事件，见 §2.13 不引清单）。
 
 ### §2.13 第三方依赖收敛（不保持任何手写）
 

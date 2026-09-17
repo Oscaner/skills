@@ -39,7 +39,7 @@ export type DispatchPlugin = Partial<CddHookMap>;
 
 export type DispatchHooks = Hookable<CddHookMap>;
 
-// Factory over a module singleton: each DispatchLifecycle (Task 7) owns its own hooks instance,
+// Factory (not a module singleton): each DispatchLifecycle (Task 7) owns its own hooks instance,
 // so tests and concurrent dispatches never share registered handlers.
 export function createDispatchHooks(): DispatchHooks {
   return createHooks<CddHookMap>();

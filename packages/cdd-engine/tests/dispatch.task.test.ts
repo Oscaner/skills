@@ -14,7 +14,7 @@ import path from "node:path";
 
 import { TaskLifecycle, runTask } from "../src/dispatch/task.ts";
 import { DispatchBlocked } from "../src/dispatch/base.ts";
-import { REG_PATH } from "../src/infra/registry.mjs";
+import { REG_PATH } from "../src/infra/registry.ts";
 
 function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();

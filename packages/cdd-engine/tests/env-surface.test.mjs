@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import { execaSync } from "execa";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { loadContract } from "../src/infra/context.mjs";
+import { loadContract } from "../src/infra/context.ts";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 

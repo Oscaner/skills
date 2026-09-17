@@ -2,8 +2,8 @@
 // 三断言面：① timeout 默认值取自 canonical；② per-mode env > 全局覆写（取整到 stepSeconds）；
 // ③ env 白名单取自 canonical 且恰为 7 键（AC3 唯一声明点）。
 import { describe, it, expect } from "vitest";
-import { loadContract } from "../src/infra/context.mjs";
-import { resolveTimeoutMs } from "../src/infra/invoke.mjs";
+import { loadContract } from "../src/infra/context.ts";
+import { resolveTimeoutMs } from "../src/infra/invoke.ts";
 
 describe("context-contract canonical 承重", () => {
   it("timeout 默认值取自 canonical", () => {

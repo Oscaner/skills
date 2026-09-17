@@ -7,7 +7,7 @@ import { execaSync } from "execa";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { setDryRun } from "../src/cli/shared.mjs";
+import { setDryRun } from "../src/cli/shared.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -73,7 +73,7 @@ const docsRunnerMock = vi.hoisted(() => ({
 }));
 vi.mock("../src/dispatch/docs.ts", () => docsRunnerMock);
 
-// 根权威（src/infra/root.mjs）在本文件**不再打桩**：in-process 用例一律经 `root` 注入位（T3 根注入契约：
+// 根权威（src/infra/root.ts）在本文件**不再打桩**：in-process 用例一律经 `root` 注入位（T3 根注入契约：
 // 无 reset / 无 env / 无 ForTest 缝）显式传入真仓路径，getRoot() 单例在这些路径上不再被消费。
 // 黑盒用例走独立 node 子进程，由 bin 的 preAction → initRoot() 初始化真实单例。
 
@@ -337,7 +337,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "# foo design\n");
-      const { runReview } = await import("../src/cli/review.mjs");
+      const { runReview } = await import("../src/cli/review.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       await runReview({ type: "spec", spec: doc, root: repo });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
@@ -372,7 +372,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const findings = path.join(repo, ".osuperpowers", "cdd", "foo", "spec-review-2.json");
       mkdirSync(path.dirname(findings), { recursive: true });
       writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }));
-      const { runFix } = await import("../src/cli/fix.mjs");
+      const { runFix } = await import("../src/cli/fix.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       await runFix({ type: "spec", spec: doc, findings, root: repo });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};

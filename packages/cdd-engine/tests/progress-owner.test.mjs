@@ -10,7 +10,7 @@ import path from "node:path";
 import { gitInit, gitCommit } from "./helpers.mjs";
 import { runTask } from "../src/dispatch/task.ts";
 import { readProgressJSON, incrementRecovery } from "../src/artifacts/progress.ts";
-import { REG_PATH } from "../src/infra/registry.mjs";
+import { REG_PATH } from "../src/infra/registry.ts";
 
 // 真仓 fixture（P4 §2.3.1 根注入契约）：root 经 runTask 的 `opts.root` 显式注入（真 mkdtemp 仓根），
 // 不调 initRoot()、不 chdir、无 env 缝。workspace 纯由 `--plan` 派生（<repo>/.osuperpowers/cdd/<slug>）。

@@ -111,7 +111,7 @@ it("branch/docs/runner 三消费方共享同一 finalizeHandoff（非各自接�
   // = finalizeHandoff；applyDerivedStatus 只被 artifact/handoff/finalize.ts 本身消费）。
   const dir = new URL("../", import.meta.url); // packages/cdd-engine/
   const src = (rel) => readFileSync(new URL(rel, dir), "utf8");
-  for (const rel of ["src/dispatch/task.ts", "src/dispatch/docs.ts", "src/cli/branch-review.mjs"]) {
+  for (const rel of ["src/dispatch/task.ts", "src/dispatch/docs.ts", "src/cli/branch-review.ts"]) {
     expect(src(rel)).toMatch(/handoff\/finalize\.ts/);
     // 不得再各自手写 applyDerivedStatus 调用接线（注释提及无害；唯一定稿入口 = finalizeHandoff）
     expect(src(rel)).not.toMatch(/applyDerivedStatus\s*\(/);

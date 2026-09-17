@@ -17,9 +17,9 @@ import { fileURLToPath } from "node:url";
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          materializeWorkspace,
          buildCtx, buildPromptParams } from "../src/dispatch/task.ts";
-import { ExitRequested } from "../src/infra/exit.mjs";
-import { spawnManaged, markAllDispatchesDone } from "../src/infra/proc.mjs";
-import { REG_PATH } from "../src/infra/registry.mjs";
+import { ExitRequested } from "../src/infra/exit.ts";
+import { spawnManaged, markAllDispatchesDone } from "../src/infra/proc.ts";
+import { REG_PATH } from "../src/infra/registry.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
@@ -845,7 +845,7 @@ it("runTask: mode review dry-run → H1 APPROVED + no handoff written", async ()
 });
 
 it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）", async () => {
-  const { validateHandoffSchema } = await import("../src/rules/schema.mjs");
+  const { validateHandoffSchema } = await import("../src/rules/schema.ts");
   expect(validateHandoffSchema({
     task: 1, phase: "review", status: "APPROVED",
     commits: { base: "a".repeat(40), head: "b".repeat(40) },

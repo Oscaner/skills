@@ -1,5 +1,5 @@
 // tests/infra.root.test.ts — TS infra layer: repoRoot single cwd conversion point (spec §2.13 infra row).
-// Guard note: src/infra/root.mjs is validate's sole process.cwd() anchor (channel audit ①). The
+// Guard note: src/infra/root.ts is validate's sole process.cwd() anchor (channel audit ①). The
 // TS port takes cwd as an explicit parameter — no new process.cwd() token — and resolves the repo
 // root via infra/git.ts (gitTopLevel), the single git point for the rebuilt layer.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";

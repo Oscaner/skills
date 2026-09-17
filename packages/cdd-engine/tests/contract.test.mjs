@@ -24,7 +24,7 @@ import { validateCommitContract } from "../src/rules/commit.ts";
 import { gitCatFileCommitExists } from "../src/infra/git.ts";
 import { writeHandoff, writeOwnHandoff } from "../src/artifacts/handoff/write.ts";
 import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../src/artifacts/handoff/finalize.ts";
-import { validateHandoffSchema } from "../src/rules/schema.mjs";
+import { validateHandoffSchema } from "../src/rules/schema.ts";
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();

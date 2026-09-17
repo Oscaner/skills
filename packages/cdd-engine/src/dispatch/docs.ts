@@ -24,17 +24,17 @@ import {
   type DispatchHookContext,
   DispatchBlocked,
 } from "./base.ts";
-import { invokeCli, resolveTimeoutMs } from "../infra/invoke.mjs";
-import { withLifecycle } from "../infra/proc.mjs";
-import { getRoot } from "../infra/root.mjs";
-import { exitWithCode, ExitRequested } from "../infra/exit.mjs";
+import { invokeCli, resolveTimeoutMs } from "../infra/invoke.ts";
+import { withLifecycle } from "../infra/proc.ts";
+import { getRoot } from "../infra/root.ts";
+import { exitWithCode, ExitRequested } from "../infra/exit.ts";
 import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { finalizeHandoff, persistFinalized } from "../artifacts/handoff/finalize.ts";
-import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.mjs";
+import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
 import { loadHandoffSchema, validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
 import { validateCommitContract } from "../rules/commit.ts";
-import { renderHandoffStub, renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.mjs";
-import { hashFile } from "./review-loop.mjs";
+import { renderHandoffStub, renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
+import { hashFile } from "./review-loop.ts";
 
 export interface DocsLifecycleOptions {
   /** docs agent harness key (registry lookup) */
@@ -57,6 +57,8 @@ export interface DocsLifecycleOptions {
   params?: Record<string, string>;
   /** injected repo root (single root authority); default = engine singleton getRoot() */
   repoRoot?: string | null;
+  /** derived workspace (review.ts passes it for the unit seam; this layer never reads it) */
+  workspace?: string;
 }
 
 interface DocsResult {

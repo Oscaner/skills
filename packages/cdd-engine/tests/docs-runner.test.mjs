@@ -25,11 +25,11 @@ vi.mock("../src/artifacts/handoff/write.ts", async () => {
   };
 });
 
-vi.mock("../src/infra/registry.mjs", async () => {
+vi.mock("../src/infra/registry.ts", async () => {
   // Task 5: cli-shared 从 registry 导入 resolveInjection —— mock 复用真实实现，
   // checkHarness 返回带完整 operation×type prefix 的条目（验证 docs-runner type 透传注入）。
   // REG_PATH：统一导出（spec §2.3）随 run-docs 消费方纳入 mock 面。
-  const { resolveInjection, resolveSuffix, REG_PATH } = await vi.importActual("../src/infra/registry.mjs");
+  const { resolveInjection, resolveSuffix, REG_PATH } = await vi.importActual("../src/infra/registry.ts");
   return {
     loadRegistry: vi.fn(() => ({})),
     checkHarness: vi.fn(() => ({
@@ -49,7 +49,7 @@ vi.mock("../src/infra/registry.mjs", async () => {
   };
 });
 
-vi.mock("../src/render/templates.mjs", () => ({
+vi.mock("../src/render/templates.ts", () => ({
   PKG_ROOT: "/mock/pkg/root",
   renderHandoffStub: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
   renderTemplate: vi.fn(() => "mocked docs review prompt"),
@@ -198,7 +198,7 @@ describe("runDocsTask", () => {
   it("Task 18 review-1 finding 2: fix 族 HARD_GATE = docsFixHardGate 写盘门（review 的 json-return 门不被挪用）", async () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
-    const { docsFixHardGate, reviewHardGate } = await import("../src/render/templates.mjs");
+    const { docsFixHardGate, reviewHardGate } = await import("../src/render/templates.ts");
 
     vi.resetModules();
     const { runDocsTask } = await import("../src/dispatch/docs.ts");
@@ -231,7 +231,7 @@ describe("runDocsTask", () => {
   it("T3: fix 模板名直传 —— `-review`→`-fix` legacy 派生分支已删（renderTemplate 收 template 原值）", async () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
-    const { renderTemplate } = await import("../src/render/templates.mjs");
+    const { renderTemplate } = await import("../src/render/templates.ts");
 
     vi.resetModules();
     const { runDocsTask } = await import("../src/dispatch/docs.ts");

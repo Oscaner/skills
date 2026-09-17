@@ -26,25 +26,28 @@ const findingMeta = JSON.parse(
 );
 const { sectionLabels, masterDef } = findingMeta;
 
-// 枚举单源：由 canonical sectionLabels 派生（消除与 canonical 的重复表达面）——FINDING_TYPES
-// = sectionLabels 顶层键（type），LANGS = 首个 type 的语言键（当前 canonical 各 type 语言
-// 同构 en/zh）。校验与渲染共用同一枚举源，canonical 日后增 type/lang 不产生静默分歧面。
+// Enumeration single-source: derived from canonical sectionLabels (eliminates a duplicated
+// expression surface vs canonical) — FINDING_TYPES = sectionLabels top-level keys (type),
+// LANGS = the first type's language keys (current canonical types are language-isomorphic
+// en/zh). Validation and rendering share the one enumeration source; a future canonical
+// type/lang addition cannot silently diverge.
 const FINDING_TYPES = Object.keys(sectionLabels);
 const LANGS = Object.keys(sectionLabels[FINDING_TYPES[0]] ?? {});
 const TEXT_FIELDS = ["context", "problem", "impact", "suggestedFix"];
 
-/** report-meta 两字段 bullet — canonical metaFields（key+label 对）驱动，零硬编码。 */
+/** report-meta two-field bullet — driven by canonical metaFields (key+label pairs), zero hardcoding. */
 export function renderMeta(meta) {
   return findingMeta.metaFields
     .map(({ key, label }) => `- ${label}: ${meta[key] ?? ""}`)
     .join("\n");
 }
 
-// --- 聚合 body 渲染 ----------------------------------------------------------
-// 布局（§2.5 钉死）：Session 一段（masterDef sessionTitle + harnessRow 一行）；
-// findings 分型分块 × N（sectionLabels[finding.type][lang] 四段逐一渲染、段间为原始
-// 文本，meta 两行紧随四段 = 归属声明）；尾收 Dedup（全部 open 命中）与 Related（全部
-// closed 命中 + program 归属）单段，不做 per-finding 分段。
+// --- aggregate body rendering --------------------------------------------------
+// Layout (§2.5 pinned): Session as one block (masterDef sessionTitle + harnessRow single
+// line); findings grouped by type × N (sectionLabels[finding.type][lang] four segments
+// rendered one by one, with raw text between segments; the two meta lines directly after
+// the four segments = attribution). Tail ends with Dedup (all open hits) and Related (all
+// closed hits + program attribution) as single blocks, not per-finding sections.
 function renderFindingBlock(finding) {
   const labels = sectionLabels[finding.type][finding.lang];
   const segments = [
@@ -87,10 +90,10 @@ export function renderBody({ harness, findings, related }) {
   return parts.join("\n\n");
 }
 
-// --- 入参结构校验（E-3 / R2 处置）---------------------------------------------
-// 顶层 3 键 harness / findings[] / related? · per-finding 8 字段 · related 3 键，
-// 全量覆盖含枚举校验；手写结构断言（~40 行，零依赖），不引第二个 schema 体系。
-// 返回违规列表（`字段路径: 原因`），空数组 = 通过。
+// --- input shape validation (E-3 / R2 handling) ------------------------------
+// Top-level 3 keys harness / findings[] / related? · per-finding 8 fields · related 3 keys,
+// including enum validation; hand-written structural assertions (~40 lines, zero deps),
+// no second schema system. Returns a violation list (`field path: reason`), empty = pass.
 export function validateInput(input) {
   const errors = [];
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -171,7 +174,7 @@ export function validateInput(input) {
   return errors;
 }
 
-// --- CLI（裸调用单入口）-------------------------------------------------------
+// --- CLI（bare-call single entry）-------------------------------------------------------
 const isCli =
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;

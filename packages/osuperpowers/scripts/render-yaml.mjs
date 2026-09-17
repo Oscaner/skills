@@ -8,11 +8,14 @@
 // The only consumers are `scripts/emit/*.mjs` (issue-templates emitter).
 import { stringify } from "yaml";
 
-// 表单键 = formFieldDefs 对象键（finding-meta.json）；frontmatter.name 承载表单名，
-// 渲染仅消费 formDef——无二次标识（name 参数已去冗余）。枚举直引（单源 §2.6.1）：
-// 唯一 dropdown 是 component，其 options 由第二实参 `enums.components`（canonical
-// finding-meta.json 顶层即满足该形状）直接注入——form 定义内零 `options` 数组，不
-// 存在「两份实现需对齐」的同步面；无回退分支（枚举注入已收敛为直引，Task 14）。
+// Form keys = formFieldDefs object keys (finding-meta.json); frontmatter.name carries the
+// form name, rendering consumes only formDef — no secondary identifier (the name param is
+// de-duplicated). Enum direct-reference (single-source §2.6.1):
+// the only dropdown is component, whose options are injected directly by the second arg
+// `enums.components` (the top level of canonical finding-meta.json already has this shape) —
+// zero `options` arrays inside the form definition, so no "two implementations to keep in
+// sync" surface; no fallback branch (enum injection already converged to direct reference,
+// Task 14).
 export function renderYml(formDef, enums = {}) {
   const { frontmatter, body } = formDef;
   const doc = {
@@ -33,7 +36,8 @@ export function renderYml(formDef, enums = {}) {
       return entry;
     }),
   };
-  // lineWidth: 0 = 不折行（旧 emitScalar 同样不 wrap）；默认 indent 2。EOF newline
-  // 在 stringify 产物中（round-trip contract：emit:check 输出新鲜度守卫）。
+  // lineWidth: 0 = no wrapping (the old emitScalar did not wrap either); default indent 2.
+  // EOF newline comes in the stringify output (round-trip contract: emit:check freshness
+  // guard).
   return stringify(doc, { indent: 2, lineWidth: 0 });
 }

@@ -30,7 +30,7 @@ describe('review.md shared shell (Task 4)', () => {
 
 describe('reviews.json per-type config (Task 4)', () => {
   it('loadReviews exposes four types with content fields (artifact axis removed in T2)', async () => {
-    const { loadReviews, reviewTypeConfig, reviewArtifactConfig } = await import('../src/render/templates.mjs');
+    const { loadReviews, reviewTypeConfig, reviewArtifactConfig } = await import('../src/render/templates.ts');
     const { familyConfig } = await import('../src/artifacts/handoff/naming.ts');
     const reviews = loadReviews();
     expect(Object.keys(reviews)).toEqual(['task', 'branch', 'spec', 'plan']);
@@ -60,7 +60,7 @@ describe('reviews.json per-type config (Task 4)', () => {
   });
 
   it('renderModePrompt(review) renders review.md via the type=task config', async () => {
-    const { renderModePrompt } = await import('../src/render/templates.mjs');
+    const { renderModePrompt } = await import('../src/render/templates.ts');
     const out = renderModePrompt('review', {
       WORKSPACE: '/ws', HANDOFF: '/ws/task-1-review-1.json', FIXED_POINT: '7a7327b',
     });
@@ -107,7 +107,7 @@ describe('fix-family status decision rule (T5 fix round 2)', () => {
 
 describe('legacy review/fix templates removed (Task 4)', () => {
   it('the legacy review/fix template names are unmapped in MODE_GROUPS', async () => {
-    const { templatePath } = await import('../src/render/templates.mjs');
+    const { templatePath } = await import('../src/render/templates.ts');
     for (const name of ['spec-review', 'plan-review', 'branch-review', 'spec-fix', 'plan-fix']) {
       expect(() => templatePath(name)).toThrow(/unknown template/);
     }
@@ -124,7 +124,7 @@ describe('review.md HARD GATE（T6: returnMode 分写 + engine 读回确认）',
   });
 
   it('renderModePrompt(review, returnMode=h1) → "BEFORE outputting H1"', async () => {
-    const { renderModePrompt } = await import('../src/render/templates.mjs');
+    const { renderModePrompt } = await import('../src/render/templates.ts');
     const out = renderModePrompt('review', {
       WORKSPACE: '/ws', HANDOFF: '/ws/task-1-review-1.json', FIXED_POINT: '7a7327b',
     });
@@ -134,7 +134,7 @@ describe('review.md HARD GATE（T6: returnMode 分写 + engine 读回确认）',
   });
 
   it('renderTemplate(spec, returnMode=json) → "BEFORE outputting the JSON return"', async () => {
-    const { renderTemplate, reviewHardGate } = await import('../src/render/templates.mjs');
+    const { renderTemplate, reviewHardGate } = await import('../src/render/templates.ts');
     const out = renderTemplate('review', {
       TYPE: 'spec', WORKSPACE: '/ws', LENS_GUIDE: 'completeness · consistency · clarity',
       REFERENCE: '/tmp/spec.md', AXES: 'URC', HANDOFF: '/tmp/spec-review-1.json',
@@ -151,7 +151,7 @@ describe('fix/docs.md HARD GATE（Task 18 review-1 finding 2: fix return = 写�
   it('docsFixHardGate 渲染文本与 fix return 语义一致（“BEFORE exiting” 而非 “BEFORE outputting the JSON return”）', async () => {
     // fix 代理 stdout 上没有 JSON return（## Return「Your return IS the handoff written to …」）；
     // review 的 json-return 门此前被 run-docs 缺省挪用给 fix 代理，此处钉住 fix 自身门文案。
-    const { docsFixHardGate } = await import('../src/render/templates.mjs');
+    const { docsFixHardGate } = await import('../src/render/templates.ts');
     const gate = docsFixHardGate('/ws/spec-fix-2.json');
     expect(gate).toMatch(/HARD GATE[^\n]*BEFORE exiting/);
     expect(gate).not.toContain('JSON return');                                  // fix stdout 无 JSON return —— 门不得谈「输出 JSON return」

@@ -4,7 +4,7 @@
 // 单测改为捕获该哨兵读退出码；stderr 捕获写入文本。
 import { it, expect } from 'vitest';
 
-import { exitOk, exitBlocked, exitCliMissing, ExitRequested } from "../src/infra/exit.mjs";
+import { exitOk, exitBlocked, exitCliMissing, ExitRequested } from "../src/infra/exit.ts";
 
 // 捕获 fn(...args) 触发的 ExitRequested(code) + stderr 写入；返回 { code, stderr }。
 function captureExit(fn, ...args) {

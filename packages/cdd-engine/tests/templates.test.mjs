@@ -3,8 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadHandoffSchema } from '../src/rules/schema.mjs';
-import { renderHandoffStub } from '../src/render/templates.mjs';
+import { loadHandoffSchema } from '../src/rules/schema.ts';
+import { renderHandoffStub } from '../src/render/templates.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENGINE = path.join(__dirname, '..');
@@ -32,7 +32,7 @@ vi.mock('node:fs', async (importOriginal) => {
 
 describe('PKG_ROOT', () => {
   it('resolves to the templates resource dir under packages/cdd-engine', async () => {
-    const { PKG_ROOT } = await import('../src/render/templates.mjs');
+    const { PKG_ROOT } = await import('../src/render/templates.ts');
     // re-org Step 5：PKG_ROOT 语义收敛为模板资源目录本身（fileURLToPath(new URL("../templates", …))）。
     expect(PKG_ROOT).toMatch(/packages\/cdd-engine\/templates$/);
   });
@@ -41,7 +41,7 @@ describe('PKG_ROOT', () => {
 describe('review type config (Task 4: 模板数据化)', () => {
   it('loadReviews returns the four review types', async () => {
     vi.resetModules();
-    const { loadReviews } = await import('../src/render/templates.mjs');
+    const { loadReviews } = await import('../src/render/templates.ts');
     expect(Object.keys(loadReviews())).toEqual(['task', 'branch', 'spec', 'plan']);
   });
 
@@ -58,7 +58,7 @@ describe('review type config (Task 4: 模板数据化)', () => {
 
   it('reviewTypeConfig: known type → content-only config; unknown → throw', async () => {
     vi.resetModules();
-    const { reviewTypeConfig } = await import('../src/render/templates.mjs');
+    const { reviewTypeConfig } = await import('../src/render/templates.ts');
     expect(reviewTypeConfig('task').lensEnum).toEqual(['standards', 'spec']);
     expect(reviewTypeConfig('task')).not.toHaveProperty('returnMode');
     expect(reviewTypeConfig('task')).not.toHaveProperty('fixTemplate');
@@ -67,7 +67,7 @@ describe('review type config (Task 4: 模板数据化)', () => {
 
   it('reviewArtifactConfig: canonical review.{type} 族 → { schema, return }（T2 裁轴；fixFamily 已删——runFix 直读 fix 族）', async () => {
     vi.resetModules();
-    const { reviewArtifactConfig } = await import('../src/render/templates.mjs');
+    const { reviewArtifactConfig } = await import('../src/render/templates.ts');
     expect(reviewArtifactConfig('task')).toEqual({ schema: 'task', return: 'h1' });
     expect(reviewArtifactConfig('branch')).toEqual({ schema: 'task', return: 'h1' });
     expect(reviewArtifactConfig('spec')).toEqual({ schema: 'docs', return: 'json' });
@@ -77,7 +77,7 @@ describe('review type config (Task 4: 模板数据化)', () => {
 
   it('renderModePrompt(review) routes via review.md + reviews.json type=task (code-review focus)', async () => {
     vi.resetModules();
-    const { renderModePrompt } = await import('../src/render/templates.mjs');
+    const { renderModePrompt } = await import('../src/render/templates.ts');
     const out = renderModePrompt('review', {
       WORKSPACE: '/ws', HANDOFF: '/ws/task-1-review-1.json', FIXED_POINT: '7a7327b',
     });
@@ -94,7 +94,7 @@ describe('review type config (Task 4: 模板数据化)', () => {
 describe('renderTemplate', () => {
   it('replaces all params (review shell)', async () => {
     vi.resetModules();
-    const { renderTemplate } = await import('../src/render/templates.mjs');
+    const { renderTemplate } = await import('../src/render/templates.ts');
     const out = renderTemplate('review', {
       TYPE: 'spec', WORKSPACE: '/ws', LENS_GUIDE: 'completeness · consistency · clarity',
       REFERENCE: '/tmp/spec.md', AXES: 'URC 规则指针', HANDOFF: '/tmp/spec-review-1.json',
@@ -109,13 +109,13 @@ describe('renderTemplate', () => {
 
   it('throws on missing param', async () => {
     vi.resetModules();
-    const { renderTemplate } = await import('../src/render/templates.mjs');
+    const { renderTemplate } = await import('../src/render/templates.ts');
     expect(() => renderTemplate('review', { TYPE: 'spec', WORKSPACE: '/ws' }, 'test')).toThrow('missing param');
   });
 
   it('模板名映射（Task 18）：`fix/docs.md` 经 name=docs 解析；doc-fix 名已删', async () => {
     vi.resetModules();
-    const { templatePath } = await import('../src/render/templates.mjs');
+    const { templatePath } = await import('../src/render/templates.ts');
     expect(templatePath('docs')).toMatch(/templates\/fix\/docs\.md$/);
     expect(templatePath('fix')).toMatch(/templates\/task\/fix\.md$/);
     expect(() => templatePath('doc-fix')).toThrow(/unknown template/);
@@ -142,7 +142,7 @@ describe('templates 结构命名单源（Task 18：schema 原样注入 + 共享 
   });
 
   it('零手写 render 符号', () => {
-    const src = readFileSync(path.join(ENGINE, 'src/render/templates.mjs'), 'utf8');
+    const src = readFileSync(path.join(ENGINE, 'src/render/templates.ts'), 'utf8');
     // 经拼接构造（residue.test 先例）：本文件不得成为被守卫语汇的载体 —— 否则 T18 Step 7 的
     // 机制面 grep（src/ + templates/）在含 tests/ 的全扫下会命中自身。
     const GONE = [['stub', 'Annotation'], ['satis', 'fiesProp'], ['pattern', 'Sample'], ['required', 'Keys'], ['stub', 'Scalar'], ['renderAllOf', 'Conditions']]

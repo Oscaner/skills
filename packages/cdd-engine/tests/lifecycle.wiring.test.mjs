@@ -1,5 +1,5 @@
 // packages/cdd-engine/tests/lifecycle.wiring.test.mjs — 全派生点生命周期接线架构守卫。
-// spec §2.6：引擎全派生点全部经 spawnManaged（execa 直接 import 仅允许 src/infra/proc.mjs）；
+// spec §2.6：引擎全派生点全部经 spawnManaged（execa 直接 import 仅允许 src/infra/proc.ts）；
 // 全部派发出口（runTask / docs-runner / cli 层）接 idle 监视 + teardownAll；dist/cli.mjs 信号安全出口
 //（SIGINT/SIGTERM/SIGHUP → teardownAll 连根回收 → 128+signo 退出码）。CLI 信号用例以 PATH 遮蔽
 // harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch 经 spawnManaged 派生
@@ -27,14 +27,14 @@ afterAll(() => {
 });
 
 describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
-  it("execa 直接 import 仅允许出现在 src/infra/proc.mjs", () => {
+  it("execa 直接 import 仅允许出现在 src/infra/proc.ts", () => {
     const files = readdirSync(LIB, { recursive: true }).filter(f => String(f).endsWith(".mjs") || String(f).endsWith(".ts"));
     const offenders = [];
     for (const f of files) {
       const src = readFileSync(path.join(LIB, f), "utf8");
       // 仅匹配真实 import 语句（`import ... from "execa"`）——注释/文档中的 "execa" 字样不当 offenders，
       // 否则 invoke.mjs 等派生点注释提及 execa 历史（迁移叙事、spawnCapture 说明）会造成误伤。
-      if (/^\s*import\b[^;]*\bfrom\s*["']execa["']/m.test(src) && f !== "infra/proc.mjs" && f !== "infra/proc.ts") {
+      if (/^\s*import\b[^;]*\bfrom\s*["']execa["']/m.test(src) && f !== "infra/proc.ts") {
         offenders.push(`${f}: ${src.match(/^\s*import\b[^;]*execa[^;]*;?/m)?.[0]?.trim() ?? "execa import"}`);
       }
     }
@@ -46,19 +46,19 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     // 不再 per-file token 匹配 finally 双行（branch-review nit C）；guard 断言包装器被使用即接线成立。
     const runTask = readFileSync(path.join(LIB, "dispatch", "task.ts"), "utf8");
     const runDocs = readFileSync(path.join(LIB, "dispatch", "docs.ts"), "utf8");
-    const review = readFileSync(path.join(LIB, "cli", "review.mjs"), "utf8");
-    const branchReview = readFileSync(path.join(LIB, "cli", "branch-review.mjs"), "utf8");
-    const fix = readFileSync(path.join(LIB, "cli", "fix.mjs"), "utf8");
+    const review = readFileSync(path.join(LIB, "cli", "review.ts"), "utf8");
+    const branchReview = readFileSync(path.join(LIB, "cli", "branch-review.ts"), "utf8");
+    const fix = readFileSync(path.join(LIB, "cli", "fix.ts"), "utf8");
     for (const [name, src] of [["run-task", runTask], ["run-docs", runDocs], ["review", review],
                                ["branch-review", branchReview], ["fix", fix]]) {
       expect(src, `${name} 经 withLifecycle 出口`).toMatch(/withLifecycle/);
     }
-    const proc = readFileSync(path.join(LIB, "infra", "proc.mjs"), "utf8");
-    expect(proc).toMatch(/withLifecycle/);            // 包装器本体驻 infra/proc.mjs
+    const proc = readFileSync(path.join(LIB, "infra", "proc.ts"), "utf8");
+    expect(proc).toMatch(/withLifecycle/);            // 包装器本体驻 infra/proc.ts
     expect(proc).toMatch(/startIdleMonitor/);          // 包装器内含 idle 监视
     expect(proc).toMatch(/stopIdleMonitor/);
     expect(proc).toMatch(/teardownAll/);
-    const invoke = readFileSync(path.join(LIB, "infra", "invoke.mjs"), "utf8");
+    const invoke = readFileSync(path.join(LIB, "infra", "invoke.ts"), "utf8");
     expect(invoke).toMatch(/markAllDispatchesDone/);   // dispatch 返回落 done
     expect(invoke).not.toMatch(/^(?:export|const)[^\n]*spawnCapture/m);  // §2.2 D 无死导出（注释提及不受影响）
   });

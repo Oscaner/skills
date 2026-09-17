@@ -30,17 +30,17 @@ import {
   type DispatchHookContext,
   DispatchBlocked,
 } from "./base.ts";
-import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.mjs";
-import { renderModePrompt, pluginRoot } from "../render/templates.mjs";
+import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.ts";
+import { renderModePrompt, pluginRoot } from "../render/templates.ts";
 import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { validateCommitContract } from "../rules/commit.ts";
 import { generateBrief } from "../render/brief.ts";
 import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, workspaceRoot } from "../artifacts/handoff/naming.ts";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
-import { exitWithCode, ExitRequested } from "../infra/exit.mjs";
-import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.mjs";
-import { withLifecycle } from "../infra/proc.mjs";
-import { getRoot, resolveDocArg } from "../infra/root.mjs";
+import { exitWithCode, ExitRequested } from "../infra/exit.ts";
+import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.ts";
+import { withLifecycle } from "../infra/proc.ts";
+import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, h1CountersLine } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
 import { validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";

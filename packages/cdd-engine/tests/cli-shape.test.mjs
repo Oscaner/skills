@@ -1,5 +1,5 @@
 // tests/cli-shape.test.mjs — D11 CLI-surface shape test. 断言 citty 命令树
-//（src/cli/parse.mjs 的唯一命令面）的 review/fix option 形态（--doc 退役 → type
+//（src/cli/parse.ts 的唯一命令面）的 review/fix option 形态（--doc 退役 → type
 // 自解释 --spec/--plan）+ 新形态 dry-run smoke。
 // P3 命令面收敛守卫：退役命令（`cdd research` / `cdd brief`）黑盒完整形态 exit 2、
 // citty mainCommand.subCommands 顶层命令集合恰为四、命令声明面零回渗
@@ -13,12 +13,12 @@ import { execaSync } from 'execa';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mainCommand } from '../src/cli/parse.mjs';
+import { mainCommand } from '../src/cli/parse.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
-// 薄入口化（spec §2.3）：命令定义（option 形态）已移 src/cli/parse.mjs —— 静态断言改读 citty
+// 薄入口化（spec §2.3）：命令定义（option 形态）已移 src/cli/parse.ts —— 静态断言改读 citty
 // 声明（mainCommand.subCommands.*.args）；CLI 黑盒 exec 入口仍 CDD_MJS（dist/cli.mjs 由
 // src/bin.ts 构建，行为不变）。
 const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md');

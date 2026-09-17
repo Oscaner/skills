@@ -1,27 +1,28 @@
-// packages/cdd-engine/src/cli/parse.mjs — citty command surface (Task 9; spec §2.3. The commander
+// packages/cdd-engine/src/cli/parse.ts — citty command surface (Task 9; spec §2.3. The commander
 // program definition is retired — the full command tree lives here as ONE citty defineCommand
 // (mainCommand) with its four subcommands declared as citty subCommands: implement / review / fix
 // and base-branch with its nested set|get surface preserved via citty subCommands. Each action
 // run() assembles the DispatchLifecycle subclass
 // (TaskLifecycle / DocsLifecycle via runTask / runDocsTask / runBranchReview) and guards its flag
-// surface (guardArgs, src/cli/shared.mjs). src/bin.ts boots this tree: runCommand + the
-// --help pre-screen + parse/usage error normalization（exit code table §2.4.2）— the subcommand
+// surface (guardArgs, src/cli/shared.ts). src/bin.ts boots this tree: runCommand + the
+// --help pre-screen + parse/usage error normalization (exit code table §2.4.2) — the subcommand
 // usage lines (SUBCOMMAND_USAGE) still print for usage errors, while the `--help` surface renders
 // from these declarations via citty renderUsage.
 //
 // This file is statically readable by tests (cli-shape) and imports trigger no side effects —
 // runCommand is only invoked by the bin thin entry.
 import { defineCommand } from "citty";
+import type { ArgsDef, CommandDef, CommandMeta, SubCommandsDef } from "citty";
 
-import { runReview } from "./review.mjs";
-import { runFix } from "./fix.mjs";
-import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.mjs";
-import { requireHostHarness, guardArgs, intTask, DRY_RUN } from "./shared.mjs";
+import { runReview } from "./review.ts";
+import { runFix } from "./fix.ts";
+import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.ts";
+import { requireHostHarness, guardArgs, intTask, DRY_RUN } from "./shared.ts";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;
 // the commander-era wording is kept — the black-box face contracts pin it). Program-level
 // --dry-run does NOT appear here: it is declared on the main command only.
-const SUBCOMMAND_USAGE = {
+const SUBCOMMAND_USAGE: Record<string, string> = {
   implement: "usage: cdd implement --task <n> [--plan <path>]",
   review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
   fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
@@ -31,16 +32,23 @@ const SUBCOMMAND_USAGE = {
 };
 
 // Print the usage line for the resolved parse/usage-error context; default = the top-level line.
-export function usageError(command) {
-  process.stderr.write((Object.hasOwn(SUBCOMMAND_USAGE, command) ? SUBCOMMAND_USAGE[command] : "usage: cdd <command> [options]") + "\n");
+export function usageError(command: string | null): void {
+  process.stderr.write((Object.hasOwn(SUBCOMMAND_USAGE, command ?? "") ? SUBCOMMAND_USAGE[command ?? ""] : "usage: cdd <command> [options]") + "\n");
+}
+
+// The citty types model meta as Resolvable<CommandMeta> (T | Promise<T> | ()=>T); this tree
+// always declares metas as plain objects, so unwrap the union for the narrow name read.
+function metaName(def: CommandDef<any> | undefined): string | null {
+  const meta = def?.meta as CommandMeta | undefined;
+  return meta?.name ?? null;
 }
 
 // Map a resolveSubCommand result to its SUBCOMMAND_USAGE key: a nested citty leaf (set|get) maps
 // to its parent command key (base-branch), a direct child maps to itself, the root maps to null
 // (→ the default "usage: cdd <command> [options]" line).
-export function commandUsageKey(cmd, parent) {
-  if (parent && parent !== mainCommand) return parent.meta?.name ?? null;
-  if (cmd !== mainCommand) return cmd.meta?.name ?? null;
+export function commandUsageKey(cmd: CommandDef<any>, parent: CommandDef<any> | undefined): string | null {
+  if (parent && parent !== mainCommand) return metaName(parent);
+  if (cmd !== mainCommand) return metaName(cmd);
   return null;
 }
 
@@ -49,7 +57,7 @@ export function commandUsageKey(cmd, parent) {
 // same deep resolution to know WHICH command's usage to render / key on error. Replicates the
 // matching semantics for our tree: the first non-flag position (skipping value-flag values) is
 // looked up in subCommands, recursing into the match. Returns [deepestCmd, parentCmd].
-function subcommandIndex(rawArgs, argDef) {
+function subcommandIndex(rawArgs: string[], argDef: ArgsDef | undefined): number {
   for (let i = 0; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
     if (arg === "--") return -1;               // everything after -- is positional
@@ -66,20 +74,27 @@ function subcommandIndex(rawArgs, argDef) {
   return -1;
 }
 
-async function resolveDeepest(rawArgs, cmd, parent) {
-  const subCommands = cmd?.subCommands ?? {};
+async function resolveDeepest(
+  rawArgs: string[],
+  cmd: CommandDef<any>,
+  parent: CommandDef<any> | undefined,
+): Promise<[CommandDef<any>, CommandDef<any> | undefined]> {
+  const subCommands: SubCommandsDef = (cmd.subCommands as SubCommandsDef | undefined) ?? {};
   if (Object.keys(subCommands).length > 0) {
-    const idx = subcommandIndex(rawArgs, cmd.args ?? {});
+    const idx = subcommandIndex(rawArgs, cmd.args as ArgsDef | undefined);
     const name = idx >= 0 ? rawArgs[idx] : undefined;
     if (name && Object.hasOwn(subCommands, name)) {
-      return resolveDeepest(rawArgs.slice(idx + 1), subCommands[name], cmd);
+      return resolveDeepest(rawArgs.slice(idx + 1), subCommands[name] as CommandDef<any>, cmd);
     }
   }
   return [cmd, parent];
 }
 
-export async function deepestCommand(rawArgs, cmd = mainCommand) {
-  return resolveDeepest(rawArgs, cmd, null);
+export async function deepestCommand(
+  rawArgs: string[],
+  cmd: CommandDef<any> = mainCommand,
+): Promise<[CommandDef<any>, CommandDef<any> | undefined]> {
+  return resolveDeepest(rawArgs, cmd, undefined);
 }
 
 // ---- flags ----
@@ -90,7 +105,13 @@ export async function deepestCommand(rawArgs, cmd = mainCommand) {
 export const MAIN_ARGS = {
   // Program-level — the bin wrapper resolves it from the FULL argv (position-independent).
   "dry-run": { type: "boolean", description: "simulate without writing handoff artifacts" },
-};
+} as const;
+
+// The citty types model args as Resolvable<T> (T | Promise<T> | ()=>T); guardArgs expects the
+// concrete plain ArgsDef, which is exactly what each command declares.
+function argsOf(def: CommandDef<any>): ArgsDef | undefined {
+  return def.args as ArgsDef | undefined;
+}
 
 const implementCmd = defineCommand({
   meta: { name: "implement", description: "run the task implement phase (cdd implement)" },
@@ -99,7 +120,7 @@ const implementCmd = defineCommand({
     plan: { type: "string", valueHint: "path", description: "plan file path" },
   },
   run: async ({ args, rawArgs }) => {
-    guardArgs(rawArgs, implementCmd.args);
+    guardArgs(rawArgs, argsOf(implementCmd));
     const harness = requireHostHarness();
     const { runTask } = await import("../dispatch/task.ts");
     await runTask(harness, intTask(args.task), {
@@ -120,7 +141,7 @@ const reviewCmd = defineCommand({
     spec: { type: "string", valueHint: "path", description: "spec document path (type=spec: review target; type=plan: upstream reference pointer)" },
   },
   run: async ({ args, rawArgs }) => {
-    guardArgs(rawArgs, reviewCmd.args);
+    guardArgs(rawArgs, argsOf(reviewCmd));
     const task = args.task != null ? intTask(args.task) : undefined;
     await runReview({ ...args, task });
   },
@@ -136,14 +157,15 @@ const fixCmd = defineCommand({
     plan: { type: "string", valueHint: "path", description: "plan path (type=task|plan)" },
   },
   run: async ({ args, rawArgs }) => {
-    guardArgs(rawArgs, fixCmd.args);
+    guardArgs(rawArgs, argsOf(fixCmd));
     const task = args.task != null ? intTask(args.task) : undefined;
     await runFix({ ...args, task });
   },
 });
 
-// base-branch — 纯 artifact 命令（P5 spec §2.3）: single --plan target base-branch.json read/write;
-// the nested set|get surface is declared as citty subCommands (no harness / lifecycle dependency).
+// base-branch — pure artifact command (P5 spec §2.3): the single --plan target base-branch.json
+// read/write; the nested set|get surface is declared as citty subCommands (no harness / lifecycle
+// dependency).
 const setCmd = defineCommand({
   meta: { name: "set", description: "write the base-branch artifact" },
   args: {
@@ -153,7 +175,7 @@ const setCmd = defineCommand({
     force: { type: "boolean", description: "override an existing base-branch with a different base" },
   },
   run: async ({ args, rawArgs }) => {
-    guardArgs(rawArgs, setCmd.args);
+    guardArgs(rawArgs, argsOf(setCmd));
     await runBaseBranchSet(args);
   },
 });
@@ -164,7 +186,7 @@ const getCmd = defineCommand({
     plan: { type: "string", valueHint: "path", description: "plan file → resolveWorkspace(plan)" },
   },
   run: async ({ args, rawArgs }) => {
-    guardArgs(rawArgs, getCmd.args);
+    guardArgs(rawArgs, argsOf(getCmd));
     await runBaseBranchGet(args);
   },
 });

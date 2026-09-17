@@ -1,5 +1,5 @@
 // tests/fixtures/proc-oracle-engine.mjs — 独立「引擎」：模拟被 SIGKILL 前已落盘 registry 的外部引擎进程
-import { initProcLifecycle, spawnManaged, persistRegistry } from "../../src/infra/proc.mjs";
+import { initProcLifecycle, spawnManaged, persistRegistry } from "../../src/infra/proc.ts";
 const disk = process.argv[2];
 await initProcLifecycle({ diskPath: disk });
 await spawnManaged(process.execPath, ["-e", "const{spawn}=require('node:child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1ORPHAN']).unref();process.exit(0)"], { timeoutMs: 5000 });

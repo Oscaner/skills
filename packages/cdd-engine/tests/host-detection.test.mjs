@@ -9,10 +9,10 @@ import { it, expect } from "vitest";
 import { execaSync } from "execa";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-// 薄入口化（spec §2.3）：detectCurrentHarness 随守卫簇移 src/cli/shared.mjs（spec §2.6 守卫簇拆
+// 薄入口化（spec §2.3）：detectCurrentHarness 随守卫簇移 src/cli/shared.ts（spec §2.6 守卫簇拆
 // cli/shared，闭包完备性：reviewStoppingGuard → stoppedExit3 + blockerCount + reviewStoppedError 全簇
 // 随迁）—— 测试 seam 改指 shared.mjs。
-import { detectCurrentHarness } from "../src/cli/shared.mjs";
+import { detectCurrentHarness } from "../src/cli/shared.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");

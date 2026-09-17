@@ -14,14 +14,14 @@ import path from "node:path";
 
 import { DocsLifecycle, runDocsTask } from "../src/dispatch/docs.ts";
 import { DispatchBlocked, type DispatchContext } from "../src/dispatch/base.ts";
-import { ExitRequested } from "../src/infra/exit.mjs";
+import { ExitRequested } from "../src/infra/exit.ts";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
 // Ghost harness registry (mirrors docs-runner.test.mjs): checkHarness resolves a fake entry with
 // the review/fix injection map; invokeCli's resolveInjection comes from the real implementation.
-vi.mock("../src/infra/registry.mjs", async () => {
-  const actual = await vi.importActual<typeof import("../src/infra/registry.mjs")>("../src/infra/registry.mjs");
+vi.mock("../src/infra/registry.ts", async () => {
+  const actual = await vi.importActual<typeof import("../src/infra/registry.ts")>("../src/infra/registry.ts");
   return {
     ...actual,
     loadRegistry: vi.fn(() => ({})),
@@ -35,7 +35,7 @@ vi.mock("../src/infra/registry.mjs", async () => {
     REG_PATH: actual.REG_PATH,
   };
 });
-vi.mock("../src/render/templates.mjs", () => ({
+vi.mock("../src/render/templates.ts", () => ({
   renderTemplate: () => "mocked docs prompt body",
   renderHandoffStub: () => "{\"stub\":true}",
   reviewHardGate: (ret: string) => `--hard-gate ${ret}`,

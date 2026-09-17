@@ -341,35 +341,45 @@ dispatch lifecycle（engine 单点实现, run-task/run-docs）:
 
 **不引清单**（运维文档明示，防未来误引）：**XState**（engine 已有收敛状态机语义——Review Stopping / 失败类目 / 配额隔离——400+ tests 锚定，引即推翻 P3/P4 收敛成果，破坏性风险零收益）· **tapable / emittery**（tapable webpack 生态过重；emittery 语义为发布-订阅非生命周期编排——hookable 已选且同源）· **模板引擎替代品**（handlebars 已选；ejs/nunjucks 语法不兼容需改模板）· **isomorphic-git / js-yaml**（各有 CVE 或维护放缓，见上表）· **oclif**（TS 强但 plugin manifest/自动更新约定对单 bin+内嵌引擎过载）。
 
-**组权重构**（用户授权重组，v1.27 升维为全量重建）：
+**组权重构**（用户授权重组，v1.27 升维为全量重建；目录按**依赖单向轴**：cli → dispatch → {rules, artifacts, render} → infra）：
 ```
 packages/cdd-engine/
   src/                          # TS 源码（全量 TS + unbuild 构建）
-    bin.ts                      # 薄入口（citty defineMainCommand；dev = dist 经 stub）
-    cli/                        # 命令面（implement/review/fix/base-branch/branch-review 声明）
-      index.ts  review.ts  fix.ts  branch-review.ts  base-branch.ts  shared.ts
-    contract/                   # 契约判定（CDD 语义，仅此层）
-      commit.ts                 # simple-git 封装 + 入口/出口双门（pre-flight/post-flight commit 管控）
-      dispatch.ts               # 失败类目路由（原 failure.mjs）
-    git/                        # 新增：simple-git 单点封装（status/add/commit/head/log）
-      index.ts
-    handoff/                    # handoff 域
-      write.ts  schema.ts  finalize.ts  naming.ts
-    lifecycle/                  # 生命周期域（重建核心）
-      base.ts                   # DispatchLifecycle 抽象基类（模板方法骨架 + hook 默认实现）
-      task.ts                   # TaskLifecycle（task 功能：自身 hook 全覆盖写）
+    bin.ts                      # 薄入口：citty 装配 → 派发
+    cli/                        # 命令面（入站）：command 定义 + 子命令 action
+      index.ts  implement.ts  review.ts  fix.ts  base-branch.ts  branch-review.ts  shared.ts
+    dispatch/                   # 编排核心（生命周期域）：抽象基类 + 两实现 + 注册面 + 阶段表
+      base.ts                   # DispatchLifecycle 抽象基类（模板方法：pre-flight/dispatch/post-flight + hook 默认实现）
+      task.ts                   # TaskLifecycle（task 功能全覆盖写：brief/fixed-point/H1）
       docs.ts                   # DocsLifecycle（docs 功能：spec/plan review/fix）
       hooks.ts                  # hookable 注册面（dispatch:before/after 固定 hook 点，外部插件）
-      render.ts                 # handlebars 渲染（原 templates.mjs）
-      brief.ts  invoke.ts  proc.ts
-    core/                       # 根部基础设施（原根级散模块聚合）
-      root.ts  exit.ts  registry.ts  context.ts
-    state/                      # 状态域
-      progress.ts  workspace-artifacts.ts
+      phases.ts                 # PHASES 阶段表（数据化声明：每阶段 hook 挂载）
+    rules/                      # CDD 判定规则（不变量层：改这里须重想评审语义）
+      commit.ts                 # commit 双门（入口 clean-tree + 出口 validateCommitContract，simple-git 判定）
+      stopping.ts               # Review Stopping 守卫簇
+      failure.ts                # 失败类目（六类 + 配额隔离；原 failure.mjs）
+      schema.ts                 # handoff JSON schema 校验（validate/recover/handoff-namespace）
+    artifacts/                  # 引擎产物（磁盘工件）：读写 + 定稿 + 命名
+      handoff/                  # write.ts · finalize.ts · naming.ts
+      progress.ts               # progress.json read/write/migrate
+      base-branch.ts            # base-branch.json artifact
+    render/                     # 提示词渲染（独立产出面）
+      templates.ts              # handlebars 渲染（原 templates.mjs：renderTemplate/renderHandoffStub/review 壳）
+      brief.ts                  # brief 生成（原 brief.mjs）
+    infra/                      # 基础设施（能力供给，零 CDD 语义）
+      git.ts                    # simple-git 单点封装（status/add/commit/head/log）
+      proc.ts                   # 进程生命周期（spawnManaged/teardown/reap + execa）
+      invoke.ts                 # CLI 调用契约（resolveTimeout/invokeCli）
+      root.ts                   # repoRoot 解析（唯一 cwd 点）
+      context.ts                # context-contract 读取
+      registry.ts               # harness registry
+      exit.ts                   # exit codes
+      log.ts                    # consola
+  templates/                    # 提示词模板资源（md 壳 + schema JSON + canonical JSON）
   dist/                         # unbuild 产物（dev 亦经此——stub 模式即时加载 src）
   build.config.ts               # unbuild 配置
 ```
-迁移动机：**功能聚簇**——`lifecycle/task.ts` 一个文件看全 task 功能（覆写了哪些 hook + 专有步骤），运维不再跨 handler 找齐；`git/` 收 simple-git 划清「git=基础设施、CDD 语义在 contract/lifecycle」；抽象基类使变体（task/docs）差异显式化。
+迁移动机：**多层责任单向依赖**——`infra/`（git/进程/根解析，零业务语义，随便换），`rules/`（CDD 判定，改须重想语义），`artifacts/`（磁盘产物同层同责），`dispatch/`（lifecycle 的家：抽象基类 + 子类 + phases + hooks 一目录看全），`render/`（提示词注入独立面），`cli/`（薄命令面）——运维按「改哪层」定位：改阶段顺序 → `dispatch/base.ts+phases.ts`；改 commit 判定 → `rules/commit.ts`；改 handoff 格式 → `artifacts/handoff/`；换 git/进程 → `infra/`。生命周期用 `dispatch/` 领域词而非 `lifecycles/` 抽象复数（仅一族且是核心）；hooks 注册面放 `dispatch/hooks.ts`（真实存在代码），不设空 `plugins/` 目录（无真实消费面，防空转）。
 
 **开发调用链**（CLAUDE.md dev 段随 bin 产品化同步更新）：全量 TS 后 `node packages/cdd-engine/bin/cdd.mjs` 失效 → **`unbuild --stub` 生成 `dist/` 入口（jiti 即时加载 TS 源码）→ `node packages/cdd-engine/dist/cli.mjs <subcommand>`**。dev 与发布同走 `dist` 入口路径（stub 模式源码即生效）；**仍不 npm link 全局**（本仓规约：global link 会陈旧，直接工作树直调）。
 

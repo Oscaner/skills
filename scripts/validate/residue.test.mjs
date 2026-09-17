@@ -1091,6 +1091,53 @@ describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review
   });
 });
 
+// ---- Task 16（P6）：report-issues 旧模型残留守卫 ----
+// 旧模型语汇（resolve-destination / ensure-session / append-comment / --mode /
+// renderComment / renderTitle / resolveDropdownOptions / sessionTypes）已清零（rewrite 收口轮），
+// 此处为常驻防回归。`report-issue` 必须词边界（\b）——复数 `report-issues` skill 名合法（裸
+// substring 会误报复数）。`--mode` 取词形（负向后顾/前瞻豁免内部 `mode:` 属性与 --modeYaml 一类
+// 衍生 token）。`execFileSync("git")` 防手写 git 回渗（engine 唯一 spawn 通道 = proc.mjs 的
+// execa）。scope = ALL_MECH_POSITIONS（机制面零豁免）；scripts/ 不在 scope，本文件直接写字面
+// 无自噬风险（T15 先例）。
+describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16）", () => {
+  it("裸 report-issue（词边界）命中；复数 report-issues skill 名放行", () => {
+    expect(hasHit(["report-issue 旧流程名"])).toBe(true);
+    expect(hasHit(["`report-issue` 节点"])).toBe(true);
+    expect(hasHit(["osuperpowers:report-issues skill 名"])).toBe(false);
+    expect(hasHit(["packages/osuperpowers/skills/report-issues/SKILL.md"])).toBe(false);
+  });
+  it("--mode 词形命中（旧 flag）；内部 mode 属性 / --modeYaml 衍生形放行", () => {
+    expect(hasHit(["cdd-task --mode implement"])).toBe(true);
+    expect(hasHit(["render --mode 报告 body"])).toBe(true);
+    expect(hasHit(['runTask(harness, n, { mode: "implement" })'])).toBe(false);
+    expect(hasHit(["report-templates --modeYaml"])).toBe(false);
+  });
+  it("旧 renderer/session 语汇命中：renderComment / renderTitle / resolveDropdownOptions / sessionTypes", () => {
+    expect(hasHit(["renderComment(body, findings)"])).toBe(true);
+    expect(hasHit(["renderTitle generated"])).toBe(true);
+    expect(hasHit(["resolveDropdownOptions(id)"])).toBe(true);
+    expect(hasHit(["sessionTypes 分类"])).toBe(true);
+  });
+  it('execFileSync("git") 命中（引号双形）；execa/其他命令放行', () => {
+    expect(hasHit(['execFileSync("git", ["rev-parse", "--show-toplevel"])'])).toBe(true);
+    expect(hasHit(["execFileSync('git', ['log'])"])).toBe(true);
+    expect(hasHit(['execa("git", ["log"])'])).toBe(false);
+    expect(hasHit(['execFileSync("node", ["x"])'])).toBe(false);
+  });
+  it("含旧 renderer 语汇的临时文件被 collectStaleLexiconHits 命中；复数/内部属性/execa 放行", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-t16-"));
+    writeFileSync(path.join(dir, "a.mjs"), "render --mode implement\nrenderComment gone\n", "utf8");
+    writeFileSync(path.join(dir, "b.mjs"), "osuperpowers:report-issues\nmode: \"implement\"\nexeca(\"git\", x)\n", "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(2); // --mode + renderComment（a.mjs）；b.mjs 全放行
+      expect(hits[0].file).toContain("a.mjs");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("live repo：T16 skills 面守卫 5 条零残留", () => {
   it("collectSkillSurfaceHits() === []（§2.8 行 12/15/16/17/18 全绿）", () => {
     expect(collectSkillSurfaceHits()).toEqual([]);

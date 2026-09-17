@@ -93,7 +93,7 @@ export const MAIN_ARGS = {
 };
 
 const implementCmd = defineCommand({
-  meta: { name: "implement", description: "run the task implement phase (cdd-task --mode implement)" },
+  meta: { name: "implement", description: "run the task implement phase (cdd implement)" },
   args: {
     task: { type: "string", required: true, valueHint: "n", description: "task number" },
     plan: { type: "string", valueHint: "path", description: "plan file path" },
@@ -127,7 +127,7 @@ const reviewCmd = defineCommand({
 });
 
 const fixCmd = defineCommand({
-  meta: { name: "fix", description: "fix review findings — task | spec | plan (formerly cdd-task --mode fix / docs-task fix)" },
+  meta: { name: "fix", description: "fix review findings — task | spec | plan (formerly cdd-task / docs-task fix modes)" },
   args: {
     type: { type: "string", required: true, valueHint: "task|spec|plan", description: "fix type" },
     task: { type: "string", valueHint: "n", description: "task number (type=task)" },

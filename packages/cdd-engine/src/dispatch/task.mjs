@@ -13,7 +13,7 @@ import path from "node:path";
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.mjs";
 import { renderModePrompt, pluginRoot } from "../render/templates.mjs";
 import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.mjs";
-import { validateCommitContract } from "../rules/commit.mjs";
+import { validateCommitContract } from "../rules/commit.ts";
 import { generateBrief } from "../render/brief.mjs";
 import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, workspaceRoot } from "../artifacts/handoff/naming.mjs";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../artifacts/handoff/finalize.mjs";
@@ -340,7 +340,7 @@ export async function runTask(harness, taskNum, opts = {}) {
     //   写前 dirname bootstrap（同 writeBaseBranch 的 workspace bootstrap 惯例）。
     try {
       mkdirSync(path.dirname(ctx.briefPath), { recursive: true });
-      generateBrief(planWorkspace.plan, taskNum, ctx.briefPath, root);
+      await generateBrief(planWorkspace.plan, taskNum, ctx.briefPath, root);
     } catch (e) {
       throw new RunBlocked(`brief generation failed: ${e.message}`);
     }
@@ -567,7 +567,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   //     定稿写盘用 writeOwnHandoff（engine 载体唯一作者，全量覆盖替换），H1 一律从定稿 h1FromHandoff 重发。
   //     T8: post-run commit-contract 全 mode 接线（13.5）+ APPROVED review 回写 task.status=complete。
   if (!dryRun && mode === "implement") {
-    const finalized = finalizeHandoff({
+    const finalized = await finalizeHandoff({
       mode,
       h1,
       brief: ctx.briefPath,
@@ -597,7 +597,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   //   smoke 链）会经 rewriteHandoffBlocked 真写 BLOCKED 文件、污染 dry-run 语义。
   //   必须先于 review 的 status=complete 回写：dirty 失败轮不误标 complete。
   if (!dryRun) {
-    const cv = validateCommitContract(mode, root ?? "", { handoffPath: ctx.handoffPath });
+    const cv = await validateCommitContract(mode, root ?? "", { handoffPath: ctx.handoffPath });
     if (!cv.ok) {
       maybeExhaust(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id, ctx.handoffPath); // T6: commit-contract 重写 = 引擎自写 BLOCKED → engineSelfWrittenCount（不再消耗 recovery 额度）
       return finish(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), cv.blocker, noExit);
@@ -611,7 +611,7 @@ export async function runTask(harness, taskNum, opts = {}) {
   if (!dryRun && mode === "review") {
     const reviewHandoff = readJson(ctx.handoffPath);
     if (reviewHandoff) {
-      const finalized = finalizeHandoff({ mode, agentHandoff: reviewHandoff });
+      const finalized = await finalizeHandoff({ mode, agentHandoff: reviewHandoff });
       // persistFinalized：派生无变化（同引用）→ skip 写盘（不产生 no-op 覆盖）；有变化 → 全量覆盖 + sync。
       persistFinalized(ctx.handoffPath, reviewHandoff, finalized);
       h1 = h1FromHandoff(ctx.handoffPath, ctx.workspace);

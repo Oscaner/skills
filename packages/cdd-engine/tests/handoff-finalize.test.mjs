@@ -15,31 +15,31 @@ import { gitInit } from "./helpers.mjs";
 
 // ---- review 族：rollup 派生（applyDerivedStatus；SP-4 失败轮次豁免）----
 
-it("finalizeHandoff review 族：agent 写 warn-only CHANGES_REQUESTED → 定稿 APPROVED（rollup 派生）", () => {
+it("finalizeHandoff review 族：agent 写 warn-only CHANGES_REQUESTED → 定稿 APPROVED（rollup 派生）", async () => {
   const agentHandoff = { status: "CHANGES_REQUESTED", findings: [{ severity: "warn" }] };
-  const r = finalizeHandoff({ mode: "review", agentHandoff });
+  const r = await finalizeHandoff({ mode: "review", agentHandoff });
   expect(r.handoff.status).toBe("APPROVED");
   expect(r.handoff.findings).toEqual([{ severity: "warn" }]);
   expect(r.handoff).not.toBe(agentHandoff); // 派生返回新对象（不原地修改 agent 内容）
   expect(r.exitCode).toBe(0);
 });
 
-it("finalizeHandoff review 族：无变化 → 返回原对象（不写盘；caller 以引用判定 skip）", () => {
+it("finalizeHandoff review 族：无变化 → 返回原对象（不写盘；caller 以引用判定 skip）", async () => {
   const agentHandoff = { status: "APPROVED", findings: [] };
-  const r = finalizeHandoff({ mode: "review", agentHandoff });
+  const r = await finalizeHandoff({ mode: "review", agentHandoff });
   expect(r.handoff).toBe(agentHandoff);
   expect(r.exitCode).toBe(0);
 });
 
-it("finalizeHandoff review 族 SP-4 豁免：agent status BLOCKED + findings:[] → 保持 BLOCKED（失败轮次不覆写）", () => {
+it("finalizeHandoff review 族 SP-4 豁免：agent status BLOCKED + findings:[] → 保持 BLOCKED（失败轮次不覆写）", async () => {
   const agentHandoff = { status: "BLOCKED", findings: [], blocker: "boom" };
-  const r = finalizeHandoff({ mode: "review", agentHandoff });
+  const r = await finalizeHandoff({ mode: "review", agentHandoff });
   expect(r.handoff.status).toBe("BLOCKED");
 });
 
 // ---- implement 族：实体化，输入无 agentHandoff 槽位 ----
 
-it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型避免残留路径）", () => {
+it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型避免残留路径）", async () => {
   // 从 H1 + brief TASK_BASE + git HEAD 实体化（T6 逻辑迁入；commits 单一权威）。
   const repo = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-repo-"));
   gitInit(repo);
@@ -49,7 +49,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   writeFileSync(brief, `# task 1\nTASK_BASE: ${taskBase}\n`);
   writeFileSync(path.join(ws, "task-1-test-evidence.json"), "{}"); // behavior_change !== true → soft 空
   const actualHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim();
-  const r = finalizeHandoff({
+  const r = await finalizeHandoff({
     mode: "implement",
     h1: [
       "status: APPROVED",
@@ -69,26 +69,26 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   expect(r.exitCode).toBe(0);
 });
 
-it("finalizeHandoff implement 族：brief 无 TASK_BASE → 降级 fail-open（不实体化，handoff:null + exit 0）", () => {
+it("finalizeHandoff implement 族：brief 无 TASK_BASE → 降级 fail-open（不实体化，handoff:null + exit 0）", async () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-fail-"));
   const brief = path.join(ws, "task-1-brief.md");
   writeFileSync(brief, "# task 1\nno TASK_BASE here\n");
-  const r = finalizeHandoff({ mode: "implement", h1: ["status: APPROVED"], brief, workspace: ws, taskNum: 1 });
+  const r = await finalizeHandoff({ mode: "implement", h1: ["status: APPROVED"], brief, workspace: ws, taskNum: 1 });
   expect(r.handoff).toBeNull();
   expect(r.exitCode).toBe(0);
 });
 
 // ---- fix 族：work 型 — agent 声明保留，契约在 commit-contract 层否决 ----
 
-it("finalizeHandoff fix 族：agent 声明保留（不派生覆写）", () => {
+it("finalizeHandoff fix 族：agent 声明保留（不派生覆写）", async () => {
   const agentHandoff = { status: "APPROVED", findings: [{ severity: "blocker" }], blocker: "uncommitted" };
-  const r = finalizeHandoff({ mode: "fix", agentHandoff });
+  const r = await finalizeHandoff({ mode: "fix", agentHandoff });
   expect(r.handoff).toBe(agentHandoff);
   expect(r.exitCode).toBe(0);
 });
 
-it("finalizeHandoff 未知 mode → 抛错（定稿分派契约）", () => {
-  expect(() => finalizeHandoff({ mode: "bogus", agentHandoff: {} })).toThrow(/unknown mode/);
+it("finalizeHandoff 未知 mode → 抛错（定稿分派契约）", async () => {
+  await expect(finalizeHandoff({ mode: "bogus", agentHandoff: {} })).rejects.toThrow(/unknown mode/);
 });
 
 // ---- writeOwnHandoff：全量覆盖写盘（engine 载体唯一作者）----

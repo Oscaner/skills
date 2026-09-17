@@ -142,7 +142,7 @@ export async function runDocsTask({
   //（同引用 skip 写盘；work 型声明保留，契约在 commit-contract 层否决）。定稿写盘用
   // persistFinalized（全量覆盖替换；派生无变化 → 同引用 skip 写盘，返回 false 不产生 no-op 覆盖）。
   if (mode === "review" || mode === "fix") {
-    const finalized = finalizeHandoff({ mode, agentHandoff: handoff });
+    const finalized = await finalizeHandoff({ mode, agentHandoff: handoff });
     if (mode === "review") {
       // P2 F5（§2.3.3）：review-mode 恒注入内容状态 token——引擎定稿（载体唯一作者 T7），
       // 恒有 doc_hash 变更 → writeOwnHandoff 全量覆盖（不再复用 persistFinalized 的 skip-write）。

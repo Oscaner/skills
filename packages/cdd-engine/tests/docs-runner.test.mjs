@@ -11,16 +11,8 @@ import { tmpdir } from "node:os";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
-vi.mock("../src/rules/commit.mjs", async () => {
-  // T5/T7: deriveReviewStatus/applyDerivedStatus 走真实实现（src/artifacts/handoff/finalize.mjs 不 mock），
-  // mock 只替 gitToplevel（commit.mjs 侧），保证 docs-runner 读回定稿测试（finalizeHandoff →
-  // rollup 派生）覆盖的是真实派生逻辑，而非 mock 出来的假 status。
-  const actual = await vi.importActual("../src/rules/commit.mjs");
-  return {
-    ...actual,
-    gitToplevel: vi.fn(() => "/repo/root"),
-  };
-});
+// Task 5: rules/commit.mjs was deleted (its git now lives in infra/git.ts, consumed by
+// finalize.mjs — no commit-module mock needed here; docs-runner injects repoRoot explicitly).
 
 vi.mock("../src/artifacts/handoff/write.mjs", async () => {
   // write 三件（contract.mjs 符号拆分后独立文件）：writeHandoff/writeOwnHandoff mock（不落盘），

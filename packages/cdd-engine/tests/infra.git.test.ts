@@ -1,6 +1,6 @@
 // tests/infra.git.test.ts — TS infra layer: simple-git single-point wrapper.
 // Spec §2.13 git row: status/add/commit/head/log replace the hand-written
-// execFileSync("git") helpers in rules/commit.mjs. Fail-open contracts mirror
+// hand-written git subprocess helpers in rules/commit.mjs. Fail-open contracts mirror
 // the old helpers (non-repo / git error → null / false).
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";

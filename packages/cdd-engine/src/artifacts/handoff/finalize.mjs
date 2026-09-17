@@ -10,10 +10,11 @@
 // contract.mjs 符号拆分（spec §2.3）：status 派生五件（normalizeHandoffStatus / classifySeverity /
 // rollupStatus / deriveReviewStatus / applyDerivedStatus）并入本文件（原 severity 契约簇，
 // spec D1/D4/D5a；applyDerivedStatus 本为 finalize 消费方，同簇内聚）。
+// Task 5 换底：git 判定经 infra/git.ts（simple-git 单点），不再经 rules/commit.mjs 手写 helper。
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { gitRevParseHead } from "../../rules/commit.mjs";
+import { gitRevParseHead } from "../../infra/git.ts";
 import { readJson, writeOwnHandoff } from "./write.mjs";
 // 写侧同源（T5）：implement 实体化的载体键集由 normalizeHandoff 过 schema —— 与 schema.mjs 互引
 // （该文件用本文件的 rollupStatus 补 review 族 status），两向都是函数声明、互不读对方模块级绑定，
@@ -87,7 +88,8 @@ export function applyDerivedStatus(handoff = {}) {
 
 // 定稿单点入口：按 mode 分派返回 { handoff, exitCode }。H1 由消费方从定稿 h1FromHandoff 重发。
 // 三消费方（runner.mjs step 13 / docs-runner.mjs 读回 / cdd.mjs branch review 读回）共享同一实现。
-export function finalizeHandoff({ mode, h1 = [], agentHandoff = null, brief, repoRoot, workspace, taskNum } = {}) {
+// Task 5：implement 族经 git 取 HEAD（infra/git.ts）→ 全链路 async（消费方一律 await）。
+export async function finalizeHandoff({ mode, h1 = [], agentHandoff = null, brief, repoRoot, workspace, taskNum } = {}) {
   if (mode === "review") {
     const derived = applyDerivedStatus(agentHandoff ?? {});
     if (derived) return { handoff: derived, exitCode: 0 };
@@ -96,7 +98,7 @@ export function finalizeHandoff({ mode, h1 = [], agentHandoff = null, brief, rep
   if (mode === "implement") {
     // 输入无 agentHandoff 槽位：从 H1 + brief TASK_BASE + git HEAD 实体化（T6 逻辑迁入）。
     // evidence-gate（behavior_change:true → hard）保留；H1 从定稿重发。
-    return finalizeImplement({ h1, brief, repoRoot, workspace, taskNum });
+    return await finalizeImplement({ h1, brief, repoRoot, workspace, taskNum });
   }
   if (mode === "fix") {
     // work 型：agent 声明保留，契约在 commit-contract 层否决（validateCommitContract）。
@@ -172,7 +174,7 @@ function evidenceGate(workspace, taskNum) {
 // 实体化：brief TASK_BASE → commits.base（唯一权威）；git HEAD → commits.head（repoRoot 可 null → 省略 head）。
 // 降级 fail-open：brief 缺失 / 无 TASK_BASE → { handoff: null, exitCode: 0 }（不实体化；runner
 // 保留 agent 原样 H1，stderr CDD_WARN 注记）。hard gate / status BLOCKED → exitCode 1。
-export function finalizeImplement({ h1 = [], brief, repoRoot, workspace, taskNum }) {
+export async function finalizeImplement({ h1 = [], brief, repoRoot, workspace, taskNum }) {
   const base = taskBaseFromBrief(brief);
   if (!base) {
     process.stderr.write(`CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`);
@@ -183,7 +185,7 @@ export function finalizeImplement({ h1 = [], brief, repoRoot, workspace, taskNum
   const { status, raw } = implementStatusFromH1(statusLine ?? "");
   let blocker = h1Blocker(blockerLine ?? "");
   if (raw !== "APPROVED" && !blocker) blocker = `implement H1 status "${raw}" without blocker`;
-  const head = repoRoot ? gitRevParseHead(repoRoot) : null;
+  const head = repoRoot ? await gitRevParseHead(repoRoot) : null;
   const gate = evidenceGate(workspace, taskNum);
   if (gate.hard) {
     blocker = gate.warn;

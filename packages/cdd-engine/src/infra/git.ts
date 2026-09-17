@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/infra/git.ts — simple-git single-point wrapper (spec §2.13 git row).
 // New dependency point for ALL git operations in rebuilt infra: status / add / commit / head / log /
-// toplevel / cat-file. Replaces the hand-written execFileSync("git") helpers in rules/commit.mjs
-// (whose callers are re-pointed by Task 5/8 — this task only builds the point, nothing consumes it yet).
+// toplevel / cat-file. Replaces the hand-written git subprocess helpers that used to live in
+// rules/commit.mjs (whose callers were re-pointed by Task 5 — this is now the single git seam).
 // Fail-open contracts mirror the old helpers exactly: non-repo or git error → null (string ops) /
 // false (boolean ops); no exception crosses the seam.
 import { simpleGit } from "simple-git";

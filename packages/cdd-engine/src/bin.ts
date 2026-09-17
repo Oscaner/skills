@@ -30,7 +30,7 @@ import { ExitRequested } from "./infra/exit.mjs";
 program.hook("preAction", async () => {
   // program 级 `--dry-run` 的唯一解析点：声明在 src/cli/parse.mjs，读取在此（零命令定义）。
   setDryRun(program.opts().dryRun === true);
-  const repoRoot = initRoot();
+  const repoRoot = await initRoot();
   initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
   await reapStale({ graceMs: 2000 });   // 启动兜底：跨 run 孤儿组连根回收（仍在任何 action / dispatch 之前）
 });

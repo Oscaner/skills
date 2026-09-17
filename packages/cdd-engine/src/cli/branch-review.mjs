@@ -177,7 +177,7 @@ export async function runBranchReview(opts) {
     // T5/T7: status 单一权威 — branch review（review 族）读回经 finalizeHandoff 定稿（rollup 派生
     // 覆写，SP-4 豁免失败轮次）；定稿写盘用 writeOwnHandoff（engine 载体唯一作者，全量覆盖替换）。
     // 三消费方（runner/docs-runner/cdd）共享同一 finalizeHandoff 单点，非各自接线。
-    const finalized = finalizeHandoff({ mode: "review", agentHandoff: handoff });
+    const finalized = await finalizeHandoff({ mode: "review", agentHandoff: handoff });
     if (finalized.handoff && finalized.handoff !== handoff) writeOwnHandoff(handoffPath, finalized.handoff);
   }
 

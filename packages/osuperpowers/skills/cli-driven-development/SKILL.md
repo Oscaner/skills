@@ -58,7 +58,7 @@ flowchart TD
 - **Do**: Dispatch `cdd implement --task <n> --plan <path>` — background execution (harness `run_in_background` when supported; timeout + poll otherwise). One task at a time. Every nested `cdd` dispatch in this skill forbids historical session flags (`--resume` / `-c`) — one-shot print mode only.
 - **Read**: output contract — `status` / `blocker` / `artifacts` (absolute paths) / `counters`
 - **Exit**: dispatch complete → `run-task-review`
-- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issue`)
+- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issues`)
 
 ### `run-task-review`
 
@@ -112,8 +112,8 @@ Cross-node failure handling (complements node Fail fields):
 | category | handling |
 |---|---|
 | TIMEOUT | routed from output contract `status`; retry within the counters cap, then terminal per the output contract |
-| CONTRACT_VIOLATION | blocker from output contract; report via `osuperpowers:report-issue`; no re-dispatch |
-| ENGINE_SELF_WRITTEN | blocker from output contract; report via `osuperpowers:report-issue`; orchestrator never rewrites handoff state |
+| CONTRACT_VIOLATION | blocker from output contract; report via `osuperpowers:report-issues`; no re-dispatch |
+| ENGINE_SELF_WRITTEN | blocker from output contract; report via `osuperpowers:report-issues`; orchestrator never rewrites handoff state |
 | EXECUTION_FAILURE | blocker from output contract; fixable + retry available → re-dispatch; else BLOCKED: engine-error |
 | UNVERIFIABLE | blocker from output contract; report to user; re-dispatch only on user confirmation |
 | PLAN_CONFLICT | blocker from output contract; surface to the user — never silently override the plan |

@@ -690,12 +690,12 @@ function checkHandoffSchema() {
 //            plugin:skill 引用 → hit；同插件 `osuperpowers:` 引用不属上游）。
 //   行 15 — 零引擎内部结构依赖（\bCDD_[A-Z_]+\b · \bprogress\.json\b · task-\d+-(review|fix|
 //            implement)-\d*\.?json）。scope = design AC5 的 7 个编排型 skill 逐名枚举（见
-//            ORCHESTRATOR_SKILLS）。report-issue 显式排除——AC5 原文：「例外（设计内，非缺口）：
-//            report-issue 的 progress.json#plan 读取是 program 通道的首跳（§2.5.4 的目的正是使其
+//            ORCHESTRATOR_SKILLS）。report-issues 显式排除——AC5 原文：「例外（设计内，非缺口）：
+//            report-issues 的 progress.json#plan 读取是 program 通道的首跳（§2.5.4 的目的正是使其
 //            可用），不属「引擎内部结构依赖」——该处的去留归 P5 的目标流程（届时可改指命令输出
-//            契约）」。排除只作用于本条；report-issue 仍在本组其余 4 条的 skills 面 scope 内
+//            契约）」。排除只作用于本条；report-issues 仍在本组其余 4 条的 skills 面 scope 内
 //            （实测其对 CDD_* / fix-inline / vendors/ / _docs/ 均零命中）。7 名枚举（含 finishing，
-//            不是 6 个）为逐字同源清单，不得用 skills/** 通配覆盖——通配会让 guard 在 report-issue
+//            不是 6 个）为逐字同源清单，不得用 skills/** 通配覆盖——通配会让 guard 在 report-issues
 //            上不可达且漏扫未来新 skill。
 //   行 16 — 零 fix-inline（修复一律 `cdd fix` 形，§2.7.3）；且每个评审循环 fix 节点（mermaid 节点
 //            label 含 fix——fix-task / branch-fix / fix-spec / fix-plan）的 `### `label`` 节须出现

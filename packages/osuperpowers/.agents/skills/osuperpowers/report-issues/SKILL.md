@@ -1,9 +1,9 @@
 ---
-name: report-issue
+name: report-issues
 description: Analyzes the current SDD/CDD session for bugs and enhancement opportunities, files GitHub issues against Oscaner/skills via gh CLI. Dual-channel reporting (program issue / session master) with report-meta; findings never auto-include branch names or paths. Repo development tool, not a regular workflow skill. Manual trigger only, never automatic.
 ---
 
-# Osuperpowers Report Issue
+# Osuperpowers Report Issues
 
 Analyze SDD/CDD sessions (`.superpowers/sdd/*/progress.md` + `.osuperpowers/cdd/*/progress.md` + git log) to find bugs and enhancements, then attach findings to `Oscaner/skills` issues via `gh`. Findings go through one of two channels — the **program channel** (comments on the current program's phase-owning issue) or the **session channel** (comments on a find-or-create session master). The flow is a digraph: `analyze → classify → confirm → resolve-destination → {program · session} → dedup → append-comment → report`. All issue bodies are produced by the renderer CLI at `scripts/report-templates.mjs`; `pluginRoot` is resolved by ascending to the nearest `.claude-plugin/plugin.json`. Manual trigger only.
 
@@ -126,7 +126,7 @@ Derivations (pure functions):
 | # | Invariant |
 |---|---|
 | I1 | **Confirm Gate** — no gh issue is created or commented on before explicit user confirmation (hard gate at `confirm`) |
-| I3 | **Manual Trigger Only** — report-issue runs only on manual trigger, never automatically |
+| I3 | **Manual Trigger Only** — report-issues runs only on manual trigger, never automatically |
 | I5 | **Renderer Determinism** — every finding body and the master body is produced by `scripts/report-templates.mjs` (`--mode comment` / `--mode master`); no hand-assembled paragraph structure in this skill |
 | I6 | **Evidence Contract** — findings never carry consumer-identifiable data (branch names, absolute paths, filenames, process counts, RSS values, launch dirs, session habits) — such context enters only on consumer opt-in at `confirm` — AND findings always describe a maintainer-reproducible mechanism (trigger conditions / mechanism / expected behavior / reproduction steps; describe mechanism, not measurement) |
 | I7 | **Kind Enumerated** — every finding's report-meta `kind` is exactly one of `program` / `consumer-cdd` / `standalone`, derived from channel × workspace (Session Context), never an author-chosen input |

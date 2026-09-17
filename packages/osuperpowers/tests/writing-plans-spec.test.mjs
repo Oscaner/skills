@@ -6,9 +6,9 @@
 // design doc. That link is real machinery, not prose:
 //   - `plan-review` dispatches `cdd review --type plan --spec <spec-path>` from
 //     the same approved spec (same-source pointer);
-//   - report-issue `resolve-destination` resolves the program chain via
+//   - report-issues `resolve-destination` resolves the program chain via
 //     `progress.json#plan` → plan-header `**Spec:**` field as its first hop
-//     (report-issue SKILL.md `resolve-destination` Do field).
+//     (report-issues SKILL.md `resolve-destination` Do field).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -31,5 +31,5 @@ test("author-plan node mandates the plan-header **Spec:** line-2 convention", ()
   assert.match(body, /\*\*Spec:\*\*/, "author-plan Do must require the **Spec:** header line");
   assert.match(body, /line 2/, "convention must pin the header line to line 2");
   assert.match(body, /design\.md/, "convention must link <name>-design.md");
-  assert.match(body, /resolve-destination/, "convention must record the report-issue first-hop dependency");
+  assert.match(body, /resolve-destination/, "convention must record the report-issues first-hop dependency");
 });

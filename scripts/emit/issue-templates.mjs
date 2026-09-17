@@ -1,7 +1,7 @@
 // scripts/emit/issue-templates.mjs — .github/ISSUE_TEMPLATE emitter.
 //
 // Renders the three GitHub issue template forms (bug_report / enhancement /
-// session_report) from the canonical `finding-meta.json` via the report-issue
+// session_report) from the canonical `finding-meta.json` via the report-issues
 // renderer single point (report-templates.renderYml). Data-driven convention:
 // form field definitions live solely in the canonical JSON — nothing hardcoded
 // here. Emitter output is drift-guarded by `emit:check` (committed yml are
@@ -13,7 +13,7 @@ import { renderYml } from "../../packages/osuperpowers/scripts/report-templates.
 
 const META_PATH = fileURLToPath(
   new URL(
-    "../../packages/osuperpowers/skills/report-issue/templates/finding-meta.json",
+    "../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json",
     import.meta.url,
   ),
 );

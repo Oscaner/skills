@@ -17,7 +17,7 @@ This plugin provides two skill families:
 | `writing-plans` | Orchestrator | Section-by-section plan writes + review |
 | `cli-driven-development` | Orchestrator + Engine | Plan executor (cli-only); harness CLI three-mode chain dispatcher + final branch-review CLI |
 | `finishing` | Orchestrator | Branch finish / PR; no worktrees; conventional commits |
-| `report-issue` | Utility | Structured issue reporting |
+| `report-issues` | Utility | Structured issue reporting |
 
 ## Installation
 

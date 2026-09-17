@@ -1,10 +1,10 @@
-// report-templates.mjs — report-issue rendering single point.
+// report-templates.mjs — report-issues rendering single point.
 //
 // Pure renderers over the canonical finding-meta.json; the renderers never
 // hand-assemble finding paragraph structure. Finding body paragraphs
 // (renderComment) and the session master body (renderMasterBody) share the
 // six-field report-meta bullet block (renderMeta). CLI entrypoint
-// (`--mode comment|master` + stdin JSON) is referenced by the report-issue
+// (`--mode comment|master` + stdin JSON) is referenced by the report-issues
 // SKILL.md for external harness adapters.
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -12,7 +12,7 @@ import path from "node:path";
 
 const findingMeta = JSON.parse(
   readFileSync(
-    new URL("../skills/report-issue/templates/finding-meta.json", import.meta.url),
+    new URL("../skills/report-issues/templates/finding-meta.json", import.meta.url),
     "utf8",
   ),
 );

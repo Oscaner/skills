@@ -16,7 +16,7 @@ import { emitAll } from "./all.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = path.resolve(HERE, "../../.github/ISSUE_TEMPLATE");
 const findingMeta = JSON.parse(readFileSync(path.resolve(
-  HERE, "../../packages/osuperpowers/skills/report-issue/templates/finding-meta.json"
+  HERE, "../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json"
 ), "utf8"));
 
 describe("report-templates", () => {
@@ -47,7 +47,7 @@ describe("report-templates", () => {
   it("renderMeta 输出 report-meta 六字段 bullet（skill/harness/kind/step/cdd/date）", () => {
     expect(
       renderMeta({
-        skill: "report-issue",
+        skill: "report-issues",
         harness: "claude-code",
         kind: "program",
         step: "review",
@@ -55,7 +55,7 @@ describe("report-templates", () => {
         date: "2026-09-08",
       })
     ).toBe(
-      "- Skill: report-issue\n" +
+      "- Skill: report-issues\n" +
         "- Harness: claude-code\n" +
         "- Kind: program\n" +
         "- Step: review\n" +
@@ -67,7 +67,7 @@ describe("report-templates", () => {
   it("renderMasterBody 结构常驻断言（Session 块 + 指针行 + Report meta · 无 Findings Summary）", () => {
     const meta = {
       session: "cdd-engine-overhaul-p4",
-      skill: "report-issue",
+      skill: "report-issues",
       harness: "claude-code",
       kind: "program",
       step: "review",
@@ -88,7 +88,7 @@ describe("report-templates", () => {
 
   it("renderMasterBody meta.session 缺省回退 standalone", () => {
     const meta = {
-      skill: "report-issue",
+      skill: "report-issues",
       harness: "claude-code",
       kind: "standalone",
       step: "nlx",
@@ -111,7 +111,7 @@ describe("report-templates", () => {
       suggestedFix: "Skip idempotent reruns",
     };
     const meta = {
-      skill: "report-issue",
+      skill: "report-issues",
       harness: "claude-code",
       kind: "program",
       step: "review",

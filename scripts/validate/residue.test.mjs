@@ -809,7 +809,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
 // 五条守卫并入 collectSkillSurfaceHits()（与 T8 的 collectChannelAuditHits() 同构）。守卫 scope 全部
 // 落在 packages/osuperpowers/skills/ 内，scripts/ 不在任一 scope——本文件直接写字面无自噬风险（T11 先例）。
 // 各行权威文本：行 17 零上游文档 read + 上游引用 /plugin:skill 斜杠形 · 行 15 零 CDD_*/progress.json/
-// handoff 文件名（AC5 七个编排型 skill 逐名枚举，report-issue 按 AC5 显式例外排除）· 行 16 零 fix-inline
+// handoff 文件名（AC5 七个编排型 skill 逐名枚举，report-issues 按 AC5 显式例外排除）· 行 16 零 fix-inline
 // + 评审循环 fix 节点须含 cdd fix 命令形 · 行 12 类目名 ⊆ canonical ∪ 状态枚举白名单 + 类目语义零复述
 //· 行 18 零 _docs/ 引用（含 rule-review-stopping 锚点形与裸提及）。
 describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用一律 /plugin:skill 斜杠形", () => {
@@ -867,7 +867,7 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
 });
 
 describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 七个编排型 skill 逐名枚举）", () => {
-  it("ORCHESTRATOR_SKILLS = AC5 全枚举（7 个，含 finishing；不含 report-issue），不用 skills/** 通配", () => {
+  it("ORCHESTRATOR_SKILLS = AC5 全枚举（7 个，含 finishing；不含 report-issues），不用 skills/** 通配", () => {
     const names = ORCHESTRATOR_SKILLS.map((p) => p.split("/").slice(-2).join("/"));
     expect(names).toEqual([
       "brainstorming/SKILL.md",

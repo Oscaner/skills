@@ -13,7 +13,7 @@ import { renderYml } from "../scripts/report-templates.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const META = JSON.parse(
   readFileSync(
-    path.resolve(HERE, "../skills/report-issue/templates/finding-meta.json"),
+    path.resolve(HERE, "../skills/report-issues/templates/finding-meta.json"),
     "utf8",
   ),
 );
@@ -130,8 +130,8 @@ test("canonical 单源：formFieldDefs 内零 options 数组", () => {
   }
 });
 
-// 取值同步（§2.6.1 口径）：P4 删 init、加 3 个新 spec-writer；report-issue 保留旧名（改名归 P5）。
-test("canonical 取值同步：init 移除 + 3 个 spec-writer 加入 + report-issue 保留旧名", () => {
+// 取值同步（§2.6.1 口径）：P4 删 init、加 3 个新 spec-writer；report-issues 为 P5 改名后的现名。
+test("canonical 取值同步：init 移除 + 3 个 spec-writer 加入 + report-issues 现名", () => {
   const components = META.components;
   assert.ok(!components.includes("osuperpowers:init"), "枚举不得残留 osuperpowers:init");
   for (const spec of [
@@ -141,7 +141,7 @@ test("canonical 取值同步：init 移除 + 3 个 spec-writer 加入 + report-i
   ]) {
     assert.ok(components.includes(spec), `枚举应含 ${spec}（取值同步）`);
   }
-  assert.ok(components.includes("osuperpowers:report-issue"), "report-issue 保留旧名（改名归 P5）");
+  assert.ok(components.includes("osuperpowers:report-issues"), "枚举应含 osuperpowers:report-issues（P5 改名）");
 });
 
 // 消费方签名集成：renderYml(formFieldDefs[name], meta) —— 与 issue-templates.mjs 同形，

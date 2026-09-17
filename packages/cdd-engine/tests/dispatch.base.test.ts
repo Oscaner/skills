@@ -10,6 +10,10 @@
 // (rules/commit.ts, Task 5 — rules.commit.test.ts), the hookable fixed-point firing order
 // (dispatch/hooks.ts + tests/dispatch.sequence.test.ts, Task 6), docs.ts entry/exit-gate wiring
 // (P5 落点 5 — its own task / Task 10), real task dispatch (dispatch/task.ts).
+//
+// Test-fixture convention (accepted): git() / setupRepo() mirror tests/rules.commit.test.ts — two
+// consumers today, so the mirror is tolerated; extract a shared tests/ git-fixture helper
+// (mkdtemp + init + fixture commit) when a third consumer appears.
 import { it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, appendFileSync } from "node:fs";

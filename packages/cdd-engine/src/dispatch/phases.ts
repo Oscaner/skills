@@ -61,7 +61,9 @@ export const PHASES: readonly DispatchPhase[] = [
   },
 ];
 
-/** By-id index of PHASES — Task 7's template method reads phases by PhaseId without a linear scan. */
+/** By-id index of PHASES — today consumed only as the type-level PhaseId anchor: dispatch/base.ts
+ * imports the type (compile-time literal anchoring of #phase calls), not this index; kept for
+ * future PhaseId → phase lookups (Task 8+). */
 export const PHASES_BY_ID = Object.fromEntries(
   PHASES.map((phase) => [phase.id, phase]),
 ) as Readonly<Record<PhaseId, (typeof PHASES)[number]>>;

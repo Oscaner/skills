@@ -20,7 +20,7 @@ const findingMeta = JSON.parse(readFileSync(path.resolve(
 ), "utf8"));
 
 describe("report-templates", () => {
-  it("隐私迁移后 3 个 yml 渲染产物无 Branch", () => {
+  it("隐私迁移后 2 个 yml 渲染产物无 Branch", () => {
     for (const n of Object.keys(findingMeta.formFieldDefs)) {
       expect(renderYml(findingMeta.formFieldDefs[n], findingMeta)).not.toMatch(/Branch/);
     }
@@ -33,35 +33,19 @@ describe("report-templates", () => {
         { subject: "cdd-engine-overhaul-p4", date: "2026-09-08" }
       )
     ).toBe("[Session report] cdd-engine-overhaul-p4 2026-09-08");
-    expect(
-      renderTitle(findingMeta.masterDef, { subject: "session workspace misrouting fix", date: "2026-09-08" })
-    ).toBe("[Session report] session workspace misrouting fix 2026-09-08");
   });
 
-  it("masterDef 契约：subject 占位、无 summaryTable、无 <slug|standalone>", () => {
-    expect(findingMeta.masterDef.title).toBe("[Session report] <subject> <YYYY-MM-DD>");
-    expect(findingMeta.masterDef.title).not.toContain("<slug|standalone>");
-    expect(findingMeta.masterDef).not.toHaveProperty("summaryTable");
+  it("masterDef 终态两键（§2.6）——Session 段 label + Harness 行模板，title 删", () => {
+    expect(findingMeta.masterDef).toEqual({
+      sessionTitle: "## Session",
+      harnessRow: "- Harness: <harness>",
+    });
   });
 
-  it("renderMeta 输出 report-meta 六字段 bullet（skill/harness/kind/step/cdd/date）", () => {
+  it("renderMeta 输出 report-meta 二字段 bullet（skill/step，canonical metaFields 驱动）", () => {
     expect(
-      renderMeta({
-        skill: "report-issues",
-        harness: "claude-code",
-        kind: "program",
-        step: "review",
-        cdd: "2026-09-08-cdd-engine-overhaul-p4",
-        date: "2026-09-08",
-      })
-    ).toBe(
-      "- Skill: report-issues\n" +
-        "- Harness: claude-code\n" +
-        "- Kind: program\n" +
-        "- Step: review\n" +
-        "- CDD: 2026-09-08-cdd-engine-overhaul-p4\n" +
-        "- Date: 2026-09-08"
-    );
+      renderMeta({ skill: "report-issues", step: "review" })
+    ).toBe("- Skill: report-issues\n- Step: review");
   });
 
   it("renderMasterBody 结构常驻断言（Session 块 + 指针行 + Report meta · 无 Findings Summary）", () => {
@@ -81,7 +65,7 @@ describe("report-templates", () => {
     expect(body).toContain("_Findings are appended as comments below");
     expect(body).not.toContain("## Findings Summary");
     expect(body.endsWith(`## Report meta (auto)\n${renderMeta(meta)}`)).toBe(true);
-    for (const field of ["Skill", "Harness", "Kind", "Step", "CDD", "Date"]) {
+    for (const field of ["Skill", "Step"]) {
       expect(body).toContain(`- ${field}:`);
     }
   });
@@ -136,8 +120,47 @@ describe("report-templates", () => {
   });
 });
 
+describe("finding-meta canonical（§2.6 终态）", () => {
+  it("metaFields 2 字段（skill·step），kinds/sessionTypes 枚举删", () => {
+    expect(findingMeta.metaFields).toEqual([
+      { key: "skill", label: "Skill" },
+      { key: "step", label: "Step" },
+    ]);
+    expect(findingMeta).not.toHaveProperty("kinds");
+    expect(findingMeta).not.toHaveProperty("sessionTypes");
+  });
+
+  it("formFieldDefs 2 键（bug_report/enhancement），零 session-type 下拉、component 下拉保留", () => {
+    expect(Object.keys(findingMeta.formFieldDefs).sort()).toEqual([
+      "bug_report",
+      "enhancement",
+    ]);
+    for (const name of ["bug_report", "enhancement"]) {
+      const body = findingMeta.formFieldDefs[name].body;
+      for (const item of body) {
+        expect(item.id, `${name} 不得含 session-type 下拉`).not.toBe("session-type");
+      }
+      expect(
+        body.some((item) => item.type === "dropdown" && item.id === "component"),
+        `${name} 应保留 component 下拉`,
+      ).toBe(true);
+    }
+  });
+
+  it("reportDef.labels 单点 = [osuperpowers, cdd-engine]", () => {
+    expect(findingMeta.reportDef).toEqual({
+      labels: ["osuperpowers", "cdd-engine"],
+    });
+  });
+
+  it("components 经 Task 11 改名后继验：report-issues 现名在枚举、单数 report-issue 不在", () => {
+    expect(findingMeta.components).toContain("osuperpowers:report-issues");
+    expect(findingMeta.components).not.toContain("osuperpowers:report-issue");
+  });
+});
+
 describe("issue-templates emitter", () => {
-  it("emitIssueTemplates 写 3 个 yml 到 outRoot/.github/ISSUE_TEMPLATE 并 track generatedPaths", () => {
+  it("emitIssueTemplates 写 2 个 yml 到 outRoot/.github/ISSUE_TEMPLATE 并 track generatedPaths", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-issue-templates-"));
     try {
       const generatedPaths = [];
@@ -145,7 +168,6 @@ describe("issue-templates emitter", () => {
       expect(generatedPaths).toEqual([
         ".github/ISSUE_TEMPLATE/bug_report.yml",
         ".github/ISSUE_TEMPLATE/enhancement.yml",
-        ".github/ISSUE_TEMPLATE/session_report.yml",
       ]);
       for (const name of Object.keys(findingMeta.formFieldDefs)) {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
@@ -162,7 +184,7 @@ describe("issue-templates emitter", () => {
     }
   });
 
-  it("emitAll 接线：全量 emit 亦产出 3 个 issue 模板并 track（all.mjs 挂入校验）", () => {
+  it("emitAll 接线：全量 emit 亦产出 2 个 issue 模板并 track（all.mjs 挂入校验）", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-emitall-issues-"));
     try {
       const generatedPaths = [];

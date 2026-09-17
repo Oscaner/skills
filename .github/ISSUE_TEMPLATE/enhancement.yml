@@ -24,16 +24,6 @@ body:
         - osuperpowers:finishing
     validations:
       required: true
-  - type: dropdown
-    id: session-type
-    attributes:
-      label: Session type
-      description: Was this finding surfaced during a dogfood (CDD session) or a standalone run?
-      options:
-        - dogfood (CDD session)
-        - standalone
-    validations:
-      required: true
   - type: textarea
     id: context
     attributes:

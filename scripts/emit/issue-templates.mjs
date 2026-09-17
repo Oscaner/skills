@@ -1,8 +1,8 @@
 // scripts/emit/issue-templates.mjs — .github/ISSUE_TEMPLATE emitter.
 //
-// Renders the three GitHub issue template forms (bug_report / enhancement /
-// session_report) from the canonical `finding-meta.json` via the report-issues
-// renderer single point (report-templates.renderYml). Data-driven convention:
+// Renders the two GitHub issue template forms (bug_report / enhancement) from
+// the canonical `finding-meta.json` via the report-issues renderer single point
+// (report-templates.renderYml). Data-driven convention:
 // form field definitions live solely in the canonical JSON — nothing hardcoded
 // here. Emitter output is drift-guarded by `emit:check` (committed yml are
 // products of this emitter + the canonical).

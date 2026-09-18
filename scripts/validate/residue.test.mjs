@@ -281,22 +281,22 @@ describe("channel audit：① process.cwd() 单点收口", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("唯一 1 处但不在 src/infra/root.mjs → 命中（未收口到 root.mjs）", () => {
+  it("唯一 1 处但不在 src/bin.ts → 命中（未收口到 bin.ts）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cwd-1-"));
     writeFileSync(path.join(dir, "other.mjs"), "const r = process.cwd();\n", "utf8");
     try {
       const hits = collectProcessCwdAudit([dir]);
       expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/未收口到 src\/infra\/root\.mjs/);
+      expect(hits[0].label).toMatch(/未收口到 src\/bin\.ts/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("反射例：src/infra/root.mjs 内恰 1 处 → 零命中", () => {
+  it("反射例：src/bin.ts 内恰 1 处 → 零命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-cwd-ok-"));
-    const chain = path.join(dir, "src", "infra");
+    const chain = path.join(dir, "src");
     require("node:fs").mkdirSync(chain, { recursive: true });
-    writeFileSync(path.join(chain, "root.mjs"), "_root = gitToplevel(process.cwd());\n", "utf8");
+    writeFileSync(path.join(chain, "bin.ts"), "const repoRoot = await initRoot(process.cwd());\n", "utf8");
     try {
       expect(collectProcessCwdAudit([dir])).toEqual([]);
     } finally {
@@ -494,11 +494,11 @@ describe("channel audit：⑥ 测试零旁路缝（filteredEnv / baseEnv / __*Fo
 });
 
 describe("channel audit：⑦ 零手写 handoff 形状 / 零 res.timedOut 单点依赖", () => {
-  it("templates.mjs 手写 schema 字段清单（switch 形）→ 命中", () => {
+  it("templates.ts 手写 schema 字段清单（switch 形）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-shape-"));
-    writeFileSync(path.join(dir, "templates.mjs"), "switch (key) { case \"task\": return `task: <n>`; }\n", "utf8");
+    writeFileSync(path.join(dir, "templates.ts"), "switch (key) { case \"task\": return `task: <n>`; }\n", "utf8");
     try {
-      const hits = collectHandoffShapeHits([path.join(dir, "templates.mjs")]);
+      const hits = collectHandoffShapeHits([path.join(dir, "templates.ts")]);
       expect(hits.length).toBe(1);
       expect(hits[0].label).toMatch(/schema 字段清单/);
     } finally {
@@ -563,7 +563,7 @@ describe("channel audit：⑨ citty 声明 Options ⊆ canonical argv（单元�
   });
 });
 
-describe("channel audit：⑩ src/infra/context.mjs 零 canonical 事实名硬编码", () => {
+describe("channel audit：⑩ src/infra/context.ts 零 canonical 事实名硬编码", () => {
   it("硬编码 flag/env 事实名 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "audit-ctxmod-"));
     const f = path.join(dir, "context.mjs");

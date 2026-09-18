@@ -69,9 +69,9 @@ export function main() {
     const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
     const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
     // The five literals mirror the engine's 5-line H1 contract verbatim. Authoritative emitters:
-    // src/dispatch/task.mjs h1FourLines（stdout/res.h1 面）· h1FromHandoff（回读重发面）·
-    // src/cli/branch-review.mjs DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
-    // counters 行由 src/artifacts/progress.mjs h1CountersLine 派生（缺 progress.json 时零值兜底）。
+    // src/dispatch/task.ts h1FourLines（stdout/res.h1 面）· h1FromHandoff（回读重发面）·
+    // src/cli/branch-review.ts DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
+    // counters 行由 src/artifacts/progress.ts h1CountersLine 派生（缺 progress.json 时零值兜底）。
     const ok = /status: APPROVED/m.test(lastBlock)
       && /commits: base=/.test(lastBlock)
       && /artifacts: /.test(lastBlock)
@@ -91,7 +91,7 @@ export function main() {
 // target design — guards must reference retired tokens to assert their absence.
 const OSKILLS = ["packages/osuperpowers/skills"];
 // N②: 不含 tests —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」
-// doctrine 对齐（同 residue G1）。re-org 后 ENGINE 收拢为 src（--harness 词表随 parse.mjs 移入 src/cli/）。
+// doctrine 对齐（同 residue G1）。re-org 后 ENGINE 收拢为 src（--harness 词表随 parse.ts 移入 src/cli/）。
 const ENGINE = ["packages/cdd-engine/src"];
 const MAINTAINERS = ["docs/maintainers"];
 const MAINTAINERS_DOC = [path.join("docs", "maintainers", "osuperpowers-plugin.md")];
@@ -114,9 +114,9 @@ function checkDeletionSurface() {
   assertNoResidue("G2 --harness flag", /--harness/, [...ENGINE, ...OSKILLS, ...MAINTAINERS]);
 
   // G3 --doc — shipped skills + engine entry + maintainers. tests/ 与 cli-shape.test 自豁免：
-  // cli-shape.test.mjs 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 src/cli/parse.mjs
+  // cli-shape.test.mjs 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 src/cli/parse.ts
   //（薄入口化后命令定义与 --doc 词表唯一落点）。
-  assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "src", "cli", "parse.mjs"), ...MAINTAINERS]);
+  assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "src", "cli", "parse.ts"), ...MAINTAINERS]);
 
   // G4 select vocab in shipped skills.
   assertNoResidue("G4 cli-select/select-harness", /cli-select|select-harness/, OSKILLS);

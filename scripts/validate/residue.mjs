@@ -199,9 +199,9 @@ export function collectGateLexiconHits(targetsOverride) {
 // 一律经 cdd-engine 的唯一读取入口取（loadContract / FAILURE_CATEGORIES / counters），本文件不写
 // 字面第二份 —— 守卫自身因此不成为被守卫语汇的载体。行 5 的两个旧根解析名按拼接构造（⑤ 的 target
 // 集含 scripts/，守卫本体不得书写被守词汇的连续字面，否则自命中）。
-import { loadContract } from "../../packages/cdd-engine/src/infra/context.mjs";
-import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.mjs";
-import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/src/rules/failure.mjs";
+import { loadContract } from "../../packages/cdd-engine/src/infra/context.ts";
+import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.ts";
+import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/src/rules/failure.ts";
 
 const CONTRACT = loadContract();
 // 行 2 白名单 = canonical channels.env 的 var + markers（§2.4.4-① 7 键）。
@@ -231,7 +231,7 @@ function listTargetFiles(targets) {
   return walkTargetFiles(targets).map((f) => path.relative(ROOT, f));
 }
 
-/** ① 行 1：engine src 内 process.cwd() 计数 = 1 且唯一命中文件 = src/infra/root.mjs（两项都写）。 */
+/** ① 行 1：engine src 内 process.cwd() 计数 = 1 且唯一命中文件 = src/bin.ts（两项都写）。 */
 export function collectProcessCwdAudit(targetsOverride = CDD_ENGINE_BIN) {
   const m = scanLines(targetsOverride, /process\.cwd\(\)/);
   const hits = [];
@@ -240,12 +240,12 @@ export function collectProcessCwdAudit(targetsOverride = CDD_ENGINE_BIN) {
       hits.push({ label: "process.cwd() 非单点（期望 engine src 恰 1 处）", file: `${file}:${lineNo}` });
     }
     if (m.length === 0) {
-      hits.push({ label: "process.cwd() 缺失（src/infra/root.mjs initRoot 的转换点被移除或改名）", file: "packages/cdd-engine/src/infra/root.mjs" });
+      hits.push({ label: "process.cwd() 缺失（src/bin.ts initRoot 的转换点被移除或改名）", file: "packages/cdd-engine/src/bin.ts" });
     }
     return hits;
   }
-  if (!m[0].file.endsWith(path.join("src", "infra", "root.mjs"))) {
-    hits.push({ label: "process.cwd() 未收口到 src/infra/root.mjs（唯一命中的转换点在别处）", file: `${m[0].file}:${m[0].lineNo}` });
+  if (!m[0].file.endsWith(path.join("src", "bin.ts"))) {
+    hits.push({ label: "process.cwd() 未收口到 src/bin.ts（唯一命中的转换点在别处）", file: `${m[0].file}:${m[0].lineNo}` });
   }
   return hits;
 }
@@ -267,14 +267,12 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
   return hits;
 }
 
-// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（8 处，逐 site 形态分类；全行注释非透传点）。
+// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（4 处，逐 site 形态分类；全行注释非透传点）。
 const ENV_PASSTHROUGH_SITES = [
   { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
   { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
-  { file: "packages/cdd-engine/src/infra/proc.mjs", re: /env \?\? process\.env/ },
-  { file: "packages/cdd-engine/src/cli/shared.mjs", re: /detectCurrentHarness\(process\.env\)/ },
-  { file: "packages/cdd-engine/src/infra/invoke.mjs", re: /env \?\? process\.env/ },
-  { file: "packages/cdd-engine/src/cli/branch-review.mjs", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
+  { file: "packages/cdd-engine/src/cli/shared.ts", re: /detectCurrentHarness\(process\.env\)/ },
+  { file: "packages/cdd-engine/src/cli/branch-review.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
 ];
 const ENV_WHOLE_RE = /process\.env([^.\w[]|$)/;
 export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
@@ -282,7 +280,7 @@ export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_WHOLE_RE)) {
     if (text.trimStart().startsWith("//")) continue; // 注释提及非透传点
     const san = ENV_PASSTHROUGH_SITES.find((s) => s.file === file && s.re.test(text));
-    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（8 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（4 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   return hits;
 }
@@ -312,10 +310,10 @@ const PATH_ARG_SCOPE = ["packages/cdd-engine/src/cli", "packages/cdd-engine/src/
 // import 求值同一路径参（`import(opts.*)`）先前不在面内（机械面按实现者自选，此面须完整）。
 const PATH_ARG_BYPASS_RE = /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|readFile\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|import\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
 const RESOLVER_FILES = [
-  "packages/cdd-engine/src/cli/shared.mjs",
-  "packages/cdd-engine/src/cli/fix.mjs",
-  "packages/cdd-engine/src/cli/review.mjs",
-  "packages/cdd-engine/src/cli/base-branch.mjs",
+  "packages/cdd-engine/src/cli/shared.ts",
+  "packages/cdd-engine/src/cli/fix.ts",
+  "packages/cdd-engine/src/cli/review.ts",
+  "packages/cdd-engine/src/cli/base-branch.ts",
   "packages/cdd-engine/src/dispatch/task.ts",
 ];
 export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride) {
@@ -369,14 +367,14 @@ export function collectTestSeamHits(targetsOverride) {
 // 清单形）；finalize.mjs 写盘不经内联对象字面量 且 implement 实体化写侧必须过 normalizeHandoff
 //（schema 键集唯一权威，AC6）。文件作用域按 basename 判（override 供测试注入）。
 export function collectHandoffShapeHits(filesOverride = [
-  "packages/cdd-engine/src/render/templates.mjs",
+  "packages/cdd-engine/src/render/templates.ts",
   "packages/cdd-engine/src/artifacts/handoff/finalize.ts",
 ]) {
   const hits = [];
   for (const f of filesOverride) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     const base = path.basename(f);
-    if (base === "templates.mjs" && /\bswitch\s*\(/.test(text)) {
+    if (base === "templates.ts" && /\bswitch\s*\(/.test(text)) {
       hits.push({ label: "手写 schema 字段清单（renderHandoffStub 原 switch 形态回渗）", file: f });
     }
     if (base === "finalize.ts") {
@@ -399,10 +397,10 @@ export function collectTimedOutSoleHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, TIMED_OUT_CONDITION_RE)) {
     hits.push({ label: `res.timedOut 作独立判定条件（超时判定非自持）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
-  const procFile = "packages/cdd-engine/src/infra/proc.mjs";
+  const procFile = "packages/cdd-engine/src/infra/proc.ts";
   const proc = readFileSync(path.join(ROOT, procFile), "utf8");
   if (!proc.includes('res.signal === "SIGTERM"')) {
-    hits.push({ label: "超时自持判定缺失（proc.mjs#spawnManaged 无 res.signal === SIGTERM 子句）", file: procFile });
+    hits.push({ label: "超时自持判定缺失（proc.ts#spawnManaged 无 res.signal === SIGTERM 子句）", file: procFile });
   }
   return hits;
 }
@@ -469,13 +467,13 @@ function canonicalFactTokens() {
   return toks.filter(Boolean);
 }
 
-export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-engine/src/infra/context.mjs") {
+export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-engine/src/infra/context.ts") {
   const abs = path.isAbsolute(fileOverride) ? fileOverride : path.join(ROOT, fileOverride);
   const text = readFileSync(abs, "utf8");
   const hits = [];
   for (const tok of canonicalFactTokens()) {
     if (text.includes(tok)) {
-      hits.push({ label: `src/infra/context.mjs 硬编码 canonical 事实名: ${tok}（承重 → 装饰的回退）`, file: fileOverride });
+      hits.push({ label: `src/infra/context.ts 硬编码 canonical 事实名: ${tok}（承重 → 装饰的回退）`, file: fileOverride });
     }
   }
   return hits;

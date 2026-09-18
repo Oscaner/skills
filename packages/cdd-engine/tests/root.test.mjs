@@ -4,12 +4,12 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { gitInit } from "./helpers.mjs";
+import { gitCommit, gitInit } from "./helpers.mjs";
 
-const CDD_MJS = path.resolve(import.meta.dirname, "../bin/cdd.mjs");
+const CDD_MJS = path.resolve(import.meta.dirname, '../dist/cli.mjs');
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
-describe("lib/root.mjs — 单根权威", () => {
+describe("src/infra/root.ts — 单根权威", () => {
   it("非 git 目录 → CDD_BLOCKED + exit 1", () => {
     const bare = mkdtempSync(path.join(tmpdir(), "cdd-nogit-"));
     const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", "x.md"], {
@@ -25,12 +25,12 @@ describe("lib/root.mjs — 单根权威", () => {
       cwd: bare, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8",
     });
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/Usage: cdd/);
+    expect(r.stdout).toMatch(/USAGE cdd/);
     expect(r.stderr).not.toMatch(/not in a git repository/);
   });
 });
 
-describe("lib/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）", () => {
+describe("src/infra/root.ts — resolveDocArg 单一坐标系（仓根相对归一）", () => {
   it("子目录 cwd + 仓根相对 --spec → 归一仍命中仓根（cwd 相对回落即 exit 1）", () => {
     // 自给自足：mkdtemp 真 git 仓 + 真 doc 文件。**不得**断言 `REPO_ROOT/.osuperpowers/...`——
     // `.osuperpowers` 被 `.gitignore` 忽略，fresh clone / CI 上不存在。
@@ -50,6 +50,9 @@ describe("lib/root.mjs — resolveDocArg 单一坐标系（仓根相对归一）
     writeFileSync(path.join(repo, rel), "# foo design\n");
     const sub = path.join(repo, "packages/cdd-engine");
     mkdirSync(sub, { recursive: true });
+    // Task 8: dispatch 入口门（pre-commit 干净树）先于 docs review —— 仓内 fixture 必须已提交，
+    // 否则起点 dirty 直接 BLOCKED（exit 1）而测不到 cwd 坐标系归一。
+    gitCommit(repo);
     const r = execaSync(process.execPath, [CDD_MJS, "--dry-run", "review", "--type", "spec", "--spec", rel],
       { cwd: sub, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });
     expect(r.exitCode).toBe(0);

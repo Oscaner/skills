@@ -1,4 +1,4 @@
-// tests/cdd.test.mjs — 合并面 CLI（bin/cdd.mjs 薄入口 + lib/cli/ 命令面）契约测试。
+// tests/cdd.test.mjs — 合并面 CLI（dist/cli.mjs 入口 = src/bin.ts + src/cli/ 命令面）契约测试。
 // 覆盖：帮助/用法、review 的 round+Stopping 接线（dry-run smoke）、fix --findings 接线、
 // contract 模块转发。黑盒用例经 argv 前置 `--dry-run` 跳过真实 harness 调用；in-process 用例经
 // setDryRun(true) 注入（argv 对它们物理不适用）。
@@ -7,7 +7,7 @@ import { execaSync } from "execa";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { setDryRun } from "../lib/cli/shared.mjs";
+import { setDryRun } from "../src/cli/shared.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 // contract tests switch cwd to a temp repo and a relative path would break there.
 const HERE = path.dirname(fileURLToPath(import.meta.url));   // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
-const CDD_MJS = path.join(REPO_ROOT, "packages/cdd-engine/bin/cdd.mjs");
+const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
 const SMOKE_PLAN = "packages/cdd-engine/tests/fixtures/smoke-plan.md";
 // T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
 // strip 尾 -plan：smoke-plan.md → smoke）。
@@ -63,7 +63,7 @@ function runCli(args = [], opts = {}) {
 
 // P6 T3 单元 seam：vi.mock docs-runner 动态 import，直接断言 cdd.mjs runReview/runFix 传给
 // runDocsTask 的 handoffPath/workspace（canonical 派生命名）。cdd.mjs 以
-// `await import("../runner/run-docs.mjs")` 动态加载 → vitest 按解析 id 拦截同一模块。
+// `await import("../src/dispatch/docs.ts")` 动态加载 → vitest 按解析 id 拦截同一模块。
 // CLI 黑盒用例走独立 node 子进程，不经此 mock。
 const docsRunnerMock = vi.hoisted(() => ({
   runDocsTask: vi.fn(async () => ({
@@ -71,9 +71,9 @@ const docsRunnerMock = vi.hoisted(() => ({
     handoff: { phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: "" },
   })),
 }));
-vi.mock("../lib/runner/run-docs.mjs", () => docsRunnerMock);
+vi.mock("../src/dispatch/docs.ts", () => docsRunnerMock);
 
-// 根权威（lib/root.mjs）在本文件**不再打桩**：in-process 用例一律经 `root` 注入位（T3 根注入契约：
+// 根权威（src/infra/root.ts）在本文件**不再打桩**：in-process 用例一律经 `root` 注入位（T3 根注入契约：
 // 无 reset / 无 env / 无 ForTest 缝）显式传入真仓路径，getRoot() 单例在这些路径上不再被消费。
 // 黑盒用例走独立 node 子进程，由 bin 的 preAction → initRoot() 初始化真实单例。
 
@@ -194,6 +194,9 @@ describe("cdd CLI", () => {
     execaSync("git", ["-C", dir, "init", "-q"]);
     execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
       "commit", "--allow-empty", "-qm", "fixture"]);
+    // Task 8: dispatch 入口门（pre-commit 干净树）—— workspace 收编 .gitignore（恒仿仓根
+    // .osuperpowers 忽略规则），plan 提交；手写 handoff 后续覆写不弄脏树。
+    writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
     const plan = path.join(dir, "zz-stop-test.md");
     writeFileSync(plan, "### Task 1: fixture\n");
     const ws = path.join(dir, ".osuperpowers", "cdd", "zz-stop-test");
@@ -201,6 +204,10 @@ describe("cdd CLI", () => {
     writeFileSync(path.join(ws, "task-1-review-1.json"),
       JSON.stringify({ task: 1, phase: "review", status, artifacts: {}, findings: [],
         ...(status !== "APPROVED" ? { blocker: "boom" } : {}) }));
+    // 入口门干净树：种子提交（workspace 已收编 .gitignore；后续手写 handoff 覆写不弄脏树）。
+    execaSync("git", ["-C", dir, "add", "-A"]);
+    execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
+      "commit", "-qm", "seed"]);
     return { dir, plan };
   }
 
@@ -289,6 +296,8 @@ function tmpGitRepo() {
   execaSync("git", ["-C", dir, "init", "-q"]);
   execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
     "commit", "--allow-empty", "-qm", "fixture"]);
+  // Task 8: dispatch 入口门 —— workspace 收编 .gitignore，种子 doc/plan 提交（handoff 后续覆写不弄脏树）。
+  writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
   return dir;
 }
 
@@ -306,6 +315,10 @@ function seedDocsReviewRound(repo, doc, fileName, { docHash, content = "" } = {}
   const handoff = { task: 0, phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc };
   if (docHash) handoff.doc_hash = docHash;
   writeFileSync(path.join(ws, fileName), JSON.stringify(handoff));
+  // 入口门干净树：种子内容提交（workspace 已被 .gitignore 收编；handoff 后续覆写不弄脏树）。
+  execaSync("git", ["-C", repo, "add", "-A"]);
+  execaSync("git", ["-C", repo, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
+    "commit", "-qm", "seed"]);
   return ws;
 }
 
@@ -324,7 +337,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const doc = path.join(repo, "docs/osuperpowers/specs/foo-design.md");
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "# foo design\n");
-      const { runReview } = await import("../lib/cli/review.mjs");
+      const { runReview } = await import("../src/cli/review.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       await runReview({ type: "spec", spec: doc, root: repo });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
@@ -340,7 +353,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   });
 
   it("resolveWorkspace: plan foo.md 与 spec foo-design.md 收敛同一 workspace", async () => {
-    const { resolveWorkspace } = await import("../lib/handoff/naming.mjs");
+    const { resolveWorkspace } = await import("../src/artifacts/handoff/naming.ts");
     // root 显式注入（不调 initRoot()、不 chdir）——POSIX 路径字面量，无盘上依赖。
     expect(resolveWorkspace("/repo/root/docs/osuperpowers/plans/foo.md", "/repo/root"))
       .toBe("/repo/root/.osuperpowers/cdd/foo");
@@ -359,7 +372,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const findings = path.join(repo, ".osuperpowers", "cdd", "foo", "spec-review-2.json");
       mkdirSync(path.dirname(findings), { recursive: true });
       writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }));
-      const { runFix } = await import("../lib/cli/fix.mjs");
+      const { runFix } = await import("../src/cli/fix.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
       await runFix({ type: "spec", spec: doc, findings, root: repo });
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
@@ -560,7 +573,11 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         const same = runCli(["--dry-run", "review", "--type", "plan", "--plan", plan],
           { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
         expect(same.exitCode).toBe(3);
-        writeFileSync(plan, "p2-different");          // 内容演进
+        // 内容演进写的是 tracked 文件 → 提交后再重派（入口门干净树；演进本身就是一次 commit 动作）
+        writeFileSync(plan, "p2-different");
+        execaSync("git", ["-C", dir, "add", "-A"]);
+        execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
+          "commit", "-qm", "evolve"]);
         const ev = runCli(["--dry-run", "review", "--type", "plan", "--plan", plan],
           { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
         expect(ev.exitCode).toBe(0);

@@ -46,7 +46,7 @@ export function emitAll(outRoot, { generatedPaths }) {
   const wrapperRoots = emitMarketplaceDocs(outRoot, source, generatedPaths);
 
   // Repo-root data-driven forms, rendered from the canonical finding-meta.json
-  // (single source of truth) via the report-issue renderer.
+  // (single source of truth) via the report-issues renderer.
   emitIssueTemplates(outRoot, source, { generatedPaths });
 
   // source.json is itself a derived emit product (package-as-source).

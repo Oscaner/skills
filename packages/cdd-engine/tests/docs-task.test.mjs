@@ -1,5 +1,5 @@
 // packages/cdd-engine/tests/docs-task.test.mjs — Vitest port of the docs review/fix CLI tests, now
-// exercised through the merged single CLI (bin/cdd.mjs). Invocation map (D11: type
+// exercised through the merged single CLI (dist/cli.mjs). Invocation map (D11: type
 // 自解释 target 参数):
 //   docs-task --mode review --template <t>  → cdd review --type spec|plan [--spec/--plan <path>]
 //   docs-task --mode fix --template <t>     → cdd fix --type spec|plan [--spec/--plan <path>]
@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // packages/cdd-engine/tests
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
-const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs');
+const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
 const SMOKE_PLAN = path.join('packages/cdd-engine/tests/fixtures/smoke-plan.md');
 // T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
 // strip 尾 -plan：smoke-plan.md → smoke）——测试 teardown 清理，
@@ -59,10 +59,10 @@ function run(args, extraEnv = {}, opts = {}) {
 }
 
 describe('cdd review/fix --type spec|plan CLI contract', () => {
-  it('-h → Commander help on stdout + exit 0', () => {
+  it('-h → citty help on stdout + exit 0', () => {
     const r = run(['-h']);
     expect(r.status).toBe(0);
-    expect(r.stdout).toMatch(/^Usage: cdd/);
+    expect(r.stdout).toMatch(/USAGE cdd/);
   });
 
   it('no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)', () => {

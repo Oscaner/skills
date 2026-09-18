@@ -17,10 +17,14 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-import { validateCommitContract, gitCatFileCommitExists } from "../lib/contract/commit.mjs";
-import { writeHandoff, writeOwnHandoff } from "../lib/handoff/write.mjs";
-import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../lib/handoff/finalize.mjs";
-import { validateHandoffSchema } from "../lib/handoff/schema.mjs";
+// T2 commit-contract 块（本文件 52-186 行）经 Task 5 换底改指 ../src/rules/commit.ts（simple-git
+// 底层，@infra/git.ts）——语义逐字不变，仅从同步调用改 await（「API 换底 claim」唯一 owner = Task 5
+// rules/commit.ts）。gitCatFileCommitExists 改指 infra/git.ts。
+import { validateCommitContract } from "../src/rules/commit.ts";
+import { gitCatFileCommitExists } from "../src/infra/git.ts";
+import { writeHandoff, writeOwnHandoff } from "../src/artifacts/handoff/write.ts";
+import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../src/artifacts/handoff/finalize.ts";
+import { validateHandoffSchema } from "../src/rules/schema.ts";
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -49,139 +53,139 @@ function headOf(repo) {
   return git(repo, "rev-parse", "HEAD");
 }
 
-it("commit-contract: dirty tree implement → ok:false（D3b 同样适用 implement）", () => {
+it("commit-contract: dirty tree implement → ok:false（D3b 同样适用 implement）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-  const r = validateCommitContract("implement", repo);
+  const r = await validateCommitContract("implement", repo);
   expect(r.ok).toBe(false);
   expect(r.blocker).toMatch(/uncommitted changes at return/);
 });
 
-it("commit-contract: clean tree → ok:true（handoff 不重写）", () => {
+it("commit-contract: clean tree → ok:true（handoff 不重写）", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const handoff = seedHandoff(repo, 1, { base: head, head });
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
   // validateCommitContract 不改 status（归一化在 handoffStatus() 内存层，非文件层）
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("DONE");
 });
 
-it("commit-contract: clean tree → ok:true + handoff status 归一化 OK → APPROVED", () => {
+it("commit-contract: clean tree → ok:true + handoff status 归一化 OK → APPROVED", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const handoff = path.join(repo, "cdd", "task-1-handoff.json");
   const dir = path.join(repo, "cdd");
   mkdirSync(dir, { recursive: true });
   writeFileSync(handoff, JSON.stringify({ status: "OK", phase: "fix", task: 1, commits: { base: head, head } }));
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("OK");
 });
 
-it("commit-contract: clean tree → ok:true + handoff status COMPLETED unchanged (validateCommitContract does not mutate status)", () => {
+it("commit-contract: clean tree → ok:true + handoff status COMPLETED unchanged (validateCommitContract does not mutate status)", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const handoff = path.join(repo, "cdd", "task-1-handoff.json");
   const dir = path.join(repo, "cdd");
   mkdirSync(dir, { recursive: true });
   writeFileSync(handoff, JSON.stringify({ status: "COMPLETED", phase: "fix", task: 1, commits: { base: head, head } }));
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("COMPLETED");
 });
 
-it("commit-contract: clean tree → ok:true + handoff status APPROVED 不变", () => {
+it("commit-contract: clean tree → ok:true + handoff status APPROVED 不变", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const handoff = path.join(repo, "cdd", "task-1-handoff.json");
   const dir = path.join(repo, "cdd");
   mkdirSync(dir, { recursive: true });
   writeFileSync(handoff, JSON.stringify({ status: "APPROVED", phase: "fix", task: 1, commits: { base: head, head } }));
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("APPROVED");
 });
 
-it("commit-contract: clean tree + 无 handoff → ok:true（fail-open）", () => {
+it("commit-contract: clean tree + 无 handoff → ok:true（fail-open）", async () => {
   const repo = setupRepo();
-  const r = validateCommitContract("implement", repo, { handoffPath: path.join(repo, "cdd", "no-such.json") });
+  const r = await validateCommitContract("implement", repo, { handoffPath: path.join(repo, "cdd", "no-such.json") });
   expect(r.ok).toBe(true);
 });
 
-it("commit-contract: clean tree + handoff.head ≠ HEAD → ok:false（F1）", () => {
+it("commit-contract: clean tree + handoff.head ≠ HEAD → ok:false（F1）", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const wrong = "0000000000000000000000000000000000000000";
   const handoff = seedHandoff(repo, 1, { base: head, head: wrong });
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(false);
   expect(r.blocker).toMatch(/handoff commits.head .* does not match HEAD/);
   expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("BLOCKED");
 });
 
-it("commit-contract: handoff.head=dry-run → head-mismatch（哨兵已移除，对齐 bash）", () => {
+it("commit-contract: handoff.head=dry-run → head-mismatch（哨兵已移除，对齐 bash）", async () => {
   const repo = setupRepo();
   const handoff = seedHandoff(repo, 1, { base: "dry-run", head: "dry-run" });
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(false);
   expect(r.blocker).toMatch(/handoff commits.head dry-run does not match HEAD/);
 });
 
 // #186 SHA prefix 兼容：handoff.head 是实际 HEAD 的前缀 → ok:true（兼容历史 7-char handoff）
-it("commit-contract #186: handoff.head=7-char prefix of HEAD → ok:true（prefix fallback）", () => {
+it("commit-contract #186: handoff.head=7-char prefix of HEAD → ok:true（prefix fallback）", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const prefix = head.slice(0, 7);
   const handoff = seedHandoff(repo, 1, { base: head, head: prefix });
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
 });
 
-it("commit-contract #186: handoff.head=non-prefix 7-char → ok:false（mismatch）", () => {
+it("commit-contract #186: handoff.head=non-prefix 7-char → ok:false（mismatch）", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const wrong = "0000000";
   const handoff = seedHandoff(repo, 1, { base: head, head: wrong });
-  const r = validateCommitContract("fix", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
   expect(r.ok).toBe(false);
   expect(r.blocker).toMatch(/does not match HEAD/);
 });
 
-it("commit-contract: 非 git 目录 → fail-open ok:true", () => {
+it("commit-contract: 非 git 目录 → fail-open ok:true", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-nogit-"));
-  const r = validateCommitContract("fix", dir, { handoffPath: path.join(dir, "task-1-handoff.json") });
+  const r = await validateCommitContract("fix", dir, { handoffPath: path.join(dir, "task-1-handoff.json") });
   expect(r.ok).toBe(true);
 });
 
 // ---- T8: review 模式 —— 仅 dirty 校验，跳过 head ----
 
-it("commit-contract: review 模式 → dirty tree BLOCKED（review 亦校验 dirty；不再 no-op）", () => {
+it("commit-contract: review 模式 → dirty tree BLOCKED（review 亦校验 dirty；不再 no-op）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-  const r = validateCommitContract("review", repo);
+  const r = await validateCommitContract("review", repo);
   expect(r.ok).toBe(false);
   expect(r.blocker).toMatch(/uncommitted changes at return \(review\)/);
 });
 
-it("commit-contract: review 模式 → clean tree 跳过 head 校验（handoff.commits.head≠HEAD 不 BLOCKED）", () => {
+it("commit-contract: review 模式 → clean tree 跳过 head 校验（handoff.commits.head≠HEAD 不 BLOCKED）", async () => {
   const repo = setupRepo();
   const head = headOf(repo);
   const wrong = "0000000000000000000000000000000000000000";
   const handoff = seedHandoff(repo, 1, { base: head, head: wrong });
-  const r = validateCommitContract("review", repo, { handoffPath: handoff });
+  const r = await validateCommitContract("review", repo, { handoffPath: handoff });
   expect(r.ok).toBe(true);
 });
 
-it("commit-contract: 无 repoRoot → fail-open ok:true（直接-set 非 git workspace；不得误检 caller cwd）", () => {
-  const r = validateCommitContract("implement", null);
+it("commit-contract: 无 repoRoot → fail-open ok:true（直接-set 非 git workspace；不得误检 caller cwd）", async () => {
+  const r = await validateCommitContract("implement", null);
   expect(r.ok).toBe(true);
 });
 
-it("commit-contract: 未知 mode 名 → no-op ok:true（非法 mode 不接线）", () => {
+it("commit-contract: 未知 mode 名 → no-op ok:true（非法 mode 不接线）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-  const r = validateCommitContract("bogus", repo);
+  const r = await validateCommitContract("bogus", repo);
   expect(r.ok).toBe(true);
 });
 
@@ -335,23 +339,23 @@ it("writeOwnHandoff: 父目录递归创建 + 2-space 换行格式", () => {
   expect(readFileSync(p, "utf8")).toBe(`${JSON.stringify({ task: 1 }, null, 2)}\n`);
 });
 
-it("gitCatFileCommitExists: real commit → true", () => {
+it("gitCatFileCommitExists: real commit → true", async () => {
   const repo = setupRepo();
   const sha = headOf(repo);
-  expect(gitCatFileCommitExists(sha, repo)).toBe(true);
+  expect(await gitCatFileCommitExists(repo, sha)).toBe(true);
 });
 
-it("gitCatFileCommitExists: phantom SHA → false", () => {
+it("gitCatFileCommitExists: phantom SHA → false", async () => {
   const repo = setupRepo();
-  expect(gitCatFileCommitExists("0000000000000000000000000000000000000000", repo)).toBe(false);
+  expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(false);
 });
 
-it("gitCatFileCommitExists: empty string → false", () => {
+it("gitCatFileCommitExists: empty string → false", async () => {
   const repo = setupRepo();
-  expect(gitCatFileCommitExists("", repo)).toBe(false);
+  expect(await gitCatFileCommitExists(repo, "")).toBe(false);
 });
 
-it("gitCatFileCommitExists: null → false", () => {
+it("gitCatFileCommitExists: null → false", async () => {
   const repo = setupRepo();
-  expect(gitCatFileCommitExists(null, repo)).toBe(false);
+  expect(await gitCatFileCommitExists(repo, null)).toBe(false);
 });

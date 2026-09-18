@@ -10,6 +10,10 @@
 // subsystem removal (bin/gate/
 // path, CDD_GATE env, cdd-gate-core, gateDecide, deleted gate adapters) — must
 // not creep back into mechanism/document positions.)
+// Task 16（P5）追加 report-issues 旧模型残留守卫（p5 design §2.8「residue 守卫」条 —— AC1 词边界
+// 零命中 / AC5 renderer 零残留 的机制侧落点）：裸 report-issue（词边界，复数 report-issues skill
+// 名放行）/ --mode 词形 / renderComment / renderTitle / resolveDropdownOptions / sessionTypes /
+// execFileSync("git")（手写 git 回渗）——全部机制位置零豁免。
 // T10 追加 shipped 面反向守卫两条（§2.8 行 19-20）：① shipped 非 emit 面（skills/** · 插件
 // README）零 osuperpowers-version 版本字面量；② shipped 面（根 README · 插件 README）+ 协作者面
 // （.changeset/README.md）零 `/init` 引用——init 删除 + 版本戳机制删除后的逆向残留检查。
@@ -29,10 +33,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
 const OSKILLS = ["packages/osuperpowers/skills"];
-// re-org（spec §2.3）：cdd-engine 机制文件迁入 lib/ —— scope 常量统一扩为 bin+lib（templates 原已在 CDD_ENGINE）。
-const CDD_ENGINE_BIN = ["packages/cdd-engine/bin", "packages/cdd-engine/lib"];
+// re-org（spec §2.13）：cdd-engine 机制文件已自 lib/ 迁入 src/ 目标树 —— scope 常量统一收拢为 src
+//（bin/ 已删；lib/ 拓扑迁散为 src/{cli,dispatch,rules,artifacts,render,infra}，模板位于独立 templates/）。
+const CDD_ENGINE_BIN = ["packages/cdd-engine/src"];
 const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/templates"];
-// T9 nit3（DRY）：跨 skills + cdd-engine（bin+lib+templates）的机制位置集合 —— 5 个 check 共享。
+// T9 nit3（DRY）：跨 skills + cdd-engine（src+templates）的机制位置集合 —— 5 个 check 共享。
 const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
 // Task 5（P2）：文档表层 target —— 治理文件面（旧 docs 根残留最可能的回渗点）：
 // 根 CLAUDE.md（活跃约定入口）、根 README.md / 插件 README.md（发布面）、maintainer 文档目录。
@@ -42,8 +47,7 @@ export const DOC_SURFACE_TARGETS = ["CLAUDE.md", "README.md", "packages/osuperpo
 const RESIDUE_TARGETS = [
   "packages/osuperpowers/bin",
   "packages/osuperpowers/skills",
-  "packages/cdd-engine/bin",
-  "packages/cdd-engine/lib",
+  "packages/cdd-engine/src",
   "packages/cdd-engine/templates",
 ];
 const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
@@ -59,7 +63,7 @@ const STALE_LEXICON_CHECKS = [
   { label: "lens names D1|D2|D3 (lens-context)", re: /\bD[123][:：]/, scope: ALL_MECH_POSITIONS },
   { label: "resolve-hit", re: /resolve-hit/, scope: ALL_MECH_POSITIONS },
   { label: "gh issue reopen", re: /gh issue reopen/, scope: ALL_MECH_POSITIONS },
-  // T9 nit6：task-review 旧 mode 名 scope 用 CDD_ENGINE（bin+lib+templates）而非仅 CDD_ENGINE_BIN ——
+  // T9 nit6：task-review 旧 mode 名 scope 用 CDD_ENGINE（src+templates）而非仅 CDD_ENGINE_BIN ——
   // templates（implement/fix/review）历史引用旧 mode 名已成回渗源，templates 也须入扫。
   // T15（design §2.8 行 21）：scope 扩至 ALL_MECH_POSITIONS —— skills 面裸 task-review 已由
   // T11/T14/T15 三批清零（handoff-schema.md → cli-driven-development SKILL.md → _docs/review.md），
@@ -82,6 +86,20 @@ const STALE_LEXICON_CHECKS = [
   //   ——无锚定 alternation 的子串语义使 `CDD_` 前缀分支为死分支（T5 review-1 nit，实测等价），
   //   故取后缀单分支；`CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` 不命中（保留面）。
   { label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
+  // Task 16（P5）：report-issues 旧模型残留守卫 —— 旧模型语汇（--mode flag / renderComment /
+  // renderTitle / resolveDropdownOptions / sessionTypes / 裸 report-issue）已清零（rewrite 收口轮），
+  // 常驻防回归。`report-issue` 必须词边界（\b）——复数 `report-issues` skill 名与 `report-links-only`
+  // 节点均合法（substring 会误报复数）。`--mode` 取词形（负向后顾/前瞻豁免内部 `mode:` 属性与
+  // --modeYaml 一类衍生 token）。`execFileSync("git")` 防手写 git 回渗（engine 唯一 spawn 通道 =
+  // proc.mjs 的 execa）。scope 全在机制位置（ALL_MECH_POSITIONS），scripts/ 不在任一 scope，
+  // 本文件写字面无自噬。
+  { label: "裸 report-issue（词边界；复数 report-issues 放行）", re: /\breport-issue\b/, scope: ALL_MECH_POSITIONS },
+  { label: "旧 --mode flag（任务级 mode 已删）", re: /(?<![\w-])--mode(?![-\w])/, scope: ALL_MECH_POSITIONS },
+  { label: "renderComment 旧 renderer 语汇", re: /\brenderComment\b/, scope: ALL_MECH_POSITIONS },
+  { label: "renderTitle 旧 renderer 语汇", re: /\brenderTitle\b/, scope: ALL_MECH_POSITIONS },
+  { label: "resolveDropdownOptions 旧 dropdown 解析", re: /\bresolveDropdownOptions\b/, scope: ALL_MECH_POSITIONS },
+  { label: "sessionTypes 旧 session 分类", re: /\bsessionTypes\b/, scope: ALL_MECH_POSITIONS },
+  { label: 'execFileSync("git") 手写 git 回渗', re: /\bexecFileSync\(\s*["']git["']/, scope: ALL_MECH_POSITIONS },
 ];
 
 // T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。
@@ -181,9 +199,9 @@ export function collectGateLexiconHits(targetsOverride) {
 // 一律经 cdd-engine 的唯一读取入口取（loadContract / FAILURE_CATEGORIES / counters），本文件不写
 // 字面第二份 —— 守卫自身因此不成为被守卫语汇的载体。行 5 的两个旧根解析名按拼接构造（⑤ 的 target
 // 集含 scripts/，守卫本体不得书写被守词汇的连续字面，否则自命中）。
-import { loadContract } from "../../packages/cdd-engine/lib/context.mjs";
-import { program } from "../../packages/cdd-engine/lib/cli/parse.mjs";
-import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/lib/failure.mjs";
+import { loadContract } from "../../packages/cdd-engine/src/infra/context.ts";
+import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.ts";
+import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/src/rules/failure.ts";
 
 const CONTRACT = loadContract();
 // 行 2 白名单 = canonical channels.env 的 var + markers（§2.4.4-① 7 键）。
@@ -213,21 +231,21 @@ function listTargetFiles(targets) {
   return walkTargetFiles(targets).map((f) => path.relative(ROOT, f));
 }
 
-/** ① 行 1：engine bin+lib 内 process.cwd() 计数 = 1 且唯一命中文件 = lib/root.mjs（两项都写）。 */
+/** ① 行 1：engine src 内 process.cwd() 计数 = 1 且唯一命中文件 = src/bin.ts（两项都写）。 */
 export function collectProcessCwdAudit(targetsOverride = CDD_ENGINE_BIN) {
   const m = scanLines(targetsOverride, /process\.cwd\(\)/);
   const hits = [];
   if (m.length !== 1) {
     for (const { file, lineNo } of m) {
-      hits.push({ label: "process.cwd() 非单点（期望 engine bin+lib 恰 1 处）", file: `${file}:${lineNo}` });
+      hits.push({ label: "process.cwd() 非单点（期望 engine src 恰 1 处）", file: `${file}:${lineNo}` });
     }
     if (m.length === 0) {
-      hits.push({ label: "process.cwd() 缺失（lib/root.mjs initRoot 的转换点被移除或改名）", file: "packages/cdd-engine/lib/root.mjs" });
+      hits.push({ label: "process.cwd() 缺失（src/bin.ts initRoot 的转换点被移除或改名）", file: "packages/cdd-engine/src/bin.ts" });
     }
     return hits;
   }
-  if (!m[0].file.endsWith(path.join("lib", "root.mjs"))) {
-    hits.push({ label: "process.cwd() 未收口到 lib/root.mjs（唯一命中的转换点在别处）", file: `${m[0].file}:${m[0].lineNo}` });
+  if (!m[0].file.endsWith(path.join("src", "bin.ts"))) {
+    hits.push({ label: "process.cwd() 未收口到 src/bin.ts（唯一命中的转换点在别处）", file: `${m[0].file}:${m[0].lineNo}` });
   }
   return hits;
 }
@@ -249,14 +267,12 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
   return hits;
 }
 
-// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（8 处，逐 site 形态分类；全行注释非透传点）。
+// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（4 处，逐 site 形态分类；全行注释非透传点）。
 const ENV_PASSTHROUGH_SITES = [
-  { file: "packages/cdd-engine/lib/runner/run-task.mjs", re: /opts\.env \?\? process\.env/ },
-  { file: "packages/cdd-engine/lib/runner/run-docs.mjs", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, root, timeoutMs\)/ },
-  { file: "packages/cdd-engine/lib/lifecycle/proc.mjs", re: /env \?\? process\.env/ },
-  { file: "packages/cdd-engine/lib/cli/shared.mjs", re: /detectCurrentHarness\(process\.env\)/ },
-  { file: "packages/cdd-engine/lib/lifecycle/cli.mjs", re: /env \?\? process\.env/ },
-  { file: "packages/cdd-engine/lib/cli/branch-review.mjs", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
+  { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
+  { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
+  { file: "packages/cdd-engine/src/cli/shared.ts", re: /detectCurrentHarness\(process\.env\)/ },
+  { file: "packages/cdd-engine/src/cli/branch-review.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
 ];
 const ENV_WHOLE_RE = /process\.env([^.\w[]|$)/;
 export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
@@ -264,7 +280,7 @@ export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_WHOLE_RE)) {
     if (text.trimStart().startsWith("//")) continue; // 注释提及非透传点
     const san = ENV_PASSTHROUGH_SITES.find((s) => s.file === file && s.re.test(text));
-    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（8 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（4 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   return hits;
 }
@@ -289,16 +305,16 @@ export function collectSixEnvKeyHits(targetsOverride = CDD_ENGINE_BIN) {
 
 // ④ 行 4：路径类实参（--plan/--spec/--findings）全部经唯一 resolver。负断言 = 直用原参（绕过
 // resolveDocArg 归一）；正断言 = 5 个 call-site 文件（T2「归一入口闭包」）必须都引用 resolveDocArg。
-const PATH_ARG_SCOPE = ["packages/cdd-engine/lib/cli", "packages/cdd-engine/lib/runner/run-task.mjs"];
+const PATH_ARG_SCOPE = ["packages/cdd-engine/src/cli", "packages/cdd-engine/src/dispatch/task.ts"];
 // review-1 nit：旁路面补全 —— readFileSync 的 fs/promises 异步同胞 `readFile(opts.*)` 与动态
 // import 求值同一路径参（`import(opts.*)`）先前不在面内（机械面按实现者自选，此面须完整）。
 const PATH_ARG_BYPASS_RE = /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|readFile\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|import\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
 const RESOLVER_FILES = [
-  "packages/cdd-engine/lib/cli/shared.mjs",
-  "packages/cdd-engine/lib/cli/fix.mjs",
-  "packages/cdd-engine/lib/cli/review.mjs",
-  "packages/cdd-engine/lib/cli/base-branch.mjs",
-  "packages/cdd-engine/lib/runner/run-task.mjs",
+  "packages/cdd-engine/src/cli/shared.ts",
+  "packages/cdd-engine/src/cli/fix.ts",
+  "packages/cdd-engine/src/cli/review.ts",
+  "packages/cdd-engine/src/cli/base-branch.ts",
+  "packages/cdd-engine/src/dispatch/task.ts",
 ];
 export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride) {
   const scope = scopeOverride ?? PATH_ARG_SCOPE;
@@ -351,17 +367,17 @@ export function collectTestSeamHits(targetsOverride) {
 // 清单形）；finalize.mjs 写盘不经内联对象字面量 且 implement 实体化写侧必须过 normalizeHandoff
 //（schema 键集唯一权威，AC6）。文件作用域按 basename 判（override 供测试注入）。
 export function collectHandoffShapeHits(filesOverride = [
-  "packages/cdd-engine/lib/templates.mjs",
-  "packages/cdd-engine/lib/handoff/finalize.mjs",
+  "packages/cdd-engine/src/render/templates.ts",
+  "packages/cdd-engine/src/artifacts/handoff/finalize.ts",
 ]) {
   const hits = [];
   for (const f of filesOverride) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     const base = path.basename(f);
-    if (base === "templates.mjs" && /\bswitch\s*\(/.test(text)) {
+    if (base === "templates.ts" && /\bswitch\s*\(/.test(text)) {
       hits.push({ label: "手写 schema 字段清单（renderHandoffStub 原 switch 形态回渗）", file: f });
     }
-    if (base === "finalize.mjs") {
+    if (base === "finalize.ts") {
       if (/write(?:Own)?Handoff\([^,]+,\s*\{/.test(text)) {
         hits.push({ label: "finalize 写侧内联手写 handoff 对象字面量（应经 schema / 单点构造）", file: f });
       }
@@ -381,10 +397,10 @@ export function collectTimedOutSoleHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, TIMED_OUT_CONDITION_RE)) {
     hits.push({ label: `res.timedOut 作独立判定条件（超时判定非自持）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
-  const procFile = "packages/cdd-engine/lib/lifecycle/proc.mjs";
+  const procFile = "packages/cdd-engine/src/infra/proc.ts";
   const proc = readFileSync(path.join(ROOT, procFile), "utf8");
   if (!proc.includes('res.signal === "SIGTERM"')) {
-    hits.push({ label: "超时自持判定缺失（proc.mjs#spawnManaged 无 res.signal === SIGTERM 子句）", file: procFile });
+    hits.push({ label: "超时自持判定缺失（proc.ts#spawnManaged 无 res.signal === SIGTERM 子句）", file: procFile });
   }
   return hits;
 }
@@ -399,22 +415,14 @@ export function collectContextWriteHits(targetsOverride = CDD_ENGINE_BIN) {
   return hits;
 }
 
-// ⑨ 行 9：cdd <sub> --help（commander help 输出的 Options 段；非 parse.mjs 的 SUBCOMMAND_USAGE 字面量）
-// 内出现的 --xxx flag ⊆ canonical argv 的 flag 集。-h/--help 在扫面内不设豁免（canonical 显式声明 help）。
-// helpInformation() 与 CLI --help 输出同渲染器（commander 同一帮助文案）。
-export function helpOptionFlags(helpText) {
-  const flags = [];
-  const lines = String(helpText).split("\n");
-  let inOptions = false;
-  for (const line of lines) {
-    const t = line.trim();
-    if (t === "Options:") { inOptions = true; continue; }
-    if (inOptions) {
-      if (t === "" || /^(Usage|Commands|Arguments|Examples|Options):/.test(t)) break; // Options 段结束
-      const m = line.match(/^\s{2}(?:-[a-zA-Z], )?--([a-z][\w-]*)/);
-      if (m) flags.push(`--${m[1]}`);
-    }
-  }
+// ⑨ 行 9：cdd <sub> --help 的 Options 面 ⊆ canonical argv 的 flag 集。-h/--help 在扫面内不设
+// 豁免（canonical 显式声明 help）。Task 9 迁移到 citty 声明——commander 的 program +
+// helpInformation() 文本解析随 parser 一并删除：citty 下帮助的 OPTIONS 面即 defineCommand 的
+// args 声明（renderUsage 由声明生成），守卫直接遍历声明树取 args 键（kebab → --flag），零子进程。
+// citty 内建 --help/-h 不是声明 arg，逐命令追加进 flag 集。
+export function helpOptionFlags(argDef) {
+  const flags = Object.keys(argDef ?? {}).map((key) => `--${key}`);
+  flags.push("--help");
   return flags;
 }
 
@@ -424,17 +432,16 @@ export function helpFlagsNotInCanonical(flags) {
 
 export function collectHelpFlagHits() {
   const hits = [];
-  const cmds = [];
-  for (const c of program.commands) {
-    cmds.push({ name: c.name(), cmd: c });
-    for (const sc of c.commands) cmds.push({ name: `${c.name()} ${sc.name()}`, cmd: sc });
-  }
-  for (const { name, cmd } of cmds) {
-    const flags = helpOptionFlags(cmd.helpInformation());
-    for (const f of flags) {
+  const stack = [[mainCommand, "cdd"]];
+  while (stack.length > 0) {
+    const [cmd, name] = stack.pop();
+    for (const f of helpOptionFlags(cmd.args)) {
       if (!CANONICAL_ARGV_FLAGS.has(f)) {
         hits.push({ label: `cdd ${name} --help Options 出现 canonical argv 外 flag: ${f}`, file: `cdd ${name} --help` });
       }
+    }
+    for (const [sub, def] of Object.entries(cmd.subCommands ?? {})) {
+      stack.push([def, `${name} ${sub}`]);
     }
   }
   return hits;
@@ -460,19 +467,19 @@ function canonicalFactTokens() {
   return toks.filter(Boolean);
 }
 
-export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-engine/lib/context.mjs") {
+export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-engine/src/infra/context.ts") {
   const abs = path.isAbsolute(fileOverride) ? fileOverride : path.join(ROOT, fileOverride);
   const text = readFileSync(abs, "utf8");
   const hits = [];
   for (const tok of canonicalFactTokens()) {
     if (text.includes(tok)) {
-      hits.push({ label: `lib/context.mjs 硬编码 canonical 事实名: ${tok}（承重 → 装饰的回退）`, file: fileOverride });
+      hits.push({ label: `src/infra/context.ts 硬编码 canonical 事实名: ${tok}（承重 → 装饰的回退）`, file: fileOverride });
     }
   }
   return hits;
 }
 
-// ⑪ 行 11：engine bin+lib 内零「派生值经残留文件回读为输入」的调用点。读侧全枚举白名单
+// ⑪ 行 11：engine src 内零「派生值经残留文件回读为输入」的调用点。读侧全枚举白名单
 //（progress 计数器 · prev-round handoff——皆显式路径参数）锚在承重面；「最近一次」扫描语汇零命中。
 const RESIDUAL_SCAN_RE = /latestHandoff|latestReview|latestRound|mostRecent|findLast|mtime|scanLatest|resolveLatest/i;
 export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
@@ -483,11 +490,11 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   const dirs = listTargetFiles(targetsOverride);
   for (const f of dirs) {
     const abs = path.isAbsolute(f) ? f : path.join(ROOT, f);
-    if (readFileSync(abs, "utf8").includes("readdirSync") && f !== "packages/cdd-engine/lib/handoff/naming.mjs") {
+    if (readFileSync(abs, "utf8").includes("readdirSync") && f !== "packages/cdd-engine/src/artifacts/handoff/naming.ts") {
       hits.push({ label: "readdirSync 白名单外（以目录扫描替代显式路径参数即「最近一次」回渗）", file: f });
     }
   }
-  const rtFile = "packages/cdd-engine/lib/runner/run-task.mjs";
+  const rtFile = "packages/cdd-engine/src/dispatch/task.ts";
   const rt = readFileSync(path.join(ROOT, rtFile), "utf8");
   if (!rt.includes("prevHandoffPath")) {
     hits.push({ label: "prev-round handoff 显式路径读取（prevHandoffPath）缺失", file: rtFile });
@@ -504,7 +511,7 @@ const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function collectCountersContractHits({
-  constructFiles = ["packages/cdd-engine/lib/state/progress.mjs", "packages/cdd-engine/lib/failure.mjs"],
+  constructFiles = ["packages/cdd-engine/src/artifacts/progress.ts", "packages/cdd-engine/src/rules/failure.ts"],
   engineScope = CDD_ENGINE_BIN,
   taskSchema = "packages/cdd-engine/templates/schema/task-handoff-schema.json",
   docsSchema = "packages/cdd-engine/templates/schema/docs-handoff-schema.json",
@@ -576,8 +583,7 @@ export function checkChannelAudit() {
 
 // 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
 export const CHANNEL_AUDIT_TARGETS = [
-  "packages/cdd-engine/bin",
-  "packages/cdd-engine/lib",
+  "packages/cdd-engine/src",
   "packages/cdd-engine/templates/schema",
   "packages/cdd-engine/tests",
   "packages/osuperpowers/skills",
@@ -700,12 +706,12 @@ function checkHandoffSchema() {
 //            plugin:skill 引用 → hit；同插件 `osuperpowers:` 引用不属上游）。
 //   行 15 — 零引擎内部结构依赖（\bCDD_[A-Z_]+\b · \bprogress\.json\b · task-\d+-(review|fix|
 //            implement)-\d*\.?json）。scope = design AC5 的 7 个编排型 skill 逐名枚举（见
-//            ORCHESTRATOR_SKILLS）。report-issue 显式排除——AC5 原文：「例外（设计内，非缺口）：
-//            report-issue 的 progress.json#plan 读取是 program 通道的首跳（§2.5.4 的目的正是使其
+//            ORCHESTRATOR_SKILLS）。report-issues 显式排除——AC5 原文：「例外（设计内，非缺口）：
+//            report-issues 的 progress.json#plan 读取是 program 通道的首跳（§2.5.4 的目的正是使其
 //            可用），不属「引擎内部结构依赖」——该处的去留归 P5 的目标流程（届时可改指命令输出
-//            契约）」。排除只作用于本条；report-issue 仍在本组其余 4 条的 skills 面 scope 内
+//            契约）」。排除只作用于本条；report-issues 仍在本组其余 4 条的 skills 面 scope 内
 //            （实测其对 CDD_* / fix-inline / vendors/ / _docs/ 均零命中）。7 名枚举（含 finishing，
-//            不是 6 个）为逐字同源清单，不得用 skills/** 通配覆盖——通配会让 guard 在 report-issue
+//            不是 6 个）为逐字同源清单，不得用 skills/** 通配覆盖——通配会让 guard 在 report-issues
 //            上不可达且漏扫未来新 skill。
 //   行 16 — 零 fix-inline（修复一律 `cdd fix` 形，§2.7.3）；且每个评审循环 fix 节点（mermaid 节点
 //            label 含 fix——fix-task / branch-fix / fix-spec / fix-plan）的 `### `label`` 节须出现
@@ -917,7 +923,7 @@ function checkSkillSurface() {
 // 行 1–11、13 的 engine 侧 12 条守卫）；T10 追加 checkShippedGuards（§2.8 行 19-20 的
 // shipped 面两条反向守卫）；T11 追加 checkHandoffSchema（§2.8 行 14 的零命中守卫）；T16 追加
 // checkSkillSurface（§2.8 行 12/15/16/17/18 的 skills 面五条守卫）；grepTargets
-// 扩为含 cdd-engine bin+lib+templates 供 wiring guard 钉死。channelTargets = channel-audit
+// 扩为含 cdd-engine src+templates 供 wiring guard 钉死。channelTargets = channel-audit
 // 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
 export const steps = [
   {

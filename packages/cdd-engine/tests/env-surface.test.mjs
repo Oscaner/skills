@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import { execaSync } from "execa";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { loadContract } from "../lib/context.mjs";
+import { loadContract } from "../src/infra/context.ts";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
@@ -21,7 +21,7 @@ const sh = (cmd) => execaSync("bash", ["-lc", cmd], { cwd: REPO_ROOT, encoding: 
 
 describe("engine env 面收口", () => {
   it("取值直读键 ⊆ 白名单（覆盖 process.env.X / process.env[\"X\"] / env.X 三形）", () => {
-    const files = sh(`find packages/cdd-engine/bin packages/cdd-engine/lib -name '*.mjs'`).split("\n").filter(Boolean);
+    const files = sh(`find packages/cdd-engine/src -name '*.mjs'`).split("\n").filter(Boolean);
     const hits = new Set();
     for (const f of files) {
       const src = readFileSync(path.join(REPO_ROOT, f), "utf8");
@@ -33,9 +33,9 @@ describe("engine env 面收口", () => {
     expect([...hits].filter(k => !ALLOWED.includes(k))).toEqual([]);
   });
   it("零 spread 注入（{ ...process.env, … }）", () => {
-    expect(sh(`grep -rnE '\\.\\.\\.process\\.env' packages/cdd-engine/bin packages/cdd-engine/lib | wc -l`)).toBe("0");
+    expect(sh(`grep -rnE '\\.\\.\\.process\\.env' packages/cdd-engine/src | wc -l`)).toBe("0");
   });
   it("六个已删键名零命中（PLAN_FILE 含在内——故 PLAN_LINE 由显式 planFile 参数派生）", () => {
-    expect(sh(`grep -rnE '${DELETED.join("|")}' packages/cdd-engine/bin packages/cdd-engine/lib | wc -l`)).toBe("0");
+    expect(sh(`grep -rnE '${DELETED.join("|")}' packages/cdd-engine/src | wc -l`)).toBe("0");
   });
 });

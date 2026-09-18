@@ -41,14 +41,14 @@ flowchart TD
 
 ### `author-plan`
 
-- **Do**: Write the complete plan document to `docs/osuperpowers/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — the same source as `plan-review`'s `--spec` pointer; report-issue `resolve-destination` resolves its program chain through this field as its first hop. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction (`/^### Task \d+:/`); em dash / Chinese colon / any other delimiter fails brief extraction at dispatch time. Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to plan-review
+- **Do**: Write the complete plan document to `docs/osuperpowers/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — the same source as `plan-review`'s `--spec` pointer; `report-issues` resolves program attribution through this header (workspace plan record → **`**Spec:**`** → overall → Related), the plan record being the first hop of its program chain. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction (`/^### Task \d+:/`); em dash / Chinese colon / any other delimiter fails brief extraction at dispatch time. Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to plan-review
 - **Read**: approved spec + `backfill-design` output
 - **Exit**: Plan written + self-review passed → `plan-review`
 - **Fail**: Write error or self-review finds an unfixable defect → report + fail-open (do not block plan review)
 
 ### `plan-review`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --plan <path> --spec <spec-path>` (completeness / decomposition / buildability in one run; findings are lens-tagged; round auto-increments in the engine). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. All findings are fixed from the captured handoff; `blocker=0` → no re-run
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --plan <path> --spec <spec-path>` (completeness / decomposition / buildability in one run; findings are lens-tagged; round auto-increments in the engine). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. All findings are fixed from the captured handoff; `blocker=0` → no re-run. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: plan document + spec document
 - **Exit**: Blockers routed via `blocker=0?` → `fix-plan` (both branches; the edge inherits the re-run routing)
 - **Fail**: Re-running the review after blocker=0 → violates the review-stopping discipline

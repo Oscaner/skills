@@ -11,21 +11,13 @@ import { tmpdir } from "node:os";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
-vi.mock("../lib/contract/commit.mjs", async () => {
-  // T5/T7: deriveReviewStatus/applyDerivedStatus 走真实实现（lib/handoff/finalize.mjs 不 mock），
-  // mock 只替 gitToplevel（commit.mjs 侧），保证 docs-runner 读回定稿测试（finalizeHandoff →
-  // rollup 派生）覆盖的是真实派生逻辑，而非 mock 出来的假 status。
-  const actual = await vi.importActual("../lib/contract/commit.mjs");
-  return {
-    ...actual,
-    gitToplevel: vi.fn(() => "/repo/root"),
-  };
-});
+// Task 5: rules/commit.mjs was deleted (its git now lives in infra/git.ts, consumed by
+// finalize.mjs — no commit-module mock needed here; docs-runner injects repoRoot explicitly).
 
-vi.mock("../lib/handoff/write.mjs", async () => {
+vi.mock("../src/artifacts/handoff/write.ts", async () => {
   // write 三件（contract.mjs 符号拆分后独立文件）：writeHandoff/writeOwnHandoff mock（不落盘），
   // readJson 走真实实现（h1FromHandoff 等读回路径）。
-  const actual = await vi.importActual("../lib/handoff/write.mjs");
+  const actual = await vi.importActual("../src/artifacts/handoff/write.ts");
   return {
     ...actual,
     writeHandoff: vi.fn(),
@@ -33,11 +25,11 @@ vi.mock("../lib/handoff/write.mjs", async () => {
   };
 });
 
-vi.mock("../lib/registry.mjs", async () => {
+vi.mock("../src/infra/registry.ts", async () => {
   // Task 5: cli-shared 从 registry 导入 resolveInjection —— mock 复用真实实现，
   // checkHarness 返回带完整 operation×type prefix 的条目（验证 docs-runner type 透传注入）。
   // REG_PATH：统一导出（spec §2.3）随 run-docs 消费方纳入 mock 面。
-  const { resolveInjection, resolveSuffix, REG_PATH } = await vi.importActual("../lib/registry.mjs");
+  const { resolveInjection, resolveSuffix, REG_PATH } = await vi.importActual("../src/infra/registry.ts");
   return {
     loadRegistry: vi.fn(() => ({})),
     checkHarness: vi.fn(() => ({
@@ -57,7 +49,7 @@ vi.mock("../lib/registry.mjs", async () => {
   };
 });
 
-vi.mock("../lib/templates.mjs", () => ({
+vi.mock("../src/render/templates.ts", () => ({
   PKG_ROOT: "/mock/pkg/root",
   renderHandoffStub: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
   renderTemplate: vi.fn(() => "mocked docs review prompt"),
@@ -65,12 +57,14 @@ vi.mock("../lib/templates.mjs", () => ({
   docsFixHardGate: vi.fn((handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE exiting: the engine reads the file, not your stdout.`),
 }));
 
-vi.mock("../lib/handoff/schema.mjs", () => ({
+vi.mock("../src/rules/schema.ts", () => ({
   loadHandoffSchema: () => ({ type: 'object', required: ['phase', 'status', 'findings', 'artifacts', 'doc_path'], properties: { phase: { type: 'string' }, status: { type: 'string' }, doc_path: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' } } }),
   validateHandoffSchema: vi.fn(() => ({ valid: true })),
   // T5：mock 面镜射真实模块导出（run-docs schema 无效分支消费 recoverHandoff，缺此导出即
-  // 「归一化 → 重校验」单点在 mock 环境下不可达）。
+  // 「归一化 → 重校验」单点在 mock 环境下不可达）。normalizeHandoff 镜像加防：finalize.ts 的
+  // implement 实体化依赖它（docs 面不触达，防御性镜像真实导出形状）。
   recoverHandoff: vi.fn((o) => ({ handoff: o, valid: true })),
+  normalizeHandoff: vi.fn((o) => o),
 }));
 
 // Selective node:fs mock: intercept schema + handoff reads; pass through everything else.
@@ -129,7 +123,7 @@ describe("runDocsTask", () => {
 
   it("dry-run review → exitCode 0 + APPROVED handoff", async () => {
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
     const result = await runDocsTask({
       harness: "claude",
       mode: "review",
@@ -149,7 +143,7 @@ describe("runDocsTask", () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
     await runDocsTask({
       harness:   "claude",
       mode:      "review",
@@ -173,7 +167,7 @@ describe("runDocsTask", () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
     // review×spec → prefix.review.spec="" → 无注入，prompt 保持模板渲染结果（首行）
     await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec",
@@ -204,10 +198,10 @@ describe("runDocsTask", () => {
   it("Task 18 review-1 finding 2: fix 族 HARD_GATE = docsFixHardGate 写盘门（review 的 json-return 门不被挪用）", async () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
-    const { docsFixHardGate, reviewHardGate } = await import("../lib/templates.mjs");
+    const { docsFixHardGate, reviewHardGate } = await import("../src/render/templates.ts");
 
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
     await runDocsTask({
       harness: "claude", mode: "fix", template: "docs", type: "spec",
       doc: SPEC_DOC,
@@ -225,7 +219,7 @@ describe("runDocsTask", () => {
 
   it("T3: 非 dry-run 缺 handoffPath → throw（canonical naming；无 template-round fallback）", async () => {
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
     await expect(runDocsTask({
       harness: "claude", mode: "review", template: "review",
       doc: SPEC_DOC,
@@ -237,10 +231,10 @@ describe("runDocsTask", () => {
   it("T3: fix 模板名直传 —— `-review`→`-fix` legacy 派生分支已删（renderTemplate 收 template 原值）", async () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
-    const { renderTemplate } = await import("../lib/templates.mjs");
+    const { renderTemplate } = await import("../src/render/templates.ts");
 
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
     await runDocsTask({
       harness: "claude", mode: "fix", template: "critiques-review", type: "spec",
       doc: SPEC_DOC,
@@ -259,8 +253,8 @@ describe("runDocsTask", () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
 
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
-    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
+    const { writeOwnHandoff } = await import("../src/artifacts/handoff/write.ts");
     const fs = await import("node:fs");
     const origRead = fs.readFileSync.getMockImplementation();
     // 覆写读回 fixture：同一 canonical ws 前缀下，agent 写 status:CHANGES_REQUESTED + warn/nit findings
@@ -305,8 +299,8 @@ describe("runDocsTask", () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
-    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
+    const { writeOwnHandoff } = await import("../src/artifacts/handoff/write.ts");
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec",
       doc: SPEC_DOC,   // 不存在 → hashFile "" 哨兵
@@ -328,8 +322,8 @@ describe("runDocsTask", () => {
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "real content p2");
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
-    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
+    const { writeOwnHandoff } = await import("../src/artifacts/handoff/write.ts");
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
@@ -345,8 +339,8 @@ describe("runDocsTask", () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
-    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
+    const { writeOwnHandoff } = await import("../src/artifacts/handoff/write.ts");
     await runDocsTask({
       harness: "claude", mode: "fix", template: "docs", type: "spec",
       doc: SPEC_DOC,
@@ -366,8 +360,8 @@ describe("runDocsTask", () => {
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "blocked content");
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
-    const { writeHandoff } = await import("../lib/handoff/write.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
+    const { writeHandoff } = await import("../src/artifacts/handoff/write.ts");
     // 真实落盘 mock：模块级 vi.mock 把 writeHandoff 换成 vi.fn() 不落盘 → BLOCKED 分支写盘后
     // JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT（orphan 路径 node:fs mock 透传真实 fs）。
     // 注入真实写盘实现让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
@@ -392,8 +386,8 @@ describe("runDocsTask", () => {
     const doc = join(dir, "plan.md");
     writeFileSync(doc, "plan content p2");
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
-    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
+    const { writeOwnHandoff } = await import("../src/artifacts/handoff/write.ts");
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "plan", doc,
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/plan-review-1.json",
@@ -420,8 +414,8 @@ describe("runDocsTask", () => {
     writeFileSync(handoffPath,
       '{"phase":"review","status":"APPROVED","findings":[{"summary":"#\\d+ 未转义"}],"artifacts":{},"doc_path":"/spec.md"}');
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
-    const { writeHandoff } = await import("../lib/handoff/write.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
+    const { writeHandoff } = await import("../src/artifacts/handoff/write.ts");
     // 真实落盘 mock：BLOCKED 分支写盘后 JSON.parse(readFileSync(handoffPath)) 同步读回必须成功。
     mockRealWriteBack(writeHandoff);
     const result = await runDocsTask({
@@ -455,7 +449,7 @@ describe("runDocsTask", () => {
     writeFileSync(handoffPath, JSON.stringify({
       phase: "review", status: "APPROVED", findings: "none", notes: 5, artifacts: {}, doc_path: "/spec.md",
     }));
-    const { validateHandoffSchema, recoverHandoff } = await import("../lib/handoff/schema.mjs");
+    const { validateHandoffSchema, recoverHandoff } = await import("../src/rules/schema.ts");
     validateHandoffSchema.mockImplementationOnce(
       () => ({ valid: false, reason: "/findings must be array; /notes must be string" }));
     // 沿真实 recoverHandoff 语义：归一化结果**保留已声明键原值**（notes: 5 仍在内——正是旧载荷的泄漏源），
@@ -466,11 +460,11 @@ describe("runDocsTask", () => {
       reason: ": /findings must be array; /notes must be string",
       preservedFindings: [],
     }));
-    const { writeOwnHandoff } = await import("../lib/handoff/write.mjs");
+    const { writeOwnHandoff } = await import("../src/artifacts/handoff/write.ts");
     mockRealWriteBack(writeOwnHandoff);   // 恢复面不可救 → writeBlocked 带 baseHandoff → 全量覆盖写盘
 
     vi.resetModules();
-    const { runDocsTask } = await import("../lib/runner/run-docs.mjs");
+    const { runDocsTask } = await import("../src/dispatch/docs.ts");
     const result = await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec", doc,
       handoffPath, repoRoot: "/repo/root", dryRun: false,

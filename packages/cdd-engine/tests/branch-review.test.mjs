@@ -37,7 +37,7 @@ describe('branch-review dry-run', () => {
 
     try {
       const out = execaSync('node', [
-        path.join(REPO_ROOT, 'packages/cdd-engine/bin/cdd.mjs'),
+        path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs'),
         '--dry-run', 'review', '--type', 'branch',
         '--plan', planPath,
         '--base', 'abc1234',
@@ -78,7 +78,7 @@ describe('branch-review schema-invalid e2e', () => {
     const base7 = base.slice(0, 7);
     const head7 = head.slice(0, 7);
     // 与 runBranchReview 同派生的 handoff 路径（全新 workspace → round 1）
-    const { resolveWorkspace, handoffName, resolveNextRound } = await import('../lib/handoff/naming.mjs');
+    const { resolveWorkspace, handoffName, resolveNextRound } = await import('../src/artifacts/handoff/naming.ts');
     const workspace = resolveWorkspace(planPath, dir);
     const round = resolveNextRound(workspace, 'review', 'branch', { base7, head7 });
     const handoffPath = path.join(workspace, handoffName('review', 'branch', { base7, head7, round }));
@@ -92,14 +92,14 @@ describe('branch-review schema-invalid e2e', () => {
     const origPath = process.env.PATH;
     process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
     // ghost registry：真实 harness-registry.json + 追加 fake-cli（runBranchReview 经 opts.registryPath 注入）
-    const { REG_PATH } = await import('../lib/registry.mjs');
+    const { REG_PATH } = await import('../src/infra/registry.ts');
     const regPath = path.join(dir, 'registry.json');
     const reg = JSON.parse(readFileSync(REG_PATH, 'utf8'));
     reg.ghost = { cli: 'fake-cli', invoke: '-p', output: 'text', ship: 'full' };
     writeFileSync(regPath, JSON.stringify(reg, null, 2));
     try {
-      const { ExitRequested } = await import('../lib/exit.mjs');
-      const { runBranchReview } = await import('../lib/cli/branch-review.mjs');
+      const { ExitRequested } = await import('../src/infra/exit.ts');
+      const { runBranchReview } = await import('../src/cli/branch-review.ts');
       let exitCode = null;
       try {
         await runBranchReview({ harness: 'ghost', plan: planPath, base, head, root: dir, registryPath: regPath });

@@ -1,6 +1,8 @@
 name: Bug report
 description: Report a bug found while using osuperpowers skills (dogfood)
-labels: ["bug", "osuperpowers"]
+labels:
+  - bug
+  - osuperpowers
 body:
   - type: markdown
     attributes:
@@ -20,18 +22,8 @@ body:
         - osuperpowers:writing-phase-spec
         - osuperpowers:writing-plans
         - osuperpowers:cli-driven-development
-        - osuperpowers:report-issue
+        - osuperpowers:report-issues
         - osuperpowers:finishing
-    validations:
-      required: true
-  - type: dropdown
-    id: session-type
-    attributes:
-      label: Session type
-      description: Was this finding surfaced during a dogfood (CDD session) or a standalone run?
-      options:
-        - dogfood (CDD session)
-        - standalone
     validations:
       required: true
   - type: textarea
@@ -53,7 +45,7 @@ body:
     id: impact
     attributes:
       label: Impact
-      description: "What did this block or degrade — token cost, extra rounds, incorrect state?"
+      description: What did this block or degrade — token cost, extra rounds, incorrect state?
     validations:
       required: true
   - type: textarea

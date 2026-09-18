@@ -17,7 +17,7 @@ const GROUP_SUPPORTED = processGroupReapingSupported();
 // 延迟导入，便于每用例重建 registry 状态
 let proc;
 async function loadModule() {
-  proc = await import("../lib/lifecycle/proc.mjs");
+  proc = await import("../src/infra/proc.ts");
 }
 
 const markerAlive = m => pgrepCount(m);   // 括号技巧消除 pgrep -f 自匹配（helpers.mjs，CI Linux 实测）

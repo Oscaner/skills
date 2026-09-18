@@ -40,8 +40,8 @@ flowchart TD
 
 ### `explore-context`
 
-- **Do**: Explore project context in the resolved mode (code / issues / docs / git log) so the routing and the delegated sessions have what they need
-- **Read**: project files, docs, git log, the parent overall (phase-within-program mode)
+- **Do**: Explore project context in the resolved mode so the routing and the delegated sessions have what they need — code, issues, docs, and git log are reference examples of exploration surfaces, **not a fixed channel set**; scale the surface to what the task needs (exploration does not constitute a resolved-mode constraint)
+- **Read**: whatever the task needs — e.g. project files, docs, git log, the parent overall (phase-within-program mode)
 - **Exit**: Exploration complete → `mode?`
 - **Fail**: Context read fails → report + fail-open
 
@@ -89,21 +89,21 @@ flowchart TD
 
 ### `run-writing-single-spec`
 
-- **Do**: Run a /osuperpowers:writing-single-spec session — authors, reviews and commits the single spec (the program converges into one spec)
+- **Do**: Run a /osuperpowers:writing-single-spec session — authors, reviews and commits the single spec (the program converges into one spec). The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff session loaded → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-overall-spec`
 
-- **Do**: Run a /osuperpowers:writing-overall-spec session — authors, reviews and commits the overall spec (the program charter). Terminal write: the flow converges here and the session hands off to /compact or /osuperpowers:brainstorming [Px program]
+- **Do**: Run a /osuperpowers:writing-overall-spec session — authors, reviews and commits the overall spec (the program charter). Terminal write: the flow converges here and the session hands off to /compact or /osuperpowers:brainstorming [Px program]. The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff session loaded → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-phase-spec`
 
-- **Do**: Run a /osuperpowers:writing-phase-spec session — authors, reviews and commits the phase spec (this phase's increment)
+- **Do**: Run a /osuperpowers:writing-phase-spec session — authors, reviews and commits the phase spec (this phase's increment). The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + parent overall
 - **Exit**: Handoff session loaded → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)

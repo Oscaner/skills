@@ -16,7 +16,7 @@ import { collectGateLexiconHits, scanTargets } from "./residue.mjs";
 
 const root = process.cwd(); // repo toplevel (run.mjs invokes with the repo root as cwd)
 
-const ENTRIES = { cdd: "packages/cdd-engine/bin/cdd.mjs" };
+const ENTRIES = { cdd: "packages/cdd-engine/dist/cli.mjs" };
 
 // Resolve the bin to its argv prefix: PATH bin when present (exercises the `npm link`
 // install — CI link-cdd-engine asserts `command -v cdd`), else `node <repo-relative entry>`
@@ -31,6 +31,13 @@ function resolveBin(bin) {
 }
 
 export function main() {
+  // Self-sufficiency gate: the node-fallback entry (ENTRIES.cdd) is a gitignored dev-stub
+  // product — ensure it exists so a standalone `node scripts/run.mjs smoke-cdd` on a fresh
+  // checkout isn't ENOENT (validate's 5b0 step already materializes it in the same CI job;
+  // this covers direct invocation after `rm -rf packages/cdd-engine/dist`).
+  if (!existsSync(path.join(root, ENTRIES.cdd))) {
+    execaSync("pnpm", ["-C", "packages/cdd-engine", "dev:stub"], { cwd: root, stdio: "inherit" });
+  }
   const cdd = resolveBin("cdd");
   if (cdd[0] !== "cdd") {
     console.log(`smoke: PATH bin unavailable — using repo-relative node entry (${cdd.slice(1).join(" ")})`);
@@ -62,9 +69,9 @@ export function main() {
     const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
     const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
     // The five literals mirror the engine's 5-line H1 contract verbatim. Authoritative emitters:
-    // lib/runner/run-task.mjs h1FourLines（stdout/res.h1 面）· h1FromHandoff（回读重发面）·
-    // lib/cli/branch-review.mjs DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
-    // counters 行由 lib/state/progress.mjs h1CountersLine 派生（缺 progress.json 时零值兜底）。
+    // src/dispatch/task.ts h1FourLines（stdout/res.h1 面）· h1FromHandoff（回读重发面）·
+    // src/cli/branch-review.ts DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
+    // counters 行由 src/artifacts/progress.ts h1CountersLine 派生（缺 progress.json 时零值兜底）。
     const ok = /status: APPROVED/m.test(lastBlock)
       && /commits: base=/.test(lastBlock)
       && /artifacts: /.test(lastBlock)
@@ -84,8 +91,8 @@ export function main() {
 // target design — guards must reference retired tokens to assert their absence.
 const OSKILLS = ["packages/osuperpowers/skills"];
 // N②: 不含 tests —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」
-// doctrine 对齐（同 residue G1）。re-org 后 ENGINE 扩为 bin+lib（--harness 词表随 parse.mjs 移入 lib/）。
-const ENGINE = ["packages/cdd-engine/bin", "packages/cdd-engine/lib"];
+// doctrine 对齐（同 residue G1）。re-org 后 ENGINE 收拢为 src（--harness 词表随 parse.ts 移入 src/cli/）。
+const ENGINE = ["packages/cdd-engine/src"];
 const MAINTAINERS = ["docs/maintainers"];
 const MAINTAINERS_DOC = [path.join("docs", "maintainers", "osuperpowers-plugin.md")];
 const ROOT_README = [path.join("packages", "osuperpowers", "README.md")];
@@ -107,9 +114,9 @@ function checkDeletionSurface() {
   assertNoResidue("G2 --harness flag", /--harness/, [...ENGINE, ...OSKILLS, ...MAINTAINERS]);
 
   // G3 --doc — shipped skills + engine entry + maintainers. tests/ 与 cli-shape.test 自豁免：
-  // cli-shape.test.mjs 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 lib/cli/parse.mjs
+  // cli-shape.test.mjs 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 src/cli/parse.ts
   //（薄入口化后命令定义与 --doc 词表唯一落点）。
-  assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "lib", "cli", "parse.mjs"), ...MAINTAINERS]);
+  assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "src", "cli", "parse.ts"), ...MAINTAINERS]);
 
   // G4 select vocab in shipped skills.
   assertNoResidue("G4 cli-select/select-harness", /cli-select|select-harness/, OSKILLS);

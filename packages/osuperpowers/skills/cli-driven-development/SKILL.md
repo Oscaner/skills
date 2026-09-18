@@ -58,11 +58,11 @@ flowchart TD
 - **Do**: Dispatch `cdd implement --task <n> --plan <path>` — background execution (harness `run_in_background` when supported; timeout + poll otherwise). One task at a time. Every nested `cdd` dispatch in this skill forbids historical session flags (`--resume` / `-c`) — one-shot print mode only.
 - **Read**: output contract — `status` / `blocker` / `artifacts` (absolute paths) / `counters`
 - **Exit**: dispatch complete → `run-task-review`
-- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issue`)
+- **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issues`)
 
 ### `run-task-review`
 
-- **Do**: Dispatch `cdd review --type task --task <n> --plan <path>` — background execution. Every task goes through implement → review → (fix if blockers); review is unskippable — a task never goes straight from implement to completion.
+- **Do**: Dispatch `cdd review --type task --task <n> --plan <path>` — background execution. Every task goes through implement → review → (fix if blockers); review is unskippable — a task never goes straight from implement to completion. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: output contract — `status` + captured review `findings[]`; routes by blocker severity
 - **Exit**: `blocker=0?` routes to `fix-task` (both branches; the re-run path is determined by the entry edge)
 - **Fail**: review exits with no output → BLOCKED: engine-error
@@ -76,7 +76,7 @@ flowchart TD
 
 ### `branch-review`
 
-- **Do**: Dispatch `cdd review --type branch --plan <path> --base <merge-base> --head <head>` — `<merge-base>` = `git merge-base HEAD origin/<base>` with `<base>` from `cdd base-branch get --plan <path>`; `<head>` = `git rev-parse HEAD`; background execution. Persist the diff to the workspace (`git diff <base>..<head> --stat`).
+- **Do**: Dispatch `cdd review --type branch --plan <path> --base <merge-base> --head <head>` — `<merge-base>` = `git merge-base HEAD origin/<base>` with `<base>` from `cdd base-branch get --plan <path>`; `<head>` = `git rev-parse HEAD`; background execution. Persist the diff to the workspace (`git diff <base>..<head> --stat`). Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: `cdd base-branch get` output + branch HEAD + review output contract
 - **Exit**: `blocker=0?` routes to `branch-fix` (both branches; the re-run path is determined by the entry edge)
 - **Fail**: review exits with no output → BLOCKED: engine-error
@@ -112,8 +112,8 @@ Cross-node failure handling (complements node Fail fields):
 | category | handling |
 |---|---|
 | TIMEOUT | routed from output contract `status`; retry within the counters cap, then terminal per the output contract |
-| CONTRACT_VIOLATION | blocker from output contract; report via `osuperpowers:report-issue`; no re-dispatch |
-| ENGINE_SELF_WRITTEN | blocker from output contract; report via `osuperpowers:report-issue`; orchestrator never rewrites handoff state |
+| CONTRACT_VIOLATION | blocker from output contract; report via `osuperpowers:report-issues`; no re-dispatch |
+| ENGINE_SELF_WRITTEN | blocker from output contract; report via `osuperpowers:report-issues`; orchestrator never rewrites handoff state |
 | EXECUTION_FAILURE | blocker from output contract; fixable + retry available → re-dispatch; else BLOCKED: engine-error |
 | UNVERIFIABLE | blocker from output contract; report to user; re-dispatch only on user confirmation |
 | PLAN_CONFLICT | blocker from output contract; surface to the user — never silently override the plan |

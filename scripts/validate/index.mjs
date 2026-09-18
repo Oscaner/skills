@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/index.mjs — validate orchestration (`node scripts/run.mjs
-// validate` / standalone `node scripts/validate/index.mjs`). Composes the 13
+// validate` / standalone `node scripts/validate/index.mjs`). Composes the 14
 // per-block step descriptors from scripts/validate/*.mjs into the original run
 // order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers

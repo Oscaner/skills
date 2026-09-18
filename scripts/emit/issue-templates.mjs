@@ -1,19 +1,20 @@
 // scripts/emit/issue-templates.mjs — .github/ISSUE_TEMPLATE emitter.
 //
-// Renders the three GitHub issue template forms (bug_report / enhancement /
-// session_report) from the canonical `finding-meta.json` via the report-issue
-// renderer single point (report-templates.renderYml). Data-driven convention:
-// form field definitions live solely in the canonical JSON — nothing hardcoded
-// here. Emitter output is drift-guarded by `emit:check` (committed yml are
-// products of this emitter + the canonical).
+// Renders the two GitHub issue template forms (bug_report / enhancement) from
+// the canonical `finding-meta.json` via the emit-only YAML renderer
+// (render-yaml.renderYml — Task 14 §2.13 (b): `yaml` lives only in this
+// emit toolchain, not in osuperpowers runtime dependencies). Data-driven
+// convention: form field definitions live solely in the canonical JSON —
+// nothing hardcoded here. Emitter output is drift-guarded by `emit:check`
+// (committed yml are products of this emitter + the canonical).
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { renderYml } from "../../packages/osuperpowers/scripts/report-templates.mjs";
+import { renderYml } from "../../packages/osuperpowers/scripts/render-yaml.mjs";
 
 const META_PATH = fileURLToPath(
   new URL(
-    "../../packages/osuperpowers/skills/report-issue/templates/finding-meta.json",
+    "../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json",
     import.meta.url,
   ),
 );

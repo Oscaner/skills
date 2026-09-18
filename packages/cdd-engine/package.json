@@ -7,24 +7,39 @@
     "node": ">=22.12.0"
   },
   "files": [
-    "bin/",
-    "lib/",
+    "dist/",
     "templates/"
   ],
+  "main": "./dist/cli.mjs",
+  "exports": {
+    ".": "./dist/cli.mjs",
+    "./package.json": "./package.json"
+  },
   "bin": {
-    "cdd": "./bin/cdd.mjs"
+    "cdd": "./dist/cli.mjs"
   },
   "scripts": {
+    "build": "unbuild",
+    "dev:stub": "unbuild --stub",
+    "prepare": "pnpm run dev:stub",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "commander": "^15",
-    "execa": "^9",
     "ajv": "^8",
-    "semver": "^7"
+    "citty": "^0.2",
+    "consola": "^3",
+    "execa": "^9",
+    "handlebars": "^4",
+    "hookable": "^6",
+    "semver": "^7",
+    "simple-git": "^3",
+    "tinyglobby": "^0.2"
   },
   "devDependencies": {
+    "@types/node": "^22.20.3",
+    "typescript": "^5.9.3",
+    "unbuild": "^3.6.1",
     "vitest": "^3"
   },
   "repository": {

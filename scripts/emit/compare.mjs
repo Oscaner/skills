@@ -36,7 +36,6 @@ export const productFiles = [
   // inventory: if the generator stops producing these, emit-check flags them.
   ".github/ISSUE_TEMPLATE/bug_report.yml",
   ".github/ISSUE_TEMPLATE/enhancement.yml",
-  ".github/ISSUE_TEMPLATE/session_report.yml",
 ];
 
 function readJson(committedRoot, rel) {

@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-13-osuperpowers-overhaul-p6-design.md](docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p6-design.md)
 
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.45](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.46](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
 - **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263 已 merge，2026-09-18）；P1–P4 shipped（hard 链完整）
 - **Base**: develop（finishing read-base 的数据源）
 
@@ -10,11 +10,13 @@
 
 **v1.2 回填（overall v1.45 / spec v1.8 同窗，用户 2026-09-18 TTL-free 升维指示）**：新增 **Task 20「模板系统化终态（C1-max 字节布局层）」**——统一壳 + 槽级三段制（`壳 → Return → Round context 绝对末尾`）+ 渲染数据平面单文件（四 `.md` 并入 template-contract.json `sections`，`.md` 删除/派生）+ token `zone` 归属 + C4 升格（壳=无参常数）+ 门面去路径化 + `WORKSPACE_SLUG`（plan/spec 收敛）。**编号说明**：engine brief 提取为 `/^### Task \d+:/`（整数契约），不采用小数主号——Task 20 为追加号，**实施时序位于 T8 之后、T9 之前**（T8 三断言先立 → C1-max 落终态布局 → T9/T12/T18 直接落终态，零二次改动）。
 
+**v1.3 回填（overall v1.46 / spec v1.9 同窗，用户 2026-09-19 指示）**：新增 **Task 21「scripts/ 与 cdd-engine 统一 CLI 框架 + 测试就近 `__tests__` 化」**——scripts/run.ts 弃 Commander 改 citty（engine 同款）+ observe-cache.ts 手写 parseArgs 归 citty argsDef（boolean presence 语义保留）+ 退出码 table 对齐 engine（P5 §2.4.2）+ commander 根 devDep 移除 + citty 入根 devDeps；scripts 测试全迁 `__tests__/`（<dir>/__tests__/ + 顶层 scripts/__tests__/）+ root vitest include 收敛 `scripts/**/__tests__/**/*.test.ts`（T3 内存守卫不变）。
+
 **commit 边界机制（本 program 全 phase 生效）**：dispatch 两端门——入口门（进入 review 前主 agent 产物已提交、dispatch 期零写树）+ 出口门（产生修改的 dispatch 后修改已提交）；主 agent 处理的由主 agent commit。计划各 Task 的 review/fix 环均遵守。
 
 **Flow Atomicity（本 phase 强化）**：任何 skill 内部流程/文档变更 = 整 skill 统一调整（无局部补丁）；cli-driven-development 的全部 P6 描写（branch-loop / dry-run WARN / pending-acceptance / 术语）在 Task 9 一次性整 skill 改齐。
 
-**顺序原则（spec §2.4）**：删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）；**C1-max（Task 20）定序 = T8 之后、T9 之前**（spec §2.4 顺序注：晚于 T5 骨架、早于 T7——branch-loop/clauses 入库/术语清扫直接落终态；T8 三断言先立使模板变更受其约束）。
+**顺序原则（spec §2.4）**：删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）；**C1-max（Task 20）定序 = T8 之后、T9 之前**（spec §2.4 顺序注：晚于 T5 骨架、早于 T7——branch-loop/clauses 入库/术语清扫直接落终态；T8 三断言先立使模板变更受其约束）。；**scripts 统一（Task 21）定序 = C1-max（Task 20）之后、收口复核（T18 术语 · T19）之前**（repo 一致性收尾；engine 与 scripts 测试/CLI 惯例同批收敛）。
 
 ---
 
@@ -139,3 +141,9 @@
 - **验收**: 四 `.md` 零手写模板文件（或 emit 派生校验 + drift=0）；段序恒为「壳 → Return → Round context」且 Return 字节常数（动态区唯一绝对尾）；token zone 归属断言「壳零注入 + 槽仅现所属区」全绿；C4 壳无参常数（staticShellKey 消除、重派发零重渲染断言强化）；跨模板字面头字节恒等断言绿；`WORKSPACE_SLUG` 就位（plan/spec 收敛）；`pnpm run emit` 后 `.agents/` 不因本 Task 产生 + `emit:check` 无 drift；engine suite 全绿 + `pnpm run validate` 12 块全绿
 
 - **注**: **实施时序 = T8 完成之后、T9 之前**（编号为 T8 后的追加号 20——engine brief 整数契约，不用小数主号；spec §2.4 顺序注同步）。C4 升格后 `templateCacheStats`/`resetTemplateCaches` 观测缝保持（T19 观测核对仍可用）；位置敏感测试与本 Task 同批迁。与 T12（纪律条款**内容**入库）衔接：本 Task 建 `{{> clause}}` 引用机制面（clauses 装配器），T12 填条款本体。
+
+### Task 21: scripts/ 与 cdd-engine 统一 CLI 框架 + 测试就近 `__tests__` 化（spec 域 C M8/M9；overall v1.46 / spec v1.9 回填）
+
+- **Do**: ① **CLI 框架统一（citty 单框架惯例）**：`scripts/run.ts` 弃 Commander → citty `defineCommand`（与 engine `src/cli/parse.ts` 同构：mainCommand + subCommands【emit/emit-check/validate/smoke-cdd/version/apply-rules】+ argsDef + --help 预屏 + 用法/解析错误 exit 2 + 命令失败 exit 1——退出码表沿用 P5 §2.4.2 约定）；子命令 handler 保留 lazy dynamic import（每命令依赖图首用才载）；② `scripts/observe-cache.ts` 手写 parseArgs → citty argsDef（boolean 声明天然 presence；`--harness`/`--rounds` 值参声明）——T6-fix presence 语义断言保持；③ 依赖面：commander 根 devDep 移除 + citty 入根 devDeps；④ 测试就近 `__tests__` 化：scripts/<dir>/<file>.test.ts → scripts/<dir>/__tests__/<file>.test.ts（emit/issue-templates · lib/version-utils · release/first-party-publish · rulesets/apply·apply-rules · validate/overall-consistency·residue·version-sync）+ 顶层 observe-cache.test.ts → scripts/__tests__/；⑤ root vitest include 收敛 `scripts/**/__tests__/**/*.test.ts`（T3 内存守卫 maxWorkers=1/fileParallelism=false/maxConcurrency=2 保持）；⑥ 运维文档同步（third-party-deps scripts 依赖平面 · skill-authoring 测试命名段 · data-driven-templates exemplars 测试路径）；⑦ validate 12 块全绿 + parse/presence 断言全绿
+- **验收**: scripts/ 零 Commander + 零手写 parseArgs（run.ts/observe-cache 全 citty）；退出码与 engine 表一致（usage/parse exit 2 · 失败 exit 1 断言）；scripts 测试 100% `__tests__/` 就近（`find scripts -name '*.test.ts' -not -path '*/__tests__/*'` = 0）；root vitest include 收敛后套件全量发现（scripts 全部测试绿）；observe-cache presence 语义 + run.ts 子命令值传断言全绿；commander 根 dep 零引用；`pnpm run validate` 12 块全绿
+- **注**: 本 Task 与 T3（engine 测试就近）同构——repo 级「测试就近 + 单一 CLI 惯例」一致性收尾；citty 依赖以根 devDeps 显式声明（不借 engine 传递 dep）；顺序 = Task 20（C1-max）之后、T18/T19（收口复核）之前落地。

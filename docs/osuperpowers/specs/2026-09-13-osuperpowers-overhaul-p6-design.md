@@ -1,9 +1,9 @@
 # osuperpowers 架构重构 P6 — 统一规划收口（收敛程序）设计
 
-- **Version**: v1.8 · 2026-09-18（v1.7 之上回填 **C1-max 终态升维**：统一壳 + 槽级三段制 + 渲染数据平面单文件——用户 2026-09-18 TTL-free 缓存最大化指示；overall v1.45 同窗）
+- **Version**: v1.9 · 2026-09-19（v1.8 之上回填 **scripts CLI 框架统一 + 测试就近 `__tests__` 化**——用户 2026-09-19 指示；并收 T8 review R1 warn①② 的编号/锚点对齐【plan Task 20→Task 20 · Parent 锚点 v1.46】；overall v1.46 同窗）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.44](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.44 全部登记）
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.46](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.46 全部登记）
 - **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263）；P1–P4 shipped（hard 链完整）
 
 ---
@@ -132,6 +132,8 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 | M5 | **`.mjs` 终态断言**：src 恒真 0 `.mjs` + tests 0 `.mjs`（**基准定义，R5 补**：当前 `tests/` 下 .mjs 共 32 = 30 个 `*.test.mjs` + `helpers.mjs` + `fixtures/proc-oracle-engine.mjs`；迁移后断言 `tests/` 与 `src/` 全平面零 .mjs——含 helpers/fixture 随 M2 就近安置）——residue/结构守卫固化 |
 | M6 | **内存守卫复核**：`maxWorkers=1 + fileParallelism=false + maxConcurrency=2`（engine + root 双 config）固化为持久配置不变式 |
 | M7 | 运维文档同步：vitest include / tests 退役 / exemplars 测试路径 / skill-authoring 测试命名段 / third-party-deps（.mjs/.ts 平面记录）/ CLAUDE.md dev 段 |
+| M8 | **scripts 测试就近 `__tests__` 化（v1.9，M1–M4 原则 repo 级扩展）**：scripts/<dir>/<file>.test.ts → scripts/<dir>/__tests__/<file>.test.ts（emit/lib/release/rulesets/validate 五子域）；顶层 observe-cache.test.ts → scripts/__tests__/；root vitest include 收敛 `scripts/**/__tests__/**/*.test.ts`（M6 内存守卫双 config 不变）|
+| M9 | **scripts CLI 框架统一（v1.9，citty 单框架惯例）**：scripts/run.ts 弃 Commander → citty（与 engine src/cli/parse.ts 同构：mainCommand/subCommands/argsDef/--help 预屏/exit 码表沿用 P5 §2.4.2）；observe-cache.ts 手写 parseArgs → citty argsDef（boolean presence 语义保留）；commander 根 devDep 移除 + citty 入根 devDeps；lazy 子命令加载保留 |
 
 `.mjs`/`.ts` 双平面显式裁定：cdd-engine src 全 TS（恒真）· cdd-engine tests 全部 `.ts`（M1–M5）· **osuperpowers scripts 保留 `.mjs` 隔离（Q1-A）**——report-templates 消费者环境零依赖裸 node 发布面 + **render-yaml 属 osuperpowers scripts 保留面**（`packages/osuperpowers/scripts/render-yaml.mjs`，被 `.mjs` 编排层 `scripts/emit/*` 直引——T4 repo scripts/ 44→0 **不含它**），显式留存记录于 third-party-dependencies.md · **repo scripts/ 全量 `.ts`（Q2-B）**——44→0，Node24 原生 strip-types，CI 调用名随迁。
 
@@ -197,7 +199,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 
 **收益边界（入 acceptance）**：连续同 (harness,op,type) round 在 5-min TTL 窗口主张；跨时段不承诺。
 
-**C1-max 字节布局层终态（用户 2026-09-18 TTL-free 升维；overall v1.45 · spec v1.8 · plan Task 5.5）**——缓存最大化升维：**「per-task / per-phase / all」之分在字节面上退化为单一原则「静态优先且尽量深、一切 per-dispatch 实值压缩进最小绝对尾部」**（cache 键 = 字节序列，非逻辑标签）：
+**C1-max 字节布局层终态（用户 2026-09-18 TTL-free 升维；overall v1.45 · spec v1.8 · plan Task 20）**——缓存最大化升维：**「per-task / per-phase / all」之分在字节面上退化为单一原则「静态优先且尽量深、一切 per-dispatch 实值压缩进最小绝对尾部」**（cache 键 = 字节序列，非逻辑标签）：
 
 | 面 | 设计 |
 |---|---|
@@ -262,7 +264,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 
 ### §2.4 task 组织（序，plan 期可细化）
 
-> 顺序原则：删除面先行（A→B）→ 目标布局落地（C 就近 + Q2-B 前置）→ 机制增量落新布局（D/E）→ **域 G 与 D-2 同窗**（随 T1/A5 `.agents/` 移除后执行——G1 改 6 skill SKILL.md、D-2 改 skill docs 均受 emit 面影响，移除后免 emit 往返；G4 的 pre-commit 修复树无关可由 T10 覆盖）→ 收口复核（F）。改动各自 validate 单点 + 全量在收口。**C1-max（T5.1）定序**：晚于 T5（contract 骨架/segments 已在）· 早于 T7（branch-loop 需落终态模板）；计划实施载体 = plan **Task 5.5**，排 plan T8（流程原子性三断言先立，模板变更即受其约束）之后、plan T9（branch-loop）之前——令 branch-loop/clauses 入库（T12）/术语清扫（T18）直接落终态布局，零二次改动。
+> 顺序原则：删除面先行（A→B）→ 目标布局落地（C 就近 + Q2-B 前置）→ 机制增量落新布局（D/E）→ **域 G 与 D-2 同窗**（随 T1/A5 `.agents/` 移除后执行——G1 改 6 skill SKILL.md、D-2 改 skill docs 均受 emit 面影响，移除后免 emit 往返；G4 的 pre-commit 修复树无关可由 T10 覆盖）→ 收口复核（F）。改动各自 validate 单点 + 全量在收口。**C1-max（T5.1）定序**：晚于 T5（contract 骨架/segments 已在）· 早于 T7（branch-loop 需落终态模板）；计划实施载体 = plan **Task 5.5**，排 plan T8（流程原子性三断言先立，模板变更即受其约束）之后、plan T9（branch-loop）之前——令 branch-loop/clauses 入库（T12）/术语清扫（T18）直接落终态布局，零二次改动。**T5.2（scripts 统一）定序**：紧随 T5.1 之后（同为收口前一致性收尾）、收口复核（spec 层 T9）之前——计划载体 = plan **Task 21**（C1-max 之后、术语/收口复核之前落地）。
 
 | T | 域 | 内容 | 关键文件 |
 |---|---|---|---|
@@ -272,6 +274,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | T4 | C/Q2-B | repo scripts/ 全量 `.ts`（rename + 显式 `.ts` 扩展 + CI 调用名随迁 + vitest include 随迁）| scripts/** · workflows 调用名 · package.json |
 | T5 | D | **模板系统化 + rename + JSON 归并 + cache C1–C7 + profile**（骨架/条款/token registry · 两段制 · 布局归一 · engine-config/template-contract · 字节不变式守卫 · dev 观测脚本）| 4 模板 · template-contract.json · engine-config.json · harness-registry.json · render/templates.ts · tests |
 | T5.1 | D-3 | **模板系统化终态（C1-max 字节布局层）**——统一壳 + 槽级三段制（壳→Return→Round context 绝对尾）+ 渲染数据平面单文件（四 .md 并入 contract sections）+ token zone 归属断言 + C4 升格（壳=无参常数）+ 门面去路径化 + WORKSPACE_SLUG（plan/spec 收敛）| template-contract.json#sections · tokens zone · templates.ts gates · 4 模板删除/派生 · 消费方×5 · tests（位置敏感迁移 + 字节不变式）|
+| T5.2 | C/Q2-B | **scripts CLI 框架统一 + 测试就近 `__tests__` 化（用户 2026-09-19）**——run.ts 弃 Commander→citty · observe-cache parseArgs 归 citty（presence 保留）· 退出码表对齐 engine · commander 移除 + citty 入根 devDeps · scripts/<dir>/__tests__/ 迁移 + 顶层 scripts/__tests__/ · root vitest include 收敛 | scripts/run.ts · scripts/observe-cache.ts · root package.json/vitest.config · scripts test 迁移面 · 运维文档同步 |
 | T6 | E1 + D-2 | skill 流程原子性三断言 + flow 变更纪律 + **skill 文档模板系统化（base-branch / overall-spec-template / add-phase-protocol / phase-spec-template 四文件统一骨架 + 条款引用 + P1–P6 经验烘焙；emit 时间窗与 T1 .agents 移除定序）** | skill-authoring.md · 4 skill docs · validate（digraph 三断言）|
 | T7 | E2 | cdd 六缺口（①fix --type branch + **branch 级 review-fix loop 全形** ②dry-run WARN 化 ③黑盒前置文档 ④pending-acceptance-patch ⑤纪律条款入库 ⑥锚点校验）| cli/fix.ts · phases.ts · commit.ts · cli-driven-development/SKILL.md · plan 文档 · template-contract |
 | T8 | E3 | stall 探测器三件套（liveness monitor + 恢复契约化）| infra/proc.ts · invoke.ts · rules/failure.ts |
@@ -287,7 +290,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 - **`.agents/` 移除**：git **零跟踪**、emit 零产出、代码零 `emitAgentsSkillsCopy`/`pruneStaleAgentsNamespaces` 引用；产出集合 = 4 项；CLAUDE.md 零派生提示
 - **vendors 全撤**：marketplace/产物零 vendor 条目；零 publish-vendor（代码/workflow/步）；validate **12 块**；workflow 零 submodule-sync/bump；checkout 零 recursive；`.gitmodules` 零条目、`vendors/` 不存在；version-sync 零 superpowers 检查；README/zh 零自维护面（仅官方命令引用标上游）；守卫零命中
 - **测试就近 + `.mjs` 终态**：`src/**/__tests__/**/*.test.ts`；`tests/` 退役；src 恒真 0 `.mjs` + tests 32→0；osuperpowers scripts 保留 `.mjs` 隔离（显式留存记录）；repo scripts/ 全量 `.ts`（44→0，`node scripts/run.ts validate` 直跑，留存例外零）；engine suite 全绿（含新守卫）
-- **模板系统化 + cache C1–C7**：4 模板抗骨架数据校验一致（章节序/段名/segments 归属恒等）；条款库零重复（clauses 单源）；token registry 全收敛（**18 令牌实测** → 新命名规范，**零遗留旧态名**：H1_BLOCK / HANDOFF 三义旧名 HANDOFF·HANDOFF_TYPE·HANDOFF_STUB / TYPE / LENS_GUIDE…）；`engine-config.json`/`template-contract.json` 存在且消费方程单点（`config.ts`/`templates.ts`）· 测试引用路径随迁；组装序恒为「registry prefix → 静态壳 → 变体载荷」；壳单源字节恒等零漂移；schema canonical 序列化；重派发零重渲染；同 (harness,op,type) 派发集逐字节同集；静态区最薄；registry 条含 cache profile（claude explicit/512/0.1/1.25/5/observable；cursor-agent auto pending）且 schema 校验；dev 观测脚本就位，连续同类型 round `/cost` 读 tok > 0 可测（验收记录实测值）；收益边界入文档；**C1-max 终态（v1.8）**——四 .md 并入 contract（零手写模板文件，或 emit 派生 + drift 守卫）；段序恒为「壳 → Return → Round context」且 Return 字节常数（动态区唯一绝对尾）；token zone 归属断言「壳零注入 + 槽仅现所属区」全绿；C4 壳无参常数（staticShellKey 消除、重派发零重渲染断言强化）；跨模板字面头字节恒等断言 · WORKSPACE_SLUG 就位（plan/spec 收敛）
+- **模板系统化 + cache C1–C7**：4 模板抗骨架数据校验一致（章节序/段名/segments 归属恒等）；条款库零重复（clauses 单源）；token registry 全收敛（**18 令牌实测** → 新命名规范，**零遗留旧态名**：H1_BLOCK / HANDOFF 三义旧名 HANDOFF·HANDOFF_TYPE·HANDOFF_STUB / TYPE / LENS_GUIDE…）；`engine-config.json`/`template-contract.json` 存在且消费方程单点（`config.ts`/`templates.ts`）· 测试引用路径随迁；组装序恒为「registry prefix → 静态壳 → 变体载荷」；壳单源字节恒等零漂移；schema canonical 序列化；重派发零重渲染；同 (harness,op,type) 派发集逐字节同集；静态区最薄；registry 条含 cache profile（claude explicit/512/0.1/1.25/5/observable；cursor-agent auto pending）且 schema 校验；dev 观测脚本就位，连续同类型 round `/cost` 读 tok > 0 可测（验收记录实测值）；收益边界入文档；**C1-max 终态（v1.8）**——四 .md 并入 contract（零手写模板文件，或 emit 派生 + drift 守卫）；段序恒为「壳 → Return → Round context」且 Return 字节常数（动态区唯一绝对尾）；token zone 归属断言「壳零注入 + 槽仅现所属区」全绿；C4 壳无参常数（staticShellKey 消除、重派发零重渲染断言强化）；跨模板字面头字节恒等断言 · WORKSPACE_SLUG 就位（plan/spec 收敛）；**scripts CLI 框架统一 + 测试就近落地（v1.9）**——run.ts/observe-cache 全 citty（零 Commander/手写 parseArgs · 退出码表对齐 engine）· scripts 测试全 `__tests__/` 就近（root include 收敛 + 内存守卫不变）· commander 零依赖 · parse/presence 断言全绿
 - **skill 文档模板系统化（D-2）**：4 文件（base-branch / overall-spec-template / add-phase-protocol / phase-spec-template）统一骨架 + 条款引用 + P1–P6 经验烘焙（§2.6 引用）；与 engine 模板同 doctrine；emit 时间窗已序；`program-experience.md` 存在为全文
 - **skill 流程原子性**：skill-authoring.md 含 flow 变更纪律；digraph 三断言（双向完整 · 骨架同构 · 增长信号）全绿
 - **cdd 缺口**：**branch 级 review-fix loop 落地**——`cdd fix --type branch` 命令面可用 + cli-driven-development digraph 为 canon shape（`branch-review → {blocker=0?} → branch-fix →（blocker>0 → re-review / blocker=0 → finishing）`，与 spec/plan/task 族同构，零编排 inline）· branch findings 全 engine 闭环；**dry-run 脏树 EXIT 0 + stderr 脏树 WARN 可断言**（dry-run 黑盒全绿——docs-task/cli-shape 相关用例，出处 = R3 实证）；黑盒前置文档化；跨 Task 收编走 pending-acceptance-patch（fix agent 零 plan 修改权）；纪律条款入库（模板正文零内联纪律散文）；锚点终态校验零漂移

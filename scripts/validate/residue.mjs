@@ -671,7 +671,7 @@ function checkShippedGuards() {
 // 裸名形（`// 对齐 …表` cite）与路径形（`docs/handoff-schema.md` / `skills/cli-driven-development/
 // docs/handoff-schema.md`）一律命中；负向后顾豁免 canonical schema 文件名（`task-handoff-schema.json`
 // / `docs-handoff-schema.json` 的 `handoff-schema` 均前接 `-`）。scope = packages/cdd-engine/​{bin,lib}
-// + tests + packages/osuperpowers 全目录（含 .agents/ emit 副本面 —— 副本由 emit prune）。
+// + tests + packages/osuperpowers 全目录。
 // 本条目不计入 T8 的 collectChannelAuditHits（其 12 条指 §2.8 行 1–11、13）；行 21 的 task-review
 // 守卫归 T15 Step 4b，不在此。scripts/ 不在 scope 内，本文件写字面无自噬风险。
 export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/cdd-engine/tests", "packages/osuperpowers"];

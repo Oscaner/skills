@@ -90,7 +90,7 @@ flowchart TD
 
 ### `handoff-finishing`
 
-- **Do**: Prepare the handoff to `osuperpowers:finishing`: ensure the base-branch artifact is written (finishing's read-base node consumes the same artifact); summarize branch state (commits count / base); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard).
+- **Do**: Prepare the handoff to `osuperpowers:finishing`: ensure the base-branch artifact is written (finishing reads the same artifact inside its `run-finishing-session` merge/PR flow); summarize branch state (commits count / base); invoke `osuperpowers:finishing` to take over (merge / PR / keep / discard).
 - **Read**: `cdd base-branch get --plan <path>` output + final branch-review state
 - **Exit**: handoff complete → APPROVED: finishing
 - **Fail**: finishing takeover fails → implicit fail-open (branch preserved; user finishes manually)

@@ -1,6 +1,6 @@
 # Add-Phase Protocol
 
-Reference for adding a new phase to a multi-phase program inside `osuperpowers:brainstorming` (claim-phase · sync-overall), inherited by `writing-overall-spec` authoring. The overall spec is the single source of truth (SOT); a phase must be registered in the overall before its design is grilled.
+Reference for adding a new phase to a multi-phase program inside `osuperpowers:brainstorming` (`phase-registered?` gate → `run-writing-overall-spec · sync` register-reflow), inherited by `writing-overall-spec` authoring. The overall spec is the single source of truth (SOT); a phase must be registered in the overall before its design is grilled.
 
 > Register before grill: the design session consumes the registration, not the reverse — a design grilled before its phase row is stable in the overall re-does the flow (§2.6 E31).
 
@@ -9,7 +9,7 @@ Reference for adding a new phase to a multi-phase program inside `osuperpowers:b
 Doc metadata — not an artifact section:
 
 - **Class**: methodology-doc
-- **Consumers**: `brainstorming` (claim-phase · sync-overall), inherited by `writing-overall-spec`
+- **Consumers**: `brainstorming` (`phase-registered?` → `run-writing-overall-spec · sync`), inherited by `writing-overall-spec`
 - **Skeleton**: `Header` + `Section 0–6` fixed order — `Section 0–4` protocol body (Purpose → Four-table sync → Issue-reference syntax → Anti-pattern → Flow) + `Section 5–6` template tails
 - **Canonical**: the overall spec's four tables; enforcement = the mechanical guard `scripts/validate/overall-consistency.ts` (§2.6 A6)
 - **Experience**: baked from the P6 design spec §2.6 list, condensed in `docs/maintainers/program-experience.md` (repo-internal pointer, maintainer-side). Citations inline as `§2.6 <item>`
@@ -55,13 +55,13 @@ While writing v1.19c, P10 had completed only its design spec (not yet plan → d
 - **Serial discipline**: P14 started before P10 shipped.
 - **Register-before-grill**: P14's design was grilled before the P14 phase row was stable in the overall.
 
-Both are exactly the anti-patterns this protocol exists to block. The structural gates (claim-phase → sync-overall → re-explore → grilling) make the violation impossible at the tool level — discipline enforced by flow, not by good intentions (§2.6 A6). Keep this example: it is the evidence that sinks the "just this once" argument.
+Both are exactly the anti-patterns this protocol exists to block. The structural gates (`phase-registered?` → `run-writing-overall-spec · sync` → re-judge → grilling) make the violation impossible at the tool level — discipline enforced by flow, not by good intentions (§2.6 A6). Keep this example: it is the evidence that sinks the "just this once" argument.
 
 ## Section 4: Flow
 
-detect (explore-context probe) → claim-phase (inventory lookup = authority) → [if not registered] sync-overall (four-table sync + consistency check, hard BLOCKED on failure) → re-explore (claim-phase, now registered) → grilling.
+detect (`explore-context` probe) → claim-phase — implemented by the `phase-registered?` gate (inventory lookup = authority) → [if not registered] sync-overall — implemented by `run-writing-overall-spec · sync` (four-table sync + consistency check, hard BLOCKED on failure) → re-explore — the `phase-registered?` re-judge (now registered) → grilling.
 
-Each step is what a single session actually does (§2.6 A8 session-call semantics): `sync-overall` is one write to the overall, `grilling` is one fresh read in a new writing-phase-spec session. No step asserts a sub-session it does not perform; no design is drafted before its registration is stable.
+Protocol step names (`claim-phase` · `sync-overall` · `re-explore`) are this protocol's vocabulary, not digraph pins — each step maps to the brainstorming node named beside it (§2.6 E34). Each step is what a single session actually does (§2.6 A8 session-call semantics): `sync-overall` is one write to the overall, `grilling` is one fresh read in a new writing-phase-spec session. No step asserts a sub-session it does not perform; no design is drafted before its registration is stable.
 
 ---
 

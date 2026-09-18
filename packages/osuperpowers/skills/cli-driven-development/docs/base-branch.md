@@ -1,6 +1,6 @@
 # Base Branch Methodology & Artifact Schema
 
-Shared methodology for determining the **base branch** of a feature/fix, and the artifact schema that persists the result. Consumed by `cli-driven-development` (determine-base · set-base-branch / branch-review) and `finishing` (read-base) via the `cdd base-branch` CLI.
+Shared methodology for determining the **base branch** of a feature/fix, and the artifact schema that persists the result. Consumed by `cli-driven-development` (determine-base · set-base-branch / branch-review) and `finishing` (reads `base-branch.json` inside `run-finishing-session`) via the `cdd base-branch` CLI.
 
 > Inference is orchestration responsibility; persistence is the engine's. The orchestrator infers, the engine writes and validates — no hand-written artifacts (§2.6 A5 single-root authority).
 
@@ -9,7 +9,7 @@ Shared methodology for determining the **base branch** of a feature/fix, and the
 Doc metadata — not an artifact section:
 
 - **Class**: methodology-doc
-- **Consumers**: `cli-driven-development` (determine-base · set-base-branch / branch-review) · `finishing` (read-base)
+- **Consumers**: `cli-driven-development` (determine-base · set-base-branch / branch-review) · `finishing` (reads `base-branch.json` in `run-finishing-session`)
 - **Skeleton**: `Header` + `Section 0–6` fixed order — `Section 0–4` methodology body (Purpose → Inference order → Artifact schema → Scope resolution → CLI usage) + `Section 5–6` template tails
 - **Canonical**: `packages/cdd-engine/src/artifacts/base-branch.ts` — the source-enum schema this document mirrors verbatim (verified by the workspace-artifacts test); doc and validator speak one vocabulary (§2.6 E34)
 - **Experience**: baked from the P6 design spec §2.6 list, condensed in `docs/maintainers/program-experience.md` (repo-internal pointer, maintainer-side). Citations inline as `§2.6 <item>`

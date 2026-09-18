@@ -80,7 +80,7 @@ Placeholder vocabulary per the D1.4 naming plane (`docs/maintainers/naming-conve
 |---|---|
 | `<link>` | markdown link to the parent overall |
 | `vX.Y` · `YYYY-MM-DD` | overall version + registration date of a deviation (Section 3) |
-| `Phase N` → `P1` / `P2a` | the phase whose increment this is — write the actual id, lowercase, same spelling as the overall's Phase inventory (§2.6 E34: doc word = registry row) |
+| `Phase N` → `P1` / `P2a` | the phase whose increment this is — write the actual id (`P1`, `P2a`), same spelling as the overall's Phase inventory; the all-lowercase `p1` / `p2a` form belongs to the filename plane only (overall §2 File paths) (§2.6 E34: doc word = registry row) |
 
 Section numbering is part of the family skeleton (§2.6 E32 skeleton isomorphism): `Section 0–5` stays fixed — do not insert sections mid-sequence, each number is one semantic. `### Acceptance criteria` is the only subsection and it lives inside Section 2.
 

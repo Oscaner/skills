@@ -23,7 +23,7 @@ Every provider's prompt cache is **exact byte-prefix matching** over the request
 | C2 | Shell/clause structure single-sourced — byte-identity cannot drift by construction (one source, references, not four copies + equality test) |
 | C3 | Deterministic serialization — canonical key order, no environment-dependent reordering, fixed whitespace |
 | C4 | Re-dispatch byte reuse — static zone memoized per (op, type); retries re-dispatch exact bytes, never re-render |
-| C5 | Dispatch-set constancy — same (harness, op, type) keeps byte-identical invoke string / model / cwd / env; a stable tree is a caching clause (dispatch never mutates the tree — the commit double-gate already enforces this) |
+| C5 | Dispatch-set constancy — same (harness, op, type) keeps byte-identical invoke string / model / cwd / env; a stable tree is a caching clause (dispatch never mutates the tree — the commit double-gate already enforces this). The engine never decides `model` (harness-side); the asserted byte-constant set is what the engine actually spawns: `{ cli, invoke-arg string, cwd, env }` — pinning this keeps the C4 memo's input precondition |
 | C6 | Write economy — thinnest static zone that still serves reuse; do not grow the prefix for content nobody reuses |
 | C7 | Per-harness observation — observable harnesses assert "consecutive same-type rounds read tokens > 0"; unobservable or below-threshold harnesses are honestly marked "not measured, not claimed" |
 
@@ -46,5 +46,6 @@ Baseline entries: `claude` = explicit / 512 / 0.1 / 1.25 / 5 / true; `cursor-age
 ## Observation & honest boundaries
 
 - Measure via `claude /cost` and `--debug` cache stats across consecutive same-type rounds; record before/after read-token values as acceptance evidence.
+- Tooling: `node scripts/observe-cache.ts [--harness claude] [--rounds 2] -- <workspace> <task> <mode>` runs ≥2 consecutive same-(harness, op, type) dispatch rounds with a usage/cost flag appended and extracts `{ readTokens, writeTokens }` per round (parse seam unit-tested at `scripts/observe-cache.test.ts`). The run is measurement-only: no handoffs written, no workspace mutation — real rounds run through `cdd` (whose entry gate keeps the tree stable, C5).
 - Cache benefits accrue only within the TTL window across consecutive same-type dispatches (review/fix chains, task runs); cross-window or absolute hit rates are **not** claimed.
-- CI has no live harness: the observation pass is a documented dev-side measurement, not a CI gate.
+- CI has no live harness: the observation pass is a documented dev-side measurement, not a CI gate. Actual measured values are recorded by the dev on a live harness and audited at finalization (T19); a round that yields no cache fields is recorded honestly as "not measurable / below minTokens" — never extrapolated.

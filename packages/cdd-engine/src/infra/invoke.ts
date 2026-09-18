@@ -58,6 +58,45 @@ export interface InvokeParams {
   type?: string;
 }
 
+// ---- spec D-3 C5: dispatch-set composition (pure, deterministic — the C4 memo precondition) ----
+// The engine-controlled dispatch set = { cli, args (invoke string), cwd, env }; model is
+// harness-decided and never set here. same (harness, op, type) + same inputs → byte-identical set
+// (registry-driven prefix/suffix resolution, zero env sway). composeDispatchSet is the single
+// assembly point invokeCli spawns from.
+
+export interface DispatchSet {
+  cli: string;
+  args: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}
+
+/** [registry prefix, prompt, suffix] joined on newlines (C1: prefix precedes the prompt). */
+export function promptArgText(prefix: string, prompt: string, suffix: string): string {
+  return [prefix, prompt, suffix].filter(Boolean).join("\n");
+}
+
+/** invoke-spec words + the prompt arg last (the exact legacy args shape). */
+export function buildInvokeArgs(invokeSpec: string, promptArg: string): string[] {
+  return [...invokeSpec.split(/\s+/).filter(Boolean), promptArg];
+}
+
+/** Resolve the op×type prefix/suffix and compose the full dispatch set. */
+export function composeDispatchSet(
+  entry: { cli: string; invoke: string; prefix?: unknown; suffix?: unknown },
+  params: InvokeParams | string,
+  prompt: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): DispatchSet {
+  const paramsObj: InvokeParams = typeof params === "string" ? { op: params } : (params ?? {});
+  const { op, type } = paramsObj;
+  const p = resolveInjection(entry, op, type);
+  const s = resolveSuffix(entry, op, type);
+  const promptArg = promptArgText(p, prompt, s);
+  return { cli: entry.cli, args: buildInvokeArgs(entry.invoke, promptArg), cwd, env };
+}
+
 // Invoke CLI: build args from entry, handle stream-json output mode.
 // params = { op, type? } — operation×type injection replaces the positional mode arg. op:
 // implement|review|fix (review carries type: task|branch|spec|plan). Resolution happens in
@@ -71,15 +110,8 @@ export async function invokeCli(
   cwd: string,
   timeoutMs: number | undefined,
 ): Promise<SpawnResult> {
-  // Fallback: string params (legacy positional mode) normalize to { op } — a flat mode key resolves
-  // directly (unmigrated registry), avoiding a silent empty injection; truly-absent → empty injection.
-  const paramsObj: InvokeParams = typeof params === "string" ? { op: params } : (params ?? {});
-  const { op, type } = paramsObj;
-  const p = resolveInjection(entry, op, type);
-  const s = resolveSuffix(entry, op, type);
-  const promptArg = [p, prompt, s].filter(Boolean).join("\n");
-  const args = [...entry.invoke.split(/\s+/).filter(Boolean), promptArg];
-  const res = await spawnManaged(entry.cli, args, { cwd, env, timeoutMs });
+  const set = composeDispatchSet(entry, params, prompt, cwd, env);
+  const res = await spawnManaged(set.cli, set.args, { cwd: set.cwd, env: set.env, timeoutMs });
   markAllDispatchesDone();          // dispatch (incl. every retry attempt) returned → group done
   if (res.ok && entry.output === "stream-json") {
     const finalText = extractStreamJsonFinal(res.stdout);

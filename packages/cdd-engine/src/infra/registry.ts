@@ -5,6 +5,7 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import Ajv, { type ValidateFunction } from "ajv";
 
 export const REG_PATH = fileURLToPath(new URL("harness-registry.json", import.meta.url));
 
@@ -68,4 +69,34 @@ export function checkHarness(reg: any, harness: string, opts: { dryRun?: boolean
     throw new CddBlockedError(`${cli} not found in PATH`, { exitCode: 2, kind: "cli-missing" });
   }
   return entry;
+}
+
+// ---- spec D-3 C7: per-harness cache profile (capability as data) ----
+// The `cache` profile rides the registry row (mechanism / minTokens / readMultiplier /
+// writeMultiplier / ttlMinutes / observable), validated against templates/schema/
+// cache-profile-schema.json — adding a harness = one registry row, contract unchanged.
+export function cacheProfileFor(entry: any): unknown {
+  return entry?.cache ?? null;
+}
+
+// Lazy ajv validator over the canonical cache-profile schema (same pattern as rules/schema.ts).
+// Not called on the dispatch hot path — exercised by tests/validate against the shipped registry.
+let cacheProfileValidator: ValidateFunction | null = null;
+const CACHE_PROFILE_SCHEMA_PATH = fileURLToPath(
+  new URL("../../templates/schema/cache-profile-schema.json", import.meta.url),
+);
+
+export function validateCacheProfile(
+  profile: unknown,
+): { valid: true } | { valid: false; reason: string } {
+  if (!cacheProfileValidator) {
+    const schema = JSON.parse(readFileSync(CACHE_PROFILE_SCHEMA_PATH, "utf8"));
+    cacheProfileValidator = new Ajv({ allErrors: true }).compile(schema);
+  }
+  const valid = cacheProfileValidator(profile);
+  if (valid) return { valid: true };
+  const reason = (cacheProfileValidator.errors ?? [])
+    .map((e) => `${e.instancePath || "/"} ${e.message}`)
+    .join("; ");
+  return { valid: false, reason };
 }

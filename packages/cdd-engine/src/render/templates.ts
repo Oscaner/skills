@@ -104,22 +104,101 @@ function tripleAll(src: string): string {
   return src.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_m: string, key: string) => `{{{${key}}}}`);
 }
 
-function renderWithHandlebars(
-  content: string,
+// ---- C4 cache-first render memoization (spec D-3 C4; module-level, one frozen artifact tree) ----
+// Three frozen layers, all scoped at module level so one session's dispatches rebuild nothing:
+//   ① template SOURCE bytes  → cached per template name (one file read per name per process);
+//   ② handlebars COMPILED fn → cached per name per part (static zone / Return tail) — the "冻结编译产物";
+//   ③ rendered STATIC ZONE   → cached per (template name, canonical static params) — re-dispatch of the
+//     same (op,type) with identical params returns the frozen bytes, zero re-render.
+// The static zone = the template bytes before `## Return` (skeleton segment ownership: static
+// segments are title/context/instructions/handoff — the Return section is the variant payload that
+// MUST re-render per dispatch). C5's dispatch-set constancy is what keeps the cache key stable
+// across a task's rounds. templateCacheStats()/resetTemplateCaches() are the observable seams
+// (the memoize assertion lives in templates.cache.test).
+export const STATIC_REGION_MARKER = "## Return";
+
+const CACHE = {
+  source: new Map<string, string>(),
+  compiledStatic: new Map<string, ReturnType<typeof compile>>(),
+  compiledTail: new Map<string, ReturnType<typeof compile>>(),
+  staticShell: new Map<string, string>(),
+  reads: 0,
+  compiles: 0,
+  staticShellRenders: 0,
+} as {
+  source: Map<string, string>;
+  compiledStatic: Map<string, ReturnType<typeof compile>>;
+  compiledTail: Map<string, ReturnType<typeof compile>>;
+  staticShell: Map<string, string>;
+  reads: number;
+  compiles: number;
+  staticShellRenders: number;
+};
+
+export interface TemplateCacheStats {
+  reads: number;
+  compiles: number;
+  staticShellRenders: number;
+}
+
+export function templateCacheStats(): TemplateCacheStats {
+  return { reads: CACHE.reads, compiles: CACHE.compiles, staticShellRenders: CACHE.staticShellRenders };
+}
+
+export function resetTemplateCaches(): void {
+  CACHE.source.clear();
+  CACHE.compiledStatic.clear();
+  CACHE.compiledTail.clear();
+  CACHE.staticShell.clear();
+  CACHE.reads = 0;
+  CACHE.compiles = 0;
+  CACHE.staticShellRenders = 0;
+}
+
+// Canonical, environment-independent cache key (C3: deterministic serialization — sorted keys,
+// JSON-escaped values; insertion order never factors in). A re-dispatch with the same values in any
+// key order lands on the same frozen static zone.
+export function staticShellKey(name: string, params: Record<string, unknown>): string {
+  const lines = Object.keys(params)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${JSON.stringify(params[k])}`);
+  return `${name}\n${lines.join("\n")}`;
+}
+
+function cachedSource(name: string): string {
+  let src = CACHE.source.get(name);
+  if (src === undefined) {
+    const p = templatePath(name);
+    if (!existsSync(p)) throw new Error(`template not found: ${p}`);
+    src = readFileSync(p, "utf8");
+    CACHE.reads++;
+    CACHE.source.set(name, src);
+  }
+  return src;
+}
+
+// strict compile + render a template part with the shared cache; keeps the pinned missing-param
+// error wording (legacy renderWithHandlebars contract) and the HANDOFF_SCHEMA_JSON slot injection.
+function renderPart(
+  cacheMap: Map<string, ReturnType<typeof compile>>,
+  name: string,
+  src: string,
   params: Record<string, unknown>,
   programName: string | undefined,
-  templateNameForError: string,
 ): string {
+  let fn = cacheMap.get(name);
+  if (!fn) {
+    fn = compile(tripleAll(src), { strict: true });
+    CACHE.compiles++;
+    cacheMap.set(name, fn);
+  }
   try {
-    return compile(tripleAll(content), { strict: true })({
-      ...params,
-      HANDOFF_SCHEMA_JSON: HANDOFF_SCHEMA_JSON_SLOT,
-    });
+    return fn({ ...params, HANDOFF_SCHEMA_JSON: HANDOFF_SCHEMA_JSON_SLOT });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const missing = msg.match(/^"([^"]+)" not defined/);
     if (missing) {
-      throw new Error(`${programName}: template ${templateNameForError}: missing param ${missing[1]}`);
+      throw new Error(`${programName}: template ${name}: missing param ${missing[1]}`);
     }
     throw err;
   }
@@ -295,7 +374,9 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
   }
   const modePath = templatePath(mode);
   if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);
-  const content = readFileSync(modePath, "utf8");
+  // Content read rides the C4 source cache (the existence check above stays first — an absent
+  // template must throw before any caching; cachedSource re-checks and would throw the same).
+  const content = cachedSource(mode);
   // Non-review modes never fatally reject missing params — the legacy PLACEHOLDERS split/join
   // defaulted a missing key to "" (implement/fix mode = "" injection); strict resolution would
   // throw, so pre-fill every placeholder the file declares with `params[key] ?? ""`.
@@ -306,19 +387,32 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
   // Shared Handoff / Return shell slots (task family = implement/fix): HANDOFF_WRITE_GATE per mode
   // (fix = write-before-return; implement = no handoff, runner materializes), RETURN_STDOUT_BLOCK =
   // the shared four-line contract — both travel through {{{X}}} with the schema injection (raw, no
-  // escaping). HANDOFF_SCHEMA_JSON keeps the literal slot for the per-caller schema replace.
-  return compile(tripleAll(content), { strict: true })({
+  // escaping). renderTemplate memoizes the static zone by (op,type,params) — C4 byte reuse; the
+  // HANDOFF_SCHEMA_JSON slot (literal in the message) stays for the per-caller schema replace below.
+  const prompt = renderTemplate(mode, {
     ...filledParams,
     HANDOFF_WRITE_GATE: mode === "fix" ? reviewHardGate("RETURN_STDOUT_BLOCK", params.HANDOFF_TARGET) : implementHardGate(params.HANDOFF_TARGET, params.TASK_NUMBER),
     RETURN_STDOUT_BLOCK: RETURN_STDOUT_BLOCK,
-    HANDOFF_SCHEMA_JSON: HANDOFF_SCHEMA_JSON_SLOT,
-  }).replace(HANDOFF_SCHEMA_JSON_SLOT, renderHandoffSchemaJson(loadHandoffSchema("task")));
+  });
+  return prompt.replace(HANDOFF_SCHEMA_JSON_SLOT, renderHandoffSchemaJson(loadHandoffSchema("task")));
 }
 
 export function renderTemplate(name: string, params: Record<string, unknown>, programName?: string): string {
-  const templatePath_ = templatePath(name);
-  if (!existsSync(templatePath_)) {
-    throw new Error(`${programName}: template not found: ${templatePath_}`);
+  const src = cachedSource(name);
+  // C1 two-part assembly: the static zone (title/context/instructions/handoff) is memoized and
+  // frozen; the variant payload (## Return tail) re-renders per dispatch. Splitting at the `## `
+  // heading is section-safe — handlebars has no cross-section constructs, so rendering the two
+  // halves independently is byte-identical to rendering the whole file.
+  const retIdx = src.indexOf(STATIC_REGION_MARKER);
+  const staticSrc = retIdx < 0 ? src : src.slice(0, retIdx);
+  const tailSrc = retIdx < 0 ? "" : src.slice(retIdx);
+  const key = staticShellKey(name, params);
+  let shell = CACHE.staticShell.get(key);
+  if (shell === undefined) {
+    shell = renderPart(CACHE.compiledStatic, name, staticSrc, params, programName);
+    CACHE.staticShellRenders++;
+    CACHE.staticShell.set(key, shell);
   }
-  return renderWithHandlebars(readFileSync(templatePath_, "utf8"), params, programName, name);
+  if (!tailSrc) return shell;
+  return shell + renderPart(CACHE.compiledTail, name, tailSrc, params, programName);
 }

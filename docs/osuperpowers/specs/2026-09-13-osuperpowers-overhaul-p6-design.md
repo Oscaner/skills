@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P6 — 统一规划收口（收敛程序）设计
 
-- **Version**: v1.4 · 2026-09-18（branch 级 review-fix loop 全形 + R4 三 finding 并入；R1–R4 均 APPROVED 0 blocker，15 findings 全部处置；spec 变更开新 round R5）
+- **Version**: v1.5 · 2026-09-18（F8 全仓术语优化【Review Convergence 定名】+ R5 二修；R1–R5 均 APPROVED 0 blocker，17 findings 处置；开终审 R6）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.40](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.40 全部登记 + brainstorm 自省四修 + F7）
@@ -129,7 +129,7 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 | M2 | helpers → 就近（`src/infra/__tests__/helpers.ts`）；fixtures 保留规划（随就近迁移，规避散落）|
 | M3 | mock 路径随迁改指就近 .ts；测试内相对路径按新布局修正 |
 | M4 | vitest include 收敛 `['src/**/__tests__/**/*.test.ts']`；`tests/` 目录退役 |
-| M5 | **`.mjs` 终态断言**：src 恒真 0 `.mjs` + tests 0 `.mjs`（32→0）——residue/结构守卫固化 |
+| M5 | **`.mjs` 终态断言**：src 恒真 0 `.mjs` + tests 0 `.mjs`（**基准定义，R5 补**：当前 `tests/` 下 .mjs 共 32 = 30 个 `*.test.mjs` + `helpers.mjs` + `fixtures/proc-oracle-engine.mjs`；迁移后断言 `tests/` 与 `src/` 全平面零 .mjs——含 helpers/fixture 随 M2 就近安置）——residue/结构守卫固化 |
 | M6 | **内存守卫复核**：`maxWorkers=1 + fileParallelism=false + maxConcurrency=2`（engine + root 双 config）固化为持久配置不变式 |
 | M7 | 运维文档同步：vitest include / tests 退役 / exemplars 测试路径 / skill-authoring 测试命名段 / third-party-deps（.mjs/.ts 平面记录）/ CLAUDE.md dev 段 |
 
@@ -232,6 +232,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | F2 | 残留守卫扩展：stale-lexicon 增 vendors / publish-vendor / submodule（B12）+ `.agents/` 派生语汇（A5）+ droid/pi keywords（A3）|
 | F3 | **逐 phase changeset 复核**：P1–P5 齐备 + P6 自身 changeset（osuperpowers minor + cdd-engine minor 评估）+ **版本落地验证**（`pnpm run version --dry-run` next ≠ 当前或挂牌原因）|
 | F4 | **全局命名制度**：`docs/maintainers/naming-conventions.md`——作用域前缀 / 单词形禁缩写历史名（H1→RETURN_STDOUT_BLOCK）/ 目录家族布局 / schema-token-常量三面同名；衔接 P5 src 命名统一 + 模板 rename（D1.4）+ Q2-B + skills 文件面；**「全仓命名/结构零冲突」验收以此制度为对照** |
+| F8 | **全仓术语优化（用户 2026-09-18 指示，Review Convergence 定名）**：`naming-conventions.md` 扩「**术语制度**」（terminology registry：term/定义/已废旧名禁止表）——**改名清单**：`Review Stopping` → **`Review Convergence`**（评审收敛——与 §2.0 论点同词根，loop 在 blocker=0 处收敛）· `fix-loop-exhausted` → `review-cycle-cap` · `timeout-exhausted` → `dispatch-timeout-cap` · `engine-error` 保留登记；**保留清单登记定义**（blocker / handoff / dispatch / backfill / stale-lexicon / residue / 内部机制函数名——内部名以准确为准不攀优雅；编码面归 F4）；**同步面**：skills Invariants ×8（17 处）· CLAUDE.md 段 · overall 现行 · maintainer docs · **引擎 `src/rules/stopping.ts` → `convergence.ts` + test 随域 C 迁批**（机制语义本体不动——non-goal）；residue/stale-lexicon 断言已废旧名（`Review Stopping`·`*-exhausted`）live 面零残留；**历史 changelog/spec-plan 豁免**（记录当时用语）| naming-conventions.md · 8 skills · CLAUDE.md · rules/convergence.ts · residue |
 | F6 | **设计方法论落运维文档（English-primary，用户 2026-09-18 指示）**：`docs/maintainers/`——`naming-conventions.md`（命名制度，含 H1 教训）· `context-caching-doctrine.md`（六公理 + C1–C7 + registry cache profile + 观测验收 + 诚实边界）· `template-doctrine.md`（模板系统化双平面：骨架/条款/token/JSON 归并/rename）· `program-experience.md`（P1→P6 经验资产，模板重写输入）；本 spec 的设计面（域 D/E/F/G）为各 doc 的源，落地与一致 |
 | F7 | **运维文档整体整理与重组（用户 2026-09-18 增需）**：写运维文档时对全部 `docs/maintainers/`（8 份：4 新方法论 + 4 旧核心）做内容整理优化——删无用（准则：整档删除仅当零读者+内容完全被取代；节级删除 stale 引用 `.agents/`/vendors/旧路径 与重复段落）· 按内容域重划文件/目录（工程原则域 ↔ 插件运维域；目录 or 平铺+索引裁定在计划期按引用成本）· 全引用同步（CLAUDE.md 4 处链接 · validate doc-surface · 跨 doc 链接）；重组后每 doc 重新锚对实态（与「docs 与落地一致」缝合）；与 skill-authoring 吸收（G1/Q3）、data-driven-templates↔template-doctrine 交叉引用合并副本 |
 | F5 | `pnpm run validate` 12 块（submodule 块删）+ `emit:check` 全绿 + **零纸面宣称总校验**（§2.5）|
@@ -259,7 +260,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | T6 | E1 + D-2 | skill 流程原子性三断言 + flow 变更纪律 + **skill 文档模板系统化（base-branch / overall-spec-template / add-phase-protocol / phase-spec-template 四文件统一骨架 + 条款引用 + P1–P6 经验烘焙；emit 时间窗与 T1 .agents 移除定序）** | skill-authoring.md · 4 skill docs · validate（digraph 三断言）|
 | T7 | E2 | cdd 六缺口（①fix --type branch + **branch 级 review-fix loop 全形** ②dry-run WARN 化 ③黑盒前置文档 ④pending-acceptance-patch ⑤纪律条款入库 ⑥锚点校验）| cli/fix.ts · phases.ts · commit.ts · cli-driven-development/SKILL.md · plan 文档 · template-contract |
 | T8 | E3 | stall 探测器三件套（liveness monitor + 恢复契约化）| infra/proc.ts · invoke.ts · rules/failure.ts |
-| T9 | F | 收口复核（F1–F7：锚点终态 · 残留守卫 · changeset+版本落地 · **naming-conventions.md 对照** · **4 份方法论 doc** · **运维文档整理重组 F7** · validate 12 块 + emit:check + 零纸面宣称总校验）| validate 全链 · .changeset/ · naming-conventions.md · context-caching-doctrine.md · template-doctrine.md · program-experience.md |
+| T9 | F | 收口复核（F1–F8：锚点终态 · 残留守卫 · changeset+版本落地 · **naming-conventions 对照** · **4 份方法论 doc** · **F7 运维文档整理重组** · **F8 术语优化【Review Convergence 改名全同步】· validate 12 块 + emit:check + 零纸面宣称总校验）| validate 全链 · .changeset/ · naming-conventions.md · context-caching-doctrine.md · template-doctrine.md · program-experience.md |
 | T10 | G | 自省四修（G1 session-call 全域 **19 节点** + authoring 原语 · G2 需求全量清单 · G3 validate 边界 · G4 pre-commit 修复三件）| 6 skills · skill-authoring.md · writing-overall-spec 流程 · .husky/pre-commit · infra 门判 · vitest 套件 |
 
 ### §2.5 验收（Acceptance criteria）
@@ -279,7 +280,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 - **内存守卫**：`maxWorkers=1 + fileParallelism=false + maxConcurrency=2` 持久配置不变式，engine 全量套件 + 新增守卫全绿、正常负载无 OOM（基线 567 出处 = P5 终验 2026-09-18）
 - **v1.13 收口**：smoke flake 稳定；changeset 消费后版本落地已验证
 - **自省四修**：**session-call 实测 19 处零虚假 run 措辞**（6/4/3/3/2/1 分布，全部内联消费 + 产物记载 + authoring 原语修订）；grilling 含需求全量枚举；validate 边界记录于 maintainer docs；**pre-commit 脏树零结构性失败**（dry-run WARN 化 + 黑盒隔离/CI-only + 树无关子集）
-- **收口复核**：全 plan/spec 锚点对实态零漂移；残留守卫零命中；changeset 齐备 + `version --dry-run` 落地；**4 份方法论 doc（naming-conventions / context-caching-doctrine / template-doctrine / program-experience）存在且与落地一致**；**F7 运维文档整理重组完成**（无用文档零、文件/目录按内容域重划、CLAUDE.md 链接与 validate doc-surface 同步）；maintainer docs 与落地一致（exemplars/skill-authoring/third-party-deps/CLAUDE.md dev 段零陈旧）；`pnpm run validate` **12 块全绿** + `emit:check` 无 drift
+- **收口复核**：全 plan/spec 锚点对实态零漂移；残留守卫零命中；changeset 齐备 + `version --dry-run` 落地；**4 份方法论 doc（naming-conventions / context-caching-doctrine / template-doctrine / program-experience）存在且与落地一致**；**F7 运维文档整理重组完成**（无用文档零、文件/目录按内容域重划、CLAUDE.md 链接与 validate doc-surface 同步）；**F8 术语优化落地**——`Review Convergence` 全 live 面就位（8 skills Invariants · CLAUDE.md · overall · maintainer docs · `rules/convergence.ts`）· `review-cycle-cap`/`dispatch-timeout-cap` 就位 · residue 断言 `Review Stopping`/`*-exhausted` live 面零残留 · naming-conventions 含 terminology registry · 历史 changelog 豁免（记录当时用语）；maintainer docs 与落地一致（exemplars/skill-authoring/third-party-deps/CLAUDE.md dev 段零陈旧）；`pnpm run validate` **12 块全绿** + `emit:check` 无 drift
 
 ### §2.6 P1→P6 经验清单（模板重写输入，用户 2026-09-18 指示）
 
@@ -291,7 +292,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | **B 工程架构** | 9 破坏性变更+高维度抽象统一 · 10 平层模型 · 11 TS 全量化 · 12 commit 双门 · 13 第三方收敛 · 14 目录单向轴 · 15 输出契约单源 · 16 输入三信道 · 17 失败类目化 · 18 测试就近+内存守卫 |
 | **C 缓存/上下文** | 19 跨厂商六公理 · 20 字节面>断点面 · 21 诚实边界 · 22 能力数据化 |
 | **D 提示词/模板** | 23 模板系统化五层 · 24 命名制度 · 25 纪律双轨 |
-| **E 反模式** | 26 平面不明=债务 · 27 spec 数字不实测即错（15→14 · ~17→19 · 17→18）· 28 黑盒前置未文档化=14 同根因 · 29 pre-commit 结构性矛盾 · 30 变体令牌中断前缀=缓存杀手 · 31 overall 登记≠子 agent 直读面 · **32 异构 loop 形状被骨架同构拦下（branch-loop 初稿非 canon shape——Flow Atomicity 实证：任何 review-fix loop 必须与族 shape 同构）** |
+| **E 反模式** | 26 平面不明=债务 · 27 spec 数字不实测即错（15→14 · ~17→19 · 17→18）· 28 黑盒前置未文档化=14 同根因 · 29 pre-commit 结构性矛盾 · 30 变体令牌中断前缀=缓存杀手 · 31 overall 登记≠子 agent 直读面 · **32 异构 loop 形状被骨架同构拦下（branch-loop 初稿非 canon shape——Flow Atomicity 实证）** · **33 低抽象流程名被收敛论点统一为语义词根（Review Stopping→Review Convergence——术语与论证同源）** |
 
 ---
 
@@ -317,10 +318,10 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 - **消费方视角**：`report-templates.mjs` 运行时路径（`${pluginRoot}/scripts/report-templates.mjs`）保持稳定（Q1-A）；发布面改动从消费者无构建前提复核。
 - **cache 验收需真实 harness**：T5 观测为 dev 侧文档化测量（CI 无 harness 不 gate；记录实测值于验收证据）。
 - **changeset 边界**：P6 自身 changeset（osuperpowers minor + cdd-engine minor 评估）在 finishing 前随 F3 落定。
-- **R1–R4 findings 处置（15 条已并入）**：R1 三 warn（14 计数 / 19 枚举 / C·M 消歧）+ R2 二 finding（token **18 实测** / D1.5 merge 清单）+ R3 七 finding（HANDOFF 族 2 枚终态 / render-yaml 归属 Q1-A 面 / 567·dry-run 出处可复算 / §2.4 顺序原则补域 G / T9 真实文件清单 / §2.6 节号序【移于 §2.5 后】/ C1 零旧名书写）+ R4 三 finding（上级指针 v1.40 / 七域计数 / 「豁免」措辞统一 WARN 化）——详见 §2.3.4 D1.4 · §2.3.3 · §2.3 · §2.5 · §2.4。
+- **R1–R5 findings 处置（17 条已并入）**：R1 三 warn（14 计数 / 19 枚举 / C·M 消歧）+ R2 二 finding（token **18 实测** / D1.5 merge 清单）+ R3 七 finding（HANDOFF 族 2 枚终态 / render-yaml 归属 / 567·dry-run 出处 / §2.4 补域 G / T9 真实文件清单 / §2.6 节号序 / C1 零旧名）+ R4 三 finding（上级指针 / 七域计数 / 「豁免」措辞）+ R5 二 finding（**M5 的 32 可复算基准** / **overall P6 行 ~17·豁免 预实测口径同步为 19·WARN 化**）——详见 §2.3.3 M5 · §2.3.4 D1.4 · §2.5 · §2.4 · 父 overall。
 
 ---
 
 ## Section 5: Review
 
-Fresh-Subagent Review Passes（cdd spec review）必须全过，才进入用户 review 与 writing-plans。R1–R4 均 APPROVED 0 blocker（15 findings 已并入）；本版含作者侧内容变更（branch-loop 全形 + R4 三修），按 writing-phase-spec I1 合法开新 round R5。**R5 后不再追加内容**——收口（Review Stopping）。
+Fresh-Subagent Review Passes（cdd spec review）必须全过，才进入用户 review 与 writing-plans。R1–R5 均 APPROVED 0 blocker（17 findings 已并入）；本版含作者侧内容变更（F8 术语优化 + R5 二修），按 writing-phase-spec I1 合法开新 round R6。**R6 为终审——不再追加内容**（Review Convergence 收口）。

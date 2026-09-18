@@ -74,16 +74,6 @@ function extractSections(src) {
   return sections;
 }
 
-function diamondLabels(src) {
-  const m = src.match(/```mermaid\n([\s\S]*?)```/);
-  if (!m) return [];
-  const diamondRe = /(\w+)\{([^}]+)\}/g;
-  const labels = [];
-  let dm;
-  while ((dm = diamondRe.exec(m[1])) !== null) labels.push(dm[2].trim());
-  return labels;
-}
-
 // Skeleton-deltas section: rows of `| cell | cell |` between `## Skeleton deltas` and the next `## `.
 function skeletonDeltaRows(src) {
   const m = src.match(/## Skeleton deltas\n([\s\S]*?)(?=\n## )/);
@@ -117,7 +107,7 @@ for (const { name, path: skillPath } of SKILL_FILES) {
   const src = readFileSync(skillPath, "utf8");
   const { nodes, edges } = parseDigraph(src);
   const sections = extractSections(src);
-  const diamonds = new Set(diamondLabels(src));
+  const diamonds = new Set(nodes.filter((n) => n.type === "diamond").map((n) => n.label));
   const nodeLabels = new Set(nodes.filter((n) => n.type === "rect").map((n) => n.label));
 
   // ---------- Assertion 1: bidirectional completeness --------------------------------------
@@ -173,8 +163,10 @@ for (const { name, path: skillPath } of SKILL_FILES) {
         `${name}: handoff-* node missing`,
       );
       assert.ok(edgeExists("spec-review", "blocker=0?", ""), `${name}: spec-review → blocker=0? edge missing`);
-      assert.ok(edgeExists("blocker=0?", "fix-spec", "yes"), `${name}: blocker=0? --yes--> fix-spec edge missing`);
-      assert.ok(edgeExists("blocker=0?", "fix-spec", "no"), `${name}: blocker=0? --no--> fix-spec edge missing`);
+      // Family canon (plan Task 9 is the single-arrow shape {blocker=0?} → [fix]; the trio draws both labeled
+      // yes/no arms — their drawing choice). edgeExists(label "") matches yes / no / unlabeled, so either
+      // convention satisfies the shared skeleton; revisit when Task 9 lands the cli-driven-development canon.
+      assert.ok(edgeExists("blocker=0?", "fix-spec", ""), `${name}: blocker=0? → fix-spec edge missing`);
       assert.ok(
         edgeExists("fix-spec", "spec-review", "entered via blocker>0"),
         `${name}: fix-spec --entered via blocker>0--> spec-review back-edge missing`,

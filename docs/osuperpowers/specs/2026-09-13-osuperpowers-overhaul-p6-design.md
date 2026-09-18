@@ -1,6 +1,6 @@
 # osuperpowers 架构重构 P6 — 统一规划收口（收敛程序）设计
 
-- **Version**: v1.9 · 2026-09-19（v1.8 之上回填 **scripts CLI 框架统一 + 测试就近 `__tests__` 化**——用户 2026-09-19 指示；并收 T8 review R1 warn①② 的编号/锚点对齐【plan Task 20→Task 20 · Parent 锚点 v1.46】；overall v1.46 同窗）
+- **Version**: v1.9 · 2026-09-19（v1.8 之上回填 **scripts CLI 框架统一 + 测试就近 `__tests__` 化**——用户 2026-09-19 指示；并收 T8 review R1 warn①② 的编号/锚点对齐【C1-max 载体统一为 plan Task 20 · Parent 锚点 v1.46】；overall v1.46 同窗）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.46](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.46 全部登记）
@@ -264,7 +264,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 
 ### §2.4 task 组织（序，plan 期可细化）
 
-> 顺序原则：删除面先行（A→B）→ 目标布局落地（C 就近 + Q2-B 前置）→ 机制增量落新布局（D/E）→ **域 G 与 D-2 同窗**（随 T1/A5 `.agents/` 移除后执行——G1 改 6 skill SKILL.md、D-2 改 skill docs 均受 emit 面影响，移除后免 emit 往返；G4 的 pre-commit 修复树无关可由 T10 覆盖）→ 收口复核（F）。改动各自 validate 单点 + 全量在收口。**C1-max（T5.1）定序**：晚于 T5（contract 骨架/segments 已在）· 早于 T7（branch-loop 需落终态模板）；计划实施载体 = plan **Task 5.5**，排 plan T8（流程原子性三断言先立，模板变更即受其约束）之后、plan T9（branch-loop）之前——令 branch-loop/clauses 入库（T12）/术语清扫（T18）直接落终态布局，零二次改动。**T5.2（scripts 统一）定序**：紧随 T5.1 之后（同为收口前一致性收尾）、收口复核（spec 层 T9）之前——计划载体 = plan **Task 21**（C1-max 之后、术语/收口复核之前落地）。
+> 顺序原则：删除面先行（A→B）→ 目标布局落地（C 就近 + Q2-B 前置）→ 机制增量落新布局（D/E）→ **域 G 与 D-2 同窗**（随 T1/A5 `.agents/` 移除后执行——G1 改 6 skill SKILL.md、D-2 改 skill docs 均受 emit 面影响，移除后免 emit 往返；G4 的 pre-commit 修复树无关可由 T10 覆盖）→ 收口复核（F）。改动各自 validate 单点 + 全量在收口。**C1-max（T5.1）定序**：晚于 T5（contract 骨架/segments 已在）· 早于 T7（branch-loop 需落终态模板）；计划实施载体 = plan **Task 20**，排 plan T8（流程原子性三断言先立，模板变更即受其约束）之后、plan T9（branch-loop）之前——令 branch-loop/clauses 入库（T12）/术语清扫（T18）直接落终态布局，零二次改动。**T5.2（scripts 统一）定序**：紧随 T5.1 之后（同为收口前一致性收尾）、收口复核（spec 层 T9）之前——计划载体 = plan **Task 21**（C1-max 之后、术语/收口复核之前落地）。
 
 | T | 域 | 内容 | 关键文件 |
 |---|---|---|---|

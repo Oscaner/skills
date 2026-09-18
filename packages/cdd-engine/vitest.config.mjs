@@ -15,9 +15,11 @@ export default defineConfig({
     minWorkers: 1,
     fileParallelism: false,
     maxConcurrency: 2,
-    // Explicit include for the .mjs suite plus TS test support (vitest transforms TS via esbuild):
-    // migrating lib→src tasks will land tests at tests/**/*.test.ts or src/**/*.test.ts.
-    include: ['tests/**/*.test.{mjs,ts}', 'src/**/*.test.ts'],
+    // Explicit include for the migrated colocated suite (P6 Task 3): every test node now
+    // lives at src/**/__tests__/**/*.test.ts (tests/ retired; .mjs plane is zero).
+    // All tests are TypeScript (vitest transforms TS via esbuild); any .mjs regressing
+    // back into the engine is caught by the residue mjs-terminal-state guard (block 5c).
+    include: ['src/**/__tests__/**/*.test.ts'],
     // The suite spawns many node CLI + git subprocesses under a 20-file forks pool; per-test
     // wall time inflates under load (observed >5s on a busy machine). 20s guards the
     // default 5s budget without masking genuinely stuck tests.

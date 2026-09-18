@@ -114,8 +114,8 @@ const STALE_LEXICON_CHECKS = [
 // cdd-engine bin + osuperpowers skills + docs/maintainers + 根 README。豁免（注册非目标）：
 // docs/osuperpowers/{specs,plans}（历史文档新落点；spec/plan 描述删除面必携 gate 语汇，
 // 且不在 gate targets 内）、packages/osuperpowers/CHANGELOG.md
-// （历史记录，非机制位置）、osuperpowers/cdd-engine tests/（no-gate.test.mjs 反向守卫须
-// 引用该语汇，collectGateLexiconHits 不经其扫描）——与 T2 Step 4 docs-runner CDD_GATE 注释
+// （历史记录，非机制位置）、engine src/**/__tests__（反向守卫测试位须引用该语汇；
+// collectGateLexiconHits 走 walkTargetFiles 默认自豁免，不经其扫描）——与 T2 Step 4 docs-runner CDD_GATE 注释
 // 清理口径一致，靠「模式取紧致形（路径/门字形）」而非裸 `gate`/`cdd-gate-` 避免误报：
 // ship gate / evidence-gate / {{HARD_GATE}} / cdd-gate-test git 身份均零命中。
 // Task 5（P2）：GATE_TARGETS 与 DOC_SURFACE_TARGETS 有 2 项**刻意重叠**（`docs/maintainers`
@@ -144,7 +144,10 @@ function assert(cond, msg) {
 // 即静默漂移；现收敛为单一 walkTargetFiles，三个消费端只做各自的匹配/映射。
 // 缺失 target → 带 target 的清晰 Error（对齐 G7/G8「deleted path has returned」风格），
 // 未来文件改名/删除以可读 guard 失败呈现而非 statSync ENOENT 晦涩崩溃。
-function walkTargetFiles(targets) {
+// 默认跳过 `**/__tests__/`（P6 Task 3 迁就近后测试位并入 src 树）——guard/test 自豁免 doctrine 的
+// walk 侧落点：测试断言「死语汇缺席」必携被守词汇，机制扫描不得采信测试位；需扫测试的守卫
+//（seam 缝 / 旧根解析名）经 `{ includeTests: true }` 显式打开，scope 仍写 src/…（不写已删 tests/）。
+function walkTargetFiles(targets, { includeTests = false } = {}) {
   const out = [];
   for (const t of targets) {
     const abs = path.isAbsolute(t) ? t : path.join(ROOT, t);
@@ -156,15 +159,16 @@ function walkTargetFiles(targets) {
       : [abs];
     for (const f of paths) {
       if (readFileSync(f).includes(0)) continue; // binary — grep -rn reports, doesn't content-match
+      if (!includeTests && f.includes(`${path.sep}__tests__${path.sep}`)) continue;
       out.push(f);
     }
   }
   return out;
 }
 
-export function scanTargets(targets, re) {
+export function scanTargets(targets, re, opts) {
   const hits = [];
-  for (const f of walkTargetFiles(targets)) {
+  for (const f of walkTargetFiles(targets, opts)) {
     if (re.test(readFileSync(f).toString("utf8"))) hits.push(path.relative(ROOT, f));
   }
   return hits;
@@ -222,9 +226,9 @@ const ROOT_FROM_DOC = "root" + "FromDoc" + "Path";
 const RESOLVE_REPO_ROOT = "resolve" + "Repo" + "Root";
 
 // 逐行扫描辅助（建立在 walkTargetFiles 的文件面之上）：命中行回 { file, lineNo, text }。
-export function scanLines(targets, re) {
+export function scanLines(targets, re, opts) {
   const hits = [];
-  for (const f of walkTargetFiles(targets)) {
+  for (const f of walkTargetFiles(targets, opts)) {
     const lines = readFileSync(f).toString("utf8").split("\n");
     for (let i = 0; i < lines.length; i++) {
       if (re.test(lines[i])) hits.push({ file: path.relative(ROOT, f), lineNo: i + 1, text: lines[i] });
@@ -339,9 +343,9 @@ export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride)
   return hits;
 }
 
-// ⑤ 行 5：全仓零旧根解析名（二件套，含 tests；scope 与 T15 的「『全仓』落实口径」同表）。
-// label 按变量拼接（⑤ 的 target 集含 scripts/，label 若写连续字面即自命中）。
-const CHANNEL_ROOT_TARGETS = [...ALL_MECH_POSITIONS, "packages/cdd-engine/tests", "scripts"];
+// ⑤ 行 5：全仓零旧根解析名（二件套，**含测试位**；迁就近后测试并入 src 树，扫描显式
+// includeTests 打开——scope 写 `packages/cdd-engine/src`，不再写已删 tests/ 目录）。
+const CHANNEL_ROOT_TARGETS = [...ALL_MECH_POSITIONS, "scripts"];
 const ROOT_RESOLVER_TOKENS = [
   { label: `${ROOT_FROM_DOC} 回渗（旧按路径猜根的第二权威）`, re: new RegExp(ROOT_FROM_DOC) },
   { label: `${RESOLVE_REPO_ROOT} 回渗（旧根解析函数整函数删除）`, re: new RegExp(RESOLVE_REPO_ROOT) },
@@ -350,22 +354,23 @@ export function collectRootResolverHits(targetsOverride) {
   const targets = targetsOverride ?? CHANNEL_ROOT_TARGETS;
   const hits = [];
   for (const { label, re } of ROOT_RESOLVER_TOKENS) {
-    for (const f of scanTargets(targets, re)) hits.push({ label, file: f });
+    for (const f of scanTargets(targets, re, { includeTests: true })) hits.push({ label, file: f });
   }
   return hits;
 }
 
-// ⑥ 行 6：测试零旁路缝（filteredEnv / baseEnv / __*ForTest 三类补丁模式）。lib 侧只查 __*ForTest
-//（T3 Step 5-2 已删净 lib/lifecycle/proc.mjs 的 TEST_SEAM 缝，lib 面零命中成立）。
+// ⑥ 行 6：测试零旁路缝（filteredEnv / baseEnv / __*ForTest 三类补丁模式）。迁就近后测试位并入
+// src 树——scope 写 `packages/cdd-engine/src`（含机制+测试位，includeTests 打开）；lib 侧现有实现
+// 已无这些模式，机制/测试双位零命中成立（机制位命中同样算违规——退役补丁词汇不属于引擎本体）。
 const TEST_SEAM_CHECKS = [
-  { label: "filteredEnv 补丁模式", re: /\bfilteredEnv\b/, scope: ["packages/cdd-engine/tests"] },
-  { label: "baseEnv 补丁模式", re: /\bbaseEnv\b/, scope: ["packages/cdd-engine/tests"] },
-  { label: "__*ForTest 缝", re: /__\w*ForTest\b/, scope: ["packages/cdd-engine/tests", ...CDD_ENGINE_BIN] },
+  { label: "filteredEnv 补丁模式", re: /\bfilteredEnv\b/, scope: ["packages/cdd-engine/src"] },
+  { label: "baseEnv 补丁模式", re: /\bbaseEnv\b/, scope: ["packages/cdd-engine/src"] },
+  { label: "__*ForTest 缝", re: /__\w*ForTest\b/, scope: ["packages/cdd-engine/src"] },
 ];
 export function collectTestSeamHits(targetsOverride) {
   const hits = [];
   for (const { label, re, scope } of TEST_SEAM_CHECKS) {
-    for (const f of scanTargets(targetsOverride ?? scope, re)) hits.push({ label, file: f });
+    for (const f of scanTargets(targetsOverride ?? scope, re, { includeTests: true })) hits.push({ label, file: f });
   }
   return hits;
 }
@@ -588,11 +593,12 @@ export function checkChannelAudit() {
   console.log("OK — channel audit（§2.8 行 1–11、13）零违规");
 }
 
-// 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
+// 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。迁就近后 `packages/cdd-engine/src` 已含测试位；
+// 走 walkTargetFiles 默认 `__tests__` 自豁免（guard/test 自豁免 doctrine）——CHANNEL_AUDIT_TARGETS
+// 不再单列 tests/（目录已退役），源路径只写 src/…。
 export const CHANNEL_AUDIT_TARGETS = [
   "packages/cdd-engine/src",
   "packages/cdd-engine/templates/schema",
-  "packages/cdd-engine/tests",
   "packages/osuperpowers/skills",
   "scripts",
 ];
@@ -677,11 +683,12 @@ function checkShippedGuards() {
 // `(?<!-)handoff-schema` 零命中条目（行 14 由本任务唯一承接，删除动作与守卫同 commit）：
 // 裸名形（`// 对齐 …表` cite）与路径形（`docs/handoff-schema.md` / `skills/cli-driven-development/
 // docs/handoff-schema.md`）一律命中；负向后顾豁免 canonical schema 文件名（`task-handoff-schema.json`
-// / `docs-handoff-schema.json` 的 `handoff-schema` 均前接 `-`）。scope = packages/cdd-engine/​{bin,lib}
-// + tests + packages/osuperpowers 全目录。
+// / `docs-handoff-schema.json` 的 `handoff-schema` 均前接 `-`）。scope = packages/cdd-engine/src
+//（walk 默认 `__tests__` 自豁免——测试位引用被删名属测试断言物，归 seam 面；测试也不再承载
+// engine canonical 指向）+ packages/osuperpowers 全目录。
 // 本条目不计入 T8 的 collectChannelAuditHits（其 12 条指 §2.8 行 1–11、13）；行 21 的 task-review
 // 守卫归 T15 Step 4b，不在此。scripts/ 不在 scope 内，本文件写字面无自噬风险。
-export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/cdd-engine/tests", "packages/osuperpowers"];
+export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/osuperpowers"];
 const HANDOFF_SCHEMA_RE = /(?<!-)handoff-schema/;
 
 /** targetsOverride 供测试注入临时目录；hits = { label, file } 列表。 */
@@ -700,6 +707,70 @@ function checkHandoffSchema() {
     `HANDOFF SCHEMA LEXICON FOUND — deleted handoff-schema.md path/name (§2.8 行 14):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
   console.log("OK — handoff-schema（§2.8 行 14）零残留");
+}
+
+// =====================================================================
+// Task 3（P6）— .mjs 终态 + vitest 内存守卫双 config（spec 域 C，M5/M6）
+// =====================================================================
+// M5（brief ⑤）：`.mjs` 终态断言 —— 迁就近后 src 恒真 0 `.mjs`（48 测试节点 + helpers + fixtures
+// 全转 `.ts`；32→0 基准已清偿）+ tests/ 目录退役 0 文件。正则 drift 至此被结构断言取代：
+// 任何 `.mjs` 复现（引擎产物或测试面）即 fail。`srcRootOverride` 供测试注入临时 src 布局
+//（tests 目录 = src 父级下同名 `tests`，随 override 成对验证）。
+export function collectMjsTerminalStateViolations(srcRootOverride) {
+  const srcRoot = srcRootOverride ?? path.join(ROOT, "packages/cdd-engine/src");
+  const relBase = srcRootOverride ? srcRoot : ROOT;
+  const out = [];
+  for (const f of globSync("**/*.mjs", { cwd: srcRoot, absolute: true })) {
+    out.push({ label: "engine src .mjs 回渗（P6 后引擎全 TS，.mjs 平面为零）", file: path.relative(relBase, f) });
+  }
+  const testsDir = path.join(srcRoot, "..", "tests");
+  if (existsSync(testsDir)) {
+    out.push({ label: "tests/ 目录复现（Task 3 退役；新测试落 src/<module>/__tests__）", file: "tests" });
+  }
+  return out;
+}
+
+function checkMjsTerminalState() {
+  const hits = collectMjsTerminalStateViolations();
+  assert(
+    hits.length === 0,
+    `MJS TERMINAL STATE VIOLATED — src 恒真 0 .mjs + tests/ 0（P6 Task 3 ⑤）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+  );
+  console.log("OK — .mjs 终态（src 恒真 0 .mjs，tests/ 退役 0）");
+}
+
+// M6（brief ⑥）：内存守卫复核 —— engine root + 仓库根 双 vitest.config.mjs 必须固化
+// maxWorkers=1 + fileParallelism=false + maxConcurrency=2（2026-09-17 CPU 级 fork 池 OOM 后收敛；
+// 双处配置任一分叉即漂移，此地钉死同值）。presence 断言保守——两处都携带则通过。
+const MEMORY_GUARD_INVARIANTS = [
+  ["maxWorkers=1", "maxWorkers: 1"],
+  ["fileParallelism=false", "fileParallelism: false"],
+  ["maxConcurrency=2", "maxConcurrency: 2"],
+];
+const VITEST_CONFIGS = [
+  ["packages/cdd-engine/vitest.config.mjs", "engine root"],
+  ["vitest.config.mjs", "repo root"],
+];
+export function collectMemoryGuardViolations() {
+  const out = [];
+  for (const [rel, label] of VITEST_CONFIGS) {
+    const text = readFileSync(path.join(ROOT, rel), "utf8");
+    for (const [invariant, needle] of MEMORY_GUARD_INVARIANTS) {
+      if (!text.includes(needle)) {
+        out.push({ label: `${label} vitest.config 缺内存守卫 ${invariant}`, file: rel });
+      }
+    }
+  }
+  return out;
+}
+
+function checkMemoryGuard() {
+  const hits = collectMemoryGuardViolations();
+  assert(
+    hits.length === 0,
+    `MEMORY GUARD MISSING — vitest 双 config 内存守卫（P6 Task 3 ⑥）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+  );
+  console.log("OK — 内存守卫双 config（maxWorkers=1 / fileParallelism=false / maxConcurrency=2）");
 }
 
 // =====================================================================
@@ -929,9 +1000,10 @@ function checkSkillSurface() {
 // 先 checkZeroResidue 再 checkStaleLexicon 后 checkGateLexicon；T8 追加 checkChannelAudit（§2.8
 // 行 1–11、13 的 engine 侧 12 条守卫）；T10 追加 checkShippedGuards（§2.8 行 19-20 的
 // shipped 面两条反向守卫）；T11 追加 checkHandoffSchema（§2.8 行 14 的零命中守卫）；T16 追加
-// checkSkillSurface（§2.8 行 12/15/16/17/18 的 skills 面五条守卫）；grepTargets
-// 扩为含 cdd-engine src+templates 供 wiring guard 钉死。channelTargets = channel-audit
-// 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。
+// checkSkillSurface（§2.8 行 12/15/16/17/18 的 skills 面五条守卫）；Task 3（P6）追加
+// checkMjsTerminalState（M5：.mjs 终态）与 checkMemoryGuard（M6：vitest 双 config 内存守卫）；
+// grepTargets 扩为含 cdd-engine src+templates 供 wiring guard 钉死。channelTargets = channel-audit
+// 守卫面并集（wiring guard 钉死 scope 缩小即 fail；迁就近后不含已退役 tests/，src 面 walk 自豁免）。
 export const steps = [
   {
     name: "5c. engine zero-residue + channel-audit grep",
@@ -943,6 +1015,8 @@ export const steps = [
       checkShippedGuards();
       checkHandoffSchema();
       checkSkillSurface();
+      checkMjsTerminalState();
+      checkMemoryGuard();
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

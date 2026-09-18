@@ -124,6 +124,8 @@ A delegated skill may still contain native engine-CLI nodes (the spec-writers, f
 
 The four acceptance checks over every SKILL.md under `packages/osuperpowers/skills/` — node coverage, section alignment, no standalone `## Rules`, no standalone `## Red Flags` — are enforced by a single machine check: `packages/osuperpowers/tests/digraph-consistency.test.mjs` (no exemptions). Non-mechanical authoring judgment (naming, phrasing, rule placement) is manual.
 
+**Engine test naming & placement:** within `packages/cdd-engine/`, tests are colocated with the tested source — every test node is a TypeScript `*.test.ts` living at `src/<module>/__tests__/` (new engine tests land there first, never in a top-level `tests/` dir — retired since P6 Task 3). The engine's vitest include is the single glob `['src/**/__tests__/**/*.test.ts']`, and validate 5c asserts the engine's `.mjs` plane stays at zero.
+
 ## 9. Anti-patterns (Node-anchored SKILL.md)
 
 Anti-patterns organized by the anatomy element where they manifest.

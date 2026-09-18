@@ -5,7 +5,7 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 ## A. Organization & process
 
 1. **Delete-anything-that-isn't-consumed** — dead workspaces/files/surfaces are removed, not frozen (P1 `.superpowers/cdd/*` purged).
-2. **Deletion must sync its only caller** — removing a command/artifact without removing its caller is an orphan-debt (P3 `cli-research` deleted with `cdd research`).
+2. **Deletion must sync its only caller** — removing a command/artifact without removing its caller is an orphan-debt (P3 `cli-research` deleted with the `research` subcommand).
 3. **Anti-residue guards on every deletion** — a stale-lexicon guard prevents the vocabulary from creeping back (P1/P2/P3, P6 vendors/`.agents`).
 4. **Backfill-as-version** — mid-phase requirement changes are recorded in the overall first (version bump + change history + synced phase tables) before implementation continues (Boundary rules).
 5. **Single-root authority** — every derived surface converges on one root: workspace root, docs root, schema, finding-meta, labels SOT, context contract.

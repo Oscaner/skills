@@ -39,6 +39,8 @@ pnpm run version    # apply changesets to bump versions
 > ```
 >
 > The global `cdd` command must NOT be used (the `npm link` was removed for this reason). A global link can go stale or resolve to an old copy, so any engine work (P4-era especially) must be exercised against the working tree via the direct invocation — it guarantees the engine under test is this repo's code.
+>
+> **Engine tests — colocated, all TypeScript:** the engine test suite lives at `packages/cdd-engine/src/**/__tests__/**/*.test.ts` (vitest include `['src/**/__tests__/**/*.test.ts']`; the top-level `tests/` dir is retired and the engine's `.mjs` plane is zero — pinned by the validate 5c residue guard). Run it with `pnpm --filter @oscaner-skills/cdd-engine test`; new tests land colocated with the module they cover.
 
 > **CRITICAL — emit after every source change:** After editing ANY file under `skills/*/SKILL.md`, `skills/*/docs/*.md`, `docs/*.md`, or `package.json#oscaner-plugin`, you MUST run `pnpm run emit` before committing. Emit products (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/`, `.github/ISSUE_TEMPLATE/`) are **derived output** — never edit them directly. If you forget emit, the CI will fail with emit drift. This is the most common mistake in this repo.
 

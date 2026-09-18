@@ -113,8 +113,10 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });
 
-// 6b. channel-audit scope pinned (T8): the 5c step must carry channelTargets covering the
+// 6b. channel-audit scope pinned (T8 + P6 Task 3): the 5c step must carry channelTargets covering the
 // §2.8 行 1–11、13 guard scopes — a future edit silently narrowing one fails the wiring guard.
+// P6 Task 3: tests/ retired — src/**/__tests__ test positions are source-tree paths now (walk default
+// self-exempt); the retired top-level dir must NOT be re-added to the scope.
 test("5c channel-audit targets pinned (T8)", () => {
   const zr = steps.find((s) => s.name.startsWith("5c."));
   assert.ok(zr, "zero-residue check missing");
@@ -122,12 +124,12 @@ test("5c channel-audit targets pinned (T8)", () => {
   for (const p of [
     "packages/cdd-engine/src",
     "packages/cdd-engine/templates/schema",
-    "packages/cdd-engine/tests",
     "packages/osuperpowers/skills",
     "scripts",
   ]) {
     assert.ok(zr.channelTargets.includes(p), `channel-audit scope misses ${p}`);
   }
+  assert.ok(!zr.channelTargets.includes("packages/cdd-engine/tests"), "channel-audit scope must not reference retired tests/ dir");
 });
 
 // 7. the wiring guard itself is invoked by the orchestrator (guards the guard)

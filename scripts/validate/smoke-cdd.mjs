@@ -43,7 +43,8 @@ export function main() {
     console.log(`smoke: PATH bin unavailable — using repo-relative node entry (${cdd.slice(1).join(" ")})`);
   }
 
-  const plan = "packages/cdd-engine/tests/fixtures/smoke-plan.md";
+  // P6 Task 3：fixture 随就近迁移 —— smoke-plan.md 自 tests/fixtures/ 移入 src/cli/__tests__/fixtures/
+const plan = "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md";
   const planBase = path.basename(plan, ".md");
   const slug = planBase.replace(/-(?:design|plan)$/, ""); // smoke-plan.md → smoke（与 engine workspaceSlug 同规则）
   const head = execaCommandSync("git rev-parse HEAD", { cwd: root }).stdout.trim();
@@ -90,8 +91,9 @@ export function main() {
 // package's own dir (scripts/validate) self-exempt, mirroring the residue.mjs gate guard's
 // target design — guards must reference retired tokens to assert their absence.
 const OSKILLS = ["packages/osuperpowers/skills"];
-// N②: 不含 tests —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」
-// doctrine 对齐（同 residue G1）。re-org 后 ENGINE 收拢为 src（--harness 词表随 parse.ts 移入 src/cli/）。
+// N②: 不含测试位 —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」
+// doctrine 对齐（同 residue G1）。P6 Task 3 迁就近后测试并入 src 树：walkTargetFiles 默认跳过
+// `**/__tests__/`，ENGINE=src 扫描天然排除测试位（re-org 后 --harness 词表随 parse.ts 移入 src/cli/）。
 const ENGINE = ["packages/cdd-engine/src"];
 const MAINTAINERS = ["docs/maintainers"];
 const MAINTAINERS_DOC = [path.join("docs", "maintainers", "osuperpowers-plugin.md")];
@@ -113,8 +115,8 @@ function checkDeletionSurface() {
   // (this guard and residue.mjs carry the retired token by design).
   assertNoResidue("G2 --harness flag", /--harness/, [...ENGINE, ...OSKILLS, ...MAINTAINERS]);
 
-  // G3 --doc — shipped skills + engine entry + maintainers. tests/ 与 cli-shape.test 自豁免：
-  // cli-shape.test.mjs 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 src/cli/parse.ts
+  // G3 --doc — shipped skills + engine entry + maintainers. 测试位（src/**__tests__）walk 默认自豁免：
+  // cli-shape.test 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 src/cli/parse.ts
   //（薄入口化后命令定义与 --doc 词表唯一落点）。
   assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "src", "cli", "parse.ts"), ...MAINTAINERS]);
 

@@ -51,6 +51,9 @@ import {
   collectDocsRefHits,
   collectSkillSurfaceHits,
   ORCHESTRATOR_SKILLS,
+  collectMjsTerminalStateViolations,
+  collectMemoryGuardViolations,
+  scanTargets,
 } from "./residue.mjs";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
@@ -831,11 +834,12 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
   it("HANDOFF_SCHEMA_TARGETS 覆盖既定 scope（scope 缩小即失败）", () => {
     for (const p of [
       "packages/cdd-engine/src",
-      "packages/cdd-engine/tests",
       "packages/osuperpowers",
     ]) {
       expect(HANDOFF_SCHEMA_TARGETS).toContain(p);
     }
+    // P6 Task 3：tests/ 已退役，src 面 walk 默认 __tests__ 自豁免 —— 不再单列根路径
+    expect(HANDOFF_SCHEMA_TARGETS).not.toContain("packages/cdd-engine/tests");
   });
   it("live repo：collectHandoffSchemaHits() === []（handoff-schema.md 已删 + 引用改指 engine canonical）", () => {
     expect(collectHandoffSchemaHits()).toEqual([]);
@@ -1178,5 +1182,63 @@ describe("stale-lexicon：report-issues 旧模型语汇守卫（Task 16·P5）",
 describe("live repo：T16 skills 面守卫 5 条零残留", () => {
   it("collectSkillSurfaceHits() === []（§2.8 行 12/15/16/17/18 全绿）", () => {
     expect(collectSkillSurfaceHits()).toEqual([]);
+  });
+});
+
+// ---- Task 3（P6）：.mjs 终态 + vitest 内存守卫双 config + walk 自豁免（spec 域 C，M5/M6）----
+// M5（brief ⑤）：src 恒真 0 `.mjs`（48 测试节点 + helpers + fixtures 全转 `.ts`）+ tests/ 退役 0。
+// M6（brief ⑥）：engine root + 仓库根 双 vitest.config.mjs 固化 maxWorkers=1/fileParallelism=false/
+// maxConcurrency=2（2026-09-17 CPU 级 fork 池 OOM 后收敛）。self-exempt doctrine：walkTargetFiles
+// 默认跳过 `**/__tests__/`（迁就近后测试位并入 src 树），机制扫描不得采信测试位断言（其必携被守
+// 语汇）；需扫测试位的守卫（seam 缝 / 旧根解析名）经 `{ includeTests: true }` 显式打开。
+describe("P6 Task 3 M5：.mjs 终态（src 0 .mjs + tests/ 0）", () => {
+  it("live repo：collectMjsTerminalStateViolations() === []", () => {
+    expect(collectMjsTerminalStateViolations()).toEqual([]);
+  });
+  it("临时仓库：src .mjs 复现 → 命中（.mjs 平面守护）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-m5-"));
+    try {
+      // 注入假 src 布局：sub/src/{bin.mjs,__tests__/node.mjs} + sub/tests/old.mjs —— 均须命中
+      mkdirSync(path.join(dir, "sub", "src", "__tests__"), { recursive: true });
+      mkdirSync(path.join(dir, "sub", "tests"), { recursive: true });
+      writeFileSync(path.join(dir, "sub", "src", "bin.mjs"), "console.log(1)\n", "utf8");
+      writeFileSync(path.join(dir, "sub", "src", "__tests__", "node.mjs"), "import x from '../bin.mjs'\n", "utf8");
+      writeFileSync(path.join(dir, "sub", "tests", "old.mjs"), "// retired tests/ dir\n", "utf8");
+      const hits = collectMjsTerminalStateViolations(path.join(dir, "sub", "src"));
+      expect(hits.map((h) => h.file).sort()).toEqual(["__tests__/node.mjs", "bin.mjs", "tests"].sort());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("P6 Task 3 M6：vitest 双 config 内存守卫", () => {
+  it("live repo：collectMemoryGuardViolations() === []（engine + root 双处同值）", () => {
+    expect(collectMemoryGuardViolations()).toEqual([]);
+  });
+});
+
+describe("P6 Task 3：walkTargetFiles `__tests__` 自豁免 doctrine", () => {
+  it("默认跳过 __tests__；{ includeTests: true } 打开后可命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-walk-"));
+    try {
+      mkdirSync(path.join(dir, "m", "__tests__"), { recursive: true });
+      writeFileSync(path.join(dir, "mech.ts"), "// pkg/foo 字面\n", "utf8");
+      writeFileSync(path.join(dir, "m", "mech2.ts"), "pkg/foo\n", "utf8");
+      writeFileSync(path.join(dir, "m", "__tests__", "t.test.ts"), "pkg/foo 测试断言必须引用\n", "utf8");
+      const re = /pkg\/foo/;
+      const defaultHits = scanTargets([dir], re);
+      const withTests = scanTargets([dir], re, { includeTests: true });
+      // scanTargets 文件名为 ROOT 相对（tmpdir 前缀不定）——按相对末端断言
+      expect(defaultHits.map((f) => f.replace(/^.*?residue-walk.*?\//, "")).sort())
+        .toEqual(["m/mech2.ts", "mech.ts"].sort());
+      expect(withTests.map((f) => f.replace(/^.*?residue-walk.*?\//, "")).sort())
+        .toEqual(["m/__tests__/t.test.ts", "m/mech2.ts", "mech.ts"].sort());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("seam 缝守卫（filteredEnv/baseEnv/__*ForTest）经 includeTests 扫测试位——live repo 零命中", () => {
+    expect(collectTestSeamHits()).toEqual([]);
   });
 });

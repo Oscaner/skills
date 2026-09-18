@@ -1,9 +1,9 @@
 # osuperpowers 架构重构 P6 — 统一规划收口（收敛程序）设计
 
-- **Version**: v1.3 · 2026-09-18（R3 七 finding 全并入 + F7 运维文档整理重组增需；R1–R3 均 APPROVED 0 blocker，12 findings 全部处置；spec 变更开新 round R4）
+- **Version**: v1.4 · 2026-09-18（branch 级 review-fix loop 全形 + R4 三 finding 并入；R1–R4 均 APPROVED 0 blocker，15 findings 全部处置；spec 变更开新 round R5）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.38](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.38 全部登记）
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.40](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.40 全部登记 + brainstorm 自省四修 + F7）
 - **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263）；P1–P4 shipped（hard 链完整）
 
 ---
@@ -85,7 +85,7 @@ P6 不是十一项修复，是**一个收敛程序的六类执法实例**。所�
 - **机械守卫优先主线程**：每个删除面配守卫（残留 stale-lexicon）、每个收敛面配不变式（字节/digraph/锚点/内存/pre-commit 子集）——「零纸面宣称」是全局总不变量（§2.5）。
 - **「docs 与落地一致」是收口统一验收**：每个登记项落地 = maintainer docs / CLAUDE.md 有同步记录，且落地面零陈旧引用。
 
-### §2.3 六域设计（每域首句 = 承载宣称 → 执法）
+### §2.3 七域设计（域 A–F 为六设计域，域 G = meta 自省域，不计六数；每域首句 = 承载宣称 → 执法）
 
 #### §2.3.1 域 A — 能力宣称收缩（宣称撤回 + 数据化）
 
@@ -211,7 +211,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 
 | # | 缺口 | 设计 | 落点 |
 |---|---|---|---|
-| ① | `cdd fix --type branch` 命令面 | branch-review 修复闭环走 engine：cli/fix.ts 增 branch 分支 + branch roundPattern + Stopping；cli-driven-development branch-fix 节点同步为已实现形态 | src/cli/fix.ts · phases.ts · cli-driven-development/SKILL.md |
+| ① | **`cdd fix --type branch` 命令面 + branch 级 review-fix loop 全形** | **branch-review -> branch-fix 遵守与 spec/plan/task 完全同构的 review-fix loop**（用户 2026-09-18 指示）：digraph = `K[branch-review] → {blocker=0?} → J[branch-fix] →（blocker>0 → K / blocker=0 → handoff-finishing）`——与 writing-* 族 `D[review] → {blocker=0?} → F[fix] →（blocker>0 → D / blocker=0 → commit)` 逐节点同构（终态=finishing，fix 的 commit 由引擎出口门在 loop 内完成）；`branch-fix-loop` 节点改名 `branch-fix` + 语义：`cdd fix --type branch --findings branch-review-{R}.json` 为**唯一修复通道（引擎闭环，零编排 inline）**；Stopping 语义同族（review 输出 blocker=0 → fix all → done 不 re-review）；轮次软上限保留 branch 定位（终局 gate，僵局用户裁决——对称性例外记录理由）；cli-driven-development 全部 P6 改动整 skill 一次改齐（Flow Atomicity） | cli/fix.ts · dispatch/phases.ts（branch roundPattern）· cli-driven-development/SKILL.md |
 | ② | **dry-run 门判 WARN 化** | 门判见 dryRun **降级为 WARN 不 BLOCK**（`run()` 模板 pre-flight 门先于 docs resolveContext 早退——实锤）：检查脏树 → stderr 打印「工作树含未提交变更；dry-run 纯模拟不受影响，真实 dispatch 需干净树」→ **exit 0 走完模拟**。保留门的信息价值 + 零副作用语义，比「完全跳过 gate」更诚实（用户 2026-09-18 指示）| rules/commit.ts 或 base.ts |
 | ③ | 黑盒干净树前置文档化 | vitest config 注释 / 测试文档 / CLAUDE.md dev 段显式记录 | 文档面 |
 | ④ | 跨 Task findings 收编 | review findings 标 `targets later task`（零 schema 变更）→ orchestrator 落 plan `pending-acceptance-patch` 区（唯一写者）→ 后续 task 验收面含 patch | writing-plans · plan 文档样例 |
@@ -257,7 +257,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | T4 | C/Q2-B | repo scripts/ 全量 `.ts`（rename + 显式 `.ts` 扩展 + CI 调用名随迁 + vitest include 随迁）| scripts/** · workflows 调用名 · package.json |
 | T5 | D | **模板系统化 + rename + JSON 归并 + cache C1–C7 + profile**（骨架/条款/token registry · 两段制 · 布局归一 · engine-config/template-contract · 字节不变式守卫 · dev 观测脚本）| 4 模板 · template-contract.json · engine-config.json · harness-registry.json · render/templates.ts · tests |
 | T6 | E1 + D-2 | skill 流程原子性三断言 + flow 变更纪律 + **skill 文档模板系统化（base-branch / overall-spec-template / add-phase-protocol / phase-spec-template 四文件统一骨架 + 条款引用 + P1–P6 经验烘焙；emit 时间窗与 T1 .agents 移除定序）** | skill-authoring.md · 4 skill docs · validate（digraph 三断言）|
-| T7 | E2 | cdd 六缺口（①fix --type branch ②dry-run 豁免 ③黑盒前置文档 ④pending-acceptance-patch ⑤纪律条款入库 ⑥锚点校验）| cli/fix.ts · phases.ts · commit.ts · plan 文档 · template-contract |
+| T7 | E2 | cdd 六缺口（①fix --type branch + **branch 级 review-fix loop 全形** ②dry-run WARN 化 ③黑盒前置文档 ④pending-acceptance-patch ⑤纪律条款入库 ⑥锚点校验）| cli/fix.ts · phases.ts · commit.ts · cli-driven-development/SKILL.md · plan 文档 · template-contract |
 | T8 | E3 | stall 探测器三件套（liveness monitor + 恢复契约化）| infra/proc.ts · invoke.ts · rules/failure.ts |
 | T9 | F | 收口复核（F1–F7：锚点终态 · 残留守卫 · changeset+版本落地 · **naming-conventions.md 对照** · **4 份方法论 doc** · **运维文档整理重组 F7** · validate 12 块 + emit:check + 零纸面宣称总校验）| validate 全链 · .changeset/ · naming-conventions.md · context-caching-doctrine.md · template-doctrine.md · program-experience.md |
 | T10 | G | 自省四修（G1 session-call 全域 **19 节点** + authoring 原语 · G2 需求全量清单 · G3 validate 边界 · G4 pre-commit 修复三件）| 6 skills · skill-authoring.md · writing-overall-spec 流程 · .husky/pre-commit · infra 门判 · vitest 套件 |
@@ -274,7 +274,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 - **模板系统化 + cache C1–C7**：4 模板抗骨架数据校验一致（章节序/段名/segments 归属恒等）；条款库零重复（clauses 单源）；token registry 全收敛（**18 令牌实测** → 新命名规范，**零遗留旧态名**：H1_BLOCK / HANDOFF 三义旧名 HANDOFF·HANDOFF_TYPE·HANDOFF_STUB / TYPE / LENS_GUIDE…）；`engine-config.json`/`template-contract.json` 存在且消费方程单点（`config.ts`/`templates.ts`）· 测试引用路径随迁；组装序恒为「registry prefix → 静态壳 → 变体载荷」；壳单源字节恒等零漂移；schema canonical 序列化；重派发零重渲染；同 (harness,op,type) 派发集逐字节同集；静态区最薄；registry 条含 cache profile（claude explicit/512/0.1/1.25/5/observable；cursor-agent auto pending）且 schema 校验；dev 观测脚本就位，连续同类型 round `/cost` 读 tok > 0 可测（验收记录实测值）；收益边界入文档
 - **skill 文档模板系统化（D-2）**：4 文件（base-branch / overall-spec-template / add-phase-protocol / phase-spec-template）统一骨架 + 条款引用 + P1–P6 经验烘焙（§2.6 引用）；与 engine 模板同 doctrine；emit 时间窗已序；`program-experience.md` 存在为全文
 - **skill 流程原子性**：skill-authoring.md 含 flow 变更纪律；digraph 三断言（双向完整 · 骨架同构 · 增长信号）全绿
-- **cdd 缺口**：`cdd fix --type branch` 可用（branch findings 全 engine 闭环，零编排 inline）；**dry-run 脏树 EXIT 0 + stderr 脏树 WARN 可断言**（dry-run 黑盒全绿——docs-task/cli-shape 相关用例，出处 = R3 实证）；黑盒前置文档化；跨 Task 收编走 pending-acceptance-patch（fix agent 零 plan 修改权）；纪律条款入库（模板正文零内联纪律散文）；锚点终态校验零漂移
+- **cdd 缺口**：**branch 级 review-fix loop 落地**——`cdd fix --type branch` 命令面可用 + cli-driven-development digraph 为 canon shape（`branch-review → {blocker=0?} → branch-fix →（blocker>0 → re-review / blocker=0 → finishing）`，与 spec/plan/task 族同构，零编排 inline）· branch findings 全 engine 闭环；**dry-run 脏树 EXIT 0 + stderr 脏树 WARN 可断言**（dry-run 黑盒全绿——docs-task/cli-shape 相关用例，出处 = R3 实证）；黑盒前置文档化；跨 Task 收编走 pending-acceptance-patch（fix agent 零 plan 修改权）；纪律条款入库（模板正文零内联纪律散文）；锚点终态校验零漂移
 - **stall 探测器**：卡死 >IDLE_WINDOW 被杀 + TIMEOUT handoff blocker 含清偿指引；无 90min 拖死；liveness 双信号测试绿
 - **内存守卫**：`maxWorkers=1 + fileParallelism=false + maxConcurrency=2` 持久配置不变式，engine 全量套件 + 新增守卫全绿、正常负载无 OOM（基线 567 出处 = P5 终验 2026-09-18）
 - **v1.13 收口**：smoke flake 稳定；changeset 消费后版本落地已验证
@@ -291,7 +291,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 | **B 工程架构** | 9 破坏性变更+高维度抽象统一 · 10 平层模型 · 11 TS 全量化 · 12 commit 双门 · 13 第三方收敛 · 14 目录单向轴 · 15 输出契约单源 · 16 输入三信道 · 17 失败类目化 · 18 测试就近+内存守卫 |
 | **C 缓存/上下文** | 19 跨厂商六公理 · 20 字节面>断点面 · 21 诚实边界 · 22 能力数据化 |
 | **D 提示词/模板** | 23 模板系统化五层 · 24 命名制度 · 25 纪律双轨 |
-| **E 反模式** | 26 平面不明=债务 · 27 spec 数字不实测即错（15→14 · ~17→19 · 17→18）· 28 黑盒前置未文档化=14 同根因 · 29 pre-commit 结构性矛盾 · 30 变体令牌中断前缀=缓存杀手 · 31 overall 登记≠子 agent 直读面 |
+| **E 反模式** | 26 平面不明=债务 · 27 spec 数字不实测即错（15→14 · ~17→19 · 17→18）· 28 黑盒前置未文档化=14 同根因 · 29 pre-commit 结构性矛盾 · 30 变体令牌中断前缀=缓存杀手 · 31 overall 登记≠子 agent 直读面 · **32 异构 loop 形状被骨架同构拦下（branch-loop 初稿非 canon shape——Flow Atomicity 实证：任何 review-fix loop 必须与族 shape 同构）** |
 
 ---
 
@@ -299,12 +299,13 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| P6 = 统一规划收口（v1.2 初始） | 扩张为六域 + 收敛论点 §2.0（v1.2→v1.38 逐版本登记）| Yes — v1.38 ★ 2026-09-18 |
+| P6 = 统一规划收口（v1.2 初始） | 扩张为七域 + 收敛论点 §2.0（v1.2→v1.40 逐版本登记）| Yes — v1.40 ★ 2026-09-18 |
 | repo scripts/ `.mjs` 留存（v1.34） | 全量 `.ts`（Q2-B）| Yes — v1.35 |
 | osuperpowers scripts 二选一待裁（v1.34） | 保留 `.mjs` 隔离（Q1-A）| Yes — v1.35 |
 | prompt-cache 五杠杆（v1.28） | 升维 cache-first C1–C7 + 模板系统化（第五层收敛 + rename + JSON 归并）+ profile 数据面 | Yes — v1.35 · v1.38 |
 | vendors 撤离（v1.16） | 自维护面全撤 | Yes — v1.35 |
-| 自省四修（v1.36） | G1 升格 session-call 全域（~17→**实测 19**）· skill 流程原子性三断言 · 模板系统化 · 命名制度 · JSON 归并 | Yes — v1.37 · v1.38 |
+| 自省四修（v1.36） | G1 升格 session-call 全域（~17→**实测 19**）· skill 流程原子性三断言 · 模板系统化 · 命名制度 · JSON 归并 · F7 运维文档重组 | Yes — v1.37 · v1.38 · v1.40 |
+| v1.33 gap① fix --type branch（命令面） | **升格 branch 级 review-fix loop 全形**——branch-loop 与 spec/plan/task 族 canon shape 同构（`{blocker=0?}` decision + 双支过 fix + stopping）；`branch-fix-loop`→`branch-fix`、引擎唯一修复通道、软上限保留 | Yes — v1.41 ★ 2026-09-18 |
 
 ---
 
@@ -316,10 +317,10 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 - **消费方视角**：`report-templates.mjs` 运行时路径（`${pluginRoot}/scripts/report-templates.mjs`）保持稳定（Q1-A）；发布面改动从消费者无构建前提复核。
 - **cache 验收需真实 harness**：T5 观测为 dev 侧文档化测量（CI 无 harness 不 gate；记录实测值于验收证据）。
 - **changeset 边界**：P6 自身 changeset（osuperpowers minor + cdd-engine minor 评估）在 finishing 前随 F3 落定。
-- **R1–R3 findings 处置（12 条已并入）**：R1 三 warn（14 计数 / 19 枚举 / C·M 消歧）+ R2 二 finding（token **18 实测** / D1.5 merge 清单）+ R3 七 finding（HANDOFF 族 2 枚终态 / render-yaml 归属 Q1-A 面 / 567·dry-run 出处可复算 / §2.4 顺序原则补域 G / T9 真实文件清单 / §2.6 节号序【移于 §2.5 后】/ C1 零旧名书写）——详见 §2.3.4 D1.4 · §2.3.3 · §2.5 · §2.4。
+- **R1–R4 findings 处置（15 条已并入）**：R1 三 warn（14 计数 / 19 枚举 / C·M 消歧）+ R2 二 finding（token **18 实测** / D1.5 merge 清单）+ R3 七 finding（HANDOFF 族 2 枚终态 / render-yaml 归属 Q1-A 面 / 567·dry-run 出处可复算 / §2.4 顺序原则补域 G / T9 真实文件清单 / §2.6 节号序【移于 §2.5 后】/ C1 零旧名书写）+ R4 三 finding（上级指针 v1.40 / 七域计数 / 「豁免」措辞统一 WARN 化）——详见 §2.3.4 D1.4 · §2.3.3 · §2.3 · §2.5 · §2.4。
 
 ---
 
 ## Section 5: Review
 
-Fresh-Subagent Review Passes（cdd spec review）必须全过，才进入用户 review 与 writing-plans。R1–R3 均 APPROVED 0 blocker（12 findings 已并入）；本版含作者侧内容变更（R3 七修 + F7 增需），按 writing-phase-spec I1 合法开新 round R4。R4 后如 blocker=0 即收口（不再追加内容）——Review Stopping。
+Fresh-Subagent Review Passes（cdd spec review）必须全过，才进入用户 review 与 writing-plans。R1–R4 均 APPROVED 0 blocker（15 findings 已并入）；本版含作者侧内容变更（branch-loop 全形 + R4 三修），按 writing-phase-spec I1 合法开新 round R5。**R5 后不再追加内容**——收口（Review Stopping）。

@@ -44,7 +44,7 @@ export function main() {
   }
 
   // P6 Task 3：fixture 随就近迁移 —— smoke-plan.md 自 tests/fixtures/ 移入 src/cli/__tests__/fixtures/
-const plan = "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md";
+  const plan = "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md";
   const planBase = path.basename(plan, ".md");
   const slug = planBase.replace(/-(?:design|plan)$/, ""); // smoke-plan.md → smoke（与 engine workspaceSlug 同规则）
   const head = execaCommandSync("git rev-parse HEAD", { cwd: root }).stdout.trim();

@@ -1,0 +1,131 @@
+# osuperpowers 架构重构 P6 实施计划 — 统一规划收口（收敛程序）
+
+**Spec:** [2026-09-13-osuperpowers-overhaul-p6-design.md](docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p6-design.md)
+
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.44](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263 已 merge，2026-09-18）；P1–P4 shipped（hard 链完整）
+- **Base**: develop（finishing read-base 的数据源）
+
+**口径**：P6 是**终局收口 phase**，承载 §2.0 收敛论点——**每一项删除面有残留守卫、每一项收敛面有机械断言、每一项纪律有执法位（零纸面宣称）**。七域执行（A 能力宣称收缩 · B vendors 全撤 · C 测试就近+M1–M7 · D 模板系统化+C1–C7+双平面 · E 流程原子性+cdd 六缺口+stall · F 收口复核 F1–F8 · G 自省四修 G1–G4）。**诚实边界**：cache 验收为 dev 侧实测（CI 无 harness 不 gate）；术语改名（Review Convergence）历史 changelog/spec-plan 豁免。所有改动 `pnpm run validate` 全绿 + `emit:check` 无 drift。
+
+**commit 边界机制（本 program 全 phase 生效）**：dispatch 两端门——入口门（进入 review 前主 agent 产物已提交、dispatch 期零写树）+ 出口门（产生修改的 dispatch 后修改已提交）；主 agent 处理的由主 agent commit。计划各 Task 的 review/fix 环均遵守。
+
+**Flow Atomicity（本 phase 强化）**：任何 skill 内部流程/文档变更 = 整 skill 统一调整（无局部补丁）；cli-driven-development 的全部 P6 描写（branch-loop / dry-run WARN / pending-acceptance / 术语）在 Task 9 一次性整 skill 改齐。
+
+**顺序原则（spec §2.4）**：删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）。
+
+---
+
+### Task 1: 能力宣称收缩（spec 域 A，A1–A8）
+
+- **Do**: ① README.md / README.zh-CN.md / CLAUDE.md 去 8-harness 表述（保留 claude/cursor-agent 证实面 + 中性「多 harness 可消费」）；README.zh-CN 陈旧面清理（`docs/gate-install.md` 死引用 · Trae/Vibe/Kiro/OpenCode/init-harness 模式 · 未证实 harness 行）；② `oscaner-plugin.claude.keywords` 去 droid/pi + **`package.json#pi` 死 manifest 字段删除**；③ manifests.mjs 注释清理；④ **`.agents/` emit 面移除**：`emitAgentsSkillsCopy` 删除 + orchestrate prune/compare 路径删除 + **`git rm` 14 tracked 文件（实测含 .keep）** + emit.test 用例同步；⑤ 根 CLAUDE.md「`.agents/` is derived」等派生提示改写为面向剩余 emit 产物集合（`.claude-plugin` + `.cursor-plugin` + marketplace + `.github/ISSUE_TEMPLATE`）；⑥ harness-registry 精简审计复核（保持 claude/cursor-agent 两实扛条）；⑦ `pnpm run emit` 后 `emit:check` drift=0
+- **验收**: README/zh/CLAUDE.md 零「8 harness」宣称、零 `gate-install` 死引用；`keywords` 零 droid/pi、package.json 零 `#pi` 字段；`packages/osuperpowers/.agents/` git **零跟踪**、emit 零产出、src/emit 代码零 `emitAgentsSkillsCopy`/`pruneStaleAgentsNamespaces` 引用；CLAUDE.md 零「`.agents/` is derived」派生提示；`pnpm run emit:check` 无 drift；`pnpm run validate` 相关块全绿
+- **注**: 本 Task 是其他 emit 相关任务的**前置**（`.agents/` 移除后，T7 D-2 skill docs 改写与 T15 G1 skills 改写免 emit 往返——spec 顺序原则「域 G 与 D-2 同窗」）
+
+### Task 2: vendors 自维护面全撤（spec 域 B，B1–B12）
+
+- **Do**: ① 删 `.github/workflows/submodule-sync.yml` + `submodule-bump.yml`；② release.yml `publish-vendor` 步骤删（含关联引用）；③ 删 `scripts/validate/submodule.mjs` + run.mjs validate 块（**13→12 块**）；④ pr-validate/release checkout `submodules: recursive` 撤空；⑤ 删 `scripts/release/publish-vendor*` + `submodule-tags.test.mjs` + `bump-submodule` 子命令；⑥ **submodule 本体撤离**：`git submodule deinit -f --all` → 删 `.gitmodules` 三条 + `vendors/` 三目录 → `git add .gitmodules`；⑦ marketplace/source.json 三 vendor 条目删 + re-emit（两 marketplace.json + cursor-plugins/*）；⑧ version-sync superpowers 检查删（`resolveVendorVersion` 消解 v1.13 flake）；⑨ marketplace-utils vendor 派生删 + emit resolveVersion/assertCursorPathsExist vendor 路径清理 + data-driven-templates.md vendor assembly 引用更新；⑩ CLAUDE.md「Vendored submodules」章节删；⑪ README/zh 改指上游（三个官方安装命令引用保留 + 标上游出处）；⑫ stale-lexicon/residue 增 `vendors/`·`publish-vendor`·`submodule` 语汇守卫
+- **验收**: 零 `submodule-sync.yml`/`submodule-bump.yml` 配置 · zero release `publish-vendor` 步 · validate **12 块** · checkout 零 `submodules: recursive` · 零 `publish-vendor`（代码/workflow/步/子命令）· `.gitmodules` 零条目 + `vendors/` 目录不存在 · marketplace/source.json 与 emit 产物零 vendor 条目 · version-sync 零 `resolveVendorVersion`/superpowers 检查 · 防回渗守卫零命中；`pnpm run validate` 12 块全绿（块数断言）
+- **注**: 顺序先删引用再拆 submodule（防孤儿引用）；B6 不触碰 submodule 内容本体（撤离 ≠ 修改）
+
+### Task 3: cdd-engine 测试就近迁移 + tests/ 退役 + 内存守卫复核（spec 域 C，M1–M7）
+
+- **Do**: ① **tests/ 拓扑全集就近迁移**（**实测 53 文件 = 48 测试节点【30 `.mjs` + 18 `.ts`】+ helpers.mjs + fixtures 多文件**；精确清单以 `git ls-files tests/` + `find tests/ -type f` 为准）：infra.* → `src/infra/__tests__/` · dispatch.* → `src/dispatch/__tests__/` · rules.* → `src/rules/__tests__/` · cli-*/review-loop/runner/task/docs-*/handoff-*/progress-*/base-branch/brief/context/contract/exit/failure-categories/host-detection/registry/root/schema-utils/templates.*/workspace-artifacts/lifecycle.* → 按被测源就近；② helpers → `src/infra/__tests__/helpers.ts`；fixtures 随就近迁移（规避散落）；③ vi.mock 路径随迁改指就近 `.ts`、测试内相对路径修正；④ vitest include 收敛 `['src/**/__tests__/**/*.test.ts']`、`tests/` 目录退役；⑤ **`.mjs` 终态断言**（src 恒真 0 `.mjs` + tests 0 `.mjs`【32→0，基准=30 测试 + helpers + fixtures/proc-oracle-engine.mjs】）；⑥ 内存守卫复核（`maxWorkers=1 + fileParallelism=false + maxConcurrency=2` 双 config 固化 + 断言）；⑦ 运维文档同步（vitest include / tests 退役 / data-driven-templates exemplars 测试路径 / skill-authoring 测试命名段 / third-party-deps .mjs 平面记录 / CLAUDE.md dev 段）
+- **验收**: `git status` 零 `tests/` 残留（退役）；engine suite 全绿（迁移为纯搬移零行为变化——迁移护栏）；vitest include 收敛后套件仍全量发现；residue/结构守卫断言 src 恒真 0 `.mjs` + tests 0 `.mjs` 通过；内存守卫配置断言（maxWorkers=1/fileParallelism=false/maxConcurrency=2）就位；文档引用零陈旧
+- **注**: 迁移先行（land-first）——后续机制 Task 的新测试直接落新布局；`rules/stopping.test.ts` 随批迁至 `src/rules/__tests__/`（T18 术语批 rename）
+
+### Task 4: repo `scripts/` 编排层全量 `.ts` 化（spec 域 C/Q2-B）
+
+- **Do**: `scripts/{emit,validate,lib,release,rulesets,run}.mjs`（44 个）→ `.ts`：rename + **显式 `.ts` 扩展导入**（Node 24 原生 type-stripping 惯例，与 cdd-engine src 同法）+ 最小类型标注（可加则加，不加零类型以 ERASABLE 语法保证）；`node scripts/run.ts validate` 直跑（原生 strip）；CI 三处调用名随迁（pr-validate `node scripts/run.ts smoke-cdd` · release `node scripts/run.ts version` 等）；vitest include 随迁 `.test.ts`（scripts/**/*.test.mjs→ts）
+- **验收**: `node scripts/run.ts validate` 12 块全绿（type-stripping 直跑零 loader）；`scripts/` 编排层 `.mjs` **44→0**（零残留，留存例外为零且理由零）；CI workflow 调用名全部改指 `.ts`；`pnpm run validate` + `emit:check` 全绿
+- **注**: 编排层非发布面（消费者无 scripts/）；Node `.nvmrc` = v24（strip-types 原生）；`osuperpowers/scripts/` 两个 `.mjs` **不在此 Task 范围**（Q1-A 保留面——report-templates 消费者裸 node 契约 · render-yaml 属 osuperpowers scripts 保留面被 emit 直引，T19 显式留存记录）
+
+### Task 5: 模板系统化第一平面（engine 提示词：骨架/条款/token/JSON 归并/rename/两段制）
+
+- **Do**: ① **文件布局归一**：`review/review.md` → `docs/review.md` · `fix/docs.md` → `docs/fix.md` · `task/` 族归位；② **JSON 归并（单平面单文件）**：运行时配置 3 并 1 → `templates/engine-config.json`（context-contract + failure-categories + handoff-namespace 分区段）；渲染数据 4 族合 1 → `templates/template-contract.json`（skeleton【含 segments 属性——segments ⊂ skeleton】+ tokens + clauses + reviews.json）；**schemas 独立保留**（`schema/task-handoff-schema.json` + `schema/docs-handoff-schema.json`——双用面：校验器独立 load + 原样注入独立字节子块）；测试引用路径随迁（env-surface/context/failure-categories/contract.test）；③ **rename 规范化（18 令牌实测）**：`H1_BLOCK`→`RETURN_STDOUT_BLOCK` · `HANDOFF`/`HANDOFF_TYPE` 合并为 `HANDOFF_TARGET` · `HANDOFF_STUB` 独立→`HANDOFF_SCHEMA_JSON`（结果 2 枚）· `LENS_GUIDE`→`REVIEW_LENS_GUIDE` · `AXES`→`REVIEW_AXES` · `HARD_GATE`→`HANDOFF_WRITE_GATE` · `RETURN_MODE`→`RETURN_FORMAT` · `TYPE`→`REVIEW_TYPE` · 其余前缀统一（task-*/docs-*）；常量 `REVIEW_H1_BLOCK`/`renderHandoffStub` 同步；token registry 驱动渲染（`templates.ts` 以 `template-contract.json#tokens` 校验/驱动，模板文本零散令牌）；④ **骨架 registry**（`template-contract.json#sections` + `#segments{static,variant}`）：4 模板按骨架数据生成/校验，cache 两段制成为骨架属性；⑤ **配置单点消费**：`src/infra/config.ts` 加载 engine-config · `src/render/templates.ts` 加载 template-contract
+- **验收**: 4 模板抗骨架数据校验一致（章节序/段名/segments 归属恒等）；条款零重复（clauses 单源）；token registry 全收敛（18 令牌 → 新命名规范，**零遗留旧态名**：H1_BLOCK / HANDOFF 三义旧名 / TYPE / LENS_GUIDE…）；`engine-config.json`/`template-contract.json` 存在且消费方程单点（config.ts/templates.ts）；schemas 独立且字节契约保留（`JSON.parse(stub)===schema` 测试仍绿）；测试引用路径随迁全绿；`pnpm run validate` 全绿
+- **注**: E2⑤ 的纪律条款在 T12 落 clauses——本 Task 建 clauses 容器结构（条款本体随 T12 入库）
+
+### Task 6: cache-first C1–C7 + registry cache profile（spec 域 D-3 + 数据面）
+
+- **Do**: ① **C1 组装序不变式**：`[registry prefix] → [静态模板壳] → [变体载荷全置尾]`（RETURN_STDOUT_BLOCK/task 编号/round 标签/HANDOFF_WRITE_GATE target 零落静态区前——模板两段制由 T5 骨架 segments 落实）；② **C2**：壳/条款结构单源（T5 template-contract 结构保证字节恒等）；③ **C3 确定性序列化**：schema 注入 canonical key 序（注入面审计：手写串零环境重排、空白固定）；④ **C4 re-dispatch 字节复用**：静态区按 (op,type) memoize 冻结编译产物（`templates.ts` 模块级缓存），重派发零重渲染；⑤ **C5 派发集恒定**：同 (harness,op,type) 的 invoke 串/model/cwd/env 逐字节同集断言；树稳定 = 缓存契约条款（双门已制度）；⑥ **C6 写费经济**：静态区最薄审计（紧凑 JSON + 薄散文；不扩无复用面）；⑦ **C7 每 harness 观测**：`harness=cache` profile 落 `harness-registry.json`（claude = explicit/512/0.1/1.25/5/observable；cursor-agent = auto 兜底 pending 实测）+ profile schema 校验；dev 观测脚本（连续 ≥2 轮同类型 dispatch，`/cost`/`--debug` 记录 prompt_cache read/write tok 前后）· 验收记录实测值；⑧ **字节不变式守卫测试**：稳定段零易变令牌（time/date/绝对路径/round 标签）+ 壳字节恒等断言（退化护栏，主机制=结构单源）
+- **验收**: 组装序恒为「registry prefix → 静态壳 → 变体载荷」（守卫测试绿）；重派发零重渲染（memoize 断言）；同 (harness,op,type) 派发集逐字节同集（断言绿）；registry 条目含 cache profile 且 schema 校验过；dev 观测脚本就位且**连续同类型 round `/cost` 读 tok > 0 可测**（记录实测值，诚实边界入文档：TTL 窗口内主张、跨时段不承诺）
+- **注**: 观测验收为 dev 侧文档化测量（CI 无 harness 不 gate）；收益边界（连续 round 主张/绝对命中率不承诺）写进 context-caching-doctrine（T19 核对）
+
+### Task 7: skill 文档模板系统化第二平面（spec D-2，4 文件；随 T1 .agents 移除后）
+
+- **Do**: ① `skills/cli-driven-development/docs/base-branch.md` · `skills/writing-overall-spec/docs/overall-spec-template.md` · `skills/writing-overall-spec/docs/add-phase-protocol.md` · `skills/writing-phase-spec/docs/phase-spec-template.md` 四文件**统一骨架**（Header + Section 0–N 固定段序）；② 占位/token 引用条款（模板引条款不内联散文规则）；③ **P1–P6 经验烘焙**（§2.6 清单 / program-experience.md：四表 sync 机制 · 干净树前置 · session-call 语义 · 回填即版本 · 零纸面宣称 · 防回渗守卫 · 承诺收缩 · 测试就近…——模板承载已定案经验而非裸骨架）；④ 命名规范（占位符随 D1.4 命名面）
+- **验收**: 4 文件统一骨架（段序/shape 一致性）；经验烘焙条目与 program-experience.md/§2.6 一一对应（零裸骨架段落）；命名面达标；`pnpm run emit` 后 `.agents/` 不因本 Task 产生（T1 已移除——免 emit 往返验证）+ `emit:check` 无 drift
+- **注**: **必须随 T1 之后**（.agents 移除后改 skill docs 免 emit 往返——顺序原则「域 G 与 D-2 同窗」）
+
+### Task 8: skill 流程原子性三断言 + flow 变更纪律（spec E1，Q3 升级）
+
+- **Do**: ① skill-authoring.md 增「**流程调整回顾整流程**」守则节（任何 skill 流程变更：digraph+节点+失败面重读 → 形状适配判断【既有模式实例/新形状/膨胀信号】→ 统一调整 sibling → 才落点；膨胀信号必须给出全 flow 重构理由）；② validate 新增 **digraph↔节点完整性三断言**：**双向完整**（digraph 节点集 ↔ `### 节点定义` 互满射，孤儿/悬空即 fail）· **骨架同构**（writing-* 三兄弟 review-loop/commit/handoff 骨架一致；skeleton deltas 表 = 校验输入，未登记差异即 fail）· **增长信号**（每 skill digraph 节点/边计数入 validate 报告，跨界增长强制「全 flow 重构说明」段，缺失即 fail）
+- **验收**: skill-authoring.md 含 flow 变更纪律节；validate 三断言全绿（现有 8 skill 零孤儿/零未登记 delta）；节点/边计数报告含于 validate 输出；`pnpm run validate` 相关块全绿
+- **注**: 三断言与 T15（G1 改写 skills）同批——G1 是「整 skill 统一调整」的第一个实证；断言在 G1 前后均须绿
+
+### Task 9: cdd 六缺口①——`cdd fix --type branch` 命令面 + branch 级 review-fix loop 全形（spec E2①）
+
+- **Do**: ① **engine** `cli/fix.ts` 增 branch type 分支（type guard 现拒绝 branch——放开 + branch roundPattern：`branch-review-{R}.json` 定位 → `branch-fix-{R}` 轮次）；`dispatch/phases.ts` 增 branch 阶段表；Stopping 语义（branch ref = BASE..HEAD commit range——fix 后新 ref 合法 re-review，与 plan/spec doc_hash 双签名 ref-移动同律）；② **cli-driven-development/SKILL.md 整 skill 一次改齐（Flow Atomicity）**：digraph 重画为 **canon shape**（`K[branch-review] → {blocker=0?} → J[branch-fix] →（blocker>0 → K / blocker=0 → L[handoff-finishing]）`——与 spec/plan/task 族逐节点同构）；`branch-fix-loop` 节点改名 `branch-fix` + 语义（`cdd fix --type branch --findings branch-review-{R}.json` 为唯一修复通道引擎闭环，零编排 inline）；Stopping/轮次（软上限保留 branch 定位：终局 gate 僵局用户裁决——对称性例外记录理由）+ dry-run WARN 措辞 + pending-acceptance 措辞 + 术语（Review Convergence）一次性全部描入
+- **验收**: `cdd fix --type branch` 可用（branch review findings 全 engine 闭环——BRB 实测：branch-review → branch-fix → re-review 走通，零编排 inline）；cli-driven-development digraph 为 canon shape（与族 loop 同构——风格审查/断言）；`branch-fix-loop` 零残留；软上限记录；`pnpm run validate` 全绿
+- **注**: 本 Task 承载 cli-driven-development 全部 P6 描写（T10/T11 引擎动作为行为层，SKILL.md 措辞统一在此一次改齐）；软上限 = 终局 gate 刚性上限会锁死程序尾——有意为之的对称性例外（记录理由，非补丁）
+
+### Task 10: cdd 六缺口②③——dry-run 门判 WARN 化 + 黑盒干净树前置文档化（spec E2②③/G4①）
+
+- **Do**: ① **dry-run 门判 WARN 化**（非全跳过）：`run()` 模板 pre-flight `commitPreCheck` 见 `dryRun` 降级——检查脏树 → stderr 打印「工作树含未提交变更；dry-run 纯模拟不受影响，真实 dispatch 需干净树」→ 不 BLOCK、exit 0 走完模拟（落 `rules/commit.ts` 或 base 门判）；② **黑盒干净树前置文档化**：vitest config 注释 / 测试文档 / CLAUDE.md dev 段显式记录「5b CLI 黑盒用例依赖入口门意义下的干净树」（P5 14 同根因教训）
+- **验收**: `dry-run`（review/fix/spec/plan 各型）在脏树 **EXIT 0 + stderr 脏树 WARN 可断言**（dry-run 黑盒全绿——docs-task/cli-shape 相关用例转绿）；真实 dispatch 干净树门判语义不变（dirty→BLOCKED 用例仍绿）；前置文档化三面就位；`pnpm run validate` 全绿
+- **注**: 与 T9 协同——cli-driven-development SKILL.md 措辞若涉 dry-run 由 T9 一次改齐（行为归本 Task）
+
+### Task 11: cdd 六缺口④——跨 Task findings 收编（pending-acceptance-patch，spec E2④）
+
+- **Do**: ① review findings 标注约定「**targets later task**」tag（convention，**零 schema 变更**——findings 既有文本承载）；② **plan 增 `pending-acceptance-patch` 区**（文档惯例 + 样例：task-ref + patch 描述；**orchestrator 唯一写者**——writing-plans / cli-driven-development 文档指明 fix/implement agent 不得写）；③ 后续 task 验收承接（plan 样例展示：后续 task 的验收含 patch——机械可断言）
+- **验收**: plan 文档结构含 pending-acceptance-patch 区定义 + 样例；writing-plans/cli-driven-development 文档载明「fix agent 零 plan 修改权、收编权归 orchestrator」；跨 Task findings 走收编（实证：T11/T14-fix 类越界场景走 findings 报 orchestrator 而非擅改 plan）；`pnpm run validate` 全绿
+- **注**: v1.31 语义延续——修改权回归 orchestrator，fix agent 零修改权不放松
+
+### Task 12: cdd 六缺口⑤——纪律条款入库（spec E2⑤/D1.2）
+
+- **Do**: `template-contract.json#clauses` 落地 v1.29–v1.31 全部纪律条款：`cl:english-comments`（源注释 English-primary）· `cl:eof-newline` · `cl:no-full-tree-find`（禁大目录全量 find / 大文件裸读——限路径、maxdepth）· `cl:bash-stall-limit`（Bash 卡 >10min 终止换等价命令）· `cl:plan-freeze`（已审批 plan/spec 零修改权，越界改经 findings 报 orchestrator）· `cl:atomic-commit` · `cl:self-validate`；4 模板以 `{{> clause cl:xxx}}` 引用（T5 容器 + 本 Task 条款正文）；模板正文零内联纪律散文
+- **验收**: clauses 单源全 7 条落库；4 模板零内联纪律散文（条款引用覆盖）；行为变更一处生效（条款文本单点断言）；E2⑤ 纪律与 T1/砂面产出互洽；`pnpm run validate` 全绿
+- **注**: EOF/CJK 可测项（v1.30 实证）兼由 residue 断言兜底（双轨：断言执法 + 散文注解）
+
+### Task 13: cdd 六缺口⑥——plan/spec 锚点终态校验（spec E2⑥/F1）
+
+- **Do**: 全 plan/spec 路径锚对实态文件校验（T17/T18 类 review 锚点漂移零复发）：residue/一致性扩展——spec/plan 内引用的路径/版本锚点（`**Spec:**` 链接 · Parent program 链接 · 文件路径）对实态 git 树校验；「docs 与落地一致」的锚点面
+- **验收**: 校验器新增锚点断言绿（零漂移）；既有 spec/plan 全量锚对实态通过；T17/T18 类 review 不再报锚点；`pnpm run validate` 全绿
+- **注**: 与 T19 收口复核（F1）协同——本 Task 落地校验器，T19 全量执行
+
+### Task 14: stall 探测器三件套（spec E3）
+
+- **Do**: ① `infra/proc.ts` **spawnManaged 派发期 liveness monitor**：每 ~60s 采样双信号（子进程累计 CPU + workspace/工作树最新文件 mtime），IDLE_WINDOW（默认 ~15min）内无推进 → 杀进程组 → TIMEOUT handoff（blocker 注明「agent 工具调用卡死 + 未提交改动待清偿」）；判据精确（思考/读文件烧 CPU、挂起工具调用 CPU≈0 且树静默 → 不误杀）；② `infra/invoke.ts` 透传 idle 参数；`rules/failure.ts` TIMEOUT 语义扩展；`DEFAULT_TIMEOUTS` 配置面；③ 恢复路径契约化（残留清偿指引写 blocker：discard/commit 后 re-dispatch，入口门保证干净）；④ 工具纪律 = E2⑤ 条款（T12 已落）
+- **验收**: liveness monitor 双信号判据测试绿（静止超窗被杀 · 活跃不误杀）；TIMEOUT handoff blocker 含清偿指引；无整过程 90min 拖死事件（dev 实证记录）；`pnpm run validate` 全绿
+- **注**: v1.29–v1.31 登记；与 T12 工具纪律条款协同（行为 + 提示词双面）
+
+### Task 15: 自省四修 G1——session-call 语义诚实化（spec G1，全域 19 处）
+
+- **Do**: ① skill-authoring.md **session-call 原语定义修订**：`load 上游 skill = import 其流程一次`——加载即内联消费（不可能二次 spawn）· 每会话每上游类型至多消费一次 · 重入按**已落产物**（mode/design-context/marker）路由 · 否决再 Run 措辞；② **6 skill ~19 处 `Run a /` 全改**（实测分布：brainstorming 6 · writing-phase-spec 4 · writing-single-spec 3 · writing-overall-spec 3 · writing-plans 2 · finishing 1）：从「Run a /xxx session」改写为「上游流程作为本会话基线**内联消费**；产物 = …；路由到 …」；handoff-* 交接按交接语汇统一；cli-driven-development（CLI-dispatch，零 session-call）不涉
+- **验收**: 6 skill 19 处零虚假 run 措辞（内联消费 + 产物记载）；skill-authoring session-call 原语定义修订落地；digraph 三断言（T8）在改写前后均绿；`pnpm run emit` 后 `emit:check` 无 drift；`pnpm run validate` 全绿
+- **注**: **随 T1 之后**（.agents 移除后改 skills 免 emit 往返）；T8 三断言是改写护栏（节点↔定义完整性在 G1 前后不变）
+
+### Task 16: 自省四修 G2/G3——grilling 需求全量清单 + validate 脚本 maintainer-only 边界
+
+- **Do**: ① **G2 grilling 需求全量清单前置**：brainstorming / writing-phase-spec 流程定义——phase-within-program grilling **先逐项枚举 overall/phase 已登记需求（含状态 [Pending]/Done/已裁）**，用户确认覆盖完整后再入 frontier 问题（入 skill-authoring 流程节 + 两 skill 文档措辞）；② **G3 validate 脚本 maintainer-only 边界文档化**：`scripts/validate/*` = 发布根仓内部编排面（消费者无、非打包面）；`overall-consistency` = 本程序 charter 四表守卫，brainstorm 期调用是 maintainer-mode（本仓 dogfood）定位——写入 maintainer docs + writing-overall-spec 流程注明角色归类
+- **验收**: 两 skill 流程含需求全量枚举步骤（先枚举后 frontier——措辞可断言）；validate 脚本边界记录于 maintainer docs + writing-overall-spec；`pnpm run validate` 全绿
+- **注**: G2/G3 是程序自省——程序自身的流程宣称（grilling 覆盖性 / validate 角色）诚实化
+
+### Task 17: 自省四修 G4——pre-commit 结构性修复（spec G4③）
+
+- **Do**: ① **黑盒树依赖用例迁 mkdtemp 真仓隔离** 或标记 CI-only（5b CLI 黑盒用例——pre-commit 只跑树无关子集）；② **pre-commit 钩子收敛树无关目标**（`.husky/pre-commit`：emit-check/residue/consistency/unit 等树无关子集）+ **CI 全量**（pr-validate：全 12 块含树依赖黑盒——干净检出语义不变）；③ dry-run WARN 化已由 T10 落地（本 Task 闭环断言）
+- **验收**: **pre-commit 在脏树零结构性失败**（`git add <file> && git commit` 通过——dry-run WARN + 黑盒隔离/树无关子集生效）；CI 全量含黑盒（干净检出全绿）；CLAUDE.md dev 段记录提交流程（树无关前置）；`pnpm run validate` 12 块全绿
+- **注**: 结构性矛盾根因 = 入口门对所有 dispatch 强执行 + 黑盒依赖真实树干净；修复 = 门槛对齐边界（树无关子集 local / 树依赖面 CI + entry-gate 留真实边界）
+
+### Task 18: F8 术语优化——Review Convergence 全仓 rename（spec F8）
+
+- **Do**: ① **术语制度**：`naming-conventions.md` 扩「terminology registry」（term/定义/已废旧名禁止表/**mechanismNames 迁移清单**）+ **仲裁规则**（术语与机制名语义 gap 时**术语第一**、rename 代码达成一致；术语落地即机制一致 = 术语登记出口）；② **改名清单落地**：`Review Stopping` → **`Review Convergence`**（**5 skills 17 处实测**：writing-single-spec 5 · writing-phase-spec 5 · writing-overall-spec 5 · writing-plans 1 · cli-driven-development 1——×8 审计范围、另 3 skill 零触达）· CLAUDE.md 段 · overall 现行 · maintainer docs（含本仓 methodology docs）· `fix-loop-exhausted` → `review-cycle-cap` · `timeout-exhausted` → `dispatch-timeout-cap`（skills 失败面 + `rules/failure.ts` + `dispatch/task.ts` blocker 字面）；`engine-error` 保留登记；③ **代码/文件名同步（仲裁随批）**：`src/rules/stopping.ts` → `convergence.ts` + 测试随域 C 已迁位置 rename + import/引用全迁（机制语义本体不动——non-goal）；④ **残留守卫**：residue/stale-lexicon 断言**扩展机制标识符面**（src 零 `stopping` 模块/标识符 · 零 `fix-loop-exhausted`/`timeout-exhausted` 字面 · `Review Stopping` live 面零残留）；保留清单登记（blocker/handoff/dispatch/backfill/stale-lexicon/residue/无术语对应纯机制名——以与术语表一致为出口）
+- **验收**: `Review Convergence` 全 live 面就位（5 skills 17 处 · CLAUDE.md · overall · maintainer docs · `rules/convergence.ts`）；`review-cycle-cap`/`dispatch-timeout-cap` 就位；src 零 `stopping` 模块/标识符；residue 旧词断言全绿；naming-conventions 含 terminology registry（mechanismNames）；**历史 changelog/spec-plan 豁免**（v1.28–v1.44 行 + 历史程序文档不重写）；`pnpm run validate` 全绿
+- **注**: P1→P6 经验 E33/E34（术语与论证同源 · 代码 gap = 第二真相源）；改名是术语第一仲裁的第一次全仓执行
+
+### Task 19: 收口复核 F1–F6/F7/F8（spec 域 F）
+
+- **Do**: ① F1 锚点终态校验全量执行（T13 校验器跑全 spec/plan）；② F2 残留守卫扩展（vendors/publish-vendor/submodule/.agents/droid-pi 语汇——T1/T2 已落，本 Task 全量断言）+ F4 命名制度对照全量扫描；③ F3 逐 phase changeset 复核 + **版本落地验证**（P1–P5 齐备 + P6 自身 changeset：osuperpowers minor + cdd-engine minor 评估；`pnpm run version --dry-run` 消费后 next ≠ 当前或挂牌原因——v1.13⑧）+ v1.13① smoke workspace flake 排查（workspace-marker 污染清理）；④ F5 `pnpm run validate` 12 块全绿 + `emit:check` 无 drift + **零纸面宣称总校验**（每 spec 项 ↔ 执法位映射核对——残留守卫/digraph 三断言/字节不变式/锚点/内存/dry-run WARN/术语断言全绿）；⑤ F6 4 份方法论 doc（naming-conventions / context-caching-doctrine / template-doctrine / program-experience）存在且与落地一致核对；⑥ **F7 运维文档整理重组**：`docs/maintainers/` 全量内容审计（删无用：整档仅当零读者+完全取代 · 节级删 `.agents/`/vendors/旧路径 stale 引用与重复段落）· 按内容域重划文件/目录（工程原则域 ↔ 插件运维域；目录 or 平铺+索引按引用成本裁定）· 全引用同步（CLAUDE.md 链接 · validate doc-surface · 跨 doc 链接）· 重组后每 doc 锚对实态；⑦ F8 术语优化收口验证（T18 产物 + nomenclature 全仓扫描）
+- **验收**: 12 块全绿 + `emit:check` 无 drift；changeset 齐备 + 版本落地已验证；锚点/残留/术语残留全断言零；方法论 doc 与落地一致；F7 重组完成（无用文档零/重划后引用面全绿）；**零纸面宣称总校验通过**（映射表核对零未执法项）；`pnpm run validate` + `emit:check` 为 final gate
+- **注**: 收口复核是「docs 与落地一致」的统一验收——每个登记项落地有同步记录且落地面零陈旧；P6 为终局 phase（写完本 Task 即程序收官：writing-plans → cli-driven-development → finishing 全链尾）

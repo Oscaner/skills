@@ -156,11 +156,9 @@ test("deriveSource top-level fields come from emit constants", () => {
   expect(source.$schema).toBe(SOURCE_TOP.$schema);
 });
 
-test("deriveSource enumerates vendors + first-party packages in stable order", () => {
+test("deriveSource enumerates first-party packages in stable order", () => {
   const source = deriveSource(".");
-  expect(
-    source.plugins.map((p) => p.name),
-  ).toEqual(["mattpocock-skills", "impeccable", "superpowers", "osuperpowers"]);
+  expect(source.plugins.map((p) => p.name)).toEqual(["osuperpowers"]);
   // schema-required fields present on every plugin
   for (const p of source.plugins) {
     expect(p.name).toBeTruthy();
@@ -192,43 +190,6 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
   });
 
   // router deleted — router assertions removed
-});
-
-test("deriveSource vendor entries merge assembly-template fields + vendored files", () => {
-  const source = deriveSource(".");
-  const mp = source.plugins.find((p) => p.name === "mattpocock-skills");
-  expect(mp.version).toBe("1.1.0");
-  expect(mp.author).toEqual({
-    name: "Matt Pocock",
-    url: "https://github.com/mattpocock",
-  });
-  expect(mp.contentRoot).toBe("vendors/mattpocock-skills");
-  expect(mp.repository).toBe("https://github.com/mattpocock/skills");
-  expect(mp.license).toBe("MIT");
-  expect(mp.cursor).toEqual({
-    displayName: "Matt Pocock Skills",
-    skills: "../../vendors/mattpocock-skills/skills",
-  });
-
-  const imp = source.plugins.find((p) => p.name === "impeccable");
-  expect(imp.version).toBe("4.0.4");
-  expect(imp.contentRoot).toBe("vendors/impeccable/plugin");
-  expect(imp.author).toEqual({
-    name: "Paul Bakaus",
-    email: "paul@paulbakaus.com",
-  });
-  expect(imp.repository).toBe("https://github.com/pbakaus/impeccable");
-  expect(imp.license).toBe("Apache-2.0");
-  expect(imp.cursor).toEqual({
-    displayName: "Impeccable",
-    skills: "../../vendors/impeccable/plugin/skills",
-  });
-
-  const sp = source.plugins.find((p) => p.name === "superpowers");
-  expect(sp.version).toBe("6.2.0");
-  expect(sp.contentRoot).toBe("vendors/superpowers");
-  expect(sp.author).toEqual({ name: "Jesse Vincent", email: "jesse@fsck.com" });
-  expect(sp.cursor).toEqual({ emitMode: "plugin-root" });
 });
 
 // ---------------------------------------------------------------------------
@@ -303,7 +264,6 @@ test("emitAll into a temp tree produces the full product set and tracks every pa
       "marketplace/source.json",
       ".claude-plugin/marketplace.json",
       ".cursor-plugin/marketplace.json",
-      "cursor-plugins/mattpocock-skills/.cursor-plugin/plugin.json",
       "packages/osuperpowers/.claude-plugin/plugin.json",
       "packages/osuperpowers/.cursor-plugin/plugin.json",
     ]) {
@@ -334,11 +294,9 @@ test("emitAll returns an identical wrapper-root set per run (no shared-state acc
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-emitall-roots-"));
   try {
     const wrapperRoots = emitAll(tmp, { generatedPaths: [] });
-    // non-plugin-root vendors only — osuperpowers/superpowers run plugin-root
-    expect(wrapperRoots).toEqual([
-      "cursor-plugins/mattpocock-skills",
-      "cursor-plugins/impeccable",
-    ]);
+    // vendor cursor wrappers retired with the self-maintenance surface — no
+    // wrapper roots remain (osuperpowers runs plugin-root in-repo)
+    expect(wrapperRoots).toEqual([]);
     // a second emit returns the identical set — the base product-root constant
     // is never mutated (regression: marketplace used to push into the exported
     // shared array, so repeated emitAll calls accumulated wrappers)

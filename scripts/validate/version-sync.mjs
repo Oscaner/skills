@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // scripts/validate/version-sync.mjs — blocks 8-10: version sync (moved up from the
-// scripts/ root). Verifies superpowers submodule ↔ marketplace versions agree and every
-// osuperpowers emit product carries the package.json version (run after `pnpm run emit`).
-// Single step descriptor; standalone (`node scripts/validate/version-sync.mjs`) runs the
-// same checks.
+// scripts/ root). Verifies every osuperpowers emit product carries the package.json
+// version (run after `pnpm run emit`). The vendored-plugin submodule ↔ marketplace
+// version check was removed with the self-maintenance surface withdrawal
+// (P6 B8 — that check carried the v1.13 resolver flake). Single step descriptor;
+// standalone (`node scripts/validate/version-sync.mjs`) runs the same checks.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
@@ -19,16 +20,6 @@ function checkVersionSync() {
   const m = readJson(".claude-plugin/marketplace.json");
 
   // router deleted — router version sync section removed (#209)
-
-  const sj = readJson("vendors/superpowers/.claude-plugin/plugin.json");
-  const srcSp = s.plugins.find((x) => x.name === "superpowers").version;
-  const entrySp = m.plugins.find((x) => x.name === "superpowers").version;
-  if (sj.version !== srcSp || srcSp !== entrySp) {
-    throw new Error(
-      `superpowers mismatch: submodule=${sj.version} source=${srcSp} emitted=${entrySp}`,
-    );
-  }
-  console.log("OK — superpowers", srcSp);
 
   // osuperpowers — independent semver. package.json is the SOT; the
   // per-harness manifests are committed emit products, re-stamped by `pnpm run

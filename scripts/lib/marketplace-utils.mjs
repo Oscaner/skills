@@ -1,8 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { listVendors } from "../release/vendor-registry.mjs";
-import { resolveVendorVersion } from "../release/vendor-assembly.mjs";
 
 const GENERATED = "scripts/run.mjs emit — do not edit";
 
@@ -17,24 +15,8 @@ export function readSource(root) {
  * @param {{ name: string, version?: string }} plugin
  */
 export function resolveVersion(root, plugin) {
-  // Vendors: the shared resolver (plugin.json first, release-tag fallback) is
-  // the single priority, so the marketplace declaration always matches what
-  // publish-vendor will publish. The vendor set is derived from the vendors/
-  // dir so a newly added submodule is recognized without a constant update.
-  if (listVendors(root).includes(plugin.name)) {
-    const effectiveVersion = resolveVendorVersion(plugin.name, root);
-    if (plugin.version !== undefined && plugin.version !== effectiveVersion) {
-      throw new Error(
-        `Version mismatch for ${plugin.name}: source=${plugin.version} truth=${effectiveVersion}`,
-      );
-    }
-    return {
-      version: effectiveVersion,
-      includeInClaude: plugin.version !== undefined,
-    };
-  }
-
-  // First-party: package.json is the version SOT.
+  // First-party: package.json is the version SOT. The vendor branch (listVendors
+  // + resolveVendorVersion) was retired with the self-maintenance surface (P6 B9).
   const truthPath = join(root, "packages", plugin.name, "package.json");
   if (!existsSync(truthPath)) {
     throw new Error(`Missing truth source for ${plugin.name}: ${truthPath}`);

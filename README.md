@@ -6,7 +6,7 @@
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Personal AI coding skills marketplace. Four plugins, one pipeline -- consumable across multiple AI coding harnesses (verified on **Claude Code** and **Cursor Agent**).
+Personal AI coding skills marketplace. First-party plugins + upstream integrations, one pipeline -- consumable across multiple AI coding harnesses (verified on **Claude Code** and **Cursor Agent**).
 
 ## What this is
 
@@ -23,11 +23,11 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 | Plugin | Type | Description |
 |--------|------|-------------|
 | **[osuperpowers](packages/osuperpowers/)** | First-party | Skills (osuperpowers orchestrators, `cli-*` family), CDD engine |
-| **[superpowers](vendors/superpowers/)** | Vendored | Upstream workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
-| **[mattpocock-skills](vendors/mattpocock-skills/)** | Vendored | Precision tools -- `grilling`, `tdd` |
-| **[impeccable](vendors/impeccable/)** | Vendored | Frontend design skills |
+| **superpowers** | Upstream ([GitHub](https://github.com/obra/superpowers)) | Workflow skills -- brainstorming, writing plans, SDD, verification, branch finish |
+| **mattpocock-skills** | Upstream ([GitHub](https://github.com/mattpocock/skills)) | Precision tools -- `grilling`, `tdd` |
+| **impeccable** | Upstream ([GitHub](https://github.com/pbakaus/impeccable)) | Frontend design skills |
 
-All plugins are published as scoped npm packages under `@oscaner-skills/*`.
+osuperpowers is published as a scoped npm package under `@oscaner-skills/*`; upstream plugins install from their own publishers. osuperpowers orchestrators read upstream skills via `/`-prefixed `plugin:skill` references (e.g. `/superpowers:brainstorming`).
 
 ## Installation
 
@@ -37,16 +37,17 @@ All plugins are published as scoped npm packages under `@oscaner-skills/*`.
 # Claude Code
 /plugin marketplace add oscaner/skills
 /plugin install osuperpowers@oscaner-skills
-/plugin install superpowers@oscaner-skills
-/plugin install mattpocock-skills@oscaner-skills
 ```
 
 ### From npm
 
 ```bash
 npm install @oscaner-skills/osuperpowers
-npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
 ```
+
+### Upstream plugins
+
+Upstream plugins (superpowers / mattpocock-skills / impeccable) are not packaged here — install each from its own publisher via its official command (marked **Upstream** above, links to their GitHub home repos).
 
 ### Per-harness install
 
@@ -75,7 +76,7 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> hooks files (per harness)
 ```
 
-No hand-registration needed for first-party plugins. Vendored plugins are assembled from `vendors/` submodules via `scripts/release/vendor-assembly.mjs`.
+No hand-registration needed for first-party plugins.
 
 Full architecture: [CLAUDE.md](CLAUDE.md).
 
@@ -90,15 +91,6 @@ Full architecture: [CLAUDE.md](CLAUDE.md).
 ```bash
 # After editing any plugin manifest or skills
 pnpm run emit && pnpm run validate
-
-# Fresh clone -- init submodules
-git submodule update --init
-
-# Bump a vendored submodule
-git -C vendors/mattpocock-skills fetch --tags origin
-git -C vendors/mattpocock-skills checkout v1.1.0
-git add vendors/mattpocock-skills
-git commit -m "chore: bump mattpocock-skills submodule"
 ```
 
 ### Adding a new first-party plugin
@@ -115,10 +107,6 @@ No hand registration needed. See [CLAUDE.md](CLAUDE.md) for full details.
 
 Release process: [`.changeset/README.md`](.changeset/README.md).
 
-Vendored plugins (`@oscaner-skills/{superpowers,mattpocock-skills,impeccable}`) are assembled and published to npm alongside first-party packages during each publish-mode release, with a registry full-consistency sweep ensuring every npm version has a git tag and GitHub Release. See [`.changeset/README.md#vendor-publishing`](.changeset/README.md#vendor-publishing).
-
 ## License
 
 First-party code (`osuperpowers`, marketplace tooling): [MIT](LICENSE).
-
-Vendored plugins keep their own licenses -- see each plugin directory.

@@ -68,14 +68,6 @@ export async function main({ dryRun } = {}) {
     writeFileSync(changelogPath, header + entry + existing.slice(header.length));
   }
 
-  const marketplace = readJson("marketplace/source.json");
-  const superpowersVersion = marketplace.plugins.find(
-    (p) => p.name === "superpowers",
-  )?.version;
-  if (!superpowersVersion) {
-    throw new Error("superpowers plugin not found in marketplace/source.json");
-  }
-
   const changelogOptions = { repo: "Oscaner/skills" };
 
   // ---- osuperpowers (independent semver) ----

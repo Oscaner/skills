@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/index.mjs — validate orchestration (`node scripts/run.mjs
-// validate` / standalone `node scripts/validate/index.mjs`). Composes the 14
+// validate` / standalone `node scripts/validate/index.mjs`). Composes the 12
 // per-block step descriptors from scripts/validate/*.mjs into the original run
 // order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers
@@ -16,15 +16,15 @@ import { steps as residueSteps } from "./residue.mjs";
 import { steps as marketplaceSteps } from "./marketplace.mjs";
 import { steps as libTestsSteps } from "./lib-tests.mjs";
 import { steps as versionSyncSteps } from "./version-sync.mjs";
-import { steps as submoduleSteps } from "./submodule.mjs";
 import { steps as overallConsistencySteps } from "./overall-consistency.mjs";
 
 import { main as runSteps, runIfMain } from "./runner.mjs";
 
 // Original step order: the 5b1 engine suite sits between the 5b node:test tree
 // (osuperpowers steps 0-3) and the 5b wiring guard (osuperpowers step 4) —
-// interleave engine between the two osuperpowers slices to keep the 13 names
-// and their order literal.
+// interleave engine between the two osuperpowers slices to keep the 12 names
+// and their order literal. The submodule self-maintenance block (13th) was
+// removed with the vendors surface (P6 Task 2 / B3, submodule.mjs deleted).
 export const steps = [
   ...emitCheckSteps,
   ...osuperpowersSteps.slice(0, 4),
@@ -34,7 +34,6 @@ export const steps = [
   ...marketplaceSteps,
   ...libTestsSteps,
   ...versionSyncSteps,
-  ...submoduleSteps,
   ...overallConsistencySteps,
 ];
 

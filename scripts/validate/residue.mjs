@@ -100,6 +100,13 @@ const STALE_LEXICON_CHECKS = [
   { label: "resolveDropdownOptions 旧 dropdown 解析", re: /\bresolveDropdownOptions\b/, scope: ALL_MECH_POSITIONS },
   { label: "sessionTypes 旧 session 分类", re: /\bsessionTypes\b/, scope: ALL_MECH_POSITIONS },
   { label: 'execFileSync("git") 手写 git 回渗', re: /\bexecFileSync\(\s*["']git["']/, scope: ALL_MECH_POSITIONS },
+  // Task 2（P6）：vendors 自维护面撤除 —— 防回渗语汇守卫（B12）。scope = ALL_MECH_POSITIONS
+  // 零豁免（docs/maintainers 的 vendor-reference 清理经 spec F7 延后至 F 域重组，不在此面）。
+  // 词形守紧致形：`vendors/`（路径形，非裸 vendor 词）、`publish-vendor`（词形，含文件/步/
+  // 子命令名）、`submodule[s]`（词形——git submodule / submodules: recursive 均命中）。
+  { label: "vendors/ 自维护路径形回渗", re: /vendors\//, scope: ALL_MECH_POSITIONS },
+  { label: "publish-vendor 词形回渗", re: /\bpublish-vendor\b/, scope: ALL_MECH_POSITIONS },
+  { label: "submodule 词形回渗", re: /\bsubmodule[s]?\b/, scope: ALL_MECH_POSITIONS },
 ];
 
 // T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。

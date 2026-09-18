@@ -14,16 +14,11 @@ Template-shaped content converges to a single source of truth: canonical JSON �
 
 A **multi-harness AI coding skills marketplace**. Personal skills are packaged as installable plugins consumed by multiple AI coding harnesses (verified on Claude Code and Cursor Agent).
 
-Four plugins ship here:
-
-1. **osuperpowers** — first-party, in-tree at `packages/osuperpowers/`. osuperpowers orchestration + cli-* family + CDD engine.
-2. **superpowers** — vendored submodule at `vendors/superpowers/`. Upstream workflow skills read by osuperpowers orchestrators.
-3. **mattpocock-skills** — vendored submodule at `vendors/mattpocock-skills/`. Engineering precision skills (grilling, tdd, research).
-4. **impeccable** — vendored submodule at `vendors/impeccable/`. Frontend design skills.
+**osuperpowers** ships here as a first-party plugin in-tree at `packages/osuperpowers/` (osuperpowers orchestration + cli-* family + CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by osuperpowers orchestrators via `/`-prefixed plugin:skill references.
 
 ## Package-as-source architecture
 
-The canonical registry `marketplace/source.json` is **derived**, not hand-edited. `pnpm run emit` rebuilds it from first-party `package.json#oscaner-plugin` fields and vendored assembly templates, then regenerates every harness-specific manifest (`.claude-plugin/`, `.cursor-plugin/`).
+The canonical registry `marketplace/source.json` is **derived**, not hand-edited. `pnpm run emit` rebuilds it from first-party `package.json#oscaner-plugin` fields, then regenerates every harness-specific manifest (`.claude-plugin/`, `.cursor-plugin/`).
 
 Adding a new first-party plugin: create `packages/<name>/package.json` with `oscaner-plugin` field → `pnpm run emit` auto-discovers and generates all manifests.
 
@@ -47,12 +42,11 @@ pnpm run version    # apply changesets to bump versions
 
 > **CRITICAL — emit after every source change:** After editing ANY file under `skills/*/SKILL.md`, `skills/*/docs/*.md`, `docs/*.md`, or `package.json#oscaner-plugin`, you MUST run `pnpm run emit` before committing. Emit products (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/`, `.github/ISSUE_TEMPLATE/`) are **derived output** — never edit them directly. If you forget emit, the CI will fail with emit drift. This is the most common mistake in this repo.
 
-CI runs `node scripts/run.mjs validate` on PRs to `develop` and `main` (13 validation blocks: emit freshness, plugin.json resolution, skill dirs, rule-reference integrity, engine tests, version sync, overall consistency).
+CI runs `node scripts/run.mjs validate` on PRs to `develop` and `main` (12 validation blocks: emit freshness, plugin.json resolution, skill dirs, engine tests, version sync, overall consistency).
 
 ## Architecture details
 
 - `packages/` — first-party plugins (osuperpowers)
-- `vendors/` — upstream submodules (superpowers / mattpocock-skills / impeccable); not edited in-tree
 - `scripts/run.mjs emit` — unified emit tool (derives source.json + all harness manifests)
 - `scripts/run.mjs validate` — Node validation orchestration
 - `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
@@ -107,20 +101,8 @@ Two distinct language strategies implement this, depending on file type:
 - `git add -f` on a gitignored file requires explicit user confirmation.
 - **Do not commit** unless the user explicitly asks. Default is no commit.
 - **After completing a feature/fix, create a changeset** via `pnpm run changeset` (or manually write a `.changeset/<slug>.md` file) before the final commit. If the user must remind you, treat it as a process violation and file a dogfood issue.
-- **Consumer perspective**: changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no `vendors/`, no monorepo layout, and no this-repo toolchain. `docs/maintainers/*.md` is exempt (maintainer-only, not shipped; its reader block states this).
+- **Consumer perspective**: changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no monorepo layout and no this-repo toolchain. `docs/maintainers/*.md` is exempt (maintainer-only, not shipped; its reader block states this).
 
 ## Node.js
 
 Node versions managed by **fnm**. When a project has `.nvmrc`, run `fnm use` before `node`/`npm`/`pnpm`. Never suggest nvm.
-
-## Vendored submodules
-
-Three submodules track upstream repos. To update:
-```bash
-git -C vendors/<name> fetch --tags origin
-git -C vendors/<name> checkout <tag>
-git add vendors/<name>
-git commit -m "chore: bump <name> submodule"
-```
-
-Automated weekly sync via GitHub Actions (Submodule Sync workflow). Fresh clones need `git submodule update --init`.

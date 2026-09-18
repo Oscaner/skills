@@ -20,3 +20,12 @@ describe("version-sync：init 版本戳读侧连根删除（T10 / §2.6.2 R2）"
     expect(src()).not.toMatch(/skills\/init/);
   });
 });
+
+describe("version-sync：vendors 自维护读侧连根删除（P6 Task 2 / B8）", () => {
+  it("源内零 vendored 读侧（superpowers submodule check 已删——v1.13 flake 消解）", () => {
+    // B8: superpowers ↔ marketplace 版本一致性检查删（vendors/superpowers/
+    // .claude-plugin/plugin.json 读侧 + 三源等值比较）；version-sync 只校验
+    // first-party osuperpowers 版本同步。\b 词界保证 osuperpowers 不误伤。
+    expect(src()).not.toMatch(/\bsuperpowers\b|vendors\//);
+  });
+});

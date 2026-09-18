@@ -146,6 +146,43 @@ describe("live repo：5c 同源扫描零残留", () => {
   });
 });
 
+// ---- Task 2（P6）：vendors 自维护面撤除 —— 防回渗语汇守卫（B12）----
+// spec F7 明确 docs/maintainers 的 vendor-reference 清理延后至后续 F 域重组 —— 三条守卫
+// scope 取 ALL_MECH_POSITIONS（机制位置零豁免），不含 DOC_SURFACE_TARGETS（README/CLAUDE
+// 的 vendored-submodule 描述由 B10/B11 自管）。反射例：裸 superpowers（上游名）与普通英文
+// vendor 一词均放行 —— 守卫只盯 `vendors/` 路径形、`publish-vendor` 词形、`submodule` 词。
+describe("stale-lexicon：vendors 自维护语汇（P6 Task 2 / B12）", () => {
+  it("vendors/ 路径形命中", () => {
+    expect(hasHit(["read ../../vendors/mattpocock-skills/SKILL.md"])).toBe(true);
+  });
+  it("publish-vendor 词形命中（含文件名形）", () => {
+    expect(hasHit(["steps 自 publish-vendor.mjs"])).toBe(true);
+  });
+  it("submodule 词命中（git submodule update · submodules: recursive 等）", () => {
+    expect(hasHit(["git submodule update --init"])).toBe(true);
+    expect(hasHit(["checkout submodules: recursive"])).toBe(true);
+  });
+  it("合法语汇零误报：裸 superpowers / 普通 vendor 英文词放行", () => {
+    expect(hasHit(["superpowers orchestration 编排"])).toBe(false);
+    expect(hasHit(["vendors 撤除后 vendor 依赖已散"])).toBe(false);
+  });
+  it("含 vendors/ 路径的临时文件被 collectStaleLexiconHits 命中（机制扫描面在扫）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-vendors-"));
+    writeFileSync(
+      path.join(dir, "SKILL.md"),
+      "read `vendors/superpowers/.claude-plugin/plugin.json`\n",
+      "utf8",
+    );
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/vendors\//);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("gate-lexicon：正例命中（T6 Step 2）", () => {
   it("bin/gate/ 路径命中（deleted gate dir，含 adapters/configs 下端）", () => {
     expect(hasHit(["cdd-gate 子系统已删 packages/osuperpowers/bin/gate/adapters/kiro.mjs"])).toBe(true);

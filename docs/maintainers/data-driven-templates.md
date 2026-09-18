@@ -1,6 +1,6 @@
 # Data-driven Templates
 
-> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/review/reviews.json`, `packages/cdd-engine/src/infra/harness-registry.json`, `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived products like `.agents/`. This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
+> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/review/reviews.json`, `packages/cdd-engine/src/infra/harness-registry.json`, `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived marketplace manifests (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/source.json`). This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
 
 Cross-cutting reference: the single-source-of-truth convention for template body text. Cited when a new skill introduces template body text, when an existing template-shaped content is consolidated, and when emit-derived products need drift guarding.
 
@@ -37,7 +37,7 @@ flowchart LR
 
 ### `emit product`
 
-- **Do**: derived products committed to the repo (`.agents/`, harness manifests, `.github/ISSUE_TEMPLATE/*.yml`), produced only by `pnpm run emit`; every path is registered in `generatedPaths`.
+- **Do**: derived products committed to the repo (harness marketplace manifests, `.github/ISSUE_TEMPLATE/*.yml`), produced only by `pnpm run emit`; every path is registered in `generatedPaths`.
 - **Read**: `renderer` output.
 - **Exit**: `pnpm run emit:check` drift=0 → committable; drift>0 → re-run `pnpm run emit` then commit.
 - **Fail**: hand-editing the derived product without touching the canonical → overwritten at next emit + emit:check drift → CI failure (Failure Modes "hand-edited product").

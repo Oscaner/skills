@@ -159,3 +159,9 @@ test("main: all-green → OK + ALL PASS + return 0", async () => {
 test("12. overall consistency step present", () => {
   assert.ok(steps.some((s) => s.name === "12. overall consistency"), "overall consistency step missing");
 });
+
+// 11. block count = 12 (P6 Task 2 / B3: submodule self-maintenance block removed —
+//      submodule.mjs deleted, 13→12 steps). Pins the acceptance "validate 12 块".
+test("validate wiring is exactly 12 steps (submodule block removed)", () => {
+  assert.equal(steps.length, 12);
+});

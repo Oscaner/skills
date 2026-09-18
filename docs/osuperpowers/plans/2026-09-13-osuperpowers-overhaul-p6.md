@@ -2,17 +2,19 @@
 
 **Spec:** [2026-09-13-osuperpowers-overhaul-p6-design.md](docs/osuperpowers/specs/2026-09-13-osuperpowers-overhaul-p6-design.md)
 
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.44](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.45](../specs/2026-09-13-osuperpowers-overhaul-overall.md)
 - **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263 已 merge，2026-09-18）；P1–P4 shipped（hard 链完整）
 - **Base**: develop（finishing read-base 的数据源）
 
 **口径**：P6 是**终局收口 phase**，承载 §2.0 收敛论点——**每一项删除面有残留守卫、每一项收敛面有机械断言、每一项纪律有执法位（零纸面宣称）**。七域执行（A 能力宣称收缩 · B vendors 全撤 · C 测试就近+M1–M7 · D 模板系统化+C1–C7+双平面 · E 流程原子性+cdd 六缺口+stall · F 收口复核 F1–F8 · G 自省四修 G1–G4）。**诚实边界**：cache 验收为 dev 侧实测（CI 无 harness 不 gate）；术语改名（Review Convergence）历史 changelog/spec-plan 豁免。所有改动 `pnpm run validate` 全绿 + `emit:check` 无 drift。
 
+**v1.2 回填（overall v1.45 / spec v1.8 同窗，用户 2026-09-18 TTL-free 升维指示）**：新增 **Task 20「模板系统化终态（C1-max 字节布局层）」**——统一壳 + 槽级三段制（`壳 → Return → Round context 绝对末尾`）+ 渲染数据平面单文件（四 `.md` 并入 template-contract.json `sections`，`.md` 删除/派生）+ token `zone` 归属 + C4 升格（壳=无参常数）+ 门面去路径化 + `WORKSPACE_SLUG`（plan/spec 收敛）。**编号说明**：engine brief 提取为 `/^### Task \d+:/`（整数契约），不采用小数主号——Task 20 为追加号，**实施时序位于 T8 之后、T9 之前**（T8 三断言先立 → C1-max 落终态布局 → T9/T12/T18 直接落终态，零二次改动）。
+
 **commit 边界机制（本 program 全 phase 生效）**：dispatch 两端门——入口门（进入 review 前主 agent 产物已提交、dispatch 期零写树）+ 出口门（产生修改的 dispatch 后修改已提交）；主 agent 处理的由主 agent commit。计划各 Task 的 review/fix 环均遵守。
 
 **Flow Atomicity（本 phase 强化）**：任何 skill 内部流程/文档变更 = 整 skill 统一调整（无局部补丁）；cli-driven-development 的全部 P6 描写（branch-loop / dry-run WARN / pending-acceptance / 术语）在 Task 9 一次性整 skill 改齐。
 
-**顺序原则（spec §2.4）**：删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）。
+**顺序原则（spec §2.4）**：删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）；**C1-max（Task 20）定序 = T8 之后、T9 之前**（spec §2.4 顺序注：晚于 T5 骨架、早于 T7——branch-loop/clauses 入库/术语清扫直接落终态；T8 三断言先立使模板变更受其约束）。
 
 ---
 
@@ -129,3 +131,11 @@
 - **Do**: ① F1 锚点终态校验全量执行（T13 校验器跑全 spec/plan）；② F2 残留守卫扩展（vendors/publish-vendor/submodule/.agents/droid-pi 语汇——T1/T2 已落，本 Task 全量断言）+ F4 命名制度对照全量扫描；③ F3 逐 phase changeset 复核 + **版本落地验证**（P1–P5 齐备 + P6 自身 changeset：osuperpowers minor + cdd-engine minor 评估；`pnpm run version --dry-run` 消费后 next ≠ 当前或挂牌原因——v1.13⑧）+ v1.13① smoke workspace flake 排查（workspace-marker 污染清理）；④ F5 `pnpm run validate` 12 块全绿 + `emit:check` 无 drift + **零纸面宣称总校验**（每 spec 项 ↔ 执法位映射核对——残留守卫/digraph 三断言/字节不变式/锚点/内存/dry-run WARN/术语断言全绿）；⑤ F6 4 份方法论 doc（naming-conventions / context-caching-doctrine / template-doctrine / program-experience）存在且与落地一致核对；⑥ **F7 运维文档整理重组**：`docs/maintainers/` 全量内容审计（删无用：整档仅当零读者+完全取代 · 节级删 `.agents/`/vendors/旧路径 stale 引用与重复段落）· 按内容域重划文件/目录（工程原则域 ↔ 插件运维域；目录 or 平铺+索引按引用成本裁定）· 全引用同步（CLAUDE.md 链接 · validate doc-surface · 跨 doc 链接）· 重组后每 doc 锚对实态；⑦ F8 术语优化收口验证（T18 产物 + nomenclature 全仓扫描）+ **父整体 P6 行残留审计三件复核（与 spec §2.5 口径一一对应）**：① overall P6 scope/acceptance 单元格零「豁免」词形（dry-run 为 WARN 化语义）②「已跟踪 14 文件」就位（15 零残留）③ scope 单元格零「17 令牌」字面（18 口径；v1.38 changelog 历史行豁免标注）
 - **验收**: 12 块全绿 + `emit:check` 无 drift；changeset 齐备 + 版本落地已验证；锚点/残留/术语残留全断言零；方法论 doc 与落地一致；F7 重组完成（无用文档零/重划后引用面全绿）；**零纸面宣称总校验通过**（映射表核对零未执法项）；`pnpm run validate` + `emit:check` 为 final gate
 - **注**: 收口复核是「docs 与落地一致」的统一验收——每个登记项落地有同步记录且落地面零陈旧；P6 为终局 phase（写完本 Task 即程序收官：writing-plans → cli-driven-development → finishing 全链尾）
+
+### Task 20: 模板系统化终态（spec D-3 C1-max 字节布局层；overall v1.45 / spec v1.8 回填）
+
+- **Do**: ① **统一壳**：四模板（task/implement · task/fix · docs/review · docs/fix）归并为「字面常数壳」（title `# CDD dispatch — CLI session` + Instructions 纪律壳 + Handoff 壳散文 + schema 注入）——壳内**零注入槽**（`#sections` 按区收纳，字面头跨模板字节恒等）；② **槽级三段制**：段序 = `壳 → ## Return（字节常数；RETURN_STDOUT_BLOCK + RETURN_FORMAT 标签）→ ## Round context（绝对末尾，一切 per-dispatch 实值）`——Return **前移**至动态区前，Round context 为唯一动态区（WORKSPACE / WORKSPACE_SLUG / op·TASK_NUMBER / TASK_BRIEF / TASK_CONSTRAINTS / TASK_FINDINGS / REVIEW_REFERENCE / HANDOFF_TARGET / 门面实值 HANDOFF_WRITE_GATE）；③ **渲染数据平面单文件**：四 `.md` 并入 `template-contract.json#sections`，`.md` 删除（人读面如需走 emit 派生 + drift 守卫）；`templatePath`/`PKG_ROOT` 模板文件消费面迁移（templates.ts 为唯一渲染器，运行时组装）；④ **token registry 增 `zone` 归属**（壳禁槽 / round-context / return）——结构校验器断言「壳零残余 moustache + 槽仅现所属区」（segments 属性从段级下压为槽级）；⑤ **C4 升格**：壳 = 进程级**无参常数**（`staticShellKey` 消除，编译一次永久复用）；渲染仅 Round context（每 dispatch）+ Return（每格式）；字节不变式守卫测试强化（跨模板字面头恒等 · 壳零注入）；⑥ **门面去路径化**：`reviewHardGate`/`implementHardGate`/`docsFixHardGate` 实值（含目标路径）迁入 Round context 槽，壳门面散文为字节常数（引用区名不嵌实值）——签名与调用点（review.ts / branch-review.ts / docs.ts / task.ts）迁移；⑦ **`WORKSPACE_SLUG`**：canonical slug 槽（engine-config `slugRule` 已规约 `-design`/`-plan`——plan 与搭档 spec 收敛同值，`resolveWorkspace` 测试已钉）；⑧ 消费方与测试迁移：位置敏感断言（templates.content / handoff-stub / renderModePrompt / docs-runner）×4 · `templates.cache.test` · consumers（`config.ts`/`templates.ts`/`dispatch/*`/`cli/*`）
+
+- **验收**: 四 `.md` 零手写模板文件（或 emit 派生校验 + drift=0）；段序恒为「壳 → Return → Round context」且 Return 字节常数（动态区唯一绝对尾）；token zone 归属断言「壳零注入 + 槽仅现所属区」全绿；C4 壳无参常数（staticShellKey 消除、重派发零重渲染断言强化）；跨模板字面头字节恒等断言绿；`WORKSPACE_SLUG` 就位（plan/spec 收敛）；`pnpm run emit` 后 `.agents/` 不因本 Task 产生 + `emit:check` 无 drift；engine suite 全绿 + `pnpm run validate` 12 块全绿
+
+- **注**: **实施时序 = T8 完成之后、T9 之前**（编号为 T8 后的追加号 20——engine brief 整数契约，不用小数主号；spec §2.4 顺序注同步）。C4 升格后 `templateCacheStats`/`resetTemplateCaches` 观测缝保持（T19 观测核对仍可用）；位置敏感测试与本 Task 同批迁。与 T12（纪律条款**内容**入库）衔接：本 Task 建 `{{> clause}}` 引用机制面（clauses 装配器），T12 填条款本体。

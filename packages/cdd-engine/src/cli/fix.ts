@@ -48,7 +48,7 @@ export async function runFix(opts: FixOpts): Promise<void> {
       return;
     }
     // spec/plan: the fix template comes from the canonical fix.{type} family fixTemplate
-    // (after the T2 axis cut, reviews.json no longer carries the artifact axis).
+    // (after the T2 axis cut, template-contract.json#reviews no longer carries the artifact axis).
     if (opts.type !== "spec" && opts.type !== "plan") {
       process.stderr.write(`unknown fix --type: ${opts.type}\n`);
       exitWithCode(2);

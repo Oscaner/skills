@@ -12,7 +12,7 @@ export interface TimeoutDefaults {
   [mode: string]: number | undefined;
 }
 
-// Timeout and env-name source of truth: canonical `templates/context-contract.json` (loadContract()
+// Timeout and env-name source of truth: canonical `engine-config.json#contextContract` (loadContract()
 // is the unique reader). Any default / per-mode / global-override env name here comes from the
 // canonical — editing the canonical edits behavior. MAX_TIMEOUT_MS stays a module constant on
 // purpose: it is the safe ceiling below the setTimeout 32-bit limit, not canonical behavior.

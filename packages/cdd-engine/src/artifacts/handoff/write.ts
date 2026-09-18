@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/artifacts/handoff/write.ts — handoff read/write (Task 8 port of
 // write.mjs; engine is the handoff carrier's single author). Writes per
 // packages/cdd-engine/templates/schema/task-handoff-schema.json (docs family
-// docs-handoff-schema.json; naming/workspace per handoff-namespace.json). T7 nit2: the unified
+// docs-handoff-schema.json; naming/workspace per engine-config.json#handoffNamespace). T7 nit2: the unified
 // JSON read single point (readJson) lives here — every engine shape-sibling readJson/safeParse
 // converges to this module.
 // contract.mjs symbol split (spec §2.3): the three write symbols (readJson / writeHandoff /
@@ -36,7 +36,7 @@ function serializeHandoff(obj: Record<string, unknown>): string {
 
 /**
  * Write a handoff per the task schema (docs family per docs schema; naming/workspace per
- * handoff-namespace.json). Existing file → shallow merge (H6 chain-update semantics: a
+ * engine-config.json#handoffNamespace). Existing file → shallow merge (H6 chain-update semantics: a
  * review/validator changing status/blocker keeps task/commits/findings etc.). Parent dir auto-
  * created; returns the merged full object.
  */

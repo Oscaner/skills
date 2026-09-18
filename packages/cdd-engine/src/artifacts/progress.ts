@@ -65,8 +65,8 @@ export function writeProgressJSON(progressDir: string, data: ProgressData): void
 /** createEmptyProgress: fresh progress object for a given plan.
  * T8: dead fields deleted — progress.json top level is plan/timeoutCount/engineRecoveryCount/tasks.
  * T6: contractViolationCount / engineSelfWrittenCount added (init 0) — the six keys match the
- * canonical counter column (templates/failure-categories.json) verbatim (tests/progress.test.mjs
- * six-key assertion). */
+ * canonical counter column (engine-config.json#failureCategories) verbatim
+ * (src/artifacts/__tests__/progress.test.ts six-key assertion). */
 export function createEmptyProgress(plan?: string): ProgressData {
   return {
     plan: plan || "",

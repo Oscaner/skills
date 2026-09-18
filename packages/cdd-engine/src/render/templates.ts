@@ -17,9 +17,10 @@ import { familyConfig } from "../artifacts/handoff/naming.ts";
 // resource dir itself (consumers stop appending a 'templates' segment).
 export const PKG_ROOT = fileURLToPath(new URL("../../templates", import.meta.url));
 
-// ---- template-contract (Task 5 D1.5 ⑤ 单点消费): 渲染数据面单文件 ----
+// ---- template-contract (Task 5 D1.5 ⑤ single-point consumption): one file, the rendering data plane ----
 // template-contract.json = skeleton{sections,segments{static,variant},order} + tokens(18) +
-// clauses(容器,条款本体 T12 入库) + reviews(4 族内容配置)。templates.ts 是本平面唯一加载点。
+// clauses (container; clause bodies land in T12) + reviews (4-family content config). templates.ts
+// is this plane's only loader.
 export interface TemplateContract {
   skeleton: {
     sections: string[];
@@ -37,9 +38,9 @@ export function loadTemplateContract(): TemplateContract {
   ) as TemplateContract;
 }
 
-// template name → relative path (templatePath 的唯一来源; 旧 MODE_GROUPS 组映射退役).
-// task/             task family — cdd implement/fix 子命令 (templates/task/{implement,fix}.md)
-// docs/             docs family — 共享 review 壳 (docs/review.md) + docs fix 壳 (docs/fix.md)
+// template name → relative path (the only source of templatePath; legacy MODE_GROUPS map retired).
+// task/             task family — cdd implement/fix subcommands (templates/task/{implement,fix}.md)
+// docs/             docs family — shared review shell (docs/review.md) + docs fix shell (docs/fix.md)
 // schema/           handoff JSON schemas (task-handoff-schema.json / docs-handoff-schema.json)
 export const TEMPLATE_FILES: Record<string, string> = {
   implement: "task/implement.md",
@@ -162,7 +163,7 @@ export function reviewArtifactConfig(type: string): { schema: string; return: st
 // spec/plan render nothing (empty). Task 18: this block sits inside the shared `## Return` shell (no
 // longer carries its own `## Return (H1 — stdout only)` heading — the template Return section
 // headings are unified, and a duplicate heading would break the "4 templates same skeleton"
-// section-order assertion). Task 5: H1_BLOCK → RETURN_STDOUT_BLOCK (命名规范: 域_语义).
+// section-order assertion). Task 5: H1_BLOCK → RETURN_STDOUT_BLOCK (naming convention: <domain>_<semantic>).
 export const RETURN_STDOUT_BLOCK = `Return **exactly 4 lines** to stdout; make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
 
 \`\`\`
@@ -202,29 +203,31 @@ function implementHardGate(handoffPath: unknown, taskNum: unknown): string {
   return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your H1 four lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting H1 — returning without them = BLOCKED (runner exit 1).`;
 }
 
-// ---- token registry (Task 5 D1.4) — template-contract.json#tokens 驱动/校验 ----
-// 18 令牌全收敛到新命名规范 (域_语义 + task-*/docs-* 作用域前缀): 旧态名 (H1_BLOCK / HANDOFF 三义 /
-// HANDOFF_STUB / HANDOFF_TYPE / TYPE / LENS_GUIDE / AXES / HARD_GATE / RETURN_MODE / WORKSPACE /
-// REFERENCE / PLAN_LINE / FINDINGS / BRIEF / TASK / CONSTRAINTS / FIXED_POINT / DOC) 零遗留 ——
-// 校验器对任何非 registry 令牌直接 throw。
+// ---- token registry (Task 5 D1.4) — driven/validated by template-contract.json#tokens ----
+// All 18 tokens converge to the new naming convention (<domain>_<semantic> + task-*/docs-* scope
+// prefixes): zero legacy names remain (H1_BLOCK / HANDOFF triple-meaning / HANDOFF_STUB /
+// HANDOFF_TYPE / TYPE / LENS_GUIDE / AXES / HARD_GATE / RETURN_MODE / WORKSPACE / REFERENCE /
+// PLAN_LINE / FINDINGS / BRIEF / TASK / CONSTRAINTS / FIXED_POINT / DOC) — the validator throws
+// for any token not in the registry.
 
-/** 提取模板声明文本里的全部 `{{TOKEN}}` 令牌。 */
+/** Extract all `{{TOKEN}}` tokens declared in the template text. */
 export function scanTemplateTokens(src: string): string[] {
   return [...src.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)].map((m) => m[1]);
 }
 
-/** 断言模板只使用 registry 令牌（未知/旧态名 → throw）。 */
+/** Assert the template uses only registry tokens (unknown/legacy name → throw). */
 export function validateTemplateTokens(src: string, contract: TemplateContract = loadTemplateContract()): void {
   for (const tok of scanTemplateTokens(src)) {
     if (!contract.tokens.includes(tok)) throw new Error(`template token not in registry: ${tok}`);
   }
 }
 
-// variant (Return) 段专属令牌: cache 两段制的 variant 区 = Return 段; 这些令牌不得出现在
-// static 段 (title/context/instructions/handoff) —— 骨架数据驱动的 C1 字节不变量。
+// Variant (Return)-section-only tokens: the cache two-part regime's variant zone = the Return
+// section; these tokens must not appear in static sections (title/context/instructions/handoff) —
+// the skeleton-data-driven C1 byte invariant.
 const VARIANT_TOKENS = Object.freeze(["RETURN_STDOUT_BLOCK", "RETURN_FORMAT"]);
 
-/** 骨架校验: `## ` 章顺序 === skeleton.sections, variant 令牌只许在 ## Return 段内。 */
+/** Skeleton check: `## ` section order === skeleton.sections; variant tokens only inside ## Return. */
 export function validateTemplateStructure(src: string, contract: TemplateContract = loadTemplateContract()): void {
   const secs = [...src.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
   if (JSON.stringify(secs) !== JSON.stringify(contract.skeleton.sections)) {
@@ -241,7 +244,8 @@ export function validateTemplateStructure(src: string, contract: TemplateContrac
   }
 }
 
-/** 4 模板逐一对骨架数据校验 (章序/段归属/令牌 registry) — 一致性违例 → 抛; 通过 → 返回文件清单。 */
+/** Validate all 4 templates against the skeleton data (section order / segment ownership / token
+ * registry) — throws on consistency violations; returns the file list on pass. */
 export function validateShippedTemplates(): string[] {
   const files = Object.values(TEMPLATE_FILES);
   const problems: string[] = [];

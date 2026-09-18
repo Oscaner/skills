@@ -65,7 +65,7 @@ const INVOKE_PARAMS: Record<string, { op: string; type?: string }> = {
 class RunBlocked extends Error {}
 
 // ---- failure-category dispatch (T6) ----
-// Six category names declared once by templates/failure-categories.json; every "category
+// Six category names declared once by engine-config.json#failureCategories; every "category
 // identity" reference here loads through src/rules/failure.ts (FAILURE_CATEGORIES / counterFor) —
 // a category deleted from the canonical blows up the entry reference at runtime (AC14
 // load-bearing, not decorative). The counter increment single point: fields derive via the
@@ -222,8 +222,8 @@ function requireCtx(ctx: TaskDispatchContext | null, mode: string): string | nul
   return missing.length > 0 ? `Missing required ctx fields: ${missing.join(" ")}` : null;
 }
 
-/** {{PLACEHOLDER}} template params (Task 5 token registry: task-* 作用域前缀 + HANDOFF_TARGET
- * 合并 + REVIEW_PLAN_LINE 派生自显式 plan path — 模板不接任何 env 来源的 plan 键). */
+/** {{PLACEHOLDER}} template params (Task 5 token registry: task-* scope prefixes + HANDOFF_TARGET
+ * merge + REVIEW_PLAN_LINE derived from the explicit plan path — no env-sourced plan key). */
 export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Record<string, string> {
   return {
     TASK_WORKSPACE: ctx.workspace,
@@ -450,7 +450,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     this.#tcx = ctx;
 
     // 2.5 Templates existence check — BLOCKED exit 1 if missing. pluginRoot() =
-    // src/render/templates.mjs PKG_ROOT = <pkg>/templates (re-org Step 5 semantics converged to
+    // src/render/templates.ts PKG_ROOT = <pkg>/templates (re-org Step 5 semantics converged to
     // that resource directory itself).
     try {
       const tplDir = pluginRootFn();

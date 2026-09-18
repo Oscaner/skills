@@ -38,9 +38,10 @@ function family(op: string, type: string): { name: string; round?: string; prev?
 }
 
 /** familyConfig(op, type) → canonical family config (live reference to the canonical families
- * object — readonly contract, callers must not mutate the returned object). After reviews.json
- * shed the artifact axis, schema/return/fixTemplate live here (templates.mjs reviewArtifactConfig
- * and cdd fix read through this module; naming never duplicates the literals). */
+ * object — readonly contract, callers must not mutate the returned object). After
+ * template-contract.json#reviews shed the artifact axis, schema/return/fixTemplate live here
+ * (templates.ts reviewArtifactConfig and cdd fix read through this module; naming never
+ * duplicates the literals). */
 export function familyConfig(
   op: string,
   type: string,

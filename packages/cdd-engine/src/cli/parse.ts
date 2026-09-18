@@ -99,7 +99,7 @@ export async function deepestCommand(
 
 // ---- flags ----
 // Arg keys are the kebab flag spellings (canonical channels.argv names, see
-// templates/context-contract.json channels.argv) — the residue ⑨ guard reads these declarations
+// engine-config.json#contextContract channels.argv) — the residue ⑨ guard reads these declarations
 // as the help surface.
 
 export const MAIN_ARGS = {

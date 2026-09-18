@@ -14,7 +14,7 @@ import { loadContract } from "../context.ts";
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
 
 // spec §2.4.4 ① 的闭集（7 键：3 宿主识别 + PATH + 3 timeouts）—— 由 canonical
-// `channels.env` 派生：`templates/context-contract.json` 是白名单的**唯一**声明点，
+// `channels.env` 派生：`engine-config.json#contextContract` 是白名单的**唯一**声明点，
 // 本文件不留第二份字面（改 canonical 即改守卫，T4 同源）。
 const ALLOWED = Object.values(loadContract().channels.env).flatMap(v => (v.var ? [v.var] : v.markers));
 // AC3 的六键零命中（键名，含注释与 spread 形）

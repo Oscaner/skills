@@ -7,7 +7,7 @@
 // the base implements one, no fork).
 //   Pre-flight:  resolveContext derives root (injected / engine single root) + guards the
 //                canonical handoffPath; dry-run finishes immediately (no gates, no spawn).
-//   Dispatch:    prompt render (schema verbatim + fixed HARD_GATE) → spawn the docs agent CLI.
+//   Dispatch:    prompt render (schema verbatim + fixed HANDOFF_WRITE_GATE) → spawn the docs agent CLI.
 //   Post-flight: handoff read + unparseable/schema-invalid BLOCKED handling (writeBlocked) +
 //                review/fix finalization; the exit gate (override commitPostCheck) runs
 //                validateCommitContract — docs fix dispatch's exit-gate gap (P5 落点 2) is

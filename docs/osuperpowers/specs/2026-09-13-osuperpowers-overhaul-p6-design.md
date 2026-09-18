@@ -1,9 +1,9 @@
 # osuperpowers 架构重构 P6 — 统一规划收口 设计
 
-- **Version**: v1.0 · 2026-09-18（起草；brainstorm 期两次 overall 回填 v1.35–v1.36 已并入，见 Section 3）
+- **Version**: v1.0 · 2026-09-18（起草；brainstorm 期三次 overall 回填 v1.35–v1.37 已并入，见 Section 3）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
-- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.36](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.36 全部登记 + braincomming 自省四修）
+- **Parent program**: [2026-09-13-osuperpowers-overhaul-overall.md v1.37](./2026-09-13-osuperpowers-overhaul-overall.md)（P6 行 scope/acceptance 已含全部 brainstorm 收敛 + v1.28–v1.37 全部登记 + brainstorm 自省四修）
 - **Depends on**: P5 shipped（report-issues 改名 + engine 生命周期重建 + TS 化，PR #263 已 merge，2026-09-18）；P1–P4 全部 shipped（hard 链完整）
 
 ---
@@ -212,7 +212,7 @@ P6 brainstorm 自身暴露的四条流程/机制缺陷（以本会话为实证�
 
 | # | 项 | 设计 | 落点 |
 |---|---|---|---|
-| G1 | **session-call 语义诚实化** | 各 skill `run-*-session` 首节点措辞「Run a /xxx session」→「上游流程作为本会话基线**内联消费**」+ 记载产物（mode/design-context）供下游路由；取消虚假 run 措辞，防规范侵蚀 | 8 skills SKILL.md 首节点 + skill-authoring.md 骨架定义 |
+| G1 | **session-call 语义诚实化（全域，v1.37 升格）** | 实证枚举全域 session-call 面：6 skill ~17 处 `Run a /` 节点（brainstorming 5 · writing-phase-spec 4 · writing-single-spec 3 · writing-plans 2 · writing-overall-spec 2 · finishing 1）。修复定位 = **authoring 原语层**：skill-authoring.md session-call 原语定义修订——「加载即内联消费（不可能二次 spawn）：每会话每上游类型**至多消费一次**，重入按**已落产物**（mode/design-context/marker）路由，否决再 Run 措辞」；再逐 skill 节点从「Run a /xxx session」改写为「上游流程作为本会话基线内联消费；产物 = …；路由到 …」。cli-driven-development 为 CLI-dispatch 非上游 session（排除），其 handoff-finishing 按交接语汇统一。**双保险**：digraph 校验（域 E1）保证改写后节点↔定义仍双向完整 | 6 skills SKILL.md（17 节点）+ skill-authoring.md session-call 原语定义 |
 | G2 | **grilling 需求全量清单前置** | phase-within-program grilling 先**逐项枚举 overall/phase 已登记需求（含状态 [Pending]/Done/已裁）**，用户确认覆盖完整后再入 frontier 问题 | brainstorming / writing-phase-spec 流程定义 |
 | G3 | **validate 脚本 maintainer-only 边界文档化** | `scripts/validate/*` = 发布根仓内部编排面（消费者环境无 `scripts/`、非打包面）；`overall-consistency` = 本程序 charter 四表守卫，brainstorm 期调用是 maintainer-mode（本仓 dogfood）定位 | maintainer docs（third-party-dependencies.md 或新增）· writing-overall-spec 流程注明角色归类 |
 | G4 | **pre-commit 结构性矛盾修复（代码证实）** | 三件：① **dry-run 豁免上移门判**——`run()` 模板 pre-flight 先跑 `commitPreCheck`，docs 族 dry-run 早退在 `resolveContext`（门后）→ 门判见 dryRun 即跳过（gap#2 正式修）② **黑盒树依赖用例迁 mkdtemp 真仓隔离** 或标记 CI-only（pre-commit 只跑树无关子集）③ **pre-commit 钩子收敛树无关目标**（emit-check/residue/consistency/unit）+ CI 全量 | rules/commit.ts 或 base.ts 门判 · vitest 套件组织 · .husky/pre-commit · CLAUDE.md dev 段 |
@@ -232,7 +232,7 @@ P6 brainstorm 自身暴露的四条流程/机制缺陷（以本会话为实证�
 | T7 | E2 | cdd 六缺口收口（①fix --type branch ②dry-run 豁免 ③黑盒前置文档 ④pending-acceptance-patch ⑤纪律落模板 ⑥锚点校验）| cli/fix.ts · phases.ts · commit.ts · plan 文档 · 4 模板 · validate |
 | T8 | E3 | stall 探测器三件套（liveness monitor + 恢复契约化；提示词纪律随 E2⑤ 已落）| infra/proc.ts · invoke.ts · rules/failure.ts · DEFAULT_TIMEOUTS |
 | T9 | F | 收口复核（F1–F5：锚点终态 · 残留守卫 · changeset 复核+版本落地 · 运维文档一致 · validate 12 块 + emit:check 全绿；v1.13⑧ smoke flake 并入 E5）| validate 全链 · .changeset/ |
-| T10 | G | brainstorming 自省四修（G1 session-call 诚实化 · G2 需求全量清单 · G3 validate 边界文档 · G4 pre-commit 修复三件）| 8 skills 首节点 · skill-authoring.md · writing-overall-spec 流程 · .husky/pre-commit · infra 门判 · vitest 套件组织 |
+| T10 | G | brainstorming 自省四修（G1 session-call 诚实化**全域 17 节点 + authoring 原语** · G2 需求全量清单 · G3 validate 边界文档 · G4 pre-commit 修复三件）| 6 skills SKILL.md 节点 · skill-authoring.md · writing-overall-spec 流程 · .husky/pre-commit · infra 门判 · vitest 套件组织 |
 
 ### §2.5 验收（Acceptance criteria）
 
@@ -248,7 +248,7 @@ P6 brainstorm 自身暴露的四条流程/机制缺陷（以本会话为实证�
 - **stall 探测器**：派生 agent 卡死 >IDLE_WINDOW 被杀且落 TIMEOUT handoff（blocker 含清偿指引）；无整过程 90min 拖死事件（dev 实证）；liveness monitor 双信号判据测试绿
 - **内存守卫**：vitest `maxWorkers=1 + fileParallelism=false + maxConcurrency=2` 持久配置（复核断言），567 tests 正常负载无 OOM
 - **v1.13 收口**：smoke workspace flake 已排查稳定；changeset 消费后版本落地已验证
-- **brainstorming 自省四修**：skill 首节点零「Run a /xxx session」虚假 run 措辞（全部内联消费措辞 + mode/design-context 产物记载）；grilling 流程含需求全量逐项枚举步骤（先枚举后 frontier）；validate 脚本 maintainer-only 边界记录于 maintainer docs 与 writing-overall-spec 流程；**pre-commit 脏树零结构性失败**（dry-run 豁免上移门判 + 黑盒树依赖用例 mkdtemp 隔离或 CI-only + 钩子收敛树无关子集）
+- **brainstorming 自省四修**：**全域 session-call 零虚假 run 措辞**（6 skill ~17 个 `Run a /` 节点全改内联消费 + 产物记载 + skill-authoring session-call 原语定义修订）；grilling 流程含需求全量逐项枚举步骤（先枚举后 frontier）；validate 脚本 maintainer-only 边界记录于 maintainer docs 与 writing-overall-spec 流程；**pre-commit 脏树零结构性失败**（dry-run 豁免上移门判 + 黑盒树依赖用例 mkdtemp 隔离或 CI-only + 钩子收敛树无关子集）
 - **收口复核**：全 plan/spec 锚点对实态零漂移；残留守卫（vendors/.agents/droid-pi 语汇）零命中；逐 phase changeset 齐备 + P6 自身 changeset 存在 + `version --dry-run` 落地；maintainer docs 与落地行为一致（exemplars/skill-authoring/third-party-deps/CLAUDE.md dev 段零陈旧引用）；`pnpm run validate` **12 块全绿** + `emit:check` 无 drift
 
 ---

@@ -1,57 +1,158 @@
 #!/usr/bin/env node
 /**
  * Repo automation dispatcher — the single top-level entry for scripts/.
- * Subcommands lazy-load their handlers (Commander + dynamic import), so each
+ * citty command surface (Task 21; engine src/cli/parse.ts isomorphism): ONE
+ * defineCommand tree (mainCommand with the six subcommands emit / emit-check /
+ * validate / smoke-cdd / version / apply-rules), each subcommand's argsDef
+ * declared citty, and subcommand handlers lazy-loading via dynamic import — each
  * command's dependency graph loads only on first use.
  *
- * Wired so far:
- *   emit             — regenerate unified first-party manifests (write mode)
- *   emit-check       — verify emitted products are fresh (drift → exit 1)
- *   validate         — run the full 12-block validate suite
- *   smoke-cdd        — cdd-engine dry-run smoke (4-command H1 chain)
- *   version          — apply changesets to bump versions (--dry-run supported)
- *   apply-rules      — apply a GitHub branch Ruleset (protect-develop | protect-main)
+ * Exit-code table (P5 §2.4.2, engine parity): 0 = OK (incl. --help); 1 = command
+ * failure; 2 = usage/parse error. `--help` is pre-screened (deepest matched
+ * command's usage rendered from the citty declarations, plain-texted, exit 0)
+ * and parse/usage errors (citty CLIError — unknown command, missing required
+ * positional) normalize to exit 2 — citty's own parse errors exit 1, so this
+ * wrapper is what keeps the documented table intact (same judgment as
+ * packages/cdd-engine/src/bin.ts).
+ *
+ * The tree + invocation mapper are exported for the colocated CLI test
+ * (scripts/__tests__/run.test.ts); the executable boots only when run directly
+ * (isMain guard — see the bottom of the file).
  */
 
-import { Command } from "commander";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
-const program = new Command();
-program.name("run").description("repo automation");
+import { defineCommand, renderUsage, runCommand } from "citty";
+import type { CommandDef, SubCommandsDef } from "citty";
 
-// Register a subcommand that lazy-loads its handler module and forwards the
-// Commander action args to the module's main(). The action body is shared by
-// the whole family; opts tailors the two genuine variances:
-//   dryRun — declare --dry-run so Commander accepts it on the release commands.
-//     The parsed options object is forwarded with the action args, so each
-//     release main reads its `dryRun` from there (authoritative when present);
-//     the isMain direct-run wrappers fall back to `process.argv` for `--dry-run`.
-//   args — "all" (default) forwards the full argv; "operand" forwards only the
-//     first positional (apply-rules main(target) — trailing options/command
-//     objects dropped); "none" forwards nothing, for zero-arg mains (validate's
-//     main(stepsArg = steps) must never see an options object in that slot).
-const command = (name, desc, fn, { dryRun = false, args = "all" } = {}) => {
-  const cmd = program.command(name).description(desc);
-  if (dryRun) cmd.option("--dry-run", "preview without writing");
-  cmd.action(async (...actionArgs) => {
-    const forwarded = args === "none" ? [] : args === "operand" ? actionArgs.slice(0, 1) : actionArgs;
-    const code = await import(fn).then((m) => m.main(...forwarded));
-    // A numeric return is an exit code (validate main() → 1 on step failure);
-    // undefined returners (emit) rely on the top-level catch for non-zero.
-    if (typeof code === "number") process.exitCode = code;
+// citty renders usage/help with ANSI color — this entry prints plain text (Commander-era parity +
+// deterministic test surface). Stripping happens at the two print points below, never via env
+// mutation.
+const ANSI_RE = /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
+function plain(text: unknown): string {
+  return String(text).replace(ANSI_RE, "");
+}
+
+// Subcommand value passing — the contract between the run() handlers and the lazily-loaded module
+// mains (exported for the colocated test; the args here are the parsed citty args named by the
+// subcommand's own argsDef):
+//   "none"    → main() — zero-arg mains (emit/emit-check/validate/smoke-cdd must never see an
+//              options object in that slot);
+//   "dry-run" → main({ dryRun }) — version's destructured option (presence-based boolean: absent
+//              → false, present → true);
+//   "target"  → main(target) — apply-rules' single mandatory positional.
+export function invocationArgs(kind: "none" | "dry-run" | "target", args: Record<string, unknown>): unknown[] {
+  switch (kind) {
+    case "none":
+      return [];
+    case "dry-run":
+      return [{ dryRun: args["dry-run"] === true }];
+    case "target":
+      return [args.target];
+  }
+}
+
+function command(name: string, description: string, mod: string, kind: "none" | "dry-run" | "target") {
+  return defineCommand({
+    meta: { name, description },
+    args:
+      kind === "dry-run"
+        ? { "dry-run": { type: "boolean", description: "preview without writing" } }
+        : kind === "target"
+          ? { target: { type: "positional", description: "protect-develop | protect-main" } }
+          : {},
+    run: async ({ args }) => {
+      const code = await import(mod).then((m) => m.main(...invocationArgs(kind, args as Record<string, unknown>)));
+      // A numeric return is an exit code (validate/version/apply-rules main → 1 on failure);
+      // undefined returners (emit/emit-check/smoke-cdd) rely on the top-level catch for non-zero.
+      if (typeof code === "number") process.exitCode = code;
+    },
   });
-};
+}
 
-command("emit", "regenerate unified first-party manifests", "./emit/all.ts", { args: "none" });
-command("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.ts", { args: "none" });
-command("validate", "run the full validate suite (12 blocks)", "./validate/index.ts", { args: "none" });
-command("smoke-cdd", "run cdd-engine dry-run smoke (4-command H1 chain)", "./validate/smoke-cdd.ts", { args: "none" });
-
-command("version", "apply changesets to bump versions", "./release/version-packages.ts", { dryRun: true });
-
-// Single mandatory positional but no options: forward only the operand.
-command("apply-rules <target>", "apply a GitHub branch Ruleset (protect-develop | protect-main)", "./rulesets/apply.ts", { args: "operand" });
-
-program.parseAsync(process.argv).catch((e) => {
-  console.error(e.message);
-  process.exit(1);
+export const mainCommand = defineCommand({
+  meta: {
+    name: "run",
+    description: "repo automation",
+  },
+  args: {},
+  subCommands: {
+    emit: command("emit", "regenerate unified first-party manifests", "./emit/all.ts", "none"),
+    "emit-check": command("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.ts", "none"),
+    validate: command("validate", "run the full validate suite (12 blocks)", "./validate/index.ts", "none"),
+    "smoke-cdd": command("smoke-cdd", "run cdd-engine dry-run smoke (4-command H1 chain)", "./validate/smoke-cdd.ts", "none"),
+    version: command("version", "apply changesets to bump versions (--dry-run supported)", "./release/version-packages.ts", "dry-run"),
+    "apply-rules": command("apply-rules", "apply a GitHub branch Ruleset (protect-develop | protect-main)", "./rulesets/apply.ts", "target"),
+  },
 });
+
+// ---- deepest-command resolution (help / usage-error context) ----
+// citty's runMain keeps an internal resolveSubCommand (not exported); this wrapper needs the same
+// resolution to know WHICH command's usage to render / key on error. run.ts has no program-level
+// value flags and no nested subcommands, so the first non-flag token (before `--`) is the
+// subcommand name — replicate the engine parse.ts subcommandIndex shape for this tree.
+function subcommandIndex(rawArgs: string[]): number {
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i];
+    if (arg === "--") return -1; // everything after -- is positional
+    if (arg.startsWith("-")) continue;
+    return i;
+  }
+  return -1;
+}
+
+async function deepestCommand(
+  rawArgs: string[],
+): Promise<[CommandDef<any>, CommandDef<any> | undefined]> {
+  const subCommands = (mainCommand.subCommands ?? {}) as SubCommandsDef;
+  const idx = subcommandIndex(rawArgs);
+  const name = idx >= 0 ? rawArgs[idx] : undefined;
+  if (name && Object.hasOwn(subCommands, name)) {
+    return [subCommands[name] as CommandDef<any>, mainCommand];
+  }
+  return [mainCommand, undefined];
+}
+
+function usageError(command: CommandDef<any> | undefined): void {
+  const name = (command?.meta as { name?: string } | undefined)?.name;
+  process.stderr.write((name ? `usage: run ${name} [options]` : "usage: run <command> [options]") + "\n");
+}
+
+async function main(): Promise<void> {
+  const rawArgs = process.argv.slice(2);
+
+  // `--help` / `-h` at ANY position is handled BEFORE any dispatch (a subcommand dependency
+  // graph must not load for a help request): renders the deepest matched command's usage from
+  // the citty declarations, plain-texted, exit 0.
+  if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+    const [cmd, parent] = await deepestCommand(rawArgs);
+    process.stdout.write(plain(await renderUsage(cmd, parent)) + "\n");
+    process.exit(0);
+  }
+
+  try {
+    await runCommand(mainCommand, { rawArgs });
+  } catch (raw: unknown) {
+    const e = raw as { message?: unknown; name?: unknown };
+    // citty parse/usage errors (CLIError — unknown command / missing required positional):
+    // the resolved command's usage line + the citty message, exit 2 (§2.4.2).
+    if (e && e.name === "CLIError") {
+      const [cmd] = await deepestCommand(rawArgs);
+      usageError(cmd === mainCommand ? undefined : cmd);
+      process.stderr.write(`${plain(e.message)}\n`);
+      process.exit(2);
+    }
+    // Command failure — the handler's own error, exit 1.
+    process.stderr.write(`${e?.message ?? String(e)}\n`);
+    process.exit(1);
+  }
+}
+
+// Executable entry (tests import the tree + invocationArgs only — main must not run under vitest).
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e: unknown) => {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  });
+}

@@ -3,7 +3,7 @@ import { execa } from "execa";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 const run = (args) =>
   execa("node", ["scripts/run.ts", ...args], { cwd: ROOT, reject: false });

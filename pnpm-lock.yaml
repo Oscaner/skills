@@ -11,9 +11,6 @@ importers:
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
-      commander:
-        specifier: ^15.0.0
-        version: 15.0.0
       execa:
         specifier: ^9.6.1
         version: 9.6.1
@@ -36,6 +33,9 @@ importers:
       '@changesets/read':
         specifier: ^1.0.1
         version: 1.0.1
+      citty:
+        specifier: ^0.2
+        version: 0.2.2
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -854,10 +854,6 @@ packages:
   commander@11.1.0:
     resolution: {integrity: sha512-yPVavfyCcRhmorC7rWlkHn15b4wDVgVmBA7kV4QVBsF7kv/9TKJAbAXVTxvTnwP8HHKjRCJDClKbciiYS7p0DQ==}
     engines: {node: '>=16'}
-
-  commander@15.0.0:
-    resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
-    engines: {node: '>=22.12.0'}
 
   commondir@1.0.1:
     resolution: {integrity: sha512-W9pAhw0ja1Edb5GVdIF1mjZw/ASI0AlShXM83UUGe2DVr5TdAPEA1OA8m/g8zWp9x6On7gqufY+FatDbC3MDQg==}
@@ -2288,8 +2284,6 @@ snapshots:
   citty@0.2.2: {}
 
   commander@11.1.0: {}
-
-  commander@15.0.0: {}
 
   commondir@1.0.1: {}
 

@@ -70,11 +70,25 @@ export function extractCacheUsage(log: string): CacheUsage | null {
 }
 
 // ---- driver ----
+//
+// citty args def (Task 21; engine src/cli/parse.ts isomorphism — the hand-rolled argv loop is
+// retired, citty is the single parser). Boolean declarations are naturally presence-based: a flag
+// absent from argv stays `undefined`, and a present `--cost` never consumes the following token —
+// in natural usage (without the `--` separator) `--debug ws 7 implement` must not swallow `ws`.
+// Value-taking options (--harness / --rounds) alone consume the next token; the workspace/task/mode
+// trio are declared positionals (after `--` or bare).
+import { parseArgs as parseArgsCitty } from "citty";
+import type { ArgsDef } from "citty";
 
-// Boolean flags are presence-based: they never consume the following token, which in natural
-// usage (without the `--` separator) is the workspace positional — `--debug ws 7 implement` must
-// not swallow `ws`. Value-taking options (--harness / --rounds) alone consume the next token.
-const BOOLEAN_FLAGS = new Set(["cost", "debug"]);
+export const ARGS = {
+  harness: { type: "string", description: "harness entry to observe (claude | cursor-agent)", default: "claude" },
+  rounds: { type: "string", description: "number of consecutive same-type rounds to measure", default: "2" },
+  cost: { type: "boolean", description: "append --cost measurement flag (explicit opt-in, harnesses that accept it)" },
+  debug: { type: "boolean", description: "append --debug measurement flag (default)" },
+  workspace: { type: "positional", description: "CDD workspace directory" },
+  task: { type: "positional", description: "task number" },
+  mode: { type: "positional", description: "implement | review | fix" },
+} as const satisfies ArgsDef;
 
 export function parseArgs(argv: string[]): {
   harness: string;
@@ -84,41 +98,17 @@ export function parseArgs(argv: string[]): {
   task: number;
   mode: string;
 } {
-  const opts: Record<string, string> = {};
-  const rest: string[] = [];
-  let afterFlag = false;
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--") { afterFlag = true; continue; }
-    if (!afterFlag && a.startsWith("--")) {
-      const eq = a.indexOf("=");
-      const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
-      if (BOOLEAN_FLAGS.has(key)) {
-        opts[key] = eq >= 0 ? a.slice(eq + 1) : "true"; // presence only; `--flag=false` still opted-in
-        continue;
-      }
-      if (eq >= 0) opts[key] = a.slice(eq + 1);
-      else { opts[key] = argv[i + 1] ?? ""; i++; }
-      continue;
-    }
-    rest.push(a);
-  }
-  const [workspace, taskStr, mode] = rest;
-  const task = Number(taskStr);
-  if (!workspace || !task || !mode) {
-    throw new Error(
-      "usage: observe-cache [--harness claude] [--rounds 2] [--cost|--debug] -- <workspace> <task> <mode>",
-    );
-  }
+  const args = parseArgsCitty(argv, ARGS);
+  // `--debug` is the real non-interactive claude -p flag (emits usage/cache stats to stderr);
+  // `--cost` only survives as an explicit opt-in for harnesses that accept it. Presence, not
+  // value: `--cost=false` still opts in (the forwarded flag spelling is the only thing measured).
   return {
-    harness: opts.harness ?? "claude",
-    rounds: Number(opts.rounds ?? 2),
-    // `--debug` is the real non-interactive claude -p flag (emits usage/cache stats to stderr);
-    // `--cost` only survives as an explicit opt-in for harnesses that accept it.
-    flag: opts.cost !== undefined ? "--cost" : "--debug",
-    workspace,
-    task,
-    mode,
+    harness: args.harness,
+    rounds: Number(args.rounds ?? 2),
+    flag: args.cost !== undefined ? "--cost" : "--debug",
+    workspace: args.workspace,
+    task: Number(args.task),
+    mode: args.mode,
   };
 }
 

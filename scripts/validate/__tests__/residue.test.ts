@@ -54,7 +54,7 @@ import {
   collectMjsTerminalStateViolations,
   collectMemoryGuardViolations,
   scanTargets,
-} from "./residue.ts";
+} from "../residue.ts";
 
 describe("stale-lexicon：断言组行为（brief Step 1）", () => {
   it("dogfood (CDD session) 下拉不误报（非裸 \"dogfood\" label）", () => {

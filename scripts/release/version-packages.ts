@@ -21,7 +21,7 @@ const changesetDir = join(root, ".changeset");
  */
 export async function main({ dryRun } = {}) {
   // ---- CLI args: argv carries the "version" subcommand prefix under run.ts
-  // dispatch but not in direct runs. The forwarded commander option (when
+  // dispatch but not in direct runs. The forwarded citty option (when
   // present) is authoritative; the argv read only covers the isMain direct
   // run, which passes no options. ----
   const args = process.argv.slice(2);

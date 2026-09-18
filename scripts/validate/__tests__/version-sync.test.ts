@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SRC = join(HERE, "version-sync.ts");
+const SRC = join(HERE, "..", "version-sync.ts");
 const src = () => readFileSync(SRC, "utf8");
 
 describe("version-sync：init 版本戳读侧连根删除（T10 / §2.6.2 R2）", () => {

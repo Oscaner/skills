@@ -4,7 +4,7 @@ import {
   computeNextIndependentVersion,
   highestBumpLevel,
   changesetsForPlugin,
-} from "./version-utils.ts";
+} from "../version-utils.ts";
 
 describe("parseSemver", () => {
   it("parses plain semver", () => {

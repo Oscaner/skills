@@ -186,9 +186,9 @@ One plugin is versioned from this repo: **`osuperpowers`** (independent semver).
 
 **Superpowers submodule bump:** automated weekly via [.github/workflows/submodule-sync.yml](../../.github/workflows/submodule-sync.yml) (latest `v*` tag). Manual: checkout latest tag in `vendors/superpowers` (the marketplace version then derives from the vendored files), run `pnpm run emit` (regenerates marketplace/source.json). Merge to `develop`, then release via `develop --> main` as above.
 
-**Version scheme:** `osuperpowers` uses plain semver (`0.1.x`); changesets bump it and release independently as `osuperpowers@{version}`. Driven by `scripts/release/version-packages.mjs` (wired as `run.mjs version`) and validated by `scripts/validate/version-sync.mjs` (a `run.mjs validate` block). See [.changeset/README.md](../../.changeset/README.md).
+**Version scheme:** `osuperpowers` uses plain semver (`0.1.x`); changesets bump it and release independently as `osuperpowers@{version}`. Driven by `scripts/release/version-packages.ts` (wired as `run.ts version`) and validated by `scripts/validate/version-sync.ts` (a `run.ts validate` block). See [.changeset/README.md](../../.changeset/README.md).
 
-**Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with `node scripts/run.mjs apply-rules <protect-develop|protect-main>` (`protect-develop`, `protect-main`; no bypass actors).
+**Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with `node scripts/run.ts apply-rules <protect-develop|protect-main>` (`protect-develop`, `protect-main`; no bypass actors).
 
 ## Git conventions for this repo
 

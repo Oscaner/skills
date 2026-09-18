@@ -131,7 +131,7 @@ The digraph integrity checks over every SKILL.md under `packages/osuperpowers/sk
 
 Non-mechanical authoring judgment (naming, phrasing, rule placement) is manual.
 
-**Engine test naming & placement:** within `packages/cdd-engine/`, tests are colocated with the tested source — every test node is a TypeScript `*.test.ts` living at `src/<module>/__tests__/` (new engine tests land there first, never in a top-level `tests/` dir — retired since P6 Task 3). The engine's vitest include is the single glob `['src/**/__tests__/**/*.test.ts']`, and validate 5c asserts the engine's `.mjs` plane stays at zero.
+**Test naming & placement (repo-wide colocation):** within `packages/cdd-engine/`, tests are colocated with the tested source — every test node is a TypeScript `*.test.ts` living at `src/<module>/__tests__/` (new engine tests land there first, never in a top-level `tests/` dir — retired since P6 Task 3). The repo `scripts/` suite follows the same convention since P6 Task 21: tests live at `scripts/<dir>/__tests__/<file>.test.ts`, with the top-level tools under `scripts/__tests__/`. The two vitest includes are the same single-glob shape — engine `['src/**/__tests__/**/*.test.ts']`, repo root `['scripts/**/__tests__/**/*.test.ts']` — and validate 5c asserts the engine's `.mjs` plane stays at zero.
 
 ## 9. Flow Change Discipline
 

@@ -3,13 +3,13 @@ import { readFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { renderYml } from "../../packages/osuperpowers/scripts/render-yaml.mjs";
-import { emitIssueTemplates } from "./issue-templates.ts";
-import { emitAll } from "./all.ts";
+import { renderYml } from "../../../packages/osuperpowers/scripts/render-yaml.mjs";
+import { emitIssueTemplates } from "../issue-templates.ts";
+import { emitAll } from "../all.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const findingMeta = JSON.parse(readFileSync(path.resolve(
-  HERE, "../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json"
+  HERE, "../../../packages/osuperpowers/skills/report-issues/templates/finding-meta.json"
 ), "utf8"));
 
 describe("render-yaml (emit-only module)", () => {

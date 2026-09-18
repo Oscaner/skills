@@ -64,7 +64,8 @@ export function main() {
   ];
   for (const [i, args] of cmds.entries()) {
     // Array form (no shell join) — every arg is a fixed constant today; keeps arg quoting if they ever change.
-    // `--dry-run` is a program-level flag and must lead the argv (commander only resolves it there).
+    // `--dry-run` is a program-level flag and must lead the argv (the engine resolves it from
+    // the full argv, citty surface — leading is the smoke's documented argv convention).
     // T3: harness flag removed — host resolution is env-driven; inject CLAUDE_CODE_SESSION_ID=1
     // so the smoke's four commands resolve the host as claude deterministically (CI has no session markers).
     const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });

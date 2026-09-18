@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 // cwd-independent root (aligned with bump-chain.test.mjs) — `node --test` may
 // be invoked from any directory.
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
 const readText = (rel) => readFileSync(join(root, rel), "utf8");
 

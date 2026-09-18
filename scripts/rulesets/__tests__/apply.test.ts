@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 vi.mock("execa", () => ({ execaSync: vi.fn() }));
 
 import { execaSync } from "execa";
-import { main, TARGETS } from "./apply.ts";
+import { main, TARGETS } from "../apply.ts";
 
 const mocked = vi.mocked(execaSync);
 
@@ -112,12 +112,12 @@ describe("apply.ts — moved config layout", () => {
   it("resolves every target payload file under scripts/rulesets/configs", () => {
     for (const [target, rel] of Object.entries(TARGETS)) {
       expect(rel).toMatch(/^configs\/[a-z-]+\.json$/);
-      expect(existsSync(fileURLToPath(new URL(`./${rel}`, import.meta.url)))).toBe(true);
+      expect(existsSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)))).toBe(true);
     }
   });
 
   it("drops the legacy old-path constants from the apply source", () => {
-    const src = readFileSync(new URL("./apply.ts", import.meta.url), "utf8");
+    const src = readFileSync(new URL("../apply.ts", import.meta.url), "utf8");
     expect(src).not.toMatch(/scripts\/gh-branch-rulesets/);
   });
 });

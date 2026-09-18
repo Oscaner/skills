@@ -1,4 +1,4 @@
-// scripts/observe-cache.test.ts — spec D-3 C7 observation seam: the extraction parser that turns
+// scripts/__tests__/observe-cache.test.ts — spec D-3 C7 observation seam: the extraction parser that turns
 // `/cost` / `--debug` harness output into { readTokens, writeTokens }. Pure, harness-shaped-text
 // driven; the actual measurement run is a documented dev-side action (no live harness in CI).
 // Also pins the argv parser (boolean-presence semantics) and the measurement-mode cross-phase
@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { extractCacheUsage, parseArgs, priorHandoffPaths } from "./observe-cache.ts";
+import { extractCacheUsage, parseArgs, priorHandoffPaths } from "../observe-cache.ts";
 
 describe("extractCacheUsage — parse prompt-cache read/write tokens from harness output", () => {
   it("Anthropic --debug key=val form (cache_creation_input_tokens / cache_read_input_tokens)", () => {

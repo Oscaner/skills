@@ -22,10 +22,10 @@ import {
   checkDocExistence,
   checkAnchorRegistry,
   anchorScanFiles,
-} from "./overall-consistency.ts";
+} from "../overall-consistency.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FIX = join(HERE, "fixtures", "overall-consistency");
+const FIX = join(HERE, "..", "fixtures", "overall-consistency");
 const SPECS = join(FIX, "specs");
 const PLANS = join(FIX, "plans");
 

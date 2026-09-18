@@ -7,11 +7,11 @@ import {
   cursorPluginManifest,
   generatedBanner,
   deriveFirstPartyNames,
-} from "./manifests.ts";
-import { deriveSource, SOURCE_TOP } from "./source.ts";
-import { findStaleCommittedFiles, writeText, writeJsonDoc } from "./orchestrate.ts";
-import { emitAll } from "./all.ts";
-import { assertVersionBump, BASE_PRODUCT_ROOTS } from "./compare.ts";
+} from "../manifests.ts";
+import { deriveSource, SOURCE_TOP } from "../source.ts";
+import { findStaleCommittedFiles, writeText, writeJsonDoc } from "../orchestrate.ts";
+import { emitAll } from "../all.ts";
+import { assertVersionBump, BASE_PRODUCT_ROOTS } from "../compare.ts";
 
 // First-party versions are read from the live package.json SOTs so these
 // assertions hold at any released version. A stale hardcoded version broke the
@@ -20,7 +20,7 @@ import { assertVersionBump, BASE_PRODUCT_ROOTS } from "./compare.ts";
 // expect the bumped version).
 const readPkgVersion = (rel) =>
   JSON.parse(
-    readFileSync(new URL(`../../${rel}/package.json`, import.meta.url), "utf8"),
+    readFileSync(new URL(`../../../${rel}/package.json`, import.meta.url), "utf8"),
   ).version;
 const OS_VERSION = readPkgVersion("packages/osuperpowers");
 

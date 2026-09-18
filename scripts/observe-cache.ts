@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 // scripts/observe-cache.ts — spec D-3 C7 dev-side cache observation tool. Measures prompt-cache
 // read/write tokens across ≥2 consecutive same-(harness, op, type) dispatch rounds so a dev can
-// assert "consecutive same-type round read tok > 0" within the TTL window. Honest boundary:
+// assert "consecutive same-type round read tok > 0" within the TTL window. What "same-type round"
+// means per mode (see maintainers/context-caching-doctrine § static-zone semantics):
+//   · implement rounds are BYTE-IDENTICAL (buildCtx's implement fixedPoint is always "" and the
+//     template declares no TASK_FIXED_POINT) — the read>0 hit measures the whole prompt;
+//   · fix/review rounds diverge at their round-suffixed Handoff slots (handoff target / findings /
+//     fixed point) — the shared harness prefix covers the invariant title/context/instructions
+//     bytes only; record read flips honestly rather than claiming whole-prompt reuse.
+// Honest boundary:
 //   · measurement is dev-side + documented, NOT a CI gate (CI has no live harness);
 //   · claims accrue only inside the TTL window across consecutive same-type dispatches —
 //     cross-window / absolute hit rates are never claimed (see maintainers/context-caching-doctrine);
@@ -13,11 +20,14 @@
 //   node scripts/observe-cache.ts [options] -- <workspace> <task> <mode>
 //     --harness claude|cursor-agent   (default: claude)
 //     --rounds 2                     (default: 2 — the brief's ≥2 consecutive same-type rounds)
-//     --cost | --debug               (flag appended to the harness invoke; default --cost)
+//     --cost | --debug               (flag appended to the harness invoke; default --debug —
+//                                     the only real non-interactive claude -p flag; --cost is an
+//                                     explicit opt-in for harnesses that accept it)
 //   e.g.
 //   node scripts/observe-cache.ts --rounds 2 \
 //     -- .osuperpowers/cdd/2026-09-13-osuperpowers-overhaul-p6 7 implement
 import { execa } from "execa";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -61,7 +71,12 @@ export function extractCacheUsage(log: string): CacheUsage | null {
 
 // ---- driver ----
 
-function parseArgs(argv: string[]): {
+// Boolean flags are presence-based: they never consume the following token, which in natural
+// usage (without the `--` separator) is the workspace positional — `--debug ws 7 implement` must
+// not swallow `ws`. Value-taking options (--harness / --rounds) alone consume the next token.
+const BOOLEAN_FLAGS = new Set(["cost", "debug"]);
+
+export function parseArgs(argv: string[]): {
   harness: string;
   rounds: number;
   flag: string;
@@ -77,9 +92,13 @@ function parseArgs(argv: string[]): {
     if (a === "--") { afterFlag = true; continue; }
     if (!afterFlag && a.startsWith("--")) {
       const eq = a.indexOf("=");
-      if (eq >= 0) opts[a.slice(2, eq)] = a.slice(eq + 1);
-      else opts[a.slice(2)] = argv[i + 1] ?? "";
-      if (!a.includes("=")) i++;
+      const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
+      if (BOOLEAN_FLAGS.has(key)) {
+        opts[key] = eq >= 0 ? a.slice(eq + 1) : "true"; // presence only; `--flag=false` still opted-in
+        continue;
+      }
+      if (eq >= 0) opts[key] = a.slice(eq + 1);
+      else { opts[key] = argv[i + 1] ?? ""; i++; }
       continue;
     }
     rest.push(a);
@@ -94,17 +113,64 @@ function parseArgs(argv: string[]): {
   return {
     harness: opts.harness ?? "claude",
     rounds: Number(opts.rounds ?? 2),
-    flag: opts.debug ? "--debug" : "--cost",
+    // `--debug` is the real non-interactive claude -p flag (emits usage/cache stats to stderr);
+    // `--cost` only survives as an explicit opt-in for harnesses that accept it.
+    flag: opts.cost !== undefined ? "--cost" : "--debug",
     workspace,
     task,
     mode,
   };
 }
 
-function renderRoundPrompt(state: { workspace: string; task: number; mode: string; round: number }): string {
-  // Measurement-only render: the same params buildCtx would derive for this (op,type) round
-  // (workspace-relative paths, round-suffixed review/fix handoff targets, fixed implement target).
+// Read a nested JSON field (commits.base) from a handoff file; missing file/field → "" — mirrors
+// dispatch/task.ts readJsonField, the same cross-phase read the engine performs for a fix dispatch.
+function readJsonField(filePath: string, keys: string[]): string {
+  try {
+    let v: unknown = JSON.parse(readFileSync(filePath, "utf8"));
+    for (const k of keys) v = (v as Record<string, unknown> | null)?.[k];
+    return typeof v === "string" ? v : "";
+  } catch {
+    return "";
+  }
+}
+
+// Cross-phase derivation for measurement-mode rounds — an approximation of the params buildCtx
+// derives for this (op, type) round (dispatch/task.ts prev-table semantics):
+//   · implement: buildCtx never derives a fixed point and implement.md declares no TASK_FIXED_POINT
+//     — the rendered prompt is byte-identical across rounds (EXACT parity for the C7 read>0 claim);
+//   · fix round R: findings + fixed point come from the same-round review handoff (fix.task prev =
+//     review.task:R; the engine reads its commits.base as the fixed point);
+//   · review round R: fixed point from the prior phase (review.task round1 = implement.task,
+//     roundR = fix.task:R-1).
+// Absent a real prior handoff in the workspace, fixedPoint falls back to "" (the engine's
+// readJsonField contract) — a documented measurement-mode approximation, not buildCtx's exact
+// resolution. Exact for implement; best-effort for review/fix until real prior handoffs exist.
+export function priorHandoffPaths(state: {
+  workspace: string;
+  task: number;
+  mode: string;
+  round: number;
+}): { findingsPath: string; fixedPoint: string } {
   const handoffBase = `${state.workspace}/task-${state.task}`;
+  if (state.mode === "implement") return { findingsPath: "", fixedPoint: "" };
+  const reviewHandoff = `${handoffBase}-review-${state.round}.json`;
+  const prior =
+    state.mode === "review"
+      ? state.round === 1
+        ? `${handoffBase}-implement.json`
+        : `${handoffBase}-fix-${state.round - 1}.json`
+      : reviewHandoff;
+  return {
+    findingsPath: state.mode === "fix" ? reviewHandoff : "",
+    fixedPoint: existsSync(prior) ? readJsonField(prior, ["commits", "base"]) : "",
+  };
+}
+
+function renderRoundPrompt(state: { workspace: string; task: number; mode: string; round: number }): string {
+  // Measurement-only render: workspace-relative paths, round-suffixed review/fix handoff targets,
+  // fixed implement target, and the cross-phase findings/fixed-point above.
+  const handoffBase = `${state.workspace}/task-${state.task}`;
+  const { findingsPath, fixedPoint } = priorHandoffPaths(state);
   const handoff =
     state.mode === "implement"
       ? `${handoffBase}-implement.json`
@@ -113,9 +179,9 @@ function renderRoundPrompt(state: { workspace: string; task: number; mode: strin
     TASK_WORKSPACE: state.workspace,
     TASK_BRIEF: `${handoffBase}-brief.md`,
     HANDOFF_TARGET: handoff,
-    TASK_FINDINGS: state.mode === "fix" ? `${handoffBase}-open-findings.json` : "",
+    TASK_FINDINGS: findingsPath,
     TASK_CONSTRAINTS: `${state.workspace}/plan-constraints.md`,
-    TASK_FIXED_POINT: state.round > 1 ? "cbaed2377b7548a3221bbb4307d6d5ee1287cb1e" : "",
+    TASK_FIXED_POINT: fixedPoint,
     TASK_NUMBER: String(state.task),
     REVIEW_PLAN_LINE: "",
   };
@@ -141,7 +207,7 @@ async function main(): Promise<void> {
     // the observed invoke set mirrors what cdd dispatches, with only the measurement flag added).
     const promptArg = promptArgText(resolveInjection(entry, mode, mode === "review" || mode === "fix" ? "task" : undefined), prompt, "");
     const args = [...buildInvokeArgs(entry.invoke ?? "", promptArg)];
-    args.splice(args.length - 1, 0, flag); // usage/cost flag right before the prompt arg
+    args.splice(args.length - 1, 0, flag); // measurement flag (--debug default) right before the prompt arg
     const result = await execa(entry.cli, args, {
       cwd: workspace,
       env: { ...process.env },

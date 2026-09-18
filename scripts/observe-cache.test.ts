@@ -1,8 +1,13 @@
 // scripts/observe-cache.test.ts — spec D-3 C7 observation seam: the extraction parser that turns
 // `/cost` / `--debug` harness output into { readTokens, writeTokens }. Pure, harness-shaped-text
 // driven; the actual measurement run is a documented dev-side action (no live harness in CI).
-import { describe, it, expect } from "vitest";
-import { extractCacheUsage } from "./observe-cache.ts";
+// Also pins the argv parser (boolean-presence semantics) and the measurement-mode cross-phase
+// derivation (review/fix fixed-point from real prior handoffs).
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { extractCacheUsage, parseArgs, priorHandoffPaths } from "./observe-cache.ts";
 
 describe("extractCacheUsage — parse prompt-cache read/write tokens from harness output", () => {
   it("Anthropic --debug key=val form (cache_creation_input_tokens / cache_read_input_tokens)", () => {
@@ -37,5 +42,71 @@ describe("extractCacheUsage — parse prompt-cache read/write tokens from harnes
   it("no cache fields → null (not a measurable round)", () => {
     expect(extractCacheUsage("status: APPROVED\ncommits: base=x head=y")).toBeNull();
     expect(extractCacheUsage("")).toBeNull();
+  });
+});
+
+describe("parseArgs — presence-based booleans + value-taking options", () => {
+  it("defaults: --debug flag, claude harness, 2 rounds", () => {
+    expect(parseArgs(["--", "ws", "7", "implement"])).toEqual({
+      harness: "claude",
+      rounds: 2,
+      flag: "--debug",
+      workspace: "ws",
+      task: 7,
+      mode: "implement",
+    });
+  });
+
+  it("boolean flags are presence-only and never swallow the workspace positional (natural usage without `--`)", () => {
+    expect(parseArgs(["--debug", "ws", "7", "implement"]).flag).toBe("--debug");
+    expect(parseArgs(["--debug", "ws", "7", "implement"]).workspace).toBe("ws");
+    expect(parseArgs(["--debug", "ws", "7", "implement"]).mode).toBe("implement");
+  });
+
+  it("--cost stays an explicit opt-in; --harness/--rounds keep consuming their value", () => {
+    const a = parseArgs(["--cost", "ws", "7", "fix"]);
+    expect(a.flag).toBe("--cost");
+    expect(a.workspace).toBe("ws");
+    const b = parseArgs(["--harness", "cursor-agent", "--rounds", "3", "--", "ws", "7", "review"]);
+    expect(b.harness).toBe("cursor-agent");
+    expect(b.rounds).toBe(3);
+    expect(b.flag).toBe("--debug");
+  });
+});
+
+describe("priorHandoffPaths — measurement-mode cross-phase derivation (mirrors dispatch/task.ts)", () => {
+  // fixture workspace with real prior-handoff shapes (commits.base is what the engine reads)
+  let ws: string;
+  beforeEach(() => {
+    ws = mkdtempSync(path.join(tmpdir(), "observe-cache-"));
+    writeFileSync(path.join(ws, "task-7-implement.json"), JSON.stringify({ phase: "implement", commits: { base: "a".repeat(40), head: "b".repeat(40) } }));
+    writeFileSync(path.join(ws, "task-7-review-1.json"), JSON.stringify({ phase: "review", commits: { base: "c".repeat(40), head: "d".repeat(40) } }));
+    writeFileSync(path.join(ws, "task-7-fix-1.json"), JSON.stringify({ phase: "fix", commits: { base: "e".repeat(40), head: "f".repeat(40) } }));
+  });
+  afterEach(() => rmSync(ws, { recursive: true, force: true }));
+
+  it("implement: no findings, no fixed point (byte-identical rounds)", () => {
+    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "implement", round: 1 })).toEqual({
+      findingsPath: "",
+      fixedPoint: "",
+    });
+    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "implement", round: 2 }).fixedPoint).toBe("");
+  });
+
+  it("fix round R: findings + fixed point come from the same-round review handoff (prev = review.task:R)", () => {
+    const r1 = priorHandoffPaths({ workspace: ws, task: 7, mode: "fix", round: 1 });
+    expect(r1.findingsPath).toBe(path.join(ws, "task-7-review-1.json"));
+    expect(r1.fixedPoint).toBe("c".repeat(40)); // the review handoff's commits.base
+  });
+
+  it("missing prior review handoff → the review path as findings, empty fixed point (documented approximation)", () => {
+    const r2 = priorHandoffPaths({ workspace: ws, task: 7, mode: "fix", round: 2 });
+    expect(r2.findingsPath).toBe(path.join(ws, "task-7-review-2.json"));
+    expect(r2.fixedPoint).toBe("");
+  });
+
+  it("review round 1: fixed point from the implement handoff; review round R: from fix-(R-1)", () => {
+    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "review", round: 1 }).fixedPoint).toBe("a".repeat(40));
+    expect(priorHandoffPaths({ workspace: ws, task: 7, mode: "review", round: 2 }).fixedPoint).toBe("e".repeat(40));
   });
 });

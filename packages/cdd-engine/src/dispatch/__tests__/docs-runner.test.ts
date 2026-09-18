@@ -51,9 +51,7 @@ vi.mock("../../infra/registry.ts", async () => {
 
 vi.mock("../../render/templates.ts", () => ({
   PKG_ROOT: "/mock/pkg/root",
-  renderHandoffSchemaJson: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
   renderTemplate: vi.fn(() => "mocked docs review prompt"),
-  HANDOFF_SCHEMA_JSON_SLOT: "{{HANDOFF_SCHEMA_JSON}}",
   reviewHardGate: vi.fn((returnFormat, handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE outputting the JSON return.`),
   docsFixHardGate: vi.fn((handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE exiting: the engine reads the file, not your stdout.`),
 }));

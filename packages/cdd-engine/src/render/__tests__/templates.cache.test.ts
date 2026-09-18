@@ -4,7 +4,7 @@
 // schemas (no fs mock) and exercises the memoized render seam (templateCacheStats /
 // resetTemplateCaches) that makes "re-dispatch zero re-render" observable. Since the shell no
 // longer re-renders on ANY param change, the old "static zone re-renders once" assertion INVERTS:
-// a param change re-renders only the Round-context tail (staticShellRenders++) while the static
+// a param change re-renders only the Round-context tail (tailRenders++) while the static
 // zone (shell + ## Return constant) stays byte-FROZEN.
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
@@ -106,7 +106,7 @@ describe("C2/C3 — structural single source + deterministic serialization", () 
     const b = renderTemplate("implement", flipped);
     expect(staticZoneOf(b)).toBe(staticZoneOf(a)); // static zone byte-frozen (parameterless shell)
     expect(b).toBe(a);
-    expect(templateCacheStats().staticShellRenders).toBe(1); // one tail materialization, no double-render
+    expect(templateCacheStats().tailRenders).toBe(1); // one tail materialization, no double-render
   });
 
   it("schema injection is byte-deterministic and canonical-key-ordered (C3)", () => {
@@ -140,7 +140,7 @@ describe("C4 — parameterless shell: re-dispatch zero re-render; param change r
     const s2 = templateCacheStats();
     expect(s2.reads).toBe(s1.reads); // contract not re-read
     expect(s2.compiles).toBe(s1.compiles); // compiled Round-context product frozen once
-    expect(s2.staticShellRenders).toBe(s1.staticShellRenders + 1); // exactly one (distinct) tail re-render
+    expect(s2.tailRenders).toBe(s1.tailRenders + 1); // exactly one (distinct) tail re-render
     // INVERTED (vs pre-Task-20): the static zone — whole shell before `## Return` — is byte-FROZEN.
     const base = renderModePrompt("implement", IMPLEMENT_PARAMS);
     expect(staticZoneOf(other)).toBe(staticZoneOf(base));
@@ -150,7 +150,7 @@ describe("C4 — parameterless shell: re-dispatch zero re-render; param change r
   it("resetTemplateCaches clears the module cache (fresh reads on next render)", () => {
     renderModePrompt("implement", IMPLEMENT_PARAMS);
     resetTemplateCaches();
-    expect(templateCacheStats()).toEqual({ reads: 0, compiles: 0, staticShellRenders: 0 });
+    expect(templateCacheStats()).toEqual({ reads: 0, compiles: 0, tailRenders: 0 });
     renderModePrompt("implement", IMPLEMENT_PARAMS);
     expect(templateCacheStats().reads).toBe(1);
   });

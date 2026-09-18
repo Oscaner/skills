@@ -58,7 +58,7 @@ export interface TemplateContract {
 //   ① the CONTRACT source bytes   → parsed once (CACHE.reads);
 //   ② the COMPILED round-context fn → compiled once (CACHE.compiles);
 //   ③ the rendered ROUND CONTEXT  → memoized per canonical params — a re-dispatch with identical
-//     params returns the frozen tail, zero re-render (CACHE.staticShellRenders counts distinct
+//     params returns the frozen tail, zero re-render (CACHE.tailRenders counts distinct
 //     tails materialized; the shell/return bytes are constants keyed only by family/format).
 const CONTRACT_REL = "template-contract.json";
 
@@ -71,7 +71,7 @@ const CACHE: {
   rounds: Map<string, string>;
   reads: number;
   compiles: number;
-  staticShellRenders: number;
+  tailRenders: number;
 } = {
   contract: null,
   shells: new Map(),
@@ -81,17 +81,17 @@ const CACHE: {
   rounds: new Map(),
   reads: 0,
   compiles: 0,
-  staticShellRenders: 0,
+  tailRenders: 0,
 };
 
 export interface TemplateCacheStats {
   reads: number;
   compiles: number;
-  staticShellRenders: number;
+  tailRenders: number;
 }
 
 export function templateCacheStats(): TemplateCacheStats {
-  return { reads: CACHE.reads, compiles: CACHE.compiles, staticShellRenders: CACHE.staticShellRenders };
+  return { reads: CACHE.reads, compiles: CACHE.compiles, tailRenders: CACHE.tailRenders };
 }
 
 export function resetTemplateCaches(): void {
@@ -103,7 +103,7 @@ export function resetTemplateCaches(): void {
   CACHE.rounds.clear();
   CACHE.reads = 0;
   CACHE.compiles = 0;
-  CACHE.staticShellRenders = 0;
+  CACHE.tailRenders = 0;
 }
 
 export function loadTemplateContract(): TemplateContract {
@@ -112,6 +112,9 @@ export function loadTemplateContract(): TemplateContract {
       readFileSync(path.join(PKG_ROOT, CONTRACT_REL), "utf8"),
     ) as TemplateContract;
     CACHE.reads++;
+    // T12 衔接面：partial 装配随合同缓存一次完成（幂等；空容器即 no-op）——任何 render 路径在
+    // renderRoundContext 编译前必然先 loadTemplateContract，注册的 {{> clause}} 引用必可 resolve。
+    assembleClauses(CACHE.contract);
   }
   return CACHE.contract;
 }
@@ -136,11 +139,6 @@ export function renderHandoffSchemaJson(schema: unknown): string {
   return '```json\n' + JSON.stringify(schema) + '\n```';
 }
 
-// The four-line H1 return contract is Byte-frozen inside the RETURN_STDOUT_BLOCK zone of the
-// contract (sections.return); this marker names the section boundary between the static plane
-// (shell) and the tail (## Return + ## Round context).
-export const STATIC_REGION_MARKER = "## Return";
-
 // ---- zone builders (runtime assembly; all memoized / frozen) ----
 
 function joinLines(lines: string[]): string {
@@ -163,7 +161,7 @@ function shellFor(family: string): string {
   let shell = CACHE.shells.get(family);
   if (shell === undefined) {
     const frame = joinLines(loadTemplateContract().sections.shell);
-    const block = "```json\n" + JSON.stringify(loadHandoffSchema(family)) + "\n```";
+    const block = renderHandoffSchemaJson(loadHandoffSchema(family));
     shell = frame + "\n" + block;
     CACHE.shells.set(family, shell);
   }
@@ -242,7 +240,7 @@ function renderRoundContext(
       }
       throw err;
     }
-    CACHE.staticShellRenders++;
+    CACHE.tailRenders++;
     CACHE.rounds.set(key, out);
   }
   return out;
@@ -413,7 +411,8 @@ export function validateShippedTemplates(): string[] {
 // ---- clauses assembler (Task 20 与 T12 衔接：{{> clause}} 引用机制面) ----
 // #clauses = container of discipline-clause bodies (T12 lands them); the assembler registers each
 // clause as a handlebars partial so a `{{> clause}}` reference in the round-context zone resolves
-// at render. Empty container → assembly is a no-op (the validator already rejects unknown refs).
+// at render. Wired into loadTemplateContract() (memoized with the contract, idempotent — empty
+// container → no-op; the validator already rejects unknown refs at validate time).
 
 export function clauseNames(contract: TemplateContract = loadTemplateContract()): string[] {
   return Object.keys(contract.clauses);

@@ -84,7 +84,7 @@ describe('invokeCli prefix/suffix injection (operation×type)', () => {
     expect(promptArg.split('\n')[1]).toBe('review prompt');
   });
 
-  it('review×spec（共享 review.md，无注入）→ prompt unchanged', async () => {
+  it('review×spec（docs 族共享壳，无注入）→ prompt unchanged', async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false });
     const { invokeCli } = await import('../invoke.ts');
     const entry = { cli: 'claude', invoke: '-p', output: 'text', prefix, suffix: {} };

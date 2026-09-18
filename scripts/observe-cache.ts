@@ -28,7 +28,7 @@
 //     -- .osuperpowers/cdd/2026-09-13-osuperpowers-overhaul-p6 7 implement
 import { execa } from "execa";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderModePrompt, resetTemplateCaches } from "../packages/cdd-engine/src/render/templates.ts";
@@ -136,8 +136,10 @@ function readJsonField(filePath: string, keys: string[]): string {
 
 // Cross-phase derivation for measurement-mode rounds — an approximation of the params buildCtx
 // derives for this (op, type) round (dispatch/task.ts prev-table semantics):
-//   · implement: buildCtx never derives a fixed point and implement.md declares no TASK_FIXED_POINT
-//     — the rendered prompt is byte-identical across rounds (EXACT parity for the C7 read>0 claim);
+//   · implement: buildCtx never derives a fixed point and the round-context slot TASK_FIXED_POINT
+//     pre-fills "" (mode-union prefill; the per-template files are gone — a single round-context
+//     zone serves all modes) — the rendered prompt is byte-identical across rounds (EXACT parity
+//     for the C7 read>0 claim);
 //   · fix round R: findings + fixed point come from the same-round review handoff (fix.task prev =
 //     review.task:R; the engine reads its commits.base as the fixed point);
 //   · review round R: fixed point from the prior phase (review.task round1 = implement.task,
@@ -177,6 +179,7 @@ function renderRoundPrompt(state: { workspace: string; task: number; mode: strin
       : `${handoffBase}-${state.mode}-${state.round}.json`;
   const params = {
     TASK_WORKSPACE: state.workspace,
+    WORKSPACE_SLUG: basename(state.workspace),
     TASK_BRIEF: `${handoffBase}-brief.md`,
     HANDOFF_TARGET: handoff,
     TASK_FINDINGS: findingsPath,

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "description": "Docs-family handoff contract (spec / plan review + fix rounds, `templates/docs/review.md` + `templates/docs/fix.md`). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule.",
+  "description": "Docs-family handoff contract (spec / plan review + fix rounds; the docs-family shell + return constants live in template-contract.json#sections). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule.",
   "type": "object",
   "required": ["phase", "findings", "artifacts", "doc_path"],
   "properties": {

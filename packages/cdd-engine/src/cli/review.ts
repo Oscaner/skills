@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.ts";
-import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, reviewHardGate } from "../render/templates.ts";
+import { renderTemplate, reviewTypeConfig, reviewArtifactConfig } from "../render/templates.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { hashFile } from "../dispatch/review-loop.ts";
 import { exitWithCode } from "../infra/exit.ts";
@@ -135,14 +135,16 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           process.stderr.write(`CDD_INFO: doc content changed since round-${round - 1} clean review (${prev.doc_hash!.slice(0, 8)} → ${docHash.slice(0, 8)}) → new review round ${round}\n`);
         }
       }
-      // Review template data-driven — spec/plan route through the shared shell docs/review.md
-      // (template-contract reviews type=spec|plan config). REVIEW_REFERENCE injects the concrete
-      // doc path (reviews.ref "doc vs spec" is a relational concept, analogous to how task/branch
-      // git-range symbols get concrete-injected); content placeholders (lensEnum/axesGuide) inject
-      // from the reviews config, artifact params (RETURN_FORMAT) read the canonical review.{type}
-      // family (renderTemplate throws on missing params; HANDOFF_TARGET merge = path only, schema
-      // bytes self-describe). `workspace` remains in the options for the unit seam (cdd.test
-      // asserts it) — docs.ts ignores the key.
+      // Review template data-driven — spec/plan route through the docs-family shell (Task 20:
+      // docs/review.md is gone; the unified constant shell is data-forced by the contract's
+      // sections.return/round-context zones). REVIEW_REFERENCE injects the concrete doc path
+      // (reviews.ref "doc vs spec" is a relational concept, analogous to how task/branch git-range
+      // symbols get concrete-injected); content placeholders (lensEnum/axesGuide) inject from the
+      // reviews config; artifact params (RETURN_FORMAT) read the canonical review.{type} family
+      // (docs.ts recomputes RETURN_FORMAT/HANDOFF_WRITE_GATE as authoritative dispatch facts —
+      // identical values here, matching for self-documentation). Round-context slots pre-fill
+      // absent values with "" (mode-union template, no missing-param throw). `workspace` remains
+      // in the options for the unit seam (cdd.test asserts it) — docs.ts ignores the key.
       const cfg = reviewTypeConfig(opts.type);
       const art = reviewArtifactConfig(opts.type);
       const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
@@ -150,17 +152,17 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         harness, mode: "review", template: "review", type: opts.type, doc,
         handoffPath,
         params: {
+          MODE: "review",
           REVIEW_TYPE: opts.type,
           REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
           TASK_WORKSPACE: ws,
+          WORKSPACE_SLUG: path.basename(ws),
           REVIEW_REFERENCE: doc,
           REVIEW_AXES: cfg.axesGuide,
           RETURN_FORMAT: art.returnFormat,
-          RETURN_STDOUT_BLOCK: "",
           // type=plan: REVIEW_PLAN_LINE injects the upstream spec reference; type=spec has no plan
           // reference, stays empty.
           REVIEW_PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
-          HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, handoffPath),
         },
         workspace: ws, repoRoot: root,
         dryRun: DRY_RUN(),

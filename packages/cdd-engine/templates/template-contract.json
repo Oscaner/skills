@@ -1,33 +1,182 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$version": 1,
+  "$version": 2,
   "skeleton": {
-    "sections": ["Instructions", "Handoff", "Return"],
+    "sections": [
+      "Instructions",
+      "Handoff",
+      "Return",
+      "Round context"
+    ],
     "segments": {
-      "static": ["title", "context", "instructions", "handoff"],
-      "variant": ["return"]
+      "shell": [
+        "Instructions",
+        "Handoff"
+      ],
+      "return": [
+        "Return"
+      ],
+      "round-context": [
+        "Round context"
+      ]
     },
-    "order": ["title", "context", "instructions", "handoff", "return"]
+    "order": [
+      "shell",
+      "return",
+      "round-context"
+    ]
+  },
+  "sections": {
+    "shell": [
+      "# CDD dispatch — CLI session",
+      "",
+      "## Instructions",
+      "",
+      "1. **`## Round context` — the final section — is the only dynamic region of this prompt.** Every per-dispatch value lives there; this shell and `## Return` are the fixed dispatch contract, byte-identical for every round and mode. Wherever this contract names a symbol (`TASK_BRIEF`, `HANDOFF_TARGET`, `REVIEW_REFERENCE`, …), resolve the real value from `## Round context`; nothing real rides above it. The `MODE` in `## Round context` selects this round's rules below.",
+      "2. **Scope lock (every mode):** consume only this round's inputs listed in `## Round context`. Do **not** read the full plan file. Implement exactly what the brief specifies — no extra features, no tangential refactors, no scope creep beyond the brief's Files/Interfaces/Steps.",
+      "3. **`implement`:** read only the task brief at `TASK_BRIEF` and the plan constraints at `TASK_CONSTRAINTS`. `CONFIRMED_SEAMS` listed in the brief → apply them when invoking the implementation approach — no re-negotiation; otherwise propose the test boundaries in the report, then invoke **`mattpocock-skills:tdd`**. This mode does not write a handoff — the engine materializes `task-N-implement.json` from your H1 four lines + the brief's `TASK_BASE` + `git HEAD` (the engine is the single authority for `commits` and for re-emitting your H1).",
+      "4. **`fix`:** read the open findings at `TASK_FINDINGS` and the task brief at `TASK_BRIEF` (paths only — do not paste review bodies into the prompt). Fix ALL findings — blockers, warns, and nits — and remove fixed findings from the handoff's `findings[]`. `commits.base` = `TASK_FIXED_POINT` (this round's `FIX_BASE` — the prior handoff's `commits.head`); `commits.head` = `git rev-parse HEAD` (full 40-char SHA, never `--short`). No fix-scope diff relative to `FIX_BASE` → no commit (keep `head` unchanged). Implement + handoff in one process; a handoff write failure → H1 `status: BLOCKED`; retry = full mode re-run (idempotent).",
+      "5. **`review`:** review the axes in `REVIEW_AXES` against the reference in `REVIEW_REFERENCE`. Every finding MUST carry its `lens` label (one of `REVIEW_LENS_GUIDE`); an empty `findings` array = approved. The `returnFormat` named in `## Return` selects the return contract: RETURN_JSON → findings-only JSON on stdout; RETURN_STDOUT_BLOCK → collect findings into the handoff's `findings[]` (do not print them), then the four-line block only.",
+      "6. **`docs`:** apply fixes directly to `DOCS_DOC` per `DOCS_FINDINGS` (all severities), removing fixed findings; `artifacts` records the doc path and `doc_path` = the exact `DOCS_DOC` path.",
+      "7. **Evidence gate:** before returning, write `task-N-test-evidence.json` under `TASK_WORKSPACE` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable). The engine reads it back after you exit: `behavior_change: true` requires `command`, `passed`, and `exit_code` — missing any of the three → the handoff is overridden to `status: BLOCKED` (exit 1); otherwise only a WARN note attaches. Update the implementer report at the path from the brief after verification. Report bodies, test stdout, and diff text live in files only — never in the return.",
+      "8. **Commit contract (base/head):** `base` = the brief's `TASK_BASE` (implement) or `TASK_FIXED_POINT` (fix — a review's reviewed range). When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`. Only commit changes within this round's scope; out-of-scope uncommitted changes at return → `status: BLOCKED` + `blocker:` listing the out-of-scope paths.",
+      "",
+      "## Handoff",
+      "",
+      "Write/update the handoff JSON at `HANDOFF_TARGET` (see `## Round context`) per the schema below. The `HANDOFF_WRITE_GATE` entry — `### HANDOFF_WRITE_GATE` in `## Round context` — states this round's write protocol; follow it literally before returning. Work-type rounds (implement/fix) declare `status` (APPROVED once applied, or BLOCKED with the reason in `blocker`); review-family rounds write findings, not status — the engine derives status from findings. `artifacts` points at files, never inline content. Self-validate before returning (`jq .` on the written handoff → `phase`/`artifacts`/`findings` non-null); a non-parseable or schema-violating handoff is rewritten BLOCKED by the engine."
+    ],
+    "return": {
+      "RETURN_STDOUT_BLOCK": [
+        "## Return",
+        "",
+        "Return **exactly 4 lines** to stdout — make this block the **final** output; nothing may follow it (stream-json harnesses parse the last block):",
+        "",
+        "```",
+        "status: <APPROVED|BLOCKED>",
+        "commits: base=<sha> head=<sha>",
+        "artifacts: brief=<path> report=<path> test_evidence=<path>",
+        "blocker: <none|one-line>",
+        "```",
+        "",
+        "The `returnFormat` is **RETURN_STDOUT_BLOCK**: review-family rounds (task/branch) collect findings into `HANDOFF_TARGET` `findings[]` (see `## Round context` — do not print them), then output this block as the ONLY stdout content; `implement` rounds return this block directly. Report bodies, test stdout, and diff text live in files only — never in the return. Any non-`APPROVED` status line (e.g. `NEEDS_CONTEXT`) is collapsed by the engine to `BLOCKED` + exit 1."
+      ],
+      "RETURN_JSON": [
+        "## Return",
+        "",
+        "This review's `returnFormat` is **RETURN_JSON** — return findings ONLY as a JSON object:",
+        "",
+        "`{\"findings\":[{ \"lens\": \"<one of REVIEW_LENS_GUIDE — see ## Round context>\", \"severity\": \"blocker|warn|nit\", \"section\": \"...\", \"line\": 0, \"summary\": \"...\", \"fix\": \"...\" }]}`",
+        "",
+        "Every finding MUST carry its `lens` label (prevents axis mixing); empty `findings` array = approved; no additional prose."
+      ],
+      "DOCS_FIX": [
+        "## Return",
+        "",
+        "Your return IS the handoff written to `HANDOFF_TARGET` (see `## Round context`) — **the engine reads the file, not your stdout**. Return **no additional prose**; empty `findings` array = all findings fixed. Write/update `HANDOFF_TARGET` per the schema in the shell above BEFORE exiting — leaving it unwritten is BLOCKED (runner exit 1)."
+      ]
+    },
+    "round-context": [
+      "## Round context",
+      "",
+      "- `MODE`: {{MODE}}",
+      "- `TASK_WORKSPACE`: {{TASK_WORKSPACE}}",
+      "- `WORKSPACE_SLUG`: {{WORKSPACE_SLUG}}",
+      "- `TASK_NUMBER`: {{TASK_NUMBER}}",
+      "- `TASK_BRIEF`: {{TASK_BRIEF}}",
+      "- `TASK_CONSTRAINTS`: {{TASK_CONSTRAINTS}}",
+      "- `TASK_FINDINGS`: {{TASK_FINDINGS}}",
+      "- `TASK_FIXED_POINT`: {{TASK_FIXED_POINT}}",
+      "- `REVIEW_TYPE`: {{REVIEW_TYPE}}",
+      "- `REVIEW_REFERENCE`: {{REVIEW_REFERENCE}}",
+      "- `REVIEW_LENS_GUIDE`: {{REVIEW_LENS_GUIDE}}",
+      "- `REVIEW_AXES`: {{REVIEW_AXES}}",
+      "- `REVIEW_PLAN_LINE`: {{REVIEW_PLAN_LINE}}",
+      "- `DOCS_DOC`: {{DOCS_DOC}}",
+      "- `DOCS_FINDINGS`: {{DOCS_FINDINGS}}",
+      "- `HANDOFF_TARGET`: {{HANDOFF_TARGET}}",
+      "",
+      "### HANDOFF_WRITE_GATE",
+      "",
+      "{{HANDOFF_WRITE_GATE}}"
+    ]
   },
   "tokens": [
-    "DOCS_DOC",
-    "DOCS_FINDINGS",
-    "HANDOFF_SCHEMA_JSON",
-    "HANDOFF_TARGET",
-    "HANDOFF_WRITE_GATE",
-    "RETURN_FORMAT",
-    "RETURN_STDOUT_BLOCK",
-    "REVIEW_AXES",
-    "REVIEW_LENS_GUIDE",
-    "REVIEW_PLAN_LINE",
-    "REVIEW_REFERENCE",
-    "REVIEW_TYPE",
-    "TASK_BRIEF",
-    "TASK_CONSTRAINTS",
-    "TASK_FINDINGS",
-    "TASK_FIXED_POINT",
-    "TASK_NUMBER",
-    "TASK_WORKSPACE"
+    {
+      "name": "DOCS_DOC",
+      "zone": "round-context"
+    },
+    {
+      "name": "DOCS_FINDINGS",
+      "zone": "round-context"
+    },
+    {
+      "name": "HANDOFF_TARGET",
+      "zone": "round-context"
+    },
+    {
+      "name": "HANDOFF_WRITE_GATE",
+      "zone": "round-context"
+    },
+    {
+      "name": "MODE",
+      "zone": "round-context"
+    },
+    {
+      "name": "REVIEW_AXES",
+      "zone": "round-context"
+    },
+    {
+      "name": "REVIEW_LENS_GUIDE",
+      "zone": "round-context"
+    },
+    {
+      "name": "REVIEW_PLAN_LINE",
+      "zone": "round-context"
+    },
+    {
+      "name": "REVIEW_REFERENCE",
+      "zone": "round-context"
+    },
+    {
+      "name": "REVIEW_TYPE",
+      "zone": "round-context"
+    },
+    {
+      "name": "TASK_BRIEF",
+      "zone": "round-context"
+    },
+    {
+      "name": "TASK_CONSTRAINTS",
+      "zone": "round-context"
+    },
+    {
+      "name": "TASK_FINDINGS",
+      "zone": "round-context"
+    },
+    {
+      "name": "TASK_FIXED_POINT",
+      "zone": "round-context"
+    },
+    {
+      "name": "TASK_NUMBER",
+      "zone": "round-context"
+    },
+    {
+      "name": "TASK_WORKSPACE",
+      "zone": "round-context"
+    },
+    {
+      "name": "WORKSPACE_SLUG",
+      "zone": "round-context"
+    },
+    {
+      "name": "RETURN_FORMAT",
+      "zone": "return"
+    },
+    {
+      "name": "RETURN_STDOUT_BLOCK",
+      "zone": "return"
+    }
   ],
   "clauses": {},
   "reviews": {

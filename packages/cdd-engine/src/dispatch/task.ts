@@ -227,6 +227,9 @@ function requireCtx(ctx: TaskDispatchContext | null, mode: string): string | nul
 export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Record<string, string> {
   return {
     TASK_WORKSPACE: ctx.workspace,
+    // Task 20 ⑦: canonical slug slot (workspaceSlug: -design/-plan single-layer strip — a plan and
+    // its paired spec converge to the same slug, e.g. osuperpowers-overhaul-p6).
+    WORKSPACE_SLUG: workspaceSlug(ctx.plan),
     TASK_BRIEF: ctx.briefPath,
     HANDOFF_TARGET: ctx.handoffPath,
     TASK_FINDINGS: ctx.findingsPath ?? "",

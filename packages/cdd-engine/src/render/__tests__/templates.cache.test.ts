@@ -1,7 +1,11 @@
 // packages/cdd-engine/src/render/__tests__/templates.cache.test.ts — spec D-3 cache-first
-// assembly contract (C1/C3/C4) + the byte-invariant guard (⑧). Reads the REAL templates and
-// registry (no fs mock) and exercises the memoized render seam (templateCacheStats /
-// resetTemplateCaches) that makes "re-dispatch zero re-render" observable.
+// assembly contract (C1/C3/C4) + the byte-invariant guard (⑧). Task 20 (C4 升格): the shell is a
+// process-level parameterless constant (staticShellKey eliminated) — reads the REAL contract +
+// schemas (no fs mock) and exercises the memoized render seam (templateCacheStats /
+// resetTemplateCaches) that makes "re-dispatch zero re-render" observable. Since the shell no
+// longer re-renders on ANY param change, the old "static zone re-renders once" assertion INVERTS:
+// a param change re-renders only the Round-context tail (staticShellRenders++) while the static
+// zone (shell + ## Return constant) stays byte-FROZEN.
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -16,9 +20,8 @@ import {
   renderHandoffSchemaJson,
   templateCacheStats,
   resetTemplateCaches,
-  staticShellKey,
   loadTemplateContract,
-  TEMPLATE_FILES,
+  validateShippedTemplates,
 } from "../templates.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,6 +30,7 @@ const TEMPLATES = path.join(PKG_ROOT, "templates");
 
 const IMPLEMENT_PARAMS = {
   TASK_WORKSPACE: "/ws/osuperpowers-overhaul-p6",
+  WORKSPACE_SLUG: "osuperpowers-overhaul-p6",
   TASK_BRIEF: "/ws/osuperpowers-overhaul-p6/task-7-brief.md",
   HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/task-7-implement.json",
   TASK_FINDINGS: "",
@@ -36,45 +40,73 @@ const IMPLEMENT_PARAMS = {
   REVIEW_PLAN_LINE: "**Plan:** docs/osuperpowers/plans/2026-09-13-osuperpowers-overhaul-p6.md",
 };
 
-// The static zone = the rendered prompt before the `## Return` heading (variant payload is tailed).
-const staticZoneOf = (prompt: string): string => prompt.slice(0, prompt.indexOf("## Return"));
+// Second-level heading position via line-anchored match — the shell prose names `## Return` /
+// `## Round context` inline (backtick quotes in Instructions), so a plain indexOf would anchor on
+// the prose mention, not the real section heading.
+const heading = (prompt: string, name: string): number => prompt.search(new RegExp(`^## ${name}$`, 'm'));
 
-describe("C1 — assembly order [static shell → variant payload tailed]", () => {
-  it("rendered prompt keeps ## Handoff (last static section) before ## Return; the four-line H1 block only exists in the Return tail", () => {
+// The static zone = the rendered prompt before the `## Return` heading (the parameterless shell
+// incl. its injected schema block). The tail = `## Return` constant + ## Round context.
+const staticZoneOf = (prompt: string): string => prompt.slice(0, heading(prompt, "Return"));
+// The byte-frozen per-format Return constant region (between `## Return` and the dynamic tail).
+const returnZoneOf = (prompt: string): string => prompt.slice(heading(prompt, "Return"), heading(prompt, "Round context"));
+
+describe("C1 — assembly order [shell → Return constant → Round context tail]", () => {
+  beforeEach(() => resetTemplateCaches());
+
+  it("rendered prompt keeps ## Handoff (last static section) before ## Return; the four-line H1 block only exists in the Return constant", () => {
     for (const mode of ["implement", "fix"] as const) {
       const out = renderModePrompt(mode, IMPLEMENT_PARAMS);
-      const handoffIdx = out.indexOf("## Handoff");
-      const retIdx = out.indexOf("## Return");
+      const handoffIdx = heading(out, "Handoff");
+      const retIdx = heading(out, "Return");
       expect(handoffIdx).toBeGreaterThan(-1);
       expect(retIdx).toBeGreaterThan(handoffIdx);
-      // The shared H1 four-line return contract (RETURN_STDOUT_BLOCK body) must be tail-only.
+      expect(heading(out, "Round context")).toBeGreaterThan(retIdx); // 动态区绝对末尾
+      // The shared H1 four-line return contract (RETURN_STDOUT_BLOCK constant body) must be
+      // tail-only, and the dynamic Round context must be the final `## ` section.
       expect(out.indexOf("status: <APPROVED|BLOCKED>")).toBeGreaterThan(retIdx);
       expect(out.indexOf("status: <APPROVED|BLOCKED>")).toBeGreaterThan(handoffIdx);
-      // The static zone excludes the Return section entirely (no variant heading leaks up).
-      expect(staticZoneOf(out)).not.toContain("## Return");
+      expect(staticZoneOf(out)).not.toMatch(/^## Return$/m); // static zone carries no Return heading
     }
   });
 
-  it("dispatch set assembly = [registry prefix] + prompt: the /mattpocock-skills prefix line precedes the template title", () => {
+  it("dispatch set assembly = [registry prefix] + prompt: the /mattpocock-skills prefix line precedes the unified shell title", () => {
     const reg = loadRegistry(REG_PATH);
     const prompt = renderModePrompt("implement", IMPLEMENT_PARAMS);
     const set = composeDispatchSet(reg.claude, { op: "implement" }, prompt, "/ws", { PATH: "/usr/bin" });
     const promptArg = set.args.at(-1) as string;
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd"); // prefix line first
-    const titleIdx = promptArg.indexOf("# CDD implement");
-    expect(titleIdx).toBeGreaterThan(promptArg.indexOf("/mattpocock-skills:tdd")); // shell after prefix
-    expect(promptArg).toContain("status: <APPROVED|BLOCKED>"); // variant payload present, tailed
+    const titleIdx = promptArg.indexOf("# CDD dispatch — CLI session"); // 统一壳字面头
+    expect(titleIdx).toBeGreaterThan(promptArg.indexOf("/mattpocock-skills:tdd"));
+    expect(promptArg).toContain("status: <APPROVED|BLOCKED>"); // four-line contract present, tailed
   });
 });
 
 describe("C2/C3 — structural single source + deterministic serialization", () => {
   beforeEach(() => resetTemplateCaches());
 
-  it("staticShellKey is canonical and env-independent: same params any key order → same key; values are order-stable", () => {
-    const a = staticShellKey("implement", { B: "2", A: "1" });
-    const b = staticShellKey("implement", { A: "1", B: "2" }); // different insertion order, same values
-    expect(a).toBe(b);
-    expect(staticShellKey("implement", { A: "1", B: "3" })).not.toBe(a);
+  it("canonical round-key: same params in any insertion order → same rendered tail (memoized once); the shell has no key surface (parameterless)", () => {
+    const a = renderTemplate("implement", { ...IMPLEMENT_PARAMS, RETURN_FORMAT: "RETURN_STDOUT_BLOCK" });
+    resetTemplateCaches();
+    // Different insertion order, same value set (identical keys, reverse listing) → byte-identical
+    // render + single tail materialization. The memo key is the SORTED canonical params (insertion
+    // order never factors in — the canonical-key contract that staticShellKey used to hold).
+    const flipped: Record<string, string> = {
+      RETURN_FORMAT: "RETURN_STDOUT_BLOCK",
+      REVIEW_PLAN_LINE: IMPLEMENT_PARAMS.REVIEW_PLAN_LINE,
+      TASK_NUMBER: IMPLEMENT_PARAMS.TASK_NUMBER,
+      TASK_FIXED_POINT: IMPLEMENT_PARAMS.TASK_FIXED_POINT,
+      TASK_CONSTRAINTS: IMPLEMENT_PARAMS.TASK_CONSTRAINTS,
+      TASK_FINDINGS: IMPLEMENT_PARAMS.TASK_FINDINGS,
+      TASK_BRIEF: IMPLEMENT_PARAMS.TASK_BRIEF,
+      WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
+      HANDOFF_TARGET: IMPLEMENT_PARAMS.HANDOFF_TARGET,
+      TASK_WORKSPACE: IMPLEMENT_PARAMS.TASK_WORKSPACE,
+    };
+    const b = renderTemplate("implement", flipped);
+    expect(staticZoneOf(b)).toBe(staticZoneOf(a)); // static zone byte-frozen (parameterless shell)
+    expect(b).toBe(a);
+    expect(templateCacheStats().staticShellRenders).toBe(1); // one tail materialization, no double-render
   });
 
   it("schema injection is byte-deterministic and canonical-key-ordered (C3)", () => {
@@ -88,28 +120,31 @@ describe("C2/C3 — structural single source + deterministic serialization", () 
   });
 });
 
-describe("C4 — re-dispatch byte reuse (static zone memoized; memoize assertion)", () => {
+describe("C4 — parameterless shell: re-dispatch zero re-render; param change re-renders the tail only", () => {
   beforeEach(() => resetTemplateCaches());
 
   it("first render materializes the cache; an identical re-dispatch does zero re-read / re-compile / re-render", () => {
     const first = renderModePrompt("implement", IMPLEMENT_PARAMS);
     const statsAfterFirst = templateCacheStats();
-    expect(statsAfterFirst.reads).toBe(1); // template source read once
+    expect(statsAfterFirst.reads).toBe(1); // contract source read once
     const second = renderModePrompt("implement", IMPLEMENT_PARAMS); // same (op,type) + same params
-    expect(templateCacheStats()).toEqual(statsAfterFirst); // zero re-render of the static zone
+    expect(templateCacheStats()).toEqual(statsAfterFirst); // zero re-render of any zone
     // The static zone is FROZEN — same string reference, not just equal bytes.
     expect(staticZoneOf(second)).toBe(staticZoneOf(first));
   });
 
-  it("a param change re-renders the static zone once but reuses the frozen read + compiled product", () => {
+  it("a param change re-renders ONLY the Round-context tail once; shell + Return constant stay byte-FROZEN (C4 升格)", () => {
     renderModePrompt("implement", IMPLEMENT_PARAMS);
     const s1 = templateCacheStats();
     const other = renderModePrompt("implement", { ...IMPLEMENT_PARAMS, TASK_NUMBER: "8" });
     const s2 = templateCacheStats();
-    expect(s2.reads).toBe(s1.reads); // file not re-read
-    expect(s2.compiles).toBe(s1.compiles); // compiled product frozen per (op,type)
-    expect(s2.staticShellRenders).toBe(s1.staticShellRenders + 1); // exactly one re-render
-    expect(staticZoneOf(other)).not.toBe(staticZoneOf(renderModePrompt("implement", IMPLEMENT_PARAMS)));
+    expect(s2.reads).toBe(s1.reads); // contract not re-read
+    expect(s2.compiles).toBe(s1.compiles); // compiled Round-context product frozen once
+    expect(s2.staticShellRenders).toBe(s1.staticShellRenders + 1); // exactly one (distinct) tail re-render
+    // INVERTED (vs pre-Task-20): the static zone — whole shell before `## Return` — is byte-FROZEN.
+    const base = renderModePrompt("implement", IMPLEMENT_PARAMS);
+    expect(staticZoneOf(other)).toBe(staticZoneOf(base));
+    expect(other.slice(heading(other, "Return"))).not.toBe(base.slice(heading(base, "Return"))); // tail differs
   });
 
   it("resetTemplateCaches clears the module cache (fresh reads on next render)", () => {
@@ -130,10 +165,10 @@ describe("C4 — re-dispatch byte reuse (static zone memoized; memoize assertion
 
 describe("⑧ — byte-invariant guard: static zones carry zero volatile literals", () => {
   // Degenerate guardrail — the primary mechanism is structural single-source (C2: skeleton/
-  // segments driven from template-contract.json + token registry). This test scans the STATIC
-  // segment (before `## Return`) of each shipped template for hardcoded volatile values:
-  // time/date literals, absolute paths, round labels, task-N handoff paths. Everything volatile
-  // must ride a {{TOKEN}} (the token registry keeps that contract).
+  // zone segments driven from template-contract.json + zone-tagged token registry). Task 20 ⑧:
+  // rescoped from per-file static scans to the shipped contract's zones — the shell + every
+  // Return constant are literal constants (zero volatile values, zero moustache); per-dispatch
+  // values ride the Round-context slots instead. Everything volatile must stay off these bytes.
   const VOLATILE_PATTERNS: Array<[string, RegExp]> = [
     ["ISO date literal", /\b\d{4}-\d{2}-\d{2}\b/],
     ["clock time literal", /\b\d{1,2}:\d{2}\b/],
@@ -143,26 +178,37 @@ describe("⑧ — byte-invariant guard: static zones carry zero volatile literal
     ["task-N handoff path literal", /task-\d+-(implement|report|test-evidence|review|fix)\b/],
   ];
 
-  it("every shipped template's static zone passes the volatile-literal scan", () => {
-    for (const rel of Object.values(TEMPLATE_FILES)) {
-      const src = readFileSync(path.join(TEMPLATES, rel), "utf8");
-      const i = src.indexOf("## Return");
-      const staticZone = i < 0 ? src : src.slice(0, i);
-      expect(staticZone, rel).toContain("## Handoff"); // sanity: static zone includes Instructions+Handoff
+  it("the contract's static zones (shell + return constants) pass the volatile scan; shell is zero-moustache", () => {
+    const contract = loadTemplateContract();
+    for (const [zone, lines] of [
+      ["shell", contract.sections.shell],
+      ...Object.entries(contract.sections.return),
+    ] as Array<[string, string[]]>) {
+      const src = lines.join("\n");
+      expect(src, zone).toBeTruthy();
       for (const [name, re] of VOLATILE_PATTERNS) {
-        expect(staticZone.match(re), `${rel}: ${name}`).toBeNull();
+        expect(src.match(re), `${zone}: ${name}`).toBeNull();
       }
     }
+    // 壳零注入（④ 断言镜像：单文件数据面直读）
+    expect(contract.sections.shell.join("\n")).not.toContain("{{");
   });
 
-  it("the two-part structure is data-forced: skeleton.segments.static|variant matches the byte plane", () => {
+  it("the zone plane is data-forced: validateShippedTemplates passes on the shipped contract", () => {
+    expect(validateShippedTemplates()).toEqual(["shell", "return", "round-context"]);
     const contract = loadTemplateContract();
-    expect(contract.skeleton.order).toEqual(["title", "context", "instructions", "handoff", "return"]);
-    expect(contract.skeleton.segments.variant).toEqual(["return"]); // variant payload = the Return segment
-    for (const rel of Object.values(TEMPLATE_FILES)) {
-      const src = readFileSync(path.join(TEMPLATES, rel), "utf8");
-      const retIdx = src.indexOf("## Return");
-      expect(retIdx).toBeGreaterThan(src.indexOf("## Handoff")); // Return is the final section
+    expect(contract.skeleton.order).toEqual(["shell", "return", "round-context"]);
+    expect(contract.skeleton.segments).toEqual({
+      shell: ["Instructions", "Handoff"],
+      return: ["Return"],
+      "round-context": ["Round context"],
+    });
+  });
+
+  it("no shipped template files remain on disk (渲染数据平面单文件：四 .md 并入 sections)", () => {
+    expect(readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8")).toContain('"$version": 2');
+    for (const rel of ["task/implement.md", "task/fix.md", "docs/review.md", "docs/fix.md"]) {
+      expect(() => readFileSync(path.join(TEMPLATES, rel), "utf8")).toThrow(); // 文件已删 —— 读取即抛 ENOENT
     }
   });
 });

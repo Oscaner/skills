@@ -819,6 +819,7 @@ it("runTask: round-2 buildCtx derives task-1-review-2.json + buildPromptParams �
 
   const params = buildPromptParams(ctx, 1);
   expect(params.TASK_WORKSPACE).toBe(ws);
+  expect(params.WORKSPACE_SLUG).toBe(path.basename(ws));   // Task 20 ⑦ canonical slug 槽（同源 workspaceSlug）
   expect(params.HANDOFF_TARGET).toBe(ctx.handoffPath);
   expect(params.TASK_BRIEF).toBe(ctx.briefPath);
   expect(params.TASK_CONSTRAINTS).toBe(ctx.constraintsPath);

@@ -144,7 +144,7 @@ describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
 });
 
 describe("live repo：5c 同源扫描零残留", () => {
-  it("collectStaleLexiconHits() === []（templates/fix.md 与 engine 测试同样入扫）", () => {
+  it("collectStaleLexiconHits() === []（template-contract.json 与 engine 测试同样入扫）", () => {
     expect(collectStaleLexiconHits()).toEqual([]);
   });
 });

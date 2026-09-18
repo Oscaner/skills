@@ -7,7 +7,8 @@
 // the base implements one, no fork).
 //   Pre-flight:  resolveContext derives root (injected / engine single root) + guards the
 //                canonical handoffPath; dry-run finishes immediately (no gates, no spawn).
-//   Dispatch:    prompt render (schema verbatim + fixed HANDOFF_WRITE_GATE) → spawn the docs agent CLI.
+//   Dispatch:    prompt render (single composition pass: shell schema verbatim + round-context
+//                HANDOFF_WRITE_GATE) → spawn the docs agent CLI.
 //   Post-flight: handoff read + unparseable/schema-invalid BLOCKED handling (writeBlocked) +
 //                review/fix finalization; the exit gate (override commitPostCheck) runs
 //                validateCommitContract — docs fix dispatch's exit-gate gap (P5 落点 2) is
@@ -31,9 +32,9 @@ import { exitWithCode, ExitRequested } from "../infra/exit.ts";
 import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { finalizeHandoff, persistFinalized } from "../artifacts/handoff/finalize.ts";
 import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
-import { loadHandoffSchema, validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
+import { validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
 import { validateCommitContract } from "../rules/commit.ts";
-import { renderHandoffSchemaJson, renderTemplate, reviewHardGate, docsFixHardGate, HANDOFF_SCHEMA_JSON_SLOT } from "../render/templates.ts";
+import { renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
 import { hashFile } from "./review-loop.ts";
 
 export interface DocsLifecycleOptions {
@@ -163,36 +164,39 @@ export class DocsLifecycle extends DispatchLifecycle {
 
   // ---- dispatch ----
 
-  /** Steps 7+8: render the prompt (two-pass: first renderTemplate for {{DOCS_DOC}}/{{DOCS_FINDINGS}}/
-   * {{HANDOFF_TARGET}}/{{HANDOFF_WRITE_GATE}}, then replace {{HANDOFF_SCHEMA_JSON}} with the raw schema), then spawn the
-   * docs agent CLI (cwd = repo root — Bug L fix; env = host env so invokeCli's cleanEnv strips
-   * credentials). */
+  /** Steps 7+8: render the prompt (single composition pass: shared shell embeds the schema block;
+   * ## Return + ## Round context render on top — the round-context slots carry the per-dispatch
+   * real values incl. the HANDOFF_WRITE_GATE), then spawn the docs agent CLI (cwd = repo root —
+   * Bug L fix; env = host env so invokeCli's cleanEnv strips credentials). */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return; // early-finished rounds (dry-run / blocked pre-flight) skip the spawn
     const { mode, type, doc, template, params = {}, handoffPath, harness } = this.#opts;
-    // Two-pass render (T3 URC after: fix templates take the canonical fixTemplate value "docs"
-    // directly — the `-review`→`-fix` legacy derivation branch is gone; docs fix must not
-    // double-suffix).
-    const schema = loadHandoffSchema("docs");
-    const stub = renderHandoffSchemaJson(schema);
-    let prompt = renderTemplate(
+    // Single-pass composition render (T3 URC after: fix templates take the canonical fixTemplate
+    // value "docs" directly — the `-review`→`-fix` legacy derivation branch is gone; docs fix must
+    // not double-suffix). Computed dispatch facts win over caller params (last-wins): RETURN_FORMAT
+    // routes the return constant — fix → DOCS_FIX (docs fix's return IS the file; no JSON return on
+    // stdout), review → RETURN_JSON — an explicit fix-mode value prevents the family-returnFormat
+    // (fix.spec/plan says RETURN_JSON) from misrouting the docs-fix prompt to the JSON-return
+    // constant. No `{{HANDOFF_SCHEMA_JSON}}` replace remains — the schema lives verbatim in the shell.
+    const prompt = renderTemplate(
       template,
       {
+        MODE: mode,
         DOCS_DOC: doc,
         DOCS_FINDINGS: this.#opts.findingsPath ?? "",
         HANDOFF_TARGET: handoffPath ?? "",
-        // Task 18 review-1 finding 2: the shared Handoff shell's {{HANDOFF_WRITE_GATE}} slot
-        // dispatches by return semantics — the review family defaults to the RETURN_JSON write gate
-        // (review.mjs passes its self-computed value via params, ...params spread after → explicit
-        // injection wins); the fix family = the docs write gate (fix's return is the file itself;
-        // stdout has no JSON return — reviewHardGate's "before outputting the JSON return"
-        // self-contradicts for a fix agent — reviewHardGate must not be reused).
-        HANDOFF_WRITE_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("RETURN_JSON", handoffPath ?? ""),
         ...params,
+        // Task 20 ⑥ 门面去路径化: the was-gate prose is byte constant; the gate VALUE (real
+        // handoff path) rides the `### HANDOFF_WRITE_GATE` round-context slot. The review family
+        // gate dispatches by return semantics (retrieve a fixed 'json-return' write gate — the
+        // return is a JSON object on stdout); the fix family = the docs write gate (fix's return is
+        // the file itself; stdout has no JSON return — reviewHardGate's "before outputting the
+        // JSON return" self-contradicts for a fix agent — reviewHardGate must not be reused).
+        RETURN_FORMAT: mode === "fix" ? "DOCS_FIX" : "RETURN_JSON",
+        HANDOFF_WRITE_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("RETURN_JSON", handoffPath ?? ""),
       },
       "docs-runner",
     );
-    prompt = prompt.replace(HANDOFF_SCHEMA_JSON_SLOT, stub);
 
     // Spawn agent using the harness registry (provides -p, --output-format, etc.).
     // invokeCli injection params = (op, type) — review/fix resolve prefix.review[type?] /

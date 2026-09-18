@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/validate/index.ts — validate orchestration (`node scripts/run.ts
 // validate` / standalone `node scripts/validate/index.ts`). Composes the 12
-// per-block step descriptors from scripts/validate/*.mjs into the original run
+// per-block step descriptors from scripts/validate/*.ts into the original run
 // order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers
 // coverage is not dropped. The runner loop + isMain guard live in runner.ts.

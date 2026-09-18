@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/lib-tests.ts — block 7: scripts unit tests (vitest).
-// vitest.config.mjs include: scripts/**/*.test.mjs.
+// vitest.config.mjs include: scripts/**/*.test.ts.
 
 import { execaSync } from "execa";
 import { resolve, dirname } from "node:path";

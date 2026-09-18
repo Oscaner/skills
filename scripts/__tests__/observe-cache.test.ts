@@ -72,6 +72,11 @@ describe("parseArgs — presence-based booleans + value-taking options", () => {
     expect(b.rounds).toBe(3);
     expect(b.flag).toBe("--debug");
   });
+
+  it("rejects a zero or non-numeric task (citty enforces presence only, not the integer boundary)", () => {
+    expect(() => parseArgs(["--", "ws", "0", "implement"])).toThrow(/positive integer/);
+    expect(() => parseArgs(["--", "ws", "abc", "implement"])).toThrow(/positive integer/);
+  });
 });
 
 describe("priorHandoffPaths — measurement-mode cross-phase derivation (mirrors dispatch/task.ts)", () => {

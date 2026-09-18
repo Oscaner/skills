@@ -102,12 +102,21 @@ export function parseArgs(argv: string[]): {
   // `--debug` is the real non-interactive claude -p flag (emits usage/cache stats to stderr);
   // `--cost` only survives as an explicit opt-in for harnesses that accept it. Presence, not
   // value: `--cost=false` still opts in (the forwarded flag spelling is the only thing measured).
+  const task = Number(args.task);
+  // citty enforces positional PRESENCE only; the numeric boundary is this wrapper's (same guard
+  // as the retired hand-rolled parser — its `!task` rejected 0/NaN). Without it `-- ws 0` /
+  // `-- ws abc` would flow through and render `task-0-brief.md` / `task-NaN-brief.md`.
+  if (!Number.isInteger(task) || task < 1) {
+    throw new Error(
+      "usage: observe-cache [--harness claude] [--rounds 2] [--cost|--debug] -- <workspace> <task> <mode> — task must be a positive integer",
+    );
+  }
   return {
     harness: args.harness,
     rounds: Number(args.rounds ?? 2),
     flag: args.cost !== undefined ? "--cost" : "--debug",
     workspace: args.workspace,
-    task: Number(args.task),
+    task,
     mode: args.mode,
   };
 }

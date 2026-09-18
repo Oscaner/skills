@@ -29,6 +29,10 @@ import type { CommandDef, SubCommandsDef } from "citty";
 // citty renders usage/help with ANSI color — this entry prints plain text (Commander-era parity +
 // deterministic test surface). Stripping happens at the two print points below, never via env
 // mutation.
+// plain()/ANSI_RE duplicate engine src/bin.ts's by design: importing bin.ts boots its signal
+// handlers + main(), and parse.ts pulls the whole dispatch graph — both defeat the lazy-load
+// requirement (Task 21 ①). This copy is the fuller CSI/OSC pattern (citty emits title-escapes);
+// keep the two in sync.
 const ANSI_RE = /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
 function plain(text: unknown): string {
   return String(text).replace(ANSI_RE, "");

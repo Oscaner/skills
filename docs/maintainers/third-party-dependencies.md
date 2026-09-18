@@ -43,7 +43,7 @@ Remaining dev-only toolchain (registered; no hand-written counterpart — build/
 
 ## Retired at the CLI surface: `commander`
 
-`commander` was replaced by `citty` for the `cdd` CLI (Task 9) and then for the repo-internal orchestration tool `scripts/run.ts` — alongside the `scripts/observe-cache.ts` hand-rolled argv loop — in P6 Task 21. The root `commander` declaration is pruned and nothing imports it: citty is the single CLI framework over both surfaces (`packages/cdd-engine/src/cli/parse.ts` + `scripts/run.ts` declare the same exit-code table §2.4.2: 0 = OK incl. `--help`, 1 = command failure, 2 = usage/parse error). Do not re-add `commander` at the root; the lockfile holds only `citty`.
+`commander` was replaced by `citty` for the `cdd` CLI (Task 9) and then for the repo-internal orchestration tool `scripts/run.ts` — alongside the `scripts/observe-cache.ts` hand-rolled argv loop — in P6 Task 21. The root `commander` declaration is pruned and nothing imports it: citty is the single CLI framework over both surfaces (`packages/cdd-engine/src/cli/parse.ts` + `scripts/run.ts` declare the same exit-code table §2.4.2: 0 = OK incl. `--help`, 1 = command failure, 2 = usage/parse error). Do not re-add `commander` at the root; the root importer declares none — the only remaining lockfile snapshot is a transitive `commander@11.1.0` (a dependency of another package), not a root dep.
 
 ## Not-adopted (registered so future work does not re-adopt)
 

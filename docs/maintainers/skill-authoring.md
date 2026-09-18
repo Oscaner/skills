@@ -1,6 +1,6 @@
 # Skill Authoring Specification
 
-- **Version**: v1.2 · 2026-09-16
+- **Version**: v1.3 · 2026-09-18
 - **Scope**: Sole format authority for osuperpowers skill SKILL.md authoring (node-anchored form, post-P4)
 - **Audience**: This repository's maintainers + AI agents authoring skills
 - **Language**: English primary (authoritative source; no zh-CN mirrors)
@@ -122,11 +122,34 @@ A delegated skill may still contain native engine-CLI nodes (the spec-writers, f
 
 ## 8. Graph–Prose Consistency (single enforcement point)
 
-The four acceptance checks over every SKILL.md under `packages/osuperpowers/skills/` — node coverage, section alignment, no standalone `## Rules`, no standalone `## Red Flags` — are enforced by a single machine check: `packages/osuperpowers/tests/digraph-consistency.test.mjs` (no exemptions). Non-mechanical authoring judgment (naming, phrasing, rule placement) is manual.
+The digraph integrity checks over every SKILL.md under `packages/osuperpowers/skills/` are enforced by a single machine check: `packages/osuperpowers/tests/digraph-consistency.test.mjs` (no exemptions). The check runs the three flow-atomicity assertions (spec E1):
+
+- **Assertion 1 — bidirectional completeness**: the digraph's operator-node set and the per-node definitions (the `###` node headings) are mutually covering — every flow node has a node definition (no dangling nodes) and every node definition names a flow node (no orphan sections). Decision diamonds are flow-routing and stay exempt from the required-definition side, but a diamond that *does* define a node must still map to a digraph node.
+- **Skeleton discipline**: no standalone `## Rules` and no standalone `## Red Flags` sections.
+- **Assertion 2 — skeleton isomorphism**: the writing-* spec-writer trio (single / overall / phase-spec) share an identical review-loop / commit / handoff skeleton. Family deltas are registered via each skill's `## Skeleton deltas` table — the table is the validation input: a skill's handoff node must match the value its table declares, and any divergence between siblings that the tables do not register fails.
+- **Assertion 3 — growth signal**: every skill's digraph node/edge counts are reported on every run; a digraph crossing the growth boundary without a `## Full Flow Refactor Rationale` section fails (see §9).
+
+Non-mechanical authoring judgment (naming, phrasing, rule placement) is manual.
 
 **Engine test naming & placement:** within `packages/cdd-engine/`, tests are colocated with the tested source — every test node is a TypeScript `*.test.ts` living at `src/<module>/__tests__/` (new engine tests land there first, never in a top-level `tests/` dir — retired since P6 Task 3). The engine's vitest include is the single glob `['src/**/__tests__/**/*.test.ts']`, and validate 5c asserts the engine's `.mjs` plane stays at zero.
 
-## 9. Anti-patterns (Node-anchored SKILL.md)
+## 9. Flow Change Discipline
+
+A skill's flow is its digraph, and the digraph is the sole control-flow source of truth — so a flow change is never a single-node edit. Any change to a skill's flow (a new node, a re-wired edge, a new failure surface, a renamed node, an Exit re-route) runs the whole-flow review **before** it lands:
+
+1. **Re-read the entire flow first** — the digraph, every node's Do/Read/Exit/Fail, the Failure Modes table, and the Invariants. Read the node being touched *last*; understand the graph the change lands in first.
+2. **Shape-fit judgment** — classify the change before editing:
+   - **Instance of an existing pattern** — the change reuses a shape the skill (or its siblings) already carries, e.g. a second review-loop arm or another handoff branch. Land it by cloning the pattern uniformly; do not hand-roll a variant.
+   - **New shape** — the skill needs a structural shape no sibling uses. Scope it to this single skill and keep it as small as the flow allows.
+   - **Bloat signal** — the digraph's node/edge count is at or past the growth boundary (below). Significant growth is a defect signal, not permission: the change MUST come with a `## Full Flow Refactor Rationale` section in the SKILL.md explaining why the whole flow needs the added weight — what the flow gained, and why subdivision, a rewrite, or the sibling-uniform option was rejected.
+3. **Adjust siblings uniformly** — when a shared skeleton is touched (the spec-writer trio's review-loop / commit / handoff shape, or any pattern instance cloned across siblings), every sibling carrying the shape is adjusted in the same change. Family deltas are registered in each skill's `## Skeleton deltas` table (the validation input for the skeleton-isomorphism assertion, §8); an unregistered divergence between siblings fails validation.
+4. **Land the change last** — only after 1–3. A change that lands and gets justified afterwards is an unregistered delta on the next validate run.
+
+### Growth boundary
+
+A skill whose digraph carries more than **15 nodes** or more than **17 edges** (all node types and edges counted, re-declarations deduplicated) has crossed the growth boundary. Crossing is permitted for a documented reason, but the skill MUST include the `## Full Flow Refactor Rationale` section — the growth-signal assertion (§8) reports every skill's node/edge counts on every validate run and fails when a crossed skill lacks the section.
+
+## 10. Anti-patterns (Node-anchored SKILL.md)
 
 Anti-patterns organized by the anatomy element where they manifest.
 When auditing a node, check only the patterns relevant to that element.
@@ -163,7 +186,7 @@ When auditing a node, check only the patterns relevant to that element.
 
 Behavioral logic in SKILL.md, templates, and docs must not reference GitHub issue numbers as authoritative sources. Issues are the forum for design discussion; once conclusions are committed to documentation, issue numbers should be removed from behavioral logic. Issue references in change history are exempt.
 
-## 10. Data-driven Template Convention
+## 11. Data-driven Template Convention
 
 When a new skill introduces template body text that is data-izable — text-shaped, referenced by multiple consumers, drift-prone (form field definitions, enumeration lists, section-label tables, issue-template bodies) — route it through the data-driven-templates convention: **canonical JSON single source → one pure renderer → emitted/derived products guarded by `pnpm run emit:check`**. Nodes defined here apply to prose control flow; template body text follows [data-driven-templates.md](data-driven-templates.md) (digraph `canonical → renderer → {emit product · runtime product} → round-trip guard`).
 
@@ -171,6 +194,7 @@ When a new skill introduces template body text that is data-izable — text-shap
 
 ## Change history
 
+- v1.3 · 2026-09-18 — Add §9 flow change discipline (whole-flow re-read · shape-fit judgment · sibling-uniform adjustment · growth boundary) and rework §8 into the three digraph integrity assertions (bidirectional completeness / skeleton isomorphism / growth signal), moved §9–10 to §10–11.
 - v1.2 · 2026-09-16 — Post-P4 rewrite: session-call primitive + delegated/native forms (§7); §8 collapsed to the single machine enforcement point (`digraph-consistency.test.mjs`); deleted §7 init legacy exemption (init removed) and §9 P3 path-string boundary (elapsed); §4 closes the spec-authorized exception escape hatch (limit remains a hard 5); language updated to English primary (zh-CN mirrors retired).
 - v1.1 · 2026-09-08 — Add §11 Data-driven template convention (data-izable template body text → canonical + renderer + emit guard).
 - v1.0 · 2026-08-26 — Initial version (P3 docs-infra): 9-section skeleton + read-grilling illustrative example + init legacy exemption rule.

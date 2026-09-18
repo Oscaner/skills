@@ -818,13 +818,13 @@ it("runTask: round-2 buildCtx derives task-1-review-2.json + buildPromptParams �
   expect(ctx.handoffPath.endsWith("task-1-review-2.json")).toBe(true);
 
   const params = buildPromptParams(ctx, 1);
-  expect(params.WORKSPACE).toBe(ws);
-  expect(params.HANDOFF).toBe(ctx.handoffPath);
-  expect(params.BRIEF).toBe(ctx.briefPath);
-  expect(params.CONSTRAINTS).toBe(ctx.constraintsPath);
-  expect(params.FINDINGS).toBe(ctx.findingsPath);
-  expect(params.TASK).toBe("1");
-  expect(params.PLAN_LINE).toBe(`**Plan:** ${ctx.plan}`);
+  expect(params.TASK_WORKSPACE).toBe(ws);
+  expect(params.HANDOFF_TARGET).toBe(ctx.handoffPath);
+  expect(params.TASK_BRIEF).toBe(ctx.briefPath);
+  expect(params.TASK_CONSTRAINTS).toBe(ctx.constraintsPath);
+  expect(params.TASK_FINDINGS).toBe(ctx.findingsPath);
+  expect(params.TASK_NUMBER).toBe("1");
+  expect(params.REVIEW_PLAN_LINE).toBe(`**Plan:** ${ctx.plan}`);
 });
 
 // ---- T4: mode 归一（review）----

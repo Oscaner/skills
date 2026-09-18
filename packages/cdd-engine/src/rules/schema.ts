@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 
 import { rollupStatus } from "../artifacts/handoff/finalize.ts";
+import { loadEngineConfig } from "../infra/config.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // From src/rules/ → packages/cdd-engine/ (2 levels up — same relative depth as the legacy copy).
@@ -38,7 +39,7 @@ function getEntry(schemaName = "task") {
   return entry;
 }
 
-// Returns the raw JSON Schema object (for renderHandoffStub).
+// Returns the raw JSON Schema object (for renderHandoffSchemaJson).
 export function loadHandoffSchema(schemaName = "task"): unknown {
   return getEntry(schemaName).schema;
 }
@@ -148,8 +149,10 @@ export function recoverHandoff(
 }
 
 // handoff-namespace canonical read point (spec §2.13 rules/schema.ts row): workspaceRoot +
-// family table (name / round semantics / prev) are declared once in templates/handoff-namespace.json;
-// artifact/naming consumers (naming.ts in Task 8) read it here instead of a second literal copy.
+// family table (name / round semantics / prev) are declared once in templates/engine-config.json
+// #handoffNamespace (Task 5 单文件归并); artifact/naming consumers (naming.ts in Task 8) read it
+// here instead of a second literal copy. Public seam kept (rules.schema.test 仍测本导出) —
+// 值源改为 config.ts 单点（D1.5 ⑤）。
 export function loadHandoffNamespace(): unknown {
-  return JSON.parse(readFileSync(path.join(PKG_ROOT, "templates", "handoff-namespace.json"), "utf8"));
+  return loadEngineConfig().handoffNamespace;
 }

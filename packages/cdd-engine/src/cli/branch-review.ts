@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.ts";
-import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, REVIEW_H1_BLOCK, reviewHardGate, renderHandoffStub } from "../render/templates.ts";
+import { renderTemplate, reviewTypeConfig, reviewArtifactConfig, RETURN_STDOUT_BLOCK, reviewHardGate, renderHandoffSchemaJson, HANDOFF_SCHEMA_JSON_SLOT } from "../render/templates.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { validateHandoffSchema, loadHandoffSchema, recoverHandoff } from "../rules/schema.ts";
 import { writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
@@ -143,30 +143,30 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
       return;
     }
 
-    // branch review routes through the shared shell review.md (reviews.json type=branch content
-    // config + canonical branch-family artifact params) + the H1 four-line contract.
+    // branch review routes through the shared shell docs/review.md (template-contract reviews
+    // type=branch content config + canonical branch-family artifact params) + the H1 four-line
+    // contract. HANDOFF_TARGET merge = path only (schema bytes self-describe).
     const cfg = reviewTypeConfig("branch");
     const art = reviewArtifactConfig("branch");
     let prompt = renderTemplate("review", {
-      TYPE: "branch",
-      WORKSPACE: workspace,
-      LENS_GUIDE: cfg.lensEnum.join(" · "),
-      REFERENCE: `${base}..${head}`,
-      AXES: cfg.axesGuide,
-      HANDOFF: handoffPath,
-      HANDOFF_TYPE: art.schema,
-      RETURN_MODE: art.return,
-      H1_BLOCK: REVIEW_H1_BLOCK,
-      PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
-      HARD_GATE: reviewHardGate(art.return, handoffPath),
+      REVIEW_TYPE: "branch",
+      TASK_WORKSPACE: workspace,
+      REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
+      REVIEW_REFERENCE: `${base}..${head}`,
+      REVIEW_AXES: cfg.axesGuide,
+      HANDOFF_TARGET: handoffPath,
+      RETURN_FORMAT: art.return,
+      RETURN_STDOUT_BLOCK: RETURN_STDOUT_BLOCK,
+      REVIEW_PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
+      HANDOFF_WRITE_GATE: reviewHardGate(art.return, handoffPath),
     }, "cdd review");
-    // HANDOFF_STUB: the shared-shell slot must be replaced explicitly on this path (the docs path
-    // handles it in runDocsTask, the runner path in renderModePrompt). Task 18: stub = schema
+    // HANDOFF_SCHEMA_JSON: the shared-shell slot must be replaced explicitly on this path (the docs
+    // path handles it in runDocsTask, the runner path in renderModePrompt). Task 18: stub = schema
     // verbatim injection (zero render; the truth-value surface of phase/review_scope/commits.base
     // was deleted with the handwritten render — the contract lives in the schema body + its
     // descriptions).
-    prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g,
-      renderHandoffStub(loadHandoffSchema("task")));
+    prompt = prompt.replace(HANDOFF_SCHEMA_JSON_SLOT,
+      renderHandoffSchemaJson(loadHandoffSchema("task")));
 
     // Invoke harness CLI. (op,type) injection resolves into prefix.review.branch (the old
     // branch-review standalone bin is deleted, its logic inlined here).

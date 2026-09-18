@@ -51,7 +51,7 @@
       "required": [
         "base"
       ],
-      "description": "commit identity of the dispatch's review/fix range; the reviews.json check at 13.5 validates it.",
+      "description": "commit identity of the dispatch's review/fix range; the template-contract review range check at 13.5 validates it.",
       "properties": {
         "base": {
           "type": "string",

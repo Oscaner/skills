@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$version": 1,
+  "skeleton": {
+    "sections": ["Instructions", "Handoff", "Return"],
+    "segments": {
+      "static": ["title", "context", "instructions", "handoff"],
+      "variant": ["return"]
+    },
+    "order": ["title", "context", "instructions", "handoff", "return"]
+  },
+  "tokens": [
+    "DOCS_DOC",
+    "DOCS_FINDINGS",
+    "HANDOFF_SCHEMA_JSON",
+    "HANDOFF_TARGET",
+    "HANDOFF_WRITE_GATE",
+    "RETURN_FORMAT",
+    "RETURN_STDOUT_BLOCK",
+    "REVIEW_AXES",
+    "REVIEW_LENS_GUIDE",
+    "REVIEW_PLAN_LINE",
+    "REVIEW_REFERENCE",
+    "REVIEW_TYPE",
+    "TASK_BRIEF",
+    "TASK_CONSTRAINTS",
+    "TASK_FINDINGS",
+    "TASK_FIXED_POINT",
+    "TASK_NUMBER",
+    "TASK_WORKSPACE"
+  ],
+  "clauses": {},
+  "reviews": {
+    "task": {
+      "lensEnum": [
+        "standards",
+        "spec"
+      ],
+      "ref": "TASK_BASE..HEAD",
+      "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements); single agent, dual axis, no parallel sub-agents"
+    },
+    "branch": {
+      "lensEnum": [
+        "standards",
+        "spec"
+      ],
+      "ref": "BASE..HEAD",
+      "axesGuide": "Same dual axis as task (branch-wide health: diff BASE..HEAD + plan conformance)"
+    },
+    "spec": {
+      "lensEnum": [
+        "completeness",
+        "consistency",
+        "clarity"
+      ],
+      "ref": "doc vs spec",
+      "axesGuide": "Follow URC: single-cycle; lens-tag every finding (completeness / consistency / clarity)"
+    },
+    "plan": {
+      "lensEnum": [
+        "completeness",
+        "decomposition",
+        "buildability"
+      ],
+      "ref": "doc vs spec",
+      "axesGuide": "Follow URC: spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability)"
+    }
+  }
+}

@@ -51,9 +51,10 @@ vi.mock("../../infra/registry.ts", async () => {
 
 vi.mock("../../render/templates.ts", () => ({
   PKG_ROOT: "/mock/pkg/root",
-  renderHandoffStub: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
+  renderHandoffSchemaJson: vi.fn(() => '{"phase":"review","status":"APPROVED","findings":[],"artifacts":{},"doc_path":""}'),
   renderTemplate: vi.fn(() => "mocked docs review prompt"),
-  reviewHardGate: vi.fn((returnMode, handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE outputting the JSON return.`),
+  HANDOFF_SCHEMA_JSON_SLOT: "{{HANDOFF_SCHEMA_JSON}}",
+  reviewHardGate: vi.fn((returnFormat, handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE outputting the JSON return.`),
   docsFixHardGate: vi.fn((handoffPath) => `> HARD GATE — Write \`${handoffPath}\` BEFORE exiting: the engine reads the file, not your stdout.`),
 }));
 
@@ -149,7 +150,7 @@ describe("runDocsTask", () => {
       mode:      "review",
       template:  "review",
       doc:       SPEC_DOC,
-      params:    { TYPE: "spec" },
+      params:    { REVIEW_TYPE: "spec" },
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       repoRoot:  "/repo/root",  // 注入缝：run-docs 真用该值（P4 §2.4.1 单根权威）
       dryRun:    false,
@@ -172,7 +173,7 @@ describe("runDocsTask", () => {
     await runDocsTask({
       harness: "claude", mode: "review", template: "review", type: "spec",
       doc: SPEC_DOC,
-      params: { TYPE: "spec" },
+      params:    { REVIEW_TYPE: "spec" },
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,

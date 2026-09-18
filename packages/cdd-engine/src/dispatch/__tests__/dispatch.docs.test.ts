@@ -37,7 +37,8 @@ vi.mock("../../infra/registry.ts", async () => {
 });
 vi.mock("../../render/templates.ts", () => ({
   renderTemplate: () => "mocked docs prompt body",
-  renderHandoffStub: () => "{\"stub\":true}",
+  renderHandoffSchemaJson: () => "{\"stub\":true}",
+  HANDOFF_SCHEMA_JSON_SLOT: "{{HANDOFF_SCHEMA_JSON}}",
   reviewHardGate: (ret: string) => `--hard-gate ${ret}`,
   docsFixHardGate: (hp: string) => `--hard-gate write ${hp}`,
 }));

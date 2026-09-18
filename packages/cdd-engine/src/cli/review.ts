@@ -135,13 +135,14 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           process.stderr.write(`CDD_INFO: doc content changed since round-${round - 1} clean review (${prev.doc_hash!.slice(0, 8)} → ${docHash.slice(0, 8)}) → new review round ${round}\n`);
         }
       }
-      // Review template data-driven — spec/plan route through the shared shell review.md
-      // (reviews.json type=spec|plan config). REFERENCE injects the concrete doc path
-      // (cfg.ref "doc vs spec" is a relational concept, analogous to how task/branch git-range
-      // symbols get concrete-injected); content placeholders (lensEnum/axesGuide) inject from
-      // the reviews.json config, artifact params (HANDOFF_TYPE/RETURN_MODE) read the canonical
-      // review.{type} family (renderTemplate throws on missing params). `workspace` remains in
-      // the options for the unit seam (cdd.test asserts it) — docs.ts ignores the key.
+      // Review template data-driven — spec/plan route through the shared shell docs/review.md
+      // (template-contract reviews type=spec|plan config). REVIEW_REFERENCE injects the concrete
+      // doc path (reviews.ref "doc vs spec" is a relational concept, analogous to how task/branch
+      // git-range symbols get concrete-injected); content placeholders (lensEnum/axesGuide) inject
+      // from the reviews config, artifact params (RETURN_FORMAT) read the canonical review.{type}
+      // family (renderTemplate throws on missing params; HANDOFF_TARGET merge = path only, schema
+      // bytes self-describe). `workspace` remains in the options for the unit seam (cdd.test
+      // asserts it) — docs.ts ignores the key.
       const cfg = reviewTypeConfig(opts.type);
       const art = reviewArtifactConfig(opts.type);
       const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
@@ -149,18 +150,17 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         harness, mode: "review", template: "review", type: opts.type, doc,
         handoffPath,
         params: {
-          TYPE: opts.type,
-          LENS_GUIDE: cfg.lensEnum.join(" · "),
-          WORKSPACE: ws,
-          REFERENCE: doc,
-          AXES: cfg.axesGuide,
-          RETURN_MODE: art.return,
-          HANDOFF_TYPE: art.schema,
-          H1_BLOCK: "",
-          // type=plan: PLAN_LINE injects the upstream spec reference; type=spec has no plan
+          REVIEW_TYPE: opts.type,
+          REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
+          TASK_WORKSPACE: ws,
+          REVIEW_REFERENCE: doc,
+          REVIEW_AXES: cfg.axesGuide,
+          RETURN_FORMAT: art.return,
+          RETURN_STDOUT_BLOCK: "",
+          // type=plan: REVIEW_PLAN_LINE injects the upstream spec reference; type=spec has no plan
           // reference, stays empty.
-          PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
-          HARD_GATE: reviewHardGate(art.return, handoffPath),
+          REVIEW_PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
+          HANDOFF_WRITE_GATE: reviewHardGate(art.return, handoffPath),
         },
         workspace: ws, repoRoot: root,
         dryRun: DRY_RUN(),

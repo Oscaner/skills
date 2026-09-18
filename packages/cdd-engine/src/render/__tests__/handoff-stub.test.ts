@@ -1,14 +1,14 @@
 // packages/cdd-engine/src/render/__tests__/handoff-stub.test.ts
 import { describe, it, expect } from "vitest";
 import { loadHandoffSchema, validateHandoffSchema, normalizeHandoff, recoverHandoff } from "../../rules/schema.ts";
-import { renderHandoffStub } from "../templates.ts";
+import { renderHandoffSchemaJson } from "../templates.ts";
 
-// ---- Task 18：renderHandoffStub = schema 原样注入（零 render、零解释器、零第二校验器）----
+// ---- Task 18：renderHandoffSchemaJson = schema 原样注入（零 render、零解释器、零第二校验器）----
 
-describe("renderHandoffStub — schema 原样注入", () => {
+describe("renderHandoffSchemaJson — schema 原样注入", () => {
   it("stub = schema 本体的 ```json 块：解析后逐键相等、description 随附", () => {
     const schema = loadHandoffSchema("task");
-    const stub = renderHandoffStub(schema);
+    const stub = renderHandoffSchemaJson(schema);
     expect(stub.startsWith("```json\n")).toBe(true);      // 载体是 json（非 jsonc：schema 本体无注释行可复制）
     expect(stub.endsWith("\n```")).toBe(true);
     const parsed = JSON.parse(stub.replace(/^```json\n/, "").replace(/\n```$/, ""));
@@ -28,7 +28,7 @@ describe("renderHandoffStub — schema 原样注入", () => {
 
   it("stub 与 schema 键集同构（不新增不删减：注入面 = 契约面）", () => {
     const schema = loadHandoffSchema("task");
-    const parsed = JSON.parse(renderHandoffStub(schema).replace(/^```json\n/, "").replace(/\n```$/, ""));
+    const parsed = JSON.parse(renderHandoffSchemaJson(schema).replace(/^```json\n/, "").replace(/\n```$/, ""));
     expect(Object.keys(parsed)).toEqual(Object.keys(schema));
   });
 

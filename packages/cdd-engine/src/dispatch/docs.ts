@@ -33,7 +33,7 @@ import { finalizeHandoff, persistFinalized } from "../artifacts/handoff/finalize
 import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
 import { loadHandoffSchema, validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
 import { validateCommitContract } from "../rules/commit.ts";
-import { renderHandoffStub, renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
+import { renderHandoffSchemaJson, renderTemplate, reviewHardGate, docsFixHardGate, HANDOFF_SCHEMA_JSON_SLOT } from "../render/templates.ts";
 import { hashFile } from "./review-loop.ts";
 
 export interface DocsLifecycleOptions {
@@ -163,8 +163,8 @@ export class DocsLifecycle extends DispatchLifecycle {
 
   // ---- dispatch ----
 
-  /** Steps 7+8: render the prompt (two-pass: first renderTemplate for {{DOC}}/{{FINDINGS}}/
-   * {{HANDOFF}}/{{HARD_GATE}}, then replace {{HANDOFF_STUB}} with the raw schema), then spawn the
+  /** Steps 7+8: render the prompt (two-pass: first renderTemplate for {{DOCS_DOC}}/{{DOCS_FINDINGS}}/
+   * {{HANDOFF_TARGET}}/{{HANDOFF_WRITE_GATE}}, then replace {{HANDOFF_SCHEMA_JSON}} with the raw schema), then spawn the
    * docs agent CLI (cwd = repo root — Bug L fix; env = host env so invokeCli's cleanEnv strips
    * credentials). */
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
@@ -174,25 +174,25 @@ export class DocsLifecycle extends DispatchLifecycle {
     // directly — the `-review`→`-fix` legacy derivation branch is gone; docs fix must not
     // double-suffix).
     const schema = loadHandoffSchema("docs");
-    const stub = renderHandoffStub(schema);
+    const stub = renderHandoffSchemaJson(schema);
     let prompt = renderTemplate(
       template,
       {
-        DOC: doc,
-        FINDINGS: this.#opts.findingsPath ?? "",
-        HANDOFF: handoffPath ?? "",
-        // Task 18 review-1 finding 2: the shared Handoff shell's {{HARD_GATE}} slot dispatches by
-        // return semantics — the review family defaults to the json-return write gate (review.mjs
-        // passes its self-computed value via params, ...params spread after → explicit injection
-        // wins); the fix family = the docs write gate (fix's return is the file itself; stdout has
-        // no JSON return — reviewHardGate's "before outputting the JSON return" self-contradicts
-        // for a fix agent — reviewHardGate must not be reused).
-        HARD_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("json", handoffPath ?? ""),
+        DOCS_DOC: doc,
+        DOCS_FINDINGS: this.#opts.findingsPath ?? "",
+        HANDOFF_TARGET: handoffPath ?? "",
+        // Task 18 review-1 finding 2: the shared Handoff shell's {{HANDOFF_WRITE_GATE}} slot
+        // dispatches by return semantics — the review family defaults to the json-return write gate
+        // (review.mjs passes its self-computed value via params, ...params spread after → explicit
+        // injection wins); the fix family = the docs write gate (fix's return is the file itself;
+        // stdout has no JSON return — reviewHardGate's "before outputting the JSON return"
+        // self-contradicts for a fix agent — reviewHardGate must not be reused).
+        HANDOFF_WRITE_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("json", handoffPath ?? ""),
         ...params,
       },
       "docs-runner",
     );
-    prompt = prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
+    prompt = prompt.replace(HANDOFF_SCHEMA_JSON_SLOT, stub);
 
     // Spawn agent using the harness registry (provides -p, --output-format, etc.).
     // invokeCli injection params = (op, type) — review/fix resolve prefix.review[type?] /

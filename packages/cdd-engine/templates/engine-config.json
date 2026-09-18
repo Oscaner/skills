@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$version": 1,
+  "contextContract": {
+    "channels": {
+      "argv": {
+        "plan":     { "flag": "--plan",     "type": "path" },
+        "spec":     { "flag": "--spec",     "type": "path" },
+        "findings": { "flag": "--findings", "type": "path" },
+        "task":     { "flag": "--task",     "type": "int" },
+        "type":     { "flag": "--type",     "type": "enum", "values": ["task", "branch", "spec", "plan"] },
+        "base":     { "flag": "--base",     "type": "sha" },
+        "head":     { "flag": "--head",     "type": "sha" },
+        "round":    { "flag": "--round",    "type": "int" },
+        "source":   { "flag": "--source",   "type": "enum", "values": ["plan-field", "branch-upstream", "conversation-context", "user-confirmed"] },
+        "force":    { "flag": "--force",    "type": "bool" },
+        "dryRun":   { "flag": "--dry-run",  "type": "bool", "scope": "program" },
+        "help":     { "flag": "--help",     "alias": "-h", "type": "bool", "scope": "program" }
+      },
+      "git": { "root": { "derivation": "gitToplevel(cwd)" } },
+      "env": {
+        "hostHarness":   { "markers": ["CURSOR_TRACE_ID", "CLAUDE_CODE_SESSION_ID", "AI_AGENT"] },
+        "path":          { "var": "PATH" },
+        "cliTimeout":    { "var": "CDD_CLI_TIMEOUT", "unit": "seconds", "stepSeconds": 1800 },
+        "taskTimeout":   { "var": "CDD_TASK_TIMEOUT", "unit": "seconds" },
+        "reviewTimeout": { "var": "CDD_REVIEW_TIMEOUT", "unit": "seconds" }
+      }
+    },
+    "derived": {
+      "root":            { "from": ["git.root"] },
+      "slug":            { "from": ["plan"] },
+      "workspace":       { "from": ["root", "slug"] },
+      "handoffPath":     { "from": ["workspace", "mode", "task", "round"] },
+      "briefPath":       { "from": ["workspace", "task"] },
+      "ledgerPath":      { "from": ["workspace"] },
+      "constraintsPath": { "from": ["workspace"] },
+      "findingsPath":    { "from": ["workspace", "task"] },
+      "fixedPoint":      { "from": ["prevHandoff", "commits.base"] }
+    },
+    "transport": { "childEnv": { "policy": "host-env-minus-credentials", "cddVarsInjected": [] } },
+    "timeouts": {
+      "defaults":        { "task": 5400000, "review": 3600000 },
+      "perModeOverride": { "unit": "seconds", "env": { "task": "CDD_TASK_TIMEOUT", "review": "CDD_REVIEW_TIMEOUT" } },
+      "globalOverride":  { "unit": "seconds", "env": "CDD_CLI_TIMEOUT", "stepSeconds": 1800 }
+    }
+  },
+  "failureCategories": {
+    "categories": [
+      {
+        "id": "TIMEOUT",
+        "countsTowardStopping": false,
+        "counter": "timeoutCount",
+        "h1Label": "timeout",
+        "terminal": "BLOCKED: timeout-exhausted"
+      },
+      {
+        "id": "CONTRACT_VIOLATION",
+        "countsTowardStopping": false,
+        "counter": "contractViolationCount",
+        "h1Label": "contract-violation",
+        "terminal": "BLOCKED: contract-violation-exhausted",
+        "dispatchIncomplete": true
+      },
+      {
+        "id": "ENGINE_SELF_WRITTEN",
+        "countsTowardStopping": false,
+        "counter": "engineSelfWrittenCount",
+        "h1Label": "engine-self-written",
+        "terminal": "BLOCKED: engine-self-written-exhausted",
+        "dispatchIncomplete": true
+      },
+      {
+        "id": "EXECUTION_FAILURE",
+        "countsTowardStopping": false,
+        "counter": "engineRecoveryCount",
+        "h1Label": "recovery",
+        "terminal": "BLOCKED: engine-error"
+      },
+      {
+        "id": "UNVERIFIABLE",
+        "countsTowardStopping": false
+      },
+      {
+        "id": "PLAN_CONFLICT",
+        "countsTowardStopping": false
+      }
+    ]
+  },
+  "handoffNamespace": {
+    "schema": 1,
+    "workspaceRoot": ".osuperpowers/cdd",
+    "slugRule": "strip .md, then a single trailing -design or -plan suffix",
+    "families": {
+      "implement.task": { "name": "task-{task}-implement.json", "round": "fixed", "status": "contract", "schema": "task", "phase": "implement" },
+      "review.task":    { "name": "task-{task}-review-{round}.json", "round": "increment", "status": "rollup", "schema": "task", "return": "h1", "phase": "review", "fixFamily": "fix.task", "prev": { "round1": "implement.task", "roundR": "fix.task:R-1" } },
+      "fix.task":       { "name": "task-{task}-fix-{round}.json", "round": "source", "status": "contract", "schema": "task", "fixTemplate": "fix", "phase": "fix", "prev": { "roundR": "review.task:R" } },
+      "review.spec":    { "name": "spec-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "return": "json", "phase": "review", "fixFamily": "fix.spec" },
+      "fix.spec":       { "name": "spec-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "docs", "return": "json", "phase": "fix", "prev": { "roundR": "review.spec:R" } },
+      "review.plan":    { "name": "plan-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "return": "json", "phase": "review", "fixFamily": "fix.plan" },
+      "fix.plan":       { "name": "plan-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "docs", "return": "json", "phase": "fix", "prev": { "roundR": "review.plan:R" } },
+      "review.branch":  { "name": "branch-review-{base7}..{head7}-r{round}.json", "round": "increment", "status": "rollup", "schema": "task", "return": "h1", "phase": "branch-review" }
+    }
+  }
+}

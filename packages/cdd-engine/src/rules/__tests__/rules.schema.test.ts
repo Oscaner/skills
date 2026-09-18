@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/rules/__tests__/rules.schema.test.ts
-// Independent source of truth = the templates/schema/*.json plus templates/handoff-namespace.json
-// (read fresh in this file; never recomputed the way the port computes). Same seams as
-// handoff-stub.test.mjs / schema-utils.test.mjs, which keep guarding the legacy .mjs copy.
+// Independent source of truth = the templates/schema/*.json plus templates/engine-config.json
+// #handoffNamespace (read fresh in this file; never recomputed the way the port computes). Same
+// seams as handoff-stub.test.mjs / schema-utils.test.mjs, which keep guarding the legacy .mjs copy.
 // Covers the write-side contract that makes CONTRACT_VIOLATION recovery lossless:
 // validate → normalize → re-validate is a single testable unit (T5).
 import { describe, it, expect } from "vitest";
@@ -22,7 +22,7 @@ const read = (rel: string) => JSON.parse(readFileSync(path.join(HERE, "..", ".."
 
 const TASK_SCHEMA = read(path.join("schema", "task-handoff-schema.json"));
 const DOCS_SCHEMA = read(path.join("schema", "docs-handoff-schema.json"));
-const NAMESPACE = read("handoff-namespace.json");
+const NAMESPACE = read("engine-config.json").handoffNamespace;
 
 const validTask = {
   task: 1,
@@ -45,7 +45,7 @@ describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical
     expect(() => loadHandoffSchema("bogus")).toThrow(/unknown handoff schema/);
   });
 
-  it("loadHandoffNamespace 返回 handoff-namespace.json 原值（workspaceRoot + 8 families）", () => {
+  it("loadHandoffNamespace 返回 engine-config#handoffNamespace 原值（workspaceRoot + 8 families）", () => {
     const ns = loadHandoffNamespace();
     expect(ns).toEqual(NAMESPACE);
     expect(ns.workspaceRoot).toBe(".osuperpowers/cdd");

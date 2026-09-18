@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/rules/__tests__/rules.failure.test.ts
-// The canonical templates/failure-categories.json is the independent source of truth: every
-// expected value below is derived from the canonical JSON (never recomputed the way the port
+// The canonical templates/engine-config.json#failureCategories is the independent source of truth:
+// every expected value below is derived from the canonical JSON (never recomputed the way the port
 // computes it), so drift between the .ts port and the canonical fails loudly (AC14 "承重，非装饰").
 // Same seam as failure-categories.test.mjs, which keeps guarding the legacy .mjs copy.
 import { describe, it, expect } from "vitest";
@@ -23,8 +23,8 @@ import { writeHandoff } from "../../artifacts/handoff/write.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CAT: { categories: Array<Record<string, unknown>> } = JSON.parse(
-  readFileSync(path.join(HERE, "..", "..", "..", "templates", "failure-categories.json"), "utf8"),
-);
+  readFileSync(path.join(HERE, "..", "..", "..", "templates", "engine-config.json"), "utf8"),
+).failureCategories;
 const CATS = CAT.categories;
 
 describe("rules/failure.ts — canonical 承重读取（AC14）", () => {

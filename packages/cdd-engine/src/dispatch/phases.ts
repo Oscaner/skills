@@ -56,7 +56,7 @@ export const PHASES: readonly DispatchPhase[] = [
       { id: "10 / 10.5", title: "failure without handoff → BLOCKED (stderr into blocker)" },
       { id: "11", title: "H1 four-line parse (status / commits / artifacts / blocker)" },
       { id: "12 / 13", title: "exit normalization (agent_rc / dry-run)" },
-      { id: "13.5", title: "reviews.json range check" },
+      { id: "13.5", title: "review range check (template-contract)" },
     ],
   },
 ];

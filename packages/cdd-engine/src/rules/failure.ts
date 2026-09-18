@@ -1,14 +1,14 @@
 // packages/cdd-engine/src/rules/failure.ts — failure categories canonical read point + quota
 // isolation (Task 5 rules-layer rebuild; ex src/rules/failure.mjs + the increment/exhaustion
 // machinery of src/dispatch/task.mjs#maybeExhaust). Six category names and their semantics are
-// declared once by templates/failure-categories.json; this module is the unique read entry for
-// every "category identity" reference in the engine (failure_category assignment / Stopping
-// guard / counter increment). If the canonical is edited and a reference site falls out of
-// sync (undefined / red assertions), it must surface loudly — load-bearing, not decorative (AC14).
-// Quota isolation: each counter-bearing category increments its own progress.json field
-// (channel audit ③ column), and exhaustion is judged per-category (threshold >= 2) — one
-// category's terminal state never leaks into another's counter.
-import { readFileSync } from "node:fs";
+// declared once by templates/engine-config.json#failureCategories (Task 5 单文件归并); this
+// module is the unique read entry for every "category identity" reference in the engine
+// (failure_category assignment / Stopping guard / counter increment). If the canonical is edited
+// and a reference site falls out of sync (undefined / red assertions), it must surface loudly —
+// load-bearing, not decorative (AC14). Quota isolation: each counter-bearing category increments
+// its own progress.json field (channel audit ③ column), and exhaustion is judged per-category
+// (threshold >= 2) — one category's terminal state never leaks into another's counter.
+import { loadEngineConfig } from "../infra/config.ts";
 
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
@@ -22,9 +22,7 @@ export interface FailureCategory {
   dispatchIncomplete?: boolean;
 }
 
-const CAT = JSON.parse(
-  readFileSync(new URL("../../templates/failure-categories.json", import.meta.url), "utf8"),
-) as { categories: FailureCategory[] };
+const CAT = loadEngineConfig().failureCategories as { categories: FailureCategory[] };
 
 export const FAILURE_CATEGORIES: Record<string, FailureCategory> = Object.fromEntries(
   CAT.categories.map((c) => [c.id, c]),

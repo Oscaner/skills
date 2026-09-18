@@ -222,18 +222,18 @@ function requireCtx(ctx: TaskDispatchContext | null, mode: string): string | nul
   return missing.length > 0 ? `Missing required ctx fields: ${missing.join(" ")}` : null;
 }
 
-/** {{PLACEHOLDER}} template params (6 keys + TASK superset key). PLAN_LINE derives from the
- * explicit plan path held by ctx — the template receives no env-sourced plan key. */
+/** {{PLACEHOLDER}} template params (Task 5 token registry: task-* 作用域前缀 + HANDOFF_TARGET
+ * 合并 + REVIEW_PLAN_LINE 派生自显式 plan path — 模板不接任何 env 来源的 plan 键). */
 export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Record<string, string> {
   return {
-    WORKSPACE: ctx.workspace,
-    BRIEF: ctx.briefPath,
-    HANDOFF: ctx.handoffPath,
-    FINDINGS: ctx.findingsPath ?? "",
-    CONSTRAINTS: ctx.constraintsPath,
-    FIXED_POINT: ctx.fixedPoint ?? "",  // empty string if the cross-phase read returned nothing
-    TASK: String(taskNum),
-    PLAN_LINE: ctx.plan ? `**Plan:** ${ctx.plan}` : "",
+    TASK_WORKSPACE: ctx.workspace,
+    TASK_BRIEF: ctx.briefPath,
+    HANDOFF_TARGET: ctx.handoffPath,
+    TASK_FINDINGS: ctx.findingsPath ?? "",
+    TASK_CONSTRAINTS: ctx.constraintsPath,
+    TASK_FIXED_POINT: ctx.fixedPoint ?? "",  // empty string if the cross-phase read returned nothing
+    TASK_NUMBER: String(taskNum),
+    REVIEW_PLAN_LINE: ctx.plan ? `**Plan:** ${ctx.plan}` : "",
   };
 }
 

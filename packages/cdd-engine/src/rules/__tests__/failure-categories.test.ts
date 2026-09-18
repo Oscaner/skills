@@ -1,5 +1,6 @@
 // packages/cdd-engine/src/rules/__tests__/failure-categories.test.ts
-// ① failure-categories.json canonical 承重（内容 + src/rules/failure.ts 读取点导出，AC14「承重，非装饰」）；
+// ① failure-categories canonical 承重（engine-config.json#failureCategories 区段 + src/rules/failure.ts
+// 读取点导出，AC14「承重，非装饰」）；
 // ② reviewStoppingGuard 未完成-dispatch 排除（AC7 的机械证据，B3 的控制流修法落点）。
 import { describe, it, expect } from "vitest";
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -18,8 +19,8 @@ import {
 } from "../failure.ts";
 
 const CAT = JSON.parse(
-  readFileSync(path.resolve(import.meta.dirname, "../../../templates/failure-categories.json"), "utf8"),
-);
+  readFileSync(path.resolve(import.meta.dirname, "../../../templates/engine-config.json"), "utf8"),
+).failureCategories;
 
 describe("failure-categories canonical", () => {
   it("六类齐备且仅 EXECUTION_FAILURE 消耗 engineRecoveryCount", () => {

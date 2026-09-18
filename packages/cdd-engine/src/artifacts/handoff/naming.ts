@@ -1,21 +1,17 @@
 // packages/cdd-engine/src/artifacts/handoff/naming.ts — handoff artifact contract derivation layer
-// (Task 8 port of naming.mjs), the single consumer of templates/handoff-namespace.json (canonical:
-// family names / round semantics / status / phase / prev table). The name is the single truth;
-// roundPattern derives from it (scan/concrete shapes); the prev table drives Stopping + the
-// runner's fixed-point reads. workspaceSlug / resolveWorkspace implement workspaceRoot + slugRule
-// (.osuperpowers/cdd/<slug>/).
+// (Task 8 port of naming.mjs), the single consumer of the canonical handoff-namespace section
+// (engine-config.json#handoffNamespace, Task 5 单文件归并: family names / round semantics / status /
+// phase / prev table). The name is the single truth; roundPattern derives from it (scan/concrete
+// shapes); the prev table drives Stopping + the runner's fixed-point reads. workspaceSlug /
+// resolveWorkspace implement workspaceRoot + slugRule (.osuperpowers/cdd/<slug>/).
 // Task 8 (spec §2.13 glob row): the legacy readdirSync directory scan in resolveNextRound is
 // collected into tinyglobby (globSync) — the repo's shared glob toolchain, no hand-written walk.
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { globSync } from "tinyglobby";
 
-const NAMESPACE = JSON.parse(
-  readFileSync(new URL("../../../templates/handoff-namespace.json", import.meta.url), "utf8"),
-) as {
-  workspaceRoot: string;
-  families: Record<string, { name: string; round?: string; prev?: Record<string, string> }>;
-};
+import { loadEngineConfig } from "../../infra/config.ts";
+
+const NAMESPACE = loadEngineConfig().handoffNamespace;
 const { families } = NAMESPACE;
 
 /** workspaceRoot: the single truth of the runtime workspace base path segment (`.osuperpowers/cdd`).

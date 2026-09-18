@@ -93,7 +93,7 @@ export function renderHandoffSchemaJson(schema: unknown): string {
 //     "Lexical error" at first template use; the slot-text param needs none.)
 //   · every remaining `{{X}}` → `{{{X}}}` triple-stash: strict compile with raw (un-escaped)
 //     values — the legacy split/join injected params verbatim, and handlebars' default HTML
-//     escaping would corrupt the H1 four-line contract (`status: <APPROVED|BLOCKED>`),
+//     escaping would corrupt the four-line return contract (`status: <APPROVED|BLOCKED>`),
 //     HANDOFF_WRITE_GATE (`> ⚠️ …`) and schema/brief injections. The schema injection /
 //     H1 four-line / brief values therefore ALL travel through `{{{X}}}`.
 //   · strict: true makes any missing (undefined) param throw — exactly the legacy "missing param"
@@ -149,17 +149,18 @@ export function reviewTypeConfig(type: string): ReviewTypeConfig {
 }
 
 // reviewArtifactConfig(type) → reads the canonical handoffNamespace review.{type} family, returns
-// { schema, return } — the unique source of the RETURN_FORMAT template param: returnMode → canonical
-// "return" ("h1"/"json"). handoffType retires entirely (Task 5: HANDOFF/HANDOFF_TYPE merge into
-// HANDOFF_TARGET — the injected schema bytes self-describe; the "(schema family: X)" parenthetical
-// is dropped). fixTemplate is not surfaced by this layer (runFix reads the fix family directly; no
-// second read point).
-export function reviewArtifactConfig(type: string): { schema: string; return: string } {
-  const cfg = familyConfig("review", type) as unknown as { schema: string; return: string };
-  return { schema: cfg.schema, return: cfg.return };
+// { schema, returnFormat } — the unique source of the RETURN_FORMAT template param; returnFormat ∈
+// {"RETURN_STDOUT_BLOCK", "RETURN_JSON"} (the canonical return-contract discriminator; legacy "h1"
+// vocabulary retired by Task 5 naming convergence). handoffType retires entirely (Task 5:
+// HANDOFF/HANDOFF_TYPE merge into HANDOFF_TARGET — the injected schema bytes self-describe; the
+// "(schema family: X)" parenthetical is dropped). fixTemplate is not surfaced by this layer (runFix
+// reads the fix family directly; no second read point).
+export function reviewArtifactConfig(type: string): { schema: string; returnFormat: string } {
+  const cfg = familyConfig("review", type) as unknown as { schema: string; returnFormat: string };
+  return { schema: cfg.schema, returnFormat: cfg.returnFormat };
 }
 
-// returnFormat=h1 types (task/branch) inject the four-line H1 contract into {{RETURN_STDOUT_BLOCK}};
+// returnFormat=RETURN_STDOUT_BLOCK types (task/branch) inject the four-line return contract into {{RETURN_STDOUT_BLOCK}};
 // spec/plan render nothing (empty). Task 18: this block sits inside the shared `## Return` shell (no
 // longer carries its own `## Return (H1 — stdout only)` heading — the template Return section
 // headings are unified, and a duplicate heading would break the "4 templates same skeleton"
@@ -174,11 +175,11 @@ blocker: <none|one-line>
 \`\`\``;
 
 // review.md HANDOFF_WRITE_GATE (T6; Task 5 renaming HARD_GATE → HANDOFF_WRITE_GATE): returnFormat
-// split-writes — h1 → "BEFORE outputting H1"; json → "BEFORE outputting the JSON return". Injects
-// the actual handoff path. Illicit returnFormat → h1 default (unknown families must not crash
-// rendering).
+// split-writes — RETURN_STDOUT_BLOCK → "BEFORE outputting the RETURN_STDOUT_BLOCK"; RETURN_JSON →
+// "BEFORE outputting the JSON return". Injects the actual handoff path. Illicit returnFormat →
+// RETURN_STDOUT_BLOCK default (unknown families must not crash rendering).
 export function reviewHardGate(returnFormat: string, handoffPath?: unknown): string {
-  const before = returnFormat === "json" ? "BEFORE outputting the JSON return." : "BEFORE outputting H1.";
+  const before = returnFormat === "RETURN_JSON" ? "BEFORE outputting the JSON return." : "BEFORE outputting the RETURN_STDOUT_BLOCK.";
   const target = handoffPath ?? "{{HANDOFF_TARGET}}";
   return `> ⚠️ HARD GATE — Write \`${target}\` ${before}\n> Returning without a written handoff file = BLOCKED (runner exit 1).`;
 }
@@ -186,7 +187,7 @@ export function reviewHardGate(returnFormat: string, handoffPath?: unknown): str
 // docs-family fix (cdd fix --type spec|plan) HANDOFF_WRITE_GATE (Task 18 review-1 finding 2):
 // fix's return IS the on-disk write (docs/fix.md `## Return` says "Your return IS the handoff
 // written to … — the engine reads the file, not your stdout"; no JSON return on stdout). Must not
-// reuse reviewHardGate("json") — "BEFORE outputting the JSON return" would self-contradict for a
+// reuse reviewHardGate("RETURN_JSON") — "BEFORE outputting the JSON return" would self-contradict for a
 // fix agent. Gate semantics = exit only after the write.
 export function docsFixHardGate(handoffPath?: unknown): string {
   const target = handoffPath ?? "{{HANDOFF_TARGET}}";
@@ -282,10 +283,10 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
       REVIEW_REFERENCE: params.TASK_FIXED_POINT ? `${params.TASK_FIXED_POINT}..HEAD` : cfg.ref,
       REVIEW_AXES: cfg.axesGuide,
       HANDOFF_TARGET: params.HANDOFF_TARGET ?? "",
-      RETURN_FORMAT: art.return,
+      RETURN_FORMAT: art.returnFormat,
       RETURN_STDOUT_BLOCK: RETURN_STDOUT_BLOCK,
       REVIEW_PLAN_LINE: params.REVIEW_PLAN_LINE ?? "",
-      HANDOFF_WRITE_GATE: reviewHardGate(art.return, params.HANDOFF_TARGET),
+      HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, params.HANDOFF_TARGET),
     });
     // HANDOFF_SCHEMA_JSON: shared-shell slot = schema verbatim injection (Task 18, zero render; no
     // values injection surface).
@@ -308,7 +309,7 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
   // escaping). HANDOFF_SCHEMA_JSON keeps the literal slot for the per-caller schema replace.
   return compile(tripleAll(content), { strict: true })({
     ...filledParams,
-    HANDOFF_WRITE_GATE: mode === "fix" ? reviewHardGate("h1", params.HANDOFF_TARGET) : implementHardGate(params.HANDOFF_TARGET, params.TASK_NUMBER),
+    HANDOFF_WRITE_GATE: mode === "fix" ? reviewHardGate("RETURN_STDOUT_BLOCK", params.HANDOFF_TARGET) : implementHardGate(params.HANDOFF_TARGET, params.TASK_NUMBER),
     RETURN_STDOUT_BLOCK: RETURN_STDOUT_BLOCK,
     HANDOFF_SCHEMA_JSON: HANDOFF_SCHEMA_JSON_SLOT,
   }).replace(HANDOFF_SCHEMA_JSON_SLOT, renderHandoffSchemaJson(loadHandoffSchema("task")));

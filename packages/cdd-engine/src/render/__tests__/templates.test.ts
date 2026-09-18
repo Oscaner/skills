@@ -136,13 +136,13 @@ describe('review type config (Task 4: 模板数据化)', () => {
     expect(() => reviewTypeConfig('nope')).toThrow('unknown review type: nope');
   });
 
-  it('reviewArtifactConfig: canonical review.{type} 族 → { schema, return }（T2 裁轴；fixFamily 已删——runFix 直读 fix 族）', async () => {
+  it('reviewArtifactConfig: canonical review.{type} 族 → { schema, returnFormat }（T2 裁轴；fixFamily 已删——runFix 直读 fix 族）', async () => {
     vi.resetModules();
     const { reviewArtifactConfig } = await import('../templates.ts');
-    expect(reviewArtifactConfig('task')).toEqual({ schema: 'task', return: 'h1' });
-    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'task', return: 'h1' });
-    expect(reviewArtifactConfig('spec')).toEqual({ schema: 'docs', return: 'json' });
-    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json' });
+    expect(reviewArtifactConfig('task')).toEqual({ schema: 'task', returnFormat: 'RETURN_STDOUT_BLOCK' });
+    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'task', returnFormat: 'RETURN_STDOUT_BLOCK' });
+    expect(reviewArtifactConfig('spec')).toEqual({ schema: 'docs', returnFormat: 'RETURN_JSON' });
+    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', returnFormat: 'RETURN_JSON' });
     expect(() => reviewArtifactConfig('nope')).toThrow(/unknown handoff family/);
   });
 
@@ -169,7 +169,7 @@ describe('renderTemplate', () => {
     const out = renderTemplate('review', {
       REVIEW_TYPE: 'spec', TASK_WORKSPACE: '/ws', REVIEW_LENS_GUIDE: 'completeness · consistency · clarity',
       REVIEW_REFERENCE: '/tmp/spec.md', REVIEW_AXES: 'URC 规则指针', HANDOFF_TARGET: '/tmp/spec-review-1.json',
-      RETURN_FORMAT: 'json', RETURN_STDOUT_BLOCK: '', REVIEW_PLAN_LINE: '',
+      RETURN_FORMAT: 'RETURN_JSON', RETURN_STDOUT_BLOCK: '', REVIEW_PLAN_LINE: '',
       HANDOFF_WRITE_GATE: '> ⚠️ HARD GATE — Write `/tmp/spec-review-1.json` BEFORE outputting the JSON return.',
     }, 'test');
     expect(out).toContain('/tmp/spec.md');

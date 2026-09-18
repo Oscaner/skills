@@ -182,12 +182,12 @@ export class DocsLifecycle extends DispatchLifecycle {
         DOCS_FINDINGS: this.#opts.findingsPath ?? "",
         HANDOFF_TARGET: handoffPath ?? "",
         // Task 18 review-1 finding 2: the shared Handoff shell's {{HANDOFF_WRITE_GATE}} slot
-        // dispatches by return semantics — the review family defaults to the json-return write gate
+        // dispatches by return semantics — the review family defaults to the RETURN_JSON write gate
         // (review.mjs passes its self-computed value via params, ...params spread after → explicit
         // injection wins); the fix family = the docs write gate (fix's return is the file itself;
         // stdout has no JSON return — reviewHardGate's "before outputting the JSON return"
         // self-contradicts for a fix agent — reviewHardGate must not be reused).
-        HANDOFF_WRITE_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("json", handoffPath ?? ""),
+        HANDOFF_WRITE_GATE: mode === "fix" ? docsFixHardGate(handoffPath ?? "") : reviewHardGate("RETURN_JSON", handoffPath ?? ""),
         ...params,
       },
       "docs-runner",

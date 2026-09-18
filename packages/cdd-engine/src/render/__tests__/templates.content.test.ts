@@ -48,14 +48,14 @@ describe('template-contract reviews per-type config (Task 4 + Task 5)', () => {
       expect(cfg).not.toHaveProperty('fixTemplate');
       // artifact 轴（canonical review.{type} 族）：schema/return 从 canonical 派生
       const art = reviewArtifactConfig(type);
-      expect(['h1', 'json']).toContain(art.return);
+      expect(['RETURN_STDOUT_BLOCK', 'RETURN_JSON']).toContain(art.returnFormat);
       expect(['task', 'docs']).toContain(art.schema);
     }
     // type-specific truth pinned by the plan (TASK_BASE..HEAD / BASE..HEAD 供具体化注入)
     expect(reviewTypeConfig('task').ref).toBe('TASK_BASE..HEAD');
-    expect(reviewArtifactConfig('task')).toEqual({ schema: 'task', return: 'h1' });
-    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'task', return: 'h1' }); // branch 无 fix 族
-    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', return: 'json' });
+    expect(reviewArtifactConfig('task')).toEqual({ schema: 'task', returnFormat: 'RETURN_STDOUT_BLOCK' });
+    expect(reviewArtifactConfig('branch')).toEqual({ schema: 'task', returnFormat: 'RETURN_STDOUT_BLOCK' }); // branch 无 fix 族
+    expect(reviewArtifactConfig('plan')).toEqual({ schema: 'docs', returnFormat: 'RETURN_JSON' });
     expect(reviewTypeConfig('spec').lensEnum).toEqual(['completeness', 'consistency', 'clarity']);
     // fixTemplate 仅在 fix 族定义（fixTemplate 从 canonical fix.{type} 尾解）
     expect(familyConfig('fix', 'spec').fixTemplate).toBe('docs');
@@ -123,26 +123,26 @@ describe('docs/review.md HANDOFF_WRITE_GATE（T6 + Task 5: HARD_GATE → HANDOFF
     expect(gateIdx).toBeLessThan(review.indexOf('## Return'));
   });
 
-  it('renderModePrompt(review) → "BEFORE outputting H1"（injects actual handoff path）', async () => {
+  it('renderModePrompt(review) → "BEFORE outputting the RETURN_STDOUT_BLOCK"（injects actual handoff path）', async () => {
     const { renderModePrompt } = await import('../templates.ts');
     const out = renderModePrompt('review', {
       TASK_WORKSPACE: '/ws', HANDOFF_TARGET: '/ws/task-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
     });
-    expect(out).toMatch(/HARD GATE[^\n]*BEFORE outputting H1/);
+    expect(out).toMatch(/HARD GATE[^\n]*BEFORE outputting the RETURN_STDOUT_BLOCK/);
     expect(out).not.toContain('BEFORE outputting the JSON return');
     expect(out).toContain('/ws/task-1-review-1.json'); // 注入实际 handoff 路径
   });
 
-  it('renderTemplate(spec, returnFormat=json) → "BEFORE outputting the JSON return"', async () => {
+  it('renderTemplate(spec, returnFormat=RETURN_JSON) → "BEFORE outputting the JSON return"', async () => {
     const { renderTemplate, reviewHardGate } = await import('../templates.ts');
     const out = renderTemplate('review', {
       REVIEW_TYPE: 'spec', TASK_WORKSPACE: '/ws', REVIEW_LENS_GUIDE: 'completeness · consistency · clarity',
       REVIEW_REFERENCE: '/tmp/spec.md', REVIEW_AXES: 'URC', HANDOFF_TARGET: '/tmp/spec-review-1.json',
-      RETURN_FORMAT: 'json', RETURN_STDOUT_BLOCK: '', REVIEW_PLAN_LINE: '',
-      HANDOFF_WRITE_GATE: reviewHardGate('json', '/tmp/spec-review-1.json'),
+      RETURN_FORMAT: 'RETURN_JSON', RETURN_STDOUT_BLOCK: '', REVIEW_PLAN_LINE: '',
+      HANDOFF_WRITE_GATE: reviewHardGate('RETURN_JSON', '/tmp/spec-review-1.json'),
     });
     expect(out).toMatch(/HARD GATE[\s\S]*BEFORE outputting the JSON return/);
-    expect(out).not.toContain('BEFORE outputting H1');
+    expect(out).not.toContain('BEFORE outputting the RETURN_STDOUT_BLOCK');
     expect(out).toContain('/tmp/spec-review-1.json');
   });
 });

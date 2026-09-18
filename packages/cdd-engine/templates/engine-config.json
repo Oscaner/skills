@@ -50,14 +50,14 @@
         "id": "TIMEOUT",
         "countsTowardStopping": false,
         "counter": "timeoutCount",
-        "h1Label": "timeout",
+        "returnMarker": "timeout",
         "terminal": "BLOCKED: timeout-exhausted"
       },
       {
         "id": "CONTRACT_VIOLATION",
         "countsTowardStopping": false,
         "counter": "contractViolationCount",
-        "h1Label": "contract-violation",
+        "returnMarker": "contract-violation",
         "terminal": "BLOCKED: contract-violation-exhausted",
         "dispatchIncomplete": true
       },
@@ -65,7 +65,7 @@
         "id": "ENGINE_SELF_WRITTEN",
         "countsTowardStopping": false,
         "counter": "engineSelfWrittenCount",
-        "h1Label": "engine-self-written",
+        "returnMarker": "engine-self-written",
         "terminal": "BLOCKED: engine-self-written-exhausted",
         "dispatchIncomplete": true
       },
@@ -73,7 +73,7 @@
         "id": "EXECUTION_FAILURE",
         "countsTowardStopping": false,
         "counter": "engineRecoveryCount",
-        "h1Label": "recovery",
+        "returnMarker": "recovery",
         "terminal": "BLOCKED: engine-error"
       },
       {
@@ -92,13 +92,13 @@
     "slugRule": "strip .md, then a single trailing -design or -plan suffix",
     "families": {
       "implement.task": { "name": "task-{task}-implement.json", "round": "fixed", "status": "contract", "schema": "task", "phase": "implement" },
-      "review.task":    { "name": "task-{task}-review-{round}.json", "round": "increment", "status": "rollup", "schema": "task", "return": "h1", "phase": "review", "fixFamily": "fix.task", "prev": { "round1": "implement.task", "roundR": "fix.task:R-1" } },
+      "review.task":    { "name": "task-{task}-review-{round}.json", "round": "increment", "status": "rollup", "schema": "task", "returnFormat": "RETURN_STDOUT_BLOCK", "phase": "review", "fixFamily": "fix.task", "prev": { "round1": "implement.task", "roundR": "fix.task:R-1" } },
       "fix.task":       { "name": "task-{task}-fix-{round}.json", "round": "source", "status": "contract", "schema": "task", "fixTemplate": "fix", "phase": "fix", "prev": { "roundR": "review.task:R" } },
-      "review.spec":    { "name": "spec-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "return": "json", "phase": "review", "fixFamily": "fix.spec" },
-      "fix.spec":       { "name": "spec-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "docs", "return": "json", "phase": "fix", "prev": { "roundR": "review.spec:R" } },
-      "review.plan":    { "name": "plan-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "return": "json", "phase": "review", "fixFamily": "fix.plan" },
-      "fix.plan":       { "name": "plan-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "docs", "return": "json", "phase": "fix", "prev": { "roundR": "review.plan:R" } },
-      "review.branch":  { "name": "branch-review-{base7}..{head7}-r{round}.json", "round": "increment", "status": "rollup", "schema": "task", "return": "h1", "phase": "branch-review" }
+      "review.spec":    { "name": "spec-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "returnFormat": "RETURN_JSON", "phase": "review", "fixFamily": "fix.spec" },
+      "fix.spec":       { "name": "spec-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "docs", "returnFormat": "RETURN_JSON", "phase": "fix", "prev": { "roundR": "review.spec:R" } },
+      "review.plan":    { "name": "plan-review-{round}.json", "round": "increment", "status": "rollup", "schema": "docs", "returnFormat": "RETURN_JSON", "phase": "review", "fixFamily": "fix.plan" },
+      "fix.plan":       { "name": "plan-fix-{round}.json", "round": "source", "status": "contract", "schema": "docs", "fixTemplate": "docs", "returnFormat": "RETURN_JSON", "phase": "fix", "prev": { "roundR": "review.plan:R" } },
+      "review.branch":  { "name": "branch-review-{base7}..{head7}-r{round}.json", "round": "increment", "status": "rollup", "schema": "task", "returnFormat": "RETURN_STDOUT_BLOCK", "phase": "branch-review" }
     }
   }
 }

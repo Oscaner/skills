@@ -54,9 +54,9 @@ describe("rules/failure.ts — canonical 承重读取（AC14）", () => {
     }
   });
 
-  it("counters() 与 canonical 表内序一致（四字段名 + h1Label，零手写字面量）", () => {
+  it("counters() 与 canonical 表内序一致（四字段名 + returnMarker，零手写字面量）", () => {
     expect(counters()).toEqual(
-      CATS.filter((c) => c.counter).map((c) => ({ field: String(c.counter), label: String(c.h1Label) })),
+      CATS.filter((c) => c.counter).map((c) => ({ field: String(c.counter), label: String(c.returnMarker) })),
     );
   });
 });

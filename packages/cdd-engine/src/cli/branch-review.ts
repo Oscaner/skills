@@ -155,10 +155,10 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
       REVIEW_REFERENCE: `${base}..${head}`,
       REVIEW_AXES: cfg.axesGuide,
       HANDOFF_TARGET: handoffPath,
-      RETURN_FORMAT: art.return,
+      RETURN_FORMAT: art.returnFormat,
       RETURN_STDOUT_BLOCK: RETURN_STDOUT_BLOCK,
       REVIEW_PLAN_LINE: opts.plan ? `**Plan:** ${opts.plan}` : "",
-      HANDOFF_WRITE_GATE: reviewHardGate(art.return, handoffPath),
+      HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, handoffPath),
     }, "cdd review");
     // HANDOFF_SCHEMA_JSON: the shared-shell slot must be replaced explicitly on this path (the docs
     // path handles it in runDocsTask, the runner path in renderModePrompt). Task 18: stub = schema

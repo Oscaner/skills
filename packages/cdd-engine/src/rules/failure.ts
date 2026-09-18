@@ -17,7 +17,7 @@ export interface FailureCategory {
   id: string;
   countsTowardStopping?: boolean;
   counter?: string;
-  h1Label?: string;
+  returnMarker?: string;
   terminal?: string;
   dispatchIncomplete?: boolean;
 }
@@ -43,7 +43,7 @@ export const isIncompleteDispatch = (id: string | undefined): boolean =>
 export const counters = (): Array<{ field: string; label: string }> =>
   CAT.categories
     .filter((c) => c.counter)
-    .map((c) => ({ field: c.counter as string, label: c.h1Label as string }));
+    .map((c) => ({ field: c.counter as string, label: c.returnMarker as string }));
 
 // ---- quota isolation (exhaustion terminal gate) ----
 

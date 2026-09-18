@@ -155,12 +155,12 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           TASK_WORKSPACE: ws,
           REVIEW_REFERENCE: doc,
           REVIEW_AXES: cfg.axesGuide,
-          RETURN_FORMAT: art.return,
+          RETURN_FORMAT: art.returnFormat,
           RETURN_STDOUT_BLOCK: "",
           // type=plan: REVIEW_PLAN_LINE injects the upstream spec reference; type=spec has no plan
           // reference, stays empty.
           REVIEW_PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
-          HANDOFF_WRITE_GATE: reviewHardGate(art.return, handoffPath),
+          HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, handoffPath),
         },
         workspace: ws, repoRoot: root,
         dryRun: DRY_RUN(),

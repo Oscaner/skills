@@ -44,13 +44,13 @@ pnpm run version    # apply changesets to bump versions
 
 > **CRITICAL — emit after every source change:** After editing ANY file under `skills/*/SKILL.md`, `skills/*/docs/*.md`, `docs/*.md`, or `package.json#oscaner-plugin`, you MUST run `pnpm run emit` before committing. Emit products (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/`, `.github/ISSUE_TEMPLATE/`) are **derived output** — never edit them directly. If you forget emit, the CI will fail with emit drift. This is the most common mistake in this repo.
 
-CI runs `node scripts/run.mjs validate` on PRs to `develop` and `main` (12 validation blocks: emit freshness, plugin.json resolution, skill dirs, engine tests, version sync, overall consistency).
+CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (12 validation blocks: emit freshness, plugin.json resolution, skill dirs, engine tests, version sync, overall consistency).
 
 ## Architecture details
 
 - `packages/` — first-party plugins (osuperpowers)
-- `scripts/run.mjs emit` — unified emit tool (derives source.json + all harness manifests)
-- `scripts/run.mjs validate` — Node validation orchestration
+- `scripts/run.ts emit` — unified emit tool (derives source.json + all harness manifests)
+- `scripts/run.ts validate` — Node validation orchestration
 - `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
 
 For osuperpowers plugin internals (overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).

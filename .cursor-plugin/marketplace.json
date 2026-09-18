@@ -1,5 +1,5 @@
 {
-  "_generated": "scripts/run.mjs emit — do not edit",
+  "_generated": "scripts/run.ts emit — do not edit",
   "name": "oscaner-skills",
   "owner": {
     "name": "Oscaner Miao"
@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "_generated": "scripts/run.mjs emit — do not edit",
+      "_generated": "scripts/run.ts emit — do not edit",
       "name": "osuperpowers",
       "source": "./packages/osuperpowers",
       "description": "Standalone osuperpowers skills: orchestration + cli-* family + CDD engine."

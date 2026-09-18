@@ -39,7 +39,7 @@ jobs:
       - uses: changesets/action@v2
         id: changesets
         with:
-          version: node scripts/run.mjs version
+          version: node scripts/run.ts version
           publish: pnpm exec changeset publish
           createGithubReleases: false
           commit: "chore: release plugins"

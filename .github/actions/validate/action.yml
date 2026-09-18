@@ -1,5 +1,5 @@
 name: Validate
-description: Install dependencies with a frozen lockfile and run the full validation suite (run.mjs validate).
+description: Install dependencies with a frozen lockfile and run the full validation suite (run.ts validate).
 
 runs:
   using: composite
@@ -11,4 +11,4 @@ runs:
     - name: Run validation suite
       shell: bash
       run: |
-        node scripts/run.mjs validate
+        node scripts/run.ts validate

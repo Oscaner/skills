@@ -26,7 +26,6 @@ export const BASE_PRODUCT_ROOTS = [
   ".cursor-plugin",
   "packages/osuperpowers/.claude-plugin",
   "packages/osuperpowers/.cursor-plugin",
-  "packages/osuperpowers/.agents",
 ];
 
 /** Standalone repo-relative product files (not inside a product root). */

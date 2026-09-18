@@ -9,14 +9,9 @@ import {
   deriveFirstPartyNames,
 } from "./manifests.mjs";
 import { deriveSource, SOURCE_TOP } from "./source.mjs";
-import {
-  findStaleCommittedFiles,
-  pruneStaleAgentsNamespaces,
-  writeText,
-  writeJsonDoc,
-} from "./orchestrate.mjs";
+import { findStaleCommittedFiles, writeText, writeJsonDoc } from "./orchestrate.mjs";
 import { emitAll } from "./all.mjs";
-import { assertVersionBump } from "./compare.mjs";
+import { assertVersionBump, BASE_PRODUCT_ROOTS } from "./compare.mjs";
 
 // First-party versions are read from the live package.json SOTs so these
 // assertions hold at any released version. A stale hardcoded version broke the
@@ -38,7 +33,7 @@ const OS_ENG = {
   license: "MIT",
   claude: {
     category: "osuperpowers",
-    keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
+    keywords: ["osuperpowers", "cli", "cdd", "harness"],
   },
 };
 
@@ -58,7 +53,7 @@ test("claudePluginManifest emits osuperpowers claude manifest (thin, skills, no 
     license: "MIT",
     skills: "./skills/",
     category: "osuperpowers",
-    keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
+    keywords: ["osuperpowers", "cli", "cdd", "harness"],
   });
   expect(
     !("hooks" in m),
@@ -191,7 +186,7 @@ test("deriveSource first-party entries carry oscaner-plugin + package metadata",
     license: "MIT",
     claude: {
       category: "osuperpowers",
-      keywords: ["osuperpowers", "cli", "cdd", "harness", "droid", "pi"],
+      keywords: ["osuperpowers", "cli", "cdd", "harness"],
     },
     cursor: { emitMode: "plugin-root" },
   });
@@ -237,7 +232,7 @@ test("deriveSource vendor entries merge assembly-template fields + vendored file
 });
 
 // ---------------------------------------------------------------------------
-// orchestrate.mjs — stale-product detection + .agents/skills prune
+// orchestrate.mjs — stale-product detection
 // ---------------------------------------------------------------------------
 
 test("findStaleCommittedFiles flags emitted products no longer generated", () => {
@@ -285,45 +280,6 @@ test("findStaleCommittedFiles returns empty when every product is generated", ()
   }
 });
 
-test("pruneStaleAgentsNamespaces removes deleted/missing namespace dirs", () => {
-  const tmp = mkdtempSync(join(tmpdir(), "oscaner-agents-"));
-  try {
-    const outAgents = join(tmp, ".agents", "skills");
-    mkdirSync(join(outAgents, "osuperpowers"), { recursive: true });
-    mkdirSync(join(outAgents, "superpowers"), { recursive: true });
-    mkdirSync(join(outAgents, "ghost"), { recursive: true });
-    const srcDir = join(tmp, "src");
-    mkdirSync(srcDir, { recursive: true });
-
-    const namespaces = [
-      // maps to an existing source → kept
-      ["osuperpowers", srcDir],
-      // maps to a missing source → pruned
-      ["superpowers", join(tmp, "no-such-source")],
-    ];
-    const removed = pruneStaleAgentsNamespaces(outAgents, namespaces);
-    expect(removed.sort()).toEqual(["ghost", "superpowers"]);
-    expect(existsSync(join(outAgents, "osuperpowers"))).toBeTruthy();
-    expect(!existsSync(join(outAgents, "superpowers"))).toBeTruthy();
-    expect(!existsSync(join(outAgents, "ghost"))).toBeTruthy();
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test("pruneStaleAgentsNamespaces is a no-op on a missing .agents/skills dir", () => {
-  const tmp = mkdtempSync(join(tmpdir(), "oscaner-agents-empty-"));
-  try {
-    const outAgents = join(tmp, ".agents", "skills");
-    const removed = pruneStaleAgentsNamespaces(outAgents, [
-      ["osuperpowers", join(tmp, "src")],
-    ]);
-    expect(removed).toEqual([]);
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
 test("writeJsonDoc/writeText write into outRoot (mkdir -p) and track generatedPaths", () => {
   const tmp = mkdtempSync(join(tmpdir(), "oscaner-writers-"));
   try {
@@ -354,12 +310,16 @@ test("emitAll into a temp tree produces the full product set and tracks every pa
       expect(existsSync(join(tmp, rel))).toBe(true);
       expect(generatedPaths.includes(rel)).toBe(true);
     }
-    // the shared .agents/skills/ namespace copy is tracked too
+    // the shared .agents/skills/ namespace copy is retired — no .agents paths
+    // are produced and no hidden .agents tree exists in the product set
     expect(
-      generatedPaths.some((r) =>
-        r.startsWith("packages/osuperpowers/.agents/skills/osuperpowers/"),
-      ),
-    ).toBe(true);
+      generatedPaths.some((r) => r.includes("/.agents/")),
+    ).toBe(false);
+    expect(existsSync(join(tmp, "packages/osuperpowers/.agents"))).toBe(false);
+    // the drift-check product-root set no longer owns the .agents tree
+    expect(
+      BASE_PRODUCT_ROOTS.some((r) => r.includes("/.agents")),
+    ).toBe(false);
     // every recorded path resolves to a real temp-tree file, no duplicates
     for (const rel of generatedPaths) {
       expect(existsSync(join(tmp, rel))).toBe(true);

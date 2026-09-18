@@ -1,34 +1,18 @@
 /**
- * osuperpowers emit — per-harness thin manifests (.claude-plugin / .cursor-plugin)
- * + shared `.agents/skills/` copy.
+ * osuperpowers emit — per-harness thin manifests (.claude-plugin / .cursor-plugin).
  *
  * `generatedPaths` records every repo-relative path produced (the emit-check
  * drift diff input); all writers are passed in, no module-level state.
  */
 
-import { readdirSync, existsSync, rmSync, cpSync } from "node:fs";
-import { join, relative, resolve, dirname } from "node:path";
+import { readdirSync, existsSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { globSync } from "tinyglobby";
 import { resolveVersion } from "../lib/marketplace-utils.mjs";
-import {
-  claudePluginManifest,
-  cursorPluginManifest,
-} from "./manifests.mjs";
-import {
-  writeJsonDoc,
-  pruneStaleAgentsNamespaces,
-} from "./orchestrate.mjs";
+import { claudePluginManifest, cursorPluginManifest } from "./manifests.mjs";
+import { writeJsonDoc } from "./orchestrate.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-
-/**
- * Recursively collect absolute paths of every file under `dir`
- * (`dot: true` — the shared copy target lives in the hidden `.agents/` tree).
- */
-export function collectTree(dir) {
-  return globSync("**/*", { cwd: dir, absolute: true, dot: true });
-}
 
 export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
   const version = resolveVersion(root, plugin).version;
@@ -57,34 +41,4 @@ export function emitOsuperpowers(outRoot, plugin, generatedPaths) {
     cursorPluginManifest(plugin, version),
     generatedPaths,
   );
-
-  emitAgentsSkillsCopy(outRoot, contentRoot, generatedPaths);
-}
-
-/**
- * Shared `.agents/skills/` copy（agent-harness 消费方）。
- * Contains ONLY the osuperpowers skills namespace — upstream superpowers
- * skills are NOT vendored (osuperpowers Read Upstream is a when-available enhancement).
- */
-export function emitAgentsSkillsCopy(outRoot, contentRoot, generatedPaths) {
-  const outAgents = join(outRoot, contentRoot, ".agents", "skills");
-  const namespaces = [
-    ["osuperpowers", join(root, "packages/osuperpowers/skills")],
-  ];
-  // Prune stale namespace dirs (deleted source, or a namespace no longer
-  // emitted) before re-copying, so a skill removed from skills/ can't linger
-  // in the committed .agents/skills/ tree and escape the --check diff.
-  pruneStaleAgentsNamespaces(outAgents, namespaces);
-  // Re-copy each namespace from source so deletions inside a skill dir also
-  // disappear (cpSync alone merges and would leave stale files behind).
-  for (const [ns, sourceRoot] of namespaces) {
-    if (!existsSync(sourceRoot)) continue;
-    const dest = join(outAgents, ns);
-    rmSync(dest, { recursive: true, force: true });
-    cpSync(sourceRoot, dest, { recursive: true });
-  }
-  // Record every copied file so the drift diff sees the hidden `.agents/` tree.
-  for (const abs of collectTree(outAgents)) {
-    generatedPaths.push(`${contentRoot}/.agents/skills/${relative(outAgents, abs)}`);
-  }
 }

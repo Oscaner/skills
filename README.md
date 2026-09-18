@@ -6,7 +6,7 @@
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Personal AI coding skills marketplace. Four plugins, one pipeline -- works across **Claude Code**, **Cursor**, **Droid**, **Pi**, **Grok**, **Qoder**, **Codex**, and **Gemini**.
+Personal AI coding skills marketplace. Four plugins, one pipeline -- consumable across multiple AI coding harnesses (verified on **Claude Code** and **Cursor Agent**).
 
 ## What this is
 

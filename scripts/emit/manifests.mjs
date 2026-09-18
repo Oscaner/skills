@@ -6,8 +6,7 @@
  * for a single harness. The unified emit dispatcher (`scripts/run.mjs emit`)
  * writes them into each first-party plugin directory. "Thin manifest" means
  * every harness manifest points at the canonical `./skills/` tree — no
- * per-harness copies of the skill bodies (the one exception is the shared
- * `.agents/skills/` copy, which is handled by the emit orchestrator, not here).
+ * per-harness copies of the skill bodies.
  */
 
 import { readdirSync, existsSync, readFileSync } from "node:fs";
@@ -41,10 +40,10 @@ function keywords(plugin) {
 }
 
 /**
- * `.claude-plugin/plugin.json` — Claude Code manifest. Grok reuses this file
- * (no separate grok emit). Thin: skills/ points at the canonical dir.
- * `noSkills` omits the `skills` field for the overrides trigger router, which
- * ships no skill bodies ( osuperpowers keeps `skills: "./skills/"`).
+ * `.claude-plugin/plugin.json` — Claude Code manifest. Thin: skills/ points at
+ * the canonical dir. `noSkills` omits the `skills` field for the overrides
+ * trigger router, which ships no skill bodies (osuperpowers keeps
+ * `skills: "./skills/"`).
  */
 export function claudePluginManifest(plugin, version, { noSkills = false } = {}) {
   const m = {
@@ -85,5 +84,3 @@ export function cursorPluginManifest(plugin, version) {
   m.skills = "./skills/";
   return m;
 }
-
-// pi 字段由 package.json 手写 / vendor-assembly 自提取（assemblePackageJson），无 emit 函数承载。

@@ -100,9 +100,7 @@
           "osuperpowers",
           "cli",
           "cdd",
-          "harness",
-          "droid",
-          "pi"
+          "harness"
         ]
       }
     }

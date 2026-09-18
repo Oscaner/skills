@@ -3,11 +3,11 @@
  * Unified emit — write mode (`scripts/run.mjs emit`).
  *
  * Derives `marketplace/source.json` (package-as-source) and generates every
- * first-party artifact into the repo root: osuperpowers per-harness manifests,
- * hooks, shared `.agents/skills/` copy, plus the repo-root marketplace
- * documents, vendored cursor wrappers, and the data-driven
- * `.github/ISSUE_TEMPLATE` forms. The `generatedPaths` array records
- * every repo-relative path produced (input for the emit-check drift diff).
+ * first-party artifact into the repo root: osuperpowers per-harness manifests
+ * and hooks, plus the repo-root marketplace documents, vendored cursor
+ * wrappers, and the data-driven `.github/ISSUE_TEMPLATE` forms. The
+ * `generatedPaths` array records every repo-relative path produced (input for
+ * the emit-check drift diff).
  *
  * The downstream emitters each take `(outRoot, ..., generatedPaths)` — no
  * module-level state, so a full tree can be generated into a temp root by

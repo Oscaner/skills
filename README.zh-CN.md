@@ -6,7 +6,7 @@
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-个人 AI 编程技能市场。四个插件，一条流水线——适用于 **Claude Code**、**Cursor**、**Droid**、**Pi**、**Grok**、**Qoder**、**Codex** 和 **Gemini**。
+个人 AI 编程技能市场。四个插件，一条流水线——可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。
 
 ## 这是什么
 
@@ -22,7 +22,7 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 
 | 插件 | 类型 | 说明 |
 |------|------|------|
-| **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（osuperpowers 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
+| **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（osuperpowers 编排器、`cli-*` 家族）、CDD 引擎 |
 | **[superpowers](vendors/superpowers/)** | vendored | 上游工作流技能——brainstorming、writing plans、SDD、verification、branch finish |
 | **[mattpocock-skills](vendors/mattpocock-skills/)** | vendored | 精准工具——`grilling`、`tdd` |
 | **[impeccable](vendors/impeccable/)** | vendored | 前端设计技能 |
@@ -50,27 +50,17 @@ npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscan
 
 ### 按 harness 安装
 
-| Harness | 通道 | 安装方式 |
-|---------|------|---------|
-| Claude Code | install-and-use | marketplace 安装 |
-| Cursor Agent | install-and-use | marketplace 安装 |
-| Droid | install-and-use | 复制 skills 到 `.agents/skills/` |
-| Grok | install-and-use | marketplace 安装（Claude 兼容） |
-| Qoder | install-and-use | 安装插件 |
-| Codex | install-and-use | 安装插件 + `/hooks` 信任 |
-| Gemini | install-and-use | `gemini extensions install <repo-url>` |
-| Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
-| Trae | init | `init harness trae` |
-| Vibe | init | `init harness vibe` |
-| Kiro | init | `init harness kiro` |
-| OpenCode | init | `init harness opencode` |
+| Harness | 安装方式 |
+|---------|---------|
+| Claude Code | marketplace 安装 |
+| Cursor Agent | marketplace 安装 |
 
-各 harness 详细安装步骤：[docs/gate-install.md](docs/gate-install.md)。
+osuperpowers 通过各 harness 自己的插件市场安装；claude 与 cursor-agent 无需每 harness 的配置文件或信任流程。
 
 ## 快速开始
 
 1. 从市场或 npm 安装插件（见上文）。
-2. 每个项目跑一次 **`/init harness`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中设置 harness 配置。
+2. 确保 `cdd` 引擎 CLI 在 PATH 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cli-driven-development` 的 `detect-engine` 节点会在 dispatch 时重新检查。
 3. 照常调用 superpowers 工作流——osuperpowers skills 会自动拦截上游触发器并路由到对应目标。
 
 ## 架构
@@ -91,8 +81,7 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
 
 ## 各包文档
 
-- [packages/osuperpowers/](packages/osuperpowers/)——技能、CDD 引擎、gate
-- [docs/gate-install.md](docs/gate-install.md)——各 harness gate 安装指南
+- [packages/osuperpowers/](packages/osuperpowers/)——技能、CDD 引擎
 
 ## 开发
 

@@ -1,11 +1,11 @@
 ---
 name: writing-single-spec
-description: Independent single-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Delegates to a /superpowers:brainstorming (writing-spec) session for design, then authors the single spec free-form, runs the cdd spec review-fix loop, commits on approval, and hands off to writing-plans. Callable standalone.
+description: Independent single-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, then authors the single spec free-form, runs the cdd spec review-fix loop, commits on approval, and hands off to writing-plans. Callable standalone.
 ---
 
 # Osuperpowers Single-Spec Writing
 
-Writes a single (non-phase) spec from a design session, reviews it under the cdd spec contract, commits it on approval, and hands it off to writing-plans. Single specs have no template and no parent overall to sync.
+Writes a single (non-phase) spec from the writing-spec import, reviews it under the cdd spec contract, commits it on approval, and hands it off to writing-plans. Single specs have no template and no parent overall to sync.
 
 ## Flow Digraph
 
@@ -30,15 +30,15 @@ flowchart TD
 | scope changed? | N/A |
 | sync-overall | N/A |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
-| handoff-spec | `handoff-writing-plans` — Run a /osuperpowers:writing-plans session |
+| handoff-spec | `handoff-writing-plans` — prepare the handoff to `/osuperpowers:writing-plans` (plan authoring) |
 
 ## Node Definitions
 
 ### `run-writing-spec-session`
 
-- **Do**: Run a /superpowers:brainstorming session (writing-spec session) — the harness loads the upstream skill and runs its flow to produce the design decisions this single spec will capture
-- **Read**: nothing before the session; the session produces the design
-- **Exit**: Session loaded → `author-spec`; upstream missing → BLOCKED (install superpowers)
+- **Do**: Import `/superpowers:brainstorming` (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions this single spec will capture
+- **Read**: nothing before the import; the import lands the design
+- **Exit**: Import landed → `author-spec`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
 
 ### `author-spec`
@@ -71,9 +71,9 @@ flowchart TD
 
 ### `handoff-writing-plans`
 
-- **Do**: Run a /osuperpowers:writing-plans session to plan the implementation of the approved spec
+- **Do**: Prepare the handoff to `/osuperpowers:writing-plans` — the plan-authoring flow takes over to plan the implementation of the approved spec (flow import, consumed inline as this session's baseline; not a session spawn)
 - **Read**: The committed spec file
-- **Exit**: Handoff session loaded → flow ends for this skill
+- **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ## Invariants

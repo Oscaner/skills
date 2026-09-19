@@ -1,11 +1,11 @@
 ---
 name: writing-overall-spec
-description: Independent overall-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Delegates to a /superpowers:brainstorming (writing-spec) session for design, reads the overall-spec template, authors the program charter to docs/osuperpowers/specs/, runs the cdd spec review-fix loop, commits on approval, and hands off to /compact or brainstorming [Px]. Callable standalone.
+description: Independent overall-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, reads the overall-spec template, authors the program charter to docs/osuperpowers/specs/, runs the cdd spec review-fix loop, commits on approval, and hands off to /compact or brainstorming [Px]. Callable standalone.
 ---
 
 # Osuperpowers Overall-Spec Writing
 
-Writes the program-level (overall) spec from a design session, reviews it under the cdd spec contract, commits it on approval, and hands off to the next phase's brainstorming. The overall spec is charter-only and carries the four tables (issue inventory / phase inventory / dependency graph / change history); per-phase increment lives in writing-phase-spec.
+Writes the program-level (overall) spec from the writing-spec import, reviews it under the cdd spec contract, commits it on approval, and hands off to the next phase's brainstorming. The overall spec is charter-only and carries the four tables (issue inventory / phase inventory / dependency graph / change history); per-phase increment lives in writing-phase-spec.
 
 ## Flow Digraph
 
@@ -31,15 +31,15 @@ flowchart TD
 | scope changed? | N/A |
 | sync-overall | N/A — this skill is the overall writer; no parent overall to sync |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
-| handoff-spec | `handoff-compact-or-brainstorming` — /compact or Run a /osuperpowers:brainstorming [Px program] session |
+| handoff-spec | `handoff-compact-or-brainstorming` — /compact, or prepare the handoff to `/osuperpowers:brainstorming [Px program]` |
 
 ## Node Definitions
 
 ### `run-writing-spec-session`
 
-- **Do**: Run a /superpowers:brainstorming session (writing-spec session) — the harness loads the upstream skill and runs its flow to produce the design decisions (including the program charter and phase decomposition) this overall spec will capture
-- **Read**: nothing before the session; the session produces the design
-- **Exit**: Session loaded → `read-template`; upstream missing → BLOCKED (install superpowers)
+- **Do**: Import `/superpowers:brainstorming` (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including the program charter and phase decomposition) this overall spec will capture
+- **Read**: nothing before the import; the import lands the design
+- **Exit**: Import landed → `read-template`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
 
 ### `read-template`
@@ -79,7 +79,7 @@ flowchart TD
 
 ### `handoff-compact-or-brainstorming`
 
-- **Do**: Run /compact to collapse the completed overall session, or Run a /osuperpowers:brainstorming [Px program] session to start the next phase's full brainstorm → plan → dev cycle
+- **Do**: Run /compact to collapse the completed overall session, or prepare the handoff to `/osuperpowers:brainstorming [Px program]` — its flow is consumed inline as this session's baseline to start the next phase's full brainstorm → plan → dev cycle
 - **Read**: The committed overall spec
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Handing a phase decided by the overall straight to writing-plans (skipping phase-level brainstorming) → violates the overall boundary rule

@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Delegates to a /superpowers:writing-plans session, backfills the design spec on substantive drift before authoring, runs the cdd plan review-fix loop, commits on approval, and hands off to cli-driven-development. Callable standalone; triggered by /writing-plans via overrides router.
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, runs the cdd plan review-fix loop, commits on approval, and hands off to cli-driven-development. Callable standalone; triggered by /writing-plans via overrides router.
 ---
 
 # Osuperpowers Writing-Plans
@@ -27,15 +27,15 @@ flowchart TD
 
 ### `run-writing-plans-session`
 
-- **Do**: Run a /superpowers:writing-plans session — the harness loads the upstream skill and runs its flow to plan the approved spec (session-call; the upstream document is not read)
-- **Read**: nothing before the session; the session plans from the approved spec
-- **Exit**: Session loaded → `backfill-design`; upstream missing → BLOCKED (install superpowers)
+- **Do**: Import `/superpowers:writing-plans` — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) to plan the approved spec; it lands the draft plan (session-call; the upstream document is not read)
+- **Read**: nothing before the import; the import plans from the approved spec and lands the draft plan
+- **Exit**: Import landed → `backfill-design`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
 
 ### `backfill-design`
 
-- **Do**: Check the session's plan against the approved design. Substantive drift (factual error / missing constraint / a new implementation step the design does not cover) → **backfill the design spec first** — revise the spec + record the drift — so spec and plan agree before plan-review (overall v1.6 rule). Cross-phase matters still backfill to the parent overall per Boundary rules
-- **Read**: approved spec + session output
+- **Do**: Check the drafted plan against the approved design. Substantive drift (factual error / missing constraint / a new implementation step the design does not cover) → **backfill the design spec first** — revise the spec + record the drift — so spec and plan agree before plan-review (overall v1.6 rule). Cross-phase matters still backfill to the parent overall per Boundary rules
+- **Read**: approved spec + landed plan draft
 - **Exit**: spec ↔ plan consistent → `author-plan`
 - **Fail**: Entering plan-review with an un-backfilled drift → violates the design-backfill rule (overall v1.6)
 
@@ -69,9 +69,9 @@ flowchart TD
 
 ### `handoff-cli-driven-development`
 
-- **Do**: Run a /osuperpowers:cli-driven-development session to implement the approved plan
+- **Do**: Prepare the handoff to `/osuperpowers:cli-driven-development` — its `cdd` implement → review → fix orchestration takes over to implement the approved plan (flow handoff, not a session spawn; the cdd chain drives the work)
 - **Read**: The committed plan file
-- **Exit**: Handoff session loaded → flow ends for this skill
+- **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ## Pending Acceptance Patch (cross-task findings consolidation)

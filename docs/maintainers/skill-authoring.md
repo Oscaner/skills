@@ -1,6 +1,6 @@
 # Skill Authoring Specification
 
-- **Version**: v1.3 · 2026-09-18
+- **Version**: v1.4 · 2026-09-19
 - **Scope**: Sole format authority for osuperpowers skill SKILL.md authoring (node-anchored form, post-P4)
 - **Audience**: This repository's maintainers + AI agents authoring skills
 - **Language**: English primary (authoritative source; no zh-CN mirrors)
@@ -64,10 +64,10 @@ flowchart TD
   A -->|missing| Z((BLOCKED))
 ```
 
-- **Do**: Run a /mattpocock-skills:grilling session — the harness loads the upstream skill and runs its flow. Upstream flow steps are not restated here.
-- **Read**: nothing before the session — the delegated session resolves its own context; the node derives what it routes on from the session outcome
-- **Exit**: Session loaded → `route`; load failed (plugin/skill missing) → BLOCKED
-- **Fail**: Session exits with no usable outcome → report to user and ask for next step (skip or abort)
+- **Do**: Import /mattpocock-skills:grilling — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn). The grilling outcome lands as the artifact this node routes on. Upstream flow steps are not restated here.
+- **Read**: nothing before the import — the imported flow resolves its own context; the node derives what it routes on from the landed grilling outcome
+- **Exit**: Import landed → `route`; load failed (plugin/skill missing) → BLOCKED
+- **Fail**: Import exits with no usable outcome → report to user and ask for next step (skip or abort)
 
 ## 4. Invariants
 
@@ -77,7 +77,7 @@ flowchart TD
   - Vendored submodules must not be modified
   - Commit discipline (commit when spec is approved)
   - Language policy (English primary — no zh-CN mirrors)
-  - Session-call policy (delegated nodes invoke other plugins' flows only via `/plugin:skill` sessions — no upstream document reads)
+  - Session-call policy (delegated nodes consume other plugins' flows only via `/plugin:skill` imports — one import per upstream type per session, no upstream document reads)
   - Review Stopping (re-runs driven only by blockers; fixes always dispatch via `cdd fix`)
 
 ## 5. Failure Modes Table
@@ -86,7 +86,7 @@ Cross-node failure-to-behavior mappings, located in the `## Failure Modes` secti
 
 | failure | behavior | reason |
 |---|---|---|
-| Delegated session not installed | BLOCKED (with install instructions) | Block policy: no silent fallback |
+| Delegated skill not installed | BLOCKED (with install instructions) | Block policy: no silent fallback |
 | Delegate load failure | Report + ask user | Delegate Load Failure protocol |
 | Harness not installed | BLOCKED (with registration prompt) | Cannot execute without a working harness |
 | Nested CLI timeout | Fail-open (log stderr) | Must not block the main flow |
@@ -102,23 +102,23 @@ BLOCKED node prose must include:
 2. **Recovery action**: Concrete install instructions or manual user steps
 3. **No silent fallback**: Explicit statement that degradation and skipping are prohibited
 
-**Block policy** (program-level constraint): delegated skills (brainstorming / writing-plans / finishing) must treat a failed upstream session load (`A -->|missing| Z1((BLOCKED: install <plugin>))` terminal) as an explicit BLOCKED node with install instructions — no degradation, no silent fallback.
+**Block policy** (program-level constraint): delegated skills (brainstorming / writing-plans / finishing) must treat a failed upstream import (`A -->|missing| Z1((BLOCKED: install <plugin>))` terminal) as an explicit BLOCKED node with install instructions — no degradation, no silent fallback.
 
 ## 7. Session-call Primitive and Skill Forms
 
 All cross-skill invocation of another plugin's flow goes through the **session-call** primitive:
 
-> `Run a /<plugin>:<skill> session`
+> `/plugin:skill` — load an upstream skill = import its flow once
 
-The harness loads the target skill and runs its flow as the session; the invoking node routes on the session outcome. Skills refer to upstream flows **only** in this slash form — never by upstream document path (zero upstream `vendors/` paths, zero upstream SKILL.md file paths, zero `Read-Upstream` wording), and a delegated flow's internal steps are never restated inside the node (the upstream session owns them).
+Loading an upstream skill **imports its flow once** and consumes it **inline** as the current session's baseline — there is no second session: a single session / single process can never spawn the same upstream flow a second time, and each session consumes each upstream skill type **at most once**. Re-entering a delegated node (the same flow node reached again) routes on the **already-landed artifact** the first import produced — the mode marker / design context / registration marker — never by loading the upstream flow again; the invoking node routes on the import's outcome. Skills refer to upstream flows **only** in this slash form — never by upstream document path (zero upstream `vendors/` paths, zero upstream SKILL.md file paths, zero `Read-Upstream` wording), and a delegated flow's internal steps are never restated inside the node (the imported flow owns them). The wording "run a /xxx session" is rejected — the slash reference names the flow import, not a separate session spawn.
 
 Two SKILL.md forms follow from the primitive:
 
-**Delegated** — the skill is a thin orchestrator of upstream or sibling sessions: its nodes run `/<plugin>:<skill>` sessions and route on the outcome. Node **Do** = the session-call line plus the routing the node performs; node **Read** derives from the session outcome, not from upstream files. Examples: `brainstorming` (run-brainstorming-session → /superpowers:brainstorming; run-grilling-session → /mattpocock-skills:grilling), `writing-plans` (run-writing-plans-session → /superpowers:writing-plans), `finishing` (run-finishing-session → /superpowers:finishing-a-development-branch), and the spec-writers (→ /superpowers:brainstorming writing-spec design sessions).
+**Delegated** — the skill is a thin orchestrator of upstream or sibling flows: its nodes import `/<plugin>:<skill>` and route on the import's landed artifact. Node **Do** = the import line (the flow consumed inline as this session's baseline) plus the artifact the import lands and the routing the node performs; node **Read** derives from the import outcome, not from upstream files. Examples: `brainstorming` (run-brainstorming-session → /superpowers:brainstorming, landing the mode marker + design context; run-grilling-session → /mattpocock-skills:grilling, landing the grilling outcome), `writing-plans` (run-writing-plans-session → /superpowers:writing-plans, landing the planned implementation), `finishing` (run-finishing-session → /superpowers:finishing-a-development-branch, landing the merge/PR/keep/discard decision), and the spec-writers (→ /superpowers:brainstorming writing-spec design imports, landing the design decisions).
 
-**Native** — the skill executes its own flow via the engine CLI / local processing; there is no upstream session to delegate to, so control flow lives entirely in the skill's digraph and node **Do** fields state the engine invocation explicitly (command + args). Examples: `cli-driven-development` (the `cdd` implement → review → fix chain), `report-issues` (local session analysis + renderer/`gh` CLI).
+**Native** — the skill executes its own flow via the engine CLI / local processing; there is no upstream flow to import, so control flow lives entirely in the skill's digraph and node **Do** fields state the engine invocation explicitly (command + args). Examples: `cli-driven-development` (the `cdd` implement → review → fix chain), `report-issues` (local session analysis + renderer/`gh` CLI).
 
-A delegated skill may still contain native engine-CLI nodes (the spec-writers, for example, run the `cdd` review-fix loop natively after their delegated design session) — the form class names the skill's primary upstream-session delegation, not an exclusive node inventory.
+A delegated skill may still contain native engine-CLI nodes (the spec-writers, for example, run the `cdd` review-fix loop natively after their delegated design import) — the form class names the skill's primary upstream-flow delegation, not an exclusive node inventory.
 
 ## 8. Graph–Prose Consistency (single enforcement point)
 
@@ -194,6 +194,7 @@ When a new skill introduces template body text that is data-izable — text-shap
 
 ## Change history
 
+- v1.4 · 2026-09-19 — Session-call semantic honesty (G1): the primitive is redefined as `load an upstream skill = import its flow once` — inline consumption as this session's baseline, at most one import per upstream type per session, re-entry routes on already-landed artifacts (mode marker / design context / registration marker); the "run a /xxx session" spawn wording is rejected across §7, the delegated-form example, and the session-call policy invariant.
 - v1.3 · 2026-09-18 — Add §9 flow change discipline (whole-flow re-read · shape-fit judgment · sibling-uniform adjustment · growth boundary) and rework §8 into the three digraph integrity assertions (bidirectional completeness / skeleton isomorphism / growth signal), moved §9–10 to §10–11.
 - v1.2 · 2026-09-16 — Post-P4 rewrite: session-call primitive + delegated/native forms (§7); §8 collapsed to the single machine enforcement point (`digraph-consistency.test.mjs`); deleted §7 init legacy exemption (init removed) and §9 P3 path-string boundary (elapsed); §4 closes the spec-authorized exception escape hatch (limit remains a hard 5); language updated to English primary (zh-CN mirrors retired).
 - v1.1 · 2026-09-08 — Add §11 Data-driven template convention (data-izable template body text → canonical + renderer + emit guard).

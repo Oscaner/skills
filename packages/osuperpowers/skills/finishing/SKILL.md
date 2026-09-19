@@ -1,11 +1,11 @@
 ---
 name: finishing
-description: Independent finishing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Delegates to a /superpowers:finishing-a-development-branch session for the merge/PR/keep/discard decision, then backfills the parent overall (phase programs) and closes related issues. Layers personal rules (no worktrees / conventional commits / typed-discard). Callable standalone; triggered by /finishing via overrides router.
+description: Independent finishing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:finishing-a-development-branch flow inline as this session's baseline for the merge/PR/keep/discard decision, then backfills the parent overall (phase programs) and closes related issues. Layers personal rules (no worktrees / conventional commits / typed-discard). Callable standalone; triggered by /finishing via overrides router.
 ---
 
 # Osuperpowers Finishing
 
-Development branch finishing: the upstream session decides merge / PR / keep / discard, then the phase program is backfilled and related issues are closed.
+Development branch finishing: the imported upstream flow decides merge / PR / keep / discard, then the phase program is backfilled and related issues are closed.
 
 ## Flow Digraph
 
@@ -21,9 +21,9 @@ flowchart TD
 
 ### `run-finishing-session`
 
-- **Do**: Run a /superpowers:finishing-a-development-branch session — the upstream flow runs its full finish loop (verify tests → read base → 4-option menu → execute merge / PR / keep / discard). **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees — I1); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution (I2); the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu **without resetting its presentation counter** (3 attempts max → BLOCKED)
-- **Read**: upstream flow + base branch (`.osuperpowers/cdd/<slug>/base-branch.json`, or inference per [base-branch.md](../cli-driven-development/docs/base-branch.md))
-- **Exit**: Session complete (merged / PR created / kept / discarded) → `backfill-overall`
+- **Do**: Import `/superpowers:finishing-a-development-branch` — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) and runs its full finish loop (verify tests → read base → 4-option menu → execute merge / PR / keep / discard); it lands the finish decision (merged / PR created / kept / discarded) that routes `backfill-overall`. **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees — I1); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution (I2); the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu **without resetting its presentation counter** (3 attempts max → BLOCKED)
+- **Read**: landed finish decision + base branch (`.osuperpowers/cdd/<slug>/base-branch.json`, or inference per [base-branch.md](../cli-driven-development/docs/base-branch.md))
+- **Exit**: Finish decision landed (merged / PR created / kept / discarded) → `backfill-overall`
 - **Fail**: Upstream superpowers plugin missing → BLOCKED (install superpowers); menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)
 
 ### `backfill-overall`

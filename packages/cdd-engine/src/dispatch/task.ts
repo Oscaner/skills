@@ -434,6 +434,30 @@ export class TaskLifecycle extends DispatchLifecycle {
       const progressData = readProgressJSON(planWorkspace.workspace, planWorkspace.plan);
       const round = mode === "implement" ? 1 : getRound(progressData, this.#taskNum, mode);
       ctx = buildCtx(this.#root, this.#taskNum, { mode, harness: this.#harness, planWorkspace, round, findingsPath: this.#opts.findingsPath });
+      // T22/§T7.1: plan-constraints existence gate — implement pre-flight, dry-run exempt. Runs
+      // BEFORE the F11 brief generation below (the brief does not feed extraction): a
+      // source-undeclared BLOCK aborts pre-dispatch with zero workspace residue, rather than
+      // leaving a partial brief artifact on disk (findings 6).
+      // Missing → materialize once from the plan's declared Constraints source (workitem same
+      // class as the brief; the anchor records the source plan hash for stale detection); a plan
+      // declaring no Constraints source → BLOCK (约束源未声明). The BLOCK is explicit — never a
+      // silent fallback to "brief as sole authority" (E27: source-less fallback was the recurring
+      // root cause this gate kills). dry-run keeps zero constraints side effects: no materialize,
+      // no gate (T10 dry-run gate-family semantics). Generate-once: materialize writes or throws —
+      // no post-call existsSync re-check (dead in the write-or-throw contract, findings 5).
+      if (!dryRun && mode === "implement") {
+        if (!existsSync(ctx.constraintsPath)) {
+          try {
+            materializePlanConstraints(planWorkspace.plan, ctx.workspace);
+          } catch (e) {
+            throw new RunBlocked(
+              e instanceof ConstraintsSourceUndeclared
+                ? e.message
+                : `${PLAN_CONSTRAINTS_MISSING_BLOCKER} (${(e as Error).message})`,
+            );
+          }
+        }
+      }
       // F11: self-provision the task brief at plan finalization (--plan takes effect on
       // generation). Failure → RunBlocked → exit 1 — never a silent fallback to an existing brief.
       // Parent-dir bootstrap before writing (same workspace-bootstrap convention as writeBaseBranch).
@@ -442,30 +466,6 @@ export class TaskLifecycle extends DispatchLifecycle {
         await generateBrief(planWorkspace.plan, this.#taskNum, ctx.briefPath, this.#root);
       } catch (e) {
         throw new RunBlocked(`brief generation failed: ${(e as Error).message}`);
-      }
-      // T22/§T7.1: plan-constraints existence gate — implement pre-flight, dry-run exempt.
-      // Missing → materialize once from the plan's declared Constraints source (workitem same
-      // class as the brief; the anchor records the source plan hash for stale detection); a plan
-      // declaring no Constraints source → BLOCK (约束源未声明). The BLOCK is explicit — never a
-      // silent fallback to "brief as sole authority" (E27: source-less fallback was the recurring
-      // root cause this gate kills). dry-run keeps zero constraints side effects: no materialize,
-      // no gate (T10 dry-run gate-family semantics).
-      if (!dryRun && mode === "implement") {
-        const exists = existsSync(ctx.constraintsPath);
-        if (!exists) {
-          try {
-            materializePlanConstraints(planWorkspace.plan, ctx.workspace);
-          } catch (e) {
-            throw new RunBlocked(
-              e instanceof ConstraintsSourceUndeclared
-                ? e.message
-                : `plan-constraints.md missing — run materializer or declare a plan Constraints source (${(e as Error).message})`,
-            );
-          }
-          if (!existsSync(ctx.constraintsPath)) {
-            throw new RunBlocked("plan-constraints.md missing — run materializer or declare a plan Constraints source");
-          }
-        }
       }
     } catch (e) {
       if (e instanceof RunBlocked) { this.#done(1, [], e.message); return; }
@@ -901,6 +901,10 @@ export function isTaskPending(taskNum: number, workspace: string, progressData: 
 // The workspace-derived constraints artifact name (derive-only until T22 — the recurring
 //「plan-constraints.md 不存在 → brief 唯一权威」note root cause: derived but never generated).
 const PLAN_CONSTRAINTS_FILE = "plan-constraints.md";
+// The actionable BLOCK face for an un-materializable constraints file — single module const for
+// the materializer catch fallback (findings 5: the generate-once post-check is gone because
+// materializePlanConstraints either writes the file or throws, never returns with it absent).
+const PLAN_CONSTRAINTS_MISSING_BLOCKER = "plan-constraints.md missing — run materializer or declare a plan Constraints source";
 // Plan-hash anchor token embedded in the artifact header (stale anchor; parsed by
 // isPlanConstraintsStale). The anchor is the ONLY path token in the file — the header embeds
 // the plan basename + content hash, never the absolute root — so equal plans produce equal
@@ -935,30 +939,48 @@ function extractLiteralConstraints(content: string): string | null {
   return `${lines[start]}\n${body}\n`;
 }
 
-// Paragraph slicing (the legacy form's atomic unit): contiguous non-blank non-heading lines.
-function paragraphsOf(content: string): string[][] {
-  const out: string[][] = [];
-  let cur: string[] = [];
-  for (const line of content.split("\n")) {
-    if (line.trim() === "" || /^#{1,6} /.test(line)) {
-      if (cur.length > 0) { out.push(cur); cur = []; }
-      continue;
-    }
-    cur.push(line);
-  }
-  if (cur.length > 0) out.push(cur);
-  return out;
+// Prose-pointer anchor heading regex (findings 2): `**<anchor>(?:（qualifier）)?**：` — the in-repo
+// qualifier forms are full-width parentheticals (`**commit 边界机制（本 program 全 phase 生效）**：`);
+// a bare `**<anchor>**：` matches too (the `(?:…)` group is a REAL regex group and optional —
+// `（[^）]*）?` would quantify only the closing paren and demand a literal `（`). No gap is allowed
+// between the anchor and the closing `**`, so a prefix-collision heading
+// (`**commit 边界机制 补充**：`) can never occupy the anchor's slot.
+function proseAnchorRe(anchor: string): RegExp {
+  return new RegExp(`^\\*\\*${anchor}(?:（[^）]*）)?\\*\\*[：:]`);
 }
 
-// Legacy prose-pointer extraction: the anchored `**<anchor>…**：` paragraphs in canonical order;
-// present anchors are taken verbatim (first match per anchor), missing ones are omitted.
+// Block boundary for the prose-pointer form (mirrors extractLiteralConstraints' boundary set): a
+// `---` rule, a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
+// (any prose-pointer-style bold heading begins a new declaration block, so the plan's interleaved
+// `**v1.x 回填…**：` notes bound the preceding anchor the way the literal form's headings bound a
+// `## Constraints` section).
+const PROSE_BLOCK_STOP = [
+  /^---\s*$/,
+  /^#{1,2}\s/,
+  /^### Task /,
+  /^\*\*[^*]+\*\*[：:]/,
+] as const;
+
+// Legacy prose-pointer extraction (findings 1): the anchored `**<anchor>…**：` lines in canonical
+// order, each followed by its continuation paragraphs — a body spanning blank-line-separated
+// paragraphs is captured in FULL, not truncated to the first paragraph. Block boundaries:
+// the next declaration heading (or structural boundary) ends the block; present anchors are taken
+// verbatim (first match per anchor), missing ones are omitted.
 function extractProseConstraints(content: string): string | null {
-  const paras = paragraphsOf(content);
+  const lines = content.split("\n");
   const out: string[] = [];
   for (const anchor of PROSE_ANCHORS) {
-    const re = new RegExp(`^\\*\\*${anchor}[^*]*\\*\\*[：:]`);
-    const hit = paras.find((p) => re.test(p[0]));
-    if (hit) out.push(hit.join("\n"));
+    const re = proseAnchorRe(anchor);
+    const start = lines.findIndex((line) => re.test(line));
+    if (start < 0) continue;
+    const block: string[] = [lines[start]];
+    for (let i = start + 1; i < lines.length; i++) {
+      if (PROSE_BLOCK_STOP.some((stop) => stop.test(lines[i]))) break;
+      block.push(lines[i]);
+    }
+    // Interior blank lines belong to the body; the trailing blank tail before the boundary is cut.
+    while (block.length > 0 && block[block.length - 1].trim() === "") block.pop();
+    out.push(block.join("\n"));
   }
   if (out.length === 0) return null;
   return out.join("\n\n") + "\n";

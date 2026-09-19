@@ -1231,6 +1231,7 @@ it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可�
   expect(stderr).toMatch(/Constraints source undeclared|plan-constraints\.md missing/);
   expect(existsSync(path.join(t22.ws, "task-1-implement.json"))).toBe(false);  // pre-flight 未达 dispatch
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);    // 不写残缺产物
+  expect(existsSync(path.join(t22.ws, "task-1-brief.md"))).toBe(false);        // 门先于 F11：BLOCK 零残留（brief 不落盘）
   expect(stdout).toBe("");
 });
 

@@ -16,15 +16,18 @@ import {
 } from "../task.ts";
 import { hashFile } from "../review-loop.ts";
 
-// Legacy prose-pointer plan: the four **bold** constraint paragraphs in the preamble.
+// Legacy prose-pointer plan: the four **bold** constraint paragraphs in the preamble. Neutral
+// prose sits BEFORE the first anchor — unter-anchored preamble text must never be captured into a
+// constraint block (continuation capture runs until the next `**…**：` declaration, so a stray
+// paragraph between anchors would be absorbed by the preceding one).
 const PROSE_PLAN = [
   "# Plan title",
   "",
   "**Spec:** [x-design.md](docs/osuperpowers/specs/x-design.md)",
   "",
-  "**口径**：mouthpiece constraint",
-  "",
   "a neutral prose paragraph (not a constraint anchor)",
+  "",
+  "**口径**：mouthpiece constraint",
   "",
   "**commit 边界机制（本 program 全 phase 生效）**：commit-boundary constraint",
   "",
@@ -81,6 +84,58 @@ const LITERAL_EXTRACTED = [
 
 const NO_SOURCE_PLAN = "# Plan\n\n### Task 1: x\nbody\n";
 
+// Multi-paragraph prose body (findings 1): a legacy constraint whose body spans blank-line-
+// separated paragraphs — the block runs to a structural boundary (`---` here), capturing every
+// continuation paragraph verbatim.
+const MULTI_PARA_PLAN = [
+  "# Plan",
+  "",
+  "**commit 边界机制（本 program 全 phase 生效）**：first paragraph of the commitment rule",
+  "",
+  "second paragraph elaborating the commitment rule",
+  "",
+  "third paragraph still inside the same commitment body",
+  "",
+  "---",
+  "",
+  "### Task 1: x",
+  "body",
+].join("\n");
+
+const MULTI_PARA_EXTRACTED = [
+  "**commit 边界机制（本 program 全 phase 生效）**：first paragraph of the commitment rule",
+  "",
+  "second paragraph elaborating the commitment rule",
+  "",
+  "third paragraph still inside the same commitment body",
+].join("\n") + "\n";
+
+// Multi-paragraph body bounded by a `---` rule (the structural boundary of the literal form).
+const MULTI_PARA_BOUNDED = [
+  "# Plan",
+  "",
+  "**commit 边界机制**：first paragraph of the commitment rule",
+  "",
+  "continuation paragraph",
+  "",
+  "---",
+  "",
+  "### Task 1: x",
+  "body",
+].join("\n");
+
+// Prefix-collision heading (findings 2): `**commit 边界机制 补充**：…` shares the anchor as a prefix
+// but is a different declaration — the constricted anchor regex must not let it occupy the slot.
+const PREFIX_COLLISION_PLAN = [
+  "# Plan",
+  "",
+  "**commit 边界机制 补充**：a differently-named heading with the anchor as prefix",
+  "",
+  "**commit 边界机制（本 program 全 phase 生效）**：the real anchored paragraph",
+  "",
+  "**顺序原则**：ordering-principle constraint",
+].join("\n");
+
 // tmp'd plan file in a fake repo-less dir (the pure fns take paths, not repos).
 function tmpPlan(content: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-plan-src-"));
@@ -104,13 +159,35 @@ describe("extractPlanConstraints — source extraction determinism", () => {
   });
 
   it("partial prose pointer: missing anchors are omitted, present ones keep canonical order", () => {
-    const partial = PROSE_PLAN.replace("**Flow Atomicity（本 phase 强化）**：flow-atomicity constraint", "a non-anchor paragraph");
+    // Flow removed whole (heading + its separator blank) — a plain replacement in the anchor
+    // stream would be absorbed by the preceding block, so the omission is modelled by deletion.
+    const partial = PROSE_PLAN.replace("**Flow Atomicity（本 phase 强化）**：flow-atomicity constraint\n\n", "");
     const out = extractPlanConstraints(partial);
     expect(out).not.toBeNull();
     expect(out!.includes("flow-atomicity constraint")).toBe(false);
     // canonical order: 口径 before commit, 顺序原则 last
     expect(out!.indexOf("**口径**") < out!.indexOf("**commit 边界机制")).toBe(true);
     expect(out!.indexOf("**顺序原则")).toBeGreaterThan(out!.indexOf("**commit 边界机制"));
+  });
+
+  it("multi-paragraph prose body: blank-line-separated continuations are captured in full", () => {
+    expect(extractPlanConstraints(MULTI_PARA_PLAN)).toBe(MULTI_PARA_EXTRACTED);
+  });
+
+  it("prose block stops at a structural boundary after the last continuation", () => {
+    expect(extractPlanConstraints(MULTI_PARA_BOUNDED)).toBe(
+      "**commit 边界机制**：first paragraph of the commitment rule\n\ncontinuation paragraph\n",
+    );
+  });
+
+  it("prefix-collision heading does not occupy the anchor's slot", () => {
+    const out = extractPlanConstraints(PREFIX_COLLISION_PLAN);
+    expect(out).not.toBeNull();
+    // the constricted anchor regex skips `**commit 边界机制 补充**：…` and lands on the real anchor
+    expect(out).toContain("the real anchored paragraph");
+    expect(out).not.toContain("differently-named heading");
+    // canonical order preserved: commit before 顺序原则
+    expect(out!.indexOf("**commit 边界机制")).toBeLessThan(out!.indexOf("**顺序原则"));
   });
 
   it("canonical form: literal ## Constraints section wins over the prose pointer when both exist", () => {

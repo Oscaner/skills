@@ -28,6 +28,10 @@
 // are logged and skipped, never fail. A missing/broken Phase inventory table is
 // §2.4 malformed — loadOverallFile returns { ok: false } and main() skips, not fail.
 //
+// Task 13 (P6): plan/spec anchor terminal-state checks are folded into this step's
+// run (checkPlanSpecAnchors from ./plan-spec-anchors.ts) — spec/plan path/version
+// anchors validated against the real tree, block count still 12.
+
 // Standalone (`node scripts/validate/overall-consistency.ts`) scans
 // docs/osuperpowers/specs/*-overall.md; exposed via `steps` for index.ts (Task 3).
 
@@ -35,6 +39,7 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { runIfMain } from "./runner.ts";
+import { checkPlanSpecAnchors } from "./plan-spec-anchors.ts";
 import { DOC_SPECS_SEGMENTS, DOC_PLANS_SEGMENTS } from "../lib/doc-root.ts";
 
 // docs 根单源（scripts/lib/doc-root.ts）——不在此重复字面。
@@ -492,6 +497,18 @@ export function main() {
   return 0;
 }
 
-export const steps = [{ name: "12. overall consistency", run: main }];
+// Task 13 (P6): plan/spec anchor terminal-state checks fold into this step's
+// run — the block count stays 12 (ci-validate pins steps.length === 12); the
+// anchor assertions are the "docs consistent with landing" anchor surface
+// (Spec: links · Parent program/version lineage · file paths).
+export const steps = [
+  {
+    name: "12. overall consistency",
+    run: () => {
+      main();
+      checkPlanSpecAnchors();
+    },
+  },
+];
 
 runIfMain(import.meta.url, steps);

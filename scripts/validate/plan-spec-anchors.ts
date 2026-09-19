@@ -140,6 +140,26 @@ function linksOnLine(line: string): Array<{ label: string; target: string }> {
   return out;
 }
 
+// Shared doc-scan skeleton: read each doc's lines and hand them to a per-class
+// walker. The three collectors below differ in their per-line predicates and
+// hit accumulation (Class A label check · B lineage scan · C fence + legacy +
+// basename rescue); the read-and-iterate loop is single-sourced here.
+function scanDocs(docFiles: string[], onDoc: (file: string, lines: string[]) => void): void {
+  for (const file of docFiles) onDoc(file, readFileSync(file, "utf8").split("\n"));
+}
+
+// Resolve `target` against the given bases in priority order (`#fragment`
+// stripped inside resolveFromBase, so `doc.md#section` still resolves). Class A
+// (`**Spec:**` links) prefers the repo-root form — the P2 Step-4 grep
+// convention; Class B/C links prefer the file-relative form.
+function resolveAny(target: string, bases: readonly string[]): string | null {
+  for (const base of bases) {
+    const hit = resolveFromBase(base, target);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 // Version lineage of a target overall doc: current `**Version:**` header ∪
 // change-history version cells (`| vX.Y |`). The set is read from the file
 // itself — the target overall is the source of truth for its own versions.
@@ -157,13 +177,12 @@ export function overallTokenVersions(filePath: string): string[] {
 
 function collectSpecLinkHits(planFiles: string[], repoRoot: string): AnchorHit[] {
   const hits: AnchorHit[] = [];
-  for (const file of planFiles) {
-    const lines = readFileSync(file, "utf8").split("\n");
+  scanDocs(planFiles, (file, lines) => {
     lines.forEach((line, i) => {
       if (!line.includes(SPEC_MARK)) return;
       for (const { label, target } of linksOnLine(line)) {
         if (isPlaceholderOrTemplateTarget(target)) continue;
-        const resolved = resolveFromBase(repoRoot, target) ?? resolveFromBase(path.dirname(file), target);
+        const resolved = resolveAny(target, [repoRoot, path.dirname(file)]);
         if (!resolved) {
           hits.push({ kind: "spec-unresolved", file, line: i + 1, target });
           continue;
@@ -179,22 +198,21 @@ function collectSpecLinkHits(planFiles: string[], repoRoot: string): AnchorHit[]
         }
       }
     });
-  }
+  });
   return hits;
 }
 
 function collectParentAnchorHits(docFiles: string[], repoRoot: string): AnchorHit[] {
   const hits: AnchorHit[] = [];
   const lineageCache = new Map<string, Set<string>>();
-  for (const file of docFiles) {
-    const lines = readFileSync(file, "utf8").split("\n");
+  scanDocs(docFiles, (file, lines) => {
     lines.forEach((line, i) => {
       if (!line.includes(PARENT_MARK)) return;
       const links = linksOnLine(line);
       if (links.length === 0) return;
       const { target } = links[0];
       if (isPlaceholderOrTemplateTarget(target)) return;
-      const resolved = resolveFromBase(path.dirname(file), target) ?? resolveFromBase(repoRoot, target);
+      const resolved = resolveAny(target, [path.dirname(file), repoRoot]);
       if (!resolved) {
         hits.push({ kind: "parent-unresolved", file, line: i + 1, target });
         return;
@@ -220,14 +238,13 @@ function collectParentAnchorHits(docFiles: string[], repoRoot: string): AnchorHi
         }
       }
     });
-  }
+  });
   return hits;
 }
 
 function collectFilePathAnchorHits(docFiles: string[], repoRoot: string, index: Set<string>): AnchorHit[] {
   const hits: AnchorHit[] = [];
-  for (const file of docFiles) {
-    const lines = readFileSync(file, "utf8").split("\n");
+  scanDocs(docFiles, (file, lines) => {
     let inFence = false;
     lines.forEach((line, i) => {
       if (/^\s*```/.test(line)) {
@@ -239,13 +256,12 @@ function collectFilePathAnchorHits(docFiles: string[], repoRoot: string, index: 
       for (const { target } of linksOnLine(line)) {
         if (isPlaceholderOrTemplateTarget(target)) continue;
         if (isLegacyRef(target)) continue;
-        const resolved = resolveFromBase(path.dirname(file), target) ?? resolveFromBase(repoRoot, target);
-        if (resolved) continue;
+        if (resolveAny(target, [path.dirname(file), repoRoot])) continue;
         if (isRescuedByBasename(target, index)) continue;
         hits.push({ kind: "path-unresolved", file, line: i + 1, target });
       }
     });
-  }
+  });
   return hits;
 }
 

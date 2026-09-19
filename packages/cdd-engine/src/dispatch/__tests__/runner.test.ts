@@ -1138,3 +1138,109 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
     restore();
   }
 });
+
+// ---- T22: plan-constraints materialization + implement pre-flight existence gate ----
+
+// T22/§T7.1 fixture: git repo + committed plan (parametrized content) + workspace WITHOUT a
+// pre-written plan-constraints.md — the materializer's "generate once" surface is exercised by
+// letting runTask self-provision it (like F11's generateBrief, same resolveContext point).
+function t22Workspace(planContent: string) {
+  const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t22-ws-")));
+  const planAbs = path.join(repo, PLAN_REL);
+  mkdirSync(path.dirname(planAbs), { recursive: true });
+  writeFileSync(planAbs, planContent);
+  gitCommit(repo);
+  const cddDir = path.join(repo, ".osuperpowers", "cdd");
+  mkdirSync(cddDir, { recursive: true });
+  writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
+  const ws = path.join(cddDir, "plan");
+  mkdirSync(ws, { recursive: true });
+  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
+    plan: PLAN_REL, timeoutCount: 0, engineRecoveryCount: 0, tasks: [],
+  }, null, 2));
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t22-bin-"));
+  const regPath = ghostRegistry(ws);
+  return { repo, planFile: PLAN_REL, ws, binDir, regPath };
+}
+
+// A committed plan carrying the prose-pointer constraint anchors (the four **bold** paragraphs) —
+// the plan-declared Constraints source the materializer extracts deterministically.
+const T22_PROSE_PLAN = [
+  "# Plan",
+  "",
+  "**口径**：mouthpiece constraint",
+  "",
+  "**commit 边界机制**：commit-boundary constraint",
+  "",
+  "**Flow Atomicity**：flow-atomicity constraint",
+  "",
+  "**顺序原则**：ordering-principle constraint",
+  "",
+  "---",
+  "",
+  "### Task 1: x",
+  "body",
+].join("\n");
+
+// 黑盒 ①：implement pre-flight 无 plan-constraints.md → 自 plan 声明源生成（含 plan hash 锚）→ 门过 → 绿色。
+it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源物料化 + 门过 + 绿色", async () => {
+  const t22 = t22Workspace(T22_PROSE_PLAN);
+  const report = path.join(t22.ws, "task-1-report.md");
+  const tev = path.join(t22.ws, "task-1-test-evidence.json");
+  writeFileSync(report, "report body\n");
+  writeFileSync(tev, JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }));
+  const restore = withFakeCli(t22.binDir, "fake-cli", [
+    "#!/usr/bin/env bash",
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=x head=y'",
+    `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
+    "printf '%s\\n' 'blocker: none'",
+    "exit 0",
+  ].join("\n"));
+  try {
+    const cpPath = path.join(t22.ws, "plan-constraints.md");
+    expect(existsSync(cpPath)).toBe(false);   // 前置：缺失
+    const res = await runTask("ghost", 1, {
+      mode: "implement", planFile: t22.planFile, root: t22.repo,
+      registryPath: t22.regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(0);             // 门过 → 绿色走完 dispatch
+    // 物料化：plan hash 锚 + 四段声明面 + 无绝对路径（可复算确定性字节）
+    expect(existsSync(cpPath)).toBe(true);
+    const text = readFileSync(cpPath, "utf8");
+    expect(text).toMatch(/plan hash: [0-9a-f]{64}/);
+    expect(text).toContain("**口径**：mouthpiece constraint");
+    expect(text).toContain("**顺序原则**：ordering-principle constraint");
+    expect(text).not.toContain(t22.repo);
+    // dispatch 照常完成（实体化 handoff 同样落地）
+    expect(existsSync(path.join(t22.ws, "task-1-implement.json"))).toBe(true);
+  } finally {
+    restore();
+  }
+});
+
+// 黑盒 ②：implement pre-flight plan 无约束源声明（无 ## Constraints、无散文锚）→ BLOCK exit 1，
+// 非静默 fallback（E27 批量根因的门判面）；提示可行动文案。
+it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可行动文案，无 handoff 落地）", async () => {
+  const t22 = t22Workspace("# Plan\n\n### Task 1: x\nbody\n");
+  const { code, stderr, stdout } = await capture(() =>
+    runTask("claude", 1, { mode: "implement", planFile: t22.planFile, root: t22.repo, noExit: false }),
+  );
+  expect(code).toBe(1);
+  expect(stderr).toMatch(/CDD_BLOCKED/);
+  expect(stderr).toMatch(/Constraints source undeclared|plan-constraints\.md missing/);
+  expect(existsSync(path.join(t22.ws, "task-1-implement.json"))).toBe(false);  // pre-flight 未达 dispatch
+  expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);    // 不写残缺产物
+  expect(stdout).toBe("");
+});
+
+// 黑盒 ③：dry-run 豁免 —— 同一无源 plan 走 dry-run 零 BLOCK（零副作用模拟：不物料化、不落文件）。
+it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 constraints 副作用", async () => {
+  const t22 = t22Workspace("# Plan\n\n### Task 1: x\nbody\n");
+  const res = await runTask("claude", 1, {
+    mode: "implement", dryRun: true, planFile: t22.planFile, root: t22.repo, noExit: true,
+  });
+  expect(res.exitCode).toBe(0);
+  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);
+});

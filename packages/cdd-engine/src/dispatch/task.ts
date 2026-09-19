@@ -37,6 +37,7 @@ import { validateCommitContract } from "../rules/commit.ts";
 import { generateBrief } from "../render/brief.ts";
 import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, workspaceRoot } from "../artifacts/handoff/naming.ts";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
+import { hashFile } from "./review-loop.ts";
 import { exitWithCode, ExitRequested } from "../infra/exit.ts";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
@@ -441,6 +442,30 @@ export class TaskLifecycle extends DispatchLifecycle {
         await generateBrief(planWorkspace.plan, this.#taskNum, ctx.briefPath, this.#root);
       } catch (e) {
         throw new RunBlocked(`brief generation failed: ${(e as Error).message}`);
+      }
+      // T22/§T7.1: plan-constraints existence gate — implement pre-flight, dry-run exempt.
+      // Missing → materialize once from the plan's declared Constraints source (workitem same
+      // class as the brief; the anchor records the source plan hash for stale detection); a plan
+      // declaring no Constraints source → BLOCK (约束源未声明). The BLOCK is explicit — never a
+      // silent fallback to "brief as sole authority" (E27: source-less fallback was the recurring
+      // root cause this gate kills). dry-run keeps zero constraints side effects: no materialize,
+      // no gate (T10 dry-run gate-family semantics).
+      if (!dryRun && mode === "implement") {
+        const exists = existsSync(ctx.constraintsPath);
+        if (!exists) {
+          try {
+            materializePlanConstraints(planWorkspace.plan, ctx.workspace);
+          } catch (e) {
+            throw new RunBlocked(
+              e instanceof ConstraintsSourceUndeclared
+                ? e.message
+                : `plan-constraints.md missing — run materializer or declare a plan Constraints source (${(e as Error).message})`,
+            );
+          }
+          if (!existsSync(ctx.constraintsPath)) {
+            throw new RunBlocked("plan-constraints.md missing — run materializer or declare a plan Constraints source");
+          }
+        }
       }
     } catch (e) {
       if (e instanceof RunBlocked) { this.#done(1, [], e.message); return; }
@@ -869,4 +894,123 @@ export function isTaskPending(taskNum: number, workspace: string, progressData: 
   const reviewRound = progressData?.tasks?.find((t) => t.task === taskNum)?.rounds?.["review"] ?? 0;
   if (reviewRound === 0) return true; // no review ever completed
   return handoffStatus(taskNum, workspace, progressData) !== "APPROVED";
+}
+
+// ---- plan-constraints materialization (T22/§T7.1; pure functions, unit-test seam) ----
+
+// The workspace-derived constraints artifact name (derive-only until T22 — the recurring
+//「plan-constraints.md 不存在 → brief 唯一权威」note root cause: derived but never generated).
+const PLAN_CONSTRAINTS_FILE = "plan-constraints.md";
+// Plan-hash anchor token embedded in the artifact header (stale anchor; parsed by
+// isPlanConstraintsStale). The anchor is the ONLY path token in the file — the header embeds
+// the plan basename + content hash, never the absolute root — so equal plans produce equal
+// artifact bytes on any machine (recomputable test baseline).
+const PLAN_HASH_RE = /plan hash: ([0-9a-f]{64})/;
+// Legacy prose-pointer anchors, canonical order — extraction order is this constant, never plan
+// line order (byte-determinism). The canonical form (literal `## Constraints`) wins over this.
+const PROSE_ANCHORS = ["口径", "commit 边界机制", "Flow Atomicity", "顺序原则"] as const;
+
+/** Plan declares no Constraints source (neither a literal `## Constraints` section nor any
+ * prose-pointer anchor) — the materializer must BLOCK, never fall back silently. */
+export class ConstraintsSourceUndeclared extends Error {}
+
+// Deterministic section extraction for the canonical form: `## Constraints` heading + content to
+// the first structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction
+// atom the constraints section must not swallow), or a `---` rule (the preamble/task separator).
+// `###` sub-sections (段内四小节) stay inside. An empty section → null (declared-but-empty is not
+// a constraint declaration).
+function extractLiteralConstraints(content: string): string | null {
+  const lines = content.split("\n");
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^## Constraints\s*$/.test(lines[i])) { start = i; break; }
+  }
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^(#{1,2}\s|### Task |---\s*$)/.test(lines[i])) { end = i; break; }
+  }
+  const body = lines.slice(start + 1, end).join("\n").trimEnd();
+  if (!body) return null;
+  return `${lines[start]}\n${body}\n`;
+}
+
+// Paragraph slicing (the legacy form's atomic unit): contiguous non-blank non-heading lines.
+function paragraphsOf(content: string): string[][] {
+  const out: string[][] = [];
+  let cur: string[] = [];
+  for (const line of content.split("\n")) {
+    if (line.trim() === "" || /^#{1,6} /.test(line)) {
+      if (cur.length > 0) { out.push(cur); cur = []; }
+      continue;
+    }
+    cur.push(line);
+  }
+  if (cur.length > 0) out.push(cur);
+  return out;
+}
+
+// Legacy prose-pointer extraction: the anchored `**<anchor>…**：` paragraphs in canonical order;
+// present anchors are taken verbatim (first match per anchor), missing ones are omitted.
+function extractProseConstraints(content: string): string | null {
+  const paras = paragraphsOf(content);
+  const out: string[] = [];
+  for (const anchor of PROSE_ANCHORS) {
+    const re = new RegExp(`^\\*\\*${anchor}[^*]*\\*\\*[：:]`);
+    const hit = paras.find((p) => re.test(p[0]));
+    if (hit) out.push(hit.join("\n"));
+  }
+  if (out.length === 0) return null;
+  return out.join("\n\n") + "\n";
+}
+
+/** Deterministic extraction from the plan's declared Constraints source (T22/§T7.1): canonical
+ * Form A — a literal top-level `## Constraints` section (writing-plans-mandated for new plans);
+ * legacy Form B — the prose-pointer headings (口径 / commit 边界机制 / Flow Atomicity / 顺序原则),
+ * extracted in canonical order. Returns the constraints body verbatim (single trailing newline) or
+ * null when the plan declares no constraint source (the BLOCK face). */
+export function extractPlanConstraints(planContent: string): string | null {
+  const literal = extractLiteralConstraints(planContent);
+  if (literal !== null) return literal;
+  return extractProseConstraints(planContent);
+}
+
+// Byte-deterministic artifact header: provenance + the plan-hash anchor (never the absolute path).
+function constraintsHeader(planPath: string, hash: string): string {
+  return [
+    `<!-- ${PLAN_CONSTRAINTS_FILE} — CDD workspace artifact derived from the plan's declared Constraints source. Do not edit. -->`,
+    `<!-- source plan: ${path.basename(planPath)} · plan hash: ${hash} -->`,
+    "",
+  ].join("\n");
+}
+
+/** Materialize plan-constraints.md in the workspace from the plan's declared Constraints source
+ * (T22/§T7.1). Generate-once: an existing file is left untouched (the anchor surfaces staleness
+ * via isPlanConstraintsStale). A plan declaring no Constraints source throws
+ * ConstraintsSourceUndeclared — never a silent fallback (the derived artifact's existence gate is
+ * the implement pre-flight's non-negotiable input). */
+export function materializePlanConstraints(plan: string, workspace: string): { path: string; generated: boolean } {
+  const outPath = path.join(workspace, PLAN_CONSTRAINTS_FILE);
+  if (existsSync(outPath)) return { path: outPath, generated: false };
+  const content = extractPlanConstraints(readFileSync(plan, "utf8"));
+  if (content === null) {
+    throw new ConstraintsSourceUndeclared(
+      `plan Constraints source undeclared — declare a literal “## Constraints” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
+    );
+  }
+  writeFileSync(outPath, constraintsHeader(plan, hashFile(plan)) + content, "utf8");
+  return { path: outPath, generated: true };
+}
+
+/** Stale detection (T22 ④): compare the plan-hash anchor in an existing plan-constraints.md
+ * against the current plan. Unreadable / un-anchored / sha mismatch → stale (true) — an
+ * anchor-less file cannot be confirmed fresh. Recomputable baseline: same plan bytes → same hash. */
+export function isPlanConstraintsStale(constraintsFile: string, planPath: string): boolean {
+  try {
+    const m = readFileSync(constraintsFile, "utf8").match(PLAN_HASH_RE);
+    if (!m) return true;
+    return m[1] !== hashFile(planPath);
+  } catch {
+    return true;
+  }
 }

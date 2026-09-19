@@ -60,7 +60,7 @@ Every node's prose must include four elements: **Do / Read / Exit / Fail**:
 
 ```mermaid
 flowchart TD
-  A[run-grilling-session] -->|loaded| B[route]
+  A[run-grilling-session] -->|landed| B[route]
   A -->|missing| Z((BLOCKED))
 ```
 
@@ -110,7 +110,7 @@ All cross-skill invocation of another plugin's flow goes through the **session-c
 
 > `/plugin:skill` — load an upstream skill = import its flow once
 
-Loading an upstream skill **imports its flow once** and consumes it **inline** as the current session's baseline — there is no second session: a single session / single process can never spawn the same upstream flow a second time, and each session consumes each upstream skill type **at most once**. Re-entering a delegated node (the same flow node reached again) routes on the **already-landed artifact** the first import produced — the mode marker / design context / registration marker — never by loading the upstream flow again; the invoking node routes on the import's outcome. Skills refer to upstream flows **only** in this slash form — never by upstream document path (zero upstream `vendors/` paths, zero upstream SKILL.md file paths, zero `Read-Upstream` wording), and a delegated flow's internal steps are never restated inside the node (the imported flow owns them). The wording "run a /xxx session" is rejected — the slash reference names the flow import, not a separate session spawn.
+Loading an upstream skill **imports its flow once** and consumes it **inline** as the current session's baseline — there is no second session: a single session / single process can never spawn the same upstream flow a second time, and each session consumes each upstream skill type **at most once**. Re-entering a delegated node (the same flow node reached again) routes on the **already-landed artifact** the first import produced — the mode marker / design context / registration marker — never by loading the upstream flow again; the invoking node routes on the import's outcome. Skills refer to upstream flows **only** in this slash form — never by upstream document path (zero upstream `vendors/` paths, zero upstream SKILL.md file paths, zero `Read-Upstream` wording), and a delegated flow's internal steps are never restated inside the node (the imported flow owns them). The wording "run a /xxx session" is rejected — the slash reference names the flow import, not a separate session spawn. The `run-*-session` entry-node IDs still carried by the delegated examples are legacy handles for that same import-and-consume operation — the ID names the flow-entry import, not a session spawn.
 
 Two SKILL.md forms follow from the primitive:
 

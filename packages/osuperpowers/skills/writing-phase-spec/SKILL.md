@@ -11,7 +11,7 @@ Writes a single phase's spec document (increment only) from the writing-spec imp
 
 ```mermaid
 flowchart TD
-  A[run-writing-spec-session] -->|loaded| B[read-template]
+  A[run-writing-spec-session] -->|landed| B[read-template]
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> B2{scope changed?}
   B2 -->|yes| G[sync-overall]

@@ -11,7 +11,7 @@ Writes the program-level (overall) spec from the writing-spec import, reviews it
 
 ```mermaid
 flowchart TD
-  A[run-writing-spec-session] -->|loaded| B[read-template]
+  A[run-writing-spec-session] -->|landed| B[read-template]
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> C[author-spec]
   C --> D[spec-review]

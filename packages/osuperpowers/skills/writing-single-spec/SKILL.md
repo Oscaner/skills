@@ -11,7 +11,7 @@ Writes a single (non-phase) spec from the writing-spec import, reviews it under 
 
 ```mermaid
 flowchart TD
-  A[run-writing-spec-session] -->|loaded| C[author-spec]
+  A[run-writing-spec-session] -->|landed| C[author-spec]
   A -->|missing| Z1((BLOCKED: install superpowers))
   C --> D[spec-review]
   D --> E{blocker=0?}

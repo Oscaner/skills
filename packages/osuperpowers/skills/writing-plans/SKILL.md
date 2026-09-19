@@ -11,7 +11,7 @@ Writes a plan document from an approved spec, backfills the design when planning
 
 ```mermaid
 flowchart TD
-  A[run-writing-plans-session] -->|loaded| B[backfill-design]
+  A[run-writing-plans-session] -->|landed| B[backfill-design]
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> C[author-plan]
   C --> D[plan-review]

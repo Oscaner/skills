@@ -5,13 +5,13 @@ description: Independent brainstorm orchestrator -- Node-anchored flow with digr
 
 # Osuperpowers Brainstorming
 
-Full brainstorm flow orchestration, callable standalone. The session resolves the program mode: `new-program` routes straight to grilling (no inventory check); `phase-within-program` gates on whether the phase is registered in the parent overall.
+Full brainstorm flow orchestration, callable standalone. The imported /superpowers:brainstorming flow lands the program mode: `new-program` routes straight to grilling (no inventory check); `phase-within-program` gates on whether the phase is registered in the parent overall.
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[run-brainstorming-session] -->|loaded| B[explore-context]
+  A[run-brainstorming-session] -->|landed| B[explore-context]
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> C{mode?}
   C -->|new-program| G[run-grilling-session]

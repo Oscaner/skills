@@ -25,6 +25,21 @@ export function pgrepCount(marker) {
   return Number(execSync(`pgrep -f "${pat}" | wc -l`).toString().trim());
 }
 
+// stderr 捕获 seam（P6 T10：dispatch.base/docs/task 三测试文件共用——各文件自写
+// bind→swap→try/finally→restore 五段即复制；集中单点避免各测试文件各写一份）。模式：
+//   const cap = captureStderr();
+//   try { ... } finally { cap.restore(); }
+//   expect(cap.text).toContain(...);
+export function captureStderr() {
+  const buf: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((s: unknown) => { buf.push(String(s)); return true; }) as typeof process.stderr.write;
+  return {
+    get text() { return buf.join(""); },
+    restore() { process.stderr.write = origWrite; },
+  };
+}
+
 export function gitInit(dir) {
   execFileSync("git", ["init", "-q"], { cwd: dir });
   execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",

@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { setDryRun } from "../shared.ts";
+import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -639,7 +640,9 @@ function seedFindings(repo: string, rel: string): string {
 describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => {
   const assertDryRunWarn = (r: { exitCode: number; stdout: string; stderr: string }) => {
     expect(r.exitCode).toBe(0);
-    expect(r.stderr).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+    // 断言引 src 侧单点常量 DRY_RUN_DIRTY_WARN（dist 为 jiti 即时加载桩 → 措辞即源措辞）：
+    // mount 前缀 `CDD_WARN: ` 之外的消息文本不再在各测试文件重复编码。
+    expect(r.stderr).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`);
   };
 
   it("implement --dry-run（task 面）: 脏树 exit 0 + H1 APPROVED + WARN", () => {

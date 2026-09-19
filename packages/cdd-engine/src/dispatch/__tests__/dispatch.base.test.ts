@@ -28,6 +28,8 @@ import {
 } from "../base.ts";
 import { PHASE_IDS } from "../phases.ts";
 import { createDispatchHooks } from "../hooks.ts";
+import { captureStderr } from "../../infra/__tests__/helpers.ts";
+import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 
 function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -132,32 +134,28 @@ it("入口门中止后 dispatch:after 仍在 finally 触发（模板方法终止
 it("dryRun 入口门降级: dirty + ctx.dryRun → run() 走通 + CDD_WARN stderr + dispatch 进入", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-  const stderrBuf: string[] = [];
-  const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  const cap = captureStderr();
   try {
     const lc = new StubLifecycle({ ctx: { mode: "review", repoRoot: repo, dryRun: true } });
     await expect(lc.run()).resolves.toBeUndefined();
     expect(lc.dispatchCalled).toBe(true); // 降级非跳过：模拟照常走完 dispatch
     expect(lc.timeline).toEqual([...EXPECTED_TIMELINE]); // 全模板
   } finally {
-    process.stderr.write = origWrite;
+    cap.restore();
   }
-  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+  expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
 });
 
 it("干净树 + ctx.dryRun → 无 CDD_WARN（干净树无降级可言）", async () => {
   const repo = setupRepo();
-  const stderrBuf: string[] = [];
-  const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  const cap = captureStderr();
   try {
     const lc = new StubLifecycle({ ctx: { mode: "review", repoRoot: repo, dryRun: true } });
     await expect(lc.run()).resolves.toBeUndefined();
   } finally {
-    process.stderr.write = origWrite;
+    cap.restore();
   }
-  expect(stderrBuf.join("")).not.toMatch(/CDD_WARN: .*uncommitted changes/);
+  expect(cap.text).not.toContain(DRY_RUN_DIRTY_WARN);
 });
 
 it("dry-run 出口门跳过（基类默认；E2②）: dispatch 期间弄脏树 + dryRun → run() 照常走完（无 exit BLOCK）", async () => {
@@ -167,17 +165,15 @@ it("dry-run 出口门跳过（基类默认；E2②）: dispatch 期间弄脏树 
       appendFileSync(path.join(repo, ".gitignore"), "dirty\n"); // 出口时树脏
     }
   }
-  const stderrBuf: string[] = [];
-  const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  const cap = captureStderr();
   try {
     const lc = new DirtyingDryRunStub({ ctx: { mode: "review", repoRoot: repo, dryRun: true } });
     await expect(lc.run()).resolves.toBeUndefined(); // exit gate 对 dry-run 不判（纯模拟无 commit contract）
     expect(lc.timeline).toEqual([...EXPECTED_TIMELINE]);
   } finally {
-    process.stderr.write = origWrite;
+    cap.restore();
   }
-  expect(stderrBuf.join("")).not.toMatch(/CDD_WARN/); // 唯一 WARN 在 entry；此例 entry 干净
+  expect(cap.text).not.toContain("CDD_WARN: "); // 唯一 WARN 在 entry；此例 entry 干净
 });
 
 it("出口门卷入（双门挂载）: dispatch 期间引入 dirty → BLOCKED（gate=exit）", async () => {

@@ -15,6 +15,7 @@ import {
   validateCommitContract,
   entryGateCleanTree,
   rewriteHandoffBlocked,
+  DRY_RUN_DIRTY_WARN,
 } from "../commit.ts";
 import { gitCatFileCommitExists } from "../../infra/git.ts";
 
@@ -180,8 +181,7 @@ describe("rules/commit.ts — 入口门 entryGateCleanTree（pre-commit 干净�
     const r = await entryGateCleanTree(repo, { dryRun: true });
     expect(r.ok).toBe(true);
     expect(r.blocker).toBe("");
-    expect(r.warn).toMatch(/uncommitted changes/);
-    expect(r.warn).toMatch(/dry-run/); // WARN 揭示降级原因是 dry-run 路径
+    expect(r.warn).toBe(DRY_RUN_DIRTY_WARN); // 单点常量：判断与测试共享同一措辞（重写即双面同步红）
   });
 
   it("clean tree + dryRun → ok:true 且无 warn（干净树无降级可言）", async () => {

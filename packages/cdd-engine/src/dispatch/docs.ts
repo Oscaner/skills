@@ -138,9 +138,10 @@ export class DocsLifecycle extends DispatchLifecycle {
 
   // ---- pre-flight ----
 
-  /** Step 2/4 family: root (injected vs engine singleton) + canonical handoffPath guard; the
-   * dry-run path finishes here so no gate / spawn / handoff work happens (legacy: runDocsTask
-   * returned the APPROVED stub before withLifecycle). */
+  /** Step 2/4 family: root (injected vs engine singleton) + canonical handoffPath guard; on the
+   * dry-run path this is the finish line — no spawn / handoff happens here, and the inherited
+   * entry gate already ran in pre-flight (E2②: dirty tree downgraded to a stderr CDD_WARN on the
+   * dry-run path; legacy: runDocsTask returned the APPROVED stub before withLifecycle). */
   protected override async resolveContext(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#opts.dryRun) {
       this.#done({

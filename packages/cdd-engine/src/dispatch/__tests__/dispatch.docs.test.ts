@@ -15,6 +15,8 @@ import path from "node:path";
 import { DocsLifecycle, runDocsTask } from "../docs.ts";
 import { DispatchBlocked, type DispatchContext } from "../base.ts";
 import { ExitRequested } from "../../infra/exit.ts";
+import { captureStderr } from "../../infra/__tests__/helpers.ts";
+import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
@@ -79,9 +81,7 @@ it("docs review 起点 dirty → 入口门 BLOCKED（dispatch 不进入；spec-r
 it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 spawn + 不写 handoff", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, "tracked.txt"), "dirty\n");
-  const stderrBuf: string[] = [];
-  const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  const cap = captureStderr();
   try {
     const result = await runDocsTask({
       harness: "ghost", mode: "review", template: "review", type: "spec", doc: path.join(repo, "spec.md"),
@@ -91,9 +91,9 @@ it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 sp
     expect(result.exitCode).toBe(0);
     expect(result.handoff?.status).toBe("APPROVED"); // dry-run stub handoff（内存对象，不落盘）
   } finally {
-    process.stderr.write = origWrite;
+    cap.restore();
   }
-  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+  expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
   const { execa } = await import("execa");
   expect(vi.mocked(execa)).not.toHaveBeenCalled(); // 不 spawn → 零 liveness 介入（T14）
   expect(existsSync(path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"))).toBe(false); // 不写 handoff
@@ -102,9 +102,7 @@ it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 sp
 it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（CLI 面出口）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, "tracked.txt"), "dirty\n");
-  const stderrBuf: string[] = [];
-  const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  const cap = captureStderr();
   try {
     await expect(runDocsTask({
       harness: "ghost", mode: "review", template: "review", type: "spec", doc: path.join(repo, "spec.md"),
@@ -112,9 +110,9 @@ it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（C
       repoRoot: repo, dryRun: false,
     })).rejects.toBeInstanceOf(ExitRequested);
   } finally {
-    process.stderr.write = origWrite;
+    cap.restore();
   }
-  expect(stderrBuf.join("")).toMatch(/CDD_BLOCKED: uncommitted changes at entry/);
+  expect(cap.text).toMatch(/CDD_BLOCKED: uncommitted changes at entry/);
 });
 
 it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOCKED + exitCode 1", async () => {

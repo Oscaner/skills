@@ -19,10 +19,15 @@ import { TaskLifecycle, runTask } from "../task.ts";
 import { DispatchBlocked } from "../base.ts";
 import { invokeCliWithRetry, resolveTimeoutMs } from "../../infra/invoke.ts";
 import { REG_PATH } from "../../infra/registry.ts";
+import { captureStderr } from "../../infra/__tests__/helpers.ts";
+import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 
 // E2②/T14 接口消歧（P6 T10）: dry-run 走 run() pre-flight 早退路径，不经过 spawnManaged——断言
 // invokeCliWithRetry（唯一 spawn 通道）与 resolveTimeoutMs（liveness TIMEOUT 预算）在 dry-run
 // 下零调用。本文件全部用例 dryRun:true → 永不触 invoke；mock 为文件级安全加固。
+// ⚠️ 文件级 mock 覆盖全文件：新增「真实 dispatch（dryRun=false）且依赖 invokeCliWithRetry /
+// resolveTimeoutMs 的 spawn-TIMEOUT 行为」用例必须移出本文件（真实 spawn/TIMEOUT 语义由
+// tests/runner.test.mjs 拥有）——否则本 mock 会静默清空其 spawn 通道。
 vi.mock("../../infra/invoke.ts", async () => {
   const actual = await vi.importActual<typeof import("../../infra/invoke.ts")>("../../infra/invoke.ts");
   return {
@@ -66,9 +71,7 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n"); // 弄脏 tracked 文件（porcelain ` M`）
-  const stderrBuf: string[] = [];
-  const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  const cap = captureStderr();
   try {
     const lc = new TaskLifecycle({
       harness: "ghost",
@@ -85,9 +88,9 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
       "dispatch", "post-flight", "schemaValidate", "normalizeResult", "commitPostCheck",
     ]);
   } finally {
-    process.stderr.write = origWrite;
+    cap.restore();
   }
-  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+  expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
 });
 
 it("真实 dispatch（dryRun=false）起点 dirty → 入口门仍 BLOCKED（E2② 只在 dry-run 降级；门判语义不变）", async () => {
@@ -119,18 +122,16 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + H1 APPROVED + C
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-  const stderrBuf: string[] = [];
-  const origWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  const cap = captureStderr();
   try {
     const res = await runTask("ghost", 1, { mode: "review", dryRun: true, planFile: "docs/plan.md", root: repo, noExit: true, registryPath: ghostRegistry() });
     expect(res.exitCode).toBe(0);
     expect(res.h1[0]).toBe("status: APPROVED");
     expect(res.h1).toHaveLength(5);
   } finally {
-    process.stderr.write = origWrite;
+    cap.restore();
   }
-  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+  expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
 });
 
 // E2②/T14 接口消歧: dry-run 路径零 liveness 介入——不 spawn（invokeCliWithRetry 零调用）、不取

@@ -17,9 +17,9 @@ const runCli = (args: string[]) =>
 const sub = (name: string) => (mainCommand.subCommands as Record<string, { meta: { name: string }; args: Record<string, unknown> }>)[name];
 
 describe("run.ts command tree (citty Task 21)", () => {
-  it("declares exactly the six administrative subcommands", () => {
+  it("declares exactly the seven administrative subcommands", () => {
     const keys = Object.keys(mainCommand.subCommands as Record<string, unknown>);
-    expect([...keys].sort()).toEqual(["apply-rules", "emit", "emit-check", "smoke-cdd", "validate", "version"].sort());
+    expect([...keys].sort()).toEqual(["apply-rules", "emit", "emit-check", "precommit", "smoke-cdd", "validate", "version"].sort());
   });
 
   it("version declares a presence-based --dry-run boolean (no default → undefined when absent)", () => {
@@ -49,10 +49,10 @@ describe("run.ts invocationArgs — subcommand value passing", () => {
 });
 
 describe("run.ts exit-code table (P5 §2.4.2, engine parity)", () => {
-  it("root --help exits 0 and lists all six subcommands", async () => {
+  it("root --help exits 0 and lists all seven subcommands", async () => {
     const { stdout, exitCode } = await runCli(["--help"]);
     expect(exitCode).toBe(0);
-    for (const c of ["emit", "emit-check", "validate", "smoke-cdd", "version", "apply-rules"]) {
+    for (const c of ["emit", "emit-check", "validate", "precommit", "smoke-cdd", "version", "apply-rules"]) {
       expect(stdout).toMatch(c);
     }
   });

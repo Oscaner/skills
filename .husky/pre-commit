@@ -1,2 +1,7 @@
 #!/usr/bin/env sh
-pnpm run validate
+# G4 (P6 Task 17): pre-commit runs the tree-independent subset (emit-check /
+# residue / consistency / unit) via `pnpm run precommit` — the full 12-block
+# validate's engine black-box cases (5b) dispatch against the real working tree,
+# which is dirty by definition at commit time; that surface stays in CI
+# (`.github/actions/validate`) on a clean checkout. See scripts/validate/pre-commit.ts.
+pnpm run precommit

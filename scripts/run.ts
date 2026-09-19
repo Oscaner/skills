@@ -2,8 +2,8 @@
 /**
  * Repo automation dispatcher — the single top-level entry for scripts/.
  * citty command surface (Task 21; engine src/cli/parse.ts isomorphism): ONE
- * defineCommand tree (mainCommand with the six subcommands emit / emit-check /
- * validate / smoke-cdd / version / apply-rules), each subcommand's argsDef
+ * defineCommand tree (mainCommand with the seven subcommands emit / emit-check /
+ * validate / precommit / smoke-cdd / version / apply-rules), each subcommand's argsDef
  * declared citty, and subcommand handlers lazy-loading via dynamic import — each
  * command's dependency graph loads only on first use.
  *
@@ -41,7 +41,7 @@ function plain(text: unknown): string {
 // Subcommand value passing — the contract between the run() handlers and the lazily-loaded module
 // mains (exported for the colocated test; the args here are the parsed citty args named by the
 // subcommand's own argsDef):
-//   "none"    → main() — zero-arg mains (emit/emit-check/validate/smoke-cdd must never see an
+//   "none"    → main() — zero-arg mains (emit/emit-check/validate/precommit/smoke-cdd must never see an
 //              options object in that slot);
 //   "dry-run" → main({ dryRun }) — version's destructured option (presence-based boolean: absent
 //              → false, present → true);
@@ -85,6 +85,7 @@ export const mainCommand = defineCommand({
     emit: command("emit", "regenerate unified first-party manifests", "./emit/all.ts", "none"),
     "emit-check": command("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.ts", "none"),
     validate: command("validate", "run the full validate suite (12 blocks)", "./validate/index.ts", "none"),
+    precommit: command("precommit", "run the tree-independent pre-commit subset (emit-check/residue/consistency/unit)", "./validate/pre-commit.ts", "none"),
     "smoke-cdd": command("smoke-cdd", "run cdd-engine dry-run smoke (4-command H1 chain)", "./validate/smoke-cdd.ts", "none"),
     version: command("version", "apply changesets to bump versions (--dry-run supported)", "./release/version-packages.ts", "dry-run"),
     "apply-rules": command("apply-rules", "apply a GitHub branch Ruleset (protect-develop | protect-main)", "./rulesets/apply.ts", "target"),

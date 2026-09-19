@@ -4,6 +4,13 @@
 //（SIGINT/SIGTERM/SIGHUP → teardownAll 连根回收 → 128+signo 退出码）。CLI 信号用例以 PATH 遮蔽
 // harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch 经 spawnManaged 派生
 // P1SIG 标记驻留组；对 dist/cli.mjs 发信号断言组连根退出（spec §2.6 三信号全覆盖）。
+// G4 (P6 Task 17): the signal cases are REAL (non-dry-run) dispatches, so the entry gate
+// (rules/commit.ts entryGateCleanTree) previously BLOCKed them whenever the ambient working
+// tree was dirty — and pre-commit commits on a dirty tree by definition. They now dispatch
+// against an isolated mkdtemp clean repo (cwd = temp repo, engine binary stays the repo's
+// dist/cli.mjs via absolute path): the gate resolves a clean tree regardless of the ambient
+// repo state, so the suite is tree-independent end-to-end (spec G4③ black-box isolation;
+// pre-commit runs only the tree-independent subset — scripts/validate/pre-commit.ts).
 import { describe, it, expect, afterAll } from "vitest";
 import { readdirSync, readFileSync, rmSync, writeFileSync, mkdtempSync } from "node:fs";
 import { spawn, execSync } from "node:child_process";
@@ -19,6 +26,21 @@ const REPO_ROOT = path.resolve(LIB, "..", "..", "..");
 const GROUP_SUPPORTED = processGroupReapingSupported();
 const alive = m => pgrepCount(m);   // 括号技巧消 pgrep -f 自匹配（helpers.ts）
 const waitFor = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } throw new Error("waitFor timeout"); };
+
+// G4 (P6 Task 17): an isolated clean repo for real-dispatch tests — the entry gate resolves
+// the CWD repo's tree, so a committed baseline + gitignored `.osuperpowers/` keeps it clean
+// no matter what state the ambient working tree is in (pre-commit is dirty by definition).
+// Engine workspace writes land under the gitignored `.osuperpowers/` and never dirty the
+// tracked tree the gate read.
+function tmpDispatchRepo() {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "cdd-wiring-"));
+  execSync(`git init -q "${dir}"`);
+  execSync(`git -C "${dir}" -c user.name=cdd-test -c user.email=cdd-test@example.com commit --allow-empty -qm "fixture"`);
+  writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
+  execSync(`git -C "${dir}" add -A`);
+  execSync(`git -C "${dir}" -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "seed"`);
+  return dir;
+}
 
 afterAll(() => {
   // 失败用例（waitFor 超时路径无显式 cleanup）残留的标记进程清理 —— 防跨 run pgrep 命名空间污染。
@@ -70,24 +92,30 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
   it.each([["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]])(
     "CLI 信号安全出口 %s → teardownAll 连根回收 + 退出码 %i（128+signo）",
     async (sig, expectCode) => {
-    // 用 PATH 遮蔽 harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch
-    // 经 spawnManaged 派生 P1SIG 标记驻留组；对 dist/cli.mjs 发 %s 断言组连根退出（三信号全覆盖，spec §2.6）。
+    // 真实 dispatch 隔离在 mkdtemp 干净仓（G4/Task 17）：cwd = temp repo，CLI 二进制 = 本仓
+    // dist/cli.mjs（绝对路径）→ 入口门解析 temp repo 的干净树，天然不受本仓脏树影响
+    //（pre-commit 提交时工作树必然 dirty —— 该硬 BLOCK 曾是 pre-commit 的结构性失败点）。
+    const repo = tmpDispatchRepo();
     const stubDir = mkdtempSync(path.join(os.tmpdir(), "p1-stub-"));
-    writeFileSync(path.join(stubDir, "claude"),
-      `#!/usr/bin/env bash\nnode -e "const{spawn}=require('node:child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1SIG']).unref();setInterval(()=>{},1000)"`,
-      { mode: 0o755 });
-    const child = spawn(process.execPath, [
-      'packages/cdd-engine/dist/cli.mjs', "review", "--type", "plan",
-      "--plan", "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md",
-    ], { cwd: REPO_ROOT, env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}`, CLAUDE_CODE_SESSION_ID: "1" }, stdio: ["ignore", "pipe", "pipe"] });
-    await waitFor(() => alive("P1SIG") > 0, 30_000);
-    child.kill(sig);
-    const [code, signal] = await new Promise(res => child.on("exit", (c, s) => res([c, s])));
-    // handler 拦截后正常 exit（signal = null），退出码 = 128 + signo（SIGINT→130 / SIGTERM→143 / SIGHUP→129）；
-    // signal 非 null 仅容 handler 未装（注册失败/竞态）的退化路径。
-    expect(code === expectCode || signal === sig).toBe(true);
-    await waitFor(() => alive("P1SIG") === 0, 30_000);   // 组随 teardownAll 连根退出（全套负载下给足预算）
-    rmSync(stubDir, { recursive: true, force: true });
+    try {
+      writeFileSync(path.join(stubDir, "claude"),
+        `#!/usr/bin/env bash\nnode -e "const{spawn}=require('node:child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1SIG']).unref();setInterval(()=>{},1000)"`,
+        { mode: 0o755 });
+      const child = spawn(process.execPath, [
+        path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs'), "review", "--type", "plan",
+        "--plan", path.join(REPO_ROOT, 'packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md'),
+      ], { cwd: repo, env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}`, CLAUDE_CODE_SESSION_ID: "1" }, stdio: ["ignore", "pipe", "pipe"] });
+      await waitFor(() => alive("P1SIG") > 0, 30_000);
+      child.kill(sig);
+      const [code, signal] = await new Promise(res => child.on("exit", (c, s) => res([c, s])));
+      // handler 拦截后正常 exit（signal = null），退出码 = 128 + signo（SIGINT→130 / SIGTERM→143 / SIGHUP→129）；
+      // signal 非 null 仅容 handler 未装（注册失败/竞态）的退化路径。
+      expect(code === expectCode || signal === sig).toBe(true);
+      await waitFor(() => alive("P1SIG") === 0, 30_000);   // 组随 teardownAll 连根退出（全套负载下给足预算）
+    } finally {
+      rmSync(stubDir, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
   });
 });

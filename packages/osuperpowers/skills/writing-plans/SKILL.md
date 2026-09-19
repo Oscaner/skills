@@ -51,14 +51,14 @@ flowchart TD
 - **Do**: Execute one review per cycle — one dispatch: `cdd review --type plan --plan <path> --spec <spec-path>` (completeness / decomposition / buildability in one run; findings are lens-tagged; round auto-increments in the engine). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. All findings are fixed from the captured handoff; `blocker=0` → no re-run. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: plan document + spec document
 - **Exit**: Blockers routed via `blocker=0?` → `fix-plan` (both branches; the edge inherits the re-run routing)
-- **Fail**: Re-running the review after blocker=0 → violates the review-stopping discipline
+- **Fail**: Re-running the review after blocker=0 → violates the review-convergence discipline
 
 ### `fix-plan`
 
 - **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle. A finding tagged `targets later task` belongs to the plan's pending-acceptance-patch zone, not this fix round — it is reported and collected by the orchestrator as sole writer (I3); the fix agent holds zero plan-modification authority
 - **Read**: captured plan-review handoff (current cycle findings)
 - **Exit**: entered via blocker>0 → `plan-review` (re-run); entered via blocker=0 → `commit-plan` (no re-run)
-- **Fail**: Invoking a new review instead of fixing from captured findings → violates the review-stopping discipline
+- **Fail**: Invoking a new review instead of fixing from captured findings → violates the review-convergence discipline
 
 ### `commit-plan`
 
@@ -100,7 +100,7 @@ Sample — the zone entries (task-ref + patch description) and the later task's 
 
 | # | Invariant |
 |---|---|
-| I1 | **Review Stopping** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run the same ref (for spec/plan the engine binds the ref to `(doc_path, doc_hash)` and rejects a same-ref re-run; editing the plan opens a new review round legitimately). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
+| I1 | **Review Convergence** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run the same ref (for spec/plan the engine binds the ref to `(doc_path, doc_hash)` and rejects a same-ref re-run; editing the plan opens a new review round legitimately). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
 | I3 | **Plan Sole Writer (Pending Acceptance)** — the plan's pending-acceptance-patch zone is written by the orchestrator alone. A review finding tagged `targets later task` (`### Task N:`, N later than the current task) is reported and consolidated by the orchestrator — never fixed in-place by the round that found it — and the later task's `- **验收**:` carries the patch bullet so the deferred requirement rides into its brief. Fix/implement agents hold zero plan-modification authority (v1.31). |
 

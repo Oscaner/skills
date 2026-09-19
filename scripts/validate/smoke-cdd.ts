@@ -49,7 +49,7 @@ export function main() {
   const slug = planBase.replace(/-(?:design|plan)$/, ""); // smoke-plan.md → smoke（与 engine workspaceSlug 同规则）
   const head = execaCommandSync("git rev-parse HEAD", { cwd: root }).stdout.trim();
   // Branch-review dry-run writes a handoff into the (gitignored) smoke workspace — drop any
-  // stale round so a re-run never trips Review Stopping on the previous APPROVED round.
+  // stale round so a re-run never trips Review Convergence on the previous APPROVED round.
   rmSync(path.join(root, ".osuperpowers", "cdd", slug), { recursive: true, force: true });
 
   // review --type task would produce .osuperpowers/cdd/<slug>/task-1-review-1.json in a

@@ -59,9 +59,9 @@ CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (12 valida
 
 For osuperpowers plugin internals (overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
 
-## Review Stopping (CDD + doc-review)
+## Review Convergence (CDD + doc-review)
 
-Unified rule in each orchestrator skill's `## Invariants` (the Review Stopping entry — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development). Single-cycle, single-dispatch (all review types — task / branch / spec / plan).
+Unified rule in each orchestrator skill's `## Invariants` (the Review Convergence entry — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development). Single-cycle, single-dispatch (all review types — task / branch / spec / plan).
 - blocker > 0: `cli-fix-all-findings` → re-run review
 - blocker = 0: `cli-fix-all-findings` → done (no re-review after blocker=0)
 All findings (blocker + warn + nit) are fixed in both paths.

@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/dispatch/__tests__/review-loop.test.ts
 import { it, expect, describe } from 'vitest';
-import { runReviewLoop, reviewStoppedError } from '../review-loop.ts';
+import { runReviewLoop, reviewConvergedError } from '../review-loop.ts';
 import { resolveNextRound } from '../../artifacts/handoff/naming.ts'; // T9 nit④：round 派生唯一真相在 handoff-naming
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -72,8 +72,8 @@ it("resolveNextRound: per-type 命名模式（T4 后统一 canonical：task-{N}-
   expect(resolveNextRound(join(ws, "nope"), "review", "spec")).toBe(1);
 });
 
-it("reviewStoppedError: 携带 type/round/ref 的 Error", () => {
-  const e = reviewStoppedError("spec", 2, "docs/x.md");
+it("reviewConvergedError: 携带 type/round/ref 的 Error", () => {
+  const e = reviewConvergedError("spec", 2, "docs/x.md");
   expect(e.message).toMatch(/blocker=0/);
 });
 

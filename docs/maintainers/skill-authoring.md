@@ -78,7 +78,7 @@ flowchart TD
   - Commit discipline (commit when spec is approved)
   - Language policy (English primary — no zh-CN mirrors)
   - Session-call policy (delegated nodes consume other plugins' flows only via `/plugin:skill` imports — one import per upstream type per session, no upstream document reads)
-  - Review Stopping (re-runs driven only by blockers; fixes always dispatch via `cdd fix`)
+  - Review Convergence (re-runs driven only by blockers; fixes always dispatch via `cdd fix`)
 
 ## 5. Failure Modes Table
 

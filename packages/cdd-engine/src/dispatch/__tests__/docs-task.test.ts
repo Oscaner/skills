@@ -33,7 +33,7 @@ afterAll(() => {
 // 合法 findings 名（round 源）—— P4 T2 起 `--findings` 经 resolveDocArg 归一（仓根相对 → 绝对、
 // **不存在 → exit 1 三行诊断**，read point ⑦），故 fixture 必须真实落盘。落点用独立 tmp 目录而非
 // `.osuperpowers/cdd/smoke/`：后者是 SMOKE_PLAN 的 workspace，塞入 spec-review-1.json 会让 cdd.test.mjs
-// 的同 slug 用例命中 Review Stopping（跨文件共享盘面）。round 只从**文件名**解析，位置无关。
+// 的同 slug 用例命中 Review Convergence（跨文件共享盘面）。round 只从**文件名**解析，位置无关。
 const FINDINGS_DIR = mkdtempSync(path.join(tmpdir(), 'cdd-doctask-findings-'));
 const SPEC_FINDINGS = path.join(FINDINGS_DIR, 'spec-review-1.json');
 const PLAN_FINDINGS = path.join(FINDINGS_DIR, 'plan-review-1.json');

@@ -116,6 +116,19 @@ const STALE_LEXICON_CHECKS = [
   // 使用 h1* 小写标识符，无回渗面。正则均不锚新语汇（return block / returnFourLines 等），无自噬。
   { label: "H1 语汇（残）（F8a 语义化后）", re: /\bH1\b/, scope: ALL_MECH_POSITIONS },
   { label: "h1* 标识符（残）（F8a 语义化后）", re: /\bh1(?=[A-Z]|\b)/, scope: CDD_ENGINE_BIN },
+  // Task 18（P6，spec F8）：Review Convergence 术语改名后的旧语汇零豁免。三条互补——
+  //  ① `Review Stopping` 术语形（词边界）全机制位置 + 治理文档表层；旧名禁止表（naming-conventions
+  //     的 terminology registry）以**组合形**引用（review_stopping / fix_loop_exhausted /
+  //     timeout_exhausted——下划线即词字符，不构成词边界，与 \bH1\b 对 H1_BLOCK 的组合形先例一致）；
+  //  ② 小写 `stopping` 标识符/模块形只查引擎面（src + templates——src 零 stopping 模块/标识符，
+  //     templates 历史引用旧词已成回渗源）；skills 面英文散文含 stop/stops/stopped（合法面），
+  //     且 Review Convergence 词形已由 ① 覆盖；
+  //  ③ 已废失败面字面（fix-loop-exhausted / timeout-exhausted）→ review-cycle-cap /
+  //     dispatch-timeout-cap，同一组合形注册豁免。三条正则均不匹配新语汇（Review Convergence /
+  //     review-cycle-cap / dispatch-timeout-cap 无旧形子串），无自噬。
+  { label: "Review Stopping 已废术语（F8 → Review Convergence）", re: /\bReview Stopping\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  { label: "stopping 模块/标识符（F8 改名后引擎面零残留）", re: /\bstopping\b/, scope: CDD_ENGINE },
+  { label: "已废失败面字面（F8 → review-cycle-cap / dispatch-timeout-cap）", re: /\bfix-loop-exhausted\b|\btimeout-exhausted\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
 ];
 
 // T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。
@@ -552,7 +565,7 @@ export function collectCountersContractHits({
 } = {}) {
   const hits = [];
   // 构造点零手写：双引号紧邻计数器字段名/H1 标签即手写（"timeoutCount=" 一类也是）。单行限定
-  //（按行扫描，不做跨行区间匹配）；\b 锚标签短名（"timeout" …）不误伤 "timeout-exhausted" 语义词。
+  //（按行扫描，不做跨行区间匹配）；\b 锚标签短名（"timeout" …）不误伤 "dispatch-timeout-cap" 语义词。
   const quoted = new RegExp(`"(${[...COUNTER_FIELDS, ...COUNTER_LABELS].map(escRe).join("|")})\\b`);
   for (const f of constructFiles) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
@@ -820,9 +833,9 @@ function checkMemoryGuard() {
 //            类目集（FAILURE_CATEGORIES，本文件经 cdd-engine 唯一读取入口取，不写字面第二份）∪
 //            handoff 状态枚举白名单（声明点 = task-handoff-schema.json 的 status.enum；防御性放行，
 //            与 failure_category 的 enum 是两处独立声明——TIMEOUT 的重名不构成类目身份）；
-//            ② 类目语义零复述——engineRecoveryCount / countsTowardStopping / timeout-exhausted /
-//            计入 Stopping 措辞在 skills 面零命中（skills 只可引用类目名）。
-//   行 18 — 零 _docs/ 引用（\b_docs\/ 路径形 + rule-review-stopping 锚点形/裸提及）——T15
+//            ② 类目语义零复述——engineRecoveryCount / countsTowardConvergence / dispatch-timeout-cap /
+//            计入 Convergence 措辞在 skills 面零命中（skills 只可引用类目名）。
+//   行 18 — 零 _docs/ 引用（\b_docs\/ 路径形 + rule-review-convergence 锚点形/裸提及）——T15
 //            一次性删除的常驻化；scope 恰为 skills 面（不扩至 engine 注入面 / 治理入口面）。
 export const ORCHESTRATOR_SKILLS = [
   "packages/osuperpowers/skills/brainstorming/SKILL.md",
@@ -842,8 +855,8 @@ const UPSTREAM_READ_RE = /\bvendors\/|\bsuperpowers\/.*SKILL\.md|Read[- ]Upstrea
 const UPSTREAM_REF_SLASH_RE = /(?<!\/)\b(?:superpowers|mattpocock-skills|impeccable):[a-z0-9-]+\b/;
 const INTERNAL_DEP_RE = /\bCDD_[A-Z_]+\b|\bprogress\.json\b|task-\d+-(?:review|fix|implement)-\d*\.?json/;
 const FIX_INLINE_RE = /fix-inline/;
-const FAILURE_SEMANTICS_RE = /engineRecoveryCount|countsTowardStopping|timeout-exhausted|计入\s*Stopping/;
-const DOCS_REF_RE = /\b_docs\/|rule-review-stopping/;
+const FAILURE_SEMANTICS_RE = /engineRecoveryCount|countsTowardConvergence|dispatch-timeout-cap|计入\s*Convergence/;
+const DOCS_REF_RE = /\b_docs\/|rule-review-convergence/;
 
 /** handoff 状态枚举白名单（声明点 = task-handoff-schema.json 的 status.enum；防御性放行）。 */
 function handoffStatusWhitelist() {
@@ -990,7 +1003,7 @@ export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
 export function collectDocsRefHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of scanTargets(targetsOverride, DOCS_REF_RE)) {
-    hits.push({ label: "_docs/ 引用回渗（含 rule-review-stopping 锚点形/裸提及，§2.8 行 18）", file: f });
+    hits.push({ label: "_docs/ 引用回渗（含 rule-review-convergence 锚点形/裸提及，§2.8 行 18）", file: f });
   }
   return hits;
 }

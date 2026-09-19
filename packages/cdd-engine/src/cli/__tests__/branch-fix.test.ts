@@ -6,7 +6,7 @@
 //      runBranchFix with a ghost fake-cli (writes the fix handoff + an empty fix commit) → the fix
 //      writes branch-fix-{base7}..{head7}-r1.json with commits.base = the review's base (the fix's
 //      FIX_BASE) and passes the exit gate; the fix commit moves HEAD → the next branch-review reads a
-//      NEW ref → resolveNextRound returns round 1 (ref-moved = legal re-review — the Stopping law).
+//      NEW ref → resolveNextRound returns round 1 (ref-moved = legal re-review — the Convergence law).
 // T10 warn (mirrors branch-review.test.ts): fixture plan/workspace in a tmp git repo — never the
 // real repo's .osuperpowers/cdd/.
 import { describe, it, expect } from 'vitest';
@@ -201,10 +201,10 @@ describe('branch-fix in-process loop closure', () => {
       expect(newHead).not.toBe(head);
 
       // Ref-moved = new review: a branch-review on the NEW ref resolves round 1 (never falsely
-      // stopped by the old ref's APPROVED round) — the BASE..HEAD Stopping law.
+      // stopped by the old ref's APPROVED round) — the BASE..HEAD Convergence law.
       expect(resolveNextRound(workspace, 'review', 'branch', { base7, head7: newHead7 })).toBe(1);
       // The OLD ref keeps its own lineage: round 2 (the fix consumed nothing from the review
-      // sequence — same-ref re-review remains a continuation, Stopping decides at dispatch).
+      // sequence — same-ref re-review remains a continuation, Convergence decides at dispatch).
       expect(resolveNextRound(workspace, 'review', 'branch', { base7, head7 })).toBe(2);
     } finally {
       process.env.PATH = origPath;

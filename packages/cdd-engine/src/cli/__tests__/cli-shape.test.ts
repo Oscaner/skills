@@ -27,8 +27,8 @@ const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
 // src/bin.ts 构建，行为不变）。
 const SMOKE_PLAN = path.join('packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md');
 // SMOKE_SPEC 用 fixtures 自有 smoke-spec.md —— 不能用本 repo 真实 spec 路径（如 design.md）：
-// 真实 spec 已被 spec-review 轮次评过（APPROVED + blocker=0），会在 Review Stopping 守卫处
-// exit 3（round 递增 + prev.doc_path 匹配），使 new-shape smoke 因 Stopping 而非形态错误失败。
+// 真实 spec 已被 spec-review 轮次评过（APPROVED + blocker=0），会在 Review Convergence 守卫处
+// exit 3（round 递增 + prev.doc_path 匹配），使 new-shape smoke 因 Convergence 而非形态错误失败。
 const SMOKE_SPEC = path.join('packages/cdd-engine/src/cli/__tests__/fixtures/smoke-spec.md');
 const NODE = process.execPath;
 

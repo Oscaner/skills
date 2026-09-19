@@ -4,7 +4,7 @@
 // the four subcommands implement / review / fix / base-branch [set|get]). This file only boots
 // it: `--help` pre-screen → root/proc bootstrap → runCommand → parse/usage error normalization
 // (exit code table §2.4.2: 0 = OK incl. --help; 1 = dispatch failure / blocked; 2 = usage or
-// parse error; 3 = review stopping — citty's own parse errors exit 1, so this wrapper is what
+// parse error; 3 = review convergence — citty's own parse errors exit 1, so this wrapper is what
 // keeps the subroutine's documented table intact).
 //   cdd implement --task <n> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> [...]

@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/cli/branch-review.ts — `cdd review --type branch` (ex branch-review bin
 // action body). spec §2.3 split: runBranchReview + writeBranchBlocked live here. AC15 round
-// sequence + Review Stopping (previous-round lookup filtered by base7..head7 embedded in the
+// sequence + Review Convergence (previous-round lookup filtered by base7..head7 embedded in the
 // filename).
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -15,7 +15,7 @@ import { getRoot } from "../infra/root.ts";
 import { invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../infra/exit.ts";
-import { DRY_RUN, reviewStoppingGuard } from "./shared.ts";
+import { DRY_RUN, reviewConvergenceGuard } from "./shared.ts";
 import { returnCountersLine } from "../artifacts/progress.ts";
 
 export interface BranchReviewOpts {
@@ -63,7 +63,7 @@ export function writeBranchBlocked(
 }
 
 // Inline of the former branch-review bin action body, wired with the AC15 round sequence +
-// Review Stopping (previous-round lookup filtered by base7..head7 embedded in the filename;
+// Review Convergence (previous-round lookup filtered by base7..head7 embedded in the filename;
 // a ref change = a new review, never falsely rejected).
 export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
   return withLifecycle(async () => {
@@ -102,7 +102,7 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
 
     // AC15 wiring: per-ref round seq (ref embedded in the file name → resolveNextRound takes the
     // concrete base7/head7 for per-ref rounds; other refs' rounds never interfere with this one)
-    // + --round backfill validation (conflict → exit 2) + Stopping reads the previous round
+    // + --round backfill validation (conflict → exit 2) + Convergence reads the previous round
     // (prevHandoffPath concrete-matches the same ref).
     const round = handoffNaming.resolveNextRound(workspace, "review", "branch", { base7, head7 });
     if (opts.round && Number(opts.round) !== round) {
@@ -113,7 +113,7 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
     const prev = prevPath && existsSync(prevPath) ? JSON.parse(readFileSync(prevPath, "utf8")) : null;
     // Stop only on an APPROVED round with blocker=0 (SP-4) — a BLOCKED/TIMEOUT branch review
     // round with findings:[] must be re-dispatchable, not rejected as "already done".
-    if (prev) reviewStoppingGuard(prev, "branch", round, `${base7}..${head7}`);
+    if (prev) reviewConvergenceGuard(prev, "branch", round, `${base7}..${head7}`);
 
     // Per-round handoff filename (canonical review.branch family; branch-fix re-reviews reuse
     // distinct files).

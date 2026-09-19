@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 
 // Wiring model:
 // - CDD orchestrator (AI following CDD SKILL.md): calls `cdd review --type task`
-//   then `cdd fix --type task` directly, following the Review Stopping digraph.
+//   then `cdd fix --type task` directly, following the Review Convergence digraph.
 //   runReviewLoop is available for test harnesses and future CLI wrappers.
 // - Docs orchestrator (AI following brainstorming/writing-plans SKILL.md): calls
 //   `cdd review --type spec|plan` then `cdd fix --type spec|plan`.
@@ -21,15 +21,15 @@ import { readFileSync } from "node:fs";
 // solely through `handoff-naming.roundPattern/resolveNextRound`; the thin
 // reviewRoundPattern/resolveNextRound delegates are deleted — no second naming surface).
 
-// Review Stopping error single point (per-reason messages, §2.5 item 7/8):
+// Review Convergence error single point (per-reason messages, §2.5 item 7/8):
 // - "legacy" — pre-existing handoff without doc_hash: content state unknown → conservative
 //   hard stop, no "edit the doc" guidance (unreachable).
 // - "unchanged" — same path + same doc_hash: content unchanged → same ref, suggest editing
 //   the content or opening a new doc.
 // - default — no content-dimension context (task/branch-family call surfaces): keep the
 //   current message unchanged.
-// Keep the `/blocker=0/` prefix + `Review Stopping:` invariant (existing assertions depend on it).
-export function reviewStoppedError(
+// Keep the `/blocker=0/` prefix + `Review Convergence:` invariant (existing assertions depend on it).
+export function reviewConvergedError(
   type: string,
   round: number,
   ref: string,
@@ -37,10 +37,10 @@ export function reviewStoppedError(
 ): Error {
   const prev = Math.max(round - 1, 1);
   const tail = reason === "legacy"
-    ? `Review Stopping: do not re-run — pre-content-hash review handoff (no doc_hash) at round ${prev}; content state unknown: open a new doc or remove the stale round-${prev} review handoff to re-review`
+    ? `Review Convergence: do not re-run — pre-content-hash review handoff (no doc_hash) at round ${prev}; content state unknown: open a new doc or remove the stale round-${prev} review handoff to re-review`
     : reason === "unchanged"
-      ? `Review Stopping: do not re-run — doc content unchanged since round ${prev} clean review: edit the doc content or open a new doc to start a new review`
-      : "Review Stopping: do not re-run; change ref to open a new review";
+      ? `Review Convergence: do not re-run — doc content unchanged since round ${prev} clean review: edit the doc content or open a new doc to start a new review`
+      : "Review Convergence: do not re-run; change ref to open a new review";
   return new Error(`round ${round} (${type}, ${ref}) already blocker=0 — ${tail}`);
 }
 

@@ -3,7 +3,7 @@
 // machinery of src/dispatch/task.mjs#maybeExhaust). Six category names and their semantics are
 // declared once by templates/engine-config.json#failureCategories (Task 5 单文件归并); this
 // module is the unique read entry for every "category identity" reference in the engine
-// (failure_category assignment / Stopping guard / counter increment). If the canonical is edited
+// (failure_category assignment / Convergence guard / counter increment). If the canonical is edited
 // and a reference site falls out of sync (undefined / red assertions), it must surface loudly —
 // load-bearing, not decorative (AC14). Quota isolation: each counter-bearing category increments
 // its own progress.json field (channel audit ③ column), and exhaustion is judged per-category
@@ -16,7 +16,7 @@ import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
 
 export interface FailureCategory {
   id: string;
-  countsTowardStopping?: boolean;
+  countsTowardConvergence?: boolean;
   counter?: string;
   returnMarker?: string;
   terminal?: string;
@@ -60,11 +60,15 @@ export function incrementFailureCounter(progressDir: string, category: string): 
   return data[field] as number;
 }
 
-// Terminal gate (T6 / AC7): count >= 2 → terminal blocker «BLOCKED: <category>-exhausted», the
-// orchestrator's stop-retrying signal. Below threshold → null (counter recorded, still retryable).
+// Terminal gate (T6 / AC7): count >= 2 → terminal blocker, the orchestrator's stop-retrying
+// signal. The marker comes from the canonical terminal field when the category declares one
+// (single read point — the TIMEOUT marker is «BLOCKED: dispatch-timeout-cap», never a hand-written
+// literal; F8 terminology), falling back to the generic «BLOCKED: <category>-exhausted» only for
+// counter-bearing categories without a terminal. Below threshold → null (counter recorded, still retryable).
 export function exhaustedBlocker(category: string, n: number): string | null {
   if (n < 2) return null;
-  return `BLOCKED: ${category}-exhausted (${n} consecutive ${category.replace(/_/g, " ").toLowerCase()} failures) — stop and fix the underlying cause, then re-dispatch a fresh task`;
+  const marker = terminalFor(category) ?? `BLOCKED: ${category}-exhausted`;
+  return `${marker} (${n} consecutive ${category.replace(/_/g, " ").toLowerCase()} failures) — stop and fix the underlying cause, then re-dispatch a fresh task`;
 }
 
 // Single increment + threshold entry: after incrementing, if the category hit its terminal

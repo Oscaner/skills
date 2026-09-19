@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/cli/__tests__/cdd.test.ts
-// 覆盖：帮助/用法、review 的 round+Stopping 接线（dry-run smoke）、fix --findings 接线、
+// 覆盖：帮助/用法、review 的 round+Convergence 接线（dry-run smoke）、fix --findings 接线、
 // contract 模块转发。黑盒用例经 argv 前置 `--dry-run` 跳过真实 harness 调用；in-process 用例经
 // setDryRun(true) 注入（argv 对它们物理不适用）。
 import { describe, it, expect, afterAll, vi } from "vitest";
@@ -98,7 +98,7 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
-  it("dry-run review --type branch → return block + exit 0（随机 base/head 避免 Review Stopping 误拒；tmp git repo 内 plan 供 resolveWorkspace 推导，避免向真实 workspace 写副作用）", () => {
+  it("dry-run review --type branch → return block + exit 0（随机 base/head 避免 Review Convergence 误拒；tmp git repo 内 plan 供 resolveWorkspace 推导，避免向真实 workspace 写副作用）", () => {
     const base = `base${Date.now().toString(16).slice(-4)}`;
     const head = `head${Date.now().toString(16).slice(-8, -4)}`;
     const dir = tmpGitRepo();
@@ -186,7 +186,7 @@ describe("cdd CLI", () => {
     expect(r.stderr).toMatch(/must be an integer, got: abc/);
   });
 
-  // --- SP-4 Review Stopping status criterion: a BLOCKED/TIMEOUT failure round (findings:[])
+  // --- SP-4 Review Convergence status criterion: a BLOCKED/TIMEOUT failure round (findings:[])
   //     must remain re-dispatchable; only an APPROVED round with blocker=0 stops a re-run. ---
 
   // Seed helper: temp git repo + plan file + a seeded task-N-review-N.json round.
@@ -225,13 +225,13 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("review --type task：status:APPROVED + blocker=0 已通过轮 → 拒绝重派 exit 3（SP-4 保留 Stopping）", () => {
+  it("review --type task：status:APPROVED + blocker=0 已通过轮 → 拒绝重派 exit 3（SP-4 保留 Convergence）", () => {
     const { dir, plan } = seedTaskReviewHandoff("APPROVED");
     try {
       const r = runCli(["--dry-run", "review", "--type", "task", "--task", "1", "--plan", plan],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
-      expect(r.stderr).toMatch(/already blocker=0 — Review Stopping/);
+      expect(r.stderr).toMatch(/already blocker=0 — Review Convergence/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -289,7 +289,7 @@ describe("cdd CLI", () => {
 
 // ---- P6 T3：docs 命名统一 — spec/plan/branch handoff 走派生层（canonical naming + resolveWorkspace） ----
 // 单元 seam（docsRunnerMock）断言 runReview/runFix 传给 runDocsTask 的 handoffPath/workspace；
-// CLI 黑盒用 canonical seed 驱动 Review Stopping / 轮次，端到端验证命名 + workspace 接线。
+// CLI 黑盒用 canonical seed 驱动 Review Convergence / 轮次，端到端验证命名 + workspace 接线。
 
 // 临时 git 仓库：供 resolveWorkspace 推导 git root；每个用例独立 seed，不留真实 repo 副作用。
 function tmpGitRepo() {
@@ -302,7 +302,7 @@ function tmpGitRepo() {
   return dir;
 }
 
-// seed 一条 canonical <type>-review-1.json（status APPROVED + blocker=0）→ 命中 Review Stopping。
+// seed 一条 canonical <type>-review-1.json（status APPROVED + blocker=0）→ 命中 Review Convergence。
 // ws = <repo>/.osuperpowers/cdd/foo —— 覆盖 spec（foo-design.md 去 -design）与 plan（foo.md）同 slug 收敛。
 // doc 父目录一并创建：resolveWorkspace 从 dirname(doc) 走 gitToplevel，父目录缺失会回退失败。
 // content 实写 doc 文件（hashFile 读实时文件）：默认 content="" → 既有 legacy seed 调用写空 doc，
@@ -389,9 +389,9 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     }
   });
 
-  // ---- CLI 黑盒：canonical seed 驱动 Stopping / 轮次 ----
+  // ---- CLI 黑盒：canonical seed 驱动 Convergence / 轮次 ----
 
-  it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .osuperpowers/cdd/foo/ → Stopping exit 3", () => {
+  it("review --type spec：canonical spec-review-1.json（doc_path 同 doc）于 .osuperpowers/cdd/foo/ → Convergence exit 3", () => {
     const dir = tmpGitRepo();
     try {
       const doc = path.join(dir, "docs", "foo-design.md");
@@ -399,13 +399,13 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", doc],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
-      expect(r.stderr).toMatch(/Review Stopping/);
+      expect(r.stderr).toMatch(/Review Convergence/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("review --type plan：canonical plan-review-1.json（doc_path 同 doc，foo.md → 同 slug foo）→ Stopping exit 3", () => {
+  it("review --type plan：canonical plan-review-1.json（doc_path 同 doc，foo.md → 同 slug foo）→ Convergence exit 3", () => {
     const dir = tmpGitRepo();
     try {
       const doc = path.join(dir, "plans", "foo.md");
@@ -413,7 +413,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const r = runCli(["--dry-run", "review", "--type", "plan", "--plan", doc],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
-      expect(r.stderr).toMatch(/Review Stopping/);
+      expect(r.stderr).toMatch(/Review Convergence/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -434,7 +434,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     expect(r.stderr).toMatch(/round must be >= 1/);
   });
 
-  it("review --type branch 同 ref 已 APPROVED r1 → Stopping exit 3（prev 经 concrete base7..head7 匹配）", () => {
+  it("review --type branch 同 ref 已 APPROVED r1 → Convergence exit 3（prev 经 concrete base7..head7 匹配）", () => {
     const dir = tmpGitRepo();
     try {
       const plan = path.join(dir, "plan.md");
@@ -447,7 +447,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         "--plan", plan, "--base", "eeee555", "--head", "ffff666"],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
-      expect(r.stderr).toMatch(/Review Stopping/);
+      expect(r.stderr).toMatch(/Review Convergence/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -474,7 +474,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     }
   });
 
-  describe("P2 F5: spec/plan Stopping ref 内容状态维度（doc_hash 双签名矩阵）", () => {
+  describe("P2 F5: spec/plan Convergence ref 内容状态维度（doc_hash 双签名矩阵）", () => {
     it("内容未变 + doc_hash 相等 + APPROVED+0 → exit 3（U1 保留；unchanged 消息，无旧 impossible 措辞）", () => {
       const dir = tmpGitRepo();
       try {
@@ -483,7 +483,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", doc],
           { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
         expect(r.exitCode).toBe(3);
-        expect(r.stderr).toMatch(/already blocker=0 — Review Stopping/);
+        expect(r.stderr).toMatch(/already blocker=0 — Review Convergence/);
         expect(r.stderr).toMatch(/doc content unchanged/);
         expect(r.stderr).toMatch(/edit the doc content or open a new doc/);
         expect(r.stderr).not.toMatch(/change ref to open a new review/);
@@ -586,7 +586,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       } finally { rmSync(dir, { recursive: true, force: true }); }
     });
 
-    it("doc 文件缺失 → resolveDocArg 拦在 Stopping gate 之前（exit 1 三行诊断；幽灵 doc 静默放行不再可达）", () => {
+    it("doc 文件缺失 → resolveDocArg 拦在 Convergence gate 之前（exit 1 三行诊断；幽灵 doc 静默放行不再可达）", () => {
       const dir = tmpGitRepo();
       try {
         const doc = path.join(dir, "docs", "foo-design.md");
@@ -594,7 +594,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         rmSync(doc);                                   // 删除现档——T2 单一坐标系下已无法进入 gate
         const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", doc],
           { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
-        // 内容路径归一（read point ⑤）是 Stopping gate 的前置：不存在 → exit 1（§2.4.2「运行期不可继续」）。
+        // 内容路径归一（read point ⑤）是 Convergence gate 的前置：不存在 → exit 1（§2.4.2「运行期不可继续」）。
         // hashFile 的空串哨兵分支因此在本 CLI 路径上不可达（无 ghost doc 能到 gate）。
         expect(r.exitCode).toBe(1);
         expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found/);

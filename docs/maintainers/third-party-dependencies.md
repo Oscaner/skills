@@ -49,7 +49,7 @@ Remaining dev-only toolchain (registered; no hand-written counterpart — build/
 
 | Package / approach | Why not adopted |
 |---|---|
-| `XState` | The engine already carries the converging state-machine semantics — Review Stopping, failure categories, quota isolation — pinned by 400+ tests. Adopting a state-machine library would overturn the P3/P4 convergence with destructive risk and zero benefit. |
+| `XState` | The engine already carries the converging state-machine semantics — Review Convergence, failure categories, quota isolation — pinned by 400+ tests. Adopting a state-machine library would overturn the P3/P4 convergence with destructive risk and zero benefit. |
 | `tapable` / `emittery` | `tapable` is webpack-ecosystem-heavy for two fixed hook points; `emittery` is pub/sub, not lifecycle orchestration. `hookable` is already chosen and same-source (unjs). |
 | alternate template engines (`ejs`, `nunjucks`) | `handlebars` is chosen; its `{{X}}` syntax matches the existing templates with zero template churn. |
 | `isomorphic-git` | pure-JS / browser-oriented and maintenance-slowed; `simple-git` is the Node CLI-side standard. |
@@ -59,4 +59,4 @@ Remaining dev-only toolchain (registered; no hand-written counterpart — build/
 
 ## Boundary verification
 
-The replaced surfaces are all generic infrastructure (git protocol / YAML syntax / glob / template substitution / CLI parsing / hook orchestration / logging / build). What remains hand-maintained is entirely CDD semantics: the dispatch lifecycle skeleton (abstract base class + subclasses + phase table), the commit entry/exit double gate, failure categories, Review Stopping, and the handoff JSON schema injection rules. When a task touches a generic capability it should extend an adopted package rather than introduce a hand-rolled surface.
+The replaced surfaces are all generic infrastructure (git protocol / YAML syntax / glob / template substitution / CLI parsing / hook orchestration / logging / build). What remains hand-maintained is entirely CDD semantics: the dispatch lifecycle skeleton (abstract base class + subclasses + phase table), the commit entry/exit double gate, failure categories, Review Convergence, and the handoff JSON schema injection rules. When a task touches a generic capability it should extend an adopted package rather than introduce a hand-rolled surface.

@@ -2,7 +2,7 @@
 // (Task 8 port of naming.mjs), the single consumer of the canonical handoff-namespace section
 // (engine-config.json#handoffNamespace, Task 5 单文件归并: family names / round semantics / status /
 // phase / prev table). The name is the single truth; roundPattern derives from it (scan/concrete
-// shapes); the prev table drives Stopping + the runner's fixed-point reads. workspaceSlug /
+// shapes); the prev table drives Convergence + the runner's fixed-point reads. workspaceSlug /
 // resolveWorkspace implement workspaceRoot + slugRule (.osuperpowers/cdd/<slug>/).
 // Task 8 (spec §2.13 glob row): the legacy readdirSync directory scan in resolveNextRound is
 // collected into tinyglobby (globSync) — the repo's shared glob toolchain, no hand-written walk.
@@ -61,7 +61,7 @@ function fillName(name: string, params: HandoffParams = {}): string {
 /** roundPattern(op, type, params) → ^...$ RegExp, two shapes:
  *   scan shape (params.task absent — workspace round scanning): {round}→(\d+), {task}→\d+,
  *     {base7}/{head7}→[0-9a-f]{7} — wide (any task/ref of the family hits the round capture group);
- *   concrete shape (params provides {task}/{base7}/{head7} — Stopping prev / round validation):
+ *   concrete shape (params provides {task}/{base7}/{head7} — Convergence prev / round validation):
  *     placeholders → literals, exact-ref match.
  * Shape discrimination = params.task presence (task family), no probe flag.
  * Note: the single `.` escape below also covers `..` (branch's base7..head7 segment is escaped
@@ -113,7 +113,7 @@ export function resolveNextRound(workspace: string, op: string, type: string, op
 /** prevHandoffPath(workspace, op, type, round, opts) → previous-round handoff path | null.
  * Two-mechanism boundary (canonical prev table): the cross-family prev table (review.task + all
  * fix families — runner fixed-point reads) wins; other review families → same-family round-1
- * arithmetic (Stopping prev). Work-type with no prev (implement) → null. */
+ * arithmetic (Convergence prev). Work-type with no prev (implement) → null. */
 export function prevHandoffPath(
   workspace: string,
   op: string,
@@ -135,7 +135,7 @@ export function prevHandoffPath(
     if (families[prevFamily].round === "fixed") delete prevParams.round; // implement has no round
     return path.join(workspace, handoffName(prevOp!, prevType!, prevParams));
   }
-  // Same-family round-1 arithmetic (Stopping prev): only for review families without a prev
+  // Same-family round-1 arithmetic (Convergence prev): only for review families without a prev
   // table (spec/plan/branch).
   if (op === "review" && round > 1) {
     return path.join(workspace, handoffName(op, type, { ...opts, round: round - 1 }));

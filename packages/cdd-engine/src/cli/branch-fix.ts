@@ -12,9 +12,9 @@
 // HEAD → BLOCKED (F1). The fix's FIX_BASE = the source review's commits.base (the reviewed range
 // base) — same fixed-point derivation as task.ts's step-5 cross-phase read.
 //
-// Stopping law (shared with plan/spec doc_hash ref-move): the fix commits its changes → HEAD
+// Convergence law (shared with plan/spec doc_hash ref-move): the fix commits its changes → HEAD
 // moves → a re-review of the NEW ref is a NEW branch review (review.branch resolveNextRound keys
-// on the concrete base7..head7 embedded in the file name). No reviewStoppingGuard here — the fix
+// on the concrete base7..head7 embedded in the file name). No reviewConvergenceGuard here — the fix
 // is a work-type phase, and re-review legality is decided by the review channel's ref-keyed
 // rounds (branch-review.ts), not by this file.
 import { existsSync, readFileSync } from "node:fs";
@@ -236,7 +236,7 @@ export async function runBranchFix(opts: BranchFixOpts): Promise<void> {
     // BLOCKED (rewriteHandoffBlocked); clean tree + handoff.commits.head ≠ actual HEAD → BLOCKED
     // (F1). The fix agent committed → HEAD moved → its head must match; passing says the
     // reviewed-range fixes landed in the tree the NEXT branch-review will read (ref moved → new
-    // review, never a false STOP — the Stopping law).
+    // review, never a false STOP — the Convergence law).
     const cv = await validateCommitContract("fix", repoRoot, { handoffPath });
     if (!cv.ok) {
       process.stderr.write(`CDD_BLOCKED: ${cv.blocker}\n`);

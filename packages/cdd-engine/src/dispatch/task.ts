@@ -45,7 +45,7 @@ import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, returnCountersLine } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
 import { validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
-import { FAILURE_CATEGORIES, counterFor, timeoutBlocker } from "../rules/failure.ts";
+import { FAILURE_CATEGORIES, counterFor, terminalFor, timeoutBlocker } from "../rules/failure.ts";
 
 // Re-export for backward compatibility (existing tests and consumers import from run-task.mjs
 // via this module's re-pointed surface).
@@ -84,11 +84,14 @@ export function incrementFailureCounter(progressDir: string, category: string): 
   return data[field] as number;
 }
 
-// Terminal gate (T6 / AC7): category count ≥ 2 → the terminal blocker「BLOCKED: <category>-exhausted」,
-// on which the orchestrator stops retrying (the failure-category table's *-exhausted terminal state).
+// Terminal gate (T6 / AC7): category count ≥ 2 → the terminal blocker, on which the orchestrator
+// stops retrying (the failure-category table's *-exhausted terminal state). Marker via the
+// canonical terminal field (`terminalFor` single read point — F8 terminology; the TIMEOUT marker
+// is «BLOCKED: dispatch-timeout-cap», never a hand-written literal).
 export function exhaustedBlocker(category: string, n: number): string | null {
   if (n < 2) return null;
-  return `BLOCKED: ${category}-exhausted (${n} consecutive ${category.replace(/_/g, " ").toLowerCase()} failures) — stop and fix the underlying cause, then re-dispatch a fresh task`;
+  const marker = terminalFor(category) ?? `BLOCKED: ${category}-exhausted`;
+  return `${marker} (${n} consecutive ${category.replace(/_/g, " ").toLowerCase()} failures) — stop and fix the underlying cause, then re-dispatch a fresh task`;
 }
 
 // drop-in increment: after incrementing, if the category hit its terminal threshold, overwrite the

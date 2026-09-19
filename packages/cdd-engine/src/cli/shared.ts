@@ -1,14 +1,14 @@
-// packages/cdd-engine/src/cli/shared.ts — shared host detection + Review Stopping guard cluster
+// packages/cdd-engine/src/cli/shared.ts — shared host detection + Review Convergence guard cluster
 // (multiple consumers reuse). spec §2.6 split: detectCurrentHarness/requireHostHarness/DRY_RUN/
-// intTask/resolveTargetDoc/blockerCount/stoppedExit3/reviewStoppingGuard moved out of
-// src/cli/review.mjs — ownership decided by closure completeness: reviewStoppingGuard internally
-// calls stoppedExit3 + blockerCount + reviewStoppedError (imported from runner/review-loop); the
+// intTask/resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard moved out of
+// src/cli/review.mjs — ownership decided by closure completeness: reviewConvergenceGuard internally
+// calls convergedExit3 + blockerCount + reviewConvergedError (imported from dispatch/review-loop); the
 // three must move together to avoid a shared→review reverse dependency. existingRoundHandoff is
 // only consumed by runReview → stays private to review.ts (review.ts runReview still imports
 // through this cluster; shared keeps zero reverse dependency).
 import type { ArgDef, ArgsDef } from "citty";
 
-import { reviewStoppedError } from "../dispatch/review-loop.ts";
+import { reviewConvergedError } from "../dispatch/review-loop.ts";
 import { exitWithCode } from "../infra/exit.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { isIncompleteDispatch } from "../rules/failure.ts";
@@ -135,26 +135,26 @@ export function blockerCount(handoff: Pick<PrevHandoff, "findings"> | undefined)
   return (handoff?.findings ?? []).filter((f) => f?.severity === "blocker").length;
 }
 
-// Review Stopping: reject a re-dispatch of a (type, ref) whose previous round reached
+// Review Convergence: reject a re-dispatch of a (type, ref) whose previous round reached
 // APPROVED with blocker=0. A failure round (status BLOCKED/TIMEOUT) is NOT "done" — it
 // must be re-dispatchable, so the gate requires status === "APPROVED" in addition to
 // blockerCount === 0 (SP-4): runner 8.5/8.8/10/10.5 and docs-runner failure paths write
 // status:BLOCKED|TIMEOUT with findings:[] → blockerCount alone would misjudge them as passed.
-export function stoppedExit3(type: string, round: number, ref: string, blocker: string | undefined, opts?: { reason?: "legacy" | "unchanged" }): never {
-  const e = reviewStoppedError(type, round, ref, opts);   // structured error + message, single authority
+export function convergedExit3(type: string, round: number, ref: string, blocker: string | undefined, opts?: { reason?: "legacy" | "unchanged" }): never {
+  const e = reviewConvergedError(type, round, ref, opts);   // structured error + message, single authority
   process.stderr.write(`${e.message}\n` + (blocker ? `last blocker: ${blocker}\n` : ""));
   exitWithCode(3);
 }
 
-// Unified Stopping gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
+// Unified Convergence gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
 // round (findings:[]) must stay re-dispatchable (SP-4). ref is the type's target signature.
-// opts pass through to reviewStoppedError's reason (legacy/unchanged) — task/branch call
+// opts pass through to reviewConvergedError's reason (legacy/unchanged) — task/branch call
 // surfaces pass no opts → the default message is unchanged.
 // T6 (B3, #250[8]): ENGINE_SELF_WRITTEN / CONTRACT_VIOLATION = this round's dispatch did not
-// complete → not a Stopping basis ("counts into Review Stopping = no" control-flow landing).
+// complete → not a Convergence basis ("counts into Review Convergence = no" control-flow landing).
 // The judgment derives from canonical (isIncompleteDispatch) — no hard-coded category name, so
 // deleting a canonical category would turn this reference into a red name.
-export function reviewStoppingGuard(prev: PrevHandoff | undefined, type: string, round: number, ref: string, opts?: { reason?: "legacy" | "unchanged" }): void {
+export function reviewConvergenceGuard(prev: PrevHandoff | undefined, type: string, round: number, ref: string, opts?: { reason?: "legacy" | "unchanged" }): void {
   const incomplete = isIncompleteDispatch(prev?.failure_category);
-  if (!incomplete && prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
+  if (!incomplete && prev && prev.status === "APPROVED" && blockerCount(prev) === 0) convergedExit3(type, round, ref, prev?.blocker, opts);
 }

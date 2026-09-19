@@ -169,7 +169,7 @@ const INPUT = {
       context: "重复 fix 循环无上限",
       problem: "fix 轮次由 reviewer 全量重跑",
       impact: "浪费 token",
-      suggestedFix: "引入 review stopping 配额",
+      suggestedFix: "引入 review convergence 配额",
       meta: { skill: "writing-plans", step: "5-1" },
     },
   ],
@@ -215,7 +215,7 @@ fix 轮次由 reviewer 全量重跑
 
 ## 建议方案
 
-引入 review stopping 配额
+引入 review convergence 配额
 - Skill: writing-plans
 - Step: 5-1
 

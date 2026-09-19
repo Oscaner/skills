@@ -63,7 +63,7 @@ it("PHASES_BY_ID round-trips every phase", () => {
 });
 
 // ---- branch stage table (Task 9; spec E2①) ----
-// BRANCH_PHASES is the data-ized declaration of the branch-level review→fix loop. Its Stopping
+// BRANCH_PHASES is the data-ized declaration of the branch-level review→fix loop. Its Convergence
 // ref is a COMMIT RANGE (BASE..HEAD), not a doc_hash — pins the two stages' identities and the
 // ref-move law (fix commits the range changes → re-review is a NEW review).
 
@@ -71,13 +71,13 @@ it("BRANCH_PHASE_IDS enumerates the branch loop stages in execution order (revie
   expect(BRANCH_PHASE_IDS).toEqual(["branch-review", "branch-fix"]);
 });
 
-it("every branch stage carries id/phase/role/family/stopping with non-empty content", () => {
+it("every branch stage carries id/phase/role/family/convergence with non-empty content", () => {
   for (const stage of BRANCH_PHASES) {
     expect(BRANCH_PHASE_IDS).toContain(stage.id);
     expect(stage.phase.length).toBeGreaterThan(0);
     expect(stage.role.length).toBeGreaterThan(0);
     expect(stage.family.length).toBeGreaterThan(0);
-    expect(stage.stopping.length).toBeGreaterThan(0);
+    expect(stage.convergence.length).toBeGreaterThan(0);
   }
   expect(BRANCH_PHASES.map((p) => p.id)).toEqual([...BRANCH_PHASE_IDS]);
 });
@@ -96,11 +96,11 @@ it("branch stages map to the canonical families, review carries phase branch-rev
   expect(fix.family).toBe("fix.branch");
 });
 
-it("branch Stopping = BASE..HEAD commit range; the fix moves the ref → re-review is legal", () => {
+it("branch Convergence = BASE..HEAD commit range; the fix moves the ref → re-review is legal", () => {
   const byId = (id: BranchPhaseId) => BRANCH_PHASES.find((p) => p.id === id)!;
   const review = byId("branch-review");
-  expect(review.stopping).toMatch(/BASE\.\.HEAD/);
+  expect(review.convergence).toMatch(/BASE\.\.HEAD/);
   const fix = byId("branch-fix");
-  expect(fix.stopping).toMatch(/re-review|new review/i);
-  expect(fix.stopping).toMatch(/moves|moving HEAD/i);
+  expect(fix.convergence).toMatch(/re-review|new review/i);
+  expect(fix.convergence).toMatch(/moves|moving HEAD/i);
 });

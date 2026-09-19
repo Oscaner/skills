@@ -75,17 +75,17 @@ flowchart TD
 
 ### `spec-review`
 
-- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --spec <path>` (the phase spec document under review). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. Review Stopping (I1): after a blocker=0 review, fixing all captured findings finishes the cycle — no re-run. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Execute one review per cycle — one dispatch: `cdd review --type spec --spec <path>` (the phase spec document under review). Self-review, manual checks, or any other substitute for cdd review CLI invocation is forbidden. Review Convergence (I1): after a blocker=0 review, fixing all captured findings finishes the cycle — no re-run. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: The authored spec document
 - **Exit**: Blockers routed via `blocker=0?` → `fix-spec` (both branches; the edge inherits the re-run routing)
-- **Fail**: Re-run review after blocker=0 → violates I1 (Review Stopping)
+- **Fail**: Re-run review after blocker=0 → violates I1 (Review Convergence)
 
 ### `fix-spec`
 
 - **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type spec --spec <path> --findings <workspace>/spec-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle
 - **Read**: The captured spec-review handoff (current cycle findings)
 - **Exit**: entered via blocker>0 → `spec-review` (re-run); entered via blocker=0 → `commit-spec` (no re-run)
-- **Fail**: Invoking a new review instead of fixing from captured findings → violates I1 (Review Stopping)
+- **Fail**: Invoking a new review instead of fixing from captured findings → violates I1 (Review Convergence)
 
 ### `commit-spec`
 
@@ -105,7 +105,7 @@ flowchart TD
 
 | # | Invariant |
 |---|---|
-| I1 | **Review Stopping** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run (for task/branch the review ref moves with the fix commit — the engine cannot intercept it, so this discipline is the only guard). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
+| I1 | **Review Convergence** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run (for task/branch the review ref moves with the fix commit — the engine cannot intercept it, so this discipline is the only guard). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
 | I2 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
 | I3 | **Sync before write** — a phase scope change is synced to the parent overall BEFORE the phase spec is authored (overall v1.4 ordering); never write a phase spec against a stale overall |
 
@@ -116,5 +116,5 @@ flowchart TD
 | Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
 | Template missing/unreadable | BLOCKED (missing template) | Cannot determine phase spec structure |
 | Parent overall unparseable / sync inconsistent | BLOCKED (overall-sync-failed) | Refuse to write a phase spec against a stale overall |
-| spec-review re-run after blocker=0 | Violates I1 (Review Stopping) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd review on that pass |
+| spec-review re-run after blocker=0 | Violates I1 (Review Convergence) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd review on that pass |
 | Git commit error | report + fail-open | Do not block user spec review |

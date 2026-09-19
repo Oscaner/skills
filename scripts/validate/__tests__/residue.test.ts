@@ -177,6 +177,48 @@ describe("stale-lexicon：H1 语汇守卫（Task 23 / F8a）", () => {
   });
 });
 
+// ---- Task 18（P6 / spec F8）：Review Convergence 术语改名守卫 —— 旧名组合形 + 引擎面零残留 ----
+// 旧术语字面经字符串拼接构造（P2/P3 先例）：本文件不在任一守卫 scope 内，但守卫测试保持
+// 零字面，可在 scope 未来扩张时不反噬自身。
+describe("stale-lexicon：Review Convergence 改名守卫（Task 18 / F8）", () => {
+  const OLD_TERM = "Review " + "Stopping";
+  const OLD_MARKER = "timeout-" + "exhausted";
+  const OLD_CAP = "fix-loop-" + "exhausted";
+  it("旧术语 Review Stopping 命中；新语汇 Review Convergence 放行", () => {
+    expect(hasHit([`the ${OLD_TERM} guard`])).toBe(true);
+    // 组合形（下划线）为旧名禁止表注册形——词边界不锚（与 H1_BLOCK 先例一致），治理面可安全引用。
+    expect(hasHit(["review_stopping 禁止表"])).toBe(false);
+    expect(hasHit(["Review Convergence entry"])).toBe(false);
+  });
+  it("小写 stopping 模块/标识符命中（CDD_ENGINE 面）；stop/stops/stopped 及 convergence 放行", () => {
+    expect(hasHit(["export function stopping("])).toBe(true);
+    expect(hasHit([".superpowers stopping.json"])).toBe(true);
+    expect(hasHit(["stops the re-dispatch"])).toBe(false);
+    expect(hasHit(["stop retrying"])).toBe(false);
+    expect(hasHit(["convergedExit3"])).toBe(false);
+    expect(hasHit(["reviewConvergenceGuard"])).toBe(false);
+  });
+  it("已废失败面字面（fix-loop-exhausted / timeout-exhausted）命中；新 cap 名放行", () => {
+    expect(hasHit([`blocker=${OLD_MARKER}`])).toBe(true);
+    expect(hasHit([`${OLD_CAP} 计数`])).toBe(true);
+    expect(hasHit(["dispatch-timeout-cap"])).toBe(false);
+    expect(hasHit(["review-cycle-cap"])).toBe(false);
+  });
+  it("含旧术语的临时文件被 collectStaleLexiconHits 命中（机制面在扫）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-f8-"));
+    writeFileSync(path.join(dir, "SKILL.md"), `${OLD_TERM} in Invariants\n`, "utf8");
+    writeFileSync(path.join(dir, "mechanism.ts"), "request.stopping = true;\n", "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      const labels = hits.map((x) => x.label).join("\n");
+      expect(labels).toContain("Review Stopping 已废术语");
+      expect(labels).toContain("stopping 模块/标识符");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("live repo：5c 同源扫描零残留", () => {
   it("collectStaleLexiconHits() === []（template-contract.json 与 engine 测试同样入扫）", () => {
     expect(collectStaleLexiconHits()).toEqual([]);
@@ -896,7 +938,7 @@ describe("handoff-schema（§2.8 行 14）：正例命中 + canonical 豁免 + s
 // 各行权威文本：行 17 零上游文档 read + 上游引用 /plugin:skill 斜杠形 · 行 15 零 CDD_*/progress.json/
 // handoff 文件名（AC5 七个编排型 skill 逐名枚举，report-issues 按 AC5 显式例外排除）· 行 16 零 fix-inline
 // + 评审循环 fix 节点须含 cdd fix 命令形 · 行 12 类目名 ⊆ canonical ∪ 状态枚举白名单 + 类目语义零复述
-//· 行 18 零 _docs/ 引用（含 rule-review-stopping 锚点形与裸提及）。
+//· 行 18 零 _docs/ 引用（含 rule-review-convergence 锚点形与裸提及）。
 describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用一律 /plugin:skill 斜杠形", () => {
   it("vendors/ 路径 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-vendors-"));
@@ -1119,12 +1161,12 @@ describe("skills 面守卫（T16）：行 12 失败类目名 ⊆ canonical ∪ �
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("类目语义复述（engineRecoveryCount / countsTowardStopping / timeout-exhausted / 计入 Stopping）→ 命中", () => {
+  it("类目语义复述（engineRecoveryCount / countsTowardConvergence / dispatch-timeout-cap / 计入 Convergence）→ 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-sem-"));
     writeFileSync(path.join(dir, "a.md"), "engineRecoveryCount 上限与终止态\n", "utf8");
-    writeFileSync(path.join(dir, "b.md"), "countsTowardStopping=false 属语义复述\n", "utf8");
-    writeFileSync(path.join(dir, "c.md"), "BLOCKED: timeout-exhausted\n", "utf8");
-    writeFileSync(path.join(dir, "d.md"), "该失败不计入 Stopping\n", "utf8");
+    writeFileSync(path.join(dir, "b.md"), "countsTowardConvergence=false 属语义复述\n", "utf8");
+    writeFileSync(path.join(dir, "c.md"), "BLOCKED: dispatch-timeout-cap\n", "utf8");
+    writeFileSync(path.join(dir, "d.md"), "该失败不计入 Convergence\n", "utf8");
     try {
       const hits = collectFailureModeSemanticsHits([dir]);
       expect(hits.length).toBeGreaterThanOrEqual(4);
@@ -1143,10 +1185,10 @@ describe("skills 面守卫（T16）：行 12 失败类目名 ⊆ canonical ∪ �
   });
 });
 
-describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review-stopping 锚点形/裸提及）", () => {
+describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review-convergence 锚点形/裸提及）", () => {
   it("_docs/ 路径形 → 命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-docs-"));
-    writeFileSync(path.join(dir, "a.md"), "见 _docs/review.md 的 Review Stopping\n", "utf8");
+    writeFileSync(path.join(dir, "a.md"), "见 _docs/review.md 的 Review Convergence\n", "utf8");
     try {
       const hits = collectDocsRefHits([dir]);
       expect(hits).toHaveLength(1);
@@ -1155,10 +1197,10 @@ describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("rule-review-stopping 锚点形与裸提及 → 各命中", () => {
+  it("rule-review-convergence 锚点形与裸提及 → 各命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-rule-"));
-    writeFileSync(path.join(dir, "a.md"), "#rule-review-stopping\n", "utf8");
-    writeFileSync(path.join(dir, "b.md"), "rule-review-stopping 裸提及\n", "utf8");
+    writeFileSync(path.join(dir, "a.md"), "#rule-review-convergence\n", "utf8");
+    writeFileSync(path.join(dir, "b.md"), "rule-review-convergence 裸提及\n", "utf8");
     try {
       expect(collectDocsRefHits([dir])).toHaveLength(2);
     } finally {
@@ -1167,7 +1209,7 @@ describe("skills 面守卫（T16）：行 18 零 _docs/ 引用（含 rule-review
   });
   it("反射例：无 _docs 语汇零命中", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "skf-docs-ok-"));
-    writeFileSync(path.join(dir, "a.md"), "Review Stopping 入 Invariants\n", "utf8");
+    writeFileSync(path.join(dir, "a.md"), "Review Convergence 入 Invariants\n", "utf8");
     try {
       expect(collectDocsRefHits([dir])).toEqual([]);
     } finally {

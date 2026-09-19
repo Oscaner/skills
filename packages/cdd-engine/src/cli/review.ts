@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/cli/review.ts — `cdd review` (task/branch/spec/plan four-type dispatch).
 // spec §2.3 split (ex bin/cdd.mjs merged face): review dispatch lives here; the shared host
-// detection + Stopping guard cluster (detectCurrentHarness/requireHostHarness/DRY_RUN/intTask/
-// resolveTargetDoc/blockerCount/stoppedExit3/reviewStoppingGuard) moved to src/cli/shared.ts
+// detection + Convergence guard cluster (detectCurrentHarness/requireHostHarness/DRY_RUN/intTask/
+// resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard) moved to src/cli/shared.ts
 // (spec §2.6 shared split, ownership by closure completeness), reused by the 3 consumers
 // (fix/parse/branch-review) and this file via shared (single host fact source).
 import { existsSync, readFileSync } from "node:fs";
@@ -14,7 +14,7 @@ import { hashFile } from "../dispatch/review-loop.ts";
 import { exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { DRY_RUN, requireHostHarness, resolveTargetDoc, reviewStoppingGuard, type PrevHandoff } from "./shared.ts";
+import { DRY_RUN, requireHostHarness, resolveTargetDoc, reviewConvergenceGuard, type PrevHandoff } from "./shared.ts";
 
 export interface ReviewOpts {
   type: string;
@@ -51,7 +51,7 @@ export function existingRoundHandoff(ws: string, type: string, round: number): R
     // Cast a corrupt prev as "no prev" (fail-open: a corrupted prev must not lock re-review;
     // worst case one extra review round — never self-lock).
     // P4 robustness hardening: the diagnostic lands on stderr instead of being swallowed — when
-    // a corrupt round-1 is ignored, why the re-dispatch did not trigger a Stopping lock is
+    // a corrupt round-1 is ignored, why the re-dispatch did not trigger a Convergence lock is
     // transparent to the user.
     process.stderr.write(`CDD_INFO: corrupt prev handoff ${p} ignored → fail-open (new review round)\n`);
     return null;
@@ -118,7 +118,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         exitWithCode(2);
       }
       const prev = existingRoundHandoff(ws, opts.type, round - 1);
-      // Stopping ref state binding point (§2.3.2): same path + same doc_hash → same ref (U1
+      // Convergence ref state binding point (§2.3.2): same path + same doc_hash → same ref (U1
       // hard stop); content evolution → new ref (auto-pass to a new round); legacy (no doc_hash)
       // → content state unknown → conservative hard stop (§2.2 bullet 3). BLOCKED/TIMEOUT failure
       // rounds pass without a hash check, silently (SP-4).
@@ -127,7 +127,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         const legacy = prev.doc_hash == null;
         const contentSame = !legacy && prev.doc_hash === docHash;
         if (legacy || contentSame) {
-          reviewStoppingGuard(prev, opts.type, round, doc, { reason: legacy ? "legacy" : "unchanged" });
+          reviewConvergenceGuard(prev, opts.type, round, doc, { reason: legacy ? "legacy" : "unchanged" });
         } else if (prev.status === "APPROVED" && docHash) {
           // Content evolution + an existing clean review → new ref → pass + self-documenting.
           // The empty docHash sentinel (ghost doc, §2.4) does NOT print CDD_INFO — a deleted
@@ -176,7 +176,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       exitWithCode(2);
     }
     if (!opts.plan) {
-      process.stderr.write("cdd review --type task: missing required --plan <path> (workspace slug + Stopping)\n");
+      process.stderr.write("cdd review --type task: missing required --plan <path> (workspace slug + Convergence)\n");
       exitWithCode(2);
     }
     if (opts.task == null) {
@@ -184,7 +184,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       exitWithCode(2);
     }
     // Workspace slug derives from the plan filename (workspaceSlug converges -design/-plan
-    // single-layer strip); task Stopping reads the latest task-{N}-review-{R}.json and rejects
+    // single-layer strip); task Convergence reads the latest task-{N}-review-{R}.json and rejects
     // when its blockers = 0. `--plan` second consumption point (read point ②): normalize first
     // via resolveDocArg (repo-root-relative → absolute) then derive the workspace — otherwise
     // the task workspace keeps a second coordinate system (cwd-relative).
@@ -202,12 +202,12 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
     }
     if (nextTaskRound > 1) {
       const prevR = nextTaskRound - 1;
-      // Stopping prev reads the same-family round-1 arithmetic (canonical review.task name →
+      // Convergence prev reads the same-family round-1 arithmetic (canonical review.task name →
       // task-{N}-review-{prevR}.json). Must NOT use prevHandoffPath: that helper resolves the
       // cross-family prev table for this family (round1=implement / fix:R-1), which would read
-      // the materialized implement APPROVED+[] → Stopping false lock.
+      // the materialized implement APPROVED+[] → Convergence false lock.
       const th = JSON.parse(readFileSync(path.join(taskWs, handoffNaming.handoffName("review", "task", { task: opts.task, round: prevR })), "utf8")) as PrevHandoff;
-      reviewStoppingGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
+      reviewConvergenceGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
     }
     const { runTask } = await import("../dispatch/task.ts");
     await runTask(harness, opts.task, {

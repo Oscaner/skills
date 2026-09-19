@@ -78,8 +78,8 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
 
   it("exhaustedBlocker 仅计数 ≥2 触发且携带终态语汇", () => {
     expect(exhaustedBlocker("TIMEOUT", 1)).toBeNull();
-    expect(exhaustedBlocker("TIMEOUT", 2)).toMatch(/TIMEOUT-exhausted/);
-    expect(exhaustedBlocker("EXECUTION_FAILURE", 2)).toMatch(/EXECUTION_FAILURE-exhausted/);
+    expect(exhaustedBlocker("TIMEOUT", 2)).toMatch(/dispatch-timeout-cap/);
+    expect(exhaustedBlocker("EXECUTION_FAILURE", 2)).toMatch(/engine-error/);
   });
 
   it("maybeExhaust 在阈值处覆盖 handoff blocker 为终态形（第 1 次不动 / 第 2 次终态）", () => {
@@ -89,7 +89,7 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
     expect(maybeExhaust(dir, "CONTRACT_VIOLATION", h)).toBe(1);
     expect(JSON.parse(readFileSync(h, "utf8")).blocker).toBeUndefined();
     expect(maybeExhaust(dir, "CONTRACT_VIOLATION", h)).toBe(2);
-    expect(JSON.parse(readFileSync(h, "utf8")).blocker).toMatch(/CONTRACT_VIOLATION-exhausted/);
+    expect(JSON.parse(readFileSync(h, "utf8")).blocker).toMatch(/contract-violation-exhausted/);
   });
 
   it("maybeExhaust 类目间配额隔离（TIMEOUT 不因 CONTRACT_VIOLATION 耗尽受影响）", () => {

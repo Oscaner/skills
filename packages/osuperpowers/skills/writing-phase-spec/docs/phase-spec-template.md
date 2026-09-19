@@ -68,7 +68,7 @@ A "later phases will handle this" note that stays here alone is a dead end: down
 Fresh-subagent review passes must all pass before user review and writing-plans.
 
 - **Baseline = committed tree**: the review reads the tree as committed at dispatch entry — clean tree at entry, commits at exit (commit double-gate, §2.6 B12).
-- **Convergence**: blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings (warn/nit included) → done, no re-review (Review Stopping rule, CLAUDE.md).
+- **Convergence**: blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings (warn/nit included) → done, no re-review (Review Convergence rule, CLAUDE.md).
 
 ---
 

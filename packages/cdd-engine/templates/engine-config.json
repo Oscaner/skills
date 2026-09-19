@@ -49,14 +49,14 @@
     "categories": [
       {
         "id": "TIMEOUT",
-        "countsTowardStopping": false,
+        "countsTowardConvergence": false,
         "counter": "timeoutCount",
         "returnMarker": "timeout",
-        "terminal": "BLOCKED: timeout-exhausted"
+        "terminal": "BLOCKED: dispatch-timeout-cap"
       },
       {
         "id": "CONTRACT_VIOLATION",
-        "countsTowardStopping": false,
+        "countsTowardConvergence": false,
         "counter": "contractViolationCount",
         "returnMarker": "contract-violation",
         "terminal": "BLOCKED: contract-violation-exhausted",
@@ -64,7 +64,7 @@
       },
       {
         "id": "ENGINE_SELF_WRITTEN",
-        "countsTowardStopping": false,
+        "countsTowardConvergence": false,
         "counter": "engineSelfWrittenCount",
         "returnMarker": "engine-self-written",
         "terminal": "BLOCKED: engine-self-written-exhausted",
@@ -72,18 +72,18 @@
       },
       {
         "id": "EXECUTION_FAILURE",
-        "countsTowardStopping": false,
+        "countsTowardConvergence": false,
         "counter": "engineRecoveryCount",
         "returnMarker": "recovery",
         "terminal": "BLOCKED: engine-error"
       },
       {
         "id": "UNVERIFIABLE",
-        "countsTowardStopping": false
+        "countsTowardConvergence": false
       },
       {
         "id": "PLAN_CONFLICT",
-        "countsTowardStopping": false
+        "countsTowardConvergence": false
       }
     ]
   },

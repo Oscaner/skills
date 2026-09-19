@@ -178,7 +178,7 @@ describe('review.mjs task 派生点（taskReviewWorkspace — workspaceSlug 收�
   // review --type task 的 task workspace 路径派生 = <repoRoot>/.osuperpowers/cdd/<slug>，
   // slug 经 handoff-naming.workspaceSlug 收敛（-design/-plan 单层 strip）。
   // run-task 侧派生点（resolveWorkspace）由 runner.test.mjs 回归 —— 两派生点同源防分叉。
-  it('--plan xxx-p5-plan.md → task workspace .osuperpowers/cdd/xxx-p5（Stopping prev 命中）', async () => {
+  it('--plan xxx-p5-plan.md → task workspace .osuperpowers/cdd/xxx-p5（Convergence prev 命中）', async () => {
     const { taskReviewWorkspace } = await import('../../cli/review.ts');
     expect(taskReviewWorkspace('xxx-p5-plan.md', '/repo')).toBe(path.join('/repo', '.osuperpowers', 'cdd', 'xxx-p5'));
   });

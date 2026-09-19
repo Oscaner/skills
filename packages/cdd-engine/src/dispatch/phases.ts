@@ -4,7 +4,7 @@
 // gate anchored to it (enter on pre-flight, exit on post-flight — hook points in hooks.ts), and
 // the engine step mount points (spec §2.12 step numbering). Task 7 (dispatch/base.ts) consumes
 // this table to drive the template method; order changes here are order changes in the lifecycle.
-// BRANCH_PHASES below is the branch-level review→fix loop's stage table: its Stopping ref is a
+// BRANCH_PHASES below is the branch-level review→fix loop's stage table: its Convergence ref is a
 // COMMIT RANGE (BASE..HEAD) embedded in the handoff file name — the fix commits the range's
 // changes → HEAD moves → a re-review of the NEW ref is a new branch review (resolveNextRound
 // keyed by the concrete ref-moved name), same law as the plan/spec doc_hash double-signature
@@ -85,7 +85,7 @@ export const PHASES_BY_ID = Object.fromEntries(
 //               is the loop-stage id);
 //   role      — the stage's responsibility in the loop;
 //   family    — the canonical handoff family (engine-config.json#handoffNamespace);
-//   stopping  — the stage's Review Convergence ref semantics: branch ref = BASE..HEAD commit
+//   convergence — the stage's Review Convergence ref semantics: branch ref = BASE..HEAD commit
 //               range (ref embedded in the file name) — the fix's own commit moves HEAD → a
 //               re-review of the NEW ref is a NEW branch review, legal exactly like the
 //               plan/spec doc_hash double-signature ref-move (content evolution → new ref →
@@ -103,7 +103,7 @@ export interface BranchPhase {
   /** canonical handoff family key (op.type) */
   family: string;
   /** Review Convergence semantics for this stage */
-  stopping: string;
+  convergence: string;
 }
 
 export const BRANCH_PHASES: readonly BranchPhase[] = [
@@ -112,13 +112,13 @@ export const BRANCH_PHASES: readonly BranchPhase[] = [
     phase: "branch-review",
     role: "review family stage — reviews the BASE..HEAD range (commits attached via the ref embedded in the file name)",
     family: "review.branch",
-    stopping: "branch ref = BASE..HEAD commit range (ref embedded in branch-review-{base7}..{head7}-r{R}.json); a BLOCKED/OPEN round re-reviews the same ref; an APPROVED blocker=0 round stops the same ref — a new ref (content evolution) is always a new review",
+    convergence: "branch ref = BASE..HEAD commit range (ref embedded in branch-review-{base7}..{head7}-r{R}.json); a BLOCKED/OPEN round re-reviews the same ref; an APPROVED blocker=0 round stops the same ref — a new ref (content evolution) is always a new review",
   },
   {
     id: "branch-fix",
     phase: "fix",
     role: "work type stage — cdd fix --type branch closes the loop: fixes the source review's findings into real commits (engine channel, zero inline orchestration)",
     family: "fix.branch",
-    stopping: "the fix commits the reviewed range's changes → HEAD moves → re-review of the new ref is a new branch review (legality: fixed ref = new ref); a no-op fix (no diff) keeps the ref → the same-ref review stays stopped",
+    convergence: "the fix commits the reviewed range's changes → HEAD moves → re-review of the new ref is a new branch review (legality: fixed ref = new ref); a no-op fix (no diff) keeps the ref → the same-ref review stays stopped",
   },
 ];

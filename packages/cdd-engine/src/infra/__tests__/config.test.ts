@@ -23,7 +23,7 @@ describe("engine-config 单点消费（config.ts 分区段加载）", () => {
     expect(cfg.contextContract.channels.env).toHaveProperty("hostHarness");
     expect(cfg.failureCategories.categories).toHaveLength(6);
     expect(cfg.handoffNamespace.workspaceRoot).toBe(".osuperpowers/cdd");
-    expect(Object.keys(cfg.handoffNamespace.families)).toHaveLength(8);
+    expect(Object.keys(cfg.handoffNamespace.families)).toHaveLength(9);
   });
 
   it("三个分区访问器与 engine-config 对应区段逐字一致（消费方读访问器，不设第二阅读点）", () => {

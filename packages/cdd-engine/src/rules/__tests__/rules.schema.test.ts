@@ -45,11 +45,11 @@ describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical
     expect(() => loadHandoffSchema("bogus")).toThrow(/unknown handoff schema/);
   });
 
-  it("loadHandoffNamespace 返回 engine-config#handoffNamespace 原值（workspaceRoot + 8 families）", () => {
+  it("loadHandoffNamespace 返回 engine-config#handoffNamespace 原值（workspaceRoot + 9 families）", () => {
     const ns = loadHandoffNamespace();
     expect(ns).toEqual(NAMESPACE);
     expect(ns.workspaceRoot).toBe(".osuperpowers/cdd");
-    expect(Object.keys(ns.families)).toHaveLength(8);
+    expect(Object.keys(ns.families)).toHaveLength(9);
   });
 });
 

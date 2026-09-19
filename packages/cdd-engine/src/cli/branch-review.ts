@@ -115,8 +115,8 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
     // round with findings:[] must be re-dispatchable, not rejected as "already done".
     if (prev) reviewStoppingGuard(prev, "branch", round, `${base7}..${head7}`);
 
-    // Per-round handoff filename (canonical review.branch family; branch-fix-loop re-reviews
-    // reuse distinct files).
+    // Per-round handoff filename (canonical review.branch family; branch-fix re-reviews reuse
+    // distinct files).
     const handoffPath = path.join(workspace, handoffNaming.handoffName("review", "branch", { base7, head7, round }));
     mkdirSync(workspace, { recursive: true });
 

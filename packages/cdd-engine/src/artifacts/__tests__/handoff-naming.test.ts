@@ -20,6 +20,14 @@ it("handoffName: branch review embeds base7..head7 + r{round}", () => {
   expect(handoffName("review", "branch", { base7: "abc1234", head7: "def5678", round: 1 }))
     .toBe("branch-review-abc1234..def5678-r1.json");
 });
+it("handoffName: branch fix mirrors the source review's ref+round (fix.branch family, Task 9)", () => {
+  expect(handoffName("fix", "branch", { base7: "abc1234", head7: "def5678", round: 2 }))
+    .toBe("branch-fix-abc1234..def5678-r2.json");
+});
+it("prevHandoffPath: fix.branch R → the source review.branch:R handoff（跨族 prev 表）", () => {
+  expect(prevHandoffPath("ws", "fix", "branch", 3, { base7: "abc1234", head7: "def5678" }))
+    .toBe(join("ws", "branch-review-abc1234..def5678-r3.json"));
+});
 it("roundPattern scan 形态: spec-review-2.json 可被匹配", () => {
   expect("spec-review-2.json").toMatch(roundPattern("review", "spec"));
   // 旧命名（{type}-{round} 形）不得匹配 canonical 模式 —— 拼字构造避开 residue grep 误报。

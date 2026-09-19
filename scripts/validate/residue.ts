@@ -278,12 +278,14 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
   return hits;
 }
 
-// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（4 处，逐 site 形态分类；全行注释非透传点）。
+// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（5 处，逐 site 形态分类；全行注释非透传点）。Task 9
+// branch-fix 通道与 branch-review 同形（整表 env 经 invokeCliWithRetry 参数传递）。
 const ENV_PASSTHROUGH_SITES = [
   { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
   { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
   { file: "packages/cdd-engine/src/cli/shared.ts", re: /detectCurrentHarness\(process\.env\)/ },
   { file: "packages/cdd-engine/src/cli/branch-review.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
+  { file: "packages/cdd-engine/src/cli/branch-fix.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
 ];
 const ENV_WHOLE_RE = /process\.env([^.\w[]|$)/;
 export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
@@ -291,7 +293,7 @@ export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_WHOLE_RE)) {
     if (text.trimStart().startsWith("//")) continue; // 注释提及非透传点
     const san = ENV_PASSTHROUGH_SITES.find((s) => s.file === file && s.re.test(text));
-    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（4 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（5 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   return hits;
 }

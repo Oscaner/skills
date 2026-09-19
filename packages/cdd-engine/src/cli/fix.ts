@@ -1,4 +1,4 @@
-// packages/cdd-engine/src/cli/fix.ts — `cdd fix` (task/spec/plan three types).
+// packages/cdd-engine/src/cli/fix.ts — `cdd fix` (task/branch/spec/plan four types).
 // spec §2.3 split (ex bin/cdd.mjs merged face): runFix lives here; the shared guards import
 // from ./shared.ts.
 import path from "node:path";
@@ -46,6 +46,23 @@ export async function runFix(opts: FixOpts): Promise<void> {
         planFile: opts.plan,
       });
       return;
+    }
+    // type=branch: the branch-level fix channel (Task 9) — `--findings` IS the source
+    // branch-review handoff (branch-review-{base7}..{head7}-r{R}.json, contains findings[]),
+    // same "findings = review handoff" contract as type=task; the plan is required (workspace
+    // slug + REVIEW_PLAN_LINE). The round + embedded BASE..HEAD ref derive inside runBranchFix
+    // from the findings file name; the plan value flows through for the workspace.
+    if (opts.type === "branch") {
+      if (!opts.plan) {
+        process.stderr.write("cdd fix --type branch: missing required --plan <path>\n");
+        exitWithCode(2);
+      }
+      if (!opts.findings) {
+        process.stderr.write("cdd fix --type branch: missing required --findings <branch-review-{base7}..{head7}-r{R}.json>\n");
+        exitWithCode(2);
+      }
+      const { runBranchFix } = await import("./branch-fix.ts");   // lazy: breaks fix↔branch-fix import cycle
+      return await runBranchFix({ ...opts, plan: opts.plan, findings: opts.findings, harness });
     }
     // spec/plan: the fix template comes from the canonical fix.{type} family fixTemplate
     // (after the T2 axis cut, template-contract.json#reviews no longer carries the artifact axis).

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // scripts/validate/smoke-cdd.ts — CDD engine dry-run smoke (`node scripts/run.ts smoke-cdd`).
-// Runs the four-command chain (`cdd implement` / `cdd review --type task` /
-// `cdd fix --type task` / `cdd review --type branch`) with the program-level `--dry-run` flag
-// (argv, ahead of the subcommand) and asserts each command's last stdout block is the 5-line H1
-// contract (status/commits/artifacts/blocker/counters).
+// Runs the five-command chain (`cdd implement` / `cdd review --type task` /
+// `cdd fix --type task` / `cdd review --type branch` / `cdd fix --type branch`) with the
+// program-level `--dry-run` flag (argv, ahead of the subcommand) and asserts each command's last
+// stdout block is the 5-line H1 contract (status/commits/artifacts/blocker/counters).
 // Then runs the T7 deletion-surface sweep — the P5 clearance inventory as a durable gate
 // (retired gate/harness/select vocab must stay out of mechanism/document positions, dead
 // artifacts must stay absent). Depends on Node built-ins + execa + the sibling residue.ts
@@ -54,13 +54,19 @@ export function main() {
 
   // review --type task would produce .osuperpowers/cdd/<slug>/task-1-review-1.json in a
   // real run; fix consumes it via --findings (parseReview→fix wiring). Under dry-run neither
-  // writes nor reads the file — only the arg plumbing is exercised.
+  // writes nor reads the file — only the arg plumbing is exercised. The same holds for the
+  // branch pair: `fix --type branch`'s --findings names the source branch-review-{base7}..{head7}-r{R}.json
+  // (round + ref derive from the NAME — dry-run never reads it), and the head7 slot is the
+  // range's own HEAD (self-review smoke range base==head).
   const cmds = [
     [...cdd, "--dry-run", "implement", "--task", "1", "--plan", plan],
     [...cdd, "--dry-run", "review", "--type", "task", "--task", "1", "--plan", plan],
     [...cdd, "--dry-run", "fix", "--type", "task", "--task", "1", "--plan", plan,
       "--findings", path.join(".osuperpowers", "cdd", slug, "task-1-review-1.json")],
     [...cdd, "--dry-run", "review", "--type", "branch", "--plan", plan, "--base", head, "--head", head],
+    [...cdd, "--dry-run", "fix", "--type", "branch", "--plan", plan,
+      "--findings", path.join(".osuperpowers", "cdd", slug,
+        `branch-review-${head.slice(0, 7)}..${head.slice(0, 7)}-r1.json`)],
   ];
   for (const [i, args] of cmds.entries()) {
     // Array form (no shell join) — every arg is a fixed constant today; keeps arg quoting if they ever change.
@@ -81,7 +87,7 @@ export function main() {
       && /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/m.test(lastBlock);
     if (!ok) throw new Error(`smoke step ${i + 1}: last block is not the 5-line H1 contract: ${JSON.stringify(lastBlock)}`);
   }
-  console.log("OK — cdd-engine dry-run smoke (4 commands)");
+  console.log("OK — cdd-engine dry-run smoke (5 commands)");
   checkDeletionSurface();
 }
 

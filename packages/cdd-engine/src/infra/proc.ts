@@ -21,10 +21,10 @@ const FORCE_SIGNAL = "SIGKILL";
 // EITHER signal for idleWindowMs → the dispatch is presumed stuck (hung tool call) → the group is
 // killed and the spawn result surfaces timedOut + stalled (task.ts writes the stall-specific
 // TIMEOUT blocker with the residue-cleanup contract). The dual-signal criterion is deliberately
-// conservative (判据精确): a SINGLE unavailable signal (unreadable CPU, missing dir) fails open —
-// unknown never kills; thinking/file reads burn CPU, so active-thinking dispatches are never
-// false-killed; only the truly silent case (CPU≈0 AND tree quiet over the whole window) stalls.
-// The monitor is opt-in: spawnManaged runs it only when opts.liveness is provided.
+// conservative (precise criterion): a SINGLE unavailable signal (unreadable CPU, missing dir)
+// fails open — unknown never kills; thinking/file reads burn CPU, so active-thinking dispatches
+// are never false-killed; only the truly silent case (CPU≈0 AND tree quiet over the whole window)
+// stalls. The monitor is opt-in: spawnManaged runs it only when opts.liveness is provided.
 
 export interface LivenessConfig {
   /** Directory whose newest file mtime is the tree-progress signal (the dispatch workspace). */
@@ -32,6 +32,15 @@ export interface LivenessConfig {
   sampleIntervalMs?: number;
   idleWindowMs?: number;
 }
+
+// Code-default liveness timings — the SINGLE canonical source for the three fallback sites
+// (spawnManaged inline fallbacks below, invoke.ts resolveLivenessConfig, rules/failure.ts
+// timeoutBlocker). The canonical engine-config.json#contextContract.timeouts.liveness overrides
+// them; these only fire for callers that pass a bare LivenessConfig without resolved values
+// (tests / direct spawnManaged callers). Editing a config-file value must not silently drift
+// from a hand-duplicated code constant, so no module re-declares these literals.
+export const DEFAULT_SAMPLE_INTERVAL_MS = 60_000;
+export const DEFAULT_IDLE_WINDOW_MS = 900_000;
 
 export interface ManagedGroup {
   pgid: number;
@@ -60,7 +69,8 @@ export interface SpawnOpts {
 
 // ---- stall judge (pure, unit-test seam) ----
 // The dual-signal criterion lives here as a pure state machine so both acceptance faces
-// ("静止超窗被杀 · 活跃不误杀") are deterministically testable without real processes.
+// ("stationary-over-window killed · active never false-killed") are deterministically testable
+// without real processes.
 
 export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
 
@@ -74,14 +84,22 @@ export interface StallSample {
 }
 
 export interface StallState {
-  maxCpuMs: number | null;
+  /** CPU growth is judged against THIS last observed group-cpu sample. The group CPU is a sum
+   *  over currently-listed members (`ps -o time= -g`), so it DROPS when a member exits — an
+   *  all-time max would stay inflated by an exited heavy tool call and a busy but moderate
+   *  survivor burning below that stale max would read 'idled' forever (false-stall vector on the
+   *  never-false-killed face). A per-sample baseline re-detects growth the moment the survivors
+   *  re-accumulate past their own last reading. */
+  lastCpuMs: number | null;
+  /** mtime growth is judged against the max ever seen: the newest-file mtime regresses on delete,
+   *  so a max baseline is the safe monotone proxy for "files keep being written". */
   maxMtimeMs: number | null;
   /** last sample whose signals showed progress or were unknown (window anchor). */
   idleSince: number | null;
 }
 
 export function initialStallState(): StallState {
-  return { maxCpuMs: null, maxMtimeMs: null, idleSince: null };
+  return { lastCpuMs: null, maxMtimeMs: null, idleSince: null };
 }
 
 export function evaluateStall(
@@ -91,17 +109,19 @@ export function evaluateStall(
 ): { state: StallState; verdict: StallVerdict } {
   // Fail-open: an unavailable signal (permissions / unreadable dir / process gone) never counts
   // toward the idle window — unknown restarts the anchor, so a decidable stall requires BOTH
-  // signals measurable. This is the 不误杀 guard for the "hung tool call CPU≈0" shape: the kill
-  // fires only when both signals are demonstrably flat over the whole window.
+  // signals measurable. This is the no-false-kill guard for the "hung tool call CPU≈0" shape: the
+  // kill fires only when both signals are demonstrably flat over the whole window.
   if (s.cpuMs == null || s.latestMtimeMs == null) {
     return { state: { ...state, idleSince: s.at }, verdict: "unknown" };
   }
-  // Both signals are cumulative/monotone baselines: growth is judged against the max ever seen
-  // (CPU is cumulative; the newest-file mtime can only move forward while files are written).
-  const cpuGrew = state.maxCpuMs == null || s.cpuMs > state.maxCpuMs;
+  // Baselines differ per signal (see StallState). CPU: group sum dips on member exit, so growth
+  // is judged against the PREVIOUS sample, never the all-time max. mtime: newest-file stamp
+  // regresses on delete, so growth is judged against the max ever seen — the safe monotone
+  // "files keep being written" proxy.
+  const cpuGrew = state.lastCpuMs == null || s.cpuMs > state.lastCpuMs;
   const mtimeAdvanced = state.maxMtimeMs == null || s.latestMtimeMs > state.maxMtimeMs;
   const next: StallState = {
-    maxCpuMs: state.maxCpuMs == null ? s.cpuMs : Math.max(state.maxCpuMs, s.cpuMs),
+    lastCpuMs: s.cpuMs,
     maxMtimeMs: state.maxMtimeMs == null ? s.latestMtimeMs : Math.max(state.maxMtimeMs, s.latestMtimeMs),
     idleSince: cpuGrew || mtimeAdvanced ? s.at : state.idleSince,
   };
@@ -305,8 +325,8 @@ export async function spawnManaged(command: string, args: string[], opts: SpawnO
     stopLiveness = startLivenessMonitor({
       pgid: pid,
       progressPath: liveness.progressPath,
-      sampleIntervalMs: liveness.sampleIntervalMs ?? 60_000,
-      idleWindowMs: liveness.idleWindowMs ?? 900_000,
+      sampleIntervalMs: liveness.sampleIntervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS,
+      idleWindowMs: liveness.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS,
       onStall: () => {
         // Never taint a group that completed right before the tick — the kill fires only while the
         // group is still observable as alive (a just-finished dispatch must not become a stalled one).

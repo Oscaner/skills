@@ -6,7 +6,7 @@
 // from its own callers instead of reading process.env at this depth.
 import { loadContract } from "./context.ts";
 import { resolveInjection, resolveSuffix } from "./registry.ts";
-import { spawnManaged, markAllDispatchesDone, type SpawnResult, type LivenessConfig } from "./proc.ts";
+import { spawnManaged, markAllDispatchesDone, DEFAULT_SAMPLE_INTERVAL_MS, DEFAULT_IDLE_WINDOW_MS, type SpawnResult, type LivenessConfig } from "./proc.ts";
 
 export interface TimeoutDefaults {
   [mode: string]: number | undefined;
@@ -27,12 +27,11 @@ const MAX_TIMEOUT_MS = 2_000_000_000;
 // canonical timeouts.liveness (defaults are honored the same way the mode budgets are — a config
 // file edit edits behavior). No env override: the stub/documented seams for tests are the
 // injectable TaskRunOptions.liveness (dispatch) and SpawnOpts.liveness (proc).
-// `as` binds tighter than `??`, so the parens are load-bearing: without them the cast would be
-// applied to the right-hand side of a (never-triggered) nullish chain.
+// The parens group the cast with its left-hand expression before the nullish fallback — `as` and
+// `??` compose fine without them, but the explicit grouping keeps the intended shape (cast the
+// whole config value, then apply `?? {}`) readable at a glance.
 const LIVENESS_DEFAULTS: Record<string, number | undefined> =
   (CONTRACT.timeouts.liveness as Record<string, number | undefined> | undefined) ?? {};
-const DEFAULT_SAMPLE_INTERVAL_MS = 60_000;
-const DEFAULT_IDLE_WINDOW_MS = 900_000;
 
 export function resolveLivenessConfig(): { sampleIntervalMs: number; idleWindowMs: number } {
   return {

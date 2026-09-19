@@ -558,9 +558,19 @@ export class TaskLifecycle extends DispatchLifecycle {
       this.#timeoutMs = timeoutMs;
       // T14 liveness: dispatch-phase stall monitor over the workspace (opt-in; timing from the
       // canonical timeouts.liveness surface, overridable via opts.liveness — the deterministic
-      // test seam). progressPath is ALWAYS the dispatch workspace (the engine writes zero worktree
-      // during dispatch — the workspace is the only engine-side progress surface).
+      // test seam). progressPath is ALWAYS the dispatch workspace — the engine writes every round
+      // artifact (brief / progress / open-findings / handoff / evidence) there. Boundary note:
+      // the agent's live repo-root edits are never observed; the workspace tree is static between
+      // artifact writes, so a mid-round edit-heavy agent's stall criterion rests on the CPU
+      // signal alone (thinking/file-reads burn CPU — the no-false-kill property still holds for
+      // that shape; spec E3's tree signal may be the workspace or the repo working tree — either
+      // one suffices).
       const defLiveness = resolveLivenessConfig();
+      // A missing progress path reads 'unknown' forever and silently disables the tree signal —
+      // fail loud so a broken workspace can never quietly neuter the detector.
+      if (!existsSync(ctx.workspace)) {
+        process.stderr.write(`CDD_WARN: liveness progress path missing (${ctx.workspace}) — tree signal unavailable, stall detection relies on CPU alone\n`);
+      }
       const livenessCfg: LivenessConfig = {
         progressPath: ctx.workspace,
         sampleIntervalMs: this.#opts.liveness?.sampleIntervalMs ?? defLiveness.sampleIntervalMs,

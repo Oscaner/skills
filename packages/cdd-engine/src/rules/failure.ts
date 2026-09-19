@@ -9,6 +9,7 @@
 // its own progress.json field (channel audit ③ column), and exhaustion is judged per-category
 // (threshold >= 2) — one category's terminal state never leaks into another's counter.
 import { loadEngineConfig } from "../infra/config.ts";
+import { DEFAULT_IDLE_WINDOW_MS } from "../infra/proc.ts";
 
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
@@ -96,7 +97,7 @@ export function timeoutBlocker(opts: {
 }): string {
   if (opts.stalled) {
     return (
-      `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? 900_000}ms — ` +
+      `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS}ms — ` +
       `tool call hung); uncommitted changes left at return: discard or commit them, ` +
       `then re-dispatch task ${opts.taskNum} (entry gate requires a clean tree)`
     );

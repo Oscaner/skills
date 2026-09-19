@@ -106,7 +106,7 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
   });
 });
 
-describe("rules/failure.ts — timeoutBlocker (T14 TIMEOUT 语义扩展)", () => {
+describe("rules/failure.ts — timeoutBlocker (T14 TIMEOUT semantics extension)", () => {
   it("budget timeout keeps the legacy wording (timed out after → re-dispatch)", () => {
     const b = timeoutBlocker({ stalled: false, taskNum: 3, timeoutMs: 5_400_000 });
     expect(b).toMatch(/timed out after 5400000ms/);
@@ -115,7 +115,7 @@ describe("rules/failure.ts — timeoutBlocker (T14 TIMEOUT 语义扩展)", () =>
     expect(b).toContain("simplify task");
   });
 
-  it("stall variant carries the recovery contract (残留清偿指引写 blocker)", () => {
+  it("stall variant carries the recovery contract (cleanup guidance in the blocker)", () => {
     const b = timeoutBlocker({ stalled: true, taskNum: 7, idleWindowMs: 900_000 });
     expect(b).toMatch(/stalled/);
     expect(b).toMatch(/900000ms/);

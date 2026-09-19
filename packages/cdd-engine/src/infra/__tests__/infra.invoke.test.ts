@@ -32,7 +32,7 @@ describe("infra/invoke.ts — resolveTimeoutMs", () => {
   });
 });
 
-describe("infra/invoke.ts — resolveLivenessConfig (T14 DEFAULT_TIMEOUTS 配置面)", () => {
+describe("infra/invoke.ts — resolveLivenessConfig (T14 config surface)", () => {
   it("stall detector timing comes from canonical timeouts.liveness (60s sample / 15min idle window)", () => {
     expect(resolveLivenessConfig()).toEqual({ sampleIntervalMs: 60_000, idleWindowMs: 900_000 });
   });

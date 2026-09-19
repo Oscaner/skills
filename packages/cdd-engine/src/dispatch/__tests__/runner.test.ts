@@ -482,7 +482,7 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: liveness stall → TIMEOUT handoff + recov
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("TIMEOUT");
-    expect(h.failure_category).toBe("TIMEOUT");   // stall stays in the TIMEOUT category (扩展语义，非新类目)
+    expect(h.failure_category).toBe("TIMEOUT");   // stall stays in the TIMEOUT category (extended semantics — not a new category)
     expect(h.blocker).toMatch(/stalled/);
     expect(h.blocker).toMatch(/discard or commit/);
     expect(h.blocker).toMatch(/clean tree/);

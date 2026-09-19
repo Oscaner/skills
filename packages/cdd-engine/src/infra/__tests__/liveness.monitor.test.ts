@@ -1,10 +1,10 @@
 // packages/cdd-engine/src/infra/__tests__/liveness.monitor.test.ts
-// T14 stall detector (spec E3): the dual-signal criterion's two acceptance faces — "静止超窗被杀"
-// (stationary over the idle window is killed) and "活跃不误杀" (activity is never false-killed) —
-// are pinned twice: pure evaluateStall unit tests (no processes, deterministic) and real-process
-// integration tests (spawnManaged + liveness: a CPU-quiet sleep is reaped, a CPU spinner and a
-// file-writer both run to completion). The pass-through invoke.ts → spawnManaged wiring is proven
-// end-to-end via invokeCliWithRetry with a real lingering child.
+// T14 stall detector (spec E3): the dual-signal criterion's two acceptance faces — "stationary
+// over the idle window is killed" and "activity is never false-killed" — are pinned twice: pure
+// evaluateStall unit tests (no processes, deterministic) and real-process integration tests
+// (spawnManaged + liveness: a CPU-quiet sleep is reaped, a CPU spinner and a file-writer both run
+// to completion). The pass-through invoke.ts → spawnManaged wiring is proven end-to-end via
+// invokeCliWithRetry with a real lingering child.
 import { describe, it, expect, beforeEach, afterEach, beforeAll } from "vitest";
 import { mkdtempSync, writeFileSync, utimesSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,10 +24,10 @@ function tmpDir(prefix: string): string {
   return mkdtempSync(path.join(tmpdir(), `cdd-live-${prefix}-`));
 }
 
-// ---- pure stall judge (双信号判据：静止超窗被杀 · 活跃不误杀) ----
+// ---- pure stall judge (dual-signal criterion: stationary killed · active never false-killed) ----
 
 describe("proc.ts evaluateStall — dual-signal criterion", () => {
-  it("stationary over the window → stalled (静止超窗被杀)", () => {
+  it("stationary over the window → stalled", () => {
     let state = initialStallState();
     const s = (at: number, cpu: number | null = 10, mtime: number | null = 1000): StallSample => ({ cpuMs: cpu, latestMtimeMs: mtime, at });
     const evals = [0, 400, 800, 1200, 1600].map((at) => {
@@ -42,7 +42,7 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
     expect(evals[4]).toBe("stalled");
   });
 
-  it("CPU growth → progress, never stalled (活跃不误杀: 思考/读文件烧 CPU)", () => {
+  it("CPU growth → progress, never stalled (thinking/file-reads burn CPU)", () => {
     let state = initialStallState();
     let cpu = 0;
     let stalled = false;
@@ -55,7 +55,7 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
     expect(stalled).toBe(false);
   });
 
-  it("workspace mtime advance → progress, never stalled (活跃不误杀: 树有推进)", () => {
+  it("workspace mtime advance → progress, never stalled (tree advancing)", () => {
     let state = initialStallState();
     let mtime = 1000;
     let stalled = false;
@@ -87,7 +87,37 @@ describe("proc.ts evaluateStall — dual-signal criterion", () => {
     expect(out[4]).toBe("idled"); // window restarted at 1200 → 1600 < 1200+1000
   });
 
-  it("an unavailable signal fails open — unknown never stalls (判据精确)", () => {
+  it("CPU sum drops when a member exits, then regrows below the old max → still progress", () => {
+    // A long-running descendant tool exits mid-dispatch: `ps -o time= -g` sums only currently
+    // listed members, so the group CPU value DROPS. Growth is judged per-sample, not against the
+    // all-time max — the moment survivors re-accumulate (even far below the pre-exit reading) the
+    // judge must read progress again, or a busy-but-moderate main below a stale max is falsely
+    // judged 'idled' until it re-crosses it (false-stall vector on the never-false-killed face).
+    let state = initialStallState();
+    const r0 = evaluateStall(state, { cpuMs: 5000, latestMtimeMs: 100, at: 0 }, 3000);
+    state = r0.state;
+    expect(r0.verdict).toBe("progress");            // first sample = baseline
+    // the heavy tool exits between samples: sum dips, no growth this tick
+    const r1 = evaluateStall(state, { cpuMs: 2000, latestMtimeMs: 100, at: 400 }, 3000);
+    state = r1.state;
+    expect(r1.verdict).toBe("idled");
+    // survivors re-accumulate to 2200 — below the old 5000 max, but growth vs the last sample
+    const r2 = evaluateStall(state, { cpuMs: 2200, latestMtimeMs: 100, at: 800 }, 3000);
+    state = r2.state;
+    expect(r2.verdict).toBe("progress");
+    // sustained per-sample growth never stalls, even though every value stays below the old max
+    let cpu = 2200;
+    let stalled = false;
+    for (let at = 1200; at <= 20_000; at += 400) {
+      cpu += 100;
+      const r = evaluateStall(state, { cpuMs: cpu, latestMtimeMs: 100, at }, 3000);
+      state = r.state;
+      if (r.verdict === "stalled") stalled = true;
+    }
+    expect(stalled).toBe(false);
+  });
+
+  it("an unavailable signal fails open — unknown never stalls", () => {
     let state = initialStallState();
     let stalled = false;
     const s = (at: number, cpu: number | null = 0, mtime: number | null = 100): StallSample => ({ cpuMs: cpu, latestMtimeMs: mtime, at });
@@ -162,7 +192,7 @@ describe("proc.ts latestFileMtimeMs — tree-progress sampler", () => {
   });
 });
 
-// ---- real-process integration (双信号判据验收) ----
+// ---- real-process integration (dual-signal criterion acceptance) ----
 
 describe.skipIf(!GROUP_SUPPORTED)("proc.ts spawnManaged + liveness — integration", () => {
   const watch = tmpDir("watch");

@@ -75,7 +75,8 @@ export const PHASES_BY_ID = Object.fromEntries(
 
 // ---- branch-level stage table (Task 9; spec E2①) ----
 // The branch review→fix loop is a data-ized pair of stages (mirror of PHASES's declaration
-// shape), consumed by the branch CLI surface (cli/branch-review.ts / cli/branch-fix.ts). Each
+// shape), test-pinned by dispatch.phases.test.ts — consumed when the branch face
+// (cli/branch-review.ts / cli/branch-fix.ts) integrates the stage table. Each
 // stage declares:
 //   id        — the loop-stage identity (same letters as the cli-driven-development digraph:
 //               K[branch-review] → J[branch-fix]);

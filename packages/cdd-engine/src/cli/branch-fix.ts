@@ -4,8 +4,10 @@
 // handoff — branch-review-{base7}..{head7}-r{R}.json contains findings[]), derives the fix
 // round + the embedded BASE..HEAD ref from that file NAME (fix writes branch-fix-{base7}..{head7}-r{R}.json,
 // same round/ref as the source — same convention as the task/spec/plan fix families),
-// renders the fix prompt (task-family shell + RETURN_STDOUT_BLOCK, same round-context slots as
-// cdd fix --type task), and closes the loop through the same exit gate as the task family:
+// renders the fix prompt (task-family shell + RETURN_STDOUT_BLOCK, task-family round-context
+// slots minus TASK_NUMBER/TASK_CONSTRAINTS — TASK_BRIEF carries the plan path as the
+// branch-level brief; TASK_NUMBER/TASK_CONSTRAINTS are empty for the branch family via the
+// mode-union template), and closes the loop through the same exit gate as the task family:
 // validateCommitContract("fix", …) — dirty tree → BLOCKED rewrite; clean tree + commits.head ≠
 // HEAD → BLOCKED (F1). The fix's FIX_BASE = the source review's commits.base (the reviewed range
 // base) — same fixed-point derivation as task.ts's step-5 cross-phase read.
@@ -165,13 +167,15 @@ export async function runBranchFix(opts: BranchFixOpts): Promise<void> {
     }
 
     // The fix prompt: task-family shell + RETURN_STDOUT_BLOCK return (the fix agent writes the
-    // handoff + the H1 block; same round-context slot set as cdd fix --type task's renderModePrompt).
+    // handoff + the H1 block; task-family round-context slots minus TASK_NUMBER/TASK_CONSTRAINTS
+    // — empty for the branch family; TASK_BRIEF carries the plan path as the branch-level brief).
     const prompt = renderTemplate("fix", {
       MODE: "fix",
       TASK_WORKSPACE: workspace,
       WORKSPACE_SLUG: path.basename(workspace),
       TASK_FINDINGS: findingsPath,
       TASK_FIXED_POINT: fixBase,
+      TASK_BRIEF: plan,
       HANDOFF_TARGET: handoffPath,
       REVIEW_PLAN_LINE: plan ? `**Plan:** ${plan}` : "",
       RETURN_FORMAT: "RETURN_STDOUT_BLOCK",

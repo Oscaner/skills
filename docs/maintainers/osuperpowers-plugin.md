@@ -132,20 +132,20 @@ All three pass --> the marketplace still resolves.
 pnpm run emit:check        # run.ts emit-check (scripts/emit/check.ts) -- drift --> exit 1
 ```
 
-**Note:** on a fresh clone, run `git submodule update --init` before `emit:check` -- `emit`/`validate` resolve the `superpowers` submodule for version sync ([scripts/lib/marketplace-utils.ts](../../scripts/lib/marketplace-utils.ts) / [scripts/validate/version-sync.ts](../../scripts/validate/version-sync.ts)). The emitter does **not** copy upstream skills into `.agents/skills/` (osuperpowers skills only; osuperpowers Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
+**Note:** on a fresh clone, no submodule bootstrap is needed -- there are no submodules; `emit`/`validate` resolve the osuperpowers version from `packages/osuperpowers/package.json` ([scripts/lib/marketplace-utils.ts](../../scripts/lib/marketplace-utils.ts) / [scripts/validate/version-sync.ts](../../scripts/validate/version-sync.ts)). Upstream plugins (superpowers / mattpocock-skills) are installed via their official commands, never copied into this repo.
 
 **5-8. Full local CI (recommended):**
 ```bash
 pnpm run validate
 ```
 
-This runs steps 1-4 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/validate/index.ts](../../scripts/validate/index.ts) (wired as `run.ts validate`); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
+This runs steps 1-4 above plus the engine and script test suites, plugin resolution, and version sync (osuperpowers `package.json` vs. its emit products). Implemented in [scripts/validate/index.ts](../../scripts/validate/index.ts) (wired as `run.ts validate`); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
 
 ### `scripts/validate/*` is a repo-internal orchestration surface
 
 `scripts/validate/*` is the publishing-repo-root's internal orchestration surface — not a consumer API, not a packaging surface. Consumers never receive it: the plugin packages' `contentRoot` is `"."`, so only `packages/*/` publishes, and the consumer environment has no monorepo layout and no this-repo toolchain. Treat every script under `scripts/validate/` as maintainer-side tooling that may change without notice between versions.
 
-The one charter-level guard in the set is `overall-consistency` ([scripts/validate/overall-consistency.ts](../../scripts/validate/overall-consistency.ts)): it machine-checks the four tables (issue inventory / phase inventory / dependency graph / change history) of every canonical `docs/osuperpowers/specs/*-overall.md`, plus the doc-existence globs and anchored-issue-reference registry (block 12 of `pnpm run validate`). Its role classification is **maintainer-mode, this-repo dogfood**: running it while an overall spec is authored during a brainstorm is a maintainer-side act — this repo dogfoods its own program charters against the same guard consumers could never invoke. The overall spec itself must not assume the guard exists in any consumer context.
+The one charter-level guard in the set is `overall-consistency` ([scripts/validate/overall-consistency.ts](../../scripts/validate/overall-consistency.ts)): it machine-checks the phase inventory / dependency graph / change history of every canonical `docs/osuperpowers/specs/*-overall.md`, plus the issue inventory of overalls that keep the literal `## Issue inventory` heading (the section regex matches that exact heading — an overall drifted to a different heading, e.g. 2026-09-13-osuperpowers-overhaul-overall.md's `## Requirement inventory`, has its issue-inventory rows pass un-checked), plus the doc-existence globs and anchored-issue-reference registry (block 12 of `pnpm run validate`). Its role classification is **maintainer-mode, this-repo dogfood**: running it while an overall spec is authored during a brainstorm is a maintainer-side act — this repo dogfoods its own program charters against the same guard consumers could never invoke. The overall spec itself must not assume the guard exists in any consumer context.
 
 ## CDD Engine internals
 

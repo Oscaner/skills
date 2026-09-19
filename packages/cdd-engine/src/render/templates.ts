@@ -69,6 +69,8 @@ const CACHE: {
   compiledRound: ReturnType<typeof compile> | null;
   roundTokens: string[];
   rounds: Map<string, string>;
+  /** T12 (D1.2): the shared shell frame compiled + rendered once (clause partial refs resolved). */
+  shellFrameRendered: string | null;
   reads: number;
   compiles: number;
   tailRenders: number;
@@ -79,6 +81,7 @@ const CACHE: {
   compiledRound: null,
   roundTokens: [],
   rounds: new Map(),
+  shellFrameRendered: null,
   reads: 0,
   compiles: 0,
   tailRenders: 0,
@@ -101,6 +104,7 @@ export function resetTemplateCaches(): void {
   CACHE.compiledRound = null;
   CACHE.roundTokens = [];
   CACHE.rounds.clear();
+  CACHE.shellFrameRendered = null;
   CACHE.reads = 0;
   CACHE.compiles = 0;
   CACHE.tailRenders = 0;
@@ -155,14 +159,30 @@ export function tokensInZone(zone: string, contract: TemplateContract = loadTemp
   return contract.tokens.filter((t) => t.zone === zone).map((t) => t.name);
 }
 
-/** family → the frozen shell = shared frame + the family's schema block (frames end with the
- * "per the schema below" prose; the schema block is the only injected bytes). */
+// C4 壳无参常数 (T12/D1.2): the shared shell frame is compiled + rendered ONCE per process —
+// clause partial refs ({{> cl:…}}) resolve against the clause library registered at contract load
+// (assembleClauses runs inside loadTemplateContract — always before the first shell assembly). The
+// frame is parameterless (zero per-dispatch values — 壳零注入); the per-family schema block is the
+// only injected bytes. Non-strict compile: the shell carries no variables — only literal text +
+// clause refs — so token-slot leaks are the structure validator's job (validateTemplateStructure),
+// not the compile's (the round-context strict compile stays strict).
+function shellFrame(): string {
+  if (CACHE.shellFrameRendered === null) {
+    const frame = joinLines(loadTemplateContract().sections.shell);
+    CACHE.shellFrameRendered = compile(frame)({});
+    CACHE.compiles++;
+  }
+  return CACHE.shellFrameRendered;
+}
+
+/** family → the frozen shell = shared frame (clause refs resolved once) + the family's schema
+ * block (frames end with the "per the schema below" prose; the schema block is the only injected
+ * bytes). */
 function shellFor(family: string): string {
   let shell = CACHE.shells.get(family);
   if (shell === undefined) {
-    const frame = joinLines(loadTemplateContract().sections.shell);
     const block = renderHandoffSchemaJson(loadHandoffSchema(family));
-    shell = frame + "\n" + block;
+    shell = shellFrame() + "\n" + block;
     CACHE.shells.set(family, shell);
   }
   return shell;
@@ -329,18 +349,25 @@ export function validateTemplateTokens(src: string, contract: TemplateContract =
   }
 }
 
-/** Skeleton + zone check over the CONTRACT byte plane (Task 20 ④): 壳零注入 + 槽仅现所属区.
- * - shell zone: zero residual moustache (壳零残余 moustache); opens the Instructions/Handoff sections;
- * - return constants: byte constants (zero moustache), each opening `## Return`;
+/** Skeleton + zone check over the CONTRACT byte plane (Task 20 ④ + T12/D1.2): 壳零注入 +
+ * 槽仅现所属区.
+ * - shell zone: zero *token* moustache (壳零残余 token 槽; `{{> clause}}` partial refs are the
+ *   single-source discipline markers — assembly slots, not per-dispatch values — so they are
+ *   permitted); opens the Instructions/Handoff sections;
+ * - return constants: byte constants (zero moustache — no slots, no clause refs), each opening
+ *   `## Return`;
  * - round-context: the only moustache zone — every round-zone token renders there, return-zone
  *   tokens surface as literal labels only (never moustaches), and any `{{> clause}}` reference
  *   resolves to a registered clause (T12 assembler);
  * - skeleton{ sections, slots-level segments, order } matches the assembled plane. */
 export function validateTemplateStructure(contract: TemplateContract = loadTemplateContract()): void {
   const shellSrc = joinLines(contract.sections.shell);
-  // 壳零注入: the shell embeds zero moustache slots (real values ride ## Round context).
-  if (shellSrc.includes("{{")) {
-    throw new Error("shell zone must be slot-free (zero moustache) — embed per-dispatch values as ## Round context slots");
+  // 壳零注入 (T12 修订): the shell embeds zero per-dispatch *slots* — token moustaches
+  // ({{TOKEN}} / {{{TOKEN}}}) are banned; `{{> clause}}` partial refs (single-source discipline
+  // markers, resolved once at load) are allowed. The guard keys on token-slot shapes, not `{{`
+  // presence; real per-dispatch values ride ## Round context slots.
+  if (/\{\{(?!>\s*)/.test(shellSrc)) {
+    throw new Error("shell zone must be slot-free (zero token moustache) — embed per-dispatch values as ## Round context slots; only {{> clause}} refs are allowed");
   }
   const roundSrc = joinLines(contract.sections["round-context"]);
   if (!roundSrc.startsWith("## Round context")) {
@@ -391,9 +418,10 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
       throw new Error(`slot {{${tok}}} must be a round-context token (槽仅现所属区)`);
     }
   }
-  // clauses assembler surface: any `{{> name}}` in a zone must resolve to a registered clause.
+  // clauses assembler surface: any `{{> name}}` in a zone must resolve to a registered clause
+  // (T12: clause ids carry the `cl:` namespace — `:` joins the partial-name alphabet).
   for (const src of [shellSrc, roundSrc, ...Object.values(contract.sections.return).map(joinLines)]) {
-    for (const name of [...src.matchAll(/\{\{>\s*([\w-]+)\}\}/g)].map((m) => m[1])) {
+    for (const name of [...src.matchAll(/\{\{>\s*([\w:-]+)\}\}/g)].map((m) => m[1])) {
       if (!(name in contract.clauses)) throw new Error(`unknown clause partial: {{> ${name}}}`);
     }
   }

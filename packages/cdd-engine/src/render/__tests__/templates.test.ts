@@ -31,6 +31,19 @@ describe('PKG_ROOT', () => {
 // Synthetic zone-plan fixture: minimal contract exercising every validator branch (sample-ok
 // baseline unless overridden). Round zone renders MODE / ALPHA / HANDOFF_WRITE_GATE; return zone
 // carries the RETURN_* literal labels; shell is slot-free prose.
+// T12 (D1.2/E2⑤) — the seven discipline clauses (v1.29–v1.31) land in #clauses single-source.
+// The brief's `cl:` prefix is the clause-family namespace (clauses register as `{{> cl:xxx}}`
+// partials); this list is the D1.2 fall-order and the single point the T12 tests assert against.
+const CLAUSE_KEYS = [
+  'cl:english-comments',
+  'cl:eof-newline',
+  'cl:no-full-tree-find',
+  'cl:bash-stall-limit',
+  'cl:plan-freeze',
+  'cl:atomic-commit',
+  'cl:self-validate',
+];
+
 function zoneFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     "$version": 2,
@@ -71,7 +84,12 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
     expect(contract.tokens.filter((t) => t.zone === 'round-context')).toHaveLength(17);
     expect(contract.tokens.filter((t) => t.zone === 'return')).toHaveLength(2);
     expect(contract.tokens.some((t) => t.zone === 'shell')).toBe(false);
-    expect(contract.clauses).toEqual({}); // T12 条款本体入库前为容器
+    // T12 (D1.2)：7 条纪律条款单源落库（v1.29–v1.31；`cl:` 前缀族；正文非空、零 moustache）
+    expect(Object.keys(contract.clauses)).toEqual(CLAUSE_KEYS);
+    for (const [key, body] of Object.entries(contract.clauses)) {
+      expect(String(body).trim(), key).toBeTruthy();
+      expect(String(body), key).not.toContain('{{'); // 条文零 moustache（strict 编译安全 + 装配原子）
+    }
     expect(Object.keys(contract.reviews)).toEqual(['task', 'branch', 'spec', 'plan']);
     // 与磁盘真身一致（单点）
     const onDisk = JSON.parse(readFileSync(path.join(TEMPLATES, 'template-contract.json'), 'utf8'));
@@ -98,8 +116,9 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
         expect(tokensInZone((allowedZone as string[])[0] ?? '', contract as never), `${zone}: {{${tok}}}`).toContain(tok);
       }
     }
-    // 壳零注入：shell 区零 moustache（Task 20 ④ 壳禁槽 —— 单文件数据面自证）
-    expect(contract.sections.shell.join('\n')).not.toContain('{{');
+    // 壳零注入：shell 区零 token 槽（Task 20 ④ 壳禁槽 —— 单文件数据面自证）。T12 起
+    // `{{> cl:…}}` 为条款装配标记（非 per-dispatch 槽）——壳禁槽改禁 token 槽形，不碰 partial refs。
+    expect(contract.sections.shell.join('\n')).not.toMatch(/\{\{(?!>\s*)/);
     // 旧态名零遗留：三段落全文禁现旧词（H1_BLOCK / HANDOFF_STUB / HANDOFF_TYPE / TYPE /
     // LENS_GUIDE / AXES / HARD_GATE / RETURN_MODE / WORKSPACE / REFERENCE / PLAN_LINE /
     // FINDINGS / BRIEF / TASK / CONSTRAINTS / FIXED_POINT / DOC）
@@ -179,7 +198,7 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
   it('Task 20 与 T12 衔接：{{> clause}} 引用须 resolve 到 #clauses（未注册 → throw；注册 → 通过 + 装配器注册 partial）', async () => {
     const { validateTemplateStructure, clauseNames, assembleClauses } = await import('../templates.ts');
     const hb = (await import('handlebars')).default;
-    expect(clauseNames()).toEqual([]); // T12 本体入库前为容器（T11-class 装配器面）
+    expect(clauseNames()).toEqual(CLAUSE_KEYS); // T12 落库后：7 条纪律条款（顺序 = D1.2/E2⑤ 命名序）
     const ref = zoneFixture({
       sections: { ...zoneFixture().sections, 'round-context': ['## Round context', '- `MODE`: {{MODE}}', '- `ALPHA`: {{ALPHA}}', '### HANDOFF_WRITE_GATE', '{{HANDOFF_WRITE_GATE}}', '{{> discipline}}'] },
     });
@@ -196,6 +215,77 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
   it('validateShippedTemplates: 单文件数据面校验通过 → 返回 zone 键清单（原 TEMPLATE_FILES 逐文件扫退位）', async () => {
     const { validateShippedTemplates } = await import('../templates.ts');
     expect(validateShippedTemplates()).toEqual(['shell', 'return', 'round-context']);
+  });
+});
+
+describe('D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板引用覆盖 + 行为变更单点', () => {
+  it('validateTemplateStructure: shell 容许 `{{> clause}}` 装配标记；token 槽仍禁（壳禁槽 = 禁 per-dispatch 槽）', async () => {
+    const { validateTemplateStructure } = await import('../templates.ts');
+    const shellClauseRef = zoneFixture({
+      clauses: { 'cl:test': 'TEXT' },
+      sections: {
+        ...zoneFixture().sections,
+        shell: ['# CDD', '## Instructions', '9. **Discipline:**', '- {{> cl:test}}', '## Handoff', 'handoff'],
+      },
+    });
+    expect(() => validateTemplateStructure(shellClauseRef as never)).not.toThrow();
+    const shellTokenSlot = zoneFixture({
+      sections: { ...zoneFixture().sections, shell: ['# CDD', '## Instructions', 'mode is {{MODE}}', '## Handoff', 'handoff'] },
+    });
+    expect(() => validateTemplateStructure(shellTokenSlot as never)).toThrow(/slot-free/);
+  });
+
+  it('4 模板正文零内联纪律散文：条款正文仅存于 #clauses（D1.2 单源）；shell 区全 7 条 {{> cl:…}} 引用覆盖（E2⑤）', async () => {
+    const { loadTemplateContract } = await import('../templates.ts');
+    const contract = loadTemplateContract();
+    const zones = [
+      ...contract.sections.shell,
+      ...contract.sections['round-context'],
+      ...Object.values(contract.sections.return).flat(),
+    ].join('\n');
+    for (const [key, body] of Object.entries(contract.clauses)) {
+      expect(String(body).trim(), key).toBeTruthy();
+      expect(zones, `${key}: 正文零内联（条款单源）`).not.toContain(String(body));
+      expect(contract.sections.shell.join('\n'), `${key}: 引用覆盖`).toContain(`{{> ${key}}}`);
+    }
+  });
+
+  it('行为变更一处生效（单点断言）：四个模板渲染均含纪律块 + 全 7 条条款正文；输出零 `{{` 残留（装配面生效）', async () => {
+    const { renderModePrompt, renderTemplate, reviewHardGate, docsFixHardGate, resetTemplateCaches, loadTemplateContract } = await import('../templates.ts');
+    resetTemplateCaches();
+    const contract = loadTemplateContract();
+    const shapes: Record<string, string> = {
+      implement: renderModePrompt('implement', {
+        TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws', TASK_BRIEF: '/ws/task-1-brief.md',
+        TASK_CONSTRAINTS: '/ws/plan-constraints.md', TASK_NUMBER: '1', HANDOFF_TARGET: '/ws/task-1-implement.json',
+      }),
+      fix: renderModePrompt('fix', {
+        TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws', TASK_BRIEF: '/ws/task-1-brief.md',
+        TASK_CONSTRAINTS: '/ws/plan-constraints.md', TASK_FINDINGS: '/ws/task-1-review-1.json',
+        TASK_FIXED_POINT: '7a7327b', TASK_NUMBER: '1', HANDOFF_TARGET: '/ws/task-1-fix-1.json',
+      }),
+      taskReview: renderModePrompt('review', {
+        TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws', HANDOFF_TARGET: '/ws/task-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
+      }),
+      docsReview: renderTemplate('review', {
+        MODE: 'review', REVIEW_TYPE: 'spec', TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws',
+        REVIEW_LENS_GUIDE: 'completeness · consistency · clarity', REVIEW_REFERENCE: '/ws/spec.md',
+        REVIEW_AXES: 'x', REVIEW_PLAN_LINE: '', HANDOFF_TARGET: '/ws/spec-review-1.json',
+        RETURN_FORMAT: 'RETURN_JSON', HANDOFF_WRITE_GATE: reviewHardGate('RETURN_JSON', '/ws/spec-review-1.json'),
+      }),
+      docsFix: renderTemplate('fix', {
+        MODE: 'fix', TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws', DOCS_DOC: '/ws/spec.md',
+        DOCS_FINDINGS: '/ws/spec-review-1.json', HANDOFF_TARGET: '/ws/spec-fix-1.json',
+        RETURN_FORMAT: 'DOCS_FIX', HANDOFF_WRITE_GATE: docsFixHardGate('/ws/spec-fix-1.json'),
+      }),
+    };
+    for (const [mode, prompt] of Object.entries(shapes)) {
+      expect(prompt, mode).toContain('Discipline clauses');
+      for (const key of CLAUSE_KEYS) {
+        expect(prompt, `${mode}: ${key} 条款正文落渲染`).toContain(String(contract.clauses[key]));
+      }
+      expect(prompt, mode).not.toContain('{{'); // 条款 refs 已 resolve —— 行为变更生效（零残留 moustache）
+    }
   });
 });
 
@@ -300,10 +390,10 @@ describe('renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
 // ---- Task 20 ①/③：数据平面的空注入壳 + schema 原样注入 + 零手写 render 符号 ----
 
 describe('unified constant shell（Task 20：四个 .md 并入 sections 的阅读理解）', () => {
-  it('壳内零注入槽：sections.shell 字面常数（无 moustache）；`## Round context` 唯一动态区宣言', () => {
+  it('壳内零注入槽：sections.shell 零 token 槽（T12 起 `{{> cl:…}}` 条款 partial refs 为装配标记）；`## Round context` 唯一动态区宣言', () => {
     const contract = JSON.parse(readFileSync(path.join(TEMPLATES, 'template-contract.json'), 'utf8'));
     const shell = contract.sections.shell.join('\n');
-    expect(shell).not.toContain('{{');   // 壳零残余 moustache（结构校验器同样断言；此处为数据面直读）
+    expect(shell).not.toMatch(/\{\{(?!>\s*)/);   // 壳零 token 槽（结构校验器同样断言；此处为数据面直读）
     expect(shell).toContain('# CDD dispatch — CLI session'); // 字面头字节恒等载体
     expect(shell).toMatch(/`## Round context` — the final section — is the only dynamic region/);
     expect(shell).toMatch(/byte-identical for every round and mode/); // C1-max 段序宣言

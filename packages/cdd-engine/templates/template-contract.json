@@ -40,6 +40,14 @@
       "6. **`docs`:** apply fixes directly to `DOCS_DOC` per `DOCS_FINDINGS` (all severities), removing fixed findings; `artifacts` records the doc path and `doc_path` = the exact `DOCS_DOC` path.",
       "7. **Evidence gate:** before returning, write `task-N-test-evidence.json` under `TASK_WORKSPACE` with at least `command`, `exit_code`, `passed`, and `warnings_count` (include `behavior_change` when applicable). The engine reads it back after you exit: `behavior_change: true` requires `command`, `passed`, and `exit_code` — missing any of the three → the handoff is overridden to `status: BLOCKED` (exit 1); otherwise only a WARN note attaches. Update the implementer report at the path from the brief after verification. Report bodies, test stdout, and diff text live in files only — never in the return.",
       "8. **Commit contract (base/head):** `base` = the brief's `TASK_BASE` (implement) or `TASK_FIXED_POINT` (fix — a review's reviewed range). When TDD/verification already produced one or more conventional commits covering this round's scope, set `head` = `git rev-parse HEAD` — do not create duplicate commits; otherwise create **one** conventional commit (`feat:` / `fix:` / `refactor:` / …) with subject aligned to the round — no attribution / co-author / AI-generation trailers — then `head` = `git rev-parse HEAD`. Uncommitted changes at return → `status: BLOCKED`. Only commit changes within this round's scope; out-of-scope uncommitted changes at return → `status: BLOCKED` + `blocker:` listing the out-of-scope paths.",
+      "9. **Discipline clauses (single-source; bind every mode):**",
+      "- {{> cl:english-comments}}",
+      "- {{> cl:eof-newline}}",
+      "- {{> cl:no-full-tree-find}}",
+      "- {{> cl:bash-stall-limit}}",
+      "- {{> cl:plan-freeze}}",
+      "- {{> cl:atomic-commit}}",
+      "- {{> cl:self-validate}}",
       "",
       "## Handoff",
       "",
@@ -178,7 +186,15 @@
       "zone": "return"
     }
   ],
-  "clauses": {},
+  "clauses": {
+    "cl:english-comments": "Write code comments and shipped prose in English only — English-primary (no other-language comment blocks, no translated mirrors).",
+    "cl:eof-newline": "Every text file must end with exactly one newline (EOF newline): no missing final newline and no trailing blank lines.",
+    "cl:no-full-tree-find": "Never run an unbounded full-tree `find` over a large directory and never bare-read a large file — constrain to explicit paths with `maxdepth`/`-path`, or read only the needed range.",
+    "cl:bash-stall-limit": "If a Bash command stalls without progress for more than 10 minutes, terminate it and substitute an equivalent, lighter command.",
+    "cl:plan-freeze": "Approved plan/spec files are frozen — zero modification authority; any change needed is reported to the orchestrator through findings, never edited in place.",
+    "cl:atomic-commit": "Commit each round's change as one atomic conventional commit scoped to the round — no mixed or out-of-scope content, no AI-generation trailers.",
+    "cl:self-validate": "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report."
+  },
   "reviews": {
     "task": {
       "lensEnum": [

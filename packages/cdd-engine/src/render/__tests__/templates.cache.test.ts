@@ -190,8 +190,9 @@ describe("⑧ — byte-invariant guard: static zones carry zero volatile literal
         expect(src.match(re), `${zone}: ${name}`).toBeNull();
       }
     }
-    // 壳零注入（④ 断言镜像：单文件数据面直读）
-    expect(contract.sections.shell.join("\n")).not.toContain("{{");
+    // 壳零注入（④ 断言镜像：单文件数据面直读）——T12 后壳仍零 token 槽；`{{> cl:…}}` 条款
+    // partial refs 为装配标记（非 per-dispatch 槽），不触发壳禁槽。
+    expect(contract.sections.shell.join("\n")).not.toMatch(/\{\{(?!>\s*)/);
   });
 
   it("the zone plane is data-forced: validateShippedTemplates passes on the shipped contract", () => {

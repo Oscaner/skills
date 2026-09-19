@@ -190,8 +190,9 @@ describe("⑧ — byte-invariant guard: static zones carry zero volatile literal
         expect(src.match(re), `${zone}: ${name}`).toBeNull();
       }
     }
-    // 壳零注入（④ 断言镜像：单文件数据面直读）——T12 后壳仍零 token 槽；`{{> cl:…}}` 条款
-    // partial refs 为装配标记（非 per-dispatch 槽），不触发壳禁槽。
+    // Zero-shell-injection mirror (lens ④, read straight off the single-file data plane): the
+    // shell still carries zero token slots post-T12; `{{> cl:...}}` clause partial refs are
+    // assembly markers, not per-dispatch slots, so they do not trip the shell slot ban.
     expect(contract.sections.shell.join("\n")).not.toMatch(/\{\{(?!>\s*)/);
   });
 

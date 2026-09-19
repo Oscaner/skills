@@ -116,8 +116,9 @@ export function loadTemplateContract(): TemplateContract {
       readFileSync(path.join(PKG_ROOT, CONTRACT_REL), "utf8"),
     ) as TemplateContract;
     CACHE.reads++;
-    // T12 衔接面：partial 装配随合同缓存一次完成（幂等；空容器即 no-op）——任何 render 路径在
-    // renderRoundContext 编译前必然先 loadTemplateContract，注册的 {{> clause}} 引用必可 resolve。
+    // T12 wiring: partial assembly is memoized with the contract (idempotent; empty
+    // container = no-op) — every render path runs loadTemplateContract before compiling
+    // a round context, so registered {{> clause}} refs always resolve.
     assembleClauses(CACHE.contract);
   }
   return CACHE.contract;

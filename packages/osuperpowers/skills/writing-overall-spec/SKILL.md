@@ -51,7 +51,7 @@ flowchart TD
 
 ### `author-spec`
 
-- **Do**: Write the overall spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-overall.md` from the session output — charter only (scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria); no phase-level implementation detail
+- **Do**: Write the overall spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-overall.md` from the session output — charter only (scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria); no phase-level implementation detail. Role note: the charter's four tables are machine-checked in this repo by `scripts/validate/overall-consistency.ts` (block 12 of `pnpm run validate`) — a maintainer-mode, this-repo dogfood guard, not a consumer surface (consumers have no `scripts/validate/`; it is not a packaging feature the overall spec may rely on)
 - **Read**: Session output + the overall spec template
 - **Exit**: File written → `spec-review`
 - **Fail**: Template missing → BLOCKED (missing template)

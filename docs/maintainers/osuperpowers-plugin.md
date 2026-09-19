@@ -120,7 +120,7 @@ for d in packages/osuperpowers/skills/*/; do
 done && echo "OK -- all osuperpowers skill dirs have SKILL.md"
 ```
 
-**3. No skill on disk is missing from `plugin.json`** (the reverse breakage -- only applies to explicit-list manifests; a directory-form manifest *is* the declaration, so there is no orphan concept). None of the current plugins use the list form -- `pnpm run validate` step 0 (emit freshness) covers this via `scripts/emit/check.mjs` (wired as `run.mjs emit-check`):
+**3. No skill on disk is missing from `plugin.json`** (the reverse breakage -- only applies to explicit-list manifests; a directory-form manifest *is* the declaration, so there is no orphan concept). None of the current plugins use the list form -- `pnpm run validate` step 0 (emit freshness) covers this via `scripts/emit/check.ts` (wired as `run.ts emit-check`):
 ```bash
 pnpm run emit:check
 ```
@@ -129,17 +129,23 @@ All three pass --> the marketplace still resolves.
 
 **4. Unified emit validates:**
 ```bash
-pnpm run emit:check        # run.mjs emit-check (scripts/emit/check.mjs) -- drift --> exit 1
+pnpm run emit:check        # run.ts emit-check (scripts/emit/check.ts) -- drift --> exit 1
 ```
 
-**Note:** on a fresh clone, run `git submodule update --init` before `emit:check` -- `emit`/`validate` resolve the `superpowers` submodule for version sync (`marketplace-utils.mjs` / `scripts/validate/version-sync.mjs`). The emitter does **not** copy upstream skills into `.agents/skills/` (osuperpowers skills only; osuperpowers Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
+**Note:** on a fresh clone, run `git submodule update --init` before `emit:check` -- `emit`/`validate` resolve the `superpowers` submodule for version sync ([scripts/lib/marketplace-utils.ts](../../scripts/lib/marketplace-utils.ts) / [scripts/validate/version-sync.ts](../../scripts/validate/version-sync.ts)). The emitter does **not** copy upstream skills into `.agents/skills/` (osuperpowers skills only; osuperpowers Rule: Read Upstream reads the `superpowers` plugin when available, never vendored).
 
 **5-8. Full local CI (recommended):**
 ```bash
 pnpm run validate
 ```
 
-This runs steps 1-4 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/validate/index.mjs](../../scripts/validate/index.mjs) (wired as `run.mjs validate`); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
+This runs steps 1-4 above plus generator drift checks, mattpocock-skills submodule resolution, and superpowers version sync. Implemented in [scripts/validate/index.ts](../../scripts/validate/index.ts) (wired as `run.ts validate`); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
+
+### `scripts/validate/*` is a repo-internal orchestration surface
+
+`scripts/validate/*` is the publishing-repo-root's internal orchestration surface — not a consumer API, not a packaging surface. Consumers never receive it: the plugin packages' `contentRoot` is `"."`, so only `packages/*/` publishes, and the consumer environment has no monorepo layout and no this-repo toolchain. Treat every script under `scripts/validate/` as maintainer-side tooling that may change without notice between versions.
+
+The one charter-level guard in the set is `overall-consistency` ([scripts/validate/overall-consistency.ts](../../scripts/validate/overall-consistency.ts)): it machine-checks the four tables (issue inventory / phase inventory / dependency graph / change history) of every canonical `docs/osuperpowers/specs/*-overall.md`, plus the doc-existence globs and anchored-issue-reference registry (block 12 of `pnpm run validate`). Its role classification is **maintainer-mode, this-repo dogfood**: running it while an overall spec is authored during a brainstorm is a maintainer-side act — this repo dogfoods its own program charters against the same guard consumers could never invoke. The overall spec itself must not assume the guard exists in any consumer context.
 
 ## CDD Engine internals
 

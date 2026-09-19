@@ -55,7 +55,7 @@ flowchart TD
 
 ### `fix-plan`
 
-- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle. A finding tagged `targets later task` belongs to the plan's pending-acceptance zone, not this fix round — it is reported and collected by the orchestrator as sole writer (I3); the fix agent holds zero plan-modification authority
+- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle. A finding tagged `targets later task` belongs to the plan's pending-acceptance-patch zone, not this fix round — it is reported and collected by the orchestrator as sole writer (I3); the fix agent holds zero plan-modification authority
 - **Read**: captured plan-review handoff (current cycle findings)
 - **Exit**: entered via blocker>0 → `plan-review` (re-run); entered via blocker=0 → `commit-plan` (no re-run)
 - **Fail**: Invoking a new review instead of fixing from captured findings → violates the review-stopping discipline
@@ -80,7 +80,7 @@ The plan's cross-task findings surface: how a review finding whose remedy belong
 
 - **Finding tag (convention, zero schema change)** — a review finding that targets a later task marks the target in the finding text with a `targets later task` tag plus the target heading reference (`### Task N:`, N later than the current task). The tag is plain free text in the existing findings payload (the handoff schema is untouched — no new field, no engine contract).
 - **Zone shape** — a top-level `##` heading (conventionally `## Pending Acceptance Patch`) with one `- **Task N (patch)**: …` bullet per pending patch; each entry is a **task-ref + patch description**. The zone exists only while a patch is pending — the plan convention reserves it, the plan text realizes it.
-- **Sole writer** — the pending-acceptance-patch zone is written by the orchestrator alone (I3). A `targets later task` finding is reported to the orchestrator and collected there; the round that found it never hand-applies it as an inline plan edit — fix/implement agents hold zero plan-modification authority (v1.31, unrelaxed).
+- **Sole writer** — the pending-acceptance-patch zone is written by the orchestrator alone (I3).
 - **Carry-through (mechanically assertable)** — the later task's `- **验收**:` line carries the patch as an acceptance bullet, so the patch rides the standard brief-extraction surface (`/^### Task \d+:/` task headings + `- **验收**:` acceptance lines) into the later task's dispatch. The patch is therefore assertable by the same mechanical means as any acceptance line — no special parser, no schema change.
 
 Sample — the zone entries (task-ref + patch description) and the later task's acceptance carry-through:

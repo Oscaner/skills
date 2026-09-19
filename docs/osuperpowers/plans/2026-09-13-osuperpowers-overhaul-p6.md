@@ -12,13 +12,13 @@
 
 **v1.3 回填（overall v1.46 / spec v1.9 同窗，用户 2026-09-19 指示）**：新增 **Task 21「scripts/ 与 cdd-engine 统一 CLI 框架 + 测试就近 `__tests__` 化」**——scripts/run.ts 弃 Commander 改 citty（engine 同款）+ observe-cache.ts 手写 parseArgs 归 citty argsDef（boolean presence 语义保留）+ 退出码 table 对齐 engine（P5 §2.4.2）+ commander 根 devDep 移除 + citty 入根 devDeps；scripts 测试全迁 `__tests__/`（<dir>/__tests__/ + 顶层 scripts/__tests__/）+ root vitest include 收敛 `scripts/**/__tests__/**/*.test.ts`（T3 内存守卫不变）。
 
-**v1.4 回填（overall v1.47 / spec v1.10 同窗，用户 2026-09-19 指示）**：新增 **Task 22「plan-constraints 物料化契约」**（`cdd implement` pre-flight 自本 plan 声明源生成 plan-constraints.md（惜缺即生成 · 存在性门缺失/不可解均 BLOCK · dry-run 豁免）——本 plan 的 **Constraints 源声明** = 如下四段提取面：**口径** · **commit 边界机制** · **Flow Atomicity** · **顺序原则**）；**Task 18 扩段（H1 内容级三件）**——prompt bullet ×2 + src 标识符/阶段标题 rename + `\bH1\b` residue 机制面守卫。
+**v1.4 回填（overall v1.47 / spec v1.10 同窗，用户 2026-09-19 指示）**：新增 **Task 22「plan-constraints 物料化契约」**（`cdd implement` pre-flight 自本 plan 声明源生成 plan-constraints.md（惜缺即生成 · 存在性门缺失/不可解均 BLOCK · dry-run 豁免）。**Constraints 源（两形态）**：canonical = 字面 `## Constraints` 一等段（由 writing-plans 模板强制——未来 plan 天然带段）；既有散文 plan = 声明指针提取面（本 plan v1.4 现状）：**口径** · **commit 边界机制** · **Flow Atomicity** · **顺序原则** 四标题锚切片；T22 实施时本 plan 四段收敛为字面 `## Constraints` 段（段内四小节））；**Task 18 扩段（H1 内容级三件）**——prompt bullet ×2 + src 标识符/阶段标题 rename + `\bH1\b` residue 机制面守卫。
 
 **commit 边界机制（本 program 全 phase 生效）**：dispatch 两端门——入口门（进入 review 前主 agent 产物已提交、dispatch 期零写树）+ 出口门（产生修改的 dispatch 后修改已提交）；主 agent 处理的由主 agent commit。计划各 Task 的 review/fix 环均遵守。
 
 **Flow Atomicity（本 phase 强化）**：任何 skill 内部流程/文档变更 = 整 skill 统一调整（无局部补丁）；cli-driven-development 的全部 P6 描写（branch-loop / dry-run WARN / pending-acceptance / 术语）在 Task 9 一次性整 skill 改齐。
 
-**顺序原则（spec §2.4）**：删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）；**C1-max（Task 20）定序 = T8 之后、T9 之前**（spec §2.4 顺序注：晚于 T5 骨架、早于 T7——branch-loop/clauses 入库/术语清扫直接落终态；T8 三断言先立使模板变更受其约束）。；**scripts 统一（Task 21）定序 = C1-max（Task 20）之后、收口复核（T18 术语 · T19）之前**（repo 一致性收尾；engine 与 scripts 测试/CLI 惯例同批收敛）。；**constraints 物料化（Task 22）定序 = T10（dry-run 门判 WARN 化）之后、T11 之前**（同为 implement pre-flight 门面——先 WARN 化再上 constraints 存在性门；本 plan 的 Constraints 源 = 口径/commit 边界机制/Flow Atomicity/顺序原则 四段声明面）。
+**顺序原则（spec §2.4）**：删除面先行（T1 A → T2 B）→ 目标布局落地（T3 测试就近 + T4 scripts .ts）→ 机制增量落新布局（T5–T14）→ **域 G 与 D-2 同窗（随 T1 .agents 移除后：T7/T15–T17 均在 T1 之后）** → 收口复核（T18 术语 · T19）；**C1-max（Task 20）定序 = T8 之后、T9 之前**（spec §2.4 顺序注：晚于 T5 骨架、早于 T7——branch-loop/clauses 入库/术语清扫直接落终态；T8 三断言先立使模板变更受其约束）。**scripts 统一（Task 21）定序 = C1-max（Task 20）之后、收口复核（T18 术语 · T19）之前**（repo 一致性收尾；engine 与 scripts 测试/CLI 惯例同批收敛）。；**constraints 物料化（Task 22）定序 = T10（dry-run 门判 WARN 化）之后、T11 之前**（同为 implement pre-flight 门面——先 WARN 化再上 constraints 存在性门；本 plan 的 Constraints 源 = 口径/commit 边界机制/Flow Atomicity/顺序原则 四段声明面）。
 
 ---
 

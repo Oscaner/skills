@@ -74,7 +74,7 @@ flowchart TD
 - Cross-node invariants, declared centrally in the `## Invariants` section
 - **Hard limit of 5** — if a skill's invariants approach the limit, the overflow must be demoted into node Fail fields, not accumulated. There is no project-specific exception to this limit: an invariant expressible inside a node belongs in that node's Do/Exit/Fail (the cross-node / node-local split decides placement), and exceeding the limit after demotion is a defect signal
 - Typical invariants:
-  - Vendored submodules must not be modified
+  - Emit products are derived — never hand-edit `.claude-plugin/` / `.cursor-plugin/` / `marketplace/`
   - Commit discipline (commit when spec is approved)
   - Language policy (English primary — no zh-CN mirrors)
   - Session-call policy (delegated nodes consume other plugins' flows only via `/plugin:skill` imports — one import per upstream type per session, no upstream document reads)
@@ -110,7 +110,7 @@ All cross-skill invocation of another plugin's flow goes through the **session-c
 
 > `/plugin:skill` — load an upstream skill = import its flow once
 
-Loading an upstream skill **imports its flow once** and consumes it **inline** as the current session's baseline — there is no second session: a single session / single process can never spawn the same upstream flow a second time, and each session consumes each upstream skill type **at most once**. Re-entering a delegated node (the same flow node reached again) routes on the **already-landed artifact** the first import produced — the mode marker / design context / registration marker — never by loading the upstream flow again; the invoking node routes on the import's outcome. Skills refer to upstream flows **only** in this slash form — never by upstream document path (zero upstream `vendors/` paths, zero upstream SKILL.md file paths, zero `Read-Upstream` wording), and a delegated flow's internal steps are never restated inside the node (the imported flow owns them). The wording "run a /xxx session" is rejected — the slash reference names the flow import, not a separate session spawn. The `run-*-session` entry-node IDs still carried by the delegated examples are legacy handles for that same import-and-consume operation — the ID names the flow-entry import, not a session spawn.
+Loading an upstream skill **imports its flow once** and consumes it **inline** as the current session's baseline — there is no second session: a single session / single process can never spawn the same upstream flow a second time, and each session consumes each upstream skill type **at most once**. Re-entering a delegated node (the same flow node reached again) routes on the **already-landed artifact** the first import produced — the mode marker / design context / registration marker — never by loading the upstream flow again; the invoking node routes on the import's outcome. Skills refer to upstream flows **only** in this slash form — never by upstream document path (zero upstream SKILL.md file paths, zero `Read-Upstream` wording), and a delegated flow's internal steps are never restated inside the node (the imported flow owns them). The wording "run a /xxx session" is rejected — the slash reference names the flow import, not a separate session spawn. The `run-*-session` entry-node IDs still carried by the delegated examples are legacy handles for that same import-and-consume operation — the ID names the flow-entry import, not a session spawn.
 
 Two SKILL.md forms follow from the primitive:
 

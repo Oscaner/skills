@@ -107,6 +107,13 @@ const STALE_LEXICON_CHECKS = [
   { label: "vendors/ 自维护路径形回渗", re: /vendors\//, scope: ALL_MECH_POSITIONS },
   { label: "publish-vendor 词形回渗", re: /\bpublish-vendor\b/, scope: ALL_MECH_POSITIONS },
   { label: "submodule 词形回渗", re: /\bsubmodule[s]?\b/, scope: ALL_MECH_POSITIONS },
+  // Task 19（P6，spec F2）：`.agents/` emit 面移除（A5）+ droid/pi keywords（A3）防回渗。
+  // `.agents` 取路径形/行尾形（`.agents/` 或行尾 `.agents`；`m` 使 `$` 逐行生效），裸 mentions 在其他文件属合法散文不撤。
+  // scope = ALL_MECH_POSITIONS 零豁免（docs/maintainers 的 stale 引用清理经 spec F7 延后至
+  // F 域重组，不在此面——与 vendors 同裁）；droid/pi 只守 A3 落点 package.json（`\bpi\b` 同时命中
+  // 死 `#pi` 字段名与 keywords 的 pi 词；不守全仓裸词——pipeline/principle 等英文合法词）。
+  { label: ".agents/ emit 面回渗（A5 撤除后）", re: /\.agents(\/|$)/m, scope: ALL_MECH_POSITIONS },
+  { label: "droid/pi keywords 回渗（A3 package.json）", re: /\bdroid\b|\bpi\b/, scope: ["packages/osuperpowers/package.json"] },
   // Task 23（P6，spec F8a）：H1 无语义名机制面守卫（零豁免）。两条互补：`\bH1\b` 命裸大写词
   // `H1`（词边界两侧——`1` 后须非词字符，故 `H1_BLOCK` 的 `_` 是词字符、不命中，下划线被
   // 下半条小写面覆盖）；`/\bh1(?=[A-Z]|\b)/` 命 src 侧小写驼峰标识符（h1FromHandoff /

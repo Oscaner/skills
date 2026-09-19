@@ -262,6 +262,56 @@ describe("stale-lexicon：vendors 自维护语汇（P6 Task 2 / B12）", () => {
   });
 });
 
+// ---- Task 19（P6）：F2 全量断言 —— .agents emit 面（A5）+ droid/pi keywords（A3）防回渗 ----
+// .agents 守卫 scope = ALL_MECH_POSITIONS（机制位置零豁免；docs/maintainers 的 stale 引用
+// 清理延后至 F7 重组合并面）；droid/pi 守卫只守 A3 落点 package.json（`\bpi\b` 同时覆盖
+// 死 `#pi` 字段形与 keywords 的 pi 词）。反例：无 `.` 前缀的 agents、英文词 pipeline/
+// principal/piper、版本号 0.1.1 均放行。
+describe("stale-lexicon：.agents + droid/pi 语汇（P6 Task 19 / spec F2）", () => {
+  it(".agents/ 路径形命中（emit 副本面回渗）", () => {
+    expect(hasHit(["packages/osuperpowers/.agents/skills/writing-single-spec/SKILL.md"])).toBe(true);
+  });
+  it(".agents 行尾形命中（裸目录名回渗）", () => {
+    expect(hasHit(["retired emit tree at packages/osuperpowers/.agents"])).toBe(true);
+  });
+  it("无 `.` 前缀的 agents 与普通散文放行", () => {
+    expect(hasHit(["the shared agents namespace"])).toBe(false);
+    expect(hasHit(["multi-agent orchestration"])).toBe(false);
+  });
+  it("droid/pi keywords 命中（含死 #pi 字段形）", () => {
+    expect(hasHit(['"keywords": ["ped", "pi"]'])).toBe(true);
+    expect(hasHit(['"droid"'])).toBe(true);
+    expect(hasHit(['"#pi": {…}'])).toBe(true);
+  });
+  it("英文词零误报：pipeline/principal/piper/版本号放行", () => {
+    expect(hasHit(["pipeline of rollouts"])).toBe(false);
+    expect(hasHit(["principal maintainer"])).toBe(false);
+    expect(hasHit(['"version": "0.1.1"'])).toBe(false);
+  });
+  it("含 .agents/ 路径的临时文件被 collectStaleLexiconHits 命中（机制扫描面在扫）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-agents-"));
+    writeFileSync(path.join(dir, "SKILL.md"), "copy `.agents/skills/` namespace\n", "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/\.agents/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("含 droid keyword 的临时 package.json 被 collectStaleLexiconHits 命中", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-droid-"));
+    writeFileSync(path.join(dir, "package.json"), '{"keywords": ["osuperpowers", "droid"]}\n', "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      expect(hits).toHaveLength(1);
+      expect(hits[0].label).toMatch(/droid\/pi/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("gate-lexicon：正例命中（T6 Step 2）", () => {
   it("bin/gate/ 路径命中（deleted gate dir，含 adapters/configs 下端）", () => {
     expect(hasHit(["cdd-gate 子系统已删 packages/osuperpowers/bin/gate/adapters/kiro.mjs"])).toBe(true);

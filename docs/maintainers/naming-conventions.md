@@ -4,11 +4,11 @@ Maintainer-only guidance for naming across the repository's authorable surfaces 
 
 ## Principles
 
-1. **Scoped semantic names** — `<scope>_<semantic>` (snake_case): `task-handoff-schema.json`, `HANDOFF_SCHEMA_JSON`, `rules/commit.ts`. Prefix the scope first so related names group lexicographically.
+1. **Scoped semantic names** — `<scope>_<semantic>` (snake_case): `task-handoff-schema.json`, `RETURN_STDOUT_BLOCK`, `rules/commit.ts`. Prefix the scope first so related names group lexicographically.
 2. **Full words, no historical abbreviations** — one name, one meaning; a name that needs a glossary entry to decode is a debt. Historical lesson: `H1_BLOCK` was the "stdout return block" (a legacy from the old `## Return (H1 — stdout only)` heading); it had nothing to do with Markdown `# ` headings and had to be renamed `RETURN_STDOUT_BLOCK`. If a name's meaning is not recoverable from the name itself, rename it.
 3. **One word one meaning — no multi-sense collisions** — `HANDOFF` / `HANDOFF_TYPE` / `HANDOFF_STUB` coexisting meant the same concept was named three ways. A concept has exactly one name; synonyms are merged.
 4. **Canonical ordering for serializable data** — JSON key order is fixed by the canonical file (schema injection must stay byte-stable); never re-serialize with environment-dependent ordering.
-5. **Family layout over historical location** — files live under the family they belong to, not where history left them (`review/review.md` → `docs/review.md`, `fix/docs.md` → `docs/fix.md`).
+5. **Family layout over historical location** — files live under the family they belong to, not where history left them (`engine-config.json` + `template-contract.json` + `schema/` grouped under the single `packages/cdd-engine/templates/` plane).
 
 ## Application surfaces
 
@@ -16,10 +16,12 @@ Maintainer-only guidance for naming across the repository's authorable surfaces 
 |---|---|---|
 | Source files (cdd-engine `src/`) | directories by dependency axis (cli → dispatch → {rules, artifacts, render} → infra); files singular-verb | `src/dispatch/` `src/rules/commit.ts` |
 | Schemas | `docs-` / `task-` domain prefix + `handoff-schema` | `schema/task-handoff-schema.json` |
-| Prompt template tokens | `<DOMAIN>_<SEMANTIC>`; merged synonyms; scope prefix for variants | `HANDOFF_SCHEMA_JSON` · `HANDOFF_WRITE_GATE` · `REVIEW_TYPE` |
+| Prompt template tokens | `<DOMAIN>_<SEMANTIC>`; merged synonyms; scope prefix for variants | `HANDOFF_TARGET` · `HANDOFF_WRITE_GATE` · `REVIEW_TYPE` |
 | Template constants | same naming as their injected token | `RETURN_STDOUT_BLOCK` |
-| Template layout | family dirs `task/` `docs/`, role file names | `docs/review.md` |
+| Template layout | skeleton sections declared canonically in `template-contract.json#skeleton`; sections named by role, not history | `skeleton.sections` · `skeleton.segments` |
 | Registry data | per-entry capability fields, no prose claims | `harness.cache` profile |
+
+**Return-format discriminator values are constants, not injection slots.** `RETURN_STDOUT_BLOCK` / `RETURN_JSON` / `DOCS_FIX` are the `RETURN_FORMAT` discriminator's values (documented in `template-contract.json#sections.return`); the `return`-zone registry entries (`RETURN_FORMAT` · `RETURN_STDOUT_BLOCK`) surface as **literal labels**, not moustaches — and `RETURN_JSON` / `DOCS_FIX` are not registry tokens at all. Only the `round-context` moustache slots are injected.
 
 ## Terminology registry
 
@@ -37,8 +39,8 @@ Single registration point for the repo's governing terms (established by the P6 
 |---|---|---|
 | **Review Convergence** | Single-cycle review discipline: only a previous round that reached `APPROVED` with blocker=0 converges (stops) a re-dispatch; a failure round (BLOCKED/TIMEOUT, findings:[]) stays re-dispatchable (SP-4). | `reviewConvergenceGuard` · `reviewConvergedError` · `convergedExit3` · `rules/convergence.ts` · `countsTowardConvergence` · exit code 3 |
 | **review-cycle-cap** | Terminal marker for a fix loop that exhausted its consecutive review cycles → the orchestrator stops retrying (replaces the `fix_loop_exhausted` literal). | `review-cycle-cap` wording on the orchestrator failure surface |
-| **dispatch-timeout-cap** | Terminal marker for a TIMEOUT category hitting its counter threshold (≥ 2): `BLOCKED: dispatch-timeout-cap` — the orchestrator's stop-retrying signal. | `terminalFor("TIMEOUT")` · `templates/engine-config.json#failureCategories[].terminal` |
-| **engine-error** | Retained terminal marker for EXECUTION_FAILURE — explicitly **not** renamed by F8. | `templates/engine-config.json#failureCategories[].terminal` · `BLOCKED: engine-error` |
+| **dispatch-timeout-cap** | Terminal marker for a TIMEOUT category hitting its counter threshold (≥ 2): `BLOCKED: dispatch-timeout-cap` — the orchestrator's stop-retrying signal. | `terminalFor("TIMEOUT")` · `packages/cdd-engine/templates/engine-config.json#failureCategories[].terminal` |
+| **engine-error** | Retained terminal marker for EXECUTION_FAILURE — explicitly **not** renamed by F8. | `packages/cdd-engine/templates/engine-config.json#failureCategories[].terminal` · `BLOCKED: engine-error` |
 
 ### mechanismNames migration list
 

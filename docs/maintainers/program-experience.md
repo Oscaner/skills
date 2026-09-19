@@ -6,7 +6,7 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 
 1. **Delete-anything-that-isn't-consumed** — dead workspaces/files/surfaces are removed, not frozen (P1 `.superpowers/cdd/*` purged).
 2. **Deletion must sync its only caller** — removing a command/artifact without removing its caller is an orphan-debt (P3 `cli-research` deleted with the `research` subcommand).
-3. **Anti-residue guards on every deletion** — a stale-lexicon guard prevents the vocabulary from creeping back (P1/P2/P3, P6 vendors/`.agents`).
+3. **Anti-residue guards on every deletion** — a stale-lexicon guard prevents the vocabulary from creeping back (P1/P2/P3; P6 vendors · `.agents` emit-surface · droid/pi keywords).
 4. **Backfill-as-version** — mid-phase requirement changes are recorded in the overall first (version bump + change history + synced phase tables) before implementation continues (Boundary rules).
 5. **Single-root authority** — every derived surface converges on one root: workspace root, docs root, schema, finding-meta, labels SOT, context contract.
 6. **Mechanical guard beats verbal discipline** — double gates, validators, residue, byte-invariants: discipline that cannot be tested does not execute.
@@ -36,13 +36,13 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 ## D. Prompts & templates
 
 23. **Template systematization, five layers** — JSON schema-verbatim · one skeleton · naming · description · structural skeleton + clause library + token registry. See `template-doctrine.md`.
-24. **Naming doctrine** — scoped semantics, full words, one word one meaning (`H1` lesson). See `naming-conventions.md`.
+24. **Naming doctrine** — scoped semantics, full words, one word one meaning (the retired `H1_BLOCK`-rename lesson). See `naming-conventions.md`.
 25. **Discipline dual-track** — mechanically-checkable discipline becomes an assertion; only genuinely uncheckable rules live as single-point annotations (prose annotates, never enforces).
 
 ## E. Anti-patterns
 
 26. Undefined `.mjs`/`.ts` plane boundaries are debt — declare them.
-27. **Spec numbers must be verified** — three count corrections in one brainstorm: 15→14 (`.agents/` files), ~17→19 (session-call nodes), 17→18 (template tokens). `git ls-files` / `grep` before writing numbers into a spec.
+27. **Spec numbers must be verified** — count corrections in one brainstorm: 15→14 (`.agents/` files), ~17→19 (session-call nodes), 17→19 (template tokens; the registry holds 19 today = 17 round-context + 2 return). `git ls-files` / `grep` before writing numbers into a spec.
 28. Undocumented test prerequisites replicate as one-root-cause batches (P5's 14 tests, one cause: the clean-tree prerequisite).
 29. **pre-commit full-validate vs dirty tree is a structural contradiction** — align the gate to its boundary (tree-independent subset) rather than breaking it.
 30. **Variant tokens splitting the static prefix kill the cache** — round labels, timestamps, target paths belong in the variant tail.

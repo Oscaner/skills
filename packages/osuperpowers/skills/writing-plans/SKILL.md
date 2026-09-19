@@ -41,7 +41,7 @@ flowchart TD
 
 ### `author-plan`
 
-- **Do**: Write the complete plan document to `docs/osuperpowers/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — the same source as `plan-review`'s `--spec` pointer; `report-issues` resolves program attribution through this header (workspace plan record → **`**Spec:**`** → overall → Related), the plan record being the first hop of its program chain. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction (`/^### Task \d+:/`); em dash / Chinese colon / any other delimiter fails brief extraction at dispatch time. The plan's constraint surface MUST be declared for `cdd implement` to materialize `plan-constraints.md` (engine §T7.1): declare a first-class top-level `## Constraints` section — canonical, preferred — with the constraint body under it (`###` sub-sections stay inside; the section is bounded by the next `##`/`#` heading, a `### Task` heading, or a `---` rule); a plan without the literal section falls back to the legacy prose-pointer headings in the preamble (`**口径**` / `**commit 边界机制**` / `**Flow Atomicity**` / `**顺序原则**` bold paragraphs). A plan declaring neither blocks `cdd implement` pre-flight with `plan Constraints source undeclared` (no silent fallback). Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to plan-review
+- **Do**: Write the complete plan document to `docs/osuperpowers/plans/YYYY-MM-DD-<feature>.md`. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — the same source as `plan-review`'s `--spec` pointer; `report-issues` resolves program attribution through this header (workspace plan record → **`**Spec:**`** → overall → Related), the plan record being the first hop of its program chain. Task headings MUST use `### Task N:` colon format — matching brief.mjs extraction (`/^### Task \d+:/`); em dash / Chinese colon / any other delimiter fails brief extraction at dispatch time. The plan's constraint surface MUST be declared for `cdd implement` to materialize `plan-constraints.md` (engine §T7.1): declare a first-class top-level `## Constraints` section — canonical, preferred — with the constraint body under it (`###` sub-sections stay inside; the section is bounded by the next `##`/`#` heading, a `### Task` heading, or a `---` rule); a plan without the literal section falls back to the legacy prose-pointer headings in the preamble (`**口径**` / `**commit 边界机制**` / `**Flow Atomicity**` / `**顺序原则**` bold paragraphs). A plan declaring neither blocks `cdd implement` pre-flight with `plan Constraints source undeclared` (no silent fallback). The plan MAY carry a **pending-acceptance-patch zone** — a top-level `##` section recording cross-task review findings that a review round tagged for a LATER task (`### Task N:`, N later than the current task): one `- **Task N (patch)**: …` entry per pending patch (task-ref + patch description), present only while a patch is pending. It is a document convention, not a command-line contract — the entries ride the plan's standard wording, and the later task's `- **验收**:` carries the patch as an acceptance bullet. The orchestrator is the zone's sole writer; fix/implement agents hold zero plan-modification authority (I3). Full definition + samples: **Pending Acceptance Patch (cross-task findings consolidation)** below. Includes self-review (spec coverage + placeholder scan + type consistency) — issues found are fixed inline, not looped or passed to plan-review
 - **Read**: approved spec + `backfill-design` output
 - **Exit**: Plan written + self-review passed → `plan-review`
 - **Fail**: Write error or self-review finds an unfixable defect → report + fail-open (do not block plan review)
@@ -55,7 +55,7 @@ flowchart TD
 
 ### `fix-plan`
 
-- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle
+- **Do**: Fix ALL findings (blocker + warn + nit) via `cdd fix --type plan --plan <path> --findings <workspace>/plan-review-{R}.json`. No new review invocation — work from the findings already captured in the current cycle. A finding tagged `targets later task` belongs to the plan's pending-acceptance zone, not this fix round — it is reported and collected by the orchestrator as sole writer (I3); the fix agent holds zero plan-modification authority
 - **Read**: captured plan-review handoff (current cycle findings)
 - **Exit**: entered via blocker>0 → `plan-review` (re-run); entered via blocker=0 → `commit-plan` (no re-run)
 - **Fail**: Invoking a new review instead of fixing from captured findings → violates the review-stopping discipline
@@ -74,12 +74,35 @@ flowchart TD
 - **Exit**: Handoff session loaded → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
+## Pending Acceptance Patch (cross-task findings consolidation)
+
+The plan's cross-task findings surface: how a review finding whose remedy belongs to a LATER task is tagged, consolidated by the orchestrator, and carried into the later task's acceptance.
+
+- **Finding tag (convention, zero schema change)** — a review finding that targets a later task marks the target in the finding text with a `targets later task` tag plus the target heading reference (`### Task N:`, N later than the current task). The tag is plain free text in the existing findings payload (the handoff schema is untouched — no new field, no engine contract).
+- **Zone shape** — a top-level `##` heading (conventionally `## Pending Acceptance Patch`) with one `- **Task N (patch)**: …` bullet per pending patch; each entry is a **task-ref + patch description**. The zone exists only while a patch is pending — the plan convention reserves it, the plan text realizes it.
+- **Sole writer** — the pending-acceptance-patch zone is written by the orchestrator alone (I3). A `targets later task` finding is reported to the orchestrator and collected there; the round that found it never hand-applies it as an inline plan edit — fix/implement agents hold zero plan-modification authority (v1.31, unrelaxed).
+- **Carry-through (mechanically assertable)** — the later task's `- **验收**:` line carries the patch as an acceptance bullet, so the patch rides the standard brief-extraction surface (`/^### Task \d+:/` task headings + `- **验收**:` acceptance lines) into the later task's dispatch. The patch is therefore assertable by the same mechanical means as any acceptance line — no special parser, no schema change.
+
+Sample — the zone entries (task-ref + patch description) and the later task's acceptance carry-through:
+
+```md
+## Pending Acceptance Patch
+
+- **Task 14 (patch)**: the Task 13 review round tagged a `targets later task` finding — Task 14 must accept a guard that untagged cross-task findings cannot pass a review round (task-ref + patch description).
+
+### Task 14: …
+
+- **Do**: …
+- **验收**: existing Task 14 acceptance · **accepts pending-acceptance-patch** (task-ref `### Task 14:` · patch: untagged cross-task findings fail the review round) — the patch is a first-class bullet of this acceptance and rides into the Task 14 brief unchanged.
+```
+
 ## Invariants
 
 | # | Invariant |
 |---|---|
 | I1 | **Review Stopping** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run the same ref (for spec/plan the engine binds the ref to `(doc_path, doc_hash)` and rejects a same-ref re-run; editing the plan opens a new review round legitimately). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
 | I2 | **Plan commit discipline** — plan approved = commit immediately; do not wait for dev merge |
+| I3 | **Plan Sole Writer (Pending Acceptance)** — the plan's pending-acceptance-patch zone is written by the orchestrator alone. A review finding tagged `targets later task` (`### Task N:`, N later than the current task) is reported and consolidated by the orchestrator — never fixed in-place by the round that found it — and the later task's `- **验收**:` carries the patch bullet so the deferred requirement rides into its brief. Fix/implement agents hold zero plan-modification authority (v1.31). |
 
 ## Failure Modes
 

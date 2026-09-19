@@ -126,6 +126,60 @@ it("入口门中止后 dispatch:after 仍在 finally 触发（模板方法终止
   expect(fired).toEqual(["after"]);
 });
 
+// E2②/G4①（P6 T10）: dry-run 入口门降级——脏树 + ctx.dryRun → 不 DispatchBlocked，stderr CDD_WARN
+// 打印后 run() 走通全模板（dispatch 进入、timeline 完整、exit 0）。基类默认门是 task/docs 两面的
+// 共同单点：此用例为两面的共享继承断言。
+it("dryRun 入口门降级: dirty + ctx.dryRun → run() 走通 + CDD_WARN stderr + dispatch 进入", async () => {
+  const repo = setupRepo();
+  appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
+  const stderrBuf: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  try {
+    const lc = new StubLifecycle({ ctx: { mode: "review", repoRoot: repo, dryRun: true } });
+    await expect(lc.run()).resolves.toBeUndefined();
+    expect(lc.dispatchCalled).toBe(true); // 降级非跳过：模拟照常走完 dispatch
+    expect(lc.timeline).toEqual([...EXPECTED_TIMELINE]); // 全模板
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+});
+
+it("干净树 + ctx.dryRun → 无 CDD_WARN（干净树无降级可言）", async () => {
+  const repo = setupRepo();
+  const stderrBuf: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  try {
+    const lc = new StubLifecycle({ ctx: { mode: "review", repoRoot: repo, dryRun: true } });
+    await expect(lc.run()).resolves.toBeUndefined();
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  expect(stderrBuf.join("")).not.toMatch(/CDD_WARN: .*uncommitted changes/);
+});
+
+it("dry-run 出口门跳过（基类默认；E2②）: dispatch 期间弄脏树 + dryRun → run() 照常走完（无 exit BLOCK）", async () => {
+  const repo = setupRepo();
+  class DirtyingDryRunStub extends DispatchLifecycle {
+    protected async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
+      appendFileSync(path.join(repo, ".gitignore"), "dirty\n"); // 出口时树脏
+    }
+  }
+  const stderrBuf: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  try {
+    const lc = new DirtyingDryRunStub({ ctx: { mode: "review", repoRoot: repo, dryRun: true } });
+    await expect(lc.run()).resolves.toBeUndefined(); // exit gate 对 dry-run 不判（纯模拟无 commit contract）
+    expect(lc.timeline).toEqual([...EXPECTED_TIMELINE]);
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  expect(stderrBuf.join("")).not.toMatch(/CDD_WARN/); // 唯一 WARN 在 entry；此例 entry 干净
+});
+
 it("出口门卷入（双门挂载）: dispatch 期间引入 dirty → BLOCKED（gate=exit）", async () => {
   const repo = setupRepo();
   class DirtyingStub extends DispatchLifecycle {

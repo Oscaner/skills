@@ -171,13 +171,36 @@ describe("rules/commit.ts — 入口门 entryGateCleanTree（pre-commit 干净�
     expect(r.blocker).toMatch(/uncommitted changes at entry/);
   });
 
+  // E2②/G4①（P6 T10）: dry-run 门判 WARN 化——脏树在 dryRun 下降级为 warn 而非 BLOCK（纯模拟
+  // 零副作用，脏树无法破坏模拟）；真实 dispatch（dryRun 缺省/关）保持硬 BLOCK。fail-open 两面
+  //（非 git / 无 root）在 dryRun 下与真实 dispatch 同面：无仓库 → 无树可判 → 无 warn。
+  it("dirty tree + dryRun → ok:true + warn 消息（不 BLOCK；模拟走完）", async () => {
+    const repo = setupRepo();
+    appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
+    const r = await entryGateCleanTree(repo, { dryRun: true });
+    expect(r.ok).toBe(true);
+    expect(r.blocker).toBe("");
+    expect(r.warn).toMatch(/uncommitted changes/);
+    expect(r.warn).toMatch(/dry-run/); // WARN 揭示降级原因是 dry-run 路径
+  });
+
+  it("clean tree + dryRun → ok:true 且无 warn（干净树无降级可言）", async () => {
+    const repo = setupRepo();
+    const r = await entryGateCleanTree(repo, { dryRun: true });
+    expect(r.ok).toBe(true);
+    expect(r.blocker).toBe("");
+    expect(r.warn).toBeUndefined();
+  });
+
   it("非 git 目录 → fail-open ok:true", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-entry-nogit-"));
     expect(await entryGateCleanTree(dir)).toEqual({ ok: true, blocker: "" });
+    expect(await entryGateCleanTree(dir, { dryRun: true })).toEqual({ ok: true, blocker: "" });
   });
 
   it("无 repoRoot → fail-open ok:true", async () => {
     expect(await entryGateCleanTree(null)).toEqual({ ok: true, blocker: "" });
+    expect(await entryGateCleanTree(null, { dryRun: true })).toEqual({ ok: true, blocker: "" });
   });
 });
 

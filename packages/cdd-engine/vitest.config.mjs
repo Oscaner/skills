@@ -20,6 +20,11 @@ export default defineConfig({
     // All tests are TypeScript (vitest transforms TS via esbuild); any .mjs regressing
     // back into the engine is caught by the residue mjs-terminal-state guard (block 5c).
     include: ['src/**/__tests__/**/*.test.ts'],
+    // 5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①，P6 T10 文档化前置）：cdd.test.ts /
+    // docs-task.test.ts / cli-shape.test.ts 的部分 dry-run 用例以 REPO_ROOT 为 cwd 黑盒运行 ——
+    // 入口门放行依赖两态之一：真实干净树，或 dirty + dry-run 的 CDD_WARN 降级。跑测试时请勿带着
+    // 脏开发树（未提交改动）执行本套件黑盒用例，除非预期它们断言 CDD_WARN 降级路径；entry gate
+    // 与 dry-run 协议的语义变更需同步 review 这三个文件的用例预期。
     // The suite spawns many node CLI + git subprocesses under a 20-file forks pool; per-test
     // wall time inflates under load (observed >5s on a busy machine). 20s guards the
     // default 5s budget without masking genuinely stuck tests.

@@ -5,7 +5,7 @@
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { execaSync } from "execa";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { setDryRun } from "../shared.ts";
 import path from "node:path";
@@ -600,5 +600,108 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         expect(r.stderr).not.toMatch(/CDD_INFO/);      // 空串哨兵抑制「内容演进」误导消息（gate `&& docHash` 条款）
       } finally { rmSync(dir, { recursive: true, force: true }); }
     });
+  });
+});
+
+// ---- P6 T10：E2②/G4① dry-run 门判 WARN 化 — 脏树 CLI 黑盒「各型」sweep ----
+// 基类默认入口门（dispatch/base.ts commitPreCheck → rules/commit.ts entryGateCleanTree）是 task/docs
+// 两面的单点降级：dirty + dryRun → 不 BLOCK，stderr CDD_WARN 后 exit 0 走完模拟。真实 dispatch 的
+// BLOCKED 语义由 dispatch.*.test.ts 钉住。此处按 CLI 面「各型」各跑一条真仓脏树用例——implement +
+// review/fix × task/spec/plan 共 7 型，任一型漏过单点路径即红。dry-run 的零 liveness（不 spawn /
+// 无 TIMEOUT）断言在 dispatch 层（T14 接口消歧，dispatch.task/dirs.test.ts），本层只断言「CLI 出口
+// 0 + stderr 可断言 WARN」。
+
+// 脏树真仓：基础 fixture 全量提交（干净 Tree 起点）→ tracked.txt 追加造脏（porcelain ` M`）→
+// workspace（.gitignore 收编）对 porcelain 零影响，/种子 findings 不弄脏也非 dirty 源。
+function dirtyFixtureRepo() {
+  const repo = tmpGitRepo();
+  for (const dir of ["docs", "plans"]) mkdirSync(path.join(repo, dir), { recursive: true });
+  writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  writeFileSync(path.join(repo, "docs", "foo-design.md"), "# foo spec\n");
+  writeFileSync(path.join(repo, "plans", "foo.md"), "# P\n\n### Task 1: t\n");
+  execaSync("git", ["-C", repo, "add", "-A"]);
+  execaSync("git", ["-C", repo, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
+    "commit", "-qm", "base"]);
+  appendFileSync(path.join(repo, "tracked.txt"), "dirty\n"); // 造脏：确定性 ` M tracked.txt`
+  return repo;
+}
+
+// 种子 findings 文件（fix --type task 透传 + fix --type spec/plan 的 resolveDocArg 要求存在；
+// 名字需匹配 <type>-review-{n}.json 以派生轮次）。落 .osuperpowers/（gitignored）。
+function seedFindings(repo: string, rel: string): string {
+  const p = path.join(repo, ".osuperpowers", "cdd", rel);
+  mkdirSync(path.dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [], artifacts: {}, doc_path: "" }));
+  return p;
+}
+
+describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => {
+  const assertDryRunWarn = (r: { exitCode: number; stdout: string; stderr: string }) => {
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+  };
+
+  it("implement --dry-run（task 面）: 脏树 exit 0 + H1 APPROVED + WARN", () => {
+    const dir = dirtyFixtureRepo();
+    try {
+      const r = runCli(["--dry-run", "implement", "--task", "1", "--plan", "docs/plan.md"],
+        { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
+      assertDryRunWarn(r);
+      expect(r.stdout).toMatch(/status: APPROVED/);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it("review/fix --type task --dry-run: 脏树 exit 0 + WARN（各一条）", () => {
+    const dir = dirtyFixtureRepo();
+    try {
+      const r = runCli(["--dry-run", "review", "--type", "task", "--task", "1", "--plan", "docs/plan.md"],
+        { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
+      assertDryRunWarn(r);
+      expect(r.stdout).toMatch(/status: APPROVED/);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+
+    const dir2 = dirtyFixtureRepo();
+    try {
+      const findings = seedFindings(dir2, "plan/task-1-review-1.json");
+      const r = runCli(["--dry-run", "fix", "--type", "task", "--task", "1", "--plan", "docs/plan.md", "--findings", findings],
+        { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } });
+      assertDryRunWarn(r);
+      expect(r.stdout).toMatch(/status: APPROVED/);
+    } finally { rmSync(dir2, { recursive: true, force: true }); }
+  });
+
+  it("review/fix --type spec --dry-run: 脏树 exit 0 + WARN（各一条）", () => {
+    const dir = dirtyFixtureRepo();
+    try {
+      const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", "docs/foo-design.md"],
+        { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
+      assertDryRunWarn(r);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+
+    const dir2 = dirtyFixtureRepo();
+    try {
+      const findings = seedFindings(dir2, "foo/spec-review-1.json");
+      const r = runCli(["--dry-run", "fix", "--type", "spec", "--spec", "docs/foo-design.md", "--findings", findings],
+        { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } });
+      assertDryRunWarn(r);
+    } finally { rmSync(dir2, { recursive: true, force: true }); }
+  });
+
+  it("review/fix --type plan --dry-run: 脏树 exit 0 + WARN（各一条）", () => {
+    const dir = dirtyFixtureRepo();
+    try {
+      const r = runCli(["--dry-run", "review", "--type", "plan", "--plan", "plans/foo.md"],
+        { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
+      assertDryRunWarn(r);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+
+    const dir2 = dirtyFixtureRepo();
+    try {
+      const findings = seedFindings(dir2, "foo/plan-review-1.json");
+      const r = runCli(["--dry-run", "fix", "--type", "plan", "--plan", "plans/foo.md", "--findings", findings],
+        { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } });
+      assertDryRunWarn(r);
+    } finally { rmSync(dir2, { recursive: true, force: true }); }
   });
 });

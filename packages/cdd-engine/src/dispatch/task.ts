@@ -812,7 +812,7 @@ export async function runTask(harness: string, taskNum: number, opts: TaskRunOpt
       harness,
       taskNum,
       opts,
-      ctx: { mode: opts.mode ?? "", repoRoot: root, handoffPath: "" },
+      ctx: { mode: opts.mode ?? "", repoRoot: root, handoffPath: "", dryRun: opts.dryRun === true },
     });
     try {
       await lc.run();

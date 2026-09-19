@@ -5,6 +5,10 @@
 //   docs-task --mode fix --template <t>     → cdd fix --type spec|plan [--spec/--plan <path>]
 // P6 T3: docs workspace 全走 resolveWorkspace(doc)（.osuperpowers/cdd/<slug>/）—— 测试须传
 // repo 内 doc 供 workspace 推导；fix round 从 --findings 名解析（<type>-review-{R}.json）。
+// **5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①，P6 T10）**：docs 家族 dry-run（review/
+// fix --type spec|plan）以 cwd=REPO_ROOT 黑盒运行，入口门（rules/commit.ts）放行依赖两态之一——
+// 真实干净树，或 dirty + dry-run 的 CDD_WARN 降级（exit 0，纯模拟）。本文件期望按 E2② 编写；
+// 入口门/dry-run 协议语义变更需同步维护此处（详见 vitest.config.mjs 5b）。
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';

@@ -73,6 +73,32 @@ it("docs review 起点 dirty → 入口门 BLOCKED（dispatch 不进入；spec-r
   expect(lc.timeline).toEqual(["pre-flight", "commitPreCheck"]);
 });
 
+// E2②/G4①（P6 T10）: docs 面 dry-run 在脏树下降级（基类默认门单点，同 task 面）——CDD_WARN 后
+// exit 0；且 dry-run 早退 resolveContext（不 dispatch、不 spawn）→ execa 零调用（无 liveness 介入，
+// T14 接口消歧）+ 不写 handoff。真实 dispatch（上两用例 dryRun 缺省）保持 BLOCKED 语义不变。
+it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 spawn + 不写 handoff", async () => {
+  const repo = setupRepo();
+  appendFileSync(path.join(repo, "tracked.txt"), "dirty\n");
+  const stderrBuf: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  try {
+    const result = await runDocsTask({
+      harness: "ghost", mode: "review", template: "review", type: "spec", doc: path.join(repo, "spec.md"),
+      handoffPath: path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"),
+      repoRoot: repo, dryRun: true,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.handoff?.status).toBe("APPROVED"); // dry-run stub handoff（内存对象，不落盘）
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+  const { execa } = await import("execa");
+  expect(vi.mocked(execa)).not.toHaveBeenCalled(); // 不 spawn → 零 liveness 介入（T14）
+  expect(existsSync(path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"))).toBe(false); // 不写 handoff
+});
+
 it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（CLI 面出口）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, "tracked.txt"), "dirty\n");

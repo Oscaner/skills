@@ -8,6 +8,10 @@
 //（exit 2），且新形态若未落地则 silent-accept 后触发真实 dispatch（副作用）。env 注入
 // CLAUDE_CODE_SESSION_ID="1" 判 host（否则 BLOCK），program 级 argv 前置 `--dry-run` 短路真实
 // harness 调用。
+// **5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①，P6 T10）**：本文件 dry-run smoke 以
+// cwd=REPO_ROOT 黑盒运行，入口门（rules/commit.ts entryGateCleanTree）放行依赖两态之一——真实
+// 干净树，或 dirty + dry-run 的 CDD_WARN 降级（exit 0，纯模拟）。本文件的期望按「脏树也不 BLOCK」
+// 编写（E2② 文档化前置）：入口门/dry-run 协议语义变更需同步维护此处（详见 vitest.config.mjs 5b）。
 import { describe, it, expect, afterAll } from 'vitest';
 import { execaSync } from 'execa';
 import { rmSync } from 'node:fs';

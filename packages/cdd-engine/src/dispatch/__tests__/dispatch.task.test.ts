@@ -6,15 +6,31 @@
 // injected-ctx surface. The full step-1…13.5 behavior matrix stays owned by tests/runner.test.mjs
 // (it drives runTask through every branch); docs-face gate wiring is owned by
 // dispatch.docs.test.ts.
-import { it, expect } from "vitest";
+// E2②（P6 T10）: 入口门 dry-run 降级语义落于基类默认门（dispatch/base.ts）+ rules/commit.ts 单点
+// ——任务面继承，本文件仅钉 runner 面（runTask dryRun 透传 → 降级；真实 dispatch BLOCKED 不变；
+// 零 liveness）与「CLI 黑盒各型」sweep 在 cdd.test.ts。
+import { it, expect, vi } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { TaskLifecycle, runTask } from "../task.ts";
 import { DispatchBlocked } from "../base.ts";
+import { invokeCliWithRetry, resolveTimeoutMs } from "../../infra/invoke.ts";
 import { REG_PATH } from "../../infra/registry.ts";
+
+// E2②/T14 接口消歧（P6 T10）: dry-run 走 run() pre-flight 早退路径，不经过 spawnManaged——断言
+// invokeCliWithRetry（唯一 spawn 通道）与 resolveTimeoutMs（liveness TIMEOUT 预算）在 dry-run
+// 下零调用。本文件全部用例 dryRun:true → 永不触 invoke；mock 为文件级安全加固。
+vi.mock("../../infra/invoke.ts", async () => {
+  const actual = await vi.importActual<typeof import("../../infra/invoke.ts")>("../../infra/invoke.ts");
+  return {
+    ...actual,
+    invokeCliWithRetry: vi.fn(),
+    resolveTimeoutMs: vi.fn(),
+  };
+});
 
 function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -43,27 +59,105 @@ function ghostRegistry(): string {
   return regPath;
 }
 
-it("入口门中止（继承基类）: review 起点 dirty → DispatchBlocked(gate=entry)，dispatch 不进入", async () => {
+it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 不 BLOCK；CDD_WARN 后 run() 走通（exit 0、dispatch 进入、全模板）", async () => {
+  const repo = setupRepo();
+  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+  appendFileSync(path.join(repo, ".gitignore"), "dirty\n"); // 弄脏 tracked 文件（porcelain ` M`）
+  const stderrBuf: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  try {
+    const lc = new TaskLifecycle({
+      harness: "ghost",
+      taskNum: 1,
+      opts: { mode: "review", planFile: "docs/plan.md", dryRun: true, noExit: true, root: repo, registryPath: ghostRegistry() },
+      ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun: true },
+    });
+    await expect(lc.run()).resolves.toBeUndefined();
+    expect(lc.result.exitCode).toBe(0); // 降级非跳过：模拟 exit 0 走完
+    expect(lc.result.h1[0]).toBe("status: APPROVED");
+    // 模板全走（dispatch 进入——唯一 agent 语义步骤被执行；尾步 commitPostCheck 在 dryRun 下跳过退出校验）
+    expect(lc.timeline).toEqual([
+      "pre-flight", "commitPreCheck", "resolveContext", "validateMode",
+      "dispatch", "post-flight", "schemaValidate", "normalizeResult", "commitPostCheck",
+    ]);
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+});
+
+it("真实 dispatch（dryRun=false）起点 dirty → 入口门仍 BLOCKED（E2② 只在 dry-run 降级；门判语义不变）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
   const lc = new TaskLifecycle({
     harness: "ghost",
     taskNum: 1,
-    opts: { mode: "review", planFile: "x.md", dryRun: true, noExit: true, root: repo },
+    opts: { mode: "review", planFile: "x.md", noExit: true, root: repo, registryPath: ghostRegistry() },
     ctx: { mode: "review", repoRoot: repo, handoffPath: "" },
   });
   await expect(lc.run()).rejects.toBeInstanceOf(DispatchBlocked);
-  // The base abort path: pre-flight → commitPreCheck; dispatch (the only agent-semantics step)
-  // never entered.
+  // 中止于 pre-flight —— 唯一 agent 语义步骤未开始（真实 dispatch 不得被干树放过）
   expect(lc.timeline).toEqual(["pre-flight", "commitPreCheck"]);
 });
 
 it("runTask wrapper: 入口门 BLOCKED（noExit=true 进程内缝）→ { exitCode: 1, h1: [] }（非 throw）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "untracked\n");
-  const res = await runTask("ghost", 1, { mode: "review", dryRun: true, planFile: "x.md", root: repo, noExit: true });
+  const res = await runTask("ghost", 1, { mode: "review", planFile: "x.md", root: repo, noExit: true, registryPath: ghostRegistry() });
   expect(res.exitCode).toBe(1);
   expect(res.h1).toEqual([]);
+});
+
+it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + H1 APPROVED + CDD_WARN stderr", async () => {
+  const repo = setupRepo();
+  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+  appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
+  const stderrBuf: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((s: unknown) => { stderrBuf.push(String(s)); return true; }) as typeof process.stderr.write;
+  try {
+    const res = await runTask("ghost", 1, { mode: "review", dryRun: true, planFile: "docs/plan.md", root: repo, noExit: true, registryPath: ghostRegistry() });
+    expect(res.exitCode).toBe(0);
+    expect(res.h1[0]).toBe("status: APPROVED");
+    expect(res.h1).toHaveLength(5);
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  expect(stderrBuf.join("")).toMatch(/CDD_WARN: .*uncommitted changes.*dry-run/);
+});
+
+// E2②/T14 接口消歧: dry-run 路径零 liveness 介入——不 spawn（invokeCliWithRetry 零调用）、不取
+// liveness TIMEOUT 预算（resolveTimeoutMs 零调用）、无 TIMEOUT handoff 写出、timeout 计数不递增。
+// TIMEOUT 扩张仅真实 dispatch——相反面由 runner.test.ts 的「real dispatch + fake sleep → TIMEOUT
+// handoff + timeoutCount++」钉住（425/448），dry-run 若进该路径即静默地破坏消歧契约。
+it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析 timeout / 无 TIMEOUT handoff / timeout=0", async () => {
+  vi.mocked(invokeCliWithRetry).mockClear();
+  vi.mocked(resolveTimeoutMs).mockClear();
+  const repo = setupRepo();
+  mkdirSync(path.join(repo, "docs"), { recursive: true });
+  writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
+  const regPath = ghostRegistry();
+  const res = await runTask("ghost", 1, {
+    mode: "implement", dryRun: true, planFile: "docs/plan.md", root: repo,
+    registryPath: regPath, noExit: true,
+  });
+  expect(res.exitCode).toBe(0);
+  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(vi.mocked(invokeCliWithRetry)).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight 早退，无 spawnManaged
+  expect(vi.mocked(resolveTimeoutMs)).not.toHaveBeenCalled();    // 无 liveness TIMEOUT 预算
+  expect(res.h1[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
+  // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
+  const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
+  expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
 });
 
 it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前；diagnostic 面红线）", async () => {

@@ -2,7 +2,8 @@
 // spec §2.12「抽象基类继承覆写」— abstract-base inheritance point). The lifecycle template method
 // plus default hook implementations: run() walks pre-flight → dispatch → post-flight (phase labels
 // from the phases.ts table), and the commit double gates (双门) hang on the base's DEFAULT hooks —
-// commitPreCheck (入口门, pre-commit clean tree) and commitPostCheck (出口门, validateCommitContract).
+// commitPreCheck (入口门, pre-commit clean tree, dry-run-downgraded since P6 T10/E2②) and
+// commitPostCheck (出口门, validateCommitContract).
 // Concrete subclasses (task.ts / docs.ts) inherit and override the hook they care about; they never
 // touch the hookable registry — engine-internal variants override via inheritance (§2.13), never
 // through this module.
@@ -33,6 +34,10 @@ export interface DispatchContext {
   repoRoot: string | null;
   /** exit-gate commit-contract handoff path (optional — absent → exit gate runs the dirty judgment only) */
   handoffPath?: string;
+  /** dry-run simulation (E2②): the entry gate downgrades a dirty-tree BLOCK to a stderr CDD_WARN
+   * and lets the simulation finish (real dispatch keeps the hard BLOCKED). Threaded by the
+   * concrete runners (runTask / runDocsTask) from their opts.dryRun — never read from env. */
+  dryRun?: boolean;
   /** subclass context extension (task.ts / docs.ts decide their own keys) */
   [key: string]: unknown;
 }
@@ -121,9 +126,17 @@ export abstract class DispatchLifecycle {
 
   /** Entry gate (入口门, pre-commit / pre-flight): clean-tree judgment (rules/commit.ts
    * entryGateCleanTree). dirty → DispatchBlocked(gate="entry"); run aborts in pre-flight and
-   * dispatch is never entered. */
+   * dispatch is never entered. dry-run downgrade (E2②): dirty + ctx.dryRun → the judgment
+   * returns a warn instead of the BLOCKED signal — the warning is printed as a stderr CDD_WARN
+   * and the simulation runs to completion (a zero-side-effect dry run cannot be corrupted by
+   * uncommitted changes; the gate is downgraded, never skipped). */
   protected async commitPreCheck(_hookCtx: DispatchHookContext): Promise<void> {
-    const result = await entryGateCleanTree(this.ctx.repoRoot);
+    const result = await entryGateCleanTree(this.ctx.repoRoot, {
+      dryRun: this.ctx.dryRun === true,
+    });
+    if (result.warn) {
+      process.stderr.write(`CDD_WARN: ${result.warn}\n`);
+    }
     if (!result.ok) throw new DispatchBlocked(result.blocker, "entry");
   }
 
@@ -149,8 +162,14 @@ export abstract class DispatchLifecycle {
   protected async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {}
 
   /** Exit gate (出口门, post-commit / post-flight): validateCommitContract (rules/commit.ts) —
-   * dirty → DispatchBlocked(gate="exit"); the handoff rewrite already happened in the rules layer. */
+   * dirty → DispatchBlocked(gate="exit"); the handoff rewrite already happened in the rules layer.
+   * E2②/G4① (P6 T10): dry-run skips the exit-gate judgment entirely — a dry run does no agent
+   * writes or commits, so its return-time tree state equals the entry state already downgraded to
+   * a stderr CDD_WARN at the pre-flight gate; the return-time-dirty BLOCKED semantic (commit
+   * contract) is real-dispatch-only. task.ts / docs.ts reach the same skip via #finished; the base
+   * default makes the skip explicit (the base remains the single inherited point). */
   protected async commitPostCheck(_hookCtx: DispatchHookContext): Promise<void> {
+    if (this.ctx.dryRun === true) return; // dry-run: no commit contract to validate (pure simulation)
     const result = await validateCommitContract(this.ctx.mode, this.ctx.repoRoot, {
       handoffPath: this.ctx.handoffPath,
     });

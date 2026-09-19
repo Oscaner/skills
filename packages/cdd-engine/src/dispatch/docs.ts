@@ -6,7 +6,9 @@
 // spec-review-2 [2] (docs review/fix dispatch consume the same double gate as the task face;
 // the base implements one, no fork).
 //   Pre-flight:  resolveContext derives root (injected / engine single root) + guards the
-//                canonical handoffPath; dry-run finishes immediately (no gates, no spawn).
+//                canonical handoffPath; dry-run finishes immediately (no spawn, no handoff) —
+//                AFTER the inherited entry gate ran with the E2② downgrade (dirty tree →
+//                stderr CDD_WARN + exit 0; the gate is downgraded, never skipped).
 //   Dispatch:    prompt render (single composition pass: shell schema verbatim + round-context
 //                HANDOFF_WRITE_GATE) → spawn the docs agent CLI.
 //   Post-flight: handoff read + unparseable/schema-invalid BLOCKED handling (writeBlocked) +
@@ -52,7 +54,9 @@ export interface DocsLifecycleOptions {
   findingsPath?: string;
   /** canonical-naming handoff path (handoff-naming derivation; no template fallback) */
   handoffPath?: string;
-  /** dry-run: finish immediately with an APPROVED stub handoff (no gates, no spawn) */
+  /** dry-run: passes the inherited entry gate (dirty tree → stderr CDD_WARN downgrade, E2②),
+   * then finishes immediately with an APPROVED stub handoff (no spawn, no handoff write —
+   * liveness/TIMEOUT paths never engage). */
   dryRun?: boolean;
   /** additional template params from --param KEY=VALUE flags */
   params?: Record<string, string>;
@@ -333,6 +337,9 @@ export async function runDocsTask(options: DocsLifecycleOptions & { dryRun?: boo
         mode: rest.mode,
         repoRoot: rest.repoRoot ?? (dryRun ? null : getRoot()),
         handoffPath: rest.handoffPath,
+        // E2②: the entry gate (inherited default hook) downgrades a dirty tree to a stderr CDD_WARN
+        // on the dry-run path — the base gate reads it from ctx; real dispatch keeps the hard BLOCKED.
+        dryRun,
       },
     });
     try {

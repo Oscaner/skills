@@ -42,6 +42,8 @@ pnpm run version    # apply changesets to bump versions
 >
 > **Engine tests — colocated, all TypeScript:** the engine test suite lives at `packages/cdd-engine/src/**/__tests__/**/*.test.ts` (vitest include `['src/**/__tests__/**/*.test.ts']`; the top-level `tests/` dir is retired and the engine's `.mjs` plane is zero — pinned by the validate 5c residue guard). Run it with `pnpm --filter @oscaner-skills/cdd-engine test`; new tests land colocated with the module they cover.
 
+> **5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4① 文档化前置）:** 部分 CLI 黑盒 dry-run 用例（`cli/__tests__/cdd.test.ts`、`cli/__tests__/cli-shape.test.ts`、`dispatch/__tests__/docs-task.test.ts`）以 `cwd=REPO_ROOT` 在**本仓工作树**上运行，入口门（`rules/commit.ts entryGateCleanTree`）放行依赖两态之一——真实干净树，或 dirty + dry-run 的 `CDD_WARN` 降级（E2②：dry-run 对脏树只 WARN 不 BLOCK，exit 0 走完纯模拟；真实 dispatch 的 BLOCKED 语义不变）。**不要带着未提交改动跑引擎测试套件来「验证」入口门**——dirty 开发树时这些黑盒用例会命中降级路径（仍绿，但不是干净树的断言面）；干净树语义的确定性断言由黑盒 sweep 在独立临时仓上提供。入口门 / dry-run 协议语义变更需同步 review 这三个文件。
+
 > **CRITICAL — emit after every source change:** After editing ANY file under `skills/*/SKILL.md`, `skills/*/docs/*.md`, `docs/*.md`, or `package.json#oscaner-plugin`, you MUST run `pnpm run emit` before committing. Emit products (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/`, `.github/ISSUE_TEMPLATE/`) are **derived output** — never edit them directly. If you forget emit, the CI will fail with emit drift. This is the most common mistake in this repo.
 
 CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (12 validation blocks: emit freshness, plugin.json resolution, skill dirs, engine tests, version sync, overall consistency).

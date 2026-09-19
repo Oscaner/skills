@@ -71,7 +71,7 @@ export function resolveTargetDoc(opts: { type: string; spec?: string; plan?: str
 
 // Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse
 // time (exit 2 + message) instead of letting parseInt leak NaN into runTask and fabricate
-// task-NaN-* artifacts with a false APPROVED H1 (STD-3).
+// task-NaN-* artifacts with a false APPROVED return block (STD-3).
 export function intTask(v: string): number {
   const n = parseInt(v, 10);
   if (isNaN(n)) throw new Error(`--task must be an integer, got: ${v}`);

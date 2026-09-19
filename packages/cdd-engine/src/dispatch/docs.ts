@@ -303,8 +303,13 @@ export class DocsLifecycle extends DispatchLifecycle {
         persistFinalized(handoffPath!, handoff, finalized); // fix-mode verbatim (no injection; negative symmetry)
         this.#handoff = finalized.handoff ?? handoff;
       }
+      // Task 23 ③: the docs round conclusion → exit (BLOCKED → 1, APPROVED/CHANGES_REQUESTED → 0)
+      // — the T14「exit 0 + status BLOCKED」inversion on the docs channel too; the agent's rc is
+      // not the exit authority once the handoff finalizes (the handoff is the docs contract).
+      this.#exitCode = finalized.exitCode;
+    } else {
+      this.#exitCode = this.#agentRc;
     }
-    this.#exitCode = this.#agentRc;
   }
 
   /** Exit gate (出口门) override — docs review/fix dispatch consumes the post-commit gate like the

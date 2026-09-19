@@ -47,7 +47,7 @@ export const PHASES: readonly DispatchPhase[] = [
     id: "dispatch",
     responsibility: "agent session execution — the only agent-semantics black box; engine steps end at spawn",
     steps: [
-      { id: "7", title: "prompt rendering (template + schema verbatim + brief/H1 block)" },
+      { id: "7", title: "prompt rendering (template + schema verbatim + brief/return block)" },
       { id: "8", title: "spawn agent CLI (execa background + timeout)" },
     ],
   },
@@ -59,7 +59,7 @@ export const PHASES: readonly DispatchPhase[] = [
       { id: "8.5", title: "timeout path (write partial handoff, timeoutCount++)" },
       { id: "8.8", title: "handoff schema check (CONTRACT_VIOLATION keeps findings)" },
       { id: "10 / 10.5", title: "failure without handoff → BLOCKED (stderr into blocker)" },
-      { id: "11", title: "H1 four-line parse (status / commits / artifacts / blocker)" },
+      { id: "11", title: "return block parse (status / commits / artifacts / blocker)" },
       { id: "12 / 13", title: "exit normalization (agent_rc / dry-run)" },
       { id: "13.5", title: "review range check (template-contract)" },
     ],

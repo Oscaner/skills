@@ -87,7 +87,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         exitWithCode(2);
       }
       // --base/--head were requiredOption in the old branch-review bin; the inline keeps
-      // that contract — missing values would otherwise render garbage ("undefin" file slugs  + undefined in H1).
+      // that contract — missing values would otherwise render garbage ("undefin" file slugs  + undefined in return block).
       if (!opts.base || !opts.head) {
         process.stderr.write("cdd review --type branch: missing required --base <sha> and --head <sha>\n");
         exitWithCode(2);

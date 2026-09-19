@@ -54,7 +54,7 @@ const returnZoneOf = (prompt: string): string => prompt.slice(heading(prompt, "R
 describe("C1 — assembly order [shell → Return constant → Round context tail]", () => {
   beforeEach(() => resetTemplateCaches());
 
-  it("rendered prompt keeps ## Handoff (last static section) before ## Return; the four-line H1 block only exists in the Return constant", () => {
+  it("rendered prompt keeps ## Handoff (last static section) before ## Return; the four-line return block block only exists in the Return constant", () => {
     for (const mode of ["implement", "fix"] as const) {
       const out = renderModePrompt(mode, IMPLEMENT_PARAMS);
       const handoffIdx = heading(out, "Handoff");
@@ -62,7 +62,7 @@ describe("C1 — assembly order [shell → Return constant → Round context tai
       expect(handoffIdx).toBeGreaterThan(-1);
       expect(retIdx).toBeGreaterThan(handoffIdx);
       expect(heading(out, "Round context")).toBeGreaterThan(retIdx); // 动态区绝对末尾
-      // The shared H1 four-line return contract (RETURN_STDOUT_BLOCK constant body) must be
+      // The shared return block four-line return contract (RETURN_STDOUT_BLOCK constant body) must be
       // tail-only, and the dynamic Round context must be the final `## ` section.
       expect(out.indexOf("status: <APPROVED|BLOCKED>")).toBeGreaterThan(retIdx);
       expect(out.indexOf("status: <APPROVED|BLOCKED>")).toBeGreaterThan(handoffIdx);

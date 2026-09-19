@@ -32,7 +32,7 @@ import { invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { DRY_RUN } from "./shared.ts";
-import { h1CountersLine } from "../artifacts/progress.ts";
+import { returnCountersLine } from "../artifacts/progress.ts";
 
 export interface BranchFixOpts {
   plan: string;
@@ -133,16 +133,16 @@ export async function runBranchFix(opts: BranchFixOpts): Promise<void> {
         task: 1, phase: "fix", status: "APPROVED",
         commits: { base: "dry-run", head: "dry-run" }, findings: [], artifacts: {}, blocker: "dry-run",
       });
-      // 5-line H1 (array-assembled with the h1CountersLine 5th line — same-source with
-      // branch-review.ts's dry-run block and task.ts's h1FourLines/h1FromHandoff).
-      const h1 = [
+      // 5-line return block (array-assembled with the returnCountersLine 5th line — same-source with
+      // branch-review.ts's dry-run block and task.ts's returnFourLines/returnFromHandoff).
+      const returnBlock = [
         "status: APPROVED",
         "commits: base=dry-run head=dry-run",
         "artifacts: ",
         "blocker: dry-run",
-        h1CountersLine(workspace),
+        returnCountersLine(workspace),
       ];
-      for (const line of h1) process.stdout.write(`${line}\n`);
+      for (const line of returnBlock) process.stdout.write(`${line}\n`);
       exitOk();
       return;
     }
@@ -167,7 +167,7 @@ export async function runBranchFix(opts: BranchFixOpts): Promise<void> {
     }
 
     // The fix prompt: task-family shell + RETURN_STDOUT_BLOCK return (the fix agent writes the
-    // handoff + the H1 block; task-family round-context slots minus TASK_NUMBER/TASK_CONSTRAINTS
+    // handoff + the dry-run return block; task-family round-context slots minus TASK_NUMBER/TASK_CONSTRAINTS
     // — empty for the branch family; TASK_BRIEF carries the plan path as the branch-level brief).
     const prompt = renderTemplate("fix", {
       MODE: "fix",
@@ -227,6 +227,8 @@ export async function runBranchFix(opts: BranchFixOpts): Promise<void> {
     }
     // Finalize through the single finalization point (mode=fix → work-type passthrough: the
     // agent-declared status stays, vetoed by the commit-contract layer just below).
+    // Task 23 ③: the fix round conclusion → exit (BLOCKED → 1, APPROVED/CHANGES_REQUESTED → 0) —
+    // captured here, emitted after the clean-tree gate.
     const finalized = await finalizeHandoff({ mode: "fix", agentHandoff: handoff });
     if (finalized.handoff && finalized.handoff !== handoff) writeOwnHandoff(handoffPath, finalized.handoff);
 
@@ -241,6 +243,6 @@ export async function runBranchFix(opts: BranchFixOpts): Promise<void> {
       exitWithCode(1);
     }
 
-    exitOk();
+    exitWithCode(finalized.exitCode);
   });
 }

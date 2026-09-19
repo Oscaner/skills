@@ -144,6 +144,39 @@ describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
   });
 });
 
+// ---- Task 23（P6 / spec F8a）：H1 无语义名守卫 —— 大写词形 + 小写驼峰标识符互补 ----
+
+describe("stale-lexicon：H1 语汇守卫（Task 23 / F8a）", () => {
+  it("大写词形 H1 命中；新语汇 return block 放行", () => {
+    expect(hasHit(["the H1 four-line parse"])).toBe(true);
+    // 下划线是词字符 —— `\bH1\b` 不锚 H1_BLOCK 形（match 语义；补覆盖由 h1 驼峰标识符正则承担，
+    // 大写嵌入形本就不作标识符使用）。断言钉死边界，避免误以为守卫覆盖面更宽。
+    expect(hasHit(["H1_BLOCK"])).toBe(false);
+    expect(hasHit(["return block parse"])).toBe(false);
+    expect(hasHit(["return block `status: BLOCKED`"])).toBe(false);
+  });
+  it("小写 h1 驼峰标识符命中；return* 标识符放行", () => {
+    expect(hasHit(["h1FourLines("])).toBe(true);
+    expect(hasHit(["h1FromHandoff("])).toBe(true);
+    expect(hasHit(["const h1 = ["])).toBe(true);
+    expect(hasHit(["res.h1[0]"])).toBe(true);
+    expect(hasHit(["returnFromHandoff("])).toBe(false);
+    expect(hasHit(["returnCountersLine("])).toBe(false);
+    expect(hasHit(["returnBlock"])).toBe(false);
+  });
+  it("含 h1 标识符的临时文件被 collectStaleLexiconHits 命中（CDD_ENGINE_BIN 面在扫）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-h1-"));
+    writeFileSync(path.join(dir, "note.ts"), "h1FourLines(...)\n", "utf8");
+    try {
+      const hits = collectStaleLexiconHits([dir]);
+      const labels = hits.map((x) => x.label).join("\n");
+      expect(labels).toContain("h1* 标识符");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("live repo：5c 同源扫描零残留", () => {
   it("collectStaleLexiconHits() === []（template-contract.json 与 engine 测试同样入扫）", () => {
     expect(collectStaleLexiconHits()).toEqual([]);

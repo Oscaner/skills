@@ -3,17 +3,20 @@
 // ship in templates/schema/ (task — implement/review/fix/branch-review handoffs; docs — doc
 // review handoffs). Ajv validates against the canonical; the normalize → re-validate unit
 // (T5) keeps CONTRACT_VIOLATION recovery lossless across the three recovery consumers.
-// Status derivation reuse: rollupStatus stays in artifacts/handoff/finalize.ts (its single
-// owner, spec §2.3) — this file never writes a second severity→status mapping. finalize.ts
-// imports normalizeHandoff from here (write-side same-source) — the intended mutual import
-// (both function declarations, each reads no module-level binding of the other; either
+// Status derivation reuse: deriveReviewStatus/rollupStatus stay in artifacts/handoff/finalize.ts
+// (their single owner, spec §2.3) — this file never writes a second severity→status mapping.
+// finalize.ts imports normalizeHandoff from here (write-side same-source) — the intended mutual
+// import (both function declarations, each reads no module-level binding of the other; either
 // evaluation order is safe — same as the legacy schema.mjs↔finalize.mjs pair).
+// Task 23 ①: rule ③ derives through applyDerivedStatus (the same single derive-and-attach point as
+// the review write-back), so a normalized BLOCKED round carries failure_category + real blocker —
+// the normalize → re-validate unit lands on the new「BLOCKED ⇒ blocker | failure_category」allOf.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 
-import { rollupStatus } from "../artifacts/handoff/finalize.ts";
+import { applyDerivedStatus } from "../artifacts/handoff/finalize.ts";
 import { loadEngineConfig } from "../infra/config.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -83,8 +86,9 @@ const objOrEmpty = (o: unknown): Record<string, unknown> =>
 // CONTRACT_VIOLATION recovery path so findings survive in full (AC7 category-level). Three rules:
 //   ① strip undeclared keys (the authoritative key set = schema.properties);
 //   ② blocker: null → omit (schema declares string, null illegal);
-//   ③ review family missing status → derive via findings roll-up (work types never derived:
-//      the schema's else.required forces the agent to declare them).
+//   ③ review family missing status → derive via applyDerivedStatus (work types never derived:
+//      the schema's else.required forces the agent to declare them); the derived BLOCKED lane
+//      carries failure_category + real blocker (Task 23 ① — never a bare BLOCKED fold).
 // Side-effect free: returns a new object, never mutates; non-object input passes through
 // verbatim (the recovery face closes it via objOrEmpty).
 export function normalizeHandoff(
@@ -105,7 +109,22 @@ export function normalizeHandoff(
   }
   const phase = out.phase;
   if (!("status" in out) && (phase === "review" || phase === "branch-review")) {
-    out.status = rollupStatus(arr(out.findings) as Array<{ severity?: string }>, arr(out.unverifiable), arr(out.plan_conflicts)); // ③
+    // ③ derive via applyDerivedStatus (status + BLOCKED carrier). The arr() array-guards first —
+    // deriveReviewStatus/blockedCarrierFor are array-contract code and would throw on raw
+    // non-arrays («findings: 42 » arrives here in the recovery face); only the derivation sees
+    // the guarded copy, the output object keeps the raw values (re-validation catches them).
+    const derived = applyDerivedStatus({
+      ...out,
+      findings: arr(out.findings),
+      unverifiable: arr(out.unverifiable),
+      plan_conflicts: arr(out.plan_conflicts),
+    });
+    if (derived) {
+      out.status = derived.status;
+      for (const ck of ["blocker", "failure_category"] as const) {
+        if (derived[ck] !== undefined) out[ck] = derived[ck];
+      }
+    }
   }
   return out;
 }

@@ -37,8 +37,8 @@ export const isIncompleteDispatch = (id: string | undefined): boolean =>
   FAILURE_CATEGORIES[id ?? ""]?.dispatchIncomplete === true; // 判定源在 canonical（B3）
 
 /**
- * counters() — the single value surface of the H1 `counters` line: counter-bearing categories,
- * in canonical table order, as { field, label }. Task 7's h1CountersLine consumes this so the
+ * counters() — the single value surface of the return block `counters` line: counter-bearing categories,
+ * in canonical table order, as { field, label }. Task 7's returnCountersLine consumes this so the
  * four field names / labels come from the canonical with zero caller-side hand-written literals.
  */
 export const counters = (): Array<{ field: string; label: string }> =>
@@ -69,7 +69,7 @@ export function exhaustedBlocker(category: string, n: number): string | null {
 
 // Single increment + threshold entry: after incrementing, if the category hit its terminal
 // threshold, overwrite the just-written failure handoff's blocker with the terminal shape
-// (H1/status are re-read via h1FromHandoff, so the orchestrator sees the terminal signal).
+// (return block/status are re-read via returnFromHandoff, so the orchestrator sees the terminal signal).
 export function maybeExhaust(progressDir: string, category: string, handoffPath: string): number {
   const n = incrementFailureCounter(progressDir, category);
   const ex = exhaustedBlocker(category, n);

@@ -4,7 +4,7 @@
 //   (legacy review mode)         → cdd review --type task (mode 名归一后 runner CDD_MODE=review)
 //   cdd-task --mode fix          → cdd fix --type task
 // The program-level `--dry-run` flag leads the argv and skips real CLI invocation; runTask still walks
-// registry ship gate / template render / workspace resolution / commit-contract. Asserts H1 four-line
+// registry ship gate / template render / workspace resolution / commit-contract. Asserts return block four-line
 // output + exit codes.
 // P4 §2.3.1 根注入契约（黑盒形）：root = bin preAction 的 initRoot() = cwd 的 git toplevel —— 故每条
 // 用例用 `cwd: <tmp repo>` 把 root 落在自己的真仓里，plan 经 `--plan`（仓根相对）提供。
@@ -65,7 +65,7 @@ function setupWorkspace() {
 const HOST = { CLAUDE_CODE_SESSION_ID: '1' };
 
 describe('cdd implement/review/fix CLI contract', () => {
-  it('dry-run implement → H1 four lines APPROVED + exit 0', () => {
+  it('dry-run implement → return block four lines APPROVED + exit 0', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--task', '1', '--plan', plan],

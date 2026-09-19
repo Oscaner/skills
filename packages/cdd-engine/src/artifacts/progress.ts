@@ -186,16 +186,16 @@ export function migrateIfNeeded(progressDir: string, plan?: string): ProgressDat
   return empty;
 }
 
-/** h1CountersLine(workspace) — the H1 `counters` line's UNIQUE construction point (T7): all three
- * H1 producers (task h1FourLines / h1FromHandoff · branch dry-run block) append through this
+/** returnCountersLine(workspace) — the return block `counters` line's UNIQUE construction point (T7): all three
+ * return block producers (task returnFourLines / returnFromHandoff · branch dry-run block) append through this
  * function, or the task-family 5-line vs branch-family 4-line split has no guard.
  * Reads the four counter fields of <workspace>/progress.json: missing / corrupt file / missing
  * keys each fall back to `0` and never throw (a dry-run first round may not have progress.json
  * yet — the fallback IS the first-round shape). **Read-only, no write side effect**: never
- * paper-over the missing-file zero fallback, never overwrites progress.json on the H1 path.
- * Field names and H1 labels come from src/rules/failure.ts#counters() (T6 canonical) — zero
+ * paper-over the missing-file zero fallback, never overwrites progress.json on the return block path.
+ * Field names and counter labels come from src/rules/failure.ts#counters() (T6 canonical) — zero
  * hand-written counter names / labels here. */
-export function h1CountersLine(workspace: string): string {
+export function returnCountersLine(workspace: string): string {
   const jsonPath = path.join(workspace, "progress.json");
   let data: Record<string, unknown> = {};
   if (existsSync(jsonPath)) {

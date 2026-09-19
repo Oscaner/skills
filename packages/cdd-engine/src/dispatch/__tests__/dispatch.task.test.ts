@@ -15,7 +15,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, ex
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { TaskLifecycle, runTask } from "../task.ts";
+import { TaskLifecycle, runTask, returnFromHandoff } from "../task.ts";
 import { DispatchBlocked } from "../base.ts";
 import { invokeCliWithRetry, resolveTimeoutMs } from "../../infra/invoke.ts";
 import { REG_PATH } from "../../infra/registry.ts";
@@ -81,7 +81,7 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
     });
     await expect(lc.run()).resolves.toBeUndefined();
     expect(lc.result.exitCode).toBe(0); // 降级非跳过：模拟 exit 0 走完
-    expect(lc.result.h1[0]).toBe("status: APPROVED");
+    expect(lc.result.returnBlock[0]).toBe("status: APPROVED");
     // 模板全走（dispatch 进入——唯一 agent 语义步骤被执行；尾步 commitPostCheck 在 dryRun 下跳过退出校验）
     expect(lc.timeline).toEqual([
       "pre-flight", "commitPreCheck", "resolveContext", "validateMode",
@@ -107,15 +107,15 @@ it("真实 dispatch（dryRun=false）起点 dirty → 入口门仍 BLOCKED（E2�
   expect(lc.timeline).toEqual(["pre-flight", "commitPreCheck"]);
 });
 
-it("runTask wrapper: 入口门 BLOCKED（noExit=true 进程内缝）→ { exitCode: 1, h1: [] }（非 throw）", async () => {
+it("runTask wrapper: 入口门 BLOCKED（noExit=true 进程内缝）→ { exitCode: 1, returnBlock: [] }（非 throw）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "untracked\n");
   const res = await runTask("ghost", 1, { mode: "review", planFile: "x.md", root: repo, noExit: true, registryPath: ghostRegistry() });
   expect(res.exitCode).toBe(1);
-  expect(res.h1).toEqual([]);
+  expect(res.returnBlock).toEqual([]);
 });
 
-it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + H1 APPROVED + CDD_WARN stderr", async () => {
+it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block APPROVED + CDD_WARN stderr", async () => {
   const repo = setupRepo();
   mkdirSync(path.join(repo, "docs"), { recursive: true });
   writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
@@ -126,12 +126,43 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + H1 APPROVED + C
   try {
     const res = await runTask("ghost", 1, { mode: "review", dryRun: true, planFile: "docs/plan.md", root: repo, noExit: true, registryPath: ghostRegistry() });
     expect(res.exitCode).toBe(0);
-    expect(res.h1[0]).toBe("status: APPROVED");
-    expect(res.h1).toHaveLength(5);
+    expect(res.returnBlock[0]).toBe("status: APPROVED");
+    expect(res.returnBlock).toHaveLength(5);
   } finally {
     cap.restore();
   }
   expect(cap.text).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`); // mount 前缀 + 单点常量
+});
+
+// ---- returnFromHandoff ④（Task 23 fake killer）: blocker 行只允许真实来源，BLOCKED 无真实原因 → "" ----
+
+it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪造 commit-contract 文案）", () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-"));
+  const hp = path.join(ws, "task-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "BLOCKED", findings: [], artifacts: {} }));
+  const lines = returnFromHandoff(hp, ws);
+  expect(lines[0]).toBe("status: BLOCKED");
+  expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: ");
+  expect(lines.join("\n")).not.toContain("uncommitted changes at return"); // 伪造文案零残留
+});
+
+it("returnFromHandoff ④: 真实 blocker 原样透传；APPROVED 无 blocker → blocker: none", () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh2-"));
+  const hp = path.join(ws, "task-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "APPROVED", blocker: "真实原因", findings: [], artifacts: {} }));
+  const lines = returnFromHandoff(hp, ws);
+  expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: 真实原因");
+  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {} }));
+  const lines2 = returnFromHandoff(hp, ws);
+  expect(lines2.find((l) => l.startsWith("blocker:"))).toBe("blocker: none");
+});
+
+it("returnFromHandoff ④: commit-gate 文案仅当来源 commit-gate（handoff blocker 字段）时输出", () => {
+  const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh3-"));
+  const hp = path.join(ws, "task-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "BLOCKED", blocker: "uncommitted changes at return", findings: [], artifacts: {} }));
+  const lines = returnFromHandoff(hp, ws);
+  expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: uncommitted changes at return");
 });
 
 // E2②/T14 接口消歧: dry-run 路径零 liveness 介入——不 spawn（invokeCliWithRetry 零调用）、不取
@@ -152,10 +183,10 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析 tim
     registryPath: regPath, noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(vi.mocked(invokeCliWithRetry)).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight 早退，无 spawnManaged
   expect(vi.mocked(resolveTimeoutMs)).not.toHaveBeenCalled();    // 无 liveness TIMEOUT 预算
-  expect(res.h1[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
+  expect(res.returnBlock[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
   expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
@@ -176,7 +207,7 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   });
   await lc.run();
   expect(lc.result.exitCode).toBe(1);
-  expect(lc.result.h1).toEqual([]);
+  expect(lc.result.returnBlock).toEqual([]);
   expect(lc.diagnostic?.msg).toMatch(/mode must be implement\|review\|fix/);
   // validateMode rejects in pre-flight: the mode error wins (dispatch body skipped via
   // #finished), while the template walk still records every step (the walk is unconditional —
@@ -187,7 +218,7 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   ]);
 });
 
-it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 H1（counters 行追加）", async () => {
+it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 return block（counters 行追加）", async () => {
   const repo = setupRepo();
   const { mkdirSync } = await import("node:fs");
   mkdirSync(path.join(repo, "docs"), { recursive: true });
@@ -200,9 +231,9 @@ it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 H1（co
     registryPath: regPath, noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
-  expect(res.h1).toHaveLength(5); // status/commits/artifacts/blocker + counters
-  expect(res.h1[4]).toMatch(/^counters: /);
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock).toHaveLength(5); // status/commits/artifacts/blocker + counters
+  expect(res.returnBlock[4]).toMatch(/^counters: /);
 });
 
 it("ctx 注入面: 构造即挂基类双门（子类零注册面接触；ctx 原样可读）", async () => {

@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/dispatch/__tests__/runner.test.ts
-// runTask dry-run: H1 5-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
+// runTask dry-run: return block 5-line + no handoff written (aligns bash — bash dry-run branch does not write handoff).
 // Also locks: ship gate (unknown/not-supported → blocked exit 1); invalid mode rejected;
 // nested CLI failed no handoff → write BLOCKED handoff (stderr into blocker) + exit 1 (aligns bash;
 // stderr-surfacing handoff write is the only sanctioned divergence); commit-contract intercepted → stderr CDD_BLOCKED.
@@ -124,20 +124,20 @@ async function capture(runFn) {
 
 // ---- dry-run scenarios ----
 
-it("runTask: dry-run implement → H1 5-line APPROVED + no handoff written (aligns bash)", async () => {
+it("runTask: dry-run implement → return block 5-line APPROVED + no handoff written (aligns bash)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
-  expect(res.h1.length).toBe(5);
-  expect(res.h1[0]).toBe("status: APPROVED");
-  expect(res.h1[1]).toBe("commits: base=dry-run");
-  expect(res.h1[2]).toMatch(/^artifacts: brief=/);
-  expect(res.h1[3]).toBe("blocker: none");
-  expect(res.h1[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
+  expect(res.returnBlock.length).toBe(5);
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[1]).toBe("commits: base=dry-run");
+  expect(res.returnBlock[2]).toMatch(/^artifacts: brief=/);
+  expect(res.returnBlock[3]).toBe("blocker: none");
+  expect(res.returnBlock[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
   expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
 });
 
-it("runTask: dry-run outputs H1 5 lines to stdout + exit 0", async () => {
+it("runTask: dry-run outputs return block 5 lines to stdout + exit 0", async () => {
   const { repo, planFile } = setupWorkspace();
   const { code, stdout } = await capture(() =>
     runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }),
@@ -171,12 +171,12 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally t
   expect(p1exitAlive()).toBe(0);         // 驻留组已随 finally teardownAll 连根回收
 });
 
-it("runTask: dry-run review/fix modes → H1 APPROVED + no handoff written (aligns bash)", async () => {
+it("runTask: dry-run review/fix modes → return block APPROVED + no handoff written (aligns bash)", async () => {
   for (const mode of ["review", "fix"]) {
     const { repo, planFile, ws } = setupWorkspace();
     const res = await runTask("claude", 1, { mode, dryRun: true, planFile, root: repo, noExit: true });
     expect(res.exitCode).toBe(0);
-    expect(res.h1[0]).toBe("status: APPROVED");
+    expect(res.returnBlock[0]).toBe("status: APPROVED");
     expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
   }
 });
@@ -274,7 +274,7 @@ it("runTask: plan given → brief self-provisioned with TASK_BASE, dry-run exit 
     planFile, root: repo, noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(readFileSync(path.join(ws, "task-1-brief.md"), "utf8")).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
 });
 
@@ -286,7 +286,7 @@ it("runTask: plan path does not exist → '--plan not found' exit 1（resolveDoc
     noExit: true,
   });
   expect(res.exitCode).toBe(1);
-  expect(res.h1).toEqual([]);
+  expect(res.returnBlock).toEqual([]);
 });
 
 // ---- P1 #173: single root authority (injected), no cwd fallback ----
@@ -576,7 +576,7 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
     expect(h).not.toHaveProperty("unknownField");   // 违规键被写侧同源剥除，不留盘
     expect(h.phase).toBe("review");
     expect(h.status).toBe("APPROVED");
-    expect(res.h1[0]).toBe("status: APPROVED");
+    expect(res.returnBlock[0]).toBe("status: APPROVED");
   } finally {
     restore();
   }
@@ -629,7 +629,7 @@ it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 stat
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);                                                  // 不是崩溃逃逸（exit 2）
-    expect(res.h1[0]).toBe("status: BLOCKED");
+    expect(res.returnBlock[0]).toBe("status: BLOCKED");
     const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
@@ -647,7 +647,7 @@ it("runTask Pζ T3: review dry-run without prior implement handoff → exits 0",
   const { repo, planFile } = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "review", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
 });
 
 it("runTask Pζ T3: review fake-CLI round 1 → FIXED_POINT (brief/reference 注入) = implement.json commits.base", async () => {
@@ -690,7 +690,7 @@ it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT no
   }));
   const res = await runTask("claude", 1, { mode: "review", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
 });
 
 it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross-phase fix round), not implement.json", async () => {
@@ -793,12 +793,78 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     expect(h.findings).toEqual([
       { severity: "warn", summary: "w" }, { severity: "nit", summary: "n" },
     ]);
-    // H1 同步从 handoff 重发（h1FromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
-    expect(res.h1[0]).toBe("status: APPROVED");
+    // return block 同步从 handoff 重发（returnFromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
+    expect(res.returnBlock[0]).toBe("status: APPROVED");
     // T5 nit：review 成功 round 缺省 blocker → none（非 commit-contract 缺省文案）
-    // blocker 之后仍有一行 counters（h1[3] 或 h1[2] 视 artifacts 而定，**末行恒为 counters**）
-    expect(res.h1.at(-2)).toMatch(/^blocker: none$/);
-    expect(res.h1.at(-1)).toMatch(/^counters: /);
+    // blocker 之后仍有一行 counters（returnBlock[3] 或 returnBlock[2] 视 artifacts 而定，**末行恒为 counters**）
+    expect(res.returnBlock.at(-2)).toMatch(/^blocker: none$/);
+    expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
+  } finally {
+    restore();
+  }
+});
+
+// ---- Task 23 ①③: T14 复现场景 — unverifiable 折 BLOCKED 必带 carrier + exit 1（反转 exit 0）----
+
+it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVERIFIABLE + 真实 blocker（未验什么/为什么）+ exit 1", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t14-rescene-"));
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"review","findings":[],"unverifiable":[{"claim":"90min 无拖死实证","why":"现场已恢复，无法复核"}],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
+
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "review",
+      planFile, root: repo,
+      registryPath: regPath, noExit: true,
+    });
+    const hp = path.join(ws, "task-1-review-1.json");
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    // ① 三面正交：裸折已死 — carrier 必带 failure_category + 真实 blocker
+    expect(h.status).toBe("BLOCKED");
+    expect(h.failure_category).toBe("UNVERIFIABLE");
+    expect(h.blocker).toContain("90min 无拖死实证");
+    expect(h.blocker).toContain("现场已恢复");
+    // ③ T14 反转: BLOCKED review → exit 1（不再是 exit 0）
+    expect(res.exitCode).toBe(1);
+    // return block 同步: 真实汇总, 不伪造「uncommitted changes at return」
+    expect(res.returnBlock[0]).toBe("status: BLOCKED");
+    expect(res.returnBlock.at(-2)).toBe("blocker: could not verify: 90min 无拖死实证; 现场已恢复，无法复核");
+    expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
+    // 失败轮次不写 complete
+    const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.tasks[0]?.status).not.toBe("complete");
+  } finally {
+    restore();
+  }
+});
+
+// ---- Task 23 ②: §口径 dev-measured 验收项 → accepted-noted（notes 记录, 零 unverifiable 零 BLOCK）----
+
+it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes 记录, 零 unverifiable 零 BLOCK, exit 0", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-dev-measured-"));
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\n` +
+      `printf '%s' '{"task":1,"phase":"review","findings":[{"severity":"warn","summary":"w"}],"notes":"§口径 dev-measured items accepted-noted (evidence-contract); 每一项删除面有残留守卫","artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `exit 0\n`);
+  const regPath = ghostRegistry(ws);
+
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "review",
+      planFile, root: repo,
+      registryPath: regPath, noExit: true,
+    });
+    expect(res.exitCode).toBe(0);
+    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
+    expect(h.status).toBe("APPROVED");
+    expect(h.unverifiable).toBeUndefined();
+    expect(h.blocker).toBeUndefined();
+    expect(res.returnBlock[0]).toBe("status: APPROVED");
   } finally {
     restore();
   }
@@ -866,14 +932,14 @@ it("runTask: 未知 mode → rejected：CDD_MODE must be implement|review|fix", 
   const { repo, planFile } = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "bogus", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(1);
-  expect(res.h1).toEqual([]);
+  expect(res.returnBlock).toEqual([]);
 });
 
-it("runTask: mode review dry-run → H1 APPROVED + no handoff written", async () => {
+it("runTask: mode review dry-run → return block APPROVED + no handoff written", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const res = await runTask("claude", 1, { mode: "review", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(existsSync(path.join(ws, "task-1-review-1.json"))).toBe(false);
 });
 
@@ -888,7 +954,7 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
   expect(validateHandoffSchema({ task: 1, phase: "bogus", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
 });
 
-// ---- T6: implement handoff 实体化 + evidence-gate + H1 h1FromHandoff（commits 单一权威）----
+// ---- T6: implement handoff 实体化 + evidence-gate + return block returnFromHandoff（commits 单一权威）----
 
 // T6 fixture：git repo + 仓根内已 commit 的 plan（`--plan`）+ 干净 tracked 树（commit-contract 前提）。
 // 返回 registry / HEAD 现场；root 经 opts.root 注入，workspace 纯派生 = <repo>/.osuperpowers/cdd/plan。
@@ -931,7 +997,7 @@ async function runT6Ghost(t6, body) {
   }
 }
 
-it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.json（H1 stdout → 文件；commits 单一权威）", async () => {
+it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.json（return block stdout → 文件；commits 单一权威）", async () => {
   const t6 = t6Workspace();
   const report = path.join(t6.ws, "task-1-report.md");
   const tev = path.join(t6.ws, "task-1-test-evidence.json");
@@ -957,14 +1023,14 @@ it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.jso
   expect(h.commits.head).toBe(t6.actualHead);    // git HEAD 权威
   expect(h.findings).toEqual([]);
   expect(h.artifacts.report).toBe(report);
-  expect(h.blocker).toBeUndefined();             // blocker: none → 省略（h1FromHandoff 按 APPROVED 缺省 none）
-  // H1 由实体化 handoff 重发（h1FromHandoff）
-  expect(res.h1[0]).toBe("status: APPROVED");
-  expect(res.h1[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
+  expect(h.blocker).toBeUndefined();             // blocker: none → 省略（returnFromHandoff 按 APPROVED 缺省 none）
+  // return block 由实体化 handoff 重发（returnFromHandoff）
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
 });
 
 it("runTask T6: implement 不写 handoff 也不触发 10.5 BLOCKED（runner 实体化兜底）", async () => {
-  // fake-cli 只回 H1 四行、不写任何文件（连 test-evidence 都没有 → evidence-gate soft WARN）→ 仍 exit 0 + 实体化。
+  // fake-cli 只回 return block 四行、不写任何文件（连 test-evidence 都没有 → evidence-gate soft WARN）→ 仍 exit 0 + 实体化。
   const t6 = t6Workspace();
   const res = await runT6Ghost(t6, [
     "#!/usr/bin/env bash",
@@ -1003,8 +1069,8 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(h.status).toBe("BLOCKED");
   expect(h.blocker).toMatch(/test_evidence gate: hard/);
   expect(h.blocker).toContain("command");
-  // H1 同步为 BLOCKED（h1FromHandoff 与覆写后 handoff 一致）
-  expect(res.h1[0]).toBe("status: BLOCKED");
+  // return block 同步为 BLOCKED（returnFromHandoff 与覆写后 handoff 一致）
+  expect(res.returnBlock[0]).toBe("status: BLOCKED");
   // N② (T9) → T6: implement 实体化 BLOCKED = 引擎自写 BLOCKED → engineSelfWrittenCount
   //（六类分派后不再消耗 recovery 额度 —— engineRecoveryCount 只被 EXECUTION_FAILURE 消耗）
   const progress = JSON.parse(readFileSync(path.join(t6.ws, "progress.json"), "utf8"));
@@ -1012,9 +1078,9 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   expect(progress.engineRecoveryCount).toBe(0);
 });
 
-it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺省 blocker 由实体化 handoff 重发覆写", async () => {
+it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的 commits/缺省 blocker 由实体化 handoff 重发覆写", async () => {
   const t6 = t6Workspace();
-  // agent 谎报 commits + 无 blocker 行 → 最终 H1 必须来自实体化 handoff（brief TASK_BASE + git HEAD + blocker: none）
+  // agent 谎报 commits + 无 blocker 行 → 最终 return block 必须来自实体化 handoff（brief TASK_BASE + git HEAD + blocker: none）
   const res = await runT6Ghost(t6, [
     "#!/usr/bin/env bash",
     "printf '%s\\n' 'status: APPROVED'",
@@ -1023,11 +1089,11 @@ it("runTask T6: H1 输出改用 h1FromHandoff — agent stdout 的 commits/缺�
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  expect(res.h1.length).toBe(5);
-  expect(res.h1[0]).toBe("status: APPROVED");
-  expect(res.h1[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
-  expect(res.h1[3]).toBe("blocker: none");
-  expect(res.h1[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
+  expect(res.returnBlock.length).toBe(5);
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
+  expect(res.returnBlock[3]).toBe("blocker: none");
+  expect(res.returnBlock[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
   const h = JSON.parse(readFileSync(path.join(t6.ws, "task-1-implement.json"), "utf8"));
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.blocker).toBeUndefined();
@@ -1059,7 +1125,7 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
   expect(h.phase).toBe("implement");
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.findings).toEqual([]);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
 });
 
 // ---- T8: post-run validateCommitContract（全 mode 接线）+ task.status=complete 回写 ----
@@ -1112,7 +1178,7 @@ it("runTask T8: review APPROVED → progress task.status=complete（rounds[revie
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
   const progress = JSON.parse(readFileSync(path.join(t8.ws, "progress.json"), "utf8"));
   expect(progress.tasks[0].status).toBe("complete");
   expect(progress.tasks[0].rounds["review"]).toBe(1);
@@ -1132,7 +1198,7 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(1);
-  expect(res.h1[0]).toBe("status: BLOCKED");
+  expect(res.returnBlock[0]).toBe("status: BLOCKED");
   const hp = path.join(t8.ws, "task-1-review-1.json");
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
@@ -1161,7 +1227,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
       registryPath: t8.regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    expect(res.h1[0]).toBe("status: BLOCKED");
+    expect(res.returnBlock[0]).toBe("status: BLOCKED");
     const hp = path.join(t8.ws, "task-1-implement.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("BLOCKED");
@@ -1274,6 +1340,6 @@ it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 cons
     mode: "implement", dryRun: true, planFile: t22.planFile, root: t22.repo, noExit: true,
   });
   expect(res.exitCode).toBe(0);
-  expect(res.h1[0]).toBe("status: APPROVED");
+  expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);
 });

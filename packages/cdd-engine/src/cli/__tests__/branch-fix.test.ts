@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/cli/__tests__/branch-fix.test.ts
 // Task 9 (spec E2①): `cdd fix --type branch` — the branch-level review→fix loop's fix channel.
-//   ① dry-run through the merged single CLI → APPROVED stub branch-fix-{base7}..{head7}-r{R}.json + H1;
+//   ① dry-run through the merged single CLI → APPROVED stub branch-fix-{base7}..{head7}-r{R}.json + return block;
 //   ② usage guards: missing --plan / missing --findings / non-matching findings name → exit 2;
 //   ③ in-process loop closure: a source review handoff (branch-review-{base7}..{head7}-r1.json) →
 //      runBranchFix with a ghost fake-cli (writes the fix handoff + an empty fix commit) → the fix
@@ -31,7 +31,7 @@ const FULL_ID = (c: string) => c.repeat(40);
 
 // ---- ① dry-run (merged single CLI, host harness from the ambient env) ----
 describe('branch-fix dry-run', () => {
-  it('writes APPROVED branch-fix handoff + the 5-line H1 block', () => {
+  it('writes APPROVED branch-fix handoff + the 5-line return block block', () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-bf';
     const planPath = path.join(dir, `${slug}.md`);

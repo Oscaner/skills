@@ -165,11 +165,11 @@ describe('my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
     expect(out).toContain('Write/update `HANDOFF_TARGET` per the schema'); // DOCS_FIX 常量自述
   });
 
-  it('implement 门：本模式不写 handoff —— runner 从 H1 + TASK_BASE + git HEAD 实体化', () => {
+  it('implement 门：本模式不写 handoff —— runner 从 return block + TASK_BASE + git HEAD 实体化', () => {
     const out = fixtureRenders().implement;
     expect(out).toMatch(/This mode does not write `[^`]+task-7-implement\.json`/);   // 槽实值
     expect(out).toContain('does not write a handoff');                                // 壳指令 3
-    expect(out).toContain('the runner materializes it from your H1 four lines');      // 槽散文
+    expect(out).toContain('the runner materializes it from your return block four lines');      // 槽散文
     expect(out).toContain('TASK_BASE');
   });
 });

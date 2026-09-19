@@ -12,14 +12,14 @@
 //               timeout path (partial handoff + counters).
 //   post-flight schemaValidate — steps 8.8/10/10.5: handoff schema recovery (CONTRACT_VIOLATION
 //               keeps findings) + failure-without-handoff BLOCKED writes. normalizeResult — steps
-//               11/12/13: H1 four-line parse, agent-failure exit, implement materialization.
+//               11/12/13: return block four-line parse, agent-failure exit, implement materialization.
 //               commitPostCheck — step 13.5 + review writeback: the exit gate (skipped on
-//               finished rounds / dry-run; failed gate → maybeExhaust + BLOCKED H1), then the
+//               finished rounds / dry-run; failed gate → maybeExhaust + BLOCKED return block), then the
 //               APPROVED-review task.status=complete writeback + round increment (post-gate only —
 //               a dirty failure round never marks complete).
 //
-// H1 four-line output stays exclusive to this file (spec v3): status/commits/artifacts/blocker +
-// the counters line. runTask keeps the legacy { exitCode, h1 } surface ({ noExit } seam) and
+// return block four-line output stays exclusive to this file (spec v3): status/commits/artifacts/blocker +
+// the counters line. runTask keeps the legacy { exitCode, returnBlock } surface ({ noExit } seam) and
 // delegates to the lifecycle.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -42,7 +42,7 @@ import { exitWithCode, ExitRequested } from "../infra/exit.ts";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs, resolveLivenessConfig } from "../infra/invoke.ts";
 import { withLifecycle, type LivenessConfig } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, h1CountersLine } from "../artifacts/progress.ts";
+import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, returnCountersLine } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
 import { validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
 import { FAILURE_CATEGORIES, counterFor, timeoutBlocker } from "../rules/failure.ts";
@@ -92,8 +92,8 @@ export function exhaustedBlocker(category: string, n: number): string | null {
 }
 
 // drop-in increment: after incrementing, if the category hit its terminal threshold, overwrite the
-// just-written failure handoff's blocker with the terminal shape (H1/status re-read via
-// h1FromHandoff, so the orchestrator sees the terminal signal).
+// just-written failure handoff's blocker with the terminal shape (return block/status re-read via
+// returnFromHandoff, so the orchestrator sees the terminal signal).
 export function maybeExhaust(progressDir: string, category: string, handoffPath: string): number {
   const n = incrementFailureCounter(progressDir, category);
   const ex = exhaustedBlocker(category, n);
@@ -241,13 +241,13 @@ export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Re
   };
 }
 
-// ---- H1 output ----
+// ---- return block output ----
 
-/** Aligns _cdd_emit_h1_four_lines: picks the last ^key: line from agent stdout; missing →
+/** Aligns the legacy bash four-line emitter: picks the last ^key: line from agent stdout; missing →
  * "<missing>". T7: a workspace arg was added — the 5th counters line appends via
- * h1CountersLine(workspace) (stdout + res.h1 share this one source; agent never produces
+ * returnCountersLine(workspace) (stdout + res.returnBlock share this one source; agent never produces
  * counters — canonical: the engine owns the count). */
-export function h1FourLines(raw: string, workspace: string): string[] {
+export function returnFourLines(raw: string, workspace: string): string[] {
   const lines = String(raw).split("\n");
   const keys = ["status", "commits", "artifacts", "blocker"];
   const out: string[] = [];
@@ -261,28 +261,31 @@ export function h1FourLines(raw: string, workspace: string): string[] {
     }
     out.push(found ?? `${key}: <missing>`);
   }
-  out.push(h1CountersLine(workspace));
+  out.push(returnCountersLine(workspace));
   return out;
 }
 
-// Blocker default single point (T6 nit4): APPROVED / CHANGES_REQUESTED → "none"; otherwise the
-// commit-contract default text.
-function defaultBlockerFor(status: string | undefined): string {
-  return status === "APPROVED" || status === "CHANGES_REQUESTED"
-    ? "none"
-    : "uncommitted changes at return";
+// Blocker default (Task 23 ④, fake killer): real-only emission — the return-block blocker line
+// carries only real sources (agent-declared / engine gate reason / failure mechanism /
+// unverifiable-notes summary whatever the handoff declares). APPROVED / CHANGES_REQUESTED without
+// one → "none" (the success terminal default); BLOCKED with no real reason → "" — never invent a
+// fake blocker (the schema allOf grounds BLOCKED on blocker|failure_category; the old fabricated
+// "uncommitted changes at return" route is dead — that gate text only ever appears when the
+// commit-contract REALLY wrote it into the handoff's blocker).
+function blockerDefaultFor(status: string | undefined): string {
+  return status === "APPROVED" || status === "CHANGES_REQUESTED" ? "none" : "";
 }
 
 /** Aligns _cdd_emit_h1_from_handoff (no jq dependency): reads the handoff JSON; missing/corrupt →
  * BLOCKED fallback. artifacts emitted only when present. T7: 5th counters line appended via
- * h1CountersLine(workspace). */
-export function h1FromHandoff(handoffPath: string, workspace: string): string[] {
+ * returnCountersLine(workspace). */
+export function returnFromHandoff(handoffPath: string, workspace: string): string[] {
   if (!handoffPath || !existsSync(handoffPath)) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors", workspace);
+    return returnFourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors", workspace);
   }
   const h = readJson(handoffPath);
   if (!h) {
-    return h1FourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch", workspace);
+    return returnFourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch", workspace);
   }
   const out = [
     `status: ${(h.status as string) ?? "BLOCKED"}`,
@@ -294,15 +297,15 @@ export function h1FromHandoff(handoffPath: string, workspace: string): string[] 
     if (art[key]) arts.push(`${key}=${String(art[key])}`);
   }
   if (arts.length > 0) out.push(`artifacts: ${arts.join(" ")}`);
-  out.push(`blocker: ${(h.blocker as string) ?? defaultBlockerFor(h.status as string)}`);
-  out.push(h1CountersLine(workspace));
+  out.push(`blocker: ${(h.blocker as string) ?? blockerDefaultFor(h.status as string)}`);
+  out.push(returnCountersLine(workspace));
   return out;
 }
 
 // ---- dry-run simulation ----
 
-// Aligns the bash dry-run branch's hardcoded H1 block (dry-run short-circuits the dispatch).
-function dryRunH1Block(ctx: TaskDispatchContext, taskNum: number): string {
+// Aligns the bash dry-run branch's hardcoded dry-run return block (dry-run short-circuits the dispatch).
+function dryRunReturnBlock(ctx: TaskDispatchContext, taskNum: number): string {
   return [
     "status: APPROVED",
     "commits: base=dry-run",
@@ -329,7 +332,7 @@ export interface TaskRunOptions {
 
 interface TaskResult {
   exitCode: number;
-  h1: string[];
+  returnBlock: string[];
 }
 
 interface TaskDiagnostic {
@@ -353,7 +356,7 @@ interface TaskSpawnResult {
 
 /** TaskLifecycle — the task-function lifecycle class. All 13.5 steps of the legacy run-task.mjs
  * relocate into the hook overrides; the entry/exit gates are inherited from the base. Results
- * surface via .result ({ exitCode, h1 }) + .diagnostic (stderr message) after run(). */
+ * surface via .result ({ exitCode, returnBlock }) + .diagnostic (stderr message) after run(). */
 export class TaskLifecycle extends DispatchLifecycle {
   readonly #harness: string;
   readonly #taskNum: number;
@@ -365,7 +368,7 @@ export class TaskLifecycle extends DispatchLifecycle {
   #agentOut = "";
   #agentRc = 0;
   #timeoutMs: number | undefined;
-  #h1: string[] = [];
+  #returnBlock: string[] = [];
   #exitCode = -1;
   #diagnostic: TaskDiagnostic | null = null;
   #finished = false;
@@ -385,20 +388,20 @@ export class TaskLifecycle extends DispatchLifecycle {
     return this.#opts.mode ?? "";
   }
 
-  /** runTask-compat result surface — { exitCode, h1 } read after run(). */
+  /** runTask-compat result surface — { exitCode, returnBlock } read after run(). */
   get result(): TaskResult {
-    return { exitCode: this.#exitCode, h1: [...this.#h1] };
+    return { exitCode: this.#exitCode, returnBlock: [...this.#returnBlock] };
   }
 
-  /** stderr diagnostic ({ prefix, msg }) for the wrapper to emit before the H1 lines; null for
+  /** stderr diagnostic ({ prefix, msg }) for the wrapper to emit before the return block lines; null for
    * silent exits (OK / agent-failed-with-handoff). */
   get diagnostic(): TaskDiagnostic | null {
     return this.#diagnostic;
   }
 
-  #done(exitCode: number, h1: string[], msg = "", prefix = "CDD_BLOCKED"): void {
+  #done(exitCode: number, returnBlock: string[], msg = "", prefix = "CDD_BLOCKED"): void {
     this.#exitCode = exitCode;
-    this.#h1 = h1;
+    this.#returnBlock = returnBlock;
     this.#diagnostic = msg ? { prefix, msg } : null;
     this.#finished = true;
   }
@@ -552,7 +555,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     let stalled = false;          // T14: liveness monitor killed the group (stall, not budget timeout)
     let idleWindowMs: number | undefined; // T14 stall blocker detail (monitor idle window)
     if (dryRun) {
-      agentOut = dryRunH1Block(ctx, this.#taskNum);
+      agentOut = dryRunReturnBlock(ctx, this.#taskNum);
     } else {
       const timeoutMs = resolveTimeoutMs(this.#hostEnv(), "task");
       this.#timeoutMs = timeoutMs;
@@ -617,7 +620,7 @@ export class TaskLifecycle extends DispatchLifecycle {
           incrementRound(progressDir, this.#taskNum, mode);
           maybeExhaust(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id, ctx.handoffPath); // engine-self-written → engineSelfWrittenCount (not recovery quota)
         }
-        this.#done(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), "process unkillable");
+        this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), "process unkillable");
         return;
       }
       // Normal timeout (budget exceeded OR liveness stall): TIMEOUT partial handoff. The blocker
@@ -639,7 +642,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // FAILURE_CATEGORIES (replaces the legacy timeoutCount++ three-liner, T6 zero hand-written
       // counter literals).
       maybeExhaust(progressDir, FAILURE_CATEGORIES.TIMEOUT.id, ctx.handoffPath);
-      this.#done(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `cli timed out after ${timeoutMs}ms`);
+      this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `cli timed out after ${timeoutMs}ms`);
       return;
     }
   }
@@ -664,7 +667,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     // 8.8 Handoff JSON Schema validation — reject malformed handoffs before downstream processing.
     // T7: implement-gated (mode !== "implement") — the HANDOFF path is not an implement input
     // channel (the engine is the implement carrier's sole author; the implement agent writes no
-    // handoff; step 13 materializes it from H1 + TASK_BASE + HEAD). review/fix keep the read +
+    // handoff; step 13 materializes it from return block + TASK_BASE + HEAD). review/fix keep the read +
     // validation (the agent is the content author; findings content contract).
     if (mode !== "implement") {
       const existingHandoff = readJson(ctx.handoffPath);
@@ -696,14 +699,14 @@ export class TaskLifecycle extends DispatchLifecycle {
               incrementRound(progressDir, this.#taskNum, mode);
               maybeExhaust(progressDir, FAILURE_CATEGORIES.CONTRACT_VIOLATION.id, ctx.handoffPath); // format error on the producing side
             }
-            this.#done(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `schema validation failed${rec.reason}`);
+            this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `schema validation failed${rec.reason}`);
             return;
           }
         }
       }
     }
 
-    // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + H1 +
+    // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + return block +
     //     the CDD_BLOCKED diagnostic + exit 1.
     if (this.#agentRc !== 0 && !existsSync(ctx.handoffPath)) {
       writeHandoff(ctx.handoffPath, {
@@ -720,7 +723,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         incrementRound(progressDir, this.#taskNum, mode);
         incrementRecovery(progressDir); // REAL execution failure (not timeout / not engine-written) → EXECUTION_FAILURE — the only recovery-quota consumer (AC7)
       }
-      this.#done(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `cli exited ${this.#agentRc} and handoff missing`);
+      this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `cli exited ${this.#agentRc} and handoff missing`);
       return;
     }
 
@@ -741,12 +744,12 @@ export class TaskLifecycle extends DispatchLifecycle {
       });
       incrementRound(progressDir, this.#taskNum, mode);
       maybeExhaust(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id, ctx.handoffPath); // engine-written BLOCKED (exit 0 without handoff)
-      this.#done(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), `${mode} agent did not write handoff`);
+      this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `${mode} agent did not write handoff`);
       return;
     }
   }
 
-  /** Steps 11/12/13: H1 four-line parse → agent-failure exit → implement materialization
+  /** Steps 11/12/13: return block four-line parse → agent-failure exit → implement materialization
    * (dry-run writes no handoff — aligned with bash). */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
@@ -755,12 +758,12 @@ export class TaskLifecycle extends DispatchLifecycle {
     const ctx = this.#tcx!;
     const progressDir = path.dirname(ctx.ledgerPath);
 
-    // 11. H1 four lines (from the agent stdout / dry-run block)
-    let h1 = h1FourLines(this.#agentOut, ctx.workspace);
+    // 11. return block four lines (from the agent stdout / dry-run block)
+    let returnBlock = returnFourLines(this.#agentOut, ctx.workspace);
 
-    // 12. Agent failed but handoff exists → exit agent_rc (raw H1 stays from agent stdout).
+    // 12. Agent failed but handoff exists → exit agent_rc (raw return block stays from agent stdout).
     if (this.#agentRc !== 0) {
-      this.#done(this.#agentRc, h1, "");
+      this.#done(this.#agentRc, returnBlock, "");
       return;
     }
 
@@ -768,14 +771,14 @@ export class TaskLifecycle extends DispatchLifecycle {
     //     T5: status single authority — the review-type handoff is derived/overwritten by the
     //     engine at finalization (SP-4 exempts failure rounds). T6: implement materializes — the
     //     agent writes no handoff (implement.md dropped the Handoff Output section), the runner
-    //     builds task-N-implement.json from the H1 four lines + brief TASK_BASE + git HEAD;
+    //     builds task-N-implement.json from the return block four lines + brief TASK_BASE + git HEAD;
     //     evidence-gate read-back (behavior_change:true → hard; else soft WARN). T7: the carrier
     //     comes home to the engine — implement/review finalize through finalizeHandoff,
-    //     writeOwnHandoff full-replace, H1 always re-emits from h1FromHandoff.
+    //     writeOwnHandoff full-replace, return block always re-emits from returnFromHandoff.
     if (!dryRun && mode === "implement") {
       const finalized = await finalizeHandoff({
         mode,
-        h1,
+        returnBlock,
         brief: ctx.briefPath,
         repoRoot: this.#root,
         workspace: ctx.workspace,
@@ -783,19 +786,19 @@ export class TaskLifecycle extends DispatchLifecycle {
       });
       if (finalized.handoff) {
         writeOwnHandoff(ctx.handoffPath, finalized.handoff);
-        h1 = h1FromHandoff(ctx.handoffPath, ctx.workspace);
-        // Materialized H1 and handoff/exit align: hard gate or an agent-declared BLOCKED → exit 1.
+        returnBlock = returnFromHandoff(ctx.handoffPath, ctx.workspace);
+        // Materialized return block and handoff/exit align: hard gate or an agent-declared BLOCKED → exit 1.
         if (finalized.exitCode !== 0) {
           maybeExhaust(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id, ctx.handoffPath);
-          this.#done(finalized.exitCode, h1, "");
+          this.#done(finalized.exitCode, returnBlock, "");
           return;
         }
       }
       // Degradation exception (T6 nit2, documented): missing brief / no TASK_BASE line →
       // finalizeHandoff materializes nothing (handoff:null + stderr CDD_WARN; the agent's original
-      // H1 stays). dry-run and smoke chains both land here — an ENOENT must never crash the runner.
+      // return block stays). dry-run and smoke chains both land here — an ENOENT must never crash the runner.
     }
-    this.#h1 = h1;
+    this.#returnBlock = returnBlock;
   }
 
   /** Step 13.5 + post-gate writeback: the exit gate (validateCommitContract) runs for every
@@ -817,7 +820,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       const cv = await validateCommitContract(mode, this.#root, { handoffPath: ctx.handoffPath });
       if (!cv.ok) {
         maybeExhaust(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id, ctx.handoffPath); // commit-contract rewrite → engineSelfWrittenCount
-        this.#done(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), cv.blocker);
+        this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), cv.blocker);
         return;
       }
     }
@@ -825,18 +828,21 @@ export class TaskLifecycle extends DispatchLifecycle {
     // T5/T7: status single authority — the review-type handoff is finalized by the engine
     // (finalizeHandoff rollup overwrites the agent-declared status, SP-4 exempts failure rounds);
     // the success path reads the finalized handoff and persists it (writeOwnHandoff full-replace),
-    // and re-emits H1 from h1FromHandoff.
-    // T8: APPROVED review writeback → progress task.status=complete (after the gate — a dirty
-    // failure round never marks complete).
-    if (!dryRun && mode === "review") {
-      const reviewHandoff = readJson(ctx.handoffPath);
-      if (reviewHandoff) {
-        const finalized = await finalizeHandoff({ mode, agentHandoff: reviewHandoff });
+    // and re-emits return block from returnFromHandoff.
+    // Task 23 ③: review + fix both finalize here and take the round conclusion → exit
+    // (BLOCKED → 1 on any channel, APPROVED/CHANGES_REQUESTED → 0). finalizeHandoff review derives
+    // status + the BLOCKED carrier; fix passes the work-type's declared status through. The
+    // implement mode normalized its own exit in normalizeResult (materialization).
+    let finalized: { handoff: Record<string, unknown> | null; exitCode: number } | null = null;
+    if (!dryRun && (mode === "review" || mode === "fix")) {
+      const handoff = readJson(ctx.handoffPath);
+      if (handoff) {
+        finalized = await finalizeHandoff({ mode, agentHandoff: handoff });
         // persistFinalized: derivation unchanged (same reference) → skip the write (no no-op
         // overwrite); changed → full-replace + sync.
-        persistFinalized(ctx.handoffPath, reviewHandoff, finalized);
-        this.#h1 = h1FromHandoff(ctx.handoffPath, ctx.workspace);
-        if (normalizeHandoffStatus(reviewHandoff.status as string) === "APPROVED") {
+        persistFinalized(ctx.handoffPath, handoff, finalized);
+        this.#returnBlock = returnFromHandoff(ctx.handoffPath, ctx.workspace);
+        if (mode === "review" && normalizeHandoffStatus(handoff.status as string) === "APPROVED") {
           // T7: this read stays single-arg — at review-success execution progress.json already
           // exists (plan recorded at the init point); plan no longer participates in
           // createEmptyProgress derivation.
@@ -852,14 +858,16 @@ export class TaskLifecycle extends DispatchLifecycle {
       }
     }
     if (!dryRun && mode !== "implement") incrementRound(progressDir, this.#taskNum, mode);
-    this.#done(0, this.#h1, "");
+    // exit mastered by finalizeHandoff's round conclusion — the T14「exit 0 + status BLOCKED」
+    // inversion dies here (a BLOCKED-derived review or a fix declaring BLOCKED → 1).
+    this.#done(finalized?.exitCode ?? 0, this.#returnBlock, "");
   }
 }
 
-/** runTask — legacy surface kept ({ exitCode, h1 }; noExit=true suppresses the stdout/stderr +
+/** runTask — legacy surface kept ({ exitCode, returnBlock }; noExit=true suppresses the stdout/stderr +
  * exit-throw: the unit-test seam). Builds the injected ctx, runs TaskLifecycle, converts an
- * entry-gate DispatchBlocked into a CDD_BLOCKED stderr + exit 1 (or a { exitCode: 1, h1: [] } in
- * noExit mode); on the normal path writes the diagnostic + H1 lines + exits via exitWithCode when
+ * entry-gate DispatchBlocked into a CDD_BLOCKED stderr + exit 1 (or a { exitCode: 1, returnBlock: [] } in
+ * noExit mode); on the normal path writes the diagnostic + return block lines + exits via exitWithCode when
  * noExit=false. */
 export async function runTask(harness: string, taskNum: number, opts: TaskRunOptions = {}): Promise<TaskResult> {
   return withLifecycle(async () => {
@@ -878,20 +886,20 @@ export async function runTask(harness: string, taskNum: number, opts: TaskRunOpt
       // Entry gate (pre-flight): no handoff exists yet — the CLI face maps it to exit 1 (base.ts
       // contract); noExit=... preserves the in-process seam.
       if (e instanceof DispatchBlocked && e.gate === "entry") {
-        if (opts.noExit) return { exitCode: 1, h1: [] };
+        if (opts.noExit) return { exitCode: 1, returnBlock: [] };
         process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
         exitWithCode(1);
       }
       throw e;
     }
-    const { exitCode, h1 } = lc.result;
+    const { exitCode, returnBlock } = lc.result;
     const diag = lc.diagnostic;
     if (!opts.noExit) {
       if (diag) process.stderr.write(`${diag.prefix}: ${diag.msg}\n`);
-      for (const line of h1) process.stdout.write(`${line}\n`);
+      for (const line of returnBlock) process.stdout.write(`${line}\n`);
       exitWithCode(exitCode);
     }
-    return { exitCode, h1 };
+    return { exitCode, returnBlock };
   });
 }
 

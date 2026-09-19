@@ -107,6 +107,15 @@ const STALE_LEXICON_CHECKS = [
   { label: "vendors/ 自维护路径形回渗", re: /vendors\//, scope: ALL_MECH_POSITIONS },
   { label: "publish-vendor 词形回渗", re: /\bpublish-vendor\b/, scope: ALL_MECH_POSITIONS },
   { label: "submodule 词形回渗", re: /\bsubmodule[s]?\b/, scope: ALL_MECH_POSITIONS },
+  // Task 23（P6，spec F8a）：H1 无语义名机制面守卫（零豁免）。两条互补：`\bH1\b` 命裸大写词
+  // `H1`（词边界两侧——`1` 后须非词字符，故 `H1_BLOCK` 的 `_` 是词字符、不命中，下划线被
+  // 下半条小写面覆盖）；`/\bh1(?=[A-Z]|\b)/` 命 src 侧小写驼峰标识符（h1FromHandoff /
+  // h1FourLines / h1Blocker / h1CountersLine / #h1 / res.h1），零豁免——F8a 语义化后
+  // return* 面不得再残留旧词形。scope 分层：大写面全机制位置（src + templates + skills 正文，
+  // F8a 语义化后 prompt 正文零 H1）；小写标识符面只入 src（CDD_ENGINE_BIN）——skills 面从未
+  // 使用 h1* 小写标识符，无回渗面。正则均不锚新语汇（return block / returnFourLines 等），无自噬。
+  { label: "H1 语汇（残）（F8a 语义化后）", re: /\bH1\b/, scope: ALL_MECH_POSITIONS },
+  { label: "h1* 标识符（残）（F8a 语义化后）", re: /\bh1(?=[A-Z]|\b)/, scope: CDD_ENGINE_BIN },
 ];
 
 // T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。
@@ -567,7 +576,7 @@ export function collectCountersContractHits({
     for (const fld of COUNTER_FIELDS) {
       if (props.includes(fld)) hits.push({ label: `counter ${fld} 泄漏进 ${name} handoff schema（counters 不进契约）`, file: schemaPath });
     }
-    const expected = name === "task" ? 14 : 9;
+    const expected = name === "task" ? 14 : 11;
     if (props.length !== expected || !props.includes("failure_category")) {
       hits.push({ label: `${name} handoff schema properties 计数 ${props.length} ≠ ${expected}（除 failure_category 外不得增减）`, file: schemaPath });
     }

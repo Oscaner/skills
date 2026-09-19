@@ -16,7 +16,7 @@ vi.mock("execa", () => ({ execa: vi.fn() }));
 
 vi.mock("../../artifacts/handoff/write.ts", async () => {
   // write 三件（contract.mjs 符号拆分后独立文件）：writeHandoff/writeOwnHandoff mock（不落盘），
-  // readJson 走真实实现（h1FromHandoff 等读回路径）。
+  // readJson 走真实实现（returnFromHandoff 等读回路径）。
   const actual = await vi.importActual("../../artifacts/handoff/write.ts");
   return {
     ...actual,

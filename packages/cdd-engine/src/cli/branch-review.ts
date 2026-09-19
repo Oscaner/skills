@@ -16,7 +16,7 @@ import { invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { exitOk, exitBlocked, exitCliMissing, exitWithCode } from "../infra/exit.ts";
 import { DRY_RUN, reviewStoppingGuard } from "./shared.ts";
-import { h1CountersLine } from "../artifacts/progress.ts";
+import { returnCountersLine } from "../artifacts/progress.ts";
 
 export interface BranchReviewOpts {
   plan: string;
@@ -125,27 +125,27 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
         task: 1, phase: "branch-review", status: "APPROVED",
         commits: { base, head }, findings: [], artifacts: {}, blocker: "dry-run",
       });
-      // T7 (the third H1 producer): the branch dry-run H1 is array-assembled with h1CountersLine
-      // (workspace) appended as the 5th line — same-source as h1FourLines / h1FromHandoff via
-      // src/artifacts/progress.ts#h1CountersLine (the unique construction point); out of sync,
+      // T7 (the third return block producer): the branch dry-run return block is array-assembled with returnCountersLine
+      // (workspace) appended as the 5th line — same-source as returnFourLines / returnFromHandoff via
+      // src/artifacts/progress.ts#returnCountersLine (the unique construction point); out of sync,
       // the task family's 5-line vs branch family's 4-line would fork (the 5th counters-presence
       // assertion in scripts/validate/smoke-cdd.mjs is exactly this). workspace is in scope of
       // the writeHandoff at :72-75.
-      const h1 = [
+      const returnBlock = [
         "status: APPROVED",
         `commits: base=${base} head=${head}`,
         "artifacts: ",
         "blocker: dry-run",
-        h1CountersLine(workspace),
+        returnCountersLine(workspace),
       ];
-      for (const line of h1) process.stdout.write(`${line}\n`);
+      for (const line of returnBlock) process.stdout.write(`${line}\n`);
       exitOk();
       return;
     }
 
     // branch review routes through the docs-family shell (Task 20: docs/review.md is gone; the
     // unified constant shell + RETURN_FORMAT-driven return constant + round-context slots, data-
-    // forced by the contract) + the H1 four-line contract. MODE routes the mode-union round-context;
+    // forced by the contract) + the return block four-line contract. MODE routes the mode-union round-context;
     // the schema lives verbatim in the shell (no {{HANDOFF_SCHEMA_JSON}} replace remains).
     const cfg = reviewTypeConfig("branch");
     const art = reviewArtifactConfig("branch");
@@ -215,8 +215,12 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
       // the finalized write uses writeOwnHandoff (the engine is the carrier's sole author,
       // full-replace). The three consumers (runner/docs-runner/cdd) share the same
       // finalizeHandoff single point, each not wired separately.
+      // Task 23 ③: the exit comes from the finalized round conclusion (BLOCKED → 1,
+      // APPROVED/CHANGES_REQUESTED → 0) — exitOk() stays for the approved branch.
       const finalized = await finalizeHandoff({ mode: "review", agentHandoff: handoff });
       if (finalized.handoff && finalized.handoff !== handoff) writeOwnHandoff(handoffPath, finalized.handoff);
+      exitWithCode(finalized.exitCode);
+      return;
     }
 
     exitOk();

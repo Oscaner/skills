@@ -1,6 +1,11 @@
 // packages/cdd-engine/src/artifacts/handoff/finalize.ts — handoff carrier finalization single point
 // (T7; Task 8 TS port of finalize.mjs): agent content → finalized handoff → full-replace write →
-// H1 re-emit. Peer of handoff/naming (finalization is an independent concern).
+// return block re-emit. Peer of handoff/naming (finalization is an independent concern).
+// Task 23: ① three-surface orthogonalization — status (round conclusion) vs failure_category
+// (mechanism channel) vs unverifiable[]/plan_conflicts[] (content notes) never fold: the derived
+// BLOCKED lane carries blockedCarrierFor (category + real blocker). ③ statusExitCode maps the
+// round conclusion to the runner exit (BLOCKED → 1 on any channel). ④ the materialized return
+// blocker stays real-only (returnBlocker; no fabricated default). ⑤ return-block naming.
 // Architecture: the engine is the carrier's single author (T5/T6/T7 unified); the agent only
 // contributes content slices (findings/blocker/artifacts/notes).
 // Dispatch per canonical family `status` rule (plan-constraints「status 单一权威」):
@@ -27,6 +32,7 @@ import path from "node:path";
 import { gitRevParseHead } from "../../infra/git.ts";
 import { readJson, writeOwnHandoff } from "./write.ts";
 import { normalizeHandoff } from "../../rules/schema.ts";
+import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
 
@@ -101,21 +107,87 @@ export function deriveReviewStatus(handoff: Record<string, unknown> = {}): strin
   return rollupStatus(findings as Array<{ severity?: string }>, unverifiable as unknown[], planConflicts as unknown[]);
 }
 
-/** Unified read-back entry: status needs overwrite → returns the overwritten new handoff (original
- * untouched); no change → null (caller skips the write). */
-export function applyDerivedStatus(handoff: Record<string, unknown> = {}): Record<string, unknown> | null {
-  const d = deriveReviewStatus(handoff);
-  return d === handoff.status ? null : { ...handoff, status: d };
+/** Round conclusion → runner exit (Task 23 ③: BLOCKED → exit 1 on any channel — the T14
+ * 「exit 0 + status BLOCKED」inversion). APPROVED / CHANGES_REQUESTED → 0 (terminal review
+ * conclusions; the fix loop continues on its own pass); every other conclusion (BLOCKED /
+ * TIMEOUT / absent) → 1. Single mapping point shared by dispatch/task.ts, dispatch/docs.ts and
+ * the branch-review/fix CLIs. */
+export function statusExitCode(status: string | undefined): number {
+  return status === "APPROVED" || status === "CHANGES_REQUESTED" ? 0 : 1;
 }
 
-/** Finalization single entry: dispatch per mode → { handoff, exitCode }. H1 re-emits from the
- * finalized h1FromHandoff at the consumer. Three consumers share this implementation (runner step
- * 13 / docs-runner read-back / branch review read-back).
+/** One unverifiable/plan-conflict entry → its compact text. Entries may be strings or objects
+ * (claim / why / summary / item / description / section forms); object entries join all present
+ * fields in a deterministic order so a "what + why" entry keeps both halves (the what/why blocker
+ * contract — a single-key pick would drop the why). */
+function entrySummary(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    const parts = ["summary", "claim", "item", "description", "section", "why"]
+      .map((k) => (k in o && o[k] != null ? String(o[k]) : ""))
+      .filter((s) => s.length > 0);
+    return parts.length > 0 ? parts.join("; ") : JSON.stringify(o);
+  }
+  return String(v);
+}
+
+/** BLOCKED carrier single point (Task 23 ① ④): the review-family unverifiable/plan_conflicts lane
+ * must never fold to a bare BLOCKED string — the derived round carries the failure channel
+ * (canonical category identity via FAILURE_CATEGORIES, never a literal) + a real blocker saying
+ * what couldn't be verified / why (so derive → returnFromHandoff never falls back to a fabricated
+ * default). Real sources already present (an agent/engine blocker or failure_category) ground the
+ * round as-is («BLOCKED ⇒ blocker non-empty OR failure_category»); with no lane at all → {} — this
+ * helper never invents prose. */
+export function blockedCarrierFor(
+  status: string | undefined,
+  unverifiable: unknown[] = [],
+  planConflicts: unknown[] = [],
+  existing: { blocker?: unknown; failure_category?: unknown } = {},
+): Record<string, string> {
+  if (status !== "BLOCKED") return {};
+  if (existing.blocker || existing.failure_category) return {};
+  if (unverifiable.length > 0) {
+    return {
+      failure_category: FAILURE_CATEGORIES.UNVERIFIABLE.id,
+      blocker: `could not verify: ${unverifiable.slice(0, 3).map(entrySummary).join("; ")}`,
+    };
+  }
+  if (planConflicts.length > 0) {
+    return {
+      failure_category: FAILURE_CATEGORIES.PLAN_CONFLICT.id,
+      blocker: `plan conflict: ${planConflicts.slice(0, 3).map(entrySummary).join("; ")}`,
+    };
+  }
+  return {};
+}
+
+/** Unified read-back entry: status needs overwrite → returns the overwritten new handoff (original
+ * untouched); no change → null (caller skips the write). Task 23 ①: the derived BLOCKED lane
+ * carries its failure_category + real blocker via blockedCarrierFor — the only change to the
+ * read-back contract; unverifiable/plan_conflicts-denoted review rounds land fully grounded. */
+export function applyDerivedStatus(handoff: Record<string, unknown> = {}): Record<string, unknown> | null {
+  const d = deriveReviewStatus(handoff);
+  const carrier = blockedCarrierFor(
+    d,
+    (handoff.unverifiable as unknown[]) ?? [],
+    (handoff.plan_conflicts as unknown[]) ?? [],
+    { blocker: handoff.blocker, failure_category: handoff.failure_category },
+  );
+  if (d === handoff.status && Object.keys(carrier).length === 0) return null;
+  return { ...handoff, status: d, ...carrier };
+}
+
+/** Finalization single entry: dispatch per mode → { handoff, exitCode }. The return block re-emits
+ * from the finalized returnFromHandoff at the consumer. Three consumers share this implementation
+ * (runner step 13 / docs-runner read-back / branch review read-back).
+ * Task 23 ③: the round conclusion maps to exit at the single point — BLOCKED → 1 (any mode),
+ * APPROVED / CHANGES_REQUESTED → 0.
  * Task 5: implement family takes HEAD via git (infra/git.ts) → the whole chain is async
  * (consumers always await). */
 export async function finalizeHandoff({
   mode,
-  h1 = [],
+  returnBlock = [],
   agentHandoff = null,
   brief,
   repoRoot,
@@ -123,7 +195,7 @@ export async function finalizeHandoff({
   taskNum,
 }: {
   mode?: string;
-  h1?: string[];
+  returnBlock?: string[];
   agentHandoff?: Record<string, unknown> | null;
   brief?: string;
   repoRoot?: string | null;
@@ -132,19 +204,22 @@ export async function finalizeHandoff({
 } = {}): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   if (mode === "review") {
     const derived = applyDerivedStatus(agentHandoff ?? {});
-    if (derived) return { handoff: derived, exitCode: 0 };
-    return { handoff: agentHandoff, exitCode: 0 };
+    const handoff = derived ?? agentHandoff ?? {};
+    return { handoff, exitCode: statusExitCode(handoff.status as string) };
   }
   if (mode === "implement") {
-    // No agentHandoff input slot: materialize from H1 + brief TASK_BASE + git HEAD (T6 logic
-    // moved in). The evidence gate (behavior_change:true → hard) stays; H1 re-emits from the
-    // finalized carrier.
-    return await finalizeImplement({ h1, brief, repoRoot, workspace, taskNum });
+    // No agentHandoff input slot: materialize from the return block + brief TASK_BASE + git HEAD
+    // (T6 logic moved in). The evidence gate (behavior_change:true → hard) stays; the return block
+    // re-emits from the finalized carrier.
+    return await finalizeImplement({ returnBlock, brief, repoRoot, workspace, taskNum });
   }
   if (mode === "fix") {
     // work-type: the agent-declared status stays, vetoed at the commit-contract layer
     // (validateCommitContract).
-    return { handoff: agentHandoff, exitCode: 0 };
+    return {
+      handoff: agentHandoff,
+      exitCode: statusExitCode((agentHandoff?.status as string) ?? "BLOCKED"),
+    };
   }
   throw new Error(`finalizeHandoff: unknown mode ${mode}`);
 }
@@ -180,8 +255,9 @@ function taskBaseFromBrief(briefPath: string | undefined): string | null {
   }
 }
 
-// H1 `artifacts:` line (key=value whitespace-separated) → artifacts object; missing line / empty → {}.
-function artifactsFromH1Line(line: string | undefined): Record<string, string> {
+// Return block `artifacts:` line (key=value whitespace-separated) → artifacts object; missing line
+// / empty → {}.
+function artifactsFromReturnLine(line: string | undefined): Record<string, string> {
   const m = String(line).match(/^artifacts:\s*(.*)$/);
   if (!m || !m[1].trim()) return {};
   const artifacts: Record<string, string> = {};
@@ -192,17 +268,17 @@ function artifactsFromH1Line(line: string | undefined): Record<string, string> {
   return artifacts;
 }
 
-// H1 `status:` line → materialized status. The schema accepts only APPROVED/BLOCKED — anything
-// non-APPROVED (NEEDS_CONTEXT / <missing> …) folds to BLOCKED, raw passthrough for the blocker
-// (H1 and handoff/exit stay consistent).
-function implementStatusFromH1(line: string | undefined): { status: string; raw: string } {
+// Return block `status:` line → materialized status. The schema accepts only APPROVED/BLOCKED —
+// anything non-APPROVED (NEEDS_CONTEXT / <missing> …) folds to BLOCKED, raw passthrough for the
+// blocker (return block and handoff/exit stay consistent).
+function implementStatusFromReturnLine(line: string | undefined): { status: string; raw: string } {
   const raw = String(line).replace(/^status:\s*/, "").trim();
   return { status: raw === "APPROVED" ? "APPROVED" : "BLOCKED", raw };
 }
 
-// H1 `blocker:` line → blocker. Missing line (<missing>) / success default (none) → "" (no
-// blocker field lands; h1FromHandoff presents the defaultBlockerFor(status) at render).
-function h1Blocker(line: string | undefined): string {
+// Return block `blocker:` line → blocker. Missing line (<missing>) / success default (none) → ""
+// (no blocker field lands; returnFromHandoff presents the real-only blocker default at render).
+function returnBlocker(line: string | undefined): string {
   const v = String(line).replace(/^blocker:\s*/, "").trim();
   return v && v !== "<missing>" && v !== "none" ? v : "";
 }
@@ -228,16 +304,16 @@ function evidenceGate(
 
 /** Materialization: brief TASK_BASE → commits.base (sole authority); git HEAD → commits.head
  * (nullable repoRoot → head omitted). Degrade fail-open: missing brief / no TASK_BASE →
- * { handoff: null, exitCode: 0 } (no materialization; the runner keeps the agent's original H1
- * and notes a stderr CDD_WARN). hard gate / status BLOCKED → exitCode 1. */
+ * { handoff: null, exitCode: 0 } (no materialization; the runner keeps the agent's original
+ * return block and notes a stderr CDD_WARN). hard gate / status BLOCKED → exitCode 1. */
 export async function finalizeImplement({
-  h1 = [],
+  returnBlock = [],
   brief,
   repoRoot,
   workspace,
   taskNum,
 }: {
-  h1?: string[];
+  returnBlock?: string[];
   brief?: string;
   repoRoot?: string | null;
   workspace?: string;
@@ -248,12 +324,12 @@ export async function finalizeImplement({
     process.stderr.write(`CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`);
     return { handoff: null, exitCode: 0 };
   }
-  // T6 nit3: destructured naming replaces h1[0]/[2]/[3] magic-index subscripts (the commits line
-  // is deliberately ignored — materialized head takes git authority).
-  const [statusLine, , artifactsLine, blockerLine] = h1;
-  const { status, raw } = implementStatusFromH1(statusLine ?? "");
-  let blocker = h1Blocker(blockerLine ?? "");
-  if (raw !== "APPROVED" && !blocker) blocker = `implement H1 status "${raw}" without blocker`;
+  // T6 nit3: destructured naming replaces returnBlock[0]/[2]/[3] magic-index subscripts (the
+  // commits line is deliberately ignored — materialized head takes git authority).
+  const [statusLine, , artifactsLine, blockerLine] = returnBlock;
+  const { status, raw } = implementStatusFromReturnLine(statusLine ?? "");
+  let blocker = returnBlocker(blockerLine ?? "");
+  if (raw !== "APPROVED" && !blocker) blocker = `implement return status "${raw}" without blocker`;
   const head = repoRoot ? await gitRevParseHead(repoRoot) : null;
   const gate = evidenceGate(workspace, taskNum);
   if (gate.hard) {
@@ -273,13 +349,13 @@ export async function finalizeImplement({
       task: taskNum,
       phase: "implement",
       status: gate.hard ? "BLOCKED" : status,
-      artifacts: artifactsFromH1Line(artifactsLine ?? ""),
+      artifacts: artifactsFromReturnLine(artifactsLine ?? ""),
       findings: [],
       commits: { base, ...(head ? { head } : {}) },
       blocker: blocker || undefined,
     },
     "task",
   ) as Record<string, unknown>;
-  const exitCode = gate.hard || handoff.status === "BLOCKED" ? 1 : 0;
+  const exitCode = statusExitCode(handoff.status as string);
   return { handoff, exitCode };
 }

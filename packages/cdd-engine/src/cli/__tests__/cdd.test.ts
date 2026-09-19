@@ -90,7 +90,7 @@ describe("cdd CLI", () => {
       .toThrow(/required option|--type/);
   });
 
-  it("dry-run review --type task → H1 + exit 0", () => {
+  it("dry-run review --type task → return block + exit 0", () => {
     const r = runCli(["--dry-run", "review", "--type", "task",
       "--task", "1", "--plan", SMOKE_PLAN],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } });
@@ -98,7 +98,7 @@ describe("cdd CLI", () => {
     expect(r.stdout).toMatch(/status: APPROVED/);
   });
 
-  it("dry-run review --type branch → H1 + exit 0（随机 base/head 避免 Review Stopping 误拒；tmp git repo 内 plan 供 resolveWorkspace 推导，避免向真实 workspace 写副作用）", () => {
+  it("dry-run review --type branch → return block + exit 0（随机 base/head 避免 Review Stopping 误拒；tmp git repo 内 plan 供 resolveWorkspace 推导，避免向真实 workspace 写副作用）", () => {
     const base = `base${Date.now().toString(16).slice(-4)}`;
     const head = `head${Date.now().toString(16).slice(-8, -4)}`;
     const dir = tmpGitRepo();
@@ -122,7 +122,7 @@ describe("cdd CLI", () => {
     expect(r.exitCode).toBe(0);
   });
 
-  it("dry-run fix --type task → H1 + exit 0", () => {
+  it("dry-run fix --type task → return block + exit 0", () => {
     const r = runCli(["--dry-run", "fix", "--type", "task", "--task", "1",
       "--findings", SMOKE_PLAN, "--plan", SMOKE_PLAN],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } });
@@ -178,7 +178,7 @@ describe("cdd CLI", () => {
   });
 
   it("--task 非整数 → 校验回退 exit 2（STD-3 Bug A 契约回归）", () => {
-    // parseInt NaN must not leak into runTask (task-NaN-* garbage + fake APPROVED H1);
+    // parseInt NaN must not leak into runTask (task-NaN-* garbage + fake APPROVED return block);
     // the Commander coercion rejects at parse time → exit 2 (legacy cdd-task contract).
     const r = runCli(["--dry-run", "review", "--type", "task", "--task", "abc", "--plan", SMOKE_PLAN],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } });
@@ -645,7 +645,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
     expect(r.stderr).toContain(`CDD_WARN: ${DRY_RUN_DIRTY_WARN}`);
   };
 
-  it("implement --dry-run（task 面）: 脏树 exit 0 + H1 APPROVED + WARN", () => {
+  it("implement --dry-run（task 面）: 脏树 exit 0 + return block APPROVED + WARN", () => {
     const dir = dirtyFixtureRepo();
     try {
       const r = runCli(["--dry-run", "implement", "--task", "1", "--plan", "docs/plan.md"],

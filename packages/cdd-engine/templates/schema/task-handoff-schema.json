@@ -32,7 +32,7 @@
         "CHANGES_REQUESTED",
         "TIMEOUT"
       ],
-      "description": "Write findings, not status — the engine derives status from findings. The review family (review / branch-review) may omit this field (derived); implement / fix must declare it."
+      "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. The review family (review / branch-review) may omit this field — the engine derives it from findings; implement / fix (work types) must declare it. Write findings, not status."
     },
     "failure_category": {
       "type": "string",
@@ -44,7 +44,7 @@
         "UNVERIFIABLE",
         "PLAN_CONFLICT"
       ],
-      "description": "classifier for how the round ended; engine-written on failure paths, declared by the agent only when it reports one."
+      "description": "Failure mechanism channel — which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths; declared by the agent only when it reports one. A BLOCKED round may satisfy its grounding via this field (see allOf)."
     },
     "commits": {
       "type": "object",
@@ -92,19 +92,19 @@
     },
     "unverifiable": {
       "type": "array",
-      "description": "claims the round could not verify (see plan/spec review); rolled into status along with findings."
+      "description": "Content-level notes — each entry states one claim the round could not verify (what + why: e.g. {claim, why}). A non-empty list makes the round BLOCKED with failure_category UNVERIFIABLE and a blocker summarizing the entries. Dev-measured acceptance items (plan-constraints §口径) are NOT unverifiable: an evidence-contract accepted-noted round records them in `notes`, never writes unverifiable and never blocks."
     },
     "plan_conflicts": {
       "type": "array",
-      "description": "plan conflicts discovered during the round; rolled into status along with findings."
+      "description": "Content-level notes — each entry states one plan conflict discovered during the round. A non-empty list makes the round BLOCKED with failure_category PLAN_CONFLICT and a blocker summarizing the entries."
     },
     "blocker": {
       "type": "string",
-      "description": "omit when nothing blocks (NOT null) — null is invalid; a present value means the round cannot proceed."
+      "description": "The round's single real blocker line — states what could not be verified and why, or the concrete reason the round cannot proceed. Real sources only (agent-declared / engine gate reason / failure mechanism / unverifiable summary); never fabricated. Omit when nothing blocks (NOT null) — null is invalid. BLOCKED requires a non-empty blocker or a failure_category (see allOf)."
     },
     "notes": {
       "type": "string",
-      "description": "free-form evidence notes (why this fix / why test-evidence was re-recorded); optional."
+      "description": "free-form evidence notes (why this fix / why test-evidence was re-recorded / dev-measured acceptance items recorded per §口径 accepted-noted); optional."
     },
     "test_evidence": {
       "type": "object",
@@ -132,6 +132,38 @@
       "else": {
         "required": [
           "status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "BLOCKED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "blocker"
+            ],
+            "properties": {
+              "blocker": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "failure_category"
+            ]
+          }
         ]
       }
     }

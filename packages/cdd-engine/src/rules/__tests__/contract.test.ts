@@ -24,7 +24,7 @@ import { validateCommitContract } from "../commit.ts";
 import { gitCatFileCommitExists } from "../../infra/git.ts";
 import { writeHandoff, writeOwnHandoff } from "../../artifacts/handoff/write.ts";
 import { classifySeverity, rollupStatus, deriveReviewStatus, normalizeHandoffStatus } from "../../artifacts/handoff/finalize.ts";
-import { validateHandoffSchema } from "../schema.ts";
+import { validateHandoffSchema, loadHandoffSchema } from "../schema.ts";
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -264,6 +264,44 @@ it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => 
     notes: "test-evidence re-recorded after fixing findings",
   });
   expect(r).toEqual({ valid: true });
+});
+
+// ---- Task 23 ②: 契约入 schema field description（双 schema 语义断言）+ allOf BLOCKED 强制 ----
+
+it("Task 23 task schema allOf: BLOCKED 必须 blocker 非空 或 failure_category —— 裸折契约违规", () => {
+  const base = (extra: Record<string, unknown>) => ({ task: 1, phase: "implement", status: "BLOCKED", artifacts: {}, findings: [], ...extra });
+  expect(validateHandoffSchema(base({}), "task").valid).toBe(false);            // 裸折 → 违规
+  expect(validateHandoffSchema(base({ blocker: "" }), "task").valid).toBe(false); // 空字符串 blocker 不算数
+  expect(validateHandoffSchema(base({ blocker: "真实原因" }), "task").valid).toBe(true);
+  expect(validateHandoffSchema(base({ failure_category: "UNVERIFIABLE" }), "task").valid).toBe(true);
+});
+
+it("Task 23 task schema description 承载 status/failure_category/unverifiable 语义", () => {
+  const p = (loadHandoffSchema("task") as { properties: Record<string, { description: string }> }).properties;
+  expect(p.status.description).toContain("terminal");
+  expect(p.status.description).toContain("failure_category");
+  expect(p.failure_category.description.toLowerCase()).toContain("orthogonal");
+  expect(p.unverifiable.description.toLowerCase()).toContain("dev-measured");
+  expect(p.unverifiable.description).toContain("never blocks");
+  expect(p.plan_conflicts.description).toContain("PLAN_CONFLICT");
+  expect(p.blocker.description).toContain("never fabricated");
+});
+
+it("Task 23 docs schema: 11 props（+unverifiable/plan_conflicts）+ dev-measured 语义 + allOf BLOCKED 生效", () => {
+  const schema = loadHandoffSchema("docs") as { properties: Record<string, { description: string }> };
+  const props = schema.properties;
+  expect(Object.keys(props)).toHaveLength(11);
+  expect(props).toHaveProperty("unverifiable");
+  expect(props).toHaveProperty("plan_conflicts");
+  expect(props).toHaveProperty("failure_category");
+  expect(props.unverifiable.description.toLowerCase()).toContain("dev-measured");
+  expect(props.unverifiable.description).toContain("never blocks");
+  expect(props.blocker.description).toContain("never fabricated");
+  expect(props.status.description).toContain("terminal");
+  const d = (extra: Record<string, unknown>) => ({ phase: "fix", status: "BLOCKED", findings: [], artifacts: {}, doc_path: "x.md", ...extra });
+  expect(validateHandoffSchema(d({}), "docs").valid).toBe(false);
+  expect(validateHandoffSchema(d({ blocker: "真实原因" }), "docs").valid).toBe(true);
+  expect(validateHandoffSchema(d({ failure_category: "PLAN_CONFLICT" }), "docs").valid).toBe(true);
 });
 
 it("normalizeHandoffStatus: TIMEOUT → TIMEOUT（透传，无映射）", () => {

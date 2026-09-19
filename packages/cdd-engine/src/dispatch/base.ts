@@ -158,7 +158,7 @@ export abstract class DispatchLifecycle {
   protected async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {}
 
   /** Result normalization (post-flight): default pass-through; subclasses produce the exit code /
-   * H1 surface. */
+   * return block surface. */
   protected async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {}
 
   /** Exit gate (出口门, post-commit / post-flight): validateCommitContract (rules/commit.ts) —

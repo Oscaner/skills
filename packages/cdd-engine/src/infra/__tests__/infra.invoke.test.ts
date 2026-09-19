@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
 import { execa } from "execa";
-import { resolveTimeoutMs, invokeCli, invokeCliWithRetry } from "../invoke.ts";
+import { resolveTimeoutMs, resolveLivenessConfig, invokeCli, invokeCliWithRetry } from "../invoke.ts";
 
 describe("infra/invoke.ts — resolveTimeoutMs", () => {
   it("per-mode env takes priority", () => {
@@ -29,6 +29,12 @@ describe("infra/invoke.ts — resolveTimeoutMs", () => {
   });
   it("unknown mode returns undefined", () => {
     expect(resolveTimeoutMs({}, "unknown")).toBeUndefined();
+  });
+});
+
+describe("infra/invoke.ts — resolveLivenessConfig (T14 DEFAULT_TIMEOUTS 配置面)", () => {
+  it("stall detector timing comes from canonical timeouts.liveness (60s sample / 15min idle window)", () => {
+    expect(resolveLivenessConfig()).toEqual({ sampleIntervalMs: 60_000, idleWindowMs: 900_000 });
   });
 });
 

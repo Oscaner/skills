@@ -7,11 +7,31 @@
 // fallback is a whitelisted passthrough site pinned to proc.mjs/invoke.mjs; the rebuild passes env
 // down from its own callers instead of reading process.env at this depth.
 import { execa } from "execa";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 const KILL_SIGNAL = "SIGTERM";
 const FORCE_SIGNAL = "SIGKILL";
+
+// ---- T14 liveness monitor (spec E3; configured via engine-config.json#contextContract.timeouts.liveness) ----
+// Dispatch-phase stall detector: while a spawnManaged dispatch is in flight, a monitor samples two
+// progress signals every sampleIntervalMs — the child process-group cumulative CPU and the newest
+// file mtime under the observed progress path (the dispatch workspace). No measurable growth in
+// EITHER signal for idleWindowMs → the dispatch is presumed stuck (hung tool call) → the group is
+// killed and the spawn result surfaces timedOut + stalled (task.ts writes the stall-specific
+// TIMEOUT blocker with the residue-cleanup contract). The dual-signal criterion is deliberately
+// conservative (判据精确): a SINGLE unavailable signal (unreadable CPU, missing dir) fails open —
+// unknown never kills; thinking/file reads burn CPU, so active-thinking dispatches are never
+// false-killed; only the truly silent case (CPU≈0 AND tree quiet over the whole window) stalls.
+// The monitor is opt-in: spawnManaged runs it only when opts.liveness is provided.
+
+export interface LivenessConfig {
+  /** Directory whose newest file mtime is the tree-progress signal (the dispatch workspace). */
+  progressPath: string;
+  sampleIntervalMs?: number;
+  idleWindowMs?: number;
+}
 
 export interface ManagedGroup {
   pgid: number;
@@ -27,12 +47,174 @@ export interface SpawnResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** true when the liveness monitor killed the group (dispatch stalled past idleWindowMs). */
+  stalled?: boolean;
 }
 
 export interface SpawnOpts {
   cwd?: string;
   env: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  liveness?: LivenessConfig;
+}
+
+// ---- stall judge (pure, unit-test seam) ----
+// The dual-signal criterion lives here as a pure state machine so both acceptance faces
+// ("静止超窗被杀 · 活跃不误杀") are deterministically testable without real processes.
+
+export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
+
+export interface StallSample {
+  /** process-group cumulative CPU (ms), summed across group members; null = unreadable. */
+  cpuMs: number | null;
+  /** newest file mtime (epoch ms) under the progress path; null = unreadable. */
+  latestMtimeMs: number | null;
+  /** wall-clock sample time (epoch ms). */
+  at: number;
+}
+
+export interface StallState {
+  maxCpuMs: number | null;
+  maxMtimeMs: number | null;
+  /** last sample whose signals showed progress or were unknown (window anchor). */
+  idleSince: number | null;
+}
+
+export function initialStallState(): StallState {
+  return { maxCpuMs: null, maxMtimeMs: null, idleSince: null };
+}
+
+export function evaluateStall(
+  state: StallState,
+  s: StallSample,
+  idleWindowMs: number,
+): { state: StallState; verdict: StallVerdict } {
+  // Fail-open: an unavailable signal (permissions / unreadable dir / process gone) never counts
+  // toward the idle window — unknown restarts the anchor, so a decidable stall requires BOTH
+  // signals measurable. This is the 不误杀 guard for the "hung tool call CPU≈0" shape: the kill
+  // fires only when both signals are demonstrably flat over the whole window.
+  if (s.cpuMs == null || s.latestMtimeMs == null) {
+    return { state: { ...state, idleSince: s.at }, verdict: "unknown" };
+  }
+  // Both signals are cumulative/monotone baselines: growth is judged against the max ever seen
+  // (CPU is cumulative; the newest-file mtime can only move forward while files are written).
+  const cpuGrew = state.maxCpuMs == null || s.cpuMs > state.maxCpuMs;
+  const mtimeAdvanced = state.maxMtimeMs == null || s.latestMtimeMs > state.maxMtimeMs;
+  const next: StallState = {
+    maxCpuMs: state.maxCpuMs == null ? s.cpuMs : Math.max(state.maxCpuMs, s.cpuMs),
+    maxMtimeMs: state.maxMtimeMs == null ? s.latestMtimeMs : Math.max(state.maxMtimeMs, s.latestMtimeMs),
+    idleSince: cpuGrew || mtimeAdvanced ? s.at : state.idleSince,
+  };
+  if (cpuGrew || mtimeAdvanced) return { state: next, verdict: "progress" };
+  if (next.idleSince == null || s.at - next.idleSince < idleWindowMs) {
+    return { state: next, verdict: "idled" };
+  }
+  return { state: next, verdict: "stalled" };
+}
+
+// ---- signal samplers ----
+
+// ps time= → ms. Accepts [HH:]MM:SS[.cc] (GNU and BSD ps) and sums multi-line output (the whole
+// process group: every member's cumulative CPU — a long-running descendant tool burns group CPU and
+// correctly counts as activity, while a hung tool call leaves it flat).
+export function parsePsCpuTime(output: string): number | null {
+  let totalMs = 0;
+  let any = false;
+  for (const line of output.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    const parts = t.split(":");
+    let seconds = 0;
+    if (parts.length === 2) seconds = Number(parts[0]) * 60 + Number(parts[1]);
+    else if (parts.length === 3) seconds = Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
+    else continue;
+    if (Number.isNaN(seconds) || seconds < 0) continue;
+    totalMs += seconds * 1000;
+    any = true;
+  }
+  return any ? Math.round(totalMs) : null;
+}
+
+/** Whole-group cumulative CPU (ms): `ps -o time= -g <pgid>` summed. null on any failure (fail-open
+ * fuel — an unreadable CPU signal never causes a kill by itself). */
+export function sampleGroupCpuMs(pgid: number): number | null {
+  try {
+    const out = execFileSync("ps", ["-o", "time=", "-g", String(pgid)], { encoding: "utf8" });
+    return parsePsCpuTime(out);
+  } catch {
+    return null;
+  }
+}
+
+/** Newest file mtime (epoch ms) under dir, recursively, skipping .git and symlinks, bounded by
+ * maxDepth. null when the dir is missing/unreadable (fail-open: an unobserved tree never stalls). */
+export function latestFileMtimeMs(dir: string, maxDepth = 8): number | null {
+  let maxMs: number | null = null;
+  const walk = (d: string, depth: number): void => {
+    let entries;
+    try {
+      entries = readdirSync(d, { withFileTypes: true });
+    } catch {
+      return; // unreadable subtree — keep scanning siblings, no throw
+    }
+    for (const e of entries) {
+      if (e.name === ".git") continue;
+      const full = path.join(d, e.name);
+      try {
+        if (e.isDirectory() && !e.isSymbolicLink() && depth < maxDepth) walk(full, depth + 1);
+        else if (e.isFile()) maxMs = Math.max(maxMs ?? 0, statSync(full).mtimeMs);
+      } catch {
+        /* raced removal — skip */
+      }
+    }
+  };
+  walk(dir, 0);
+  return maxMs;
+}
+
+// ---- monitor orchestration ----
+// Runs while spawnManaged awaits the child. Each tick samples both signals and feeds the pure
+// judge; on "stalled" the onStall callback (kill the group + taint the result) fires once. stop()
+// cancels the timer (spawnManaged calls it the moment the child resolves — a dispatch that simply
+// took longer than a few sample ticks is never penalized after the fact).
+export interface LivenessMonitorOpts {
+  pgid: number;
+  progressPath: string;
+  sampleIntervalMs: number;
+  idleWindowMs: number;
+  onStall: () => void;
+}
+
+export function startLivenessMonitor({
+  pgid,
+  progressPath,
+  sampleIntervalMs,
+  idleWindowMs,
+  onStall,
+}: LivenessMonitorOpts): () => void {
+  let state = initialStallState();
+  let fired = false;
+  let timer: NodeJS.Timeout | null = null;
+  // First sample lands immediately (the window anchor starts at dispatch, not at the first tick).
+  const tick = (): void => {
+    if (fired) return;
+    const s: StallSample = {
+      cpuMs: sampleGroupCpuMs(pgid),
+      latestMtimeMs: latestFileMtimeMs(progressPath),
+      at: Date.now(),
+    };
+    const { state: next, verdict } = evaluateStall(state, s, idleWindowMs);
+    state = next;
+    if (verdict === "stalled") {
+      fired = true;
+      if (timer) clearInterval(timer);
+      onStall();
+    }
+  };
+  tick();
+  timer = setInterval(tick, sampleIntervalMs);
+  timer.unref?.();
+  return () => { if (!fired && timer) clearInterval(timer); };
 }
 
 // registry: entries { pgid, label, createdAt, ownerPid, done } — ownerPid backs cross-run orphan
@@ -79,9 +261,9 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 // Unified factory: detached process group + immediate registration. Five-field contract
-// { ok, code, stdout, stderr, timedOut }.
+// { ok, code, stdout, stderr, timedOut } (+ stalled when the liveness monitor killed the group).
 export async function spawnManaged(command: string, args: string[], opts: SpawnOpts): Promise<SpawnResult> {
-  const { cwd, env, timeoutMs } = opts;
+  const { cwd, env, timeoutMs, liveness } = opts;
   // Self-held timeout (T6, AC7): record a start clock at spawn; on return re-check elapsed vs the
   // timeout budget and exit shape — res.timedOut alone has proven unreliable (30-min dispatches
   // SIGTERM-terminated return exit-143 with res.timedOut unset, landing in the agentRc!=0 branch).
@@ -114,7 +296,39 @@ export async function spawnManaged(command: string, args: string[], opts: SpawnO
     });
     await persistRegistry();
   }
+  // T14 liveness monitor: opt-in dispatch-phase stall detection. Runs between registration and the
+  // child's resolution; on stall it kills the process group and taints the result so the caller
+  // writes the stall-specific TIMEOUT blocker (recovery contract in rules/failure.ts timeoutBlocker).
+  let stalled = false;
+  let stopLiveness: (() => void) | null = null;
+  if (pid != null && liveness) {
+    stopLiveness = startLivenessMonitor({
+      pgid: pid,
+      progressPath: liveness.progressPath,
+      sampleIntervalMs: liveness.sampleIntervalMs ?? 60_000,
+      idleWindowMs: liveness.idleWindowMs ?? 900_000,
+      onStall: () => {
+        // Never taint a group that completed right before the tick — the kill fires only while the
+        // group is still observable as alive (a just-finished dispatch must not become a stalled one).
+        if (!pgidAlive(pid)) return;
+        stalled = true;
+        killGroup(pid, KILL_SIGNAL);
+        // The stalled tool call may ignore SIGTERM — force the group down after the grace window.
+        // Not unref'd on purpose: a SIGTERM-ignoring child keeps the await pending until SIGKILL.
+        setTimeout(() => killGroup(pid, FORCE_SIGNAL), 500);
+      },
+    });
+  }
   const res = await sub;
+  stopLiveness?.();
+  // Stall override: the monitor killed the group before the budget — the child's death shape (a
+  // SIGTERM/SIGKILL from us) must surface as a TIMEOUT, and the stalled flag must reach the caller
+  // so the TIMEOUT blocker carries the residue-cleanup contract. Handled BEFORE the self-held
+  // determination: a stalled dispatch's elapsed is well under the budget by design (idle window
+  // ≪ total timeout), so the normal timedOut math would read it as a plain agent failure.
+  if (stalled) {
+    return { ok: false, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut: true, stalled: true };
+  }
   // Self-held determination: any of three shapes ⇒ timedOut (res.timedOut is not the sole source).
   //   ① elapsed >= timeoutMs - ε. ε=100ms pulls the line EARLIER than the budget — on-the-boundary
   //      completions are conservatively timed out, catching SIGTERM-race / SIGKILL shapes that

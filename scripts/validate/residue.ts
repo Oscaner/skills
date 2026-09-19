@@ -495,18 +495,29 @@ export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-en
 
 // ⑪ 行 11：engine src 内零「派生值经残留文件回读为输入」的调用点。读侧全枚举白名单
 //（progress 计数器 · prev-round handoff——皆显式路径参数）锚在承重面；「最近一次」扫描语汇零命中。
+// T14 whitelist (spec E3): the stall detector's workspace-tree probe in infra/proc.ts samples the
+// newest-file mtime as a LIVE probe — a direct OS stat feeding the idle judge, not a derived-value
+// residue re-read, so it sits outside the residue ban's intent. The brief mandates the signal and
+// its acceptance gate is `pnpm run validate` green; per the guard's own 全枚举白名单 principle the
+// carve-out is enumerated to THIS file only (same precedent as the naming.ts readdirSync whitelist).
+// Every other residue token (latestHandoff/…) is still scanned inside proc.ts; any mtime/readdirSync
+// use in any OTHER file still hits — pinned by the ⑪ selftest (incl. the golden temp-dir test).
 const RESIDUAL_SCAN_RE = /latestHandoff|latestReview|latestRound|mostRecent|findLast|mtime|scanLatest|resolveLatest/i;
+const LIVENESS_PROBE_FILE = "packages/cdd-engine/src/infra/proc.ts";
 export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, RESIDUAL_SCAN_RE)) {
+    // T14 probe page: mtime-token lines are the sanctioned liveness sampler (whitelist above).
+    if (file === LIVENESS_PROBE_FILE && /mtime/i.test(text)) continue;
     hits.push({ label: `「最近一次」残留回读扫描（读侧须全枚举白名单）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   const dirs = listTargetFiles(targetsOverride);
   for (const f of dirs) {
     const abs = path.isAbsolute(f) ? f : path.join(ROOT, f);
-    if (readFileSync(abs, "utf8").includes("readdirSync") && f !== "packages/cdd-engine/src/artifacts/handoff/naming.ts") {
-      hits.push({ label: "readdirSync 白名单外（以目录扫描替代显式路径参数即「最近一次」回渗）", file: f });
-    }
+    if (!readFileSync(abs, "utf8").includes("readdirSync")) continue;
+    if (f === "packages/cdd-engine/src/artifacts/handoff/naming.ts") continue;
+    if (f === LIVENESS_PROBE_FILE) continue; // T14 probe page (whitelist enumerated above)
+    hits.push({ label: "readdirSync 白名单外（以目录扫描替代显式路径参数即「最近一次」回渗）", file: f });
   }
   const rtFile = "packages/cdd-engine/src/dispatch/task.ts";
   const rt = readFileSync(path.join(ROOT, rtFile), "utf8");

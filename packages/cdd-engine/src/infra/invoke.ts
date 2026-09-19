@@ -6,7 +6,7 @@
 // from its own callers instead of reading process.env at this depth.
 import { loadContract } from "./context.ts";
 import { resolveInjection, resolveSuffix } from "./registry.ts";
-import { spawnManaged, markAllDispatchesDone, type SpawnResult } from "./proc.ts";
+import { spawnManaged, markAllDispatchesDone, type SpawnResult, type LivenessConfig } from "./proc.ts";
 
 export interface TimeoutDefaults {
   [mode: string]: number | undefined;
@@ -22,6 +22,24 @@ const PER_MODE_ENV = CONTRACT.timeouts.perModeOverride.env;
 const GLOBAL_ENV = CONTRACT.timeouts.globalOverride.env;
 const STEP_SECONDS = CONTRACT.timeouts.globalOverride.stepSeconds;
 const MAX_TIMEOUT_MS = 2_000_000_000;
+
+// T14 liveness config surface: the stall detector's sample cadence + idle window read from
+// canonical timeouts.liveness (defaults are honored the same way the mode budgets are — a config
+// file edit edits behavior). No env override: the stub/documented seams for tests are the
+// injectable TaskRunOptions.liveness (dispatch) and SpawnOpts.liveness (proc).
+// `as` binds tighter than `??`, so the parens are load-bearing: without them the cast would be
+// applied to the right-hand side of a (never-triggered) nullish chain.
+const LIVENESS_DEFAULTS: Record<string, number | undefined> =
+  (CONTRACT.timeouts.liveness as Record<string, number | undefined> | undefined) ?? {};
+const DEFAULT_SAMPLE_INTERVAL_MS = 60_000;
+const DEFAULT_IDLE_WINDOW_MS = 900_000;
+
+export function resolveLivenessConfig(): { sampleIntervalMs: number; idleWindowMs: number } {
+  return {
+    sampleIntervalMs: LIVENESS_DEFAULTS.sampleIntervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS,
+    idleWindowMs: LIVENESS_DEFAULTS.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS,
+  };
+}
 
 // seconds → ms unified clamp: valid numbers (incl. huge) never cross the setTimeout ceiling
 // (invalid → default, resolved by the caller).
@@ -109,9 +127,10 @@ export async function invokeCli(
   env: NodeJS.ProcessEnv,
   cwd: string,
   timeoutMs: number | undefined,
+  liveness?: LivenessConfig,   // T14: dispatch-phase stall monitor opts (optional; task dispatch opts in)
 ): Promise<SpawnResult> {
   const set = composeDispatchSet(entry, params, prompt, cwd, env);
-  const res = await spawnManaged(set.cli, set.args, { cwd: set.cwd, env: set.env, timeoutMs });
+  const res = await spawnManaged(set.cli, set.args, { cwd: set.cwd, env: set.env, timeoutMs, liveness });
   markAllDispatchesDone();          // dispatch (incl. every retry attempt) returned → group done
   if (res.ok && entry.output === "stream-json") {
     const finalText = extractStreamJsonFinal(res.stdout);
@@ -153,10 +172,11 @@ export async function invokeCliWithRetry(
   env: NodeJS.ProcessEnv,
   cwd: string,
   timeoutMs: number | undefined,
+  liveness?: LivenessConfig,
 ): Promise<SpawnResult> {
   const MAX_RETRIES = RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const result = await invokeCli(entry, prompt, params, env, cwd, timeoutMs);
+    const result = await invokeCli(entry, prompt, params, env, cwd, timeoutMs, liveness);
     if (result.ok || result.timedOut) return result;
     const isTransient = /overloaded|rate_limit|529/.test(result.stderr ?? "");
     if (isTransient && attempt < MAX_RETRIES) {

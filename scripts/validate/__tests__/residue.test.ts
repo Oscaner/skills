@@ -7,9 +7,10 @@
 // （validateCommitContract / HARD GATE / cdd-commit-gate-smoke / ship gate / cdd-gate-test git 身份）
 // 同为合法语汇。collectStaleLexiconHits()/collectGateLexiconHits() 与 validate 5c 步同源扫描
 // —— unit 绿 + live-repo 零残留等于该 step 双断言行为。
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 
 import {
@@ -656,6 +657,16 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+  it("T14 白名单：liveness 探针页 proc.ts 零残留命中 + 探针语汇仍在（白名单不空置）", () => {
+    // spec E3 的 stall 探针是 brief 强制的活体采样，⑪ 白名单按文件级枚举到 infra/proc.ts ——
+    // 扫真实仓储路径断言白名单有效（同 golden 测试证明的「探针外 mtime 照旧命中」互补）。
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const procAbs = path.join(here, "..", "..", "..", "packages", "cdd-engine", "src", "infra", "proc.ts");
+    expect(collectResidualRereadHits(["packages/cdd-engine/src/infra/proc.ts"])).toEqual([]);
+    const proc = readFileSync(procAbs, "utf8");
+    expect(proc).toMatch(/export function latestFileMtimeMs/);   // 探针仍在地 → 白名单不放空
+    expect(proc).toMatch(/mtimeAdvanced/);
   });
 });
 

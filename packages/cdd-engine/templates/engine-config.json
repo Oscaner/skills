@@ -41,7 +41,8 @@
     "timeouts": {
       "defaults":        { "task": 5400000, "review": 3600000 },
       "perModeOverride": { "unit": "seconds", "env": { "task": "CDD_TASK_TIMEOUT", "review": "CDD_REVIEW_TIMEOUT" } },
-      "globalOverride":  { "unit": "seconds", "env": "CDD_CLI_TIMEOUT", "stepSeconds": 1800 }
+      "globalOverride":  { "unit": "seconds", "env": "CDD_CLI_TIMEOUT", "stepSeconds": 1800 },
+      "liveness":        { "sampleIntervalMs": 60000, "idleWindowMs": 900000 }
     }
   },
   "failureCategories": {

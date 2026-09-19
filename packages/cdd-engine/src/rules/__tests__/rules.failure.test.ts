@@ -18,6 +18,7 @@ import {
   incrementFailureCounter,
   exhaustedBlocker,
   maybeExhaust,
+  timeoutBlocker,
 } from "../failure.ts";
 import { writeHandoff } from "../../artifacts/handoff/write.ts";
 
@@ -102,5 +103,27 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
     const p = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
     expect(p.contractViolationCount).toBe(2);
     expect(p.timeoutCount).toBe(1);
+  });
+});
+
+describe("rules/failure.ts — timeoutBlocker (T14 TIMEOUT 语义扩展)", () => {
+  it("budget timeout keeps the legacy wording (timed out after → re-dispatch)", () => {
+    const b = timeoutBlocker({ stalled: false, taskNum: 3, timeoutMs: 5_400_000 });
+    expect(b).toMatch(/timed out after 5400000ms/);
+    expect(b).toMatch(/task 3/);
+    // legacy phrases preserved — runner.test.ts's /timed out after/ match stays green
+    expect(b).toContain("simplify task");
+  });
+
+  it("stall variant carries the recovery contract (残留清偿指引写 blocker)", () => {
+    const b = timeoutBlocker({ stalled: true, taskNum: 7, idleWindowMs: 900_000 });
+    expect(b).toMatch(/stalled/);
+    expect(b).toMatch(/900000ms/);
+    // brief's recovery-path contract: discard OR commit residue, then re-dispatch over a clean tree
+    expect(b).toMatch(/discard or commit/);
+    expect(b).toMatch(/clean tree/);
+    expect(b).toMatch(/re-dispatch task 7/);
+    // still a TIMEOUT-shaped blocker (same category identity, extended wording only)
+    expect(b).not.toMatch(/simplify task/);
   });
 });

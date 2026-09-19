@@ -39,13 +39,13 @@ import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, worksp
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
 import { hashFile } from "./review-loop.ts";
 import { exitWithCode, ExitRequested } from "../infra/exit.ts";
-import { invokeCli, invokeCliWithRetry, resolveTimeoutMs } from "../infra/invoke.ts";
-import { withLifecycle } from "../infra/proc.ts";
+import { invokeCli, invokeCliWithRetry, resolveTimeoutMs, resolveLivenessConfig } from "../infra/invoke.ts";
+import { withLifecycle, type LivenessConfig } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, h1CountersLine } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
 import { validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
-import { FAILURE_CATEGORIES, counterFor } from "../rules/failure.ts";
+import { FAILURE_CATEGORIES, counterFor, timeoutBlocker } from "../rules/failure.ts";
 
 // Re-export for backward compatibility (existing tests and consumers import from run-task.mjs
 // via this module's re-pointed surface).
@@ -322,6 +322,9 @@ export interface TaskRunOptions {
   registryPath?: string;
   findingsPath?: string;
   pluginRoot?: () => string;
+  /** T14 test/override seam (non-env, mirrors registryPath): shorten the liveness monitor's timing
+   * for deterministic stall tests. Production callers leave it unset — canonical defaults apply. */
+  liveness?: { sampleIntervalMs?: number; idleWindowMs?: number };
 }
 
 interface TaskResult {
@@ -336,7 +339,8 @@ interface TaskDiagnostic {
 
 // The spawn result as the legacy runner read it: the inflight result carries no `unkillable` field
 // (the legacy `res.unkillable === true` always read undefined → false); typed for parity so the
-// timeout-unkillable branch keeps its exact legacy shape.
+// timeout-unkillable branch keeps its exact legacy shape. `stalled` is the T14 liveness-monitor
+// flag — surfaced by spawnManaged when the stall detector killed the group before the budget.
 interface TaskSpawnResult {
   ok: boolean;
   code: number;
@@ -344,6 +348,7 @@ interface TaskSpawnResult {
   stderr: string;
   timedOut: boolean;
   unkillable?: boolean;
+  stalled?: boolean;
 }
 
 /** TaskLifecycle — the task-function lifecycle class. All 13.5 steps of the legacy run-task.mjs
@@ -544,11 +549,23 @@ export class TaskLifecycle extends DispatchLifecycle {
     let agentRc = 0;
     let timedOut = false;
     let unkillable = false;
+    let stalled = false;          // T14: liveness monitor killed the group (stall, not budget timeout)
+    let idleWindowMs: number | undefined; // T14 stall blocker detail (monitor idle window)
     if (dryRun) {
       agentOut = dryRunH1Block(ctx, this.#taskNum);
     } else {
       const timeoutMs = resolveTimeoutMs(this.#hostEnv(), "task");
       this.#timeoutMs = timeoutMs;
+      // T14 liveness: dispatch-phase stall monitor over the workspace (opt-in; timing from the
+      // canonical timeouts.liveness surface, overridable via opts.liveness — the deterministic
+      // test seam). progressPath is ALWAYS the dispatch workspace (the engine writes zero worktree
+      // during dispatch — the workspace is the only engine-side progress surface).
+      const defLiveness = resolveLivenessConfig();
+      const livenessCfg: LivenessConfig = {
+        progressPath: ctx.workspace,
+        sampleIntervalMs: this.#opts.liveness?.sampleIntervalMs ?? defLiveness.sampleIntervalMs,
+        idleWindowMs: this.#opts.liveness?.idleWindowMs ?? defLiveness.idleWindowMs,
+      };
       // Subprocess cwd = the injected root (the single root authority; this function never reads
       // the startup cwd and has no second injection seam). Subprocess env = the host env (zero
       // CDD_* injection — engine-internal state passes via ctx, never across the env boundary).
@@ -559,10 +576,13 @@ export class TaskLifecycle extends DispatchLifecycle {
         this.#hostEnv(),
         this.#root,
         timeoutMs,
+        livenessCfg,
       )) as TaskSpawnResult;
       agentOut = res.ok ? res.stdout : "";
       timedOut = res.timedOut === true;
       unkillable = res.unkillable === true;
+      stalled = res.stalled === true;
+      idleWindowMs = livenessCfg.idleWindowMs;
       if (!res.ok && !timedOut) agentRc = res.code;
     }
     this.#agentOut = agentOut;
@@ -590,7 +610,10 @@ export class TaskLifecycle extends DispatchLifecycle {
         this.#done(1, h1FromHandoff(ctx.handoffPath, ctx.workspace), "process unkillable");
         return;
       }
-      // Normal timeout: TIMEOUT partial handoff
+      // Normal timeout (budget exceeded OR liveness stall): TIMEOUT partial handoff. The blocker
+      // comes from the single rules/failure.ts timeoutBlocker point — the stall variant carries the
+      // residue-cleanup contract (abandoned uncommitted changes → discard/commit, then re-dispatch;
+      // the entry gate requires a clean tree).
       const timeoutMs = this.#timeoutMs;
       writeHandoff(ctx.handoffPath, {
         task: this.#taskNum,
@@ -599,7 +622,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
         findings: [],
         artifacts: {},
-        blocker: `cli timed out after ${timeoutMs}ms → simplify task ${this.#taskNum} scope or increase timeout, then re-dispatch`,
+        blocker: timeoutBlocker({ stalled, taskNum: this.#taskNum, timeoutMs, idleWindowMs }),
       });
       if (!dryRun) incrementRound(progressDir, this.#taskNum, mode);
       // TIMEOUT counter increment: field via canonical counterFor, category identity via

@@ -463,6 +463,38 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
   }
 }, 15_000);
 
+it.skipIf(!GROUP_SUPPORTED)("runTask: liveness stall → TIMEOUT handoff + recovery-guidance blocker + timeoutCount incremented (T14)", async () => {
+  // The fake CLI runs forever with no CPU and writes nothing — the liveness monitor must kill the
+  // group past the idle window (LONG BEFORE the 90-min budget), and the handoff must carry the
+  // residue-cleanup contract (discard/commit, then re-dispatch over a clean tree).
+  const { repo, planFile, ws } = setupWorkspace();
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-stall-"));
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexec sleep 1000\nexit 0\n");
+  const regPath = ghostRegistry(ws);
+  try {
+    const res = await runTask("ghost", 1, {
+      mode: "implement",
+      planFile, root: repo,
+      liveness: { sampleIntervalMs: 200, idleWindowMs: 1500 }, // timing override = deterministic test seam
+      registryPath: regPath, noExit: true,
+    });
+    const hp = path.join(ws, "task-1-implement.json");
+    expect(existsSync(hp)).toBe(true);
+    const h = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h.status).toBe("TIMEOUT");
+    expect(h.failure_category).toBe("TIMEOUT");   // stall stays in the TIMEOUT category (扩展语义，非新类目)
+    expect(h.blocker).toMatch(/stalled/);
+    expect(h.blocker).toMatch(/discard or commit/);
+    expect(h.blocker).toMatch(/clean tree/);
+    expect(h.blocker).toMatch(/re-dispatch task 1/);
+    expect(h.task).toBe(1);
+    const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.timeoutCount).toBe(1);        // stall counts toward the normal timeout quota
+  } finally {
+    restore();
+  }
+}, 20_000);
+
 it("runTask: unkillable → handoff status BLOCKED + blocker process unkillable", async () => {
   // SIGKILL always kills on modern Unix; test contract-level behavior via writeHandoff directly.
   const { writeHandoff } = await import("../../artifacts/handoff/write.ts");

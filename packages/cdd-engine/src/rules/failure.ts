@@ -79,3 +79,27 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
   }
   return n;
 }
+
+// ---- T14 TIMEOUT semantics extension (spec E3) ----
+// The TIMEOUT category identity never bifurcates (status TIMEOUT + timeoutCount + terminal shape
+// are shared), but the blocker wording is now produced from ONE point: a budget timeout keeps the
+// legacy wording (T6 AC7, backwards-compatible — the "timed out after" phrase the tests and the
+// orchestrator match on), while a liveness-monitor stall carries the recovery contract from the
+// brief — the agent's tool call was hung, and the residue it left must be settled before the
+// re-dispatch (the entry gate requires a clean tree, so a stalled dispatch's uncommitted changes
+// are the human's to discard or commit).
+export function timeoutBlocker(opts: {
+  stalled?: boolean;
+  taskNum: number;
+  timeoutMs?: number;
+  idleWindowMs?: number;
+}): string {
+  if (opts.stalled) {
+    return (
+      `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? 900_000}ms — ` +
+      `tool call hung); uncommitted changes left at return: discard or commit them, ` +
+      `then re-dispatch task ${opts.taskNum} (entry gate requires a clean tree)`
+    );
+  }
+  return `cli timed out after ${opts.timeoutMs ?? "<unknown>"}ms → simplify task ${opts.taskNum} scope or increase timeout, then re-dispatch`;
+}

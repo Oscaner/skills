@@ -1,9 +1,9 @@
 // packages/cdd-engine/src/rules/__tests__/rules.convergence.test.ts
 // Review Convergence guard cluster (blockerCount / convergedExit3 / reviewConvergenceGuard /
-// reviewConvergedError) — self-contained per the closure-completeness ownership rule the legacy
-// cli/shared.mjs documents. Same function-level seam as cli-shared.test.mjs +
-// failure-categories.test.mjs (assertion surface = ExitRequested.code from convergedExit3), which
-// keep guarding the legacy .mjs copies.
+// reviewConvergedError) — self-contained per the closure-completeness ownership rule
+// cli/shared.ts documents. Same function-level seam as rules/__tests__/failure-categories.test.ts
+// (assertion surface = ExitRequested.code from convergedExit3), which covers the
+// reviewConvergenceGuard half of the same cluster.
 import { describe, it, expect } from "vitest";
 
 import {
@@ -67,7 +67,7 @@ describe("rules/convergence.ts — convergedExit3（ExitRequested.code = 3）", 
 });
 
 describe("rules/convergence.ts — reviewConvergenceGuard（Review Convergence 判定）", () => {
-  // 三例同形（复刻 failure-categories.test.mjs）：status APPROVED + failure_category 差 + findings 空
+  // 三例同形（复刻 failure-categories.test.ts）：status APPROVED + failure_category 差 + findings 空
   const convergenceShaped = (failure_category: string) => ({ status: "APPROVED", failure_category, findings: [] });
 
   it("APPROVED + blocker 0 → exit 3（停）", () => {

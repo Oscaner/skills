@@ -304,11 +304,13 @@ export class DocsLifecycle extends DispatchLifecycle {
         this.#handoff = finalized.handoff ?? handoff;
       }
       // Task 23 ③: the docs round conclusion → exit (BLOCKED → 1, APPROVED/CHANGES_REQUESTED → 0)
-      // — the T14「exit 0 + status BLOCKED」inversion on the docs channel too; the agent's rc is
-      // not the exit authority once the handoff finalizes (the handoff is the docs contract).
-      this.#exitCode = finalized.exitCode;
-    } else {
-      this.#exitCode = this.#agentRc;
+      // — the T14「exit 0 + status BLOCKED」inversion on the docs channel too. Failure-first, same
+      // as the task face (dispatch/task.ts step 12): a non-zero agent rc keeps its failure signal
+      // even when a valid handoff finalizes (a crashed docs agent that wrote the handoff must not
+      // exit 0 by the handoff conclusion); the finalized conclusion is the exit authority only
+      // when the agent itself exited cleanly. No else arm — docs carries no implement (mode is
+      // always review|fix).
+      this.#exitCode = this.#agentRc !== 0 ? this.#agentRc : finalized.exitCode;
     }
   }
 

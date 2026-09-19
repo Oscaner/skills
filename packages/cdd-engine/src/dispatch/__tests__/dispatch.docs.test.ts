@@ -170,3 +170,33 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
   // clean-tree review 出口门通过；engine 定稿覆写（warn-only → APPROVED）
   expect(result.handoff?.status).toBe("APPROVED");
 });
+
+// Task 23 fix-1（review-1 finding 1, warn）：docs 面失败优先定序——agent exit 非零 + 已写有效 handoff
+// → exitCode = agent rc，失败信号不被定稿结论掩盖（修复前 `finalized.exitCode` 无条件胜出：APPROVED
+// 手写 conclusion → exit 0，与 task 面 step 12 的失败优先语义分裂）。本例 = 修复前红 / 修复后绿。
+it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCode = agent rc（失败不被定稿结论掩盖）", async () => {
+  const repo = setupRepo();
+  const doc = path.join(repo, "spec.md");
+  writeFileSync(doc, "# spec\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
+  const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
+  const { execa } = await import("execa");
+  vi.mocked(execa).mockImplementation(async () => {
+    const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
+    mkdirSync(path.dirname(handoffPath), { recursive: true });
+    wfs(handoffPath, JSON.stringify({
+      phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc,
+    }));
+    // 崩溃的 docs agent：手写 valid handoff 后非零退出（exit 1）
+    return { exitCode: 1, stdout: "", stderr: "", timedOut: false };
+  });
+  const result = await runDocsTask({
+    harness: "ghost", mode: "review", template: "review", type: "spec", doc,
+    handoffPath, repoRoot: repo, dryRun: false,
+  });
+  // 失败优先：agent rc（1）胜出——handoff 定稿 APPROVED → 0 不吞掉失败信号。
+  expect(result.exitCode).toBe(1);
+  // 载体本身不受影响：定稿结论仍按 handoff 内容（引擎单点 statusExitCode 语义）。
+  expect(result.handoff?.status).toBe("APPROVED");
+});

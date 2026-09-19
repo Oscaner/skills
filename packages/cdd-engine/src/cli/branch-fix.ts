@@ -167,7 +167,7 @@ export async function runBranchFix(opts: BranchFixOpts): Promise<void> {
     }
 
     // The fix prompt: task-family shell + RETURN_STDOUT_BLOCK return (the fix agent writes the
-    // handoff + the dry-run return block; task-family round-context slots minus TASK_NUMBER/TASK_CONSTRAINTS
+    // handoff + the return block; task-family round-context slots minus TASK_NUMBER/TASK_CONSTRAINTS
     // — empty for the branch family; TASK_BRIEF carries the plan path as the branch-level brief).
     const prompt = renderTemplate("fix", {
       MODE: "fix",

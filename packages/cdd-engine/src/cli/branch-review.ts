@@ -216,13 +216,12 @@ export async function runBranchReview(opts: BranchReviewOpts): Promise<void> {
       // full-replace). The three consumers (runner/docs-runner/cdd) share the same
       // finalizeHandoff single point, each not wired separately.
       // Task 23 ③: the exit comes from the finalized round conclusion (BLOCKED → 1,
-      // APPROVED/CHANGES_REQUESTED → 0) — exitOk() stays for the approved branch.
+      // APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a
+      // handoff; exitWithCode throws (infra/exit.ts, never returns), so the old `return` tail
+      // and the trailing `exitOk()` are dead and folded out.
       const finalized = await finalizeHandoff({ mode: "review", agentHandoff: handoff });
       if (finalized.handoff && finalized.handoff !== handoff) writeOwnHandoff(handoffPath, finalized.handoff);
       exitWithCode(finalized.exitCode);
-      return;
     }
-
-    exitOk();
   });
 }

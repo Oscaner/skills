@@ -45,7 +45,7 @@ import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
 import { invokeCli, invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
 import { withLifecycle, type TerminationConfig, type TerminationCause } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, taskScopeBase } from "../artifacts/progress.ts";
+import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, taskScopeBase, SHA40_RE } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
 import {
   settleResidue,
@@ -407,7 +407,7 @@ export class TaskLifecycle extends DispatchLifecycle {
             // dead-round brief TASK_BASE) rides the resume: it is the same task-level anchor, so
             // re-materialization pulls the ledger strictly earlier along it (finalizeImplement).
             const recoveryScope = (carrier.recovery as Record<string, unknown> | undefined)?.scope_base;
-            if (typeof recoveryScope === "string" && /^[0-9a-f]{40}$/.test(recoveryScope)) {
+            if (typeof recoveryScope === "string" && SHA40_RE.test(recoveryScope)) {
               this.#resumeScopeBase = recoveryScope;
             }
             const found = await findResumeResidue(this.#root, carrier, this.#taskNum);

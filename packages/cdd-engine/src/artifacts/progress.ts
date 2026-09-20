@@ -125,7 +125,7 @@ export function incrementRecovery(progressDir: string): void {
 // ledger STRICTLY earlier (via moveTaskScopeBaseEarlier — recovered commits sit below any round's
 // brief snapshot). Read fallback: taskScopeBase → null, then dispatch/task.ts falls back to the
 // legacy prev.commits.base chain (zero behavior change for tasks without a ledger).
-const SHA40_RE = /^[0-9a-f]{40}$/;
+export const SHA40_RE = /^[0-9a-f]{40}$/;
 
 /** taskScopeBase: the ledger's current scope_base for taskNum, or null when absent/invalid
  *  (a non-40-hex stored value is treated as a missing ledger — dispatch falls back to legacy). */

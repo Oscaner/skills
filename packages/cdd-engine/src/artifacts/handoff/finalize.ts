@@ -42,7 +42,7 @@ import { artifactsFromReturnLine, implementStatusFromReturnLine, returnBlocker, 
 import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
 import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
-import { seedScopeBase, moveTaskScopeBaseEarlier } from "../progress.ts";
+import { seedScopeBase, moveTaskScopeBaseEarlier, SHA40_RE } from "../progress.ts";
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
 
@@ -489,7 +489,8 @@ export async function finalizeImplement({
     return { handoff: null, exitCode: 0 };
   }
   // T6 nit3: destructured naming replaces returnBlock[0]/[2]/[3] magic-index subscripts (the
-  // commits line is deliberately ignored — materialized head takes git authority).
+  // commits line's head is ignored on fresh materialization — git HEAD takes commit authority;
+  // the T27 resume-declared lane below reads its base= value instead of that).
   const [statusLine, , artifactsLine, blockerLine] = returnBlock;
   const { status, raw } = implementStatusFromReturnLine(statusLine ?? "");
   let blocker = returnBlocker(blockerLine ?? "");
@@ -502,7 +503,7 @@ export async function finalizeImplement({
     const declared = commitsFromReturnLine(returnBlock[1] ?? "").base;
     if (
       declared
-      && /^[0-9a-f]{40}$/.test(declared)
+      && SHA40_RE.test(declared)
       && declared !== head
       && (await gitMergeBaseIsAncestor(repoRoot, declared, head))
     ) {

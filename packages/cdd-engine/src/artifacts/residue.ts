@@ -21,6 +21,7 @@
 // bespoke stash ("cdd-T25-… 2026-09-20 …") is a one-off narrative artifact, NOT a match target;
 // its WIP is restorable by manual `git stash apply stash@{0}`.
 import { gitDiffShortstat, gitStashApply, gitStashList, gitStashPush } from "../infra/git.ts";
+import { SHA40_RE } from "./progress.ts";
 import { readJson } from "./handoff/write.ts";
 
 // ---- standardized stash message (settleResidue output ≡ resume input, spec T7.5) ----
@@ -82,7 +83,10 @@ export async function settleResidue(
     residue_scope: scope,
     cause: opts.cause,
     round: opts.round,
-    ...(opts.scopeBase ? { scope_base: opts.scopeBase } : {}),
+    // T27 (spec T7.6): the write side enforces the same 40-hex shape its read side (resume pre-flight)
+    // validates — a malformed brief TASK_BASE must never ship a schema-violating recovery.scope_base
+    // (fail-open: skip the key, the salvage record still writes).
+    ...(opts.scopeBase && SHA40_RE.test(opts.scopeBase) ? { scope_base: opts.scopeBase } : {}),
   };
 }
 

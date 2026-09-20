@@ -7,7 +7,7 @@ import { loadContract } from "../context.ts";
 
 it("loadContract reads the canonical contract (timeouts defaults present)", () => {
   const c = loadContract();
-  expect(c.timeouts.defaults.task).toBe(5_400_000);
+  expect(c.timeouts.defaults.task).toBe(10_800_000);
   expect(c.timeouts.defaults.review).toBe(3_600_000);
 });
 

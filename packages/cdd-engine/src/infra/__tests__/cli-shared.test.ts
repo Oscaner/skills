@@ -10,8 +10,8 @@ vi.mock('execa', () => ({
 import { execa } from 'execa';
 
 describe('resolveTerminationConfig', () => {
-  it('default task budget is 90min (canonical timeouts.defaults.task)', () => {
-    expect(resolveTerminationConfig('task').budgetMs).toBe(5_400_000);
+  it('default task budget is 3h (canonical timeouts.defaults.task)', () => {
+    expect(resolveTerminationConfig('task').budgetMs).toBe(10_800_000);
   });
   it('default review budget is 60min (canonical timeouts.defaults.review)', () => {
     expect(resolveTerminationConfig('review').budgetMs).toBe(3_600_000);

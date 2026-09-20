@@ -1,7 +1,7 @@
 # Skill Authoring Specification
 
 - **Version**: v1.5 · 2026-09-20
-- **Scope**: Sole format authority for osuperpowers skill SKILL.md authoring (node-anchored form, post-P4)
+- **Scope**: Sole format authority for osuperpowers skill SKILL.md authoring (node-anchored form, after the skills-rewrite phase)
 - **Audience**: This repository's maintainers + AI agents authoring skills
 - **Language**: English primary (authoritative source; no zh-CN mirrors)
 
@@ -131,7 +131,7 @@ The digraph integrity checks over every SKILL.md under `packages/osuperpowers/sk
 
 Non-mechanical authoring judgment (naming, phrasing, rule placement) is manual.
 
-**Test naming & placement (repo-wide colocation):** within `packages/cdd-engine/`, tests are colocated with the tested source — every test node is a TypeScript `*.test.ts` living at `src/<module>/__tests__/` (new engine tests land there first, never in a top-level `tests/` dir — retired since P6 Task 3). The repo `scripts/` suite follows the same convention since P6 Task 21: tests live at `scripts/<dir>/__tests__/<file>.test.ts`, with the top-level tools under `scripts/__tests__/`. The two vitest includes are the same single-glob shape — engine `['src/**/__tests__/**/*.test.ts']`, repo root `['scripts/**/__tests__/**/*.test.ts']` — and validate 5c asserts the engine's `.mjs` plane stays at zero.
+**Test naming & placement (repo-wide colocation):** within `packages/cdd-engine/`, tests are colocated with the tested source — every test node is a TypeScript `*.test.ts` living at `src/<module>/__tests__/` (new engine tests land there first, never in a top-level `tests/` dir — retired when engine tests were colocated). The repo `scripts/` suite follows the same convention since the repo orchestration tools were colocated: tests live at `scripts/<dir>/__tests__/<file>.test.ts`, with the top-level tools under `scripts/__tests__/`. The two vitest includes are the same single-glob shape — engine `['src/**/__tests__/**/*.test.ts']`, repo root `['scripts/**/__tests__/**/*.test.ts']` — and validate 5c asserts the engine's `.mjs` plane stays at zero.
 
 ## 9. Flow Change Discipline
 
@@ -197,6 +197,6 @@ When a new skill introduces template body text that is data-izable — text-shap
 - v1.5 · 2026-09-20 — Grilling coverage honesty (G2): delegated grilling in `phase-within-program` mode enumerates the parent overall's registered requirements (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and opens the grilling frontier only after the user confirms the enumerated coverage is complete — recorded as a delegated-flow convention (§7) and in the brainstorming / writing-phase-spec flows.
 - v1.4 · 2026-09-19 — Session-call semantic honesty (G1): the primitive is redefined as `load an upstream skill = import its flow once` — inline consumption as this session's baseline, at most one import per upstream type per session, re-entry routes on already-landed artifacts (mode marker / design context / registration marker); the "run a /xxx session" spawn wording is rejected across §7, the delegated-form example, and the session-call policy invariant.
 - v1.3 · 2026-09-18 — Add §9 flow change discipline (whole-flow re-read · shape-fit judgment · sibling-uniform adjustment · growth boundary) and rework §8 into the three digraph integrity assertions (bidirectional completeness / skeleton isomorphism / growth signal), moved §9–10 to §10–11.
-- v1.2 · 2026-09-16 — Post-P4 rewrite: session-call primitive + delegated/native forms (§7); §8 collapsed to the single machine enforcement point (`digraph-consistency.test.mjs`); deleted §7 init legacy exemption (init removed) and §9 P3 path-string boundary (elapsed); §4 closes the spec-authorized exception escape hatch (limit remains a hard 5); language updated to English primary (zh-CN mirrors retired).
+- v1.2 · 2026-09-16 — after the skills-rewrite phase: session-call primitive + delegated/native forms (§7); §8 collapsed to the single machine enforcement point (`digraph-consistency.test.mjs`); deleted §7 init legacy exemption (init removed) and §9 path-string boundary (elapsed); §4 closes the spec-authorized exception escape hatch (limit remains a hard 5); language updated to English primary (zh-CN mirrors retired).
 - v1.1 · 2026-09-08 — Add §11 Data-driven template convention (data-izable template body text → canonical + renderer + emit guard).
-- v1.0 · 2026-08-26 — Initial version (P3 docs-infra): 9-section skeleton + read-grilling illustrative example + init legacy exemption rule.
+- v1.0 · 2026-08-26 — Initial version (docs-infrastructure phase): 9-section skeleton + read-grilling illustrative example + init legacy exemption rule.

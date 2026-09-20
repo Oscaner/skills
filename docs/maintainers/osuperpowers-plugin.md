@@ -27,9 +27,9 @@ The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodie
 
 ## Cross-cutting docs
 
-`packages/osuperpowers/docs/` held two cross-cutting reference docs during P3; both are now **dissolved**:
+`packages/osuperpowers/docs/` held two cross-cutting reference docs in an earlier phase; both are now **dissolved**:
 
-- `review.md` (URC — Review Convergence + Handoff Output; the former `docs-review.md` renamed during P3) → dissolved (P4): the unified review contract now lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The technical contract (Handoff Output / round / `doc_hash`) is documented under [CDD Engine internals → Docs review/fix](#docs-reviewfix-cdd-reviewfix-type-specplan).
+- `review.md` (URC — Review Convergence + Handoff Output; the former `docs-review.md`) → dissolved (in the skills-rewrite phase): the unified review contract now lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The technical contract (Handoff Output / round / `doc_hash`) is documented under [CDD Engine internals → Docs review/fix](#docs-reviewfix-cdd-reviewfix-type-specplan).
 - `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
 All four review types (task / branch / spec / plan) run the same single-cycle digraph — `run-review` → blocker>0 → fix → re-review; blocker=0 → fix → done — via the engine's `cdd review --type <task|branch|spec|plan>` CLI; each orchestrator skill carries the convergence discipline in its own Invariants.

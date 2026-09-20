@@ -9,15 +9,15 @@ Maintainer-only doctrine for systematizing both template planes in this reposito
 | Engine prompt templates | `packages/cdd-engine/templates/` — `engine-config.json` + `template-contract.json` + `schema/` (`task-handoff-schema.json` · `docs-handoff-schema.json` · `cache-profile-schema.json`) | prompts injected into dispatches |
 | Skill document templates | `packages/osuperpowers/skills/*/docs/` — `phase-spec-template.md` · `overall-spec-template.md` · `add-phase-protocol.md` · `base-branch.md` | artifact scaffolds + methodology the skills ship |
 
-## The five-layer convergence (P4 layers → P6 fifth layer)
+## The five-layer convergence
 
-P4 converged four layers of the prompt templates; P6 adds the fifth:
+Four layers of the prompt templates converged first; this convergence phase adds the fifth:
 
 1. **JSON structure** — agent-facing JSON structures are the JSON Schema, verbatim (`JSON.stringify(schema)` injection, zero hand-written "simplified" renders)
 2. **Document structure** — one fixed skeleton (`## Instructions` / `## Handoff` / `## Return` / `## Round context`, `skeleton.sections`)
 3. **Naming** — scoped prefixes (`task-*` / `docs-*`), family-aligned directories
 4. **Description** — schemas carry descriptions; writing-protocol rules live in the schema, not duplicated prose
-5. **Structural skeleton + clause library + injection contract** (P6) —
+5. **Structural skeleton + clause library + injection contract** (final layer) —
    - **Skeleton registry** (`template-contract.json#skeleton`): one declarative section list (`sections: [Instructions, Handoff, Return, Round context]`) plus zone segment map **`segments: {shell, return, round-context}`** and render `order: [shell, return, round-context]` — the cache-zone split is a skeleton attribute, not a one-off reorder
    - **Clause library** (`template-contract.json#clauses`): every discipline clause (English comments, EOF newline, no full-tree `find`, stall-termination, plan/spec freeze, atomic commit, self-validate) lives once as byte-single-source text, referenced via `{{> cl:…}}` partial refs — changing a rule updates every template on one line
    - **Token registry** (`template-contract.json#tokens`): the 19 distinct injection tokens (17 `round-context` + 2 `return` — verified mechanically) become data (name / zone); the renderer drives off the registry; template text carries no loose tokens
@@ -38,7 +38,7 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 ## Experience baking
 
-Skill document templates additionally bake in the P1→P6 experience asset (see `program-experience.md`, condensed in the P6 spec §2.6): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
+Skill document templates additionally bake in the P1→P6 experience asset (see `program-experience.md`, condensed with the program's experience inventory): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
 
 ## Interaction with emit
 

@@ -25,7 +25,7 @@ Maintainer-only guidance for naming across the repository's authorable surfaces 
 
 ## Terminology registry
 
-Single registration point for the repo's governing terms (established by the P6 Task 18 / spec F8 Review Convergence rename). The registry is the serialization exit of terminology arbitration: a term is in force from the moment it is registered here **and** its mechanism surfaces agree with it.
+Single registration point for the repo's governing terms (established when the Review Convergence terminology sweep landed). The registry is the serialization exit of terminology arbitration: a term is in force from the moment it is registered here **and** its mechanism surfaces agree with it.
 
 ### Arbitration rule (术语第一 / terminology-first)
 

@@ -10,8 +10,8 @@ import { createHash } from "node:crypto";
 
 import { hashFile } from "../hash.ts";
 
-describe("hashFile（§2.3.1 内容状态 token：sha256 hex / 缺失 → 空串哨兵）", () => {
-  it("真实文件 → 64-char sha256 hex", () => {
+describe("hashFile (§2.3.1 content-state token: sha256 hex / missing → empty-string sentinel)", () => {
+  it("existing file → 64-char sha256 hex", () => {
     const dir = mkdtempSync(join(tmpdir(), "hashf-"));
     const doc = join(dir, "a.md");
     writeFileSync(doc, "hello p2");
@@ -19,10 +19,10 @@ describe("hashFile（§2.3.1 内容状态 token：sha256 hex / 缺失 → 空串
     expect(hashFile(doc)).toBe(expectHex);
     expect(hashFile(doc)).toMatch(/^[0-9a-f]{64}$/);
   });
-  it("缺失文件 → 空串哨兵（≠ 任何真实 hex）", () => {
+  it("missing file → empty-string sentinel (never equal to any real hex)", () => {
     expect(hashFile(join(tmpdir(), "nope-p2-" + Date.now() + ".md"))).toBe("");
   });
-  it("目录（readFileSync EISDIR）→ 空串哨兵（读失败统一归哨兵）", () => {
+  it("directory (readFileSync EISDIR) → empty-string sentinel (read failures unify to the sentinel)", () => {
     expect(hashFile(tmpdir())).toBe("");
   });
 });

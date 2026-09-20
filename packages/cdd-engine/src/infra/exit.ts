@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/infra/exit.ts — CDD exit helpers (TS port of exit.mjs; spec §2.13 exit row)
 // + the P6 T24 error-consolidation family (spec T7.3 ⑤). Two semantic layers, both exported from
-// here per the「全部手动 throw 归 exit.ts」rule:
+// here per the "all manual throws consolidate in exit.ts" rule:
 //
 //   Exit path (CLI contract — 0=OK / 1=BLOCKED / 2=CLI missing or usage / 3=review convergence):
 //     exit helpers throw ExitRequested (NEVER direct process.exit): the throw unwinds run-boundary
@@ -13,7 +13,8 @@
 //
 //   invariant(cond, msg) — library invariant assertions (developer errors, not recoverable, no
 //     process exit): throws a plain Error with the exact message (throw semantics preserved, never
-//     silenced — spec: 库内不变量断言走 invariant 工厂，保持 throw 语义不哑化、不转进程退出).
+//     silenced — spec: library invariants go through the invariant factory — throw semantics kept
+//     un-silenced, never converted to a process exit).
 export class ExitRequested extends Error {
   code: number;
   constructor(code: number, message = `cdd exit ${code}`) {

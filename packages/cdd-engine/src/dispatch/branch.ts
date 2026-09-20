@@ -144,13 +144,78 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
   }
 
   /** BLOCKED-carrier commits — only when the base satisfies the schema's `^[0-9a-f]{40}$`: a
-   * short-形 base is carried by the AC15 base7..head7 file name, and a BLOCKED payload must always
-   * pass its own validation. head included only when present (branch-review carries the reviewed
-   * range head; branch-fix has no head yet). */
+   * short-form base is carried by the AC15 base7..head7 file name, and a BLOCKED payload must
+   * always pass its own validation. head included only when present (branch-review carries the
+   * reviewed range head; branch-fix has no head yet). */
   protected branchCarrierCommits(base: string, head?: string): Record<string, unknown> | undefined {
     const fullBase = typeof base === "string" && /^[0-9a-f]{40}$/.test(base) ? base : null;
     if (!fullBase) return undefined;
     return { base: fullBase, ...(typeof head === "string" && head ? { head } : {}) };
+  }
+
+  /** Shared schema-validate lane (single implementation for both branch channels — the former two
+   * hook bodies were structurally identical parallel implementations of the same sequence; one
+   * helper keeps the agent-failure / no-handoff / schema-recovery lanes from drifting between
+   * branch-review and branch-fix). Every lane writes the BLOCKED carrier and exits 1; on recovery
+   * the normalized handoff replaces the agent's file. `phase` is the handoff phase field, `label`
+   * the channel word in the CDD_BLOCKED diagnostics, `reRun` the re-run command phrase in the
+   * blockers, `commits` the channel's BLOCKED-carrier commits subset. */
+  protected schemaValidateBranch(options: {
+    phase: string;
+    label: string;
+    reRun: string;
+    commits?: Record<string, unknown>;
+  }): void {
+    const { phase, label, reRun, commits } = options;
+
+    // Nested CLI failed with no handoff → write BLOCKED handoff + CDD_BLOCKED diagnostic + exit 1
+    // (mirrors runner step 10).
+    if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
+      writeBlockedCarrier(this.handoffPath, {
+        task: 1, phase,
+        ...(commits ? { commits } : {}),
+        blocker: `cli exited ${this.agentRc} without writing handoff`,
+      });
+      process.stderr.write(`CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`);
+      exitWithCode(1);
+    }
+
+    // Agent exited 0 but never wrote the handoff — BLOCKED (mirrors runner step 10.5).
+    if (!existsSync(this.handoffPath)) {
+      writeBlockedCarrier(this.handoffPath, {
+        task: 1, phase,
+        ...(commits ? { commits } : {}),
+        blocker: `${path.basename(this.handoffPath)} not written after exit 0 → re-run ${reRun}`,
+      });
+      process.stderr.write(`CDD_BLOCKED: ${label} handoff not written\n`);
+      exitWithCode(1);
+    }
+
+    // Agent wrote handoff — validate against the CDD task schema (mirrors runner step 8.8; T5
+    // CONTRACT_VIOLATION recovery: normalize → re-validate at most one round, findings preserved).
+    const agentHandoff: Record<string, unknown> = JSON.parse(readFileSync(this.handoffPath, "utf8"));
+    let handoff: Record<string, unknown> = agentHandoff;
+    const sv = validateHandoffSchema(agentHandoff, "task");
+    if (!sv.valid) {
+      // Recovery single point = finalize.ts#recoverHandoff (normalize → re-validate, one round
+      // max; the violating-key suffix + findings array guard are written there once — this lane
+      // keeps only its own failure-payload difference).
+      const rec = recoverHandoff(agentHandoff, "task");
+      if (!rec.valid) {
+        writeBlockedCarrier(this.handoffPath, {
+          task: 1, phase,
+          ...(commits ? { commits } : {}),
+          findings: rec.preservedFindings,
+          blocker: `${label} handoff schema invalid${rec.reason} → fix and re-run ${reRun}`,
+          fullReplace: true, // violating keys never stay on disk
+        });
+        process.stderr.write(`CDD_BLOCKED: ${label} handoff schema invalid\n`);
+        exitWithCode(1);
+      }
+      writeOwnHandoff(this.handoffPath, rec.handoff);
+      handoff = rec.handoff;
+    }
+    this.agentHandoff = handoff;
   }
 }
 
@@ -272,59 +337,12 @@ export class BranchReviewLifecycle extends BranchLifecycle {
   protected override async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {
     const base = String(this.#base);
     const head = String(this.#head);
-    const commits = this.branchCarrierCommits(base, head);
-
-    // Nested CLI failed with no handoff → write BLOCKED handoff + CDD_BLOCKED diagnostic + exit 1.
-    if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
-      writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase: "branch-review",
-        ...(commits ? { commits } : {}),
-        blocker: `cli exited ${this.agentRc} without writing handoff`,
-      });
-      process.stderr.write(`CDD_BLOCKED: branch-review failed (exit ${this.agentRc})\n`);
-      exitWithCode(1);
-    }
-
-    // Agent exited 0 but never wrote the handoff — BLOCKED (mirrors runner step 10.5).
-    if (!existsSync(this.handoffPath)) {
-      writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase: "branch-review",
-        ...(commits ? { commits } : {}),
-        blocker: `${path.basename(this.handoffPath)} not written after exit 0 → re-run branch-review`,
-      });
-      process.stderr.write(`CDD_BLOCKED: branch-review handoff not written\n`);
-      exitWithCode(1);
-    }
-
-    // Agent wrote handoff — validate against the CDD task schema (mirrors runner step 8.8).
-    const agentHandoff: Record<string, unknown> = JSON.parse(readFileSync(this.handoffPath, "utf8"));
-    let handoff: Record<string, unknown> = agentHandoff;
-    const sv = validateHandoffSchema(agentHandoff, "task");
-    // T5 CONTRACT_VIOLATION recovery (spec §2.5.2, AC7 category-level: branch dispatch shares the
-    // task/spec/plan strategy): normalize → re-validate (at most one round, no loop). Hit →
-    // same-source write + finalize from the normalized object; still failing → BLOCKED keeping the
-    // already-resolved findings (previously hard-coded findings: [] — the A4 bug).
-    if (!sv.valid) {
-      // Recovery single point = finalize.ts#recoverHandoff (T24 B: the recovery unit moved from
-      // rules/schema.ts; normalize → re-validate, one round max; the violating-key suffix +
-      // findings array guard are written there once — this path keeps only its own failure-payload
-      // difference).
-      const rec = recoverHandoff(agentHandoff, "task");
-      if (!rec.valid) {
-        writeBlockedCarrier(this.handoffPath, {
-          task: 1, phase: "branch-review",
-          ...(commits ? { commits } : {}),
-          findings: rec.preservedFindings,
-          blocker: `branch-review handoff schema invalid${rec.reason} → fix and re-run branch-review`,
-          fullReplace: true, // violating keys never stay on disk
-        });
-        process.stderr.write(`CDD_BLOCKED: branch-review handoff schema invalid\n`);
-        exitWithCode(1);
-      }
-      writeOwnHandoff(this.handoffPath, rec.handoff);
-      handoff = rec.handoff;
-    }
-    this.agentHandoff = handoff;
+    this.schemaValidateBranch({
+      phase: "branch-review",
+      label: "branch-review",
+      reRun: "branch-review",
+      commits: this.branchCarrierCommits(base, head),
+    });
   }
 
   /** T5/T7 status single authority — branch review (review family) reads back through finalizeHandoff
@@ -406,6 +424,10 @@ export class BranchFixLifecycle extends BranchLifecycle {
       this.workspace,
       handoffNaming.handoffName("fix", "branch", { base7: this.#base7, head7: this.#head7, round: this.#fixRound }),
     );
+    // Thread the derived handoff path into the engine context: the inherited exit gate
+    // (commitPostCheck → validateCommitContract) reads handoffPath from ctx — without it the F1
+    // head-mismatch BLOCKED and the dirty-tree BLOCKED-carrier rewrite both silently no-op.
+    this.ctx = { ...this.ctx, handoffPath: this.handoffPath };
   }
 
   /** Steps 7/8: derive the FIX_BASE (source review's commits.base; missing/unknown → BLOCKED
@@ -484,57 +506,16 @@ export class BranchFixLifecycle extends BranchLifecycle {
   }
 
   /** Steps 8.8/10/10.5: agent-failure / no-handoff lanes + schema recovery (the commit-contract
-   * BLOCKED rewrite rides the inherited exit gate in the next step). */
+   * BLOCKED rewrite rides the inherited exit gate in the next step). BLOCKED carrier commits carry
+   * ONLY the FIX_BASE when 40-hex — a BLOCKED fix has no head yet (mirror of the former
+   * writeBranchFixBlocked shape). */
   protected override async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {
-    // BLOCKED carrier commits carry ONLY the FIX_BASE when 40-hex (head is omitted — a BLOCKED fix
-    // has no head yet; mirror of the former writeBranchFixBlocked shape).
-    const commits = this.branchCarrierCommits(this.fixBase);
-
-    // Nested CLI failed with no handoff → BLOCKED carrier + CDD_BLOCKED diagnostic + exit 1
-    // (mirrors runner step 10).
-    if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
-      writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase: "fix",
-        ...(commits ? { commits } : {}),
-        blocker: `cli exited ${this.agentRc} without writing handoff`,
-      });
-      process.stderr.write(`CDD_BLOCKED: branch-fix failed (exit ${this.agentRc})\n`);
-      exitWithCode(1);
-    }
-
-    // Agent exited 0 but never wrote the handoff — BLOCKED (mirrors runner 10.5).
-    if (!existsSync(this.handoffPath)) {
-      writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase: "fix",
-        ...(commits ? { commits } : {}),
-        blocker: `${path.basename(this.handoffPath)} not written after exit 0 → re-run cdd fix --type branch`,
-      });
-      process.stderr.write(`CDD_BLOCKED: branch-fix handoff not written\n`);
-      exitWithCode(1);
-    }
-
-    // Agent wrote handoff — validate against the CDD task schema (mirrors runner 8.8; T5
-    // CONTRACT_VIOLATION recovery: normalize → re-validate at most one round, findings preserved).
-    const agentHandoff: Record<string, unknown> = JSON.parse(readFileSync(this.handoffPath, "utf8"));
-    let handoff: Record<string, unknown> = agentHandoff;
-    const sv = validateHandoffSchema(agentHandoff, "task");
-    if (!sv.valid) {
-      const rec = recoverHandoff(agentHandoff, "task");
-      if (!rec.valid) {
-        writeBlockedCarrier(this.handoffPath, {
-          task: 1, phase: "fix",
-          ...(commits ? { commits } : {}),
-          findings: rec.preservedFindings,
-          blocker: `branch-fix handoff schema invalid${rec.reason} → fix and re-run cdd fix --type branch`,
-          fullReplace: true, // violating keys never stay on disk
-        });
-        process.stderr.write(`CDD_BLOCKED: branch-fix handoff schema invalid\n`);
-        exitWithCode(1);
-      }
-      writeOwnHandoff(this.handoffPath, rec.handoff);
-      handoff = rec.handoff;
-    }
-    this.agentHandoff = handoff;
+    this.schemaValidateBranch({
+      phase: "fix",
+      label: "branch-fix",
+      reRun: "cdd fix --type branch",
+      commits: this.branchCarrierCommits(this.fixBase),
+    });
   }
 
   /** Finalize through the single finalization point (mode=fix → work-type passthrough: the

@@ -212,3 +212,116 @@ describe('branch-fix in-process loop closure', () => {
     }
   });
 });
+
+// ---- ④ exit gate (commit contract): F1 head-mismatch + dirty-tree BLOCKED carrier rewrite ----
+describe('branch-fix exit gate — the inherited commit-contract BLOCKED lanes', () => {
+  const setup = async () => {
+    const dir = tmpGitRepo();
+    const slug = 'test-plan-bf-gate';
+    const planPath = path.join(dir, `${slug}.md`);
+    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    // The exit gate rules at RETURN: a dirty tree, or a clean tree whose handoff commits.head
+    // mismatches actual HEAD (F1), rewrites the fix handoff to BLOCKED and exits 1. Everything the
+    // fake agent writes after setup must be gitignored (`.osuperpowers/` handoffs + `*.head`
+    // probes), and everything else committed as fixtures.
+    writeFileSync(path.join(dir, '.gitignore'), '.osuperpowers/\n*.head\n');
+    const base = FULL_ID('a');
+    const head = FULL_ID('b');
+    const base7 = base.slice(0, 7);
+    const head7 = head.slice(0, 7);
+    const { resolveWorkspace, handoffName } = await import('../../artifacts/handoff/naming.ts');
+    const workspace = resolveWorkspace(planPath, dir);
+    const reviewPath = path.join(workspace, handoffName('review', 'branch', { base7, head7, round: 1 }));
+    const handoffPath = path.join(workspace, handoffName('fix', 'branch', { base7, head7, round: 1 }));
+    mkdirSync(workspace, { recursive: true });
+    // The source review handoff the fix reads: --findings IS the review handoff (same file).
+    writeFileSync(reviewPath, JSON.stringify({
+      task: 1, phase: 'branch-review', status: 'APPROVED',
+      commits: { base, head }, findings: [], artifacts: {}, blocker: 'none',
+    }));
+    return { dir, planPath, reviewPath, handoffPath, base, head };
+  };
+
+  // Ghost registry + PATH fake-cli (same harness shape as the loop-closure lane); `script` is the
+  // fake agent's bash body, run with the repo root as cwd.
+  const installFakeCli = async (dir: string, script: string) => {
+    const binDir = mkdtempSync(path.join(tmpdir(), 'cdd-bf-fake-'));
+    writeFileSync(path.join(binDir, 'fake-cli'), `#!/usr/bin/env bash\n${script}`);
+    chmodSync(path.join(binDir, 'fake-cli'), 0o755);
+    const origPath = process.env.PATH;
+    process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+    const { REG_PATH } = await import('../../infra/registry.ts');
+    const regPath = path.join(dir, 'registry.json');
+    const reg = JSON.parse(readFileSync(REG_PATH, 'utf8'));
+    reg.ghost = { cli: 'fake-cli', invoke: '-p', output: 'text', ship: 'full' };
+    writeFileSync(regPath, JSON.stringify(reg, null, 2));
+    // Commit the fixtures (plan + .gitignore + ghost registry) ONCE — the clean-tree exit gate
+    // later requires zero non-ignored untracked/modified files at return.
+    execaSync('git', ['-C', dir, 'add', '-A']);
+    execaSync('git', ['-C', dir, '-c', 'user.name=cdd-test', '-c', 'user.email=cdd-test@example.com', 'commit', '-qm', 'fixtures']);
+    return { origPath, regPath };
+  };
+
+  it('F1: clean tree + handoff commits.head ≠ actual HEAD → exit 1 + on-disk fix handoff rewritten to BLOCKED', async () => {
+    const { dir, planPath, reviewPath, handoffPath, base } = await setup();
+    // A 40-hex ref that is NOT the repo HEAD — the agent declared a different commit than it made.
+    const wrongHead = FULL_ID('c');
+    const { origPath, regPath } = await installFakeCli(dir,
+      `cat > "${handoffPath}" <<EOF\n` +
+      `{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"${wrongHead}"},"findings":[],"artifacts":{}}\n` +
+      `EOF\n` +
+      `exit 0\n`);
+    try {
+      const { ExitRequested } = await import('../../infra/exit.ts');
+      const { runBranchFix } = await import('../branch-fix.ts');
+      let exitCode: number | null = null;
+      try {
+        await runBranchFix({ harness: 'ghost', plan: planPath, findings: reviewPath, type: 'branch', root: dir, registryPath: regPath });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      // The inherited exit gate turned the F1 violation into BLOCKED + exit 1 (previously the
+      // unthreaded handoff path silently no-opped the gate and this round exited APPROVED).
+      expect(exitCode).toBe(1);
+      const h = JSON.parse(readFileSync(handoffPath, 'utf8'));
+      expect(h.status).toBe('BLOCKED');
+      expect(h.blocker).toMatch(/does not match HEAD/);
+    } finally {
+      process.env.PATH = origPath;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('dirty tree at return → exit 1 + on-disk fix handoff rewritten to BLOCKED carrier', async () => {
+    const { dir, planPath, reviewPath, handoffPath, base } = await setup();
+    const { origPath, regPath } = await installFakeCli(dir,
+      `git commit --allow-empty -qm "fix"\n` +
+      `HEAD=$(git rev-parse HEAD)\n` +
+      `cat > "${handoffPath}" <<EOF\n` +
+      `{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"$HEAD"},"findings":[],"artifacts":{}}\n` +
+      `EOF\n` +
+      `printf 'dirty\\n' > "${dir}/dirty.tmp"\n` +
+      `exit 0\n`);
+    try {
+      const { ExitRequested } = await import('../../infra/exit.ts');
+      const { runBranchFix } = await import('../branch-fix.ts');
+      let exitCode: number | null = null;
+      try {
+        await runBranchFix({ harness: 'ghost', plan: planPath, findings: reviewPath, type: 'branch', root: dir, registryPath: regPath });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      expect(exitCode).toBe(1);
+      // The dirty-tree BLOCKED carrier rewrite: the on-disk fix handoff now carries the engine's
+      // BLOCKED conclusion (not the agent's declared APPROVED) + the dirty-tree blocker.
+      const h = JSON.parse(readFileSync(handoffPath, 'utf8'));
+      expect(h.status).toBe('BLOCKED');
+      expect(h.blocker).toMatch(/uncommitted changes at return/);
+    } finally {
+      process.env.PATH = origPath;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

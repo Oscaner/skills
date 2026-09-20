@@ -69,9 +69,10 @@ vi.mock("../../artifacts/handoff/finalize.ts", async () => {
   const actual = await vi.importActual("../../artifacts/handoff/finalize.ts");
   return {
     ...actual,
-    // T5：mock 面镜射真实单元导出（run-docs schema 无效分支消费 recoverHandoff，缺此导出即
-    // 「归一化 → 重校验」单点在 mock 环境下不可达）。normalizeHandoff 镜像加防：finalize.ts 的
-    // implement 实体化依赖它（docs 面不触达，防御性镜像真实导出形状）。
+    // T5: mirror the real module's exports on the mock surface — the run-docs schema-invalid
+    // branch consumes recoverHandoff, and without this export the "normalize → re-validate"
+    // single point is unreachable under mock. normalizeHandoff mirrors the defensive shape as
+    // well: finalize.ts's implement materialization depends on it (the docs surface never touches it).
     recoverHandoff: vi.fn((o) => ({ handoff: o, valid: true })),
     normalizeHandoff: vi.fn((o) => o),
   };

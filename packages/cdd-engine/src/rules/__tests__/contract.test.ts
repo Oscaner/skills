@@ -287,12 +287,14 @@ it("Task 23 task schema description 承载 status/failure_category/unverifiable 
   expect(p.blocker.description).toContain("never fabricated");
 });
 
-it("Task 23 docs schema: 11 props（+unverifiable/plan_conflicts）+ dev-measured 语义 + allOf BLOCKED 生效", () => {
+it("Task 23 docs schema: 13 props（+unverifiable/plan_conflicts + T25 changes/recovery）+ dev-measured 语义 + allOf BLOCKED 生效", () => {
   const schema = loadHandoffSchema("docs") as { properties: Record<string, { description: string }> };
   const props = schema.properties;
-  expect(Object.keys(props)).toHaveLength(11);
+  expect(Object.keys(props)).toHaveLength(13);
   expect(props).toHaveProperty("unverifiable");
   expect(props).toHaveProperty("plan_conflicts");
+  expect(props).toHaveProperty("changes"); // T25 changed-file attribution ledger (task/docs 双 schema)
+  expect(props).toHaveProperty("recovery"); // T25 residue recovery carrier (task/docs 双 schema)
   expect(props).toHaveProperty("failure_category");
   expect(props.unverifiable.description.toLowerCase()).toContain("dev-measured");
   expect(props.unverifiable.description).toContain("never blocks");

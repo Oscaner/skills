@@ -31,7 +31,7 @@ describe('PKG_ROOT', () => {
 // Synthetic zone-plan fixture: minimal contract exercising every validator branch (sample-ok
 // baseline unless overridden). Round zone renders MODE / ALPHA / HANDOFF_WRITE_GATE; return zone
 // carries the RETURN_* literal labels; shell is slot-free prose.
-// T12 (D1.2/E2⑤) — the seven discipline clauses (v1.29–v1.31) land in #clauses single-source.
+// T12 (D1.2/E2⑤) — the eight discipline clauses (v1.29–v1.31 + the changed-surface ledger clause) land in #clauses single-source.
 // The brief's `cl:` prefix is the clause-family namespace (clauses register as `{{> cl:xxx}}`
 // partials); this list is the D1.2 fall-order and the single point the T12 tests assert against.
 const CLAUSE_KEYS = [
@@ -42,6 +42,7 @@ const CLAUSE_KEYS = [
   'cl:plan-freeze',
   'cl:atomic-commit',
   'cl:self-validate',
+  'cl:changed-surface',
 ];
 
 function zoneFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -198,7 +199,7 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
   it('Task 20 与 T12 衔接：{{> clause}} 引用须 resolve 到 #clauses（未注册 → throw；注册 → 通过 + 装配器注册 partial）', async () => {
     const { validateTemplateStructure, clauseNames, assembleClauses } = await import('../templates.ts');
     const hb = (await import('handlebars')).default;
-    expect(clauseNames()).toEqual(CLAUSE_KEYS); // T12 落库后：7 条纪律条款（顺序 = D1.2/E2⑤ 命名序）
+    expect(clauseNames()).toEqual(CLAUSE_KEYS); // T12 落库后：8 条纪律条款（顺序 = D1.2/E2⑤ 命名序 + changes[] 记账）
     const ref = zoneFixture({
       sections: { ...zoneFixture().sections, 'round-context': ['## Round context', '- `MODE`: {{MODE}}', '- `ALPHA`: {{ALPHA}}', '### HANDOFF_WRITE_GATE', '{{HANDOFF_WRITE_GATE}}', '{{> discipline}}'] },
     });
@@ -440,5 +441,27 @@ describe('renderHandoffSchemaJson 紧凑注入（P5 E-8 省 tok + Task 5 rename:
     const schema = loadHandoffSchema('task');
     const pretty = '```json\n' + JSON.stringify(schema, null, 2) + '\n```';
     expect(renderHandoffSchemaJson(schema).length).toBeLessThan(pretty.length);
+  });
+});
+
+describe('T25: 四 review type 的 scope-composition 轴（changed-surface reasonableness，数据驱动 + 共享壳条款）', () => {
+  it('reviewTypeConfig 四 type 全部携带 scope-composition 轴（prompt 零散文——内容全在 contract）', async () => {
+    const { reviewTypeConfig, loadTemplateContract } = await import('../templates.ts');
+    for (const type of ['task', 'branch', 'spec', 'plan']) {
+      expect(reviewTypeConfig(type).axesGuide, type).toContain('changed-surface reasonableness');
+    }
+    // 共享壳 Instructions 的 changes[] 记账条款落在 clauses 单点（T12 机制面）
+    const contract = loadTemplateContract();
+    expect(contract.clauses).toHaveProperty('cl:changed-surface');
+  });
+
+  it('渲染出的 review prompt 同时携带 scope 轴与 changed-surface 条款（grep/渲染双断言）', async () => {
+    const { renderModePrompt, resetTemplateCaches } = await import('../templates.ts');
+    resetTemplateCaches();
+    const out = renderModePrompt('review', {
+      TASK_WORKSPACE: '/ws', HANDOFF_TARGET: '/ws/task-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
+    });
+    expect(out).toContain('changed-surface reasonableness');
+    expect(out).toContain('Changed-surface bookkeeping');
   });
 });

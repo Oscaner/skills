@@ -42,6 +42,8 @@ import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { reviewConvergenceGuard } from "../rules/convergence.ts";
+import { FAILURE_CATEGORIES } from "../rules/failure.ts";
+import { preserveAndAnnounceResidue } from "../rules/residue.ts";
 import { assembleReturnBlock } from "../artifacts/return-block.ts";
 
 // ---- public opts (the CLI surface's derivation contract; moved from cli/branch-review.ts / fix) ----
@@ -158,24 +160,31 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
    * branch-review and branch-fix). Every lane writes the BLOCKED carrier and exits 1; on recovery
    * the normalized handoff replaces the agent's file. `phase` is the handoff phase field, `label`
    * the channel word in the CDD_BLOCKED diagnostics, `reRun` the re-run command phrase in the
-   * blockers, `commits` the channel's BLOCKED-carrier commits subset. */
-  protected schemaValidateBranch(options: {
+   * blockers, `commits` the channel's BLOCKED-carrier commits subset. T25: the execution-failure
+   * lane records the death diagnosis (recovery.cause + exit_code) and preserves the dirty-tree
+   * residue INLINE (these lanes abort via exitWithCode — the template post-flight settleResidue
+   * step never fires on the branch channel). */
+  protected async schemaValidateBranch(options: {
     phase: string;
     label: string;
     reRun: string;
     commits?: Record<string, unknown>;
-  }): void {
+  }): Promise<void> {
     const { phase, label, reRun, commits } = options;
 
     // Nested CLI failed with no handoff → write BLOCKED handoff + CDD_BLOCKED diagnostic + exit 1
-    // (mirrors runner step 10).
+    // (mirrors runner step 10). T25: residue preserved inline (stash-workflow contract — retrieve
+    // via `git stash list`, salvage or discard) instead of the pre-destroying discard-or-commit
+    // advice; SIGTERM (143) is annotated so the death cause is replayable from the blocker.
     if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
       writeBlockedCarrier(this.handoffPath, {
         task: 1, phase,
         ...(commits ? { commits } : {}),
-        blocker: `cli exited ${this.agentRc} without writing handoff`,
+        recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.agentRc },
+        blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${reRun}`,
       });
       process.stderr.write(`CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`);
+      await preserveAndAnnounceResidue(this.handoffPath, this.repoRoot);
       exitWithCode(1);
     }
 
@@ -328,7 +337,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
   protected override async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {
     const base = String(this.#base);
     const head = String(this.#head);
-    this.schemaValidateBranch({
+    await this.schemaValidateBranch({
       phase: "branch-review",
       label: "branch-review",
       reRun: "branch-review",
@@ -498,7 +507,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
    * ONLY the FIX_BASE when 40-hex — a BLOCKED fix has no head yet (mirror of the former
    * writeBranchFixBlocked shape). */
   protected override async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {
-    this.schemaValidateBranch({
+    await this.schemaValidateBranch({
       phase: "fix",
       label: "branch-fix",
       reRun: "cdd fix --type branch",

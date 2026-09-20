@@ -93,8 +93,8 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
 // "signal" (external SIGTERM — abrupt agent death, not a budget expiry) both carry the recovery
 // contract from the brief. The resume-or-discard wording is scoped to the IMPLEMENT lane — the only
 // lane with a resume pre-flight (settleResidue salvage → re-dispatch stash apply); review/fix
-// rounds keep the legacy discard-or-commit shape (their re-dispatch has no auto-resume, so the
-// honest advice is manual cleanup, then re-dispatch over a clean tree). Each cause is
+// rounds (T25) keep the stash-workflow shape (the settlement step auto-preserves their WIP; the
+// operator retrieves it via `git stash list` → apply → review → commit or drop). Each cause is
 // distinguishable in the blocker (death can be archived and replayed by cause).
 export function timeoutBlocker(opts: {
   cause?: TerminationCause;
@@ -118,7 +118,7 @@ export function timeoutBlocker(opts: {
         : `resume or discard: cdd implement --task ${opts.taskNum} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`;
       return `${basis}; ${resume}`;
     }
-    return `${basis}; discard or commit the uncommitted changes, then re-dispatch cdd ${op} --task ${opts.taskNum} over a clean tree`;
+    return `${basis}; worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${op} --task ${opts.taskNum}`;
   }
   return `cli timed out after ${opts.timeoutMs ?? "<unknown>"}ms → simplify task ${opts.taskNum} scope or increase timeout, then re-dispatch`;
 }

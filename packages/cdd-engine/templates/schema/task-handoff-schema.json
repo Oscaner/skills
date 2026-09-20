@@ -90,6 +90,26 @@
       "type": "array",
       "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (the engine rolls findings up to status)."
     },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "repo-relative path of a file this round changed."
+          },
+          "reason": {
+            "type": "string",
+            "description": "why the file changed (finding id / brief item / fix intent); omitted entries stay attributed by file."
+          }
+        }
+      },
+      "description": "Changed-file attribution ledger (implement/fix rounds declare every file the round touched, each with its reason). The engine reconciles `git diff <base>..HEAD` against it — files off the ledger are booking gaps the execution layer only surfaces (stderr CDD_WARN + a notes record, never a block); the review scope axis judges them as findings."
+    },
     "unverifiable": {
       "type": "array",
       "description": "Content-level notes — each entry states one claim the round could not verify (what + why: e.g. {claim, why}). A non-empty list makes the round BLOCKED with failure_category UNVERIFIABLE and a blocker summarizing the entries. Dev-measured acceptance items (plan-constraints §口径) are NOT unverifiable: an evidence-contract accepted-noted round records them in `notes`, never writes unverifiable and never blocks."
@@ -113,12 +133,44 @@
     "recovery": {
       "type": "object",
       "required": [
-        "residue_ref"
+        "cause"
       ],
       "properties": {
+        "cause": {
+          "type": "string",
+          "description": "round-end cause: the failure-category id (EXECUTION_FAILURE / TIMEOUT — the residue-preservation eligibility set) on engine-written death carriers, or the termination sub-cause (stalled/over-budget/signal) on legacy salvage records. The settlement step preserves the residue exactly when this id is in the preserved set."
+        },
+        "exit_code": {
+          "type": "integer",
+          "description": "the failed agent's process exit code (1 = run failure, 143 = SIGTERM) — the archived death diagnosis distinguishing exit 1 vs 143; absent on TIMEOUT rounds (the monitor killed the process; there is no exit)."
+        },
         "residue_ref": {
           "type": "string",
-          "description": "Salvaged-WIP stash commit SHA (index-independent: `stash@{N}` indices shift on every push/drop). Written by settleResidue on TIMEOUT/EXECUTION_FAILURE rounds; the re-dispatch resume pre-flight reads it and `git stash apply`s it. Interface contract with T25 (spec T7.5): settleResidue output ≡ resume input."
+          "description": "Salvaged-WIP stash commit SHA (index-independent: `stash@{N}` indices shift on every push/drop). Written by the residue settlement step on eligible EXECUTION_FAILURE/TIMEOUT rounds with a dirty tree; the re-dispatch resume pre-flight reads it and `git stash apply`s it. Settlement output ≡ resume input."
+        },
+        "wip_stat": {
+          "type": "object",
+          "required": [
+            "files",
+            "insertions",
+            "deletions"
+          ],
+          "properties": {
+            "files": {
+              "type": "integer"
+            },
+            "insertions": {
+              "type": "integer"
+            },
+            "deletions": {
+              "type": "integer"
+            }
+          },
+          "description": "structured WIP scale (files / +M / -M) at salvage time — the recovery carrier's archivable magnitude beside residue_ref; counts brand-new untracked files too (the normal TDD shape for new tests/modules)."
+        },
+        "preserved": {
+          "type": "boolean",
+          "description": "true when the round's residue was stashed into the recovery carrier (residue_ref + wip_stat present); the settlement step's idempotence flag — an already-preserved carrier never double-stashes."
         },
         "stash_message": {
           "type": "string",
@@ -133,21 +185,43 @@
           "minimum": 1,
           "description": "the salvaged round number (implement rounds are always round 1)."
         },
-        "cause": {
-          "type": "string",
-          "description": "round-end cause: the termination cause (stalled/over-budget/signal) or exec-failure for EXECUTION_FAILURE salvages."
-        },
         "scope_base": {
           "type": "string",
           "pattern": "^[0-9a-f]{40}$",
-          "description": "T27 (spec T7.6): the task-level scope anchor at salvage time (ledger value priority / fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE (resume-declared) adoption and the recovered scope stay consistent across round death."
+          "description": "The task-level scope anchor at salvage time (ledger value priority / fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE (resume-declared) adoption and the recovered scope stay consistent across round death."
         }
       },
       "additionalProperties": false,
-      "description": "Resume contract (spec T7.5) — engine-written on TIMEOUT/EXECUTION_FAILURE failure carriers; absent on all other rounds. The re-dispatch's resume pre-flight consumes it (primary path); carriers written before this field existed fall back to the standardized stash-message scan."
+      "description": "Residue recovery carrier — engine-written on EXECUTION_FAILURE/TIMEOUT failure rounds: cause + exit_code ride every death (the archived, replayable diagnosis); residue_ref / wip_stat / preserved appear once the settlement step stashed the dirty-tree WIP. Absent on all other rounds. The re-dispatch's resume pre-flight consumes the stash ref (primary path); carriers written before this field existed fall back to the standardized stash-message scan. Same law as every structured field: the facts live here, the blocker stays human-readable prose."
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "implement"
+          },
+          "recovery": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "phase",
+          "recovery"
+        ]
+      },
+      "then": {
+        "properties": {
+          "recovery": {
+            "type": "object",
+            "required": [
+              "residue_ref"
+            ]
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

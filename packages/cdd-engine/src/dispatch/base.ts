@@ -20,6 +20,8 @@
 import { createDispatchHooks, type DispatchHookContext, type DispatchHooks } from "./hooks.ts";
 import type { PhaseId } from "./phases.ts";
 import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
+import { preserveAndAnnounceResidue } from "../rules/residue.ts";
+import { reconcileChangedSurface } from "../rules/write-boundary.ts";
 import { CddExitError } from "../infra/exit.ts";
 
 // Consumer re-export: the override hooks (commitPreCheck / dispatch / …) all take this context;
@@ -119,6 +121,10 @@ export abstract class DispatchLifecycle {
       await this.schemaValidate(hookCtx);
       this.#step("normalizeResult");
       await this.normalizeResult(hookCtx);
+      this.#step("settleResidue"); // residue settlement — before the exit gate
+      await this.settleResidue(hookCtx);
+      this.#step("writeBoundary"); // changed-surface reconcile — after materialization, before the exit gate
+      await this.writeBoundary(hookCtx);
       this.#step("commitPostCheck"); // exit gate — mounted at commit:exit (default constructor mount)
       await this.hooks.callHook("commit:exit", hookCtx);
     } finally {
@@ -164,6 +170,35 @@ export abstract class DispatchLifecycle {
   /** Result normalization (post-flight): default pass-through; subclasses produce the exit code /
    * return block surface. */
   protected async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {}
+
+  /** Residue settlement (post-flight, before the exit gate): a failed round's recovery carrier —
+   * an eligible cause (EXECUTION_FAILURE / TIMEOUT — rules/residue.ts single eligibility set) with
+   * a dirty tree — gets its WIP auto-preserved (`git stash push -u`) and the carrier gains
+   * residue_ref / wip_stat / preserved (facts in the carrier, prose stays in the blocker). Runs
+   * AFTER the failure lanes' #done returned — the terminal decision already happened, settlement
+   * is the last archival act before the exit gate. Success / no-recovery rounds → no-op;
+   * CONTRACT_VIOLATION-class causes are deliberately not auto-swallowed. The branch channel aborts
+   * via ExitRequested and calls preserveAndAnnounceResidue inline (dispatch/branch.ts) — the
+   * template step is the task/docs path. Dry-run skip: a pure simulation must not mutate the git
+   * object store. */
+  protected async settleResidue(_hookCtx: DispatchHookContext): Promise<void> {
+    if (this.ctx.dryRun === true) return; // dry-run: zero archive side effects
+    if (!this.ctx.handoffPath) return;
+    await preserveAndAnnounceResidue(this.ctx.handoffPath, this.ctx.repoRoot);
+  }
+
+  /** Changed-surface reconciliation (writeBoundary, post-flight, before the exit gate): for
+   * implement/fix rounds the round's `git diff <base>..HEAD` fileset is reconciled against the
+   * handoff `changes[]` ledger — pure-soft accounting (2026-09-20 ruling): gaps are a stderr
+   * CDD_WARN + a notes record, NEVER a block (the review scope axis judges). implement rounds
+   * record the diff fileset as the ledger origin. review / no-handoff / unknown-base rounds skip
+   * (the rules layer's own fail-open). Positioned after the failure lanes and after the implement
+   * handoff materialization (normalizeResult) — the reconcile sees the final carrier. */
+  protected async writeBoundary(_hookCtx: DispatchHookContext): Promise<void> {
+    if (this.ctx.dryRun === true) return;
+    if (!this.ctx.handoffPath) return;
+    await reconcileChangedSurface(this.ctx.mode, this.ctx.repoRoot, this.ctx.handoffPath);
+  }
 
   /** Exit gate (出口门, post-commit / post-flight): validateCommitContract (rules/commit.ts) —
    * dirty → DispatchBlocked(gate="exit"); the handoff rewrite already happened in the rules layer.

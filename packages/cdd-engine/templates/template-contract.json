@@ -48,6 +48,7 @@
       "- {{> cl:plan-freeze}}",
       "- {{> cl:atomic-commit}}",
       "- {{> cl:self-validate}}",
+      "- {{> cl:changed-surface}}",
       "",
       "## Handoff",
       "",
@@ -193,7 +194,8 @@
     "cl:bash-stall-limit": "If a Bash command stalls without progress for more than 10 minutes, terminate it and substitute an equivalent, lighter command.",
     "cl:plan-freeze": "Approved plan/spec files are frozen — zero modification authority; any change needed is reported to the orchestrator through findings, never edited in place.",
     "cl:atomic-commit": "Commit each round's change as one atomic conventional commit scoped to the round — no mixed or out-of-scope content, no AI-generation trailers.",
-    "cl:self-validate": "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report."
+    "cl:self-validate": "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
+    "cl:changed-surface": "Changed-surface bookkeeping: implement/fix rounds declare every file they changed in the handoff `changes[]` ledger (file + reason each). The engine reconciles `git diff <base>..HEAD` against it — files off the ledger are surfaced (warn + notes), never blocked; the review scope axis judges them (normal finding → fix loop)."
   },
   "reviews": {
     "task": {
@@ -202,7 +204,7 @@
         "spec"
       ],
       "ref": "TASK_BASE..HEAD",
-      "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements); single agent, dual axis, no parallel sub-agents"
+      "axesGuide": "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (task brief / plan requirements) + Scope axis (changed-surface reasonableness): cross-check the handoff's `changes[]` ledger against the actual `git diff <base>..HEAD` fileset — any changed file with no ledger entry and no brief-seam attribution is a candidate finding (severity by your judgment; warn-level booking gaps the engine flagged can surface here as blockers when they expose out-of-brief changes). Single agent, three axes, no parallel sub-agents."
     },
     "branch": {
       "lensEnum": [
@@ -210,7 +212,7 @@
         "spec"
       ],
       "ref": "BASE..HEAD",
-      "axesGuide": "Same dual axis as task (branch-wide health: diff BASE..HEAD + plan conformance)"
+      "axesGuide": "Same three axes as task (branch-wide health: diff BASE..HEAD + plan conformance) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop"
     },
     "spec": {
       "lensEnum": [
@@ -219,7 +221,7 @@
         "clarity"
       ],
       "ref": "doc vs spec",
-      "axesGuide": "Follow URC: single-cycle; lens-tag every finding (completeness / consistency / clarity)"
+      "axesGuide": "Follow URC: single-cycle; lens-tag every finding (completeness / consistency / clarity) + Scope axis (changed-surface reasonableness): the doc edits under review must track the reviewed findings — edits beyond them (or beyond the brief seam) are candidate findings"
     },
     "plan": {
       "lensEnum": [
@@ -228,7 +230,7 @@
         "buildability"
       ],
       "ref": "doc vs spec",
-      "axesGuide": "Follow URC: spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability)"
+      "axesGuide": "Follow URC: spec coverage (completeness) / task boundaries + interfaces (decomposition) / type consistency + placeholder scan (buildability) + Scope axis (changed-surface reasonableness): the doc edits under review must track the reviewed findings — edits beyond them (or beyond the brief seam) are candidate findings"
     }
   }
 }

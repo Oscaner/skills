@@ -5,6 +5,8 @@
 // Fail-open contracts mirror the old helpers exactly: non-repo or git error → null (string ops) /
 // false (boolean ops); no exception crosses the seam.
 import { simpleGit } from "simple-git";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 export interface GitLogOptions {
   maxCount?: number;
@@ -173,6 +175,106 @@ export async function gitDiffShortstat(cwd: string): Promise<string | null> {
   try {
     const out = (await git(cwd).raw(["diff", "HEAD", "--shortstat"])).trim();
     return out || "";
+  } catch {
+    return null;
+  }
+}
+
+// ---- T25 residue-stash preservation (rules/residue.ts) ----
+// The structured WIP scale (files / insertions / deletions) that `recovery.wip_stat` carries at
+// salvage time — the data-driven 「文件数/+M/−M」 the recovery carrier archives next to residue_ref.
+// Unlike `git diff HEAD --shortstat` (tracked only), the scale also counts brand-new UNTRACKED
+// files (the normal TDD shape for new tests/modules): each untracked entry counts as one file with
+// its newline-count as insertions — `git diff --numstat` cannot see untracked files, so the count
+// is derived from a per-file line read instead of a second git walk.
+
+/** Structured WIP scale — file count + insertion/deletion magnitudes (tracked diffs exact, untracked
+ *  files exact by line count). */
+export interface WipStat {
+  files: number;
+  insertions: number;
+  deletions: number;
+}
+
+async function gitDiffNumstat(cwd: string): Promise<WipStat> {
+  const out = (await git(cwd).raw(["diff", "HEAD", "--numstat"])).trim();
+  let files = 0;
+  let insertions = 0;
+  let deletions = 0;
+  for (const line of out.split("\n")) {
+    const [ins, del, ..._rest] = line.trim().split("\t");
+    if (!ins || !del) continue;
+    const i = Number(ins);
+    const d = Number(del);
+    if (Number.isNaN(i) || Number.isNaN(d)) continue; // binary rename lines (-\t-) never count
+    files += 1;
+    insertions += i;
+    deletions += d;
+  }
+  return { files, insertions, deletions };
+}
+
+/** Untracked-file scale contribution: each untracked entry is one file; insertions = its
+ *  newline count (a new file's magnitude is its own lines — `git diff --numstat` has no row for it).
+ *  Directories (`?? dir/`) contribute presence only (+1, no line read). */
+async function gitUntrackedStat(cwd: string, exclude?: string): Promise<WipStat> {
+  const out = (await gitStatusPorcelain(cwd) ?? "").split("\n");
+  let files = 0;
+  let insertions = 0;
+  for (const line of out) {
+    if (!line.startsWith("?? ")) continue;
+    const rel = line.slice(3).replace(/\/$/, "");
+    if (exclude && rel === exclude) continue; // pass-through carrier never counts toward the residue scale
+    files += 1;
+    if (line.endsWith("/")) continue; // untracked directory — presence only
+    try {
+      const src = readFileSync(path.join(cwd, rel), "utf8");
+      insertions += src === "" ? 1 : src.split("\n").length - 1;
+    } catch {
+      insertions += 1; // unreadable → +1 presence (scale stays defined)
+    }
+  }
+  return { files, insertions, deletions: 0 };
+}
+
+/** `git stash push -u` (task/round-annotated message) with OPTIONAL pathspec exclusion — a
+ *  pass-through carrier (the engine-authored handoff) stays in-tree while the agent's residue moves
+ *  into the object store. Returns the stash commit SHA + the structured WIP scale captured BEFORE
+ *  the push (the scale is the pre-stash tree's magnitude), or null when there is nothing to stash
+ *  (clean tree / git error — the same fail-open as gitStashPush). Index-independent ref: the SHA of
+ *  stash@{0} right after push (stash@{N} indices shift on every push/drop — rules/residue.ts stores
+ *  this ref in recovery.residue_ref). */
+export async function gitStashPreserve(
+  cwd: string,
+  message: string,
+  exclude?: string,
+): Promise<{ ref: string; wip: WipStat } | null> {
+  try {
+    const wip = await gitDiffNumstat(cwd);
+    const untracked = await gitUntrackedStat(cwd, exclude);
+    wip.files += untracked.files;
+    wip.insertions += untracked.insertions;
+    wip.deletions += untracked.deletions;
+    const args = exclude
+      ? ["stash", "push", "-u", "-m", message, "--", ".", `:(exclude)${exclude}`]
+      : ["stash", "push", "-u", "-m", message];
+    await git(cwd).raw(args);
+    const ref = (await git(cwd).revparse(["stash@{0}"])).trim() || null;
+    if (!ref) return null;
+    return { ref, wip };
+  } catch {
+    return null;
+  }
+}
+
+/** `git diff <base>..<head> --name-only` — the round's mechanical changed-surface fileset (rules/
+ *  write-boundary.ts reconcile input). [] for an empty diff; null on unresolvable rev / git error
+ *  (fail-open — a diff we cannot compute is no evidence). */
+export async function gitDiffNameOnly(cwd: string, base: string, head: string): Promise<string[] | null> {
+  try {
+    const out = (await git(cwd).raw(["diff", "--name-only", `${base}..${head}`])).trim();
+    if (!out) return [];
+    return out.split("\n");
   } catch {
     return null;
   }

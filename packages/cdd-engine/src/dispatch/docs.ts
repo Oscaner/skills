@@ -36,6 +36,7 @@ import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { finalizeHandoff, persistFinalized, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
 import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
 import { validateHandoffSchema } from "../rules/schema.ts";
+import { FAILURE_CATEGORIES } from "../rules/failure.ts";
 import { validateCommitContract } from "../rules/commit.ts";
 import { renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
 import { hashFile } from "../artifacts/hash.ts";
@@ -200,10 +201,14 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (this.#finished) return;
     const handoffPath = this.#opts.handoffPath!;
     if (!existsSync(handoffPath)) {
+      // T25: the docs channel carries the death diagnosis (recovery.cause + exit_code) so the base
+      // settleResidue template step auto-preserves the dirty-tree WIP right after this lane returns
+      // (retrievable via `git stash list` — never pre-destroyed).
       this.#done(writeBlockedCarrier(handoffPath, {
         phase: this.#opts.mode,
         doc: this.#opts.doc,
-        blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
+        recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.#agentRc },
+        blocker: `${path.basename(handoffPath)} not written after exit → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
       }));
       return;
     }

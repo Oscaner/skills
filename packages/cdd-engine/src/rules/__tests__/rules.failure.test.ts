@@ -143,18 +143,17 @@ describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed word
     expect(b).toContain("resume or discard: cdd implement --task 7 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon");
   });
 
-  it("non-implement lanes (review/fix) keep the legacy discard-or-commit wording — no resume pre-flight, no false auto-resume promise", () => {
+  it("non-implement lanes (review/fix) carry the stash-workflow contract (T25 — WIP preserved for retrieval, no false auto-resume promise)", () => {
     const b = timeoutBlocker({ cause: "stalled", taskNum: 4, idleWindowMs: 900_000, op: "review" });
-    // T26 fix round (T7.5): salvage + resume are implement-only; review/fix re-dispatches never
-    // restore WIP, so the honest instruction is manual cleanup, then re-dispatch over a clean tree
-    expect(b).toContain("discard or commit the uncommitted changes");
-    expect(b).toContain("cdd review --task 4 over a clean tree");
-    expect(b).not.toContain("git stash drop");
-    expect(b).not.toContain("resume or discard");
-    // signal death on a non-implement lane gets the same scoped cleanup shape
+    // §⑤ upgrade: the pre-destroying discard-or-commit wording is gone → stash retrieve-first shape
+    expect(b).not.toContain("discard or commit");
+    expect(b).toContain("git stash list");
+    expect(b).toContain("cdd review --task 4"); // re-dispatch advice kept
+    expect(b).not.toContain("resume or discard"); // no false auto-resume promise
+    // signal death on a non-implement lane gets the same stash-workflow shape
     const b2 = timeoutBlocker({ cause: "signal", taskNum: 5, op: "fix" });
     expect(b2).toMatch(/external signal \(SIGTERM\)/);
-    expect(b2).toContain("cdd fix --task 5 over a clean tree");
-    expect(b2).not.toContain("git stash drop");
+    expect(b2).toContain("git stash list");
+    expect(b2).not.toContain("resume or discard");
   });
 });

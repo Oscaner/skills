@@ -561,7 +561,8 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 
 // ⑫ 行 13：stdout counters 行由 canonical 类目表派生 —— 构造点零手写计数器名/标签；六类名「以类目身份
 // 出现」面零手写（failure_category 赋值 / isIncompleteDispatch 判定）；counters 不进 handoff 契约。
-// properties 计数受 guard 铁锚：task 15（14 + recovery，T7.5 续传契约） / docs 11（除外零新增）。
+// properties 计数受 guard 铁锚：task 16（14 基础面含 failure_category + recovery + changes，T7.4/T7.5 载体） /
+// docs 13（11 基础面含 failure_category + recovery + changes，T7.4 载体）。除 recovery/changes/failure_category 外零新增。
 // 四字段名与标签经 failure-categories.json。
 const COUNTER_FIELDS = canonicalCounters().map((c) => c.field);
 const COUNTER_LABELS = canonicalCounters().map((c) => c.label);
@@ -600,7 +601,7 @@ export function collectCountersContractHits({
     for (const fld of COUNTER_FIELDS) {
       if (props.includes(fld)) hits.push({ label: `counter ${fld} 泄漏进 ${name} handoff schema（counters 不进契约）`, file: schemaPath });
     }
-    const expected = name === "task" ? 15 : 11;
+    const expected = name === "task" ? 16 : 13;
     if (props.length !== expected || !props.includes("failure_category")) {
       hits.push({ label: `${name} handoff schema properties 计数 ${props.length} ≠ ${expected}（除 failure_category 外不得增减）`, file: schemaPath });
     }

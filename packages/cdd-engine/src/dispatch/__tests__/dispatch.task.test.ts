@@ -85,7 +85,8 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
     // 模板全走（dispatch 进入——唯一 agent 语义步骤被执行；尾步 commitPostCheck 在 dryRun 下跳过退出校验）
     expect(lc.timeline).toEqual([
       "pre-flight", "commitPreCheck", "resolveContext", "validateMode",
-      "dispatch", "post-flight", "schemaValidate", "normalizeResult", "commitPostCheck",
+      "dispatch", "post-flight", "schemaValidate", "normalizeResult",
+      "settleResidue", "writeBoundary", "commitPostCheck",
     ]);
   } finally {
     cap.restore();
@@ -214,7 +215,7 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   // only hook bodies skip on a finished round).
   expect(lc.timeline).toEqual([
     "pre-flight", "commitPreCheck", "resolveContext", "validateMode",
-    "dispatch", "post-flight", "schemaValidate", "normalizeResult", "commitPostCheck",
+    "dispatch", "post-flight", "schemaValidate", "normalizeResult", "settleResidue", "writeBoundary", "commitPostCheck",
   ]);
 });
 

@@ -586,10 +586,11 @@ export class TaskLifecycle extends DispatchLifecycle {
       // the unified cause — the stall/signal variants carry the resume-or-discard contract on the
       // implement lane. T26 salvage: the round's uncommitted work is stashed FIRST (settleResidue
       // — recovery.residue_ref rides the carrier; spec T7.5 settleResidue output ≡ resume input),
-      // so the re-dispatch pre-flight can restore it. The salvage is gated to the IMPLEMENT lane —
-      // the only lane with a resume pre-flight (review/fix re-dispatches never restore WIP, so
-      // stashing theirs would strand it); a clean tree → settleResidue null → the carrier carries
-      // no recovery record, and the termination cause is archived via `notes` instead.
+      // so the re-dispatch pre-flight can restore it. T25: the review/fix lanes now carry the death
+      // diagnosis too (recovery.cause = the TIMEOUT category id — the base settleResidue template
+      // step auto-preserves their dirty-tree WIP right after this lane returns; #done returns, it
+      // does not throw). A clean tree → nothing to preserve, and the termination sub-cause is
+      // archived via `notes` instead.
       const timeoutMs = this.#timeoutMs;
       const recovery = mode === "implement"
         ? await settleResidue(this.#root, {
@@ -602,16 +603,16 @@ export class TaskLifecycle extends DispatchLifecycle {
             // dead-round brief TASK_BASE) so the resume restores the same scope.
             scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
           })
-        : null;
+        : { cause: FAILURE_CATEGORIES.TIMEOUT.id };
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
         recovery: recovery ?? undefined,
-        // no salvage → the cause rides `notes` (the only archival channel when recovery.cause is
-        // absent) so a dead clean-tree round stays replayable by cause
-        notes: recovery ? undefined : `termination cause: ${cause ?? "unknown"}`,
+        // no salvage / review-fix lane → the termination sub-cause rides `notes` (the only archival
+        // channel when recovery.cause is the category id) so a dead round stays replayable by cause
+        notes: mode === "implement" ? undefined : `termination cause: ${cause ?? "unknown"}`,
         blocker: timeoutBlocker({ cause, taskNum: this.#taskNum, timeoutMs, idleWindowMs, op: mode, residue: recovery?.residue_ref ?? null }),
       });
       if (!dryRun) incrementRound(progressDir, this.#taskNum, mode);
@@ -688,8 +689,9 @@ export class TaskLifecycle extends DispatchLifecycle {
     //     settleResidue salvages whatever partial WIP the failed agent left before the carrier writes
     //     (implement lane only — the resume lane; a clean tree → no recovery record). The upgrade
     //     text keeps the legacy `cli exited N without writing handoff` prefix the black-box suite
-    //     matches, with the resume-or-discard contract on implement and the legacy discard-or-commit
-    //     shape on review/fix (their re-dispatch has no auto-resume).
+    //     matches, with the resume-or-discard contract on implement and the stash-workflow text on
+    //     review/fix (T25 — the base settleResidue step preserves their WIP right after this lane
+    //     returns, so the operator retrieves it via `git stash list` instead of pre-destroying it).
     if (this.#agentRc !== 0 && !existsSync(ctx.handoffPath)) {
       const recovery = mode === "implement"
         ? await settleResidue(this.#root, {
@@ -701,7 +703,11 @@ export class TaskLifecycle extends DispatchLifecycle {
             // T27: same scope-anchor capture as the TIMEOUT salvage lane.
             scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
           })
-        : null;
+        // T25: review/fix EXECUTION_FAILURE death diagnosis rides the carrier (cause = the category
+        // id — the preserve eligibility key + exit code distinguishing exit 1 vs 143). The base
+        // settleResidue step stashes the dirty-tree WIP afterwards, filling residue_ref/wip_stat/
+        // preserved.
+        : { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.#agentRc };
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
@@ -709,11 +715,11 @@ export class TaskLifecycle extends DispatchLifecycle {
         commits: { base: "unknown" }, // no real head at failure time — the "unknown" sentinel is the EXECUTION_FAILURE ground (T23)
         recovery: recovery ?? undefined,
         blocker:
-          `cli exited ${this.#agentRc} without writing handoff → check stderr above for errors; ` +
-          (recovery ? `WIP salvaged (recovery.residue_ref=${recovery.residue_ref}) — ` : "") +
+          `cli exited ${this.#agentRc}${this.#agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → check stderr above for errors; ` +
+          (`residue_ref` in (recovery ?? {}) ? `WIP salvaged (recovery.residue_ref=${(recovery as { residue_ref: string }).residue_ref}) — ` : "") +
           (mode === "implement"
             ? `resume or discard: cdd implement --task ${this.#taskNum} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`
-            : `discard or commit the uncommitted changes, then re-dispatch cdd ${mode} --task ${this.#taskNum} over a clean tree`),
+            : `worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${mode} --task ${this.#taskNum}`),
       });
       if (!dryRun) {
         incrementRound(progressDir, this.#taskNum, mode);

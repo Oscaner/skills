@@ -424,10 +424,14 @@ export class BranchFixLifecycle extends BranchLifecycle {
       this.workspace,
       handoffNaming.handoffName("fix", "branch", { base7: this.#base7, head7: this.#head7, round: this.#fixRound }),
     );
-    // Thread the derived handoff path into the engine context: the inherited exit gate
-    // (commitPostCheck → validateCommitContract) reads handoffPath from ctx — without it the F1
-    // head-mismatch BLOCKED and the dirty-tree BLOCKED-carrier rewrite both silently no-op.
-    this.ctx = { ...this.ctx, handoffPath: this.handoffPath };
+    // Thread the derived handoff path AND the resolved root into the engine context: the inherited
+    // exit gate (commitPostCheck → validateCommitContract) reads both from ctx — without them the
+    // F1 head-mismatch BLOCKED and the dirty-tree BLOCKED-carrier rewrite both silently no-op. The
+    // CLI wrapper seeds ctx.repoRoot = opts.root ?? null while fixCmd/reviewCmd declare no --root,
+    // so on the production walk the wrapper's seed alone leaves the gate fail-open; threading the
+    // resolved this.repoRoot (opts.root ?? getRoot()) here closes it — the docs-channel precedent
+    // (dispatch/docs.ts resolveContext).
+    this.ctx = { ...this.ctx, handoffPath: this.handoffPath, repoRoot: this.repoRoot };
   }
 
   /** Steps 7/8: derive the FIX_BASE (source review's commits.base; missing/unknown → BLOCKED

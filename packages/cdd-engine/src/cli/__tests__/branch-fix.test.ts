@@ -324,4 +324,41 @@ describe('branch-fix exit gate — the inherited commit-contract BLOCKED lanes',
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('F1 no-root path: getRoot() fallback (initRoot primed like bin.ts:87, no opts.root) still enforces the exit gate', async () => {
+    const { dir, planPath, reviewPath, handoffPath, base } = await setup();
+    // The CLI wrapper seeds ctx.repoRoot = opts.root ?? null while fixCmd/reviewCmd declare no
+    // --root, so on the real black-box walk the channel resolves its root from getRoot() (the
+    // initRoot()-initialized singleton). This lane replicates that walk: initRoot primed like
+    // bin.ts:87, NO opts.root injected — the resolveContext threading (repoRoot → ctx) must still
+    // feed the resolved root to the inherited exit gate. Before the threading, ctx.repoRoot stayed
+    // null here → validateCommitContract → resolveCleanTree(null) → fail-open → APPROVED (the
+    // fix-1 gap this round closes). Same wrong-HEAD F1 probe as the root-injected lane above.
+    const wrongHead = FULL_ID('c');
+    const { origPath, regPath } = await installFakeCli(dir,
+      `cat > "${handoffPath}" <<EOF\n` +
+      `{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"${wrongHead}"},"findings":[],"artifacts":{}}\n` +
+      `EOF\n` +
+      `exit 0\n`);
+    try {
+      const { ExitRequested } = await import('../../infra/exit.ts');
+      const { initRoot } = await import('../../infra/root.ts');
+      const { runBranchFix } = await import('../branch-fix.ts');
+      await initRoot(dir);
+      let exitCode: number | null = null;
+      try {
+        await runBranchFix({ harness: 'ghost', plan: planPath, findings: reviewPath, type: 'branch', registryPath: regPath });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      expect(exitCode).toBe(1);
+      const h = JSON.parse(readFileSync(handoffPath, 'utf8'));
+      expect(h.status).toBe('BLOCKED');
+      expect(h.blocker).toMatch(/does not match HEAD/);
+    } finally {
+      process.env.PATH = origPath;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

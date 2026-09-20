@@ -1460,3 +1460,168 @@ it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) 
     restore();
   }
 }, 30_000);
+
+// ---- T27 scope ledger black-box (spec T7.6) ----
+// Real dispatch through the ghost fake-cli: the resume-signature round (materialization base==head)
+// whose return block DECLARES the true scope start must see that base adopted as commits.base and
+// moved strictly earlier in the ledger → the next review therefore renders REVIEW_REFERENCE =
+// `declared..HEAD` (the T26 fix: a non-empty real range, never the collapse). Fresh implement
+// (base≠head) never adopts, and a normal task's review/fix REVIEW_REFERENCE is bit-identical to the
+// legacy chain (ledger == carrier base) — zero behavior change. REVIEW_REFERENCE is observed via
+// the rendered prompt (last CLI arg), the same seam the Pζ T3 fixed-point tests use.
+
+describe("T27 scope ledger black-box（spec T7.6）", () => {
+  it("resume declared base → carrier adopts + ledger moves earlier → next review REVIEW_REFERENCE = declared..HEAD", async () => {
+    const { repo, planFile, ws } = setupWorkspace();
+    configureGitIdentity(repo);
+    const t0 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    // Dead round's deliverable already landed on HEAD (the T26 defect shape: the re-dispatch brief
+    // TASK_BASE == HEAD). The resume round makes no new commit; it DECLARES the true scope start t0.
+    writeFileSync(path.join(repo, "wip.md"), "line2-round1-agent-wip\n");
+    execFileSync("git", ["-C", repo, "add", "wip.md"]);
+    execFileSync("git", ["-C", repo, "commit", "-qm", "round-1 deliverable"]);
+    const t1 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    expect(t0).not.toBe(t1);
+
+    const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t27-resume-"));
+    const regPath = ghostRegistry(ws);
+    const hp = path.join(ws, "task-1-implement.json");
+    const restore = withFakeCli(binDir, "fake-cli",
+      `#!/usr/bin/env bash\n` +
+      `printf 'status: APPROVED\\ncommits: base=${t0} head=${t1}\\n'\n` +
+      `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+      `exit 0\n`);
+    try {
+      const res1 = await runTask("ghost", 1, {
+        mode: "implement", planFile, root: repo,
+        registryPath: regPath, noExit: true,
+      });
+      expect(res1.exitCode).toBe(0);
+      const h1 = JSON.parse(readFileSync(hp, "utf8"));
+      expect(h1.commits.base).toBe(t0); // declared base adopted (!= HEAD, HEAD ancestor, base==head)
+      expect(h1.commits.head).toBe(t1);
+      const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+      expect(progress.tasks[0].scope_base).toBe(t0); // ledger seeded at base(t1) then moved to t0
+      // Next review: fixed point = ledger t0 → REVIEW_REFERENCE `t0..HEAD` (t0..t1 — non-empty real
+      // range over the deliverable, the exact T26 collapse this task kills).
+      const promptLog = path.join(ws, "t27-resume-review-prompt.txt");
+      writeFileSync(path.join(binDir, "fake-cli"),
+        `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+      chmodSync(path.join(binDir, "fake-cli"), 0o755);
+      const res2 = await runTask("ghost", 1, {
+        mode: "review", planFile, root: repo,
+        registryPath: regPath, noExit: true,
+      });
+      expect(res2.exitCode).toBe(0);
+      expect(existsSync(promptLog)).toBe(true);
+      expect(readFileSync(promptLog, "utf8")).toContain(`${t0}..HEAD`);
+    } finally {
+      restore();
+    }
+  }, 30_000);
+
+  it("fresh implement (base≠head) never adopts a declared valid-earlier base → carrier keeps brief TASK_BASE", async () => {
+    const { repo, planFile, ws } = setupWorkspace();
+    configureGitIdentity(repo);
+    const t0 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    // Pre-dispatch commit so the fresh brief TASK_BASE (t1) differs from the agent-declared base
+    // (t0, a legitimate earlier ancestor) — makes the rejection observable: had the fresh lane
+    // (wrongly) adopted, carrier base would be t0, not t1.
+    writeFileSync(path.join(repo, "wip.md"), "pre-existing\n");
+    execFileSync("git", ["-C", repo, "add", "wip.md"]);
+    execFileSync("git", ["-C", repo, "commit", "-qm", "pre-dispatch setup"]);
+    const t1 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+
+    const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t27-fresh-"));
+    const regPath = ghostRegistry(ws);
+    const hp = path.join(ws, "task-1-implement.json");
+    const restore = withFakeCli(binDir, "fake-cli",
+      `#!/usr/bin/env bash\n` +
+      `printf 'fresh-agent-work\\n' >> wip.md\n` +
+      `git add wip.md\n` +
+      `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "fresh implement round"\n` +
+      `printf 'status: APPROVED\\ncommits: base=${t0} head=$(git rev-parse HEAD)\\n'\n` +
+      `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+      `exit 0\n`);
+    try {
+      const res = await runTask("ghost", 1, {
+        mode: "implement", planFile, root: repo,
+        registryPath: regPath, noExit: true,
+      });
+      expect(res.exitCode).toBe(0);
+      const h = JSON.parse(readFileSync(hp, "utf8"));
+      expect(h.commits.base).toBe(t1); // brief TASK_BASE authority; base!=head closes the adoption lane
+      expect(h.commits.base).not.toBe(t0); // the valid t0 declaration is never adopted on a fresh round
+      const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+      expect(progress.tasks[0].scope_base).toBe(t1); // ledger seeded at the brief base (earliest-wins)
+    } finally {
+      restore();
+    }
+  }, 30_000);
+
+  it("normal task (no recovery): review AND fix REVIEW_REFERENCE unchanged — ledger == legacy chain (zero behavior change)", async () => {
+    const { repo, planFile, ws } = setupWorkspace();
+    configureGitIdentity(repo);
+    const t0 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t27-normal-"));
+    const regPath = ghostRegistry(ws);
+    const hp = path.join(ws, "task-1-implement.json");
+
+    // Implement: a plain round committing work, declaring the brief base (the perfectly normal shape).
+    const restore = withFakeCli(binDir, "fake-cli",
+      `#!/usr/bin/env bash\n` +
+      `printf 'impl-work\\n' >> wip.md\n` +
+      `git add wip.md\n` +
+      `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "implement round"\n` +
+      `printf 'status: APPROVED\\ncommits: base=${t0} head=$(git rev-parse HEAD)\\n'\n` +
+      `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+      `exit 0\n`);
+    try {
+      const resI = await runTask("ghost", 1, {
+        mode: "implement", planFile, root: repo,
+        registryPath: regPath, noExit: true,
+      });
+      expect(resI.exitCode).toBe(0);
+      const h = JSON.parse(readFileSync(hp, "utf8"));
+      expect(h.commits.base).toBe(t0); // legacy authority on a normal task
+      const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+      expect(progress.tasks[0].scope_base).toBe(t0); // ledger = brief base — identical to the chain
+
+      // Review round: fixed point = ledger t0 (legacy chain would also read t0 — no observable delta).
+      const promptLogR = path.join(ws, "t27-normal-review-prompt.txt");
+      writeFileSync(path.join(binDir, "fake-cli"),
+        `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLogR}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+      chmodSync(path.join(binDir, "fake-cli"), 0o755);
+      const resR = await runTask("ghost", 1, {
+        mode: "review", planFile, root: repo,
+        registryPath: regPath, noExit: true,
+      });
+      expect(resR.exitCode).toBe(0);
+      expect(readFileSync(promptLogR, "utf8")).toContain(`${t0}..HEAD`);
+
+      // Fix round: same ledger-first fixed point → `t0..HEAD` again (no review-findings churn).
+      const promptLogF = path.join(ws, "t27-normal-fix-prompt.txt");
+      writeFileSync(path.join(binDir, "fake-cli"),
+        `#!/usr/bin/env bash\n` +
+        `printf '%s' "\${@: -1}" > "${promptLogF}"\n` +
+        `printf '%s' '{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"'${t0}'","head":"'${h.commits.head}'"},"findings":[],"artifacts":{"report":"r.md"}}' > "${path.join(ws, "task-1-fix-1.json")}"\n` +
+        `printf 'status: APPROVED\\ncommits: base=${t0} head=${h.commits.head}\\n'\n` +
+        `printf 'artifacts: report=r.md\\nblocker: none\\n'\n` +
+        `exit 0\n`);
+      chmodSync(path.join(binDir, "fake-cli"), 0o755);
+      const resF = await runTask("ghost", 1, {
+        mode: "fix", planFile, root: repo,
+        registryPath: regPath, noExit: true,
+      });
+      expect(resF.exitCode).toBe(0);
+      expect(existsSync(promptLogF)).toBe(true);
+      // The fix template carries the fixed-point in the `TASK_FIXED_POINT` round-context slot (the
+      // REVIEW_REFERENCE range composition is review-only) — the ledger value lands there unchanged.
+      expect(readFileSync(promptLogF, "utf8")).toContain("`TASK_FIXED_POINT`: " + t0);
+      const fixHandoff = JSON.parse(readFileSync(path.join(ws, "task-1-fix-1.json"), "utf8"));
+      expect(fixHandoff.commits.base).toBe(t0);
+    } finally {
+      restore();
+    }
+  }, 30_000);
+});

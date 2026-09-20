@@ -39,13 +39,13 @@ import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { validateCommitContract } from "../rules/commit.ts";
 import { generateBrief } from "../render/brief.ts";
 import { handoffName, prevHandoffPath as hnPreHandoffPath, materializeWorkspace, workspaceSlug } from "../artifacts/handoff/naming.ts";
-import { finalizeHandoff, persistFinalized, normalizeHandoffStatus, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
+import { finalizeHandoff, persistFinalized, normalizeHandoffStatus, recoverHandoff, writeBlockedCarrier, taskBaseFromBrief } from "../artifacts/handoff/finalize.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
 import { invokeCli, invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
 import { withLifecycle, type TerminationConfig, type TerminationCause } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery } from "../artifacts/progress.ts";
+import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, taskScopeBase } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
 import {
   settleResidue,
@@ -286,6 +286,10 @@ export class TaskLifecycle extends DispatchLifecycle {
   #exitCode = -1;
   #diagnostic: TaskDiagnostic | null = null;
   #finished = false;
+  /** T27 (spec T7.6): the dead-round carrier's recovery.scope_base captured at the resume
+   *  pre-flight, handed to implement materialization (finalizeImplement pulls the scope ledger
+   *  strictly earlier along it). null = no earlier anchor was riding the carrier. */
+  #resumeScopeBase: string | null = null;
 
   constructor(options: { harness: string; taskNum: number; opts: TaskRunOptions; ctx: DispatchContext }) {
     super({ ctx: options.ctx });
@@ -399,6 +403,13 @@ export class TaskLifecycle extends DispatchLifecycle {
           // pre-resume clean baseline stands).
           const carrier = readDeadCarrier(ctx.handoffPath);
           if (carrier) {
+            // T27: the dead round's settled scope (recovery.scope_base — ledger value / fallback
+            // dead-round brief TASK_BASE) rides the resume: it is the same task-level anchor, so
+            // re-materialization pulls the ledger strictly earlier along it (finalizeImplement).
+            const recoveryScope = (carrier.recovery as Record<string, unknown> | undefined)?.scope_base;
+            if (typeof recoveryScope === "string" && /^[0-9a-f]{40}$/.test(recoveryScope)) {
+              this.#resumeScopeBase = recoveryScope;
+            }
             const found = await findResumeResidue(this.#root, carrier, this.#taskNum);
             if (found) {
               if (await resumeFromResidue(this.#root, found.ref)) {
@@ -448,14 +459,24 @@ export class TaskLifecycle extends DispatchLifecycle {
     // died with buildTaskEnv's split).
     const progressDir = path.dirname(ctx.ledgerPath);
 
-    // 5. Task-review / fix fixed-point — derive from the prior-phase handoff (cross-phase read).
+    // 5. Task-review / fix fixed-point — derive from the scope ledger (T27, spec T7.6) first, the
+    // legacy prior-handoff chain second. The ledger's scope_base is the TASK's true contribution
+    // start (round-1 implement brief TASK_BASE seeded earliest-wins; resume-declared bases pulled
+    // strictly earlier) — review/fix range against the ledger is the real deliverable range, never
+    // the T26 collapse (re-dispatch TASK_BASE == dead head → legacy chain reads an empty range).
+    // Ledger missing → fall back to the legacy prev.commits.base chain (normal tasks unchanged).
     if (mode === "review" || mode === "fix") {
       if (!ctx.fixedPoint) {
-        const prev = prevHandoffPath(ctx.workspace, this.#taskNum, mode, ctx.round ?? 1);
-        if (prev) {
-          const prevCommitsBase = readJsonField(prev, ["commits", "base"]);
-          if (prevCommitsBase && prevCommitsBase !== "unknown") {
-            ctx.fixedPoint = prevCommitsBase;
+        const ledgerBase = taskScopeBase(progressDir, this.#taskNum);
+        if (ledgerBase) {
+          ctx.fixedPoint = ledgerBase;
+        } else {
+          const prev = prevHandoffPath(ctx.workspace, this.#taskNum, mode, ctx.round ?? 1);
+          if (prev) {
+            const prevCommitsBase = readJsonField(prev, ["commits", "base"]);
+            if (prevCommitsBase && prevCommitsBase !== "unknown") {
+              ctx.fixedPoint = prevCommitsBase;
+            }
           }
         }
       }
@@ -573,6 +594,9 @@ export class TaskLifecycle extends DispatchLifecycle {
         task: this.#taskNum,
         round: ctx.round ?? 1,
         cause: cause ?? "over-budget",
+        // T27: the salvage captures the task-level scope anchor (ledger priority / fallback the
+        // dead-round brief TASK_BASE) so the resume restores the same scope.
+        scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
       });
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
@@ -663,6 +687,8 @@ export class TaskLifecycle extends DispatchLifecycle {
         task: this.#taskNum,
         round: ctx.round ?? 1,
         cause: "exec-failure",
+        // T27: same scope-anchor capture as the TIMEOUT salvage lane.
+        scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
       });
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
@@ -736,6 +762,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         repoRoot: this.#root,
         workspace: ctx.workspace,
         taskNum: this.#taskNum,
+        resumeScopeBase: this.#resumeScopeBase,
       });
       if (finalized.handoff) {
         writeOwnHandoff(ctx.handoffPath, finalized.handoff);

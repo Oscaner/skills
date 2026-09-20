@@ -136,6 +136,11 @@
         "cause": {
           "type": "string",
           "description": "round-end cause: the termination cause (stalled/over-budget/signal) or exec-failure for EXECUTION_FAILURE salvages."
+        },
+        "scope_base": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "T27 (spec T7.6): the task-level scope anchor at salvage time (ledger value priority / fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE (resume-declared) adoption and the recovered scope stay consistent across round death."
         }
       },
       "additionalProperties": false,

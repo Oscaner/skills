@@ -8,6 +8,7 @@
 // rules/failure.ts owner; progress only reads/writes).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { gitMergeBaseIsAncestor } from "../infra/git.ts";
 
 // T8: progress schema dropped lastDispatchHead/degradationLog (dead fields; check-head/
 // engine-recovery degradation, superseded by deriveReviewStatus/engineRecoveryCount);
@@ -29,6 +30,10 @@ export interface ProgressData {
     task: number;
     status?: string;
     rounds?: Record<string, number>;
+    /** T27 (spec T7.6): task-level scope anchor — the round-1 implement's brief TASK_BASE, seeded
+     *  earliest-wins and only ever moved strictly earlier. Engine-owned, never an agent handoff
+     *  key; see seedScopeBase / moveTaskScopeBaseEarlier. */
+    scope_base?: string;
   }>;
   [key: string]: unknown;
 }
@@ -109,6 +114,74 @@ export function incrementRecovery(progressDir: string): void {
   const data = readProgressJSON(progressDir);
   data.engineRecoveryCount = (data.engineRecoveryCount ?? 0) + 1;
   writeProgressJSON(progressDir, data);
+}
+
+// ---- T27 scope ledger (spec T7.6): tasks[N].scope_base — task-level contribution anchor ----
+// `base` 一名两义 (T26 defect): roundBase is this round's commit seat (correct per-round), scopeBase
+// is the task's TRUE contribution start — must survive round death and stay stable across re-dispatches
+// (converge in the normal flow, diverge on resume rounds). The ledger is the engine's sole writer;
+// it is NOT an agent-authored handoff key. Seed = first-round implement's brief TASK_BASE via
+// seedScopeBase at materialization time (earliest-wins); a resume-declared base may only move the
+// ledger STRICTLY earlier (via moveTaskScopeBaseEarlier — recovered commits sit below any round's
+// brief snapshot). Read fallback: taskScopeBase → null, then dispatch/task.ts falls back to the
+// legacy prev.commits.base chain (zero behavior change for tasks without a ledger).
+const SHA40_RE = /^[0-9a-f]{40}$/;
+
+/** taskScopeBase: the ledger's current scope_base for taskNum, or null when absent/invalid
+ *  (a non-40-hex stored value is treated as a missing ledger — dispatch falls back to legacy). */
+export function taskScopeBase(progressDir: string, taskNum: number): string | null {
+  const entry = readProgressJSON(progressDir).tasks.find((t) => t.task === taskNum);
+  const v = entry?.scope_base;
+  return typeof v === "string" && SHA40_RE.test(v) ? v : null;
+}
+
+/** seedScopeBase: earliest-wins seed of the ledger for taskNum. Creates the task entry on demand.
+ *  Returns the ledger value AFTER the call: an existing valid anchor wins (the return equals the
+ *  current value, the change is a no-op); an invalid stored value is healed by the first valid seed;
+ *  a non-40-hex/absent input never writes (returns the current ledger value — null when empty). */
+export function seedScopeBase(progressDir: string, taskNum: number, base: string): string | null {
+  const data = readProgressJSON(progressDir);
+  const entry = data.tasks.find((t) => t.task === taskNum);
+  const current = entry?.scope_base;
+  if (typeof current === "string" && SHA40_RE.test(current)) return current; // earliest-wins
+  if (!SHA40_RE.test(base)) return current ?? null;
+  let taskEntry = data.tasks.find((t) => t.task === taskNum);
+  if (!taskEntry) {
+    taskEntry = { task: taskNum, scope_base: base };
+    data.tasks.push(taskEntry);
+  }
+  taskEntry.scope_base = base;
+  writeProgressJSON(progressDir, data);
+  return base;
+}
+
+/** moveTaskScopeBaseEarlier: the resume-declared-base move lane. Only a candidate that is a strict
+ *  HEAD ancestor AND a strict (candidate !== current) ancestor of the current ledger value may pull
+ *  the ledger earlier — a descendant/later commit, a ==head value (fraud lane), a non-ancestor
+ *  forgery (checked via git merge-base output comparison — see infra/git.ts gitMergeBaseIsAncestor),
+ *  and a non-40-hex candidate all leave the ledger intact. Ledger missing → falls back to the seed
+ *  lane. Returns the ledger value after the call. */
+export async function moveTaskScopeBaseEarlier(
+  progressDir: string,
+  taskNum: number,
+  candidate: string,
+  cwd: string,
+  head: string,
+): Promise<string | null> {
+  const current = taskScopeBase(progressDir, taskNum);
+  if (current === null) return seedScopeBase(progressDir, taskNum, candidate);
+  if (!SHA40_RE.test(candidate) || candidate === current || candidate === head) return current;
+  const isAncestorOfCurrent = await gitMergeBaseIsAncestor(cwd, candidate, current);
+  const isAncestorOfHead = await gitMergeBaseIsAncestor(cwd, candidate, head);
+  if (!isAncestorOfCurrent || !isAncestorOfHead) return current;
+  const data = readProgressJSON(progressDir);
+  const taskEntry = data.tasks.find((t) => t.task === taskNum);
+  if (taskEntry) {
+    taskEntry.scope_base = candidate;
+    writeProgressJSON(progressDir, data);
+    return candidate;
+  }
+  return current;
 }
 
 /** migrateFromProgressMD: parse progress.md and return a structured progress object.

@@ -9,10 +9,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { finalizeHandoff, statusExitCode, blockedCarrierFor, applyDerivedStatus } from "../handoff/finalize.ts";
+import { finalizeHandoff, statusExitCode, blockedCarrierFor, applyDerivedStatus, taskBaseFromBrief } from "../handoff/finalize.ts";
+import { commitsFromReturnLine } from "../return-block.ts";
 import { writeOwnHandoff } from "../handoff/write.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
-import { gitInit } from "../../infra/__tests__/helpers.ts";
+import { gitInit, gitCommit } from "../../infra/__tests__/helpers.ts";
 
 // ---- review 族：rollup 派生（applyDerivedStatus；SP-4 失败轮次豁免）----
 
@@ -201,6 +202,147 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", a
   });
   expect(r.handoff.status).toBe("BLOCKED");
   expect(r.exitCode).toBe(1);
+});
+
+// ---- T27 (spec T7.6): commitsFromReturnLine 解析原子（resume 声明 base 采纳的输入平面）----
+
+describe("return-block commitsFromReturnLine（T27 恢复轮声明 base 解析）", () => {
+  it("标准 `commits: base=X head=Y` → { base, head }", () => {
+    expect(commitsFromReturnLine("commits: base=a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e head=0000000000000000000000000000000000000000"))
+      .toEqual({ base: "a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e", head: "0000000000000000000000000000000000000000" });
+  });
+
+  it("仅 base（head 缺省）→ { base }; 缺省线 / 空值 → {}", () => {
+    expect(commitsFromReturnLine("commits: base=9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63")).toEqual({ base: "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63" });
+    expect(commitsFromReturnLine("commits: ")).toEqual({});
+    expect(commitsFromReturnLine(undefined)).toEqual({});
+  });
+
+  it("只取 base/head 键；其他键忽略（artifacts 式 key=value 同构）", () => {
+    expect(commitsFromReturnLine("commits: base=x junk=y head=z")).toEqual({ base: "x", head: "z" });
+    expect(commitsFromReturnLine("commits: junk=y")).toEqual({});
+  });
+
+  it("无前导 `commits:` 前缀的串 → {}（非本行安全）", () => {
+    expect(commitsFromReturnLine("artifacts: brief=b.md")).toEqual({});
+    expect(commitsFromReturnLine("blocker: none")).toEqual({});
+  });
+});
+
+// ---- T27 (spec T7.6): 恢复轮声明 base 采纳 + scope 账本 seed/move ----
+// 恢复签名 = 材料化 base==head（重派 brief TASK_BASE 即死轮 head）→ 声明 base 被校验并采纳为
+// commits.base（下一轮 review 固定点 = 声明..HEAD 非空）。fresh implement（base≠head）永不采纳。
+
+describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6）", () => {
+  // 两提交线性仓：c0(init) → c1(HEAD)。恢复轮 fixture：brief TASK_BASE = c1 == HEAD（恢复签名）。
+  function resumeFixture() {
+    const repo = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-repo-"));
+    gitInit(repo);
+    const c0 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    writeFileSync(path.join(repo, "a.txt"), "a\n");
+    gitCommit(repo, "second");
+    const c1 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    expect(c0).not.toBe(c1);
+    const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-ws-"));
+    const brief = path.join(ws, "task-27-brief.md");
+    writeFileSync(brief, `# task 27\nTASK_BASE: ${c1}\n`);
+    writeFileSync(path.join(ws, "task-27-test-evidence.json"), "{}");
+    return { repo, c0, c1, ws, brief };
+  }
+
+  it("恢复签名（base==head）+ 合法声明（祖先、≠HEAD）→ 采纳声明为 commits.base + 账本移至声明", async () => {
+    const { repo, c0, c1, ws, brief } = resumeFixture();
+    const r = await finalizeHandoff({
+      mode: "implement",
+      returnBlock: [
+        "status: APPROVED",
+        `commits: base=${c0} head=${c1}`,
+        "artifacts: report=r.md",
+        "blocker: none",
+      ],
+      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+    });
+    expect(r.handoff.commits.base).toBe(c0); // 声明被采纳（非空 review 范围）
+    expect(r.handoff.commits.head).toBe(c1);
+    expect(r.exitCode).toBe(0);
+    // 账本：seed base(=c1, 恢复轮快照) 后被声明(c0)严格前移
+    const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.tasks[0].scope_base).toBe(c0);
+  });
+
+  it("声明 ==HEAD → 拒（Reset 面）；声明非 40-hex → 拒（agent 伪造面）", async () => {
+    const { repo, c1, ws, brief } = resumeFixture();
+    const r1 = await finalizeHandoff({
+      mode: "implement",
+      returnBlock: ["status: APPROVED", `commits: base=${c1} head=${c1}`, "artifacts: ", "blocker: none"],
+      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+    });
+    expect(r1.handoff.commits.base).toBe(c1); // 未采纳（==HEAD）→ 保持 brief TASK_BASE
+    const r2 = await finalizeHandoff({
+      mode: "implement",
+      returnBlock: ["status: APPROVED", "commits: base=agent-wrong-base", "artifacts: ", "blocker: none"],
+      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+    });
+    expect(r2.handoff.commits.base).toBe(c1); // 未采纳（非 40-hex）
+    // 账本既有值不被 c1（==HEAD 的恢复轮快照）覆盖 — 首 seed 后 earliest-wins
+    const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.tasks[0].scope_base).toBe(c1); // r1 的 seed
+  });
+
+  it("声明非 HEAD 祖先（另一仓 commit，同 init 同形防变形写出文件）→ 拒——祖先校验拒伪造", async () => {
+    const { repo, c1, ws, brief } = resumeFixture();
+    const forge = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-forge-"));
+    gitInit(forge);
+    writeFileSync(path.join(forge, "forged.txt"), "forged\n");
+    gitCommit(forge, "forged work");
+    const forgeHead = execFileSync("git", ["-C", forge, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    expect(forgeHead).not.toBe(c1);
+    const r = await finalizeHandoff({
+      mode: "implement",
+      returnBlock: ["status: APPROVED", `commits: base=${forgeHead} head=${c1}`, "artifacts: ", "blocker: none"],
+      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+    });
+    expect(r.handoff.commits.base).toBe(c1); // 非祖先伪造被拒 → 保持 brief TASK_BASE
+  });
+
+  it("fresh implement（base≠head）→ 永不采纳（即便声明是合法祖先）", async () => {
+    const { repo, c0, c1, brief } = resumeFixture();
+    const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-fresh-"));
+    // fresh brief：TASK_BASE = c0（≠HEAD）
+    const freshBrief = path.join(ws, "task-27-brief.md");
+    writeFileSync(freshBrief, `# task 27\nTASK_BASE: ${c0}\n`);
+    writeFileSync(path.join(ws, "task-27-test-evidence.json"), "{}");
+    const r = await finalizeHandoff({
+      mode: "implement",
+      returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: ", "blocker: none"],
+      brief: freshBrief, repoRoot: repo, workspace: ws, taskNum: 27,
+    });
+    expect(r.handoff.commits.base).toBe(c0); // fresh = brief TASK_BASE 权威（声明车道关闭）
+  });
+
+  it("resumeScopeBase 车道：carrier 恢复锚（recovery.scope_base）把账本严格前移（声明缺失时）", async () => {
+    const { repo, c0, c1, ws, brief } = resumeFixture();
+    const r = await finalizeHandoff({
+      mode: "implement",
+      returnBlock: ["status: APPROVED", `commits: head=${c1}`, "artifacts: ", "blocker: none"],
+      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+      resumeScopeBase: c0,
+    });
+    expect(r.handoff.commits.base).toBe(c1); // 无声明 → 不采纳，commits.base = brief TASK_BASE
+    const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
+    expect(progress.tasks[0].scope_base).toBe(c0); // 账本被 resumeScopeBase 严格前移到 c0
+  });
+
+  it("taskBaseFromBrief：无 brief / 无 TASK_BASE 行 → null；有 → 40-hex 值", () => {
+    expect(taskBaseFromBrief(undefined)).toBeNull();
+    const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-tbf-"));
+    const noBase = path.join(ws, "no-base.md");
+    writeFileSync(noBase, "# t\nno TASK_BASE\n");
+    expect(taskBaseFromBrief(noBase)).toBeNull();
+    const withBase = path.join(ws, "with-base.md");
+    writeFileSync(withBase, `# t\nTASK_BASE: ${"a".repeat(40)}\n`);
+    expect(taskBaseFromBrief(withBase)).toBe("a".repeat(40));
+  });
 });
 
 // ---- 三消费方共享同一 finalizeHandoff（导入断言，非各自接线）----

@@ -35,13 +35,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { gitRevParseHead } from "../../infra/git.ts";
+import { gitRevParseHead, gitMergeBaseIsAncestor } from "../../infra/git.ts";
 import { invariant } from "../../infra/exit.ts";
 import { hashFile } from "../hash.ts";
-import { artifactsFromReturnLine, implementStatusFromReturnLine, returnBlocker } from "../return-block.ts";
+import { artifactsFromReturnLine, implementStatusFromReturnLine, returnBlocker, commitsFromReturnLine } from "../return-block.ts";
 import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
 import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
+import { seedScopeBase, moveTaskScopeBaseEarlier } from "../progress.ts";
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
 
@@ -358,6 +359,7 @@ export async function finalizeHandoff({
   repoRoot,
   workspace,
   taskNum,
+  resumeScopeBase = null,
 }: {
   mode?: string;
   returnBlock?: string[];
@@ -366,6 +368,10 @@ export async function finalizeHandoff({
   repoRoot?: string | null;
   workspace?: string;
   taskNum?: number;
+  /** T27 (spec T7.6): the resume pre-flight's captured recovery.scope_base (the settled ledger
+   *  anchor riding the dead-round carrier). Finalize uses it to pull the ledger strictly earlier.
+   *  Passed by the dispatch — the implement materialization is the only consumer. */
+  resumeScopeBase?: string | null;
 } = {}): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   if (mode === "review") {
     const derived = applyDerivedStatus(agentHandoff ?? {});
@@ -376,7 +382,7 @@ export async function finalizeHandoff({
     // No agentHandoff input slot: materialize from the return block + brief TASK_BASE + git HEAD
     // (T6 logic moved in). The evidence gate (behavior_change:true → hard) stays; the return block
     // re-emits from the finalized carrier.
-    return await finalizeImplement({ returnBlock, brief, repoRoot, workspace, taskNum });
+    return await finalizeImplement({ returnBlock, brief, repoRoot, workspace, taskNum, resumeScopeBase });
   }
   if (mode === "fix") {
     // work-type: the agent-declared status stays, vetoed at the commit-contract layer
@@ -411,8 +417,8 @@ export function persistFinalized(
 
 // TASK_BASE → the sole authority of implement commits.base. Missing brief / no TASK_BASE line →
 // null (degrade without materialization: dry-run and smoke chains both land here, an ENOENT must
-// never crash the runner).
-function taskBaseFromBrief(briefPath: string | undefined): string | null {
+// never crash the runner). Exported for the dispatch's settleResidue fallback (scope ledger, T27).
+export function taskBaseFromBrief(briefPath: string | undefined): string | null {
   if (!briefPath || !existsSync(briefPath)) return null;
   try {
     return readFileSync(briefPath, "utf8").match(/^TASK_BASE: (\S+)/m)?.[1] ?? null;
@@ -447,19 +453,35 @@ function evidenceGate(
 /** Materialization: brief TASK_BASE → commits.base (sole authority); git HEAD → commits.head
  * (nullable repoRoot → head omitted). Degrade fail-open: missing brief / no TASK_BASE →
  * { handoff: null, exitCode: 0 } (no materialization; the runner keeps the agent's original
- * return block and notes a stderr CDD_WARN). hard gate / status BLOCKED → exitCode 1. */
+ * return block and notes a stderr CDD_WARN). hard gate / status BLOCKED → exitCode 1.
+ *
+ * T27 (spec T7.6) — roundBase/scopeBase split: a resume round's re-dispatch brief TASK_BASE IS the
+ * dead round's head (materialized base==head — the T26 collapse signature). Only then may the
+ * return block's `commits: base=` declaration — the recovering agent's audit of the true scope
+ * start (the round completed the deliverable audit first) — be validated (40-hex, ≠ HEAD, HEAD
+ * ancestor via git merge-base) and ADOPTED as commits.base, so the next review's fixed-point range
+ * is `declared..HEAD` (real contributions) instead of the empty `head..HEAD`. Fresh implement
+ * (base≠head) never adopts — the agent-base fraud face stays closed on fresh rounds. The task scope
+ * ledger (engine-owned, progress.json tasks[N].scope_base) is seeded with the brief TASK_BASE here
+ * (earliest-wins; later rounds' brief snapshots never overwrite it), then pulled strictly earlier
+ * by the resume-declared anchor and the adopted base. Fail-open: ledger/ancestry errors never block
+ * the carrier write. */
 export async function finalizeImplement({
   returnBlock = [],
   brief,
   repoRoot,
   workspace,
   taskNum,
+  resumeScopeBase = null,
 }: {
   returnBlock?: string[];
   brief?: string;
   repoRoot?: string | null;
   workspace?: string;
   taskNum?: number;
+  /** T27 (spec T7.6): the resume pre-flight's captured recovery.scope_base — the settled ledger
+   *  anchor riding the dead-round carrier, used to pull the ledger strictly earlier. */
+  resumeScopeBase?: string | null;
 }): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   const base = taskBaseFromBrief(brief);
   if (!base) {
@@ -473,6 +495,30 @@ export async function finalizeImplement({
   let blocker = returnBlocker(blockerLine ?? "");
   if (raw !== "APPROVED" && !blocker) blocker = `implement return status "${raw}" without blocker`;
   const head = repoRoot ? await gitRevParseHead(repoRoot) : null;
+  // T27 adoption lane: only a materialization wearing the resume signature (base==head) may
+  // reconsider its base — the fresh-implement base authority is untouched.
+  let commitsBase = base;
+  if (repoRoot && head && base === head) {
+    const declared = commitsFromReturnLine(returnBlock[1] ?? "").base;
+    if (
+      declared
+      && /^[0-9a-f]{40}$/.test(declared)
+      && declared !== head
+      && (await gitMergeBaseIsAncestor(repoRoot, declared, head))
+    ) {
+      commitsBase = declared;
+    }
+  }
+  // T27 scope ledger: seed the brief TASK_BASE (earliest-wins — re-dispatches carry LATER TASK_BASE
+  // snapshots that must never overwrite the round-1 anchor), then move the ledger strictly earlier
+  // along the resume anchors (the recovery-carrier scope_base and the adopted base). progressDir ==
+  // workspace (ledgerPath = <workspace>/progress.json). Null taskNum → skip the ledger (a
+  // task-less materialization writes no scope state).
+  if (repoRoot && head && workspace && typeof taskNum === "number") {
+    seedScopeBase(workspace, taskNum, base);
+    if (resumeScopeBase) await moveTaskScopeBaseEarlier(workspace, taskNum, resumeScopeBase, repoRoot, head);
+    if (commitsBase !== base) await moveTaskScopeBaseEarlier(workspace, taskNum, commitsBase, repoRoot, head);
+  }
   const gate = evidenceGate(workspace, taskNum);
   if (gate.hard) {
     blocker = gate.warn;
@@ -493,7 +539,7 @@ export async function finalizeImplement({
       status: gate.hard ? "BLOCKED" : status,
       artifacts: artifactsFromReturnLine(artifactsLine ?? ""),
       findings: [],
-      commits: { base, ...(head ? { head } : {}) },
+      commits: { base: commitsBase, ...(head ? { head } : {}) },
       blocker: blocker || undefined,
     },
     "task",

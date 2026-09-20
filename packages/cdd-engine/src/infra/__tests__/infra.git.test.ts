@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { gitInit, gitCommit } from "./helpers.ts";
-import { gitTopLevel, gitRevParseHead, gitStatusPorcelain, gitAdd, gitCommit as sgCommit, gitLog, gitCatFileCommitExists } from "../git.ts";
+import { gitTopLevel, gitRevParseHead, gitStatusPorcelain, gitAdd, gitCommit as sgCommit, gitLog, gitCatFileCommitExists, gitMergeBaseIsAncestor } from "../git.ts";
 
 let repo: string;
 
@@ -149,5 +149,51 @@ describe("infra/git.ts — gitCatFileCommitExists", () => {
 
   it("undefined → false", async () => {
     expect(await gitCatFileCommitExists(repo, undefined)).toBe(false);
+  });
+});
+
+describe("infra/git.ts — gitMergeBaseIsAncestor (spec T7.6 resume-declared-base validation)", () => {
+  // helper: return the HEAD/HASH of the FIRST commit (gitInit's empty init commit).
+  async function firstCommit(): Promise<string> {
+    const all = await gitLog(repo, { maxCount: 10 });
+    const last = all!.filter((e) => e.message === "init");
+    return last[last.length - 1].hash;
+  }
+
+  it("parent reaches HEAD → true (same ancestry the adoption lane trusts)", async () => {
+    const parent = await firstCommit();
+    writeFileSync(path.join(repo, "a.txt"), "a\n");
+    gitCommit(repo, "second");
+    const head = await gitRevParseHead(repo);
+    expect(head).not.toBeNull();
+    expect(await gitMergeBaseIsAncestor(repo, parent, head!)).toBe(true);
+  });
+
+  it("HEAD itself is an ancestor of HEAD → true (reflexive; the adoption lane still requires != HEAD)", async () => {
+    writeFileSync(path.join(repo, "a.txt"), "a\n");
+    gitCommit(repo, "second");
+    const head = await gitRevParseHead(repo);
+    expect(await gitMergeBaseIsAncestor(repo, head!, head!)).toBe(true);
+  });
+
+  it("descendant is NOT an ancestor of its parent (reachability is one-way) → false", async () => {
+    writeFileSync(path.join(repo, "a.txt"), "a\n");
+    gitCommit(repo, "second");
+    const parent = await firstCommit();
+    const head = await gitRevParseHead(repo);
+    expect(await gitMergeBaseIsAncestor(repo, head!, parent)).toBe(false);
+  });
+
+  it("all-zero phantom sha (40-hex but no real object) → false (fail-open)", async () => {
+    expect(await gitMergeBaseIsAncestor(repo, "0000000000000000000000000000000000000000", await gitRevParseHead(repo) ?? "")).toBe(false);
+  });
+
+  it("non-git cwd → false (fail-open: an unguessable ancestry must never pass the adoption lane)", async () => {
+    const bare = mkdtempSync(path.join(tmpdir(), "infra-git-norepo-anc-"));
+    try {
+      expect(await gitMergeBaseIsAncestor(bare, "a".repeat(40), "b".repeat(40))).toBe(false);
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
   });
 });

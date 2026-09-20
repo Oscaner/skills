@@ -1,10 +1,12 @@
 // engine/tests/progress.test.mjs — progress.json module unit tests.
 // Tests: read/write/create/migrate/migrateIfNeeded + deriveProgressMD + getRound/incrementRound.
-import { it, expect } from 'vitest';
+import { it, expect, describe } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { gitInit, gitCommit } from "../../infra/__tests__/helpers.ts";
 import {
   readProgressJSON,
   writeProgressJSON,
@@ -13,6 +15,9 @@ import {
   migrateIfNeeded,
   getRound,
   incrementRound,
+  taskScopeBase,
+  seedScopeBase,
+  moveTaskScopeBaseEarlier,
 } from "../progress.ts";
 
 function tmpDir(prefix) {
@@ -217,4 +222,118 @@ it("getRound: incrementRound('review') 后 round=2（rounds['review'] 归一键�
   expect(getRound(readProgressJSON(dir), 1, "review")).toBe(2);
   const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
   expect(saved.tasks[0].rounds).toEqual({ review: 1 });
+});
+
+// ---- T27 scope 账本（spec T7.6）：tasks[N].scope_base —— task 级 scope 锚（引擎唯一写者）----
+// 语义：seed = 首轮 implement 材料化的 brief TASK_BASE（earliest-wins —— 任何后续轮 TASK_BASE
+// 快照不覆盖既有合法值）；recovery 声明 base 只允许把账本严格前移（仍是 HEAD 祖先）。账本缺失
+// 时读取回落 null（dispatch 层再回落 legacy prev.commits.base 链）。
+describe("progress.ts scope 账本（T27/spec T7.6）", () => {
+  // 3-commit 线性仓库：c0(init) → c1(second) → c2(third=HEAD)。ancestor 关系供裁决用。
+  function threeCommitRepo(): { repo: string; c0: string; c1: string; c2: string } {
+    const repo = tmpDir("prog-scope-repo-");
+    gitInit(repo);
+    const c0 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    writeFileSync(path.join(repo, "a.txt"), "a\n");
+    gitCommit(repo, "second");
+    const c1 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    writeFileSync(path.join(repo, "b.txt"), "b\n");
+    gitCommit(repo, "third");
+    const c2 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    return { repo, c0, c1, c2 };
+  }
+
+  it("taskScopeBase: 账本缺失 → null；task 存在但无 scope_base → null；既有合法值 → 该值", () => {
+    const dir = tmpDir("prog-scope-read-");
+    expect(taskScopeBase(dir, 7)).toBeNull();
+    const data = readProgressJSON(dir);
+    data.tasks = [{ task: 7, status: "pending", rounds: {} }];
+    writeProgressJSON(dir, data);
+    expect(taskScopeBase(dir, 7)).toBeNull();
+    data.tasks[0].scope_base = "a".repeat(40);
+    writeProgressJSON(dir, data);
+    expect(taskScopeBase(dir, 7)).toBe("a".repeat(40));
+  });
+
+  it("taskScopeBase: 非法存量值（非 40-hex）→ null（账本视为缺失，回落 legacy 链）", () => {
+    const dir = tmpDir("prog-scope-invalid-");
+    const data = readProgressJSON(dir);
+    data.tasks = [{ task: 3, status: "pending", rounds: {}, scope_base: "junk-not-a-sha" }];
+    writeProgressJSON(dir, data);
+    expect(taskScopeBase(dir, 3)).toBeNull();
+  });
+
+  it("seedScopeBase: 首次 seed 落账本（创建 task 条目+写盘）；earliest-wins——重复 seed 不覆盖", () => {
+    const dir = tmpDir("prog-scope-seed-");
+    expect(seedScopeBase(dir, 1, "a".repeat(40))).toBe("a".repeat(40));
+    // 第二次 seed（不同值）被拒 —— 既有合法值永远赢
+    expect(seedScopeBase(dir, 1, "b".repeat(40))).toBe("a".repeat(40));
+    expect(taskScopeBase(dir, 1)).toBe("a".repeat(40));
+    const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
+    expect(saved.tasks[0]).toEqual({ task: 1, scope_base: "a".repeat(40) });
+    // 非 40-hex 的 seed 输入 → 拒绝（不写）
+    expect(seedScopeBase(dir, 1, "not-a-sha")).toBe("a".repeat(40));
+  });
+
+  it("seedScopeBase: 非法存量值可被首次合法 seed 覆盖（脏账本自愈），合法值仍 earliest-wins", () => {
+    const dir = tmpDir("prog-scope-seed-heal-");
+    const data = readProgressJSON(dir);
+    data.tasks = [{ task: 4, status: "pending", rounds: {}, scope_base: "junk" }];
+    writeProgressJSON(dir, data);
+    expect(seedScopeBase(dir, 4, "c".repeat(40))).toBe("c".repeat(40));
+    // 自愈后进入 earliest-wins：再 seed 不覆盖
+    expect(seedScopeBase(dir, 4, "d".repeat(40))).toBe("c".repeat(40));
+    expect(taskScopeBase(dir, 4)).toBe("c".repeat(40));
+  });
+
+  it("moveTaskScopeBaseEarlier: 严格更早的祖先（仍是 HEAD 祖先）→ 账本前移", async () => {
+    const { repo, c0, c1, c2 } = threeCommitRepo();
+    const dir = tmpDir("prog-scope-move-");
+    seedScopeBase(dir, 2, c1);
+    expect(await moveTaskScopeBaseEarlier(dir, 2, c0, repo, c2)).toBe(c0);
+    expect(taskScopeBase(dir, 2)).toBe(c0);
+  });
+
+  it("moveTaskScopeBaseEarlier: 后裔/更晚提交被拒（非 current 祖先）；即使它是 HEAD 祖先", async () => {
+    const { repo, c0, c1, c2 } = threeCommitRepo();
+    const dir = tmpDir("prog-scope-move-desc-");
+    seedScopeBase(dir, 2, c0);
+    // c1 是 c2(HEAD) 的祖先、但相对账本值 c0 是后裔 → 被拒，账本不动
+    expect(await moveTaskScopeBaseEarlier(dir, 2, c1, repo, c2)).toBe(c0);
+    expect(taskScopeBase(dir, 2)).toBe(c0);
+  });
+
+  it("moveTaskScopeBaseEarlier: ==head 被拒（Reset/cheat 面）", async () => {
+    const { repo, c0, c1, c2 } = threeCommitRepo();
+    const dir = tmpDir("prog-scope-move-head-");
+    seedScopeBase(dir, 2, c0);
+    expect(await moveTaskScopeBaseEarlier(dir, 2, c2, repo, c2)).toBe(c0);
+    expect(taskScopeBase(dir, 2)).toBe(c0);
+    // c1 已是 current 自身 → 相等被拒（无变化）
+    seedScopeBase(dir, 5, c1);
+    expect(await moveTaskScopeBaseEarlier(dir, 5, c1, repo, c2)).toBe(c1);
+  });
+
+  it("moveTaskScopeBaseEarlier: 非祖先伪造（另一个仓库的 commit，与其 init 同形）被拒——祖先校验拒伪造", async () => {
+    const { repo, c1, c2 } = threeCommitRepo();
+    // 伪造仓的 HEAD 不能与主仓任一 commit 内容同构（同一秒同一身份的空提交 = 同一对象）：
+    // 写一个实际文件再 commit，保证是结构上不同于主仓任何 commit 的对象。
+    const forge = tmpDir("prog-scope-forge-");
+    gitInit(forge);
+    writeFileSync(path.join(forge, "forged.txt"), "forged\n");
+    gitCommit(forge, "forged work");
+    const forgeHead = execFileSync("git", ["-C", forge, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    expect(forgeHead).not.toBe(c1);
+    const dir = tmpDir("prog-scope-move-forge-");
+    seedScopeBase(dir, 2, c1);
+    expect(await moveTaskScopeBaseEarlier(dir, 2, forgeHead, repo, c2)).toBe(c1);
+    expect(taskScopeBase(dir, 2)).toBe(c1);
+  });
+
+  it("moveTaskScopeBaseEarlier: 账本缺失 → 以候选为种子（回落路径）", async () => {
+    const { repo, c0, c2 } = threeCommitRepo();
+    const dir = tmpDir("prog-scope-move-missing-");
+    expect(await moveTaskScopeBaseEarlier(dir, 2, c0, repo, c2)).toBe(c0);
+    expect(taskScopeBase(dir, 2)).toBe(c0);
+  });
 });

@@ -94,6 +94,22 @@ describe("artifacts/residue.ts — settleResidue salvage", () => {
     const repo = setupRepo();
     expect(await settleResidue(repo, { op: "implement", task: 1, round: 1, cause: "signal" })).toBeNull();
   });
+
+  it("T27: scope_base recorded when passed; omitted key absent when not (closed recovery schema)", async () => {
+    const repo = setupRepo();
+    appendFileSync(path.join(repo, "wip.txt"), "line2\n");
+    const withBase = await settleResidue(repo, {
+      op: "implement", task: 27, round: 1, cause: "stalled",
+      scopeBase: "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63",
+    });
+    expect(withBase?.scope_base).toBe("9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63");
+    // JSON serialization keeps exactly the declared recovery keys — a round without a ledger/fallback
+    // writes no scope_base key (validateHandoffSchema's closed recovery object stays satisfiable).
+    const noBase = await settleResidue(repo, { op: "implement", task: 28, round: 1, cause: "stalled" });
+    expect(noBase?.scope_base).toBeUndefined();
+    const asJson = JSON.parse(JSON.stringify(noBase));
+    expect(asJson).not.toHaveProperty("scope_base");
+  });
 });
 
 describe("artifacts/residue.ts — dead carrier read", () => {
@@ -259,5 +275,23 @@ describe("rules/schema.ts — recovery property contract (T7.5)", () => {
     const { recovery, ...rest } = TIMEOUT_WITH_RECOVERY;
     const noRef = { ...rest, recovery: { stash_message: "cdd-implement-task-26-r1-stalled", cause: "stalled" } };
     expect(validateHandoffSchema(noRef, "task").valid).toBe(false);
+  });
+
+  it("T27: recovery accepts a 40-hex scope_base (the settled ledger anchor survives round death)", () => {
+    const withBase = {
+      ...TIMEOUT_WITH_RECOVERY,
+      recovery: { ...TIMEOUT_WITH_RECOVERY.recovery, scope_base: "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63" },
+    };
+    expect(validateHandoffSchema(withBase, "task").valid).toBe(true);
+    // normalizeHandoff keeps the undeclared-until-now key (schema declares it, normalize strips
+    // only keys the schema does not know)
+    const out = normalizeHandoff(withBase, "task") as { recovery: Record<string, unknown> };
+    expect(out.recovery.scope_base).toBe("9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63");
+    // non-40-hex scope_base is a schema violation (fraud lane — a bogus anchor must not ride recovery)
+    const badBase = {
+      ...TIMEOUT_WITH_RECOVERY,
+      recovery: { ...TIMEOUT_WITH_RECOVERY.recovery, scope_base: "not-a-sha" },
+    };
+    expect(validateHandoffSchema(badBase, "task").valid).toBe(false);
   });
 });

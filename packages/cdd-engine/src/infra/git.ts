@@ -91,6 +91,24 @@ export async function gitCatFileCommitExists(cwd: string, sha: string | null | u
   }
 }
 
+/** `git merge-base <ancestor> <descendant>` result == ancestor ⟺ descendant can reach ancestor
+ *  (the ancestry ground of the T26/T27 resume-declared base validation). Implemented through the
+ *  merge-base OUTPUT, not `--is-ancestor`'s exit code: simple-git's `raw()` swallows non-zero
+ *  exits (a `--is-ancestor` that returns 1 resolves like a success), while `merge-base` prints the
+ *  LCA sha — and the LCA of A and B IS A itself exactly when A is an ancestor of B, decodable from
+ *  the resolved stdout. Reflexive: an object is an ancestor of itself (merge-base(A,A) == A), so
+ *  the caller must additionally require `!== HEAD` (that gate lives at the adoption lane). false on
+ *  any error / stderr-failure / empty output — fail-open: an unknown/phantom/dangling sha (or a
+ *  non-repo cwd) must never pass the adoption lane. */
+export async function gitMergeBaseIsAncestor(cwd: string, ancestor: string, descendant: string): Promise<boolean> {
+  try {
+    const base = (await git(cwd).raw(["merge-base", ancestor, descendant])).trim();
+    return base === ancestor;
+  } catch {
+    return false;
+  }
+}
+
 // ---- residue stash helpers (T26 resume-from-residue, spec T7.5) ----
 // The salvage/resume pairing is engine-internal git: settleResidue pushes a stash, the re-dispatch
 // applies it. One subtlety drives the ref choice: `stash@{N}` indices SHIFT on every new stash and

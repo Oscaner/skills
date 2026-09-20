@@ -56,6 +56,10 @@ export interface RecoveryInfo {
   residue_scope: string;
   cause: string;
   round: number;
+  /** T27 (spec T7.6): the task-level scope anchor at salvage time (ledger value priority /
+   *  fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE
+   *  (resume-declared) adoption and scope identity stay consistent across round death. */
+  scope_base?: string;
 }
 
 /** The salvage happy face: stash the round's uncommitted work so a re-dispatch can restore it.
@@ -63,7 +67,7 @@ export interface RecoveryInfo {
  *  round-terminal write — the carrier writes regardless, without the recovery record). */
 export async function settleResidue(
   cwd: string,
-  opts: { op: string; type?: string; task: number; round: number; cause: string },
+  opts: { op: string; type?: string; task: number; round: number; cause: string; scopeBase?: string | null },
 ): Promise<RecoveryInfo | null> {
   const type = opts.type ?? "task";
   const message = stashMessage(opts.op, type, opts.task, opts.round, opts.cause);
@@ -72,7 +76,14 @@ export async function settleResidue(
   const scope = (await gitDiffShortstat(cwd)) ?? "";
   const ref = await gitStashPush(cwd, message);
   if (!ref) return null;
-  return { residue_ref: ref, stash_message: message, residue_scope: scope, cause: opts.cause, round: opts.round };
+  return {
+    residue_ref: ref,
+    stash_message: message,
+    residue_scope: scope,
+    cause: opts.cause,
+    round: opts.round,
+    ...(opts.scopeBase ? { scope_base: opts.scopeBase } : {}),
+  };
 }
 
 // ---- resume (re-dispatch pre-flight) ----

@@ -64,6 +64,25 @@ export function implementStatusFromReturnLine(line: string | undefined): { statu
   return { status: raw === "APPROVED" ? "APPROVED" : "BLOCKED", raw };
 }
 
+// Return block `commits:` line (key=value whitespace-separated) → { base?, head? }; missing line /
+// empty → {}. The resume-declared base authorization lane (spec T7.6) reads this — only the
+// `base=` value participates in adoption; the materialization engine stays the authority for the
+// other commits line fields.
+export function commitsFromReturnLine(line: string | undefined): { base?: string; head?: string } {
+  const m = String(line).match(/^commits:\s*(.*)$/);
+  if (!m || !m[1].trim()) return {};
+  const out: { base?: string; head?: string } = {};
+  for (const pair of m[1].trim().split(/\s+/)) {
+    const eq = pair.indexOf("=");
+    if (eq > 0) {
+      const key = pair.slice(0, eq);
+      const value = pair.slice(eq + 1);
+      if (key === "base" || key === "head") (out as Record<string, string>)[key] = value;
+    }
+  }
+  return out;
+}
+
 // Return block `blocker:` line → blocker. Missing line (<missing>) / success default (none) → ""
 // (no blocker field lands; returnFromHandoff presents the real-only blocker default at render).
 export function returnBlocker(line: string | undefined): string {

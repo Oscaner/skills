@@ -74,7 +74,7 @@ describe("rules/schema.ts — validateHandoffSchema", () => {
   });
 });
 
-describe("finalize.ts — normalizeHandoff（归一化 → 重校验 单点；T24 B 由 schema.ts 迁入）", () => {
+describe("P6 T24 B: finalize.ts — normalizeHandoff (single-point re-validate; moved from schema.ts)", () => {
   it("① 剥除 schema 未声明键", () => {
     expect(normalizeHandoff({ ...validTask, junk: 5 })).toEqual({ ...validTask });
   });
@@ -109,7 +109,7 @@ describe("finalize.ts — normalizeHandoff（归一化 → 重校验 单点；T2
   });
 });
 
-describe("finalize.ts — recoverHandoff（CONTRACT_VIOLATION 恢复单点，findings 全额保留；T24 B 迁入）", () => {
+describe("P6 T24 B: finalize.ts — recoverHandoff (CONTRACT_VIOLATION recovery single point, findings fully preserved)", () => {
   it("合法输入 → { handoff, valid: true }", () => {
     const r = recoverHandoff(validTask);
     expect(r.valid).toBe(true);

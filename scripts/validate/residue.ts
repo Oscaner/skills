@@ -307,9 +307,11 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
   return hits;
 }
 
-// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（4 宿主文件，逐 site 形态分类；全行注释非透传点）。Task 9
-// branch-fix 通道与 branch-review 同形（整表 env 经 invokeCliWithRetry 参数传递）。P6 T24 A：branch
-// 两通道迁入 BranchLifecycle 族（dispatch/branch.ts），passthrough 宿主随之由 cli/branch-*.ts 上移。
+// (3) Row 3a: whole-env pass-through points ⊆ §2.4.4-(2) inventory (4 host files, classified per
+// site shape; full-line comments are not pass-through points). Task 9
+// branch-fix channel mirrors branch-review (whole env table passes via invokeCliWithRetry args).
+// P6 T24 A: the two branch channels moved into the BranchLifecycle family (dispatch/branch.ts); the
+// passthrough hosts moved up from cli/branch-*.ts accordingly.
 const ENV_PASSTHROUGH_SITES = [
   { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
   { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
@@ -322,7 +324,7 @@ export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_WHOLE_RE)) {
     if (text.trimStart().startsWith("//")) continue; // 注释提及非透传点
     const san = ENV_PASSTHROUGH_SITES.find((s) => s.file === file && s.re.test(text));
-    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（5 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（4 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   return hits;
 }

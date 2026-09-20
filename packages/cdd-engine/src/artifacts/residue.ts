@@ -1,12 +1,24 @@
-// packages/cdd-engine/src/artifacts/residue.ts — resume-from-residue single point (T26, spec T7.5):
-// the THIRD leg of the dispatch lifecycle (termination → salvage → resume). When a dead round
-// (TIMEOUT / EXECUTION_FAILURE) leaves uncommitted work behind, settleResidue stashes it into a
-// git stash and records `recovery.{residue_ref, stash_message, residue_scope, cause, round}` in the
-// failure carrier; the re-dispatch's resume pre-flight reads that carrier, applies the stash back
-// to the working tree, and the regenerated brief carries a residue-status appendix so the next
-// agent audits WIP and continues instead of rewriting from zero.
+// packages/cdd-engine/src/artifacts/residue.ts — the residue SAVE + RESTORE single point (T26/T28,
+// spec T7.5): the THIRD leg of the dispatch lifecycle (termination → salvage → resume). When a dead
+// round (TIMEOUT / EXECUTION_FAILURE) leaves uncommitted work behind, settleResidue stashes it into a
+// git stash and records `recovery.{residue_ref, stash_message, residue_scope, wip_stat, preserved,
+// cause, round}` in the failure carrier; the re-dispatch's resume pre-flight reads that carrier,
+// applies the stash back to the working tree, and the regenerated brief carries a residue-status
+// appendix so the next agent audits WIP and continues instead of rewriting from zero.
 //
-//   ∂/salvage : settleResidue  — TIMEOUT/EXECUTION_FAILURE round end (dispatch/task.ts call site).
+// T28 (spec T7.7) convergence: this module is the single owner of the SAVE family too — eligibility
+// (recoveryEligible / RESIDUE_PRESERVED_CAUSES), the carrier-anchored adapter
+// (settleFromCarrier — base settleResidue template hook + branch inline lanes), the preserved
+// idempotence guard, and the CDD_WARN announce wrapper (preserveAndAnnounceResidue). One stash
+// contract everywhere: the standardized `cdd-<op>-<type>-task-<N>-r<round>-<cause>` message the
+// legacy resume scan can restart recovery from (the exit-1 rules/residue.ts landform is deleted).
+//
+//   ∂/salvage : settleResidue — TIMEOUT/EXECUTION_FAILURE round end (dispatch/task.ts call site;
+//               the adapter's leaf). Writes preserved=true so a coexisting template hook never
+//               double-stashes (recovery.preserved idempotence guard).
+//   ∂/save    : settleFromCarrier — reads a dead-round carrier and repairs its WIP into a stash
+//               + recovery facts (base settleResidue template step for review/fix/docs lanes and
+//               the branch inline lane; a no-op when already preserved / ineligible / clean tree).
 //   ∂/resume  : findResumeResidue + resumeFromResidue — implement re-dispatch pre-flight
 //               (resolveContext, AFTER the entry gate verified a clean tree: the stash apply needs
 //               a gate-clean baseline to land without conflict).
@@ -20,9 +32,13 @@
 // is scoped to the standardized `cdd-<op>-<type>-<task>-r<round>-<cause>` name only — the T25
 // bespoke stash ("cdd-T25-… 2026-09-20 …") is a one-off narrative artifact, NOT a match target;
 // its WIP is restorable by manual `git stash apply stash@{0}`.
-import { gitDiffShortstat, gitStashApply, gitStashList, gitStashPush, gitStatusPorcelain } from "../infra/git.ts";
+import { gitDiffNumstat, gitDiffShortstat, gitStashApply, gitStashList, gitStashPush, gitStatusPorcelain, gitUntrackedStat, type WipStat } from "../infra/git.ts";
+import { loadEngineConfig } from "../infra/config.ts";
+import { FAILURE_CATEGORIES } from "../rules/failure.ts";
+import { roundPattern } from "./handoff/naming.ts";
 import { SHA40_RE } from "./progress.ts";
-import { readJson } from "./handoff/write.ts";
+import { readJson, writeHandoff } from "./handoff/write.ts";
+import path from "node:path";
 
 // ---- standardized stash message (settleResidue output ≡ resume input, spec T7.5) ----
 
@@ -43,11 +59,82 @@ export function matchesStandardStashMessage(message: string): boolean {
   return LEGACY_STASH_RE.test(message);
 }
 
+// ---- save-family eligibility (T28, spec T7.7; ex rules/residue.ts) ----
+// The recovery-cause preserved set + eligibility judgment, migrated into the single SAVE owner.
+// CONTRACT_VIOLATION-class causes are deliberately NOT in the set: discipline failures surface
+// explicitly, never auto-swallowed (a fix loop must run, not a silent stash). The set derives from
+// FAILURE_CATEGORIES — no hand-written category literals (the same AC14 discipline as
+// rules/failure.ts); the preserved frontier matches the recovery-quota consumer pair.
+
+/** Recovery-carrier causes whose residue the engine auto-preserves: EXECUTION_FAILURE (agent died
+ * before writing its handoff — exit 1 / SIGTERM 143) and TIMEOUT (budget / liveness stall). */
+export const RESIDUE_PRESERVED_CAUSES: ReadonlyArray<string> = [
+  FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+  FAILURE_CATEGORIES.TIMEOUT.id,
+];
+
+/** True when `cause` is a preserved class (recovery-eligible). null / undefined / unknown → false. */
+export function recoveryEligible(cause: string | null | undefined): boolean {
+  return typeof cause === "string" && RESIDUE_PRESERVED_CAUSES.includes(cause);
+}
+
+/** The basename → handoff-family classification (the adapter's op/type/round source). For each
+ * canonical family (engine-config.json#handoffNamespace — naming.ts roundPattern as the single
+ * pattern source, never a hand-parallel regex), classify the carrier basename: the matching family
+ * yields op/type; round = the name's `{round}` slot when the family has one, else 1 (the lone
+ * round-slot-less family implement.task — implement rounds are always 1; buildCtx hard-codes it).
+ * Unclassifiable basenames → null (the save is never fabricated for a foreign carrier). */
+function familyFromBasename(basename: string): { op: string; type: string; round: number } | null {
+  const { families } = loadEngineConfig().handoffNamespace;
+  for (const [key] of Object.entries(families)) {
+    const [op, type] = key.split(".");
+    if (!op || !type) continue;
+    const m = basename.match(roundPattern(op, type));
+    if (!m) continue;
+    return { op, type, round: m[1] !== undefined ? Number(m[1]) : 1 };
+  }
+  return null;
+}
+
+/** The carrier basename's salvage round number (T28 contract: the standardized stash message embeds
+ * the round for EVERY family — implement → 1, round-bearing names carry their own; unclassifiable →
+ * null). Semantics migrate from rules/residue.ts roundFromCarrierBasename; the old "round-bearing →
+ * null" marker shape died with the bespoke snapshot message it annotated (the T25-era save path,
+ * deleted in this convergence). */
+export function roundFromCarrierBasename(basename: string): number | null {
+  return familyFromBasename(basename)?.round ?? null;
+}
+
+/** The adapter's derived salvage params — the canonical settleResidue opts keyed by the carrier's
+ * own identity (the three paths — task lane / base hook / branch inline — share this derivation so
+ * their stash messages agree). task falls back to 1 for doc-family carriers (spec/plan have no task
+ * number); the message's `-task-` literal is a namespace marker, and doc-family stashes keep a
+ * category-id cause that the legacy resume scan (resume lane = implement only) never matches. */
+interface CarrierSalvage {
+  op: string;
+  type: string;
+  task: number;
+  round: number;
+  cause: string;
+}
+
+function salvageFromCarrier(basename: string, carrier: Record<string, unknown>): CarrierSalvage | null {
+  const fam = familyFromBasename(basename);
+  if (!fam) return null;
+  const task = typeof carrier.task === "number" && Number.isInteger(carrier.task) && carrier.task >= 1
+    ? carrier.task
+    : 1;
+  const cause = (carrier.recovery as Record<string, unknown> | undefined)?.cause;
+  if (typeof cause !== "string" || !cause) return null;
+  return { op: fam.op, type: fam.type, task, round: fam.round, cause };
+}
+
 // ---- salvage (round end) ----
 
 /** Engine-written salvage record that rides the failure carrier (schema: task-handoff-schema.json
  *  `recovery` property). settleResidue returns this on a dirty tree, null when there was nothing to
- *  preserve. */
+ *  preserve. The carrier merge (task lane / settleFromCarrier) writes preserved=true so a coexisting
+ *  save lane (template hook + task lane on the same round) never double-stashes. */
 export interface RecoveryInfo {
   /** the stash commit SHA (index-independent: `stash@{N}` indices shift on every push/drop). */
   residue_ref: string;
@@ -55,8 +142,14 @@ export interface RecoveryInfo {
   stash_message: string;
   /** WIP scope summary (`git diff HEAD --shortstat`), data-driven appendix input. */
   residue_scope: string;
+  /** structured WIP scale (files / +M/-M, incl. brand-new untracked files) — the carrier's archivable
+   *  magnitude beside residue_scope (gitDiffNumstat + gitUntrackedStat, read BEFORE the push). */
+  wip_stat: WipStat;
   cause: string;
   round: number;
+  /** T28 save-family idempotence flag: the round's residue IS in the object store — an
+   *  already-preserved carrier (recovery.preserved === true) is never stashed again. */
+  preserved: true;
   /** T27 (spec T7.6): the task-level scope anchor at salvage time (ledger value priority /
    *  fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE
    *  (resume-declared) adoption and scope identity stay consistent across round death. */
@@ -80,19 +173,96 @@ export async function settleResidue(
   const porcelain = await gitStatusPorcelain(cwd);
   const untrackedCount = porcelain ? porcelain.split("\n").filter((l) => l.startsWith("??")).length : 0;
   const residueScope = untrackedCount > 0 ? `${scope}${scope ? "; " : ""}${untrackedCount} untracked file(s)` : scope;
+  // The structured scale (tracked numstat + untracked line counts) is read BEFORE the push too —
+  // recovery.wip_stat archives the pre-stash tree's magnitude (the carrier itself never counts:
+  // it lives in the gitignored .osuperpowers/cdd workspace, invisible to `??` and to -u).
+  const wip = await gitDiffNumstat(cwd);
+  const untracked = await gitUntrackedStat(cwd);
+  wip.files += untracked.files;
+  wip.insertions += untracked.insertions;
+  wip.deletions += untracked.deletions;
   const ref = await gitStashPush(cwd, message);
   if (!ref) return null;
   return {
     residue_ref: ref,
     stash_message: message,
     residue_scope: residueScope,
+    wip_stat: wip,
     cause: opts.cause,
     round: opts.round,
+    preserved: true,
     // T27 (spec T7.6): the write side enforces the same 40-hex shape its read side (resume pre-flight)
     // validates — a malformed brief TASK_BASE must never ship a schema-violating recovery.scope_base
     // (fail-open: skip the key, the salvage record still writes).
     ...(opts.scopeBase && SHA40_RE.test(opts.scopeBase) ? { scope_base: opts.scopeBase } : {}),
   };
+}
+
+// ---- save adapter (T28, spec T7.7; ex rules/residue.ts preserveRoundResidue) ----
+
+/** The dead-round carrier save: derive the salvage params from the CARRIER + its filename
+ *  (op/type/round via the canonical family classification — roundFromCarrierBasename semantics —,
+ *  task from the carrier, cause from recovery.cause) and run the canonical settleResidue, then merge
+ *  the recovery facts (residue_ref / stash_message / residue_scope / wip_stat / cause / round /
+ *  preserved) back into the carrier's recovery so every save lane carries the same contract.
+ *  The preserved idempotence guard runs FIRST: an already-preserved carrier (template hook + task
+ *  lane coexisting on one round — e.g. an implement TIMEOUT whose lane pre-wrote preserved=true) is
+ *  never stashed a second time. Then eligibility: CONTRACT_VIOLATION-class causes are not
+ *  auto-swallowed (the tree stays dirty and the discipline failure surfaces explicitly). Fail-open:
+ *  !cwd / missing carrier / clean tree / git error → null with zero output.
+ *  The pass-through carrier never joins the stash: it lives in the gitignored `.osuperpowers/cdd/`
+ *  workspace (materializeWorkspace writes an in-dir `.gitignore`), and `git stash push -u` sweeps
+ *  untracked, not ignored, files — no pathspec exclusion needed. */
+export async function settleFromCarrier(
+  cwd: string,
+  handoffPath: string,
+  repoRoot?: string | null,
+): Promise<RecoveryInfo | null> {
+  if (!cwd) return null;
+  // repoRoot records the pass-through-carrier context (the canonical engine root every call site
+  // passes); it is documentation + future-proofing, never a pathspec.
+  void repoRoot;
+  const carrier = readJson(handoffPath);
+  if (!carrier) return null;
+  const recovery = carrier.recovery;
+  if (!recovery || typeof recovery !== "object") return null;
+  const rec = recovery as Record<string, unknown>;
+  // Idempotence first: an already-preserved round is never re-examined (double-stash defense).
+  if (rec.preserved === true) return null;
+  const cause = typeof rec.cause === "string" ? rec.cause : undefined;
+  if (!recoveryEligible(cause)) return null;
+  const salvage = salvageFromCarrier(path.basename(handoffPath), carrier);
+  if (!salvage) return null;
+  const info = await settleResidue(cwd, salvage);
+  if (!info) return null; // clean tree / git error — the carrier keeps its death diagnosis only
+  rec.residue_ref = info.residue_ref;
+  rec.stash_message = info.stash_message;
+  rec.residue_scope = info.residue_scope;
+  rec.wip_stat = info.wip_stat;
+  rec.cause = info.cause;
+  rec.round = info.round;
+  rec.preserved = true;
+  writeHandoff(handoffPath, carrier);
+  return info;
+}
+
+/** settleFromCarrier + a stderr CDD_WARN announcement. Shared by the base settleResidue template
+ * step AND the branch failure lanes (which abort via exitWithCode and never reach the template
+ * step — they call this inline before exiting). One announcement shape, no per-lane prose drift. */
+export async function preserveAndAnnounceResidue(
+  cwd: string,
+  handoffPath: string,
+  repoRoot?: string | null,
+): Promise<RecoveryInfo | null> {
+  const res = await settleFromCarrier(cwd, handoffPath, repoRoot);
+  if (res) {
+    process.stderr.write(
+      `CDD_WARN: worktree residue preserved for recovery — stash ${res.residue_ref.slice(0, 7)} ` +
+        `(${res.wip_stat.files} file(s), +${res.wip_stat.insertions}/-${res.wip_stat.deletions}); ` +
+        `see the recovery carrier (residue_ref / stash_message / wip_stat)\n`,
+    );
+  }
+  return res;
 }
 
 // ---- resume (re-dispatch pre-flight) ----

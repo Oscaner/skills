@@ -180,13 +180,15 @@ export async function gitDiffShortstat(cwd: string): Promise<string | null> {
   }
 }
 
-// ---- T25 residue-stash preservation (rules/residue.ts) ----
+// ---- residue WIP scale (canonical settleResidue input — src/artifacts/residue.ts save family) ----
 // The structured WIP scale (files / insertions / deletions) that `recovery.wip_stat` carries at
 // salvage time — the data-driven (file count / +M/−M) the recovery carrier archives next to residue_ref.
 // Unlike `git diff HEAD --shortstat` (tracked only), the scale also counts brand-new UNTRACKED
 // files (the normal TDD shape for new tests/modules): each untracked entry counts as one file with
 // its newline-count as insertions — `git diff --numstat` cannot see untracked files, so the count
-// is derived from a per-file line read instead of a second git walk.
+// is derived from a per-file line read instead of a second git walk. Pass-through carriers never
+// count: the engine handoff lives in the gitignored `.osuperpowers/cdd/` workspace (materializeWorkspace
+// writes an in-dir `.gitignore`), so it never appears in porcelain as `??` in the first place.
 
 /** Structured WIP scale — file count + insertion/deletion magnitudes (tracked diffs exact, untracked
  *  files exact by line count). */
@@ -196,35 +198,41 @@ export interface WipStat {
   deletions: number;
 }
 
-async function gitDiffNumstat(cwd: string): Promise<WipStat> {
-  const out = (await git(cwd).raw(["diff", "HEAD", "--numstat"])).trim();
-  let files = 0;
-  let insertions = 0;
-  let deletions = 0;
-  for (const line of out.split("\n")) {
-    const [ins, del, ..._rest] = line.trim().split("\t");
-    if (!ins || !del) continue;
-    const i = Number(ins);
-    const d = Number(del);
-    if (Number.isNaN(i) || Number.isNaN(d)) continue; // binary rename lines (-\t-) never count
-    files += 1;
-    insertions += i;
-    deletions += d;
+export async function gitDiffNumstat(cwd: string): Promise<WipStat> {
+  // Fail-open like the rest of this seam: a non-repo / nonexistent cwd (or any git error) yields
+  // the zero scale — settleResidue's "git error → null, never crash" contract must hold even when
+  // its inputs are mocked or already torn down (the round-terminal write always survives).
+  try {
+    const out = (await git(cwd).raw(["diff", "HEAD", "--numstat"])).trim();
+    let files = 0;
+    let insertions = 0;
+    let deletions = 0;
+    for (const line of out.split("\n")) {
+      const [ins, del, ..._rest] = line.trim().split("\t");
+      if (!ins || !del) continue;
+      const i = Number(ins);
+      const d = Number(del);
+      if (Number.isNaN(i) || Number.isNaN(d)) continue; // binary rename lines (-\t-) never count
+      files += 1;
+      insertions += i;
+      deletions += d;
+    }
+    return { files, insertions, deletions };
+  } catch {
+    return { files: 0, insertions: 0, deletions: 0 };
   }
-  return { files, insertions, deletions };
 }
 
 /** Untracked-file scale contribution: each untracked entry is one file; insertions = its
  *  newline count (a new file's magnitude is its own lines — `git diff --numstat` has no row for it).
  *  Directories (`?? dir/`) contribute presence only (+1, no line read). */
-async function gitUntrackedStat(cwd: string, exclude?: string): Promise<WipStat> {
+export async function gitUntrackedStat(cwd: string): Promise<WipStat> {
   const out = (await gitStatusPorcelain(cwd) ?? "").split("\n");
   let files = 0;
   let insertions = 0;
   for (const line of out) {
     if (!line.startsWith("?? ")) continue;
     const rel = line.slice(3).replace(/\/$/, "");
-    if (exclude && rel === exclude) continue; // pass-through carrier never counts toward the residue scale
     files += 1;
     if (line.endsWith("/")) continue; // untracked directory — presence only
     try {
@@ -235,36 +243,6 @@ async function gitUntrackedStat(cwd: string, exclude?: string): Promise<WipStat>
     }
   }
   return { files, insertions, deletions: 0 };
-}
-
-/** `git stash push -u` (task/round-annotated message) with OPTIONAL pathspec exclusion — a
- *  pass-through carrier (the engine-authored handoff) stays in-tree while the agent's residue moves
- *  into the object store. Returns the stash commit SHA + the structured WIP scale captured BEFORE
- *  the push (the scale is the pre-stash tree's magnitude), or null when there is nothing to stash
- *  (clean tree / git error — the same fail-open as gitStashPush). Index-independent ref: the SHA of
- *  stash@{0} right after push (stash@{N} indices shift on every push/drop — rules/residue.ts stores
- *  this ref in recovery.residue_ref). */
-export async function gitStashPreserve(
-  cwd: string,
-  message: string,
-  exclude?: string,
-): Promise<{ ref: string; wip: WipStat } | null> {
-  try {
-    const wip = await gitDiffNumstat(cwd);
-    const untracked = await gitUntrackedStat(cwd, exclude);
-    wip.files += untracked.files;
-    wip.insertions += untracked.insertions;
-    wip.deletions += untracked.deletions;
-    const args = exclude
-      ? ["stash", "push", "-u", "-m", message, "--", ".", `:(exclude)${exclude}`]
-      : ["stash", "push", "-u", "-m", message];
-    await git(cwd).raw(args);
-    const ref = (await git(cwd).revparse(["stash@{0}"])).trim() || null;
-    if (!ref) return null;
-    return { ref, wip };
-  } catch {
-    return null;
-  }
 }
 
 /** `git diff <base>..<head> --name-only` — the round's mechanical changed-surface fileset (rules/

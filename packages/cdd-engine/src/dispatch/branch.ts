@@ -43,7 +43,7 @@ import { invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { reviewConvergenceGuard } from "../rules/convergence.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { preserveAndAnnounceResidue } from "../rules/residue.ts";
+import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
 import { assembleReturnBlock } from "../artifacts/return-block.ts";
 
 // ---- public opts (the CLI surface's derivation contract; moved from cli/branch-review.ts / fix) ----
@@ -184,7 +184,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
         blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${reRun}`,
       });
       process.stderr.write(`CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`);
-      await preserveAndAnnounceResidue(this.handoffPath, this.repoRoot);
+      await preserveAndAnnounceResidue(this.repoRoot, this.handoffPath, this.repoRoot);
       exitWithCode(1);
     }
 

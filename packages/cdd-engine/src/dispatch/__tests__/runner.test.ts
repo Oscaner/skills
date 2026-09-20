@@ -1428,6 +1428,14 @@ it("T26 black-box: TIMEOUT → salvage → re-dispatch resumes WIP + brief appen
     expect(h1.recovery.stash_message).toBe("cdd-implement-task-task-1-r1-over-budget");
     expect(h1.recovery.residue_scope).toMatch(/file changed/); // scope data-driven from git shortstat
     expect(existsSync(path.join(repo, "wip.md"))).toBe(false);  // salvage moved the WIP OUT of the tree
+    // T28 dual-trigger black-box (spec T7.7): the implement lane's inline settleResidue pre-wrote
+    // preserved=true, so the base settleResidue template hook's adapter (which follows in
+    // post-flight, same carrier) sees recovery.preserved and idempotently skips — an implement
+    // TIMEOUT round writes EXACTLY ONE stash, never two (the pre-T28 double-owner defect produced
+    // a second, bespoke-message stash for the same round).
+    expect(h1.recovery.preserved).toBe(true);
+    expect(execFileSync("git", ["-C", repo, "stash", "list"], { encoding: "utf8" }).trim().split("\n").filter(Boolean))
+      .toHaveLength(1);
     // Round 2 agent: continues on the restored WIP (increment), commits, returns the block.
     writeFileSync(path.join(binDir, "fake-cli"), continuingCli(ws));
     chmodSync(path.join(binDir, "fake-cli"), 0o755);

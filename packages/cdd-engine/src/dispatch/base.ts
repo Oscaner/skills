@@ -20,7 +20,7 @@
 import { createDispatchHooks, type DispatchHookContext, type DispatchHooks } from "./hooks.ts";
 import type { PhaseId } from "./phases.ts";
 import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
-import { preserveAndAnnounceResidue } from "../rules/residue.ts";
+import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
 import { reconcileChangedSurface } from "../rules/write-boundary.ts";
 import { CddExitError } from "../infra/exit.ts";
 
@@ -172,11 +172,14 @@ export abstract class DispatchLifecycle {
   protected async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {}
 
   /** Residue settlement (post-flight, before the exit gate): a failed round's recovery carrier —
-   * an eligible cause (EXECUTION_FAILURE / TIMEOUT — rules/residue.ts single eligibility set) with
+   * an eligible cause (EXECUTION_FAILURE / TIMEOUT — artifacts/residue.ts single eligibility set) with
    * a dirty tree — gets its WIP auto-preserved (`git stash push -u`) and the carrier gains
-   * residue_ref / wip_stat / preserved (facts in the carrier, prose stays in the blocker). Runs
-   * AFTER the failure lanes' #done returned — the terminal decision already happened, settlement
-   * is the last archival act before the exit gate. Success / no-recovery rounds → no-op;
+   * residue_ref / stash_message / residue_scope / wip_stat / preserved (facts in the carrier, prose
+   * stays in the blocker). T28 (spec T7.7): the step now goes through the settleFromCarrier adapter
+   * (save family single owner = artifacts/residue.ts) — ONE standardized stash message contract
+   * with the task lane; the preserved guard there makes coexisting lanes a no-op, never a double
+   * stash. Runs AFTER the failure lanes' #done returned — the terminal decision already happened,
+   * settlement is the last archival act before the exit gate. Success / no-recovery rounds → no-op;
    * CONTRACT_VIOLATION-class causes are deliberately not auto-swallowed. The branch channel aborts
    * via ExitRequested and calls preserveAndAnnounceResidue inline (dispatch/branch.ts) — the
    * template step is the task/docs path. Dry-run skip: a pure simulation must not mutate the git
@@ -184,7 +187,7 @@ export abstract class DispatchLifecycle {
   protected async settleResidue(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.ctx.dryRun === true) return; // dry-run: zero archive side effects
     if (!this.ctx.handoffPath) return;
-    await preserveAndAnnounceResidue(this.ctx.handoffPath, this.ctx.repoRoot);
+    await preserveAndAnnounceResidue(this.ctx.repoRoot ?? "", this.ctx.handoffPath, this.ctx.repoRoot);
   }
 
   /** Changed-surface reconciliation (writeBoundary, post-flight, before the exit gate): for

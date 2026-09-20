@@ -13,7 +13,7 @@
 // blocker stays real-only (returnBlocker; no fabricated default). ⑤ return-block naming.
 // Architecture: the engine is the carrier's single author (T5/T6/T7 unified); the agent only
 // contributes content slices (findings/blocker/artifacts/notes).
-// Dispatch per canonical family `status` rule (plan-constraints「status 单一权威」):
+// Dispatch per canonical family `status` rule (plan-constraints `status` single-authority):
 //   review.* → rollup derivation (applyDerivedStatus; SP-4 failure rounds exempt);
 //   implement → materialization (no agentHandoff input slot — residue has no attachment channel;
 //     T6 materialization logic moved into this module);
@@ -449,7 +449,7 @@ function evidenceGate(
   if (ev.behavior_change !== true) return { hard: false, warn: "" };
   const missing = ["command", "passed", "exit_code"].filter((k) => !(k in ev));
   if (missing.length > 0) {
-    return { hard: true, warn: `test_evidence gate: hard 要求 command/passed/exit_code (missing: ${missing.join(", ")})` };
+    return { hard: true, warn: `test_evidence gate: hard requires command/passed/exit_code (missing: ${missing.join(", ")})` };
   }
   return { hard: false, warn: "" };
 }

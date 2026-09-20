@@ -10,15 +10,19 @@
 // subsystem removal (bin/gate/
 // path, CDD_GATE env, cdd-gate-core, gateDecide, deleted gate adapters) — must
 // not creep back into mechanism/document positions.)
-// Task 16（P5）追加 report-issues 旧模型残留守卫（p5 design §2.8「residue 守卫」条 —— AC1 词边界
-// 零命中 / AC5 renderer 零残留 的机制侧落点）：裸 report-issue（词边界，复数 report-issues skill
-// 名放行）/ --mode 词形 / renderComment / renderTitle / resolveDropdownOptions / sessionTypes /
-// execFileSync("git")（手写 git 回渗）——全部机制位置零豁免。
-// T10 追加 shipped 面反向守卫两条（§2.8 行 19-20）：① shipped 非 emit 面（skills/** · 插件
-// README）零 osuperpowers-version 版本字面量；② shipped 面（根 README · 插件 README）+ 协作者面
-// （.changeset/README.md）零 `/init` 引用——init 删除 + 版本戳机制删除后的逆向残留检查。
-// T11 追加 handoff-schema 零命中守卫（§2.8 行 14）：`(?<!-)handoff-schema`（裸名/路径形）零命中，
-// 负向后顾豁免 canonical schema 文件名——handoff-schema.md 删除动作与守卫同 commit。
+// Task 16 (P5) adds the report-issues legacy-model residue guard (the mechanism-side landing of the
+// p5 design §2.8 "residue guard" row — AC1 word-boundary zero-hit / AC5 renderer zero-residue):
+// bare report-issue (word-bounded; the plural report-issues skill name passes) / the --mode word
+// form / renderComment / renderTitle / resolveDropdownOptions / sessionTypes /
+// execFileSync("git") (hand-written git regression) — all zero-exemption in mechanism positions.
+// T10 adds two reverse guards on the shipped surface (§2.8 rows 19-20): (1) zero
+// osuperpowers-version version literal on the shipped non-emit surface (skills/** · plugin
+// README); (2) zero `/init` references on the shipped surface (root README · plugin README) plus
+// the collaborator surface (.changeset/README.md) — reverse residue checks after the init and
+// version-stamp mechanism deletion.
+// T11 adds the handoff-schema zero-hit guard (§2.8 row 14): `(?<!-)handoff-schema` (bare name /
+// path form) zero-hit, with the negative lookbehind exempting canonical schema filenames — the
+// handoff-schema.md deletion ships in the same commit as the guard.
 // The grepTargets meta is consumed by the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) to pin the target set.
 
@@ -33,15 +37,18 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
 const OSKILLS = ["packages/osuperpowers/skills"];
-// re-org（spec §2.13）：cdd-engine 机制文件已自 lib/ 迁入 src/ 目标树 —— scope 常量统一收拢为 src
-//（bin/ 已删；lib/ 拓扑迁散为 src/{cli,dispatch,rules,artifacts,render,infra}，模板位于独立 templates/）。
+// re-org (spec §2.13): cdd-engine mechanism files moved out of lib/ into the src/ target tree —
+// scope constants unified on src (bin/ removed; the lib/ topology dispersed into
+// src/{cli,dispatch,rules,artifacts,render,infra}, templates live in a standalone templates/).
 const CDD_ENGINE_BIN = ["packages/cdd-engine/src"];
 const CDD_ENGINE = [...CDD_ENGINE_BIN, "packages/cdd-engine/templates"];
-// T9 nit3（DRY）：跨 skills + cdd-engine（src+templates）的机制位置集合 —— 5 个 check 共享。
+// T9 nit3 (DRY): the mechanism-position set shared across skills + cdd-engine (src+templates) — used by 5 checks.
 const ALL_MECH_POSITIONS = [...OSKILLS, ...CDD_ENGINE];
-// Task 5（P2）：文档表层 target —— 治理文件面（旧 docs 根残留最可能的回渗点）：
-// 根 CLAUDE.md（活跃约定入口）、根 README.md / 插件 README.md（发布面）、maintainer 文档目录。
-// 路径字面一律不写入本文件（守卫本体不得成为被守卫语汇的载体，见 GATE_TARGETS 旁注释）。
+// Task 5 (P2): doc-surface targets — the governance-file surface (the most likely regression point
+// for old docs-root residue): root CLAUDE.md (the active conventions entry), root README.md / plugin
+// README.md (the published surface), and the maintainer docs directory.
+// Path literals are never written into this file (a guard body must not become a carrier of the
+// vocabulary it guards — see the comment beside GATE_TARGETS).
 export const DOC_SURFACE_TARGETS = ["CLAUDE.md", "README.md", "packages/osuperpowers/README.md", "docs/maintainers"];
 
 const RESIDUE_TARGETS = [
@@ -52,106 +59,132 @@ const RESIDUE_TARGETS = [
 ];
 const RESIDUE_RE = /\b(sdd_|_sdd_|SDD_|sdd-run-|spor-)/;
 
-// stale-lexicon 零豁免（P4/P6 命名归一后）：只查机制位置，白名单为空 —— 通过「grep 模式
-// 本身不匹配 canonical 语汇」避免误报：finding-meta.json `dogfood (CDD session)` 下拉
-// （`"dogfood",` / `labels ....dogfood` 才命）、spec-review-{R}.json 家族名
-// （退化 `(spec|plan)-1\.json` 才命）、contract.mjs 现存合法注释「spec D1/D4/D5a」与
-// 「dirty working tree（D2）」（lens 语境限 `D[123]:` 前缀形式才命）。
+// stale-lexicon zero-exemption (post P4/P6 naming normalization): mechanism positions only, empty
+// whitelist — false positives are avoided by the grep patterns themselves not matching canonical
+// vocabulary: finding-meta.json `dogfood (CDD session)` dropdown (only `"dogfood",` /
+// `labels ....dogfood` match), the spec-review-{R}.json family of names (only the degraded
+// `(spec|plan)-1\.json` form matches), contract.mjs's retained legal comments "spec D1/D4/D5a" and
+// "dirty working tree (D2)" (the lens context restricts to the `D[123]:` prefix form).
 const STALE_LEXICON_CHECKS = [
   { label: "old docs-review filename", re: /docs-review\.md/, scope: ALL_MECH_POSITIONS },
   { label: "PASS= lens param", re: /PASS=</, scope: ALL_MECH_POSITIONS },
   { label: "lens names D1|D2|D3 (lens-context)", re: /\bD[123][:：]/, scope: ALL_MECH_POSITIONS },
   { label: "resolve-hit", re: /resolve-hit/, scope: ALL_MECH_POSITIONS },
   { label: "gh issue reopen", re: /gh issue reopen/, scope: ALL_MECH_POSITIONS },
-  // T9 nit6：task-review 旧 mode 名 scope 用 CDD_ENGINE（src+templates）而非仅 CDD_ENGINE_BIN ——
-  // templates（implement/fix/review）历史引用旧 mode 名已成回渗源，templates 也须入扫。
-  // T15（design §2.8 行 21）：scope 扩至 ALL_MECH_POSITIONS —— skills 面裸 task-review 已由
-  // T11/T14/T15 三批清零（handoff-schema.md → cli-driven-development SKILL.md → _docs/review.md），
-  // 本 scope 为常驻防回归面；正则收敛为旧 mode 名形（负向后顾豁免新图节点名 run-task-review）。
+  // T9 nit6: the task-review old-mode-name scope uses CDD_ENGINE (src+templates), not just
+  // CDD_ENGINE_BIN — templates (implement/fix/review) historically referenced the old mode name and
+  // became a regression source, so templates must be scanned too.
+  // T15 (design §2.8 row 21): scope widened to ALL_MECH_POSITIONS — bare task-review on the skills
+  // surface was cleared in three batches (handoff-schema.md → cli-driven-development SKILL.md →
+  // _docs/review.md), so this scope is the standing regression face; the regex converges to the old
+  // mode-name shape (negative lookbehind exempts the new digraph node name run-task-review).
   { label: "old mode task-review", re: /(?<!run-)task-review/, scope: ALL_MECH_POSITIONS },
   { label: "P4 degraded names", re: /(spec|plan)-1\.json|doc-fix-/, scope: CDD_ENGINE },
-  { label: "flat docs-review root 回退", re: /\.superpowers\/docs-review/, scope: CDD_ENGINE_BIN },
+  { label: "flat docs-review root fallback", re: /\.superpowers\/docs-review/, scope: CDD_ENGINE_BIN },
   { label: "old runtime root .superpowers/cdd", re: /\.superpowers\/cdd/, scope: ALL_MECH_POSITIONS },
   { label: "deleted standalone root", re: /\.superpowers\/standalone/, scope: ALL_MECH_POSITIONS },
   { label: "dogfood as label", re: /labels [^\n]*dogfood|"dogfood",/, scope: OSKILLS },
-  // Task 5（P2）：旧 docs 根（pre-P2 归一前的 superpowers 布局）守卫 —— 机制位置零豁免
-  // 并入文档表层（DOC_SURFACE_TARGETS）；正则以 `\/` 转义、label 不含路径字面，守卫本体
-  // 因此不会把被守卫的旧根字面写回 scripts/（否则全仓校验会多出第三类命中）。
+  // Task 5 (P2): old docs root (the pre-P2 superpowers layout, pre-normalization) guard — zero
+  // exemption at mechanism positions. Merged into the doc surface (DOC_SURFACE_TARGETS); the regex
+  // escapes `\/` and labels carry no path literal, so the guard body never writes the guarded
+  // old-root literal back into scripts/ (or the repo-wide check would gain a third hit class).
   { label: "old docs root (pre-P2)", re: /docs\/superpowers/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
-  // Task 5（P3）：已删 cdd 子命令（**命令形**，非裸词——P4 合法的 /mattpocock-skills:research
-  // 会话调用与活体文本 cli-driven-development/SKILL.md:66 的 `brief-dependent plan sections`
-  // 均须放行）+ research 专属 timeout env（随 LEGACY_MODE_ENV/modeEnv.research 连根删除）。
+  // Task 5 (P3): removed cdd subcommands (**command-form only**, not bare words — the P4-legal
+  // /mattpocock-skills:research session calls and the live text `brief-dependent plan sections` at
+  // cli-driven-development/SKILL.md:66 must all pass) + the research-only timeout env (root-deleted
+  // along with LEGACY_MODE_ENV/modeEnv.research).
   { label: "removed cdd subcommand (pre-P3)", re: /\bcdd (brief|research)\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
-  //   `RESEARCH_TIMEOUT` 单分支即覆盖两种被删形态（`CDD_RESEARCH_TIMEOUT` 与 legacy 裸名）
-  //   ——无锚定 alternation 的子串语义使 `CDD_` 前缀分支为死分支（T5 review-1 nit，实测等价），
-  //   故取后缀单分支；`CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` 旧「保留面」随 T26 三键连根删除
-  //   （CDD_TASK_TIMEOUT/CDD_REVIEW_TIMEOUT/CDD_CLI_TIMEOUT 已零读取——env 面收口闭集守卫）。
+  //   The single `RESEARCH_TIMEOUT` branch already covers both deleted forms (`CDD_RESEARCH_TIMEOUT`
+  //   and the legacy bare name) — substring semantics with an unanchored alternation make the `CDD_`
+  //   prefix branch a dead branch (T5 review-1 nit, verified equivalent), hence the suffix-only
+  //   branch; the old "retained surface" of `CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` was
+  //   root-deleted with the three T26 keys (CDD_TASK_TIMEOUT/CDD_REVIEW_TIMEOUT/CDD_CLI_TIMEOUT now
+  //   zero-read — the env surface is a closed-set guard).
   { label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
-  // Task 16（P5）：report-issues 旧模型残留守卫 —— 旧模型语汇（--mode flag / renderComment /
-  // renderTitle / resolveDropdownOptions / sessionTypes / 裸 report-issue）已清零（rewrite 收口轮），
-  // 常驻防回归。`report-issue` 必须词边界（\b）——复数 `report-issues` skill 名与 `report-links-only`
-  // 节点均合法（substring 会误报复数）。`--mode` 取词形（负向后顾/前瞻豁免内部 `mode:` 属性与
-  // --modeYaml 一类衍生 token）。`execFileSync("git")` 防手写 git 回渗（engine 唯一 spawn 通道 =
-  // proc.mjs 的 execa）。scope 全在机制位置（ALL_MECH_POSITIONS），scripts/ 不在任一 scope，
-  // 本文件写字面无自噬。
-  { label: "裸 report-issue（词边界；复数 report-issues 放行）", re: /\breport-issue\b/, scope: ALL_MECH_POSITIONS },
-  { label: "旧 --mode flag（任务级 mode 已删）", re: /(?<![\w-])--mode(?![-\w])/, scope: ALL_MECH_POSITIONS },
-  { label: "renderComment 旧 renderer 语汇", re: /\brenderComment\b/, scope: ALL_MECH_POSITIONS },
-  { label: "renderTitle 旧 renderer 语汇", re: /\brenderTitle\b/, scope: ALL_MECH_POSITIONS },
-  { label: "resolveDropdownOptions 旧 dropdown 解析", re: /\bresolveDropdownOptions\b/, scope: ALL_MECH_POSITIONS },
-  { label: "sessionTypes 旧 session 分类", re: /\bsessionTypes\b/, scope: ALL_MECH_POSITIONS },
-  { label: 'execFileSync("git") 手写 git 回渗', re: /\bexecFileSync\(\s*["']git["']/, scope: ALL_MECH_POSITIONS },
-  // Task 2（P6）：vendors 自维护面撤除 —— 防回渗语汇守卫（B12）。scope = ALL_MECH_POSITIONS
-  // 零豁免（docs/maintainers 的 vendor-reference 清理经 spec F7 延后至 F 域重组，不在此面）。
-  // 词形守紧致形：`vendors/`（路径形，非裸 vendor 词）、`publish-vendor`（词形，含文件/步/
-  // 子命令名）、`submodule[s]`（词形——git submodule / submodules: recursive 均命中）。
-  { label: "vendors/ 自维护路径形回渗", re: /vendors\//, scope: ALL_MECH_POSITIONS },
-  { label: "publish-vendor 词形回渗", re: /\bpublish-vendor\b/, scope: ALL_MECH_POSITIONS },
-  { label: "submodule 词形回渗", re: /\bsubmodule[s]?\b/, scope: ALL_MECH_POSITIONS },
-  // Task 19（P6，spec F2）：`.agents/` emit 面移除（A5）+ droid/pi keywords（A3）防回渗。
-  // `.agents` 取路径形/行尾形（`.agents/` 或行尾 `.agents`；`m` 使 `$` 逐行生效），裸 mentions 在其他文件属合法散文不撤。
-  // scope = ALL_MECH_POSITIONS 零豁免（docs/maintainers 的 stale 引用清理经 spec F7 延后至
-  // F 域重组，不在此面——与 vendors 同裁）；droid/pi 只守 A3 落点 package.json（`\bpi\b` 同时命中
-  // 死 `#pi` 字段名与 keywords 的 pi 词；不守全仓裸词——pipeline/principle 等英文合法词）。
-  { label: ".agents/ emit 面回渗（A5 撤除后）", re: /\.agents(\/|$)/m, scope: ALL_MECH_POSITIONS },
-  { label: "droid/pi keywords 回渗（A3 package.json）", re: /\bdroid\b|\bpi\b/, scope: ["packages/osuperpowers/package.json"] },
-  // Task 23（P6，spec F8a）：H1 无语义名机制面守卫（零豁免）。两条互补：`\bH1\b` 命裸大写词
-  // `H1`（词边界两侧——`1` 后须非词字符，故 `H1_BLOCK` 的 `_` 是词字符、不命中，下划线被
-  // 下半条小写面覆盖）；`/\bh1(?=[A-Z]|\b)/` 命 src 侧小写驼峰标识符（h1FromHandoff /
-  // h1FourLines / h1Blocker / h1CountersLine / #h1 / res.h1），零豁免——F8a 语义化后
-  // return* 面不得再残留旧词形。scope 分层：大写面全机制位置（src + templates + skills 正文，
-  // F8a 语义化后 prompt 正文零 H1）；小写标识符面只入 src（CDD_ENGINE_BIN）——skills 面从未
-  // 使用 h1* 小写标识符，无回渗面。正则均不锚新语汇（return block / returnFourLines 等），无自噬。
-  { label: "H1 语汇（残）（F8a 语义化后）", re: /\bH1\b/, scope: ALL_MECH_POSITIONS },
-  { label: "h1* 标识符（残）（F8a 语义化后）", re: /\bh1(?=[A-Z]|\b)/, scope: CDD_ENGINE_BIN },
-  // Task 18（P6，spec F8）：Review Convergence 术语改名后的旧语汇零豁免。三条互补——
-  //  ① `Review Stopping` 术语形（词边界）全机制位置 + 治理文档表层；旧名禁止表（naming-conventions
-  //     的 terminology registry）以**组合形**引用（review_stopping / fix_loop_exhausted /
-  //     timeout_exhausted——下划线即词字符，不构成词边界，与 \bH1\b 对 H1_BLOCK 的组合形先例一致）；
-  //  ② 小写 `stopping` 标识符/模块形只查引擎面（src + templates——src 零 stopping 模块/标识符，
-  //     templates 历史引用旧词已成回渗源）；skills 面英文散文含 stop/stops/stopped（合法面），
-  //     且 Review Convergence 词形已由 ① 覆盖；
-  //  ③ 已废失败面字面（fix-loop-exhausted / timeout-exhausted）→ review-cycle-cap /
-  //     dispatch-timeout-cap，同一组合形注册豁免。三条正则均不匹配新语汇（Review Convergence /
-  //     review-cycle-cap / dispatch-timeout-cap 无旧形子串），无自噬。
-  { label: "Review Stopping 已废术语（F8 → Review Convergence）", re: /\bReview Stopping\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
-  { label: "stopping 模块/标识符（F8 改名后引擎面零残留）", re: /\bstopping\b/, scope: CDD_ENGINE },
-  { label: "已废失败面字面（F8 → review-cycle-cap / dispatch-timeout-cap）", re: /\bfix-loop-exhausted\b|\btimeout-exhausted\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  // Task 16 (P5): report-issues legacy-model residue guard — the legacy-model vocabulary (--mode flag
+  // / renderComment / renderTitle / resolveDropdownOptions / sessionTypes / bare report-issue) was
+  // cleared in the rewrite closing round; this guard prevents regression. `report-issue` must be
+  // word-bounded (\b) — the plural `report-issues` skill name and `report-links-only` nodes are
+  // legal (a substring match would false-positive the plural). `--mode` uses the word form (negative
+  // lookbehind/lookahead exempt the internal `mode:` attribute and derived tokens like --modeYaml).
+  // `execFileSync("git")` blocks hand-written git regression (the engine's sole spawn channel =
+  // proc.mjs's execa). Scope is entirely mechanism positions (ALL_MECH_POSITIONS); scripts/ is in no
+  // scope, so this file's written surface cannot self-hit.
+  { label: "bare report-issue (word-bounded; plural report-issues passes)", re: /\breport-issue\b/, scope: ALL_MECH_POSITIONS },
+  { label: "old --mode flag (task-level mode removed)", re: /(?<![\w-])--mode(?![-\w])/, scope: ALL_MECH_POSITIONS },
+  { label: "renderComment old renderer vocabulary", re: /\brenderComment\b/, scope: ALL_MECH_POSITIONS },
+  { label: "renderTitle old renderer vocabulary", re: /\brenderTitle\b/, scope: ALL_MECH_POSITIONS },
+  { label: "resolveDropdownOptions old dropdown resolution", re: /\bresolveDropdownOptions\b/, scope: ALL_MECH_POSITIONS },
+  { label: "sessionTypes old session classification", re: /\bsessionTypes\b/, scope: ALL_MECH_POSITIONS },
+  { label: 'execFileSync("git") hand-written git regression', re: /\bexecFileSync\(\s*["']git["']/, scope: ALL_MECH_POSITIONS },
+  // Task 2 (P6): the vendors self-maintenance surface was removed — regression-vocabulary guard
+  // (B12). scope = ALL_MECH_POSITIONS zero-exemption (docs/maintainers's vendor-reference cleanup is
+  // deferred to the F-domain reorganization per spec F7, not on this surface). Word forms keep the
+  // compact shapes: `vendors/` (path form, not a bare vendor word), `publish-vendor` (word form,
+  // covering file/step/subcommand names), `submodule[s]` (word form — both git submodule and
+  // submodules: recursive hit).
+  { label: "vendors/ self-maintenance path-form regression", re: /vendors\//, scope: ALL_MECH_POSITIONS },
+  { label: "publish-vendor word-form regression", re: /\bpublish-vendor\b/, scope: ALL_MECH_POSITIONS },
+  { label: "submodule word-form regression", re: /\bsubmodule[s]?\b/, scope: ALL_MECH_POSITIONS },
+  // Task 19 (P6, spec F2): `.agents/` emit-surface removal (A5) + droid/pi keywords (A3) regression
+  // guard. `.agents` uses the path/end-of-line form (`.agents/` or `.agents` at EOL; `m` makes `$`
+  // line-local); bare mentions in other files are legal prose and stay. scope = ALL_MECH_POSITIONS
+  // zero-exemption (docs/maintainers's stale-reference cleanup is deferred to the F-domain
+  // reorganization per spec F7, not on this surface — same ruling as vendors); droid/pi guards only
+  // the A3 landing package.json (`\bpi\b` hits both the dead `#pi` field name and the keywords pi
+  // word; no repo-wide bare words — pipeline/principle etc. are legal English words).
+  { label: ".agents/ emit-surface regression (post-A5 removal)", re: /\.agents(\/|$)/m, scope: ALL_MECH_POSITIONS },
+  { label: "droid/pi keywords regression (A3 package.json)", re: /\bdroid\b|\bpi\b/, scope: ["packages/osuperpowers/package.json"] },
+  // Task 23 (P6, spec F8a): H1 semantic-name mechanism guard (zero-exemption). Two complementary
+  // lanes: `\bH1\b` hits the bare uppercase word `H1` (word-bounded on both sides — `1` needs a
+  // non-word char after it, so `H1_BLOCK`'s `_` is a word char and never hits; the underscore form
+  // is covered by the lowercase lane below); `/\bh1(?=[A-Z]|\b)/` hits the src-side lowercase
+  // camelCase identifiers (h1FromHandoff / h1FourLines / h1Blocker / h1CountersLine / #h1 / res.h1),
+  // zero-exemption — after F8a semanticization the return* surface must not retain the old token
+  // forms. Layered scope: the uppercase lane covers all mechanism positions (src + templates +
+  // skills body, where the prompt body has zero H1 post-F8a); the lowercase-identifier lane is src
+  // only (CDD_ENGINE_BIN) — the skills surface never used h1* lowercase identifiers, no regression
+  // face. Neither regex anchors the new vocabulary (return block / returnFourLines etc.), no
+  // self-hit.
+  { label: "H1 vocabulary (residual) (post-F8a semanticization)", re: /\bH1\b/, scope: ALL_MECH_POSITIONS },
+  { label: "h1* identifiers (residual) (post-F8a semanticization)", re: /\bh1(?=[A-Z]|\b)/, scope: CDD_ENGINE_BIN },
+  // Task 18 (P6, spec F8): the old vocabulary after the Review Convergence term rename,
+  // zero-exemption. Three complementary lanes —
+  //  ① `Review Stopping` term form (word-bounded) in all mechanism positions + the governance doc
+  //     surface; the banned-name table (naming-conventions's terminology registry) cites it in
+  //     **composite form** (review_stopping / fix_loop_exhausted / timeout_exhausted — the
+  //     underscore is a word char and breaks the word boundary, matching the \bH1\b composite-form
+  //     precedent for H1_BLOCK);
+  //  ② the lowercase `stopping` identifier/module form scans the engine surface only (src +
+  //     templates — src has zero stopping modules/identifiers, templates' historical references are
+  //     a regression source); the skills surface's English prose contains stop/stops/stopped (legal
+  //     surface), and the Review Convergence term form is already covered by ①;
+  //  ③ the retired failure-face literals (fix-loop-exhausted / timeout-exhausted) →
+  //     review-cycle-cap / dispatch-timeout-cap, registered under the same composite form. None of
+  //     the three regexes matches the new vocabulary (Review Convergence / review-cycle-cap /
+  //     dispatch-timeout-cap share no old-form substring), no self-hit.
+  { label: "Review Stopping retired term (F8 → Review Convergence)", re: /\bReview Stopping\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
+  { label: "stopping modules/identifiers (engine surface zero-residue post-F8 rename)", re: /\bstopping\b/, scope: CDD_ENGINE },
+  { label: "retired failure-face literals (F8 → review-cycle-cap / dispatch-timeout-cap)", re: /\bfix-loop-exhausted\b|\btimeout-exhausted\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
 ];
 
-// T6（P5）：gate 专属语汇零豁免（镜像 P6 F5 stale-lexicon 守卫；与 T7 grep1 口径一致）。
-// cdd-gate 子系统（packages/osuperpowers/bin/gate/ 全树删除）后，语汇不得回渗机制/文档表层：
-// cdd-engine bin + osuperpowers skills + docs/maintainers + 根 README。豁免（注册非目标）：
-// docs/osuperpowers/{specs,plans}（历史文档新落点；spec/plan 描述删除面必携 gate 语汇，
-// 且不在 gate targets 内）、packages/osuperpowers/CHANGELOG.md
-// （历史记录，非机制位置）、engine src/**/__tests__（反向守卫测试位须引用该语汇；
-// collectGateLexiconHits 走 walkTargetFiles 默认自豁免，不经其扫描）——与 T2 Step 4 docs-runner CDD_GATE 注释
-// 清理口径一致，靠「模式取紧致形（路径/门字形）」而非裸 `gate`/`cdd-gate-` 避免误报：
-// ship gate / evidence-gate / {{HARD_GATE}} / cdd-gate-test git 身份均零命中。
-// Task 5（P2）：GATE_TARGETS 与 DOC_SURFACE_TARGETS 有 2 项**刻意重叠**（`docs/maintainers`
-// / 根 `README.md`）—— 两者服务不同语汇（gate 子系统移除 vs 旧 docs 根），非重复声明；
-// 根 `README.md` 对 stale-lexicon 属新增覆盖（GATE_TARGETS 仅被 GATE_LEXICON_CHECKS 消费）。
-// 命中面须同步重指向，不得静默漂移。
+// T6 (P5): gate-specific vocabulary zero-exemption (mirrors the P6 F5 stale-lexicon guard; same
+// boundary stance as the T7 grep1 set). After the cdd-gate subsystem removal
+// (packages/osuperpowers/bin/gate/ deleted whole-tree), its vocabulary must not creep back into
+// mechanism/document surfaces: cdd-engine bin + osuperpowers skills + docs/maintainers + root
+// README. Exemptions (registered non-targets): docs/osuperpowers/{specs,plans} (the new home of
+// historical docs; spec/plan deletion-surface descriptions necessarily carry gate vocabulary, and
+// it is not in the gate targets), packages/osuperpowers/CHANGELOG.md (historical record, not a
+// mechanism position), engine src/**/__tests__ (reverse-guard test sites must cite the vocabulary;
+// collectGateLexiconHits rides walkTargetFiles' default self-exemption and never scans them) — the
+// same stance as the T2 Step 4 docs-runner CDD_GATE comment cleanup. False positives are avoided
+// by compact pattern shapes (path/gate-word forms) rather than bare `gate`/`cdd-gate-`: ship gate /
+// evidence-gate / {{HARD_GATE}} / the cdd-gate-test git identity all zero-hit.
+// Task 5 (P2): GATE_TARGETS and DOC_SURFACE_TARGETS share 2 **intentional overlaps** (`docs/maintainers`
+// and the root `README.md`) — they serve different vocabularies (gate-subsystem removal vs old docs
+// root), not duplicate declarations; the root `README.md` is a new stale-lexicon coverage addition
+// (GATE_TARGETS is only consumed by GATE_LEXICON_CHECKS). Hit surfaces must be re-pointed in sync,
+// never silently drifted.
 const GATE_TARGETS = [...CDD_ENGINE_BIN, ...OSKILLS, "docs/maintainers", "README.md"];
 const GATE_LEXICON_CHECKS = [
   { label: "deleted gate dir bin/gate/", re: /\bbin\/gate\b/, scope: GATE_TARGETS },
@@ -165,18 +198,22 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-// 复用扫描：tinyglobby 替换手写递归；`dot: true` 扫隐藏子目录（.claude-plugin/）。
-// T6：目录 target glob **/*，单文件 target（根 README.md）直接读；target 可取仓库相对
-// 路径或绝对路径（后者供 collectGateLexiconHits 测试注入临时目录）。
-// T7：export 供 smoke-cdd.ts 最终核对（deletion-surface sweep）复用，不重复实现。
-// review-1 warn（Duplicated Code）：统一遍历辅助 —— scanTargets / scanLines / listTargetFiles
-// 原三份近相同 walk（target 解析 → 缺失 throw → glob 展开 → 二进制跳过）逐行复制，仅改其一
-// 即静默漂移；现收敛为单一 walkTargetFiles，三个消费端只做各自的匹配/映射。
-// 缺失 target → 带 target 的清晰 Error（对齐 G7/G8「deleted path has returned」风格），
-// 未来文件改名/删除以可读 guard 失败呈现而非 statSync ENOENT 晦涩崩溃。
-// 默认跳过 `**/__tests__/`（P6 Task 3 迁就近后测试位并入 src 树）——guard/test 自豁免 doctrine 的
-// walk 侧落点：测试断言「死语汇缺席」必携被守词汇，机制扫描不得采信测试位；需扫测试的守卫
-//（seam 缝 / 旧根解析名）经 `{ includeTests: true }` 显式打开，scope 仍写 src/…（不写已删 tests/）。
+// Shared scanning: tinyglobby replaces the hand-written recursion; `dot: true` scans hidden
+// subdirectories (.claude-plugin/). T6: directory targets glob **/*, single-file targets (root
+// README.md) are read directly; targets may be repo-relative or absolute paths (the latter lets
+// collectGateLexiconHits tests inject a temp directory). T7: exported for reuse by smoke-cdd.ts's
+// final reconciliation (deletion-surface sweep), not reimplemented.
+// review-1 warn (Duplicated Code): unified walk helper — scanTargets / scanLines / listTargetFiles
+// originally held three near-identical walks (target resolution → missing throw → glob expansion →
+// binary skip) copied line-by-line, so editing one silently drifted the rest; now converged into the
+// single walkTargetFiles, with the three consumers doing only their own matching/mapping. A missing
+// target throws a clear Error naming the target (aligned with the G7/G8 "deleted path has returned"
+// style) — future renames/deletions fail as a readable guard failure instead of an obscure statSync
+// ENOENT crash. `**/__tests__/` is skipped by default (post P6 Task 3, co-located test sites joined
+// the src tree) — the guard/test self-exemption doctrine's walk-side landing: tests asserting "dead
+// vocabulary absent" necessarily carry the guarded words, so mechanism scans must not trust test
+// sites; guards that do scan tests (seam gaps / old root-resolver names) opt in explicitly via
+// `{ includeTests: true }`, with scope still written as src/... (never the deleted tests/).
 function walkTargetFiles(targets, { includeTests = false } = {}) {
   const out = [];
   for (const t of targets) {
@@ -214,8 +251,9 @@ export function hasHit(lines) {
   return [...STALE_LEXICON_CHECKS, ...GATE_LEXICON_CHECKS].some(({ re }) => lines.some((line) => re.test(line)));
 }
 
-// targetsOverride 与 collectGateLexiconHits 同构——供测试注入临时目标，验证 **doc-surface 面**
-// （DOC_SURFACE_TARGETS）确实在扫面内（否则该 scope 缩小不会被任何断言察觉）。
+// targetsOverride mirrors collectGateLexiconHits — lets tests inject temporary targets to verify the
+// **doc-surface face** (DOC_SURFACE_TARGETS) is actually in the scan (otherwise a scope shrink goes
+// unnoticed by any assertion).
 export function collectStaleLexiconHits(targetsOverride) {
   const hits = [];
   for (const { label, re, scope } of STALE_LEXICON_CHECKS) {
@@ -224,7 +262,8 @@ export function collectStaleLexiconHits(targetsOverride) {
   return hits;
 }
 
-// T6：与 collectStaleLexiconHits 同构；`targetsOverride` 供测试注入临时目录验证扫描命中。
+// T6: isomorphic to collectStaleLexiconHits; `targetsOverride` lets tests inject a temp directory
+// to verify scan hits.
 export function collectGateLexiconHits(targetsOverride) {
   const hits = [];
   for (const { label, re, scope } of GATE_LEXICON_CHECKS) {
@@ -234,28 +273,34 @@ export function collectGateLexiconHits(targetsOverride) {
 }
 
 // =====================================================================
-// Task 8 — channel audit（design §2.8 行 1–11、13，engine 侧 12 条）
+// Task 8 — channel audit (design §2.8 rows 1-11, 13; the engine-side 12 checks)
 // =====================================================================
-// 守卫面与 canonical 同源：env 直读白名单（行 2）/ argv flag 集（行 9）/ 失败类目与计数器（行 13）
-// 一律经 cdd-engine 的唯一读取入口取（loadContract / FAILURE_CATEGORIES / counters），本文件不写
-// 字面第二份 —— 守卫自身因此不成为被守卫语汇的载体。行 5 的两个旧根解析名按拼接构造（⑤ 的 target
-// 集含 scripts/，守卫本体不得书写被守词汇的连续字面，否则自命中）。
+// The guard surfaces share a canonical source: the env direct-read whitelist (row 2) / argv flag
+// set (row 9) / failure categories and counters (row 13) all come from cdd-engine's single read
+// entry points (loadContract / FAILURE_CATEGORIES / counters), never a second literal copy in this
+// file — so the guard itself is not a carrier of the vocabulary it guards. The two row-5 old
+// root-resolver names are built by concatenation (the ⑤ target set includes scripts/, so the guard
+// body must not write the guarded words as contiguous literals or it self-hits).
 import { loadContract } from "../../packages/cdd-engine/src/infra/context.ts";
 import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.ts";
 import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/src/rules/failure.ts";
 
 const CONTRACT = loadContract();
-// 行 2 白名单 = canonical channels.env 的 var + markers（§2.4.4-① 4 键；T14/T26 三轮 env-key 删除后收敛）。
+// Row-2 whitelist = canonical channels.env var + markers (§2.4.4-(1) 4 keys; converged after the
+// three rounds of T14/T26 env-key deletions).
 export const ENV_DIRECT_READ_WHITELIST = new Set(
   Object.values(CONTRACT.channels.env).flatMap((ch) => [ch.var, ...(ch.markers ?? [])].filter(Boolean)),
 );
-// 行 9 canonical argv flag 集（channels.argv 的 flag 字段；含 program 级 --dry-run 与 -h/--help）。
+// Row-9 canonical argv flag set (channels.argv's flag field; includes the program-level --dry-run
+// and -h/--help).
 export const CANONICAL_ARGV_FLAGS = new Set(Object.values(CONTRACT.channels.argv).map((a) => a.flag).filter(Boolean));
-// 行 5 旧根解析名（拼接构造：⑤ scope 含 scripts/，守卫本体零连续字面）。
+// Row-5 old root-resolver names (concatenated construction: the ⑤ scope includes scripts/, so the
+// guard body keeps zero contiguous literals).
 const ROOT_FROM_DOC = "root" + "FromDoc" + "Path";
 const RESOLVE_REPO_ROOT = "resolve" + "Repo" + "Root";
 
-// 逐行扫描辅助（建立在 walkTargetFiles 的文件面之上）：命中行回 { file, lineNo, text }。
+// Line-by-line scan helper (built on walkTargetFiles' file surface): each hit returns
+// { file, lineNo, text }.
 export function scanLines(targets, re, opts) {
   const hits = [];
   for (const f of walkTargetFiles(targets, opts)) {
@@ -267,41 +312,43 @@ export function scanLines(targets, re, opts) {
   return hits;
 }
 
-// 文件清单辅助（scanLines 的文件面）：目标集内全部非二进制文件的仓储相对路径（供结构断言/跨文件比对）。
+// File-listing helper (scanLines' file surface): the repo-relative paths of every non-binary file
+// in the target set (for structure assertions / cross-file comparison).
 function listTargetFiles(targets) {
   return walkTargetFiles(targets).map((f) => path.relative(ROOT, f));
 }
 
-/** ① 行 1：engine src 内 process.cwd() 计数 = 1 且唯一命中文件 = src/bin.ts（两项都写）。 */
+/** ① Row 1: process.cwd() count in engine src = 1 and the sole hit file = src/bin.ts (both are asserted). */
 export function collectProcessCwdAudit(targetsOverride = CDD_ENGINE_BIN) {
   const m = scanLines(targetsOverride, /process\.cwd\(\)/);
   const hits = [];
   if (m.length !== 1) {
     for (const { file, lineNo } of m) {
-      hits.push({ label: "process.cwd() 非单点（期望 engine src 恰 1 处）", file: `${file}:${lineNo}` });
+      hits.push({ label: "process.cwd() non-single (expected exactly 1 in engine src)", file: `${file}:${lineNo}` });
     }
     if (m.length === 0) {
-      hits.push({ label: "process.cwd() 缺失（src/bin.ts initRoot 的转换点被移除或改名）", file: "packages/cdd-engine/src/bin.ts" });
+      hits.push({ label: "process.cwd() missing (the src/bin.ts initRoot conversion point removed or renamed)", file: "packages/cdd-engine/src/bin.ts" });
     }
     return hits;
   }
   if (!m[0].file.endsWith(path.join("src", "bin.ts"))) {
-    hits.push({ label: "process.cwd() 未收口到 src/bin.ts（唯一命中的转换点在别处）", file: `${m[0].file}:${m[0].lineNo}` });
+    hits.push({ label: "process.cwd() not converged to src/bin.ts (the only hit conversion point is elsewhere)", file: `${m[0].file}:${m[0].lineNo}` });
   }
   return hits;
 }
 
-// ② 行 2 三种直读形（process.env.X / process.env["X"] / env.X）；非白名单键 → hit。
+// ② Row 2: the three direct-read shapes (process.env.X / process.env["X"] / env.X); a non-whitelist
+// key → hit.
 const ENV_READ_RE = /(?:\bprocess\.env|\benv)\.([A-Za-z_][A-Za-z0-9_]*)|(?:\bprocess\.env|\benv)\[["']([^"']+)["']\]/;
 export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
-  const g = new RegExp(ENV_READ_RE.source, "g"); // 逐行全捕获（一行可多形）
+  const g = new RegExp(ENV_READ_RE.source, "g"); // line-wide capture (one line can host several shapes)
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_READ_RE)) {
     let m;
     while ((m = g.exec(text)) !== null) {
       const key = m[1] ?? m[2];
       if (key && !ENV_DIRECT_READ_WHITELIST.has(key)) {
-        hits.push({ label: `process.env/env 直读键非白名单（§2.4.4-①）: ${key}`, file: `${file}:${lineNo}` });
+        hits.push({ label: `process.env/env direct-read key off whitelist (§2.4.4-(1)): ${key}`, file: `${file}:${lineNo}` });
       }
     }
   }
@@ -323,36 +370,39 @@ const ENV_WHOLE_RE = /process\.env([^.\w[]|$)/;
 export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, ENV_WHOLE_RE)) {
-    if (text.trimStart().startsWith("//")) continue; // 注释提及非透传点
+    if (text.trimStart().startsWith("//")) continue; // a comment mention is not a pass-through point
     const san = ENV_PASSTHROUGH_SITES.find((s) => s.file === file && s.re.test(text));
-    if (!san) hits.push({ label: `整表透传点不在 §2.4.4-② 清单（4 处）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    if (!san) hits.push({ label: `whole-env pass-through point off the §2.4.4-(2) inventory (4 sites): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   return hits;
 }
 
-/** ③ 行 3b 零 spread 注入（{ ...process.env, … }）。 */
+/** ③ Row 3b: zero spread injection ({ ...process.env, ... }). */
 export function collectEnvSpreadHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo } of scanLines(targetsOverride, /\.\.\.process\.env/)) {
-    hits.push({ label: "process.env spread 注入（§2.4.4 整表经参数传递，不 spread 拼对象）", file: `${file}:${lineNo}` });
+    hits.push({ label: "process.env spread injection (§2.4.4 whole table passes via parameters, no spread object build)", file: `${file}:${lineNo}` });
   }
   return hits;
 }
 
-/** ③ 行 3c 六键名零命中（CDD_LIFECYCLE_PATH / CDD_REGISTRY_PATH / NODE_ENV / CDD_DRY_RUN / PLAN_FILE / CDD_HANDOFF_PATH；grep -rnE 含注释行）。 */
+/** ③ Row 3c: the six key names zero-hit (CDD_LIFECYCLE_PATH / CDD_REGISTRY_PATH / NODE_ENV / CDD_DRY_RUN / PLAN_FILE / CDD_HANDOFF_PATH; grep -rnE includes comment lines). */
 export function collectSixEnvKeyHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo } of scanLines(targetsOverride, /CDD_LIFECYCLE_PATH|CDD_REGISTRY_PATH|NODE_ENV|CDD_DRY_RUN|PLAN_FILE|CDD_HANDOFF_PATH/)) {
-    hits.push({ label: "env 通道键名回渗（六键零命中）", file: `${file}:${lineNo}` });
+    hits.push({ label: "env-channel key-name regression (six keys zero-hit)", file: `${file}:${lineNo}` });
   }
   return hits;
 }
 
-// ④ 行 4：路径类实参（--plan/--spec/--findings）全部经唯一 resolver。负断言 = 直用原参（绕过
-// resolveDocArg 归一）；正断言 = 5 个 call-site 文件（T2「归一入口闭包」）必须都引用 resolveDocArg。
+// ④ Row 4: path-class arguments (--plan/--spec/--findings) all go through the single resolver.
+// Negative assertion = directly using the raw argument (bypassing the resolveDocArg normalization);
+// positive assertion = the 5 call-site files (the T2 "normalization entry closure") must all
+// reference resolveDocArg.
 const PATH_ARG_SCOPE = ["packages/cdd-engine/src/cli", "packages/cdd-engine/src/dispatch/task.ts"];
-// review-1 nit：旁路面补全 —— readFileSync 的 fs/promises 异步同胞 `readFile(opts.*)` 与动态
-// import 求值同一路径参（`import(opts.*)`）先前不在面内（机械面按实现者自选，此面须完整）。
+// review-1 nit: side-lane completion — readFileSync's fs/promises async sibling `readFile(opts.*)`
+// and the dynamic import evaluating the same path argument (`import(opts.*)`) were previously off
+// the surface (the mechanical face follows the implementer's choice; this face must be complete).
 const PATH_ARG_BYPASS_RE = /resolveWorkspace\(opts\.(plan|spec|findings)|workspaceSlug\(opts\.(plan|spec|findings)|readFileSync\(opts\.(plan|spec|findings)|readFile\(opts\.(plan|spec|findings)|existsSync\(opts\.(plan|spec|findings)|import\(opts\.(plan|spec|findings)|path\.join\([^)]*opts\.(plan|spec|findings)/;
 const RESOLVER_FILES = [
   "packages/cdd-engine/src/cli/shared.ts",
@@ -366,23 +416,24 @@ export function collectPathArgResolverHits(scopeOverride, resolverFilesOverride)
   const files = resolverFilesOverride ?? RESOLVER_FILES;
   const hits = [];
   for (const { file, lineNo, text } of scanLines(scope, PATH_ARG_BYPASS_RE)) {
-    hits.push({ label: `路径实参绕过解析器（resolveDocArg 归一缺失）直用: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({ label: `path argument used directly, bypassing the resolver (resolveDocArg normalization missing): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   for (const f of files) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     if (!/\bresolveDocArg\b/.test(text)) {
-      hits.push({ label: "--plan/--spec/--findings 读取点缺少 resolveDocArg（归一入口闭包缺员）", file: f });
+      hits.push({ label: "--plan/--spec/--findings read site lacks resolveDocArg (normalization entry closure missing a member)", file: f });
     }
   }
   return hits;
 }
 
-// ⑤ 行 5：全仓零旧根解析名（二件套，**含测试位**；迁就近后测试并入 src 树，扫描显式
-// includeTests 打开——scope 写 `packages/cdd-engine/src`，不再写已删 tests/ 目录）。
+// ⑤ Row 5: repo-wide zero old root-resolver names (the two-piece set, **including test sites**;
+// post-move tests live in the src tree, so the scan explicitly enables includeTests — the scope is
+// written `packages/cdd-engine/src`, never the deleted tests/ directory).
 const CHANNEL_ROOT_TARGETS = [...ALL_MECH_POSITIONS, "scripts"];
 const ROOT_RESOLVER_TOKENS = [
-  { label: `${ROOT_FROM_DOC} 回渗（旧按路径猜根的第二权威）`, re: new RegExp(ROOT_FROM_DOC) },
-  { label: `${RESOLVE_REPO_ROOT} 回渗（旧根解析函数整函数删除）`, re: new RegExp(RESOLVE_REPO_ROOT) },
+  { label: `${ROOT_FROM_DOC} regression (the old second authority guessing the root by path)`, re: new RegExp(ROOT_FROM_DOC) },
+  { label: `${RESOLVE_REPO_ROOT} regression (old root-resolution function deleted wholesale)`, re: new RegExp(RESOLVE_REPO_ROOT) },
 ];
 export function collectRootResolverHits(targetsOverride) {
   const targets = targetsOverride ?? CHANNEL_ROOT_TARGETS;
@@ -393,13 +444,15 @@ export function collectRootResolverHits(targetsOverride) {
   return hits;
 }
 
-// ⑥ 行 6：测试零旁路缝（filteredEnv / baseEnv / __*ForTest 三类补丁模式）。迁就近后测试位并入
-// src 树——scope 写 `packages/cdd-engine/src`（含机制+测试位，includeTests 打开）；lib 侧现有实现
-// 已无这些模式，机制/测试双位零命中成立（机制位命中同样算违规——退役补丁词汇不属于引擎本体）。
+// ⑥ Row 6: zero test bypass seams (the filteredEnv / baseEnv / __*ForTest patch families). Post-move
+// test sites live in the src tree — the scope is `packages/cdd-engine/src` (mechanism + test sites,
+// includeTests on); the lib-side implementations no longer use these patterns, so the zero-hit holds
+// on both faces (a mechanism-site hit also counts as a violation — retired patch vocabulary is not
+// part of the engine body).
 const TEST_SEAM_CHECKS = [
-  { label: "filteredEnv 补丁模式", re: /\bfilteredEnv\b/, scope: ["packages/cdd-engine/src"] },
-  { label: "baseEnv 补丁模式", re: /\bbaseEnv\b/, scope: ["packages/cdd-engine/src"] },
-  { label: "__*ForTest 缝", re: /__\w*ForTest\b/, scope: ["packages/cdd-engine/src"] },
+  { label: "filteredEnv patch pattern", re: /\bfilteredEnv\b/, scope: ["packages/cdd-engine/src"] },
+  { label: "baseEnv patch pattern", re: /\bbaseEnv\b/, scope: ["packages/cdd-engine/src"] },
+  { label: "__*ForTest seam", re: /__\w*ForTest\b/, scope: ["packages/cdd-engine/src"] },
 ];
 export function collectTestSeamHits(targetsOverride) {
   const hits = [];
@@ -409,9 +462,11 @@ export function collectTestSeamHits(targetsOverride) {
   return hits;
 }
 
-// ⑦ 行 7 前半：零手写 handoff 形状 —— templates.mjs 零 switch（renderHandoffStub 原手写 schema 字段
-// 清单形）；finalize.mjs 写盘不经内联对象字面量 且 implement 实体化写侧必须过 normalizeHandoff
-//（schema 键集唯一权威，AC6）。文件作用域按 basename 判（override 供测试注入）。
+// ⑦ Row 7 first half: zero hand-written handoff shapes — templates.ts keeps zero switch (the
+// renderHandoffStub original hand-written schema-field inventory shape); finalize.ts writes to disk
+// without an inline object literal, and the implement materialization write side must go through
+// normalizeHandoff (the schema key set is the single authority, AC6). File scope is judged by
+// basename (override lets tests inject).
 export function collectHandoffShapeHits(filesOverride = [
   "packages/cdd-engine/src/render/templates.ts",
   "packages/cdd-engine/src/artifacts/handoff/finalize.ts",
@@ -421,51 +476,56 @@ export function collectHandoffShapeHits(filesOverride = [
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     const base = path.basename(f);
     if (base === "templates.ts" && /\bswitch\s*\(/.test(text)) {
-      hits.push({ label: "手写 schema 字段清单（renderHandoffStub 原 switch 形态回渗）", file: f });
+      hits.push({ label: "hand-written schema field inventory (renderHandoffStub's original switch shape regressed)", file: f });
     }
     if (base === "finalize.ts") {
       if (/write(?:Own)?Handoff\([^,]+,\s*\{/.test(text)) {
-        hits.push({ label: "finalize 写侧内联手写 handoff 对象字面量（应经 schema / 单点构造）", file: f });
+        hits.push({ label: "finalize write side inlines a hand-written handoff object literal (should go through schema / single-point construction)", file: f });
       }
       if (!/\bnormalizeHandoff\b/.test(text)) {
-        hits.push({ label: "finalize 实体化写侧未过 normalizeHandoff（schema 键集不再承重）", file: f });
+        hits.push({ label: "finalize materialization write side does not pass normalizeHandoff (schema key set no longer load-bearing)", file: f });
       }
     }
   }
   return hits;
 }
 
-// ⑦ 行 7 后半：零 res.timedOut 单点依赖（AC6/AC7 超时判定请引擎自持）——res.timedOut 不作为独立判定
-// 条件（判定 = spawnManaged 自持组合），且自持的信号子句（res.signal === "SIGTERM"）必须在 proc.mjs。
+// ⑦ Row 7 second half: zero res.timedOut sole-dependency (AC6/AC7: the engine owns the timeout
+// determination) — res.timedOut is never a standalone judgment condition (the judgment is
+// spawnManaged's self-held combination), and the self-held signal clause
+// (res.signal === "SIGTERM") must live in proc.mjs.
 const TIMED_OUT_CONDITION_RE = /if\s*\(\s*!?\s*res\.timedOut\b/;
 export function collectTimedOutSoleHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, TIMED_OUT_CONDITION_RE)) {
-    hits.push({ label: `res.timedOut 作独立判定条件（超时判定非自持）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({ label: `res.timedOut as a standalone judgment condition (timeout judgment not self-held): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   const procFile = "packages/cdd-engine/src/infra/proc.ts";
   const proc = readFileSync(path.join(ROOT, procFile), "utf8");
   if (!proc.includes('res.signal === "SIGTERM"')) {
-    hits.push({ label: "超时自持判定缺失（proc.ts#spawnManaged 无 res.signal === SIGTERM 子句）", file: procFile });
+    hits.push({ label: "self-held timeout judgment missing (proc.ts#spawnManaged lacks a res.signal === SIGTERM clause)", file: procFile });
   }
   return hits;
 }
 
-// ⑧ 行 8：engine 内零「写 context 到任意路径」调用（运行期 context 零落盘，AC4）。
+// ⑧ Row 8: zero "write context to an arbitrary path" calls inside the engine (runtime context
+// never lands on disk, AC4).
 const CONTEXT_WRITE_RE = /write\w*Context\b|writeFileSync\([^)]*\bcontext\b|writeFileSync\([^,]+,\s*(?:JSON\.stringify\()?\s*(?:ctx|context)\.?/;
 export function collectContextWriteHits(targetsOverride = CDD_ENGINE_BIN) {
   const hits = [];
   for (const { file, lineNo } of scanLines(targetsOverride, CONTEXT_WRITE_RE)) {
-    hits.push({ label: "「写 context 到任意路径」调用（运行期 context 零落盘）", file: `${file}:${lineNo}` });
+    hits.push({ label: "\"write context to an arbitrary path\" call (runtime context never lands on disk)", file: `${file}:${lineNo}` });
   }
   return hits;
 }
 
-// ⑨ 行 9：cdd <sub> --help 的 Options 面 ⊆ canonical argv 的 flag 集。-h/--help 在扫面内不设
-// 豁免（canonical 显式声明 help）。Task 9 迁移到 citty 声明——commander 的 program +
-// helpInformation() 文本解析随 parser 一并删除：citty 下帮助的 OPTIONS 面即 defineCommand 的
-// args 声明（renderUsage 由声明生成），守卫直接遍历声明树取 args 键（kebab → --flag），零子进程。
-// citty 内建 --help/-h 不是声明 arg，逐命令追加进 flag 集。
+// ⑨ Row 9: the Options face of `cdd <sub> --help` ⊆ canonical argv's flag set. -h/--help get no
+// scan exemption (canonical explicitly declares help). Task 9 migrated to citty declarations —
+// commander's program + helpInformation() text parsing went away with the parser: under citty the
+// help OPTIONS face is defineCommand's args declaration (renderUsage generated from the
+// declaration), so the guard walks the declaration tree directly for args keys (kebab → --flag),
+// zero subprocesses. citty's built-in --help/-h is not a declared arg, appended per command into
+// the flag set.
 export function helpOptionFlags(argDef) {
   const flags = Object.keys(argDef ?? {}).map((key) => `--${key}`);
   flags.push("--help");
@@ -483,7 +543,7 @@ export function collectHelpFlagHits() {
     const [cmd, name] = stack.pop();
     for (const f of helpOptionFlags(cmd.args)) {
       if (!CANONICAL_ARGV_FLAGS.has(f)) {
-        hits.push({ label: `cdd ${name} --help Options 出现 canonical argv 外 flag: ${f}`, file: `cdd ${name} --help` });
+        hits.push({ label: `cdd ${name} --help Options carries a flag outside the canonical argv set: ${f}`, file: `cdd ${name} --help` });
       }
     }
     for (const [sub, def] of Object.entries(cmd.subCommands ?? {})) {
@@ -493,14 +553,16 @@ export function collectHelpFlagHits() {
   return hits;
 }
 
-// ⑩ 行 10：lib/context.mjs 内 canonical 键名零硬编码 —— flag / env / git 事实名与 canonical 全量键名
-// 集合逐项比对，零字面（canonical「承重而非装饰」；本模块只承载读取，AC4）。
+// ⑩ Row 10: zero hard-coding of canonical key names in lib/context.mjs — the flag / env / git fact
+// names are compared item-by-item against the canonical full key-name set, zero literals (canonical
+// is "load-bearing, not decorative"; this module only performs reads, AC4).
 function canonicalFactTokens() {
   const toks = [];
   for (const a of Object.values(CONTRACT.channels.argv)) {
     if (a.flag) toks.push(a.flag);
-    // review-1 nit：单字符短别名（-h 一形）跳过裸 includes —— 两字符子串会对注释里偶发的
-    // "-h1" / "-handler" 一类连字符词误红；其长名 flag（--help）独立入 tok 集，守卫不失守。
+    // review-1 nit: single-char short aliases (the -h shape) skip the bare includes — a two-char
+    // substring would false-red on occasional hyphenated words like "-h1" / "-handler" in comments;
+    // their long-name flag (--help) enters the tok set independently, so the guard keeps coverage.
     if (a.alias && !/^-[^-]$/.test(a.alias)) toks.push(a.alias);
   }
   for (const ch of Object.values(CONTRACT.channels.env)) {
@@ -519,18 +581,21 @@ export function collectContextModuleHardcodeHits(fileOverride = "packages/cdd-en
   const hits = [];
   for (const tok of canonicalFactTokens()) {
     if (text.includes(tok)) {
-      hits.push({ label: `src/infra/context.ts 硬编码 canonical 事实名: ${tok}（承重 → 装饰的回退）`, file: fileOverride });
+      hits.push({ label: `src/infra/context.ts hard-codes a canonical fact name: ${tok} (load-bearing → decorative regression)`, file: fileOverride });
     }
   }
   return hits;
 }
 
-// ⑪ 行 11：engine src 内零「派生值经残留文件回读为输入」的调用点。读侧全枚举白名单
-//（progress 计数器 · prev-round handoff——皆显式路径参数）锚在承重面；「最近一次」扫描语汇零命中。
+// ⑪ Row 11: zero "derived value re-read as input through a residual file" call sites in engine
+// src. The read-side fully-enumerated whitelist (progress counters · prev-round handoff — both
+// explicit path parameters) is anchored on the load-bearing surface; the "most recent" scan
+// vocabulary zero-hits.
 // T14 whitelist (spec E3): the stall detector's workspace-tree probe in infra/proc.ts samples the
 // newest-file mtime as a LIVE probe — a direct OS stat feeding the idle judge, not a derived-value
 // residue re-read, so it sits outside the residue ban's intent. The brief mandates the signal and
-// its acceptance gate is `pnpm run validate` green; per the guard's own 全枚举白名单 principle the
+// its acceptance gate is `pnpm run validate` green; per the guard's own `全枚举白名单`
+// (fully-enumerated-whitelist) principle the
 // carve-out is enumerated to THIS file only (same precedent as the naming.ts readdirSync whitelist).
 // Every other residue token (latestHandoff/…) is still scanned inside proc.ts; any mtime/readdirSync
 // use in any OTHER file still hits — pinned by the ⑪ selftest (incl. the golden temp-dir test).
@@ -541,7 +606,7 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
   for (const { file, lineNo, text } of scanLines(targetsOverride, RESIDUAL_SCAN_RE)) {
     // T14 probe page: mtime-token lines are the sanctioned liveness sampler (whitelist above).
     if (file === LIVENESS_PROBE_FILE && /mtime/i.test(text)) continue;
-    hits.push({ label: `「最近一次」残留回读扫描（读侧须全枚举白名单）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({ label: `"most recent" residual re-read scan (read side must fully enumerate the whitelist): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   const dirs = listTargetFiles(targetsOverride);
   for (const f of dirs) {
@@ -549,21 +614,24 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
     if (!readFileSync(abs, "utf8").includes("readdirSync")) continue;
     if (f === "packages/cdd-engine/src/artifacts/handoff/naming.ts") continue;
     if (f === LIVENESS_PROBE_FILE) continue; // T14 probe page (whitelist enumerated above)
-    hits.push({ label: "readdirSync 白名单外（以目录扫描替代显式路径参数即「最近一次」回渗）", file: f });
+    hits.push({ label: "readdirSync outside the whitelist (a directory scan in place of an explicit path argument is a \"most recent\" regression)", file: f });
   }
   const rtFile = "packages/cdd-engine/src/dispatch/task.ts";
   const rt = readFileSync(path.join(ROOT, rtFile), "utf8");
   if (!rt.includes("prevHandoffPath")) {
-    hits.push({ label: "prev-round handoff 显式路径读取（prevHandoffPath）缺失", file: rtFile });
+    hits.push({ label: "prev-round handoff explicit path read (prevHandoffPath) missing", file: rtFile });
   }
   return hits;
 }
 
-// ⑫ 行 13：stdout counters 行由 canonical 类目表派生 —— 构造点零手写计数器名/标签；六类名「以类目身份
-// 出现」面零手写（failure_category 赋值 / isIncompleteDispatch 判定）；counters 不进 handoff 契约。
-// properties 计数受 guard 铁锚：task 16（14 基础面含 failure_category + recovery + changes，T7.4/T7.5 载体） /
-// docs 13（11 基础面含 failure_category + recovery + changes，T7.4 载体）。除 recovery/changes/failure_category 外零新增。
-// 四字段名与标签经 failure-categories.json。
+// ⑫ Row 13: the stdout counters line derives from the canonical category table — the construction
+// points keep zero hand-written counter names/labels; the six category names, "appearing as a
+// category identity", keep zero hand-written sites (failure_category assignment /
+// isIncompleteDispatch judgment); counters never enter the handoff contract. The properties count is
+// iron-anchored by the guard: task 16 (14 base properties incl. failure_category + recovery +
+// changes, T7.4/T7.5 carriers) / docs 13 (11 base properties incl. failure_category + recovery +
+// changes, T7.4 carrier). Nothing beyond recovery/changes/failure_category may be added. The four
+// field names and labels go through failure-categories.json.
 const COUNTER_FIELDS = canonicalCounters().map((c) => c.field);
 const COUNTER_LABELS = canonicalCounters().map((c) => c.label);
 const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
@@ -576,41 +644,45 @@ export function collectCountersContractHits({
   docsSchema = "packages/cdd-engine/templates/schema/docs-handoff-schema.json",
 } = {}) {
   const hits = [];
-  // 构造点零手写：双引号紧邻计数器字段名/H1 标签即手写（"timeoutCount=" 一类也是）。单行限定
-  //（按行扫描，不做跨行区间匹配）；\b 锚标签短名（"timeout" …）不误伤 "dispatch-timeout-cap" 语义词。
+  // Construction points keep zero hand-writing: a double quote immediately followed by a counter
+  // field name/H1 label is hand-writing ("timeoutCount=" and similar). Line-limited (line-by-line
+  // scan, no cross-line span matching); \b anchors the label short names ("timeout" …) so the
+  // semantic word "dispatch-timeout-cap" is not false-hit.
   const quoted = new RegExp(`"(${[...COUNTER_FIELDS, ...COUNTER_LABELS].map(escRe).join("|")})\\b`);
   for (const f of constructFiles) {
     const text = readFileSync(path.isAbsolute(f) ? f : path.join(ROOT, f), "utf8");
     const m = quoted.exec(text);
     if (m) {
-      hits.push({ label: `counters 构造点手写计数器名/标签字面量: ${m[1]}`, file: f });
+      hits.push({ label: `counter name/label literal at a construction point: ${m[1]}`, file: f });
     }
   }
-  // 类目以字符串字面量身份出现（六类名作 failure_category 字面值 / isIncompleteDispatch 字面参 /
-  // incrementFailureCounter 字面参；status 枚举值不属此类，故不锚 status 键）。类目名单经 canonical。
+  // A category "appearing as a string literal" (the six category IDs as failure_category literal
+  // values / isIncompleteDispatch literal args / incrementFailureCounter literal args; the status
+  // enum values are not this class, hence no status key anchor). The category name list goes
+  // through canonical.
   const failureCategoryRe = new RegExp(
     `failure_category:\\s*["'](?:${CATEGORY_IDS.map(escRe).join("|")})["']|isIncompleteDispatch\\(["']|incrementFailureCounter\\([^,]+,\\s*["']`,
   );
   for (const { file, lineNo, text } of scanLines(engineScope, failureCategoryRe)) {
-    hits.push({ label: `类目以字符串字面量身份出现（应经 FAILURE_CATEGORIES 承重）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({ label: `category appearing as a string literal (should go through FAILURE_CATEGORIES): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   for (const [name, schemaPath] of [["task", taskSchema], ["docs", docsSchema]]) {
     const abs = path.isAbsolute(schemaPath) ? schemaPath : path.join(ROOT, schemaPath);
     const schema = JSON.parse(readFileSync(abs, "utf8"));
     const props = Object.keys(schema.properties ?? {});
     for (const fld of COUNTER_FIELDS) {
-      if (props.includes(fld)) hits.push({ label: `counter ${fld} 泄漏进 ${name} handoff schema（counters 不进契约）`, file: schemaPath });
+      if (props.includes(fld)) hits.push({ label: `counter ${fld} leaked into the ${name} handoff schema (counters never enter the contract)`, file: schemaPath });
     }
     const expected = name === "task" ? 16 : 13;
     if (props.length !== expected || !props.includes("failure_category")) {
-      hits.push({ label: `${name} handoff schema properties 计数 ${props.length} ≠ ${expected}（除 failure_category 外不得增减）`, file: schemaPath });
+      hits.push({ label: `${name} handoff schema properties count ${props.length} ≠ ${expected} (nothing may grow/shrink beyond failure_category)`, file: schemaPath });
     }
   }
   return hits;
 }
 
-// 汇总：行 14（(?<!-)handoff-schema）归 T11（collectHandoffSchemaHits，见下节），不在本组 ——
-// 12 条 engine 侧 + live-repo 零残留断言。
+// Summary: row 14 ((?<!-)handoff-schema) belongs to T11 (collectHandoffSchemaHits, next section),
+// not this group — 12 engine-side checks + a live-repo zero-residue assertion.
 export function collectChannelAuditHits() {
   return [
     ...collectProcessCwdAudit(),
@@ -635,14 +707,15 @@ export function checkChannelAudit() {
   const hits = collectChannelAuditHits();
   assert(
     hits.length === 0,
-    `CHANNEL AUDIT FOUND — engine 契约面守卫（§2.8 行 1–11、13）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+    `CHANNEL AUDIT FOUND — engine contract-surface guard (§2.8 rows 1-11, 13):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
-  console.log("OK — channel audit（§2.8 行 1–11、13）零违规");
+  console.log("OK — channel audit (§2.8 rows 1-11, 13) zero violations");
 }
 
-// 守卫面并集（wiring guard 钉死 scope 缩小即 fail）。迁就近后 `packages/cdd-engine/src` 已含测试位；
-// 走 walkTargetFiles 默认 `__tests__` 自豁免（guard/test 自豁免 doctrine）——CHANNEL_AUDIT_TARGETS
-// 不再单列 tests/（目录已退役），源路径只写 src/…。
+// The guard surfaces' union (the wiring guard pins any scope shrink as a fail). Post-move
+// `packages/cdd-engine/src` already contains the test sites; walkTargetFiles' default `__tests__`
+// self-exemption applies (guard/test self-exemption doctrine) — CHANNEL_AUDIT_TARGETS no longer
+// lists tests/ (retired directory), source paths only write src/... .
 export const CHANNEL_AUDIT_TARGETS = [
   "packages/cdd-engine/src",
   "packages/cdd-engine/templates/schema",
@@ -669,14 +742,17 @@ function checkGateLexicon() {
 }
 
 // =====================================================================
-// Task 10 — init 删除 + 版本戳机制删除 反向守卫（design §2.6.2 / §2.8 行 19-20）
+// Task 10 — init removal + version-stamp mechanism removal reverse guards (design §2.6.2 / §2.8 rows 19-20)
 // =====================================================================
-// ① shipped 非 emit 面（skills/** · 插件 README——contentRoot: "." 的发布面）零版本字面量
-//（osuperpowers-version 戳——写方 release/version-packages.ts 与读方 validate/version-sync.ts
-// 已连根删除，版本真相收敛为 package.json + emit 产物）；② shipped 面（根 README.md · 插件
-// README）+ 协作者面（.changeset/README.md）零 `/init` 引用（marketplace 安装指引已内联进
-// README 安装节，`/init` 入口不存在）。scope 与 §2.6.2 反向守卫行、§2.8 行 19/20 逐字同一；
-// `.changeset/README.md` 属协作者面（发布的是 packages/*/），不进 shipped 断言 scope。
+// ① The shipped non-emit surface (skills/** · plugin README — the contentRoot: "." publishing
+// surface) keeps zero version literals (the osuperpowers-version stamp — the writer
+// release/version-packages.ts and the reader validate/version-sync.ts were root-deleted, and the
+// version truth converged to package.json + emit products); ② the shipped surface (root README.md ·
+// plugin README) + the collaborator surface (.changeset/README.md) keep zero `/init` references
+// (the marketplace install guide is inlined into the README install section — the `/init` entry
+// does not exist). The scope is verbatim-identical to the §2.6.2 reverse-guard rows and §2.8 rows
+// 19/20; `.changeset/README.md` is a collaborator surface (what publishes is packages/*/), so it
+// stays out of the shipped assertion scope.
 export const SHIPPED_SURFACE_TARGETS = [
   "packages/osuperpowers/skills",
   "packages/osuperpowers/README.md",
@@ -687,30 +763,31 @@ export const INIT_REFERENCE_TARGETS = [
   ".changeset/README.md",
 ];
 
-// 戳字面（机制唯一载体 = HTML 注释形 `<!-- osuperpowers-version: X -->`，子串匹配覆盖
-// 注释外的不规范形；与 R2 的「唯一载体 = skills/init/SKILL.md:6」删除面口径一致）。
+// The stamp literal (the mechanism's sole carrier = the HTML-comment form
+// `<!-- osuperpowers-version: X -->`; substring matching covers non-standard forms outside the
+// comment — the same deletion-surface stance as R2's "sole carrier = skills/init/SKILL.md:6").
 const VERSION_STAMP_RE = /osuperpowers-version/;
 const INIT_REFERENCE_RE = /\/init/;
 
-/** ① shipped 非 emit 面零版本字面量。targetsOverride 供测试注入临时目标。 */
+/** ① Shipped non-emit surface: zero version literals. targetsOverride lets tests inject temp targets. */
 export function collectVersionStampHits(targetsOverride) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? SHIPPED_SURFACE_TARGETS, VERSION_STAMP_RE)) {
-    hits.push({ label: "shipped 非 emit 面版本字面量（osuperpowers-version 戳）", file: f });
+    hits.push({ label: "shipped non-emit surface version literal (the osuperpowers-version stamp)", file: f });
   }
   return hits;
 }
 
-/** ② shipped 面 + 协作者面零 `/init` 引用。targetsOverride 供测试注入临时目标。 */
+/** ② Shipped surface + collaborator surface: zero `/init` references. targetsOverride lets tests inject temp targets. */
 export function collectInitReferenceHits(targetsOverride) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? INIT_REFERENCE_TARGETS, INIT_REFERENCE_RE)) {
-    hits.push({ label: "/init 引用（shipped + 协作者面）", file: f });
+    hits.push({ label: "/init reference (shipped + collaborator surfaces)", file: f });
   }
   return hits;
 }
 
-/** 汇总（checkShippedGuards 与测试共用）：两条 guards 的命中 { label, file } 列表。 */
+/** Summary (shared by checkShippedGuards and tests): the two guards' hits { label, file } list. */
 export function collectShippedGuardHits() {
   return [...collectVersionStampHits(), ...collectInitReferenceHits()];
 }
@@ -719,30 +796,33 @@ function checkShippedGuards() {
   const hits = collectShippedGuardHits();
   assert(
     hits.length === 0,
-    `SHIPPED GUARD FOUND — init/版本戳机制逆向残留（§2.8 行 19-20）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+    `SHIPPED GUARD FOUND — init/version-stamp mechanism reverse residue (§2.8 rows 19-20):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
-  console.log("OK — shipped-surface guards（版本字面量 + /init 零残留）");
+  console.log("OK — shipped-surface guards (version literal + /init zero-residue)");
 }
 
 // =====================================================================
-// Task 11 — handoff-schema.md 删除 反向守卫（design §2.8 行 14）
+// Task 11 — handoff-schema.md removal reverse guard (design §2.8 row 14)
 // =====================================================================
-// `(?<!-)handoff-schema` 零命中条目（行 14 由本任务唯一承接，删除动作与守卫同 commit）：
-// 裸名形（`// 对齐 …表` cite）与路径形（`docs/handoff-schema.md` / `skills/cli-driven-development/
-// docs/handoff-schema.md`）一律命中；负向后顾豁免 canonical schema 文件名（`task-handoff-schema.json`
-// / `docs-handoff-schema.json` 的 `handoff-schema` 均前接 `-`）。scope = packages/cdd-engine/src
-//（walk 默认 `__tests__` 自豁免——测试位引用被删名属测试断言物，归 seam 面；测试也不再承载
-// engine canonical 指向）+ packages/osuperpowers 全目录。
-// 本条目不计入 T8 的 collectChannelAuditHits（其 12 条指 §2.8 行 1–11、13）；行 21 的 task-review
-// 守卫归 T15 Step 4b，不在此。scripts/ 不在 scope 内，本文件写字面无自噬风险。
+// `(?<!-)handoff-schema` zero-hit entry (row 14 is solely claimed by this task; the removal commits
+// in the same commit as the guard): the bare-name form (e.g. a `// aligned with the … table` cite)
+// and the path forms (`docs/handoff-schema.md` / `skills/cli-driven-development/
+// docs/handoff-schema.md`) all hit; the negative lookbehind exempts the canonical schema filenames
+// (`handoff-schema` in `task-handoff-schema.json` / `docs-handoff-schema.json` is always preceded by
+// `-`). scope = packages/cdd-engine/src (walkTargetFiles' default `__tests__`
+// self-exemption applies — test sites citing the deleted name are test assertions, the seam face,
+// and tests no longer carry the engine-canonical pointer) + the whole packages/osuperpowers dir.
+// This entry is not part of T8's collectChannelAuditHits (whose 12 checks mean §2.8 rows 1-11, 13);
+// the row-21 task-review guard belongs to T15 Step 4b, not here. scripts/ is not in scope, so this
+// file's written surface bears no self-hit risk.
 export const HANDOFF_SCHEMA_TARGETS = [...CDD_ENGINE_BIN, "packages/osuperpowers"];
 const HANDOFF_SCHEMA_RE = /(?<!-)handoff-schema/;
 
-/** targetsOverride 供测试注入临时目录；hits = { label, file } 列表。 */
+/** targetsOverride lets tests inject a temp directory; hits = { label, file } list. */
 export function collectHandoffSchemaHits(targetsOverride) {
   const hits = [];
   for (const f of scanTargets(targetsOverride ?? HANDOFF_SCHEMA_TARGETS, HANDOFF_SCHEMA_RE)) {
-    hits.push({ label: "handoff-schema 回渗（已删文件/路径名，应指 engine canonical schema JSON）", file: f });
+    hits.push({ label: "handoff-schema regression (deleted file/name; should point at the engine canonical schema JSON)", file: f });
   }
   return hits;
 }
@@ -751,28 +831,30 @@ function checkHandoffSchema() {
   const hits = collectHandoffSchemaHits();
   assert(
     hits.length === 0,
-    `HANDOFF SCHEMA LEXICON FOUND — deleted handoff-schema.md path/name (§2.8 行 14):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+    `HANDOFF SCHEMA LEXICON FOUND — deleted handoff-schema.md path/name (§2.8 row 14):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
-  console.log("OK — handoff-schema（§2.8 行 14）零残留");
+  console.log("OK — handoff-schema (§2.8 row 14) zero residue");
 }
 
 // =====================================================================
-// Task 3（P6）— .mjs 终态 + vitest 内存守卫双 config（spec 域 C，M5/M6）
+// Task 3 (P6) — .mjs terminal state + vitest memory-guard dual config (spec domain C, M5/M6)
 // =====================================================================
-// M5（brief ⑤）：`.mjs` 终态断言 —— 迁就近后 src 恒真 0 `.mjs`（48 测试节点 + helpers + fixtures
-// 全转 `.ts`；32→0 基准已清偿）+ tests/ 目录退役 0 文件。正则 drift 至此被结构断言取代：
-// 任何 `.mjs` 复现（引擎产物或测试面）即 fail。`srcRootOverride` 供测试注入临时 src 布局
-//（tests 目录 = src 父级下同名 `tests`，随 override 成对验证）。
+// M5 (brief ⑤): `.mjs` terminal-state assertion — post-move src is always-truly 0 `.mjs` (48 test
+// nodes + helpers + fixtures all converted to `.ts`; the 32→0 baseline is settled) + the tests/
+// directory is retired at 0 files. Regex drift is thereby replaced by structural assertions: any
+// `.mjs` re-appearance (engine product or test face) fails. `srcRootOverride` lets tests inject a
+// temp src layout (the tests dir = a same-named `tests` under the src parent, verified pairwise
+// with the override).
 export function collectMjsTerminalStateViolations(srcRootOverride) {
   const srcRoot = srcRootOverride ?? path.join(ROOT, "packages/cdd-engine/src");
   const relBase = srcRootOverride ? srcRoot : ROOT;
   const out = [];
   for (const f of globSync("**/*.mjs", { cwd: srcRoot, absolute: true })) {
-    out.push({ label: "engine src .mjs 回渗（P6 后引擎全 TS，.mjs 平面为零）", file: path.relative(relBase, f) });
+    out.push({ label: "engine src .mjs regression (post-P6 the engine is all TS, the .mjs plane is zero)", file: path.relative(relBase, f) });
   }
   const testsDir = path.join(srcRoot, "..", "tests");
   if (existsSync(testsDir)) {
-    out.push({ label: "tests/ 目录复现（Task 3 退役；新测试落 src/<module>/__tests__）", file: "tests" });
+    out.push({ label: "tests/ directory reappeared (Task 3 retired it; new tests land in src/<module>/__tests__)", file: "tests" });
   }
   return out;
 }
@@ -781,14 +863,15 @@ function checkMjsTerminalState() {
   const hits = collectMjsTerminalStateViolations();
   assert(
     hits.length === 0,
-    `MJS TERMINAL STATE VIOLATED — src 恒真 0 .mjs + tests/ 0（P6 Task 3 ⑤）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+    `MJS TERMINAL STATE VIOLATED — src always-truly 0 .mjs + tests/ 0 (P6 Task 3 ⑤):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
-  console.log("OK — .mjs 终态（src 恒真 0 .mjs，tests/ 退役 0）");
+  console.log("OK — .mjs terminal state (src always-truly 0 .mjs, tests/ retired at 0)");
 }
 
-// M6（brief ⑥）：内存守卫复核 —— engine root + 仓库根 双 vitest.config.mjs 必须固化
-// maxWorkers=1 + fileParallelism=false + maxConcurrency=2（2026-09-17 CPU 级 fork 池 OOM 后收敛；
-// 双处配置任一分叉即漂移，此地钉死同值）。presence 断言保守——两处都携带则通过。
+// M6 (brief ⑥): memory-guard recheck — the engine root + repo root dual vitest.config.mjs must
+// hold maxWorkers=1 + fileParallelism=false + maxConcurrency=2 (converged after the 2026-09-17
+// CPU-level fork-pool OOM; any divergence in either config is drift, pinned to the same values
+// here). The presence assertion is conservative — passing when both carry the values.
 const MEMORY_GUARD_INVARIANTS = [
   ["maxWorkers=1", "maxWorkers: 1"],
   ["fileParallelism=false", "fileParallelism: false"],
@@ -804,7 +887,7 @@ export function collectMemoryGuardViolations() {
     const text = readFileSync(path.join(ROOT, rel), "utf8");
     for (const [invariant, needle] of MEMORY_GUARD_INVARIANTS) {
       if (!text.includes(needle)) {
-        out.push({ label: `${label} vitest.config 缺内存守卫 ${invariant}`, file: rel });
+        out.push({ label: `${label} vitest.config missing a memory guard ${invariant}`, file: rel });
       }
     }
   }
@@ -815,40 +898,50 @@ function checkMemoryGuard() {
   const hits = collectMemoryGuardViolations();
   assert(
     hits.length === 0,
-    `MEMORY GUARD MISSING — vitest 双 config 内存守卫（P6 Task 3 ⑥）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+    `MEMORY GUARD MISSING — vitest dual-config memory guard (P6 Task 3 ⑥):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
-  console.log("OK — 内存守卫双 config（maxWorkers=1 / fileParallelism=false / maxConcurrency=2）");
+  console.log("OK — memory-guard dual config (maxWorkers=1 / fileParallelism=false / maxConcurrency=2)");
 }
 
 // =====================================================================
-// Task 16 — skills 面守卫（design §2.8 行 12/15/16/17/18；AC5/AC11/AC14 的 skills 侧落点）
+// Task 16 — skills-surface guard (design §2.8 rows 12/15/16/17/18; the skills-side landings of
+// AC5/AC11/AC14)
 // =====================================================================
-// 五条守卫并入 collectSkillSurfaceHits()（与 T8 的 collectChannelAuditHits() 同构），由
-// checkSkillSurface() 并入既有 5c 步（块数不变）。守卫 scope 全部落在 packages/osuperpowers/skills/
-// 内；scripts/ 不在任一 scope——守卫本体不成为被守卫语汇的载体。
-//   行 17 — 零上游文档 read（\bvendors\/ · \bsuperpowers\/.*SKILL\.md · Read[- ]Upstream ·
-//            \bread upstream\b）+ 上游引用一律 `/<plugin>:<skill>` 斜杠形（无斜杠前缀的上游
-//            plugin:skill 引用 → hit；同插件 `osuperpowers:` 引用不属上游）。
-//   行 15 — 零引擎内部结构依赖（\bCDD_[A-Z_]+\b · \bprogress\.json\b · task-\d+-(review|fix|
-//            implement)-\d*\.?json）。scope = design AC5 的 7 个编排型 skill 逐名枚举（见
-//            ORCHESTRATOR_SKILLS）。report-issues 显式排除——AC5 原文：「例外（设计内，非缺口）：
+// The five guards merge into collectSkillSurfaceHits() (isomorphic to T8's
+// collectChannelAuditHits()), folded into the existing 5c step by checkSkillSurface() (block count
+// unchanged). Every guard scope sits inside packages/osuperpowers/skills/; scripts/ is in no
+// scope — the guard body is not a carrier of the vocabulary it guards.
+//   Row 17 — zero upstream-document read (\bvendors\/ · \bsuperpowers\/.*SKILL\.md · Read[- ]Upstream ·
+//            \bread upstream\b) + every upstream reference takes the `/<plugin>:<skill>` slash form
+//            (an upstream plugin:skill reference without a slash prefix → hit; a same-plugin
+//            `osuperpowers:` reference is not upstream).
+//   Row 15 — zero engine-internal-structure dependency (\bCDD_[A-Z_]+\b · \bprogress\.json\b ·
+//            task-\d+-(review|fix|implement)-\d*\.?json). scope = design AC5's 7 orchestrator
+//            skills enumerated by name (see ORCHESTRATOR_SKILLS). report-issues is explicitly
+//            excluded — AC5 verbatim quote: 「例外（设计内，非缺口）：
 //            report-issues 的 progress.json#plan 读取是 program 通道的首跳（§2.5.4 的目的正是使其
 //            可用），不属「引擎内部结构依赖」——该处的去留归 P5 的目标流程（届时可改指命令输出
-//            契约）」。排除只作用于本条；report-issues 仍在本组其余 4 条的 skills 面 scope 内
-//            （实测其对 CDD_* / fix-inline / vendors/ / _docs/ 均零命中）。7 名枚举（含 finishing，
-//            不是 6 个）为逐字同源清单，不得用 skills/** 通配覆盖——通配会让 guard 在 report-issues
-//            上不可达且漏扫未来新 skill。
-//   行 16 — 零 fix-inline（修复一律 `cdd fix` 形，§2.7.3）；且每个评审循环 fix 节点（mermaid 节点
-//            label 含 fix——fix-task / branch-fix / fix-spec / fix-plan）的 `### `label`` 节须出现
-//            `cdd fix` 命令形。
-//   行 12 — ① cli-driven-development/SKILL.md 的 `## Failure Modes` 短表数据行首列 ⊆ canonical
-//            类目集（FAILURE_CATEGORIES，本文件经 cdd-engine 唯一读取入口取，不写字面第二份）∪
-//            handoff 状态枚举白名单（声明点 = task-handoff-schema.json 的 status.enum；防御性放行，
-//            与 failure_category 的 enum 是两处独立声明——TIMEOUT 的重名不构成类目身份）；
-//            ② 类目语义零复述——engineRecoveryCount / countsTowardConvergence / dispatch-timeout-cap /
-//            计入 Convergence 措辞在 skills 面零命中（skills 只可引用类目名）。
-//   行 18 — 零 _docs/ 引用（\b_docs\/ 路径形 + rule-review-convergence 锚点形/裸提及）——T15
-//            一次性删除的常驻化；scope 恰为 skills 面（不扩至 engine 注入面 / 治理入口面）。
+//            契约）」. The exclusion applies only to this entry; report-issues remains in the skills-
+//            surface scope of the other 4 entries in this group (measured zero-hit on CDD_* /
+//            fix-inline / vendors/ / _docs/). The 7-name enumeration (including finishing, not 6)
+//            is a verbatim same-source inventory — a skills/** wildcard is not allowed to cover it:
+//            a wildcard would make the guard unreachable on report-issues and miss future new
+//            skills.
+//   Row 16 — zero fix-inline (fixes always take the `cdd fix` form, §2.7.3); and every review-loop
+//            fix node (a mermaid node whose label contains fix — fix-task / branch-fix / fix-spec /
+//            fix-plan) must have its `### `label`` section contain the `cdd fix` command form.
+//   Row 12 — ① the first column of cli-driven-development/SKILL.md's `## Failure Modes` short table
+//            ⊆ the canonical category set (FAILURE_CATEGORIES, taken here via cdd-engine's single
+//            read entry, never a second literal copy) ∪ the handoff status-enum whitelist
+//            (declaration point = task-handoff-schema.json's status.enum; defensive pass-through,
+//            and it is a separate declaration from failure_category's enum — TIMEOUT's name
+//            overlap does not constitute a category identity);
+//            ② category semantics zero rephrase — engineRecoveryCount / countsTowardConvergence /
+//            dispatch-timeout-cap / the `计入 Convergence` wording all zero-hit on the skills
+//            surface (skills may only cite category names).
+//   Row 18 — zero _docs/ references (\b_docs\/ path form + rule-review-convergence anchor/bare
+//            mention) — the permanent guard for T15's one-time deletion; scope is exactly the
+//            skills surface (not extended to the engine injection / governance entry surfaces).
 export const ORCHESTRATOR_SKILLS = [
   "packages/osuperpowers/skills/brainstorming/SKILL.md",
   "packages/osuperpowers/skills/writing-single-spec/SKILL.md",
@@ -860,9 +953,10 @@ export const ORCHESTRATOR_SKILLS = [
 ];
 const CDD_SKILL = "packages/osuperpowers/skills/cli-driven-development/SKILL.md";
 
-// 负向语汇取「token 形」而非「/ 前缀形」：历史违规形态是反引号/空白前导的路径引用
-//（`vendors/mattpocock-skills/…` · `_docs/review.md`），`/` 前缀正则放行这些真形态；
-// \b（_ 为词字符）仍拒绝对含连字符的衍生词（如 svendors/）误报。
+// Negative vocabulary uses the "token form" rather than the "slash-prefixed form": the historical
+// violation shapes are backtick/whitespace-led path references (`vendors/mattpocock-skills/…` ·
+// `_docs/review.md`), which a `/`-prefixed regex would let through; \b (_ is a word char) still
+// refuses false hits on hyphenated derived words (e.g. svendors/).
 const UPSTREAM_READ_RE = /\bvendors\/|\bsuperpowers\/.*SKILL\.md|Read[- ]Upstream|\bread upstream\b/i;
 const UPSTREAM_REF_SLASH_RE = /(?<!\/)\b(?:superpowers|mattpocock-skills|impeccable):[a-z0-9-]+\b/;
 const INTERNAL_DEP_RE = /\bCDD_[A-Z_]+\b|\bprogress\.json\b|task-\d+-(?:review|fix|implement)-\d*\.?json/;
@@ -870,7 +964,8 @@ const FIX_INLINE_RE = /fix-inline/;
 const FAILURE_SEMANTICS_RE = /engineRecoveryCount|countsTowardConvergence|dispatch-timeout-cap|计入\s*Convergence/;
 const DOCS_REF_RE = /\b_docs\/|rule-review-convergence/;
 
-/** handoff 状态枚举白名单（声明点 = task-handoff-schema.json 的 status.enum；防御性放行）。 */
+/** Handoff status-enum whitelist (declaration point = task-handoff-schema.json's status.enum;
+ *  defensive pass-through). */
 function handoffStatusWhitelist() {
   const schema = JSON.parse(
     readFileSync(path.join(ROOT, "packages/cdd-engine/templates/schema/task-handoff-schema.json"), "utf8"),
@@ -878,8 +973,9 @@ function handoffStatusWhitelist() {
   return new Set(schema.properties.status.enum ?? []);
 }
 
-/** 行 12 ① 抽取：`## Failure Modes` 短表数据行首列（§2.5.2 派生通道 ② 的唯一消费方 =
- *  cli-driven-development；抽取面为裁定面，实现不得自行发明扫面）。 */
+/** Row 12 ① extraction: the first column of the `## Failure Modes` short table (§2.5.2 derivation
+ *  channel ②'s sole consumer = cli-driven-development; the extraction surface is the adjudication
+ *  surface — the implementation must not invent its own scan surface). */
 export function failureModeCandidates(skillText) {
   const candidates = [];
   const lines = skillText.split("\n");
@@ -898,7 +994,8 @@ export function failureModeCandidates(skillText) {
         const cell = t.split("|")[1]?.trim();
         if (cell) candidates.push(cell);
       } else {
-        // markdown 分隔行（|---|---| 与 | --- |）：去掉 | 与空白后只剩 -/:/* 即分隔行。
+        // markdown separator rows (|---|---| and | --- |): after stripping | and whitespace, only
+        // -/:/* remain — that is a separator row.
         const stripped = t.replace(/\|/g, "").trim();
         if (stripped !== "" && /^[\s:*-]+$/.test(stripped)) afterHeader = true;
       }
@@ -907,7 +1004,8 @@ export function failureModeCandidates(skillText) {
   return candidates;
 }
 
-/** 行 12 ① 失败类目名集合 ⊆ canonical 类目集 ∪ 状态枚举白名单。fileOverride 供测试注入临时文件。 */
+/** Row 12 ① failure-category-name set ⊆ canonical category set ∪ status-enum whitelist.
+ *  fileOverride lets tests inject a temp file. */
 export function collectFailureModeCategoryHits(fileOverride = CDD_SKILL) {
   const abs = path.isAbsolute(fileOverride) ? fileOverride : path.join(ROOT, fileOverride);
   const text = readFileSync(abs, "utf8");
@@ -918,58 +1016,61 @@ export function collectFailureModeCategoryHits(fileOverride = CDD_SKILL) {
   const hits = [];
   for (const cand of failureModeCandidates(text)) {
     if (!allowed.has(cand)) {
-      hits.push({ label: `失败类目名不在 canonical（§2.8 行 12）: ${cand}`, file: fileOverride });
+      hits.push({ label: `failure-category name not in canonical (§2.8 row 12): ${cand}`, file: fileOverride });
     }
   }
   return hits;
 }
 
-/** 行 12 ② 类目语义零复述（skills 面；skills 只可引用类目名）。 */
+/** Row 12 ② category semantics zero rephrase (skills surface; skills may only cite category names). */
 export function collectFailureModeSemanticsHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, FAILURE_SEMANTICS_RE)) {
-    hits.push({ label: `类目语义复述（skills 只可引用类目名）: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({ label: `category semantics rephrase (skills may only cite category names): ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   return hits;
 }
 
-/** 行 17（负）零上游文档 read（skills 面）。 */
+/** Row 17 (negative): zero upstream-document read (skills surface). */
 export function collectUpstreamReadHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of scanTargets(targetsOverride, UPSTREAM_READ_RE)) {
-    hits.push({ label: "上游文档 read 回渗（vendors/ · 上游 SKILL.md · Read-Upstream）", file: f });
+    hits.push({ label: "upstream-document read regression (vendors/ · upstream SKILL.md · Read-Upstream)", file: f });
   }
   return hits;
 }
 
-/** 行 17（正）上游引用一律 `/plugin:skill` 斜杠形（skills 面；同插件 osuperpowers: 引用不属上游）。 */
+/** Row 17 (positive): every upstream reference takes the `/plugin:skill` slash form (skills
+ *  surface; a same-plugin `osuperpowers:` reference is not upstream). */
 export function collectUpstreamSlashFormHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const { file, lineNo, text } of scanLines(targetsOverride, UPSTREAM_REF_SLASH_RE)) {
-    hits.push({ label: `上游引用非 /plugin:skill 斜杠形: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
+    hits.push({ label: `upstream reference not in the /plugin:skill slash form: ${text.trim().slice(0, 48)}`, file: `${file}:${lineNo}` });
   }
   return hits;
 }
 
-/** 行 15 零引擎内部结构依赖。filesOverride = 7 个编排型 skill 的显式文件清单（测试注入临时文件）。 */
+/** Row 15: zero engine-internal-structure dependency. filesOverride = the 7 orchestrator skills'
+ *  explicit file list (tests inject temp files). */
 export function collectInternalDependencyHits(filesOverride = ORCHESTRATOR_SKILLS) {
   const hits = [];
   for (const f of scanTargets(filesOverride, INTERNAL_DEP_RE)) {
-    hits.push({ label: "编排型 skill 引擎内部结构依赖（CDD_* · progress.json · handoff 文件名）", file: f });
+    hits.push({ label: "orchestrator skill engine-internal-structure dependency (CDD_* · progress.json · handoff filenames)", file: f });
   }
   return hits;
 }
 
-/** 行 16（负）零 fix-inline（skills 面）。 */
+/** Row 16 (negative): zero fix-inline (skills surface). */
 export function collectFixInlineHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of scanTargets(targetsOverride, FIX_INLINE_RE)) {
-    hits.push({ label: "fix-inline 回渗（修复一律 cdd fix 形，§2.7.3）", file: f });
+    hits.push({ label: "fix-inline regression (fixes always take the cdd fix form, §2.7.3)", file: f });
   }
   return hits;
 }
 
-/** mermaid 图内含 "fix" 的节点 label（评审循环的修节点形：fix-task / branch-fix / fix-spec / fix-plan）。 */
+/** mermaid node labels containing "fix" (the review-loop fix-node shapes: fix-task / branch-fix /
+ *  fix-spec / fix-plan). */
 function extractFixNodeLabels(src) {
   const m = src.match(/```mermaid\n([\s\S]*?)```/);
   if (!m) return [];
@@ -981,7 +1082,8 @@ function extractFixNodeLabels(src) {
   return labels;
 }
 
-/** 行 16（正）每个评审循环 fix 节点（mermaid label 含 fix）的 `### `label`` 节须出现 `cdd fix`。 */
+/** Row 16 (positive): for each review-loop fix node (mermaid label contains fix), its
+ *  `### `label`` section must contain `cdd fix`. */
 export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of walkTargetFiles(targetsOverride)) {
@@ -992,35 +1094,38 @@ export function collectReviewLoopFixCddHits(targetsOverride = OSKILLS) {
       const head = `### \`${label}\``;
       const start = lines.findIndex((l) => l === head);
       if (start === -1) {
-        hits.push({ label: `评审循环节点 ${label} 缺失 ### 节（digraph 已声明）`, file: path.relative(ROOT, f) });
+        hits.push({ label: `review-loop node ${label} missing its ### section (digraph declares it)`, file: path.relative(ROOT, f) });
         continue;
       }
       let section = [];
-      // 断界取 /^#{1,3} /（### 级别即停）：同一 ## 区块内的后续 ### `node` 节
-      // 是相邻节点、不属本节点散文——若只按 ## 断界，前一 fix 节点缺 cdd fix 会被
-      // 后一（含 cdd fix 的）fix 节点的节内容掩蔽而假绿（review-1 nit）。
+      // Section boundary takes /^#{1,3} / (stop at ###): the following ### `node` sections inside the
+      // same ## block are adjacent nodes, not this node's prose — if the cut were only on ##, a
+      // preceding fix node missing cdd fix would be masked to green by the following (cdd-fix-
+      // containing) fix node's section content (review-1 nit).
       for (let i = start + 1; i < lines.length; i++) {
         if (/^#{1,3} /.test(lines[i])) break;
         section.push(lines[i]);
       }
       if (!/cdd fix/.test(section.join("\n"))) {
-        hits.push({ label: `评审循环节点 ${label} 缺少 cdd fix 命令形（§2.8 行 16）`, file: path.relative(ROOT, f) });
+        hits.push({ label: `review-loop node ${label} lacks the cdd fix command form (§2.8 row 16)`, file: path.relative(ROOT, f) });
       }
     }
   }
   return hits;
 }
 
-/** 行 18 零 _docs/ 引用（skills 面；T15 一次性删除的常驻化）。 */
+/** Row 18: zero _docs/ references (skills surface; the permanent guard for T15's one-time
+ *  deletion). */
 export function collectDocsRefHits(targetsOverride = OSKILLS) {
   const hits = [];
   for (const f of scanTargets(targetsOverride, DOCS_REF_RE)) {
-    hits.push({ label: "_docs/ 引用回渗（含 rule-review-convergence 锚点形/裸提及，§2.8 行 18）", file: f });
+    hits.push({ label: "_docs/ reference regression (incl. the rule-review-convergence anchor/bare mention, §2.8 row 18)", file: f });
   }
   return hits;
 }
 
-/** 汇总（checkSkillSurface 与测试共用）：五条 skills 面守卫的命中 { label, file } 列表。 */
+/** Summary (shared by checkSkillSurface and tests): the five skills-surface guards' hits
+ *  { label, file } list. */
 export function collectSkillSurfaceHits() {
   return [
     ...collectUpstreamReadHits(),
@@ -1038,19 +1143,21 @@ function checkSkillSurface() {
   const hits = collectSkillSurfaceHits();
   assert(
     hits.length === 0,
-    `SKILL SURFACE FOUND — skills 面守卫（§2.8 行 12/15/16/17/18）:\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+    `SKILL SURFACE FOUND — skills-surface guard (§2.8 rows 12/15/16/17/18):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
   );
-  console.log("OK — skills 面守卫（§2.8 行 12/15/16/17/18）零违规");
+  console.log("OK — skills-surface guard (§2.8 rows 12/15/16/17/18) zero violations");
 }
 
-// 块数不变（12）：checkStaleLexicon 与 T6 的 checkGateLexicon 并入既有 5c.run 同一步内部 —
-// 先 checkZeroResidue 再 checkStaleLexicon 后 checkGateLexicon；T8 追加 checkChannelAudit（§2.8
-// 行 1–11、13 的 engine 侧 12 条守卫）；T10 追加 checkShippedGuards（§2.8 行 19-20 的
-// shipped 面两条反向守卫）；T11 追加 checkHandoffSchema（§2.8 行 14 的零命中守卫）；T16 追加
-// checkSkillSurface（§2.8 行 12/15/16/17/18 的 skills 面五条守卫）；Task 3（P6）追加
-// checkMjsTerminalState（M5：.mjs 终态）与 checkMemoryGuard（M6：vitest 双 config 内存守卫）；
-// grepTargets 扩为含 cdd-engine src+templates 供 wiring guard 钉死。channelTargets = channel-audit
-// 守卫面并集（wiring guard 钉死 scope 缩小即 fail；迁就近后不含已退役 tests/，src 面 walk 自豁免）。
+// Block count unchanged (12): checkStaleLexicon and T6's checkGateLexicon fold into the existing
+// 5c.run step internally — first checkZeroResidue, then checkStaleLexicon, then checkGateLexicon;
+// T8 appends checkChannelAudit (§2.8 rows 1-11, 13; the engine-side 12 checks); T10 appends
+// checkShippedGuards (§2.8 rows 19-20; the two shipped-surface reverse guards); T11 appends
+// checkHandoffSchema (§2.8 row 14; the zero-hit guard); T16 appends checkSkillSurface (§2.8 rows
+// 12/15/16/17/18; the five skills-surface guards); Task 3 (P6) appends checkMjsTerminalState
+// (M5: .mjs terminal state) and checkMemoryGuard (M6: vitest dual-config memory guard);
+// grepTargets grew to include cdd-engine src+templates for the wiring guard to pin. channelTargets
+// = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
+// post-move it excludes the retired tests/, the src surface walk self-exempts).
 export const steps = [
   {
     name: "5c. engine zero-residue + channel-audit grep",

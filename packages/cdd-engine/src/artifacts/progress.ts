@@ -106,7 +106,7 @@ export function incrementRound(progressDir: string, taskNum: number, mode: strin
   writeProgressJSON(progressDir, data);
 }
 
-/** incrementRecovery: engineRecoveryCount 自增 (D14 — every progress.json field is engine-written).
+/** incrementRecovery: engineRecoveryCount increments (D14 — every progress.json field is engine-written).
  * The runner calls this whenever the engine writes a BLOCKED handoff (BLOCKED/engine-error path);
  * the orchestrator-layer skill (cli-driven-development §engine-recovery) only READS it to decide
  * retry (count < 2 → re-dispatch; count ≥ 2 → terminal engine-error), never increments itself. */
@@ -117,7 +117,7 @@ export function incrementRecovery(progressDir: string): void {
 }
 
 // ---- T27 scope ledger (spec T7.6): tasks[N].scope_base — task-level contribution anchor ----
-// `base` 一名两义 (T26 defect): roundBase is this round's commit seat (correct per-round), scopeBase
+// `base` one name, two meanings (T26 defect): roundBase is this round's commit seat (correct per-round), scopeBase
 // is the task's TRUE contribution start — must survive round death and stay stable across re-dispatches
 // (converge in the normal flow, diverge on resume rounds). The ledger is the engine's sole writer;
 // it is NOT an agent-authored handoff key. Seed = first-round implement's brief TASK_BASE via
@@ -234,7 +234,7 @@ export function migrateIfNeeded(progressDir: string, plan?: string): ProgressDat
     try {
       const data = JSON.parse(readFileSync(jsonPath, "utf8")) as ProgressData;
       // T6: backfill the two counters (init 0), only write when actually backfilled — no no-op
-      // overwrite without change (same line as persistFinalized). Judgment by missing/非数字
+      // overwrite without change (same line as persistFinalized). Judgment by missing/non-numeric
       // rather than unconditional write: a legacy valid number (e.g. existing 5) must not be zeroed.
       let changed = false;
       if (typeof (data as Record<string, unknown>).contractViolationCount !== "number") {

@@ -366,7 +366,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // leaving a partial brief artifact on disk (findings 6).
       // Missing → materialize once from the plan's declared Constraints source (workitem same
       // class as the brief; the anchor records the source plan hash for stale detection); a plan
-      // declaring no Constraints source → BLOCK (约束源未声明). The BLOCK is explicit — never a
+      // declaring no Constraints source → BLOCK (constraints source undeclared). The BLOCK is explicit — never a
       // silent fallback to "brief as sole authority" (E27: source-less fallback was the recurring
       // root cause this gate kills). dry-run keeps zero constraints side effects: no materialize,
       // no gate (T10 dry-run gate-family semantics). Generate-once: materialize writes or throws —
@@ -977,7 +977,7 @@ export class ConstraintsSourceUndeclared extends CddExitError {
 // Deterministic section extraction for the canonical form: `## Constraints` heading + content to
 // the first structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction
 // atom the constraints section must not swallow), or a `---` rule (the preamble/task separator).
-// `###` sub-sections (段内四小节) stay inside. An empty section → null (declared-but-empty is not
+// `###` sub-sections (the four in-section sub-headings) stay inside. An empty section → null (declared-but-empty is not
 // a constraint declaration).
 function extractLiteralConstraints(content: string): string | null {
   const lines = content.split("\n");

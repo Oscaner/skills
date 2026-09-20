@@ -125,3 +125,113 @@ describe('branch-review schema-invalid e2e', () => {
     }
   });
 });
+
+// ---- S-2 hardening (branch-review warn): unguarded JSON.parse degradation ----
+// The unparseable-lane / corrupt-prev e2e cases pin the T8 hardening parity: an agent-written
+// handoff that is not valid JSON must land a BLOCKED carrier (not a bare SyntaxError → exit 2
+// with the corrupt file left on disk), and a corrupt previous-round handoff must fail open
+// (CDD_INFO + no Convergence lock), not crash the review.
+describe('branch-review unparseable-handoff e2e', () => {
+  async function runBranchReviewWithFakeCli(opts: { handoffBody: string }, deps: { dir: string; planPath: string; base: string; head: string; handoffPath: string; regPath: string }) {
+    const { dir, planPath, base, head, handoffPath, regPath } = deps;
+    const binDir = mkdtempSync(path.join(tmpdir(), 'cdd-br-up-'));
+    writeFileSync(path.join(binDir, 'fake-cli'),
+      `#!/usr/bin/env bash\n` +
+      `printf '%s' '${opts.handoffBody}' > "${handoffPath}"\n` +
+      `exit 0\n`);
+    chmodSync(path.join(binDir, 'fake-cli'), 0o755);
+    const origPath = process.env.PATH;
+    process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
+    try {
+      const { ExitRequested } = await import('../../infra/exit.ts');
+      const { runBranchReview } = await import('../branch-review.ts');
+      let exitCode: number | null = null;
+      try {
+        await runBranchReview({ harness: 'ghost', plan: planPath, base, head, root: dir, registryPath: regPath });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      return exitCode;
+    } finally {
+      process.env.PATH = origPath;
+    }
+  }
+
+  async function ghostRegistry(dir: string): Promise<string> {
+    const { REG_PATH: REG } = await import('../../infra/registry.ts');
+    const reg = JSON.parse(readFileSync(REG, 'utf8'));
+    reg.ghost = { cli: 'fake-cli', invoke: '-p', output: 'text', ship: 'full' };
+    const regPath = path.join(dir, 'registry.json');
+    writeFileSync(regPath, JSON.stringify(reg, null, 2));
+    return regPath;
+  }
+
+  it('agent writes unparseable handoff → BLOCKED carrier + exit 1 (no bare SyntaxError)', async () => {
+    const dir = tmpGitRepo();
+    const slug = 'test-plan-br';
+    const planPath = path.join(dir, `${slug}.md`);
+    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const base = 'a'.repeat(40);
+    const head = 'b'.repeat(40);
+    const { resolveWorkspace, handoffName, resolveNextRound } = await import('../../artifacts/handoff/naming.ts');
+    const workspace = resolveWorkspace(planPath, dir);
+    const round = resolveNextRound(workspace, 'review', 'branch', { base7: base.slice(0, 7), head7: head.slice(0, 7) });
+    const handoffPath = path.join(workspace, handoffName('review', 'branch', { base7: base.slice(0, 7), head7: head.slice(0, 7), round }));
+    const regPath = await ghostRegistry(dir);
+    try {
+      const exitCode = await runBranchReviewWithFakeCli(
+        { handoffBody: '{"task":1,"phase":"branch-review","status":"APPROVED"}' + ' <<\nbad json' },
+        { dir, planPath, base, head, handoffPath, regPath },
+      );
+      expect(exitCode).toBe(1);
+      const h = JSON.parse(readFileSync(handoffPath, 'utf8'));
+      expect(h.status).toBe('BLOCKED');
+      expect(h.phase).toBe('branch-review');
+      expect(h.blocker).toMatch(/handoff JSON unparseable/);
+      // clean carrier keyset: engine literals only (the corrupt bytes never re-enter via merge)
+      expect(Object.keys(h).sort())
+        .toEqual(['artifacts', 'blocker', 'commits', 'findings', 'phase', 'status', 'task']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('corrupt previous-round handoff fails open (CDD_INFO, no Convergence lock), next round proceeds', async () => {
+    const dir = tmpGitRepo();
+    const slug = 'test-plan-br';
+    const planPath = path.join(dir, `${slug}.md`);
+    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const base = 'a'.repeat(40);
+    const head = 'b'.repeat(40);
+    const base7 = base.slice(0, 7);
+    const head7 = head.slice(0, 7);
+    const { resolveWorkspace, handoffName } = await import('../../artifacts/handoff/naming.ts');
+    const workspace = resolveWorkspace(planPath, dir);
+    // Pre-seed workspace with a CORRUPT r1 review (same ref) → the review must start at round 2
+    // and not crash on the unparseable prev (fail-open → no Convergence lock).
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(path.join(workspace, handoffName('review', 'branch', { base7, head7, round: 1 })), '{\nnot json\n');
+    const handoffPath = path.join(workspace, handoffName('review', 'branch', { base7, head7, round: 2 }));
+    const regPath = await ghostRegistry(dir);
+    const stderrWrite = process.stderr.write;
+    const writes: string[] = [];
+    process.stderr.write = (chunk: unknown, ...a: unknown[]) => {
+      writes.push(String(chunk));
+      return true;
+    };
+    try {
+      const exitCode = await runBranchReviewWithFakeCli(
+        { handoffBody: '{"task":1,"phase":"branch-review","status":"APPROVED","commits":{"base":"' + base + '","head":"' + head + '"},"findings":[],"artifacts":{}}' },
+        { dir, planPath, base, head, handoffPath, regPath },
+      );
+      expect(exitCode).toBe(0);
+      expect(existsSync(handoffPath)).toBe(true);
+      expect(JSON.parse(readFileSync(handoffPath, 'utf8')).status).toBe('APPROVED');
+      expect(writes.some((w) => w.includes('CDD_INFO') && w.includes('corrupt prev'))).toBe(true);
+    } finally {
+      process.stderr.write = stderrWrite;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

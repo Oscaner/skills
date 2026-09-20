@@ -201,7 +201,22 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
 
     // Agent wrote handoff — validate against the CDD task schema (mirrors runner step 8.8; T5
     // CONTRACT_VIOLATION recovery: normalize → re-validate at most one round, findings preserved).
-    const agentHandoff: Record<string, unknown> = JSON.parse(readFileSync(this.handoffPath, "utf8"));
+    // T8 hardening (docs.ts single-point mirror; P4 dogfood): an unparseable agent handoff must
+    // not propagate as a bare JSON.parse throw (bin.ts's non-CLIError path would exit 2 with the
+    // corrupt file left on disk and no BLOCKED carrier / round signal) — degrade to the same
+    // BLOCKED-write branch as "not written / schema invalid".
+    let agentHandoff: Record<string, unknown>;
+    try {
+      agentHandoff = JSON.parse(readFileSync(this.handoffPath, "utf8")) as Record<string, unknown>;
+    } catch (e) {
+      writeBlockedCarrier(this.handoffPath, {
+        task: 1, phase,
+        ...(commits ? { commits } : {}),
+        blocker: `${label} handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${this.handoffPath} and re-run ${reRun}`,
+      });
+      process.stderr.write(`CDD_BLOCKED: ${label} handoff JSON unparseable\n`);
+      exitWithCode(1);
+    }
     let handoff: Record<string, unknown> = agentHandoff;
     const sv = validateHandoffSchema(agentHandoff, "task");
     if (!sv.valid) {
@@ -268,7 +283,19 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       exitWithCode(2);
     }
     const prevPath = handoffNaming.prevHandoffPath(this.workspace, "review", "branch", round, { base7, head7 });
-    const prev = prevPath && existsSync(prevPath) ? JSON.parse(readFileSync(prevPath, "utf8")) : null;
+    let prev: Record<string, unknown> | null = null;
+    if (prevPath && existsSync(prevPath)) {
+      try {
+        prev = JSON.parse(readFileSync(prevPath, "utf8")) as Record<string, unknown>;
+      } catch {
+        // Corrupt prev → fail-open (mirror cli/review.ts existingRoundHandoff): a corrupt
+        // previous-round handoff must not lock re-review — worst case one extra review round,
+        // never self-lock. The diagnostic lands on stderr instead of being swallowed so why the
+        // re-dispatch did not trigger a Convergence lock stays transparent to the user.
+        process.stderr.write(`CDD_INFO: corrupt prev branch handoff ${prevPath} ignored → fail-open\n`);
+        prev = null;
+      }
+    }
     // Stop only on an APPROVED round with blocker=0 (SP-4) — a BLOCKED/TIMEOUT branch review
     // round with findings:[] must be re-dispatchable, not rejected as "already done".
     if (prev) reviewConvergenceGuard(prev, "branch", round, `${base7}..${head7}`);

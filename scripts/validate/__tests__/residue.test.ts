@@ -170,7 +170,7 @@ describe("stale-lexicon：H1 语汇守卫（Task 23 / F8a）", () => {
     try {
       const hits = collectStaleLexiconHits([dir]);
       const labels = hits.map((x) => x.label).join("\n");
-      expect(labels).toContain("h1* 标识符");
+      expect(labels).toContain("h1* identifiers (residual)");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -211,8 +211,8 @@ describe("stale-lexicon：Review Convergence 改名守卫（Task 18 / F8）", ()
     try {
       const hits = collectStaleLexiconHits([dir]);
       const labels = hits.map((x) => x.label).join("\n");
-      expect(labels).toContain("Review Stopping 已废术语");
-      expect(labels).toContain("stopping 模块/标识符");
+      expect(labels).toContain("Review Stopping retired term");
+      expect(labels).toContain("stopping modules/identifiers");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -442,7 +442,7 @@ describe("channel audit：① process.cwd() 单点收口", () => {
     try {
       const hits = collectProcessCwdAudit([dir]);
       expect(hits.length).toBeGreaterThan(0);
-      expect(hits[0].label).toMatch(/非单点/);
+      expect(hits[0].label).toMatch(/non-single/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -453,7 +453,7 @@ describe("channel audit：① process.cwd() 单点收口", () => {
     try {
       const hits = collectProcessCwdAudit([dir]);
       expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/未收口到 src\/bin\.ts/);
+      expect(hits[0].label).toMatch(/not converged to src\/bin\.ts/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -515,7 +515,7 @@ describe("channel audit：③ 整表透传点 ⊆ §2.4.4-② 清单 + 零 sprea
     try {
       const hits = collectEnvPassThroughHits([dir]);
       expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/清单/);
+      expect(hits[0].label).toMatch(/inventory/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -549,7 +549,7 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
     try {
       const hits = collectPathArgResolverHits([dir], []);
       expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/解析器/);
+      expect(hits[0].label).toMatch(/resolver/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -570,7 +570,7 @@ describe("channel audit：④ 路径实参必须过唯一 resolver", () => {
     try {
       const hits = collectPathArgResolverHits([dir], []);
       expect(hits.length).toBe(2);
-      expect(hits[0].label).toMatch(/解析器/);
+      expect(hits[0].label).toMatch(/resolver/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -666,7 +666,7 @@ describe("channel audit：⑦ 零手写 handoff 形状 / 零 res.timedOut 单点
     try {
       const hits = collectHandoffShapeHits([path.join(dir, "templates.ts")]);
       expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/schema 字段清单/);
+      expect(hits[0].label).toMatch(/hand-written schema field inventory/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -824,7 +824,7 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
     writeFileSync(f, '{ "properties": { "timeoutCount": { "type": "integer" }, "status": {} } }\n', "utf8");
     try {
       const hits = collectCountersContractHits({ taskSchema: f });
-      expect(hits.some((h) => h.label.match(/泄漏/))).toBe(true); // 泄漏 + 计数 14 双重命中，按泄漏面断言
+      expect(hits.some((h) => h.label.match(/leaked/))).toBe(true); // 泄漏 + 计数 14 双重命中，按泄漏面断言
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -837,7 +837,7 @@ describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 
     try {
       const hits = collectCountersContractHits({ docsSchema: f });
       expect(hits.length).toBe(1);
-      expect(hits[0].label).toMatch(/计数|≠/);
+      expect(hits[0].label).toMatch(/count|≠/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -996,7 +996,7 @@ describe("skills 面守卫（T16）：行 17 零上游文档 read + 上游引用
     try {
       const hits = collectUpstreamReadHits([dir]);
       expect(hits).toHaveLength(1);
-      expect(hits[0].label).toMatch(/上游文档 read/);
+      expect(hits[0].label).toMatch(/upstream-document read/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1064,7 +1064,7 @@ describe("skills 面守卫（T16）：行 15 零引擎内部结构依赖（AC5 �
     try {
       const hits = collectInternalDependencyHits([file]);
       expect(hits).toHaveLength(1);
-      expect(hits[0].label).toMatch(/CDD_\*|内部结构|CDD_HANDOFF_PATH/);
+      expect(hits[0].label).toMatch(/CDD_\*|internal-structure|CDD_HANDOFF_PATH/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

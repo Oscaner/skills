@@ -1,10 +1,10 @@
-// packages/cdd-engine/src/render/templates.ts — Task 20 C1-max 字节布局层（spec D-3）。
+// packages/cdd-engine/src/render/templates.ts — Task 20 C1-max byte-layout layer (spec D-3).
 // Single renderer + runtime assembly over template-contract.json#sections — the four template .md
-// files merged into the contract's zone storage (渲染数据平面单文件), zero handwritten templates:
-//   sections.shell      → one literal-constant shell (full shared frame；壳内零注入槽)
+// files merged into the contract's zone storage (single-file rendering data plane), zero handwritten templates:
+//   sections.shell      → one literal-constant shell (full shared frame; zero injection slots in the shell)
 //   sections.return     → byte-constant `## Return` per return format
-//   sections.round-context → the ONLY dynamic zone (absolute end；一切 per-dispatch 实值)
-// Segment order is fixed: 壳 → ## Return → ## Round context. The shell is a process-level
+//   sections.round-context → the ONLY dynamic zone (absolute end; all per-dispatch values)
+// Segment order is fixed: shell → ## Return → ## Round context. The shell is a process-level
 // parameterless constant (C4: compiled once, reused forever; the per-dispatch shell cache key is
 // eliminated) —
 // renderTemplate renders only the Round-context tail (per dispatch params) on top of the frozen
@@ -33,7 +33,7 @@ export const PKG_ROOT = fileURLToPath(new URL("../../templates", import.meta.url
 // plane's only loader / assembler (config.ts reads engine-config.json separately). ----
 export interface TemplateZoneToken {
   name: string;
-  /** 壳禁槽: zone ∈ { return, round-context } — never "shell" (the shell embeds zero slots). */
+  /** Shell slot-free: zone ∈ { return, round-context } — never "shell" (the shell embeds zero slots). */
   zone: string;
 }
 
@@ -156,15 +156,15 @@ export function tokenNames(contract: TemplateContract = loadTemplateContract()):
   return contract.tokens.map((t) => t.name);
 }
 
-/** zone → its tokens (registry 归属：槽仅现所属区). */
+/** zone → its tokens (registry ownership: a slot renders only in its own zone). */
 export function tokensInZone(zone: string, contract: TemplateContract = loadTemplateContract()): string[] {
   return contract.tokens.filter((t) => t.zone === zone).map((t) => t.name);
 }
 
-// C4 壳无参常数 (T12/D1.2): the shared shell frame is compiled + rendered ONCE per process —
+// C4 parameterless shell constant (T12/D1.2): the shared shell frame is compiled + rendered ONCE per process —
 // clause partial refs ({{> cl:…}}) resolve against the clause library registered at contract load
 // (assembleClauses runs inside loadTemplateContract — always before the first shell assembly). The
-// frame is parameterless (zero per-dispatch values — 壳零注入); the per-family schema block is the
+// frame is parameterless (zero per-dispatch values — zero shell injection); the per-family schema block is the
 // only injected bytes. Non-strict compile: the shell carries no variables — only literal text +
 // clause refs — so token-slot leaks are the structure validator's job (validateTemplateStructure),
 // not the compile's (the round-context strict compile stays strict).
@@ -333,7 +333,7 @@ function implementHardGate(handoffPath: unknown, taskNum: unknown): string {
 
 // ---- token registry (Task 5 D1.4 + Task 20 zones) — driven/validated by template-contract.json ----
 // 19 tokens converge to the new naming convention (<domain>_<semantic> + task-*/docs-* scope
-// prefixes) and carry a zone 归属 (return | round-context; 壳零槽 — no token may live in
+// prefixes) and carry a zone ownership (return | round-context; zero shell slots — no token may live in
 // "shell"). Zero legacy names remain (H1_BLOCK / HANDOFF triple-meaning / HANDOFF_STUB /
 // HANDOFF_TYPE / HANDOFF_SCHEMA_JSON / TYPE / LENS_GUIDE / AXES / HARD_GATE / RETURN_MODE /
 // WORKSPACE / REFERENCE / PLAN_LINE / FINDINGS / BRIEF / TASK / CONSTRAINTS / FIXED_POINT / DOC).
@@ -351,9 +351,9 @@ export function validateTemplateTokens(src: string, contract: TemplateContract =
   }
 }
 
-/** Skeleton + zone check over the CONTRACT byte plane (Task 20 ④ + T12/D1.2): 壳零注入 +
- * 槽仅现所属区.
- * - shell zone: zero *token* moustache (壳零残余 token 槽; `{{> clause}}` partial refs are the
+/** Skeleton + zone check over the CONTRACT byte plane (Task 20 ④ + T12/D1.2): zero shell injection +
+ * a slot renders only in its own zone.
+ * - shell zone: zero *token* moustache (zero residual token slots in the shell; `{{> clause}}` partial refs are the
  *   single-source discipline markers — assembly slots, not per-dispatch values — so they are
  *   permitted); opens the Instructions/Handoff sections;
  * - return constants: byte constants (zero moustache — no slots, no clause refs), each opening
@@ -364,7 +364,7 @@ export function validateTemplateTokens(src: string, contract: TemplateContract =
  * - skeleton{ sections, slots-level segments, order } matches the assembled plane. */
 export function validateTemplateStructure(contract: TemplateContract = loadTemplateContract()): void {
   const shellSrc = joinLines(contract.sections.shell);
-  // 壳零注入 (T12 修订): the shell embeds zero per-dispatch *slots* — token moustaches
+  // Zero shell injection (T12 revision): the shell embeds zero per-dispatch *slots* — token moustaches
   // ({{TOKEN}} / {{{TOKEN}}}) are banned; `{{> clause}}` partial refs (single-source discipline
   // markers, resolved once at load) are allowed. The guard keys on token-slot shapes, not `{{`
   // presence; real per-dispatch values ride ## Round context slots.
@@ -380,7 +380,7 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
     if (!src.startsWith("## Return")) invariant(false, `return constant ${format} must open with ## Return`);
     if (src.includes("{{")) invariant(false, `return constant ${format} must be a literal constant (zero moustache)`);
   }
-  // 槽仅现所属区: each registry token renders only inside its own zone's source.
+  // A slot renders only in its own zone: each registry token renders only inside its own zone's source.
   if (JSON.stringify(contract.skeleton.sections) !== JSON.stringify(["Instructions", "Handoff", "Return", "Round context"])) {
     invariant(false, `skeleton.sections mismatch: got [${contract.skeleton.sections.join(", ")}]`);
   }
@@ -394,14 +394,14 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
     invariant(false, 'skeleton.segments["round-context"] must be slot-level [Round context]');
   }
   if (JSON.stringify(contract.skeleton.order) !== JSON.stringify(["shell", "return", "round-context"])) {
-    invariant(false, "skeleton.order must be [shell, return, round-context] (段序恒为 壳 → Return → Round context)");
+    invariant(false, "skeleton.order must be [shell, return, round-context] (segment order is always shell → Return → Round context)");
   }
   const zoneSource: Record<string, string> = {
     return: Object.values(contract.sections.return).map(joinLines).join("\n"),
     "round-context": roundSrc,
   };
   for (const tok of contract.tokens) {
-    if (tok.zone === "shell") invariant(false, `token ${tok.name}: shell is slot-free (壳禁槽)`);
+    if (tok.zone === "shell") invariant(false, `token ${tok.name}: shell is slot-free (shell zero-slot rule)`);
     const src = zoneSource[tok.zone];
     if (!src) invariant(false, `unknown zone ${tok.zone} for token ${tok.name}`);
     if (tok.zone === "return") {
@@ -412,12 +412,13 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
       invariant(false, `token {{${tok.name}}} must render inside its ${tok.zone} zone source`);
     }
   }
-  // 槽仅现所属区（反向）：round-context 区内实际渲染的每个 moustache 都必须是 round-zone token
-  //（壳禁槽 + 单动态区 —— 一个 round 槽不得缺席 registry，也不得是别区 token 的注入通道）。
+  // A slot renders only in its own zone (reverse direction): every moustache actually rendered in
+  // the round-context zone must be a round-zone token (shell slot-free + single dynamic zone: a
+  // round slot may neither be absent from the registry nor be another zone token's injection channel).
   const roundZoneNames = new Set(contract.tokens.filter((t) => t.zone === "round-context").map((t) => t.name));
   for (const tok of scanTemplateTokens(roundSrc)) {
     if (!roundZoneNames.has(tok)) {
-      invariant(false, `slot {{${tok}}} must be a round-context token (槽仅现所属区)`);
+      invariant(false, `slot {{${tok}}} must be a round-context token (a slot renders only in its own zone)`);
     }
   }
   // clauses assembler surface: any `{{> name}}` in a zone must resolve to a registered clause
@@ -438,7 +439,7 @@ export function validateShippedTemplates(): string[] {
   return Object.keys(data.sections);
 }
 
-// ---- clauses assembler (Task 20 与 T12 衔接：{{> clause}} 引用机制面) ----
+// ---- clauses assembler (Task 20 T12 wiring: the {{> clause}} reference mechanism face) ----
 // #clauses = container of discipline-clause bodies (T12 lands them); the assembler registers each
 // clause as a handlebars partial so a `{{> clause}}` reference in the round-context zone resolves
 // at render. Wired into loadTemplateContract() (memoized with the contract, idempotent — empty
@@ -499,8 +500,8 @@ export function renderModePrompt(mode: string, params: Record<string, unknown> =
   });
 }
 
-/** Assemble one dispatch prompt — C1-max byte layout: 壳(租户常数) → ## Return(字节常数) →
- * ## Round context(唯一动态区). family routes by RETURN_FORMAT (docs = RETURN_JSON/DOCS_FIX,
+/** Assemble one dispatch prompt — C1-max byte layout: shell (tenant constant) → ## Return (byte constant) →
+ * ## Round context (the only dynamic zone). family routes by RETURN_FORMAT (docs = RETURN_JSON/DOCS_FIX,
  * else task); missing round slots pre-fill "" (mode-union template, no strict missing-param
  * throw); the tail memoizes by canonical params (identical re-dispatch = zero re-render). */
 export function renderTemplate(name: string, params: Record<string, unknown>, programName?: string): string {

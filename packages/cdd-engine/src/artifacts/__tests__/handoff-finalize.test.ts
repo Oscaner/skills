@@ -207,12 +207,12 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", a
 
 it("branch/docs/runner 三消费方共享同一 finalizeHandoff（非各自接线）", async () => {
   // 导入断言：唯一定稿实现 = src/artifacts/handoff/finalize.ts（Task 8 全量 TS 化后唯一的 .ts
-  // canonical）。三消费方（task / docs / branch-review，re-org 后路径随 src/ 分层迁移）全部从该
-  // canonical 模块导入 finalizeHandoff，且不再各自手写 applyDerivedStatus 读回接线（唯一定稿入口
-  // = finalizeHandoff；applyDerivedStatus 只被 artifact/handoff/finalize.ts 本身消费）。
+  // canonical）。三消费方（task / docs / branch——P6 T24 A 收编后 branch 面在 dispatch/branch.ts#BranchLifecycle，
+  // 非 cli 薄壳）全部从该 canonical 模块导入 finalizeHandoff，且不再各自手写 applyDerivedStatus 读回接线
+  // （唯一定稿入口 = finalizeHandoff；applyDerivedStatus 只被 artifact/handoff/finalize.ts 本身消费）。
   const dir = new URL("../../../", import.meta.url); // packages/cdd-engine/（P6 Task 3 迁就近：src/artifacts/__tests__ → 3-up）
   const src = (rel) => readFileSync(new URL(rel, dir), "utf8");
-  for (const rel of ["src/dispatch/task.ts", "src/dispatch/docs.ts", "src/cli/branch-review.ts"]) {
+  for (const rel of ["src/dispatch/task.ts", "src/dispatch/docs.ts", "src/dispatch/branch.ts"]) {
     expect(src(rel)).toMatch(/handoff\/finalize\.ts/);
     // 不得再各自手写 applyDerivedStatus 调用接线（注释提及无害；唯一定稿入口 = finalizeHandoff）
     expect(src(rel)).not.toMatch(/applyDerivedStatus\s*\(/);

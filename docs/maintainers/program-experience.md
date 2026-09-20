@@ -48,6 +48,12 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 30. **Variant tokens splitting the static prefix kill the cache** — round labels, timestamps, target paths belong in the variant tail.
 31. An overall registration is not what a sub-agent reads — discipline must land in the executing surface (templates/clauses), not only in the charter (EOF ×9, CJK ×3 recurrences).
 
+## F. Architecture discipline (P6 T24)
+
+32. **Layered dependency boundary** — `infra → rules → artifacts → dispatch → cli`; imports flow up the chain, a lower layer never imports a higher one (dispatch reads `rules/convergence.ts` — its owner — never the `cli/shared.ts` re-export; a cli-local fact like `DRY_RUN()` is injected at the CLI wrapper boundary, not read from the dispatch layer). A cross-layer link that would close a cycle is broken toward the layer that owns the semantics (schema⇄finalize, failure⇄progress — one-way edges remain).
+33. **Mechanisms anchor the template method — zero island dispatch** — gate / liveness / carrier / residue all hang on `DispatchLifecycle` overridden hooks (`commitPreCheck` entry gate → resolveContext → dispatch → schemaValidate → normalizeResult → `commitPostCheck` exit gate; phases recorded in the timeline). A flat hand-written dispatch body, or one that re-implements exit/round/schema logic outside the lifecycle, is the third-island failure that broke the branch family across two generations (T14 liveness, T23 carrier). New dispatch channels extend the lifecycle and inherit the default gates rather than re-deriving them.
+34. **Error consolidation in one place — `infra/exit.ts`** — recoverable orchestration errors throw the `CddExitError` family (`exitCode` + `kind`; the bin maps kind → code: 0 = OK, 1 = BLOCKED, 2 = usage/CLI-missing, 3 = review convergence); library invariants assert through the `invariant(cond, msg)` factory (plain `Error`, narrowing, no process exit). Zero bare `throw new Error` in production code; the exit table is a stable contract the black-box tests pin.
+
 ---
 
 **Use**: bake these into scaffolds (templates), consult before touching the program's mechanisms, and treat item 27 as a standing rule for every document this program produces.

@@ -307,14 +307,14 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
   return hits;
 }
 
-// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（5 处，逐 site 形态分类；全行注释非透传点）。Task 9
-// branch-fix 通道与 branch-review 同形（整表 env 经 invokeCliWithRetry 参数传递）。
+// ③ 行 3a 整表透传点 ⊆ §2.4.4-② 清单（4 宿主文件，逐 site 形态分类；全行注释非透传点）。Task 9
+// branch-fix 通道与 branch-review 同形（整表 env 经 invokeCliWithRetry 参数传递）。P6 T24 A：branch
+// 两通道迁入 BranchLifecycle 族（dispatch/branch.ts），passthrough 宿主随之由 cli/branch-*.ts 上移。
 const ENV_PASSTHROUGH_SITES = [
   { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
   { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
   { file: "packages/cdd-engine/src/cli/shared.ts", re: /detectCurrentHarness\(process\.env\)/ },
-  { file: "packages/cdd-engine/src/cli/branch-review.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
-  { file: "packages/cdd-engine/src/cli/branch-fix.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, / },
+  { file: "packages/cdd-engine/src/dispatch/branch.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, |process\.env,$/ },
 ];
 const ENV_WHOLE_RE = /process\.env([^.\w[]|$)/;
 export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {

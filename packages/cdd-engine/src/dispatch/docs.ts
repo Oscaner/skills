@@ -11,7 +11,8 @@
 //                stderr CDD_WARN + exit 0; the gate is downgraded, never skipped).
 //   Dispatch:    prompt render (single composition pass: shell schema verbatim + round-context
 //                HANDOFF_WRITE_GATE) → spawn the docs agent CLI.
-//   Post-flight: handoff read + unparseable/schema-invalid BLOCKED handling (writeBlocked) +
+//   Post-flight: handoff read + unparseable/schema-invalid BLOCKED handling (the writeBlockedCarrier
+//                single terminal from finalize.ts) +
 //                review/fix finalization; the exit gate (override commitPostCheck) runs
 //                validateCommitContract — docs fix dispatch's exit-gate gap (P5 落点 2) is
 //                closed here, same judgment as rules/commit.ts.
@@ -30,14 +31,14 @@ import {
 import { invokeCli, resolveTimeoutMs } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot } from "../infra/root.ts";
-import { exitWithCode, ExitRequested } from "../infra/exit.ts";
-import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
-import { finalizeHandoff, persistFinalized } from "../artifacts/handoff/finalize.ts";
+import { exitWithCode, ExitRequested, invariant } from "../infra/exit.ts";
+import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
+import { finalizeHandoff, persistFinalized, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
 import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
-import { validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
+import { validateHandoffSchema } from "../rules/schema.ts";
 import { validateCommitContract } from "../rules/commit.ts";
 import { renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
-import { hashFile } from "./review-loop.ts";
+import { hashFile } from "../artifacts/hash.ts";
 
 export interface DocsLifecycleOptions {
   /** docs agent harness key (registry lookup) */
@@ -71,46 +72,21 @@ interface DocsResult {
   handoff: Record<string, unknown> | null;
 }
 
-// The single BLOCKED-failure write point (nit closure): the three branches — handoff not written /
-// unparseable / schema-invalid — share one shape: build a BLOCKED payload (incl. the doc_hash
-// content-state token; uniform carrier) → write it → read back + return.
+// The single BLOCKED-failure terminal (P6 T24 C: docs's former writeBlocked converges into
+// finalize.ts#writeBlockedCarrier — the four hand-writing islands share one carrier; this file's
+// three branches — handoff not written / unparseable / schema-invalid — call it with the doc slot
+// (writeBlockedCarrier carves doc_path + the doc_hash content-state token itself; uniform carrier).
+// For all three branches the disk state equals the returned payload (writeHandoff merges an absent
+// or unparseable existing file to the payload; the schema-invalid branch full-replaces), so the
+// carrier's { exitCode: 1, handoff: payload } return IS the read-back contract.
 // review-3 finding 1 (warn): the payload is always engine-written literals + findings only — never
 // a `...(baseHandoff ?? {})` spread: an agent-declared value on a declared key (type violations
 // like `notes: 5` / `findings: "none"` — normalize is not allowed to change their value) must not
 // enter the carrier (otherwise a spec/plan review's BLOCKED handoff violates its own docs schema).
-// `baseHandoff` decides only the write path: the schema-invalid branch passes the normalized object
-// → writeOwnHandoff full-replace, so offending keys never stay on disk (a shallow merge would
-// re-feed them through `existing`; named like branch-review's writeBranchBlocked — one meaning
-// must not have two names). The two branches without baseHandoff (not written / unparseable) have
-// no parsed content to keep, so findings stays `[]`.
-function writeBlocked({
-  handoffPath,
-  mode,
-  doc,
-  blocker,
-  findings = [],
-  baseHandoff = null,
-}: {
-  handoffPath: string;
-  mode: string;
-  doc: string;
-  blocker: string;
-  findings?: unknown[];
-  baseHandoff?: Record<string, unknown> | null;
-}): { exitCode: number; handoff: Record<string, unknown> } {
-  const payload: Record<string, unknown> = {
-    phase: mode,
-    status: "BLOCKED",
-    findings,
-    artifacts: {},
-    doc_path: doc,
-    doc_hash: hashFile(doc),
-    blocker,
-  };
-  if (baseHandoff) writeOwnHandoff(handoffPath, payload);
-  else writeHandoff(handoffPath, payload);
-  return { exitCode: 1, handoff: JSON.parse(readFileSync(handoffPath, "utf8")) as Record<string, unknown> };
-}
+// The schema-invalid branch passes the normalized object as the fullReplace carrier (offending
+// keys never stay on disk — a shallow merge would re-feed them through `existing`). The two
+// branches without a normalized base (not written / unparseable) have no parsed content to keep,
+// so findings stays `[]`.
 
 export class DocsLifecycle extends DispatchLifecycle {
   readonly #opts: DocsLifecycleOptions;
@@ -164,7 +140,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     }
     // T3: handoffPath must be passed by the caller (canonical handoff-naming filenames). The
     // legacy `${template}-${round}.json` derivation is removed — no second naming site.
-    if (!this.#opts.handoffPath) throw new Error("docs-runner: handoffPath required (canonical naming; no template fallback)");
+    if (!this.#opts.handoffPath) invariant(false, "docs-runner: handoffPath required (canonical naming; no template fallback)");
   }
 
   // ---- dispatch ----
@@ -216,14 +192,13 @@ export class DocsLifecycle extends DispatchLifecycle {
   // ---- post-flight ----
 
   /** Step 8.8: read the agent-written handoff from disk; unparseable / schema-invalid →
-   * writeBlocked (unified BLOCKED shape incl. doc_hash content token). */
+   * writeBlockedCarrier (the unified BLOCKED terminal incl. the doc_hash content token). */
   protected override async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
     const handoffPath = this.#opts.handoffPath!;
     if (!existsSync(handoffPath)) {
-      this.#done(writeBlocked({
-        handoffPath,
-        mode: this.#opts.mode,
+      this.#done(writeBlockedCarrier(handoffPath, {
+        phase: this.#opts.mode,
         doc: this.#opts.doc,
         blocker: `${path.basename(handoffPath)} not written after exit 0 → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
       }));
@@ -238,9 +213,8 @@ export class DocsLifecycle extends DispatchLifecycle {
     try {
       handoff = JSON.parse(readFileSync(handoffPath, "utf8")) as Record<string, unknown>;
     } catch (e) {
-      this.#done(writeBlocked({
-        handoffPath,
-        mode: this.#opts.mode,
+      this.#done(writeBlockedCarrier(handoffPath, {
+        phase: this.#opts.mode,
         doc: this.#opts.doc,
         blocker: `handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${handoffPath} or re-run ${this.#opts.mode}`,
       }));
@@ -249,21 +223,20 @@ export class DocsLifecycle extends DispatchLifecycle {
     const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
     if (!sv.valid) {
       // T5 CONTRACT_VIOLATION recovery (spec §2.5.2, AC7 category-level: spec/plan reviews follow
-      // the same policy as task dispatch): the recovery single point is
-      // src/rules/schema.ts#recoverHandoff (normalize → re-validate, at most one round; the
-      // violating key-name suffix and the findings-array guard are written there once — this path
-      // only keeps its own failed-payload differences). On hit → the write side lands the
-      // normalized object (offending keys never stay on disk) + continue on it; still failing →
-      // BLOCKED with the parsed findings kept.
+      // the same policy as task dispatch): the recovery single point is finalize.ts#recoverHandoff
+      // (T24 B: moved from rules/schema.ts with its applyDerivedStatus caller; normalize →
+      // re-validate, at most one round; the violating key-name suffix and the findings-array guard
+      // are written there once — this path only keeps its own failed-payload differences). On hit →
+      // the write side lands the normalized object (offending keys never stay on disk) + continue on
+      // it; still failing → BLOCKED with the parsed findings kept.
       const rec = recoverHandoff(handoff, "docs");
       if (!rec.valid) {
-        this.#done(writeBlocked({
-          handoffPath,
-          mode: this.#opts.mode,
+        this.#done(writeBlockedCarrier(handoffPath, {
+          phase: this.#opts.mode,
           doc: this.#opts.doc,
-          baseHandoff: rec.handoff as Record<string, unknown>,
           findings: rec.preservedFindings as unknown[],
           blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON at ${handoffPath} and re-run ${this.#opts.mode}`,
+          fullReplace: true, // normalized-object full-replace (offending keys never stay on disk)
         }));
         return;
       }

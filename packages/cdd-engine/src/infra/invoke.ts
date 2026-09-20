@@ -7,6 +7,7 @@
 import { loadContract } from "./context.ts";
 import { resolveInjection, resolveSuffix } from "./registry.ts";
 import { spawnManaged, markAllDispatchesDone, DEFAULT_SAMPLE_INTERVAL_MS, DEFAULT_IDLE_WINDOW_MS, type SpawnResult, type LivenessConfig } from "./proc.ts";
+import { invariant } from "./exit.ts";
 
 export interface TimeoutDefaults {
   [mode: string]: number | undefined;
@@ -184,5 +185,5 @@ export async function invokeCliWithRetry(
     }
     return result;
   }
-  throw new Error("unreachable: retry loop always returns");
+  invariant(false, "unreachable: retry loop always returns");
 }

@@ -7,9 +7,11 @@
 // Task 8 (spec §2.13 glob row): the legacy readdirSync directory scan in resolveNextRound is
 // collected into tinyglobby (globSync) — the repo's shared glob toolchain, no hand-written walk.
 import path from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { globSync } from "tinyglobby";
 
 import { loadEngineConfig } from "../../infra/config.ts";
+import { CddExitError, invariant } from "../../infra/exit.ts";
 
 const NAMESPACE = loadEngineConfig().handoffNamespace;
 const { families } = NAMESPACE;
@@ -33,7 +35,7 @@ function familyKey(op: string, type: string): string {
 
 function family(op: string, type: string): { name: string; round?: string; prev?: Record<string, string> } {
   const f = families[familyKey(op, type)];
-  if (!f) throw new Error(`unknown handoff family: ${op}.${type}`);
+  invariant(f, `unknown handoff family: ${op}.${type}`);
   return f;
 }
 
@@ -155,6 +157,25 @@ export function workspaceSlug(doc: string): string {
 /** resolveWorkspace(doc, root) → <root>/<workspaceRoot>/<slug>. root is injected by the caller
  * (getRoot() / cli layer — single root authority). */
 export function resolveWorkspace(doc: string, root: string): string {
-  if (!root) throw new Error("resolveWorkspace: root required (injected from src/infra/root.mjs)");
+  invariant(root, "resolveWorkspace: root required (injected from src/infra/root.mjs)");
   return path.join(root, NAMESPACE.workspaceRoot, workspaceSlug(doc));
+}
+
+/** materializeWorkspace({ plan, repoRoot }) — the workspace DIRECTORY bootstrap single point
+ * (P6 T24 C: the second hand-written workspace derivation — task.ts's former inline — converges
+ * here; naming is the single workspace authority alongside resolveWorkspace). Plan → the
+ * plan-derived slug directory, created with a `.gitignore` `*\n` (workspace artifacts never
+ * pollute the repo tree). Errors are recoverable orchestration failures (bad plan / non-git root)
+ * → CddExitError kind "run-blocked" (exit 1) — the task dispatch resolves them to its run-blocked
+ * exit face, exactly the former RunBlocked contract. */
+export function materializeWorkspace({ plan, repoRoot }: { plan: string; repoRoot: string }): string {
+  if (!repoRoot) throw new CddExitError("not in a git repo", { exitCode: 1, kind: "run-blocked" });
+  const slug = workspaceSlug(plan);
+  if (!slug || slug === "." || slug === "..") {
+    throw new CddExitError(`cannot derive workspace name from: ${plan}`, { exitCode: 1, kind: "run-blocked" });
+  }
+  const base = path.join(repoRoot, workspaceRoot);
+  mkdirSync(path.join(base, slug), { recursive: true });
+  writeFileSync(path.join(base, ".gitignore"), "*\n");
+  return path.join(base, slug);
 }

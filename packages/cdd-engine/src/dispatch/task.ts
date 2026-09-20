@@ -18,9 +18,12 @@
 //               APPROVED-review task.status=complete writeback + round increment (post-gate only —
 //               a dirty failure round never marks complete).
 //
-// return block four-line output stays exclusive to this file (spec v3): status/commits/artifacts/blocker +
-// the counters line. runTask keeps the legacy { exitCode, returnBlock } surface ({ noExit } seam) and
-// delegates to the lifecycle.
+// P6 T24: the return-block text plane (returnFourLines / returnFromHandoff / dry-run block) is
+// owned by src/artifacts/return-block.ts (its single point) — this file imports + re-exports the
+// task-facing read-back atoms; the failure-carrier writes route through the writeBlockedCarrier
+// single terminal in finalize.ts; materializeWorkspace lives in naming.ts (workspace derivation
+// single point alongside resolveWorkspace). runTask keeps the legacy { exitCode, returnBlock }
+// surface ({ noExit } seam) and delegates to the lifecycle.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -32,20 +35,22 @@ import {
 } from "./base.ts";
 import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.ts";
 import { renderModePrompt, pluginRoot } from "../render/templates.ts";
-import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
+import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { validateCommitContract } from "../rules/commit.ts";
 import { generateBrief } from "../render/brief.ts";
-import { handoffName, prevHandoffPath as hnPreHandoffPath, workspaceSlug, workspaceRoot } from "../artifacts/handoff/naming.ts";
-import { finalizeHandoff, persistFinalized, normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
-import { hashFile } from "./review-loop.ts";
-import { exitWithCode, ExitRequested } from "../infra/exit.ts";
+import { handoffName, prevHandoffPath as hnPreHandoffPath, materializeWorkspace, workspaceSlug } from "../artifacts/handoff/naming.ts";
+import { finalizeHandoff, persistFinalized, normalizeHandoffStatus, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
+import { hashFile } from "../artifacts/hash.ts";
+import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
 import { invokeCli, invokeCliWithRetry, resolveTimeoutMs, resolveLivenessConfig } from "../infra/invoke.ts";
 import { withLifecycle, type LivenessConfig } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, returnCountersLine } from "../artifacts/progress.ts";
+import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
-import { validateHandoffSchema, recoverHandoff } from "../rules/schema.ts";
-import { FAILURE_CATEGORIES, counterFor, terminalFor, timeoutBlocker } from "../rules/failure.ts";
+import { validateHandoffSchema } from "../rules/schema.ts";
+import { returnFourLines, returnFromHandoff, dryRunBlock } from "../artifacts/return-block.ts";
+import { FAILURE_CATEGORIES, incrementFailureCounter, exhaustedBlocker, maybeExhaust, timeoutBlocker } from "../rules/failure.ts";
+export { returnFourLines, returnFromHandoff } from "../artifacts/return-block.ts";
 
 // Re-export for backward compatibility (existing tests and consumers import from run-task.mjs
 // via this module's re-pointed surface).
@@ -62,75 +67,36 @@ const INVOKE_PARAMS: Record<string, { op: string; type?: string }> = {
   implement: { op: "implement" },
 };
 
-// Local orchestration error: carries an exit code; caught by resolveContext then finish.
-class RunBlocked extends Error {}
-
+// Local orchestration error — P6 T24 E family: a recoverable run failure throws CddExitError with
+// exitCode 1 + kind "run-blocked" (naming.ts materializeWorkspace throws the same kind, so the
+// resolveContext catch matches ONE kind for both). No local subclass: the catch discriminates on
+// the kind, not the class (the former RunBlocked subclass is gone).
+//
 // ---- failure-category dispatch (T6) ----
 // Six category names declared once by engine-config.json#failureCategories; every "category
-// identity" reference here loads through src/rules/failure.ts (FAILURE_CATEGORIES / counterFor) —
+// identity" reference here loads through src/rules/failure.ts (FAILURE_CATEGORIES / counters()) —
 // a category deleted from the canonical blows up the entry reference at runtime (AC14
-// load-bearing, not decorative). The counter increment single point: fields derive via the
-// canonical's counterFor, zero hand-written counter literals in this file.
-export function incrementFailureCounter(progressDir: string, category: string): number {
-  const field = counterFor(category);
-  if (!field) return -1; // no-counter category (UNVERIFIABLE / PLAN_CONFLICT): record the outcome only, no count
-  // T7: this read stays single-arg (the timeout branch's count also lands here) — progress.json
-  // is already established by the init point when failure branches execute (plan recorded;
-  // single arg intentional, not a missed change).
-  const data = readProgressJSON(progressDir);
-  const prev: number = typeof data[field] === "number" ? ((data[field] as number) ?? 0) : 0;
-  data[field] = prev + 1;
-  writeProgressJSON(progressDir, data);
-  return data[field] as number;
-}
-
-// Terminal gate (T6 / AC7): category count ≥ 2 → the terminal blocker, on which the orchestrator
-// stops retrying (the failure-category table's *-exhausted terminal state). Marker via the
-// canonical terminal field (`terminalFor` single read point — F8 terminology; the TIMEOUT marker
-// is «BLOCKED: dispatch-timeout-cap», never a hand-written literal).
-export function exhaustedBlocker(category: string, n: number): string | null {
-  if (n < 2) return null;
-  const marker = terminalFor(category) ?? `BLOCKED: ${category}-exhausted`;
-  return `${marker} (${n} consecutive ${category.replace(/_/g, " ").toLowerCase()} failures) — stop and fix the underlying cause, then re-dispatch a fresh task`;
-}
-
-// drop-in increment: after incrementing, if the category hit its terminal threshold, overwrite the
-// just-written failure handoff's blocker with the terminal shape (return block/status re-read via
-// returnFromHandoff, so the orchestrator sees the terminal signal).
-export function maybeExhaust(progressDir: string, category: string, handoffPath: string): number {
-  const n = incrementFailureCounter(progressDir, category);
-  const ex = exhaustedBlocker(category, n);
-  if (ex) {
-    const obj = readJson(handoffPath) ?? {};
-    obj.blocker = ex;
-    writeHandoff(handoffPath, obj);
-  }
-  return n;
-}
+// load-bearing, not decorative).
+// P6 T24 B/D4: the counter family (incrementFailureCounter / exhaustedBlocker / maybeExhaust) has
+// ONE owner — src/rules/failure.ts. The former inline copies are deleted; this file imports the
+// canonical three (zero double implementations — the two ownership lines exist only in failure.ts).
 
 // ---- workspace / ctx ----
 
 /** Workspace derivation is purely plan-derived (P4 §2.4.1): root comes from the injected single
  * root authority (src/infra/root.mjs — the engine's only cwd conversion point), the effective
- * plan from the explicit `--plan` argument. The former direct-set branch (a second coordinate
- * system keyed off a workspace env var) is gone: plan → <repoRoot>/<workspaceRoot>/<slug>/. */
-export function materializeWorkspace({ plan, repoRoot }: { plan: string; repoRoot: string }): string {
-  if (!repoRoot) throw new RunBlocked("not in a git repo");
-  const slug = workspaceSlug(plan);
-  if (!slug || slug === "." || slug === "..") throw new RunBlocked(`cannot derive workspace name from: ${plan}`);
-  const base = path.join(repoRoot, workspaceRoot);
-  mkdirSync(path.join(base, slug), { recursive: true });
-  writeFileSync(path.join(base, ".gitignore"), "*\n");
-  return path.join(base, slug);
-}
+ * plan from the explicit `--plan` argument. P6 T24 C: the materializeWorkspace implementation
+ * (plan → <repoRoot>/<workspaceRoot>/<slug>/ + `.gitignore`, errors → CddExitError kind
+ * "run-blocked") converges in naming.ts — the workspace derivation single point alongside
+ * resolveWorkspace; this file only imports + exercises it. */
 
 /** resolvePlanWorkspace({ planFile, root }) — the plan → workspace UNIQUE derivation point:
  * `--plan` normalizes to the repo-root coordinate system via resolveDocArg (missing → exit-1
- * diagnostic), then derives the workspace. The "missing plan → RunBlocked" guard text lives only
- * here — runTask step 2 and the buildCtx direct-entry share this function. */
+ * diagnostic), then derives the workspace. The "missing plan → CddExitError kind run-blocked"
+ * guard text lives only here — runTask step 2 and the buildCtx direct-entry share this function. */
 export function resolvePlanWorkspace({ planFile, root }: { planFile?: string; root: string }): { plan: string; workspace: string } {
   const plan = planFile ? resolveDocArg(planFile, root, "plan") : "";
-  if (!plan) throw new RunBlocked("cannot resolve repo root: provide --plan");
+  if (!plan) throw new CddExitError("cannot resolve repo root: provide --plan", { exitCode: 1, kind: "run-blocked" });
   return { plan, workspace: materializeWorkspace({ plan, repoRoot: root }) };
 }
 
@@ -244,78 +210,13 @@ export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Re
   };
 }
 
-// ---- return block output ----
+// ---- return block output (P6 T24 C) ----
 
-/** Aligns the legacy bash four-line emitter: picks the last ^key: line from agent stdout; missing →
- * "<missing>". T7: a workspace arg was added — the 5th counters line appends via
- * returnCountersLine(workspace) (stdout + res.returnBlock share this one source; agent never produces
- * counters — canonical: the engine owns the count). */
-export function returnFourLines(raw: string, workspace: string): string[] {
-  const lines = String(raw).split("\n");
-  const keys = ["status", "commits", "artifacts", "blocker"];
-  const out: string[] = [];
-  for (const key of keys) {
-    let found: string | null = null;
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (lines[i].startsWith(`${key}:`)) {
-        found = lines[i];
-        break;
-      }
-    }
-    out.push(found ?? `${key}: <missing>`);
-  }
-  out.push(returnCountersLine(workspace));
-  return out;
-}
-
-// Blocker default (Task 23 ④, fake killer): real-only emission — the return-block blocker line
-// carries only real sources (agent-declared / engine gate reason / failure mechanism /
-// unverifiable-notes summary whatever the handoff declares). APPROVED / CHANGES_REQUESTED without
-// one → "none" (the success terminal default); BLOCKED with no real reason → "" — never invent a
-// fake blocker (the schema allOf grounds BLOCKED on blocker|failure_category; the old fabricated
-// "uncommitted changes at return" route is dead — that gate text only ever appears when the
-// commit-contract REALLY wrote it into the handoff's blocker).
-function blockerDefaultFor(status: string | undefined): string {
-  return status === "APPROVED" || status === "CHANGES_REQUESTED" ? "none" : "";
-}
-
-/** Aligns _cdd_emit_h1_from_handoff (no jq dependency): reads the handoff JSON; missing/corrupt →
- * BLOCKED fallback. artifacts emitted only when present. T7: 5th counters line appended via
- * returnCountersLine(workspace). */
-export function returnFromHandoff(handoffPath: string, workspace: string): string[] {
-  if (!handoffPath || !existsSync(handoffPath)) {
-    return returnFourLines("status: BLOCKED\nblocker: handoff missing after commit-contract interception → re-dispatch task after checking commit-contract errors", workspace);
-  }
-  const h = readJson(handoffPath);
-  if (!h) {
-    return returnFourLines("status: BLOCKED\nblocker: handoff JSON unparseable after commit-contract interception → delete the corrupted handoff file and re-dispatch", workspace);
-  }
-  const out = [
-    `status: ${(h.status as string) ?? "BLOCKED"}`,
-    `commits: base=${(h.commits as Record<string, unknown> | null)?.base ?? ""} head=${(h.commits as Record<string, unknown> | null)?.head ?? ""}`,
-  ];
-  const arts: string[] = [];
-  const art = (h.artifacts as Record<string, unknown> | undefined) ?? {};
-  for (const key of ["brief", "report", "test_evidence"] as const) {
-    if (art[key]) arts.push(`${key}=${String(art[key])}`);
-  }
-  if (arts.length > 0) out.push(`artifacts: ${arts.join(" ")}`);
-  out.push(`blocker: ${(h.blocker as string) ?? blockerDefaultFor(h.status as string)}`);
-  out.push(returnCountersLine(workspace));
-  return out;
-}
-
-// ---- dry-run simulation ----
-
-// Aligns the bash dry-run branch's hardcoded dry-run return block (dry-run short-circuits the dispatch).
-function dryRunReturnBlock(ctx: TaskDispatchContext, taskNum: number): string {
-  return [
-    "status: APPROVED",
-    "commits: base=dry-run",
-    `artifacts: brief=${ctx.briefPath} report=${ctx.workspace}/task-${taskNum}-report.md test_evidence=${ctx.workspace}/task-${taskNum}-test-evidence.json`,
-    "blocker: none",
-  ].join("\n");
-}
+/** The return-block text plane converges in src/artifacts/return-block.ts — its single point. This
+ * file imports returnFourLines / returnFromHandoff (parsing + handoff read-back) and dryRunBlock
+ * (the dry-run agentOut) from there, and re-exports the two task-facing read-back atoms so legacy
+ * importers (tests importing from this module) resolve through the same single implementation —
+ * no shape re-definition lives here. */
 
 /** TaskRunOptions — runTask's public opts (signature keys only; anything else unused). */
 export interface TaskRunOptions {
@@ -461,25 +362,29 @@ export class TaskLifecycle extends DispatchLifecycle {
           try {
             materializePlanConstraints(planWorkspace.plan, ctx.workspace);
           } catch (e) {
-            throw new RunBlocked(
+            throw new CddExitError(
               e instanceof ConstraintsSourceUndeclared
                 ? e.message
                 : `${PLAN_CONSTRAINTS_MISSING_BLOCKER} (${(e as Error).message})`,
+              { exitCode: 1, kind: "run-blocked" },
             );
           }
         }
       }
       // F11: self-provision the task brief at plan finalization (--plan takes effect on
-      // generation). Failure → RunBlocked → exit 1 — never a silent fallback to an existing brief.
-      // Parent-dir bootstrap before writing (same workspace-bootstrap convention as writeBaseBranch).
+      // generation). Failure → CddExitError kind run-blocked → exit 1 — never a silent fallback to
+      // an existing brief. Parent-dir bootstrap before writing (same workspace-bootstrap
+      // convention as writeBaseBranch).
       try {
         mkdirSync(path.dirname(ctx.briefPath), { recursive: true });
         await generateBrief(planWorkspace.plan, this.#taskNum, ctx.briefPath, this.#root);
       } catch (e) {
-        throw new RunBlocked(`brief generation failed: ${(e as Error).message}`);
+        throw new CddExitError(`brief generation failed: ${(e as Error).message}`, { exitCode: 1, kind: "run-blocked" });
       }
     } catch (e) {
-      if (e instanceof RunBlocked) { this.#done(1, [], e.message); return; }
+      // The kind discriminates (both the former RunBlocked sites and naming.ts materializeWorkspace
+      // throw CddExitError kind "run-blocked") → one recoverable-orchestration exit face.
+      if (e instanceof CddExitError && e.kind === "run-blocked") { this.#done(1, [], e.message); return; }
       // resolveDocArg's missing-path diagnostic goes through exitWithCode (throws ExitRequested) —
       // normalized to the same exit so the noExit=true in-process caller still gets
       // { exitCode: 1 } rather than an exception piercing.
@@ -558,7 +463,12 @@ export class TaskLifecycle extends DispatchLifecycle {
     let stalled = false;          // T14: liveness monitor killed the group (stall, not budget timeout)
     let idleWindowMs: number | undefined; // T14 stall blocker detail (monitor idle window)
     if (dryRun) {
-      agentOut = dryRunReturnBlock(ctx, this.#taskNum);
+      // Dry-run simulation block (return-block.ts single point): the 4-line APPROVED dry-run
+      // payload; the post-flight parse re-appends the counters line (returnFourLines).
+      agentOut = dryRunBlock({
+        commits: "base=dry-run",
+        artifacts: `brief=${ctx.briefPath} report=${ctx.workspace}/task-${this.#taskNum}-report.md test_evidence=${ctx.workspace}/task-${this.#taskNum}-test-evidence.json`,
+      });
     } else {
       const timeoutMs = resolveTimeoutMs(this.#hostEnv(), "task");
       this.#timeoutMs = timeoutMs;
@@ -610,13 +520,10 @@ export class TaskLifecycle extends DispatchLifecycle {
     //   Progress: increment the canonical timeout/engineSelfWritten counter.
     if (timedOut) {
       if (unkillable) {
-        writeHandoff(ctx.handoffPath, {
+        writeBlockedCarrier(ctx.handoffPath, {
           task: this.#taskNum,
           phase: mode,
-          status: "BLOCKED",
           failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
-          findings: [],
-          artifacts: {},
           blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${this.#taskNum}`,
         });
         if (!dryRun) {
@@ -631,13 +538,11 @@ export class TaskLifecycle extends DispatchLifecycle {
       // residue-cleanup contract (abandoned uncommitted changes → discard/commit, then re-dispatch;
       // the entry gate requires a clean tree).
       const timeoutMs = this.#timeoutMs;
-      writeHandoff(ctx.handoffPath, {
+      writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
-        findings: [],
-        artifacts: {},
         blocker: timeoutBlocker({ stalled, taskNum: this.#taskNum, timeoutMs, idleWindowMs }),
       });
       if (!dryRun) incrementRound(progressDir, this.#taskNum, mode);
@@ -678,7 +583,8 @@ export class TaskLifecycle extends DispatchLifecycle {
         const sv = validateHandoffSchema(existingHandoff);
         if (!sv.valid) {
           // T5 CONTRACT_VIOLATION recovery (spec §2.5.2, AC7 category-level): normalize → re-validate
-          // (at most one round) — the recovery single point is src/rules/schema.ts#recoverHandoff,
+          // (at most one round) — the recovery single point is finalize.ts#recoverHandoff (T24 B:
+          // the recovery unit moved from rules/schema.ts with its applyDerivedStatus caller),
           // shared by all three runners. Both sub-branches write the NORMALIZED object (an invalid
           // key must never stay on disk) — full-replace writeOwnHandoff always, never a shallow
           // merge (a shallow merge would re-feed the offending keys from the existing file).
@@ -689,14 +595,13 @@ export class TaskLifecycle extends DispatchLifecycle {
             // Normalization unfixable (missing required / type-enum mismatch) → still BLOCKED, but
             // findings kept in full (A4 defect surface): the parsed findings enter the carrier
             // as-is instead of a wholesale rewrite to [].
-            writeOwnHandoff(ctx.handoffPath, {
+            writeBlockedCarrier(ctx.handoffPath, {
               task: this.#taskNum,
               phase: mode,
-              status: "BLOCKED",
               failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
               findings: rec.preservedFindings,
-              artifacts: {},
               blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch task ${this.#taskNum}`,
+              fullReplace: true,
             });
             if (!dryRun) {
               incrementRound(progressDir, this.#taskNum, mode);
@@ -712,14 +617,11 @@ export class TaskLifecycle extends DispatchLifecycle {
     // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + return block +
     //     the CDD_BLOCKED diagnostic + exit 1.
     if (this.#agentRc !== 0 && !existsSync(ctx.handoffPath)) {
-      writeHandoff(ctx.handoffPath, {
+      writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
-        status: "BLOCKED",
         failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
-        commits: { base: "unknown" },
-        findings: [],
-        artifacts: {},
+        commits: { base: "unknown" }, // no real head at failure time — the "unknown" sentinel is the EXECUTION_FAILURE ground (T23)
         blocker: `cli exited ${this.#agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${this.#taskNum}`,
       });
       if (!dryRun) {
@@ -736,13 +638,10 @@ export class TaskLifecycle extends DispatchLifecycle {
     // runner materializes in step 13's OK path — implement agents write no handoff and this check
     // would falsely BLOCK every successful implement.
     if (this.#agentRc === 0 && !dryRun && mode !== "implement" && !existsSync(ctx.handoffPath)) {
-      writeHandoff(ctx.handoffPath, {
+      writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
-        status: "BLOCKED",
         failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
-        findings: [],
-        artifacts: {},
         blocker: `${path.basename(ctx.handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${ctx.handoffPath} before exit`,
       });
       incrementRound(progressDir, this.#taskNum, mode);
@@ -959,8 +858,15 @@ const PLAN_HASH_RE = /plan hash: ([0-9a-f]{64})/;
 const PROSE_ANCHORS = ["口径", "commit 边界机制", "Flow Atomicity", "顺序原则"] as const;
 
 /** Plan declares no Constraints source (neither a literal `## Constraints` section nor any
- * prose-pointer anchor) — the materializer must BLOCK, never fall back silently. */
-export class ConstraintsSourceUndeclared extends Error {}
+ * prose-pointer anchor) — the materializer must BLOCK, never fall back silently. P6 T24 E: the
+ * recoverable run failure rides the CddExitError family (exitCode 1 + kind "run-blocked") — the
+ * resolveContext kind-catch recovers it, with the class identity kept so its special-cased
+ * message extraction survives. */
+export class ConstraintsSourceUndeclared extends CddExitError {
+  constructor(message: string) {
+    super(message, { exitCode: 1, kind: "run-blocked" });
+  }
+}
 
 // Deterministic section extraction for the canonical form: `## Constraints` heading + content to
 // the first structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction

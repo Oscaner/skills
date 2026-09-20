@@ -7,6 +7,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { invariant } from "../infra/exit.ts";
+
 /** BASE_BRANCH_SOURCES: the source field's 4-value enum sole definition (canonical).
  * Fixes the base-branch schema-table 3-value drift missing conversation-context (SKILL schema wins). */
 export const BASE_BRANCH_SOURCES = [
@@ -82,13 +84,17 @@ export function writeBaseBranch({
 }): string {
   const gate = validateBaseBranch({ base, source, confirmed_at: new Date().toISOString() });
   if (!gate.ok) {
-    throw new Error(`writeBaseBranch: invalid args — ${gate.errors.join("; ")}`);
+    // Block form: the template reads gate.errors, which only exists on the {ok:false} arm — an
+    // eager `invariant(gate.ok, \`…${gate.errors.join(…)}\`)` would crash the happy path (the
+    // argument is evaluated regardless of the condition).
+    invariant(false, `writeBaseBranch: invalid args — ${gate.errors.join("; ")}`);
   }
   const target = baseBranchPath({ workspace });
   const existing = existsSync(target) ? (JSON.parse(readFileSync(target, "utf8")) as Record<string, unknown>) : null;
   const sameBase = !!existing && existing.base === base;
   if (existing && !sameBase && !force) {
-    throw new Error(
+    invariant(
+      false,
       `existing base-branch "${existing.base as string}" differs from requested "${base}"; set --force to override`,
     );
   }

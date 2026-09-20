@@ -14,7 +14,7 @@ import {
   isPlanConstraintsStale,
   ConstraintsSourceUndeclared,
 } from "../task.ts";
-import { hashFile } from "../review-loop.ts";
+import { hashFile } from "../../artifacts/hash.ts";
 
 // Legacy prose-pointer plan: the four **bold** constraint paragraphs in the preamble. Neutral
 // prose sits BEFORE the first anchor — unter-anchored preamble text must never be captured into a

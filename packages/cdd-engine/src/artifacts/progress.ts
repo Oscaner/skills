@@ -2,10 +2,12 @@
 // (Task 8 port of progress.mjs; ex lib/state/progress.mjs). Replaces the progress.md-based
 // timeoutCount with structured JSON. Transparent migration: readProgressJSON auto-migrates
 // progress.md → progress.json.
+// P6 T24 B: the return block's `counters:` line construction moved to
+// src/artifacts/return-block.ts#returnCountersLine (its single point) — progress drops the
+// counters() import, breaking the failure⇄progress mutual import (counters() stays the
+// rules/failure.ts owner; progress only reads/writes).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-
-import { counters } from "../rules/failure.ts";
 
 // T8: progress schema dropped lastDispatchHead/degradationLog (dead fields; check-head/
 // engine-recovery degradation, superseded by deriveReviewStatus/engineRecoveryCount);
@@ -184,30 +186,4 @@ export function migrateIfNeeded(progressDir: string, plan?: string): ProgressDat
   const empty = createEmptyProgress(plan);
   writeProgressJSON(progressDir, empty);
   return empty;
-}
-
-/** returnCountersLine(workspace) — the return block `counters` line's UNIQUE construction point (T7): all three
- * return block producers (task returnFourLines / returnFromHandoff · branch dry-run block) append through this
- * function, or the task-family 5-line vs branch-family 4-line split has no guard.
- * Reads the four counter fields of <workspace>/progress.json: missing / corrupt file / missing
- * keys each fall back to `0` and never throw (a dry-run first round may not have progress.json
- * yet — the fallback IS the first-round shape). **Read-only, no write side effect**: never
- * paper-over the missing-file zero fallback, never overwrites progress.json on the return block path.
- * Field names and counter labels come from src/rules/failure.ts#counters() (T6 canonical) — zero
- * hand-written counter names / labels here. */
-export function returnCountersLine(workspace: string): string {
-  const jsonPath = path.join(workspace, "progress.json");
-  let data: Record<string, unknown> = {};
-  if (existsSync(jsonPath)) {
-    try {
-      data = JSON.parse(readFileSync(jsonPath, "utf8")) as Record<string, unknown>;
-    } catch {
-      data = {};
-    }
-  }
-  const parts = [];
-  for (const { field, label } of counters()) {
-    parts.push(`${label}=${typeof data[field] === "number" ? data[field] : 0}`);
-  }
-  return `counters: ${parts.join(" ")}`;
 }

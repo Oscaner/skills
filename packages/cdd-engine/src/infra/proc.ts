@@ -11,6 +11,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
+import { invariant } from "./exit.ts";
+
 const KILL_SIGNAL = "SIGTERM";
 const FORCE_SIGNAL = "SIGKILL";
 
@@ -370,11 +372,11 @@ export async function spawnManaged(command: string, args: string[], opts: SpawnO
 // marking or the in-process reap mis-marks and roots an in-flight group.
 export function markAllDispatchesDone(): void {
   const inFlight = registry.filter((g) => !g.done);
-  if (inFlight.length > 1) {
-    throw new Error(
-      "CDD_ASSERT: markAllDispatchesDone assumes strictly serial dispatch — " +
-      `${inFlight.length} in-flight groups (concurrency requires pgid-exact marking)`);
-  }
+  invariant(
+    inFlight.length <= 1,
+    "CDD_ASSERT: markAllDispatchesDone assumes strictly serial dispatch — " +
+      `${inFlight.length} in-flight groups (concurrency requires pgid-exact marking)`,
+  );
   for (const g of inFlight) g.done = true;
   if (registry.length) { void persistRegistry(); }
 }

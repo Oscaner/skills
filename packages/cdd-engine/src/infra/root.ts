@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { gitTopLevel } from "./git.ts";
-import { exitWithCode } from "./exit.ts";
+import { exitWithCode, invariant } from "./exit.ts";
 
 let _root: string | null = null;
 
@@ -26,7 +26,7 @@ export async function initRoot(cwd: string): Promise<string> {
 }
 
 export function getRoot(): string {
-  if (!_root) throw new Error("initRoot() not called — call from bin/cdd.mjs entry first");
+  invariant(_root, "initRoot() not called — call from bin/cdd.mjs entry first");
   return _root;
 }
 

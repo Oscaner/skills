@@ -7,16 +7,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 
+import { CddExitError } from "./exit.ts";
+
 export const REG_PATH = fileURLToPath(new URL("harness-registry.json", import.meta.url));
 
-export class CddBlockedError extends Error {
-  exitCode: number;
-  kind: string;
+// Registry gate blockage — the CddExitError family (P6 T24 F): exitCode + kind fields, bin.ts's
+// top-level catch unifies the family by kind; `instanceof CddBlockedError` keeps working for the
+// dispatch runners' local catch (task/branch surfaces degrade to their run-blocked exit).
+export class CddBlockedError extends CddExitError {
   constructor(message: string, { exitCode = 1, kind = "blocked" }: { exitCode?: number; kind?: string } = {}) {
-    super(message);
+    super(message, { exitCode, kind });
     this.name = "CddBlockedError";
-    this.exitCode = exitCode;
-    this.kind = kind;
   }
 }
 

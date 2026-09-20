@@ -15,8 +15,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
-         materializeWorkspace,
          buildCtx, buildPromptParams } from "../task.ts";
+import { materializeWorkspace } from "../../artifacts/handoff/naming.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { spawnManaged, markAllDispatchesDone } from "../../infra/proc.ts";
 import { REG_PATH } from "../../infra/registry.ts";

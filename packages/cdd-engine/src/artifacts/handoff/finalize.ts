@@ -1,6 +1,11 @@
 // packages/cdd-engine/src/artifacts/handoff/finalize.ts — handoff carrier finalization single point
 // (T7; Task 8 TS port of finalize.mjs): agent content → finalized handoff → full-replace write →
 // return block re-emit. Peer of handoff/naming (finalization is an independent concern).
+// P6 T24 B: this file is the status-derivation family's SOLE owner (rollupStatus / deriveReviewStatus
+// / applyDerivedStatus / statusExitCode / blockedCarrierFor — the five contract.mjs symbols +
+// applyDerivedStatus) AND the CONTRACT_VIOLATION recovery unit's home (normalizeHandoff /
+// recoverHandoff); P6 T24 C: the BLOCKED failure write single point (writeBlockedCarrier) lives
+// here — the former docs/task/branch handwriting islands read no second definition.
 // Task 23: ① three-surface orthogonalization — status (round conclusion) vs failure_category
 // (mechanism channel) vs unverifiable[]/plan_conflicts[] (content notes) never fold: the derived
 // BLOCKED lane carries blockedCarrierFor (category + real blocker). ③ statusExitCode maps the
@@ -22,16 +27,20 @@
 // finalize consumer, cohesive in the same cluster).
 // Task 5 bottom-swap: git judgment via infra/git.ts (simple-git single point). Task 8: write-side
 // reads come from ./write.ts.
-// Import note (write-side same-source): implement materialization's carrier key set passes
-// normalizeHandoff (rules/schema.ts) — a deliberate mutual import with schema.ts (schema.ts uses
-// this file's rollupStatus to fill review-family status); both directions are function
-// declarations reading no module-level bindings of the other, so either evaluation order is safe.
+// Import note (P6 T24 B: the schema⇄finalize direct cycle is broken): the CONTRACT_VIOLATION
+// recovery unit (normalizeHandoff / recoverHandoff / arr / objOrEmpty) lives HERE (finalize is
+// the status-derivation sole owner; normalize's rule ③ derives via applyDerivedStatus, local) —
+// with the validator it consumes coming from rules/schema.ts. The edge is one-way
+// (finalize → schema); schema.ts holds zero applyDerivedStatus reference.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { gitRevParseHead } from "../../infra/git.ts";
-import { readJson, writeOwnHandoff } from "./write.ts";
-import { normalizeHandoff } from "../../rules/schema.ts";
+import { invariant } from "../../infra/exit.ts";
+import { hashFile } from "../hash.ts";
+import { artifactsFromReturnLine, implementStatusFromReturnLine, returnBlocker } from "../return-block.ts";
+import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
+import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
@@ -66,7 +75,7 @@ export function classifySeverity(sev: unknown): string {
     case "needs_context":
       return "STOP";
     default:
-      throw new Error(`unknown severity: ${String(sev)}`);
+      invariant(false, `unknown severity: ${String(sev)}`);
   }
 }
 
@@ -178,6 +187,158 @@ export function applyDerivedStatus(handoff: Record<string, unknown> = {}): Recor
   return { ...handoff, status: d, ...carrier };
 }
 
+// ---- CONTRACT_VIOLATION recovery unit (T5; relocated from rules/schema.ts by P6 T24 B — the
+// applyDerivedStatus-dependent normalization now sits in its derivation owner's module) ----
+
+// Array guard single point: agent-written `findings` / `unverifiable` / `plan_conflicts` are
+// often "none" / {} / a number. rollupStatus's findings.some(...) would throw on a non-array,
+// escaping along the runner's try/finally (no catch) to the bin top level — exit 2, no BLOCKED
+// handoff written, findings lost. Both normalization and the recovery payload share this guard.
+const arr = (v: unknown): Array<unknown> => (Array.isArray(v) ? v : []);
+
+// Object guard (recovery payload only): normalizeHandoff passes non-objects through verbatim
+// (a contract its own tests pin), so the recovery face closes on objects here: a hand-written
+// BLOCKED carrier must never depend on the caller's spread semantics (spreading an array/string
+// expands to indexed keys which the schema's additionalProperties rejects — the exact
+// CONTRACT_VIOLATION shape this single point exists to eliminate).
+const objOrEmpty = (o: unknown): Record<string, unknown> =>
+  o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, unknown>) : {};
+
+// Normalization single point (T5, same file as the validator → «normalize → re-validate» is one
+// testable unit): three runners (run-task / run-docs / branch-review) share it on the
+// CONTRACT_VIOLATION recovery path so findings survive in full (AC7 category-level). Three rules:
+//   ① strip undeclared keys (the authoritative key set = schema.properties);
+//   ② blocker: null → omit (schema declares string, null illegal);
+//   ③ review family missing status → derive via applyDerivedStatus (work types never derived:
+//      the schema's else.required forces the agent to declare them); the derived BLOCKED lane
+//      carries failure_category + real blocker (Task 23 ① — never a bare BLOCKED fold).
+// Side-effect free: returns a new object, never mutates; non-object input passes through
+// verbatim (the recovery face closes it via objOrEmpty).
+export function normalizeHandoff(
+  obj: unknown,
+  schemaName = "task",
+): unknown {
+  // Return `unknown` (not `Record<string, unknown>`): the object arm is only one branch — null /
+  // arrays / primitives pass through verbatim (a contract this file's tests pin, and the recovery
+  // face closes it via objOrEmpty), so a record-only annotation would misstate the shape.
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+  const allowed = new Set(Object.keys((loadHandoffSchema(schemaName) as Record<string, unknown>).properties ?? {}));
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (value === undefined) continue;
+    if (!allowed.has(key)) continue; // ①
+    if (key === "blocker" && value === null) continue; // ②
+    out[key] = value;
+  }
+  const phase = out.phase;
+  if (!("status" in out) && (phase === "review" || phase === "branch-review")) {
+    // ③ derive via applyDerivedStatus (status + BLOCKED carrier). The arr() array-guards first —
+    // deriveReviewStatus/blockedCarrierFor are array-contract code and would throw on raw
+    // non-arrays («findings: 42 » arrives here in the recovery face); only the derivation sees
+    // the guarded copy, the output object keeps the raw values (re-validation catches them).
+    const derived = applyDerivedStatus({
+      ...out,
+      findings: arr(out.findings),
+      unverifiable: arr(out.unverifiable),
+      plan_conflicts: arr(out.plan_conflicts),
+    });
+    if (derived) {
+      out.status = derived.status;
+      for (const ck of ["blocker", "failure_category"] as const) {
+        if (derived[ck] !== undefined) out[ck] = derived[ck];
+      }
+    }
+  }
+  return out;
+}
+
+// CONTRACT_VIOLATION recovery single point (T5): normalize → re-validate (one round, no loop).
+// Three runners (run-task / run-docs / branch-review) share it, each keeping only its
+// failure-payload difference (BLOCKED wording prefix + guidance + counter branch).
+// Returns:
+//   valid: true  → handoff = normalized result (caller writes and continues);
+//   valid: false → handoff = normalized result (violating keys stripped, usable as a BLOCKED
+//                  payload base), property = violating key, reason = failure detail (with the
+//                  violating-key suffix — the single assembly point), preservedFindings = the
+//                  array-guarded original findings (AC7 full retention, guard written once).
+export function recoverHandoff(
+  obj: unknown,
+  schemaName = "task",
+): {
+  handoff: Record<string, unknown>;
+  valid: boolean;
+  property?: string;
+  reason?: string;
+  preservedFindings?: Array<unknown>;
+} {
+  const handoff = objOrEmpty(normalizeHandoff(obj, schemaName));
+  const sv = validateHandoffSchema(handoff, schemaName);
+  if (sv.valid) return { handoff, valid: true };
+  // The violating key is taken from the round that saw the ORIGINAL object — normalization
+  // already stripped top-level unknown keys, so the re-validate surface usually no longer
+  // reports additionalProperties; only the original object's keys tell the agent which key
+  // was rejected. (Nested additionalProperties can still surface on the re-validate face, so
+  // first-wins.)
+  const property = (validateHandoffSchema(obj, schemaName) as Extract<ReturnType<typeof validateHandoffSchema>, { valid: false }>)
+    .property ?? sv.property;
+  return {
+    handoff,
+    valid: false,
+    property,
+    reason: `${property ? ` (unexpected key: ${property})` : ""}: ${sv.reason}`,
+    preservedFindings: arr(handoff.findings),
+  };
+}
+
+// ---- BLOCKED failure write single point (P6 T24 C) ----
+// writeBlockedCarrier unifies the four former handwriting islands (docs.ts writeBlocked · task.ts
+// inline×4 · branch-review writeBranchBlocked · branch-fix writeBranchFixBlocked) into ONE carrier
+// factory: work-type failure payloads (status default BLOCKED; status param keeps the TIMEOUT lane)
+// write through here, and callers pass `commits` only when they have schema-legal bases (task
+// passes {base:"unknown"} on the EXECUTION_FAILURE lane; branch callers pre-filter the base to
+// 40-hex). `doc` carves the docs-family content-state token (doc_path + doc_hash via hashFile —
+// the hash single point). `fullReplace` = the schema-invalid branch (writeOwnHandoff: offending
+// keys never stay on disk); absent → shallow writeHandoff.
+export interface BlockedCarrierInput {
+  task?: number;
+  phase: string;
+  status?: string;
+  failure_category?: string;
+  findings?: unknown[];
+  artifacts?: Record<string, unknown>;
+  /** commits — passed verbatim (callers decide legality: task's {base:"unknown"} vs branch's
+   * 40-hex-filtered base). */
+  commits?: Record<string, unknown>;
+  blocker: string;
+  /** docs-family review target — carves doc_path + the doc_hash content-state token. */
+  doc?: string;
+  /** schema-invalid branch: full-replace write so offending keys never stay on disk. */
+  fullReplace?: boolean;
+}
+
+export function writeBlockedCarrier(
+  handoffPath: string,
+  input: BlockedCarrierInput,
+): { exitCode: 1; handoff: Record<string, unknown> } {
+  const payload: Record<string, unknown> = {
+    ...(input.task !== undefined ? { task: input.task } : {}),
+    phase: input.phase,
+    status: input.status ?? "BLOCKED",
+  };
+  if (input.failure_category) payload.failure_category = input.failure_category;
+  if (input.commits) payload.commits = input.commits;
+  payload.findings = input.findings ?? [];
+  payload.artifacts = input.artifacts ?? {};
+  if (input.doc) {
+    payload.doc_path = input.doc;
+    payload.doc_hash = hashFile(input.doc);
+  }
+  payload.blocker = input.blocker;
+  if (input.fullReplace) writeOwnHandoff(handoffPath, payload);
+  else writeHandoff(handoffPath, payload);
+  return { exitCode: 1, handoff: payload };
+}
+
 /** Finalization single entry: dispatch per mode → { handoff, exitCode }. The return block re-emits
  * from the finalized returnFromHandoff at the consumer. Three consumers share this implementation
  * (runner step 13 / docs-runner read-back / branch review read-back).
@@ -221,7 +382,8 @@ export async function finalizeHandoff({
       exitCode: statusExitCode((agentHandoff?.status as string) ?? "BLOCKED"),
     };
   }
-  throw new Error(`finalizeHandoff: unknown mode ${mode}`);
+  invariant(mode === "review" || mode === "implement" || mode === "fix", `finalizeHandoff: unknown mode ${mode}`);
+  return { handoff: null, exitCode: 1 }; // unreachable (invariant narrows to the three handled modes)
 }
 
 /** Finalization write-back single point (branch nit③: docs-runner/runner share this, deduplicating
@@ -255,33 +417,9 @@ function taskBaseFromBrief(briefPath: string | undefined): string | null {
   }
 }
 
-// Return block `artifacts:` line (key=value whitespace-separated) → artifacts object; missing line
-// / empty → {}.
-function artifactsFromReturnLine(line: string | undefined): Record<string, string> {
-  const m = String(line).match(/^artifacts:\s*(.*)$/);
-  if (!m || !m[1].trim()) return {};
-  const artifacts: Record<string, string> = {};
-  for (const pair of m[1].trim().split(/\s+/)) {
-    const eq = pair.indexOf("=");
-    if (eq > 0) artifacts[pair.slice(0, eq)] = pair.slice(eq + 1);
-  }
-  return artifacts;
-}
-
-// Return block `status:` line → materialized status. The schema accepts only APPROVED/BLOCKED —
-// anything non-APPROVED (NEEDS_CONTEXT / <missing> …) folds to BLOCKED, raw passthrough for the
-// blocker (return block and handoff/exit stay consistent).
-function implementStatusFromReturnLine(line: string | undefined): { status: string; raw: string } {
-  const raw = String(line).replace(/^status:\s*/, "").trim();
-  return { status: raw === "APPROVED" ? "APPROVED" : "BLOCKED", raw };
-}
-
-// Return block `blocker:` line → blocker. Missing line (<missing>) / success default (none) → ""
-// (no blocker field lands; returnFromHandoff presents the real-only blocker default at render).
-function returnBlocker(line: string | undefined): string {
-  const v = String(line).replace(/^blocker:\s*/, "").trim();
-  return v && v !== "<missing>" && v !== "none" ? v : "";
-}
+// Return block `status:` / `artifacts:` / `blocker:` line parsers (artifactsFromReturnLine /
+// implementStatusFromReturnLine / returnBlocker) are imported from ../return-block.ts — the return
+// block text plane's single point (P6 T24 C); the former private copies are gone.
 
 // Evidence gate (implement non-dry-run materialization path only): the mechanical hard-gate's only
 // trigger = the test-evidence behavior_change:true (brief.mjs only outputs the ### Task N section +

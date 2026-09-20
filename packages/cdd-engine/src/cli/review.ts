@@ -7,10 +7,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { loadRegistry, checkHarness, CddBlockedError, REG_PATH } from "../infra/registry.ts";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig } from "../render/templates.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
-import { hashFile } from "../dispatch/review-loop.ts";
+import { hashFile } from "../artifacts/hash.ts";
 import { exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";

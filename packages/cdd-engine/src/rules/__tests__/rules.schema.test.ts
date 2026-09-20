@@ -9,13 +9,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  loadHandoffSchema,
-  validateHandoffSchema,
-  normalizeHandoff,
-  recoverHandoff,
-  loadHandoffNamespace,
-} from "../schema.ts";
+// P6 T24 B: normalizeHandoff / recoverHandoff now live in artifacts/handoff/finalize.ts (the
+// status-derivation owner; the validator stays on rules/schema.ts — this file's import split
+// tracks the schema⇄finalize cycle break).
+import { loadHandoffSchema, validateHandoffSchema, loadHandoffNamespace } from "../schema.ts";
+import { normalizeHandoff, recoverHandoff } from "../../artifacts/handoff/finalize.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel: string) => JSON.parse(readFileSync(path.join(HERE, "..", "..", "..", "templates", rel), "utf8"));
@@ -76,7 +74,7 @@ describe("rules/schema.ts — validateHandoffSchema", () => {
   });
 });
 
-describe("rules/schema.ts — normalizeHandoff（归一化 → 重校验 单点）", () => {
+describe("finalize.ts — normalizeHandoff（归一化 → 重校验 单点；T24 B 由 schema.ts 迁入）", () => {
   it("① 剥除 schema 未声明键", () => {
     expect(normalizeHandoff({ ...validTask, junk: 5 })).toEqual({ ...validTask });
   });
@@ -111,7 +109,7 @@ describe("rules/schema.ts — normalizeHandoff（归一化 → 重校验 单点�
   });
 });
 
-describe("rules/schema.ts — recoverHandoff（CONTRACT_VIOLATION 恢复单点，findings 全额保留）", () => {
+describe("finalize.ts — recoverHandoff（CONTRACT_VIOLATION 恢复单点，findings 全额保留；T24 B 迁入）", () => {
   it("合法输入 → { handoff, valid: true }", () => {
     const r = recoverHandoff(validTask);
     expect(r.valid).toBe(true);

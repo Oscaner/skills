@@ -59,12 +59,23 @@ vi.mock("../../render/templates.ts", () => ({
 vi.mock("../../rules/schema.ts", () => ({
   loadHandoffSchema: () => ({ type: 'object', required: ['phase', 'status', 'findings', 'artifacts', 'doc_path'], properties: { phase: { type: 'string' }, status: { type: 'string' }, doc_path: { type: 'string' }, findings: { type: 'array' }, artifacts: { type: 'object' } } }),
   validateHandoffSchema: vi.fn(() => ({ valid: true })),
-  // T5：mock 面镜射真实模块导出（run-docs schema 无效分支消费 recoverHandoff，缺此导出即
-  // 「归一化 → 重校验」单点在 mock 环境下不可达）。normalizeHandoff 镜像加防：finalize.ts 的
-  // implement 实体化依赖它（docs 面不触达，防御性镜像真实导出形状）。
-  recoverHandoff: vi.fn((o) => ({ handoff: o, valid: true })),
-  normalizeHandoff: vi.fn((o) => o),
 }));
+
+// P6 T24 B: the CONTRACT_VIOLATION recovery unit moved with its applyDerivedStatus caller into
+// artifacts/handoff/finalize.ts — the recovery mock now mirrors THAT module (partial spread keeps
+// writeBlockedCarrier / finalizeHandoff / persistFinalized real for the run-docs paths that consume
+// them), not the validator's schema.ts.
+vi.mock("../../artifacts/handoff/finalize.ts", async () => {
+  const actual = await vi.importActual("../../artifacts/handoff/finalize.ts");
+  return {
+    ...actual,
+    // T5：mock 面镜射真实单元导出（run-docs schema 无效分支消费 recoverHandoff，缺此导出即
+    // 「归一化 → 重校验」单点在 mock 环境下不可达）。normalizeHandoff 镜像加防：finalize.ts 的
+    // implement 实体化依赖它（docs 面不触达，防御性镜像真实导出形状）。
+    recoverHandoff: vi.fn((o) => ({ handoff: o, valid: true })),
+    normalizeHandoff: vi.fn((o) => o),
+  };
+});
 
 // Selective node:fs mock: intercept schema + handoff reads; pass through everything else.
 vi.mock("node:fs", async (importOriginal) => {
@@ -448,7 +459,8 @@ describe("runDocsTask", () => {
     writeFileSync(handoffPath, JSON.stringify({
       phase: "review", status: "APPROVED", findings: "none", notes: 5, artifacts: {}, doc_path: "/spec.md",
     }));
-    const { validateHandoffSchema, recoverHandoff } = await import("../../rules/schema.ts");
+    const { validateHandoffSchema } = await import("../../rules/schema.ts");
+    const { recoverHandoff } = await import("../../artifacts/handoff/finalize.ts");
     validateHandoffSchema.mockImplementationOnce(
       () => ({ valid: false, reason: "/findings must be array; /notes must be string" }));
     // 沿真实 recoverHandoff 语义：归一化结果**保留已声明键原值**（notes: 5 仍在内——正是旧载荷的泄漏源），

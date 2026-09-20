@@ -22,6 +22,7 @@ const compile = hb.compile;
 
 import { loadHandoffSchema } from "../rules/schema.ts";
 import { familyConfig } from "../artifacts/handoff/naming.ts";
+import { invariant } from "../infra/exit.ts";
 
 // PKG_ROOT = <pkg>/templates — the render data plane's resource dir (contract + schemas alone;
 // re-org Step 5 semantics converged here; consumers use the constant directly).
@@ -129,7 +130,7 @@ export const LINE_BUDGETS = Object.freeze({
 });
 
 export function lineBudget(tier: string): number {
-  if (!(tier in LINE_BUDGETS)) throw new Error(`unknown line budget tier: ${tier}`);
+  if (!(tier in LINE_BUDGETS)) invariant(false, `unknown line budget tier: ${tier}`);
   return LINE_BUDGETS[tier as keyof typeof LINE_BUDGETS];
 }
 
@@ -194,7 +195,7 @@ function returnFor(format: string): string {
   let out = CACHE.returns.get(format);
   if (out === undefined) {
     const lines = loadTemplateContract().sections.return[format];
-    if (!lines) throw new Error(`unknown return format: ${format}`);
+    if (!lines) invariant(false, `unknown return format: ${format}`);
     out = joinLines(lines);
     CACHE.returns.set(format, out);
   }
@@ -257,7 +258,7 @@ function renderRoundContext(
       const msg = err instanceof Error ? err.message : String(err);
       const missing = msg.match(/^"([^"]+)" not defined/);
       if (missing) {
-        throw new Error(`${programName}: template ${name}: missing param ${missing[1]}`);
+        invariant(false, `${programName}: template ${name}: missing param ${missing[1]}`);
       }
       throw err;
     }
@@ -286,7 +287,7 @@ export interface ReviewTypeConfig {
 // actual doc path lands on REVIEW_REFERENCE via the caller.
 export function reviewTypeConfig(type: string): ReviewTypeConfig {
   const cfg = loadReviews()[type] as ReviewTypeConfig | undefined;
-  if (!cfg) throw new Error(`unknown review type: ${type}`);
+  if (!cfg) invariant(false, `unknown review type: ${type}`);
   return cfg;
 }
 
@@ -346,7 +347,7 @@ export function scanTemplateTokens(src: string): string[] {
 export function validateTemplateTokens(src: string, contract: TemplateContract = loadTemplateContract()): void {
   const names = new Set(tokenNames(contract));
   for (const tok of scanTemplateTokens(src)) {
-    if (!names.has(tok)) throw new Error(`template token not in registry: ${tok}`);
+    if (!names.has(tok)) invariant(false, `template token not in registry: ${tok}`);
   }
 }
 
@@ -368,47 +369,47 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
   // markers, resolved once at load) are allowed. The guard keys on token-slot shapes, not `{{`
   // presence; real per-dispatch values ride ## Round context slots.
   if (/\{\{(?!>\s*)/.test(shellSrc)) {
-    throw new Error("shell zone must be slot-free (zero token moustache) — embed per-dispatch values as ## Round context slots; only {{> clause}} refs are allowed");
+    invariant(false, "shell zone must be slot-free (zero token moustache) — embed per-dispatch values as ## Round context slots; only {{> clause}} refs are allowed");
   }
   const roundSrc = joinLines(contract.sections["round-context"]);
   if (!roundSrc.startsWith("## Round context")) {
-    throw new Error("round-context zone must open with `## Round context`");
+    invariant(false, "round-context zone must open with `## Round context`");
   }
   for (const [format, lines] of Object.entries(contract.sections.return)) {
     const src = joinLines(lines);
-    if (!src.startsWith("## Return")) throw new Error(`return constant ${format} must open with ## Return`);
-    if (src.includes("{{")) throw new Error(`return constant ${format} must be a literal constant (zero moustache)`);
+    if (!src.startsWith("## Return")) invariant(false, `return constant ${format} must open with ## Return`);
+    if (src.includes("{{")) invariant(false, `return constant ${format} must be a literal constant (zero moustache)`);
   }
   // 槽仅现所属区: each registry token renders only inside its own zone's source.
   if (JSON.stringify(contract.skeleton.sections) !== JSON.stringify(["Instructions", "Handoff", "Return", "Round context"])) {
-    throw new Error(`skeleton.sections mismatch: got [${contract.skeleton.sections.join(", ")}]`);
+    invariant(false, `skeleton.sections mismatch: got [${contract.skeleton.sections.join(", ")}]`);
   }
   if (JSON.stringify(contract.skeleton.segments.shell) !== JSON.stringify(["Instructions", "Handoff"])) {
-    throw new Error("skeleton.segments.shell must be slot-level [Instructions, Handoff]");
+    invariant(false, "skeleton.segments.shell must be slot-level [Instructions, Handoff]");
   }
   if (JSON.stringify(contract.skeleton.segments.return) !== JSON.stringify(["Return"])) {
-    throw new Error("skeleton.segments.return must be slot-level [Return]");
+    invariant(false, "skeleton.segments.return must be slot-level [Return]");
   }
   if (JSON.stringify(contract.skeleton.segments["round-context"]) !== JSON.stringify(["Round context"])) {
-    throw new Error('skeleton.segments["round-context"] must be slot-level [Round context]');
+    invariant(false, 'skeleton.segments["round-context"] must be slot-level [Round context]');
   }
   if (JSON.stringify(contract.skeleton.order) !== JSON.stringify(["shell", "return", "round-context"])) {
-    throw new Error("skeleton.order must be [shell, return, round-context] (段序恒为 壳 → Return → Round context)");
+    invariant(false, "skeleton.order must be [shell, return, round-context] (段序恒为 壳 → Return → Round context)");
   }
   const zoneSource: Record<string, string> = {
     return: Object.values(contract.sections.return).map(joinLines).join("\n"),
     "round-context": roundSrc,
   };
   for (const tok of contract.tokens) {
-    if (tok.zone === "shell") throw new Error(`token ${tok.name}: shell is slot-free (壳禁槽)`);
+    if (tok.zone === "shell") invariant(false, `token ${tok.name}: shell is slot-free (壳禁槽)`);
     const src = zoneSource[tok.zone];
-    if (!src) throw new Error(`unknown zone ${tok.zone} for token ${tok.name}`);
+    if (!src) invariant(false, `unknown zone ${tok.zone} for token ${tok.name}`);
     if (tok.zone === "return") {
       if (src.includes(`{{${tok.name}}}`)) {
-        throw new Error(`return token {{${tok.name}}} must surface as a literal label, not a moustache`);
+        invariant(false, `return token {{${tok.name}}} must surface as a literal label, not a moustache`);
       }
     } else if (!src.includes(`{{${tok.name}}}`)) {
-      throw new Error(`token {{${tok.name}}} must render inside its ${tok.zone} zone source`);
+      invariant(false, `token {{${tok.name}}} must render inside its ${tok.zone} zone source`);
     }
   }
   // 槽仅现所属区（反向）：round-context 区内实际渲染的每个 moustache 都必须是 round-zone token
@@ -416,14 +417,14 @@ export function validateTemplateStructure(contract: TemplateContract = loadTempl
   const roundZoneNames = new Set(contract.tokens.filter((t) => t.zone === "round-context").map((t) => t.name));
   for (const tok of scanTemplateTokens(roundSrc)) {
     if (!roundZoneNames.has(tok)) {
-      throw new Error(`slot {{${tok}}} must be a round-context token (槽仅现所属区)`);
+      invariant(false, `slot {{${tok}}} must be a round-context token (槽仅现所属区)`);
     }
   }
   // clauses assembler surface: any `{{> name}}` in a zone must resolve to a registered clause
   // (T12: clause ids carry the `cl:` namespace — `:` joins the partial-name alphabet).
   for (const src of [shellSrc, roundSrc, ...Object.values(contract.sections.return).map(joinLines)]) {
     for (const name of [...src.matchAll(/\{\{>\s*([\w:-]+)\}\}/g)].map((m) => m[1])) {
-      if (!(name in contract.clauses)) throw new Error(`unknown clause partial: {{> ${name}}}`);
+      if (!(name in contract.clauses)) invariant(false, `unknown clause partial: {{> ${name}}}`);
     }
   }
 }

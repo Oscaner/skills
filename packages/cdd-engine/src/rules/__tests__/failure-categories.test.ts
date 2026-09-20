@@ -9,13 +9,15 @@ import path from "node:path";
 
 import { reviewConvergenceGuard } from "../../cli/shared.ts";
 import { ExitRequested } from "../../infra/exit.ts";
-import { incrementFailureCounter, exhaustedBlocker, maybeExhaust } from "../../dispatch/task.ts";
 import {
   FAILURE_CATEGORIES,
   counterFor,
   terminalFor,
   isIncompleteDispatch,
   counters,
+  incrementFailureCounter,
+  exhaustedBlocker,
+  maybeExhaust,
 } from "../failure.ts";
 
 const CAT = JSON.parse(

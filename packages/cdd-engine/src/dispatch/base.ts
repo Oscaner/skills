@@ -20,6 +20,7 @@
 import { createDispatchHooks, type DispatchHookContext, type DispatchHooks } from "./hooks.ts";
 import type { PhaseId } from "./phases.ts";
 import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
+import { CddExitError } from "../infra/exit.ts";
 
 // Consumer re-export: the override hooks (commitPreCheck / dispatch / …) all take this context;
 // subclasses import the signature from the lifecycle's home module, not from the registry.
@@ -50,12 +51,15 @@ export interface DispatchLifecycleOptions {
 }
 
 /** Commit-boundary BLOCKED signal — thrown by the default gates (message = the rules-layer blocker
- * text). Task 8's CLI face maps it to exit 1; the exit gate's handoff rewrite lives in rules/commit.ts. */
+ * text). Task 8's CLI face maps it to exit 1; the exit gate's handoff rewrite lives in rules/commit.ts.
+ * P6 T24 (F 错误收编): DispatchBlocked extends the exit.ts CddExitError family (exitCode 1 / kind
+ * "blocked") — a gate block that escapes an override unwinds to bin.ts's family catch and lands the
+ * correct exit code (0/1/2/3 table unchanged). */
 export type CommitGate = "entry" | "exit";
-export class DispatchBlocked extends Error {
+export class DispatchBlocked extends CddExitError {
   readonly gate: CommitGate;
   constructor(message: string, gate: CommitGate) {
-    super(message);
+    super(message, { exitCode: 1, kind: "blocked" });
     this.name = "DispatchBlocked";
     this.gate = gate;
   }

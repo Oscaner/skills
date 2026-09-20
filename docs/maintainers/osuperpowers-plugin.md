@@ -121,6 +121,8 @@ The one charter-level guard in the set is `overall-consistency` ([scripts/valida
 
 ## CDD Engine internals
 
+> **Architecture discipline** (three standing rules: layered dependency boundary `infra → rules → artifacts → dispatch → cli`, mechanisms anchored on the `DispatchLifecycle` template method, error consolidation in `infra/exit.ts` via the `CddExitError` family + `invariant` factory) is recorded in [program-experience.md](program-experience.md) section F — consult it before adding a new dispatch channel or a new throw site.
+
 ### BLOCKED Message Format
 
 All `writeHandoff({ status: "BLOCKED" })` calls must include:

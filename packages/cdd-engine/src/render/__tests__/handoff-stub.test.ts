@@ -1,6 +1,10 @@
 // packages/cdd-engine/src/render/__tests__/handoff-stub.test.ts
 import { describe, it, expect } from "vitest";
-import { loadHandoffSchema, validateHandoffSchema, normalizeHandoff, recoverHandoff } from "../../rules/schema.ts";
+// P6 T24 B: the CONTRACT_VIOLATION recovery unit (normalizeHandoff / recoverHandoff) moved out of
+// rules/schema.ts into artifacts/handoff/finalize.ts (its applyDerivedStatus caller's module); the
+// validator stays on rules/schema.ts — the imports below track the new homes.
+import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
+import { normalizeHandoff, recoverHandoff } from "../../artifacts/handoff/finalize.ts";
 import { renderHandoffSchemaJson } from "../templates.ts";
 
 // ---- Task 18：renderHandoffSchemaJson = schema 原样注入（零 render、零解释器、零第二校验器）----

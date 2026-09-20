@@ -312,6 +312,9 @@ export interface BlockedCarrierInput {
   blocker: string;
   /** docs-family review target — carves doc_path + the doc_hash content-state token. */
   doc?: string;
+  /** resume contract (T26/spec T7.5): settleResidue's salvage record rides any TIMEOUT /
+   * EXECUTION_FAILURE carrier so the re-dispatch pre-flight can restore the WIP. */
+  recovery?: Record<string, unknown>;
   /** schema-invalid branch: full-replace write so offending keys never stay on disk. */
   fullReplace?: boolean;
 }
@@ -327,6 +330,7 @@ export function writeBlockedCarrier(
   };
   if (input.failure_category) payload.failure_category = input.failure_category;
   if (input.commits) payload.commits = input.commits;
+  if (input.recovery) payload.recovery = input.recovery;
   payload.findings = input.findings ?? [];
   payload.artifacts = input.artifacts ?? {};
   if (input.doc) {

@@ -106,24 +106,35 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
   });
 });
 
-describe("rules/failure.ts — timeoutBlocker (T14 TIMEOUT semantics extension)", () => {
+describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed wording)", () => {
   it("budget timeout keeps the legacy wording (timed out after → re-dispatch)", () => {
-    const b = timeoutBlocker({ stalled: false, taskNum: 3, timeoutMs: 5_400_000 });
+    const b = timeoutBlocker({ cause: "over-budget", taskNum: 3, timeoutMs: 5_400_000 });
     expect(b).toMatch(/timed out after 5400000ms/);
     expect(b).toMatch(/task 3/);
     // legacy phrases preserved — runner.test.ts's /timed out after/ match stays green
     expect(b).toContain("simplify task");
   });
 
-  it("stall variant carries the recovery contract (cleanup guidance in the blocker)", () => {
-    const b = timeoutBlocker({ stalled: true, taskNum: 7, idleWindowMs: 900_000 });
+  it("external SIGTERM inherits the budget wording (unbounded elapsed, no stall proof)", () => {
+    const b = timeoutBlocker({ cause: "signal", taskNum: 4, timeoutMs: 5_400_000 });
+    expect(b).toMatch(/timed out after 5400000ms/);
+    expect(b).toMatch(/task 4/);
+  });
+
+  it("stall variant carries the resume-or-discard contract (T26 §⑤/§T7.5 reword)", () => {
+    const b = timeoutBlocker({ cause: "stalled", taskNum: 7, idleWindowMs: 900_000, op: "implement", residue: "abc123" });
     expect(b).toMatch(/stalled/);
     expect(b).toMatch(/900000ms/);
-    // brief's recovery-path contract: discard OR commit residue, then re-dispatch over a clean tree
-    expect(b).toMatch(/discard or commit/);
-    expect(b).toMatch(/clean tree/);
-    expect(b).toMatch(/re-dispatch task 7/);
+    // brief's recovery-path contract: resume-or-discard — cdd implement re-dispatch auto-resumes
+    // (recovery.residue_ref), or git stash drop abandons the salvage
+    expect(b).toContain("resume 或丢弃：cdd implement --task 7 re-dispatch 自动续传（recovery.residue_ref=abc123）→ 或 git stash drop 放弃");
     // still a TIMEOUT-shaped blocker (same category identity, extended wording only)
     expect(b).not.toMatch(/simplify task/);
+    expect(b).not.toMatch(/discard or commit/); // §⑤ upgrade: discard-or-commit wording is gone
+  });
+
+  it("stall without a salvage record still carries the resume-or-discard contract (no ref to prepend)", () => {
+    const b = timeoutBlocker({ cause: "stalled", taskNum: 7, idleWindowMs: 900_000, op: "implement" });
+    expect(b).toContain("resume 或丢弃：cdd implement --task 7 re-dispatch 自动续传（recovery.residue_ref）→ 或 git stash drop 放弃");
   });
 });

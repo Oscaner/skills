@@ -11,9 +11,8 @@ it("loadContract reads the canonical contract (timeouts defaults present)", () =
   expect(c.timeouts.defaults.review).toBe(3_600_000);
 });
 
-it("canonical env whitelist = 7 keys (same single declaration point)", () => {
+it("canonical env whitelist = 4 keys (same single declaration point)", () => {
   const c = loadContract();
   const keys = Object.values(c.channels.env).flatMap((v) => (v.var ? [v.var] : (v.markers ?? [])));
-  expect(keys.sort()).toEqual(["AI_AGENT", "CDD_CLI_TIMEOUT", "CDD_REVIEW_TIMEOUT", "CDD_TASK_TIMEOUT",
-                               "CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "PATH"]);
+  expect(keys.sort()).toEqual(["AI_AGENT", "CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "PATH"]);
 });

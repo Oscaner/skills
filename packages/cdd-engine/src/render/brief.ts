@@ -9,8 +9,15 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { gitRevParseHead } from "../infra/git.ts";
 import { invariant } from "../infra/exit.ts";
+import { renderResidueAppendix, type ResidueAppendixInput } from "../artifacts/residue.ts";
 
-export async function generateBrief(planFile: string, taskNum: number, outPath: string, repoRoot: string): Promise<void> {
+export async function generateBrief(
+  planFile: string,
+  taskNum: number,
+  outPath: string,
+  repoRoot: string,
+  residue: ResidueAppendixInput | null = null,
+): Promise<void> {
   invariant(existsSync(planFile), `plan file not found: ${planFile}`);
   const lines = readFileSync(planFile, "utf8").split("\n");
   const header = `### Task ${taskNum}:`;
@@ -26,6 +33,13 @@ export async function generateBrief(planFile: string, taskNum: number, outPath: 
   );
   const sha = await gitRevParseHead(repoRoot);
   invariant(sha, "cannot resolve HEAD: not in a git repo");
-  const content = lines.slice(start, end).join("\n").replace(/\n+$/, "") + "\nTASK_BASE: " + sha + "\n";
+  // T26 resume-from-residue: when the pre-flight applied a salvaged stash, the brief appends the
+  // data-driven `## Residue status` section (residue.ts renderResidueAppendix — prompt semantic
+  // self-sufficiency §35: the prose states the WIP facts itself, zero external anchors) so the next
+  // agent audits the restored WIP and continues instead of rewriting from zero.
+  let content = lines.slice(start, end).join("\n").replace(/\n+$/, "") + "\nTASK_BASE: " + sha + "\n";
+  if (residue) {
+    content += "\n" + renderResidueAppendix(residue) + "\n";
+  }
   writeFileSync(outPath, content, "utf8");
 }

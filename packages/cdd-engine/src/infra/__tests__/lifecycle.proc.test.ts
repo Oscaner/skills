@@ -36,21 +36,20 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   });
   afterEach(async () => { await proc.teardownAll(); });
 
-  it("派生组触发隔离：teardownAll 后孙进程必死", async () => {
-    // child 触发孙进程（P1LLWC 标记）后驻留——组内后代验证
+  it("预算到期连根回收：monitor killGroup 令驻留孙进程同组必死（T26 组语义异于 execa 单 pid kill）", async () => {
+    // child 触发孙进程（P1LLWC）后驻留——组内后代验证：预算到期时 killGroup(-pgid) 把
+    // 整个组连根回收，未 detached 的孙进程随组同死；execa 的 timeout 只杀 leader（单 pid），
+    // 这正是 T26 引入 monitor 自持 killGroup 的理由之一。
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();setInterval(()=>{},10000)`;
-    const r = await proc.spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+    const r = await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 800 } });
     expect(typeof r.code).toBe("number");
-    const before = String(pgrepCount("P1LLWC"));
-    expect(Number(before)).toBeGreaterThan(0);
-    await proc.teardownAll({ graceMs: 500 });
-    const after = String(pgrepCount("P1LLWC"));
-    expect(Number(after)).toBe(0);
+    expect(r.timedOut).toBe(true);
+    await waitFor(() => markerAlive("P1LLWC") === 0, 2000); // 孙进程随组连根回收（组信号送达）
   });
 
   it("teardownAll 后 registry 为空（可观测边界结果：组连根死 + 盘上记录清零）", async () => {
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EMPTY']).unref();process.exit(0)`;
-    await proc.spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+    await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
     // 注册即时化：in-flight 组亦在盘上（spawn 成功即入组，早于 dispatch 返回）
     expect(JSON.parse(readFileSync(DISK, "utf8")).length).toBe(1);
     expect(markerAlive("P1EMPTY")).toBeGreaterThan(0);
@@ -68,7 +67,7 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   it("reapStale 对存活超时组执行回收（非仅 fail-open）", async () => {
     // P1LLWC 派生孙组后 leader 退出 → 组存活留 registry；reapStale 走 stale 分支连根回收
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();process.exit(0)`;
-    await proc.spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+    await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
     expect(markerAlive("P1LLWC")).toBeGreaterThan(0);
     await proc.reapStale({ graceMs: 500 });
     expect(markerAlive("P1LLWC")).toBe(0);
@@ -76,7 +75,7 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
 
   it("reapDone 清 dispatch 已返回仍存活组（idle 监视语义）", async () => {
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();process.exit(0)`;
-    await proc.spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
+    await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
     await proc.markAllDispatchesDone();            // dispatch 返回 → 组标 done
     await proc.reapDone({ graceMs: 500 });
     expect(markerAlive("P1LLWC")).toBe(0);         // done + 存活的组被连根回收（可观测边界结果）

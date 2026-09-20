@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/infra/__tests__/env-surface.test.ts
 // 引擎 env 面闭集守卫（P4 §2.4.4；P6 Task 3 迁就近 + 扫面 .mjs → .ts）。
-// 三断言：① 取值直读键 ⊆ 七键白名单；② 零 `...process.env` spread 注入；③ 六个已删键名零命中。
-// 闭集口径 = spec §2.4.4 ①：host 识别 3 键 + PATH + 3 个 timeout 键 —— 引擎只读这些，
+// 三断言：① 取值直读键 ⊆ 四键白名单；② 零 `...process.env` spread 注入；③ 六个已删键名零命中。
+// 闭集口径 = spec §2.4.4 ①：host 识别 3 键 + PATH —— 引擎只读这些（T26 三 timeout 键连根删除），
 // 其余一切派生值（workspace/handoff/brief/ledger/constraints/findings/plan）走 ctx 参数面。
 // 扫面 = 机制位（src 全 `.ts`，排除 `__tests__/`——断言文件是测试不是机制；validate 5c
 // channel-audit 同口径零豁免）。`.mjs` 终态断言归 validate 5c residue（M5），不在此重复。
@@ -13,7 +13,7 @@ import { loadContract } from "../context.ts";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../..");
 
-// spec §2.4.4 ① 的闭集（7 键：3 宿主识别 + PATH + 3 timeouts）—— 由 canonical
+// spec §2.4.4 ① 的闭集（4 键：3 宿主识别 + PATH，T26 三 timeout 键已删）—— 由 canonical
 // `channels.env` 派生：`engine-config.json#contextContract` 是白名单的**唯一**声明点，
 // 本文件不留第二份字面（改 canonical 即改守卫，T4 同源）。
 const ALLOWED = Object.values(loadContract().channels.env).flatMap(v => (v.var ? [v.var] : v.markers));

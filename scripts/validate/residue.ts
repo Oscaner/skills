@@ -84,7 +84,8 @@ const STALE_LEXICON_CHECKS = [
   { label: "removed cdd subcommand (pre-P3)", re: /\bcdd (brief|research)\b/, scope: [...ALL_MECH_POSITIONS, ...DOC_SURFACE_TARGETS] },
   //   `RESEARCH_TIMEOUT` 单分支即覆盖两种被删形态（`CDD_RESEARCH_TIMEOUT` 与 legacy 裸名）
   //   ——无锚定 alternation 的子串语义使 `CDD_` 前缀分支为死分支（T5 review-1 nit，实测等价），
-  //   故取后缀单分支；`CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` 不命中（保留面）。
+  //   故取后缀单分支；`CDD_TASK_TIMEOUT` / `CDD_REVIEW_TIMEOUT` 旧「保留面」随 T26 三键连根删除
+  //   （CDD_TASK_TIMEOUT/CDD_REVIEW_TIMEOUT/CDD_CLI_TIMEOUT 已零读取——env 面收口闭集守卫）。
   { label: "removed research timeout env", re: /RESEARCH_TIMEOUT/, scope: CDD_ENGINE },
   // Task 16（P5）：report-issues 旧模型残留守卫 —— 旧模型语汇（--mode flag / renderComment /
   // renderTitle / resolveDropdownOptions / sessionTypes / 裸 report-issue）已清零（rewrite 收口轮），
@@ -244,7 +245,7 @@ import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.ts";
 import { FAILURE_CATEGORIES, counters as canonicalCounters } from "../../packages/cdd-engine/src/rules/failure.ts";
 
 const CONTRACT = loadContract();
-// 行 2 白名单 = canonical channels.env 的 var + markers（§2.4.4-① 7 键）。
+// 行 2 白名单 = canonical channels.env 的 var + markers（§2.4.4-① 4 键；T14/T26 三轮 env-key 删除后收敛）。
 export const ENV_DIRECT_READ_WHITELIST = new Set(
   Object.values(CONTRACT.channels.env).flatMap((ch) => [ch.var, ...(ch.markers ?? [])].filter(Boolean)),
 );
@@ -314,9 +315,9 @@ export function collectEnvDirectReadHits(targetsOverride = CDD_ENGINE_BIN) {
 // passthrough hosts moved up from cli/branch-*.ts accordingly.
 const ENV_PASSTHROUGH_SITES = [
   { file: "packages/cdd-engine/src/dispatch/task.ts", re: /#opts\.env \?\? process\.env/ },
-  { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
+  { file: "packages/cdd-engine/src/dispatch/docs.ts", re: /invokeCli\(entry, prompt, \{ op: mode, type \}, process\.env, this\.ctx\.repoRoot/ },
   { file: "packages/cdd-engine/src/cli/shared.ts", re: /detectCurrentHarness\(process\.env\)/ },
-  { file: "packages/cdd-engine/src/dispatch/branch.ts", re: /resolveTimeoutMs\(process\.env, "review"\)|invokeCliWithRetry\([^)]*process\.env, |process\.env,$/ },
+  { file: "packages/cdd-engine/src/dispatch/branch.ts", re: /invokeCliWithRetry\([^)]*process\.env, |process\.env,$/ },
 ];
 const ENV_WHOLE_RE = /process\.env([^.\w[]|$)/;
 export function collectEnvPassThroughHits(targetsOverride = CDD_ENGINE_BIN) {
@@ -559,8 +560,9 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 }
 
 // ⑫ 行 13：stdout counters 行由 canonical 类目表派生 —— 构造点零手写计数器名/标签；六类名「以类目身份
-// 出现」面零手写（failure_category 赋值 / isIncompleteDispatch 判定）；counters 不进 handoff 契约且
-// properties 计数不变（14 / 9，除 failure_category 外零新增）。四字段名与标签经 failure-categories.json。
+// 出现」面零手写（failure_category 赋值 / isIncompleteDispatch 判定）；counters 不进 handoff 契约。
+// properties 计数受 guard 铁锚：task 15（14 + recovery，T7.5 续传契约） / docs 11（除外零新增）。
+// 四字段名与标签经 failure-categories.json。
 const COUNTER_FIELDS = canonicalCounters().map((c) => c.field);
 const COUNTER_LABELS = canonicalCounters().map((c) => c.label);
 const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
@@ -598,7 +600,7 @@ export function collectCountersContractHits({
     for (const fld of COUNTER_FIELDS) {
       if (props.includes(fld)) hits.push({ label: `counter ${fld} 泄漏进 ${name} handoff schema（counters 不进契约）`, file: schemaPath });
     }
-    const expected = name === "task" ? 14 : 11;
+    const expected = name === "task" ? 15 : 11;
     if (props.length !== expected || !props.includes("failure_category")) {
       hits.push({ label: `${name} handoff schema properties 计数 ${props.length} ≠ ${expected}（除 failure_category 外不得增减）`, file: schemaPath });
     }

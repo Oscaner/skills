@@ -109,6 +109,37 @@
     "test_evidence": {
       "type": "object",
       "description": "reference to command outputs (paths), never inline output bodies."
+    },
+    "recovery": {
+      "type": "object",
+      "required": [
+        "residue_ref"
+      ],
+      "properties": {
+        "residue_ref": {
+          "type": "string",
+          "description": "Salvaged-WIP stash commit SHA (index-independent: `stash@{N}` indices shift on every push/drop). Written by settleResidue on TIMEOUT/EXECUTION_FAILURE rounds; the re-dispatch resume pre-flight reads it and `git stash apply`s it. Interface contract with T25 (spec T7.5): settleResidue output ≡ resume input."
+        },
+        "stash_message": {
+          "type": "string",
+          "description": "The standardized stash name `cdd-<op>-<type>-<task>-r<round>-<cause>` (src/artifacts/residue.ts single source) — the legacy stash-list scan matches on it for pre-schema carriers."
+        },
+        "residue_scope": {
+          "type": "string",
+          "description": "WIP scope summary (`git diff HEAD --shortstat`, e.g. '2 files changed, 727 insertions(+)') — data-driven input for the resume brief appendix."
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "the salvaged round number (implement rounds are always round 1)."
+        },
+        "cause": {
+          "type": "string",
+          "description": "round-end cause: the termination cause (stalled/over-budget/signal) or exec-failure for EXECUTION_FAILURE salvages."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Resume contract (spec T7.5) — engine-written on TIMEOUT/EXECUTION_FAILURE failure carriers; absent on all other rounds. The re-dispatch's resume pre-flight consumes it (primary path); carriers written before this field existed fall back to the standardized stash-message scan."
     }
   },
   "allOf": [

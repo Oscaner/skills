@@ -8,33 +8,32 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
 import { execa } from "execa";
-import { resolveTimeoutMs, resolveLivenessConfig, invokeCli, invokeCliWithRetry } from "../invoke.ts";
+import { resolveTerminationConfig, invokeCli, invokeCliWithRetry } from "../invoke.ts";
 
-describe("infra/invoke.ts — resolveTimeoutMs", () => {
-  it("per-mode env takes priority", () => {
-    expect(resolveTimeoutMs({ CDD_TASK_TIMEOUT: "60" }, "task")).toBe(60_000);
+describe("infra/invoke.ts — resolveTerminationConfig (T26 single resolver, env-zero)", () => {
+  it("default task budget is 90min (canonical timeouts.defaults.task)", () => {
+    expect(resolveTerminationConfig("task").budgetMs).toBe(5_400_000);
   });
-  it("CDD_CLI_TIMEOUT is stepped to 30-min boundary", () => {
-    // 1801s → ceil to 3600s
-    expect(resolveTimeoutMs({ CDD_CLI_TIMEOUT: "1801" }, "task")).toBe(3_600_000);
+  it("default review budget is 60min (canonical timeouts.defaults.review)", () => {
+    expect(resolveTerminationConfig("review").budgetMs).toBe(3_600_000);
   });
-  it("default task timeout is 90min (canonical timeouts.defaults.task)", () => {
-    expect(resolveTimeoutMs({}, "task")).toBe(5_400_000);
+  it("seam override wins over the canonical default (no env reads anywhere)", () => {
+    expect(resolveTerminationConfig("task", { budgetMs: 42_000 }).budgetMs).toBe(42_000);
+    expect(resolveTerminationConfig("review", { budgetMs: 7_000 }).budgetMs).toBe(7_000);
   });
-  it("default review timeout is 60min (canonical timeouts.defaults.review)", () => {
-    expect(resolveTimeoutMs({}, "review")).toBe(3_600_000);
-  });
-  it("giant seconds clamp to the 2e9ms safety cap (setTimeout 32-bit overflow guard)", () => {
-    expect(resolveTimeoutMs({ CDD_REVIEW_TIMEOUT: "2700000" }, "review")).toBeLessThanOrEqual(2_000_000_000);
-  });
-  it("unknown mode returns undefined", () => {
-    expect(resolveTimeoutMs({}, "unknown")).toBeUndefined();
-  });
-});
-
-describe("infra/invoke.ts — resolveLivenessConfig (T14 config surface)", () => {
   it("stall detector timing comes from canonical timeouts.liveness (60s sample / 15min idle window)", () => {
-    expect(resolveLivenessConfig()).toEqual({ sampleIntervalMs: 60_000, idleWindowMs: 900_000 });
+    expect(resolveTerminationConfig("task").sampleIntervalMs).toBe(60_000);
+    expect(resolveTerminationConfig("task").idleWindowMs).toBe(900_000);
+  });
+  it("progressPath threads through (workspace tree signal for the stall detector)", () => {
+    expect(resolveTerminationConfig("task", undefined, "/ws").progressPath).toBe("/ws");
+  });
+  it("unknown mode → budget undefined (canonical defaults only for declared modes)", () => {
+    const cfg = resolveTerminationConfig("unknown");
+    expect(cfg.budgetMs).toBeUndefined();
+    // stall cadence still resolves from canonical liveness — the liveness defaults are
+    // not mode-scoped (T14 surface preserved under the unified resolver)
+    expect(cfg.sampleIntervalMs).not.toBeUndefined();
   });
 });
 
@@ -99,10 +98,13 @@ describe("infra/invoke.ts — invokeCliWithRetry", () => {
   });
 
   it("does not retry on timeout", async () => {
-    execa.mockResolvedValue({ exitCode: -1, stdout: "", stderr: "", timedOut: true });
+    // external-SIGTERM exit shape — the T26 cause derivation reads signal === "SIGTERM" (execa's
+    // timedOut flag alone was dropped with the monitor takeover; the monitor always kills via SIGTERM)
+    execa.mockResolvedValue({ exitCode: -1, stdout: "", stderr: "", signal: "SIGTERM" });
     const entry = { cli: "claude", invoke: "-p", output: "text" };
     const res = await invokeCliWithRetry(entry, "prompt", { op: "implement" }, {}, "/tmp", undefined);
     expect(res.timedOut).toBe(true);
+    expect(res.cause).toBe("signal");
     expect(execa).toHaveBeenCalledTimes(1);
   });
 });

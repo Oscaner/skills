@@ -9,7 +9,7 @@
 // its own progress.json field (channel audit ③ column), and exhaustion is judged per-category
 // (threshold >= 2) — one category's terminal state never leaks into another's counter.
 import { loadEngineConfig } from "../infra/config.ts";
-import { DEFAULT_IDLE_WINDOW_MS } from "../infra/proc.ts";
+import { DEFAULT_IDLE_WINDOW_MS, type TerminationCause } from "../infra/proc.ts";
 
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 import { readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
@@ -85,25 +85,33 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
   return n;
 }
 
-// ---- T14 TIMEOUT semantics extension (spec E3) ----
+// ---- T26 TIMEOUT semantics (spec T7.5; replaces the T14 stalled-boolean variant) ----
 // The TIMEOUT category identity never bifurcates (status TIMEOUT + timeoutCount + terminal shape
-// are shared), but the blocker wording is now produced from ONE point: a budget timeout keeps the
-// legacy wording (T6 AC7, backwards-compatible — the "timed out after" phrase the tests and the
-// orchestrator match on), while a liveness-monitor stall carries the recovery contract from the
-// brief — the agent's tool call was hung, and the residue it left must be settled before the
-// re-dispatch (the entry gate requires a clean tree, so a stalled dispatch's uncommitted changes
-// are the human's to discard or commit).
+// are shared), but the blocker wording is produced from ONE point keyed on the unified termination
+// cause: over-budget keeps the legacy wording (T6 AC7, backwards-compatible — the "timed out
+// after" phrase the tests and the orchestrator match on), while a stall carries the recovery
+// contract from the brief — the agent's tool call was hung, and the WIP it left is SALVAGED into a
+// stash; the re-dispatch auto-resumes it. cause === "signal" (external SIGTERM) is
+// indistinguishable-in-kind from the entry-gate reality of a dead agent — it inherits the budget
+// wording (the elapsed is, by definition, unbounded).
 export function timeoutBlocker(opts: {
-  stalled?: boolean;
+  cause?: TerminationCause;
   taskNum: number;
   timeoutMs?: number;
   idleWindowMs?: number;
+  /** dispatch op (implement/review/fix) — only implement carries the auto-resume contract. */
+  op?: string;
+  /** the salvage stash ref recorded in the carrier's recovery.residue_ref (null → nothing salvaged / not recorded). */
+  residue?: string | null;
 }): string {
-  if (opts.stalled) {
+  if (opts.cause === "stalled") {
+    const op = opts.op || "implement";
+    const resume = opts.residue
+      ? `resume 或丢弃：cdd ${op} --task ${opts.taskNum} re-dispatch 自动续传（recovery.residue_ref=${opts.residue}）→ 或 git stash drop 放弃`
+      : `resume 或丢弃：cdd ${op} --task ${opts.taskNum} re-dispatch 自动续传（recovery.residue_ref）→ 或 git stash drop 放弃`;
     return (
       `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS}ms — ` +
-      `tool call hung); uncommitted changes left at return: discard or commit them, ` +
-      `then re-dispatch task ${opts.taskNum} (entry gate requires a clean tree)`
+      `tool call hung); ${resume}`
     );
   }
   return `cli timed out after ${opts.timeoutMs ?? "<unknown>"}ms → simplify task ${opts.taskNum} scope or increase timeout, then re-dispatch`;

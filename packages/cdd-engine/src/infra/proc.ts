@@ -16,31 +16,35 @@ import { invariant } from "./exit.ts";
 const KILL_SIGNAL = "SIGTERM";
 const FORCE_SIGNAL = "SIGKILL";
 
-// ---- T14 liveness monitor (spec E3; configured via engine-config.json#contextContract.timeouts.liveness) ----
-// Dispatch-phase stall detector: while a spawnManaged dispatch is in flight, a monitor samples two
-// progress signals every sampleIntervalMs — the child process-group cumulative CPU and the newest
-// file mtime under the observed progress path (the dispatch workspace). No measurable growth in
-// EITHER signal for idleWindowMs → the dispatch is presumed stuck (hung tool call) → the group is
-// killed and the spawn result surfaces timedOut + stalled (task.ts writes the stall-specific
-// TIMEOUT blocker with the residue-cleanup contract). The dual-signal criterion is deliberately
+// ---- T26 unified termination monitor (spec T7.5; configured via engine-config.json#contextContract.timeouts) ----
+// Dispatch-phase termination detector: while a spawnManaged dispatch is in flight, one decision
+// layer weighs two signals — ① STALL (the dual-signal liveness judge: no growth in process-group
+// cumulative CPU nor in the newest workspace mtime for idleWindowMs → presumed hung tool call) and
+// ② BUDGET (wall-clock elapsed >= budgetMs → last-resort cap; the sole defense when the stall
+// signal fails open — unreadable CPU/tree — or when a dispatch is busy but never finishes). On
+// either signal the group is killed and the spawn result surfaces timedOut with the cause
+// ("stalled" / "over-budget"); an EXTERNAL SIGTERM (exit shape, monitor never fired) folds in as
+// cause "signal". Three distinguishable causes → blockers/notes archive and replay death rounds
+// precisely (death can be archived and replayed). The dual-signal criterion stays deliberately
 // conservative (precise criterion): a SINGLE unavailable signal (unreadable CPU, missing dir)
-// fails open — unknown never kills; thinking/file reads burn CPU, so active-thinking dispatches
-// are never false-killed; only the truly silent case (CPU≈0 AND tree quiet over the whole window)
-// stalls. The monitor is opt-in: spawnManaged runs it only when opts.liveness is provided.
+// fails open — unknown never kills. The monitor runs when opts.termination is provided.
 
-export interface LivenessConfig {
-  /** Directory whose newest file mtime is the tree-progress signal (the dispatch workspace). */
-  progressPath: string;
+export interface TerminationConfig {
+  /** Wall-clock hard cap (ms) — the budget signal; kills the group when elapsed >= budgetMs. */
+  budgetMs?: number;
+  /** Directory whose newest file mtime is the tree-progress signal (the dispatch workspace) —
+   *  the stall signal's tree leg. Omitted → the stall signal rests on CPU alone. */
+  progressPath?: string;
   sampleIntervalMs?: number;
   idleWindowMs?: number;
 }
 
-// Code-default liveness timings — the SINGLE canonical source for the three fallback sites
-// (spawnManaged inline fallbacks below, invoke.ts resolveLivenessConfig, rules/failure.ts
-// timeoutBlocker). The canonical engine-config.json#contextContract.timeouts.liveness overrides
-// them; these only fire for callers that pass a bare LivenessConfig without resolved values
-// (tests / direct spawnManaged callers). Editing a config-file value must not silently drift
-// from a hand-duplicated code constant, so no module re-declares these literals.
+// Code-default termination timings — the SINGLE canonical source for the fallback sites
+// (spawnManaged inline fallbacks below, invoke.ts resolveTerminationConfig, rules/failure.ts
+// timeoutBlocker). The canonical engine-config.json#contextContract.timeouts overrides them; these
+// only fire for callers that pass a bare TerminationConfig without resolved values (tests / direct
+// spawnManaged callers). Editing a config-file value must not silently drift from a hand-duplicated
+// code constant, so no module re-declares these literals.
 export const DEFAULT_SAMPLE_INTERVAL_MS = 60_000;
 export const DEFAULT_IDLE_WINDOW_MS = 900_000;
 
@@ -58,15 +62,16 @@ export interface SpawnResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
-  /** true when the liveness monitor killed the group (dispatch stalled past idleWindowMs). */
-  stalled?: boolean;
+  /** Unified termination cause (T26): "stalled" (stall signal killed the group), "over-budget"
+   *  (budget cap reached), "signal" (external SIGTERM, monitor never fired). Absent when the
+   *  process ended naturally. */
+  cause?: TerminationCause;
 }
 
 export interface SpawnOpts {
   cwd?: string;
   env: NodeJS.ProcessEnv;
-  timeoutMs?: number;
-  liveness?: LivenessConfig;
+  termination?: TerminationConfig;
 }
 
 // ---- stall judge (pure, unit-test seam) ----
@@ -134,6 +139,43 @@ export function evaluateStall(
   return { state: next, verdict: "stalled" };
 }
 
+// ---- unified termination judge (T26: one decision layer, two signals) ----
+// settleResidue/resume interface (spec T7.5): the dispatch's death is classified into exactly three
+// distinguishable causes — the stall signal (dual-signal judge above), the budget signal (wall-clock
+// cap, last-resort: liveness fail-open + "busy but never done" sole defense), and an external
+// SIGTERM (the exit shape, not this judge). First-cause-wins: a cause is overridden when its own
+// condition was provable later than the other's (idle-end vs budget-end). Keep this folding pure and
+// unit-testable — spawnManaged feeds real verdicts into it (integration seam, liveness.monitor.test.ts).
+
+export type TerminationCause = "stalled" | "over-budget" | "signal";
+
+export interface TerminationJudge {
+  start: number;
+  at: number;
+  budgetMs: number | undefined;
+  stall: StallVerdict;
+  idleSince: number | null;
+  idleWindowMs: number;
+}
+
+/** Pure two-cause judgment (never "signal" — that is derived from the exit shape after await).
+ *  Both conditions false → null (dispatch still viable). A declared stall terminates regardless of
+ *  the budget — the cap only picks the cause label: stalled wins when the idle window ended first;
+ *  over-budget fires when the budget ended earlier or the stall signal failed open (verdict
+ *  "unknown" can never become "stalled", leaving the cap as the only defense). */
+export function terminationCause(s: TerminationJudge): TerminationCause | null {
+  const budgetMs = s.budgetMs ?? null;
+  const stalled = s.stall === "stalled";
+  if (stalled && budgetMs == null) return "stalled";
+  if (stalled && budgetMs != null) {
+    if (s.at - s.start < budgetMs) return "stalled"; // budget not yet reached — stall is the real cause
+    if ((s.idleSince ?? s.at) + s.idleWindowMs <= s.start + budgetMs) return "stalled"; // idle ended first
+    return "over-budget"; // budget ended first
+  }
+  if (budgetMs != null && s.at - s.start >= budgetMs) return "over-budget";
+  return null;
+}
+
 // ---- signal samplers ----
 
 // ps time= → ms. Accepts [HH:]MM:SS[.cc] (GNU and BSD ps) and sums multi-line output (the whole
@@ -195,48 +237,66 @@ export function latestFileMtimeMs(dir: string, maxDepth = 8): number | null {
 }
 
 // ---- monitor orchestration ----
-// Runs while spawnManaged awaits the child. Each tick samples both signals and feeds the pure
-// judge; on "stalled" the onStall callback (kill the group + taint the result) fires once. stop()
-// cancels the timer (spawnManaged calls it the moment the child resolves — a dispatch that simply
-// took longer than a few sample ticks is never penalized after the fact).
-export interface LivenessMonitorOpts {
+// Runs while spawnManaged awaits the child. Two optional signals, one decision layer, first cause
+// wins: each tick samples both progress signals and feeds the pure judge (stall leg); a wall-clock
+// timer fires at budgetMs (budget leg). On either, onTerminate (kill the group) fires once; the
+// stop() function returns the recorded cause (or null if neither signal ever fired — the child
+// ended naturally). stop() cancels the timers the moment the child resolves — a dispatch that
+// simply took longer than a few sample ticks is never penalized after the fact.
+export interface TerminationMonitorOpts {
   pgid: number;
-  progressPath: string;
+  /** Dispatch start clock (epoch ms) — the budget's elapsed anchor. */
+  start: number;
+  progressPath?: string;
+  budgetMs?: number;
   sampleIntervalMs: number;
   idleWindowMs: number;
-  onStall: () => void;
+  /** Kill the group. Returns false when the group is already gone (a just-finished dispatch must
+   *  never be tainted as terminated) — then no cause is recorded. */
+  onTerminate: (cause: "stalled" | "over-budget") => boolean;
 }
 
-export function startLivenessMonitor({
-  pgid,
-  progressPath,
-  sampleIntervalMs,
-  idleWindowMs,
-  onStall,
-}: LivenessMonitorOpts): () => void {
+export function startTerminationMonitor(opts: TerminationMonitorOpts): () => TerminationCause | null {
+  const { pgid, start, progressPath, budgetMs, sampleIntervalMs, idleWindowMs, onTerminate } = opts;
   let state = initialStallState();
-  let fired = false;
-  let timer: NodeJS.Timeout | null = null;
-  // First sample lands immediately (the window anchor starts at dispatch, not at the first tick).
+  let cause: TerminationCause | null = null;
+  let stallTimer: NodeJS.Timeout | null = null;
+  let budgetTimer: NodeJS.Timeout | null = null;
+  const fire = (c: "stalled" | "over-budget"): void => {
+    if (cause) return; // first-cause-wins
+    if (!onTerminate(c)) return; // group gone before the signal resolved — never taint
+    cause = c;
+    if (stallTimer) clearInterval(stallTimer);
+    if (budgetTimer) clearTimeout(budgetTimer);
+  };
   const tick = (): void => {
-    if (fired) return;
+    if (cause) return;
     const s: StallSample = {
       cpuMs: sampleGroupCpuMs(pgid),
-      latestMtimeMs: latestFileMtimeMs(progressPath),
+      latestMtimeMs: progressPath ? latestFileMtimeMs(progressPath) : null,
       at: Date.now(),
     };
     const { state: next, verdict } = evaluateStall(state, s, idleWindowMs);
     state = next;
-    if (verdict === "stalled") {
-      fired = true;
-      if (timer) clearInterval(timer);
-      onStall();
-    }
+    // The pure judge is the single decision point: it folds the current stall verdict + budget
+    // into a cause — a declared stall wins when its idle window ended before the budget (or the
+    // budget has not yet arrived); when the budget ended first the SAME tick surfaces over-budget.
+    const c = terminationCause({ start, at: s.at, budgetMs, stall: verdict, idleSince: next.idleSince, idleWindowMs });
+    if (c) fire(c);
   };
-  tick();
-  timer = setInterval(tick, sampleIntervalMs);
-  timer.unref?.();
-  return () => { if (!fired && timer) clearInterval(timer); };
+  if (progressPath) {
+    tick(); // first sample lands immediately (the window anchor starts at dispatch, not the first tick)
+    stallTimer = setInterval(tick, sampleIntervalMs);
+    stallTimer.unref?.();
+  }
+  if (budgetMs != null) {
+    budgetTimer = setTimeout(() => fire("over-budget"), budgetMs);
+  }
+  return () => {
+    if (stallTimer) clearInterval(stallTimer);
+    if (budgetTimer) clearTimeout(budgetTimer);
+    return cause;
+  };
 }
 
 // registry: entries { pgid, label, createdAt, ownerPid, done } — ownerPid backs cross-run orphan
@@ -282,21 +342,20 @@ function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return e;
 }
 
-// Unified factory: detached process group + immediate registration. Five-field contract
-// { ok, code, stdout, stderr, timedOut } (+ stalled when the liveness monitor killed the group).
+// Unified factory: detached process group + immediate registration. Six-field contract
+// { ok, code, stdout, stderr, timedOut } (+ cause when the termination monitor killed the group
+// or an external SIGTERM ended it — T26 replaces the T14 boolean stalled with the cause).
 export async function spawnManaged(command: string, args: string[], opts: SpawnOpts): Promise<SpawnResult> {
-  const { cwd, env, timeoutMs, liveness } = opts;
-  // Self-held timeout (T6, AC7): record a start clock at spawn; on return re-check elapsed vs the
-  // timeout budget and exit shape — res.timedOut alone has proven unreliable (30-min dispatches
-  // SIGTERM-terminated return exit-143 with res.timedOut unset, landing in the agentRc!=0 branch).
-  const start = Date.now();
+  const { cwd, env, termination } = opts;
   // execa: the return value is a subprocess (promise × child_process blend); pid is on the
   // subprocess, not on the awaited result (res.pid === undefined) — grab sub.pid before awaiting.
+  // timeout / forceKillAfterDelay are deliberately NOT passed: the termination monitor owns both
+  // signals (budget kill + stall kill); execa's own timeout channel is redundant with it (T26
+  // deletion surface — the self-held elapsed re-read dies with it, the monitor's cause is the
+  // single timing authority).
   const sub = execa(command, args, {
     cwd,
     env: cleanEnv(env),
-    timeout: timeoutMs,
-    forceKillAfterDelay: 5000,
     detached: true,          // independent group: pgid = child pid, grandchildren join it
     reject: false,
     all: false,
@@ -318,51 +377,45 @@ export async function spawnManaged(command: string, args: string[], opts: SpawnO
     });
     await persistRegistry();
   }
-  // T14 liveness monitor: opt-in dispatch-phase stall detection. Runs between registration and the
-  // child's resolution; on stall it kills the process group and taints the result so the caller
-  // writes the stall-specific TIMEOUT blocker (recovery contract in rules/failure.ts timeoutBlocker).
-  let stalled = false;
-  let stopLiveness: (() => void) | null = null;
-  if (pid != null && liveness) {
-    stopLiveness = startLivenessMonitor({
+  // T26 termination monitor: opt-in, unified stall + budget detection. Runs between registration
+  // and the child's resolution; on either signal it kills the process group and records the cause
+  // so the caller writes the cause-specific TIMEOUT blocker (resume-or-discard recovery contract
+  // in rules/failure.ts timeoutBlocker).
+  let monitorCause: TerminationCause | null = null;
+  let stopTermination: (() => TerminationCause | null) | null = null;
+  const start = Date.now();
+  if (pid != null && termination) {
+    stopTermination = startTerminationMonitor({
       pgid: pid,
-      progressPath: liveness.progressPath,
-      sampleIntervalMs: liveness.sampleIntervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS,
-      idleWindowMs: liveness.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS,
-      onStall: () => {
-        // Never taint a group that completed right before the tick — the kill fires only while the
-        // group is still observable as alive (a just-finished dispatch must not become a stalled one).
-        if (!pgidAlive(pid)) return;
-        stalled = true;
+      start,
+      progressPath: termination.progressPath,
+      budgetMs: termination.budgetMs,
+      sampleIntervalMs: termination.sampleIntervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS,
+      idleWindowMs: termination.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS,
+      onTerminate: () => {
+        // Never taint a group that completed right before the signal resolved — the kill fires
+        // only while the group is still observable as alive (a just-finished dispatch must not
+        // become a terminated one).
+        if (!pgidAlive(pid)) return false;
         killGroup(pid, KILL_SIGNAL);
-        // The stalled tool call may ignore SIGTERM — force the group down after the grace window.
+        // The killed tool call may ignore SIGTERM — force the group down after the grace window.
         // Not unref'd on purpose: a SIGTERM-ignoring child keeps the await pending until SIGKILL.
         setTimeout(() => killGroup(pid, FORCE_SIGNAL), 500);
+        return true;
       },
     });
   }
   const res = await sub;
-  stopLiveness?.();
-  // Stall override: the monitor killed the group before the budget — the child's death shape (a
-  // SIGTERM/SIGKILL from us) must surface as a TIMEOUT, and the stalled flag must reach the caller
-  // so the TIMEOUT blocker carries the residue-cleanup contract. Handled BEFORE the self-held
-  // determination: a stalled dispatch's elapsed is well under the budget by design (idle window
-  // ≪ total timeout), so the normal timedOut math would read it as a plain agent failure.
-  if (stalled) {
-    return { ok: false, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut: true, stalled: true };
-  }
-  // Self-held determination: any of three shapes ⇒ timedOut (res.timedOut is not the sole source).
-  //   ① elapsed >= timeoutMs - ε. ε=100ms pulls the line EARLIER than the budget — on-the-boundary
-  //      completions are conservatively timed out, catching SIGTERM-race / SIGKILL shapes that
-  //      otherwise land in agentRc. ε is far below real timeouts (smallest test timeout = 1s).
-  //   ② signal === "SIGTERM": SIGTERM shape is judged on res.signal (killed-or-swallowed both
-  //      report it). Never on exit code 143 — execa 9.x's res.code only carries spawn errors
-  //      (ENOENT…), the real code is res.exitCode; a natural 143-exit within budget is NOT a timeout.
-  const TIMEOUT_EPSILON_MS = 100;
-  const timedOut = res.timedOut === true
-    || (timeoutMs != null && Date.now() - start >= timeoutMs - TIMEOUT_EPSILON_MS)
-    || res.signal === "SIGTERM";
-  return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut };
+  monitorCause = stopTermination?.() ?? null;
+  // Cause determination, two sources, monitor first (a monitor kill surfaces the child's death as
+  // SIGTERM/SIGKILL — its own recorded cause must win over the exit-shape read):
+  //   ① the monitor recorded a stall/budget kill before the child resolved;
+  //   ② an EXTERNAL SIGTERM (exit shape res.signal === "SIGTERM", monitor never fired) → "signal".
+  //   Never judged on exit code 143 — execa 9.x's res.code only carries spawn errors (ENOENT…).
+  const cause: TerminationCause | undefined =
+    monitorCause ?? (res.signal === "SIGTERM" ? "signal" : undefined);
+  const timedOut = cause != null;
+  return { ok: res.exitCode === 0 && !timedOut, code: res.exitCode ?? 1, stdout: res.stdout ?? "", stderr: res.stderr ?? "", timedOut, cause };
 }
 
 // Mark every dispatch (incl. each retry attempt) done on return, for the idle sweep to reap.

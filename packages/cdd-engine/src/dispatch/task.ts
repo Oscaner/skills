@@ -42,11 +42,19 @@ import { handoffName, prevHandoffPath as hnPreHandoffPath, materializeWorkspace,
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
-import { invokeCli, invokeCliWithRetry, resolveTimeoutMs, resolveLivenessConfig } from "../infra/invoke.ts";
-import { withLifecycle, type LivenessConfig } from "../infra/proc.ts";
+import { invokeCli, invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
+import { withLifecycle, type TerminationConfig, type TerminationCause } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
+import {
+  settleResidue,
+  readDeadCarrier,
+  findResumeResidue,
+  resumeFromResidue,
+  appendixFromRecovery,
+  type ResidueAppendixInput,
+} from "../artifacts/residue.ts";
 import { validateHandoffSchema } from "../rules/schema.ts";
 import { returnFourLines, returnFromHandoff, dryRunBlock } from "../artifacts/return-block.ts";
 import { FAILURE_CATEGORIES, incrementFailureCounter, exhaustedBlocker, maybeExhaust, timeoutBlocker } from "../rules/failure.ts";
@@ -229,9 +237,10 @@ export interface TaskRunOptions {
   registryPath?: string;
   findingsPath?: string;
   pluginRoot?: () => string;
-  /** T14 test/override seam (non-env, mirrors registryPath): shorten the liveness monitor's timing
-   * for deterministic stall tests. Production callers leave it unset — canonical defaults apply. */
-  liveness?: { sampleIntervalMs?: number; idleWindowMs?: number };
+  /** T26 test/override seam (non-env, mirrors registryPath): shorten the termination monitor's
+   * timing for deterministic timeout/stall tests. Production callers leave it unset — canonical
+   * defaults apply. */
+  termination?: Partial<TerminationConfig>;
 }
 
 interface TaskResult {
@@ -246,8 +255,9 @@ interface TaskDiagnostic {
 
 // The spawn result as the legacy runner read it: the inflight result carries no `unkillable` field
 // (the legacy `res.unkillable === true` always read undefined → false); typed for parity so the
-// timeout-unkillable branch keeps its exact legacy shape. `stalled` is the T14 liveness-monitor
-// flag — surfaced by spawnManaged when the stall detector killed the group before the budget.
+// timeout-unkillable branch keeps its exact legacy shape. `cause` is the T26 unified termination
+// cause — surfaced by spawnManaged when the termination monitor killed the group (stalled /
+// over-budget) or an external SIGTERM ended it (signal).
 interface TaskSpawnResult {
   ok: boolean;
   code: number;
@@ -255,7 +265,7 @@ interface TaskSpawnResult {
   stderr: string;
   timedOut: boolean;
   unkillable?: boolean;
-  stalled?: boolean;
+  cause?: TerminationCause;
 }
 
 /** TaskLifecycle — the task-function lifecycle class. All 13.5 steps of the legacy run-task.mjs
@@ -375,9 +385,36 @@ export class TaskLifecycle extends DispatchLifecycle {
       // generation). Failure → CddExitError kind run-blocked → exit 1 — never a silent fallback to
       // an existing brief. Parent-dir bootstrap before writing (same workspace-bootstrap
       // convention as writeBaseBranch).
+      let residueAppendix: ResidueAppendixInput | null = null; // T26 resume-from-residue (spec T7.5)
+      if (!dryRun && mode === "implement") {
+        try {
+          // Resume pre-flight runs AFTER the entry gate (base.run(): commitPreCheck → resolveContext)
+          // verified a clean tree — the restore may land without conflict. Reads the PRIOR implement
+          // carrier: a dead round (TIMEOUT / EXECUTION_FAILURE) → find the salvage
+          // (recovery.residue_ref primary — settleResidue output ≡ resume input; standardized
+          // stash-message scan fallback for pre-schema carriers) → `git stash apply` → the
+          // regenerated brief appends the data-driven residue appendix so the next agent audits the
+          // restored WIP and continues, not rewrites. Fail-open: a resume failure never blocks the
+          // dispatch (CDD_WARN diagnostic; the brief regenerates without the appendix and the
+          // pre-resume clean baseline stands).
+          const carrier = readDeadCarrier(ctx.handoffPath);
+          if (carrier) {
+            const found = await findResumeResidue(this.#root, carrier, this.#taskNum);
+            if (found) {
+              if (await resumeFromResidue(this.#root, found.ref)) {
+                residueAppendix = appendixFromRecovery(carrier, found);
+              } else {
+                process.stderr.write(`CDD_WARN: residue stash apply failed (${found.ref}) — dispatch continues from the clean baseline\n`);
+              }
+            }
+          }
+        } catch {
+          // resume is best-effort — never blocks the dispatch
+        }
+      }
       try {
         mkdirSync(path.dirname(ctx.briefPath), { recursive: true });
-        await generateBrief(planWorkspace.plan, this.#taskNum, ctx.briefPath, this.#root);
+        await generateBrief(planWorkspace.plan, this.#taskNum, ctx.briefPath, this.#root, residueAppendix);
       } catch (e) {
         throw new CddExitError(`brief generation failed: ${(e as Error).message}`, { exitCode: 1, kind: "run-blocked" });
       }
@@ -460,8 +497,8 @@ export class TaskLifecycle extends DispatchLifecycle {
     let agentRc = 0;
     let timedOut = false;
     let unkillable = false;
-    let stalled = false;          // T14: liveness monitor killed the group (stall, not budget timeout)
-    let idleWindowMs: number | undefined; // T14 stall blocker detail (monitor idle window)
+    let cause: TerminationCause | undefined; // T26: unified termination cause (stalled/over-budget/signal)
+    let idleWindowMs: number | undefined; // stall blocker detail (monitor idle window)
     if (dryRun) {
       // Dry-run simulation block (return-block.ts single point): the 4-line APPROVED dry-run
       // payload; the post-flight parse re-appends the counters line (returnFourLines).
@@ -470,28 +507,19 @@ export class TaskLifecycle extends DispatchLifecycle {
         artifacts: `brief=${ctx.briefPath} report=${ctx.workspace}/task-${this.#taskNum}-report.md test_evidence=${ctx.workspace}/task-${this.#taskNum}-test-evidence.json`,
       });
     } else {
-      const timeoutMs = resolveTimeoutMs(this.#hostEnv(), "task");
-      this.#timeoutMs = timeoutMs;
-      // T14 liveness: dispatch-phase stall monitor over the workspace (opt-in; timing from the
-      // canonical timeouts.liveness surface, overridable via opts.liveness — the deterministic
-      // test seam). progressPath is ALWAYS the dispatch workspace — the engine writes every round
-      // artifact (brief / progress / open-findings / handoff / evidence) there. Boundary note:
-      // the agent's live repo-root edits are never observed; the workspace tree is static between
-      // artifact writes, so a mid-round edit-heavy agent's stall criterion rests on the CPU
-      // signal alone (thinking/file-reads burn CPU — the no-false-kill property still holds for
-      // that shape; spec E3's tree signal may be the workspace or the repo working tree — either
-      // one suffices).
-      const defLiveness = resolveLivenessConfig();
-      // A missing progress path reads 'unknown' forever and silently disables the tree signal —
-      // fail loud so a broken workspace can never quietly neuter the detector.
+      // T26 unified termination config: single resolver (resolveTerminationConfig) replaces the
+      // (resolveTimeoutMs + resolveLivenessConfig) pair — budget from canonical mode defaults with
+      // the opts.termination seam on top, stall cadence from canonical timeouts.liveness. The
+      // progress path is ALWAYS the dispatch workspace (engine artifacts live there); a missing
+      // one reads 'unknown' forever — fail loud so a broken workspace can never quietly neuter
+      // the tree signal.
+      const terminationCfg = resolveTerminationConfig("task", this.#opts.termination, ctx.workspace);
+      // #timeoutMs = the EFFECTIVE budget — the blockers/diagnostics report the budget the monitor
+      // actually enforced, not the canonical default.
+      this.#timeoutMs = terminationCfg.budgetMs;
       if (!existsSync(ctx.workspace)) {
-        process.stderr.write(`CDD_WARN: liveness progress path missing (${ctx.workspace}) — tree signal unavailable, stall detection relies on CPU alone\n`);
+        process.stderr.write(`CDD_WARN: termination progress path missing (${ctx.workspace}) — tree signal unavailable, stall detection relies on CPU alone\n`);
       }
-      const livenessCfg: LivenessConfig = {
-        progressPath: ctx.workspace,
-        sampleIntervalMs: this.#opts.liveness?.sampleIntervalMs ?? defLiveness.sampleIntervalMs,
-        idleWindowMs: this.#opts.liveness?.idleWindowMs ?? defLiveness.idleWindowMs,
-      };
       // Subprocess cwd = the injected root (the single root authority; this function never reads
       // the startup cwd and has no second injection seam). Subprocess env = the host env (zero
       // CDD_* injection — engine-internal state passes via ctx, never across the env boundary).
@@ -501,14 +529,13 @@ export class TaskLifecycle extends DispatchLifecycle {
         INVOKE_PARAMS[mode] ?? { op: mode },
         this.#hostEnv(),
         this.#root,
-        timeoutMs,
-        livenessCfg,
+        terminationCfg,
       )) as TaskSpawnResult;
       agentOut = res.ok ? res.stdout : "";
       timedOut = res.timedOut === true;
       unkillable = res.unkillable === true;
-      stalled = res.stalled === true;
-      idleWindowMs = livenessCfg.idleWindowMs;
+      cause = res.cause;
+      idleWindowMs = terminationCfg.idleWindowMs;
       if (!res.ok && !timedOut) agentRc = res.code;
     }
     this.#agentOut = agentOut;
@@ -533,24 +560,34 @@ export class TaskLifecycle extends DispatchLifecycle {
         this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), "process unkillable");
         return;
       }
-      // Normal timeout (budget exceeded OR liveness stall): TIMEOUT partial handoff. The blocker
-      // comes from the single rules/failure.ts timeoutBlocker point — the stall variant carries the
-      // residue-cleanup contract (abandoned uncommitted changes → discard/commit, then re-dispatch;
-      // the entry gate requires a clean tree).
+      // Normal timeout (budget exceeded OR liveness stall OR external SIGTERM): TIMEOUT partial
+      // handoff. The blocker comes from the single rules/failure.ts timeoutBlocker point keyed on
+      // the unified cause — the stall variant carries the resume-or-discard contract. T26 salvage:
+      // the round's uncommitted work is stashed FIRST (settleResidue — recovery.residue_ref rides
+      // the carrier; spec T7.5 settleResidue output ≡ resume input), so the re-dispatch pre-flight
+      // can restore it. Clean tree → settleResidue null → the carrier carries no recovery record.
       const timeoutMs = this.#timeoutMs;
+      const recovery = await settleResidue(this.#root, {
+        op: mode,
+        type: "task",
+        task: this.#taskNum,
+        round: ctx.round ?? 1,
+        cause: cause ?? "over-budget",
+      });
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
-        blocker: timeoutBlocker({ stalled, taskNum: this.#taskNum, timeoutMs, idleWindowMs }),
+        recovery: recovery ?? undefined,
+        blocker: timeoutBlocker({ cause, taskNum: this.#taskNum, timeoutMs, idleWindowMs, op: mode, residue: recovery?.residue_ref ?? null }),
       });
       if (!dryRun) incrementRound(progressDir, this.#taskNum, mode);
       // TIMEOUT counter increment: field via canonical counterFor, category identity via
       // FAILURE_CATEGORIES (replaces the legacy timeoutCount++ three-liner, T6 zero hand-written
       // counter literals).
       maybeExhaust(progressDir, FAILURE_CATEGORIES.TIMEOUT.id, ctx.handoffPath);
-      this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `cli timed out after ${timeoutMs}ms`);
+      this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `cli terminated (cause: ${cause ?? "unknown"})`);
       return;
     }
   }
@@ -615,14 +652,28 @@ export class TaskLifecycle extends DispatchLifecycle {
     }
 
     // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + return block +
-    //     the CDD_BLOCKED diagnostic + exit 1.
+    //     the CDD_BLOCKED diagnostic + exit 1. T26: like TIMEOUT, this is a resumable dead round —
+    //     settleResidue salvages whatever partial WIP the failed agent left before the carrier writes
+    //     (clean tree → no recovery record; the upgrade text keeps the legacy `cli exited N without
+    //     writing handoff` prefix the black-box suite matches).
     if (this.#agentRc !== 0 && !existsSync(ctx.handoffPath)) {
+      const recovery = await settleResidue(this.#root, {
+        op: mode,
+        type: "task",
+        task: this.#taskNum,
+        round: ctx.round ?? 1,
+        cause: "exec-failure",
+      });
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
         failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
         commits: { base: "unknown" }, // no real head at failure time — the "unknown" sentinel is the EXECUTION_FAILURE ground (T23)
-        blocker: `cli exited ${this.#agentRc} without writing handoff → check stderr above for errors, fix, then re-dispatch task ${this.#taskNum}`,
+        recovery: recovery ?? undefined,
+        blocker:
+          `cli exited ${this.#agentRc} without writing handoff → check stderr above for errors; ` +
+          (recovery ? `WIP salvaged (recovery.residue_ref=${recovery.residue_ref}) — ` : "") +
+          `resume 或丢弃：cdd ${mode} --task ${this.#taskNum} re-dispatch 自动续传（recovery.residue_ref）→ 或 git stash drop 放弃`,
       });
       if (!dryRun) {
         incrementRound(progressDir, this.#taskNum, mode);

@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/infra/__tests__/cli-shared.test.ts
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
-import { resolveTimeoutMs } from '../invoke.ts';
+import { resolveTerminationConfig } from '../invoke.ts';
 
 vi.mock('execa', () => ({
   execa: vi.fn(),
@@ -9,31 +9,23 @@ vi.mock('execa', () => ({
 
 import { execa } from 'execa';
 
-describe('resolveTimeoutMs', () => {
-  it('per-mode env takes priority', () => {
-    expect(resolveTimeoutMs({ CDD_TASK_TIMEOUT: '60' }, 'task')).toBe(60_000);
+describe('resolveTerminationConfig', () => {
+  it('default task budget is 90min (canonical timeouts.defaults.task)', () => {
+    expect(resolveTerminationConfig('task').budgetMs).toBe(5_400_000);
   });
-  it('CDD_CLI_TIMEOUT is stepped to 30-min boundary', () => {
-    // 1801s → ceil to 3600s
-    expect(resolveTimeoutMs({ CDD_CLI_TIMEOUT: '1801' }, 'task')).toBe(3_600_000);
+  it('default review budget is 60min (canonical timeouts.defaults.review)', () => {
+    expect(resolveTerminationConfig('review').budgetMs).toBe(3_600_000);
   });
-  it('default task timeout is 90min (canonical timeouts.defaults.task)', () => {
-    expect(resolveTimeoutMs({}, 'task')).toBe(5_400_000);
+  it('seam override wins over the canonical default (env-zero resolver)', () => {
+    expect(resolveTerminationConfig('task', { budgetMs: 60_000 }).budgetMs).toBe(60_000);
   });
-  it('default review timeout is 60min (canonical timeouts.defaults.review)', () => {
-    expect(resolveTimeoutMs({}, 'review')).toBe(3_600_000);
+  it('stall cadence reads canonical timeouts.liveness (60s sample / 15min idle window)', () => {
+    const cfg = resolveTerminationConfig('task');
+    expect(cfg.sampleIntervalMs).toBe(60_000);
+    expect(cfg.idleWindowMs).toBe(900_000);
   });
-  it('per-mode 巨大秒值 → 钳到安全天花板（T8 回归：setTimeout 32 位溢出 → ~1ms 瞬时 SIGTERM）', () => {
-    // 2700000s × 1000 = 2.7e9 ms > 2^31-1（2147483647 ms）；溢出触发 V8 TimeoutOverflowWarning
-    // 把 timeout 钳到 ~1ms → 一次正常 dispatch 变成瞬时 kill（CDD_REVIEW_TIMEOUT 泄漏时序回归）。
-    expect(resolveTimeoutMs({ CDD_REVIEW_TIMEOUT: '2700000' }, 'review')).toBeLessThanOrEqual(2_000_000_000);
-    expect(resolveTimeoutMs({ CDD_REVIEW_TIMEOUT: '2700000' }, 'review')).toBeGreaterThan(0);
-  });
-  it('CDD_CLI_TIMEOUT 巨大秒值同样钳制（全局路径同溢出面）', () => {
-    expect(resolveTimeoutMs({ CDD_CLI_TIMEOUT: '2700000' }, 'task')).toBeLessThanOrEqual(2_000_000_000);
-  });
-  it('unknown mode returns undefined', () => {
-    expect(resolveTimeoutMs({}, 'unknown')).toBeUndefined();
+  it('unknown mode returns undefined budget (canonical defaults only for declared modes)', () => {
+    expect(resolveTerminationConfig('unknown').budgetMs).toBeUndefined();
   });
 });
 
@@ -165,11 +157,14 @@ describe('invokeCliWithRetry', () => {
   });
 
   it('does not retry on timeout', async () => {
-    execa.mockResolvedValue({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
+    // external-SIGTERM exit shape — the T26 cause derivation reads signal === "SIGTERM" (execa's
+    // timedOut flag alone was dropped with the monitor takeover; the monitor always kills via SIGTERM)
+    execa.mockResolvedValue({ exitCode: -1, stdout: '', stderr: '', signal: 'SIGTERM' });
     const { invokeCliWithRetry } = await import('../invoke.ts');
     const entry = { cli: 'claude', invoke: '-p', output: 'text' };
     const res = await invokeCliWithRetry(entry, 'prompt', { op: 'implement' }, {}, '/tmp', undefined);
     expect(res.timedOut).toBe(true);
+    expect(res.cause).toBe('signal');
     expect(execa).toHaveBeenCalledTimes(1);
   });
 });

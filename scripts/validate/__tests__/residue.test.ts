@@ -497,7 +497,7 @@ describe("channel audit：② process.env 取值直读 ⊆ canonical 白名单�
     const dir = mkdtempSync(path.join(tmpdir(), "audit-env-ok-"));
     writeFileSync(
       path.join(dir, "ok.mjs"),
-      'a = process.env.PATH; b = process.env["CDD_TASK_TIMEOUT"]; c = env.CURSOR_TRACE_ID; d = env.CLAUDE_CODE_SESSION_ID;\n',
+      'a = process.env.PATH; b = process.env["AI_AGENT"]; c = env.CURSOR_TRACE_ID; d = env.CLAUDE_CODE_SESSION_ID;\n',
       "utf8",
     );
     try {

@@ -221,7 +221,9 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
     const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
     expect(handoff.status).toBe("BLOCKED");
     expect(handoff.blocker).toMatch(/cli exited 3 without writing handoff/);
-    expect(handoff.blocker).toMatch(/re-dispatch task 1/);
+    // T26 §⑤: the EXECUTION_FAILURE arm carries the resume-or-discard contract (resume via the
+    // implement re-dispatch, or abandon the salvage)
+    expect(handoff.blocker).toMatch(/resume 或丢弃：cdd implement --task 1 re-dispatch 自动续传（recovery.residue_ref）→ 或 git stash drop 放弃/);
   } finally {
     restore();
   }
@@ -431,14 +433,14 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
     const res = await runTask("ghost", 1, {
       mode: "implement",
       planFile, root: repo,
-      env: { ...process.env, CDD_TASK_TIMEOUT: "1" },
+      termination: { budgetMs: 1000 }, // effective budget via the deterministic timing seam
       registryPath: regPath, noExit: true,
     });
     const hp = path.join(ws, "task-1-implement.json");
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("TIMEOUT");
-    expect(h.blocker).toMatch(/timed out after/);
+    expect(h.blocker).toMatch(/timed out after 1000ms/);
     expect(h.task).toBe(1);
   } finally {
     restore();
@@ -450,12 +452,12 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-tc-inc-"));
   const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
   const regPath = ghostRegistry(ws);
-  const env = { ...process.env, CDD_TASK_TIMEOUT: "1" };
+  const env = { ...process.env };
   try {
-    await runTask("ghost", 1, { mode: "implement", planFile, root: repo, env, registryPath: regPath, noExit: true });
+    await runTask("ghost", 1, { mode: "implement", planFile, root: repo, termination: { budgetMs: 1000 }, env, registryPath: regPath, noExit: true });
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress.timeoutCount).toBe(1);
-    await runTask("ghost", 1, { mode: "implement", planFile, root: repo, env, registryPath: regPath, noExit: true });
+    await runTask("ghost", 1, { mode: "implement", planFile, root: repo, termination: { budgetMs: 1000 }, env, registryPath: regPath, noExit: true });
     const progress2 = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress2.timeoutCount).toBe(2);
   } finally {
@@ -463,10 +465,10 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
   }
 }, 15_000);
 
-it.skipIf(!GROUP_SUPPORTED)("runTask: liveness stall → TIMEOUT handoff + recovery-guidance blocker + timeoutCount incremented (T14)", async () => {
-  // The fake CLI runs forever with no CPU and writes nothing — the liveness monitor must kill the
-  // group past the idle window (LONG BEFORE the 90-min budget), and the handoff must carry the
-  // residue-cleanup contract (discard/commit, then re-dispatch over a clean tree).
+it.skipIf(!GROUP_SUPPORTED)("runTask: stall → TIMEOUT handoff + resume-or-discard blocker + timeoutCount incremented (T26)", async () => {
+  // The fake CLI runs forever with no CPU and writes nothing — the stall signal must kill the
+  // group past the idle window (LONG BEFORE the budget), and the handoff must carry the T26
+  // resume-or-discard contract (recovery salvage + cdd implement re-dispatch auto-resume).
   const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-stall-"));
   const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexec sleep 1000\nexit 0\n");
@@ -475,7 +477,7 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: liveness stall → TIMEOUT handoff + recov
     const res = await runTask("ghost", 1, {
       mode: "implement",
       planFile, root: repo,
-      liveness: { sampleIntervalMs: 200, idleWindowMs: 1500 }, // timing override = deterministic test seam
+      termination: { sampleIntervalMs: 200, idleWindowMs: 1500 }, // timing override = deterministic test seam
       registryPath: regPath, noExit: true,
     });
     const hp = path.join(ws, "task-1-implement.json");
@@ -484,9 +486,8 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: liveness stall → TIMEOUT handoff + recov
     expect(h.status).toBe("TIMEOUT");
     expect(h.failure_category).toBe("TIMEOUT");   // stall stays in the TIMEOUT category (extended semantics — not a new category)
     expect(h.blocker).toMatch(/stalled/);
-    expect(h.blocker).toMatch(/discard or commit/);
-    expect(h.blocker).toMatch(/clean tree/);
-    expect(h.blocker).toMatch(/re-dispatch task 1/);
+    expect(h.blocker).toMatch(/resume 或丢弃：cdd implement --task 1 re-dispatch 自动续传/);
+    expect(h.blocker).toMatch(/git stash drop 放弃/);
     expect(h.task).toBe(1);
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress.timeoutCount).toBe(1);        // stall counts toward the normal timeout quota
@@ -1343,3 +1344,119 @@ it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 cons
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);
 });
+
+// ---- T26 resume-from-residue black-box (spec T7.5) ----
+// Real dispatch through the ghost fake-cli: ① a dead round (budget TIMEOUT with tracked WIP)
+// must salvage the WIP into a stash and ride recovery.residue_ref on the carrier; ② the re-dispatch
+// pre-flight (resolveContext, after the entry gate) must apply the salvage back, and the regenerated
+// brief must carry the data-driven residue appendix — the next agent continues on the restored WIP
+// (incremental addition), it does not rewrite from zero (the T25 0→727 story). Budget path (not
+// stall) keeps the suite group-support-independent like the timeout test above.
+
+// git stash needs a repo-local identity (helpers' gitInit sets it only inline on the commit command)
+// — real repos always have one.
+function configureGitIdentity(repo) {
+  execFileSync("git", ["-C", repo, "config", "user.name", "cdd-test"]);
+  execFileSync("git", ["-C", repo, "config", "user.email", "cdd-test@example.com"]);
+}
+
+// The continuing round-2 fake CLI body (shared by both scenarios): append an incremental line to the
+// restored WIP, commit (clean exit-gate baseline), then emit the 4-line return block.
+function continuingCli(ws) {
+  return (
+    `#!/usr/bin/env bash\n` +
+    `printf 'line3-agent-increment\n' >> wip.md\n` +
+    `git add wip.md\n` +
+    `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "agent incremental continuation"\n` +
+    `printf 'status: APPROVED\\ncommits: base=0000000000000000000000000000000000000000 head=0000000000000000000000000000000000000000\\n'\n` +
+    `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+    `exit 0\n`
+  );
+}
+
+it("T26 black-box: TIMEOUT → salvage → re-dispatch resumes WIP + brief appendix + increment on top", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  configureGitIdentity(repo);
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-rr-"));
+  const regPath = ghostRegistry(ws);
+  // Round 1 agent: writes a tracked WIP file then hangs → budget TIMEOUT (cause over-budget).
+  // (no opts.env — hostEnv() reads the LIVE process.env, which withFakeCli PATH-shims below)
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\nprintf 'line2-round1-agent-wip\n' > wip.md\ngit add wip.md\nexec sleep 100\n`);
+  try {
+    await runTask("ghost", 1, {
+      mode: "implement", planFile, root: repo, termination: { budgetMs: 1000 },
+      registryPath: regPath, noExit: true,
+    });
+    const hp = path.join(ws, "task-1-implement.json");
+    const h1 = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h1.status).toBe("TIMEOUT");
+    expect(h1.recovery.residue_ref).toMatch(/^[0-9a-f]{40}$/); // settleResidue output rides the carrier
+    expect(h1.recovery.stash_message).toBe("cdd-implement-task-task-1-r1-over-budget");
+    expect(h1.recovery.residue_scope).toMatch(/file changed/); // scope data-driven from git shortstat
+    expect(existsSync(path.join(repo, "wip.md"))).toBe(false);  // salvage moved the WIP OUT of the tree
+    // Round 2 agent: continues on the restored WIP (increment), commits, returns the block.
+    writeFileSync(path.join(binDir, "fake-cli"), continuingCli(ws));
+    chmodSync(path.join(binDir, "fake-cli"), 0o755);
+    const res2 = await runTask("ghost", 1, {
+      mode: "implement", planFile, root: repo, termination: { budgetMs: 5000 },
+      registryPath: regPath, noExit: true,
+    });
+    expect(res2.exitCode).toBe(0);
+    const h2 = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h2.status).toBe("APPROVED");
+    expect(h2.artifacts.brief).toBe(path.join(ws, "task-1-brief.md"));
+    // WIP restored AND extended — 续作（increment on top）, not a rewrite from zero
+    expect(readFileSync(path.join(repo, "wip.md"), "utf8"))
+      .toBe("line2-round1-agent-wip\nline3-agent-increment\n");
+    // the regenerated brief carries the data-driven residue appendix (status/cause/stash/scope)
+    const brief = readFileSync(path.join(ws, "task-1-brief.md"), "utf8");
+    expect(brief).toContain("## Residue status from the previous dispatch");
+    expect(brief).toContain("ended in TIMEOUT (cause: over-budget)");
+    expect(brief).toContain("cdd-implement-task-task-1-r1-over-budget");
+    expect(brief).toContain("1 file changed, 1 insertion(+)");
+    // apply ≠ pop — the salvage stays in the stash list for the operator to inspect/drop
+    expect(execFileSync("git", ["-C", repo, "stash", "list"], { encoding: "utf8" }))
+      .toContain("cdd-implement-task-task-1-r1-over-budget");
+  } finally {
+    restore();
+  }
+}, 30_000);
+
+it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) + standardized stash → scan → apply → appendix", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  configureGitIdentity(repo);
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-rr-legacy-"));
+  const regPath = ghostRegistry(ws);
+  const restore = withFakeCli(binDir, "fake-cli",
+    `#!/usr/bin/env bash\nprintf 'legacy-wip\n' > wip.md\ngit add wip.md\nexec sleep 100\n`);
+  try {
+    await runTask("ghost", 1, {
+      mode: "implement", planFile, root: repo, termination: { budgetMs: 1000 },
+      registryPath: regPath, noExit: true,
+    });
+    const hp = path.join(ws, "task-1-implement.json");
+    const h1 = JSON.parse(readFileSync(hp, "utf8"));
+    expect(h1.recovery.residue_ref).toMatch(/^[0-9a-f]{40}$/);
+    // 模拟 pre-schema carrier：T25 时代的 TIMEOUT handoff 无 recovery 键（settleResidue 未落地、
+    // ref 未入 schema），仅 status + failure_category 机制面。
+    delete h1.recovery;
+    writeFileSync(hp, JSON.stringify(h1));
+    // Round 2: swap in the continuing agent, then re-dispatch.
+    writeFileSync(path.join(binDir, "fake-cli"), continuingCli(ws));
+    chmodSync(path.join(binDir, "fake-cli"), 0o755);
+    const res2 = await runTask("ghost", 1, {
+      mode: "implement", planFile, root: repo, termination: { budgetMs: 5000 },
+      registryPath: regPath, noExit: true,
+    });
+    expect(res2.exitCode).toBe(0);
+    // 检索兜底命中 standardized stash message → WIP 恢复（resume input = stash@{0} list ref）
+    expect(readFileSync(path.join(repo, "wip.md"), "utf8")).toBe("legacy-wip\nline3-agent-increment\n");
+    const brief = readFileSync(path.join(ws, "task-1-brief.md"), "utf8");
+    expect(brief).toContain("## Residue status from the previous dispatch");
+    expect(brief).toContain("stash@{0}"); // legacy resume keyed on the list ref (no index-independent SHA)
+    expect(brief).toContain("cdd-implement-task-task-1-r1-over-budget");
+  } finally {
+    restore();
+  }
+}, 30_000);

@@ -28,7 +28,7 @@ import {
   type DispatchHookContext,
   DispatchBlocked,
 } from "./base.ts";
-import { invokeCli, resolveTimeoutMs } from "../infra/invoke.ts";
+import { invokeCli, resolveTerminationConfig } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot } from "../infra/root.ts";
 import { exitWithCode, ExitRequested, invariant } from "../infra/exit.ts";
@@ -184,8 +184,11 @@ export class DocsLifecycle extends DispatchLifecycle {
     // prefix.fix (flat string) respectively; type threads from cdd review/fix --type.
     const reg = loadRegistry(REG_PATH);
     const entry = checkHarness(reg, harness);
-    const timeoutMs = resolveTimeoutMs(process.env, "review");
-    const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, this.ctx.repoRoot as string, timeoutMs);
+    // T26 unified termination (budget-only for docs — no workspace tree signal, same as the
+    // budget channel of task/branch; resolveTerminationConfig defaults the budget from canonical
+    // timeouts.defaults.review — zero env reads; the terminal reason still lands in the TIMEOUT
+    // blocker).
+    const res = await invokeCli(entry, prompt, { op: mode, type }, process.env, this.ctx.repoRoot as string, resolveTerminationConfig("review"));
     this.#agentRc = res.code;
   }
 

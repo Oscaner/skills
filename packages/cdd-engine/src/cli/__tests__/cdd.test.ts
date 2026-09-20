@@ -52,9 +52,9 @@ function runCli(args = [], opts = {}) {
   }
   try {
     // extendEnv:false —— execa 默认 extendEnv:true 会把父进程 env 合入 child，覆盖 cleanEnv 的
-    // CDD_* 剥离（orchestrator 携带的 CDD_REVIEW_TIMEOUT 等泄漏回测试 child，见 T8 回归：
-    // 秒值 ×1000 溢出 setTimeout 32 位上限 → ~1ms 瞬时 SIGTERM → 非 dry-run 用例确定性 FAIL）。
-    // 关闭 extendEnv 后 child 只见 cleanEnv 显式清单，测试与调度侧环境变量零耦合。
+    // CDD_* 剥离（orchestrator 携带的 CDD_* 键泄漏回测试 child，T8 回归：秒值 ×1000 溢出 setTimeout
+    // 32 位上限 → ~1ms 瞬时 SIGTERM → 非 dry-run 用例确定性 FAIL；T26 三超时键已删，机理由整族
+    // CDD_* 键承担）。关闭 extendEnv 后 child 只见 cleanEnv 显式清单，测试与调度侧环境变量零耦合。
     const r = execaSync(NODE, [CDD_MJS, ...args], { cwd, env, encoding: "utf8", extendEnv: false });
     return { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
   } catch (e) {

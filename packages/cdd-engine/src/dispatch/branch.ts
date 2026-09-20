@@ -39,8 +39,7 @@ import { validateHandoffSchema } from "../rules/schema.ts";
 import { finalizeHandoff, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
 import { writeHandoff, writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { invokeCliWithRetry, resolveTimeoutMs, resolveLivenessConfig } from "../infra/invoke.ts";
-import { type LivenessConfig } from "../infra/proc.ts";
+import { invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
 import { reviewConvergenceGuard } from "../rules/convergence.ts";
 import { assembleReturnBlock } from "../artifacts/return-block.ts";
@@ -310,24 +309,16 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     }, "cdd review");
 
     // Invoke harness CLI. (op,type) injection resolves into prefix.review.branch (the old
-    // branch-review standalone bin is deleted, its logic inlined here).
-    const timeoutMs = resolveTimeoutMs(process.env, "review");
-    // T14 liveness: the branch channels thread the canonical stall-liveness config (same surface
-    // as the task/docs dispatch — the workspace tree signal; canonical timeouts.liveness).
-    const defLiveness = resolveLivenessConfig();
-    const livenessCfg: LivenessConfig = {
-      progressPath: this.workspace,
-      sampleIntervalMs: defLiveness.sampleIntervalMs,
-      idleWindowMs: defLiveness.idleWindowMs,
-    };
+    // branch-review standalone bin is deleted, its logic inlined here). T26 unified termination
+    // (single resolver — budget from canonical review defaults, stall over the workspace tree).
+    const terminationCfg = resolveTerminationConfig("review", undefined, this.workspace);
     const res = (await invokeCliWithRetry(
       this.entry!,
       prompt,
       { op: "review", type: "branch" },
       process.env,
       this.repoRoot,
-      timeoutMs,
-      livenessCfg,
+      terminationCfg,
     )) as BranchInvokeResult;
     this.agentRc = res.code;
   }
@@ -488,23 +479,16 @@ export class BranchFixLifecycle extends BranchLifecycle {
     }, "cdd fix");
 
     // Invoke the harness CLI. (op,type) injection resolves the flat `prefix.fix` string
-    // (/mattpocock-skills:tdd — the fix channel is work-type, not per-type). T14 liveness threaded
-    // (canonical stall-liveness config — same surface as the task/docs/branch-review dispatch).
-    const timeoutMs = resolveTimeoutMs(process.env, "review");
-    const defLiveness = resolveLivenessConfig();
-    const livenessCfg: LivenessConfig = {
-      progressPath: this.workspace,
-      sampleIntervalMs: defLiveness.sampleIntervalMs,
-      idleWindowMs: defLiveness.idleWindowMs,
-    };
+    // (/mattpocock-skills:tdd — the fix channel is work-type, not per-type). T26 unified
+    // termination (single resolver — same surface as task/docs/branch-review).
+    const terminationCfg = resolveTerminationConfig("review", undefined, this.workspace);
     const res = (await invokeCliWithRetry(
       this.entry!,
       prompt,
       { op: "fix", type: "branch" },
       process.env,
       this.repoRoot,
-      timeoutMs,
-      livenessCfg,
+      terminationCfg,
     )) as BranchInvokeResult;
     this.agentRc = res.code;
   }

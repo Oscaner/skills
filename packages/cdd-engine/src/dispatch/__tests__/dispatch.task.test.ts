@@ -17,23 +17,23 @@ import path from "node:path";
 
 import { TaskLifecycle, runTask, returnFromHandoff } from "../task.ts";
 import { DispatchBlocked } from "../base.ts";
-import { invokeCliWithRetry, resolveTimeoutMs } from "../../infra/invoke.ts";
+import { invokeCliWithRetry, resolveTerminationConfig } from "../../infra/invoke.ts";
 import { REG_PATH } from "../../infra/registry.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 
-// E2②/T14 接口消歧（P6 T10）: dry-run 走 run() pre-flight 早退路径，不经过 spawnManaged——断言
-// invokeCliWithRetry（唯一 spawn 通道）与 resolveTimeoutMs（liveness TIMEOUT 预算）在 dry-run
-// 下零调用。本文件全部用例 dryRun:true → 永不触 invoke；mock 为文件级安全加固。
+// E2②/T14 接口消歧（P6 T10）+ T26: dry-run 走 run() pre-flight 早退路径，不经过 spawnManaged——
+// 断言 invokeCliWithRetry（唯一 spawn 通道）与 resolveTerminationConfig（统一终止配置解析）在
+// dry-run 下零调用。本文件全部用例 dryRun:true → 永不触 invoke；mock 为文件级安全加固。
 // ⚠️ 文件级 mock 覆盖全文件：新增「真实 dispatch（dryRun=false）且依赖 invokeCliWithRetry /
-// resolveTimeoutMs 的 spawn-TIMEOUT 行为」用例必须移出本文件（真实 spawn/TIMEOUT 语义由
+// resolveTerminationConfig 的 spawn-TIMEOUT 行为」用例必须移出本文件（真实 spawn/TIMEOUT 语义由
 // tests/runner.test.mjs 拥有）——否则本 mock 会静默清空其 spawn 通道。
 vi.mock("../../infra/invoke.ts", async () => {
   const actual = await vi.importActual<typeof import("../../infra/invoke.ts")>("../../infra/invoke.ts");
   return {
     ...actual,
     invokeCliWithRetry: vi.fn(),
-    resolveTimeoutMs: vi.fn(),
+    resolveTerminationConfig: vi.fn(),
   };
 });
 
@@ -165,13 +165,13 @@ it("returnFromHandoff ④: commit-gate 文案仅当来源 commit-gate（handoff 
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: uncommitted changes at return");
 });
 
-// E2②/T14 接口消歧: dry-run 路径零 liveness 介入——不 spawn（invokeCliWithRetry 零调用）、不取
-// liveness TIMEOUT 预算（resolveTimeoutMs 零调用）、无 TIMEOUT handoff 写出、timeout 计数不递增。
+// E2②/T14 接口消歧 + T26: dry-run 路径零终止介入——不 spawn（invokeCliWithRetry 零调用）、不解析
+// 终止配置（resolveTerminationConfig 零调用）、无 TIMEOUT handoff 写出、timeout 计数不递增。
 // TIMEOUT 扩张仅真实 dispatch——相反面由 runner.test.ts 的「real dispatch + fake sleep → TIMEOUT
 // handoff + timeoutCount++」钉住（425/448），dry-run 若进该路径即静默地破坏消歧契约。
-it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析 timeout / 无 TIMEOUT handoff / timeout=0", async () => {
+it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终止配置 / 无 TIMEOUT handoff / timeout=0", async () => {
   vi.mocked(invokeCliWithRetry).mockClear();
-  vi.mocked(resolveTimeoutMs).mockClear();
+  vi.mocked(resolveTerminationConfig).mockClear();
   const repo = setupRepo();
   mkdirSync(path.join(repo, "docs"), { recursive: true });
   writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
@@ -185,7 +185,7 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析 tim
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(vi.mocked(invokeCliWithRetry)).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight 早退，无 spawnManaged
-  expect(vi.mocked(resolveTimeoutMs)).not.toHaveBeenCalled();    // 无 liveness TIMEOUT 预算
+  expect(vi.mocked(resolveTerminationConfig)).not.toHaveBeenCalled();    // dry-run 无终止配置解析
   expect(res.returnBlock[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");

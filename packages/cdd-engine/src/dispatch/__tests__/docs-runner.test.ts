@@ -390,6 +390,38 @@ describe("runDocsTask", () => {
     expect(writeCall[1].doc_hash).toBe(createHash("sha256").update("blocked content").digest("hex"));
   });
 
+  it("exit-0-no-handoff boundary → recovery carries the cause only (exit_code stays a strict-death code)", async () => {
+    const { execa } = await import("execa");
+    const dir = mkdtempSync(join(tmpdir(), "p2death-"));
+    const doc = join(dir, "spec.md");
+    writeFileSync(doc, "blocked content");
+    vi.resetModules();
+    const { runDocsTask } = await import("../docs.ts");
+    const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
+    mockRealWriteBack(writeHandoff);
+    // Three faces of the same「no handoff after exit」boundary: exit 0 (contract break, NOT a death),
+    // 143 (SIGTERM), 1 (run failure). Each dispatch gets a fresh orphan dir (an existing written
+    // handoff would reroute the run to the read-and-validate path, leaving the boundary).
+    const faces = [
+      { rc: 0, recovery: { cause: "EXECUTION_FAILURE" } }, // cause ONLY — a 0 never rides as a diagnosed death
+      { rc: 143, recovery: { cause: "EXECUTION_FAILURE", exit_code: 143 } },
+      { rc: 1, recovery: { cause: "EXECUTION_FAILURE", exit_code: 1 } },
+    ];
+    for (const [i, face] of faces.entries()) {
+      execa.mockResolvedValue({ exitCode: face.rc, stdout: "", stderr: "", timedOut: false });
+      const result = await runDocsTask({
+        harness: "claude", mode: "review", template: "review", type: "spec", doc,
+        handoffPath: join(dir, `ws${i}`, "spec-review-1.json"),
+        repoRoot: "/repo/root",
+        dryRun: false,
+      });
+      expect(result.exitCode).toBe(1);
+      const writeCall = writeHandoff.mock.calls.at(-1); // exactly one carrier write per dispatch
+      expect(String(writeCall[0])).toContain(`ws${i}`);
+      expect(writeCall[1].recovery).toEqual(face.recovery);
+    }
+  });
+
   it("plan 家族镜像：review-mode type:plan 定稿注入 doc_hash（真实双族 handoff 断言）", async () => {
     const { execa } = await import("execa");
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });

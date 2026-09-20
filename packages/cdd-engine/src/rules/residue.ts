@@ -8,6 +8,8 @@
 // (same AC14 discipline as rules/failure.ts); a canonical category added later becomes eligible
 // only by explicit edit here.
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
+import { roundPattern } from "../artifacts/handoff/naming.ts";
+import { loadEngineConfig } from "../infra/config.ts";
 import { FAILURE_CATEGORIES } from "./failure.ts";
 import { gitStashPreserve, type WipStat } from "../infra/git.ts";
 import path from "node:path";
@@ -26,11 +28,34 @@ export function recoveryEligible(cause: string | null | undefined): boolean {
 }
 
 /**
+ * The stash snapshot's round marker (brief Do ①: the annotation must label task and round),
+ * derived from the carrier's canonical family shape — naming.ts roundPattern over the family
+ * config (single source; never a hand-parallel regex). Round-bearing families (review/fix
+ * task/spec/plan, branch) already encode the round in the name (task-N-fix-R.json /
+ * branch-…-rR.json) → null (their name IS the marker, no duplicate token); the lone round-slot-less
+ * family (implement.task) has no round in the name and implement rounds are always 1
+ * (buildCtx: mode === "implement" ? 1) → 1; an unclassifiable basename → null (the marker is
+ * dropped, never fabricated).
+ */
+export function roundFromCarrierBasename(basename: string): number | null {
+  const { families } = loadEngineConfig().handoffNamespace;
+  for (const [key] of Object.entries(families)) {
+    const [op, type] = key.split(".");
+    if (!op || !type) continue;
+    const m = basename.match(roundPattern(op, type));
+    if (!m) continue;
+    return m[1] !== undefined ? null : 1; // round-slot family → name already carries the round; implement → 1
+  }
+  return null;
+}
+
+/**
  * Preserve a failed round's residue into the recovery carrier:
  *   1. read the carrier — no handoff / no recovery / ineligible cause / already preserved → null
  *      (fail-open, zero output);
  *   2. dirty tree → `git stash push -u` with a round annotation
- *      (`cdd residue: <cause> <handoff basename>` — the stash list's human pointer);
+ *      (`cdd residue: <cause> <handoff basename>` + the round marker where the name lacks one
+ *      (implement) — the stash list's human pointer; brief Do ① task/round labeling);
  *   3. write residue_ref + wip_stat + preserved=true back into the carrier's recovery object
  *      (structure in the carrier, prose stays in the blocker — T23 same-law).
  * Returns the stash facts when preserved, null otherwise.
@@ -49,7 +74,9 @@ export async function preserveRoundResidue(
   // Already-preserved rounds never double-stash (preserveRoundResidue is re-runnable).
   if (rec.preserved === true) return null;
 
-  const message = `cdd residue: ${String(rec.cause)} ${path.basename(handoffPath)}`;
+  const basename = path.basename(handoffPath);
+  const round = roundFromCarrierBasename(basename);
+  const message = `cdd residue: ${String(rec.cause)} ${basename}` + (round !== null ? ` r${round}` : "");
   // The engine-authored carrier is pass-through residue: exclude it from the stash snapshot
   // when it lives inside the repo (path.relative starts with ".." when it's outside — no
   // exclusion needed, it can't be stashed anyway). Keeps the WIP stat to the agent's residue

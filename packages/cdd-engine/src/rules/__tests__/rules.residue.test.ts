@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { gitInit, gitCommit } from "../../infra/__tests__/helpers.ts";
 import { gitStatusPorcelain } from "../../infra/git.ts";
 import { FAILURE_CATEGORIES } from "../failure.ts";
-import { recoveryEligible, preserveRoundResidue } from "../residue.ts";
+import { recoveryEligible, preserveRoundResidue, roundFromCarrierBasename } from "../residue.ts";
 
 const tmpRepos: string[] = [];
 
@@ -22,14 +22,14 @@ afterEach(() => {
   for (const repo of tmpRepos.splice(0)) rmSync(repo, { recursive: true, force: true });
 });
 
-function tmpRepo(): { repo: string; handoff: string } {
+function tmpRepo(handoffBasename = "task-1-handoff.json"): { repo: string; handoff: string } {
   const repo = mkdtempSync(path.join(tmpdir(), "cdd-residue-"));
   tmpRepos.push(repo);
   gitInit(repo);
   // Stash push needs a persistent identity (helpers gitInit uses -c inline only).
   execFileSync("git", ["-C", repo, "config", "user.name", "t"]);
   execFileSync("git", ["-C", repo, "config", "user.email", "t@t"]);
-  return { repo, handoff: path.join(repo, "task-1-handoff.json") };
+  return { repo, handoff: path.join(repo, handoffBasename) };
 }
 
 describe("rules/residue.ts — recoveryEligible (preservation eligibility)", () => {
@@ -160,6 +160,67 @@ describe("rules/residue.ts — preserveRoundResidue (carrier + stash)", () => {
     });
     // human prose untouched — the facts live in the carrier, the prose stays in the blocker
     expect(carrier.blocker).toBe("agent stalled while closing the review");
+  });
+});
+
+describe("rules/residue.ts — roundFromCarrierBasename (stash round marker source)", () => {
+  it("implement-family carrier (round = fixed, no {round} slot) → 1 (implement rounds are always round 1)", () => {
+    expect(roundFromCarrierBasename("task-5-implement.json")).toBe(1);
+  });
+
+  it("round-bearing family carriers → null (the name already encodes the round — no duplicate marker)", () => {
+    expect(roundFromCarrierBasename("task-5-review-3.json")).toBeNull();
+    expect(roundFromCarrierBasename("task-5-fix-2.json")).toBeNull();
+    expect(roundFromCarrierBasename("spec-review-2.json")).toBeNull();
+    expect(roundFromCarrierBasename("spec-fix-1.json")).toBeNull();
+    expect(roundFromCarrierBasename("plan-review-1.json")).toBeNull();
+    expect(roundFromCarrierBasename("plan-fix-2.json")).toBeNull();
+    expect(roundFromCarrierBasename("branch-review-faa2bc8..b4fe6d8-r1.json")).toBeNull();
+    expect(roundFromCarrierBasename("branch-fix-faa2bc8..b4fe6d8-r1.json")).toBeNull();
+  });
+
+  it("unclassifiable basenames → null (the marker is dropped, never fabricated)", () => {
+    expect(roundFromCarrierBasename("task-1-handoff.json")).toBeNull();
+    expect(roundFromCarrierBasename("notes.md")).toBeNull();
+  });
+});
+
+describe("rules/residue.ts — stash round marker on the snapshot message (brief Do ①)", () => {
+  it("implement-family carrier → message carries the r1 round marker", async () => {
+    const { repo, handoff } = tmpRepo("task-5-implement.json");
+    writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
+    gitCommit(repo, "base");
+    writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
+    writeFileSync(handoff, JSON.stringify({
+      task: 5, phase: "implement", status: "BLOCKED",
+      failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+      recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: 1 },
+      blocker: "agent died before writing the handoff",
+    }));
+
+    const res = await preserveRoundResidue(handoff, repo);
+    expect(res).not.toBeNull();
+    const list = execFileSync("git", ["-C", repo, "stash", "list"], { encoding: "utf8" });
+    expect(list).toContain("cdd residue: EXECUTION_FAILURE task-5-implement.json r1");
+  });
+
+  it("round-bearing carrier → no duplicated marker (the canonical name is the round's own label)", async () => {
+    const { repo, handoff } = tmpRepo("task-5-fix-2.json");
+    writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
+    gitCommit(repo, "base");
+    writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
+    writeFileSync(handoff, JSON.stringify({
+      task: 5, phase: "fix", status: "BLOCKED",
+      failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+      recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: 143 },
+      blocker: "agent killed mid-round",
+    }));
+
+    const res = await preserveRoundResidue(handoff, repo);
+    expect(res).not.toBeNull();
+    const list = execFileSync("git", ["-C", repo, "stash", "list"], { encoding: "utf8" });
+    expect(list).toContain("cdd residue: EXECUTION_FAILURE task-5-fix-2.json"); // round 2 rides the name
+    expect(list).not.toContain("task-5-fix-2.json r");                          // never a duplicated marker
   });
 });
 

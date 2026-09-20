@@ -182,7 +182,7 @@ export async function gitDiffShortstat(cwd: string): Promise<string | null> {
 
 // ---- T25 residue-stash preservation (rules/residue.ts) ----
 // The structured WIP scale (files / insertions / deletions) that `recovery.wip_stat` carries at
-// salvage time — the data-driven 「文件数/+M/−M」 the recovery carrier archives next to residue_ref.
+// salvage time — the data-driven (file count / +M/−M) the recovery carrier archives next to residue_ref.
 // Unlike `git diff HEAD --shortstat` (tracked only), the scale also counts brand-new UNTRACKED
 // files (the normal TDD shape for new tests/modules): each untracked entry counts as one file with
 // its newline-count as insertions — `git diff --numstat` cannot see untracked files, so the count

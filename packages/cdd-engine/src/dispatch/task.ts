@@ -441,6 +441,14 @@ export class TaskLifecycle extends DispatchLifecycle {
     }
     this.#tcx = ctx;
 
+    // Post-flight wiring: the inherited writeBoundary step reads the handoff path from the public
+    // ctx (which runTask constructs with an empty handoffPath — the canonical path is derived here
+    // by buildCtx). Sync it so the changed-surface reconcile sees the real carrier (the T25 gap:
+    // task-family carriers never carried the ledger-origin note because the step was reading "").
+    // Idempotence is preserved: the base settleResidue step, which reads the same path, is a no-op
+    // for task rounds (resume-class failures already preserved inline — recovery.preserved guard).
+    this.ctx = { ...this.ctx, handoffPath: ctx.handoffPath };
+
     // 2.5 Templates existence check — BLOCKED exit 1 if missing. pluginRoot() =
     // src/render/templates.ts PKG_ROOT = <pkg>/templates (re-org Step 5 semantics converged to
     // that resource directory itself).

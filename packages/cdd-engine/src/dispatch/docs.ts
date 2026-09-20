@@ -203,11 +203,16 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (!existsSync(handoffPath)) {
       // T25: the docs channel carries the death diagnosis (recovery.cause + exit_code) so the base
       // settleResidue template step auto-preserves the dirty-tree WIP right after this lane returns
-      // (retrievable via `git stash list` — never pre-destroyed).
+      // (retrievable via `git stash list` — never pre-destroyed). exit_code stays a strictly-death
+      // code (the recovery schema denotation: "1 = run failure, 143 = SIGTERM") — the exit-0-no-
+      // handoff boundary carries the cause only, so a 0 never rides the carrier as a diagnosed death.
       this.#done(writeBlockedCarrier(handoffPath, {
         phase: this.#opts.mode,
         doc: this.#opts.doc,
-        recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.#agentRc },
+        recovery: {
+          cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
+          ...(this.#agentRc !== 0 ? { exit_code: this.#agentRc } : {}),
+        },
         blocker: `${path.basename(handoffPath)} not written after exit → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${this.#opts.mode} and ensure handoff is written to ${handoffPath} before exit`,
       }));
       return;

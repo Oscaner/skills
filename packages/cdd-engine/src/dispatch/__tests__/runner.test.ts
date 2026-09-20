@@ -1030,6 +1030,39 @@ it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.jso
   expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
 });
 
+it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 changed-surface ledger origin note（writeBoundary 记账）", async () => {
+  const t6 = t6Workspace();
+  const report = path.join(t6.ws, "task-1-report.md");
+  const tev = path.join(t6.ws, "task-1-test-evidence.json");
+  writeFileSync(report, "report body\n");
+  writeFileSync(tev, JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }));
+  // Ghost agent commits a REAL deliverable (wip.md) — the first T25-era dispatch round ran on an
+  // engine without writeBoundary, so its materialized carrier carried no ledger-origin note; the
+  // full-dispatch regression pins the note surviving materialization (reconcile runs after it).
+  const res = await runT6Ghost(t6, [
+    "#!/usr/bin/env bash",
+    "printf 'agent deliverable\\n' > wip.md",
+    "git add wip.md",
+    "git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm 'agent deliverable'",
+    "printf '%s\\n' 'status: APPROVED'",
+    "printf '%s\\n' 'commits: base=x head=y'",
+    `printf '%s\\n' 'artifacts: report=${report} test_evidence=${tev}'`,
+    "printf '%s\\n' 'blocker: none'",
+    "exit 0",
+  ].join("\n"));
+  expect(res.exitCode).toBe(0);
+  const hp = path.join(t6.ws, "task-1-implement.json");
+  const h = JSON.parse(readFileSync(hp, "utf8"));
+  expect(h.status).toBe("APPROVED");
+  expect(h.commits.base).toBe(t6.taskBase); // dispatch-time HEAD (plan commit) — diff base..HEAD is exactly wip.md
+  // writeBoundary reconcile: implement writes no changes[] → the pure-soft ledger records the diff
+  // fileset verbatim as the ledger origin (zero warn; the review scope axis reuses the same surface)
+  expect(h.notes).toContain("changed-surface ledger origin (no changes[] declared)");
+  expect(h.notes).toContain("wip.md");
+  // agent committed before exiting → the tree is clean → the exit gate passes (exit 0 asserted above)
+  expect(execFileSync("git", ["-C", t6.repo, "status", "--porcelain"], { encoding: "utf8" })).toBe("");
+}, 30_000);
+
 it("runTask T6: implement 不写 handoff 也不触发 10.5 BLOCKED（runner 实体化兜底）", async () => {
   // fake-cli 只回 return block 四行、不写任何文件（连 test-evidence 都没有 → evidence-gate soft WARN）→ 仍 exit 0 + 实体化。
   const t6 = t6Workspace();

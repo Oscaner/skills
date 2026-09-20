@@ -583,27 +583,35 @@ export class TaskLifecycle extends DispatchLifecycle {
       }
       // Normal timeout (budget exceeded OR liveness stall OR external SIGTERM): TIMEOUT partial
       // handoff. The blocker comes from the single rules/failure.ts timeoutBlocker point keyed on
-      // the unified cause — the stall variant carries the resume-or-discard contract. T26 salvage:
-      // the round's uncommitted work is stashed FIRST (settleResidue — recovery.residue_ref rides
-      // the carrier; spec T7.5 settleResidue output ≡ resume input), so the re-dispatch pre-flight
-      // can restore it. Clean tree → settleResidue null → the carrier carries no recovery record.
+      // the unified cause — the stall/signal variants carry the resume-or-discard contract on the
+      // implement lane. T26 salvage: the round's uncommitted work is stashed FIRST (settleResidue
+      // — recovery.residue_ref rides the carrier; spec T7.5 settleResidue output ≡ resume input),
+      // so the re-dispatch pre-flight can restore it. The salvage is gated to the IMPLEMENT lane —
+      // the only lane with a resume pre-flight (review/fix re-dispatches never restore WIP, so
+      // stashing theirs would strand it); a clean tree → settleResidue null → the carrier carries
+      // no recovery record, and the termination cause is archived via `notes` instead.
       const timeoutMs = this.#timeoutMs;
-      const recovery = await settleResidue(this.#root, {
-        op: mode,
-        type: "task",
-        task: this.#taskNum,
-        round: ctx.round ?? 1,
-        cause: cause ?? "over-budget",
-        // T27: the salvage captures the task-level scope anchor (ledger priority / fallback the
-        // dead-round brief TASK_BASE) so the resume restores the same scope.
-        scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
-      });
+      const recovery = mode === "implement"
+        ? await settleResidue(this.#root, {
+            op: mode,
+            type: "task",
+            task: this.#taskNum,
+            round: ctx.round ?? 1,
+            cause: cause ?? "over-budget",
+            // T27: the salvage captures the task-level scope anchor (ledger priority / fallback the
+            // dead-round brief TASK_BASE) so the resume restores the same scope.
+            scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
+          })
+        : null;
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
         recovery: recovery ?? undefined,
+        // no salvage → the cause rides `notes` (the only archival channel when recovery.cause is
+        // absent) so a dead clean-tree round stays replayable by cause
+        notes: recovery ? undefined : `termination cause: ${cause ?? "unknown"}`,
         blocker: timeoutBlocker({ cause, taskNum: this.#taskNum, timeoutMs, idleWindowMs, op: mode, residue: recovery?.residue_ref ?? null }),
       });
       if (!dryRun) incrementRound(progressDir, this.#taskNum, mode);
@@ -678,18 +686,22 @@ export class TaskLifecycle extends DispatchLifecycle {
     // 10. Nested CLI failed with no handoff → write BLOCKED handoff (stderr into blocker) + return block +
     //     the CDD_BLOCKED diagnostic + exit 1. T26: like TIMEOUT, this is a resumable dead round —
     //     settleResidue salvages whatever partial WIP the failed agent left before the carrier writes
-    //     (clean tree → no recovery record; the upgrade text keeps the legacy `cli exited N without
-    //     writing handoff` prefix the black-box suite matches).
+    //     (implement lane only — the resume lane; a clean tree → no recovery record). The upgrade
+    //     text keeps the legacy `cli exited N without writing handoff` prefix the black-box suite
+    //     matches, with the resume-or-discard contract on implement and the legacy discard-or-commit
+    //     shape on review/fix (their re-dispatch has no auto-resume).
     if (this.#agentRc !== 0 && !existsSync(ctx.handoffPath)) {
-      const recovery = await settleResidue(this.#root, {
-        op: mode,
-        type: "task",
-        task: this.#taskNum,
-        round: ctx.round ?? 1,
-        cause: "exec-failure",
-        // T27: same scope-anchor capture as the TIMEOUT salvage lane.
-        scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
-      });
+      const recovery = mode === "implement"
+        ? await settleResidue(this.#root, {
+            op: mode,
+            type: "task",
+            task: this.#taskNum,
+            round: ctx.round ?? 1,
+            cause: "exec-failure",
+            // T27: same scope-anchor capture as the TIMEOUT salvage lane.
+            scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
+          })
+        : null;
       writeBlockedCarrier(ctx.handoffPath, {
         task: this.#taskNum,
         phase: mode,
@@ -699,7 +711,9 @@ export class TaskLifecycle extends DispatchLifecycle {
         blocker:
           `cli exited ${this.#agentRc} without writing handoff → check stderr above for errors; ` +
           (recovery ? `WIP salvaged (recovery.residue_ref=${recovery.residue_ref}) — ` : "") +
-          `resume 或丢弃：cdd ${mode} --task ${this.#taskNum} re-dispatch 自动续传（recovery.residue_ref）→ 或 git stash drop 放弃`,
+          (mode === "implement"
+            ? `resume or discard: cdd implement --task ${this.#taskNum} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`
+            : `discard or commit the uncommitted changes, then re-dispatch cdd ${mode} --task ${this.#taskNum} over a clean tree`),
       });
       if (!dryRun) {
         incrementRound(progressDir, this.#taskNum, mode);

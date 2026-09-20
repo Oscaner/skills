@@ -20,7 +20,7 @@
 // is scoped to the standardized `cdd-<op>-<type>-<task>-r<round>-<cause>` name only — the T25
 // bespoke stash ("cdd-T25-… 2026-09-20 …") is a one-off narrative artifact, NOT a match target;
 // its WIP is restorable by manual `git stash apply stash@{0}`.
-import { gitDiffShortstat, gitStashApply, gitStashList, gitStashPush } from "../infra/git.ts";
+import { gitDiffShortstat, gitStashApply, gitStashList, gitStashPush, gitStatusPorcelain } from "../infra/git.ts";
 import { SHA40_RE } from "./progress.ts";
 import { readJson } from "./handoff/write.ts";
 
@@ -73,14 +73,19 @@ export async function settleResidue(
   const type = opts.type ?? "task";
   const message = stashMessage(opts.op, type, opts.task, opts.round, opts.cause);
   // The scope must be read BEFORE the stash push — after it the tree is clean and
-  // `git diff HEAD --shortstat` is empty (the appendix would lose its WIP facts).
+  // `git diff HEAD --shortstat` is empty (the appendix would lose its WIP facts). The stash push
+  // sweeps brand-new untracked files too (`-u`), so the scope must cover them: `git diff
+  // --shortstat` omits untracked paths — extend the summary with a porcelain-based untracked count.
   const scope = (await gitDiffShortstat(cwd)) ?? "";
+  const porcelain = await gitStatusPorcelain(cwd);
+  const untrackedCount = porcelain ? porcelain.split("\n").filter((l) => l.startsWith("??")).length : 0;
+  const residueScope = untrackedCount > 0 ? `${scope}${scope ? "; " : ""}${untrackedCount} untracked file(s)` : scope;
   const ref = await gitStashPush(cwd, message);
   if (!ref) return null;
   return {
     residue_ref: ref,
     stash_message: message,
-    residue_scope: scope,
+    residue_scope: residueScope,
     cause: opts.cause,
     round: opts.round,
     // T27 (spec T7.6): the write side enforces the same 40-hex shape its read side (resume pre-flight)

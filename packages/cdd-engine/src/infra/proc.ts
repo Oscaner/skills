@@ -259,6 +259,7 @@ export interface TerminationMonitorOpts {
 export function startTerminationMonitor(opts: TerminationMonitorOpts): () => TerminationCause | null {
   const { pgid, start, progressPath, budgetMs, sampleIntervalMs, idleWindowMs, onTerminate } = opts;
   let state = initialStallState();
+  let lastVerdict: StallVerdict = "unknown";
   let cause: TerminationCause | null = null;
   let stallTimer: NodeJS.Timeout | null = null;
   let budgetTimer: NodeJS.Timeout | null = null;
@@ -278,6 +279,7 @@ export function startTerminationMonitor(opts: TerminationMonitorOpts): () => Ter
     };
     const { state: next, verdict } = evaluateStall(state, s, idleWindowMs);
     state = next;
+    lastVerdict = verdict;
     // The pure judge is the single decision point: it folds the current stall verdict + budget
     // into a cause — a declared stall wins when its idle window ended before the budget (or the
     // budget has not yet arrived); when the budget ended first the SAME tick surfaces over-budget.
@@ -290,7 +292,30 @@ export function startTerminationMonitor(opts: TerminationMonitorOpts): () => Ter
     stallTimer.unref?.();
   }
   if (budgetMs != null) {
-    budgetTimer = setTimeout(() => fire("over-budget"), budgetMs);
+    // The budget leg consults the SAME judge — it must not double-book the stall leg's verdict.
+    // Recompute the verdict a tick landing exactly at the budget boundary would derive from the
+    // current stall state: when the last sample was "idled" (both signals measurable and flat since
+    // the anchor) and the idle window completed at or before the budget end (idleSince + window <=
+    // start + budgetMs), that boundary tick would have declared "stalled" — idle ended first, so
+    // first-cause-wins labels the death a stall, not a budget expiry. This closes the
+    // (0, sampleIntervalMs] gap between the last tick and the budget, where the window can complete
+    // with no tick in flight to observe it. "progress" / "unknown" / uncompleted "idled" stay on
+    // lastVerdict → the judge resolves them to over-budget at the boundary (budget reached first).
+    budgetTimer = setTimeout(() => {
+      if (cause) return;
+      const at = start + (budgetMs as number);
+      const stalledAtBudget =
+        lastVerdict === "idled" && state.idleSince != null && state.idleSince + idleWindowMs <= at;
+      const c = terminationCause({
+        start,
+        at,
+        budgetMs,
+        stall: stalledAtBudget ? "stalled" : lastVerdict,
+        idleSince: state.idleSince,
+        idleWindowMs,
+      });
+      if (c) fire(c);
+    }, budgetMs);
   }
   return () => {
     if (stallTimer) clearInterval(stallTimer);

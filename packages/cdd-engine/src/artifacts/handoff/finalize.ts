@@ -316,6 +316,9 @@ export interface BlockedCarrierInput {
   /** resume contract (T26/spec T7.5): settleResidue's salvage record rides any TIMEOUT /
    * EXECUTION_FAILURE carrier so the re-dispatch pre-flight can restore the WIP. */
   recovery?: Record<string, unknown>;
+  /** death-reason archival (T26): recorded when a dead round salvages NOTHING (recovery is absent,
+   * so recovery.cause cannot carry the termination cause) — the carrier stays replayable by cause. */
+  notes?: string;
   /** schema-invalid branch: full-replace write so offending keys never stay on disk. */
   fullReplace?: boolean;
 }
@@ -332,6 +335,7 @@ export function writeBlockedCarrier(
   if (input.failure_category) payload.failure_category = input.failure_category;
   if (input.commits) payload.commits = input.commits;
   if (input.recovery) payload.recovery = input.recovery;
+  if (input.notes) payload.notes = input.notes;
   payload.findings = input.findings ?? [];
   payload.artifacts = input.artifacts ?? {};
   if (input.doc) {

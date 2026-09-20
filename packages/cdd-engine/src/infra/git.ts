@@ -118,12 +118,14 @@ export async function gitMergeBaseIsAncestor(cwd: string, ancestor: string, desc
 // (`cdd-<op>-<type>-<task>-r<round>-<cause>` — src/artifacts/residue.ts single source), never by
 // index.
 
-/** `git stash push -m <message>` — salvages the working-tree WIP into a stash (tracked + staged
- *  changes; untracked files stay). Returns the stash commit SHA, or null on no-changes / error
- *  (a clean tree has nothing to salvage — `git stash` errors "No local changes to save"). */
+/** `git stash push -u -m <message>` — salvages the working-tree WIP into a stash (tracked, staged
+ *  AND brand-new untracked files; `-u` sweeps the un-added files that are the normal TDD shape for
+ *  new tests/modules, so a dead round resumes with the complete tree). Returns the stash commit
+ *  SHA, or null on no-changes / error (a clean tree has nothing to salvage — `git stash` errors
+ *  "No local changes to save"). */
 export async function gitStashPush(cwd: string, message: string): Promise<string | null> {
   try {
-    await git(cwd).raw(["stash", "push", "-m", message]);
+    await git(cwd).raw(["stash", "push", "-u", "-m", message]);
     return (await git(cwd).revparse(["stash@{0}"])).trim() || null;
   } catch {
     return null;

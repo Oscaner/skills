@@ -223,7 +223,7 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
     expect(handoff.blocker).toMatch(/cli exited 3 without writing handoff/);
     // T26 §⑤: the EXECUTION_FAILURE arm carries the resume-or-discard contract (resume via the
     // implement re-dispatch, or abandon the salvage)
-    expect(handoff.blocker).toMatch(/resume 或丢弃：cdd implement --task 1 re-dispatch 自动续传（recovery.residue_ref）→ 或 git stash drop 放弃/);
+    expect(handoff.blocker).toMatch(/resume or discard: cdd implement --task 1 re-dispatch auto-resumes \(recovery.residue_ref\), or git stash drop to abandon/);
   } finally {
     restore();
   }
@@ -486,8 +486,8 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: stall → TIMEOUT handoff + resume-or-disc
     expect(h.status).toBe("TIMEOUT");
     expect(h.failure_category).toBe("TIMEOUT");   // stall stays in the TIMEOUT category (extended semantics — not a new category)
     expect(h.blocker).toMatch(/stalled/);
-    expect(h.blocker).toMatch(/resume 或丢弃：cdd implement --task 1 re-dispatch 自动续传/);
-    expect(h.blocker).toMatch(/git stash drop 放弃/);
+    expect(h.blocker).toMatch(/resume or discard: cdd implement --task 1 re-dispatch auto-resumes/);
+    expect(h.blocker).toMatch(/git stash drop to abandon/);
     expect(h.task).toBe(1);
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress.timeoutCount).toBe(1);        // stall counts toward the normal timeout quota

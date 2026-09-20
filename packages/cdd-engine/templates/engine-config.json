@@ -148,7 +148,7 @@
     },
     "timeouts": {
       "defaults": {
-        "task": 10800000,
+        "task": 5400000,
         "review": 3600000
       },
       "liveness": {

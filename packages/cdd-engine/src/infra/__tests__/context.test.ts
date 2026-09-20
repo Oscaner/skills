@@ -9,7 +9,7 @@ import { resolveTerminationConfig } from "../invoke.ts";
 describe("context-contract canonical 承重", () => {
   it("timeout 默认值取自 canonical", () => {
     const c = loadContract();
-    expect(c.timeouts.defaults.task).toBe(10_800_000);
+    expect(c.timeouts.defaults.task).toBe(5_400_000);
     expect(c.timeouts.defaults.review).toBe(3_600_000);
     expect(resolveTerminationConfig("task").budgetMs).toBe(c.timeouts.defaults.task);
     expect(resolveTerminationConfig("review").budgetMs).toBe(c.timeouts.defaults.review);

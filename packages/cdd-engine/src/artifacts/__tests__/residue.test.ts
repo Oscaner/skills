@@ -253,7 +253,7 @@ describe("rules/schema.ts — recovery property contract (T7.5)", () => {
     status: "TIMEOUT",
     findings: [],
     artifacts: {},
-    blocker: "resume 或丢弃：cdd implement --task 26 re-dispatch 自动续传 → 或 git stash drop 放弃",
+    blocker: "resume or discard: cdd implement --task 26 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon",
     recovery: {
       residue_ref: "abc123",
       stash_message: "cdd-implement-task-26-r1-stalled",

@@ -89,11 +89,13 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
 // The TIMEOUT category identity never bifurcates (status TIMEOUT + timeoutCount + terminal shape
 // are shared), but the blocker wording is produced from ONE point keyed on the unified termination
 // cause: over-budget keeps the legacy wording (T6 AC7, backwards-compatible — the "timed out
-// after" phrase the tests and the orchestrator match on), while a stall carries the recovery
-// contract from the brief — the agent's tool call was hung, and the WIP it left is SALVAGED into a
-// stash; the re-dispatch auto-resumes it. cause === "signal" (external SIGTERM) is
-// indistinguishable-in-kind from the entry-gate reality of a dead agent — it inherits the budget
-// wording (the elapsed is, by definition, unbounded).
+// after" phrase the tests and the orchestrator match on), while "stalled" (hung tool call) and
+// "signal" (external SIGTERM — abrupt agent death, not a budget expiry) both carry the recovery
+// contract from the brief. The resume-or-discard wording is scoped to the IMPLEMENT lane — the only
+// lane with a resume pre-flight (settleResidue salvage → re-dispatch stash apply); review/fix
+// rounds keep the legacy discard-or-commit shape (their re-dispatch has no auto-resume, so the
+// honest advice is manual cleanup, then re-dispatch over a clean tree). Each cause is
+// distinguishable in the blocker (death can be archived and replayed by cause).
 export function timeoutBlocker(opts: {
   cause?: TerminationCause;
   taskNum: number;
@@ -104,15 +106,19 @@ export function timeoutBlocker(opts: {
   /** the salvage stash ref recorded in the carrier's recovery.residue_ref (null → nothing salvaged / not recorded). */
   residue?: string | null;
 }): string {
-  if (opts.cause === "stalled") {
+  if (opts.cause === "stalled" || opts.cause === "signal") {
     const op = opts.op || "implement";
-    const resume = opts.residue
-      ? `resume 或丢弃：cdd ${op} --task ${opts.taskNum} re-dispatch 自动续传（recovery.residue_ref=${opts.residue}）→ 或 git stash drop 放弃`
-      : `resume 或丢弃：cdd ${op} --task ${opts.taskNum} re-dispatch 自动续传（recovery.residue_ref）→ 或 git stash drop 放弃`;
-    return (
-      `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS}ms — ` +
-      `tool call hung); ${resume}`
-    );
+    const basis =
+      opts.cause === "signal"
+        ? "agent dispatch terminated by an external signal (SIGTERM)"
+        : `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS}ms — tool call hung)`;
+    if (op === "implement") {
+      const resume = opts.residue
+        ? `resume or discard: cdd implement --task ${opts.taskNum} re-dispatch auto-resumes (recovery.residue_ref=${opts.residue}), or git stash drop to abandon`
+        : `resume or discard: cdd implement --task ${opts.taskNum} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`;
+      return `${basis}; ${resume}`;
+    }
+    return `${basis}; discard or commit the uncommitted changes, then re-dispatch cdd ${op} --task ${opts.taskNum} over a clean tree`;
   }
   return `cli timed out after ${opts.timeoutMs ?? "<unknown>"}ms → simplify task ${opts.taskNum} scope or increase timeout, then re-dispatch`;
 }

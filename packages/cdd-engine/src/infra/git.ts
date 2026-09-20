@@ -225,9 +225,13 @@ export async function gitDiffNumstat(cwd: string): Promise<WipStat> {
 
 /** Untracked-file scale contribution: each untracked entry is one file; insertions = its
  *  newline count (a new file's magnitude is its own lines — `git diff --numstat` has no row for it).
- *  Directories (`?? dir/`) contribute presence only (+1, no line read). */
-export async function gitUntrackedStat(cwd: string): Promise<WipStat> {
-  const out = (await gitStatusPorcelain(cwd) ?? "").split("\n");
+ *  Directories (`?? dir/`) contribute presence only (+1, no line read). The count of entries is
+ *  `returned.files` — callers never re-parse porcelain for the untracked-file count. A caller that
+ *  already fetched `git status --porcelain` (settleResidue reads it once for both the scope count
+ *  and this scale) passes it as `porcelain` so one tree walk serves both; null/undefined → one
+ *  internal fetch (the standalone-call shape). */
+export async function gitUntrackedStat(cwd: string, porcelain?: string | null): Promise<WipStat> {
+  const out = (porcelain ?? (await gitStatusPorcelain(cwd)) ?? "").split("\n");
   let files = 0;
   let insertions = 0;
   for (const line of out) {

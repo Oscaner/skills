@@ -168,16 +168,18 @@ export async function settleResidue(
   // The scope must be read BEFORE the stash push — after it the tree is clean and
   // `git diff HEAD --shortstat` is empty (the appendix would lose its WIP facts). The stash push
   // sweeps brand-new untracked files too (`-u`), so the scope must cover them: `git diff
-  // --shortstat` omits untracked paths — extend the summary with a porcelain-based untracked count.
+  // --shortstat` omits untracked paths — extend the summary with the untracked-file count read off
+  // the SAME porcelain snapshot (gitUntrackedStat's returned `files`, computed from the porcelain
+  // this call already fetched) so the tree is walked exactly once for both the scope text and the
+  // structured scale below.
   const scope = (await gitDiffShortstat(cwd)) ?? "";
   const porcelain = await gitStatusPorcelain(cwd);
-  const untrackedCount = porcelain ? porcelain.split("\n").filter((l) => l.startsWith("??")).length : 0;
-  const residueScope = untrackedCount > 0 ? `${scope}${scope ? "; " : ""}${untrackedCount} untracked file(s)` : scope;
+  const untracked = await gitUntrackedStat(cwd, porcelain);
+  const residueScope = untracked.files > 0 ? `${scope}${scope ? "; " : ""}${untracked.files} untracked file(s)` : scope;
   // The structured scale (tracked numstat + untracked line counts) is read BEFORE the push too —
   // recovery.wip_stat archives the pre-stash tree's magnitude (the carrier itself never counts:
   // it lives in the gitignored .osuperpowers/cdd workspace, invisible to `??` and to -u).
   const wip = await gitDiffNumstat(cwd);
-  const untracked = await gitUntrackedStat(cwd);
   wip.files += untracked.files;
   wip.insertions += untracked.insertions;
   wip.deletions += untracked.deletions;

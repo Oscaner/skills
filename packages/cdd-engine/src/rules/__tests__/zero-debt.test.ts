@@ -1,24 +1,26 @@
-// packages/cdd-engine/src/rules/__tests__/zero-debt.test.ts — P2 T6 ②: the AC7 zero-debt assertion
-// aggregation. Every item of the phase's 零债断言 (overall AC7) is mechanically asserted here in ONE
-// colocated block — source-grep facts + unit behavior — so the closeout of the phase is
+// packages/cdd-engine/src/rules/__tests__/zero-debt.test.ts — P2 T6 (2): the AC7 zero-debt assertion
+// aggregation. Every item of the phase's zero-debt assertions (overall AC7) is mechanically asserted
+// here in ONE colocated block — source-grep facts + unit behavior — so the closeout of the phase is
 // reproducible from a single test file:
 //
-//   ① 无 plan-only 遗留 (grep) — the reverse-direction missing-claim rule (shipped plan column ⇒ a
-//      matching change-history claim) is a member of the SINGLE audit entry and fires exactly once;
-//      the design column's backfill is audited on the same bidirectional rule (nothing backfill is
-//      plan-only).
-//   ② closeout 推断无第二实现 — deriveCloseoutMismatches (rules/closeout.ts) is the single inference
-//      module: the two base hooks (pre-flight docContractValidate gate / post-flight statusValidate
-//      highlight) both consume it; no channel or rules module re-implements the computation.
-//   ③ 无豁免例外常量 — the docs-lane terminal-debt no-op is an absent-source semantic
-//      (dispatchPlanPath() → null), never an exemption constant: the mismatch seam carries no lane
-//      parameter, and no EXEMPT-style constant token exists in the rules/dispatch layer.
-//   ④ handoff schema 无双核心块 (单源) — the task/docs handoff schemas share one machine core (status
-//      enum / failure_category / commits / blocker / shared list fields deep-equal after the
-//      description prose is stripped); the only allowed divergences are the lane boundary objects.
-//   ⑤ base 默认 override 全通道生效 — docContractValidate / statusValidate have NO lane override in
-//      task/docs/branch (the base default is the single implementation for all three channels) and
-//      both are template steps of the run() walk every channel inherits.
+//   (1) no plan-only leftover (grep) — the reverse-direction missing-claim rule (shipped plan column
+//       ⇒ a matching change-history claim) is a member of the SINGLE audit entry and fires exactly
+//       once; the design column's backfill is audited on the same bidirectional rule (nothing
+//       backfill is plan-only).
+//   (2) closeout inference has no second implementation — deriveCloseoutMismatches
+//       (rules/closeout.ts) is the single inference module: the two base hooks (pre-flight
+//       docContractValidate gate / post-flight statusValidate highlight) both consume it; no channel
+//       or rules module re-implements the computation.
+//   (3) no exemption exception constants — the docs-lane terminal-debt no-op is an absent-source
+//       semantic (dispatchPlanPath() → null), never an exemption constant: the mismatch seam carries
+//       no lane parameter, and no EXEMPT-style constant token exists in the rules/dispatch layer.
+//   (4) handoff schema has no dual core block (single source) — the task/docs handoff schemas share
+//       one machine core (status enum / failure_category / commits / blocker / shared list fields
+//       deep-equal after the description prose is stripped); the only allowed divergences are the
+//       lane boundary objects.
+//   (5) base default override takes effect on all channels — docContractValidate / statusValidate
+//       have NO lane override in task/docs/branch (the base default is the single implementation for
+//       all three channels) and both are template steps of the run() walk every channel inherits.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,7 +44,7 @@ function codeOnly(src: string): string {
   return src.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
-describe("AC7 ① no plan-only leftover — the reverse-direction rule is a single audit member; backfill is never plan-only", () => {
+describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a single audit member; backfill is never plan-only", () => {
   it("shipped plan column without a matching claim → EXACTLY ONE missing-claim failure (single audit member)", () => {
     const repo = mkProgramRepo();
     const c = writeProgramDocs(
@@ -77,7 +79,7 @@ describe("AC7 ① no plan-only leftover — the reverse-direction rule is a sing
   });
 });
 
-describe("AC7 ② single inference module — one inference for the two base hooks", () => {
+describe("AC7 (2) single inference module — one inference for the two base hooks", () => {
   it("grep: the inference is defined in rules/closeout.ts only; base.ts consumes it twice (pre-flight + post-flight), channels never", () => {
     const closeout = readSrc("rules/closeout.ts");
     expect(closeout).toMatch(/export function deriveTerminalDebt\(overallPath: string, root: string\)/);
@@ -101,7 +103,7 @@ describe("AC7 ② single inference module — one inference for the two base hoo
   });
 });
 
-describe("AC7 ③ no exemption constants — the lane boundary is temporal derivation, never a skip literal", () => {
+describe("AC7 (3) no exemption constants — the lane boundary is temporal derivation, never a skip literal", () => {
   it("grep: the mismatch seam carries no lane parameter and no lane string literal", () => {
     const closeout = readSrc("rules/closeout.ts");
     // the two inference seams admit only {entry, root} — a per-lane exemption cannot even be expressed here
@@ -127,7 +129,7 @@ describe("AC7 ③ no exemption constants — the lane boundary is temporal deriv
   });
 });
 
-describe("AC7 ④ no dual core block — task/docs share one machine core (single source)", () => {
+describe("AC7 (4) no dual core block — task/docs share one machine core (single source)", () => {
   // The schemas' descriptions carry lane prose (the changelog/breaking notes differ) — the machine
   // contract is the shape/enum/pattern surface, so the comparison strips description prose.
   function stripDescriptions(v: unknown): unknown {
@@ -180,7 +182,7 @@ describe("AC7 ④ no dual core block — task/docs share one machine core (singl
   });
 });
 
-describe("AC7 ⑤ base-default override on all channels — docContractValidate / statusValidate are base defaults, no lane override", () => {
+describe("AC7 (5) base-default override on all channels — docContractValidate / statusValidate are base defaults, no lane override", () => {
   it("grep: no channel overrides the two base hooks (single implementation for task/docs/branch)", () => {
     for (const channel of ["task", "docs", "branch"]) {
       const code = codeOnly(readSrc(`dispatch/${channel}.ts`));
@@ -198,7 +200,7 @@ describe("AC7 ⑤ base-default override on all channels — docContractValidate 
     expect(base).toMatch(/this\.#step\("statusValidate"\)/);
   });
 
-  it("the per-hook three-channel acceptance surfaces (Task 3/4 验收) exist in the channel suites", () => {
+  it("the per-hook three-channel acceptance surfaces (Task 3/4 acceptance) exist in the channel suites", () => {
     for (const rel of ["dispatch/__tests__/doc-contract-channels.test.ts", "dispatch/__tests__/closeout-channels.test.ts"]) {
       expect(readSrc(rel).length).toBeGreaterThan(0); // the file exists and is non-empty
     }

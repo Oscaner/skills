@@ -85,7 +85,7 @@ export function deriveTaskState(workspace: string, taskNum: number): TaskState {
   return "in-flight"; // defensive: abnormal counter skew — nothing conclusive on disk
 }
 
-// ---- plan completion verdict（计划完成度裁决）----
+// ---- plan completion verdict ----
 
 export interface TaskStatusRow {
   task: number;

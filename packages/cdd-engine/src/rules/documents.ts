@@ -235,7 +235,7 @@ function parseOverall(overallPath: string): OverallParse {
   return out;
 }
 
-// ---- plan phase id（派发阶段号；`plan.md` 等无 phase token 的 plan → null，注册检查 faill-open）----
+// ---- plan phase id (dispatch-phase token; plan.md etc. without a phase token → null, registration check fails open) ----
 /** phaseIdFromPlan(planPath) — derive the target phase id from the plan filename (`…-p\d+`, digit
  * boundary so a future P10 never prefix-matches P1). Null → the "registered in overall" checks are
  * skipped (fail-open defensively); the structural overall checks still run fully. */

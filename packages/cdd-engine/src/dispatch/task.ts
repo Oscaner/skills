@@ -523,9 +523,14 @@ export class TaskLifecycle extends DispatchLifecycle {
         extractTaskNumbers: taskNumbersFromPlan,
         extractConstraints: extractPlanConstraints,
       });
-    } catch {
-      return; // fail-open: an unreadable doc chain must never crash the lifecycle (the plan
-      // existence gate in resolveContext already surfaced the missing-plan case there)
+    } catch (e) {
+      // fail-open: an unreadable doc chain must never crash the lifecycle (the plan existence
+      // gate in resolveContext already surfaced the missing-plan case there) — but never silent:
+      // surface a one-line diagnostic on the throw path (real and dry-run lanes alike).
+      process.stderr.write(
+        `CDD_WARN: doc contract validation skipped (unreadable doc chain): ${(e as Error).message}\n`,
+      );
+      return;
     }
     if (failures.length === 0) return;
     const guidance = formatDocFailures(failures);

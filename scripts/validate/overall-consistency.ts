@@ -24,7 +24,7 @@
 //
 // Canonical gate: only overall specs whose Phase inventory header is the canonical
 // 7-column form (…| Design spec | Implementation plan | Acceptance criteria |
-// Dependency |) are guarded; non-canonical files (e.g. post-dogfood 8-column legacy)
+// Dependency |) are guarded; non-canonical files (any remaining legacy table shapes)
 // are logged and skipped, never fail. A missing/broken Phase inventory table is
 // §2.4 malformed — loadOverallFile returns { ok: false } and main() skips, not fail.
 //

@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // src/bin.ts — CDD engine CLI entry (spec §2.3; citty surface from Task 9, retired commander).
 // The full command tree lives in src/cli/parse.ts as one citty defineCommand (mainCommand with
-// the four subcommands implement / review / fix / base-branch [set|get]). This file only boots
-// it: `--help` pre-screen → root/proc bootstrap → runCommand → parse/usage error normalization
-// (exit code table §2.4.2: 0 = OK incl. --help; 1 = dispatch failure / blocked; 2 = usage or
-// parse error; 3 = review convergence — citty's own parse errors exit 1, so this wrapper is what
-// keeps the subroutine's documented table intact).
+// the five subcommands implement / review / fix / base-branch [set|get] / help). This file only
+// boots it: `--help` pre-screen → `cdd help` discovery intercept → root/proc bootstrap →
+// runCommand → parse/usage error normalization (exit code table §2.4.2: 0 = OK incl. --help;
+// 1 = dispatch failure / blocked; 2 = usage or parse error; 3 = review convergence — citty's own
+// parse errors exit 1, so this wrapper is what keeps the subroutine's documented table intact).
 //   cdd implement --task <n> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> [...]
 //   cdd fix --type <task|spec|plan> [...]
 //   cdd base-branch <set|get> --plan <path> [...]
+//   cdd help
 //
 // Unconditional boot (no isMain guard): this artifact is only ever executed directly by node as
 // the CLI entry (package.json bin/main/exports all point at dist/cli.mjs; no library consumer

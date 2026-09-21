@@ -285,8 +285,8 @@
           "properties": {
             "pattern": {
               "type": "string",
-              "description": "CLAIM_RE — the canonical single source: `(Pending|[Pending])` + optional `→`/`->` + a target that stops at whitespace / CJK punctuation / brackets so `→ **Done**（PR …` or `→ P4-design v1.0）` do not over-capture.",
-              "pattern": "^\\(Pending\\|\\[Pending\\]\\)\\s*\\(?:→|->\\)\\s*\\[^\\s；;，,、（）()【】\\[\\]】。.—…\\]+$"
+              "description": "CLAIM_RE — the canonical single source: `(Pending|[Pending])` + optional `→`/`->` + a target that stops at whitespace / CJK punctuation / brackets so `→ **Done**（PR …` or `→ P4-design v1.0）` do not over-capture. Unanchored search (pattern-keyword semantics): the stop-set bounds the target token and trailing clause content (e.g. `（PR #1）`) is left unconsumed — the anchors must not be reintroduced.",
+              "pattern": "(?:Pending|\\[Pending\\])\\s*(?:→|->)\\s*[^\\s；;，,、（）()【】\\[\\]】。.—…]+"
             },
             "target": {
               "type": "string",

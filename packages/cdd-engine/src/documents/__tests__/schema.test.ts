@@ -117,10 +117,17 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
         "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
       );
       expect((schemaNode(s, "$.properties.phaseInventory.properties.columnNames.properties.count.const"))).toBe(7);
-      // claim pattern — CLAIM_RE family single source
+      // claim pattern — CLAIM_RE family single source: pin it as a LIVE regex by compiling the
+      // canonical pattern and asserting representative change-history claim clauses match (the
+      // target stops at whitespace / CJK punctuation / brackets — the capture is bounded, trailing
+      // clause content like `（PR #1）` is left unconsumed). An unanchored pattern-keyword search
+      // is the intended semantics; a substring pin is what let the escaped-operator encoding that
+      // matches no real clause slip through review.
       const claimPattern = get("$.properties.claimPatterns.properties.claimClause.properties.pattern.pattern");
-      expect(claimPattern).toContain("Pending");
-      expect(claimPattern).toContain("→|->");
+      const claimRe = new RegExp(claimPattern);
+      expect(claimRe.exec("Pending → **Done**（PR #1）")![0]).toBe("Pending → **Done**");
+      expect(claimRe.exec("[Pending] -> P4-design v1.0")![0]).toBe("[Pending] -> P4-design");
+      expect(claimRe.test("Pending")).toBe(false); // no arrow + target → no clause match
       // plan/design link words
       expect(get("$.properties.claimPatterns.properties.planLinkWord.pattern")).toBe("^(?:plan|计划)$");
       expect(get("$.properties.claimPatterns.properties.designLinkWord.pattern")).toBe("^Design\\s?-?\\s?spec$");

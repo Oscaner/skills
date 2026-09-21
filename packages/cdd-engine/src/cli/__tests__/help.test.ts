@@ -5,9 +5,9 @@
 //     contract);
 //   - zero-enforcement properties: works outside a git repo (pre-boot intercept, no initRoot gate),
 //     writes no lifecycle state (no .osuperpowers/cdd created), triggers no audit / dispatch;
-//   - the `--help` surface lists the new help subcommand (declared tree) while the main
-//     description still carries the legacy implement/review/fix/base-branch face (cdd.test's
-//     `-h → help` pin);
+//   - the `--help` surface lists the new help subcommand within the five-subcommand main
+//     description (implement/review/fix/base-branch/help); the `-h → help` pin in cdd.test keeps
+//     matching the same prefix;
 //   - unit surface: renderHelpText shape + the resolver seam (cliDirectory / templatesDirectory /
 //     schemaDirectory) returning existing paths.
 // Unlike the other CLI shapes' dry-run smoke, help never reaches the entry gate — no clean-tree
@@ -106,11 +106,10 @@ describe("cdd help (P2 T1 discovery subcommand)", () => {
     expect(parseHelp(r.stdout)).toHaveProperty("cli");
   });
 
-  it("`--help` surface lists the new help subcommand; main description keeps the legacy face pin", () => {
+  it("`--help` surface lists the new help subcommand within the five-subcommand main description", () => {
     const r = runCli(["--help"]);
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/implement\/review\/fix\/base-branch/);
-    expect(r.stdout).toMatch(/\bhelp\b/);
+    expect(r.stdout).toMatch(/CDD engine CLI — implement\/review\/fix\/base-branch\/help/);
     expect(r.stdout).not.toMatch(/\bbrief\b|\bresearch\b/);
   });
 });

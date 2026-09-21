@@ -131,7 +131,7 @@
 
 ### Task 16: 自省四修 G2/G3——grilling 需求全量清单 + validate 脚本 maintainer-only 边界
 
-- **Do**: ① **G2 grilling 需求全量清单前置**：brainstorming / writing-phase-spec 流程定义——phase-within-program grilling **先逐项枚举 overall/phase 已登记需求（含状态 [Pending]/Done/已裁）**，用户确认覆盖完整后再入 frontier 问题（入 skill-authoring 流程节 + 两 skill 文档措辞）；② **G3 validate 脚本 maintainer-only 边界文档化**：`scripts/validate/*` = 发布根仓内部编排面（消费者无、非打包面）；`overall-consistency` = 本程序 charter 四表守卫，brainstorm 期调用是 maintainer-mode（本仓 dogfood）定位——写入 maintainer docs + writing-overall-spec 流程注明角色归类
+- **Do**: ① **G2 grilling 需求全量清单前置**：brainstorming / writing-phase-spec 流程定义——phase-within-program grilling **先逐项枚举 overall/phase 已登记需求（含状态 [Pending]/Done/已裁）**，用户确认覆盖完整后再入 frontier 问题（入 skill-authoring 流程节 + 两 skill 文档措辞）；② **G3 validate 脚本 maintainer-only 边界文档化**：`scripts/validate/*` = 发布根仓内部编排面（消费者无、非打包面）；当时由 `scripts/validate/` 承担本程序 charter 四表守卫（overall-consistency），brainstorm 期调用是 maintainer-mode（本仓 dogfood）定位——该守卫归属已由 consumer-parity 程序归位 engine lifecycle，写入 maintainer docs + writing-overall-spec 流程注明角色归类
 - **验收**: 两 skill 流程含需求全量枚举步骤（先枚举后 frontier——措辞可断言）；validate 脚本边界记录于 maintainer docs + writing-overall-spec；`pnpm run validate` 全绿
 - **注**: G2/G3 是程序自省——程序自身的流程宣称（grilling 覆盖性 / validate 角色）诚实化
 

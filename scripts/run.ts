@@ -86,7 +86,7 @@ export const mainCommand = defineCommand({
     "emit-check": command("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.ts", "none"),
     validate: command("validate", "run the full validate suite (12 blocks)", "./validate/index.ts", "none"),
     precommit: command("precommit", "run the tree-independent pre-commit subset (emit-check/residue/consistency/unit)", "./validate/pre-commit.ts", "none"),
-    "smoke-cdd": command("smoke-cdd", "run cdd-engine dry-run smoke (4-command H1 chain)", "./validate/smoke-cdd.ts", "none"),
+    "smoke-cdd": command("smoke-cdd", "run cdd-engine dry-run smoke (5-command chain)", "./validate/smoke-cdd.ts", "none"),
     version: command("version", "apply changesets to bump versions (--dry-run supported)", "./release/version-packages.ts", "dry-run"),
     "apply-rules": command("apply-rules", "apply a GitHub branch Ruleset (protect-develop | protect-main)", "./rulesets/apply.ts", "target"),
   },

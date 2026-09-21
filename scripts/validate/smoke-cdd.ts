@@ -3,7 +3,7 @@
 // Runs the five-command chain (`cdd implement` / `cdd review --type task` /
 // `cdd fix --type task` / `cdd review --type branch` / `cdd fix --type branch`) with the
 // program-level `--dry-run` flag (argv, ahead of the subcommand) and asserts each command's last
-// stdout block is the 5-line H1 contract (status/commits/artifacts/blocker/counters).
+// stdout block is the 5-line return-block contract (status/commits/artifacts/blocker/counters).
 // Then runs the T7 deletion-surface sweep — the P5 clearance inventory as a durable gate
 // (retired gate/harness/select vocab must stay out of mechanism/document positions, dead
 // artifacts must stay absent). Depends on Node built-ins + execa + the sibling residue.ts
@@ -73,19 +73,19 @@ export function main() {
     // `--dry-run` is a program-level flag and must lead the argv (the engine resolves it from
     // the full argv, citty surface — leading is the smoke's documented argv convention).
     // T3: harness flag removed — host resolution is env-driven; inject CLAUDE_CODE_SESSION_ID=1
-    // so the smoke's four commands resolve the host as claude deterministically (CI has no session markers).
+    // so the smoke's five commands resolve the host as claude deterministically (CI has no session markers).
     const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
     const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
-    // The five literals mirror the engine's 5-line H1 contract verbatim. Authoritative emitters:
-    // src/dispatch/task.ts h1FourLines（stdout/res.h1 面）· h1FromHandoff（回读重发面）·
+    // The five literals mirror the engine's 5-line return-block contract verbatim. Authoritative emitters:
+    // src/dispatch/task.ts returnFourLines（stdout/res.returnBlock 面）· returnFromHandoff（回读重发面）·
     // src/cli/branch-review.ts DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
-    // counters 行由 src/artifacts/progress.ts h1CountersLine 派生（缺 progress.json 时零值兜底）。
+    // counters 行由 src/artifacts/return-block.ts#returnCountersLine 派生（缺 progress.json 时零值兜底）。
     const ok = /status: APPROVED/m.test(lastBlock)
       && /commits: base=/.test(lastBlock)
       && /artifacts: /.test(lastBlock)
       && /blocker: /.test(lastBlock)
       && /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/m.test(lastBlock);
-    if (!ok) throw new Error(`smoke step ${i + 1}: last block is not the 5-line H1 contract: ${JSON.stringify(lastBlock)}`);
+    if (!ok) throw new Error(`smoke step ${i + 1}: last block is not the 5-line return-block contract: ${JSON.stringify(lastBlock)}`);
   }
   console.log("OK — cdd-engine dry-run smoke (5 commands)");
   checkDeletionSurface();

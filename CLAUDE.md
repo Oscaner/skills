@@ -99,6 +99,10 @@ Two distinct language strategies implement this, depending on file type:
 
 **Emit regenerates derived products** (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/`, `.github/ISSUE_TEMPLATE/`): after editing any `skills/*.md` or `docs/*.md`, **you MUST run `pnpm run emit`** to propagate the changes. This is not optional — omitting it causes CI failure. Running `pnpm run emit:check` verifies no drift.
 
+## Memory policy
+
+Never write to the local session-memory directory (`~/.claude/projects/<repo>/memory/`) or any per-user memory store — it is not repo-shared and cannot reach other maintainers. Hard-won lessons, operational notes, and next-session pointers belong in `docs/maintainers/*` (repo-shared, English-primary) first, or in the program's specs/plans. The session-memory index is retired; the maintenance docs are the single source for program experience.
+
 ## Git conventions
 
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`).

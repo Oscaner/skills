@@ -422,13 +422,13 @@ function isSeparatorRow(cells: string[]): boolean {
   return cells.length > 0 && cells.slice(1, -1).every((c) => c !== "" && /^-+$/.test(c));
 }
 
-interface PhaseRow {
+export interface PhaseRow {
   id: string;
   design: string;
   plan: string;
   dependency: string;
 }
-export interface IssueRow {
+interface IssueRow {
   phase: string;
   ref: string;
 }
@@ -444,13 +444,6 @@ export interface OverallParse {
   historyRows: Array<{ version: [number, number] | null; date: string; summary: string }>;
   shapeDrift: Array<{ id: string; cells: number; expected: number }>;
   versionProblems: string[];
-}
-
-export interface PhaseRow {
-  id: string;
-  design: string;
-  plan: string;
-  dependency: string;
 }
 
 /** parseOverall — the canonical four-table parse (single source; exported for the closeout

@@ -15,9 +15,11 @@
 // the inference here changes both channels together. Read-only by construction: a plan workspace
 // without progress.json (fresh checkout / undispatched plan) is treated as not-done (零误伤, and a
 // never-done write).
+//
+// The program fixtures + engine-workspace writers live in ./closeout-fixtures.ts (shared with
+// dispatch/__tests__/closeout-channels.test.ts — single source, no drift between the two faces).
 import { it, expect, describe } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -27,140 +29,20 @@ import {
   formatCloseoutDebtHighlight,
 } from "../closeout.ts";
 import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
+import {
+  OVERALL_CLEAN,
+  OVERALL_BACKFILLED,
+  mkProgramRepo,
+  writeProgramDocs,
+  writeCompletePlanWorkspace,
+  writeInFlightPlanWorkspace,
+  type Program,
+} from "./closeout-fixtures.ts";
 
-function repoDir(): string {
-  return mkdtempSync(path.join(tmpdir(), "cdd-closeout-"));
-}
-
-// ---- program-shaped fixtures (slug "demo", phases P1 / P2) ----
-
-const OVERALL_CLEAN = [
-  "- **Version**: v1.0 · 2026-09-21",
-  "",
-  "## Phase inventory",
-  "",
-  "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
-  "|---|---|---|---|---|---|---|",
-  "| P1 | phase one | [Pending] | [Pending] | | none |",
-  "| P2 | phase two | [Pending] | [Pending] | | P1 ->(hard) |",
-  "",
-  "## Dependency graph (ASCII)",
-  "",
-  "```",
-  "P1 -> P2",
-  "```",
-  "",
-  "## Change history",
-  "",
-  "| Version | date | summary |",
-  "|---|---|---|",
-  "| v1.0 | 2026-09-21 | Initial |",
-  "",
-].join("\n");
-
-/** Backfilled-overall fixture (P1 shipped + claim + column): the same chain as OVERALL_CLEAN with
- *  P1's Implementation plan column set to Done and a matching change-history plan claim — the
- *  v1.12 happy path (已回填 → no terminal debt, structural faces pass). */
-const OVERALL_BACKFILLED = [
-  "- **Version**: v1.1 · 2026-09-21",
-  "",
-  "## Phase inventory",
-  "",
-  "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
-  "|---|---|---|---|---|---|---|",
-  "| P1 | phase one | [p1-design v1.0](2026-01-01-demo-p1-design.md) | Done | | none |",
-  "| P2 | phase two | [Pending] | [Pending] | | P1 ->(hard) |",
-  "",
-  "## Dependency graph (ASCII)",
-  "",
-  "```",
-  "P1 -> P2",
-  "```",
-  "",
-  "## Change history",
-  "",
-  "| Version | date | summary |",
-  "|---|---|---|",
-  "| v1.0 | 2026-09-21 | Initial |",
-  "| v1.1 | 2026-09-21 | P1 plan: Pending → Done |",
-  "",
-].join("\n");
-
-interface Program {
-  repo: string;
-  specDir: string;
-  plansDir: string;
-  overall: string;
-  spec1: string; // the design spec for phase one
-  plan1: string; // the plan doc for phase one
-  plan2: string; // the plan doc for phase two
-}
-
-/** Write the three-doc program chain. Derived counter-level: overall in specs/, plans under
- *  plans/ matching `*-demo-p1.md` / `*-demo-p2.md` (the canonical program glob). */
+/** The three-doc program chain in a fresh temp repo. Derived counter-level: overall in specs/,
+ *  plans under plans/ matching `*-demo-p1.md` / `*-demo-p2.md` (the canonical program glob). */
 function writeProgram(overallBody = OVERALL_CLEAN): Program {
-  const repo = repoDir();
-  const specDir = path.join(repo, "docs", "osuperpowers", "specs");
-  const plansDir = path.join(repo, "docs", "osuperpowers", "plans");
-  mkdirSync(specDir, { recursive: true });
-  mkdirSync(plansDir, { recursive: true });
-  const overall = path.join(specDir, "2026-01-01-demo-overall.md");
-  const spec1 = path.join(specDir, "2026-01-01-demo-p1-design.md");
-  const plan1 = path.join(plansDir, "2026-01-01-demo-p1.md");
-  const plan2 = path.join(plansDir, "2026-01-01-demo-p2.md");
-  writeFileSync(overall, overallBody);
-  writeFileSync(spec1, [
-    "- **Version**: v1.0 · 2026-09-21",
-    "",
-    "- **Parent program**: [2026-01-01-demo-overall.md v1.0](./2026-01-01-demo-overall.md)",
-    "",
-  ].join("\n"));
-  const planBody = (specBasename: string) => [
-    "# Plan",
-    "",
-    `**Spec:** [${specBasename}](docs/osuperpowers/specs/${specBasename})`,
-    "",
-    "## Constraints",
-    "",
-    "- boundary one",
-    "",
-    "### Task 1: x",
-    "body",
-    "",
-  ].join("\n");
-  writeFileSync(plan1, planBody("2026-01-01-demo-p1-design.md"));
-  writeFileSync(plan2, planBody("2026-01-01-demo-p2-design.md"));
-  return { repo, specDir, plansDir, overall, spec1, plan1, plan2 };
-}
-
-/** Land a COMPLETE plan (all tasks converged to complete) in the plan's workspace — progress.json
- *  rows + the APPROVED review-1 carriers (the engine-derived terminal state the debt inference
- *  consumes). The workspace is derived through the canonical resolveWorkspace (no hand-written slug
- *  drift). */
-function writeCompletePlanWorkspace(repo: string, planPath: string, taskCount = 1): string {
-  const ws = resolveWorkspace(planPath, repo);
-  mkdirSync(ws, { recursive: true });
-  const tasks: Array<{ task: number; rounds: Record<string, number> }> = [];
-  for (let n = 1; n <= taskCount; n++) {
-    tasks.push({ task: n, rounds: { review: 1 } });
-    writeFileSync(path.join(ws, `task-${n}-review-1.json`), JSON.stringify({
-      task: n, phase: "review", status: "APPROVED", findings: [], artifacts: {},
-    }));
-  }
-  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({ plan: planPath, tasks }));
-  return ws;
-}
-
-/** Land an IN-FLIGHT workspace (progress row without a completed review) — the plan is dispatched
- *  but not complete. */
-function writeInFlightPlanWorkspace(repo: string, planPath: string, taskCount = 1): string {
-  const ws = resolveWorkspace(planPath, repo);
-  mkdirSync(ws, { recursive: true });
-  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: planPath,
-    tasks: Array.from({ length: taskCount }, (_, i) => ({ task: i + 1 })),
-  }));
-  return ws;
+  return writeProgramDocs(mkProgramRepo(), overallBody);
 }
 
 describe("deriveTerminalDebt — plan-complete unbackfilled (the terminal-debt surface)", () => {

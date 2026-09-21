@@ -14,6 +14,9 @@
 //   - fresh checkout (no progress.json anywhere) → zero false positives
 //   - 已回填 → the gate clears at both channels (happy path; a partial backfill stays a structural
 //     failure — the claim/column bidirectional face)
+//
+// The program fixtures + engine-workspace writers live in rules/__tests__/closeout-fixtures.ts
+// (shared with the closeout rule-unit suite — single source, no drift between the two faces).
 import { it, expect, describe } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
@@ -28,6 +31,14 @@ import { REG_PATH } from "../../infra/registry.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
+import {
+  OVERALL_CLEAN,
+  OVERALL_BACKFILLED,
+  writeProgramDocs,
+  writeCompletePlanWorkspace,
+  writeInFlightPlanWorkspace,
+  type Program,
+} from "../../rules/__tests__/closeout-fixtures.ts";
 
 function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -56,132 +67,15 @@ function registry(): string {
   return regPath;
 }
 
-// ---- program-shaped fixtures (slug "demo", phases P1 / P2, plans matching the canonical glob) ----
+// ---- program-shaped fixtures (shared with the rule-unit suite — single source) ----
 
-const OVERALL_CLEAN = [
-  "- **Version**: v1.0 · 2026-09-21",
-  "",
-  "## Phase inventory",
-  "",
-  "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
-  "|---|---|---|---|---|---|---|",
-  "| P1 | phase one | [Pending] | [Pending] | | none |",
-  "| P2 | phase two | [Pending] | [Pending] | | P1 ->(hard) |",
-  "",
-  "## Dependency graph (ASCII)",
-  "",
-  "```",
-  "P1 -> P2",
-  "```",
-  "",
-  "## Change history",
-  "",
-  "| Version | date | summary |",
-  "|---|---|---|",
-  "| v1.0 | 2026-09-21 | Initial |",
-  "",
-].join("\n");
-
-/** Backfilled overall — P1 shipped (claim + column): the 已回填 → 放行 happy-path fixture. */
-const OVERALL_BACKFILLED = [
-  "- **Version**: v1.1 · 2026-09-21",
-  "",
-  "## Phase inventory",
-  "",
-  "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
-  "|---|---|---|---|---|---|---|",
-  "| P1 | phase one | [p1-design v1.0](2026-01-01-demo-p1-design.md) | Done | | none |",
-  "| P2 | phase two | [Pending] | [Pending] | | P1 ->(hard) |",
-  "",
-  "## Dependency graph (ASCII)",
-  "",
-  "```",
-  "P1 -> P2",
-  "```",
-  "",
-  "## Change history",
-  "",
-  "| Version | date | summary |",
-  "|---|---|---|",
-  "| v1.0 | 2026-09-21 | Initial |",
-  "| v1.1 | 2026-09-21 | P1 plan: Pending → Done |",
-  "",
-].join("\n");
-
-const SPEC1 = [
-  "- **Version**: v1.0 · 2026-09-21",
-  "",
-  "- **Parent program**: [2026-01-01-demo-overall.md v1.0](./2026-01-01-demo-overall.md)",
-  "",
-].join("\n");
-
-const SPEC2 = [
-  "- **Version**: v1.0 · 2026-09-21",
-  "",
-  "- **Parent program**: [2026-01-01-demo-overall.md v1.0](./2026-01-01-demo-overall.md)",
-  "",
-].join("\n");
-
-function planBody(specBasename: string): string {
-  return [
-    "# Plan",
-    "",
-    `**Spec:** [${specBasename}](docs/osuperpowers/specs/${specBasename})`,
-    "",
-    "## Constraints",
-    "",
-    "- boundary one",
-    "",
-    "### Task 1: x",
-    "body",
-    "",
-  ].join("\n");
-}
-
-interface Program {
-  repo: string;
-  overall: string;
-  plan1: string;
-  plan2: string;
-}
-
-/** write + commit the program chain; `overallBody` selects the backfill state (clean default). */
+/** write + commit the program chain (fixtures land in git — the entry gate needs a clean tree);
+ *  `overallBody` selects the backfill state (clean default). */
 function writeProgram(repo: string, overallBody: string = OVERALL_CLEAN): Program {
-  const specsDir = path.join(repo, "docs", "osuperpowers", "specs");
-  const plansDir = path.join(repo, "docs", "osuperpowers", "plans");
-  mkdirSync(specsDir, { recursive: true });
-  mkdirSync(plansDir, { recursive: true });
-  const overall = path.join(specsDir, "2026-01-01-demo-overall.md");
-  writeFileSync(overall, overallBody);
-  writeFileSync(path.join(specsDir, "2026-01-01-demo-p1-design.md"), SPEC1);
-  writeFileSync(path.join(specsDir, "2026-01-01-demo-p2-design.md"), SPEC2);
-  const plan1 = path.join(plansDir, "2026-01-01-demo-p1.md");
-  const plan2 = path.join(plansDir, "2026-01-01-demo-p2.md");
-  writeFileSync(plan1, planBody("2026-01-01-demo-p1-design.md"));
-  writeFileSync(plan2, planBody("2026-01-01-demo-p2-design.md"));
+  const p = writeProgramDocs(repo, overallBody);
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=cc-test", "-c", "user.email=cc-test@example.com", "commit", "-qm", "docs");
-  return { repo, overall, plan1, plan2 };
-}
-
-/** Land a COMPLETE plan in its engine workspace (progress rows + APPROVED review-1 carriers) — the
- *  engine terminal state the debt inference consumes. */
-function writeCompletePlanWorkspace(repo: string, planPath: string): void {
-  const ws = resolveWorkspace(planPath, repo);
-  mkdirSync(ws, { recursive: true });
-  writeFileSync(path.join(ws, "task-1-review-1.json"), JSON.stringify({
-    task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {},
-  }));
-  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
-    plan: planPath, tasks: [{ task: 1, rounds: { review: 1 } }],
-  }));
-}
-
-/** Land an IN-FLIGHT workspace (progress row without a completed review). */
-function writeInFlightPlanWorkspace(repo: string, planPath: string): void {
-  const ws = resolveWorkspace(planPath, repo);
-  mkdirSync(ws, { recursive: true });
-  writeFileSync(path.join(ws, "progress.json"), JSON.stringify({ plan: planPath, tasks: [{ task: 1 }] }));
+  return p;
 }
 
 async function runTaskReview(repo: string, planFile: string, dryRun = false): Promise<{ exitCode: number; diagnostic: { prefix: string; msg: string } | null; stderr: string }> {

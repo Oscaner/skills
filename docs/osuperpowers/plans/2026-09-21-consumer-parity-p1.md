@@ -39,9 +39,9 @@ Task 1（J1 改写 4 处 + grep 零主张实证）→ Task 2（S5 单行）→ T
 
 ### Task 2: S5 单行修正（design §2.4）
 
-- **Do**: `scripts/run.ts:89` `smoke-cdd` 子命令描述 `(4-command H1 chain)` → `(5-command H1 chain)`（smoke-cdd.ts 实际五命令：implement / review task / fix task / review branch / fix branch；run.ts 描述现为 stale 4-command）。
-- **验收**: `scripts/run.ts:89` 描述与 smoke-cdd.ts 五命令一致；`pnpm run validate` scripts unit 面（`scripts/__tests__/run.test.ts` 等）全绿。
-- **注**: 单行文本描述；无测试依赖该描述（design §2.4 已核）。
+- **Do**: `scripts/run.ts:89` `smoke-cdd` 子命令描述 `(4-command H1 chain)` → `(5-command chain)`（smoke-cdd.ts 实际五命令：implement / review task / fix task / review branch / fix branch；run.ts 描述现为 stale 4-command）。
+- **验收**: `scripts/run.ts:89` 描述与 smoke-cdd.ts 五命令一致；`pnpm run validate` scripts unit 面（`scripts/__tests__/run.test.ts` 等）全绿；`scripts/run.ts` 与 `scripts/validate/smoke-cdd.ts` 描述/注释零 `\bH1\b` 退役词残留（F8a 语义化：return block）。
+- **注**: 单行文本描述（+ 注释同步语义化）；无测试依赖该描述（design §2.4 已核）。T2 实施后用户指正（2026-09-21）：`H1` 为 F8a 已语义化退役词（scripts/ 不在 `\bH1\b` 守卫扫描面故 T2 漏网）——逼近编排侧补提交 `4575a82e`（run.ts 描述 + smoke-cdd.ts 注释 4 处改 return block）。
 
 ### Task 3: AC1–AC5 收口复核 + changeset 裁决登记
 

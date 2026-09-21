@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, chmodSync, readFileSync, realpat
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { gitInit, gitCommit } from "../../infra/__tests__/helpers.ts";
+import { gitInit, gitCommit, commitValidDocs } from "../../infra/__tests__/helpers.ts";
 import { runTask } from "../../dispatch/task.ts";
 import { readProgressJSON, incrementRecovery } from "../progress.ts";
 import { REG_PATH } from "../../infra/registry.ts";
@@ -17,11 +17,9 @@ import { REG_PATH } from "../../infra/registry.ts";
 function setupWorkspace() {
   const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-progress-owner-")));
   gitInit(repo);
-  const plans = path.join(repo, "docs", "osuperpowers", "plans");
-  mkdirSync(plans, { recursive: true });
-  const planFile = path.join(plans, "plan.md");
-  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  gitCommit(repo);                                   // plan 入 tracked（工作树干净 —— commit-contract 前提）
+  // doc-contract-valid chain (plan + spec + parent overall) — the docContractValidate gate requires them
+  const planRel = commitValidDocs(repo);
+  const planFile = path.join(repo, planRel);
   const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");

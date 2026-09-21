@@ -67,6 +67,7 @@ const EXPECTED_TIMELINE = [
   "commitPreCheck",
   "resolveContext",
   "validateMode",
+  "docContractValidate",
   "dispatch",
   "post-flight",
   "schemaValidate",
@@ -74,6 +75,7 @@ const EXPECTED_TIMELINE = [
   "settleResidue",
   "writeBoundary",
   "commitPostCheck",
+  "statusValidate",
 ] as const;
 
 it("abstract: 基类无法实例化（TS 编译期约束；直接 new 为编译错误，经 tsc 对 tests 验证）", () => {
@@ -195,7 +197,9 @@ it("出口门卷入（双门挂载）: dispatch 期间引入 dirty → BLOCKED�
   expect(error).toBeInstanceOf(DispatchBlocked);
   expect((error as DispatchBlocked).gate).toBe("exit");
   expect((error as DispatchBlocked).message).toMatch(/uncommitted changes at return/);
-  expect(lc.timeline).toEqual([...EXPECTED_TIMELINE]);
+  // The walk is unconditional but aborts where the exit gate throws: statusValidate (the post-exit
+  // report step) never records on a blocked exit — it only runs on a gate that passed.
+  expect(lc.timeline).toEqual(EXPECTED_TIMELINE.slice(0, -1));
 });
 
 it("继承覆写（spec §2.12 落点）: 覆写门 hook 替换默认判定（双门各自可替换；dirty 下仍 run 通过）", async () => {

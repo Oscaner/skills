@@ -84,9 +84,9 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
     expect(lc.result.returnBlock[0]).toBe("status: APPROVED");
     // 模板全走（dispatch 进入——唯一 agent 语义步骤被执行；尾步 commitPostCheck 在 dryRun 下跳过退出校验）
     expect(lc.timeline).toEqual([
-      "pre-flight", "commitPreCheck", "resolveContext", "validateMode",
+      "pre-flight", "commitPreCheck", "resolveContext", "validateMode", "docContractValidate",
       "dispatch", "post-flight", "schemaValidate", "normalizeResult",
-      "settleResidue", "writeBoundary", "commitPostCheck",
+      "settleResidue", "writeBoundary", "commitPostCheck", "statusValidate",
     ]);
   } finally {
     cap.restore();
@@ -214,8 +214,8 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   // #finished), while the template walk still records every step (the walk is unconditional —
   // only hook bodies skip on a finished round).
   expect(lc.timeline).toEqual([
-    "pre-flight", "commitPreCheck", "resolveContext", "validateMode",
-    "dispatch", "post-flight", "schemaValidate", "normalizeResult", "settleResidue", "writeBoundary", "commitPostCheck",
+    "pre-flight", "commitPreCheck", "resolveContext", "validateMode", "docContractValidate",
+    "dispatch", "post-flight", "schemaValidate", "normalizeResult", "settleResidue", "writeBoundary", "commitPostCheck", "statusValidate",
   ]);
 });
 

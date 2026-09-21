@@ -1,6 +1,8 @@
 // packages/cdd-engine/src/infra/__tests__/helpers.ts
 // git init + 空提交（-c 内联身份：无全局 user.name/email 的环境（CI runner）也能 commit）。
 import { execFileSync, execSync, spawn } from "node:child_process";
+import { writeFileSync, mkdirSync } from "node:fs";
+import path from "node:path";
 
 // 进程组回收能力探针（spec §2.6「环境不允许时 skip 保护」）：
 // detached 组 + kill(-pgid) 在部分 CI 容器（Ubuntu runner sandbox）下不可靠 —— 组提升失败或
@@ -52,6 +54,65 @@ export function gitCommit(dir, message = "plan") {
   execFileSync("git", ["-C", dir, "add", "-A"]);
   execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",
     "commit", "-q", "-m", message]);
+}
+
+// ---- Task 29 (spec T7.8): doc-contract-valid chain (plan + spec + parent overall) ----
+// A three-doc fixture that passes every docContractValidate contract (the dispatch hook now gates
+// every real dispatch on it, so any lifecycle-test repo asserting a real dispatch past pre-flight
+// must carry a valid chain). Single shared source — runner / progress-owner fixture builders all
+// call commitValidDocs instead of writing a bare `# Plan` file.
+const VALID_PLAN_BODY = [
+  "# Plan",
+  "",
+  "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+  "",
+  "## Constraints",
+  "",
+  "- boundary one",
+  "",
+  "### Task 1: x",
+  "body",
+  "",
+].join("\n");
+const VALID_SPEC_BODY = [
+  "- **Version**: v1.0 · 2026-09-21",
+  "",
+  "- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)",
+  "",
+].join("\n");
+const VALID_OVERALL_BODY = [
+  "- **Version**: v1.0 · 2026-09-21",
+  "",
+  "## Phase inventory",
+  "",
+  "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+  "|---|---|---|---|---|---|---|",
+  "| P1 | phase one | P1-design v1.0 | Pending | | none |",
+  "",
+  "## Change history",
+  "",
+  "| Version | date | summary |",
+  "|---|---|---|",
+  "| v1.0 | 2026-09-21 | Initial |",
+  "",
+].join("\n");
+
+/** commitValidDocs(dir, planRel?, planBody?) — write the valid spec + parent overall and the plan
+ * (default the canonical valid body; a fixture may pass its own planBody) into the repo and commit
+ * them (clean tree — commit-contract premise). Returns the plan's repo-relative path. */
+export function commitValidDocs(dir, planRel = path.join("docs", "osuperpowers", "plans", "plan.md"), planBody = VALID_PLAN_BODY) {
+  const planAbs = path.join(dir, planRel);
+  mkdirSync(path.dirname(planAbs), { recursive: true });
+  writeFileSync(planAbs, planBody);
+  const specRel = path.join("docs", "osuperpowers", "specs", "plan-design.md");
+  const specAbs = path.join(dir, specRel);
+  mkdirSync(path.dirname(specAbs), { recursive: true });
+  writeFileSync(specAbs, VALID_SPEC_BODY);
+  const overallAbs = path.join(dir, path.join("docs", "osuperpowers", "specs", "plan-overall.md"));
+  mkdirSync(path.dirname(overallAbs), { recursive: true });
+  writeFileSync(overallAbs, VALID_OVERALL_BODY);
+  gitCommit(dir);
+  return planRel;
 }
 
 // 单根权威（src/infra/root.ts）打桩 —— 同一 seam 的构造知识集中在此，避免各测试文件各写一份。

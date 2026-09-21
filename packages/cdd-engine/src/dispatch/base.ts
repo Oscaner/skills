@@ -114,6 +114,8 @@ export abstract class DispatchLifecycle {
       await this.resolveContext(hookCtx);
       this.#step("validateMode");
       await this.validateMode(hookCtx);
+      this.#step("docContractValidate"); // doc-contract gate (Task 29): plan + spec + parent overall contract check
+      await this.docContractValidate(hookCtx);
       this.#phase("dispatch"); // dispatch phase — the only agent-semantics step is the abstract virtual method
       await this.dispatch(hookCtx);
       this.#phase("post-flight");
@@ -127,6 +129,8 @@ export abstract class DispatchLifecycle {
       await this.writeBoundary(hookCtx);
       this.#step("commitPostCheck"); // exit gate — mounted at commit:exit (default constructor mount)
       await this.hooks.callHook("commit:exit", hookCtx);
+      this.#step("statusValidate"); // status reconcile (Task 29): six-state + plan verdict after the exit gate
+      await this.statusValidate(hookCtx);
     } finally {
       await this.hooks.callHook("dispatch:after", hookCtx);
     }
@@ -158,6 +162,19 @@ export abstract class DispatchLifecycle {
   /** Mode validation (pre-flight): default pass-through — the base does not judge the legal mode
    * set (the docs variant has its own); task.ts / docs.ts own the mode policy (spec step 6). */
   protected async validateMode(_hookCtx: DispatchHookContext): Promise<void> {}
+
+  /** Doc-Contract validation (pre-flight, after resolveContext + validateMode, before dispatch —
+   * the Task 29 docContractValidate template step): validates the dispatch's plan + its spec +
+   * the parent overall against the three necessary contracts (rules/documents.ts). Default
+   * pass-through (the base has no docs authority); task.ts overrides with the concrete
+   * validateDispatchDocuments call behind the #finished guard. */
+  protected async docContractValidate(_hookCtx: DispatchHookContext): Promise<void> {}
+
+  /** Status reconcile (post-flight, after the exit gate — the Task 29 statusValidate template
+   * step): reports the current task state + plan completion verdict as CDD_INFO. Default
+   * pass-through; task.ts overrides with the six-state / verdict derivation. Runs after the
+   * exit gate on purpose — the report describes the tree the round just landed. */
+  protected async statusValidate(_hookCtx: DispatchHookContext): Promise<void> {}
 
   /** dispatch phase — the only agent-semantics black box (spec §2.12): abstract virtual method,
    * concrete subclasses MUST provide an implementation (TS virtual-method compile-time constraint). */

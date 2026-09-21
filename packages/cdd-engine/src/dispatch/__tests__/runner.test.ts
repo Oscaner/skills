@@ -25,7 +25,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
 
 // git init + empty commit.
-import { gitCommit, gitInit, processGroupReapingSupported, pgrepCount } from "../../infra/__tests__/helpers.ts";
+import { gitCommit, gitInit, processGroupReapingSupported, pgrepCount, commitValidDocs } from "../../infra/__tests__/helpers.ts";
 const GROUP_SUPPORTED = processGroupReapingSupported();  // spec §2.6 skip 保护（CI 容器组语义不可靠）
 
 // gitInit + realpath normalization (macOS /tmp → /private/tmp).
@@ -45,10 +45,8 @@ const PLAN_REL = path.join("docs", "osuperpowers", "plans", "plan.md");
 //（slug 取 plan.md 去扩展名）；`.osuperpowers/cdd/.gitignore` 的 `*` 让 ws 产物不进 tracked 树。
 function setupWorkspace() {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-task-runner-")));
-  const planAbs = path.join(repo, PLAN_REL);
-  mkdirSync(path.dirname(planAbs), { recursive: true });
-  writeFileSync(planAbs, "# Plan\n\n### Task 1: x\nbody\n");
-  gitCommit(repo);
+  // doc-contract-valid chain: plan + its spec + parent overall (the dispatch gate requires it)
+  commitValidDocs(repo);
   const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
@@ -60,11 +58,10 @@ function setupWorkspace() {
   return { repo, planFile: PLAN_REL, ws };
 }
 
-// Commit a plan file into an already-initialized repo (add + commit) — keeps working tree clean.
+// Commit a doc-contract-valid plan into an already-initialized repo (add + commit) — keeps working
+// tree clean.
 function commitPlan(repoDir, planFile) {
-  mkdirSync(path.dirname(planFile), { recursive: true });
-  writeFileSync(planFile, "# Plan\n\n### Task 1: x\nbody\n");
-  gitCommit(repoDir);
+  commitValidDocs(repoDir, path.relative(repoDir, planFile));
   return planFile;
 }
 
@@ -961,10 +958,7 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
 // 返回 registry / HEAD 现场；root 经 opts.root 注入，workspace 纯派生 = <repo>/.osuperpowers/cdd/plan。
 function t6Workspace(extraFiles = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
-  const planAbs = path.join(repo, PLAN_REL);
-  mkdirSync(path.dirname(planAbs), { recursive: true });
-  writeFileSync(planAbs, "# Plan\n\n### Task 1: x\nbody\n");
-  gitCommit(repo);
+  commitValidDocs(repo);
   const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
@@ -1170,10 +1164,7 @@ function t8Workspace({ dirty = false } = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t8-ws-")));
   writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
   gitCommit(repo);
-  const planAbs = path.join(repo, PLAN_REL);
-  mkdirSync(path.dirname(planAbs), { recursive: true });
-  writeFileSync(planAbs, "# Plan\n\n### Task 1: x\nbody\n");
-  gitCommit(repo);
+  commitValidDocs(repo);
   const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
@@ -1278,10 +1269,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
 // letting runTask self-provision it (like F11's generateBrief, same resolveContext point).
 function t22Workspace(planContent: string) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t22-ws-")));
-  const planAbs = path.join(repo, PLAN_REL);
-  mkdirSync(path.dirname(planAbs), { recursive: true });
-  writeFileSync(planAbs, planContent);
-  gitCommit(repo);
+  commitValidDocs(repo, PLAN_REL, planContent);
   const cddDir = path.join(repo, ".osuperpowers", "cdd");
   mkdirSync(cddDir, { recursive: true });
   writeFileSync(path.join(cddDir, ".gitignore"), "*\n");
@@ -1299,6 +1287,8 @@ function t22Workspace(planContent: string) {
 // the plan-declared Constraints source the materializer extracts deterministically.
 const T22_PROSE_PLAN = [
   "# Plan",
+  "",
+  "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
   "",
   "**口径**：mouthpiece constraint",
   "",

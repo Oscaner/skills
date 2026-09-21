@@ -56,6 +56,8 @@ import {
   type ResidueAppendixInput,
 } from "../artifacts/residue.ts";
 import { validateHandoffSchema } from "../rules/schema.ts";
+import { validateDispatchDocuments, formatDocFailures, type DocValidationFailure } from "../rules/documents.ts";
+import { deriveTaskState, derivePlanVerdict, formatTaskStateLine, formatPlanVerdict } from "../rules/status.ts";
 import { returnFourLines, returnFromHandoff, dryRunBlock } from "../artifacts/return-block.ts";
 import { FAILURE_CATEGORIES, incrementFailureCounter, exhaustedBlocker, maybeExhaust, timeoutBlocker } from "../rules/failure.ts";
 export { returnFourLines, returnFromHandoff } from "../artifacts/return-block.ts";
@@ -501,6 +503,39 @@ export class TaskLifecycle extends DispatchLifecycle {
     if (missing) { this.#done(1, [], missing); return; }
   }
 
+  /** Task 29 (spec T7.8) docContractValidate template-step override: the current dispatch's doc
+   * chain (plan → its `**Spec:**` spec → the spec's Parent program overall) validated against the
+   * three necessary contracts (rules/documents.ts). Failures non-empty → the round is blocked
+   * before the agent ever runs — exit 1 + the guidance on stderr (the 0/1/2/3 exit table unchanged
+   * — this is a BLOCKED face like any other); dry-run runs the SAME check but lowers to the WARN
+   * lane (the E2② entry-gate precedent: a doc-invalid simulation still completes, never silent).
+   * Read-only: the check never writes docs or carriers — a doc-invalid round stays
+   * re-dispatchable the moment the docs are repaired (no BLOCKED carrier to clear). */
+  protected override async docContractValidate(_hookCtx: DispatchHookContext): Promise<void> {
+    if (this.#finished) return;
+    const ctx = this.#tcx!;
+    const dryRun = this.#opts.dryRun === true;
+    let failures: DocValidationFailure[];
+    try {
+      failures = validateDispatchDocuments({
+        planPath: ctx.plan,
+        root: this.#root,
+        extractTaskNumbers: taskNumbersFromPlan,
+        extractConstraints: extractPlanConstraints,
+      });
+    } catch {
+      return; // fail-open: an unreadable doc chain must never crash the lifecycle (the plan
+      // existence gate in resolveContext already surfaced the missing-plan case there)
+    }
+    if (failures.length === 0) return;
+    const guidance = formatDocFailures(failures);
+    if (dryRun) {
+      process.stderr.write(`CDD_WARN: doc contract invalid (dry-run) — fix the docs below, then re-dispatch task ${this.#taskNum}:\n${guidance}\n`);
+      return;
+    }
+    this.#done(1, [], `doc contract validation failed — fix the docs below, then re-dispatch task ${this.#taskNum}:\n${guidance}`);
+  }
+
   // ---- dispatch ----
 
   /** Steps 7/8/8.5: prompt render → agent CLI spawn (or dry-run simulation) → the timeout path
@@ -869,6 +904,27 @@ export class TaskLifecycle extends DispatchLifecycle {
     // exit mastered by finalizeHandoff's round conclusion — the T14「exit 0 + status BLOCKED」
     // inversion dies here (a BLOCKED-derived review or a fix declaring BLOCKED → 1).
     this.#done(finalized?.exitCode ?? 0, this.#returnBlock, "");
+  }
+
+  /** Task 29 (spec T7.8) statusValidate template-step override (post-flight, after the exit gate):
+   * reports the round's CURRENT task state (six-state convergence, rules/status.ts) + the plan
+   * completion verdict as CDD_INFO — the "plan Done" terminal declaration is exactly this
+   * all-complete verdict (closeout consumes it; no more manual tallying). Deliberately runs
+   * WITHOUT the #finished guard: the round just ended (commitPostCheck #done'd) and its resulting
+   * state is precisely what the report describes; the walk has already passed every exit gate, so
+   * this step is informational and never exit-changing. Read-only — derives from on-disk
+   * progress/carriers; unreadable progress/plan → skip silently (fail-open). */
+  protected override async statusValidate(_hookCtx: DispatchHookContext): Promise<void> {
+    const ctx = this.#tcx; // null when resolveContext died early (e.g. cli-missing) — nothing to reconcile
+    if (!ctx || !ctx.workspace || !ctx.plan) return;
+    try {
+      const state = deriveTaskState(ctx.workspace, this.#taskNum);
+      const verdict = derivePlanVerdict(ctx.plan, ctx.workspace, taskNumbersFromPlan);
+      process.stderr.write(`CDD_INFO: ${formatTaskStateLine(this.#taskNum, state)}\n`);
+      process.stderr.write(`CDD_INFO: ${formatPlanVerdict(verdict)}\n`);
+    } catch {
+      // fail-open: no report when progress/plan cannot be read
+    }
   }
 }
 

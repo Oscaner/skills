@@ -983,6 +983,19 @@ function commentUnits(text) {
           let depth = 1;
           i += 2;
           while (i < n && depth > 0) {
+            // Mirror the outer string branches: a quote inside an interpolation is a quoted
+            // span, not brace-bearing text — a {/} inside a string must not move the depth.
+            if (text[i] === '"' || text[i] === "'" || text[i] === "`") {
+              const q = text[i];
+              i++;
+              while (i < n) {
+                if (text[i] === "\\") { i += 2; continue; }
+                if (text[i] === q) { i++; break; }
+                if (text[i] === "\n") line++;
+                i++;
+              }
+              continue;
+            }
             if (text[i] === "\n") line++;
             if (text[i] === "}") depth--;
             if (text[i] === "{") depth++;

@@ -1380,11 +1380,13 @@ describe("P6 Task 3：walkTargetFiles `__tests__` 自豁免 doctrine", () => {
   });
 });
 
-// ---- Task 31（P6 / spec T7.10）：src 注释锚首禁（§35 second half 语义前置）----
-// 守卫 collectCommentAnchorHits 扫 packages/cdd-engine/src/**（含 __tests__，§35 无测试豁免），
-// 块粒度：单个 /* */ 块或一组相邻 `//` 行 = 一个单位；单位首有效 token ∈ 相位锚家族
-// （P\d+ / T\d+(.\d+)? / Task \d+ / spec T\d+(.\d+)?）即命中。文件头豁免仅当头部首单位首
-// token 非锚（路径/模块开头）——锚首头注不放行。测试经 targetsOverride 注入 mkdtemp。
+// ---- Src-comment anchor-first ban — semantic body first (Task 31, P6 / spec T7.10) ----
+// collectCommentAnchorHits scans packages/cdd-engine/src/** including __tests__ (the §35 rule
+// makes no test carve-out). One unit = a /* */ block or a run of adjacent `//` lines; a unit is
+// a hit when its first valid token is a phase anchor (P\d+ / T\d+(.\d+)? / Task \d+ /
+// spec T\d+(.\d+)?). The file-header carve-out applies only when the header's first unit's first
+// token is not an anchor (path/module-led) — an anchor-led header comment stays a violation.
+// Tests inject a mkdtemp via targetsOverride.
 describe("src 注释锚首禁（Task 31 / spec T7.10）", () => {
   function anchorHits(content: string): number {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-ca-"));
@@ -1425,7 +1427,9 @@ describe("src 注释锚首禁（Task 31 / spec T7.10）", () => {
     expect(anchorHits("// T26: header prose\nimport x from \"y\";\n")).toBe(1);
   });
   it("块粒度：相邻 `//` 行组整体一计数（paren 续行不误报）", () => {
-    // 反例（finalize.ts:387 教训）：续行以开括号开头是上一行语义的延续 —— 组首 token 才是判定点
+    // Counter-example (the finalize.ts:387 lesson): a continuation line opening with an open
+    // paren continues the previous line's semantics — the group's first token is the decision
+    // point.
     expect(anchorHits(
       "// No agentHandoff authority is implied\n" +
       "// (T6 logic moved in) completes the open paren\n",
@@ -1434,6 +1438,12 @@ describe("src 注释锚首禁（Task 31 / spec T7.10）", () => {
       "// T6 logic moved in\n" +
       "// No agentHandoff authority\n",
     )).toBe(1);
+  });
+  it("${} 内插值串内的 {/} 不动插值深度（防注释误吞）", () => {
+    // A { inside an interpolated string must not over-extend the ${} walk past the template
+    // close — a later // comment would otherwise be swallowed (false negative).
+    expect(anchorHits("const x = `a${ \"{\" }b`; // T7.10: prose\n")).toBe(1);
+    expect(anchorHits("const x = `a${ \"}\" }b`; // T7.10: prose\n")).toBe(1);
   });
   it("includeTests 入扫测试位（§35 无测试豁免）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "residue-ca-t-"));

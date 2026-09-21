@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— Overall Spec
 
-- **Version**: v1.7 · 2026-09-21
+- **Version**: v1.8 · 2026-09-21
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
@@ -48,6 +48,7 @@ Charter only — no implementation detail.
 - **spec/plan 结构定义同源派生**（用户 2026-09-21 要求，沿 data-driven-template 约定）：doc-structure 单源（engine 包内 canonical 定义）→ emit 渲染 skill 侧 templates + engine 侧 docContractValidate / brief 抽取**同构运行时消费**——零双维护，`emit:check` 漂移守卫 + 运行时组合校验
 - engine 零文档写入保持——引擎只判只指引，回填由作者执行
 - 本程序自身四表仍受现有 `scripts/validate/overall-consistency.ts` 机器校验，直至 P3 退役该守卫（程序终结于其目标——dogfood）
+- **判据定式（三判据；P1 逐项 triage 与 P2/P3 处置的记在案判定规则）**：**C1 可达性**——一条 charter 合规断言，只要消费者环境（纯包 + 无 `scripts/`、无可安装 validate）也应得到同等执法 → 归 engine lifecycle（docContractValidate / statusValidate）；engine 无法承载其时机（与 dispatch 无关的结构约束）→ 归 data-driven-template 单源或产品文档；落 repo scripts 侧第二实现 = 违规。**C2 结构性**——断言对象是结构 token / heading / 模板 → 一律同源派生（d4t 单源），engine 运行时同构消费；repo 侧任何人肉第二副本 = 违规。**C3 退化（canary）**——本仓任何「仅本仓侧 charter 执法」依赖 → 处置二选一：并入 engine（该断言值得消费者得到）或删除（仅本仓必要而消费者不需要 ⇒ 本仓也不该有）；useless 必删、不留历史叙述豁免（2026-09-21 用户裁决）；处置完成态 = validate 全绿且零 scripts 侧兜底引用
 
 ## Issue inventory
 
@@ -101,3 +102,4 @@ Legend:
 | v1.5 | 2026-09-21 | cdd spec-review r3（1 warn + 1 nit）全 finding 落地：「四表」定义锚补枚举 gloss（纪律 lead-in——双向 backfill 声明 ↔ 列 / plan·design 文档存在性 / 依赖图成员 / 锚点注册域，即下述 1/2/3/5 条；phase 注册完整性 / issue 行 well-formed 并入不单列、不计入四表）；docs-family fix 轮次缩写统一改标「spec-fix rN」——v1.4 行 / Issue inventory / P2 scope 三处同改，与既有「spec-review rN」措辞区分（v1.4→v1.5） | [human] · Claude Opus 5 (1M context) |
 | v1.6 | 2026-09-21 | 程序批准：Status Draft → Approved（overall 已合入 develop，PR #269）· 进入 P1 brainstorm（v1.5→v1.6） | [human] · Claude Opus 5 (1M context) |
 | v1.7 | 2026-09-21 | P1 brainstorm R1–R3 裁决回填：判据定式落盘——C1 可达性 / C2 结构性 / C3 退化（useless 必删、无历史叙述豁免）；shim 清单四分类（替换执法 · 声称残留 · 路径差异 · 描述漂移）+ 处置表 S1–S6；13 件 overhaul 族冻结文档清理 = P1 执行（验收② A 解释：frozen 照清）；处置项新增 S5（run.ts:89 stale「4-command」描述 → P1 单行修正）、S6（.changeset ×2 block-12 声称 → P4 版本化时清）（v1.6→v1.7） | [human] · Claude Opus 5 (1M context) |
+| v1.8 | 2026-09-21 | 判据定式落点补全（P1 design r1 review F3 回填）：C1/C2/C3 操作性定义从 change-history 名称式提升为 Cross-cutting 完整定义段——C1 可达性 / C2 结构 token 单源 / C3 退化处置，三判据即 P1 triage 与 P2/P3 处置的记在案判定规则（v1.7→v1.8） | [human] · Claude Opus 5 (1M context) |

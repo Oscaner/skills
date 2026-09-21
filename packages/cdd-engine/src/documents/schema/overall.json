@@ -309,6 +309,11 @@
           "pattern": "^Design\\s?-?\\s?spec$",
           "description": "Design link word — a clause mentioning `Design spec` carries a design backfill claim (target must be a `P<n>-design` token)."
         },
+        "designToken": {
+          "type": "string",
+          "pattern": "^P\\d+(?![0-9])[a-z]?-design$",
+          "description": "Design-spec token — the canonical `P<n>-design` token a Design spec column carries as its own completion marker and a design claim's target; split-phase ids allow a trailing letter (`P1a-design`)."
+        },
         "phaseReference": {
           "type": "object",
           "description": "Phase references inside a claim clause — single or ranged (endpoints included).",

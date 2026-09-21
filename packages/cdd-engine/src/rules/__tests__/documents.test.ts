@@ -300,6 +300,49 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
   });
 
+  it("face ①: a canonically-valid split-phase claim (P1a) resolves verbatim — no numeric-base collapse", () => {
+    // Split-phase ids (`P1a`) are canonical claim references (phaseReference single allows the
+    // trailing letter) — a consistent claim on P1a must attribute to the FULL id, never re-derived
+    // as the numeric base `P1` (pre-fix the single/range scans captured only the digit run, a false
+    // "references P1, which is not in the Phase inventory" failure).
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.1 · 2026-09-21",
+        "",
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "|---|---|---|",
+        "| P1a | none | issue one |",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1a | phase one-a | [Pending] | Done | | |",
+        "| P2 | phase two | [Pending] | [Pending] | | P1a ->(hard) |",
+        "",
+        "## Dependency graph (ASCII)",
+        "",
+        "```",
+        "P1a -> P2",
+        "```",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P1a Implementation plan 列回填（[Pending]→Done） |",
+        "",
+      ].join("\n"),
+      planName: "2026-09-21-plan-p2.md",
+    });
+    // face ② globs (slug "plan"): the shipped P1a plan doc must exist (its design cell is [Pending]).
+    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1a.md"), "# plan\n");
+    expect(run(c)).toEqual([]);
+  });
+
   it("face ②: design cell carries an own P<n>-design token but the design doc glob misses → failure", () => {
     const c = writeAuditChain();
     unlinkSync(path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p1-design.md"));

@@ -153,12 +153,18 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     expect("clause A；clause B;clause C".split(DOC_TOKENS.claimClauseSeparatorRe)).toEqual([
       "clause A", "clause B", "clause C",
     ]);
-    // Claim phase references — single digit-run + ranged (endpoints included).
-    expect([..."P1 Design + P1–P4 范围".matchAll(DOC_TOKENS.claimSinglePhaseRe)].map((m) => m[1])).toEqual([
-      "1", "1", "4",
+    // Claim phase references — the FULL canonical id captured (split-letter suffix included) with
+    // the digit run inside (groups 1/3 full + 2/4 digits): a `P1a` reference stays verbatim.
+    expect([..."P1 Design + P1a 复盘 · P1–P4 范围".matchAll(DOC_TOKENS.claimSinglePhaseRe)].map((m) => [m[1], m[2]])).toEqual([
+      ["P1", "1"], ["P1a", "1"], ["P1", "1"], ["P4", "4"],
     ]);
-    const range = [..."P1–P4".matchAll(DOC_TOKENS.claimPhaseRangeRe)][0]!;
-    expect([range[1], range[2]]).toEqual(["1", "4"]);
+    const range = [..."P2a–P4a".matchAll(DOC_TOKENS.claimPhaseRangeRe)][0]!;
+    expect([range[1], range[2], range[3], range[4]]).toEqual(["P2a", "2", "P4a", "4"]);
+    // Design-spec token — the canonical `P<n>-design` leaf (split ids allowed) + the design-doc
+    // filename tail derived from it.
+    expect("source P3-design → p2-design v1.0".match(DOC_TOKENS.designTokenScanRe)?.[0]).toBe("P3-design");
+    expect(DOC_TOKENS.designTokenScanRe.test("P1a-design v1.0")).toBe(true);
+    expect(DOC_TOKENS.designDocTail).toBe("-design.md");
     // Issue-anchor scan — the issue-number run captured (the anchor-registry membership atom).
     const anchor = [..."fixes #123#issuecomment-456".matchAll(DOC_TOKENS.issueAnchorFormRe)][0]!;
     expect(anchor[1]).toBe("123");

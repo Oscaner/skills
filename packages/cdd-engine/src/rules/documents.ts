@@ -89,13 +89,14 @@ const RANGE_RE = DOC_TOKENS.claimPhaseRangeRe;
 const SINGLE_PHASE_RE = DOC_TOKENS.claimSinglePhaseRe;
 // Claim link words — the canonical single/range patterns are the anchored leaf; the audit's
 // contains-search form strips the anchors (the search word boundaries) — the phrase family the
-// retiring scripts guard matched unanchored with the same body.
-const DESIGN_TOKEN_RE = /P\d+(?![0-9])[a-z]?-design/i;
+// retiring scripts guard matched unanchored with the same body. The `P<n>-design` design-spec
+// token (split ids allowed: `P1a-design`) is the canonical claimPatterns.designToken scan.
+const PLAN_LINK_WORD = linkWordSearch(DOC_TOKENS.planLinkWordRe);
+const DESIGN_LINK_WORD = linkWordSearch(DOC_TOKENS.designLinkWordRe);
+const DESIGN_TOKEN_RE = DOC_TOKENS.designTokenScanRe;
 function linkWordSearch(anchored: RegExp): RegExp {
   return new RegExp(anchored.source.replace(/^\^/, "").replace(/\$$/, ""), "i");
 }
-const PLAN_LINK_WORD = linkWordSearch(DOC_TOKENS.planLinkWordRe);
-const DESIGN_LINK_WORD = linkWordSearch(DOC_TOKENS.designLinkWordRe);
 
 // Placeholder / template / regex targets (same class as plan-spec-anchors' predicate): scheme links,
 // local anchors, absolute-root paths, dir refs and template tokens are prose, not tree paths.
@@ -681,10 +682,14 @@ function isPendingText(v: string): boolean {
 }
 
 // The phase's OWN design-spec token `P<n>-design` in its Design spec column (cross-references like
-// `（源 P3-design）` are NOT the own token). num comes from a validated inventory phase id.
+// `（源 P3-design）` are NOT the own token). Derived from the canonical designToken pattern — the
+// id-run (`\d+(?![0-9])[a-z]?`) is replaced by the validated inventory phase id's digits + split
+// letter, so the own token is exact (`P1a-design` owns P1a, never P1's token). num comes from a
+// validated inventory phase id.
 function ownDesignToken(col: string, phaseId: string): string | null {
-  const num = phaseId.replace(/^P/i, "");
-  const m = (col ?? "").match(new RegExp(`P${num}(?![0-9])-design`, "i"));
+  const suffix = phaseId.replace(/^P/i, "");
+  const own = new RegExp(DESIGN_TOKEN_RE.source.replace("\\d+(?![0-9])[a-z]?", suffix), "i");
+  const m = (col ?? "").match(own);
   return m ? m[0] : null;
 }
 
@@ -709,15 +714,27 @@ function claimTarget(full: string): string {
 }
 
 // Phase references inside a claim clause — single + ranged (endpoints included), the canonical
-// claim-pattern scan forms.
+// claim-pattern scan forms. The full captured id (split-letter suffix included) is the verbatim
+// reference — a `P1a` claim targets P1a, never its numeric base. Range expansion (`P1–P4` →
+// P1..P4) is numeric over the shared base; it carries a split-letter suffix only when both
+// endpoints share one (`P2a–P4a` → P2a..P4a), differently-lettered endpoints staying verbatim (a
+// lettered range has no canonical intermediates).
 function phaseIdsIn(clause: string): string[] {
   const ids = new Set<string>();
   for (const m of clause.matchAll(RANGE_RE)) {
-    const a = +m[1];
-    const b = +m[2];
-    for (let n = Math.min(a, b); n <= Math.max(a, b); n++) ids.add(`P${n}`);
+    const a = m[1];
+    const b = m[3];
+    const suffixA = a.slice(1 + m[2].length);
+    const suffixB = b.slice(1 + m[4].length);
+    if (suffixA === suffixB) {
+      const lo = Math.min(Number(m[2]), Number(m[4]));
+      const hi = Math.max(Number(m[2]), Number(m[4]));
+      for (let n = lo; n <= hi; n++) ids.add(a.replace(m[2], String(n)));
+    } else {
+      ids.add(a).add(b);
+    }
   }
-  for (const m of clause.matchAll(SINGLE_PHASE_RE)) ids.add(`P${m[1]}`);
+  for (const m of clause.matchAll(SINGLE_PHASE_RE)) ids.add(m[1]);
   return [...ids];
 }
 
@@ -897,8 +914,11 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
     const low = id.toLowerCase();
     return mdNames(plansDir).filter((n) => n.endsWith(`-${slug}-${low}.md`) || n.endsWith(`-${slug}-${low}-plan.md`));
   };
+  // The canonical `P<n>-design` pattern's filename tail (`-design.md`, lowercased — the filePaths
+  // form `*-<slug>-<phase-id>-design.md`): the design-doc glob suffix for an own design token.
+  const designDocSuffix = DOC_TOKENS.designDocTail;
   const designHit = (id: string) => {
-    return mdNames(specsDir).filter((n) => n.endsWith(`-${slug}-${id.toLowerCase()}-design.md`));
+    return mdNames(specsDir).filter((n) => n.endsWith(`-${slug}-${id.toLowerCase()}${designDocSuffix}`));
   };
   for (const r of o.rows) {
     if (!isPendingText(r.plan)) {

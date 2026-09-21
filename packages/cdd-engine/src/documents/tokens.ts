@@ -89,11 +89,20 @@ export interface DocTokens {
   /** Claim-clause boundary — `；`/`;` split a change-history sentence into clauses (the ASCII
    *  sibling is documented next to the canonical const). */
   claimClauseSeparatorRe: RegExp;
-  /** Single-phase claim reference scan (claimPatterns.phaseReference.single) — digits captured. */
+  /** Single-phase claim reference scan (claimPatterns.phaseReference.single) — the FULL canonical
+   *  phase id captured as one group (digits + optional split-letter suffix, e.g. `P1a`) with its
+   *  digit run captured inside (group 2) — a `P1a` reference stays verbatim, never collapses to `P1`. */
   claimSinglePhaseRe: RegExp;
-  /** Ranged claim reference scan (claimPatterns.phaseReference.range, endpoints included) —
-   *  both digit runs captured. */
+  /** Ranged claim reference scan (claimPatterns.phaseReference.range, endpoints included) — both
+   *  endpoint FULL ids captured (groups 1 & 3, split-letter suffix included) with their digit runs
+   *  inside (groups 2 & 4). */
   claimPhaseRangeRe: RegExp;
+  /** Design-spec token scan (`P<n>-design`, split ids allow a trailing letter) — the unanchored
+   *  scan form of claimPatterns.designToken; the design-doc / design-claim target token. */
+  designTokenScanRe: RegExp;
+  /** The design-document filename tail (`-design.md`) — the canonical designToken body's `-design`
+   *  literal lowercased + `.md` (the filePaths filename form `*-<slug>-<phase-id>-design.md`). */
+  designDocTail: string;
   /** `## Issue inventory` section heading (sectionHeadings.issueInventory const). */
   issueInventoryHeading: string;
   /** `## Dependency graph` heading — literal or `(ASCII)` suffix (sectionHeadings.dependencyGraph). */
@@ -151,6 +160,22 @@ function capturing(pattern: string, token: string, flags = ""): RegExp {
  * capture-insertion trick as versionNumericRe) — parse mechanics, the pattern stays canonical. */
 function digitCapturing(pattern: string, flags = ""): RegExp {
   return new RegExp(pattern.replace(/\\d\+/g, "(\\d+)"), flags);
+}
+
+/** Wrap every occurrence of a canonical phase-id token inside a claim phase-reference pattern in
+ * capture groups — each full id (digits + optional split-letter suffix) captured, with its digit
+ * run captured inside the full group — so a `P1a` reference survives verbatim. Parse mechanics, the
+ * canonical pattern otherwise stays byte-faithful; a pattern that lacks the token (schema drift)
+ * fails loudly rather than deriving a capture-less scan. */
+function phaseRefCapturing(pattern: string, token: string, flags = ""): RegExp {
+  const body = pattern.replace(/^\^/, "").replace(/\$$/, "");
+  if (!body.includes(token)) {
+    throw new Error(
+      `doc-structure token: claim phase-reference pattern "${body}" lacks the canonical phase-id token "${token}"`,
+    );
+  }
+  const tile = `(${token.replace("\\d+", "(\\d+)")})`;
+  return new RegExp(body.split(token).join(tile), flags);
 }
 
 export function deriveDocTokens(schemas: {
@@ -260,16 +285,40 @@ export function deriveDocTokens(schemas: {
     `[${escapeRegExp(leaf<string>(overall, ["changeHistory", "backfillClause", "clauseSeparator"], "const"))};]`,
     "g",
   );
-  // Claim phase references — unanchored scan forms of the canonical single/range patterns (digit
-  // runs captured into groups — the same capture insertion as versionNumericRe's replace trick).
-  const claimSinglePhaseRe = digitCapturing(
-    leaf<string>(overall, ["claimPatterns", "phaseReference", "single"], "pattern").replace(/^\^/, "").replace(/\$$/, ""),
+  // Claim phase references — unanchored scan forms of the canonical single/range patterns; each
+  // canonical phase-id token wrapped as a FULL capture group (split-letter suffix included, digit
+  // run captured inside) — claim phase refs resolve verbatim (`P1a` never collapses to `P1`).
+  // The token is the claim single phase-reference body (the same token the range pairs).
+  const claimPhaseRefToken = leaf<string>(
+    overall,
+    ["claimPatterns", "phaseReference", "single"],
+    "pattern",
+  )
+    .replace(/^\^/, "").replace(/\$$/, "");
+  const claimSinglePhaseRe = phaseRefCapturing(
+    leaf<string>(overall, ["claimPatterns", "phaseReference", "single"], "pattern"),
+    claimPhaseRefToken,
     "gi",
   );
-  const claimPhaseRangeRe = digitCapturing(
-    leaf<string>(overall, ["claimPatterns", "phaseReference", "range"], "pattern").replace(/^\^/, "").replace(/\$$/, ""),
+  const claimPhaseRangeRe = phaseRefCapturing(
+    leaf<string>(overall, ["claimPatterns", "phaseReference", "range"], "pattern"),
+    claimPhaseRefToken,
     "g",
   );
+  // Design-spec token scan + design-doc filename tail — both derived from the canonical
+  // `P<n>-design` pattern leaf (claimPatterns.designToken): the unanchored token scan (split ids
+  // allowed) and the design-document `-design.md` tail (the filePaths filename form, lowercase).
+  const designTokenBody = leaf<string>(
+    overall,
+    ["claimPatterns", "designToken"],
+    "pattern",
+  )
+    .replace(/^\^/, "").replace(/\$$/, "");
+  const designTokenScanRe = new RegExp(designTokenBody, "i");
+  if (!designTokenBody.endsWith("-design")) {
+    throw new Error(`doc-structure token: designToken pattern "${designTokenBody}" lacks the "-design" tail`);
+  }
+  const designDocTail = `${designTokenBody.slice(designTokenBody.indexOf("-design"))}.md`;
   // The four-table audit's section headings (validator-keyed — same derivation family as the
   // change-history heading token).
   const issueInventoryHeading = leaf<string>(overall, ["sectionHeadings", "issueInventory"], "const");
@@ -331,6 +380,8 @@ export function deriveDocTokens(schemas: {
     claimClauseSeparatorRe,
     claimSinglePhaseRe,
     claimPhaseRangeRe,
+    designTokenScanRe,
+    designDocTail,
     issueInventoryHeading,
     dependencyGraphHeadingRe,
     issueAnchorFormRe,

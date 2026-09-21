@@ -1351,9 +1351,16 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
 // 非静默 fallback（E27 批量根因的门判面）；提示可行动文案。
 it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可行动文案，无 handoff 落地）", async () => {
   const t22 = t22Workspace("# Plan\n\n### Task 1: x\nbody\n");
-  const { code, stderr, stdout } = await capture(() =>
-    runTask("claude", 1, { mode: "implement", planFile: t22.planFile, root: t22.repo, noExit: false }),
-  );
+  // 非 dry-run 需要可解析的 harness（ghost 走 fake registry + fake-cli，CI 无 claude 亦确定性）；
+  // 该测试只测 pre-flight 门——fake cli 永不 spawn。
+  const restore = withFakeCli(t22.binDir, "fake-cli", ["#!/usr/bin/env bash", "exit 1"].join("\n"));
+  let code: number | null = null;
+  let stderr = "";
+  let stdout = "";
+  try {
+    ({ code, stderr, stdout } = await capture(() =>
+      runTask("ghost", 1, { mode: "implement", planFile: t22.planFile, root: t22.repo, registryPath: t22.regPath, noExit: false }),
+    ));
   expect(code).toBe(1);
   expect(stderr).toMatch(/CDD_BLOCKED/);
   expect(stderr).toMatch(/Constraints source undeclared|plan-constraints\.md missing/);
@@ -1361,6 +1368,9 @@ it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可�
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);    // 不写残缺产物
   expect(existsSync(path.join(t22.ws, "task-1-brief.md"))).toBe(false);        // 门先于 F11：BLOCK 零残留（brief 不落盘）
   expect(stdout).toBe("");
+  } finally {
+    restore();
+  }
 });
 
 // 黑盒 ③：dry-run 豁免 —— 同一无源 plan 走 dry-run 零 BLOCK（零副作用模拟：不物料化、不落文件）。

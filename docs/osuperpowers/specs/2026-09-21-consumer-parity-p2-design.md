@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P2 Design Spec
 
-- **Version**: v1.2 · 2026-09-21（v1.0 起草 · v1.1 spec-review r1 fix 全落地：closeout 硬门 lane 边界 / 审计面 gloss + Class B 归并 / 逐 lane 链入口 / AC1 补 branch / AC4 + 漂移闭环 scope 限定 / §5 核验改 dogfood · v1.2 spec-review r2 fix 全落地：§3 lane 边界登记（#7 判定解读 · Overall updated = Yes——v1.11 sync-overall）/ C4·D4 裸记号消歧 / 核心块 blocker 单数 + docs status TIMEOUT 归属 / §2.1 行号锚改节锚 / Class B version-lineage 处置）
+- **Version**: v1.3 · 2026-09-21（v1.0 起草 · v1.1 spec-review r1 fix 全落地：closeout 硬门 lane 边界 / 审计面 gloss + Class B 归并 / 逐 lane 链入口 / AC1 补 branch / AC4 + 漂移闭环 scope 限定 / §5 核验改 dogfood · v1.2 spec-review r2 fix 全落地：§3 lane 边界登记（#7 判定解读 · Overall updated = Yes——v1.11 sync-overall）/ C4·D4 裸记号消歧 / 核心块 blocker 单数 + docs status TIMEOUT 归属 / §2.1 行号锚改节锚 / Class B version-lineage 处置 · **v1.3 用户裁决时序修订（2026-09-21）**：撤销 v1.11 lane 边界——回填 = **branch-review 前置义务**（finishing 撤销回填机制）、终态欠账**两门面皆硬门**（含 branch-review）、终态源扩为 parent overall 下所有 plan workspace——overall v1.12 回填）
 - **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.11
@@ -12,7 +12,7 @@
 
 > P2 增量仅限本 phase。跨 phase 约定见 [overall v1.11](./2026-09-21-consumer-parity-overall.md)；overall 冲突时 overall 胜。
 
-本 spec 只做 **P2（engine lifecycle 统一抽象，breaking）** 的设计增量。仓库面退役（P3 出让脚本守卫、smoke-cdd consumer-sim）、发布闭环（P4 changesets 版本化 + breaking 发布面 + pack 审计）不属于本 phase，仅以「下游移交物」形式出现在 Section 4。P2 全部裁决已回填 overall（2026-09-21 grilling R1–R4 → v1.10 · closeout lane 边界 → v1.11 sync-overall），本 spec 给设计增量与验收面。
+本 spec 只做 **P2（engine lifecycle 统一抽象，breaking）** 的设计增量。仓库面退役（P3 出让脚本守卫、smoke-cdd consumer-sim）、发布闭环（P4 changesets 版本化 + breaking 发布面 + pack 审计）不属于本 phase，仅以「下游移交物」形式出现在 Section 4。P2 全部裁决已回填 overall（2026-09-21 grilling R1–R4 → v1.10 · closeout lane 边界 → v1.11 sync-overall · **时序模型修订（撤销 lane 边界）→ v1.12 sync-overall**），本 spec 给设计增量与验收面。
 
 ## Section 1: Constraints pointer
 
@@ -49,20 +49,20 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 5. **失败语义（overall 验收原样）**：非 dry-run **结构性 mismatch（缺失 cell / 缺 claim）非空 → BLOCKED（exit 1）+ 逐项指引**（`formatDocFailures` 形状：`- [artifact] file — 字段: missing → fix`）；**终态欠账成员 pre-flight fail-open**（post-flight 高亮 + 咬合点，见 2.2 lane 边界）；dry-run → stderr **CDD_WARN、exit 0**；退出码语义不变。
 6. **边界**：无 parent overall → 四表 no-op、necessary-subset 恒跑；engine 派生终态声明源仅当 plan workspace 存在时可得（见 2.2，非豁免——声明源缺席）。
 
-### 2.2 closeout 统一规则（声明源 ↔ 列，overall v1.10/v1.11 #7）
+### 2.2 closeout 统一规则（声明源 ↔ 列，overall v1.12 #7）
 
 **模型**：审计合法状态 = **声明源 ↔ 列，双向全列**。声明源 ＝ `{change-history claims} ∪ {engine 派生终态}`：
 
 - **doc claims → 列**：forward（claim ⇒ 列非 `[Pending]`）+ reverse（列已完成 ⇒ change-history 有 match claim）——plan + design 全列；claim 模式沿用 `CLAIM_RE` 族（`(Pending|[Pending]) → …` + plan/design 链接词），其定义迁入 2.3 canonical（不再 hand-written repo 侧）。
 - **engine 派生终态 → 列**：plan-complete（`rules/status.ts derivePlanVerdict.done`）⟺ overall 对应 plan 列已回填（非等待 + claim 存在）。engine 态作为文档外事实源——欠账检查（plan 终态未回填）即本规则的终态应用，不是独立规则。
 
-**mismatch 单一推断模块**（engine rules 单点计算）：输入 = overall 解析（四表）+ 声明集 + engine 终态（plan workspace 可得时）；输出 = mismatch 集（逐项列缺口：缺失 cell / 缺 claim / 终态未回填）。mismatch 分两**门面**——**结构性不合法**（缺失 cell / 缺 claim）与**终态欠账**（plan-complete 未回填）——硬门只压结构性面，终态欠账走 post-flight + 咬合点（见下 lane 边界）。**pre-flight 与 post-flight 同源消费**——改此处一处，两通道同效（零双实现，可断言）。
+**mismatch 单一推断模块**（engine rules 单点计算）：输入 = overall 解析（四表）+ 声明集 + engine 终态（parent overall 下所有 plan workspace 可得时）；输出 = mismatch 集（逐项列缺口：缺失 cell / 缺 claim / 终态未回填）。mismatch 分两**门面**——**结构性不合法**（缺失 cell / 缺 claim）与**终态欠账**（plan-complete 未回填）——**两门面皆硬门（v1.3 用户裁决，撤销 v1.11「硬门只压结构性面」）**；post-flight 高亮同源。**pre-flight 与 post-flight 同源消费**——改此处一处，两通道同效（零双实现，可断言）。
 
-**pre-flight 硬门**（docContractValidate，2.1 内）：**只压结构性面（缺失 cell / 缺 claim）**——结构性 mismatch 非空 → BLOCKED + 逐项指引（「先 backfill-overall：version bump + change-history claim + 列回填」，可 diff 缺失面）；**终态欠账（plan-complete 未回填）面 pre-flight fail-open（不 BLOCK）**——强制落点 = post-flight 高亮 + 咬合点（lane 边界，见下）；dry-run CDD_WARN 不变。
+**pre-flight 硬门**（docContractValidate，2.1 内）：**结构性面**（缺失 cell / 缺 claim）mismatch 非空 → BLOCKED + 逐项指引（「先 backfill-overall：version bump + change-history claim + 列回填」，可 diff 缺失面）；**终态欠账面（v1.3 同为硬门）**——plan-complete 未回填（终态源 = 该 parent overall 下所有 plan workspace）→ plan-bearing dispatch（含 branch-review）BLOCKED + 指引「先 backfill-overall（branch-review 前置义务）」；dry-run CDD_WARN 不变。
 
 **post-flight 高亮 recommand**（statusValidate）：识别 plan-complete（`derivePlanVerdict.done`）且 mismatch 含「终态未回填」→ stdout **高亮**打印下一步回填（可 diff 列态缺口，指向 overall 路径——Class B lineage 已知）；**exit 不变、fail-open**——「回填由 orchestration 执行」的指引面。
 
-**无死锁论证**（设计约束）：`done` 仅终态触发（全部 task complete + review APPROVED；Review Convergence 后不跨 round 重审）→ 终态与 finishing / 回填之间**确有 cdd dispatch**——branch-review → branch-fix 的 engine-closed 闭环携带 plan workspace 且正位于「plan done」与「finishing 回填」之间。**lane 边界（终态成员硬门语义）**：硬门只对四表结构性不合法（缺失 cell / 缺 claim）BLOCK；**终态欠账面 pre-flight fail-open**，强制落点 = post-flight 高亮 + 咬合点——咬合点 = 终态后首个携带该 plan workspace 的后续 dispatch（彼时 finishing 已执行回填，欠账应已清；仍欠账 → BLOCK，宣告回填义务未履行）。**branch 通道 pre-flight 排除终态成员**（只算结构性面）：其闭环 dispatch 恒位于 finishing 回填之前、不可能成为合法咬合点——排除是时序语义推导而非 lane 豁免常量（AC7）；由此 branch 闭环不被欠账 BLOCK → finishing / 回填得以执行 → 多 phase 程序 happy-path 无死锁。`task` 通道 dispatch 期间 plan 未 done → 终态成员零命中；`docs` 通道无 plan workspace → engine 终态声明源缺席 → 该成员天然 no-op（声明源缺席语义，非豁免）。fresh checkout 无 progress.json → `derivePlanVerdict.done=false` → 零误伤。
+**无死锁论证**（设计约束，v1.3 时序反转）：`done` 仅终态触发（全部 task complete + review APPROVED；Review Convergence 后不跨 round 重审）。**回填时序 = branch-review 前置**（2026-09-21 用户裁决）：plan-done 后、branch-review 前，orchestration 先执行 backfill-overall（docs 编辑 overall + commit——该编辑经 docs 通道、无 plan workspace → 终态声明源缺席 → 回填动作不自我挡）；branch-review pre-flight 时欠账已清 → 放行；**未回填 → BLOCKED 为正确行为**（branch-review 前提 = plan 已结束 → 回填义务已到期）。**v1.11 lane 边界（branch 排除终态成员）撤销**——不再需要时序排除论证。`task` 通道 dispatch 期间 plan 未 done → 终态成员零命中；`docs` 通道无 plan workspace → engine 终态声明源缺席 → 该成员天然 no-op（声明源缺席语义，非豁免；backfill 编辑路径恒放行）；fresh checkout 无 progress.json → `derivePlanVerdict.done=false` → 零误伤。终态源 = 该 parent overall 下**所有 plan workspace**（plan-bearing dispatch 可枚举）——跨 phase 欠账（上一 phase 已 done 未回填）在任一后续 plan-bearing dispatch 亦 BLOCK。
 
 ### 2.3 doc-structure 同源派生（schema 唯一结构事实）
 
@@ -97,7 +97,7 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 ### 2.5 测试面与零债断言（engine colocated，vitest，`src/**/__tests__/**/*.test.ts`）
 
 1. **全量审计**：四表各面非法态 → BLOCKED + 指引（含 lineage no-op 场景、dry-run CDD_WARN 降级）；全通道（task/docs/branch）挂门断言；overall 自审边界。
-2. **closeout 统一推断**：mismatch 集计算正确性（forward / reverse plan+design / engine 终态面）；pre-flight 门输出；post-flight 高亮输出可捕获（stdout 断言）；同源——改推断一处、两通道行为同变（回归断言）。
+2. **closeout 统一推断**：mismatch 集计算正确性（forward / reverse plan+design / engine 终态面——含 program 级 workspace 枚举）；pre-flight 门输出（结构性 + 终态欠账两门面）；**branch-review 拦未回填**（plan-done ∧ 未回填 → branch-review BLOCKED；已回填 → 放行）happy-path 回归；post-flight 高亮输出可捕获（stdout 断言）；同源——改推断一处、两通道行为同变（回归断言）。
 3. **契约确定性**：同契约束轮次（docs fix 一 commit / 一未 commit）→ 行为类一致；BLOCKED stdout 诊断可见。
 4. **doc-structure 单源**：改 canonical 定义一处 → engine 校验/抽取同步（派生 token 断言）；grep 零 md 模板副本、零第二手工 token（scope 同 AC4——engine 内手动 token + SKILL.md 散文 token + repo/skill md 模板副本；`scripts/validate` 侧残留归 §4 P3 退役面，不入断言）。
 5. **`cdd help`**：输出 CLI 绝对目录 + 必要文档目录正确；零执法逻辑（不触发审计、exit 语义不变）。
@@ -106,7 +106,7 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 
 - AC1 **全量审计落地面**：任意 dispatch（implement/review/fix/docs/branch 家族——含 branch-review / branch-fix）涉 parent overall 四表结构性不合法 → BLOCKED（exit 1）+ 逐项指引；真实 dispatch 树不洁之外无豁免；lineage 未 resolve → 四表 no-op、necessary-subset（plan 契约 + Class A）恒跑；dry-run → CDD_WARN 降级。（终态欠账面另则：AC3 · §2.2 lane 边界。）
 - AC2 **全通道挂门**：task/docs/branch 三通道 docContractValidate / statusValidate 均生效（base 默认 override，测试断言）；overall 自身为 review 对象时自审。
-- AC3 **closeout 统一规则**：声明源 ↔ 列双向全列（forward + reverse，plan + design，无 plan-only 遗留）且 engine 派生终态并入声明源；mismatch 集单一推断模块（无第二实现，断言）；pre-flight 结构性 mismatch 非空 → BLOCKED + 指引、**终态欠账 mismatch pre-flight fail-open**（post-flight 高亮 + 咬合点，§2.2 lane 边界）、post-flight plan-complete 且未回填 → 高亮回填 recommand（同源输出；exit 语义不变）；engine 零文档写入（回填由 orchestration 执行）。
+- AC3 **closeout 统一规则**：声明源 ↔ 列双向全列（forward + reverse，plan + design，无 plan-only 遗留）且 engine 派生终态并入声明源；mismatch 集单一推断模块（无第二实现，断言）；pre-flight 结构性 mismatch 非空 → BLOCKED + 指引、**终态欠账（plan-complete 未回填）→ plan-bearing dispatch（含 branch-review）pre-flight BLOCKED + 指引**（v1.3 两门面皆硬门；回填 = branch-review 前置义务）、post-flight plan-complete 且未回填 → 高亮回填 recommand（同源输出；exit 语义不变）；**finishing 撤销回填机制**（finishing 仅存 merge/PR 决策 + close-issues）；engine 零文档写入（回填由 orchestration 执行）。
 - AC4 **doc-structure 单源实证**：改 canonical 定义一处 → engine 校验/抽取同步生效 + skills 经 `cdd help` 消费同源产物；grep 零 md 模板副本、零第二处手工 token（**scope**：engine 包内手动 token + SKILL.md 散文 token + repo/skill md 模板副本；`scripts/validate` 侧残留 token 归 §4 P3 退役面 S1/S2 + F8a 处置位，非 AC4 断言对象）；`templates/` schema 随包可寻址。
 - AC5 **`cdd help` 落地面**：打印 CLI 绝对目录 + 必要文档目录正确；零执法逻辑；skills 零硬编码路径。
 - AC6 **harness 契约确定性**：docs-handoff `commits{base,head}` 字段落地（逆转旧声明段）+ **status enum 增 TIMEOUT**（与 task-family 同枚举、核心块统一）；round-context docs base token 落地；同契约束轮次行为一致（提交 → APPROVED；未提交 → BLOCKED + stdout 可见诊断）。
@@ -125,14 +125,16 @@ P2 增量 = **engine lifecycle 统一抽象（breaking）**，四大设计面 + 
 | P2 scope「F13 类机械封死 / 未回填不给 complete」 | 改：closeout 统一规则（声明源↔列双向全列 + engine 派生终态并入声明源 + mismatch 单一推断 + pre-flight 硬门 + post-flight 高亮 recommand；回填由 orchestration 执行） | Yes — v1.10 |
 | P2 scope「harness 契约统一——docs-family commit 义务 concretize」 | 升级：lifecycle 契约单源（task/docs/branch 共享核心块 + base 默认 override 全通道 + breaking major） | Yes — v1.10 |
 | 验收 E2「closeout 未回填时 plan 终态不判 complete」 | 改订（对父整体 #7『mismatch 非空 → BLOCK』与『post-flight plan-complete recommand』两条字面张力的**判定解读**，非新增偏离——r1 引入的 lane 边界）：**pre-flight 结构性 mismatch（缺失 cell / 缺 claim）非空 → BLOCK + 逐项指引**；**终态欠账（plan-complete 未回填）mismatch pre-flight fail-open**、post-flight 高亮回填 recommand（回填由 orchestration 执行）；**branch 通道 pre-flight 排除终态欠账成员**（时序语义推导，非 lane 豁免常量）；退出码语义不变 | Yes — v1.11（2026-09-21 sync-overall：二门面判读 + lane 边界回填） |
+| overall #7「v1.11 二门面（结构性硬门 / 终态欠账 fail-open）+ branch 排除终态成员」 | **撤销（v1.3，2026-09-21 用户裁决）**：两门面皆硬门（含 branch-review——回填 = branch-review 前置义务）；终态源扩为 parent overall 下所有 plan workspace（跨 phase 欠账亦 BLOCK） | Yes — v1.12 · 2026-09-21 |
+| finishing「backfill-overall」节点（回填后置 finish） | **撤销**：回填前置 branch-review（orchestration 义务），finishing 仅存 merge/PR 决策 + close-issues（finishing SKILL.md 修订 + 派生产物 emit） | Yes — v1.12 |
 
-> `Overall updated?` 全为 Yes（v1.10 grilling R1–R4 裁决回填 · v1.11 r1 lane 边界 sync-overall 回填）——无未登记偏差。
+> `Overall updated?` 全为 Yes（v1.10 grilling R1–R4 裁决回填 · v1.11 lane 边界 sync-overall 回填 · v1.12 时序修订 sync-overall 回填）——无未登记偏差。
 
 ## Section 4: Notes for downstream
 
 - **P3（本仓校验面重建）**：输入 = S1/S2（`overall-consistency.ts` / `plan-spec-anchors.ts`）退役 + S3 活文档残留簇（file:line 已列 P1 design §2.2）+ S4 consumer-sim + 42 用例迁移面。P2 后此面两端变化：charter token 已入 canonical（P3 接线走 engine 同路径）、docs-handoff 契约已统一（P3 smoke-cdd 面按新契约升级 consumer-sim）；**F8a `\bH1\b` 守卫扫面盲区（scripts/ 不在 ALL_MECH_POSITIONS）处置位 = P3**（随 smoke-cdd/守卫退役面）。
 - **P4（发布闭环）**：输入 = S6（.changeset ×2 声称）+ ×9 旧 changesets 版本化 + cdd-engine major breaking 发布面（本 phase 全部变更）+ pack 内容审计（`cdd help`、canonical schema、templates/ 均为发布面内容）。
-- 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall（v1.10/v1.11）或本 §4 指针。
+- 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall（v1.10/v1.11/v1.12）或本 §4 指针。
 
 ## Section 5: Review
 

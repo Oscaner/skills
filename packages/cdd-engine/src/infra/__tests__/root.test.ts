@@ -50,8 +50,9 @@ describe("src/infra/root.ts — resolveDocArg 单一坐标系（仓根相对归�
     writeFileSync(path.join(repo, rel), "# foo design\n");
     const sub = path.join(repo, "packages/cdd-engine");
     mkdirSync(sub, { recursive: true });
-    // Task 8: dispatch 入口门（pre-commit 干净树）先于 docs review —— 仓内 fixture 必须已提交，
-    // 否则起点 dirty 直接 BLOCKED（exit 1）而测不到 cwd 坐标系归一。
+    // The dispatch entry gate (pre-commit clean tree) runs before docs review — in-repo fixtures
+    // must already be committed, otherwise a dirty start is BLOCKED (exit 1) before the test can
+    // exercise the cwd-coordinate normalization (Task 8).
     gitCommit(repo);
     const r = execaSync(process.execPath, [CDD_MJS, "--dry-run", "review", "--type", "spec", "--spec", rel],
       { cwd: sub, env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" }, reject: false, encoding: "utf8" });

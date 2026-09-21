@@ -50,8 +50,10 @@ afterAll(() => {
 
 describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
   it("execa 直接 import 仅允许出现在 src/infra/proc.ts", () => {
-    // P6 Task 3 迁就近后测试位并入 src 树：扫描须排除 __tests__ 子目录（guard/test 自豁免 doctrine——
-    // 测试经 execa 编排合意派生，不属机制 execa import 面；helpers/fixtures 亦位 __tests__ 下）。
+    // After the colocation move into the src tree (P6 Task 3), the scan must exclude __tests__
+    // subdirectories (guard/test self-exemption doctrine — tests intentionally derive via execa
+    // orchestration, which is not part of the mechanism's execa import surface; helpers/fixtures
+    // also live under __tests__).
     const files = readdirSync(LIB, { recursive: true }).filter(f => String(f).endsWith(".mjs") || String(f).endsWith(".ts"))
       .filter(f => !f.split(path.sep).includes("__tests__"));
     const offenders = [];

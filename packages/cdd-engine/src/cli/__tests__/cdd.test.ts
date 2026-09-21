@@ -19,12 +19,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
 const SMOKE_PLAN = "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md";
-// T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
-// strip 尾 -plan：smoke-plan.md → smoke）。
-// **不清理 smoke/**：该 workspace 由 engine 跑测时自建，且被 cli-shape / docs-task / host-detection /
-// lifecycle.wiring 同 slug 共用 —— 任一文件的 afterAll 删它都会与另一些文件的 brief 自供应竞态
-//（resolveWorkspace 的 mkdirSync 与 generateBrief 的写之间目录被删 → ENOENT 假红；本仓已复现）。
-// `.osuperpowers` 已 gitignore，残留不污染版本树 —— 只清理本文件独占的 slug。
+// SMOKE_PLAN's derived workspace is .osuperpowers/cdd/smoke/ (the engine workspaceSlug strips a
+// trailing -plan: smoke-plan.md → smoke) — a T10 warn. Do not clean smoke/: the engine creates
+// the workspace while running tests, and cli-shape / docs-task / host-detection / lifecycle.wiring
+// share the same slug — an afterAll delete in any one file races the other files' brief
+// self-supply (directory removed between resolveWorkspace's mkdirSync and generateBrief's write
+// → ENOENT false red; reproduced in this repo). `.osuperpowers` is gitignored, so residue never
+// pollutes the version tree — only clean the slug exclusive to this file.
 afterAll(() => {
   rmSync(path.join(REPO_ROOT, ".osuperpowers", "cdd", "plan"), { recursive: true, force: true }); // 其他 fixture slug
 });
@@ -42,9 +43,9 @@ function cleanEnv(extra) {
 function runCli(args = [], opts = {}) {
   const { env: extraEnv = {}, cwd = REPO_ROOT, noHost = false } = opts;
   const env = cleanEnv(extraEnv);
-  // T3: host detection is ambient-env driven (CLAUDE_CODE_SESSION_ID / AI_AGENT) — a no-host
-  // case must explicitly delete the three host markers; stripping CDD_* alone leaks detection
-  // through the parent session (see host-detection.test.mjs B1 blocker).
+  // Host detection is ambient-env driven (CLAUDE_CODE_SESSION_ID / AI_AGENT) — a no-host case
+  // must explicitly delete the three host markers; stripping CDD_* alone leaks detection through
+  // the parent session (see host-detection.test.mjs B1 blocker) (T3).
   if (noHost) {
     delete env.CLAUDE_CODE_SESSION_ID;
     delete env.CURSOR_TRACE_ID;
@@ -62,10 +63,11 @@ function runCli(args = [], opts = {}) {
   }
 }
 
-// P6 T3 单元 seam：vi.mock docs-runner 动态 import，直接断言 cdd.mjs runReview/runFix 传给
-// runDocsTask 的 handoffPath/workspace（canonical 派生命名）。cdd.mjs 以
-// `await import("../../dispatch/docs.ts")` 动态加载 → vitest 按解析 id 拦截同一模块。
-// CLI 黑盒用例走独立 node 子进程，不经此 mock。
+// Unit seam: vi.mock the docs-runner's dynamic import to assert directly what cdd.mjs
+// runReview/runFix passes to runDocsTask — handoffPath/workspace (canonical derived naming) (P6 T3).
+// cdd.mjs loads `await import("../../dispatch/docs.ts")` dynamically, so vitest intercepts the
+// same module by resolved id. CLI black-box cases run as standalone node child processes and
+// bypass this mock.
 const docsRunnerMock = vi.hoisted(() => ({
   runDocsTask: vi.fn(async () => ({
     exitCode: 0,
@@ -161,8 +163,9 @@ describe("cdd CLI", () => {
   });
 
   it("review --type plan 非 dry-run：无 host env → CDD_BLOCKED exit 1（原 harness-gate 停闸用例，T3 改断言）", () => {
-    // Task 4 曾验证 plan 走共享壳 review.md 渲染后停在 harness gate；T3 后 host 判定 entry 先发 BLOCK。
-    // --spec 保留为可选参数；两种调用形态都必须命中 CDD_BLOCKED（exit 1），而非渲染崩溃。
+    // Plan review once rendered through the shared review.md shell and stopped at the harness
+    // gate (Task 4); after that the host-check entry BLOCKs first (T3). --spec stays an optional
+    // parameter; both call shapes must hit CDD_BLOCKED (exit 1), not a render crash.
     const r = runCli(["review", "--type", "plan", "--plan", SMOKE_PLAN], { noHost: true });
     expect(r.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
     expect(r.stderr).not.toMatch(/template/);
@@ -195,8 +198,9 @@ describe("cdd CLI", () => {
     execaSync("git", ["-C", dir, "init", "-q"]);
     execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
       "commit", "--allow-empty", "-qm", "fixture"]);
-    // Task 8: dispatch 入口门（pre-commit 干净树）—— workspace 收编 .gitignore（恒仿仓根
-    // .osuperpowers 忽略规则），plan 提交；手写 handoff 后续覆写不弄脏树。
+    // Dispatch entry gate (pre-commit clean tree): the workspace is absorbed into .gitignore
+    // (mirroring the repo-root .osuperpowers ignore rule) and the plan committed; subsequent
+    // hand-written handoff overwrites keep the tree clean (Task 8).
     writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
     const plan = path.join(dir, "zz-stop-test.md");
     writeFileSync(plan, "### Task 1: fixture\n");
@@ -237,7 +241,7 @@ describe("cdd CLI", () => {
     }
   });
 
-  // ---- T8: `cdd contract` 子命令删除 + branch-review 读回覆写（T5 nit4 补测） ----
+  // ---- `cdd contract` subcommand removed + branch-review read-back overwrite (T5 nit4 regression coverage; T8) ----
 
   it("cdd contract 子命令不存在（check-dirty/check-head/clear-findings 全灭）→ 未知命令 exit 2", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-cli-contract-"));
@@ -287,9 +291,9 @@ describe("cdd CLI", () => {
   });
 });
 
-// ---- P6 T3：docs 命名统一 — spec/plan/branch handoff 走派生层（canonical naming + resolveWorkspace） ----
-// 单元 seam（docsRunnerMock）断言 runReview/runFix 传给 runDocsTask 的 handoffPath/workspace；
-// CLI 黑盒用 canonical seed 驱动 Review Convergence / 轮次，端到端验证命名 + workspace 接线。
+// ---- Docs naming unified (P6 T3): spec/plan/branch handoff goes through the derived layer (canonical naming + resolveWorkspace) ----
+// The unit seam (docsRunnerMock) asserts the handoffPath/workspace that runReview/runFix passes to runDocsTask;
+// CLI black-box drives Review Convergence / rounds with canonical seeds, verifying naming + workspace wiring end to end.
 
 // 临时 git 仓库：供 resolveWorkspace 推导 git root；每个用例独立 seed，不留真实 repo 副作用。
 function tmpGitRepo() {
@@ -297,7 +301,8 @@ function tmpGitRepo() {
   execaSync("git", ["-C", dir, "init", "-q"]);
   execaSync("git", ["-C", dir, "-c", "user.name=cdd-test", "-c", "user.email=cdd-test@example.com",
     "commit", "--allow-empty", "-qm", "fixture"]);
-  // Task 8: dispatch 入口门 —— workspace 收编 .gitignore，种子 doc/plan 提交（handoff 后续覆写不弄脏树）。
+  // Dispatch entry gate: workspace absorbed into .gitignore, the seeded doc/plan committed
+  // (later handoff overwrites do not dirty the tree) (Task 8).
   writeFileSync(path.join(dir, ".gitignore"), ".osuperpowers/\n");
   return dir;
 }
@@ -379,7 +384,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-fix-2.json"));
-      expect(call.workspace).toBeUndefined(); // T3 r1 nit：docs-runner 不再收 workspace（handoffPath 权威）
+      expect(call.workspace).toBeUndefined(); // docs-runner no longer receives workspace (handoffPath is authoritative) — T3 r1 nit
       expect(call.findingsPath).toBe(findings);
     } finally {
       setDryRun(false);
@@ -604,13 +609,14 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
   });
 });
 
-// ---- P6 T10：E2②/G4① dry-run 门判 WARN 化 — 脏树 CLI 黑盒「各型」sweep ----
-// 基类默认入口门（dispatch/base.ts commitPreCheck → rules/commit.ts entryGateCleanTree）是 task/docs
-// 两面的单点降级：dirty + dryRun → 不 BLOCK，stderr CDD_WARN 后 exit 0 走完模拟。真实 dispatch 的
-// BLOCKED 语义由 dispatch.*.test.ts 钉住。此处按 CLI 面「各型」各跑一条真仓脏树用例——implement +
-// review/fix × task/spec/plan 共 7 型，任一型漏过单点路径即红。dry-run 的零 liveness（不 spawn /
-// 无 TIMEOUT）断言在 dispatch 层（T14 接口消歧，dispatch.task/dirs.test.ts），本层只断言「CLI 出口
-// 0 + stderr 可断言 WARN」。
+// ---- Dry-run gate downgraded to WARN on dirty trees (E2②/G4①) — dirty-tree CLI black-box sweep across shapes (P6 T10) ----
+// The base-class default entry gate (dispatch/base.ts commitPreCheck → rules/commit.ts entryGateCleanTree)
+// is the single-point downgrade for both task and docs: dirty + dryRun → no BLOCK; after a stderr CDD_WARN
+// it exits 0 through the simulation. Real-dispatch BLOCKED semantics stay pinned by dispatch.*.test.ts.
+// Here each CLI shape runs one real-repo dirty-tree case — implement + review/fix × task/spec/plan, 7 shapes
+// total; any shape that slips past the single-point path goes red. dry-run's zero-liveness (no spawn / no
+// TIMEOUT) assertions live in the dispatch layer (T14 interface disambiguation, dispatch.task/dirs.test.ts);
+// this layer only asserts "CLI exit 0 + stderr exposes the WARN".
 
 // 脏树真仓：基础 fixture 全量提交（干净 Tree 起点）→ tracked.txt 追加造脏（porcelain ` M`）→
 // workspace（.gitignore 收编）对 porcelain 零影响，/种子 findings 不弄脏也非 dirty 源。

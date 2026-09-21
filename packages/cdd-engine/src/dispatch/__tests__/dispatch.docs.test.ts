@@ -171,9 +171,11 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
   expect(result.handoff?.status).toBe("APPROVED");
 });
 
-// Task 23 fix-1（review-1 finding 1, warn）：docs 面失败优先定序——agent exit 非零 + 已写有效 handoff
-// → exitCode = agent rc，失败信号不被定稿结论掩盖（修复前 `finalized.exitCode` 无条件胜出：APPROVED
-// 手写 conclusion → exit 0，与 task 面 step 12 的失败优先语义分裂）。本例 = 修复前红 / 修复后绿。
+// Docs-side failure takes priority in ordering (Task 23 fix-1, review-1 finding 1, warn): an agent
+// nonzero exit + valid handoff written → exitCode = agent rc, so the failure signal is not masked
+// by the finalization conclusion (before the fix, `finalized.exitCode` won unconditionally: a
+// hand-written APPROVED conclusion → exit 0, splitting the task-side step 12 failure-first
+// semantics). This case = red before the fix / green after.
 it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCode = agent rc（失败不被定稿结论掩盖）", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");

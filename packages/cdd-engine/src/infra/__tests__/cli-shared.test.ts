@@ -49,7 +49,7 @@ describe('extractStreamJsonFinal via invokeCli', () => {
 describe('invokeCli prefix/suffix injection (operation×type)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  // Task 5 registry set: implement/fix → tdd；review×task/branch → code-review；review×spec/plan → 空。
+  // Registry set (Task 5): implement/fix → tdd; review×task/branch → code-review; review×spec/plan → empty.
   const prefix = {
     implement: '/mattpocock-skills:tdd',
     review: { task: '/mattpocock-skills:code-review', branch: '/mattpocock-skills:code-review', spec: '', plan: '' },

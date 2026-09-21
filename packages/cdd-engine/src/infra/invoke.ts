@@ -22,7 +22,7 @@ export interface TimeoutDefaults {
 const CONTRACT = loadContract();
 const DEFAULT_TIMEOUTS: TimeoutDefaults = CONTRACT.timeouts.defaults;
 
-// T26 stall-cadence surface: the stall detector's sample cadence + idle window read from canonical
+// Stall-cadence surface (T26): the stall detector's sample cadence + idle window read from canonical
 // timeouts.liveness (defaults are honored the same way the mode budgets are — a config file edit
 // edits behavior). No env override: the documented seams for tests are the injectable
 // TaskRunOptions.termination (dispatch) and SpawnOpts.termination (proc).
@@ -109,7 +109,7 @@ export async function invokeCli(
   params: InvokeParams | string,
   env: NodeJS.ProcessEnv,
   cwd: string,
-  termination?: TerminationConfig,   // T26: unified budget + stall termination opts (single param)
+  termination?: TerminationConfig,   // unified budget + stall termination opts (single param; T26)
 ): Promise<SpawnResult> {
   const set = composeDispatchSet(entry, params, prompt, cwd, env);
   const res = await spawnManaged(set.cli, set.args, { cwd: set.cwd, env: set.env, termination });

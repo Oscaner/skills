@@ -372,8 +372,8 @@ export async function finalizeHandoff({
   repoRoot?: string | null;
   workspace?: string;
   taskNum?: number;
-  /** T27 (spec T7.6): the resume pre-flight's captured recovery.scope_base (the settled ledger
-   *  anchor riding the dead-round carrier). Finalize uses it to pull the ledger strictly earlier.
+  /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
+   *  the dead-round carrier (T27, spec T7.6). Finalize uses it to pull the ledger strictly earlier.
    *  Passed by the dispatch — the implement materialization is the only consumer. */
   resumeScopeBase?: string | null;
 } = {}): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
@@ -483,8 +483,8 @@ export async function finalizeImplement({
   repoRoot?: string | null;
   workspace?: string;
   taskNum?: number;
-  /** T27 (spec T7.6): the resume pre-flight's captured recovery.scope_base — the settled ledger
-   *  anchor riding the dead-round carrier, used to pull the ledger strictly earlier. */
+  /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
+   *  the dead-round carrier, used to pull the ledger strictly earlier (T27, spec T7.6). */
   resumeScopeBase?: string | null;
 }): Promise<{ handoff: Record<string, unknown> | null; exitCode: number }> {
   const base = taskBaseFromBrief(brief);
@@ -492,16 +492,16 @@ export async function finalizeImplement({
     process.stderr.write(`CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`);
     return { handoff: null, exitCode: 0 };
   }
-  // T6 nit3: destructured naming replaces returnBlock[0]/[2]/[3] magic-index subscripts (the
+  // Destructured naming replaces returnBlock[0]/[2]/[3] magic-index subscripts (T6 nit3). The
   // commits line's head is ignored on fresh materialization — git HEAD takes commit authority;
-  // the T27 resume-declared lane below reads its base= value instead of that).
+  // the T27 resume-declared lane below reads its base= value instead.
   const [statusLine, , artifactsLine, blockerLine] = returnBlock;
   const { status, raw } = implementStatusFromReturnLine(statusLine ?? "");
   let blocker = returnBlocker(blockerLine ?? "");
   if (raw !== "APPROVED" && !blocker) blocker = `implement return status "${raw}" without blocker`;
   const head = repoRoot ? await gitRevParseHead(repoRoot) : null;
-  // T27 adoption lane: only a materialization wearing the resume signature (base==head) may
-  // reconsider its base — the fresh-implement base authority is untouched.
+  // A materialization wearing the resume signature (base==head) may reconsider its base — the
+  // fresh-implement base authority is untouched (T27 adoption lane).
   let commitsBase = base;
   if (repoRoot && head && base === head) {
     const declared = commitsFromReturnLine(returnBlock[1] ?? "").base;
@@ -514,11 +514,11 @@ export async function finalizeImplement({
       commitsBase = declared;
     }
   }
-  // T27 scope ledger: seed the brief TASK_BASE (earliest-wins — re-dispatches carry LATER TASK_BASE
-  // snapshots that must never overwrite the round-1 anchor), then move the ledger strictly earlier
-  // along the resume anchors (the recovery-carrier scope_base and the adopted base). progressDir ==
-  // workspace (ledgerPath = <workspace>/progress.json). Null taskNum → skip the ledger (a
-  // task-less materialization writes no scope state).
+  // The scope ledger seeds the brief TASK_BASE (T27: earliest-wins — re-dispatches carry LATER
+  // TASK_BASE snapshots that must never overwrite the round-1 anchor), then moves the ledger
+  // strictly earlier along the resume anchors (the recovery-carrier scope_base and the adopted
+  // base). progressDir == workspace (ledgerPath = <workspace>/progress.json). Null taskNum → skip
+  // the ledger (a task-less materialization writes no scope state).
   if (repoRoot && head && workspace && typeof taskNum === "number") {
     seedScopeBase(workspace, taskNum, base);
     if (resumeScopeBase) await moveTaskScopeBaseEarlier(workspace, taskNum, resumeScopeBase, repoRoot, head);

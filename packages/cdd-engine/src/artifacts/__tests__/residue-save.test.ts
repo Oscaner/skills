@@ -296,7 +296,7 @@ describe("artifacts/residue.ts — resume-scan boundary (category-id causes are 
   });
 });
 
-// ---- T25/T28 residue guards (§35 执法 + residue 守卫断言) ----
+// ---- Residue guards: §35 enforcement + the residue-guard assertions (T25/T28) ----
 // Zero-stage-anchor enforcement over the injection surfaces (template-contract shell + both schema
 // descriptions), zero "discard or commit" residue across the failure-lane sources, and the
 // scope-composition-axis / two-schema carrier-contract greps — the acceptance's reproducibility

@@ -109,9 +109,9 @@ describe("artifacts/residue.ts — settleResidue salvage", () => {
     expect(noBase?.scope_base).toBeUndefined();
     const asJson = JSON.parse(JSON.stringify(noBase));
     expect(asJson).not.toHaveProperty("scope_base");
-    // T27 write-side guard: a non-40-hex scopeBase (malformed brief TASK_BASE) drops the key rather
+    // Write-side guard: a non-40-hex scopeBase (a malformed brief TASK_BASE) drops the key rather
     // than shipping a schema-violating recovery.scope_base — the read side (resume pre-flight)
-    // filters identically, the two lanes agree.
+    // filters identically, so the two lanes agree. (T27)
     appendFileSync(path.join(repo, "wip.txt"), "line3\n"); // dirty the tree again — a clean tree stashes nothing
     const badBase = await settleResidue(repo, {
       op: "implement", task: 29, round: 1, cause: "stalled",

@@ -9,9 +9,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// P6 T24 B: normalizeHandoff / recoverHandoff now live in artifacts/handoff/finalize.ts (the
-// status-derivation owner; the validator stays on rules/schema.ts — this file's import split
-// tracks the schema⇄finalize cycle break).
+// normalizeHandoff / recoverHandoff now live in artifacts/handoff/finalize.ts — the module that
+// owns status derivation, while the validator stays on rules/schema.ts; this file's import split
+// tracks the schema⇄finalize cycle break. (P6 Task 24 B)
 import { loadHandoffSchema, validateHandoffSchema, loadHandoffNamespace } from "../schema.ts";
 import { normalizeHandoff, recoverHandoff } from "../../artifacts/handoff/finalize.ts";
 

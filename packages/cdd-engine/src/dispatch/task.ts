@@ -208,8 +208,8 @@ function requireCtx(ctx: TaskDispatchContext | null, mode: string): string | nul
 export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Record<string, string> {
   return {
     TASK_WORKSPACE: ctx.workspace,
-    // Task 20 ⑦: canonical slug slot (workspaceSlug: -design/-plan single-layer strip — a plan and
-    // its paired spec converge to the same slug, e.g. osuperpowers-overhaul-p6).
+    // Canonical slug slot (Task 20 ⑦): workspaceSlug strips a single -design/-plan layer so a plan and
+    // its paired spec converge to the same slug, e.g. osuperpowers-overhaul-p6.
     WORKSPACE_SLUG: workspaceSlug(ctx.plan),
     TASK_BRIEF: ctx.briefPath,
     HANDOFF_TARGET: ctx.handoffPath,
@@ -240,7 +240,7 @@ export interface TaskRunOptions {
   registryPath?: string;
   findingsPath?: string;
   pluginRoot?: () => string;
-  /** T26 test/override seam (non-env, mirrors registryPath): shorten the termination monitor's
+  /** Test/override seam (non-env, mirrors registryPath; T26): shorten the termination monitor's
    * timing for deterministic timeout/stall tests. Production callers leave it unset — canonical
    * defaults apply. */
   termination?: Partial<TerminationConfig>;
@@ -289,8 +289,8 @@ export class TaskLifecycle extends DispatchLifecycle {
   #exitCode = -1;
   #diagnostic: TaskDiagnostic | null = null;
   #finished = false;
-  /** T27 (spec T7.6): the dead-round carrier's recovery.scope_base captured at the resume
-   *  pre-flight, handed to implement materialization (finalizeImplement pulls the scope ledger
+  /** The dead-round carrier's recovery.scope_base captured at the resume pre-flight (T27,
+   *  spec T7.6), handed to implement materialization (finalizeImplement pulls the scope ledger
    *  strictly earlier along it). null = no earlier anchor was riding the carrier. */
   #resumeScopeBase: string | null = null;
 
@@ -363,7 +363,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       const progressData = readProgressJSON(planWorkspace.workspace, planWorkspace.plan);
       const round = mode === "implement" ? 1 : getRound(progressData, this.#taskNum, mode);
       ctx = buildCtx(this.#root, this.#taskNum, { mode, harness: this.#harness, planWorkspace, round, findingsPath: this.#opts.findingsPath });
-      // T22/§T7.1: plan-constraints existence gate — implement pre-flight, dry-run exempt. Runs
+      // Plan-constraints existence gate (T22, §T7.1) — implement pre-flight, dry-run exempt. Runs
       // BEFORE the F11 brief generation below (the brief does not feed extraction): a
       // source-undeclared BLOCK aborts pre-dispatch with zero workspace residue, rather than
       // leaving a partial brief artifact on disk (findings 6).
@@ -392,7 +392,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // generation). Failure → CddExitError kind run-blocked → exit 1 — never a silent fallback to
       // an existing brief. Parent-dir bootstrap before writing (same workspace-bootstrap
       // convention as writeBaseBranch).
-      let residueAppendix: ResidueAppendixInput | null = null; // T26 resume-from-residue (spec T7.5)
+      let residueAppendix: ResidueAppendixInput | null = null; // resume-from-residue (T26, spec T7.5)
       if (!dryRun && mode === "implement") {
         try {
           // Resume pre-flight runs AFTER the entry gate (base.run(): commitPreCheck → resolveContext)
@@ -406,8 +406,8 @@ export class TaskLifecycle extends DispatchLifecycle {
           // pre-resume clean baseline stands).
           const carrier = readDeadCarrier(ctx.handoffPath);
           if (carrier) {
-            // T27: the dead round's settled scope (recovery.scope_base — ledger value / fallback
-            // dead-round brief TASK_BASE) rides the resume: it is the same task-level anchor, so
+            // The dead round's settled scope rides the resume (T27): recovery.scope_base — ledger
+            // value / fallback dead-round brief TASK_BASE — is the same task-level anchor, so
             // re-materialization pulls the ledger strictly earlier along it (finalizeImplement).
             const recoveryScope = (carrier.recovery as Record<string, unknown> | undefined)?.scope_base;
             if (typeof recoveryScope === "string" && SHA40_RE.test(recoveryScope)) {
@@ -504,7 +504,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     if (missing) { this.#done(1, [], missing); return; }
   }
 
-  /** Task 29 (spec T7.8) docContractValidate template-step override: the current dispatch's doc
+  /** docContractValidate template-step override (Task 29, spec T7.8): the current dispatch's doc
    * chain (plan → its `**Spec:**` spec → the spec's Parent program overall) validated against the
    * three necessary contracts (rules/documents.ts). Failures non-empty → the round is blocked
    * before the agent ever runs — exit 1 + the guidance on stderr (the 0/1/2/3 exit table unchanged
@@ -567,7 +567,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     let agentRc = 0;
     let timedOut = false;
     let unkillable = false;
-    let cause: TerminationCause | undefined; // T26: unified termination cause (stalled/over-budget/signal)
+    let cause: TerminationCause | undefined; // unified termination cause (stalled/over-budget/signal; T26)
     let idleWindowMs: number | undefined; // stall blocker detail (monitor idle window)
     if (dryRun) {
       // Dry-run simulation block (return-block.ts single point): the 4-line APPROVED dry-run
@@ -577,7 +577,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         artifacts: `brief=${ctx.briefPath} report=${ctx.workspace}/task-${this.#taskNum}-report.md test_evidence=${ctx.workspace}/task-${this.#taskNum}-test-evidence.json`,
       });
     } else {
-      // T26 unified termination config: single resolver (resolveTerminationConfig) replaces the
+      // Unified termination config (T26): single resolver (resolveTerminationConfig) replaces the
       // (resolveTimeoutMs + resolveLivenessConfig) pair — budget from canonical mode defaults with
       // the opts.termination seam on top, stall cadence from canonical timeouts.liveness. The
       // progress path is ALWAYS the dispatch workspace (engine artifacts live there); a missing
@@ -648,8 +648,8 @@ export class TaskLifecycle extends DispatchLifecycle {
             task: this.#taskNum,
             round: ctx.round ?? 1,
             cause: cause ?? "over-budget",
-            // T27: the salvage captures the task-level scope anchor (ledger priority / fallback the
-            // dead-round brief TASK_BASE) so the resume restores the same scope.
+            // The salvage captures the task-level scope anchor (ledger priority / fallback the
+            // dead-round brief TASK_BASE; T27) so the resume restores the same scope.
             scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
           })
         : { cause: FAILURE_CATEGORIES.TIMEOUT.id };
@@ -701,7 +701,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       if (existingHandoff) {
         const sv = validateHandoffSchema(existingHandoff);
         if (!sv.valid) {
-          // T5 CONTRACT_VIOLATION recovery (spec §2.5.2, AC7 category-level): normalize → re-validate
+          // CONTRACT_VIOLATION recovery (T5, spec §2.5.2, AC7 category-level): normalize → re-validate
           // (at most one round) — the recovery single point is finalize.ts#recoverHandoff (T24 B:
           // the recovery unit moved from rules/schema.ts with its applyDerivedStatus caller),
           // shared by all three runners. Both sub-branches write the NORMALIZED object (an invalid
@@ -749,11 +749,11 @@ export class TaskLifecycle extends DispatchLifecycle {
             task: this.#taskNum,
             round: ctx.round ?? 1,
             cause: "exec-failure",
-            // T27: same scope-anchor capture as the TIMEOUT salvage lane.
+            // Same scope-anchor capture as the TIMEOUT salvage lane (T27).
             scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
           })
-        // T25: review/fix EXECUTION_FAILURE death diagnosis rides the carrier (cause = the category
-        // id — the preserve eligibility key + exit code distinguishing exit 1 vs 143). The base
+        // Review/fix EXECUTION_FAILURE death diagnosis rides the carrier (T25): cause = the category
+        // id — the preserve eligibility key + exit code distinguishing exit 1 vs 143. The base
         // settleResidue step stashes the dirty-tree WIP afterwards, filling residue_ref/wip_stat/
         // preserved.
         : { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.#agentRc };
@@ -875,11 +875,11 @@ export class TaskLifecycle extends DispatchLifecycle {
       }
     }
 
-    // T5/T7: status single authority — the review-type handoff is finalized by the engine
+    // Status single authority (T5/T7): the review-type handoff is finalized by the engine
     // (finalizeHandoff rollup overwrites the agent-declared status, SP-4 exempts failure rounds);
     // the success path reads the finalized handoff and persists it (writeOwnHandoff full-replace),
     // and re-emits return block from returnFromHandoff.
-    // Task 23 ③: review + fix both finalize here and take the round conclusion → exit
+    // Review + fix both finalize here and take the round conclusion → exit (Task 23 ③):
     // (BLOCKED → 1 on any channel, APPROVED/CHANGES_REQUESTED → 0). finalizeHandoff review derives
     // status + the BLOCKED carrier; fix passes the work-type's declared status through. The
     // implement mode normalized its own exit in normalizeResult (materialization).
@@ -893,10 +893,10 @@ export class TaskLifecycle extends DispatchLifecycle {
         persistFinalized(ctx.handoffPath, handoff, finalized);
         this.#returnBlock = returnFromHandoff(ctx.handoffPath, ctx.workspace);
         if (mode === "review" && normalizeHandoffStatus(handoff.status as string) === "APPROVED") {
-          // T7: this read stays single-arg — at review-success execution progress.json already
+          // This read stays single-arg (T7): at review-success execution progress.json already
           // exists (plan recorded at the init point); plan no longer participates in
           // createEmptyProgress derivation.
-          // Task 30 ②: the APPROVED-review writeback is downgraded to ensure-the-row-exists —
+          // The APPROVED-review writeback is downgraded to ensure-the-row-exists (Task 30 ②) —
           // the complete verdict is deriveTaskState's sole authority (rules/status.ts), never a
           // stored field. The row creation still matters: incrementRound below finds it.
           const progressData2 = readProgressJSON(progressDir);
@@ -915,7 +915,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     this.#done(finalized?.exitCode ?? 0, this.#returnBlock, "");
   }
 
-  /** Task 29 (spec T7.8) statusValidate template-step override (post-flight, after the exit gate):
+  /** statusValidate template-step override (post-flight, after the exit gate; Task 29, spec T7.8):
    * reports the round's CURRENT task state (six-state convergence, rules/status.ts) + the plan
    * completion verdict as CDD_INFO — the "plan Done" terminal declaration is exactly this
    * all-complete verdict (closeout consumes it; no more manual tallying). Deliberately runs

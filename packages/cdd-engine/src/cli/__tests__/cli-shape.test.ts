@@ -32,11 +32,12 @@ const SMOKE_PLAN = path.join('packages/cdd-engine/src/cli/__tests__/fixtures/smo
 const SMOKE_SPEC = path.join('packages/cdd-engine/src/cli/__tests__/fixtures/smoke-spec.md');
 const NODE = process.execPath;
 
-// T10 warn: SMOKE_PLAN/SMOKE_SPEC 派生 workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ ——
-  //（engine workspaceSlug strip 尾 -plan：smoke-plan.md → smoke）
-// smoke 用例 teardown 清理（dry-run 不写盘，防御性清理兜底）。
-// **只清 smoke-spec**（本文件独占 slug）：smoke/ 被 cdd / docs-task / host-detection / lifecycle.wiring
-// 同 slug 共用，删它即与那些文件的 brief 自供应竞态（mkdirSync 与 generateBrief 之间目录被删 → ENOENT 假红）。
+// SMOKE_PLAN/SMOKE_SPEC derive workspace = .osuperpowers/cdd/smoke/{smoke-spec}/ (T10 warn) —
+  // (engine workspaceSlug strips a trailing -plan: smoke-plan.md → smoke)
+// Smoke-case teardown cleanup (dry-run writes nothing to disk, so it is a defensive fallback).
+// Only smoke-spec is cleaned (its slug is exclusive to this file): smoke/ is shared by cdd /
+// docs-task / host-detection / lifecycle.wiring under the same slug, so deleting it races those
+// files' brief self-supply (mkdirSync → generateBrief write gap → ENOENT false red).
 afterAll(() => {
   rmSync(path.join(REPO_ROOT, '.osuperpowers', 'cdd', 'smoke-spec'), { recursive: true, force: true });
 });
@@ -91,7 +92,8 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
     expect(r.exitCode).toBe(2);
   });
 
-  // P3 退役子命令：完整调用形态（bare 形态在删前亦 exit 2——Commander required-option 缺省——是假绿）
+  // Retired subcommands (P3): the full call shape is asserted because the bare shape also exited 2
+  // before removal (Commander's missing required-option) — a false green.
   it('cdd research（完整形态）→ unknown command exit 2（子命令退役）', () => {
     const r = runCli(['--dry-run', 'research', '--brief', SMOKE_PLAN, '--output', '/tmp/p3-retired-research.md'],
       { env: { ...HOST_ENV } });
@@ -99,8 +101,9 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
     expect(r.stderr).toMatch(/usage: cdd/);
   });
 
-  // P3 T2 退役子命令：brief 全量移除（命令面 + CLI 处理器）。同 research —— 完整调用形态
-  //（bare 形态在删前亦 exit 2：Commander required-option 缺省 —— 是假绿）。
+  // The brief subcommand is fully removed from both the command surface and the CLI handler (P3 T2);
+  // like research, the full call shape is exercised (the bare shape also exited 2 before removal —
+  // Commander's missing required-option — a false green).
   it('cdd brief（完整形态）→ unknown command exit 2（子命令退役）', () => {
     const r = runCli(['brief', '--task', '1', '--plan', SMOKE_PLAN, '--output', '/tmp/p3-retired-brief.md']);
     expect(r.exitCode).toBe(2);
@@ -108,10 +111,11 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
   });
 });
 
-// P3：命令面收敛为四（implement / review / fix / base-branch）。
-// 静态实例断言优先于文本正则——citty 的 subCommands 只含**直接**子命令，嵌套的
-// base-branch.set / .get 自然不入集（parse.mjs 文件头明载「本文件可被测试静态读（cli-shape），
-// import 后无副作用」；runCommand 由 bin 薄入口触发）。
+// The command surface converges on four (implement / review / fix / base-branch) (P3).
+// Static instance assertions beat text regexes — citty's subCommands only holds **direct**
+// subcommands, so nested base-branch.set / .get stay out of the set (parse.mjs's header states
+// "this file is statically readable by tests (cli-shape); import has no side effects";
+// runCommand fires from the bin thin entry).
 describe('P3 命令面收敛：顶层子命令恰为四', () => {
   it('mainCommand.subCommands 名称集合 === {base-branch, fix, implement, review}', () => {
     expect(Object.keys(mainCommand.subCommands).sort()).toEqual(
@@ -125,8 +129,8 @@ describe('P3 命令面收敛：顶层子命令恰为四', () => {
   });
 });
 
-// T9 fix: guardArgs' --no-<bool> negation is boolean-only — negating a string/enum arg
-// (--no-plan) is an unknown-option rejection (exit 2), not a silent accept.
+// guardArgs' --no-<bool> negation is boolean-only — negating a string/enum arg (--no-plan)
+// is an unknown-option rejection (exit 2), not a silent accept (T9 fix).
 describe('guardArgs: --no-* negation restricted to boolean args', () => {
   it('base-branch get --no-plan → unknown option exit 2 (negating a string arg is rejected)', () => {
     const r = runCli(['base-branch', 'get', '--no-plan', SMOKE_PLAN]);

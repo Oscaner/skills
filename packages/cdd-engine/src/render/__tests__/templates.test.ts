@@ -26,7 +26,7 @@ describe('PKG_ROOT', () => {
   });
 });
 
-// ---- Task 20 ④：zone-tagged token registry 单点消费（渲染数据平面单文件） ----
+// ---- The zone-tagged token registry is consumed at a single point (the render data plane is a single file) (Task 20 ④) ----
 
 // Synthetic zone-plan fixture: minimal contract exercising every validator branch (sample-ok
 // baseline unless overridden). Round zone renders MODE / ALPHA / HANDOFF_WRITE_GATE; return zone
@@ -85,7 +85,7 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
     expect(contract.tokens.filter((t) => t.zone === 'round-context')).toHaveLength(17);
     expect(contract.tokens.filter((t) => t.zone === 'return')).toHaveLength(2);
     expect(contract.tokens.some((t) => t.zone === 'shell')).toBe(false);
-    // T12 (D1.2)：7 条纪律条款单源落库（v1.29–v1.31；`cl:` 前缀族；正文非空、零 moustache）
+    // The seven discipline clauses are stored single-source per D1.2 — the v1.29–v1.31 era, the `cl:` prefix family, non-empty bodies, zero moustache (T12).
     expect(Object.keys(contract.clauses)).toEqual(CLAUSE_KEYS);
     for (const [key, body] of Object.entries(contract.clauses)) {
       expect(String(body).trim(), key).toBeTruthy();
@@ -199,7 +199,7 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
   it('Task 20 与 T12 衔接：{{> clause}} 引用须 resolve 到 #clauses（未注册 → throw；注册 → 通过 + 装配器注册 partial）', async () => {
     const { validateTemplateStructure, clauseNames, assembleClauses } = await import('../templates.ts');
     const hb = (await import('handlebars')).default;
-    expect(clauseNames()).toEqual(CLAUSE_KEYS); // T12 落库后：8 条纪律条款（顺序 = D1.2/E2⑤ 命名序 + changes[] 记账）
+    expect(clauseNames()).toEqual(CLAUSE_KEYS); // the eight discipline clauses in their post-landing state (order = D1.2/E2⑤ naming order, plus changes[] bookkeeping) (T12)
     const ref = zoneFixture({
       sections: { ...zoneFixture().sections, 'round-context': ['## Round context', '- `MODE`: {{MODE}}', '- `ALPHA`: {{ALPHA}}', '### HANDOFF_WRITE_GATE', '{{HANDOFF_WRITE_GATE}}', '{{> discipline}}'] },
     });
@@ -388,7 +388,7 @@ describe('renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
   });
 });
 
-// ---- Task 20 ①/③：数据平面的空注入壳 + schema 原样注入 + 零手写 render 符号 ----
+// ---- The data plane's empty-injection shell + verbatim schema injection + zero hand-written render symbols (Task 20 ①/③) ----
 
 describe('unified constant shell（Task 20：四个 .md 并入 sections 的阅读理解）', () => {
   it('壳内零注入槽：sections.shell 零 token 槽（T12 起 `{{> cl:…}}` 条款 partial refs 为装配标记）；`## Round context` 唯一动态区宣言', () => {
@@ -415,14 +415,15 @@ describe('unified constant shell（Task 20：四个 .md 并入 sections 的阅�
     for (const gone of GONE) {
       expect(src, gone).not.toMatch(new RegExp(`\\b${gone}\\b`));
     }
-    // Task 20 ④：templates.ts 无 `switch(` / `readdirSync`（residue 守卫镜像）；staticShellKey 已消除
+    // templates.ts has no `switch(` / `readdirSync` (mirrors the residue guard); staticShellKey is gone (Task 20 ④)
     expect(src).not.toMatch(/\bstaticShellKey\b/);
   });
 });
 
-// ---- P5 Task 18（E-8）：handoff stub 紧凑注入 —— JSON.stringify(schema)（省 tok）----
-// 注入面 = 提示词 prompt（非磁盘工件）：handoff JSON 落盘仍走 2-缩进（write.ts/progress 等）。
-// 紧凑性来源 = JSON.stringify 无缩进 → 单行 body，无内嵌换行；2-缩进形态的 `\n  "` 模式即 drift。
+// ---- The handoff stub is compactly injected via JSON.stringify(schema) — token savings (P5 Task 18, E-8) ----
+// The injection surface is the prompt text, not a disk artifact: the on-disk handoff JSON still
+// uses 2-space indentation (write.ts/progress etc.). Compactness comes from JSON.stringify's zero
+// indentation → a single-line body, no embedded newlines; the 2-space form's `\n  "` is the drift.
 
 describe('renderHandoffSchemaJson 紧凑注入（P5 E-8 省 tok + Task 5 rename: stub→schema-json）', () => {
   it('stub 无 2-缩进模式（`\\n  "` 模式）——格式 drift 守卫（spec §2.8）', () => {

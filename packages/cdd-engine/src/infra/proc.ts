@@ -16,7 +16,7 @@ import { invariant } from "./exit.ts";
 const KILL_SIGNAL = "SIGTERM";
 const FORCE_SIGNAL = "SIGKILL";
 
-// ---- T26 unified termination monitor (spec T7.5; configured via engine-config.json#contextContract.timeouts) ----
+// ---- unified termination monitor (T26, spec T7.5; configured via engine-config.json#contextContract.timeouts) ----
 // Dispatch-phase termination detector: while a spawnManaged dispatch is in flight, one decision
 // layer weighs two signals — ① STALL (the dual-signal liveness judge: no growth in process-group
 // cumulative CPU nor in the newest workspace mtime for idleWindowMs → presumed hung tool call) and
@@ -402,7 +402,7 @@ export async function spawnManaged(command: string, args: string[], opts: SpawnO
     });
     await persistRegistry();
   }
-  // T26 termination monitor: opt-in, unified stall + budget detection. Runs between registration
+  // Termination monitor (T26): opt-in, unified stall + budget detection. Runs between registration
   // and the child's resolution; on either signal it kills the process group and records the cause
   // so the caller writes the cause-specific TIMEOUT blocker (resume-or-discard recovery contract
   // in rules/failure.ts timeoutBlocker).

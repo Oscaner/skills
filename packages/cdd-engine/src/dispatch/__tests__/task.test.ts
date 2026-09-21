@@ -35,8 +35,8 @@ function cleanEnv(extra) {
 // Spawn the CLI as a subprocess; returns { status, stdout, stderr }.
 function run(args, extraEnv = {}, opts = {}) {
   const env = cleanEnv(extraEnv);
-  // T3: host detection is ambient-env driven — a test that needs a truly host-free env must
-  // explicitly delete the host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT).
+  // Host detection is ambient-env driven — a test needing a truly host-free env must
+  // explicitly delete the host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT) (T3).
   if (opts.noHost) {
     delete env.CLAUDE_CODE_SESSION_ID;
     delete env.CURSOR_TRACE_ID;
@@ -137,8 +137,8 @@ describe('cdd implement/review/fix CLI contract', () => {
     }
   });
 
-  // Task 9 (citty): program-level `--dry-run` stays position-independent — the bin wrapper
-  // resolves it from the FULL argv, so it works after the subcommand name too (commander parity).
+  // Program-level `--dry-run` stays position-independent — the bin wrapper resolves it from the
+  // FULL argv, so it works after the subcommand name too (commander parity) (Task 9, citty).
   it('program 级 --dry-run 位置无关：子命令名之后也生效', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(

@@ -147,10 +147,10 @@ export interface RecoveryInfo {
   wip_stat: WipStat;
   cause: string;
   round: number;
-  /** T28 save-family idempotence flag: the round's residue IS in the object store — an
+  /** The save-family idempotence flag (T28): the round's residue IS in the object store — an
    *  already-preserved carrier (recovery.preserved === true) is never stashed again. */
   preserved: true;
-  /** T27 (spec T7.6): the task-level scope anchor at salvage time (ledger value priority /
+  /** The task-level scope anchor at salvage time (T27, spec T7.6: ledger value priority /
    *  fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE
    *  (resume-declared) adoption and scope identity stay consistent across round death. */
   scope_base?: string;
@@ -193,9 +193,9 @@ export async function settleResidue(
     cause: opts.cause,
     round: opts.round,
     preserved: true,
-    // T27 (spec T7.6): the write side enforces the same 40-hex shape its read side (resume pre-flight)
-    // validates — a malformed brief TASK_BASE must never ship a schema-violating recovery.scope_base
-    // (fail-open: skip the key, the salvage record still writes).
+    // The write side enforces the same 40-hex shape its read side validates (T27, spec T7.6 —
+    // resume pre-flight): a malformed brief TASK_BASE must never ship a schema-violating
+    // recovery.scope_base (fail-open: skip the key, the salvage record still writes).
     ...(opts.scopeBase && SHA40_RE.test(opts.scopeBase) ? { scope_base: opts.scopeBase } : {}),
   };
 }

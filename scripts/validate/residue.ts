@@ -904,6 +904,176 @@ function checkMemoryGuard() {
 }
 
 // =====================================================================
+// Task 31 (P6, spec T7.10) — src comment anchor-first ban (§35 second half)
+// =====================================================================
+// §35's src-comment half: a comment's semantic body comes first; a phase anchor (P5 / T26 /
+// Task 23 / spec T7.8…) is allowed only as a trailing traceability suffix, never as the comment's
+// first valid token. The ban is enforced on every engine src comment — production AND test sites
+// (a test file's prose is src comment prose too; the §35 rule makes no test carve-out, and
+// walkTargetFiles' __tests__ self-exemption is a vocabulary-guard doctrine, not a comment-shape
+// one). Carve-outs preserved verbatim:
+//  ① file headers — a leading comment run whose first unit is path/module-led (anchors may sit in
+//     trailing parens inside the header);
+//  ② the anchor as a trailing suffix after the semantic body (… (T7.10) / … — T26) — the first
+//     valid token is the semantic body's, so the family regex never matches;
+//  ③ pure semantic prose (no anchor at all);
+//  ④ the injection-surface zero-anchor guard (existing mechanism checks) — unchanged.
+// A comment unit = one block comment, or a run of consecutive line comments (blank lines / code
+// split runs). Continuation lines that complete an open paren written on the previous line are
+// part of that run — judged by the run's first token, never their own. The header run = the
+// file's leading units (before the first code token); it is exempt only when its FIRST unit's
+// first valid token is not an anchor (a path/module-led header), so an anchor-led header stays
+// a violation.
+const ANCHOR_FAMILY_RE = /^(?:P\d+|T\d+(?:\.\d+)?|Task \d+|spec T\d+(?:\.\d+)?)\b/;
+const SRC_COMMENT_TARGETS = ["packages/cdd-engine/src"];
+
+// String/template-aware comment extraction: `//` and `/* */` outside string/template/regex
+// surfaces only; the template-literal ${…} span is walked opaque (a nested compiler directive
+// inside an interpolated string must not open a comment). Each unit carries inHeader (no code
+// token seen before it) for the file-header carve-out.
+function commentUnits(text) {
+  const units = [];
+  const newlineCount = (s) => (s.match(/\n/g) ?? []).length;
+  let i = 0;
+  let line = 1;
+  let seenCode = false;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === "/" && text[i + 1] === "/") {
+      const startLine = line;
+      const eol = text.indexOf("\n", i);
+      const end = eol === -1 ? n : eol;
+      units.push({ kind: "line", startLine, content: text.slice(i + 2, end), inHeader: !seenCode });
+      if (eol === -1) i = n;
+      else {
+        i = eol + 1;
+        line += 1;
+      }
+      continue;
+    }
+    if (c === "/" && text[i + 1] === "*") {
+      const startLine = line;
+      const end = text.indexOf("*/", i + 2);
+      const content = text.slice(i + 2, end === -1 ? n : end);
+      units.push({ kind: "block", startLine, content, inHeader: !seenCode });
+      line += newlineCount(content);
+      i = end === -1 ? n : end + 2;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const q = c;
+      i++;
+      seenCode = true;
+      while (i < n) {
+        if (text[i] === "\\") { i += 2; continue; }
+        if (text[i] === q) { i++; break; }
+        if (text[i] === "\n") line++;
+        i++;
+      }
+      continue;
+    }
+    if (c === "`") {
+      i++;
+      seenCode = true;
+      while (i < n) {
+        if (text[i] === "\\") { i += 2; continue; }
+        if (text[i] === "`") { i++; break; }
+        if (text[i] === "$" && text[i + 1] === "{") {
+          let depth = 1;
+          i += 2;
+          while (i < n && depth > 0) {
+            if (text[i] === "\n") line++;
+            if (text[i] === "}") depth--;
+            if (text[i] === "{") depth++;
+            i++;
+          }
+          continue;
+        }
+        if (text[i] === "\n") line++;
+        i++;
+      }
+      continue;
+    }
+    if (!/\s/.test(c)) seenCode = true;
+    if (c === "\n") line++;
+    i++;
+  }
+  return units;
+}
+
+// Consecutive line comments (adjacent source lines, same header membership) collapse into one
+// unit; block comments are already one unit each. The first line carries the reported line.
+function groupCommentUnits(units) {
+  const grouped = [];
+  for (const u of units) {
+    const prev = grouped[grouped.length - 1];
+    if (
+      u.kind === "line" &&
+      prev &&
+      prev.kind === "line" &&
+      prev.lines[prev.lines.length - 1] === u.startLine - 1 &&
+      prev.inHeader === u.inHeader
+    ) {
+      prev.lines.push(u.startLine);
+      prev.content += "\n" + u.content;
+      continue;
+    }
+    grouped.push({ ...u, lines: [u.startLine] });
+  }
+  return grouped;
+}
+
+// The comment's first valid token: block-comment `*` markers stripped per line, then leading
+// delimiter punctuation (parens/brackets/dashes/colons/quotes…) skipped until the first word —
+// the point at which a phase anchor would match the family regex.
+function firstValidToken(unit) {
+  let text =
+    unit.kind === "block"
+      ? unit.content
+          .split("\n")
+          .map((l) => l.replace(/^\s*\*\s?/, "").replace(/[ \t]+$/, ""))
+          .join(" ")
+          .trim()
+      : unit.content.trim();
+  while (text.length > 0 && /[([{\-_—–_#:;,.=!?+*|/?@'"`]|\s|（/.test(text[0])) {
+    text = text.slice(1).trimStart();
+  }
+  return text;
+}
+
+/** targetsOverride lets tests inject a temp dir; hits = { label, file: path:line } list. */
+export function collectCommentAnchorHits(targetsOverride) {
+  const hits = [];
+  for (const f of walkTargetFiles(targetsOverride ?? SRC_COMMENT_TARGETS, { includeTests: true })) {
+    if (!f.endsWith(".ts")) continue; // the engine src plane is all TS (M5: the .mjs plane is zero)
+    const src = readFileSync(f).toString("utf8");
+    const units = groupCommentUnits(commentUnits(src));
+    const header = units.filter((u) => u.inHeader);
+    const body = units.filter((u) => !u.inHeader);
+    const headerExempt = header.length > 0 && !ANCHOR_FAMILY_RE.test(firstValidToken(header[0]));
+    for (const u of headerExempt ? body : units) {
+      if (ANCHOR_FAMILY_RE.test(firstValidToken(u))) {
+        hits.push({
+          label: `src comment opens with a phase anchor (semantic body first, §35): ${firstValidToken(u).slice(0, 56)}`,
+          file: `${path.relative(ROOT, f)}:${u.lines[0]}`,
+        });
+      }
+    }
+  }
+  return hits;
+}
+
+function checkCommentAnchors() {
+  const hits = collectCommentAnchorHits();
+  assert(
+    hits.length === 0,
+    `SRC COMMENT ANCHOR FOUND — engine src comments must be semantic-first (§35 second half, T7.10):\n  ${hits.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`,
+  );
+  console.log("OK — src comment anchor-first ban (§35 second half) zero violations");
+}
+
+// =====================================================================
 // Task 16 — skills-surface guard (design §2.8 rows 12/15/16/17/18; the skills-side landings of
 // AC5/AC11/AC14)
 // =====================================================================
@@ -1155,6 +1325,8 @@ function checkSkillSurface() {
 // checkHandoffSchema (§2.8 row 14; the zero-hit guard); T16 appends checkSkillSurface (§2.8 rows
 // 12/15/16/17/18; the five skills-surface guards); Task 3 (P6) appends checkMjsTerminalState
 // (M5: .mjs terminal state) and checkMemoryGuard (M6: vitest dual-config memory guard);
+// Task 31 (P6, spec T7.10) appends checkCommentAnchors (§35 second half: the src comment
+// anchor-first ban — semantic body first, anchor only as a trailing traceability suffix);
 // grepTargets grew to include cdd-engine src+templates for the wiring guard to pin. channelTargets
 // = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
@@ -1171,6 +1343,7 @@ export const steps = [
       checkSkillSurface();
       checkMjsTerminalState();
       checkMemoryGuard();
+      checkCommentAnchors();
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,

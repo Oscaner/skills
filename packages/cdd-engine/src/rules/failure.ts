@@ -85,7 +85,7 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
   return n;
 }
 
-// ---- T26 TIMEOUT semantics (spec T7.5; replaces the T14 stalled-boolean variant) ----
+// ---- TIMEOUT semantics — unified by the termination cause (T26, spec T7.5; replaces the T14 stalled-boolean variant) ----
 // The TIMEOUT category identity never bifurcates (status TIMEOUT + timeoutCount + terminal shape
 // are shared), but the blocker wording is produced from ONE point keyed on the unified termination
 // cause: over-budget keeps the legacy wording (T6 AC7, backwards-compatible — the "timed out

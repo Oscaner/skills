@@ -15,7 +15,8 @@ it("loadRegistry: 读取 2 harness（T2 收敛 claude/cursor-agent）", () => {
   }
 });
 
-// Task 2 (P5): harness 选择/探测/安装层删除 → registry 收敛两键 claude/cursor-agent。
+// The harness selection/probe/install layer is deleted, leaving the registry converged on
+// the two keys claude/cursor-agent (Task 2, P5).
 it("registry 收敛两键 claude/cursor-agent", () => {
   const reg = loadRegistry(REG_PATH);
   expect(Object.keys(reg).sort()).toEqual(["claude", "cursor-agent"]);
@@ -88,7 +89,7 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
   expect(registryField(reg, "claude", "invoke")).toBe("-p --output-format text --dangerously-skip-permissions");
   // Enh P: task_review_prefix 泛化为 per-mode prefix/suffix（Enh P 后已删除）
   expect(registryField(reg, "claude", "task_review_prefix")).toBe("");
-  // Task 5: prefix 拓展为 operation×type（implement/review×{task,branch,spec,plan}/fix，/ 风格）
+  // The prefix expands to operation×type (implement/review×{task,branch,spec,plan}/fix, /-style) (Task 5).
   expect(registryField(reg, "claude", "prefix")).toEqual({
     implement: "/mattpocock-skills:tdd",
     review: {
@@ -102,7 +103,7 @@ it("registryField: 字段读取 + 缺失回退空串", () => {
   expect(registryField(reg, "claude", "suffix")).toEqual({});
   expect(registryField(reg, "claude", "no-such-field")).toBe("");
   expect(registryField(reg, "no-such-harness", "cli")).toBe("");
-  expect(registryField(reg, "gemini", "invoke")).toBe(""); // T2 收敛后 gemini 非 registry 键 → 缺失回退空串
+  expect(registryField(reg, "gemini", "invoke")).toBe(""); // gemini is not a registry key after the convergence, so missing fields fall back to an empty string (T2)
 });
 
 it("resolveInjection: claude implement/fix → /mattpocock-skills:tdd", () => {

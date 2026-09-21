@@ -56,7 +56,7 @@ export function gitCommit(dir, message = "plan") {
     "commit", "-q", "-m", message]);
 }
 
-// ---- Task 29 (spec T7.8): doc-contract-valid chain (plan + spec + parent overall) ----
+// ---- Doc-contract-valid chain (plan + spec + parent overall) (Task 29, spec T7.8) ----
 // A three-doc fixture that passes every docContractValidate contract (the dispatch hook now gates
 // every real dispatch on it, so any lifecycle-test repo asserting a real dispatch past pre-flight
 // must carry a valid chain). Single shared source — runner / progress-owner fixture builders all

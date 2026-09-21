@@ -1,13 +1,13 @@
 // packages/cdd-engine/src/render/__tests__/handoff-stub.test.ts
 import { describe, it, expect } from "vitest";
-// P6 T24 B: the CONTRACT_VIOLATION recovery unit (normalizeHandoff / recoverHandoff) moved out of
-// rules/schema.ts into artifacts/handoff/finalize.ts (its applyDerivedStatus caller's module); the
-// validator stays on rules/schema.ts — the imports below track the new homes.
+// The CONTRACT_VIOLATION recovery unit (normalizeHandoff / recoverHandoff) moved out of
+// rules/schema.ts into artifacts/handoff/finalize.ts (the module of its applyDerivedStatus caller);
+// the validator stays on rules/schema.ts — the imports below track the new homes. (P6 Task 24 B)
 import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
 import { normalizeHandoff, recoverHandoff } from "../../artifacts/handoff/finalize.ts";
 import { renderHandoffSchemaJson } from "../templates.ts";
 
-// ---- Task 18：renderHandoffSchemaJson = schema 原样注入（零 render、零解释器、零第二校验器）----
+// ---- renderHandoffSchemaJson = verbatim schema injection (no render, no interpreter, no second validator) (Task 18) ----
 
 describe("renderHandoffSchemaJson — schema 原样注入", () => {
   it("stub = schema 本体的 ```json 块：解析后逐键相等、description 随附", () => {

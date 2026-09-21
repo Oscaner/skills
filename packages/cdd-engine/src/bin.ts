@@ -97,7 +97,7 @@ async function main() {
     // "root reap at the run boundary" would be dead code on the CLI mainline (the process exit
     // does not unwind our own finally blocks).
     if (raw instanceof ExitRequested) process.exit(raw.code);
-    // P6 T24 (F error consolidation): the CddExitError family — orchestration errors (registry gate /
+    // The CddExitError family (P6 T24, F error consolidation): orchestration errors (registry gate /
     // DispatchBlocked / RunBlocked / usage) all land here and exit by their own exitCode. The
     // kind=usage face (shared.ts guardArgs/intTask → cliUsageError) keeps the citty-usage parity:
     // usage line (the resolved command context via deepestCommand) + message + exit 2. All other

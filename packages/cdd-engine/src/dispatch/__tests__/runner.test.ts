@@ -16,8 +16,8 @@ import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          buildCtx, buildPromptParams } from "../task.ts";
-// Task 30 ②/④: the runner-level writeback contract is verified against the derivation —
-// deriveTaskState is the single TaskState source (progress rows carry no status).
+// The runner-level writeback contract is verified against the derivation —
+// deriveTaskState is the single TaskState source (progress rows carry no status) (Task 30 ②/④).
 import { deriveTaskState } from "../../rules/status.ts";
 import { materializeWorkspace } from "../../artifacts/handoff/naming.ts";
 import { ExitRequested } from "../../infra/exit.ts";
@@ -153,8 +153,9 @@ it("runTask: dry-run outputs return block 5 lines to stdout + exit 0", async () 
 });
 
 it.skipIf(!GROUP_SUPPORTED)("runTask: 正常 exit（noExit=false）→ finally teardownAll 先于 ExitRequested 传播（residual group reaped）", async () => {
-  // Task 3 review warn 回归：process.exit 不展开 try/finally —— exit helpers 改 throw ExitRequested
-  // 后，run 边界 finally（teardownAll）必须先行连根回收 dispatch 残留组，哨兵才向外传播。
+  // Regression guard for the Task 3 review warn: process.exit does not unwind try/finally, so after
+  // exit helpers switched to throwing, the run-boundary finally (teardownAll) must reap the dispatch
+  // residual group by the root first before the sentinel propagates outward (Task 3).
   const { repo, planFile } = setupWorkspace();
   // 模拟 dispatch 留下的 session server：leader 触发孙进程 P1EXIT 后退出，孙进程驻留（组 pgid 存活语义）。
   const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EXIT']).unref();process.exit(0)`;
@@ -221,8 +222,8 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
     const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
     expect(handoff.status).toBe("BLOCKED");
     expect(handoff.blocker).toMatch(/cli exited 3 without writing handoff/);
-    // T26 §⑤: the EXECUTION_FAILURE arm carries the resume-or-discard contract (resume via the
-    // implement re-dispatch, or abandon the salvage)
+    // The EXECUTION_FAILURE arm carries the resume-or-discard contract — resume via the implement
+    // re-dispatch, or abandon the salvage (T26 §⑤)
     expect(handoff.blocker).toMatch(/resume or discard: cdd implement --task 1 re-dispatch auto-resumes \(recovery.residue_ref\), or git stash drop to abandon/);
   } finally {
     restore();
@@ -291,7 +292,7 @@ it("runTask: plan path does not exist → '--plan not found' exit 1（resolveDoc
   expect(res.returnBlock).toEqual([]);
 });
 
-// ---- P1 #173: single root authority (injected), no cwd fallback ----
+// ---- Single root authority (injected), no cwd fallback (P1 #173) ----
 
 it("runTask #173: plan in repo A + root=repo A → workspace lands in A, unrelated repo B untouched", async () => {
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-a-")));
@@ -417,7 +418,7 @@ it("handoffStatus: APPROVED unchanged", () => {
   expect(handoffStatus(1, dir, progressData)).toBe("APPROVED");
 });
 
-// ---- P12 timeout path ----
+// ---- Timeout path (P12) ----
 
 it("normalizeHandoffStatus: TIMEOUT passthrough", async () => {
   const { normalizeHandoffStatus } = await import("../../artifacts/handoff/finalize.ts");
@@ -568,9 +569,10 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
       planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
-    // T5 CONTRACT_VIOLATION 恢复（AC7 类目级，spec §2.5.2）：`additionalProperties` 违规键可归一化
-    // 剥除 → 重校验通过 → 正常继续（不再整轮判死）。原断言（exit 1 + BLOCKED + blocker 文案）
-    // 钉的是归一化落地前的行为，已由本任务取代。
+    // CONTRACT_VIOLATION recovery is exercised at AC7 category level (spec §2.5.2):
+    // `additionalProperties` violating keys normalize away → re-validation passes → the round
+    // continues normally (no longer judged dead wholesale). The old assertion (exit 1 + BLOCKED +
+    // blocker text) pinned the pre-normalization behavior and has been superseded (T5).
     expect(res.exitCode).toBe(0);
     const hp = path.join(ws, "task-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
@@ -737,7 +739,7 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
   }
 });
 
-// ---- Task 5: mode → (op, type) 注入映射（runner invokeCliWithRetry 调用点） ----
+// ---- Mode → (op, type) injection mapping at the runner invokeCliWithRetry call site (Task 5) ----
 
 it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review prefix 注入 prompt 首行", async () => {
   const { repo, planFile, ws } = setupWorkspace();
@@ -768,7 +770,7 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
   }
 });
 
-// ---- T5: status 单一权威 — review 读回覆写（agent 写 CHANGES_REQUESTED warn-only → 覆写 APPROVED） ----
+// ---- Status single-authority: review read-back overwrites (agent wrote warn-only CHANGES_REQUESTED → overwritten to APPROVED) (T5) ----
 
 it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTED warn-only → 覆写 APPROVED", async () => {
   const { repo, planFile, ws } = setupWorkspace();
@@ -796,8 +798,9 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     ]);
     // return block 同步从 handoff 重发（returnFromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
     expect(res.returnBlock[0]).toBe("status: APPROVED");
-    // T5 nit：review 成功 round 缺省 blocker → none（非 commit-contract 缺省文案）
-    // blocker 之后仍有一行 counters（returnBlock[3] 或 returnBlock[2] 视 artifacts 而定，**末行恒为 counters**）
+    // Review success-round blocker defaults to none (not the commit-contract default text); a
+    // counters line still follows the blocker (returnBlock[3] or returnBlock[2] depending on
+    // artifacts — the **last line is always counters**) (T5 nit)
     expect(res.returnBlock.at(-2)).toMatch(/^blocker: none$/);
     expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
   } finally {
@@ -805,7 +808,7 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
   }
 });
 
-// ---- Task 23 ①③: T14 复现场景 — unverifiable 折 BLOCKED 必带 carrier + exit 1（反转 exit 0）----
+// ---- Unverifiable folds to BLOCKED — mandatory carrier + exit 1, reversing the previous exit 0 (Task 23 ①③, T14 recreated scenario) ----
 
 it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVERIFIABLE + 真实 blocker（未验什么/为什么）+ exit 1", async () => {
   const { repo, planFile, ws } = setupWorkspace();
@@ -843,7 +846,7 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
   }
 });
 
-// ---- Task 23 ②: §口径 dev-measured 验收项 → accepted-noted（notes 记录, 零 unverifiable 零 BLOCK）----
+// ---- §-term dev-measured acceptance items → accepted-noted (recorded in notes; zero unverifiable, zero BLOCK) (Task 23 ②) ----
 
 it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes 记录, 零 unverifiable 零 BLOCK, exit 0", async () => {
   const { repo, planFile, ws } = setupWorkspace();
@@ -918,7 +921,7 @@ it("runTask: round-2 buildCtx derives task-1-review-2.json + buildPromptParams �
 
   const params = buildPromptParams(ctx, 1);
   expect(params.TASK_WORKSPACE).toBe(ws);
-  expect(params.WORKSPACE_SLUG).toBe(path.basename(ws));   // Task 20 ⑦ canonical slug 槽（同源 workspaceSlug）
+  expect(params.WORKSPACE_SLUG).toBe(path.basename(ws));   // canonical slug slot, same source as workspaceSlug (Task 20 ⑦)
   expect(params.HANDOFF_TARGET).toBe(ctx.handoffPath);
   expect(params.TASK_BRIEF).toBe(ctx.briefPath);
   expect(params.TASK_CONSTRAINTS).toBe(ctx.constraintsPath);
@@ -927,7 +930,7 @@ it("runTask: round-2 buildCtx derives task-1-review-2.json + buildPromptParams �
   expect(params.REVIEW_PLAN_LINE).toBe(`**Plan:** ${ctx.plan}`);
 });
 
-// ---- T4: mode 归一（review）----
+// ---- Mode normalization (review) (T4) ----
 
 it("runTask: 未知 mode → rejected：CDD_MODE must be implement|review|fix", async () => {
   const { repo, planFile } = setupWorkspace();
@@ -955,10 +958,11 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
   expect(validateHandoffSchema({ task: 1, phase: "bogus", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
 });
 
-// ---- T6: implement handoff 实体化 + evidence-gate + return block returnFromHandoff（commits 单一权威）----
+// ---- Implement handoff materialization + evidence-gate + return block returnFromHandoff (commits single authority) (T6) ----
 
-// T6 fixture：git repo + 仓根内已 commit 的 plan（`--plan`）+ 干净 tracked 树（commit-contract 前提）。
-// 返回 registry / HEAD 现场；root 经 opts.root 注入，workspace 纯派生 = <repo>/.osuperpowers/cdd/plan。
+// Fixture (T6): git repo + git-committed plan at the repo root (`--plan`) + clean tracked tree
+// (the commit-contract precondition). Returns the registry / HEAD scene; root is injected via
+// opts.root; workspace purely derived = <repo>/.osuperpowers/cdd/plan.
 function t6Workspace(extraFiles = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t6-ws-")));
   commitValidDocs(repo);
@@ -981,7 +985,7 @@ function t6Workspace(extraFiles = {}) {
   return { repo, ws, taskBase, actualHead, binDir, regPath, planFile: PLAN_REL };
 }
 
-// T6 ghost 运行封装：写 fake-cli（body）→ 注入 PATH 运行 runTask（implement/non-dry）→ 还原 PATH。
+// Ghost-run wrapper: write fake-cli (body) → inject PATH to run runTask (implement/non-dry) → restore PATH (T6)
 async function runT6Ghost(t6, body) {
   const restore = withFakeCli(t6.binDir, "fake-cli", body);
   try {
@@ -1130,7 +1134,7 @@ it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的
   expect(h.blocker).toBeUndefined();
 });
 
-// ---- T7: implement 8.8 门控 — HANDOFF 非 implement 输入通道（#232 残留路径从结构上消灭）----
+// ---- Implement 8.8 gate: HANDOFF is not an implement input channel (#232 residual path eliminated structurally) (T7) ----
 
 it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留被实体化 writeOwnHandoff 全量覆盖 APPROVED", async () => {
   // 旧 P1 假设：agent 手写残缺 handoff（缺 findings）→ 8.8 无差别校验 → 误拦 BLOCKED（#232）。
@@ -1159,10 +1163,10 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
   expect(res.returnBlock[0]).toBe("status: APPROVED");
 });
 
-// ---- T8: post-run validateCommitContract (all modes) + ensure-row writeback (Task 30 ②: no status field) ----
+// ---- Post-run validateCommitContract (all modes) + ensure-row writeback (no status field) (T8, Task 30 ②) ----
 
-// T8 fixture：git repo（tracked source + plan 已 commit + ws 收编 .osuperpowers/cdd/plan）。
-// dirty=true → tracked.txt 追加（porcelain ` M`）→ post-run commit-contract 必 BLOCKED。
+// Fixture (T8): git repo (tracked source + committed plan + ws adopted under .osuperpowers/cdd/plan);
+// dirty=true appends to tracked.txt (porcelain ` M`) → the post-run commit-contract must BLOCK.
 function t8Workspace({ dirty = false } = {}) {
   const repo = gitInitReal(mkdtempSync(path.join(tmpdir(), "cdd-t8-ws-")));
   writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
@@ -1184,7 +1188,7 @@ function t8Workspace({ dirty = false } = {}) {
   return { repo, ws, actualHead, binDir, regPath, planFile: PLAN_REL };
 }
 
-// T8 review ghost 运行封装：fake-cli 写 APPROVED review handoff → 运行 runTask review（non-dry）→ 还原 PATH。
+// Review ghost-run wrapper: fake-cli writes an APPROVED review handoff → run runTask review (non-dry) → restore PATH (T8)
 async function runT8ReviewGhost(t8, body) {
   const restore = withFakeCli(t8.binDir, "fake-cli", body);
   try {
@@ -1208,8 +1212,8 @@ it("runTask T8/T30: review APPROVED → ensure-row writeback (rounds[review]=1, 
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   const progress = JSON.parse(readFileSync(path.join(t8.ws, "progress.json"), "utf8"));
-  // Task 30 ②: the row carries facts only — rounds on record, zero status field. The complete
-  // verdict is deriveTaskState's sole authority (the T29-flip blackbox: review-APPROVED → complete).
+  // The row carries facts only — rounds on record, zero status field; the complete verdict is
+  // deriveTaskState's sole authority (the T29-flip blackbox: review-APPROVED → complete) (Task 30 ②).
   expect(progress.tasks[0]).toEqual({ task: 1, rounds: { review: 1 } });
   expect(progress.tasks[0]).not.toHaveProperty("status");
   expect(deriveTaskState(t8.ws, 1)).toBe("complete");
@@ -1219,8 +1223,9 @@ it("runTask T8/T30: review APPROVED → ensure-row writeback (rounds[review]=1, 
 });
 
 it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCKED（review 亦校验）+ exit 1", async () => {
-  // Task 8: entry gate 先于 dispatch 强制干净树 —— 起点 dirty 会先在入口被 BLOCKED，出口门无从
-  // 触发。fixture 改为 dispatch 期间（fake-cli 内）弄脏树：入口干净、出口 dirty → 出口门判定。
+  // The entry gate enforces a clean tree before dispatch — a dirty start is BLOCKED at entry, so
+  // the exit gate never fires. The fixture dirties the tree during dispatch (inside fake-cli)
+  // instead: clean entry, dirty exit → the exit gate decides (Task 8).
   const t8 = t8Workspace();
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
@@ -1241,7 +1246,8 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
 });
 
 it("runTask T8: post-run validateCommitContract — implement dirty tree → 实体化 handoff 覆写 BLOCKED + exit 1", async () => {
-  // Task 8: 同 review 用例 —— 入口干净、dispatch 期间（fake-cli 内）弄脏，出口门触发。
+  // Same as the review case — clean entry, tree dirtied during dispatch (inside fake-cli),
+  // the exit gate fires (Task 8)
   const t8 = t8Workspace();
   const restore = withFakeCli(t8.binDir, "fake-cli", [
     "#!/usr/bin/env bash",
@@ -1268,9 +1274,9 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
   }
 });
 
-// ---- T22: plan-constraints materialization + implement pre-flight existence gate ----
+// ---- Plan-constraints materialization + implement pre-flight existence gate (T22) ----
 
-// T22/§T7.1 fixture: git repo + committed plan (parametrized content) + workspace WITHOUT a
+// Fixture (T22/§T7.1): git repo + committed plan (parametrized content) + workspace WITHOUT a
 // pre-written plan-constraints.md — the materializer's "generate once" surface is exercised by
 // letting runTask self-provision it (like F11's generateBrief, same resolveContext point).
 function t22Workspace(planContent: string) {
@@ -1384,7 +1390,7 @@ it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 cons
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);
 });
 
-// ---- T26 resume-from-residue black-box (spec T7.5) ----
+// ---- Resume-from-residue black-box (T26, spec T7.5) ----
 // Real dispatch through the ghost fake-cli: ① a dead round (budget TIMEOUT with tracked WIP)
 // must salvage the WIP into a stash and ride recovery.residue_ref on the carrier; ② the re-dispatch
 // pre-flight (resolveContext, after the entry gate) must apply the salvage back, and the regenerated
@@ -1508,7 +1514,7 @@ it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) 
   }
 }, 30_000);
 
-// ---- T27 scope ledger black-box (spec T7.6) ----
+// ---- Scope ledger black-box (T27, spec T7.6) ----
 // Real dispatch through the ghost fake-cli: the resume-signature round (materialization base==head)
 // whose return block DECLARES the true scope start must see that base adopted as commits.base and
 // moved strictly earlier in the ledger → the next review therefore renders REVIEW_REFERENCE =

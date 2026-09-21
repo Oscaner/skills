@@ -139,7 +139,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (!this.ctx.repoRoot) {
       this.ctx = { ...this.ctx, repoRoot: getRoot() };
     }
-    // T3: handoffPath must be passed by the caller (canonical handoff-naming filenames). The
+    // handoffPath must be passed by the caller (canonical handoff-naming filenames; T3). The
     // legacy `${template}-${round}.json` derivation is removed — no second naming site.
     if (!this.#opts.handoffPath) invariant(false, "docs-runner: handoffPath required (canonical naming; no template fallback)");
   }
@@ -168,8 +168,8 @@ export class DocsLifecycle extends DispatchLifecycle {
         DOCS_FINDINGS: this.#opts.findingsPath ?? "",
         HANDOFF_TARGET: handoffPath ?? "",
         ...params,
-        // Task 20 ⑥ 门面去路径化: the was-gate prose is byte constant; the gate VALUE (real
-        // handoff path) rides the `### HANDOFF_WRITE_GATE` round-context slot. The review family
+        // The was-gate prose is byte constant; the gate VALUE (real handoff path) rides the
+        // `### HANDOFF_WRITE_GATE` round-context slot (Task 20 ⑥ facade de-pathing). The review family
         // gate dispatches by return semantics (retrieve a fixed 'json-return' write gate — the
         // return is a JSON object on stdout); the fix family = the docs write gate (fix's return is
         // the file itself; stdout has no JSON return — reviewHardGate's "before outputting the
@@ -185,7 +185,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     // prefix.fix (flat string) respectively; type threads from cdd review/fix --type.
     const reg = loadRegistry(REG_PATH);
     const entry = checkHarness(reg, harness);
-    // T26 unified termination (budget-only for docs — no workspace tree signal, same as the
+    // Unified termination (T26 — budget-only for docs, no workspace tree signal, same as the
     // budget channel of task/branch; resolveTerminationConfig defaults the budget from canonical
     // timeouts.defaults.review — zero env reads; the terminal reason still lands in the TIMEOUT
     // blocker).
@@ -201,11 +201,11 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (this.#finished) return;
     const handoffPath = this.#opts.handoffPath!;
     if (!existsSync(handoffPath)) {
-      // T25: the docs channel carries the death diagnosis (recovery.cause + exit_code) so the base
+      // The docs channel carries the death diagnosis (recovery.cause + exit_code) so the base
       // settleResidue template step auto-preserves the dirty-tree WIP right after this lane returns
       // (retrievable via `git stash list` — never pre-destroyed). exit_code stays a strictly-death
       // code (the recovery schema denotation: "1 = run failure, 143 = SIGTERM") — the exit-0-no-
-      // handoff boundary carries the cause only, so a 0 never rides the carrier as a diagnosed death.
+      // handoff boundary carries the cause only, so a 0 never rides the carrier as a diagnosed death (T25).
       this.#done(writeBlockedCarrier(handoffPath, {
         phase: this.#opts.mode,
         doc: this.#opts.doc,
@@ -218,7 +218,7 @@ export class DocsLifecycle extends DispatchLifecycle {
       return;
     }
 
-    // T8 hardening (P4 dogfood evidence: an agent-written handoff carried an unescaped \d) — an
+    // Hardening from dogfood evidence (T8; P4: an agent-written handoff carried an unescaped \d) — an
     // unparseable handoff must not propagate as a bare throw (a review dispatch would exit 2 and
     // silently lose the handoff); degrade to the same BLOCKED-write branch as "not written / schema
     // invalid" (incl. the doc_hash content-state token; uniform carrier).
@@ -235,9 +235,9 @@ export class DocsLifecycle extends DispatchLifecycle {
     }
     const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
     if (!sv.valid) {
-      // T5 CONTRACT_VIOLATION recovery (spec §2.5.2, AC7 category-level: spec/plan reviews follow
+      // CONTRACT_VIOLATION recovery (T5, spec §2.5.2, AC7 category-level: spec/plan reviews follow
       // the same policy as task dispatch): the recovery single point is finalize.ts#recoverHandoff
-      // (T24 B: moved from rules/schema.ts with its applyDerivedStatus caller; normalize →
+      // (relocated from rules/schema.ts — T24 B — with its applyDerivedStatus caller; normalize →
       // re-validate, at most one round; the violating key-name suffix and the findings-array guard
       // are written there once — this path only keeps its own failed-payload differences). On hit →
       // the write side lands the normalized object (offending keys never stay on disk) + continue on
@@ -266,7 +266,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (this.#finished) return;
     const { mode, handoffPath } = this.#opts;
     const handoff: Record<string, unknown> = this.#handoff ?? {};
-    // T5/T7: status single authority — the review-type handoff is finalized by the engine
+    // Status single authority (T5/T7): the review-type handoff is finalized by the engine
     // (finalizeHandoff rollup derives/overwrites; SP-4 exempts failure rounds); the fix-type
     // (work) status is agent-declared, going through finalizeHandoff's fix passthrough branch
     // (same-reference skip-write; the work-type declaration is kept — the contract rejects it at
@@ -276,7 +276,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     if (mode === "review" || mode === "fix") {
       const finalized = await finalizeHandoff({ mode, agentHandoff: handoff });
       if (mode === "review") {
-        // P2 F5 (§2.3.3): review-mode always injects the content-state token — the engine is the
+        // Review-mode always injects the content-state token (P2 F5, §2.3.3) — the engine is the
         // finalizer (the carrier's sole author, T7), so doc_hash always changes → full-replace
         // writeOwnHandoff (not the persistFinalized skip-write). The in-memory return matches the
         // disk finalization: the derived status overwrite is written back to local + doc_hash synced.
@@ -289,8 +289,8 @@ export class DocsLifecycle extends DispatchLifecycle {
         persistFinalized(handoffPath!, handoff, finalized); // fix-mode verbatim (no injection; negative symmetry)
         this.#handoff = finalized.handoff ?? handoff;
       }
-      // Task 23 ③: the docs round conclusion → exit (BLOCKED → 1, APPROVED/CHANGES_REQUESTED → 0)
-      // — the T14「exit 0 + status BLOCKED」inversion on the docs channel too. Failure-first, same
+      // The docs round conclusion → exit (BLOCKED → 1, APPROVED/CHANGES_REQUESTED → 0) — the
+      // T14 "exit 0 + status BLOCKED" inversion on the docs channel too (Task 23 ③). Failure-first, same
       // as the task face (dispatch/task.ts step 12): a non-zero agent rc keeps its failure signal
       // even when a valid handoff finalizes (a crashed docs agent that wrote the handoff must not
       // exit 0 by the handoff conclusion); the finalized conclusion is the exit authority only

@@ -37,8 +37,8 @@ function writeHandoff(dir: string, name: string, obj: Record<string, unknown>): 
 }
 
 const EMPTY_PROGRESS = { plan: "", tasks: [] as Array<Record<string, unknown>> };
-// Task 30 ②: progress rows carry no status — deriveTaskState is the sole TaskState source; the
-// row only records facts (rounds / scope_base). The legacy tasks[N].status field is retired.
+// Progress rows carry no status — deriveTaskState is the sole TaskState source; the row only
+// records facts (rounds / scope_base). The legacy tasks[N].status field is retired. (Task 30 ②)
 const ROUNDS = (rounds: Record<string, number>) => ({
   plan: "",
   tasks: [{ task: 1, rounds }],
@@ -129,12 +129,12 @@ describe("deriveTaskState — six-state convergence", () => {
     expect(deriveTaskState(ws, 1)).toBe("complete");
   });
 
-  // ---- Task 30 ① (spec T7.9): last-review-primary — T29 reproduction flip ----
+  // ---- last-review-primary — the T29 reproduction flip (Task 30 ①, spec T7.9) ----
 
   it("complete (T30 flip): review APPROVED → subsequent fix is the legal terminal, NOT a re-review trigger", () => {
-    // T29 evidence: the same round counters (reviews===fixes===1) hosted two flows — the APPROVED-review
-    // legal terminal (blocker=0 → fix all → done) and the T14 re-review chain. counts-equal was a
-    // misjudgment: the fix after an approved review converged the task.
+    // The same round counters (reviews===fixes===1) hosted two flows — the APPROVED-review legal
+    // terminal (blocker=0 → fix all → done) and the T14 re-review chain. counts-equal was a
+    // misjudgment: the fix after an approved review converged the task. (T29 evidence)
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
     writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "APPROVED", findings: [{ severity: "warn" }], artifacts: {} });
     writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "APPROVED", findings: [], artifacts: {} });

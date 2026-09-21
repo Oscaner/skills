@@ -220,9 +220,11 @@ it("migrateIfNeeded: neither file exists → returns empty progress + creates js
   expect(existsSync(path.join(dir, "progress.json"))).toBe(true);
 });
 
-// T6 Step 5-3: migrateIfNeeded 的「补齐」要有实现落点 —— 存量四键旧形必须在读出时补两键。
-// 只断言内存对象、不断言回写会让「补齐未落盘」蒙对（下次读又缺键）；只断言键存在、不断言值
-// 为 0 则「补成 undefined」也通过 —— 内存 + 磁盘两形都要。
+// The migration "backfill" needs a real landing spot (T6 Step 5-3): the legacy four-key shape must
+// gain the two new keys when read. Asserting only the in-memory object (without asserting the
+// write-back) would let a "backfilled-but-not-persisted" shape pass (the next read misses the
+// keys); asserting only key presence, not value 0, lets "backfilled-with-undefined" pass too —
+// both the in-memory and the on-disk shapes must be asserted.
 it("migrateIfNeeded: 存量四键旧形 → 补齐两键并回写（内存对象 + 磁盘双断言）", () => {
   const dir = tmpDir("prog-mig-backfill-");
   writeFileSync(path.join(dir, "progress.json"), JSON.stringify({
@@ -246,7 +248,7 @@ it("migrateIfNeeded: 存量四键旧形 → 补齐两键并回写（内存对象
   expect(disk.engineSelfWrittenCount).toBe(0);
 });
 
-// ---- T4: rounds key 归一（"review" 为唯一 task mode 键）——progress 层已 mode 参数化，直测键语义 ----
+// ---- The rounds key is normalized ("review" is the sole task-mode key) — the progress layer is already mode-parameterized, so tests assert the key semantics directly (T4) ----
 
 it("getRound: incrementRound('review') 后 round=2（rounds['review'] 归一键）", () => {
   const dir = tmpDir("prog-round-review-");
@@ -257,10 +259,12 @@ it("getRound: incrementRound('review') 后 round=2（rounds['review'] 归一键�
   expect(saved.tasks[0].rounds).toEqual({ review: 1 });
 });
 
-// ---- T27 scope 账本（spec T7.6）：tasks[N].scope_base —— task 级 scope 锚（引擎唯一写者）----
-// 语义：seed = 首轮 implement 材料化的 brief TASK_BASE（earliest-wins —— 任何后续轮 TASK_BASE
-// 快照不覆盖既有合法值）；recovery 声明 base 只允许把账本严格前移（仍是 HEAD 祖先）。账本缺失
-// 时读取回落 null（dispatch 层再回落 legacy prev.commits.base 链）。
+// ---- The scope ledger (spec T7.6): tasks[N].scope_base — the task-level scope anchor; the engine is the ledger's sole writer (T27) ----
+// Semantics: the seed is the brief TASK_BASE materialized by the first-round implement
+// (earliest-wins — no later-round TASK_BASE snapshot overrides an existing valid value); a
+// recovery-declared base may only move the ledger strictly earlier (must remain a HEAD ancestor).
+// A missing ledger reads back as null (the dispatch layer then falls back to the legacy
+// prev.commits.base chain).
 describe("progress.ts scope 账本（T27/spec T7.6）", () => {
   // 3-commit 线性仓库：c0(init) → c1(second) → c2(third=HEAD)。ancestor 关系供裁决用。
   function threeCommitRepo(): { repo: string; c0: string; c1: string; c2: string } {

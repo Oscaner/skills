@@ -66,7 +66,7 @@ it("exitCliMissing: empty message → no stderr, only exit 2", () => {
   expect(stderr).toBe("");
 });
 
-// ---- P6 T24: CddExitError family + invariant + cliUsageError ----
+// ---- CddExitError family + invariant + cliUsageError (P6 T24) ----
 
 it("CddExitError: exitCode defaults to 1 / kind defaults to blocked; the kind field is readable", () => {
   const e = new CddExitError("boom", { exitCode: 1, kind: "blocked" });

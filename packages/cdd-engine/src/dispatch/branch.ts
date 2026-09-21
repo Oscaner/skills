@@ -372,11 +372,11 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     });
   }
 
-  /** T5/T7 status single authority — branch review (review family) reads back through finalizeHandoff
+  /** Status single authority (T5/T7) — branch review (review family) reads back through finalizeHandoff
    * finalization (rollup derived override, SP-4 exempts failure rounds); the finalized write uses
    * writeOwnHandoff (the engine is the carrier's sole author, full-replace). The three consumers
    * (runner/docs-runner/cdd) share the same finalizeHandoff single point.
-   * Task 23 ③: the exit comes from the finalized round conclusion (BLOCKED → 1,
+   * The exit comes from the finalized round conclusion (Task 23 ③: BLOCKED → 1,
    * APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a handoff. */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
     const finalized = await finalizeHandoff({ mode: "review", agentHandoff: this.agentHandoff });

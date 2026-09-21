@@ -11,8 +11,8 @@ import { tmpdir } from "node:os";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
-// Task 5: rules/commit.mjs was deleted (its git now lives in infra/git.ts, consumed by
-// finalize.mjs — no commit-module mock needed here; docs-runner injects repoRoot explicitly).
+// rules/commit.mjs was deleted — its git now lives in infra/git.ts, consumed by finalize.mjs —
+// so no commit-module mock is needed here; docs-runner injects repoRoot explicitly (Task 5)
 
 vi.mock("../../artifacts/handoff/write.ts", async () => {
   // write 三件（contract.mjs 符号拆分后独立文件）：writeHandoff/writeOwnHandoff mock（不落盘），
@@ -26,9 +26,10 @@ vi.mock("../../artifacts/handoff/write.ts", async () => {
 });
 
 vi.mock("../../infra/registry.ts", async () => {
-  // Task 5: cli-shared 从 registry 导入 resolveInjection —— mock 复用真实实现，
-  // checkHarness 返回带完整 operation×type prefix 的条目（验证 docs-runner type 透传注入）。
-  // REG_PATH：统一导出（spec §2.3）随 run-docs 消费方纳入 mock 面。
+  // cli-shared imports resolveInjection from the registry — the mock reuses the real
+  // implementation; checkHarness returns entries with full operation×type prefixes (to verify
+  // docs-runner's type pass-through injection). REG_PATH, the unified export (spec §2.3), joins
+  // the mock surface for the run-docs consumer (Task 5).
   const { resolveInjection, resolveSuffix, REG_PATH } = await vi.importActual("../../infra/registry.ts");
   return {
     loadRegistry: vi.fn(() => ({})),
@@ -61,15 +62,15 @@ vi.mock("../../rules/schema.ts", () => ({
   validateHandoffSchema: vi.fn(() => ({ valid: true })),
 }));
 
-// P6 T24 B: the CONTRACT_VIOLATION recovery unit moved with its applyDerivedStatus caller into
+// The CONTRACT_VIOLATION recovery unit moved with its applyDerivedStatus caller into
 // artifacts/handoff/finalize.ts — the recovery mock now mirrors THAT module (partial spread keeps
 // writeBlockedCarrier / finalizeHandoff / persistFinalized real for the run-docs paths that consume
-// them), not the validator's schema.ts.
+// them), not the validator's schema.ts (P6 T24 B).
 vi.mock("../../artifacts/handoff/finalize.ts", async () => {
   const actual = await vi.importActual("../../artifacts/handoff/finalize.ts");
   return {
     ...actual,
-    // T5: mirror the real module's exports on the mock surface — the run-docs schema-invalid
+    // Mirror the real module's exports on the mock surface (T5): the run-docs schema-invalid
     // branch consumes recoverHandoff, and without this export the "normalize → re-validate"
     // single point is unreachable under mock. normalizeHandoff mirrors the defensive shape as
     // well: finalize.ts's implement materialization depends on it (the docs surface never touches it).
@@ -226,7 +227,7 @@ describe("runDocsTask", () => {
     expect(reviewHardGate).not.toHaveBeenCalled();
   });
 
-  // ---- P6 T3：handoffPath 显式必传（no template fallback）+ 模板名直传（-review→-fix 派生已删） ----
+  // ---- handoffPath must be passed explicitly (no template fallback) + template name passed straight through (the -review→-fix derivation was deleted) (P6 T3) ----
 
   it("T3: 非 dry-run 缺 handoffPath → throw（canonical naming；无 template-round fallback）", async () => {
     vi.resetModules();
@@ -257,7 +258,7 @@ describe("runDocsTask", () => {
     expect(renderTemplate.mock.calls.at(-1)?.[0]).toBe("critiques-review");
   });
 
-  // ---- T5：status 单一权威 — review 型读回覆写（agent 写 warn-only CHANGES_REQUESTED → 覆写 APPROVED） ----
+  // ---- Status single-authority: review-type read-back overwrites (agent wrote a warn-only CHANGES_REQUESTED → overwritten to APPROVED) (T5) ----
 
   it("docs-runner 读回定稿（T7 writeOwnHandoff）：agent 写 warn-only CHANGES_REQUESTED → 文件 status 覆写为 APPROVED", async () => {
     const { execa } = await import("execa");
@@ -304,7 +305,7 @@ describe("runDocsTask", () => {
     }
   });
 
-  // ---- P2 F5：review-mode doc_hash 定稿注入（载体唯一作者 T7）----
+  // ---- Review-mode doc_hash finalization injection — the engine is the carrier's sole author (T7) (P2 F5) ----
 
   it("review-mode 定稿注入 doc_hash：缺失 doc（mock 环境 ENOENT）→ 空串哨兵 + 内存返回值同步", async () => {
     const { execa } = await import("execa");
@@ -442,7 +443,7 @@ describe("runDocsTask", () => {
     expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
   });
 
-  // ---- T8 hardening：agent 手写坏 JSON（未转义 \d）→ BLOCKED handoff 非 throw ----
+  // ---- Hardening: agent-write bad JSON (unescaped \d) → BLOCKED handoff, not throw (T8) ----
 
   it("T8-hardening: agent 手写坏 JSON（未转义 \\d）→ BLOCKED handoff 非 throw", async () => {
     const { execa } = await import("execa");

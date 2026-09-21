@@ -70,7 +70,7 @@ const CACHE: {
   compiledRound: ReturnType<typeof compile> | null;
   roundTokens: string[];
   rounds: Map<string, string>;
-  /** T12 (D1.2): the shared shell frame compiled + rendered once (clause partial refs resolved). */
+  /** The shared shell frame compiled + rendered once (T12, D1.2 — clause partial refs resolved). */
   shellFrameRendered: string | null;
   reads: number;
   compiles: number;
@@ -117,7 +117,7 @@ export function loadTemplateContract(): TemplateContract {
       readFileSync(path.join(PKG_ROOT, CONTRACT_REL), "utf8"),
     ) as TemplateContract;
     CACHE.reads++;
-    // T12 wiring: partial assembly is memoized with the contract (idempotent; empty
+    // Partial assembly is memoized with the contract (T12 wiring; idempotent, empty
     // container = no-op) — every render path runs loadTemplateContract before compiling
     // a round context, so registered {{> clause}} refs always resolve.
     assembleClauses(CACHE.contract);

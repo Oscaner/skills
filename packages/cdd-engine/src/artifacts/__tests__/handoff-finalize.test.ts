@@ -104,8 +104,8 @@ it("writeOwnHandoff 全量覆盖：existing 含垃圾字段 → 新载体不含�
   expect(h).toEqual({ task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
 });
 
-// ---- Task 23 ①④: BLOCKED carrier — unverifiable / plan_conflicts must never fold to a bare
-// BLOCKED; the derived round carries failure_category + a real blocker (real sources only). ----
+// ---- The BLOCKED carrier: unverifiable / plan_conflicts must never fold to a bare
+// BLOCKED; the derived round carries failure_category + a real blocker (real sources only). (Task 23 ①④) ----
 
 it("statusExitCode ③: APPROVED / CHANGES_REQUESTED → 0；BLOCKED / TIMEOUT / absent → 1", () => {
   expect(statusExitCode("APPROVED")).toBe(0);
@@ -204,7 +204,7 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", a
   expect(r.exitCode).toBe(1);
 });
 
-// ---- T27 (spec T7.6): commitsFromReturnLine 解析原子（resume 声明 base 采纳的输入平面）----
+// ---- The commitsFromReturnLine parse atom — the input plane whose resume-declared base is adopted (T27, spec T7.6) ----
 
 describe("return-block commitsFromReturnLine（T27 恢复轮声明 base 解析）", () => {
   it("标准 `commits: base=X head=Y` → { base, head }", () => {
@@ -229,9 +229,11 @@ describe("return-block commitsFromReturnLine（T27 恢复轮声明 base 解析�
   });
 });
 
-// ---- T27 (spec T7.6): 恢复轮声明 base 采纳 + scope 账本 seed/move ----
-// 恢复签名 = 材料化 base==head（重派 brief TASK_BASE 即死轮 head）→ 声明 base 被校验并采纳为
-// commits.base（下一轮 review 固定点 = 声明..HEAD 非空）。fresh implement（base≠head）永不采纳。
+// ---- Resume-round declared-base adoption + scope-ledger seed/move (T27, spec T7.6) ----
+// The resume signature = the materialized base==head (the re-dispatched brief's TASK_BASE is the
+// dead round's head) → the declared base is validated and adopted as commits.base (the next
+// review round's fixed point = declared..HEAD, non-empty). A fresh implement (base≠head) is
+// never adopted.
 
 describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6）", () => {
   // 两提交线性仓：c0(init) → c1(HEAD)。恢复轮 fixture：brief TASK_BASE = c1 == HEAD（恢复签名）。

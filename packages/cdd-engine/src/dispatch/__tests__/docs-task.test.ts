@@ -20,12 +20,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..', '..', '..');
 const CDD_MJS = path.join(REPO_ROOT, 'packages/cdd-engine/dist/cli.mjs');
 const SMOKE_PLAN = path.join('packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md');
-// T10 warn: SMOKE_PLAN 派生 workspace = .osuperpowers/cdd/smoke/（engine workspaceSlug
-// strip 尾 -plan：smoke-plan.md → smoke）——测试 teardown 清理，
-// 避免 validate 后根杂讯污染 F6 单一根（与 branch-review/cdd.test 的 tmp/teardown 迁移同语义）。
-// **不清理 smoke/**：该 workspace 由 engine 跑测时自建，且被 cdd / cli-shape / host-detection /
-// lifecycle.wiring 同 slug 共用 —— 删它即与那些文件的 brief 自供应竞态（mkdirSync 与 generateBrief
-// 之间目录被删 → ENOENT 假红）。`.osuperpowers` 已 gitignore，残留不污染版本树。
+// SMOKE_PLAN-derived workspace = .osuperpowers/cdd/smoke/ (engine workspaceSlug strips the
+// trailing -plan: smoke-plan.md → smoke) — the test teardown clears it so validate-root noise
+// cannot pollute the F6 single root (same semantics as the branch-review/cdd.test tmp/teardown
+// migration) (T10 warn).
+// **Do not clean smoke/**: the engine self-provisions it on test runs, shared by the same slug
+// in cdd / cli-shape / host-detection / lifecycle.wiring — deleting it races those files'
+// brief self-provisioning (directory removed between mkdirSync and generateBrief → ENOENT false
+// red). `.osuperpowers` is gitignored, so residue never pollutes the version tree.
 afterAll(() => {
   rmSync(FINDINGS_DIR, { recursive: true, force: true });
 });
@@ -48,8 +50,8 @@ function run(args, extraEnv = {}, opts = {}) {
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.startsWith('CDD_')) env[k] = v;
   }
-  // T3: host detection is ambient-env driven — a no-host test must explicitly delete the
-  // host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT).
+  // Host detection is ambient-env driven — a no-host test must explicitly delete the
+  // host markers (parent session may carry CLAUDE_CODE_SESSION_ID/AI_AGENT) (T3).
   if (opts.noHost) {
     delete env.CLAUDE_CODE_SESSION_ID;
     delete env.CURSOR_TRACE_ID;

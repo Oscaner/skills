@@ -33,7 +33,7 @@ export async function generateBrief(
   );
   const sha = await gitRevParseHead(repoRoot);
   invariant(sha, "cannot resolve HEAD: not in a git repo");
-  // T26 resume-from-residue: when the pre-flight applied a salvaged stash, the brief appends the
+  // Resume-from-residue (T26): when the pre-flight applied a salvaged stash, the brief appends the
   // data-driven `## Residue status` section (residue.ts renderResidueAppendix — prompt semantic
   // self-sufficiency §35: the prose states the WIP facts itself, zero external anchors) so the next
   // agent audits the restored WIP and continues instead of rewriting from zero.

@@ -54,6 +54,7 @@ import {
   ORCHESTRATOR_SKILLS,
   collectMjsTerminalStateViolations,
   collectMemoryGuardViolations,
+  collectCommentAnchorHits,
   scanTargets,
 } from "../residue.ts";
 
@@ -1376,5 +1377,75 @@ describe("P6 Task 3：walkTargetFiles `__tests__` 自豁免 doctrine", () => {
   });
   it("seam 缝守卫（filteredEnv/baseEnv/__*ForTest）经 includeTests 扫测试位——live repo 零命中", () => {
     expect(collectTestSeamHits()).toEqual([]);
+  });
+});
+
+// ---- Task 31（P6 / spec T7.10）：src 注释锚首禁（§35 second half 语义前置）----
+// 守卫 collectCommentAnchorHits 扫 packages/cdd-engine/src/**（含 __tests__，§35 无测试豁免），
+// 块粒度：单个 /* */ 块或一组相邻 `//` 行 = 一个单位；单位首有效 token ∈ 相位锚家族
+// （P\d+ / T\d+(.\d+)? / Task \d+ / spec T\d+(.\d+)?）即命中。文件头豁免仅当头部首单位首
+// token 非锚（路径/模块开头）——锚首头注不放行。测试经 targetsOverride 注入 mkdtemp。
+describe("src 注释锚首禁（Task 31 / spec T7.10）", () => {
+  function anchorHits(content: string): number {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-ca-"));
+    try {
+      writeFileSync(path.join(dir, "sample.ts"), content, "utf8");
+      return collectCommentAnchorHits([dir]).length;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  it("锚首单位命中（首有效 token = 相位锚）", () => {
+    expect(anchorHits("// T7.10: prose\n")).toBe(1);
+    expect(anchorHits("// P6 T24 B: prose\n")).toBe(1);
+    expect(anchorHits("// Task 29 (spec T7.8) prose\n")).toBe(1);
+    expect(anchorHits("/** T27 (spec T7.6): prose */\n")).toBe(1);
+    expect(anchorHits("// spec T7.8 prose\n")).toBe(1);
+  });
+  it("合法尾锚形式放行（锚仅在句尾 traceability）", () => {
+    expect(anchorHits("// prose (T7.10)\n")).toBe(0);
+    expect(anchorHits("// prose — T26\n")).toBe(0);
+    expect(anchorHits("// (prose) (T26)\n")).toBe(0);
+    expect(anchorHits("const x = 1;\n// prose trailing (Task 20 ⑦)\n")).toBe(0);
+  });
+  it("代码后的注释走 body 扫描；非锚编号语汇（F11/D14/E27）零误报", () => {
+    expect(anchorHits("const x = 1;\n// T7.10: prose\n")).toBe(1);
+    expect(anchorHits("const x = 1;\n// F11: self-provisioned brief\n")).toBe(0);
+    expect(anchorHits("const x = 1;\n// D14: engine-written fields\n")).toBe(0);
+    expect(anchorHits("const x = 1;\n// E27: source-less fallback\n")).toBe(0);
+  });
+  it("文件头豁免仅用于路径/模块开头头注（行内尾锚合法）", () => {
+    expect(anchorHits(
+      "// packages/cdd-engine/src/dispatch/x.ts — CDD dispatch plumbing (Task 20 ⑦)\n" +
+      "// heritage port of run.mjs\n" +
+      "import path from \"node:path\";\n",
+    )).toBe(0);
+  });
+  it("锚首头注不放行（豁免以头注首 token 非锚为前提）", () => {
+    expect(anchorHits("// T26: header prose\nimport x from \"y\";\n")).toBe(1);
+  });
+  it("块粒度：相邻 `//` 行组整体一计数（paren 续行不误报）", () => {
+    // 反例（finalize.ts:387 教训）：续行以开括号开头是上一行语义的延续 —— 组首 token 才是判定点
+    expect(anchorHits(
+      "// No agentHandoff authority is implied\n" +
+      "// (T6 logic moved in) completes the open paren\n",
+    )).toBe(0);
+    expect(anchorHits(
+      "// T6 logic moved in\n" +
+      "// No agentHandoff authority\n",
+    )).toBe(1);
+  });
+  it("includeTests 入扫测试位（§35 无测试豁免）", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "residue-ca-t-"));
+    try {
+      mkdirSync(path.join(dir, "__tests__"), { recursive: true });
+      writeFileSync(path.join(dir, "__tests__", "x.test.ts"), "// T7.10: prose\n", "utf8");
+      expect(collectCommentAnchorHits([dir])).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("live repo：collectCommentAnchorHits() === []（engine src 零锚首）", () => {
+    expect(collectCommentAnchorHits()).toEqual([]);
   });
 });

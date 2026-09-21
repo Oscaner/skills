@@ -17,9 +17,9 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-// T2 commit-contract 块（本文件 52-186 行）经 Task 5 换底改指 ../commit.ts（simple-git
-// 底层，@infra/git.ts）——语义逐字不变，仅从同步调用改 await（「API 换底 claim」唯一 owner = Task 5
-// rules/commit.ts）。gitCatFileCommitExists 改指 infra/git.ts。
+// The commit-contract block (this file, lines 52–186) was re-based by Task 5 to point at
+// ../commit.ts (the simple-git backend at @infra/git.ts) — semantics preserved word for word, only
+// the sync call became await (the "API re-base claim" has exactly one owner, rules/commit.ts from Task 5). gitCatFileCommitExists now points at infra/git.ts. (T2)
 import { validateCommitContract } from "../commit.ts";
 import { gitCatFileCommitExists } from "../../infra/git.ts";
 import { writeHandoff, writeOwnHandoff } from "../../artifacts/handoff/write.ts";
@@ -158,7 +158,7 @@ it("commit-contract: 非 git 目录 → fail-open ok:true", async () => {
   expect(r.ok).toBe(true);
 });
 
-// ---- T8: review 模式 —— 仅 dirty 校验，跳过 head ----
+// ---- Review mode: dirty-only validation, skipping the head check (T8) ----
 
 it("commit-contract: review 模式 → dirty tree BLOCKED（review 亦校验 dirty；不再 no-op）", async () => {
   const repo = setupRepo();
@@ -222,7 +222,7 @@ it("rollupStatus: unverifiable / plan_conflicts 非空 → BLOCKED", () => {
   expect(rollupStatus([], [], [{ plan_section: "§2", finding_summary: "x" }])).toBe("BLOCKED");
 });
 
-// ---- T5: deriveReviewStatus — review 型 status 派生（engine 单一权威）+ SP-4 失败轮次豁免 ----
+// ---- deriveReviewStatus — review-type status derivation (engine sole authority) + SP-4 failed-round exemption (T5) ----
 
 it("deriveReviewStatus: warn/nit only → APPROVED（覆写 agent CHANGES_REQUESTED）", () => {
   const h = { status: "CHANGES_REQUESTED", findings: [{ severity: "warn" }, { severity: "nit" }] };
@@ -266,7 +266,7 @@ it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => 
   expect(r).toEqual({ valid: true });
 });
 
-// ---- Task 23 ②: 契约入 schema field description（双 schema 语义断言）+ allOf BLOCKED 强制 ----
+// ---- The contract pushed into the schema field descriptions (semantic assertions on both schemas) + allOf BLOCKED enforcement (Task 23 ②) ----
 
 it("Task 23 task schema allOf: BLOCKED 必须 blocker 非空 或 failure_category —— 裸折契约违规", () => {
   const base = (extra: Record<string, unknown>) => ({ task: 1, phase: "implement", status: "BLOCKED", artifacts: {}, findings: [], ...extra });
@@ -293,8 +293,8 @@ it("Task 23 docs schema: 13 props（+unverifiable/plan_conflicts + T25 changes/r
   expect(Object.keys(props)).toHaveLength(13);
   expect(props).toHaveProperty("unverifiable");
   expect(props).toHaveProperty("plan_conflicts");
-  expect(props).toHaveProperty("changes"); // T25 changed-file attribution ledger (task/docs 双 schema)
-  expect(props).toHaveProperty("recovery"); // T25 residue recovery carrier (task/docs 双 schema)
+  expect(props).toHaveProperty("changes"); // The changed-file attribution ledger (task/docs dual schemas) (T25)
+  expect(props).toHaveProperty("recovery"); // The residue recovery carrier (task/docs dual schemas) (T25)
   expect(props).toHaveProperty("failure_category");
   expect(props.unverifiable.description.toLowerCase()).toContain("dev-measured");
   expect(props.unverifiable.description).toContain("never blocks");
@@ -360,7 +360,7 @@ it("writeHandoff: 父目录不存在自动创建 + 已有非 JSON 覆盖为合�
   expect(JSON.parse(readFileSync(p, "utf8")).status).toBe("BLOCKED");
 });
 
-// ---- T7: writeOwnHandoff — 全量覆盖写盘（engine 载体唯一作者，非浅合并）----
+// ---- writeOwnHandoff — full overwrite on disk (the engine is the carrier's only author; not a shallow merge) (T7) ----
 
 it("writeOwnHandoff: 全量覆盖替换（非浅合并）—— existing 字段一律不保留", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-woh-"));

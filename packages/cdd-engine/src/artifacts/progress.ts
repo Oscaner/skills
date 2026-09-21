@@ -10,10 +10,10 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { gitMergeBaseIsAncestor } from "../infra/git.ts";
 
-// T8: progress schema dropped lastDispatchHead/degradationLog (dead fields; check-head/
+// The progress schema dropped lastDispatchHead/degradationLog (T8: dead fields; check-head/
 // engine-recovery degradation, superseded by deriveReviewStatus/engineRecoveryCount);
 // degradationLogItem retired with degradationLog.
-// T6: the PROGRESS_SCHEMA constant block was deleted whole — zero consumers repo-wide. The
+// The PROGRESS_SCHEMA constant block was deleted whole (T6) — zero consumers repo-wide. The
 // progress.json key set is carried by createEmptyProgress (initial shape) + migrateIfNeeded's
 // backfill branch (legacy-migration shape); mechanical guard = tests/progress.test.mjs's
 // six-key lexical-order assertion + backfill assertions.
@@ -29,8 +29,8 @@ export interface ProgressData {
   tasks: Array<{
     task: number;
     rounds?: Record<string, number>;
-    /** T27 (spec T7.6): task-level scope anchor — the round-1 implement's brief TASK_BASE, seeded
-     *  earliest-wins and only ever moved strictly earlier. Engine-owned, never an agent handoff
+    /** Task-level scope anchor — the round-1 implement's brief TASK_BASE, seeded earliest-wins
+     *  and only ever moved strictly earlier (T27, spec T7.6). Engine-owned, never an agent handoff
      *  key; see seedScopeBase / moveTaskScopeBaseEarlier. */
     scope_base?: string;
   }>;
@@ -124,7 +124,7 @@ export function incrementRecovery(progressDir: string): void {
   writeProgressJSON(progressDir, data);
 }
 
-// ---- T27 scope ledger (spec T7.6): tasks[N].scope_base — task-level contribution anchor ----
+// ---- tasks[N].scope_base — task-level contribution anchor — the scope ledger (T27 spec T7.6) ----
 // `base` one name, two meanings (T26 defect): roundBase is this round's commit seat (correct per-round), scopeBase
 // is the task's TRUE contribution start — must survive round death and stay stable across re-dispatches
 // (converge in the normal flow, diverge on resume rounds). The ledger is the engine's sole writer;
@@ -242,7 +242,7 @@ export function migrateIfNeeded(progressDir: string, plan?: string): ProgressDat
   if (existsSync(jsonPath)) {
     try {
       const data = JSON.parse(readFileSync(jsonPath, "utf8")) as ProgressData;
-      // T6: backfill the two counters (init 0), only write when actually backfilled — no no-op
+      // Backfill the two counters (init 0), only writing when actually backfilled (T6) — no no-op
       // overwrite without change (same line as persistFinalized). Judgment by missing/non-numeric
       // rather than unconditional write: a legacy valid number (e.g. existing 5) must not be zeroed.
       let changed = false;

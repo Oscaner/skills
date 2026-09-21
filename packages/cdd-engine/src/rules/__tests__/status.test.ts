@@ -148,6 +148,19 @@ describe("deriveTaskState — six-state convergence", () => {
     expect(deriveTaskState(ws, 1)).toBe("complete");
   });
 
+  it("complete (T30 terminal carve-out): a DEAD fix after an APPROVED review is never consulted — not resume-pending", () => {
+    // Dead-round precedence (resume-pending) applies to dead implement carriers, dead reviews, and
+    // dead fixes under the not-APPROVED branch — the APPROVED branch returns before reading the
+    // addressing fix, so a dead fix after an APPROVED review still derives complete. Pinned for both
+    // dead carrier shapes (status TIMEOUT / status BLOCKED + failure_category EXECUTION_FAILURE).
+    const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
+    writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "APPROVED", findings: [{ severity: "warn" }], artifacts: {} });
+    writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "TIMEOUT", failure_category: "TIMEOUT", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1)).toBe("complete");
+    writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "BLOCKED", failure_category: "EXECUTION_FAILURE", blocker: "cli exited 1", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1)).toBe("complete");
+  });
+
   it("needs-re-review (T14 explicit, review-BLOCKED channel variant): review BLOCKED → fix APPROVED", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
     writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "BLOCKED", failure_category: "UNVERIFIABLE", findings: [], artifacts: {} });

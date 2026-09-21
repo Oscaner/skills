@@ -79,9 +79,9 @@ it("writeProgressJSON: creates progress.json file", () => {
   expect(written.timeoutCount).toBe(0);
 });
 
-it("writeProgressJSON: 写回剥除 tasks[N].status（T30② 单源收敛——状态纯派生, 账本只存事实）", () => {
+it("writeProgressJSON: write-back strips tasks[N].status (T30 ② single-source — state pure-derivation, ledger keeps facts only)", () => {
   const dir = tmpDir("prog-strip-status-");
-  // 存量旧行（含已退休的 status 字段）→ 任何一次写回即按新 schema 收敛。
+  // A legacy row carrying the retired status field converges to the new schema on any write-back.
   const data = createEmptyProgress("");
   data.tasks = [{ task: 1, status: "complete", rounds: { review: 1 } }];
   writeProgressJSON(dir, data);
@@ -90,9 +90,10 @@ it("writeProgressJSON: 写回剥除 tasks[N].status（T30② 单源收敛——�
   expect(written.tasks[0]).not.toHaveProperty("status");
 });
 
-it("readProgressJSON: 含 status 旧行零报错（迁移兼容——status 忽略, 不拦截派生）", () => {
+it("readProgressJSON: legacy row with status loads with zero error (migration-compatible — status ignored, never blocks derivation)", () => {
   const dir = tmpDir("prog-legacy-status-");
-  // 直写磁盘模拟旧引擎产物（含 tasks[N].status）——读路径不剥读、不报错。
+  // Raw disk write simulating an old-engine product (tasks[N].status present) — the read path
+  // neither strips nor fails on it.
   writeFileSync(
     path.join(dir, "progress.json"),
     JSON.stringify({
@@ -106,7 +107,8 @@ it("readProgressJSON: 含 status 旧行零报错（迁移兼容——status 忽�
   expect(p.plan).toBe("/p.md");
   expect(p.tasks[0].task).toBe(1);
   expect(p.tasks[0].rounds).toEqual({ review: 1 });
-  // status 字段何去何从由写路径收敛（writeProgressJSON GC），读路径只保证不报错。
+  // Where the status field ends up is the write path's call (writeProgressJSON GC); the read path
+  // only guarantees no error.
   expect(p.tasks[0]).toHaveProperty("status");
 });
 

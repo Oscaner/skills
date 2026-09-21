@@ -13,11 +13,17 @@
 //                                  (fresh/BLOCKED → in-flight / APPROVED → needs-review / dead → resume-pending)
 //   last review (review-[reviews]) is the FIRST signal (Task 30 ①, T29 修正):
 //     APPROVED   → complete — a subsequent fix is the legal terminal (blocker=0 → fix all → done),
-//                  never a re-review trigger (the old reviews===fixes counts-equal misjudgment)
+//                  never a re-review trigger (the old reviews===fixes counts-equal misjudgment).
+//                  The fix is not consulted at all in this branch — dead-round precedence
+//                  (resume-pending) never applies to a fix following an APPROVED review.
 //     not APPROVED (CHANGES_REQUESTED / BLOCKED):
 //       no fix after it (fixes === 0, or the latest fix pre-dates the review) → needs-fix
 //       addressing fix APPROVED → needs-re-review (T14-class)
 //       addressing fix dead / not landed → resume-pending / needs-fix
+//
+// Dead-round precedence (resume-pending) therefore applies to: dead implement carriers, dead
+// reviews, and dead fixes under the not-APPROVED branch — never to a fix after an APPROVED review
+// (that chain is terminal complete no matter what the fix carrier says).
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -31,7 +37,8 @@ export type TaskState =
   | "needs-review" // implement APPROVED, no review dispatched yet
   | "needs-fix" // latest review not approved (CHANGES_REQUESTED / BLOCKED), no addressing fix on record
   | "needs-re-review" // review not approved → addressing fix APPROVED, no re-review on record (T14-class)
-  | "resume-pending" // dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard
+  | "resume-pending" // dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard;
+  // never derived for a fix that follows an APPROVED review — that chain is terminal complete (T30 ①)
   | "complete"; // latest review APPROVED (a subsequent fix is the legal terminal — T30 ①)
 
 /** carrier-level dead-round detection: a TIMEOUT status or an EXECUTION_FAILURE failure_category
@@ -74,7 +81,8 @@ export function deriveTaskState(workspace: string, taskNum: number): TaskState {
   // The last review on record (review-[reviews]) is the first signal.
   const lastRev = readHandoff(workspace, "review", taskNum, reviews);
   if (isDeadRound(lastRev)) return "resume-pending";
-  if (statusOf(lastRev) === "APPROVED") return "complete"; // legal terminal — a later fix never re-triggers
+  if (statusOf(lastRev) === "APPROVED") return "complete"; // legal terminal — a later fix (APPROVED,
+  // BLOCKED or dead) is never consulted, let alone re-triggers a review
 
   // Last review not approved (CHANGES_REQUESTED / BLOCKED) → the fix loop governs. The addressing
   // fix is the latest fix on record, and only one that came at-or-after the review (fixes >=

@@ -1,7 +1,7 @@
 # 消费者面一致性（Consumer Parity）— Overall Spec
 
-- **Version**: v1.5 · 2026-09-21
-- **Status**: Draft
+- **Version**: v1.6 · 2026-09-21
+- **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context) (osuperpowers:brainstorming)
 - **Constraints**:
   - 仓库语言政策：SKILL.md / docs 英文主源；本 spec 中文（Strategy B internal docs）
@@ -99,3 +99,4 @@ Legend:
 | v1.3 | 2026-09-21 | cdd spec-review r2（1 warn + 1 nit）全 finding 落地：Non-goal #2 显式 carve-out（emit 内部流水改动仅限 doc-structure 模板渲染目标 + 其 emit:check / 运行时组合接线，属产品面 + 校验面承载，marketplace / changeset 流水仍不动）；锚点注册域措辞统一——纪律 #5 / P1 ⑤ / P2 全量审计同用「锚点 ∈ overall 文档 Issue inventory 表行；无锚 no-op」，P2 枚举加注 inventory 指文档表非 GitHub issue 数据（v1.2→v1.3） | [human] · Claude Opus 5 (1M context) |
 | v1.4 | 2026-09-21 | dogfood 发现登记（本仓 canary 首发命中）：docs-family fix 通道 **commit 义务未 concretize**——round-context 无 TASK_FIXED_POINT + docs handoff schema 声言无 commits 字段，出口门却强制 clean tree → 同契约两轮异行为（spec-fix r1 BLOCKED「uncommitted changes at return (fix)」/ spec-fix r2 APPROVED；task-family 对照全 APPROVED）；BLOCKED 面 CLI 无可见诊断。P2 scope/acceptance 增补 harness 契约统一（v1.3→v1.4） | [human] · Claude Opus 5 (1M context) |
 | v1.5 | 2026-09-21 | cdd spec-review r3（1 warn + 1 nit）全 finding 落地：「四表」定义锚补枚举 gloss（纪律 lead-in——双向 backfill 声明 ↔ 列 / plan·design 文档存在性 / 依赖图成员 / 锚点注册域，即下述 1/2/3/5 条；phase 注册完整性 / issue 行 well-formed 并入不单列、不计入四表）；docs-family fix 轮次缩写统一改标「spec-fix rN」——v1.4 行 / Issue inventory / P2 scope 三处同改，与既有「spec-review rN」措辞区分（v1.4→v1.5） | [human] · Claude Opus 5 (1M context) |
+| v1.6 | 2026-09-21 | 程序批准：Status Draft → Approved（overall 已合入 develop，PR #269）· 进入 P1 brainstorm（v1.5→v1.6） | [human] · Claude Opus 5 (1M context) |

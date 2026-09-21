@@ -1,7 +1,7 @@
 # 消费者面一致性（Consumer Parity）— P1 Design Spec
 
 - **Version**: v1.1 · 2026-09-21（v1.0 起草 · v1.1 spec-review r1 修正：AC2 全量重分类 26 命中/8 文件 · 判据定义指针 v1.8 · p2-plan 9 处明细；r2 修正：S3 行号指针 re-anchor（overall v1.8 实测 :50/60/69/92）· §2.1 delta 行数 5→6）
-- **Status**: Draft
+- **Status**: Approved
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.8
 - **Depends on**: 无（program 起点）

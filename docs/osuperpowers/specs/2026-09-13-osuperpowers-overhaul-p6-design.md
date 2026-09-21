@@ -260,7 +260,7 @@ osuperpowers skills 的 artifact/methodology 文档模板同病（结构乱、�
 |---|---|---|---|
 | G1 | **session-call 语义诚实化（全域，实测 19 处）** | 6 skill 原始 `Run a /` 计数（重测）：brainstorming 6 · writing-phase-spec 4 · writing-single-spec 3 · writing-overall-spec 3 · writing-plans 2 · finishing 1 = **19**。authoring 原语层修订：`load 上游 skill = import 其流程一次`，每会话每上游类型至多消费一次、重入按已落产物路由、否决二次 spawn 措辞；逐节点从「Run a /xxx session」改写为「上游流程内联消费；产物 = …；路由到 …」；handoff-* 交接按交接语汇统一；cli-driven-development 为 CLI-dispatch（排除）| 6 skills SKILL.md + skill-authoring.md session-call 原语定义 |
 | G2 | **grilling 需求全量清单前置** | phase-grilling 先逐项枚举 overall/phase 已登记需求（含状态），用户确认覆盖完整再入 frontier | brainstorming / writing-phase-spec 流程 |
-| G3 | **validate 脚本 maintainer-only 边界文档化** | `scripts/validate/*` = 发布根仓内部编排面（消费者无、非打包面）；overall-consistency = charter 四表守卫，brainstorm 期调用 = maintainer-mode（本仓 dogfood）| maintainer docs + writing-overall-spec 流程 |
+| G3 | **validate 脚本 maintainer-only 边界文档化** | `scripts/validate/*` = 发布根仓内部编排面（消费者无、非打包面）；当时裁决：overall-consistency 由 `scripts/validate/` 承担 charter 四表守卫，brainstorm 期调用 = maintainer-mode（本仓 dogfood）——该守卫归属系当时状态，现已被 consumer-parity 取代并归位 engine lifecycle| maintainer docs + writing-overall-spec 流程 |
 | G4 | **pre-commit 结构性矛盾修复** | 三件：① **dry-run 门判 WARN 化**（=E2②——不跳过，脏树 warn 不 BLOCK）② 黑盒树依赖用例迁 mkdtemp 隔离或 CI-only ③ pre-commit 钩子收敛树无关子集（emit-check/residue/consistency/unit）+ CI 全量 | infra 门判 · vitest 套件 · .husky/pre-commit · CLAUDE.md dev 段 |
 
 ### §2.4 task 组织（序，plan 期可细化）

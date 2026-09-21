@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   loadOverallFile,
+  checkPhaseRowShapes,
   checkVersionAscending,
   checkIssueRefsWellFormed,
   checkDepGraphMembership,
@@ -40,6 +41,18 @@ describe("overall-consistency：canonical 头 + 四表 parse（brief Step 1）",
     // design 列/plan 列原文保留（含 [Pending]）
     expect(o.phases[0].plan).toBe("Done");
     expect(o.phases[1].plan).toBe("[Pending]");
+  });
+  it("行形守卫：同文件 phase 行 cell 数不一致 → phaseShapeErrors + checker throw（shape-drift）", () => {
+    const o = loadOverallFile(join(SPECS, "drift-phase-row-shape-overall.md"));
+    expect(o.ok).toBe(true);
+    expect(o.canonical).toBe(true);
+    expect(o.phaseShapeErrors).toHaveLength(1);
+    expect(o.phaseShapeErrors[0].id).toBe("P2");
+    expect(o.phaseShapeErrors[0].cells).toBe(9);
+    expect(o.phaseShapeErrors[0].expected).toBe(8);
+    // 对齐行照常解析；错位行被跳过（其列不可信）
+    expect(o.phases.map((p) => p.id)).toEqual(["P1"]);
+    expect(() => checkPhaseRowShapes(o.phaseShapeErrors)).toThrow(/row-shape|形状|cell 数/);
   });
   it("slug 由文件名剥离日期前缀 + -overall 后缀", () => {
     const o = clean();

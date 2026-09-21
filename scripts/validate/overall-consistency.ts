@@ -142,11 +142,26 @@ export function loadOverallFile(filePath) {
   // Acceptance criteria | Dependency |` → split 0-based: id = c[1], scope = c[2],
   // design = c[3], plan = c[4], dependency = c[6].
   const phaseIds = [];
+  // Row-shape guard: every Phase-inventory row must carry the SAME cell count as the
+  // file's first row (the canonical 6-content-column form — `| Px | scope | design |
+  // plan | acceptance | dependency |` = 8 split tokens). A stray extra/merged cell
+  // (e.g. a scope split across two cells) silently shifts design/plan/dependency by
+  // one column — value-level claims then read the wrong cells. The drift burns nothing
+  // while all rows are [Pending] and only detonates at closeout value-population, so it
+  // is blocked here at parse time instead.
+  const phaseShapeErrors = [];
+  let phaseRowShape = 0;
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const t = lines[i].trim();
     if (t.startsWith("| P") && t.endsWith("|")) {
       const c = splitCells(t);
       if (c.length >= 8) {
+        if (phaseRowShape === 0) phaseRowShape = c.length;
+        else if (c.length !== phaseRowShape) {
+          const id = c[1]?.trim() || "(unnamed)";
+          phaseShapeErrors.push({ id, cells: c.length, expected: phaseRowShape });
+          continue; // a misaligned row's cells are untrustworthy — skip value parsing
+        }
         phaseIds.push(c[1]);
         base.phases.push({ id: c[1], design: c[3], plan: c[4], dependency: c[6] });
       }
@@ -154,6 +169,7 @@ export function loadOverallFile(filePath) {
       break;
     }
   }
+  base.phaseShapeErrors = phaseShapeErrors;
 
   const issueRange = sectionRange(lines, /^## Issue inventory/);
   if (issueRange !== null) {
@@ -225,6 +241,18 @@ export function checkVersionAscending(historyRows) {
 // ④c issue ref 宽松读取：`#\d+` 起始（可带尾随说明文字）或含 `#issuecomment-\d+`，
 // link-wrap 裸 `#NNN`（cdd-overhaul 实证形态 `[#231](…issues/231)`），或纯 `none` /
 // `(…)` 文本；Phase 列 ∈ Phase ids。
+/** Row-shape guard (v1.58, P6 closeout process-gap fix): a Phase-inventory row whose cell
+ *  count differs from its file-norm is a structural misalignment — it shifts the design/plan/
+ *  dependency reading by one column. Parse-time collection (loadOverallFile.phaseShapeErrors)
+ *  surfaces it as a hard error so drift dies at authoring (backfill) time, not at closeout. */
+export function checkPhaseRowShapes(shapeErrors) {
+  if (!shapeErrors || shapeErrors.length === 0) return;
+  const detail = shapeErrors
+    .map((e) => `${e.id}: ${e.cells} cells ≠ 同文件 ${e.expected}`)
+    .join("; ");
+  throw new Error(`Phase inventory 行形漂移（row-shape drift）: ${detail}（各行须同 cell 数）`);
+}
+
 export function checkIssueRefsWellFormed(issues, phaseIds) {
   for (const { phase, ref } of issues) {
     if (!phaseIds.includes(phase)) {
@@ -484,6 +512,7 @@ export function main() {
       continue;
     }
     const phaseIds = o.phases.map((p) => p.id);
+    checkPhaseRowShapes(o.phaseShapeErrors);
     checkVersionAscending(o.historyRows);
     checkDepGraphMembership(o.graphTokens, phaseIds, o.phases);
     checkIssueRefsWellFormed(o.issues, phaseIds);

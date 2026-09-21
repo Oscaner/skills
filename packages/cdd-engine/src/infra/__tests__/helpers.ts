@@ -42,6 +42,17 @@ export function captureStderr() {
   };
 }
 
+// stdout 捕获 seam（T5 ④：docs 出口门 BLOCKED 诊断的 stdout 可见断言 —— 与 captureStderr 同构）。
+export function captureStdout() {
+  const buf: string[] = [];
+  const origWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = ((s: unknown) => { buf.push(String(s)); return true; }) as typeof process.stdout.write;
+  return {
+    get text() { return buf.join(""); },
+    restore() { process.stdout.write = origWrite; },
+  };
+}
+
 export function gitInit(dir) {
   execFileSync("git", ["init", "-q"], { cwd: dir });
   execFileSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t",

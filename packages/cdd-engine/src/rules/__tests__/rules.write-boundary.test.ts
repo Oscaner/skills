@@ -4,8 +4,8 @@
 // a diff file no ledger entry attributes is a booking gap, visible as a stderr CDD_WARN + a notes
 // record — never a hard block. implement materializes no changes[] (the return block is the only
 // surface) → the diff fileset is recorded verbatim as the ledger origin, zero warn. No base →
-// reconcile skipped (docs-family has no commits field; boundary = doc_path; the unknown-base
-// failure carriers skip too).
+// reconcile skipped (docs-family carries commits{base,head} since T5 — a legal base runs the same
+// reconcile as the task family; the unknown-base failure carriers skip too).
 import { describe, it, expect, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";

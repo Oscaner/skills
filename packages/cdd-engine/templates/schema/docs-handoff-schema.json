@@ -1,11 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "description": "Docs-family handoff contract (spec / plan review + fix rounds; the docs-family shell + return constants live in template-contract.json#sections). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule.",
+  "description": "Docs-family handoff contract (spec / plan review + fix rounds; the docs-family shell + return constants live in template-contract.json#sections). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule. Breaking change (engine major): the docs handoff carries the same lifecycle contract core as the task family — status gains TIMEOUT and commits{base,head} lands (the reverse of the legacy 'Docs rounds carry no commits field' declaration); docs consumers that relied on the commits-free docs handoff must migrate to the unified core.",
   "type": "object",
   "required": ["phase", "findings", "artifacts", "doc_path"],
   "properties": {
     "phase":     { "type": "string", "enum": ["review", "fix"], "description": "dispatch phase (review / fix); determined by the engine, not authored." },
-    "status":    { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"], "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field — the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status." },
+    "status":    { "type": "string", "enum": ["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "TIMEOUT"], "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded (engine-written attribution; the docs channel declares the same status enum as the task family). Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field — the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status." },
     "failure_category": {
       "type": "string",
       "enum": [
@@ -17,6 +17,25 @@
         "PLAN_CONFLICT"
       ],
       "description": "Failure mechanism channel — which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths. A BLOCKED round may satisfy its grounding via this field (see allOf)."
+    },
+    "commits": {
+      "type": "object",
+      "required": [
+        "base"
+      ],
+      "description": "commit identity of the dispatch's review/fix range; the template-contract review range check at 13.5 validates it.",
+      "properties": {
+        "base": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "range base (TASK_BASE / FIXED_POINT): full 40-char SHA; never --short / %h / any truncated form."
+        },
+        "head": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "full 40-char SHA; never --short / %h / any truncated form. Optional — omitted when the round has no head yet (e.g. some BLOCKED branch-review payloads)."
+        }
+      }
     },
     "doc_path":  { "type": "string", "description": "the reviewed document's exact path — must match the doc argument, do not rewrite relative forms." },
     "doc_hash":  { "type": "string", "description": "content state token (sha256 of the doc at review time); legacy handoffs may omit it." },
@@ -31,7 +50,7 @@
           "reason": { "type": "string", "description": "why the file changed (finding id / fix intent); omitted entries stay attributed by file." }
         }
       },
-      "description": "Changed-file attribution ledger (fix rounds declare every file the round touched). Docs rounds carry no commits field — the boundary surface is doc_path; the ledger keeps the same bookkeeping shape as the task family."
+      "description": "Changed-file attribution ledger (fix rounds declare every file the round touched, each with its reason). The engine reconciles `git diff <base>..HEAD` against it — files off the ledger are surfaced (warn + notes), never blocked; the review scope axis judges them as findings. The docs commitment boundary is the same as the task family (commits{base,head}), not doc_path alone."
     },
     "recovery": {
       "type": "object",

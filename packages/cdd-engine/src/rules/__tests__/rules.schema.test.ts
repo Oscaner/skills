@@ -160,3 +160,65 @@ describe("P6 T24 B: finalize.ts — recoverHandoff (CONTRACT_VIOLATION recovery 
     expect(r.reason).toMatch(/must have required property/);
   });
 });
+
+// ---- Lifecycle contract core single-source assertion（T5 AC7「handoff schema 无双核心块」+ AC6 docs 逆转）----
+// The lifecycle contract core (status / commits{base,head} / failure_category / blocker / changes /
+// artifacts / findings) is ONE core — the task and docs schemas declare it through identical
+// definitions; lane differences are ONLY the boundary objects (docs: doc_path/doc_hash; task:
+// task). A divergent core (e.g. docs losing TIMEOUT or keeping the commits-free declaration) must
+// fail here before it ships.
+describe("T5 AC7: handoff schema 单源核心块（task/docs 同一契约核心；lane 差异仅边界物）", () => {
+  const taskProps = (loadHandoffSchema("task") as { properties: Record<string, Record<string, unknown>> }).properties;
+  const docsProps = (loadHandoffSchema("docs") as { properties: Record<string, Record<string, unknown>> }).properties;
+
+  it("status enum 单源：docs = task（BREAKING——docs status 增 TIMEOUT 归属声明）", () => {
+    expect(docsProps.status.enum).toEqual(["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "TIMEOUT"]);
+    expect(docsProps.status.enum).toEqual(taskProps.status.enum);
+    expect(String(docsProps.status.description)).toContain("TIMEOUT");
+    expect(String(docsProps.status.description)).toContain("terminal");
+  });
+
+  it("commits{base,head} 单源：docs 定义与 task 族 deep-equal（base ^[0-9a-f]{40}$，required [base]）", () => {
+    expect(docsProps.commits).toEqual(taskProps.commits);
+    expect(docsProps.commits.required).toEqual(["base"]);
+    expect((docsProps.commits.properties as Record<string, { pattern?: string }>).base.pattern).toBe("^[0-9a-f]{40}$");
+  });
+
+  it("failure_category 通道枚举单源 + blocker 单数统一（两族均无 blockers 复数键）", () => {
+    expect(docsProps.failure_category.enum).toEqual(taskProps.failure_category.enum);
+    expect(Object.keys(docsProps)).not.toContain("blockers");
+    expect(Object.keys(taskProps)).not.toContain("blockers");
+    expect(docsProps.blocker.type).toBe("string");
+    expect(taskProps.blocker.type).toBe("string");
+  });
+
+  it("核心块键型对齐（changes/artifacts/findings 同型）；lane 差异仅边界物（docs: doc_path/doc_hash；task: task）", () => {
+    expect(docsProps.changes.type).toBe(taskProps.changes.type);
+    expect(docsProps.artifacts.type).toBe(taskProps.artifacts.type);
+    expect(docsProps.findings.type).toBe(taskProps.findings.type);
+    expect(docsProps.doc_path.type).toBe("string");
+    expect(docsProps.doc_hash.type).toBe("string");
+    expect(taskProps.task.type).toBe("integer");
+    expect(taskProps.doc_path).toBeUndefined();
+    expect(taskProps.doc_hash).toBeUndefined();
+    expect(docsProps.task).toBeUndefined();
+  });
+
+  it("docs handoff 逆转（AC6）：commits-free 旧声明段已删 + 合法 docs commits handoff 过 schema 校验", () => {
+    expect(String(docsProps.changes.description)).not.toContain("carry no commits field");
+    expect(validateHandoffSchema({
+      phase: "fix",
+      status: "APPROVED",
+      findings: [],
+      artifacts: {},
+      doc_path: "spec.md",
+      commits: { base: "a".repeat(40), head: "b".repeat(40) },
+    }, "docs")).toEqual({ valid: true });
+    // base 必须 40-hex（同 task 族模式；非 hex 拒绝）
+    const r = validateHandoffSchema({
+      phase: "fix", status: "APPROVED", findings: [], artifacts: {}, doc_path: "spec.md",
+      commits: { base: "short" },
+    }, "docs");
+    expect(r.valid).toBe(false);
+  });
+});

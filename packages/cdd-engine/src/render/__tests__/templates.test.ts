@@ -80,11 +80,13 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
     expect(contract.skeleton.segments.return).toEqual(['Return']);
     expect(contract.skeleton.segments['round-context']).toEqual(['Round context']);
     expect(contract.skeleton.order).toEqual(['shell', 'return', 'round-context']);   // 段序恒为 壳 → Return → Round context
-    expect(contract.tokens).toHaveLength(19);
-    // zone 归属：17 round-context + 2 return，壳零槽（不得有 shell 归属 token）
-    expect(contract.tokens.filter((t) => t.zone === 'round-context')).toHaveLength(17);
+    expect(contract.tokens).toHaveLength(20);
+    // zone 归属：18 round-context + 2 return，壳零槽（不得有 shell 归属 token）；
+    // T5：DOCS_FIXED_POINT —— docs 面 dispatch 入口 base 槽（task 族 TASK_FIXED_POINT 同位）
+    expect(contract.tokens.filter((t) => t.zone === 'round-context')).toHaveLength(18);
     expect(contract.tokens.filter((t) => t.zone === 'return')).toHaveLength(2);
     expect(contract.tokens.some((t) => t.zone === 'shell')).toBe(false);
+    expect(contract.tokens).toContainEqual({ name: 'DOCS_FIXED_POINT', zone: 'round-context' });
     // The seven discipline clauses are stored single-source per D1.2 — the v1.29–v1.31 era, the `cl:` prefix family, non-empty bodies, zero moustache (T12).
     expect(Object.keys(contract.clauses)).toEqual(CLAUSE_KEYS);
     for (const [key, body] of Object.entries(contract.clauses)) {

@@ -1,5 +1,4 @@
 # 消费者面一致性（Consumer Parity）P2 实施计划 — engine lifecycle 统一抽象
-
 **Spec:** [2026-09-21-consumer-parity-p2-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p2-design.md)
 
 - **Parent program**: [2026-09-21-consumer-parity-overall.md v1.11](../specs/2026-09-21-consumer-parity-overall.md)

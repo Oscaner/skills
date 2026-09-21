@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oscaner.dev/schemas/cdd/plan.json",
+  "title": "Phase implementation plan document structure",
+  "description": "Canonical structure of an osuperpowers phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings the brief extractor slices on, the per-task acceptance bullets, the Constraints source the dispatcher materializes plan-constraints.md from (canonical Form A literal `## Constraints` or legacy Form B prose pointers), and the pending-acceptance-patch zone the orchestrator writes. Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+  "type": "object",
+  "properties": {
+    "header": {
+      "type": "object",
+      "description": "Plan header block — the first lines after the `# Title`; metadata fields, not `##` sections.",
+      "properties": {
+        "specRef": {
+          "type": "object",
+          "description": "`**Spec:**` reference — the plan's approved design link, the same source as `plan-review`'s `--spec` pointer and report-issues' program attribution chain (plan record → `**Spec:**` → overall).",
+          "properties": {
+            "marker": {
+              "type": "string",
+              "const": "**Spec:**",
+              "description": "The literal marker. Parsing semantics keep the engine contract (resolveSpecFromPlan): the marker is located by ANY-line findIndex — it may sit anywhere in the header. Line 2 (immediately after `# Title`) is the writing-plans template/example convention, NOT a schema required-position: a plan is valid wherever the `**Spec:**` line lives."
+            },
+            "linkForm": {
+              "type": "string",
+              "pattern": "^\\*\\*Spec:\\*\\*\\s+\\[[^\\]]+\\]\\([^)]+\\)$",
+              "description": "Link form: `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)` — targets an existing spec file (repo-root form primary, file-relative fallback)."
+            },
+            "labelEqualsBasename": {
+              "type": "object",
+              "description": "Class-A label rule — the link label must equal the resolved file's basename.",
+              "properties": {
+                "rule": {
+                  "type": "string",
+                  "const": "label == basename",
+                  "description": "`[<label>](<target>)` — the label must equal the basename of the resolved target (drift fails)."
+                }
+              }
+            }
+          }
+        },
+        "parentProgram": {
+          "type": "object",
+          "description": "`**Parent program**` — link to the phase's parent overall (Class B lineage anchor).",
+          "properties": {
+            "marker": {
+              "type": "string",
+              "const": "**Parent program**",
+              "description": "The literal marker."
+            },
+            "linkForm": {
+              "type": "string",
+              "pattern": "^-?(\\s*)\\*\\*Parent program\\*\\*:?\\s+\\[[^\\]]+\\]\\([^)]+\\)",
+              "description": "Link form: `- **Parent program**: [<name>-overall.md vX.Y](<path>)` — resolves to an existing `*-overall.md`, and the version tokens on the line must belong to the parent overall's lineage (its `**Version:**` header ∪ change-history cells)."
+            }
+          }
+        },
+        "version": {
+          "type": "object",
+          "description": "`**Version**` — EXAMPLE field for a plan: only the phase-spec strictly requires a `**Version**` line; a plan header MAY carry one but no enforcing check reads it (the value has no lineage role at plan level). The example/template convention places it in the header block."
+        },
+        "dependsOn": {
+          "type": "object",
+          "description": "`**Depends on**` — upstream phase / spec pointers (e.g. `P1 design v1.1 Approved (sha)`); informational."
+        },
+        "base": {
+          "type": "object",
+          "description": "`**Base**` — the finishing read-base data source (e.g. `develop`); informational."
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "description": "The plan's constraint surface — what `cdd implement` materializes plan-constraints.md from. Two declared sources (Form A or Form B); declaring neither is a plan-constraints-source-undeclared block (no silent fallback).",
+      "properties": {
+        "formACanonical": {
+          "type": "object",
+          "description": "Form A (canonical, preferred): a literal top-level `## Constraints` section with the constraint body as `###` sub-sections under it.",
+          "properties": {
+            "heading": {
+              "type": "string",
+              "pattern": "^## Constraints\\s*$",
+              "description": "The literal `## Constraints` heading (the section is bounded by the next `##`/`#` heading, a `### Task` heading, or a `---` rule; `###` sub-sections stay inside)."
+            }
+          }
+        },
+        "formBProseAnchors": {
+          "type": "object",
+          "description": "Form B (legacy): prose-pointer bold paragraphs in the preamble — the four canonical anchor names, each with a bold label + full-width colon.",
+          "properties": {
+            "anchors": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["**口径**：", "**commit 边界机制**：", "**Flow Atomicity**：", "**顺序原则**："], "description": "One prose-anchor label token — bold name + full-width colon." },
+              "description": "The four prose anchors (`口径` / `commit 边界机制` / `Flow Atomicity` / `顺序原则`), each a bold paragraph label followed by a full-width-colon block. A qualifier like `**commit 边界机制（本 program 全 phase 生效）**：` still occupies the anchor's slot; adding a suffix (`**commit 边界机制 补充**：`) makes it a different token and never fills the anchor requirement."
+            }
+          }
+        }
+      }
+    },
+    "taskHeadings": {
+      "type": "object",
+      "description": "Task headings — the brief extractor's slice surface (`/^### Task \\d+:/`).",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "### Task N:",
+          "description": "Colon format — `### Task N:` with an ASCII colon. A title after the colon is permitted and parse-tolerated (the extractor's slice surface `/^### Task \\d+:/` ignores everything after the colon); only a non-`:` delimiter after the number (em dash, Chinese colon, bare space) fails brief extraction at dispatch time."
+        },
+        "pattern": {
+          "type": "string",
+          "pattern": "^### Task \\d+:",
+          "description": "Task heading pattern — 1-indexed tasks from `### Task 1:` through `### Task N:`, an optional title after the colon is parse-tolerated."
+        },
+        "continuity": {
+          "type": "object",
+          "description": "Continuity rule — task numbers must be 1-indexed and contiguous (every number 1..max present exactly once; duplicates and gaps fail).",
+          "properties": {
+            "rule": {
+              "type": "string",
+              "const": "contiguous from 1",
+              "description": "extractTaskNumbers reads every `### Task N:` heading; the plan contract requires the extracted sequence to be exactly 1..N."
+            }
+          }
+        }
+      }
+    },
+    "taskBlock": {
+      "type": "object",
+      "description": "A per-task block under its `### Task N:` heading — the bullets the brief slices and the acceptance the plan carries.",
+      "properties": {
+        "do": {
+          "type": "string",
+          "pattern": "^- \\*\\*Do\\*\\*:",
+          "description": "`- **Do**:` — the do-brief for the task (what to implement)."
+        },
+        "acceptance": {
+          "type": "string",
+          "pattern": "^- \\*\\*验收\\*\\*:",
+          "description": "`- **验收**:` — the acceptance lines for the task; the brief extractor carries every acceptance line into the task brief verbatim, and the pending-acceptance-patch carry-through rides exactly this surface."
+        },
+        "note": {
+          "type": "string",
+          "pattern": "^- \\*\\*注\\*\\*:",
+          "description": "`- **注**:` — optional task note."
+        }
+      }
+    },
+    "pendingAcceptancePatch": {
+      "type": "object",
+      "description": "Pending-acceptance-patch zone — a document convention, not a command-line contract: a top-level `##` section recording cross-task review findings tagged `targets later task` (task ref `### Task N:`, N later than the current task). The zone exists only while a patch is pending; the orchestrator is its sole writer (fix/implement agents hold zero plan-modification authority).",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "const": "## Pending Acceptance Patch",
+          "description": "Top-level section heading (conventional name)."
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^- \\*\\*Task \\d+ \\(patch\\)\\*\\*:",
+          "description": "One entry per pending patch: `- **Task N (patch)**: <task-ref + patch description>`."
+        },
+        "carryThrough": {
+          "type": "object",
+          "description": "Carry-through (mechanically assertable) — the later task's `- **验收**:` line carries the patch as an acceptance bullet, so the patch rides the standard brief-extraction surface (task headings + acceptance lines) into the later task's dispatch — no special parser, no schema change.",
+          "properties": {
+            "mechanism": {
+              "type": "string",
+              "const": "accepts pending-acceptance-patch",
+              "description": "The later task's acceptance bullet records `accepts pending-acceptance-patch (task-ref + patch description)`."
+            }
+          }
+        }
+      }
+    },
+    "language": {
+      "type": "object",
+      "description": "Repo authoring policy applies to the plan's prose — the plan at docs/osuperpowers/plans/ is an internal program doc written in the working language (Strategy B), value tokens (ids / tags / SHAs / paths) stay locale-neutral."
+    }
+  }
+}

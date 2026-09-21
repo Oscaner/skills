@@ -16,6 +16,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { writeBranchChain } from '../../infra/__tests__/helpers.ts';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..'); // tests → packages/cdd-engine → packages → repo
 
@@ -34,13 +36,11 @@ describe('branch-fix dry-run', () => {
   it('writes APPROVED branch-fix handoff + the 5-line return block block', () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-bf';
-    const planPath = path.join(dir, `${slug}.md`);
+    const planPath = writeBranchChain(dir, `${slug}.md`);
     const findingsPath = path.join(dir, '.osuperpowers', 'cdd', slug,
       'branch-review-abc1234..def5678-r1.json');
     const handoffPath = path.join(dir, '.osuperpowers', 'cdd', slug,
       'branch-fix-abc1234..def5678-r1.json');
-
-    writeFileSync(planPath, '# Test branch fix plan\n\n### Task 1: n/a (branch-level smoke)\n');
 
     try {
       const out = execaSync('node', [
@@ -72,8 +72,7 @@ describe('branch-fix dry-run', () => {
 describe('branch-fix usage guards', () => {
   const runCli = (args: string[]) => {
     const dir = tmpGitRepo();
-    const planPath = path.join(dir, 'test-plan-guard.md');
-    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a\n');
+    const planPath = writeBranchChain(dir, 'test-plan-guard.md');
     const findingsPath = path.join(dir, '.osuperpowers', 'cdd', 'test-plan-guard',
       'branch-review-abc1234..def5678-r1.json');
     let r: { exitCode: number; stderr: string; stdout: string } | null = null;
@@ -107,8 +106,7 @@ describe('branch-fix usage guards', () => {
 
   it('--findings not naming a branch-review-{base7}..{head7}-r{R}.json file → exit 2 (round underivable)', () => {
     const dir = tmpGitRepo();
-    const planPath = path.join(dir, 'test-plan-guard.md');
-    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a\n');
+    const planPath = writeBranchChain(dir, 'test-plan-guard.md');
     const badFindings = path.join(dir, 'spec-review-3.json');
     try {
       let exitCode: number | null = null;
@@ -132,8 +130,7 @@ describe('branch-fix in-process loop closure', () => {
   it('fixes off the source review handoff (commits.base = reviewed range), passes the exit gate, and the fix commit moves the ref → re-review of the new ref is a new review', async () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-bf';
-    const planPath = path.join(dir, `${slug}.md`);
-    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const planPath = writeBranchChain(dir, `${slug}.md`);
     // The exit gate (validateCommitContract) rules at RETURN: a dirty tree → BLOCKED rewrite.
     // Everything the fake agent + this test write after setup must be gitignored
     // (`.osuperpowers/` handoffs + `*.head` probe), and everything else committed as fixtures.
@@ -218,8 +215,7 @@ describe('branch-fix exit gate — the inherited commit-contract BLOCKED lanes',
   const setup = async () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-bf-gate';
-    const planPath = path.join(dir, `${slug}.md`);
-    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const planPath = writeBranchChain(dir, `${slug}.md`);
     // The exit gate rules at RETURN: a dirty tree, or a clean tree whose handoff commits.head
     // mismatches actual HEAD (F1), rewrites the fix handoff to BLOCKED and exits 1. Everything the
     // fake agent writes after setup must be gitignored (`.osuperpowers/` handoffs + `*.head`

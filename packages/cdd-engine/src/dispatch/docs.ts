@@ -31,13 +31,14 @@ import {
 import { invokeCli, resolveTerminationConfig } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot } from "../infra/root.ts";
+import { gitRevParseHead } from "../infra/git.ts";
 import { exitWithCode, ExitRequested, invariant } from "../infra/exit.ts";
 import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { finalizeHandoff, persistFinalized, recoverHandoff, writeBlockedCarrier } from "../artifacts/handoff/finalize.ts";
 import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
 import { validateHandoffSchema } from "../rules/schema.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { validateCommitContract } from "../rules/commit.ts";
+import { UNCOMMITTED_RETURN_MARKER, validateCommitContract } from "../rules/commit.ts";
 import { renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
 import { hashFile } from "../artifacts/hash.ts";
 
@@ -113,6 +114,14 @@ export class DocsLifecycle extends DispatchLifecycle {
     this.#finished = true;
   }
 
+  /** Lane-declared doc-audit target (Task 3 ④「lane 声明审计对象」): the docs channel audits the
+   * reviewed doc itself — the base default docContractValidate walks the doc's chain by doc-type
+   * (plan / spec / overall), gating the review/fix on the parent-overall four tables when the
+   * lineage resolves. null (no doc) → the gate is waived. */
+  protected override docAuditTarget(): string | null {
+    return this.#opts.doc ?? null;
+  }
+
   // ---- pre-flight ----
 
   /** Step 2/4 family: root (injected vs engine singleton) + canonical handoffPath guard; on the
@@ -153,6 +162,13 @@ export class DocsLifecycle extends DispatchLifecycle {
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return; // early-finished rounds (dry-run / blocked pre-flight) skip the spawn
     const { mode, type, doc, template, params = {}, handoffPath, harness } = this.#opts;
+    // DOCS_FIXED_POINT (T5, design §2.4): the docs round's base anchor token — the canonical
+    // round-context slot (template-contract.json round-context zone) carries the dispatch entry
+    // base = git HEAD at dispatch time (same-position semantics as the task family's
+    // TASK_FIXED_POINT). Empty on non-git / unborn HEAD (fail-open, the mode-union pre-fill
+    // contract). Computed here — the single docs-dispatch point — so both review (review.ts)
+    // and fix (fix.ts) callers share one derivation, no per-caller plumbing.
+    const docFixedPoint = (await gitRevParseHead(this.ctx.repoRoot ?? "")) ?? "";
     // Single-pass composition render (T3 URC after: fix templates take the canonical fixTemplate
     // value "docs" directly — the `-review`→`-fix` legacy derivation branch is gone; docs fix must
     // not double-suffix). Computed dispatch facts win over caller params (last-wins): RETURN_FORMAT
@@ -168,6 +184,9 @@ export class DocsLifecycle extends DispatchLifecycle {
         DOCS_FINDINGS: this.#opts.findingsPath ?? "",
         HANDOFF_TARGET: handoffPath ?? "",
         ...params,
+        // Computed dispatch facts win over caller params (last-wins) — DOCS_FIXED_POINT included:
+        // the entry base is an engine fact, never a caller injectable.
+        DOCS_FIXED_POINT: docFixedPoint,
         // The was-gate prose is byte constant; the gate VALUE (real handoff path) rides the
         // `### HANDOFF_WRITE_GATE` round-context slot (Task 20 ⑥ facade de-pathing). The review family
         // gate dispatches by return semantics (retrieve a fixed 'json-return' write gate — the
@@ -311,6 +330,18 @@ export class DocsLifecycle extends DispatchLifecycle {
       handoffPath: this.#opts.handoffPath,
     });
     if (!cv.ok) {
+      // Exit-gate stdout diagnosis (T5 ④, design §2.4): the docs fix round's BLOCKED conclusion
+      // must carry a stdout-visible diagnosis — the rules layer already rewrote the handoff
+      // (BLOCKED + cv.blocker), and this face emits the same blocker line to stdout so the operator
+      // sees it without opening the carrier file. The dirty-tree arm appends the commit-before-
+      // returning guidance (the round must be committed before it may return APPROVED); the
+      // UNCOMMITTED_RETURN_MARKER check couples this diagnosis to the rule composing the blocker, so
+      // a rewording of that text cannot silently drop the guidance. The determinism tests keep
+      // pinning the rendered diagnosis.
+      const diagnosis = cv.blocker.includes(UNCOMMITTED_RETURN_MARKER)
+        ? `${cv.blocker} — commit before returning`
+        : cv.blocker;
+      process.stdout.write(`CDD_BLOCKED: ${diagnosis}\n`);
       this.#done({ exitCode: 1, handoff: readJson(this.#opts.handoffPath ?? "") });
     }
   }

@@ -57,8 +57,9 @@ import {
   type ResidueAppendixInput,
 } from "../artifacts/residue.ts";
 import { validateHandoffSchema } from "../rules/schema.ts";
-import { validateDispatchDocuments, formatDocFailures, type DocValidationFailure } from "../rules/documents.ts";
-import { deriveTaskState, derivePlanVerdict, formatTaskStateLine, formatPlanVerdict } from "../rules/status.ts";
+import { extractPlanConstraints, taskNumbersFromPlan } from "../rules/documents.ts";
+export { extractPlanConstraints, taskNumbersFromPlan } from "../rules/documents.ts";
+import { DOC_TOKENS } from "../documents/tokens.ts";
 import { returnFourLines, returnFromHandoff, dryRunBlock } from "../artifacts/return-block.ts";
 import { FAILURE_CATEGORIES, incrementFailureCounter, exhaustedBlocker, maybeExhaust, timeoutBlocker } from "../rules/failure.ts";
 export { returnFourLines, returnFromHandoff } from "../artifacts/return-block.ts";
@@ -504,41 +505,30 @@ export class TaskLifecycle extends DispatchLifecycle {
     if (missing) { this.#done(1, [], missing); return; }
   }
 
-  /** docContractValidate template-step override (Task 29, spec T7.8): the current dispatch's doc
-   * chain (plan → its `**Spec:**` spec → the spec's Parent program overall) validated against the
-   * three necessary contracts (rules/documents.ts). Failures non-empty → the round is blocked
-   * before the agent ever runs — exit 1 + the guidance on stderr (the 0/1/2/3 exit table unchanged
-   * — this is a BLOCKED face like any other); dry-run runs the SAME check but lowers to the WARN
-   * lane (the E2② entry-gate precedent: a doc-invalid simulation still completes, never silent).
-   * Read-only: the check never writes docs or carriers — a doc-invalid round stays
-   * re-dispatchable the moment the docs are repaired (no BLOCKED carrier to clear). */
-  protected override async docContractValidate(_hookCtx: DispatchHookContext): Promise<void> {
-    if (this.#finished) return;
-    const ctx = this.#tcx!;
-    const dryRun = this.#opts.dryRun === true;
-    let failures: DocValidationFailure[];
-    try {
-      failures = validateDispatchDocuments({
-        planPath: ctx.plan,
-        root: this.#root,
-        extractTaskNumbers: taskNumbersFromPlan,
-        extractConstraints: extractPlanConstraints,
-      });
-    } catch (e) {
-      // fail-open: an unreadable doc chain must never crash the lifecycle (the plan existence
-      // gate in resolveContext already surfaced the missing-plan case there) — but never silent:
-      // surface a one-line diagnostic on the throw path (real and dry-run lanes alike).
-      process.stderr.write(
-        `CDD_WARN: doc contract validation skipped (unreadable doc chain): ${(e as Error).message}\n`,
-      );
-      return;
-    }
-    if (failures.length === 0) return;
-    const guidance = formatDocFailures(failures);
-    if (dryRun) {
-      process.stderr.write(`CDD_WARN: doc contract invalid (dry-run) — fix the docs below, then re-dispatch task ${this.#taskNum}:\n${guidance}\n`);
-      return;
-    }
+  /** Lane-declared doc-audit target (Task 3 ④): the task channel audits ITS dispatch plan — the
+   * base default docContractValidate walks the plan → `**Spec:**` → Parent program → overall chain,
+   * runs the necessary subset (plan 契約 + Class A) plus the overall 契約 + four tables when a
+   * parent overall resolves. null when the round already terminated pre-flight (a mode/cli/entry
+   * block that #done'd before the doc step wins its diagnostic — the audit never overrides a
+   * terminal). */
+  protected override docAuditTarget(): string | null {
+    if (this.#finished) return null;
+    return this.#tcx?.plan ?? null;
+  }
+
+  /** Plan-bearing declaration (P2 T4): the task lane is ALWAYS plan-bearing — the closeout
+   * terminal-debt hard gate and the base-default statusValidate key off the dispatch plan. NOT
+   * #finished-gated: the pre-flight-terminated case is already handled by docAuditTarget's guard
+   * (the gate waives early on a finished round), while statusValidate runs AFTER the round
+   * #done'd — the report describes the tree the round just landed. */
+  protected override dispatchPlanPath(): string | null {
+    return this.#tcx?.plan ?? null;
+  }
+
+  /** BLOCK face override (Task 3 ④): the task channel's non-throwing #done terminal — exit 1 +
+   * the CDD_BLOCKED diagnostic; no carrier is written (the doc-invalid round stays
+   * re-dispatchable the moment the docs are repaired — matching the pre-T3 face exactly). */
+  protected override docContractBlocked(guidance: string): void {
     this.#done(1, [], `doc contract validation failed — fix the docs below, then re-dispatch task ${this.#taskNum}:\n${guidance}`);
   }
 
@@ -914,27 +904,6 @@ export class TaskLifecycle extends DispatchLifecycle {
     // inversion dies here (a BLOCKED-derived review or a fix declaring BLOCKED → 1).
     this.#done(finalized?.exitCode ?? 0, this.#returnBlock, "");
   }
-
-  /** statusValidate template-step override (post-flight, after the exit gate; Task 29, spec T7.8):
-   * reports the round's CURRENT task state (six-state convergence, rules/status.ts) + the plan
-   * completion verdict as CDD_INFO — the "plan Done" terminal declaration is exactly this
-   * all-complete verdict (closeout consumes it; no more manual tallying). Deliberately runs
-   * WITHOUT the #finished guard: the round just ended (commitPostCheck #done'd) and its resulting
-   * state is precisely what the report describes; the walk has already passed every exit gate, so
-   * this step is informational and never exit-changing. Read-only — derives from on-disk
-   * progress/carriers; unreadable progress/plan → skip silently (fail-open). */
-  protected override async statusValidate(_hookCtx: DispatchHookContext): Promise<void> {
-    const ctx = this.#tcx; // null when resolveContext died early (e.g. cli-missing) — nothing to reconcile
-    if (!ctx || !ctx.workspace || !ctx.plan) return;
-    try {
-      const state = deriveTaskState(ctx.workspace, this.#taskNum);
-      const verdict = derivePlanVerdict(ctx.plan, ctx.workspace, taskNumbersFromPlan);
-      process.stderr.write(`CDD_INFO: ${formatTaskStateLine(this.#taskNum, state)}\n`);
-      process.stderr.write(`CDD_INFO: ${formatPlanVerdict(verdict)}\n`);
-    } catch {
-      // fail-open: no report when progress/plan cannot be read
-    }
-  }
 }
 
 /** runTask — legacy surface kept ({ exitCode, returnBlock }; noExit=true suppresses the stdout/stderr +
@@ -978,15 +947,10 @@ export async function runTask(harness: string, taskNum: number, opts: TaskRunOpt
 
 // ---- plan building blocks (pure functions, unit-test seam) ----
 
-/** Aligns _task_numbers_from_plan: `^### Task N:` → numeric sort. */
-export function taskNumbersFromPlan(planFile: string): number[] {
-  const nums: number[] = [];
-  for (const line of readFileSync(planFile, "utf8").split("\n")) {
-    const m = line.match(/^### Task (\d+):/);
-    if (m) nums.push(Number(m[1]));
-  }
-  return nums.sort((a, b) => a - b);
-}
+// taskNumbersFromPlan + extractPlanConstraints are canonical in rules/documents.ts (T3 ③ — the
+// base default docContractValidate consumes them without a dispatch-layer import); this module
+// re-exports the same identities and materializePlanConstraints consumes the canonical extractor.
+// A change to either extraction lands in documents.ts once.
 
 /** Read the status of the latest review handoff (progressData.rounds["review"] round).
  * reviewRound=0 → no review completion record → "MISSING"; corrupt → "UNKNOWN". */
@@ -1025,8 +989,10 @@ const PLAN_CONSTRAINTS_MISSING_BLOCKER = "plan-constraints.md missing — run ma
 // artifact bytes on any machine (recomputable test baseline).
 const PLAN_HASH_RE = /plan hash: ([0-9a-f]{64})/;
 // Legacy prose-pointer anchors, canonical order — extraction order is this constant, never plan
-// line order (byte-determinism). The canonical form (literal `## Constraints`) wins over this.
-const PROSE_ANCHORS = ["口径", "commit 边界机制", "Flow Atomicity", "顺序原则"] as const;
+// line order (byte-determinism). The bare names derive from the canonical plan schema's Form-B
+// anchor tokens (tokens.ts; `**口径**：` → `口径`); the canonical form (literal `## Constraints`)
+// wins over this.
+const PROSE_ANCHORS = DOC_TOKENS.proseAnchors as readonly string[];
 
 /** Plan declares no Constraints source (neither a literal `## Constraints` section nor any
  * prose-pointer anchor) — the materializer must BLOCK, never fall back silently. P6 T24 E: the
@@ -1037,85 +1003,6 @@ export class ConstraintsSourceUndeclared extends CddExitError {
   constructor(message: string) {
     super(message, { exitCode: 1, kind: "run-blocked" });
   }
-}
-
-// Deterministic section extraction for the canonical form: `## Constraints` heading + content to
-// the first structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction
-// atom the constraints section must not swallow), or a `---` rule (the preamble/task separator).
-// `###` sub-sections (the four in-section sub-headings) stay inside. An empty section → null (declared-but-empty is not
-// a constraint declaration).
-function extractLiteralConstraints(content: string): string | null {
-  const lines = content.split("\n");
-  let start = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^## Constraints\s*$/.test(lines[i])) { start = i; break; }
-  }
-  if (start < 0) return null;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (/^(#{1,2}\s|### Task |---\s*$)/.test(lines[i])) { end = i; break; }
-  }
-  const body = lines.slice(start + 1, end).join("\n").trimEnd();
-  if (!body) return null;
-  return `${lines[start]}\n${body}\n`;
-}
-
-// Prose-pointer anchor heading regex (findings 2): `**<anchor>(?:（qualifier）)?**：` — the in-repo
-// qualifier forms are full-width parentheticals (`**commit 边界机制（本 program 全 phase 生效）**：`);
-// a bare `**<anchor>**：` matches too (the `(?:…)` group is a REAL regex group and optional —
-// `（[^）]*）?` would quantify only the closing paren and demand a literal `（`). No gap is allowed
-// between the anchor and the closing `**`, so a prefix-collision heading
-// (`**commit 边界机制 补充**：`) can never occupy the anchor's slot.
-function proseAnchorRe(anchor: string): RegExp {
-  return new RegExp(`^\\*\\*${anchor}(?:（[^）]*）)?\\*\\*[：:]`);
-}
-
-// Block boundary for the prose-pointer form (mirrors extractLiteralConstraints' boundary set): a
-// `---` rule, a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
-// (any prose-pointer-style bold heading begins a new declaration block, so the plan's interleaved
-// `**v1.x 回填…**：` notes bound the preceding anchor the way the literal form's headings bound a
-// `## Constraints` section).
-const PROSE_BLOCK_STOP = [
-  /^---\s*$/,
-  /^#{1,2}\s/,
-  /^### Task /,
-  /^\*\*[^*]+\*\*[：:]/,
-] as const;
-
-// Legacy prose-pointer extraction (findings 1): the anchored `**<anchor>…**：` lines in canonical
-// order, each followed by its continuation paragraphs — a body spanning blank-line-separated
-// paragraphs is captured in FULL, not truncated to the first paragraph. Block boundaries:
-// the next declaration heading (or structural boundary) ends the block; present anchors are taken
-// verbatim (first match per anchor), missing ones are omitted.
-function extractProseConstraints(content: string): string | null {
-  const lines = content.split("\n");
-  const out: string[] = [];
-  for (const anchor of PROSE_ANCHORS) {
-    const re = proseAnchorRe(anchor);
-    const start = lines.findIndex((line) => re.test(line));
-    if (start < 0) continue;
-    const block: string[] = [lines[start]];
-    for (let i = start + 1; i < lines.length; i++) {
-      if (PROSE_BLOCK_STOP.some((stop) => stop.test(lines[i]))) break;
-      block.push(lines[i]);
-    }
-    // Interior blank lines belong to the body; the trailing blank tail before the boundary is cut.
-    while (block.length > 0 && block[block.length - 1].trim() === "") block.pop();
-    out.push(block.join("\n"));
-  }
-  if (out.length === 0) return null;
-  return out.join("\n\n") + "\n";
-}
-
-/** Deterministic extraction from the plan's declared Constraints source (T22/§T7.1): canonical
- * Form A — a literal top-level `## Constraints` section (writing-plans-mandated for new plans);
- * legacy Form B — the prose-pointer headings (口径 / commit 边界机制 / Flow Atomicity / 顺序原则),
- * extracted in canonical order. Returns the constraints body verbatim (single trailing newline) or
- * null when the plan declares no constraint source (the BLOCK face). */
-export function extractPlanConstraints(planContent: string): string | null {
-  const literal = extractLiteralConstraints(planContent);
-  if (literal !== null) return literal;
-  return extractProseConstraints(planContent);
 }
 
 // Byte-deterministic artifact header: provenance + the plan-hash anchor (never the absolute path).
@@ -1138,7 +1025,7 @@ export function materializePlanConstraints(plan: string, workspace: string): { p
   const content = extractPlanConstraints(readFileSync(plan, "utf8"));
   if (content === null) {
     throw new ConstraintsSourceUndeclared(
-      `plan Constraints source undeclared — declare a literal “## Constraints” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
+      `plan Constraints source undeclared — declare a literal “${DOC_TOKENS.constraintsHeading}” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
     );
   }
   writeFileSync(outPath, constraintsHeader(plan, hashFile(plan)) + content, "utf8");

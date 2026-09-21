@@ -6,9 +6,10 @@
 // the review layer (template-contract scope-composition axis → normal finding → fix loop), while
 // the execution layer only keeps the books. implement rounds materialize no changes[] (the return
 // block is their only surface) → the diff fileset is recorded verbatim as the ledger origin, zero
-// warn. No usable commits.base → skipped (docs-family carries no commits field — its boundary is
-// doc_path; unknown-base failure carriers skip too). Review mode → skipped (its commits describe
-// the reviewed range, not this dispatch's output).
+// warn. No usable commits.base → skipped (docs-family carries commits{base,head} since T5 — its
+// reconcile now runs like the task family when a legal base exists; unknown-base failure carriers
+// skip too). Review mode → skipped (its commits describe the reviewed range, not this dispatch's
+// output).
 import { gitDiffNameOnly, gitRevParseHead } from "../infra/git.ts";
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
 

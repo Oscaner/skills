@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oscaner.dev/schemas/cdd/add-phase-protocol.json",
+  "title": "Add-phase protocol document structure",
+  "description": "Canonical structure of the add-phase protocol — a methodology-doc for registering a new phase in a multi-phase program: every addition, split or re-assignment lands in the parent overall's four tables FIRST, and that registration is what the design session reads (register before grill). This schema is the single structure fact for the add-phase-protocol facet: the four-table sync checklist (row shapes for Issue inventory / Phase inventory / Dependency graph / Change history), the issue-reference syntax levels (anchored form machine-checked), and the pre-`sync-overall` consistency checks. The overall spec is the single source of truth (SOT); the four-table names are shared vocabulary between this protocol and the canonical schema (doc word = code word = engine token) — the enforcement position is the engine lifecycle (docContractValidate + the closeout audit at dispatch), not a repo-local script.",
+  "type": "object",
+  "properties": {
+    "fourTableSyncChecklist": {
+      "type": "object",
+      "description": "Section 1 — Four-table sync checklist: update all four tables in the parent overall and verify consistency when registration runs.",
+      "properties": {
+        "issueInventoryRow": {
+          "type": "object",
+          "description": "Issue inventory — append a row per new issue; a re-owned issue updates its Phase column instead of adding a row.",
+          "properties": {
+            "row": {
+              "type": "string",
+              "pattern": "^\\| P\\d+(?![0-9])[a-z]? \\(?[^ ]*\\| #\\d+ \\| .+ \\|$",
+              "description": "Row shape `| P<new> | #NNN | one-line summary |` — phase id, anchored/none issue ref, one-line summary."
+            },
+            "reassign": {
+              "type": "string",
+              "const": "update the Phase column",
+              "description": "Existing-issue re-owning updates the Phase column instead of adding a row."
+            }
+          }
+        },
+        "phaseInventoryRow": {
+          "type": "object",
+          "description": "Phase inventory — append a row; Design-spec / plan cells fill as the phase progresses.",
+          "properties": {
+            "row": {
+              "type": "string",
+              "pattern": "^\\| P\\d+(?![0-9])[a-z]? \\(?[^ ]*\\|",
+              "description": "Row shape `| P<new> | [scope] | [Pending]/link | [Pending]/link | [verifiable acceptance] | [hard or soft, ref graph] |`."
+            },
+            "cellVocabulary": {
+              "type": "object",
+              "description": "Cell value vocabulary for the design-spec / plan / acceptance / dependency columns.",
+              "properties": {
+                "unstarted": { "type": "string", "const": "[Pending]", "description": "Unstarted cell placeholder." },
+                "link": { "type": "string", "pattern": "^\\[.*\\]\\([^)]*\\)$", "description": "Cell carrying a markdown doc link once the artifact exists." },
+                "acceptance": { "type": "string", "description": "Verifiable completion condition cell — the phase's verifiable acceptance." },
+                "dependency": { "type": "string", "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->", "description": "Hard (`->`) or soft (`-> (soft)`) dependency edge referencing a Phase-inventory id." }
+              }
+            }
+          }
+        },
+        "dependencyEdge": {
+          "type": "object",
+          "description": "Dependency graph — add the edge(s).",
+          "properties": {
+            "hard": {
+              "type": "string",
+              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*P\\d+(?![0-9])[a-z]?$",
+              "description": "Hard-block edge `P<pred> -> P<new>`; successors depending on the new phase get `P<new> -> P<succ>`."
+            },
+            "soft": {
+              "type": "string",
+              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*\\(?\\s*soft\\s*\\)?\\s*P\\d+(?![0-9])[a-z]?$",
+              "description": "`-> (soft)` only for non-blocking ordering convenience."
+            }
+          }
+        },
+        "changeHistoryRow": {
+          "type": "object",
+          "description": "Change history — append one row per registration.",
+          "properties": {
+            "row": {
+              "type": "string",
+              "pattern": "^v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2} — ",
+              "description": "Row shape `vX.Y · YYYY-MM-DD — <reason: user decision + scope boundary>`."
+            }
+          }
+        }
+      }
+    },
+    "consistencyChecks": {
+      "type": "object",
+      "description": "Consistency check — must all hold before `sync-overall` exits (engine lifecycle enforcement — docContractValidate / closeout audit — not intention).",
+      "properties": {
+        "anchorsRegistered": {
+          "type": "string",
+          "const": "every #NNN referenced by the new phase spec / plan exists in the Issue inventory",
+          "description": "Check 1 — every issue reference exists in the Issue inventory."
+        },
+        "depPhasesRegistered": {
+          "type": "string",
+          "const": "every phase referenced by the Dependency graph exists in the Phase inventory",
+          "description": "Check 2 — every dependency-graph node exists in the Phase inventory."
+        },
+        "hardPredsShipped": {
+          "type": "string",
+          "const": "every hard-dependency predecessor has its Design spec column = Done",
+          "description": "Check 3 — hard-dependency predecessors must be shipped (not shipped → hard BLOCKED)."
+        }
+      }
+    },
+    "issueReferenceSyntax": {
+      "type": "object",
+      "description": "Section 2 — Issue-reference syntax levels (registration domain). The engine lifecycle scans only anchored-form issue references.",
+      "properties": {
+        "anchoredForm": {
+          "type": "string",
+          "pattern": "^#\\d+#issuecomment-\\d+$",
+          "description": "Anchored form `#NNN#issuecomment-<digits>` — canonical machine-checkable reference: whenever any document (overall / phase spec / plan) contains an anchor, `#NNN` must be registered in the Issue inventory (or the guard exits 1)."
+        },
+        "bareForm": {
+          "type": "string",
+          "pattern": "^#\\d+$",
+          "description": "Bare `#NNN` — ambiguous token (AC numbers / PR numbers / legacy references share `#`), not machine-disambiguable — membership judged by hand."
+        },
+        "registrationDomain": {
+          "type": "string",
+          "const": "Issue inventory",
+          "description": "The registration domain: every issue the program touches (owned finding + related/follow-up + pre-consume + re-assign destination) appears in the table."
+        },
+        "triggers": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["new issue discovered during phase execution → declare ownership + add a row", "pre-consume → add a row + mark pre-consumed + note the actual fixing phase", "re-assign → update the Phase column"], "description": "One registration-trigger scenario." },
+          "description": "The three registration-trigger scenarios: new-discovery, pre-consume, re-assign."
+        }
+      }
+    }
+  }
+}

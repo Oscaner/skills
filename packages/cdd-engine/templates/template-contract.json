@@ -102,6 +102,7 @@
       "- `REVIEW_PLAN_LINE`: {{REVIEW_PLAN_LINE}}",
       "- `DOCS_DOC`: {{DOCS_DOC}}",
       "- `DOCS_FINDINGS`: {{DOCS_FINDINGS}}",
+      "- `DOCS_FIXED_POINT`: {{DOCS_FIXED_POINT}}",
       "- `HANDOFF_TARGET`: {{HANDOFF_TARGET}}",
       "",
       "### HANDOFF_WRITE_GATE",
@@ -116,6 +117,10 @@
     },
     {
       "name": "DOCS_FINDINGS",
+      "zone": "round-context"
+    },
+    {
+      "name": "DOCS_FIXED_POINT",
       "zone": "round-context"
     },
     {

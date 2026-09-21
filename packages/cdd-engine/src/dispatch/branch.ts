@@ -126,6 +126,35 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
    * the fix channel lives at the EXIT gate (inherited default commitPostCheck). */
   protected override async commitPreCheck(_hookCtx: DispatchHookContext): Promise<void> {}
 
+  /** Lane-declared doc-audit target (T3 ④「lane 声明审计对象」): the branch channel audits its
+   * `--plan` ref (the same plan the review/fix round derives its workspace from) — the base default
+   * docContractValidate walks plan → `**Spec:**` → Parent program → overall and gates on the
+   * parent-overall four tables when the lineage resolves. */
+  protected override docAuditTarget(): string | null {
+    if (!this.opts.plan) return null;
+    try {
+      return resolveDocArg(this.opts.plan, this.repoRoot, "plan");
+    } catch {
+      return this.opts.plan; // an unresolvable ref → the audit fail-opens on the raw path
+    }
+  }
+
+  /** Plan-bearing declaration (P2 T4): the branch lane is ALWAYS plan-bearing — the closeout
+   * terminal-debt hard gate and the base-default statusValidate key off its `--plan` ref (v1.12:
+   * the v1.11 lane boundary is rescinded — branch-review's precondition IS the ended plan, so its
+   * backfill obligation is already due and the gate is the correct behavior). */
+  protected override dispatchPlanPath(): string | null {
+    return this.docAuditTarget();
+  }
+
+  /** Doc-contract BLOCK face (T3 ④): the branch terminal convention — stderr CDD_BLOCKED +
+   * exitWithCode(1) (exit helpers throw ExitRequested, the bin maps the exact code; the default
+   * DispatchBlocked throw would escape the wrappers' gate filters and land on exit 2). */
+  protected override docContractBlocked(guidance: string): void {
+    process.stderr.write(`CDD_BLOCKED: doc contract validation failed — fix the docs below:\n${guidance}\n`);
+    exitWithCode(1);
+  }
+
   /** Registry ship gate (spec step 1): resolve the harness entry + dry-run-path CLI-existence
    * check. Failure → the message on stderr + the kind's exit code (cli-missing → 2, blocked → 1;
    * the CLI 0/1/2 table preserved — CddBlockedError.exitCode IS that code). A non-CddBlockedError
@@ -379,8 +408,19 @@ export class BranchReviewLifecycle extends BranchLifecycle {
    * The exit comes from the finalized round conclusion (Task 23 ③: BLOCKED → 1,
    * APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a handoff. */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
+    const base = String(this.#base);
+    const head = String(this.#head);
     const finalized = await finalizeHandoff({ mode: "review", agentHandoff: this.agentHandoff });
-    if (finalized.handoff && finalized.handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, finalized.handoff);
+    let handoff = finalized.handoff;
+    // Unified lifecycle contract: branch-review handoffs carry commits{base,head} — branch-fix
+    // derives FIX_BASE from the source review's commits.base. The review agent's handoff may omit
+    // the field; stamp the CLI's reviewed range so the review→fix loop closes (same shape as the
+    // dry-run / BLOCKED-carrier lanes).
+    if (handoff && typeof handoff === "object" && (handoff as { commits?: unknown }).commits === undefined) {
+      const cc = this.branchCarrierCommits(base, head);
+      if (cc) handoff = { ...handoff, commits: cc };
+    }
+    if (handoff && handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, handoff);
     exitWithCode(finalized.exitCode);
   }
 

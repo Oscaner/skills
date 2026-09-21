@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // src/bin.ts — CDD engine CLI entry (spec §2.3; citty surface from Task 9, retired commander).
 // The full command tree lives in src/cli/parse.ts as one citty defineCommand (mainCommand with
-// the four subcommands implement / review / fix / base-branch [set|get]). This file only boots
-// it: `--help` pre-screen → root/proc bootstrap → runCommand → parse/usage error normalization
-// (exit code table §2.4.2: 0 = OK incl. --help; 1 = dispatch failure / blocked; 2 = usage or
-// parse error; 3 = review convergence — citty's own parse errors exit 1, so this wrapper is what
-// keeps the subroutine's documented table intact).
+// the five subcommands implement / review / fix / base-branch [set|get] / help). This file only
+// boots it: `--help` pre-screen → `cdd help` discovery intercept → root/proc bootstrap →
+// runCommand → parse/usage error normalization (exit code table §2.4.2: 0 = OK incl. --help;
+// 1 = dispatch failure / blocked; 2 = usage or parse error; 3 = review convergence — citty's own
+// parse errors exit 1, so this wrapper is what keeps the subroutine's documented table intact).
 //   cdd implement --task <n> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> [...]
 //   cdd fix --type <task|spec|plan> [...]
 //   cdd base-branch <set|get> --plan <path> [...]
+//   cdd help
 //
 // Unconditional boot (no isMain guard): this artifact is only ever executed directly by node as
 // the CLI entry (package.json bin/main/exports all point at dist/cli.mjs; no library consumer
@@ -28,6 +29,7 @@ import path from "node:path";
 import { parseArgs, renderUsage, runCommand } from "citty";
 import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
 import { mainCommand, MAIN_ARGS, usageError, commandUsageKey, deepestCommand } from "./cli/parse.ts";
+import { runHelp } from "./cli/help.ts";
 import { setDryRun } from "./cli/shared.ts";
 import { initRoot } from "./infra/root.ts";
 import { ExitRequested, CddExitError } from "./infra/exit.ts";
@@ -62,6 +64,20 @@ async function main() {
     const [cmd, parent] = await deepestCommand(rawArgs);
     const rendered = await renderUsage(cmd, parent);
     process.stdout.write(plain(rendered) + "\n");
+    process.exit(0);
+  }
+
+  // `cdd help` — P2 discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
+  // subcommand, zero enforcement logic — no audit, no exit-semantics change). Intercepted BEFORE the
+  // root bootstrap like the `--help` pre-screen: pure resource discovery works outside git repos and
+  // writes no lifecycle state (initRoot's repo gate / initProcLifecycle's lifecycle.json persist both
+  // stay out of its path). RunHelp prints the CLI directory + the required doc-resource directories
+  // (canonical schemas / templates), each verified to exist at render time. The declared citty help
+  // command (parse.ts) is the surface fallback for --help/usage rendering; this intercept is what
+  // runs in production.
+  const firstCommand = rawArgs.find((a) => !a.startsWith("-"));
+  if (firstCommand === "help") {
+    runHelp();
     process.exit(0);
   }
 

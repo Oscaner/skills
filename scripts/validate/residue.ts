@@ -614,6 +614,11 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
     if (!readFileSync(abs, "utf8").includes("readdirSync")) continue;
     if (f === "packages/cdd-engine/src/artifacts/handoff/naming.ts") continue;
     if (f === LIVENESS_PROBE_FILE) continue; // T14 probe page (whitelist enumerated above)
+    // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
+    // program doc dirs (specs/ + plans/, both explicit path arguments — never a full-tree find):
+    // same fully-enumerated carve-out doctrine as the naming.ts whitelist (bounded dir listing in
+    // the doc-contract judgment, not a "most recent" residue re-read).
+    if (f === "packages/cdd-engine/src/rules/documents.ts") continue;
     hits.push({ label: "readdirSync outside the whitelist (a directory scan in place of an explicit path argument is a \"most recent\" regression)", file: f });
   }
   const rtFile = "packages/cdd-engine/src/dispatch/task.ts";
@@ -629,9 +634,10 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 // category identity", keep zero hand-written sites (failure_category assignment /
 // isIncompleteDispatch judgment); counters never enter the handoff contract. The properties count is
 // iron-anchored by the guard: task 16 (14 base properties incl. failure_category + recovery +
-// changes, T7.4/T7.5 carriers) / docs 13 (11 base properties incl. failure_category + recovery +
-// changes, T7.4 carrier). Nothing beyond recovery/changes/failure_category may be added. The four
-// field names and labels go through failure-categories.json.
+// changes, T7.4/T7.5 carriers) / docs 14 (12 base properties incl. failure_category + recovery +
+// changes, T7.4 carrier + the T5 commits{base,head} core-block unification). Nothing beyond
+// recovery/changes/failure_category/commits may be added. The four field names and labels go
+// through failure-categories.json.
 const COUNTER_FIELDS = canonicalCounters().map((c) => c.field);
 const COUNTER_LABELS = canonicalCounters().map((c) => c.label);
 const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
@@ -673,7 +679,7 @@ export function collectCountersContractHits({
     for (const fld of COUNTER_FIELDS) {
       if (props.includes(fld)) hits.push({ label: `counter ${fld} leaked into the ${name} handoff schema (counters never enter the contract)`, file: schemaPath });
     }
-    const expected = name === "task" ? 16 : 13;
+    const expected = name === "task" ? 16 : 14;
     if (props.length !== expected || !props.includes("failure_category")) {
       hits.push({ label: `${name} handoff schema properties count ${props.length} ≠ ${expected} (nothing may grow/shrink beyond failure_category)`, file: schemaPath });
     }

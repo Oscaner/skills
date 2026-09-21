@@ -1,11 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "description": "Docs-family handoff contract (spec / plan review + fix rounds; the docs-family shell + return constants live in template-contract.json#sections). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule.",
+  "description": "Docs-family handoff contract (spec / plan review + fix rounds; the docs-family shell + return constants live in template-contract.json#sections). Doc identity is doc_path + doc_hash; write findings, not status — the engine derives status from findings (review) or trusts the declared status (fix). Each property below documents its rule. Breaking change (engine major): the docs handoff carries the same lifecycle contract core as the task family — status gains TIMEOUT and commits{base,head} lands (the reverse of the legacy 'Docs rounds carry no commits field' declaration); docs consumers that relied on the commits-free docs handoff must migrate to the unified core.",
   "type": "object",
   "required": ["phase", "findings", "artifacts", "doc_path"],
   "properties": {
     "phase":     { "type": "string", "enum": ["review", "fix"], "description": "dispatch phase (review / fix); determined by the engine, not authored." },
-    "status":    { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"], "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field — the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status." },
+    "status":    { "type": "string", "enum": ["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "TIMEOUT"], "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded (engine-written attribution; the docs channel declares the same status enum as the task family). Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field — the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status." },
     "failure_category": {
       "type": "string",
       "enum": [
@@ -17,6 +17,25 @@
         "PLAN_CONFLICT"
       ],
       "description": "Failure mechanism channel — which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths. A BLOCKED round may satisfy its grounding via this field (see allOf)."
+    },
+    "commits": {
+      "type": "object",
+      "required": [
+        "base"
+      ],
+      "description": "commit identity of the dispatch's review/fix range; the template-contract review range check at 13.5 validates it.",
+      "properties": {
+        "base": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "range base (TASK_BASE / FIXED_POINT): full 40-char SHA; never --short / %h / any truncated form."
+        },
+        "head": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "full 40-char SHA; never --short / %h / any truncated form. Optional — omitted when the round has no head yet (e.g. some BLOCKED branch-review payloads)."
+        }
+      }
     },
     "doc_path":  { "type": "string", "description": "the reviewed document's exact path — must match the doc argument, do not rewrite relative forms." },
     "doc_hash":  { "type": "string", "description": "content state token (sha256 of the doc at review time); legacy handoffs may omit it." },
@@ -31,7 +50,7 @@
           "reason": { "type": "string", "description": "why the file changed (finding id / fix intent); omitted entries stay attributed by file." }
         }
       },
-      "description": "Changed-file attribution ledger (fix rounds declare every file the round touched). Docs rounds carry no commits field — the boundary surface is doc_path; the ledger keeps the same bookkeeping shape as the task family."
+      "description": "Changed-file attribution ledger (fix rounds declare every file the round touched, each with its reason). The engine reconciles `git diff <base>..HEAD` against it — files off the ledger are surfaced (warn + notes), never blocked; the review scope axis judges them as findings. The docs commitment boundary is the same as the task family (commits{base,head}), not doc_path alone."
     },
     "recovery": {
       "type": "object",
@@ -42,8 +61,10 @@
         "residue_ref": { "type": "string", "description": "Salvaged-WIP stash commit SHA (index-independent: `stash@{N}` indices shift on every push/drop). Written by the residue settlement step on eligible EXECUTION_FAILURE/TIMEOUT rounds with a dirty tree; the re-dispatch resume pre-flight reads it and `git stash apply`s it. Settlement output ≡ resume input." },
         "wip_stat": { "type": "object", "required": ["files", "insertions", "deletions"], "properties": { "files": { "type": "integer" }, "insertions": { "type": "integer" }, "deletions": { "type": "integer" } }, "description": "structured WIP scale (files / +M / -M) at salvage time — the recovery carrier's archivable magnitude beside residue_ref; counts brand-new untracked files too." },
         "preserved": { "type": "boolean", "description": "true when the round's residue was stashed into the recovery carrier (residue_ref + wip_stat present); the settlement step's idempotence flag — an already-preserved carrier never double-stashes." },
+        "stash_message": { "type": "string", "description": "The standardized stash name `cdd-<op>-<type>-<task>-r<round>-<cause>` (src/artifacts/residue.ts single source) — the legacy stash-list scan matches on it for pre-schema carriers." },
         "residue_scope": { "type": "string", "description": "WIP scope summary (`git diff HEAD --shortstat`) — data-driven input for the resume brief appendix." },
-        "round":       { "type": "integer", "minimum": 1, "description": "the salvaged round number." }
+        "round":       { "type": "integer", "minimum": 1, "description": "the salvaged round number (implement rounds are always round 1)." },
+        "scope_base": { "type": "string", "pattern": "^[0-9a-f]{40}$", "description": "The round-level scope anchor at salvage time (ledger value priority / fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE (resume-declared) adoption and the recovered scope stay consistent across round death." }
       },
       "additionalProperties": false,
       "description": "Residue recovery carrier — engine-written on EXECUTION_FAILURE/TIMEOUT failure rounds: cause + exit_code ride every death (the archived, replayable diagnosis); residue_ref / wip_stat / preserved appear once the settlement step stashed the dirty-tree WIP. Absent on all other rounds. Same law as every structured field: the facts live here, the blocker stays human-readable prose."

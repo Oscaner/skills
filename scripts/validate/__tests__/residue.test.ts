@@ -794,6 +794,17 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
     expect(proc).toMatch(/export function latestFileMtimeMs/);   // 探针仍在地 → 白名单不放空
     expect(proc).toMatch(/mtimeAdvanced/);
   });
+  it("T3 白名单：documents.ts 四表审计目录枚举零残留命中 + glob 语汇仍在（白名单不空置）", () => {
+    // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
+    // program doc dirs (bounded explicit-path listings — the naming.ts whitelist's doctrine).
+    // The whitelist entry must stay load-bearing — the readdirSync atoms remain in the file.
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const docsAbs = path.join(here, "..", "..", "..", "packages", "cdd-engine", "src", "rules", "documents.ts");
+    expect(collectResidualRereadHits(["packages/cdd-engine/src/rules/documents.ts"])).toEqual([]);
+    const docs = readFileSync(docsAbs, "utf8");
+    expect(docs).toMatch(/mdNames\(dir: string\)/);      // the dir-listing atom stays → whitelist not vacated
+    expect(docs).toMatch(/function anchorScanFiles/);
+  });
 });
 
 describe("channel audit：⑫ counters 行契约（canonical 派生 + 零手写 + 不进 handoff 契约）", () => {

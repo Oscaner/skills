@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oscaner.dev/schemas/cdd/overall.json",
+  "title": "Overall program spec (charter) document structure",
+  "description": "Canonical structure of an osuperpowers overall (program charter) document — charter only, zero implementation detail. The overall is the program's single source of truth: every mid-phase change returns here (backfill-as-version) before implementation continues. The four enforcement tables — Issue inventory, Phase inventory, Dependency graph, Change history — are the engine-side audit vocabulary (doc word = code word = engine token): rename a heading and you rename the validator with it. This schema is the single structure fact for the overall doc type: authoring agents read the properties below + their descriptions to draft conforming documents, docContractValidate consumes the same patterns (the enforcement position is the engine lifecycle, not a repo-local script). Section-numbered facets below are written under their literal `## ` heading (validator-keyed); the `Section N` numbers in the retired template were frame indices only.",
+  "type": "object",
+  "properties": {
+    "header": {
+      "type": "object",
+      "description": "Artifact header block — metadata at the top of the artifact, a bullet block, not a `##` section.",
+      "properties": {
+        "version": {
+          "type": "object",
+          "description": "Current program version line (`- **Version**: vX.Y · YYYY-MM-DD`).",
+          "properties": {
+            "marker": {
+              "type": "string",
+              "const": "**Version**",
+              "description": "The canonical `**Version**` marker — the engine derives its version-line assertion token (VERSION_HEADER_RE family, tokens.ts) from this const plus the line pattern."
+            },
+            "line": {
+              "type": "string",
+              "pattern": "^\\s*-?\\s*\\*\\*Version\\*\\*:\\s*v\\d+\\.\\d+",
+              "description": "Version line shape; the `v\\d+\\.\\d+` token is the current version in the lineage (the file itself is the lineage source of truth — frozen docs legitimately pin the version in force at authoring time, fabricated / future tokens fail)."
+            }
+          }
+        },
+        "status": {
+          "type": "object",
+          "description": "Status line — `- **Status**: Draft | Approved | In progress | Complete`.",
+          "properties": {
+            "states": {
+              "type": "array",
+              "enum": ["Draft", "Approved", "In progress", "Complete"],
+              "description": "The overall status vocabulary."
+            }
+          }
+        },
+        "author": {
+          "type": "object",
+          "description": "Author line — `- **Author**: [human] · [harness + model at writing time]`.",
+          "properties": {
+            "form": {
+              "type": "string",
+              "description": "Author is a free-text contributor line; pronouns and names carry no structural rule."
+            }
+          }
+        },
+        "constraints": {
+          "type": "object",
+          "description": "Constraints block — `- **Constraints**:` with project-level constraints, one per line; a strategy shift / lock-in decision is recorded here before implementation proceeds.",
+          "properties": {
+            "marker": {
+              "type": "string",
+              "const": "**Constraints**:",
+              "description": "The literal constraint-block opening marker."
+            }
+          }
+        }
+      }
+    },
+    "sectionHeadings": {
+      "type": "object",
+      "description": "The four enforcement table headings — the literal validator-keyed vocabularies of the four-table audit (the '四表' of the closeout discipline).",
+      "properties": {
+        "issueInventory": {
+          "type": "string",
+          "const": "## Issue inventory",
+          "description": "Literal heading `## Issue inventory` (validator-keyed — the guard counts rows under this literal heading). Canonical even where an older artifact says `Requirement inventory`; do not copy the drift into new artifacts."
+        },
+        "phaseInventory": {
+          "type": "string",
+          "const": "## Phase inventory",
+          "description": "Literal heading `## Phase inventory` — carries the canonical-form marker (`Implementation plan` column)."
+        },
+        "dependencyGraph": {
+          "type": "string",
+          "pattern": "^## Dependency graph( \\(ASCII\\))?$",
+          "description": "Literal heading `## Dependency graph`; a `(ASCII)` suffix is tolerated by the guard."
+        },
+        "changeHistory": {
+          "type": "string",
+          "const": "## Change history",
+          "description": "Literal heading `## Change history` (validator-keyed — versions strictly ascending `v<major>.<minor>`, no duplicates)."
+        }
+      }
+    },
+    "issueInventory": {
+      "type": "object",
+      "description": "Section 4 — Issue inventory: every known issue / discovered requirement mapped to the phase that resolves it. Anchored forms (`#NNN#issuecomment-<digits>`) are machine-checkable; bare `#NNN` is ambiguous (AC numbers / PR numbers share `#`) and judged by hand. The table is the registration domain for anchors — an anchor referenced anywhere in the program must be registered here.",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Issue inventory header (columns).",
+          "properties": {
+            "columns": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["Phase", "Issue (ref)", "Title summary"], "description": "One Issue-inventory column name." },
+              "description": "Three content columns — `Phase | Issue (ref) | Title summary`."
+            }
+          }
+        },
+        "row": {
+          "type": "object",
+          "description": "Issue inventory row shape: `| P<n> | <issue ref> | one-line summary |`.",
+          "properties": {
+            "phaseId": {
+              "type": "string",
+              "pattern": "^P\\d+(?![0-9])[a-z]?$",
+              "description": "Phase id token — `P` + digits (split ids `P1a`/`P1b` allowed); the digit boundary keeps a future P10 from prefix-matching P1."
+            },
+            "issueRef": {
+              "type": "string",
+              "description": "Issue reference: anchored form `#NNN#issuecomment-<digits>` (canonical, machine-checkable) or the literal `none (dogfood session YYYY-MM-DD discovery)` for a none row."
+            },
+            "titleSummary": {
+              "type": "string",
+              "description": "One-line title summary — a single cell, no newline."
+            },
+            "anchorForm": {
+              "type": "string",
+              "pattern": "^#\\d+#issuecomment-\\d+$",
+              "description": "Anchored issue-reference syntax — the canonical machine-checkable form the registration domain counts."
+            }
+          }
+        }
+      }
+    },
+    "phaseInventory": {
+      "type": "object",
+      "description": "Section 5 — Phase inventory: the canonical 7-column table the four-table audit keys on — every phase row, its scope, its doc links, its acceptance condition and its dependency edge.",
+      "properties": {
+        "columnNames": {
+          "type": "object",
+          "description": "The canonical 7-column header (7 column names, in this order).",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "const": 7,
+              "description": "Number of content columns — # Phase Scope Design spec Implementation plan Acceptance criteria Dependency."
+            },
+            "header": {
+              "type": "string",
+              "const": "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+              "description": "The canonical 7-column header row (markdown draft form)."
+            },
+            "headerOpen": {
+              "type": "string",
+              "pattern": "^\\|\\s*#\\s*\\|\\s*Phase\\s*\\|",
+              "description": "Header open token — `| # | Phase |` — the kernel the engine keys the Phase-inventory section on."
+            },
+            "canonicalColumnToken": {
+              "type": "string",
+              "const": "Implementation plan",
+              "description": "Canonical-form marker column — the engine's 'canonical file' test is the presence of this column name."
+            }
+          }
+        },
+        "rowShape": {
+          "type": "object",
+          "description": "Phase-inventory row shape (the row-shape guard — every `| P… |` row must carry the file-norm cell count; a merged/split cell shifts design/plan/dependency by a column and only detonates at closeout).",
+          "properties": {
+            "idFormat": {
+              "type": "string",
+              "pattern": "^P\\d+(?![0-9])[a-z]?$",
+              "description": "Phase id token — `P` + digits (split ids allow a trailing letter), the identifier the dependency graph and the change-history claims reference."
+            },
+            "cellCount": {
+              "type": "integer",
+              "const": 8,
+              "description": "Split-cell count for one phase row — the 7 content columns plus the leading/trailing empties of the `|`-delineated row."
+            },
+            "rowOpen": {
+              "type": "string",
+              "pattern": "^\\|\\s*P",
+              "description": "A Phase-inventory row opens with the leading pipe followed by the phase id."
+            }
+          }
+        },
+        "cells": {
+          "type": "object",
+          "description": "Per-column cell semantics (Scope / Design spec / Implementation plan / Acceptance criteria / Dependency).",
+          "properties": {
+            "pending": {
+              "type": "string",
+              "enum": ["Pending", "[Pending]"],
+              "description": "Unstarted placeholder value — `[Pending]` cell in the doc, `Pending`/`[Pending]` in backfill claims."
+            },
+            "linkCell": {
+              "type": "string",
+              "pattern": "^\\[.*\\]\\([^)]*\\)$",
+              "description": "A completed column carries a markdown link to the phase document (e.g. `[p1-design v1.1](2026-09-21-consumer-parity-p1-design.md)`)."
+            },
+            "done": {
+              "type": "string",
+              "const": "Done",
+              "description": "Shipped completion marker for the plan cell — the backfill-claim ↔ column bidirectional check keys on it (`Pending` -> link; on ship, completion marker on the plan cell only)."
+            },
+            "dependency": {
+              "type": "string",
+              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->|^P\\d+(?![0-9])[a-z]?\\s*->\\s*\\(?\\s*soft\\s*\\)?",
+              "description": "Dependency cell cites the graph node with a hard (`->`) or soft (`-> (soft)`) edge — the token the dependency-graph membership audit reads."
+            }
+          }
+        }
+      }
+    },
+    "dependencyGraph": {
+      "type": "object",
+      "description": "Section 6 — Dependency graph (ASCII): the phase dependency edges. Every `P<n>` token here must exist in the Phase inventory (membership audit) — add / split / reorder syncs the four tables together.",
+      "properties": {
+        "hardEdge": {
+          "type": "string",
+          "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*P\\d+(?![0-9])[a-z]?",
+          "description": "Hard-block edge: `P1 -> P2` — the dependent must not start until the predecessor ships."
+        },
+        "softEdge": {
+          "type": "string",
+          "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*\\(?\\s*soft\\s*\\)?\\s*P\\d+(?![0-9])[a-z]?",
+          "description": "Soft-suggestion edge: `P1 -> (soft) P5` — non-blocking ordering convenience."
+        },
+        "legendHard": {
+          "type": "string",
+          "const": "-> = hard block",
+          "description": "Legend line defining the hard edge."
+        },
+        "legendSoft": {
+          "type": "string",
+          "const": "-> (soft) = suggestion only",
+          "description": "Legend line defining the soft edge."
+        }
+      }
+    },
+    "changeHistory": {
+      "type": "object",
+      "description": "Section 9 — Change history: append-only backfill record (version bump + date + summary + author per row). Every backfill claim lives here as a clause; the file itself is the version-lineage source.",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Change-history header.",
+          "properties": {
+            "columns": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["v<major>.<minor>", "date", "summary", "author"], "description": "One Change-history column name." },
+              "description": "Four content columns — version / date / summary / author; the version token is `v<major>.<minor>`."
+            }
+          }
+        },
+        "row": {
+          "type": "object",
+          "description": "Change-history row shape.",
+          "properties": {
+            "versionCell": {
+              "type": "string",
+              "pattern": "^\\s*\\|\\s*v\\d+\\.\\d+\\s*\\|",
+              "description": "Version cell token — `| v<major>.<minor> |` as the row's first content cell (the lineage cell the version tokens are checked against)."
+            },
+            "versionToken": {
+              "type": "string",
+              "pattern": "^v\\d+\\.\\d+$",
+              "description": "Version token shape — `v<major>.<minor>`, strictly ascending and unique across the table (duplicates / out-of-order fail), date cell non-empty."
+            },
+            "date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Date cell — ISO `YYYY-MM-DD`, must be non-empty."
+            }
+          }
+        },
+        "backfillClause": {
+          "type": "object",
+          "description": "A change-history summary row may carry a backfill claim — a sentence whose keywords (`plan`/`计划`, `Design spec`) select which phase columns the `Pending -> <target>` clause backfills (the bidirectional backfill declaration ↔ column audit).",
+          "properties": {
+            "clauseSeparator": {
+              "type": "string",
+              "const": "；",
+              "description": "Claim-clause boundary — `；`/`;` split a change-history sentence into clauses; a claim only attaches the phases of its own clause."
+            }
+          }
+        }
+      }
+    },
+    "claimPatterns": {
+      "type": "object",
+      "description": "The CLAIM_RE family — the canonical claim pattern + the plan/design link words that select which columns a change-history claim backfills.",
+      "properties": {
+        "claimClause": {
+          "type": "object",
+          "description": "Claim clause — `Pending`/`[Pending]` optionally followed by an arrow to a target token.",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "CLAIM_RE — the canonical single source: `(Pending|[Pending])` + optional `→`/`->` + a target that stops at whitespace / CJK punctuation / brackets so `→ **Done**（PR …` or `→ P4-design v1.0）` do not over-capture. Unanchored search (pattern-keyword semantics): the stop-set bounds the target token and trailing clause content (e.g. `（PR #1）`) is left unconsumed — the anchors must not be reintroduced.",
+              "pattern": "(?:Pending|\\[Pending\\])\\s*(?:→|->)\\s*[^\\s；;，,、（）()【】\\[\\]】。.—…]+"
+            },
+            "target": {
+              "type": "string",
+              "description": "Claim target — a `Done`-style completion token, or a `P<n>-design` token (a design-token target makes the clause a design claim), with trailing closing brackets stripped."
+            }
+          }
+        },
+        "planLinkWord": {
+          "type": "string",
+          "pattern": "^(?:plan|计划)$",
+          "description": "Plan link word — a clause mentioning `plan`/`计划` carries a plan backfill claim (forward: claim ⇒ plan column non-Pending; reverse: shipped plan column ⇒ a matching claim exists)."
+        },
+        "designLinkWord": {
+          "type": "string",
+          "pattern": "^Design\\s?-?\\s?spec$",
+          "description": "Design link word — a clause mentioning `Design spec` carries a design backfill claim (target must be a `P<n>-design` token)."
+        },
+        "designToken": {
+          "type": "string",
+          "pattern": "^P\\d+(?![0-9])[a-z]?-design$",
+          "description": "Design-spec token — the canonical `P<n>-design` token a Design spec column carries as its own completion marker and a design claim's target; split-phase ids allow a trailing letter (`P1a-design`)."
+        },
+        "phaseReference": {
+          "type": "object",
+          "description": "Phase references inside a claim clause — single or ranged (endpoints included).",
+          "properties": {
+            "single": {
+              "type": "string",
+              "pattern": "^P\\d+(?![0-9])[a-z]?$",
+              "description": "Single phase reference `P1` / `P2a`."
+            },
+            "range": {
+              "type": "string",
+              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*[-–—]\\s*P\\d+(?![0-9])[a-z]?$",
+              "description": "Ranged reference `P1–P4` / `P1-P4` / `P1—P4` — expanded to all phases including the endpoints."
+            }
+          }
+        }
+      }
+    },
+    "programCharter": {
+      "type": "object",
+      "description": "Section 3 — Program charter: goal (1–3 sentences), non-goals, cross-cutting constraints; acceptance criteria / API shapes / tasks excluded (charter only). Claims shrink, they do not inflate — what the program cannot prove it will not claim."
+    },
+    "documentScope": {
+      "type": "object",
+      "description": "Section 1 — Document scope: charter discipline — overall approval is not equivalent to any phase started (GATE); deviations update here first (backfill-as-version), then sync to overall."
+    },
+    "filePaths": {
+      "type": "object",
+      "description": "Section 2 — File paths table: one program date + feature slug under `docs/osuperpowers/` — overall `specs/YYYY-MM-DD-<feature>-overall.md`, phase spec `specs/YYYY-MM-DD-<feature>-<phase-id>-design.md`, phase plan `plans/YYYY-MM-DD-<feature>-<phase-id>.md` (lowercase phase ids)."
+    },
+    "boundaryRules": {
+      "type": "object",
+      "description": "Section 7 — Boundary rules: each phase full brainstorm → plan → dev, shipped before dependents start; requirement changes discovered during a phase MUST feed back to this overall before implementation proceeds (version bump + change-history entry + sync affected phase acceptance/dependency)."
+    },
+    "maintenance": {
+      "type": "object",
+      "description": "Section 8 — Maintenance: four tables backfilled per phase; charter only, no task lists — the phase spec carries the detail; strategy shifts / splits feed back immediately."
+    }
+  }
+}

@@ -15,7 +15,7 @@ import path from "node:path";
 import { DocsLifecycle, runDocsTask } from "../docs.ts";
 import { DispatchBlocked, type DispatchContext } from "../base.ts";
 import { ExitRequested } from "../../infra/exit.ts";
-import { captureStderr } from "../../infra/__tests__/helpers.ts";
+import { captureStderr, captureStdout } from "../../infra/__tests__/helpers.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
@@ -38,7 +38,7 @@ vi.mock("../../infra/registry.ts", async () => {
   };
 });
 vi.mock("../../render/templates.ts", () => ({
-  renderTemplate: () => "mocked docs prompt body",
+  renderTemplate: vi.fn(() => "mocked docs prompt body"),
   reviewHardGate: (ret: string) => `--hard-gate ${ret}`,
   docsFixHardGate: (hp: string) => `--hard-gate write ${hp}`,
 }));
@@ -118,7 +118,7 @@ it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（C
 it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOCKED + exitCode 1", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
-  writeFileSync(doc, "# spec\n");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-1.json");
@@ -149,7 +149,7 @@ it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOC
 it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent rc）", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
-  writeFileSync(doc, "# spec\n");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
@@ -179,7 +179,7 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
 it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCode = agent rc（失败不被定稿结论掩盖）", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
-  writeFileSync(doc, "# spec\n");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
@@ -201,4 +201,97 @@ it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCod
   expect(result.exitCode).toBe(1);
   // 载体本身不受影响：定稿结论仍按 handoff 内容（引擎单点 statusExitCode 语义）。
   expect(result.handoff?.status).toBe("APPROVED");
+});
+
+it("T5 ③: docs dispatch injects DOCS_FIXED_POINT = dispatch entry base (git HEAD at dispatch time, lands in the renderTemplate params)", async () => {
+  const repo = setupRepo();
+  const doc = path.join(repo, "spec.md");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
+  const entryHead = git(repo, "rev-parse", "HEAD");
+  const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
+  const { execa } = await import("execa");
+  const { renderTemplate } = await import("../../render/templates.ts");
+  vi.mocked(execa).mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
+  const result = await runDocsTask({
+    harness: "ghost", mode: "review", template: "review", type: "spec", doc,
+    handoffPath, repoRoot: repo, dryRun: false,
+  });
+  // review face (docs single dispatch point) passes the entry base into the round-context slot
+  const params = renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+  expect(params.DOCS_FIXED_POINT).toBe(entryHead);
+  // non-git / unborn HEAD → empty (mode-union prefill)
+  await runDocsTask({
+    harness: "ghost", mode: "review", template: "review", type: "spec", doc: path.join(repo, "missing.md"),
+    handoffPath: path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"),
+    repoRoot: path.join(repo, "no-such-dir"), dryRun: false,
+  });
+  expect((renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown>).DOCS_FIXED_POINT).toBe("");
+  expect(result.exitCode).toBeGreaterThanOrEqual(0); // assertion surface is the render params, not the round conclusion
+});
+
+// Same-contract rounds behavioral determinism (T5 ⑤/AC6): docs fix one commit vs one uncommitted —
+// the two rounds share the exit-gate contract and must behave consistently (commit → APPROVED
+// exit 0; uncommitted → BLOCKED exit 1 + the diagnosis visible on stdout).
+it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncommitted → BLOCKED + stdout diagnosis", async () => {
+  const repo = setupRepo();
+  const doc = path.join(repo, "spec.md");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
+  git(repo, "add", "-A");
+  git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
+  const { execa } = await import("execa");
+
+  // Round A — docs fix agent commits the change → clean tree + commits.head == HEAD → APPROVED exit 0
+  const handoffA = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-1.json");
+  vi.mocked(execa).mockImplementation(async () => {
+    const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
+    mkdirSync(path.dirname(handoffA), { recursive: true });
+    wfs(doc, "- **Version**: v1.1 · 2026-09-22\n");
+    git(repo, "add", "-A");
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "docs fix");
+    const head = git(repo, "rev-parse", "HEAD");
+    const base = git(repo, "rev-parse", "HEAD~1");
+    wfs(handoffA, JSON.stringify({
+      phase: "fix", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc,
+      commits: { base, head },
+      changes: [{ file: "spec.md", reason: "T5 determinism round A" }],
+    }));
+    return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
+  });
+  const resultA = await runDocsTask({
+    harness: "ghost", mode: "fix", template: "docs", type: "spec", doc,
+    handoffPath: handoffA, repoRoot: repo, dryRun: false,
+  });
+  expect(resultA.exitCode).toBe(0);
+  expect(JSON.parse(readFileSync(handoffA, "utf8")).status).toBe("APPROVED");
+
+  // Round B — same-contract docs fix agent leaves the change uncommitted → exit gate dirty → BLOCKED + stdout-visible diagnosis
+  const handoffB = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-2.json");
+  const entryHead = git(repo, "rev-parse", "HEAD");
+  vi.mocked(execa).mockImplementation(async () => {
+    const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
+    mkdirSync(path.dirname(handoffB), { recursive: true });
+    wfs(doc, "- **Version**: v1.3 · 2026-09-22\n"); // change left uncommitted
+    wfs(handoffB, JSON.stringify({
+      phase: "fix", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc,
+      commits: { base: entryHead, head: entryHead },
+    }));
+    return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
+  });
+  const cap = captureStdout();
+  let resultB;
+  try {
+    resultB = await runDocsTask({
+      harness: "ghost", mode: "fix", template: "docs", type: "spec", doc,
+      handoffPath: handoffB, repoRoot: repo, dryRun: false,
+    });
+  } finally {
+    cap.restore();
+  }
+  expect(resultB.exitCode).toBe(1);
+  expect(JSON.parse(readFileSync(handoffB, "utf8")).status).toBe("BLOCKED");
+  // stdout-visible diagnosis: uncommitted changes at return — commit before returning
+  expect(cap.text).toMatch(/CDD_BLOCKED: uncommitted changes at return/);
+  expect(cap.text).toContain("commit before returning");
 });

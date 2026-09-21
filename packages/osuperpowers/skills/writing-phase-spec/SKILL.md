@@ -1,6 +1,6 @@
 ---
 name: writing-phase-spec
-description: Independent phase-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, reads the phase-spec template, syncs scope changes to the parent overall before writing, runs the cdd spec review-fix loop, commits on approval, and hands off to writing-plans. Callable standalone.
+description: Independent phase-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, reads the canonical phase-spec schema, syncs scope changes to the parent overall before writing, runs the cdd spec review-fix loop, commits on approval, and hands off to writing-plans. Callable standalone.
 ---
 
 # Osuperpowers Phase-Spec Writing
@@ -11,7 +11,7 @@ Writes a single phase's spec document (increment only) from the writing-spec imp
 
 ```mermaid
 flowchart TD
-  A[run-writing-spec-session] -->|landed| B[read-template]
+  A[run-writing-spec-session] -->|landed| B[read-schema]
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> B2{scope changed?}
   B2 -->|yes| G[sync-overall]
@@ -30,8 +30,8 @@ flowchart TD
 
 | skeleton node | writing-phase-spec |
 |---|---|
-| read-template | `docs/phase-spec-template.md` |
-| scope changed? | present — first decision node, positioned between `read-template` and `author-spec` |
+| read-schema | run `cdd help` → read the canonical `phase-spec.json` doc-structure schema (the schema is the single structure fact; the retired md template is gone) |
+| scope changed? | present — first decision node, positioned between `read-schema` and `author-spec` |
 | sync-overall | present — only when phase scope changed: `B2 --yes--> G --> C` (sync to the parent overall first, then write the phase spec — overall v1.4 ordering) |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
 | handoff-spec | `handoff-writing-plans` — prepare the handoff to `/osuperpowers:writing-plans` (plan authoring) |
@@ -42,15 +42,15 @@ flowchart TD
 
 - **Do**: Import `/superpowers:brainstorming` (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including grilling output: root cause / fix direction / technical decisions) this phase spec will capture. The grilling that produced them ran enumerate-then-grill: the requirements registered for this phase in the parent overall were enumerated item by item (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and user-confirmed complete before the grilling frontier
 - **Read**: nothing before the import; the import lands the design
-- **Exit**: Import landed → `read-template`; upstream missing → BLOCKED (install superpowers)
+- **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
 
-### `read-template`
+### `read-schema`
 
-- **Do**: Read this skill's `docs/phase-spec-template.md` — the single-phase spec structure (increment only; the template carries the GATE: a phase spec is produced by a full brainstorm → plan → dev cycle)
-- **Read**: `docs/phase-spec-template.md`
-- **Exit**: Template loaded → `scope changed?`; missing → BLOCKED
-- **Fail**: Template missing/unreadable → BLOCKED (missing template)
+- **Do**: Run `cdd help` to locate the canonical doc-structure schema directory (the consumer/install surface, never a hardcoded repo path) → read the canonical `phase-spec.json` schema for the phase-spec document type — the single structure fact its `properties` + `description` carry (increment only; the schema carries the GATE: a phase spec is produced by a full brainstorm → plan → dev cycle)
+- **Read**: run `cdd help` → `schemas:` directory → `phase-spec.json` (the canonical phase-spec schema)
+- **Exit**: Schema read → `scope changed?`; `cdd help` unavailable or schema missing → BLOCKED
+- **Fail**: Schema missing/unreadable → BLOCKED (missing schema — cannot determine phase spec structure)
 
 ### `scope changed?`
 
@@ -68,10 +68,10 @@ flowchart TD
 
 ### `author-spec`
 
-- **Do**: Write the phase spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-<phase-id>-design.md` from the session output — increment only (this phase's approaches / architecture / components / data flow / errors / testing / acceptance criteria); cross-phase conventions live in the parent overall (overall wins on conflict)
-- **Read**: Session output + `docs/phase-spec-template.md`
+- **Do**: Write the phase spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-<phase-id>-design.md` from the session output — increment only (this phase's approaches / architecture / components / data flow / errors / testing / acceptance criteria); cross-phase conventions live in the parent overall (overall wins on conflict). The section skeleton and the `### Acceptance criteria` subsection follow the canonical `phase-spec.json` schema (`cdd help` — the same single structure fact `docContractValidate` asserts at dispatch)
+- **Read**: Session output + the canonical phase-spec schema (via `cdd help`)
 - **Exit**: File written → `spec-review`
-- **Fail**: Template missing → BLOCKED (missing template)
+- **Fail**: Schema missing → BLOCKED (missing schema)
 
 ### `spec-review`
 
@@ -114,7 +114,7 @@ flowchart TD
 | failure | behavior | reason |
 |---|---|---|
 | Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
-| Template missing/unreadable | BLOCKED (missing template) | Cannot determine phase spec structure |
+| Schema missing/unreadable | BLOCKED (missing schema) | Cannot determine phase spec structure |
 | Parent overall unparseable / sync inconsistent | BLOCKED (overall-sync-failed) | Refuse to write a phase spec against a stale overall |
 | spec-review re-run after blocker=0 | Violates I1 (Review Convergence) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd review on that pass |
 | Git commit error | report + fail-open | Do not block user spec review |

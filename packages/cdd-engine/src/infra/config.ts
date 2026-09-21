@@ -6,6 +6,9 @@
 // are deleted (config.test asserts zero residue); deleting a canonical file surfaces any
 // unmigrated reference (mechanical constraint, not review formality).
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { resolvePackageRoot } from "./resource.ts";
 
 export interface EngineConfig {
   contextContract: Record<string, any>;
@@ -18,8 +21,13 @@ export interface EngineConfig {
 
 // Module-load-time single read (same semantics as the load-time reads in context.ts /
 // failure.ts / naming.ts) — section accessors share one object reference; no second read point.
+// Resolve the package root by marker walk instead of a hardcoded '..' hop: real builds bundle
+// everything into dist/cli.mjs where `../../templates/…` from the bundle lands one level too high
+// (packages/templates/… — pre-existing consumer-install break, fixed by P2 T1 ④). The walk resolves
+// <pkg>/templates/engine-config.json in both file states (dev stub src tree and the consumer bundle).
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG = JSON.parse(
-  readFileSync(new URL("../../templates/engine-config.json", import.meta.url), "utf8"),
+  readFileSync(path.join(resolvePackageRoot(__dirname), "templates", "engine-config.json"), "utf8"),
 ) as EngineConfig;
 
 export function loadEngineConfig(): EngineConfig {

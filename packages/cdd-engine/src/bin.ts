@@ -28,6 +28,7 @@ import path from "node:path";
 import { parseArgs, renderUsage, runCommand } from "citty";
 import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
 import { mainCommand, MAIN_ARGS, usageError, commandUsageKey, deepestCommand } from "./cli/parse.ts";
+import { runHelp } from "./cli/help.ts";
 import { setDryRun } from "./cli/shared.ts";
 import { initRoot } from "./infra/root.ts";
 import { ExitRequested, CddExitError } from "./infra/exit.ts";
@@ -62,6 +63,20 @@ async function main() {
     const [cmd, parent] = await deepestCommand(rawArgs);
     const rendered = await renderUsage(cmd, parent);
     process.stdout.write(plain(rendered) + "\n");
+    process.exit(0);
+  }
+
+  // `cdd help` — P2 discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
+  // subcommand, zero enforcement logic — no audit, no exit-semantics change). Intercepted BEFORE the
+  // root bootstrap like the `--help` pre-screen: pure resource discovery works outside git repos and
+  // writes no lifecycle state (initRoot's repo gate / initProcLifecycle's lifecycle.json persist both
+  // stay out of its path). RunHelp prints the CLI directory + the required doc-resource directories
+  // (canonical schemas / templates), each verified to exist at render time. The declared citty help
+  // command (parse.ts) is the surface fallback for --help/usage rendering; this intercept is what
+  // runs in production.
+  const firstCommand = rawArgs.find((a) => !a.startsWith("-"));
+  if (firstCommand === "help") {
+    runHelp();
     process.exit(0);
   }
 

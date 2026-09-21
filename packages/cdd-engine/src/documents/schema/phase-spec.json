@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oscaner.dev/schemas/cdd/phase-spec.json",
+  "title": "Phase design spec document structure",
+  "description": "Canonical structure of an osuperpowers phase design spec — one phase's increment of a program; the program-level charter lives in the parent overall (whole-program conventions win on conflict). This schema is the single structure fact for the phase-spec doc type: the artifact header block, the fixed Section 0–5 skeleton (skeleton isomorphism — do not insert sections mid-sequence, each number is one semantic), the unique `### Acceptance criteria` subsection inside Section 2, and the deviations table whose `Overall updated?` column must be `Yes` before review. Authoring agents read the properties + descriptions to draft conforming specs; docContractValidate consumes the same patterns (`**Version**` strictly required, Class-B parent-program lineage).",
+  "type": "object",
+  "properties": {
+    "header": {
+      "type": "object",
+      "description": "Artifact header block — metadata at the top of the artifact, a bullet block, not a `##` section. The `**Version**` line is STRICTLY required here (the phase-spec Version check); every remaining field is part of the block.",
+      "properties": {
+        "version": {
+          "type": "object",
+          "description": "`**Version**` — strictly required line; `- **Version**: vX.Y · YYYY-MM-DD`.",
+          "properties": {
+            "line": {
+              "type": "string",
+              "pattern": "^\\s*-?\\s*\\*\\*Version\\*\\*:\\s*v\\d+\\.\\d+",
+              "description": "The strictly-required version line; the `v\\d+\\.\\d+` token follows the version-lineage rule (must reference a version the parent overall actually carries when the spec pins one)."
+            }
+          }
+        },
+        "status": {
+          "type": "object",
+          "description": "`**Status**` — the phase-spec status vocabulary.",
+          "properties": {
+            "states": {
+              "type": "array",
+              "enum": ["Draft", "Approved", "Plan pending", "Shipped"],
+              "description": "Phase-spec status states — Draft / Approved / Plan pending / Shipped."
+            }
+          }
+        },
+        "author": {
+          "type": "object",
+          "description": "`**Author**` — contributor line (`[human] · [harness + model]`); free text, no structural rule."
+        },
+        "parentProgram": {
+          "type": "object",
+          "description": "`**Parent program**` — link + version to the parent overall; Class-B lineage check resolves it to an existing `*-overall.md` and requires every `vX.Y` token on the line to be in the parent's lineage (current `**Version:**` ∪ change-history cells).",
+          "properties": {
+            "linkForm": {
+              "type": "string",
+              "pattern": "^-?(\\s*)\\*\\*Parent program\\*\\*:?\\s+\\[[^\\]]+\\]\\([^)]+\\)",
+              "description": "`- **Parent program**: [<name>-overall.md vX.Y](<path>)` — markdown link to the parent overall doc (`*-overall.md`)."
+            }
+          }
+        },
+        "dependsOn": {
+          "type": "object",
+          "description": "`**Depends on**` — upstream phases + tags (e.g. `P1（shipped · [p1-design v1.1](…)）`; informational."
+        }
+      }
+    },
+    "sections": {
+      "type": "object",
+      "description": "The fixed Section 0–5 skeleton — Section 0–5 artifact body, each number one semantic, fixed order (skeleton isomorphism — no mid-sequence insertion; the 'Section N' labels belong to the family skeleton, each artifact section is authored under its literal `## Section N: <name>` heading).",
+      "properties": {
+        "section0": {
+          "type": "object",
+          "description": "Section 0 — Incremental warning: the spec commits to exactly one phase; splitting / reordering a phase's work is not a local edit — phase-inventory rows, dependency edges and a change-history row land in the parent overall first (backfill-as-version).",
+          "properties": {
+            "heading": { "type": "string", "pattern": "^## Section 0: Incremental warning$", "description": "Literal heading `## Section 0: Incremental warning`." }
+          }
+        },
+        "section1": {
+          "type": "object",
+          "description": "Section 1 — Constraints pointer: does not repeat overall conventions; cross-phase rules belong in the overall (overall wins on conflict).",
+          "properties": {
+            "heading": { "type": "string", "pattern": "^## Section 1: Constraints pointer$", "description": "Literal heading `## Section 1: Constraints pointer`." }
+          }
+        },
+        "section2": {
+          "type": "object",
+          "description": "Section 2 — Design body: this phase's increment (approaches, architecture, components, data flow, errors, testing) AND the `### Acceptance criteria` subsection (see acceptanceCriteria).",
+          "properties": {
+            "heading": { "type": "string", "pattern": "^## Section 2: Design body$", "description": "Literal heading `## Section 2: Design body`." }
+          }
+        },
+        "section3": {
+          "type": "object",
+          "description": "Section 3 — Deviations from overall: the deviations table (`Overall assumption | Phase decision | Overall updated?`); required when the phase diverges on a cross-phase matter.",
+          "properties": {
+            "heading": { "type": "string", "pattern": "^## Section 3: Deviations from overall$", "description": "Literal heading `## Section 3: Deviations from overall`." },
+            "columns": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["Overall assumption", "Phase decision", "Overall updated?"], "description": "One deviation-table column name." },
+              "description": "Three deviation-table columns; `Overall updated?` must be `Yes` (with version + date, e.g. `Yes — vX.Y · YYYY-MM-DD`) before review — a divergence not fed back to the overall is a backfill violation."
+            }
+          }
+        },
+        "section4": {
+          "type": "object",
+          "description": "Section 4 — Notes for downstream: later-phase scope shifts; a 'later phases will handle this' note that stays here alone is a dead end — downstream writers read the overall, record the shift in the overall's issue / phase / dependency tables and history, keep the note as a pointer.",
+          "properties": {
+            "heading": { "type": "string", "pattern": "^## Section 4: Notes for downstream$", "description": "Literal heading `## Section 4: Notes for downstream`." }
+          }
+        },
+        "section5": {
+          "type": "object",
+          "description": "Section 5 — Review: fresh-subagent review passes before user review and writing-plans — baseline = committed tree, Review Convergence (blocker > 0 → fix all findings → re-review; blocker = 0 → fix all findings → done, no re-review).",
+          "properties": {
+            "heading": { "type": "string", "pattern": "^## Section 5: Review$", "description": "Literal heading `## Section 5: Review`." }
+          }
+        }
+      }
+    },
+    "acceptanceCriteria": {
+      "type": "object",
+      "description": "`### Acceptance criteria` — the ONLY subsection, and it lives inside Section 2 (Design body): verifiable completion conditions, each independently testable. An acceptance criterion is a claim: a claim that cannot be mechanically verified on the shipped tree is a paper claim.",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "const": "### Acceptance criteria",
+          "description": "Literal subsection heading `### Acceptance criteria` — unique: no other subsection exists anywhere in the doc."
+        },
+        "location": {
+          "type": "object",
+          "description": "Location rule — the subsection sits inside Section 2 (Design body).",
+          "properties": {
+            "parent": {
+              "type": "string",
+              "const": "Section 2 (Design body)",
+              "description": "`### Acceptance criteria` is nested directly under `## Section 2: Design body`."
+            }
+          }
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^- `",
+          "description": "Acceptance entries — `- ` code-span-prefixed bullets, each an independently testable condition (e.g. `- artifact X exists at path Y with property Z`)."
+        }
+      }
+    },
+    "language": {
+      "type": "object",
+      "description": "Repo authoring policy applies to the spec prose — specs at docs/osuperpowers/specs/ are internal program docs in the working language (Strategy B), value tokens (phase ids / tags / SHAs / paths) stay locale-neutral."
+    }
+  }
+}

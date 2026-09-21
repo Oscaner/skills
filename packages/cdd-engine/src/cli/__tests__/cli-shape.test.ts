@@ -111,15 +111,17 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
   });
 });
 
-// The command surface converges on four (implement / review / fix / base-branch) (P3).
+// The command surface converges on the canonical set (implement / review / fix / base-branch) plus
+// the P2 carve-out `help` (overall v1.10 Non-goal#1 — `cdd help` is the engine's ONE legitimate new
+// subcommand, discovery-only, zero enforcement logic; P2 T1).
 // Static instance assertions beat text regexes — citty's subCommands only holds **direct**
 // subcommands, so nested base-branch.set / .get stay out of the set (parse.mjs's header states
 // "this file is statically readable by tests (cli-shape); import has no side effects";
 // runCommand fires from the bin thin entry).
-describe('P3 命令面收敛：顶层子命令恰为四', () => {
-  it('mainCommand.subCommands 名称集合 === {base-branch, fix, implement, review}', () => {
+describe('P3 命令面收敛（P2 carve-out: help）:顶层子命令恰为五', () => {
+  it('mainCommand.subCommands 名称集合 === {base-branch, fix, help, implement, review}', () => {
     expect(Object.keys(mainCommand.subCommands).sort()).toEqual(
-      ['base-branch', 'fix', 'implement', 'review'],
+      ['base-branch', 'fix', 'help', 'implement', 'review'],
     );
   });
 

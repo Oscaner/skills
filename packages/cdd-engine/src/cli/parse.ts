@@ -17,6 +17,7 @@ import type { ArgsDef, CommandDef, CommandMeta, SubCommandsDef } from "citty";
 import { runReview } from "./review.ts";
 import { runFix } from "./fix.ts";
 import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.ts";
+import { runHelp } from "./help.ts";
 import { requireHostHarness, guardArgs, intTask, DRY_RUN } from "./shared.ts";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;
@@ -29,6 +30,9 @@ const SUBCOMMAND_USAGE: Record<string, string> = {
   // base-branch: a bad flag / unknown subcommand inside set|get resolves to this single-word key
   // (the bin wrapper maps a nested citty leaf to its parent command — see commandUsageKey).
   "base-branch": "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
+  // help is the engine's one discovery subcommand (overall v1.10 Non-goal#1 carve-out — the only
+  // new subcommand in the P2 program).
+  help: "usage: cdd help",
 };
 
 // Print the usage line for the resolved parse/usage-error context; default = the top-level line.
@@ -196,11 +200,25 @@ const baseBranchCmd = defineCommand({
   subCommands: { set: setCmd, get: getCmd },
 });
 
+// `cdd help` — discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
+// subcommand, zero enforcement logic). Prints the cdd CLI's absolute directory + the required
+// doc-resource directories (schemas / templates). The bin thin entry intercepts `cdd help` before
+// the root bootstrap (repo-independent, zero lifecycle writes); this declared command is the
+// surface fallback and the `--help`/usage rendering face (landed in P2 T1 ②).
+const helpCmd = defineCommand({
+  meta: { name: "help", description: "print CDD CLI + doc-resource directory discovery (schemas/templates)" },
+  args: {},
+  run: async ({ rawArgs }) => {
+    guardArgs(rawArgs, argsOf(helpCmd));
+    runHelp();
+  },
+});
+
 // The single citty command tree — the only command surface the bin thin entry boots.
 export const mainCommand = defineCommand({
   meta: {
     name: "cdd",
-    description: "CDD engine CLI — implement/review/fix/base-branch",
+    description: "CDD engine CLI — implement/review/fix/base-branch/help",
   },
   args: MAIN_ARGS,
   subCommands: {
@@ -208,5 +226,6 @@ export const mainCommand = defineCommand({
     review: reviewCmd,
     fix: fixCmd,
     "base-branch": baseBranchCmd,
+    help: helpCmd,
   },
 });

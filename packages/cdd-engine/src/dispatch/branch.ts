@@ -408,8 +408,19 @@ export class BranchReviewLifecycle extends BranchLifecycle {
    * The exit comes from the finalized round conclusion (Task 23 ③: BLOCKED → 1,
    * APPROVED/CHANGES_REQUESTED → 0) — this is the sole exit path once the agent wrote a handoff. */
   protected override async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {
+    const base = String(this.#base);
+    const head = String(this.#head);
     const finalized = await finalizeHandoff({ mode: "review", agentHandoff: this.agentHandoff });
-    if (finalized.handoff && finalized.handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, finalized.handoff);
+    let handoff = finalized.handoff;
+    // Unified lifecycle contract: branch-review handoffs carry commits{base,head} — branch-fix
+    // derives FIX_BASE from the source review's commits.base. The review agent's handoff may omit
+    // the field; stamp the CLI's reviewed range so the review→fix loop closes (same shape as the
+    // dry-run / BLOCKED-carrier lanes).
+    if (handoff && typeof handoff === "object" && (handoff as { commits?: unknown }).commits === undefined) {
+      const cc = this.branchCarrierCommits(base, head);
+      if (cc) handoff = { ...handoff, commits: cc };
+    }
+    if (handoff && handoff !== this.agentHandoff) writeOwnHandoff(this.handoffPath, handoff);
     exitWithCode(finalized.exitCode);
   }
 

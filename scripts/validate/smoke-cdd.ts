@@ -77,9 +77,9 @@ export function main() {
     const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
     const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
     // The five literals mirror the engine's 5-line return-block contract verbatim. Authoritative emitters:
-    // src/dispatch/task.ts h1FourLines（stdout/res.h1 面）· h1FromHandoff（回读重发面）·
+    // src/dispatch/task.ts returnFourLines（stdout/res.returnBlock 面）· returnFromHandoff（回读重发面）·
     // src/cli/branch-review.ts DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
-    // counters 行由 src/artifacts/progress.ts h1CountersLine 派生（缺 progress.json 时零值兜底）。
+    // counters 行由 src/artifacts/progress.ts returnCountersLine 派生（缺 progress.json 时零值兜底）。
     const ok = /status: APPROVED/m.test(lastBlock)
       && /commits: base=/.test(lastBlock)
       && /artifacts: /.test(lastBlock)

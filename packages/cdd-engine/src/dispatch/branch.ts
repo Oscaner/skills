@@ -126,6 +126,27 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
    * the fix channel lives at the EXIT gate (inherited default commitPostCheck). */
   protected override async commitPreCheck(_hookCtx: DispatchHookContext): Promise<void> {}
 
+  /** Lane-declared doc-audit target (T3 ④「lane 声明审计对象」): the branch channel audits its
+   * `--plan` ref (the same plan the review/fix round derives its workspace from) — the base default
+   * docContractValidate walks plan → `**Spec:**` → Parent program → overall and gates on the
+   * parent-overall four tables when the lineage resolves. */
+  protected override docAuditTarget(): string | null {
+    if (!this.opts.plan) return null;
+    try {
+      return resolveDocArg(this.opts.plan, this.repoRoot, "plan");
+    } catch {
+      return this.opts.plan; // an unresolvable ref → the audit fail-opens on the raw path
+    }
+  }
+
+  /** Doc-contract BLOCK face (T3 ④): the branch terminal convention — stderr CDD_BLOCKED +
+   * exitWithCode(1) (exit helpers throw ExitRequested, the bin maps the exact code; the default
+   * DispatchBlocked throw would escape the wrappers' gate filters and land on exit 2). */
+  protected override docContractBlocked(guidance: string): void {
+    process.stderr.write(`CDD_BLOCKED: doc contract validation failed — fix the docs below:\n${guidance}\n`);
+    exitWithCode(1);
+  }
+
   /** Registry ship gate (spec step 1): resolve the harness entry + dry-run-path CLI-existence
    * check. Failure → the message on stderr + the kind's exit code (cli-missing → 2, blocked → 1;
    * the CLI 0/1/2 table preserved — CddBlockedError.exitCode IS that code). A non-CddBlockedError

@@ -87,7 +87,7 @@ const VALID_OVERALL_BODY = [
   "",
   "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
   "|---|---|---|---|---|---|---|",
-  "| P1 | phase one | P1-design v1.0 | Pending | | none |",
+  "| P1 | phase one | [Pending] | Pending | | none |",
   "",
   "## Change history",
   "",
@@ -113,6 +113,58 @@ export function commitValidDocs(dir, planRel = path.join("docs", "osuperpowers",
   writeFileSync(overallAbs, VALID_OVERALL_BODY);
   gitCommit(dir);
   return planRel;
+}
+
+/** writeBranchChain(dir, planName) — a doc-contract-valid chain for the given branch-lane plan
+ * (T3 ④: the branch channel's base-default docContractValidate audits its `--plan` ref, so every
+ * branch fixture plan must carry plan → `**Spec:**` → Parent program → overall with a green four
+ * tables — the overall's only phase is all-pending, so all six audit faces no-op). Returns the
+ * plan's absolute path (the branch fixtures pass it as `--plan`/runBranchReview`.plan). */
+export function writeBranchChain(dir, planName) {
+  const plansDir = path.join(dir, "docs", "osuperpowers", "plans");
+  const specsDir = path.join(dir, "docs", "osuperpowers", "specs");
+  mkdirSync(plansDir, { recursive: true });
+  mkdirSync(specsDir, { recursive: true });
+  const baseName = String(planName).replace(/\.md$/, "");
+  const specName = `${baseName}-design.md`;
+  const overallName = `${baseName}-overall.md`;
+  const planAbs = path.join(plansDir, planName);
+  writeFileSync(planAbs, [
+    "# Plan",
+    "",
+    `**Spec:** [${specName}](docs/osuperpowers/specs/${specName})`,
+    "",
+    "## Constraints",
+    "",
+    "- boundary one",
+    "",
+    "### Task 1: x",
+    "body",
+    "",
+  ].join("\n"));
+  writeFileSync(path.join(specsDir, specName), [
+    "- **Version**: v1.0 · 2026-09-21",
+    "",
+    `- **Parent program**: [${overallName} v1.0](./${overallName})`,
+    "",
+  ].join("\n"));
+  writeFileSync(path.join(specsDir, overallName), [
+    "- **Version**: v1.0 · 2026-09-21",
+    "",
+    "## Phase inventory",
+    "",
+    "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+    "|---|---|---|---|---|---|---|",
+    "| P1 | phase one | [Pending] | Pending | | none |",
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary |",
+    "|---|---|---|",
+    "| v1.0 | 2026-09-21 | Initial |",
+    "",
+  ].join("\n"));
+  return planAbs;
 }
 
 // 单根权威（src/infra/root.ts）打桩 —— 同一 seam 的构造知识集中在此，避免各测试文件各写一份。

@@ -118,7 +118,7 @@ it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（C
 it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOCKED + exitCode 1", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
-  writeFileSync(doc, "# spec\n");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-1.json");
@@ -149,7 +149,7 @@ it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOC
 it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent rc）", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
-  writeFileSync(doc, "# spec\n");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");
@@ -179,7 +179,7 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
 it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCode = agent rc（失败不被定稿结论掩盖）", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
-  writeFileSync(doc, "# spec\n");
+  writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const handoffPath = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json");

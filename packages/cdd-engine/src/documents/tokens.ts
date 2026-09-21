@@ -86,6 +86,24 @@ export interface DocTokens {
   planLinkWordRe: RegExp;
   /** `Design spec` link word pattern (claim → design backfill). */
   designLinkWordRe: RegExp;
+  /** Claim-clause boundary — `；`/`;` split a change-history sentence into clauses (the ASCII
+   *  sibling is documented next to the canonical const). */
+  claimClauseSeparatorRe: RegExp;
+  /** Single-phase claim reference scan (claimPatterns.phaseReference.single) — digits captured. */
+  claimSinglePhaseRe: RegExp;
+  /** Ranged claim reference scan (claimPatterns.phaseReference.range, endpoints included) —
+   *  both digit runs captured. */
+  claimPhaseRangeRe: RegExp;
+  /** `## Issue inventory` section heading (sectionHeadings.issueInventory const). */
+  issueInventoryHeading: string;
+  /** `## Dependency graph` heading — literal or `(ASCII)` suffix (sectionHeadings.dependencyGraph). */
+  dependencyGraphHeadingRe: RegExp;
+  /** Issue-anchor scan (`#NNN#issuecomment-<digits>` — issueInventory.row.anchorForm) with the
+   *  issue number captured — the anchor-registry registration-domain atom. */
+  issueAnchorFormRe: RegExp;
+  /** Phase-id token scan (rowShape.idFormat pattern, unanchored + word boundary) — the dependency
+   *  graph / dependency-column membership audit's token scanner. */
+  phaseTokenScanRe: RegExp;
 }
 
 function escapeRegExp(s: string): string {
@@ -127,6 +145,12 @@ function versionTokenBody(overall: unknown): string {
  * else byte-faithful — the pattern is the canonical fact, the capture is parse mechanics. */
 function capturing(pattern: string, token: string, flags = ""): RegExp {
   return new RegExp(pattern.replace(token, `(${token})`), flags);
+}
+
+/** Capture every `\d+` run inside a canonical pattern (replacing each with `(\d+)` — the same
+ * capture-insertion trick as versionNumericRe) — parse mechanics, the pattern stays canonical. */
+function digitCapturing(pattern: string, flags = ""): RegExp {
+  return new RegExp(pattern.replace(/\\d\+/g, "(\\d+)"), flags);
 }
 
 export function deriveDocTokens(schemas: {
@@ -231,6 +255,44 @@ export function deriveDocTokens(schemas: {
   );
   const planLinkWordRe = new RegExp(leaf<string>(overall, ["claimPatterns", "planLinkWord"], "pattern"));
   const designLinkWordRe = new RegExp(leaf<string>(overall, ["claimPatterns", "designLinkWord"], "pattern"));
+  // Claim-clause boundary — the canonical `；` const + its documented ASCII sibling `;`.
+  const claimClauseSeparatorRe = new RegExp(
+    `[${escapeRegExp(leaf<string>(overall, ["changeHistory", "backfillClause", "clauseSeparator"], "const"))};]`,
+    "g",
+  );
+  // Claim phase references — unanchored scan forms of the canonical single/range patterns (digit
+  // runs captured into groups — the same capture insertion as versionNumericRe's replace trick).
+  const claimSinglePhaseRe = digitCapturing(
+    leaf<string>(overall, ["claimPatterns", "phaseReference", "single"], "pattern").replace(/^\^/, "").replace(/\$$/, ""),
+    "gi",
+  );
+  const claimPhaseRangeRe = digitCapturing(
+    leaf<string>(overall, ["claimPatterns", "phaseReference", "range"], "pattern").replace(/^\^/, "").replace(/\$$/, ""),
+    "g",
+  );
+  // The four-table audit's section headings (validator-keyed — same derivation family as the
+  // change-history heading token).
+  const issueInventoryHeading = leaf<string>(overall, ["sectionHeadings", "issueInventory"], "const");
+  const auditHeadingRe = (pattern: string): RegExp => {
+    // Section-range scanning tests whole lines (`lines.findIndex(l => re.test(l))`) — the
+    // canonical anchors (`^…$`) match the line extent exactly, so the pattern stays verbatim.
+    return new RegExp(pattern);
+  };
+  const dependencyGraphHeadingRe = auditHeadingRe(
+    leaf<string>(overall, ["sectionHeadings", "dependencyGraph"], "pattern"),
+  );
+  // Issue-anchor scan — the canonical anchored form (`^#\d+#issuecomment-\d+$`) unanchored, the
+  // issue-number run captured (the anchor-registry membership atom).
+  const issueAnchorFormRe = digitCapturing(
+    leaf<string>(overall, ["issueInventory", "row", "anchorForm"], "pattern").replace(/^\^/, "").replace(/\$$/, ""),
+    "g",
+  );
+  // Phase-id token scan — the canonical phase id (`^P\d+(?![0-9])[a-z]?$`) unanchored with a
+  // leading word boundary; the dependency-graph / dependency-column membership scanner.
+  const phaseTokenScanRe = new RegExp(
+    `\\b${leaf<string>(overall, ["phaseInventory", "rowShape", "idFormat"], "pattern").replace(/^\^/, "").replace(/\$$/, "")}`,
+    "g",
+  );
 
   return {
     specMark,
@@ -266,6 +328,13 @@ export function deriveDocTokens(schemas: {
     claimClauseRe,
     planLinkWordRe,
     designLinkWordRe,
+    claimClauseSeparatorRe,
+    claimSinglePhaseRe,
+    claimPhaseRangeRe,
+    issueInventoryHeading,
+    dependencyGraphHeadingRe,
+    issueAnchorFormRe,
+    phaseTokenScanRe,
   };
 }
 

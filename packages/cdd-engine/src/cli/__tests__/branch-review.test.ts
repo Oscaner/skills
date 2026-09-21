@@ -14,6 +14,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { writeBranchChain } from '../../infra/__tests__/helpers.ts';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..'); // tests → packages/cdd-engine → packages → repo
 
@@ -29,11 +31,9 @@ describe('branch-review dry-run', () => {
   it('writes CDD handoff to .osuperpowers/cdd/<slug>/ with CDD schema fields', () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-br';
-    const planPath = path.join(dir, 'test-plan-br.md');
+    const planPath = writeBranchChain(dir, 'test-plan-br.md');
     const handoffPath = path.join(dir, '.osuperpowers', 'cdd', slug,
                                   'branch-review-abc1234..def5678-r1.json');
-
-    writeFileSync(planPath, '# Test branch review plan\n\n### Task 1: n/a (branch-level smoke)\n');
 
     try {
       const out = execaSync('node', [
@@ -71,8 +71,7 @@ describe('branch-review schema-invalid e2e', () => {
   it('agent 写 findings 非数组 + notes:5 → BLOCKED 载体键集干净 / findings [] / blocker 含违规键名', async () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-br';
-    const planPath = path.join(dir, `${slug}.md`);
-    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const planPath = writeBranchChain(dir, `${slug}.md`);
     const base = 'a'.repeat(40);
     const head = 'b'.repeat(40);
     const base7 = base.slice(0, 7);
@@ -170,8 +169,7 @@ describe('branch-review unparseable-handoff e2e', () => {
   it('agent writes unparseable handoff → BLOCKED carrier + exit 1 (no bare SyntaxError)', async () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-br';
-    const planPath = path.join(dir, `${slug}.md`);
-    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const planPath = writeBranchChain(dir, `${slug}.md`);
     const base = 'a'.repeat(40);
     const head = 'b'.repeat(40);
     const { resolveWorkspace, handoffName, resolveNextRound } = await import('../../artifacts/handoff/naming.ts');
@@ -200,8 +198,7 @@ describe('branch-review unparseable-handoff e2e', () => {
   it('corrupt previous-round handoff fails open (CDD_INFO, no Convergence lock), next round proceeds', async () => {
     const dir = tmpGitRepo();
     const slug = 'test-plan-br';
-    const planPath = path.join(dir, `${slug}.md`);
-    writeFileSync(planPath, '# Plan\n\n### Task 1: n/a (branch-level)\n');
+    const planPath = writeBranchChain(dir, `${slug}.md`);
     const base = 'a'.repeat(40);
     const head = 'b'.repeat(40);
     const base7 = base.slice(0, 7);

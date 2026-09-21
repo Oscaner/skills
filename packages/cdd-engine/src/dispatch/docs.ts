@@ -113,6 +113,14 @@ export class DocsLifecycle extends DispatchLifecycle {
     this.#finished = true;
   }
 
+  /** Lane-declared doc-audit target (Task 3 ④「lane 声明审计对象」): the docs channel audits the
+   * reviewed doc itself — the base default docContractValidate walks the doc's chain by doc-type
+   * (plan / spec / overall), gating the review/fix on the parent-overall four tables when the
+   * lineage resolves. null (no doc) → the gate is waived. */
+  protected override docAuditTarget(): string | null {
+    return this.#opts.doc ?? null;
+  }
+
   // ---- pre-flight ----
 
   /** Step 2/4 family: root (injected vs engine singleton) + canonical handoffPath guard; on the

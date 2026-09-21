@@ -22,6 +22,7 @@ import type { PhaseId } from "./phases.ts";
 import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
 import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
 import { reconcileChangedSurface } from "../rules/write-boundary.ts";
+import { validateDispatchDocuments, formatDocFailures, type DocValidationFailure } from "../rules/documents.ts";
 import { CddExitError } from "../infra/exit.ts";
 
 // Consumer re-export: the override hooks (commitPreCheck / dispatch / …) all take this context;
@@ -163,12 +164,63 @@ export abstract class DispatchLifecycle {
    * set (the docs variant has its own); task.ts / docs.ts own the mode policy (spec step 6). */
   protected async validateMode(_hookCtx: DispatchHookContext): Promise<void> {}
 
+  /** Lane-declared doc-audit target (Task 3 ④「lane 声明审计对象」): the dispatch's doc-chain
+   * entry point the doc-contract gate audits. task/branch = the dispatch plan path; docs = the
+   * reviewed doc path. null → the lane waived the audit (the gate is a no-op — the base's
+   * fail-open default). Resolution happens inside the hook (the target may derive from state the
+   * resolveContext step just produced). */
+  protected docAuditTarget(): string | null { return null; }
+
   /** Doc-Contract validation (pre-flight, after resolveContext + validateMode, before dispatch —
-   * the Task 29 docContractValidate template step): validates the dispatch's plan + its spec +
-   * the parent overall against the three necessary contracts (rules/documents.ts). Default
-   * pass-through (the base has no docs authority); task.ts overrides with the concrete
-   * validateDispatchDocuments call behind the #finished guard. */
-  protected async docContractValidate(_hookCtx: DispatchHookContext): Promise<void> {}
+   * the Task 29 docContractValidate template step, now the BASE default hook shared by every
+   * dispatch channel): resolves the dispatch's doc chain from the lane-declared audit target, runs
+   * the single audit entry (rules/documents.ts — plan 契約 / Class A / Class B / overall 契約 +
+   * the parent-overall four-table audit) and blocks on any structural mismatch. Failures non-empty
+   * → the round is blocked before the agent ever runs — exit 1 + the guidance on stderr (the
+   * 0/1/2/3 exit table unchanged — this is a BLOCKED face like any other); dry-run runs the SAME
+   * check but lowers to the WARN lane (the E2② entry-gate precedent: a doc-invalid simulation
+   * still completes, never silent). Read-only: the check never writes docs or carriers — a
+   * doc-invalid round stays re-dispatchable the moment the docs are repaired (no BLOCKED carrier
+   * to clear). The BLOCK face is docContractBlocked — the default throws DispatchBlocked("entry")
+   * (runTask / runDocsTask already map that gate); the task channel overrides with its
+   * non-throwing #done terminal, the branch channel with its exitWithCode convention. */
+  protected async docContractValidate(_hookCtx: DispatchHookContext): Promise<void> {
+    const entry = this.docAuditTarget();
+    if (!entry) return; // no lane-declared target → the gate is waived
+    const root = typeof this.ctx.repoRoot === "string" ? this.ctx.repoRoot : "";
+    if (!root) {
+      process.stderr.write("CDD_WARN: doc contract validation skipped (no repo root)\n");
+      return;
+    }
+    const dryRun = this.ctx.dryRun === true;
+    let failures: DocValidationFailure[];
+    try {
+      failures = validateDispatchDocuments({ entry, root });
+    } catch (e) {
+      // fail-open: an unreadable doc chain must never crash the lifecycle (the plan existence
+      // gate in resolveContext already surfaced the missing-plan case there) — but never silent:
+      // surface a one-line diagnostic on the throw path (real and dry-run lanes alike).
+      process.stderr.write(
+        `CDD_WARN: doc contract validation skipped (unreadable doc chain): ${(e as Error).message}\n`,
+      );
+      return;
+    }
+    if (failures.length === 0) return;
+    const guidance = formatDocFailures(failures);
+    if (dryRun) {
+      process.stderr.write(`CDD_WARN: doc contract invalid (dry-run) — fix the docs below, then re-dispatch:\n${guidance}\n`);
+      return;
+    }
+    this.docContractBlocked(guidance);
+  }
+
+  /** The doc-contract BLOCK terminal face — default throws DispatchBlocked(gate "entry") (the
+   * task/docs runners map that gate to CDD_BLOCKED + exit 1). Subclasses with a non-throwing
+   * terminal (#done-family / exitWithCode) override this ONE seam; the judgment above stays the
+   * shared base default for all channels. */
+  protected docContractBlocked(guidance: string): void {
+    throw new DispatchBlocked(`doc contract validation failed — fix the docs below:\n${guidance}`, "entry");
+  }
 
   /** Status reconcile (post-flight, after the exit gate — the Task 29 statusValidate template
    * step): reports the current task state + plan completion verdict as CDD_INFO. Default

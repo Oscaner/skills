@@ -50,7 +50,7 @@ const OVERALL = [
   "",
   "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
   "|---|---|---|---|---|---|---|",
-  "| P1 | phase one | P1-design v1.0 | Pending | | none |",
+  "| P1 | phase one | [Pending] | Pending | | none |",
   "",
   "## Change history",
   "",

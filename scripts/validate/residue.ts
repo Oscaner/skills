@@ -614,6 +614,11 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
     if (!readFileSync(abs, "utf8").includes("readdirSync")) continue;
     if (f === "packages/cdd-engine/src/artifacts/handoff/naming.ts") continue;
     if (f === LIVENESS_PROBE_FILE) continue; // T14 probe page (whitelist enumerated above)
+    // P2 T3: the four-table audit's doc-existence globs + anchor-registry scan enumerate the two
+    // program doc dirs (specs/ + plans/, both explicit path arguments — never a full-tree find):
+    // same fully-enumerated carve-out doctrine as the naming.ts whitelist (bounded dir listing in
+    // the doc-contract judgment, not a "most recent" residue re-read).
+    if (f === "packages/cdd-engine/src/rules/documents.ts") continue;
     hits.push({ label: "readdirSync outside the whitelist (a directory scan in place of an explicit path argument is a \"most recent\" regression)", file: f });
   }
   const rtFile = "packages/cdd-engine/src/dispatch/task.ts";

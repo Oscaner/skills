@@ -332,7 +332,7 @@ describe("runDocsTask", () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p2hash-"));
     const doc = join(dir, "spec.md");
-    writeFileSync(doc, "real content p2");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { runDocsTask } = await import("../docs.ts");
     const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
@@ -342,7 +342,7 @@ describe("runDocsTask", () => {
       repoRoot: "/repo/root",
       dryRun: false,
     });
-    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("real content p2").digest("hex"));
+    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("- **Version**: v1.0 · 2026-09-21\n").digest("hex"));
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
     expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
   });
@@ -370,7 +370,7 @@ describe("runDocsTask", () => {
   it("BLOCKED 失败写盘（handoff 未写）亦注入 doc_hash（uniform 载体）", async () => {
     const dir = mkdtempSync(join(tmpdir(), "p2block-"));
     const doc = join(dir, "spec.md");
-    writeFileSync(doc, "blocked content");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { runDocsTask } = await import("../docs.ts");
     const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
@@ -388,14 +388,14 @@ describe("runDocsTask", () => {
     expect(result.exitCode).toBe(1);
     const writeCall = writeHandoff.mock.calls.find(([p]) => String(p).endsWith("spec-review-1.json"));
     expect(writeCall[1].status).toBe("BLOCKED");
-    expect(writeCall[1].doc_hash).toBe(createHash("sha256").update("blocked content").digest("hex"));
+    expect(writeCall[1].doc_hash).toBe(createHash("sha256").update("- **Version**: v1.0 · 2026-09-21\n").digest("hex"));
   });
 
   it("exit-0-no-handoff boundary → recovery carries the cause only (exit_code stays a strict-death code)", async () => {
     const { execa } = await import("execa");
     const dir = mkdtempSync(join(tmpdir(), "p2death-"));
     const doc = join(dir, "spec.md");
-    writeFileSync(doc, "blocked content");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { runDocsTask } = await import("../docs.ts");
     const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
@@ -428,7 +428,7 @@ describe("runDocsTask", () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p2planh-"));
     const doc = join(dir, "plan.md");
-    writeFileSync(doc, "plan content p2");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     vi.resetModules();
     const { runDocsTask } = await import("../docs.ts");
     const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
@@ -438,7 +438,7 @@ describe("runDocsTask", () => {
       repoRoot: "/repo/root",
       dryRun: false,
     });
-    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("plan content p2").digest("hex"));
+    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("- **Version**: v1.0 · 2026-09-21\n").digest("hex"));
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) => String(p).endsWith("plan-review-1.json"));
     expect(writeCall[1].doc_hash).toBe(result.handoff.doc_hash);
   });
@@ -450,7 +450,7 @@ describe("runDocsTask", () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p8bad-"));
     const doc = join(dir, "spec.md");
-    writeFileSync(doc, "blocked content");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     // agent 手写坏 JSON 到 canonical handoff 路径：`"#\d+ 未转义"` —— \d 非合法 JSON escape →
     // JSON.parse 必 throw（P4 dogfood 实证：agent 手写 handoff 含未转义 regex 记号）。
     const handoffPath = join(dir, "ws", "spec-review-1.json");
@@ -472,7 +472,7 @@ describe("runDocsTask", () => {
     expect(result.exitCode).toBe(1);
     expect(result.handoff.status).toBe("BLOCKED");
     expect(result.handoff.blocker).toContain("JSON unparseable");
-    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("blocked content").digest("hex"));
+    expect(result.handoff.doc_hash).toBe(createHash("sha256").update("- **Version**: v1.0 · 2026-09-21\n").digest("hex"));
   });
 
   // ---- review-3 finding 4（standards nit）+ finding 1（warn）：schema 无效分支的端到端守卫 ----
@@ -486,7 +486,7 @@ describe("runDocsTask", () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
     const dir = mkdtempSync(join(tmpdir(), "p5cv-"));
     const doc = join(dir, "spec.md");
-    writeFileSync(doc, "cv content");
+    writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
     const handoffPath = join(dir, "ws", "spec-review-1.json");  // 非 `.osuperpowers/cdd/foo/` 前缀 → 真实 fs
     mkdirSync(path.dirname(handoffPath), { recursive: true });
     // agent 手写违规 handoff：findings 非数组 + `notes: 5`（已声明键类型违规，normalize 无权修改其值）

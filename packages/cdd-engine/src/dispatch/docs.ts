@@ -38,7 +38,7 @@ import { finalizeHandoff, persistFinalized, recoverHandoff, writeBlockedCarrier 
 import { loadRegistry, checkHarness, REG_PATH } from "../infra/registry.ts";
 import { validateHandoffSchema } from "../rules/schema.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { validateCommitContract } from "../rules/commit.ts";
+import { UNCOMMITTED_RETURN_MARKER, validateCommitContract } from "../rules/commit.ts";
 import { renderTemplate, reviewHardGate, docsFixHardGate } from "../render/templates.ts";
 import { hashFile } from "../artifacts/hash.ts";
 
@@ -334,8 +334,11 @@ export class DocsLifecycle extends DispatchLifecycle {
       // must carry a stdout-visible diagnosis — the rules layer already rewrote the handoff
       // (BLOCKED + cv.blocker), and this face emits the same blocker line to stdout so the operator
       // sees it without opening the carrier file. The dirty-tree arm appends the commit-before-
-      // returning guidance (the round must be committed before it may return APPROVED).
-      const diagnosis = cv.blocker.includes("uncommitted changes at return")
+      // returning guidance (the round must be committed before it may return APPROVED); the
+      // UNCOMMITTED_RETURN_MARKER check couples this diagnosis to the rule composing the blocker, so
+      // a rewording of that text cannot silently drop the guidance. The determinism tests keep
+      // pinning the rendered diagnosis.
+      const diagnosis = cv.blocker.includes(UNCOMMITTED_RETURN_MARKER)
         ? `${cv.blocker} — commit before returning`
         : cv.blocker;
       process.stdout.write(`CDD_BLOCKED: ${diagnosis}\n`);

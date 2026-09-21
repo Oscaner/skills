@@ -139,10 +139,10 @@ describe('unified constant shell（Task 20 ①）：字面头跨模式字节恒�
     expect(renders.implement).toContain('- `WORKSPACE_SLUG`: osuperpowers-overhaul-p6');
   });
 
-  it('T5: DOCS_FIXED_POINT 槽就位（canonical 派生）——docs 面渲染实值，其他 mode 空预填', () => {
-    // docs fix 渲染实值（与 task 族 TASK_FIXED_POINT 同位语义 = dispatch 入口 base）
+  it('T5: DOCS_FIXED_POINT slot in place (canonical-derived) — docs face renders the real value, other modes prefill empty', () => {
+    // docs fix renders the real value (same-position semantics as the task family's TASK_FIXED_POINT = dispatch entry base)
     expect(renders.docsFix).toContain('- `DOCS_FIXED_POINT`: 7a7327b');
-    // mode-union 模板：未传值的 mode 空预填槽仍渲染（docs review / task 族同）
+    // mode-union template: modes without a passed value still render the empty-prefill slot (docs review / task family)
     expect(renders.docsReview).toContain('- `DOCS_FIXED_POINT`: ');
     expect(renders.implement).toContain('- `DOCS_FIXED_POINT`: ');
   });

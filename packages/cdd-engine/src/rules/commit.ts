@@ -44,6 +44,12 @@ export interface EntryGateOptions {
 export const DRY_RUN_DIRTY_WARN =
   "working tree contains uncommitted changes; dry-run is pure simulation and unaffected, but real dispatch requires a clean tree";
 
+/** Exit-gate dirty-tree blocker marker, composed into the validateCommitContract blocker. The
+ * docs exit-gate stdout diagnosis (dispatch/docs.ts commitPostCheck) and the determinism tests match
+ * on this marker; keeping it shared means a future rewording of the blocker cannot silently drop
+ * the commit-before-returning guidance. */
+export const UNCOMMITTED_RETURN_MARKER = "uncommitted changes at return";
+
 // Aligns with the legacy _cdd_rewrite_handoff_blocked: rewrite the handoff to
 // status=BLOCKED + blocker + artifacts:{}. Guard: empty/undefined path → no-op (the caller did
 // not provide a path; nothing written).
@@ -129,7 +135,7 @@ export async function validateCommitContract(
     return { ok: true, blocker: "" };
   }
 
-  const blocker = `uncommitted changes at return (${mode}): dirty working tree`;
+  const blocker = `${UNCOMMITTED_RETURN_MARKER} (${mode}): dirty working tree`;
   rewriteHandoffBlocked(handoffPath, blocker);
   return { ok: false, blocker };
 }

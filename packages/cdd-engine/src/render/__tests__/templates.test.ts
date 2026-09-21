@@ -82,7 +82,7 @@ describe('template-contract 单点消费 + zone-tagged token registry（Task 20 
     expect(contract.skeleton.order).toEqual(['shell', 'return', 'round-context']);   // 段序恒为 壳 → Return → Round context
     expect(contract.tokens).toHaveLength(20);
     // zone 归属：18 round-context + 2 return，壳零槽（不得有 shell 归属 token）；
-    // T5：DOCS_FIXED_POINT —— docs 面 dispatch 入口 base 槽（task 族 TASK_FIXED_POINT 同位）
+    // T5: DOCS_FIXED_POINT — docs-face dispatch entry base slot (same position as the task family's TASK_FIXED_POINT)
     expect(contract.tokens.filter((t) => t.zone === 'round-context')).toHaveLength(18);
     expect(contract.tokens.filter((t) => t.zone === 'return')).toHaveLength(2);
     expect(contract.tokens.some((t) => t.zone === 'shell')).toBe(false);

@@ -42,7 +42,7 @@ export function captureStderr() {
   };
 }
 
-// stdout 捕获 seam（T5 ④：docs 出口门 BLOCKED 诊断的 stdout 可见断言 —— 与 captureStderr 同构）。
+// stdout capture seam (T5 ④: stdout-visibility assertion for the docs exit-gate BLOCKED diagnosis — isomorphic with captureStderr).
 export function captureStdout() {
   const buf: string[] = [];
   const origWrite = process.stdout.write.bind(process.stdout);

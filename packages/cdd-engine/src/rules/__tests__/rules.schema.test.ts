@@ -161,30 +161,30 @@ describe("P6 T24 B: finalize.ts — recoverHandoff (CONTRACT_VIOLATION recovery 
   });
 });
 
-// ---- Lifecycle contract core single-source assertion（T5 AC7「handoff schema 无双核心块」+ AC6 docs 逆转）----
+// ---- Lifecycle contract core single-source assertion (T5 AC7 "no dual core blocks in the handoff schema" + AC6 docs reversal) ----
 // The lifecycle contract core (status / commits{base,head} / failure_category / blocker / changes /
 // artifacts / findings) is ONE core — the task and docs schemas declare it through identical
 // definitions; lane differences are ONLY the boundary objects (docs: doc_path/doc_hash; task:
 // task). A divergent core (e.g. docs losing TIMEOUT or keeping the commits-free declaration) must
 // fail here before it ships.
-describe("T5 AC7: handoff schema 单源核心块（task/docs 同一契约核心；lane 差异仅边界物）", () => {
+describe("T5 AC7: handoff schema single-source core (task/docs one contract core; lane differences are only boundary objects)", () => {
   const taskProps = (loadHandoffSchema("task") as { properties: Record<string, Record<string, unknown>> }).properties;
   const docsProps = (loadHandoffSchema("docs") as { properties: Record<string, Record<string, unknown>> }).properties;
 
-  it("status enum 单源：docs = task（BREAKING——docs status 增 TIMEOUT 归属声明）", () => {
+  it("status enum single-source: docs = task (BREAKING — docs status gains the TIMEOUT attribution declaration)", () => {
     expect(docsProps.status.enum).toEqual(["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "TIMEOUT"]);
     expect(docsProps.status.enum).toEqual(taskProps.status.enum);
     expect(String(docsProps.status.description)).toContain("TIMEOUT");
     expect(String(docsProps.status.description)).toContain("terminal");
   });
 
-  it("commits{base,head} 单源：docs 定义与 task 族 deep-equal（base ^[0-9a-f]{40}$，required [base]）", () => {
+  it("commits{base,head} single-source: docs definition deep-equals the task family (base ^[0-9a-f]{40}$; required [base])", () => {
     expect(docsProps.commits).toEqual(taskProps.commits);
     expect(docsProps.commits.required).toEqual(["base"]);
     expect((docsProps.commits.properties as Record<string, { pattern?: string }>).base.pattern).toBe("^[0-9a-f]{40}$");
   });
 
-  it("failure_category 通道枚举单源 + blocker 单数统一（两族均无 blockers 复数键）", () => {
+  it("failure_category channel enum single-source + blocker singular unification (neither family has a blockers plural key)", () => {
     expect(docsProps.failure_category.enum).toEqual(taskProps.failure_category.enum);
     expect(Object.keys(docsProps)).not.toContain("blockers");
     expect(Object.keys(taskProps)).not.toContain("blockers");
@@ -192,7 +192,7 @@ describe("T5 AC7: handoff schema 单源核心块（task/docs 同一契约核心�
     expect(taskProps.blocker.type).toBe("string");
   });
 
-  it("核心块键型对齐（changes/artifacts/findings 同型）；lane 差异仅边界物（docs: doc_path/doc_hash；task: task）", () => {
+  it("core block key shapes align (changes/artifacts/findings same type); lane differences are only boundary objects (docs: doc_path/doc_hash; task: task)", () => {
     expect(docsProps.changes.type).toBe(taskProps.changes.type);
     expect(docsProps.artifacts.type).toBe(taskProps.artifacts.type);
     expect(docsProps.findings.type).toBe(taskProps.findings.type);
@@ -204,7 +204,7 @@ describe("T5 AC7: handoff schema 单源核心块（task/docs 同一契约核心�
     expect(docsProps.task).toBeUndefined();
   });
 
-  it("docs handoff 逆转（AC6）：commits-free 旧声明段已删 + 合法 docs commits handoff 过 schema 校验", () => {
+  it("docs handoff reversal (AC6): the commits-free legacy declaration is removed + a valid docs commits handoff passes schema validation", () => {
     expect(String(docsProps.changes.description)).not.toContain("carry no commits field");
     expect(validateHandoffSchema({
       phase: "fix",
@@ -214,7 +214,7 @@ describe("T5 AC7: handoff schema 单源核心块（task/docs 同一契约核心�
       doc_path: "spec.md",
       commits: { base: "a".repeat(40), head: "b".repeat(40) },
     }, "docs")).toEqual({ valid: true });
-    // base 必须 40-hex（同 task 族模式；非 hex 拒绝）
+    // base must be 40-hex (same task-family pattern; non-hex rejected)
     const r = validateHandoffSchema({
       phase: "fix", status: "APPROVED", findings: [], artifacts: {}, doc_path: "spec.md",
       commits: { base: "short" },

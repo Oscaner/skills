@@ -203,7 +203,7 @@ it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCod
   expect(result.handoff?.status).toBe("APPROVED");
 });
 
-it("T5 ③: docs dispatch 注入 DOCS_FIXED_POINT = dispatch 入口 base（git HEAD at dispatch time，落入 renderTemplate params）", async () => {
+it("T5 ③: docs dispatch injects DOCS_FIXED_POINT = dispatch entry base (git HEAD at dispatch time, lands in the renderTemplate params)", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
   writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
@@ -218,23 +218,23 @@ it("T5 ③: docs dispatch 注入 DOCS_FIXED_POINT = dispatch 入口 base（git H
     harness: "ghost", mode: "review", template: "review", type: "spec", doc,
     handoffPath, repoRoot: repo, dryRun: false,
   });
-  // review 面（docs 单 dispatch 点）把入口 base 传入 round-context 槽
+  // review face (docs single dispatch point) passes the entry base into the round-context slot
   const params = renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown>;
   expect(params.DOCS_FIXED_POINT).toBe(entryHead);
-  // 非 git / unborn HEAD → 空（mode-union 预填）
+  // non-git / unborn HEAD → empty (mode-union prefill)
   await runDocsTask({
     harness: "ghost", mode: "review", template: "review", type: "spec", doc: path.join(repo, "missing.md"),
     handoffPath: path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"),
     repoRoot: path.join(repo, "no-such-dir"), dryRun: false,
   });
   expect((renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown>).DOCS_FIXED_POINT).toBe("");
-  expect(result.exitCode).toBeGreaterThanOrEqual(0); // 断言表面为渲染参数，非轮次结论
+  expect(result.exitCode).toBeGreaterThanOrEqual(0); // assertion surface is the render params, not the round conclusion
 });
 
 // Same-contract rounds behavioral determinism (T5 ⑤/AC6): docs fix one commit vs one uncommitted —
 // the two rounds share the exit-gate contract and must behave consistently (commit → APPROVED
 // exit 0; uncommitted → BLOCKED exit 1 + the diagnosis visible on stdout).
-it("T5 ⑤: docs fix 同契约束行为——commit → APPROVED；未 commit → BLOCKED + stdout 诊断", async () => {
+it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncommitted → BLOCKED + stdout diagnosis", async () => {
   const repo = setupRepo();
   const doc = path.join(repo, "spec.md");
   writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
@@ -242,7 +242,7 @@ it("T5 ⑤: docs fix 同契约束行为——commit → APPROVED；未 commit �
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "doc");
   const { execa } = await import("execa");
 
-  // 轮次 A —— docs fix agent 提交改动 → clean tree + commits.head == HEAD → APPROVED exit 0
+  // Round A — docs fix agent commits the change → clean tree + commits.head == HEAD → APPROVED exit 0
   const handoffA = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-1.json");
   vi.mocked(execa).mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
@@ -266,13 +266,13 @@ it("T5 ⑤: docs fix 同契约束行为——commit → APPROVED；未 commit �
   expect(resultA.exitCode).toBe(0);
   expect(JSON.parse(readFileSync(handoffA, "utf8")).status).toBe("APPROVED");
 
-  // 轮次 B —— 同契约 docs fix agent 改动未提交 → 出口门 dirty → BLOCKED + stdout 可见诊断
+  // Round B — same-contract docs fix agent leaves the change uncommitted → exit gate dirty → BLOCKED + stdout-visible diagnosis
   const handoffB = path.join(repo, ".osuperpowers", "cdd", "spec", "spec-fix-2.json");
   const entryHead = git(repo, "rev-parse", "HEAD");
   vi.mocked(execa).mockImplementation(async () => {
     const { mkdirSync, writeFileSync: wfs } = await import("node:fs");
     mkdirSync(path.dirname(handoffB), { recursive: true });
-    wfs(doc, "- **Version**: v1.3 · 2026-09-22\n"); // 改动未提交
+    wfs(doc, "- **Version**: v1.3 · 2026-09-22\n"); // change left uncommitted
     wfs(handoffB, JSON.stringify({
       phase: "fix", status: "APPROVED", findings: [], artifacts: {}, doc_path: doc,
       commits: { base: entryHead, head: entryHead },
@@ -291,7 +291,7 @@ it("T5 ⑤: docs fix 同契约束行为——commit → APPROVED；未 commit �
   }
   expect(resultB.exitCode).toBe(1);
   expect(JSON.parse(readFileSync(handoffB, "utf8")).status).toBe("BLOCKED");
-  // stdout 可见诊断：uncommitted changes at return —— commit before returning
+  // stdout-visible diagnosis: uncommitted changes at return — commit before returning
   expect(cap.text).toMatch(/CDD_BLOCKED: uncommitted changes at return/);
   expect(cap.text).toContain("commit before returning");
 });

@@ -1,5 +1,0 @@
----
-"@oscaner-skills/cdd-engine": patch
----
-
-Doc-contract + status lifecycle hooks (P6 spec T7.8, task T29): every real task dispatch now runs `docContractValidate` before the agent (plan `### Task N:` continuous extraction · `**Spec:**` resolving to an existing spec file · Constraints source declaration extractable · no `{{…}}` placeholders; phase spec `**Version**` line · Parent program → existing `*-overall.md` with the line's version tokens in the overall's lineage · target phase registered; overall canonical Phase inventory header · cell-count row-shape guard · target-phase row · ascending change history) — failures block with exit 1 + per-field actionable guidance (dry-run lowers to the E2②-style WARN), and `statusValidate` reports the six-state convergence (in-flight / needs-review / needs-fix / needs-re-review / resume-pending / complete) + the plan completion verdict as CDD_INFO after the exit gate. The rules surface is `rules/documents.ts` + `rules/status.ts` (both read-only); the only engine surface added is two DispatchLifecycle template-method hooks — zero new CLI surface, zero handoff-schema changes, zero doc writes.

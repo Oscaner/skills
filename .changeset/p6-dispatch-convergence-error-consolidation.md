@@ -1,7 +1,0 @@
----
-"@oscaner-skills/cdd-engine": minor
----
-
-Dispatch-island convergence + error consolidation (P6 spec T7.3): the branch review/fix channels move off their hand-written `withLifecycle` islands onto a single `BranchLifecycle` hierarchy over the shared `DispatchLifecycle` — round/ref derivation, prompt assembly, schema validation, finalization and the commit exit-gate all run as overridden hooks. The branch-fix channel now inherits the commit contract: a dirty working tree at return rewrites the fix handoff to BLOCKED, and a handoff `commits.head` that mismatches actual HEAD fails the round (previously both enforced only on the task channel). Status derivation (`rollupStatus` / `deriveReviewStatus` / `statusExitCode` / the BLOCKED carrier) consolidates in the handoff finalize module, failure counters in `rules/failure.ts`, review-convergence in `rules/convergence.ts`, and return-block atoms in one serializer. Orchestration errors unify under the exported `CddExitError` family (`exitCode` + `kind`; subclasses keep their names), library invariant assertions go through the exported `invariant(cond, msg)` factory, and `hashFile` re-homes to the artifacts layer.
-
-> **Semver note**: internal lifecycle refactor with zero CLI-surface change — the 0/1/2/3 exit table, usage lines and diagnostics are preserved; the exported `CddExitError` / `invariant` / `cliUsageError` surface is additive — released as a minor following the P3/P4 precedent.

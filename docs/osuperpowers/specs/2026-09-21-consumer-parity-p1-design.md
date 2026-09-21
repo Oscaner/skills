@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P1 Design Spec
 
-- **Version**: v1.0 · 2026-09-21
+- **Version**: v1.1 · 2026-09-21（v1.0 起草 · v1.1 spec-review r1 修正：AC2 全量重分类 26 命中/8 文件 · 判据定义指针 v1.8 · p2-plan 9 处明细；r2 修正：S3 行号指针 re-anchor（overall v1.8 实测 :50/60/69/92）· §2.1 delta 行数 5→6）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.8
@@ -46,7 +46,7 @@
 
 **已镜像（engine necessary subset 现持有，不迁移、不双实现）**：change-history strictly ascending（engine overall 必要子集契约项——独立于上表①–⑥，非依赖图「③」子面）· Class A（plan `**Spec:**` 解析 + label==basename）· Class B（plan `**Parent program**` → `*-overall.md` + version lineage）· 占位符 `{{…}}` 零容忍。
 
-**未镜像集 = P2 全量审计的精确 delta**（上表"新增/扩全"五行 + Class C 通用路径锚点）——本判表是 P2 scope 的机械输入契约。
+**未镜像集 = P2 全量审计的精确 delta**（上表"新增/扩全"六行（新增 5 + 扩全 1）及 Class C 通用路径锚点）——本判表是 P2 scope 的机械输入契约。
 
 ### 2.2 Shim 清单（S1–S6，四分类）
 
@@ -54,7 +54,7 @@
 |---|---|---|---|---|
 | S1 | `scripts/validate/overall-consistency.ts`（block 12 四表守卫） | a 替换执法 | 全量审计并入 engine（C1 命中）→ 本仓执行面退役 | P2 并入 · P3 退役 |
 | S2 | `scripts/validate/plan-spec-anchors.ts`（Class A/B/C + 42 用例 = 27+15） | a | A/B 已镜像保持；C + 未镜像集并入 engine；42 用例迁移/删除 | P2 · P3 |
-| S3 | 活文档残留簇（writing-overall-spec SKILL:54 · add-phase-protocol:14/38/44/79 · overall-spec-template:12/36/79/146 · osuperpowers-plugin.md:116-120 · CLAUDE.md:47 · consumer-parity overall:50/59/68/91） | b 声称残留 | P3 退役时改写为 engine 执法位表述（现状声明化） | P3 |
+| S3 | 活文档残留簇（writing-overall-spec SKILL:54 · add-phase-protocol:14/38/44/79 · overall-spec-template:12/36/79/146 · osuperpowers-plugin.md:116-120 · CLAUDE.md:47 · consumer-parity overall:50/60/69/92） | b 声称残留 | P3 退役时改写为 engine 执法位表述（现状声明化） | P3 |
 | S4 | `smoke-cdd`（fixture + dry-run ≠ 消费者 pack→install 路径） | c 路径差异 | P3 升级 consumer-sim（pack→安装→消费者等效链）挂 release 门 | P3 |
 | S5 | `run.ts:89` stale「(4-command H1 chain)」≠ 实际 5-command | d 描述漂移 | 本 phase 单行修正（见 §2.5） | P1（本 phase） |
 | S6 | `.changeset` ×2「block 12 守卫」声称（backlog-cdd-engine-patch / backlog-osuperpowers-minor） | b | P4 版本化时清除（该两件在×9 整合清单） | P4 登记 |

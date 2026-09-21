@@ -70,12 +70,34 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
     expect(backfill.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("shipped design column (own P<n>-design token) without a matching design claim → EXACTLY ONE missing-claim failure (reverse-design on the same member)", () => {
+    // Reverse direction of the same bidirectional member: a SHIPPED design column (own P<n>-design
+    // token) demands a matching design claim — the fixture gives P1 a p1-design token in its Design
+    // spec column while the change history carries no Design-spec clause for it (backfill is never
+    // plan-only; a design-complete column without a claim is the closeout-debt class the phase gates).
+    const repo = mkProgramRepo();
+    const c = writeProgramDocs(
+      repo,
+      OVERALL_CLEAN.replace(
+        "| P1 | phase one | [Pending] | [Pending] | | none |",
+        "| P1 | phase one | [p1-design v1.0](2026-01-01-demo-p1-design.md) | [Pending] | | none |",
+      ),
+    );
+    const f = validateDispatchDocuments({ entry: c.plan1, root: c.repo });
+    const missingClaim = f.filter(
+      (x) => x.artifact === "overall" && x.field === "backfill claim" && /no matching design claim/i.test(x.missing),
+    );
+    expect(missingClaim).toHaveLength(1); // one reverse-design member — no dual or partial variant
+    expect(f).toHaveLength(1); // the rest of the chain is clean — nothing else fires on this fixture
+  });
+
   it("grep: the missing-claim surface text lives once, in the single audit entry (rules/documents.ts)", () => {
     const docs = readSrc("rules/documents.ts");
     expect(docs.match(/no matching plan claim/g)).toHaveLength(1);
-    // no other rules/dispatch module carries a second (plan-only) implementation of the phrase
-    expect(codeOnly(readSrc("rules/closeout.ts"))).not.toMatch(/matching plan claim/);
-    expect(codeOnly(readSrc("dispatch/base.ts"))).not.toMatch(/matching plan claim/);
+    expect(docs.match(/no matching design claim/g)).toHaveLength(1);
+    // no other rules/dispatch module carries a second (plan-only) implementation of either phrase
+    expect(codeOnly(readSrc("rules/closeout.ts"))).not.toMatch(/matching plan claim|matching design claim/);
+    expect(codeOnly(readSrc("dispatch/base.ts"))).not.toMatch(/matching plan claim|matching design claim/);
   });
 });
 

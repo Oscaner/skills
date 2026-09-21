@@ -210,7 +210,7 @@ describe("lineage truncation — the spec's own face + necessary subset, four ta
 // real phase docs on disk (face ② globs need them, slug derived from plan-overall.md), a
 // dependency edge, a well-formed issue row and ascending change history.
 const AUDIT_OVERALL = [
-  "- **Version**: v1.1 · 2026-09-21",
+  "- **Version**: v1.2 · 2026-09-21",
   "",
   "## Issue inventory",
   "",
@@ -241,6 +241,7 @@ const AUDIT_OVERALL = [
   "|---|---|---|",
   "| v1.0 | 2026-09-21 | Initial |",
   "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |",
+  "| v1.2 | 2026-09-21 | P1 Design-spec 列回填（[Pending]→p1-design v1.0） |",
   "",
 ].join("\n");
 
@@ -292,7 +293,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     const c = writeAuditChain({
       overall: AUDIT_OVERALL.concat(
         "\n",
-        "| v1.2 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
+        "| v1.3 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
       ),
     });
     // The claim demands p2-design but the design cell is still [Pending] → forward mismatch.
@@ -393,6 +394,64 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /duplicate|重复/i.test(x.missing))).toBe(true);
+  });
+
+  it("face ④: split-phase dispatch plan (`…-p1a.md`) resolves its id THROUGH the chain (Design-spec cell carries the spec) — no basename collapse", () => {
+    // The basename scan would collapse `P1a` → `P1` and falsely fail (P1 is not registered);
+    // the ④ identity resolves through the inventory (design §2.1 item 2 ④ — 不依赖 basename 编号):
+    // the plan's `**Spec:**` spec is carried by the P1a row's Design-spec cell link.
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1a | phase one-a | [plan-design v1.0](plan-design.md) | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "",
+      ].join("\n"),
+      planName: "2026-09-21-demo-p1a.md",
+    });
+    expect(run(c)).toEqual([]);
+  });
+
+  it("face ④: a Design-spec cell carrying only its own `P<n>-design` token (no file link) still resolves the phase id → registered", () => {
+    // The token strand of the chain resolution: the plan's `**Spec:**` spec has the split-phase id
+    // in its filename (`…p1a-design.md`), and the P1a row's design cell carries the own `p1a-design`
+    // token without a link — the row is still identified and its registered id is preserved.
+    const specName = "2026-09-21-plan-p1a-design.md";
+    const c = writeChain({
+      plan: `# Plan\n\n**Spec:** [${specName}](docs/osuperpowers/specs/${specName})\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n`,
+      spec: "- **Version**: v1.0 · 2026-09-21\n\n- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n",
+      overall: [
+        "- **Version**: v1.1 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1a | phase one-a | **p1a-design** | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P1a Design-spec 列回填（[Pending]→p1a-design v1.0） |",
+        "",
+      ].join("\n"),
+      planName: "2026-09-21-demo-p1a.md",
+    });
+    // the token-strand spec file the plan's `**Spec:**` targets (also satisfies the face ② glob)
+    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", specName), validSpec());
+    expect(run(c)).toEqual([]);
   });
 
   it("face ⑤: a phase doc carries a `#NNN#issuecomment-<digits>` anchor whose issue is not in the Issue inventory → failure", () => {

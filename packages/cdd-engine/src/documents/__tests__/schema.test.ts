@@ -13,7 +13,7 @@
 //     as a test failure.
 // Zero transactional behavior: this module reads only — no writes, no dispatch, no audit.
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -177,8 +177,8 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       expect(existsSync(resolved)).toBe(true);
       for (const name of DOC_SCHEMA_NAMES) expect(existsSync(path.join(resolved, `${name}.json`))).toBe(true);
     } finally {
-      // no cleanup needed beyond the temp dir — nothing else was written
-      void install;
+      // the fabricated install dir itself is the only residue — rm it (nothing else was written)
+      rmSync(install, { recursive: true, force: true });
     }
   });
 });

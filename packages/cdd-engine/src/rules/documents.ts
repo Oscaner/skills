@@ -365,14 +365,57 @@ function resolveSpecFromPlan(planPath: string, root: string): { specPath: string
   return { specPath: firstResolved, failures };
 }
 
-/** phaseIdFromPlan(planPath) — derive the target phase id from the plan filename (`…-p\d+`, digit
- * boundary so a future P10 never prefix-matches P1). Null → the "dispatch phase registered" check
- * (four-table face ④) is skipped (fail-open — a phase-less plan has no registration obligation);
- * the structural overall checks still run fully. Token shape is schema-derived (the canonical
- * phase-id pattern's filename form). */
+/** phaseIdFromPlan(planPath) — the basename-scan phase id (`…-p\d+`, digit boundary so a future P10
+ * never prefix-matches P1). The optional split-letter suffix is dropped (a `p2a` filename still
+ * yields "P2" — the letter belongs to the doc plane). This is the FALLBACK for four-table face ④
+ * when the canonical chain cannot resolve the phase (see phaseIdForDispatch); null → the
+ * "dispatch phase registered" check (four-table face ④) is skipped (fail-open — a phase-less plan
+ * has no registration obligation); the structural overall checks still run fully. Token shape is
+ * schema-derived (the canonical phase-id pattern's filename form). */
 export function phaseIdFromPlan(planPath: string): string | null {
   const m = path.basename(planPath).match(DOC_TOKENS.phaseIdScanRe);
   return m ? `P${m[1]}` : null;
+}
+
+// Letter-preserving spec→phase identity (④'s own-token strand): the canonical phase-id token in
+// its spec-filename form — `…-p1a-design.md` owns `P1a`, never its numeric base P1.
+const SPEC_PHASE_ID_RE = new RegExp(`-(${PHASE_TOKEN_RE.source.replace(/^\\b/, "")})-design\\.md$`, "i");
+
+function phaseIdFromSpecBasename(specPath: string): string | null {
+  const m = path.basename(specPath).match(SPEC_PHASE_ID_RE);
+  return m ? `P${m[1].slice(1)}` : null; // `P1a` / `p1a` → `P1a`
+}
+
+/** phaseIdForDispatch(planPath, root) — the dispatch phase id resolved through the canonical chain
+ * (④ identity, design §2.1 item 2 ④: phase 身份经 overall Phase inventory 解析、不依赖 basename P
+ * 编号命名): the plan's `**Spec:**` design spec → the parent overall's Phase-inventory row whose
+ * Design-spec column carries that spec — by resolved link equality, or by an own `P<n>-design`
+ * token matching the spec filename's phase — and that row's REGISTERED id (split ids preserved:
+ * a `P1a` row yields `P1a`, never the collapsed `P1` the basename scan would produce). Falls back
+ * to the basename scan only when the chain cannot resolve a row (spec missing / no parent overall /
+ * no row carries the spec) — the null semantics (skip ④) are unchanged. */
+export function phaseIdForDispatch(planPath: string, root: string): string | null {
+  const { specPath } = resolveSpecFromPlan(planPath, root);
+  const overallPath = specPath ? resolveParentOverall(specPath, root).overallPath : null;
+  if (specPath && overallPath) {
+    const o = parseOverall(overallPath);
+    if (o.kernelOk) {
+      const specPhase = phaseIdFromSpecBasename(specPath);
+      const specsDir = path.dirname(overallPath);
+      for (const r of o.rows) {
+        // Link-equality strand: the Design-spec cell links to the resolved spec file (the overall's
+        // dir first, the repo root as the repo-form fallback — the same bases Class A walks).
+        for (const { target } of linksOnLine(r.design)) {
+          if (isPlaceholderOrTemplateTarget(target)) continue;
+          if (resolveAny(target, [specsDir, root]) === specPath) return r.id;
+        }
+        // Own-token strand: the cell carries its own `P<n>-design` token matching the spec's phase
+        // (tokenized cells without a file link — cross-referenced tokens for OTHER phases mismatch).
+        if (specPhase && ownDesignToken(r.design, specPhase) !== null) return r.id;
+      }
+    }
+  }
+  return phaseIdFromPlan(planPath);
 }
 
 // ---- overall table parsing (canonical-header semantics from the doc-structure schema) ----
@@ -968,8 +1011,8 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
     }
   }
 
-  // ① bidirectional backfill claim ↔ column: forward (claim ⇒ column carries the target) for plan
-  // + design; reverse (a shipped plan column ⇒ a matching plan claim exists) for plan.
+  // ① bidirectional backfill claim ↔ column: forward (claim ⇒ column carries the target) + reverse
+  // (a shipped column ⇒ a matching claim exists) for plan + design — no plan-only leftover.
   const { planClaims, designClaims } = extractClaimRows(o.historyRows);
   for (const [pid, key] of planClaims) {
     const r = byIdLower.get(pid.toLowerCase());
@@ -1016,6 +1059,8 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
       });
     }
   }
+  // Reverse members on the same bidirectional rule: a SHIPPED column (plan non-pending / design
+  // carrying its own `P<n>-design` token) requires a matching claim in the change history.
   for (const r of o.rows) {
     if (isPendingText(r.plan)) continue;
     if (!planClaims.has(r.id)) {
@@ -1025,6 +1070,19 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
         field: "backfill claim",
         missing: `${r.id} Implementation plan column has shipped but the change history carries no matching plan claim`,
         fix: "add a change-history backfill claim (plan-link clause with `Pending → <target>`) for the shipped phase",
+      });
+    }
+  }
+  for (const r of o.rows) {
+    const own = ownDesignToken(r.design, r.id);
+    if (!own) continue;
+    if (!designClaims.has(r.id)) {
+      failures.push({
+        artifact: "overall",
+        file: overallPath,
+        field: "backfill claim",
+        missing: `${r.id} Design spec column carries its own token but change history has no matching design claim`,
+        fix: "add a change-history backfill claim (Design-spec link clause with `Pending → <target>`) for the shipped design",
       });
     }
   }
@@ -1078,7 +1136,7 @@ export function validateDispatchDocuments(options: DocValidationOptions): DocVal
   const { specPath, failures: specRefFailures } = resolveSpecFromPlan(entry, root);
   failures.push(...specRefFailures);
   if (!specPath) return failures;
-  failures.push(...validatePhaseSpecContract(specPath, root, phaseIdFromPlan(entry)));
+  failures.push(...validatePhaseSpecContract(specPath, root, phaseIdForDispatch(entry, root)));
   return failures;
 }
 

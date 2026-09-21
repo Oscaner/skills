@@ -19,6 +19,6 @@ P2 consumer-parity breaking 面：harness 契约单源 + 全量 charter 审计 +
 
 **doc-structure schema 单源**：canonical doc-structure（overall / plan / phase-spec / add-phase-protocol，draft 2020-12 JSON Schema + descriptions）随包发布（`dist/documents/schema/` 可寻址，`cdd help` 指向）；存量 md 模板（overall-spec-template / phase-spec-template / add-phase-protocol）退役；engine 校验 / 抽取 token 自 canonical 派生（`documents/tokens.ts` 单一派生点——零第二手工 token、repo/skill 侧 md 模板副本全禁）；本仓程序文档链（plan → design → overall）过 engine 新审计路径零误伤（canary dogfood）。
 
-**全量 charter 审计 + closeout 统一规则**（lifecycle 行为面，随上述钩子全通道生效）：lineage 驱动的四表审计（①–⑥ 面）、closeout 声明源 ↔ 列双向全列（forward + reverse，plan + design）+ engine 派生终态并入 + mismmatch 单一推断模块（pre-flight 与 post-flight 同源消费）、终态欠账硬门（回填 = branch-review 前置义务）、dry-run CDD_WARN 降级与 exit 语义不变。
+**全量 charter 审计 + closeout 统一规则**（lifecycle 行为面，随上述钩子全通道生效）：lineage 驱动的四表审计（①–⑥ 面）、closeout 声明源 ↔ 列双向全列（forward + reverse，plan + design）+ engine 派生终态并入 + mismatch 单一推断模块（pre-flight 与 post-flight 同源消费）、终态欠账硬门（回填 = branch-review 前置义务）、dry-run CDD_WARN 降级与 exit 语义不变。
 
 > **semver 说明**：handoff schema 结构升级（docs-family `commits{base,head}` 逆转旧「无 commits」声明 + status 增 TIMEOUT + recovery 核心统一）+ round-context 新 base token + lifecycle 契约结构升级（三通道共享默认钩子）+ 新增 `cdd help` 子命令 = **breaking**，按 major 发布。消费者迁移面：docs-family handoff 消费者需接受新核心块字段（同 task-family 契约）；engine 侧行为面（审计 / closeout 门）对既有合法程序文档链零新增失败（四表合法 → 全绿，dogfood 实证）。仓库内部件（`scripts/run.ts validate` 侧 charter 守卫）随 P3 退役、P4 发布闭环承载版本化，本 changeset 仅定版本面。

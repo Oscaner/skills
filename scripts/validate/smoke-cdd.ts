@@ -79,7 +79,7 @@ export function main() {
     // The five literals mirror the engine's 5-line return-block contract verbatim. Authoritative emitters:
     // src/dispatch/task.ts returnFourLines（stdout/res.returnBlock 面）· returnFromHandoff（回读重发面）·
     // src/cli/branch-review.ts DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
-    // counters 行由 src/artifacts/progress.ts returnCountersLine 派生（缺 progress.json 时零值兜底）。
+    // counters 行由 src/artifacts/return-block.ts#returnCountersLine 派生（缺 progress.json 时零值兜底）。
     const ok = /status: APPROVED/m.test(lastBlock)
       && /commits: base=/.test(lastBlock)
       && /artifacts: /.test(lastBlock)

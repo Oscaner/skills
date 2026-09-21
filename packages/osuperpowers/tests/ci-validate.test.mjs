@@ -1,5 +1,5 @@
 // packages/osuperpowers/tests/ci-validate.test.mjs — T4: validate 编排的 osuperpowers 接线守卫。
-// Node port of ci-validate-wiring.test.sh: guards scripts/validate/index.mjs so future edits
+// Node port of ci-validate-wiring.test.sh: guards scripts/validate/index.ts so future edits
 // cannot drop osuperpowers coverage from `pnpm run validate`. Unlike the bash guard (source
 // grep), this imports the orchestrator and inspects the exported `steps` array — wiring is
 // asserted on real step registration, not string matching. Also covers failure propagation:
@@ -10,11 +10,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { steps, main } from "../../../scripts/validate/index.mjs";
+import { steps, main } from "../../../scripts/validate/index.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
-const VAL = path.join(REPO_ROOT, "scripts/validate/index.mjs");
+const VAL = path.join(REPO_ROOT, "scripts/validate/index.ts");
 
 // 捕获 main() 的 stdout/stderr（对齐 runner.test.mjs capture 模式，无需 mock process.exit）。
 async function capture(fn) {
@@ -113,8 +113,10 @@ test("zero-residue check present with correct grep targets", () => {
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/templates"), "zero-residue grep misses cdd-engine/templates");
 });
 
-// 6b. channel-audit scope pinned (T8): the 5c step must carry channelTargets covering the
+// 6b. channel-audit scope pinned (T8 + P6 Task 3): the 5c step must carry channelTargets covering the
 // §2.8 行 1–11、13 guard scopes — a future edit silently narrowing one fails the wiring guard.
+// P6 Task 3: tests/ retired — src/**/__tests__ test positions are source-tree paths now (walk default
+// self-exempt); the retired top-level dir must NOT be re-added to the scope.
 test("5c channel-audit targets pinned (T8)", () => {
   const zr = steps.find((s) => s.name.startsWith("5c."));
   assert.ok(zr, "zero-residue check missing");
@@ -122,12 +124,12 @@ test("5c channel-audit targets pinned (T8)", () => {
   for (const p of [
     "packages/cdd-engine/src",
     "packages/cdd-engine/templates/schema",
-    "packages/cdd-engine/tests",
     "packages/osuperpowers/skills",
     "scripts",
   ]) {
     assert.ok(zr.channelTargets.includes(p), `channel-audit scope misses ${p}`);
   }
+  assert.ok(!zr.channelTargets.includes("packages/cdd-engine/tests"), "channel-audit scope must not reference retired tests/ dir");
 });
 
 // 7. the wiring guard itself is invoked by the orchestrator (guards the guard)
@@ -158,4 +160,10 @@ test("main: all-green → OK + ALL PASS + return 0", async () => {
 // 10. overall-consistency block wired (P4 block 12) — wired steps 11→12
 test("12. overall consistency step present", () => {
   assert.ok(steps.some((s) => s.name === "12. overall consistency"), "overall consistency step missing");
+});
+
+// 11. block count = 12 (P6 Task 2 / B3: submodule self-maintenance block removed —
+//      submodule.mjs deleted, 13→12 steps). Pins the acceptance "validate 12 块".
+test("validate wiring is exactly 12 steps (submodule block removed)", () => {
+  assert.equal(steps.length, 12);
 });

@@ -6,7 +6,7 @@
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-个人 AI 编程技能市场。四个插件，一条流水线——适用于 **Claude Code**、**Cursor**、**Droid**、**Pi**、**Grok**、**Qoder**、**Codex** 和 **Gemini**。
+个人 AI 编程技能市场。一方插件 + 上游集成，一条流水线——可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。
 
 ## 这是什么
 
@@ -22,12 +22,12 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 
 | 插件 | 类型 | 说明 |
 |------|------|------|
-| **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（osuperpowers 编排器、`cli-*` 家族）、CDD 引擎、跨 harness gate（11 个 adapter） |
-| **[superpowers](vendors/superpowers/)** | vendored | 上游工作流技能——brainstorming、writing plans、SDD、verification、branch finish |
-| **[mattpocock-skills](vendors/mattpocock-skills/)** | vendored | 精准工具——`grilling`、`tdd` |
-| **[impeccable](vendors/impeccable/)** | vendored | 前端设计技能 |
+| **[osuperpowers](packages/osuperpowers/)** | 一方 | 技能（osuperpowers 编排器、`cli-*` 家族）、CDD 引擎 |
+| **superpowers** | 上游（[GitHub](https://github.com/obra/superpowers)） | 工作流技能——brainstorming、writing plans、SDD、verification、branch finish |
+| **mattpocock-skills** | 上游（[GitHub](https://github.com/mattpocock/skills)） | 精准工具——`grilling`、`tdd` |
+| **impeccable** | 上游（[GitHub](https://github.com/pbakaus/impeccable)） | 前端设计技能 |
 
-所有插件均以 `@oscaner-skills/*` scoped npm 包发布。
+osuperpowers 以 `@oscaner-skills/*` scoped npm 包发布；上游插件从各自的发布方安装。osuperpowers 编排器通过 `/` 前缀的 `plugin:skill` 引用读取上游技能（如 `/superpowers:brainstorming`）。
 
 ## 安装
 
@@ -37,40 +37,31 @@ Spec --> Plan --> SDD/TDD --> Verify --> Ship
 # Claude Code
 /plugin marketplace add oscaner/skills
 /plugin install osuperpowers@oscaner-skills
-/plugin install superpowers@oscaner-skills
-/plugin install mattpocock-skills@oscaner-skills
 ```
 
 ### 从 npm 安装
 
 ```bash
 npm install @oscaner-skills/osuperpowers
-npm install @oscaner-skills/superpowers @oscaner-skills/mattpocock-skills @oscaner-skills/impeccable
 ```
+
+### 上游插件
+
+上游插件（superpowers / mattpocock-skills / impeccable）不在此仓库打包——请从各自发布方按其官方命令安装（上方表格中标注「上游」，链接至其 GitHub 主页）。
 
 ### 按 harness 安装
 
-| Harness | 通道 | 安装方式 |
-|---------|------|---------|
-| Claude Code | install-and-use | marketplace 安装 |
-| Cursor Agent | install-and-use | marketplace 安装 |
-| Droid | install-and-use | 复制 skills 到 `.agents/skills/` |
-| Grok | install-and-use | marketplace 安装（Claude 兼容） |
-| Qoder | install-and-use | 安装插件 |
-| Codex | install-and-use | 安装插件 + `/hooks` 信任 |
-| Gemini | install-and-use | `gemini extensions install <repo-url>` |
-| Pi | install-and-use | `pi install npm:@oscaner-skills/osuperpowers` |
-| Trae | init | `init harness trae` |
-| Vibe | init | `init harness vibe` |
-| Kiro | init | `init harness kiro` |
-| OpenCode | init | `init harness opencode` |
+| Harness | 安装方式 |
+|---------|---------|
+| Claude Code | marketplace 安装 |
+| Cursor Agent | marketplace 安装 |
 
-各 harness 详细安装步骤：[docs/gate-install.md](docs/gate-install.md)。
+osuperpowers 通过各 harness 自己的插件市场安装；claude 与 cursor-agent 无需每 harness 的配置文件或信任流程。
 
 ## 快速开始
 
 1. 从市场或 npm 安装插件（见上文）。
-2. 每个项目跑一次 **`/init harness`**——插件升级后重跑。这会在项目的 CLAUDE.md / Cursor rules 中设置 harness 配置。
+2. 确保 `cdd` 引擎 CLI 在 PATH 上（`command -v cdd`）；若缺失，运行 `npm i -g @oscaner-skills/cdd-engine`。`cli-driven-development` 的 `detect-engine` 节点会在 dispatch 时重新检查。
 3. 照常调用 superpowers 工作流——osuperpowers skills 会自动拦截上游触发器并路由到对应目标。
 
 ## 架构
@@ -85,14 +76,13 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> hooks 文件（按 harness）
 ```
 
-一方插件无需手动注册。vendored 插件通过 `scripts/release/vendor-assembly.mjs` 从 `vendors/` submodule 装配。
+一方插件无需手动注册。
 
 完整架构说明：[CLAUDE.md](CLAUDE.md)。
 
 ## 各包文档
 
-- [packages/osuperpowers/](packages/osuperpowers/)——技能、CDD 引擎、gate
-- [docs/gate-install.md](docs/gate-install.md)——各 harness gate 安装指南
+- [packages/osuperpowers/](packages/osuperpowers/)——技能、CDD 引擎
 
 ## 开发
 
@@ -101,15 +91,6 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
 ```bash
 # 编辑任一插件清单或技能后
 pnpm run emit && pnpm run validate
-
-# 克隆后初始化 submodule
-git submodule update --init
-
-# 升级 vendored submodule
-git -C vendors/mattpocock-skills fetch --tags origin
-git -C vendors/mattpocock-skills checkout v1.1.0
-git add vendors/mattpocock-skills
-git commit -m "chore: bump mattpocock-skills submodule"
 ```
 
 ### 新增一方插件
@@ -126,10 +107,6 @@ git commit -m "chore: bump mattpocock-skills submodule"
 
 发布流程：[`.changeset/README.md`](.changeset/README.md)。
 
-Vendored 插件（`@oscaner-skills/{superpowers,mattpocock-skills,impeccable}`）在每次 publish 模式发布时随 first-party 一起装配发布到 npm，并经由 registry 全量一致性差集保证每个 npm 版本同时拥有 git tag + GitHub Release。详见 [`.changeset/README.md` vendor 发布段](.changeset/README.md#vendor-publishing)。
-
 ## 许可
 
 一方代码（`osuperpowers`、marketplace 工具链）：[MIT](LICENSE)。
-
-Vendored 插件保留各自许可——见各插件目录。

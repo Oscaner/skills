@@ -32,7 +32,7 @@
         "CHANGES_REQUESTED",
         "TIMEOUT"
       ],
-      "description": "Write findings, not status — the engine derives status from findings. The review family (review / branch-review) may omit this field (derived); implement / fix must declare it."
+      "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. The review family (review / branch-review) may omit this field — the engine derives it from findings; implement / fix (work types) must declare it. Write findings, not status."
     },
     "failure_category": {
       "type": "string",
@@ -44,14 +44,14 @@
         "UNVERIFIABLE",
         "PLAN_CONFLICT"
       ],
-      "description": "classifier for how the round ended; engine-written on failure paths, declared by the agent only when it reports one."
+      "description": "Failure mechanism channel — which mechanism ended the round (TIMEOUT / CONTRACT_VIOLATION / ENGINE_SELF_WRITTEN / EXECUTION_FAILURE / UNVERIFIABLE / PLAN_CONFLICT). Orthogonal to status (the round conclusion) and to the content-level unverifiable[]/plan_conflicts[] notes. Engine-written on failure paths; declared by the agent only when it reports one. A BLOCKED round may satisfy its grounding via this field (see allOf)."
     },
     "commits": {
       "type": "object",
       "required": [
         "base"
       ],
-      "description": "commit identity of the dispatch's review/fix range; the reviews.json check at 13.5 validates it.",
+      "description": "commit identity of the dispatch's review/fix range; the template-contract review range check at 13.5 validates it.",
       "properties": {
         "base": {
           "type": "string",
@@ -90,28 +90,138 @@
       "type": "array",
       "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (the engine rolls findings up to status)."
     },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "repo-relative path of a file this round changed."
+          },
+          "reason": {
+            "type": "string",
+            "description": "why the file changed (finding id / brief item / fix intent); omitted entries stay attributed by file."
+          }
+        }
+      },
+      "description": "Changed-file attribution ledger (implement/fix rounds declare every file the round touched, each with its reason). The engine reconciles `git diff <base>..HEAD` against it — files off the ledger are booking gaps the execution layer only surfaces (stderr CDD_WARN + a notes record, never a block); the review scope axis judges them as findings."
+    },
     "unverifiable": {
       "type": "array",
-      "description": "claims the round could not verify (see plan/spec review); rolled into status along with findings."
+      "description": "Content-level notes — each entry states one claim the round could not verify (what + why: e.g. {claim, why}). A non-empty list makes the round BLOCKED with failure_category UNVERIFIABLE and a blocker summarizing the entries. Dev-measured acceptance items (plan-constraints §口径) are NOT unverifiable: an evidence-contract accepted-noted round records them in `notes`, never writes unverifiable and never blocks."
     },
     "plan_conflicts": {
       "type": "array",
-      "description": "plan conflicts discovered during the round; rolled into status along with findings."
+      "description": "Content-level notes — each entry states one plan conflict discovered during the round. A non-empty list makes the round BLOCKED with failure_category PLAN_CONFLICT and a blocker summarizing the entries."
     },
     "blocker": {
       "type": "string",
-      "description": "omit when nothing blocks (NOT null) — null is invalid; a present value means the round cannot proceed."
+      "description": "The round's single real blocker line — states what could not be verified and why, or the concrete reason the round cannot proceed. Real sources only (agent-declared / engine gate reason / failure mechanism / unverifiable summary); never fabricated. Omit when nothing blocks (NOT null) — null is invalid. BLOCKED requires a non-empty blocker or a failure_category (see allOf)."
     },
     "notes": {
       "type": "string",
-      "description": "free-form evidence notes (why this fix / why test-evidence was re-recorded); optional."
+      "description": "free-form evidence notes (why this fix / why test-evidence was re-recorded / dev-measured acceptance items recorded per §口径 accepted-noted); optional."
     },
     "test_evidence": {
       "type": "object",
       "description": "reference to command outputs (paths), never inline output bodies."
+    },
+    "recovery": {
+      "type": "object",
+      "required": [
+        "cause"
+      ],
+      "properties": {
+        "cause": {
+          "type": "string",
+          "description": "round-end cause: the failure-category id (EXECUTION_FAILURE / TIMEOUT — the residue-preservation eligibility set) on engine-written death carriers, or the termination sub-cause (stalled/over-budget/signal) on legacy salvage records. The settlement step preserves the residue exactly when this id is in the preserved set."
+        },
+        "exit_code": {
+          "type": "integer",
+          "description": "the failed agent's process exit code (1 = run failure, 143 = SIGTERM) — the archived death diagnosis distinguishing exit 1 vs 143; absent on TIMEOUT rounds (the monitor killed the process; there is no exit)."
+        },
+        "residue_ref": {
+          "type": "string",
+          "description": "Salvaged-WIP stash commit SHA (index-independent: `stash@{N}` indices shift on every push/drop). Written by the residue settlement step on eligible EXECUTION_FAILURE/TIMEOUT rounds with a dirty tree; the re-dispatch resume pre-flight reads it and `git stash apply`s it. Settlement output ≡ resume input."
+        },
+        "wip_stat": {
+          "type": "object",
+          "required": [
+            "files",
+            "insertions",
+            "deletions"
+          ],
+          "properties": {
+            "files": {
+              "type": "integer"
+            },
+            "insertions": {
+              "type": "integer"
+            },
+            "deletions": {
+              "type": "integer"
+            }
+          },
+          "description": "structured WIP scale (files / +M / -M) at salvage time — the recovery carrier's archivable magnitude beside residue_ref; counts brand-new untracked files too (the normal TDD shape for new tests/modules)."
+        },
+        "preserved": {
+          "type": "boolean",
+          "description": "true when the round's residue was stashed into the recovery carrier (residue_ref + wip_stat present); the settlement step's idempotence flag — an already-preserved carrier never double-stashes."
+        },
+        "stash_message": {
+          "type": "string",
+          "description": "The standardized stash name `cdd-<op>-<type>-<task>-r<round>-<cause>` (src/artifacts/residue.ts single source) — the legacy stash-list scan matches on it for pre-schema carriers."
+        },
+        "residue_scope": {
+          "type": "string",
+          "description": "WIP scope summary (`git diff HEAD --shortstat`, e.g. '2 files changed, 727 insertions(+)') — data-driven input for the resume brief appendix."
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "the salvaged round number (implement rounds are always round 1)."
+        },
+        "scope_base": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "The task-level scope anchor at salvage time (ledger value priority / fallback dead-round brief TASK_BASE). Resume restores the same anchor — the round-BASE (resume-declared) adoption and the recovered scope stay consistent across round death."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Residue recovery carrier — engine-written on EXECUTION_FAILURE/TIMEOUT failure rounds: cause + exit_code ride every death (the archived, replayable diagnosis); residue_ref / wip_stat / preserved appear once the settlement step stashed the dirty-tree WIP. Absent on all other rounds. The re-dispatch's resume pre-flight consumes the stash ref (primary path); carriers written before this field existed fall back to the standardized stash-message scan. Same law as every structured field: the facts live here, the blocker stays human-readable prose."
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "implement"
+          },
+          "recovery": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "phase",
+          "recovery"
+        ]
+      },
+      "then": {
+        "properties": {
+          "recovery": {
+            "type": "object",
+            "required": [
+              "residue_ref"
+            ]
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {
@@ -132,6 +242,38 @@
       "else": {
         "required": [
           "status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "BLOCKED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "blocker"
+            ],
+            "properties": {
+              "blocker": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          {
+            "required": [
+              "failure_category"
+            ]
+          }
         ]
       }
     }

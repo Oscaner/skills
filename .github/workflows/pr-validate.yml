@@ -11,8 +11,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          submodules: recursive
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/validate
       - uses: ./.github/actions/link-cdd-engine
-      - run: node scripts/run.mjs smoke-cdd
+      - run: node scripts/run.ts smoke-cdd

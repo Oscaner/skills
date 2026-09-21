@@ -1,41 +1,128 @@
-// packages/cdd-engine/src/render/templates.ts (ex lib/templates.mjs)
-import { existsSync, readFileSync } from "node:fs";
+// packages/cdd-engine/src/render/templates.ts — Task 20 C1-max byte-layout layer (spec D-3).
+// Single renderer + runtime assembly over template-contract.json#sections — the four template .md
+// files merged into the contract's zone storage (single-file rendering data plane), zero handwritten templates:
+//   sections.shell      → one literal-constant shell (full shared frame; zero injection slots in the shell)
+//   sections.return     → byte-constant `## Return` per return format
+//   sections.round-context → the ONLY dynamic zone (absolute end; all per-dispatch values)
+// Segment order is fixed: shell → ## Return → ## Round context. The shell is a process-level
+// parameterless constant (C4: compiled once, reused forever; the per-dispatch shell cache key is
+// eliminated) —
+// renderTemplate renders only the Round-context tail (per dispatch params) on top of the frozen
+// shell + return bytes. renderModePrompt / docs.ts / branch-review.ts are consumers of this
+// single renderer (templatePath / TEMPLATE_FILES retired — no template files remain).
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 // handlebars is CommonJS (no export map): Node ESM can only see `default` / `module.exports`,
 // so the default-import + destructure form is the interop-safe spelling used everywhere (vitest
-// and the plain-node validate chains both resolve `hb.compile` to the compile function).
+// and the plain-node validate chains both resolve hb.compile to the compile function).
 import hb from "handlebars";
 
 const compile = hb.compile;
 
 import { loadHandoffSchema } from "../rules/schema.ts";
 import { familyConfig } from "../artifacts/handoff/naming.ts";
+import { invariant } from "../infra/exit.ts";
 
-// PKG_ROOT = <pkg>/templates (re-org Step 5): rewritten relative to import.meta.url as ../templates/,
-// eliminating the path.resolve(__dirname, …) counting chain; semantics converge on this template
-// resource dir itself (consumers stop appending a 'templates' segment).
+// PKG_ROOT = <pkg>/templates — the render data plane's resource dir (contract + schemas alone;
+// re-org Step 5 semantics converged here; consumers use the constant directly).
 export const PKG_ROOT = fileURLToPath(new URL("../../templates", import.meta.url));
 
-// template name → group mapping (URC: review template data-driven — the six legacy review/fix
-// templates are deleted; the shared shell review.md + fix/docs.md are driven by canonical config;
-// Task 18: doc-fix.md → fix/docs.md moved out of review/).
-// task/             cdd renders per mode (implement/fix subcommands consume)
-// review/           review shared shell (cdd review --type task|branch|spec|plan)
-// fix/              docs-family fix shell (cdd fix --type spec|plan — canonical fix.{type}.fixTemplate = "docs")
-// schema/           handoff JSON schemas (task-handoff-schema.json / docs-handoff-schema.json)
-const MODE_GROUPS: Record<string, string> = {
-  implement: "task",
-  fix: "task",
-  review: "review",
-  docs: "fix",
+// ---- template-contract (the rendering data plane): skeleton + zone sections + zone-tagged
+// token registry + clauses container (T12) + reviews content config. templates.ts is this
+// plane's only loader / assembler (config.ts reads engine-config.json separately). ----
+export interface TemplateZoneToken {
+  name: string;
+  /** Shell slot-free: zone ∈ { return, round-context } — never "shell" (the shell embeds zero slots). */
+  zone: string;
+}
+
+export interface TemplateContract {
+  "$version": number;
+  skeleton: {
+    sections: string[];
+    segments: Record<string, string[]>;
+    order: string[];
+  };
+  sections: {
+    shell: string[];
+    return: Record<string, string[]>;
+    "round-context": string[];
+  };
+  tokens: TemplateZoneToken[];
+  clauses: Record<string, unknown>;
+  reviews: Record<string, unknown>;
+}
+
+// ---- C4 cache-first layer (module-level, one frozen artifact tree per process) ----
+// Three frozen layers, all scoped at module level so one session's dispatches rebuild nothing:
+//   ① the CONTRACT source bytes   → parsed once (CACHE.reads);
+//   ② the COMPILED round-context fn → compiled once (CACHE.compiles);
+//   ③ the rendered ROUND CONTEXT  → memoized per canonical params — a re-dispatch with identical
+//     params returns the frozen tail, zero re-render (CACHE.tailRenders counts distinct
+//     tails materialized; the shell/return bytes are constants keyed only by family/format).
+const CONTRACT_REL = "template-contract.json";
+
+const CACHE: {
+  contract: TemplateContract | null;
+  shells: Map<string, string>;
+  returns: Map<string, string>;
+  compiledRound: ReturnType<typeof compile> | null;
+  roundTokens: string[];
+  rounds: Map<string, string>;
+  /** The shared shell frame compiled + rendered once (T12, D1.2 — clause partial refs resolved). */
+  shellFrameRendered: string | null;
+  reads: number;
+  compiles: number;
+  tailRenders: number;
+} = {
+  contract: null,
+  shells: new Map(),
+  returns: new Map(),
+  compiledRound: null,
+  roundTokens: [],
+  rounds: new Map(),
+  shellFrameRendered: null,
+  reads: 0,
+  compiles: 0,
+  tailRenders: 0,
 };
 
-// template name → absolute path (group-aware). Unknown template name → throws.
-export function templatePath(name: string): string {
-  const group = MODE_GROUPS[name];
-  if (!group) throw new Error(`unknown template: ${name}`);
-  return path.join(PKG_ROOT, group, `${name}.md`);
+export interface TemplateCacheStats {
+  reads: number;
+  compiles: number;
+  tailRenders: number;
+}
+
+export function templateCacheStats(): TemplateCacheStats {
+  return { reads: CACHE.reads, compiles: CACHE.compiles, tailRenders: CACHE.tailRenders };
+}
+
+export function resetTemplateCaches(): void {
+  CACHE.contract = null;
+  CACHE.shells.clear();
+  CACHE.returns.clear();
+  CACHE.compiledRound = null;
+  CACHE.roundTokens = [];
+  CACHE.rounds.clear();
+  CACHE.shellFrameRendered = null;
+  CACHE.reads = 0;
+  CACHE.compiles = 0;
+  CACHE.tailRenders = 0;
+}
+
+export function loadTemplateContract(): TemplateContract {
+  if (!CACHE.contract) {
+    CACHE.contract = JSON.parse(
+      readFileSync(path.join(PKG_ROOT, CONTRACT_REL), "utf8"),
+    ) as TemplateContract;
+    CACHE.reads++;
+    // Partial assembly is memoized with the contract (T12 wiring; idempotent, empty
+    // container = no-op) — every render path runs loadTemplateContract before compiling
+    // a round context, so registered {{> clause}} refs always resolve.
+    assembleClauses(CACHE.contract);
+  }
+  return CACHE.contract;
 }
 
 export const LINE_BUDGETS = Object.freeze({
@@ -43,73 +130,148 @@ export const LINE_BUDGETS = Object.freeze({
 });
 
 export function lineBudget(tier: string): number {
-  if (!(tier in LINE_BUDGETS)) throw new Error(`unknown line budget tier: ${tier}`);
+  if (!(tier in LINE_BUDGETS)) invariant(false, `unknown line budget tier: ${tier}`);
   return LINE_BUDGETS[tier as keyof typeof LINE_BUDGETS];
 }
 
-// pluginRoot() removed — callers use the PKG_ROOT constant instead.
-// Backward-compat: export an alias for callers that passed pluginRoot as DI.
-// re-org Step 5: PKG_ROOT semantics = the template resource dir → pluginRoot() also returns it
-// (run-task step 2.5 existence check targets pluginRootFn() directly, no longer appends 'templates').
+// pluginRoot() = the template resource dir (PKG_ROOT) — run-task step 2.5 existence check targets
+// pluginRootFn() directly (the dir holds the contract + schemas).
 export function pluginRoot(): string { return PKG_ROOT; }
 
-// ---- Handoff contract injection (Task 18: schema verbatim) ----
-// Contract uniqueness (schema) → injection uniqueness (its string form). Zero render: to interpret,
-// simplify, pre-fill, shrink the skeleton or write enum examples — the rules are all carried by the
-// schema's description (the write-protocol rules moved into semantics: status "write findings not
-// status" / findings "{lens,severity,…}" / artifacts "point at files" / commits.head "40-char full
-// form" / blocker "omit when no blocker").
-export function renderHandoffStub(schema: unknown): string {
+// ---- Handoff contract injection (Task 18: schema verbatim; zero render) ----
+// Contract uniqueness (schema) → injection uniqueness (its string form). The schema is the only
+// per-family injection the shell carries: shellFor(family) = shared frame + this block.
+export function renderHandoffSchemaJson(schema: unknown): string {
   return '```json\n' + JSON.stringify(schema) + '\n```';
 }
 
-// ---- shared-shell rendering (handlebars, byte-identical to the legacy split/join) ----
-// Template files keep the legacy `{{X}}` double-stash spelling (templates.content.test pins the
-// file literals). Rendering normalizes the content ONCE per render:
-//   · `{{HANDOFF_STUB}}` is resolved by a dedicated param carrying the literal slot text itself:
-//     `HANDOFF_STUB: "{{HANDOFF_STUB}}"`. The triple-stash (`{{{HANDOFF_STUB}}}`) emits it raw, so
-//     the rendered output keeps the literal slot — callers inject per-caller schemas AFTER render by
-//     re-replacing it (docs.ts "docs", task.ts / branch-review / renderModePrompt "task"), exactly
-//     like the legacy split/join pipeline. (A control-byte sentinel was tried first, but handlebars'
-//     lexer rejects it — "Lexical error" at first template use; the slot-text param needs none.)
-//   · every remaining `{{X}}` → `{{{X}}}` triple-stash: strict compile with raw (un-escaped)
-//     values — the legacy split/join injected params verbatim, and handlebars' default HTML
-//     escaping would corrupt the H1 four-line contract (`status: <APPROVED|BLOCKED>`), HARD_GATE
-//     (`> ⚠️ …`) and schema/brief injections. The schema injection / H1 four-line / brief values
-//     therefore ALL travel through `{{{X}}}`.
-//   · strict: true makes any missing (undefined) param throw — exactly the legacy "missing param"
-//     guard; handlebars' `"KEY" not defined in …` message is normalized back to the pinned wording.
-const HANDOFF_STUB_SLOT = "{{HANDOFF_STUB}}";
+// ---- zone builders (runtime assembly; all memoized / frozen) ----
 
+function joinLines(lines: string[]): string {
+  return lines.join("\n") + "\n";
+}
+
+/** Registry token names in registry order. */
+export function tokenNames(contract: TemplateContract = loadTemplateContract()): string[] {
+  return contract.tokens.map((t) => t.name);
+}
+
+/** zone → its tokens (registry ownership: a slot renders only in its own zone). */
+export function tokensInZone(zone: string, contract: TemplateContract = loadTemplateContract()): string[] {
+  return contract.tokens.filter((t) => t.zone === zone).map((t) => t.name);
+}
+
+// C4 parameterless shell constant (T12/D1.2): the shared shell frame is compiled + rendered ONCE per process —
+// clause partial refs ({{> cl:…}}) resolve against the clause library registered at contract load
+// (assembleClauses runs inside loadTemplateContract — always before the first shell assembly). The
+// frame is parameterless (zero per-dispatch values — zero shell injection); the per-family schema block is the
+// only injected bytes. Non-strict compile: the shell carries no variables — only literal text +
+// clause refs — so token-slot leaks are the structure validator's job (validateTemplateStructure),
+// not the compile's (the round-context strict compile stays strict).
+function shellFrame(): string {
+  if (CACHE.shellFrameRendered === null) {
+    const frame = joinLines(loadTemplateContract().sections.shell);
+    CACHE.shellFrameRendered = compile(frame)({});
+    CACHE.compiles++;
+  }
+  return CACHE.shellFrameRendered;
+}
+
+/** family → the frozen shell = shared frame (clause refs resolved once) + the family's schema
+ * block (frames end with the "per the schema below" prose; the schema block is the only injected
+ * bytes). */
+function shellFor(family: string): string {
+  let shell = CACHE.shells.get(family);
+  if (shell === undefined) {
+    const block = renderHandoffSchemaJson(loadHandoffSchema(family));
+    shell = shellFrame() + "\n" + block;
+    CACHE.shells.set(family, shell);
+  }
+  return shell;
+}
+
+/** return format → the frozen `## Return` constant. */
+function returnFor(format: string): string {
+  let out = CACHE.returns.get(format);
+  if (out === undefined) {
+    const lines = loadTemplateContract().sections.return[format];
+    if (!lines) invariant(false, `unknown return format: ${format}`);
+    out = joinLines(lines);
+    CACHE.returns.set(format, out);
+  }
+  return out;
+}
+
+// returnFormat → shell family: the docs family owns RETURN_JSON (spec/plan review) and DOCS_FIX
+// (spec/plan fix); everything else (RETURN_STDOUT_BLOCK / absent) is the task family. No
+// switch-statement — a const discriminator map (residue guard: templates.ts is switch-free, and
+// writing the forbidden token's literal shape here trips the guard's own scan).
+const DOCS_FORMATS = Object.freeze(["RETURN_JSON", "DOCS_FIX"]);
+
+function familyFor(returnFormat: unknown): string {
+  return typeof returnFormat === "string" && DOCS_FORMATS.includes(returnFormat) ? "docs" : "task";
+}
+
+function defaultReturnFormat(): string {
+  return "RETURN_STDOUT_BLOCK";
+}
+
+// Legacy double-stash → triple-stash (raw, un-escaped values): strict compile with {{{X}}}
+// preserves the four-line contract (`status: <APPROVED|BLOCKED>`), the gate (`> ⚠️ …`) and path
+// values verbatim.
 function tripleAll(src: string): string {
   return src.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_m: string, key: string) => `{{{${key}}}}`);
 }
 
-function renderWithHandlebars(
-  content: string,
-  params: Record<string, unknown>,
-  programName: string | undefined,
-  templateNameForError: string,
-): string {
-  try {
-    return compile(tripleAll(content), { strict: true })({
-      ...params,
-      HANDOFF_STUB: HANDOFF_STUB_SLOT,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const missing = msg.match(/^"([^"]+)" not defined/);
-    if (missing) {
-      throw new Error(`${programName}: template ${templateNameForError}: missing param ${missing[1]}`);
-    }
-    throw err;
-  }
+// Canonical, environment-independent memo key for the Round-context tail (sorted keys, JSON-escaped
+// values; insertion order never factors in). The former exported shell cache-key helper is
+// eliminated — the shell is keyed by family constant; this internal key memoizes the tail only.
+function canonicalKey(params: Record<string, unknown>): string {
+  return Object.keys(params)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${JSON.stringify(params[k])}`)
+    .join("\n");
 }
 
-// ---- Review template data-driven (reviews.json per-type config + review.md shared shell) ----
+/** Render the Round-context tail (the ONLY dynamic zone) — compile once, memoize per canonical
+ * params, pre-fill absent round slots with "" (mode-union template: strictness is impossible
+ * across modes; the legacy missing-param throw retires with the per-template files). */
+function renderRoundContext(
+  name: string,
+  params: Record<string, unknown>,
+  programName: string | undefined,
+): string {
+  const roundSrc = joinLines(loadTemplateContract().sections["round-context"]);
+  if (!CACHE.compiledRound) {
+    CACHE.compiledRound = compile(tripleAll(roundSrc), { strict: true });
+    CACHE.compiles++;
+    CACHE.roundTokens = scanTemplateTokens(roundSrc);
+  }
+  const filled: Record<string, unknown> = {};
+  for (const key of CACHE.roundTokens) filled[key] = params[key] ?? "";
+  const key = canonicalKey(filled);
+  let out = CACHE.rounds.get(key);
+  if (out === undefined) {
+    try {
+      out = CACHE.compiledRound(filled);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const missing = msg.match(/^"([^"]+)" not defined/);
+      if (missing) {
+        invariant(false, `${programName}: template ${name}: missing param ${missing[1]}`);
+      }
+      throw err;
+    }
+    CACHE.tailRenders++;
+    CACHE.rounds.set(key, out);
+  }
+  return out;
+}
+
+// ---- Review template data-driven (template-contract.json#reviews per-type config + shared shell) ----
 
 export function loadReviews(): Record<string, unknown> {
-  return JSON.parse(readFileSync(path.join(PKG_ROOT, "review", "reviews.json"), "utf8")) as Record<string, unknown>;
+  return loadTemplateContract().reviews;
 }
 
 export interface ReviewTypeConfig {
@@ -118,126 +280,234 @@ export interface ReviewTypeConfig {
   axesGuide: string;
 }
 
-// reviews.json[type] → pure content contract { lensEnum, ref, axesGuide } (T2 axis cut:
-// returnMode/handoffType/fixTemplate moved to canonical; artifact reads go through
-// reviewArtifactConfig). task/branch refs are git-range symbols (TASK_BASE..HEAD / BASE..HEAD,
-// concrete-injected by the caller); spec/plan refs are relational descriptions (doc vs spec), the
-// actual doc path lands on REFERENCE via the caller.
+// #reviews[type] → pure content contract { lensEnum, ref, axesGuide } (T2 axis cut:
+// returnFormat/handoffType/fixTemplate moved to canonical; artifact reads go through
+// reviewArtifactConfig). task/branch refs are git-range symbols (REVIEW_REFERENCE ← concrete
+// FIXED_POINT..HEAD / BASE..HEAD); spec/plan refs are relational descriptions (doc vs spec), the
+// actual doc path lands on REVIEW_REFERENCE via the caller.
 export function reviewTypeConfig(type: string): ReviewTypeConfig {
   const cfg = loadReviews()[type] as ReviewTypeConfig | undefined;
-  if (!cfg) throw new Error(`unknown review type: ${type}`);
+  if (!cfg) invariant(false, `unknown review type: ${type}`);
   return cfg;
 }
 
-// reviewArtifactConfig(type) → reads the canonical handoff-namespace.json review.{type} family,
-// returns { schema, return } — the unique source of HANDOFF_TYPE / RETURN_MODE template params:
-// the handoffType field name retires → canonical's schema ("task"/"docs"), returnMode → canonical's
-// return ("h1"/"json"). fixTemplate is not surfaced by this layer (runFix reads the fix family
-// directly; no second read point). Task 18: schema prefix unified — canonical values renamed with
-// the file cdd- → task-.
-export function reviewArtifactConfig(type: string): { schema: string; return: string } {
-  const cfg = familyConfig("review", type) as unknown as { schema: string; return: string };
-  return { schema: cfg.schema, return: cfg.return };
+// reviewArtifactConfig(type) → reads the canonical handoffNamespace review.{type} family, returns
+// { schema, returnFormat } — the unique source of the RETURN_FORMAT template param; returnFormat ∈
+// {"RETURN_STDOUT_BLOCK", "RETURN_JSON"} (the canonical return-contract discriminator). fixTemplate
+// is not surfaced by this layer (runFix reads the fix family directly; no second read point).
+export function reviewArtifactConfig(type: string): { schema: string; returnFormat: string } {
+  const cfg = familyConfig("review", type) as unknown as { schema: string; returnFormat: string };
+  return { schema: cfg.schema, returnFormat: cfg.returnFormat };
 }
 
-// returnMode=h1 types (task/branch) inject the four-line H1 contract into {{H1_BLOCK}}; spec/plan
-// render nothing (empty). Task 18: this block sits inside the shared `## Return` shell (no longer
-// carries its own `## Return (H1 — stdout only)` heading — the template Return section headings are
-// unified, and a duplicate heading would break the "4 templates same skeleton" section-order
-// assertion).
-export const REVIEW_H1_BLOCK = `Return **exactly 4 lines** to stdout; make this block the **final** output — nothing may follow it (stream-json harnesses parse the last block):
-
-\`\`\`
-status: <APPROVED|BLOCKED>
-commits: base=<sha> head=<sha>
-artifacts: brief=<path> report=<path> test_evidence=<path>
-blocker: <none|one-line>
-\`\`\``;
-
-// review.md HARD GATE (T6): returnMode split-writes — h1 → "BEFORE outputting H1"; json → "BEFORE
-// outputting the JSON return". Injects the actual handoff path. Illicit returnMode → h1 default
-// (unknown families must not crash rendering).
-export function reviewHardGate(returnMode: string, handoffPath?: unknown): string {
-  const before = returnMode === "json" ? "BEFORE outputting the JSON return." : "BEFORE outputting H1.";
-  const target = handoffPath ?? "{{HANDOFF}}";
+// review.md HANDOFF_WRITE_GATE (T6; HARD_GATE → HANDOFF_WRITE_GATE naming): returnFormat
+// split-writes — RETURN_STDOUT_BLOCK → "BEFORE outputting the RETURN_STDOUT_BLOCK"; RETURN_JSON →
+// "BEFORE outputting the JSON return". Task 20: the gate VALUE (real handoff path) rides the
+// Round-context `### HANDOFF_WRITE_GATE` slot — the shell prose is byte constant. Illicit
+// returnFormat → RETURN_STDOUT_BLOCK default (unknown families must not crash rendering).
+export function reviewHardGate(returnFormat: string, handoffPath?: unknown): string {
+  const before = returnFormat === "RETURN_JSON" ? "BEFORE outputting the JSON return." : "BEFORE outputting the RETURN_STDOUT_BLOCK.";
+  const target = handoffPath ?? "{{HANDOFF_TARGET}}";
   return `> ⚠️ HARD GATE — Write \`${target}\` ${before}\n> Returning without a written handoff file = BLOCKED (runner exit 1).`;
 }
 
-// docs-family fix (cdd fix --type spec|plan) HARD GATE (Task 18 review-1 finding 2): fix's return
-// IS the on-disk write (fix/docs.md `## Return` says "Your return IS the handoff written to … — the
-// engine reads the file, not your stdout"; no JSON return on stdout). Must not reuse
-// reviewHardGate("json") — "BEFORE outputting the JSON return" would self-contradict for a fix
-// agent. Gate semantics = exit only after the write.
+// docs-family fix (cdd fix --type spec|plan) HANDOFF_WRITE_GATE (Task 18 review-1 finding 2):
+// fix's return IS the on-disk write (the DOCS_FIX return constant says "the engine reads the
+// file, not your stdout"; no JSON return on stdout). Must not reuse reviewHardGate("RETURN_JSON")
+// — "BEFORE outputting the JSON return" would self-contradict for a fix agent. Gate semantics =
+// exit only after the write.
 export function docsFixHardGate(handoffPath?: unknown): string {
-  const target = handoffPath ?? "{{HANDOFF}}";
+  const target = handoffPath ?? "{{HANDOFF_TARGET}}";
   return `> ⚠️ HARD GATE — Write \`${target}\` BEFORE exiting: the engine reads the file, not your stdout. Returning without a written handoff file = BLOCKED (runner exit 1).`;
 }
 
-// implement's HARD GATE: this mode does not write a handoff (the runner materializes it from the
-// H1 four lines + TASK_BASE + git HEAD), isomorphic to fix/review's "write-before-return" but
-// semantically inverted — the shared-Handoff-shell slot's injected value, not a template
+// implement's HANDOFF_WRITE_GATE: this mode does not write a handoff (the runner materializes it
+// from the return block four lines + TASK_BASE + git HEAD), isomorphic to fix/review's "write-before-return"
+// but semantically inverted — the shared-Handoff-shell slot's injected value, not a template
 // difference. Artifacts (report + test evidence) come first: the materialized handoff's artifacts
 // all come from them; absent → BLOCKED.
 function implementHardGate(handoffPath: unknown, taskNum: unknown): string {
   const target = handoffPath || `task-${taskNum}-implement.json`;
-  return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your H1 four lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting H1 — returning without them = BLOCKED (runner exit 1).`;
+  return `> ⚠️ HARD GATE — This mode does not write \`${target}\`: the runner materializes it from your return block four lines + the brief's \`TASK_BASE\` + \`git HEAD\`. Write the implementer report + test evidence BEFORE outputting the return block — returning without them = BLOCKED (runner exit 1).`;
 }
 
-// params = promptParams (produced by buildPromptParams): template interpolation keys + PLAN_LINE.
-// PLAN_LINE comes from the caller deriving it off the **explicit plan path** and passing it via
-// params — this layer reads zero env, and never introduces an env key named after a plan path
-// (that key name is the hit surface of the "derived values must not ride the env" guard).
+// ---- token registry (Task 5 D1.4 + Task 20 zones) — driven/validated by template-contract.json ----
+// 19 tokens converge to the new naming convention (<domain>_<semantic> + task-*/docs-* scope
+// prefixes) and carry a zone ownership (return | round-context; zero shell slots — no token may live in
+// "shell"). Zero legacy names remain (H1_BLOCK / HANDOFF triple-meaning / HANDOFF_STUB /
+// HANDOFF_TYPE / HANDOFF_SCHEMA_JSON / TYPE / LENS_GUIDE / AXES / HARD_GATE / RETURN_MODE /
+// WORKSPACE / REFERENCE / PLAN_LINE / FINDINGS / BRIEF / TASK / CONSTRAINTS / FIXED_POINT / DOC).
+
+/** Extract all `{{TOKEN}}` tokens declared in the text. */
+export function scanTemplateTokens(src: string): string[] {
+  return [...src.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)].map((m) => m[1]);
+}
+
+/** Assert the text uses only registry tokens (unknown/legacy name → throw). */
+export function validateTemplateTokens(src: string, contract: TemplateContract = loadTemplateContract()): void {
+  const names = new Set(tokenNames(contract));
+  for (const tok of scanTemplateTokens(src)) {
+    if (!names.has(tok)) invariant(false, `template token not in registry: ${tok}`);
+  }
+}
+
+/** Skeleton + zone check over the CONTRACT byte plane (Task 20 ④ + T12/D1.2): zero shell injection +
+ * a slot renders only in its own zone.
+ * - shell zone: zero *token* moustache (zero residual token slots in the shell; `{{> clause}}` partial refs are the
+ *   single-source discipline markers — assembly slots, not per-dispatch values — so they are
+ *   permitted); opens the Instructions/Handoff sections;
+ * - return constants: byte constants (zero moustache — no slots, no clause refs), each opening
+ *   `## Return`;
+ * - round-context: the only moustache zone — every round-zone token renders there, return-zone
+ *   tokens surface as literal labels only (never moustaches), and any `{{> clause}}` reference
+ *   resolves to a registered clause (T12 assembler);
+ * - skeleton{ sections, slots-level segments, order } matches the assembled plane. */
+export function validateTemplateStructure(contract: TemplateContract = loadTemplateContract()): void {
+  const shellSrc = joinLines(contract.sections.shell);
+  // Zero shell injection (T12 revision): the shell embeds zero per-dispatch *slots* — token moustaches
+  // ({{TOKEN}} / {{{TOKEN}}}) are banned; `{{> clause}}` partial refs (single-source discipline
+  // markers, resolved once at load) are allowed. The guard keys on token-slot shapes, not `{{`
+  // presence; real per-dispatch values ride ## Round context slots.
+  if (/\{\{(?!>\s*)/.test(shellSrc)) {
+    invariant(false, "shell zone must be slot-free (zero token moustache) — embed per-dispatch values as ## Round context slots; only {{> clause}} refs are allowed");
+  }
+  const roundSrc = joinLines(contract.sections["round-context"]);
+  if (!roundSrc.startsWith("## Round context")) {
+    invariant(false, "round-context zone must open with `## Round context`");
+  }
+  for (const [format, lines] of Object.entries(contract.sections.return)) {
+    const src = joinLines(lines);
+    if (!src.startsWith("## Return")) invariant(false, `return constant ${format} must open with ## Return`);
+    if (src.includes("{{")) invariant(false, `return constant ${format} must be a literal constant (zero moustache)`);
+  }
+  // A slot renders only in its own zone: each registry token renders only inside its own zone's source.
+  if (JSON.stringify(contract.skeleton.sections) !== JSON.stringify(["Instructions", "Handoff", "Return", "Round context"])) {
+    invariant(false, `skeleton.sections mismatch: got [${contract.skeleton.sections.join(", ")}]`);
+  }
+  if (JSON.stringify(contract.skeleton.segments.shell) !== JSON.stringify(["Instructions", "Handoff"])) {
+    invariant(false, "skeleton.segments.shell must be slot-level [Instructions, Handoff]");
+  }
+  if (JSON.stringify(contract.skeleton.segments.return) !== JSON.stringify(["Return"])) {
+    invariant(false, "skeleton.segments.return must be slot-level [Return]");
+  }
+  if (JSON.stringify(contract.skeleton.segments["round-context"]) !== JSON.stringify(["Round context"])) {
+    invariant(false, 'skeleton.segments["round-context"] must be slot-level [Round context]');
+  }
+  if (JSON.stringify(contract.skeleton.order) !== JSON.stringify(["shell", "return", "round-context"])) {
+    invariant(false, "skeleton.order must be [shell, return, round-context] (segment order is always shell → Return → Round context)");
+  }
+  const zoneSource: Record<string, string> = {
+    return: Object.values(contract.sections.return).map(joinLines).join("\n"),
+    "round-context": roundSrc,
+  };
+  for (const tok of contract.tokens) {
+    if (tok.zone === "shell") invariant(false, `token ${tok.name}: shell is slot-free (shell zero-slot rule)`);
+    const src = zoneSource[tok.zone];
+    if (!src) invariant(false, `unknown zone ${tok.zone} for token ${tok.name}`);
+    if (tok.zone === "return") {
+      if (src.includes(`{{${tok.name}}}`)) {
+        invariant(false, `return token {{${tok.name}}} must surface as a literal label, not a moustache`);
+      }
+    } else if (!src.includes(`{{${tok.name}}}`)) {
+      invariant(false, `token {{${tok.name}}} must render inside its ${tok.zone} zone source`);
+    }
+  }
+  // A slot renders only in its own zone (reverse direction): every moustache actually rendered in
+  // the round-context zone must be a round-zone token (shell slot-free + single dynamic zone: a
+  // round slot may neither be absent from the registry nor be another zone token's injection channel).
+  const roundZoneNames = new Set(contract.tokens.filter((t) => t.zone === "round-context").map((t) => t.name));
+  for (const tok of scanTemplateTokens(roundSrc)) {
+    if (!roundZoneNames.has(tok)) {
+      invariant(false, `slot {{${tok}}} must be a round-context token (a slot renders only in its own zone)`);
+    }
+  }
+  // clauses assembler surface: any `{{> name}}` in a zone must resolve to a registered clause
+  // (T12: clause ids carry the `cl:` namespace — `:` joins the partial-name alphabet).
+  for (const src of [shellSrc, roundSrc, ...Object.values(contract.sections.return).map(joinLines)]) {
+    for (const name of [...src.matchAll(/\{\{>\s*([\w:-]+)\}\}/g)].map((m) => m[1])) {
+      if (!(name in contract.clauses)) invariant(false, `unknown clause partial: {{> ${name}}}`);
+    }
+  }
+}
+
+/** Validate the shipped contract plane (structural + token registry) — returns the zone keys on
+ * pass (the former per-file template sweep retires with the .md files). */
+export function validateShippedTemplates(): string[] {
+  const data = loadTemplateContract();
+  validateTemplateStructure(data);
+  validateTemplateTokens(joinLines(data.sections["round-context"]), data);
+  return Object.keys(data.sections);
+}
+
+// ---- clauses assembler (Task 20 T12 wiring: the {{> clause}} reference mechanism face) ----
+// #clauses = container of discipline-clause bodies (T12 lands them); the assembler registers each
+// clause as a handlebars partial so a `{{> clause}}` reference in the round-context zone resolves
+// at render. Wired into loadTemplateContract() (memoized with the contract, idempotent — empty
+// container → no-op; the validator already rejects unknown refs at validate time).
+
+export function clauseNames(contract: TemplateContract = loadTemplateContract()): string[] {
+  return Object.keys(contract.clauses);
+}
+
+export function assembleClauses(contract: TemplateContract = loadTemplateContract()): void {
+  for (const [name, body] of Object.entries(contract.clauses)) {
+    hb.registerPartial(name, String(body));
+  }
+}
+
+// ---- dispatch prompt composition (renderModePrompt / renderTemplate: the sole renderer) ----
+
+function buildReviewRound(name: string, params: Record<string, unknown>): Record<string, unknown> {
+  const cfg = reviewTypeConfig("task");
+  const art = reviewArtifactConfig("task");
+  const workspace = params.TASK_WORKSPACE ? String(params.TASK_WORKSPACE) : "";
+  const round: Record<string, unknown> = {
+    MODE: "review",
+    REVIEW_TYPE: "task",
+    TASK_WORKSPACE: workspace,
+    WORKSPACE_SLUG: params.WORKSPACE_SLUG ?? (workspace ? path.basename(workspace) : ""),
+    REVIEW_LENS_GUIDE: cfg.lensEnum.join(" · "),
+    REVIEW_REFERENCE: params.TASK_FIXED_POINT ? `${params.TASK_FIXED_POINT}..HEAD` : cfg.ref,
+    REVIEW_AXES: cfg.axesGuide,
+    HANDOFF_TARGET: params.HANDOFF_TARGET ?? "",
+    REVIEW_PLAN_LINE: params.REVIEW_PLAN_LINE ?? "",
+    HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, params.HANDOFF_TARGET),
+    TASK_FIXED_POINT: params.TASK_FIXED_POINT ?? "",
+    RETURN_FORMAT: art.returnFormat,
+  };
+  return { ...params, ...round };
+}
+
+// params = promptParams (produced by buildPromptParams): round-context interpolation keys +
+// REVIEW_PLAN_LINE. REVIEW_PLAN_LINE comes from the caller deriving it off the **explicit plan
+// path** and passing it via params — this layer reads zero env, and never introduces an env key
+// named after a plan path (that key name is the hit surface of the "derived values must not ride
+// the env" guard).
 export function renderModePrompt(mode: string, params: Record<string, unknown> = {}): string {
-  // review mode routes through the review.md shared shell (reviews.json type=task config); the old
-  // assembled template is deleted. REFERENCE concrete-izes as FIXED_POINT..HEAD. fix/implement stay
-  // on the task/ templates.
+  // review mode routes through the type=task config (template-contract reviews), concrete-izing
+  // REFERENCE as FIXED_POINT..HEAD and skipping any template name map (no files; unified shell).
   if (mode === "review") {
-    const cfg = reviewTypeConfig("task");
-    const art = reviewArtifactConfig("task");
-    let prompt = renderTemplate("review", {
-      TYPE: "task",
-      WORKSPACE: params.WORKSPACE ?? "",
-      LENS_GUIDE: cfg.lensEnum.join(" · "),
-      REFERENCE: params.FIXED_POINT ? `${params.FIXED_POINT}..HEAD` : cfg.ref,
-      AXES: cfg.axesGuide,
-      HANDOFF: params.HANDOFF ?? "",
-      HANDOFF_TYPE: art.schema,
-      RETURN_MODE: art.return,
-      H1_BLOCK: REVIEW_H1_BLOCK,
-      PLAN_LINE: params.PLAN_LINE ?? "",
-      HARD_GATE: reviewHardGate(art.return, params.HANDOFF),
-    });
-    // HANDOFF_STUB: shared-shell slot = schema verbatim injection (Task 18, zero render; no
-    // values injection surface).
-    const stub = renderHandoffStub(loadHandoffSchema("task"));
-    return prompt.replace(/\{\{HANDOFF_STUB\}\}/g, stub);
+    return renderTemplate("review", buildReviewRound("review", params));
   }
-  const modePath = templatePath(mode);
-  if (!existsSync(modePath)) throw new Error(`missing template: ${modePath}`);
-  const content = readFileSync(modePath, "utf8");
-  // Non-review modes never fatally reject missing params — the legacy PLACEHOLDERS split/join
-  // defaulted a missing key to "" (implement/fix mode = "" injection); strict resolution would
-  // throw, so pre-fill every placeholder the file declares with `params[key] ?? ""`.
-  const filledParams: Record<string, unknown> = {};
-  for (const key of new Set<string>([...content.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)].map((m) => m[1]))) {
-    filledParams[key] = params[key] ?? "";
-  }
-  // Shared Handoff / Return shell slots (task family = implement/fix): HARD_GATE per mode
-  // (fix = write-before-return; implement = no handoff, runner materializes), H1_BLOCK = the
-  // shared four-line contract — both travel through {{{X}}} with the schema injection (raw, no
-  // escaping). HANDOFF_STUB keeps the literal slot for the per-caller schema replace.
-  return compile(tripleAll(content), { strict: true })({
-    ...filledParams,
-    HARD_GATE: mode === "fix" ? reviewHardGate("h1", params.HANDOFF) : implementHardGate(params.HANDOFF, params.TASK),
-    H1_BLOCK: REVIEW_H1_BLOCK,
-    HANDOFF_STUB: HANDOFF_STUB_SLOT,
-  }).replace(/\{\{HANDOFF_STUB\}\}/g, renderHandoffStub(loadHandoffSchema("task")));
+  // implement/fix share the task-family shell + RETURN_STDOUT_BLOCK return; only the
+  // HANDOFF_WRITE_GATE / MODE values differ (fix = write-before-return; implement = no handoff,
+  // runner materializes). No schema slot replace remains — the shellFor schema block is baked.
+  return renderTemplate(mode, {
+    ...params,
+    MODE: mode,
+    HANDOFF_WRITE_GATE: mode === "fix" ? reviewHardGate("RETURN_STDOUT_BLOCK", params.HANDOFF_TARGET) : implementHardGate(params.HANDOFF_TARGET, params.TASK_NUMBER),
+    RETURN_FORMAT: defaultReturnFormat(),
+  });
 }
 
+/** Assemble one dispatch prompt — C1-max byte layout: shell (tenant constant) → ## Return (byte constant) →
+ * ## Round context (the only dynamic zone). family routes by RETURN_FORMAT (docs = RETURN_JSON/DOCS_FIX,
+ * else task); missing round slots pre-fill "" (mode-union template, no strict missing-param
+ * throw); the tail memoizes by canonical params (identical re-dispatch = zero re-render). */
 export function renderTemplate(name: string, params: Record<string, unknown>, programName?: string): string {
-  const templatePath_ = templatePath(name);
-  if (!existsSync(templatePath_)) {
-    throw new Error(`${programName}: template not found: ${templatePath_}`);
-  }
-  return renderWithHandlebars(readFileSync(templatePath_, "utf8"), params, programName, name);
+  const returnFormat = typeof params.RETURN_FORMAT === "string" ? params.RETURN_FORMAT : defaultReturnFormat();
+  const family = familyFor(returnFormat);
+  return (
+    shellFor(family) + "\n" + returnFor(returnFormat) + renderRoundContext(name, params, programName)
+  );
 }

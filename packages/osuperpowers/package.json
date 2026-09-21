@@ -18,11 +18,6 @@
   "dependencies": {
     "@oscaner-skills/cdd-engine": "workspace:*"
   },
-  "pi": {
-    "skills": [
-      "./skills"
-    ]
-  },
   "oscaner-plugin": {
     "claude": {
       "category": "osuperpowers",
@@ -30,9 +25,7 @@
         "osuperpowers",
         "cli",
         "cdd",
-        "harness",
-        "droid",
-        "pi"
+        "harness"
       ]
     },
     "contentRoot": ".",

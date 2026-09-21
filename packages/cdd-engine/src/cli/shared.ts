@@ -1,17 +1,15 @@
-// packages/cdd-engine/src/cli/shared.ts — shared host detection + Review Stopping guard cluster
+// packages/cdd-engine/src/cli/shared.ts — shared host detection + Review Convergence guard cluster
 // (multiple consumers reuse). spec §2.6 split: detectCurrentHarness/requireHostHarness/DRY_RUN/
-// intTask/resolveTargetDoc/blockerCount/stoppedExit3/reviewStoppingGuard moved out of
-// src/cli/review.mjs — ownership decided by closure completeness: reviewStoppingGuard internally
-// calls stoppedExit3 + blockerCount + reviewStoppedError (imported from runner/review-loop); the
-// three must move together to avoid a shared→review reverse dependency. existingRoundHandoff is
-// only consumed by runReview → stays private to review.ts (review.ts runReview still imports
-// through this cluster; shared keeps zero reverse dependency).
+// intTask/resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard moved out of
+// src/cli/review.mjs — ownership decided by closure completeness: reviewConvergenceGuard internally
+// calls convergedExit3 + blockerCount + reviewConvergedError (since P6 T24 the cluster re-exports
+// from rules/convergence.ts, its single owner — spec T7.3 C; see the bottom-of-file re-export
+// block). existingRoundHandoff is only consumed by runReview → stays private to review.ts
+// (review.ts runReview still imports through this cluster; shared keeps zero reverse dependency).
 import type { ArgDef, ArgsDef } from "citty";
 
-import { reviewStoppedError } from "../dispatch/review-loop.ts";
-import { exitWithCode } from "../infra/exit.ts";
+import { exitWithCode, cliUsageError } from "../infra/exit.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { isIncompleteDispatch } from "../rules/failure.ts";
 
 // DRY_RUN — resolution of the program-level `--dry-run` flag (module state). The single write
 // entry is setDryRun: the black-box path injects it from bin.ts's preAction over the FULL argv;
@@ -71,10 +69,10 @@ export function resolveTargetDoc(opts: { type: string; spec?: string; plan?: str
 
 // Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse
 // time (exit 2 + message) instead of letting parseInt leak NaN into runTask and fabricate
-// task-NaN-* artifacts with a false APPROVED H1 (STD-3).
+// task-NaN-* artifacts with a false APPROVED return block (STD-3).
 export function intTask(v: string): number {
   const n = parseInt(v, 10);
-  if (isNaN(n)) throw new Error(`--task must be an integer, got: ${v}`);
+  if (isNaN(n)) throw cliUsageError(`--task must be an integer, got: ${v}`);
   return n;
 }
 
@@ -116,45 +114,23 @@ export function guardArgs(rawArgs: readonly string[], argDef: ArgsDef | undefine
     // string/enum arg (e.g. --no-plan) is an unknown option — rejected below.
     if (name.startsWith("no-") && declared.get(normFlag(name.slice(3)))?.type === "boolean") continue;
     if (!declared.has(n)) {
-      const err = new Error(`unknown option: ${tok}`) as Error & { name: string; code: string };
-      err.name = "CLIError";
-      err.code = "E_UNKNOWN_OPTION";
-      throw err;
+      throw cliUsageError(`unknown option: ${tok}`);
     }
   }
 }
 
-export interface PrevHandoff {
-  status?: string;
-  blocker?: string;
-  failure_category?: string;
-  findings?: Array<{ severity?: string }>;
-}
-
-export function blockerCount(handoff: Pick<PrevHandoff, "findings"> | undefined): number {
-  return (handoff?.findings ?? []).filter((f) => f?.severity === "blocker").length;
-}
-
-// Review Stopping: reject a re-dispatch of a (type, ref) whose previous round reached
-// APPROVED with blocker=0. A failure round (status BLOCKED/TIMEOUT) is NOT "done" — it
-// must be re-dispatchable, so the gate requires status === "APPROVED" in addition to
-// blockerCount === 0 (SP-4): runner 8.5/8.8/10/10.5 and docs-runner failure paths write
-// status:BLOCKED|TIMEOUT with findings:[] → blockerCount alone would misjudge them as passed.
-export function stoppedExit3(type: string, round: number, ref: string, blocker: string | undefined, opts?: { reason?: "legacy" | "unchanged" }): never {
-  const e = reviewStoppedError(type, round, ref, opts);   // structured error + message, single authority
-  process.stderr.write(`${e.message}\n` + (blocker ? `last blocker: ${blocker}\n` : ""));
-  exitWithCode(3);
-}
-
-// Unified Stopping gate: only APPROVED + blocker=0 stops a re-run; a BLOCKED/TIMEOUT failure
-// round (findings:[]) must stay re-dispatchable (SP-4). ref is the type's target signature.
-// opts pass through to reviewStoppedError's reason (legacy/unchanged) — task/branch call
-// surfaces pass no opts → the default message is unchanged.
-// T6 (B3, #250[8]): ENGINE_SELF_WRITTEN / CONTRACT_VIOLATION = this round's dispatch did not
-// complete → not a Stopping basis ("counts into Review Stopping = no" control-flow landing).
-// The judgment derives from canonical (isIncompleteDispatch) — no hard-coded category name, so
-// deleting a canonical category would turn this reference into a red name.
-export function reviewStoppingGuard(prev: PrevHandoff | undefined, type: string, round: number, ref: string, opts?: { reason?: "legacy" | "unchanged" }): void {
-  const incomplete = isIncompleteDispatch(prev?.failure_category);
-  if (!incomplete && prev && prev.status === "APPROVED" && blockerCount(prev) === 0) stoppedExit3(type, round, ref, prev?.blocker, opts);
-}
+// ---- Review Convergence — single owner, re-exported (P6 T24 C) ----
+// The Convergence cluster (blockerCount / reviewConvergedError / convergedExit3 /
+// reviewConvergenceGuard) has ONE owner: src/rules/convergence.ts (pure judgment layer — the
+// correct layer per the infra→rules→artifacts→dispatch→cli boundary). The cli face keeps no
+// second definition: these four functions are re-exports, byte-identical with the owner —
+// a Convergence behavior change edits rules/convergence.ts once.
+export {
+  blockerCount,
+  reviewConvergedError,
+  convergedExit3,
+  reviewConvergenceGuard,
+} from "../rules/convergence.ts";
+/** Review-handoff shape the CLI guard takes (alias of the owner's HandoffLike — one type
+ * identity, never a second declaration). */
+export type PrevHandoff = import("../rules/convergence.ts").HandoffLike;

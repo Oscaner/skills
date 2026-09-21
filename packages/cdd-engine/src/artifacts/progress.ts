@@ -2,15 +2,18 @@
 // (Task 8 port of progress.mjs; ex lib/state/progress.mjs). Replaces the progress.md-based
 // timeoutCount with structured JSON. Transparent migration: readProgressJSON auto-migrates
 // progress.md → progress.json.
+// P6 T24 B: the return block's `counters:` line construction moved to
+// src/artifacts/return-block.ts#returnCountersLine (its single point) — progress drops the
+// counters() import, breaking the failure⇄progress mutual import (counters() stays the
+// rules/failure.ts owner; progress only reads/writes).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { gitMergeBaseIsAncestor } from "../infra/git.ts";
 
-import { counters } from "../rules/failure.ts";
-
-// T8: progress schema dropped lastDispatchHead/degradationLog (dead fields; check-head/
+// The progress schema dropped lastDispatchHead/degradationLog (T8: dead fields; check-head/
 // engine-recovery degradation, superseded by deriveReviewStatus/engineRecoveryCount);
 // degradationLogItem retired with degradationLog.
-// T6: the PROGRESS_SCHEMA constant block was deleted whole — zero consumers repo-wide. The
+// The PROGRESS_SCHEMA constant block was deleted whole (T6) — zero consumers repo-wide. The
 // progress.json key set is carried by createEmptyProgress (initial shape) + migrateIfNeeded's
 // backfill branch (legacy-migration shape); mechanical guard = tests/progress.test.mjs's
 // six-key lexical-order assertion + backfill assertions.
@@ -25,8 +28,11 @@ export interface ProgressData {
   engineRecoveryCount?: number;
   tasks: Array<{
     task: number;
-    status?: string;
     rounds?: Record<string, number>;
+    /** Task-level scope anchor — the round-1 implement's brief TASK_BASE, seeded earliest-wins
+     *  and only ever moved strictly earlier (T27, spec T7.6). Engine-owned, never an agent handoff
+     *  key; see seedScopeBase / moveTaskScopeBaseEarlier. */
+    scope_base?: string;
   }>;
   [key: string]: unknown;
 }
@@ -53,20 +59,29 @@ export function readProgressJSON(progressDir: string, plan?: string): ProgressDa
 /** writeProgressJSON: write data to progress.json in progressDir.
  * The dead fields (lastDispatchHead/degradationLog) are stripped on write once more — a legacy
  * progress.json (a live pre-degradation file) carrying the old keys gets a one-time GC on first
- * write-back. Strips on a serialization copy, never mutates the caller's object. */
+ * write-back. Task 30 ②: tasks[N].status is retired from the schema — any legacy row still
+ * carrying it converges on the first write-back (deriveTaskState is the single TaskState source;
+ * the row keeps only facts). Strips on a serialization copy, never mutates the caller's object. */
 const PROGRESS_DEAD_KEYS = ["lastDispatchHead", "degradationLog"];
 export function writeProgressJSON(progressDir: string, data: ProgressData): void {
   const jsonPath = path.join(progressDir, "progress.json");
   const clean = { ...data };
   for (const k of PROGRESS_DEAD_KEYS) delete clean[k];
+  if (Array.isArray(clean.tasks)) {
+    clean.tasks = clean.tasks.map((t) => {
+      const row = { ...t } as Record<string, unknown>;
+      delete row.status;
+      return row as ProgressData["tasks"][number];
+    });
+  }
   writeFileSync(jsonPath, JSON.stringify(clean, null, 2));
 }
 
 /** createEmptyProgress: fresh progress object for a given plan.
  * T8: dead fields deleted — progress.json top level is plan/timeoutCount/engineRecoveryCount/tasks.
  * T6: contractViolationCount / engineSelfWrittenCount added (init 0) — the six keys match the
- * canonical counter column (templates/failure-categories.json) verbatim (tests/progress.test.mjs
- * six-key assertion). */
+ * canonical counter column (engine-config.json#failureCategories) verbatim
+ * (src/artifacts/__tests__/progress.test.ts six-key assertion). */
 export function createEmptyProgress(plan?: string): ProgressData {
   return {
     plan: plan || "",
@@ -91,7 +106,7 @@ export function incrementRound(progressDir: string, taskNum: number, mode: strin
   const data = readProgressJSON(progressDir);
   let taskEntry = data.tasks.find((t) => t.task === taskNum);
   if (!taskEntry) {
-    taskEntry = { task: taskNum, status: "pending", rounds: {} };
+    taskEntry = { task: taskNum, rounds: {} };
     data.tasks.push(taskEntry);
   }
   taskEntry.rounds ??= {}; // migrate pre-rounds task entries that lack the field
@@ -99,7 +114,7 @@ export function incrementRound(progressDir: string, taskNum: number, mode: strin
   writeProgressJSON(progressDir, data);
 }
 
-/** incrementRecovery: engineRecoveryCount 自增 (D14 — every progress.json field is engine-written).
+/** incrementRecovery: engineRecoveryCount increments (D14 — every progress.json field is engine-written).
  * The runner calls this whenever the engine writes a BLOCKED handoff (BLOCKED/engine-error path);
  * the orchestrator-layer skill (cli-driven-development §engine-recovery) only READS it to decide
  * retry (count < 2 → re-dispatch; count ≥ 2 → terminal engine-error), never increments itself. */
@@ -107,6 +122,74 @@ export function incrementRecovery(progressDir: string): void {
   const data = readProgressJSON(progressDir);
   data.engineRecoveryCount = (data.engineRecoveryCount ?? 0) + 1;
   writeProgressJSON(progressDir, data);
+}
+
+// ---- tasks[N].scope_base — task-level contribution anchor — the scope ledger (T27 spec T7.6) ----
+// `base` one name, two meanings (T26 defect): roundBase is this round's commit seat (correct per-round), scopeBase
+// is the task's TRUE contribution start — must survive round death and stay stable across re-dispatches
+// (converge in the normal flow, diverge on resume rounds). The ledger is the engine's sole writer;
+// it is NOT an agent-authored handoff key. Seed = first-round implement's brief TASK_BASE via
+// seedScopeBase at materialization time (earliest-wins); a resume-declared base may only move the
+// ledger STRICTLY earlier (via moveTaskScopeBaseEarlier — recovered commits sit below any round's
+// brief snapshot). Read fallback: taskScopeBase → null, then dispatch/task.ts falls back to the
+// legacy prev.commits.base chain (zero behavior change for tasks without a ledger).
+export const SHA40_RE = /^[0-9a-f]{40}$/;
+
+/** taskScopeBase: the ledger's current scope_base for taskNum, or null when absent/invalid
+ *  (a non-40-hex stored value is treated as a missing ledger — dispatch falls back to legacy). */
+export function taskScopeBase(progressDir: string, taskNum: number): string | null {
+  const entry = readProgressJSON(progressDir).tasks.find((t) => t.task === taskNum);
+  const v = entry?.scope_base;
+  return typeof v === "string" && SHA40_RE.test(v) ? v : null;
+}
+
+/** seedScopeBase: earliest-wins seed of the ledger for taskNum. Creates the task entry on demand.
+ *  Returns the ledger value AFTER the call: an existing valid anchor wins (the return equals the
+ *  current value, the change is a no-op); an invalid stored value is healed by the first valid seed;
+ *  a non-40-hex/absent input never writes (returns the current ledger value — null when empty). */
+export function seedScopeBase(progressDir: string, taskNum: number, base: string): string | null {
+  const data = readProgressJSON(progressDir);
+  const entry = data.tasks.find((t) => t.task === taskNum);
+  const current = entry?.scope_base;
+  if (typeof current === "string" && SHA40_RE.test(current)) return current; // earliest-wins
+  if (!SHA40_RE.test(base)) return current ?? null;
+  let taskEntry = data.tasks.find((t) => t.task === taskNum);
+  if (!taskEntry) {
+    taskEntry = { task: taskNum, scope_base: base };
+    data.tasks.push(taskEntry);
+  }
+  taskEntry.scope_base = base;
+  writeProgressJSON(progressDir, data);
+  return base;
+}
+
+/** moveTaskScopeBaseEarlier: the resume-declared-base move lane. Only a candidate that is a strict
+ *  HEAD ancestor AND a strict (candidate !== current) ancestor of the current ledger value may pull
+ *  the ledger earlier — a descendant/later commit, a ==head value (fraud lane), a non-ancestor
+ *  forgery (checked via git merge-base output comparison — see infra/git.ts gitMergeBaseIsAncestor),
+ *  and a non-40-hex candidate all leave the ledger intact. Ledger missing → falls back to the seed
+ *  lane. Returns the ledger value after the call. */
+export async function moveTaskScopeBaseEarlier(
+  progressDir: string,
+  taskNum: number,
+  candidate: string,
+  cwd: string,
+  head: string,
+): Promise<string | null> {
+  const current = taskScopeBase(progressDir, taskNum);
+  if (current === null) return seedScopeBase(progressDir, taskNum, candidate);
+  if (!SHA40_RE.test(candidate) || candidate === current || candidate === head) return current;
+  const isAncestorOfCurrent = await gitMergeBaseIsAncestor(cwd, candidate, current);
+  const isAncestorOfHead = await gitMergeBaseIsAncestor(cwd, candidate, head);
+  if (!isAncestorOfCurrent || !isAncestorOfHead) return current;
+  const data = readProgressJSON(progressDir);
+  const taskEntry = data.tasks.find((t) => t.task === taskNum);
+  if (taskEntry) {
+    taskEntry.scope_base = candidate;
+    writeProgressJSON(progressDir, data);
+    return candidate;
+  }
+  return current;
 }
 
 /** migrateFromProgressMD: parse progress.md and return a structured progress object.
@@ -124,18 +207,19 @@ export function migrateFromProgressMD(progressDir: string): ProgressData | null 
   const recoveryMatch = content.match(/^# engine-recovery-count: (\d+)/m);
   const engineRecoveryCount = recoveryMatch ? parseInt(recoveryMatch[1], 10) : 0;
 
-  // Parse completed tasks: `Task N: complete`
-  const tasks: Array<{ task: number; status: string }> = [];
+  // Parse completed tasks: `Task N: complete` — Task 30 ②: migrated rows are status-free (the
+  // legacy complete/pending marker is subsumed by deriveTaskState).
+  const tasks: Array<{ task: number }> = [];
   const taskLines = content.match(/Task (\d+): complete/g) || [];
   for (const line of taskLines) {
     const num = parseInt(line.match(/Task (\d+)/)![1], 10);
-    tasks.push({ task: num, status: "complete" }); // completedAt omitted for pre-migration tasks
+    tasks.push({ task: num }); // completedAt omitted for pre-migration tasks
   }
 
-  // Fill in missing tasks as pending (up to the max completed task number)
+  // Fill in missing tasks (up to the max completed task number)
   const maxTask = tasks.length > 0 ? Math.max(...tasks.map((t) => t.task)) : 0;
   for (let i = 1; i <= maxTask; i++) {
-    if (!tasks.find((t) => t.task === i)) tasks.push({ task: i, status: "pending" });
+    if (!tasks.find((t) => t.task === i)) tasks.push({ task: i });
   }
 
   return {
@@ -158,8 +242,8 @@ export function migrateIfNeeded(progressDir: string, plan?: string): ProgressDat
   if (existsSync(jsonPath)) {
     try {
       const data = JSON.parse(readFileSync(jsonPath, "utf8")) as ProgressData;
-      // T6: backfill the two counters (init 0), only write when actually backfilled — no no-op
-      // overwrite without change (same line as persistFinalized). Judgment by missing/非数字
+      // Backfill the two counters (init 0), only writing when actually backfilled (T6) — no no-op
+      // overwrite without change (same line as persistFinalized). Judgment by missing/non-numeric
       // rather than unconditional write: a legacy valid number (e.g. existing 5) must not be zeroed.
       let changed = false;
       if (typeof (data as Record<string, unknown>).contractViolationCount !== "number") {
@@ -184,30 +268,4 @@ export function migrateIfNeeded(progressDir: string, plan?: string): ProgressDat
   const empty = createEmptyProgress(plan);
   writeProgressJSON(progressDir, empty);
   return empty;
-}
-
-/** h1CountersLine(workspace) — the H1 `counters` line's UNIQUE construction point (T7): all three
- * H1 producers (task h1FourLines / h1FromHandoff · branch dry-run block) append through this
- * function, or the task-family 5-line vs branch-family 4-line split has no guard.
- * Reads the four counter fields of <workspace>/progress.json: missing / corrupt file / missing
- * keys each fall back to `0` and never throw (a dry-run first round may not have progress.json
- * yet — the fallback IS the first-round shape). **Read-only, no write side effect**: never
- * paper-over the missing-file zero fallback, never overwrites progress.json on the H1 path.
- * Field names and H1 labels come from src/rules/failure.ts#counters() (T6 canonical) — zero
- * hand-written counter names / labels here. */
-export function h1CountersLine(workspace: string): string {
-  const jsonPath = path.join(workspace, "progress.json");
-  let data: Record<string, unknown> = {};
-  if (existsSync(jsonPath)) {
-    try {
-      data = JSON.parse(readFileSync(jsonPath, "utf8")) as Record<string, unknown>;
-    } catch {
-      data = {};
-    }
-  }
-  const parts = [];
-  for (const { field, label } of counters()) {
-    parts.push(`${label}=${typeof data[field] === "number" ? data[field] : 0}`);
-  }
-  return `counters: ${parts.join(" ")}`;
 }

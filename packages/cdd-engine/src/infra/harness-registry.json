@@ -14,13 +14,26 @@
       },
       "fix": "/mattpocock-skills:tdd"
     },
-    "suffix": {}
+    "suffix": {},
+    "cache": {
+      "mechanism": "explicit",
+      "minTokens": 512,
+      "readMultiplier": 0.1,
+      "writeMultiplier": 1.25,
+      "ttlMinutes": 5,
+      "observable": true
+    }
   },
   "cursor-agent": {
     "cli": "cursor-agent",
     "invoke": "--print --output-format text --force",
     "output": "text",
     "ship": "full",
+    "cache": {
+      "mechanism": "auto-prefix",
+      "minTokens": "pending",
+      "observable": false
+    },
     "prefix": {
       "implement": "/mattpocock-skills:tdd",
       "review": {

@@ -6,48 +6,49 @@
 // from its own callers instead of reading process.env at this depth.
 import { loadContract } from "./context.ts";
 import { resolveInjection, resolveSuffix } from "./registry.ts";
-import { spawnManaged, markAllDispatchesDone, type SpawnResult } from "./proc.ts";
+import { spawnManaged, markAllDispatchesDone, DEFAULT_SAMPLE_INTERVAL_MS, DEFAULT_IDLE_WINDOW_MS, type SpawnResult, type TerminationConfig } from "./proc.ts";
+import { invariant } from "./exit.ts";
 
 export interface TimeoutDefaults {
   [mode: string]: number | undefined;
 }
 
-// Timeout and env-name source of truth: canonical `templates/context-contract.json` (loadContract()
-// is the unique reader). Any default / per-mode / global-override env name here comes from the
-// canonical — editing the canonical edits behavior. MAX_TIMEOUT_MS stays a module constant on
-// purpose: it is the safe ceiling below the setTimeout 32-bit limit, not canonical behavior.
+// Termination config source of truth: canonical `engine-config.json#contextContract` (loadContract()
+// is the unique reader). The budget defaults + stall cadence come from the canonical — editing the
+// canonical edits behavior. T26 deletion surface: the env override keys (CDD_TASK_TIMEOUT /
+// CDD_REVIEW_TIMEOUT / CDD_CLI_TIMEOUT) and the perModeOverride/globalOverride config segments are
+// REMOVED — runtime budget tuning had zero real scenarios and violated the T14 zero-new-env-key
+// principle; the config defaults + the explicit opts.termination seam are the only budget sources.
 const CONTRACT = loadContract();
 const DEFAULT_TIMEOUTS: TimeoutDefaults = CONTRACT.timeouts.defaults;
-const PER_MODE_ENV = CONTRACT.timeouts.perModeOverride.env;
-const GLOBAL_ENV = CONTRACT.timeouts.globalOverride.env;
-const STEP_SECONDS = CONTRACT.timeouts.globalOverride.stepSeconds;
-const MAX_TIMEOUT_MS = 2_000_000_000;
 
-// seconds → ms unified clamp: valid numbers (incl. huge) never cross the setTimeout ceiling
-// (invalid → default, resolved by the caller).
-function scaleToMs(seconds: number): number {
-  return Math.min(Math.max(1, seconds) * 1000, MAX_TIMEOUT_MS);
-}
+// Stall-cadence surface (T26): the stall detector's sample cadence + idle window read from canonical
+// timeouts.liveness (defaults are honored the same way the mode budgets are — a config file edit
+// edits behavior). No env override: the documented seams for tests are the injectable
+// TaskRunOptions.termination (dispatch) and SpawnOpts.termination (proc).
+const LIVENESS_DEFAULTS: Record<string, number | undefined> =
+  (CONTRACT.timeouts.liveness as Record<string, number | undefined> | undefined) ?? {};
 
-// per-mode env (CDD_TASK_TIMEOUT / CDD_REVIEW_TIMEOUT) is in seconds — 45 min is 2700, not 2700000
-// (an ms value ≥ 8.3e8 overflows the clamp and turns into a ~1ms instant SIGTERM).
-export function resolveTimeoutMs(env: NodeJS.ProcessEnv, mode: string): number | undefined {
-  const modeKey = PER_MODE_ENV[mode];
-  const perMode = modeKey ? env[modeKey] : undefined;
-  if (perMode !== undefined) {
-    const n = Number(perMode);
-    if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode]; // invalid input → default, never ~1ms kill
-    return scaleToMs(n);
-  }
-  const globalRaw = env[GLOBAL_ENV];
-  if (globalRaw !== undefined) {
-    const n = Number(globalRaw);
-    if (Number.isNaN(n)) return DEFAULT_TIMEOUTS[mode];
-    const seconds = Math.max(1, Math.ceil(n / STEP_SECONDS) * STEP_SECONDS);
-    return scaleToMs(seconds);
-  }
-  if (DEFAULT_TIMEOUTS[mode] != null) return DEFAULT_TIMEOUTS[mode];
-  return undefined;
+/**
+ * resolveTerminationConfig — the single resolver for the unified termination param (T26: replaces
+ * resolveTimeoutMs + resolveLivenessConfig). Returns the full TerminationConfig the three dispatch
+ * islands (task / docs / branch) thread into invokeCli/spawnManaged:
+ *   budgetMs       = overrides?.budgetMs ?? canonical default for mode (no env reads);
+ *   progressPath   = overrides?.progressPath ?? progressPath arg (the workspace tree signal);
+ *   sampleInterval = overrides?.sampleIntervalMs ?? canonical timeouts.liveness;
+ *   idleWindowMs   = overrides?.idleWindowMs ?? canonical timeouts.liveness.
+ */
+export function resolveTerminationConfig(
+  mode: string,
+  overrides: Partial<TerminationConfig> | undefined = undefined,
+  progressPath: string | undefined = undefined,
+): TerminationConfig {
+  return {
+    budgetMs: overrides?.budgetMs ?? DEFAULT_TIMEOUTS[mode],
+    progressPath: overrides?.progressPath ?? progressPath,
+    sampleIntervalMs: overrides?.sampleIntervalMs ?? LIVENESS_DEFAULTS.sampleIntervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS,
+    idleWindowMs: overrides?.idleWindowMs ?? LIVENESS_DEFAULTS.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS,
+  };
 }
 
 // Credentials stripping lives at the single spawn choke point in proc.ts (spawnManaged) — invoke.ts
@@ -56,6 +57,45 @@ export function resolveTimeoutMs(env: NodeJS.ProcessEnv, mode: string): number |
 export interface InvokeParams {
   op: string;
   type?: string;
+}
+
+// ---- spec D-3 C5: dispatch-set composition (pure, deterministic — the C4 memo precondition) ----
+// The engine-controlled dispatch set = { cli, args (invoke string), cwd, env }; model is
+// harness-decided and never set here. same (harness, op, type) + same inputs → byte-identical set
+// (registry-driven prefix/suffix resolution, zero env sway). composeDispatchSet is the single
+// assembly point invokeCli spawns from.
+
+export interface DispatchSet {
+  cli: string;
+  args: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}
+
+/** [registry prefix, prompt, suffix] joined on newlines (C1: prefix precedes the prompt). */
+export function promptArgText(prefix: string, prompt: string, suffix: string): string {
+  return [prefix, prompt, suffix].filter(Boolean).join("\n");
+}
+
+/** invoke-spec words + the prompt arg last (the exact legacy args shape). */
+export function buildInvokeArgs(invokeSpec: string, promptArg: string): string[] {
+  return [...invokeSpec.split(/\s+/).filter(Boolean), promptArg];
+}
+
+/** Resolve the op×type prefix/suffix and compose the full dispatch set. */
+export function composeDispatchSet(
+  entry: { cli: string; invoke: string; prefix?: unknown; suffix?: unknown },
+  params: InvokeParams | string,
+  prompt: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): DispatchSet {
+  const paramsObj: InvokeParams = typeof params === "string" ? { op: params } : (params ?? {});
+  const { op, type } = paramsObj;
+  const p = resolveInjection(entry, op, type);
+  const s = resolveSuffix(entry, op, type);
+  const promptArg = promptArgText(p, prompt, s);
+  return { cli: entry.cli, args: buildInvokeArgs(entry.invoke, promptArg), cwd, env };
 }
 
 // Invoke CLI: build args from entry, handle stream-json output mode.
@@ -69,27 +109,20 @@ export async function invokeCli(
   params: InvokeParams | string,
   env: NodeJS.ProcessEnv,
   cwd: string,
-  timeoutMs: number | undefined,
+  termination?: TerminationConfig,   // unified budget + stall termination opts (single param; T26)
 ): Promise<SpawnResult> {
-  // Fallback: string params (legacy positional mode) normalize to { op } — a flat mode key resolves
-  // directly (unmigrated registry), avoiding a silent empty injection; truly-absent → empty injection.
-  const paramsObj: InvokeParams = typeof params === "string" ? { op: params } : (params ?? {});
-  const { op, type } = paramsObj;
-  const p = resolveInjection(entry, op, type);
-  const s = resolveSuffix(entry, op, type);
-  const promptArg = [p, prompt, s].filter(Boolean).join("\n");
-  const args = [...entry.invoke.split(/\s+/).filter(Boolean), promptArg];
-  const res = await spawnManaged(entry.cli, args, { cwd, env, timeoutMs });
+  const set = composeDispatchSet(entry, params, prompt, cwd, env);
+  const res = await spawnManaged(set.cli, set.args, { cwd: set.cwd, env: set.env, termination });
   markAllDispatchesDone();          // dispatch (incl. every retry attempt) returned → group done
   if (res.ok && entry.output === "stream-json") {
     const finalText = extractStreamJsonFinal(res.stdout);
-    // timedOut passes the spawnManaged self-held determination through — previously two hardcoded
-    // false branches dropped the timeout shape at the stream-json exit.
+    // timedOut passes the spawnManaged determination through — plus the cause it recorded (T26
+    // three-cause surface), so the stream-json exit never drops the termination shape.
     if (!finalText) {
       return { ok: false, code: 1, stdout: res.stdout,
-               stderr: "stream-json produced no completion finalText", timedOut: res.timedOut === true };
+               stderr: "stream-json produced no completion finalText", timedOut: res.timedOut === true, cause: res.cause };
     }
-    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr, timedOut: res.timedOut === true };
+    return { ok: true, code: 0, stdout: finalText, stderr: res.stderr, timedOut: res.timedOut === true, cause: res.cause };
   }
   return res;
 }
@@ -120,11 +153,11 @@ export async function invokeCliWithRetry(
   params: InvokeParams | string,
   env: NodeJS.ProcessEnv,
   cwd: string,
-  timeoutMs: number | undefined,
+  termination?: TerminationConfig,
 ): Promise<SpawnResult> {
   const MAX_RETRIES = RETRY_DELAYS_MS.length;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const result = await invokeCli(entry, prompt, params, env, cwd, timeoutMs);
+    const result = await invokeCli(entry, prompt, params, env, cwd, termination);
     if (result.ok || result.timedOut) return result;
     const isTransient = /overloaded|rate_limit|529/.test(result.stderr ?? "");
     if (isTransient && attempt < MAX_RETRIES) {
@@ -133,5 +166,5 @@ export async function invokeCliWithRetry(
     }
     return result;
   }
-  throw new Error("unreachable: retry loop always returns");
+  invariant(false, "unreachable: retry loop always returns");
 }

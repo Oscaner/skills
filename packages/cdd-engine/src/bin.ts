@@ -4,7 +4,7 @@
 // the four subcommands implement / review / fix / base-branch [set|get]). This file only boots
 // it: `--help` pre-screen → root/proc bootstrap → runCommand → parse/usage error normalization
 // (exit code table §2.4.2: 0 = OK incl. --help; 1 = dispatch failure / blocked; 2 = usage or
-// parse error; 3 = review stopping — citty's own parse errors exit 1, so this wrapper is what
+// parse error; 3 = review convergence — citty's own parse errors exit 1, so this wrapper is what
 // keeps the subroutine's documented table intact).
 //   cdd implement --task <n> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> [...]
@@ -30,7 +30,7 @@ import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
 import { mainCommand, MAIN_ARGS, usageError, commandUsageKey, deepestCommand } from "./cli/parse.ts";
 import { setDryRun } from "./cli/shared.ts";
 import { initRoot } from "./infra/root.ts";
-import { ExitRequested } from "./infra/exit.ts";
+import { ExitRequested, CddExitError } from "./infra/exit.ts";
 
 // citty renders usage/help with ANSI color — this entry prints plain text (commander-era parity +
 // deterministic test surface). Stripping happens at the two print points below, never via env
@@ -97,17 +97,32 @@ async function main() {
     // "root reap at the run boundary" would be dead code on the CLI mainline (the process exit
     // does not unwind our own finally blocks).
     if (raw instanceof ExitRequested) process.exit(raw.code);
+    // The CddExitError family (P6 T24, F error consolidation): orchestration errors (registry gate /
+    // DispatchBlocked / RunBlocked / usage) all land here and exit by their own exitCode. The
+    // kind=usage face (shared.ts guardArgs/intTask → cliUsageError) keeps the citty-usage parity:
+    // usage line (the resolved command context via deepestCommand) + message + exit 2. All other
+    // kinds → message + exit raw.exitCode (1 = blocked / run-blocked; the code is the family's
+    // field, never recomputed here — the 0/1/2/3 table is the family's contract).
+    if (raw instanceof CddExitError) {
+      if (raw.kind === "usage") {
+        const [cmd, parent] = await deepestCommand(rawArgs);
+        usageError(commandUsageKey(cmd, parent));
+        process.stderr.write(`${plain(raw.message)}\n`);
+      } else {
+        process.stderr.write(`${plain(raw.message)}\n`);
+      }
+      process.exit(raw.exitCode);
+    }
     const e = raw as { message?: unknown; name?: unknown };
-    // citty parse/usage errors (CLIError name — including guardArgs' CLIError-shaped
-    // unknown-option rejection): the usage line (the resolved command context via deepestCommand)
-    // + citty/guard message + exit 2.
+    // citty parse/usage errors (CLIError name — citty's own parse errors, outside the engine
+    // family): the usage line (the resolved command context via deepestCommand) + message + exit 2.
     if (e && e.name === "CLIError") {
       const [cmd, parent] = await deepestCommand(rawArgs);
       usageError(commandUsageKey(cmd, parent));
       process.stderr.write(`${plain(e.message)}\n`);
     } else {
-      // Non-CLIError action/arg errors (e.g. the raw Error intTask throws) — existing semantics
-      // unified to exit 2.
+      // Non-CLIError action/arg errors (e.g. a library invariant escaping its caller — the plain
+      // Error invariant() throws) — existing semantics unified to exit 2.
       process.stderr.write(`${e?.message ?? String(e)}\n`);
     }
     process.exit(2);

@@ -12,6 +12,7 @@
 // Context threading: the lifecycle passes ONE DispatchHookContext through every callHook so
 // handlers observe the dispatch mode and share scratch state via meta.
 import { createHooks, type Hookable } from "hookable";
+import { invariant } from "../infra/exit.ts";
 
 export const HOOK_POINTS = ["dispatch:before", "dispatch:after", "commit:enter", "commit:exit"] as const;
 export type FixedHookPoint = (typeof HOOK_POINTS)[number];
@@ -50,9 +51,10 @@ export function createDispatchHooks(): DispatchHooks {
 // teeth. Returns the unregister function removing every attached handler.
 export function registerDispatchPlugin(hooks: DispatchHooks, plugin: DispatchPlugin): () => void {
   for (const key of Object.keys(plugin)) {
-    if (!FIXED_POINT_SET.has(key)) {
-      throw new Error(`registerDispatchPlugin: unknown hook point "${key}" — fixed points: ${HOOK_POINTS.join(", ")}`);
-    }
+    invariant(
+      FIXED_POINT_SET.has(key),
+      `registerDispatchPlugin: unknown hook point "${key}" — fixed points: ${HOOK_POINTS.join(", ")}`,
+    );
   }
   const unregisterFns: Array<() => void> = [];
   for (const point of HOOK_POINTS) {

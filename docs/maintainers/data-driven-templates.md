@@ -1,6 +1,6 @@
 # Data-driven Templates
 
-> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/review/reviews.json`, `packages/cdd-engine/src/infra/harness-registry.json`, `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived products like `.agents/`. This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
+> **Scope:** every template-shaped content — text that is data-izable, referenced by multiple consumers, and drift-prone. Large to small: `packages/cdd-engine/templates/template-contract.json`, `packages/cdd-engine/src/infra/harness-registry.json`, `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` and `.github/ISSUE_TEMPLATE/*.yml`, down to emit-derived marketplace manifests (`.claude-plugin/`, `.cursor-plugin/`, `marketplace/source.json`). This is the methodological contract (AC12); the objects it governs are not limited to the Exemplars table below.
 
 Cross-cutting reference: the single-source-of-truth convention for template body text. Cited when a new skill introduces template body text, when an existing template-shaped content is consolidated, and when emit-derived products need drift guarding.
 
@@ -37,7 +37,7 @@ flowchart LR
 
 ### `emit product`
 
-- **Do**: derived products committed to the repo (`.agents/`, harness manifests, `.github/ISSUE_TEMPLATE/*.yml`), produced only by `pnpm run emit`; every path is registered in `generatedPaths`.
+- **Do**: derived products committed to the repo (harness marketplace manifests, `.github/ISSUE_TEMPLATE/*.yml`), produced only by `pnpm run emit`; every path is registered in `generatedPaths`.
 - **Read**: `renderer` output.
 - **Exit**: `pnpm run emit:check` drift=0 → committable; drift>0 → re-run `pnpm run emit` then commit.
 - **Fail**: hand-editing the derived product without touching the canonical → overwritten at next emit + emit:check drift → CI failure (Failure Modes "hand-edited product").
@@ -85,16 +85,16 @@ flowchart LR
 
 | Template form | canonical (single source) | renderer / runtime consumer | derived products | guard |
 |---|---|---|---|---|
-| harness routing (P1) | `packages/cdd-engine/src/infra/harness-registry.json` | cdd engine runtime (`src/bin.ts` · `src/dispatch/{task.ts,docs.ts,review-loop.ts}` · `src/infra/registry.ts`) | runtime harness routing (no emit product) | single-source JSON + engine validation |
-| review contract (P3) | `packages/cdd-engine/templates/review/reviews.json` | `src/render/templates.ts` runtime (per-type config driving the shared review.md shell) + `_docs/review.md` URC as the prose contract | cdd review / fix template rendering (runtime) | engine tests + in-program single-source config |
-| finding/report body (P4 — first runtime render) | `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` | `packages/osuperpowers/scripts/report-templates.mjs` (renderMeta / renderBody — bare-call single entry, Task 14 / §2.5) · `packages/osuperpowers/scripts/render-yaml.mjs` (renderYml — emit-only, `yaml`) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + report-issues aggregate body (runtime, bare call) | `packages/osuperpowers/tests/report-templates.test.mjs` node:test + `scripts/emit/issue-templates.test.mjs` two-stage round-trip + `emit:check` |
-| issue form yml (P4) | same `formFieldDefs` | `renderYml` in `scripts/render-yaml.mjs` (emit-only module — consumed via `scripts/emit/issue-templates.mjs` wired into emitAll) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |
+| harness routing (runtime foundation) | `packages/cdd-engine/src/infra/harness-registry.json` | cdd engine runtime (`src/bin.ts` · `src/dispatch/{task.ts,docs.ts,review-loop.ts}` · `src/infra/registry.ts`) | runtime harness routing (no emit product) | single-source JSON + engine validation |
+| review contract (orchestrator-era) | `packages/cdd-engine/templates/template-contract.json#reviews` | `src/render/templates.ts` runtime (per-type config from `reviews` driving the shared review shell) + the URC (Review Convergence + Handoff Output) prose contract in each orchestrator skill's `## Invariants` | cdd review / fix template rendering (runtime) | engine colocated tests (`src/render/__tests__/templates.*.test.ts`) + in-program single-source config |
+| finding/report body (first runtime render) | `packages/osuperpowers/skills/report-issues/templates/finding-meta.json` | `packages/osuperpowers/scripts/report-templates.mjs` (renderMeta / renderBody — bare-call single entry, Task 14 / §2.5) · `packages/osuperpowers/scripts/render-yaml.mjs` (renderYml — emit-only, `yaml`) | `.github/ISSUE_TEMPLATE/*.yml` (emit) + report-issues aggregate body (runtime, bare call) | `packages/osuperpowers/tests/report-templates.test.mjs` node:test + `scripts/emit/__tests__/issue-templates.test.ts` two-stage round-trip + `emit:check` |
+| issue form yml (emit product) | same `formFieldDefs` | `renderYml` in `scripts/render-yaml.mjs` (emit-only module — consumed via `scripts/emit/issue-templates.ts` wired into emitAll) | `.github/ISSUE_TEMPLATE/bug_report.yml` / `enhancement.yml` | `emit:check` drift + single-source `Object.keys` form-name assertion |
 
-> **First "one canonical, two-channel render" dogfood**: finding-meta.json drives both the emit product (issue form yml) and the runtime product (report-issues aggregate body) — P4 itself is the on-the-ground validation of this convention (AC12). Task 14 isolates the emit render (`yaml` stays in the repo-root devDependencies; the runtime entry imports zero third-party packages).
+> **First "one canonical, two-channel render" dogfood**: finding-meta.json drives both the emit product (issue form yml) and the runtime product (report-issues aggregate body) — the finding/report body is the on-the-ground validation of this convention. The emit render is isolated (`yaml` stays in the repo-root devDependencies; the runtime entry imports zero third-party packages).
 
 ---
 
 ## Change history
 
-- 2026-09-08 · v1.0 — initial (P4 methodology task 5): five-node digraph + Rules R1–R5 + Invariants I1–I4 + Failure Modes + four Exemplars.
+- 2026-09-08 · v1.0 — initial (methodology task 5): five-node digraph + Rules R1–R5 + Invariants I1–I4 + Failure Modes + four Exemplars.
 - 2026-09-08 · v1.1 — translated to English (repo Language Architecture English-primary unification; maintainers docs follow the English-primary rule).

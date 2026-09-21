@@ -8,9 +8,17 @@
 // git helpers.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { gitRevParseHead } from "../infra/git.ts";
+import { invariant } from "../infra/exit.ts";
+import { renderResidueAppendix, type ResidueAppendixInput } from "../artifacts/residue.ts";
 
-export async function generateBrief(planFile: string, taskNum: number, outPath: string, repoRoot: string): Promise<void> {
-  if (!existsSync(planFile)) throw new Error(`plan file not found: ${planFile}`);
+export async function generateBrief(
+  planFile: string,
+  taskNum: number,
+  outPath: string,
+  repoRoot: string,
+  residue: ResidueAppendixInput | null = null,
+): Promise<void> {
+  invariant(existsSync(planFile), `plan file not found: ${planFile}`);
   const lines = readFileSync(planFile, "utf8").split("\n");
   const header = `### Task ${taskNum}:`;
   let start = -1;
@@ -19,9 +27,19 @@ export async function generateBrief(planFile: string, taskNum: number, outPath: 
     if (start < 0 && lines[i].startsWith(header)) { start = i; continue; }
     if (start >= 0 && /^### Task \d+:/.test(lines[i])) { end = i; break; }
   }
-  if (start < 0) throw new Error(`task ${taskNum} not found (CDD-level index; plan must contain '### Task N:' heading) in plan: ${planFile}`);
+  invariant(
+    start >= 0,
+    `task ${taskNum} not found (CDD-level index; plan must contain '### Task N:' heading) in plan: ${planFile}`,
+  );
   const sha = await gitRevParseHead(repoRoot);
-  if (!sha) throw new Error("cannot resolve HEAD: not in a git repo");
-  const content = lines.slice(start, end).join("\n").replace(/\n+$/, "") + "\nTASK_BASE: " + sha + "\n";
+  invariant(sha, "cannot resolve HEAD: not in a git repo");
+  // Resume-from-residue (T26): when the pre-flight applied a salvaged stash, the brief appends the
+  // data-driven `## Residue status` section (residue.ts renderResidueAppendix — prompt semantic
+  // self-sufficiency §35: the prose states the WIP facts itself, zero external anchors) so the next
+  // agent audits the restored WIP and continues instead of rewriting from zero.
+  let content = lines.slice(start, end).join("\n").replace(/\n+$/, "") + "\nTASK_BASE: " + sha + "\n";
+  if (residue) {
+    content += "\n" + renderResidueAppendix(residue) + "\n";
+  }
   writeFileSync(outPath, content, "utf8");
 }

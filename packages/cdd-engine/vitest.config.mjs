@@ -15,9 +15,20 @@ export default defineConfig({
     minWorkers: 1,
     fileParallelism: false,
     maxConcurrency: 2,
-    // Explicit include for the .mjs suite plus TS test support (vitest transforms TS via esbuild):
-    // migrating lib→src tasks will land tests at tests/**/*.test.ts or src/**/*.test.ts.
-    include: ['tests/**/*.test.{mjs,ts}', 'src/**/*.test.ts'],
+    // Explicit include for the migrated colocated suite (P6 Task 3): every test node now
+    // lives at src/**/__tests__/**/*.test.ts (tests/ retired; .mjs plane is zero).
+    // All tests are TypeScript (vitest transforms TS via esbuild); any .mjs regressing
+    // back into the engine is caught by the residue mjs-terminal-state guard (block 5c).
+    include: ['src/**/__tests__/**/*.test.ts'],
+    // 5b CLI 黑盒用例依赖「入口门意义下的干净树」（E2②/G4①/P6 T10 文档化前置）：cdd.test.ts /
+    // docs-task.test.ts / cli-shape.test.ts 的部分 dry-run 用例以 REPO_ROOT 为 cwd 黑盒运行 ——
+    // 入口门放行依赖两态之一：真实干净树，或 dirty + dry-run 的 CDD_WARN 降级。跑测试时请勿带着
+    // 脏开发树（未提交改动）执行本套件黑盒用例，除非预期它们断言 CDD_WARN 降级路径；entry gate
+    // 与 dry-run 协议的语义变更需同步 review 这三个文件的用例预期。
+    // G4③（P6 Task 17）闭环：真实（非 dry-run）派发用例 —— lifecycle.wiring.test.ts 的 CLI 信号
+    // 用例 —— 已在独立 mkdtemp 干净临时仓上运行（cwd = 临时仓，入口门解析的是临时仓的工作树），
+    // 套件因此对当前工作树状态不敏感（pre-commit 提交时工作树必然 dirty，pre-commit 钩子现在只跑
+    // 树无关子集 `pnpm run precommit`——见 scripts/validate/pre-commit.ts 与 .husky/pre-commit）。
     // The suite spawns many node CLI + git subprocesses under a 20-file forks pool; per-test
     // wall time inflates under load (observed >5s on a busy machine). 20s guards the
     // default 5s budget without masking genuinely stuck tests.

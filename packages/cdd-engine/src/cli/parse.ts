@@ -25,7 +25,7 @@ import { requireHostHarness, guardArgs, intTask, DRY_RUN } from "./shared.ts";
 const SUBCOMMAND_USAGE: Record<string, string> = {
   implement: "usage: cdd implement --task <n> [--plan <path>]",
   review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
-  fix: "usage: cdd fix --type <task|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
+  fix: "usage: cdd fix --type <task|branch|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
   // base-branch: a bad flag / unknown subcommand inside set|get resolves to this single-word key
   // (the bin wrapper maps a nested citty leaf to its parent command — see commandUsageKey).
   "base-branch": "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
@@ -99,7 +99,7 @@ export async function deepestCommand(
 
 // ---- flags ----
 // Arg keys are the kebab flag spellings (canonical channels.argv names, see
-// templates/context-contract.json channels.argv) — the residue ⑨ guard reads these declarations
+// engine-config.json#contextContract channels.argv) — the residue ⑨ guard reads these declarations
 // as the help surface.
 
 export const MAIN_ARGS = {
@@ -148,13 +148,13 @@ const reviewCmd = defineCommand({
 });
 
 const fixCmd = defineCommand({
-  meta: { name: "fix", description: "fix review findings — task | spec | plan (formerly cdd-task / docs-task fix modes)" },
+  meta: { name: "fix", description: "fix review findings — task | branch | spec | plan (formerly cdd-task / docs-task fix modes)" },
   args: {
-    type: { type: "string", required: true, valueHint: "task|spec|plan", description: "fix type" },
+    type: { type: "string", required: true, valueHint: "task|branch|spec|plan", description: "fix type" },
     task: { type: "string", valueHint: "n", description: "task number (type=task)" },
     findings: { type: "string", valueHint: "path", description: "findings handoff path for this fix round" },
     spec: { type: "string", valueHint: "path", description: "spec document path (type=spec)" },
-    plan: { type: "string", valueHint: "path", description: "plan path (type=task|plan)" },
+    plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch|plan)" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(fixCmd));

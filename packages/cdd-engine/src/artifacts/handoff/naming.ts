@@ -1,21 +1,19 @@
 // packages/cdd-engine/src/artifacts/handoff/naming.ts — handoff artifact contract derivation layer
-// (Task 8 port of naming.mjs), the single consumer of templates/handoff-namespace.json (canonical:
-// family names / round semantics / status / phase / prev table). The name is the single truth;
-// roundPattern derives from it (scan/concrete shapes); the prev table drives Stopping + the
-// runner's fixed-point reads. workspaceSlug / resolveWorkspace implement workspaceRoot + slugRule
-// (.osuperpowers/cdd/<slug>/).
+// (Task 8 port of naming.mjs), the single consumer of the canonical handoff-namespace section
+// (engine-config.json#handoffNamespace, Task 5 单文件归并: family names / round semantics / status /
+// phase / prev table). The name is the single truth; roundPattern derives from it (scan/concrete
+// shapes); the prev table drives Convergence + the runner's fixed-point reads. workspaceSlug /
+// resolveWorkspace implement workspaceRoot + slugRule (.osuperpowers/cdd/<slug>/).
 // Task 8 (spec §2.13 glob row): the legacy readdirSync directory scan in resolveNextRound is
 // collected into tinyglobby (globSync) — the repo's shared glob toolchain, no hand-written walk.
-import { readFileSync } from "node:fs";
 import path from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { globSync } from "tinyglobby";
 
-const NAMESPACE = JSON.parse(
-  readFileSync(new URL("../../../templates/handoff-namespace.json", import.meta.url), "utf8"),
-) as {
-  workspaceRoot: string;
-  families: Record<string, { name: string; round?: string; prev?: Record<string, string> }>;
-};
+import { loadEngineConfig } from "../../infra/config.ts";
+import { CddExitError, invariant } from "../../infra/exit.ts";
+
+const NAMESPACE = loadEngineConfig().handoffNamespace;
 const { families } = NAMESPACE;
 
 /** workspaceRoot: the single truth of the runtime workspace base path segment (`.osuperpowers/cdd`).
@@ -37,14 +35,15 @@ function familyKey(op: string, type: string): string {
 
 function family(op: string, type: string): { name: string; round?: string; prev?: Record<string, string> } {
   const f = families[familyKey(op, type)];
-  if (!f) throw new Error(`unknown handoff family: ${op}.${type}`);
+  invariant(f, `unknown handoff family: ${op}.${type}`);
   return f;
 }
 
 /** familyConfig(op, type) → canonical family config (live reference to the canonical families
- * object — readonly contract, callers must not mutate the returned object). After reviews.json
- * shed the artifact axis, schema/return/fixTemplate live here (templates.mjs reviewArtifactConfig
- * and cdd fix read through this module; naming never duplicates the literals). */
+ * object — readonly contract, callers must not mutate the returned object). After
+ * template-contract.json#reviews shed the artifact axis, schema/return/fixTemplate live here
+ * (templates.ts reviewArtifactConfig and cdd fix read through this module; naming never
+ * duplicates the literals). */
 export function familyConfig(
   op: string,
   type: string,
@@ -64,7 +63,7 @@ function fillName(name: string, params: HandoffParams = {}): string {
 /** roundPattern(op, type, params) → ^...$ RegExp, two shapes:
  *   scan shape (params.task absent — workspace round scanning): {round}→(\d+), {task}→\d+,
  *     {base7}/{head7}→[0-9a-f]{7} — wide (any task/ref of the family hits the round capture group);
- *   concrete shape (params provides {task}/{base7}/{head7} — Stopping prev / round validation):
+ *   concrete shape (params provides {task}/{base7}/{head7} — Convergence prev / round validation):
  *     placeholders → literals, exact-ref match.
  * Shape discrimination = params.task presence (task family), no probe flag.
  * Note: the single `.` escape below also covers `..` (branch's base7..head7 segment is escaped
@@ -116,7 +115,7 @@ export function resolveNextRound(workspace: string, op: string, type: string, op
 /** prevHandoffPath(workspace, op, type, round, opts) → previous-round handoff path | null.
  * Two-mechanism boundary (canonical prev table): the cross-family prev table (review.task + all
  * fix families — runner fixed-point reads) wins; other review families → same-family round-1
- * arithmetic (Stopping prev). Work-type with no prev (implement) → null. */
+ * arithmetic (Convergence prev). Work-type with no prev (implement) → null. */
 export function prevHandoffPath(
   workspace: string,
   op: string,
@@ -138,7 +137,7 @@ export function prevHandoffPath(
     if (families[prevFamily].round === "fixed") delete prevParams.round; // implement has no round
     return path.join(workspace, handoffName(prevOp!, prevType!, prevParams));
   }
-  // Same-family round-1 arithmetic (Stopping prev): only for review families without a prev
+  // Same-family round-1 arithmetic (Convergence prev): only for review families without a prev
   // table (spec/plan/branch).
   if (op === "review" && round > 1) {
     return path.join(workspace, handoffName(op, type, { ...opts, round: round - 1 }));
@@ -158,6 +157,25 @@ export function workspaceSlug(doc: string): string {
 /** resolveWorkspace(doc, root) → <root>/<workspaceRoot>/<slug>. root is injected by the caller
  * (getRoot() / cli layer — single root authority). */
 export function resolveWorkspace(doc: string, root: string): string {
-  if (!root) throw new Error("resolveWorkspace: root required (injected from src/infra/root.mjs)");
+  invariant(root, "resolveWorkspace: root required (injected from src/infra/root.mjs)");
   return path.join(root, NAMESPACE.workspaceRoot, workspaceSlug(doc));
+}
+
+/** materializeWorkspace({ plan, repoRoot }) — the workspace DIRECTORY bootstrap single point
+ * (P6 T24 C: the second hand-written workspace derivation — task.ts's former inline — converges
+ * here; naming is the single workspace authority alongside resolveWorkspace). Plan → the
+ * plan-derived slug directory, created with a `.gitignore` `*\n` (workspace artifacts never
+ * pollute the repo tree). Errors are recoverable orchestration failures (bad plan / non-git root)
+ * → CddExitError kind "run-blocked" (exit 1) — the task dispatch resolves them to its run-blocked
+ * exit face, exactly the former RunBlocked contract. */
+export function materializeWorkspace({ plan, repoRoot }: { plan: string; repoRoot: string }): string {
+  if (!repoRoot) throw new CddExitError("not in a git repo", { exitCode: 1, kind: "run-blocked" });
+  const slug = workspaceSlug(plan);
+  if (!slug || slug === "." || slug === "..") {
+    throw new CddExitError(`cannot derive workspace name from: ${plan}`, { exitCode: 1, kind: "run-blocked" });
+  }
+  const base = path.join(repoRoot, workspaceRoot);
+  mkdirSync(path.join(base, slug), { recursive: true });
+  writeFileSync(path.join(base, ".gitignore"), "*\n");
+  return path.join(base, slug);
 }

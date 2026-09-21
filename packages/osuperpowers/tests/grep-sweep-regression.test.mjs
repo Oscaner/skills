@@ -5,12 +5,12 @@ import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DOC_ROOT_SEGMENTS, DOC_ROOT_EXCLUDE_PATHS } from "../../../scripts/lib/doc-root.mjs";
+import { DOC_ROOT_SEGMENTS, DOC_ROOT_EXCLUDE_PATHS } from "../../../scripts/lib/doc-root.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
 
-// docs 根单源（scripts/lib/doc-root.mjs）——排除后缀由此派生，不做链内手写字面。
+// docs 根单源（scripts/lib/doc-root.ts）——排除后缀由此派生，不做链内手写字面。
 const DOC_ROOT_EXCLUDES = DOC_ROOT_EXCLUDE_PATHS.map((p) => `| grep -v "${p}" `).join("");
 const DOC_ROOT_PREFIX = `| grep -v "${DOC_ROOT_SEGMENTS.join("/")}/" `;
 

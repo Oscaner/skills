@@ -1,17 +1,17 @@
 ---
 name: brainstorming
-description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Delegates to a /superpowers:brainstorming session, gates on mode and phase registration, runs grilling, and routes to the three spec-writers. Callable standalone; triggered by /brainstorming via overrides router.
+description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and routes to the three spec-writers. Callable standalone; triggered by /brainstorming via overrides router.
 ---
 
 # Osuperpowers Brainstorming
 
-Full brainstorm flow orchestration, callable standalone. The session resolves the program mode: `new-program` routes straight to grilling (no inventory check); `phase-within-program` gates on whether the phase is registered in the parent overall.
+Full brainstorm flow orchestration, callable standalone. The imported /superpowers:brainstorming flow lands the program mode: `new-program` routes straight to grilling (no inventory check); `phase-within-program` gates on whether the phase is registered in the parent overall.
 
 ## Flow Digraph
 
 ```mermaid
 flowchart TD
-  A[run-brainstorming-session] -->|loaded| B[explore-context]
+  A[run-brainstorming-session] -->|landed| B[explore-context]
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> C{mode?}
   C -->|new-program| G[run-grilling-session]
@@ -33,21 +33,21 @@ flowchart TD
 
 ### `run-brainstorming-session`
 
-- **Do**: Run a /superpowers:brainstorming session — the harness loads the upstream skill and runs its flow. The session resolves the program mode (`new-program` = no parent overall; `phase-within-program` = has a parent overall) and produces the design context this flow routes on
-- **Read**: nothing before the session; the session resolves mode + design context
-- **Exit**: Session loaded → `explore-context`; upstream missing → BLOCKED (install superpowers)
+- **Do**: Import `/superpowers:brainstorming` — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn). It lands the mode marker (`new-program` = no parent overall; `phase-within-program` = has a parent overall) and the design context this flow routes on
+- **Read**: nothing before the import; the import resolves mode + design context
+- **Exit**: Import landed → `explore-context`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
 
 ### `explore-context`
 
-- **Do**: Explore project context in the resolved mode so the routing and the delegated sessions have what they need — code, issues, docs, and git log are reference examples of exploration surfaces, **not a fixed channel set**; scale the surface to what the task needs (exploration does not constitute a resolved-mode constraint)
+- **Do**: Explore project context in the resolved mode so the routing and the delegated flows have what they need — code, issues, docs, and git log are reference examples of exploration surfaces, **not a fixed channel set**; scale the surface to what the task needs (exploration does not constitute a resolved-mode constraint)
 - **Read**: whatever the task needs — e.g. project files, docs, git log, the parent overall (phase-within-program mode)
 - **Exit**: Exploration complete → `mode?`
 - **Fail**: Context read fails → report + fail-open
 
 ### `mode?`
 
-- **Do**: Branch on the mode the session resolved. Gate order matters — mode is decided **before** the register gate: `new-program` connects straight to `run-grilling-session` and **skips the inventory check** (legacy I6 exemption kept verbatim: a new program checks no parent inventory, which does not exist yet); `phase-within-program` → `phase-registered?`
+- **Do**: Branch on the mode the import resolved. Gate order matters — mode is decided **before** the register gate: `new-program` connects straight to `run-grilling-session` and **skips the inventory check** (legacy I6 exemption kept verbatim: a new program checks no parent inventory, which does not exist yet); `phase-within-program` → `phase-registered?`
 - **Read**: mode marker from `run-brainstorming-session`
 - **Exit**: `new-program` → `run-grilling-session`; `phase-within-program` → `phase-registered?`
 - **Fail**: —
@@ -61,16 +61,16 @@ flowchart TD
 
 ### `run-writing-overall-spec · sync`
 
-- **Do**: Run a /osuperpowers:writing-overall-spec session to register the new phase in the parent overall (issue inventory / phase inventory / dependency graph / version bump + change history — the four-table sync), then flow back to `phase-registered?` for the re-judge. Registration reflow — not the terminal overall write (`run-writing-overall-spec` is)
+- **Do**: Import `/osuperpowers:writing-overall-spec` — its flow is consumed inline as this session's baseline; it lands the new phase registered in the parent overall (issue inventory / phase inventory / dependency graph / version bump + change history — the four-table sync), then flow back to `phase-registered?` for the re-judge — the landed registry entry routes the re-entry, not a re-import. Registration reflow — not the terminal overall write (`run-writing-overall-spec` is)
 - **Read**: the parent overall
-- **Exit**: Sync complete → `phase-registered?`
+- **Exit**: Sync landed → `phase-registered?`
 - **Fail**: four-table sync inconsistent → BLOCKED (overall-sync-failed)
 
 ### `run-grilling-session`
 
-- **Do**: Run a /mattpocock-skills:grilling session — upstream grilling flow, scoped by mode: `new-program` → scope-level grilling (each candidate phase's scope / dependencies / acceptance / issue ownership, one session); `phase-within-program` → implementation grilling (root cause → impact boundary → fix direction → approach, one issue per session). Register-before-grill is guaranteed by the `phase-registered?` gate
-- **Read**: upstream grilling flow + mode marker + gate verdict
-- **Exit**: Session complete → size judgment (`scope-size?` on the new-program path, `phase-size?` on the phase-within-program path); upstream missing → BLOCKED (install mattpocock-skills)
+- **Do**: Import `/mattpocock-skills:grilling` — its flow is consumed inline as this session's baseline, scoped by mode: `new-program` → scope-level grilling (each candidate phase's scope / dependencies / acceptance / issue ownership, one grilling pass); `phase-within-program` → enumerate-then-grill: enumerate the requirements registered for the phase in the parent overall item by item (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims), restate the full list to the user, and enter the grilling frontier (root cause → impact boundary → fix direction → approach, one issue per pass) only after the user confirms the enumerated coverage is complete. It lands the grilling outcome; size judgment (`scope-size?` / `phase-size?`) routes on it. Register-before-grill is guaranteed by the `phase-registered?` gate
+- **Read**: landed grilling outcome + mode marker + gate verdict
+- **Exit**: Grilling outcome landed → size judgment (`scope-size?` on the new-program path, `phase-size?` on the phase-within-program path); upstream missing → BLOCKED (install mattpocock-skills)
 - **Fail**: Grilling an unregistered phase → register-gate violation (BLOCKED upstream at `phase-registered?`)
 
 ### `scope-size?`
@@ -89,31 +89,31 @@ flowchart TD
 
 ### `run-writing-single-spec`
 
-- **Do**: Run a /osuperpowers:writing-single-spec session — authors, reviews and commits the single spec (the program converges into one spec). The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/osuperpowers:writing-single-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the single spec (the program converges into one spec), landing the committed single spec as the terminal artifact. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + exploration context
-- **Exit**: Handoff session loaded → flow ends for this skill
+- **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-overall-spec`
 
-- **Do**: Run a /osuperpowers:writing-overall-spec session — authors, reviews and commits the overall spec (the program charter). Terminal write: the flow converges here and the session hands off to /compact or /osuperpowers:brainstorming [Px program]. The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/osuperpowers:writing-overall-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the overall spec (the program charter), landing the committed overall spec. Terminal write: the flow converges here and enters the /compact or /osuperpowers:brainstorming [Px program] handoff from inside the imported flow. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
-- **Exit**: Handoff session loaded → flow ends for this skill
+- **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-phase-spec`
 
-- **Do**: Run a /osuperpowers:writing-phase-spec session — authors, reviews and commits the phase spec (this phase's increment). The delegated session's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/osuperpowers:writing-phase-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the phase spec (this phase's increment), landing the committed phase spec. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
 - **Read**: grilling output + parent overall
-- **Exit**: Handoff session loaded → flow ends for this skill
+- **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ## Invariants
 
 | # | Invariant |
 |---|---|
-| I3 | **Design first** — zero implementation dispatch: no code commits, no `cdd implement` dispatch; the flow ends in the delegated spec-writer sessions, never in implementation |
-| I4 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge (enforced inside the delegated spec-writer sessions) |
+| I3 | **Design first** — zero implementation dispatch: no code commits, no `cdd implement` dispatch; the flow ends in the delegated spec-writer flows, never in implementation |
+| I4 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge (enforced inside the delegated spec-writer flows) |
 
 ## Failure Modes
 

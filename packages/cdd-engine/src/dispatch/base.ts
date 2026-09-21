@@ -2,7 +2,8 @@
 // spec §2.12「抽象基类继承覆写」— abstract-base inheritance point). The lifecycle template method
 // plus default hook implementations: run() walks pre-flight → dispatch → post-flight (phase labels
 // from the phases.ts table), and the commit double gates (双门) hang on the base's DEFAULT hooks —
-// commitPreCheck (入口门, pre-commit clean tree) and commitPostCheck (出口门, validateCommitContract).
+// commitPreCheck (入口门, pre-commit clean tree, dry-run-downgraded since P6 T10/E2②) and
+// commitPostCheck (出口门, validateCommitContract).
 // Concrete subclasses (task.ts / docs.ts) inherit and override the hook they care about; they never
 // touch the hookable registry — engine-internal variants override via inheritance (§2.13), never
 // through this module.
@@ -19,6 +20,9 @@
 import { createDispatchHooks, type DispatchHookContext, type DispatchHooks } from "./hooks.ts";
 import type { PhaseId } from "./phases.ts";
 import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
+import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
+import { reconcileChangedSurface } from "../rules/write-boundary.ts";
+import { CddExitError } from "../infra/exit.ts";
 
 // Consumer re-export: the override hooks (commitPreCheck / dispatch / …) all take this context;
 // subclasses import the signature from the lifecycle's home module, not from the registry.
@@ -33,6 +37,10 @@ export interface DispatchContext {
   repoRoot: string | null;
   /** exit-gate commit-contract handoff path (optional — absent → exit gate runs the dirty judgment only) */
   handoffPath?: string;
+  /** dry-run simulation (E2②): the entry gate downgrades a dirty-tree BLOCK to a stderr CDD_WARN
+   * and lets the simulation finish (real dispatch keeps the hard BLOCKED). Threaded by the
+   * concrete runners (runTask / runDocsTask) from their opts.dryRun — never read from env. */
+  dryRun?: boolean;
   /** subclass context extension (task.ts / docs.ts decide their own keys) */
   [key: string]: unknown;
 }
@@ -45,12 +53,15 @@ export interface DispatchLifecycleOptions {
 }
 
 /** Commit-boundary BLOCKED signal — thrown by the default gates (message = the rules-layer blocker
- * text). Task 8's CLI face maps it to exit 1; the exit gate's handoff rewrite lives in rules/commit.ts. */
+ * text). Task 8's CLI face maps it to exit 1; the exit gate's handoff rewrite lives in rules/commit.ts.
+ * P6 T24 (F error consolidation): DispatchBlocked extends the exit.ts CddExitError family (exitCode 1 / kind
+ * "blocked") — a gate block that escapes an override unwinds to bin.ts's family catch and lands the
+ * correct exit code (0/1/2/3 table unchanged). */
 export type CommitGate = "entry" | "exit";
-export class DispatchBlocked extends Error {
+export class DispatchBlocked extends CddExitError {
   readonly gate: CommitGate;
   constructor(message: string, gate: CommitGate) {
-    super(message);
+    super(message, { exitCode: 1, kind: "blocked" });
     this.name = "DispatchBlocked";
     this.gate = gate;
   }
@@ -103,6 +114,8 @@ export abstract class DispatchLifecycle {
       await this.resolveContext(hookCtx);
       this.#step("validateMode");
       await this.validateMode(hookCtx);
+      this.#step("docContractValidate"); // doc-contract gate (Task 29): plan + spec + parent overall contract check
+      await this.docContractValidate(hookCtx);
       this.#phase("dispatch"); // dispatch phase — the only agent-semantics step is the abstract virtual method
       await this.dispatch(hookCtx);
       this.#phase("post-flight");
@@ -110,8 +123,14 @@ export abstract class DispatchLifecycle {
       await this.schemaValidate(hookCtx);
       this.#step("normalizeResult");
       await this.normalizeResult(hookCtx);
+      this.#step("settleResidue"); // residue settlement — before the exit gate
+      await this.settleResidue(hookCtx);
+      this.#step("writeBoundary"); // changed-surface reconcile — after materialization, before the exit gate
+      await this.writeBoundary(hookCtx);
       this.#step("commitPostCheck"); // exit gate — mounted at commit:exit (default constructor mount)
       await this.hooks.callHook("commit:exit", hookCtx);
+      this.#step("statusValidate"); // status reconcile (Task 29): six-state + plan verdict after the exit gate
+      await this.statusValidate(hookCtx);
     } finally {
       await this.hooks.callHook("dispatch:after", hookCtx);
     }
@@ -121,9 +140,17 @@ export abstract class DispatchLifecycle {
 
   /** Entry gate (入口门, pre-commit / pre-flight): clean-tree judgment (rules/commit.ts
    * entryGateCleanTree). dirty → DispatchBlocked(gate="entry"); run aborts in pre-flight and
-   * dispatch is never entered. */
+   * dispatch is never entered. dry-run downgrade (E2②): dirty + ctx.dryRun → the judgment
+   * returns a warn instead of the BLOCKED signal — the warning is printed as a stderr CDD_WARN
+   * and the simulation runs to completion (a zero-side-effect dry run cannot be corrupted by
+   * uncommitted changes; the gate is downgraded, never skipped). */
   protected async commitPreCheck(_hookCtx: DispatchHookContext): Promise<void> {
-    const result = await entryGateCleanTree(this.ctx.repoRoot);
+    const result = await entryGateCleanTree(this.ctx.repoRoot, {
+      dryRun: this.ctx.dryRun === true,
+    });
+    if (result.warn) {
+      process.stderr.write(`CDD_WARN: ${result.warn}\n`);
+    }
     if (!result.ok) throw new DispatchBlocked(result.blocker, "entry");
   }
 
@@ -136,6 +163,19 @@ export abstract class DispatchLifecycle {
    * set (the docs variant has its own); task.ts / docs.ts own the mode policy (spec step 6). */
   protected async validateMode(_hookCtx: DispatchHookContext): Promise<void> {}
 
+  /** Doc-Contract validation (pre-flight, after resolveContext + validateMode, before dispatch —
+   * the Task 29 docContractValidate template step): validates the dispatch's plan + its spec +
+   * the parent overall against the three necessary contracts (rules/documents.ts). Default
+   * pass-through (the base has no docs authority); task.ts overrides with the concrete
+   * validateDispatchDocuments call behind the #finished guard. */
+  protected async docContractValidate(_hookCtx: DispatchHookContext): Promise<void> {}
+
+  /** Status reconcile (post-flight, after the exit gate — the Task 29 statusValidate template
+   * step): reports the current task state + plan completion verdict as CDD_INFO. Default
+   * pass-through; task.ts overrides with the six-state / verdict derivation. Runs after the
+   * exit gate on purpose — the report describes the tree the round just landed. */
+  protected async statusValidate(_hookCtx: DispatchHookContext): Promise<void> {}
+
   /** dispatch phase — the only agent-semantics black box (spec §2.12): abstract virtual method,
    * concrete subclasses MUST provide an implementation (TS virtual-method compile-time constraint). */
   protected abstract dispatch(hookCtx: DispatchHookContext): Promise<void>;
@@ -145,12 +185,50 @@ export abstract class DispatchLifecycle {
   protected async schemaValidate(_hookCtx: DispatchHookContext): Promise<void> {}
 
   /** Result normalization (post-flight): default pass-through; subclasses produce the exit code /
-   * H1 surface. */
+   * return block surface. */
   protected async normalizeResult(_hookCtx: DispatchHookContext): Promise<void> {}
 
+  /** Residue settlement (post-flight, before the exit gate): a failed round's recovery carrier —
+   * an eligible cause (EXECUTION_FAILURE / TIMEOUT — artifacts/residue.ts single eligibility set) with
+   * a dirty tree — gets its WIP auto-preserved (`git stash push -u`) and the carrier gains
+   * residue_ref / stash_message / residue_scope / wip_stat / preserved (facts in the carrier, prose
+   * stays in the blocker). T28 (spec T7.7): the step now goes through the settleFromCarrier adapter
+   * (save family single owner = artifacts/residue.ts) — ONE standardized stash message contract
+   * with the task lane; the preserved guard there makes coexisting lanes a no-op, never a double
+   * stash. Runs AFTER the failure lanes' #done returned — the terminal decision already happened,
+   * settlement is the last archival act before the exit gate. Success / no-recovery rounds → no-op;
+   * CONTRACT_VIOLATION-class causes are deliberately not auto-swallowed. The branch channel aborts
+   * via ExitRequested and calls preserveAndAnnounceResidue inline (dispatch/branch.ts) — the
+   * template step is the task/docs path. Dry-run skip: a pure simulation must not mutate the git
+   * object store. */
+  protected async settleResidue(_hookCtx: DispatchHookContext): Promise<void> {
+    if (this.ctx.dryRun === true) return; // dry-run: zero archive side effects
+    if (!this.ctx.handoffPath) return;
+    await preserveAndAnnounceResidue(this.ctx.repoRoot ?? "", this.ctx.handoffPath, this.ctx.repoRoot);
+  }
+
+  /** Changed-surface reconciliation (writeBoundary, post-flight, before the exit gate): for
+   * implement/fix rounds the round's `git diff <base>..HEAD` fileset is reconciled against the
+   * handoff `changes[]` ledger — pure-soft accounting (2026-09-20 ruling): gaps are a stderr
+   * CDD_WARN + a notes record, NEVER a block (the review scope axis judges). implement rounds
+   * record the diff fileset as the ledger origin. review / no-handoff / unknown-base rounds skip
+   * (the rules layer's own fail-open). Positioned after the failure lanes and after the implement
+   * handoff materialization (normalizeResult) — the reconcile sees the final carrier. */
+  protected async writeBoundary(_hookCtx: DispatchHookContext): Promise<void> {
+    if (this.ctx.dryRun === true) return;
+    if (!this.ctx.handoffPath) return;
+    await reconcileChangedSurface(this.ctx.mode, this.ctx.repoRoot, this.ctx.handoffPath);
+  }
+
   /** Exit gate (出口门, post-commit / post-flight): validateCommitContract (rules/commit.ts) —
-   * dirty → DispatchBlocked(gate="exit"); the handoff rewrite already happened in the rules layer. */
+   * dirty → DispatchBlocked(gate="exit"); the handoff rewrite already happened in the rules layer.
+   * E2②/G4① (P6 T10): dry-run skips the exit-gate judgment entirely — a dry run does no agent
+   * writes or commits, so its return-time tree state equals the entry state already downgraded to
+   * a stderr CDD_WARN at the pre-flight gate; the return-time-dirty BLOCKED semantic (commit
+   * contract) is real-dispatch-only. task.ts / docs.ts reach the same skip via #finished; the base
+   * default makes the skip explicit (the base remains the single inherited point). */
   protected async commitPostCheck(_hookCtx: DispatchHookContext): Promise<void> {
+    if (this.ctx.dryRun === true) return; // dry-run: no commit contract to validate (pure simulation)
     const result = await validateCommitContract(this.ctx.mode, this.ctx.repoRoot, {
       handoffPath: this.ctx.handoffPath,
     });

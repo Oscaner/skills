@@ -62,11 +62,11 @@ it("readProgressJSON: reads existing progress.json", () => {
   const dir = tmpDir("prog-read-json-");
   const data = createEmptyProgress("/plan.md");
   data.timeoutCount = 5;
-  data.tasks = [{ task: 1, status: "complete" }];
+  data.tasks = [{ task: 1 }];
   writeProgressJSON(dir, data);
   const p = readProgressJSON(dir);
   expect(p.timeoutCount).toBe(5);
-  expect(p.tasks).toEqual([{ task: 1, status: "complete" }]);
+  expect(p.tasks).toEqual([{ task: 1 }]);
 });
 
 it("writeProgressJSON: creates progress.json file", () => {
@@ -77,6 +77,37 @@ it("writeProgressJSON: creates progress.json file", () => {
   expect(existsSync(jsonPath)).toBe(true);
   const written = JSON.parse(readFileSync(jsonPath, "utf8"));
   expect(written.timeoutCount).toBe(0);
+});
+
+it("writeProgressJSON: 写回剥除 tasks[N].status（T30② 单源收敛——状态纯派生, 账本只存事实）", () => {
+  const dir = tmpDir("prog-strip-status-");
+  // 存量旧行（含已退休的 status 字段）→ 任何一次写回即按新 schema 收敛。
+  const data = createEmptyProgress("");
+  data.tasks = [{ task: 1, status: "complete", rounds: { review: 1 } }];
+  writeProgressJSON(dir, data);
+  const written = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
+  expect(written.tasks[0]).toEqual({ task: 1, rounds: { review: 1 } });
+  expect(written.tasks[0]).not.toHaveProperty("status");
+});
+
+it("readProgressJSON: 含 status 旧行零报错（迁移兼容——status 忽略, 不拦截派生）", () => {
+  const dir = tmpDir("prog-legacy-status-");
+  // 直写磁盘模拟旧引擎产物（含 tasks[N].status）——读路径不剥读、不报错。
+  writeFileSync(
+    path.join(dir, "progress.json"),
+    JSON.stringify({
+      plan: "/p.md",
+      timeoutCount: 0,
+      engineRecoveryCount: 0,
+      tasks: [{ task: 1, status: "complete", rounds: { review: 1 } }],
+    }, null, 2),
+  );
+  const p = readProgressJSON(dir);
+  expect(p.plan).toBe("/p.md");
+  expect(p.tasks[0].task).toBe(1);
+  expect(p.tasks[0].rounds).toEqual({ review: 1 });
+  // status 字段何去何从由写路径收敛（writeProgressJSON GC），读路径只保证不报错。
+  expect(p.tasks[0]).toHaveProperty("status");
 });
 
 it("writeProgressJSON: 写前剥除死字段 lastDispatchHead/degradationLog（T8 存量 progress.json 首次回写即回收）", () => {
@@ -130,9 +161,9 @@ it("migrateFromProgressMD: parses completed tasks", () => {
   );
   const p = migrateFromProgressMD(dir);
   expect(p.tasks.length).toBe(3); // 1:complete, 2:pending, 3:complete
-  expect(p.tasks[0]).toEqual({ task: 1, status: "complete" });
-  expect(p.tasks[1]).toEqual({ task: 2, status: "pending" });
-  expect(p.tasks[2]).toEqual({ task: 3, status: "complete" });
+  expect(p.tasks[0]).toEqual({ task: 1 });
+  expect(p.tasks[1]).toEqual({ task: 2 });
+  expect(p.tasks[2]).toEqual({ task: 3 });
 });
 
 it("migrateFromProgressMD: empty ledger → no tasks", () => {
@@ -170,7 +201,7 @@ it("migrateIfNeeded: no progress.json, progress.md exists → migrates + writes 
   );
   const p = migrateIfNeeded(dir);
   expect(p.timeoutCount).toBe(4);
-  expect(p.tasks[0]).toEqual({ task: 1, status: "complete" });
+  expect(p.tasks[0]).toEqual({ task: 1 });
   // progress.json should now exist
   expect(existsSync(path.join(dir, "progress.json"))).toBe(true);
   // Verify the written json matches
@@ -247,7 +278,7 @@ describe("progress.ts scope 账本（T27/spec T7.6）", () => {
     const dir = tmpDir("prog-scope-read-");
     expect(taskScopeBase(dir, 7)).toBeNull();
     const data = readProgressJSON(dir);
-    data.tasks = [{ task: 7, status: "pending", rounds: {} }];
+    data.tasks = [{ task: 7, rounds: {} }];
     writeProgressJSON(dir, data);
     expect(taskScopeBase(dir, 7)).toBeNull();
     data.tasks[0].scope_base = "a".repeat(40);
@@ -258,7 +289,7 @@ describe("progress.ts scope 账本（T27/spec T7.6）", () => {
   it("taskScopeBase: 非法存量值（非 40-hex）→ null（账本视为缺失，回落 legacy 链）", () => {
     const dir = tmpDir("prog-scope-invalid-");
     const data = readProgressJSON(dir);
-    data.tasks = [{ task: 3, status: "pending", rounds: {}, scope_base: "junk-not-a-sha" }];
+    data.tasks = [{ task: 3, rounds: {}, scope_base: "junk-not-a-sha" }];
     writeProgressJSON(dir, data);
     expect(taskScopeBase(dir, 3)).toBeNull();
   });
@@ -278,7 +309,7 @@ describe("progress.ts scope 账本（T27/spec T7.6）", () => {
   it("seedScopeBase: 非法存量值可被首次合法 seed 覆盖（脏账本自愈），合法值仍 earliest-wins", () => {
     const dir = tmpDir("prog-scope-seed-heal-");
     const data = readProgressJSON(dir);
-    data.tasks = [{ task: 4, status: "pending", rounds: {}, scope_base: "junk" }];
+    data.tasks = [{ task: 4, rounds: {}, scope_base: "junk" }];
     writeProgressJSON(dir, data);
     expect(seedScopeBase(dir, 4, "c".repeat(40))).toBe("c".repeat(40));
     // 自愈后进入 earliest-wins：再 seed 不覆盖

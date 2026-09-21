@@ -2,16 +2,22 @@
 // machine + plan completion verdict — the statusValidate hook's derivation core. Read-only:
 // consumes the on-disk task handoff chain (implement/review/fix carriers) + progress.json rounds,
 // writes nothing (progress.json stays engine-owned; the verdict never writes).
+// Task 30 (spec T7.9): deriveTaskState is the SINGLE TaskState source — tasks[N].status is
+// retired from progress.json and the writeback only ensures the row exists.
 //
 // The round counters (reviews / fixes) come from progress.json tasks[N].rounds — review/fix count
 // only, because implement rides its fixed carrier (round always 1, never incremented). The
 // implement status therefore derives from the carrier file, not a counter.
 //
-//   reviews === fixes + 1 → the last dispatch was review-N → APPROVED ⇒ complete, else needs-fix
-//   reviews === fixes      → the last dispatch was fix-N (or implement when both are 0):
-//       both 0    → implement lane only (fresh / APPROVED→needs-review / BLOCKED→in-flight / dead→resume-pending)
-//       fix-N APPROVED → needs-re-review (the review at this count was CHANGES_REQUESTED — T14)
-//       fix-N not approved / dead → needs-fix / resume-pending
+//   reviews === 0                → implement lane: the converge judgment rides the carrier status
+//                                  (fresh/BLOCKED → in-flight / APPROVED → needs-review / dead → resume-pending)
+//   last review (review-[reviews]) is the FIRST signal (Task 30 ①, T29 修正):
+//     APPROVED   → complete — a subsequent fix is the legal terminal (blocker=0 → fix all → done),
+//                  never a re-review trigger (the old reviews===fixes counts-equal misjudgment)
+//     not APPROVED (CHANGES_REQUESTED / BLOCKED):
+//       no fix after it (fixes === 0, or the latest fix pre-dates the review) → needs-fix
+//       addressing fix APPROVED → needs-re-review (T14-class)
+//       addressing fix dead / not landed → resume-pending / needs-fix
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -23,10 +29,10 @@ import { normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
 export type TaskState =
   | "in-flight" // no conclusive chain — fresh task or a BLOCKED implement awaiting re-dispatch
   | "needs-review" // implement APPROVED, no review dispatched yet
-  | "needs-fix" // latest review not approved (CHANGES_REQUESTED / BLOCKED), no fix on record
-  | "needs-re-review" // review not approved → fix APPROVED, no subsequent review (T14-class)
+  | "needs-fix" // latest review not approved (CHANGES_REQUESTED / BLOCKED), no addressing fix on record
+  | "needs-re-review" // review not approved → addressing fix APPROVED, no re-review on record (T14-class)
   | "resume-pending" // dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard
-  | "complete"; // latest review APPROVED (the existing writeback semantics)
+  | "complete"; // latest review APPROVED (a subsequent fix is the legal terminal — T30 ①)
 
 /** carrier-level dead-round detection: a TIMEOUT status or an EXECUTION_FAILURE failure_category
  * (implement 10 lane / review-fix T25 lane both write status BLOCKED + the category). The
@@ -47,42 +53,37 @@ function statusOf(h: Record<string, unknown> | null): string | undefined {
   return normalizeHandoffStatus(h?.status as string | undefined);
 }
 
-/** deriveTaskState(workspace, taskNum) — the six-state convergence (spec T7.8 ③). Reads the
- * workspace's progress.json + the task's implement/review/fix carriers; never writes. */
+/** deriveTaskState(workspace, taskNum) — the six-state convergence (spec T7.8 ③ / T7.9 ①).
+ * Reads the workspace's progress.json + the task's implement/review/fix carriers; never writes.
+ * The last review status is the first signal: APPROVED → complete (a following fix is the legal
+ * terminal, T29 修正); not approved → the addressing fix decides needs-fix vs needs-re-review. */
 export function deriveTaskState(workspace: string, taskNum: number): TaskState {
   const progress = readProgressJSON(workspace);
   const entry = progress.tasks.find((t) => t.task === taskNum);
   const reviews = entry?.rounds?.["review"] ?? 0;
   const fixes = entry?.rounds?.["fix"] ?? 0;
 
-  if (reviews === fixes) {
-    if (reviews === 0) {
-      // implement lane only — the converge judgment rides the carrier status.
-      const impl = readHandoff(workspace, "implement", taskNum);
-      if (isDeadRound(impl)) return "resume-pending";
-      if (statusOf(impl) === "APPROVED") return "needs-review";
-      return "in-flight"; // fresh / implement BLOCKED (re-dispatch implement)
-    }
-    // reviews === fixes > 0 → the last dispatch was fix-N.
-    const fixN = readHandoff(workspace, "fix", taskNum, fixes);
-    if (isDeadRound(fixN)) return "resume-pending";
-    if (statusOf(fixN) === "APPROVED") {
-      // fix APPROVED means the review at this round was CHANGES_REQUESTED — no subsequent review
-      // on record → the explicit T14-class actionable state.
-      return "needs-re-review";
-    }
-    return "needs-fix"; // fix declared BLOCKED / not done → fix again
+  if (reviews === 0) {
+    // implement lane only — no review on record, the converge judgment rides the carrier status.
+    const impl = readHandoff(workspace, "implement", taskNum);
+    if (isDeadRound(impl)) return "resume-pending";
+    if (statusOf(impl) === "APPROVED") return "needs-review";
+    return "in-flight"; // fresh / implement BLOCKED (re-dispatch implement)
   }
 
-  if (reviews === fixes + 1) {
-    // → the last dispatch was review-N.
-    const revN = readHandoff(workspace, "review", taskNum, reviews);
-    if (isDeadRound(revN)) return "resume-pending";
-    if (statusOf(revN) === "APPROVED") return "complete"; // same writeback semantics as progress writeback
-    return "needs-fix"; // review CHANGES_REQUESTED / BLOCKED → the fix loop
-  }
+  // The last review on record (review-[reviews]) is the first signal.
+  const lastRev = readHandoff(workspace, "review", taskNum, reviews);
+  if (isDeadRound(lastRev)) return "resume-pending";
+  if (statusOf(lastRev) === "APPROVED") return "complete"; // legal terminal — a later fix never re-triggers
 
-  return "in-flight"; // defensive: abnormal counter skew — nothing conclusive on disk
+  // Last review not approved (CHANGES_REQUESTED / BLOCKED) → the fix loop governs. The addressing
+  // fix is the latest fix on record, and only one that came at-or-after the review (fixes >=
+  // reviews) can have addressed it — a fix pre-dating the review converged an EARLIER one.
+  if (fixes === 0 || fixes < reviews) return "needs-fix";
+  const lastFix = readHandoff(workspace, "fix", taskNum, fixes);
+  if (isDeadRound(lastFix)) return "resume-pending";
+  if (statusOf(lastFix) === "APPROVED") return "needs-re-review"; // findings fixed → re-review due (T14)
+  return "needs-fix"; // addressing fix declared BLOCKED / not done → fix again
 }
 
 // ---- plan completion verdict ----

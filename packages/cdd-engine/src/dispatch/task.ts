@@ -15,8 +15,9 @@
 //               11/12/13: return block four-line parse, agent-failure exit, implement materialization.
 //               commitPostCheck — step 13.5 + review writeback: the exit gate (skipped on
 //               finished rounds / dry-run; failed gate → maybeExhaust + BLOCKED return block), then the
-//               APPROVED-review task.status=complete writeback + round increment (post-gate only —
-//               a dirty failure round never marks complete).
+//               APPROVED-review ensure-row writeback + round increment (post-gate only —
+//               a dirty failure round never marks complete; the complete verdict is derived by
+//               deriveTaskState, never stored — Task 30 ②).
 //
 // P6 T24: the return-block text plane (returnFourLines / returnFromHandoff / dry-run block) is
 // owned by src/artifacts/return-block.ts (its single point) — this file imports + re-exports the
@@ -850,8 +851,9 @@ export class TaskLifecycle extends DispatchLifecycle {
   }
 
   /** Step 13.5 + post-gate writeback: the exit gate (validateCommitContract) runs for every
-   * non-finished non-dry-run round; after it passes, the APPROVED-review task.status=complete
-   * writeback + non-implement round increment land (a dirty failure round never marks complete). */
+   * non-finished non-dry-run round; after it passes, the APPROVED-review ensure-row writeback +
+   * non-implement round increment land (a dirty failure round never touches the row; the complete
+   * verdict is deriveTaskState's — the row keeps only facts). */
   protected override async commitPostCheck(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
     const mode = this.#mode();
@@ -894,13 +896,15 @@ export class TaskLifecycle extends DispatchLifecycle {
           // T7: this read stays single-arg — at review-success execution progress.json already
           // exists (plan recorded at the init point); plan no longer participates in
           // createEmptyProgress derivation.
+          // Task 30 ②: the APPROVED-review writeback is downgraded to ensure-the-row-exists —
+          // the complete verdict is deriveTaskState's sole authority (rules/status.ts), never a
+          // stored field. The row creation still matters: incrementRound below finds it.
           const progressData2 = readProgressJSON(progressDir);
           let taskEntry = progressData2.tasks.find((t) => t.task === this.#taskNum);
           if (!taskEntry) {
-            taskEntry = { task: this.#taskNum, status: "pending", rounds: {} };
+            taskEntry = { task: this.#taskNum, rounds: {} };
             progressData2.tasks.push(taskEntry);
           }
-          taskEntry.status = "complete";
           writeProgressJSON(progressDir, progressData2);
         }
       }

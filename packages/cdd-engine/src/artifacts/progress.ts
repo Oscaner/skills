@@ -28,7 +28,6 @@ export interface ProgressData {
   engineRecoveryCount?: number;
   tasks: Array<{
     task: number;
-    status?: string;
     rounds?: Record<string, number>;
     /** T27 (spec T7.6): task-level scope anchor — the round-1 implement's brief TASK_BASE, seeded
      *  earliest-wins and only ever moved strictly earlier. Engine-owned, never an agent handoff
@@ -60,12 +59,21 @@ export function readProgressJSON(progressDir: string, plan?: string): ProgressDa
 /** writeProgressJSON: write data to progress.json in progressDir.
  * The dead fields (lastDispatchHead/degradationLog) are stripped on write once more — a legacy
  * progress.json (a live pre-degradation file) carrying the old keys gets a one-time GC on first
- * write-back. Strips on a serialization copy, never mutates the caller's object. */
+ * write-back. Task 30 ②: tasks[N].status is retired from the schema — any legacy row still
+ * carrying it converges on the first write-back (deriveTaskState is the single TaskState source;
+ * the row keeps only facts). Strips on a serialization copy, never mutates the caller's object. */
 const PROGRESS_DEAD_KEYS = ["lastDispatchHead", "degradationLog"];
 export function writeProgressJSON(progressDir: string, data: ProgressData): void {
   const jsonPath = path.join(progressDir, "progress.json");
   const clean = { ...data };
   for (const k of PROGRESS_DEAD_KEYS) delete clean[k];
+  if (Array.isArray(clean.tasks)) {
+    clean.tasks = clean.tasks.map((t) => {
+      const row = { ...t } as Record<string, unknown>;
+      delete row.status;
+      return row as ProgressData["tasks"][number];
+    });
+  }
   writeFileSync(jsonPath, JSON.stringify(clean, null, 2));
 }
 
@@ -98,7 +106,7 @@ export function incrementRound(progressDir: string, taskNum: number, mode: strin
   const data = readProgressJSON(progressDir);
   let taskEntry = data.tasks.find((t) => t.task === taskNum);
   if (!taskEntry) {
-    taskEntry = { task: taskNum, status: "pending", rounds: {} };
+    taskEntry = { task: taskNum, rounds: {} };
     data.tasks.push(taskEntry);
   }
   taskEntry.rounds ??= {}; // migrate pre-rounds task entries that lack the field
@@ -199,18 +207,19 @@ export function migrateFromProgressMD(progressDir: string): ProgressData | null 
   const recoveryMatch = content.match(/^# engine-recovery-count: (\d+)/m);
   const engineRecoveryCount = recoveryMatch ? parseInt(recoveryMatch[1], 10) : 0;
 
-  // Parse completed tasks: `Task N: complete`
-  const tasks: Array<{ task: number; status: string }> = [];
+  // Parse completed tasks: `Task N: complete` — Task 30 ②: migrated rows are status-free (the
+  // legacy complete/pending marker is subsumed by deriveTaskState).
+  const tasks: Array<{ task: number }> = [];
   const taskLines = content.match(/Task (\d+): complete/g) || [];
   for (const line of taskLines) {
     const num = parseInt(line.match(/Task (\d+)/)![1], 10);
-    tasks.push({ task: num, status: "complete" }); // completedAt omitted for pre-migration tasks
+    tasks.push({ task: num }); // completedAt omitted for pre-migration tasks
   }
 
-  // Fill in missing tasks as pending (up to the max completed task number)
+  // Fill in missing tasks (up to the max completed task number)
   const maxTask = tasks.length > 0 ? Math.max(...tasks.map((t) => t.task)) : 0;
   for (let i = 1; i <= maxTask; i++) {
-    if (!tasks.find((t) => t.task === i)) tasks.push({ task: i, status: "pending" });
+    if (!tasks.find((t) => t.task === i)) tasks.push({ task: i });
   }
 
   return {

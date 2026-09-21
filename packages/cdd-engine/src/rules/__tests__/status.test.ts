@@ -1,16 +1,18 @@
 // packages/cdd-engine/src/rules/__tests__/status.test.ts — Task 29 (spec T7.8) six-state
-// convergence state machine + plan completion verdict (the statusValidate hook's derivation core).
+// convergence state machine + plan completion verdict (the statusValidate hook's derivation core),
+// Task 30 (spec T7.9) last-review-primary correction + TaskState single-source.
 //
 // The six states converge from the on-disk task handoff chain (implement / review / fix carriers)
 // + progress.json rounds (review/fix count only — implement rides the fixed carrier). The machine
-// is read-only: derives, never writes.
+// is read-only: derives, never writes. Task 30 ②: tasks[N].status is retired — deriveTaskState is
+// the single TaskState source; the row keeps only facts (rounds / scope_base).
 //
 //   in-flight         no conclusive chain — fresh task or a BLOCKED implement awaiting re-dispatch
 //   needs-review      implement APPROVED, no review dispatched yet
-//   needs-fix         latest review not approved (CHANGES_REQUESTED / BLOCKED), no fix on record
-//   needs-re-review   T14-class: review not approved → fix APPROVED, no subsequent review
+//   needs-fix         latest review not approved (CHANGES_REQUESTED / BLOCKED), no addressing fix
+//   needs-re-review   T14-class: review not approved → addressing fix APPROVED, no re-review yet
 //   resume-pending    dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard
-//   complete          latest review APPROVED (the existing writeback semantics)
+//   complete          latest review APPROVED (a subsequent fix is the legal terminal — T30 ①)
 import { it, expect, describe } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -35,9 +37,11 @@ function writeHandoff(dir: string, name: string, obj: Record<string, unknown>): 
 }
 
 const EMPTY_PROGRESS = { plan: "", tasks: [] as Array<Record<string, unknown>> };
+// Task 30 ②: progress rows carry no status — deriveTaskState is the sole TaskState source; the
+// row only records facts (rounds / scope_base). The legacy tasks[N].status field is retired.
 const ROUNDS = (rounds: Record<string, number>) => ({
   plan: "",
-  tasks: [{ task: 1, status: "pending", rounds }],
+  tasks: [{ task: 1, rounds }],
 });
 
 /** test-side plan-task extractor mirroring taskNumbersFromPlan's `/^### Task (\d+):/` semantics. */
@@ -124,6 +128,49 @@ describe("deriveTaskState — six-state convergence", () => {
     writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {} });
     expect(deriveTaskState(ws, 1)).toBe("complete");
   });
+
+  // ---- Task 30 ① (spec T7.9): last-review-primary — T29 reproduction flip ----
+
+  it("complete (T30 flip): review APPROVED → subsequent fix is the legal terminal, NOT a re-review trigger", () => {
+    // T29 evidence: the same round counters (reviews===fixes===1) hosted two flows — the APPROVED-review
+    // legal terminal (blocker=0 → fix all → done) and the T14 re-review chain. counts-equal was a
+    // misjudgment: the fix after an approved review converged the task.
+    const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
+    writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "APPROVED", findings: [{ severity: "warn" }], artifacts: {} });
+    writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1)).toBe("complete");
+  });
+
+  it("complete (T30 flip): review APPROVED + fix that did not land still converges on the review verdict", () => {
+    const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
+    writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "BLOCKED", blocker: "fix aborted", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1)).toBe("complete");
+  });
+
+  it("needs-re-review (T14 explicit, review-BLOCKED channel variant): review BLOCKED → fix APPROVED", () => {
+    const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
+    writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "BLOCKED", failure_category: "UNVERIFIABLE", findings: [], artifacts: {} });
+    writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1)).toBe("needs-re-review");
+  });
+
+  it("needs-fix (T30 discriminator): a fix pre-dating the latest review does not re-review it", () => {
+    // reviews=2, fixes=1: review-2 dispatched after fix-1 converged review-1's findings — the last
+    // review has no addressing fix of its own → needs-fix (dispatch fix-2), never needs-re-review.
+    const ws = workspace(ROUNDS({ review: 2, fix: 1 }));
+    writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
+    writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "task-1-review-2.json", { task: 1, phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
+    expect(deriveTaskState(ws, 1)).toBe("needs-fix");
+  });
+
+  it("derives from status-free progress rows (Task 30 ② migration shape — rounds-only row)", () => {
+    const ws = workspace({ plan: "", tasks: [{ task: 1, rounds: { review: 1, fix: 1 } }] });
+    writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
+    writeHandoff(ws, "task-1-fix-1.json", { task: 1, phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1)).toBe("needs-re-review");
+  });
 });
 
 describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ six-state table)", () => {
@@ -132,8 +179,8 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
     const ws = workspace({
       plan: "",
       tasks: [
-        { task: 1, status: "complete", rounds: { review: 1 } },
-        { task: 2, status: "complete", rounds: { review: 1 } },
+        { task: 1, rounds: { review: 1 } },
+        { task: 2, rounds: { review: 1 } },
       ],
     });
     for (const n of [1, 2]) {
@@ -150,8 +197,8 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
     const ws = workspace({
       plan: "",
       tasks: [
-        { task: 1, status: "complete", rounds: { review: 1 } },
-        { task: 2, status: "pending", rounds: { review: 1, fix: 1 } },
+        { task: 1, rounds: { review: 1 } },
+        { task: 2, rounds: { review: 1, fix: 1 } },
       ],
     });
     writeHandoff(ws, "task-1-review-1.json", { task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {} });

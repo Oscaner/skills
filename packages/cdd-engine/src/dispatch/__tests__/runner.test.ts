@@ -16,6 +16,9 @@ import { fileURLToPath } from "node:url";
 
 import { runTask, taskNumbersFromPlan, isTaskPending, handoffStatus,
          buildCtx, buildPromptParams } from "../task.ts";
+// Task 30 ②/④: the runner-level writeback contract is verified against the derivation —
+// deriveTaskState is the single TaskState source (progress rows carry no status).
+import { deriveTaskState } from "../../rules/status.ts";
 import { materializeWorkspace } from "../../artifacts/handoff/naming.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { spawnManaged, markAllDispatchesDone } from "../../infra/proc.ts";
@@ -696,7 +699,7 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
   // Set progress so review dispatches round 2 (last completed fix round = 1).
   writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
     plan: PLAN_REL, timeoutCount: 0, engineRecoveryCount: 0,
-    tasks: [{ task: 1, status: "in-progress", rounds: { implement: 1, review: 1, fix: 1 } }],
+    tasks: [{ task: 1, rounds: { implement: 1, review: 1, fix: 1 } }],
   }, null, 2));
 
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-r2-"));
@@ -832,9 +835,9 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
     expect(res.returnBlock[0]).toBe("status: BLOCKED");
     expect(res.returnBlock.at(-2)).toBe("blocker: could not verify: 90min 无拖死实证; 现场已恢复，无法复核");
     expect(res.returnBlock.at(-1)).toMatch(/^counters: /);
-    // 失败轮次不写 complete
+    // 失败轮仍计 round（重派需止步处）但零 status —— 无 complete 标记、无其他状态字段
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
-    expect(progress.tasks[0]?.status).not.toBe("complete");
+    expect(progress.tasks[0]).toEqual({ task: 1, rounds: { review: 1 } });
   } finally {
     restore();
   }
@@ -1156,7 +1159,7 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
   expect(res.returnBlock[0]).toBe("status: APPROVED");
 });
 
-// ---- T8: post-run validateCommitContract（全 mode 接线）+ task.status=complete 回写 ----
+// ---- T8: post-run validateCommitContract（全 mode 接线）+ ensure-row writeback（Task 30 ②: 无 status 字段）----
 
 // T8 fixture：git repo（tracked source + plan 已 commit + ws 收编 .osuperpowers/cdd/plan）。
 // dirty=true → tracked.txt 追加（porcelain ` M`）→ post-run commit-contract 必 BLOCKED。
@@ -1195,7 +1198,7 @@ async function runT8ReviewGhost(t8, body) {
   }
 }
 
-it("runTask T8: review APPROVED → progress task.status=complete（rounds[review]=1）", async () => {
+it("runTask T8/T30: review APPROVED → ensure-row writeback（rounds[review]=1, 无 status 字段）+ deriveTaskState=complete", async () => {
   const t8 = t8Workspace();
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
@@ -1205,8 +1208,11 @@ it("runTask T8: review APPROVED → progress task.status=complete（rounds[revie
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   const progress = JSON.parse(readFileSync(path.join(t8.ws, "progress.json"), "utf8"));
-  expect(progress.tasks[0].status).toBe("complete");
-  expect(progress.tasks[0].rounds["review"]).toBe(1);
+  // Task 30 ②: the row carries facts only — rounds on record, zero status field. The complete
+  // verdict is deriveTaskState's sole authority (the T29-flip blackbox: review-APPROVED → complete).
+  expect(progress.tasks[0]).toEqual({ task: 1, rounds: { review: 1 } });
+  expect(progress.tasks[0]).not.toHaveProperty("status");
+  expect(deriveTaskState(t8.ws, 1)).toBe("complete");
   // handoff 保持 APPROVED（clean tree 通过 post-run validate；review 跳过 head 校验）
   const h = JSON.parse(readFileSync(path.join(t8.ws, "task-1-review-1.json"), "utf8"));
   expect(h.status).toBe("APPROVED");
@@ -1229,9 +1235,9 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
   const h = JSON.parse(readFileSync(hp, "utf8"));
   expect(h.status).toBe("BLOCKED");
   expect(h.blocker).toMatch(/uncommitted changes at return/);
-  // 失败轮不误标 complete（APPROVED 判定在 post-run validate 之后）
+  // 失败轮零触碰：出口门失败在 incrementRound 之前 return → 行不存在, 更无 complete/状态字段
   const progress = JSON.parse(readFileSync(path.join(t8.ws, "progress.json"), "utf8"));
-  expect(progress.tasks[0]?.status).not.toBe("complete");
+  expect(progress.tasks).toEqual([]);
 });
 
 it("runTask T8: post-run validateCommitContract — implement dirty tree → 实体化 handoff 覆写 BLOCKED + exit 1", async () => {

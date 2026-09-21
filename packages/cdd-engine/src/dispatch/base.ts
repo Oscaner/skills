@@ -22,7 +22,16 @@ import type { PhaseId } from "./phases.ts";
 import { entryGateCleanTree, validateCommitContract } from "../rules/commit.ts";
 import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
 import { reconcileChangedSurface } from "../rules/write-boundary.ts";
-import { validateDispatchDocuments, formatDocFailures, type DocValidationFailure } from "../rules/documents.ts";
+import { formatDocFailures } from "../rules/documents.ts";
+import {
+  deriveCloseoutMismatches,
+  formatCloseoutDebtFailures,
+  formatCloseoutDebtHighlight,
+  type CloseoutResult,
+} from "../rules/closeout.ts";
+import { deriveTaskState, derivePlanVerdict, formatTaskStateLine, formatPlanVerdict } from "../rules/status.ts";
+import { taskNumbersFromPlan } from "../rules/documents.ts";
+import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 import { CddExitError } from "../infra/exit.ts";
 
 // Consumer re-export: the override hooks (commitPreCheck / dispatch / …) all take this context;
@@ -171,19 +180,30 @@ export abstract class DispatchLifecycle {
    * resolveContext step just produced). */
   protected docAuditTarget(): string | null { return null; }
 
+  /** The dispatched round's plan path (the plan-bearing declaration, P2 T4): task/branch lanes
+   * declare their dispatch plan; docs / lane-less rounds return null. The closeout terminal-debt
+   * hard gate and the status reconcile key off this — null means the engine terminal-state
+   * declaration source is absent (docs channel), so the terminal-debt member no-ops there
+   * (absent-source semantic, NOT an exemption constant — a branch or task round is never exempt)
+   * and the backfill edit path always passes the debt face. */
+  protected dispatchPlanPath(): string | null { return null; }
+
   /** Doc-Contract validation (pre-flight, after resolveContext + validateMode, before dispatch —
    * the Task 29 docContractValidate template step, now the BASE default hook shared by every
    * dispatch channel): resolves the dispatch's doc chain from the lane-declared audit target, runs
-   * the single audit entry (rules/documents.ts — plan 契約 / Class A / Class B / overall 契約 +
-   * the parent-overall four-table audit) and blocks on any structural mismatch. Failures non-empty
-   * → the round is blocked before the agent ever runs — exit 1 + the guidance on stderr (the
-   * 0/1/2/3 exit table unchanged — this is a BLOCKED face like any other); dry-run runs the SAME
-   * check but lowers to the WARN lane (the E2② entry-gate precedent: a doc-invalid simulation
-   * still completes, never silent). Read-only: the check never writes docs or carriers — a
-   * doc-invalid round stays re-dispatchable the moment the docs are repaired (no BLOCKED carrier
-   * to clear). The BLOCK face is docContractBlocked — the default throws DispatchBlocked("entry")
-   * (runTask / runDocsTask already map that gate); the task channel overrides with its
-   * non-throwing #done terminal, the branch channel with its exitWithCode convention. */
+   * the single closeout mismatch module (rules/closeout.ts — the structural audit + the
+   * engine-terminal merge) and gates on BOTH surfaces — the structural face (any mismatch → the
+   * round is blocked before the agent ever runs — exit 1 + the guidance on stderr; the 0/1/2/3 exit
+   * table unchanged) and the terminal-debt face (P2 T4 v1.12: a plan-bearing round whose parent
+   * overall has plan-complete-but-unbackfilled members is BLOCKED with the 先 backfill-overall
+   * guidance — 回填 = branch-review 前置义务; the docs channel declares no plan workspace so the
+   * member no-ops there). Dry-run runs the SAME check but lowers to the WARN lane (the E2②
+   * entry-gate precedent: an invalid simulation still completes, never silent). Read-only: the
+   * check never writes docs or carriers — an invalid round stays re-dispatchable the moment the
+   * docs are repaired (no BLOCKED carrier to clear). The BLOCK face is docContractBlocked — the
+   * default throws DispatchBlocked("entry") (runTask / runDocsTask already map that gate); the
+   * task channel overrides with its non-throwing #done terminal, the branch channel with its
+   * exitWithCode convention. */
   protected async docContractValidate(_hookCtx: DispatchHookContext): Promise<void> {
     const entry = this.docAuditTarget();
     if (!entry) return; // no lane-declared target → the gate is waived
@@ -193,9 +213,9 @@ export abstract class DispatchLifecycle {
       return;
     }
     const dryRun = this.ctx.dryRun === true;
-    let failures: DocValidationFailure[];
+    let result: CloseoutResult;
     try {
-      failures = validateDispatchDocuments({ entry, root });
+      result = deriveCloseoutMismatches({ entry, root });
     } catch (e) {
       // fail-open: an unreadable doc chain must never crash the lifecycle (the plan existence
       // gate in resolveContext already surfaced the missing-plan case there) — but never silent:
@@ -205,13 +225,24 @@ export abstract class DispatchLifecycle {
       );
       return;
     }
-    if (failures.length === 0) return;
-    const guidance = formatDocFailures(failures);
+    // Terminal-debt surface — plan-bearing rounds only (dispatchPlanPath non-null). The docs
+    // channel's plan workspace is absent → the member no-ops (absent-source semantic, not an
+    // exemption constant) and the backfill edit path always passes this face.
+    const debtActive = this.dispatchPlanPath() !== null && result.terminalDebt.length > 0;
     if (dryRun) {
-      process.stderr.write(`CDD_WARN: doc contract invalid (dry-run) — fix the docs below, then re-dispatch:\n${guidance}\n`);
+      if (result.structural.length > 0) {
+        process.stderr.write(`CDD_WARN: doc contract invalid (dry-run) — fix the docs below, then re-dispatch:\n${formatDocFailures(result.structural)}\n`);
+      }
+      if (debtActive) {
+        process.stderr.write(`CDD_WARN: closeout terminal debt (dry-run) — backfill the parent overall first:\n${formatCloseoutDebtFailures(result.terminalDebt, result.overallPath ?? entry)}\n`);
+      }
       return;
     }
-    this.docContractBlocked(guidance);
+    if (result.structural.length === 0 && !debtActive) return;
+    const guidance: string[] = [];
+    if (result.structural.length > 0) guidance.push(formatDocFailures(result.structural));
+    if (debtActive) guidance.push(formatCloseoutDebtFailures(result.terminalDebt, result.overallPath ?? entry));
+    this.docContractBlocked(guidance.join("\n"));
   }
 
   /** The doc-contract BLOCK terminal face — default throws DispatchBlocked(gate "entry") (the
@@ -222,11 +253,39 @@ export abstract class DispatchLifecycle {
     throw new DispatchBlocked(`doc contract validation failed — fix the docs below:\n${guidance}`, "entry");
   }
 
-  /** Status reconcile (post-flight, after the exit gate — the Task 29 statusValidate template
-   * step): reports the current task state + plan completion verdict as CDD_INFO. Default
-   * pass-through; task.ts overrides with the six-state / verdict derivation. Runs after the
-   * exit gate on purpose — the report describes the tree the round just landed. */
-  protected async statusValidate(_hookCtx: DispatchHookContext): Promise<void> {}
+  /** Status reconcile / closeout highlight (post-flight, after the exit gate — the Task 29
+   * statusValidate template step, raised to the BASE default so every plan-bearing lane shares one
+   * implementation; task.ts's former per-lane override is retired): reports each plan task's
+   * six-state line + the plan completion verdict as CDD_INFO, then — when the plan is complete AND
+   * the single closeout module still infers terminal debt (P2 T4 v1.12) — prints a stdout highlight
+   * with the next backfill step (the trigger window = plan-done up to the orchestration's
+   * backfill-overall; exit unchanged — informational). Plan-less lanes (docs — no declared plan
+   * workspace) no-op: the engine terminal-state source is absent there. Fail-open on unreadable
+   * progress/plan, and deliberately runs without the #finished guard: the round just ended and its
+   * resulting state is precisely what the report describes; the walk has already passed every exit
+   * gate, so this step is never exit-changing. */
+  protected async statusValidate(_hookCtx: DispatchHookContext): Promise<void> {
+    const plan = this.dispatchPlanPath();
+    if (!plan) return; // no plan context (docs / lane-less) → nothing to reconcile
+    const root = typeof this.ctx.repoRoot === "string" ? this.ctx.repoRoot : "";
+    if (!root) return;
+    try {
+      const workspace = resolveWorkspace(plan, root);
+      const verdict = derivePlanVerdict(plan, workspace, taskNumbersFromPlan);
+      for (const n of taskNumbersFromPlan(plan)) {
+        process.stderr.write(`CDD_INFO: ${formatTaskStateLine(n, deriveTaskState(workspace, n))}\n`);
+      }
+      process.stderr.write(`CDD_INFO: ${formatPlanVerdict(verdict)}\n`);
+      if (verdict.done) {
+        const { terminalDebt, overallPath } = deriveCloseoutMismatches({ entry: plan, root });
+        if (terminalDebt.length > 0 && overallPath) {
+          process.stdout.write(`${formatCloseoutDebtHighlight(terminalDebt, overallPath)}\n`);
+        }
+      }
+    } catch {
+      // fail-open: no report when progress/plan cannot be read
+    }
+  }
 
   /** dispatch phase — the only agent-semantics black box (spec §2.12): abstract virtual method,
    * concrete subclasses MUST provide an implementation (TS virtual-method compile-time constraint). */

@@ -428,12 +428,12 @@ interface PhaseRow {
   plan: string;
   dependency: string;
 }
-interface IssueRow {
+export interface IssueRow {
   phase: string;
   ref: string;
 }
 
-interface OverallParse {
+export interface OverallParse {
   kernelOk: boolean; // readable AND canonical Phase inventory header
   reason: string; // unreadable / missing header / non-canonical
   ids: string[];
@@ -446,7 +446,16 @@ interface OverallParse {
   versionProblems: string[];
 }
 
-function parseOverall(overallPath: string): OverallParse {
+export interface PhaseRow {
+  id: string;
+  design: string;
+  plan: string;
+  dependency: string;
+}
+
+/** parseOverall — the canonical four-table parse (single source; exported for the closeout
+ *  mismatch module — P2 ④ — which consumes the same parse as the audit, never a second one). */
+export function parseOverall(overallPath: string): OverallParse {
   const out: OverallParse = {
     kernelOk: false, reason: "", ids: [], dupIds: [], rows: [], issues: [], graphTokens: [],
     historyRows: [], shapeDrift: [], versionProblems: [],
@@ -662,13 +671,14 @@ export function validateOverallContract(overallPath: string, phaseId: string | n
 // ---- the four-table audit (①-⑥) ----
 
 /** Program slug for the doc-existence globs and the anchor scan: the overall filename's feature
- * slug (date prefix + `-overall` suffix stripped) — the program identity, not a phase id. */
-function fileNameSlug(overallPath: string): string {
+ *  slug (date prefix + `-overall` suffix stripped) — the program identity, not a phase id.
+ *  Exported for the closeout module's plan-workspace enumeration (P2 ④). */
+export function fileNameSlug(overallPath: string): string {
   const base = path.basename(overallPath).replace(/\.md$/, "");
   return base.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(/-overall$/, "");
 }
 
-function mdNames(dir: string): string[] {
+export function mdNames(dir: string): string[] {
   try {
     return readdirSync(dir);
   } catch {
@@ -741,8 +751,9 @@ function phaseIdsIn(clause: string): string[] {
 /** ① Claim extraction: walk the change-history summaries clause by clause; a clause whose link
  * word matches `plan`/`计划` carries a plan claim (`Pending → Done`-style target), one matching
  * `Design spec` carries a design claim with a `P<n>-design` target token. Clause phases expand
- * ranges (endpoints included). */
-function extractClaimRows(historyRows: OverallParse["historyRows"]): { planClaims: Map<string, string>; designClaims: Map<string, string> } {
+ * ranges (endpoints included). Exported for the closeout module — the declaration set the terminal
+ * state merges into (P2 ④). */
+export function extractClaimRows(historyRows: OverallParse["historyRows"]): { planClaims: Map<string, string>; designClaims: Map<string, string> } {
   const planClaims = new Map<string, string>();
   const designClaims = new Map<string, string>();
   for (const row of historyRows) {
@@ -1037,6 +1048,20 @@ function docKindOf(filePath: string): "plan" | "spec" | "overall" {
   if (content.split("\n").some((l) => HEADER_RE.test(l))) return "overall";
   if (content.split("\n").some((l) => DOC_TOKENS.taskNumberRe.test(l))) return "plan";
   return "spec";
+}
+
+/** Resolve the CLASS-B parent overall for an audit entry — the same chain walk the audit itself
+ * performs (plan → its `**Spec:**` spec → the spec's Parent program; spec → Parent program; overall
+ * → itself), exposed for the closeout mismatch module (P2 ④): the terminal-debt face resolves the
+ * declaration target the same way the four tables do (AC1 lineage rule shared — a chain that does
+ * not reach a parent overall has no closeout over it). null → chain truncation. */
+export function parentOverallOf(entry: string, root: string): string | null {
+  const kind = docKindOf(entry);
+  if (kind === "overall") return entry;
+  if (kind === "spec") return resolveParentOverall(entry, root).overallPath;
+  const { specPath } = resolveSpecFromPlan(entry, root);
+  if (!specPath) return null;
+  return resolveParentOverall(specPath, root).overallPath;
 }
 
 /** validateDispatchDocuments — the audit entry: walk the entry doc-type's chain (plan → its

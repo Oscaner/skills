@@ -60,7 +60,6 @@ import { validateHandoffSchema } from "../rules/schema.ts";
 import { extractPlanConstraints, taskNumbersFromPlan } from "../rules/documents.ts";
 export { extractPlanConstraints, taskNumbersFromPlan } from "../rules/documents.ts";
 import { DOC_TOKENS } from "../documents/tokens.ts";
-import { deriveTaskState, derivePlanVerdict, formatTaskStateLine, formatPlanVerdict } from "../rules/status.ts";
 import { returnFourLines, returnFromHandoff, dryRunBlock } from "../artifacts/return-block.ts";
 import { FAILURE_CATEGORIES, incrementFailureCounter, exhaustedBlocker, maybeExhaust, timeoutBlocker } from "../rules/failure.ts";
 export { returnFourLines, returnFromHandoff } from "../artifacts/return-block.ts";
@@ -517,6 +516,15 @@ export class TaskLifecycle extends DispatchLifecycle {
     return this.#tcx?.plan ?? null;
   }
 
+  /** Plan-bearing declaration (P2 T4): the task lane is ALWAYS plan-bearing — the closeout
+   * terminal-debt hard gate and the base-default statusValidate key off the dispatch plan. NOT
+   * #finished-gated: the pre-flight-terminated case is already handled by docAuditTarget's guard
+   * (the gate waives early on a finished round), while statusValidate runs AFTER the round
+   * #done'd — the report describes the tree the round just landed. */
+  protected override dispatchPlanPath(): string | null {
+    return this.#tcx?.plan ?? null;
+  }
+
   /** BLOCK face override (Task 3 ④): the task channel's non-throwing #done terminal — exit 1 +
    * the CDD_BLOCKED diagnostic; no carrier is written (the doc-invalid round stays
    * re-dispatchable the moment the docs are repaired — matching the pre-T3 face exactly). */
@@ -895,27 +903,6 @@ export class TaskLifecycle extends DispatchLifecycle {
     // exit mastered by finalizeHandoff's round conclusion — the T14「exit 0 + status BLOCKED」
     // inversion dies here (a BLOCKED-derived review or a fix declaring BLOCKED → 1).
     this.#done(finalized?.exitCode ?? 0, this.#returnBlock, "");
-  }
-
-  /** statusValidate template-step override (post-flight, after the exit gate; Task 29, spec T7.8):
-   * reports the round's CURRENT task state (six-state convergence, rules/status.ts) + the plan
-   * completion verdict as CDD_INFO — the "plan Done" terminal declaration is exactly this
-   * all-complete verdict (closeout consumes it; no more manual tallying). Deliberately runs
-   * WITHOUT the #finished guard: the round just ended (commitPostCheck #done'd) and its resulting
-   * state is precisely what the report describes; the walk has already passed every exit gate, so
-   * this step is informational and never exit-changing. Read-only — derives from on-disk
-   * progress/carriers; unreadable progress/plan → skip silently (fail-open). */
-  protected override async statusValidate(_hookCtx: DispatchHookContext): Promise<void> {
-    const ctx = this.#tcx; // null when resolveContext died early (e.g. cli-missing) — nothing to reconcile
-    if (!ctx || !ctx.workspace || !ctx.plan) return;
-    try {
-      const state = deriveTaskState(ctx.workspace, this.#taskNum);
-      const verdict = derivePlanVerdict(ctx.plan, ctx.workspace, taskNumbersFromPlan);
-      process.stderr.write(`CDD_INFO: ${formatTaskStateLine(this.#taskNum, state)}\n`);
-      process.stderr.write(`CDD_INFO: ${formatPlanVerdict(verdict)}\n`);
-    } catch {
-      // fail-open: no report when progress/plan cannot be read
-    }
   }
 }
 

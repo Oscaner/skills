@@ -139,6 +139,14 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
     }
   }
 
+  /** Plan-bearing declaration (P2 T4): the branch lane is ALWAYS plan-bearing — the closeout
+   * terminal-debt hard gate and the base-default statusValidate key off its `--plan` ref (v1.12:
+   * the v1.11 lane boundary is rescinded — branch-review's precondition IS the ended plan, so its
+   * backfill obligation is already due and the gate is the correct behavior). */
+  protected override dispatchPlanPath(): string | null {
+    return this.docAuditTarget();
+  }
+
   /** Doc-contract BLOCK face (T3 ④): the branch terminal convention — stderr CDD_BLOCKED +
    * exitWithCode(1) (exit helpers throw ExitRequested, the bin maps the exact code; the default
    * DispatchBlocked throw would escape the wrappers' gate filters and land on exit 2). */

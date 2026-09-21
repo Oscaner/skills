@@ -29,7 +29,7 @@ import { runDocsTask } from "../docs.ts";
 import { runBranchReview } from "../../cli/branch-review.ts";
 import { REG_PATH } from "../../infra/registry.ts";
 import { ExitRequested } from "../../infra/exit.ts";
-import { captureStderr } from "../../infra/__tests__/helpers.ts";
+import { captureStderr, captureStdout } from "../../infra/__tests__/helpers.ts";
 import { resolveWorkspace } from "../../artifacts/handoff/naming.ts";
 import {
   OVERALL_CLEAN,
@@ -240,20 +240,18 @@ describe("post-flight statusValidate — base default + the CDD_CLOSEOUT highlig
         }));
       }
     }
-    const out: string[] = [];
-    const origOut = process.stdout.write.bind(process.stdout);
-    process.stdout.write = ((s: unknown) => { out.push(String(s)); return true; }) as typeof process.stdout.write;
+    const outCap = captureStdout();
     const cap = captureStderr();
     try {
       const lc = new CompletingStub({ ctx: { mode: "review", repoRoot: repo } });
       await expect(lc.run()).resolves.toBeUndefined(); // exit unchanged — informational
     } finally {
-      process.stdout.write = origOut;
+      outCap.restore();
       cap.restore();
     }
-    expect(out.join("")).toContain("CDD_CLOSEOUT:");
-    expect(out.join("")).toContain("backfill-overall");
-    expect(out.join("")).toContain(path.join(repo, "docs", "osuperpowers", "specs", "2026-01-01-demo-overall.md"));
+    expect(outCap.text).toContain("CDD_CLOSEOUT:");
+    expect(outCap.text).toContain("backfill-overall");
+    expect(outCap.text).toContain(path.join(repo, "docs", "osuperpowers", "specs", "2026-01-01-demo-overall.md"));
     // base-default CDD_INFO six-state + verdict (all lanes share one implementation)
     expect(cap.text).toContain("CDD_INFO: task 1 state: complete");
     expect(cap.text).toContain("CDD_INFO: plan done (1/1 complete)");

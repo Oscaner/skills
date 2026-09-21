@@ -99,8 +99,9 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
     };
     if (name === "plan") {
       expect(get("$.properties.taskHeadings.properties.format.const")).toBe("### Task N:");
-      // colon form — the brief extractor's slice surface
-      expect(get("$.properties.taskHeadings.properties.pattern.pattern")).toBe("^### Task \\d+:$");
+      // tolerant colon form — the brief extractor's slice surface (`/^### Task \d+:/`); an
+      // optional title after the colon is parse-tolerated, so the pin is unanchored at the tail
+      expect(get("$.properties.taskHeadings.properties.pattern.pattern")).toBe("^### Task \\d+:");
       // constraints Form B prose-anchor quad
       const anchors = schemaNode(s, "$.properties.constraints.properties.formBProseAnchors.properties.anchors.items.enum") as string[];
       expect(anchors).toEqual(["**口径**：", "**commit 边界机制**：", "**Flow Atomicity**：", "**顺序原则**："]);

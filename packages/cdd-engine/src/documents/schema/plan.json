@@ -101,12 +101,12 @@
         "format": {
           "type": "string",
           "const": "### Task N:",
-          "description": "Colon format — `### Task N:` with an ASCII colon and NO title on the heading line. Em dash / Chinese colon / any other delimiter fails brief extraction at dispatch time."
+          "description": "Colon format — `### Task N:` with an ASCII colon. A title after the colon is permitted and parse-tolerated (the extractor's slice surface `/^### Task \\d+:/` ignores everything after the colon); only a non-`:` delimiter after the number (em dash, Chinese colon, bare space) fails brief extraction at dispatch time."
         },
         "pattern": {
           "type": "string",
-          "pattern": "^### Task \\d+:$",
-          "description": "Task heading pattern — 1-indexed tasks from `### Task 1:` through `### Task N:`."
+          "pattern": "^### Task \\d+:",
+          "description": "Task heading pattern — 1-indexed tasks from `### Task 1:` through `### Task N:`, an optional title after the colon is parse-tolerated."
         },
         "continuity": {
           "type": "object",

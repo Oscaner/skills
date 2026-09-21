@@ -13,6 +13,11 @@
           "type": "object",
           "description": "`**Version**` — strictly required line; `- **Version**: vX.Y · YYYY-MM-DD`.",
           "properties": {
+            "marker": {
+              "type": "string",
+              "const": "**Version**",
+              "description": "The canonical `**Version**` marker (shared token with the overall; the engine derives its phase-spec version assertion from the same single source)."
+            },
             "line": {
               "type": "string",
               "pattern": "^\\s*-?\\s*\\*\\*Version\\*\\*:\\s*v\\d+\\.\\d+",

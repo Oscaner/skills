@@ -5,7 +5,7 @@ description: Independent single-spec writer -- Node-anchored flow with digraph a
 
 # Osuperpowers Single-Spec Writing
 
-Writes a single (non-phase) spec from the writing-spec import, reviews it under the cdd spec contract, commits it on approval, and hands it off to writing-plans. Single specs have no template and no parent overall to sync.
+Writes a single (non-phase) spec from the writing-spec import, reviews it under the cdd spec contract, commits it on approval, and hands it off to writing-plans. Single specs have no canonical structure schema and no parent overall to sync.
 
 ## Flow Digraph
 
@@ -26,7 +26,7 @@ flowchart TD
 
 | skeleton node | writing-single-spec |
 |---|---|
-| read-template | N/A — no template (single specs are authored free-form) |
+| read-schema | N/A — no canonical structure schema (single specs are authored free-form) |
 | scope changed? | N/A |
 | sync-overall | N/A |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
@@ -43,7 +43,7 @@ flowchart TD
 
 ### `author-spec`
 
-- **Do**: Write the spec document to `docs/osuperpowers/specs/` from the session output. **No template (single variant) — free-form authoring**
+- **Do**: Write the spec document to `docs/osuperpowers/specs/` from the session output. **No canonical structure schema (single variant) — free-form authoring**
 - **Read**: Session output
 - **Exit**: File written → `spec-review`
 - **Fail**: Session output unusable or write error → BLOCKED (missing design input)

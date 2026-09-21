@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/overall.json",
   "title": "Overall program spec (charter) document structure",
-  "description": "Canonical structure of an osuperpowers overall (program charter) document — charter only, zero implementation detail. The overall is the program's single source of truth: every mid-phase change returns here (backfill-as-version) before implementation continues. The four enforcement tables — Issue inventory, Phase inventory, Dependency graph, Change history — are the engine-side audit vocabulary (doc word = code word = guard token): rename a heading and you rename the validator with it. This schema is the single structure fact for the overall doc type: authoring agents read the properties below + their descriptions to draft conforming documents, docContractValidate consumes the same patterns. Section-numbered facets below are written under their literal `## ` heading (validator-keyed); the `Section N` numbers in the retired template were frame indices only.",
+  "description": "Canonical structure of an osuperpowers overall (program charter) document — charter only, zero implementation detail. The overall is the program's single source of truth: every mid-phase change returns here (backfill-as-version) before implementation continues. The four enforcement tables — Issue inventory, Phase inventory, Dependency graph, Change history — are the engine-side audit vocabulary (doc word = code word = engine token): rename a heading and you rename the validator with it. This schema is the single structure fact for the overall doc type: authoring agents read the properties below + their descriptions to draft conforming documents, docContractValidate consumes the same patterns (the enforcement position is the engine lifecycle, not a repo-local script). Section-numbered facets below are written under their literal `## ` heading (validator-keyed); the `Section N` numbers in the retired template were frame indices only.",
   "type": "object",
   "properties": {
     "header": {
@@ -13,6 +13,11 @@
           "type": "object",
           "description": "Current program version line (`- **Version**: vX.Y · YYYY-MM-DD`).",
           "properties": {
+            "marker": {
+              "type": "string",
+              "const": "**Version**",
+              "description": "The canonical `**Version**` marker — the engine derives its version-line assertion token (VERSION_HEADER_RE family, tokens.ts) from this const plus the line pattern."
+            },
             "line": {
               "type": "string",
               "pattern": "^\\s*-?\\s*\\*\\*Version\\*\\*:\\s*v\\d+\\.\\d+",

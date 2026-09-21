@@ -1,0 +1,171 @@
+// packages/cdd-engine/src/documents/__tests__/tokens.test.ts — canonical doc-structure tokens
+// (P2 T2 ①②; design §2.3 AC4 TC 单源实证). Every engine-side structure token derives from the
+// canonical doc-structure schemas (documents/schema/*.json via deriveDocTokens) — the "改 canonical
+// 定义一处 → engine 校验/抽取同步生效" evidence:
+//   - deriveDocTokens(schemas) is pure: feed it a doctored canonical schema → the derived token
+//     changes (the derivation is LIVE, not a second hand-written copy);
+//   - the production DOC_TOKENS values equal the on-disk canonical leaves (spot-pinned);
+//   - the derived regexes keep their exact parsing semantics (version header, history cell,
+//     task-heading colon form, Phase-inventory header, canonical column, constraints heading,
+//     prose anchors, CLAIM family) — the canary surface for the repo doc set;
+//   - the engine consumers (documents.ts / brief.ts / task.ts) consume via this module — the
+//     "grep 删除面零残留" engine-side face, checked textually (no literal re-assignment).
+import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { loadDocSchema } from "../schema.ts";
+import { deriveDocTokens, DOC_TOKENS } from "../tokens.ts";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+// packages/cdd-engine/src/documents/__tests__ → the engine src root (2 hops up from __tests__)
+const ENGINE_SRC = path.resolve(HERE, "..", "..");
+const PLAN = loadDocSchema("plan");
+const OVERALL = loadDocSchema("overall");
+const PHASE_SPEC = loadDocSchema("phase-spec");
+
+/** The four schemas deriveDocTokens needs — doctorable per-test. */
+function schemas(overrides: { plan?: unknown; overall?: unknown; phase?: unknown } = {}) {
+  return {
+    plan: overrides.plan ?? (loadDocSchema("plan") as Record<string, unknown>),
+    overall: overrides.overall ?? (loadDocSchema("overall") as Record<string, unknown>),
+    "phase-spec": overrides.phase ?? (loadDocSchema("phase-spec") as Record<string, unknown>),
+  };
+}
+
+/** Deep-clone a loaded schema (structuredClone of the parsed JSON). */
+function cloneSchema<T extends object>(schema: T): T {
+  return JSON.parse(JSON.stringify(schema)) as T;
+}
+
+describe("deriveDocTokens — live derivation from the canonical schemas", () => {
+  it("doctored canonical schema → derived tokens change (TC single-source实证)", () => {
+    const base = deriveDocTokens(schemas());
+    expect(base.specMark).toBe("**Spec:**");
+    expect(base.versionHeaderRe.source).toContain("Version");
+
+    // Doctored plan: the specRef marker const changes → the derived SPEC_MARK follows.
+    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    (doctoredPlan as any).properties.header.properties.specRef.properties.marker.const = "**Spec source:**";
+    const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
+    expect(re.specMark).toBe("**Spec source:**");
+    expect(re.specField).toBe("`**Spec source:**`");
+  });
+
+  it("doctored overall version line pattern → the version regex follows", () => {
+    const doctored = cloneSchema(loadDocSchema("overall") as Record<string, unknown>);
+    (doctored as any).properties.header.properties.version.properties.line.pattern =
+      "^\\s*-?\\s*\\*\\*Program version\\*\\*:\\s*v\\d+\\.\\d+";
+    const re = deriveDocTokens(schemas({ overall: doctored }));
+    // the header regex now matches the doctored line shape
+    expect(re.versionHeaderRe.test("- **Program version**: v1.0 · 2026-09-21")).toBe(true);
+    expect(re.versionHeaderRe.test("- **Version**: v1.0 · 2026-09-21")).toBe(false);
+  });
+});
+
+describe("DOC_TOKENS — production values equal the canonical leaves (single source)", () => {
+  it("plan markers: specMark / parentMark / taskHeading / constraints / prose anchors", () => {
+    expect(DOC_TOKENS.specMark).toBe("**Spec:**");
+    expect(DOC_TOKENS.parentMark).toBe("**Parent program**");
+    expect(DOC_TOKENS.taskHeadingFormat).toBe("### Task N:");
+    expect(DOC_TOKENS.taskHeadingFor(7)).toBe("### Task 7:");
+    expect(DOC_TOKENS.constraintsHeading).toBe("## Constraints");
+    expect(DOC_TOKENS.proseAnchors).toEqual(["口径", "commit 边界机制", "Flow Atomicity", "顺序原则"]);
+    expect(DOC_TOKENS.proseAnchorTokens).toEqual([
+      "**口径**：",
+      "**commit 边界机制**：",
+      "**Flow Atomicity**：",
+      "**顺序原则**：",
+    ]);
+  });
+
+  it("task-heading regexes keep the exact colon-form parsing semantics", () => {
+    // tolerant-titled headings (repo plans carry a title after the colon) must keep matching
+    expect(DOC_TOKENS.taskNumberRe.test("### Task 1: runtime 单源翻转")).toBe(true);
+    expect(DOC_TOKENS.taskNumberRe.exec("### Task 12: x")![1]).toBe("12");
+    expect(DOC_TOKENS.taskHeadingRe.test("### Task 3:")).toBe(true);
+  });
+
+  it("version header / history cell / unanchored token scan keep exact semantics", () => {
+    const m = "- **Version**: v1.0 · 2026-09-21".match(DOC_TOKENS.versionHeaderRe);
+    expect(m).not.toBeNull();
+    expect(m![1]).toBe("v1.0");
+    const c = "| v1.0 | 2026-09-21 | Initial |".match(DOC_TOKENS.historyVersionCellRe);
+    expect(c![1]).toBe("v1.0");
+    expect([..."[plan-overall.md v1.0 v1.1]".matchAll(DOC_TOKENS.versionTokenRe)]).toHaveLength(2);
+  });
+
+  it("Phase-inventory header / canonical column / change-history heading", () => {
+    const header = "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |";
+    expect(DOC_TOKENS.phaseHeaderRe.test(header)).toBe(true);
+    expect(DOC_TOKENS.phaseHeaderRe.test("| P1 | phase one |")).toBe(false); // phase rows are not the header
+    expect(DOC_TOKENS.canonicalColumnRe.test(header)).toBe(true);
+    expect(DOC_TOKENS.canonicalColumnRe.test("| # | Phase | Scope | Implementation planning |")).toBe(false);
+    expect(DOC_TOKENS.changeHistoryHeadingRe.test("## Change history")).toBe(true);
+  });
+
+  it("constraints heading + prose-anchor quad", () => {
+    expect(DOC_TOKENS.constraintsHeadingRe.test("## Constraints")).toBe(true);
+    expect(DOC_TOKENS.constraintsHeadingRe.test("### Constraint")).toBe(false);
+    expect(DOC_TOKENS.proseAnchorTokens[1]).toBe("**commit 边界机制**：");
+  });
+
+  it("CLAIM family — the claimClause pattern is derived live and matches representatives", () => {
+    const re = DOC_TOKENS.claimClauseRe;
+    expect(re.exec("Pending → **Done**（PR #1）")![0]).toBe("Pending → **Done**");
+    expect(re.exec("[Pending] -> P4-design v1.0")![0]).toBe("[Pending] -> P4-design");
+    expect(re.test("Pending")).toBe(false);
+  });
+});
+
+describe("engine consumers consume via the derived tokens (grep 删除面零残留)", () => {
+  const consumerFiles = ["rules/documents.ts", "render/brief.ts", "dispatch/task.ts"];
+  it.each(consumerFiles)("%s no longer hand-writes the derived structure tokens", (rel) => {
+    const src = readFileSync(path.join(ENGINE_SRC, rel), "utf8");
+    expect(src).not.toMatch(/const SPEC_MARK\s*=\s*["'`]\*\*Spec:\*\*/);
+    expect(src).not.toMatch(/const PARENT_MARK\s*=\s*["'`]\*\*Parent program\*\*/);
+    expect(src).not.toMatch(/const VERSION_HEADER_RE\s*=\s*\/\^\\s\*-/);
+    expect(src).not.toMatch(/const HISTORY_VERSION_CELL_RE\s*=\s*\/\^\\s\*\\\|/);
+  });
+});
+
+// Template-retirement consumption face (§2.3 AC4/AC9 — repo/skill md 模板副本零残留 + the
+// read-schema rewrite). The engine test asserts the repo/plugin surface the migration guarantees:
+// the three md structure templates are gone, and the spec-writer skills carry the `read-schema`
+// node that drives `cdd help` discovery (zero hardcoded template paths).
+describe("template retirement — md templates gone + read-schema nodes in the spec-writer skills", () => {
+  // packages/cdd-engine/src/documents/__tests__ → repo root (5 hops: __tests__→documents→src→cdd-engine→packages→root)
+  const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
+  const RETIRED = [
+    "packages/osuperpowers/skills/writing-overall-spec/docs/overall-spec-template.md",
+    "packages/osuperpowers/skills/writing-phase-spec/docs/phase-spec-template.md",
+    "packages/osuperpowers/skills/writing-overall-spec/docs/add-phase-protocol.md",
+  ];
+  const SPEC_WRITER_SKILLS = [
+    "packages/osuperpowers/skills/writing-overall-spec/SKILL.md",
+    "packages/osuperpowers/skills/writing-phase-spec/SKILL.md",
+    "packages/osuperpowers/skills/writing-single-spec/SKILL.md",
+  ];
+
+  it.each(RETIRED)("%s is deleted (structure facts moved to the canonical schema)", (rel) => {
+    expect(existsSync(path.join(REPO_ROOT, rel))).toBe(false);
+  });
+
+  it.each(SPEC_WRITER_SKILLS)("%s carries the read-schema node and no template-path token", (rel) => {
+    const src = readFileSync(path.join(REPO_ROOT, rel), "utf8");
+    expect(src).toMatch(/read-schema/);
+    expect(src).not.toMatch(/read-template/);
+    expect(src).not.toMatch(/docs\/\*-template\.md/);
+  });
+
+  it("writing-plans author-plan defers plan structure to the canonical schema (`cdd help`)", () => {
+    const src = readFileSync(
+      path.join(REPO_ROOT, "packages/osuperpowers/skills/writing-plans/SKILL.md"),
+      "utf8",
+    );
+    expect(src).toMatch(/cdd help/);
+    // no hand-written extraction regex in the plan-authoring prose
+    expect(src).not.toMatch(/\/\^### Task \\d\+:\//);
+  });
+});

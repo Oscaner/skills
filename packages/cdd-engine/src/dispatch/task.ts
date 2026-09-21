@@ -58,6 +58,7 @@ import {
 } from "../artifacts/residue.ts";
 import { validateHandoffSchema } from "../rules/schema.ts";
 import { validateDispatchDocuments, formatDocFailures, type DocValidationFailure } from "../rules/documents.ts";
+import { DOC_TOKENS } from "../documents/tokens.ts";
 import { deriveTaskState, derivePlanVerdict, formatTaskStateLine, formatPlanVerdict } from "../rules/status.ts";
 import { returnFourLines, returnFromHandoff, dryRunBlock } from "../artifacts/return-block.ts";
 import { FAILURE_CATEGORIES, incrementFailureCounter, exhaustedBlocker, maybeExhaust, timeoutBlocker } from "../rules/failure.ts";
@@ -978,11 +979,12 @@ export async function runTask(harness: string, taskNum: number, opts: TaskRunOpt
 
 // ---- plan building blocks (pure functions, unit-test seam) ----
 
-/** Aligns _task_numbers_from_plan: `^### Task N:` → numeric sort. */
+/** Aligns _task_numbers_from_plan: `^### Task N:` → numeric sort. The heading token is
+ * schema-derived (plan schema taskHeadings pattern; titles after the colon are tolerated). */
 export function taskNumbersFromPlan(planFile: string): number[] {
   const nums: number[] = [];
   for (const line of readFileSync(planFile, "utf8").split("\n")) {
-    const m = line.match(/^### Task (\d+):/);
+    const m = line.match(DOC_TOKENS.taskNumberRe);
     if (m) nums.push(Number(m[1]));
   }
   return nums.sort((a, b) => a - b);
@@ -1025,8 +1027,10 @@ const PLAN_CONSTRAINTS_MISSING_BLOCKER = "plan-constraints.md missing — run ma
 // artifact bytes on any machine (recomputable test baseline).
 const PLAN_HASH_RE = /plan hash: ([0-9a-f]{64})/;
 // Legacy prose-pointer anchors, canonical order — extraction order is this constant, never plan
-// line order (byte-determinism). The canonical form (literal `## Constraints`) wins over this.
-const PROSE_ANCHORS = ["口径", "commit 边界机制", "Flow Atomicity", "顺序原则"] as const;
+// line order (byte-determinism). The bare names derive from the canonical plan schema's Form-B
+// anchor tokens (tokens.ts; `**口径**：` → `口径`); the canonical form (literal `## Constraints`)
+// wins over this.
+const PROSE_ANCHORS = DOC_TOKENS.proseAnchors as readonly string[];
 
 /** Plan declares no Constraints source (neither a literal `## Constraints` section nor any
  * prose-pointer anchor) — the materializer must BLOCK, never fall back silently. P6 T24 E: the
@@ -1048,12 +1052,12 @@ function extractLiteralConstraints(content: string): string | null {
   const lines = content.split("\n");
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^## Constraints\s*$/.test(lines[i])) { start = i; break; }
+    if (DOC_TOKENS.constraintsHeadingRe.test(lines[i])) { start = i; break; }
   }
   if (start < 0) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^(#{1,2}\s|### Task |---\s*$)/.test(lines[i])) { end = i; break; }
+    if (/^(#{1,2}\s|---\s*$)/.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) { end = i; break; }
   }
   const body = lines.slice(start + 1, end).join("\n").trimEnd();
   if (!body) return null;
@@ -1074,11 +1078,11 @@ function proseAnchorRe(anchor: string): RegExp {
 // `---` rule, a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
 // (any prose-pointer-style bold heading begins a new declaration block, so the plan's interleaved
 // `**v1.x 回填…**：` notes bound the preceding anchor the way the literal form's headings bound a
-// `## Constraints` section).
+// `## Constraints` section). The task-heading prefix token is schema-derived (tokens.ts).
 const PROSE_BLOCK_STOP = [
   /^---\s*$/,
   /^#{1,2}\s/,
-  /^### Task /,
+  DOC_TOKENS.taskHeadingPrefixRe,
   /^\*\*[^*]+\*\*[：:]/,
 ] as const;
 
@@ -1138,7 +1142,7 @@ export function materializePlanConstraints(plan: string, workspace: string): { p
   const content = extractPlanConstraints(readFileSync(plan, "utf8"));
   if (content === null) {
     throw new ConstraintsSourceUndeclared(
-      `plan Constraints source undeclared — declare a literal “## Constraints” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
+      `plan Constraints source undeclared — declare a literal “${DOC_TOKENS.constraintsHeading}” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
     );
   }
   writeFileSync(outPath, constraintsHeader(plan, hashFile(plan)) + content, "utf8");

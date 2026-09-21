@@ -1,6 +1,6 @@
 ---
 name: writing-overall-spec
-description: Independent overall-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, reads the overall-spec template, authors the program charter to docs/osuperpowers/specs/, runs the cdd spec review-fix loop, commits on approval, and hands off to /compact or brainstorming [Px]. Callable standalone.
+description: Independent overall-spec writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming (writing-spec) design flow inline as this session's baseline, reads the canonical overall spec schema, authors the program charter to docs/osuperpowers/specs/, runs the cdd spec review-fix loop, commits on approval, and hands off to /compact or brainstorming [Px]. Callable standalone.
 ---
 
 # Osuperpowers Overall-Spec Writing
@@ -11,7 +11,7 @@ Writes the program-level (overall) spec from the writing-spec import, reviews it
 
 ```mermaid
 flowchart TD
-  A[run-writing-spec-session] -->|landed| B[read-template]
+  A[run-writing-spec-session] -->|landed| B[read-schema]
   A -->|missing| Z1((BLOCKED: install superpowers))
   B --> C[author-spec]
   C --> D[spec-review]
@@ -27,7 +27,7 @@ flowchart TD
 
 | skeleton node | writing-overall-spec |
 |---|---|
-| read-template | `docs/overall-spec-template.md` |
+| read-schema | run `cdd help` → read the canonical `overall.json` doc-structure schema (the schema is the single structure fact; the retired md template is gone) |
 | scope changed? | N/A |
 | sync-overall | N/A — this skill is the overall writer; no parent overall to sync |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
@@ -39,22 +39,22 @@ flowchart TD
 
 - **Do**: Import `/superpowers:brainstorming` (writing-spec import) — its flow is consumed inline as this session's baseline; it lands the design decisions (including the program charter and phase decomposition) this overall spec will capture
 - **Read**: nothing before the import; the import lands the design
-- **Exit**: Import landed → `read-template`; upstream missing → BLOCKED (install superpowers)
+- **Exit**: Import landed → `read-schema`; upstream missing → BLOCKED (install superpowers)
 - **Fail**: Upstream superpowers plugin missing → BLOCKED: install superpowers (no downgrade, no skip, no inline restatement)
 
-### `read-template`
+### `read-schema`
 
-- **Do**: Read this skill's `docs/overall-spec-template.md` — the program-level spec structure (charter only — no implementation detail; the template carries the GATE: overall approval is not equivalent to any phase started)
-- **Read**: `docs/overall-spec-template.md`
-- **Exit**: Template loaded → `author-spec`; missing → BLOCKED
-- **Fail**: Template missing/unreadable → BLOCKED (missing template)
+- **Do**: Run `cdd help` to locate the canonical doc-structure schema directory (the consumer/install surface, never a hardcoded repo path) → read the canonical `overall.json` schema for the overall document type — the single structure fact its `properties` + `description` carry (charter only — no implementation detail; the schema carries the GATE: overall approval is not equivalent to any phase started)
+- **Read**: run `cdd help` → `schemas:` directory → `overall.json` (the canonical overall spec schema)
+- **Exit**: Schema read → `author-spec`; `cdd help` unavailable or schema missing → BLOCKED
+- **Fail**: Schema missing/unreadable → BLOCKED (missing schema — cannot determine overall spec structure)
 
 ### `author-spec`
 
-- **Do**: Write the overall spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-overall.md` from the session output — charter only (scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria); no phase-level implementation detail. Role note: the charter's phase inventory / dependency graph / change history are machine-checked in this repo by `scripts/validate/overall-consistency.ts` (block 12 of `pnpm run validate`), as is the issue inventory while it keeps the literal `## Issue inventory` heading the guard section-matches (renaming the table — per template Section 4 — silently unhooks it from the guard) — a maintainer-mode, this-repo dogfood guard, not a consumer surface (consumers have no `scripts/validate/`; it is not a packaging feature the overall spec may rely on)
-- **Read**: Session output + the overall spec template
+- **Do**: Write the overall spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-overall.md` from the session output — charter only (scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria); no phase-level implementation detail. Role note: the enforcement position for the overall's structure is the **engine lifecycle** — the same canonical doc-structure schema (`cdd help` → `overall.json`) that `read-schema` consumed is what `docContractValidate` uses at dispatch to check the four-table vocabulary and row shapes (doc word = code word = engine token: rename a heading and you rename the validator with it). A repo-local `scripts/validate` guard is maintainer-mode dogfood only, not a consumer surface — consumers have the engine lifecycle, not the repo toolchain
+- **Read**: Session output + the canonical overall spec schema (via `cdd help`)
 - **Exit**: File written → `spec-review`
-- **Fail**: Template missing → BLOCKED (missing template)
+- **Fail**: Schema missing → BLOCKED (missing schema)
 
 ### `spec-review`
 
@@ -96,6 +96,6 @@ flowchart TD
 | failure | behavior | reason |
 |---|---|---|
 | Upstream superpowers plugin missing | BLOCKED (install superpowers) | Block policy: no silent fallback |
-| Template missing/unreadable | BLOCKED (missing template) | Cannot determine overall spec structure |
+| Schema missing/unreadable | BLOCKED (missing schema) | Cannot determine overall spec structure |
 | spec-review re-run after blocker=0 | Violates I1 (Review Convergence) — stop + report to user | Agent declares blocker=0 after fixing without re-running cdd review on that pass |
 | Git commit error | report + fail-open | Do not block user spec review |

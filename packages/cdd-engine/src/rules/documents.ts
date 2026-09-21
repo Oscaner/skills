@@ -21,6 +21,7 @@
 // injected from dispatch/task.ts (this module stays acyclic — no dispatch import, no cycle).
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { DOC_TOKENS } from "../documents/tokens.ts";
 
 export interface DocValidationFailure {
   /** which contract failed — "plan" | "phase spec" | "overall" */
@@ -42,17 +43,20 @@ export interface DocValidationOptions {
   extractConstraints: (planContent: string) => string | null;
 }
 
-// ---- anchor atoms (mirror scripts/validate/plan-spec-anchors.ts); field names carry backticks
-// (markdown code span) so the guidance line reads as a doc reference ----
-const SPEC_FIELD = "`**Spec:**`";
-const PARENT_FIELD = "`**Parent program**`";
-const VERSION_FIELD = "`**Version**`";
-const SPEC_MARK = "**Spec:**";
-const PARENT_MARK = "**Parent program**";
+// ---- anchor atoms (schema-derived single source — documents/tokens.ts; the former hand-written
+// SPEC_MARK / PARENT_MARK / VERSION_HEADER_RE / HISTORY_VERSION_CELL_RE live once in the canonical
+// doc-structure schemas). Field names carry backticks (markdown code span) so the guidance line
+// reads as a doc reference. LINK_RE is a generic markdown parse atom, not a doc-structure token —
+// it stays engine-local.
+const SPEC_FIELD = DOC_TOKENS.specField;
+const PARENT_FIELD = DOC_TOKENS.parentField;
+const VERSION_FIELD = DOC_TOKENS.versionField;
+const SPEC_MARK = DOC_TOKENS.specMark;
+const PARENT_MARK = DOC_TOKENS.parentMark;
 const LINK_RE = /(?<!!)\[([^\]]+)\]\(([^)]+)\)/g;
-const VERSION_TOKEN_RE = /v\d+\.\d+/g;
-const VERSION_HEADER_RE = /^\s*-?\s*\*\*Version\*\*:\s*(v\d+\.\d+)/m;
-const HISTORY_VERSION_CELL_RE = /^\s*\|\s*(v\d+\.\d+)\s*\|/;
+const VERSION_TOKEN_RE = DOC_TOKENS.versionTokenRe;
+const VERSION_HEADER_RE = DOC_TOKENS.versionHeaderRe;
+const HISTORY_VERSION_CELL_RE = DOC_TOKENS.historyVersionCellRe;
 
 // Placeholder / template / regex targets (same class as plan-spec-anchors' predicate): scheme links,
 // local anchors, absolute-root paths, dir refs and template tokens are prose, not tree paths.
@@ -108,10 +112,15 @@ function overallTokenVersions(filePath: string): string[] {
   return [...versions];
 }
 
-// ---- overall table parsing (mirror scripts/validate/overall-consistency.ts cell semantics) ----
+// ---- overall table parsing (canonical-header semantics from the doc-structure schema) ----
 
-const HEADER_RE = /^\|\s*#\s*\|\s*Phase\s*\|/;
-const CANONICAL_COL_TOKEN = /Implementation plan\b/;
+// Phase-inventory header open / canonical-form marker (schema-derived tokens).
+const HEADER_RE = DOC_TOKENS.phaseHeaderRe;
+const CANONICAL_COL_TOKEN = DOC_TOKENS.canonicalColumnRe;
+const CHANGE_HISTORY_SECTION_RE = DOC_TOKENS.changeHistoryHeadingRe;
+const PHASE_ROW_OPEN_RE = DOC_TOKENS.phaseRowOpenRe;
+const PHASE_ROW_CELL_COUNT = DOC_TOKENS.phaseRowCellCount;
+const VERSION_CELL_NUMERIC_RE = DOC_TOKENS.versionNumericRe;
 
 // Split a table row into cells on unescaped `|` (a `\|` inside a cell stays a literal pipe).
 function splitCells(t: string): string[] {
@@ -194,9 +203,9 @@ function parseOverall(overallPath: string): OverallParse {
   let norm = 0;
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const t = lines[i].trim();
-    if (t.startsWith("| P") && t.endsWith("|")) {
+    if (PHASE_ROW_OPEN_RE.test(t) && t.endsWith("|")) {
       const c = splitCells(t);
-      if (c.length >= 8) {
+      if (c.length >= PHASE_ROW_CELL_COUNT) {
         if (norm === 0) norm = c.length;
         else if (c.length !== norm) {
           out.shapeDrift.push({ id: c[1]?.trim() || "(unnamed)", cells: c.length, expected: norm });
@@ -210,13 +219,13 @@ function parseOverall(overallPath: string): OverallParse {
   }
 
   // Change-history necessary subset (strictly ascending v<major>.<minor>, unique, non-empty dates).
-  const range = sectionRange(lines, /^## Change history/);
+  const range = sectionRange(lines, CHANGE_HISTORY_SECTION_RE);
   if (range) {
     const seen = new Set<string>();
     let prev: [number, number] | null = null;
     for (const c of tableRows(lines, range)) {
       if (isSeparatorRow(c) || c[1]?.trim().toLowerCase() === "version") continue;
-      const m = (c[1] ?? "").match(/^v(\d+)\.(\d+)$/);
+      const m = (c[1] ?? "").match(VERSION_CELL_NUMERIC_RE);
       if (!m) {
         out.versionProblems.push(`bad/empty version: ${JSON.stringify(c[1])}`);
         continue;
@@ -238,9 +247,10 @@ function parseOverall(overallPath: string): OverallParse {
 // ---- plan phase id (dispatch-phase token; plan.md etc. without a phase token → null, registration check fails open) ----
 /** phaseIdFromPlan(planPath) — derive the target phase id from the plan filename (`…-p\d+`, digit
  * boundary so a future P10 never prefix-matches P1). Null → the "registered in overall" checks are
- * skipped (fail-open defensively); the structural overall checks still run fully. */
+ * skipped (fail-open defensively); the structural overall checks still run fully. Token shape is
+ * schema-derived (the canonical phase-id pattern's filename form). */
 export function phaseIdFromPlan(planPath: string): string | null {
-  const m = path.basename(planPath).match(/\bP(\d+)(?![0-9])/i);
+  const m = path.basename(planPath).match(DOC_TOKENS.phaseIdScanRe);
   return m ? `P${m[1]}` : null;
 }
 
@@ -259,13 +269,14 @@ export function validatePlanContract(
 
   // 1. Task headings — continuously extractable (render/brief extraction semantics injected).
   const tasks = options.extractTaskNumbers(planPath);
+  const taskHeadingLbl = `\`${DOC_TOKENS.taskHeadingFormat}\``;
   if (tasks.length === 0) {
     failures.push({
       artifact: "plan",
       file: planPath,
       field: "Task headings",
-      missing: "no `### Task N:` headings in the plan",
-      fix: "add `### Task N:` task headings, 1-indexed and contiguous (e.g. `### Task 1:` through `### Task N:`)",
+      missing: `no ${taskHeadingLbl} headings in the plan`,
+      fix: `add ${taskHeadingLbl} task headings, 1-indexed and contiguous (e.g. \`### Task 1:\` through \`### Task N:\`)`,
     });
   } else if (new Set(tasks).size !== tasks.length) {
     failures.push({
@@ -273,7 +284,7 @@ export function validatePlanContract(
       file: planPath,
       field: "Task headings",
       missing: `duplicate task heading(s): ${tasks.join(", ")}`,
-      fix: "make each `### Task N:` heading present exactly once",
+      fix: `make each ${taskHeadingLbl} heading present exactly once`,
     });
   } else {
     const max = tasks[tasks.length - 1];
@@ -284,7 +295,7 @@ export function validatePlanContract(
         file: planPath,
         field: "Task headings",
         missing: `task headings not contiguous from 1 (got ${tasks.join(", ")}; expected 1..${max})`,
-        fix: "renumber the task headings so every `### Task N:` from 1 to the max is present exactly once",
+        fix: `renumber the task headings so every ${taskHeadingLbl} from 1 to the max is present exactly once`,
       });
     }
   }
@@ -297,7 +308,7 @@ export function validatePlanContract(
       file: planPath,
       field: "Constraints source",
       missing: "plan declares no Constraints source",
-      fix: "declare a literal `## Constraints` section (canonical Form A) or the prose pointer headings `**口径**：` / `**commit 边界机制**：` / `**Flow Atomicity**：` / `**顺序原则**：` (Form B)",
+      fix: `declare a literal \`${DOC_TOKENS.constraintsHeading}\` section (canonical Form A) or the prose pointer headings ${DOC_TOKENS.proseAnchorTokens.map((t) => `\`${t}\``).join(" / ")} (Form B)`,
     });
   }
 
@@ -327,8 +338,8 @@ function resolveSpecFromPlan(planPath: string, root: string): { specPath: string
       artifact: "plan",
       file: planPath,
       field: SPEC_FIELD,
-      missing: "no `**Spec:**` reference",
-      fix: "add a `**Spec:**` line pointing at the phase design spec, e.g. `**Spec:** [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)`",
+      missing: `no ${SPEC_FIELD} reference`,
+      fix: `add a ${SPEC_FIELD} line pointing at the phase design spec, e.g. ${SPEC_FIELD} [<name>-design.md](docs/osuperpowers/specs/<name>-design.md)`,
     });
     return { specPath: null, failures };
   }
@@ -362,8 +373,8 @@ function resolveSpecFromPlan(planPath: string, root: string): { specPath: string
       artifact: "plan",
       file: planPath,
       field: SPEC_FIELD,
-      missing: "no resolvable `**Spec:**` link",
-      fix: "add a `**Spec:**` link to an existing spec file",
+      missing: `no resolvable ${SPEC_FIELD} link`,
+      fix: `add a ${SPEC_FIELD} link to an existing spec file`,
     });
   }
   return { specPath: firstResolved, failures };
@@ -381,8 +392,8 @@ export function validatePhaseSpecContract(specPath: string, root: string, phaseI
       artifact: "phase spec",
       file: specPath,
       field: VERSION_FIELD,
-      missing: "no `**Version**` line",
-      fix: "add a `- **Version**: vX.Y · <date>` line at the document head",
+      missing: `no ${VERSION_FIELD} line`,
+      fix: `add a \`- ${DOC_TOKENS.versionMark}: vX.Y · <date>\` line at the document head`,
     });
   }
 
@@ -392,8 +403,8 @@ export function validatePhaseSpecContract(specPath: string, root: string, phaseI
       artifact: "phase spec",
       file: specPath,
       field: PARENT_FIELD,
-      missing: "no `**Parent program**` link",
-      fix: "add `- **Parent program**: [<name>-overall.md vX.Y](<path to the parent overall>)`",
+      missing: `no ${PARENT_FIELD} link`,
+      fix: `add ${PARENT_FIELD}: [<name>-overall.md vX.Y](<path to the parent overall>)`,
     });
     return failures; // the parent drives everything below
   }
@@ -403,7 +414,7 @@ export function validatePhaseSpecContract(specPath: string, root: string, phaseI
       artifact: "phase spec",
       file: specPath,
       field: PARENT_FIELD,
-      missing: "no resolvable `**Parent program**` link",
+      missing: `no resolvable ${PARENT_FIELD} link`,
       fix: "add a markdown link to the parent overall doc",
     });
     return failures;
@@ -436,7 +447,7 @@ export function validatePhaseSpecContract(specPath: string, root: string, phaseI
       file: specPath,
       field: PARENT_FIELD,
       missing: `Parent program target is not a \`*-overall.md\` (${path.basename(resolved)})`,
-      fix: "point `**Parent program**` at the overall doc (`*-overall.md`)",
+      fix: `point ${PARENT_FIELD} at the overall doc (\`*-overall.md\`)`,
     });
     return failures;
   }
@@ -448,7 +459,7 @@ export function validatePhaseSpecContract(specPath: string, root: string, phaseI
         file: specPath,
         field: PARENT_FIELD,
         missing: `version token ${tok[0]} ∉ parent overall lineage {${lineage.join(", ")}}`,
-        fix: "pin the line to a version the parent overall actually carries (its `**Version:**` header or a change-history row)",
+        fix: `pin the line to a version the parent overall actually carries (its ${VERSION_FIELD}: header or a change-history row)`,
       });
     }
   }
@@ -479,7 +490,7 @@ export function validateOverallContract(overallPath: string, phaseId: string | n
       field: "Phase inventory",
       missing: o.reason,
       fix: o.reason.includes("non-canonical")
-        ? "use the canonical 7-column Phase inventory header (`| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |`)"
+        ? `use the canonical 7-column Phase inventory header (\`${DOC_TOKENS.phaseInventoryHeader}\`)`
         : "make sure the overall file exists and carries a canonical Phase inventory table",
     });
     return failures;

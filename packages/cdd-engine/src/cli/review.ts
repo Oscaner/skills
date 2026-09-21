@@ -7,6 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import { DOC_TOKENS } from "../documents/tokens.ts";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig } from "../render/templates.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { hashFile } from "../artifacts/hash.ts";
@@ -160,8 +161,8 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
           REVIEW_AXES: cfg.axesGuide,
           RETURN_FORMAT: art.returnFormat,
           // type=plan: REVIEW_PLAN_LINE injects the upstream spec reference; type=spec has no plan
-          // reference, stays empty.
-          REVIEW_PLAN_LINE: opts.type === "plan" && opts.spec ? `**Spec:** ${opts.spec}` : "",
+          // reference, stays empty. The `**Spec:**` marker comes from the canonical token surface.
+          REVIEW_PLAN_LINE: opts.type === "plan" && opts.spec ? `${DOC_TOKENS.specMark} ${opts.spec}` : "",
         },
         workspace: ws, repoRoot: root,
         dryRun: DRY_RUN(),

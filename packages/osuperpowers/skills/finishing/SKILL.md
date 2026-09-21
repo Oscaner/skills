@@ -7,8 +7,6 @@ description: Independent finishing orchestrator -- Node-anchored flow with digra
 
 Development branch finishing: the imported upstream flow decides merge / PR / keep / discard, then related issues are closed.
 
-> **Backfill timing (consumer-parity P2 v1.12, 2026-09-21)**: the parent-overall backfill is no longer a finishing step — it is a **precondition of branch-review** (`backfill-overall` = orchestration obligation executed after plan-complete and before branch-review; the engine's closeout 统一规则 hard-gates plan-bearing dispatches on unpaid terminal debt, incl. branch-review). Finishing owns merge / PR / keep / discard + close-issues only.
-
 ## Flow Digraph
 
 ```mermaid
@@ -22,7 +20,7 @@ flowchart TD
 
 ### `run-finishing-session`
 
-- **Do**: Import `/superpowers:finishing-a-development-branch` — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) and runs its full finish loop (verify tests → read base → 4-option menu → execute merge / PR / keep / discard); it lands the finish decision (merged / PR created / kept / discarded) that routes `close-issues`. **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees — I1); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution (I2); the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu **without resetting its presentation counter** (3 attempts max → BLOCKED). **Backfill is not finishing's scope** — the parent-overall backfill is an orchestration obligation executed before branch-review (P2 v1.12: branch-review pre-flight hard-gates on unpaid terminal debt)
+- **Do**: Import `/superpowers:finishing-a-development-branch` — its flow is consumed inline as this session's baseline (loading an upstream skill imports its flow once; no second spawn) and runs its full finish loop (verify tests → read base → 4-option menu → execute merge / PR / keep / discard); it lands the finish decision (merged / PR created / kept / discarded) that routes `close-issues`. **Upstream steps are not restated here.** Personal rules enforced at this boundary: normal-repo menu (No Worktrees — I1); merge commit / PR title in conventional commits, PR body `## Summary` + `## Test Plan` only, zero attribution (I2); the strict typed-discard gate — the literal `discard` only (case-sensitive, no leading/trailing whitespace); any other input falls back to the menu **without resetting its presentation counter** (3 attempts max → BLOCKED)
 - **Read**: landed finish decision + base branch (`.osuperpowers/cdd/<slug>/base-branch.json`, or inference per [base-branch.md](../cli-driven-development/docs/base-branch.md))
 - **Exit**: Finish decision landed (merged / PR created / kept / discarded) → `close-issues`
 - **Fail**: Upstream superpowers plugin missing → BLOCKED (install superpowers); menu exhausted after 3 unrecognized inputs → BLOCKED (menu exhausted); tests red → BLOCKED (fix tests)

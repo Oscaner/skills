@@ -186,6 +186,17 @@ When auditing a node, check only the patterns relevant to that element.
 
 Behavioral logic in SKILL.md, templates, and docs must not reference GitHub issue numbers as authoritative sources. Issues are the forum for design discussion; once conclusions are committed to documentation, issue numbers should be removed from behavioral logic. Issue references in change history are exempt.
 
+**Anti-pattern: Design-History / Mechanism Narration in a Consumer Skill**
+
+A SKILL.md (and skill `docs/*.md`) is a **consumer-operating surface**: it specifies the executable flow (digraph, node Do/Read/Exit/Fail, Invariants, Failure Modes) and stops there. It must not carry:
+
+- **Design-history narration** — "this used to…", "changed in vX.Y…", "user decided…", "previously backfill was a finishing step…". The flow IS the record; annotating a change re-curates the past into consumer prose.
+- **Mechanism explanation** — why the engine gates behave as they do (hard-gate vs fail-open rationale, timing/ordering derivations). The behavior belongs in the flow or the engine; the why belongs in specs/plans (Strategy B) or maintainer docs.
+- **Internal-program references** — program/spec titles or versions (e.g. "consumer-parity P2 v1.12"), repo-internal phase ids, backfill/claim-ledger jargon that a consumer (pure packages, no monorepo layout, no repo toolchain) cannot resolve.
+- **Rationale/commentary on design decisions** — the decision record lives in `docs/osuperpowers/specs+plans` and `docs/maintainers/`; a shipped skill that explains its own genealogy is unreadable to a fresh consumer and diverges as the program evolves.
+
+When a change removes a flow step (e.g. deleting a node), edit the digraph and node definitions — do **not** annotate the removal. Positive test: a sentence whose referents a consumer who has never seen the program cannot resolve (internal doc titles, version history, provisional reasoning) violates this rule — delete it, or move it to the Strategy B / maintainer surface. (2026-09-21 dogfood: a backfill-timing note referencing an internal spec was removed from the finishing skill the same day it was added.)
+
 ## 11. Data-driven Template Convention
 
 When a new skill introduces template body text that is data-izable — text-shaped, referenced by multiple consumers, drift-prone (form field definitions, enumeration lists, section-label tables, issue-template bodies) — route it through the data-driven-templates convention: **canonical JSON single source → one pure renderer → emitted/derived products guarded by `pnpm run emit:check`**. Nodes defined here apply to prose control flow; template body text follows [data-driven-templates.md](data-driven-templates.md) (digraph `canonical → renderer → {emit product · runtime product} → round-trip guard`).
@@ -194,6 +205,7 @@ When a new skill introduces template body text that is data-izable — text-shap
 
 ## Change history
 
+- v1.6 · 2026-09-21 — Add §10 anti-pattern "Design-History / Mechanism Narration in a Consumer Skill" — skills are consumer-operating surfaces: design history, mechanism explanation, rationale commentary, and internal-program references are forbidden (2026-09-21 dogfood: a backfill-timing note referencing an internal spec entered the finishing skill and was removed the same day).
 - v1.5 · 2026-09-20 — Grilling coverage honesty (G2): delegated grilling in `phase-within-program` mode enumerates the parent overall's registered requirements (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and opens the grilling frontier only after the user confirms the enumerated coverage is complete — recorded as a delegated-flow convention (§7) and in the brainstorming / writing-phase-spec flows.
 - v1.4 · 2026-09-19 — Session-call semantic honesty (G1): the primitive is redefined as `load an upstream skill = import its flow once` — inline consumption as this session's baseline, at most one import per upstream type per session, re-entry routes on already-landed artifacts (mode marker / design context / registration marker); the "run a /xxx session" spawn wording is rejected across §7, the delegated-form example, and the session-call policy invariant.
 - v1.3 · 2026-09-18 — Add §9 flow change discipline (whole-flow re-read · shape-fit judgment · sibling-uniform adjustment · growth boundary) and rework §8 into the three digraph integrity assertions (bidirectional completeness / skeleton isomorphism / growth signal), moved §9–10 to §10–11.

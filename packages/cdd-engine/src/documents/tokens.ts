@@ -11,6 +11,8 @@
 //   - pattern → compiled as a regex; capture groups are parse mechanics inserted at the version
 //               token (the engine needs `(v\d+\.\d+)` where the schema stores the pattern shape);
 //   - "N" in task-heading format → the canonical number placeholder (schema description).
+//   - phase-spec marker → the shared version marker's page twin: derived from phase-spec.json and
+//     asserted equal to the overall marker at load, so the two pages cannot silently drift.
 // Generic markdown/link/placeholder atoms (LINK_RE, PLACEHOLDER_RE) stay engine-local — they are
 // parsing primitives, not doc-structure definitions.
 import { loadDocSchema } from "./schema.ts";
@@ -23,6 +25,9 @@ export interface DocTokens {
   parentMark: string;
   /** The `**Version**` marker (overall.json header.version.marker.const). */
   versionMark: string;
+  /** The phase-spec schema's `**Version**` marker const leaf — the shared marker's page twin,
+   *  derived and held equal to the overall marker at load (a rename in either schema fails loudly). */
+  phaseSpecVersionMark: string;
   /** Backticked field labels for guidance lines (derived from the markers). */
   specField: string;
   parentField: string;
@@ -129,11 +134,20 @@ export function deriveDocTokens(schemas: {
   overall: unknown;
   "phase-spec": unknown;
 }): DocTokens {
-  const { plan, overall } = schemas;
+  const { plan, overall, "phase-spec": phaseSpec } = schemas;
 
   const specMark = leaf<string>(plan, ["header", "specRef", "marker"], "const");
   const parentMark = leaf<string>(plan, ["header", "parentProgram", "marker"], "const");
   const versionMark = leaf<string>(overall, ["header", "version", "marker"], "const");
+  // The phase-spec schema pages the shared version marker as its own const leaf — derive it and
+  // hold the two pages equal at load, so a rename in either schema fails loudly instead of silently
+  // drifting inside the single-source plane.
+  const phaseSpecVersionMark = leaf<string>(phaseSpec, ["header", "version", "marker"], "const");
+  if (phaseSpecVersionMark !== versionMark) {
+    throw new Error(
+      `doc-structure token mismatch: phase-spec version marker "${phaseSpecVersionMark}" !== overall version marker "${versionMark}"`,
+    );
+  }
 
   const taskHeadingFormat = leaf<string>(plan, ["taskHeadings", "format"], "const");
   const placeholderIdx = taskHeadingFormat.indexOf("N");
@@ -222,6 +236,7 @@ export function deriveDocTokens(schemas: {
     specMark,
     parentMark,
     versionMark,
+    phaseSpecVersionMark,
     specField: `\`${specMark}\``,
     parentField: `\`${parentMark}\``,
     versionField: `\`${versionMark}\``,

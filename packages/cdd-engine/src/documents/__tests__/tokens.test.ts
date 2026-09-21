@@ -62,6 +62,25 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.versionHeaderRe.test("- **Program version**: v1.0 · 2026-09-21")).toBe(true);
     expect(re.versionHeaderRe.test("- **Version**: v1.0 · 2026-09-21")).toBe(false);
   });
+
+  it("doctored phase-spec version marker → the derived leaf follows the page twin; a one-page drift throws", () => {
+    // Phase-spec pages the shared version marker as its own const leaf. Doctoring BOTH pages to a
+    // new value keeps them equal — the derived phase-spec leaf follows live from the canonical edit.
+    const doctoredOverall = cloneSchema(loadDocSchema("overall") as Record<string, unknown>);
+    (doctoredOverall as any).properties.header.properties.version.properties.marker.const =
+      "**Program version**";
+    const doctoredPhase = cloneSchema(loadDocSchema("phase-spec") as Record<string, unknown>);
+    (doctoredPhase as any).properties.header.properties.version.properties.marker.const =
+      "**Program version**";
+    const re = deriveDocTokens(schemas({ overall: doctoredOverall, phase: doctoredPhase }));
+    expect(re.phaseSpecVersionMark).toBe("**Program version**");
+    expect(re.phaseSpecVersionMark).toBe(re.versionMark);
+
+    // Doctoring ONLY the phase-spec page (overall page untouched) is a drift — the load guard throws.
+    expect(() => deriveDocTokens(schemas({ phase: doctoredPhase }))).toThrow(
+      /phase-spec version marker/,
+    );
+  });
 });
 
 describe("DOC_TOKENS — production values equal the canonical leaves (single source)", () => {
@@ -78,6 +97,11 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
       "**Flow Atomicity**：",
       "**顺序原则**：",
     ]);
+  });
+
+  it("phase-spec version marker page-twin equals the overall leaf (canonical identity pinned)", () => {
+    expect(DOC_TOKENS.phaseSpecVersionMark).toBe("**Version**");
+    expect(DOC_TOKENS.phaseSpecVersionMark).toBe(DOC_TOKENS.versionMark);
   });
 
   it("task-heading regexes keep the exact colon-form parsing semantics", () => {

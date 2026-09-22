@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/validate/index.ts — validate orchestration (`node scripts/run.ts
-// validate` / standalone `node scripts/validate/index.ts`). Composes the 12
+// validate` / standalone `node scripts/validate/index.ts`). Composes the 11
 // per-block step descriptors from scripts/validate/*.ts into the original run
 // order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers
@@ -16,15 +16,16 @@ import { steps as residueSteps } from "./residue.ts";
 import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as libTestsSteps } from "./lib-tests.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
-import { steps as overallConsistencySteps } from "./overall-consistency.ts";
 
 import { main as runSteps, runIfMain } from "./runner.ts";
 
-// Original step order: the 5b1 engine suite sits between the 5b node:test tree
-// (osuperpowers steps 0-3) and the 5b wiring guard (osuperpowers step 4) —
-// interleave engine between the two osuperpowers slices to keep the 12 names
-// and their order literal. The submodule self-maintenance block (13th) was
-// removed with the vendors surface (P6 Task 2 / B3, submodule.mjs deleted).
+// Original step order: the cdd-engine engine test suite sits between the 5b
+// node:test tree (osuperpowers steps 0-3) and the wiring guard (osuperpowers
+// step 4) — interleave engine between the two osuperpowers slices to keep the
+// 11 names and their order literal. The submodule self-maintenance block (13th)
+// was removed with the vendors surface (P6 Task 2 / B3, submodule.mjs deleted).
+// The repo-side four-table guard block (12th) was retired with the S1/S2
+// guards (P3 T1).
 export const steps = [
   ...emitCheckSteps,
   ...osuperpowersSteps.slice(0, 4),
@@ -34,7 +35,6 @@ export const steps = [
   ...marketplaceSteps,
   ...libTestsSteps,
   ...versionSyncSteps,
-  ...overallConsistencySteps,
 ];
 
 export function main(stepsArg = steps) {

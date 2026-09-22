@@ -1,7 +1,6 @@
 // scripts/lib/doc-root.ts — docs 根落点的**唯一真相**（P2 起：`docs/osuperpowers/`）。
 //
 // 消费方（仓工具链内）：
-//   - scripts/validate/overall-consistency.ts   → SPECS_DIR / PLANS_DIR
 //   - packages/osuperpowers/tests/grep-sweep-regression.test.mjs → grep -v 排除后缀
 //
 export const DOC_ROOT_SEGMENTS = ["docs", "osuperpowers"];

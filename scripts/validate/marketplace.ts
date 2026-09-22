@@ -162,7 +162,7 @@ function validateMarketplaceSources() {
 // keeps suite and standalone paths byte-identical.
 export const steps = [
   {
-    name: "6. marketplace validate",
+    name: "marketplace manifests validate",
     run: () => {
       validateSourceSchemaJson();
       validateSourceSchema();

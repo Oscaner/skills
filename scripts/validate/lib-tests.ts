@@ -12,7 +12,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export const steps = [
   {
-    name: "7. scripts unit tests (vitest)",
+    name: "scripts unit tests (vitest)",
     cmd: "pnpm",
     args: ["exec", "vitest", "run"],
     run: () => execaSync("pnpm", ["exec", "vitest", "run"], { cwd: ROOT, stdio: "inherit" }),

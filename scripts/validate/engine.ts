@@ -17,13 +17,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export const steps = [
   {
-    name: "5b0. cdd-engine stub materialization (dev:stub)",
+    name: "cdd-engine dev stub materialization",
     cmd: "pnpm",
     args: ["-C", "packages/cdd-engine", "dev:stub"],
     run: () => execaSync("pnpm", ["-C", "packages/cdd-engine", "dev:stub"], { cwd: ROOT, stdio: "inherit" }),
   },
   {
-    name: "5b1. cdd-engine Vitest engine suite",
+    name: "cdd-engine engine test suite (vitest)",
     cmd: "pnpm",
     args: ["-C", "packages/cdd-engine", "test"],
     run: () => execaSync("pnpm", ["-C", "packages/cdd-engine", "test"], { cwd: ROOT, stdio: "inherit" }),

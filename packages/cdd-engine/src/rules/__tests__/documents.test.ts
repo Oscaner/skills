@@ -29,7 +29,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, unlinkSync } from 
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { validateDispatchDocuments, formatDocFailures, taskNumbersFromPlan, extractPlanConstraints } from "../documents.ts";
+import { validateDispatchDocuments, formatDocFailures, taskNumbersFromPlan, extractPlanConstraints, parseOverall, extractClaimRows } from "../documents.ts";
 
 function repoDir(): string {
   return mkdtempSync(path.join(tmpdir(), "cdd-docs-"));
@@ -301,11 +301,11 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
   });
 
-  it("face ①: a canonically-valid split-phase claim (P1a) resolves verbatim — no numeric-base collapse", () => {
-    // Split-phase ids (`P1a`) are canonical claim references (phaseReference single allows the
-    // trailing letter) — a consistent claim on P1a must attribute to the FULL id, never re-derived
-    // as the numeric base `P1` (pre-fix the single/range scans captured only the digit run, a false
-    // "references P1, which is not in the Phase inventory" failure).
+  it("face ①: a canonical sub-phase claim (P2.1) resolves verbatim — no base collapse", () => {
+    // Sub-phase ids (`P2.1`) are canonical claim references (phaseReference.single allows the
+    // dotted dot-digit hierarchy) — a consistent claim on P2.1 must attribute to the FULL id,
+    // never re-derived as the numeric base `P2` (the single/range scans capture the full id plus
+    // its ridge; a base-only scan would emit "P2" and falsely fail the membership audit).
     const c = writeChain({
       overall: [
         "- **Version**: v1.1 · 2026-09-21",
@@ -314,19 +314,19 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "",
         "| Phase | Issue (ref) | Title summary |",
         "|---|---|---|",
-        "| P1a | none | issue one |",
+        "| P2.1 | none | issue one |",
         "",
         "## Phase inventory",
         "",
         "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
         "|---|---|---|---|---|---|---|",
-        "| P1a | phase one-a | [Pending] | Done | | |",
-        "| P2 | phase two | [Pending] | [Pending] | | P1a ->(hard) |",
+        "| P2.1 | phase two-one | [Pending] | Done | | |",
+        "| P2 | phase two | [Pending] | [Pending] | | P2.1 ->(hard) |",
         "",
         "## Dependency graph (ASCII)",
         "",
         "```",
-        "P1a -> P2",
+        "P2.1 -> P2",
         "```",
         "",
         "## Change history",
@@ -334,13 +334,155 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "| Version | date | summary |",
         "|---|---|---|",
         "| v1.0 | 2026-09-21 | Initial |",
-        "| v1.1 | 2026-09-21 | P1a Implementation plan 列回填（[Pending]→Done） |",
+        "| v1.1 | 2026-09-21 | P2.1 Implementation plan 列回填（[Pending]→Done） |",
         "",
       ].join("\n"),
       planName: "2026-09-21-plan-p2.md",
     });
-    // face ② globs (slug "plan"): the shipped P1a plan doc must exist (its design cell is [Pending]).
-    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1a.md"), "# plan\n");
+    // face ② globs (slug "plan"): the shipped P2.1 plan doc must exist (its design cell is [Pending])
+    // — the dotted-id filename form `…-plan-p2.1.md` is what the design-existence glob resolves.
+    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p2.1.md"), "# plan\n");
+    expect(run(c)).toEqual([]);
+  });
+
+  it("face ③: a sub-phase dependency graph (`P2.1 -> P2.2` hard + `P2.1 -> (soft) P2.2` soft) with dotted dependency cells → clean membership", () => {
+    // Sub-phase edges are the new-grammar headliner (AC3): the graph fence carries a hardEdge and
+    // a softEdge over dotted ids and the P2.2 row's Dependency cell cites its dotted predecessor —
+    // the membership audit scans every token (P2.1, P2.2) against the inventory.
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.1 · 2026-09-21",
+        "",
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "|---|---|---|",
+        "| P2.1 | none | sub-phase one |",
+        "| P2.2 | none | sub-phase two |",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P2.1 | phase two-one | [Pending] | [Pending] | | none |",
+        "| P2.2 | phase two-two | [Pending] | [Pending] | | P2.1 ->(hard) |",
+        "",
+        "## Dependency graph (ASCII)",
+        "",
+        "```",
+        "P2.1 -> P2.2",
+        "P2.1 -> (soft) P2.2",
+        "```",
+        "",
+        "Legend:",
+        "- `->` = hard block",
+        "- `-> (soft)` = suggestion only",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P2.1–P2.2 split 注册（sub-phase edges added） |",
+        "",
+      ].join("\n"),
+      planName: "2026-09-21-plan-p2.2.md",
+    });
+    expect(run(c)).toEqual([]);
+  });
+
+  it("face ①: a ranged `P2.1–P2.3` claim expands to EVERY phase, endpoints included (sub-phase claim ranges)", () => {
+    // Range expansion is segment-aware over the shared digit ridge: `P2.1–P2.3` attributes the
+    // plan claim to P2.1, P2.2 AND P2.3 — the endpoints and the intermediate (a base-only or
+    // float-walk expansion would emit the spurious P3.1). extractClaimRows exposes the expanded set.
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.1 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P2.1 | phase two-one | [Pending] | [Pending] | | none |",
+        "| P2.2 | phase two-two | [Pending] | [Pending] | | none |",
+        "| P2.3 | phase two-three | [Pending] | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P2.1–P2.3 Implementation plan 列回填（[Pending]→Done） |",
+        "",
+      ].join("\n"),
+      planName: "2026-09-21-plan-p2.3.md",
+    });
+    const { planClaims } = extractClaimRows(parseOverall(c.overall).historyRows);
+    expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
+  });
+
+  it("face ①/②: sub-phase design tokens attribute per phase — `p2-design` and `p2.1-design` live under their own rows and doc globs", () => {
+    // The own-token derivation must not merge ridges: P2.1's design claim satisfies P2.1's row and
+    // its dotted design-doc glob, P2's its own — a ridge-blind attribution would cross-fire the
+    // forward/reverse claim checks or demand the wrong doc file.
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.2 · 2026-09-21",
+        "",
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "|---|---|---|",
+        "| P2 | none | base issue |",
+        "| P2.1 | none | sub-phase issue |",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P2 | phase two | **p2-design** | [Pending] | | none |",
+        "| P2.1 | phase two-one | **p2.1-design** | [Pending] | | P2 -> |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "| v1.1 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
+        "| v1.2 | 2026-09-21 | P2.1 Design-spec 列回填（[Pending]→p2.1-design v1.0） |",
+        "",
+      ].join("\n"),
+      planName: "2026-09-21-demo-p2.1.md",
+    });
+    // face ② design-doc globs (slug "plan") — each own token needs its own dotted-id file
+    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2-design.md"), "# d2\n");
+    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", "2026-09-21-plan-p2.1-design.md"), "# d21\n");
+    expect(run(c)).toEqual([]);
+  });
+
+  it("face ②: an own-token regex matches the sub-phase id LITERALLY — a near-miss cell (`p2-1-design`) is not P2.1's token", () => {
+    // The canonical sub-phase id embeds a literal dot; the own-token regex derived for P2.1 must
+    // NOT match `p2-1-design` (a hyphen form the strict-A grammar rejects) — an unescaped dot
+    // would glom the two characters and falsely demand the (missing) P2.1 design doc.
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P2.1 | phase two-one | **p2-1-design** | [Pending] | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "",
+      ].join("\n"),
+      planName: "2026-09-21-plan-p2.1.md",
+    });
     expect(run(c)).toEqual([]);
   });
 
@@ -396,10 +538,9 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     expect(f.some((x) => x.artifact === "overall" && /duplicate|重复/i.test(x.missing))).toBe(true);
   });
 
-  it("face ④: split-phase dispatch plan (`…-p1a.md`) resolves its id THROUGH the chain (Design-spec cell carries the spec) — no basename collapse", () => {
-    // The basename scan would collapse `P1a` → `P1` and falsely fail (P1 is not registered);
-    // the ④ identity resolves through the inventory (design §2.1 item 2 ④ — 不依赖 basename 编号):
-    // the plan's `**Spec:**` spec is carried by the P1a row's Design-spec cell link.
+  it("face ④: sub-phase dispatch plan (`…-p2.1.md`) resolves its id THROUGH the chain (Design-spec cell carries the spec)", () => {
+    // The chain resolution (design §2.1 item 2 ④ — 不依赖 basename 编号) must find the P2.1 row
+    // whose Design-spec cell links the plan's `**Spec:**` spec and return its REGISTERED id P2.1.
     const c = writeChain({
       overall: [
         "- **Version**: v1.0 · 2026-09-21",
@@ -408,7 +549,7 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "",
         "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
         "|---|---|---|---|---|---|---|",
-        "| P1a | phase one-a | [plan-design v1.0](plan-design.md) | [Pending] | | none |",
+        "| P2.1 | phase two-one | [plan-design v1.0](plan-design.md) | [Pending] | | none |",
         "",
         "## Change history",
         "",
@@ -417,16 +558,17 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "| v1.0 | 2026-09-21 | Initial |",
         "",
       ].join("\n"),
-      planName: "2026-09-21-demo-p1a.md",
+      planName: "2026-09-21-demo-p2.1.md",
     });
     expect(run(c)).toEqual([]);
   });
 
-  it("face ④: a Design-spec cell carrying only its own `P<n>-design` token (no file link) still resolves the phase id → registered", () => {
-    // The token strand of the chain resolution: the plan's `**Spec:**` spec has the split-phase id
-    // in its filename (`…p1a-design.md`), and the P1a row's design cell carries the own `p1a-design`
-    // token without a link — the row is still identified and its registered id is preserved.
-    const specName = "2026-09-21-plan-p1a-design.md";
+  it("face ④: a Design-spec cell carrying only its own `P<digits>(.digits)*-design` token (no file link) still resolves the phase id → registered", () => {
+    // The token strand of the chain resolution: the plan's `**Spec:**` spec has the sub-phase id
+    // in its filename (`…p2.1-design.md`), and the P2.1 row's design cell carries the own
+    // `p2.1-design` token without a link — the row is still identified and its registered id is
+    // preserved (a ridge-blind scan would return the base P2).
+    const specName = "2026-09-21-plan-p2.1-design.md";
     const c = writeChain({
       plan: `# Plan\n\n**Spec:** [${specName}](docs/osuperpowers/specs/${specName})\n\n## Constraints\n\n- c\n\n### Task 1: x\nbody\n`,
       spec: "- **Version**: v1.0 · 2026-09-21\n\n- **Parent program**: [plan-overall.md v1.0](./plan-overall.md)\n",
@@ -437,19 +579,20 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
         "",
         "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
         "|---|---|---|---|---|---|---|",
-        "| P1a | phase one-a | **p1a-design** | [Pending] | | none |",
+        "| P2.1 | phase two-one | **p2.1-design** | [Pending] | | none |",
         "",
         "## Change history",
         "",
         "| Version | date | summary |",
         "|---|---|---|",
         "| v1.0 | 2026-09-21 | Initial |",
-        "| v1.1 | 2026-09-21 | P1a Design-spec 列回填（[Pending]→p1a-design v1.0） |",
+        "| v1.1 | 2026-09-21 | P2.1 Design-spec 列回填（[Pending]→p2.1-design v1.0） |",
         "",
       ].join("\n"),
-      planName: "2026-09-21-demo-p1a.md",
+      planName: "2026-09-21-demo-p2.1.md",
     });
-    // the token-strand spec file the plan's `**Spec:**` targets (also satisfies the face ② glob)
+    // the token-strand spec file the plan's `**Spec:**` targets (also satisfies the face ② glob
+    // `-plan-p2.1-design.md` under the dotted id)
     writeFileSync(path.join(c.repo, "docs", "osuperpowers", "specs", specName), validSpec());
     expect(run(c)).toEqual([]);
   });

@@ -89,8 +89,9 @@ const RANGE_RE = DOC_TOKENS.claimPhaseRangeRe;
 const SINGLE_PHASE_RE = DOC_TOKENS.claimSinglePhaseRe;
 // Claim link words — the canonical single/range patterns are the anchored leaf; the audit's
 // contains-search form strips the anchors (the search word boundaries) — the phrase family the
-// retiring scripts guard matched unanchored with the same body. The `P<n>-design` design-spec
-// token (split ids allowed: `P1a-design`) is the canonical claimPatterns.designToken scan.
+// retiring scripts guard matched unanchored with the same body. The `P<digits>(.digits)*-design`
+// design-spec token (sub-phase ids allowed: `P2.1-design`) is the canonical claimPatterns.designToken
+// scan.
 const PLAN_LINK_WORD = linkWordSearch(DOC_TOKENS.planLinkWordRe);
 const DESIGN_LINK_WORD = linkWordSearch(DOC_TOKENS.designLinkWordRe);
 const DESIGN_TOKEN_RE = DOC_TOKENS.designTokenScanRe;
@@ -365,35 +366,37 @@ function resolveSpecFromPlan(planPath: string, root: string): { specPath: string
   return { specPath: firstResolved, failures };
 }
 
-/** phaseIdFromPlan(planPath) — the basename-scan phase id (`…-p\d+`, digit boundary so a future P10
- * never prefix-matches P1). The optional split-letter suffix is dropped (a `p2a` filename still
- * yields "P2" — the letter belongs to the doc plane). This is the FALLBACK for four-table face ④
- * when the canonical chain cannot resolve the phase (see phaseIdForDispatch); null → the
- * "dispatch phase registered" check (four-table face ④) is skipped (fail-open — a phase-less plan
- * has no registration obligation); the structural overall checks still run fully. Token shape is
- * schema-derived (the canonical phase-id pattern's filename form). */
+/** phaseIdFromPlan(planPath) — the basename-scan phase id (`…-p<digits>(.digits)*`, the canonical
+ * id's filename form) — a `…-p2.1.md` filename yields `P2.1`, never the base `P2`. This is the
+ * FALLBACK for four-table face ④ when the canonical chain cannot resolve the phase (see
+ * phaseIdForDispatch); null → the "dispatch phase registered" check (four-table face ④) is skipped
+ * (fail-open — a phase-less plan has no registration obligation); the structural overall checks
+ * still run fully. Token shape is schema-derived (the canonical phase-id pattern's filename form). */
 export function phaseIdFromPlan(planPath: string): string | null {
   const m = path.basename(planPath).match(DOC_TOKENS.phaseIdScanRe);
   return m ? `P${m[1]}` : null;
 }
 
-// Letter-preserving spec→phase identity (④'s own-token strand): the canonical phase-id token in
-// its spec-filename form — `…-p1a-design.md` owns `P1a`, never its numeric base P1.
+// Segment-preserving spec→phase identity (④'s own-token strand): the canonical phase-id token in
+// its spec-filename form — `…-p2.1-design.md` owns `P2.1`, never its numeric base P2.
 const SPEC_PHASE_ID_RE = new RegExp(`-(${PHASE_TOKEN_RE.source.replace(/^\\b/, "")})-design\\.md$`, "i");
 
 function phaseIdFromSpecBasename(specPath: string): string | null {
   const m = path.basename(specPath).match(SPEC_PHASE_ID_RE);
-  return m ? `P${m[1].slice(1)}` : null; // `P1a` / `p1a` → `P1a`
+  // the spec-filename id is lowercased — slice off the leading P to normalize case, the dotted
+  // ridge preserved verbatim (`p2.1` → `P2.1`)
+  return m ? `P${m[1].slice(1)}` : null;
 }
 
 /** phaseIdForDispatch(planPath, root) — the dispatch phase id resolved through the canonical chain
  * (④ identity, design §2.1 item 2 ④: phase 身份经 overall Phase inventory 解析、不依赖 basename P
  * 编号命名): the plan's `**Spec:**` design spec → the parent overall's Phase-inventory row whose
- * Design-spec column carries that spec — by resolved link equality, or by an own `P<n>-design`
- * token matching the spec filename's phase — and that row's REGISTERED id (split ids preserved:
- * a `P1a` row yields `P1a`, never the collapsed `P1` the basename scan would produce). Falls back
- * to the basename scan only when the chain cannot resolve a row (spec missing / no parent overall /
- * no row carries the spec) — the null semantics (skip ④) are unchanged. */
+ * Design-spec column carries that spec — by resolved link equality, or by an own
+ * `P<digits>(.digits)*-design` token matching the spec filename's phase — and that row's REGISTERED
+ * id (sub-phase ids preserved: a `P2.1` row yields `P2.1`, never the collapsed `P2` a base-only
+ * basename scan would produce). Falls back to the basename scan only when the chain cannot resolve
+ * a row (spec missing / no parent overall / no row carries the spec) — the null semantics (skip ④)
+ * are unchanged. */
 export function phaseIdForDispatch(planPath: string, root: string): string | null {
   const { specPath } = resolveSpecFromPlan(planPath, root);
   const overallPath = specPath ? resolveParentOverall(specPath, root).overallPath : null;
@@ -727,14 +730,15 @@ function isPendingText(v: string): boolean {
   return t === "" || t === "pending" || t === "[pending]";
 }
 
-// The phase's OWN design-spec token `P<n>-design` in its Design spec column (cross-references like
-// `（源 P3-design）` are NOT the own token). Derived from the canonical designToken pattern — the
-// id-run (`\d+(?![0-9])[a-z]?`) is replaced by the validated inventory phase id's digits + split
-// letter, so the own token is exact (`P1a-design` owns P1a, never P1's token). num comes from a
-// validated inventory phase id.
+// The phase's OWN design-spec token `P<digits>(.digits)*-design` in its Design spec column
+// (cross-references like `（源 P3-design）` are NOT the own token). Derived from the canonical
+// designToken pattern — the digit ridge (`\d+(\.\d+)*`) is replaced by the validated inventory
+// phase id's own digits (regex-escaped — dotted sub-phase ids embed literal dots), so the own
+// token is exact (`P2.1-design` owns P2.1, never P2's token). suffix comes from a validated
+// inventory phase id.
 function ownDesignToken(col: string, phaseId: string): string | null {
-  const suffix = phaseId.replace(/^P/i, "");
-  const own = new RegExp(DESIGN_TOKEN_RE.source.replace("\\d+(?![0-9])[a-z]?", suffix), "i");
+  const suffix = phaseId.replace(/^P/i, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const own = new RegExp(DESIGN_TOKEN_RE.source.replace("\\d+(\\.\\d+)*", suffix), "i");
   const m = (col ?? "").match(own);
   return m ? m[0] : null;
 }
@@ -743,10 +747,12 @@ function stripCellMarkup(v: string): string {
   return (v ?? "").replace(/\*\*/g, "").trim();
 }
 
-// A claim target normalized to a comparable key: `P<n>-design` token for design claims, else the
-// bare `Done`-style token (trailing closing brackets stripped).
+// A claim target normalized to a comparable key: `P<digits>(.digits)*-design` token for design
+// claims, else the bare `Done`-style token (trailing closing brackets stripped). An attached
+// ASCII sentence period is stripped too — it binds to the target now that the canonical CLAIM_RE
+// stop-set exempts `.` (dotted sub-phase ids like `P2.1-design` embed literal periods).
 function claimKey(raw: string): string {
-  const t = stripCellMarkup(raw).replace(/[）】\]]+$/u, "");
+  const t = stripCellMarkup(raw).replace(/[）】\]]+$/u, "").replace(/\.+$/u, "");
   const d = t.match(DESIGN_TOKEN_RE);
   return d ? d[0] : t;
 }
@@ -760,22 +766,27 @@ function claimTarget(full: string): string {
 }
 
 // Phase references inside a claim clause — single + ranged (endpoints included), the canonical
-// claim-pattern scan forms. The full captured id (split-letter suffix included) is the verbatim
-// reference — a `P1a` claim targets P1a, never its numeric base. Range expansion (`P1–P4` →
-// P1..P4) is numeric over the shared base; it carries a split-letter suffix only when both
-// endpoints share one (`P2a–P4a` → P2a..P4a), differently-lettered endpoints staying verbatim (a
-// lettered range has no canonical intermediates).
+// claim-pattern scan forms. The full captured id (digit ridge included) is the verbatim
+// reference — a `P2.1` claim targets P2.1, never its numeric base. Range expansion is segment-
+// aware over the shared digit ridge (`P1–P4` → P1..P4; `P2.1–P2.3` → P2.1..P2.3): the last
+// segment iterates only when both endpoints share every earlier segment; endpoints that differ
+// before the last segment stay verbatim (a cross-bootstrap range has no canonical intermediates).
 function phaseIdsIn(clause: string): string[] {
   const ids = new Set<string>();
   for (const m of clause.matchAll(RANGE_RE)) {
     const a = m[1];
     const b = m[3];
-    const suffixA = a.slice(1 + m[2].length);
-    const suffixB = b.slice(1 + m[4].length);
-    if (suffixA === suffixB) {
-      const lo = Math.min(Number(m[2]), Number(m[4]));
-      const hi = Math.max(Number(m[2]), Number(m[4]));
-      for (let n = lo; n <= hi; n++) ids.add(a.replace(m[2], String(n)));
+    const digitsA = m[2]; // the endpoint digit ridges (e.g. "2.1")
+    const digitsB = m[4];
+    const lastA = digitsA.lastIndexOf(".");
+    const lastB = digitsB.lastIndexOf(".");
+    const preA = lastA === -1 ? "" : digitsA.slice(0, lastA);
+    const preB = lastB === -1 ? "" : digitsB.slice(0, lastB);
+    if (preA === preB) {
+      const lo = Math.min(Number(digitsA.slice(lastA + 1)), Number(digitsB.slice(lastB + 1)));
+      const hi = Math.max(Number(digitsA.slice(lastA + 1)), Number(digitsB.slice(lastB + 1)));
+      const base = a.slice(0, a.length - digitsA.length) + (preA ? `${preA}.` : "");
+      for (let n = lo; n <= hi; n++) ids.add(`${base}${n}`);
     } else {
       ids.add(a).add(b);
     }
@@ -822,7 +833,9 @@ export function extractClaimRows(historyRows: OverallParse["historyRows"]): { pl
 function anchorScanFiles(overallPath: string): string[] {
   const files = [overallPath];
   const slug = fileNameSlug(overallPath);
-  const re = new RegExp(`-${slug}-p\\d+(?:-design|-plan)?\\.md$`);
+  // same-slug phase docs — canonical ids in their filename form (dot segments included: a
+  // `…-p2.1-design.md` doc is scanned like its base `…-p1-design.md` sibling)
+  const re = new RegExp(`-${slug}-p\\d+(?:\\.\\d+)*(?:-design|-plan)?\\.md$`);
   const specsDir = path.dirname(overallPath);
   const plansDir = path.join(specsDir, "..", "plans");
   for (const dir of [specsDir, plansDir]) {

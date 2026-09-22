@@ -15,14 +15,18 @@ import Ajv, { type ValidateFunction } from "ajv";
 
 import { loadEngineConfig } from "../infra/config.ts";
 import { invariant } from "../infra/exit.ts";
+import { resolvePackageRoot } from "../infra/resource.ts";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// From src/rules/ → packages/cdd-engine/ (2 levels up — same relative depth as the legacy copy).
-const PKG_ROOT = path.resolve(__dirname, "..", "..");
+// PKG_ROOT = <pkg>/templates — resolved by the nearest-ancestor package.json marker walk (same
+// state-independent convention as infra/config.ts / documents/schema.ts / render/templates.ts). The
+// legacy `../..` hop was calibrated to src/rules/ but lands two levels too high from the real
+// bundle (dist/, consumer install), breaking the runtime reads of the shipped handoff JSON schemas
+// in the published package.
+const PKG_ROOT = path.join(resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))), "templates");
 
 const SCHEMA_PATHS: Record<string, string> = {
-  task: path.join(PKG_ROOT, "templates", "schema", "task-handoff-schema.json"),
-  docs: path.join(PKG_ROOT, "templates", "schema", "docs-handoff-schema.json"),
+  task: path.join(PKG_ROOT, "schema", "task-handoff-schema.json"),
+  docs: path.join(PKG_ROOT, "schema", "docs-handoff-schema.json"),
 };
 
 // Per-schema lazy caches: { validator, schema }.

@@ -84,9 +84,9 @@ export const mainCommand = defineCommand({
   subCommands: {
     emit: command("emit", "regenerate unified first-party manifests", "./emit/all.ts", "none"),
     "emit-check": command("emit-check", "verify emitted products are fresh (drift → exit 1)", "./emit/check.ts", "none"),
-    validate: command("validate", "run the full validate suite (12 blocks)", "./validate/index.ts", "none"),
-    precommit: command("precommit", "run the tree-independent pre-commit subset (emit-check/residue/consistency/unit)", "./validate/pre-commit.ts", "none"),
-    "smoke-cdd": command("smoke-cdd", "run cdd-engine dry-run smoke (5-command chain)", "./validate/smoke-cdd.ts", "none"),
+    validate: command("validate", "run the full validate suite (11 blocks)", "./validate/index.ts", "none"),
+    precommit: command("precommit", "run the tree-independent pre-commit subset (emit/osuperpowers/residue/marketplace/unit/version-sync)", "./validate/pre-commit.ts", "none"),
+    "smoke-cdd": command("smoke-cdd", "run the cdd-engine consumer-sim (build → pack → consumer install → 5-command dry-run chain)", "./validate/smoke-cdd.ts", "none"),
     version: command("version", "apply changesets to bump versions (--dry-run supported)", "./release/version-packages.ts", "dry-run"),
     "apply-rules": command("apply-rules", "apply a GitHub branch Ruleset (protect-develop | protect-main)", "./rulesets/apply.ts", "target"),
   },

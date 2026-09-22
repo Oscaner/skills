@@ -15,8 +15,8 @@
           "properties": {
             "row": {
               "type": "string",
-              "pattern": "^\\| P\\d+(?![0-9])[a-z]? \\(?[^ ]*\\| #\\d+ \\| .+ \\|$",
-              "description": "Row shape `| P<new> | #NNN | one-line summary |` — phase id, anchored/none issue ref, one-line summary."
+              "pattern": "^\\| P\\d+(\\.\\d+)* \\(?[^ ]*\\| #\\d+ \\| .+ \\|$",
+              "description": "Row shape `| P<new> | #NNN | one-line summary |` — canonical phase id (`P<digits>(.digits)*`, e.g. `P2.1`), anchored/none issue ref, one-line summary."
             },
             "reassign": {
               "type": "string",
@@ -31,8 +31,8 @@
           "properties": {
             "row": {
               "type": "string",
-              "pattern": "^\\| P\\d+(?![0-9])[a-z]? \\(?[^ ]*\\|",
-              "description": "Row shape `| P<new> | [scope] | [Pending]/link | [Pending]/link | [verifiable acceptance] | [hard or soft, ref graph] |`."
+              "pattern": "^\\| P\\d+(\\.\\d+)* \\(?[^ ]*\\|",
+              "description": "Row shape `| P<new> | [scope] | [Pending]/link | [Pending]/link | [verifiable acceptance] | [hard or soft, ref graph] |` — canonical phase id (`P<digits>(.digits)*`, e.g. `P2.1`)."
             },
             "cellVocabulary": {
               "type": "object",
@@ -41,7 +41,7 @@
                 "unstarted": { "type": "string", "const": "[Pending]", "description": "Unstarted cell placeholder." },
                 "link": { "type": "string", "pattern": "^\\[.*\\]\\([^)]*\\)$", "description": "Cell carrying a markdown doc link once the artifact exists." },
                 "acceptance": { "type": "string", "description": "Verifiable completion condition cell — the phase's verifiable acceptance." },
-                "dependency": { "type": "string", "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->", "description": "Hard (`->`) or soft (`-> (soft)`) dependency edge referencing a Phase-inventory id." }
+                "dependency": { "type": "string", "pattern": "^P\\d+(\\.\\d+)*\\s*->", "description": "Hard (`->`) or soft (`-> (soft)`) dependency edge referencing a canonical phase id (`P<digits>(.digits)*`, e.g. `P2.1`)." }
               }
             }
           }
@@ -52,13 +52,13 @@
           "properties": {
             "hard": {
               "type": "string",
-              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*P\\d+(?![0-9])[a-z]?$",
-              "description": "Hard-block edge `P<pred> -> P<new>`; successors depending on the new phase get `P<new> -> P<succ>`."
+              "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*$",
+              "description": "Hard-block edge `P<pred> -> P<new>` (canonical ids `P<digits>(.digits)*`, e.g. `P2.1 -> P2.2`); successors depending on the new phase get `P<new> -> P<succ>`."
             },
             "soft": {
               "type": "string",
-              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*\\(?\\s*soft\\s*\\)?\\s*P\\d+(?![0-9])[a-z]?$",
-              "description": "`-> (soft)` only for non-blocking ordering convenience."
+              "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?\\s*P\\d+(\\.\\d+)*$",
+              "description": "`-> (soft)` only for non-blocking ordering convenience (canonical ids `P<digits>(.digits)*` on both ends)."
             }
           }
         },

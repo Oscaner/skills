@@ -136,6 +136,31 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       expect(get("$.properties.sectionHeadings.properties.issueInventory.const")).toBe("## Issue inventory");
       expect(get("$.properties.sectionHeadings.properties.phaseInventory.const")).toBe("## Phase inventory");
       expect(get("$.properties.sectionHeadings.properties.changeHistory.const")).toBe("## Change history");
+      // canonical phase-id grammar (strict A — design §2.3 / P3 T4): all 8 phase-id-bearing
+      // patterns carry the `^P<digits>(.digits)*$` form; the old split-letter form (`P1a`) is
+      // extinct. Pinned literals + live sub-phase representatives (the migration regression guard).
+      const phaseId = "^P\\d+(\\.\\d+)*$";
+      expect(get("$.properties.issueInventory.properties.row.properties.phaseId.pattern")).toBe(phaseId);
+      expect(get("$.properties.phaseInventory.properties.rowShape.properties.idFormat.pattern")).toBe(phaseId);
+      expect(get("$.properties.claimPatterns.properties.phaseReference.properties.single.pattern")).toBe(phaseId);
+      // the dependency cell keeps the hard/soft alternation shape with the canonical id token
+      expect(get("$.properties.phaseInventory.properties.cells.properties.dependency.pattern")).toBe(
+        `^P\\d+(\\.\\d+)*\\s*->|^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?`,
+      );
+      expect(get("$.properties.dependencyGraph.properties.hardEdge.pattern")).toBe(
+        "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*$",
+      );
+      expect(get("$.properties.dependencyGraph.properties.softEdge.pattern")).toBe(
+        "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?\\s*P\\d+(\\.\\d+)*$",
+      );
+      expect(get("$.properties.claimPatterns.properties.designToken.pattern")).toBe("^P\\d+(\\.\\d+)*-design$");
+      expect(get("$.properties.claimPatterns.properties.phaseReference.properties.range.pattern")).toBe(
+        "^P\\d+(\\.\\d+)*\\s*[-–—]\\s*P\\d+(\\.\\d+)*$",
+      );
+      // live representatives — sub-phase ids parse under the canonical patterns
+      expect(new RegExp(get("$.properties.dependencyGraph.properties.hardEdge.pattern")).test("P2.1 -> P2.2")).toBe(true);
+      expect(new RegExp(get("$.properties.dependencyGraph.properties.softEdge.pattern")).test("P2.1 -> (soft) P2.2")).toBe(true);
+      expect(new RegExp(get("$.properties.claimPatterns.properties.designToken.pattern")).test("P2.1-design")).toBe(true);
     }
     if (name === "phase-spec") {
       // `### Acceptance criteria` is the unique subsection (const heading + fixed location)
@@ -149,7 +174,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
     if (name === "add-phase-protocol") {
       // registration checklist structure — hard edge + anchored form
       expect(get("$.properties.fourTableSyncChecklist.properties.dependencyEdge.properties.hard.pattern")).toBe(
-        "^P\\d+(?![0-9])[a-z]?\\s*->\\s*P\\d+(?![0-9])[a-z]?$",
+        "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*$",
       );
       expect(get("$.properties.issueReferenceSyntax.properties.anchoredForm.pattern")).toBe("^#\\d+#issuecomment-\\d+$");
     }

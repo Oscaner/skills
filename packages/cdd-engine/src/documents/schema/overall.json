@@ -106,8 +106,8 @@
           "properties": {
             "phaseId": {
               "type": "string",
-              "pattern": "^P\\d+(?![0-9])[a-z]?$",
-              "description": "Phase id token — `P` + digits (split ids `P1a`/`P1b` allowed); the digit boundary keeps a future P10 from prefix-matching P1."
+              "pattern": "^P\\d+(\\.\\d+)*$",
+              "description": "Phase id token — the canonical `P<digits>(.digits)*` form (`P1`, `P2.1`, `P2.2.3`): `P` plus a digit run and dot-digit segments after it. Dotted digits mark sub-phase hierarchy — `P2.1` is the sub-phase of `P2`; the phase id is the registration unit of split/merge operations. Letter suffixes (`P2a`) and hyphens (`P2-1`) are not valid ids; ordering is the natural (major, segments…) order."
             },
             "issueRef": {
               "type": "string",
@@ -162,8 +162,8 @@
           "properties": {
             "idFormat": {
               "type": "string",
-              "pattern": "^P\\d+(?![0-9])[a-z]?$",
-              "description": "Phase id token — `P` + digits (split ids allow a trailing letter), the identifier the dependency graph and the change-history claims reference."
+              "pattern": "^P\\d+(\\.\\d+)*$",
+              "description": "Phase id token — the canonical `P<digits>(.digits)*` form (`P1`, `P2.1`, `P2.2.3`): `P` plus a digit run and dot-digit segments; dotted digits mark sub-phase hierarchy (`P2.1` is the sub-phase of `P2`), letter suffixes (`P2a`) and hyphens (`P2-1`) are invalid, ordering natural over (major, segments…). The identifier the dependency graph and the change-history claims reference."
             },
             "cellCount": {
               "type": "integer",
@@ -198,8 +198,8 @@
             },
             "dependency": {
               "type": "string",
-              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->|^P\\d+(?![0-9])[a-z]?\\s*->\\s*\\(?\\s*soft\\s*\\)?",
-              "description": "Dependency cell cites the graph node with a hard (`->`) or soft (`-> (soft)`) edge — the token the dependency-graph membership audit reads."
+              "pattern": "^P\\d+(\\.\\d+)*\\s*->|^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?",
+              "description": "Dependency cell cites the graph node with a hard (`->`) or soft (`-> (soft)`) edge — the edge token is a canonical phase id (`P<digits>(.digits)*`, e.g. `P2.1 ->`), the token the dependency-graph membership audit reads."
             }
           }
         }
@@ -211,13 +211,13 @@
       "properties": {
         "hardEdge": {
           "type": "string",
-          "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*P\\d+(?![0-9])[a-z]?",
-          "description": "Hard-block edge: `P1 -> P2` — the dependent must not start until the predecessor ships."
+          "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*$",
+          "description": "Hard-block edge: `P1 -> P2` — canonical phase ids (`P<digits>(.digits)*`) on both ends (e.g. `P2.1 -> P2.2`); the dependent must not start until the predecessor ships."
         },
         "softEdge": {
           "type": "string",
-          "pattern": "^P\\d+(?![0-9])[a-z]?\\s*->\\s*\\(?\\s*soft\\s*\\)?\\s*P\\d+(?![0-9])[a-z]?",
-          "description": "Soft-suggestion edge: `P1 -> (soft) P5` — non-blocking ordering convenience."
+          "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?\\s*P\\d+(\\.\\d+)*$",
+          "description": "Soft-suggestion edge: `P1 -> (soft) P5` — canonical phase ids (`P<digits>(.digits)*`) on both ends (e.g. `P2.1 -> (soft) P2.2`); non-blocking ordering convenience."
         },
         "legendHard": {
           "type": "string",
@@ -290,8 +290,8 @@
           "properties": {
             "pattern": {
               "type": "string",
-              "description": "CLAIM_RE — the canonical single source: `(Pending|[Pending])` + optional `→`/`->` + a target that stops at whitespace / CJK punctuation / brackets so `→ **Done**（PR …` or `→ P4-design v1.0）` do not over-capture. Unanchored search (pattern-keyword semantics): the stop-set bounds the target token and trailing clause content (e.g. `（PR #1）`) is left unconsumed — the anchors must not be reintroduced.",
-              "pattern": "(?:Pending|\\[Pending\\])\\s*(?:→|->)\\s*[^\\s；;，,、（）()【】\\[\\]】。.—…]+"
+              "description": "CLAIM_RE — the canonical single source: `(Pending|[Pending])` + optional `→`/`->` + a target that stops at whitespace / CJK punctuation / brackets so `→ **Done**（PR …` or `→ P4-design v1.0）` do not over-capture. An ASCII full stop is NOT a boundary — the canonical sub-phase grammar (`P2.1`, `P2.1-design`) embeds literal periods — so a trailing sentence period binds to the target and is normalized away by the claim-key stripper in the audit. Unanchored search (pattern-keyword semantics): the stop-set bounds the target token and trailing clause content (e.g. `（PR #1）`) is left unconsumed — the anchors must not be reintroduced.",
+              "pattern": "(?:Pending|\\[Pending\\])\\s*(?:→|->)\\s*[^\\s；;，,、（）()【】\\[\\]】。—…]+"
             },
             "target": {
               "type": "string",
@@ -311,8 +311,8 @@
         },
         "designToken": {
           "type": "string",
-          "pattern": "^P\\d+(?![0-9])[a-z]?-design$",
-          "description": "Design-spec token — the canonical `P<n>-design` token a Design spec column carries as its own completion marker and a design claim's target; split-phase ids allow a trailing letter (`P1a-design`)."
+          "pattern": "^P\\d+(\\.\\d+)*-design$",
+          "description": "Design-spec token — the canonical `P<digits>(.digits)*-design` token a Design spec column carries as its own completion marker and a design claim's target (`P2.1-design` registers under the sub-phase P2.1, never its base P2)."
         },
         "phaseReference": {
           "type": "object",
@@ -320,13 +320,13 @@
           "properties": {
             "single": {
               "type": "string",
-              "pattern": "^P\\d+(?![0-9])[a-z]?$",
-              "description": "Single phase reference `P1` / `P2a`."
+              "pattern": "^P\\d+(\\.\\d+)*$",
+              "description": "Single phase reference — the canonical `P<digits>(.digits)*` form (`P1`, `P2.1`)."
             },
             "range": {
               "type": "string",
-              "pattern": "^P\\d+(?![0-9])[a-z]?\\s*[-–—]\\s*P\\d+(?![0-9])[a-z]?$",
-              "description": "Ranged reference `P1–P4` / `P1-P4` / `P1—P4` — expanded to all phases including the endpoints."
+              "pattern": "^P\\d+(\\.\\d+)*\\s*[-–—]\\s*P\\d+(\\.\\d+)*$",
+              "description": "Ranged reference over canonical phase ids (`P<digits>(.digits)*`, e.g. `P1–P4` / `P2.1–P2.3` / `P1-P4` / `P1—P4`) joined by `-`/`–`/`—` — expanded to all phases including the endpoints."
             }
           }
         }

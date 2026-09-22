@@ -89,21 +89,21 @@ flowchart TD
 
 ### `run-writing-single-spec`
 
-- **Do**: Import `/osuperpowers:writing-single-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the single spec (the program converges into one spec), landing the committed single spec as the terminal artifact. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/osuperpowers:writing-single-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the single spec (the program converges into one spec), landing the committed single spec as the terminal artifact. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-overall-spec`
 
-- **Do**: Import `/osuperpowers:writing-overall-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the overall spec (the program charter), landing the committed overall spec. Terminal write: the flow converges here and enters the /compact or /osuperpowers:brainstorming [Px program] handoff from inside the imported flow. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/osuperpowers:writing-overall-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the overall spec (the program charter), landing the committed overall spec. Terminal write: the flow converges here and enters the /compact or /osuperpowers:brainstorming [Px program] handoff from inside the imported flow. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)
 
 ### `run-writing-phase-spec`
 
-- **Do**: Import `/osuperpowers:writing-phase-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the phase spec (this phase's increment), landing the committed phase spec. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch)
+- **Do**: Import `/osuperpowers:writing-phase-spec` — its flow is consumed inline as this session's baseline; it authors, reviews and commits the phase spec (this phase's increment), landing the committed phase spec. The imported flow's review-fix loop expects a clean start — ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: grilling output + parent overall
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target skill missing → BLOCKED (install osuperpowers)

@@ -44,15 +44,15 @@ test("ci-validate.mjs 存在", () => {
   assert.ok(existsSync(VAL), `missing ${VAL}`);
 });
 
-// 1. == 5b. osuperpowers plugin validation == marker present
-test("5b marker step present", () => {
-  const idx = steps.findIndex((s) => s.name === "5b. osuperpowers plugin validation");
-  assert.ok(idx !== -1, "missing 5b. osuperpowers plugin validation marker step");
+// 1. == osuperpowers plugin resolution == marker present
+test("osuperpowers plugin resolution marker step present", () => {
+  const idx = steps.findIndex((s) => s.name === "osuperpowers plugin resolution");
+  assert.ok(idx !== -1, "missing osuperpowers plugin resolution marker step");
 });
 
-// 2. plugin.json structural check present (osuperpowers plugin validation + skills-count print)
-test("osuperpowers plugin validation + skills-count wired", () => {
-  assert.ok(steps.some((s) => s.name.includes("osuperpowers plugin validation")), "5b marker step missing");
+// 2. plugin.json structural check present (osuperpowers plugin resolution + skills-count print)
+test("osuperpowers plugin resolution + skills-count wired", () => {
+  assert.ok(steps.some((s) => s.name.includes("osuperpowers plugin resolution")), "osuperpowers plugin resolution step missing");
   assert.ok(steps.some((s) => s.name.includes("osuperpowers skills")), "skills-count step missing");
 });
 
@@ -66,15 +66,15 @@ const OLD_SHELL_TESTS = [
   "cdd-orchestrator-line-budget.test.sh",
 ];
 function behaviorNodeTestStep() {
-  return steps.find((s) => s.name.startsWith("5b. node:test") && s.args?.some((a) => a === "--test"));
+  return steps.find((s) => s.name.startsWith("osuperpowers node:test behavior tree") && s.args?.some((a) => a === "--test"));
 }
 test("5b node:test 跑行为 + 引擎两棵树；旧 shell 测试不 invoke", () => {
-  const markerIndex = steps.findIndex((s) => s.name === "5b. osuperpowers plugin validation");
-  assert.ok(markerIndex !== -1, "5b marker missing");
+  const markerIndex = steps.findIndex((s) => s.name === "osuperpowers plugin resolution");
+  assert.ok(markerIndex !== -1, "osuperpowers plugin resolution marker missing");
   const nt = behaviorNodeTestStep();
-  assert.ok(nt, "5b node:test 步骤缺失");
+  assert.ok(nt, "osuperpowers node:test behavior tree 步骤缺失");
   assert.ok(nt.args.some((a) => a.includes("packages/osuperpowers/tests/*.test.mjs")), "行为树 glob 缺失");
-  assert.ok(steps.some((s) => s.name.startsWith("5b1. cdd-engine Vitest")), "cdd-engine Vitest suite (5b1) not wired");
+  assert.ok(steps.some((s) => s.name.startsWith("cdd-engine engine test suite (vitest)")), "cdd-engine engine test suite (vitest) not wired");
   const idx = steps.indexOf(nt);
   assert.ok(idx > markerIndex, "node:test 步骤位于 5b marker 之前");
   for (const t of OLD_SHELL_TESTS) {
@@ -100,13 +100,13 @@ test("node:test 步骤含 behavior glob、不含 init/utils 套件 glob（T2）+
   assert.ok(nt, "5b node:test 步骤缺失");
   assert.ok(!nt.args.some((a) => a.includes("packages/osuperpowers/bin/init/tests/*.test.mjs")), "init suite glob 残留");
   assert.ok(!nt.args.some((a) => a.includes("packages/osuperpowers/bin/utils/tests/*.test.mjs")), "utils suite glob 残留");
-  assert.ok(steps.some((s) => s.name.startsWith("5b1. cdd-engine Vitest")), "engine suite (5b1 cdd-engine vitest) missing");
+  assert.ok(steps.some((s) => s.name.startsWith("cdd-engine engine test suite (vitest)")), "cdd-engine engine test suite (vitest) missing");
 });
 
-// 6. engine zero-residue check present (grep targets + OK echo)
+// 6. engine zero residue + channel audit check present (grep targets + OK echo)
 test("zero-residue check present with correct grep targets", () => {
-  const zr = steps.find((s) => s.name.startsWith("5c."));
-  assert.ok(zr, "zero-residue check missing");
+  const zr = steps.find((s) => s.name === "engine zero residue + channel audit");
+  assert.ok(zr, "engine zero residue + channel audit check missing");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/skills"), "zero-residue grep misses osuperpowers/skills");
   assert.ok(zr.grepTargets?.includes("packages/osuperpowers/bin"), "zero-residue grep misses osuperpowers/bin");
   assert.ok(zr.grepTargets?.includes("packages/cdd-engine/src"), "zero-residue grep misses cdd-engine/src (re-org: mechanism files moved into src/)");
@@ -118,8 +118,8 @@ test("zero-residue check present with correct grep targets", () => {
 // P6 Task 3: tests/ retired — src/**/__tests__ test positions are source-tree paths now (walk default
 // self-exempt); the retired top-level dir must NOT be re-added to the scope.
 test("5c channel-audit targets pinned (T8)", () => {
-  const zr = steps.find((s) => s.name.startsWith("5c."));
-  assert.ok(zr, "zero-residue check missing");
+  const zr = steps.find((s) => s.name === "engine zero residue + channel audit");
+  assert.ok(zr, "engine zero residue + channel audit check missing");
   assert.ok(Array.isArray(zr.channelTargets), "5c step missing channelTargets meta");
   for (const p of [
     "packages/cdd-engine/src",
@@ -157,13 +157,62 @@ test("main: all-green → OK + ALL PASS + return 0", async () => {
   assert.match(stdout, /ALL PASS/);
 });
 
-// 10. overall-consistency block wired (P4 block 12) — wired steps 11→12
-test("12. overall consistency step present", () => {
-  assert.ok(steps.some((s) => s.name === "12. overall consistency"), "overall consistency step missing");
+// 10. overall-consistency block retired (P3 T1) — the four-table guard is deleted,
+//     so no "12. overall consistency" step may be wired
+test("overall-consistency block retired (no four-table step)", () => {
+  assert.ok(
+    !steps.some((s) => s.name === "12. overall consistency"),
+    "overall consistency step must not be wired (S1/S2 guards retired)",
+  );
 });
 
-// 11. block count = 12 (P6 Task 2 / B3: submodule self-maintenance block removed —
-//      submodule.mjs deleted, 13→12 steps). Pins the acceptance "validate 12 块".
-test("validate wiring is exactly 12 steps (submodule block removed)", () => {
-  assert.equal(steps.length, 12);
+// 11. block count = 11 (P3 T1: four-table block retired — 12→11). Pins the
+//     acceptance "validate 11 块".
+test("validate wiring is exactly 11 steps (four-table block retired)", () => {
+  assert.equal(steps.length, 11);
+});
+
+// 12. AC4 probe (D3): step names are semantic — no numeric/anchor prefixes. The
+//     probe must not match any live name (prefix-anchored, whole-string judgement:
+//     digit-prefixed names are all caught, semantic names zero false positives).
+const NUMERIC_ANCHOR_PROBE = /(?:^| )\b(?:[0-9]+\.|5b\d*|5c|8-10)[. ]+[A-Za-z(]/;
+test("AC4: no numeric-anchored step names in the validate wiring", () => {
+  const hits = steps.map((s) => s.name).filter((n) => NUMERIC_ANCHOR_PROBE.test(n));
+  assert.deepEqual(hits, [], `numeric-anchored step names remain: ${hits.join(", ")}`);
+});
+
+// 13. AC4 anti-white-green: the probe must not be vacuously green. Legacy names
+//     all HIT; current semantic names all MISS.
+test("AC4 anti-white-green: legacy step names all HIT the anchor probe", () => {
+  for (const name of [
+    "0. unified emit freshness (emit-check)",
+    "5b. osuperpowers plugin validation",
+    "5b. osuperpowers skills-count",
+    "5b1. cdd-engine Vitest engine suite",
+    "5c. engine zero-residue + channel-audit grep",
+    "6. marketplace validate",
+    "7. scripts unit tests",
+    "8-10. version sync",
+    "12. overall consistency",
+  ]) {
+    assert.match(name, NUMERIC_ANCHOR_PROBE, `anchor probe must HIT legacy name: ${name}`);
+  }
+});
+
+test("AC4 anti-white-green: semantic step names all MISS the anchor probe", () => {
+  for (const name of [
+    "emit freshness (checked against regenerated products)",
+    "osuperpowers plugin resolution",
+    "osuperpowers skills inventory count",
+    "osuperpowers node:test behavior tree",
+    "validate wiring guard (ci-validate.test.mjs)",
+    "cdd-engine dev stub materialization",
+    "cdd-engine engine test suite (vitest)",
+    "engine zero residue + channel audit",
+    "marketplace manifests validate",
+    "scripts unit tests (vitest)",
+    "package version sync",
+  ]) {
+    assert.doesNotMatch(name, NUMERIC_ANCHOR_PROBE, `anchor probe must MISS semantic name: ${name}`);
+  }
 });

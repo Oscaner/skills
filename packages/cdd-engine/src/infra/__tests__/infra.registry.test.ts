@@ -2,13 +2,17 @@
 // Mirrors the .mjs registry.test.mjs contract: ship gate (unknown/not-supported → blocked exit 1;
 // CLI missing → cli-missing exit 2), registryField fallback "", op×type prefix resolution.
 import { it, expect } from "vitest";
+import { existsSync } from "node:fs";
 
 import {
   loadRegistry, checkHarness, registryField, resolveInjection, resolveSuffix, REG_PATH,
 } from "../registry.ts";
 
-it("REG_PATH resolves next to harness-registry.json", () => {
-  expect(REG_PATH).toMatch(/infra\/harness-registry\.json$/);
+// REG_PATH is state-independent since P3 T7 (consumer parity): the published dist copy first, the
+// source tree as the dev fallback — the file must exist either way and always be the registry.
+it("REG_PATH resolves to an existing harness-registry.json (published dist/resources or src fallback)", () => {
+  expect(REG_PATH).toMatch(/(?:dist[\\/]resources|src[\\/]infra)[\\/]harness-registry\.json$/);
+  expect(existsSync(REG_PATH)).toBe(true);
 });
 
 it("loadRegistry: reads 2 harnesses (claude / cursor-agent)", () => {

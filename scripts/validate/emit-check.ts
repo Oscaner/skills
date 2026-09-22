@@ -15,7 +15,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export const steps = [
   {
-    name: "0. unified emit freshness (emit-check)",
+    name: "emit freshness (checked against regenerated products)",
     cmd: "node",
     args: ["scripts/run.ts", "emit-check"],
     run: () => execaSync("node", ["scripts/run.ts", "emit-check"], { cwd: ROOT, stdio: "inherit" }),

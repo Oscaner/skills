@@ -1337,7 +1337,7 @@ function checkSkillSurface() {
   console.log("OK — skills-surface guard (§2.8 rows 12/15/16/17/18) zero violations");
 }
 
-// Block count unchanged (12): checkStaleLexicon and T6's checkGateLexicon fold into the existing
+// Block count unchanged (11): checkStaleLexicon and T6's checkGateLexicon fold into the existing
 // 5c.run step internally — first checkZeroResidue, then checkStaleLexicon, then checkGateLexicon;
 // T8 appends checkChannelAudit (§2.8 rows 1-11, 13; the engine-side 12 checks); T10 appends
 // checkShippedGuards (§2.8 rows 19-20; the two shipped-surface reverse guards); T11 appends
@@ -1351,7 +1351,7 @@ function checkSkillSurface() {
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
 export const steps = [
   {
-    name: "5c. engine zero-residue + channel-audit grep",
+    name: "engine zero residue + channel audit",
     run: () => {
       checkZeroResidue();
       checkStaleLexicon();

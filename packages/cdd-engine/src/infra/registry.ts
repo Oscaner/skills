@@ -2,14 +2,27 @@
 // (ship gate + op×type prefix/suffix injection + CLI PATH preflight). Same behavior contract as
 // the .mjs module (checked by registry.test.mjs); this is the rebuilt-layer dependency point.
 // The only env read here is the canonical whitelisted PATH key (channel audit ②) — see cliInPath.
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv, { type ValidateFunction } from "ajv";
 
 import { CddExitError } from "./exit.ts";
+import { resolvePackageRoot } from "./resource.ts";
 
-export const REG_PATH = fileURLToPath(new URL("harness-registry.json", import.meta.url));
+/** The shipped harness-registry file (harness rows + op×type prefix/suffix injection + ship gate).
+ * State-independent resolution (same convention as documents/schema.ts resolveDocSchemaDir): the
+ * published copy at <pkg>/dist/resources/harness-registry.json (build.config.ts copy entry — the
+ * consumer install's face; the module-origin relative `new URL` would resolve into the bundle's
+ * chunk dir, which no build materializes) first, the src tree as the dev fallback. */
+export function resolveRegistryPath(fromDir = path.dirname(fileURLToPath(import.meta.url))): string {
+  const root = resolvePackageRoot(fromDir);
+  const published = path.join(root, "dist", "resources", "harness-registry.json");
+  if (existsSync(published)) return published;
+  return path.join(root, "src", "infra", "harness-registry.json");
+}
+
+export const REG_PATH = resolveRegistryPath();
 
 // Registry gate blockage — the CddExitError family (P6 T24 F): exitCode + kind fields, bin.ts's
 // top-level catch unifies the family by kind; `instanceof CddBlockedError` keeps working for the

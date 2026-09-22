@@ -77,7 +77,7 @@ export interface DocTokens {
   phaseRowCellCount: number;
   /** `/^v(\d+)\.(\d+)$/` — change-history version cell parsed for the ascending/duplicate check. */
   versionNumericRe: RegExp;
-  /** `/\bP(\d+)(?![0-9])/i` — plan-filename phase-id scan (filename form of the canonical id). */
+  /** `/\bP(\d+(?:\.\d+)*)/i` — plan-filename phase-id scan (filename form of the canonical id). */
   phaseIdScanRe: RegExp;
   // ---- claim family (overall.json claimPatterns; consumed by the docs audit from T3) ----
   /** The CLAIM_RE clause pattern — compiled live from the canonical single source. */
@@ -90,15 +90,16 @@ export interface DocTokens {
    *  sibling is documented next to the canonical const). */
   claimClauseSeparatorRe: RegExp;
   /** Single-phase claim reference scan (claimPatterns.phaseReference.single) — the FULL canonical
-   *  phase id captured as one group (digits + optional split-letter suffix, e.g. `P1a`) with its
-   *  digit run captured inside (group 2) — a `P1a` reference stays verbatim, never collapses to `P1`. */
+   *  phase id captured as one group (digit ridge `\d+(\.\d+)*`, e.g. `P2.1`) with its ridge
+   *  captured inside (group 2) — a `P2.1` reference stays verbatim, never collapses to `P2`. */
   claimSinglePhaseRe: RegExp;
   /** Ranged claim reference scan (claimPatterns.phaseReference.range, endpoints included) — both
-   *  endpoint FULL ids captured (groups 1 & 3, split-letter suffix included) with their digit runs
-   *  inside (groups 2 & 4). */
+   *  endpoint FULL ids captured (groups 1 & 3, digit ridge included) with their ridges inside
+   *  (groups 2 & 4). */
   claimPhaseRangeRe: RegExp;
-  /** Design-spec token scan (`P<n>-design`, split ids allow a trailing letter) — the unanchored
-   *  scan form of claimPatterns.designToken; the design-doc / design-claim target token. */
+  /** Design-spec token scan (`P<digits>(.digits)*-design`, sub-phase ids allowed: `P2.1-design`) —
+   *  the unanchored scan form of claimPatterns.designToken; the design-doc / design-claim target
+   *  token. */
   designTokenScanRe: RegExp;
   /** The design-document filename tail (`-design.md`) — the canonical designToken body's `-design`
    *  literal lowercased + `.md` (the filePaths filename form `*-<slug>-<phase-id>-design.md`). */
@@ -115,7 +116,7 @@ export interface DocTokens {
   phaseTokenScanRe: RegExp;
 }
 
-function escapeRegExp(s: string): string {
+export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -163,10 +164,10 @@ function digitCapturing(pattern: string, flags = ""): RegExp {
 }
 
 /** Wrap every occurrence of a canonical phase-id token inside a claim phase-reference pattern in
- * capture groups — each full id (digits + optional split-letter suffix) captured, with its digit
- * run captured inside the full group — so a `P1a` reference survives verbatim. Parse mechanics, the
- * canonical pattern otherwise stays byte-faithful; a pattern that lacks the token (schema drift)
- * fails loudly rather than deriving a capture-less scan. */
+ * capture groups — each full id (digit + dot-digit segments) captured, with its digit ridge
+ * (`\d+(\.\d+)*`) captured inside the full group — so a `P2.1` reference survives verbatim. Parse
+ * mechanics, the canonical pattern otherwise stays byte-faithful; a pattern that lacks the token
+ * (schema drift) fails loudly rather than deriving a capture-less scan. */
 function phaseRefCapturing(pattern: string, token: string, flags = ""): RegExp {
   const body = pattern.replace(/^\^/, "").replace(/\$$/, "");
   if (!body.includes(token)) {
@@ -174,7 +175,7 @@ function phaseRefCapturing(pattern: string, token: string, flags = ""): RegExp {
       `doc-structure token: claim phase-reference pattern "${body}" lacks the canonical phase-id token "${token}"`,
     );
   }
-  const tile = `(${token.replace("\\d+", "(\\d+)")})`;
+  const tile = `(${token.replace("\\d+(\\.\\d+)*", "(\\d+(?:\\.\\d+)*)")})`;
   return new RegExp(body.split(token).join(tile), flags);
 }
 
@@ -267,11 +268,11 @@ export function deriveDocTokens(schemas: {
   );
 
   // Plan-filename phase-id scan — the filename form of the canonical phase-id pattern
-  // (`^P\d+(?![0-9])[a-z]?$`): word-boundary-anchored, digits captured, the optional split-letter
-  // suffix dropped (a `p2a` filename still yields "P2" — the letter belongs to the doc plane).
+  // (`^P\d+(\.\d+)*$`): word-boundary-anchored, the full digit ridge captured — a `p2.1` filename
+  // yields "P2.1", never the base "P2" the head digit run alone would produce.
   const phaseIdPattern = leaf<string>(overall, ["issueInventory", "row", "phaseId"], "pattern");
   const phaseIdScanRe = new RegExp(
-    `\\b${phaseIdPattern.replace(/^\^/, "").replace(/\$$/, "").replace(/\[a-z\]\?/, "").replace("\\d+", "(\\d+)")}`,
+    `\\b${phaseIdPattern.replace(/^\^/, "").replace(/\$$/, "").replace("\\d+(\\.\\d+)*", "(\\d+(?:\\.\\d+)*)")}`,
     "i",
   );
 
@@ -286,8 +287,8 @@ export function deriveDocTokens(schemas: {
     "g",
   );
   // Claim phase references — unanchored scan forms of the canonical single/range patterns; each
-  // canonical phase-id token wrapped as a FULL capture group (split-letter suffix included, digit
-  // run captured inside) — claim phase refs resolve verbatim (`P1a` never collapses to `P1`).
+  // canonical phase-id token wrapped as a FULL capture group (digit ridge included, the ridge run
+  // captured inside) — claim phase refs resolve verbatim (`P2.1` never collapses to `P2`).
   // The token is the claim single phase-reference body (the same token the range pairs).
   const claimPhaseRefToken = leaf<string>(
     overall,
@@ -306,8 +307,9 @@ export function deriveDocTokens(schemas: {
     "g",
   );
   // Design-spec token scan + design-doc filename tail — both derived from the canonical
-  // `P<n>-design` pattern leaf (claimPatterns.designToken): the unanchored token scan (split ids
-  // allowed) and the design-document `-design.md` tail (the filePaths filename form, lowercase).
+  // `P<digits>(.digits)*-design` pattern leaf (claimPatterns.designToken): the unanchored token
+  // scan (sub-phase ids allowed: `P2.1-design` belongs to P2.1, never P2) and the design-document
+  // `-design.md` tail (the filePaths filename form, lowercase).
   const designTokenBody = leaf<string>(
     overall,
     ["claimPatterns", "designToken"],
@@ -336,8 +338,8 @@ export function deriveDocTokens(schemas: {
     leaf<string>(overall, ["issueInventory", "row", "anchorForm"], "pattern").replace(/^\^/, "").replace(/\$$/, ""),
     "g",
   );
-  // Phase-id token scan — the canonical phase id (`^P\d+(?![0-9])[a-z]?$`) unanchored with a
-  // leading word boundary; the dependency-graph / dependency-column membership scanner.
+  // Phase-id token scan — the canonical phase id (`^P\d+(\.\d+)*$`) unanchored with a leading
+  // word boundary; the dependency-graph / dependency-column membership scanner.
   const phaseTokenScanRe = new RegExp(
     `\\b${leaf<string>(overall, ["phaseInventory", "rowShape", "idFormat"], "pattern").replace(/^\^/, "").replace(/\$$/, "")}`,
     "g",

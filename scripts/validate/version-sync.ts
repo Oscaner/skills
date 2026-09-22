@@ -62,7 +62,7 @@ function checkVersionSync() {
 // standalone output byte-identical.
 export const steps = [
   {
-    name: "8-10. version sync",
+    name: "package version sync",
     run: checkVersionSync,
   },
 ];

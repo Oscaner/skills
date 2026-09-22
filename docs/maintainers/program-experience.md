@@ -68,4 +68,19 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 
 ---
 
+## G. Consumer-parity program norms (P3 closeout, 2026-09-22)
+
+Operational norms fixed by the consumer-parity P3 rebuild (repo-side validation-surface rebuild). Each item is grep-verifiable. Numbering continues the A–F sequence.
+
+45. **Zero product-path fixtures** — unit/e2e suites are functional verification; no repo product path may serve as a test fixture. The retired `canary-dogfood.test.ts` hardcoded real charter-doc paths as fixtures — delete the product and the test dies with it. Canary evidence belongs to runtime dispatch (the repo's own program is audited by every engine dispatch), never to product-path fixtures.
+46. **Zero numbered step anchors** — validate step names are semantic names, not opaque numbers. The `5b0` / `5b1` / `5c` / `12.` numbering family is retired. The step-name face is pinned by `packages/osuperpowers/tests/ci-validate.test.mjs`'s prefix-anchored probe: digit-led families zero-residue, semantic names zero false-positive (`node` assertions: full-hit on the retired names, full-miss on the semantic ones — anti-white-green).
+47. **Zero legacy-exemption dead code** — C3-hit code is deleted, never exempted. `plan-spec-anchors`' Class C legacy exemption and `isLegacyRef` were the repo-only carve-outs consumers never needed; useless must be deleted, with no history-narrative exemption.
+48. **Phase-id syntax A** — canonical phase ids are dotted numeric `P<digits>(.digits)*` (split phases climb the dot hierarchy, e.g. `P2.1`); letters or hyphens are prohibited. The 8 phase-id-bearing schema patterns derive from the single canonical expression; the schema description states the grammar and the hierarchy semantics.
+49. **Single enforcement face** — the four-table charter adjudication has exactly one implementation: the engine lifecycle (dispatch runtime audit + engine suite self-built contract chains). The repo side has zero second trigger point; `pnpm run validate` has no four-table block.
+50. **Validate 11-block structure snapshot** — post-P3, `pnpm run validate` composes 11 semantic blocks, in order: emit freshness / osuperpowers plugin resolution · osuperpowers skills inventory count · osuperpowers node:test behavior tree · validate wiring guard (ci-validate.test.mjs) / cdd-engine dev stub materialization · cdd-engine engine test suite (vitest) / engine zero residue + channel audit / marketplace manifests validate / scripts unit tests (vitest) / package version sync. The pre-commit subset is 9 blocks — the engine pair (dev stub materialization + engine test suite) is tree-coupled and excluded.
+51. **cdd output zero-filtering** — any skill calling the cdd CLI reads the full stdout/stderr; `tail` / `head` / `2>&1 |` / `EXIT=$?` capture wrappers are forbidden. cdd itself optimizes output length and prints the result face the orchestrator needs; a wrapped call hides it.
+52. **Docs-family result visibility + exit.ts single source** — docs-family review/fix print the result face to stdout (`status:` / `blocker:` / `handoff:`), so the orchestrator reads the verdict without opening the handoff file. Command-level exits single-source through `infra/exit.ts` (no bare `return;` on command success paths; `exitOkWith(resultLine)` prints the face and exits in one call; exit table 0/1/2/3 unchanged). Sequencing: this item is entered only after the exit.ts + result-face implementation is present (P3 T6 landed it; the P3 closeout task recorded this norm).
+
+---
+
 **Use**: bake these into scaffolds (templates), consult before touching the program's mechanisms, and treat item 27 as a standing rule for every document this program produces.

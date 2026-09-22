@@ -4,7 +4,7 @@
 // code → process.exit. Codes: 0=OK; 1=BLOCKED; 2=CLI missing.
 import { it, expect } from "vitest";
 
-import { exitOk, exitBlocked, exitCliMissing, ExitRequested } from "../exit.ts";
+import { exitOk, exitOkWith, exitBlocked, exitCliMissing, ExitRequested } from "../exit.ts";
 
 // Capture the ExitRequested code + stderr writes (same helper shape as the .mjs suite).
 function captureExit(fn: (...args: never[]) => void, ...args: never[]): { code: number | null; stderr: string } {
@@ -54,4 +54,31 @@ it("exitCliMissing: empty message → no stderr, exit 2 only", () => {
   const { code, stderr } = captureExit(exitCliMissing as () => void);
   expect(code).toBe(2);
   expect(stderr).toBe("");
+});
+
+// Capture the ExitRequested code + stdout writes — the exitOkWith success+result-face single call
+// (design §2.9 D2): writes `resultLine + "\n"` to stdout, then exits 0 via the ExitRequested unwind.
+function captureExitStdout(fn: () => void): { code: number | null; stdout: string } {
+  const origWrite = process.stdout.write.bind(process.stdout);
+  let code: number | null = null;
+  let stdout = "";
+  process.stdout.write = ((s: unknown) => { stdout += String(s); return true; }) as typeof process.stdout.write;
+  try {
+    try {
+      fn();
+    } catch (e) {
+      if (e instanceof ExitRequested) code = e.code;
+      else throw e;
+    }
+  } finally {
+    process.stdout.write = origWrite;
+  }
+  return { code, stdout };
+}
+
+it("exitOkWith: writes the result line + exit 0 (success + stdout result face in one call)", () => {
+  const line = "status: APPROVED · blocker: 0 · handoff: /repo/.osuperpowers/cdd/foo/spec-review-1.json";
+  const { code, stdout } = captureExitStdout(() => exitOkWith(line));
+  expect(code).toBe(0);
+  expect(stdout).toBe(`${line}\n`);
 });

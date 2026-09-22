@@ -1,157 +1,357 @@
 #!/usr/bin/env node
-// scripts/validate/smoke-cdd.ts — CDD engine dry-run smoke (`node scripts/run.ts smoke-cdd`).
-// Runs the five-command chain (`cdd implement` / `cdd review --type task` /
-// `cdd fix --type task` / `cdd review --type branch` / `cdd fix --type branch`) with the
-// program-level `--dry-run` flag (argv, ahead of the subcommand) and asserts each command's last
-// stdout block is the 5-line return-block contract (status/commits/artifacts/blocker/counters).
-// Then runs the T7 deletion-surface sweep — the P5 clearance inventory as a durable gate
-// (retired gate/harness/select vocab must stay out of mechanism/document positions, dead
-// artifacts must stay absent). Depends on Node built-ins + execa + the sibling residue.ts
-// scanner (no engine imports).
+// scripts/validate/smoke-cdd.ts — CDD engine consumer-sim (`node scripts/run.ts smoke-cdd`).
+// P3 T7 / design §2.6: replaces the old repo-internal dry-run smoke with a consumer-layout gate —
+// build the real package, pack it, and run the five-command dry-run chain against a CONSUMER
+// install (fresh mkdtemp git repo + `npm install <tarball>`), proving the publishable artifact
+// works outside this repo with zero in-repo path dependencies.
+//
+// Steps (design §2.6):
+//   1. `pnpm --filter @oscaner-skills/cdd-engine build` — real unbuild product into dist
+//   2. package-dir `pnpm pack --pack-destination <out>` — the `prepare` hook (dev:stub) was removed
+//      from package.json (P3 T7 ①), so pack no longer re-stubs dist with a jiti stub; the
+//      `--config.ignore-scripts=true` flag is the verified belt-and-braces fallback. Pack MUST run
+//      from the package dir — a workspace-root relative path is resolved as a registry spec
+//      (ERR_PNPM_PACKAGE_VERSION_NOT_FOUND), and `--ignore-scripts` is not a supported pack flag.
+//   3. tarball content assertions (anti-false-green): dist/cli.mjs must carry zero stub markers
+//      (createJiti / node_modules/.pnpm) and exceed 10 kB (dev stub ≈ 614 B vs real ≈ 72 kB — the
+//      >10 kB bound rejects a stub while staying well below the real product; a harsher >100 kB
+//      threshold could misjudge a legitimately smaller real bundle). templates/ and
+//      dist/documents/schema/ (canonical overall/plan/phase-spec/add-phase-protocol) must be
+//      present, plus the harness registry the dispatch ships gate resolves at runtime.
+//   4. mkdtemp consumer repo: git init + npm init + `npm install <tarball>` — consumer layout; the
+//      installed engine resolves all runtime resources under node_modules, never the repo tree.
+//   5. consumer chain: installed entry (`node <installed>/dist/cli.mjs`, plus the shipped
+//      node_modules/.bin/cdd), `cdd help` (absolute CLI dir + addressable schema/templates dirs),
+//      then the five-command dry-run chain (implement / review task / fix task / review branch /
+//      fix branch). The fixture plan + design spec + the parent overall it links are GENERATED
+//      INSIDE the temp repo (D1), derived from the tarball's shipped doc-structure schemas and
+//      engine-config — the plan declares `**Spec:**` and the spec doc is derived alongside (the
+//      engine's doc-existence audit path is thereby a deterministic pass, never dependent on a
+//      dry-run degraded-BLOCK).
+//   6. per-command return-block contract assertions (status / commits / artifacts / blocker /
+//      counters) — the consumer-equivalent result surface for every output.
+//
+// Entry subcommand `smoke-cdd` keeps its name with the consumer-sim semantics (Non-goal#1 — no new
+// subcommand). The old smoke's P5 deletion-surface sweep (collectGateLexiconHits / checkDeletionSurface)
+// is NOT carried over: that residue face overlaps validate block 5c (residue.ts) — the sweep's
+// responsibility belongs to 5c, no double write. Depends on Node built-ins + execa + the tar ships
+// present on macOS (bsdtar) and CI (GNU tar) — both support `-tzf` (list) and `-xOzf` (stdout read).
 
 import { execaCommandSync, execaSync } from "execa";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { collectGateLexiconHits, scanTargets } from "./residue.ts";
 
 const root = process.cwd(); // repo toplevel (run.ts invokes with the repo root as cwd)
+const NODE = process.execPath;
+const PKG = "packages/cdd-engine";
+const PKG_SCOPE = "@oscaner-skills/cdd-engine";
+const PKG_DIR = path.join(root, PKG);
+const CLI_ENTRY = "dist/cli.mjs";
 
-const ENTRIES = { cdd: "packages/cdd-engine/dist/cli.mjs" };
+// Real bundle anti-false-green bounds: dev stub ≈ 614 B, real ≈ 72 kB. The >10 kB floor rejects a
+// stub (or a half-shipped artifact) while staying well below the real product's byte size.
+const REAL_BUNDLE_MIN_BYTES = 10_000;
+const STUB_MARKERS = /createJiti|node_modules[\\/]\.pnpm/;
 
-// Resolve the bin to its argv prefix: PATH bin when present (exercises the `npm link`
-// install — CI link-cdd-engine asserts `command -v cdd`), else `node <repo-relative entry>`
-// so the smoke is robust to runner PATH quirks.
-function resolveBin(bin) {
-  try {
-    execaCommandSync(`command -v ${bin}`, { cwd: root });
-    return [bin];
-  } catch {
-    return ["node", ENTRIES[bin]];
-  }
+const DOC_SCHEMA_FILES = ["overall.json", "plan.json", "phase-spec.json", "add-phase-protocol.json"];
+
+function assertTrue(cond: boolean, msg: string): void {
+  if (!cond) throw new Error(`consumer-sim: ${msg}`);
 }
 
-export function main() {
-  // Self-sufficiency gate: the node-fallback entry (ENTRIES.cdd) is a gitignored dev-stub
-  // product — ensure it exists so a standalone `node scripts/run.ts smoke-cdd` on a fresh
-  // checkout isn't ENOENT (validate's 5b0 step already materializes it in the same CI job;
-  // this covers direct invocation after `rm -rf packages/cdd-engine/dist`).
-  if (!existsSync(path.join(root, ENTRIES.cdd))) {
-    execaSync("pnpm", ["-C", "packages/cdd-engine", "dev:stub"], { cwd: root, stdio: "inherit" });
-  }
-  const cdd = resolveBin("cdd");
-  if (cdd[0] !== "cdd") {
-    console.log(`smoke: PATH bin unavailable — using repo-relative node entry (${cdd.slice(1).join(" ")})`);
-  }
+function readSchema(schemaRoot: string, name: string): Record<string, unknown> {
+  const file = path.join(schemaRoot, `${name}.json`);
+  assertTrue(existsSync(file), `shipped doc-structure schema missing: ${file}`);
+  return JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+}
 
-  // P6 Task 3：fixture 随就近迁移 —— smoke-plan.md 自 tests/fixtures/ 移入 src/cli/__tests__/fixtures/
-  const plan = "packages/cdd-engine/src/cli/__tests__/fixtures/smoke-plan.md";
-  const planBase = path.basename(plan, ".md");
-  const slug = planBase.replace(/-(?:design|plan)$/, ""); // smoke-plan.md → smoke（与 engine workspaceSlug 同规则）
-  const head = execaCommandSync("git rev-parse HEAD", { cwd: root }).stdout.trim();
-  // Branch-review dry-run writes a handoff into the (gitignored) smoke workspace — drop any
-  // stale round so a re-run never trips Review Convergence on the previous APPROVED round.
-  rmSync(path.join(root, ".osuperpowers", "cdd", slug), { recursive: true, force: true });
+/** Read a nested token from a shipped schema (const/pattern value); a missing node = the shipped
+ * schema no longer declares the fixture's required surface → fail loud, never guess. */
+function schemaToken(schema: Record<string, unknown>, parts: string[]): string {
+  let node: unknown = schema;
+  for (const p of parts) {
+    node = (node as Record<string, unknown> | null | undefined)?.[p];
+    if (node === undefined) throw new Error(`consumer-sim: shipped schema token missing at ${parts.join(".")}`);
+  }
+  return String(node);
+}
 
-  // review --type task would produce .osuperpowers/cdd/<slug>/task-1-review-1.json in a
-  // real run; fix consumes it via --findings (parseReview→fix wiring). Under dry-run neither
-  // writes nor reads the file — only the arg plumbing is exercised. The same holds for the
-  // branch pair: `fix --type branch`'s --findings names the source branch-review-{base7}..{head7}-r{R}.json
-  // (round + ref derive from the NAME — dry-run never reads it), and the head7 slot is the
-  // range's own HEAD (self-review smoke range base==head).
-  const cmds = [
-    [...cdd, "--dry-run", "implement", "--task", "1", "--plan", plan],
-    [...cdd, "--dry-run", "review", "--type", "task", "--task", "1", "--plan", plan],
-    [...cdd, "--dry-run", "fix", "--type", "task", "--task", "1", "--plan", plan,
-      "--findings", path.join(".osuperpowers", "cdd", slug, "task-1-review-1.json")],
-    [...cdd, "--dry-run", "review", "--type", "branch", "--plan", plan, "--base", head, "--head", head],
-    [...cdd, "--dry-run", "fix", "--type", "branch", "--plan", plan,
-      "--findings", path.join(".osuperpowers", "cdd", slug,
-        `branch-review-${head.slice(0, 7)}..${head.slice(0, 7)}-r1.json`)],
+/** A regex-pattern token reduced to its un-anchored literal prefix (e.g. `^## Constraints\\s*$` →
+ * `## Constraints`) — used for the pattern-declared fixture surfaces (the canonical `## Constraints`
+ * heading); an unreducible pattern shape fails loud. */
+function patternLiteral(pattern: string): string {
+  const body = pattern.replace(/^\^/, ""); // drop the anchor — the literal is the unanchored prefix
+  const m = body.match(/^([^\\^$+*?()|\[\]]+)/);
+  assertTrue(!!m, `cannot derive a literal from schema pattern ${JSON.stringify(pattern)}`);
+  return m![1]!.trim();
+}
+
+// ---- tarball assertions (step 3) ----
+
+function tarList(tgz: string): string[] {
+  return execaSync("tar", ["-tzf", tgz]).stdout.split("\n").filter(Boolean);
+}
+
+function tarRead(tgz: string, member: string): string {
+  return execaSync("tar", ["-xOzf", tgz, member]).stdout;
+}
+
+function assertTarball(tgz: string): void {
+  const entries = tarList(tgz);
+  const has = (member: string) => entries.includes(member);
+  const cliMember = `package/${CLI_ENTRY}`;
+  assertTrue(has(cliMember), `tarball missing the CLI entry ${cliMember} (entries: ${entries.length} files)`);
+  const cliBytes = Buffer.byteLength(tarRead(tgz, cliMember), "utf8");
+  assertTrue(cliBytes > REAL_BUNDLE_MIN_BYTES, `dist/cli.mjs is ${cliBytes} B — expected a real build > ${REAL_BUNDLE_MIN_BYTES} B (dev stub ≈ 614 B) — did the pack ship a stub?`);
+  assertTrue(!STUB_MARKERS.test(tarRead(tgz, cliMember)), `stub markers (createJiti / node_modules/.pnpm) found in package/dist/cli.mjs — the pack shipped the dev stub, not the build product`);
+  // Canonical doc-structure schemas addressable at the published dist face.
+  for (const f of DOC_SCHEMA_FILES) {
+    assertTrue(has(`package/dist/documents/schema/${f}`), `tarball missing the canonical doc-structure schema dist/documents/schema/${f}`);
+  }
+  // The render resource dir + the handoff schemas it serves.
+  assertTrue(has("package/templates/template-contract.json"), "tarball missing templates/template-contract.json");
+  assertTrue(has("package/templates/schema/task-handoff-schema.json"), "tarball missing templates/schema/task-handoff-schema.json");
+  // The harness registry the dispatch ship gate resolves at runtime (build copy entry publishes the
+  // dedicated dist/resources/ face — see build.config.ts).
+  assertTrue(has("package/dist/resources/harness-registry.json"), "tarball missing dist/resources/harness-registry.json (dispatch ship gate reads it at runtime)");
+  // Zero in-repo residues inside the packed artifact: the tarball must never reference the repo
+  // tree (a jiti aliased stub or an absolute alias would embed it).
+  assertTrue(!tarRead(tgz, cliMember).includes(root), `package/dist/cli.mjs embeds the repo root path ${root} — the tarball is not consumer-standalone`);
+}
+
+// ---- consumer install (step 4) ----
+
+function installConsumer(tgz: string): { consumerRoot: string; installed: string } {
+  const consumerRoot = mkdtempSync(path.join(tmpdir(), "cdd-consumer-repo-"));
+  execaSync("git", ["init", "-q"], { cwd: consumerRoot });
+  execaSync("git", ["config", "user.email", "cdd-consumer-sim@oscaner.dev"], { cwd: consumerRoot });
+  execaSync("git", ["config", "user.name", "CDD Consumer Sim"], { cwd: consumerRoot });
+  execaSync("npm", ["init", "-y"], { cwd: consumerRoot, stdio: "inherit" });
+  execaSync("npm", ["install", tgz], { cwd: consumerRoot, stdio: "inherit" });
+  const installed = path.join(consumerRoot, "node_modules", ...PKG_SCOPE.split("/"));
+  assertTrue(existsSync(path.join(installed, CLI_ENTRY)), `installed CLI entry missing: ${path.join(installed, CLI_ENTRY)}`);
+  // The shipped bin surface: node_modules/.bin/cdd must resolve (package.json bin → dist/cli.mjs).
+  assertTrue(existsSync(path.join(consumerRoot, "node_modules", ".bin", "cdd")), "shipped bin node_modules/.bin/cdd missing");
+  return { consumerRoot, installed };
+}
+
+// ---- fixture derivation (D1) — generated inside the temp repo, derived from the shipped schemas ----
+
+interface Fixture {
+  plan: string;      // repo-root-relative plan path
+  spec: string;      // repo-root-relative spec path
+  overall: string;   // repo-root-relative overall path (the plan's **Parent program** link target)
+  slug: string;      // engine workspace slug (plan basename minus -plan)
+  workspace: string; // <consumerRoot>/<workspaceRoot>/<slug> — derived from the shipped engine-config
+}
+
+function deriveFixture(consumerRoot: string, installed: string): Fixture {
+  const schemaRoot = path.join(installed, "dist", "documents", "schema");
+  const planSchema = readSchema(schemaRoot, "plan");
+  const phaseSpecSchema = readSchema(schemaRoot, "phase-spec");
+  const overallSchema = readSchema(schemaRoot, "overall");
+  // Canonical markers extracted from the SHIPPED schemas (the fixture is derived, never hardcoded).
+  const specMark = schemaToken(planSchema, ["properties", "header", "properties", "specRef", "properties", "marker", "const"]);                      // **Spec:**
+  const parentMark = schemaToken(planSchema, ["properties", "header", "properties", "parentProgram", "properties", "marker", "const"]);            // **Parent program**
+  const constraintsHeading = patternLiteral(schemaToken(planSchema, ["properties", "constraints", "properties", "formACanonical", "properties", "heading", "pattern"])); // ## Constraints
+  const taskHeadingFormat = schemaToken(planSchema, ["properties", "taskHeadings", "properties", "format", "const"]);                              // ### Task N:
+  const doPattern = schemaToken(planSchema, ["properties", "taskBlock", "properties", "do", "pattern"]);                                           // ^- \*\*Do\*\*:
+  const acceptPattern = schemaToken(planSchema, ["properties", "taskBlock", "properties", "acceptance", "pattern"]);                                // ^- \*\*验收\*\*:
+  const versionMark = schemaToken(phaseSpecSchema, ["properties", "header", "properties", "version", "properties", "marker", "const"]);             // **Version**
+  const overallVersionMark = schemaToken(overallSchema, ["properties", "header", "properties", "version", "properties", "marker", "const"]);        // **Version**
+  const phaseInventoryHeader = schemaToken(overallSchema, ["properties", "phaseInventory", "properties", "columnNames", "properties", "header", "const"]); // | # | Phase | … | Dependency |
+  assertTrue(specMark === "**Spec:**" && parentMark === "**Parent program**" && constraintsHeading === "## Constraints"
+    && taskHeadingFormat === "### Task N:" && versionMark === "**Version**" && overallVersionMark === versionMark,
+    `shipped schema tokens drifted: Spec=${JSON.stringify(specMark)} Parent=${JSON.stringify(parentMark)} Constraints=${JSON.stringify(constraintsHeading)} Task=${JSON.stringify(taskHeadingFormat)} Version=${JSON.stringify(versionMark)} OverallVersion=${JSON.stringify(overallVersionMark)}`);
+
+  // The engine's workspace slug rule (schema-independent engine name derivation): plan basename
+  // minus `.md`, with a single trailing -design/-plan layer stripped.
+  const planName = "fixture-plan.md";
+  const slug = path.basename(planName, ".md").replace(/-(?:design|plan)$/, "");
+  // Workspace root from the SHIPPED engine-config (never a repo literal).
+  const config = JSON.parse(readFileSync(path.join(installed, "templates", "engine-config.json"), "utf8")) as { handoffNamespace: { workspaceRoot: string } };
+  const workspaceRootSeg = config.handoffNamespace.workspaceRoot;
+  assertTrue(workspaceRootSeg === ".osuperpowers/cdd", `shipped engine-config handoffNamespace.workspaceRoot drifted: ${JSON.stringify(workspaceRootSeg)}`);
+
+  const spec = "fixture-design.md";
+  // The spec doc the plan's **Spec:** line must resolve to (the audit's Class-A target). It carries
+  // the spec's own face (a **Version** line — the phase-spec schema's own required surface) and NO
+  // Parent program line — the four-table audit no-ops on the truncated lineage, making the consumer
+  // chain's doc-existence path deterministic.
+  writeFileSync(path.join(consumerRoot, spec), [
+    `# ${spec}`,
+    "",
+    `- ${versionMark}: v1.0 · 2026-09-22`,
+    "",
+    "Fixture design spec derived from the shipped cdd-engine doc-structure schemas for the consumer-sim.",
+    "",
+  ].join("\n"), "utf8");
+
+  // The overall the plan's **Parent program** link resolves to — a minimal canonical charter
+  // (canonical header + empty Phase inventory table, the canonical 7-column header derived from the
+  // shipped overall schema). The fixture spec omits its own Parent program line, so this overall is
+  // never a reached audit face — materializing it only makes the plan's own parent link resolve
+  // (self-consistency), never a document the four-table / overall-contract audit runs against.
+  const overall = "fixture-overall.md";
+  writeFileSync(path.join(consumerRoot, overall), [
+    `# Fixture Overall`,
+    "",
+    `- ${overallVersionMark}: v1.0 · 2026-09-22`,
+    "",
+    "Consumer-sim fixture program charter — the `**Parent program**` link target for the derived fixture plan.",
+    "",
+    `## Phase inventory`,
+    "",
+    phaseInventoryHeader,
+    "|---|-------|-------|-------------|---------------------|----------------------|------------|",
+    "",
+  ].join("\n"), "utf8");
+
+  const plan = planName;
+  // Form-A plan (canonical ## Constraints) — the structural markers are the schema-derived tokens;
+  // the task bullet lines use the canonical marker spellings and are CONFORMANCE-checked against
+  // the shipped do/acceptance patterns below (drift → the consumer-sim fails loud, never silent).
+  const taskHeading = taskHeadingFormat.replace("N", "1");
+  const doLine = "- **Do**: exercise the installed cdd engine under dry-run in a consumer layout";
+  const acceptLine = "- **验收**: the dry-run chain prints the return-block contract";
+  assertTrue(new RegExp(doPattern).test(doLine), `fixture Do line does not match the shipped pattern ${doPattern}: ${doLine}`);
+  assertTrue(new RegExp(acceptPattern).test(acceptLine), `fixture acceptance line does not match the shipped pattern ${acceptPattern}: ${acceptLine}`);
+  writeFileSync(path.join(consumerRoot, plan), [
+    `# Fixture Plan`,
+    "",
+    `${specMark} [${spec}](${spec})`,
+    "",
+    `${parentMark}: [fixture-overall.md v1.0](fixture-overall.md)`,
+    "",
+    `${constraintsHeading}`,
+    "",
+    `### 口径`,
+    "",
+    `Consumer-sim fixture constraints materialized into the temp repo.`,
+    "",
+    `${taskHeading} fixture task`,
+    "",
+    doLine,
+    acceptLine,
+    "",
+  ].join("\n"), "utf8");
+
+  return { plan, spec, overall, slug, workspace: path.join(consumerRoot, workspaceRootSeg, slug) };
+}
+
+// ---- consumer chain (steps 5 & 6) ----
+
+const COUNTERS_RE = /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/;
+
+/** Assert the command's last stdout block is the 5-line return-block contract (per-command line
+ *  expectations included — the consumer-equivalent result surface). */
+function assertReturnBlock(cmd: string, stdout: string): void {
+  const lastBlock = stdout.trim().split(/\n{2,}/).at(-1) ?? "";
+  const lines = lastBlock.split("\n");
+  const lineByKey = new Map<string, string>();
+  for (const line of lines) {
+    const m = line.match(/^([a-z_]+): (.*)$/);
+    if (m) lineByKey.set(m[1], m[2]);
+  }
+  const checks: Array<[string, RegExp]> = [
+    ["status", /^APPROVED$/],
+    ["commits", /^base=/],
+    ["artifacts", /^/],
+    ["blocker", /^/],
   ];
-  for (const [i, args] of cmds.entries()) {
-    // Array form (no shell join) — every arg is a fixed constant today; keeps arg quoting if they ever change.
-    // `--dry-run` is a program-level flag and must lead the argv (the engine resolves it from
-    // the full argv, citty surface — leading is the smoke's documented argv convention).
-    // T3: harness flag removed — host resolution is env-driven; inject CLAUDE_CODE_SESSION_ID=1
-    // so the smoke's five commands resolve the host as claude deterministically (CI has no session markers).
-    const out = execaSync(args[0], args.slice(1), { env: { ...process.env, CLAUDE_CODE_SESSION_ID: "1" }, cwd: root });
-    const lastBlock = out.stdout.trim().split(/\n{2,}/).at(-1) ?? "";
-    // The five literals mirror the engine's 5-line return-block contract verbatim. Authoritative emitters:
-    // src/dispatch/task.ts returnFourLines（stdout/res.returnBlock 面）· returnFromHandoff（回读重发面）·
-    // src/cli/branch-review.ts DRY_RUN 块（cdd review --type branch --dry-run，不经前两者）——
-    // counters 行由 src/artifacts/return-block.ts#returnCountersLine 派生（缺 progress.json 时零值兜底）。
-    const ok = /status: APPROVED/m.test(lastBlock)
-      && /commits: base=/.test(lastBlock)
-      && /artifacts: /.test(lastBlock)
-      && /blocker: /.test(lastBlock)
-      && /^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/m.test(lastBlock);
-    if (!ok) throw new Error(`smoke step ${i + 1}: last block is not the 5-line return-block contract: ${JSON.stringify(lastBlock)}`);
+  for (const [key, re] of checks) {
+    const v = lineByKey.get(key);
+    assertTrue(v !== undefined, `${key}: line missing from the return block (last block: ${JSON.stringify(lastBlock)})`);
+    assertTrue(re.test(v!), `${key}: value ${JSON.stringify(v)} does not match ${re}`);
   }
-  console.log("OK — cdd-engine dry-run smoke (5 commands)");
-  checkDeletionSurface();
+  if (cmd.includes("review --type branch")) {
+    assertTrue(/^base=[0-9a-f]{40} head=[0-9a-f]{40}$/.test(lineByKey.get("commits")!),
+      `branch review commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=<sha> head=<sha>`);
+  } else if (cmd.includes("fix --type branch")) {
+    assertTrue(/^base=dry-run head=dry-run$/.test(lineByKey.get("commits")!),
+      `branch fix commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run head=dry-run`);
+  } else {
+    assertTrue(/^base=dry-run$/.test(lineByKey.get("commits")!),
+      `task-family commits ${JSON.stringify(lineByKey.get("commits"))} — expected base=dry-run`);
+  }
+  const counters = lines.find((l) => l.startsWith("counters: "));
+  assertTrue(!!counters && COUNTERS_RE.test(counters!), `counters line missing or malformed (got ${JSON.stringify(counters)})`);
 }
 
-// T7 final check — P5 deletion-surface sweep (the clearance inventory as a durable gate):
-// retired gate/harness/select vocab must stay out of mechanism/document positions, deleted
-// paths must stay deleted, and per-harness artifacts must keep the kept/retired baseline.
-// Vocab scopes cover mechanism/document positions only; guard/test positions and this
-// package's own dir (scripts/validate) self-exempt, mirroring the residue.ts gate guard's
-// target design — guards must reference retired tokens to assert their absence.
-const OSKILLS = ["packages/osuperpowers/skills"];
-// N②: 不含测试位 —— cli-shape.test 必携 --doc 断言拒绝，G2/G3 扫描 scope 须与「guard/test 自豁免」
-// doctrine 对齐（同 residue G1）。P6 Task 3 迁就近后测试并入 src 树：walkTargetFiles 默认跳过
-// `**/__tests__/`，ENGINE=src 扫描天然排除测试位（re-org 后 --harness 词表随 parse.ts 移入 src/cli/）。
-const ENGINE = ["packages/cdd-engine/src"];
-const MAINTAINERS = ["docs/maintainers"];
-const MAINTAINERS_DOC = [path.join("docs", "maintainers", "osuperpowers-plugin.md")];
-const ROOT_README = [path.join("packages", "osuperpowers", "README.md")];
+function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; installed: string }): void {
+  const cli = path.join(installed, CLI_ENTRY);
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: "1" };
 
-function assertNoResidue(label, re, targets) {
-  const hits = scanTargets(targets, re);
-  if (hits.length) throw new Error(`${label} is not zero-residue:\n  ${hits.join("\n  ")}`);
+  // `cdd help` outside the git repo — the discovery surface (cli dir + addressable schema/templates
+  // dirs), the install-face resource proof (AC6: installed-face schema-dir addressability measured).
+  const helpOut = execaSync(NODE, [cli, "help"], { cwd: consumerRoot }).stdout;
+  const helpLines = new Map(helpOut.split("\n").filter((l) => l.includes(": ")).map((l) => {
+    const idx = l.indexOf(": ");
+    return [l.slice(0, idx), l.slice(idx + 2)];
+  }));
+  // The engine prints realpath'd resource dirs (node realpaths loaded modules; macOS /var → /private/var) —
+  // compare against the realpath'd expectation for a platform-neutral byte match.
+  const expected = new Map([
+    ["cli", realpathSync(path.join(installed, "dist"))],
+    ["schemas", realpathSync(path.join(installed, "dist", "documents", "schema"))],
+    ["templates", realpathSync(path.join(installed, "templates"))],
+  ]);
+  for (const [key, exp] of expected) {
+    const got = helpLines.get(key);
+    assertTrue(got === exp, `cdd help ${key}: ${JSON.stringify(got)} — expected the installed path ${exp}`);
+  }
+  for (const f of DOC_SCHEMA_FILES) {
+    assertTrue(existsSync(path.join(installed, "dist", "documents", "schema", f)), `installed schema dir missing ${f}`);
+  }
+
+  // Fixture generation (D1) inside the temp repo — fixture-plan.md, its design spec and the parent
+  // overall it links to — then one initial commit so the branch family has a real reviewed range
+  // (base == head, the self-review shape).
+  const fixture = deriveFixture(consumerRoot, installed);
+  execaSync("git", ["add", "-A"], { cwd: consumerRoot });
+  execaSync("git", ["commit", "-m", "chore: consumer-sim fixture plan + spec + overall"], { cwd: consumerRoot });
+  const head = execaCommandSync("git rev-parse HEAD", { cwd: consumerRoot }).stdout.trim();
+  const head7 = head.slice(0, 7);
+
+  // The five-command dry-run chain — argv shape mirrors the dispatch contract the engine's own
+  // black-box suite exercises; each command asserts its return block before the next runs.
+  const chain = [
+    ["--dry-run", "implement", "--task", "1", "--plan", fixture.plan],
+    ["--dry-run", "review", "--type", "task", "--task", "1", "--plan", fixture.plan],
+    ["--dry-run", "fix", "--type", "task", "--task", "1", "--plan", fixture.plan,
+      "--findings", path.join(fixture.workspace, "task-1-review-1.json")],
+    ["--dry-run", "review", "--type", "branch", "--plan", fixture.plan, "--base", head, "--head", head],
+    ["--dry-run", "fix", "--type", "branch", "--plan", fixture.plan,
+      "--findings", path.join(fixture.workspace, `branch-review-${head7}..${head7}-r1.json`)],
+  ];
+  for (const [i, args] of chain.entries()) {
+    const res = execaSync(NODE, [cli, ...args], { cwd: consumerRoot, env });
+    assertReturnBlock(args.join(" "), res.stdout);
+    console.log(`  consumer-sim step ${i + 1}: ${args.slice(0, 3).join(" ")} … ${args.at(-1)}`);
+  }
 }
 
-function checkDeletionSurface() {
-  // G1 gate lexicon — reuse the residue.ts zero-exemption guard rather than duplicating it.
-  const gate = collectGateLexiconHits();
-  if (gate.length) {
-    throw new Error(`G1 gate lexicon is not zero-residue:\n  ${gate.map((h) => `[${h.label}] ${h.file}`).join("\n  ")}`);
-  }
+export function main(): void {
+  // 1. build — the real unbuild product into dist (dev and publish share the same dist entry).
+  execaSync("pnpm", ["--filter", PKG_SCOPE, "build"], { cwd: root, stdio: "inherit" });
 
-  // G2 --harness — engine + shipped skills + maintainers. scripts/validate self-exempts
-  // (this guard and residue.ts carry the retired token by design).
-  assertNoResidue("G2 --harness flag", /--harness/, [...ENGINE, ...OSKILLS, ...MAINTAINERS]);
+  // 2. pack — from the package dir (prepare removed; --config.ignore-scripts=true is the verified
+  //    belt-and-braces fallback).
+  const outDir = mkdtempSync(path.join(tmpdir(), "cdd-consumer-pack-"));
+  execaSync("pnpm", ["pack", "--pack-destination", outDir, "--config.ignore-scripts=true"], { cwd: PKG_DIR, stdio: "inherit" });
+  const pkgJson = JSON.parse(readFileSync(path.join(PKG_DIR, "package.json"), "utf8")) as { name: string; version: string };
+  const baseName = pkgJson.name.replace(/^@/, "").replace("/", "-"); // @scope/name → scope-name (pnpm pack's unscoped file prefix)
+  const tgzName = `${baseName}-${pkgJson.version}.tgz`;
+  const tgz = path.join(outDir, tgzName);
+  assertTrue(existsSync(tgz), `pack produced no ${tgzName} at ${outDir}`);
 
-  // G3 --doc — shipped skills + engine entry + maintainers. 测试位（src/**__tests__）walk 默认自豁免：
-  // cli-shape.test 必须 pass 该退役 token 断言其拒绝（exit 2）。entry 指 src/cli/parse.ts
-  //（薄入口化后命令定义与 --doc 词表唯一落点）。
-  assertNoResidue("G3 --doc flag", /--doc/, [...OSKILLS, path.join("packages", "cdd-engine", "src", "cli", "parse.ts"), ...MAINTAINERS]);
+  // 3. tarball content assertions (anti-false-green).
+  assertTarball(tgz);
 
-  // G4 select vocab in shipped skills.
-  assertNoResidue("G4 cli-select/select-harness", /cli-select|select-harness/, OSKILLS);
+  // 4. consumer install + 5. consumer chain + 6. per-command return-block assertions.
+  const consumer = installConsumer(tgz);
+  runConsumerChain(consumer);
 
-  // G5 skills-missing/skills-probe in package docs.
-  assertNoResidue("G5 skills-missing/skills-probe", /skills-missing|skills-probe/, [...MAINTAINERS_DOC, ...ROOT_README]);
-
-  // G6 harness-select vocab in the consumer-facing README (cli-select / droid / pi).
-  // N④: `pi` 用词边界符（\bpi\b）防 pipeline/principle 等英文词误报（裸 `pi` 子串在 durability gate 对任意未来编辑敏感）。
-  assertNoResidue("G6 README cli-select/droid/pi", /cli-select|droid|\bpi\b/, ROOT_README);
-
-  // G7 deleted paths stay deleted.
-  for (const gone of [path.join("docs", "gate-install.md"), path.join(".github", "actions", "install-harness")]) {
-    if (existsSync(path.join(root, gone))) throw new Error(`G7 deleted path has returned: ${gone}`);
-  }
-
-  // G8 per-harness artifact baseline — kept harnesses present, retired ones absent.
-  // Anchored at the package product home (packages/osuperpowers/…), not repo root —
-  // the P5 per-harness manifests live under the package (spec §2.7 artifact baseline).
-  const OS_ARTIFACTS = path.join("packages", "osuperpowers");
-  for (const kept of [".claude-plugin", ".cursor-plugin"]) {
-    if (!existsSync(path.join(root, OS_ARTIFACTS, kept))) throw new Error(`G8 kept harness artifact missing: ${kept}`);
-  }
-  for (const removed of [".codex-plugin", ".qoder-plugin", ".kimi-plugin", "gemini-extension.json", "GEMINI.md"]) {
-    if (existsSync(path.join(root, OS_ARTIFACTS, removed))) throw new Error(`G8 retired harness artifact present: ${removed}`);
-  }
-
-  console.log("OK — deletion-surface zero residue (T7 final check)");
+  console.log("OK — cdd-engine consumer-sim (pack → install → help + 5-command dry-run chain green, tarball = real product)");
 }

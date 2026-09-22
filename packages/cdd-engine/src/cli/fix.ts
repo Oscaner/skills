@@ -7,7 +7,8 @@ import { requireHostHarness, resolveTargetDoc, DRY_RUN } from "./shared.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { exitWithCode } from "../infra/exit.ts";
+import { exitOk, exitOkWith, exitWithCode } from "../infra/exit.ts";
+import { docsResultFace } from "./result-face.ts";
 
 export interface FixOpts {
   type: string;
@@ -45,7 +46,9 @@ export async function runFix(opts: FixOpts): Promise<void> {
         findingsPath: opts.findings,
         planFile: opts.plan,
       });
-      return;
+      // Task-fix completion lands on the exit.ts single surface (the task channel's return block is
+      // stdout already — no duplicate result face). runTask exits internally on its own void paths.
+      exitOk();
     }
     // type=branch: the branch-level fix channel (Task 9) — `--findings` IS the source
     // branch-review handoff (branch-review-{base7}..{head7}-r{R}.json, contains findings[]),
@@ -98,10 +101,19 @@ export async function runFix(opts: FixOpts): Promise<void> {
     // source / round<1 must first fail as a usage error with exit 2 (§2.4.2: 2 = usage / env error).
     const findingsPath = opts.findings ? resolveDocArg(opts.findings, root, "findings") : undefined;
     const { runDocsTask } = await import("../dispatch/docs.ts");
-    await runDocsTask({
+    const handoffPath = path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound }));
+    const result = await runDocsTask({
       harness, mode: "fix", template, type: opts.type, doc,
       findingsPath, repoRoot: root, dryRun: DRY_RUN(),
-      handoffPath: path.join(ws, handoffNaming.handoffName("fix", opts.type, { round: fixRound })),
+      handoffPath,
     });
+    // Docs fix completion → stdout result face (design §2.9 / AC9): previously stdout had zero
+    // result surface when the docs fix finished; the orchestrator now reads status/blocker/handoff
+    // off the line. Exit stays on the exit.ts single surface: exit 0 → exitOkWith(face); non-0 →
+    // face + exitWithCode.
+    const face = docsResultFace(result, handoffPath);
+    if (result.exitCode === 0) exitOkWith(face);
+    process.stdout.write(`${face}\n`);
+    exitWithCode(result.exitCode);
   });
 }

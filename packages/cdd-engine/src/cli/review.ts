@@ -11,10 +11,11 @@ import { DOC_TOKENS } from "../documents/tokens.ts";
 import { renderTemplate, reviewTypeConfig, reviewArtifactConfig } from "../render/templates.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { hashFile } from "../artifacts/hash.ts";
-import { exitWithCode } from "../infra/exit.ts";
+import { exitOkWith, exitWithCode } from "../infra/exit.ts";
 import { withLifecycle } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
 import { DRY_RUN, requireHostHarness, resolveTargetDoc, reviewConvergenceGuard, type PrevHandoff } from "./shared.ts";
+import { docsResultFace } from "./result-face.ts";
 
 export interface ReviewOpts {
   type: string;
@@ -148,7 +149,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       const cfg = reviewTypeConfig(opts.type);
       const art = reviewArtifactConfig(opts.type);
       const handoffPath = path.join(ws, handoffNaming.handoffName("review", opts.type, { round }));
-      await runDocsTask({
+      const result = await runDocsTask({
         harness, mode: "review", template: "review", type: opts.type, doc,
         handoffPath,
         params: {
@@ -167,7 +168,13 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
         workspace: ws, repoRoot: root,
         dryRun: DRY_RUN(),
       });
-      return;
+      // Docs review completion → stdout result face (design §2.9 / AC9): the orchestrator routes on
+      // the `status:`/`blocker:` line without opening the handoff. Exit stays on the exit.ts single
+      // surface: exit 0 → exitOkWith(face) one call; non-0 → face + exitWithCode.
+      const face = docsResultFace(result, handoffPath);
+      if (result.exitCode === 0) exitOkWith(face);
+      process.stdout.write(`${face}\n`);
+      exitWithCode(result.exitCode);
     }
 
     // type=task: task review (runner internally tracks task-N-review-{R}.json round sequence).

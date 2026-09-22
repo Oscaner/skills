@@ -139,6 +139,8 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     const re = DOC_TOKENS.claimClauseRe;
     expect(re.exec("Pending → **Done**（PR #1）")![0]).toBe("Pending → **Done**");
     expect(re.exec("[Pending] -> P4-design v1.0")![0]).toBe("[Pending] -> P4-design");
+    // dotted sub-phase design tokens embed literal periods — the target must parse the FULL token
+    expect(re.exec("[Pending] -> p2.1-design v1.0")![0]).toBe("[Pending] -> p2.1-design");
     expect(re.test("Pending")).toBe(false);
   });
 
@@ -153,24 +155,27 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     expect("clause A；clause B;clause C".split(DOC_TOKENS.claimClauseSeparatorRe)).toEqual([
       "clause A", "clause B", "clause C",
     ]);
-    // Claim phase references — the FULL canonical id captured (split-letter suffix included) with
-    // the digit run inside (groups 1/3 full + 2/4 digits): a `P1a` reference stays verbatim.
-    expect([..."P1 Design + P1a 复盘 · P1–P4 范围".matchAll(DOC_TOKENS.claimSinglePhaseRe)].map((m) => [m[1], m[2]])).toEqual([
-      ["P1", "1"], ["P1a", "1"], ["P1", "1"], ["P4", "4"],
+    // Claim phase references — the FULL canonical id captured (digit ridge inside, groups 1/3 full
+    // + 2/4 digits): a `P2.1` reference stays verbatim (the ridge is captured as one group, dot
+    // segments included).
+    expect([..."P1 Design + P2.1 复盘 · P1–P4 范围".matchAll(DOC_TOKENS.claimSinglePhaseRe)].map((m) => [m[1], m[2]])).toEqual([
+      ["P1", "1"], ["P2.1", "2.1"], ["P1", "1"], ["P4", "4"],
     ]);
-    const range = [..."P2a–P4a".matchAll(DOC_TOKENS.claimPhaseRangeRe)][0]!;
-    expect([range[1], range[2], range[3], range[4]]).toEqual(["P2a", "2", "P4a", "4"]);
-    // Design-spec token — the canonical `P<n>-design` leaf (split ids allowed) + the design-doc
-    // filename tail derived from it.
-    expect("source P3-design → p2-design v1.0".match(DOC_TOKENS.designTokenScanRe)?.[0]).toBe("P3-design");
-    expect(DOC_TOKENS.designTokenScanRe.test("P1a-design v1.0")).toBe(true);
+    const range = [..."P2.1–P2.3".matchAll(DOC_TOKENS.claimPhaseRangeRe)][0]!;
+    expect([range[1], range[2], range[3], range[4]]).toEqual(["P2.1", "2.1", "P2.3", "2.3"]);
+    // Design-spec token — the canonical `P<digits>(.digits)*-design` leaf (sub-phase ids allowed:
+    // `P2.1-design` scans as its own FULL token — the segment-join attribution, never a bare `P2`
+    // or a ridge-less `P2.1`) + the design-doc filename tail derived from it.
+    expect("source P2.1-design → p3-design v1.0".match(DOC_TOKENS.designTokenScanRe)?.[0]).toBe("P2.1-design");
+    expect(DOC_TOKENS.designTokenScanRe.test("P2.1-design v1.0")).toBe(true);
     expect(DOC_TOKENS.designDocTail).toBe("-design.md");
     // Issue-anchor scan — the issue-number run captured (the anchor-registry membership atom).
     const anchor = [..."fixes #123#issuecomment-456".matchAll(DOC_TOKENS.issueAnchorFormRe)][0]!;
     expect(anchor[1]).toBe("123");
-    // Phase-id token scan — the dependency graph / dependency-column membership scanner.
-    expect([..."P1 -> P2  (hard) · P2a".matchAll(DOC_TOKENS.phaseTokenScanRe)].map((m) => m[0])).toEqual([
-      "P1", "P2", "P2a",
+    // Phase-id token scan — the dependency graph / dependency-column membership scanner; dotted
+    // ids scan as single tokens (`P2.1` is one id, not a `P2` + `.1` split).
+    expect([..."P1 -> P2  (hard) · P2.1".matchAll(DOC_TOKENS.phaseTokenScanRe)].map((m) => m[0])).toEqual([
+      "P1", "P2", "P2.1",
     ]);
   });
 });

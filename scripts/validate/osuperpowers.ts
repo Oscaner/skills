@@ -30,8 +30,8 @@ function subprocessStep(name, cmd, args) {
   steps.push({ name, cmd, args, run: () => execaSync(cmd, args, { cwd: ROOT, stdio: "inherit" }) });
 }
 
-// 5b marker.
-checkStep("5b. osuperpowers plugin validation", () => console.log("OK — osuperpowers plugin validation"));
+// block marker — plugin resolution.
+checkStep("osuperpowers plugin resolution", () => console.log("OK — osuperpowers plugin resolution"));
 
 function countSkillsWithMarkdown(dir) {
   return readdirSync(dir, { withFileTypes: true })
@@ -65,7 +65,7 @@ function checkOsuperpowersSkillsCount() {
     console.log(`OK — ${skills.length} osuperpowers skills (explicit list)`);
   }
 }
-checkStep("5b. osuperpowers skills-count", checkOsuperpowersSkillsCount);
+checkStep("osuperpowers skills inventory count", checkOsuperpowersSkillsCount);
 
 // node:test trees: behavior/integration (packages/osuperpowers/tests: helpers.mjs
 // + ci-validate.test.mjs). T16 removed the rule-reference suite (semantic mode)
@@ -74,11 +74,11 @@ checkStep("5b. osuperpowers skills-count", checkOsuperpowersSkillsCount);
 // dir as a module here and fails; the runner expands the globs. The legacy bash engine
 // tests were fully migrated, so their Node equivalents are covered by the
 // runner/registry/templates/exec module tests.
-subprocessStep("5b. node:test behavior", "node", [
+subprocessStep("osuperpowers node:test behavior tree", "node", [
   "--test",
   "packages/osuperpowers/tests/*.test.mjs",
 ]);
 
-subprocessStep("5b. wiring guard: ci-validate.test.mjs", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
+subprocessStep("validate wiring guard (ci-validate.test.mjs)", "node", ["--test", "packages/osuperpowers/tests/ci-validate.test.mjs"]);
 
 runIfMain(import.meta.url, steps);

@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync
 import { tmpdir } from "node:os";
 import { setDryRun } from "../shared.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
+import { ExitRequested } from "../../infra/exit.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -118,10 +119,15 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("dry-run review --type spec → exit 0", () => {
+  it("dry-run review --type spec → exit 0 + stdout result face（docs-family 结果面，AC9）", () => {
+    // Design §2.9: the docs review completion prints the one-line stdout result face — the
+    // orchestrator routes on the `status:`/`blocker:` line without opening the handoff file.
     const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", SMOKE_PLAN],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
+    expect(r.stdout).toMatch(/status: APPROVED/);
+    expect(r.stdout).toMatch(/· blocker: 0/);
+    expect(r.stdout).toMatch(/· handoff:/);
   });
 
   it("dry-run fix --type task → return block + exit 0", () => {
@@ -345,7 +351,16 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       writeFileSync(doc, "# foo design\n");
       const { runReview } = await import("../review.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
-      await runReview({ type: "spec", spec: doc, root: repo });
+      // Docs review completion now routes through the exit helper (result face + ExitRequested):
+      // the mocked runDocsTask returns exitCode 0 → exitOkWith(face) throws ExitRequested(0).
+      let exitCode: number | null = null;
+      try {
+        await runReview({ type: "spec", spec: doc, root: repo });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      expect(exitCode).toBe(0);
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-review-1.json"));
@@ -380,7 +395,15 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       writeFileSync(findings, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }));
       const { runFix } = await import("../fix.ts");
       // D11: type=spec target param is --spec (opts.spec); opts.doc retired.
-      await runFix({ type: "spec", spec: doc, findings, root: repo });
+      // Docs fix completion routes through the exit helper (result face + ExitRequested(0)).
+      let exitCode: number | null = null;
+      try {
+        await runFix({ type: "spec", spec: doc, findings, root: repo });
+      } catch (e) {
+        if (e instanceof ExitRequested) exitCode = e.code;
+        else throw e;
+      }
+      expect(exitCode).toBe(0);
       const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
       const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-fix-2.json"));
@@ -686,6 +709,10 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
       const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", "docs/foo-design.md"],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       assertDryRunWarn(r);
+      // docs-family result face (AC9): review completion prints the stdout face even on the
+      // dirty-tree downgrade path.
+      expect(r.stdout).toMatch(/status: APPROVED/);
+      expect(r.stdout).toMatch(/· blocker: 0/);
     } finally { rmSync(dir, { recursive: true, force: true }); }
 
     const dir2 = dirtyFixtureRepo();
@@ -694,6 +721,10 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
       const r = runCli(["--dry-run", "fix", "--type", "spec", "--spec", "docs/foo-design.md", "--findings", findings],
         { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       assertDryRunWarn(r);
+      // docs-fix result face (AC9 — fix completion now also carries the stdout face).
+      expect(r.stdout).toMatch(/status: APPROVED/);
+      expect(r.stdout).toMatch(/· blocker: 0/);
+      expect(r.stdout).toMatch(/· handoff:/);
     } finally { rmSync(dir2, { recursive: true, force: true }); }
   });
 

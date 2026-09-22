@@ -35,7 +35,7 @@
 // dispatch layer re-exports the same identities for its workspace consumers.
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { DOC_TOKENS } from "../documents/tokens.ts";
+import { DOC_TOKENS, escapeRegExp } from "../documents/tokens.ts";
 
 export interface DocValidationFailure {
   /** which contract failed — "plan" | "phase spec" | "overall" */
@@ -550,7 +550,7 @@ export function parseOverall(overallPath: string): OverallParse {
   }
 
   // Issue inventory (⑥ / ⑤ faces) — `| Phase | Issue (ref) | … |`.
-  const issueRange = sectionRange(lines, new RegExp(`^${DOC_TOKENS.issueInventoryHeading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  const issueRange = sectionRange(lines, new RegExp(`^${escapeRegExp(DOC_TOKENS.issueInventoryHeading)}`));
   if (issueRange) {
     for (const c of tableRows(lines, issueRange)) {
       if (isSeparatorRow(c) || c[1]?.trim().toLowerCase() === "phase") continue;
@@ -737,7 +737,7 @@ function isPendingText(v: string): boolean {
 // token is exact (`P2.1-design` owns P2.1, never P2's token). suffix comes from a validated
 // inventory phase id.
 function ownDesignToken(col: string, phaseId: string): string | null {
-  const suffix = phaseId.replace(/^P/i, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const suffix = escapeRegExp(phaseId.replace(/^P/i, ""));
   const own = new RegExp(DESIGN_TOKEN_RE.source.replace("\\d+(\\.\\d+)*", suffix), "i");
   const m = (col ?? "").match(own);
   return m ? m[0] : null;

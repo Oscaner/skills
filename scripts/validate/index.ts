@@ -19,13 +19,13 @@ import { steps as versionSyncSteps } from "./version-sync.ts";
 
 import { main as runSteps, runIfMain } from "./runner.ts";
 
-// Original step order: the cdd-engine engine test suite sits between the 5b
-// node:test tree (osuperpowers steps 0-3) and the wiring guard (osuperpowers
-// step 4) — interleave engine between the two osuperpowers slices to keep the
-// 11 names and their order literal. The submodule self-maintenance block (13th)
-// was removed with the vendors surface (P6 Task 2 / B3, submodule.mjs deleted).
-// The repo-side four-table guard block (12th) was retired with the S1/S2
-// guards (P3 T1).
+// Original step order: the cdd-engine engine test suite follows the osuperpowers
+// step block (plugin resolution / skills inventory count / node:test behavior
+// tree / validate wiring guard) — engine steps are spliced after the four
+// osuperpowers steps to keep the 11 names and their order literal. The
+// submodule self-maintenance block (13th) was removed with the vendors surface
+// (P6 Task 2 / B3, submodule.mjs deleted). The repo-side four-table guard block
+// (12th) was retired with the S1/S2 guards (P3 T1).
 export const steps = [
   ...emitCheckSteps,
   ...osuperpowersSteps.slice(0, 4),

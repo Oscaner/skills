@@ -1,16 +1,16 @@
 # 消费者面一致性（Consumer Parity）— P3 Design Spec
 
-- **Version**: v1.0 · 2026-09-22
+- **Version**: v1.1 · 2026-09-22（spec-review r1 两轮 findings 已合流——`490e49b2`/`190d0ad7`，v1.15/v1.16 回填、overall v1.16 同步；本版 = spec-fix-3：review-3 六 findings 落地 + overall v1.17 同步）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)
-- **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.16
+- **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.17
 - **Depends on**: P2（shipped，PR #272 `39ed65a8`）；P2 design v1.4 Approved；grilling 合流（2026-09-22，v1.14 回填）
 
 ---
 
 ## Section 0: Incremental warning
 
-> P3 增量仅限本 phase。跨 phase 约定见 [overall v1.16](./2026-09-21-consumer-parity-overall.md)；overall 冲突时 overall 胜。
+> P3 增量仅限本 phase。跨 phase 约定见 [overall v1.17](./2026-09-21-consumer-parity-overall.md)；overall 冲突时 overall 胜。
 
 本 spec 只做 **P3（本仓校验面重建）** 的设计增量：repo 侧四表守卫退役（S1/S2 + 42 用例 + `canary-dogfood.test.ts`）· validate 接线净化（steps 语义名、无四表 block、12→11 块）· canonical phase-id 语法 A · S3 残留簇改写 · F8a 盲区自消 · consumer-sim 升级挂 release 门 · skills 输出零过滤 + fix 边界条款 · **docs-family 命令出口统一（结果可见性 + exit.ts 出口）** · 运维规范落档。engine 判据面（P2 产物）与发布动作（P4）不属于本 phase，仅以「已就绪输入 / 下流交接物」形式出现。
 
@@ -18,7 +18,7 @@
 
 > 不重复 overall 约定；overall 冲突时 overall 胜。
 
-引下列 overall v1.16 条目，不重述正文：
+引下列 overall v1.17 条目，不重述正文：
 - **判据定式**（C1 可达性 / C2 结构性 / C3 退化——useless 必删、无历史叙述豁免）：overall v1.8 Cross-cutting「判据定式」段
 - **Non-goals**：不新增 cdd CLI 子命令（唯一例外 `cdd help` 已于 P2 落地）· 不改 emit/marketplace/changeset 内部流水 · 不把本仓 GitHub issue 注册语义强加消费者 · 不改 README/CLAUDE.md harness 宣称类
 - **约束**：允许 breaking · 唯一执法面 = engine lifecycle（本仓无 scripts 侧兜底）· spec/plan 结构定义同源派生（canonical schema 单源）· engine 零文档写入 · 本仓=canary（运行期形态）
@@ -153,13 +153,15 @@ phaseId  `^P\d+(\.\d+)*$`
 
 ### 2.6 consumer-sim（smoke-cdd 升级）
 
-**形态**：`scripts/validate/smoke-cdd.ts` 重写为 consumer-sim——**消费者视角黑盒**。**pack 前提（review r1 实证）**：cdd-engine `files: ['dist/','templates/']` 且 `prepare: pnpm run dev:stub`——裸 `pnpm pack` 的 tarball 仅 7 文件（`dist/cli.mjs` 是 614B 的 jiti 桩，指向打包机绝对路径，非可独立运行产品；`smoke-plan.md` 不在 files 面）。**consumer-sim 必须先建真实产物再 pack**：
-1. `pnpm --filter @oscaner-skills/cdd-engine build`（真实 unbuild 产物入 dist）→ `pnpm pack packages/cdd-engine` → tarball（含真实 `dist/cli.mjs` + `templates/`）
+**形态**：`scripts/validate/smoke-cdd.ts` 重写为 consumer-sim——**消费者视角黑盒**。
+
+**pack 前提（review r1–r3 实证，机制已修正）**：cdd-engine `files: ['dist/','templates/']`。**裸 `pnpm pack` 会在打包前重跑 `prepare: pnpm run dev:stub`**——tarball 内 `dist/cli.mjs` 重新变成 614B 的 jiti 桩（`createJiti` + 打包机绝对路径，仅本仓 `node_modules/.pnpm` store 可解析，非可独立运行产品），**工作树 dist/ 亦随 pack 被重桩**（副作用；`pnpm publish` 同理——发布路径同险）。**r1 修复采用的「先 build 后 pack」机制错误（本 design review-3 实证驳回）**：实测 build 产物 71.7 kB → 直接 pack 后 tarball 与工作树 dist 均重桩回 614B——build 不规避 prepare 钩子，AC6 白绿面仍不可达。**主修（P3）**：从 `packages/cdd-engine/package.json` **移除 `prepare: dev:stub` 钩子**——dev 桩改显式 `dev:stub` 调用（validate 5b0 `pnpm -C packages/cdd-engine dev:stub` 与 smoke-cdd 自给门**已显式调用**，与本仓文档化直接 dev 调用链一致；`pnpm install` 后不再自动桩化 dist，本地单跑 cli 黑盒测试需先显式 dev:stub——接线变化登记，P3 plan 落实）；`pnpm pack` / `pnpm publish`（changesets 发布流）**均不再触碰 dist**，发布品 = 显式 build 门的真实产物。**压实备选（若未来 reintroduce prepare）**：`pnpm pack --config.ignore-scripts=true`（实证有效：tarball 与工作树 dist 均保持 71.7 kB 真实产物）。**登记失效机制（防再采白绿）**：`pnpm pack --ignore-scripts` 旗标不受支持（Unknown option）· `npm_config_ignore_scripts=1` 环境变量无效 · `pnpm pack packages/cdd-engine`（相对路径）在 workspace root 被解析为 registry spec（`ERR_PNPM_PACKAGE_VERSION_NOT_FOUND`）——pack 须从包目录运行。**consumer-sim 必须先建真实产物再 pack**：
+1. `pnpm --filter @oscaner-skills/cdd-engine build`（真实 unbuild 产物入 dist，实测 71.7 kB）→ 包目录 `cd packages/cdd-engine && pnpm pack --pack-destination <out>`（prepare 已移除；备防加 `--config.ignore-scripts=true`）→ tarball（含真实 `dist/cli.mjs` + `templates/` + `dist/documents/schema/`；**tarball 内容断言见 AC6**；隔离兜底：consumer-sim 亦可从临时克隆执行 pack，彻底隔离任何工作树残留）
 2. mkdtemp 临时仓 `npm install <tarball>`（消费者布局，零仓内路径依赖）
-3. 消费者 cwd 跑安装的引擎链：`node <installed>/cli.mjs` + `cdd help`（发现通道实证：CLI 绝对目录 + schema 目录可寻址）
+3. 消费者 cwd 跑安装的引擎链：`node <installed>/dist/cli.mjs`（或 `node_modules/.bin/cdd`）+ `cdd help`（发现通道实证：CLI 绝对目录 = `<installed>/dist/cli.mjs`；schema 目录可寻址 = `<installed>/dist/documents/schema/`（canonical overall/plan/phase-spec/add-phase-protocol）+ `<installed>/templates/schema/`（handoff 契约 schema）——均 files 面产物、绝对路径可寻址）
 4. 5-command dry-run 链（implement / review task / fix task / review branch / fix branch）——**fixture plan 由临时仓内生成**（`smoke-plan.md` 不在 tarball——`src/cli/__tests__/fixtures/` 不属 files 面；consumer-sim 从 tarball 内置 schema/templates 派生一份合法 plan 写入临时仓，或把 smoke-plan 移入 `templates/`（files 含之）后由安装面读取——二选一在 P3 plan 定，本 design 明示两选项）
 5. 断言每命令 return-block 契约（status/commits/artifacts/blocker/counters）
-6. 输出消费者等效结果（不依赖 repo 布局、不依赖 `dist/` 预生成——pack 即发布品的语义改为「**先 build 后 pack，tarball = 发布品**」）
+6. 输出消费者等效结果——**不依赖 repo 布局、零仓内路径依赖**（不读 `docs/osuperpowers/`、不引用本仓 node_modules）；删「不依赖 `dist/` 预生成」旧表述：`dist/` = consumer-sim 第一步显式 build 门生成的**发布品**（机制本身，非前提假设）——「**先 build 后 pack，tarball = 发布品**」
 
 **入口**（run.ts `smoke-cdd` 子命令保留同名，语义 = consumer-sim；不新增子命令——Non-goal#1 尊重，`smoke-cdd` 是既有 repo 运维子命令非 cdd CLI 面）。
 
@@ -171,7 +173,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 ### 2.7 运维规范落档（docs/maintainers）
 
-grilling 六项裁决同步进运维文档（新 section 或 program-experience 条目扩展）：
+运维规范落档（**八项**——grilling 六项裁决 + v1.15 cdd 输出零过滤 + v1.16 docs-family 命令出口统一；新 section 或 program-experience 条目扩展；**sequencing：第 8 项在 §2.9 落地后写入**——结果面与出口实现在场才可落档，与 overall 落档八项口径一致）：
 
 1. **零产物 fixture**——unit/e2e = 功能性验证，不允许以本仓产物路径为测试 fixture（canary-dogfood 病灶）；canary 实证归运行期 dispatch
 2. **零编号 anchor**——validate step 名 = 语义名，退役 `5b0/5b1/12.` 族（overhaul 内部编号不利运维）
@@ -180,6 +182,7 @@ grilling 六项裁决同步进运维文档（新 section 或 program-experience 
 5. **唯一执法面**——四表判据 = engine lifecycle，repo 侧零第二触发点（结合 C1/C3）
 6. **steps 语义名 + block 数 = 11** 的 validate 结构快照
 7. **cdd 输出零过滤**——任何调用 cdd CLI 的 skill 禁止 `tail` / exit-code 包装 / `2>&1 |` 等过滤；cdd 已对输出做信息长度优化（2026-09-22 用户裁决，见 §2.8）
+8. **docs-family 命令出口统一（结果可见性 · exit.ts 出口单源）**——docs-family review 完成后 stdout 含 result 面（`status:`/`blocker:`/`handoff:` 行，编排者可直读、不翻 handoff 文件）；命令级出口统一走 `exit.ts` 族（成功路径禁裸 `return;`）——2026-09-22 用户裁决（v1.16 补充，§2.9）；落档指令与 §2.9 同源、sequenced 于 §2.9 之后
 
 落点：`docs/maintainers/program-experience.md`（新条目 + `docs/maintainers/skill-authoring.md` 若涉 skill 面）——英文主源（Strategy B extension）。
 
@@ -217,10 +220,10 @@ grilling 六项裁决同步进运维文档（新 section 或 program-experience 
 - AC1 **守卫退役零残留**：`scripts/validate/overall-consistency.ts` / `plan-spec-anchors.ts` / `__tests__/{overall-consistency,plan-spec-anchors}.test.ts` 删除；`grep -rE "overall-consistency|plan-spec-anchors" scripts/` 零命中（`-E` 交替，非 BRE 字面 `|`）；42 行逐案对照表落盘本 design（每条 repo 断言 → engine 对应用例:行 → 覆盖判定，证实零功能损失）
 - AC2 **engine 套件零产物 fixture**：`canary-dogfood.test.ts` 删除；`grep -r "2026-09-21-consumer-parity" packages/cdd-engine/src/**/__tests__/` 零命中（engine 测试面零本仓程序产物引用）；**`docs/osuperpowers` 布局字符串排除**——14 文件在 mkdtemp 临时仓复刻消费者等效布局属合法 fixture，不属产物引用（§2.2 排除口径）；canary 实证 = P3 文档链（P3 plan → p3 design → overall）经 P3 全程 dispatch 审计零失败（运行期实证，测试面自造链承载）
 - AC3 **phase-id 语法 A 落地**：canonical overall.json **全部 8 处 phase-id 承载 pattern** 单点迁移 `^P\d+(\.\d+)*$`（issueInventory.row.phaseId · rowShape.idFormat · cells.dependency · hardEdge · softEdge · claimPatterns.designToken · phaseReference.single · range=single 派生 `\s*[-–—]\s*` 连接）+ description 全写 · engine 消费面（ownDesignToken / phaseIdFromPlan / designDocTail / split-phase 测试 `P1a`→`P2.1` 改造）零误伤 · 本仓存量文档零迁移 · engine 套件含语法新用例（P2.1 claim / P2.1-design / P2.1–P2.3 range / `…-p2.1.md` glob / **dependency cell `P2.1 -> P2.2` · hardEdge · softEdge**）
-- AC4 **validate 净化**：12 → 11 块 · step 名全语义名零编号 anchor（`\b(?:5b\d?|5c|12\.|8-10|7\.|6\.)\b` 在 step name 面零残留）· ci-validate.test.mjs / pre-commit.test.ts 钉死值 11 同步 · index.ts / pre-commit.ts import 面清洁 · `pnpm run validate` 全绿
+- AC4 **validate 净化**：12 → 11 块 · step 名全语义名零编号 anchor（**探针改前缀锚定/整串判定**：`(?:^| )\b(?:[0-9]+[. ]|5b\d?|5c|8-10)\b` 在 step name 面零残留——dot 后尾 `\b` 盲点已消除，`12. x`/`7. x`/`6. x`/`0. x` 数字前缀步名全捕获；或对每个 step 名整串 match 语义名正则——二选一，杜绝白绿）· ci-validate.test.mjs / pre-commit.test.ts 钉死值 11 同步 · index.ts / pre-commit.ts import 面清洁 · `pnpm run validate` 全绿
 - AC5 **S3 残留改写**：overall 四条 + osuperpowers-plugin.md:116-120 + CLAUDE.md:47 + overall-spec SKILL:54 改写为 engine 执法位/历史时态表述；`grep "scripts/validate.*guard\|block 12.*consisten"` shipped docs/skills 面零现行主张（历史时态句允许）
-- AC6 **consumer-sim**：先 `pnpm --filter @oscaner-skills/cdd-engine build`（真实 unbuild 产物）→ `pnpm pack` → mkdtemp 临时仓安装 → 消费者链（`cdd help` + 5-command dry-run）在发布门与 PR 门可跑、输出消费者等效结果；tarball 内容断言（含真实 `dist/cli.mjs` + `templates/`）；fixture plan 二选一（临时仓派生 / `templates/` 内置由安装面读取）落 P3 plan 并实证；run.ts `smoke-cdd` 子命令语义 = consumer-sim；zero 仓内路径依赖（不读 `docs/osuperpowers/`、不依赖 `dist/` 预生成）
-- AC7 **运维规范落档**：Program experience（或同族 maintainer 档）新增**七项**裁决条目（零产物 fixture · 零编号 anchor · 零 legacy 豁免 · phase-id 语法 A · 唯一执法面 · validate 11 块结构 · **cdd 输出零过滤**），英文主源、可 grep Verify
+- AC6 **consumer-sim**：`prepare: dev:stub` 钩子已移除（`pnpm publish` 不再重桩 dist——发布品 = 显式 build 产物）；先 `pnpm --filter @oscaner-skills/cdd-engine build`（真实 unbuild 产物，`dist/cli.mjs` 实测 71.7 kB）→ 包目录 `pnpm pack --pack-destination <out>`（备防 `--config.ignore-scripts=true`；实证失效不收：`--ignore-scripts` 旗标 / `npm_config_ignore_scripts` env / workspace root 相对路径 pack）→ **tarball 内容断言（防白绿）**：`dist/cli.mjs` grep stub 标识（`createJiti` / `node_modules/.pnpm`）零命中 **且** 字节数 > 10 kB（实测：桩 614 B、真实产物 71.7 kB——禁用「>100 kB」阈值，会误判真实产物）→ mkdtemp 临时仓安装（消费者布局，零仓内路径依赖；不读 `docs/osuperpowers/`、不引用本仓 node_modules——`dist/` = 显式 build 门生成的发布品机制，非前提假设）→ 安装链入口 `node <installed>/dist/cli.mjs`（或 `node_modules/.bin/cdd`）+ schema 目录落点（`<installed>/dist/documents/schema/` + `<installed>/templates/schema/`）可寻址实证 → 消费者链（`cdd help` + 5-command dry-run）在发布门与 PR 门可跑、输出消费者等效结果；fixture plan 二选一（临时仓派生 / `templates/` 内置由安装面读取）落 P3 plan 并实证；run.ts `smoke-cdd` 子命令语义 = consumer-sim
+- AC7 **运维规范落档**：Program experience（或同族 maintainer 档）新增**八项**裁决条目（零产物 fixture · 零编号 anchor · 零 legacy 豁免 · phase-id 语法 A · 唯一执法面 · validate 11 块结构 · cdd 输出零过滤 · **docs-family 结果可见性 + 命令出口 exit.ts 单源（sequenced 于 §2.9 之后）**），英文主源、可 grep Verify
 - AC8 **cdd 输出零过滤（§2.8）**：`grep -rE "cdd[^\"']{0,40}(tail|head|EXIT=|2>&1[[:space:]]*\|)" packages/osuperpowers/skills/*/SKILL.md` 零命中；SKILL.md 中 cdd 调用节点含「direct invocation — read full output；cdd 自身优化输出长度」表述（或确认既有表述已符合）；`pnpm run emit` 后零 drift
 - AC9 **docs-family 出口统一（§2.9）**：docs-family review/fix 完成后 stdout 含 result 面（`status:` 行；`cdd.test.ts` docs-family 断言面同步更新为断 stdout status/blocker/handoff）；`grep -rn "^\s*return;$" packages/cdd-engine/src/cli/*.ts` = 0（命令级裸 return 零命中）；`cli/*.ts` 出口统一走 `exit.ts` 族（`exitOkWith`/`exitWithCode`/`exitOk` 等，grep 实证 cli 层出口调用面 = exit.ts 单源）；exit table 0/1/2/3 不变；engine vitest 全绿
 - AC10 **全链收口**：`pnpm run validate` 全绿（11 块，干净已提交树）· `emit:check` 零 drift · precommit 11 块绿灯 · engine vitest 全绿 · AC1–AC9 逐条可复核
@@ -233,15 +236,16 @@ grilling 六项裁决同步进运维文档（新 section 或 program-experience 
 | P3 scope「本仓 own 程序四表合规 = 跑 engine lifecycle 审计同路径（validate 中可见）」 | **零接线**——不建 validate 四表 block；判据面唯一实现 = engine（dispatch 运行时 + 套件）；canary 回归运行期形态；validate「可见」改由「engine 套件即 validate 5b1 + 程序运行期实证」满足 | Yes — v1.14 |
 | P3 scope「smoke-cdd 升级 consumer-sim 挂 release 门」 | 保留原裁（Q6）：release 门 + PR 门双挂；入口 = run.ts `smoke-cdd` 语义化 | 保持（v1.14 无变化） |
 | null（新需求） | 2026-09-22 用户裁决新增：canonical phase-id 语法严格 A · steps 语义名零编号 anchor · 零产物 fixture · 运维规范落档 | Yes — v1.14 新增 |
-| null（P3 补充需求，2026-09-22） | **skills 调用 cdd 输出零过滤**——禁止 `tail`/`head`/`2>&1 |`/`EXIT=$?` 包装，cdd 已自身优化输出长度（§2.8）；P3 scope cell 同步列入 | Yes — v1.15 回填（P3 补充） |
+| null（P3 补充需求，2026-09-22） | **skills 调用 cdd 输出零过滤**——禁止 `tail`/`head`/`2>&1 \|`/`EXIT=$?` 包装，cdd 已自身优化输出长度（§2.8）；P3 scope cell 同步列入 | Yes — v1.15 回填（P3 补充） |
+| null（P3 补充需求，2026-09-22） | **docs-family 命令出口统一**——docs review 完成后 stdout result 面（`status:`/`blocker:`/`handoff:` 行，编排者可直读、不翻 handoff）；`cli/*.ts` 命令级出口统一走 `exit.ts` 族、禁裸 `return;`、exit table 0/1/2/3 不变（§2.9）+ **fix 边界条款**——review 后编排者只读 status/blocker 计数、findings 全文由 `cdd fix` fix-agent 消费、不得 inline 应用 findings（§2.2，defect②修复）；P3 scope cell 同步列入 | Yes — v1.16 回填（P3 补充） |
 | 依赖图 `P2 -> P3 -> P4` | 不变（P2 shipped → P3 可启；P4 依赖 consumer-sim 实测） | 保持 |
 
-> `Overall updated?` 全为 Yes（v1.14 grilling 合流 + v1.15 spec-review r1 回填）——无未登记偏差。
+> `Overall updated?` 全为 Yes（v1.14 grilling 合流 + v1.15/v1.16 spec-review r1 回填；本 spec-fix-3 另同步 overall v1.17 探针修正——登记于 overall change-history v1.17）——无未登记偏差。
 
 ## Section 4: Notes for downstream
 
 - **P4（发布闭环）**：输入 = .changeset ×2（本程序 cdd-engine major + osuperpowers）版本化 + 旧程序 osuperpowers-overhaul ×9 changesets 版本化 + cdd-engine major breaking 发布面（P2 全部变更）+ **consumer-sim release 门实测通过**（P3 AC6 产物）+ pack 内容审计（`npm pack` 内容 = dist/templates/skills，不含仓内 tests/、scripts/ 治理残件）。
-- 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall v1.16 或本 §4 指针。
+- 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall v1.17 或本 §4 指针。
 
 ## Section 5: Review
 

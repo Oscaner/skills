@@ -86,7 +86,7 @@
 
 **B. `scripts/validate/__tests__/plan-spec-anchors.test.ts`（15 条）**
 
-| # | repo 断言（`test` 标题） | engine 对应用例（`文件:行`） | 覆盖判定 |
+| # | repo 断言（`it` 标题） | engine 对应用例（`文件:行`） | 覆盖判定 |
 |---|---|---|---|
 | 28 | clean：repo-root 形 + 相对形 Spec 链接（label==basename）→ 零漂移 | D:115（valid chain 零失败）+ D:120（无 `**Spec:**` → failure 逆面）+ D:138（label≠basename → failure 逆面） | 判据面已由 engine 测试覆盖 → 删 |
 | 29 | 目标文档不存在 → spec-unresolved | D:129（`**Spec:**` target 不 resolve → failure） | 判据面已由 engine 测试覆盖 → 删 |

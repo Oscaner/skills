@@ -3,10 +3,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     pool: 'forks',            // node:test 兼容模式（避免 worker_threads 干扰 execa mock）
-    // 5b CLI 黑盒自给面（P3 T7/D4）——`prepare`（`pnpm run dev:stub`）已移除，`pnpm install` 不再自动
-    // 桩化 dist；cdd.test.ts 等黑盒用例直接 spawn dist/cli.mjs。validate 5b0 已先行覆盖 CI 面；此处
-    // globalSetup 兜底本地单跑：`dist/cli.mjs` 缺失时先显式 `pnpm -C packages/cdd-engine dev:stub`
-    // （独立面自给，已有 dist（真实 build 产物）不动）。实现见 vitest.global-setup.ts。
+    // 5b CLI black-box self-supply face (P3 T7/D4) — `prepare` (`pnpm run dev:stub`) is removed, so
+    // `pnpm install` no longer auto-stubs dist; cdd.test.ts etc. spawn dist/cli.mjs directly.
+    // validate 5b0 already covers the CI face; globalSetup backs local single runs: when dist/cli.mjs
+    // is absent it runs `pnpm -C packages/cdd-engine dev:stub` first (self-supplying the standalone
+    // face; an existing dist — a real build product — is left untouched). See vitest.global-setup.ts.
     globalSetup: ['./vitest.global-setup.ts'],
     // Memory-bounded concurrency (2026-09-17): the previous default spawned one
     // fork per CPU (10) with no per-file cap; each fork loads the full engine

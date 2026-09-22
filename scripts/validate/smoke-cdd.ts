@@ -23,10 +23,11 @@
 //   5. consumer chain: installed entry (`node <installed>/dist/cli.mjs`, plus the shipped
 //      node_modules/.bin/cdd), `cdd help` (absolute CLI dir + addressable schema/templates dirs),
 //      then the five-command dry-run chain (implement / review task / fix task / review branch /
-//      fix branch). The fixture plan + spec are GENERATED INSIDE the temp repo (D1), derived from
-//      the tarball's shipped doc-structure schemas and engine-config — the plan declares `**Spec:**`
-//      and the spec doc is derived alongside (the engine's doc-existence audit path is thereby a
-//      deterministic pass, never dependent on a dry-run degraded-BLOCK).
+//      fix branch). The fixture plan + design spec + the parent overall it links are GENERATED
+//      INSIDE the temp repo (D1), derived from the tarball's shipped doc-structure schemas and
+//      engine-config — the plan declares `**Spec:**` and the spec doc is derived alongside (the
+//      engine's doc-existence audit path is thereby a deterministic pass, never dependent on a
+//      dry-run degraded-BLOCK).
 //   6. per-command return-block contract assertions (status / commits / artifacts / blocker /
 //      counters) — the consumer-equivalent result surface for every output.
 //
@@ -140,6 +141,7 @@ function installConsumer(tgz: string): { consumerRoot: string; installed: string
 interface Fixture {
   plan: string;      // repo-root-relative plan path
   spec: string;      // repo-root-relative spec path
+  overall: string;   // repo-root-relative overall path (the plan's **Parent program** link target)
   slug: string;      // engine workspace slug (plan basename minus -plan)
   workspace: string; // <consumerRoot>/<workspaceRoot>/<slug> — derived from the shipped engine-config
 }
@@ -148,6 +150,7 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   const schemaRoot = path.join(installed, "dist", "documents", "schema");
   const planSchema = readSchema(schemaRoot, "plan");
   const phaseSpecSchema = readSchema(schemaRoot, "phase-spec");
+  const overallSchema = readSchema(schemaRoot, "overall");
   // Canonical markers extracted from the SHIPPED schemas (the fixture is derived, never hardcoded).
   const specMark = schemaToken(planSchema, ["properties", "header", "properties", "specRef", "properties", "marker", "const"]);                      // **Spec:**
   const parentMark = schemaToken(planSchema, ["properties", "header", "properties", "parentProgram", "properties", "marker", "const"]);            // **Parent program**
@@ -156,9 +159,11 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   const doPattern = schemaToken(planSchema, ["properties", "taskBlock", "properties", "do", "pattern"]);                                           // ^- \*\*Do\*\*:
   const acceptPattern = schemaToken(planSchema, ["properties", "taskBlock", "properties", "acceptance", "pattern"]);                                // ^- \*\*验收\*\*:
   const versionMark = schemaToken(phaseSpecSchema, ["properties", "header", "properties", "version", "properties", "marker", "const"]);             // **Version**
+  const overallVersionMark = schemaToken(overallSchema, ["properties", "header", "properties", "version", "properties", "marker", "const"]);        // **Version**
+  const phaseInventoryHeader = schemaToken(overallSchema, ["properties", "phaseInventory", "properties", "columnNames", "properties", "header", "const"]); // | # | Phase | … | Dependency |
   assertTrue(specMark === "**Spec:**" && parentMark === "**Parent program**" && constraintsHeading === "## Constraints"
-    && taskHeadingFormat === "### Task N:" && versionMark === "**Version**",
-    `shipped schema tokens drifted: Spec=${JSON.stringify(specMark)} Parent=${JSON.stringify(parentMark)} Constraints=${JSON.stringify(constraintsHeading)} Task=${JSON.stringify(taskHeadingFormat)} Version=${JSON.stringify(versionMark)}`);
+    && taskHeadingFormat === "### Task N:" && versionMark === "**Version**" && overallVersionMark === versionMark,
+    `shipped schema tokens drifted: Spec=${JSON.stringify(specMark)} Parent=${JSON.stringify(parentMark)} Constraints=${JSON.stringify(constraintsHeading)} Task=${JSON.stringify(taskHeadingFormat)} Version=${JSON.stringify(versionMark)} OverallVersion=${JSON.stringify(overallVersionMark)}`);
 
   // The engine's workspace slug rule (schema-independent engine name derivation): plan basename
   // minus `.md`, with a single trailing -design/-plan layer stripped.
@@ -180,6 +185,26 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
     `- ${versionMark}: v1.0 · 2026-09-22`,
     "",
     "Fixture design spec derived from the shipped cdd-engine doc-structure schemas for the consumer-sim.",
+    "",
+  ].join("\n"), "utf8");
+
+  // The overall the plan's **Parent program** link resolves to — a minimal canonical charter
+  // (canonical header + empty Phase inventory table, the canonical 7-column header derived from the
+  // shipped overall schema). The fixture spec omits its own Parent program line, so this overall is
+  // never a reached audit face — materializing it only makes the plan's own parent link resolve
+  // (self-consistency), never a document the four-table / overall-contract audit runs against.
+  const overall = "fixture-overall.md";
+  writeFileSync(path.join(consumerRoot, overall), [
+    `# Fixture Overall`,
+    "",
+    `- ${overallVersionMark}: v1.0 · 2026-09-22`,
+    "",
+    "Consumer-sim fixture program charter — the `**Parent program**` link target for the derived fixture plan.",
+    "",
+    `## Phase inventory`,
+    "",
+    phaseInventoryHeader,
+    "|---|-------|-------|-------------|---------------------|----------------------|------------|",
     "",
   ].join("\n"), "utf8");
 
@@ -212,7 +237,7 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
     "",
   ].join("\n"), "utf8");
 
-  return { plan, spec, slug, workspace: path.join(consumerRoot, workspaceRootSeg, slug) };
+  return { plan, spec, overall, slug, workspace: path.join(consumerRoot, workspaceRootSeg, slug) };
 }
 
 // ---- consumer chain (steps 5 & 6) ----
@@ -259,7 +284,7 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
   const env = { ...process.env, CLAUDE_CODE_SESSION_ID: "1" };
 
   // `cdd help` outside the git repo — the discovery surface (cli dir + addressable schema/templates
-  // dirs), the install-face resource proof (AC6 "schema 目录可寻址实测").
+  // dirs), the install-face resource proof (AC6: installed-face schema-dir addressability measured).
   const helpOut = execaSync(NODE, [cli, "help"], { cwd: consumerRoot }).stdout;
   const helpLines = new Map(helpOut.split("\n").filter((l) => l.includes(": ")).map((l) => {
     const idx = l.indexOf(": ");
@@ -280,11 +305,12 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
     assertTrue(existsSync(path.join(installed, "dist", "documents", "schema", f)), `installed schema dir missing ${f}`);
   }
 
-  // Fixture generation (D1) inside the temp repo, then one initial commit so the branch family has
-  // a real reviewed range (base == head, the self-review shape).
+  // Fixture generation (D1) inside the temp repo — fixture-plan.md, its design spec and the parent
+  // overall it links to — then one initial commit so the branch family has a real reviewed range
+  // (base == head, the self-review shape).
   const fixture = deriveFixture(consumerRoot, installed);
   execaSync("git", ["add", "-A"], { cwd: consumerRoot });
-  execaSync("git", ["commit", "-m", "chore: consumer-sim fixture plan + spec"], { cwd: consumerRoot });
+  execaSync("git", ["commit", "-m", "chore: consumer-sim fixture plan + spec + overall"], { cwd: consumerRoot });
   const head = execaCommandSync("git rev-parse HEAD", { cwd: consumerRoot }).stdout.trim();
   const head7 = head.slice(0, 7);
 
@@ -307,10 +333,10 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
 }
 
 export function main(): void {
-  // 1. build — the real unbuild product into dist (dev 与发布同走 dist 入口).
+  // 1. build — the real unbuild product into dist (dev and publish share the same dist entry).
   execaSync("pnpm", ["--filter", PKG_SCOPE, "build"], { cwd: root, stdio: "inherit" });
 
-  // 2. pack — from the package dir (prepare 已移除; --config.ignore-scripts=true is the verified
+  // 2. pack — from the package dir (prepare removed; --config.ignore-scripts=true is the verified
   //    belt-and-braces fallback).
   const outDir = mkdtempSync(path.join(tmpdir(), "cdd-consumer-pack-"));
   execaSync("pnpm", ["pack", "--pack-destination", outDir, "--config.ignore-scripts=true"], { cwd: PKG_DIR, stdio: "inherit" });
@@ -320,7 +346,7 @@ export function main(): void {
   const tgz = path.join(outDir, tgzName);
   assertTrue(existsSync(tgz), `pack produced no ${tgzName} at ${outDir}`);
 
-  // 3. tarball content assertions (防白绿).
+  // 3. tarball content assertions (anti-false-green).
   assertTarball(tgz);
 
   // 4. consumer install + 5. consumer chain + 6. per-command return-block assertions.

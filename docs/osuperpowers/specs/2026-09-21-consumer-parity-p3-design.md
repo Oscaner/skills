@@ -273,6 +273,26 @@ phaseId  `^P\d+(\.\d+)*$`
 
 **验收**：docs-family review/fix 完成后 stdout 含 result 面（`status:` 行可 grep）；`cli/*.ts` 命令级裸 return 零命中（`grep -rn "^\s*return;$" packages/cdd-engine/src/cli/*.ts` = 0）；`exit.ts` 统一出口族为 cli 层唯一出口调用面（grep 实证）；exit table 0/1/2/3 不变；engine vitest 全绿（含 cdd.test docs-family stdout 断言面更新）。
 
+### 2.10 mid-flight backfill 协议（2026-09-22 用户裁决，P3 补充需求）
+
+**触发**：dispatch 进行中（implement/review/fix 任意一栈），用户侧产生相关讨论需回填 overall/spec/plan 文档。本 P3 运行期实证（用户其他项目遇到）：CDD 派发后专题讨论需回填，无指导时直接回填 → 树脏 → 下一 review 入口门 BLOCKED——「不做则卡关」与「做了堵关」两难。
+
+**裁决（协议，两案比较后 hot-context 胜出）**：
+1. **回填窗口 = 当前 dispatch 返回即刻**（热上下文，不延迟到全循环 implement→review→fix 闭合）——延迟闭环会丢决策热上下文、回填易遗忘；「等环闭合再回填」为落选案（用户实测裁决记录）。
+2. **硬条件：回填随独立 commit 落地**——review 入口门只读「树干净」，不看 range；回填 commit 后树净，下一 dispatch（如 review）放行。**未 commit 的回填 = 脏树 → 下一 review 入口门 BLOCKED**。
+3. **ref 语义（无阻）**：回填 commit 落在 task-review range（BASE..HEAD）内 → 该任务 review 审回填 commit（changed-surface booking——CDD_WARN visible not block，scope axis 决，P3 实测 T3 fix 的 off-ledger booking）。回填改写当前任务自身 plan/spec 文案 → 仍走 Pending Acceptance（§2.2 fix 边界 · I6）或让 review 直审新文案，不 inline 应用。
+4. **内容面边界**：回填 = 用户-编排者文档同步（sole-writer 语义）；engine findings 仍走 `cdd fix --findings` 信道，回填不替代 findings 应用。
+
+**落点（消费者面五个 SKILL.md × emit）**——`cli-driven-development` + `writing-*` 四件（overall-spec / phase-spec / single-spec / plans）Invariants 表各增一条（编号按各表现状续排：cdd = I7 · overall = I3 · phase = I4 · single = I3 · plans = I4）：
+```
+**Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands immediately when the current `cdd` call returns (hot context; no deferral to cycle close — deferral risks losing the decision), committed as its own change; the tree must be clean (backfill committed) before the next dispatch: an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED). A backfill rewriting the current task's own plan/spec text routes per Pending Acceptance (sole-writer); otherwise it rides the moving ref and the next review audits it in-band (changed-surface booking, not a block).
+```
++ `cli-driven-development` Engine Semantics 增一条：**Entry gate reads the tree, not the committed range** — the review entry gate checks working-tree cleanliness only (dirty → BLOCKED; dry-run → WARN). It does not assert that HEAD holds exactly the task's canonical commits, so a committed mid-flight backfill clears the gate. The subsequent review audits the widened range — off-ledger changes surface as a changed-surface CDD_WARN booking and the scope axis decides; visible, not a block.
+
+**scope 限定**：五件 = cdd + writing-* 四件（用户裁决 B）；`brainstorming` / `finishing` / `report-issues` 不落（非 cdd dispatch 编排面）；repo 侧 `scripts/` 不受此规约（程序逻辑非指引）。
+
+**验收**：五件 SKILL.md Invariants 表各含「Mid-Flight Backfill」（`grep -L "Mid-Flight Backfill" packages/osuperpowers/skills/{cli-driven-development,writing-overall-spec,writing-phase-spec,writing-single-spec,writing-plans}/SKILL.md` = 空）+ cdd 件含「Entry gate reads the tree」；`pnpm run emit` + `emit:check` 零 drift；`pnpm run validate` 全绿。
+
 ### Acceptance criteria
 
 - AC1 **守卫退役零残留**：`scripts/validate/overall-consistency.ts` / `plan-spec-anchors.ts` / `__tests__/{overall-consistency,plan-spec-anchors}.test.ts` 删除；`grep -rE "overall-consistency|plan-spec-anchors" scripts/` 零命中（`-E` 交替，非 BRE 字面 `|`）；42 行逐案对照表由 P3 plan T2 落盘本 design（每条 repo 断言 → engine 对应用例:行 → 覆盖判定，证实零功能损失——本版未落表，T2 落表后收口复核）
@@ -282,7 +302,7 @@ phaseId  `^P\d+(\.\d+)*$`
 - AC5 **S3 残留改写**：overall 四条 + osuperpowers-plugin.md:116-120 + CLAUDE.md:47 + overall-spec SKILL:54 改写为 engine 执法位/历史时态表述；`grep "scripts/validate.*guard\|block 12.*consisten"` shipped docs/skills 面零现行主张（历史时态句允许）
 - AC6 **consumer-sim**：`prepare: dev:stub` 钩子已移除（`pnpm publish` 不再重桩 dist——发布品 = 显式 build 产物）；先 `pnpm --filter @oscaner-skills/cdd-engine build`（真实 unbuild 产物，`dist/cli.mjs` 实测 71.7 kB）→ 包目录 `pnpm pack --pack-destination <out>`（备防 `--config.ignore-scripts=true`；实证失效不收：`--ignore-scripts` 旗标 / `npm_config_ignore_scripts` env / workspace root 相对路径 pack）→ **tarball 内容断言（防白绿）**：`dist/cli.mjs` grep stub 标识（`createJiti` / `node_modules/.pnpm`）零命中 **且** 字节数 > 10 kB（实测：桩 614 B、真实产物 71.7 kB——禁用「>100 kB」阈值，会误判真实产物）→ mkdtemp 临时仓安装（消费者布局，零仓内路径依赖；不读 `docs/osuperpowers/`、不引用本仓 node_modules——`dist/` = 显式 build 门生成的发布品机制，非前提假设）→ 安装链入口 `node <installed>/dist/cli.mjs`（或 `node_modules/.bin/cdd`）+ schema 目录落点（`<installed>/dist/documents/schema/` + `<installed>/templates/schema/`）可寻址实证 → 消费者链（`cdd help` + 5-command dry-run）在发布门与 PR 门可跑、输出消费者等效结果；fixture plan 二选一（临时仓派生 / `templates/` 内置由安装面读取）落 P3 plan 并实证；run.ts `smoke-cdd` 子命令语义 = consumer-sim
 - AC7 **运维规范落档**：Program experience（或同族 maintainer 档）新增**八项**裁决条目（零产物 fixture · 零编号 anchor · 零 legacy 豁免 · phase-id 语法 A · 唯一执法面 · validate 11 块结构 · cdd 输出零过滤 · **docs-family 结果可见性 + 命令出口 exit.ts 单源（sequenced 于 §2.9 之后）**），英文主源、可 grep Verify
-- AC8 **cdd 输出零过滤（§2.8）**：`grep -rE "cdd[^\"']{0,40}(tail|head|EXIT=|2>&1[[:space:]]*\|)" packages/osuperpowers/skills/*/SKILL.md` 零命中；SKILL.md 中 cdd 调用节点含「direct invocation — read full output；cdd 自身优化输出长度」表述（或确认既有表述已符合）；`pnpm run emit` 后零 drift
+- AC8 **cdd 输出零过滤 + mid-flight backfill 落点（§2.8/§2.10）**：`grep -rE "cdd[^\"']{0,40}(tail|head|EXIT=|2>&1[[:space:]]*\|)" packages/osuperpowers/skills/*/SKILL.md` 零命中；SKILL.md 中 cdd 调用节点含「direct invocation — read full output；cdd 自身优化输出长度」表述（或确认既有表述已符合）；五件 SKILL.md（cdd + writing-* 四件）Invariants 表各含「Mid-Flight Backfill」条目 + cdd 件 Engine Semantics 含「Entry gate reads the tree, not the committed range」；`pnpm run emit` 后零 drift
 - AC9 **docs-family 出口统一（§2.9）**：docs-family review/fix 完成后 stdout 含 result 面（`status:` 行；`cdd.test.ts` docs-family 断言面同步更新为断 stdout status/blocker/handoff）；`grep -rn "^\s*return;$" packages/cdd-engine/src/cli/*.ts` = 0（命令级裸 return 零命中）；`cli/*.ts` 出口统一走 `exit.ts` 族（`exitOkWith`/`exitWithCode`/`exitOk` 等，grep 实证 cli 层出口调用面 = exit.ts 单源）；exit table 0/1/2/3 不变；engine vitest 全绿
 - AC10 **全链收口**：`pnpm run validate` 全绿（11 块，干净已提交树）· `emit:check` 零 drift · precommit 11 块绿灯 · engine vitest 全绿 · AC1–AC9 逐条可复核
 
@@ -296,6 +316,7 @@ phaseId  `^P\d+(\.\d+)*$`
 | null（新需求） | 2026-09-22 用户裁决新增：canonical phase-id 语法严格 A · steps 语义名零编号 anchor · 零产物 fixture · 运维规范落档 | Yes — v1.14 新增 |
 | null（P3 补充需求，2026-09-22） | **skills 调用 cdd 输出零过滤**——禁止 `tail`/`head`/`2>&1 \|`/`EXIT=$?` 包装，cdd 已自身优化输出长度（§2.8）；P3 scope cell 同步列入 | Yes — v1.15 回填（P3 补充） |
 | null（P3 补充需求，2026-09-22） | **docs-family 命令出口统一**——docs review 完成后 stdout result 面（`status:`/`blocker:`/`handoff:` 行，编排者可直读、不翻 handoff）；`cli/*.ts` 命令级出口统一走 `exit.ts` 族、禁裸 `return;`、exit table 0/1/2/3 不变（§2.9）+ **fix 边界条款**——review 后编排者只读 status/blocker 计数、findings 全文由 `cdd fix` fix-agent 消费、不得 inline 应用 findings（§2.2，defect②修复）；P3 scope cell 同步列入 | Yes — v1.16 回填（P3 补充） |
+| null（P3 补充需求，2026-09-22） | **mid-flight backfill 协议**——当前 `cdd` dispatch 返回即刻回填（热上下文，不延迟到循环闭合）+ 回填随独立 commit 落地（else 下一 review 入口门 BLOCKED）+ 消费者面五个 SKILL.md（cdd + writing-* 四件）各增「Mid-Flight Backfill」条目 + cdd Engine Semantics 增「entry gate reads the tree, not the range」语义（§2.10）；P3 scope cell 同步列入 | Yes — v1.18 回填（P3 补充） |
 | 依赖图 `P2 -> P3 -> P4` | 不变（P2 shipped → P3 可启；P4 依赖 consumer-sim 实测） | 保持 |
 
 > `Overall updated?` 全为 Yes（v1.14 grilling 合流 + v1.15/v1.16 spec-review r1 回填；overall v1.17 探针修正 = **spec-review-4/fix-4**——AC4 探针改 `[A-Za-z(]` 正向后缀 + node 断言，change-history v1.17 条目头已标「spec-review-4 修正探针」）——无未登记偏差。

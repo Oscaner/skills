@@ -44,7 +44,65 @@
 - 运行时：`docContractValidate`（dispatch/base.ts base 默认 hook）——本仓程序每步 dispatch 自身链被全量审计
 - 测试面：engine 5b1 套件——`rules/__tests__/documents.test.ts`（mkdtemp 自造链，face ①–⑥ + row-shape + version ascending + split-phase 全函数级覆盖）· `doc-contract-channels.test.ts`（dispatch 级四表 BLOCK 断言）· `closeout.test.ts`（终态欠账 + 声明源→列双向）· `lifecycle-validation.test.ts`（lineage 触发 / 自审边界）
 
-**42 行逐案对照表（本 design 产物，P3 执行面复核）**：`scripts/validate/__tests__/` 的 42 条 repo 断言逐一映射到 engine 对应用例（文件:行），判定「判据面已由 engine 测试覆盖 → 删」——证实删面零功能损失。对照表**落盘时点 = P3 plan T2**——T2 将 42 行映射写至本 design §2.1 后附表（overall v1.14 规约；**本版 spec 尚未落表**），AC1「42 行逐案对照表落盘本 design」于 P3 收口复核，非笼统「并入或删除」。
+**42 行逐案对照表（本 design 产物，P3 执行面复核）**：`scripts/validate/__tests__/` 的 42 条 repo 断言逐一映射到 engine 对应用例（文件:行），判定「判据面已由 engine 测试覆盖 → 删」——证实删面零功能损失。对照表**✔ 已落盘（P3 T2）**——42 行映射见本 design §2.1 后 `### Appendix: 42-row cross-reference`（overall v1.14 规约；T2 落表、零迁入），AC1「42 行逐案对照表落盘本 design」复核由 T2 验收承接，非笼统「并入或删除」。
+
+### Appendix: 42-row cross-reference（AC1 逐案论证物，P3 T2 落盘）
+
+`scripts/validate/__tests__/` 的 42 条 repo 断言（27 overall-consistency + 15 plan-spec-anchors）逐条映射到 engine 对应用例（`文件:行`），判定「判据面已由 engine 测试覆盖 → 删」——证实删面零功能损失、零迁入。行号均已 `sed -n` 复验存在；映射以 engine 测试自造链语义为准（不要求 repo 断言与 engine 用例逐字对应）。engine 路径缩写：D = `packages/cdd-engine/src/rules/__tests__/documents.test.ts` · CC = `packages/cdd-engine/src/dispatch/__tests__/doc-contract-channels.test.ts` · CO = `packages/cdd-engine/src/rules/__tests__/closeout.test.ts` · LV = `packages/cdd-engine/src/dispatch/__tests__/lifecycle-validation.test.ts` · K = `packages/cdd-engine/src/rules/documents.ts`（判据唯一实现 kernel）· SCH = `packages/cdd-engine/src/documents/schema/overall.json`（canonical claimPatterns 单源）。
+
+> **注（恢复读取时点）**：T1 实际拆两提交——`ca444529` 主退役（守卫 + 42 用例删除落点）+ `6281f77f` 收尾（T2 起始 HEAD 即此提交）。故 `git show HEAD^:` 报 path does not exist；本表恢复读取用 `git show 3c1a29c3:`（= HEAD^^，删除前紧邻提交）取两文件，映射内容与由 plan 初记的预期一致（文件已删，内容不变）。
+
+**A. `scripts/validate/__tests__/overall-consistency.test.ts`（27 条）**
+
+| # | repo 断言（`it` 标题） | engine 对应用例（`文件:行`） | 覆盖判定 |
+|---|---|---|---|
+| 1 | canonical 头 → canonical=true + phases 解析（id/design/plan 三列） | D:266（audit-clean 链：canonical 头 + P1/P2 phases 全解析零失败）+ D:490（非 canonical 头 failure 逆面）+ K:507-516（header/列解析） | 判据面已由 engine 测试覆盖 → 删 |
+| 2 | 行形守卫：同文件 phase 行 cell 数不一致 → phaseShapeErrors + checker throw（shape-drift） | D:507（overall row-shape drift → failure）+ K:531（shapeDrift 收集、错位行跳过） | 判据面已由 engine 测试覆盖 → 删 |
+| 3 | slug 由文件名剥离日期前缀 + -overall 后缀 | K:712 fileNameSlug（剥离日期前缀 + `-overall` 后缀，同语义）+ D:266（fixture `2026-09-21-plan-*.md` 日期前缀 slug 实测） | 判据面已由 engine 测试覆盖 → 删 |
+| 4 | Version: vX.Y + 升序（v1.0→v1.1→v1.2）→ 通过 | D:266（AUDIT_OVERALL 三段升序零失败）+ K:593（ascending 规则） | 判据面已由 engine 测试覆盖 → 删 |
+| 5 | 升序破坏（v1.1 后 v1.0）→ throw | D:530（change-history not ascending → failure）+ K:593-594 | 判据面已由 engine 测试覆盖 → 删 |
+| 6 | 版本重复（两行 v1.1）→ throw（③ 重复检测） | K:591（duplicate version 收集）+ K:677（versionProblems 同 field 上抛）+ D:530（同一「Change history」field 钉死；fix = strictly ascending unique, K:683） | 判据面已由 engine 测试覆盖 → 删 |
+| 7 | 表损坏 → loadOverallFile 返回 ok=false（§2.4 malformed skip，main 不 exit） | LV:150（overall invalid → blocked with guidance）+ LV:171（dry-run WARN lane：不 exit 1）+ K:500-516（unreadable / no header → kernelOk=false） | 判据面已由 engine 测试覆盖 → 删 |
+| 8 | 非 canonical 头 → canonical=false（不 throw） | D:490 + LV:150（非 canonical 头 → 结构化 failure，非 crash） | 判据面已由 engine 测试覆盖 → 删 |
+| 9 | graph 引用 P9（inventory 无）→ throw（④b） | D:361（face ③ graph 悬垂 P9 → failure）+ K:930（graph token 成员判定） | 判据面已由 engine 测试覆盖 → 删 |
+| 10 | dependency 列传 P1 前驱 → 通过（④b） | D:369（④逆面：dependency cell 前驱 P9 → failure）+ D:266（`P1 ->(hard)` 前驱 ∈ ids 零失败）+ K:940-953 | 判据面已由 engine 测试覆盖 → 删 |
+| 11 | issue ref 畸形（#246#issuecomment-abc）→ throw（④c） | K:879-888（`#issuecomment-` 后非数字 → malformed）+ D:480（`#12x` → issue field failure） | 判据面已由 engine 测试覆盖 → 删 |
+| 12 | ④c 宽松：`#246（session master body）` + `none` 行放行 | K:878（`none` 跳过）+ K:890（bare `#NNN` 后缀非标识符 → 放行，`（session master body）` 属此后缀）+ D:266（none 行零失败） | 判据面已由 engine 测试覆盖 → 删 |
+| 13 | issue ref Phase 列 ∈ phaseIds → 通过（④c） | K:866-875（issue row phase ∈ ids 判定）+ D:472（④逆面 P9 → failure）+ D:266（P1 ∈ ids 零失败） | 判据面已由 engine 测试覆盖 → 删 |
+| 14 | ①正向：plan-claim 列 [Pending] → throw | D:271（face ① forward：claim Done vs 列 [Pending] → failure）+ K:797-804（plan-link claim 提取） | 判据面已由 engine 测试覆盖 → 删 |
+| 15 | ①括号可选：`Implementation plan Pending → Done` 实为 claim → 列 Done 通过（无 claim 报错） | K:758（`(?:Pending\|\[Pending\])` 括号可选显式支持）+ D:271（claim→列比较机制）+ D:266（claim 形态零失败） | 判据面已由 engine 测试覆盖 → 删 |
+| 16 | ①区间展开：P1–P4/P6 声明 → P1..P4+P6 全列 Done 断言 | K:768-785 phaseIdsIn（RANGE_RE 区间端点展开 P1–P4 → P1..P4）+ D:271/304（claim 解析机制） | 判据面已由 engine 测试覆盖 → 删 |
+| 17 | ①单行混合（cdd v1.27 形态）：同一行 plan 区间 + design 声明 → 全断言 | K:795-815 extractClaimRows（单 summary 分句遍历 plan + design 双 link word）+ D:271/292（plan/design claim 面） | 判据面已由 engine 测试覆盖 → 删 |
+| 18 | ①CLAIM_RE 尾随标点防御（warn fix 回归）：`Pending → Done。` / `→ Done——` 目标不含标点 | SCH `claimPatterns.claimClause.pattern`（target 停集含 `。`/`——` 等 CJK 标点）+ K:748-752 claimKey（尾随闭合括号剥离）+ D:304（claim 解析成功面） | 判据面已由 engine 测试覆盖 → 删 |
+| 19 | ①design-claim 列 [Pending] → throw（指定 §2.5 item 8） | D:292（face ① design：claim 钉 token 列未带 → failure）+ K:806-813（design-link claim 提取） | 判据面已由 engine 测试覆盖 → 删 |
+| 20 | ①反向：plan 列 Done 但全史无 plan-claim → throw | D:281（face ① reverse：plan 列 Done 无对应 claim → failure）+ K:787-804 | 判据面已由 engine 测试覆盖 → 删 |
+| 21 | ②文档存在：slug glob 命中跨日期文档（overall 2026-09-05 → p2 2026-09-07）→ 通过 | D:354（②逆面：non-pending plan 列无 doc → failure）+ D:266（glob 命中跨日期文档零失败）+ K:960-963（plan 双形 glob） | 判据面已由 engine 测试覆盖 → 删 |
+| 22 | ②design 跨引用忽略：P2 列含 `（源 P3-design）` 只断言 p2 design 文档 | K:735-740 ownDesignToken（`（源 P3-design）` 跨引用非 own token）+ D:266（own token 断言零失败）+ D:347（②逆面：own token 缺 doc → failure） | 判据面已由 engine 测试覆盖 → 删 |
+| 23 | ④a：phase 文档锚点 #999#issuecomment-… 不在注册域 → throw | D:457（face ⑤：phase doc 锚点不在 Issue inventory → failure）+ K:902-926（anchor registry 扫描） | 判据面已由 engine 测试覆盖 → 删 |
+| 24 | ②plan 双形：无后缀 plan 命中（既有 shipped 路径 span-mixed 回归）→ 通过 | K:962 plansHit（bare 形 glob）+ D:354/266（②面契约：plan doc 存在性） | 判据面已由 engine 测试覆盖 → 删 |
+| 25 | ②plan 双形：`-plan.md` 变体命中（planvar p2 仅 -plan 形）→ 通过 | K:962 plansHit（`-plan` 变体形 glob）+ D:354（②面契约：plan doc 存在性） | 判据面已由 engine 测试覆盖 → 删 |
+| 26 | ②plan 双形：两形并存（bare + -plan）→ duplicate（跨形并存重复检测） | K:981-988（hits>1 → cross-form duplicate failure）+ D:354/266（②面契约） | 判据面已由 engine 测试覆盖 → 删 |
+| 27 | ④a anchorScanFiles 双形：scan 面含 -plan 变体 + bare 形，跨 slug 不串 | K:822-831 anchorScanFiles（`-${slug}-p\d+(?:-design\|-plan)?` 双形 + slug 隔离）+ D:457/467（anchor 扫描面） | 判据面已由 engine 测试覆盖 → 删 |
+
+**B. `scripts/validate/__tests__/plan-spec-anchors.test.ts`（15 条）**
+
+| # | repo 断言（`test` 标题） | engine 对应用例（`文件:行`） | 覆盖判定 |
+|---|---|---|---|
+| 28 | clean：repo-root 形 + 相对形 Spec 链接（label==basename）→ 零漂移 | D:115（valid chain 零失败）+ D:120（无 `**Spec:**` → failure 逆面）+ D:138（label≠basename → failure 逆面） | 判据面已由 engine 测试覆盖 → 删 |
+| 29 | 目标文档不存在 → spec-unresolved | D:129（`**Spec:**` target 不 resolve → failure） | 判据面已由 engine 测试覆盖 → 删 |
+| 30 | 目标存在但 label≠basename → spec-label | D:138（label drift → failure）+ K:346-352（label==basename 判定） | 判据面已由 engine 测试覆盖 → 删 |
+| 31 | clean：../specs/ 相对形 + v1.1/v1.2 行迹 → 零漂移 | D:115（validSpec 相对形 parent + lineage v1.0 匹配零失败）+ D:561（pinned token ∈ lineage → 零失败）+ CO:122（overallPath 暴露 Class B lineage） | 判据面已由 engine 测试覆盖 → 删 |
+| 32 | 目标文档不存在 → parent-unresolved | D:185（Parent program target unresolvable → chain truncation） | 判据面已由 engine 测试覆盖 → 删 |
+| 33 | 目标存在但非 -overall.md → parent-notoverall | D:190（Parent program 非 `*-overall.md` → chain truncation）+ K:621（`-overall.md` 判定） | 判据面已由 engine 测试覆盖 → 删 |
+| 34 | 行内 vX.Y ∉ 目标 overall 版本行迹（header ∪ Change history）→ parent-version | D:553（spec 钉 v9.9 → OVERALL face 失败，单一实现）+ K:686-701（merged version-lineage） | 判据面已由 engine 测试覆盖 → 删 |
+| 35 | path-miss：死锚报 path-unresolved，存活兄弟（repo-root 形自链）不报 | D:129（引用不 resolve → failure 契约）+ K:103-111 isPlaceholderOrTemplateTarget（URL/占位/机制非锚）+ D:159（`{{> partial}}` 豁免——机制引用面） | 判据面已由 engine 测试覆盖 → 删 |
+| 36 | clean → 不抛 | D:115（valid chain → 零失败，checkPlanSpecAnchors 聚合面等价） | 判据面已由 engine 测试覆盖 → 删 |
+| 37 | drift → 抛 ANCHOR DRIFT（含 kind/file:line/target） | D:129/138（failure 带 artifact/file/field/missing/fix guidance）+ D:609（failure line 形状钉死） | 判据面已由 engine 测试覆盖 → 删 |
+| 38 | isPlaceholderOrTemplateTarget — 模板/正则/方案/锚点/空格非锚 | D:159（`{{…}}` → failure；`{{> partial}}` → 豁免）+ K:103-111（同名谓词实现） | 判据面已由 engine 测试覆盖 → 删 |
+| 39 | isPlaceholderOrTemplateTarget — 真实相对路径非占位 | D:115（repo-root + 相对形 link 解析成功）+ K:119-138（isFile / resolveFromBase / resolveAny） | 判据面已由 engine 测试覆盖 → 删 |
+| 40 | isLegacyRef — 已删/迁面（_docs/ · pre-P2 docs/superpowers/ · controller-handoff.md）豁免 | K:822-831（审扫面仅 `-${slug}-p\d+` 阶段文档——pre-P2/`_docs/` 迁面路径不落审扫面，消费者环境无此存量）+ K:103-111（占位/机制非锚判定类）+ D:159（机制豁免用例） | 判据面已由 engine 测试覆盖 → 删 |
+| 41 | makeBasenameIndex + isRescuedByBasename — 迁入 governed 面同名文档 rescues | K:346-352 resolveSpecFromPlan（label==basename 身份判定——basename 机制）+ D:138（label drift 逆面）+ D:115（成功面） | 判据面已由 engine 测试覆盖 → 删 |
+| 42 | 既有 spec/plan 全量锚对实态零漂移（A/B/C 三类） | CC:140（clean four tables → gate 通过）+ D:266（audit-clean 零失败）+ §2.2 运行期 canary（P3 自身链全程 dispatch 审计 = 实态零漂移的续存形态） | 判据面已由 engine 测试覆盖 → 删 |
 
 ### 2.2 canary 回归运行期本位（canary-dogfood.test.ts 删除）
 

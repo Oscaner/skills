@@ -65,6 +65,14 @@ export function exitOk(): never {
   throwExit(0);
 }
 
+/** Success + stdout result face in one call (design §2.9 D2): writes `resultLine + "\n"` to
+ * stdout, then exits 0 via the ExitRequested unwind (teardownAll first). The docs-family completions
+ * (review/fix result face) route through here — no "write then exit" split-site pattern remains. */
+export function exitOkWith(resultLine: string): never {
+  process.stdout.write(`${resultLine}\n`);
+  throwExit(0);
+}
+
 export function exitBlocked(msg?: string): never {
   if (msg) process.stderr.write(`CDD_BLOCKED: ${msg}\n`);
   throwExit(1);

@@ -47,10 +47,21 @@ function plain(text: unknown): string {
 // SIGHUP=1→129) — a blanket 130 only holds for SIGINT; SIGTERM/SIGHUP each need their own
 // 128+signo, never the shared constant 130.
 const SIGNAL_EXIT = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
+// Signal latch: set SYNCHRONOUSLY at signal entry (before any await) so the single exit mapping
+// below can turn "signal arrived while the run was already tearing down" into the signal-mapped
+// code even when the run-boundary's own exit wins the process.exit race (both the handler and the
+// run-boundary ExitRequested unwind await teardownAll() concurrently; without the latch the normal
+// path's exit code — e.g. a docs-review non-zero result — could clobber 128+signo).
+let signalExitCode: number | null = null;
+/** Single exit mapping: a caught signal always wins over the run's exit code (128+signo). */
+function finalExit(code: number): never {
+  process.exit(signalExitCode ?? code);
+}
 for (const [sig, code] of Object.entries(SIGNAL_EXIT)) {
   process.on(sig, async () => {
+    signalExitCode = code;
     process.stderr.write(`CDD: caught ${sig} — teardownAll + exit ${code}\n`);
-    try { await teardownAll({ graceMs: 2000 }); } finally { process.exit(code); }
+    try { await teardownAll({ graceMs: 2000 }); } finally { finalExit(code); }
   });
 }
 
@@ -64,7 +75,7 @@ async function main() {
     const [cmd, parent] = await deepestCommand(rawArgs);
     const rendered = await renderUsage(cmd, parent);
     process.stdout.write(plain(rendered) + "\n");
-    process.exit(0);
+    finalExit(0);
   }
 
   // `cdd help` — P2 discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
@@ -78,7 +89,7 @@ async function main() {
   const firstCommand = rawArgs.find((a) => !a.startsWith("-"));
   if (firstCommand === "help") {
     runHelp();
-    process.exit(0);
+    finalExit(0);
   }
 
   // Boot (the former commander preAction hook, the action precondition): program-level `--dry-run`
@@ -96,9 +107,9 @@ async function main() {
     const bootArgs = parseArgs(rawArgs, MAIN_ARGS as unknown as Parameters<typeof parseArgs>[1]);
     setDryRun(bootArgs["dry-run"] === true);
   } catch (e: unknown) {
-    if (e instanceof ExitRequested) process.exit(e.code);
+    if (e instanceof ExitRequested) finalExit(e.code);
     process.stderr.write(`${(e as { message?: unknown })?.message ?? String(e)}\n`);
-    process.exit(2);
+    finalExit(2);
   }
   const repoRoot = await initRoot(process.cwd());
   initProcLifecycle({ diskPath: path.join(repoRoot, ".osuperpowers", "cdd", "lifecycle.json") });
@@ -112,7 +123,7 @@ async function main() {
     // process.exit is boundary semantics: no finally left to unwind. Without it, spec §2.2 B
     // "root reap at the run boundary" would be dead code on the CLI mainline (the process exit
     // does not unwind our own finally blocks).
-    if (raw instanceof ExitRequested) process.exit(raw.code);
+    if (raw instanceof ExitRequested) finalExit(raw.code);
     // The CddExitError family (P6 T24, F error consolidation): orchestration errors (registry gate /
     // DispatchBlocked / RunBlocked / usage) all land here and exit by their own exitCode. The
     // kind=usage face (shared.ts guardArgs/intTask → cliUsageError) keeps the citty-usage parity:
@@ -127,7 +138,7 @@ async function main() {
       } else {
         process.stderr.write(`${plain(raw.message)}\n`);
       }
-      process.exit(raw.exitCode);
+      finalExit(raw.exitCode);
     }
     const e = raw as { message?: unknown; name?: unknown };
     // citty parse/usage errors (CLIError name — citty's own parse errors, outside the engine
@@ -141,7 +152,7 @@ async function main() {
       // Error invariant() throws) — existing semantics unified to exit 2.
       process.stderr.write(`${e?.message ?? String(e)}\n`);
     }
-    process.exit(2);
+    finalExit(2);
   }
 }
 

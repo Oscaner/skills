@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P3 Design Spec
 
-- **Version**: v1.1 · 2026-09-22（spec-review r1 两轮 findings 已合流——`490e49b2`/`190d0ad7`，v1.15/v1.16 回填、overall v1.16 同步；本版 = spec-fix-3：review-3 六 findings 落地 + overall v1.17 同步）
+- **Version**: v1.2 · 2026-09-22（spec-review r1 两轮 findings 已合流——`490e49b2`/`190d0ad7`，v1.15/v1.16 回填、overall v1.16 同步；本版 = spec-fix-4：review-4 AC4 探针实证修正（尾 `\b` 吞点边界断 → `[A-Za-z(]` 正向后缀 + node 断言）+ overall v1.17 同步）
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)
 - **Parent program**: [2026-09-21-consumer-parity-overall.md](./2026-09-21-consumer-parity-overall.md) · v1.17
@@ -44,7 +44,7 @@
 - 运行时：`docContractValidate`（dispatch/base.ts base 默认 hook）——本仓程序每步 dispatch 自身链被全量审计
 - 测试面：engine 5b1 套件——`rules/__tests__/documents.test.ts`（mkdtemp 自造链，face ①–⑥ + row-shape + version ascending + split-phase 全函数级覆盖）· `doc-contract-channels.test.ts`（dispatch 级四表 BLOCK 断言）· `closeout.test.ts`（终态欠账 + 声明源→列双向）· `lifecycle-validation.test.ts`（lineage 触发 / 自审边界）
 
-**42 行逐案对照表（本 design 产物，P3 执行面复核）**：`scripts/validate/__tests__/` 的 42 条 repo 断言逐一映射到 engine 对应用例（文件:行），判定「判据面已由 engine 测试覆盖 → 删」——证实删面零功能损失。对照表**落盘本 design**（§2.1 后附表，overall v1.14 规约），P3 plan T2 只执行/复核，非笼统「并入或删除」。
+**42 行逐案对照表（本 design 产物，P3 执行面复核）**：`scripts/validate/__tests__/` 的 42 条 repo 断言逐一映射到 engine 对应用例（文件:行），判定「判据面已由 engine 测试覆盖 → 删」——证实删面零功能损失。对照表**落盘时点 = P3 plan T2**——T2 将 42 行映射写至本 design §2.1 后附表（overall v1.14 规约；**本版 spec 尚未落表**），AC1「42 行逐案对照表落盘本 design」于 P3 收口复核，非笼统「并入或删除」。
 
 ### 2.2 canary 回归运行期本位（canary-dogfood.test.ts 删除）
 
@@ -217,7 +217,7 @@ phaseId  `^P\d+(\.\d+)*$`
 
 ### Acceptance criteria
 
-- AC1 **守卫退役零残留**：`scripts/validate/overall-consistency.ts` / `plan-spec-anchors.ts` / `__tests__/{overall-consistency,plan-spec-anchors}.test.ts` 删除；`grep -rE "overall-consistency|plan-spec-anchors" scripts/` 零命中（`-E` 交替，非 BRE 字面 `|`）；42 行逐案对照表落盘本 design（每条 repo 断言 → engine 对应用例:行 → 覆盖判定，证实零功能损失）
+- AC1 **守卫退役零残留**：`scripts/validate/overall-consistency.ts` / `plan-spec-anchors.ts` / `__tests__/{overall-consistency,plan-spec-anchors}.test.ts` 删除；`grep -rE "overall-consistency|plan-spec-anchors" scripts/` 零命中（`-E` 交替，非 BRE 字面 `|`）；42 行逐案对照表由 P3 plan T2 落盘本 design（每条 repo 断言 → engine 对应用例:行 → 覆盖判定，证实零功能损失——本版未落表，T2 落表后收口复核）
 - AC2 **engine 套件零产物 fixture**：`canary-dogfood.test.ts` 删除；`grep -r "2026-09-21-consumer-parity" packages/cdd-engine/src/**/__tests__/` 零命中（engine 测试面零本仓程序产物引用）；**`docs/osuperpowers` 布局字符串排除**——14 文件在 mkdtemp 临时仓复刻消费者等效布局属合法 fixture，不属产物引用（§2.2 排除口径）；canary 实证 = P3 文档链（P3 plan → p3 design → overall）经 P3 全程 dispatch 审计零失败（运行期实证，测试面自造链承载）
 - AC3 **phase-id 语法 A 落地**：canonical overall.json **全部 8 处 phase-id 承载 pattern** 单点迁移 `^P\d+(\.\d+)*$`（issueInventory.row.phaseId · rowShape.idFormat · cells.dependency · hardEdge · softEdge · claimPatterns.designToken · phaseReference.single · range=single 派生 `\s*[-–—]\s*` 连接）+ description 全写 · engine 消费面（ownDesignToken / phaseIdFromPlan / designDocTail / split-phase 测试 `P1a`→`P2.1` 改造）零误伤 · 本仓存量文档零迁移 · engine 套件含语法新用例（P2.1 claim / P2.1-design / P2.1–P2.3 range / `…-p2.1.md` glob / **dependency cell `P2.1 -> P2.2` · hardEdge · softEdge**）
 - AC4 **validate 净化**：12 → 11 块 · step 名全语义名零编号 anchor（**探针改前缀锚定/整串判定**：`(?:^| )\b(?:[0-9]+\.|5b\d*|5c|8-10)[. ]+[A-Za-z(]` 在 step name 面零残留——数字前缀步名全捕获、语义名零误报；node 断言「现名全命中 / 语义名全 miss」防白绿（`0. unified emit freshness (emit-check)`/`6. marketplace validate`/`7. scripts unit tests`/`12. overall consistency`/`5b`/`5c`/`8-10` 族 HIT，`emit freshness (checked against regenerated products)` 等语义名 miss——旧式 `[0-9]+[. ]`+尾 `\b` 失效：尾 `\b` 在「.」→「 」non-word→non-word 边界断、吞点后备选项失配即漏检）；或对每个 step 名整串 match 语义名正则——二选一，杜绝白绿）· ci-validate.test.mjs / pre-commit.test.ts 钉死值 11 同步 · index.ts / pre-commit.ts import 面清洁 · `pnpm run validate` 全绿
@@ -240,11 +240,13 @@ phaseId  `^P\d+(\.\d+)*$`
 | null（P3 补充需求，2026-09-22） | **docs-family 命令出口统一**——docs review 完成后 stdout result 面（`status:`/`blocker:`/`handoff:` 行，编排者可直读、不翻 handoff）；`cli/*.ts` 命令级出口统一走 `exit.ts` 族、禁裸 `return;`、exit table 0/1/2/3 不变（§2.9）+ **fix 边界条款**——review 后编排者只读 status/blocker 计数、findings 全文由 `cdd fix` fix-agent 消费、不得 inline 应用 findings（§2.2，defect②修复）；P3 scope cell 同步列入 | Yes — v1.16 回填（P3 补充） |
 | 依赖图 `P2 -> P3 -> P4` | 不变（P2 shipped → P3 可启；P4 依赖 consumer-sim 实测） | 保持 |
 
-> `Overall updated?` 全为 Yes（v1.14 grilling 合流 + v1.15/v1.16 spec-review r1 回填；本 spec-fix-3 另同步 overall v1.17 探针修正——登记于 overall change-history v1.17）——无未登记偏差。
+> `Overall updated?` 全为 Yes（v1.14 grilling 合流 + v1.15/v1.16 spec-review r1 回填；overall v1.17 探针修正 = **spec-review-4/fix-4**——AC4 探针改 `[A-Za-z(]` 正向后缀 + node 断言，change-history v1.17 条目头已标「spec-review-4 修正探针」）——无未登记偏差。
+>
+> **探针转义告警（防父面白绿）**：parent overall v1.17 的 P3 acceptance cell 与 change-history v1.17 条目中探针以 markdown 表格转义写入（`(?:^\| )\b(?:[0-9]+\.\|5b\d*\|5c\|8-10)[. ]+[A-Za-z(]`）——`\|` 形态无交替运算符，node 实测对纯步名与 `| 12. overall consistency |` 表行形式均零命中，照字面复制为验证 grep 即白绿；验证 grep 须先把 `\|` 还原为 `|`（还原后 = 本 design AC4 已被实证探针：现名全命中 / 语义名全 miss），或与 overall 同步换无 `|` 形态（整体修订时）。
 
 ## Section 4: Notes for downstream
 
-- **P4（发布闭环）**：输入 = .changeset ×2（本程序 cdd-engine major + osuperpowers）版本化 + 旧程序 osuperpowers-overhaul ×9 changesets 版本化 + cdd-engine major breaking 发布面（P2 全部变更）+ **consumer-sim release 门实测通过**（P3 AC6 产物）+ pack 内容审计（`npm pack` 内容 = dist/templates/skills，不含仓内 tests/、scripts/ 治理残件）。
+- **P4（发布闭环）**：输入 = .changeset ×2（本程序 cdd-engine major + osuperpowers）版本化 + 旧程序 osuperpowers-overhaul ×9 changesets 版本化 + cdd-engine major breaking 发布面（P2 全部变更）+ **consumer-sim release 门实测通过**（P3 AC6 产物）+ pack 内容审计（cdd-engine `npm pack` 内容 = `dist/` + `templates/`（+ package.json；README/LICENSE 有则随包——files 面外 npm 自动携带面），**无 `skills/`**——`skills/` 属 osuperpowers 插件包面，若审计须单独列其包名；tarball 实际断言 = 真实 `dist/cli.mjs` + `templates/` + `dist/documents/schema/`，见 AC6；不含仓内 tests/、scripts/ 治理残件）。
 - 本 phase 无「later phases 会处理」悬空项——所有跨 phase 移交均落上游 overall v1.17 或本 §4 指针。
 
 ## Section 5: Review

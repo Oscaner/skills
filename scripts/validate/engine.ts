@@ -2,9 +2,10 @@
 // scripts/validate/engine.ts — block 5b: cdd-engine (Vitest suite + stub materialization).
 // 5b0 materializes the dev stub (`pnpm -C packages/cdd-engine dev:stub`) before the suite:
 // `dist/cli.mjs` is gitignored (P5 TS + unbuild) and nothing else regenerates it on a fresh
-// checkout — without this step `pnpm run validate` and the same-job smoke-cdd would ENOENT
-// on first install. cdd-engine's `prepare` script covers install-time but pnpm skips
-// workspace lifecycle scripts on no-op installs, so the validate chain is the authoritative gate.
+// checkout. Since P3 T7 the engine's `prepare` hook (`dev:stub` on install) was REMOVED — the
+// install-time auto-stub is gone, so this step is the CI-face materialization (the standalone
+// `pnpm --filter @oscaner-skills/cdd-engine test` face is self-sufficient via the vitest
+// globalSetup — see vitest.config.mjs / vitest.global-setup.ts, D4).
 // 5b1 runs the engine Vitest suite (engine code moved out of bin/engine; `pnpm -C packages/cdd-engine test`).
 
 import { execaSync } from "execa";

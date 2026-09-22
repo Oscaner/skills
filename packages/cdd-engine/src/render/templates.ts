@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolvePackageRoot } from "../infra/resource.ts";
 // handlebars is CommonJS (no export map): Node ESM can only see `default` / `module.exports`,
 // so the default-import + destructure form is the interop-safe spelling used everywhere (vitest
 // and the plain-node validate chains both resolve hb.compile to the compile function).
@@ -26,7 +27,13 @@ import { invariant } from "../infra/exit.ts";
 
 // PKG_ROOT = <pkg>/templates — the render data plane's resource dir (contract + schemas alone;
 // re-org Step 5 semantics converged here; consumers use the constant directly).
-export const PKG_ROOT = fileURLToPath(new URL("../../templates", import.meta.url));
+// Resolved by the nearest-ancestor package.json marker walk (same state-independent convention as
+// infra/config.ts / documents/schema.ts) — the `../../templates` hop worked from src/render/ but
+// lands one level too high from the real bundle (dist/, consumer install): a bundled cli.mjs at
+// <pkg>/dist/ + `../..` = the parent of <pkg>, not <pkg>. The marker walk resolves <pkg>/templates
+// in every file state (dev stub src tree, dist bundle, consumer install).
+
+export const PKG_ROOT = path.join(resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))), "templates");
 
 // ---- template-contract (the rendering data plane): skeleton + zone sections + zone-tagged
 // token registry + clauses container (T12) + reviews content config. templates.ts is this

@@ -36,6 +36,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run emit
+      # Consumer-sim gate (P3 T7 / design §2.6): before any publish-side action, black-box the
+      # released artifact through a consumer install (pack → npm install → help + 5-command
+      # dry-run chain) so the publishable package is proven to work outside this repo.
+      - run: node scripts/run.ts smoke-cdd
       - uses: changesets/action@v2
         id: changesets
         with:

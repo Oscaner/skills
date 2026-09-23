@@ -2,7 +2,7 @@
 
 > **Reader positioning:** this document is for developers of this monorepo (Oscaner/skills) — it describes plugin development, the emit chain, hooks, and releasing. **It does not apply to the consumer environment** — users who install the plugin need not read this.
 
-## Marketplace --> plugin --> skill chain
+## 1. Marketplace --> plugin --> skill chain
 
 **Package-as-source:** the canonical registry [marketplace/source.json](../../marketplace/source.json) is **derived**, not hand-edited. `pnpm run emit` ([scripts/emit/all.ts](../../scripts/emit/all.ts), wired as `run.ts emit`) rebuilds it from first-party `package.json#oscaner-plugin` fields (`packages/`), then regenerates every harness-specific manifest:
 
@@ -15,7 +15,7 @@
 
 If a skill's SKILL.md exists on disk but is not under the plugin's declared `skills/` tree, Claude Code will not find it. This is the most common breakage.
 
-## The osuperpowers skills pattern
+## 2. The osuperpowers skills pattern
 
 The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodies for orchestration. Each skill follows a fixed shape:
 
@@ -25,27 +25,27 @@ The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodie
 - Body closes with `## Red Flags` (thoughts that should stop you). Load-bearing -- the orchestrator is designed to catch drift, so removing this section defeats the point.
 - New rules go **inside** the `osuperpowers` skill as `### Rule: <Name>`, never in the user's global `~/.claude/CLAUDE.md`.
 
-## Cross-cutting docs
+## 3. Cross-cutting docs
 
 `packages/osuperpowers/docs/` held two cross-cutting reference docs in an earlier phase; both are now **dissolved**:
 
-- `review.md` (URC — Review Convergence + Handoff Output; the former `docs-review.md`) → dissolved (in the skills-rewrite phase): the unified review contract now lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The technical contract (Handoff Output / round / `doc_hash`) is documented under [CDD Engine internals → Docs review/fix](#docs-reviewfix-cdd-reviewfix-type-specplan).
+- `review.md` (URC — Review Convergence + Handoff Output; the former `docs-review.md`) → dissolved (in the skills-rewrite phase): the unified review contract now lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The technical contract (Handoff Output / round / `doc_hash`) is documented under CDD Engine internals §7.3 (Docs review/fix).
 - `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
 All four review types (task / branch / spec / plan) run the same single-cycle digraph — `run-review` → blocker>0 → fix → re-review; blocker=0 → fix → done — via the engine's `cdd review --type <task|branch|spec|plan>` CLI; each orchestrator skill carries the convergence discipline in its own Invariants.
 
-## `docs/osuperpowers/` conventions
+## 4. `docs/osuperpowers/` conventions
 
 The skill flow `brainstorming --> writing-plans --> cli-driven-development` produces documents under two sibling directories:
 
 - [docs/osuperpowers/specs/](../osuperpowers/specs/) -- `YYYY-MM-DD-<feature>-design.md`, output of the brainstorming skill (spec doc, reviewed via `brainstorming` Rule 1).
 - [docs/osuperpowers/plans/](../osuperpowers/plans/) -- `YYYY-MM-DD-<feature>.md`, output of the writing-plans skill (implementation plan, reviewed via `writing-plans` Rule 2).
 
-## Common operations
+## 5. Common operations
 
 **Add a new skill to `osuperpowers`** -- two things must change together in one commit, or the skill is invisible:
 
-1. Create `packages/osuperpowers/skills/<name>/SKILL.md` with the osuperpowers orchestrator shape (see [The osuperpowers skills pattern](#the-osuperpowers-skills-pattern)).
+1. Create `packages/osuperpowers/skills/<name>/SKILL.md` with the osuperpowers orchestrator shape (see §2, The osuperpowers skills pattern).
 2. Run `pnpm run emit` to propagate the new skill into all harness manifests. Do **not** hand-edit the generated files.
 
 Missing the skill dir --> the skill is invisible to Claude Code. Skipping `pnpm run emit` --> harness drift.
@@ -58,7 +58,7 @@ Missing the skill dir --> the skill is invisible to Claude Code. Skipping `pnpm 
 
 `oscaner-plugin.harnesses` is **declarative-only / informational** -- no script consumes it (the `harnessesNote` in each `packages/*/package.json` documents this), and emit hardcodes the per-plugin manifest set. Adding a genuinely new harness manifest requires an emitter in [scripts/emit/osuperpowers.ts](../../scripts/emit/osuperpowers.ts) (see the caveat below); first-party source discovery happens in [scripts/emit/source.ts](../../scripts/emit/source.ts).
 
-## Verifying a change didn't break the marketplace
+## 6. Verifying a change didn't break the marketplace
 
 The manifest chain resolving is the essential check — run `pnpm run validate` after any structural edit (skills, plugin.json, marketplace source, emit output), which covers it mechanically alongside the test suites.
 
@@ -113,17 +113,17 @@ pnpm run validate
 
 This runs steps 1-4 above plus the engine and script test suites, plugin resolution, and version sync (osuperpowers `package.json` vs. its emit products). Implemented in [scripts/validate/index.ts](../../scripts/validate/index.ts) (wired as `run.ts validate`); mirrored on PRs by [.github/workflows/pr-validate.yml](../../.github/workflows/pr-validate.yml).
 
-### `scripts/validate/*` is a repo-internal orchestration surface
+### 6.1 `scripts/validate/*` is a repo-internal orchestration surface
 
 `scripts/validate/*` is the publishing-repo-root's internal orchestration surface — not a consumer API, not a packaging surface. Consumers never receive it: the plugin packages' `contentRoot` is `"."`, so only `packages/*/` publishes, and the consumer environment has no monorepo layout and no this-repo toolchain. Treat every script under `scripts/validate/` as maintainer-side tooling that may change without notice between versions.
 
 The one charter-level guard in the set, `overall-consistency` (plus its companion `plan-spec-anchors`), was **retired with the consumer-parity P3 rebuild** — the guard files, their 42 test cases, and their validate block (block 12) were deleted, and the four-table charter adjudication now runs on the same engine path consumers get: the **engine lifecycle** (`docContractValidate` at dispatch runtime) plus the engine test suite's mkdtemp self-built contract chains, with the repo's own program serving as the shipping canary (audited by every dispatch, no second trigger on the repo side). While it lived, `overall-consistency` machine-checked the phase inventory / dependency graph / change history of every canonical `docs/osuperpowers/specs/*-overall.md`, plus the issue inventory of overalls that kept the literal `## Issue inventory` heading (the section regex matched that exact heading — an overall drifted to a different heading, e.g. 2026-09-13-osuperpowers-overhaul-overall.md's `## Requirement inventory`, had its issue-inventory rows pass un-checked), plus the doc-existence globs and anchored-issue-reference registry. Its role classification was **maintainer-mode, this-repo dogfood** — the repo dogfooded its own program charters against a guard consumers could never invoke. The overall spec itself must not assume any repo-local guard exists in a consumer context.
 
-## CDD Engine internals
+## 7. CDD Engine internals
 
-> **Architecture discipline** (three standing rules: layered dependency boundary `infra → rules → artifacts → dispatch → cli`, mechanisms anchored on the `DispatchLifecycle` template method, error consolidation in `infra/exit.ts` via the `CddExitError` family + `invariant` factory) is recorded in [05-program-experience.md](05-program-experience.md) section F — consult it before adding a new dispatch channel or a new throw site.
+> **Architecture discipline** (three standing rules: layered dependency boundary `infra → rules → artifacts → dispatch → cli`, mechanisms anchored on the `DispatchLifecycle` template method, error consolidation in `infra/exit.ts` via the `CddExitError` family + `invariant` factory) is recorded in [05-program-experience.md](05-program-experience.md) section 6 — consult it before adding a new dispatch channel or a new throw site.
 
-### BLOCKED Message Format
+### 7.1 BLOCKED Message Format
 
 All `writeHandoff({ status: "BLOCKED" })` calls must include:
 1. `artifacts: {}` — prevents step 8.8 re-validation loop
@@ -133,7 +133,7 @@ Example: `"handoff missing required field 'artifacts' → add artifacts: {} to y
 
 The `→` separator is machine-readable: AI agents parse the suggested action to self-recover.
 
-### Handoff File Architecture
+### 7.2 Handoff File Architecture
 
 Handoffs use per-phase per-round flat files in the workspace:
 - `task-N-implement.json` — implement mode (written once)
@@ -143,7 +143,7 @@ Handoffs use per-phase per-round flat files in the workspace:
 Round tracking in `progress.json` per-task per-mode (`rounds["review"]`, `rounds["fix"]`).
 Any handoff written to disk (including BLOCKED/TIMEOUT) increments the round counter.
 
-### Docs review/fix (`cdd review|fix --type spec|plan`)
+### 7.3 Docs review/fix (`cdd review|fix --type spec|plan`)
 
 Document review flows through the merged `cdd` CLI (the former `docs-task` bin). The target parameter is type-self-describing (D11): type=spec → `--spec <path>`, type=plan → `--plan <path>`. The engine resolves the host harness from the ambient environment — no harness selection exists.
 - `cdd review --type spec --spec <path>` / `cdd review --type plan --plan <path>`: runs the single-cycle doc review (URC — single-cycle, lens-tagged findings; the convergence discipline lives in each orchestrator skill's `## Invariants`), writes `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`
@@ -154,7 +154,7 @@ Document review flows through the merged `cdd` CLI (the former `docs-task` bin).
 
 Schema: `packages/cdd-engine/templates/schema/docs-handoff-schema.json` — `{ status, phase, round, doc_path, doc_hash, findings, artifacts, blocker, failure_category }` with `status: APPROVED | CHANGES_REQUESTED | BLOCKED`. Docs review handoffs carry `doc_hash` (the reviewed content's byte sha256, engine-attached at finalization) — the content-state half of the Review Convergence ref: the engine rejects a re-review of the same `(doc_path, doc_hash)` after a blocker=0 round, and a content edit changes the hash and legitimately opens a new round.
 
-## Releasing
+## 8. Releasing
 
 One plugin is versioned from this repo: **`osuperpowers`** (independent semver). Integration branch is **`develop`**; **`main`** receives releases only via PRs from `develop`.
 
@@ -168,14 +168,14 @@ One plugin is versioned from this repo: **`osuperpowers`** (independent semver).
 
 **Branch protection:** after CI jobs exist on the repo, apply GitHub Rulesets idempotently with `node scripts/run.ts apply-rules <protect-develop|protect-main>` (`protect-develop`, `protect-main`; no bypass actors).
 
-## Git conventions for this repo
+## 9. Git conventions for this repo
 
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`).
 - No attribution / co-author / AI-generation trailers in commit messages.
 - No `git worktree` -- forbidden by user policy.
 - `git add -f` on a gitignored file requires explicit user confirmation.
 
-### When to commit
+### 9.1 When to commit
 
 **Default:** do not commit unless the user explicitly asks (`commit`, `Tn commit`, `提交`, `push`).
 

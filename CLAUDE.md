@@ -65,7 +65,7 @@ The engine test suite lives at `packages/cdd-engine/src/**/__tests__/**/*.test.t
 
 ### Language policy — English-primary, mirror only the README family
 
-**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**, and the repo's mirror policy is **"mirror 仅 README family"**: the **only** `.zh-CN.md` mirrors in the repo are the root **`README.zh-CN.md`** and the per-package **`packages/osuperpowers/README.zh-CN.md`** / **`packages/cdd-engine/README.zh-CN.md`** — three files total, each kept in sync with its English counterpart. Every other plane carries zero mirrors. The single deliberate non-English surface is this repo's internal developer specs/plans, which follow the user's working language.
+**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**, and the repo's mirror policy is **"mirror only the README family"**: the **only** `.zh-CN.md` mirrors in the repo are the root **`README.zh-CN.md`** and the per-package **`packages/osuperpowers/README.zh-CN.md`** / **`packages/cdd-engine/README.zh-CN.md`** — three files total, each kept in sync with its English counterpart. Every other plane carries zero mirrors. The single deliberate non-English surface is this repo's internal developer specs/plans, which follow the user's working language.
 
 Three strategies implement this, depending on file type:
 

@@ -39,7 +39,7 @@
     "@types/node": "^22.20.3",
     "typescript": "^5.9.3",
     "unbuild": "^3.6.1",
-    "vitest": "^3"
+    "vitest": "^5"
   },
   "repository": {
     "type": "git",

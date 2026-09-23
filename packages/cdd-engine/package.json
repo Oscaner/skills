@@ -28,7 +28,7 @@
     "ajv": "^8",
     "citty": "^0.2",
     "consola": "^3",
-    "execa": "^9",
+    "execa": "^10",
     "handlebars": "^4",
     "hookable": "^6",
     "semver": "^7",

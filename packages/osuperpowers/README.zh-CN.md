@@ -1,6 +1,6 @@
 # @oscaner-skills/osuperpowers
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-23。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-24。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -66,6 +66,10 @@ CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运�
 | cursor-agent | `cursor-agent` | Full |
 
 `cdd help` 打印引擎的资源发现路径（CLI 目录、文档 schemas、模板）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。
+
+## 维护者文档
+
+本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [program experience](../../docs/maintainers/05-program-experience.md)（程序经验）、[skill authoring](../../docs/maintainers/06-skill-authoring.md)（技能撰写）与 [data-driven templates](../../docs/maintainers/01-data-driven-templates.md)（数据驱动模板惯例，约束 emit 派生产物）。
 
 ## 许可
 

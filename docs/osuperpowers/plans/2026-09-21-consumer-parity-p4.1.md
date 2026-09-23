@@ -70,7 +70,11 @@
 - **Do**: 落定/复跑全部机械断言面（文件名编号 grep · 互链 node 解析 · section 编号连续 · zh-CN 唯一性——全仓除 `README.zh-CN.md` 外零 `*.zh-CN.md` · 骨架标题命中/镜像；node 探针按探针规范以临时脚本落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/` 复跑，不 commit）；**合入 Task 4 宣称面对照表并复核完成态**（逐条断言唯一归属 Task 4，此处仅复核合入、不重复逐条核对）；`pnpm run validate` 全量 11 块 + `pnpm run emit:check` 无 drift 复跑。
 - **验收**: 各探针命令产出零 FAIL（输出节录存档于提交说明）；`pnpm run validate` 输出 ALL PASS；`pnpm run emit:check` 零 drift、exit 0；全仓 `*.zh-CN.md` 仅 `README.zh-CN.md`（grep 单命中）；Task 4 宣称面对照表完成态复核并合入 review 记档（记档）
 
+## Pending Acceptance Patch
+
+- **Task 6 (patch)**: P4.3 已随用户裁决在 P4.1 执行期注册进 parent overall（v1.21，backfill 于 Task 2 循环恢复前落地）——Task 6 的 backfill-overall **基线 = overall v1.21**，产出 **v1.22**（P4.1 shipped 行 + change-history v1.22 行，升序相邻 v1.21→v1.22）；Do 中「v1.20→v1.21」表述按此基解读为「当前版本 v1.21 → 下一版本 v1.22」。
+
 ### Task 6: closeout backfill-overall（branch-review 前置义务）
 
-- **Do**: backfill-overall：overall v1.21——P4.1 行 Design-spec 列回填 `[Pending]→[p4.1-design v1.1](2026-09-21-consumer-parity-p4.1-design.md)` · Implementation plan 列回填 `[Pending]→Done` · Clause 增补 change-history v1.21 行（P4.1 shipped 回填声明 + 日期）；同步核对 Issue inventory P4.1 行无现时时态主张。版本行 v1.20→v1.21。
-- **验收**: overall 版本行 v1.21（grep）；change-history v1.21 行存在且含 P4.1 回填声明（grep）；P4.1 行 Design-spec 列为 link、Implementation plan 列为 `Done`（grep/目检）；change-history 升序无重复（v1.20→v1.21 相邻）
+- **Do**: backfill-overall：overall **v1.22**（基线 v1.21，见 Pending Acceptance Patch）——P4.1 行 Design-spec 列回填 `[Pending]→[p4.1-design v1.1](2026-09-21-consumer-parity-p4.1-design.md)` · Implementation plan 列回填 `[Pending]→Done` · Clause 增补 change-history **v1.22** 行（P4.1 shipped 回填声明 + 日期）；同步核对 Issue inventory P4.1 行无现时时态主张。版本行 **v1.21→v1.22**。
+- **验收**: **accepts pending-acceptance-patch**（task-ref `### Task 6:` · patch: backfill-overall 基线 = overall **v1.21**（P4.3 注册已 bump）→ 产出 **v1.22**，change-history v1.22 行含 P4.1 shipped 回填声明，升序相邻 v1.21→v1.22）；overall 版本行 **v1.22**（grep）；change-history **v1.22** 行存在且含 P4.1 回填声明（grep）；P4.1 行 Design-spec 列为 link、Implementation plan 列为 `Done`（grep/目检）；change-history 升序无重复（**v1.21→v1.22** 相邻）

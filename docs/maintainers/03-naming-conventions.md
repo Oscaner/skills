@@ -65,6 +65,14 @@ Terminology-free mechanism names keep their names — *accurate over elegant* �
 
 `blocker` · `handoff` · `dispatch` · `backfill` · `stale-lexicon` · `residue` · engine-internal function names without a user-facing term.
 
+### 3.6 Zh translation glosses
+
+Zh-surface translation register (specs/plans and the README family, Strategy B surfaces): one English term → one fixed Zh translation. Registered 2026-09-23 (user ruling 2026-09-23: first-party 中文译名统一「第一方」).
+
+| English term | Zh translation | Status |
+|---|---|---|
+| first-party | 第一方 | Active —「一方」is banned as the first-party translation |
+
 ## 4. Enforcement
 
 - Residue/structure guards assert "no historical-name residue" (e.g. zero `H1_BLOCK`, zero legacy `HANDOFF` triad) — the acceptance criterion "zero legacy names" is a mechanical check, not a review nicety.

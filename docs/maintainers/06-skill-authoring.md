@@ -1,9 +1,9 @@
 # Skill Authoring Specification
 
-- **Version**: v1.5 · 2026-09-20
+- **Version**: v1.7 · 2026-09-23
 - **Scope**: Sole format authority for osuperpowers skill SKILL.md authoring (node-anchored form, after the skills-rewrite phase)
 - **Audience**: This repository's maintainers + AI agents authoring skills
-- **Language**: English primary (authoritative source; no zh-CN mirrors)
+- **Language**: English primary (authoritative source; the repo's only zh-CN mirrors are the README family — root + the two packages, three files total)
 
 > **Reader notice**: This document is maintainer-only and is not shipped to the consumer environment with the plugin (the package's `contentRoot` is `"."`, so only `packages/*/` publishes). Consumers see content under `packages/*/` only.
 
@@ -76,7 +76,7 @@ flowchart TD
 - Typical invariants:
   - Emit products are derived — never hand-edit `.claude-plugin/` / `.cursor-plugin/` / `marketplace/`
   - Commit discipline (commit when spec is approved)
-  - Language policy (English primary — no zh-CN mirrors)
+  - Language policy (English primary — repo zh-CN mirrors limited to the README family: root + the two packages, three files total)
   - Session-call policy (delegated nodes consume other plugins' flows only via `/plugin:skill` imports — one import per upstream type per session, no upstream document reads)
   - Review Convergence (re-runs driven only by blockers; fixes always dispatch via `cdd fix`)
 
@@ -205,6 +205,7 @@ When a new skill introduces template body text that is data-izable — text-shap
 
 ## 12. Change history
 
+- v1.7 · 2026-09-23 — Mirror-policy sync (consumer-parity P4.1): the repo's zh-CN mirror set is the README family (root `README.zh-CN.md` + `packages/osuperpowers/README.zh-CN.md` + `packages/cdd-engine/README.zh-CN.md` — three files total); the "no zh-CN mirrors" claim in the Language line and the §4 typical-invariants list now states this set.
 - v1.6 · 2026-09-21 — Add §10 anti-pattern "Design-History / Mechanism Narration in a Consumer Skill" — skills are consumer-operating surfaces: design history, mechanism explanation, rationale commentary, and internal-program references are forbidden (2026-09-21 dogfood: a backfill-timing note referencing an internal spec entered the finishing skill and was removed the same day).
 - v1.5 · 2026-09-20 — Grilling coverage honesty (G2): delegated grilling in `phase-within-program` mode enumerates the parent overall's registered requirements (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and opens the grilling frontier only after the user confirms the enumerated coverage is complete — recorded as a delegated-flow convention (§7) and in the brainstorming / writing-phase-spec flows.
 - v1.4 · 2026-09-19 — Session-call semantic honesty (G1): the primitive is redefined as `load an upstream skill = import its flow once` — inline consumption as this session's baseline, at most one import per upstream type per session, re-entry routes on already-landed artifacts (mode marker / design context / registration marker); the "run a /xxx session" spawn wording is rejected across §7, the delegated-form example, and the session-call policy invariant.

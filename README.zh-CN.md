@@ -8,17 +8,17 @@
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-个人 AI 编程技能市场。一方插件 + 上游集成，一条流水线——可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。
+个人 AI 编程技能市场。第一方插件 + 上游集成，一条流水线——可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Cursor Agent** 上验证）。
 
 ## 这是什么
 
-一个将个人 AI 编程技能打包为可安装插件的市场，供多种 AI 编程 harness 消费。一方插件位于本仓库 `packages/` 下，由我们以 `@oscaner-skills/*` scope 发布到 npm；上游插件**不**在本仓库打包——从各自的发布方安装，osuperpowers 编排器通过 `/` 前缀的 `plugin:skill` 引用读取它们（如 `/superpowers:brainstorming`）。
+一个将个人 AI 编程技能打包为可安装插件的市场，供多种 AI 编程 harness 消费。第一方插件位于本仓库 `packages/` 下，由我们以 `@oscaner-skills/*` scope 发布到 npm；上游插件**不**在本仓库打包——从各自的发布方安装，osuperpowers 编排器通过 `/` 前缀的 `plugin:skill` 引用读取它们（如 `/superpowers:brainstorming`）。
 
 ## 插件列表
 
 | 插件 | 版本 | 来源 |
 |------|------|------|
-| **osuperpowers** | 0.1.1 | 一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/osuperpowers/`](packages/osuperpowers/)，以 [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers) 发布。技能（osuperpowers 编排器、`cli-*` 家族）及 CDD 引擎 |
+| **osuperpowers** | 0.1.1 | 第一方——[本仓库](https://github.com/Oscaner/skills)、[`packages/osuperpowers/`](packages/osuperpowers/)，以 [`@oscaner-skills/osuperpowers`](https://www.npmjs.com/package/@oscaner-skills/osuperpowers) 发布。技能（osuperpowers 编排器、`cli-*` 家族）及 CDD 引擎 |
 | **superpowers** | — | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能：brainstorming、writing plans、verification、branch finish |
 | **mattpocock-skills** | — | 上游——[mattpocock/skills](https://github.com/mattpocock/skills)。精准工具：`grilling`、`tdd` |
 | **impeccable** | — | 上游——[pbakaus/impeccable](https://github.com/pbakaus/impeccable)。前端设计技能 |
@@ -66,13 +66,13 @@ osuperpowers 通过各 harness 自己的插件市场安装；Claude Code 与 Cur
 
 ```
 packages/
-├── osuperpowers/   # 一方插件：osuperpowers 编排 + cli-* 家族 + CDD 引擎技能
+├── osuperpowers/   # 第一方插件：osuperpowers 编排 + cli-* 家族 + CDD 引擎技能
 └── cdd-engine/     # @oscaner-skills/cdd-engine —— CDD 引擎 CLI 包（osuperpowers 的依赖）
 ```
 
 ### 包即源，一条 emit 派生链
 
-市场采用**包即源**模式——元数据位于各一方 `package.json` 的 `oscaner-plugin` 字段中。构建步骤 `pnpm run emit` 从中派生一切：
+市场采用**包即源**模式——元数据位于各第一方 `package.json` 的 `oscaner-plugin` 字段中。构建步骤 `pnpm run emit` 从中派生一切：
 
 ```
 package.json#oscaner-plugin --> emit --> marketplace/source.json
@@ -81,7 +81,7 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> 各插件 .claude-plugin/plugin.json
 ```
 
-一方插件无需手动注册——`pnpm run emit` 自动发现它们。
+第一方插件无需手动注册——`pnpm run emit` 自动发现它们。
 
 完整架构说明：[CLAUDE.md](CLAUDE.md)。
 
@@ -100,7 +100,7 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
 pnpm run emit && pnpm run validate
 ```
 
-### 新增一方插件
+### 新增第一方插件
 
 1. 创建 `packages/<name>/package.json`，带 `oscaner-plugin` 字段。
 2. 运行 `pnpm run emit`——自动发现插件并重新生成所有清单。
@@ -116,4 +116,4 @@ pnpm run emit && pnpm run validate
 
 ## 许可
 
-一方代码（`osuperpowers`、marketplace 工具链）：[MIT](LICENSE)。
+第一方代码（`osuperpowers`、marketplace 工具链）：[MIT](LICENSE)。

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Data-driven template convention
 
-Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/data-driven-templates.md](docs/maintainers/data-driven-templates.md).
+Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/01-data-driven-templates.md](docs/maintainers/01-data-driven-templates.md).
 
 ## Repository purpose
 
@@ -57,7 +57,7 @@ CI runs `node scripts/run.ts validate` on PRs to `develop` and `main` (11 valida
 - `scripts/run.ts validate` — Node validation orchestration
 - `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
 
-For osuperpowers plugin internals (overrides pattern, emit details, verification, releasing), see [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md).
+For osuperpowers plugin internals (overrides pattern, emit details, verification, releasing), see [`docs/maintainers/07-osuperpowers-plugin.md`](docs/maintainers/07-osuperpowers-plugin.md).
 
 ## Review Convergence (CDD + doc-review)
 
@@ -69,8 +69,8 @@ All findings (blocker + warn + nit) are fixed in both paths.
 ## Per-package documentation
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
-- [`docs/maintainers/osuperpowers-plugin.md`](docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / releasing)
-- [`docs/maintainers/skill-authoring.md`](docs/maintainers/skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary)
+- [`docs/maintainers/07-osuperpowers-plugin.md`](docs/maintainers/07-osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / releasing)
+- [`docs/maintainers/06-skill-authoring.md`](docs/maintainers/06-skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary)
 
 ## Language Architecture
 

@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.1 文档治理 Design Spec
 
-- **Version**: v1.1 · 2026-09-23
+- **Version**: v1.2 · 2026-09-23
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.20](2026-09-21-consumer-parity-overall.md)
@@ -37,7 +37,7 @@ Cross-phase 规则以 parent overall v1.20 为准（overall wins on conflict）�
 **README / CLAUDE.md 重写设计**——
 
 - `README.md`（英文主源，弃现有章节分布）：目标骨架 8 段——定位段（一段话：多 harness AI 编码技能市场 + 一方/上游来源声明）→ 插件表（包 / 版本 / 来源）→ 安装（插件市场 · npm · 上游插件 · per-harness 对照）→ 快速开始 → 架构（packages 布局 + emit 派生链）→ 各包文档 → 开发（常用操作 · 新增一方插件 · 分支流程）→ License；`README.zh-CN.md` 为同步翻译 mirror，头部声明 mirror 关系 + 同步时间戳
-- `CLAUDE.md`（弃现有章节分布）：目标骨架 5 段——仓库目的 → ⚠️ emit 产物是派生（置顶，repo 最常错警示）→ 关键命令表（emit / emit:check / validate / changeset / version）→ 架构（包即源 · cdd-engine 直调开发链路 · 语言政策 · Review Convergence）→ 提交与维护约定（Git 约定 · changeset 义务 · memory → docs/maintainers）
+- `CLAUDE.md`（弃现有章节分布）：目标骨架 5 段——仓库目的 → ⚠️ emit 产物是派生（置顶，repo 最常错警示）→ 关键命令表（emit / emit:check / validate / changeset / version）→ 架构（包即源 · 语言政策）→ 提交与维护约定（Git 约定 · changeset 义务 · memory → docs/maintainers）。**流程规范零散文（用户裁决 2026-09-23）：CLAUDE.md 与 docs/maintainers 不承载 skills/cdd-engine 流程规范**（Review Convergence 纪律 · cdd 直调链路机制 · entry gate / handoff 契约，散文复制不可机检即无法验证准确性）——单源 = SKILL.md + engine schema；此类文档仅 repo 事实 · 命令级引用 · 指向性链接
 - 宣称面零分歧校核（本 phase 验收核心）：harness 支持面（实证两家：Claude Code + Cursor）、安装/来源声明、行为描述类陈述——与落地行为逐条对照；约定事项（emit-after-change · 零 memory 写入 · no worktree · changeset 逐 phase）不得在重写中丢失
 - 超出文档面的分歧（engine/产物行为与文字不符）→ finding/backfill 上抛记档，不在 P4.1 内改代码（上抛触发：重写核校确认既有行为与文字宣称不符、且无法在文字侧对齐；判据按程序判据面 triage——宣称面在消费者环境同样执法，C1 可达性；C3 退化仅处置本仓侧 charter 执法依赖去留，不适用此处）
 
@@ -62,12 +62,14 @@ Cross-phase 规则以 parent overall v1.20 为准（overall wins on conflict）�
 | Non-goal #4：不改 README/CLAUDE.md 的 harness 宣称类内容 | P4.1 全面重写（含宣称面），废除旧限制、改正向零分歧约束 | Yes — v1.19/v1.20 · 2026-09-23 |
 | P4 = 发布一致性闭环（原 scope，单 phase） | P4 拆点分 P4.1 文档治理 / P4.2 发布闭环（phase-id 语法 A 点分） | Yes — v1.19 · 2026-09-23 |
 | maintainers 重组「弃现有章节分布与内容」 | 弃章节分布、**内容保真迁移**（v1.20 spec-review-4 修正口径，非弃内容） | Yes — v1.20 · 2026-09-23 |
+| CLAUDE.md 骨架承载 cdd-engine 直调开发链路 + Review Convergence 流程规范 | **流程规范零散文**（用户裁决 2026-09-23）：CLAUDE.md / maintainers 不承载 skills/cdd-engine 流程规范，单源 SKILL.md + engine schema，仅 repo 事实 · 命令引用 · 指向 | No（phase 内内容修正——overall P4.1 scope 未涉 CLAUDE.md 骨架细则） |
 
 ## Section 4: Notes for downstream
 
 - P4.2（发布闭环）消费 P4.1 重写产物：README/CLAUDE.md 一致性验收已前移至 P4.1；P4.2 保留版本基准整备（cdd-engine `1.0.0 → 0.1.0` 降值 · p2-major 声称改写 · backlog-6 清除 · version-sync 补 cdd-engine）与 pack 审计（osuperpowers files 白名单）——改后 P4.2 相对独立
 - 语言政策修订（mirror 仅 README.zh-CN）随 CLAUDE.md 重写落笔；需同步核 `docs/maintainers/skill-authoring.md` 语言主张与 `packages/osuperpowers/README.md` 中的引用口径——核出 mismatch 即在本 phase 修正（`packages/osuperpowers/README.md` 入链更新属 §1 例外 (2)，不属包内容面变更）
 - 本 phase 不动 emit 输入（SKILL.md / package.json / emit 相关）；如推进中必须触及，先回填 overall 再动
+- **用户裁决 2026-09-23（流程规范零散文）**：CLAUDE.md / docs/maintainers 零 skill/engine 流程规范散文（Review Convergence · cdd 直调链路机制 · entry gate/handoff 契约）——单源 SKILL.md + engine；只留 repo 事实 + 命令引用 + 指向。落地：新 Task 6（剥除断言面）+ Task 3 文案修正 + README 开发节引用式（Task 4）
 
 ## Section 5: Review
 

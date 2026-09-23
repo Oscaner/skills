@@ -7,7 +7,7 @@ Maintainer-only doctrine for systematizing both template planes in this reposito
 | Plane | Files | Product |
 |---|---|---|
 | Engine prompt templates | `packages/cdd-engine/templates/` — `engine-config.json` + `template-contract.json` + `schema/` (`task-handoff-schema.json` · `docs-handoff-schema.json` · `cache-profile-schema.json`) | prompts injected into dispatches |
-| Skill document templates | `packages/osuperpowers/skills/*/docs/` — `base-branch.md` (methodology only; the doc-structure templates `overall-spec-template.md` · `phase-spec-template.md` · `add-phase-protocol.md` were retired at consumer-parity P2 — see below) | artifact scaffolds + methodology the skills ship |
+| Skill document templates | `packages/osuperpowers/skills/*/docs/` — `base-branch.md` (methodology only; doc-structure content is canonical JSON Schemas — see §5) | artifact scaffolds + methodology the skills ship |
 
 ## 2. The five-layer convergence
 
@@ -38,10 +38,10 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 ## 5. Experience baking
 
-Skill document templates additionally bake in the P1→P6 experience asset (see `05-program-experience.md`, condensed with the program's experience inventory): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
+Skill document templates additionally bake in the program's experience asset (see `05-program-experience.md`): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
 
-> **Doc-structure templates are canonical schemas now.** The retired `overall-spec-template.md` / `phase-spec-template.md` / `add-phase-protocol.md` place is the canonical doc-structure JSON Schemas in `packages/cdd-engine/src/documents/schema/` (surface: `cdd help` → `schemas:` dir). The schema carries the structure facts + the writing guidance (`description` per node) the templates carried in prose; skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. The remaining `base-branch.md` is methodology only — no doc-structure token lives there.
+> **Doc-structure templates are canonical JSON Schemas.** The doc-structure facts + writing guidance (`description` per node) live as canonical JSON Schemas in `packages/cdd-engine/src/documents/schema/` (surface: `cdd help` → `schemas:` dir); skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. The remaining skill document template, `base-branch.md`, is methodology only — no doc-structure token lives there.
 
 ## 6. Interaction with emit
 
-Skill doc templates are emit-included: a template edit is picked up by the emit chain (`scripts/run.ts emit`), and `emit:check` pins any drift — no manual editing of derived products.
+Skill doc templates are emit-included under the `pnpm run emit` / `emit:check` discipline — see `01-data-driven-templates.md` (§3 R3, §4 I3).

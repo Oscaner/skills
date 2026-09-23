@@ -39,12 +39,10 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 - `scripts/run.ts validate` — Node validation orchestration
 - `packages/cdd-engine/` — CDD engine npm package (cdd-task / docs-task / branch-review / cdd-select / cdd-research, lib/, templates/)
 
-For osuperpowers plugin internals (overrides pattern, emit details, verification, releasing), see [`docs/maintainers/07-osuperpowers-plugin.md`](docs/maintainers/07-osuperpowers-plugin.md).
-
 ### Per-package docs
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
-- [`docs/maintainers/07-osuperpowers-plugin.md`](docs/maintainers/07-osuperpowers-plugin.md) — osuperpowers plugin maintainer guide (emit chain / releasing)
+- [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party plugin (version scheme, Release flow)
 - [`docs/maintainers/06-skill-authoring.md`](docs/maintainers/06-skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary)
 
 ### Data-driven templates

@@ -67,10 +67,6 @@ CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运�
 
 `cdd help` 打印引擎的资源发现路径（CLI 目录、文档 schemas、模板）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。
 
-## 维护者文档
-
-- [docs/maintainers/07-osuperpowers-plugin.md](../../docs/maintainers/07-osuperpowers-plugin.md)——osuperpowers 插件内部机制（overrides 模式、emit 链、验证、发布）
-
 ## 许可
 
 MIT

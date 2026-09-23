@@ -65,10 +65,6 @@ The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its
 
 `cdd help` prints the engine's resource-discovery paths (CLI directory, document schemas, templates). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
 
-## Docs for maintainers
-
-- [docs/maintainers/07-osuperpowers-plugin.md](../../docs/maintainers/07-osuperpowers-plugin.md) — osuperpowers plugin internals (overrides pattern, emit chain, verification, releasing)
-
 ## License
 
 MIT

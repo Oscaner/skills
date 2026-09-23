@@ -1,6 +1,6 @@
 # Third-Party Dependencies
 
-> **Reader positioning:** maintainer-only document for this monorepo's developers (the osuperpowers package's `contentRoot` is `"."`, so `packages/*/` is what publishes — this file is **not** shipped to consumers). Follows the repo's English-primary policy; no zh-CN mirror.
+> **Reader positioning:** maintainer-only document for this monorepo's developers (not shipped — the package `contentRoot` is `"."`, so only `packages/*/` publishes); English-primary, no zh-CN mirror.
 
 > **Scope & principle (spec §2.13):** use a maintained third-party package instead of maintaining the equivalent by hand. This repo maintains only the CDD functional logic; everything generic (git protocol, YAML syntax, glob, template substitution, CLI parsing, hook orchestration, logging, build) is delegated to an adopted package. Every adopted package is registered below with its purpose, version constraint, the hand-written surface it replaced, and the anchor to check when upgrading or refactoring. The **not-adopted** list at the bottom exists to prevent future re-adoption mistakes.
 

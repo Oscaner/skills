@@ -1,6 +1,6 @@
 # @oscaner-skills/osuperpowers
 
-[English](README.md) | [Simplified Chinese](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 Personal AI coding skills — osuperpowers orchestration, the `cli-*` CDD engine family, and the report-issues repo utility — packaged as an installable plugin for AI coding harnesses (verified on **Claude Code** and **Cursor Agent**).
 

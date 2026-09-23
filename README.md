@@ -1,6 +1,6 @@
 # oscaner-skills
 
-[English](README.md) | [Simplified Chinese](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 [![PR Validate](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml/badge.svg)](https://github.com/Oscaner/skills/actions/workflows/pr-validate.yml)
 [![npm](https://img.shields.io/npm/v/@oscaner-skills/osuperpowers?label=osuperpowers)](https://www.npmjs.com/package/@oscaner-skills/osuperpowers)

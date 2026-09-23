@@ -1,14 +1,14 @@
 # 消费者面一致性（Consumer Parity）— P4.1 文档治理 Plan
 
 **Spec:** [2026-09-21-consumer-parity-p4.1-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.1-design.md)
-**Parent program**: [consumer-parity overall v1.20](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-**Version**: v1.3 · 2026-09-23
+**Parent program**: [consumer-parity overall v1.24](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
+**Version**: v1.4 · 2026-09-23
 **Depends on**: P3 shipped（[p3-design v1.2](docs/osuperpowers/specs/2026-09-21-consumer-parity-p3-design.md)）；本 session 已产出 overall v1.19/v1.20（P4 拆点分回填）与 [P4.1 design v1.1](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.1-design.md)
 **Base**: develop
 
 ## Constraints
 
-### 继承（parent overall v1.20，overall wins on conflict）
+### 继承（parent overall v1.24，overall wins on conflict）
 
 - Non-goal #4 已修订：README/CLAUDE.md 全面重写归 P4.1，覆盖全部宣称面（harness 支持面 · 安装/来源宣称 · 行为描述类陈述），重写后与落地行为零分歧；README.zh-CN.md = 同步 mirror（repo 对外宣讲面）
 - 四表纪律：**回填 = branch-review 前置义务**（Task 6 closeout backfill-overall，engine 终态欠账硬门）；结构性 mismatch → BLOCK
@@ -22,9 +22,9 @@
 
 ### 文档面边界
 
-- 本 phase 零 engine 变更、零 scripts/validate 变更；改动限 `docs/maintainers/`、根 `README.md`、`README.zh-CN.md`、`CLAUDE.md` + 范围例外 (1) parent overall backfill-overall（Task 6）(2) `packages/osuperpowers/README.md` 入链引用口径同步（rename 后零断裂所需，非包内容面变更、非 emit 输入面）
+- 本 phase 零 engine 变更、零 scripts/validate 变更；改动限 `docs/maintainers/`、根 `README.md`、`README.zh-CN.md`、`CLAUDE.md` + 范围例外 (1) parent overall backfill-overall（Task 6）(2) `packages/osuperpowers/README.md` 入链引用口径同步（rename 后零断裂所需，非包内容面变更、非 emit 输入面）；v1.4 增补面均在既述面内（docs/maintainers 精简删除重编号 · 根/包级 README 切换行语言清扫 · CLAUDE.md/maintainers 索引的 07 引用移除）
 - 本 phase 预期零 emit 输入（误触处置见下节『错误处理 if-then gate』）
-- 内容保真迁移（v1.20 口径）：弃章节**分布**、内容原样迁移，非弃内容
+- docs/maintainers 整理 = **重新整理重新编号，包括精简与删除**（2026-09-23 用户裁决修正 v1.20「内容保真迁移」口径——非仅换分布，需实质精简裁切与删除；`07-osuperpowers-plugin.md` 删除，其唯一值面 release 流程由 `.changeset/README.md` §Release flow 承载）
 
 ### 错误处理 if-then gate（镜像 spec §2 错误处理词表）
 
@@ -41,7 +41,7 @@
 
 ### commit 边界机制
 
-- 每 task 输出独立 conventional commit（`docs(...):`）；spec/plan 文档改动**一般不** commit（用户无请求时零 commit）——**唯 Task 6 的 backfill-overall 产物豁免此条，独立提交**（`docs(program):` 前缀 conventional commit；overall v1.21 需在树可见以作 branch-review 复核基线）
+- 每 task 输出独立 conventional commit（`docs(...):`）；spec/plan 文档改动**一般不** commit（用户无请求时零 commit）——**唯 Task 6 的 backfill-overall 产物豁免此条，独立提交**（`docs(program):` 前缀 conventional commit；overall v1.21 需在树可见以作 branch-review 复核基线）；**v1.4 收尾修正回填（overall v1.24 + design v1.4 + plan v1.4）同豁免，独立提交**（移除 07 live 引用后 branch-review 复核基线所需）
 - 不 push；不建 PR（integration 决策归用户 / finishing）
 - 禁止 git worktree；禁止 attribution trailer
 
@@ -80,11 +80,17 @@
 - **Do**: （用户裁决 2026-09-23：CLAUDE.md 与 docs/maintainers 不承载 skills/cdd-engine 流程规范——单源 = SKILL.md + engine schema，散文复制不可机检即无法验证准确性；本 task 在 Task 7 closeout 之前执行，shipped 声明才诚实）① `CLAUDE.md`——删「### Review convergence」小节，改指向性一行（各 orchestrator skill 的 `## Invariants` 承载，见 `packages/osuperpowers/skills/*/SKILL.md`）；`### Development-time CDD invocation` 压为命令级事实（`pnpm --filter @oscaner-skills/cdd-engine dev:stub` 生成 stub + `node packages/cdd-engine/dist/cli.mjs <subcommand>` 直调 + 禁 global cdd，删机制散文）；`### Validation and commit flows` + 黑盒段落压为 repo 事实（precommit = 树无关 9 块子集 · 全量 11 块在 CI 干净检出 · 本地先 commit 再全量 validate），删 entry gate / CDD_WARN 机制描述；② `docs/maintainers/` audit——`07-osuperpowers-plugin.md` 的 URC / review digraph / `cdd review --type` 重述剥为指向（单源 = 各 orchestrator SKILL.md Invariants + engine schema / engine 文档），doctrine / naming-registry / program-experience 等机制知识文档保留（非流程规范散文）；③ 全仓 grep 复核零残留（node/grep 探针按 Task 2 探针规范落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/`，不 commit）；④ `CLAUDE.md` 语言政策行更新为新 mirror 面（mirror = 根 `README.zh-CN.md` + 各包 `packages/osuperpowers/README.zh-CN.md` · `packages/cdd-engine/README.zh-CN.md`，全仓其余零）。
 - **验收**: `CLAUDE.md` grep：`Review Convergence` 仅指向引用零定义式、entry gate / `entryGateCleanTree` 机制描述零命中；`docs/maintainers/` grep：`cdd review --type` / review digraph 重述零命中（仅指向）；`pnpm run emit:check` 零 drift（CLAUDE.md / docs/maintainers 非 emit 输入）；`pnpm run validate` 11 块全绿；探针输出节录存档提交说明
 
-## Pending Acceptance Patch
-
-- **Task 8 (patch)**: P4.3 已随用户裁决在 P4.1 执行期注册进 parent overall（v1.21，backfill 于 Task 2 循环恢复前落地）——Task 8 的 backfill-overall **基线 = overall v1.21**，产出 **v1.22**（P4.1 shipped 行 + change-history v1.22 行，升序相邻 v1.21→v1.22）；Do 中「v1.20→v1.21」表述按此基解读为「当前版本 v1.21 → 下一版本 v1.22」（2026-09-23 流程规范零散文 + 包级 README + 术语裁决同承，P4.1 scope 以 spec v1.3 / plan v1.3 为准）。
-
 ### Task 8: closeout backfill-overall（branch-review 前置义务）
 
 - **Do**: backfill-overall：overall **v1.22**（基线 v1.21，见 Pending Acceptance Patch）——P4.1 行 Design-spec 列回填 `[Pending]→[p4.1-design v1.1](2026-09-21-consumer-parity-p4.1-design.md)` · Implementation plan 列回填 `[Pending]→Done` · Clause 增补 change-history **v1.22** 行（P4.1 shipped 回填声明 + 日期）；同步核对 Issue inventory P4.1 行无现时时态主张。版本行 **v1.21→v1.22**。
 - **验收**: **accepts pending-acceptance-patch**（task-ref `### Task 8:` · patch: backfill-overall 基线 = overall **v1.21**（P4.3 注册已 bump）→ 产出 **v1.22**，change-history v1.22 行含 P4.1 shipped 回填声明，升序相邻 v1.21→v1.22）；overall 版本行 **v1.22**（grep）；change-history **v1.22** 行存在且含 P4.1 回填声明（grep）；P4.1 行 Design-spec 列为 link、Implementation plan 列为 `Done`（grep/目检）；change-history 升序无重复（**v1.21→v1.22** 相邻）
+
+### Task 9: docs/maintainers 重新整理（精简 + 删除 + 重编号）+ 07 删除 + 引用清扫
+
+- **Do**: （用户裁决 2026-09-23 · PR #275 评审回馈：运维文档没有做整理——要求是**重新整理重新编号，包括精简和删除**，纠正 v1.20 起「内容保真迁移」口径；基线 = 现有 01-08 + README 索引）① 逐文件精简/删除：裁除与 CLAUDE.md / 各包 README / 他文重复的散文，删除死机制/退役陈述（flow-spec 零散文原则延续——不重述 skill/engine 流程规范，点指向）；明确同类项合并成篇；naming 术语表 · engine 依赖表 · 领域规范等权威注册内容零丢句；② **删除 `docs/maintainers/07-osuperpowers-plugin.md`**（用户裁决「没什么必要可以删除」；其唯一值面 release 流程已由 `.changeset/README.md` §Release flow 全量承载）——live 引用清扫：`CLAUDE.md` 两处 07 指引行（改指 `.changeset/README.md` / 移除）、`packages/osuperpowers/README.md`「Docs for maintainers」节 07 链接移除、`docs/maintainers/README.md` 索引行移除；frozen specs/plans 历史引用豁免；③ 重编号为连续 `NN-name.md`（删除/合并后全族按序补位，`08-…` 回填到 `07-…` 等）、`README.md` 索引表同步（编号 · 文件名 · 一句话定位 · 读者块）；④ 互链 + 族外入链零断裂复核（Task 1/2 探针复跑：node 遍历 `docs/maintainers/` 与 `packages/osuperpowers/README.md` 相对 `.md` 链接全解析）；⑤ 清扫 token 复核（07 §3 dissolution 陈述随删除消失）——node/grep 探针落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/`，不 commit；`pnpm run validate` 11 块 + `pnpm run emit:check` 零 drift。
+- **验收**: `docs/maintainers/` 内容文件编号连续无缺号（`^[0-9]{2}-` 全命中、反例零），总件数 < 现状 8 件（精简实证）；`docs/maintainers/07-osuperpowers-plugin.md` 不存在（ls 反例）；live 面（CLAUDE.md · packages README · docs/maintainers）grep `07-osuperpowers-plugin|osuperpowers-plugin.md` 零命中（显式 `-E`；frozen specs/plans 豁免——其历史引用可留）；`.changeset/README.md` 含 §Release flow 全量步骤（grep Release flow ≥1）；互链零断裂（node 探针全绿）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块 ALL PASS
+
+### Task 10: 英文 README.md 切换行中文清零
+
+- **Do**: （用户裁决 2026-09-23：`**/README.md` 混有中文——根 `README.md` + `packages/osuperpowers/README.md` + `packages/cdd-engine/README.md` 三件 line 3 语言切换 `[English](README.md) | [中文](README.zh-CN.md)` 的 `[中文]` 标签为唯一 CJK 违规面）① 三件切换行改纯英文标签 `[English](README.md) | [Simplified Chinese](README.zh-CN.md)`（三件一致，链接目标不变）；② `.zh-CN.md` mirror（根 + 两包）**不动**（中文主源，其 `[中文]` 标签非违规）；③ 零 emit 输入面接触（README 族非 emit 输入，实证同 Task 4/5）；node/grep 探针落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/` 不 commit；`pnpm run emit:check` + `pnpm run validate` 收尾复跑。
+- **验收**: 根 + 两包三件 `README.md` 零 CJK（node 断言 `[一-鿿]` 零命中）；切换行含 `Simplified Chinese` 三件一致（grep 命中 3）；三件 `.zh-CN.md` 无 diff（git diff 空）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块全绿

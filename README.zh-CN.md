@@ -79,7 +79,6 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> .claude-plugin/marketplace.json
                                      --> .cursor-plugin/marketplace.json
                                      --> 各插件 .claude-plugin/plugin.json
-                                     --> hooks 文件（按 harness）
 ```
 
 一方插件无需手动注册——`pnpm run emit` 自动发现它们。

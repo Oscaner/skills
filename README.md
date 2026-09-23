@@ -77,7 +77,6 @@ package.json#oscaner-plugin --> emit --> marketplace/source.json
                                      --> .claude-plugin/marketplace.json
                                      --> .cursor-plugin/marketplace.json
                                      --> per-plugin .claude-plugin/plugin.json
-                                     --> hooks files (per harness)
 ```
 
 No hand-registration is needed for first-party plugins — `pnpm run emit` auto-discovers them.

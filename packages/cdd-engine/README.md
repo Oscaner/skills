@@ -1,6 +1,6 @@
 # @oscaner-skills/cdd-engine
 
-[English](README.md) | [中文](README.zh-CN.md)
+[English](README.md) | [Simplified Chinese](README.zh-CN.md)
 
 CDD engine CLI — the task runner, document/branch reviewer, and harness dispatcher behind the osuperpowers `cli-driven-development` skill. Published as a standalone package so the engine (`cdd`) can be installed and invoked on its own.
 

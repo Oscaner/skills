@@ -14,8 +14,8 @@
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.1",
-    "@changesets/cli": "^3.0.2",
-    "@changesets/config": "^4.0.0",
+    "@changesets/cli": "^3.0.3",
+    "@changesets/config": "^4.0.1",
     "@changesets/read": "^1.0.1",
     "citty": "^0.2",
     "husky": "^9.1.7",

@@ -38,7 +38,7 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 ## Experience baking
 
-Skill document templates additionally bake in the P1→P6 experience asset (see `program-experience.md`, condensed with the program's experience inventory): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
+Skill document templates additionally bake in the P1→P6 experience asset (see `05-program-experience.md`, condensed with the program's experience inventory): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
 
 > **Doc-structure templates are canonical schemas now.** The retired `overall-spec-template.md` / `phase-spec-template.md` / `add-phase-protocol.md` place is the canonical doc-structure JSON Schemas in `packages/cdd-engine/src/documents/schema/` (surface: `cdd help` → `schemas:` dir). The schema carries the structure facts + the writing guidance (`description` per node) the templates carried in prose; skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. The remaining `base-branch.md` is methodology only — no doc-structure token lives there.
 

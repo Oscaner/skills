@@ -62,7 +62,7 @@ The CDD engine is the standalone `@oscaner-skills/cdd-engine` package; its singl
 
 ## Docs for maintainers
 
-- [docs/maintainers/osuperpowers-plugin.md](../../docs/maintainers/osuperpowers-plugin.md) — osuperpowers plugin internals (overrides pattern, emit, verification, releasing)
+- [docs/maintainers/07-osuperpowers-plugin.md](../../docs/maintainers/07-osuperpowers-plugin.md) — osuperpowers plugin internals (overrides pattern, emit, verification, releasing)
 
 ## License
 

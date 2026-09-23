@@ -121,7 +121,7 @@ The one charter-level guard in the set, `overall-consistency` (plus its companio
 
 ## CDD Engine internals
 
-> **Architecture discipline** (three standing rules: layered dependency boundary `infra → rules → artifacts → dispatch → cli`, mechanisms anchored on the `DispatchLifecycle` template method, error consolidation in `infra/exit.ts` via the `CddExitError` family + `invariant` factory) is recorded in [program-experience.md](program-experience.md) section F — consult it before adding a new dispatch channel or a new throw site.
+> **Architecture discipline** (three standing rules: layered dependency boundary `infra → rules → artifacts → dispatch → cli`, mechanisms anchored on the `DispatchLifecycle` template method, error consolidation in `infra/exit.ts` via the `CddExitError` family + `invariant` factory) is recorded in [05-program-experience.md](05-program-experience.md) section F — consult it before adding a new dispatch channel or a new throw site.
 
 ### BLOCKED Message Format
 

@@ -1,14 +1,14 @@
 # 消费者面一致性（Consumer Parity）— P4.1 文档治理 Plan
 
 **Spec:** [2026-09-21-consumer-parity-p4.1-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.1-design.md)
-**Parent program**: [consumer-parity overall v1.24](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-**Version**: v1.4 · 2026-09-23
+**Parent program**: [consumer-parity overall v1.25](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
+**Version**: v1.5 · 2026-09-24
 **Depends on**: P3 shipped（[p3-design v1.2](docs/osuperpowers/specs/2026-09-21-consumer-parity-p3-design.md)）；本 session 已产出 overall v1.19/v1.20（P4 拆点分回填）与 [P4.1 design v1.1](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.1-design.md)
 **Base**: develop
 
 ## Constraints
 
-### 继承（parent overall v1.24，overall wins on conflict）
+### 继承（parent overall v1.25，overall wins on conflict）
 
 - Non-goal #4 已修订：README/CLAUDE.md 全面重写归 P4.1，覆盖全部宣称面（harness 支持面 · 安装/来源宣称 · 行为描述类陈述），重写后与落地行为零分歧；README.zh-CN.md = 同步 mirror（repo 对外宣讲面）
 - 四表纪律：**回填 = branch-review 前置义务**（Task 6 closeout backfill-overall，engine 终态欠账硬门）；结构性 mismatch → BLOCK
@@ -90,7 +90,7 @@
 - **Do**: （用户裁决 2026-09-23 · PR #275 评审回馈：运维文档没有做整理——要求是**重新整理重新编号，包括精简和删除**，纠正 v1.20 起「内容保真迁移」口径；基线 = 现有 01-08 + README 索引）① 逐文件精简/删除：裁除与 CLAUDE.md / 各包 README / 他文重复的散文，删除死机制/退役陈述（flow-spec 零散文原则延续——不重述 skill/engine 流程规范，点指向）；明确同类项合并成篇；naming 术语表 · engine 依赖表 · 领域规范等权威注册内容零丢句；② **删除 `docs/maintainers/07-osuperpowers-plugin.md`**（用户裁决「没什么必要可以删除」；其唯一值面 release 流程已由 `.changeset/README.md` §Release flow 全量承载）——live 引用清扫：`CLAUDE.md` 两处 07 指引行（改指 `.changeset/README.md` / 移除）、`packages/osuperpowers/README.md`「Docs for maintainers」节 07 链接移除、`docs/maintainers/README.md` 索引行移除；frozen specs/plans 历史引用豁免；③ 重编号为连续 `NN-name.md`（删除/合并后全族按序补位，`08-…` 回填到 `07-…` 等）、`README.md` 索引表同步（编号 · 文件名 · 一句话定位 · 读者块）；④ 互链 + 族外入链零断裂复核（Task 1/2 探针复跑：node 遍历 `docs/maintainers/` 与 `packages/osuperpowers/README.md` 相对 `.md` 链接全解析）；⑤ 清扫 token 复核（07 §3 dissolution 陈述随删除消失）——node/grep 探针落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/`，不 commit；`pnpm run validate` 11 块 + `pnpm run emit:check` 零 drift。
 - **验收**: `docs/maintainers/` 内容文件编号连续无缺号（`^[0-9]{2}-` 全命中、反例零），总件数 < 现状 8 件（精简实证）；`docs/maintainers/07-osuperpowers-plugin.md` 不存在（ls 反例）；live 面（CLAUDE.md · packages README · docs/maintainers）grep `07-osuperpowers-plugin|osuperpowers-plugin.md` 零命中（显式 `-E`；frozen specs/plans 豁免——其历史引用可留）；`.changeset/README.md` 含 §Release flow 全量步骤（grep Release flow ≥1）；互链零断裂（node 探针全绿）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块 ALL PASS
 
-### Task 10: 英文 README.md 切换行中文清零
+### Task 10: 英文 README 语言切换行维持 `[中文]`（用户裁决：language switch 不用改）
 
-- **Do**: （用户裁决 2026-09-23：`**/README.md` 混有中文——根 `README.md` + `packages/osuperpowers/README.md` + `packages/cdd-engine/README.md` 三件 line 3 语言切换 `[English](README.md) | [中文](README.zh-CN.md)` 的 `[中文]` 标签为唯一 CJK 违规面）① 三件切换行改纯英文标签 `[English](README.md) | [Simplified Chinese](README.zh-CN.md)`（三件一致，链接目标不变）；② `.zh-CN.md` mirror（根 + 两包）**不动**（中文主源，其 `[中文]` 标签非违规）；③ 零 emit 输入面接触（README 族非 emit 输入，实证同 Task 4/5）；node/grep 探针落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/` 不 commit；`pnpm run emit:check` + `pnpm run validate` 收尾复跑。
-- **验收**: 根 + 两包三件 `README.md` 零 CJK（node 断言 `[一-鿿]` 零命中）；切换行含 `Simplified Chinese` 三件一致（grep 命中 3）；三件 `.zh-CN.md` 无 diff（git diff 空）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块全绿
+- **Do**: （原方向撤销——用户裁决 2026-09-24：language switch 不用改；`[中文]` 为语言切换 UI 的合法原生标签，不构成「英文 README 混有中文」违规）① 三件 English `README.md`（根 + 两包）line 3 语言切换行**维持原样** `[English](README.md) | [中文](README.zh-CN.md)`——零改动（本 task 先前提交的 `[Simplified Chinese]` 改动随裁决回滚，恢复 `[中文]`，已由编排者回滚 commit 落地）；② `.zh-CN.md` mirror（根 + 两包）**不动**；③ 零 emit 输入面接触（README 族非 emit 输入，实证同 Task 4/5）；node/grep 探针落 `.osuperpowers/cdd/2026-09-21-consumer-parity-p4.1/probes/` 不 commit；`pnpm run emit:check` + `pnpm run validate` 收尾复跑。
+- **验收**: 根 + 两包三件 `README.md` 的 line 3 语言切换行 = `[English](README.md) | [中文](README.zh-CN.md)`（node 断言三件一致；grep `[中文](README.zh-CN.md)` 命中 3）；`Simplified Chinese` 字面在三件 English README 零命中（显式 `-E`）；三件 `.zh-CN.md` 无 diff（git diff 空）；`pnpm run emit:check` exit 0 · `pnpm run validate` 11 块全绿

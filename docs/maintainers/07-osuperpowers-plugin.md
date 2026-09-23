@@ -29,10 +29,10 @@ The [osuperpowers](../../packages/osuperpowers/skills/) plugin ships skill bodie
 
 `packages/osuperpowers/docs/` held two cross-cutting reference docs in an earlier phase; both are now **dissolved**:
 
-- `review.md` (URC — Review Convergence + Handoff Output; the former `docs-review.md`) → dissolved (in the skills-rewrite phase): the unified review contract now lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The technical contract (Handoff Output / round / `doc_hash`) is documented under CDD Engine internals §7.3 (Docs review/fix).
+- `review.md` (URC — Review Convergence + Handoff Output; the former `docs-review.md`) → dissolved (in the skills-rewrite phase): the unified review contract lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development, one line each, no shared file. The engine-side technical contract (handoff output / round / `doc_hash`) is single-sourced in the engine (schema + `template-contract.json#reviews`) — see §7.3.
 - `subagent-lifecycle.md` (fresh/concurrent dispatch) → **dissolved** (Fresh/Concurrent rules obsolete under CLI mode; Delegate Load Failure inlined into consumer skills)
 
-All four review types (task / branch / spec / plan) run the same single-cycle digraph — `run-review` → blocker>0 → fix → re-review; blocker=0 → fix → done — via the engine's `cdd review --type <task|branch|spec|plan>` CLI; each orchestrator skill carries the convergence discipline in its own Invariants.
+The review convergence discipline (all four review types — task / branch / spec / plan) lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants`; the engine's review CLI surface is documented in the [cdd-engine README](../../packages/cdd-engine/README.md).
 
 ## 4. `docs/osuperpowers/` conventions
 
@@ -143,16 +143,15 @@ Handoffs use per-phase per-round flat files in the workspace:
 Round tracking in `progress.json` per-task per-mode (`rounds["review"]`, `rounds["fix"]`).
 Any handoff written to disk (including BLOCKED/TIMEOUT) increments the round counter.
 
-### 7.3 Docs review/fix (`cdd review|fix --type spec|plan`)
+### 7.3 Docs review/fix
 
-Document review flows through the merged `cdd` CLI (the former `docs-task` bin). The target parameter is type-self-describing (D11): type=spec → `--spec <path>`, type=plan → `--plan <path>`. The engine resolves the host harness from the ambient environment — no harness selection exists.
-- `cdd review --type spec --spec <path>` / `cdd review --type plan --plan <path>`: runs the single-cycle doc review (URC — single-cycle, lens-tagged findings; the convergence discipline lives in each orchestrator skill's `## Invariants`), writes `<workspace>/spec-review-{R}.json` / `<workspace>/plan-review-{R}.json`
-- `cdd fix --type spec --spec <path> --findings <review-N-handoff-path>` / `cdd fix --type plan --plan <path> --findings <review-N-handoff-path>`: fixes all findings, writes the fix round handoff (`<workspace>/spec-fix-{R}.json` / `<workspace>/plan-fix-{R}.json`)
-- branch-level review is a separate path: `cdd review --type branch` (not a docs review; takes `--plan` for the workspace slug)
+Docs review/fix is an engine CLI path (`cdd review` / `cdd fix` on `spec` / `plan` targets); the engine resolves the host harness from the ambient environment — no harness selection exists. The command surface, per-type review configuration, handoff artifacts, and `doc_hash` ref semantics are all engine-owned, single-sourced in:
 
-**Handoff Output / round / `doc_hash` (URC technical contract):** docs reviews write per-round handoffs under `<workspace>` = `<repoRoot>/.osuperpowers/cdd/<slug>/`, where `<slug>` = the reviewed doc filename with `.md` and a single trailing `-design` / `-plan` stripped (the engine's `resolveWorkspace`; `2026-09-08-foo-design.md` and `2026-09-08-foo-plan.md` converge on the workspace `2026-09-08-foo`). The round `{R}` auto-increments per review family; fix rounds reuse the source review's round (review `R` → fix `R`). Any written handoff — including BLOCKED/TIMEOUT — increments the round counter.
+- [cdd-engine README](../../packages/cdd-engine/README.md) — CLI reference (`cdd <command> --help` for each command's options)
+- `packages/cdd-engine/templates/schema/docs-handoff-schema.json` — the docs handoff schema (status / phase / round / `doc_path` / `doc_hash` / findings / artifacts / blocker / failure_category)
+- `packages/cdd-engine/templates/template-contract.json#reviews` — per-type review configuration (`lensEnum` / `ref` / axes guide)
 
-Schema: `packages/cdd-engine/templates/schema/docs-handoff-schema.json` — `{ status, phase, round, doc_path, doc_hash, findings, artifacts, blocker, failure_category }` with `status: APPROVED | CHANGES_REQUESTED | BLOCKED`. Docs review handoffs carry `doc_hash` (the reviewed content's byte sha256, engine-attached at finalization) — the content-state half of the Review Convergence ref: the engine rejects a re-review of the same `(doc_path, doc_hash)` after a blocker=0 round, and a content edit changes the hash and legitimately opens a new round.
+The convergence discipline for specs and plans lives in the orchestrator skills' `## Invariants` (see §3).
 
 ## 8. Releasing
 

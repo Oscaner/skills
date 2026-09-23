@@ -53,34 +53,34 @@ Template-shaped content converges to a single source of truth: canonical JSON �
 
 ### Development-time CDD invocation — direct, never global
 
-During development the CDD engine must be invoked straight from this repo's working tree (dev and release both go through the `dist` entry): `pnpm --filter @oscaner-skills/cdd-engine dev:stub` (`unbuild --stub`) generates a jiti immediate-load stub — re-run it after dependency changes; the artifact `dist/cli.mjs` is gitignored.
+Invoke the engine from this repo's working tree via the `dist` entry: `pnpm --filter @oscaner-skills/cdd-engine dev:stub` (`unbuild --stub`) generates the `dist/cli.mjs` stub — re-run it after dependency changes; the artifact is gitignored.
 
 ```bash
 pnpm --filter @oscaner-skills/cdd-engine dev:stub && node packages/cdd-engine/dist/cli.mjs <subcommand>
 ```
 
-The global `cdd` command must NOT be used (the `npm link` was removed for this reason). A global link can go stale or resolve to an old copy, so any engine work (P4-era especially) must be exercised against the working tree via the direct invocation — it guarantees the engine under test is this repo's code.
+The global `cdd` command must NOT be used (`npm link` removed).
 
 ### Engine tests
 
 The engine test suite lives at `packages/cdd-engine/src/**/__tests__/**/*.test.ts`, colocated with the modules they cover (vitest include `['src/**/__tests__/**/*.test.ts']`; the top-level `tests/` dir is retired and the engine's `.mjs` plane is zero — pinned by the validate residue guard). Run it with `pnpm --filter @oscaner-skills/cdd-engine test`; new tests land colocated with the module they cover.
 
-### Language policy — English-primary, mirror only README.zh-CN.md
+### Language policy — English-primary, mirror only the README family
 
-**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**, and the repo's mirror policy is **"mirror 仅 README.zh-CN.md"**: the **only** `.zh-CN.md` mirror in the repo is the root **`README.zh-CN.md`** (the repo's outward-presentation surface, kept in sync with the English root `README.md`). Every other plane carries zero mirrors. The single deliberate non-English surface is this repo's internal developer specs/plans, which follow the user's working language.
+**Repository authoring policy (governing principle):** the main codebase — source files, `skills/*/SKILL.md`, and `docs/*.md` — is **English-primary**, and the repo's mirror policy is **"mirror 仅 README family"**: the **only** `.zh-CN.md` mirrors in the repo are the root **`README.zh-CN.md`** and the per-package **`packages/osuperpowers/README.zh-CN.md`** / **`packages/cdd-engine/README.zh-CN.md`** — three files total, each kept in sync with its English counterpart. Every other plane carries zero mirrors. The single deliberate non-English surface is this repo's internal developer specs/plans, which follow the user's working language.
 
 Three strategies implement this, depending on file type:
 
 #### Strategy A — English-primary (SKILL.md and docs/)
 
-`skills/*/SKILL.md` and `docs/*.md` are **English-primary**, with zero `.zh-CN.md` mirrors (the repo's only zh-CN file is the root README mirror).
+`skills/*/SKILL.md` and `docs/*.md` are **English-primary**, with zero `.zh-CN.md` mirrors (the repo's only zh-CN mirrors are the README family — root + the two packages, three files total).
 
 | File | Role |
 |------|------|
 | `skills/*/SKILL.md` | English authoritative source — edit here; **no Chinese content** |
 | `docs/*.md` | English authoritative source — edit here; **no Chinese content** |
 
-**Editing rule**: SKILL.md and docs/*.md must be written entirely in English. Do not create `.zh-CN.md` mirror files for these planes — they are retired; `README.zh-CN.md` is the repo's only mirror.
+**Editing rule**: SKILL.md and docs/*.md must be written entirely in English. Do not create `.zh-CN.md` mirror files for these planes — they are retired; the README family (root + the two packages) is the repo's only mirror surface.
 
 #### Strategy B — Chinese-primary, no mirror (specs and plans)
 
@@ -92,12 +92,7 @@ Three strategies implement this, depending on file type:
 
 ### Review convergence
 
-Unified rule in each orchestrator skill's `## Invariants` (the Review Convergence entry — writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development). Single-cycle, single-dispatch (all review types — task / branch / spec / plan).
-
-- blocker > 0: `cli-fix-all-findings` → re-run review
-- blocker = 0: `cli-fix-all-findings` → done (no re-review after blocker=0)
-
-All findings (blocker + warn + nit) are fixed in both paths.
+The unified review convergence rule lives as the `Review Convergence` entry in each orchestrator skill's `## Invariants` — `packages/osuperpowers/skills/*/SKILL.md` (writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans / cli-driven-development). That entry is the single source; this section intentionally carries no restatement of the rule.
 
 ## Conventions
 
@@ -123,9 +118,7 @@ Never write to the local session-memory directory (`~/.claude/projects/<repo>/me
 
 ### Validation and commit flows
 
-Commits are an operation on a dirty tree (`git add` + `git commit` run with uncommitted changes present), and the pre-commit hook is structurally built from tree-independent targets: `.husky/pre-commit` runs **`pnpm run precommit`** (i.e. `node scripts/run.ts precommit`) — the tree-independent subset of the full validate (`scripts/validate/pre-commit.ts`: emit freshness / osuperpowers tree + wiring guard / engine zero residue + channel audit / marketplace manifests / scripts unit / package version sync — 6 groups, 9 blocks). It **excludes the two engine-dependent blocks** (cdd-engine dev stub materialization + the cdd-engine engine test suite), which rely on true sequential dispatch with `cwd=REPO_ROOT` through the entry gate — a dirty tree is their structural failure point, so they run in the isolated clean temp repo covered by `infra/lifecycle.wiring.test.ts`. The full 11-block validate (including the tree-dependent black-box cases) runs on the CI clean checkout (`.github/actions/validate` + `scripts/run.ts smoke-cdd`) — locally, get the complete assertion surface by committing first and then running `pnpm run validate`. The entry gate stays a real boundary.
-
-**CLI black-box cases and the clean-tree entry gate:** some CLI black-box dry-run cases (`cli/__tests__/cdd.test.ts`, `cli/__tests__/cli-shape.test.ts`, `dispatch/__tests__/docs-task.test.ts`) run with `cwd=REPO_ROOT` on this repo's working tree. The entry gate (`rules/commit.ts` `entryGateCleanTree`) admits two states — a real clean tree, or dirty + dry-run via the `CDD_WARN` degradation (dry-run WARNs instead of BLOCKING on a dirty tree and completes the pure simulation with exit 0; real dispatch keeps its BLOCKED semantics). **Do not run the engine test suite on an uncommitted tree to "verify" the entry gate** — on a dirty tree those black-box cases hit the degradation path (still green, but not the clean-tree assertion surface); deterministic clean-tree assertions come from the black-box sweep on a separate temporary repo. Changes to entry-gate / dry-run protocol semantics require reviewing those three test files together.
+Commits run on a dirty tree (`git add` + `git commit` run with uncommitted changes present). `.husky/pre-commit` runs **`pnpm run precommit`** (`node scripts/run.ts precommit`, i.e. `scripts/validate/pre-commit.ts`) — the tree-independent subset of the full validate (6 groups, 9 blocks: emit freshness / osuperpowers tree + wiring guard / engine zero residue + channel audit / marketplace manifests / scripts unit / package version sync), excluding the two engine-dependent blocks (cdd-engine dev stub materialization + the engine test suite). The full 11-block validate, including the tree-dependent black-box cases, runs on the CI clean checkout (`.github/actions/validate` + `scripts/run.ts smoke-cdd`); locally, commit first, then run `pnpm run validate` for the complete assertion surface.
 
 ### Node.js
 

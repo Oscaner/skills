@@ -53,8 +53,8 @@ function run(args, extraEnv = {}, opts = {}) {
 
 // 真仓 fixture：mkdtemp + gitInit + 仓根内 plan（`--plan` 的仓根相对路径）+ 干净工作树
 //（commit-contract 前提）。workspace 由 engine 纯派生：<repo>/.osuperpowers/cdd/plan。
-// P4.3: plan 载 Task 1 + Task 2 —— 单组（--tasks 1 / --tasks 2）与整组（--tasks 1,2）共用同一
-// dispatch 路径，超界面（--tasks 9）保持 BLOCK。
+// P4.3: the plan carries Task 1 + Task 2 — single-task (--tasks 1 / --tasks 2) and whole-group
+// (--tasks 1,2) share the same dispatch path; the out-of-bounds face (--tasks 9) stays BLOCK.
 function setupWorkspace() {
   const repo = realpathSync(mkdtempSync(path.join(tmpdir(), `cdd-task-cli-${Date.now()}-${Math.random().toString(36).slice(2)}`)));
   gitInit(repo);
@@ -88,7 +88,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   });
 
   // F11: implement --plan 无前置 brief → runTask 自供应（plan 定稿处 generateBrief）；
-  // 产物 = plan-derived ws/tasks-{a}-{b}-brief.md + TASK_BASE: <HEAD>（P4.3 组命名）。
+  // Artifacts = plan-derived ws/tasks-{a}-{b}-brief.md + TASK_BASE: <HEAD> (P4.3 group naming).
   it('implement --plan without a pre-existing brief → self-provisions tasks-N-brief.md with TASK_BASE:', () => {
     const { repo, plan, ws } = setupWorkspace();
     const res = run(
@@ -204,10 +204,10 @@ describe('cdd implement/review/fix CLI contract', () => {
   });
 });
 
-// --tasks <n|n,n,…> list model (P4.3 group dispatch): acceptance covers the 组级 dispatch path —
-// `--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径（成功 · 超界 BLOCK + 逐项列示 · round/handoff/进度/
-// 残差按组一份，artifact 命名 tasks-{a}-{b}-*）+ parse 层的 trim / dedupe / empty-slice /
-// non-integer rejection。
+// --tasks <n|n,n,…> list model (P4.3 group dispatch): acceptance covers the group-level dispatch
+// path — `--tasks 1` and `--tasks 1,2` follow the same dispatch path (success · out-of-bounds BLOCK
+// with per-item missing listing · round/handoff/progress/residue one copy per group, artifact names
+// tasks-{a}-{b}-*) plus the parse layer's trim / dedupe / empty-slice / non-integer rejection.
 describe('P4.3 --tasks list model (group dispatch acceptance)', () => {
   it('implement --tasks 1 → group-of-one dispatch: tasks-1-brief.md self-provisioned, APPROVED + exit 0', () => {
     const { repo, plan, ws } = setupWorkspace();
@@ -223,7 +223,7 @@ describe('P4.3 --tasks list model (group dispatch acceptance)', () => {
     expect(readFileSync(path.join(ws, 'tasks-1-brief.md'), 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
   });
 
-  it('implement --tasks 1,2 → 与 --tasks 1 同一 dispatch 路径: 整组一份 brief（tasks-1-2-brief.md 含两段）', () => {
+  it('implement --tasks 1,2 → same dispatch path as --tasks 1: one group brief (tasks-1-2-brief.md with both sections)', () => {
     const { repo, plan, ws } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--tasks', '1,2', '--plan', plan],
@@ -233,16 +233,17 @@ describe('P4.3 --tasks list model (group dispatch acceptance)', () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toMatch(/^status: APPROVED$/m);
     expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
-    // 组即单位：一份组键 brief（tasks-1-2-brief.md），含 Task 1 + Task 2 两段与单条 TASK_BASE
+    // The group is the dispatch unit — the group-keyed brief (tasks-1-2-brief.md) holds both
+    // Task 1 + Task 2 sections and the single TASK_BASE.
     const brief = readFileSync(path.join(ws, 'tasks-1-2-brief.md'), 'utf8');
     expect(brief).toMatch(/^### Task 1:/m);
     expect(brief).toMatch(/^### Task 2:/m);
     expect(brief.match(/^TASK_BASE: /gm)).toHaveLength(1);
-    // 无 per-task 分解产物（不存在 task-1-brief.md 单任务 brief）
+    // No per-task artifacts — a task-1-brief.md single-task brief must not exist
     expect(existsSync(path.join(ws, 'task-1-brief.md'))).toBe(false);
   });
 
-  it('implement --tasks 2,3（Task 3 超界）→ 整组 BLOCK exit 1 + 逐项列示缺失（/task N not found/ 契约）', () => {
+  it('implement --tasks 2,3 (Task 3 out of bounds) → whole-group BLOCK exit 1 + per-item missing listing (/task N not found/ contract)', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--tasks', '2,3', '--plan', plan],
@@ -254,7 +255,7 @@ describe('P4.3 --tasks list model (group dispatch acceptance)', () => {
     expect(res.stderr).toMatch(/task 3 not found/);
   });
 
-  it('implement --tasks 8,9（全组超界）→ 整组 BLOCK + tasks 8, 9 逐项列示', () => {
+  it('implement --tasks 8,9 (entire group out of bounds) → whole-group BLOCK + per-item tasks 8, 9 listing', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--tasks', '8,9', '--plan', plan],
@@ -266,7 +267,7 @@ describe('P4.3 --tasks list model (group dispatch acceptance)', () => {
     expect(res.stderr).toMatch(/tasks 8, 9 not found/);
   });
 
-  it('review --type task --tasks 1,2 → 同一 dispatch 路径 (组轮次 resolveNextRound → round 1 通过)', () => {
+  it('review --type task --tasks 1,2 → same dispatch path (group round resolveNextRound → round 1 passes)', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
       ['--dry-run', 'review', '--type', 'task', '--tasks', '1,2', '--plan', plan],
@@ -277,7 +278,7 @@ describe('P4.3 --tasks list model (group dispatch acceptance)', () => {
     expect(res.stdout).toMatch(/^status: APPROVED$/m);
   });
 
-  it('fix --type task --tasks 1,2 --findings <group review handoff> → 整组修 (group findings path plumbed)', () => {
+  it('fix --type task --tasks 1,2 --findings <group review handoff> → whole-group fix (group findings path plumbed)', () => {
     const { repo, plan } = setupWorkspace();
     const findingsRel = path.posix.join('.osuperpowers', 'cdd', 'plan', 'tasks-1-2-review-1.json');
     const res = run(

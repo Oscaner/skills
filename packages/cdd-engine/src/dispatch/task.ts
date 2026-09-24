@@ -658,7 +658,7 @@ export class TaskLifecycle extends DispatchLifecycle {
           })
         : { cause: FAILURE_CATEGORIES.TIMEOUT.id };
       writeBlockedCarrier(ctx.handoffPath, {
-                tasks: this.#tasks,
+        tasks: this.#tasks,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
@@ -719,7 +719,7 @@ export class TaskLifecycle extends DispatchLifecycle {
             // findings kept in full (A4 defect surface): the parsed findings enter the carrier
             // as-is instead of a wholesale rewrite to [].
             writeBlockedCarrier(ctx.handoffPath, {
-                            tasks: this.#tasks,
+              tasks: this.#tasks,
               phase: mode,
               failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
               findings: rec.preservedFindings,
@@ -762,7 +762,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         // preserved.
         : { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.#agentRc };
       writeBlockedCarrier(ctx.handoffPath, {
-                tasks: this.#tasks,
+        tasks: this.#tasks,
         phase: mode,
         failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
         commits: { base: "unknown" }, // no real head at failure time — the "unknown" sentinel is the EXECUTION_FAILURE ground (T23)
@@ -789,7 +789,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     // would falsely BLOCK every successful implement.
     if (this.#agentRc === 0 && !dryRun && mode !== "implement" && !existsSync(ctx.handoffPath)) {
       writeBlockedCarrier(ctx.handoffPath, {
-                tasks: this.#tasks,
+        tasks: this.#tasks,
         phase: mode,
         failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
         blocker: `${path.basename(ctx.handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${ctx.handoffPath} before exit`,

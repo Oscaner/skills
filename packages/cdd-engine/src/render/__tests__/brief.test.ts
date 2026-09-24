@@ -87,7 +87,7 @@ it("generateBrief #185: task 2 不存在（仅 Task 1）→ throw CDD-level inde
 
 // ---- group brief: the group is the dispatch unit — one brief file per group, each requested
 // task's section in it; out-of-bounds BLOCKs the WHOLE group with per-item missing listing ----
-it("generateBrief group: --tasks 1,2 → 两段俱在 + 单条 TASK_BASE（组即单位）", async () => {
+it("generateBrief group: --tasks 1,2 → both sections present + single TASK_BASE (group is the unit)", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "brief-group-"));
   const planFile = path.join(dir, "plan.md");
   writeFileSync(planFile, makePlan([[1, "Do task 1\n"], [2, "Do task 2\n"], [3, "Do task 3\n"]]));
@@ -103,7 +103,7 @@ it("generateBrief group: --tasks 1,2 → 两段俱在 + 单条 TASK_BASE（组�
   expect(content.includes("Do task 2")).toBe(true);
 });
 
-it("generateBrief group: 请求序即段序（--tasks 2,1 → Task 2 段在前）", async () => {
+it("generateBrief group: request order is section order (--tasks 2,1 → Task 2 section first)", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "brief-group-order-"));
   const planFile = path.join(dir, "plan.md");
   writeFileSync(planFile, makePlan([[1, "body 1\n"], [2, "body 2\n"]]));
@@ -113,18 +113,18 @@ it("generateBrief group: 请求序即段序（--tasks 2,1 → Task 2 段在前�
   expect(content.indexOf("### Task 2:")).toBeLessThan(content.indexOf("### Task 1:"));
 });
 
-it("generateBrief group 超界: 整组 BLOCK + 逐项列示缺失（保留 /task N not found/ 契约）", async () => {
+it("generateBrief group out-of-bounds: whole-group BLOCK + per-item missing listing (keeps /task N not found/ contract)", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "brief-group-miss-"));
   const planFile = path.join(dir, "plan.md");
   writeFileSync(planFile, makePlan([[1, "only task 1\n"]]));
-  // 单缺失面：整组拒绝，消息仍匹配单任务契约
+  // Single missing face: the whole group is rejected, the message still matches the single-task contract
   await expect(
     generateBrief(planFile, [1, 99], path.join(dir, "out.md"), REPO_ROOT),
   ).rejects.toThrow(/task 99 not found \(CDD-level index/);
-  // 多缺失面：逐项列示（tasks 2, 3 …）
+  // Multiple missing faces: per-item listing (tasks 2, 3 …)
   await expect(
     generateBrief(planFile, [1, 2, 3], path.join(dir, "out.md"), REPO_ROOT),
   ).rejects.toThrow(/tasks 2, 3 not found \(CDD-level index; plan must contain '### Task N:' heading\)/);
-  // 组 BLOCK 不写任何产物（整组整体拒绝）
+  // Group BLOCK writes no artifacts (whole-group rejection)
   expect(existsSync(path.join(dir, "out.md"))).toBe(false);
 });

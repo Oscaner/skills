@@ -45,11 +45,11 @@ it("roundPattern scan 形态: spec-review-2.json 可被匹配", () => {
   const legacySpecName = ["spec", "1"].join("-") + ".json";
   expect(legacySpecName).not.toMatch(roundPattern("review", "spec"));
 });
-it("roundPattern scan 形态: task group 命名 tasks-{a}-{b}-* 可被匹配 (round capture group)", () => {
+it("roundPattern scan shape: task group naming tasks-{a}-{b}-* matches (round capture group)", () => {
   expect("tasks-1-review-2.json").toMatch(roundPattern("review", "task"));
   expect("tasks-1-2-review-1.json").toMatch(roundPattern("review", "task"));
   expect("tasks-3-7-12-review-4.json").toMatch(roundPattern("review", "task"));
-  // 旧命名（task-{N} 形）不得匹配 canonical 模式 —— 拼字构造避开 residue grep 误报。
+  // Legacy naming (task-{N} shape) must not match the canonical pattern — string-built to avoid residue grep false positives.
   const legacyTaskName = ["task", "1", "review", "1"].join("-") + ".json";
   expect(legacyTaskName).not.toMatch(roundPattern("review", "task"));
 });
@@ -63,7 +63,7 @@ it("resolveNextRound: 写 spec-review-1.json 后 → 2", () => {
   writeFileSync(join(ws, "spec-review-1.json"), "{}");
   expect(resolveNextRound(ws, "review", "spec")).toBe(2);
 });
-it("resolveNextRound: group pin 精确扫描——跨组不混计 rounds", () => {
+it("resolveNextRound: group pin exact scan — rounds never mix across groups", () => {
   const ws = mkdtempSync(join(tmpdir(), "hn-grouppin-"));
   writeFileSync(join(ws, "tasks-1-review-1.json"), "{}");
   writeFileSync(join(ws, "tasks-1-review-2.json"), "{}");
@@ -76,7 +76,7 @@ it("resolveNextRound: group pin 精确扫描——跨组不混计 rounds", () =>
 it("prevHandoffPath: 同族 round-1（review.spec R=2 → spec-review-1.json）", () => {
   expect(prevHandoffPath("/ws", "review", "spec", 2)).toBe("/ws/spec-review-1.json");
 });
-it("prevHandoffPath: 跨族 task review R=1 → implement；R>1 → fix.task:R-1 (group key)", () => {
+it("prevHandoffPath: cross-family task review R=1 → implement; R>1 → fix.task:R-1 (group key)", () => {
   expect(prevHandoffPath("/ws", "review", "task", 1, { tasks: "5" })).toBe("/ws/tasks-5-implement.json");
   expect(prevHandoffPath("/ws", "review", "task", 3, { tasks: "1-2" })).toBe("/ws/tasks-1-2-fix-2.json");
 });

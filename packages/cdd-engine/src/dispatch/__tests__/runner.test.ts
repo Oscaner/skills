@@ -262,15 +262,15 @@ it("runTask: group [1,2] implement failure → tasks-1-2-implement.json BLOCKED 
     const hp = path.join(wsTwo, "tasks-1-2-implement.json");
     expect(existsSync(hp)).toBe(true);
     const handoff = JSON.parse(readFileSync(hp, "utf8"));
-        expect(handoff.tasks).toEqual([1, 2]); // the group reference (P4.3)
+    expect(handoff.tasks).toEqual([1, 2]); // the group reference (P4.3)
     expect(handoff.status).toBe("BLOCKED");
-    // 逐项无 per-task carrier 旁支（组即单位——没有 task-1-implement.json / task-2-implement.json）
+    // No per-task carrier side-branches (the group is the unit — no task-1-implement.json / task-2-implement.json)
     expect(existsSync(path.join(wsTwo, "task-1-implement.json"))).toBe(false);
-    // 整组结构卷入建议面 —— 建议的 --tasks 值恰为组键 1-2（无子集派发；legacy 单任务面零残留）
+    // The whole-group shape rides the advice surface — the advised --tasks is exactly the group key 1-2 (no subset dispatch; zero legacy single-task residue)
     expect(handoff.blocker).toMatch(/cdd implement --tasks 1-2 re-dispatch auto-resumes/);
     const adviceTasks = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(handoff.blocker)?.[1];
     expect(adviceTasks).toBe("1-2"); // whole-group re-dispatch advice — never a per-task subset
-    // 进度账本按组一行（round 组级）
+    // Progress ledger: one row per group (round at group level)
     const progress = JSON.parse(readFileSync(path.join(wsTwo, "progress.json"), "utf8"));
     expect(progress.tasks).toEqual([{ group: "1-2", rounds: { implement: 1 } }]);
   } finally {

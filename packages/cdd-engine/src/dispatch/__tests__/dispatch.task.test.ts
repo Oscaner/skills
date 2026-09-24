@@ -139,8 +139,8 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block AP
 
 it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪造 commit-contract 文案）", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-"));
-  const hp = path.join(ws, "task-1-review-1.json");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "BLOCKED", findings: [], artifacts: {} }));
+  const hp = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "BLOCKED", findings: [], artifacts: {} }));
   const lines = returnFromHandoff(hp, ws);
   expect(lines[0]).toBe("status: BLOCKED");
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: ");
@@ -149,19 +149,19 @@ it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪�
 
 it("returnFromHandoff ④: 真实 blocker 原样透传；APPROVED 无 blocker → blocker: none", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh2-"));
-  const hp = path.join(ws, "task-1-review-1.json");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "APPROVED", blocker: "真实原因", findings: [], artifacts: {} }));
+  const hp = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "APPROVED", blocker: "真实原因", findings: [], artifacts: {} }));
   const lines = returnFromHandoff(hp, ws);
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: 真实原因");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {} }));
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "APPROVED", findings: [], artifacts: {} }));
   const lines2 = returnFromHandoff(hp, ws);
   expect(lines2.find((l) => l.startsWith("blocker:"))).toBe("blocker: none");
 });
 
 it("returnFromHandoff ④: commit-gate 文案仅当来源 commit-gate（handoff blocker 字段）时输出", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh3-"));
-  const hp = path.join(ws, "task-1-review-1.json");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "BLOCKED", blocker: "uncommitted changes at return", findings: [], artifacts: {} }));
+  const hp = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "BLOCKED", blocker: "uncommitted changes at return", findings: [], artifacts: {} }));
   const lines = returnFromHandoff(hp, ws);
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: uncommitted changes at return");
 });

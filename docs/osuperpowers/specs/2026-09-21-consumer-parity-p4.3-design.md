@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.3 cdd 多 task 模式 + task groups 裁定 + Mid-Flight Backfill 语义修复 Design Spec
 
-- **Version**: v1.2 · 2026-09-24
+- **Version**: v1.3 · 2026-09-24
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.27](2026-09-21-consumer-parity-overall.md)
@@ -8,11 +8,11 @@
 
 ## Section 0: Incremental warning
 
-本 phase 承载三块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）。**2026-09-24 用户裁决并入 ④⑤（#274/#276，cdd-engine doc-contract gate 修复）**——scope 扩展已回填 overall v1.27（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤ · change-history v1.27 行）；两修同属 engine breaking 面、1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
+本 phase 承载五块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）④⑤ **cdd-engine doc-contract gate 修复**（#274/#276，2026-09-24 用户裁决并入）——scope 扩展已回填 overall v1.27（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤ · change-history v1.27 行）；两修同属 engine breaking 面、1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
 
 ## Section 1: Constraints pointer
 
-Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）：
+Cross-phase 规则以 parent overall v1.27 为准（overall wins on conflict）：
 
 - **允许破坏性变更**（charter 约束 bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；breaking 收进 P4.2 changelog
 - 判据三定式（C1 可达性 / C2 结构性 / C3 退化）适用于本 phase 一切处置判断
@@ -55,16 +55,16 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 
 **2.4 模板与 schema 产出面**（2026-09-24 核查结论，随 CLI 契约调整）
 
-| 层次 | 文件 | 变更 |
+| 层次 | 文件 | 变更（范围 = `--tasks` 契约面；④⑤ 改动面见 §2.6/AC） |
 |---|---|---|
 | 锁步（必改） | `templates/engine-config.json` argv 通道 | `task` → `tasks`（flag + type `int` → `int-list`） |
 | 锁步（必改） | `src/documents/schema/plan.json` | `taskGroups` 属性（§2.2 语义） |
-| 产物契约 | `engine-config.json` `handoffNamespace.families` | `task-{task}-*.json` → 组单位命名（组键规则：`tasks-{a}-{b}` 列表串，最小形态，P4.4 抽象化输入） |
+| 产物契约 | `engine-config.json` `handoffNamespace.families` | `task-{task}-*.json` → 组单位命名（组键规则：组键 = 组元素**按序以 `-` 连接的完整 list 串**、无 range 缩写——`--tasks 1` → `tasks-1` · `--tasks 1,2` → `tasks-1-2` · `--tasks 1,2,3` → `tasks-1-2-3`；与 family 后缀组合：`tasks-1-2-implement` / `tasks-1-2-review-{round}` / `tasks-1-2-fix-{round}`；AC ③ 依赖该命名面；最小形态，P4.4 抽象化输入） |
 | 产物契约 | `templates/schema/task-handoff-schema.json` | handoff 内容补组引用（tasks 列表 + per-task 区段字段） |
 | emit 输入 | `skills/cli-driven-development/SKILL.md` ×3 调用串 → `--tasks`（改后 `pnpm run emit` + refresh） |
 | 宣讲面 | cdd-engine 包 README `--task` 示例 ×4 行（`implement` 表行 · `cdd review --task` 选项列举，README.md:31,37 / README.zh-CN.md:33,39；zh-CN mirror 同改；osuperpowers 包同旗零命中，无改） |
 | 守卫面 | `scripts/validate/__tests__/residue.test.ts:1149` + `:121` 合成 fixture 字面量随迁（:121 retired-`brief` 守卫 `cdd brief --task 1 --plan p --output o` argv 迁 `--tasks`、anti-reintroduce 断言保留，与 cli-shape.test.ts:108 同构） |
-| 不动 | `documents/schema/overall.json` · `phase-spec.json` · `template-contract.json`（review lens，非 flag）· `lifecycle.json`（零 task 引用）· frozen 历史 docs（overhaul 族 / p3-p6 历史行，豁免） |
+| 不动 | `phase-spec.json` · `template-contract.json`（review lens，非 flag）· `lifecycle.json`（零 task 引用）· frozen 历史 docs（overhaul 族 / p3-p6 历史行，豁免）——**carve-out**：`src/documents/schema/overall.json` 不入本行（§2.6 #276 ④⑤ 描述层三处必改：`changeHistory.header.columns` 首格 `version` 判定 · `issueInventory.row.issueRef` 字面枚举 · `phaseInventory.rowShape.cellCount` + `columnNames.header` 6 内容列；改动见 §2.6 + AC ⑫） |
 
 **2.5 死码清扫判定表**（2026-09-24 用户裁决：空壳、死代码即删；逐项判定防误删行为断言）
 
@@ -91,7 +91,7 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 - **事实源判定**：enforcement 按位置读、语义正确（`documents.ts:585` 表头首格 `version` · `890-905` issue-ref 合法枚举 · Phase 行 6 内容列 c1=id / c3=Design / c4=plan / c6=dependency，fixture `smoke-overall.md` 行形）→ **schema 描述层改向 enforcement 实读形态**（不反向改 engine 读法、不加 Scope 列）：
   - `changeHistory.header.columns` enum → 统一描述首格 `version` 判定
   - `issueInventory.row.issueRef` 字面形式 → 合法枚举 none / `#NNN` / `[#NNN]` / `#NNN#issuecomment-<digits>` / 整格括号（`^[（(][^）)]*[）)]$`）
-  - `phaseInventory.rowShape.cellCount` / `columnNames.header` → 6 内容列、与 smoke-overall.md 行形一致（弃自相矛盾的 7+2 计数与 7 列 header）
+  - `phaseInventory.rowShape.cellCount` / `columnNames.header` → 6 内容列、与 smoke-overall.md 行形一致（描述层改写：`rowShape.cellCount` const=8 与 `columnNames.count` const=7、`columnNames.header` const=7 列三处自相矛盾值，统一向 enforcement 实读的 6 内容列）
 - **报错 UX**：`bad/empty version` · `unrecognized issue ref` · `not a Phase-inventory id` 三处附 `should look like:` 正确形态行；移除误导的「use the canonical 7-column Phase inventory header」提示（引擎不按该列序读取）
 
 **测试面补（#274/#276）**——engine 测试自造链覆盖（smoke-overall fixture 形态；零本仓产物 fixture，P3 裁决）；触发回归 = P3.8 触发现场复现（`[In-flight]` 列 + link 形态 plan cell + prose 提及 phase 不误命中）；#276 修正后照 schema 描述所写形态不再被 gate 拒绝（对拍断言）。

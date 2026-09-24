@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.3-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.3-design.md)
 - **Parent program**: [consumer-parity overall v1.30](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.1 · 2026-09-24（plan-fix-1：6 件 review finding 落地）
+- **Version**: v1.3 · 2026-09-24（mid-flight 用户裁决：task-handoff-schema 删顶层 `task` 标量，required 迁 `tasks` —— 单数据模型）
 - **Base**: develop
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.1-design.md)）
 
@@ -41,14 +41,14 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 
 ### Task 2: dispatch 组载体（TaskLifecycle 组 · handoff 组键 · 超界 · re-dispatch 串）
 
-- **Do**: `dispatch/task.ts` `TaskLifecycle.#taskNum` 标量 → TaskGroup 组载体（tasks 列表，组即单位）；`buildCtx` brief/handoff 组级键。`render/brief.ts:33-36` 超界检查升组级（读盘后任务数可得：超界整体 BLOCK + 逐项列示缺失，保留 `/task N not found/` 契约）。`templates/engine-config.json` `handoffNamespace.families`（implement.task / review.task / fix.task）命名 `task-{task}-*.json` → 组键 `tasks-{a}-{b}-*`（完整 list 串无 range 缩写：`--tasks 1` → `tasks-1` · `--tasks 1,2` → `tasks-1-2`）；同文件 derived 派生网格（L106-135）handoffPath/briefPath/findingsPath 的输入 from 引用（L109-111 / L115-118 / L130-134 标量 `task`）随组键同面落迁 `tasks`（组语义下该三通道读组键命名空间，与 `tasks-{a}-{b}-*` 一致）；`templates/schema/task-handoff-schema.json` 补组引用（tasks 列表 + per-task 区段字段）。`rules/failure.ts:117-121` 与 `dispatch/task.ts:760-761` re-dispatch 建议串改整组面（`cdd fix --tasks 1,2` 形态，无子集派发）。
+- **Do**: `dispatch/task.ts` `TaskLifecycle.#taskNum` 标量 → TaskGroup 组载体（tasks 列表，组即单位）；`buildCtx` brief/handoff 组级键。`render/brief.ts:33-36` 超界检查升组级（读盘后任务数可得：超界整体 BLOCK + 逐项列示缺失，保留 `/task N not found/` 契约）。`templates/engine-config.json` `handoffNamespace.families`（implement.task / review.task / fix.task）命名 `task-{task}-*.json` → 组键 `tasks-{a}-{b}-*`（完整 list 串无 range 缩写：`--tasks 1` → `tasks-1` · `--tasks 1,2` → `tasks-1-2`）；同文件 derived 派生网格（L106-135）handoffPath/briefPath/findingsPath 的输入 from 引用（L109-111 / L115-118 / L130-134 标量 `task`）随组键同面落迁 `tasks`（组语义下该三通道读组键命名空间，与 `tasks-{a}-{b}-*` 一致）；`templates/schema/task-handoff-schema.json` 补组引用（tasks 列表 · required 迁 tasks · **删顶层 `task` 标量字段**——单数据模型：handoff 载体面无单/多双面，`findings[].task` per-task 归因保留）。`rules/failure.ts:117-121` 与 `dispatch/task.ts:760-761` re-dispatch 建议串改整组面（`cdd fix --tasks 1,2` 形态，无子集派发）。
 
 - **验收**:
   - `--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径行为实证（成功 · 超界 BLOCK + 缺失列示 · round/handoff/进度/残差按组一份）
   - `cdd review --type task --tasks 1,2` 一轮审整组（round/blocker/findings 组级归因）；`cdd fix --type task --tasks 1,2 --findings <handoff>` 整组修（agent 自判归因）
   - re-dispatch 建议串为整组面（`cdd fix --tasks 1,2` 形态，无子集）
   - `packages/cdd-engine/src` grep `--task` 全量零命中（frozen 除外；T1 面 + 本任务 re-dispatch 两处 failure.ts:117-121 / dispatch/task.ts:760-761 迁移后可达）
-  - handoff 命名 `tasks-{a}-{b}-*` 落地（engine 测试断言 artifact 名）；task-handoff-schema 组引用字段落位
+  - handoff 命名 `tasks-{a}-{b}-*` 落地（engine 测试断言 artifact 名）；task-handoff-schema 组引用字段落位、顶层 `task` 字段零存在（grep `"task"` top-level 面零命中，required 面 = `tasks` 组引用；`findings[].task` 归因保留）
 
 ### Task 3: plan schema `taskGroups` + effectiveGroups 单处派生（空默认）
 

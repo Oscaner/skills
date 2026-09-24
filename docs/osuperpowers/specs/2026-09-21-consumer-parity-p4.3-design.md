@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.3 cdd 多 task 模式 + task groups 裁定 + Mid-Flight Backfill 语义修复 Design Spec
 
-- **Version**: v1.0 · 2026-09-24
+- **Version**: v1.1 · 2026-09-24
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.26](2026-09-21-consumer-parity-overall.md)
@@ -33,7 +33,7 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 - **单数据模型**：`--tasks` 携带逗号分隔 task 列表（长度 ≥ 1）；`--tasks 1` = 长度 1 的组；**无单/多双面、无单独代码路径**；三命令同位——`cdd implement --tasks <n|n,n,…> --plan <path>` · `cdd review --type task --tasks … --plan <path>` · `cdd fix --type task --tasks … --plan <path> --findings <handoff>`
 - **组即单位**（用户裁决：分了 task 组就全走 task 组，免心智分支）：一次 dispatch session 处理整组——brief 各留其份（round 信息），round-context / handoff / 进度 / 残差**按组一份**；review 一轮审整组、fix **整组重申**（无子集派发，agent 自判归因）；re-dispatch 建议串整组面
 - **行为聚合**：组级单 dispatch 退出码语义不变（成功 0 / BLOCKED 1 / usage 2 / convergence 3）
-- **parse 层**（`parseTaskList`）：split(`,`).map(trim) → 逐 token 整数校验——超界（plan 无此 task）整体 BLOCK + 逐项列示缺失（保留 `/task N not found/` 契约）；去重（`1,1` → `1`）；空 slice 拒绝；非整数 exit 2（Bug-A 契约升级消息：`--tasks must be comma-separated integers: <token>`）
+- **parse 层**（`parseTaskList`，**纯格式校验**）：split(`,`).map(trim) → 逐 token 整数校验 + 去重（`1,1` → `1`）+ 空 slice 拒绝；非整数 exit 2（Bug-A 契约升级消息：`--tasks must be comma-separated integers: <token>`）——**plan-aware 超界 BLOCK 归组级 brief-gen**（`render/brief.ts` 校验面，读盘后任务数可得）：超界整体 BLOCK + 逐项列示缺失（保留 `/task N not found/` 契约）
 - **canonical argv 通道锁步**：`templates/engine-config.json` `channels.argv.task {flag: "--task", type: "int"}` → `"tasks" {flag: "--tasks", type: "int-list"}`——与 parse.ts 同改同提（residue Row-9/10 守卫从它派生 CANONICAL_ARGV_FLAGS）
 - **组件改动面**（Explore 实证清单）：`parse.ts`（SUBCOMMAND_USAGE ×3 · 三个 arg 声明 `tasks` · dispatch 调用点 `intTask` → `parseTaskList`）、`shared.ts`（`intTask` 内核复用于逐 token 校验 + 消息升级）、`review.ts:190` / `fix.ts:41` 缺失必填错误串、`bin.ts:9` 头注释、`dispatch/task.ts`（TaskLifecycle `#taskNum` 标量 → 组载体）、`rules/failure.ts:117-121` 与 `dispatch/task.ts:760-761` re-dispatch 建议串、`render/brief.ts:33-36` 超界检查（组级校验面）
 
@@ -45,7 +45,7 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 - **空默认语义**（2026-09-24 用户裁决）：`taskGroups: []`/缺省 ⇒ `effectiveGroups = [[1],[2],…,[N]]` = **per-task 现状等价、零迁移**；非空 ⇒ 声明组取代
 - **落盘规则**：「Task Groups」节**仅在合并分组时落盘**（裁定输出非平凡才动 plan）+ 独立 commit + 干净树后进 loop；零分组时无 plan churn
 - **消化面单处派生**：`effectiveGroups = taskGroups.length ? taskGroups : singletons(taskNumbersFromPlan(plan))`（`rules/documents.ts` · `dispatch/base.ts` 迭代随组）——无第二实现
-- **CLI 与 plan 记录关系**：`--tasks` = dispatch 指令（源 truth）；plan `taskGroups` = 编排记录（默认空 → per-task）
+- **CLI 与 plan 记录关系**：`--tasks` = dispatch 指令（源 truth）；plan `taskGroups` = 编排记录（默认空 → per-task）。**分歧支配规则**：`taskGroups` 唯一写者为裁定节点，任何合并组（列表长度 ≥ 2）dispatch 前「Task Groups」节已落盘（§2.2 落盘规则）——CLI 与记录恒一致、无漂移态，re-dispatch 分组不丢；`--tasks 1` 单组与空默认 singletons 同态，分歧不成立
 
 **2.3 Mid-Flight Backfill I4 语义修复（五面重写）**
 
@@ -62,8 +62,8 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 | 产物契约 | `engine-config.json` `handoffNamespace.families` | `task-{task}-*.json` → 组单位命名（组键规则：`tasks-{a}-{b}` 列表串，最小形态，P4.4 抽象化输入） |
 | 产物契约 | `templates/schema/task-handoff-schema.json` | handoff 内容补组引用（tasks 列表 + per-task 区段字段） |
 | emit 输入 | `skills/cli-driven-development/SKILL.md` ×3 调用串 → `--tasks`（改后 `pnpm run emit` + refresh） |
-| 宣讲面 | 两包 README `--task` 示例（zh-CN mirror 同改） |
-| 守卫面 | `scripts/validate/__tests__/residue.test.ts:1149` 合成 fixture 字面量随迁 |
+| 宣讲面 | cdd-engine 包 README `--task` 示例 ×4 行（`implement` 表行 · `cdd review --task` 选项列举，README.md:31,37 / README.zh-CN.md:33,39；zh-CN mirror 同改；osuperpowers 包同旗零命中，无改） |
+| 守卫面 | `scripts/validate/__tests__/residue.test.ts:1149` + `:121` 合成 fixture 字面量随迁（:121 retired-`brief` 守卫 `cdd brief --task 1 --plan p --output o` argv 迁 `--tasks`、anti-reintroduce 断言保留，与 cli-shape.test.ts:108 同构） |
 | 不动 | `documents/schema/overall.json` · `phase-spec.json` · `template-contract.json`（review lens，非 flag）· `lifecycle.json`（零 task 引用）· frozen 历史 docs（overhaul 族 / p3-p6 历史行，豁免） |
 
 **2.5 死码清扫判定表**（2026-09-24 用户裁决：空壳、死代码即删；逐项判定防误删行为断言）
@@ -72,15 +72,16 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 |---|---|
 | `shared.ts:intTask` 单值入口 | 内核复用（逐 token 校验），单值入口随改名删除 |
 | `cli-shape.test.ts:108` retired-`brief` 回归 | **非死码**——anti-reintroduce 行为断言（`cdd brief …` → 未知命令 exit 2）保留，argv 迁 `--tasks` |
+| `residue.test.ts:121` retired-`brief` 守卫 fixture | **非死码**——retired-子命令 lexicon 守卫断言保留，argv 迁 `--tasks`（与 cli-shape.test.ts:108 同构） |
 | `dispatch/task.ts:760-761` / `rules/failure.ts` re-dispatch 建议串 | 改整组面（`cdd fix --tasks 1,2` 形态） |
 | handoff/进度命名残面 | 组键命名最小形态落 §2.4；残余标量残面**留白 P4.4**（本 phase 不越界） |
 
-**测试面**——engine 测试：`--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径行为实证（成功 · 超界 BLOCK · 去重 · trim · 非整数 exit 2）、组 review/fix 一轮整组、re-dispatch 串整组断言、现有 `--task` 用例全量迁 `--tasks`；`smoke-cdd` consumer-sim 链随迁；skills 面：`pnpm run emit` + `emit:check` 无 drift、I4 五面同文 grep 断言、digraph 节点/边新判据接线。
+**测试面**——engine 测试：`--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径行为实证（成功 · 超界 BLOCK · 去重 · trim · 空 slice 拒绝 · 非整数 exit 2）、组 review/fix 一轮整组、re-dispatch 串整组断言、现有 `--task` 用例全量迁 `--tasks`；`smoke-cdd` consumer-sim 链随迁；skills 面：`pnpm run emit` + `emit:check` 无 drift、I4 五面同文 grep 断言、digraph 节点/边新判据接线。
 
 ### Acceptance criteria
 
 - `cdd implement --tasks 1` 与 `--tasks 1,2` 走同一 dispatch 路径、行为正确（engine 测试绿 + dispatch 实证）；`--task` 单数旗标零残留：`packages/cdd-engine/src` · `scripts/` · `skills/` · 两包 README grep `--task` 零命中（frozen 历史 docs 豁免）
-- `--tasks` 值边界正确：`--tasks 1, 2` 容忍空格（trim）· `--tasks 1,1` 去重 · `--tasks 1,9`（9 超界）整体 BLOCK + 缺失列示 · `--tasks abc` 非整数 exit 2（Bug-A 升级消息 `must be comma-separated integers`）
+- `--tasks` 值边界正确：`--tasks 1, 2` 容忍空格（trim）· `--tasks 1,1` 去重 · `--tasks 1,`（尾逗号空 slice）exit 2 拒绝（与格式面一致）· `--tasks 1,9`（9 超界）整体 BLOCK + 缺失列示 · `--tasks abc` 非整数 exit 2（Bug-A 升级消息 `must be comma-separated integers`）
 - `cdd review --type task --tasks 1,2` 一轮审整组（round/blocker/findings 组级归因）；`cdd fix --type task --tasks 1,2 --findings <handoff>` 整组修；re-dispatch 建议串为整组面（`cdd fix --tasks 1,2` 形态，无子集）
 - plan 无 taskGroups 节（空默认）时 loop 逐 `--tasks 1`、`--tasks 2` 推进且与 P4.3 前现状等价（实证）；非空 taskGroups 按声明组 dispatch
 - `plan.json` schema 含 `taskGroups` 属性（`optional` · `default: []` · item `minItems ≥ 2`）；`effectiveGroups` 在 `taskNumbersFromPlan`/`base.ts` 单处派生、无第二实现

@@ -99,7 +99,7 @@ Cross-phase 规则以 parent overall v1.28 为准（overall wins on conflict）�
 **2.7 `cdd schema get` 发现型子命令 + skills read-schema 直取**（2026-09-24 用户裁决并入 · Non-goal #1 例外扩编）
 
 - **动机**：现 read-schema 面 = `cdd help` 打目录 → agent 跨文件系统定位并 Read 文件（心智负担 + 步骤间接）；`cdd schema get <type>` 直出 canonical schema 原文（stdout）一步到位，省去跨系统文件查找（用户需求原文）
-- **命令形态**：`cdd schema get <overall|phase-spec|plan>`——stdout 直出 canonical schema JSON 原文（单一来源 = engine 包 schema；未发布期 dist/documents/schema 同源）；doc-type 未知 → usage exit 2 + 可用名枚举；`cdd help` 保留（CLI 绝对目录 + templates/schema 目录面仍由 help 打印）；与 help 同属**发现型 · 零执法逻辑**（Non-goal #1：`cdd help` 唯一例外 → `cdd help` + `cdd schema get` 双发现型豁免，charter v1.28 修订）
+- **命令形态**：`cdd schema get <overall, phase-spec, plan>`——stdout 直出 canonical schema JSON 原文（单一来源 = engine 包 schema；未发布期 dist/documents/schema 同源）；doc-type 未知 → usage exit 2 + 可用名枚举；`cdd help` 保留（CLI 绝对目录 + templates/schema 目录面仍由 help 打印）；与 help 同属**发现型 · 零执法逻辑**（Non-goal #1：`cdd help` 唯一例外 → `cdd help` + `cdd schema get` 双发现型豁免，charter v1.28 修订）
 - **组件面**：新增 `cli/schema.ts`（子命令组）——`parse.ts` citty 声明 `schema` 子命令 + `get <type>` enum 校验（overall/phase-spec/plan）；`exit.ts` 出口族统一、stdout 结果面、无裸 return；**无新 flag** → canonical argv 通道不变、residue Row-9/10 无涉；engine-config 零改动
 - **测试面**：`cdd schema get phase-spec` 输出与 `dist/documents/schema/phase-spec.json` 同字节（engine 测试）；未知 doc-type → exit 2 + 可用名枚举；help 功能回归
 - **skills 更新（emit 输入面，与 §2.3 I4 重写同批文件）**：writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans 的 read-schema 指令从「run `cdd help` → schemas 目录 → Read 文件」改「run `cdd schema get <type>` 直取成文」；改后 `pnpm run emit` + `emit:check` 无 drift + 产物重生成；plan 侧 I4 五面重写 + read-schema 直取合并为同一 skills task（两类改动同文件同批落地）
@@ -118,7 +118,7 @@ Cross-phase 规则以 parent overall v1.28 为准（overall wins on conflict）�
 - `[In-flight]` 计划列状态合法（`isInflightText` · 无 reverse claim 义务 · 非 mismatch cell）；`[Pending]` → `[In-flight]` → `**Done**` 三态语义 + claim 只在 closeout 出现（engine 测试自造链 + P3.8 触发现场回归）
 - Link 形态 plan cell 与 claim 双向等值（ownDesignToken 对齐：link 指向同一 plan 文档即等，弃逐字符严格相等）；子句 prose 提及 phase 不再整体作 claim 目标（诊断提示到位）
 - overall.json 描述与 enforcement 三处同形（change-history 表头首格 `version` · issue-ref 合法枚举 · Phase 行 6 内容列；`documents.ts`↔schema 对拍断言）+ 三处报错附 `should look like:` 正确形态（bad/empty version · unrecognized issue ref · not a Phase-inventory id）+ 误导的 7 列提示移除
-- `cdd schema get <overall|phase-spec|plan>` stdout 与 canonical schema 同字节（engine 测试断言）；未知 doc-type → usage exit 2 + 可用名枚举；零执法逻辑（黑盒断言无校验面）；`cdd help` 功能不回归
+- `cdd schema get <overall, phase-spec, plan>` stdout 与 canonical schema 同字节（engine 测试断言）；未知 doc-type → usage exit 2 + 可用名枚举；零执法逻辑（黑盒断言无校验面）；`cdd help` 功能不回归
 - writing-*（writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans）read-schema 节点全改 `cdd schema get <type>`（grep：四件命中 `cdd schema get` · 零残留 `schemas directory.*Read` 定位串）+ `pnpm run emit` 后 `emit:check` 无 drift
 - Non-goal #1 双发现型修订落地（`cdd help` + `cdd schema get` 均零执法逻辑；其余零新增子命令不变，grep 断言）
 

@@ -111,7 +111,7 @@
             },
             "issueRef": {
               "type": "string",
-              "description": "Issue reference — one of the five legal forms the doc-contract gate accepts: the literal `none`; a bare number ref `#NNN`; a bracket-wrapped `[#NNN]`; the anchored form `#NNN#issuecomment-<digits>` (canonical, machine-checkable — the registration-domain form); or a whole-cell parenthetical note (the ENTIRE cell wrapped in `（…）`/`(…)`, shape `^[（(][^）)]*[）)]$`). Anything else surfaces as an `unrecognized issue ref` failure."
+              "description": "Issue reference — one of the five legal forms the doc-contract gate accepts: the literal `none`; a bare number ref `#NNN`; a bracket-wrapped `[#NNN]`; the anchored form `#NNN#issuecomment-<digits>` (canonical, machine-checkable — the registration-domain form); or a whole-cell parenthetical note (the ENTIRE cell wrapped in `（…）`/`(…)`, shape `^[（(][^）)]*[）)]$`). Anything not matching one of these forms fails the doc-contract gate (`unrecognized issue ref`, or `malformed anchor ref` when `#issuecomment-` is followed by non-digits)."
             },
             "titleSummary": {
               "type": "string",

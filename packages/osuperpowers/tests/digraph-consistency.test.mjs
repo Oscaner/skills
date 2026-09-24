@@ -58,7 +58,8 @@ function parseDigraph(src) {
     nodes.push({ id, type, label });
   }
   const edges = [];
-  const edgeRe = /(\w+)\s*-->\s*(?:\|([^|]*)\|)?\s*(\w+)/g;
+  // source id may carry its declaration token (`A[detect-engine] -->|found| B`) — the bracketed form must be counted too
+  const edgeRe = /(\w+)(?:\[[^\]]*\]|\{[^}]*\}|\(\([^)]*\)\))?\s*-->\s*(?:\|([^|]*)\|)?\s*(\w+)/g;
   let em;
   while ((em = edgeRe.exec(block)) !== null) {
     edges.push({ from: em[1], label: (em[2] || "").trim(), to: em[3] });

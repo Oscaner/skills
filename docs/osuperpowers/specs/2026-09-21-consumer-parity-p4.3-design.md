@@ -1,14 +1,14 @@
 # 消费者面一致性（Consumer Parity）— P4.3 cdd 多 task 模式 + task groups 裁定 + Mid-Flight Backfill 语义修复 Design Spec
 
-- **Version**: v1.1 · 2026-09-24
+- **Version**: v1.2 · 2026-09-24
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
-- **Parent program**: [consumer-parity overall v1.26](2026-09-21-consumer-parity-overall.md)
+- **Parent program**: [consumer-parity overall v1.27](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](2026-09-21-consumer-parity-p4.1-design.md)）
 
 ## Section 0: Incremental warning
 
-本 phase 承载三块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
+本 phase 承载三块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）。**2026-09-24 用户裁决并入 ④⑤（#274/#276，cdd-engine doc-contract gate 修复）**——scope 扩展已回填 overall v1.27（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤ · change-history v1.27 行）；两修同属 engine breaking 面、1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
 
 ## Section 1: Constraints pointer
 
@@ -78,6 +78,24 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 
 **测试面**——engine 测试：`--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径行为实证（成功 · 超界 BLOCK · 去重 · trim · 空 slice 拒绝 · 非整数 exit 2）、组 review/fix 一轮整组、re-dispatch 串整组断言、现有 `--task` 用例全量迁 `--tasks`；`smoke-cdd` consumer-sim 链随迁；skills 面：`pnpm run emit` + `emit:check` 无 drift、I4 五面同文 grep 断言、digraph 节点/边新判据接线。
 
+**2.6 doc-contract gate 修复（#274 / #276，2026-09-24 用户裁决并入 · engine breaking 面 · 1.0.0 前窗口）**
+
+**#274 — plan 列中间态 + claim 等值 + 诊断**（issue #274）
+
+- **状态词汇**：plan 列合法态 `[Pending]`（未开工）→ `[In-flight]`（已开工 · **无 reverse claim 义务**）→ `**Done**`（+ closeout claim）——`rules/documents.ts` `isPendingText` 旁新增 `isInflightText`；in-flight 列不触发 reverse claim 硬门（closeout 规则明示 carve-out，见 §3 第一行）
+- **claim 双向等值放宽**：link 形态 plan cell 对齐 design 列 `ownDesignToken` 提取——双向校验从「逐字符严格相等」（`stripCellMarkup(plan_cell) === claim_target`）改为「link 指向同一 plan 文档即等」，消除 CLAIM_RE stop-set `[ ]（ ）` 与 link 形态的无解冲突
+- **诊断改进**：claim 解析不再整子句扫 phase（prose 提及的 phase 误作 claim target）；只认显式 claim 结构（`Pending → **Done**`）；多 phase 命中时报错附「同子句 prose 提及 phase 亦成 target」提示
+
+**#276 — overall.json 描述 ↔ enforcement 对齐 + 报错 UX**（issue #276）
+
+- **事实源判定**：enforcement 按位置读、语义正确（`documents.ts:585` 表头首格 `version` · `890-905` issue-ref 合法枚举 · Phase 行 6 内容列 c1=id / c3=Design / c4=plan / c6=dependency，fixture `smoke-overall.md` 行形）→ **schema 描述层改向 enforcement 实读形态**（不反向改 engine 读法、不加 Scope 列）：
+  - `changeHistory.header.columns` enum → 统一描述首格 `version` 判定
+  - `issueInventory.row.issueRef` 字面形式 → 合法枚举 none / `#NNN` / `[#NNN]` / `#NNN#issuecomment-<digits>` / 整格括号（`^[（(][^）)]*[）)]$`）
+  - `phaseInventory.rowShape.cellCount` / `columnNames.header` → 6 内容列、与 smoke-overall.md 行形一致（弃自相矛盾的 7+2 计数与 7 列 header）
+- **报错 UX**：`bad/empty version` · `unrecognized issue ref` · `not a Phase-inventory id` 三处附 `should look like:` 正确形态行；移除误导的「use the canonical 7-column Phase inventory header」提示（引擎不按该列序读取）
+
+**测试面补（#274/#276）**——engine 测试自造链覆盖（smoke-overall fixture 形态；零本仓产物 fixture，P3 裁决）；触发回归 = P3.8 触发现场复现（`[In-flight]` 列 + link 形态 plan cell + prose 提及 phase 不误命中）；#276 修正后照 schema 描述所写形态不再被 gate 拒绝（对拍断言）。
+
 ### Acceptance criteria
 
 - `cdd implement --tasks 1` 与 `--tasks 1,2` 走同一 dispatch 路径、行为正确（engine 测试绿 + dispatch 实证）；`--task` 单数旗标零残留：`packages/cdd-engine/src` · `scripts/` · `skills/` · 两包 README grep `--task` 零命中（frozen 历史 docs 豁免）
@@ -88,13 +106,17 @@ Cross-phase 规则以 parent overall v1.26 为准（overall wins on conflict）�
 - cli-driven-development flow digraph 含 task-groups 裁定节点（`C --> T --> D` 边）、`{more-groups?}` 判定、loop 入口以用户确认门控（拒答 BLOCKED）；组列表流入 `cdd implement --tasks a,b`
 - Mid-Flight Backfill 文本五面（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development）一致、语义无歧义（含四点顺序：返回即落地 → 独立 commit → 暂停至树净 → 恢复后 in-band 审；grep 五面同文 + 措辞核对）
 - `templates/engine-config.json` argv `tasks` 通道（flag `--tasks` · type `int-list`）与 parse.ts 锁步（residue Row-9/10 守卫绿，validate 过）
-- `pnpm run emit` 后 `emit:check` 无 drift；`pnpm run validate` 11 块全绿；本 spec 的 Parent program v1.26 版本行 lineage 合法；P4.3 行 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前完成）
+- `pnpm run emit` 后 `emit:check` 无 drift；`pnpm run validate` 11 块全绿；本 spec 的 Parent program v1.27 版本行 lineage 合法；P4.3 行 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前完成）
+- `[In-flight]` 计划列状态合法（`isInflightText` · 无 reverse claim 义务 · 非 mismatch cell）；`[Pending]` → `[In-flight]` → `**Done**` 三态语义 + claim 只在 closeout 出现（engine 测试自造链 + P3.8 触发现场回归）
+- Link 形态 plan cell 与 claim 双向等值（ownDesignToken 对齐：link 指向同一 plan 文档即等，弃逐字符严格相等）；子句 prose 提及 phase 不再整体作 claim 目标（诊断提示到位）
+- overall.json 描述与 enforcement 三处同形（change-history 表头首格 `version` · issue-ref 合法枚举 · Phase 行 6 内容列；`documents.ts`↔schema 对拍断言）+ 三处报错附 `should look like:` 正确形态（bad/empty version · unrecognized issue ref · not a Phase-inventory id）+ 误导的 7 列提示移除
 
 ## Section 3: Deviations from overall
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| （无——本 phase 全部设计裁决已随 overall v1.26 回填：P4.3 行 scope/AC 同步 · P4.4 注册 · 依赖图 `P3 → P4.1 → P4.3 → P4.4 → P4.2`，见 v1.26 change-history 行） | 同上 | Yes — v1.26 · 2026-09-24 |
+| closeout 规则（P2 统一规则：结构性 mismatch 非空 → BLOCK · 声明源↔列双向全列） | plan 列新增 `[In-flight]` 中间态：已开工 · 无 reverse claim 义务（claim 只在 closeout `Pending → **Done**` 出现）· `[In-flight]` 非缺失 cell、不计 mismatch | Yes — v1.27 · 2026-09-24 |
+| （其余全部设计裁决已随 overall v1.27 回填：P4.3 行 scope/AC ①–⑤同步 · P4.4 注册 · 依赖图 `P3 → P4.1 → P4.3 → P4.4 → P4.2`，见 v1.26/v1.27 change-history 行） | 同上 | Yes — v1.27 · 2026-09-24 |
 
 ## Section 4: Notes for downstream
 

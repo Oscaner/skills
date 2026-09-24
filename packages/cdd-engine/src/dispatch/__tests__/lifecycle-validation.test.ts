@@ -102,7 +102,7 @@ async function runReview(repo: string, { dryRun = false } = {}): Promise<{ exitC
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
-    taskNum: 1,
+    tasks: [1],
     opts: {
       mode: "review",
       dryRun,
@@ -207,7 +207,7 @@ describe("exit code table preserved (0/1/2/3)", () => {
     writeFileSync(regPath, JSON.stringify(reg));
     const lc = new TaskLifecycle({
       harness: "ctr",
-      taskNum: 1,
+      tasks: [1],
       opts: { mode: "review", dryRun: false, noExit: true, root: repo, planFile: path.join(PLAN_DIR, "plan.md"), registryPath: regPath },
       ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun: false },
     });

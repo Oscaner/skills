@@ -38,7 +38,7 @@ afterEach(() => {
 // (untracked only, never ignored) leaves the pass-through carrier untouched — no pathspec exclusion
 // exists anymore (gitStashPreserve deleted). The `.gitignore` itself is committed: an untracked one
 // would ride the stash.
-function tmpRepo(handoffBasename = "task-1-implement.json"): { repo: string; handoff: string } {
+function tmpRepo(handoffBasename = "tasks-1-implement.json"): { repo: string; handoff: string } {
   const repo = mkdtempSync(path.join(tmpdir(), "cdd-residue-save-"));
   tmpRepos.push(repo);
   gitInit(repo);
@@ -77,7 +77,7 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
     writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
     writeFileSync(path.join(repo, "untracked.txt"), "u\n");
     writeFileSync(handoff, JSON.stringify({
-      task: 1, phase: "implement", status: "BLOCKED",
+      tasks: [1], phase: "implement", status: "BLOCKED",
       failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
       recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: 143 },
       blocker: "agent killed mid-round",
@@ -115,13 +115,13 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
     expect(existsSync(handoff)).toBe(true);
   });
 
-  it("TIMEOUT review carrier → round derived from the canonical basename (task-5-review-3 → r3)", async () => {
-    const { repo, handoff } = tmpRepo("task-5-review-3.json");
+  it("TIMEOUT review carrier → round derived from the canonical basename (tasks-5-review-3 → r3)", async () => {
+    const { repo, handoff } = tmpRepo("tasks-5-review-3.json");
     writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
     gitCommit(repo, "base");
     writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
     writeFileSync(handoff, JSON.stringify({
-      task: 5, phase: "review", status: "TIMEOUT",
+      tasks: [5], phase: "review", status: "TIMEOUT",
       failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
       recovery: { cause: FAILURE_CATEGORIES.TIMEOUT.id },
       blocker: "agent stalled while closing the review",
@@ -146,7 +146,7 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
   });
 
   it("CONTRACT_VIOLATION recovery → no stash, carrier untouched, tree stays dirty (not swallowed)", async () => {
-    const { repo, handoff } = tmpRepo("task-3-review-1.json");
+    const { repo, handoff } = tmpRepo("tasks-3-review-1.json");
     writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
     gitCommit(repo, "base");
     writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
@@ -173,7 +173,7 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
     gitCommit(repo, "base");
     writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
     writeFileSync(handoff, JSON.stringify({
-      task: 1, phase: "implement", status: "BLOCKED",
+      tasks: [1], phase: "implement", status: "BLOCKED",
       failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
       recovery: {
         cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: 1,
@@ -216,12 +216,12 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
 
 describe("artifacts/residue.ts — preserveAndAnnounceResidue (announce wrapper)", () => {
   it("eligible save → stderr CDD_WARN with the structured WIP scale", async () => {
-    const { repo, handoff } = tmpRepo("task-5-fix-2.json");
+    const { repo, handoff } = tmpRepo("tasks-5-fix-2.json");
     writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
     gitCommit(repo, "base");
     writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
     writeFileSync(handoff, JSON.stringify({
-      task: 5, phase: "fix", status: "BLOCKED",
+      tasks: [5], phase: "fix", status: "BLOCKED",
       failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
       recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: 143 },
       blocker: "b",
@@ -242,12 +242,12 @@ describe("artifacts/residue.ts — preserveAndAnnounceResidue (announce wrapper)
 
 describe("artifacts/residue.ts — roundFromCarrierBasename (the save adapter's round source)", () => {
   it("implement-family carrier (round = fixed, no {round} slot) → 1 (implement rounds are always round 1)", () => {
-    expect(roundFromCarrierBasename("task-5-implement.json")).toBe(1);
+    expect(roundFromCarrierBasename("tasks-5-implement.json")).toBe(1);
   });
 
   it("round-bearing family carriers → the canonical basename's own round number", () => {
-    expect(roundFromCarrierBasename("task-5-review-3.json")).toBe(3);
-    expect(roundFromCarrierBasename("task-5-fix-2.json")).toBe(2);
+    expect(roundFromCarrierBasename("tasks-5-review-3.json")).toBe(3);
+    expect(roundFromCarrierBasename("tasks-5-fix-2.json")).toBe(2);
     expect(roundFromCarrierBasename("spec-review-2.json")).toBe(2);
     expect(roundFromCarrierBasename("spec-fix-1.json")).toBe(1);
     expect(roundFromCarrierBasename("plan-review-1.json")).toBe(1);
@@ -257,19 +257,19 @@ describe("artifacts/residue.ts — roundFromCarrierBasename (the save adapter's 
   });
 
   it("unclassifiable basenames → null (the save is never fabricated for a foreign carrier)", () => {
-    expect(roundFromCarrierBasename("task-1-handoff.json")).toBeNull();
+    expect(roundFromCarrierBasename("tasks-1-handoff.json")).toBeNull();
     expect(roundFromCarrierBasename("notes.md")).toBeNull();
   });
 });
 
 describe("artifacts/residue.ts — standardized stash message on the adapter save (three-path same contract)", () => {
   it("a KILLED-round stash always carries the round in the standardized message (never a duplicate marker)", async () => {
-    const { repo, handoff } = tmpRepo("task-5-fix-2.json");
+    const { repo, handoff } = tmpRepo("tasks-5-fix-2.json");
     writeFileSync(path.join(repo, "tracked.txt"), "v1\n");
     gitCommit(repo, "base");
     writeFileSync(path.join(repo, "tracked.txt"), "v2\n");
     writeFileSync(handoff, JSON.stringify({
-      task: 5, phase: "fix", status: "BLOCKED",
+      tasks: [5], phase: "fix", status: "BLOCKED",
       failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
       recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: 143 },
       blocker: "agent killed mid-round",

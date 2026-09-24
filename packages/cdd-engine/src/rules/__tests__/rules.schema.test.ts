@@ -23,7 +23,7 @@ const DOCS_SCHEMA = read(path.join("schema", "docs-handoff-schema.json"));
 const NAMESPACE = read("engine-config.json").handoffNamespace;
 
 const validTask = {
-  task: 1,
+  tasks: [1],
   phase: "review",
   status: "APPROVED",
   artifacts: { brief: "b.md" },
@@ -89,7 +89,7 @@ describe("P6 T24 B: finalize.ts — normalizeHandoff (single-point re-validate; 
 
   it("③ review 族含 blocker finding → 派生 CHANGES_REQUESTED", () => {
     const n = normalizeHandoff({
-      task: 1,
+      tasks: [1],
       phase: "review",
       artifacts: {},
       findings: [{ severity: "blocker" }],
@@ -98,7 +98,7 @@ describe("P6 T24 B: finalize.ts — normalizeHandoff (single-point re-validate; 
   });
 
   it("work 型（implement）缺 status → 不派生（schema else.required 强制 agent 声明）", () => {
-    const n = normalizeHandoff({ task: 1, phase: "implement", artifacts: {}, findings: [] });
+    const n = normalizeHandoff({ tasks: [1], phase: "implement", artifacts: {}, findings: [] });
     expect("status" in n).toBe(false);
   });
 
@@ -192,16 +192,20 @@ describe("T5 AC7: handoff schema single-source core (task/docs one contract core
     expect(taskProps.blocker.type).toBe("string");
   });
 
-  it("core block key shapes align (changes/artifacts/findings same type); lane differences are only boundary objects (docs: doc_path/doc_hash; task: task)", () => {
+  it("core block key shapes align (changes/artifacts/findings same type); lane differences are only boundary objects (docs: doc_path/doc_hash; task: tasks group reference)", () => {
     expect(docsProps.changes.type).toBe(taskProps.changes.type);
     expect(docsProps.artifacts.type).toBe(taskProps.artifacts.type);
     expect(docsProps.findings.type).toBe(taskProps.findings.type);
     expect(docsProps.doc_path.type).toBe("string");
     expect(docsProps.doc_hash.type).toBe("string");
-    expect(taskProps.task.type).toBe("integer");
+    // the task-lane boundary is the `tasks` group reference (array); the legacy scalar `task` is
+    // deleted from the shared schema (single-data-model)
+    expect(taskProps.tasks.type).toBe("array");
+    expect(taskProps.task).toBeUndefined();
     expect(taskProps.doc_path).toBeUndefined();
     expect(taskProps.doc_hash).toBeUndefined();
     expect(docsProps.task).toBeUndefined();
+    expect(docsProps.tasks).toBeUndefined();
   });
 
   it("docs handoff reversal (AC6): the commits-free legacy declaration is removed + a valid docs commits handoff passes schema validation", () => {

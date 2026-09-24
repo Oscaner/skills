@@ -39,7 +39,7 @@ import { renderModePrompt, pluginRoot } from "../render/templates.ts";
 import { writeOwnHandoff, readJson } from "../artifacts/handoff/write.ts";
 import { validateCommitContract } from "../rules/commit.ts";
 import { generateBrief } from "../render/brief.ts";
-import { handoffName, prevHandoffPath as hnPreHandoffPath, materializeWorkspace, workspaceSlug } from "../artifacts/handoff/naming.ts";
+import { handoffName, prevHandoffPath as hnPreHandoffPath, materializeWorkspace, workspaceSlug, tasksKey } from "../artifacts/handoff/naming.ts";
 import { finalizeHandoff, persistFinalized, normalizeHandoffStatus, recoverHandoff, writeBlockedCarrier, taskBaseFromBrief } from "../artifacts/handoff/finalize.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
@@ -112,40 +112,45 @@ export function resolvePlanWorkspace({ planFile, root }: { planFile?: string; ro
   return { plan, workspace: materializeWorkspace({ plan, repoRoot: root }) };
 }
 
-/** buildCtx(root, taskNum, opts) — the engine-internal state (ctx) UNIQUE construction point. ctx
+/** buildCtx(root, tasks, opts) — the engine-internal state (ctx) UNIQUE construction point. ctx
  * always passes by return value, never through env: workspace / handoff / brief / ledger /
  * constraints / findings all derive here in one pass. root is injected by the caller (runTask
- * passes `opts.root ?? getRoot()`, tests pass a real fixture root). */
-export function buildCtx(root: string, taskNum: number, opts: Record<string, unknown> = {}): TaskDispatchContext {
+ * passes `opts.root ?? getRoot()`, tests pass a real fixture root). P4.3: `tasks` is the dispatch
+ * GROUP (a scalar is accepted and normalized to a group of one) — every task artifact is
+ * group-keyed (`tasks-{a}-{b}-*`), per the canonical derived-grid channels
+ * (engine-config contextContract.derived — task → tasks). */
+export function buildCtx(root: string, tasks: number | number[], opts: Record<string, unknown> = {}): TaskDispatchContext {
   const { mode, harness, round = 1, findingsPath } = opts as { mode: string; harness?: string; round?: number; findingsPath?: string };
   const planWorkspace = opts.planWorkspace as { plan: string; workspace: string } | undefined
     ?? resolvePlanWorkspace({ planFile: opts.planFile as string | undefined, root });
   const { plan, workspace } = planWorkspace;
+  const taskList = Array.isArray(tasks) ? tasks : [tasks];
+  const groupKey = tasksKey(taskList);
   // Per-phase per-round handoff path (canonical handoff-naming derivation): implement uses the
   // fixed family (no round); review/fix the round family. Illegal mode falls back to a legacy
   // spelling (the derivation layer only knows canonical family names — an unknown family throw
   // would pre-empt validateMode's rejection path).
   let handoffFile: string;
   if (mode === "implement") {
-    handoffFile = handoffName("implement", "task", { task: taskNum });
+    handoffFile = handoffName("implement", "task", { tasks: groupKey });
   } else if (mode === "review" || mode === "fix") {
-    handoffFile = handoffName(mode, "task", { task: taskNum, round });
+    handoffFile = handoffName(mode, "task", { tasks: groupKey, round });
   } else {
-    handoffFile = `task-${taskNum}-${mode}-${round}.json`;
+    handoffFile = `tasks-${groupKey}-${mode}-${round}.json`;
   }
   return {
     plan,
     round,
     workspace,
     handoffPath: path.join(workspace, handoffFile),          // unconditional derivation
-    briefPath: briefPath({ workspace, task: taskNum }),
+    briefPath: briefPath({ workspace, tasks: groupKey }),
     ledgerPath: path.join(workspace, "progress.json"),
     constraintsPath: path.join(workspace, "plan-constraints.md"),
     // fix: cdd fix --findings opt wins when provided; otherwise the runner-derived review-R.json
     // path for this fix round. implement/review: the open-findings path.
     findingsPath: mode === "fix"
-      ? (findingsPath ?? prevHandoffPath(workspace, taskNum, mode, round))
-      : path.join(workspace, `task-${taskNum}-open-findings.json`),
+      ? (findingsPath ?? prevHandoffPath(workspace, groupKey, mode, round))
+      : path.join(workspace, `tasks-${groupKey}-open-findings.json`),
     mode,
     harness,
     fixedPoint: "",
@@ -180,12 +185,13 @@ function readJsonField(filePath: string | null, keys: string[]): string {
   }
 }
 
-// Returns the path of the handoff written by the previous phase for this task (file name derived
+// Returns the path of the handoff written by the previous phase for this group (file name derived
 // via canonical handoff-naming; cross-family prev-table semantics preserved). Returns a path or
 // null (implement has no prior). task-mode three-in-one (review/fix share the family table).
-function prevHandoffPath(workspace: string, task: number, mode: string, round: number): string | null {
+// P4.3: the key is the group key string (`tasks-1-2` — the group is the dispatch unit).
+function prevHandoffPath(workspace: string, groupKey: string, mode: string, round: number): string | null {
   if (mode !== "review" && mode !== "fix") return null; // implement has no prior phase
-  return hnPreHandoffPath(workspace, mode, "task", round, { task });
+  return hnPreHandoffPath(workspace, mode, "task", round, { tasks: groupKey });
 }
 
 // Aligns cdd_require_env mode validation (mode is no longer an env channel).
@@ -205,8 +211,9 @@ function requireCtx(ctx: TaskDispatchContext | null, mode: string): string | nul
 }
 
 /** {{PLACEHOLDER}} template params (Task 5 token registry: task-* scope prefixes + HANDOFF_TARGET
- * merge + REVIEW_PLAN_LINE derived from the explicit plan path — no env-sourced plan key). */
-export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Record<string, string> {
+ * merge + REVIEW_PLAN_LINE derived from the explicit plan path — no env-sourced plan key). P4.3:
+ * TASK_NUMBER carries the group key (`1-2` — the group is the dispatch unit). */
+export function buildPromptParams(ctx: TaskDispatchContext, tasks: number | number[]): Record<string, string> {
   return {
     TASK_WORKSPACE: ctx.workspace,
     // Canonical slug slot (Task 20 ⑦): workspaceSlug strips a single -design/-plan layer so a plan and
@@ -217,7 +224,7 @@ export function buildPromptParams(ctx: TaskDispatchContext, taskNum: number): Re
     TASK_FINDINGS: ctx.findingsPath ?? "",
     TASK_CONSTRAINTS: ctx.constraintsPath,
     TASK_FIXED_POINT: ctx.fixedPoint ?? "",  // empty string if the cross-phase read returned nothing
-    TASK_NUMBER: String(taskNum),
+    TASK_NUMBER: tasksKey(Array.isArray(tasks) ? tasks : [tasks]),
     REVIEW_PLAN_LINE: ctx.plan ? `**Plan:** ${ctx.plan}` : "",
   };
 }
@@ -274,10 +281,15 @@ interface TaskSpawnResult {
 
 /** TaskLifecycle — the task-function lifecycle class. All 13.5 steps of the legacy run-task.mjs
  * relocate into the hook overrides; the entry/exit gates are inherited from the base. Results
- * surface via .result ({ exitCode, returnBlock }) + .diagnostic (stderr message) after run(). */
+ * surface via .result ({ exitCode, returnBlock }) + .diagnostic (stderr message) after run().
+ * P4.3: the dispatch unit is the task GROUP (tasks list) — handoff/brief/findings/progress all
+ * key off the group (`tasks-{a}-{b}-*`; the scalar task number enters only where a per-task
+ * primitive is required — the residue stash primitive / carrier `task` field / scope-brief seed). */
 export class TaskLifecycle extends DispatchLifecycle {
   readonly #harness: string;
-  readonly #taskNum: number;
+  readonly #tasks: number[];
+  readonly #firstTask: number;
+  readonly #groupKey: string;
   readonly #opts: TaskRunOptions;
   readonly #root: string;
 
@@ -295,10 +307,12 @@ export class TaskLifecycle extends DispatchLifecycle {
    *  strictly earlier along it). null = no earlier anchor was riding the carrier. */
   #resumeScopeBase: string | null = null;
 
-  constructor(options: { harness: string; taskNum: number; opts: TaskRunOptions; ctx: DispatchContext }) {
+  constructor(options: { harness: string; tasks: number[]; opts: TaskRunOptions; ctx: DispatchContext }) {
     super({ ctx: options.ctx });
     this.#harness = options.harness;
-    this.#taskNum = options.taskNum;
+    this.#tasks = options.tasks;
+    this.#firstTask = options.tasks[0];
+    this.#groupKey = tasksKey(options.tasks);
     this.#opts = options.opts;
     this.#root = (options.ctx.repoRoot as string) ?? "";
   }
@@ -362,8 +376,8 @@ export class TaskLifecycle extends DispatchLifecycle {
       // round is always 1; folding the read into getRound params would skip the create path on the
       // first implement dispatch and progress.json would never land.
       const progressData = readProgressJSON(planWorkspace.workspace, planWorkspace.plan);
-      const round = mode === "implement" ? 1 : getRound(progressData, this.#taskNum, mode);
-      ctx = buildCtx(this.#root, this.#taskNum, { mode, harness: this.#harness, planWorkspace, round, findingsPath: this.#opts.findingsPath });
+      const round = mode === "implement" ? 1 : getRound(progressData, this.#groupKey, mode);
+      ctx = buildCtx(this.#root, this.#tasks, { mode, harness: this.#harness, planWorkspace, round, findingsPath: this.#opts.findingsPath });
       // Plan-constraints existence gate (T22, §T7.1) — implement pre-flight, dry-run exempt. Runs
       // BEFORE the F11 brief generation below (the brief does not feed extraction): a
       // source-undeclared BLOCK aborts pre-dispatch with zero workspace residue, rather than
@@ -414,7 +428,7 @@ export class TaskLifecycle extends DispatchLifecycle {
             if (typeof recoveryScope === "string" && SHA40_RE.test(recoveryScope)) {
               this.#resumeScopeBase = recoveryScope;
             }
-            const found = await findResumeResidue(this.#root, carrier, this.#taskNum);
+            const found = await findResumeResidue(this.#root, carrier, this.#firstTask);
             if (found) {
               if (await resumeFromResidue(this.#root, found.ref)) {
                 residueAppendix = appendixFromRecovery(carrier, found);
@@ -429,7 +443,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       }
       try {
         mkdirSync(path.dirname(ctx.briefPath), { recursive: true });
-        await generateBrief(planWorkspace.plan, this.#taskNum, ctx.briefPath, this.#root, residueAppendix);
+        await generateBrief(planWorkspace.plan, this.#tasks, ctx.briefPath, this.#root, residueAppendix);
       } catch (e) {
         throw new CddExitError(`brief generation failed: ${(e as Error).message}`, { exitCode: 1, kind: "run-blocked" });
       }
@@ -479,11 +493,11 @@ export class TaskLifecycle extends DispatchLifecycle {
     // Ledger missing → fall back to the legacy prev.commits.base chain (normal tasks unchanged).
     if (mode === "review" || mode === "fix") {
       if (!ctx.fixedPoint) {
-        const ledgerBase = taskScopeBase(progressDir, this.#taskNum);
+        const ledgerBase = taskScopeBase(progressDir, this.#groupKey);
         if (ledgerBase) {
           ctx.fixedPoint = ledgerBase;
         } else {
-          const prev = prevHandoffPath(ctx.workspace, this.#taskNum, mode, ctx.round ?? 1);
+          const prev = prevHandoffPath(ctx.workspace, this.#groupKey, mode, ctx.round ?? 1);
           if (prev) {
             const prevCommitsBase = readJsonField(prev, ["commits", "base"]);
             if (prevCommitsBase && prevCommitsBase !== "unknown") {
@@ -529,7 +543,7 @@ export class TaskLifecycle extends DispatchLifecycle {
    * the CDD_BLOCKED diagnostic; no carrier is written (the doc-invalid round stays
    * re-dispatchable the moment the docs are repaired — matching the pre-T3 face exactly). */
   protected override docContractBlocked(guidance: string): void {
-    this.#done(1, [], `doc contract validation failed — fix the docs below, then re-dispatch task ${this.#taskNum}:\n${guidance}`);
+    this.#done(1, [], `doc contract validation failed — fix the docs below, then re-dispatch --tasks ${this.#groupKey}:\n${guidance}`);
   }
 
   // ---- dispatch ----
@@ -546,7 +560,7 @@ export class TaskLifecycle extends DispatchLifecycle {
     // 7. Render prompt
     let prompt: string;
     try {
-      prompt = renderModePrompt(mode, buildPromptParams(ctx, this.#taskNum));
+      prompt = renderModePrompt(mode, buildPromptParams(ctx, this.#tasks));
     } catch (e) {
       this.#done(1, [], `template render failed: ${(e as Error).message}`);
       return;
@@ -564,7 +578,7 @@ export class TaskLifecycle extends DispatchLifecycle {
       // payload; the post-flight parse re-appends the counters line (returnFourLines).
       agentOut = dryRunBlock({
         commits: "base=dry-run",
-        artifacts: `brief=${ctx.briefPath} report=${ctx.workspace}/task-${this.#taskNum}-report.md test_evidence=${ctx.workspace}/task-${this.#taskNum}-test-evidence.json`,
+        artifacts: `brief=${ctx.briefPath} report=${ctx.workspace}/tasks-${this.#groupKey}-report.md test_evidence=${ctx.workspace}/tasks-${this.#groupKey}-test-evidence.json`,
       });
     } else {
       // Unified termination config (T26): single resolver (resolveTerminationConfig) replaces the
@@ -608,13 +622,13 @@ export class TaskLifecycle extends DispatchLifecycle {
     if (timedOut) {
       if (unkillable) {
         writeBlockedCarrier(ctx.handoffPath, {
-          task: this.#taskNum,
+          tasks: this.#tasks,
           phase: mode,
           failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
-          blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch task ${this.#taskNum}`,
+          blocker: `cli process unkillable after timeout → manually kill the process (check ps), then re-dispatch --tasks ${this.#groupKey}`,
         });
         if (!dryRun) {
-          incrementRound(progressDir, this.#taskNum, mode);
+          incrementRound(progressDir, this.#groupKey, mode);
           maybeExhaust(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id, ctx.handoffPath); // engine-self-written → engineSelfWrittenCount (not recovery quota)
         }
         this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), "process unkillable");
@@ -635,16 +649,16 @@ export class TaskLifecycle extends DispatchLifecycle {
         ? await settleResidue(this.#root, {
             op: mode,
             type: "task",
-            task: this.#taskNum,
+            task: this.#firstTask,
             round: ctx.round ?? 1,
             cause: cause ?? "over-budget",
             // The salvage captures the task-level scope anchor (ledger priority / fallback the
             // dead-round brief TASK_BASE; T27) so the resume restores the same scope.
-            scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
+            scopeBase: taskScopeBase(progressDir, this.#groupKey) ?? taskBaseFromBrief(ctx.briefPath),
           })
         : { cause: FAILURE_CATEGORIES.TIMEOUT.id };
       writeBlockedCarrier(ctx.handoffPath, {
-        task: this.#taskNum,
+                tasks: this.#tasks,
         phase: mode,
         status: "TIMEOUT",
         failure_category: FAILURE_CATEGORIES.TIMEOUT.id,
@@ -652,9 +666,9 @@ export class TaskLifecycle extends DispatchLifecycle {
         // no salvage / review-fix lane → the termination sub-cause rides `notes` (the only archival
         // channel when recovery.cause is the category id) so a dead round stays replayable by cause
         notes: mode === "implement" ? undefined : `termination cause: ${cause ?? "unknown"}`,
-        blocker: timeoutBlocker({ cause, taskNum: this.#taskNum, timeoutMs, idleWindowMs, op: mode, residue: recovery?.residue_ref ?? null }),
+        blocker: timeoutBlocker({ cause, tasks: this.#groupKey, timeoutMs, idleWindowMs, op: mode, residue: recovery?.residue_ref ?? null }),
       });
-      if (!dryRun) incrementRound(progressDir, this.#taskNum, mode);
+      if (!dryRun) incrementRound(progressDir, this.#groupKey, mode);
       // TIMEOUT counter increment: field via canonical counterFor, category identity via
       // FAILURE_CATEGORIES (replaces the legacy timeoutCount++ three-liner, T6 zero hand-written
       // counter literals).
@@ -705,15 +719,15 @@ export class TaskLifecycle extends DispatchLifecycle {
             // findings kept in full (A4 defect surface): the parsed findings enter the carrier
             // as-is instead of a wholesale rewrite to [].
             writeBlockedCarrier(ctx.handoffPath, {
-              task: this.#taskNum,
+                            tasks: this.#tasks,
               phase: mode,
               failure_category: FAILURE_CATEGORIES.CONTRACT_VIOLATION.id,
               findings: rec.preservedFindings,
-              blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch task ${this.#taskNum}`,
+              blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON at ${ctx.handoffPath} and re-dispatch --tasks ${this.#groupKey}`,
               fullReplace: true,
             });
             if (!dryRun) {
-              incrementRound(progressDir, this.#taskNum, mode);
+              incrementRound(progressDir, this.#groupKey, mode);
               maybeExhaust(progressDir, FAILURE_CATEGORIES.CONTRACT_VIOLATION.id, ctx.handoffPath); // format error on the producing side
             }
             this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `schema validation failed${rec.reason}`);
@@ -736,11 +750,11 @@ export class TaskLifecycle extends DispatchLifecycle {
         ? await settleResidue(this.#root, {
             op: mode,
             type: "task",
-            task: this.#taskNum,
+            task: this.#firstTask,
             round: ctx.round ?? 1,
             cause: "exec-failure",
             // Same scope-anchor capture as the TIMEOUT salvage lane (T27).
-            scopeBase: taskScopeBase(progressDir, this.#taskNum) ?? taskBaseFromBrief(ctx.briefPath),
+            scopeBase: taskScopeBase(progressDir, this.#groupKey) ?? taskBaseFromBrief(ctx.briefPath),
           })
         // Review/fix EXECUTION_FAILURE death diagnosis rides the carrier (T25): cause = the category
         // id — the preserve eligibility key + exit code distinguishing exit 1 vs 143. The base
@@ -748,7 +762,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         // preserved.
         : { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.#agentRc };
       writeBlockedCarrier(ctx.handoffPath, {
-        task: this.#taskNum,
+                tasks: this.#tasks,
         phase: mode,
         failure_category: FAILURE_CATEGORIES.EXECUTION_FAILURE.id,
         commits: { base: "unknown" }, // no real head at failure time — the "unknown" sentinel is the EXECUTION_FAILURE ground (T23)
@@ -757,11 +771,11 @@ export class TaskLifecycle extends DispatchLifecycle {
           `cli exited ${this.#agentRc}${this.#agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → check stderr above for errors; ` +
           (`residue_ref` in (recovery ?? {}) ? `WIP salvaged (recovery.residue_ref=${(recovery as { residue_ref: string }).residue_ref}) — ` : "") +
           (mode === "implement"
-            ? `resume or discard: cdd implement --task ${this.#taskNum} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`
-            : `worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${mode} --task ${this.#taskNum}`),
+            ? `resume or discard: cdd implement --tasks ${this.#groupKey} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`
+            : `worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${mode} --tasks ${this.#groupKey}`),
       });
       if (!dryRun) {
-        incrementRound(progressDir, this.#taskNum, mode);
+        incrementRound(progressDir, this.#groupKey, mode);
         incrementRecovery(progressDir); // REAL execution failure (not timeout / not engine-written) → EXECUTION_FAILURE — the only recovery-quota consumer (AC7)
       }
       this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `cli exited ${this.#agentRc} and handoff missing`);
@@ -775,12 +789,12 @@ export class TaskLifecycle extends DispatchLifecycle {
     // would falsely BLOCK every successful implement.
     if (this.#agentRc === 0 && !dryRun && mode !== "implement" && !existsSync(ctx.handoffPath)) {
       writeBlockedCarrier(ctx.handoffPath, {
-        task: this.#taskNum,
+                tasks: this.#tasks,
         phase: mode,
         failure_category: FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id,
         blocker: `${path.basename(ctx.handoffPath)} not written after exit 0 → re-run ${mode} and ensure handoff is written to ${ctx.handoffPath} before exit`,
       });
-      incrementRound(progressDir, this.#taskNum, mode);
+      incrementRound(progressDir, this.#groupKey, mode);
       maybeExhaust(progressDir, FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id, ctx.handoffPath); // engine-written BLOCKED (exit 0 without handoff)
       this.#done(1, returnFromHandoff(ctx.handoffPath, ctx.workspace), `${mode} agent did not write handoff`);
       return;
@@ -820,7 +834,7 @@ export class TaskLifecycle extends DispatchLifecycle {
         brief: ctx.briefPath,
         repoRoot: this.#root,
         workspace: ctx.workspace,
-        taskNum: this.#taskNum,
+        tasks: this.#tasks,
         resumeScopeBase: this.#resumeScopeBase,
       });
       if (finalized.handoff) {
@@ -890,16 +904,21 @@ export class TaskLifecycle extends DispatchLifecycle {
           // the complete verdict is deriveTaskState's sole authority (rules/status.ts), never a
           // stored field. The row creation still matters: incrementRound below finds it.
           const progressData2 = readProgressJSON(progressDir);
-          let taskEntry = progressData2.tasks.find((t) => t.task === this.#taskNum);
+          // Group-key row lookup (P4.3): single-group keys resolve the per-task row (backward
+          // compatible), multi-task groups the `{ group }` row — the group is the dispatch unit.
+          const single = /^\d+$/.test(this.#groupKey) ? Number(this.#groupKey) : null;
+          let taskEntry = single != null
+            ? progressData2.tasks.find((t) => "task" in t && t.task === single)
+            : progressData2.tasks.find((t) => "group" in t && t.group === this.#groupKey);
           if (!taskEntry) {
-            taskEntry = { task: this.#taskNum, rounds: {} };
+            taskEntry = single != null ? { task: single, rounds: {} } : { group: this.#groupKey, rounds: {} };
             progressData2.tasks.push(taskEntry);
           }
           writeProgressJSON(progressDir, progressData2);
         }
       }
     }
-    if (!dryRun && mode !== "implement") incrementRound(progressDir, this.#taskNum, mode);
+    if (!dryRun && mode !== "implement") incrementRound(progressDir, this.#groupKey, mode);
     // exit mastered by finalizeHandoff's round conclusion — the T14「exit 0 + status BLOCKED」
     // inversion dies here (a BLOCKED-derived review or a fix declaring BLOCKED → 1).
     this.#done(finalized?.exitCode ?? 0, this.#returnBlock, "");
@@ -910,15 +929,17 @@ export class TaskLifecycle extends DispatchLifecycle {
  * exit-throw: the unit-test seam). Builds the injected ctx, runs TaskLifecycle, converts an
  * entry-gate DispatchBlocked into a CDD_BLOCKED stderr + exit 1 (or a { exitCode: 1, returnBlock: [] } in
  * noExit mode); on the normal path writes the diagnostic + return block lines + exits via exitWithCode when
- * noExit=false. */
-export async function runTask(harness: string, taskNum: number, opts: TaskRunOptions = {}): Promise<TaskResult> {
+ * noExit=false. P4.3: `tasks` is the dispatch GROUP (scalar task number normalized to a group of one) —
+ * the group is the dispatch unit, never a per-task iteration. */
+export async function runTask(harness: string, tasks: number | number[], opts: TaskRunOptions = {}): Promise<TaskResult> {
   return withLifecycle(async () => {
     // root is injected (default getRoot()); in-process tests without an injection throw — the
     // correct failure face, never a graceful fallback.
     const root = opts.root ?? getRoot();
+    const taskList = Array.isArray(tasks) ? tasks : [tasks];
     const lc = new TaskLifecycle({
       harness,
-      taskNum,
+      tasks: taskList,
       opts,
       ctx: { mode: opts.mode ?? "", repoRoot: root, handoffPath: "", dryRun: opts.dryRun === true },
     });
@@ -953,11 +974,13 @@ export async function runTask(harness: string, taskNum: number, opts: TaskRunOpt
 // A change to either extraction lands in documents.ts once.
 
 /** Read the status of the latest review handoff (progressData.rounds["review"] round).
- * reviewRound=0 → no review completion record → "MISSING"; corrupt → "UNKNOWN". */
+ * reviewRound=0 → no review completion record → "MISSING"; corrupt → "UNKNOWN". Per-task helper:
+ * the group-handoff naming only requires the canonical `tasks-{tasks}-*` shape for the group of
+ * one. */
 export function handoffStatus(taskNum: number, workspace: string, progressData: { tasks?: Array<{ task: number; rounds?: Record<string, number> }> } | undefined): string {
   const reviewRound = progressData?.tasks?.find((t) => t.task === taskNum)?.rounds?.["review"] ?? 0;
   if (reviewRound === 0) return "MISSING";
-  const handoffPath = path.join(workspace, handoffName("review", "task", { task: taskNum, round: reviewRound }));
+  const handoffPath = path.join(workspace, handoffName("review", "task", { tasks: String(taskNum), round: reviewRound }));
   if (!existsSync(handoffPath)) return "MISSING";
   try {
     return normalizeHandoffStatus((JSON.parse(readFileSync(handoffPath, "utf8")).status ?? "UNKNOWN") as string) ?? "UNKNOWN";

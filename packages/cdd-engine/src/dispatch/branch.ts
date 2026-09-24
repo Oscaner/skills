@@ -207,7 +207,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
     // advice; SIGTERM (143) is annotated so the death cause is replayable from the blocker.
     if (this.agentRc !== 0 && !existsSync(this.handoffPath)) {
       writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase,
+        tasks: [1], phase,
         ...(commits ? { commits } : {}),
         recovery: { cause: FAILURE_CATEGORIES.EXECUTION_FAILURE.id, exit_code: this.agentRc },
         blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${reRun}`,
@@ -220,7 +220,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
     // Agent exited 0 but never wrote the handoff — BLOCKED (mirrors runner step 10.5).
     if (!existsSync(this.handoffPath)) {
       writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase,
+        tasks: [1], phase,
         ...(commits ? { commits } : {}),
         blocker: `${path.basename(this.handoffPath)} not written after exit 0 → re-run ${reRun}`,
       });
@@ -239,7 +239,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       agentHandoff = JSON.parse(readFileSync(this.handoffPath, "utf8")) as Record<string, unknown>;
     } catch (e) {
       writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase,
+        tasks: [1], phase,
         ...(commits ? { commits } : {}),
         blocker: `${label} handoff JSON unparseable: ${(e as Error).message} → fix the handoff at ${this.handoffPath} and re-run ${reRun}`,
       });
@@ -255,7 +255,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       const rec = recoverHandoff(agentHandoff, "task");
       if (!rec.valid) {
         writeBlockedCarrier(this.handoffPath, {
-          task: 1, phase,
+          tasks: [1], phase,
           ...(commits ? { commits } : {}),
           findings: rec.preservedFindings,
           blocker: `${label} handoff schema invalid${rec.reason} → fix and re-run ${reRun}`,
@@ -345,7 +345,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
 
     if (this.opts.dryRun) {
       writeHandoff(this.handoffPath, {
-        task: 1, phase: "branch-review", status: "APPROVED",
+        tasks: [1], phase: "branch-review", status: "APPROVED",
         commits: { base, head }, findings: [], artifacts: {}, blocker: "dry-run",
       });
       const returnBlock = assembleReturnBlock(
@@ -507,7 +507,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
   protected override async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.opts.dryRun) {
       writeHandoff(this.handoffPath, {
-        task: 1, phase: "fix", status: "APPROVED",
+        tasks: [1], phase: "fix", status: "APPROVED",
         commits: { base: "dry-run", head: "dry-run" }, findings: [], artifacts: {}, blocker: "dry-run",
       });
       const returnBlock = assembleReturnBlock(
@@ -530,7 +530,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
     const fixBase = src?.commits?.base as string | undefined;
     if (!fixBase || fixBase === "unknown") {
       writeBlockedCarrier(this.handoffPath, {
-        task: 1, phase: "fix",
+        tasks: [1], phase: "fix",
         blocker: `source review handoff ${findingsPath} has no valid commits.base → cannot derive the fix BASE; fix the source review and re-run cdd fix --type branch`,
       });
       process.stderr.write(`CDD_BLOCKED: branch-fix source review missing commits.base\n`);

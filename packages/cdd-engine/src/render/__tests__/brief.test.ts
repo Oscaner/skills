@@ -4,7 +4,7 @@
 //   （`cdd brief` CLI 与校验导出已于 P3 移除——本文件仅覆盖保留面 generateBrief。）
 import { it, expect } from 'vitest';
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, realpathSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, realpathSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,8 +62,8 @@ it("generateBrief #173: 第 4 参数为 repoRoot —— cwd 无关，取传入�
   expect(readFileSync(out, "utf8")).toMatch(new RegExp(`^TASK_BASE: ${head.slice(0, 7)}`, "m"));
 });
 
-// #185 统一命名空间：--task N = CDD 级唯一索引（plan 中 ### Task N: heading 1:1 对应）
-it("generateBrief #185: CDD 级统一命名空间 —— --task 2 取 Task 2 段落（不含 Task 1 / Task 3）", async () => {
+// #185 统一命名空间：--tasks N = CDD 级唯一索引（plan 中 ### Task N: heading 1:1 对应）
+it("generateBrief #185: CDD 级统一命名空间 —— --tasks 2 取 Task 2 段落（不含 Task 1 / Task 3）", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "brief-ns-"));
   const planFile = path.join(dir, "plan.md");
   writeFileSync(planFile, makePlan([[1, "body 1\n"], [2, "body 2\n"], [3, "body 3\n"]]));
@@ -83,4 +83,48 @@ it("generateBrief #185: task 2 不存在（仅 Task 1）→ throw CDD-level inde
   await expect(
     generateBrief(planFile, 2, path.join(dir, "out.md"), REPO_ROOT),
   ).rejects.toThrow(/task 2 not found \(CDD-level index; plan must contain '### Task N:' heading\)/);
+});
+
+// ---- group brief: the group is the dispatch unit — one brief file per group, each requested
+// task's section in it; out-of-bounds BLOCKs the WHOLE group with per-item missing listing ----
+it("generateBrief group: --tasks 1,2 → 两段俱在 + 单条 TASK_BASE（组即单位）", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "brief-group-"));
+  const planFile = path.join(dir, "plan.md");
+  writeFileSync(planFile, makePlan([[1, "Do task 1\n"], [2, "Do task 2\n"], [3, "Do task 3\n"]]));
+  const outPath = path.join(dir, "tasks-1-2-brief.md");
+  await generateBrief(planFile, [1, 2], outPath, REPO_ROOT);
+  const content = readFileSync(outPath, "utf8");
+  expect(content).toMatch(/^### Task 1:/m);
+  expect(content).toMatch(/^### Task 2:/m);
+  expect(content).not.toMatch(/^### Task 3:/m);
+  expect(content).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
+  expect(content.match(/^TASK_BASE: /gm)).toHaveLength(1); // one base for the group
+  expect(content.includes("Do task 1")).toBe(true);
+  expect(content.includes("Do task 2")).toBe(true);
+});
+
+it("generateBrief group: 请求序即段序（--tasks 2,1 → Task 2 段在前）", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "brief-group-order-"));
+  const planFile = path.join(dir, "plan.md");
+  writeFileSync(planFile, makePlan([[1, "body 1\n"], [2, "body 2\n"]]));
+  const outPath = path.join(dir, "tasks-2-1-brief.md");
+  await generateBrief(planFile, [2, 1], outPath, REPO_ROOT);
+  const content = readFileSync(outPath, "utf8");
+  expect(content.indexOf("### Task 2:")).toBeLessThan(content.indexOf("### Task 1:"));
+});
+
+it("generateBrief group 超界: 整组 BLOCK + 逐项列示缺失（保留 /task N not found/ 契约）", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "brief-group-miss-"));
+  const planFile = path.join(dir, "plan.md");
+  writeFileSync(planFile, makePlan([[1, "only task 1\n"]]));
+  // 单缺失面：整组拒绝，消息仍匹配单任务契约
+  await expect(
+    generateBrief(planFile, [1, 99], path.join(dir, "out.md"), REPO_ROOT),
+  ).rejects.toThrow(/task 99 not found \(CDD-level index/);
+  // 多缺失面：逐项列示（tasks 2, 3 …）
+  await expect(
+    generateBrief(planFile, [1, 2, 3], path.join(dir, "out.md"), REPO_ROOT),
+  ).rejects.toThrow(/tasks 2, 3 not found \(CDD-level index; plan must contain '### Task N:' heading\)/);
+  // 组 BLOCK 不写任何产物（整组整体拒绝）
+  expect(existsSync(path.join(dir, "out.md"))).toBe(false);
 });

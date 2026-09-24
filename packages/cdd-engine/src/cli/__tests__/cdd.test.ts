@@ -212,8 +212,8 @@ describe("cdd CLI", () => {
     writeFileSync(plan, "### Task 1: fixture\n");
     const ws = path.join(dir, ".osuperpowers", "cdd", "zz-stop-test");
     mkdirSync(ws, { recursive: true });
-    writeFileSync(path.join(ws, "task-1-review-1.json"),
-      JSON.stringify({ task: 1, phase: "review", status, artifacts: {}, findings: [],
+    writeFileSync(path.join(ws, "tasks-1-review-1.json"),
+      JSON.stringify({ tasks: [1], phase: "review", status, artifacts: {}, findings: [],
         ...(status !== "APPROVED" ? { blocker: "boom" } : {}) }));
     // 入口门干净树：种子提交（workspace 已收编 .gitignore；后续手写 handoff 覆写不弄脏树）。
     execaSync("git", ["-C", dir, "add", "-A"]);
@@ -280,7 +280,7 @@ describe("cdd CLI", () => {
       writeFileSync(path.join(binDir, "claude"),
         "#!/usr/bin/env bash\n" +
         `mkdir -p "${ws}"\n` +
-        `printf '%s' '{"task":1,"phase":"branch-review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"}],"artifacts":{}}' > "${handoffPath}"\n` +
+        `printf '%s' '{"tasks":[1],"phase":"branch-review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"}],"artifacts":{}}' > "${handoffPath}"\n` +
         "exit 0\n");
       chmodSync(path.join(binDir, "claude"), 0o755);
       const r = runCli(["review", "--type", "branch",
@@ -470,7 +470,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const wsPath = path.join(dir, ".osuperpowers", "cdd", "plan");
       mkdirSync(wsPath, { recursive: true });
       writeFileSync(path.join(wsPath, "branch-review-eeee555..ffff666-r1.json"),
-        JSON.stringify({ task: 1, phase: "branch-review", status: "APPROVED", findings: [], artifacts: {}, blocker: "" }));
+        JSON.stringify({ tasks: [1], phase: "branch-review", status: "APPROVED", findings: [], artifacts: {}, blocker: "" }));
       const r = runCli(["--dry-run", "review", "--type", "branch",
         "--plan", plan, "--base", "eeee555", "--head", "ffff666"],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
@@ -695,7 +695,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
 
     const dir2 = dirtyFixtureRepo();
     try {
-      const findings = seedFindings(dir2, "plan/task-1-review-1.json");
+      const findings = seedFindings(dir2, "plan/tasks-1-review-1.json");
       const r = runCli(["--dry-run", "fix", "--type", "task", "--tasks", "1", "--plan", "docs/plan.md", "--findings", findings],
         { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       assertDryRunWarn(r);

@@ -134,7 +134,7 @@ it("runTask: dry-run implement → return block 5-line APPROVED + no handoff wri
   expect(res.returnBlock[2]).toMatch(/^artifacts: brief=/);
   expect(res.returnBlock[3]).toBe("blocker: none");
   expect(res.returnBlock[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
-  expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
+  expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
 });
 
 it("runTask: dry-run outputs return block 5 lines to stdout + exit 0", async () => {
@@ -178,7 +178,7 @@ it("runTask: dry-run review/fix modes → return block APPROVED + no handoff wri
     const res = await runTask("claude", 1, { mode, dryRun: true, planFile, root: repo, noExit: true });
     expect(res.exitCode).toBe(0);
     expect(res.returnBlock[0]).toBe("status: APPROVED");
-    expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
+    expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
   }
 });
 
@@ -219,12 +219,60 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
       noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-implement.json"), "utf8"));
+    const handoff = JSON.parse(readFileSync(path.join(ws, "tasks-1-implement.json"), "utf8"));
     expect(handoff.status).toBe("BLOCKED");
     expect(handoff.blocker).toMatch(/cli exited 3 without writing handoff/);
     // The EXECUTION_FAILURE arm carries the resume-or-discard contract — resume via the implement
     // re-dispatch, or abandon the salvage (T26 §⑤)
-    expect(handoff.blocker).toMatch(/resume or discard: cdd implement --task 1 re-dispatch auto-resumes \(recovery.residue_ref\), or git stash drop to abandon/);
+    expect(handoff.blocker).toMatch(/resume or discard: cdd implement --tasks 1 re-dispatch auto-resumes \(recovery.residue_ref\), or git stash drop to abandon/);
+  } finally {
+    restore();
+  }
+});
+
+// ---- group dispatch (in-process, non-dry-run): the group is the dispatch unit — one BLOCKED
+// carrier keyed tasks-{a}-{b} (no per-task decomposition), the whole-group re-dispatch advice ----
+
+it("runTask: group [1,2] implement failure → tasks-1-2-implement.json BLOCKED carrier (task + tasks fields, whole-group re-dispatch)", async () => {
+  const { repo, planFile, ws } = setupWorkspace();
+  // a two-task plan so the group brief is in-bounds (task 1 + task 2 both exist); commitValidDocs
+  // is called with the custom body (commitPlan would clobber it with the default single-task body)
+  const twoTaskPlanRel = "docs/osuperpowers/plans/plan-two.md";
+  const twoTaskBody = readFileSync(path.join(repo, "docs", "osuperpowers", "plans", "plan.md"), "utf8")
+    .replace("### Task 1: x", "### Task 1: x\n\n### Task 2: y");
+  commitValidDocs(repo, twoTaskPlanRel, twoTaskBody);
+  const twoTaskPlan = path.join(repo, twoTaskPlanRel);
+  const wsTwo = path.join(repo, ".osuperpowers", "cdd", "plan-two");
+  mkdirSync(wsTwo, { recursive: true });
+  writeFileSync(path.join(wsTwo, "progress.json"), JSON.stringify(
+    { plan: twoTaskPlanRel, timeoutCount: 0, engineRecoveryCount: 0, tasks: [] }, null, 2));
+  writeFileSync(path.join(wsTwo, "plan-constraints.md"), "constraints\n");
+  const binDir = mkdtempSync(path.join(tmpdir(), "cdd-bin-group-"));
+  const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\necho 'boom from fake cli' >&2\nexit 3\n");
+  const regPath = ghostRegistry(wsTwo);
+  try {
+    const res = await runTask("ghost", [1, 2], {
+      mode: "implement",
+      planFile: path.relative(repo, twoTaskPlan),
+      root: repo,
+      registryPath: regPath,
+      noExit: true,
+    });
+    expect(res.exitCode).toBe(1);
+    const hp = path.join(wsTwo, "tasks-1-2-implement.json");
+    expect(existsSync(hp)).toBe(true);
+    const handoff = JSON.parse(readFileSync(hp, "utf8"));
+        expect(handoff.tasks).toEqual([1, 2]); // the group reference (P4.3)
+    expect(handoff.status).toBe("BLOCKED");
+    // 逐项无 per-task carrier 旁支（组即单位——没有 task-1-implement.json / task-2-implement.json）
+    expect(existsSync(path.join(wsTwo, "task-1-implement.json"))).toBe(false);
+    // 整组结构卷入建议面 —— 建议的 --tasks 值恰为组键 1-2（无子集派发；legacy 单任务面零残留）
+    expect(handoff.blocker).toMatch(/cdd implement --tasks 1-2 re-dispatch auto-resumes/);
+    const adviceTasks = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(handoff.blocker)?.[1];
+    expect(adviceTasks).toBe("1-2"); // whole-group re-dispatch advice — never a per-task subset
+    // 进度账本按组一行（round 组级）
+    const progress = JSON.parse(readFileSync(path.join(wsTwo, "progress.json"), "utf8"));
+    expect(progress.tasks).toEqual([{ group: "1-2", rounds: { implement: 1 } }]);
   } finally {
     restore();
   }
@@ -247,15 +295,15 @@ it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending;
   expect(isTaskPending(1, dir, noReviewProgress)).toBe(true);
 
   const progressR1 = { tasks: [{ task: 1, rounds: { review: 1 } }] };
-  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status: "DONE" }));
+  writeFileSync(path.join(dir, "tasks-1-review-1.json"), JSON.stringify({ status: "DONE" }));
   expect(handoffStatus(1, dir, progressR1)).toBe("APPROVED");
   expect(isTaskPending(1, dir, progressR1)).toBe(false);
 
-  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status: "APPROVED" }));
+  writeFileSync(path.join(dir, "tasks-1-review-1.json"), JSON.stringify({ status: "APPROVED" }));
   expect(handoffStatus(1, dir, progressR1)).toBe("APPROVED");
   expect(isTaskPending(1, dir, progressR1)).toBe(false);
 
-  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status: "BLOCKED" }));
+  writeFileSync(path.join(dir, "tasks-1-review-1.json"), JSON.stringify({ status: "BLOCKED" }));
   expect(handoffStatus(1, dir, progressR1)).toBe("BLOCKED");
   expect(isTaskPending(1, dir, progressR1)).toBe(true);
 });
@@ -278,7 +326,7 @@ it("runTask: plan given → brief self-provisioned with TASK_BASE, dry-run exit 
   });
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(readFileSync(path.join(ws, "task-1-brief.md"), "utf8")).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
+  expect(readFileSync(path.join(ws, "tasks-1-brief.md"), "utf8")).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
 });
 
 it("runTask: plan path does not exist → '--plan not found' exit 1（resolveDocArg 三行诊断）", async () => {
@@ -354,7 +402,7 @@ it("spawnManaged: preserves non-subagent env vars", async () => {
 it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)", () => {
   const { repo, planFile } = setupWorkspace();
   const ctx = buildCtx(repo, 1, { mode: "fix", harness: "claude", planFile, round: 1 });
-  expect(ctx.findingsPath).toMatch(/task-1-review-1\.json$/);
+  expect(ctx.findingsPath).toMatch(/tasks-1-review-1\.json$/);
   expect(ctx.findingsPath).not.toMatch(/open-findings/);
   expect(ctx.findingsScope).toBeUndefined();
 });
@@ -362,7 +410,7 @@ it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)"
 it("buildCtx: implement mode → findingsPath = open-findings path, no scope key", () => {
   const { repo, planFile } = setupWorkspace();
   const ctx = buildCtx(repo, 1, { mode: "implement", harness: "claude", planFile });
-  expect(ctx.findingsPath).toMatch(/task-1-open-findings\.json$/);
+  expect(ctx.findingsPath).toMatch(/tasks-1-open-findings\.json$/);
   expect(ctx.findingsScope).toBeUndefined();
 });
 
@@ -380,7 +428,7 @@ it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍�
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const handoff = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
+    const handoff = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
     expect(handoff.status).toBe("BLOCKED");
     expect(handoff.phase).toBe("review");
     expect(handoff.blocker).toMatch(/not written after exit 0/);
@@ -394,7 +442,7 @@ it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍�
 function makeHandoffStatusFixture(status) {
   const dir = mkdtempSync(path.join(tmpdir(), "runner-hs-"));
   const progressData = { tasks: [{ task: 1, rounds: { review: 1 } }] };
-  writeFileSync(path.join(dir, "task-1-review-1.json"), JSON.stringify({ status }));
+  writeFileSync(path.join(dir, "tasks-1-review-1.json"), JSON.stringify({ status }));
   return { dir, progressData };
 }
 
@@ -437,12 +485,12 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
       termination: { budgetMs: 1000 }, // effective budget via the deterministic timing seam
       registryPath: regPath, noExit: true,
     });
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("TIMEOUT");
     expect(h.blocker).toMatch(/timed out after 1000ms/);
-    expect(h.task).toBe(1);
+    expect(h.tasks).toEqual([1]);
   } finally {
     restore();
   }
@@ -481,15 +529,15 @@ it.skipIf(!GROUP_SUPPORTED)("runTask: stall → TIMEOUT handoff + resume-or-disc
       termination: { sampleIntervalMs: 200, idleWindowMs: 1500 }, // timing override = deterministic test seam
       registryPath: regPath, noExit: true,
     });
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("TIMEOUT");
     expect(h.failure_category).toBe("TIMEOUT");   // stall stays in the TIMEOUT category (extended semantics — not a new category)
     expect(h.blocker).toMatch(/stalled/);
-    expect(h.blocker).toMatch(/resume or discard: cdd implement --task 1 re-dispatch auto-resumes/);
+    expect(h.blocker).toMatch(/resume or discard: cdd implement --tasks 1 re-dispatch auto-resumes/);
     expect(h.blocker).toMatch(/git stash drop to abandon/);
-    expect(h.task).toBe(1);
+    expect(h.tasks).toEqual([1]);
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress.timeoutCount).toBe(1);        // stall counts toward the normal timeout quota
   } finally {
@@ -501,9 +549,9 @@ it("runTask: unkillable → handoff status BLOCKED + blocker process unkillable"
   // SIGKILL always kills on modern Unix; test contract-level behavior via writeHandoff directly.
   const { writeHandoff } = await import("../../artifacts/handoff/write.ts");
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-unkillable-ho-"));
-  const hp = path.join(dir, "task-1-handoff.json");
+  const hp = path.join(dir, "tasks-1-handoff.json");
   writeHandoff(hp, {
-    task: 1, phase: "implement", status: "BLOCKED",
+    tasks: [1], phase: "implement", status: "BLOCKED",
     blocker: "process unkillable",
     findings: [{ severity: "warn", title: "pre-existing" }],
   });
@@ -517,7 +565,7 @@ it("runTask: unkillable → handoff status BLOCKED + blocker process unkillable"
 
 it("runTask #open-findings: implement mode → no open-findings.json (implement mode never writes it)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
-  const findingsPath = path.join(ws, "task-1-open-findings.json");
+  const findingsPath = path.join(ws, "tasks-1-open-findings.json");
   const res = await runTask("claude", 1, {
     mode: "implement", dryRun: true,
     planFile, root: repo, noExit: true,
@@ -535,7 +583,7 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff c
   // Fake CLI exits 0 but writes a schema-invalid handoff (missing required 'findings').
   const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `printf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\n` +
       `exit 0\n`);
   const regPath = ghostRegistry(ws);
   try {
@@ -545,7 +593,7 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff c
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const hp = path.join(ws, "task-1-review-1.json");
+    const hp = path.join(ws, "tasks-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
@@ -560,7 +608,7 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-unk-"));
   const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","artifacts":{},"findings":[],"unknownField":"bad"}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `printf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","artifacts":{},"findings":[],"unknownField":"bad"}' > "${path.join(ws, "tasks-1-review-1.json")}"\n` +
       `exit 0\n`);
   const regPath = ghostRegistry(ws);
   try {
@@ -574,7 +622,7 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
     // continues normally (no longer judged dead wholesale). The old assertion (exit 1 + BLOCKED +
     // blocker text) pinned the pre-normalization behavior and has been superseded (T5).
     expect(res.exitCode).toBe(0);
-    const hp = path.join(ws, "task-1-review-1.json");
+    const hp = path.join(ws, "tasks-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h).not.toHaveProperty("unknownField");   // 违规键被写侧同源剥除，不留盘
     expect(h.phase).toBe("review");
@@ -585,14 +633,14 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
   }
 });
 
-it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'task'）→ 仍 BLOCKED 但保留原 findings", async () => {
+it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'tasks'）→ 仍 BLOCKED 但保留原 findings", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-keep-"));
-  // 缺 required 'task'（归一化无从补齐）+ 违规键 unknownField（可剥）→ 剥键后仍失败 → BLOCKED；
+  // 缺 required 'tasks'（归一化无从补齐）+ 违规键 unknownField（可剥）→ 剥键后仍失败 → BLOCKED；
   // 已解析出的 findings 必须全额保留（A4 缺陷面：此前该分支硬编码 findings: []，把内容一并清空）。
   const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"phase":"review","status":"CHANGES_REQUESTED","artifacts":{},"unknownField":"bad","findings":[{"severity":"blocker","summary":"keep me"}]}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `printf '%s' '{"phase":"review","status":"CHANGES_REQUESTED","artifacts":{},"unknownField":"bad","findings":[{"severity":"blocker","summary":"keep me"}]}' > "${path.join(ws, "tasks-1-review-1.json")}"\n` +
       `exit 0\n`);
   const regPath = ghostRegistry(ws);
   try {
@@ -602,10 +650,10 @@ it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'task
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
+    const h = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
-    expect(h.blocker).toMatch(/must have required property 'task'/);
+    expect(h.blocker).toMatch(/must have required property 'tasks'/);
     expect(h.findings).toEqual([{ severity: "blocker", summary: "keep me" }]);   // 全额保留
     expect(h).not.toHaveProperty("unknownField");                                  // 归一化先剥违规键
   } finally {
@@ -622,7 +670,7 @@ it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 stat
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-sv-nonarr-"));
   const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","artifacts":{},"findings":"none","unknownField":"bad"}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `printf '%s' '{"tasks":[1],"phase":"review","artifacts":{},"findings":"none","unknownField":"bad"}' > "${path.join(ws, "tasks-1-review-1.json")}"\n` +
       `exit 0\n`);
   const regPath = ghostRegistry(ws);
   try {
@@ -633,7 +681,7 @@ it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 stat
     });
     expect(res.exitCode).toBe(1);                                                  // 不是崩溃逃逸（exit 2）
     expect(res.returnBlock[0]).toBe("status: BLOCKED");
-    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
+    const h = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
     expect(h.findings).toEqual([]);                                                // 非数组 → 数组守卫成 []
@@ -660,12 +708,12 @@ it("runTask Pζ T3: review fake-CLI round 1 → FIXED_POINT (brief/reference 注
   // FIXED_POINT 的观测面 = 渲染后的 prompt（模板 REFERENCE 参数）——引擎内部状态经 ctx 传递，
   // 不再经子进程 env（零 CDD_* 注入）；故捕获末位 prompt 实参而非 printenv。
   const restore = withFakeCli(binDir, "fake-cli",
-    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\nexit 0\n`);
   const regPath = ghostRegistry(ws);
 
   const implBase = "aabbccddeeff1234567890aabbccddeeff12345678";
-  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
-    task: 1, phase: "implement", status: "APPROVED",
+  writeFileSync(path.join(ws, "tasks-1-implement.json"), JSON.stringify({
+    tasks: [1], phase: "implement", status: "APPROVED",
     commits: { base: implBase, head: "deadbeefdeadbeefdeadbeef1234567890abcdef" },
     findings: [], artifacts: {},
   }));
@@ -686,8 +734,8 @@ it("runTask Pζ T3: review fake-CLI round 1 → FIXED_POINT (brief/reference 注
 
 it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT not set (template gets empty string)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
-  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
-    task: 1, phase: "implement", status: "BLOCKED",
+  writeFileSync(path.join(ws, "tasks-1-implement.json"), JSON.stringify({
+    tasks: [1], phase: "implement", status: "BLOCKED",
     commits: { base: "unknown" },
     findings: [], artifacts: {},
   }));
@@ -707,18 +755,18 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-fp-cli-r2-"));
   const promptLog = path.join(ws, "fp-prompt-log-r2.txt");
   const restore = withFakeCli(binDir, "fake-cli",
-    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-2.json")}"\nexit 0\n`);
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-2.json")}"\nexit 0\n`);
   const regPath = ghostRegistry(ws);
 
   // Round-1 fix handoff exists; round-2 review must NOT read implement.json's base.
   const fixBase = "5588aabbccddeeff1234567890aabbccddeeff1234";
-  writeFileSync(path.join(ws, "task-1-implement.json"), JSON.stringify({
-    task: 1, phase: "implement", status: "APPROVED",
+  writeFileSync(path.join(ws, "tasks-1-implement.json"), JSON.stringify({
+    tasks: [1], phase: "implement", status: "APPROVED",
     commits: { base: "implement-base-should-not-win-00000000000000", head: "deadbeefdeadbeefdeadbeef1234567890abcdef" },
     findings: [], artifacts: {},
   }));
-  writeFileSync(path.join(ws, "task-1-fix-1.json"), JSON.stringify({
-    task: 1, phase: "fix", status: "APPROVED",
+  writeFileSync(path.join(ws, "tasks-1-fix-1.json"), JSON.stringify({
+    tasks: [1], phase: "fix", status: "APPROVED",
     commits: { base: fixBase, head: "deadbeefdeadbeefdeadbeef1234567890abcdef" },
     findings: [], artifacts: {},
   }));
@@ -731,7 +779,7 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
     });
     expect(res.exitCode).toBe(0);
     expect(existsSync(promptLog)).toBe(true);
-    // FIXED_POINT comes from task-1-fix-1.json round, NOT implement.json
+    // FIXED_POINT comes from tasks-1-fix-1.json round, NOT implement.json
     expect(readFileSync(promptLog, "utf8")).toMatch(new RegExp(fixBase));
     expect(readFileSync(promptLog, "utf8")).not.toContain("implement-base-should-not-win");
   } finally {
@@ -746,7 +794,7 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-inj-cli-"));
   const promptLog = path.join(ws, "prompt-log.txt");
   const restore = withFakeCli(binDir, "fake-cli",
-    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+    `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\nexit 0\n`);
   const regPath = ghostRegistry(ws, {
     prefix: {
       implement: "/mattpocock-skills:tdd",
@@ -777,7 +825,7 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-review-derive-"));
   const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"},{"severity":"nit","summary":"n"}],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `printf '%s' '{"tasks":[1],"phase":"review","status":"CHANGES_REQUESTED","findings":[{"severity":"warn","summary":"w"},{"severity":"nit","summary":"n"}],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\n` +
       `exit 0\n`);
   const regPath = ghostRegistry(ws);
 
@@ -788,7 +836,7 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(0);
-    const hp = path.join(ws, "task-1-review-1.json");
+    const hp = path.join(ws, "tasks-1-review-1.json");
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
     // warn/nit = 0 blocker → status 被引擎派生覆写为 APPROVED（findings 保留）
@@ -815,7 +863,7 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t14-rescene-"));
   const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","findings":[],"unverifiable":[{"claim":"90min 无拖死实证","why":"现场已恢复，无法复核"}],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `printf '%s' '{"tasks":[1],"phase":"review","findings":[],"unverifiable":[{"claim":"90min 无拖死实证","why":"现场已恢复，无法复核"}],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\n` +
       `exit 0\n`);
   const regPath = ghostRegistry(ws);
 
@@ -825,7 +873,7 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
       planFile, root: repo,
       registryPath: regPath, noExit: true,
     });
-    const hp = path.join(ws, "task-1-review-1.json");
+    const hp = path.join(ws, "tasks-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     // ① 三面正交：裸折已死 — carrier 必带 failure_category + 真实 blocker
     expect(h.status).toBe("BLOCKED");
@@ -853,7 +901,7 @@ it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes �
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-dev-measured-"));
   const restore = withFakeCli(binDir, "fake-cli",
     `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"review","findings":[{"severity":"warn","summary":"w"}],"notes":"§口径 dev-measured items accepted-noted (evidence-contract); 每一项删除面有残留守卫","artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\n` +
+      `printf '%s' '{"tasks":[1],"phase":"review","findings":[{"severity":"warn","summary":"w"}],"notes":"§口径 dev-measured items accepted-noted (evidence-contract); 每一项删除面有残留守卫","artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\n` +
       `exit 0\n`);
   const regPath = ghostRegistry(ws);
 
@@ -864,7 +912,7 @@ it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes �
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(0);
-    const h = JSON.parse(readFileSync(path.join(ws, "task-1-review-1.json"), "utf8"));
+    const h = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
     expect(h.status).toBe("APPROVED");
     expect(h.unverifiable).toBeUndefined();
     expect(h.blocker).toBeUndefined();
@@ -889,7 +937,7 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
       registryPath: regPath, noExit: true,
     });
     expect(res.exitCode).toBe(1);
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("BLOCKED");
@@ -902,22 +950,22 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
 
 // ---- per-round buildCtx ----
 
-it("runTask: per-round buildCtx — review derives task-1-review-1.json", () => {
+it("runTask: per-round buildCtx — review derives tasks-1-review-1.json", () => {
   const { repo, planFile } = setupWorkspace();
   const ctx = buildCtx(repo, 1, { mode: "review", harness: "claude", planFile, round: 1 });
-  expect(ctx.handoffPath.endsWith("task-1-review-1.json")).toBe(true);
+  expect(ctx.handoffPath.endsWith("tasks-1-review-1.json")).toBe(true);
 });
 
-it("runTask: implement derives task-1-implement.json (no round suffix)", () => {
+it("runTask: implement derives tasks-1-implement.json (no round suffix)", () => {
   const { repo, planFile } = setupWorkspace();
   const ctx = buildCtx(repo, 1, { mode: "implement", harness: "claude", planFile, round: 1 });
-  expect(ctx.handoffPath.endsWith("task-1-implement.json")).toBe(true);
+  expect(ctx.handoffPath.endsWith("tasks-1-implement.json")).toBe(true);
 });
 
-it("runTask: round-2 buildCtx derives task-1-review-2.json + buildPromptParams 参数面同源", () => {
+it("runTask: round-2 buildCtx derives tasks-1-review-2.json + buildPromptParams 参数面同源", () => {
   const { repo, planFile, ws } = setupWorkspace();
   const ctx = buildCtx(repo, 1, { mode: "review", harness: "claude", planFile, round: 2 });
-  expect(ctx.handoffPath.endsWith("task-1-review-2.json")).toBe(true);
+  expect(ctx.handoffPath.endsWith("tasks-1-review-2.json")).toBe(true);
 
   const params = buildPromptParams(ctx, 1);
   expect(params.TASK_WORKSPACE).toBe(ws);
@@ -944,18 +992,18 @@ it("runTask: mode review dry-run → return block APPROVED + no handoff written"
   const res = await runTask("claude", 1, { mode: "review", dryRun: true, planFile, root: repo, noExit: true });
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(existsSync(path.join(ws, "task-1-review-1.json"))).toBe(false);
+  expect(existsSync(path.join(ws, "tasks-1-review-1.json"))).toBe(false);
 });
 
 it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）", async () => {
   const { validateHandoffSchema } = await import("../../rules/schema.ts");
   expect(validateHandoffSchema({
-    task: 1, phase: "review", status: "APPROVED",
+    tasks: [1], phase: "review", status: "APPROVED",
     commits: { base: "a".repeat(40), head: "b".repeat(40) },
     findings: [], artifacts: {},
   })).toEqual({ valid: true });
   // 非法 phase 不再合法（未归一会被 runner 8.8 Ajv 判 invalid 覆写 BLOCKED）
-  expect(validateHandoffSchema({ task: 1, phase: "bogus", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
+  expect(validateHandoffSchema({ tasks: [1], phase: "bogus", status: "APPROVED", findings: [], artifacts: {} }).valid).toBe(false);
 });
 
 // ---- Implement handoff materialization + evidence-gate + return block returnFromHandoff (commits single authority) (T6) ----
@@ -999,10 +1047,10 @@ async function runT6Ghost(t6, body) {
   }
 }
 
-it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.json（return block stdout → 文件；commits 单一权威）", async () => {
+it("runTask T6: implement 成功路径 — runner 实体化 tasks-1-implement.json（return block stdout → 文件；commits 单一权威）", async () => {
   const t6 = t6Workspace();
-  const report = path.join(t6.ws, "task-1-report.md");
-  const tev = path.join(t6.ws, "task-1-test-evidence.json");
+  const report = path.join(t6.ws, "tasks-1-report.md");
+  const tev = path.join(t6.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
   // evidence 齐 command/passed/exit_code（behavior_change 非 true 或齐全是 soft）→ 不拦
   writeFileSync(tev, JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }));
@@ -1015,10 +1063,10 @@ it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.jso
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  const hp = path.join(t6.ws, "task-1-implement.json");
+  const hp = path.join(t6.ws, "tasks-1-implement.json");
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
-  expect(h.task).toBe(1);
+  expect(h.tasks).toEqual([1]);
   expect(h.phase).toBe("implement");
   expect(h.status).toBe("APPROVED");
   expect(h.commits.base).toBe(t6.taskBase);      // brief TASK_BASE 权威（agent 行被忽略）
@@ -1033,8 +1081,8 @@ it("runTask T6: implement 成功路径 — runner 实体化 task-1-implement.jso
 
 it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 changed-surface ledger origin note（writeBoundary 记账）", async () => {
   const t6 = t6Workspace();
-  const report = path.join(t6.ws, "task-1-report.md");
-  const tev = path.join(t6.ws, "task-1-test-evidence.json");
+  const report = path.join(t6.ws, "tasks-1-report.md");
+  const tev = path.join(t6.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
   writeFileSync(tev, JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }));
   // Ghost agent commits a REAL deliverable (wip.md) — the first T25-era dispatch round ran on an
@@ -1052,7 +1100,7 @@ it("runTask T6: implement 提交真实改动 → 实体化 carrier 持存 change
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  const hp = path.join(t6.ws, "task-1-implement.json");
+  const hp = path.join(t6.ws, "tasks-1-implement.json");
   const h = JSON.parse(readFileSync(hp, "utf8"));
   expect(h.status).toBe("APPROVED");
   expect(h.commits.base).toBe(t6.taskBase); // dispatch-time HEAD (plan commit) — diff base..HEAD is exactly wip.md
@@ -1071,12 +1119,12 @@ it("runTask T6: implement 不写 handoff 也不触发 10.5 BLOCKED（runner 实�
     "#!/usr/bin/env bash",
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
-    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
     "printf '%s\\n' 'blocker: none'",
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  const hp = path.join(t6.ws, "task-1-implement.json");
+  const hp = path.join(t6.ws, "tasks-1-implement.json");
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
   // 10.5 未触发：status 为 APPROVED（若命中 10.5 会被覆写 BLOCKED + exit 1）
@@ -1090,15 +1138,15 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
   const res = await runT6Ghost(t6, [
     "#!/usr/bin/env bash",
     // 模拟 agent 写了 test-evidence：behavior_change:true 但缺必需三键
-    `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "${path.join(t6.ws, "task-1-test-evidence.json")}"`,
+    `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
-    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
     "printf '%s\\n' 'blocker: none'",
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(1);
-  const hp = path.join(t6.ws, "task-1-implement.json");
+  const hp = path.join(t6.ws, "tasks-1-implement.json");
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
   expect(h.status).toBe("BLOCKED");
@@ -1120,7 +1168,7 @@ it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的
     "#!/usr/bin/env bash",
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=fakefakefakefakefakefakefakefakefakefake head=fakefakefakefakefakefakefakefakefakefake'",
-    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
@@ -1129,7 +1177,7 @@ it("runTask T6: return block 输出改用 returnFromHandoff — agent stdout 的
   expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
   expect(res.returnBlock[3]).toBe("blocker: none");
   expect(res.returnBlock[4]).toMatch(/^counters: timeout=\d+ contract-violation=\d+ engine-self-written=\d+ recovery=\d+$/);
-  const h = JSON.parse(readFileSync(path.join(t6.ws, "task-1-implement.json"), "utf8"));
+  const h = JSON.parse(readFileSync(path.join(t6.ws, "tasks-1-implement.json"), "utf8"));
   expect(h.commits.base).toBe(t6.taskBase);
   expect(h.blocker).toBeUndefined();
 });
@@ -1144,15 +1192,15 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
   const res = await runT6Ghost(t6, [
     "#!/usr/bin/env bash",
     // 模拟旧 P1 agent 残留：schema-invalid（缺 findings）existing handoff
-    `printf '%s' '{"task":1,"phase":"implement","status":"APPROVED","artifacts":{}}' > "${path.join(t6.ws, "task-1-implement.json")}"`,
+    `printf '%s' '{"tasks":[1],"phase":"implement","status":"APPROVED","artifacts":{}}' > "${path.join(t6.ws, "tasks-1-implement.json")}"`,
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
-    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "task-1-report.md")}'`,
+    `printf '%s\\n' 'artifacts: report=${path.join(t6.ws, "tasks-1-report.md")}'`,
     "printf '%s\\n' 'blocker: none'",
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
-  const hp = path.join(t6.ws, "task-1-implement.json");
+  const hp = path.join(t6.ws, "tasks-1-implement.json");
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
   // 未被 8.8 判 invalid 覆写 BLOCKED：最终载体是实体化结果（commits.base = brief TASK_BASE 权威）
@@ -1206,7 +1254,7 @@ it("runTask T8/T30: review APPROVED → ensure-row writeback (rounds[review]=1, 
   const t8 = t8Workspace();
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
-    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(t8.ws, "task-1-review-1.json")}"`,
+    `printf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(t8.ws, "tasks-1-review-1.json")}"`,
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(0);
@@ -1218,7 +1266,7 @@ it("runTask T8/T30: review APPROVED → ensure-row writeback (rounds[review]=1, 
   expect(progress.tasks[0]).not.toHaveProperty("status");
   expect(deriveTaskState(t8.ws, 1)).toBe("complete");
   // handoff 保持 APPROVED（clean tree 通过 post-run validate；review 跳过 head 校验）
-  const h = JSON.parse(readFileSync(path.join(t8.ws, "task-1-review-1.json"), "utf8"));
+  const h = JSON.parse(readFileSync(path.join(t8.ws, "tasks-1-review-1.json"), "utf8"));
   expect(h.status).toBe("APPROVED");
 });
 
@@ -1229,13 +1277,13 @@ it("runTask T8: post-run validateCommitContract — dirty tree → handoff BLOCK
   const t8 = t8Workspace();
   const res = await runT8ReviewGhost(t8, [
     "#!/usr/bin/env bash",
-    `printf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(t8.ws, "task-1-review-1.json")}"`,
+    `printf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(t8.ws, "tasks-1-review-1.json")}"`,
     `printf '%s\n' 'dirty' >> "${path.join(t8.repo, "tracked.txt")}"`,
     "exit 0",
   ].join("\n"));
   expect(res.exitCode).toBe(1);
   expect(res.returnBlock[0]).toBe("status: BLOCKED");
-  const hp = path.join(t8.ws, "task-1-review-1.json");
+  const hp = path.join(t8.ws, "tasks-1-review-1.json");
   expect(existsSync(hp)).toBe(true);
   const h = JSON.parse(readFileSync(hp, "utf8"));
   expect(h.status).toBe("BLOCKED");
@@ -1253,7 +1301,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
     "#!/usr/bin/env bash",
     "printf '%s\\n' 'status: APPROVED'",
     "printf '%s\\n' 'commits: base=x head=y'",
-    `printf '%s\\n' 'artifacts: report=${path.join(t8.ws, "task-1-report.md")}'`,
+    `printf '%s\\n' 'artifacts: report=${path.join(t8.ws, "tasks-1-report.md")}'`,
     `printf '%s\\n' 'dirty' >> "${path.join(t8.repo, "tracked.txt")}"`,
     "exit 0",
   ].join("\n"));
@@ -1265,7 +1313,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
     });
     expect(res.exitCode).toBe(1);
     expect(res.returnBlock[0]).toBe("status: BLOCKED");
-    const hp = path.join(t8.ws, "task-1-implement.json");
+    const hp = path.join(t8.ws, "tasks-1-implement.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.blocker).toMatch(/uncommitted changes at return/);
@@ -1319,8 +1367,8 @@ const T22_PROSE_PLAN = [
 // 黑盒 ①：implement pre-flight 无 plan-constraints.md → 自 plan 声明源生成（含 plan hash 锚）→ 门过 → 绿色。
 it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源物料化 + 门过 + 绿色", async () => {
   const t22 = t22Workspace(T22_PROSE_PLAN);
-  const report = path.join(t22.ws, "task-1-report.md");
-  const tev = path.join(t22.ws, "task-1-test-evidence.json");
+  const report = path.join(t22.ws, "tasks-1-report.md");
+  const tev = path.join(t22.ws, "tasks-1-test-evidence.json");
   writeFileSync(report, "report body\n");
   writeFileSync(tev, JSON.stringify({ command: "npx vitest run", exit_code: 0, passed: true, warnings_count: 0 }));
   const restore = withFakeCli(t22.binDir, "fake-cli", [
@@ -1347,7 +1395,7 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
     expect(text).toContain("**顺序原则**：ordering-principle constraint");
     expect(text).not.toContain(t22.repo);
     // dispatch 照常完成（实体化 handoff 同样落地）
-    expect(existsSync(path.join(t22.ws, "task-1-implement.json"))).toBe(true);
+    expect(existsSync(path.join(t22.ws, "tasks-1-implement.json"))).toBe(true);
   } finally {
     restore();
   }
@@ -1370,9 +1418,9 @@ it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可�
   expect(code).toBe(1);
   expect(stderr).toMatch(/CDD_BLOCKED/);
   expect(stderr).toMatch(/Constraints source undeclared|plan-constraints\.md missing/);
-  expect(existsSync(path.join(t22.ws, "task-1-implement.json"))).toBe(false);  // pre-flight 未达 dispatch
+  expect(existsSync(path.join(t22.ws, "tasks-1-implement.json"))).toBe(false);  // pre-flight 未达 dispatch
   expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false);    // 不写残缺产物
-  expect(existsSync(path.join(t22.ws, "task-1-brief.md"))).toBe(false);        // 门先于 F11：BLOCK 零残留（brief 不落盘）
+  expect(existsSync(path.join(t22.ws, "tasks-1-brief.md"))).toBe(false);        // 门先于 F11：BLOCK 零残留（brief 不落盘）
   expect(stdout).toBe("");
   } finally {
     restore();
@@ -1414,7 +1462,7 @@ function continuingCli(ws) {
     `git add wip.md\n` +
     `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "agent incremental continuation"\n` +
     `printf 'status: APPROVED\\ncommits: base=0000000000000000000000000000000000000000 head=0000000000000000000000000000000000000000\\n'\n` +
-    `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+    `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
     `exit 0\n`
   );
 }
@@ -1433,7 +1481,7 @@ it("T26 black-box: TIMEOUT → salvage → re-dispatch resumes WIP + brief appen
       mode: "implement", planFile, root: repo, termination: { budgetMs: 1000 },
       registryPath: regPath, noExit: true,
     });
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
     const h1 = JSON.parse(readFileSync(hp, "utf8"));
     expect(h1.status).toBe("TIMEOUT");
     expect(h1.recovery.residue_ref).toMatch(/^[0-9a-f]{40}$/); // settleResidue output rides the carrier
@@ -1458,12 +1506,12 @@ it("T26 black-box: TIMEOUT → salvage → re-dispatch resumes WIP + brief appen
     expect(res2.exitCode).toBe(0);
     const h2 = JSON.parse(readFileSync(hp, "utf8"));
     expect(h2.status).toBe("APPROVED");
-    expect(h2.artifacts.brief).toBe(path.join(ws, "task-1-brief.md"));
+    expect(h2.artifacts.brief).toBe(path.join(ws, "tasks-1-brief.md"));
     // WIP restored AND extended — 续作（increment on top）, not a rewrite from zero
     expect(readFileSync(path.join(repo, "wip.md"), "utf8"))
       .toBe("line2-round1-agent-wip\nline3-agent-increment\n");
     // the regenerated brief carries the data-driven residue appendix (status/cause/stash/scope)
-    const brief = readFileSync(path.join(ws, "task-1-brief.md"), "utf8");
+    const brief = readFileSync(path.join(ws, "tasks-1-brief.md"), "utf8");
     expect(brief).toContain("## Residue status from the previous dispatch");
     expect(brief).toContain("ended in TIMEOUT (cause: over-budget)");
     expect(brief).toContain("cdd-implement-task-task-1-r1-over-budget");
@@ -1488,7 +1536,7 @@ it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) 
       mode: "implement", planFile, root: repo, termination: { budgetMs: 1000 },
       registryPath: regPath, noExit: true,
     });
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
     const h1 = JSON.parse(readFileSync(hp, "utf8"));
     expect(h1.recovery.residue_ref).toMatch(/^[0-9a-f]{40}$/);
     // 模拟 pre-schema carrier：T25 时代的 TIMEOUT handoff 无 recovery 键（settleResidue 未落地、
@@ -1505,7 +1553,7 @@ it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) 
     expect(res2.exitCode).toBe(0);
     // 检索兜底命中 standardized stash message → WIP 恢复（resume input = stash@{0} list ref）
     expect(readFileSync(path.join(repo, "wip.md"), "utf8")).toBe("legacy-wip\nline3-agent-increment\n");
-    const brief = readFileSync(path.join(ws, "task-1-brief.md"), "utf8");
+    const brief = readFileSync(path.join(ws, "tasks-1-brief.md"), "utf8");
     expect(brief).toContain("## Residue status from the previous dispatch");
     expect(brief).toContain("stash@{0}"); // legacy resume keyed on the list ref (no index-independent SHA)
     expect(brief).toContain("cdd-implement-task-task-1-r1-over-budget");
@@ -1538,11 +1586,11 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
 
     const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t27-resume-"));
     const regPath = ghostRegistry(ws);
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
     const restore = withFakeCli(binDir, "fake-cli",
       `#!/usr/bin/env bash\n` +
       `printf 'status: APPROVED\\ncommits: base=${t0} head=${t1}\\n'\n` +
-      `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+      `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
       `exit 0\n`);
     try {
       const res1 = await runTask("ghost", 1, {
@@ -1559,7 +1607,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
       // range over the deliverable, the exact T26 collapse this task kills).
       const promptLog = path.join(ws, "t27-resume-review-prompt.txt");
       writeFileSync(path.join(binDir, "fake-cli"),
-        `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+        `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\nexit 0\n`);
       chmodSync(path.join(binDir, "fake-cli"), 0o755);
       const res2 = await runTask("ghost", 1, {
         mode: "review", planFile, root: repo,
@@ -1587,14 +1635,14 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
 
     const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t27-fresh-"));
     const regPath = ghostRegistry(ws);
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
     const restore = withFakeCli(binDir, "fake-cli",
       `#!/usr/bin/env bash\n` +
       `printf 'fresh-agent-work\\n' >> wip.md\n` +
       `git add wip.md\n` +
       `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "fresh implement round"\n` +
       `printf 'status: APPROVED\\ncommits: base=${t0} head=$(git rev-parse HEAD)\\n'\n` +
-      `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+      `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
       `exit 0\n`);
     try {
       const res = await runTask("ghost", 1, {
@@ -1618,7 +1666,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
     const t0 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
     const binDir = mkdtempSync(path.join(tmpdir(), "cdd-t27-normal-"));
     const regPath = ghostRegistry(ws);
-    const hp = path.join(ws, "task-1-implement.json");
+    const hp = path.join(ws, "tasks-1-implement.json");
 
     // Implement: a plain round committing work, declaring the brief base (the perfectly normal shape).
     const restore = withFakeCli(binDir, "fake-cli",
@@ -1627,7 +1675,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
       `git add wip.md\n` +
       `git -c user.name=cdd-test -c user.email=cdd-test@example.com commit -qm "implement round"\n` +
       `printf 'status: APPROVED\\ncommits: base=${t0} head=$(git rev-parse HEAD)\\n'\n` +
-      `printf 'artifacts: brief=${path.join(ws, "task-1-brief.md")}\\nblocker: none\\n'\n` +
+      `printf 'artifacts: brief=${path.join(ws, "tasks-1-brief.md")}\\nblocker: none\\n'\n` +
       `exit 0\n`);
     try {
       const resI = await runTask("ghost", 1, {
@@ -1643,7 +1691,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
       // Review round: fixed point = ledger t0 (legacy chain would also read t0 — no observable delta).
       const promptLogR = path.join(ws, "t27-normal-review-prompt.txt");
       writeFileSync(path.join(binDir, "fake-cli"),
-        `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLogR}"\nprintf '%s' '{"task":1,"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "task-1-review-1.json")}"\nexit 0\n`);
+        `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLogR}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\nexit 0\n`);
       chmodSync(path.join(binDir, "fake-cli"), 0o755);
       const resR = await runTask("ghost", 1, {
         mode: "review", planFile, root: repo,
@@ -1657,7 +1705,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
       writeFileSync(path.join(binDir, "fake-cli"),
         `#!/usr/bin/env bash\n` +
         `printf '%s' "\${@: -1}" > "${promptLogF}"\n` +
-        `printf '%s' '{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"'${t0}'","head":"'${h.commits.head}'"},"findings":[],"artifacts":{"report":"r.md"}}' > "${path.join(ws, "task-1-fix-1.json")}"\n` +
+        `printf '%s' '{"tasks":[1],"phase":"fix","status":"APPROVED","commits":{"base":"'${t0}'","head":"'${h.commits.head}'"},"findings":[],"artifacts":{"report":"r.md"}}' > "${path.join(ws, "tasks-1-fix-1.json")}"\n` +
         `printf 'status: APPROVED\\ncommits: base=${t0} head=${h.commits.head}\\n'\n` +
         `printf 'artifacts: report=r.md\\nblocker: none\\n'\n` +
         `exit 0\n`);
@@ -1671,7 +1719,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
       // The fix template carries the fixed-point in the `TASK_FIXED_POINT` round-context slot (the
       // REVIEW_REFERENCE range composition is review-only) — the ledger value lands there unchanged.
       expect(readFileSync(promptLogF, "utf8")).toContain("`TASK_FIXED_POINT`: " + t0);
-      const fixHandoff = JSON.parse(readFileSync(path.join(ws, "task-1-fix-1.json"), "utf8"));
+      const fixHandoff = JSON.parse(readFileSync(path.join(ws, "tasks-1-fix-1.json"), "utf8"));
       expect(fixHandoff.commits.base).toBe(t0);
     } finally {
       restore();

@@ -105,7 +105,7 @@ describe('cdd review/fix option 形态（D11: --doc 退役 → --spec/--plan typ
   // like research, the full call shape is exercised (the bare shape also exited 2 before removal —
   // Commander's missing required-option — a false green).
   it('cdd brief（完整形态）→ unknown command exit 2（子命令退役）', () => {
-    const r = runCli(['brief', '--task', '1', '--plan', SMOKE_PLAN, '--output', '/tmp/p3-retired-brief.md']);
+    const r = runCli(['brief', '--tasks', '1', '--plan', SMOKE_PLAN, '--output', '/tmp/p3-retired-brief.md']);
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/usage: cdd/);
   });

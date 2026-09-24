@@ -59,7 +59,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
       "artifacts: report=r.md",
       "blocker: none",
     ],
-    brief, repoRoot: repo, workspace: ws, taskNum: 1,
+    brief, repoRoot: repo, workspace: ws, tasks: [1],
   });
   expect(r.handoff.phase).toBe("implement");
   expect(r.handoff.status).toBe("APPROVED");
@@ -75,7 +75,7 @@ it("finalizeHandoff implement 族：brief 无 TASK_BASE → 降级 fail-open（�
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-fail-"));
   const brief = path.join(ws, "task-1-brief.md");
   writeFileSync(brief, "# task 1\nno TASK_BASE here\n");
-  const r = await finalizeHandoff({ mode: "implement", returnBlock: ["status: APPROVED"], brief, workspace: ws, taskNum: 1 });
+  const r = await finalizeHandoff({ mode: "implement", returnBlock: ["status: APPROVED"], brief, workspace: ws, tasks: [1] });
   expect(r.handoff).toBeNull();
   expect(r.exitCode).toBe(0);
 });
@@ -98,10 +98,10 @@ it("finalizeHandoff 未知 mode → 抛错（定稿分派契约）", async () =>
 it("writeOwnHandoff 全量覆盖：existing 含垃圾字段 → 新载体不含它", () => {
   const p = path.join(mkdtempSync(path.join(tmpdir(), "cdd-woh-")), "task-1-implement.json");
   writeOwnHandoff(p, { junk: true, task: 1 });
-  writeOwnHandoff(p, { task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+  writeOwnHandoff(p, { tasks: [1], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
   const h = JSON.parse(readFileSync(p, "utf8"));
   expect(h).not.toHaveProperty("junk");
-  expect(h).toEqual({ task: 1, phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+  expect(h).toEqual({ tasks: [1], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
 });
 
 // ---- The BLOCKED carrier: unverifiable / plan_conflicts must never fold to a bare
@@ -198,7 +198,7 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", a
   const r = await finalizeHandoff({
     mode: "implement",
     returnBlock: ["status: NEEDS_CONTEXT", "commits: base=x", "artifacts: ", "blocker: "],
-    brief, workspace: ws, taskNum: 1,
+    brief, workspace: ws, tasks: [1],
   });
   expect(r.handoff.status).toBe("BLOCKED");
   expect(r.exitCode).toBe(1);
@@ -262,7 +262,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
         "artifacts: report=r.md",
         "blocker: none",
       ],
-      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+      brief, repoRoot: repo, workspace: ws, tasks: [27],
     });
     expect(r.handoff.commits.base).toBe(c0); // 声明被采纳（非空 review 范围）
     expect(r.handoff.commits.head).toBe(c1);
@@ -277,13 +277,13 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const r1 = await finalizeHandoff({
       mode: "implement",
       returnBlock: ["status: APPROVED", `commits: base=${c1} head=${c1}`, "artifacts: ", "blocker: none"],
-      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+      brief, repoRoot: repo, workspace: ws, tasks: [27],
     });
     expect(r1.handoff.commits.base).toBe(c1); // 未采纳（==HEAD）→ 保持 brief TASK_BASE
     const r2 = await finalizeHandoff({
       mode: "implement",
       returnBlock: ["status: APPROVED", "commits: base=agent-wrong-base", "artifacts: ", "blocker: none"],
-      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+      brief, repoRoot: repo, workspace: ws, tasks: [27],
     });
     expect(r2.handoff.commits.base).toBe(c1); // 未采纳（非 40-hex）
     // 账本既有值不被 c1（==HEAD 的恢复轮快照）覆盖 — 首 seed 后 earliest-wins
@@ -302,7 +302,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const r = await finalizeHandoff({
       mode: "implement",
       returnBlock: ["status: APPROVED", `commits: base=${forgeHead} head=${c1}`, "artifacts: ", "blocker: none"],
-      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+      brief, repoRoot: repo, workspace: ws, tasks: [27],
     });
     expect(r.handoff.commits.base).toBe(c1); // 非祖先伪造被拒 → 保持 brief TASK_BASE
   });
@@ -317,7 +317,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const r = await finalizeHandoff({
       mode: "implement",
       returnBlock: ["status: APPROVED", `commits: base=${c0} head=${c1}`, "artifacts: ", "blocker: none"],
-      brief: freshBrief, repoRoot: repo, workspace: ws, taskNum: 27,
+      brief: freshBrief, repoRoot: repo, workspace: ws, tasks: [27],
     });
     expect(r.handoff.commits.base).toBe(c0); // fresh = brief TASK_BASE 权威（声明车道关闭）
   });
@@ -327,7 +327,7 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const r = await finalizeHandoff({
       mode: "implement",
       returnBlock: ["status: APPROVED", `commits: head=${c1}`, "artifacts: ", "blocker: none"],
-      brief, repoRoot: repo, workspace: ws, taskNum: 27,
+      brief, repoRoot: repo, workspace: ws, tasks: [27],
       resumeScopeBase: c0,
     });
     expect(r.handoff.commits.base).toBe(c1); // 无声明 → 不采纳，commits.base = brief TASK_BASE

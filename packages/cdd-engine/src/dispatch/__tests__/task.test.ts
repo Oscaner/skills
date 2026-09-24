@@ -53,12 +53,14 @@ function run(args, extraEnv = {}, opts = {}) {
 
 // 真仓 fixture：mkdtemp + gitInit + 仓根内 plan（`--plan` 的仓根相对路径）+ 干净工作树
 //（commit-contract 前提）。workspace 由 engine 纯派生：<repo>/.osuperpowers/cdd/plan。
+// P4.3: plan 载 Task 1 + Task 2 —— 单组（--tasks 1 / --tasks 2）与整组（--tasks 1,2）共用同一
+// dispatch 路径，超界面（--tasks 9）保持 BLOCK。
 function setupWorkspace() {
   const repo = realpathSync(mkdtempSync(path.join(tmpdir(), `cdd-task-cli-${Date.now()}-${Math.random().toString(36).slice(2)}`)));
   gitInit(repo);
   const plans = path.join(repo, 'docs', 'osuperpowers', 'plans');
   mkdirSync(plans, { recursive: true });
-  writeFileSync(path.join(plans, 'plan.md'), '# Plan\n\n### Task 1: test\n');
+  writeFileSync(path.join(plans, 'plan.md'), '# Plan\n\n### Task 1: test\n\n### Task 2: test\n');
   gitCommit(repo);
   return { repo, plan: path.join('docs', 'osuperpowers', 'plans', 'plan.md'), ws: path.join(repo, '.osuperpowers', 'cdd', 'plan') };
 }
@@ -86,8 +88,8 @@ describe('cdd implement/review/fix CLI contract', () => {
   });
 
   // F11: implement --plan 无前置 brief → runTask 自供应（plan 定稿处 generateBrief）；
-  // 产物 = plan-derived ws/task-N-brief.md + TASK_BASE: <HEAD>。
-  it('implement --plan without a pre-existing brief → self-provisions task-N-brief.md with TASK_BASE:', () => {
+  // 产物 = plan-derived ws/tasks-{a}-{b}-brief.md + TASK_BASE: <HEAD>（P4.3 组命名）。
+  it('implement --plan without a pre-existing brief → self-provisions tasks-N-brief.md with TASK_BASE:', () => {
     const { repo, plan, ws } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--tasks', '1', '--plan', plan],
@@ -95,7 +97,7 @@ describe('cdd implement/review/fix CLI contract', () => {
       { cwd: repo },
     );
     expect(res.status).toBe(0);
-    const brief = path.join(ws, 'task-1-brief.md');
+    const brief = path.join(ws, 'tasks-1-brief.md');
     expect(existsSync(brief)).toBe(true);
     expect(readFileSync(brief, 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
   });
@@ -202,12 +204,27 @@ describe('cdd implement/review/fix CLI contract', () => {
   });
 });
 
-// --tasks <n|n,n,…> list model (parse layer): acceptance covers trim / dedupe / empty-slice /
-// non-integer rejection; `--tasks 1` and `--tasks 1,2` share the same dispatch path (the dispatch
-// layer threads the first task number — multi-task iteration lands in a later workstream) — P4.3.
-describe('P4.3 --tasks list model (engine test migration surface)', () => {
-  it('implement --tasks 1,2 → same dispatch path as --tasks 1 (task 1 dispatched, APPROVED + exit 0)', () => {
-    const { repo, plan } = setupWorkspace();
+// --tasks <n|n,n,…> list model (P4.3 group dispatch): acceptance covers the 组级 dispatch path —
+// `--tasks 1` 与 `--tasks 1,2` 同一 dispatch 路径（成功 · 超界 BLOCK + 逐项列示 · round/handoff/进度/
+// 残差按组一份，artifact 命名 tasks-{a}-{b}-*）+ parse 层的 trim / dedupe / empty-slice /
+// non-integer rejection。
+describe('P4.3 --tasks list model (group dispatch acceptance)', () => {
+  it('implement --tasks 1 → group-of-one dispatch: tasks-1-brief.md self-provisioned, APPROVED + exit 0', () => {
+    const { repo, plan, ws } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'implement', '--tasks', '1', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+    expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
+    expect(existsSync(path.join(ws, 'tasks-1-brief.md'))).toBe(true);
+    expect(readFileSync(path.join(ws, 'tasks-1-brief.md'), 'utf8')).toMatch(/^TASK_BASE: [0-9a-f]{40}$/m);
+  });
+
+  it('implement --tasks 1,2 → 与 --tasks 1 同一 dispatch 路径: 整组一份 brief（tasks-1-2-brief.md 含两段）', () => {
+    const { repo, plan, ws } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--tasks', '1,2', '--plan', plan],
       HOST,
@@ -216,6 +233,60 @@ describe('P4.3 --tasks list model (engine test migration surface)', () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toMatch(/^status: APPROVED$/m);
     expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
+    // 组即单位：一份组键 brief（tasks-1-2-brief.md），含 Task 1 + Task 2 两段与单条 TASK_BASE
+    const brief = readFileSync(path.join(ws, 'tasks-1-2-brief.md'), 'utf8');
+    expect(brief).toMatch(/^### Task 1:/m);
+    expect(brief).toMatch(/^### Task 2:/m);
+    expect(brief.match(/^TASK_BASE: /gm)).toHaveLength(1);
+    // 无 per-task 分解产物（不存在 task-1-brief.md 单任务 brief）
+    expect(existsSync(path.join(ws, 'task-1-brief.md'))).toBe(false);
+  });
+
+  it('implement --tasks 2,3（Task 3 超界）→ 整组 BLOCK exit 1 + 逐项列示缺失（/task N not found/ 契约）', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'implement', '--tasks', '2,3', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/CDD_BLOCKED/);
+    expect(res.stderr).toMatch(/task 3 not found/);
+  });
+
+  it('implement --tasks 8,9（全组超界）→ 整组 BLOCK + tasks 8, 9 逐项列示', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'implement', '--tasks', '8,9', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/CDD_BLOCKED/);
+    expect(res.stderr).toMatch(/tasks 8, 9 not found/);
+  });
+
+  it('review --type task --tasks 1,2 → 同一 dispatch 路径 (组轮次 resolveNextRound → round 1 通过)', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'review', '--type', 'task', '--tasks', '1,2', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+  });
+
+  it('fix --type task --tasks 1,2 --findings <group review handoff> → 整组修 (group findings path plumbed)', () => {
+    const { repo, plan } = setupWorkspace();
+    const findingsRel = path.posix.join('.osuperpowers', 'cdd', 'plan', 'tasks-1-2-review-1.json');
+    const res = run(
+      ['--dry-run', 'fix', '--type', 'task', '--tasks', '1,2', '--findings', findingsRel, '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^status: APPROVED$/m);
   });
 
   it('--tasks with spaced token `1, 2` tolerated (trim) → same dispatch path', () => {
@@ -229,7 +300,7 @@ describe('P4.3 --tasks list model (engine test migration surface)', () => {
     expect(res.stdout).toMatch(/^status: APPROVED$/m);
   });
 
-  it('--tasks 1,1 dedupes to [1] → task 1 dispatched', () => {
+  it('--tasks 1,1 dedupes to [1] → group of one dispatched', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--tasks', '1,1', '--plan', plan],

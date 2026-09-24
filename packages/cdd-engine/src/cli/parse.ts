@@ -127,9 +127,9 @@ const implementCmd = defineCommand({
     guardArgs(rawArgs, argsOf(implementCmd));
     const harness = requireHostHarness();
     const { runTask } = await import("../dispatch/task.ts");
-    // The --tasks value parses to the canonical task list; the dispatch layer threads the first
-    // task number (multi-task iteration lands in a later workstream) — P4.3 list model.
-    await runTask(harness, parseTaskList(args.tasks)[0], {
+    // The --tasks value parses to the canonical task list — the dispatch group is the unit
+    // (the whole group dispatches as one; handoff/brief/progress are group-keyed — P4.3).
+    await runTask(harness, parseTaskList(args.tasks), {
       mode: "implement", dryRun: DRY_RUN(), planFile: args.plan,
     });
   },
@@ -148,8 +148,8 @@ const reviewCmd = defineCommand({
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(reviewCmd));
-    const task = args.tasks != null ? parseTaskList(args.tasks)[0] : undefined;
-    await runReview({ ...args, task });
+    const tasks = args.tasks != null ? parseTaskList(args.tasks) : undefined;
+    await runReview({ ...args, tasks });
   },
 });
 
@@ -164,8 +164,8 @@ const fixCmd = defineCommand({
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(fixCmd));
-    const task = args.tasks != null ? parseTaskList(args.tasks)[0] : undefined;
-    await runFix({ ...args, task });
+    const tasks = args.tasks != null ? parseTaskList(args.tasks) : undefined;
+    await runFix({ ...args, tasks });
   },
 });
 

@@ -7,12 +7,12 @@ import { validateHandoffSchema } from '../schema.ts';
 // Handoffs must satisfy the real shipped schema (task/phase/status/findings/
 // artifacts required; blocker optional; additionalProperties: false).
 const VALID_HANDOFF = {
-  task: 1,
+  tasks: [1],
   phase: 'implement',
   status: 'APPROVED',
   commits: { base: 'a'.repeat(40), head: 'b'.repeat(40) },
   findings: [],
-  artifacts: { brief: '/ws/task-1-brief.md' },
+  artifacts: { brief: '/ws/tasks-1-brief.md' },
   blocker: 'none',
 };
 
@@ -21,15 +21,15 @@ describe('validateHandoffSchema (real schema)', () => {
     expect(validateHandoffSchema(VALID_HANDOFF)).toEqual({ valid: true });
   });
 
-  it('missing required field (task) fails', () => {
-    const { task, ...missingTask } = VALID_HANDOFF;
-    const res = validateHandoffSchema(missingTask);
+  it('missing required field (tasks) fails', () => {
+    const { tasks, ...missingTasks } = VALID_HANDOFF;
+    const res = validateHandoffSchema(missingTasks);
     expect(res.valid).toBe(false);
-    expect(res.reason).toContain('task');
+    expect(res.reason).toContain('tasks');
   });
 
-  it('task as string fails (must be integer)', () => {
-    const res = validateHandoffSchema({ ...VALID_HANDOFF, task: '1' });
+  it('tasks as string fails (must be an integer array)', () => {
+    const res = validateHandoffSchema({ ...VALID_HANDOFF, tasks: '1' });
     expect(res.valid).toBe(false);
   });
 

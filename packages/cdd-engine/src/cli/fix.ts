@@ -13,7 +13,8 @@ import { docsResultFace } from "./result-face.ts";
 export interface FixOpts {
   type: string;
   plan?: string;
-  task?: number;
+  /** The dispatch group (P4.3) — the whole group fixes as one unit. */
+  tasks?: number[];
   findings?: string;
   root?: string;
 }
@@ -37,11 +38,11 @@ export async function runFix(opts: FixOpts): Promise<void> {
         process.stderr.write("cdd fix --type task: missing required --plan <path>\n");
         exitWithCode(2);
       }
-      if (opts.task == null) {
+      if (opts.tasks == null || opts.tasks.length === 0) {
         process.stderr.write("cdd fix --type task: missing required --tasks <n|n,n,…>\n");
         exitWithCode(2);
       }
-      await runTask(harness, opts.task, {
+      await runTask(harness, opts.tasks, {
         mode: "fix", dryRun: DRY_RUN(),
         findingsPath: opts.findings,
         planFile: opts.plan,

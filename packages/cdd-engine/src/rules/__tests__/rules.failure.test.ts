@@ -106,9 +106,9 @@ describe("rules/failure.ts — 配额隔离（per-category 计数器）", () => 
   });
 });
 
-describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed wording)", () => {
+describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed wording + P4.3 group surface)", () => {
   it("budget timeout keeps the legacy wording (timed out after → re-dispatch)", () => {
-    const b = timeoutBlocker({ cause: "over-budget", taskNum: 3, timeoutMs: 5_400_000 });
+    const b = timeoutBlocker({ cause: "over-budget", tasks: "3", timeoutMs: 5_400_000 });
     expect(b).toMatch(/timed out after 5400000ms/);
     expect(b).toMatch(/task 3/);
     // legacy phrases preserved — runner.test.ts's /timed out after/ match stays green
@@ -116,42 +116,48 @@ describe("rules/failure.ts — timeoutBlocker (T26 unification; cause-keyed word
   });
 
   it("external SIGTERM carries its own wording — an external signal kill, not a budget expiry, with the resume-or-discard contract on the implement lane", () => {
-    const b = timeoutBlocker({ cause: "signal", taskNum: 4, timeoutMs: 5_400_000 });
+    const b = timeoutBlocker({ cause: "signal", tasks: "4", timeoutMs: 5_400_000 });
     expect(b).toMatch(/external signal \(SIGTERM\)/);
     // distinct from over-budget — "increase timeout" cannot fix a signal kill, and the over-budget
     // wording deliberately stays absent (the three causes are distinguishable in the blocker)
     expect(b).not.toMatch(/timed out after/);
     expect(b).not.toMatch(/simplify task/);
     // implement lane (op default) → resume-or-discard (the only auto-resume lane, T26/T7.5)
-    expect(b).toMatch(/resume or discard: cdd implement --task 4 re-dispatch auto-resumes/);
+    expect(b).toMatch(/resume or discard: cdd implement --tasks 4 re-dispatch auto-resumes/);
   });
 
   it("stall variant carries the resume-or-discard contract (T26 §⑤/§T7.5 reword)", () => {
-    const b = timeoutBlocker({ cause: "stalled", taskNum: 7, idleWindowMs: 900_000, op: "implement", residue: "abc123" });
+    const b = timeoutBlocker({ cause: "stalled", tasks: "7", idleWindowMs: 900_000, op: "implement", residue: "abc123" });
     expect(b).toMatch(/stalled/);
     expect(b).toMatch(/900000ms/);
-    // brief's recovery-path contract: resume-or-discard — cdd implement re-dispatch auto-resumes
-    // (recovery.residue_ref), or git stash drop abandons the salvage
-    expect(b).toContain("resume or discard: cdd implement --task 7 re-dispatch auto-resumes (recovery.residue_ref=abc123), or git stash drop to abandon");
+    // brief's recovery-path contract: resume-or-discard — cdd implement --tasks re-dispatch
+    // auto-resumes (recovery.residue_ref), or git stash drop abandons the salvage
+    expect(b).toContain("resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref=abc123), or git stash drop to abandon");
+    // group surface: a multi-task group's advice is whole-group — cdd implement --tasks 1-2, and
+    // the suggestion's tasks value is exactly the group key (no per-task subset dispatch)
+    const g = timeoutBlocker({ cause: "stalled", tasks: "1-2", idleWindowMs: 900_000, op: "implement", residue: "abc123" });
+    expect(g).toContain("cdd implement --tasks 1-2 re-dispatch auto-resumes");
+    const gAdvice = /cdd implement --tasks ([^ ]+) re-dispatch/.exec(g)?.[1];
+    expect(gAdvice).toBe("1-2");
     // still a TIMEOUT-shaped blocker (same category identity, extended wording only)
     expect(b).not.toMatch(/simplify task/);
     expect(b).not.toMatch(/discard or commit/); // §⑤ upgrade: discard-or-commit wording is gone
   });
 
   it("stall without a salvage record still carries the resume-or-discard contract (no ref to prepend)", () => {
-    const b = timeoutBlocker({ cause: "stalled", taskNum: 7, idleWindowMs: 900_000, op: "implement" });
-    expect(b).toContain("resume or discard: cdd implement --task 7 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon");
+    const b = timeoutBlocker({ cause: "stalled", tasks: "7", idleWindowMs: 900_000, op: "implement" });
+    expect(b).toContain("resume or discard: cdd implement --tasks 7 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon");
   });
 
   it("non-implement lanes (review/fix) carry the stash-workflow contract (T25 — WIP preserved for retrieval, no false auto-resume promise)", () => {
-    const b = timeoutBlocker({ cause: "stalled", taskNum: 4, idleWindowMs: 900_000, op: "review" });
+    const b = timeoutBlocker({ cause: "stalled", tasks: "4", idleWindowMs: 900_000, op: "review" });
     // §⑤ upgrade: the pre-destroying discard-or-commit wording is gone → stash retrieve-first shape
     expect(b).not.toContain("discard or commit");
     expect(b).toContain("git stash list");
-    expect(b).toContain("cdd review --task 4"); // re-dispatch advice kept
+    expect(b).toContain("cdd review --tasks 4"); // re-dispatch advice kept — whole-group surface
     expect(b).not.toContain("resume or discard"); // no false auto-resume promise
     // signal death on a non-implement lane gets the same stash-workflow shape
-    const b2 = timeoutBlocker({ cause: "signal", taskNum: 5, op: "fix" });
+    const b2 = timeoutBlocker({ cause: "signal", tasks: "5", op: "fix" });
     expect(b2).toMatch(/external signal \(SIGTERM\)/);
     expect(b2).toContain("git stash list");
     expect(b2).not.toContain("resume or discard");

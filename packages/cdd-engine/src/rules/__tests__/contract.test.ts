@@ -256,7 +256,7 @@ it("deriveReviewStatus branch nit⑥：findings 空 + plan_conflicts 非空 → 
 
 it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => {
   const r = validateHandoffSchema({
-    task: 1,
+    tasks: [1],
     phase: "fix",
     status: "APPROVED",
     artifacts: {},
@@ -269,7 +269,7 @@ it("AC10: validateHandoffSchema accepts optional notes field（Enh T）", () => 
 // ---- The contract pushed into the schema field descriptions (semantic assertions on both schemas) + allOf BLOCKED enforcement (Task 23 ②) ----
 
 it("Task 23 task schema allOf: BLOCKED 必须 blocker 非空 或 failure_category —— 裸折契约违规", () => {
-  const base = (extra: Record<string, unknown>) => ({ task: 1, phase: "implement", status: "BLOCKED", artifacts: {}, findings: [], ...extra });
+  const base = (extra: Record<string, unknown>) => ({ tasks: [1], phase: "implement", status: "BLOCKED", artifacts: {}, findings: [], ...extra });
   expect(validateHandoffSchema(base({}), "task").valid).toBe(false);            // 裸折 → 违规
   expect(validateHandoffSchema(base({ blocker: "" }), "task").valid).toBe(false); // 空字符串 blocker 不算数
   expect(validateHandoffSchema(base({ blocker: "真实原因" }), "task").valid).toBe(true);
@@ -323,7 +323,7 @@ it("writeHandoff: 按 schema 写入 + 合并已有（保留 commits）", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-handoff-"));
   const p = path.join(dir, "task-1-handoff.json");
   writeHandoff(p, {
-    task: 1,
+    tasks: [1],
     phase: "implement",
     status: "DONE",
     commits: { base: "b", head: "h" },
@@ -345,7 +345,7 @@ it("writeHandoff: 按 schema 写入 + 合并已有（保留 commits）", () => {
   const h2 = JSON.parse(readFileSync(p, "utf8"));
   expect(h2.status).toBe("BLOCKED");
   expect(h2.commits.head).toBe("h");
-  expect(h2.task).toBe(1);
+  expect(h2.tasks).toEqual([1]);
   expect(h2.blocker).toBe("uncommitted changes at return");
 });
 

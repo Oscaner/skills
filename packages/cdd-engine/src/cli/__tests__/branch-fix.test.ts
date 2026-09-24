@@ -146,7 +146,7 @@ describe('branch-fix in-process loop closure', () => {
     mkdirSync(workspace, { recursive: true });
     // The source review handoff the fix reads: --findings IS the review handoff (same file).
     writeFileSync(reviewPath, JSON.stringify({
-      task: 1, phase: 'branch-review', status: 'APPROVED',
+      tasks: [1], phase: "branch-review", status: "APPROVED",
       commits: { base, head }, findings: [], artifacts: {}, blocker: 'none',
     }));
     // fake-cli fix agent: writes the fix handoff (commits.base = reviewed range base, head = git HEAD
@@ -157,7 +157,7 @@ describe('branch-fix in-process loop closure', () => {
       `git commit --allow-empty -qm "fix"\n` +
       `HEAD=$(git rev-parse HEAD)\n` +
       `cat > "${handoffPath}" <<EOF\n` +
-      `{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"$HEAD"},"findings":[],"artifacts":{}}\n` +
+      `{"tasks":[1],"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"$HEAD"},"findings":[],"artifacts":{}}\n` +
       `EOF\n` +
       `git rev-parse HEAD > "${path.join(dir, 'fix-after-commit.head')}"\n` +
       `exit 0\n`);
@@ -232,7 +232,7 @@ describe('branch-fix exit gate — the inherited commit-contract BLOCKED lanes',
     mkdirSync(workspace, { recursive: true });
     // The source review handoff the fix reads: --findings IS the review handoff (same file).
     writeFileSync(reviewPath, JSON.stringify({
-      task: 1, phase: 'branch-review', status: 'APPROVED',
+      tasks: [1], phase: "branch-review", status: "APPROVED",
       commits: { base, head }, findings: [], artifacts: {}, blocker: 'none',
     }));
     return { dir, planPath, reviewPath, handoffPath, base, head };
@@ -264,7 +264,7 @@ describe('branch-fix exit gate — the inherited commit-contract BLOCKED lanes',
     const wrongHead = FULL_ID('c');
     const { origPath, regPath } = await installFakeCli(dir,
       `cat > "${handoffPath}" <<EOF\n` +
-      `{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"${wrongHead}"},"findings":[],"artifacts":{}}\n` +
+      `{"tasks":[1],"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"${wrongHead}"},"findings":[],"artifacts":{}}\n` +
       `EOF\n` +
       `exit 0\n`);
     try {
@@ -295,7 +295,7 @@ describe('branch-fix exit gate — the inherited commit-contract BLOCKED lanes',
       `git commit --allow-empty -qm "fix"\n` +
       `HEAD=$(git rev-parse HEAD)\n` +
       `cat > "${handoffPath}" <<EOF\n` +
-      `{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"$HEAD"},"findings":[],"artifacts":{}}\n` +
+      `{"tasks":[1],"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"$HEAD"},"findings":[],"artifacts":{}}\n` +
       `EOF\n` +
       `printf 'dirty\\n' > "${dir}/dirty.tmp"\n` +
       `exit 0\n`);
@@ -333,7 +333,7 @@ describe('branch-fix exit gate — the inherited commit-contract BLOCKED lanes',
     const wrongHead = FULL_ID('c');
     const { origPath, regPath } = await installFakeCli(dir,
       `cat > "${handoffPath}" <<EOF\n` +
-      `{"task":1,"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"${wrongHead}"},"findings":[],"artifacts":{}}\n` +
+      `{"tasks":[1],"phase":"fix","status":"APPROVED","commits":{"base":"${base}","head":"${wrongHead}"},"findings":[],"artifacts":{}}\n` +
       `EOF\n` +
       `exit 0\n`);
     try {

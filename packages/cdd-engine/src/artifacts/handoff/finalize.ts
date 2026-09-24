@@ -43,6 +43,7 @@ import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
 import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
 import { seedScopeBase, moveTaskScopeBaseEarlier, SHA40_RE } from "../progress.ts";
+import { tasksKey } from "./naming.ts";
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
 
@@ -301,7 +302,9 @@ export function recoverHandoff(
 // the hash single point). `fullReplace` = the schema-invalid branch (writeOwnHandoff: offending
 // keys never stay on disk); absent → shallow writeHandoff.
 export interface BlockedCarrierInput {
-  task?: number;
+  /** The dispatch group (the carrier's single task identity — single-data-model, no separate
+   * top-level `task` scalar). */
+  tasks?: number[];
   phase: string;
   status?: string;
   failure_category?: string;
@@ -328,7 +331,7 @@ export function writeBlockedCarrier(
   input: BlockedCarrierInput,
 ): { exitCode: 1; handoff: Record<string, unknown> } {
   const payload: Record<string, unknown> = {
-    ...(input.task !== undefined ? { task: input.task } : {}),
+    ...(input.tasks ? { tasks: input.tasks } : {}),
     phase: input.phase,
     status: input.status ?? "BLOCKED",
   };
@@ -362,7 +365,7 @@ export async function finalizeHandoff({
   brief,
   repoRoot,
   workspace,
-  taskNum,
+  tasks,
   resumeScopeBase = null,
 }: {
   mode?: string;
@@ -371,7 +374,9 @@ export async function finalizeHandoff({
   brief?: string;
   repoRoot?: string | null;
   workspace?: string;
-  taskNum?: number;
+  /** The dispatch group — the materialized carrier's `tasks` identity + the group-keyed
+   * evidence/scope-ledger key (single-data-model). */
+  tasks?: number[];
   /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
    *  the dead-round carrier (T27, spec T7.6). Finalize uses it to pull the ledger strictly earlier.
    *  Passed by the dispatch — the implement materialization is the only consumer. */
@@ -386,7 +391,7 @@ export async function finalizeHandoff({
     // No agentHandoff input slot: materialize from the return block + brief TASK_BASE + git HEAD
     // (T6 logic moved in). The evidence gate (behavior_change:true → hard) stays; the return block
     // re-emits from the finalized carrier.
-    return await finalizeImplement({ returnBlock, brief, repoRoot, workspace, taskNum, resumeScopeBase });
+    return await finalizeImplement({ returnBlock, brief, repoRoot, workspace, tasks, resumeScopeBase });
   }
   if (mode === "fix") {
     // work-type: the agent-declared status stays, vetoed at the commit-contract layer
@@ -436,16 +441,19 @@ export function taskBaseFromBrief(briefPath: string | undefined): string | null 
 // block text plane's single point (P6 T24 C); the former private copies are gone.
 
 // Evidence gate (implement non-dry-run materialization path only): the mechanical hard-gate's only
-// trigger = the test-evidence behavior_change:true (brief.mjs only outputs the ### Task N section +
+// trigger = the test-evidence behavior_change:true (the brief outputs the group's task sections +
 // TASK_BASE line; the repo has no mechanical complexity-tier source).
 // hard → BLOCKED overwrite; everything else (simple / no behavior_change / unreadable-unparseable
-// file) → soft WARN note.
+// file) → soft WARN note. Grouped materialization reads the group-keyed evidence artifact
+// (`tasks-{a}-{b}-test-evidence.json`).
 function evidenceGate(
   workspace: string | undefined,
-  taskNum: number | undefined,
+  groupKey: string | null,
 ): { hard: boolean; warn: string } {
-  const ev = readJson(path.join(workspace ?? "", `task-${taskNum}-test-evidence.json`)) as Record<string, unknown> | null;
-  if (!ev) return { hard: false, warn: `test-evidence missing or unparseable for task ${taskNum} (soft WARN)` };
+  const ev = groupKey != null
+    ? readJson(path.join(workspace ?? "", `tasks-${groupKey}-test-evidence.json`)) as Record<string, unknown> | null
+    : null;
+  if (!ev) return { hard: false, warn: `test-evidence missing or unparseable for task group ${groupKey} (soft WARN)` };
   if (ev.behavior_change !== true) return { hard: false, warn: "" };
   const missing = ["command", "passed", "exit_code"].filter((k) => !(k in ev));
   if (missing.length > 0) {
@@ -475,14 +483,16 @@ export async function finalizeImplement({
   brief,
   repoRoot,
   workspace,
-  taskNum,
+  tasks,
   resumeScopeBase = null,
 }: {
   returnBlock?: string[];
   brief?: string;
   repoRoot?: string | null;
   workspace?: string;
-  taskNum?: number;
+  /** The dispatch group — the carrier's `tasks` identity + the group-keyed evidence/scope-ledger
+   * key. Null → legacy task-less materialization (no carrier identity). */
+  tasks?: number[];
   /** The resume pre-flight's captured recovery.scope_base — the settled ledger anchor riding
    *  the dead-round carrier, used to pull the ledger strictly earlier (T27, spec T7.6). */
   resumeScopeBase?: string | null;
@@ -492,6 +502,9 @@ export async function finalizeImplement({
     process.stderr.write(`CDD_WARN: implement handoff not materialized — brief missing or no TASK_BASE line: ${brief}\n`);
     return { handoff: null, exitCode: 0 };
   }
+  // The ledger/evidence identity: the group key (a single-task group's key `"1"` resolves the
+  // per-task row — backward compatible ledger shape).
+  const groupKey = tasks ? tasksKey(tasks) : null;
   // Destructured naming replaces returnBlock[0]/[2]/[3] magic-index subscripts (T6 nit3). The
   // commits line's head is ignored on fresh materialization — git HEAD takes commit authority;
   // the T27 resume-declared lane below reads its base= value instead.
@@ -517,14 +530,15 @@ export async function finalizeImplement({
   // The scope ledger seeds the brief TASK_BASE (T27: earliest-wins — re-dispatches carry LATER
   // TASK_BASE snapshots that must never overwrite the round-1 anchor), then moves the ledger
   // strictly earlier along the resume anchors (the recovery-carrier scope_base and the adopted
-  // base). progressDir == workspace (ledgerPath = <workspace>/progress.json). Null taskNum → skip
+  // base). progressDir == workspace (ledgerPath = <workspace>/progress.json). Null key → skip
   // the ledger (a task-less materialization writes no scope state).
-  if (repoRoot && head && workspace && typeof taskNum === "number") {
-    seedScopeBase(workspace, taskNum, base);
-    if (resumeScopeBase) await moveTaskScopeBaseEarlier(workspace, taskNum, resumeScopeBase, repoRoot, head);
-    if (commitsBase !== base) await moveTaskScopeBaseEarlier(workspace, taskNum, commitsBase, repoRoot, head);
+  const seedKey = groupKey;
+  if (repoRoot && head && workspace && seedKey != null) {
+    seedScopeBase(workspace, seedKey, base);
+    if (resumeScopeBase) await moveTaskScopeBaseEarlier(workspace, seedKey, resumeScopeBase, repoRoot, head);
+    if (commitsBase !== base) await moveTaskScopeBaseEarlier(workspace, seedKey, commitsBase, repoRoot, head);
   }
-  const gate = evidenceGate(workspace, taskNum);
+  const gate = evidenceGate(workspace, groupKey);
   if (gate.hard) {
     blocker = gate.warn;
     // hard gate → CDD_BLOCKED diagnostic (aligned with the legacy runner finish(…, gate.warn, …)’s
@@ -539,7 +553,7 @@ export async function finalizeImplement({
   // field, replacing the legacy manual `if (blocker) handoff.blocker = blocker` gate).
   const handoff = normalizeHandoff(
     {
-      task: taskNum,
+      ...(tasks ? { tasks } : {}),
       phase: "implement",
       status: gate.hard ? "BLOCKED" : status,
       artifacts: artifactsFromReturnLine(artifactsLine ?? ""),

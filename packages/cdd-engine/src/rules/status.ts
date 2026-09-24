@@ -51,7 +51,8 @@ function isDeadRound(h: Record<string, unknown> | null): boolean {
 }
 
 function readHandoff(workspace: string, op: string, taskNum: number, round?: number): Record<string, unknown> | null {
-  const name = handoffName(op, "task", round != null ? { task: taskNum, round } : { task: taskNum });
+  // A single task's carriers are the group-of-one names (tasks-{N}-*). — P4.3 group naming
+  const name = handoffName(op, "task", round != null ? { tasks: String(taskNum), round } : { tasks: String(taskNum) });
   const p = path.join(workspace, name);
   return existsSync(p) ? readJson(p) : null;
 }

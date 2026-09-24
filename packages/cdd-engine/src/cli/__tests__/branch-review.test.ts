@@ -85,7 +85,7 @@ describe('branch-review schema-invalid e2e', () => {
     const binDir = mkdtempSync(path.join(tmpdir(), 'cdd-br-sv-'));
     writeFileSync(path.join(binDir, 'fake-cli'),
       `#!/usr/bin/env bash\n` +
-      `printf '%s' '{"task":1,"phase":"branch-review","status":"APPROVED","commits":{"base":"${base}"},"findings":"none","notes":5,"artifacts":{}}' > "${handoffPath}"\n` +
+      `printf '%s' '{"tasks":[1],"phase":"branch-review","status":"APPROVED","commits":{"base":"${base}"},"findings":"none","notes":5,"artifacts":{}}' > "${handoffPath}"\n` +
       `exit 0\n`);
     chmodSync(path.join(binDir, 'fake-cli'), 0o755);
     const origPath = process.env.PATH;
@@ -112,7 +112,7 @@ describe('branch-review schema-invalid e2e', () => {
       expect(h.phase).toBe('branch-review');
       // 键集干净：engine 字面量 + commits/findings（agent 的 notes / findings:"none" 不得进载体）
       expect(Object.keys(h).sort())
-        .toEqual(['artifacts', 'blocker', 'commits', 'findings', 'phase', 'status', 'task']);
+        .toEqual(['artifacts', 'blocker', 'commits', 'findings', 'phase', 'status', 'tasks']);
       expect(h.findings).toEqual([]);          // 非数组 findings → 数组守卫成 []
       expect(h.commits.base).toBe(base);       // branch 的 base/head 是引擎真值（AC15 文件名承载 short 形）
       expect(h.commits.head).toBe(head);
@@ -179,7 +179,7 @@ describe('branch-review unparseable-handoff e2e', () => {
     const regPath = await ghostRegistry(dir);
     try {
       const exitCode = await runBranchReviewWithFakeCli(
-        { handoffBody: '{"task":1,"phase":"branch-review","status":"APPROVED"}' + ' <<\nbad json' },
+        { handoffBody: '{"tasks":[1],"phase":"branch-review","status":"APPROVED"}' + ' <<\nbad json' },
         { dir, planPath, base, head, handoffPath, regPath },
       );
       expect(exitCode).toBe(1);
@@ -189,7 +189,7 @@ describe('branch-review unparseable-handoff e2e', () => {
       expect(h.blocker).toMatch(/handoff JSON unparseable/);
       // clean carrier keyset: engine literals only (the corrupt bytes never re-enter via merge)
       expect(Object.keys(h).sort())
-        .toEqual(['artifacts', 'blocker', 'commits', 'findings', 'phase', 'status', 'task']);
+        .toEqual(['artifacts', 'blocker', 'commits', 'findings', 'phase', 'status', 'tasks']);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -219,7 +219,7 @@ describe('branch-review unparseable-handoff e2e', () => {
     };
     try {
       const exitCode = await runBranchReviewWithFakeCli(
-        { handoffBody: '{"task":1,"phase":"branch-review","status":"APPROVED","commits":{"base":"' + base + '","head":"' + head + '"},"findings":[],"artifacts":{}}' },
+        { handoffBody: '{"tasks":[1],"phase":"branch-review","status":"APPROVED","commits":{"base":"' + base + '","head":"' + head + '"},"findings":[],"artifacts":{}}' },
         { dir, planPath, base, head, handoffPath, regPath },
       );
       expect(exitCode).toBe(0);

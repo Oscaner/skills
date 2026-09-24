@@ -634,9 +634,10 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 // category identity", keep zero hand-written sites (failure_category assignment /
 // isIncompleteDispatch judgment); counters never enter the handoff contract. The properties count is
 // iron-anchored by the guard: task 16 (14 base properties incl. failure_category + recovery +
-// changes, T7.4/T7.5 carriers) / docs 14 (12 base properties incl. failure_category + recovery +
-// changes, T7.4 carrier + the T5 commits{base,head} core-block unification). Nothing beyond
-// recovery/changes/failure_category/commits may be added. The four field names and labels go
+// changes + the P4.3 single-data-model group reference tasks, T7.4/T7.5 carriers) / docs 14 (12 base
+// properties incl. failure_category + recovery + changes, T7.4 carrier + the T5 commits{base,head}
+// core-block unification). Nothing beyond recovery/changes/failure_category/commits + the P4.3
+// group-reference fields (tasks / findings[].task) may be added. The four field names and labels go
 // through failure-categories.json.
 const COUNTER_FIELDS = canonicalCounters().map((c) => c.field);
 const COUNTER_LABELS = canonicalCounters().map((c) => c.label);

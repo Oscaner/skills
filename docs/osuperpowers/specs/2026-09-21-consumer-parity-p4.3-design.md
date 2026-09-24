@@ -1,14 +1,14 @@
 # 消费者面一致性（Consumer Parity）— P4.3 cdd 多 task 模式 + task groups 裁定 + Mid-Flight Backfill 语义修复 Design Spec
 
-- **Version**: v1.5 · 2026-09-24
+- **Version**: v1.6 · 2026-09-24
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
-- **Parent program**: [consumer-parity overall v1.29](2026-09-21-consumer-parity-overall.md)
+- **Parent program**: [consumer-parity overall v1.30](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](2026-09-21-consumer-parity-p4.1-design.md)）
 
 ## Section 0: Incremental warning
 
-本 phase 承载六块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）④⑤ **cdd-engine doc-contract gate 修复**（#274/#276，2026-09-24 用户裁决并入）⑥ **`cdd schema get` 发现型子命令 + skills read-schema 直取**（2026-09-24 用户裁决并入）——scope 扩展已回填 overall v1.28（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤⑥ · change-history v1.27/v1.28 行）；engine breaking 面均属 1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
+本 phase 承载六块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）④⑤ **cdd-engine doc-contract gate 修复**（#274/#276，2026-09-24 用户裁决并入）⑥ **`cdd schema get` 发现型子命令 + skills read-schema 直取 + `cdd help` 简化**（2026-09-24 用户裁决并入）——scope 扩展已回填 overall v1.28（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤⑥ · change-history v1.27/v1.28 行）；engine breaking 面均属 1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
 
 ## Section 1: Constraints pointer
 
@@ -99,9 +99,9 @@ Cross-phase 规则以 parent overall v1.29 为准（overall wins on conflict）�
 **2.7 `cdd schema get` 发现型子命令 + skills read-schema 直取**（2026-09-24 用户裁决并入 · Non-goal #1 例外扩编）
 
 - **动机**：现 read-schema 面 = `cdd help` 打目录 → agent 跨文件系统定位并 Read 文件（心智负担 + 步骤间接）；`cdd schema get <type>` 直出 canonical schema 原文（stdout）一步到位，省去跨系统文件查找（用户需求原文）
-- **命令形态**：`cdd schema get <type>`——type 面 = canonical doc 类型枚举**四件全量**（overall / plan / phase-spec / add-phase-protocol，对齐 engine `DOC_SCHEMA_NAMES` 注册表；服务对象 = canonical doc-structure schema 目录内的 schema 文件，`loadDocSchema` 按名加载、四件同源——不做子集 carve-out，避免对 canonical 类型报「未知」的误导 UX，也免去维护命令枚举与注册表的双列表）；stdout 直出 canonical schema JSON 原文（单一来源 = engine 包 schema；未发布期 dist/documents/schema 同源）；doc-type 未知 → usage exit 2 + 可用名枚举（枚举即该四件，与命令形枚举同源）；`cdd help` 保留——仍打印 `cli:` / `schemas:` / `templates:` 三行绝对目录（doc-structure schema 直取已由 `cdd schema get` 承接，handoff schema 与 templates 面仍靠 help 目录）；与 help 同属**发现型 · 零执法逻辑**（Non-goal #1：`cdd help` 唯一例外 → `cdd help` + `cdd schema get` 双发现型豁免，charter v1.28 修订）
+- **命令形态**：`cdd schema get <type>`——type 面 = canonical doc 类型枚举**四件全量**（overall / plan / phase-spec / add-phase-protocol，对齐 engine `DOC_SCHEMA_NAMES` 注册表；服务对象 = canonical doc-structure schema 目录内的 schema 文件，`loadDocSchema` 按名加载、四件同源——不做子集 carve-out，避免对 canonical 类型报「未知」的误导 UX，也免去维护命令枚举与注册表的双列表）；stdout 直出 canonical schema JSON 原文（单一来源 = engine 包 schema；未发布期 dist/documents/schema 同源）；doc-type 未知 → usage exit 2 + 可用名枚举（枚举即该四件，与命令形枚举同源）；`cdd help` 保留但**简化**（v1.30 起）：只打印 `cli:` / `templates:` 两行绝对目录（templates 面 = engine-config / template-contract / handoff schema 资源定位）；**`schemas:` 行删除**——该行唯消费者（skills read-schema 节点）已全改 `cdd schema get`，doc-structure schema 内容面唯经 schema get 直取，死输出即删（engine 零测试断言该行、删行无回归面）；与 help 同属**发现型 · 零执法逻辑**（Non-goal #1：`cdd help` 唯一例外 → `cdd help` + `cdd schema get` 双发现型豁免，charter v1.28 修订）
 - **组件面**：新增 `cli/schema.ts`（子命令组）——`parse.ts` citty 声明 `schema` 子命令 + `get <type>` enum 校验（四件 = `DOC_SCHEMA_NAMES` 全量：overall / plan / phase-spec / add-phase-protocol，实现面直接消费注册表常量、零双枚举）；`exit.ts` 出口族统一、stdout 结果面、无裸 return；**无新 flag** → canonical argv 通道不变、residue Row-9/10 无涉；engine-config 零改动
-- **测试面**：`cdd schema get phase-spec` 输出与 `dist/documents/schema/phase-spec.json` 同字节（engine 测试）；未知 doc-type → exit 2 + 可用名枚举（四件）；help 功能回归
+- **测试面**：`cdd schema get phase-spec` 输出与 `dist/documents/schema/phase-spec.json` 同字节（engine 测试）；未知 doc-type → exit 2 + 可用名枚举（四件）；help 功能回归（cli/templates 两行目录面 · `schemas:` 行删除断言）
 - **skills 更新（emit 输入面，与 §2.3 I4 重写同批文件）**：三件 schema-bearing 技能（writing-overall-spec / writing-phase-spec / writing-plans）的 read-schema 指令从「run `cdd help` → `schemas:` 目录 → Read `<type>.json`」改「run `cdd schema get <type>` 直取成文」；writing-single-spec read-schema 节点显式 N/A（single specs 无 canonical 结构 schema），不收改。`cdd help` 定位串除 read-schema 节点外尚有残留面（writing-overall-spec role-note「(`cdd help` → `overall.json`)」/「(via `cdd help`)」、writing-plans pending-patch zone「`cdd help` → `plan.json`」）——一并清为 `cdd schema get` 形态；改后 `pnpm run emit` + `emit:check` 无 drift + 产物重生成；plan 侧 I4 五面重写 + read-schema 直取合并为同一 skills task（两类改动同文件同批落地）
 
 ### Acceptance criteria
@@ -118,7 +118,7 @@ Cross-phase 规则以 parent overall v1.29 为准（overall wins on conflict）�
 - `[In-flight]` 计划列状态合法（`isInflightText` · 无 reverse claim 义务 · 非 mismatch cell）；`[Pending]` → `[In-flight]` → `**Done**` 三态语义 + claim 只在 closeout 出现（engine 测试自造链 + P3.8 触发现场回归）
 - Link 形态 plan cell 与 claim 双向等值（ownDesignToken 对齐：link 指向同一 plan 文档即等，弃逐字符严格相等）；子句 prose 提及 phase 不再整体作 claim 目标（诊断提示到位）
 - overall.json 描述与 enforcement 三处同形（change-history 表头首格 `version` · issue-ref 合法枚举 · Phase 行 6 内容列；`documents.ts`↔schema 对拍断言）+ 三处报错附 `should look like:` 正确形态（bad/empty version · unrecognized issue ref · not a Phase-inventory id）+ 误导的 7 列提示移除
-- `cdd schema get <type>`（type ∈ 四件：overall / plan / phase-spec / add-phase-protocol，对齐 `DOC_SCHEMA_NAMES` 全量）stdout 与 canonical schema 同字节（engine 测试断言）；未知 doc-type → usage exit 2 + 可用名枚举（= 该四件、与命令形枚举同源）；零执法逻辑（黑盒断言无校验面）；`cdd help` 功能不回归
+- `cdd schema get <type>`（type ∈ 四件：overall / plan / phase-spec / add-phase-protocol，对齐 `DOC_SCHEMA_NAMES` 全量）stdout 与 canonical schema 同字节（engine 测试断言）；未知 doc-type → usage exit 2 + 可用名枚举（= 该四件、与命令形枚举同源）；零执法逻辑（黑盒断言无校验面）；`cdd help` 功能不回归（cli/templates 两行保留 · `schemas:` 行零命中）
 - writing-* read-schema 直取：三件 schema-bearing 技能（writing-overall-spec / writing-phase-spec / writing-plans）read-schema 节点改 `cdd schema get <type>`；writing-single-spec read-schema 显式 N/A（零 canonical 结构 schema）、无改。（grep：三件命中 `cdd schema get` · 零残留 `cdd help` 定位串——`cdd help` → `schemas:` directory 与 `cdd help` → `overall.json` / `phase-spec.json` / `plan.json`（read-schema 节点 + 节点外 role-note、pending-patch zone 全清））+ `pnpm run emit` 后 `emit:check` 无 drift
 - Non-goal #1 双发现型修订落地（`cdd help` + `cdd schema get` 均零执法逻辑；其余零新增子命令不变，grep 断言）
 

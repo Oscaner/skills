@@ -234,7 +234,7 @@ describe("engine consumers consume via the derived tokens (grep 删除面零残�
 // Template-retirement consumption face (§2.3 AC4/AC9 — repo/skill md 模板副本零残留 + the
 // read-schema rewrite). The engine test asserts the repo/plugin surface the migration guarantees:
 // the three md structure templates are gone, and the spec-writer skills carry the `read-schema`
-// node that drives `cdd help` discovery (zero hardcoded template paths).
+// node that drives `cdd schema get` discovery (zero hardcoded template paths).
 describe("template retirement — md templates gone + read-schema nodes in the spec-writer skills", () => {
   // packages/cdd-engine/src/documents/__tests__ → repo root (5 hops: __tests__→documents→src→cdd-engine→packages→root)
   const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
@@ -260,12 +260,12 @@ describe("template retirement — md templates gone + read-schema nodes in the s
     expect(src).not.toMatch(/docs\/\*-template\.md/);
   });
 
-  it("writing-plans author-plan defers plan structure to the canonical schema (`cdd help`)", () => {
+  it("writing-plans author-plan defers plan structure to the canonical schema (`cdd schema get plan`)", () => {
     const src = readFileSync(
       path.join(REPO_ROOT, "packages/osuperpowers/skills/writing-plans/SKILL.md"),
       "utf8",
     );
-    expect(src).toMatch(/cdd help/);
+    expect(src).toMatch(/cdd schema get plan/);
     // no hand-written extraction regex in the plan-authoring prose
     expect(src).not.toMatch(/\/\^### Task \\d\+:\//);
   });

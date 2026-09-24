@@ -29,7 +29,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, unlinkSync } from 
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { validateDispatchDocuments, formatDocFailures, taskNumbersFromPlan, extractPlanConstraints, parseOverall, extractClaimRows } from "../documents.ts";
+import { validateDispatchDocuments, formatDocFailures, taskNumbersFromPlan, extractPlanConstraints, parseOverall, extractClaimRows, taskGroupsFromPlan, effectiveGroups } from "../documents.ts";
 
 function repoDir(): string {
   return mkdtempSync(path.join(tmpdir(), "cdd-docs-"));
@@ -165,6 +165,77 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
       plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c **{{> clause cl:language}}**\n\n### Task 1: x\nbody\n",
     });
     expect(fieldNames(withPartial)).not.toContain("placeholders");
+  });
+});
+
+describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P4.3 Task 3, spec §2.2)", () => {
+  function planFile(body: string): string {
+    const dir = mkdtempSync(path.join(tmpdir(), "cdd-groups-"));
+    const p = path.join(dir, "plan.md");
+    writeFileSync(p, body);
+    return p;
+  }
+  const TASKS = "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n";
+
+  it("no `## Task Groups` section → empty default: [] declared + per-task singleton groups (pre-P4.3 equivalence)", () => {
+    const p = planFile(TASKS);
+    expect(taskGroupsFromPlan(p)).toEqual([]);
+    expect(effectiveGroups(p)).toEqual([[1], [2], [3]]);
+  });
+
+  it("merged groups parse — one `- **Task 1, 2**:` bullet per group, number list ascending + deduped", () => {
+    const p = planFile([
+      TASKS,
+      "## Task Groups",
+      "",
+      "- **Task 1, 2**: 共享验收面",
+      "- **Task 3**: reader-tolerated verbatim (length-1 line is schema-invalid — the write-back judgment keeps such groups off the plan)",
+      "",
+    ].join("\n"));
+    expect(taskGroupsFromPlan(p)).toEqual([[1, 2], [3]]);
+  });
+
+  it("section boundary — the next `##` heading / `---` rule / prose without a group line terminates the parse", () => {
+    const p = planFile([
+      TASKS,
+      "## Task Groups",
+      "",
+      "- **Task 1, 2**: merged",
+      "",
+      "## Pending Acceptance Patch",
+      "",
+      "- **Task 2 (patch)**: later",
+      "",
+      "---",
+      "tail",
+    ].join("\n"));
+    expect(taskGroupsFromPlan(p)).toEqual([[1, 2]]);
+  });
+
+  it("declared groups replace the singleton set verbatim → effectiveGroups = the declared groups", () => {
+    const p = planFile([
+      "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n\n### Task 4: d\nbody\n",
+      "## Task Groups",
+      "",
+      "- **Task 1, 2**: 共享验收面",
+      "- **Task 3, 4**: second merged group",
+      "",
+    ].join("\n"));
+    // effectiveGroups derives from the section, never fabricating singletons in the declared branch
+    expect(effectiveGroups(p)).toEqual([[1, 2], [3, 4]]);
+  });
+
+  it("every declared group carries >= 2 tasks — the write-back invariant (length-1 groups only exist as the default)", () => {
+    const p = planFile([
+      "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n",
+      "## Task Groups",
+      "",
+      "- **Task 1, 2, 3**: grouped",
+      "",
+    ].join("\n"));
+    const groups = effectiveGroups(p);
+    expect(groups).toEqual([[1, 2, 3]]);
+    expect(groups.every((g) => g.length >= 2)).toBe(true);
   });
 });
 

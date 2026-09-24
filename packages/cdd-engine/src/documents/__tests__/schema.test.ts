@@ -107,6 +107,15 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       expect(anchors).toEqual(["**口径**：", "**commit 边界机制**：", "**Flow Atomicity**：", "**顺序原则**："]);
       // pending-acceptance-patch zone
       expect(get("$.properties.pendingAcceptancePatch.properties.heading.const")).toBe("## Pending Acceptance Patch");
+      // taskGroups dispatch-group declaration (P4.3 Task 3, spec §2.2): optional array, empty
+      // default [], each item `{ tasks: number[] }` with minItems >= 2 (a length-1 group is
+      // redundant — the singleton state exists only as the empty default), section layout const/pattern
+      expect(get("$.properties.taskGroups.type")).toBe("array");
+      expect(schemaNode(s, "$.properties.taskGroups.default")).toEqual([]);
+      expect(get("$.properties.taskGroups.items.properties.tasks.type")).toBe("array");
+      expect((schemaNode(s, "$.properties.taskGroups.items.properties.tasks.minItems"))).toBe(2);
+      expect(get("$.properties.taskGroups.$defs.section.properties.heading.const")).toBe("## Task Groups");
+      expect(get("$.properties.taskGroups.$defs.section.properties.entry.pattern")).toBe("^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:");
       // spec marker — any-line findIndex semantics are documented, not position-enforced
       const markerDesc = get("$.properties.header.properties.specRef.properties.marker.description");
       expect(markerDesc).toMatch(/findIndex/);

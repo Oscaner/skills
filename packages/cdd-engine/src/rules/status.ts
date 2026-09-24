@@ -111,15 +111,24 @@ export interface PlanVerdict {
   done: boolean;
 }
 
-/** derivePlanVerdict(planPath, workspace, extractTaskNumbers) — reconcile the plan's `### Task N:`
- * set against the six-state table. extractTaskNumbers is injected (dispatch/task.ts owns the
- * canonical taskNumbersFromPlan; this rules module stays acyclic). */
+/** derivePlanVerdict(planPath, workspace, extractTaskNumbers, extractGroups?) — reconcile the plan's
+ * task set against the six-state table. The iteration source is the effective dispatch groups
+ * (P4.3 Task 3): extractGroups — the canonical effectiveGroups derivation — when provided, else
+ * the per-task singletons of extractTaskNumbers (the empty default — byte-identical to the
+ * pre-P4.3 verdict). extractTaskNumbers / extractGroups are injected (the canonical extractors
+ * live in rules/documents.ts, re-exported through dispatch/task.ts; this rules module stays
+ * acyclic — status.test.ts mirrors the extractors locally). */
 export function derivePlanVerdict(
   planPath: string,
   workspace: string,
   extractTaskNumbers: (planPath: string) => number[],
+  extractGroups?: (planPath: string) => number[][],
 ): PlanVerdict {
-  const tasks = extractTaskNumbers(planPath);
+  const groups = extractGroups
+    ? extractGroups(planPath)
+    : extractTaskNumbers(planPath).map((n) => [n]);
+  // The group union is the plan's task set (empty default: singletons → exactly taskNumbersFromPlan).
+  const tasks = [...new Set(groups.flat())].sort((a, b) => a - b);
   const pending: TaskStatusRow[] = [];
   let complete = 0;
   for (const n of tasks) {

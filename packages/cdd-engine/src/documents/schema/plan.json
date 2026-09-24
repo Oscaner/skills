@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oscaner.dev/schemas/cdd/plan.json",
   "title": "Phase implementation plan document structure",
-  "description": "Canonical structure of an osuperpowers phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings the brief extractor slices on, the per-task acceptance bullets, the Constraints source the dispatcher materializes plan-constraints.md from (canonical Form A literal `## Constraints` or legacy Form B prose pointers), and the pending-acceptance-patch zone the orchestrator writes. Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
+  "description": "Canonical structure of an osuperpowers phase implementation plan — the per-phase executable breakdown of one design spec. This schema is the single structure fact for the plan doc type: the header fields, the `### Task N:` colon-form task headings the brief extractor slices on, the per-task acceptance bullets, the Constraints source the dispatcher materializes plan-constraints.md from (canonical Form A literal `## Constraints` or legacy Form B prose pointers), the pending-acceptance-patch zone the orchestrator writes, and the `taskGroups` dispatch-group declaration the adjudication node writes (empty default ⇒ every task its own per-task group). Authoring agents read the properties + descriptions to draft conforming plans; docContractValidate / brief extraction consume the same patterns.",
   "type": "object",
   "properties": {
     "header": {
@@ -141,6 +141,47 @@
           "description": "`- **注**:` — optional task note."
         }
       }
+    },
+    "taskGroups": {
+      "type": "array",
+      "default": [],
+      "$defs": {
+        "section": {
+          "type": "object",
+          "description": "The `## Task Groups` section layout — the dispatch-group declaration's plan surface: the section heading const + the one-line entry form per merged group. Written to the plan ONLY when a non-trivial merged group exists (the write-back judgment: a length-1 group never lands on disk — the single-task state exists only as the empty default below).",
+          "properties": {
+            "heading": {
+              "type": "string",
+              "const": "## Task Groups",
+              "description": "The section's top-level `##` heading (bounded like `## Constraints`: the next `#`/`##` heading, a `### Task N:` heading, or a `---` rule)."
+            },
+            "entry": {
+              "type": "string",
+              "pattern": "^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:",
+              "description": "One merged-group line — `- **Task 1, 2**: <note>` — the task numbers comma-space separated (the `--tasks <a>,<b>` join form)."
+            }
+          }
+        }
+      },
+      "items": {
+        "type": "object",
+        "required": ["tasks"],
+        "description": "One declared dispatch group — the plan record of a merged `--tasks <a>,<b>` dispatch. Declared only when 2+ tasks merge; a length-1 group is redundant (the single-group state exists only as the empty default).",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "One task number of the merged group (a `### Task N:` id)."
+            },
+            "minItems": 2,
+            "uniqueItems": true,
+            "description": "The merged group's task numbers — unique and ascending (the deterministic group iteration order). minItems >= 2: a length-1 group is never declared."
+          }
+        }
+      },
+      "description": "Dispatch-group declaration — the orchestration record of the adjudication node (its sole writer), carried by the plan's `## Task Groups` section. Empty default: `[]` / an absent section ⇒ every `### Task N:` is its own singleton group — effectiveGroups = [[1],[2],…,[N]], exactly the pre-P4.3 per-task dispatch (zero migration); non-empty ⇒ the declared merged groups replace the singleton set entirely and the loop dispatches `--tasks <a>,<b>` per declared group. Section-persist rule: the section lands only when a non-trivial merged group exists — no groups → no section → empty default (zero plan churn)."
     },
     "pendingAcceptancePatch": {
       "type": "object",

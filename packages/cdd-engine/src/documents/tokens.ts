@@ -50,6 +50,16 @@ export interface DocTokens {
   constraintsHeading: string;
   /** `/^## Constraints\s*$/` — Form-A heading match. */
   constraintsHeadingRe: RegExp;
+  /** `## Task Groups` — the taskGroups section heading (plan.json taskGroups section layout const). */
+  taskGroupsHeading: string;
+  /** `/^## Task Groups\s*$/` — the taskGroups section-heading match. */
+  taskGroupsHeadingRe: RegExp;
+  /** `^- \*\*Task (?:…numbers…)\*\*:` — one merged-group line with the comma-space number list
+   *  captured as group 1 (plan.json taskGroups section entry pattern, capture-inserted). */
+  taskGroupsLineRe: RegExp;
+  /** 2 — the canonical per-group minimum task count (plan.json taskGroups items tasks minItems) —
+   *  the length-1-redundant floor (single-group state exists only as the empty default). */
+  taskGroupsMinItems: number;
   /** The four Form-B prose-anchor tokens verbatim (plan schema enum). */
   proseAnchorTokens: string[];
   /** The four bare anchor names (tokens stripped of `**` wraps + colon) for regex building. */
@@ -224,6 +234,30 @@ export function deriveDocTokens(schemas: {
     .replace(/\\s\*\$$/, "");
   const constraintsHeadingRe = new RegExp(constraintsHeadingPattern);
 
+  // taskGroups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration: the section heading
+  // const, the merged-group entry pattern with the comma-space number list wrapped in ONE capture
+  // group (the repeated `(?:, \d+)*` items stay non-capturing — group 1 is the full list), and the
+  // per-group minimum (the write-back floor: a length-1 group is redundant, never declared).
+  const taskGroupsHeading = leaf<string>(
+    plan,
+    ["taskGroups", "$defs", "section", "properties", "heading"],
+    "const",
+  );
+  const taskGroupsEntryPattern = leaf<string>(
+    plan,
+    ["taskGroups", "$defs", "section", "properties", "entry"],
+    "pattern",
+  );
+  const taskGroupsHeadingRe = new RegExp(`^${escapeRegExp(taskGroupsHeading)}\\s*$`);
+  const taskGroupsLineRe = new RegExp(
+    taskGroupsEntryPattern.replace("\\d+(?:, \\d+)*", "(\\d+(?:, \\d+)*)"),
+  );
+  const taskGroupsMinItems = leaf<number>(
+    plan,
+    ["taskGroups", "items", "properties", "tasks"],
+    "minItems",
+  );
+
   const proseAnchorTokens = leaf<string[]>(
     plan,
     ["constraints", "formBProseAnchors", "anchors", "items"],
@@ -362,6 +396,10 @@ export function deriveDocTokens(schemas: {
     taskHeadingPrefixRe,
     constraintsHeading,
     constraintsHeadingRe,
+    taskGroupsHeading,
+    taskGroupsHeadingRe,
+    taskGroupsLineRe,
+    taskGroupsMinItems,
     proseAnchorTokens,
     proseAnchors,
     versionHeaderRe,

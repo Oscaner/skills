@@ -166,6 +166,44 @@ export function taskNumbersFromPlan(planFile: string): number[] {
   return nums.sort((a, b) => a - b);
 }
 
+// ---- task groups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration + the ONE
+// effectiveGroups derivation (every group iteration surface consumes it — no second implementation).
+
+/** Task-Groups section parse: the `## Task Groups` heading (canonical heading token) → the declared
+ * merged groups as number[][] — one `- **Task 1, 2**: <note>` line per group (the captured comma-
+ * space number list, the `--tasks <a>,<b>` join form), each parsed to sorted unique integers.
+ * No section / empty section → [] (the empty default — the section is written ONLY when a
+ * non-trivial merged group exists, so its absence IS the default). Section boundary = the standard
+ * extractLiteralConstraints stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
+export function taskGroupsFromPlan(planFile: string): number[][] {
+  const lines = readFileSync(planFile, "utf8").split("\n");
+  const start = lines.findIndex((l) => DOC_TOKENS.taskGroupsHeadingRe.test(l));
+  if (start === -1) return [];
+  const groups: number[][] = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^(#{1,2}\s|---\s*$)/.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) break;
+    const m = lines[i].match(DOC_TOKENS.taskGroupsLineRe);
+    if (!m) continue;
+    groups.push([...new Set(m[1].split(",").map((s) => Number(s.trim())))].sort((a, b) => a - b));
+  }
+  return groups;
+}
+
+/** effectiveGroups(planPath) — the SINGLE dispatch-group derivation: declared groups win verbatim,
+ * else each plan task is its own singleton group — `taskGroups.length ? taskGroups :
+ * singletons(taskNumbersFromPlan(plan))`. The empty default (no `## Task Groups` section) yields
+ * [[1],[2],…,[N]] — exactly the pre-P4.3 per-task dispatch (zero migration); a non-empty
+ * declaration replaces the singleton set entirely (the loop dispatches `--tasks <a>,<b>` per
+ * declared group). Declared groups each carry >= 2 tasks (canonical minItems — a length-1 group is
+ * redundant and never written; the singleton state exists only as this derived default). The
+ * iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines) consume this one
+ * derivation — no second implementation. */
+export function effectiveGroups(planPath: string): number[][] {
+  const declared = taskGroupsFromPlan(planPath);
+  if (declared.length > 0) return declared;
+  return taskNumbersFromPlan(planPath).map((n) => [n]);
+}
+
 // Deterministic section extraction for the canonical form: `## Constraints` heading + content to
 // the first structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction
 // atom the constraints section must not swallow), or a `---` rule (the preamble/task separator).

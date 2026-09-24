@@ -30,7 +30,7 @@ import {
   type CloseoutResult,
 } from "../rules/closeout.ts";
 import { deriveTaskState, derivePlanVerdict, formatTaskStateLine, formatPlanVerdict } from "../rules/status.ts";
-import { taskNumbersFromPlan } from "../rules/documents.ts";
+import { taskNumbersFromPlan, effectiveGroups } from "../rules/documents.ts";
 import { resolveWorkspace } from "../artifacts/handoff/naming.ts";
 import { CddExitError } from "../infra/exit.ts";
 
@@ -271,9 +271,16 @@ export abstract class DispatchLifecycle {
     if (!root) return;
     try {
       const workspace = resolveWorkspace(plan, root);
-      const verdict = derivePlanVerdict(plan, workspace, taskNumbersFromPlan);
-      for (const n of taskNumbersFromPlan(plan)) {
-        process.stderr.write(`CDD_INFO: ${formatTaskStateLine(n, deriveTaskState(workspace, n))}\n`);
+      // The progress-tracking iteration follows the SINGLE effectiveGroups derivation — per declared
+      // group (empty default: each task its own singleton group → the six-state lines are
+      // byte-identical to the pre-P4.3 per-task iteration); the verdict shares the same group
+      // surface — isomorphic iteration, one derivation, no second implementation (§2.2, P4.3 Task 3).
+      const groups = effectiveGroups(plan);
+      const verdict = derivePlanVerdict(plan, workspace, taskNumbersFromPlan, effectiveGroups);
+      for (const group of groups) {
+        for (const n of group) {
+          process.stderr.write(`CDD_INFO: ${formatTaskStateLine(n, deriveTaskState(workspace, n))}\n`);
+        }
       }
       process.stderr.write(`CDD_INFO: ${formatPlanVerdict(verdict)}\n`);
       if (verdict.done) {

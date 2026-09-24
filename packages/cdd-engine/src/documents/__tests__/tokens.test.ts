@@ -63,6 +63,24 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.versionHeaderRe.test("- **Version**: v1.0 · 2026-09-21")).toBe(false);
   });
 
+  it("doctored plan taskGroups heading → the derived section + line tokens follow (P4.3 Task 3)", () => {
+    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.heading.const = "## Dispatch Groups";
+    const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
+    expect(re.taskGroupsHeading).toBe("## Dispatch Groups");
+    expect(re.taskGroupsHeadingRe.test("## Dispatch Groups")).toBe(true);
+    expect(re.taskGroupsHeadingRe.test("## Task Groups")).toBe(false);
+  });
+
+  it("doctored plan taskGroups entry pattern → the group-line regex follows (captured number list)", () => {
+    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
+      "^- \\*\\*Tasks (?:\\d+(?:, \\d+)*)\\*\\*:";
+    const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
+    expect(re.taskGroupsLineRe.exec("- **Tasks 3, 4**: x")![1]).toBe("3, 4");
+    expect(re.taskGroupsLineRe.test("- **Task 3, 4**: x")).toBe(false);
+  });
+
   it("doctored phase-spec version marker → the derived leaf follows the page twin; a one-page drift throws", () => {
     // Phase-spec pages the shared version marker as its own const leaf. Doctoring BOTH pages to a
     // new value keeps them equal — the derived phase-spec leaf follows live from the canonical edit.
@@ -133,6 +151,21 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     expect(DOC_TOKENS.constraintsHeadingRe.test("## Constraints")).toBe(true);
     expect(DOC_TOKENS.constraintsHeadingRe.test("### Constraint")).toBe(false);
     expect(DOC_TOKENS.proseAnchorTokens[1]).toBe("**commit 边界机制**：");
+  });
+
+  it("taskGroups tokens — section heading + merged-group line + the minItems floor (P4.3 Task 3)", () => {
+    expect(DOC_TOKENS.taskGroupsHeading).toBe("## Task Groups");
+    expect(DOC_TOKENS.taskGroupsHeadingRe.test("## Task Groups")).toBe(true);
+    expect(DOC_TOKENS.taskGroupsHeadingRe.test("### Task Groups")).toBe(false);
+    expect(DOC_TOKENS.taskGroupsHeadingRe.test("# Task Groups")).toBe(false);
+    // one merged-group line — the number list captured as group 1 (the `--tasks a,b` join form)
+    const m = "- **Task 1, 2**: 共享验收面".match(DOC_TOKENS.taskGroupsLineRe);
+    expect(m).not.toBeNull();
+    expect(m![1]).toBe("1, 2");
+    expect("- **Task 5, 6, 7**: merged".match(DOC_TOKENS.taskGroupsLineRe)![1]).toBe("5, 6, 7");
+    expect(DOC_TOKENS.taskGroupsLineRe.test("**Task 1, 2**: no leading dash")).toBe(false);
+    // the canonical per-group floor — a length-1 group is redundant, never written (write-back rule)
+    expect(DOC_TOKENS.taskGroupsMinItems).toBe(2);
   });
 
   it("CLAIM family — the claimClause pattern is derived live and matches representatives", () => {

@@ -229,3 +229,39 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
     expect(formatTaskStateLine(3, "complete")).toBe("task 3 state: complete");
   });
 });
+
+describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroups single derivation)", () => {
+  it("empty-default equivalence: extractGroups absent ≡ per-task singletons — the pre-P4.3 verdict unchanged", () => {
+    const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
+    const ws = workspace({
+      plan: "",
+      tasks: [
+        { task: 1, rounds: { review: 1 } },
+        { task: 2, rounds: { review: 1 } },
+      ],
+    });
+    for (const n of [1, 2]) {
+      writeHandoff(ws, `tasks-${n}-review-1.json`, { tasks: [n], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    }
+    // a no-taskGroups plan's effectiveGroups is the per-task singletons — the group surface and the
+    // bare task-number surface produce byte-identical verdicts (the zero-migration property)
+    const singletonGroups = (planPath: string) => extractTasks(planPath).map((n) => [n]);
+    expect(derivePlanVerdict(plan, ws, extractTasks, singletonGroups)).toEqual(derivePlanVerdict(plan, ws, extractTasks));
+    expect(derivePlanVerdict(plan, ws, extractTasks, singletonGroups)).toEqual({ total: 2, complete: 2, pending: [], done: true });
+  });
+
+  it("declared merged groups → the verdict iterates the group union (the group is the dispatch unit)", () => {
+    const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
+    const ws = workspace(EMPTY_PROGRESS);
+    // mirror taskGroupsFromPlan for a merged `- **Task 1, 2**:` section
+    const mergedGroups = (_planPath: string) => [[1, 2]];
+    const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
+    expect(v.total).toBe(2);
+    expect(v.done).toBe(false);
+    expect(v.pending).toEqual([
+      { task: 1, state: "in-flight" },
+      { task: 2, state: "in-flight" },
+    ]);
+    expect(formatPlanVerdict(v)).toBe("0/2 complete — pending: task 1 (in-flight), task 2 (in-flight)");
+  });
+});

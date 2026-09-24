@@ -187,6 +187,37 @@ describe("statusValidate — CDD_INFO six-state line + plan verdict on a normal 
     expect(r.stderr).toContain("CDD_INFO: task 1 state: in-flight");
     expect(r.stderr).toContain("CDD_INFO: 0/1 complete — pending: task 1 (in-flight)");
   });
+
+  it("a `## Task Groups` merged section → statusValidate iterates per declared group (all member state lines + grouped verdict)", async () => {
+    const repo = setupRepo();
+    const groupedPlan = [
+      "# Plan",
+      "",
+      "**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)",
+      "",
+      "## Constraints",
+      "",
+      "- boundary one",
+      "",
+      "### Task 1: x",
+      "body",
+      "",
+      "### Task 2: y",
+      "body",
+      "",
+      "## Task Groups",
+      "",
+      "- **Task 1, 2**: merged dispatch group",
+      "",
+    ].join("\n");
+    writeChain(repo, { plan: groupedPlan });
+    const r = await runReview(repo, { dryRun: true });
+    expect(r.exitCode).toBe(0);
+    // both members of the merged group get their six-state line (the group loop walks every task)
+    expect(r.stderr).toContain("CDD_INFO: task 1 state: in-flight");
+    expect(r.stderr).toContain("CDD_INFO: task 2 state: in-flight");
+    expect(r.stderr).toContain("CDD_INFO: 0/2 complete — pending: task 1 (in-flight), task 2 (in-flight)");
+  });
 });
 
 describe("exit code table preserved (0/1/2/3)", () => {

@@ -26,13 +26,13 @@ Global option: `--dry-run` — simulate the dispatch without writing handoff art
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
-| `implement` | `cdd implement --task=<n> [--plan=<path>]` | Run the task implement phase |
+| `implement` | `cdd implement --tasks=<n> [--plan=<path>]` | Run the task implement phase |
 | `review` | `cdd review --type=<task\|branch\|spec\|plan>` | Run a review — task, branch, spec, or plan |
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | Fix review findings — task, branch, spec, or plan |
 | `base-branch` | `cdd base-branch set\|get` | Read/write the `base-branch.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 
-Use `cdd <command> --help` for a command's full option list (for example `cdd review --task` / `--base` / `--head` / `--spec` / `--round`).
+Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--base` / `--head` / `--spec` / `--round`).
 
 ## Development
 

@@ -28,13 +28,13 @@ npm install @oscaner-skills/cdd-engine
 
 | 子命令 | 用法 | 用途 |
 |--------|------|------|
-| `implement` | `cdd implement --task=<n> [--plan=<path>]` | 运行任务 implement 阶段 |
+| `implement` | `cdd implement --tasks=<n> [--plan=<path>]` | 运行任务 implement 阶段 |
 | `review` | `cdd review --type=<task\|branch\|spec\|plan>` | 运行评审——task、branch、spec 或 plan |
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | 修复评审发现——task、branch、spec 或 plan |
 | `base-branch` | `cdd base-branch set\|get` | 读写 `base-branch.json` 产物（单一 CDD `--plan` 目标） |
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
 
-用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --task` / `--base` / `--head` / `--spec` / `--round`）。
+用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--base` / `--head` / `--spec` / `--round`）。
 
 ## 开发说明
 

@@ -118,7 +118,7 @@ describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
   const CDD = "cd" + "d";
   it("命令形命中；裸 research / brief 放行（P4 合法调用面）", () => {
     expect(hasHit([`Run \`${CDD} research --brief x --output y\``])).toBe(true);
-    expect(hasHit([`Run \`${CDD} brief --task 1 --plan p --output o\``])).toBe(true);
+    expect(hasHit([`Run \`${CDD} brief --tasks 1 --plan p --output o\``])).toBe(true);
     expect(hasHit(["/mattpocock-skills:research 会话调用"])).toBe(false);
     expect(hasHit(["brief-dependent plan sections"])).toBe(false);
     expect(hasHit(["cddr research"])).toBe(false);        // 词边界：非 `cdd ` 前缀
@@ -1146,7 +1146,7 @@ describe("skills 面守卫（T16）：行 16 零 fix-inline + 评审循环 fix �
       path.join(dir, "SKILL.md"),
       SKILL_MD(
         "  A[fix-spec] --> B[fix-task]\n  B --> C((done))",
-        "### `fix-spec`\n\n- **Do**: Fix all findings via the editor.\n\n### `fix-task`\n\n- **Do**: Fix ALL findings via `cdd fix --type task --task <id>`.\n",
+        "### `fix-spec`\n\n- **Do**: Fix all findings via the editor.\n\n### `fix-task`\n\n- **Do**: Fix ALL findings via `cdd fix --type task --tasks <id>`.\n",
       ),
       "utf8",
     );

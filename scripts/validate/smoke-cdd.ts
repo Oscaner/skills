@@ -313,7 +313,7 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
     ["--dry-run", "implement", "--tasks", "1", "--plan", fixture.plan],
     ["--dry-run", "review", "--type", "task", "--tasks", "1", "--plan", fixture.plan],
     ["--dry-run", "fix", "--type", "task", "--tasks", "1", "--plan", fixture.plan,
-      "--findings", path.join(fixture.workspace, "task-1-review-1.json")],
+      "--findings", path.join(fixture.workspace, "tasks-1-review-1.json")],
     ["--dry-run", "review", "--type", "branch", "--plan", fixture.plan, "--base", head, "--head", head],
     ["--dry-run", "fix", "--type", "branch", "--plan", fixture.plan,
       "--findings", path.join(fixture.workspace, `branch-review-${head7}..${head7}-r1.json`)],

@@ -31,8 +31,9 @@ const SUBCOMMAND_USAGE: Record<string, string> = {
   // base-branch: a bad flag / unknown subcommand inside set|get resolves to this single-word key
   // (the bin wrapper maps a nested citty leaf to its parent command — see commandUsageKey).
   "base-branch": "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
-  // help is the engine's one discovery subcommand (overall v1.10 Non-goal#1 carve-out — the only
-  // new subcommand in the P2 program).
+  // help — the P2-carve-out discovery subcommand (overall v1.10 Non-goal#1 carve-out, the P2 era's
+  // ONE new subcommand); the P4.3 sibling `cdd schema get` rides the normal bootstrap — only help
+  // is pre-boot intercepted (see the helpCmd block below).
   help: "usage: cdd help",
   // schema — discovery: the canonical doc-structure schema printer (P4.3 Task 5). A nested leaf
   // (get) resolves to this key via commandUsageKey's parent mapping (same as base-branch set|get).

@@ -825,6 +825,16 @@ function linkHref(cell: string): string | null {
   return m && m[1] ? m[1] : null;
 }
 
+/** Own plan-document name identity — the phase's own plan doc is `*-<slug>-<id>.md` or the
+ *  `-plan.md` variant, matched case-insensitively (the equivalence face canonicalizes its href, the
+ *  existence glob canonicalizes the filename — one rule, both faces). Single source for the plan-cell
+ *  href identity (planCellMatchesClaim) and the ② document-existence glob (plansHit). */
+function isOwnPlanDocName(name: string, slug: string, id: string): boolean {
+  const low = name.toLowerCase();
+  const idLow = id.toLowerCase();
+  return low.endsWith(`-${slug}-${idLow}.md`) || low.endsWith(`-${slug}-${idLow}-plan.md`);
+}
+
 /** Plan-cell ↔ claim equivalence, own-document aligned (the design column's ownDesignToken is the
  *  model — no per-character literal comparison): a plan cell satisfies a claim for phase `id` under
  *  the program slug when
@@ -839,9 +849,7 @@ function planCellMatchesClaim(cell: string, id: string, key: string, slug: strin
   if (isInflightText(cell)) return true; // carve-out — in-flight is never a mismatch
   const href = linkHref(cell);
   if (href) {
-    const base = path.basename(href).toLowerCase();
-    const low = id.toLowerCase();
-    return base.endsWith(`-${slug}-${low}.md`) || base.endsWith(`-${slug}-${low}-plan.md`);
+    return isOwnPlanDocName(path.basename(href), slug, id);
   }
   return stripCellMarkup(cell) === key;
 }
@@ -1127,8 +1135,7 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
   const specsDir = path.dirname(overallPath);
   const plansDir = path.join(specsDir, "..", "plans");
   const plansHit = (id: string) => {
-    const low = id.toLowerCase();
-    return mdNames(plansDir).filter((n) => n.endsWith(`-${slug}-${low}.md`) || n.endsWith(`-${slug}-${low}-plan.md`));
+    return mdNames(plansDir).filter((n) => isOwnPlanDocName(n, slug, id));
   };
   // The canonical `P<n>-design` pattern's filename tail (`-design.md`, lowercased — the filePaths
   // form `*-<slug>-<phase-id>-design.md`): the design-doc glob suffix for an own design token.

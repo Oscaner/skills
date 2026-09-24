@@ -2,7 +2,7 @@
 
 Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul program (P1 runtime layout → P6 convergence). Used as the baking input for skill document templates and as context for any future program touching this codebase. Condensed reference of the spec §2.6 list; each item is a claim about how this program actually failed or succeeded.
 
-## A. Organization & process
+## 1. Organization & process
 
 1. **Delete-anything-that-isn't-consumed** — dead workspaces/files/surfaces are removed, not frozen (the legacy runtime-workspace tree under the old root was purged).
 2. **Deletion must sync its only caller** — removing a command/artifact without removing its caller is an orphan-debt (the cli-research skill was deleted together with its only calling subcommand).
@@ -13,7 +13,7 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 7. **Shrink capability claims** — unproven capabilities are withdrawn, not parked (decision C: 8 harnesses → 2 proven).
 8. **The program turns the lens on itself** — brainstorming/grilling flows must honestly describe single-session reality (session-call semantics), or they erode.
 
-## B. Engineering & architecture
+## 2. Engineering & architecture
 
 9. Destructive change, high-dimension abstraction, freely changeable code structure/directory layout (this convergence phase's governing principle).
 10. **Bounded-plane model** — publish surface / engine source / orchestration / data / docs each have explicit boundaries, languages, and contracts.
@@ -26,20 +26,20 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 17. **Failure categories + quota isolation + engine-held timeouts** — categories get isolated retry quotas; the engine owns timeout judgment.
 18. **Test colocation + memory guard** — `src/<dir>/__tests__/<file>.test.ts`; vitest bounded so full-batch runs don't OOM the host.
 
-## C. Caching / context
+## 3. Caching / context
 
-19. **Six cross-provider axioms** — static-first, byte-stability, volatile-to-tail, breakpoint-surface-limited, hit-rate-observability, write economics. See `context-caching-doctrine.md`.
+19. **Six cross-provider axioms** — static-first, byte-stability, volatile-to-tail, breakpoint-surface-limited, hit-rate-observability, write economics. See `04-context-caching-doctrine.md`.
 20. **Byte-plane over breakpoint-plane** — the engine can only stabilize bytes; the harness CLI places breakpoints.
 21. **Honest boundaries** — claims scoped to TTL-window consecutive rounds, measured not assumed; unobservable harnesses unclaimed.
 22. **Capability as data** — registry cache profiles make new harnesses a data row, zero contract changes.
 
-## D. Prompts & templates
+## 4. Prompts & templates
 
-23. **Template systematization, five layers** — JSON schema-verbatim · one skeleton · naming · description · structural skeleton + clause library + token registry. See `template-doctrine.md`.
-24. **Naming doctrine** — scoped semantics, full words, one word one meaning (the retired `H1_BLOCK`-rename lesson). See `naming-conventions.md`.
+23. **Template systematization, five layers** — JSON schema-verbatim · one skeleton · naming · description · structural skeleton + clause library + token registry. See `02-template-doctrine.md`.
+24. **Naming doctrine** — scoped semantics, full words, one word one meaning (the retired `H1_BLOCK`-rename lesson). See `03-naming-conventions.md`.
 25. **Discipline dual-track** — mechanically-checkable discipline becomes an assertion; only genuinely uncheckable rules live as single-point annotations (prose annotates, never enforces).
 
-## E. Anti-patterns
+## 5. Anti-patterns
 
 26. Undefined `.mjs`/`.ts` plane boundaries are debt — declare them.
 27. **Spec numbers must be verified** — count corrections in one brainstorm: 15→14 (`.agents/` files), ~17→19 (session-call nodes), 17→19 (template tokens; the registry holds 19 today = 17 round-context + 2 return). `git ls-files` / `grep` before writing numbers into a spec.
@@ -48,7 +48,7 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 30. **Variant tokens splitting the static prefix kill the cache** — round labels, timestamps, target paths belong in the variant tail.
 31. An overall registration is not what a sub-agent reads — discipline must land in the executing surface (templates/clauses), not only in the charter (EOF ×9, CJK ×3 recurrences).
 
-## F. Architecture discipline
+## 6. Architecture discipline
 
 32. **Layered dependency boundary** — `infra → rules → artifacts → dispatch → cli`; imports flow up the chain, a lower layer never imports a higher one (dispatch reads `rules/convergence.ts` — its owner — never the `cli/shared.ts` re-export; a cli-local fact like `DRY_RUN()` is injected at the CLI wrapper boundary, not read from the dispatch layer). A cross-layer link that would close a cycle is broken toward the layer that owns the semantics (schema⇄finalize, failure⇄progress — one-way edges remain). The boundary is enforced as **cycle-freedom with a semantic-ownership carve-out**: a lower layer may import one layer up only where the mechanism's semantic home sits in that upper layer — the blessed `rules → artifacts` one-way edge (`failure.ts` counters reading `progress.ts` state) is exactly such a carve-out, since it closes no cycle; beyond that the strict rule (a lower layer never imports a higher one) holds.
 33. **Mechanisms anchor the template method — zero island dispatch** — gate / liveness / carrier / residue all hang on `DispatchLifecycle` overridden hooks (`commitPreCheck` entry gate → resolveContext → dispatch → schemaValidate → normalizeResult → `commitPostCheck` exit gate; phases recorded in the timeline). A flat hand-written dispatch body, or one that re-implements exit/round/schema logic outside the lifecycle, is the third-island failure — the branch family escaped the abstraction for two generations, silently missing the dispatch-liveness monitor, the status/failure-carrier orthogonalization, and every later mechanism those shipped. New dispatch channels extend the lifecycle and inherit the default gates rather than re-deriving them.
@@ -64,13 +64,13 @@ Maintainer-only record of the hard-won lessons from the osuperpowers-overhaul pr
 41. **Shared template hooks still need explicit context wiring** — a task-family subclass that overrides a base template step (`settleResidue` / `writeBoundary`) must thread the resolved context into the lifecycle ctx: derived values that live only in the internal ctx never reach the public ctx unless the hook explicitly assigns them (a `handoffPath` left `""` sends the inherited exit-gate checks and the changed-surface reconcile reading an empty path — silently no-op, only surfaced later as a missing-notes / untested-path bug).
 42. **The resume stash contract is a full canonical token, not a prefix** — the salvage/resume pairing matches the exact standardized message (`cdd-<op>-<type>-task-<N>-r<round>-<cause>`; for the task family that is `…-task-task-<N>-…` — two `task` segments), and re-creating a stash entry with `git stash store -m` is unreliable (a silent no-op that leaves the entry's displayed message unchanged). To re-message a stash, `git stash push` a fresh entry under the canonical message (then drop the old), and always anchor stash operations by message, never by the shifting `stash@{N}` index.
 43. **Host-harness black-box tests must mock the harness for CI** — an engine black-box test that passes a real host name fails on a CI runner that lacks the binary: the pre-flight harness gate exits 2 (CLI missing) before the tested gate runs (a "expected 1, got 2" that is environmental, not a product defect). Use the fake-CLI + ghost-registry pattern so the tested gate — not the host check — is what the assertion covers; dry-run variants already bypass the gate.
-44. **Skills are consumer-operating surfaces — zero design-history / mechanism narration** — a skill's SKILL.md specifies the executable flow (digraph · nodes · invariants · failure modes) and nothing else. Design history (when/why a step moved), mechanism explanation (gate rationale, timing derivations), and internal-program references (spec titles/versions like "consumer-parity P2 v1.12", repo-internal ledger jargon) are forbidden: a consumer who never saw the program cannot resolve them, and they drift as the program evolves. Deleting a flow step means editing the digraph — not annotating the removal. (2026-09-21 dogfood: a backfill-timing note quoting an internal spec entered the finishing skill and was removed the same day; canonicalized at docs/maintainers/skill-authoring.md §10.)
+44. **Skills are consumer-operating surfaces — zero design-history / mechanism narration** — a skill's SKILL.md specifies the executable flow (digraph · nodes · invariants · failure modes) and nothing else. Design history (when/why a step moved), mechanism explanation (gate rationale, timing derivations), and internal-program references (spec titles/versions like "consumer-parity P2 v1.12", repo-internal ledger jargon) are forbidden: a consumer who never saw the program cannot resolve them, and they drift as the program evolves. Deleting a flow step means editing the digraph — not annotating the removal. (2026-09-21 dogfood: a backfill-timing note quoting an internal spec entered the finishing skill and was removed the same day; canonicalized at docs/maintainers/06-skill-authoring.md §10.)
 
 ---
 
-## G. Consumer-parity program norms (P3 closeout, 2026-09-22)
+## 7. Consumer-parity program norms (P3 closeout, 2026-09-22)
 
-Operational norms fixed by the consumer-parity P3 rebuild (repo-side validation-surface rebuild). Each item is grep-verifiable. Numbering continues the A–F sequence.
+Operational norms fixed by the consumer-parity P3 rebuild (repo-side validation-surface rebuild). Each item is grep-verifiable. Item numbering continues the sequence from section 6.
 
 45. **Zero product-path fixtures** — unit/e2e suites are functional verification; no repo product path may serve as a test fixture. The retired `canary-dogfood.test.ts` hardcoded real charter-doc paths as fixtures — delete the product and the test dies with it. Canary evidence belongs to runtime dispatch (the repo's own program is audited by every engine dispatch), never to product-path fixtures.
 46. **Zero numbered step anchors** — validate step names are semantic names, not opaque numbers. The `5b0` / `5b1` / `5c` / `12.` numbering family is retired. The step-name face is pinned by `packages/osuperpowers/tests/ci-validate.test.mjs`'s prefix-anchored probe: digit-led families zero-residue, semantic names zero false-positive (`node` assertions: full-hit on the retired names, full-miss on the semantic ones — anti-white-green).
@@ -80,6 +80,8 @@ Operational norms fixed by the consumer-parity P3 rebuild (repo-side validation-
 50. **Validate 11-block structure snapshot** — post-P3, `pnpm run validate` composes 11 semantic blocks, in order: emit freshness / osuperpowers plugin resolution · osuperpowers skills inventory count · osuperpowers node:test behavior tree · validate wiring guard (ci-validate.test.mjs) / cdd-engine dev stub materialization · cdd-engine engine test suite (vitest) / engine zero residue + channel audit / marketplace manifests validate / scripts unit tests (vitest) / package version sync. The pre-commit subset is 9 blocks — the engine pair (dev stub materialization + engine test suite) is tree-coupled and excluded.
 51. **cdd output zero-filtering** — any skill calling the cdd CLI reads the full stdout/stderr; `tail` / `head` / `2>&1 |` / `EXIT=$?` capture wrappers are forbidden. cdd itself optimizes output length and prints the result face the orchestrator needs; a wrapped call hides it.
 52. **Docs-family result visibility + exit.ts single source** — docs-family review/fix print the result face to stdout (`status:` / `blocker:` / `handoff:`), so the orchestrator reads the verdict without opening the handoff file. Command-level exits single-source through `infra/exit.ts` (no bare `return;` on command success paths; `exitOkWith(resultLine)` prints the face and exits in one call; exit table 0/1/2/3 unchanged). Sequencing: this item is entered only after the exit.ts + result-face implementation is present (P3 T6 landed it; the P3 closeout task recorded this norm).
+53. **Signal-safe exit latch** — the CLI signal contract (SIGINT/SIGTERM/SIGHUP → teardownAll → exit 128+signo) must win over a concurrent run-boundary exit. Node's `process.exit` is first-call-decides: when the run's `ExitRequested` unwind and the signal handler both `await teardownAll()` then each call `process.exit`, either code can win. The engine pins the fixed pattern in `packages/cdd-engine/src/bin.ts`: a module-level `signalExitCode` latch set **synchronously** at signal entry (before any await), plus a single exit mapping `finalExit(code) = process.exit(signalExitCode ?? code)` used at every process.exit site (run catches and help sites). Real failure: P3 PR #273's original CI run failed 3/3 signal-safe-exit tests with the handler having fired (`CDD: caught <sig>` in stderr) yet the process exiting with the run's code 1 — the docs-family exit unification (`exitWithCode` non-zero route inside `runReview`, T6) made the race reachable; the latch makes 128+signo deterministic.
+54. **Same-signature CI batch failure = real-defect signal, not random flake** — an N/N failure on the same assertion (here 3/3 signal-exit tests) is a reachability signal, not noise. Attribute before labeling: reproduce locally (the race reproduced 5/20 at HEAD) and pin the mechanism (two concurrent teardownAll→process.exit paths; first-to-call decides). The branch-review's "pre-existing timing flake" tag on `lifecycle.wiring.test.ts` was wrong — the CI gate, not the review, caught it. Rule: a reviewer "flake" label requires reproduction or a known environment divergence; CI same-signature batches get root-caused before re-run, and the fix + re-run overturns or confirms the label.
 
 ---
 

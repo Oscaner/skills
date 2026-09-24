@@ -1,9 +1,9 @@
 # Skill Authoring Specification
 
-- **Version**: v1.5 · 2026-09-20
+- **Version**: v1.7 · 2026-09-23
 - **Scope**: Sole format authority for osuperpowers skill SKILL.md authoring (node-anchored form, after the skills-rewrite phase)
 - **Audience**: This repository's maintainers + AI agents authoring skills
-- **Language**: English primary (authoritative source; no zh-CN mirrors)
+- **Language**: English primary (authoritative source; the repo's only zh-CN mirrors are the README family — root + the two packages, three files total)
 
 > **Reader notice**: This document is maintainer-only and is not shipped to the consumer environment with the plugin (the package's `contentRoot` is `"."`, so only `packages/*/` publishes). Consumers see content under `packages/*/` only.
 
@@ -56,7 +56,7 @@ Every node's prose must include four elements: **Do / Read / Exit / Fail**:
 | **Exit** | Exit routing (success → next node; decision branch criteria) | Aligned with graph edges |
 | **Fail** | Failure mode → behavior (error / BLOCKED / retry / fail-open) | Complements the Failure Modes table |
 
-### Example: `run-grilling-session` node (delegated form)
+### 3.1 Example: `run-grilling-session` node (delegated form)
 
 ```mermaid
 flowchart TD
@@ -76,7 +76,7 @@ flowchart TD
 - Typical invariants:
   - Emit products are derived — never hand-edit `.claude-plugin/` / `.cursor-plugin/` / `marketplace/`
   - Commit discipline (commit when spec is approved)
-  - Language policy (English primary — no zh-CN mirrors)
+  - Language policy (English primary — repo zh-CN mirrors limited to the README family: root + the two packages, three files total)
   - Session-call policy (delegated nodes consume other plugins' flows only via `/plugin:skill` imports — one import per upstream type per session, no upstream document reads)
   - Review Convergence (re-runs driven only by blockers; fixes always dispatch via `cdd fix`)
 
@@ -145,7 +145,7 @@ A skill's flow is its digraph, and the digraph is the sole control-flow source o
 3. **Adjust siblings uniformly** — when a shared skeleton is touched (the spec-writer trio's review-loop / commit / handoff shape, or any pattern instance cloned across siblings), every sibling carrying the shape is adjusted in the same change. Family deltas are registered in each skill's `## Skeleton deltas` table (the validation input for the skeleton-isomorphism assertion, §8); an unregistered divergence between siblings fails validation.
 4. **Land the change last** — only after 1–3. A change that lands and gets justified afterwards is an unregistered delta on the next validate run.
 
-### Growth boundary
+### 9.1 Growth boundary
 
 A skill whose digraph carries more than **15 nodes** or more than **17 edges** (all node types and edges counted, re-declarations deduplicated) has crossed the growth boundary. Crossing is permitted for a documented reason, but the skill MUST include the `## Full Flow Refactor Rationale` section — the growth-signal assertion (§8) reports every skill's node/edge counts on every validate run and fails when a crossed skill lacks the section.
 
@@ -154,30 +154,30 @@ A skill whose digraph carries more than **15 nodes** or more than **17 edges** (
 Anti-patterns organized by the anatomy element where they manifest.
 When auditing a node, check only the patterns relevant to that element.
 
-### Do field
+### 10.1 Do field
 | Anti-pattern | Symptom | Fix |
 |---|---|---|
 | Bare compliance | Do says "follow X" without expanding critical constraints | Extract key constraints as numbered self-checks in Do |
 | Review substitution | Self-review or manual check replaces CLI dispatch | Do must state CLI invocation explicitly (tool + args) |
 | Mode-unaware branching | One Do behavior covers multiple modes | Add mode-aware branching in Do |
 
-### Exit field
+### 10.2 Exit field
 | Anti-pattern | Symptom | Fix |
 |---|---|---|
 | Exit drift | Graph edges don't match Exit paths | Graph and Exit must enumerate identical edge labels |
 | Implicit scope creep | New exit path added without Invariant update | New exit path with behavioral significance → new or updated Invariant |
 
-### Fail field
+### 10.3 Fail field
 | Anti-pattern | Symptom | Fix |
 |---|---|---|
 | Failure mode gap | Fail = "—" but real failure exists | Every node must have Fail for each possible error state |
 
-### Invariants
+### 10.4 Invariants
 | Anti-pattern | Symptom | Fix |
 |---|---|---|
 | Rule duplication | Same rule in Invariant + node Do + Fail | Single source: Invariant for cross-node, node Fail for node-local |
 
-### Node decomposition
+### 10.5 Node decomposition
 | Anti-pattern | Symptom | Fix |
 |---|---|---|
 | Insufficient granularity | One node handles multiple distinct responsibilities | Split into separate nodes with clear Exit handoff |
@@ -199,12 +199,13 @@ When a change removes a flow step (e.g. deleting a node), edit the digraph and n
 
 ## 11. Data-driven Template Convention
 
-When a new skill introduces template body text that is data-izable — text-shaped, referenced by multiple consumers, drift-prone (form field definitions, enumeration lists, section-label tables, issue-template bodies) — route it through the data-driven-templates convention: **canonical JSON single source → one pure renderer → emitted/derived products guarded by `pnpm run emit:check`**. Nodes defined here apply to prose control flow; template body text follows [data-driven-templates.md](data-driven-templates.md) (digraph `canonical → renderer → {emit product · runtime product} → round-trip guard`).
+When a new skill introduces template body text that is data-izable — text-shaped, referenced by multiple consumers, drift-prone (form field definitions, enumeration lists, section-label tables, issue-template bodies) — route it through the data-driven-templates convention: **canonical JSON single source → one pure renderer → emitted/derived products guarded by `pnpm run emit:check`**. Nodes defined here apply to prose control flow; template body text follows [01-data-driven-templates.md](01-data-driven-templates.md) (digraph `canonical → renderer → {emit product · runtime product} → round-trip guard`).
 
 ---
 
-## Change history
+## 12. Change history
 
+- v1.7 · 2026-09-23 — Mirror-policy sync (consumer-parity P4.1): the repo's zh-CN mirror set is the README family (root `README.zh-CN.md` + `packages/osuperpowers/README.zh-CN.md` + `packages/cdd-engine/README.zh-CN.md` — three files total); the "no zh-CN mirrors" claim in the Language line and the §4 typical-invariants list now states this set.
 - v1.6 · 2026-09-21 — Add §10 anti-pattern "Design-History / Mechanism Narration in a Consumer Skill" — skills are consumer-operating surfaces: design history, mechanism explanation, rationale commentary, and internal-program references are forbidden (2026-09-21 dogfood: a backfill-timing note referencing an internal spec entered the finishing skill and was removed the same day).
 - v1.5 · 2026-09-20 — Grilling coverage honesty (G2): delegated grilling in `phase-within-program` mode enumerates the parent overall's registered requirements (each requirement's status — `[Pending]` / `Done` / dropped — cross-referenced from the phase's Phase inventory `[Pending]`/Done cells and the change-history dropped claims) and opens the grilling frontier only after the user confirms the enumerated coverage is complete — recorded as a delegated-flow convention (§7) and in the brainstorming / writing-phase-spec flows.
 - v1.4 · 2026-09-19 — Session-call semantic honesty (G1): the primitive is redefined as `load an upstream skill = import its flow once` — inline consumption as this session's baseline, at most one import per upstream type per session, re-entry routes on already-landed artifacts (mode marker / design context / registration marker); the "run a /xxx session" spawn wording is rejected across §7, the delegated-form example, and the session-call policy invariant.

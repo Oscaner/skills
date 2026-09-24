@@ -10,13 +10,13 @@ import { DOC_ROOT_SEGMENTS, DOC_ROOT_EXCLUDE_PATHS } from "../../../scripts/lib/
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..");
 
-// docs 根单源（scripts/lib/doc-root.ts）——排除后缀由此派生，不做链内手写字面。
+// Docs root single source (scripts/lib/doc-root.ts) — exclusion suffixes derive from it, never hand-written in the chain.
 const DOC_ROOT_EXCLUDES = DOC_ROOT_EXCLUDE_PATHS.map((p) => `| grep -v "${p}" `).join("");
 const DOC_ROOT_PREFIX = `| grep -v "${DOC_ROOT_SEGMENTS.join("/")}/" `;
 
 function grepCount(pattern, extraArgs = "") {
   try {
-    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "validate-overrides-build.mjs" | grep -v "docs/maintainers/osuperpowers-plugin" | grep -v "skill-authoring.md" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
+    const cmd = `grep -rn "${pattern}" ${extraArgs} packages/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "validate-overrides-build.mjs" | grep -v "skill-authoring.md" | grep -v "grep-sweep-regression.test.mjs" | wc -l`;
     return parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
   } catch { return 0; }
 }

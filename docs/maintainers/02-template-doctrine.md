@@ -2,14 +2,14 @@
 
 Maintainer-only doctrine for systematizing both template planes in this repository: the **engine prompt templates** (prompt products the dispatch builds) and the **skill document templates** (artifact/methodology templates the skills ship). Both had the same disease — scattered prose, no normalized structure — and both converge on the same data-driven treatment.
 
-## The two planes
+## 1. The two planes
 
 | Plane | Files | Product |
 |---|---|---|
 | Engine prompt templates | `packages/cdd-engine/templates/` — `engine-config.json` + `template-contract.json` + `schema/` (`task-handoff-schema.json` · `docs-handoff-schema.json` · `cache-profile-schema.json`) | prompts injected into dispatches |
-| Skill document templates | `packages/osuperpowers/skills/*/docs/` — `base-branch.md` (methodology only; the doc-structure templates `overall-spec-template.md` · `phase-spec-template.md` · `add-phase-protocol.md` were retired at consumer-parity P2 — see below) | artifact scaffolds + methodology the skills ship |
+| Skill document templates | `packages/osuperpowers/skills/*/docs/` — `base-branch.md` (methodology only; doc-structure content is canonical JSON Schemas — see §5) | artifact scaffolds + methodology the skills ship |
 
-## The five-layer convergence
+## 2. The five-layer convergence
 
 Four layers of the prompt templates converged first; this convergence phase adds the fifth:
 
@@ -22,7 +22,7 @@ Four layers of the prompt templates converged first; this convergence phase adds
    - **Clause library** (`template-contract.json#clauses`): every discipline clause (English comments, EOF newline, no full-tree `find`, stall-termination, plan/spec freeze, atomic commit, self-validate) lives once as byte-single-source text, referenced via `{{> cl:…}}` partial refs — changing a rule updates every template on one line
    - **Token registry** (`template-contract.json#tokens`): the 19 distinct injection tokens (17 `round-context` + 2 `return` — verified mechanically) become data (name / zone); the renderer drives off the registry; template text carries no loose tokens
 
-## Single-plane-single-file (data consolidation)
+## 3. Single-plane-single-file (data consolidation)
 
 Group data by consumer plane — one file per plane, one load point, one version unit:
 
@@ -32,16 +32,16 @@ Group data by consumer plane — one file per plane, one load point, one version
 
 Guards against the reverse debt (one mega-file): group by consumer plane · never merge dual-use surfaces · an injection byte-unit is a cache version-unit (touching the contract file re-versions the render data; the schema injection bytes stay untouched).
 
-## Cache integration
+## 4. Cache integration
 
 The segment attribute (C1) is the cache contract's landing spot: the shell (`## Instructions` + `## Handoff`, slot-free) plus the frozen per-format `## Return` constant are the cached prefix fuel; `## Round context` is the single dynamic zone — the only place per-dispatch token moustaches render. `validateTemplateStructure` takes the skeleton as input and asserts no token lands outside its owning zone.
 
-## Experience baking
+## 5. Experience baking
 
-Skill document templates additionally bake in the P1→P6 experience asset (see `program-experience.md`, condensed with the program's experience inventory): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
+Skill document templates additionally bake in the program's experience asset (see `05-program-experience.md`): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
 
-> **Doc-structure templates are canonical schemas now.** The retired `overall-spec-template.md` / `phase-spec-template.md` / `add-phase-protocol.md` place is the canonical doc-structure JSON Schemas in `packages/cdd-engine/src/documents/schema/` (surface: `cdd help` → `schemas:` dir). The schema carries the structure facts + the writing guidance (`description` per node) the templates carried in prose; skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. The remaining `base-branch.md` is methodology only — no doc-structure token lives there.
+> **Doc-structure templates are canonical JSON Schemas.** The doc-structure facts + writing guidance (`description` per node) live as canonical JSON Schemas in `packages/cdd-engine/src/documents/schema/` (surface: `cdd help` → `schemas:` dir); skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. The remaining skill document template, `base-branch.md`, is methodology only — no doc-structure token lives there.
 
-## Interaction with emit
+## 6. Interaction with emit
 
-Skill doc templates are emit-included: a template edit is picked up by the emit chain (`scripts/run.ts emit`), and `emit:check` pins any drift — no manual editing of derived products.
+Skill doc templates are emit-included under the `pnpm run emit` / `emit:check` discipline — see `01-data-driven-templates.md` (§3 R3, §4 I3).

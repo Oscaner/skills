@@ -38,7 +38,7 @@ export async function runFix(opts: FixOpts): Promise<void> {
         exitWithCode(2);
       }
       if (opts.task == null) {
-        process.stderr.write("cdd fix --type task: missing required --task <n>\n");
+        process.stderr.write("cdd fix --type task: missing required --tasks <n|n,n,…>\n");
         exitWithCode(2);
       }
       await runTask(harness, opts.task, {

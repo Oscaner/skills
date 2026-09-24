@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/cli/review.ts — `cdd review` (task/branch/spec/plan four-type dispatch).
 // spec §2.3 split (ex bin/cdd.mjs merged face): review dispatch lives here; the shared host
-// detection + Convergence guard cluster (detectCurrentHarness/requireHostHarness/DRY_RUN/intTask/
+// detection + Convergence guard cluster (detectCurrentHarness/requireHostHarness/DRY_RUN/parseTaskList/
 // resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard) moved to src/cli/shared.ts
 // (spec §2.6 shared split, ownership by closure completeness), reused by the 3 consumers
 // (fix/parse/branch-review) and this file via shared (single host fact source).
@@ -187,7 +187,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       exitWithCode(2);
     }
     if (opts.task == null) {
-      process.stderr.write("cdd review --type task: missing required --task <n>\n");
+      process.stderr.write("cdd review --type task: missing required --tasks <n|n,n,…>\n");
       exitWithCode(2);
     }
     // Workspace slug derives from the plan filename (workspaceSlug converges -design/-plan

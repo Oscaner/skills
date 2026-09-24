@@ -10,9 +10,10 @@
 // 用例用 `cwd: <tmp repo>` 把 root 落在自己的真仓里，plan 经 `--plan`（仓根相对）提供。
 // citty (Task 9) migration notes:
 //   - parse/usage errors are normalized to exit 2 + a `usage:` line on stderr (bin wrapper);
-//   - Bug A: --task <n> parseInt validation rejects non-integers with exit 2.
+//   - Bug A (P4.3 list model): --tasks <n|n,n,…> per-token integer validation rejects
+//     non-integers / empty slices with exit 2 (`--tasks must be comma-separated integers: <token>`).
 import { describe, it, expect } from 'vitest';
-import { spawnSync, execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -68,7 +69,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('dry-run implement → return block four lines APPROVED + exit 0', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
-      ['--dry-run', 'implement', '--task', '1', '--plan', plan],
+      ['--dry-run', 'implement', '--tasks', '1', '--plan', plan],
       HOST,
       { cwd: repo },
     );
@@ -89,7 +90,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('implement --plan without a pre-existing brief → self-provisions task-N-brief.md with TASK_BASE:', () => {
     const { repo, plan, ws } = setupWorkspace();
     const res = run(
-      ['--dry-run', 'implement', '--task', '1', '--plan', plan],
+      ['--dry-run', 'implement', '--tasks', '1', '--plan', plan],
       HOST,
       { cwd: repo },
     );
@@ -103,7 +104,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('implement --plan with task missing from plan (out of bounds) → BLOCKED + exit 1 (no silent degradation)', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
-      ['--dry-run', 'implement', '--task', '9', '--plan', plan],
+      ['--dry-run', 'implement', '--tasks', '9', '--plan', plan],
       HOST,
       { cwd: repo },
     );
@@ -120,7 +121,7 @@ describe('cdd implement/review/fix CLI contract', () => {
     for (const [sub, , type] of cases) {
       const { repo, plan } = setupWorkspace();
       const res = run(
-        ['--dry-run', sub, '--type', type, '--task', '1', '--plan', plan],
+        ['--dry-run', sub, '--type', type, '--tasks', '1', '--plan', plan],
         HOST,
         { cwd: repo },
       );
@@ -142,7 +143,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('program 级 --dry-run 位置无关：子命令名之后也生效', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
-      ['implement', '--task', '1', '--dry-run', '--plan', plan],
+      ['implement', '--tasks', '1', '--dry-run', '--plan', plan],
       HOST,
       { cwd: repo },
     );
@@ -152,7 +153,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   });
 
   it('no host env → CDD_BLOCKED + exit 1 (harness resolved from ambient host, no flag)', () => {
-    const res = run(['implement', '--task', '1'], {}, { noHost: true });
+    const res = run(['implement', '--tasks', '1'], {}, { noHost: true });
     expect(res.status).toBe(1);
     expect(res.stderr).toMatch(/no host harness detected|CDD_BLOCKED/);
   });
@@ -163,7 +164,7 @@ describe('cdd implement/review/fix CLI contract', () => {
     expect(res.stderr).toMatch(/^usage: /);
   });
 
-  it('implement --plan without --task → usage stderr + exit 2', () => {
+  it('implement --plan without --tasks → usage stderr + exit 2', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
       ['--dry-run', 'implement', '--plan', plan],
@@ -175,7 +176,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   });
 
   it('unknown option → usage stderr + exit 2', () => {
-    const res = run(['implement', '--task', '1', '--bogus', 'x'], HOST);
+    const res = run(['implement', '--tasks', '1', '--bogus', 'x'], HOST);
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/^usage: /);
   });
@@ -183,7 +184,7 @@ describe('cdd implement/review/fix CLI contract', () => {
   it('review unknown --type → error stderr + exit 2 (runReview type validation)', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
-      ['--dry-run', 'review', '--type', 'handoff', '--task', '1', '--plan', plan],
+      ['--dry-run', 'review', '--type', 'handoff', '--tasks', '1', '--plan', plan],
       HOST,
       { cwd: repo },
     );
@@ -191,10 +192,68 @@ describe('cdd implement/review/fix CLI contract', () => {
     expect(res.stderr).toMatch(/unknown review --type: handoff/);
   });
 
-  it('Bug A regression: --task with non-integer string exits with error', async () => {
-    expect(() => execFileSync('node', [
-      CDD_MJS,
-      'implement', '--task', 'abc',
-    ], { encoding: 'utf8', stdio: 'pipe', env: cleanEnv() })).toThrow();
+  it('Bug A regression: --tasks non-integer token → usage + upgraded message + exit 2', () => {
+    // parseInt NaN must not leak into runTask (task-NaN-* garbage + a fake APPROVED return block);
+    // the parse layer rejects at parse time → exit 2 (legacy cdd-task contract, P4.3 单数据模型).
+    const res = run(['--dry-run', 'implement', '--tasks', 'abc'], HOST);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/^usage: /);
+    expect(res.stderr).toMatch(/--tasks must be comma-separated integers: abc/);
+  });
+});
+
+// --tasks <n|n,n,…> list model (parse layer): acceptance covers trim / dedupe / empty-slice /
+// non-integer rejection; `--tasks 1` and `--tasks 1,2` share the same dispatch path (the dispatch
+// layer threads the first task number — multi-task iteration lands in a later workstream) — P4.3.
+describe('P4.3 --tasks list model (engine 用例随迁面)', () => {
+  it('implement --tasks 1,2 → same dispatch path as --tasks 1 (task 1 dispatched, APPROVED + exit 0)', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'implement', '--tasks', '1,2', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+    expect(res.stdout).toMatch(/^commits: base=dry-run$/m);
+  });
+
+  it('--tasks with spaced token `1, 2` tolerated (trim) → same dispatch path', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'review', '--type', 'task', '--tasks', '1, 2', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+  });
+
+  it('--tasks 1,1 dedupes to [1] → task 1 dispatched', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'implement', '--tasks', '1,1', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^status: APPROVED$/m);
+  });
+
+  it('--tasks 1, (trailing comma empty slice) → exit 2', () => {
+    const { repo, plan } = setupWorkspace();
+    const res = run(
+      ['--dry-run', 'implement', '--tasks', '1,', '--plan', plan],
+      HOST,
+      { cwd: repo },
+    );
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/--tasks must be comma-separated integers/);
+  });
+
+  it('--tasks abc（缺 --plan 前置）→ parse 先拒 exit 2 + 升级消息（Bug A 回归强化）', () => {
+    const res = run(['implement', '--tasks', 'abc'], HOST);
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/--tasks must be comma-separated integers: abc/);
   });
 });

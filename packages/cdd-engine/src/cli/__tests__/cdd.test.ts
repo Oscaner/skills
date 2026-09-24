@@ -95,7 +95,7 @@ describe("cdd CLI", () => {
 
   it("dry-run review --type task → return block + exit 0", () => {
     const r = runCli(["--dry-run", "review", "--type", "task",
-      "--task", "1", "--plan", SMOKE_PLAN],
+      "--tasks", "1", "--plan", SMOKE_PLAN],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toMatch(/status: APPROVED/);
@@ -131,7 +131,7 @@ describe("cdd CLI", () => {
   });
 
   it("dry-run fix --type task → return block + exit 0", () => {
-    const r = runCli(["--dry-run", "fix", "--type", "task", "--task", "1",
+    const r = runCli(["--dry-run", "fix", "--type", "task", "--tasks", "1",
       "--findings", SMOKE_PLAN, "--plan", SMOKE_PLAN],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(0);
@@ -186,13 +186,13 @@ describe("cdd CLI", () => {
     expect(r.exitCode).toBe(0);
   });
 
-  it("--task 非整数 → 校验回退 exit 2（STD-3 Bug A 契约回归）", () => {
+  it("--tasks 非整数 → 校验回退 exit 2（STD-3 Bug A 契约回归，P4.3 升级消息）", () => {
     // parseInt NaN must not leak into runTask (task-NaN-* garbage + fake APPROVED return block);
-    // the Commander coercion rejects at parse time → exit 2 (legacy cdd-task contract).
-    const r = runCli(["--dry-run", "review", "--type", "task", "--task", "abc", "--plan", SMOKE_PLAN],
+    // the parse layer rejects at parse time → exit 2 (legacy cdd-task contract; P4.3 list model).
+    const r = runCli(["--dry-run", "review", "--type", "task", "--tasks", "abc", "--plan", SMOKE_PLAN],
       { env: { CLAUDE_CODE_SESSION_ID: "1" } });
     expect(r.exitCode).toBe(2);
-    expect(r.stderr).toMatch(/must be an integer, got: abc/);
+    expect(r.stderr).toMatch(/must be comma-separated integers: abc/);
   });
 
   // --- SP-4 Review Convergence status criterion: a BLOCKED/TIMEOUT failure round (findings:[])
@@ -225,7 +225,7 @@ describe("cdd CLI", () => {
   it("review --type task：status:BLOCKED 失败轮 → 可重派（SP-4）", () => {
     const { dir, plan } = seedTaskReviewHandoff("BLOCKED");
     try {
-      const r = runCli(["--dry-run", "review", "--type", "task", "--task", "1", "--plan", plan],
+      const r = runCli(["--dry-run", "review", "--type", "task", "--tasks", "1", "--plan", plan],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toMatch(/status: APPROVED/);
@@ -238,7 +238,7 @@ describe("cdd CLI", () => {
   it("review --type task：status:APPROVED + blocker=0 已通过轮 → 拒绝重派 exit 3（SP-4 保留 Convergence）", () => {
     const { dir, plan } = seedTaskReviewHandoff("APPROVED");
     try {
-      const r = runCli(["--dry-run", "review", "--type", "task", "--task", "1", "--plan", plan],
+      const r = runCli(["--dry-run", "review", "--type", "task", "--tasks", "1", "--plan", plan],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       expect(r.exitCode).toBe(3);
       expect(r.stderr).toMatch(/already blocker=0 — Review Convergence/);
@@ -677,7 +677,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
   it("implement --dry-run（task 面）: 脏树 exit 0 + return block APPROVED + WARN", () => {
     const dir = dirtyFixtureRepo();
     try {
-      const r = runCli(["--dry-run", "implement", "--task", "1", "--plan", "docs/plan.md"],
+      const r = runCli(["--dry-run", "implement", "--tasks", "1", "--plan", "docs/plan.md"],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       assertDryRunWarn(r);
       expect(r.stdout).toMatch(/status: APPROVED/);
@@ -687,7 +687,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
   it("review/fix --type task --dry-run: 脏树 exit 0 + WARN（各一条）", () => {
     const dir = dirtyFixtureRepo();
     try {
-      const r = runCli(["--dry-run", "review", "--type", "task", "--task", "1", "--plan", "docs/plan.md"],
+      const r = runCli(["--dry-run", "review", "--type", "task", "--tasks", "1", "--plan", "docs/plan.md"],
         { cwd: dir, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       assertDryRunWarn(r);
       expect(r.stdout).toMatch(/status: APPROVED/);
@@ -696,7 +696,7 @@ describe("P6 T10: E2② dry-run 脏树降级 — CLI 黑盒各型 sweep", () => 
     const dir2 = dirtyFixtureRepo();
     try {
       const findings = seedFindings(dir2, "plan/task-1-review-1.json");
-      const r = runCli(["--dry-run", "fix", "--type", "task", "--task", "1", "--plan", "docs/plan.md", "--findings", findings],
+      const r = runCli(["--dry-run", "fix", "--type", "task", "--tasks", "1", "--plan", "docs/plan.md", "--findings", findings],
         { cwd: dir2, env: { CLAUDE_CODE_SESSION_ID: "1" } });
       assertDryRunWarn(r);
       expect(r.stdout).toMatch(/status: APPROVED/);

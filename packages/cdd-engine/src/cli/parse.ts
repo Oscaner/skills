@@ -18,15 +18,15 @@ import { runReview } from "./review.ts";
 import { runFix } from "./fix.ts";
 import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.ts";
 import { runHelp } from "./help.ts";
-import { requireHostHarness, guardArgs, intTask, DRY_RUN } from "./shared.ts";
+import { requireHostHarness, guardArgs, parseTaskList, DRY_RUN } from "./shared.ts";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;
 // the commander-era wording is kept — the black-box face contracts pin it). Program-level
 // --dry-run does NOT appear here: it is declared on the main command only.
 const SUBCOMMAND_USAGE: Record<string, string> = {
-  implement: "usage: cdd implement --task <n> [--plan <path>]",
-  review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
-  fix: "usage: cdd fix --type <task|branch|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
+  implement: "usage: cdd implement --tasks <n|n,n,…> [--plan <path>]",
+  review: "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
+  fix: "usage: cdd fix --type <task|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
   // base-branch: a bad flag / unknown subcommand inside set|get resolves to this single-word key
   // (the bin wrapper maps a nested citty leaf to its parent command — see commandUsageKey).
   "base-branch": "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
@@ -120,14 +120,16 @@ function argsOf(def: CommandDef<any>): ArgsDef | undefined {
 const implementCmd = defineCommand({
   meta: { name: "implement", description: "run the task implement phase (cdd implement)" },
   args: {
-    task: { type: "string", required: true, valueHint: "n", description: "task number" },
+    tasks: { type: "string", required: true, valueHint: "n|n,n,…", description: "task number(s) — comma-separated list" },
     plan: { type: "string", valueHint: "path", description: "plan file path" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(implementCmd));
     const harness = requireHostHarness();
     const { runTask } = await import("../dispatch/task.ts");
-    await runTask(harness, intTask(args.task), {
+    // The --tasks value parses to the canonical task list; the dispatch layer threads the first
+    // task number (multi-task iteration lands in a later workstream) — P4.3 list model.
+    await runTask(harness, parseTaskList(args.tasks)[0], {
       mode: "implement", dryRun: DRY_RUN(), planFile: args.plan,
     });
   },
@@ -137,7 +139,7 @@ const reviewCmd = defineCommand({
   meta: { name: "review", description: "run a review — task | branch | spec | plan (consolidates the former cdd-task / docs-task review modes)" },
   args: {
     type: { type: "string", required: true, valueHint: "task|branch|spec|plan", description: "review type" },
-    task: { type: "string", valueHint: "n", description: "task number (type=task)" },
+    tasks: { type: "string", valueHint: "n|n,n,…", description: "task number(s) — comma-separated list (type=task)" },
     plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch; type=plan: review target)" },
     base: { type: "string", valueHint: "sha", description: "base commit (type=task|branch)" },
     head: { type: "string", valueHint: "sha", description: "head commit (type=task|branch)" },
@@ -146,7 +148,7 @@ const reviewCmd = defineCommand({
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(reviewCmd));
-    const task = args.task != null ? intTask(args.task) : undefined;
+    const task = args.tasks != null ? parseTaskList(args.tasks)[0] : undefined;
     await runReview({ ...args, task });
   },
 });
@@ -155,14 +157,14 @@ const fixCmd = defineCommand({
   meta: { name: "fix", description: "fix review findings — task | branch | spec | plan (formerly cdd-task / docs-task fix modes)" },
   args: {
     type: { type: "string", required: true, valueHint: "task|branch|spec|plan", description: "fix type" },
-    task: { type: "string", valueHint: "n", description: "task number (type=task)" },
+    tasks: { type: "string", valueHint: "n|n,n,…", description: "task number(s) — comma-separated list (type=task)" },
     findings: { type: "string", valueHint: "path", description: "findings handoff path for this fix round" },
     spec: { type: "string", valueHint: "path", description: "spec document path (type=spec)" },
     plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch|plan)" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(fixCmd));
-    const task = args.task != null ? intTask(args.task) : undefined;
+    const task = args.tasks != null ? parseTaskList(args.tasks)[0] : undefined;
     await runFix({ ...args, task });
   },
 });

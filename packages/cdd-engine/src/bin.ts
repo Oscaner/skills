@@ -6,7 +6,7 @@
 // runCommand → parse/usage error normalization (exit code table §2.4.2: 0 = OK incl. --help;
 // 1 = dispatch failure / blocked; 2 = usage or parse error; 3 = review convergence — citty's own
 // parse errors exit 1, so this wrapper is what keeps the subroutine's documented table intact).
-//   cdd implement --task <n> [--plan <path>]
+//   cdd implement --tasks <n|n,n,…> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> [...]
 //   cdd fix --type <task|spec|plan> [...]
 //   cdd base-branch <set|get> --plan <path> [...]
@@ -126,7 +126,7 @@ async function main() {
     if (raw instanceof ExitRequested) finalExit(raw.code);
     // The CddExitError family (P6 T24, F error consolidation): orchestration errors (registry gate /
     // DispatchBlocked / RunBlocked / usage) all land here and exit by their own exitCode. The
-    // kind=usage face (shared.ts guardArgs/intTask → cliUsageError) keeps the citty-usage parity:
+    // kind=usage face (shared.ts guardArgs/parseTaskList → cliUsageError) keeps the citty-usage parity:
     // usage line (the resolved command context via deepestCommand) + message + exit 2. All other
     // kinds → message + exit raw.exitCode (1 = blocked / run-blocked; the code is the family's
     // field, never recomputed here — the 0/1/2/3 table is the family's contract).

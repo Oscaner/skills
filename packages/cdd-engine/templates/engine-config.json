@@ -16,9 +16,9 @@
           "flag": "--findings",
           "type": "path"
         },
-        "task": {
-          "flag": "--task",
-          "type": "int"
+        "tasks": {
+          "flag": "--tasks",
+          "type": "int-list"
         },
         "type": {
           "flag": "--type",

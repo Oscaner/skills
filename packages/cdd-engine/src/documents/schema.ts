@@ -16,7 +16,7 @@ export const DOC_SCHEMA_NAMES = ["overall", "plan", "phase-spec", "add-phase-pro
 export type DocSchemaName = (typeof DOC_SCHEMA_NAMES)[number];
 
 /** The canonical doc-structure schema directory — the published addressable path (dist copy, the
- * face a consumer install ships and `cdd help` prints) first, the source tree as the dev fallback.
+ * face a consumer install ships and `cdd schema get` reads) first, the source tree as the dev fallback.
  * Optional fromDir: path.dirname(fileURLToPath(import.meta.url)) via the caller — tests exercise
  * the resolver against fabricated install layouts by passing an explicit directory. */
 export function resolveDocSchemaDir(fromDir = path.dirname(fileURLToPath(import.meta.url))): string {
@@ -49,9 +49,4 @@ export function loadDocSchema(name: DocSchemaName): unknown {
   const schema = JSON.parse(loadDocSchemaText(name)) as unknown;
   CACHE.set(name, schema);
   return schema;
-}
-
-/** The canonical doc-structure schema directory (help/consumer discovery surface). */
-export function docSchemaDir(): string {
-  return resolveDocSchemaDir();
 }

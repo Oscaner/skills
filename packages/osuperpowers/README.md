@@ -56,14 +56,14 @@ Or install from the oscaner-skills Claude Code marketplace:
 
 ## CDD engine CLI
 
-The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / help). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
+The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / schema). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
 
 | Harness | CLI binary | Ship status |
 |---------|------------|-------------|
 | claude | `claude` | Full |
 | cursor-agent | `cursor-agent` | Full |
 
-`cdd help` prints the engine's resource-discovery paths (CLI directory, document schemas, templates). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
+`cdd schema get <type>` prints the engine's canonical doc-structure schema straight to stdout (discovery-only, byte-identical to the shipped schema). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
 
 ## Docs for maintainers
 

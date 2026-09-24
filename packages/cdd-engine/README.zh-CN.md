@@ -26,8 +26,6 @@ npm install @oscaner-skills/cdd-engine
 
 全局选项：`--dry-run`——模拟派发而不写 handoff 产物。
 
-`cdd help` 打印引擎的资源发现路径：CLI 入口目录、文档 schema 目录（spec/plan 编写 schemas）与模板根目录。
-
 | 子命令 | 用法 | 用途 |
 |--------|------|------|
 | `implement` | `cdd implement --task=<n> [--plan=<path>]` | 运行任务 implement 阶段 |
@@ -35,7 +33,6 @@ npm install @oscaner-skills/cdd-engine
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | 修复评审发现——task、branch、spec 或 plan |
 | `base-branch` | `cdd base-branch set\|get` | 读写 `base-branch.json` 产物（单一 CDD `--plan` 目标） |
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
-| `help` | `cdd help` | 打印 CLI + 文档资源目录发现（schemas/templates） |
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --task` / `--base` / `--head` / `--spec` / `--round`）。
 
@@ -45,7 +42,7 @@ npm install @oscaner-skills/cdd-engine
 
 ```bash
 pnpm --filter @oscaner-skills/cdd-engine dev:stub   # 重建 jiti 即时加载开发 stub
-node packages/cdd-engine/dist/cli.mjs help          # 从工作树直接调用引擎
+node packages/cdd-engine/dist/cli.mjs schema get plan # 从工作树直接调用引擎
 pnpm --filter @oscaner-skills/cdd-engine test       # 运行引擎测试套件
 ```
 

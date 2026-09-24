@@ -24,8 +24,6 @@ npm install @oscaner-skills/cdd-engine
 
 Global option: `--dry-run` — simulate the dispatch without writing handoff artifacts.
 
-`cdd help` prints the engine's resource-discovery paths: the CLI entry directory, the document-schema directory (spec/plan authoring schemas), and the template root.
-
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
 | `implement` | `cdd implement --task=<n> [--plan=<path>]` | Run the task implement phase |
@@ -33,7 +31,6 @@ Global option: `--dry-run` — simulate the dispatch without writing handoff art
 | `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | Fix review findings — task, branch, spec, or plan |
 | `base-branch` | `cdd base-branch set\|get` | Read/write the `base-branch.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
-| `help` | `cdd help` | Print CLI + doc-resource directory discovery (schemas/templates) |
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --task` / `--base` / `--head` / `--spec` / `--round`).
 
@@ -43,7 +40,7 @@ The package lives in the [Oscaner/skills](https://github.com/Oscaner/skills) mon
 
 ```bash
 pnpm --filter @oscaner-skills/cdd-engine dev:stub   # rebuild the jiti immediate-load dev stub
-node packages/cdd-engine/dist/cli.mjs help          # invoke the engine from the working tree
+node packages/cdd-engine/dist/cli.mjs schema get plan # invoke the engine from the working tree
 pnpm --filter @oscaner-skills/cdd-engine test       # run the engine test suite
 ```
 

@@ -21,7 +21,8 @@
 //   4. mkdtemp consumer repo: git init + npm init + `npm install <tarball>` — consumer layout; the
 //      installed engine resolves all runtime resources under node_modules, never the repo tree.
 //   5. consumer chain: installed entry (`node <installed>/dist/cli.mjs`, plus the shipped
-//      node_modules/.bin/cdd), `cdd help` (absolute CLI dir + addressable schema/templates dirs),
+//      node_modules/.bin/cdd), `cdd schema get plan` (installed schema-dir addressability measured
+//      byte-identically — stdout === the published dist/documents/schema/plan.json bytes),
 //      then the five-command dry-run chain (implement / review task / fix task / review branch /
 //      fix branch). The fixture plan + design spec + the parent overall it links are GENERATED
 //      INSIDE the temp repo (D1), derived from the tarball's shipped doc-structure schemas and
@@ -38,7 +39,7 @@
 // present on macOS (bsdtar) and CI (GNU tar) — both support `-tzf` (list) and `-xOzf` (stdout read).
 
 import { execaCommandSync, execaSync } from "execa";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -283,24 +284,16 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
   const cli = path.join(installed, CLI_ENTRY);
   const env = { ...process.env, CLAUDE_CODE_SESSION_ID: "1" };
 
-  // `cdd help` outside the git repo — the discovery surface (cli dir + addressable schema/templates
-  // dirs), the install-face resource proof (AC6: installed-face schema-dir addressability measured).
-  const helpOut = execaSync(NODE, [cli, "help"], { cwd: consumerRoot }).stdout;
-  const helpLines = new Map(helpOut.split("\n").filter((l) => l.includes(": ")).map((l) => {
-    const idx = l.indexOf(": ");
-    return [l.slice(0, idx), l.slice(idx + 2)];
-  }));
-  // The engine prints realpath'd resource dirs (node realpaths loaded modules; macOS /var → /private/var) —
-  // compare against the realpath'd expectation for a platform-neutral byte match.
-  const expected = new Map([
-    ["cli", realpathSync(path.join(installed, "dist"))],
-    ["schemas", realpathSync(path.join(installed, "dist", "documents", "schema"))],
-    ["templates", realpathSync(path.join(installed, "templates"))],
-  ]);
-  for (const [key, exp] of expected) {
-    const got = helpLines.get(key);
-    assertTrue(got === exp, `cdd help ${key}: ${JSON.stringify(got)} — expected the installed path ${exp}`);
-  }
+  // `cdd schema get plan` — the discovery surface (canonical doc-structure schema straight to
+  // stdout), the install-face resource proof (AC6: installed-face schema-dir addressability measured
+  // byte-identically — schema-get stdout === the published dist/documents/schema/plan.json bytes).
+  // `stripFinalNewline: false` keeps execa from trimming the schema's trailing newline — the
+  // byte-identity assertion must measure the raw output, not a newline-normalized shape.
+  // Templates addressability is proven implicitly by the consumer chain below (the engine reads the
+  // shipped engine-config / handoff schemas on every dispatched command).
+  const schemaOut = execaSync(NODE, [cli, "schema", "get", "plan"], { cwd: consumerRoot, stripFinalNewline: false }).stdout;
+  assertTrue(schemaOut === readFileSync(path.join(installed, "dist", "documents", "schema", "plan.json"), "utf8"),
+    "cdd schema get plan output ≠ the installed dist/documents/schema/plan.json bytes");
   for (const f of DOC_SCHEMA_FILES) {
     assertTrue(existsSync(path.join(installed, "dist", "documents", "schema", f)), `installed schema dir missing ${f}`);
   }
@@ -317,9 +310,9 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
   // The five-command dry-run chain — argv shape mirrors the dispatch contract the engine's own
   // black-box suite exercises; each command asserts its return block before the next runs.
   const chain = [
-    ["--dry-run", "implement", "--task", "1", "--plan", fixture.plan],
-    ["--dry-run", "review", "--type", "task", "--task", "1", "--plan", fixture.plan],
-    ["--dry-run", "fix", "--type", "task", "--task", "1", "--plan", fixture.plan,
+    ["--dry-run", "implement", "--tasks", "1", "--plan", fixture.plan],
+    ["--dry-run", "review", "--type", "task", "--tasks", "1", "--plan", fixture.plan],
+    ["--dry-run", "fix", "--type", "task", "--tasks", "1", "--plan", fixture.plan,
       "--findings", path.join(fixture.workspace, "task-1-review-1.json")],
     ["--dry-run", "review", "--type", "branch", "--plan", fixture.plan, "--base", head, "--head", head],
     ["--dry-run", "fix", "--type", "branch", "--plan", fixture.plan,
@@ -353,5 +346,5 @@ export function main(): void {
   const consumer = installConsumer(tgz);
   runConsumerChain(consumer);
 
-  console.log("OK — cdd-engine consumer-sim (pack → install → help + 5-command dry-run chain green, tarball = real product)");
+  console.log("OK — cdd-engine consumer-sim (pack → install → cdd schema get + 5-command dry-run chain green, tarball = real product)");
 }

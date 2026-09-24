@@ -58,14 +58,14 @@ npm install @oscaner-skills/osuperpowers
 
 ## CDD 引擎 CLI
 
-CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base-branch / help）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
+CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base-branch / schema）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
 
 | Harness | CLI 二进制 | 交付状态 |
 |---------|------------|----------|
 | claude | `claude` | Full |
 | cursor-agent | `cursor-agent` | Full |
 
-`cdd help` 打印引擎的资源发现路径（CLI 目录、文档 schemas、模板）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。
+`cdd schema get <type>` 直出引擎的 canonical 文档结构 schema（发现型、与原 schema 文件同字节）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。
 
 ## 维护者文档
 

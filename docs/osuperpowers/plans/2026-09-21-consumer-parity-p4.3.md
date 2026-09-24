@@ -29,7 +29,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
 ### 死代码即删
 空壳、死代码随拆即删（无过渡 shim · 无别名 · 无历史叙述豁免）；frozen 历史 docs（overhaul 族 / p3-p6 历史行）不动。
 
-## Task 1: engine CLI `--tasks` 单数据模型（parse 层 + canonical argv 锁步）
+### Task 1: engine CLI `--tasks` 单数据模型（parse 层 + canonical argv 锁步）
 
 - **Do**: `parse.ts` 三 SUBCOMMAND_USAGE（implement/review/fix）改 `--tasks <n|n,n,…>`；三个 arg 声明 `task` → `tasks`（`valueHint: "n|n,n,…"`，citty type 仍 string）；dispatch 调用点 `intTask(args.task)` → `parseTaskList(args.tasks)`。`shared.ts` 新增 `parseTaskList`（split(`,`).map(trim) → 逐 token 整数校验 + 去重（`1,1` → `1`）+ 空 slice 拒绝；非整数 exit 2，Bug-A 消息升级 `--tasks must be comma-separated integers: <token>`）；`intTask` 内核复用于逐 token 校验、单值入口删除。`review.ts:190` / `fix.ts:41` 缺失必填错误串 `--task` → `--tasks`。`bin.ts:9` 头注释。`templates/engine-config.json` `channels.argv.task {flag: "--task", type: "int"}` → `"tasks" {flag: "--tasks", type: "int-list"}`——与 parse.ts 同改同提（residue Row-9/10 守卫从它派生 CANONICAL_ARGV_FLAGS）。
 
@@ -39,7 +39,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - engine 既有 `--task` T1 面全量迁 `--tasks`（parse/usage 声明 · review.ts:190 / fix.ts:41 必填错误串 · engine 用例随迁面），该面 grep `--task` 零命中（frozen 除外）；`packages/cdd-engine/src` 全量零命中在 Task 2 验收（re-dispatch 串迁移后可达）
   - residue Row-9/10 守卫绿（parse.ts ↔ engine-config argv `tasks` 通道锁步）
 
-## Task 2: dispatch 组载体（TaskLifecycle 组 · handoff 组键 · 超界 · re-dispatch 串）
+### Task 2: dispatch 组载体（TaskLifecycle 组 · handoff 组键 · 超界 · re-dispatch 串）
 
 - **Do**: `dispatch/task.ts` `TaskLifecycle.#taskNum` 标量 → TaskGroup 组载体（tasks 列表，组即单位）；`buildCtx` brief/handoff 组级键。`render/brief.ts:33-36` 超界检查升组级（读盘后任务数可得：超界整体 BLOCK + 逐项列示缺失，保留 `/task N not found/` 契约）。`templates/engine-config.json` `handoffNamespace.families`（implement.task / review.task / fix.task）命名 `task-{task}-*.json` → 组键 `tasks-{a}-{b}-*`（完整 list 串无 range 缩写：`--tasks 1` → `tasks-1` · `--tasks 1,2` → `tasks-1-2`）；同文件 derived 派生网格（L106-135）handoffPath/briefPath/findingsPath 的输入 from 引用（L109-111 / L115-118 / L130-134 标量 `task`）随组键同面落迁 `tasks`（组语义下该三通道读组键命名空间，与 `tasks-{a}-{b}-*` 一致）；`templates/schema/task-handoff-schema.json` 补组引用（tasks 列表 + per-task 区段字段）。`rules/failure.ts:117-121` 与 `dispatch/task.ts:760-761` re-dispatch 建议串改整组面（`cdd fix --tasks 1,2` 形态，无子集派发）。
 
@@ -50,7 +50,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - `packages/cdd-engine/src` grep `--task` 全量零命中（frozen 除外；T1 面 + 本任务 re-dispatch 两处 failure.ts:117-121 / dispatch/task.ts:760-761 迁移后可达）
   - handoff 命名 `tasks-{a}-{b}-*` 落地（engine 测试断言 artifact 名）；task-handoff-schema 组引用字段落位
 
-## Task 3: plan schema `taskGroups` + effectiveGroups 单处派生（空默认）
+### Task 3: plan schema `taskGroups` + effectiveGroups 单处派生（空默认）
 
 - **Do**: `src/documents/schema/plan.json` 加 `taskGroups` 属性（`optional` · `default: []` · `items: {tasks: number[]}` 且 `minItems ≥ 2`，长度 1 组为冗余、单组态只存在于空默认）+ description（写入「空默认 ⇒ 每 task 一组 = per-task 现状等价」语义）。`rules/documents.ts` / `dispatch/base.ts`：`effectiveGroups = taskGroups.length ? taskGroups : singletons(taskNumbersFromPlan(plan))` 单处派生，迭代随组（`derivePlanVerdict` / 进度跟踪面同构）。
 
@@ -59,7 +59,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - `plan.json` schema 含 `taskGroups`（`optional` · `default: []` · item `minItems ≥ 2`）；`effectiveGroups` 单处派生、无第二实现（grep）
   - taskGroups 写盘判定：长度 1 组不落盘（合并组字典 minItems ≥ 2 与裁定节点写盘一致）
 
-## Task 4: cli-driven-development digraph 改造（task-groups 裁定节点 + --tasks 调用串）
+### Task 4: cli-driven-development digraph 改造（task-groups 裁定节点 + --tasks 调用串）
 
 - **Do**: `packages/osuperpowers/skills/cli-driven-development/SKILL.md`：digraph 于 `C --> D` 边插 `T{task groups 裁定}`（task groups 界定 → 用户确认 → 才进 implement→review→fix loop；拒答 BLOCKED，门控镜像 `determine-base` AskUserQuestion 模板）；`H{more-tasks?}` → `H{more-groups?}`；节点定义补 task-groups 裁定（读 plan taskGroups → 界定 → 确认 → 组列表流入 D 的 `--tasks`；非平凡合并组 → 写 plan taskGroups 节 → 独立 commit → 干净树 → 才进 loop（树脏 BLOCK），写盘 commit 复用 I4 独立 commit 纪律——Task 6 五面文本）；implement-task / run-task-review / fix-task 三节点调用串 `--task <n>` → `--tasks <组列表>`；「One task at a time」子句改写为组语义（默认全单组 = 逐 task 现状等价）。
 
@@ -69,7 +69,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - 三节点调用串 `--tasks`（`packages/osuperpowers/skills/cli-driven-development/SKILL.md` grep `--task` 零命中）
   - 节点定义与 digraph 一一对应（无 dangling / 无 orphan）；`pnpm run emit` 后 `emit:check` 无 drift
 
-## Task 5: `cdd schema get` 命令（发现型 · 零执法）
+### Task 5: `cdd schema get` 命令（发现型 · 零执法）
 
 - **Do**: 新增 `cli/schema.ts`：`cdd schema get <type>` 子命令组——type 枚举四件全量（overall / plan / phase-spec / add-phase-protocol，对齐 engine `DOC_SCHEMA_NAMES` 注册表，`loadDocSchema` 按名加载）；stdout 直出 canonical schema JSON 原文；未知 doc-type → exit 2 + 可用名枚举（四件同源）；出口走 `exit.ts` 出口族（无裸 return）、stdout 结果面。`parse.ts` 声明 `schema` 子命令（无新 flag → canonical argv 通道/residue 无涉）。
 
@@ -79,7 +79,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - 零执法逻辑（黑盒断言无校验面）；`cli/schema.ts` 无裸 return、exit.ts 出口族
   - `cdd help` 功能不回归（本 task 后仍三行目录面——Task 7 简化为两行）
 
-## Task 6: skills 五件收口（I4 五面重写 · read-schema 直取 · 残留定位串清扫）
+### Task 6: skills 五件收口（I4 五面重写 · read-schema 直取 · 残留定位串清扫）
 
 - **Do**: 五件 skills（writing-single-spec **I3** · writing-overall-spec **I3** · writing-phase-spec **I4** · writing-plans **I4** · cli-driven-development **I7**）的 Mid-Flight Backfill 文本重写——四点 + 显式顺序：任何 dispatch（implement/review/fix）返回 → 立地落地 backfill → 独立 commit → 循环暂停至树净 → 恢复后下一轮 review in-band 审计（changed-surface booking，非 block；pending-acceptance sole-writer 路径保留）；**五面行体逐字节一致**（编号差异保留不统一）。三件 schema-bearing 技能（writing-overall-spec / writing-phase-spec / writing-plans）read-schema 指令从「run `cdd help` → `schemas:` 目录 → Read `<type>.json`」改「run `cdd schema get <type>` 直取成文」；writing-single-spec read-schema 节点显式 N/A；残留 `cdd help` 定位串清扫（writing-overall-spec role-note「(`cdd help` → `overall.json`)」/「(via `cdd help`)」、writing-plans pending-patch zone「`cdd help` → `plan.json`」）；改后 `pnpm run emit` + `emit:check` 无 drift + 产物重生成。
 
@@ -89,7 +89,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - `cdd help` → `schemas:` 目录 / `cdd help` → `overall.json` / `phase-spec.json` / `plan.json` 定位串零残留
   - `pnpm run emit` 后 `emit:check` 无 drift
 
-## Task 7: `cdd help` 简化（schemas 行删除）
+### Task 7: `cdd help` 简化（schemas 行删除）
 
 - **Do**: `cli/help.ts:49` 删除 `schemas: ${schemaDirectory()}` 行——doc-structure schema 消费唯经 `cdd schema get`（Task 5），该行唯消费者（skills read-schema 节点）已由 Task 6 切换；`cli/help.ts:38-44` 的 `resolveDocSchemaDir` / `schemaDirectory` 目录面随行成死代码（`cli/schema.ts` 走 `loadDocSchema` 文档注册表面、不复用该目录面），一并删除（死代码即删）；保留 `cli:` / `templates:` 两行（templates 面 = engine-config / template-contract / handoff schema 资源定位）；help 相关测试迁移。
 
@@ -97,7 +97,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - `cdd help` 输出 = `cli:` + `templates:` 两行绝对目录、`schemas:` 行零命中
   - help 测试面随迁（无语义断言损失）；`cdd help` 仍属发现型（Non-goal #1 双发现型豁免内），零执法逻辑不变
 
-## Task 8: #274 — doc-contract plan 列中间态 + claim 等值 + 诊断
+### Task 8: #274 — doc-contract plan 列中间态 + claim 等值 + 诊断
 
 - **Do**: `rules/documents.ts`：`isPendingText` 旁新增 `isInflightText`；plan 列三态语义 `[Pending]`（未开工）→ `[In-flight]`（已开工 · **无 reverse claim 义务**）→ `**Done**`（+ closeout claim）；in-flight 列不触发 reverse claim（非缺失 cell、不计 mismatch，closeout 规则 carve-out）。claim 双向等值放宽：link 形态 plan cell 对齐 design 列 `ownDesignToken` 提取——双向校验从逐字符严格相等（`stripCellMarkup === claim_target`）改为「link 指向同一 plan 文档即等」。诊断改进：claim 解析不再整子句扫 phase（prose 提及的 phase 误作 claim target），只认显式 claim 结构（`Pending → **Done**`）；多 phase 命中报错附「同子句 prose 提及 phase 亦成 target」提示。`documents/schema/overall.json` claimPatterns / plan cell completion marker 描述同步。
 
@@ -106,7 +106,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - Link 形态 plan cell 与 claim 双向等值（ownDesignToken 对齐，link 指向同一 plan 文档即等）；子句 prose 提及 phase 不再整体作 claim 目标（诊断提示到位）
   - overall.json claimPatterns / plan cell 描述与 enforcement 同形（对拍断言）
 
-## Task 9: #276 — overall.json 描述↔enforcement 对齐 + 报错 UX
+### Task 9: #276 — overall.json 描述↔enforcement 对齐 + 报错 UX
 
 - **Do**: `documents/schema/overall.json` 三处描述改向 enforcement 实读形态（enforcement 按位置读、语义正确，不反向改 engine 读法、不加 Scope 列）：`changeHistory.header.columns` enum → 描述统一首格 `version` 判定；`issueInventory.row.issueRef` 字面形式 → 合法枚举 none / `#NNN` / `[#NNN]` / `#NNN#issuecomment-<digits>` / 整格括号（`^[（(][^）)]*[）)]$`）；`phaseInventory.rowShape.cellCount` / `columnNames.header` → 6 内容列（c1=id / c3=Design / c4=plan / c6=dependency）、与 smoke-overall.md 行形一致（弃自相矛盾的 7+2 计数与 7 列 header）。报错 UX：`bad/empty version` · `unrecognized issue ref` · `not a Phase-inventory id` 三处附 `should look like:` 正确形态行；移除误导的「use the canonical 7-column Phase inventory header」提示（引擎不按该列序读取）。
 
@@ -115,7 +115,7 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - 三处报错附 `should look like:` 正确形态（bad/empty version · unrecognized issue ref · not a Phase-inventory id）
   - 误导的 7 列 header 提示移除（live 面 grep 零命中，frozen 豁免）
 
-## Task 10: 宣讲面 · 守卫 fixture · smoke-cdd · changeset · validate 收口
+### Task 10: 宣讲面 · 守卫 fixture · smoke-cdd · changeset · validate 收口
 
 - **Do**: cdd-engine 包 README `--task` 示例 ×4 行 → `--tasks`（`packages/cdd-engine/README.md:31,37` implement 表行 · review `--task` 选项列举 + `README.zh-CN.md:33,39` mirror 同步；osuperpowers 包同旗零命中无改）。`scripts/validate/__tests__/residue.test.ts:1149` + `:121` 合成 fixture 字面量迁 `--tasks`（`:121` retired-`brief` 守卫 `cdd brief --task 1 …` argv 迁 `--tasks`、anti-reintroduce 断言保留——与 `cli-shape.test.ts:108` 同构，非死码）。`scripts/validate/smoke-cdd.ts:320-323` consumer-sim 链 `--task 1` → `--tasks 1`；fix 链 `--findings` 路径字面量 `task-1-review-1.json`（L323）随 Task 2 组命名（`tasks-{a}-{b}-*`）同迁 `tasks-1-review-1.json`。changeset 逐 phase 建（cdd-engine breaking → major；osuperpowers skills 文本更新 → minor）。提交后全量 `pnpm run validate` 11 块全绿。
 

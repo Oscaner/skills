@@ -1,8 +1,8 @@
 # 消费者面一致性（Consumer Parity）— P4.3 cdd 多 task + task groups 裁定 + I4 语义修复 Implementation Plan
 
 **Spec:** [2026-09-21-consumer-parity-p4.3-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.3-design.md)
-- **Parent program**: [consumer-parity overall v1.30](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.3 · 2026-09-24（mid-flight 用户裁决：task-handoff-schema 删顶层 `task` 标量，required 迁 `tasks` —— 单数据模型）
+- **Parent program**: [consumer-parity overall v1.32](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
+- **Version**: v1.4 · 2026-09-24（mid-flight 用户裁决：task-handoff-schema 删顶层 `task` 标量，required 迁 `tasks` —— 单数据模型；`cdd help` 子命令整体移除——`--help` 旗标保留，T7 从「简化（删 schemas 行）」升级「整体移除」）
 - **Base**: develop
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.1-design.md)）
 
@@ -89,13 +89,14 @@ engine 测试不得以本仓产物为 fixture（P3 裁决）——#274/#276 回�
   - `cdd help` → `schemas:` 目录 / `cdd help` → `overall.json` / `phase-spec.json` / `plan.json` 定位串零残留
   - `pnpm run emit` 后 `emit:check` 无 drift
 
-### Task 7: `cdd help` 简化（schemas 行删除）
+### Task 7: `cdd help` 子命令整体移除（--help 旗标保留）
 
-- **Do**: `cli/help.ts:49` 删除 `schemas: ${schemaDirectory()}` 行——doc-structure schema 消费唯经 `cdd schema get`（Task 5），该行唯消费者（skills read-schema 节点）已由 Task 6 切换；`cli/help.ts:38-44` 的 `resolveDocSchemaDir` / `schemaDirectory` 目录面随行成死代码（`cli/schema.ts` 走 `loadDocSchema` 文档注册表面、不复用该目录面），一并删除（死代码即删）；保留 `cli:` / `templates:` 两行（templates 面 = engine-config / template-contract / handoff schema 资源定位）；help 相关测试迁移。
+- **Do**: **整体移除 `cdd help` 子命令**（2026-09-24 mid-flight 用户裁决「感觉没什么用」——Task 5 `cdd schema get` + Task 6 skills read-schema 直取后，help 三行发现面全空消费者：`schemas:` 行唯消费者 read-schema 已切 schema get、`cli:` / `templates:` 两行全仓零 agent 消费，dead surface 即删）：删 `cli/help.ts` 整文件（`runHelp` / `renderHelpText` / `cliDirectory` / `templatesDirectory` / `schemaDirectory`——schema 目录面不走 engine `loadDocSchema` 文档注册面、属死代码）；`cli/bin.ts` 删 `cdd help` pre-boot 拦截块（`--help` / `-h` pre-screen 保留——citty usage 渲染面，usage error 仍消费，**旗标面不回归**）；`cli/parse.ts` 删 helpCmd 声明 + `usage: cdd help` + 根描述 `schema/help` → `schema`（help 不注册即 unknown command，exit 2 + 子命令清单，可接受）；`cli/__tests__/help.test.ts` 删除。`scripts/validate/smoke-cdd.ts` consumer-sim 三行断言（cli/schemas/templates realpath）改锚 `cdd schema get plan`（AC6 安装面 schema-dir addressability 字节同形替换）+ `DOC_SCHEMA_FILES` existsSync 保留（templates addressability 由消费者链全流程隐式证）。`docs/maintainers/02-template-doctrine.md` "(surface: `cdd help` → `schemas:` dir)" 改述 `cdd schema get`；`documents/schema.ts:19` 注释 "(face a consumer install ships and `cdd help` prints)" 同步改述。Non-goal #1 双发现型豁免缩为单发现型 `cdd schema get`（charter v1.32）。
 
 - **验收**:
-  - `cdd help` 输出 = `cli:` + `templates:` 两行绝对目录、`schemas:` 行零命中
-  - help 测试面随迁（无语义断言损失）；`cdd help` 仍属发现型（Non-goal #1 双发现型豁免内），零执法逻辑不变
+  - `cdd help` 子命令零存在（`cli/help.ts` / `bin.ts` help 拦截块 / `parse.ts` helpCmd / `help.test.ts` 四面删除，`cdd help` 引擎面 grep 零命中）
+  - `--help` 旗标面不回归（usage 渲染绿）；`pnpm run validate` 11 块全绿（smoke-cdd consumer-sim 改锚 `cdd schema get plan` 后 AC6 安装面 addressability 实测通过）
+  - Non-goal #1 单发现型修订落地（`cdd schema get` 唯一豁免）；`docs/maintainers/` / `documents/schema.ts` 注释零 `cdd help` 残留
 
 ### Task 8: #274 — doc-contract plan 列中间态 + claim 等值 + 诊断
 

@@ -32,13 +32,21 @@ export function resolveDocSchemaDir(fromDir = path.dirname(fileURLToPath(import.
 // Per-schema parse cache (same shape as the rules/schema.ts cache for the shipped handoff schemas).
 const CACHE = new Map<DocSchemaName, unknown>();
 
+/** Single-point raw-text loader — the file bytes as-is (file resolution + read live here; parse
+ *  stays in loadDocSchema). `cdd schema get` prints the canonical schema JSON byte-identical to
+ *  the shipped file, and a JSON re-serialization of the parsed object is NOT byte-identical — the
+ *  CLI reads this raw path, never JSON.stringify(parse). */
+export function loadDocSchemaText(name: DocSchemaName): string {
+  const file = path.join(resolveDocSchemaDir(), `${name}.json`);
+  invariant(existsSync(file), `doc-structure schema file not found: ${file}`);
+  return readFileSync(file, "utf8");
+}
+
 /** Single-point canonical schema loader — parse-on-demand, cached. */
 export function loadDocSchema(name: DocSchemaName): unknown {
   const cached = CACHE.get(name);
   if (cached !== undefined) return cached;
-  const file = path.join(resolveDocSchemaDir(), `${name}.json`);
-  invariant(existsSync(file), `doc-structure schema file not found: ${file}`);
-  const schema = JSON.parse(readFileSync(file, "utf8")) as unknown;
+  const schema = JSON.parse(loadDocSchemaText(name)) as unknown;
   CACHE.set(name, schema);
   return schema;
 }

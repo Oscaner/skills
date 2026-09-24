@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // src/bin.ts — CDD engine CLI entry (spec §2.3; citty surface from Task 9, retired commander).
 // The full command tree lives in src/cli/parse.ts as one citty defineCommand (mainCommand with
-// the five subcommands implement / review / fix / base-branch [set|get] / help). This file only
+// the six subcommands implement / review / fix / base-branch [set|get] / schema [get] / help). This file only
 // boots it: `--help` pre-screen → `cdd help` discovery intercept → root/proc bootstrap →
 // runCommand → parse/usage error normalization (exit code table §2.4.2: 0 = OK incl. --help;
 // 1 = dispatch failure / blocked; 2 = usage or parse error; 3 = review convergence — citty's own
@@ -10,6 +10,7 @@
 //   cdd review --type <task|branch|spec|plan> [...]
 //   cdd fix --type <task|spec|plan> [...]
 //   cdd base-branch <set|get> --plan <path> [...]
+//   cdd schema get <type>
 //   cdd help
 //
 // Unconditional boot (no isMain guard): this artifact is only ever executed directly by node as
@@ -78,8 +79,9 @@ async function main() {
     finalExit(0);
   }
 
-  // `cdd help` — P2 discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
-  // subcommand, zero enforcement logic — no audit, no exit-semantics change). Intercepted BEFORE the
+  // `cdd help` — P2 discovery subcommand (overall v1.10 Non-goal#1 carve-out; P4.3's sibling
+  // `cdd schema get` rides the normal bootstrap below, so this pre-boot intercept stays
+  // help-exclusive). Zero enforcement logic — no audit, no exit-semantics change. Intercepted BEFORE the
   // root bootstrap like the `--help` pre-screen: pure resource discovery works outside git repos and
   // writes no lifecycle state (initRoot's repo gate / initProcLifecycle's lifecycle.json persist both
   // stay out of its path). RunHelp prints the CLI directory + the required doc-resource directories

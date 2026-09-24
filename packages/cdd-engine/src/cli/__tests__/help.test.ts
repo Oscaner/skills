@@ -5,8 +5,8 @@
 //     contract);
 //   - zero-enforcement properties: works outside a git repo (pre-boot intercept, no initRoot gate),
 //     writes no lifecycle state (no .osuperpowers/cdd created), triggers no audit / dispatch;
-//   - the `--help` surface lists the new help subcommand within the five-subcommand main
-//     description (implement/review/fix/base-branch/help); the `-h → help` pin in cdd.test keeps
+//   - the `--help` surface lists the help subcommand within the six-subcommand main
+//     description (implement/review/fix/base-branch/schema/help); the `-h → help` pin in cdd.test keeps
 //     matching the same prefix;
 //   - unit surface: renderHelpText shape + the resolver seam (cliDirectory / templatesDirectory /
 //     schemaDirectory) returning existing paths.
@@ -106,10 +106,10 @@ describe("cdd help (P2 T1 discovery subcommand)", () => {
     expect(parseHelp(r.stdout)).toHaveProperty("cli");
   });
 
-  it("`--help` surface lists the new help subcommand within the five-subcommand main description", () => {
+  it("`--help` surface lists the help + schema subcommands within the six-subcommand main description", () => {
     const r = runCli(["--help"]);
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/CDD engine CLI — implement\/review\/fix\/base-branch\/help/);
+    expect(r.stdout).toMatch(/CDD engine CLI — implement\/review\/fix\/base-branch\/schema\/help/);
     expect(r.stdout).not.toMatch(/\bbrief\b|\bresearch\b/);
   });
 });

@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/cli/parse.ts — citty command surface (Task 9; spec §2.3. The commander
 // program definition is retired — the full command tree lives here as ONE citty defineCommand
-// (mainCommand) with its four subcommands declared as citty subCommands: implement / review / fix
-// and base-branch with its nested set|get surface preserved via citty subCommands. Each action
+// (mainCommand) with its six subcommands declared as citty subCommands: implement / review / fix,
+// base-branch with its nested set|get surface, the discovery pair schema (get) and help. Each action
 // run() assembles the DispatchLifecycle subclass
 // (TaskLifecycle / DocsLifecycle via runTask / runDocsTask / runBranchReview) and guards its flag
 // surface (guardArgs, src/cli/shared.ts). src/bin.ts boots this tree: runCommand + the
@@ -17,6 +17,7 @@ import type { ArgsDef, CommandDef, CommandMeta, SubCommandsDef } from "citty";
 import { runReview } from "./review.ts";
 import { runFix } from "./fix.ts";
 import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.ts";
+import { runSchemaGet } from "./schema.ts";
 import { runHelp } from "./help.ts";
 import { requireHostHarness, guardArgs, parseTaskList, DRY_RUN } from "./shared.ts";
 
@@ -33,6 +34,9 @@ const SUBCOMMAND_USAGE: Record<string, string> = {
   // help is the engine's one discovery subcommand (overall v1.10 Non-goal#1 carve-out — the only
   // new subcommand in the P2 program).
   help: "usage: cdd help",
+  // schema — discovery: the canonical doc-structure schema printer (P4.3 Task 5). A nested leaf
+  // (get) resolves to this key via commandUsageKey's parent mapping (same as base-branch set|get).
+  schema: "usage: cdd schema get <type>",
 };
 
 // Print the usage line for the resolved parse/usage-error context; default = the top-level line.
@@ -202,11 +206,35 @@ const baseBranchCmd = defineCommand({
   subCommands: { set: setCmd, get: getCmd },
 });
 
-// `cdd help` — discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
+// schema — discovery-only canonical schema output (P4.3 Task 5): `cdd schema get <type>` prints
+// the requested doc-structure schema's canonical JSON byte-identical (the file content is the
+// result face). The single positional `<type>` is the DOC_SCHEMA_NAMES registry — no new flag, so
+// the canonical argv channel / residue ⑨ guard are untouched by this surface. Unknown type →
+// cliUsageError → exit 2 + the registry enumeration (see cli/schema.ts); a missing type is citty's
+// required-positional rejection, both normalized to the schema usage line by the bin wrapper.
+const schemaGetCmd = defineCommand({
+  meta: { name: "get", description: "print the canonical doc-structure schema for <type> (overall | plan | phase-spec | add-phase-protocol)" },
+  args: {
+    type: { type: "positional", required: true, description: "schema type — one of overall | plan | phase-spec | add-phase-protocol" },
+  },
+  run: async ({ args, rawArgs }) => {
+    guardArgs(rawArgs, argsOf(schemaGetCmd));
+    runSchemaGet(args.type);
+  },
+});
+
+const schemaCmd = defineCommand({
+  meta: { name: "schema", description: "read canonical doc-structure schemas (discovery, zero enforcement)" },
+  subCommands: { get: schemaGetCmd },
+});
+
+// `cdd help` — discovery subcommand (overall v1.10 Non-goal#1 carve-out: the P2 era's ONE new
 // subcommand, zero enforcement logic). Prints the cdd CLI's absolute directory + the required
 // doc-resource directories (schemas / templates). The bin thin entry intercepts `cdd help` before
 // the root bootstrap (repo-independent, zero lifecycle writes); this declared command is the
-// surface fallback and the `--help`/usage rendering face (landed in P2 T1 ②).
+// surface fallback and the `--help`/usage rendering face (landed in P2 T1 ②). The sibling
+// discovery face `cdd schema get` (P4.3 Task 5) rides the normal bootstrap — only help is
+// pre-boot intercepted.
 const helpCmd = defineCommand({
   meta: { name: "help", description: "print CDD CLI + doc-resource directory discovery (schemas/templates)" },
   args: {},
@@ -220,7 +248,7 @@ const helpCmd = defineCommand({
 export const mainCommand = defineCommand({
   meta: {
     name: "cdd",
-    description: "CDD engine CLI — implement/review/fix/base-branch/help",
+    description: "CDD engine CLI — implement/review/fix/base-branch/schema/help",
   },
   args: MAIN_ARGS,
   subCommands: {
@@ -228,6 +256,7 @@ export const mainCommand = defineCommand({
     review: reviewCmd,
     fix: fixCmd,
     "base-branch": baseBranchCmd,
+    schema: schemaCmd,
     help: helpCmd,
   },
 });

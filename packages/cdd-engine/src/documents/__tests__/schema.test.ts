@@ -19,7 +19,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
-import { DOC_SCHEMA_NAMES, loadDocSchema, resolveDocSchemaDir } from "../schema.ts";
+import { DOC_SCHEMA_NAMES, loadDocSchema, resolveDocSchemaDir, loadDocSchemaText } from "../schema.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // packages/cdd-engine/src/documents/__tests__ → package root (3 hops: __tests__ → documents → src → pkg)
@@ -215,5 +215,18 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       // the fabricated install dir itself is the only residue — rm it (nothing else was written)
       rmSync(install, { recursive: true, force: true });
     }
+  });
+
+  it("loadDocSchemaText returns the file bytes verbatim (byte-identical contract — a re-serialized parse is not)", () => {
+    // The raw-text loader is the `cdd schema get` stdout source: the bytes it returns must equal
+    // the on-disk file exactly, and JSON re-serialization must NOT be asserted against it (the
+    // canonical files' formatting is the truth — this pins the no-re-serialize contract).
+    for (const name of DOC_SCHEMA_NAMES) {
+      const file = path.join(resolveDocSchemaDir(), `${name}.json`);
+      expect(loadDocSchemaText(name)).toBe(readFileSync(file, "utf8"));
+    }
+    // loaded-parsed round-trips semantically but not byte-identity — the two loaders are distinct
+    // surfaces (JSON.stringify(JSON.parse(x)) normalizes the file's own formatting).
+    expect(JSON.parse(loadDocSchemaText("plan"))).toEqual(loadDocSchema("plan"));
   });
 });

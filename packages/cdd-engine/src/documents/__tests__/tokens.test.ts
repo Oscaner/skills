@@ -81,6 +81,13 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.taskGroupsLineRe.test("- **Task 3, 4**: x")).toBe(false);
   });
 
+  it("doctored plan taskGroups entry pattern dropping the number-list literal → the token build throws (schema-drift guard)", () => {
+    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
+      "^- \\*\\*Task [0-9, ]+\\*\\*:";
+    expect(() => deriveDocTokens(schemas({ plan: doctoredPlan }))).toThrow(/number-list literal/);
+  });
+
   it("doctored phase-spec version marker → the derived leaf follows the page twin; a one-page drift throws", () => {
     // Phase-spec pages the shared version marker as its own const leaf. Doctoring BOTH pages to a
     // new value keeps them equal — the derived phase-spec leaf follows live from the canonical edit.

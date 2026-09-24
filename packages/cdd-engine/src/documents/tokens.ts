@@ -249,6 +249,15 @@ export function deriveDocTokens(schemas: {
     "pattern",
   );
   const taskGroupsHeadingRe = new RegExp(`^${escapeRegExp(taskGroupsHeading)}\\s*$`);
+  // The capture-wrap below needs the schema's exact number-list literal `\d+(?:, \d+)*`. If the
+  // entry pattern ever loses it, replace() would silently no-op, the capture group would vanish and
+  // taskGroupsFromPlan would throw on undefined m[1] at plan-parse time. Fail here, at token-build
+  // time, on the schema-drift edit instead — the live-derivation law fails loudly, not at a parse.
+  if (!taskGroupsEntryPattern.includes("\\d+(?:, \\d+)*")) {
+    throw new Error(
+      'doc-structure schema drift: plan.json taskGroups.entry pattern lost the number-list literal "\\d+(?:, \\d+)*"',
+    );
+  }
   const taskGroupsLineRe = new RegExp(
     taskGroupsEntryPattern.replace("\\d+(?:, \\d+)*", "(\\d+(?:, \\d+)*)"),
   );

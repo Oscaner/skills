@@ -169,19 +169,26 @@ export function taskNumbersFromPlan(planFile: string): number[] {
 // ---- task groups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration + the ONE
 // effectiveGroups derivation (every group iteration surface consumes it — no second implementation).
 
+// The standard section stop set — the structural boundary that closes a `##`-level section: a
+// `#`/`##` heading or a `---` rule (the `### Task ` heading clause — DOC_TOKENS.taskHeadingPrefixRe —
+// rides alongside where the section must not swallow task atoms). ONE shared definition for every
+// section parser (task-groups / literal constraints / the prose-block boundary array), so a
+// boundary edit lands once instead of drifting per-parser.
+const PLAN_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
+
 /** Task-Groups section parse: the `## Task Groups` heading (canonical heading token) → the declared
  * merged groups as number[][] — one `- **Task 1, 2**: <note>` line per group (the captured comma-
  * space number list, the `--tasks <a>,<b>` join form), each parsed to sorted unique integers.
  * No section / empty section → [] (the empty default — the section is written ONLY when a
  * non-trivial merged group exists, so its absence IS the default). Section boundary = the standard
- * extractLiteralConstraints stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
+ * PLAN_SECTION_BOUNDARY stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
 export function taskGroupsFromPlan(planFile: string): number[][] {
   const lines = readFileSync(planFile, "utf8").split("\n");
   const start = lines.findIndex((l) => DOC_TOKENS.taskGroupsHeadingRe.test(l));
   if (start === -1) return [];
   const groups: number[][] = [];
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^(#{1,2}\s|---\s*$)/.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) break;
+    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) break;
     const m = lines[i].match(DOC_TOKENS.taskGroupsLineRe);
     if (!m) continue;
     groups.push([...new Set(m[1].split(",").map((s) => Number(s.trim())))].sort((a, b) => a - b));
@@ -194,8 +201,10 @@ export function taskGroupsFromPlan(planFile: string): number[][] {
  * singletons(taskNumbersFromPlan(plan))`. The empty default (no `## Task Groups` section) yields
  * [[1],[2],…,[N]] — exactly the pre-P4.3 per-task dispatch (zero migration); a non-empty
  * declaration replaces the singleton set entirely (the loop dispatches `--tasks <a>,<b>` per
- * declared group). Declared groups each carry >= 2 tasks (canonical minItems — a length-1 group is
- * redundant and never written; the singleton state exists only as this derived default). The
+ * declared group). A length-1 declared line is parse-tolerated and surfaces in effectiveGroups as
+ * declared — the parser never drops a declared task; the >= 2 floor is the schema minItems + the
+ * write-back judgment (a length-1 group is redundant and never lands on disk), never this
+ * derivation. The
  * iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines) consume this one
  * derivation — no second implementation. */
 export function effectiveGroups(planPath: string): number[][] {
@@ -218,7 +227,7 @@ function extractLiteralConstraints(content: string): string | null {
   if (start < 0) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^(#{1,2}\s|---\s*$)/.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) { end = i; break; }
+    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) { end = i; break; }
   }
   const body = lines.slice(start + 1, end).join("\n").trimEnd();
   if (!body) return null;
@@ -234,12 +243,11 @@ function proseAnchorRe(anchor: string): RegExp {
   return new RegExp(`^\\*\\*${anchor}(?:（[^）]*）)?\\*\\*[：:]`);
 }
 
-// Block boundary for the prose-pointer form (mirrors extractLiteralConstraints' boundary set): a
-// `---` rule, a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
+// Block boundary for the prose-pointer form (composes the shared PLAN_SECTION_BOUNDARY set): a
+// `---` rule or a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
 // (any prose-pointer-style bold heading begins a new declaration block).
 const PROSE_BLOCK_STOP = [
-  /^---\s*$/,
-  /^#{1,2}\s/,
+  PLAN_SECTION_BOUNDARY,
   DOC_TOKENS.taskHeadingPrefixRe,
   /^\*\*[^*]+\*\*[：:]/,
 ] as const;

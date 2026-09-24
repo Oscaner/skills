@@ -54,6 +54,13 @@ function extractTasks(planPath: string): number[] {
   return nums.sort((a, b) => a - b);
 }
 
+/** test-side effectiveGroups mirror — the empty-default per-task singletons. The no-taskGroups
+ * derivation itself is pinned in documents.test.ts; this surface always consumes it via the
+ * injected extractor (the verdict module carries no singleton fallback — one derivation). */
+function singletonGroups(planPath: string): number[][] {
+  return extractTasks(planPath).map((n) => [n]);
+}
+
 function planFile(body: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-status-plan-"));
   const p = path.join(dir, "plan.md");
@@ -199,7 +206,7 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
     for (const n of [1, 2]) {
       writeHandoff(ws, `tasks-${n}-review-1.json`, { tasks: [n], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
     }
-    const v: PlanVerdict = derivePlanVerdict(plan, ws, extractTasks);
+    const v: PlanVerdict = derivePlanVerdict(plan, ws, extractTasks, singletonGroups);
     expect(v.done).toBe(true);
     expect(v).toEqual({ total: 2, complete: 2, pending: [], done: true });
     expect(formatPlanVerdict(v)).toBe("plan done (2/2 complete)");
@@ -218,7 +225,7 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
     // task 2: review CHANGES_REQUESTED → fix APPROVED → needs-re-review (six-state convergence evidence)
     writeHandoff(ws, "tasks-2-review-1.json", { tasks: [2], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
     writeHandoff(ws, "tasks-2-fix-1.json", { tasks: [2], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
-    const v: PlanVerdict = derivePlanVerdict(plan, ws, extractTasks);
+    const v: PlanVerdict = derivePlanVerdict(plan, ws, extractTasks, singletonGroups);
     expect(v.done).toBe(false);
     expect(v).toEqual({ total: 2, complete: 1, pending: [{ task: 2, state: "needs-re-review" }], done: false });
     expect(formatPlanVerdict(v)).toBe("1/2 complete — pending: task 2 (needs-re-review)");
@@ -231,7 +238,7 @@ describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ s
 });
 
 describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroups single derivation)", () => {
-  it("empty-default equivalence: extractGroups absent ≡ per-task singletons — the pre-P4.3 verdict unchanged", () => {
+  it("empty-default iteration: per-task singletons — the no-taskGroups effectiveGroups — yield the pre-P4.3 verdict unchanged", () => {
     const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
     const ws = workspace({
       plan: "",
@@ -243,10 +250,10 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
     for (const n of [1, 2]) {
       writeHandoff(ws, `tasks-${n}-review-1.json`, { tasks: [n], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
     }
-    // a no-taskGroups plan's effectiveGroups is the per-task singletons — the group surface and the
-    // bare task-number surface produce byte-identical verdicts (the zero-migration property)
-    const singletonGroups = (planPath: string) => extractTasks(planPath).map((n) => [n]);
-    expect(derivePlanVerdict(plan, ws, extractTasks, singletonGroups)).toEqual(derivePlanVerdict(plan, ws, extractTasks));
+    // A no-taskGroups plan's effectiveGroups is the per-task singletons (pinned at the derivation
+    // in documents.test.ts). This surface consumes it as the injected extractor and yields the
+    // pre-P4.3 per-task iteration exactly (the zero-migration property — the verdict module carries
+    // no singleton fallback of its own, so no caller can drift off the single derivation).
     expect(derivePlanVerdict(plan, ws, extractTasks, singletonGroups)).toEqual({ total: 2, complete: 2, pending: [], done: true });
   });
 

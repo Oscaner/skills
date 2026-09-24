@@ -225,17 +225,22 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
     expect(effectiveGroups(p)).toEqual([[1, 2], [3, 4]]);
   });
 
-  it("every declared group carries >= 2 tasks — the write-back invariant (length-1 groups only exist as the default)", () => {
+  it("a length-1 declared line is parse-tolerated and surfaces in effectiveGroups — the >= 2 floor is schema minItems + write-back, never the parser", () => {
     const p = planFile([
       "# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n\n### Task 3: c\nbody\n",
       "## Task Groups",
       "",
-      "- **Task 1, 2, 3**: grouped",
+      "- **Task 1**: length-1 line (schema-invalid — tolerated read-only, never written back)",
+      "- **Task 2, 3**: conformant merged group",
       "",
     ].join("\n"));
-    const groups = effectiveGroups(p);
-    expect(groups).toEqual([[1, 2, 3]]);
-    expect(groups.every((g) => g.length >= 2)).toBe(true);
+    // Reader tolerance: the length-1 group parses and surfaces verbatim — taskGroupsFromPlan /
+    // effectiveGroups never drop a declared task. The >= 2 floor lives in plan.json
+    // taskGroups.items.tasks.minItems + the adjudication write-back judgment (plan.json description:
+    // a length-1 group never lands on disk — the single-group state exists only as the empty
+    // default), not in this derivation.
+    expect(taskGroupsFromPlan(p)).toEqual([[1], [2, 3]]);
+    expect(effectiveGroups(p)).toEqual([[1], [2, 3]]);
   });
 });
 

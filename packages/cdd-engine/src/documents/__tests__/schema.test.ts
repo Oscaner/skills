@@ -8,9 +8,9 @@
 //     back to the source tree (dev face); the resolver is exercised against a fabricated
 //     consumer-install layout deterministically (no real build needed in the suite);
 //   - canonical token spot-checks pin the contract-critical patterns (task-heading colon form,
-//     CLAIM_RE family, 7-column header, prose-anchor quad, pending-acceptance-patch zone,
-//     `### Acceptance criteria` uniqueness) so an accidental edit of the single source surfaces
-//     as a test failure.
+//     CLAIM_RE family, six-content-column Phase-inventory rows, prose-anchor quad,
+//     pending-acceptance-patch zone, `### Acceptance criteria` uniqueness) so an accidental edit
+//     of the single source surfaces as a test failure.
 // Zero transactional behavior: this module reads only — no writes, no dispatch, no audit.
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
@@ -20,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { DOC_SCHEMA_NAMES, loadDocSchema, resolveDocSchemaDir, loadDocSchemaText } from "../schema.ts";
+import { DOC_TOKENS } from "../tokens.ts";
 import { isPendingText, isInflightText } from "../../rules/documents.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -123,11 +124,13 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       expect(markerDesc).toMatch(/line 2/i);
     }
     if (name === "overall") {
-      // canonical 7-column header
+      // canonical header — SIX content columns per phase row (the enforcement position-reads
+      // c1 = id / c3 = Design spec / c4 = Implementation plan / c6 = Dependency; the written
+      // header is the inspection row, keyed via headerOpen + the canonical-form marker)
       expect(get("$.properties.phaseInventory.properties.columnNames.properties.header.const")).toBe(
         "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
       );
-      expect((schemaNode(s, "$.properties.phaseInventory.properties.columnNames.properties.count.const"))).toBe(7);
+      expect((schemaNode(s, "$.properties.phaseInventory.properties.columnNames.properties.count.const"))).toBe(6);
       // claim pattern — CLAIM_RE family single source: pin it as a LIVE regex by compiling the
       // canonical pattern and asserting representative change-history claim clauses match (the
       // target stops at whitespace / CJK punctuation / brackets — the capture is bounded, trailing
@@ -224,6 +227,66 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
     expect(isPendingText("**Done**")).toBe(false);
     expect(isInflightText("Done")).toBe(false);
     expect(isInflightText("**Done**")).toBe(false);
+  });
+
+  it("overall descriptions align with the enforcement's positional reads (P4.3 Task 9 #276 parity)", () => {
+    // The schema descriptions are the authoring authority authors draft against — they must teach
+    // exactly the shape documents.ts / tokens.ts actually read. Each claim below is anchored on a
+    // derived token or a constant the enforcement consumes, so description drift fails loudly.
+    const overall = loadDocSchema("overall");
+    const desc = (p: string): string => {
+      const v = schemaNode(overall, p);
+      if (typeof v !== "string") throw new Error(`expected string at ${p}`);
+      return v;
+    };
+
+    // Phase-inventory rows are position-read over SIX content cells (parseOverall's cell map:
+    // id = c[1], design = c[3], plan = c[4], dependency = c[6]). The count leaf must equal the
+    // row-shape guard's split count (8) minus the two edge empties — the schema cannot claim a
+    // self-contradictory 7 (+2 = 9) while the enforcement gates on 8.
+    expect(schemaNode(overall, "$.properties.phaseInventory.properties.columnNames.properties.count.const")).toBe(
+      DOC_TOKENS.phaseRowCellCount - 2,
+    );
+    const cellCountDesc = desc("$.properties.phaseInventory.properties.rowShape.properties.cellCount.description");
+    expect(cellCountDesc).toMatch(/6 content columns/);
+    for (const pos of ["c1", "c3", "c4", "c6"]) expect(cellCountDesc).toContain(pos);
+    expect(cellCountDesc).not.toMatch(/7 content/); // the retired "7 content + 2 empties = 9" count
+
+    // Header: the enforcement keys on the `| # | Phase |` open (headerOpen) + the Implementation
+    // plan marker (canonicalColumnToken), and reads rows by position — never by a 7-column list.
+    const headerDesc = desc("$.properties.phaseInventory.properties.columnNames.properties.header.description");
+    expect(headerDesc).not.toMatch(/7-column/);
+    expect(headerDesc).toMatch(/\| # \| Phase \|/);
+    expect(headerDesc).toMatch(/Implementation plan/);
+    const sectionDesc = desc("$.properties.phaseInventory.description");
+    expect(sectionDesc).not.toMatch(/7-column/);
+
+    // Change history: the version cell is determined by POSITION (the row's FIRST content cell
+    // carrying the `v<major>.<minor>` token), never by the header's conventional column names.
+    const columnsDesc = desc("$.properties.changeHistory.properties.header.properties.columns.description");
+    expect(columnsDesc).toMatch(/first content cell/);
+    expect(columnsDesc).toMatch(/version/i);
+    expect(columnsDesc).toMatch(/position|by position|POSITION/i);
+    expect(
+      desc("$.properties.changeHistory.properties.header.properties.columns.items.description"),
+    ).toMatch(/not read|never reads|never keyed|conventional/i);
+
+    // Issue ref: the legal vocabulary mirrors the enforcement's five acceptance paths (bare none /
+    // `#NNN` / `[#NNN]` / `#NNN#issuecomment-<digits>` / whole-cell parenthetical); the retired
+    // `none (dogfood session …)` literal is gone — the gate accepts only the bare `none`.
+    const issueRefDesc = desc("$.properties.issueInventory.properties.row.properties.issueRef.description");
+    for (const form of ["`none`", "#NNN", "[#NNN]", "#NNN#issuecomment-<digits>", "（", "）"]) {
+      expect(issueRefDesc).toContain(form);
+    }
+    expect(issueRefDesc).not.toMatch(/dogfood session/);
+  });
+
+  it("the live canonical surface carries no misleading 7-column Phase-header claim (the retired hint + drifted descriptions)", () => {
+    // The 7-column Phase-header framing is gone from every shipped plane: the canonical schema
+    // text (the authoring surface) and the engine's enforcement module. Frozen program docs
+    // (docs/osuperpowers/specs/*) are exempt — they are lineage-pinned artifacts, not live surface.
+    expect(loadDocSchemaText("overall")).not.toMatch(/7-column/);
+    expect(readFileSync(path.join(PKG_ROOT, "src", "rules", "documents.ts"), "utf8")).not.toMatch(/7-column/);
   });
 
   it("loader resolves the source tree in the dev face and a fabricated install layout in the consumer face", () => {

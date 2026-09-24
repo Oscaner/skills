@@ -73,7 +73,9 @@ export interface DocTokens {
   versionTokenRe: RegExp;
   /** `/^\|\s*#\s*\|\s*Phase\s*\|/` — Phase-inventory header open. */
   phaseHeaderRe: RegExp;
-  /** `| # | Phase | Scope | … |` — the canonical 7-column Phase-inventory header row. */
+  /** `| # | Phase | Scope | … |` — the Phase-inventory header row as written in conforming
+   *  artifacts (inspected via `headerOpen` + `canonicalColumnToken`; rows are position-read over
+   *  six content cells — never keyed by this column list). */
   phaseInventoryHeader: string;
   /** `Implementation plan` — the canonical-form marker column name. */
   canonicalColumn: string;

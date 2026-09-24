@@ -636,7 +636,9 @@ export function parseOverall(overallPath: string): OverallParse {
       const m = (c[1] ?? "").match(VERSION_CELL_NUMERIC_RE);
       let version: [number, number] | null = null;
       if (!m) {
-        out.versionProblems.push(`bad/empty version: ${JSON.stringify(c[1])}`);
+        out.versionProblems.push(
+          `bad/empty version: ${JSON.stringify(c[1])} — should look like: \`| v1.0 | <date> | <summary> |\` (the first content cell must carry the \`v<major>.<minor>\` token)`,
+        );
       } else {
         version = [+m[1], +m[2]];
         if (!(c[2] ?? "").trim()) out.versionProblems.push(`version v${m[1]}.${m[2]} has an empty date`);
@@ -713,7 +715,7 @@ export function validateOverallContract(overallPath: string, phaseId: string | n
       field: "Phase inventory",
       missing: o.reason,
       fix: o.reason.includes("non-canonical")
-        ? `use the canonical 7-column Phase inventory header (\`${DOC_TOKENS.phaseInventoryHeader}\`)`
+        ? `add the \`${DOC_TOKENS.canonicalColumn}\` column to the Phase inventory header (the canonical-form marker the engine keys on; the \`| # | Phase |\` header open must stay)`
         : "make sure the overall file exists and carries a canonical Phase inventory table",
     });
     return failures;
@@ -1046,7 +1048,7 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
         artifact: "overall",
         file: overallPath,
         field: "Issue inventory",
-        missing: `issue row phase ${JSON.stringify(r.phase)} is not a Phase-inventory id`,
+        missing: `issue row phase ${JSON.stringify(r.phase)} is not a Phase-inventory id — should look like: \`P1\`, \`P2.1\` (a canonical \`P<digits>(.digits)*\` id registered in the Phase inventory)`,
         fix: "set the Issue-inventory Phase column to a registered phase id (or fix the row alignment)",
       });
       continue;
@@ -1071,7 +1073,7 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
       artifact: "overall",
       file: overallPath,
       field: "Issue inventory",
-      missing: `unrecognized issue ref: ${refTxt}`,
+      missing: `unrecognized issue ref: ${refTxt} — should look like: \`none\`, \`#123\`, \`[#123]\`, \`#123#issuecomment-456\`, or a whole-cell parenthetical note`,
       fix: "use the anchored form `#NNN#issuecomment-<digits>`, a bare/wrapped `#NNN`, the literal `none`, or a parenthetical note",
     });
   }

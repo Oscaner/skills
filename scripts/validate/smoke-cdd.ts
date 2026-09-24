@@ -190,8 +190,8 @@ function deriveFixture(consumerRoot: string, installed: string): Fixture {
   ].join("\n"), "utf8");
 
   // The overall the plan's **Parent program** link resolves to — a minimal canonical charter
-  // (canonical header + empty Phase inventory table, the canonical 7-column header derived from the
-  // shipped overall schema). The fixture spec omits its own Parent program line, so this overall is
+  // (canonical header + empty Phase inventory table, the header row derived from the shipped
+  // overall schema). The fixture spec omits its own Parent program line, so this overall is
   // never a reached audit face — materializing it only makes the plan's own parent link resolve
   // (self-consistency), never a document the four-table / overall-contract audit runs against.
   const overall = "fixture-overall.md";

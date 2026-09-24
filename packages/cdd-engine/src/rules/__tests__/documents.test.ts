@@ -1026,3 +1026,184 @@ describe("formatDocFailures — the guidance line (artifact · file · field · 
     expect(text.split("\n")).toHaveLength(1);
   });
 });
+
+describe("P4.3 Task 9 #276 — error UX guidance + schema-described authoring shapes", () => {
+  it("bad/empty version cell message carries `should look like:` (first-content-cell shape)", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | Pending | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| ?? | 2026-09-21 | Initial |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const v = f.find((x) => x.artifact === "overall" && x.field === "Change history");
+    expect(v).toBeDefined();
+    expect(v!.missing).toMatch(/bad\/empty version/);
+    expect(v!.missing).toMatch(/should look like:/);
+  });
+
+  it("not-a-Phase-inventory-id issue phase message carries `should look like:`", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "|---|---|---|",
+        "| P9 | none | issue one |",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | Pending | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const issue = f.find((x) => x.artifact === "overall" && x.field === "Issue inventory");
+    expect(issue).toBeDefined();
+    expect(issue!.missing).toMatch(/is not a Phase-inventory id/);
+    expect(issue!.missing).toMatch(/should look like:/);
+  });
+
+  it("unrecognized issue ref message carries `should look like:` (the retired `none (dogfood session …)` literal is rejected)", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "|---|---|---|",
+        "| P1 | none (dogfood session 2026-09-21 discovery) | issue one |",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | Pending | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const issue = f.find((x) => x.artifact === "overall" && x.field === "Issue inventory");
+    expect(issue).toBeDefined();
+    expect(issue!.missing).toMatch(/unrecognized issue ref/);
+    expect(issue!.missing).toMatch(/should look like:/);
+  });
+
+  it("non-canonical Phase inventory header failure no longer offers the 7-column hint and names the actual gate", () => {
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|",
+        "| P1 | phase one | | | none |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    const ph = f.find((x) => x.artifact === "overall" && x.field === "Phase inventory");
+    expect(ph).toBeDefined();
+    expect(ph!.missing).toMatch(/non-canonical/);
+    expect(ph!.fix).not.toMatch(/7-column/);
+    expect(ph!.fix).toMatch(/Implementation plan/);
+  });
+
+  it("every chapter of the schema-described authoring surface passes the doc-contract gate (regression — §验收 ②)", () => {
+    // A whole overall written per the Task 9 descriptions: six-content-cell Phase rows, all five
+    // legal issue-ref forms (none / `#NNN` / `[#NNN]` / `#NNN#issuecomment-<digits>` / whole-cell
+    // parenthetical), and a conventional one-line `| Version | date | summary |` heading.
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "|---|---|---|",
+        "| P1 | none | issue one |",
+        "| P1 | #123 | issue two |",
+        "| P1 | [#123] | issue three |",
+        "| P1 | #123#issuecomment-456 | issue four |",
+        "| P1 | （note） | issue five |",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | Pending | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "",
+      ].join("\n"),
+    });
+    expect(run(c)).toEqual([]);
+  });
+
+  it("issue-inventory rows carrying EVERY legal ref form still fail face ④ when the phase is unregistered (guidance works with valid refs)", () => {
+    // The should-look-like guidance must not mask the failure: write a valid ref on an
+    // unregistered phase — the SAME unrecognized-shape gate logic must not fire (the ref is
+    // fine), only the phase-registration failure does.
+    const c = writeChain({
+      overall: [
+        "- **Version**: v1.0 · 2026-09-21",
+        "",
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "|---|---|---|",
+        "| P9 | #123#issuecomment-456 | issue one |",
+        "",
+        "## Phase inventory",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "|---|---|---|---|---|---|---|",
+        "| P1 | phase one | [Pending] | Pending | | none |",
+        "",
+        "## Change history",
+        "",
+        "| Version | date | summary |",
+        "|---|---|---|",
+        "| v1.0 | 2026-09-21 | Initial |",
+        "",
+      ].join("\n"),
+    });
+    const f = run(c);
+    expect(f.some((x) => x.field === "Issue inventory" && /not a Phase-inventory id/.test(x.missing))).toBe(true);
+    expect(f.some((x) => x.field === "Issue inventory" && /unrecognized issue ref/.test(x.missing))).toBe(false);
+  });
+});

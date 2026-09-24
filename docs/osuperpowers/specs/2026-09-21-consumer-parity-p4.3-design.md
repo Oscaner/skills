@@ -1,18 +1,18 @@
 # 消费者面一致性（Consumer Parity）— P4.3 cdd 多 task 模式 + task groups 裁定 + Mid-Flight Backfill 语义修复 Design Spec
 
-- **Version**: v1.3 · 2026-09-24
+- **Version**: v1.4 · 2026-09-24
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
-- **Parent program**: [consumer-parity overall v1.27](2026-09-21-consumer-parity-overall.md)
+- **Parent program**: [consumer-parity overall v1.28](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.1（shipped · [p4.1-design v1.5](2026-09-21-consumer-parity-p4.1-design.md)）
 
 ## Section 0: Incremental warning
 
-本 phase 承载五块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）④⑤ **cdd-engine doc-contract gate 修复**（#274/#276，2026-09-24 用户裁决并入）——scope 扩展已回填 overall v1.27（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤ · change-history v1.27 行）；两修同属 engine breaking 面、1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
+本 phase 承载六块增量：① cdd CLI `--task` → `--tasks` 多 task 模式（单数据模型）② cli-driven-development 正式 enter loop 前新增 **task groups 裁定**节点 ③ **Mid-Flight Backfill 语义歧义修复**（I4 文本五面重写）④⑤ **cdd-engine doc-contract gate 修复**（#274/#276，2026-09-24 用户裁决并入）⑥ **`cdd schema get` 发现型子命令 + skills read-schema 直取**（2026-09-24 用户裁决并入）——scope 扩展已回填 overall v1.28（Issue inventory 锚点行 #274/#276 · P4.3 行 scope/AC ④⑤⑥ · change-history v1.27/v1.28 行）；engine breaking 面均属 1.0.0 前窗口。P4.4（`scripts/` + cdd-engine 全面 OOP 化）已注册为独立 phase（overall v1.26，serial gate：P4.3 Design spec 非 `[Pending]` 前不释放其 grilling）——本 phase 的抽象升级**止于 `--tasks` 面必需的最小改造**（TaskGroup 单数据模型），不越界开展全层类重构（那属 P4.4）；范围变更先回填 parent overall（backfill-as-version）再继续。
 
 ## Section 1: Constraints pointer
 
-Cross-phase 规则以 parent overall v1.27 为准（overall wins on conflict）：
+Cross-phase 规则以 parent overall v1.28 为准（overall wins on conflict）：
 
 - **允许破坏性变更**（charter 约束 bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；breaking 收进 P4.2 changelog
 - 判据三定式（C1 可达性 / C2 结构性 / C3 退化）适用于本 phase 一切处置判断
@@ -96,6 +96,14 @@ Cross-phase 规则以 parent overall v1.27 为准（overall wins on conflict）�
 
 **测试面补（#274/#276）**——engine 测试自造链覆盖（smoke-overall fixture 形态；零本仓产物 fixture，P3 裁决）；触发回归 = P3.8 触发现场复现（`[In-flight]` 列 + link 形态 plan cell + prose 提及 phase 不误命中）；#276 修正后照 schema 描述所写形态不再被 gate 拒绝（对拍断言）。
 
+**2.7 `cdd schema get` 发现型子命令 + skills read-schema 直取**（2026-09-24 用户裁决并入 · Non-goal #1 例外扩编）
+
+- **动机**：现 read-schema 面 = `cdd help` 打目录 → agent 跨文件系统定位并 Read 文件（心智负担 + 步骤间接）；`cdd schema get <type>` 直出 canonical schema 原文（stdout）一步到位，省去跨系统文件查找（用户需求原文）
+- **命令形态**：`cdd schema get <overall|phase-spec|plan>`——stdout 直出 canonical schema JSON 原文（单一来源 = engine 包 schema；未发布期 dist/documents/schema 同源）；doc-type 未知 → usage exit 2 + 可用名枚举；`cdd help` 保留（CLI 绝对目录 + templates/schema 目录面仍由 help 打印）；与 help 同属**发现型 · 零执法逻辑**（Non-goal #1：`cdd help` 唯一例外 → `cdd help` + `cdd schema get` 双发现型豁免，charter v1.28 修订）
+- **组件面**：新增 `cli/schema.ts`（子命令组）——`parse.ts` citty 声明 `schema` 子命令 + `get <type>` enum 校验（overall/phase-spec/plan）；`exit.ts` 出口族统一、stdout 结果面、无裸 return；**无新 flag** → canonical argv 通道不变、residue Row-9/10 无涉；engine-config 零改动
+- **测试面**：`cdd schema get phase-spec` 输出与 `dist/documents/schema/phase-spec.json` 同字节（engine 测试）；未知 doc-type → exit 2 + 可用名枚举；help 功能回归
+- **skills 更新（emit 输入面，与 §2.3 I4 重写同批文件）**：writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans 的 read-schema 指令从「run `cdd help` → schemas 目录 → Read 文件」改「run `cdd schema get <type>` 直取成文」；改后 `pnpm run emit` + `emit:check` 无 drift + 产物重生成；plan 侧 I4 五面重写 + read-schema 直取合并为同一 skills task（两类改动同文件同批落地）
+
 ### Acceptance criteria
 
 - `cdd implement --tasks 1` 与 `--tasks 1,2` 走同一 dispatch 路径、行为正确（engine 测试绿 + dispatch 实证）；`--task` 单数旗标零残留：`packages/cdd-engine/src` · `scripts/` · `skills/` · 两包 README grep `--task` 零命中（frozen 历史 docs 豁免）
@@ -110,12 +118,16 @@ Cross-phase 规则以 parent overall v1.27 为准（overall wins on conflict）�
 - `[In-flight]` 计划列状态合法（`isInflightText` · 无 reverse claim 义务 · 非 mismatch cell）；`[Pending]` → `[In-flight]` → `**Done**` 三态语义 + claim 只在 closeout 出现（engine 测试自造链 + P3.8 触发现场回归）
 - Link 形态 plan cell 与 claim 双向等值（ownDesignToken 对齐：link 指向同一 plan 文档即等，弃逐字符严格相等）；子句 prose 提及 phase 不再整体作 claim 目标（诊断提示到位）
 - overall.json 描述与 enforcement 三处同形（change-history 表头首格 `version` · issue-ref 合法枚举 · Phase 行 6 内容列；`documents.ts`↔schema 对拍断言）+ 三处报错附 `should look like:` 正确形态（bad/empty version · unrecognized issue ref · not a Phase-inventory id）+ 误导的 7 列提示移除
+- `cdd schema get <overall|phase-spec|plan>` stdout 与 canonical schema 同字节（engine 测试断言）；未知 doc-type → usage exit 2 + 可用名枚举；零执法逻辑（黑盒断言无校验面）；`cdd help` 功能不回归
+- writing-*（writing-single-spec / writing-overall-spec / writing-phase-spec / writing-plans）read-schema 节点全改 `cdd schema get <type>`（grep：四件命中 `cdd schema get` · 零残留 `schemas directory.*Read` 定位串）+ `pnpm run emit` 后 `emit:check` 无 drift
+- Non-goal #1 双发现型修订落地（`cdd help` + `cdd schema get` 均零执法逻辑；其余零新增子命令不变，grep 断言）
 
 ## Section 3: Deviations from overall
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
 | closeout 规则（P2 统一规则：结构性 mismatch 非空 → BLOCK · 声明源↔列双向全列） | plan 列新增 `[In-flight]` 中间态：已开工 · 无 reverse claim 义务（claim 只在 closeout `Pending → **Done**` 出现）· `[In-flight]` 非缺失 cell、不计 mismatch | Yes — v1.27 · 2026-09-24 |
+| Non-goal #1（P2 裁决：`cdd help` 唯一新增子命令 · 发现型信息面） | 例外扩为 `cdd help` + `cdd schema get <type>` 双发现型子命令（均零执法逻辑；schema get 直出内容、免跨系统文件查找）；其余「零新增子命令」豁免不变 | Yes — v1.28 · 2026-09-24 |
 | （其余全部设计裁决已随 overall v1.27 回填：P4.3 行 scope/AC ①–⑤同步 · P4.4 注册 · 依赖图 `P3 → P4.1 → P4.3 → P4.4 → P4.2`，见 v1.26/v1.27 change-history 行） | 同上 | Yes — v1.27 · 2026-09-24 |
 
 ## Section 4: Notes for downstream

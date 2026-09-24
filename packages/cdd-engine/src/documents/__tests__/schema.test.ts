@@ -20,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { DOC_SCHEMA_NAMES, loadDocSchema, resolveDocSchemaDir, loadDocSchemaText } from "../schema.ts";
+import { isPendingText, isInflightText } from "../../rules/documents.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // packages/cdd-engine/src/documents/__tests__ → package root (3 hops: __tests__ → documents → src → pkg)
@@ -170,6 +171,17 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       expect(new RegExp(get("$.properties.dependencyGraph.properties.hardEdge.pattern")).test("P2.1 -> P2.2")).toBe(true);
       expect(new RegExp(get("$.properties.dependencyGraph.properties.softEdge.pattern")).test("P2.1 -> (soft) P2.2")).toBe(true);
       expect(new RegExp(get("$.properties.claimPatterns.properties.designToken.pattern")).test("P2.1-design")).toBe(true);
+      // The three-state plan column + explicit-claim-only semantics are canonical facts of the schema
+      // (pinned so an accidental description drift surfaces — P4.3 Task 8 #274):
+      expect((schemaNode(s, "$.properties.phaseInventory.properties.cells.properties.inflight.enum") as string[]))
+        .toEqual(["In-flight", "[In-flight]"]);
+      const doneDesc = get("$.properties.phaseInventory.properties.cells.properties.done.description");
+      expect(doneDesc).toMatch(/claim|closeout/i);
+      expect(doneDesc).toMatch(/link/i);
+      expect(get("$.properties.phaseInventory.properties.cells.properties.pending.description")).toMatch(/In-flight|in-flight/);
+      const claimClauseDesc = get("$.properties.claimPatterns.properties.claimClause.description");
+      expect(claimClauseDesc).toMatch(/window|explicit/i);
+      expect(claimClauseDesc).toMatch(/prose|hint|diagnos/i);
     }
     if (name === "phase-spec") {
       // `### Acceptance criteria` is the unique subsection (const heading + fixed location)
@@ -187,6 +199,31 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       );
       expect(get("$.properties.issueReferenceSyntax.properties.anchoredForm.pattern")).toBe("^#\\d+#issuecomment-\\d+$");
     }
+  });
+
+  it("plan-cell enforcement predicates ↔ canonical cell enums (P4.3 Task 8 parity — enforcement and schema cannot drift)", () => {
+    // The three-state recognition (rules/documents.ts) must accept exactly the schema's canonical
+    // cells.pending / cells.inflight enum values — the contrast assertion that pins the descriptions
+    // written for #274 to the enforcement that implements them.
+    const overall = loadDocSchema("overall");
+    const pendingEnum = schemaNode(
+      overall,
+      "$.properties.phaseInventory.properties.cells.properties.pending.enum",
+    ) as string[];
+    const inflightEnum = schemaNode(
+      overall,
+      "$.properties.phaseInventory.properties.cells.properties.inflight.enum",
+    ) as string[];
+    expect(pendingEnum.length).toBeGreaterThan(0);
+    expect(inflightEnum).toEqual(["In-flight", "[In-flight]"]);
+    for (const v of pendingEnum) expect(isPendingText(v)).toBe(true);
+    for (const v of inflightEnum) {
+      expect(isInflightText(v)).toBe(true);
+      expect(isPendingText(v)).toBe(false);
+    }
+    expect(isPendingText("**Done**")).toBe(false);
+    expect(isInflightText("Done")).toBe(false);
+    expect(isInflightText("**Done**")).toBe(false);
   });
 
   it("loader resolves the source tree in the dev face and a fabricated install layout in the consumer face", () => {

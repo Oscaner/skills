@@ -29,7 +29,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, unlinkSync } from 
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { validateDispatchDocuments, formatDocFailures, taskNumbersFromPlan, extractPlanConstraints, parseOverall, extractClaimRows, taskGroupsFromPlan, effectiveGroups } from "../documents.ts";
+import { validateDispatchDocuments, formatDocFailures, taskNumbersFromPlan, extractPlanConstraints, parseOverall, extractClaimRows, taskGroupsFromPlan, effectiveGroups, isPendingText, isInflightText } from "../documents.ts";
 
 function repoDir(): string {
   return mkdtempSync(path.join(tmpdir(), "cdd-docs-"));
@@ -702,6 +702,197 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
     });
     const f = run(c);
     expect(f.some((x) => x.artifact === "overall" && /issue/i.test(x.field))).toBe(true);
+  });
+});
+
+// ---- Plan-column three-state machine + explicit-claim-only parsing (P4.3 Task 8 #274) ---- //
+
+describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done**` (P4.3 Task 8)", () => {
+  it("isPendingText / isInflightText — the three-state recognition (pending vs in-flight vs shipped)", () => {
+    expect(isPendingText("[Pending]")).toBe(true);
+    expect(isPendingText("Pending")).toBe(true);
+    expect(isPendingText("")).toBe(true);
+    expect(isInflightText("[In-flight]")).toBe(true);
+    expect(isInflightText("In-flight")).toBe(true);
+    expect(isPendingText("[In-flight]")).toBe(false);
+    expect(isPendingText("In-flight")).toBe(false);
+    expect(isInflightText("[Pending]")).toBe(false);
+    expect(isInflightText("Done")).toBe(false);
+    expect(isInflightText("**Done**")).toBe(false);
+  });
+
+  // A self-contained three-state overall: P1 flows [Pending] → [In-flight] → **Done**, P2 pending
+  // (the dispatch entry), P1's plan doc on disk (writeAuditChain lands it).
+  const THREE_STATE_OVERALL = [
+    "- **Version**: v1.0 · 2026-09-21",
+    "",
+    "## Issue inventory",
+    "",
+    "| Phase | Issue (ref) | Title summary |",
+    "|---|---|---|",
+    "| P1 | none | issue one |",
+    "| P2 | none | issue two |",
+    "",
+    "## Phase inventory",
+    "",
+    "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+    "|---|---|---|---|---|---|---|",
+    "| P1 | phase one | [Pending] | {PLAN} | | none |",
+    "| P2 | phase two | [Pending] | [Pending] | | P1 ->(hard) |",
+    "",
+    "## Dependency graph (ASCII)",
+    "",
+    "```",
+    "P1 -> P2",
+    "```",
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary |",
+    "|---|---|---|",
+    "| v1.0 | 2026-09-21 | Initial |",
+    "",
+  ].join("\n");
+
+  it("`[Pending]` plan column → clean (no plan-doc obligation, no claim) and `[In-flight]` with its plan doc and NO claim → clean (reverse-claim carve-out, non-mismatch cell)", () => {
+    const pending = writeAuditChain({ overall: THREE_STATE_OVERALL.replace("{PLAN}", "[Pending]") });
+    expect(run(pending)).toEqual([]);
+    const inflight = writeAuditChain({ overall: THREE_STATE_OVERALL.replace("{PLAN}", "[In-flight]") });
+    expect(run(inflight)).toEqual([]); // started (已开工): the plan doc is on disk, yet no closeout claim is owed
+  });
+
+  it("`[In-flight]` is a non-missing cell — deleting the plan doc still fails face ②", () => {
+    const c = writeAuditChain({ overall: THREE_STATE_OVERALL.replace("{PLAN}", "[In-flight]") });
+    unlinkSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"));
+    const f = run(c);
+    expect(f.some((x) => x.artifact === "overall" && /missing/i.test(x.missing))).toBe(true);
+  });
+
+  it("`**Done` closeout demands a claim — a shipped column without one fails the reverse rule", () => {
+    const c = writeAuditChain({ overall: THREE_STATE_OVERALL.replace("{PLAN}", "**Done**") });
+    const f = run(c);
+    expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
+  });
+
+  it("three-state + claim only at closeout — `**Done**` + matching claim → clean (the legal terminal state)", () => {
+    const overall = THREE_STATE_OVERALL
+      .replace("{PLAN}", "**Done**")
+      .replace("- **Version**: v1.0 · 2026-09-21", "- **Version**: v1.1 · 2026-09-21")
+      .replace("| v1.0 | 2026-09-21 | Initial |", "| v1.0 | 2026-09-21 | Initial |\n| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |");
+    const c = writeAuditChain({ overall });
+    expect(run(c)).toEqual([]);
+  });
+
+  it("face ① forward: a claim targeting `Done` vs an `[In-flight]` column → NOT a mismatch (in-flight carve-out)", () => {
+    const c = writeAuditChain({
+      overall: AUDIT_OVERALL
+        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [In-flight] | | |"),
+    });
+    // The change-history still carries the P1 plan claim (v1.1) + the P1 plan doc is on disk —
+    // the in-flight column is a legal mid-dispatch state, never a forward mismatch.
+    expect(run(c)).toEqual([]);
+  });
+
+  it("face ①: a link-form plan column pointing at the phase's own plan doc satisfies its claim (own-document equivalence, ownDesignToken-aligned)", () => {
+    const c = writeAuditChain({
+      overall: AUDIT_OVERALL
+        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p1.md) | | |"),
+    });
+    expect(run(c)).toEqual([]);
+  });
+
+  it("face ①: a link-form plan column pointing at a DIFFERENT plan doc → forward mismatch (own-document identity fails)", () => {
+    const c = writeAuditChain({
+      overall: AUDIT_OVERALL
+        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p9.md) | | |"),
+    });
+    const f = run(c);
+    expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
+  });
+
+  it("face ① reverse: a shipped link-form plan column with no matching claim → reverse failure", () => {
+    const c = writeAuditChain({
+      overall: AUDIT_OVERALL
+        .replace("| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | Done | | |",
+          "| P1 | phase one | [p1-design v1.0](2026-09-21-plan-p1-design.md) | [p1-plan v1.1](2026-09-21-plan-p1-plan.md) | | |")
+        .replace("| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done） |", ""),
+    });
+    const f = run(c);
+    expect(f.some((x) => x.artifact === "overall" && /backfill/i.test(x.field))).toBe(true);
+  });
+});
+
+describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () => {
+  // The parse shape extractClaimRows consumes (a change-history row's summary cell).
+  function row(summary: string) {
+    return { version: [1, 2] as [number, number], date: "2026-09-21", summary };
+  }
+
+  it("a prose-mentioned phase in the SAME claim clause is not a target (window scan, not whole-clause)", () => {
+    const { planClaims, proseHints } = extractClaimRows(
+      [row("P1 Implementation plan 列回填（[Pending]→Done）+ Dependency graph P1→P3 边")],
+    );
+    expect([...planClaims.keys()]).toEqual(["P1"]);
+    expect(planClaims.get("P1")).toBe("Done"); // the claim key is the explicit target
+    expect(proseHints.get("P1")).toEqual(["P3"]); // the same-clause prose mention rides as the hint
+  });
+
+  it("two comma-joined claims in one clause attribute phases via successive windows", () => {
+    const { planClaims } = extractClaimRows(
+      [row("P1 Implementation plan 列回填（[Pending]→Done），P2 计划列回填（[Pending]→Done）")],
+    );
+    expect([...planClaims.keys()].sort()).toEqual(["P1", "P2"]);
+  });
+
+  it("a clause with BOTH a plan and a design claim attributes each target by its own window", () => {
+    const { planClaims, designClaims } = extractClaimRows(
+      [row("P1 计划列回填（[Pending]→Done）+ P2 Design-spec 列回填（[Pending]→p2-design v1.0）")],
+    );
+    expect([...planClaims.keys()]).toEqual(["P1"]);
+    expect(designClaims.get("P2")).toBe("p2-design");
+  });
+
+  it("a ranged claim stays range-expanded inside its window (P2.1–P2.3 → every endpoint + intermediate)", () => {
+    const { planClaims } = extractClaimRows(
+      [row("P2.1–P2.3 Implementation plan 列回填（[Pending]→Done）")],
+    );
+    expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
+  });
+
+  it("P3.8 scene: prose-mentioned P3 in the claim clause is NOT a claim target — no false reverse/forward mismatch on P3's `[In-flight]` column, and the P1 forward failure carries the diagnosis hint", () => {
+    const overall = [
+      "- **Version**: v1.2 · 2026-09-21",
+      "",
+      "## Phase inventory",
+      "",
+      "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+      "|---|---|---|---|---|---|---|",
+      "| P1 | phase one | [Pending] | [Pending] | | none |",
+      "| P2 | phase two | [Pending] | [Pending] | | none |",
+      "| P3 | phase three | [Pending] | [In-flight] | | none |",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary |",
+      "|---|---|---|",
+      "| v1.0 | 2026-09-21 | Initial |",
+      "| v1.1 | 2026-09-21 | P1 Implementation plan 列回填（[Pending]→Done）+ Dependency graph P1→P3 边 |",
+      "",
+    ].join("\n");
+    const c = writeAuditChain({ overall, planName: "2026-09-21-plan-p2.md" });
+    // The in-flight P3 plan doc (face ② non-missing cell) + the shipped P1 plan doc must exist:
+    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p1.md"), "# p\n");
+    writeFileSync(path.join(c.repo, "docs", "osuperpowers", "plans", "2026-09-21-plan-p3.md"), "# p\n");
+    const f = run(c);
+    const claimHits = f.filter((x) => /backfill|claim/i.test(x.field));
+    expect(claimHits.some((x) => x.missing.includes("P1"))).toBe(true); // forward mismatch on P1
+    expect(claimHits.some((x) => /P3/.test(x.missing))).toBe(true); // the same-clause prose hint names P3
+    expect(claimHits.some((x) => /P3/.test(x.missing) && /claim target|same-clause/.test(x.missing))).toBe(true);
+    // No claim failure surfaces on the in-flight phase itself: its column is not a target and owes no claim.
+    expect(claimHits.some((x) => x.missing.includes("P3 Implementation"))).toBe(false);
   });
 });
 

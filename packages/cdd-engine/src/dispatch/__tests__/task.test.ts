@@ -205,7 +205,7 @@ describe('cdd implement/review/fix CLI contract', () => {
 // --tasks <n|n,n,…> list model (parse layer): acceptance covers trim / dedupe / empty-slice /
 // non-integer rejection; `--tasks 1` and `--tasks 1,2` share the same dispatch path (the dispatch
 // layer threads the first task number — multi-task iteration lands in a later workstream) — P4.3.
-describe('P4.3 --tasks list model (engine 用例随迁面)', () => {
+describe('P4.3 --tasks list model (engine test migration surface)', () => {
   it('implement --tasks 1,2 → same dispatch path as --tasks 1 (task 1 dispatched, APPROVED + exit 0)', () => {
     const { repo, plan } = setupWorkspace();
     const res = run(
@@ -251,7 +251,7 @@ describe('P4.3 --tasks list model (engine 用例随迁面)', () => {
     expect(res.stderr).toMatch(/--tasks must be comma-separated integers/);
   });
 
-  it('--tasks abc（缺 --plan 前置）→ parse 先拒 exit 2 + 升级消息（Bug A 回归强化）', () => {
+  it('--tasks abc (missing --plan preflight) → parse-layer rejection exit 2 + upgraded message (Bug A regression hardening)', () => {
     const res = run(['implement', '--tasks', 'abc'], HOST);
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/--tasks must be comma-separated integers: abc/);

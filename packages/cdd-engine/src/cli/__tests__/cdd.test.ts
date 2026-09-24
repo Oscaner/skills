@@ -186,7 +186,7 @@ describe("cdd CLI", () => {
     expect(r.exitCode).toBe(0);
   });
 
-  it("--tasks 非整数 → 校验回退 exit 2（STD-3 Bug A 契约回归，P4.3 升级消息）", () => {
+  it("--tasks non-integer token → parse-layer rejection exit 2 (Bug A regression, upgraded message)", () => {
     // parseInt NaN must not leak into runTask (task-NaN-* garbage + fake APPROVED return block);
     // the parse layer rejects at parse time → exit 2 (legacy cdd-task contract; P4.3 list model).
     const r = runCli(["--dry-run", "review", "--type", "task", "--tasks", "abc", "--plan", SMOKE_PLAN],

@@ -279,7 +279,7 @@ export abstract class DispatchLifecycle {
       const verdict = derivePlanVerdict(plan, workspace, taskNumbersFromPlan, effectiveGroups);
       for (const group of groups) {
         for (const n of group) {
-          process.stderr.write(`CDD_INFO: ${formatTaskStateLine(n, deriveTaskState(workspace, n))}\n`);
+          process.stderr.write(`CDD_INFO: ${formatTaskStateLine(n, deriveTaskState(workspace, n, groups))}\n`);
         }
       }
       process.stderr.write(`CDD_INFO: ${formatPlanVerdict(verdict)}\n`);

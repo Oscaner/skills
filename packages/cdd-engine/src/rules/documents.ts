@@ -208,9 +208,8 @@ export function taskGroupsFromPlan(planFile: string): number[][] {
  * declared group). A length-1 declared line is parse-tolerated and surfaces in effectiveGroups as
  * declared — the parser never drops a declared task; the >= 2 floor is the schema minItems + the
  * write-back judgment (a length-1 group is redundant and never lands on disk), never this
- * derivation. The
- * iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines) consume this one
- * derivation — no second implementation. */
+ * derivation. The iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines)
+ * consume this one derivation — no second implementation. */
 export function effectiveGroups(planPath: string): number[][] {
   const declared = taskGroupsFromPlan(planPath);
   if (declared.length > 0) return declared;

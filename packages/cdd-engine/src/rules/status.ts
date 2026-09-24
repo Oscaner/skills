@@ -27,7 +27,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { handoffName } from "../artifacts/handoff/naming.ts";
+import { handoffName, tasksKey } from "../artifacts/handoff/naming.ts";
 import { readJson } from "../artifacts/handoff/write.ts";
 import { readProgressJSON } from "../artifacts/progress.ts";
 import { normalizeHandoffStatus } from "../artifacts/handoff/finalize.ts";
@@ -50,9 +50,10 @@ function isDeadRound(h: Record<string, unknown> | null): boolean {
   return h.failure_category === "EXECUTION_FAILURE";
 }
 
-function readHandoff(workspace: string, op: string, taskNum: number, round?: number): Record<string, unknown> | null {
-  // A single task's carriers are the group-of-one names (tasks-{N}-*). — P4.3 group naming
-  const name = handoffName(op, "task", round != null ? { tasks: String(taskNum), round } : { tasks: String(taskNum) });
+function readHandoff(workspace: string, op: string, key: string, round?: number): Record<string, unknown> | null {
+  // The dispatch unit's carriers: the group key (tasks-{a}-{b}-*) for a merged group, the
+  // group-of-one name (key === the task number) for a singleton — one naming surface, P4.3.
+  const name = handoffName(op, "task", round != null ? { tasks: key, round } : { tasks: key });
   const p = path.join(workspace, name);
   return existsSync(p) ? readJson(p) : null;
 }
@@ -61,26 +62,39 @@ function statusOf(h: Record<string, unknown> | null): string | undefined {
   return normalizeHandoffStatus(h?.status as string | undefined);
 }
 
-/** deriveTaskState(workspace, taskNum) — the six-state convergence (spec T7.8 ③ / T7.9 ①).
- * Reads the workspace's progress.json + the task's implement/review/fix carriers; never writes.
+/** deriveTaskState(workspace, taskNum, groups?) — the six-state convergence (spec T7.8 ③ / T7.9 ①).
+ * Reads the workspace's progress.json + the dispatch unit's implement/review/fix carriers; never
+ * writes. groups — the effectiveGroups derivation, consumed one-to-one when provided — gives a
+ * merged-group member the group's identity: the member derives from the group carriers
+ * (tasks-{a}-{b}-*) + the {group} ledger row, never stuck on the per-task names the group never
+ * wrote. A singleton member (declared one-member group or the no-declaration default) keeps
+ * exactly the pre-P4.3 per-task derivation (tasks-{N}-* + the {task} row — byte-identical
+ * empty-default behavior); a task absent from the group set falls back to that singleton
+ * derivation too (direct per-task callers and singletons share one code path).
  * The last review status is the first signal: APPROVED → complete (a following fix is the legal
  * terminal, T29 修正); not approved → the addressing fix decides needs-fix vs needs-re-review. */
-export function deriveTaskState(workspace: string, taskNum: number): TaskState {
+export function deriveTaskState(workspace: string, taskNum: number, groups?: number[][]): TaskState {
   const progress = readProgressJSON(workspace);
-  const entry = progress.tasks.find((t) => t.task === taskNum);
+  // Group-of-one vs merged: the dispatch unit's key resolves the right carriers + ledger row
+  // (a merged group keys off `tasks-{a}-{b}`; the singleton key is the task number itself).
+  const declared = groups?.find((g) => g.includes(taskNum));
+  const key = declared && declared.length > 1 ? tasksKey(declared) : String(taskNum);
+  const entry = key === String(taskNum)
+    ? progress.tasks.find((t) => "task" in t && t.task === taskNum)
+    : progress.tasks.find((t) => "group" in t && t.group === key);
   const reviews = entry?.rounds?.["review"] ?? 0;
   const fixes = entry?.rounds?.["fix"] ?? 0;
 
   if (reviews === 0) {
     // implement lane only — no review on record, the converge judgment rides the carrier status.
-    const impl = readHandoff(workspace, "implement", taskNum);
+    const impl = readHandoff(workspace, "implement", key);
     if (isDeadRound(impl)) return "resume-pending";
     if (statusOf(impl) === "APPROVED") return "needs-review";
     return "in-flight"; // fresh / implement BLOCKED (re-dispatch implement)
   }
 
   // The last review on record (review-[reviews]) is the first signal.
-  const lastRev = readHandoff(workspace, "review", taskNum, reviews);
+  const lastRev = readHandoff(workspace, "review", key, reviews);
   if (isDeadRound(lastRev)) return "resume-pending";
   if (statusOf(lastRev) === "APPROVED") return "complete"; // legal terminal — a later fix (APPROVED,
   // BLOCKED or dead) is never consulted, let alone re-triggers a review
@@ -89,7 +103,7 @@ export function deriveTaskState(workspace: string, taskNum: number): TaskState {
   // fix is the latest fix on record, and only one that came at-or-after the review (fixes >=
   // reviews) can have addressed it — a fix pre-dating the review converged an EARLIER one.
   if (fixes === 0 || fixes < reviews) return "needs-fix";
-  const lastFix = readHandoff(workspace, "fix", taskNum, fixes);
+  const lastFix = readHandoff(workspace, "fix", key, fixes);
   if (isDeadRound(lastFix)) return "resume-pending";
   if (statusOf(lastFix) === "APPROVED") return "needs-re-review"; // findings fixed → re-review due (T14)
   return "needs-fix"; // addressing fix declared BLOCKED / not done → fix again
@@ -115,7 +129,9 @@ export interface PlanVerdict {
  * task set against the six-state table. The iteration source is the effective dispatch groups
  * (P4.3 Task 3): extractGroups — the canonical effectiveGroups derivation — always provided (the
  * empty-default per-task singletons live inside effectiveGroups itself, never as a fallback here —
- * one derivation, no second implementation a caller can silently sit on). extractTaskNumbers /
+ * one derivation, no second implementation a caller can silently sit on). The group table flows
+ * into deriveTaskState, so a merged-group member's state derives from its group carriers — the
+ * declared-group loop reaches `plan done` exactly like the singleton loop. extractTaskNumbers /
  * extractGroups are injected (the canonical extractors live in rules/documents.ts, re-exported
  * through dispatch/task.ts; this rules module stays acyclic — status.test.ts mirrors the extractors
  * locally). */
@@ -131,7 +147,7 @@ export function derivePlanVerdict(
   const pending: TaskStatusRow[] = [];
   let complete = 0;
   for (const n of tasks) {
-    const state = deriveTaskState(workspace, n);
+    const state = deriveTaskState(workspace, n, groups);
     if (state === "complete") complete++;
     else pending.push({ task: n, state });
   }

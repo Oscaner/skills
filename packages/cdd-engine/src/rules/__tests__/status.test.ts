@@ -191,6 +191,41 @@ describe("deriveTaskState — six-state convergence", () => {
     writeHandoff(ws, "tasks-1-fix-1.json", { tasks: [1], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
     expect(deriveTaskState(ws, 1)).toBe("needs-re-review");
   });
+
+  // ---- group convergence (P4.3 declared taskGroups): a merged-group member derives from the
+  // group carriers (tasks-{a}-{b}-*) + the {group} ledger row — never stuck per-task in-flight ----
+
+  it("complete: a merged-group member resolves the group carriers (reviews from the {group} row, review APPROVED)", () => {
+    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1 } }] });
+    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-review-1.json", { tasks: [1, 2], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("complete");
+    expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("complete");
+  });
+
+  it("needs-review: a merged group with implement APPROVED and no review on record", () => {
+    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: {} }] });
+    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("needs-review");
+    expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("needs-review");
+  });
+
+  it("needs-re-review: the addressing fix lane reads group carriers (review CHANGES_REQUESTED → fix APPROVED)", () => {
+    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1, fix: 1 } }] });
+    writeHandoff(ws, "tasks-1-2-review-1.json", { tasks: [1, 2], phase: "review", status: "CHANGES_REQUESTED", findings: [{ severity: "blocker" }], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-fix-1.json", { tasks: [1, 2], phase: "fix", status: "APPROVED", findings: [], artifacts: {} });
+    expect(deriveTaskState(ws, 1, [[1, 2]])).toBe("needs-re-review");
+    expect(deriveTaskState(ws, 2, [[1, 2]])).toBe("needs-re-review");
+  });
+
+  it("singleton fallback: a task unknown to the group set (or groups unspecified) keeps the per-task derivation", () => {
+    const ws = workspace(EMPTY_PROGRESS);
+    writeHandoff(ws, "tasks-3-implement.json", { tasks: [3], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    // groups provided but not containing task 3 → the per-task singleton derivation.
+    expect(deriveTaskState(ws, 3, [[1, 2]])).toBe("needs-review");
+    // groups unspecified → the pre-P4.3 signature is unchanged.
+    expect(deriveTaskState(ws, 3)).toBe("needs-review");
+  });
 });
 
 describe("derivePlanVerdict — plan completion verdict (`### Task N:` set ↔ six-state table)", () => {
@@ -270,5 +305,35 @@ describe("derivePlanVerdict — group iteration (P4.3 Task 3: the effectiveGroup
       { task: 2, state: "in-flight" },
     ]);
     expect(formatPlanVerdict(v)).toBe("0/2 complete — pending: task 1 (in-flight), task 2 (in-flight)");
+  });
+
+  it("declared merged groups converge: a fully reviewed group reaches done (the planComplete green path)", () => {
+    const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
+    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: { review: 1 } }] });
+    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    writeHandoff(ws, "tasks-1-2-review-1.json", { tasks: [1, 2], phase: "review", status: "APPROVED", findings: [], artifacts: {} });
+    const mergedGroups = (_planPath: string) => [[1, 2]];
+    const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
+    expect(v.done).toBe(true);
+    expect(v).toEqual({ total: 2, complete: 2, pending: [], done: true });
+    expect(formatPlanVerdict(v)).toBe("plan done (2/2 complete)");
+  });
+
+  it("declared merged groups, implement APPROVED only → members need review, not done", () => {
+    const plan = planFile("# Plan\n\n### Task 1: a\nbody\n\n### Task 2: b\nbody\n");
+    const ws = workspace({ plan: "", tasks: [{ group: "1-2", rounds: {} }] });
+    writeHandoff(ws, "tasks-1-2-implement.json", { tasks: [1, 2], phase: "implement", status: "APPROVED", findings: [], artifacts: {} });
+    const mergedGroups = (_planPath: string) => [[1, 2]];
+    const v = derivePlanVerdict(plan, ws, extractTasks, mergedGroups);
+    expect(v.done).toBe(false);
+    expect(v).toEqual({
+      total: 2,
+      complete: 0,
+      pending: [
+        { task: 1, state: "needs-review" },
+        { task: 2, state: "needs-review" },
+      ],
+      done: false,
+    });
   });
 });

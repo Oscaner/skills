@@ -72,8 +72,9 @@ export function resolveTargetDoc(opts: { type: string; spec?: string; plan?: str
 // instead of letting parseInt leak NaN into runTask and fabricate task-NaN-* artifacts with a
 // false APPROVED return block (STD-3). Empty slices (e.g. a trailing comma in `1,`) are rejected,
 // tokens are trimmed (`1, 2` → [`1`, `2`]) and duplicates collapse (`1,1` → [`1`]). The legacy
-// single-value intTask entry is retired — the CLI task surface is list-shaped only; dispatch call
-// sites thread the first task number (multi-task iteration lands in a later workstream).
+// single-value intTask entry is retired — the CLI task surface is list-shaped only, and the GROUP
+// is the dispatch unit: parseTaskList returns the canonical list (single-data-model) and dispatch
+// call sites thread the whole parsed list — no per-task iteration exists.
 function intTask(token: string): number {
   const n = parseInt(token, 10);
   if (isNaN(n)) throw cliUsageError(`--tasks must be comma-separated integers: ${token}`);

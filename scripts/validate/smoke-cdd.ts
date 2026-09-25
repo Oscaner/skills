@@ -38,7 +38,7 @@
 // responsibility belongs to 5c, no double write. Depends on Node built-ins + execa + the tar ships
 // present on macOS (bsdtar) and CI (GNU tar) — both support `-tzf` (list) and `-xOzf` (stdout read).
 
-import { execaCommandSync, execaSync } from "execa";
+import { execaSync } from "execa";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -304,7 +304,7 @@ function runConsumerChain({ consumerRoot, installed }: { consumerRoot: string; i
   const fixture = deriveFixture(consumerRoot, installed);
   execaSync("git", ["add", "-A"], { cwd: consumerRoot });
   execaSync("git", ["commit", "-m", "chore: consumer-sim fixture plan + spec + overall"], { cwd: consumerRoot });
-  const head = execaCommandSync("git rev-parse HEAD", { cwd: consumerRoot }).stdout.trim();
+  const head = execaSync("git", ["rev-parse", "HEAD"], { cwd: consumerRoot }).stdout.trim();
   const head7 = head.slice(0, 7);
 
   // The five-command dry-run chain — argv shape mirrors the dispatch contract the engine's own

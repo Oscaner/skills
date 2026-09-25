@@ -82,7 +82,8 @@ const STALE_LEXICON_CHECKS = [
   // T15 (design §2.8 row 21): scope widened to ALL_MECH_POSITIONS — bare task-review on the skills
   // surface was cleared in three batches (handoff-schema.md → cli-driven-development SKILL.md →
   // _docs/review.md), so this scope is the standing regression face; the regex converges to the old
-  // mode-name shape (negative lookbehind exempts the new digraph node name run-task-review).
+  // mode-name shape. The negative lookbehind only exempts the retired digraph node name
+  // `run-task-review` (renamed `run-group-review` in P4.4) — no live surface carries the token.
   { label: "old mode task-review", re: /(?<!run-)task-review/, scope: ALL_MECH_POSITIONS },
   { label: "P4 degraded names", re: /(spec|plan)-1\.json|doc-fix-/, scope: CDD_ENGINE },
   {

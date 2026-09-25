@@ -7,11 +7,10 @@
 // descriptions. Covered assertions, per SKILL.md under packages/osuperpowers/skills/:
 //   1. Section-heading STRICT allowlist (skill-anatomy sectionRegistry): every live `## ` heading is
 //      one of the four public sections (Flow Digraph · Node Definitions · Invariants · Failure Modes)
-//      or the two conditional sections (Skeleton deltas · Pending Acceptance Patch), the four public
-//      sections are all present, conditional sections are present on their required carriers (the
-//      writing-* spec-writer trio for Skeleton deltas, writing-plans for Pending Acceptance Patch),
-//      and every live `### ` heading is one of the two kinds (a backticked node name or a
-//      pending-patch sample `Task N:` heading) — a registry-external section/heading BLOCKS.
+//      or the one conditional section (Skeleton deltas), the four public sections are all present,
+//      conditional sections are present on their required carriers (the writing-* spec-writer trio for
+//      Skeleton deltas), and every live `### ` heading is the backticked node-name kind — a
+//      registry-external section/heading BLOCKS.
 //   2. Assertion 1 — bidirectional completeness: digraph node set ↔ `### `node`` definitions mutually
 //      covering (orphans / dangling nodes fail, with named diagnostics).
 //   3. Node four-element contract (skill-anatomy nodeElements): every node definition carries the
@@ -63,7 +62,7 @@ const PURITY_RULE = ANATOMY.properties.consumerPurity.description;
 // The section registry + heading kinds — the strict allowlist surface (skill-anatomy sectionRegistry).
 const reg = ANATOMY.properties.sectionRegistry.properties;
 const PUBLIC_SECTION_KEYS = reg.public.items.enum; // ["flowDigraph","nodeDefinitions","invariants","failureModes"]
-const CONDITIONAL_SECTION_KEYS = reg.conditional.items.enum; // ["skeletonDeltas","pendingAcceptancePatch"]
+const CONDITIONAL_SECTION_KEYS = reg.conditional.items.enum; // ["skeletonDeltas"]
 const SECTION_HEADINGS = Object.fromEntries(
   Object.entries(reg.sections.properties).map(([key, node]) => [key, node.properties.heading.const]),
 );
@@ -80,12 +79,11 @@ const CONDITIONAL_CARRIERS = Object.fromEntries(
 );
 const SKELETON_TRIO = CONDITIONAL_CARRIERS["skeletonDeltas"];
 const NODE_HEADING_RE = new RegExp(reg.headingKinds.properties.nodeName.pattern, "m");
-const PENDING_PATCH_HEADING_RE = new RegExp(reg.headingKinds.properties.pendingPatchTaskHeading.pattern, "m");
 
 // Growth boundary + purity (skill-anatomy growthBoundary / consumerPurity) — never test literals.
 const GROWTH_NODE_LIMIT = ANATOMY.properties.growthBoundary.properties.nodeLimit.const;
 const GROWTH_EDGE_LIMIT = ANATOMY.properties.growthBoundary.properties.edgeLimit.const;
-const REGISTERED_CROSSINGS = ANATOMY.properties.growthBoundary.properties.registry.properties.crossings.items.enum;
+const REGISTERED_CROSSINGS = Object.keys(ANATOMY.properties.growthBoundary.properties.registry.properties.crossings.properties);
 const FORBIDDEN_HEADS = ANATOMY.properties.consumerPurity.properties.forbiddenNarrativeHeads.items.enum.map((h) => {
   const escaped = h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^${escaped}$`, "m");
@@ -230,7 +228,7 @@ function registryFindings(an) {
       });
     }
   }
-  const badH3 = an.headings.h3.filter((h) => !NODE_HEADING_RE.test(h) && !PENDING_PATCH_HEADING_RE.test(h));
+  const badH3 = an.headings.h3.filter((h) => !NODE_HEADING_RE.test(h));
   if (badH3.length > 0) {
     out.push({
       category: "registry-h3-external",
@@ -334,7 +332,7 @@ for (const { name, path: skillPath } of SKILL_FILES) {
     assert.deepEqual(f, [], f.map((x) => x.message).join("\n"));
   });
 
-  test(`[${name}] allowlist · every live \`### \` heading is a backticked node name or a pending-patch sample`, () => {
+  test(`[${name}] allowlist · every live \`### \` heading is a backticked node name`, () => {
     const f = registryFindings(an).filter((x) => x.category === "registry-h3-external");
     assert.deepEqual(f, [], f.map((x) => x.message).join("\n"));
   });
@@ -463,7 +461,7 @@ test("assertion 3 · crossing the growth boundary requires a schema-registry rat
       REGISTERED_CROSSINGS.includes(c.name),
       `${c.name}: digraph (${c.nodes} nodes · ${c.edges} edges) crosses the growth boundary ` +
         `(${GROWTH_NODE_LIMIT} nodes / ${GROWTH_EDGE_LIMIT} edges) — its rationale must be registered ` +
-        `in the skill-anatomy schema growth registry (crossings list); missing → FAIL — ${GROWTH_RULE}`,
+        `in the skill-anatomy schema growth registry (crossings map); missing → FAIL — ${GROWTH_RULE}`,
     );
   }
   for (const { name, path: skillPath } of SKILL_FILES) {

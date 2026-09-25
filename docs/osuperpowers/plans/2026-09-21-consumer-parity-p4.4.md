@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.4-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.4-design.md)
 - **Parent program**: [consumer-parity overall v1.42](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.4 · 2026-09-25
+- **Version**: v1.5 · 2026-09-25（Task 3 升维：TaskGroup 规范序列化 `"1,2"` · 命名面六统一 · 契约 token 面收敛（DISPATCH_UNIT 等）· 描述面全同步——2026-09-25 用户裁决）
 - **Base**: develop
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.3-design.md)）
 
@@ -60,14 +60,15 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   - 全仓 ts 面 `biome check` 零违规（Task 11 复核断言）；lint 配置随仓（消费者面可复现）
   - 门先行实证：Task 3+ 的 commit 均在 biome 门下（pre-commit 链含 biome 步）
 
-### Task 3: TaskGroup 类化 + 五签名统一（TG3）
+### Task 3: TaskGroup 组身份统一 —— 规范序列化 `"1,2"` · 命名面六统一 · 契约 token 面收敛（TG3）
 
-- **Do**: ① `cli/shared.ts:84 parseTaskList()` + `artifacts/handoff/naming.ts:37 tasksKey()` 双标量 → **`class TaskGroup`**（静态工厂 `TaskGroup.fromTokens` · 校验（逐 token 整数 · 去重 · 排序）· `key()` · 成员断言方法），落 `src/` 域层 ② **五处历史散点签名统一收 `TaskGroup`**：`--tasks` 解析（TaskListParser 面）· `effectiveGroups`（rules/documents.ts:189-217）· progress ledger key（artifacts/progress.ts `{task}|{group:"1-2"}`）· handoff 文件名（artifacts/handoff/naming.ts `tasks-{tasks}-review-{round}.json`）· `TaskLifecycle#tasks/#groupKey`（dispatch/task.ts:288-315）——零 `number[]`/裸串域接口穿行；**`effectiveGroups` 派生语义显式化**（有效组 = 声明合并组 ∪ 未覆盖任务隐式单组、按 task 号序——废除非空 `taskGroups` 声明整存整弃替换默认 singleton 集、声明外任务不可派发的引擎现状）：`derivePlanVerdict` plan task 集 = **有效组并集**（= 全 task 号集 · 任何声明不得丢任务）· `statusValidate` 迭代消费面随有效组走 ③ doc-contract / brief 抽取消费面同步（engine 测试绿）④ `cli-shape.test.ts` / `schema.test.ts` 随破坏面改造（`parse` 静态可导入零副作用面：类静态入口保持或随改造重定义，允许 breaking）
+- **Do**: ① **`class TaskGroup`** 值对象（落 `src/` 域层）：静态工厂 `fromTokens` / `fromNumbers`（`parseTaskList` 迁移：逐 token 整数校验 · 去重 · 递增排序）· **`key()` = 规范序列化**（comma-joined 无空格 · 单例 `"1"` · 合并组 `"1,2"` —— 全仓唯一组身份，CLI 参数串即 key、无第二形）· 成员断言方法 · **键文法单源 `GROUP_KEY_PATTERN`**（`\d+(?:,\d+)*` · 导出供扫描正则与契约 token 描述消费）② **五签名统一 + 六命名面**：`--tasks` 解析（TaskListParser 面）· `effectiveGroups`（rules/documents.ts:189-217）· progress ledger key（artifacts/progress.ts `{task}|{group:"1,2"}`）· handoff 文件名（engine-config.json:208/215/228 `tasks-{tasks}-*`）· `TaskLifecycle#tasks/#groupKey`（dispatch/task.ts:288-315）· **命名面六统一**（brief=base-branch.ts:32 `tasks-{key}-brief.md` · implement/review/fix handoff · report/evidence=task.ts:581/finalize.ts:454 → 全 `tasks-1,2-*`）；**删除 `tasksKey()`（名实双清）**；`effectiveGroups` 隐式单组派生语义保持（有效组 = 声明合并组 ∪ 未覆盖任务隐式单组、按 task 号序；有效组并集 = 全 task 号集 guard 不变）③ **roundPattern 扫描正则单源化**：naming.ts:86-90 硬编码 `\d+(?:-\d+)*` → 从 `TaskGroup.GROUP_KEY_PATTERN` 派生（键文法零第二实现；task 族扫描/精确两形随键形）④ **契约 token 面（template-contract.json）**：`TASK_NUMBER/TASK_BRIEF/TASK_FINDINGS/TASK_FIXED_POINT/TASK_CONSTRAINTS/TASK_WORKSPACE/DOCS_DOC/DOCS_FINDINGS/DOCS_FIXED_POINT` 塌缩为 **`DISPATCH_UNIT`**（本轮 dispatch 单位身份：task=组键 · branch=base..head ref）· **`BRIEF`**（本轮输入制品：task=组 brief 路径 · branch=plan 路径）· **`FINDINGS`**（review 族 findings handoff 路径，task/docs 共用）· **`FIXED_POINT`**（本轮 review 基准）· **`CONSTRAINTS`**（plan-constraints.md）· **`WORKSPACE`**（workspace abspath，与 `WORKSPACE_SLUG` 双槽对齐）· **`DOC`**（docs 族应用对象）；保留诚实组 `HANDOFF_TARGET` / `HANDOFF_WRITE_GATE` / `MODE` / `REVIEW_TYPE` / `REVIEW_REFERENCE` / `REVIEW_AXES` / `REVIEW_LENS_GUIDE` / `REVIEW_PLAN_LINE` / `RETURN_FORMAT`（+ RETURN_JSON / RETURN_STDOUT_BLOCK / DOCS_FIX return 形）；`buildPromptParams`（task.ts:200-235）· branch.ts fill（:542-550）· docs.ts fill · render/templates.ts 占位面 · 消费测试（templates.cache/content/test · runner）同改 ⑤ **描述/注释面全同步（2026-09-25 用户裁决：描述也全更新，别漏）**：契约 shell clause #1 符号枚举改新名（`BRIEF` · `HANDOFF_TARGET` · `REVIEW_REFERENCE` …）· clause #3 组 brief 语义（`DISPATCH_UNIT` 组键 · `BRIEF` 一文件含本组全部 `### Task N:` 段 → implement **ALL sections**）· clause #7 evidence 命名 `tasks-${…}-test-evidence.json` 规范形（与 finalize.ts:454 实读同字节）· token 描述空槽补组语义 · engine-config familyNames 描述 · 源码注释 8 处换新形（task.ts:215-227 · branch.ts:542-550 · brief.ts:4-22 · finalize.ts:444-456 · naming.ts:86-90 · base-branch.ts:31-33 · status.ts · review.ts）——`1-2` 组键字面零活残留（frozen 豁免）⑥ **breaking/残面面**：`--tasks 1-2` 连字符形非法（token 非整数 → exit 2）· residue/channel-audit 命名 token 同步（residue 144 用例 grepTargets · engine-config channel · 黄金断言）· 全 token 更名 + 键形变入 breaking 桶（1.0.0 收口登记）
 - **验收**:
-  - `TaskGroup` 类化五签名统一实证（progress/handoff/task 各面签名收 `TaskGroup`，sweep 零 `number[]` 域接口穿行）
-  - 类能力五枚举落地（静态工厂 `fromTokens` · 校验去重 · 排序 · `key()` · 成员断言）——与 spec §2.2 互补对照
-  - **有效分区 == 全 task 号集覆盖断言**（engine 测试）：任意非空声明下有效组 task 号并集 = {1..N}（guard——任何声明都不得丢任务）；有效组按 task 号序 → Task 2（TG2 门）先于 Task 3+（TG3）的派发序可表达
-  - `--tasks 1` / `--tasks 1,2` dispatch 行为与 P4.3 等价（engine 测试 + 现场回归）；**bin 入口 argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）字面保持**（cli-shape engine 测试断言 + dispatch 现场回归实证 · skills 经 CLI 调用零回归 · spec §2.4 + AC 对应面）；`parse` 静态导入约束处置明确
+  - `TaskGroup#key()` 规范序列化 `"1,2"` 单源实证：旧 `tasks-1-2-*` 六个命名面 + `1-2` 组键形零活残留（grep（frozen 豁免）· 六面全 `tasks-1,2-*` 断言）
+  - 契约 token 面更名落地（template-contract.json tokens[] 无 `TASK_*`/`DOCS_*` 旧名 · shell clause #1/#3/#7 + 描述面同步 · clause #7 evidence 命名与引擎实读同字节）· 描述/注释面零旧 token 旧键字样（源码注释 + 契约描述 grep）
+  - 键文法单源实证（`GROUP_KEY_PATTERN` 被 roundPattern 消费 · 零硬编码扫描正则）；`--tasks 1-2` exit 2（parse 测试断言）
+  - 有效分区 == 全 task 号集覆盖断言（engine 测试，guard 不变）；bin 入口 argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）字面保持
+  - `cli-shape` / `schema` / `templates.*` / `runner` 消费测试同改为新 token；engine 套件全绿；breaking 登记 changelog
 
 ### Task 4: CddRuntime 模块态收编（TG3）
 

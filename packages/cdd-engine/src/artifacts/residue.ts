@@ -107,9 +107,11 @@ export function roundFromCarrierBasename(basename: string): number | null {
 
 /** The adapter's derived salvage params — the canonical settleResidue opts keyed by the carrier's
  * own identity (the three paths — task lane / base hook / branch inline — share this derivation so
- * their stash messages agree). task falls back to 1 for doc-family carriers (spec/plan have no task
- * number); the message's `-task-` literal is a namespace marker, and doc-family stashes keep a
- * category-id cause that the legacy resume scan (resume lane = implement only) never matches. */
+ * their stash messages agree). task comes from the carrier's `tasks[0]` (the P4.3 single-data-model
+ * group identity; the stash primitive is per-carrier), falling back to 1 for doc-family carriers
+ * (spec/plan have no task number); the message's `-task-` literal is a namespace marker, and
+ * doc-family stashes keep a category-id cause that the legacy resume scan (resume lane = implement
+ * only) never matches. */
 interface CarrierSalvage {
   op: string;
   type: string;
@@ -121,8 +123,9 @@ interface CarrierSalvage {
 function salvageFromCarrier(basename: string, carrier: Record<string, unknown>): CarrierSalvage | null {
   const fam = familyFromBasename(basename);
   if (!fam) return null;
-  const task = typeof carrier.task === "number" && Number.isInteger(carrier.task) && carrier.task >= 1
-    ? carrier.task
+  const groupTasks = Array.isArray(carrier.tasks) ? carrier.tasks : [];
+  const task = typeof groupTasks[0] === "number" && Number.isInteger(groupTasks[0]) && (groupTasks[0] as number) >= 1
+    ? groupTasks[0]
     : 1;
   const cause = (carrier.recovery as Record<string, unknown> | undefined)?.cause;
   if (typeof cause !== "string" || !cause) return null;

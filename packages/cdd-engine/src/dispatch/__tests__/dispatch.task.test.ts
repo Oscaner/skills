@@ -75,7 +75,7 @@ it("入口门降级（继承基类 + E2②）: review 起点 dirty + dryRun → 
   try {
     const lc = new TaskLifecycle({
       harness: "ghost",
-      taskNum: 1,
+      tasks: [1],
       opts: { mode: "review", planFile: "docs/plan.md", dryRun: true, noExit: true, root: repo, registryPath: ghostRegistry() },
       ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun: true },
     });
@@ -99,7 +99,7 @@ it("真实 dispatch（dryRun=false）起点 dirty → 入口门仍 BLOCKED（E2�
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
   const lc = new TaskLifecycle({
     harness: "ghost",
-    taskNum: 1,
+    tasks: [1],
     opts: { mode: "review", planFile: "x.md", noExit: true, root: repo, registryPath: ghostRegistry() },
     ctx: { mode: "review", repoRoot: repo, handoffPath: "" },
   });
@@ -139,8 +139,8 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block AP
 
 it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪造 commit-contract 文案）", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh-"));
-  const hp = path.join(ws, "task-1-review-1.json");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "BLOCKED", findings: [], artifacts: {} }));
+  const hp = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "BLOCKED", findings: [], artifacts: {} }));
   const lines = returnFromHandoff(hp, ws);
   expect(lines[0]).toBe("status: BLOCKED");
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: ");
@@ -149,19 +149,19 @@ it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪�
 
 it("returnFromHandoff ④: 真实 blocker 原样透传；APPROVED 无 blocker → blocker: none", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh2-"));
-  const hp = path.join(ws, "task-1-review-1.json");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "APPROVED", blocker: "真实原因", findings: [], artifacts: {} }));
+  const hp = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "APPROVED", blocker: "真实原因", findings: [], artifacts: {} }));
   const lines = returnFromHandoff(hp, ws);
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: 真实原因");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {} }));
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "APPROVED", findings: [], artifacts: {} }));
   const lines2 = returnFromHandoff(hp, ws);
   expect(lines2.find((l) => l.startsWith("blocker:"))).toBe("blocker: none");
 });
 
 it("returnFromHandoff ④: commit-gate 文案仅当来源 commit-gate（handoff blocker 字段）时输出", () => {
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-rfh3-"));
-  const hp = path.join(ws, "task-1-review-1.json");
-  writeFileSync(hp, JSON.stringify({ task: 1, phase: "review", status: "BLOCKED", blocker: "uncommitted changes at return", findings: [], artifacts: {} }));
+  const hp = path.join(ws, "tasks-1-review-1.json");
+  writeFileSync(hp, JSON.stringify({ tasks: [1], phase: "review", status: "BLOCKED", blocker: "uncommitted changes at return", findings: [], artifacts: {} }));
   const lines = returnFromHandoff(hp, ws);
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: uncommitted changes at return");
 });
@@ -190,7 +190,7 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终�
   expect(res.returnBlock[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
-  expect(existsSync(path.join(ws, "task-1-implement.json"))).toBe(false);
+  expect(existsSync(path.join(ws, "tasks-1-implement.json"))).toBe(false);
 });
 
 it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前；diagnostic 面红线）", async () => {
@@ -202,7 +202,7 @@ it("干净树 + 非法 mode → validateMode 拒绝（模板停在 dispatch 前�
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
   const lc = new TaskLifecycle({
     harness: "ghost",
-    taskNum: 1,
+    tasks: [1],
     opts: { mode: "bogus", dryRun: true, noExit: true, root: repo, planFile: "docs/plan.md", registryPath: ghostRegistry() },
     ctx: { mode: "bogus", repoRoot: repo, handoffPath: "" },
   });
@@ -241,7 +241,7 @@ it("ctx 注入面: 构造即挂基类双门（子类零注册面接触；ctx 原
   const repo = setupRepo();
   const lc = new TaskLifecycle({
     harness: "ghost",
-    taskNum: 1,
+    tasks: [1],
     opts: { mode: "implement", dryRun: true, noExit: true, root: repo, registryPath: "/nowhere/reg.json" },
     ctx: { mode: "implement", repoRoot: repo, handoffPath: "" },
   });

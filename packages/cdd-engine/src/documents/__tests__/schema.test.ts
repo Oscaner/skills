@@ -8,9 +8,9 @@
 //     back to the source tree (dev face); the resolver is exercised against a fabricated
 //     consumer-install layout deterministically (no real build needed in the suite);
 //   - canonical token spot-checks pin the contract-critical patterns (task-heading colon form,
-//     CLAIM_RE family, 7-column header, prose-anchor quad, pending-acceptance-patch zone,
-//     `### Acceptance criteria` uniqueness) so an accidental edit of the single source surfaces
-//     as a test failure.
+//     CLAIM_RE family, six-content-column Phase-inventory rows, prose-anchor quad,
+//     pending-acceptance-patch zone, `### Acceptance criteria` uniqueness) so an accidental edit
+//     of the single source surfaces as a test failure.
 // Zero transactional behavior: this module reads only — no writes, no dispatch, no audit.
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
@@ -19,7 +19,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
-import { DOC_SCHEMA_NAMES, loadDocSchema, resolveDocSchemaDir } from "../schema.ts";
+import { DOC_SCHEMA_NAMES, loadDocSchema, resolveDocSchemaDir, loadDocSchemaText } from "../schema.ts";
+import { DOC_TOKENS } from "../tokens.ts";
+import { isPendingText, isInflightText } from "../../rules/documents.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // packages/cdd-engine/src/documents/__tests__ → package root (3 hops: __tests__ → documents → src → pkg)
@@ -63,8 +65,8 @@ function schemaNode(schema: unknown, jsonPath: string): unknown {
 }
 
 describe("canonical doc-structure schemas (P2 T1)", () => {
-  it("DOC_SCHEMA_NAMES = the four canonical files on disk (single source of truth)", () => {
-    const onDisk = ["add-phase-protocol", "overall", "phase-spec", "plan"]; // sorted dir listing
+  it("DOC_SCHEMA_NAMES = the five canonical files on disk (single source of truth)", () => {
+    const onDisk = ["add-phase-protocol", "overall", "phase-spec", "plan", "skill-anatomy"]; // sorted dir listing
     expect([...DOC_SCHEMA_NAMES].sort()).toEqual(onDisk);
     for (const name of DOC_SCHEMA_NAMES) {
       expect(existsSync(path.join(SRC_SCHEMA_DIR, `${name}.json`))).toBe(true);
@@ -107,17 +109,28 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       expect(anchors).toEqual(["**口径**：", "**commit 边界机制**：", "**Flow Atomicity**：", "**顺序原则**："]);
       // pending-acceptance-patch zone
       expect(get("$.properties.pendingAcceptancePatch.properties.heading.const")).toBe("## Pending Acceptance Patch");
+      // taskGroups dispatch-group declaration (P4.3 Task 3, spec §2.2): optional array, empty
+      // default [], each item `{ tasks: number[] }` with minItems >= 2 (a length-1 group is
+      // redundant — the singleton state exists only as the empty default), section layout const/pattern
+      expect(get("$.properties.taskGroups.type")).toBe("array");
+      expect(schemaNode(s, "$.properties.taskGroups.default")).toEqual([]);
+      expect(get("$.properties.taskGroups.items.properties.tasks.type")).toBe("array");
+      expect((schemaNode(s, "$.properties.taskGroups.items.properties.tasks.minItems"))).toBe(2);
+      expect(get("$.properties.taskGroups.$defs.section.properties.heading.const")).toBe("## Task Groups");
+      expect(get("$.properties.taskGroups.$defs.section.properties.entry.pattern")).toBe("^- \\*\\*Task (?:\\d+(?:, \\d+)*)\\*\\*:");
       // spec marker — any-line findIndex semantics are documented, not position-enforced
       const markerDesc = get("$.properties.header.properties.specRef.properties.marker.description");
       expect(markerDesc).toMatch(/findIndex/);
       expect(markerDesc).toMatch(/line 2/i);
     }
     if (name === "overall") {
-      // canonical 7-column header
+      // canonical header — SIX content columns per phase row (the enforcement position-reads
+      // c1 = id / c3 = Design spec / c4 = Implementation plan / c6 = Dependency; the written
+      // header is the inspection row, keyed via headerOpen + the canonical-form marker)
       expect(get("$.properties.phaseInventory.properties.columnNames.properties.header.const")).toBe(
         "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
       );
-      expect((schemaNode(s, "$.properties.phaseInventory.properties.columnNames.properties.count.const"))).toBe(7);
+      expect((schemaNode(s, "$.properties.phaseInventory.properties.columnNames.properties.count.const"))).toBe(6);
       // claim pattern — CLAIM_RE family single source: pin it as a LIVE regex by compiling the
       // canonical pattern and asserting representative change-history claim clauses match (the
       // target stops at whitespace / CJK punctuation / brackets — the capture is bounded, trailing
@@ -161,6 +174,17 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       expect(new RegExp(get("$.properties.dependencyGraph.properties.hardEdge.pattern")).test("P2.1 -> P2.2")).toBe(true);
       expect(new RegExp(get("$.properties.dependencyGraph.properties.softEdge.pattern")).test("P2.1 -> (soft) P2.2")).toBe(true);
       expect(new RegExp(get("$.properties.claimPatterns.properties.designToken.pattern")).test("P2.1-design")).toBe(true);
+      // The three-state plan column + explicit-claim-only semantics are canonical facts of the schema
+      // (pinned so an accidental description drift surfaces — P4.3 Task 8 #274):
+      expect((schemaNode(s, "$.properties.phaseInventory.properties.cells.properties.inflight.enum") as string[]))
+        .toEqual(["In-flight", "[In-flight]"]);
+      const doneDesc = get("$.properties.phaseInventory.properties.cells.properties.done.description");
+      expect(doneDesc).toMatch(/claim|closeout/i);
+      expect(doneDesc).toMatch(/link/i);
+      expect(get("$.properties.phaseInventory.properties.cells.properties.pending.description")).toMatch(/In-flight|in-flight/);
+      const claimClauseDesc = get("$.properties.claimPatterns.properties.claimClause.description");
+      expect(claimClauseDesc).toMatch(/window|explicit/i);
+      expect(claimClauseDesc).toMatch(/prose|hint|diagnos/i);
     }
     if (name === "phase-spec") {
       // `### Acceptance criteria` is the unique subsection (const heading + fixed location)
@@ -178,10 +202,154 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       );
       expect(get("$.properties.issueReferenceSyntax.properties.anchoredForm.pattern")).toBe("^#\\d+#issuecomment-\\d+$");
     }
+    if (name === "skill-anatomy") {
+      // Section-heading registry — the strict allowlist the osuperpowers machine check consumes:
+      // the four public + two conditional section keys, and the literal heading consts.
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.public.items.enum")).toEqual([
+        "flowDigraph",
+        "nodeDefinitions",
+        "invariants",
+        "failureModes",
+      ]);
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.conditional.items.enum")).toEqual([
+        "skeletonDeltas",
+        "pendingAcceptancePatch",
+      ]);
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.flowDigraph.properties.heading.const")).toBe(
+        "## Flow Digraph",
+      );
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.nodeDefinitions.properties.heading.const")).toBe(
+        "## Node Definitions",
+      );
+      // Conditional carriers — the spec-writer trio MUST carry Skeleton deltas; writing-plans carries
+      // the Pending Acceptance Patch zone under its single canonical heading (suffix variant retired).
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.requiredCarriers.items.enum"))
+        .toEqual(["writing-single-spec", "writing-phase-spec", "writing-overall-spec"]);
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.heading.const")).toBe(
+        "## Skeleton deltas",
+      );
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.pendingAcceptancePatch.properties.heading.const")).toBe(
+        "## Pending Acceptance Patch",
+      );
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.sections.properties.pendingAcceptancePatch.properties.requiredCarriers.items.enum"))
+        .toEqual(["writing-plans"]);
+      // `### ` heading kinds — backticked node names + the pending-patch sample `Task N:` form.
+      expect(get("$.properties.sectionRegistry.properties.headingKinds.properties.nodeName.pattern")).toBe("^### `[^`]+`$");
+      expect(get("$.properties.sectionRegistry.properties.headingKinds.properties.pendingPatchTaskHeading.pattern")).toBe(
+        "^### Task \\d+:",
+      );
+      // Four-element node contract — same literal markers the machine check reads.
+      expect(get("$.properties.nodeElements.properties.do.pattern")).toBe("^- \\*\\*Do\\*\\*:");
+      expect(get("$.properties.nodeElements.properties.read.pattern")).toBe("^- \\*\\*Read\\*\\*:");
+      expect(get("$.properties.nodeElements.properties.exit.pattern")).toBe("^- \\*\\*Exit\\*\\*:");
+      expect(get("$.properties.nodeElements.properties.fail.pattern")).toBe("^- \\*\\*Fail\\*\\*:");
+      // Growth boundary — the numbers + the crossed-skill registry (the machine check reads them,
+      // never test literals: crossing means MORE than the limits, and every crossing skill must
+      // be registered here — consumer SKILL.md carries zero trace).
+      expect(schemaNode(s, "$.properties.growthBoundary.properties.nodeLimit.const")).toBe(15);
+      expect(schemaNode(s, "$.properties.growthBoundary.properties.edgeLimit.const")).toBe(17);
+      expect(schemaNode(s, "$.properties.growthBoundary.properties.registry.properties.crossings.items.enum")).toContain(
+        "cli-driven-development",
+      );
+      // Consumer-surface purity — the canonical forbidden narrative headings (regression pins; the
+      // allowlist blocks every other unregistered narrative heading too).
+      expect(schemaNode(s, "$.properties.consumerPurity.properties.forbiddenNarrativeHeads.items.enum")).toEqual([
+        "## Flow size note",
+        "## Full Flow Refactor Rationale",
+      ]);
+      // Digraph section — the content rule the machine check enforces: exactly one mermaid block,
+      // zero prose after it (mermaidOnly const true).
+      expect(schemaNode(s, "$.properties.digraph.properties.mermaidOnly.const")).toBe(true);
+    }
+  });
+
+  it("plan-cell enforcement predicates ↔ canonical cell enums (P4.3 Task 8 parity — enforcement and schema cannot drift)", () => {
+    // The three-state recognition (rules/documents.ts) must accept exactly the schema's canonical
+    // cells.pending / cells.inflight enum values — the contrast assertion that pins the descriptions
+    // written for #274 to the enforcement that implements them.
+    const overall = loadDocSchema("overall");
+    const pendingEnum = schemaNode(
+      overall,
+      "$.properties.phaseInventory.properties.cells.properties.pending.enum",
+    ) as string[];
+    const inflightEnum = schemaNode(
+      overall,
+      "$.properties.phaseInventory.properties.cells.properties.inflight.enum",
+    ) as string[];
+    expect(pendingEnum.length).toBeGreaterThan(0);
+    expect(inflightEnum).toEqual(["In-flight", "[In-flight]"]);
+    for (const v of pendingEnum) expect(isPendingText(v)).toBe(true);
+    for (const v of inflightEnum) {
+      expect(isInflightText(v)).toBe(true);
+      expect(isPendingText(v)).toBe(false);
+    }
+    expect(isPendingText("**Done**")).toBe(false);
+    expect(isInflightText("Done")).toBe(false);
+    expect(isInflightText("**Done**")).toBe(false);
+  });
+
+  it("overall descriptions align with the enforcement's positional reads (P4.3 Task 9 #276 parity)", () => {
+    // The schema descriptions are the authoring authority authors draft against — they must teach
+    // exactly the shape documents.ts / tokens.ts actually read. Each claim below is anchored on a
+    // derived token or a constant the enforcement consumes, so description drift fails loudly.
+    const overall = loadDocSchema("overall");
+    const desc = (p: string): string => {
+      const v = schemaNode(overall, p);
+      if (typeof v !== "string") throw new Error(`expected string at ${p}`);
+      return v;
+    };
+
+    // Phase-inventory rows are position-read over SIX content cells (parseOverall's cell map:
+    // id = c[1], design = c[3], plan = c[4], dependency = c[6]). The count leaf must equal the
+    // row-shape guard's split count (8) minus the two edge empties — the schema cannot claim a
+    // self-contradictory 7 (+2 = 9) while the enforcement gates on 8.
+    expect(schemaNode(overall, "$.properties.phaseInventory.properties.columnNames.properties.count.const")).toBe(
+      DOC_TOKENS.phaseRowCellCount - 2,
+    );
+    const cellCountDesc = desc("$.properties.phaseInventory.properties.rowShape.properties.cellCount.description");
+    expect(cellCountDesc).toMatch(/6 content columns/);
+    for (const pos of ["c1", "c3", "c4", "c6"]) expect(cellCountDesc).toContain(pos);
+    expect(cellCountDesc).not.toMatch(/7 content/); // the retired "7 content + 2 empties = 9" count
+
+    // Header: the enforcement keys on the `| # | Phase |` open (headerOpen) + the Implementation
+    // plan marker (canonicalColumnToken), and reads rows by position — never by a 7-column list.
+    const headerDesc = desc("$.properties.phaseInventory.properties.columnNames.properties.header.description");
+    expect(headerDesc).not.toMatch(/7-column/);
+    expect(headerDesc).toMatch(/\| # \| Phase \|/);
+    expect(headerDesc).toMatch(/Implementation plan/);
+    const sectionDesc = desc("$.properties.phaseInventory.description");
+    expect(sectionDesc).not.toMatch(/7-column/);
+
+    // Change history: the version cell is determined by POSITION (the row's FIRST content cell
+    // carrying the `v<major>.<minor>` token), never by the header's conventional column names.
+    const columnsDesc = desc("$.properties.changeHistory.properties.header.properties.columns.description");
+    expect(columnsDesc).toMatch(/first content cell/);
+    expect(columnsDesc).toMatch(/version/i);
+    expect(columnsDesc).toMatch(/position|by position|POSITION/i);
+    expect(
+      desc("$.properties.changeHistory.properties.header.properties.columns.items.description"),
+    ).toMatch(/not read|never reads|never keyed|conventional/i);
+
+    // Issue ref: the legal vocabulary mirrors the enforcement's five acceptance paths (bare none /
+    // `#NNN` / `[#NNN]` / `#NNN#issuecomment-<digits>` / whole-cell parenthetical); the retired
+    // `none (dogfood session …)` literal is gone — the gate accepts only the bare `none`.
+    const issueRefDesc = desc("$.properties.issueInventory.properties.row.properties.issueRef.description");
+    for (const form of ["`none`", "#NNN", "[#NNN]", "#NNN#issuecomment-<digits>", "（", "）"]) {
+      expect(issueRefDesc).toContain(form);
+    }
+    expect(issueRefDesc).not.toMatch(/dogfood session/);
+  });
+
+  it("the live canonical surface carries no misleading 7-column Phase-header claim (the retired hint + drifted descriptions)", () => {
+    // The 7-column Phase-header framing is gone from every shipped plane: the canonical schema
+    // text (the authoring surface) and the engine's enforcement module. Frozen program docs
+    // (docs/osuperpowers/specs/*) are exempt — they are lineage-pinned artifacts, not live surface.
+    expect(loadDocSchemaText("overall")).not.toMatch(/7-column/);
+    expect(readFileSync(path.join(PKG_ROOT, "src", "rules", "documents.ts"), "utf8")).not.toMatch(/7-column/);
   });
 
   it("loader resolves the source tree in the dev face and a fabricated install layout in the consumer face", () => {
-    // Dev face: from the repo's own module tree the resolved dir contains the four canonical files.
+    // Dev face: from the repo's own module tree the resolved dir contains the five canonical files.
     const dev = resolveDocSchemaDir(path.join(SRC_SCHEMA_DIR, "..")); // src/documents
     expect(existsSync(dev)).toBe(true);
     for (const name of DOC_SCHEMA_NAMES) expect(existsSync(path.join(dev, `${name}.json`))).toBe(true);
@@ -206,5 +374,18 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       // the fabricated install dir itself is the only residue — rm it (nothing else was written)
       rmSync(install, { recursive: true, force: true });
     }
+  });
+
+  it("loadDocSchemaText returns the file bytes verbatim (byte-identical contract — a re-serialized parse is not)", () => {
+    // The raw-text loader is the `cdd schema get` stdout source: the bytes it returns must equal
+    // the on-disk file exactly, and JSON re-serialization must NOT be asserted against it (the
+    // canonical files' formatting is the truth — this pins the no-re-serialize contract).
+    for (const name of DOC_SCHEMA_NAMES) {
+      const file = path.join(resolveDocSchemaDir(), `${name}.json`);
+      expect(loadDocSchemaText(name)).toBe(readFileSync(file, "utf8"));
+    }
+    // loaded-parsed round-trips semantically but not byte-identity — the two loaders are distinct
+    // surfaces (JSON.stringify(JSON.parse(x)) normalizes the file's own formatting).
+    expect(JSON.parse(loadDocSchemaText("plan"))).toEqual(loadDocSchema("plan"));
   });
 });

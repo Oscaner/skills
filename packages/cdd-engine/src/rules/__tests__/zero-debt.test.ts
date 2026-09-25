@@ -176,8 +176,11 @@ describe("AC7 (4) no dual core block — task/docs share one machine core (singl
     const shared = Object.keys(taskProps).filter((k) => Object.prototype.hasOwnProperty.call(docsProps, k));
     // `phase` is excluded from the core-equality: its enums are a lane AMOUNT (task runs
     // implement/review/fix/branch-review, docs only review/fix) — the core fields below are the
-    // unified contract the two families must not drift apart on.
-    const core = shared.filter((k) => k !== "phase");
+    // unified contract the two families must not drift apart on. `findings` likewise carries a lane
+    // AMOUNT since P4.3: the task family adds the per-task section items schema (findings[].task —
+    // the grouped review's section attribution), docs keeps the bare array. The core fields below
+    // are the unified contract the two families must not drift apart on.
+    const core = shared.filter((k) => k !== "phase" && k !== "findings");
     expect(core.length).toBeGreaterThan(5); // a real shared core, not an accident of key naming
     for (const name of core) {
       expect(stripDescriptions(docsProps[name])).toEqual(stripDescriptions(taskProps[name]));
@@ -189,7 +192,10 @@ describe("AC7 (4) no dual core block — task/docs share one machine core (singl
     const docsProps = Object.keys((loadHandoffSchema("docs") as { properties: Record<string, unknown> }).properties);
     const taskOnly = taskProps.filter((k) => !docsProps.includes(k)).sort();
     const docsOnly = docsProps.filter((k) => !taskProps.includes(k)).sort();
-    expect(taskOnly).toEqual(["complexity", "notes", "review_scope", "task", "test_evidence"]);
+    // task-lane boundaries: the P4.3 single-data-model group reference (tasks — the carrier's sole
+// task identity) + the per-task findings-section items (findings is a shared name, spelled
+// lane-differently — see the core test)
+    expect(taskOnly).toEqual(["complexity", "notes", "review_scope", "tasks", "test_evidence"]);
     expect(docsOnly).toEqual(["doc_hash", "doc_path", "round"]);
     // the docs phase enum is a restriction of the task family's (review/fix shared; implement /
     // branch-review are task-only) — the shared status enum carries the unified core

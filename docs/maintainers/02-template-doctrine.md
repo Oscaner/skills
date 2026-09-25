@@ -40,7 +40,7 @@ The segment attribute (C1) is the cache contract's landing spot: the shell (`## 
 
 Skill document templates additionally bake in the program's experience asset (see `05-program-experience.md`): four-table sync mechanics, clean-tree prerequisite, session-call semantics, backfill-as-version, no-claim-without-enforcement, anti-residue guards, capability claims. A template is a convergent scaffold, not a bare skeleton — it carries the decisions that took a program to learn them.
 
-> **Doc-structure templates are canonical JSON Schemas.** The doc-structure facts + writing guidance (`description` per node) live as canonical JSON Schemas in `packages/cdd-engine/src/documents/schema/` (surface: `cdd help` → `schemas:` dir); skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. The remaining skill document template, `base-branch.md`, is methodology only — no doc-structure token lives there.
+> **Doc-structure templates are canonical JSON Schemas.** The doc-structure facts + writing guidance (`description` per node) live as canonical JSON Schemas in `packages/cdd-engine/src/documents/schema/` (surface: `cdd schema get <type>` reads them straight to stdout); skills consume them via `read-schema`, and the engine's `docContractValidate` asserts the same tokens. The remaining skill document template, `base-branch.md`, is methodology only — no doc-structure token lives there.
 
 ## 6. Interaction with emit
 

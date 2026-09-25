@@ -14,13 +14,15 @@ flowchart TD
   A[detect-engine] -->|found| B[determine-base]
   A -->|missing| Z0((BLOCKED: cdd-engine-not-installed))
   B --> C[set-base-branch]
-  C --> D[implement-task]
+  C --> T{adjudicate-task-groups}
+  T -->|confirmed| D[implement-task]
+  T -->|refused| Z1((BLOCKED: task-groups-undecided))
   D --> E[run-task-review]
   E --> F{blocker=0?}
   F -->|no| G[fix-task]
   F -->|yes| G
   G -->|entered via blocker>0| E
-  G -->|entered via blocker=0| H{more-tasks?}
+  G -->|entered via blocker=0| H{more-groups?}
   H -->|yes| D
   H -->|no| K[branch-review]
   K --> I{blocker=0?}
@@ -29,8 +31,6 @@ flowchart TD
   J -->|entered via blocker>0| K
   J -->|entered via blocker=0| L[handoff-finishing]
 ```
-
-The branch loop is node-for-node isomorphic with the task loop above it and with the spec/plan/task-family loops of the `writing-*` orchestrators: a review lane, a `{blocker=0?}` decision that routes both arms through the fix lane, a blocker>0 back-edge (re-review on the moved ref) and a blocker=0 forward-edge (finishing). `K ─ I ─ J ─ L` is the same skeleton as `D[review] → {blocker=0?} → F[fix] → …`.
 
 ## Node Definitions
 
@@ -52,28 +52,35 @@ The branch loop is node-for-node isomorphic with the task loop above it and with
 
 - **Do**: Persist the base via the engine CLI — `cdd base-branch set --plan <path> --base <branch> --source <enum>`, where `source` is `plan-field` | `branch-upstream` | `conversation-context` | `user-confirmed`. The engine is the sole write/read path for the artifact — never hand-write it; `set` is idempotent, refusals and validation errors are engine-handled (exit 2). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: `cdd base-branch get --plan <path>` (artifact JSON on stdout)
-- **Exit**: artifact written (or already present) → `implement-task`
+- **Exit**: artifact written (or already present) → `adjudicate-task-groups`
 - **Fail**: engine refusal / validation error → report to user; user decides (no hand-written artifact)
+
+### `adjudicate-task-groups`
+
+- **Do**: Settle the dispatch-group list before the loop and gate the loop entry on user confirmation. Read the plan's `## Task Groups` section — the declared groups win verbatim (the `taskGroups` plan record); an absent section is the empty default → every `### Task N:` is its own singleton group (the all-singleton default equals the pre-group per-task dispatch). Present the resulting group list via AskUserQuestion — the same confirmation template as `determine-base`. A non-trivial merged group the user adjudicates (2+ tasks dispatched together as one group) lands in the plan: write the `## Task Groups` section (the section is written ONLY when a non-trivial merged group exists — no groups → no section → zero plan churn), then commit the write as its own independent conventional commit (the Mid-Flight Backfill independent-commit discipline, I7: committed as its own change, never mixed with implementation commits), and the tree must be clean before the loop starts — an uncommitted or foreign dirty tree → BLOCKED. The confirmed group list flows into `implement-task`, one group per `--tasks` argument (`--tasks <n>` singleton-default · `--tasks <a,b>` merged group).
+- **Read**: plan `## Task Groups` section (declared groups or the empty default) + user confirmation
+- **Exit**: confirmed → `implement-task` (group list flows in via `--tasks`)
+- **Fail**: user refuses to confirm → BLOCKED: task-groups-undecided
 
 ### `implement-task`
 
-- **Do**: Dispatch `cdd implement --task <n> --plan <path>` — background execution (harness `run_in_background` when supported; timeout + poll otherwise). One task at a time. Every nested `cdd` dispatch in this skill forbids historical session flags (`--resume` / `-c`) — one-shot print mode only. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Do**: Dispatch `cdd implement --tasks <n|n,n,…> --plan <path>` — background execution (harness `run_in_background` when supported; timeout + poll otherwise). One dispatch group at a time: `<n>` dispatches a singleton-default group (each `### Task N:` is its own group unless the plan's `## Task Groups` section merges it — the all-singleton default equals the pre-group per-task dispatch); `<a,b>` dispatches a merged group from the adjudicated section (`adjudicate-task-groups`). Every nested `cdd` dispatch in this skill forbids historical session flags (`--resume` / `-c`) — one-shot print mode only. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: output contract — `status` / `blocker` / `artifacts` (absolute paths) / `counters`
 - **Exit**: dispatch complete → `run-task-review`
 - **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `osuperpowers:report-issues`)
 
 ### `run-task-review`
 
-- **Do**: Dispatch `cdd review --type task --task <n> --plan <path>` — background execution. Every task goes through implement → review → (fix if blockers); review is unskippable — a task never goes straight from implement to completion. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Do**: Dispatch `cdd review --type task --tasks <n|n,n,…> --plan <path>` — background execution. Every dispatch group goes through implement → review → (fix if blockers); review is unskippable — a group never goes straight from implement to completion. Ensure the working tree is clean before entering review (engine entry gate: dirty → BLOCKED; the orchestrator writes no tree during dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
 - **Read**: the full stdout — the result line (`status` / `blocker` count); findings full text lives in the handoff (`artifacts`) and is consumed inside `cdd fix` via `--findings`, never by the orchestrator
 - **Exit**: `blocker=0?` routes to `fix-task` (both branches; the re-run path is determined by the entry edge)
 - **Fail**: review exits with no output → BLOCKED: engine-error
 
 ### `fix-task`
 
-- **Do**: Fix ALL review findings (blocker + warn + nit) via `cdd fix --type task --task <n> --plan <path> --findings <handoff>` — `<handoff>` is the current cycle's handoff path from `artifacts`. No new review invocation — work from the findings already captured in this cycle. A finding tagged to a LATER task (`Task N:`, N later than the current) belongs to the plan's pending-acceptance zone, not this fix: the orchestrator collects it there (I6) — the fix agent holds zero plan-modification authority. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. After the review, the orchestrator reads only the `status` / `blocker` count from the stdout result line; findings full text is consumed by `cdd fix`'s fix-agent via `--findings <handoff>` — the orchestrator must not self-apply findings as inline edits.
+- **Do**: Fix ALL review findings (blocker + warn + nit) via `cdd fix --type task --tasks <n|n,n,…> --plan <path> --findings <handoff>` — `<handoff>` is the current cycle's handoff path from `artifacts`. No new review invocation — work from the findings already captured in this cycle. A finding tagged to a LATER task (`Task N:`, later than the current dispatch group's tasks) belongs to the plan's pending-acceptance zone, not this fix: the orchestrator collects it there (I6) — the fix agent holds zero plan-modification authority. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. After the review, the orchestrator reads only the `status` / `blocker` count from the stdout result line; findings full text is consumed by `cdd fix`'s fix-agent via `--findings <handoff>` — the orchestrator must not self-apply findings as inline edits.
 - **Read**: captured review handoff `findings[]` (path from `artifacts`)
-- **Exit**: entered via blocker>0 → `run-task-review` (re-run); entered via blocker=0 → `more-tasks?` (no re-run after blocker=0)
+- **Exit**: entered via blocker>0 → `run-task-review` (re-run); entered via blocker=0 → `more-groups?` (no re-run after blocker=0)
 - **Fail**: invoking a new review instead of fixing from captured findings → violates the convergence discipline
 
 ### `branch-review`
@@ -104,19 +111,14 @@ The branch loop is node-for-node isomorphic with the task loop above it and with
 | I1 | **Host Harness Autodetection** — the engine resolves the host harness internally from ambient environment markers; the orchestrator never passes a harness name down to `cdd`. |
 | I2 | **CLI Background Execution** — all `cdd <subcommand>` calls run in background — harness `run_in_background` when supported; timeout + poll otherwise. |
 | I3 | **Review Convergence** — blocker=0 → fix all findings (blocker + warn + nit) via `cdd fix`, then stop; do not re-run. Review refs are commit ranges with a double signature: task/branch ref = BASE..HEAD (the fix commit moves HEAD → a re-review of the NEW ref is a new review), plan/spec ref = doc_hash (content evolution → new ref) — the fix commit moves the ref and the engine cannot intercept it, so this discipline is the only guard. No re-review after a blocker=0 review; the cycle ends with the fix of all captured findings. |
-| I4 | **Three-Mode Chain Completeness** — every task goes through the full implement → review → (fix if blockers) chain; review is unskippable, and fix dispatch requires a prior APPROVED review handoff for that task. |
+| I4 | **Three-Mode Chain Completeness** — every dispatch group (a singleton task or a merged group) goes through the full implement → review → (fix if blockers) chain; review is unskippable, and fix dispatch requires a prior APPROVED review handoff for that group. |
 | I5 | **No Controller Bypass** — when the engine is available, the orchestrator must not hand-write control-flow bypasses; all task execution / review / fix dispatch go through engine CLI calls. |
-| I6 | **Pending Acceptance** — a finding that targets a LATER task tag (`### Task N:` with N later than the current task) is not fixed by this round's agent: the orchestrator collects it, as sole writer, into the plan's dedicated pending-acceptance-patch zone; fix/implement agents hold zero plan-modification authority. |
-| I7 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands immediately when the current `cdd` call returns (hot context; no deferral to cycle close — deferral risks losing the decision), committed as its own change; the tree must be clean (backfill committed) before the next dispatch: an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED). A backfill rewriting the current task's own plan/spec text routes per Pending Acceptance (sole-writer); otherwise it rides the moving ref and the next review audits it in-band (changed-surface booking, not a block). |
-
-## Engine Semantics
-
-Orchestrator-facing facts the engine guarantees — read and route on them, never re-derive:
-
-- **Dry-run is pure simulation** — `cdd <subcommand> --dry-run` short-circuits dispatch: no agent spawn, no handoff reads, an APPROVED stub handoff plus the return block contract only (the engine writes the workspace stub regardless of tree state). It never blocks: a dirty working tree under dry-run lands a stderr WARN — never a BLOCK, exit stays 0 — and the exit gate's clean-tree discipline applies to real dispatches only. When verifying behavior with `--dry-run`, treat the stub handoff as simulation, not an acceptance record.
-- **`cdd fix --type branch` closes the branch loop** — the only way back from `branch-review` findings to accepted commits is this engine channel (`--findings` = the source `branch-review-{base7}..{head7}-r{R}.json`); hand-applying findings as inline orchestrator edits is a controller bypass (I5).
-- **Soft review cap** — branch-fix rounds are soft-limited (recommended ≤ 3) rather than hard-capped by design: a rigid cap between a persistent blocker and "cap exhausted" would deadlock the program's terminal gate. A deliberate symmetry exception to the hard media ceilings — the reason for the exception is recorded here, the cap is not patched; at the cap the user adjudicates (branch preserved, findings reported).
-- **Entry gate reads the tree, not the committed range** — the review entry gate checks working-tree cleanliness only (dirty → BLOCKED; dry-run → WARN). It does not assert that HEAD holds exactly the task's canonical commits, so a committed mid-flight backfill clears the gate. The subsequent review audits the widened range — off-ledger changes surface as a changed-surface booking (an engine WARN, not a block) and the scope axis decides; visible, not a block.
+| I6 | **Pending Acceptance** — a finding that targets a LATER task tag (`### Task N:` with N later than the current dispatch group's tasks) is not fixed by this round's agent: the orchestrator collects it, as sole writer, into the plan's dedicated pending-acceptance-patch zone; fix/implement agents hold zero plan-modification authority. |
+| I7 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current `cdd` call's return (any dispatch — implement/review/fix): (1) **land immediately** — hot context; no deferral to cycle close (deferral risks losing the decision); (2) **commit on its own** — committed as its own standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — the loop pauses (tree clean, backfill committed) before the next dispatch; an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — after the loop resumes, the next review audits the backfill in-band (changed-surface booking, not a block); a backfill rewriting the current task's own plan/spec text routes per Pending Acceptance (sole-writer), otherwise it rides the moving ref. |
+| I8 | **Dry-run is pure simulation** — `cdd <subcommand> --dry-run` short-circuits dispatch: no agent spawn, no handoff reads, an APPROVED stub handoff plus the return block contract only (the engine writes the workspace stub regardless of tree state). It never blocks: a dirty working tree under dry-run lands a stderr WARN — never a BLOCK, exit stays 0 — and the exit gate's clean-tree discipline applies to real dispatches only. When verifying behavior with `--dry-run`, treat the stub handoff as simulation, not an acceptance record. |
+| I9 | **`cdd fix --type branch` closes the branch loop** — the only way back from `branch-review` findings to accepted commits is this engine channel (`--findings` = the source `branch-review-{base7}..{head7}-r{R}.json`); hand-applying findings as inline orchestrator edits is a controller bypass (I5). |
+| I10 | **Soft review cap** — branch-fix rounds are soft-limited (recommended ≤ 3) rather than hard-capped by design: a rigid cap between a persistent blocker and "cap exhausted" would deadlock the program's terminal gate. A deliberate symmetry exception to the hard media ceilings — the cap is not patched; at the cap the user adjudicates (branch preserved, findings reported). |
+| I11 | **Entry gate reads the tree, not the committed range** — the review entry gate checks working-tree cleanliness only (dirty → BLOCKED; dry-run → WARN). It does not assert that HEAD holds exactly the task's canonical commits, so a committed mid-flight backfill clears the gate. The subsequent review audits the widened range — off-ledger changes surface as a changed-surface booking (an engine WARN, not a block) and the scope axis decides; visible, not a block. |
 
 ## Failure Modes
 

@@ -18,6 +18,14 @@ import { gitMergeBaseIsAncestor } from "../infra/git.ts";
 // backfill branch (legacy-migration shape); mechanical guard = tests/progress.test.mjs's
 // six-key lexical-order assertion + backfill assertions.
 
+/** progress.json row — keyed by scalar `task` for single-task groups (`--tasks 1` — backward
+ * compatible with every per-task consumer) or by the group key string for multi-task groups
+ * (`--tasks 1,2` → `{ group: "1-2" }`; the P4.3 group is the dispatch unit — round/handoff/
+ * progress/residue land per group). */
+export type TaskLedgerRow =
+  | { task: number; rounds?: Record<string, number>; scope_base?: string }
+  | { group: string; rounds?: Record<string, number>; scope_base?: string };
+
 /** progress.json shape — top-level keys only (plan / counters / tasks). Counters derive from the
  * canonical failure-categories table (createEmptyProgress writes all counter fields at 0). */
 export interface ProgressData {
@@ -26,15 +34,32 @@ export interface ProgressData {
   contractViolationCount?: number;
   engineSelfWrittenCount?: number;
   engineRecoveryCount?: number;
-  tasks: Array<{
-    task: number;
-    rounds?: Record<string, number>;
-    /** Task-level scope anchor — the round-1 implement's brief TASK_BASE, seeded earliest-wins
-     *  and only ever moved strictly earlier (T27, spec T7.6). Engine-owned, never an agent handoff
-     *  key; see seedScopeBase / moveTaskScopeBaseEarlier. */
-    scope_base?: string;
-  }>;
+  tasks: TaskLedgerRow[];
   [key: string]: unknown;
+}
+
+/** Ledger lookup key — a scalar task number (single-task group) or the group key string. */
+export type LedgerKey = number | string;
+
+/** rowFor(data, key) — the ledger row lookup single point: a number key or a single-task group key
+ * (`"1"`) resolves the `{ task: N }` row (post-migration single groups keep the legacy row shape);
+ * a multi-task group key (`"1-2"`) resolves the `{ group }` row. Exported as the shared single/group
+ * row lookup — dispatch/task.ts uses it for the APPROVED-review ensure-row writeback (single source,
+ * no inline re-implementation of the dichotomy). */
+export function rowFor(data: ProgressData, key: LedgerKey): TaskLedgerRow | undefined {
+  if (typeof key === "number") return data.tasks.find((t) => "task" in t && t.task === key);
+  const single = /^\d+$/.test(key) ? Number(key) : null;
+  return single != null
+    ? data.tasks.find((t) => "task" in t && t.task === single)
+    : data.tasks.find((t) => "group" in t && t.group === key);
+}
+
+/** entryFor(key) — constructs a fresh row for a key absent from the ledger (single key → task row;
+ * multi group key → group row). Exported alongside rowFor — the single-source pair the dispatch
+ * layer shares for the ensure-row writeback. */
+export function entryFor(key: LedgerKey): TaskLedgerRow {
+  const single = typeof key === "number" || /^\d+$/.test(key);
+  return single ? { task: Number(key) } : { group: String(key) };
 }
 
 /** readProgressJSON(progressDir, plan): read progress.json from progressDir.
@@ -93,20 +118,22 @@ export function createEmptyProgress(plan?: string): ProgressData {
   };
 }
 
-/** getRound: the round number to dispatch next (last completed + 1, or 1 if none). */
-export function getRound(progressData: ProgressData, taskNum: number, mode: string): number {
-  const taskEntry = progressData.tasks.find((t) => t.task === taskNum);
+/** getRound: the round number to dispatch next (last completed + 1, or 1 if none). Keyed by the
+ * dispatch unit — a scalar task number or a group key string (P4.3: the group is the dispatch unit;
+ * single groups resolve the per-task row, multi-task groups the `{ group }` row). */
+export function getRound(progressData: ProgressData, key: LedgerKey, mode: string): number {
+  const taskEntry = rowFor(progressData, key);
   const lastCompleted = taskEntry?.rounds?.[mode] ?? 0;
   return lastCompleted + 1;
 }
 
 /** incrementRound: record that a round has been dispatched (call after any handoff is written to
- * disk, including BLOCKED/TIMEOUT). Creates the task entry if absent. */
-export function incrementRound(progressDir: string, taskNum: number, mode: string): void {
+ * disk, including BLOCKED/TIMEOUT). Creates the row (task or group kind) if absent. */
+export function incrementRound(progressDir: string, key: LedgerKey, mode: string): void {
   const data = readProgressJSON(progressDir);
-  let taskEntry = data.tasks.find((t) => t.task === taskNum);
+  let taskEntry = rowFor(data, key);
   if (!taskEntry) {
-    taskEntry = { task: taskNum, rounds: {} };
+    taskEntry = entryFor(key);
     data.tasks.push(taskEntry);
   }
   taskEntry.rounds ??= {}; // migrate pre-rounds task entries that lack the field
@@ -135,27 +162,26 @@ export function incrementRecovery(progressDir: string): void {
 // legacy prev.commits.base chain (zero behavior change for tasks without a ledger).
 export const SHA40_RE = /^[0-9a-f]{40}$/;
 
-/** taskScopeBase: the ledger's current scope_base for taskNum, or null when absent/invalid
+/** taskScopeBase: the ledger's current scope_base for the key, or null when absent/invalid
  *  (a non-40-hex stored value is treated as a missing ledger — dispatch falls back to legacy). */
-export function taskScopeBase(progressDir: string, taskNum: number): string | null {
-  const entry = readProgressJSON(progressDir).tasks.find((t) => t.task === taskNum);
+export function taskScopeBase(progressDir: string, key: LedgerKey): string | null {
+  const entry = rowFor(readProgressJSON(progressDir), key);
   const v = entry?.scope_base;
   return typeof v === "string" && SHA40_RE.test(v) ? v : null;
 }
 
-/** seedScopeBase: earliest-wins seed of the ledger for taskNum. Creates the task entry on demand.
+/** seedScopeBase: earliest-wins seed of the ledger for the key. Creates the row on demand.
  *  Returns the ledger value AFTER the call: an existing valid anchor wins (the return equals the
  *  current value, the change is a no-op); an invalid stored value is healed by the first valid seed;
  *  a non-40-hex/absent input never writes (returns the current ledger value — null when empty). */
-export function seedScopeBase(progressDir: string, taskNum: number, base: string): string | null {
+export function seedScopeBase(progressDir: string, key: LedgerKey, base: string): string | null {
   const data = readProgressJSON(progressDir);
-  const entry = data.tasks.find((t) => t.task === taskNum);
-  const current = entry?.scope_base;
+  const current = rowFor(data, key)?.scope_base;
   if (typeof current === "string" && SHA40_RE.test(current)) return current; // earliest-wins
   if (!SHA40_RE.test(base)) return current ?? null;
-  let taskEntry = data.tasks.find((t) => t.task === taskNum);
+  let taskEntry = rowFor(data, key);
   if (!taskEntry) {
-    taskEntry = { task: taskNum, scope_base: base };
+    taskEntry = entryFor(key);
     data.tasks.push(taskEntry);
   }
   taskEntry.scope_base = base;
@@ -171,19 +197,19 @@ export function seedScopeBase(progressDir: string, taskNum: number, base: string
  *  lane. Returns the ledger value after the call. */
 export async function moveTaskScopeBaseEarlier(
   progressDir: string,
-  taskNum: number,
+  key: LedgerKey,
   candidate: string,
   cwd: string,
   head: string,
 ): Promise<string | null> {
-  const current = taskScopeBase(progressDir, taskNum);
-  if (current === null) return seedScopeBase(progressDir, taskNum, candidate);
+  const current = taskScopeBase(progressDir, key);
+  if (current === null) return seedScopeBase(progressDir, key, candidate);
   if (!SHA40_RE.test(candidate) || candidate === current || candidate === head) return current;
   const isAncestorOfCurrent = await gitMergeBaseIsAncestor(cwd, candidate, current);
   const isAncestorOfHead = await gitMergeBaseIsAncestor(cwd, candidate, head);
   if (!isAncestorOfCurrent || !isAncestorOfHead) return current;
   const data = readProgressJSON(progressDir);
-  const taskEntry = data.tasks.find((t) => t.task === taskNum);
+  const taskEntry = rowFor(data, key);
   if (taskEntry) {
     taskEntry.scope_base = candidate;
     writeProgressJSON(progressDir, data);

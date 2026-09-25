@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oscaner.dev/schemas/cdd/skill-anatomy.json",
+  "title": "Node-anchored skill (SKILL.md) document structure",
+  "description": "Canonical structure of an osuperpowers skill's SKILL.md — the node-anchored anatomy every consumer-facing skill document follows. The digraph is the sole control-flow source of truth; prose sections map one-to-one to graph nodes. This schema is the single structure fact for the skill-anatomy doc type: the section-heading registry (a STRICT allowlist the machine check enforces — a registry-external heading is a BLOCK because an undefined section is uncertainty on the consumer's real entry surface), the `## Flow Digraph` mermaid section (mermaid-only, zero trailing prose), the `### `node`` node-definition headings, the per-node four-element contract (Do / Read / Exit / Fail), the `## Invariants` and `## Failure Modes` tables, the BLOCKED terminal convention, the conditional `## Skeleton deltas` table (the writing-* spec-writer trio MUST carry it; the deltas table is the validation input for the skeleton-isomorphism assertion), the conditional `## Pending Acceptance Patch` zone (writing-plans), the growth boundary (15 nodes / 17 edges — crossing requires a rationale registered in this schema's registry), and the consumer-surface purity rule (SKILL.md carries zero growth/refactor narrative headings in any form). Authoring agents read the properties below + their descriptions to draft conforming SKILL.md files; the machine check (packages/osuperpowers/tests/digraph-consistency.test.mjs) consumes the same patterns against every skill under packages/osuperpowers/skills/.",
+  "type": "object",
+  "properties": {
+    "sectionRegistry": {
+      "type": "object",
+      "description": "The section-heading registry — the literal `## ` headings a SKILL.md may carry and the `### ` heading kinds a SKILL.md may use. STRICT allowlist, machine-enforced: four PUBLIC sections every skill carries (Flow Digraph · Node Definitions · Invariants · Failure Modes) plus two CONDITIONAL sections (Skeleton deltas — mandatory for the writing-* spec-writer trio; Pending Acceptance Patch — carried by writing-plans). Every live `## ` heading must be one of these six literals; every live `### ` heading must be one of the two heading kinds (a backticked node name or a pending-patch sample `Task N:` heading). Any heading outside the registry BLOCKS validation — an undefined section/heading is uncertainty on a consumer real entry surface that this schema has never defined (for example the evolution-narration sections `## Flow size note` / `## Full Flow Refactor Rationale` never appear). Registry membership is judged on LIVE heading lines only: fenced code blocks (``` … ```) are sample/illustration content, never heading surface — the pending-patch sample in writing-plans (a fenced block containing `## Pending Acceptance Patch` and `### Task N:` lines) is code, not a second live registration.",
+      "properties": {
+        "public": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["flowDigraph", "nodeDefinitions", "invariants", "failureModes"],
+            "description": "One public section key — all four are mandatory on every SKILL.md (the section ORDER is free; only presence and registry membership are enforced)."
+          },
+          "description": "The four public sections — Flow Digraph · Node Definitions · Invariants · Failure Modes — every SKILL.md carries, whatever its node set."
+        },
+        "conditional": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["skeletonDeltas", "pendingAcceptancePatch"],
+            "description": "One conditional section key — carried only by its required carriers."
+          },
+          "description": "The two conditional sections — Skeleton deltas (the writing-* spec-writer trio) and Pending Acceptance Patch (writing-plans) — each with its requiredCarriers below."
+        },
+        "sections": {
+          "type": "object",
+          "description": "Per-section canonical facts — the literal heading each section carries (the same const the allowlist matches) and, for the conditional sections, the required-carrier skill list (the skills the machine check demands the section from).",
+          "properties": {
+            "flowDigraph": {
+              "type": "object",
+              "description": "The `## Flow Digraph` section — control-flow source of truth (see the digraph facet for its content rule).",
+              "properties": {
+                "heading": { "type": "string", "const": "## Flow Digraph", "description": "The literal heading — the mermaid section's const." }
+              }
+            },
+            "nodeDefinitions": {
+              "type": "object",
+              "description": "The `## Node Definitions` section — the `### `-headed per-node definitions.",
+              "properties": {
+                "heading": { "type": "string", "const": "## Node Definitions", "description": "The literal heading." }
+              }
+            },
+            "invariants": {
+              "type": "object",
+              "description": "The `## Invariants` section — cross-node invariants declared centrally in a markdown table.",
+              "properties": {
+                "heading": { "type": "string", "const": "## Invariants", "description": "The literal heading." }
+              }
+            },
+            "failureModes": {
+              "type": "object",
+              "description": "The `## Failure Modes` section — cross-node failure-to-behavior mappings in a markdown table (complements node Fail fields: Fail handles node-local failures, this table handles cross-node ones).",
+              "properties": {
+                "heading": { "type": "string", "const": "## Failure Modes", "description": "The literal heading." }
+              }
+            },
+            "skeletonDeltas": {
+              "type": "object",
+              "description": "The conditional `## Skeleton deltas` section — a per-row record of how a skill's review-loop / commit / handoff skeleton diverges from the spec-writer-trio shared skeleton. The deltas table IS the validation input for the skeleton-isomorphism assertion: a skill's handoff node must match the value its table declares, and any divergence between siblings that the tables do not register fails; membership is self-describing — any skill carrying the table joins the family and must carry the canonical rows.",
+              "properties": {
+                "heading": { "type": "string", "const": "## Skeleton deltas", "description": "The literal heading." },
+                "requiredCarriers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["writing-single-spec", "writing-phase-spec", "writing-overall-spec"],
+                    "description": "One spec-writer-trio skill — the shared review-loop/commit/handoff skeleton's owner; MUST carry the Skeleton deltas table."
+                  },
+                  "description": "The writing-* spec-writer trio (single / phase-spec / overall) — each MUST carry the `## Skeleton deltas` table; a trio member without the table fails the family guard."
+                },
+                "rows": {
+                  "type": "object",
+                  "description": "The deltas-table row vocabulary — the rows the machine check reads as validation input.",
+                  "properties": {
+                    "handoff": { "type": "string", "const": "handoff", "description": "The handoff row (key containing `handoff`) declares the skill's handoff-* node name in backticks — must equal the node the digraph actually draws." },
+                    "reviewLoop": { "type": "string", "pattern": "review loop", "description": "The review-loop row (key matching `review loop`) declares the shared shape (`shared shape — no delta`, or the registered divergence)." }
+                  }
+                }
+              }
+            },
+            "pendingAcceptancePatch": {
+              "type": "object",
+              "description": "The conditional `## Pending Acceptance Patch` zone — a top-level section recording cross-task review findings tagged `targets later task`. Single canonical heading: the retired `(cross-task findings consolidation)` suffix variant is NOT in the registry — the register is the single canonical `## Pending Acceptance Patch` only (zone semantics unchanged by the variant's removal). The zone exists only while a patch is pending; the orchestrator is its sole writer.",
+              "properties": {
+                "heading": { "type": "string", "const": "## Pending Acceptance Patch", "description": "The single canonical heading — the `(cross-task findings consolidation)` suffixed variant is retired and never registered." },
+                "requiredCarriers": {
+                  "type": "array",
+                  "items": { "type": "string", "enum": ["writing-plans"], "description": "The plan-writing skill — the only current carrier of the pending-acceptance-patch zone." },
+                  "description": "The skills whose SKILL.md defines the zone — writing-plans (the plan-facing skill the orchestrator writes the zone into)."
+                },
+                "sampleEntry": { "type": "string", "pattern": "^- \\*\\*Task \\d+ \\(patch\\)\\*\\*:", "description": "One patch-entry bullet form — `- **Task N (patch)**: <task-ref + patch description>`; the carry-through rides the later task's acceptance line (`accepts pending-acceptance-patch`)." }
+              }
+            }
+          }
+        },
+        "headingKinds": {
+          "type": "object",
+          "description": "The `### ` heading grammar — every live `### ` heading must be one of two kinds: a backticked node name (a node-definitions entry, mapped one-to-one to a digraph operator node) or a pending-patch sample `### Task N:` heading. A `### ` heading of any other form (narrative, numbered phase, plain prose title) is registry-external → BLOCK.",
+          "properties": {
+            "nodeName": { "type": "string", "pattern": "^### `[^`]+`$", "description": "Backticked node-definition heading — the `### `node-name`` form; assertion 1's defined universe." },
+            "pendingPatchTaskHeading": { "type": "string", "pattern": "^### Task \\d+:", "description": "Pending-patch sample task heading — the `### Task N:` colon form shown in the pending-acceptance-patch sample (the task-heading form a `targets later task` finding tags)." }
+          }
+        }
+      }
+    },
+    "digraph": {
+      "type": "object",
+      "description": "The Flow Digraph — the skill's control-flow graph embedded in a mermaid code block under `## Flow Digraph`. The section carries EXACTLY ONE mermaid block and ZERO trailing prose: the lines after the mermaid block are blank/whitespace until the next `## `/`# ` heading — a flow intro line below the mermaid (`7 process steps / 9 nodes: …`, any restatement) is redundant narration (Node Definitions already carry the detail) and forbidden on the consumer surface.",
+      "properties": {
+        "sectionHeading": { "type": "string", "const": "## Flow Digraph", "description": "The literal digraph section heading." },
+        "mermaidOnly": { "type": "boolean", "const": true, "description": "Content rule — the section under the heading is exactly one ``````mermaid `````` fence; everything after the closing fence to the next `## ` heading is whitespace-only. Zero prose after the mermaid block." },
+        "mermaidFence": { "type": "string", "const": "```mermaid", "description": "The opening fence — graphs are embedded in mermaid (broadest consumer rendering support)." },
+        "nodeTypes": {
+          "type": "object",
+          "description": "The three mermaid node types.",
+          "properties": {
+            "operator": { "type": "string", "pattern": "^\\w+\\[.*\\]$", "description": "Operator node `A[do-thing]` — executes an action, has a defined exit; the node set that must map one-to-one to `### ` definitions (assertion 1)." },
+            "decision": { "type": "string", "pattern": "^\\w+\\{.*\\}$", "description": "Decision node `B{condition?}` — conditional branch (diamond), flow-routing; exempt from the required-definition side unless it also defines a node." },
+            "terminal": { "type": "string", "pattern": "^\\w+\\(\\(.*\\)\\)$", "description": "Terminal node `C((APPROVED))` / `D((BLOCKED: …))` — flow terminates (rounded)." }
+          }
+        },
+        "terminalStates": {
+          "type": "object",
+          "description": "The three terminal states.",
+          "properties": {
+            "blocked": { "type": "string", "const": "BLOCKED", "description": "BLOCKED — flow terminates, requires user intervention (see the blockedTerminal facet for the convention)." },
+            "approved": { "type": "string", "const": "APPROVED", "description": "APPROVED — flow completes normally." },
+            "handoff": { "type": "string", "const": "HANDOFF", "description": "HANDOFF — hand the flow to the next skill/tool." }
+          }
+        },
+        "edges": {
+          "type": "object",
+          "description": "The edge vocabulary — a digraph's edges connect nodes with the `-->` arrow.",
+          "properties": {
+            "unconditional": { "type": "string", "const": "A --> B", "description": "Unconditional edge — mandatory transition (no label)." },
+            "conditional": { "type": "string", "const": "A -->|label| B", "description": "Conditional edge — the label describes the branch condition (`A -->|no| G`)." },
+            "backEdge": { "type": "string", "const": "A -->|retry| B", "description": "Back-edge — an explicitly annotated loop (review loop / fix loop), e.g. `fix-spec --entered via blocker>0--> spec-review`." }
+          }
+        }
+      }
+    },
+    "nodeDefinitions": {
+      "type": "object",
+      "description": "The Node Definitions section — the per-node prose definitions. Every digraph operator node has a definition heading and every definition heading names a digraph operator node (bidirectional completeness, assertion 1): orphans and dangling nodes fail with named diagnostics.",
+      "properties": {
+        "sectionHeading": { "type": "string", "const": "## Node Definitions", "description": "The literal section heading." },
+        "headingKind": { "type": "string", "pattern": "^### `[^`]+`$", "description": "The `### `node-name`` heading form — a node definition's title (the same backticked form the heading-kind registry allows)." },
+        "extensionRule": { "type": "string", "const": "prose sections map one-to-one to graph nodes", "description": "The core anatomy mapping — the digraph is the sole control-flow source of truth and each node's prose is the definition of one graph node." }
+      }
+    },
+    "nodeElements": {
+      "type": "object",
+      "description": "The per-node four-element contract — every node definition's prose carries four bullet fields: Do / Read / Exit / Fail. A node missing any of the four elements is structurally incomplete (the four-element break is intercepted by the machine check).",
+      "properties": {
+        "do": { "type": "string", "pattern": "^- \\*\\*Do\\*\\*:", "description": "**Do** — what the node does: the executable action, including the explicit CLI invocation (tool + args) when the node dispatches a command, and numbered self-checks for critical constraints." },
+        "read": { "type": "string", "pattern": "^- \\*\\*Read\\*\\*:", "description": "**Read** — the node's inputs: file paths, environment variables, context (a path list)." },
+        "exit": { "type": "string", "pattern": "^- \\*\\*Exit\\*\\*:", "description": "**Exit** — routing on success (the next node / decision-branch criteria), aligned with the digraph's edges." },
+        "fail": { "type": "string", "pattern": "^- \\*\\*Fail\\*\\*:", "description": "**Fail** — the node's failure mode → behavior (error / BLOCKED / retry / fail-open); complements the Failure Modes table (node-local vs cross-node split)." }
+      }
+    },
+    "invariants": {
+      "type": "object",
+      "description": "The `## Invariants` section — cross-node invariants declared centrally in a markdown table. An invariant expressible inside a node belongs in that node's Do/Exit/Fail (the cross-node / node-local split decides placement; a cross-node rule lives here, a node-local rule never rides the central table).",
+      "properties": {
+        "sectionHeading": { "type": "string", "const": "## Invariants", "description": "The literal section heading." },
+        "table": {
+          "type": "object",
+          "description": "The invariants table — a markdown table of numbered invariant rows.",
+          "properties": {
+            "row": { "type": "string", "pattern": "^\\|\\s*[A-Z]+\\d+\\s*\\|", "description": "An invariant row `| IN | <invariant text> |` — the number names the invariant (I1..IN); row content is free-form cross-node rule text." }
+          }
+        }
+      }
+    },
+    "failureModes": {
+      "type": "object",
+      "description": "The `## Failure Modes` section — cross-node failure-to-behavior mappings in a markdown table. Complements node Fail fields (Fail = node-local failures; this table = cross-node failures); every failure maps to at least one graph edge or terminal node.",
+      "properties": {
+        "sectionHeading": { "type": "string", "const": "## Failure Modes", "description": "The literal section heading." },
+        "table": {
+          "type": "object",
+          "description": "The failure-modes table — a markdown table mapping failures to behavior.",
+          "properties": {
+            "row": { "type": "string", "pattern": "^\\|[^\\n]+\\|$", "description": "A table row — the failure cell, behavior cell, and (where carried) reason/recovery cells." }
+          }
+        }
+      }
+    },
+    "blockedTerminal": {
+      "type": "object",
+      "description": "The BLOCKED terminal convention — a flow that terminates BLOCKED requires user intervention to recover. BLOCKED-node prose carries a blocking reason (one sentence explaining why execution is stuck), a recovery action (concrete install instructions or manual user steps), and the no-silent-fallback statement (degradation and skipping are prohibited). The block policy: delegated skills treat a failed upstream import (`A -->|missing| Z((BLOCKED: install <plugin>))` terminal) as an explicit BLOCKED node with install instructions.",
+      "properties": {
+        "stateToken": { "type": "string", "const": "BLOCKED", "description": "The terminal-state token — terminal labels carry `BLOCKED`, optionally with a concrete reason (`((BLOCKED: <reason>))`)." },
+        "labelShape": { "type": "string", "pattern": "^BLOCKED(?:\\s*:\\s*[^)\\n]+)?$", "description": "A BLOCKED terminal label — `BLOCKED` or `BLOCKED: <one-line reason>` (e.g. `BLOCKED: cdd-engine-not-installed`)." },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["blocking reason", "recovery action", "no silent fallback"],
+            "description": "One BLOCKED-prose requirement — the reason, the recovery, and the explicit no-silent-fallback statement."
+          },
+          "description": "The three BLOCKED-prose requirements — reason, recovery action, and the no-silent-fallback statement."
+        }
+      }
+    },
+    "growthBoundary": {
+      "type": "object",
+      "description": "The growth boundary — a skill whose digraph carries MORE than the node limit or MORE than the edge limit (all node types counted, re-declarations deduplicated) has crossed the boundary. Crossing is permitted only for a documented reason registered in this schema's registry below — NEVER inside the consumer-shipped SKILL.md in any form (consumer-surface purity): the growth-signal assertion reports every skill's node/edge counts on every validate run and fails a crossed skill whose rationale is not registered here. Flow-change discipline: a change that lands and gets justified afterwards is an unregistered delta on the next validate run.",
+      "properties": {
+        "nodeLimit": { "type": "integer", "const": 15, "description": "The node-count limit — crossing means MORE than 15 nodes (all node types counted, re-declarations deduplicated)." },
+        "edgeLimit": { "type": "integer", "const": 17, "description": "The edge-count limit — crossing means MORE than 17 edges." },
+        "registry": {
+          "type": "object",
+          "description": "The registered-rationale registry — every crossing skill names itself here, with what the crossing gained and why subdivision / a rewrite / the sibling-uniform option were rejected. The rationale never ships.",
+          "properties": {
+            "crossings": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["cli-driven-development"],
+                "description": "`cli-driven-development` (15 nodes · 19 edges — limits 15 / 17): crossed for whole-group dispatch semantics (2026-09 consumer-parity): the loop's dispatch unit is now the dispatch group (`--tasks <n|n,n,…>` — one surface for a singleton and a merged group), and an `adjudicate-task-groups` gate lands between `set-base-branch` and the loop. What the flow gained: the gate settles the group list from the plan's `## Task Groups` section (declared groups verbatim; an absent section → per-task singleton groups — exactly the pre-group dispatch) and gates loop entry on the user's confirmation; a refusal terminates before any dispatch touches the tree; `{more-groups?}` replaces `{more-tasks?}` to name the group iterate. Subdivision rejected — the gate is one narrow decision on the `C → D` seam; splitting it would add ceremony to a loop body that is unchanged. Rewrite rejected — the loop skeleton (review lane → `{blocker=0?}` → fix lane → convergence exit) is shared with the writing-* orchestrators (the skeleton-isomorphism family). Sibling-uniform rejected — no sibling orchestrator dispatches task groups: the writing-* loops review documents, not `--tasks` units."
+              },
+              "description": "The registered crossings — the skills with a registered growth rationale (the machine check fails a crossed skill absent from this list)."
+            }
+          }
+        }
+      }
+    },
+    "consumerPurity": {
+      "type": "object",
+      "description": "Consumer-surface purity (iron rule) — SKILL.md is an instruction document: its sections are executable direction or self-describing structure, never program narrative. Growth/refactor narrative headings are forbidden in ANY form (`## Flow size note` fails as hard as `## Full Flow Refactor Rationale`); design-history narration, mechanism explanation, internal-program references, and rationale/commentary on design decisions never ride the consumer surface. The whole rationale surface lives here (this schema) and the consumer skill carries zero trace of it — no one-line pointer or neutral note substitutes for removal; a removed flow step is edited out of the digraph, never annotated.",
+      "properties": {
+        "forbiddenNarrativeHeads": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["## Flow size note", "## Full Flow Refactor Rationale"],
+            "description": "One canonical growth/refactor narrative heading — the machine check fails any SKILL.md carrying it (and the section-heading allowlist blocks any other form of narrative heading)."
+          },
+          "description": "The canonical forbidden narrative headings — growth/refactor narration in any form (these are the regression pins; the allowlist blocks every other unregistered narrative heading too)."
+        },
+        "zeroTraceRule": { "type": "string", "const": "zero trace in the consumer skill", "description": "The purity rule's hard form — the rationale lives only in this schema's growthBoundary registry; the consumer SKILL.md carries zero trace of the crossing." }
+      }
+    }
+  }
+}

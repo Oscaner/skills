@@ -22,10 +22,20 @@ const { families } = NAMESPACE;
 export const workspaceRoot = NAMESPACE.workspaceRoot;
 
 export interface HandoffParams {
-  task?: number | string;
+  /** The dispatch group's canonical key string (full task list joined by `-`, no range
+   * abbreviation: `--tasks 1` → `"1"` · `--tasks 1,2` → `"1-2"`) — fills the canonical
+   * `{tasks}` placeholder of the task handoff families. */
+  tasks?: string;
   base7?: string;
   head7?: string;
   round?: number | string;
+}
+
+/** tasksKey(tasks) — the group key's single derivation point (P4.3 group dispatch): the full
+ * comma-parse list joins by `-` into the handoff-namespace key. `--tasks 1` → `"1"` (single-task
+ * group), `--tasks 1,2` → `"1-2"` — full list string, no range abbreviation. */
+export function tasksKey(tasks: readonly number[]): string {
+  return tasks.join("-");
 }
 
 // familyKey(op, type) → canonical family key (`${op}.${type}`). Internal helper, not public API.
@@ -54,26 +64,27 @@ export function familyConfig(
 // Placeholder concrete replacement (regexp escaping is roundPattern's concern, not applied here).
 function fillName(name: string, params: HandoffParams = {}): string {
   return name
-    .replaceAll("{task}", String(params.task ?? ""))
+    .replaceAll("{tasks}", params.tasks ?? "")
     .replaceAll("{base7}", params.base7 ?? "")
     .replaceAll("{head7}", params.head7 ?? "")
     .replaceAll("{round}", String(params.round ?? ""));
 }
 
 /** roundPattern(op, type, params) → ^...$ RegExp, two shapes:
- *   scan shape (params.task absent — workspace round scanning): {round}→(\d+), {task}→\d+,
- *     {base7}/{head7}→[0-9a-f]{7} — wide (any task/ref of the family hits the round capture group);
- *   concrete shape (params provides {task}/{base7}/{head7} — Convergence prev / round validation):
+ *   scan shape (params.tasks absent — workspace round scanning): {round}→(\d+), {tasks}→\d+(?:-\d+)*
+ *     (any task group of the family hits the round capture group), {base7}/{head7}→[0-9a-f]{7} —
+ *     wide (any group/ref of the family hits the round capture group);
+ *   concrete shape (params provides {tasks}/{base7}/{head7} — Convergence prev / round validation):
  *     placeholders → literals, exact-ref match.
- * Shape discrimination = params.task presence (task family), no probe flag.
+ * Shape discrimination = params.tasks presence (task family), no probe flag.
  * Note: the single `.` escape below also covers `..` (branch's base7..head7 segment is escaped
  * char-by-char to `\.\.`) — no separate handling needed. */
 export function roundPattern(op: string, type: string, params: HandoffParams = {}): RegExp {
   const f = family(op, type);
-  const taskPinned = ["task"].includes(type) && params.task != null;
+  const groupPinned = ["task"].includes(type) && params.tasks != null;
   let pattern = f.name
     .replaceAll("{round}", "(\\d+)")
-    .replaceAll("{task}", taskPinned ? String(params.task) : "\\d+")
+    .replaceAll("{tasks}", groupPinned ? String(params.tasks) : "\\d+(?:-\\d+)*")
     .replaceAll("{base7}", params.base7 ? params.base7 : "[0-9a-f]{7}")
     .replaceAll("{head7}", params.head7 ? params.head7 : "[0-9a-f]{7}")
     .replaceAll(".", "\\.");
@@ -87,8 +98,8 @@ export function handoffName(op: string, type: string, params: HandoffParams = {}
 }
 
 /** resolveNextRound(workspace, op, type, opts) → maxR+1 (for round:"increment" families).
- * Shape discrimination via opts: no task pin → wide scan (cross-task rounds); task family with
- * {task} → taskPinned exact task rounds (cdd task review derivation prevents cross-task mixing);
+ * Shape discrimination via opts: no tasks pin → wide scan (cross-group rounds); task family with
+ * {tasks} → groupPinned exact-group rounds (cdd task review derivation prevents cross-group mixing);
  * branch with concrete base7/head7 → per-ref rounds. All cdd consumers (spec/plan/branch/task)
  * go through this layer.
  * glob via tinyglobby (Task 8): a top-level `*` scan of the workspace replaces the legacy

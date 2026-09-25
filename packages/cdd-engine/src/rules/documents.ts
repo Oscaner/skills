@@ -22,8 +22,12 @@
 // schemas via documents/tokens.ts):
 //
 //   ① bidirection backfill claim ↔ Phase-inventory column (forward claim ⇒ column, reverse shipped
-//     plan column ⇒ matching claim)             ② plan/design document existence (suffix glob)
-//   ③ dependency-graph membership (graph tokens + dependency-cell predecessors ∈ inventory ids)
+//     plan column ⇒ matching claim) — plan column 三态: `[Pending]` (未开工) → `[In-flight]` (已开工,
+//     no reverse-claim obligation, never a mismatch) → shipped (`Done` / link-cell, + closeout claim);
+//     link-form plan cells satisfy claims via own-document href identity. Claim phase attribution
+//     reads the explicit claim window, never the whole `；`-clause (P4.3 Task 8 #274).
+//   ② plan/design document existence (suffix glob)             ③ dependency-graph membership
+//     (graph tokens + dependency-cell predecessors ∈ ids)
 //   ④ phase-registration completeness (dispatch phase ∈ inventory ids · no duplicate rows)
 //   ⑤ anchor registration domain (anchor issue ∈ Issue-inventory refs; no anchors → no-op)
 //   ⑥ Issue-inventory rows well-formed (phase ∈ ids · ref well-formed)
@@ -166,6 +170,52 @@ export function taskNumbersFromPlan(planFile: string): number[] {
   return nums.sort((a, b) => a - b);
 }
 
+// ---- task groups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration + the ONE
+// effectiveGroups derivation (every group iteration surface consumes it — no second implementation).
+
+// The standard section stop set — the structural boundary that closes a `##`-level section: a
+// `#`/`##` heading or a `---` rule (the `### Task ` heading clause — DOC_TOKENS.taskHeadingPrefixRe —
+// rides alongside where the section must not swallow task atoms). ONE shared definition for every
+// section parser (task-groups / literal constraints / the prose-block boundary array), so a
+// boundary edit lands once instead of drifting per-parser.
+const PLAN_SECTION_BOUNDARY = /^(#{1,2}\s|---\s*$)/;
+
+/** Task-Groups section parse: the `## Task Groups` heading (canonical heading token) → the declared
+ * merged groups as number[][] — one `- **Task 1, 2**: <note>` line per group (the captured comma-
+ * space number list, the `--tasks <a>,<b>` join form), each parsed to sorted unique integers.
+ * No section / empty section → [] (the empty default — the section is written ONLY when a
+ * non-trivial merged group exists, so its absence IS the default). Section boundary = the standard
+ * PLAN_SECTION_BOUNDARY stop set (a `#`/`##` heading, a `### Task ` heading, or a `---` rule). */
+export function taskGroupsFromPlan(planFile: string): number[][] {
+  const lines = readFileSync(planFile, "utf8").split("\n");
+  const start = lines.findIndex((l) => DOC_TOKENS.taskGroupsHeadingRe.test(l));
+  if (start === -1) return [];
+  const groups: number[][] = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) break;
+    const m = lines[i].match(DOC_TOKENS.taskGroupsLineRe);
+    if (!m) continue;
+    groups.push([...new Set(m[1].split(",").map((s) => Number(s.trim())))].sort((a, b) => a - b));
+  }
+  return groups;
+}
+
+/** effectiveGroups(planPath) — the SINGLE dispatch-group derivation: declared groups win verbatim,
+ * else each plan task is its own singleton group — `taskGroups.length ? taskGroups :
+ * singletons(taskNumbersFromPlan(plan))`. The empty default (no `## Task Groups` section) yields
+ * [[1],[2],…,[N]] — exactly the pre-P4.3 per-task dispatch (zero migration); a non-empty
+ * declaration replaces the singleton set entirely (the loop dispatches `--tasks <a>,<b>` per
+ * declared group). A length-1 declared line is parse-tolerated and surfaces in effectiveGroups as
+ * declared — the parser never drops a declared task; the >= 2 floor is the schema minItems + the
+ * write-back judgment (a length-1 group is redundant and never lands on disk), never this
+ * derivation. The iteration surfaces (derivePlanVerdict / base.ts statusValidate progress lines)
+ * consume this one derivation — no second implementation. */
+export function effectiveGroups(planPath: string): number[][] {
+  const declared = taskGroupsFromPlan(planPath);
+  if (declared.length > 0) return declared;
+  return taskNumbersFromPlan(planPath).map((n) => [n]);
+}
+
 // Deterministic section extraction for the canonical form: `## Constraints` heading + content to
 // the first structural boundary — a `#`/`##` heading, a `### Task ` heading (the brief-extraction
 // atom the constraints section must not swallow), or a `---` rule (the preamble/task separator).
@@ -180,7 +230,7 @@ function extractLiteralConstraints(content: string): string | null {
   if (start < 0) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^(#{1,2}\s|---\s*$)/.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) { end = i; break; }
+    if (PLAN_SECTION_BOUNDARY.test(lines[i]) || DOC_TOKENS.taskHeadingPrefixRe.test(lines[i])) { end = i; break; }
   }
   const body = lines.slice(start + 1, end).join("\n").trimEnd();
   if (!body) return null;
@@ -196,12 +246,11 @@ function proseAnchorRe(anchor: string): RegExp {
   return new RegExp(`^\\*\\*${anchor}(?:（[^）]*）)?\\*\\*[：:]`);
 }
 
-// Block boundary for the prose-pointer form (mirrors extractLiteralConstraints' boundary set): a
-// `---` rule, a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
+// Block boundary for the prose-pointer form (composes the shared PLAN_SECTION_BOUNDARY set): a
+// `---` rule or a `#`/`##` heading, a `### Task ` heading — or another `**…**：` declaration heading
 // (any prose-pointer-style bold heading begins a new declaration block).
 const PROSE_BLOCK_STOP = [
-  /^---\s*$/,
-  /^#{1,2}\s/,
+  PLAN_SECTION_BOUNDARY,
   DOC_TOKENS.taskHeadingPrefixRe,
   /^\*\*[^*]+\*\*[：:]/,
 ] as const;
@@ -586,7 +635,9 @@ export function parseOverall(overallPath: string): OverallParse {
       const m = (c[1] ?? "").match(VERSION_CELL_NUMERIC_RE);
       let version: [number, number] | null = null;
       if (!m) {
-        out.versionProblems.push(`bad/empty version: ${JSON.stringify(c[1])}`);
+        out.versionProblems.push(
+          `bad/empty version: ${JSON.stringify(c[1])} — should look like: \`| v1.0 | <date> | <summary> |\` (the first content cell must carry the \`v<major>.<minor>\` token)`,
+        );
       } else {
         version = [+m[1], +m[2]];
         if (!(c[2] ?? "").trim()) out.versionProblems.push(`version v${m[1]}.${m[2]} has an empty date`);
@@ -663,7 +714,7 @@ export function validateOverallContract(overallPath: string, phaseId: string | n
       field: "Phase inventory",
       missing: o.reason,
       fix: o.reason.includes("non-canonical")
-        ? `use the canonical 7-column Phase inventory header (\`${DOC_TOKENS.phaseInventoryHeader}\`)`
+        ? `add the \`${DOC_TOKENS.canonicalColumn}\` column to the Phase inventory header (the canonical-form marker the engine keys on; the \`| # | Phase |\` header open must stay)`
         : "make sure the overall file exists and carries a canonical Phase inventory table",
     });
     return failures;
@@ -725,9 +776,27 @@ export function mdNames(dir: string): string[] {
   }
 }
 
-function isPendingText(v: string): boolean {
+/** Plan-cell state recognition — the three-state machine (P4.3 Task 8 #274): `[Pending]` (未开工) →
+ *  `[In-flight]` (已开工) → shipped (`**Done**` / a link-cell, + closeout claim). A pending cell
+ *  carries no plan-doc obligation and no claim; an in-flight cell is a non-missing cell (the
+ *  plan-doc glob still applies) but owes NO closeout claim and never counts as a mismatch; a shipped
+ *  cell requires the plan doc AND a matching change-history claim. */
+export function isPendingText(v: string): boolean {
   const t = (v ?? "").trim().toLowerCase();
   return t === "" || t === "pending" || t === "[pending]";
+}
+
+/** The `[In-flight]` (已开工) state — a started-but-not-complete plan column: the plan-doc existence
+ *  glob applies (非缺失 cell) but the phase owes no closeout claim (reverse-claim carve-out). */
+export function isInflightText(v: string): boolean {
+  const t = (v ?? "").trim().toLowerCase();
+  return t === "in-flight" || t === "[in-flight]";
+}
+
+/** A SHIPPED plan column (claim-relevant): neither pending nor in-flight — `Done` / `**Done**` or a
+ *  link-cell. The reverse-claim obligation and the forward claim equivalence apply to these only. */
+function isShippedColumn(v: string): boolean {
+  return !isPendingText(v) && !isInflightText(v);
 }
 
 // The phase's OWN design-spec token `P<digits>(.digits)*-design` in its Design spec column
@@ -745,6 +814,45 @@ function ownDesignToken(col: string, phaseId: string): string | null {
 
 function stripCellMarkup(v: string): string {
   return (v ?? "").replace(/\*\*/g, "").trim();
+}
+
+// ---- plan-cell ↔ claim equivalence (P4.3 Task 8 #274) ----
+
+// The schema cells.linkCell href atom (`[label](href)` — canonical links use ASCII parens).
+const CELL_LINK_RE = /\[[^\]]*\]\(([^)]*)\)/;
+
+function linkHref(cell: string): string | null {
+  const m = stripCellMarkup(cell).match(CELL_LINK_RE);
+  return m && m[1] ? m[1] : null;
+}
+
+/** Own plan-document name identity — the phase's own plan doc is `*-<slug>-<id>.md` or the
+ *  `-plan.md` variant, matched case-insensitively (the equivalence face canonicalizes its href, the
+ *  existence glob canonicalizes the filename — one rule, both faces). Single source for the plan-cell
+ *  href identity (planCellMatchesClaim) and the ② document-existence glob (plansHit). */
+function isOwnPlanDocName(name: string, slug: string, id: string): boolean {
+  const low = name.toLowerCase();
+  const idLow = id.toLowerCase();
+  return low.endsWith(`-${slug}-${idLow}.md`) || low.endsWith(`-${slug}-${idLow}-plan.md`);
+}
+
+/** Plan-cell ↔ claim equivalence, own-document aligned (the design column's ownDesignToken is the
+ *  model — no per-character literal comparison): a plan cell satisfies a claim for phase `id` under
+ *  the program slug when
+ *   (a) the cell is PENDING → never (a claim declares the phase shipped);
+ *   (b) the cell is IN-FLIGHT → true — the mid-dispatch carve-out (无 reverse claim 义务 / 非
+ *       mismatch, never counted against a claim);
+ *   (c) the cell is a LINK-CELL → equal when its href resolves to the phase's OWN plan document
+ *       (`*-<slug>-<id>.md` / `*-<slug>-<id>-plan.md` — the same glob the ② existence face uses);
+ *   (d) a bare `Done`-style token → the strict claim-key equality (stripCellMarkup === claimKey). */
+function planCellMatchesClaim(cell: string, id: string, key: string, slug: string): boolean {
+  if (isPendingText(cell)) return false;
+  if (isInflightText(cell)) return true; // carve-out — in-flight is never a mismatch
+  const href = linkHref(cell);
+  if (href) {
+    return isOwnPlanDocName(path.basename(href), slug, id);
+  }
+  return stripCellMarkup(cell) === key;
 }
 
 // A claim target normalized to a comparable key: `P<digits>(.digits)*-design` token for design
@@ -795,37 +903,94 @@ function phaseIdsIn(clause: string): string[] {
   return [...ids];
 }
 
+/** The explicit-claim scan needs the `g` flag (matchAll); the canonical CLAIM_RE stays the
+ *  anchor-free pattern-keyword single source — this clone is parse mechanics only. */
+const CLAIM_SCAN_RE = new RegExp(CLAIM_RE.source, "g");
+
+interface ClaimWindow {
+  /** the explicit claim text (a CLAIM_RE match — `[Pending]→Done`-style). */
+  text: string;
+  /** the claim's attributed phase ids — the windowed scan, NEVER the whole clause. */
+  phases: string[];
+}
+
+/** The explicit-claim window scan (P4.3 Task 8 #274 — 只认显式 claim 结构): a `；`-clause may carry a
+ *  claim AND prose that happens to mention phases (dependency-graph refs, cross-references). Phase
+ *  attribution reads the WINDOW — the span from after the previous claim's target (+ its closing
+ *  parens) to the current claim match — so a prose-mentioned phase after a claim never becomes a
+ *  target (a whole-clause scan was the P3.8 false-claim source). Ranges still expand inside a
+ *  window. Phases outside every window are the `stray` set — the diagnosis-hint surface (同子句
+ *  prose 提及 phase 亦成 target under the retired whole-clause scan). */
+function claimWindows(clause: string): { claims: ClaimWindow[]; stray: string[] } {
+  const wholeClause = new Set(phaseIdsIn(clause));
+  const windowed = new Set<string>();
+  const claims: ClaimWindow[] = [];
+  let from = 0;
+  for (const m of clause.matchAll(CLAIM_SCAN_RE)) {
+    const at = m.index ?? 0;
+    const span = clause.slice(from, at);
+    const phases = phaseIdsIn(span);
+    for (const id of phases) windowed.add(id);
+    claims.push({ text: m[0], phases });
+    // The next claim's window starts after this claim's target — skip the closing parens that wrap
+    // it so a trailing `（…）` annotation does not leak phase refs into the next window.
+    from = at + m[0].length;
+    while (from < clause.length && /[\s）)]/.test(clause[from]!)) from++;
+  }
+  const stray = [...wholeClause].filter((id) => !windowed.has(id));
+  return { claims, stray };
+}
+
+export interface ClaimExtraction {
+  planClaims: Map<string, string>;
+  designClaims: Map<string, string>;
+  /** Same-clause prose collision (Task 8 diagnosis): claim phase → the stray clause phases ITS
+   *  clause mentions outside the explicit claim structure — the ids a whole-clause scan would have
+   *  made claim targets too. Forward-mismatch failures attach this as the 诊断提示. */
+  proseHints: Map<string, string[]>;
+}
+
 /** ① Claim extraction: walk the change-history summaries clause by clause; a clause whose link
  * word matches `plan`/`计划` carries a plan claim (`Pending → Done`-style target), one matching
- * `Design spec` carries a design claim with a `P<n>-design` target token. Clause phases expand
- * ranges (endpoints included). Exported for the closeout module — the declaration set the terminal
- * state merges into (P2 ④). */
-export function extractClaimRows(historyRows: OverallParse["historyRows"]): { planClaims: Map<string, string>; designClaims: Map<string, string> } {
+ * `Design spec` carries a design claim with a `P<n>-design` target token. Phase attribution reads
+ * the explicit claim windows — a same-clause prose-mentioned phase is never a target (Task 8).
+ * Exported for the closeout module — the declaration set the terminal state merges into (P2 ④). */
+export function extractClaimRows(historyRows: OverallParse["historyRows"]): ClaimExtraction {
   const planClaims = new Map<string, string>();
   const designClaims = new Map<string, string>();
+  const proseHints = new Map<string, string[]>();
   for (const row of historyRows) {
     for (const clause of (row.summary ?? "").split(CLAIM_SEP_RE)) {
-      if (PLAN_LINK_WORD.test(clause)) {
-        const m = clause.match(CLAIM_RE);
-        if (m) {
-          const key = claimKey(claimTarget(m[0]));
-          if (key && !isPendingText(key) && !DESIGN_TOKEN_RE.test(key)) {
-            for (const pid of phaseIdsIn(clause)) planClaims.set(pid, key);
-          }
-        }
-      }
-      if (DESIGN_LINK_WORD.test(clause)) {
-        const m = clause.match(CLAIM_RE);
-        if (m) {
-          const key = claimKey(claimTarget(m[0]));
-          if (key && DESIGN_TOKEN_RE.test(key)) {
-            for (const pid of phaseIdsIn(clause)) designClaims.set(pid, key);
+      const { claims, stray } = claimWindows(clause);
+      const planLink = PLAN_LINK_WORD.test(clause);
+      const designLink = DESIGN_LINK_WORD.test(clause);
+      for (const c of claims) {
+        const key = claimKey(claimTarget(c.text));
+        const planTarget = !!key && !isPendingText(key) && !DESIGN_TOKEN_RE.test(key);
+        const designTarget = !!key && DESIGN_TOKEN_RE.test(key);
+        if ((planTarget && planLink) || (designTarget && designLink)) {
+          const map = planTarget ? planClaims : designClaims;
+          for (const pid of c.phases) {
+            if (!map.has(pid)) map.set(pid, key);
+            if (stray.length > 0) {
+              const existing = proseHints.get(pid) ?? [];
+              proseHints.set(pid, [...new Set([...existing, ...stray])]);
+            }
           }
         }
       }
     }
   }
-  return { planClaims, designClaims };
+  return { planClaims, designClaims, proseHints };
+}
+
+/** The Task-8 diagnosis hint appended to a forward-mismatch failure when the claim's clause also
+ *  mentions phases outside the explicit claim structure (the ids the retired whole-clause scan
+ *  would have made targets too — 同子句 prose 提及 phase 亦成 target). Empty for clean clauses. */
+function proseHintSuffix(proseHints: Map<string, string[]>, pid: string): string {
+  const strays = proseHints.get(pid);
+  if (!strays || strays.length === 0) return "";
+  return ` — same-clause prose also mentions ${strays.join(", ")}: a whole-clause scan would have made them claim targets too; isolate prose with the \`；\` clause separator if they are not claim phases`;
 }
 
 /** The anchor-registry scan surface: the overall itself + every same-slug phase document under the
@@ -882,7 +1047,7 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
         artifact: "overall",
         file: overallPath,
         field: "Issue inventory",
-        missing: `issue row phase ${JSON.stringify(r.phase)} is not a Phase-inventory id`,
+        missing: `issue row phase ${JSON.stringify(r.phase)} is not a Phase-inventory id — should look like: \`P1\`, \`P2.1\` (a canonical \`P<digits>(.digits)*\` id registered in the Phase inventory)`,
         fix: "set the Issue-inventory Phase column to a registered phase id (or fix the row alignment)",
       });
       continue;
@@ -907,7 +1072,7 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
       artifact: "overall",
       file: overallPath,
       field: "Issue inventory",
-      missing: `unrecognized issue ref: ${refTxt}`,
+      missing: `unrecognized issue ref: ${refTxt} — should look like: \`none\`, \`#123\`, \`[#123]\`, \`#123#issuecomment-456\`, or a whole-cell parenthetical note`,
       fix: "use the anchored form `#NNN#issuecomment-<digits>`, a bare/wrapped `#NNN`, the literal `none`, or a parenthetical note",
     });
   }
@@ -971,8 +1136,7 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
   const specsDir = path.dirname(overallPath);
   const plansDir = path.join(specsDir, "..", "plans");
   const plansHit = (id: string) => {
-    const low = id.toLowerCase();
-    return mdNames(plansDir).filter((n) => n.endsWith(`-${slug}-${low}.md`) || n.endsWith(`-${slug}-${low}-plan.md`));
+    return mdNames(plansDir).filter((n) => isOwnPlanDocName(n, slug, id));
   };
   // The canonical `P<n>-design` pattern's filename tail (`-design.md`, lowercased — the filePaths
   // form `*-<slug>-<phase-id>-design.md`): the design-doc glob suffix for an own design token.
@@ -1026,7 +1190,7 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
 
   // ① bidirectional backfill claim ↔ column: forward (claim ⇒ column carries the target) + reverse
   // (a shipped column ⇒ a matching claim exists) for plan + design — no plan-only leftover.
-  const { planClaims, designClaims } = extractClaimRows(o.historyRows);
+  const { planClaims, designClaims, proseHints } = extractClaimRows(o.historyRows);
   for (const [pid, key] of planClaims) {
     const r = byIdLower.get(pid.toLowerCase());
     if (!r) {
@@ -1039,13 +1203,15 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
       });
       continue;
     }
-    if (stripCellMarkup(r.plan) !== key) {
+    // Link-form cells satisfy the claim via own-document href identity; `[In-flight]` is never a
+    // mismatch; a pending cell or a mismatched `Done`-style cell fails (planCellMatchesClaim).
+    if (!planCellMatchesClaim(r.plan, r.id, key, slug)) {
       failures.push({
         artifact: "overall",
         file: overallPath,
         field: "backfill claim",
-        missing: `${pid} Implementation plan column ${JSON.stringify(stripCellMarkup(r.plan))} ≠ claim target ${key}`,
-        fix: "backfill the plan column to the claimed value (or correct the claim)",
+        missing: `${pid} Implementation plan column ${JSON.stringify(stripCellMarkup(r.plan))} ≠ claim target ${key}${proseHintSuffix(proseHints, pid)}`,
+        fix: "backfill the plan column to the claimed value — a `Done`-style completion marker or a link to the phase's own plan doc (or correct the claim)",
       });
     }
   }
@@ -1067,15 +1233,16 @@ function fourTableAudit(o: OverallParse, overallPath: string, phaseId: string | 
         artifact: "overall",
         file: overallPath,
         field: "backfill claim",
-        missing: `${pid} Design spec column needs its own ${key} token (got ${JSON.stringify(stripCellMarkup(r.design))})`,
+        missing: `${pid} Design spec column needs its own ${key} token (got ${JSON.stringify(stripCellMarkup(r.design))})${proseHintSuffix(proseHints, pid)}`,
         fix: "backfill the Design spec column to carry the claimed design token (or correct the claim)",
       });
     }
   }
-  // Reverse members on the same bidirectional rule: a SHIPPED column (plan non-pending / design
-  // carrying its own `P<n>-design` token) requires a matching claim in the change history.
+  // Reverse members on the same bidirectional rule: a SHIPPED column (plan `Done`-style or a
+  // link-cell / design carrying its own `P<n>-design` token) requires a matching claim in the
+  // change history — `[In-flight]` plan cells are carved out (已开工 no closeout-claim obligation).
   for (const r of o.rows) {
-    if (isPendingText(r.plan)) continue;
+    if (!isShippedColumn(r.plan)) continue;
     if (!planClaims.has(r.id)) {
       failures.push({
         artifact: "overall",

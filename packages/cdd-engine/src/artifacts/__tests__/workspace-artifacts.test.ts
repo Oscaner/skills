@@ -31,9 +31,10 @@ it("baseBranchPath: returns <workspace>/base-branch.json", () => {
   expect(baseBranchPath({ workspace: "/ws" })).toBe("/ws/base-branch.json");
 });
 
-it("briefPath: returns <workspace>/task-<N>-brief.md", () => {
-  expect(briefPath({ workspace: "/ws", task: 1 })).toBe("/ws/task-1-brief.md");
-  expect(briefPath({ workspace: "/ws", task: 2 })).toBe("/ws/task-2-brief.md");
+it("briefPath: returns <workspace>/tasks-<groupKey>-brief.md (group-keyed — --tasks 1 → tasks-1-)", () => {
+  expect(briefPath({ workspace: "/ws", tasks: "1" })).toBe("/ws/tasks-1-brief.md");
+  expect(briefPath({ workspace: "/ws", tasks: "2" })).toBe("/ws/tasks-2-brief.md");
+  expect(briefPath({ workspace: "/ws", tasks: "1-2" })).toBe("/ws/tasks-1-2-brief.md");
 });
 
 // ---- validateBaseBranch schema 校验（SKILL base-branch schema 4 值为准 — 修正 base-branch.md 3↔4 漂移）----

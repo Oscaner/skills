@@ -30,7 +30,7 @@ flowchart TD
 
 | skeleton node | writing-phase-spec |
 |---|---|
-| read-schema | run `cdd help` → read the canonical `phase-spec.json` doc-structure schema (the schema is the single structure fact; the retired md template is gone) |
+| read-schema | run `cdd schema get phase-spec` → read the canonical doc-structure schema (the schema is the single structure fact; the retired md template is gone) |
 | scope changed? | present — first decision node, positioned between `read-schema` and `author-spec` |
 | sync-overall | present — only when phase scope changed: `B2 --yes--> G --> C` (sync to the parent overall first, then write the phase spec — overall v1.4 ordering) |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
@@ -47,9 +47,9 @@ flowchart TD
 
 ### `read-schema`
 
-- **Do**: Run `cdd help` to locate the canonical doc-structure schema directory (the consumer/install surface, never a hardcoded repo path) → read the canonical `phase-spec.json` schema for the phase-spec document type — the single structure fact its `properties` + `description` carry (increment only; the schema carries the GATE: a phase spec is produced by a full brainstorm → plan → dev cycle). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
-- **Read**: run `cdd help` → `schemas:` directory → `phase-spec.json` (the canonical phase-spec schema)
-- **Exit**: Schema read → `scope changed?`; `cdd help` unavailable or schema missing → BLOCKED
+- **Do**: Run `cdd schema get phase-spec` to read the canonical phase-spec doc-structure schema (the consumer/install surface, never a hardcoded repo path) — the single structure fact its `properties` + `description` carry (increment only; the schema carries the GATE: a phase spec is produced by a full brainstorm → plan → dev cycle). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Read**: run `cdd schema get phase-spec` (the canonical phase-spec schema, direct)
+- **Exit**: Schema read → `scope changed?`; `cdd schema get phase-spec` unavailable or schema missing → BLOCKED
 - **Fail**: Schema missing/unreadable → BLOCKED (missing schema — cannot determine phase spec structure)
 
 ### `scope changed?`
@@ -68,8 +68,8 @@ flowchart TD
 
 ### `author-spec`
 
-- **Do**: Write the phase spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-<phase-id>-design.md` from the session output — increment only (this phase's approaches / architecture / components / data flow / errors / testing / acceptance criteria); cross-phase conventions live in the parent overall (overall wins on conflict). The section skeleton and the `### Acceptance criteria` subsection follow the canonical `phase-spec.json` schema (`cdd help` — the same single structure fact `docContractValidate` asserts at dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
-- **Read**: Session output + the canonical phase-spec schema (via `cdd help`)
+- **Do**: Write the phase spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-<phase-id>-design.md` from the session output — increment only (this phase's approaches / architecture / components / data flow / errors / testing / acceptance criteria); cross-phase conventions live in the parent overall (overall wins on conflict). The section skeleton and the `### Acceptance criteria` subsection follow the canonical `phase-spec.json` schema (`cdd schema get phase-spec` — the same single structure fact `docContractValidate` asserts at dispatch). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Read**: Session output + the canonical phase-spec schema (via `cdd schema get phase-spec`)
 - **Exit**: File written → `spec-review`
 - **Fail**: Schema missing → BLOCKED (missing schema)
 
@@ -108,7 +108,7 @@ flowchart TD
 | I1 | **Review Convergence** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run (for task/branch the review ref moves with the fix commit — the engine cannot intercept it, so this discipline is the only guard). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
 | I2 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
 | I3 | **Sync before write** — a phase scope change is synced to the parent overall BEFORE the phase spec is authored (overall v1.4 ordering); never write a phase spec against a stale overall |
-| I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands immediately when the current `cdd` call returns (hot context; no deferral to cycle close — deferral risks losing the decision), committed as its own change; the tree must be clean (backfill committed) before the next dispatch: an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED). A backfill rewriting the current task's own plan/spec text routes per Pending Acceptance (sole-writer); otherwise it rides the moving ref and the next review audits it in-band (changed-surface booking, not a block). |
+| I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current `cdd` call's return (any dispatch — implement/review/fix): (1) **land immediately** — hot context; no deferral to cycle close (deferral risks losing the decision); (2) **commit on its own** — committed as its own standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — the loop pauses (tree clean, backfill committed) before the next dispatch; an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — after the loop resumes, the next review audits the backfill in-band (changed-surface booking, not a block); a backfill rewriting the current task's own plan/spec text routes per Pending Acceptance (sole-writer), otherwise it rides the moving ref. |
 
 ## Failure Modes
 

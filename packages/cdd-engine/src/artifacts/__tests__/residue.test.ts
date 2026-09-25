@@ -248,12 +248,12 @@ describe("artifacts/residue.ts — appendix render (data-driven, §35 self-suffi
 
 describe("rules/schema.ts — recovery property contract (T7.5)", () => {
   const TIMEOUT_WITH_RECOVERY = {
-    task: 26,
+    tasks: [26],
     phase: "implement",
     status: "TIMEOUT",
     findings: [],
     artifacts: {},
-    blocker: "resume or discard: cdd implement --task 26 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon",
+    blocker: "resume or discard: cdd implement --tasks 26 re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon",
     recovery: {
       residue_ref: "abc123",
       stash_message: "cdd-implement-task-26-r1-stalled",

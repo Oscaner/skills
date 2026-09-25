@@ -113,7 +113,7 @@ async function runTaskReview(repo: string, dryRun = false): Promise<{ exitCode: 
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
-    taskNum: 1,
+    tasks: [1],
     opts: { mode: "review", dryRun, noExit: true, root: repo, planFile: path.join(PLAN_DIR, "plan.md"), registryPath: registry() },
     ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun },
   });

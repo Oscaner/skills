@@ -111,7 +111,7 @@
             },
             "issueRef": {
               "type": "string",
-              "description": "Issue reference: anchored form `#NNN#issuecomment-<digits>` (canonical, machine-checkable) or the literal `none (dogfood session YYYY-MM-DD discovery)` for a none row."
+              "description": "Issue reference — one of the five legal forms the doc-contract gate accepts: the literal `none`; a bare number ref `#NNN`; a bracket-wrapped `[#NNN]`; the anchored form `#NNN#issuecomment-<digits>` (canonical, machine-checkable — the registration-domain form); or a whole-cell parenthetical note (the ENTIRE cell wrapped in `（…）`/`(…)`, shape `^[（(][^）)]*[）)]$`). Anything not matching one of these forms fails the doc-contract gate (`unrecognized issue ref`, or `malformed anchor ref` when `#issuecomment-` is followed by non-digits)."
             },
             "titleSummary": {
               "type": "string",
@@ -128,21 +128,21 @@
     },
     "phaseInventory": {
       "type": "object",
-      "description": "Section 5 — Phase inventory: the canonical 7-column table the four-table audit keys on — every phase row, its scope, its doc links, its acceptance condition and its dependency edge.",
+      "description": "Section 5 — Phase inventory: the canonical phase row ledger the four-table audit keys on — every phase row, its scope, its doc links, its acceptance condition and its dependency edge. Each row is position-read over six content cells (`columnNames.count` == `rowShape.cellCount` − 2), never keyed by header names.",
       "properties": {
         "columnNames": {
           "type": "object",
-          "description": "The canonical 7-column header (7 column names, in this order).",
+          "description": "The Phase-inventory table header — the inspection row the engine keys on via its `| # | Phase |` open (`headerOpen`) plus the canonical-form marker column (`canonicalColumnToken`). The header names themselves are not the read map: content rows are position-read over six cells (`count` == `rowShape.cellCount` − 2).",
           "properties": {
             "count": {
               "type": "integer",
-              "const": 7,
-              "description": "Number of content columns — # Phase Scope Design spec Implementation plan Acceptance criteria Dependency."
+              "const": 6,
+              "description": "Number of content columns in a Phase-inventory row — six cells, position-read by the engine: `c1` = phase id, `c3` = Design spec, `c4` = Implementation plan, `c6` = Dependency — the row-shape guard's split count (`rowShape.cellCount`) minus the two edge empties."
             },
             "header": {
               "type": "string",
               "const": "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
-              "description": "The canonical 7-column header row (markdown draft form)."
+              "description": "The Phase-inventory table header as written in conforming artifacts — a conventional inspection row only: the enforcement keys on its `| # | Phase |` open (`headerOpen`) and the `Implementation plan` marker column (`canonicalColumnToken`), and reads rows by position over the six content cells, never by this column list."
             },
             "headerOpen": {
               "type": "string",
@@ -168,7 +168,7 @@
             "cellCount": {
               "type": "integer",
               "const": 8,
-              "description": "Split-cell count for one phase row — the 7 content columns plus the leading/trailing empties of the `|`-delineated row."
+              "description": "Split-cell count for one Phase row — the 6 content columns (`c1` = phase id, `c2` = scope, `c3` = Design spec, `c4` = Implementation plan, `c5` = acceptance criteria, `c6` = Dependency) plus the leading/trailing empties of the `|`-delineated row. The audit reads four of the content cells by position: id from `c1`, Design spec from `c3`, Implementation plan from `c4`, Dependency from `c6`."
             },
             "rowOpen": {
               "type": "string",
@@ -184,17 +184,22 @@
             "pending": {
               "type": "string",
               "enum": ["Pending", "[Pending]"],
-              "description": "Unstarted placeholder value — `[Pending]` cell in the doc, `Pending`/`[Pending]` in backfill claims."
+              "description": "Unstarted plan-cell placeholder (未开工) — the first state of the three-state Implementation plan column (`[Pending]` → `[In-flight]` → shipped): carries NO plan-doc obligation and no claim. `Pending`/`[Pending]` is the same token in backfill claims."
+            },
+            "inflight": {
+              "type": "string",
+              "enum": ["In-flight", "[In-flight]"],
+              "description": "Started-but-not-complete plan cell (已开工) — mid-dispatch rows land here (P4.3 Task 8 #274): the plan-doc existence glob still applies (a non-missing cell) but the phase owes NO closeout claim (reverse-claim carve-out) and is never counted as a mismatch against one."
             },
             "linkCell": {
               "type": "string",
               "pattern": "^\\[.*\\]\\([^)]*\\)$",
-              "description": "A completed column carries a markdown link to the phase document (e.g. `[p1-design v1.1](2026-09-21-consumer-parity-p1-design.md)`)."
+              "description": "A completed column carries a markdown link to the phase document (e.g. `[p1-design v1.1](2026-09-21-consumer-parity-p1-design.md)`). A link-form plan cell satisfies its backfill claim via OWN-DOCUMENT href identity (the href resolves to the phase's own `*-<slug>-<id>.md` / `*-<slug>-<id>-plan.md` file — the same design-column ownDesignToken alignment), never a per-character target match."
             },
             "done": {
               "type": "string",
               "const": "Done",
-              "description": "Shipped completion marker for the plan cell — the backfill-claim ↔ column bidirectional check keys on it (`Pending` -> link; on ship, completion marker on the plan cell only)."
+              "description": "Shipped completion marker for the plan cell — the closeout state: requires a matching change-history backfill claim (`Pending` -> `Done`-style), the bidirectional check keys on it. A shipped plan cell may alternatively be a link-cell (`[label](href)`) whose href is the phase's own plan document — the equivalence is own-document identity, not a literal target token."
             },
             "dependency": {
               "type": "string",
@@ -241,8 +246,8 @@
           "properties": {
             "columns": {
               "type": "array",
-              "items": { "type": "string", "enum": ["v<major>.<minor>", "date", "summary", "author"], "description": "One Change-history column name." },
-              "description": "Four content columns — version / date / summary / author; the version token is `v<major>.<minor>`."
+              "items": { "type": "string", "enum": ["Version", "date", "summary", "author"], "description": "One conventional Change-history header column name — the engine never reads the header's names." },
+              "description": "Conventional header cell names only — the engine determines the version cell by POSITION, never by these names: the row's first content cell must carry the `v<major>.<minor>` version token (`row.versionCell`), with the non-empty date and the summary following. A `Version | date | summary` heading (or a leading `version`-named first cell) is skipped as a header row."
             }
           }
         },
@@ -269,7 +274,7 @@
         },
         "backfillClause": {
           "type": "object",
-          "description": "A change-history summary row may carry a backfill claim — a sentence whose keywords (`plan`/`计划`, `Design spec`) select which phase columns the `Pending -> <target>` clause backfills (the bidirectional backfill declaration ↔ column audit).",
+          "description": "A change-history summary row may carry a backfill claim — a sentence whose keywords (`plan`/`计划`, `Design spec`) select which phase columns the `Pending -> <target>` clause backfills (the bidirectional backfill declaration ↔ column audit). Claim phases come from the EXPLICIT claim structure only (P4.3 Task 8 #274); same-clause prose that merely mentions a phase never backfills it — such mentions surface as a diagnosis hint, not a target.",
           "properties": {
             "clauseSeparator": {
               "type": "string",
@@ -286,7 +291,7 @@
       "properties": {
         "claimClause": {
           "type": "object",
-          "description": "Claim clause — `Pending`/`[Pending]` optionally followed by an arrow to a target token.",
+          "description": "Claim clause — the explicit claim structure `Pending`/`[Pending]` followed by an arrow to a target token (P4.3 Task 8 #274): ONLY the explicit structure is recognized — a claim attributes only the phases in its claim window (the span from after the previous claim's target to this claim match), never prose phase mentions bound with the same `；`-clause; a same-clause prose-mentioned phase rides as a diagnosis hint, never a target.",
           "properties": {
             "pattern": {
               "type": "string",
@@ -295,14 +300,14 @@
             },
             "target": {
               "type": "string",
-              "description": "Claim target — a `Done`-style completion token, or a `P<n>-design` token (a design-token target makes the clause a design claim), with trailing closing brackets stripped."
+              "description": "Claim target — a `Done`-style completion token (plan claims) or a `P<n>-design` token (design claims), with trailing closing brackets stripped. A link-form plan cell satisfies its claim via OWN-DOCUMENT href identity (`*-<slug>-<id>.md` / `*-<slug>-<id>-plan.md`), never a literal token match (P4.3 Task 8 #274)."
             }
           }
         },
         "planLinkWord": {
           "type": "string",
           "pattern": "^(?:plan|计划)$",
-          "description": "Plan link word — a clause mentioning `plan`/`计划` carries a plan backfill claim (forward: claim ⇒ plan column non-Pending; reverse: shipped plan column ⇒ a matching claim exists)."
+          "description": "Plan link word — a clause mentioning `plan`/`计划` carries a plan backfill claim (forward: claim ⇒ shipped plan column; reverse: a SHIPPED plan column — `Done`-style or a link-cell, never `[In-flight]`, which is carved out — ⇒ a matching claim exists)."
         },
         "designLinkWord": {
           "type": "string",
@@ -316,7 +321,7 @@
         },
         "phaseReference": {
           "type": "object",
-          "description": "Phase references inside a claim clause — single or ranged (endpoints included).",
+          "description": "Phase references inside a claim clause — single or ranged (endpoints included), scanned within the EXPLICIT claim window (the span from after the previous claim's target to this claim match), never the whole clause (P4.3 Task 8 #274 — a prose-mentioned phase in the same `；`-clause is a diagnosis hint, not a target).",
           "properties": {
             "single": {
               "type": "string",

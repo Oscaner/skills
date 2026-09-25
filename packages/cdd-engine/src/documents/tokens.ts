@@ -50,6 +50,16 @@ export interface DocTokens {
   constraintsHeading: string;
   /** `/^## Constraints\s*$/` — Form-A heading match. */
   constraintsHeadingRe: RegExp;
+  /** `## Task Groups` — the taskGroups section heading (plan.json taskGroups section layout const). */
+  taskGroupsHeading: string;
+  /** `/^## Task Groups\s*$/` — the taskGroups section-heading match. */
+  taskGroupsHeadingRe: RegExp;
+  /** `^- \*\*Task (?:…numbers…)\*\*:` — one merged-group line with the comma-space number list
+   *  captured as group 1 (plan.json taskGroups section entry pattern, capture-inserted). */
+  taskGroupsLineRe: RegExp;
+  /** 2 — the canonical per-group minimum task count (plan.json taskGroups items tasks minItems) —
+   *  the length-1-redundant floor (single-group state exists only as the empty default). */
+  taskGroupsMinItems: number;
   /** The four Form-B prose-anchor tokens verbatim (plan schema enum). */
   proseAnchorTokens: string[];
   /** The four bare anchor names (tokens stripped of `**` wraps + colon) for regex building. */
@@ -63,7 +73,9 @@ export interface DocTokens {
   versionTokenRe: RegExp;
   /** `/^\|\s*#\s*\|\s*Phase\s*\|/` — Phase-inventory header open. */
   phaseHeaderRe: RegExp;
-  /** `| # | Phase | Scope | … |` — the canonical 7-column Phase-inventory header row. */
+  /** `| # | Phase | Scope | … |` — the Phase-inventory header row as written in conforming
+   *  artifacts (inspected via `headerOpen` + `canonicalColumnToken`; rows are position-read over
+   *  six content cells — never keyed by this column list). */
   phaseInventoryHeader: string;
   /** `Implementation plan` — the canonical-form marker column name. */
   canonicalColumn: string;
@@ -224,6 +236,39 @@ export function deriveDocTokens(schemas: {
     .replace(/\\s\*\$$/, "");
   const constraintsHeadingRe = new RegExp(constraintsHeadingPattern);
 
+  // taskGroups (P4.3 Task 3, spec §2.2) — the dispatch-group declaration: the section heading
+  // const, the merged-group entry pattern with the comma-space number list wrapped in ONE capture
+  // group (the repeated `(?:, \d+)*` items stay non-capturing — group 1 is the full list), and the
+  // per-group minimum (the write-back floor: a length-1 group is redundant, never declared).
+  const taskGroupsHeading = leaf<string>(
+    plan,
+    ["taskGroups", "$defs", "section", "properties", "heading"],
+    "const",
+  );
+  const taskGroupsEntryPattern = leaf<string>(
+    plan,
+    ["taskGroups", "$defs", "section", "properties", "entry"],
+    "pattern",
+  );
+  const taskGroupsHeadingRe = new RegExp(`^${escapeRegExp(taskGroupsHeading)}\\s*$`);
+  // The capture-wrap below needs the schema's exact number-list literal `\d+(?:, \d+)*`. If the
+  // entry pattern ever loses it, replace() would silently no-op, the capture group would vanish and
+  // taskGroupsFromPlan would throw on undefined m[1] at plan-parse time. Fail here, at token-build
+  // time, on the schema-drift edit instead — the live-derivation law fails loudly, not at a parse.
+  if (!taskGroupsEntryPattern.includes("\\d+(?:, \\d+)*")) {
+    throw new Error(
+      'doc-structure schema drift: plan.json taskGroups.entry pattern lost the number-list literal "\\d+(?:, \\d+)*"',
+    );
+  }
+  const taskGroupsLineRe = new RegExp(
+    taskGroupsEntryPattern.replace("\\d+(?:, \\d+)*", "(\\d+(?:, \\d+)*)"),
+  );
+  const taskGroupsMinItems = leaf<number>(
+    plan,
+    ["taskGroups", "items", "properties", "tasks"],
+    "minItems",
+  );
+
   const proseAnchorTokens = leaf<string[]>(
     plan,
     ["constraints", "formBProseAnchors", "anchors", "items"],
@@ -362,6 +407,10 @@ export function deriveDocTokens(schemas: {
     taskHeadingPrefixRe,
     constraintsHeading,
     constraintsHeadingRe,
+    taskGroupsHeading,
+    taskGroupsHeadingRe,
+    taskGroupsLineRe,
+    taskGroupsMinItems,
     proseAnchorTokens,
     proseAnchors,
     versionHeaderRe,

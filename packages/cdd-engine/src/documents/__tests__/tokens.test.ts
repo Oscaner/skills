@@ -63,6 +63,31 @@ describe("deriveDocTokens — live derivation from the canonical schemas", () =>
     expect(re.versionHeaderRe.test("- **Version**: v1.0 · 2026-09-21")).toBe(false);
   });
 
+  it("doctored plan taskGroups heading → the derived section + line tokens follow (P4.3 Task 3)", () => {
+    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.heading.const = "## Dispatch Groups";
+    const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
+    expect(re.taskGroupsHeading).toBe("## Dispatch Groups");
+    expect(re.taskGroupsHeadingRe.test("## Dispatch Groups")).toBe(true);
+    expect(re.taskGroupsHeadingRe.test("## Task Groups")).toBe(false);
+  });
+
+  it("doctored plan taskGroups entry pattern → the group-line regex follows (captured number list)", () => {
+    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
+      "^- \\*\\*Tasks (?:\\d+(?:, \\d+)*)\\*\\*:";
+    const re = deriveDocTokens(schemas({ plan: doctoredPlan }));
+    expect(re.taskGroupsLineRe.exec("- **Tasks 3, 4**: x")![1]).toBe("3, 4");
+    expect(re.taskGroupsLineRe.test("- **Task 3, 4**: x")).toBe(false);
+  });
+
+  it("doctored plan taskGroups entry pattern dropping the number-list literal → the token build throws (schema-drift guard)", () => {
+    const doctoredPlan = cloneSchema(loadDocSchema("plan") as Record<string, unknown>);
+    (doctoredPlan as any).properties.taskGroups.$defs.section.properties.entry.pattern =
+      "^- \\*\\*Task [0-9, ]+\\*\\*:";
+    expect(() => deriveDocTokens(schemas({ plan: doctoredPlan }))).toThrow(/number-list literal/);
+  });
+
   it("doctored phase-spec version marker → the derived leaf follows the page twin; a one-page drift throws", () => {
     // Phase-spec pages the shared version marker as its own const leaf. Doctoring BOTH pages to a
     // new value keeps them equal — the derived phase-spec leaf follows live from the canonical edit.
@@ -135,6 +160,21 @@ describe("DOC_TOKENS — production values equal the canonical leaves (single so
     expect(DOC_TOKENS.proseAnchorTokens[1]).toBe("**commit 边界机制**：");
   });
 
+  it("taskGroups tokens — section heading + merged-group line + the minItems floor (P4.3 Task 3)", () => {
+    expect(DOC_TOKENS.taskGroupsHeading).toBe("## Task Groups");
+    expect(DOC_TOKENS.taskGroupsHeadingRe.test("## Task Groups")).toBe(true);
+    expect(DOC_TOKENS.taskGroupsHeadingRe.test("### Task Groups")).toBe(false);
+    expect(DOC_TOKENS.taskGroupsHeadingRe.test("# Task Groups")).toBe(false);
+    // one merged-group line — the number list captured as group 1 (the `--tasks a,b` join form)
+    const m = "- **Task 1, 2**: 共享验收面".match(DOC_TOKENS.taskGroupsLineRe);
+    expect(m).not.toBeNull();
+    expect(m![1]).toBe("1, 2");
+    expect("- **Task 5, 6, 7**: merged".match(DOC_TOKENS.taskGroupsLineRe)![1]).toBe("5, 6, 7");
+    expect(DOC_TOKENS.taskGroupsLineRe.test("**Task 1, 2**: no leading dash")).toBe(false);
+    // the canonical per-group floor — a length-1 group is redundant, never written (write-back rule)
+    expect(DOC_TOKENS.taskGroupsMinItems).toBe(2);
+  });
+
   it("CLAIM family — the claimClause pattern is derived live and matches representatives", () => {
     const re = DOC_TOKENS.claimClauseRe;
     expect(re.exec("Pending → **Done**（PR #1）")![0]).toBe("Pending → **Done**");
@@ -194,7 +234,7 @@ describe("engine consumers consume via the derived tokens (grep 删除面零残�
 // Template-retirement consumption face (§2.3 AC4/AC9 — repo/skill md 模板副本零残留 + the
 // read-schema rewrite). The engine test asserts the repo/plugin surface the migration guarantees:
 // the three md structure templates are gone, and the spec-writer skills carry the `read-schema`
-// node that drives `cdd help` discovery (zero hardcoded template paths).
+// node that drives `cdd schema get` discovery (zero hardcoded template paths).
 describe("template retirement — md templates gone + read-schema nodes in the spec-writer skills", () => {
   // packages/cdd-engine/src/documents/__tests__ → repo root (5 hops: __tests__→documents→src→cdd-engine→packages→root)
   const REPO_ROOT = path.resolve(HERE, "..", "..", "..", "..", "..");
@@ -220,12 +260,12 @@ describe("template retirement — md templates gone + read-schema nodes in the s
     expect(src).not.toMatch(/docs\/\*-template\.md/);
   });
 
-  it("writing-plans author-plan defers plan structure to the canonical schema (`cdd help`)", () => {
+  it("writing-plans author-plan defers plan structure to the canonical schema (`cdd schema get plan`)", () => {
     const src = readFileSync(
       path.join(REPO_ROOT, "packages/osuperpowers/skills/writing-plans/SKILL.md"),
       "utf8",
     );
-    expect(src).toMatch(/cdd help/);
+    expect(src).toMatch(/cdd schema get plan/);
     // no hand-written extraction regex in the plan-authoring prose
     expect(src).not.toMatch(/\/\^### Task \\d\+:\//);
   });

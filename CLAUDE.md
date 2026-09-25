@@ -43,7 +43,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 - [`packages/osuperpowers/README.md`](packages/osuperpowers/README.md) — osuperpowers plugin user guide
 - [`.changeset/README.md`](.changeset/README.md) — changeset & release-flow reference for the first-party plugin (version scheme, Release flow)
-- [`docs/maintainers/06-skill-authoring.md`](docs/maintainers/06-skill-authoring.md) — skill authoring specification (node-anchored SKILL.md format, English primary)
+- [skill-anatomy schema](packages/cdd-engine/src/documents/schema/skill-anatomy.json) — canonical SKILL.md structure contract (node-anchored format, English primary); the machine check [`digraph-consistency.test.mjs`](packages/osuperpowers/tests/digraph-consistency.test.mjs) validates all 8 osuperpowers skills against it
 
 ### Data-driven templates
 
@@ -109,6 +109,10 @@ The unified review convergence rule lives as the `Review Convergence` entry in e
 ### Consumer perspective
 
 Changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no monorepo layout and no this-repo toolchain. `docs/maintainers/*.md` is exempt (maintainer-only, not shipped; its reader block states this).
+
+### Consumer surface purity (iron rule — zero program history in shipped skill text)
+
+An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in `docs/maintainers/` (repo-shared, maintainer-positioned). Machine enforcement: the skill-anatomy schema ([`packages/cdd-engine/src/documents/schema/skill-anatomy.json`](packages/cdd-engine/src/documents/schema/skill-anatomy.json)) carries the section-heading registry — a strict allowlist `digraph-consistency.test.mjs` enforces: it fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) or any registry-external heading, and requires a growth-boundary crossing's rationale to be registered in the schema's growth registry instead.
 
 ### Session-memory policy
 

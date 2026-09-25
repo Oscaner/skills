@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/cli/review.ts — `cdd review` (task/branch/spec/plan four-type dispatch).
 // spec §2.3 split (ex bin/cdd.mjs merged face): review dispatch lives here; the shared host
-// detection + Convergence guard cluster (detectCurrentHarness/requireHostHarness/DRY_RUN/intTask/
+// detection + Convergence guard cluster (detectCurrentHarness/requireHostHarness/DRY_RUN/parseTaskList/
 // resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard) moved to src/cli/shared.ts
 // (spec §2.6 shared split, ownership by closure completeness), reused by the 3 consumers
 // (fix/parse/branch-review) and this file via shared (single host fact source).
@@ -21,7 +21,8 @@ export interface ReviewOpts {
   type: string;
   plan?: string;
   spec?: string;
-  task?: number;
+  /** The dispatch group (P4.3) — the whole group reviews as one unit. */
+  tasks?: number[];
   base?: string;
   head?: string;
   round?: string;
@@ -186,21 +187,21 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
       process.stderr.write("cdd review --type task: missing required --plan <path> (workspace slug + Convergence)\n");
       exitWithCode(2);
     }
-    if (opts.task == null) {
-      process.stderr.write("cdd review --type task: missing required --task <n>\n");
+    if (opts.tasks == null || opts.tasks.length === 0) {
+      process.stderr.write("cdd review --type task: missing required --tasks <n|n,n,…>\n");
       exitWithCode(2);
     }
     // Workspace slug derives from the plan filename (workspaceSlug converges -design/-plan
-    // single-layer strip); task Convergence reads the latest task-{N}-review-{R}.json and rejects
-    // when its blockers = 0. `--plan` second consumption point (read point ②): normalize first
-    // via resolveDocArg (repo-root-relative → absolute) then derive the workspace — otherwise
+    // single-layer strip); task Convergence reads the latest tasks-{a}-{b}-review-{R}.json and
+    // rejects when its blockers = 0. `--plan` second consumption point (read point ②): normalize
+    // first via resolveDocArg (repo-root-relative → absolute) then derive the workspace — otherwise
     // the task workspace keeps a second coordinate system (cwd-relative).
     const taskPlan = resolveDocArg(opts.plan, root, "plan");
     const taskWs = taskReviewWorkspace(taskPlan, root);
-    // The task round derives via the canonical type-aware resolveNextRound (op/type four-arg
-    // signature; explicit {task} pin passes through → prevents the scan shape {task}→\d+ from
-    // mixing rounds across tasks).
-    const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { task: opts.task });
+    // The group is the dispatch unit — the group key pins the round scan (no subgroup mixing);
+    // the task round derives via the canonical type-aware resolveNextRound (P4.3).
+    const groupKey = handoffNaming.tasksKey(opts.tasks);
+    const nextTaskRound = handoffNaming.resolveNextRound(taskWs, "review", "task", { tasks: groupKey });
     // --round validation backfill (task side: the derived next-round value; conflict → exit 2,
     // aligning spec/plan/branch).
     if (opts.round && Number(opts.round) !== nextTaskRound) {
@@ -210,14 +211,14 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
     if (nextTaskRound > 1) {
       const prevR = nextTaskRound - 1;
       // Convergence prev reads the same-family round-1 arithmetic (canonical review.task name →
-      // task-{N}-review-{prevR}.json). Must NOT use prevHandoffPath: that helper resolves the
-      // cross-family prev table for this family (round1=implement / fix:R-1), which would read
+      // tasks-{groupKey}-review-{prevR}.json). Must NOT use prevHandoffPath: that helper resolves
+      // the cross-family prev table for this family (round1=implement / fix:R-1), which would read
       // the materialized implement APPROVED+[] → Convergence false lock.
-      const th = JSON.parse(readFileSync(path.join(taskWs, handoffNaming.handoffName("review", "task", { task: opts.task, round: prevR })), "utf8")) as PrevHandoff;
+      const th = JSON.parse(readFileSync(path.join(taskWs, handoffNaming.handoffName("review", "task", { tasks: groupKey, round: prevR })), "utf8")) as PrevHandoff;
       reviewConvergenceGuard(th, "task", prevR, opts.plan);   // only APPROVED+blocker=0 stops (SP-4)
     }
     const { runTask } = await import("../dispatch/task.ts");
-    await runTask(harness, opts.task, {
+    await runTask(harness, opts.tasks, {
       mode: "review", dryRun: DRY_RUN(),
       planFile: opts.plan,
     });

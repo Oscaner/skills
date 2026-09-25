@@ -264,11 +264,11 @@ describe('D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
       }),
       fix: renderModePrompt('fix', {
         TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws', TASK_BRIEF: '/ws/task-1-brief.md',
-        TASK_CONSTRAINTS: '/ws/plan-constraints.md', TASK_FINDINGS: '/ws/task-1-review-1.json',
+        TASK_CONSTRAINTS: '/ws/plan-constraints.md', TASK_FINDINGS: '/ws/tasks-1-review-1.json',
         TASK_FIXED_POINT: '7a7327b', TASK_NUMBER: '1', HANDOFF_TARGET: '/ws/task-1-fix-1.json',
       }),
       taskReview: renderModePrompt('review', {
-        TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws', HANDOFF_TARGET: '/ws/task-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
+        TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws', HANDOFF_TARGET: '/ws/tasks-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
       }),
       docsReview: renderTemplate('review', {
         MODE: 'review', REVIEW_TYPE: 'spec', TASK_WORKSPACE: '/ws', WORKSPACE_SLUG: 'ws',
@@ -330,13 +330,13 @@ describe('review type config (Task 4: 模板数据化)', () => {
     const { renderModePrompt, resetTemplateCaches } = await import('../templates.ts');
     resetTemplateCaches();
     const out = renderModePrompt('review', {
-      TASK_WORKSPACE: '/ws', HANDOFF_TARGET: '/ws/task-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
+      TASK_WORKSPACE: '/ws', HANDOFF_TARGET: '/ws/tasks-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
     });
     expect(out).toContain('# CDD dispatch — CLI session');   // 统一壳字面头（跨模板字节恒等）
     expect(out).toContain('standards · spec');                // lensEnum joined
     expect(out).toContain('7a7327b..HEAD');                   // ref 具体化为 FIXED_POINT..HEAD
     expect(out).toContain('code-review smell baseline');      // axesGuide → code-review 焦点
-    expect(out).toContain('/ws/task-1-review-1.json');
+    expect(out).toContain('/ws/tasks-1-review-1.json');
     expect(out).toContain('WORKSPACE_SLUG');                  // ⑦ canonical slug 槽（fallback = basename(TASK_WORKSPACE)）
     expect(out).toContain('- `WORKSPACE_SLUG`: ws');
     // 段序恒为 壳 → ## Return → ## Round context
@@ -462,7 +462,7 @@ describe('T25: 四 review type 的 scope-composition 轴（changed-surface reaso
     const { renderModePrompt, resetTemplateCaches } = await import('../templates.ts');
     resetTemplateCaches();
     const out = renderModePrompt('review', {
-      TASK_WORKSPACE: '/ws', HANDOFF_TARGET: '/ws/task-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
+      TASK_WORKSPACE: '/ws', HANDOFF_TARGET: '/ws/tasks-1-review-1.json', TASK_FIXED_POINT: '7a7327b',
     });
     expect(out).toContain('changed-surface reasonableness');
     expect(out).toContain('Changed-surface bookkeeping');

@@ -16,9 +16,9 @@
           "flag": "--findings",
           "type": "path"
         },
-        "task": {
-          "flag": "--task",
-          "type": "int"
+        "tasks": {
+          "flag": "--tasks",
+          "type": "int-list"
         },
         "type": {
           "flag": "--type",
@@ -107,14 +107,14 @@
         "from": [
           "workspace",
           "mode",
-          "task",
+          "tasks",
           "round"
         ]
       },
       "briefPath": {
         "from": [
           "workspace",
-          "task"
+          "tasks"
         ]
       },
       "ledgerPath": {
@@ -130,7 +130,7 @@
       "findingsPath": {
         "from": [
           "workspace",
-          "task"
+          "tasks"
         ]
       },
       "fixedPoint": {
@@ -205,14 +205,14 @@
     "slugRule": "strip .md, then a single trailing -design or -plan suffix",
     "families": {
       "implement.task": {
-        "name": "task-{task}-implement.json",
+        "name": "tasks-{tasks}-implement.json",
         "round": "fixed",
         "status": "contract",
         "schema": "task",
         "phase": "implement"
       },
       "review.task": {
-        "name": "task-{task}-review-{round}.json",
+        "name": "tasks-{tasks}-review-{round}.json",
         "round": "increment",
         "status": "rollup",
         "schema": "task",
@@ -225,7 +225,7 @@
         }
       },
       "fix.task": {
-        "name": "task-{task}-fix-{round}.json",
+        "name": "tasks-{tasks}-fix-{round}.json",
         "round": "source",
         "status": "contract",
         "schema": "task",

@@ -27,7 +27,7 @@ flowchart TD
 
 | skeleton node | writing-overall-spec |
 |---|---|
-| read-schema | run `cdd help` → read the canonical `overall.json` doc-structure schema (the schema is the single structure fact; the retired md template is gone) |
+| read-schema | run `cdd schema get overall` → read the canonical doc-structure schema (the schema is the single structure fact; the retired md template is gone) |
 | scope changed? | N/A |
 | sync-overall | N/A — this skill is the overall writer; no parent overall to sync |
 | review loop (D/E/F) | shared shape — no delta (only the `--spec <path>` target differs: this skill's own product) |
@@ -44,15 +44,15 @@ flowchart TD
 
 ### `read-schema`
 
-- **Do**: Run `cdd help` to locate the canonical doc-structure schema directory (the consumer/install surface, never a hardcoded repo path) → read the canonical `overall.json` schema for the overall document type — the single structure fact its `properties` + `description` carry (charter only — no implementation detail; the schema carries the GATE: overall approval is not equivalent to any phase started). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
-- **Read**: run `cdd help` → `schemas:` directory → `overall.json` (the canonical overall spec schema)
-- **Exit**: Schema read → `author-spec`; `cdd help` unavailable or schema missing → BLOCKED
+- **Do**: Run `cdd schema get overall` to read the canonical overall doc-structure schema (the consumer/install surface, never a hardcoded repo path) — the single structure fact its `properties` + `description` carry (charter only — no implementation detail; the schema carries the GATE: overall approval is not equivalent to any phase started). Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Read**: run `cdd schema get overall` (the canonical overall spec schema, direct)
+- **Exit**: Schema read → `author-spec`; `cdd schema get overall` unavailable or schema missing → BLOCKED
 - **Fail**: Schema missing/unreadable → BLOCKED (missing schema — cannot determine overall spec structure)
 
 ### `author-spec`
 
-- **Do**: Write the overall spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-overall.md` from the session output — charter only (scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria); no phase-level implementation detail. Role note: the enforcement position for the overall's structure is the **engine lifecycle** — the same canonical doc-structure schema (`cdd help` → `overall.json`) that `read-schema` consumed is what `docContractValidate` uses at dispatch to check the four-table vocabulary and row shapes (doc word = code word = engine token: rename a heading and you rename the validator with it). Doc-compliance adjudication in this repo runs on the same engine path consumers get — the engine lifecycle audit (dispatch runtime) plus the engine test suite (canary evidence at dispatch runtime); the repo-local `scripts/validate` charter guard was retired; it is no longer a consumer surface concern. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
-- **Read**: Session output + the canonical overall spec schema (via `cdd help`)
+- **Do**: Write the overall spec to `docs/osuperpowers/specs/YYYY-MM-DD-<feature>-overall.md` from the session output — charter only (scope decomposition + issue inventory + phase inventory + dependency graph + acceptance criteria); no phase-level implementation detail. Role note: the enforcement position for the overall's structure is the **engine lifecycle** — the same canonical doc-structure schema (`cdd schema get overall`) that `read-schema` consumed is what `docContractValidate` uses at dispatch to check the four-table vocabulary and row shapes (doc word = code word = engine token: rename a heading and you rename the validator with it). Doc-compliance adjudication in this repo runs on the same engine path consumers get — the engine lifecycle audit (dispatch runtime) plus the engine test suite (canary evidence at dispatch runtime); the repo-local `scripts/validate` charter guard was retired; it is no longer a consumer surface concern. Direct invocation — read the full output (stdout/stderr); cdd truncates its own output. Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture.
+- **Read**: Session output + the canonical overall spec schema (via `cdd schema get overall`)
 - **Exit**: File written → `spec-review`
 - **Fail**: Schema missing → BLOCKED (missing schema)
 
@@ -90,7 +90,7 @@ flowchart TD
 |---|---|
 | I1 | **Review Convergence** — blocker=0 → fix all findings via `cdd fix`, then stop; do not re-run (for task/branch the review ref moves with the fix commit — the engine cannot intercept it, so this discipline is the only guard). Fixes always dispatch via `cdd fix`; the orchestrator must not edit in place as a substitute |
 | I2 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge |
-| I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands immediately when the current `cdd` call returns (hot context; no deferral to cycle close — deferral risks losing the decision), committed as its own change; the tree must be clean (backfill committed) before the next dispatch: an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED). A backfill rewriting the current task's own plan/spec text routes per Pending Acceptance (sole-writer); otherwise it rides the moving ref and the next review audits it in-band (changed-surface booking, not a block). |
+| I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current `cdd` call's return (any dispatch — implement/review/fix): (1) **land immediately** — hot context; no deferral to cycle close (deferral risks losing the decision); (2) **commit on its own** — committed as its own standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — the loop pauses (tree clean, backfill committed) before the next dispatch; an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — after the loop resumes, the next review audits the backfill in-band (changed-surface booking, not a block); a backfill rewriting the current task's own plan/spec text routes per Pending Acceptance (sole-writer), otherwise it rides the moving ref. |
 
 ## Failure Modes
 

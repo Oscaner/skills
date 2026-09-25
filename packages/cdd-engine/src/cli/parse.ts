@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/cli/parse.ts — citty command surface (Task 9; spec §2.3. The commander
 // program definition is retired — the full command tree lives here as ONE citty defineCommand
-// (mainCommand) with its four subcommands declared as citty subCommands: implement / review / fix
-// and base-branch with its nested set|get surface preserved via citty subCommands. Each action
+// (mainCommand) with its five subcommands declared as citty subCommands: implement / review / fix,
+// base-branch with its nested set|get surface, and the discovery-only schema (get). Each action
 // run() assembles the DispatchLifecycle subclass
 // (TaskLifecycle / DocsLifecycle via runTask / runDocsTask / runBranchReview) and guards its flag
 // surface (guardArgs, src/cli/shared.ts). src/bin.ts boots this tree: runCommand + the
@@ -17,22 +17,23 @@ import type { ArgsDef, CommandDef, CommandMeta, SubCommandsDef } from "citty";
 import { runReview } from "./review.ts";
 import { runFix } from "./fix.ts";
 import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.ts";
-import { runHelp } from "./help.ts";
-import { requireHostHarness, guardArgs, intTask, DRY_RUN } from "./shared.ts";
+import { runSchemaGet } from "./schema.ts";
+import { requireHostHarness, guardArgs, parseTaskList, DRY_RUN } from "./shared.ts";
+import { DOC_SCHEMA_NAMES } from "../documents/schema.ts";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;
 // the commander-era wording is kept — the black-box face contracts pin it). Program-level
 // --dry-run does NOT appear here: it is declared on the main command only.
 const SUBCOMMAND_USAGE: Record<string, string> = {
-  implement: "usage: cdd implement --task <n> [--plan <path>]",
-  review: "usage: cdd review --type <task|branch|spec|plan> [--task <n>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
-  fix: "usage: cdd fix --type <task|branch|spec|plan> [--task <n>] [--findings <path>] (--plan <path> | --spec <path>)",
+  implement: "usage: cdd implement --tasks <n|n,n,…> [--plan <path>]",
+  review: "usage: cdd review --type <task|branch|spec|plan> [--tasks <n|n,n,…>] (--plan <path> | --spec <path>) [--base <sha> --head <sha>] [--round <n>]",
+  fix: "usage: cdd fix --type <task|branch|spec|plan> [--tasks <n|n,n,…>] [--findings <path>] (--plan <path> | --spec <path>)",
   // base-branch: a bad flag / unknown subcommand inside set|get resolves to this single-word key
   // (the bin wrapper maps a nested citty leaf to its parent command — see commandUsageKey).
   "base-branch": "usage: cdd base-branch <set|get> --plan <path> [set: --base <branch> --source <source>] [--force]",
-  // help is the engine's one discovery subcommand (overall v1.10 Non-goal#1 carve-out — the only
-  // new subcommand in the P2 program).
-  help: "usage: cdd help",
+  // schema — discovery: the canonical doc-structure schema printer (P4.3 Task 5). A nested leaf
+  // (get) resolves to this key via commandUsageKey's parent mapping (same as base-branch set|get).
+  schema: "usage: cdd schema get <type>",
 };
 
 // Print the usage line for the resolved parse/usage-error context; default = the top-level line.
@@ -120,14 +121,16 @@ function argsOf(def: CommandDef<any>): ArgsDef | undefined {
 const implementCmd = defineCommand({
   meta: { name: "implement", description: "run the task implement phase (cdd implement)" },
   args: {
-    task: { type: "string", required: true, valueHint: "n", description: "task number" },
+    tasks: { type: "string", required: true, valueHint: "n|n,n,…", description: "task number(s) — comma-separated list" },
     plan: { type: "string", valueHint: "path", description: "plan file path" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(implementCmd));
     const harness = requireHostHarness();
     const { runTask } = await import("../dispatch/task.ts");
-    await runTask(harness, intTask(args.task), {
+    // The --tasks value parses to the canonical task list — the dispatch group is the unit
+    // (the whole group dispatches as one; handoff/brief/progress are group-keyed — P4.3).
+    await runTask(harness, parseTaskList(args.tasks), {
       mode: "implement", dryRun: DRY_RUN(), planFile: args.plan,
     });
   },
@@ -137,7 +140,7 @@ const reviewCmd = defineCommand({
   meta: { name: "review", description: "run a review — task | branch | spec | plan (consolidates the former cdd-task / docs-task review modes)" },
   args: {
     type: { type: "string", required: true, valueHint: "task|branch|spec|plan", description: "review type" },
-    task: { type: "string", valueHint: "n", description: "task number (type=task)" },
+    tasks: { type: "string", valueHint: "n|n,n,…", description: "task number(s) — comma-separated list (type=task)" },
     plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch; type=plan: review target)" },
     base: { type: "string", valueHint: "sha", description: "base commit (type=task|branch)" },
     head: { type: "string", valueHint: "sha", description: "head commit (type=task|branch)" },
@@ -146,8 +149,8 @@ const reviewCmd = defineCommand({
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(reviewCmd));
-    const task = args.task != null ? intTask(args.task) : undefined;
-    await runReview({ ...args, task });
+    const tasks = args.tasks != null ? parseTaskList(args.tasks) : undefined;
+    await runReview({ ...args, tasks });
   },
 });
 
@@ -155,15 +158,15 @@ const fixCmd = defineCommand({
   meta: { name: "fix", description: "fix review findings — task | branch | spec | plan (formerly cdd-task / docs-task fix modes)" },
   args: {
     type: { type: "string", required: true, valueHint: "task|branch|spec|plan", description: "fix type" },
-    task: { type: "string", valueHint: "n", description: "task number (type=task)" },
+    tasks: { type: "string", valueHint: "n|n,n,…", description: "task number(s) — comma-separated list (type=task)" },
     findings: { type: "string", valueHint: "path", description: "findings handoff path for this fix round" },
     spec: { type: "string", valueHint: "path", description: "spec document path (type=spec)" },
     plan: { type: "string", valueHint: "path", description: "plan path (type=task|branch|plan)" },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(fixCmd));
-    const task = args.task != null ? intTask(args.task) : undefined;
-    await runFix({ ...args, task });
+    const tasks = args.tasks != null ? parseTaskList(args.tasks) : undefined;
+    await runFix({ ...args, tasks });
   },
 });
 
@@ -200,25 +203,37 @@ const baseBranchCmd = defineCommand({
   subCommands: { set: setCmd, get: getCmd },
 });
 
-// `cdd help` — discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
-// subcommand, zero enforcement logic). Prints the cdd CLI's absolute directory + the required
-// doc-resource directories (schemas / templates). The bin thin entry intercepts `cdd help` before
-// the root bootstrap (repo-independent, zero lifecycle writes); this declared command is the
-// surface fallback and the `--help`/usage rendering face (landed in P2 T1 ②).
-const helpCmd = defineCommand({
-  meta: { name: "help", description: "print CDD CLI + doc-resource directory discovery (schemas/templates)" },
-  args: {},
-  run: async ({ rawArgs }) => {
-    guardArgs(rawArgs, argsOf(helpCmd));
-    runHelp();
+// schema — discovery-only canonical schema output (P4.3 Task 5): `cdd schema get <type>` prints
+// the requested doc-structure schema's canonical JSON byte-identical (the file content is the
+// result face). The single positional `<type>` is the DOC_SCHEMA_NAMES registry — no new flag, so
+// the canonical argv channel / residue ⑨ guard are untouched by this surface. Unknown type →
+// cliUsageError → exit 2 + the registry enumeration (see cli/schema.ts); a missing type is citty's
+// required-positional rejection, both normalized to the schema usage line by the bin wrapper.
+// The help-face `<type>` enumeration is derived from DOC_SCHEMA_NAMES (never a second hand-written
+// list — same single source the runtime unknown-type error enumerates), so the `--help` / usage
+// face can never drift from the accepted set.
+const SCHEMA_TYPE_HINT = DOC_SCHEMA_NAMES.join(" | ");
+const schemaGetCmd = defineCommand({
+  meta: { name: "get", description: `print the canonical doc-structure schema for <type> (${SCHEMA_TYPE_HINT})` },
+  args: {
+    type: { type: "positional", required: true, description: `schema type — one of ${SCHEMA_TYPE_HINT}` },
   },
+  run: async ({ args, rawArgs }) => {
+    guardArgs(rawArgs, argsOf(schemaGetCmd));
+    runSchemaGet(args.type);
+  },
+});
+
+const schemaCmd = defineCommand({
+  meta: { name: "schema", description: "read canonical doc-structure schemas (discovery, zero enforcement)" },
+  subCommands: { get: schemaGetCmd },
 });
 
 // The single citty command tree — the only command surface the bin thin entry boots.
 export const mainCommand = defineCommand({
   meta: {
     name: "cdd",
-    description: "CDD engine CLI — implement/review/fix/base-branch/help",
+    description: "CDD engine CLI — implement/review/fix/base-branch/schema",
   },
   args: MAIN_ARGS,
   subCommands: {
@@ -226,6 +241,6 @@ export const mainCommand = defineCommand({
     review: reviewCmd,
     fix: fixCmd,
     "base-branch": baseBranchCmd,
-    help: helpCmd,
+    schema: schemaCmd,
   },
 });

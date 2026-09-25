@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/cli/shared.ts — shared host detection + Review Convergence guard cluster
 // (multiple consumers reuse). spec §2.6 split: detectCurrentHarness/requireHostHarness/DRY_RUN/
-// intTask/resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard moved out of
+// parseTaskList/resolveTargetDoc/blockerCount/convergedExit3/reviewConvergenceGuard moved out of
 // src/cli/review.mjs — ownership decided by closure completeness: reviewConvergenceGuard internally
 // calls convergedExit3 + blockerCount + reviewConvergedError (since P6 T24 the cluster re-exports
 // from rules/convergence.ts, its single owner — spec T7.3 C; see the bottom-of-file re-export
@@ -67,13 +67,29 @@ export function resolveTargetDoc(opts: { type: string; spec?: string; plan?: str
   return resolveDocArg(doc, opts.root ?? getRoot(), opts.type === "spec" ? "spec" : "plan");
 }
 
-// Bug A (legacy cdd-task contract): --task must parse as an integer. Rejects NaN at parse
-// time (exit 2 + message) instead of letting parseInt leak NaN into runTask and fabricate
-// task-NaN-* artifacts with a false APPROVED return block (STD-3).
-export function intTask(v: string): number {
-  const n = parseInt(v, 10);
-  if (isNaN(n)) throw cliUsageError(`--task must be an integer, got: ${v}`);
+// Bug A (legacy cdd-task contract) under the P4.3 --tasks list model: the value must parse as
+// comma-separated integers. Token validation reuses the integer core below (exit 2 + message)
+// instead of letting parseInt leak NaN into runTask and fabricate task-NaN-* artifacts with a
+// false APPROVED return block (STD-3). Empty slices (e.g. a trailing comma in `1,`) are rejected,
+// tokens are trimmed (`1, 2` → [`1`, `2`]) and duplicates collapse (`1,1` → [`1`]). The legacy
+// single-value intTask entry is retired — the CLI task surface is list-shaped only, and the GROUP
+// is the dispatch unit: parseTaskList returns the canonical list (single-data-model) and dispatch
+// call sites thread the whole parsed list — no per-task iteration exists.
+function intTask(token: string): number {
+  const n = parseInt(token, 10);
+  if (isNaN(n)) throw cliUsageError(`--tasks must be comma-separated integers: ${token}`);
   return n;
+}
+
+export function parseTaskList(v: string): number[] {
+  const tasks: number[] = [];
+  for (const raw of v.split(",")) {
+    const token = raw.trim();
+    if (token === "") throw cliUsageError(`--tasks must be comma-separated integers: ${raw}`);
+    const n = intTask(token);
+    if (!tasks.includes(n)) tasks.push(n);
+  }
+  return tasks;
 }
 
 // ---- flag-surface guard (citty Task 9) ----

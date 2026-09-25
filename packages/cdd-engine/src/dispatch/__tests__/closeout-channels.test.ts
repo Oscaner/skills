@@ -82,7 +82,7 @@ async function runTaskReview(repo: string, planFile: string, dryRun = false): Pr
   const cap = captureStderr();
   const lc = new TaskLifecycle({
     harness: "ctr",
-    taskNum: 1,
+    tasks: [1],
     opts: { mode: "review", dryRun, noExit: true, root: repo, planFile, registryPath: registry() },
     ctx: { mode: "review", repoRoot: repo, handoffPath: "", dryRun },
   });
@@ -232,8 +232,8 @@ describe("post-flight statusValidate — base default + the CDD_CLOSEOUT highlig
       protected async dispatch(_hookCtx: DispatchHookContext): Promise<void> {
         const ws = resolveWorkspace(p.plan1, repo);
         mkdirSync(ws, { recursive: true });
-        writeFileSync(path.join(ws, "task-1-review-1.json"), JSON.stringify({
-          task: 1, phase: "review", status: "APPROVED", findings: [], artifacts: {},
+        writeFileSync(path.join(ws, "tasks-1-review-1.json"), JSON.stringify({
+          tasks: [1], phase: "review", status: "APPROVED", findings: [], artifacts: {},
         }));
         writeFileSync(path.join(ws, "progress.json"), JSON.stringify({
           plan: p.plan1, tasks: [{ task: 1, rounds: { review: 1 } }],

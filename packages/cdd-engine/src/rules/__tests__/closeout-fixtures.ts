@@ -132,14 +132,14 @@ export function writeProgramDocs(repo: string, overallBody: string = OVERALL_CLE
 /** Land a COMPLETE plan (all tasks converged to complete) in the plan's workspace — progress.json
  *  rows + the APPROVED review-1 carriers (the engine-derived terminal state the debt inference
  *  consumes). The workspace is derived through the canonical resolveWorkspace (no hand-written slug
- *  drift). */
+ *  drift). P4.3: task carriers are group-keyed (tasks-{N}-review-1.json). */
 export function writeCompletePlanWorkspace(repo: string, planPath: string, taskCount = 1): string {
   const ws = resolveWorkspace(planPath, repo);
   mkdirSync(ws, { recursive: true });
   const tasks: Array<{ task: number; rounds: Record<string, number> }> = [];
   for (let n = 1; n <= taskCount; n++) {
     tasks.push({ task: n, rounds: { review: 1 } });
-    writeFileSync(path.join(ws, `task-${n}-review-1.json`), JSON.stringify({
+    writeFileSync(path.join(ws, `tasks-${n}-review-1.json`), JSON.stringify({
       task: n, phase: "review", status: "APPROVED", findings: [], artifacts: {},
     }));
   }

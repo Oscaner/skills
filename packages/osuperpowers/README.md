@@ -56,18 +56,18 @@ Or install from the oscaner-skills Claude Code marketplace:
 
 ## CDD engine CLI
 
-The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / help). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
+The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base-branch / schema). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
 
 | Harness | CLI binary | Ship status |
 |---------|------------|-------------|
 | claude | `claude` | Full |
 | cursor-agent | `cursor-agent` | Full |
 
-`cdd help` prints the engine's resource-discovery paths (CLI directory, document schemas, templates). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
+`cdd schema get <type>` prints the engine's canonical doc-structure schema straight to stdout (discovery-only, byte-identical to the shipped schema). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.
 
 ## Docs for maintainers
 
-Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. [program experience](../../docs/maintainers/05-program-experience.md), [skill authoring](../../docs/maintainers/06-skill-authoring.md), and the [data-driven templates](../../docs/maintainers/01-data-driven-templates.md) convention that governs emit-generated products.
+Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. [program experience](../../docs/maintainers/05-program-experience.md) and the [data-driven templates](../../docs/maintainers/01-data-driven-templates.md) convention that governs emit-generated products.
 
 ## License
 

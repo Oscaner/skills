@@ -39,13 +39,13 @@ function runCli(args = [], opts = {}) {
 }
 
 it("无 host env → cdd implement BLOCK exit 1 + CDD_BLOCKED", () => {
-  const r = runCli(["implement", "--task", "1", "--plan", PLAN_FIXTURE], { noHost: true });
+  const r = runCli(["implement", "--tasks", "1", "--plan", PLAN_FIXTURE], { noHost: true });
   expect(r.exitCode).toBe(1);
   expect(r.stderr).toMatch(/no host harness|CDD_BLOCKED/);
 });
 
 it("CLAUDE_CODE_SESSION_ID=1 → host 判定成功（dry-run exit 0）", () => {
-  const r = runCli(["--dry-run", "implement", "--task", "1", "--plan", PLAN_FIXTURE],
+  const r = runCli(["--dry-run", "implement", "--tasks", "1", "--plan", PLAN_FIXTURE],
     { env: { CLAUDE_CODE_SESSION_ID: "1" } });
   expect(r.exitCode).toBe(0);
 });

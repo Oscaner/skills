@@ -24,24 +24,15 @@ flowchart TD
   H --> J((APPROVED: report))
 ```
 
-7 process steps / 9 nodes: `explore-current-session` · `collect` · `reform` · `confirm` (gate) · `dedup` · `create-issue?` (routing diamond) · `create-issue` · `report-links-only` · `report`.
-
-## Session Context (snapshot captured once at report start, pure-function downstream)
-
-The snapshot taken by `explore-current-session`; every downstream node derives from this snapshot, never from the live cwd.
-
-- **root**: git top-level of the harness launch cwd (`git rev-parse --show-toplevel`). Captured once; never re-derived from the real-time cwd (`cd` during exploration does not change it).
-- **workspace**: `.osuperpowers/cdd/<run-slug>/` of the current CDD run — present only when this session is a CDD run. Cross-repo reuse is forbidden: the workspace must resolve under `root`.
-- **harness**: the harness this session runs in (e.g. `claude-code`) — the value of the Session region's `- Harness:` row (report-meta 2+1 session-level line).
-- **program-owning issue** (CDD runs only): the phase-owning issue of the current program, resolved from the run workspace — `progress.json#plan` → plan-header `**Spec:**` chain → the owning issue. A pure lookup feeding the Related region's Program link (I9), never a routing decision.
-
-Exploration surfaces are described at reference level — the surface flexes with the task instead of being a fixed channel contract; whatever surfaces contribute still pass the toolchain scope filter at `collect`.
-
 ## Node Definitions
 
 ### `explore-current-session`
 
-- **Do**: Capture the Session Context snapshot for this report — root, workspace (CDD runs), harness, and (CDD runs) the program-owning issue ([§ Session Context](#session-context-snapshot-captured-once-at-report-start-pure-function-downstream)). The snapshot is taken once; downstream nodes are pure functions of it.
+- **Do**: Capture the four-field Session Context snapshot once at report start (taken by this node; every downstream node derives from this snapshot, never from the live cwd) —
+  - **root**: git top-level of the harness launch cwd (`git rev-parse --show-toplevel`). Captured once; never re-derived from the real-time cwd (`cd` during exploration does not change it).
+  - **workspace**: `.osuperpowers/cdd/<run-slug>/` of the current CDD run — present only when this session is a CDD run. Cross-repo reuse is forbidden: the workspace must resolve under `root`.
+  - **harness**: the harness this session runs in (e.g. `claude-code`) — the value of the Session region's `- Harness:` row (report-meta 2+1 session-level line).
+  - **program-owning issue** (CDD runs only): the phase-owning issue of the current program, resolved from the run workspace — `progress.json#plan` → plan-header `**Spec:**` chain → the owning issue. A pure lookup feeding the Related region's Program link (I9), never a routing decision.
 - **Read**: harness launch cwd; (when CDD run) the run workspace
 - **Exit**: snapshot complete → `collect`
 - **Fail**: workspace cannot resolve under `root` → BLOCKED (cross-repo reuse forbidden)

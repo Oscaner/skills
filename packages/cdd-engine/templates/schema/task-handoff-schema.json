@@ -3,16 +3,21 @@
   "description": "CDD task handoff contract (implement / review / fix / branch-review). The engine writes or materializes this file; the agent's job is the content of findings[] and the declared work fields below. Write findings, not status — the engine derives status from findings. Each property below documents its rule.",
   "type": "object",
   "required": [
-    "task",
+    "tasks",
     "phase",
     "artifacts",
     "findings"
   ],
   "properties": {
-    "task": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "task number (1-indexed; the plan's `### Task N:` id)."
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "The dispatch group's task numbers (1-indexed; the plan's `### Task N:` ids) — the carrier's single task identity (single-data-model: no separate top-level `task` scalar; `--tasks 1` → [1], `--tasks 1,2` → [1,2])."
     },
     "phase": {
       "type": "string",
@@ -88,7 +93,51 @@
     },
     "findings": {
       "type": "array",
-      "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (the engine rolls findings up to status)."
+      "items": {
+        "type": "object",
+        "properties": {
+          "lens": {
+            "type": "string",
+            "description": "review lens label (one of the round's REVIEW_LENS_GUIDE — prevents axis mixing)."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocker",
+              "warn",
+              "nit"
+            ],
+            "description": "blocker → CHANGES_REQUESTED; warn/nit → APPROVED (the engine rolls findings up to status)."
+          },
+          "section": {
+            "type": "string",
+            "description": "section or file the finding anchors to."
+          },
+          "file": {
+            "type": "string",
+            "description": "repo-relative file the finding anchors to."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-indexed line the finding anchors to."
+          },
+          "summary": {
+            "type": "string",
+            "description": "one-sentence statement of the defect."
+          },
+          "fix": {
+            "type": "string",
+            "description": "what to change to resolve the finding."
+          },
+          "task": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "per-task section attribution (grouped review): the task this finding belongs to, one of the group's `tasks`. Absent → the finding is group-level."
+          }
+        }
+      },
+      "description": "[{lens, severity, section|file, line?, summary, fix, task?}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (the engine rolls findings up to status); the optional per-task field carries the grouped review's section attribution."
     },
     "changes": {
       "type": "array",

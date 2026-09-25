@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 // src/bin.ts — CDD engine CLI entry (spec §2.3; citty surface from Task 9, retired commander).
 // The full command tree lives in src/cli/parse.ts as one citty defineCommand (mainCommand with
-// the five subcommands implement / review / fix / base-branch [set|get] / help). This file only
-// boots it: `--help` pre-screen → `cdd help` discovery intercept → root/proc bootstrap →
-// runCommand → parse/usage error normalization (exit code table §2.4.2: 0 = OK incl. --help;
-// 1 = dispatch failure / blocked; 2 = usage or parse error; 3 = review convergence — citty's own
-// parse errors exit 1, so this wrapper is what keeps the subroutine's documented table intact).
-//   cdd implement --task <n> [--plan <path>]
+// the five subcommands implement / review / fix / base-branch [set|get] / schema [get]). This file only
+// boots it: `--help` pre-screen → root/proc bootstrap → runCommand → parse/usage error
+// normalization (exit code table §2.4.2: 0 = OK incl. --help; 1 = dispatch failure / blocked;
+// 2 = usage or parse error; 3 = review convergence — citty's own parse errors exit 1, so this
+// wrapper is what keeps the subroutine's documented table intact).
+//   cdd implement --tasks <n|n,n,…> [--plan <path>]
 //   cdd review --type <task|branch|spec|plan> [...]
 //   cdd fix --type <task|spec|plan> [...]
 //   cdd base-branch <set|get> --plan <path> [...]
-//   cdd help
+//   cdd schema get <type>
 //
 // Unconditional boot (no isMain guard): this artifact is only ever executed directly by node as
 // the CLI entry (package.json bin/main/exports all point at dist/cli.mjs; no library consumer
@@ -29,7 +29,6 @@ import path from "node:path";
 import { parseArgs, renderUsage, runCommand } from "citty";
 import { initProcLifecycle, reapStale, teardownAll } from "./infra/proc.ts";
 import { mainCommand, MAIN_ARGS, usageError, commandUsageKey, deepestCommand } from "./cli/parse.ts";
-import { runHelp } from "./cli/help.ts";
 import { setDryRun } from "./cli/shared.ts";
 import { initRoot } from "./infra/root.ts";
 import { ExitRequested, CddExitError } from "./infra/exit.ts";
@@ -78,20 +77,6 @@ async function main() {
     finalExit(0);
   }
 
-  // `cdd help` — P2 discovery subcommand (overall v1.10 Non-goal#1 carve-out: the engine's ONE new
-  // subcommand, zero enforcement logic — no audit, no exit-semantics change). Intercepted BEFORE the
-  // root bootstrap like the `--help` pre-screen: pure resource discovery works outside git repos and
-  // writes no lifecycle state (initRoot's repo gate / initProcLifecycle's lifecycle.json persist both
-  // stay out of its path). RunHelp prints the CLI directory + the required doc-resource directories
-  // (canonical schemas / templates), each verified to exist at render time. The declared citty help
-  // command (parse.ts) is the surface fallback for --help/usage rendering; this intercept is what
-  // runs in production.
-  const firstCommand = rawArgs.find((a) => !a.startsWith("-"));
-  if (firstCommand === "help") {
-    runHelp();
-    finalExit(0);
-  }
-
   // Boot (the former commander preAction hook, the action precondition): program-level `--dry-run`
   // resolves position-independent from the FULL argv (parseArgs over the main args def tolerates
   // the subcommand surface), then the engine root + process lifecycle are initialized once per run.
@@ -126,7 +111,7 @@ async function main() {
     if (raw instanceof ExitRequested) finalExit(raw.code);
     // The CddExitError family (P6 T24, F error consolidation): orchestration errors (registry gate /
     // DispatchBlocked / RunBlocked / usage) all land here and exit by their own exitCode. The
-    // kind=usage face (shared.ts guardArgs/intTask → cliUsageError) keeps the citty-usage parity:
+    // kind=usage face (shared.ts guardArgs/parseTaskList → cliUsageError) keeps the citty-usage parity:
     // usage line (the resolved command context via deepestCommand) + message + exit 2. All other
     // kinds → message + exit raw.exitCode (1 = blocked / run-blocked; the code is the family's
     // field, never recomputed here — the 0/1/2/3 table is the family's contract).

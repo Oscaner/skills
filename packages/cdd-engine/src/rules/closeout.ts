@@ -5,7 +5,9 @@
 //
 // Input  = the parent-overall parse (four tables) + the declaration set (change-history backfill
 //          claims + Phase-inventory columns) + the engine-derived terminal state (plan-complete =
-//          derivePlanVerdict.done over EVERY plan workspace under the parent overall).
+//          derivePlanVerdict.done over EVERY plan workspace under the parent overall — the
+//          effectiveGroups dispatch-group iteration, the same single derivation as the progress
+//          surface (the group-following iteration covers the closeout terminal-debt verdict too).
 // Output = the mismatch set on two surfaces:
 //   structural    — missing cell / missing claim: the single audit entry (validateDispatchDocuments)
 //                   consumed verbatim (Task 3 failure semantics; no second implementation).
@@ -29,6 +31,7 @@ import {
   fileNameSlug,
   mdNames,
   taskNumbersFromPlan,
+  effectiveGroups,
   type DocValidationFailure,
 } from "./documents.ts";
 import { derivePlanVerdict } from "./status.ts";
@@ -65,7 +68,7 @@ export interface CloseoutResult {
 function planComplete(planPath: string, root: string): boolean {
   const workspace = resolveWorkspace(planPath, root);
   if (!existsSync(path.join(workspace, "progress.json"))) return false;
-  return derivePlanVerdict(planPath, workspace, taskNumbersFromPlan).done;
+  return derivePlanVerdict(planPath, workspace, taskNumbersFromPlan, effectiveGroups).done;
 }
 
 /** The plan-doc enumeration under a parent overall — the SAME canonical glob the four-table

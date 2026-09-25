@@ -98,7 +98,9 @@ export function maybeExhaust(progressDir: string, category: string, handoffPath:
 // distinguishable in the blocker (death can be archived and replayed by cause).
 export function timeoutBlocker(opts: {
   cause?: TerminationCause;
-  taskNum: number;
+  /** The dispatch group's key (P4.3: `--tasks 1` → `"1"` · `--tasks 1,2` → `"1-2"`) — the
+   * re-dispatch advice is whole-group surface, never a per-task subset. */
+  tasks: string;
   timeoutMs?: number;
   idleWindowMs?: number;
   /** dispatch op (implement/review/fix) — only implement carries the auto-resume contract. */
@@ -114,11 +116,11 @@ export function timeoutBlocker(opts: {
         : `agent dispatch stalled (no CPU or workspace-file progress for ${opts.idleWindowMs ?? DEFAULT_IDLE_WINDOW_MS}ms — tool call hung)`;
     if (op === "implement") {
       const resume = opts.residue
-        ? `resume or discard: cdd implement --task ${opts.taskNum} re-dispatch auto-resumes (recovery.residue_ref=${opts.residue}), or git stash drop to abandon`
-        : `resume or discard: cdd implement --task ${opts.taskNum} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`;
+        ? `resume or discard: cdd implement --tasks ${opts.tasks} re-dispatch auto-resumes (recovery.residue_ref=${opts.residue}), or git stash drop to abandon`
+        : `resume or discard: cdd implement --tasks ${opts.tasks} re-dispatch auto-resumes (recovery.residue_ref), or git stash drop to abandon`;
       return `${basis}; ${resume}`;
     }
-    return `${basis}; worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${op} --task ${opts.taskNum}`;
+    return `${basis}; worktree residue (if any) is preserved as a stash — \`git stash list\` to find the snapshot, \`git stash apply <ref>\` + review to salvage (then commit) or \`git stash drop\` to discard, then re-dispatch cdd ${op} --tasks ${opts.tasks}`;
   }
-  return `cli timed out after ${opts.timeoutMs ?? "<unknown>"}ms → simplify task ${opts.taskNum} scope or increase timeout, then re-dispatch`;
+  return `cli timed out after ${opts.timeoutMs ?? "<unknown>"}ms → simplify task ${opts.tasks} scope or increase timeout, then re-dispatch`;
 }

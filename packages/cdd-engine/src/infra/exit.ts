@@ -49,7 +49,7 @@ export function invariant(cond: unknown, msg: string): asserts cond {
 
 /** CLI usage error (CLI contract): exit code 2 + kind "usage". The name/code pair (CLIError /
  * E_UNKNOWN_OPTION) keeps the citty-parse-error parity that the bin wrapper keys on (usage line +
- * message + exit 2) — shared.ts guardArgs / intTask emit through here. */
+ * message + exit 2) — shared.ts guardArgs / parseTaskList emit through here. */
 export function cliUsageError(msg: string, code = "E_UNKNOWN_OPTION"): CddExitError {
   const err = new CddExitError(msg, { exitCode: 2, kind: "usage" });
   err.name = "CLIError";

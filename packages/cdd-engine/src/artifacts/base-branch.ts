@@ -24,11 +24,12 @@ export function baseBranchPath({ workspace }: { workspace: string }): string {
   return path.join(workspace, "base-branch.json");
 }
 
-/** briefPath: the brief file path's single derivation point (`<ws>/task-<N>-brief.md`) — the task
- * runner's buildCtx takes ctx.briefPath through this function (consumers must not inline the same
- * shape literal, or the single authority is nominal only). */
-export function briefPath({ workspace, task }: { workspace: string; task: number | string }): string {
-  return path.join(workspace, `task-${task}-brief.md`);
+/** briefPath: the brief file path's single derivation point (`<ws>/tasks-<groupKey>-brief.md` —
+ * the group-keyed artifact of the P4.3 group dispatch; `--tasks 1` → `tasks-1-brief.md` — the
+ * task runner's buildCtx takes ctx.briefPath through this function (consumers must not inline
+ * the same shape literal, or the single authority is nominal only). */
+export function briefPath({ workspace, tasks }: { workspace: string; tasks: string }): string {
+  return path.join(workspace, `tasks-${tasks}-brief.md`);
 }
 
 /** validateBaseBranch(obj) → {ok:true} | {ok:false, errors: []}.

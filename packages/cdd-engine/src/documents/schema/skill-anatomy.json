@@ -206,7 +206,7 @@
           "properties": {
             "crossings": {
               "type": "object",
-              "description": "The registered crossings — a per-skill map (crossing skill name → rationale object): a skill whose digraph crosses the growth boundary must name itself as a property here or the check fails. The registry currently carries zero entries — the P4.4 group-implement-review-fix loop shrink (13 nodes / 17 edges) returned every digraph inside the boundary; a future crossing adds its skill name + rationale as a property.",
+              "description": "The registered crossings — a per-skill map (crossing skill name → rationale object): a skill whose digraph crosses the growth boundary must name itself as a property here or the check fails; the registry currently carries zero entries. A future crossing adds its skill name + rationale as a property.",
               "properties": {}
             }
           }

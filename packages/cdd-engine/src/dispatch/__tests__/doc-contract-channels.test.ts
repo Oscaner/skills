@@ -14,12 +14,35 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { runBranchReview } from "../../cli/branch-review.ts";
+import { BranchReviewLifecycle } from "../branch.ts";
+
+/**
+ * Inline branch-review dispatch (Task 6: the former cli/branch-review.ts thin shell 并入组合根 —
+ * tests construct BranchReviewLifecycle directly, exactly like cli/review.ts).
+ */
+async function runBranchReviewLc(opts: {
+  harness: string;
+  type: string;
+  plan: string;
+  base: string;
+  head: string;
+  root?: string;
+  registryPath?: string;
+}): Promise<void> {
+  const dryRun = false;
+  const lc = new BranchReviewLifecycle({
+    ...opts,
+    dryRun,
+    ctx: { mode: "branch-review", repoRoot: opts.root ?? null, dryRun },
+  });
+  await lc.run();
+}
+
 import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { REG_PATH } from "../../infra/registry.ts";
-import { runDocsTask } from "../docs.ts";
+import { DocsLifecycle } from "../docs.ts";
 import { TaskLifecycle } from "../task.ts";
 
 function git(repo: string, ...args: string[]) {
@@ -200,7 +223,7 @@ async function runDocs(
 ): Promise<number> {
   let exitCode: number | null = null;
   try {
-    await runDocsTask({
+    await DocsLifecycle.run({
       harness: "ctr",
       mode: "review",
       template: "review",
@@ -298,7 +321,7 @@ async function runBranch(
   const cap = captureStderr();
   let exitCode: number | null = null;
   try {
-    await runBranchReview({
+    await runBranchReviewLc({
       harness: "ctr",
       type: "branch",
       plan: planPath,
@@ -332,7 +355,7 @@ describe("branch channel — the base-default docContractValidate (audits its `-
     const cap = captureStderr();
     let exitCode: number | null = null;
     try {
-      await runBranchReview({
+      await runBranchReviewLc({
         harness: "ctr",
         type: "branch",
         plan: path.join(dir, PLAN_DIR, "plan.md"),

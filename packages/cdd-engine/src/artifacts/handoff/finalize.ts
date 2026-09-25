@@ -36,18 +36,18 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { invariant } from "../../infra/exit.ts";
-import { gitMergeBaseIsAncestor, gitRevParseHead } from "../../infra/git.ts";
+import { GitClient } from "../../infra/git.ts";
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
-import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
+import { HandoffSchemaValidator } from "../../rules/schema.ts";
 import { hashFile } from "../hash.ts";
-import { moveTaskScopeBaseEarlier, SHA40_RE, seedScopeBase } from "../progress.ts";
-import {
-  artifactsFromReturnLine,
-  commitsFromReturnLine,
-  implementStatusFromReturnLine,
-  returnBlocker,
-} from "../return-block.ts";
+import { ProgressLedger, SHA40_RE } from "../progress.ts";
+import { ReturnBlockParser } from "../return-block.ts";
 import { readJson, writeHandoff, writeOwnHandoff } from "./write.ts";
+
+const git = new GitClient();
+const ledger = new ProgressLedger();
+const schemaValidator = new HandoffSchemaValidator();
+const returnBlockParser = new ReturnBlockParser();
 
 // ---- severity contract / status derivation (merged from contract.mjs, spec §2.3) ----
 
@@ -65,9 +65,9 @@ export function normalizeHandoffStatus(status: string | undefined): string | und
   }
 }
 
-/** severity → decision. Contract-pinned (spec D1/D4/D5a):
- *   "blocker" → "CHANGES_REQUESTED"; "warn"|"nit" → "APPROVED" (warn/nit likewise fully enter the
- *   fix loop);
+/** severity → decision. Contract-pinned (spec D1/D4/D5a; Task 8 #278 three-value conclusion):
+ *   "blocker" → "CHANGES_REQUESTED"; "warn"|"nit" → "REVIEW_FIX" (收口态 — warn/nit fully enter the
+ *   fix loop, and the review closes on the warn/nit-only conclusion, never a re-review);
  *   "unverifiable" / "needs_context" → "STOP" (BLOCKED). Unknown → throw (contract violation). */
 export function classifySeverity(sev: unknown): string {
   const s = String(sev).toLowerCase().replaceAll("-", "_");
@@ -76,7 +76,7 @@ export function classifySeverity(sev: unknown): string {
       return "CHANGES_REQUESTED";
     case "warn":
     case "nit":
-      return "APPROVED";
+      return "REVIEW_FIX";
     case "unverifiable":
     case "needs_context":
       return "STOP";
@@ -86,8 +86,9 @@ export function classifySeverity(sev: unknown): string {
 }
 
 /** findings[] roll-up → handoff status (aligned with the status enum of
- * packages/cdd-engine/templates/schema/docs-handoff-schema.json; this rollup is the mapping):
- *   empty → APPROVED; warn/nit only → APPROVED; blocker present → CHANGES_REQUESTED;
+ * packages/cdd-engine/templates/schema/docs-handoff-schema.json; this rollup is the mapping;
+ * Task 8 #278 — the three-value conclusion):
+ *   empty → APPROVED; warn/nit only → REVIEW_FIX (收口态); blocker present → CHANGES_REQUESTED;
  *   non-empty unverifiable[] / plan_conflicts[] → BLOCKED. */
 export function rollupStatus(
   findings: Array<{ severity?: string }> = [],
@@ -96,15 +97,18 @@ export function rollupStatus(
 ): string {
   if (unverifiable.length > 0 || planConflicts.length > 0) return "BLOCKED";
   const hasBlocker = findings.some((f) => f?.severity === "blocker");
-  return hasBlocker ? "CHANGES_REQUESTED" : "APPROVED";
+  if (hasBlocker) return "CHANGES_REQUESTED";
+  return findings.length > 0 ? "REVIEW_FIX" : "APPROVED";
 }
 
 /** review-family handoff status derivation (engine-authoritative only): after schema validation,
  * findings roll-up overwrites the agent-declared status.
  * SP-4 exemption: failure rounds (engine-written BLOCKED/TIMEOUT, agent status ∈
  * {BLOCKED, TIMEOUT}) are not overwritten.
- * Rollup triggers only when findings.length > 0; with empty findings CHANGES_REQUESTED (0
- * blockers) → APPROVED, APPROVED empty-load stays, default → APPROVED.
+ * Rollup triggers only when findings.length > 0; with empty findings CHANGES_REQUESTED /
+ * REVIEW_FIX (0 findings) → APPROVED, APPROVED empty-load stays, default → APPROVED.
+ * Task 8 #278 三段结案: findings that are warn/nit-only → REVIEW_FIX (收口态); blocker present →
+ * CHANGES_REQUESTED.
  * BRANCH NIT⑥: consult plan_conflicts/unverifiable BEFORE the empty-findings short-circuit — when
  * either is non-empty it is the BLOCKED channel even with empty findings (the rollup's
  * unverifiable/planConflicts lane does not ride on findings), previously stolen by the
@@ -118,7 +122,9 @@ export function deriveReviewStatus(handoff: Record<string, unknown> = {}): strin
   if ((unverifiable as unknown[]).length > 0 || (planConflicts as unknown[]).length > 0)
     return "BLOCKED";
   if ((findings as unknown[]).length === 0) {
-    return status === "CHANGES_REQUESTED" ? "APPROVED" : ((status as string) ?? "APPROVED");
+    return status === "CHANGES_REQUESTED" || status === "REVIEW_FIX"
+      ? "APPROVED"
+      : ((status as string) ?? "APPROVED");
   }
   return rollupStatus(
     findings as Array<{ severity?: string }>,
@@ -128,12 +134,13 @@ export function deriveReviewStatus(handoff: Record<string, unknown> = {}): strin
 }
 
 /** Round conclusion → runner exit (Task 23 ③: BLOCKED → exit 1 on any channel — the T14
- * 「exit 0 + status BLOCKED」inversion). APPROVED / CHANGES_REQUESTED → 0 (terminal review
- * conclusions; the fix loop continues on its own pass); every other conclusion (BLOCKED /
- * TIMEOUT / absent) → 1. Single mapping point shared by dispatch/task.ts, dispatch/docs.ts and
- * the branch-review/fix CLIs. */
+ * 「exit 0 + status BLOCKED」inversion). APPROVED / CHANGES_REQUESTED / REVIEW_FIX → 0 (terminal
+ * review conclusions — Task 8: REVIEW_FIX is the 收口态 conclusion for warn/nit-only rounds, the
+ * fix loop continues on its own pass; the review dispatch itself completed); every other conclusion
+ * (BLOCKED / TIMEOUT / absent) → 1. Single mapping point shared by dispatch/task.ts, dispatch/docs.ts
+ * and the branch-review/fix CLIs. */
 export function statusExitCode(status: string | undefined): number {
-  return status === "APPROVED" || status === "CHANGES_REQUESTED" ? 0 : 1;
+  return status === "APPROVED" || status === "CHANGES_REQUESTED" || status === "REVIEW_FIX" ? 0 : 1;
 }
 
 /** One unverifiable/plan-conflict entry → its compact text. Entries may be strings or objects
@@ -233,7 +240,9 @@ export function normalizeHandoff(obj: unknown, schemaName = "task"): unknown {
   // face closes it via objOrEmpty), so a record-only annotation would misstate the shape.
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
   const allowed = new Set(
-    Object.keys((loadHandoffSchema(schemaName) as Record<string, unknown>).properties ?? {}),
+    Object.keys(
+      (schemaValidator.loadHandoffSchema(schemaName) as Record<string, unknown>).properties ?? {},
+    ),
   );
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
@@ -284,7 +293,7 @@ export function recoverHandoff(
   preservedFindings?: Array<unknown>;
 } {
   const handoff = objOrEmpty(normalizeHandoff(obj, schemaName));
-  const sv = validateHandoffSchema(handoff, schemaName);
+  const sv = schemaValidator.validateHandoffSchema(handoff, schemaName);
   if (sv.valid) return { handoff, valid: true };
   // The violating key is taken from the round that saw the ORIGINAL object — normalization
   // already stripped top-level unknown keys, so the re-validate surface usually no longer
@@ -293,8 +302,8 @@ export function recoverHandoff(
   // first-wins.)
   const property =
     (
-      validateHandoffSchema(obj, schemaName) as Extract<
-        ReturnType<typeof validateHandoffSchema>,
+      schemaValidator.validateHandoffSchema(obj, schemaName) as Extract<
+        ReturnType<HandoffSchemaValidator["validateHandoffSchema"]>,
         { valid: false }
       >
     ).property ?? sv.property;
@@ -547,20 +556,20 @@ export async function finalizeImplement({
   // commits line's head is ignored on fresh materialization — git HEAD takes commit authority;
   // the T27 resume-declared lane below reads its base= value instead.
   const [statusLine, , artifactsLine, blockerLine] = returnBlock;
-  const { status, raw } = implementStatusFromReturnLine(statusLine ?? "");
-  let blocker = returnBlocker(blockerLine ?? "");
+  const { status, raw } = returnBlockParser.implementStatusFromReturnLine(statusLine ?? "");
+  let blocker = returnBlockParser.returnBlocker(blockerLine ?? "");
   if (raw !== "APPROVED" && !blocker) blocker = `implement return status "${raw}" without blocker`;
-  const head = repoRoot ? await gitRevParseHead(repoRoot) : null;
+  const head = repoRoot ? await git.revParseHead(repoRoot) : null;
   // A materialization wearing the resume signature (base==head) may reconsider its base — the
   // fresh-implement base authority is untouched (T27 adoption lane).
   let commitsBase = base;
   if (repoRoot && head && base === head) {
-    const declared = commitsFromReturnLine(returnBlock[1] ?? "").base;
+    const declared = returnBlockParser.commitsFromReturnLine(returnBlock[1] ?? "").base;
     if (
       declared &&
       SHA40_RE.test(declared) &&
       declared !== head &&
-      (await gitMergeBaseIsAncestor(repoRoot, declared, head))
+      (await git.mergeBaseIsAncestor(repoRoot, declared, head))
     ) {
       commitsBase = declared;
     }
@@ -572,11 +581,11 @@ export async function finalizeImplement({
   // the ledger (a task-less materialization writes no scope state).
   const seedKey = groupKey;
   if (repoRoot && head && workspace && seedKey != null) {
-    seedScopeBase(workspace, seedKey, base);
+    ledger.seedScopeBase(workspace, seedKey, base);
     if (resumeScopeBase)
-      await moveTaskScopeBaseEarlier(workspace, seedKey, resumeScopeBase, repoRoot, head);
+      await ledger.moveTaskScopeBaseEarlier(workspace, seedKey, resumeScopeBase, repoRoot, head);
     if (commitsBase !== base)
-      await moveTaskScopeBaseEarlier(workspace, seedKey, commitsBase, repoRoot, head);
+      await ledger.moveTaskScopeBaseEarlier(workspace, seedKey, commitsBase, repoRoot, head);
   }
   const gate = evidenceGate(workspace, groupKey);
   if (gate.hard) {
@@ -596,7 +605,7 @@ export async function finalizeImplement({
       ...(tasks ? { tasks } : {}),
       phase: "implement",
       status: gate.hard ? "BLOCKED" : status,
-      artifacts: artifactsFromReturnLine(artifactsLine ?? ""),
+      artifacts: returnBlockParser.artifactsFromReturnLine(artifactsLine ?? ""),
       findings: [],
       commits: { base: commitsBase, ...(head ? { head } : {}) },
       blocker: blocker || undefined,

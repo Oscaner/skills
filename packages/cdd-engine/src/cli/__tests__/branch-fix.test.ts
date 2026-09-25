@@ -263,18 +263,31 @@ describe("branch-fix in-process loop closure", () => {
       "fixtures",
     ]);
     try {
-      const { ExitRequested } = await import("../../infra/exit.ts");
-      const { runBranchFix } = await import("../branch-fix.ts");
+      const { ExitRequested, exitWithCode } = await import("../../infra/exit.ts");
+      const { DispatchBlocked } = await import("../../dispatch/base.ts");
+      const { BranchFixLifecycle } = await import("../../dispatch/branch.ts");
       let exitCode: number | null = null;
       try {
-        await runBranchFix({
+        const fxDryRun = false;
+        const lc = new BranchFixLifecycle({
           harness: "ghost",
           plan: planPath,
           findings: reviewPath,
-          type: "branch",
           root: dir,
           registryPath: regPath,
+          dryRun: fxDryRun,
+          ctx: { mode: "fix", repoRoot: dir, dryRun: fxDryRun },
         });
+        try {
+          await lc.run();
+        } catch (e) {
+          if (e instanceof DispatchBlocked && e.gate === "exit") {
+            process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+            exitWithCode(1);
+          }
+          throw e;
+        }
+        exitWithCode(lc.exitCode);
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
@@ -390,18 +403,31 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
         `exit 0\n`,
     );
     try {
-      const { ExitRequested } = await import("../../infra/exit.ts");
-      const { runBranchFix } = await import("../branch-fix.ts");
+      const { ExitRequested, exitWithCode } = await import("../../infra/exit.ts");
+      const { DispatchBlocked } = await import("../../dispatch/base.ts");
+      const { BranchFixLifecycle } = await import("../../dispatch/branch.ts");
       let exitCode: number | null = null;
       try {
-        await runBranchFix({
+        const fxDryRun = false;
+        const lc = new BranchFixLifecycle({
           harness: "ghost",
           plan: planPath,
           findings: reviewPath,
-          type: "branch",
           root: dir,
           registryPath: regPath,
+          dryRun: fxDryRun,
+          ctx: { mode: "fix", repoRoot: dir, dryRun: fxDryRun },
         });
+        try {
+          await lc.run();
+        } catch (e) {
+          if (e instanceof DispatchBlocked && e.gate === "exit") {
+            process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+            exitWithCode(1);
+          }
+          throw e;
+        }
+        exitWithCode(lc.exitCode);
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
@@ -431,18 +457,31 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
         `exit 0\n`,
     );
     try {
-      const { ExitRequested } = await import("../../infra/exit.ts");
-      const { runBranchFix } = await import("../branch-fix.ts");
+      const { ExitRequested, exitWithCode } = await import("../../infra/exit.ts");
+      const { DispatchBlocked } = await import("../../dispatch/base.ts");
+      const { BranchFixLifecycle } = await import("../../dispatch/branch.ts");
       let exitCode: number | null = null;
       try {
-        await runBranchFix({
+        const fxDryRun = false;
+        const lc = new BranchFixLifecycle({
           harness: "ghost",
           plan: planPath,
           findings: reviewPath,
-          type: "branch",
           root: dir,
           registryPath: regPath,
+          dryRun: fxDryRun,
+          ctx: { mode: "fix", repoRoot: dir, dryRun: fxDryRun },
         });
+        try {
+          await lc.run();
+        } catch (e) {
+          if (e instanceof DispatchBlocked && e.gate === "exit") {
+            process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+            exitWithCode(1);
+          }
+          throw e;
+        }
+        exitWithCode(lc.exitCode);
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
@@ -479,17 +518,32 @@ describe("branch-fix exit gate — the inherited commit-contract BLOCKED lanes",
     try {
       const { ExitRequested } = await import("../../infra/exit.ts");
       const { initRoot } = await import("../../infra/root.ts");
-      const { runBranchFix } = await import("../branch-fix.ts");
+      const { DispatchBlocked } = await import("../../dispatch/base.ts");
+      const { BranchFixLifecycle } = await import("../../dispatch/branch.ts");
+      const { exitWithCode } = await import("../../infra/exit.ts");
       await initRoot(dir);
       let exitCode: number | null = null;
       try {
-        await runBranchFix({
+        const fxDryRun = false;
+        const lc = new BranchFixLifecycle({
           harness: "ghost",
           plan: planPath,
           findings: reviewPath,
-          type: "branch",
+          root: dir,
           registryPath: regPath,
+          dryRun: fxDryRun,
+          ctx: { mode: "fix", repoRoot: dir, dryRun: fxDryRun },
         });
+        try {
+          await lc.run();
+        } catch (e) {
+          if (e instanceof DispatchBlocked && e.gate === "exit") {
+            process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+            exitWithCode(1);
+          }
+          throw e;
+        }
+        exitWithCode(lc.exitCode);
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;

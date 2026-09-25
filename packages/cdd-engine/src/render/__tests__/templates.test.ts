@@ -7,8 +7,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { loadHandoffSchema } from "../../rules/schema.ts";
-import { renderHandoffSchemaJson } from "../templates.ts";
+import { HandoffSchemaValidator } from "../../rules/schema.ts";
+
+const schemaValidator = new HandoffSchemaValidator();
+
+import { TemplateLoader } from "../templates.ts";
+
+const templates = new TemplateLoader();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENGINE = path.join(__dirname, "..", "..", "..");
@@ -22,6 +27,8 @@ const heading = (prompt: string, name: string): number =>
 
 describe("PKG_ROOT", () => {
   it("resolves to the templates resource dir under packages/cdd-engine", async () => {
+    // PKG_ROOT is the module's path constant (not a TemplateLoader member — Task 7 ①: the class
+    // surface owns load/render, the resource root stays a module const).
     const { PKG_ROOT } = await import("../templates.ts");
     // re-org Step 5：PKG_ROOT 语义收敛为模板资源目录本身（fileURLToPath(new URL("../templates", …))）。
     expect(PKG_ROOT).toMatch(/packages\/cdd-engine\/templates$/);
@@ -93,7 +100,7 @@ function zoneFixture(overrides: Record<string, unknown> = {}): Record<string, un
 
 describe("template-contract 单点消费 + zone-tagged token registry（Task 20 ③④）", () => {
   it("loadTemplateContract 加载真身：skeleton 槽级三段制 + tokens(18 带 zone) + clauses + reviews", async () => {
-    const { loadTemplateContract } = await import("../templates.ts");
+    const loadTemplateContract = templates.loadTemplateContract.bind(templates);
     const contract = loadTemplateContract();
     expect(contract.skeleton.sections).toEqual([
       "Instructions",
@@ -125,13 +132,15 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
   });
 
   it("18 令牌全收敛（P4.4 Task 3 契约面；零遗留旧态名）—— 三段落实际使用的令牌 ⊆ registry", async () => {
-    const {
-      scanTemplateTokens,
-      validateTemplateTokens,
-      tokenNames,
-      tokensInZone,
-      loadTemplateContract,
-    } = await import("../templates.ts");
+    const validateTemplateTokens = templates.validateTemplateTokens.bind(templates);
+    const tokenNames = templates.tokenNames.bind(templates);
+    const tokensInZone = templates.tokensInZone.bind(templates);
+    const loadTemplateContract = templates.loadTemplateContract.bind(templates);
+    // Independent token scan (test-side regex — not the module's private scanTemplateTokens, whose
+    // instance-visible surface is validateTemplateTokens; an independent scan keeps the
+    // registry-vs-usage cross-check non-tautological).
+    const usedIn = (src: string): string[] =>
+      [...src.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)].map((m) => m[1]);
     const contract = loadTemplateContract();
     const zones = {
       shell: [contract.sections.shell, []],
@@ -140,7 +149,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
     };
     for (const [zone, [lines, allowedZone]] of Object.entries(zones)) {
       const src = (lines as string[][]).flat().join("\n");
-      const used = scanTemplateTokens(src);
+      const used = usedIn(src);
       for (const tok of used) {
         expect(tokenNames(contract), `${zone}: {{${tok}}}`).toContain(tok); // 非 registry 令牌 → 炸
       }
@@ -193,7 +202,8 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
   });
 
   it("validateTemplateTokens: 非 registry 令牌（含旧态名）→ throw", async () => {
-    const { validateTemplateTokens, loadTemplateContract } = await import("../templates.ts");
+    const validateTemplateTokens = templates.validateTemplateTokens.bind(templates);
+    const loadTemplateContract = templates.loadTemplateContract.bind(templates);
     const contract = loadTemplateContract() as never;
     expect(() => validateTemplateTokens("# t\n{{H1_BLOCK}}", contract)).toThrow(
       /not in registry: H1_BLOCK/,
@@ -207,12 +217,12 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
   });
 
   it("validateTemplateStructure: 合法 zone 平面通过（壳零槽 + 槽仅现所属区 + 常数字节锁）", async () => {
-    const { validateTemplateStructure } = await import("../templates.ts");
+    const validateTemplateStructure = templates.validateTemplateStructure.bind(templates);
     expect(() => validateTemplateStructure(zoneFixture() as never)).not.toThrow();
   });
 
   it("validateTemplateStructure: 壳禁槽 —— token 不得归属 shell；壳内 moustache → throw", async () => {
-    const { validateTemplateStructure } = await import("../templates.ts");
+    const validateTemplateStructure = templates.validateTemplateStructure.bind(templates);
     const shellTok = zoneFixture({
       tokens: [
         { name: "MODE", zone: "shell" },
@@ -233,7 +243,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
   });
 
   it("validateTemplateStructure: 槽仅现所属区 —— return token 不得 moustache；round token 不得缺席", async () => {
-    const { validateTemplateStructure } = await import("../templates.ts");
+    const validateTemplateStructure = templates.validateTemplateStructure.bind(templates);
     // return 常量内 moustache → throw（return 常数为字面常数，token 只以字面标签面世）
     const retStash = zoneFixture({
       sections: {
@@ -259,7 +269,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
   });
 
   it("validateTemplateStructure: Return 常数字节锁 —— 必以 `## Return` 开头 + 零 moustache；段序锁定", async () => {
-    const { validateTemplateStructure } = await import("../templates.ts");
+    const validateTemplateStructure = templates.validateTemplateStructure.bind(templates);
     const noHeading = zoneFixture({
       sections: {
         ...zoneFixture().sections,
@@ -274,9 +284,9 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
   });
 
   it("Task 20 与 T12 衔接：{{> clause}} 引用须 resolve 到 #clauses（未注册 → throw；注册 → 通过 + 装配器注册 partial）", async () => {
-    const { validateTemplateStructure, clauseNames, assembleClauses } = await import(
-      "../templates.ts"
-    );
+    const validateTemplateStructure = templates.validateTemplateStructure.bind(templates);
+    const clauseNames = templates.clauseNames.bind(templates);
+    const assembleClauses = templates.assembleClauses.bind(templates);
     const hb = (await import("handlebars")).default;
     expect(clauseNames()).toEqual(CLAUSE_KEYS); // the eight discipline clauses in their post-landing state (order = D1.2/E2⑤ naming order, plus changes[] bookkeeping) (T12)
     const ref = zoneFixture({
@@ -313,14 +323,14 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
   });
 
   it("validateShippedTemplates: 单文件数据面校验通过 → 返回 zone 键清单（原 TEMPLATE_FILES 逐文件扫退位）", async () => {
-    const { validateShippedTemplates } = await import("../templates.ts");
+    const validateShippedTemplates = templates.validateShippedTemplates.bind(templates);
     expect(validateShippedTemplates()).toEqual(["shell", "return", "round-context"]);
   });
 });
 
 describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板引用覆盖 + 行为变更单点", () => {
   it("validateTemplateStructure: shell 容许 `{{> clause}}` 装配标记；token 槽仍禁（壳禁槽 = 禁 per-dispatch 槽）", async () => {
-    const { validateTemplateStructure } = await import("../templates.ts");
+    const validateTemplateStructure = templates.validateTemplateStructure.bind(templates);
     const shellClauseRef = zoneFixture({
       clauses: { "cl:test": "TEXT" },
       sections: {
@@ -346,7 +356,7 @@ describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
   });
 
   it("4 模板正文零内联纪律散文：条款正文仅存于 #clauses（D1.2 单源）；shell 区全 7 条 {{> cl:…}} 引用覆盖（E2⑤）", async () => {
-    const { loadTemplateContract } = await import("../templates.ts");
+    const loadTemplateContract = templates.loadTemplateContract.bind(templates);
     const contract = loadTemplateContract();
     const zones = [
       ...contract.sections.shell,
@@ -361,14 +371,12 @@ describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
   });
 
   it("行为变更一处生效（单点断言）：四个模板渲染均含纪律块 + 全 7 条条款正文；输出零 `{{` 残留（装配面生效）", async () => {
-    const {
-      renderModePrompt,
-      renderTemplate,
-      reviewHardGate,
-      docsFixHardGate,
-      resetTemplateCaches,
-      loadTemplateContract,
-    } = await import("../templates.ts");
+    const renderModePrompt = templates.renderModePrompt.bind(templates);
+    const renderTemplate = templates.renderTemplate.bind(templates);
+    const reviewHardGate = templates.reviewHardGate.bind(templates);
+    const docsFixHardGate = templates.docsFixHardGate.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
+    const loadTemplateContract = templates.loadTemplateContract.bind(templates);
     resetTemplateCaches();
     const contract = loadTemplateContract();
     const shapes: Record<string, string> = {
@@ -432,7 +440,7 @@ describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
 
 describe("review type config (Task 4: 模板数据化)", () => {
   it("loadReviews returns the four review types (from template-contract.json#reviews)", async () => {
-    const { loadReviews } = await import("../templates.ts");
+    const loadReviews = templates.loadReviews.bind(templates);
     expect(Object.keys(loadReviews())).toEqual(["task", "branch", "spec", "plan"]);
   });
 
@@ -450,7 +458,7 @@ describe("review type config (Task 4: 模板数据化)", () => {
   });
 
   it("reviewTypeConfig: known type → content-only config; unknown → throw", async () => {
-    const { reviewTypeConfig } = await import("../templates.ts");
+    const reviewTypeConfig = templates.reviewTypeConfig.bind(templates);
     expect(reviewTypeConfig("task").lensEnum).toEqual(["standards", "spec"]);
     expect(reviewTypeConfig("task")).not.toHaveProperty("returnMode");
     expect(reviewTypeConfig("task")).not.toHaveProperty("fixTemplate");
@@ -458,7 +466,7 @@ describe("review type config (Task 4: 模板数据化)", () => {
   });
 
   it("reviewArtifactConfig: canonical review.{type} 族 → { schema, returnFormat }（T2 裁轴；fixFamily 已删——runFix 直读 fix 族）", async () => {
-    const { reviewArtifactConfig } = await import("../templates.ts");
+    const reviewArtifactConfig = templates.reviewArtifactConfig.bind(templates);
     expect(reviewArtifactConfig("task")).toEqual({
       schema: "task",
       returnFormat: "RETURN_STDOUT_BLOCK",
@@ -473,7 +481,8 @@ describe("review type config (Task 4: 模板数据化)", () => {
   });
 
   it("renderModePrompt(review) routes via the unified constant shell + template-contract reviews type=task (code-review focus)", async () => {
-    const { renderModePrompt, resetTemplateCaches } = await import("../templates.ts");
+    const renderModePrompt = templates.renderModePrompt.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
     resetTemplateCaches();
     const out = renderModePrompt("review", {
       WORKSPACE: "/ws",
@@ -500,7 +509,9 @@ describe("review type config (Task 4: 模板数据化)", () => {
 
 describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round context 组装）", () => {
   it("replaces all params (docs family RETURN_JSON, Task 5 tokens)", async () => {
-    const { renderTemplate, reviewHardGate, resetTemplateCaches } = await import("../templates.ts");
+    const renderTemplate = templates.renderTemplate.bind(templates);
+    const reviewHardGate = templates.reviewHardGate.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
     resetTemplateCaches();
     const out = renderTemplate(
       "review",
@@ -528,7 +539,8 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
   });
 
   it('missing round params pre-fill "" (mode-union template; no missing-param throw)', async () => {
-    const { renderTemplate, resetTemplateCaches } = await import("../templates.ts");
+    const renderTemplate = templates.renderTemplate.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
     resetTemplateCaches();
     const out = renderTemplate("review", { MODE: "review", REVIEW_TYPE: "spec" }, "test");
     expect(out).toContain("- `REVIEW_REFERENCE`:"); // empty prefill, slot still rendered
@@ -536,7 +548,8 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
   });
 
   it("name no longer selects a template file (formerly templatePath) — 渲染与 name 无关", async () => {
-    const { renderTemplate, resetTemplateCaches } = await import("../templates.ts");
+    const renderTemplate = templates.renderTemplate.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
     resetTemplateCaches();
     const params = {
       MODE: "fix",
@@ -566,8 +579,8 @@ describe("unified constant shell（Task 20：四个 .md 并入 sections 的阅�
   });
 
   it("Handoff 段为 schema 原样注入（含 description，零手写 render）", () => {
-    const schema = loadHandoffSchema("task");
-    const stub = renderHandoffSchemaJson(schema);
+    const schema = schemaValidator.loadHandoffSchema("task");
+    const stub = templates.renderHandoffSchemaJson(schema);
     expect(JSON.parse(stub.replace(/^```json\n/, "").replace(/\n```$/, ""))).toEqual(schema);
   });
 
@@ -598,13 +611,14 @@ describe("unified constant shell（Task 20：四个 .md 并入 sections 的阅�
 
 describe("renderHandoffSchemaJson 紧凑注入（P5 E-8 省 tok + Task 5 rename: stub→schema-json）", () => {
   it('stub 无 2-缩进模式（`\\n  "` 模式）——格式 drift 守卫（spec §2.8）', () => {
-    const stub = renderHandoffSchemaJson(loadHandoffSchema("task"));
+    const stub = templates.renderHandoffSchemaJson(schemaValidator.loadHandoffSchema("task"));
     expect(stub).not.toMatch(/\n {2}"/);
   });
 
   it("紧凑 JSON 单行承载 + 契约保持：JSON.parse(stub) === schema（注入面压缩但不损内容）", () => {
-    const schema = loadHandoffSchema("task");
-    const body = renderHandoffSchemaJson(schema)
+    const schema = schemaValidator.loadHandoffSchema("task");
+    const body = templates
+      .renderHandoffSchemaJson(schema)
       .replace(/^```json\n/, "")
       .replace(/\n```$/, "");
     expect(body).not.toContain("\n"); // JSON.stringify 无缩进 → body 恰一行
@@ -612,15 +626,16 @@ describe("renderHandoffSchemaJson 紧凑注入（P5 E-8 省 tok + Task 5 rename:
   });
 
   it("省 tok（R6）：紧凑 stub 短于同一 schema 的 2-缩进形态", () => {
-    const schema = loadHandoffSchema("task");
+    const schema = schemaValidator.loadHandoffSchema("task");
     const pretty = `\`\`\`json\n${JSON.stringify(schema, null, 2)}\n\`\`\``;
-    expect(renderHandoffSchemaJson(schema).length).toBeLessThan(pretty.length);
+    expect(templates.renderHandoffSchemaJson(schema).length).toBeLessThan(pretty.length);
   });
 });
 
 describe("T25: 四 review type 的 scope-composition 轴（changed-surface reasonableness，数据驱动 + 共享壳条款）", () => {
   it("reviewTypeConfig 四 type 全部携带 scope-composition 轴（prompt 零散文——内容全在 contract）", async () => {
-    const { reviewTypeConfig, loadTemplateContract } = await import("../templates.ts");
+    const reviewTypeConfig = templates.reviewTypeConfig.bind(templates);
+    const loadTemplateContract = templates.loadTemplateContract.bind(templates);
     for (const type of ["task", "branch", "spec", "plan"]) {
       expect(reviewTypeConfig(type).axesGuide, type).toContain("changed-surface reasonableness");
     }
@@ -630,7 +645,8 @@ describe("T25: 四 review type 的 scope-composition 轴（changed-surface reaso
   });
 
   it("渲染出的 review prompt 同时携带 scope 轴与 changed-surface 条款（grep/渲染双断言）", async () => {
-    const { renderModePrompt, resetTemplateCaches } = await import("../templates.ts");
+    const renderModePrompt = templates.renderModePrompt.bind(templates);
+    const resetTemplateCaches = templates.resetTemplateCaches.bind(templates);
     resetTemplateCaches();
     const out = renderModePrompt("review", {
       WORKSPACE: "/ws",

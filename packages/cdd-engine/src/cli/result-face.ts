@@ -8,7 +8,9 @@
 // duplicate count; `<path>` = the local handoffPath the consumer wrote/finalized. Callers print the
 // face through the exit.ts family (exitOkWith on exit 0), keeping exit.ts the cli layer's single
 // exit surface.
-import { blockerCount, type HandoffLike } from "../rules/convergence.ts";
+import { ConvergenceChecker, type HandoffLike } from "../rules/convergence.ts";
+
+const convergence = new ConvergenceChecker();
 
 export interface DocsResultLike {
   exitCode: number;
@@ -18,6 +20,6 @@ export interface DocsResultLike {
 export function docsResultFace(result: DocsResultLike, handoffPath: string): string {
   const handoff = (result.handoff ?? null) as unknown as HandoffLike | null;
   const status = handoff?.status ?? "";
-  const blockers = blockerCount(handoff);
+  const blockers = convergence.blockerCount(handoff);
   return `status: ${status} · blocker: ${blockers} · handoff: ${handoffPath}`;
 }

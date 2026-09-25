@@ -74,18 +74,21 @@ function runCli(args = [], opts = {}) {
   }
 }
 
-// Unit seam: vi.mock the docs-runner's dynamic import to assert directly what cdd.mjs
-// runReview/runFix passes to runDocsTask — handoffPath/workspace (canonical derived naming) (P6 T3).
-// cdd.mjs loads `await import("../../dispatch/docs.ts")` dynamically, so vitest intercepts the
-// same module by resolved id. CLI black-box cases run as standalone node child processes and
-// bypass this mock.
+// Unit seam: vi.mock the docs-runner's dynamic import to assert directly what runReview/runFix
+// passes to DocsLifecycle — handoffPath/workspace/findingsPath (canonical derived naming) (P6 T3).
+// review.ts/fix.ts load `await import("../../dispatch/docs.ts")` dynamically and call the class
+// public face DocsLifecycle.run (Task 7 ② export reorder — runDocsTask is no longer a bare
+// export), so vitest intercepts the same module by resolved id and surfaces `run` as the static
+// face. CLI black-box cases run as standalone node child processes and bypass this mock.
 const docsRunnerMock = vi.hoisted(() => ({
-  runDocsTask: vi.fn(async () => ({
+  run: vi.fn(async () => ({
     exitCode: 0,
     handoff: { phase: "review", status: "APPROVED", findings: [], artifacts: {}, doc_path: "" },
   })),
 }));
-vi.mock("../../dispatch/docs.ts", () => docsRunnerMock);
+vi.mock("../../dispatch/docs.ts", () => ({
+  DocsLifecycle: { run: docsRunnerMock.run },
+}));
 
 // 根权威（src/infra/root.ts）在本文件**不再打桩**：in-process 用例一律经 `root` 注入位（T3 根注入契约：
 // 无 reset / 无 env / 无 ForTest 缝）显式传入真仓路径，getRoot() 单例在这些路径上不再被消费。
@@ -372,7 +375,7 @@ describe("cdd CLI", () => {
     }
   });
 
-  it("branch-review 读回定稿（T5/T7 finalizeHandoff 单点）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 APPROVED", () => {
+  it("branch-review 读回定稿（T5/T7 finalizeHandoff 单点）：fake harness CLI 写 warn-only CHANGES_REQUESTED branch-review handoff → 引擎覆写为 REVIEW_FIX（Task 8 收口态）", () => {
     const dir = tmpGitRepo();
     try {
       const plan = path.join(dir, "plan.md");
@@ -381,8 +384,8 @@ describe("cdd CLI", () => {
       const ws = path.join(dir, ".osuperpowers", "cdd", "plan");
       const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
       // fake claude：PATH 遮蔽 registry cli 名（cdd.mjs REG_PATH 无 registry override seam）。
-      // 非 dry-run 真实走 runBranchReview：agent 写 warn-only CHANGES_REQUESTED → engine finalizeHandoff
-      //（三消费方共享定稿单点）rollup 派生覆写 APPROVED + writeOwnHandoff 持久化。
+      // 非 dry-run 真实走 runReview（branch 通道并入组合根）：agent 写 warn-only CHANGES_REQUESTED
+      // → engine finalizeHandoff（三消费方共享定稿单点）rollup 派生覆写 REVIEW_FIX + writeOwnHandoff 持久化。
       writeFileSync(
         path.join(binDir, "claude"),
         "#!/usr/bin/env bash\n" +
@@ -403,8 +406,8 @@ describe("cdd CLI", () => {
       );
       expect(r.exitCode).toBe(0);
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-      // warn/nit = 0 blocker → status 被 finalizeHandoff（applyDerivedStatus rollup）覆写为 APPROVED
-      expect(h.status).toBe("APPROVED");
+      // warn/nit = 0 blocker → status 被 finalizeHandoff（applyDerivedStatus rollup）覆写为 REVIEW_FIX（收口态）
+      expect(h.status).toBe("REVIEW_FIX");
       expect(h.findings).toEqual([{ severity: "warn", summary: "w" }]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -504,14 +507,14 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         else throw e;
       }
       expect(exitCode).toBe(0);
-      const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
+      const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
       const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-review-1.json"));
       expect(call.workspace).toBe(ws);
     } finally {
       setDryRun(false);
       delete process.env.CLAUDE_CODE_SESSION_ID;
-      docsRunnerMock.runDocsTask.mockClear();
+      docsRunnerMock.run.mockClear();
       rmSync(repo, { recursive: true, force: true });
     }
   });
@@ -549,7 +552,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         else throw e;
       }
       expect(exitCode).toBe(0);
-      const call = docsRunnerMock.runDocsTask.mock.calls.at(-1)?.[0] ?? {};
+      const call = docsRunnerMock.run.mock.calls.at(-1)?.[0] ?? {};
       const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
       expect(call.handoffPath).toBe(path.join(ws, "spec-fix-2.json"));
       expect(call.workspace).toBeUndefined(); // docs-runner no longer receives workspace (handoffPath is authoritative) — T3 r1 nit
@@ -557,7 +560,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
     } finally {
       setDryRun(false);
       delete process.env.CLAUDE_CODE_SESSION_ID;
-      docsRunnerMock.runDocsTask.mockClear();
+      docsRunnerMock.run.mockClear();
       rmSync(repo, { recursive: true, force: true });
     }
   });

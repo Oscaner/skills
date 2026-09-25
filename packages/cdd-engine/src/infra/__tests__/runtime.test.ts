@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import { DRY_RUN, setDryRun } from "../../cli/shared.ts";
-import { runTask } from "../../dispatch/task.ts";
+import { TaskLifecycle } from "../../dispatch/task.ts";
 import { REG_PATH } from "../registry.ts";
 import { CddRuntime, type CddRuntimeLike, runtime } from "../runtime.ts";
 
@@ -42,9 +42,10 @@ describe("CddRuntime — the single module-level mutable-state surface", () => {
   });
 
   it("the templates render cache object is runtime-owned (reset/stats go through the class)", async () => {
-    const { resetTemplateCaches, templateCacheStats } = await import("../../render/templates.ts");
-    resetTemplateCaches();
-    expect(templateCacheStats()).toEqual({ reads: 0, compiles: 0, tailRenders: 0 });
+    const { TemplateLoader } = await import("../../render/templates.ts");
+    const templates = new TemplateLoader();
+    templates.resetTemplateCaches();
+    expect(templates.templateCacheStats()).toEqual({ reads: 0, compiles: 0, tailRenders: 0 });
     const statHits = Object.keys(runtime.templateCache);
     // the contract/compiled slots are render-typed, the counters are the observable stats surface
     expect(statHits).toContain("reads");
@@ -109,7 +110,7 @@ describe("CddRuntime — constructor injection (② the stand-in substitutes the
     };
     writeFileSync(regPath, JSON.stringify(reg));
 
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile: "docs/plan.md",
       noExit: true,

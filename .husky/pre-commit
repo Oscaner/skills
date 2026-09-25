@@ -9,10 +9,16 @@
 # touched that were already staged are re-staged so the commit captures the
 # normalized form; any violation surviving autofix exits non-zero, so a
 # format-or-lint-dirty tree cannot be committed (set -e).
+# P4.4 Task 6: the re-stage must survive staged deletions (cli/branch-review.ts /
+# cli/branch-fix.ts 整删) — `git add <deleted-path>` fails with "pathspec did not
+# match"; re-staging only existing paths (deletions are already staged and biome
+# cannot touch a deleted file) while capturing every existing normalized file.
 set -e
 pnpm biome:fix
 staged=$(git diff --cached --name-only || true)
 if [ -n "$staged" ]; then
-  printf '%s\n' "$staged" | xargs git add
+  printf '%s\n' "$staged" | while IFS= read -r p; do
+    if [ -e "$p" ]; then git add "$p"; fi
+  done
 fi
 pnpm run precommit

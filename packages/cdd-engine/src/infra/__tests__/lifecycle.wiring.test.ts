@@ -95,19 +95,22 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     const runTask = readFileSync(path.join(LIB, "dispatch", "task.ts"), "utf8");
     const runDocs = readFileSync(path.join(LIB, "dispatch", "docs.ts"), "utf8");
     const review = readFileSync(path.join(LIB, "cli", "review.ts"), "utf8");
-    const branchReview = readFileSync(path.join(LIB, "cli", "branch-review.ts"), "utf8");
     const fix = readFileSync(path.join(LIB, "cli", "fix.ts"), "utf8");
+    const branch = readFileSync(path.join(LIB, "dispatch", "branch.ts"), "utf8");
     for (const [name, src] of [
       ["run-task", runTask],
       ["run-docs", runDocs],
       ["review", review],
-      ["branch-review", branchReview],
       ["fix", fix],
     ]) {
       expect(src, `${name} 经 withLifecycle 出口`).toMatch(/withLifecycle/);
     }
-    // P4.4 Task 4: the wrapper implementation moved with the lifecycle into infra/runtime.ts (the
-    // CddRuntime class — proc.ts is now a re-export); the guard pins the REAL home.
+    // The branch thin shells (cli/branch-review.ts + cli/branch-fix.ts) merged into the
+    // composition root (Task 6) — the branch lifecycles live in dispatch/branch.ts and route
+    // through review.ts / fix.ts's withLifecycle wrapper (判定标准⑤ — 无转发壳).
+    expect(branch).toMatch(/withLifecycle/);
+    // The wrapper implementation moved with the lifecycle into infra/runtime.ts (P4.4 Task 4 —
+    // the CddRuntime class; proc.ts is now a re-export); the guard pins the REAL home.
     const proc = readFileSync(path.join(LIB, "infra", "runtime.ts"), "utf8");
     expect(proc).toMatch(/withLifecycle/); // 包装器本体驻 infra/runtime.ts
     expect(proc).toMatch(/startIdleMonitor/); // 包装器内含 idle 监视

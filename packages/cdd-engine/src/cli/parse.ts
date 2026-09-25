@@ -19,7 +19,10 @@ import { runBaseBranchGet, runBaseBranchSet } from "./base-branch.ts";
 import { runFix } from "./fix.ts";
 import { runReview } from "./review.ts";
 import { runSchemaGet } from "./schema.ts";
-import { DRY_RUN, guardArgs, parseTaskList, requireHostHarness } from "./shared.ts";
+import { DRY_RUN, guardArgs, requireHostHarness, TaskListParser } from "./shared.ts";
+
+// The `--tasks` parse face (Task 7 — 判定标准② TaskListParser class).
+const taskListParser = new TaskListParser();
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;
 // the commander-era wording is kept — the black-box face contracts pin it). Program-level
@@ -146,10 +149,10 @@ const implementCmd = defineCommand({
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(implementCmd));
     const harness = requireHostHarness();
-    const { runTask } = await import("../dispatch/task.ts");
+    const { TaskLifecycle } = await import("../dispatch/task.ts");
     // The --tasks value parses to the canonical task list — the dispatch group is the unit
     // (the whole group dispatches as one; handoff/brief/progress are group-keyed — P4.3).
-    await runTask(harness, parseTaskList(args.tasks), {
+    await TaskLifecycle.run(harness, taskListParser.parse(args.tasks), {
       mode: "implement",
       dryRun: DRY_RUN(),
       planFile: args.plan,
@@ -196,7 +199,7 @@ const reviewCmd = defineCommand({
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(reviewCmd));
-    const tasks = args.tasks != null ? parseTaskList(args.tasks) : undefined;
+    const tasks = args.tasks != null ? taskListParser.parse(args.tasks) : undefined;
     await runReview({ ...args, tasks });
   },
 });
@@ -229,7 +232,7 @@ const fixCmd = defineCommand({
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(fixCmd));
-    const tasks = args.tasks != null ? parseTaskList(args.tasks) : undefined;
+    const tasks = args.tasks != null ? taskListParser.parse(args.tasks) : undefined;
     await runFix({ ...args, tasks });
   },
 });

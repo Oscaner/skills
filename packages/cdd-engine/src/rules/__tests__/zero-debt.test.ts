@@ -26,9 +26,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
-import { deriveCloseoutMismatches } from "../closeout.ts";
-import { validateDispatchDocuments } from "../documents.ts";
-import { loadHandoffSchema } from "../schema.ts";
+import { CloseoutChecker } from "../closeout.ts";
+
+const closeoutChecker = new CloseoutChecker();
+
+import { DocumentsValidator } from "../documents.ts";
+
+const documentsValidator = new DocumentsValidator();
+
+import { HandoffSchemaValidator } from "../schema.ts";
+
+const schemaValidator = new HandoffSchemaValidator();
+
 import {
   mkProgramRepo,
   OVERALL_CLEAN,
@@ -58,7 +67,7 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
         "| P1 | phase one | [Pending] | Done | | none |",
       ),
     );
-    const f = validateDispatchDocuments({ entry: c.plan1, root: c.repo });
+    const f = documentsValidator.validateDispatchDocuments({ entry: c.plan1, root: c.repo });
     const missingClaim = f.filter(
       (x) =>
         x.artifact === "overall" &&
@@ -78,7 +87,7 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
         "| v1.1 | 2026-09-21 | P2 Design-spec 列回填（[Pending]→p2-design v1.0） |",
       ),
     );
-    const f = validateDispatchDocuments({ entry: c.plan1, root: c.repo });
+    const f = documentsValidator.validateDispatchDocuments({ entry: c.plan1, root: c.repo });
     // the claim demands p2-design in P2's Design spec cell, which is still [Pending] — the
     // backfill-claim member class carries the design-forward mismatch (the design column is audited
     // on the same bidirectional rule; nothing backfill is plan-only)
@@ -102,7 +111,7 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
         "| P1 | phase one | [p1-design v1.0](2026-01-01-demo-p1-design.md) | [Pending] | | none |",
       ),
     );
-    const f = validateDispatchDocuments({ entry: c.plan1, root: c.repo });
+    const f = documentsValidator.validateDispatchDocuments({ entry: c.plan1, root: c.repo });
     const missingClaim = f.filter(
       (x) =>
         x.artifact === "overall" &&
@@ -130,11 +139,9 @@ describe("AC7 (1) no plan-only leftover — the reverse-direction rule is a sing
 describe("AC7 (2) single inference module — one inference for the two base hooks", () => {
   it("grep: the inference is defined in rules/closeout.ts only; base.ts consumes it twice (pre-flight + post-flight), channels never", () => {
     const closeout = readSrc("rules/closeout.ts");
+    expect(closeout).toMatch(/deriveTerminalDebt\(overallPath: string, root: string\)/);
     expect(closeout).toMatch(
-      /export function deriveTerminalDebt\(overallPath: string, root: string\)/,
-    );
-    expect(closeout).toMatch(
-      /export function deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/,
+      /deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/,
     );
     const base = codeOnly(readSrc("dispatch/base.ts"));
     // two CALL SITES (the import line carries the name without a call paren)
@@ -150,7 +157,7 @@ describe("AC7 (2) single inference module — one inference for the two base hoo
     const repo = mkProgramRepo();
     const c = writeProgramDocs(repo, OVERALL_CLEAN); // unbackfilled chain
     writeCompletePlanWorkspace(repo, c.plan1); // P1 engine-terminal state: plan complete
-    const r = deriveCloseoutMismatches({ entry: c.plan1, root: c.repo });
+    const r = closeoutChecker.deriveCloseoutMismatches({ entry: c.plan1, root: c.repo });
     expect(r.structural).toEqual([]); // the chain's tables are structurally legal
     expect(r.terminalDebt.map((m) => m.kind)).toEqual(["plan-complete-unbackfilled"]);
     expect(r.overallPath).toBe(c.overall);
@@ -161,11 +168,9 @@ describe("AC7 (3) no exemption constants — the lane boundary is temporal deriv
   it("grep: the mismatch seam carries no lane parameter and no lane string literal", () => {
     const closeout = readSrc("rules/closeout.ts");
     // the two inference seams admit only {entry, root} — a per-lane exemption cannot even be expressed here
+    expect(closeout).toMatch(/deriveTerminalDebt\(overallPath: string, root: string\)/);
     expect(closeout).toMatch(
-      /export function deriveTerminalDebt\(overallPath: string, root: string\)/,
-    );
-    expect(closeout).toMatch(
-      /export function deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/,
+      /deriveCloseoutMismatches\(options: \{ entry: string; root: string \}\)/,
     );
     // the inference CODE holds no phase/lane id literals (comments are prose and exempt from the grep)
     expect(codeOnly(closeout)).not.toMatch(/["'](?:task|docs|branch)["']/);
@@ -214,10 +219,12 @@ describe("AC7 (4) no dual core block — task/docs share one machine core (singl
   // category / commits / blocker / recovery / the shared list fields. Lane differences may ONLY be
   // the boundary objects (task=task number; docs=doc_path/doc_hash/round).
   it("shared properties deep-equal across the task/docs core", () => {
-    const taskProps = (loadHandoffSchema("task") as { properties: Record<string, unknown> })
-      .properties;
-    const docsProps = (loadHandoffSchema("docs") as { properties: Record<string, unknown> })
-      .properties;
+    const taskProps = (
+      schemaValidator.loadHandoffSchema("task") as { properties: Record<string, unknown> }
+    ).properties;
+    const docsProps = (
+      schemaValidator.loadHandoffSchema("docs") as { properties: Record<string, unknown> }
+    ).properties;
     const shared = Object.keys(taskProps).filter((k) => Object.hasOwn(docsProps, k));
     // `phase` is excluded from the core-equality: its enums are a lane AMOUNT (task runs
     // implement/review/fix/branch-review, docs only review/fix) — the core fields below are the
@@ -234,10 +241,12 @@ describe("AC7 (4) no dual core block — task/docs share one machine core (singl
 
   it("the only allowed divergences are the lane boundary objects", () => {
     const taskProps = Object.keys(
-      (loadHandoffSchema("task") as { properties: Record<string, unknown> }).properties,
+      (schemaValidator.loadHandoffSchema("task") as { properties: Record<string, unknown> })
+        .properties,
     );
     const docsProps = Object.keys(
-      (loadHandoffSchema("docs") as { properties: Record<string, unknown> }).properties,
+      (schemaValidator.loadHandoffSchema("docs") as { properties: Record<string, unknown> })
+        .properties,
     );
     const taskOnly = taskProps.filter((k) => !docsProps.includes(k)).sort();
     const docsOnly = docsProps.filter((k) => !taskProps.includes(k)).sort();
@@ -248,17 +257,21 @@ describe("AC7 (4) no dual core block — task/docs share one machine core (singl
     expect(docsOnly).toEqual(["doc_hash", "doc_path", "round"]);
     // the docs phase enum is a restriction of the task family's (review/fix shared; implement /
     // branch-review are task-only) — the shared status enum carries the unified core
-    const taskPhase = (loadHandoffSchema("task") as { properties: { phase: { enum: string[] } } })
-      .properties.phase.enum;
-    const docsPhase = (loadHandoffSchema("docs") as { properties: { phase: { enum: string[] } } })
-      .properties.phase.enum;
+    const taskPhase = (
+      schemaValidator.loadHandoffSchema("task") as { properties: { phase: { enum: string[] } } }
+    ).properties.phase.enum;
+    const docsPhase = (
+      schemaValidator.loadHandoffSchema("docs") as { properties: { phase: { enum: string[] } } }
+    ).properties.phase.enum;
     expect(taskPhase).toEqual(["implement", "review", "fix", "branch-review"]);
     expect(docsPhase).toEqual(["review", "fix"]);
     expect(docsPhase.every((p) => taskPhase.includes(p))).toBe(true);
-    const taskStatus = (loadHandoffSchema("task") as { properties: { status: { enum: string[] } } })
-      .properties.status.enum;
-    const docsStatus = (loadHandoffSchema("docs") as { properties: { status: { enum: string[] } } })
-      .properties.status.enum;
+    const taskStatus = (
+      schemaValidator.loadHandoffSchema("task") as { properties: { status: { enum: string[] } } }
+    ).properties.status.enum;
+    const docsStatus = (
+      schemaValidator.loadHandoffSchema("docs") as { properties: { status: { enum: string[] } } }
+    ).properties.status.enum;
     expect(docsStatus).toEqual(taskStatus); // docs gains TIMEOUT — same enum as task (the unified core)
   });
 });

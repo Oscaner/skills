@@ -22,13 +22,16 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it, vi } from "vitest";
+import { ReturnBlockParser } from "../../artifacts/return-block.ts";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
-import { invokeCliWithRetry, resolveTerminationConfig } from "../../infra/invoke.ts";
+import { EngineInvoker } from "../../infra/invoke.ts";
 import { REG_PATH } from "../../infra/registry.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { DispatchBlocked } from "../base.ts";
-import { returnFromHandoff, runTask, TaskLifecycle } from "../task.ts";
+import { TaskLifecycle } from "../task.ts";
+
+const returnBlockParser = new ReturnBlockParser();
 
 // E2②/T14 接口消歧（P6 T10）+ T26: dry-run 走 run() pre-flight 早退路径，不经过 spawnManaged——
 // 断言 invokeCliWithRetry（唯一 spawn 通道）与 resolveTerminationConfig（统一终止配置解析）在
@@ -36,14 +39,18 @@ import { returnFromHandoff, runTask, TaskLifecycle } from "../task.ts";
 // ⚠️ 文件级 mock 覆盖全文件：新增「真实 dispatch（dryRun=false）且依赖 invokeCliWithRetry /
 // resolveTerminationConfig 的 spawn-TIMEOUT 行为」用例必须移出本文件（真实 spawn/TIMEOUT 语义由
 // tests/runner.test.mjs 拥有）——否则本 mock 会静默清空其 spawn 通道。
+const { invokeSpy, terminationSpy } = vi.hoisted(() => ({
+  invokeSpy: vi.fn(),
+  terminationSpy: vi.fn(),
+}));
 vi.mock("../../infra/invoke.ts", async () => {
   const actual =
     await vi.importActual<typeof import("../../infra/invoke.ts")>("../../infra/invoke.ts");
-  return {
-    ...actual,
-    invokeCliWithRetry: vi.fn(),
-    resolveTerminationConfig: vi.fn(),
-  };
+  class MockEngineInvoker extends actual.EngineInvoker {
+    invokeCliWithRetry = invokeSpy;
+    resolveTerminationConfig = terminationSpy;
+  }
+  return { ...actual, EngineInvoker: MockEngineInvoker };
 });
 
 function git(repo: string, ...args: string[]) {
@@ -161,7 +168,7 @@ it("真实 dispatch（dryRun=false）起点 dirty → 入口门仍 BLOCKED（E2�
 it("runTask wrapper: 入口门 BLOCKED（noExit=true 进程内缝）→ { exitCode: 1, returnBlock: [] }（非 throw）", async () => {
   const repo = setupRepo();
   appendFileSync(path.join(repo, ".gitignore"), "untracked\n");
-  const res = await runTask("ghost", 1, {
+  const res = await TaskLifecycle.run("ghost", 1, {
     mode: "review",
     planFile: "x.md",
     root: repo,
@@ -181,7 +188,7 @@ it("runTask dry-run 降级: dirty + dryRun + noExit → exit 0 + return block AP
   appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
   const cap = captureStderr();
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       dryRun: true,
       planFile: "docs/plan.md",
@@ -207,7 +214,7 @@ it("returnFromHandoff ④: BLOCKED 无真实 reason → blocker 行空（不伪�
     hp,
     JSON.stringify({ tasks: [1], phase: "review", status: "BLOCKED", findings: [], artifacts: {} }),
   );
-  const lines = returnFromHandoff(hp, ws);
+  const lines = returnBlockParser.returnFromHandoff(hp, ws);
   expect(lines[0]).toBe("status: BLOCKED");
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: ");
   expect(lines.join("\n")).not.toContain("uncommitted changes at return"); // 伪造文案零残留
@@ -227,7 +234,7 @@ it("returnFromHandoff ④: 真实 blocker 原样透传；APPROVED 无 blocker �
       artifacts: {},
     }),
   );
-  const lines = returnFromHandoff(hp, ws);
+  const lines = returnBlockParser.returnFromHandoff(hp, ws);
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe("blocker: 真实原因");
   writeFileSync(
     hp,
@@ -239,7 +246,7 @@ it("returnFromHandoff ④: 真实 blocker 原样透传；APPROVED 无 blocker �
       artifacts: {},
     }),
   );
-  const lines2 = returnFromHandoff(hp, ws);
+  const lines2 = returnBlockParser.returnFromHandoff(hp, ws);
   expect(lines2.find((l) => l.startsWith("blocker:"))).toBe("blocker: none");
 });
 
@@ -257,7 +264,7 @@ it("returnFromHandoff ④: commit-gate 文案仅当来源 commit-gate（handoff 
       artifacts: {},
     }),
   );
-  const lines = returnFromHandoff(hp, ws);
+  const lines = returnBlockParser.returnFromHandoff(hp, ws);
   expect(lines.find((l) => l.startsWith("blocker:"))).toBe(
     "blocker: uncommitted changes at return",
   );
@@ -268,15 +275,15 @@ it("returnFromHandoff ④: commit-gate 文案仅当来源 commit-gate（handoff 
 // TIMEOUT 扩张仅真实 dispatch——相反面由 runner.test.ts 的「real dispatch + fake sleep → TIMEOUT
 // handoff + timeoutCount++」钉住（425/448），dry-run 若进该路径即静默地破坏消歧契约。
 it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终止配置 / 无 TIMEOUT handoff / timeout=0", async () => {
-  vi.mocked(invokeCliWithRetry).mockClear();
-  vi.mocked(resolveTerminationConfig).mockClear();
+  invokeSpy.mockClear();
+  terminationSpy.mockClear();
   const repo = setupRepo();
   mkdirSync(path.join(repo, "docs"), { recursive: true });
   writeFileSync(path.join(repo, "docs", "plan.md"), "# P\n\n### Task 1: t\n");
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
   const regPath = ghostRegistry();
-  const res = await runTask("ghost", 1, {
+  const res = await TaskLifecycle.run("ghost", 1, {
     mode: "implement",
     dryRun: true,
     planFile: "docs/plan.md",
@@ -286,8 +293,8 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终�
   });
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(vi.mocked(invokeCliWithRetry)).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight 早退，无 spawnManaged
-  expect(vi.mocked(resolveTerminationConfig)).not.toHaveBeenCalled(); // dry-run 无终止配置解析
+  expect(invokeSpy).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight 早退，无 spawnManaged
+  expect(terminationSpy).not.toHaveBeenCalled(); // dry-run 无终止配置解析
   expect(res.returnBlock[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");
@@ -346,7 +353,7 @@ it("dry-run implement 走全模板（双门卷入）→ 出口 0 + 5 行 return 
   git(repo, "add", "-A");
   git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "plan");
   const regPath = ghostRegistry();
-  const res = await runTask("ghost", 1, {
+  const res = await TaskLifecycle.run("ghost", 1, {
     mode: "implement",
     dryRun: true,
     planFile: "docs/plan.md",

@@ -11,10 +11,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { globSync } from "tinyglobby";
 import { TaskGroup } from "../../domain/task-group.ts";
-import { loadEngineConfig } from "../../infra/config.ts";
+import { ConfigLoader } from "../../infra/config.ts";
 import { CddExitError, invariant } from "../../infra/exit.ts";
 
-const NAMESPACE = loadEngineConfig().handoffNamespace;
+const NAMESPACE = new ConfigLoader().handoffNamespace();
 const { families } = NAMESPACE;
 
 /** workspaceRoot: the single truth of the runtime workspace base path segment (`.osuperpowers/cdd`).

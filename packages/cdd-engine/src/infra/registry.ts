@@ -1,7 +1,9 @@
-// packages/cdd-engine/src/infra/registry.ts — TS port of registry.mjs: CDD harness registry
-// (ship gate + op×type prefix/suffix injection + CLI PATH preflight). Same behavior contract as
-// the .mjs module (checked by registry.test.mjs); this is the rebuilt-layer dependency point.
-// The only env read here is the canonical whitelisted PATH key (channel audit ②) — see cliInPath.
+// packages/cdd-engine/src/infra/registry.ts — Registry class (TS port of registry.mjs + Task 7 OOP
+// restructure 判定标准②: the CDD harness-registry domain rules — ship gate + op×type prefix/suffix
+// injection + CLI PATH preflight + cache profile — are instance methods, zero bare function exports).
+// Same behavior contract as the .mjs module (checked by registry.test.mjs); this is the
+// rebuilt-layer dependency point. The only env read here is the canonical whitelisted PATH key
+// (channel audit ②) — see cliInPath.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,64 +40,70 @@ export class CddBlockedError extends CddExitError {
   }
 }
 
-export function loadRegistry(regPath: string): any {
-  return JSON.parse(readFileSync(regPath, "utf8"));
-}
+/** Registry — the harness-registry domain rules (判定标准②): reading a row, op×type prefix/suffix
+ *  injection resolution, the CLI PATH preflight, the ship gate and the cache-profile read are all
+ *  instance methods. Stateless; construction is cheap. */
+export class Registry {
+  /** Parse the shipped registry JSON (regPath default = the canonical REG_PATH). */
+  load(regPath: string): any {
+    return JSON.parse(readFileSync(regPath, "utf8"));
+  }
 
-export function registryField(reg: any, harness: string, field: string): string {
-  const entry = reg?.[harness];
-  if (!entry) return "";
-  return entry[field] ?? "";
-}
+  field(reg: any, harness: string, field: string): string {
+    const entry = reg?.[harness];
+    if (!entry) return "";
+    return entry[field] ?? "";
+  }
 
-function resolveInjectionField(entry: any, field: string, op: string, type?: string): string {
-  const v = entry?.[field]?.[op] ?? "";
-  if (v && typeof v === "object") return type ? (v[type] ?? "") : "";
-  return typeof v === "string" ? v : "";
-}
+  #resolveInjectionField(entry: any, field: string, op: string, type?: string): string {
+    const v = entry?.[field]?.[op] ?? "";
+    if (v && typeof v === "object") return type ? (v[type] ?? "") : "";
+    return typeof v === "string" ? v : "";
+  }
 
-export function resolveInjection(entry: any, op: string, type?: string): string {
-  return resolveInjectionField(entry, "prefix", op, type);
-}
+  resolveInjection(entry: any, op: string, type?: string): string {
+    return this.#resolveInjectionField(entry, "prefix", op, type);
+  }
 
-export function resolveSuffix(entry: any, op: string, type?: string): string {
-  return resolveInjectionField(entry, "suffix", op, type);
-}
+  resolveSuffix(entry: any, op: string, type?: string): string {
+    return this.#resolveInjectionField(entry, "suffix", op, type);
+  }
 
-export function cliInPath(cli: string): boolean {
-  const pathDirs = (process.env.PATH ?? "").split(path.delimiter);
-  for (const dir of pathDirs) {
-    if (!dir) continue;
-    try {
-      const st = statSync(path.join(dir, cli));
-      if (st.isFile() && (st.mode & 0o111) !== 0) return true;
-    } catch {
-      // dir has no such binary — keep scanning
+  cliInPath(cli: string): boolean {
+    const pathDirs = (process.env.PATH ?? "").split(path.delimiter);
+    for (const dir of pathDirs) {
+      if (!dir) continue;
+      try {
+        const st = statSync(path.join(dir, cli));
+        if (st.isFile() && (st.mode & 0o111) !== 0) return true;
+      } catch {
+        // dir has no such binary — keep scanning
+      }
     }
+    return false;
   }
-  return false;
-}
 
-export function checkHarness(reg: any, harness: string, opts: { dryRun?: boolean } = {}): any {
-  const { dryRun = false } = opts ?? {};
-  const entry = reg?.[harness];
-  if (!entry) throw new CddBlockedError(`unknown harness: ${harness}`, { exitCode: 1 });
-  if (entry.ship !== "full")
-    throw new CddBlockedError(`harness not supported: ${harness}`, { exitCode: 1 });
-  const cli = entry.cli;
-  if (!cli) throw new CddBlockedError(`unknown harness: ${harness}`, { exitCode: 1 });
-  if (!dryRun && !cliInPath(cli)) {
-    throw new CddBlockedError(`${cli} not found in PATH`, { exitCode: 2, kind: "cli-missing" });
+  checkHarness(reg: any, harness: string, opts: { dryRun?: boolean } = {}): any {
+    const { dryRun = false } = opts ?? {};
+    const entry = reg?.[harness];
+    if (!entry) throw new CddBlockedError(`unknown harness: ${harness}`, { exitCode: 1 });
+    if (entry.ship !== "full")
+      throw new CddBlockedError(`harness not supported: ${harness}`, { exitCode: 1 });
+    const cli = entry.cli;
+    if (!cli) throw new CddBlockedError(`unknown harness: ${harness}`, { exitCode: 1 });
+    if (!dryRun && !this.cliInPath(cli)) {
+      throw new CddBlockedError(`${cli} not found in PATH`, { exitCode: 2, kind: "cli-missing" });
+    }
+    return entry;
   }
-  return entry;
-}
 
-// ---- spec D-3 C7: per-harness cache profile (capability as data) ----
-// The `cache` profile rides the registry row (mechanism / minTokens / readMultiplier /
-// writeMultiplier / ttlMinutes / observable), validated against templates/schema/
-// cache-profile-schema.json — adding a harness = one registry row, contract unchanged.
-export function cacheProfileFor(entry: any): unknown {
-  return entry?.cache ?? null;
+  // ---- spec D-3 C7: per-harness cache profile (capability as data) ----
+  // The `cache` profile rides the registry row (mechanism / minTokens / readMultiplier /
+  // writeMultiplier / ttlMinutes / observable), validated against templates/schema/
+  // cache-profile-schema.json — adding a harness = one registry row, contract unchanged.
+  cacheProfileFor(entry: any): unknown {
+    return entry?.cache ?? null;
+  }
 }
 
 // Lazy ajv validator over the canonical cache-profile schema (same pattern as rules/schema.ts).

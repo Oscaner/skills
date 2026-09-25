@@ -16,32 +16,41 @@ import { captureStderr, captureStdout } from "../../infra/__tests__/helpers.ts";
 import { ExitRequested } from "../../infra/exit.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { DispatchBlocked, type DispatchContext } from "../base.ts";
-import { DocsLifecycle, runDocsTask } from "../docs.ts";
+import { DocsLifecycle } from "../docs.ts";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
 
 // Ghost harness registry (mirrors docs-runner.test.mjs): checkHarness resolves a fake entry with
 // the review/fix injection map; invokeCli's resolveInjection comes from the real implementation.
+const { renderSpy, reviewGateSpy, docsGateSpy } = vi.hoisted(() => ({
+  renderSpy: vi.fn(() => "mocked docs prompt body"),
+  reviewGateSpy: vi.fn((ret: string) => `--hard-gate ${ret}`),
+  docsGateSpy: vi.fn((hp: string) => `--hard-gate write ${hp}`),
+}));
 vi.mock("../../infra/registry.ts", async () => {
   const actual =
     await vi.importActual<typeof import("../../infra/registry.ts")>("../../infra/registry.ts");
-  return {
-    ...actual,
-    loadRegistry: vi.fn(() => ({})),
-    checkHarness: vi.fn(() => ({
+  class MockRegistry extends actual.Registry {
+    load = vi.fn(() => ({}));
+    checkHarness = vi.fn(() => ({
       cli: "fake-cli",
       invoke: "-p --output-format text",
       output: "text",
       prefix: { review: { spec: "", plan: "" }, fix: "" },
       suffix: {},
-    })),
-    REG_PATH: actual.REG_PATH,
-  };
+    }));
+  }
+  return { ...actual, Registry: MockRegistry };
 });
 vi.mock("../../render/templates.ts", () => ({
-  renderTemplate: vi.fn(() => "mocked docs prompt body"),
-  reviewHardGate: (ret: string) => `--hard-gate ${ret}`,
-  docsFixHardGate: (hp: string) => `--hard-gate write ${hp}`,
+  TemplateLoader: class {
+    renderTemplate = renderSpy;
+    reviewHardGate = reviewGateSpy;
+    docsFixHardGate = docsGateSpy;
+  },
+  renderTemplate: renderSpy,
+  reviewHardGate: reviewGateSpy,
+  docsFixHardGate: docsGateSpy,
 }));
 
 function git(repo: string, ...args: string[]) {
@@ -100,7 +109,7 @@ it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 sp
   appendFileSync(path.join(repo, "tracked.txt"), "dirty\n");
   const cap = captureStderr();
   try {
-    const result = await runDocsTask({
+    const result = await DocsLifecycle.run({
       harness: "ghost",
       mode: "review",
       template: "review",
@@ -129,7 +138,7 @@ it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（C
   const cap = captureStderr();
   try {
     await expect(
-      runDocsTask({
+      DocsLifecycle.run({
         harness: "ghost",
         mode: "review",
         template: "review",
@@ -173,7 +182,7 @@ it("docs fix 出口门（P5 落点 2）: 派发后 dirty → handoff 覆写 BLOC
     wfs(path.join(repo, "tracked.txt"), "v1\nv2\n");
     return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
   });
-  const result = await runDocsTask({
+  const result = await DocsLifecycle.run({
     harness: "ghost",
     mode: "fix",
     template: "docs",
@@ -213,7 +222,7 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
     );
     return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
   });
-  const result = await runDocsTask({
+  const result = await DocsLifecycle.run({
     harness: "ghost",
     mode: "review",
     template: "review",
@@ -224,8 +233,8 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
     dryRun: false,
   });
   expect(result.exitCode).toBe(0);
-  // clean-tree review 出口门通过；engine 定稿覆写（warn-only → APPROVED）
-  expect(result.handoff?.status).toBe("APPROVED");
+  // clean-tree review 出口门通过；engine 定稿覆写（warn-only → REVIEW_FIX 收口态, Task 8 #278）
+  expect(result.handoff?.status).toBe("REVIEW_FIX");
 });
 
 // Docs-side failure takes priority in ordering (Task 23 fix-1, review-1 finding 1, warn): an agent
@@ -257,7 +266,7 @@ it("docs review 失败优先: agent exit 1 + 有效 APPROVED handoff → exitCod
     // 崩溃的 docs agent：手写 valid handoff 后非零退出（exit 1）
     return { exitCode: 1, stdout: "", stderr: "", timedOut: false };
   });
-  const result = await runDocsTask({
+  const result = await DocsLifecycle.run({
     harness: "ghost",
     mode: "review",
     template: "review",
@@ -284,7 +293,7 @@ it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at
   const { execa } = await import("execa");
   const { renderTemplate } = await import("../../render/templates.ts");
   vi.mocked(execa).mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", timedOut: false });
-  const result = await runDocsTask({
+  const result = await DocsLifecycle.run({
     harness: "ghost",
     mode: "review",
     template: "review",
@@ -298,7 +307,7 @@ it("T5 ③: docs dispatch injects FIXED_POINT = dispatch entry base (git HEAD at
   const params = renderTemplate.mock.calls.at(-1)?.[1] as Record<string, unknown>;
   expect(params.FIXED_POINT).toBe(entryHead);
   // non-git / unborn HEAD → empty (mode-union prefill)
-  await runDocsTask({
+  await DocsLifecycle.run({
     harness: "ghost",
     mode: "review",
     template: "review",
@@ -348,7 +357,7 @@ it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncom
     );
     return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
   });
-  const resultA = await runDocsTask({
+  const resultA = await DocsLifecycle.run({
     harness: "ghost",
     mode: "fix",
     template: "docs",
@@ -382,9 +391,9 @@ it("T5 ⑤: docs fix same-contract round behavior — commit → APPROVED; uncom
     return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
   });
   const cap = captureStdout();
-  let resultB: Awaited<ReturnType<typeof runDocsTask>>;
+  let resultB: Awaited<ReturnType<typeof DocsLifecycle.run>>;
   try {
-    resultB = await runDocsTask({
+    resultB = await DocsLifecycle.run({
       harness: "ghost",
       mode: "fix",
       template: "docs",

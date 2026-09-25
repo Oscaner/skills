@@ -78,16 +78,23 @@ export function resolveTargetDoc(
 // <token>`) — never a parse-error that fabricates a `task-NaN-*` artifact with a false APPROVED
 // return block (STD-3). Empty slices (a trailing comma in `1,`) are rejected; tokens are trimmed.
 // The legacy single-value intTask entry is retired — the CLI task surface is list-shaped only, and
-// the GROUP is the dispatch unit: parseTaskList returns the canonical TaskGroup (single-data-model)
-// and dispatch call sites thread the whole group — no per-task iteration exists.
-export function parseTaskList(v: string): TaskGroup {
-  try {
-    return TaskGroup.fromTokens(v.split(","));
-  } catch (e) {
-    if (e instanceof IllegalTaskTokenError) {
-      throw cliUsageError(`--tasks must be comma-separated integers: ${e.token}`);
+// the GROUP is the dispatch unit: TaskListParser.parse returns the canonical TaskGroup
+// (single-data-model) and dispatch call sites thread the whole group — no per-task iteration exists.
+//
+// Task 7 OOP restructure: the parse face is a class (判定标准② — `parseTaskList` → `TaskListParser`).
+
+/** TaskListParser — the `--tasks` CLI parse face (Task 7; class surface for the formerly
+ *  standalone parseTaskList). Stateless; parse() returns the canonical TaskGroup. */
+export class TaskListParser {
+  parse(v: string): TaskGroup {
+    try {
+      return TaskGroup.fromTokens(v.split(","));
+    } catch (e) {
+      if (e instanceof IllegalTaskTokenError) {
+        throw cliUsageError(`--tasks must be comma-separated integers: ${e.token}`);
+      }
+      throw e;
     }
-    throw e;
   }
 }
 
@@ -136,18 +143,9 @@ export function guardArgs(rawArgs: readonly string[], argDef: ArgsDef | undefine
   }
 }
 
-// ---- Review Convergence — single owner, re-exported (P6 T24 C) ----
+// ---- Review Convergence — single owner consumed through the class face (P6 T24 C + Task 7) ----
 // The Convergence cluster (blockerCount / reviewConvergedError / convergedExit3 /
-// reviewConvergenceGuard) has ONE owner: src/rules/convergence.ts (pure judgment layer — the
-// correct layer per the infra→rules→artifacts→dispatch→cli boundary). The cli face keeps no
-// second definition: these four functions are re-exports, byte-identical with the owner —
-// a Convergence behavior change edits rules/convergence.ts once.
-export {
-  blockerCount,
-  convergedExit3,
-  reviewConvergedError,
-  reviewConvergenceGuard,
-} from "../rules/convergence.ts";
-/** Review-handoff shape the CLI guard takes (alias of the owner's HandoffLike — one type
- * identity, never a second declaration). */
+// reviewConvergenceGuard) has ONE owner: src/rules/convergence.ts (ConvergenceChecker class — the
+// pure judgment layer). The cli face keeps no second definition and no re-export of the cluster:
+// callers construct `new ConvergenceChecker()` and call the methods.
 export type PrevHandoff = import("../rules/convergence.ts").HandoffLike;

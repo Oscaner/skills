@@ -8,15 +8,17 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { cacheProfileFor, loadRegistry, REG_PATH, validateCacheProfile } from "../registry.ts";
+import { REG_PATH, Registry, validateCacheProfile } from "../registry.ts";
+
+const registry = new Registry();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
-  const reg = loadRegistry(REG_PATH);
+  const reg = registry.load(REG_PATH);
 
   it("claude profile = explicit / 512 / 0.1 / 1.25 / 5 / observable (doctrine baseline)", () => {
-    expect(cacheProfileFor(reg.claude)).toEqual({
+    expect(registry.cacheProfileFor(reg.claude)).toEqual({
       mechanism: "explicit",
       minTokens: 512,
       readMultiplier: 0.1,
@@ -27,7 +29,7 @@ describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
   });
 
   it("cursor-agent profile = auto-prefix fallback, values pending measurement", () => {
-    expect(cacheProfileFor(reg["cursor-agent"])).toMatchObject({
+    expect(registry.cacheProfileFor(reg["cursor-agent"])).toMatchObject({
       mechanism: "auto-prefix",
       minTokens: "pending",
       observable: false,
@@ -36,7 +38,7 @@ describe("registry cache profile (spec D-3 C7 — capability as data)", () => {
 
   it("both real profiles validate against the JSON schema (cache-profile-schema.json)", () => {
     for (const harness of Object.keys(reg)) {
-      const result = validateCacheProfile(cacheProfileFor(reg[harness]));
+      const result = validateCacheProfile(registry.cacheProfileFor(reg[harness]));
       expect(result.valid, harness).toBe(true);
     }
   });

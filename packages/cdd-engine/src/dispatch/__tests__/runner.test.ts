@@ -30,15 +30,14 @@ import { markAllDispatchesDone, spawnManaged } from "../../infra/proc.ts";
 import { REG_PATH } from "../../infra/registry.ts";
 // The runner-level writeback contract is verified against the derivation —
 // deriveTaskState is the single TaskState source (progress rows carry no status) (Task 30 ②/④).
-import { deriveTaskState } from "../../rules/status.ts";
-import {
-  buildCtx,
-  buildPromptParams,
-  handoffStatus,
-  isTaskPending,
-  runTask,
-  taskNumbersFromPlan,
-} from "../task.ts";
+import { StatusJudge } from "../../rules/status.ts";
+
+const statusJudge = new StatusJudge();
+
+import { DocumentsValidator } from "../../rules/documents.ts";
+import { buildPromptParams, handoffStatus, isTaskPending, TaskLifecycle } from "../task.ts";
+
+const documentsValidator = new DocumentsValidator();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const _REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -161,7 +160,7 @@ async function capture(runFn) {
 
 it("runTask: dry-run implement → return block 5-line APPROVED + no handoff written (aligns bash)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile,
@@ -183,7 +182,7 @@ it("runTask: dry-run implement → return block 5-line APPROVED + no handoff wri
 it("runTask: dry-run outputs return block 5 lines to stdout + exit 0", async () => {
   const { repo, planFile } = setupWorkspace();
   const { code, stdout } = await capture(() =>
-    runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }),
+    TaskLifecycle.run("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }),
   );
   expect(code).toBe(0);
   const lines = stdout.trim().split("\n");
@@ -213,7 +212,12 @@ it.skipIf(!GROUP_SUPPORTED)(
     expect(p1exitAlive()).toBeGreaterThan(0);
     let code = null;
     try {
-      await runTask("claude", 1, { mode: "implement", dryRun: true, planFile, root: repo }); // noExit=false
+      await TaskLifecycle.run("claude", 1, {
+        mode: "implement",
+        dryRun: true,
+        planFile,
+        root: repo,
+      }); // noExit=false
     } catch (e) {
       if (e instanceof ExitRequested) code = e.code;
       else throw e;
@@ -226,7 +230,7 @@ it.skipIf(!GROUP_SUPPORTED)(
 it("runTask: dry-run review/fix modes → return block APPROVED + no handoff written (aligns bash)", async () => {
   for (const mode of ["review", "fix"]) {
     const { repo, planFile, ws } = setupWorkspace();
-    const res = await runTask("claude", 1, {
+    const res = await TaskLifecycle.run("claude", 1, {
       mode,
       dryRun: true,
       planFile,
@@ -243,7 +247,7 @@ it("runTask: dry-run review/fix modes → return block APPROVED + no handoff wri
 
 it("runTask: invalid mode → rejected (non-zero exit)", async () => {
   const { repo, planFile } = setupWorkspace();
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "handoff",
     dryRun: true,
     planFile,
@@ -257,7 +261,7 @@ it("runTask: invalid mode → rejected (non-zero exit)", async () => {
 
 it("runTask: unknown harness → blocked exit 1", async () => {
   const { repo, planFile } = setupWorkspace();
-  const res = await runTask("no-such-harness", 1, {
+  const res = await TaskLifecycle.run("no-such-harness", 1, {
     mode: "implement",
     dryRun: true,
     planFile,
@@ -269,7 +273,7 @@ it("runTask: unknown harness → blocked exit 1", async () => {
 
 it("runTask: 两键 registry 下 codex（原 not-supported 键）→ unknown harness blocked exit 1", async () => {
   const { repo, planFile } = setupWorkspace();
-  const res = await runTask("codex", 1, {
+  const res = await TaskLifecycle.run("codex", 1, {
     mode: "implement",
     dryRun: true,
     planFile,
@@ -291,7 +295,7 @@ it("runTask: nested CLI failed no handoff → BLOCKED handoff (stderr into block
   );
   const regPath = ghostRegistry(ws);
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -345,7 +349,7 @@ it("runTask: group [1,2] implement failure → tasks-1,2-implement.json BLOCKED 
   );
   const regPath = ghostRegistry(wsTwo);
   try {
-    const res = await runTask("ghost", [1, 2], {
+    const res = await TaskLifecycle.run("ghost", [1, 2], {
       mode: "implement",
       planFile: path.relative(repo, twoTaskPlan),
       root: repo,
@@ -378,7 +382,7 @@ it("taskNumbersFromPlan: extracts ### Task N: and sorts (including 0)", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-plan-"));
   const plan = path.join(dir, "plan.md");
   writeFileSync(plan, "# P\n### Task 3: a\n### Task 1: b\n### Task 0: skip\n### Task 2: c\n");
-  expect(taskNumbersFromPlan(plan)).toEqual([0, 1, 2, 3]);
+  expect(documentsValidator.taskNumbersFromPlan(plan)).toEqual([0, 1, 2, 3]);
 });
 
 it("isTaskPending / handoffStatus: rounds[review] round 0 → MISSING / pending; APPROVED/DONE → not pending", () => {
@@ -414,7 +418,7 @@ it("materializeWorkspace: plan xxx-p5-plan.md 与 xxx-p5.md slug 收敛同 works
 
 it("runTask: plan given → brief self-provisioned with TASK_BASE, dry-run exit 0", async () => {
   const { repo, planFile, ws } = setupWorkspace();
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile,
@@ -430,7 +434,7 @@ it("runTask: plan given → brief self-provisioned with TASK_BASE, dry-run exit 
 
 it("runTask: plan path does not exist → '--plan not found' exit 1（resolveDocArg 三行诊断）", async () => {
   const { repo } = setupWorkspace();
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile: "/nonexistent/plan.md",
@@ -449,7 +453,7 @@ it("runTask #173: plan in repo A + root=repo A → workspace lands in A, unrelat
   gitInit(repoA);
   gitInit(repoB);
   const planFile = commitPlan(repoA, path.join(repoA, PLAN_REL));
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile,
@@ -464,7 +468,7 @@ it("runTask #173: plan in repo A + root=repo A → workspace lands in A, unrelat
 it("runTask #173: no --plan → 'cannot resolve repo root' exit 1（plan 是唯一 workspace 源）", async () => {
   const repo = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-bare-")));
   gitInit(repo);
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     root: repo,
@@ -477,7 +481,7 @@ it("runTask #173: root 注入决定落点（无第二坐标系）→ workspace �
   const repoA = realpathSync(mkdtempSync(path.join(tmpdir(), "cdd-repo-both-")));
   gitInit(repoA);
   const planFile = commitPlan(repoA, path.join(repoA, PLAN_REL));
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile,
@@ -514,7 +518,7 @@ it("spawnManaged: preserves non-subagent env vars", async () => {
 
 it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+  const ctx = TaskLifecycle.buildContext(repo, TaskGroup.fromNumbers([1]), {
     mode: "fix",
     harness: "claude",
     planFile,
@@ -527,7 +531,7 @@ it("buildCtx: fix mode → findingsPath = review handoff path (no scope filter)"
 
 it("buildCtx: implement mode → findingsPath = open-findings path, no scope key", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+  const ctx = TaskLifecycle.buildContext(repo, TaskGroup.fromNumbers([1]), {
     mode: "implement",
     harness: "claude",
     planFile,
@@ -544,7 +548,7 @@ it("runTask #187→Pζ: review CLI 成功 + 无 handoff → BLOCKED（10.5 仍�
   const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexit 0\n");
   const regPath = ghostRegistry(ws);
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -603,7 +607,7 @@ it("runTask: timeout → handoff status TIMEOUT + blocker + partial findings", a
   const restore = withFakeCli(binDir, "fake-cli", "#!/usr/bin/env bash\nexec sleep 5\nexit 0\n");
   const regPath = ghostRegistry(ws);
   try {
-    const _res = await runTask("ghost", 1, {
+    const _res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -629,7 +633,7 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
   const regPath = ghostRegistry(ws);
   const env = { ...process.env };
   try {
-    await runTask("ghost", 1, {
+    await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -640,7 +644,7 @@ it("runTask: timeout → timeoutCount incremented in progress.json", async () =>
     });
     const progress = JSON.parse(readFileSync(path.join(ws, "progress.json"), "utf8"));
     expect(progress.timeoutCount).toBe(1);
-    await runTask("ghost", 1, {
+    await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -671,7 +675,7 @@ it.skipIf(!GROUP_SUPPORTED)(
     );
     const regPath = ghostRegistry(ws);
     try {
-      const _res = await runTask("ghost", 1, {
+      const _res = await TaskLifecycle.run("ghost", 1, {
         mode: "implement",
         planFile,
         root: repo,
@@ -722,7 +726,7 @@ it("runTask: unkillable → handoff status BLOCKED + blocker process unkillable"
 it("runTask #open-findings: implement mode → no open-findings.json (implement mode never writes it)", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const findingsPath = path.join(ws, "tasks-1-open-findings.json");
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile,
@@ -749,7 +753,7 @@ it("runTask #218 (T7→review): step 8.8 schema-validation BLOCKED → handoff c
   );
   const regPath = ghostRegistry(ws);
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -779,7 +783,7 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
   );
   const regPath = ghostRegistry(ws);
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -816,7 +820,7 @@ it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'task
   );
   const regPath = ghostRegistry(ws);
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -851,7 +855,7 @@ it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 stat
   );
   const regPath = ghostRegistry(ws);
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -875,7 +879,7 @@ it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 stat
 
 it("runTask Pζ T3: review dry-run without prior implement handoff → exits 0", async () => {
   const { repo, planFile } = setupWorkspace();
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "review",
     dryRun: true,
     planFile,
@@ -913,7 +917,7 @@ it("runTask Pζ T3: review fake-CLI round 1 → FIXED_POINT (brief/reference 注
   );
 
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -941,7 +945,7 @@ it("runTask Pζ T3: prior handoff with commits.base='unknown' → FIXED_POINT no
       artifacts: {},
     }),
   );
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "review",
     dryRun: true,
     planFile,
@@ -1007,7 +1011,7 @@ it("runTask Pζ T3: review round 2 → FIXED_POINT from task-N-fix-1.json (cross
   );
 
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -1050,7 +1054,7 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
   });
 
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -1065,9 +1069,9 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
   }
 });
 
-// ---- Status single-authority: review read-back overwrites (agent wrote warn-only CHANGES_REQUESTED → overwritten to APPROVED) (T5) ----
+// ---- Status single-authority: review read-back overwrites (agent wrote warn-only CHANGES_REQUESTED → overwritten to REVIEW_FIX — Task 8 收口态) (T5) ----
 
-it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTED warn-only → 覆写 APPROVED", async () => {
+it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTED warn-only → 覆写 REVIEW_FIX", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-review-derive-"));
   const restore = withFakeCli(
@@ -1080,7 +1084,7 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
   const regPath = ghostRegistry(ws);
 
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -1091,14 +1095,14 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     const hp = path.join(ws, "tasks-1-review-1.json");
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
-    // warn/nit = 0 blocker → status 被引擎派生覆写为 APPROVED（findings 保留）
-    expect(h.status).toBe("APPROVED");
+    // warn/nit = 0 blocker → status 被引擎派生覆写为 REVIEW_FIX（收口态，findings 保留）
+    expect(h.status).toBe("REVIEW_FIX");
     expect(h.findings).toEqual([
       { severity: "warn", summary: "w" },
       { severity: "nit", summary: "n" },
     ]);
     // return block 同步从 handoff 重发（returnFromHandoff）— 状态一致，不携带 agent 的 CHANGES_REQUESTED
-    expect(res.returnBlock[0]).toBe("status: APPROVED");
+    expect(res.returnBlock[0]).toBe("status: REVIEW_FIX");
     // Review success-round blocker defaults to none (not the commit-contract default text); a
     // counters line still follows the blocker (returnBlock[3] or returnBlock[2] depending on
     // artifacts — the **last line is always counters**) (T5 nit)
@@ -1124,7 +1128,7 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
   const regPath = ghostRegistry(ws);
 
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -1154,9 +1158,9 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
   }
 });
 
-// ---- §-term dev-measured acceptance items → accepted-noted (recorded in notes; zero unverifiable, zero BLOCK) (Task 23 ②) ----
+// ---- §-term dev-measured acceptance items → accepted-noted (recorded in notes; zero unverifiable, zero BLOCK) (Task 23 ② / Task 8 — the warn finding closes as REVIEW_FIX 收口态) ----
 
-it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes 记录, 零 unverifiable 零 BLOCK, exit 0", async () => {
+it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes 记录, 零 unverifiable 零 BLOCK, warn finding 收口 REVIEW_FIX, exit 0", async () => {
   const { repo, planFile, ws } = setupWorkspace();
   const binDir = mkdtempSync(path.join(tmpdir(), "cdd-dev-measured-"));
   const restore = withFakeCli(
@@ -1169,7 +1173,7 @@ it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes �
   const regPath = ghostRegistry(ws);
 
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile,
       root: repo,
@@ -1178,10 +1182,11 @@ it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes �
     });
     expect(res.exitCode).toBe(0);
     const h = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
-    expect(h.status).toBe("APPROVED");
+    // 零 unverifiable 零 BLOCK；warn finding 收口为 REVIEW_FIX（零 blocker 的三值结论，Task 8 #278）
+    expect(h.status).toBe("REVIEW_FIX");
     expect(h.unverifiable).toBeUndefined();
     expect(h.blocker).toBeUndefined();
-    expect(res.returnBlock[0]).toBe("status: APPROVED");
+    expect(res.returnBlock[0]).toBe("status: REVIEW_FIX");
   } finally {
     restore();
   }
@@ -1196,7 +1201,7 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
   const regPath = ghostRegistry(ws);
 
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -1219,7 +1224,7 @@ it("runTask: step 10 (cli failed no handoff) BLOCKED has artifacts + action mess
 
 it("runTask: per-round buildCtx — review derives tasks-1-review-1.json", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+  const ctx = TaskLifecycle.buildContext(repo, TaskGroup.fromNumbers([1]), {
     mode: "review",
     harness: "claude",
     planFile,
@@ -1230,7 +1235,7 @@ it("runTask: per-round buildCtx — review derives tasks-1-review-1.json", () =>
 
 it("runTask: implement derives tasks-1-implement.json (no round suffix)", () => {
   const { repo, planFile } = setupWorkspace();
-  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+  const ctx = TaskLifecycle.buildContext(repo, TaskGroup.fromNumbers([1]), {
     mode: "implement",
     harness: "claude",
     planFile,
@@ -1241,7 +1246,7 @@ it("runTask: implement derives tasks-1-implement.json (no round suffix)", () => 
 
 it("runTask: round-2 buildCtx derives tasks-1-review-2.json + buildPromptParams 参数面同源", () => {
   const { repo, planFile, ws } = setupWorkspace();
-  const ctx = buildCtx(repo, TaskGroup.fromNumbers([1]), {
+  const ctx = TaskLifecycle.buildContext(repo, TaskGroup.fromNumbers([1]), {
     mode: "review",
     harness: "claude",
     planFile,
@@ -1264,7 +1269,7 @@ it("runTask: round-2 buildCtx derives tasks-1-review-2.json + buildPromptParams 
 
 it("runTask: 未知 mode → rejected：CDD_MODE must be implement|review|fix", async () => {
   const { repo, planFile } = setupWorkspace();
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "bogus",
     dryRun: true,
     planFile,
@@ -1277,7 +1282,7 @@ it("runTask: 未知 mode → rejected：CDD_MODE must be implement|review|fix", 
 
 it("runTask: mode review dry-run → return block APPROVED + no handoff written", async () => {
   const { repo, planFile, ws } = setupWorkspace();
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "review",
     dryRun: true,
     planFile,
@@ -1290,9 +1295,10 @@ it("runTask: mode review dry-run → return block APPROVED + no handoff written"
 });
 
 it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）", async () => {
-  const { validateHandoffSchema } = await import("../../rules/schema.ts");
+  const { HandoffSchemaValidator } = await import("../../rules/schema.ts");
+  const schemaValidator = new HandoffSchemaValidator(); // validation stays on the schema face (Task 7 ① — instance method)
   expect(
-    validateHandoffSchema({
+    schemaValidator.validateHandoffSchema({
       tasks: [1],
       phase: "review",
       status: "APPROVED",
@@ -1303,7 +1309,7 @@ it("schema: phase 'review' handoff 通过 Ajv 校验（phase enum 已归一）",
   ).toEqual({ valid: true });
   // 非法 phase 不再合法（未归一会被 runner 8.8 Ajv 判 invalid 覆写 BLOCKED）
   expect(
-    validateHandoffSchema({
+    schemaValidator.validateHandoffSchema({
       tasks: [1],
       phase: "bogus",
       status: "APPROVED",
@@ -1357,7 +1363,7 @@ function t6Workspace(extraFiles = {}) {
 async function runT6Ghost(t6, body) {
   const restore = withFakeCli(t6.binDir, "fake-cli", body);
   try {
-    return await runTask("ghost", 1, {
+    return await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile: t6.planFile,
       root: t6.repo,
@@ -1603,7 +1609,7 @@ function t8Workspace({ dirty = false } = {}) {
 async function runT8ReviewGhost(t8, body) {
   const restore = withFakeCli(t8.binDir, "fake-cli", body);
   try {
-    return await runTask("ghost", 1, {
+    return await TaskLifecycle.run("ghost", 1, {
       mode: "review",
       planFile: t8.planFile,
       root: t8.repo,
@@ -1632,7 +1638,7 @@ it("runTask T8/T30: review APPROVED → ensure-row writeback (rounds[review]=1, 
   // deriveTaskState's sole authority (the T29-flip blackbox: review-APPROVED → complete) (Task 30 ②).
   expect(progress.tasks[0]).toEqual({ task: 1, rounds: { review: 1 } });
   expect(progress.tasks[0]).not.toHaveProperty("status");
-  expect(deriveTaskState(t8.ws, 1)).toBe("complete");
+  expect(statusJudge.deriveTaskState(t8.ws, 1)).toBe("complete");
   // handoff 保持 APPROVED（clean tree 通过 post-run validate；review 跳过 head 校验）
   const h = JSON.parse(readFileSync(path.join(t8.ws, "tasks-1-review-1.json"), "utf8"));
   expect(h.status).toBe("APPROVED");
@@ -1681,7 +1687,7 @@ it("runTask T8: post-run validateCommitContract — implement dirty tree → 实
     ].join("\n"),
   );
   try {
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile: t8.planFile,
       root: t8.repo,
@@ -1776,7 +1782,7 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
   try {
     const cpPath = path.join(t22.ws, "plan-constraints.md");
     expect(existsSync(cpPath)).toBe(false); // 前置：缺失
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile: t22.planFile,
       root: t22.repo,
@@ -1810,7 +1816,7 @@ it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可�
   let stdout = "";
   try {
     ({ code, stderr, stdout } = await capture(() =>
-      runTask("ghost", 1, {
+      TaskLifecycle.run("ghost", 1, {
         mode: "implement",
         planFile: t22.planFile,
         root: t22.repo,
@@ -1833,7 +1839,7 @@ it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可�
 // 黑盒 ③：dry-run 豁免 —— 同一无源 plan 走 dry-run 零 BLOCK（零副作用模拟：不物料化、不落文件）。
 it("runTask T22: dry-run 豁免 — 无源 plan 走 dry-run 零 BLOCK + 零 constraints 副作用", async () => {
   const t22 = t22Workspace("# Plan\n\n### Task 1: x\nbody\n");
-  const res = await runTask("claude", 1, {
+  const res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile: t22.planFile,
@@ -1887,7 +1893,7 @@ it("T26 black-box: TIMEOUT → salvage → re-dispatch resumes WIP + brief appen
     `#!/usr/bin/env bash\nprintf 'line2-round1-agent-wip\n' > wip.md\ngit add wip.md\nexec sleep 100\n`,
   );
   try {
-    await runTask("ghost", 1, {
+    await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -1917,7 +1923,7 @@ it("T26 black-box: TIMEOUT → salvage → re-dispatch resumes WIP + brief appen
     // Round 2 agent: continues on the restored WIP (increment), commits, returns the block.
     writeFileSync(path.join(binDir, "fake-cli"), continuingCli(ws));
     chmodSync(path.join(binDir, "fake-cli"), 0o755);
-    const res2 = await runTask("ghost", 1, {
+    const res2 = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -1959,7 +1965,7 @@ it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) 
     `#!/usr/bin/env bash\nprintf 'legacy-wip\n' > wip.md\ngit add wip.md\nexec sleep 100\n`,
   );
   try {
-    await runTask("ghost", 1, {
+    await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -1977,7 +1983,7 @@ it("T26 black-box: legacy fallback — pre-schema TIMEOUT carrier (no recovery) 
     // Round 2: swap in the continuing agent, then re-dispatch.
     writeFileSync(path.join(binDir, "fake-cli"), continuingCli(ws));
     chmodSync(path.join(binDir, "fake-cli"), 0o755);
-    const res2 = await runTask("ghost", 1, {
+    const res2 = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -2033,7 +2039,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
         `exit 0\n`,
     );
     try {
-      const res1 = await runTask("ghost", 1, {
+      const res1 = await TaskLifecycle.run("ghost", 1, {
         mode: "implement",
         planFile,
         root: repo,
@@ -2054,7 +2060,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
         `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLog}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\nexit 0\n`,
       );
       chmodSync(path.join(binDir, "fake-cli"), 0o755);
-      const res2 = await runTask("ghost", 1, {
+      const res2 = await TaskLifecycle.run("ghost", 1, {
         mode: "review",
         planFile,
         root: repo,
@@ -2096,7 +2102,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
         `exit 0\n`,
     );
     try {
-      const res = await runTask("ghost", 1, {
+      const res = await TaskLifecycle.run("ghost", 1, {
         mode: "implement",
         planFile,
         root: repo,
@@ -2135,7 +2141,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
         `exit 0\n`,
     );
     try {
-      const resI = await runTask("ghost", 1, {
+      const resI = await TaskLifecycle.run("ghost", 1, {
         mode: "implement",
         planFile,
         root: repo,
@@ -2155,7 +2161,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
         `#!/usr/bin/env bash\nprintf '%s' "\${@: -1}" > "${promptLogR}"\nprintf '%s' '{"tasks":[1],"phase":"review","status":"APPROVED","findings":[],"artifacts":{}}' > "${path.join(ws, "tasks-1-review-1.json")}"\nexit 0\n`,
       );
       chmodSync(path.join(binDir, "fake-cli"), 0o755);
-      const resR = await runTask("ghost", 1, {
+      const resR = await TaskLifecycle.run("ghost", 1, {
         mode: "review",
         planFile,
         root: repo,
@@ -2177,7 +2183,7 @@ describe("T27 scope ledger black-box（spec T7.6）", () => {
           `exit 0\n`,
       );
       chmodSync(path.join(binDir, "fake-cli"), 0o755);
-      const resF = await runTask("ghost", 1, {
+      const resF = await TaskLifecycle.run("ghost", 1, {
         mode: "fix",
         planFile,
         root: repo,

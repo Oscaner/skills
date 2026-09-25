@@ -12,7 +12,10 @@ import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { invokeCliWithRetry } from "../invoke.ts";
+import { EngineInvoker } from "../invoke.ts";
+
+const invoker = new EngineInvoker();
+
 import {
   evaluateStall,
   initialStallState,
@@ -393,8 +396,8 @@ describe.skipIf(!GROUP_SUPPORTED)("invoke.ts → spawnManaged — termination pa
     await teardownAll();
   });
 
-  it("invokeCliWithRetry(..., termination) surfaces the stall (idle params reach spawnManaged)", async () => {
-    const r = await invokeCliWithRetry(
+  it("invoker.invokeCliWithRetry(..., termination) surfaces the stall (idle params reach spawnManaged)", async () => {
+    const r = await invoker.invokeCliWithRetry(
       { cli: process.execPath, invoke: "-e", output: "text" },
       "setTimeout(() => {}, 30_000)",
       { op: "implement", type: "task" },

@@ -8,18 +8,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { reviewConvergenceGuard } from "../../cli/shared.ts";
+import { ConvergenceChecker } from "../convergence.ts";
+
+const convergence = new ConvergenceChecker();
+
 import { ExitRequested } from "../../infra/exit.ts";
-import {
-  counterFor,
-  counters,
-  exhaustedBlocker,
-  FAILURE_CATEGORIES,
-  incrementFailureCounter,
-  isIncompleteDispatch,
-  maybeExhaust,
-  terminalFor,
-} from "../failure.ts";
+import { FAILURE_CATEGORIES, FailureResolver } from "../failure.ts";
+
+const failureResolver = new FailureResolver();
 
 const CAT = JSON.parse(
   readFileSync(path.resolve(import.meta.dirname, "../../../templates/engine-config.json"), "utf8"),
@@ -47,24 +43,28 @@ describe("failure-categories canonical", () => {
     // FAILURE_CATEGORIES 键集 = canonical 六 id（无法达的引用在引擎入口立即炸出，非装饰）
     expect(Object.keys(FAILURE_CATEGORIES).sort()).toEqual([...ids].sort());
     // counterFor：四计数器类目 → canonical 字段名；无计数器类目（UNVERIFIABLE / PLAN_CONFLICT）→ null
-    expect(counterFor("TIMEOUT")).toBe("timeoutCount");
-    expect(counterFor("CONTRACT_VIOLATION")).toBe("contractViolationCount");
-    expect(counterFor("ENGINE_SELF_WRITTEN")).toBe("engineSelfWrittenCount");
-    expect(counterFor("EXECUTION_FAILURE")).toBe("engineRecoveryCount");
-    expect(counterFor("UNVERIFIABLE")).toBe(null);
-    expect(counterFor("PLAN_CONFLICT")).toBe(null);
+    expect(failureResolver.counterFor("TIMEOUT")).toBe("timeoutCount");
+    expect(failureResolver.counterFor("CONTRACT_VIOLATION")).toBe("contractViolationCount");
+    expect(failureResolver.counterFor("ENGINE_SELF_WRITTEN")).toBe("engineSelfWrittenCount");
+    expect(failureResolver.counterFor("EXECUTION_FAILURE")).toBe("engineRecoveryCount");
+    expect(failureResolver.counterFor("UNVERIFIABLE")).toBe(null);
+    expect(failureResolver.counterFor("PLAN_CONFLICT")).toBe(null);
     // terminalFor：终态文案与 canonical 列逐字一致（EXECUTION_FAILURE 的终态是 engine-error，非 -exhausted）
-    expect(terminalFor("TIMEOUT")).toBe("BLOCKED: dispatch-timeout-cap");
-    expect(terminalFor("CONTRACT_VIOLATION")).toBe("BLOCKED: contract-violation-exhausted");
-    expect(terminalFor("ENGINE_SELF_WRITTEN")).toBe("BLOCKED: engine-self-written-exhausted");
-    expect(terminalFor("EXECUTION_FAILURE")).toBe("BLOCKED: engine-error");
-    expect(terminalFor("UNVERIFIABLE")).toBe(null);
-    expect(terminalFor("PLAN_CONFLICT")).toBe(null);
+    expect(failureResolver.terminalFor("TIMEOUT")).toBe("BLOCKED: dispatch-timeout-cap");
+    expect(failureResolver.terminalFor("CONTRACT_VIOLATION")).toBe(
+      "BLOCKED: contract-violation-exhausted",
+    );
+    expect(failureResolver.terminalFor("ENGINE_SELF_WRITTEN")).toBe(
+      "BLOCKED: engine-self-written-exhausted",
+    );
+    expect(failureResolver.terminalFor("EXECUTION_FAILURE")).toBe("BLOCKED: engine-error");
+    expect(failureResolver.terminalFor("UNVERIFIABLE")).toBe(null);
+    expect(failureResolver.terminalFor("PLAN_CONFLICT")).toBe(null);
     // isIncompleteDispatch：仅 ENGINE_SELF_WRITTEN / CONTRACT_VIOLATION（canonical dispatchIncomplete 派生）
-    const incomplete = ids.filter((id) => isIncompleteDispatch(id)).sort();
+    const incomplete = ids.filter((id) => failureResolver.isIncompleteDispatch(id)).sort();
     expect(incomplete).toEqual(["CONTRACT_VIOLATION", "ENGINE_SELF_WRITTEN"]);
-    // counters()：四计数器类目按表内序（T7 returnCountersLine 的取值面；标签不机械派生自字段名）
-    expect(counters()).toEqual([
+    // failureResolver.counters()：四计数器类目按表内序（T7 returnCountersLine 的取值面；标签不机械派生自字段名）
+    expect(failureResolver.counters()).toEqual([
       { field: "timeoutCount", label: "timeout" },
       { field: "contractViolationCount", label: "contract-violation" },
       { field: "engineSelfWrittenCount", label: "engine-self-written" },
@@ -94,21 +94,36 @@ describe("reviewConvergenceGuard — 未完成 dispatch 排除", () => {
   it("ENGINE_SELF_WRITTEN + APPROVED + blocker 0 → 不 exit 3（dispatch 未完成，排除生效）", () => {
     expect(
       exitCodeOf(() =>
-        reviewConvergenceGuard(convergenceShaped("ENGINE_SELF_WRITTEN"), "task", 1, "plan"),
+        convergence.reviewConvergenceGuard(
+          convergenceShaped("ENGINE_SELF_WRITTEN"),
+          "task",
+          1,
+          "plan",
+        ),
       ),
     ).toBe(null);
   });
   it("CONTRACT_VIOLATION 同形 → 不 exit 3（第二条排除类目——只测一条则 canonical 另一条 dispatchIncomplete 无守卫）", () => {
     expect(
       exitCodeOf(() =>
-        reviewConvergenceGuard(convergenceShaped("CONTRACT_VIOLATION"), "task", 1, "plan"),
+        convergence.reviewConvergenceGuard(
+          convergenceShaped("CONTRACT_VIOLATION"),
+          "task",
+          1,
+          "plan",
+        ),
       ),
     ).toBe(null);
   });
   it("对照组 EXECUTION_FAILURE 同形 → 仍 exit 3（非排除类目——缺此例则「排除」退化为凡带 failure_category 即不 exit 3）", () => {
     expect(
       exitCodeOf(() =>
-        reviewConvergenceGuard(convergenceShaped("EXECUTION_FAILURE"), "task", 1, "plan"),
+        convergence.reviewConvergenceGuard(
+          convergenceShaped("EXECUTION_FAILURE"),
+          "task",
+          1,
+          "plan",
+        ),
       ),
     ).toBe(3);
   });
@@ -133,15 +148,15 @@ describe("run-task 终态门（branch-review finding 补）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "failterm-"));
     try {
       seed(dir);
-      expect(incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(1);
-      expect(incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(2);
+      expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(1);
+      expect(failureResolver.incrementFailureCounter(dir, "CONTRACT_VIOLATION")).toBe(2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
   it("exhaustedBlocker 仅计数 ≥2 触发且携带终态语汇", () => {
-    expect(exhaustedBlocker("TIMEOUT", 1)).toBeNull();
-    expect(exhaustedBlocker("TIMEOUT", 2)).toMatch(/dispatch-timeout-cap/);
+    expect(failureResolver.exhaustedBlocker("TIMEOUT", 1)).toBeNull();
+    expect(failureResolver.exhaustedBlocker("TIMEOUT", 2)).toMatch(/dispatch-timeout-cap/);
   });
   it("maybeExhaust 在阈值处覆盖 handoff blocker 为终态形（第 1 次不动 / 第 2 次终态）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "failterm2-"));
@@ -158,9 +173,9 @@ describe("run-task 终态门（branch-review finding 补）", () => {
           blocker: "handoff schema invalid",
         }),
       );
-      maybeExhaust(dir, "CONTRACT_VIOLATION", h);
+      failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
       expect(JSON.parse(readFileSync(h, "utf8")).blocker).toBe("handoff schema invalid");
-      maybeExhaust(dir, "CONTRACT_VIOLATION", h);
+      failureResolver.maybeExhaust(dir, "CONTRACT_VIOLATION", h);
       expect(JSON.parse(readFileSync(h, "utf8")).blocker).toMatch(/contract-violation-exhausted/);
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -30,21 +30,28 @@ import {
 import { readJson, writeOwnHandoff } from "../artifacts/handoff/write.ts";
 import { hashFile } from "../artifacts/hash.ts";
 import { type ExitRequested, exitWithCode, invariant } from "../infra/exit.ts";
-import { gitRevParseHead } from "../infra/git.ts";
-import { invokeCli, resolveTerminationConfig } from "../infra/invoke.ts";
+import { GitClient } from "../infra/git.ts";
+import { EngineInvoker } from "../infra/invoke.ts";
 import { withLifecycle } from "../infra/proc.ts";
-import { checkHarness, loadRegistry, REG_PATH } from "../infra/registry.ts";
+import { REG_PATH, Registry } from "../infra/registry.ts";
 import { getRoot } from "../infra/root.ts";
-import { docsFixHardGate, renderTemplate, reviewHardGate } from "../render/templates.ts";
-import { UNCOMMITTED_RETURN_MARKER, validateCommitContract } from "../rules/commit.ts";
+import { TemplateLoader } from "../render/templates.ts";
+import { CommitChecker, UNCOMMITTED_RETURN_MARKER } from "../rules/commit.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { validateHandoffSchema } from "../rules/schema.ts";
+import { HandoffSchemaValidator } from "../rules/schema.ts";
 import {
   DispatchBlocked,
   type DispatchContext,
   type DispatchHookContext,
   DispatchLifecycle,
 } from "./base.ts";
+
+const git = new GitClient();
+const registry = new Registry();
+const invoker = new EngineInvoker();
+const templates = new TemplateLoader();
+const commit = new CommitChecker();
+const schema = new HandoffSchemaValidator();
 
 export interface DocsLifecycleOptions {
   /** docs agent harness key (registry lookup) */
@@ -176,7 +183,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     // Empty on non-git / unborn HEAD (fail-open, the mode-union pre-fill contract). Computed here —
     // the single docs-dispatch point — so both review (review.ts) and fix (fix.ts) callers share one
     // derivation, no per-caller plumbing.
-    const docFixedPoint = (await gitRevParseHead(this.ctx.repoRoot ?? "")) ?? "";
+    const docFixedPoint = (await git.revParseHead(this.ctx.repoRoot ?? "")) ?? "";
     // Single-pass composition render (T3 URC after: fix templates take the canonical fixTemplate
     // value "docs" directly — the `-review`→`-fix` legacy derivation branch is gone; docs fix must
     // not double-suffix). Computed dispatch facts win over caller params (last-wins): RETURN_FORMAT
@@ -184,7 +191,7 @@ export class DocsLifecycle extends DispatchLifecycle {
     // stdout), review → RETURN_JSON — an explicit fix-mode value prevents the family-returnFormat
     // (fix.spec/plan says RETURN_JSON) from misrouting the docs-fix prompt to the JSON-return
     // constant. No `{{HANDOFF_SCHEMA_JSON}}` replace remains — the schema lives verbatim in the shell.
-    const prompt = renderTemplate(
+    const prompt = templates.renderTemplate(
       template,
       {
         MODE: mode,
@@ -204,8 +211,8 @@ export class DocsLifecycle extends DispatchLifecycle {
         RETURN_FORMAT: mode === "fix" ? "DOCS_FIX" : "RETURN_JSON",
         HANDOFF_WRITE_GATE:
           mode === "fix"
-            ? docsFixHardGate(handoffPath ?? "")
-            : reviewHardGate("RETURN_JSON", handoffPath ?? ""),
+            ? templates.docsFixHardGate(handoffPath ?? "")
+            : templates.reviewHardGate("RETURN_JSON", handoffPath ?? ""),
       },
       "docs-runner",
     );
@@ -213,19 +220,19 @@ export class DocsLifecycle extends DispatchLifecycle {
     // Spawn agent using the harness registry (provides -p, --output-format, etc.).
     // invokeCli injection params = (op, type) — review/fix resolve prefix.review[type?] /
     // prefix.fix (flat string) respectively; type threads from cdd review/fix --type.
-    const reg = loadRegistry(REG_PATH);
-    const entry = checkHarness(reg, harness);
+    const reg = registry.load(REG_PATH);
+    const entry = registry.checkHarness(reg, harness);
     // Unified termination (T26 — budget-only for docs, no workspace tree signal, same as the
     // budget channel of task/branch; resolveTerminationConfig defaults the budget from canonical
     // timeouts.defaults.review — zero env reads; the terminal reason still lands in the TIMEOUT
     // blocker).
-    const res = await invokeCli(
+    const res = await invoker.invokeCli(
       entry,
       prompt,
       { op: mode, type },
       process.env,
       this.ctx.repoRoot as string,
-      resolveTerminationConfig("review"),
+      invoker.resolveTerminationConfig("review"),
     );
     this.#agentRc = res.code;
   }
@@ -274,7 +281,7 @@ export class DocsLifecycle extends DispatchLifecycle {
       );
       return;
     }
-    const sv = validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
+    const sv = schema.validateHandoffSchema(handoff, "docs"); // docs schema (doc_path, no task)
     if (!sv.valid) {
       // CONTRACT_VIOLATION recovery (T5, spec §2.5.2, AC7 category-level: spec/plan reviews follow
       // the same policy as task dispatch): the recovery single point is finalize.ts#recoverHandoff
@@ -353,7 +360,7 @@ export class DocsLifecycle extends DispatchLifecycle {
    * finished rounds (unparseable/schema-invalid dry paths) — matches the task face's skip. */
   protected override async commitPostCheck(_hookCtx: DispatchHookContext): Promise<void> {
     if (this.#finished) return;
-    const cv = await validateCommitContract(this.#opts.mode, this.ctx.repoRoot, {
+    const cv = await commit.validateCommitContract(this.#opts.mode, this.ctx.repoRoot, {
       handoffPath: this.#opts.handoffPath,
     });
     if (!cv.ok) {
@@ -372,41 +379,40 @@ export class DocsLifecycle extends DispatchLifecycle {
       this.#done({ exitCode: 1, handoff: readJson(this.#opts.handoffPath ?? "") });
     }
   }
-}
 
-/** runDocsTask — legacy surface kept ({ exitCode, handoff }): builds the injected ctx, runs
- * DocsLifecycle, converts an entry-gate DispatchBlocked into a CDD_BLOCKED stderr + ExitRequested(1)
- * (the CLI needs the process exit — it discards the return value). Root resolves eagerly for a
- * real dispatch (entry gate must see it); dry-run defers root entirely (legacy: dry-run returned
- * before getRoot()). */
-export async function runDocsTask(
-  options: DocsLifecycleOptions & { dryRun?: boolean },
-): Promise<DocsResult> {
-  const { dryRun = false, ...rest } = options;
-  return withLifecycle(async () => {
-    const lc = new DocsLifecycle({
-      ...rest,
-      dryRun,
-      ctx: {
-        mode: rest.mode,
-        repoRoot: rest.repoRoot ?? (dryRun ? null : getRoot()),
-        handoffPath: rest.handoffPath,
-        // E2②: the entry gate (inherited default hook) downgrades a dirty tree to a stderr CDD_WARN
-        // on the dry-run path — the base gate reads it from ctx; real dispatch keeps the hard BLOCKED.
+  /** run — legacy surface kept ({ exitCode, handoff }) as the class's STATIC entry (Task 6/7
+   * 导出面重排: `runDocsTask` → `DocsLifecycle.run` — the class public face, no bare forwarding
+   * shell): builds the injected ctx, runs the lifecycle, converts an entry-gate DispatchBlocked
+   * into a CDD_BLOCKED stderr + ExitRequested(1) (the CLI needs the process exit — it discards the
+   * return value). Root resolves eagerly for a real dispatch (entry gate must see it); dry-run
+   * defers root entirely (legacy: dry-run returned before getRoot()). */
+  static run(options: DocsLifecycleOptions & { dryRun?: boolean }): Promise<DocsResult> {
+    const { dryRun = false, ...rest } = options;
+    return withLifecycle(async () => {
+      const lc = new DocsLifecycle({
+        ...rest,
         dryRun,
-      },
-    });
-    try {
-      await lc.run();
-    } catch (e) {
-      if (e instanceof DispatchBlocked && e.gate === "entry") {
-        process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
-        exitWithCode(1);
+        ctx: {
+          mode: rest.mode,
+          repoRoot: rest.repoRoot ?? (dryRun ? null : getRoot()),
+          handoffPath: rest.handoffPath,
+          // E2②: the entry gate (inherited default hook) downgrades a dirty tree to a stderr CDD_WARN
+          // on the dry-run path — the base gate reads it from ctx; real dispatch keeps the hard BLOCKED.
+          dryRun,
+        },
+      });
+      try {
+        await lc.run();
+      } catch (e) {
+        if (e instanceof DispatchBlocked && e.gate === "entry") {
+          process.stderr.write(`CDD_BLOCKED: ${e.message}\n`);
+          exitWithCode(1);
+        }
+        throw e;
       }
-      throw e;
-    }
-    return lc.result;
-  });
+      return lc.result;
+    });
+  }
 }
 
 export type { ExitRequested };

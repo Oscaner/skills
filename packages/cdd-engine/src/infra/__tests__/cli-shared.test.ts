@@ -2,7 +2,9 @@
 
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveTerminationConfig } from "../invoke.ts";
+import { EngineInvoker } from "../invoke.ts";
+
+const invoker = new EngineInvoker();
 
 vi.mock("execa", () => ({
   execa: vi.fn(),
@@ -12,21 +14,21 @@ import { execa } from "execa";
 
 describe("resolveTerminationConfig", () => {
   it("default task budget is 3h (canonical timeouts.defaults.task)", () => {
-    expect(resolveTerminationConfig("task").budgetMs).toBe(10_800_000);
+    expect(invoker.resolveTerminationConfig("task").budgetMs).toBe(10_800_000);
   });
   it("default review budget is 60min (canonical timeouts.defaults.review)", () => {
-    expect(resolveTerminationConfig("review").budgetMs).toBe(3_600_000);
+    expect(invoker.resolveTerminationConfig("review").budgetMs).toBe(3_600_000);
   });
   it("seam override wins over the canonical default (env-zero resolver)", () => {
-    expect(resolveTerminationConfig("task", { budgetMs: 60_000 }).budgetMs).toBe(60_000);
+    expect(invoker.resolveTerminationConfig("task", { budgetMs: 60_000 }).budgetMs).toBe(60_000);
   });
   it("stall cadence reads canonical timeouts.liveness (60s sample / 15min idle window)", () => {
-    const cfg = resolveTerminationConfig("task");
+    const cfg = invoker.resolveTerminationConfig("task");
     expect(cfg.sampleIntervalMs).toBe(60_000);
     expect(cfg.idleWindowMs).toBe(900_000);
   });
   it("unknown mode returns undefined budget (canonical defaults only for declared modes)", () => {
-    expect(resolveTerminationConfig("unknown").budgetMs).toBeUndefined();
+    expect(invoker.resolveTerminationConfig("unknown").budgetMs).toBeUndefined();
   });
 });
 
@@ -40,13 +42,20 @@ describe("extractStreamJsonFinal via invokeCli", () => {
       stderr: "",
       timedOut: false,
     });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p --output-format stream-json",
       output: "stream-json",
     };
-    const res = await invokeCli(entry, "prompt", { op: "implement" }, {}, "/tmp", undefined);
+    const res = await invoker.invokeCli(
+      entry,
+      "prompt",
+      { op: "implement" },
+      {},
+      "/tmp",
+      undefined,
+    );
     expect(res.ok).toBe(true);
     expect(res.stdout).toBe("done");
   });
@@ -74,9 +83,16 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       stderr: "",
       timedOut: false,
     });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
-    await invokeCli(entry, "line one\nline two", { op: "implement" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(
+      entry,
+      "line one\nline two",
+      { op: "implement" },
+      {},
+      "/tmp",
+      undefined,
+    );
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
     expect(promptArg.split("\n").slice(1).join("\n")).toBe("line one\nline two");
@@ -89,9 +105,16 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       stderr: "",
       timedOut: false,
     });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
-    await invokeCli(entry, "review prompt", { op: "review", type: "task" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(
+      entry,
+      "review prompt",
+      { op: "review", type: "task" },
+      {},
+      "/tmp",
+      undefined,
+    );
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:code-review");
     expect(promptArg.split("\n")[1]).toBe("review prompt");
@@ -99,9 +122,16 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
 
   it("review×spec（docs 族共享壳，无注入）→ prompt unchanged", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
-    await invokeCli(entry, "spec prompt", { op: "review", type: "spec" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(
+      entry,
+      "spec prompt",
+      { op: "review", type: "spec" },
+      {},
+      "/tmp",
+      undefined,
+    );
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg).toBe("spec prompt");
   });
@@ -113,16 +143,23 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       stderr: "",
       timedOut: false,
     });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
-    await invokeCli(entry, "fix prompt", { op: "fix", type: "task" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(
+      entry,
+      "fix prompt",
+      { op: "fix", type: "task" },
+      {},
+      "/tmp",
+      undefined,
+    );
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg.split("\n")[0]).toBe("/mattpocock-skills:tdd");
   });
 
   it("legacy 扁平 mode 键兜底：op=扁平米键 → 直接命 prefix 同键（未迁移 registry）", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p",
@@ -130,27 +167,27 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       prefix: { "legacy-review": "/legacy-review" },
       suffix: {},
     };
-    await invokeCli(entry, "legacy prompt", { op: "legacy-review" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(entry, "legacy prompt", { op: "legacy-review" }, {}, "/tmp", undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg.split("\n")[0]).toBe("/legacy-review");
     // 旧位置 mode 字符串参数也归一 → 同走扁平键兜底
     execa.mockClear();
-    await invokeCli(entry, "legacy prompt", "legacy-review", {}, "/tmp", undefined);
+    await invoker.invokeCli(entry, "legacy prompt", "legacy-review", {}, "/tmp", undefined);
     expect(execa.mock.calls[0][1].at(-1).split("\n")[0]).toBe("/legacy-review");
   });
 
   it("entry without prefix/suffix → prompt unchanged", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text" };
-    await invokeCli(entry, "plain prompt", { op: "implement" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(entry, "plain prompt", { op: "implement" }, {}, "/tmp", undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg).toBe("plain prompt");
   });
 
   it("suffix appended after prompt (newline separated)", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p",
@@ -158,14 +195,14 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       prefix: {},
       suffix: { implement: "[END]" },
     };
-    await invokeCli(entry, "middle", { op: "implement" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(entry, "middle", { op: "implement" }, {}, "/tmp", undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg).toBe("middle\n[END]");
   });
 
   it("prefix+suffix together → `<prefix>\\n<prompt>\\n<suffix>`", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { invokeCli } = await import("../invoke.ts");
+    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p",
@@ -173,7 +210,7 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       prefix: { implement: "[P]" },
       suffix: { implement: "[S]" },
     };
-    await invokeCli(entry, "mid", { op: "implement" }, {}, "/tmp", undefined);
+    await invoker.invokeCli(entry, "mid", { op: "implement" }, {}, "/tmp", undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
     expect(promptArg).toBe("[P]\nmid\n[S]");
   });
@@ -195,10 +232,18 @@ describe("invokeCliWithRetry", () => {
         stderr: "",
         timedOut: false,
       });
-    const { invokeCliWithRetry } = await import("../invoke.ts");
+    const { EngineInvoker: DynamicInvoker } = await import("../invoke.ts");
+    const dynamicInvoker = new DynamicInvoker();
     const entry = { cli: "claude", invoke: "-p", output: "text" };
     // Start the call, advance fake timers past the retry delay, then collect.
-    const promise = invokeCliWithRetry(entry, "prompt", { op: "implement" }, {}, "/tmp", undefined);
+    const promise = dynamicInvoker.invokeCliWithRetry(
+      entry,
+      "prompt",
+      { op: "implement" },
+      {},
+      "/tmp",
+      undefined,
+    );
     await vi.runAllTimersAsync();
     const res = await promise;
     expect(res.ok).toBe(true);
@@ -209,9 +254,10 @@ describe("invokeCliWithRetry", () => {
     // external-SIGTERM exit shape — the T26 cause derivation reads signal === "SIGTERM" (execa's
     // timedOut flag alone was dropped with the monitor takeover; the monitor always kills via SIGTERM)
     execa.mockResolvedValue({ exitCode: -1, stdout: "", stderr: "", signal: "SIGTERM" });
-    const { invokeCliWithRetry } = await import("../invoke.ts");
+    const { EngineInvoker: DynamicInvoker } = await import("../invoke.ts");
+    const dynamicInvoker = new DynamicInvoker();
     const entry = { cli: "claude", invoke: "-p", output: "text" };
-    const res = await invokeCliWithRetry(
+    const res = await dynamicInvoker.invokeCliWithRetry(
       entry,
       "prompt",
       { op: "implement" },

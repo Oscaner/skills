@@ -33,22 +33,25 @@ import {
 } from "../artifacts/handoff/finalize.ts";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
 import { readJson, writeHandoff, writeOwnHandoff } from "../artifacts/handoff/write.ts";
-import { preserveAndAnnounceResidue } from "../artifacts/residue.ts";
-import { assembleReturnBlock } from "../artifacts/return-block.ts";
+import { ResidueManager } from "../artifacts/residue.ts";
+import { ReturnBlockParser } from "../artifacts/return-block.ts";
 import { exitOk, exitWithCode } from "../infra/exit.ts";
-import { invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
-import { CddBlockedError, checkHarness, loadRegistry, REG_PATH } from "../infra/registry.ts";
+import { EngineInvoker } from "../infra/invoke.ts";
+import { CddBlockedError, REG_PATH, Registry } from "../infra/registry.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import {
-  renderTemplate,
-  reviewArtifactConfig,
-  reviewHardGate,
-  reviewTypeConfig,
-} from "../render/templates.ts";
-import { reviewConvergenceGuard } from "../rules/convergence.ts";
+import { TemplateLoader } from "../render/templates.ts";
+import { ConvergenceChecker } from "../rules/convergence.ts";
 import { FAILURE_CATEGORIES } from "../rules/failure.ts";
-import { validateHandoffSchema } from "../rules/schema.ts";
+import { HandoffSchemaValidator } from "../rules/schema.ts";
 import { type DispatchContext, type DispatchHookContext, DispatchLifecycle } from "./base.ts";
+
+const registry = new Registry();
+const invoker = new EngineInvoker();
+const templates = new TemplateLoader();
+const convergence = new ConvergenceChecker();
+const schema = new HandoffSchemaValidator();
+const residue = new ResidueManager();
+const returnBlocks = new ReturnBlockParser();
 
 // ---- public opts (the CLI surface's derivation contract; moved from cli/branch-review.ts / fix) ----
 
@@ -173,8 +176,8 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
    * registry failure (e.g. corrupt registry JSON) rethrows to the caller surface. */
   protected registryGate(): void {
     try {
-      this.entry = checkHarness(
-        loadRegistry(this.opts.registryPath ?? REG_PATH),
+      this.entry = registry.checkHarness(
+        registry.load(this.opts.registryPath ?? REG_PATH),
         this.opts.harness,
         {
           dryRun: this.opts.dryRun,
@@ -230,7 +233,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
         blocker: `cli exited ${this.agentRc}${this.agentRc === 143 ? " (SIGTERM — externally killed)" : ""} without writing handoff → worktree residue is preserved as a stash (\`git stash list\` → \`git stash apply <ref>\` → review → commit to salvage or \`git stash drop\` to discard) → re-run ${reRun}`,
       });
       process.stderr.write(`CDD_BLOCKED: ${label} failed (exit ${this.agentRc})\n`);
-      await preserveAndAnnounceResidue(this.repoRoot, this.handoffPath, this.repoRoot);
+      await residue.preserveAndAnnounceResidue(this.repoRoot, this.handoffPath, this.repoRoot);
       exitWithCode(1);
     }
 
@@ -266,7 +269,7 @@ export abstract class BranchLifecycle extends DispatchLifecycle {
       exitWithCode(1);
     }
     let handoff: Record<string, unknown> = agentHandoff;
-    const sv = validateHandoffSchema(agentHandoff, "task");
+    const sv = schema.validateHandoffSchema(agentHandoff, "task");
     if (!sv.valid) {
       // Recovery single point = finalize.ts#recoverHandoff (normalize → re-validate, one round
       // max; the violating-key suffix + findings array guard are written there once — this lane
@@ -355,7 +358,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     }
     // Stop only on an APPROVED round with blocker=0 (SP-4) — a BLOCKED/TIMEOUT branch review
     // round with findings:[] must be re-dispatchable, not rejected as "already done".
-    if (prev) reviewConvergenceGuard(prev, "branch", round, `${base7}..${head7}`);
+    if (prev) convergence.reviewConvergenceGuard(prev, "branch", round, `${base7}..${head7}`);
 
     // Per-round handoff filename (canonical review.branch family; branch-fix re-reviews reuse
     // distinct files).
@@ -384,7 +387,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
         artifacts: {},
         blocker: "dry-run",
       });
-      const returnBlock = assembleReturnBlock(
+      const returnBlock = returnBlocks.assembleReturnBlock(
         {
           status: "APPROVED",
           commits: `base=${base} head=${head}`,
@@ -398,9 +401,9 @@ export class BranchReviewLifecycle extends BranchLifecycle {
       return;
     }
 
-    const cfg = reviewTypeConfig("branch");
-    const art = reviewArtifactConfig("branch");
-    const prompt = renderTemplate(
+    const cfg = templates.reviewTypeConfig("branch");
+    const art = templates.reviewArtifactConfig("branch");
+    const prompt = templates.renderTemplate(
       "review",
       {
         MODE: "review",
@@ -413,7 +416,7 @@ export class BranchReviewLifecycle extends BranchLifecycle {
         HANDOFF_TARGET: this.handoffPath,
         RETURN_FORMAT: art.returnFormat,
         REVIEW_PLAN_LINE: this.opts.plan ? `**Plan:** ${this.opts.plan}` : "",
-        HANDOFF_WRITE_GATE: reviewHardGate(art.returnFormat, this.handoffPath),
+        HANDOFF_WRITE_GATE: templates.reviewHardGate(art.returnFormat, this.handoffPath),
       },
       "cdd review",
     );
@@ -421,8 +424,8 @@ export class BranchReviewLifecycle extends BranchLifecycle {
     // Invoke harness CLI. (op,type) injection resolves into prefix.review.branch (the old
     // branch-review standalone bin is deleted, its logic inlined here). T26 unified termination
     // (single resolver — budget from canonical review defaults, stall over the workspace tree).
-    const terminationCfg = resolveTerminationConfig("review", undefined, this.workspace);
-    const res = (await invokeCliWithRetry(
+    const terminationCfg = invoker.resolveTerminationConfig("review", undefined, this.workspace);
+    const res = (await invoker.invokeCliWithRetry(
       this.entry!,
       prompt,
       { op: "review", type: "branch" },
@@ -570,7 +573,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
         artifacts: {},
         blocker: "dry-run",
       });
-      const returnBlock = assembleReturnBlock(
+      const returnBlock = returnBlocks.assembleReturnBlock(
         {
           status: "APPROVED",
           commits: "base=dry-run head=dry-run",
@@ -607,7 +610,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // The fix prompt: task-family shell + RETURN_STDOUT_BLOCK return (the fix agent writes the
     // handoff + the return block; task-family round-context slots minus DISPATCH_UNIT/CONSTRAINTS
     // — empty for the branch family; BRIEF carries the plan path as the branch-level brief).
-    const prompt = renderTemplate(
+    const prompt = templates.renderTemplate(
       "fix",
       {
         MODE: "fix",
@@ -619,7 +622,7 @@ export class BranchFixLifecycle extends BranchLifecycle {
         HANDOFF_TARGET: this.handoffPath,
         REVIEW_PLAN_LINE: this.opts.plan ? `**Plan:** ${this.opts.plan}` : "",
         RETURN_FORMAT: "RETURN_STDOUT_BLOCK",
-        HANDOFF_WRITE_GATE: reviewHardGate("RETURN_STDOUT_BLOCK", this.handoffPath),
+        HANDOFF_WRITE_GATE: templates.reviewHardGate("RETURN_STDOUT_BLOCK", this.handoffPath),
       },
       "cdd fix",
     );
@@ -627,8 +630,8 @@ export class BranchFixLifecycle extends BranchLifecycle {
     // Invoke the harness CLI. (op,type) injection resolves the flat `prefix.fix` string
     // (/mattpocock-skills:tdd — the fix channel is work-type, not per-type). T26 unified
     // termination (single resolver — same surface as task/docs/branch-review).
-    const terminationCfg = resolveTerminationConfig("review", undefined, this.workspace);
-    const res = (await invokeCliWithRetry(
+    const terminationCfg = invoker.resolveTerminationConfig("review", undefined, this.workspace);
+    const res = (await invoker.invokeCliWithRetry(
       this.entry!,
       prompt,
       { op: "fix", type: "branch" },

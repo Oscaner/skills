@@ -6,19 +6,21 @@
 
 import { describe, expect, it } from "vitest";
 import { TaskGroup } from "../../domain/task-group.ts";
-import { parseTaskList } from "../shared.ts";
+import { TaskListParser } from "../shared.ts";
+
+const taskListParser = new TaskListParser();
 
 describe("parseTaskList — the --tasks CLI boundary (TaskGroup)", () => {
   it("returns the canonical TaskGroup (dedupe + ascending sort + comma key)", () => {
-    expect(parseTaskList("3, 1,3,2")).toBeInstanceOf(TaskGroup);
-    expect(parseTaskList("3, 1,3,2").key()).toBe("1,2,3");
-    expect(parseTaskList("1").key()).toBe("1");
-    expect(parseTaskList("1,2").key()).toBe("1,2");
+    expect(taskListParser.parse("3, 1,3,2")).toBeInstanceOf(TaskGroup);
+    expect(taskListParser.parse("3, 1,3,2").key()).toBe("1,2,3");
+    expect(taskListParser.parse("1").key()).toBe("1");
+    expect(taskListParser.parse("1,2").key()).toBe("1,2");
   });
 
   it("hyphen form `1-2` (legacy range shape) is an illegal token → CLIError exit 2 face", () => {
     try {
-      parseTaskList("1-2");
+      taskListParser.parse("1-2");
       expect.fail("expected the CLI usage error");
     } catch (e) {
       const err = e as { name?: string; exitCode?: number; message?: string };
@@ -31,7 +33,7 @@ describe("parseTaskList — the --tasks CLI boundary (TaskGroup)", () => {
   it("empty / trailing-comma slices and non-integer tokens reject the same way", () => {
     for (const bad of ["", "abc", "1.5", "1,", "1, ,2"]) {
       try {
-        parseTaskList(bad);
+        taskListParser.parse(bad);
         expect.fail(`expected rejection for ${JSON.stringify(bad)}`);
       } catch (e) {
         expect((e as { exitCode?: number }).exitCode, bad).toBe(2);

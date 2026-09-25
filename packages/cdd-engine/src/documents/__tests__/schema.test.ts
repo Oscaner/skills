@@ -19,7 +19,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
-import { isInflightText, isPendingText } from "../../rules/documents.ts";
+import { DocumentsValidator } from "../../rules/documents.ts";
+
+const documentsValidator = new DocumentsValidator();
+
 import {
   DOC_SCHEMA_NAMES,
   loadDocSchema,
@@ -404,14 +407,14 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
     ) as string[];
     expect(pendingEnum.length).toBeGreaterThan(0);
     expect(inflightEnum).toEqual(["In-flight", "[In-flight]"]);
-    for (const v of pendingEnum) expect(isPendingText(v)).toBe(true);
+    for (const v of pendingEnum) expect(documentsValidator.isPendingText(v)).toBe(true);
     for (const v of inflightEnum) {
-      expect(isInflightText(v)).toBe(true);
-      expect(isPendingText(v)).toBe(false);
+      expect(documentsValidator.isInflightText(v)).toBe(true);
+      expect(documentsValidator.isPendingText(v)).toBe(false);
     }
-    expect(isPendingText("**Done**")).toBe(false);
-    expect(isInflightText("Done")).toBe(false);
-    expect(isInflightText("**Done**")).toBe(false);
+    expect(documentsValidator.isPendingText("**Done**")).toBe(false);
+    expect(documentsValidator.isInflightText("Done")).toBe(false);
+    expect(documentsValidator.isInflightText("**Done**")).toBe(false);
   });
 
   it("overall descriptions align with the enforcement's positional reads (P4.3 Task 9 #276 parity)", () => {

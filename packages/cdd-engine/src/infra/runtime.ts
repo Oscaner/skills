@@ -35,7 +35,9 @@ import Ajv, { type ValidateFunction } from "ajv";
 import { execa } from "execa";
 
 import { exitWithCode, invariant } from "./exit.ts";
-import { gitTopLevel } from "./git.ts";
+import { GitClient } from "./git.ts";
+
+const git = new GitClient();
 
 const KILL_SIGNAL = "SIGTERM";
 const FORCE_SIGNAL = "SIGKILL";
@@ -409,7 +411,7 @@ export class CddRuntime {
   // repo-root singleton (former infra/root.ts `let _root`)
   #root: string | null = null;
   async initRoot(cwd: string): Promise<string> {
-    const root = await gitTopLevel(cwd);
+    const root = await git.topLevel(cwd);
     if (!root) {
       process.stderr.write(
         "CDD_BLOCKED: not in a git repository\n  Run cdd from within a git repository.\n",

@@ -18,14 +18,16 @@ import {
   taskBaseFromBrief,
 } from "../handoff/finalize.ts";
 import { writeOwnHandoff } from "../handoff/write.ts";
-import { commitsFromReturnLine } from "../return-block.ts";
+import { ReturnBlockParser } from "../return-block.ts";
+
+const returnBlockParser = new ReturnBlockParser();
 
 // ---- review 族：rollup 派生（applyDerivedStatus；SP-4 失败轮次豁免）----
 
-it("finalizeHandoff review 族：agent 写 warn-only CHANGES_REQUESTED → 定稿 APPROVED（rollup 派生）", async () => {
+it("finalizeHandoff review 族：agent 写 warn-only CHANGES_REQUESTED → 定稿 REVIEW_FIX（Task 8 收口态）", async () => {
   const agentHandoff = { status: "CHANGES_REQUESTED", findings: [{ severity: "warn" }] };
   const r = await finalizeHandoff({ mode: "review", agentHandoff });
-  expect(r.handoff.status).toBe("APPROVED");
+  expect(r.handoff.status).toBe("REVIEW_FIX");
   expect(r.handoff.findings).toEqual([{ severity: "warn" }]);
   expect(r.handoff).not.toBe(agentHandoff); // 派生返回新对象（不原地修改 agent 内容）
   expect(r.exitCode).toBe(0);
@@ -216,7 +218,7 @@ it("finalizeHandoff review 族：真 blocker 发现 → CHANGES_REQUESTED + exit
   expect(r.exitCode).toBe(0);
 });
 
-it("finalizeHandoff review 族 dev-measured：notes 记录接受项 + warn-only → APPROVED，零 unverifiable 零 BLOCK", async () => {
+it("finalizeHandoff review 族 dev-measured：notes 记录接受项 + warn-only → REVIEW_FIX，零 unverifiable 零 BLOCK", async () => {
   const r = await finalizeHandoff({
     mode: "review",
     agentHandoff: {
@@ -225,7 +227,7 @@ it("finalizeHandoff review 族 dev-measured：notes 记录接受项 + warn-only 
         "§口径 dev-measured 验收项已经 evidence-contract accepted-noted（notes 记录，不写 unverifiable 不 BLOCK）",
     },
   });
-  expect(r.handoff.status).toBe("APPROVED");
+  expect(r.handoff.status).toBe("REVIEW_FIX");
   expect(r.handoff.unverifiable).toBeUndefined();
   expect(r.handoff.blocker).toBeUndefined();
   expect(r.exitCode).toBe(0);
@@ -261,7 +263,7 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", a
 describe("return-block commitsFromReturnLine（T27 恢复轮声明 base 解析）", () => {
   it("标准 `commits: base=X head=Y` → { base, head }", () => {
     expect(
-      commitsFromReturnLine(
+      returnBlockParser.commitsFromReturnLine(
         "commits: base=a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e head=0000000000000000000000000000000000000000",
       ),
     ).toEqual({
@@ -271,24 +273,26 @@ describe("return-block commitsFromReturnLine（T27 恢复轮声明 base 解析�
   });
 
   it("仅 base（head 缺省）→ { base }; 缺省线 / 空值 → {}", () => {
-    expect(commitsFromReturnLine("commits: base=9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63")).toEqual(
-      { base: "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63" },
-    );
-    expect(commitsFromReturnLine("commits: ")).toEqual({});
-    expect(commitsFromReturnLine(undefined)).toEqual({});
+    expect(
+      returnBlockParser.commitsFromReturnLine(
+        "commits: base=9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63",
+      ),
+    ).toEqual({ base: "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63" });
+    expect(returnBlockParser.commitsFromReturnLine("commits: ")).toEqual({});
+    expect(returnBlockParser.commitsFromReturnLine(undefined)).toEqual({});
   });
 
   it("只取 base/head 键；其他键忽略（artifacts 式 key=value 同构）", () => {
-    expect(commitsFromReturnLine("commits: base=x junk=y head=z")).toEqual({
+    expect(returnBlockParser.commitsFromReturnLine("commits: base=x junk=y head=z")).toEqual({
       base: "x",
       head: "z",
     });
-    expect(commitsFromReturnLine("commits: junk=y")).toEqual({});
+    expect(returnBlockParser.commitsFromReturnLine("commits: junk=y")).toEqual({});
   });
 
   it("无前导 `commits:` 前缀的串 → {}（非本行安全）", () => {
-    expect(commitsFromReturnLine("artifacts: brief=b.md")).toEqual({});
-    expect(commitsFromReturnLine("blocker: none")).toEqual({});
+    expect(returnBlockParser.commitsFromReturnLine("artifacts: brief=b.md")).toEqual({});
+    expect(returnBlockParser.commitsFromReturnLine("blocker: none")).toEqual({});
   });
 });
 

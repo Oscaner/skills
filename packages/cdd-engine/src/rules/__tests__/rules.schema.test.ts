@@ -13,7 +13,9 @@ import { normalizeHandoff, recoverHandoff } from "../../artifacts/handoff/finali
 // normalizeHandoff / recoverHandoff now live in artifacts/handoff/finalize.ts — the module that
 // owns status derivation, while the validator stays on rules/schema.ts; this file's import split
 // tracks the schema⇄finalize cycle break. (P6 Task 24 B)
-import { loadHandoffNamespace, loadHandoffSchema, validateHandoffSchema } from "../schema.ts";
+import { HandoffSchemaValidator } from "../schema.ts";
+
+const schemaValidator = new HandoffSchemaValidator();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel: string) =>
@@ -32,20 +34,20 @@ const validTask = {
 };
 
 describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical 单读", () => {
-  it("loadHandoffSchema('task') 返回 templates/schema/task-handoff-schema.json 原值", () => {
-    expect(loadHandoffSchema("task")).toEqual(TASK_SCHEMA);
+  it("schemaValidator.loadHandoffSchema('task') 返回 templates/schema/task-handoff-schema.json 原值", () => {
+    expect(schemaValidator.loadHandoffSchema("task")).toEqual(TASK_SCHEMA);
   });
 
-  it("loadHandoffSchema('docs') 返回 docs-handoff-schema.json 原值", () => {
-    expect(loadHandoffSchema("docs")).toEqual(DOCS_SCHEMA);
+  it("schemaValidator.loadHandoffSchema('docs') 返回 docs-handoff-schema.json 原值", () => {
+    expect(schemaValidator.loadHandoffSchema("docs")).toEqual(DOCS_SCHEMA);
   });
 
   it("loadHandoffSchema 未知 schema 名 → throw unknown handoff schema", () => {
-    expect(() => loadHandoffSchema("bogus")).toThrow(/unknown handoff schema/);
+    expect(() => schemaValidator.loadHandoffSchema("bogus")).toThrow(/unknown handoff schema/);
   });
 
   it("loadHandoffNamespace 返回 engine-config#handoffNamespace 原值（workspaceRoot + 9 families）", () => {
-    const ns = loadHandoffNamespace();
+    const ns = schemaValidator.loadHandoffNamespace();
     expect(ns).toEqual(NAMESPACE);
     expect(ns.workspaceRoot).toBe(".osuperpowers/cdd");
     expect(Object.keys(ns.families)).toHaveLength(9);
@@ -54,23 +56,25 @@ describe("rules/schema.ts — loadHandoffSchema / loadHandoffNamespace canonical
 
 describe("rules/schema.ts — validateHandoffSchema", () => {
   it("合法 task handoff → { valid: true }", () => {
-    expect(validateHandoffSchema(validTask)).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema(validTask)).toEqual({ valid: true });
   });
 
   it("AC10: notes 可选字段被 schema 接受", () => {
-    expect(validateHandoffSchema({ ...validTask, notes: "re-recorded after fix" })).toEqual({
+    expect(
+      schemaValidator.validateHandoffSchema({ ...validTask, notes: "re-recorded after fix" }),
+    ).toEqual({
       valid: true,
     });
   });
 
   it("缺 required 字段 → { valid: false, reason 含 must have required property }", () => {
-    const r = validateHandoffSchema({ phase: "review", findings: [] });
+    const r = schemaValidator.validateHandoffSchema({ phase: "review", findings: [] });
     expect(r.valid).toBe(false);
     expect(r.reason).toMatch(/must have required property/);
   });
 
   it("未知键 → { valid: false, property: 键名, reason 含 unexpected key }", () => {
-    const r = validateHandoffSchema({ ...validTask, junk: 5 });
+    const r = schemaValidator.validateHandoffSchema({ ...validTask, junk: 5 });
     expect(r.valid).toBe(false);
     expect(r.property).toBe("junk");
     expect(r.reason).toContain("unexpected key: junk");
@@ -86,10 +90,20 @@ describe("P6 T24 B: finalize.ts — normalizeHandoff (single-point re-validate; 
     expect(normalizeHandoff({ ...validTask, blocker: null })).toEqual(validTask);
   });
 
-  it("③ review 族缺 status → 按 findings roll-up 派生（warn/nit → APPROVED）", () => {
+  it("③ review 族缺 status + 零 findings → 派生 APPROVED（S3 零 finding fast path 不变）", () => {
     expect(normalizeHandoff({ ...validTask, status: undefined })).toMatchObject({
       status: "APPROVED",
     });
+  });
+
+  it("③ review 族缺 status + warn-only findings → 派生 REVIEW_FIX（Task 8 收口态, #278）", () => {
+    const n = normalizeHandoff({
+      tasks: [1],
+      phase: "review",
+      artifacts: {},
+      findings: [{ severity: "warn" }],
+    });
+    expect(n).toMatchObject({ status: "REVIEW_FIX" });
   });
 
   it("③ review 族含 blocker finding → 派生 CHANGES_REQUESTED", () => {
@@ -174,15 +188,26 @@ describe("P6 T24 B: finalize.ts — recoverHandoff (CONTRACT_VIOLATION recovery 
 // fail here before it ships.
 describe("T5 AC7: handoff schema single-source core (task/docs one contract core; lane differences are only boundary objects)", () => {
   const taskProps = (
-    loadHandoffSchema("task") as { properties: Record<string, Record<string, unknown>> }
+    schemaValidator.loadHandoffSchema("task") as {
+      properties: Record<string, Record<string, unknown>>;
+    }
   ).properties;
   const docsProps = (
-    loadHandoffSchema("docs") as { properties: Record<string, Record<string, unknown>> }
+    schemaValidator.loadHandoffSchema("docs") as {
+      properties: Record<string, Record<string, unknown>>;
+    }
   ).properties;
 
-  it("status enum single-source: docs = task (BREAKING — docs status gains the TIMEOUT attribution declaration)", () => {
-    expect(docsProps.status.enum).toEqual(["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "TIMEOUT"]);
+  it("status enum single-source: docs = task (BREAKING — the REVIEW_FIX 收口态 joins the shared enum, #278)", () => {
+    expect(docsProps.status.enum).toEqual([
+      "APPROVED",
+      "BLOCKED",
+      "CHANGES_REQUESTED",
+      "REVIEW_FIX",
+      "TIMEOUT",
+    ]);
     expect(docsProps.status.enum).toEqual(taskProps.status.enum);
+    expect(String(docsProps.status.description)).toContain("REVIEW_FIX");
     expect(String(docsProps.status.description)).toContain("TIMEOUT");
     expect(String(docsProps.status.description)).toContain("terminal");
   });
@@ -222,7 +247,7 @@ describe("T5 AC7: handoff schema single-source core (task/docs one contract core
   it("docs handoff reversal (AC6): the commits-free legacy declaration is removed + a valid docs commits handoff passes schema validation", () => {
     expect(String(docsProps.changes.description)).not.toContain("carry no commits field");
     expect(
-      validateHandoffSchema(
+      schemaValidator.validateHandoffSchema(
         {
           phase: "fix",
           status: "APPROVED",
@@ -235,7 +260,7 @@ describe("T5 AC7: handoff schema single-source core (task/docs one contract core
       ),
     ).toEqual({ valid: true });
     // base must be 40-hex (same task-family pattern; non-hex rejected)
-    const r = validateHandoffSchema(
+    const r = schemaValidator.validateHandoffSchema(
       {
         phase: "fix",
         status: "APPROVED",

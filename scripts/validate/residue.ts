@@ -370,15 +370,19 @@ import { mainCommand } from "../../packages/cdd-engine/src/cli/parse.ts";
 // =====================================================================
 // The guard surfaces share a canonical source: the env direct-read whitelist (row 2) / argv flag
 // set (row 9) / failure categories and counters (row 13) all come from cdd-engine's single read
-// entry points (loadContract / FAILURE_CATEGORIES / counters), never a second literal copy in this
-// file — so the guard itself is not a carrier of the vocabulary it guards. The two row-5 old
-// root-resolver names are built by concatenation (the ⑤ target set includes scripts/, so the guard
-// body must not write the guarded words as contiguous literals or it self-hits).
+// entry points (loadContract / FAILURE_CATEGORIES / FailureResolver#counters), never a second
+// literal copy in this file — so the guard itself is not a carrier of the vocabulary it guards
+// (Task 7 ①: counters() is a FailureResolver instance method — the guard consumes the class face).
+// The two row-5 old root-resolver names are built by concatenation (the ⑤ target set includes
+// scripts/, so the guard body must not write the guarded words as contiguous literals or it
+// self-hits).
 import { loadContract } from "../../packages/cdd-engine/src/infra/context.ts";
 import {
-  counters as canonicalCounters,
   FAILURE_CATEGORIES,
+  FailureResolver,
 } from "../../packages/cdd-engine/src/rules/failure.ts";
+
+const failureResolver = new FailureResolver();
 
 const CONTRACT = loadContract();
 // Row-2 whitelist = canonical channels.env var + markers (§2.4.4-(1) 4 keys; converged after the
@@ -840,8 +844,8 @@ export function collectResidualRereadHits(targetsOverride = CDD_ENGINE_BIN) {
 // core-block unification). Nothing beyond recovery/changes/failure_category/commits + the P4.3
 // group-reference fields (tasks / findings[].task) may be added. The four field names and labels go
 // through failure-categories.json.
-const COUNTER_FIELDS = canonicalCounters().map((c) => c.field);
-const COUNTER_LABELS = canonicalCounters().map((c) => c.label);
+const COUNTER_FIELDS = failureResolver.counters().map((c) => c.field);
+const COUNTER_LABELS = failureResolver.counters().map((c) => c.label);
 const CATEGORY_IDS = Object.values(FAILURE_CATEGORIES).map((c) => c.id);
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

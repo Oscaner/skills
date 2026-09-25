@@ -13,8 +13,13 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { writeHandoff } from "../../artifacts/handoff/write.ts";
 import { captureStderr, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
-import { gitRevParseHead } from "../../infra/git.ts";
-import { reconcileChangedSurface } from "../write-boundary.ts";
+import { GitClient } from "../../infra/git.ts";
+
+const gitClient = new GitClient();
+
+import { ChangedSurfaceAuditor } from "../write-boundary.ts";
+
+const surfaceAuditor = new ChangedSurfaceAuditor();
 
 const tmpRepos: string[] = [];
 
@@ -29,7 +34,7 @@ async function tmpRepo(): Promise<{ repo: string; handoff: string; base: string 
   gitInit(repo);
   writeFileSync(path.join(repo, "seed.txt"), "0\n");
   gitCommit(repo, "seed");
-  const base = (await gitRevParseHead(repo)) as string;
+  const base = (await gitClient.revParseHead(repo)) as string;
   return { repo, handoff: path.join(repo, "task-1-handoff.json"), base };
 }
 
@@ -55,7 +60,7 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     const cap = captureStderr();
     let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
     try {
-      res = await reconcileChangedSurface("fix", repo, handoff);
+      res = await surfaceAuditor.reconcileChangedSurface("fix", repo, handoff);
     } finally {
       cap.restore();
     }
@@ -82,7 +87,7 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     const cap = captureStderr();
     let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
     try {
-      res = await reconcileChangedSurface("fix", repo, handoff);
+      res = await surfaceAuditor.reconcileChangedSurface("fix", repo, handoff);
     } finally {
       cap.restore();
     }
@@ -110,7 +115,7 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
     const cap = captureStderr();
     let res: Awaited<ReturnType<typeof reconcileChangedSurface>>;
     try {
-      res = await reconcileChangedSurface("implement", repo, handoff);
+      res = await surfaceAuditor.reconcileChangedSurface("implement", repo, handoff);
     } finally {
       cap.restore();
     }
@@ -124,13 +129,15 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
   it("review mode / no handoff / no base → skipped (null, nothing recorded)", async () => {
     const { repo, handoff, base } = await tmpRepo();
     commitChanges(repo, { "a.md": "a1\n" }, "round-a");
-    expect(await reconcileChangedSurface("review", repo, handoff)).toBeNull(); // review skips
-    expect(await reconcileChangedSurface("fix", repo, path.join(repo, "nope.json"))).toBeNull(); // no handoff
+    expect(await surfaceAuditor.reconcileChangedSurface("review", repo, handoff)).toBeNull(); // review skips
+    expect(
+      await surfaceAuditor.reconcileChangedSurface("fix", repo, path.join(repo, "nope.json")),
+    ).toBeNull(); // no handoff
     const hNoBase = path.join(repo, "task-2-handoff.json");
     writeHandoff(hNoBase, { phase: "fix", status: "APPROVED", findings: [], artifacts: {} }); // no commits.base
-    expect(await reconcileChangedSurface("fix", repo, hNoBase)).toBeNull();
+    expect(await surfaceAuditor.reconcileChangedSurface("fix", repo, hNoBase)).toBeNull();
     const hEmptyDiff = path.join(repo, "task-3-handoff.json");
-    const headAfter = (await gitRevParseHead(repo)) as string; // base == HEAD → diff is empty
+    const headAfter = (await gitClient.revParseHead(repo)) as string; // base == HEAD → diff is empty
     writeHandoff(hEmptyDiff, {
       phase: "fix",
       status: "APPROVED",
@@ -138,7 +145,7 @@ describe("rules/write-boundary.ts — reconcileChangedSurface (on-book vs off-bo
       artifacts: {},
       commits: { base: headAfter },
     });
-    expect(await reconcileChangedSurface("fix", repo, hEmptyDiff)).toBeNull(); // zero diff → nothing off-book
+    expect(await surfaceAuditor.reconcileChangedSurface("fix", repo, hEmptyDiff)).toBeNull(); // zero diff → nothing off-book
     void base;
   });
 });

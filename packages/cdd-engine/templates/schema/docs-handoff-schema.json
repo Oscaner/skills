@@ -5,7 +5,7 @@
   "required": ["phase", "findings", "artifacts", "doc_path"],
   "properties": {
     "phase":     { "type": "string", "enum": ["review", "fix"], "description": "dispatch phase (review / fix); determined by the engine, not authored." },
-    "status":    { "type": "string", "enum": ["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "TIMEOUT"], "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded (engine-written attribution; the docs channel declares the same status enum as the task family). Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field — the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status." },
+    "status":    { "type": "string", "enum": ["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "REVIEW_FIX", "TIMEOUT"], "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); REVIEW_FIX: the warn/nit-only review conclusion (收口态 — the review closed and its fix round routes the task to complete without a re-review, #278); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded (engine-written attribution; the docs channel declares the same status enum as the task family). Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. Review may omit this field — the engine derives it from findings; fix (work type) declares it and the engine passes it through. Write findings, not status." },
     "failure_category": {
       "type": "string",
       "enum": [
@@ -39,7 +39,7 @@
     },
     "doc_path":  { "type": "string", "description": "the reviewed document's exact path — must match the doc argument, do not rewrite relative forms." },
     "doc_hash":  { "type": "string", "description": "content state token (sha256 of the doc at review time); legacy handoffs may omit it." },
-    "findings":  { "type": "array", "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (review rolls up; fix keeps declared findings)." },
+    "findings":  { "type": "array", "description": "[{lens, severity, section|file, line?, summary, fix}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → REVIEW_FIX (review rolls up; fix keeps declared findings, #278)." },
     "changes": {
       "type": "array",
       "items": {

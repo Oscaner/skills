@@ -14,10 +14,12 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
-import { runTask } from "../../dispatch/task.ts";
+import { TaskLifecycle } from "../../dispatch/task.ts";
 import { commitValidDocs, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
 import { REG_PATH } from "../../infra/registry.ts";
-import { incrementRecovery, readProgressJSON } from "../progress.ts";
+import { ProgressLedger } from "../progress.ts";
+
+const ledger = new ProgressLedger();
 
 // 真仓 fixture（P4 §2.3.1 根注入契约）：root 经 runTask 的 `opts.root` 显式注入（真 mkdtemp 仓根），
 // 不调 initRoot()、不 chdir、无 env 缝。workspace 纯由 `--plan` 派生（<repo>/.osuperpowers/cdd/<slug>）。
@@ -54,13 +56,13 @@ it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orches
   writeFileSync(regPath, JSON.stringify(reg));
 
   // 前置：engineRecoveryCount == 0
-  expect(readProgressJSON(ws).engineRecoveryCount).toBe(0);
+  expect(ledger.read(ws).engineRecoveryCount).toBe(0);
 
   const origPath = process.env.PATH;
   process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
   try {
     // 触发一次 engine-level BLOCKED：嵌套 CLI 失败（exit 3）且未写 handoff → runner 自写 BLOCKED handoff
-    const res = await runTask("ghost", 1, {
+    const res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile,
       root: repo,
@@ -80,10 +82,10 @@ it("engine BLOCKED dispatch 后 engineRecoveryCount 自增（engine 写，orches
 
 it("incrementRecovery: 自增并持久化 engineRecoveryCount（缺省 0 → 1 → 2）", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cdd-recovery-help-"));
-  expect(readProgressJSON(dir).engineRecoveryCount).toBe(0);
-  incrementRecovery(dir);
-  expect(readProgressJSON(dir).engineRecoveryCount).toBe(1);
-  incrementRecovery(dir);
+  expect(ledger.read(dir).engineRecoveryCount).toBe(0);
+  ledger.incrementRecovery(dir);
+  expect(ledger.read(dir).engineRecoveryCount).toBe(1);
+  ledger.incrementRecovery(dir);
   const saved = JSON.parse(readFileSync(path.join(dir, "progress.json"), "utf8"));
   expect(saved.engineRecoveryCount).toBe(2);
 });
@@ -97,7 +99,7 @@ it("progress.json#plan 与 --plan 入参一致（program 通道首跳可解析�
   // 根经 opts.root 注入（T3 的根注入契约）——不调 initRoot()、不 process.chdir()
   // Task 8: 入口门（pre-commit 干净树）先于 dispatch —— plan 必须已提交，否则起点 dirty 直接 BLOCKED。
   gitCommit(repo);
-  const _res = await runTask("claude", 1, {
+  const _res = await TaskLifecycle.run("claude", 1, {
     mode: "implement",
     dryRun: true,
     planFile: planRel,

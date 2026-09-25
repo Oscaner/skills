@@ -11,20 +11,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { generateBrief } from "../../render/brief.ts";
-import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
+import { BriefRenderer } from "../../render/brief.ts";
+
+const briefRenderer = new BriefRenderer();
+
+import { HandoffSchemaValidator } from "../../rules/schema.ts";
+
+const schemaValidator = new HandoffSchemaValidator();
+
 import { normalizeHandoff } from "../handoff/finalize.ts";
-import {
-  appendixFromRecovery,
-  type DeadCarrierRead,
-  findResumeResidue,
-  matchesStandardStashMessage,
-  readDeadCarrier,
-  renderResidueAppendix,
-  resumeFromResidue,
-  settleResidue,
-  stashMessage,
-} from "../residue.ts";
+import { type DeadCarrierRead, ResidueManager, stashMessage } from "../residue.ts";
+
+const residueManager = new ResidueManager();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../../..");
@@ -71,20 +69,28 @@ describe("artifacts/residue.ts — standardized stash name (settleResidue output
   });
 
   it("matchesStandardStashMessage round-trips the standard and rejects bespoke/foreign names", () => {
-    expect(matchesStandardStashMessage("cdd-implement-task-task-26-r1-stalled")).toBe(true);
-    expect(matchesStandardStashMessage("cdd-review-branch-task-12-r2-stalled")).toBe(true);
+    expect(
+      residueManager.matchesStandardStashMessage("cdd-implement-task-task-26-r1-stalled"),
+    ).toBe(true);
+    expect(residueManager.matchesStandardStashMessage("cdd-review-branch-task-12-r2-stalled")).toBe(
+      true,
+    );
     // the `-task-` separator is required — dropping it (or the r<round> cause) is not a match
-    expect(matchesStandardStashMessage("cdd-implement-task-26-r1-stalled")).toBe(false);
-    expect(matchesStandardStashMessage("cdd-implement-task-task-26-r1")).toBe(false); // missing cause
+    expect(residueManager.matchesStandardStashMessage("cdd-implement-task-26-r1-stalled")).toBe(
+      false,
+    );
+    expect(residueManager.matchesStandardStashMessage("cdd-implement-task-task-26-r1")).toBe(false); // missing cause
     // T25's bespoke treasury stash (date suffix, T25 label) is NOT a standard match — the legacy
     // scan is scoped to the standardized name (documented boundary).
     expect(
-      matchesStandardStashMessage(
+      residueManager.matchesStandardStashMessage(
         "cdd-T25-implement-TIMEOUT-2026-09-20 (settleResidue+recovery WIP)",
       ),
     ).toBe(false);
-    expect(matchesStandardStashMessage("cdd-branch-fix-b4fe6d8-wip-2026-09-20")).toBe(false);
-    expect(matchesStandardStashMessage("")).toBe(false);
+    expect(
+      residueManager.matchesStandardStashMessage("cdd-branch-fix-b4fe6d8-wip-2026-09-20"),
+    ).toBe(false);
+    expect(residueManager.matchesStandardStashMessage("")).toBe(false);
   });
 });
 
@@ -92,7 +98,7 @@ describe("artifacts/residue.ts — settleResidue salvage", () => {
   it("dirty tree → stash pushed + RecoveryInfo recorded (ref + standard message + scope); WIP leaves the worktree", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, "wip.txt"), "line2\nline3\n"); // two tracked-line additions
-    const info = await settleResidue(repo, {
+    const info = await residueManager.settleResidue(repo, {
       op: "implement",
       task: 26,
       round: 1,
@@ -113,14 +119,19 @@ describe("artifacts/residue.ts — settleResidue salvage", () => {
   it("clean tree → null (nothing to salvage; the carrier writes without a recovery record)", async () => {
     const repo = setupRepo();
     expect(
-      await settleResidue(repo, { op: "implement", task: 1, round: 1, cause: "signal" }),
+      await residueManager.settleResidue(repo, {
+        op: "implement",
+        task: 1,
+        round: 1,
+        cause: "signal",
+      }),
     ).toBeNull();
   });
 
   it("T27: scope_base recorded when passed; omitted key absent when not (closed recovery schema)", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, "wip.txt"), "line2\n");
-    const withBase = await settleResidue(repo, {
+    const withBase = await residueManager.settleResidue(repo, {
       op: "implement",
       task: 27,
       round: 1,
@@ -130,7 +141,7 @@ describe("artifacts/residue.ts — settleResidue salvage", () => {
     expect(withBase?.scope_base).toBe("9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63");
     // JSON serialization keeps exactly the declared recovery keys — a round without a ledger/fallback
     // writes no scope_base key (validateHandoffSchema's closed recovery object stays satisfiable).
-    const noBase = await settleResidue(repo, {
+    const noBase = await residueManager.settleResidue(repo, {
       op: "implement",
       task: 28,
       round: 1,
@@ -143,7 +154,7 @@ describe("artifacts/residue.ts — settleResidue salvage", () => {
     // than shipping a schema-violating recovery.scope_base — the read side (resume pre-flight)
     // filters identically, so the two lanes agree. (T27)
     appendFileSync(path.join(repo, "wip.txt"), "line3\n"); // dirty the tree again — a clean tree stashes nothing
-    const badBase = await settleResidue(repo, {
+    const badBase = await residueManager.settleResidue(repo, {
       op: "implement",
       task: 29,
       round: 1,
@@ -160,11 +171,11 @@ describe("artifacts/residue.ts — dead carrier read", () => {
   it("readDeadCarrier: TIMEOUT/EXECUTION_FAILURE live; APPROVED dead; missing file → null", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-carrier-"));
     // missing file
-    expect(readDeadCarrier(path.join(dir, "nope.json"))).toBeNull();
+    expect(residueManager.readDeadCarrier(path.join(dir, "nope.json"))).toBeNull();
     // a live implement round (APPROVED) is not resume-able
     const hp = path.join(dir, "task-1-implement.json");
     writeFileSync(hp, JSON.stringify({ task: 1, phase: "implement", status: "APPROVED" }));
-    expect(readDeadCarrier(hp)).toBeNull();
+    expect(residueManager.readDeadCarrier(hp)).toBeNull();
     // TIMEOUT carrier → status + failureCategory + recovery surfaced
     writeFileSync(
       hp,
@@ -174,13 +185,13 @@ describe("artifacts/residue.ts — dead carrier read", () => {
         recovery: { residue_ref: "abc" },
       }),
     );
-    const t = readDeadCarrier(hp);
+    const t = residueManager.readDeadCarrier(hp);
     expect(t?.status).toBe("TIMEOUT");
     expect(t?.failureCategory).toBe("TIMEOUT");
     expect(t?.recovery.residue_ref).toBe("abc");
     // EXECUTION_FAILURE (BLOCKED status, mechanism channel) → still resume-able
     writeFileSync(hp, JSON.stringify({ status: "BLOCKED", failure_category: "EXECUTION_FAILURE" }));
-    const e = readDeadCarrier(hp);
+    const e = residueManager.readDeadCarrier(hp);
     expect(e?.status).toBe("BLOCKED");
     expect(e?.failureCategory).toBe("EXECUTION_FAILURE");
     expect(e?.recovery).toEqual({}); // no recovery record → empty { }
@@ -191,13 +202,13 @@ describe("artifacts/residue.ts — resume resolution", () => {
   it("findResumeResidue primary: carrier.recovery.residue_ref wins (index-independent)", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, "wip.txt"), "line2\n");
-    const info = (await settleResidue(repo, {
+    const info = (await residueManager.settleResidue(repo, {
       op: "implement",
       task: 26,
       round: 1,
       cause: "stalled",
     }))!;
-    const found = await findResumeResidue(repo, carrier({ recovery: info }), 26);
+    const found = await residueManager.findResumeResidue(repo, carrier({ recovery: info }), 26);
     expect(found?.ref).toBe(info.residue_ref);
     expect(found?.message).toBe("cdd-implement-task-task-26-r1-stalled");
   });
@@ -205,9 +216,14 @@ describe("artifacts/residue.ts — resume resolution", () => {
   it("legacy fallback: no recovery in the carrier → standardized stash-message scan matches the task's stash", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, "wip.txt"), "saved\n");
-    await settleResidue(repo, { op: "implement", task: 9, round: 1, cause: "stalled" });
+    await residueManager.settleResidue(repo, {
+      op: "implement",
+      task: 9,
+      round: 1,
+      cause: "stalled",
+    });
     // a bare TIMEOUT carrier written before the recovery field existed (no recovery object)
-    const found = await findResumeResidue(repo, carrier(), 9);
+    const found = await residueManager.findResumeResidue(repo, carrier(), 9);
     expect(found).not.toBeNull();
     expect(found!.ref).toMatch(/^stash@\{0\}$/); // matches by list ref
     expect(found!.message).toBe("cdd-implement-task-task-9-r1-stalled");
@@ -216,41 +232,48 @@ describe("artifacts/residue.ts — resume resolution", () => {
   it("legacy fallback: pinned to the task number — a Task 25 stash is NOT a Task 26 match", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, "wip.txt"), "saved\n");
-    await settleResidue(repo, { op: "implement", task: 25, round: 1, cause: "stalled" });
-    expect(await findResumeResidue(repo, carrier(), 26)).toBeNull();
+    await residueManager.settleResidue(repo, {
+      op: "implement",
+      task: 25,
+      round: 1,
+      cause: "stalled",
+    });
+    expect(await residueManager.findResumeResidue(repo, carrier(), 26)).toBeNull();
   });
 
   it("legacy fallback: a bespoke non-standard stash is NOT a match (scoped to the standardized name)", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, "wip.txt"), "bespoke\n");
     git(repo, "stash", "push", "-qm", "cdd-T25-implement-TIMEOUT-2026-09-20 (bespoke)");
-    expect(await findResumeResidue(repo, carrier(), 25)).toBeNull();
+    expect(await residueManager.findResumeResidue(repo, carrier(), 25)).toBeNull();
   });
 
   it("resumeFromResidue applies the WIP back onto the (gate-clean) worktree without dropping the stash", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, "wip.txt"), "salvaged\n");
-    const info = (await settleResidue(repo, {
+    const info = (await residueManager.settleResidue(repo, {
       op: "implement",
       task: 26,
       round: 1,
       cause: "stalled",
     }))!;
     expect(git(repo, "status", "--porcelain")).toBe(""); // salvage left the tree clean (entry-gate baseline)
-    expect(await resumeFromResidue(repo, info.residue_ref)).toBe(true);
+    expect(await residueManager.resumeFromResidue(repo, info.residue_ref)).toBe(true);
     expect(readFileSync(path.join(repo, "wip.txt"), "utf8")).toBe("line1\nsalvaged\n"); // WIP restored
     expect(git(repo, "stash", "list")).toContain("cdd-implement-task-task-26-r1-stalled"); // apply ≠ pop
   });
 
   it("resumeFromResidue fails open on an unknown ref", async () => {
     const repo = setupRepo();
-    expect(await resumeFromResidue(repo, "0000000000000000000000000000000000000000")).toBe(false);
+    expect(
+      await residueManager.resumeFromResidue(repo, "0000000000000000000000000000000000000000"),
+    ).toBe(false);
   });
 });
 
 describe("artifacts/residue.ts — appendix render (data-driven, §35 self-sufficiency)", () => {
   it("renderResidueAppendix is self-contained prose (status/cause/stash/scope + continue-not-rewrite)", () => {
-    const text = renderResidueAppendix({
+    const text = residueManager.renderResidueAppendix({
       status: "TIMEOUT",
       cause: "stalled",
       ref: "abc123",
@@ -265,7 +288,7 @@ describe("artifacts/residue.ts — appendix render (data-driven, §35 self-suffi
   });
 
   it("appendixFromRecovery distills the carrier + found match (legacy carrier → cause falls back to the failure category)", () => {
-    const input = appendixFromRecovery(carrier(), {
+    const input = residueManager.appendixFromRecovery(carrier(), {
       ref: "stash@{0}",
       message: "cdd-implement-task-26-r1-stalled",
     });
@@ -281,7 +304,7 @@ describe("artifacts/residue.ts — appendix render (data-driven, §35 self-suffi
     const planFile = path.join(dir, "plan.md");
     writeFileSync(planFile, "### Task 26: Resume test\nAcceptance: WIP restored.\n");
     const withResidue = path.join(dir, "task-26-brief.md");
-    await generateBrief(planFile, 26, withResidue, REPO_ROOT, {
+    await briefRenderer.render(planFile, 26, withResidue, REPO_ROOT, {
       status: "TIMEOUT",
       cause: "stalled",
       ref: "abc123",
@@ -294,7 +317,7 @@ describe("artifacts/residue.ts — appendix render (data-driven, §35 self-suffi
     expect(content).toContain("cdd-implement-task-26-r1-stalled");
     // no residue → no appendix section (and the brief stays byte-stable otherwise)
     const plain = path.join(dir, "task-26-plain.md");
-    await generateBrief(planFile, 26, plain, REPO_ROOT);
+    await briefRenderer.render(planFile, 26, plain, REPO_ROOT);
     expect(readFileSync(plain, "utf8")).not.toContain("Residue status");
   });
 });
@@ -318,9 +341,11 @@ describe("rules/schema.ts — recovery property contract (T7.5)", () => {
   };
 
   it("a TIMEOUT carrier with recovery validates; the key is declared in loadHandoffSchema", () => {
-    const schema = loadHandoffSchema("task") as { properties: Record<string, unknown> };
+    const schema = schemaValidator.loadHandoffSchema("task") as {
+      properties: Record<string, unknown>;
+    };
     expect(schema.properties).toHaveProperty("recovery");
-    expect(validateHandoffSchema(TIMEOUT_WITH_RECOVERY, "task").valid).toBe(true);
+    expect(schemaValidator.validateHandoffSchema(TIMEOUT_WITH_RECOVERY, "task").valid).toBe(true);
   });
 
   it("normalizeHandoff keeps recovery (schema properties now declare it — normalize strips only undeclared keys)", () => {
@@ -333,7 +358,7 @@ describe("rules/schema.ts — recovery property contract (T7.5)", () => {
       ...TIMEOUT_WITH_RECOVERY,
       recovery: { ...TIMEOUT_WITH_RECOVERY.recovery, stray: "x" },
     };
-    expect(validateHandoffSchema(bad, "task").valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema(bad, "task").valid).toBe(false);
   });
 
   it("recovery requires residue_ref (the resume pre-flight's dependency)", () => {
@@ -342,7 +367,7 @@ describe("rules/schema.ts — recovery property contract (T7.5)", () => {
       ...rest,
       recovery: { stash_message: "cdd-implement-task-26-r1-stalled", cause: "stalled" },
     };
-    expect(validateHandoffSchema(noRef, "task").valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema(noRef, "task").valid).toBe(false);
   });
 
   it("T27: recovery accepts a 40-hex scope_base (the settled ledger anchor survives round death)", () => {
@@ -353,7 +378,7 @@ describe("rules/schema.ts — recovery property contract (T7.5)", () => {
         scope_base: "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63",
       },
     };
-    expect(validateHandoffSchema(withBase, "task").valid).toBe(true);
+    expect(schemaValidator.validateHandoffSchema(withBase, "task").valid).toBe(true);
     // normalizeHandoff keeps the undeclared-until-now key (schema declares it, normalize strips
     // only keys the schema does not know)
     const out = normalizeHandoff(withBase, "task") as { recovery: Record<string, unknown> };
@@ -363,6 +388,6 @@ describe("rules/schema.ts — recovery property contract (T7.5)", () => {
       ...TIMEOUT_WITH_RECOVERY,
       recovery: { ...TIMEOUT_WITH_RECOVERY.recovery, scope_base: "not-a-sha" },
     };
-    expect(validateHandoffSchema(badBase, "task").valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema(badBase, "task").valid).toBe(false);
   });
 });

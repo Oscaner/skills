@@ -18,15 +18,14 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { captureStderr, gitCommit, gitInit } from "../../infra/__tests__/helpers.ts";
-import { gitStatusPorcelain } from "../../infra/git.ts";
+import { GitClient } from "../../infra/git.ts";
+
+const gitClient = new GitClient();
+
 import { FAILURE_CATEGORIES } from "../../rules/failure.ts";
-import {
-  matchesStandardStashMessage,
-  preserveAndAnnounceResidue,
-  recoveryEligible,
-  roundFromCarrierBasename,
-  settleFromCarrier,
-} from "../residue.ts";
+import { ResidueManager } from "../residue.ts";
+
+const residueManager = new ResidueManager();
 
 const tmpRepos: string[] = [];
 
@@ -59,16 +58,16 @@ function stashList(repo: string): string {
 
 describe("artifacts/residue.ts — recoveryEligible (save-family preservation eligibility)", () => {
   it("EXECUTION_FAILURE / TIMEOUT → eligible (the recovery-quota causes)", () => {
-    expect(recoveryEligible(FAILURE_CATEGORIES.EXECUTION_FAILURE.id)).toBe(true);
-    expect(recoveryEligible(FAILURE_CATEGORIES.TIMEOUT.id)).toBe(true);
+    expect(residueManager.recoveryEligible(FAILURE_CATEGORIES.EXECUTION_FAILURE.id)).toBe(true);
+    expect(residueManager.recoveryEligible(FAILURE_CATEGORIES.TIMEOUT.id)).toBe(true);
   });
 
   it("CONTRACT_VIOLATION / undefined / null / unknown → not eligible (no auto-swallow)", () => {
-    expect(recoveryEligible(FAILURE_CATEGORIES.CONTRACT_VIOLATION.id)).toBe(false);
-    expect(recoveryEligible(FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id)).toBe(false);
-    expect(recoveryEligible(undefined)).toBe(false);
-    expect(recoveryEligible(null)).toBe(false);
-    expect(recoveryEligible("NOPE")).toBe(false);
+    expect(residueManager.recoveryEligible(FAILURE_CATEGORIES.CONTRACT_VIOLATION.id)).toBe(false);
+    expect(residueManager.recoveryEligible(FAILURE_CATEGORIES.ENGINE_SELF_WRITTEN.id)).toBe(false);
+    expect(residueManager.recoveryEligible(undefined)).toBe(false);
+    expect(residueManager.recoveryEligible(null)).toBe(false);
+    expect(residueManager.recoveryEligible("NOPE")).toBe(false);
   });
 });
 
@@ -91,13 +90,13 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
       }),
     );
 
-    const res = await settleFromCarrier(repo, handoff, repo);
+    const res = await residueManager.settleFromCarrier(repo, handoff, repo);
     expect(res).not.toBeNull();
     expect(res!.residue_ref).toMatch(/^[0-9a-f]{40}$/);
     expect(res!.wip_stat).toEqual({ files: 2, insertions: 2, deletions: 1 });
     // The agent residue moved into the object store (tracked edit + untracked file gone); the
     // pass-through carrier stays on disk (ignored workspace) — the tree is clean again.
-    expect(await gitStatusPorcelain(repo)).toBe("");
+    expect(await gitClient.statusPorcelain(repo)).toBe("");
     expect(existsSync(handoff)).toBe(true);
     // ...and the carrier now carries the full standardized-save recovery facts (blocker untouched:
     // the facts live in the carrier, the prose stays in the blocker).
@@ -140,7 +139,7 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
       }),
     );
 
-    const res = await settleFromCarrier(repo, handoff, repo);
+    const res = await residueManager.settleFromCarrier(repo, handoff, repo);
     expect(res).not.toBeNull();
     const list = stashList(repo);
     expect(list).toContain("cdd-review-task-task-5-r3-TIMEOUT");
@@ -175,10 +174,10 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
       }),
     );
 
-    const res = await settleFromCarrier(repo, handoff, repo);
+    const res = await residueManager.settleFromCarrier(repo, handoff, repo);
     expect(res).toBeNull();
     // Discipline failures surface explicitly: the tree stays dirty and no stash appears.
-    expect(await gitStatusPorcelain(repo)).not.toBe("");
+    expect(await gitClient.statusPorcelain(repo)).not.toBe("");
     expect(stashList(repo).trim()).toBe("");
     const carrier = JSON.parse(readFileSync(handoff, "utf8"));
     expect(carrier.recovery).not.toHaveProperty("residue_ref");
@@ -210,17 +209,17 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
       }),
     );
 
-    const res = await settleFromCarrier(repo, handoff, repo);
+    const res = await residueManager.settleFromCarrier(repo, handoff, repo);
     expect(res).toBeNull();
     // No stash write happened (the tree stayed dirty — the guard skipped before any git op).
-    expect(await gitStatusPorcelain(repo)).not.toBe("");
+    expect(await gitClient.statusPorcelain(repo)).not.toBe("");
     expect(stashList(repo).trim()).toBe("");
   });
 
   it("missing handoff / null cwd → null (fail-open)", async () => {
     const { repo, handoff } = tmpRepo();
-    expect(await settleFromCarrier(repo, handoff, repo)).toBeNull(); // no carrier file
-    expect(await settleFromCarrier("", handoff, repo)).toBeNull(); // no git ops base
+    expect(await residueManager.settleFromCarrier(repo, handoff, repo)).toBeNull(); // no carrier file
+    expect(await residueManager.settleFromCarrier("", handoff, repo)).toBeNull(); // no git ops base
   });
 
   it("doc-family carrier (spec-review-2) → task defaults to 1; round from the name (r2)", async () => {
@@ -239,7 +238,7 @@ describe("artifacts/residue.ts — settleFromCarrier (save adapter: carrier + st
       }),
     );
 
-    const res = await settleFromCarrier(repo, handoff, repo);
+    const res = await residueManager.settleFromCarrier(repo, handoff, repo);
     expect(res).not.toBeNull();
     expect(stashList(repo)).toContain("cdd-review-spec-task-1-r2-EXECUTION_FAILURE");
   });
@@ -265,7 +264,7 @@ describe("artifacts/residue.ts — preserveAndAnnounceResidue (announce wrapper)
 
     const cap = captureStderr();
     try {
-      const res = await preserveAndAnnounceResidue(repo, handoff, repo);
+      const res = await residueManager.preserveAndAnnounceResidue(repo, handoff, repo);
       expect(res).not.toBeNull();
       expect(cap.text).toContain("CDD_WARN: worktree residue preserved for recovery");
       expect(cap.text).toContain(res!.residue_ref.slice(0, 7));
@@ -278,23 +277,25 @@ describe("artifacts/residue.ts — preserveAndAnnounceResidue (announce wrapper)
 
 describe("artifacts/residue.ts — roundFromCarrierBasename (the save adapter's round source)", () => {
   it("implement-family carrier (round = fixed, no {round} slot) → 1 (implement rounds are always round 1)", () => {
-    expect(roundFromCarrierBasename("tasks-5-implement.json")).toBe(1);
+    expect(residueManager.roundFromCarrierBasename("tasks-5-implement.json")).toBe(1);
   });
 
   it("round-bearing family carriers → the canonical basename's own round number", () => {
-    expect(roundFromCarrierBasename("tasks-5-review-3.json")).toBe(3);
-    expect(roundFromCarrierBasename("tasks-5-fix-2.json")).toBe(2);
-    expect(roundFromCarrierBasename("spec-review-2.json")).toBe(2);
-    expect(roundFromCarrierBasename("spec-fix-1.json")).toBe(1);
-    expect(roundFromCarrierBasename("plan-review-1.json")).toBe(1);
-    expect(roundFromCarrierBasename("plan-fix-2.json")).toBe(2);
-    expect(roundFromCarrierBasename("branch-review-faa2bc8..b4fe6d8-r1.json")).toBe(1);
-    expect(roundFromCarrierBasename("branch-fix-faa2bc8..b4fe6d8-r1.json")).toBe(1);
+    expect(residueManager.roundFromCarrierBasename("tasks-5-review-3.json")).toBe(3);
+    expect(residueManager.roundFromCarrierBasename("tasks-5-fix-2.json")).toBe(2);
+    expect(residueManager.roundFromCarrierBasename("spec-review-2.json")).toBe(2);
+    expect(residueManager.roundFromCarrierBasename("spec-fix-1.json")).toBe(1);
+    expect(residueManager.roundFromCarrierBasename("plan-review-1.json")).toBe(1);
+    expect(residueManager.roundFromCarrierBasename("plan-fix-2.json")).toBe(2);
+    expect(residueManager.roundFromCarrierBasename("branch-review-faa2bc8..b4fe6d8-r1.json")).toBe(
+      1,
+    );
+    expect(residueManager.roundFromCarrierBasename("branch-fix-faa2bc8..b4fe6d8-r1.json")).toBe(1);
   });
 
   it("unclassifiable basenames → null (the save is never fabricated for a foreign carrier)", () => {
-    expect(roundFromCarrierBasename("tasks-1-handoff.json")).toBeNull();
-    expect(roundFromCarrierBasename("notes.md")).toBeNull();
+    expect(residueManager.roundFromCarrierBasename("tasks-1-handoff.json")).toBeNull();
+    expect(residueManager.roundFromCarrierBasename("notes.md")).toBeNull();
   });
 });
 
@@ -316,7 +317,7 @@ describe("artifacts/residue.ts — standardized stash message on the adapter sav
       }),
     );
 
-    const res = await settleFromCarrier(repo, handoff, repo);
+    const res = await residueManager.settleFromCarrier(repo, handoff, repo);
     expect(res).not.toBeNull();
     const list = stashList(repo);
     expect(list).toContain("cdd-fix-task-task-5-r2-EXECUTION_FAILURE"); // round 2 lives IN the name
@@ -329,11 +330,19 @@ describe("artifacts/residue.ts — resume-scan boundary (category-id causes are 
   // id as the message cause — they are operator-recovered via `git stash list`, and their never-
   // matching shape is protective: a stale review/fix stash can never be misresumed by a task-N scan.
   it("review/fix lane standardized messages (category-id cause) do not match the resume scan", () => {
-    expect(matchesStandardStashMessage("cdd-review-task-task-5-r3-TIMEOUT")).toBe(false);
-    expect(matchesStandardStashMessage("cdd-fix-task-task-5-r2-EXECUTION_FAILURE")).toBe(false);
-    expect(matchesStandardStashMessage("cdd-review-spec-task-1-r2-EXECUTION_FAILURE")).toBe(false);
+    expect(residueManager.matchesStandardStashMessage("cdd-review-task-task-5-r3-TIMEOUT")).toBe(
+      false,
+    );
+    expect(
+      residueManager.matchesStandardStashMessage("cdd-fix-task-task-5-r2-EXECUTION_FAILURE"),
+    ).toBe(false);
+    expect(
+      residueManager.matchesStandardStashMessage("cdd-review-spec-task-1-r2-EXECUTION_FAILURE"),
+    ).toBe(false);
     // implement-lane salvage causes remain the resume scan's match surface
-    expect(matchesStandardStashMessage("cdd-implement-task-task-1-r1-over-budget")).toBe(true);
+    expect(
+      residueManager.matchesStandardStashMessage("cdd-implement-task-task-1-r1-over-budget"),
+    ).toBe(true);
   });
 });
 
@@ -411,7 +420,7 @@ describe("residue guards (§35 stage-anchor zero / discard-or-commit zero / two-
           blocker: "b",
         }),
       );
-      const res = await settleFromCarrier(repo, handoff, repo);
+      const res = await residueManager.settleFromCarrier(repo, handoff, repo);
       expect(res).not.toBeNull();
       const carrier = JSON.parse(readFileSync(handoff, "utf8"));
       expect(carrier.recovery.exit_code).toBe(code);

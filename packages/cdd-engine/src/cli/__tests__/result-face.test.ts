@@ -54,3 +54,23 @@ it("docsResultFace: null handoff → empty status + blocker 0 (defensive; runDoc
   );
   expect(face).toBe("status:  · blocker: 0 · handoff: /repo/.osuperpowers/cdd/foo/plan-fix-1.json");
 });
+
+it("docsResultFace: REVIEW_FIX 收口态 status 行呈现（Task 8 ⑥ — 调度结果可见性）", () => {
+  const face = docsResultFace(
+    {
+      exitCode: 0,
+      handoff: {
+        status: "REVIEW_FIX",
+        findings: [
+          { severity: "warn", summary: "w" },
+          { severity: "nit", summary: "n" },
+        ],
+        artifacts: {},
+      },
+    },
+    "/repo/.osuperpowers/cdd/foo/spec-review-1.json",
+  );
+  expect(face).toBe(
+    "status: REVIEW_FIX · blocker: 0 · handoff: /repo/.osuperpowers/cdd/foo/spec-review-1.json",
+  );
+});

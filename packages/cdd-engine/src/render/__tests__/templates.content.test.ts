@@ -7,7 +7,9 @@
 // slots (门面去路径化), shared commit/evidence prose.
 import { describe, expect, it } from "vitest";
 
-import { docsFixHardGate, renderModePrompt, renderTemplate, reviewHardGate } from "../templates.ts";
+import { TemplateLoader } from "../templates.ts";
+
+const templates = new TemplateLoader();
 
 const IMPLEMENT_PARAMS = {
   WORKSPACE: "/ws/osuperpowers-overhaul-p6",
@@ -36,20 +38,20 @@ const returnZoneOf = (prompt: string): string =>
 
 function fixtureRenders(): Record<string, string> {
   return {
-    implement: renderModePrompt("implement", IMPLEMENT_PARAMS),
-    fix: renderModePrompt("fix", {
+    implement: templates.renderModePrompt("implement", IMPLEMENT_PARAMS),
+    fix: templates.renderModePrompt("fix", {
       ...IMPLEMENT_PARAMS,
       HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-fix-1.json",
       FINDINGS: "/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json",
       FIXED_POINT: "7a7327b",
     }),
-    taskReview: renderModePrompt("review", {
+    taskReview: templates.renderModePrompt("review", {
       WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
       WORKSPACE_SLUG: IMPLEMENT_PARAMS.WORKSPACE_SLUG,
       HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/tasks-7-review-1.json",
       FIXED_POINT: "7a7327b",
     }),
-    docsReview: renderTemplate("review", {
+    docsReview: templates.renderTemplate("review", {
       MODE: "review",
       REVIEW_TYPE: "spec",
       WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
@@ -62,12 +64,12 @@ function fixtureRenders(): Record<string, string> {
       FINDINGS: "",
       HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
       RETURN_FORMAT: "RETURN_JSON",
-      HANDOFF_WRITE_GATE: reviewHardGate(
+      HANDOFF_WRITE_GATE: templates.reviewHardGate(
         "RETURN_JSON",
         "/ws/osuperpowers-overhaul-p6/spec-review-1.json",
       ),
     }),
-    docsFix: renderTemplate("fix", {
+    docsFix: templates.renderTemplate("fix", {
       MODE: "fix",
       REVIEW_TYPE: "",
       WORKSPACE: IMPLEMENT_PARAMS.WORKSPACE,
@@ -81,7 +83,7 @@ function fixtureRenders(): Record<string, string> {
       FIXED_POINT: "7a7327b",
       HANDOFF_TARGET: "/ws/osuperpowers-overhaul-p6/spec-fix-1.json",
       RETURN_FORMAT: "DOCS_FIX",
-      HANDOFF_WRITE_GATE: docsFixHardGate("/ws/osuperpowers-overhaul-p6/spec-fix-1.json"),
+      HANDOFF_WRITE_GATE: templates.docsFixHardGate("/ws/osuperpowers-overhaul-p6/spec-fix-1.json"),
     }),
   };
 }
@@ -134,7 +136,7 @@ describe("unified constant shell（Task 20 ①）：字面头跨模式字节恒�
     expect(taskSchema).not.toBe(docsSchema);
   });
 
-  it("WORKSPACE_SLUG 槽就位（⑦ canonical slug）：renderModePrompt(implement) 渲染实值", () => {
+  it("WORKSPACE_SLUG 槽就位（⑦ canonical slug）：templates.renderModePrompt(implement) 渲染实值", () => {
     expect(renders.implement).toContain("- `WORKSPACE_SLUG`: osuperpowers-overhaul-p6");
   });
 

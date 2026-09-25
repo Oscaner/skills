@@ -4,15 +4,20 @@ import { normalizeHandoff, recoverHandoff } from "../../artifacts/handoff/finali
 // The CONTRACT_VIOLATION recovery unit (normalizeHandoff / recoverHandoff) moved out of
 // rules/schema.ts into artifacts/handoff/finalize.ts (the module of its applyDerivedStatus caller);
 // the validator stays on rules/schema.ts — the imports below track the new homes. (P6 Task 24 B)
-import { loadHandoffSchema, validateHandoffSchema } from "../../rules/schema.ts";
-import { renderHandoffSchemaJson } from "../templates.ts";
+import { HandoffSchemaValidator } from "../../rules/schema.ts";
+
+const schemaValidator = new HandoffSchemaValidator();
+
+import { TemplateLoader } from "../templates.ts";
+
+const templates = new TemplateLoader();
 
 // ---- renderHandoffSchemaJson = verbatim schema injection (no render, no interpreter, no second validator) (Task 18) ----
 
 describe("renderHandoffSchemaJson — schema 原样注入", () => {
   it("stub = schema 本体的 ```json 块：解析后逐键相等、description 随附", () => {
-    const schema = loadHandoffSchema("task");
-    const stub = renderHandoffSchemaJson(schema);
+    const schema = schemaValidator.loadHandoffSchema("task");
+    const stub = templates.renderHandoffSchemaJson(schema);
     expect(stub.startsWith("```json\n")).toBe(true); // 载体是 json（非 jsonc：schema 本体无注释行可复制）
     expect(stub.endsWith("\n```")).toBe(true);
     const parsed = JSON.parse(stub.replace(/^```json\n/, "").replace(/\n```$/, ""));
@@ -22,7 +27,7 @@ describe("renderHandoffSchemaJson — schema 原样注入", () => {
 
   it("两份 schema 顶层 + 逐 property 均有 description（写协议规则迁入 schema）", () => {
     for (const name of ["task", "docs"]) {
-      const schema = loadHandoffSchema(name);
+      const schema = schemaValidator.loadHandoffSchema(name);
       expect(schema.description, name).toMatch(/\S/);
       for (const [key, prop] of Object.entries(schema.properties ?? {})) {
         expect(prop.description, `${name}#${key}`).toMatch(/\S/);
@@ -31,9 +36,10 @@ describe("renderHandoffSchemaJson — schema 原样注入", () => {
   });
 
   it("stub 与 schema 键集同构（不新增不删减：注入面 = 契约面）", () => {
-    const schema = loadHandoffSchema("task");
+    const schema = schemaValidator.loadHandoffSchema("task");
     const parsed = JSON.parse(
-      renderHandoffSchemaJson(schema)
+      templates
+        .renderHandoffSchemaJson(schema)
         .replace(/^```json\n/, "")
         .replace(/\n```$/, ""),
     );
@@ -41,19 +47,19 @@ describe("renderHandoffSchemaJson — schema 原样注入", () => {
   });
 
   it("commits.head 为 schema 契约键（写协议规则迁入：full 40-char SHA）", () => {
-    const schema = loadHandoffSchema("task");
+    const schema = schemaValidator.loadHandoffSchema("task");
     expect(schema.properties.commits.properties.head.description).toMatch(/40-char|SHort|--short/i);
     // head 是可选的（required 仍只有 base —— branch 派发省略 head 仍合法）
     expect(schema.properties.commits.required).toEqual(["base"]);
   });
 
   it("status 描述承载 engine 派生语义（Write findings, not status）", () => {
-    const schema = loadHandoffSchema("task");
+    const schema = schemaValidator.loadHandoffSchema("task");
     expect(schema.properties.status.description).toMatch(/findings, not status/i);
   });
 
   it("blocker 描述：无阻塞时省略（非 null）", () => {
-    const schema = loadHandoffSchema("docs");
+    const schema = schemaValidator.loadHandoffSchema("docs");
     expect(schema.properties.blocker.description).toMatch(/omit|省略/i);
   });
 });
@@ -63,7 +69,7 @@ describe("renderHandoffSchemaJson — schema 原样注入", () => {
 describe("validateHandoffSchema — 失败形态与磁盘契约一致（不改名）", () => {
   it("失败返回 `valid`（非 `ok`），且 `reason` 含违规键名", () => {
     // task required = task / phase / artifacts / findings；`review_notes` 触发 additionalProperties:false
-    const r = validateHandoffSchema(
+    const r = schemaValidator.validateHandoffSchema(
       { tasks: [1], phase: "review", artifacts: {}, findings: [], review_notes: "x" },
       "task",
     );
@@ -74,7 +80,7 @@ describe("validateHandoffSchema — 失败形态与磁盘契约一致（不改�
   it("通过时返回 `{ valid: true }`（形态不变）", () => {
     // docs required = phase / findings / artifacts / doc_path
     expect(
-      validateHandoffSchema(
+      schemaValidator.validateHandoffSchema(
         { phase: "review", doc_path: "x.md", findings: [], artifacts: {} },
         "docs",
       ).valid,
@@ -91,10 +97,10 @@ describe("normalizeHandoff — 归一化 → 重校验单点（三个 runner 同
       findings: [{ severity: "warn" }],
       review_notes: "x",
     };
-    expect(validateHandoffSchema(raw, "task").valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema(raw, "task").valid).toBe(false);
     const fixed = normalizeHandoff(raw, "task");
     expect(fixed).not.toHaveProperty("review_notes");
-    expect(validateHandoffSchema(fixed, "task").valid).toBe(true);
+    expect(schemaValidator.validateHandoffSchema(fixed, "task").valid).toBe(true);
     // findings 全额保留（AC7 类目级要求；不得在恢复路径上被清空）
     expect(fixed.findings).toEqual([{ severity: "warn" }]);
   });
@@ -104,7 +110,7 @@ describe("normalizeHandoff — 归一化 → 重校验单点（三个 runner 同
       "task",
     );
     expect(fixed).not.toHaveProperty("blocker");
-    expect(validateHandoffSchema(fixed, "task").valid).toBe(true);
+    expect(schemaValidator.validateHandoffSchema(fixed, "task").valid).toBe(true);
   });
   it("review 族缺 status → 按 findings roll-up 派生补上（work 型不补——schema else 分支强制 agent 声明）", () => {
     const base = { tasks: [1], artifacts: {}, findings: [{ severity: "blocker" }] };
@@ -127,7 +133,7 @@ describe("normalizeHandoff — 归一化 → 重校验单点（三个 runner 同
     const raw = { tasks: [1], phase: "review", artifacts: {}, findings: "none" };
     const out = normalizeHandoff(raw, "task");
     expect(out.status).toBe("APPROVED"); // rollup 收到守卫后的 []
-    expect(validateHandoffSchema(out, "task").valid).toBe(false); // 归一化不可救 → 调用方走 BLOCKED
+    expect(schemaValidator.validateHandoffSchema(out, "task").valid).toBe(false); // 归一化不可救 → 调用方走 BLOCKED
     for (const bad of ["x", {}, 7, null]) {
       expect(() =>
         normalizeHandoff({ ...raw, findings: bad, unverifiable: bad, plan_conflicts: bad }, "task"),
@@ -195,7 +201,7 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
         artifacts: {},
         blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
       };
-      const r = validateHandoffSchema(payload, "task");
+      const r = schemaValidator.validateHandoffSchema(payload, "task");
       expect(r.valid, `${JSON.stringify(bad)} → ${r.reason}`).toBe(true);
     }
     // 顶层数组不是 findings 字段（收口为 `{}` → 无 findings 可留，与「无 findings 可留 → []」同语义）；
@@ -261,9 +267,10 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
         artifacts: {},
         blocker: `handoff schema invalid${rec.reason} → fix the handoff JSON and re-dispatch task 1`,
       };
-      expect(validateHandoffSchema(taskPayload, "task").valid, `run-task 形（${rec.reason}）`).toBe(
-        true,
-      );
+      expect(
+        schemaValidator.validateHandoffSchema(taskPayload, "task").valid,
+        `run-task 形（${rec.reason}）`,
+      ).toBe(true);
       // ② docs writeBlocked（src/dispatch/docs.ts）——doc_path/doc_hash 为引擎真值
       const docsPayload = {
         phase: "review",
@@ -274,9 +281,10 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
         doc_hash: "abcd",
         blocker: `docs handoff schema invalid${rec.reason} → fix the handoff JSON and re-run review`,
       };
-      expect(validateHandoffSchema(docsPayload, "docs").valid, `docs 形（${rec.reason}）`).toBe(
-        true,
-      );
+      expect(
+        schemaValidator.validateHandoffSchema(docsPayload, "docs").valid,
+        `docs 形（${rec.reason}）`,
+      ).toBe(true);
       // ③ branch-review writeBranchBlocked（src/cli/branch-review.ts）——commits 仅 base 全形时写入
       const branchPayload = {
         tasks: [1],
@@ -287,9 +295,10 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
         artifacts: {},
         blocker: `branch-review handoff schema invalid${rec.reason} → fix and re-run branch-review`,
       };
-      expect(validateHandoffSchema(branchPayload, "task").valid, `branch 形（${rec.reason}）`).toBe(
-        true,
-      );
+      expect(
+        schemaValidator.validateHandoffSchema(branchPayload, "task").valid,
+        `branch 形（${rec.reason}）`,
+      ).toBe(true);
     });
   }
   it("回归锚：`{...rec.handoff, …}` spread 组装在声明键违规输入上必然 invalid（spread 面即缺陷根）", () => {
@@ -311,7 +320,9 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
       artifacts: rec.handoff.artifacts ?? {},
       blocker: `handoff schema invalid${rec.reason} → ...`,
     };
-    expect(validateHandoffSchema(legacy, "task").valid).toBe(false);
-    expect(validateHandoffSchema(legacy, "task").reason).toMatch(/notes must be string/);
+    expect(schemaValidator.validateHandoffSchema(legacy, "task").valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema(legacy, "task").reason).toMatch(
+      /notes must be string/,
+    );
   });
 });

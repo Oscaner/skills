@@ -11,13 +11,13 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { gitCatFileCommitExists } from "../../infra/git.ts";
-import {
-  DRY_RUN_DIRTY_WARN,
-  entryGateCleanTree,
-  rewriteHandoffBlocked,
-  validateCommitContract,
-} from "../commit.ts";
+import { GitClient } from "../../infra/git.ts";
+
+const gitClient = new GitClient();
+
+import { CommitChecker, DRY_RUN_DIRTY_WARN } from "../commit.ts";
+
+const commitChecker = new CommitChecker();
 
 function git(repo: string, ...args: string[]) {
   return execFileSync("git", ["-C", repo, ...args], {
@@ -63,7 +63,7 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
   it("dirty implement → ok:false（uncommitted changes at return）", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-    const r = await validateCommitContract("implement", repo);
+    const r = await commitChecker.validateCommitContract("implement", repo);
     expect(r.ok).toBe(false);
     expect(r.blocker).toMatch(/uncommitted changes at return/);
   });
@@ -72,7 +72,7 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
     const repo = setupRepo();
     const head = headOf(repo);
     const handoff = seedHandoff(repo, 1, { base: head, head });
-    const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
+    const r = await commitChecker.validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(true);
     expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("DONE");
   });
@@ -86,14 +86,14 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
       handoff,
       JSON.stringify({ status: "APPROVED", phase: "fix", task: 1, commits: { base: head, head } }),
     );
-    const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
+    const r = await commitChecker.validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(true);
     expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("APPROVED");
   });
 
   it("clean tree + 无 handoff 路径（readJson null）→ ok:true（fail-open）", async () => {
     const repo = setupRepo();
-    const r = await validateCommitContract("implement", repo, {
+    const r = await commitChecker.validateCommitContract("implement", repo, {
       handoffPath: path.join(repo, "cdd", "no-such.json"),
     });
     expect(r.ok).toBe(true);
@@ -106,7 +106,7 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
       base: head,
       head: "0000000000000000000000000000000000000000",
     });
-    const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
+    const r = await commitChecker.validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(false);
     expect(r.blocker).toMatch(/handoff commits.head .* does not match HEAD/);
     expect(JSON.parse(readFileSync(handoff, "utf8")).status).toBe("BLOCKED");
@@ -115,7 +115,7 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
   it("handoff.head=dry-run → head-mismatch（哨兵已移除，对齐 bash）", async () => {
     const repo = setupRepo();
     const handoff = seedHandoff(repo, 1, { base: "dry-run", head: "dry-run" });
-    const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
+    const r = await commitChecker.validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(false);
     expect(r.blocker).toMatch(/handoff commits.head dry-run does not match HEAD/);
   });
@@ -124,7 +124,7 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
     const repo = setupRepo();
     const head = headOf(repo);
     const handoff = seedHandoff(repo, 1, { base: head, head: head.slice(0, 7) });
-    const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
+    const r = await commitChecker.validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(true);
   });
 
@@ -132,7 +132,7 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
     const repo = setupRepo();
     const head = headOf(repo);
     const handoff = seedHandoff(repo, 1, { base: head, head: "0000000" });
-    const r = await validateCommitContract("fix", repo, { handoffPath: handoff });
+    const r = await commitChecker.validateCommitContract("fix", repo, { handoffPath: handoff });
     expect(r.ok).toBe(false);
     expect(r.blocker).toMatch(/does not match HEAD/);
   });
@@ -140,7 +140,7 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
   it("review 模式 → dirty tree BLOCKED（review 亦校验 dirty）", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-    const r = await validateCommitContract("review", repo);
+    const r = await commitChecker.validateCommitContract("review", repo);
     expect(r.ok).toBe(false);
     expect(r.blocker).toMatch(/uncommitted changes at return \(review\)/);
   });
@@ -152,50 +152,50 @@ describe("rules/commit.ts — 出口门 validateCommitContract（仅底层换 si
       base: head,
       head: "0000000000000000000000000000000000000000",
     });
-    const r = await validateCommitContract("review", repo, { handoffPath: handoff });
+    const r = await commitChecker.validateCommitContract("review", repo, { handoffPath: handoff });
     expect(r.ok).toBe(true);
   });
 
   it("非 git 目录 → fail-open ok:true", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-nogit-ts-"));
-    const r = await validateCommitContract("fix", dir, {
+    const r = await commitChecker.validateCommitContract("fix", dir, {
       handoffPath: path.join(dir, "task-1-handoff.json"),
     });
     expect(r.ok).toBe(true);
   });
 
   it("无 repoRoot → fail-open ok:true（不得误检 caller cwd）", async () => {
-    expect((await validateCommitContract("implement", null)).ok).toBe(true);
+    expect((await commitChecker.validateCommitContract("implement", null)).ok).toBe(true);
   });
 
   it("未知 mode 名 → no-op ok:true", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-    const r = await validateCommitContract("bogus", repo);
+    const r = await commitChecker.validateCommitContract("bogus", repo);
     expect(r.ok).toBe(true);
   });
 
   it("gitCatFileCommitExists（infra 底层）：real commit → true / phantom → false / 空 → false", async () => {
     const repo = setupRepo();
     const sha = headOf(repo);
-    expect(await gitCatFileCommitExists(repo, sha)).toBe(true);
-    expect(await gitCatFileCommitExists(repo, "0000000000000000000000000000000000000000")).toBe(
-      false,
-    );
-    expect(await gitCatFileCommitExists(repo, "")).toBe(false);
+    expect(await gitClient.catFileCommitExists(repo, sha)).toBe(true);
+    expect(
+      await gitClient.catFileCommitExists(repo, "0000000000000000000000000000000000000000"),
+    ).toBe(false);
+    expect(await gitClient.catFileCommitExists(repo, "")).toBe(false);
   });
 });
 
 describe("rules/commit.ts — 入口门 entryGateCleanTree（pre-commit 干净树判定）", () => {
   it("clean tree → ok:true", async () => {
     const repo = setupRepo();
-    expect(await entryGateCleanTree(repo)).toEqual({ ok: true, blocker: "" });
+    expect(await commitChecker.entryGateCleanTree(repo)).toEqual({ ok: true, blocker: "" });
   });
 
   it("dirty tree → ok:false（BLOCKED 信号；指引提交/丢弃后重试）", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-    const r = await entryGateCleanTree(repo);
+    const r = await commitChecker.entryGateCleanTree(repo);
     expect(r.ok).toBe(false);
     expect(r.blocker).toMatch(/uncommitted changes at entry/);
   });
@@ -206,7 +206,7 @@ describe("rules/commit.ts — 入口门 entryGateCleanTree（pre-commit 干净�
   it("dirty tree + dryRun → ok:true + warn 消息（不 BLOCK；模拟走完）", async () => {
     const repo = setupRepo();
     appendFileSync(path.join(repo, ".gitignore"), "dirty\n");
-    const r = await entryGateCleanTree(repo, { dryRun: true });
+    const r = await commitChecker.entryGateCleanTree(repo, { dryRun: true });
     expect(r.ok).toBe(true);
     expect(r.blocker).toBe("");
     expect(r.warn).toBe(DRY_RUN_DIRTY_WARN); // 单点常量：判断与测试共享同一措辞（重写即双面同步红）
@@ -214,7 +214,7 @@ describe("rules/commit.ts — 入口门 entryGateCleanTree（pre-commit 干净�
 
   it("clean tree + dryRun → ok:true 且无 warn（干净树无降级可言）", async () => {
     const repo = setupRepo();
-    const r = await entryGateCleanTree(repo, { dryRun: true });
+    const r = await commitChecker.entryGateCleanTree(repo, { dryRun: true });
     expect(r.ok).toBe(true);
     expect(r.blocker).toBe("");
     expect(r.warn).toBeUndefined();
@@ -222,13 +222,19 @@ describe("rules/commit.ts — 入口门 entryGateCleanTree（pre-commit 干净�
 
   it("非 git 目录 → fail-open ok:true", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-entry-nogit-"));
-    expect(await entryGateCleanTree(dir)).toEqual({ ok: true, blocker: "" });
-    expect(await entryGateCleanTree(dir, { dryRun: true })).toEqual({ ok: true, blocker: "" });
+    expect(await commitChecker.entryGateCleanTree(dir)).toEqual({ ok: true, blocker: "" });
+    expect(await commitChecker.entryGateCleanTree(dir, { dryRun: true })).toEqual({
+      ok: true,
+      blocker: "",
+    });
   });
 
   it("无 repoRoot → fail-open ok:true", async () => {
-    expect(await entryGateCleanTree(null)).toEqual({ ok: true, blocker: "" });
-    expect(await entryGateCleanTree(null, { dryRun: true })).toEqual({ ok: true, blocker: "" });
+    expect(await commitChecker.entryGateCleanTree(null)).toEqual({ ok: true, blocker: "" });
+    expect(await commitChecker.entryGateCleanTree(null, { dryRun: true })).toEqual({
+      ok: true,
+      blocker: "",
+    });
   });
 });
 
@@ -237,7 +243,7 @@ describe("rules/commit.ts — rewriteHandoffBlocked（BLOCKED 重写载荷）", 
     const dir = mkdtempSync(path.join(tmpdir(), "cdd-rewrite-"));
     const p = path.join(dir, "task-1-implement.json");
     writeFileSync(p, JSON.stringify({ task: 1, status: "DONE" }));
-    rewriteHandoffBlocked(p, "boom");
+    commitChecker.rewriteHandoffBlocked(p, "boom");
     const h = JSON.parse(readFileSync(p, "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.blocker).toBe("boom");
@@ -245,7 +251,9 @@ describe("rules/commit.ts — rewriteHandoffBlocked（BLOCKED 重写载荷）", 
   });
 
   it("无 path → no-op（去 path 守卫）", () => {
-    expect(() => rewriteHandoffBlocked("", "boom")).not.toThrow();
-    expect(() => rewriteHandoffBlocked(undefined as unknown as string, "boom")).not.toThrow();
+    expect(() => commitChecker.rewriteHandoffBlocked("", "boom")).not.toThrow();
+    expect(() =>
+      commitChecker.rewriteHandoffBlocked(undefined as unknown as string, "boom"),
+    ).not.toThrow();
   });
 });

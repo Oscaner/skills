@@ -30,17 +30,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import {
-  effectiveGroups,
-  extractClaimRows,
-  formatDocFailures,
-  isInflightText,
-  isPendingText,
-  parseOverall,
-  taskGroupsFromPlan,
-  taskNumbersFromPlan,
-  validateDispatchDocuments,
-} from "../documents.ts";
+import { DocumentsValidator } from "../documents.ts";
+
+const documentsValidator = new DocumentsValidator();
 
 function repoDir(): string {
   return mkdtempSync(path.join(tmpdir(), "cdd-docs-"));
@@ -114,7 +106,7 @@ function writeChain(
 }
 
 function run(c: Chain, entry?: string) {
-  return validateDispatchDocuments({ entry: entry ?? c.plan, root: c.repo });
+  return documentsValidator.validateDispatchDocuments({ entry: entry ?? c.plan, root: c.repo });
 }
 
 function fieldNames(c: Chain, entry?: string): string[] {
@@ -189,8 +181,8 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
 
   it("no `## Task Groups` section → empty default: [] declared + per-task singleton groups (pre-P4.3 equivalence)", () => {
     const p = planFile(TASKS);
-    expect(taskGroupsFromPlan(p)).toEqual([]);
-    expect(effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
+    expect(documentsValidator.taskGroupsFromPlan(p)).toEqual([]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2", "3"]);
   });
 
   it("merged groups parse — one `- **Task 1, 2**:` bullet per group, number list ascending + deduped", () => {
@@ -204,7 +196,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
         "",
       ].join("\n"),
     );
-    expect(taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2", "3"]);
+    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2", "3"]);
   });
 
   it("section boundary — the next `##` heading / `---` rule / prose without a group line terminates the parse", () => {
@@ -223,7 +215,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
         "tail",
       ].join("\n"),
     );
-    expect(taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2"]);
+    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1,2"]);
   });
 
   it("declared groups replace the singleton set verbatim → effectiveGroups = the declared groups", () => {
@@ -238,7 +230,7 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
       ].join("\n"),
     );
     // effectiveGroups derives from the section, never fabricating singletons in the declared branch
-    expect(effectiveGroups(p).map((g) => g.key())).toEqual(["1,2", "3,4"]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1,2", "3,4"]);
   });
 
   it("a length-1 declared line is parse-tolerated and surfaces in effectiveGroups — the >= 2 floor is schema minItems + write-back, never the parser", () => {
@@ -257,8 +249,8 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
     // taskGroups.items.tasks.minItems + the adjudication write-back judgment (plan.json description:
     // a length-1 group never lands on disk — the single-group state exists only as the empty
     // default), not in this derivation.
-    expect(taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1", "2,3"]);
-    expect(effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2,3"]);
+    expect(documentsValidator.taskGroupsFromPlan(p).map((g) => g.key())).toEqual(["1", "2,3"]);
+    expect(documentsValidator.effectiveGroups(p).map((g) => g.key())).toEqual(["1", "2,3"]);
   });
 
   it("有效分区 == 全 task 号集覆盖 guard (P4.4: the effective-group union is the plan task set — declared or empty-default)", () => {
@@ -274,8 +266,10 @@ describe("taskGroupsFromPlan / effectiveGroups — dispatch-group declaration (P
     );
     const empty = planFile("# Plan\n\n### Task 1: a\n\n### Task 2: b\n\n### Task 3: c\n");
     for (const p of [declared, empty]) {
-      const union = [...new Set(effectiveGroups(p).flatMap((g) => [...g]))].sort((a, b) => a - b);
-      expect(union).toEqual(taskNumbersFromPlan(p)); // every plan task lands in exactly one effective group
+      const union = [...new Set(documentsValidator.effectiveGroups(p).flatMap((g) => [...g]))].sort(
+        (a, b) => a - b,
+      );
+      expect(union).toEqual(documentsValidator.taskNumbersFromPlan(p)); // every plan task lands in exactly one effective group
     }
   });
 });
@@ -547,7 +541,9 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
       ].join("\n"),
       planName: "2026-09-21-plan-p2.3.md",
     });
-    const { planClaims } = extractClaimRows(parseOverall(c.overall).historyRows);
+    const { planClaims } = documentsValidator.extractClaimRows(
+      documentsValidator.parseOverall(c.overall).historyRows,
+    );
     expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
   });
 
@@ -771,16 +767,16 @@ describe("four-table audit — faces ①-⑥ each with an illegal state → BLOC
 
 describe("plan column three-state — `[Pending]` → `[In-flight]` → `**Done**` (P4.3 Task 8)", () => {
   it("isPendingText / isInflightText — the three-state recognition (pending vs in-flight vs shipped)", () => {
-    expect(isPendingText("[Pending]")).toBe(true);
-    expect(isPendingText("Pending")).toBe(true);
-    expect(isPendingText("")).toBe(true);
-    expect(isInflightText("[In-flight]")).toBe(true);
-    expect(isInflightText("In-flight")).toBe(true);
-    expect(isPendingText("[In-flight]")).toBe(false);
-    expect(isPendingText("In-flight")).toBe(false);
-    expect(isInflightText("[Pending]")).toBe(false);
-    expect(isInflightText("Done")).toBe(false);
-    expect(isInflightText("**Done**")).toBe(false);
+    expect(documentsValidator.isPendingText("[Pending]")).toBe(true);
+    expect(documentsValidator.isPendingText("Pending")).toBe(true);
+    expect(documentsValidator.isPendingText("")).toBe(true);
+    expect(documentsValidator.isInflightText("[In-flight]")).toBe(true);
+    expect(documentsValidator.isInflightText("In-flight")).toBe(true);
+    expect(documentsValidator.isPendingText("[In-flight]")).toBe(false);
+    expect(documentsValidator.isPendingText("In-flight")).toBe(false);
+    expect(documentsValidator.isInflightText("[Pending]")).toBe(false);
+    expect(documentsValidator.isInflightText("Done")).toBe(false);
+    expect(documentsValidator.isInflightText("**Done**")).toBe(false);
   });
 
   // A self-contained three-state overall: P1 flows [Pending] → [In-flight] → **Done**, P2 pending
@@ -903,7 +899,7 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
   }
 
   it("a prose-mentioned phase in the SAME claim clause is not a target (window scan, not whole-clause)", () => {
-    const { planClaims, proseHints } = extractClaimRows([
+    const { planClaims, proseHints } = documentsValidator.extractClaimRows([
       row("P1 Implementation plan 列回填（[Pending]→Done）+ Dependency graph P1→P3 边"),
     ]);
     expect([...planClaims.keys()]).toEqual(["P1"]);
@@ -912,14 +908,14 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
   });
 
   it("two comma-joined claims in one clause attribute phases via successive windows", () => {
-    const { planClaims } = extractClaimRows([
+    const { planClaims } = documentsValidator.extractClaimRows([
       row("P1 Implementation plan 列回填（[Pending]→Done），P2 计划列回填（[Pending]→Done）"),
     ]);
     expect([...planClaims.keys()].sort()).toEqual(["P1", "P2"]);
   });
 
   it("a clause with BOTH a plan and a design claim attributes each target by its own window", () => {
-    const { planClaims, designClaims } = extractClaimRows([
+    const { planClaims, designClaims } = documentsValidator.extractClaimRows([
       row("P1 计划列回填（[Pending]→Done）+ P2 Design-spec 列回填（[Pending]→p2-design v1.0）"),
     ]);
     expect([...planClaims.keys()]).toEqual(["P1"]);
@@ -927,7 +923,7 @@ describe("extractClaimRows — explicit claim structure only (P4.3 Task 8)", () 
   });
 
   it("a ranged claim stays range-expanded inside its window (P2.1–P2.3 → every endpoint + intermediate)", () => {
-    const { planClaims } = extractClaimRows([
+    const { planClaims } = documentsValidator.extractClaimRows([
       row("P2.1–P2.3 Implementation plan 列回填（[Pending]→Done）"),
     ]);
     expect([...planClaims.keys()].sort()).toEqual(["P2.1", "P2.2", "P2.3"]);
@@ -1104,7 +1100,7 @@ describe("formatDocFailures — the guidance line (artifact · file · field · 
   it("one failure line carries artifact / file / field / missing / fix in order", () => {
     const c = writeChain({ plan: "# Plan\n\n### Task 1: x\nbody\n" });
     const f = run(c);
-    const text = formatDocFailures([f[0]]);
+    const text = documentsValidator.formatDocFailures([f[0]]);
     expect(text).toMatch(/^- \[plan\] /);
     expect(text).toContain(c.plan);
     expect(text).toMatch(/→ .*how to fix|→ .*add a|→ .*declare/);

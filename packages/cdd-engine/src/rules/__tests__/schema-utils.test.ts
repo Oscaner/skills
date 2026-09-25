@@ -2,7 +2,9 @@
 // Validates against the REAL task-handoff-schema.json (no fabricated fs mock —
 // a fabricated schema would pass even if the shipped schema were corrupted).
 import { describe, expect, it } from "vitest";
-import { validateHandoffSchema } from "../schema.ts";
+import { HandoffSchemaValidator } from "../schema.ts";
+
+const schemaValidator = new HandoffSchemaValidator();
 
 // Handoffs must satisfy the real shipped schema (task/phase/status/findings/
 // artifacts required; blocker optional; additionalProperties: false).
@@ -18,33 +20,33 @@ const VALID_HANDOFF = {
 
 describe("validateHandoffSchema (real schema)", () => {
   it("valid handoff passes", () => {
-    expect(validateHandoffSchema(VALID_HANDOFF)).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema(VALID_HANDOFF)).toEqual({ valid: true });
   });
 
   it("missing required field (tasks) fails", () => {
     const { tasks, ...missingTasks } = VALID_HANDOFF;
-    const res = validateHandoffSchema(missingTasks);
+    const res = schemaValidator.validateHandoffSchema(missingTasks);
     expect(res.valid).toBe(false);
     expect(res.reason).toContain("tasks");
   });
 
   it("tasks as string fails (must be an integer array)", () => {
-    const res = validateHandoffSchema({ ...VALID_HANDOFF, tasks: "1" });
+    const res = schemaValidator.validateHandoffSchema({ ...VALID_HANDOFF, tasks: "1" });
     expect(res.valid).toBe(false);
   });
 
   it("blocker is optional (not required by real schema)", () => {
     const { blocker, ...noBlocker } = VALID_HANDOFF;
-    expect(validateHandoffSchema(noBlocker)).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema(noBlocker)).toEqual({ valid: true });
   });
 
   it("invalid status enum fails", () => {
-    const res = validateHandoffSchema({ ...VALID_HANDOFF, status: "DONE" });
+    const res = schemaValidator.validateHandoffSchema({ ...VALID_HANDOFF, status: "DONE" });
     expect(res.valid).toBe(false);
   });
 
   it("unknown property rejected (additionalProperties: false)", () => {
-    const res = validateHandoffSchema({ ...VALID_HANDOFF, doc_path: "/x/y.md" });
+    const res = schemaValidator.validateHandoffSchema({ ...VALID_HANDOFF, doc_path: "/x/y.md" });
     expect(res.valid).toBe(false);
   });
 });
@@ -52,22 +54,24 @@ describe("validateHandoffSchema (real schema)", () => {
 describe("status conditional — review 族可缺省 / implement·fix required（T5 status 单一权威）", () => {
   it("review phase: status 缺省 → valid（engine 从 findings 派生，缺省合法）", () => {
     const { status, ...noStatus } = { ...VALID_HANDOFF, phase: "review" };
-    expect(validateHandoffSchema(noStatus)).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema(noStatus)).toEqual({ valid: true });
   });
 
   it("branch-review phase: status 缺省 → valid", () => {
     const { status, ...noStatus } = { ...VALID_HANDOFF, phase: "branch-review" };
-    expect(validateHandoffSchema(noStatus)).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema(noStatus)).toEqual({ valid: true });
   });
 
   it("review phase: status 显式提供 → valid", () => {
-    expect(validateHandoffSchema({ ...VALID_HANDOFF, phase: "review" })).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema({ ...VALID_HANDOFF, phase: "review" })).toEqual({
+      valid: true,
+    });
   });
 
   it("implement / fix phase: status 缺省 → invalid（work 型 status 必需）", () => {
     const { status, ...noStatus } = { ...VALID_HANDOFF, phase: "implement" };
-    expect(validateHandoffSchema(noStatus).valid).toBe(false);
-    expect(validateHandoffSchema({ ...noStatus, phase: "fix" }).valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema(noStatus).valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema({ ...noStatus, phase: "fix" }).valid).toBe(false);
   });
 });
 
@@ -83,13 +87,13 @@ describe("docs handoff schema (doc_hash)", () => {
     doc_hash: "a".repeat(64),
   };
   it("doc_path + doc_hash 同携 valid（schema 显式声明 doc_hash 属性）", () => {
-    expect(validateHandoffSchema(DOCS, "docs")).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema(DOCS, "docs")).toEqual({ valid: true });
   });
   it("doc_hash optional（无 doc_hash 的 legacy handoff 仍 valid）", () => {
     const { doc_hash, ...legacy } = DOCS;
-    expect(validateHandoffSchema(legacy, "docs")).toEqual({ valid: true });
+    expect(schemaValidator.validateHandoffSchema(legacy, "docs")).toEqual({ valid: true });
   });
   it("additionalProperties:false 仍桩——未知属性拒绝", () => {
-    expect(validateHandoffSchema({ ...DOCS, bogus: 1 }, "docs").valid).toBe(false);
+    expect(schemaValidator.validateHandoffSchema({ ...DOCS, bogus: 1 }, "docs").valid).toBe(false);
   });
 });

@@ -35,9 +35,10 @@
         "APPROVED",
         "BLOCKED",
         "CHANGES_REQUESTED",
+        "REVIEW_FIX",
         "TIMEOUT"
       ],
-      "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. The review family (review / branch-review) may omit this field — the engine derives it from findings; implement / fix (work types) must declare it. Write findings, not status."
+      "description": "The round conclusion (this dispatch's terminal result) — APPROVED: done; CHANGES_REQUESTED: fix the findings (terminal conclusion of a review round; the fix loop runs as its own dispatch); REVIEW_FIX: the warn/nit-only review conclusion (收口态 — the review closed and its fix round routes the task to complete without a re-review, #278); BLOCKED: the round cannot proceed — the failure mechanism lives in failure_category, the reason in blocker; TIMEOUT: budget or liveness exceeded. Orthogonal surfaces: failure_category (mechanism channel) and unverifiable[]/plan_conflicts[] (content-level notes) never fold into status. The review family (review / branch-review) may omit this field — the engine derives it from findings; implement / fix (work types) must declare it. Write findings, not status."
     },
     "failure_category": {
       "type": "string",
@@ -107,7 +108,7 @@
               "warn",
               "nit"
             ],
-            "description": "blocker → CHANGES_REQUESTED; warn/nit → APPROVED (the engine rolls findings up to status)."
+            "description": "blocker → CHANGES_REQUESTED; warn/nit → REVIEW_FIX (收口态 — the engine rolls findings up to status, #278)."
           },
           "section": {
             "type": "string",
@@ -137,7 +138,7 @@
           }
         }
       },
-      "description": "[{lens, severity, section|file, line?, summary, fix, task?}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → APPROVED (the engine rolls findings up to status); the optional per-task field carries the grouped review's section attribution."
+      "description": "[{lens, severity, section|file, line?, summary, fix, task?}] — every review finding; severity blocker → CHANGES_REQUESTED, warn/nit → REVIEW_FIX (收口态 — the engine rolls findings up to status, #278); the optional per-task field carries the grouped review's section attribution."
     },
     "changes": {
       "type": "array",

@@ -139,17 +139,21 @@ describe("branch-review schema-invalid e2e", () => {
     writeFileSync(regPath, JSON.stringify(reg, null, 2));
     try {
       const { ExitRequested } = await import("../../infra/exit.ts");
-      const { runBranchReview } = await import("../branch-review.ts");
+      const { BranchReviewLifecycle } = await import("../../dispatch/branch.ts");
       let exitCode = null;
       try {
-        await runBranchReview({
+        const brDryRun = false;
+        const lc = new BranchReviewLifecycle({
           harness: "ghost",
           plan: planPath,
           base,
           head,
           root: dir,
           registryPath: regPath,
+          dryRun: brDryRun,
+          ctx: { mode: "branch-review", repoRoot: dir, dryRun: brDryRun },
         });
+        await lc.run();
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;
@@ -210,17 +214,21 @@ describe("branch-review unparseable-handoff e2e", () => {
     process.env.PATH = `${binDir}${path.delimiter}${origPath}`;
     try {
       const { ExitRequested } = await import("../../infra/exit.ts");
-      const { runBranchReview } = await import("../branch-review.ts");
+      const { BranchReviewLifecycle } = await import("../../dispatch/branch.ts");
       let exitCode: number | null = null;
       try {
-        await runBranchReview({
+        const brDryRun = false;
+        const lc = new BranchReviewLifecycle({
           harness: "ghost",
           plan: planPath,
           base,
           head,
           root: dir,
           registryPath: regPath,
+          dryRun: brDryRun,
+          ctx: { mode: "branch-review", repoRoot: dir, dryRun: brDryRun },
         });
+        await lc.run();
       } catch (e) {
         if (e instanceof ExitRequested) exitCode = e.code;
         else throw e;

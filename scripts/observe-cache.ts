@@ -18,6 +18,8 @@ import { fileURLToPath } from "node:url";
 //   · this run is measurement-only: it renders the engine's prompt and spawns the harness CLI with
 //     a usage/cost flag appended — it writes no handoffs and mutates no workspace (real rounds run
 //     through `cdd …`, whose commit double-gate keeps the tree stable per C5).
+// The pure observation rules are the CacheObserver domain service (Task 9, 判定标准② — stateless
+// service, zero bare-function module); this executable is the isMain-guarded driver.
 //
 // Usage:
 //   node scripts/observe-cache.ts [options] -- <workspace> <task> <mode>
@@ -42,38 +44,6 @@ import {
 } from "../packages/cdd-engine/src/render/templates.ts";
 
 export type CacheUsage = { readTokens: number; writeTokens: number };
-
-// Last-occurrence parser: harnesses may print cost several times (retries / streaming updates);
-// the final summary of the round is the value that matters for a before/after comparison.
-const READ_PATTERNS: RegExp[] = [
-  /cache_read_input_tokens"?\s*(?:[=:]\s*)(\d+)/g,
-  /prompt_cache_read_tokens"?\s*(?:[=:]\s*)(\d+)/g,
-  /prompt cache read tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
-  /cache read tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
-];
-const WRITE_PATTERNS: RegExp[] = [
-  /cache_creation_input_tokens"?\s*(?:[=:]\s*)(\d+)/g,
-  /prompt_cache_write_tokens"?\s*(?:[=:]\s*)(\d+)/g,
-  /prompt cache (?:write|creation) tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
-  /cache (?:write|creation) tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
-];
-
-function lastValue(log: string, patterns: RegExp[]): number | null {
-  let value: number | null = null;
-  for (const re of patterns) {
-    for (const m of log.matchAll(re)) value = Number(m[1].replace(/,/g, ""));
-  }
-  return value;
-}
-
-/** Extract the round's final prompt-cache usage from `/cost` / `--debug` output; null when the
- * harness produced no cache fields (not a measurable round). */
-export function extractCacheUsage(log: string): CacheUsage | null {
-  const readTokens = lastValue(log, READ_PATTERNS);
-  const writeTokens = lastValue(log, WRITE_PATTERNS);
-  if (readTokens === null && writeTokens === null) return null;
-  return { readTokens: readTokens ?? 0, writeTokens: writeTokens ?? 0 };
-}
 
 import type { ArgsDef } from "citty";
 // ---- driver ----
@@ -107,35 +77,135 @@ export const ARGS = {
   mode: { type: "positional", description: "implement | review | fix" },
 } as const satisfies ArgsDef;
 
-export function parseArgs(argv: string[]): {
+export type ObserveArgs = {
   harness: string;
   rounds: number;
   flag: string;
   workspace: string;
   task: number;
   mode: string;
-} {
-  const args = parseArgsCitty(argv, ARGS);
-  // `--debug` is the real non-interactive claude -p flag (emits usage/cache stats to stderr);
-  // `--cost` only survives as an explicit opt-in for harnesses that accept it. Presence, not
-  // value: `--cost=false` still opts in (the forwarded flag spelling is the only thing measured).
-  const task = Number(args.task);
-  // citty enforces positional PRESENCE only; the numeric boundary is this wrapper's (same guard
-  // as the retired hand-rolled parser — its `!task` rejected 0/NaN). Without it `-- ws 0` /
-  // `-- ws abc` would flow through and render `task-0-brief.md` / `task-NaN-brief.md`.
-  if (!Number.isInteger(task) || task < 1) {
-    throw new Error(
-      "usage: observe-cache [--harness claude] [--rounds 2] [--cost|--debug] -- <workspace> <task> <mode> — task must be a positive integer",
-    );
+};
+
+export type ObserveState = {
+  workspace: string;
+  task: number;
+  mode: string;
+  round: number;
+};
+
+/** The cache-observation domain service — extraction / argv parsing / cross-phase derivation are
+ * pure rules taking their inputs as parameters (no module state). */
+export class CacheObserver {
+  /** Extract the round's final prompt-cache usage from `/cost` / `--debug` output; null when the
+   * harness produced no cache fields (not a measurable round). */
+  extractUsage(log: string): CacheUsage | null {
+    const readTokens = lastValue(log, READ_PATTERNS);
+    const writeTokens = lastValue(log, WRITE_PATTERNS);
+    if (readTokens === null && writeTokens === null) return null;
+    return { readTokens: readTokens ?? 0, writeTokens: writeTokens ?? 0 };
   }
-  return {
-    harness: args.harness,
-    rounds: Number(args.rounds ?? 2),
-    flag: args.cost !== undefined ? "--cost" : "--debug",
-    workspace: args.workspace,
-    task,
-    mode: args.mode,
-  };
+
+  parseArgs(argv: string[]): ObserveArgs {
+    const args = parseArgsCitty(argv, ARGS);
+    // `--debug` is the real non-interactive claude -p flag (emits usage/cache stats to stderr);
+    // `--cost` only survives as an explicit opt-in for harnesses that accept it. Presence, not
+    // value: `--cost=false` still opts in (the forwarded flag spelling is the only thing measured).
+    const task = Number(args.task);
+    // citty enforces positional PRESENCE only; the numeric boundary is this wrapper's (same guard
+    // as the retired hand-rolled parser — its `!task` rejected 0/NaN). Without it `-- ws 0` /
+    // `-- ws abc` would flow through and render `task-0-brief.md` / `task-NaN-brief.md`.
+    if (!Number.isInteger(task) || task < 1) {
+      throw new Error(
+        "usage: observe-cache [--harness claude] [--rounds 2] [--cost|--debug] -- <workspace> <task> <mode> — task must be a positive integer",
+      );
+    }
+    return {
+      harness: args.harness,
+      rounds: Number(args.rounds ?? 2),
+      flag: args.cost !== undefined ? "--cost" : "--debug",
+      workspace: args.workspace,
+      task,
+      mode: args.mode,
+    };
+  }
+
+  /** Cross-phase derivation for measurement-mode rounds — an approximation of the params buildCtx
+   * derives for this (op, type) round (dispatch/task.ts prev-table semantics):
+   *   · implement: buildCtx never derives a fixed point and the round-context slot FIXED_POINT
+   *     pre-fills "" (mode-union prefill; the per-template files are gone — a single round-context
+   *     zone serves all modes) — the rendered prompt is byte-identical across rounds (EXACT parity
+   *     for the C7 read>0 claim);
+   *   · fix round R: findings + fixed point come from the same-round review handoff (fix.task prev =
+   *     review.task:R; the engine reads its commits.base as the fixed point);
+   *   · review round R: fixed point from the prior phase (review.task round1 = implement.task,
+   *     roundR = fix.task:R-1).
+   * Absent a real prior handoff in the workspace, fixedPoint falls back to "" (the engine's
+   * readJsonField contract) — a documented measurement-mode approximation, not buildCtx's exact
+   * resolution. Exact for implement; best-effort for review/fix until real prior handoffs exist. */
+  priorHandoffPaths(state: ObserveState): { findingsPath: string; fixedPoint: string } {
+    const handoffBase = `${state.workspace}/tasks-${state.task}`;
+    if (state.mode === "implement") return { findingsPath: "", fixedPoint: "" };
+    const reviewHandoff = `${handoffBase}-review-${state.round}.json`;
+    const prior =
+      state.mode === "review"
+        ? state.round === 1
+          ? `${handoffBase}-implement.json`
+          : `${handoffBase}-fix-${state.round - 1}.json`
+        : reviewHandoff;
+    return {
+      findingsPath: state.mode === "fix" ? reviewHandoff : "",
+      fixedPoint: existsSync(prior) ? readJsonField(prior, ["commits", "base"]) : "",
+    };
+  }
+
+  renderRoundPrompt(state: ObserveState): string {
+    // Measurement-only render: workspace-relative paths, round-suffixed review/fix handoff targets,
+    // fixed implement target, and the cross-phase findings/fixed-point above. Group key form
+    // (P4.4 Task 3): the canonical `tasks-<key>-*` artifacts (single-task group key = the number).
+    const handoffBase = `${state.workspace}/tasks-${state.task}`;
+    const { findingsPath, fixedPoint } = this.priorHandoffPaths(state);
+    const handoff =
+      state.mode === "implement"
+        ? `${handoffBase}-implement.json`
+        : `${handoffBase}-${state.mode}-${state.round}.json`;
+    const params = {
+      WORKSPACE: state.workspace,
+      WORKSPACE_SLUG: basename(state.workspace),
+      BRIEF: `${handoffBase}-brief.md`,
+      HANDOFF_TARGET: handoff,
+      FINDINGS: findingsPath,
+      CONSTRAINTS: `${state.workspace}/plan-constraints.md`,
+      FIXED_POINT: fixedPoint,
+      DISPATCH_UNIT: String(state.task),
+      REVIEW_PLAN_LINE: "",
+    };
+    return renderModePrompt(state.mode, params);
+  }
+}
+
+export const cacheObserver = new CacheObserver();
+
+// Last-occurrence parser: harnesses may print cost several times (retries / streaming updates);
+// the final summary of the round is the value that matters for a before/after comparison.
+const READ_PATTERNS: RegExp[] = [
+  /cache_read_input_tokens"?\s*(?:[=:]\s*)(\d+)/g,
+  /prompt_cache_read_tokens"?\s*(?:[=:]\s*)(\d+)/g,
+  /prompt cache read tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
+  /cache read tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
+];
+const WRITE_PATTERNS: RegExp[] = [
+  /cache_creation_input_tokens"?\s*(?:[=:]\s*)(\d+)/g,
+  /prompt_cache_write_tokens"?\s*(?:[=:]\s*)(\d+)/g,
+  /prompt cache (?:write|creation) tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
+  /cache (?:write|creation) tokens?\s*(?:[=:]\s*)([\d,]+)/gi,
+];
+
+function lastValue(log: string, patterns: RegExp[]): number | null {
+  let value: number | null = null;
+  for (const re of patterns) {
+    for (const m of log.matchAll(re)) value = Number(m[1].replace(/,/g, ""));
+  }
+  return value;
 }
 
 // Read a nested JSON field (commits.base) from a handoff file; missing file/field → "" — mirrors
@@ -150,71 +220,10 @@ function readJsonField(filePath: string, keys: string[]): string {
   }
 }
 
-// Cross-phase derivation for measurement-mode rounds — an approximation of the params buildCtx
-// derives for this (op, type) round (dispatch/task.ts prev-table semantics):
-//   · implement: buildCtx never derives a fixed point and the round-context slot FIXED_POINT
-//     pre-fills "" (mode-union prefill; the per-template files are gone — a single round-context
-//     zone serves all modes) — the rendered prompt is byte-identical across rounds (EXACT parity
-//     for the C7 read>0 claim);
-//   · fix round R: findings + fixed point come from the same-round review handoff (fix.task prev =
-//     review.task:R; the engine reads its commits.base as the fixed point);
-//   · review round R: fixed point from the prior phase (review.task round1 = implement.task,
-//     roundR = fix.task:R-1).
-// Absent a real prior handoff in the workspace, fixedPoint falls back to "" (the engine's
-// readJsonField contract) — a documented measurement-mode approximation, not buildCtx's exact
-// resolution. Exact for implement; best-effort for review/fix until real prior handoffs exist.
-export function priorHandoffPaths(state: {
-  workspace: string;
-  task: number;
-  mode: string;
-  round: number;
-}): { findingsPath: string; fixedPoint: string } {
-  const handoffBase = `${state.workspace}/tasks-${state.task}`;
-  if (state.mode === "implement") return { findingsPath: "", fixedPoint: "" };
-  const reviewHandoff = `${handoffBase}-review-${state.round}.json`;
-  const prior =
-    state.mode === "review"
-      ? state.round === 1
-        ? `${handoffBase}-implement.json`
-        : `${handoffBase}-fix-${state.round - 1}.json`
-      : reviewHandoff;
-  return {
-    findingsPath: state.mode === "fix" ? reviewHandoff : "",
-    fixedPoint: existsSync(prior) ? readJsonField(prior, ["commits", "base"]) : "",
-  };
-}
-
-function renderRoundPrompt(state: {
-  workspace: string;
-  task: number;
-  mode: string;
-  round: number;
-}): string {
-  // Measurement-only render: workspace-relative paths, round-suffixed review/fix handoff targets,
-  // fixed implement target, and the cross-phase findings/fixed-point above. Group key form
-  // (P4.4 Task 3): the canonical `tasks-<key>-*` artifacts (single-task group key = the number).
-  const handoffBase = `${state.workspace}/tasks-${state.task}`;
-  const { findingsPath, fixedPoint } = priorHandoffPaths(state);
-  const handoff =
-    state.mode === "implement"
-      ? `${handoffBase}-implement.json`
-      : `${handoffBase}-${state.mode}-${state.round}.json`;
-  const params = {
-    WORKSPACE: state.workspace,
-    WORKSPACE_SLUG: basename(state.workspace),
-    BRIEF: `${handoffBase}-brief.md`,
-    HANDOFF_TARGET: handoff,
-    FINDINGS: findingsPath,
-    CONSTRAINTS: `${state.workspace}/plan-constraints.md`,
-    FIXED_POINT: fixedPoint,
-    DISPATCH_UNIT: String(state.task),
-    REVIEW_PLAN_LINE: "",
-  };
-  return renderModePrompt(state.mode, params);
-}
-
 async function main(): Promise<void> {
-  const { harness, rounds, flag, workspace, task, mode } = parseArgs(process.argv.slice(2));
+  const { harness, rounds, flag, workspace, task, mode } = cacheObserver.parseArgs(
+    process.argv.slice(2),
+  );
   const entry = loadRegistry(REG_PATH)[harness];
   if (!entry) {
     console.error(`observe-cache: unknown harness "${harness}" — registry at ${REG_PATH}`);
@@ -229,7 +238,7 @@ async function main(): Promise<void> {
 
   const rows: Array<{ round: number; promptBytes: number; read: number; write: number }> = [];
   for (let round = 1; round <= rounds; round++) {
-    const prompt = renderRoundPrompt({ workspace, task, mode, round });
+    const prompt = cacheObserver.renderRoundPrompt({ workspace, task, mode, round });
     // Resolve the op×type injection the exact way the engine does (registry resolver — C5 parity:
     // the observed invoke set mirrors what cdd dispatches, with only the measurement flag added).
     const promptArg = promptArgText(
@@ -245,7 +254,7 @@ async function main(): Promise<void> {
       timeout: 10 * 60 * 1000,
       reject: false,
     });
-    const usage = extractCacheUsage(`${result.stdout}\n${result.stderr}`);
+    const usage = cacheObserver.extractUsage(`${result.stdout}\n${result.stderr}`);
     rows.push({
       round,
       promptBytes: prompt.length,
@@ -283,7 +292,7 @@ async function main(): Promise<void> {
   }
 }
 
-// Executable entry (test imports only the parser — main must not run under vitest).
+// Executable entry (tests import only the observer — main must not run under vitest).
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
     console.error(`observe-cache: ${(err as Error).message}`);

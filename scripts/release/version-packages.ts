@@ -4,11 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import changelogFunctions from "@changesets/changelog-github";
 import getChangesets from "@changesets/read";
-import {
-  changesetsForPlugin,
-  computeNextIndependentVersion,
-  highestBumpLevel,
-} from "../lib/version-utils.ts";
+import { versionService } from "../lib/version-utils.ts";
 
 const root = process.cwd();
 const changesetDir = join(root, ".changeset");
@@ -73,14 +69,20 @@ export async function main({ dryRun } = {}) {
   // ---- osuperpowers (independent semver) ----
   const osuperpowersPkgPath = "packages/osuperpowers/package.json";
   const osuperpowersChangelogPath = join(root, "packages/osuperpowers/CHANGELOG.md");
-  const osuperpowersCS = changesetsForPlugin(changesets, "@oscaner-skills/osuperpowers");
+  const osuperpowersCS = versionService.changesetsForPlugin(
+    changesets,
+    "@oscaner-skills/osuperpowers",
+  );
   if (osuperpowersCS.length > 0) {
     const osuperpowersPkg = readJson(osuperpowersPkgPath);
     const osuperpowersTypes = osuperpowersCS.map(
       (cs) => cs.releases.find((r) => r.name === "@oscaner-skills/osuperpowers").type,
     );
-    const bumpLevel = highestBumpLevel(osuperpowersTypes);
-    const osuperpowersNext = computeNextIndependentVersion(osuperpowersPkg.version, bumpLevel);
+    const bumpLevel = versionService.highestBumpLevel(osuperpowersTypes);
+    const osuperpowersNext = versionService.computeNextIndependentVersion(
+      osuperpowersPkg.version,
+      bumpLevel,
+    );
 
     const sections = [];
     for (const type of ["major", "minor", "patch"]) {

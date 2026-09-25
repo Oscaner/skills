@@ -1,14 +1,15 @@
 // scripts/__tests__/run.test.ts — Task 21: run.ts citty CLI surface. Pins the
 // value-passing contract between the subcommand run() handlers and the lazily-loaded module
-// mains (invocationArgs), the command-tree shape, and the P5 §2.4.2 exit-code table via
-// black-box spawns of `node scripts/run.ts`.
+// mains (Command#invocationArgs — Task 9 class face), the command-tree shape, and the P5
+// §2.4.2 exit-code table via black-box spawns of `node scripts/run.ts`.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execa } from "execa";
 import { describe, expect, it } from "vitest";
 
-import { invocationArgs, mainCommand } from "../run.ts";
+import { Command } from "../lib/command.ts";
+import { mainCommand } from "../run.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -45,18 +46,26 @@ describe("run.ts command tree (citty Task 21)", () => {
   });
 });
 
-describe("run.ts invocationArgs — subcommand value passing", () => {
+describe("Command invocationArgs — subcommand value passing (Task 9 class face)", () => {
+  const command = (kind: "none" | "dry-run" | "target") =>
+    new Command(
+      { name: kind, description: "test", modulePath: "./test.ts", kind },
+      import.meta.url,
+    );
+
   it("zero-arg mains get no forwarded arguments (validate must never see an options object)", () => {
-    expect(invocationArgs("none", {})).toEqual([]);
+    expect(command("none").invocationArgs({})).toEqual([]);
   });
 
   it("version forwards presence-based dryRun: present → true, absent → false", () => {
-    expect(invocationArgs("dry-run", { "dry-run": true })).toEqual([{ dryRun: true }]);
-    expect(invocationArgs("dry-run", {})).toEqual([{ dryRun: false }]);
+    expect(command("dry-run").invocationArgs({ "dry-run": true })).toEqual([{ dryRun: true }]);
+    expect(command("dry-run").invocationArgs({})).toEqual([{ dryRun: false }]);
   });
 
   it("apply-rules forwards its required positional target", () => {
-    expect(invocationArgs("target", { target: "protect-develop" })).toEqual(["protect-develop"]);
+    expect(command("target").invocationArgs({ target: "protect-develop" })).toEqual([
+      "protect-develop",
+    ]);
   });
 });
 

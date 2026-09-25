@@ -6,21 +6,14 @@
 // The subprocess target is run.ts, not this module, so standalone execution
 // (`node scripts/validate/emit-check.ts`) cannot recurse.
 
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { execaSync } from "execa";
-
-import { runIfMain } from "./runner.ts";
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+import { SubprocessBlock, validateRunner } from "./runner.ts";
 
 export const steps = [
-  {
+  new SubprocessBlock({
     name: "emit freshness (checked against regenerated products)",
     cmd: "node",
     args: ["scripts/run.ts", "emit-check"],
-    run: () => execaSync("node", ["scripts/run.ts", "emit-check"], { cwd: ROOT, stdio: "inherit" }),
-  },
+  }),
 ];
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

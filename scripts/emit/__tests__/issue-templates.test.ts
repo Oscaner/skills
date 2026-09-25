@@ -4,8 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { renderYml } from "../../../packages/osuperpowers/scripts/render-yaml.mjs";
-import { emitAll } from "../all.ts";
-import { emitIssueTemplates } from "../issue-templates.ts";
+import { emitService } from "../all.ts";
+import { issueTemplatesEmitter } from "../issue-templates.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const findingMeta = JSON.parse(
@@ -82,7 +82,7 @@ describe("issue-templates emitter", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-issue-templates-"));
     try {
       const generatedPaths = [];
-      emitIssueTemplates(tmp, {}, { generatedPaths });
+      issueTemplatesEmitter.emit(tmp, {}, { generatedPaths });
       expect(generatedPaths).toEqual([
         ".github/ISSUE_TEMPLATE/bug_report.yml",
         ".github/ISSUE_TEMPLATE/enhancement.yml",
@@ -104,7 +104,7 @@ describe("issue-templates emitter", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "oscaner-emitall-issues-"));
     try {
       const generatedPaths = [];
-      emitAll(tmp, { generatedPaths });
+      emitService.emitAll(tmp, { generatedPaths });
       for (const name of Object.keys(findingMeta.formFieldDefs)) {
         const rel = `.github/ISSUE_TEMPLATE/${name}.yml`;
         expect(existsSync(path.join(tmp, rel))).toBe(true);

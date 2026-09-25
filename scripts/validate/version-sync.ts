@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runIfMain } from "./runner.ts";
+import { CheckBlock, validateRunner } from "./runner.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const readJson = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8"));
@@ -65,10 +65,10 @@ function checkVersionSync() {
 // standalone path, where main() IS this module's main. In-process keeps suite and
 // standalone output byte-identical.
 export const steps = [
-  {
+  new CheckBlock({
     name: "package version sync",
     run: checkVersionSync,
-  },
+  }),
 ];
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

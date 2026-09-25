@@ -13,8 +13,8 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { emitAll } from "./all.ts";
-import { compareTrees } from "./compare.ts";
+import { emitService } from "./all.ts";
+import { compareService } from "./compare.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -22,8 +22,8 @@ export function main() {
   const generatedPaths = [];
   const tempRoot = mkdtempSync(join(tmpdir(), "oscaner-emit-"));
   try {
-    const wrapperRoots = emitAll(tempRoot, { generatedPaths });
-    compareTrees(root, tempRoot, { generatedPaths, wrapperRoots });
+    const wrapperRoots = emitService.emitAll(tempRoot, { generatedPaths });
+    compareService.compareTrees(root, tempRoot, { generatedPaths, wrapperRoots });
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

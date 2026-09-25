@@ -9,7 +9,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv from "ajv";
 
-import { runIfMain } from "./runner.ts";
+import { CheckBlock, validateRunner } from "./runner.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ajv = new Ajv();
@@ -144,7 +144,7 @@ function validateMarketplaceSources() {
 // infinitely on standalone execution — main() here IS this module's main. In-process
 // keeps suite and standalone paths byte-identical.
 export const steps = [
-  {
+  new CheckBlock({
     name: "marketplace manifests validate",
     run: () => {
       validateSourceSchemaJson();
@@ -152,7 +152,7 @@ export const steps = [
       validateWrapperPaths();
       validateMarketplaceSources();
     },
-  },
+  }),
 ];
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

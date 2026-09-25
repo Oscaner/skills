@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // scripts/validate/index.ts — validate orchestration (`node scripts/run.ts
 // validate` / standalone `node scripts/validate/index.ts`). Composes the 11
-// per-block step descriptors from scripts/validate/*.ts into the original run
-// order and exposes `steps` + `main()` so the wiring guard
+// per-block ValidateBlock instances from scripts/validate/*.ts into the original
+// run order and exposes `steps` + `main()` so the wiring guard
 // (packages/osuperpowers/tests/ci-validate.test.mjs) can assert osuperpowers
-// coverage is not dropped. The runner loop + isMain guard live in runner.ts.
+// coverage is not dropped. The runner loop + isMain guard live in ValidateRunner
+// (runner.ts).
 //
 // Failure is structured: `console.error("== FAIL: <step> ==")` + message, and
 // main() returns 1 (run.ts turns a numeric return into process.exitCode).
@@ -15,7 +16,7 @@ import { steps as libTestsSteps } from "./lib-tests.ts";
 import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as osuperpowersSteps } from "./osuperpowers.ts";
 import { steps as residueSteps } from "./residue.ts";
-import { runIfMain, main as runSteps } from "./runner.ts";
+import { validateRunner } from "./runner.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
 
 // Original step order: the cdd-engine engine test suite follows the osuperpowers
@@ -37,7 +38,7 @@ export const steps = [
 ];
 
 export function main(stepsArg = steps) {
-  return runSteps(stepsArg);
+  return validateRunner.run(stepsArg);
 }
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

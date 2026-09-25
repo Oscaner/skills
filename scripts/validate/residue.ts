@@ -31,7 +31,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "tinyglobby";
 
-import { runIfMain } from "./runner.ts";
+import { CheckBlock, validateRunner } from "./runner.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -1644,7 +1644,7 @@ function checkSkillSurface() {
 // = the channel-audit guard-surface union (the wiring guard pins any scope shrink as a fail;
 // post-move it excludes the retired tests/, the src surface walk self-exempts).
 export const steps = [
-  {
+  new CheckBlock({
     name: "engine zero residue + channel audit",
     run: () => {
       checkZeroResidue();
@@ -1660,7 +1660,7 @@ export const steps = [
     },
     grepTargets: RESIDUE_TARGETS,
     channelTargets: CHANNEL_AUDIT_TARGETS,
-  },
+  }),
 ];
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

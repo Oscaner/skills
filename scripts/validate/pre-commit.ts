@@ -23,7 +23,7 @@ import { steps as libTestsSteps } from "./lib-tests.ts";
 import { steps as marketplaceSteps } from "./marketplace.ts";
 import { steps as osuperpowersSteps } from "./osuperpowers.ts";
 import { steps as residueSteps } from "./residue.ts";
-import { runIfMain, main as runSteps } from "./runner.ts";
+import { validateRunner } from "./runner.ts";
 import { steps as versionSyncSteps } from "./version-sync.ts";
 
 export const steps = [
@@ -36,7 +36,7 @@ export const steps = [
 ];
 
 export function main(stepsArg = steps) {
-  return runSteps(stepsArg);
+  return validateRunner.run(stepsArg);
 }
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

@@ -3,21 +3,14 @@
 // scripts/validate/lib-tests.ts — block 7: scripts unit tests (vitest).
 // vitest.config.mjs include: scripts/**/__tests__/**/*.test.ts (colocation, Task 21).
 
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { execaSync } from "execa";
-
-import { runIfMain } from "./runner.ts";
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+import { SubprocessBlock, validateRunner } from "./runner.ts";
 
 export const steps = [
-  {
+  new SubprocessBlock({
     name: "scripts unit tests (vitest)",
     cmd: "pnpm",
     args: ["exec", "vitest", "run"],
-    run: () => execaSync("pnpm", ["exec", "vitest", "run"], { cwd: ROOT, stdio: "inherit" }),
-  },
+  }),
 ];
 
-runIfMain(import.meta.url, steps);
+validateRunner.runIfMain(import.meta.url, steps);

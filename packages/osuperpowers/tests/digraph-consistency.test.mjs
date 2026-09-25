@@ -67,6 +67,14 @@ const CONDITIONAL_SECTION_KEYS = reg.conditional.items.enum; // ["skeletonDeltas
 const SECTION_HEADINGS = Object.fromEntries(
   Object.entries(reg.sections.properties).map(([key, node]) => [key, node.properties.heading.const]),
 );
+// Escaped heading text + whole-line anchors, compiled from the SECTION_HEADINGS schema consts — the
+// deltas-table slicer and the conditional-section gates match through these, never a hard-coded `## `.
+const ESCAPED_HEADING = Object.fromEntries(
+  Object.entries(SECTION_HEADINGS).map(([key, h]) => [key, h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")]),
+);
+const SECTION_HEADING_LINE = Object.fromEntries(
+  Object.entries(ESCAPED_HEADING).map(([key, h]) => [key, new RegExp(`^${h}$`, "m")]),
+);
 const CONDITIONAL_CARRIERS = Object.fromEntries(
   CONDITIONAL_SECTION_KEYS.map((key) => [key, reg.sections.properties[key].properties.requiredCarriers.items.enum]),
 );
@@ -137,9 +145,9 @@ function extractSections(src) {
   return sections;
 }
 
-// Skeleton-deltas section: rows of `| cell | cell |` between `## Skeleton deltas` and the next `## `.
+// Skeleton-deltas section: rows of `| cell | cell |` between the Skeleton deltas heading and the next `## `.
 function skeletonDeltaRows(src) {
-  const m = src.match(/## Skeleton deltas\n([\s\S]*?)(?=\n## )/);
+  const m = src.match(new RegExp(`${ESCAPED_HEADING.skeletonDeltas}\n([\\s\\S]*?)(?=\n## )`));
   if (!m) return [];
   const rows = [];
   const rowRe = /^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/gm;
@@ -366,7 +374,7 @@ for (const { name, path: skillPath } of SKILL_FILES) {
   });
 
   // ---------- Assertion 2: skeleton isomorphism (writing-* spec-writer trio) -------------------
-  const hasDeltasTable = /^## Skeleton deltas$/m.test(src);
+  const hasDeltasTable = SECTION_HEADING_LINE.skeletonDeltas.test(src);
 
   if (hasDeltasTable) {
     const nodesById = new Map(an.nodes.map((n) => [n.id, n]));
@@ -434,7 +442,7 @@ for (const { name, path: skillPath } of SKILL_FILES) {
 // ---------- Assertion 2 family guard: every spec-writer MUST carry the deltas table ---------
 test("assertion 2 · spec-writer trio all carry a ## Skeleton deltas table (deltas = validation input)", () => {
   const withTables = new Set(
-    SKILL_FILES.filter(({ path: p }) => /^## Skeleton deltas$/m.test(readFileSync(p, "utf8"))).map((f) => f.name),
+    SKILL_FILES.filter(({ path: p }) => SECTION_HEADING_LINE.skeletonDeltas.test(readFileSync(p, "utf8"))).map((f) => f.name),
   );
   const missing = SKELETON_TRIO.filter((s) => !withTables.has(s));
   assert.deepEqual(missing, [], `spec-writer(s) missing the Skeleton deltas table: ${missing.join(", ")} — ${REGISTRY_RULE}`);

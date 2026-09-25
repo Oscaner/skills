@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.4-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.4-design.md)
 - **Parent program**: [consumer-parity overall v1.42](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.2 · 2026-09-25
+- **Version**: v1.3 · 2026-09-25
 - **Base**: develop
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.3-design.md)）
 
@@ -67,7 +67,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   - `TaskGroup` 类化五签名统一实证（progress/handoff/task 各面签名收 `TaskGroup`，sweep 零 `number[]` 域接口穿行）
   - 类能力五枚举落地（静态工厂 `fromTokens` · 校验去重 · 排序 · `key()` · 成员断言）——与 spec §2.2 互补对照
   - **有效分区 == 全 task 号集覆盖断言**（engine 测试）：任意非空声明下有效组 task 号并集 = {1..N}（guard——任何声明都不得丢任务）；有效组按 task 号序 → Task 2（TG2 门）先于 Task 3+（TG3）的派发序可表达
-  - `--tasks 1` / `--tasks 1,2` dispatch 行为与 P4.3 等价（engine 测试 + 现场回归）；`parse` 静态导入约束处置明确
+  - `--tasks 1` / `--tasks 1,2` dispatch 行为与 P4.3 等价（engine 测试 + 现场回归）；**bin 入口 argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）字面保持**（cli-shape engine 测试断言 + dispatch 现场回归实证 · skills 经 CLI 调用零回归 · spec §2.4 + AC 对应面）；`parse` 静态导入约束处置明确
 
 ### Task 4: CddRuntime 模块态收编（TG3）
 
@@ -95,11 +95,11 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 
 ### Task 7: 域规则服务类 + 导出面重排（TG4）
 
-- **Do**: ① 纯函数 rules 模块 → **无状态域服务类**（方法即规则 · 协同对象构造注入）：`ConvergenceChecker`（rules/convergence.ts）· `FailureResolver`（rules/failure.ts）· `StatusJudge`（rules/status.ts）· `CloseoutChecker`（rules/closeout.ts）· `DocumentsValidator`（rules/documents.ts）· `TaskListParser`（cli/shared.ts parse 面）· **`BriefRenderer`**（render/brief.ts `generateBrief` 类化 → `BriefRenderer#render`，构造注入文件/git 判据）· **`GitClient`**（infra/git.ts 操作收无状态域服务类）· **`Registry`**（infra/registry.ts 域规则 `registryField`/`resolveInjection`/`resolveSuffix`/`cliInPath`/`checkHarness`/`cacheProfileFor`/`validateCacheProfile` 等收类 · 判定标准② · 构造注入）② engine 导出函数面随类化重排（`runTask` → `TaskLifecycle.run` · `runDocsTask` → `DocsLifecycle.run` · `generateBrief` → `BriefRenderer#render` · `buildCtx`/`parseTaskList` → 类公共面）——**无薄壳转发保红线**（判定标准⑤）③ engine 测试套件随导出面改造（breaking 允许）④ docContractValidate 四表/结构抽取行为经类化后不变（engine 套件覆盖）
+- **Do**: ① 纯函数 rules 模块 → **无状态域服务类**（方法即规则 · 协同对象构造注入）：`ConvergenceChecker`（rules/convergence.ts）· `FailureResolver`（rules/failure.ts）· `StatusJudge`（rules/status.ts）· `CloseoutChecker`（rules/closeout.ts）· `DocumentsValidator`（rules/documents.ts）· **`CommitChecker`**（rules/commit.ts——双层门判 `entryGateCleanTree`/`validateCommitContract`/`rewriteHandoffBlocked` 方法即规则 · 判定标准② · 构造注入）· **`HandoffSchemaValidator`**（rules/schema.ts——`loadHandoffSchema`/`validateHandoffSchema`/`loadHandoffNamespace` 收类 · schema 校验仍只经 schema 面执法（Task 5 ② / Task 6 ④ 口径 · 不增第二执法实现））· **`ChangedSurfaceAuditor`**（rules/write-boundary.ts——`reconcileChangedSurface` 收改动面审计类 · 判定标准② · 构造注入）· `TaskListParser`（cli/shared.ts parse 面）· **`BriefRenderer`**（render/brief.ts `generateBrief` 类化 → `BriefRenderer#render`，构造注入文件/git 判据）· **`GitClient`**（infra/git.ts 操作收无状态域服务类）· **`Registry`**（infra/registry.ts 域规则 `registryField`/`resolveInjection`/`resolveSuffix`/`cliInPath`/`checkHarness`/`cacheProfileFor`/`validateCacheProfile` 等收类 · 判定标准② · 构造注入）② engine 导出函数面随类化重排（`runTask` → `TaskLifecycle.run` · `runDocsTask` → `DocsLifecycle.run` · `generateBrief` → `BriefRenderer#render` · `buildCtx`/`parseTaskList` → 类公共面）——**无薄壳转发保红线**（判定标准⑤）③ engine 测试套件随导出面改造（breaking 允许）④ docContractValidate 四表/结构抽取行为经类化后不变（engine 套件覆盖）
 - **验收**:
-  - 域规则服务类全落地 + infra 面类化实证（`GitClient`/`Registry` 落地）：grep 全仓产品源码 ts 面零独立纯函数导出模块（rules/ · parse/brief · infra/ 的 git/registry 均无裸函数导出 · spec §2.1「零模块级裸函数模块」口径）
+  - 域规则服务类全落地 + infra 面类化实证（`GitClient`/`Registry` 落地）：grep 全仓产品源码 ts 面零独立纯函数导出模块（rules/ 全目录收敛——含 commit/schema/write-boundary 随 `CommitChecker`/`HandoffSchemaValidator`/`ChangedSurfaceAuditor` 类化归零 · parse/brief · infra/ 的 git/registry 均无裸函数导出 · spec §2.1「零模块级裸函数模块」口径）
   - `BriefRenderer` 化实证（`generateBrief` 公开面 → `#render` 方法；test 面改消费类实例）
-  - 导出函数面破坏性重排到位 + engine 测试全绿；docContractValidate 行为无损（四表/结构断言）
+  - 导出函数面破坏性重排到位 + engine 测试全绿；docContractValidate 行为无损（四表/结构断言）；argv 契约面回归：`--tasks`/`--type`/`--plan`/`--findings` 经 bin 入口现场 dispatch 实证零回归（skills 经 CLI 调用 · spec §2.4 + AC 对应面）
 
 ### Task 8: 三段结案 `REVIEW_FIX`（TG4 · #278）
 

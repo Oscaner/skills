@@ -9,10 +9,12 @@
 //                 each skill's `## Skeleton deltas` table (the validation input — an unregistered
 //                 divergence fails). Membership is self-describing: any skill carrying a `## Skeleton
 //                 deltas` table joins the isomorphism family.
-//   Assertion 3 — growth signal: every skill's digraph node/edge counts are reported on each run; a
-//                 digraph crossing the growth boundary (more than GROWTH_NODE_LIMIT nodes or more than
-//                 GROWTH_EDGE_LIMIT edges) must carry a `## Full Flow Refactor Rationale` section
-//                 (skill-authoring §9) — missing → fail.
+//   Assertion 3 — growth signal + consumer purity: every skill's digraph node/edge counts are reported
+//                 on each run; a digraph crossing the growth boundary (more than GROWTH_NODE_LIMIT
+//                 nodes or more than GROWTH_EDGE_LIMIT edges) must have its design rationale recorded in
+//                 the maintainer skill-authoring doc §9.1 registry — and NO skill's SKILL.md may carry
+//                 a growth/refactor narrative heading of any form (`## Flow size note`,
+//                 `## Full Flow Refactor Rationale`, … — consumer surface carries zero trace) — fails otherwise.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
@@ -21,10 +23,17 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_DIR = path.resolve(HERE, "..", "skills");
+// Consumer-surface purity (CLAUDE.md): the growth-boundary rationale is recorded in the maintainer
+// skill-authoring doc, never in a SKILL.md.
+const MAINTAINER_DOC = path.resolve(HERE, "..", "..", "..", "docs", "maintainers", "06-skill-authoring.md");
 
-// Growth boundary (skill-authoring §9): crossing either limit requires the refactor-rationale section.
-// Current maxima are 13 nodes / 16 edges (cli-driven-development); the budget leaves headroom for a
-// pattern-clone before the bloat signal engages.
+// Consumer-surface purity (CLAUDE.md): SKILL.md is an instruction document — it may carry no
+// growth/refactor narrative heading in any form; the whole rationale surface lives in the
+// maintainer skill-authoring doc (§9.1) and the consumer surface carries zero trace of it.
+const CONSUMER_GROWTH_NARRATIVE_HEADS = [/^## Flow size note$/m, /^## Full Flow Refactor Rationale$/m];
+
+// Growth boundary (skill-authoring §9): crossing either limit requires a rationale registered in the
+// maintainer doc (§9.1) — the rationale itself never ships, and no note substitutes for it.
 const GROWTH_NODE_LIMIT = 15;
 const GROWTH_EDGE_LIMIT = 17;
 
@@ -97,7 +106,7 @@ const counts = SKILL_FILES.map(({ name, path: skillPath }) => {
 console.log("");
 console.log(
   `[digraph growth report] per-skill node/edge counts ` +
-    `(boundary: >${GROWTH_NODE_LIMIT} nodes or >${GROWTH_EDGE_LIMIT} edges → requires "## Full Flow Refactor Rationale")`,
+    `(boundary: >${GROWTH_NODE_LIMIT} nodes or >${GROWTH_EDGE_LIMIT} edges → rationale must be registered in maintainer docs §9.1; SKILL.md consumer surface keeps zero traces)`,
 );
 for (const c of counts) {
   const crosses = c.nodes > GROWTH_NODE_LIMIT || c.edges > GROWTH_EDGE_LIMIT;
@@ -222,16 +231,25 @@ test("assertion 3 · growth report covers every skill", () => {
   }
 });
 
-test("assertion 3 · crossing the growth boundary requires a ## Full Flow Refactor Rationale section", () => {
-  for (const c of counts) {
-    if (c.nodes > GROWTH_NODE_LIMIT || c.edges > GROWTH_EDGE_LIMIT) {
-      const { path: skillPath } = SKILL_FILES.find((f) => f.name === c.name);
-      const src = readFileSync(skillPath, "utf8");
-      assert.ok(
-        /^## Full Flow Refactor Rationale$/m.test(src),
-        `${c.name}: digraph (${c.nodes} nodes · ${c.edges} edges) crosses the growth boundary ` +
-          `(${GROWTH_NODE_LIMIT} nodes / ${GROWTH_EDGE_LIMIT} edges) — a "## Full Flow Refactor Rationale" section ` +
-          `is required (skill-authoring §9); missing → FAIL`,
+test("assertion 3 · crossing the growth boundary requires a maintainer-doc rationale, not a consumer note", () => {
+  const maintainerSrc = readFileSync(MAINTAINER_DOC, "utf8");
+  const crossed = counts.filter((c) => c.nodes > GROWTH_NODE_LIMIT || c.edges > GROWTH_EDGE_LIMIT);
+  for (const c of crossed) {
+    assert.ok(
+      maintainerSrc.includes(`- **\`${c.name}\`**`),
+      `${c.name}: digraph (${c.nodes} nodes · ${c.edges} edges) crosses the growth boundary ` +
+        `(${GROWTH_NODE_LIMIT} nodes / ${GROWTH_EDGE_LIMIT} edges) — its rationale must be registered ` +
+        `in the maintainer skill-authoring doc §9.1 (bullet "- **\\\`${c.name}\\\`**"); missing → FAIL`,
+    );
+  }
+  for (const { name, path: skillPath } of SKILL_FILES) {
+    const src = readFileSync(skillPath, "utf8");
+    for (const re of CONSUMER_GROWTH_NARRATIVE_HEADS) {
+      assert.doesNotMatch(
+        src,
+        re,
+        `${name}: consumer surface purity (CLAUDE.md) — the SKILL.md may not carry a growth/refactor ` +
+          `narrative heading (found "${re.source}"); the rationale lives in the maintainer docs §9.1`,
       );
     }
   }

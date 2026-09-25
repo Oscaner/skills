@@ -110,6 +110,10 @@ The unified review convergence rule lives as the `Review Convergence` entry in e
 
 Changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no monorepo layout and no this-repo toolchain. `docs/maintainers/*.md` is exempt (maintainer-only, not shipped; its reader block states this).
 
+### Consumer surface purity (iron rule — zero program history in shipped skill text)
+
+An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in `docs/maintainers/` (repo-shared, maintainer-positioned). Machine enforcement: `digraph-consistency.test.mjs` fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) and requires a growth-boundary crossing's rationale to be registered in the maintainer skill-authoring doc instead.
+
 ### Session-memory policy
 
 Never write to the local session-memory directory (`~/.claude/projects/<repo>/memory/`) or any per-user memory store — it is not repo-shared and cannot reach other maintainers. Hard-won lessons, operational notes, and next-session pointers belong in `docs/maintainers/*` (repo-shared, English-primary) first, or in the program's specs/plans. The session-memory index is retired; the maintenance docs are the single source for program experience.

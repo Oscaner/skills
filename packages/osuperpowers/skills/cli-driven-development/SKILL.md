@@ -32,17 +32,6 @@ flowchart TD
   J -->|entered via blocker=0| L[handoff-finishing]
 ```
 
-The branch loop is node-for-node isomorphic with the dispatch-group loop above it and with the spec/plan/task-family loops of the `writing-*` orchestrators: a review lane, a `{blocker=0?}` decision that routes both arms through the fix lane, a blocker>0 back-edge (re-review on the moved ref) and a blocker=0 forward-edge (finishing). `K ─ I ─ J ─ L` is the same skeleton as `D[review] → {blocker=0?} → F[fix] → …`. `adjudicate-task-groups` sits between `set-base-branch` and the loop: it settles the dispatch-group list and gates the loop entry on the user's confirmation — a refusal stops the flow before any dispatch.
-
-## Full Flow Refactor Rationale
-
-The digraph crosses the growth boundary (15 nodes · 19 edges — limit 15 / 17) for the P4.3 whole-group dispatch semantics: the loop's dispatch unit is now the dispatch group (`--tasks <n|n,n,…>` — one surface for a singleton and a merged group), and the task-groups adjudication gate lands between `set-base-branch` and the loop.
-
-- **What the flow gained** — `adjudicate-task-groups` (T) settles the group list from the plan's `## Task Groups` section (declared groups verbatim; an absent section → per-task singleton groups — the pre-group dispatch, exactly) and gates the loop entry on the user's confirmation; a refusal terminates before any dispatch touches the tree. `{more-groups?}` replaces `{more-tasks?}` to name the group iterate. The gate's shape mirrors `determine-base`'s AskUserQuestion template.
-- **Why subdivision was rejected** — the gate is one narrow decision on the `C → D` seam; splitting it into finer nodes would add ceremony to a flow whose loop body is unchanged. One decision node plus its refusal terminal is the smallest shape that carries the confirmation gate.
-- **Why a rewrite was rejected** — the loop skeleton (review lane → `{blocker=0?}` → fix lane → convergence exit) is shared with the writing-* orchestrators (skeleton-isomorphism family); a rewrite would break the family shape for no behavioral gain.
-- **Why the sibling-uniform option was rejected** — no sibling orchestrator dispatches task groups: the writing-* loops review documents, not `--tasks` units, so there is no sibling shape to clone — the adjudication is this skill's own entry surface.
-
 ## Node Definitions
 
 ### `detect-engine`

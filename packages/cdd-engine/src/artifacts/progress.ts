@@ -38,6 +38,31 @@ export interface ProgressData {
   tasks: TaskLedgerRow[];
 }
 
+/** COUNTER_ZERO — the fixed counter-member key set, a single typed source beside ProgressData.
+ * Identifier (unquoted) object keys over the declared members, `satisfies`-checked against the
+ * counter arm of ProgressData (Omit plan/tasks): adding a counter member to ProgressData without
+ * this table fails to compile (loud drift, AC14). CounterKey is `keyof` this table — the type-level
+ * authority the dispatch surface (rules/failure.ts incrementFailureCounter) resolves canonical
+ * `.counter` field names against; construction points carry zero quoted counter-name literals
+ * (channel audit row 13). */
+export const COUNTER_ZERO = {
+  timeoutCount: 0,
+  contractViolationCount: 0,
+  engineSelfWrittenCount: 0,
+  engineRecoveryCount: 0,
+} as const satisfies Record<keyof Omit<ProgressData, "plan" | "tasks">, 0>;
+
+/** CounterKey — the four declared counter members as a literal union (derived, never quoted). */
+export type CounterKey = keyof typeof COUNTER_ZERO;
+
+/** isCounterKey(field): type guard admitting only canonical field names that name a declared
+ * ProgressData counter member. A drift field (engine-config naming a key ProgressData does not
+ * declare) fails the guard and the caller throws — the typed carrier never takes a dynamic-key
+ * write (no Record<string, unknown> view / no index-signature travel on ProgressData). */
+export function isCounterKey(field: string): field is CounterKey {
+  return Object.hasOwn(COUNTER_ZERO, field);
+}
+
 /** Ledger lookup key — a scalar task number (single-task group) or the group key string. */
 export type LedgerKey = number | string;
 
@@ -82,21 +107,30 @@ export function readProgressJSON(progressDir: string, plan?: string): ProgressDa
 }
 
 /** writeProgressJSON: write data to progress.json in progressDir.
- * The dead fields (lastDispatchHead/degradationLog) are stripped on write once more — a legacy
- * progress.json (a live pre-degradation file) carrying the old keys gets a one-time GC on first
- * write-back. Task 30 ②: tasks[N].status is retired from the schema — any legacy row still
- * carrying it converges on the first write-back (deriveTaskState is the single TaskState source;
- * the row keeps only facts). Strips on a serialization copy, never mutates the caller's object. */
-const PROGRESS_DEAD_KEYS = ["lastDispatchHead", "degradationLog"];
+ * The dead fields (lastDispatchHead/degradationLog) are dropped on write — a legacy progress.json
+ * (a live pre-degradation file) carrying the old keys gets a one-time GC on first write-back.
+ * Task 30 ②: tasks[N].status is retired from the schema — any legacy row still carrying it
+ * converges on the first write-back (deriveTaskState is the single TaskState source; the row keeps
+ * only facts). Strips on a serialization copy, never mutates the caller's object. Typed carrier
+ * (P4.4 Task 5): the strip is expressed as typed member writes over the declared ProgressData keys
+ * — the two legacy top-level keys and the retired row status are dropped BY CONSTRUCTION without a
+ * Record<string, unknown> view / bare `delete` against the typed carrier. */
 export function writeProgressJSON(progressDir: string, data: ProgressData): void {
   const jsonPath = path.join(progressDir, "progress.json");
-  const clean = { ...data } as ProgressData & Record<string, unknown>;
-  for (const k of PROGRESS_DEAD_KEYS) delete clean[k];
-  if (Array.isArray(clean.tasks)) {
-    clean.tasks = clean.tasks.map((t) => {
-      const row = { ...t } as Record<string, unknown>;
-      delete row.status;
-      return row as ProgressData["tasks"][number];
+  const clean: ProgressData = { tasks: [] };
+  if (data.plan !== undefined) clean.plan = data.plan;
+  if (data.timeoutCount !== undefined) clean.timeoutCount = data.timeoutCount;
+  if (data.contractViolationCount !== undefined)
+    clean.contractViolationCount = data.contractViolationCount;
+  if (data.engineSelfWrittenCount !== undefined)
+    clean.engineSelfWrittenCount = data.engineSelfWrittenCount;
+  if (data.engineRecoveryCount !== undefined) clean.engineRecoveryCount = data.engineRecoveryCount;
+  if (Array.isArray(data.tasks)) {
+    clean.tasks = data.tasks.map((t) => {
+      const row: TaskLedgerRow = "group" in t ? { group: t.group } : { task: t.task };
+      if (t.rounds !== undefined) row.rounds = t.rounds;
+      if (t.scope_base !== undefined) row.scope_base = t.scope_base;
+      return row;
     });
   }
   writeFileSync(jsonPath, JSON.stringify(clean, null, 2));

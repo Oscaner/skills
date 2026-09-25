@@ -54,7 +54,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   const taskBase = "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63";
   const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, `# task 1\nTASK_BASE: ${taskBase}\n`);
-  writeFileSync(path.join(ws, "task-1-test-evidence.json"), "{}"); // behavior_change !== true → soft 空
+  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}"); // behavior_change !== true → soft 空
   const actualHead = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: repo,
     encoding: "utf8",
@@ -119,7 +119,7 @@ it("finalizeHandoff 未知 mode → 抛错（定稿分派契约）", async () =>
 // ---- writeOwnHandoff：全量覆盖写盘（engine 载体唯一作者）----
 
 it("writeOwnHandoff 全量覆盖：existing 含垃圾字段 → 新载体不含它", () => {
-  const p = path.join(mkdtempSync(path.join(tmpdir(), "cdd-woh-")), "task-1-implement.json");
+  const p = path.join(mkdtempSync(path.join(tmpdir(), "cdd-woh-")), "tasks-1-implement.json");
   writeOwnHandoff(p, { junk: true, task: 1 });
   writeOwnHandoff(p, {
     tasks: [1],
@@ -244,7 +244,7 @@ it("finalizeHandoff implement 族：非 APPROVED 返回 → BLOCKED + exit 1", a
   const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-impl-blocked-"));
   const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, "# task 1\nTASK_BASE: 9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63\n");
-  writeFileSync(path.join(ws, "task-1-test-evidence.json"), "{}");
+  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}");
   const r = await finalizeHandoff({
     mode: "implement",
     returnBlock: ["status: NEEDS_CONTEXT", "commits: base=x", "artifacts: ", "blocker: "],
@@ -309,9 +309,9 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const c1 = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
     expect(c0).not.toBe(c1);
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-ws-"));
-    const brief = path.join(ws, "task-27-brief.md");
+    const brief = path.join(ws, "tasks-27-brief.md");
     writeFileSync(brief, `# task 27\nTASK_BASE: ${c1}\n`);
-    writeFileSync(path.join(ws, "task-27-test-evidence.json"), "{}");
+    writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), "{}");
     return { repo, c0, c1, ws, brief };
   }
 
@@ -403,9 +403,9 @@ describe("finalizeImplement T27 恢复轮声明采纳 + scope 账本（spec T7.6
     const { repo, c0, c1 } = resumeFixture();
     const ws = mkdtempSync(path.join(tmpdir(), "cdd-hf-t27-fresh-"));
     // fresh brief：TASK_BASE = c0（≠HEAD）
-    const freshBrief = path.join(ws, "task-27-brief.md");
+    const freshBrief = path.join(ws, "tasks-27-brief.md");
     writeFileSync(freshBrief, `# task 27\nTASK_BASE: ${c0}\n`);
-    writeFileSync(path.join(ws, "task-27-test-evidence.json"), "{}");
+    writeFileSync(path.join(ws, "tasks-27-test-evidence.json"), "{}");
     const r = await finalizeHandoff({
       mode: "implement",
       returnBlock: [

@@ -286,7 +286,7 @@ describe("branch-fix in-process loop closure", () => {
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
       expect(h.phase).toBe("fix");
       expect(h.status).toBe("APPROVED");
-      // commits.base = the reviewed range base (TASK_FIXED_POINT); head = the fix's own HEAD.
+      // commits.base = the reviewed range base (FIXED_POINT); head = the fix's own HEAD.
       expect(h.commits.base).toBe(base);
       // The fake agent committed — the new HEAD is a NEW ref.
       const newHead = readFileSync(path.join(dir, "fix-after-commit.head"), "utf8").trim();

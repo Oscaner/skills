@@ -22,7 +22,7 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..
 describe("CddRuntime — the single module-level mutable-state surface", () => {
   it("sweep: zero module-level `let` mutable declarations in src (tests excluded)", () => {
     const hits = execSync(
-      `grep -rn '^let ' "${SRC}" --include="*.ts" | grep -v '__tests__' || true`,
+      `grep -rnE '^(export[[:space:]]+)?let[[:space:]]+' "${SRC}" --include="*.ts" | grep -v '__tests__' || true`,
       { encoding: "utf8" },
     )
       .split("\n")

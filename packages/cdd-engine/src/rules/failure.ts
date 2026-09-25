@@ -10,7 +10,7 @@
 // (threshold >= 2) — one category's terminal state never leaks into another's counter.
 
 import { readJson, writeHandoff } from "../artifacts/handoff/write.ts";
-import { type ProgressData, readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
+import { isCounterKey, readProgressJSON, writeProgressJSON } from "../artifacts/progress.ts";
 import { loadEngineConfig } from "../infra/config.ts";
 import { DEFAULT_IDLE_WINDOW_MS, type TerminationCause } from "../infra/proc.ts";
 
@@ -54,13 +54,18 @@ export function incrementFailureCounter(progressDir: string, category: string): 
   const field = counterFor(category);
   if (!field) return -1;
   const data = readProgressJSON(progressDir);
-  // The counter fields ride the canonical failure-categories table (never hand-written literals) —
-  // typed carrier access via the record-shaped view (ProgressData declares the known keys).
-  const rec = data as ProgressData & Record<string, unknown>;
-  const prev: number = typeof rec[field] === "number" ? ((rec[field] as number) ?? 0) : 0;
-  rec[field] = prev + 1;
+  if (!isCounterKey(field)) {
+    // Canonical drift (an engine-config edit naming a counter field ProgressData does not declare)
+    // fails loudly — the typed carrier never takes a dynamic-key write (AC14, channel audit row 13).
+    throw new Error(`unknown progress counter field: ${field}`);
+  }
+  // Typed counter accessor: the canonical field name (counterFor → .counter) resolves to its
+  // declared ProgressData member through the isCounterKey guard — fixed key set, no Record<string,
+  // unknown> view / index-signature carrier in this construction point.
+  const next = (data[field] ?? 0) + 1;
+  data[field] = next;
   writeProgressJSON(progressDir, data);
-  return rec[field] as number;
+  return next;
 }
 
 // Terminal gate (T6 / AC7): count >= 2 → terminal blocker, the orchestrator's stop-retrying

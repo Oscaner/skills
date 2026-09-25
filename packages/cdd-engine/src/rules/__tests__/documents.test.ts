@@ -168,7 +168,7 @@ describe("validatePlanContract — the plan face (necessary subset, always runs)
 
   it("plan: `{{…}}` placeholder → failure; `{{> partial}}` mechanism ref → exempt", () => {
     const withPlaceholder = writeChain({
-      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n{{TASK_BRIEF}}\n\n### Task 1: x\nbody\n",
+      plan: "# Plan\n\n**Spec:** [plan-design.md](docs/osuperpowers/specs/plan-design.md)\n\n## Constraints\n\n- c\n\n{{SOME_UNKNOWN}}\n\n### Task 1: x\nbody\n",
     });
     expect(fieldNames(withPlaceholder)).toContain("placeholders");
     const withPartial = writeChain({

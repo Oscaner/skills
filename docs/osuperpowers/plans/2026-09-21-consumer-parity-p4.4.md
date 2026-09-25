@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.4-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.4-design.md)
 - **Parent program**: [consumer-parity overall v1.42](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.1 · 2026-09-25
+- **Version**: v1.2 · 2026-09-25
 - **Base**: develop
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.3-design.md)）
 
@@ -37,6 +37,8 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 
 ## Task Groups
 
+**有效分区 = 六个 dispatch 单位**：[1] · [2] · [3,4,5] · [6,7,8] · [9] · [10,11] —— 本节声明仅列合并组（3,4,5 / 6,7,8 / 10,11）；未覆盖任务（1 · 2 · 9）以**隐式单组**补全（TG1 · TG2 · TG5，按 task 号序）——引擎派生语义显式化归 Task 3 ②，覆盖断言归 Task 3 验收（任何声明不得丢任务），loop 组列表派生归 Task 10 ③。
+
 - **Task 3, 4, 5**: engine 域层类化 —— TaskGroup 值对象 · CddRuntime 模块态收编 · 域载体 typed 化（同批 implement/review/fix 一个周期，接口相互耦合）
 - **Task 6, 7, 8**: lifecycle 收口 —— 长链入类 + 产物面（RoundContext/ProgressLedger/Handoff/ResidueManager）· 域规则服务类 + 导出面重排 · 三段结案 `REVIEW_FIX`（engine 破坏面同批收口）
 - **Task 10, 11**: skills 文本批次 + 收口 —— 五面三段表述 · PAP 移除面 · 裁定迁移/loop 更名 + 全绿/登记/回填（emit 输入面 + plan complete 同批）
@@ -60,10 +62,11 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 
 ### Task 3: TaskGroup 类化 + 五签名统一（TG3）
 
-- **Do**: ① `cli/shared.ts:84 parseTaskList()` + `artifacts/handoff/naming.ts:37 tasksKey()` 双标量 → **`class TaskGroup`**（静态工厂 `TaskGroup.fromTokens` · 校验（逐 token 整数 · 去重 · 排序）· `key()` · 成员断言方法），落 `src/` 域层 ② **五处历史散点签名统一收 `TaskGroup`**：`--tasks` 解析（TaskListParser 面）· `effectiveGroups`（rules/documents.ts:189-217）· progress ledger key（artifacts/progress.ts `{task}|{group:"1-2"}`）· handoff 文件名（artifacts/handoff/naming.ts `tasks-{tasks}-review-{round}.json`）· `TaskLifecycle#tasks/#groupKey`（dispatch/task.ts:288-315）——零 `number[]`/裸串域接口穿行 ③ doc-contract / brief 抽取消费面同步（engine 测试绿）④ `cli-shape.test.ts` / `schema.test.ts` 随破坏面改造（`parse` 静态可导入零副作用面：类静态入口保持或随改造重定义，允许 breaking）
+- **Do**: ① `cli/shared.ts:84 parseTaskList()` + `artifacts/handoff/naming.ts:37 tasksKey()` 双标量 → **`class TaskGroup`**（静态工厂 `TaskGroup.fromTokens` · 校验（逐 token 整数 · 去重 · 排序）· `key()` · 成员断言方法），落 `src/` 域层 ② **五处历史散点签名统一收 `TaskGroup`**：`--tasks` 解析（TaskListParser 面）· `effectiveGroups`（rules/documents.ts:189-217）· progress ledger key（artifacts/progress.ts `{task}|{group:"1-2"}`）· handoff 文件名（artifacts/handoff/naming.ts `tasks-{tasks}-review-{round}.json`）· `TaskLifecycle#tasks/#groupKey`（dispatch/task.ts:288-315）——零 `number[]`/裸串域接口穿行；**`effectiveGroups` 派生语义显式化**（有效组 = 声明合并组 ∪ 未覆盖任务隐式单组、按 task 号序——废除非空 `taskGroups` 声明整存整弃替换默认 singleton 集、声明外任务不可派发的引擎现状）：`derivePlanVerdict` plan task 集 = **有效组并集**（= 全 task 号集 · 任何声明不得丢任务）· `statusValidate` 迭代消费面随有效组走 ③ doc-contract / brief 抽取消费面同步（engine 测试绿）④ `cli-shape.test.ts` / `schema.test.ts` 随破坏面改造（`parse` 静态可导入零副作用面：类静态入口保持或随改造重定义，允许 breaking）
 - **验收**:
   - `TaskGroup` 类化五签名统一实证（progress/handoff/task 各面签名收 `TaskGroup`，sweep 零 `number[]` 域接口穿行）
   - 类能力五枚举落地（静态工厂 `fromTokens` · 校验去重 · 排序 · `key()` · 成员断言）——与 spec §2.2 互补对照
+  - **有效分区 == 全 task 号集覆盖断言**（engine 测试）：任意非空声明下有效组 task 号并集 = {1..N}（guard——任何声明都不得丢任务）；有效组按 task 号序 → Task 2（TG2 门）先于 Task 3+（TG3）的派发序可表达
   - `--tasks 1` / `--tasks 1,2` dispatch 行为与 P4.3 等价（engine 测试 + 现场回归）；`parse` 静态导入约束处置明确
 
 ### Task 4: CddRuntime 模块态收编（TG3）
@@ -117,10 +120,10 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 
 ### Task 10: skills 文本批次 —— 五面三段表述 + PAP 移除面 + 裁定迁移/loop 更名（TG6）
 
-- **Do**: ① **五面 Review Convergence 三段表述**（writing-single-spec I1 · writing-overall-spec I1 · writing-phase-spec I1 · writing-plans I1 · cli-driven-development I3 的 Review Convergence 行 + review/fix 节点路径；`REVIEW_FIX` 同名入文本；语义 = S1 blocker>0 → fix 后 re-review · S2 blocker=0∧warn/nit>0 → fix 收口轮、无 re-review · S3 零 finding → 批准收敛）② **Pending Acceptance Patch 移除面**：`writing-plans` 删 `## Pending Acceptance Patch` 条件节（finding-tag 约定 · zone shape · Task 14 样例）· I3 改述（题名去 `(Pending Acceptance)` · 删 zone-write/tag 收编/patch-bullet 机制句 · authority 句改写「跨 task 裁决（用户裁决 / phase 级 re-scope）由 orchestrator 以 Plan Sole Writer **直写目标 task 的 Do 与验收**；fix/implement agents 零 plan 修改权」）· fix 节点 tag 句删；`cli-driven-development` **I6 整条删** · fix 节点「LATER task tag」句删 · I7 改指 Plan Sole Writer ③ **裁定迁移 + loop 更名**：`writing-plans` 文本（author-plan 内 **非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明 · 无 AskUserQuestion · 零分组无节）· `cli-driven-development` 移除 `adjudicate-task-groups` 节点与定义 + `task-groups-undecided` 终端（`C → D` 直连）· **loop 更名 `group-implement-review-fix`**（`implement-group` / `run-group-review` / `fix-group` 节点名 · `more-groups?` 保留 · 组列表自 plan 记录读取）④ schema 面：`plan.json` 删 `pendingAcceptancePatch` 节点 · `skill-anatomy.json` 条件节注册表删条目（zone 描述 · `- **Task N (patch)**:` 样例 pattern · `### Task N:` 样heading）+ **growth 注册表删 cli-driven-development 越界条目**（移除后 13 节点/17 边落回边界内）⑤ engine `documents.test.ts` / `schema.test.ts` 断言随删 ⑥ `pnpm run emit` + 产物重生成 + `emit:check` 无 drift（frozen 历史 docs 保留）
+- **Do**: ① **五面 Review Convergence 三段表述**（writing-single-spec I1 · writing-overall-spec I1 · writing-phase-spec I1 · writing-plans I1 · cli-driven-development I3 的 Review Convergence 行 + review/fix 节点路径；`REVIEW_FIX` 同名入文本；语义 = S1 blocker>0 → fix 后 re-review · S2 blocker=0∧warn/nit>0 → fix 收口轮、无 re-review · S3 零 finding → 批准收敛）② **Pending Acceptance Patch 移除面**：`writing-plans` 删 `## Pending Acceptance Patch` 条件节（finding-tag 约定 · zone shape · Task 14 样例）· I3 改述（题名去 `(Pending Acceptance)` · 删 zone-write/tag 收编/patch-bullet 机制句 · authority 句改写「跨 task 裁决（用户裁决 / phase 级 re-scope）由 orchestrator 以 Plan Sole Writer **直写目标 task 的 Do 与验收**；fix/implement agents 零 plan 修改权」）· fix 节点 tag 句删；`cli-driven-development` **I6 整条删** · fix 节点「LATER task tag」句删 · I7 改指 Plan Sole Writer ③ **裁定迁移 + loop 更名**：`writing-plans` 文本（author-plan 内 **非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明 · 无 AskUserQuestion · 零分组无节）· `cli-driven-development` 移除 `adjudicate-task-groups` 节点与定义 + `task-groups-undecided` 终端（`C → D` 直连）· **loop 更名 `group-implement-review-fix`**（`implement-group` / `run-group-review` / `fix-group` 节点名 · `more-groups?` 保留 · **组列表 = 声明合并组 ∪ 未覆盖任务单组**（经 `effectiveGroups` 派生结果），每组分一个 `--tasks`）④ schema 面：`plan.json` 删 `pendingAcceptancePatch` 节点 · `skill-anatomy.json` 条件节注册表删条目（zone 描述 · `- **Task N (patch)**:` 样例 pattern · `### Task N:` 样heading）+ **growth 注册表删 cli-driven-development 越界条目**（移除后 13 节点/17 边落回边界内）⑤ engine `documents.test.ts` / `schema.test.ts` 断言随删 ⑥ `pnpm run emit` + 产物重生成 + `emit:check` 无 drift（frozen 历史 docs 保留）
 - **验收**:
   - 五面文本三段表述同形（grep `REVIEW_FIX` × 五件 + 措辞核对）；`emit:check` 无 drift
-  - PAP 移除面零活残留（zone / `accepts pending-acceptance-patch` / `targets later task` / `## Pending Acceptance Patch` heading 零活面 grep（frozen 豁免）· plan.json 无 `pendingAcceptancePatch` 节点 · skill-anatomy 注册表无该条件节 · cli-development 无 I6 且 I7 改指 Plan Sole Writer · 两 SKILL.md fix 节点 tag 句删 · engine tests 断言随删 · growth 注册表无 cli-development 越界条目）
+  - PAP 移除面零活残留（zone / `accepts pending-acceptance-patch` / `targets later task` / `## Pending Acceptance Patch` heading 零活面 grep（frozen 豁免）· plan.json 无 `pendingAcceptancePatch` 节点 · skill-anatomy 注册表无该条件节 · cli-development 无 I6 且 I7 改指 Plan Sole Writer · 两 SKILL.md fix 节点 tag 句删 · engine tests 断言随删 · growth 注册表无 cli-development 越界条目）；**跨 task 裁决直写实证**：orchestrator 直写目标 task 的 **Do** 与 **验收** → brief 抽取逐字携带（行为入 Do · 验证入 验收，spec §2.10 AC 对应面）
   - 裁定迁移实证（writing-plans 无 AskUserQuestion 且含 authoring 期裁定落盘语义 · cli-development digraph 无 `adjudicate-task-groups` / 无 `task-groups-undecided` · `C → D` 直连 · 节点更名 group-*（`implement-group` / `run-group-review` / `fix-group`）· `more-groups?` 保留）
   - 零白绿：digraph-consistency 断言（双向完备/同构/growth）全绿
 

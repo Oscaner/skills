@@ -2,7 +2,7 @@
 
 **Spec:** [2026-09-21-consumer-parity-p4.4-design.md](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.4-design.md)
 - **Parent program**: [consumer-parity overall v1.42](docs/osuperpowers/specs/2026-09-21-consumer-parity-overall.md)
-- **Version**: v1.3 · 2026-09-25
+- **Version**: v1.4 · 2026-09-25
 - **Base**: develop
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.3-design.md)）
 
@@ -40,7 +40,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 **有效分区 = 六个 dispatch 单位**：[1] · [2] · [3,4,5] · [6,7,8] · [9] · [10,11] —— 本节声明仅列合并组（3,4,5 / 6,7,8 / 10,11）；未覆盖任务（1 · 2 · 9）以**隐式单组**补全（TG1 · TG2 · TG5，按 task 号序）——引擎派生语义显式化归 Task 3 ②，覆盖断言归 Task 3 验收（任何声明不得丢任务），loop 组列表派生归 Task 10 ③。
 
 - **Task 3, 4, 5**: engine 域层类化 —— TaskGroup 值对象 · CddRuntime 模块态收编 · 域载体 typed 化（同批 implement/review/fix 一个周期，接口相互耦合）
-- **Task 6, 7, 8**: lifecycle 收口 —— 长链入类 + 产物面（RoundContext/ProgressLedger/Handoff/ResidueManager）· 域规则服务类 + 导出面重排 · 三段结案 `REVIEW_FIX`（engine 破坏面同批收口）
+- **Task 6, 7, 8**: lifecycle 收口 —— 类化补全 + 产物面（RoundContext/ProgressLedger/Handoff/ResidueManager）· 域规则服务类 + 导出面重排 · 三段结案 `REVIEW_FIX`（engine 破坏面同批收口）
 - **Task 10, 11**: skills 文本批次 + 收口 —— 五面三段表述 · PAP 移除面 · 裁定迁移/loop 更名 + 全绿/登记/回填（emit 输入面 + plan complete 同批）
 
 ### Task 1: 全树 deps 升最新（R7 · TG1 先行）
@@ -71,9 +71,9 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 
 ### Task 4: CddRuntime 模块态收编（TG3）
 
-- **Do**: ① **`class CddRuntime`** 收编五个模块级可变态——`dryRun`/`DRY_RUN()`/`setDryRun()`（cli/shared.ts:18-24）· `_root` 单例（infra/root.ts:16-31）· proc 全局 `registry/diskPath/idleTimer`（infra/proc.ts:330-332）· `signalExitCode`（bin.ts:54）· memo `cacheProfileValidator`（infra/registry.ts:98）② **构造注入**（engine 测试经替身注入实证；scripts 面同款可测）③ solo 模块级可变态（`let` 声明）面归零（sweep 实证）；proc 生命周期收进类封装
+- **Do**: ① **`class CddRuntime`** 收编模块级可变态——`dryRun`/`DRY_RUN()`/`setDryRun()`（cli/shared.ts:18-24）· `_root` 单例（infra/root.ts:16-31）· proc 全局 `registry/diskPath/idleTimer`（infra/proc.ts:330-332）· `signalExitCode`（bin.ts:54）· memo `cacheProfileValidator`（infra/registry.ts:98）· memo `templateContract` 缓存（render/templates.ts 模块级 CACHE 态——随 `TemplateLoader` 类化迁入（Task 7 ①））② **构造注入**（engine 测试经替身注入实证；scripts 面同款可测）③ solo 模块级可变态（`let` 声明）面归零（sweep 实证）；proc 生命周期收进类封装
 - **验收**:
-  - 五个可变态全收 `CddRuntime`（sweep 零模块级 `let` 可变态面）
+  - 模块级可变态全收 `CddRuntime`（sweep 零模块级 `let` 可变态面 · 含 templates CACHE 迁入）
   - 构造注入替身测试绿（engine 测试注入 `CddRuntime` 替身实证 dryRun/root/proc 均经类面）
   - `CddRuntime` 为唯一可变态面（域接口经类传递）
 
@@ -85,19 +85,19 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
   - 零空壳 class（代码评审实证：typed 载体无空方法壳）
   - handoff schema 校验仍在 schema 面（无双实现实证）
 
-### Task 6: lifecycle 收口 —— 长链入类 + 产物面（TG4）
+### Task 6: lifecycle 收口 —— 类化补全 + 产物面（TG4）
 
-- **Do**: ① 长链 `runReview`（cli/review.ts:76-226）· `runFix`（cli/fix.ts:23-120）· `buildCtx`（task.ts:122-158）主体逻辑迁入 `DispatchLifecycle`/`TaskLifecycle` 类步骤（与既有 template-method pre-flight/dispatch/post-flight 同构）；`cli/*.ts` 退化为**组合根**（argv 解析 + 构造 + dispatch + 出口）——**无转发壳**（判定标准⑤）② **`RoundContext`** 类（round 基准 · base token · 轮次锚；审阅轮次唯一上下文）③ **`ProgressLedger`** 类（六 key 账本 · `rowFor/entryFor` 单源 + 写入不变量）④ **`Handoff`** typed 载体类（构建/命名/落盘/终态化；schema 校验归 schema 面）⑤ **`ResidueManager`** 类（residue 检测/结算/恢复状态机；`RecoveryInfo/DeadCarrierRead/ResidueAppendixInput` 收编）⑥ engine 测试随类化同步改造（breaking 允许）
+- **Do**: ① `DispatchLifecycle` 族**已类化**（既有 template-method）——`TaskLifecycle`（dispatch/task.ts:288）· `DocsLifecycle`（dispatch/docs.ts:93）· `BranchLifecycle`/`BranchReviewLifecycle`/`BranchFixLifecycle`（dispatch/branch.ts:97/277/438），`runReview`（cli/review.ts）· `runFix`（cli/fix.ts）· `runDocsTask`（dispatch/docs.ts:355，`DocsLifecycle` legacy surface kept 薄包装）已是 `withLifecycle` **组合根包装**（harness 门 + root 注入 + type 路由 + round 推导 + 委托 + 出口）——本 task **不重做既有类化**，承担 `buildCtx`（task.ts:122）迁入 `TaskLifecycle` 类公共面（ctx 装配随类构造经注入接管）+ branch 族薄壳**并入组合根**：`runBranchReview`（cli/branch-review.ts:15）· `runBranchFix`（cli/branch-fix.ts:20）的 withLifecycle 薄转发逻辑并入 review/fix 组合根 type 路由，**删两文件**（判定标准⑤ · 死代码即删）；`cli/*.ts` 保持**组合根**（argv 解析 + 构造 + dispatch + 出口）——**无转发壳**（判定标准⑤）② **`RoundContext`** 类（round 基准 · base token · 轮次锚；审阅轮次唯一上下文）③ **`ProgressLedger`** 类（六 key 账本 · `rowFor/entryFor` 单源 + 写入不变量）④ **`Handoff`** typed 载体类（构建/命名/落盘/终态化；schema 校验归 schema 面）⑤ **`ResidueManager`** 类（residue 检测/结算/恢复状态机；`RecoveryInfo/DeadCarrierRead/ResidueAppendixInput` 收编）⑥ engine 测试随类化同步改造（breaking 允许）
 - **验收**:
-  - 长链主体逻辑入类（`cli/*.ts` 组合根实证 · 无转发壳）
+  - buildCtx 类公共面实证（裸函数 `buildCtx` → `TaskLifecycle` 类公共方法 · ctx 装配经类面）；`cli/*.ts` 组合根保持回归断言（runReview/runFix 现状 withLifecycle 薄包装不退化 · 无转发壳 · 判定标准⑤）；branch 族薄壳并入组合根实证（`cli/branch-review.ts` / `cli/branch-fix.ts` 删除 · review/fix 组合根 type 路由覆盖 branch 派发）
   - `RoundContext`/`ProgressLedger`/`Handoff`/`ResidueManager` 类落地 + 测试绿
   - progress 六 key + `rowFor/entryFor` 单源不变量保持；handoff 命名/finalize 行为经类面等价（engine 测试）
 
 ### Task 7: 域规则服务类 + 导出面重排（TG4）
 
-- **Do**: ① 纯函数 rules 模块 → **无状态域服务类**（方法即规则 · 协同对象构造注入）：`ConvergenceChecker`（rules/convergence.ts）· `FailureResolver`（rules/failure.ts）· `StatusJudge`（rules/status.ts）· `CloseoutChecker`（rules/closeout.ts）· `DocumentsValidator`（rules/documents.ts）· **`CommitChecker`**（rules/commit.ts——双层门判 `entryGateCleanTree`/`validateCommitContract`/`rewriteHandoffBlocked` 方法即规则 · 判定标准② · 构造注入）· **`HandoffSchemaValidator`**（rules/schema.ts——`loadHandoffSchema`/`validateHandoffSchema`/`loadHandoffNamespace` 收类 · schema 校验仍只经 schema 面执法（Task 5 ② / Task 6 ④ 口径 · 不增第二执法实现））· **`ChangedSurfaceAuditor`**（rules/write-boundary.ts——`reconcileChangedSurface` 收改动面审计类 · 判定标准② · 构造注入）· `TaskListParser`（cli/shared.ts parse 面）· **`BriefRenderer`**（render/brief.ts `generateBrief` 类化 → `BriefRenderer#render`，构造注入文件/git 判据）· **`GitClient`**（infra/git.ts 操作收无状态域服务类）· **`Registry`**（infra/registry.ts 域规则 `registryField`/`resolveInjection`/`resolveSuffix`/`cliInPath`/`checkHarness`/`cacheProfileFor`/`validateCacheProfile` 等收类 · 判定标准② · 构造注入）② engine 导出函数面随类化重排（`runTask` → `TaskLifecycle.run` · `runDocsTask` → `DocsLifecycle.run` · `generateBrief` → `BriefRenderer#render` · `buildCtx`/`parseTaskList` → 类公共面）——**无薄壳转发保红线**（判定标准⑤）③ engine 测试套件随导出面改造（breaking 允许）④ docContractValidate 四表/结构抽取行为经类化后不变（engine 套件覆盖）
+- **Do**: ① 纯函数 rules 模块 → **无状态域服务类**（方法即规则 · 协同对象构造注入）：`ConvergenceChecker`（rules/convergence.ts）· `FailureResolver`（rules/failure.ts）· `StatusJudge`（rules/status.ts）· `CloseoutChecker`（rules/closeout.ts）· `DocumentsValidator`（rules/documents.ts）· **`CommitChecker`**（rules/commit.ts——双层门判 `entryGateCleanTree`/`validateCommitContract`/`rewriteHandoffBlocked` 方法即规则 · 判定标准② · 构造注入）· **`HandoffSchemaValidator`**（rules/schema.ts——`loadHandoffSchema`/`validateHandoffSchema`/`loadHandoffNamespace` 收类 · schema 校验仍只经 schema 面执法（Task 5 ② / Task 6 ④ 口径 · 不增第二执法实现））· **`ChangedSurfaceAuditor`**（rules/write-boundary.ts——`reconcileChangedSurface` 收改动面审计类 · 判定标准② · 构造注入）· `TaskListParser`（cli/shared.ts parse 面）· **`BriefRenderer`**（render/brief.ts `generateBrief` 类化 → `BriefRenderer#render`，构造注入文件/git 判据）· **`GitClient`**（infra/git.ts 操作收无状态域服务类）· **`Registry`**（infra/registry.ts 域规则 `registryField`/`resolveInjection`/`resolveSuffix`/`cliInPath`/`checkHarness`/`cacheProfileFor`/`validateCacheProfile` 等收类 · 判定标准② · 构造注入）· **`ConfigLoader`**（infra/config.ts `loadEngineConfig`/`loadContextContract`/`loadFailureCategories`/`loadHandoffNamespace` 收类 · 判定标准② · 构造注入）· **`EngineInvoker`**（infra/invoke.ts `invokeCli`/`composeDispatchSet` 等 6 件收类 · 判定标准② · 构造注入）· **`ReturnBlockParser`**（artifacts/return-block.ts 解析面 10 件收类 · 判定标准②）· **`TemplateLoader`**（render/templates.ts `loadTemplateContract`/`tokenNames` 等 8 件收类 · 判定标准② · **模块级 CACHE 态迁入 `CddRuntime`**（Task 4 ① · 构造注入））② engine 导出函数面随类化重排（`runTask` → `TaskLifecycle.run` · `runDocsTask` → `DocsLifecycle.run` · `generateBrief` → `BriefRenderer#render` · `buildCtx`/`parseTaskList` → 类公共面）——**无薄壳转发保红线**（判定标准⑤）③ engine 测试套件随导出面改造（breaking 允许）④ docContractValidate 四表/结构抽取行为经类化后不变（engine 套件覆盖）
 - **验收**:
-  - 域规则服务类全落地 + infra 面类化实证（`GitClient`/`Registry` 落地）：grep 全仓产品源码 ts 面零独立纯函数导出模块（rules/ 全目录收敛——含 commit/schema/write-boundary 随 `CommitChecker`/`HandoffSchemaValidator`/`ChangedSurfaceAuditor` 类化归零 · parse/brief · infra/ 的 git/registry 均无裸函数导出 · spec §2.1「零模块级裸函数模块」口径）
+  - 域规则服务类全落地 + infra 面类化实证（`GitClient`/`Registry`/`ConfigLoader`/`EngineInvoker`/`ReturnBlockParser`/`TemplateLoader` 落地）：**执法集**内 ts 面零独立纯函数导出模块——rules/ 全目录收敛（含 commit/schema/write-boundary 随 `CommitChecker`/`HandoffSchemaValidator`/`ChangedSurfaceAuditor` 类化归零）· parse/brief · infra/ 的 config/invoke/registry/git · artifacts/return-block · render/templates 均无裸函数导出；**命名豁免清单**（infra 原语/运行时工具面——非域规则，判定标准② 执法范围为域规则模块；强制类化违反工程常理，不建单方法空壳 class——判定标准⑥）：`infra/exit.ts`（invariant/exitOk/exitWithCode 进程退出原语）· `infra/log.ts`（setLogLevel）· `infra/resource.ts`（resolvePackageRoot）· `infra/context.ts`（loadContract）· `artifacts/hash.ts`（hashFile）· `documents/tokens.ts`（escapeRegExp/deriveDocTokens）· `dispatch/hooks.ts`（createDispatchHooks/registerDispatchPlugin）· `cli/result-face.ts`（docsResultFace）——**不扩表**（新增豁免须经 review 裁定）；spec §2.1「零模块级裸函数模块」口径按执法集 + 豁免清单落定
   - `BriefRenderer` 化实证（`generateBrief` 公开面 → `#render` 方法；test 面改消费类实例）
   - 导出函数面破坏性重排到位 + engine 测试全绿；docContractValidate 行为无损（四表/结构断言）；argv 契约面回归：`--tasks`/`--type`/`--plan`/`--findings` 经 bin 入口现场 dispatch 实证零回归（skills 经 CLI 调用 · spec §2.4 + AC 对应面）
 
@@ -129,7 +129,7 @@ Task 2 落地后 pre-commit 触发 `biome check --write`（format autofix + lint
 
 ### Task 11: 收口 —— validate 全绿 · breaking 登记 · overall 回填 · changeset（TG6）
 
-- **Do**: ① `pnpm run validate` 11 块全绿（emit freshness · osuperpowers 树/wiring · engine dev-stub + 套件 · engine 零残面 + channel audit · marketplace · scripts unit · version-sync）② **破坏面 changelog 登记就绪**（cdd-engine breaking 四面：OOP restructure · 4 major deps · `REVIEW_FIX` 词汇 · PAP 移除面；osuperpowers：skills 文本变更——1.0.0 收口就绪）③ changeset 落盘（`pnpm run changeset`：cdd-engine major · osuperpowers feature/docs）④ **plan complete 后四表回填**（backfill-overall —— branch-review 前置义务）：P4.4 行 Design-spec 列 → `[p4.4-design v1.8](…)` · Implementation plan 列 → `Done` · change-history v-bump + closeout claim（`Pending → Done`）⑤ 零残面 sweep（零模块级裸函数导出 · 域接口零裸标量/裸 Record · 零模块级可变态 · 零转发壳 · 零空壳 class）⑥ `biome check` 全仓零违规复核（Task 2 门终态确认）
+- **Do**: ① `pnpm run validate` 11 块全绿（emit freshness · osuperpowers 树/wiring · engine dev-stub + 套件 · engine 零残面 + channel audit · marketplace · scripts unit · version-sync）② **破坏面 changelog 登记就绪**（cdd-engine breaking 四面：OOP restructure · 4 major deps · `REVIEW_FIX` 词汇 · PAP 移除面；osuperpowers：skills 文本变更——1.0.0 收口就绪）③ changeset 落盘（`pnpm run changeset`：cdd-engine major · osuperpowers feature/docs）④ **plan complete 后四表回填**（backfill-overall —— branch-review 前置义务）：P4.4 行 Design-spec 列 → `[p4.4-design v1.8](docs/osuperpowers/specs/2026-09-21-consumer-parity-p4.4-design.md)` · Implementation plan 列 → `Done` · change-history v-bump + closeout claim（`Pending → Done`）⑤ 零残面 sweep——**按 Task 7 验收执法集 + 命名豁免清单口径执行**（执法集内零模块级裸函数导出 · 豁免清单八项 infra 原语面不扩表；域接口零裸标量/裸 Record · 零模块级可变态 · 零转发壳 · 零空壳 class）⑥ `biome check` 全仓零违规复核（Task 2 门终态确认）
 - **验收**:
   - `pnpm run validate` 11 块全绿 · `emit:check` 无 drift
   - changeset 存在（cdd-engine major breaking · osuperpowers 变更面归属清晰）

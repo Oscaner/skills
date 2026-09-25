@@ -1,9 +1,9 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
-- **Version**: v1.3 · 2026-09-25
+- **Version**: v1.4 · 2026-09-25
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
-- **Parent program**: [consumer-parity overall v1.39](2026-09-21-consumer-parity-overall.md)
+- **Parent program**: [consumer-parity overall v1.40](2026-09-21-consumer-parity-overall.md)
 - **Depends on**: P4.3（shipped · [p4.3-design v1.7](2026-09-21-consumer-parity-p4.3-design.md)）
 
 ## Section 0: Incremental warning
@@ -104,11 +104,21 @@ Review 判定从两态（CHANGES_REQUESTED / APPROVED）划为**三态**，消�
 引擎面（最小改动，全部落在本 phase 类化面）：
 - `finalize.ts` 状态派生族（`classifySeverity` / `rollupStatus` / `deriveReviewStatus` 单一 owner）产出第三状态值——blocker>0 → `CHANGES_REQUESTED` · blocker=0∧warn/nit>0 → **`REVIEW_FIX`（收口态）** · 零 → `APPROVED`
 - `rules/status.ts` `deriveTaskState`：收口态（`REVIEW_FIX`）→ **fix 轮路由 → complete**（与 S1 的 needs-fix → needs-re-review 路径区分）
-- fix dispatch 对收口态（`REVIEW_FIX`）放行（与 needs-fix 同 gate）——**fix 行为本身零改动**：无 per-finding disposition 新机制、无引擎级 `targets later task` 过滤（不关心 tag，当前 task 有 findings 即 fix）；**scope 界定：plan 家族 `targets later task` 仍按 writing-plans I3（Plan Sole Writer · pending-acceptance-patch）由 orchestrator 收编、不经 fix handoff 的 tag 路由**（task 链同依 cli-development I6）——本改动只约束引擎 review/task 通道，既有 orchestrator 收编语义不变
+- fix dispatch 对收口态（`REVIEW_FIX`）放行（与 needs-fix 同 gate）——**fix 行为本身零改动**：无 per-finding disposition 新机制、无 tag 路由（`targets later task` 标签约定随 Pending Acceptance Patch 整体移除，见 §2.10——当前 task 有 findings 即修全）；本改动只约束引擎 review/task 通道
 
 Skills 面（emit 输入面）：五件 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development 的 I3/I1 行 + review/fix 节点路径），改后 `pnpm run emit` + 产物重生成
 
 Breaking：handoff `status` 词汇新增第三值（`REVIEW_FIX`）→ 1.0.0 收口（P4.2 changelog）；历史 workspace 已落定终态（APPROVED+findings → complete）**不回滚**
+
+### 2.10 Pending Acceptance Patch 移除（#279 · 2026-09-25 用户裁决）
+
+zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` 标签约定**整体退役**——以**移除**收口（#279 提案的「补双向 doc-contract 校验」被删除取代：第二副本删除使 zone↔carry 漏写与摘要漂移两缺口**构造性消失**）：
+
+- **移除理由**：zone 无消费者（engine `src/` 零识别零消费，grep 实证）；#278 裁决已把 tag 输入源抽掉（review finding 一律当前 task fix，不走延迟路由——见 §2.9）；carry 的 delivery 面（验收行逐字进 brief）由 orchestrator 直写承接，zone 只是同内容第二副本 + 记账单
+- **替代通道**：跨 task 裁决（用户裁决 / phase 级 re-scope）由 **orchestrator 直接写目标 task 的 `**Do**` 与 `**验收**`**（行为入 Do · 验证入 验收；按裁决性质分落）——backfill-as-version / I4 mid-flight 同通道，brief = task 段逐字抽取天然携带；**Plan Sole Writer 权限边界保留**（agents 零 plan 修改权，I3 仅去区名）
+- **删除面**：`writing-plans` SKILL.md `## Pending Acceptance Patch` 条件节（finding-tag 约定 · zone shape · 样例）· I3 改述 · fix 节点 tag 句删；`cli-driven-development` SKILL.md **I6 整条删** · fix 节点「LATER task tag」句删 · I7 改指 Plan Sole Writer；`plan.json` schema `pendingAcceptancePatch` 节点删；`skill-anatomy.json` 条件节注册表删（zone 描述 · `**Task N (patch)**:` 样例 pattern · `### Task N:` 样heading）；engine `documents.test.ts` / `schema.test.ts` 断言随删（engine 代码本体**零改动**）
+- **breaking**：plan.json schema 节点移除 · skill-anatomy 注册表收缩 · 标签约定出技能文本 → 1.0.0 收口登记（P4.2 changelog）
+- **frozen**：overhaul p6 族 / 已 shipped plan 与 overall change-history 历史记载保留（frozen 豁免）
 
 ### Acceptance criteria
 
@@ -124,8 +134,10 @@ Breaking：handoff `status` 词汇新增第三值（`REVIEW_FIX`）→ 1.0.0 收
 - biomejs 全面接入实证：biome.json 随仓发布（recommended）· husky pre-commit 触发 `biome check --write` 零违规通过（pre-commit 输出断言）· 覆盖 src + scripts + 全仓 ts 面（配置断言）
 - `pnpm run validate` 11 块全绿；`emit:check` 无 drift；破坏面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX`）登记 changelog，1.0.0 收口就绪；本 spec Parent program v1.39 版本行 lineage 合法；P4.4 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前）
 - review 状态词汇三值落地实证：S1 blocker 循环（现状回归）· S2 收口态（`REVIEW_FIX`）→ 复用现有 `cdd fix --findings` 一轮 → complete（无 re-review）· S3 零 finding fast path——engine 测试自造链 + 现场回归
-- S2 fix 轮复用现有 `cdd fix --findings`、零 per-finding disposition 新机制、零 `targets later task` 过滤（当前 task 有 findings 即 fix）实证
+- S2 fix 轮复用现有 `cdd fix --findings`、零 per-finding disposition 新机制、零 tag 路由（`targets later task` 标签约定已整体移除，见 §2.10；当前 task 有 findings 即修全）实证
 - skills 五面 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development；`REVIEW_FIX` 同名入五面文本；emit 输入面，改后 `pnpm run emit` + `emit:check` 无 drift）；breaking = handoff `status` 词汇新值（`REVIEW_FIX`）登记 changelog、1.0.0 收口、历史终态不回滚
+- Pending Acceptance Patch 移除实证（zone / `accepts pending-acceptance-patch` / `targets later task` 零活面 grep（frozen 豁免）· `plan.json` schema 无 `pendingAcceptancePatch` 节点 · `skill-anatomy` 注册表无该条件节 · cli-development 无 I6 · writing-plans I3 改述落地（Plan Sole Writer 保留）· engine tests 断言随删）
+- 跨 task 裁决直写 Do/验收实证（orchestrator 直写目标 task `**Do**` 与 `**验收**` 后 brief 逐字携带——行为入 Do · 验证入 验收）
 
 ## Section 3: Deviations from overall
 
@@ -133,7 +145,8 @@ Breaking：handoff `status` 词汇新增第三值（`REVIEW_FIX`）→ 1.0.0 收
 |---|---|---|
 | P4.4 注册期 scope/AC（v1.26/v1.31，先注册不探索） | 全面 OOP 化裁决（含规则面全类化、零纯函数模块）+ 破坏性变更允许 + R7 全仓依赖升最新（4 major PR + caret floor 刷新）+ scope/AC 定稿（phase-size = fit · task groups 编排） | Yes — v1.38 · 2026-09-25 |
 | review status 两态词汇（CHANGES_REQUESTED / APPROVED，engine 现状） | 三段结案重构（#278 · 2026-09-25 用户裁决）：状态词汇三分（blocker>0 → CHANGES_REQUESTED · blocker=0∧warn/nit>0 → 收口态（`REVIEW_FIX`）· 零 → APPROVED）+ `deriveTaskState` 收口态路由复用现有 `cdd fix` 后 complete（无 re-review · 无 per-finding 行为 · 无 tag 过滤）；breaking 词汇面 1.0.0 收口、历史终态不回滚 | Yes — v1.39 · 2026-09-25 |
-| （其余全部设计裁决已随 overall v1.38/v1.39 回填：P4.4 行 scope/AC · Issue inventory P4.4 行 +#278 锚点行 · change-history v1.38/v1.39，见 overall 变更基准） | 本 spec 不偏离 charter；实施细节见 §2.1–§2.9 | Yes — v1.39 · 2026-09-25 |
+| plan `## Pending Acceptance Patch` zone + `accepts pending-acceptance-patch` carry + `targets later task` 标签（overhaul P6 定案 v1.35） | Pending Acceptance Patch 整体移除（#279 · 2026-09-25 用户裁决）：zone / carry / 标签全删，跨 task 裁决由 orchestrator 直写目标 task 的 Do 与验收（Plan Sole Writer 权限边界保留）；plan.json 节点移除 + skill-anatomy 注册表收缩 + I6 删 + I3 改述 | Yes — v1.40 · 2026-09-25 |
+| （其余全部设计裁决已随 overall v1.38/v1.39/v1.40 回填：P4.4 行 scope/AC · Issue inventory P4.4 行 +#278/#279 锚点行 · change-history v1.38/v1.39/v1.40，见 overall 变更基准） | 本 spec 不偏离 charter；实施细节见 §2.1–§2.10 | Yes — v1.40 · 2026-09-25 |
 
 ## Section 4: Notes for downstream
 

@@ -1,11 +1,11 @@
 /**
  * source.json derivation — "package-as-source". SourceService domain service (Task 9,
- * 判定标准②: stateless service, zero bare-function module).
+ * Criterion ②: stateless service, zero bare-function module).
  *
  * marketplace/source.json is no longer hand-edited. This module derives the
  * marketplace aggregate from first-party package.json `oscaner-plugin` fields
  * (packages/). Top-level fields ($schema/metadata/owner) are emit constants
- * here (SOURCE_TOP — a typed carrier, 判定标准⑥).
+ * here (SOURCE_TOP — a typed carrier, Criterion ⑥).
  *
  * The vendored submodule descriptors were retired with the self-maintenance
  * surface (P6 Task 2 / B9): no `vendors/` assembly, no `resolveVendorVersion`

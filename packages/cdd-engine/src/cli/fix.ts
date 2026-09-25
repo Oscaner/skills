@@ -2,8 +2,8 @@
 // spec §2.3 split (ex bin/cdd.mjs merged face): runFix lives here; the shared guards import
 // from ./shared.ts.
 // Task 6/7: this file stays a COMPOSITE ROOT (argv-side guards + lifecycle construction + exit —
-// 判定标准⑤ — no forwarding shells): the branch channel constructs BranchFixLifecycle inline
-// (cli/branch-fix.ts 已删), the task channel delegates to TaskLifecycle.run, the spec/plan
+// Criterion ⑤ — no forwarding shells): the branch channel constructs BranchFixLifecycle inline
+// (cli/branch-fix.ts was deleted), the task channel delegates to TaskLifecycle.run, the spec/plan
 // channel to DocsLifecycle.run.
 import path from "node:path";
 import * as handoffNaming from "../artifacts/handoff/naming.ts";
@@ -63,7 +63,7 @@ export async function runFix(opts: FixOpts): Promise<void> {
     // same "findings = review handoff" contract as type=task; the plan is required (workspace
     // slug + REVIEW_PLAN_LINE). The round + embedded BASE..HEAD ref derive inside the lifecycle
     // from the findings file name; the plan value flows through for the workspace. Composite-root
-    // inline — the former cli/branch-fix.ts thin shell 已删 (判定标准⑤).
+    // inline — the former cli/branch-fix.ts thin shell was deleted (Criterion ⑤).
     if (opts.type === "branch") {
       if (!opts.plan) {
         process.stderr.write("cdd fix --type branch: missing required --plan <path>\n");

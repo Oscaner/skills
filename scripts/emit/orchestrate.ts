@@ -1,5 +1,5 @@
 /**
- * Emit orchestration helpers — the EmitOrchestrator domain service (Task 9, 判定标准②: stateless
+ * Emit orchestration helpers — the EmitOrchestrator domain service (Task 9, Criterion ②: stateless
  * service class, zero bare-function module). Methods take their inputs as parameters — no module
  * state, no repo-root closure. Unit-tested in isolation.
  */

@@ -21,7 +21,7 @@ import { runReview } from "./review.ts";
 import { runSchemaGet } from "./schema.ts";
 import { DRY_RUN, guardArgs, requireHostHarness, TaskListParser } from "./shared.ts";
 
-// The `--tasks` parse face (Task 7 — 判定标准② TaskListParser class).
+// The `--tasks` parse face (Task 7 — Criterion ② TaskListParser class).
 const taskListParser = new TaskListParser();
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;

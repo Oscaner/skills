@@ -222,7 +222,7 @@ describe("cdd base-branch get — 单一 --plan 读 + 缺失/schema 非法", () 
   it("get 目标缺失（base-branch.json 不存在）→ exit 非零 + 明确报『artifact 缺失』", () => {
     const repo = tmpGitRepo();
     try {
-      const plan = seedPlan(repo); // plan 存在，但从未 set → 无 artifact
+      const plan = seedPlan(repo); // the plan exists but was never set → no artifact
       const r = runCli(["base-branch", "get", "--plan", plan], { cwd: repo });
       expect(r.exitCode).not.toBe(0);
       expect(r.stderr).toMatch(/base-branch/);

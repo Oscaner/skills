@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/rules/status.ts — StatusJudge class (Task 29 spec T7.8 six-state
-// convergence state machine + plan completion verdict; Task 7 OOP restructure 判定标准② — the
+// convergence state machine + plan completion verdict; Task 7 OOP restructure Criterion ② — the
 // statusValidate hook's derivation core is one instance-method class, zero bare function exports;
-// Task 8 #278 — the REVIEW_FIX 收口态 route: a review that closed on warn/nit-only findings routes
+// Task 8 #278 — the REVIEW_FIX closure-state route: a review that closed on warn/nit-only findings routes
 // through its fix round to complete, never a re-review). Read-only: consumes the on-disk task
 // handoff chain (implement/review/fix carriers) + progress.json rounds, writes nothing (progress.json
 // stays engine-owned; the verdict never writes).
@@ -19,11 +19,11 @@
 //                  never a re-review trigger (the old reviews===fixes counts-equal misjudgment).
 //                  The fix is not consulted at all in this branch — dead-round precedence
 //                  (resume-pending) never applies to a fix following an APPROVED review.
-//     REVIEW_FIX → 收口态 — the review closed on warn/nit-only findings: its fix round routes the
+//     REVIEW_FIX → closure state — the review closed on warn/nit-only findings: its fix round routes the
 //                  task to complete (no re-review, S2); no fix on record yet → the fix is due
 //                  (needs-fix). The addressing fix discriminates like the S1 lane: dead →
-//                  resume-pending, APPROVED → complete (收口 fix landed), BLOCKED / not landed →
-//                  needs-fix (re-dispatch the 收口 fix).
+//                  resume-pending, APPROVED → complete (closure fix landed), BLOCKED / not landed →
+//                  needs-fix (re-dispatch the closure fix).
 //     not APPROVED / not REVIEW_FIX (CHANGES_REQUESTED / BLOCKED):
 //       no fix after it (fixes === 0, or the latest fix pre-dates the review) → needs-fix
 //       addressing fix APPROVED → needs-re-review (T14-class)
@@ -47,9 +47,9 @@ export type TaskState =
   | "needs-re-review" // review not approved → addressing fix APPROVED, no re-review on record (T14-class)
   | "resume-pending" // dead round on record (TIMEOUT / EXECUTION_FAILURE) — resume or discard;
   // never derived for a fix that follows an APPROVED review — that chain is terminal complete (T30 ①)
-  | "complete"; // latest review APPROVED, or a REVIEW_FIX review followed by its fix round (Task 8 — 收口态)
+  | "complete"; // latest review APPROVED, or a REVIEW_FIX review followed by its fix round (Task 8 — closure state)
 
-/** StatusJudge — the six-state convergence + plan verdict derivation (判定标准②; 构造注入 — the
+/** StatusJudge — the six-state convergence + plan verdict derivation (Criterion ②; constructor injection — the
  *  progress ledger, defaulting to a fresh instance). */
 export class StatusJudge {
   readonly #ledger: ProgressLedger;
@@ -85,7 +85,7 @@ export class StatusJudge {
   }
 
   /** deriveTaskState(workspace, taskNum, groups?) — the six-state convergence (spec T7.8 ③ /
-   * T7.9 ①; Task 8 ② adds the REVIEW_FIX 收口态 route). Reads the workspace's progress.json + the
+   * T7.9 ①; Task 8 ② adds the REVIEW_FIX closure-state route). Reads the workspace's progress.json + the
    * dispatch unit's implement/review/fix carriers; never writes. groups — the effectiveGroups
    * derivation (TaskGroup[]), consumed one-to-one when provided — gives a merged-group member the
    * group's identity: the member derives from the group carriers (tasks-{a},{b}-*) + the {group}
@@ -95,7 +95,7 @@ export class StatusJudge {
    * from the group set falls back to that singleton derivation too (direct per-task callers and
    * singletons share one code path).
    * The last review status is the first signal: APPROVED → complete (a following fix is the legal
-   * terminal, T29 修正); REVIEW_FIX → the fix round routes to complete (S2 — 收口态, no re-review);
+   * terminal, T29 revision); REVIEW_FIX → the fix round routes to complete (S2 — closure state, no re-review);
    * not approved → the addressing fix decides needs-fix vs needs-re-review. */
   deriveTaskState(workspace: string, taskNum: number, groups?: readonly TaskGroup[]): TaskState {
     const progress = this.#ledger.read(workspace);
@@ -124,19 +124,19 @@ export class StatusJudge {
     if (this.#statusOf(lastRev) === "APPROVED") return "complete"; // legal terminal — a later fix
     // (APPROVED, BLOCKED or dead) is never consulted, let alone re-triggers a review
 
-    // REVIEW_FIX 收口态 (warn/nit-only findings, #278): the fix round routes the task to
+    // REVIEW_FIX closure state (warn/nit-only findings, #278): the fix round routes the task to
     // complete with no re-review (S2 — distinct from S1's needs-fix → fix → needs-re-review).
     // No addressing fix on record yet → the fix is due; otherwise the addressing fix
-    // discriminates like the S1 lane: dead → resume-pending, APPROVED → complete (收口 fix
-    // landed — legal terminal), BLOCKED / not landed → needs-fix (re-dispatch the 收口 fix).
+    // discriminates like the S1 lane: dead → resume-pending, APPROVED → complete (closure fix
+    // landed — legal terminal), BLOCKED / not landed → needs-fix (re-dispatch the closure fix).
     if (this.#statusOf(lastRev) === "REVIEW_FIX") {
       if (fixes === 0 || fixes < reviews) return "needs-fix";
       const addressingFix = this.#readHandoff(workspace, "fix", key, fixes);
       if (this.#isDeadRound(addressingFix)) return "resume-pending";
       if (this.#statusOf(addressingFix) === "APPROVED") {
-        return "complete"; // 收口 fix landed — legal terminal, no re-review
+        return "complete"; // closure fix landed — legal terminal, no re-review
       }
-      return "needs-fix"; // 收口 fix 未落地（BLOCKED / not done）→ re-dispatch the fix
+      return "needs-fix"; // closure fix has not landed (BLOCKED / not done) → re-dispatch the fix
     }
 
     // Last review not approved (CHANGES_REQUESTED / BLOCKED) → the fix loop governs. The addressing

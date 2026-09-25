@@ -1,4 +1,4 @@
-// scripts/lib/version-utils.ts — the scripts version domain service (Task 9, 判定标准②:
+// scripts/lib/version-utils.ts — the scripts version domain service (Task 9, Criterion ②:
 // pure computation rules → a stateless domain service class, zero bare-function module).
 // Shared by release/version-packages.ts; the method names are the versioning rules of the
 // monorepo's independent-semver release flow.

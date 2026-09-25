@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { BranchReviewLifecycle } from "../branch.ts";
 
 /**
- * Inline branch-review dispatch (Task 6: the former cli/branch-review.ts thin shell 并入组合根 —
+ * Inline branch-review dispatch (Task 6: the former cli/branch-review.ts thin shell merged into the composition root —
  * tests construct BranchReviewLifecycle directly, exactly like cli/review.ts).
  */
 async function runBranchReviewLc(opts: {

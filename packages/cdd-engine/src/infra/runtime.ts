@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/runtime.ts — CddRuntime: the engine's single mutable-state owner
-// (P4.4 Task 4 「CddRuntime 模块态收编」). Every module-level mutable variable the engine carried
+// (P4.4 Task 4 "CddRuntime module-state consolidation"). Every module-level mutable variable the engine carried
 // (— dryRun / the repo-root singleton / the proc lifecycle registry+diskPath+idleTimer / the
 // signal-exit code / the cache-profile validator memo / the templates cache) converges into ONE
 // class instance; `runtime` (the module singleton) is the process default and the read/write

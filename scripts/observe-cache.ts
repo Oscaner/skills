@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 //   · this run is measurement-only: it renders the engine's prompt and spawns the harness CLI with
 //     a usage/cost flag appended — it writes no handoffs and mutates no workspace (real rounds run
 //     through `cdd …`, whose commit double-gate keeps the tree stable per C5).
-// The pure observation rules are the CacheObserver domain service (Task 9, 判定标准② — stateless
+// The pure observation rules are the CacheObserver domain service (Task 9, Criterion ② — stateless
 // service, zero bare-function module); this executable is the isMain-guarded driver.
 //
 // Usage:

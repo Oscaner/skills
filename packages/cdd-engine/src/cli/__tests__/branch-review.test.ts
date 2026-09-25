@@ -172,11 +172,11 @@ describe("branch-review schema-invalid e2e", () => {
         "status",
         "tasks",
       ]);
-      expect(h.findings).toEqual([]); // 非数组 findings → 数组守卫成 []
-      expect(h.commits.base).toBe(base); // branch 的 base/head 是引擎真值（AC15 文件名承载 short 形）
+      expect(h.findings).toEqual([]); // non-array findings → the array guard yields []
+      expect(h.commits.base).toBe(base); // the branch base/head is the engine's truth (the AC15 filename carries the short form)
       expect(h.commits.head).toBe(head);
       expect(h).not.toHaveProperty("notes");
-      expect(h.blocker).toMatch(/notes/); // 违规键名（ajv /notes must be string）在 blocker 文案
+      expect(h.blocker).toMatch(/notes/); // the offending key name (ajv /notes must be string) lands in the blocker copy
     } finally {
       process.env.PATH = origPath;
       rmSync(dir, { recursive: true, force: true });

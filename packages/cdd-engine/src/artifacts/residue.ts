@@ -6,7 +6,7 @@
 // cause, round}` in the failure carrier; the re-dispatch's resume pre-flight reads that carrier,
 // applies the stash back to the working tree, and the regenerated brief carries a residue-status
 // appendix so the next agent audits WIP and continues instead of rewriting from zero.
-// 收编: the carrier types (RecoveryInfo / DeadCarrierRead / ResidueAppendixInput) are declared here —
+// Consolidation: the carrier types (RecoveryInfo / DeadCarrierRead / ResidueAppendixInput) are declared here —
 // the class's single type surface.
 //
 // T28 (spec T7.7) convergence: this module is the single owner of the SAVE family too — eligibility
@@ -115,7 +115,7 @@ export interface ResidueAppendixInput {
   scope: string;
 }
 
-/** ResidueManager — the residue state machine (Task 6 ⑤; 构造注入 — the GitClient + ConfigLoader
+/** ResidueManager — the residue state machine (Task 6 ⑤; constructor injection — the GitClient + ConfigLoader
  *  seams, defaulting to fresh instances). Detection, settlement and recovery are all instance
  *  methods; the carrier types (RecoveryInfo / DeadCarrierRead / ResidueAppendixInput) live here. */
 export class ResidueManager {

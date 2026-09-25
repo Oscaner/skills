@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/artifacts/return-block.ts — ReturnBlockParser class (P6 T24 C + Task 7 OOP
-// restructure 判定标准②: the return block text plane — parse + serialize + the counters line — is
+// restructure Criterion ②: the return block text plane — parse + serialize + the counters line — is
 // ONE instance-method class, zero bare function exports). The four half-implementations (task.ts
 // returnFourLines/returnFromHandoff/dryRunReturnBlock + the branch-family dry-run arrays) converge
 // here; the parse + serialize atoms live in ONE module. The return block is an engine stdout
@@ -20,21 +20,15 @@ import path from "node:path";
 
 import { FailureResolver } from "../rules/failure.ts";
 import { readJson } from "./handoff/write.ts";
-import { ProgressLedger } from "./progress.ts";
 
-/** ReturnBlockParser — the return-block text plane's single face (判定标准②; 构造注入 — the
- *  failure resolver backing the counters line and the ledger reading the progress file both default
- *  to fresh instances). Every parse/serialize atom is an instance method. */
+/** ReturnBlockParser — the return-block text plane's single face (Criterion ②; constructor injection — the
+ *  failure resolver backing the counters line defaults to a fresh instance). Every parse/serialize
+ *  atom is an instance method. */
 export class ReturnBlockParser {
   readonly #failure: FailureResolver;
-  readonly #ledger: ProgressLedger;
 
-  constructor(
-    failure: FailureResolver = new FailureResolver(),
-    ledger: ProgressLedger = new ProgressLedger(),
-  ) {
+  constructor(failure: FailureResolver = new FailureResolver()) {
     this.#failure = failure;
-    this.#ledger = ledger;
   }
 
   // ---- parse (agent stdout → the four return block lines) ----

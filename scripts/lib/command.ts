@@ -20,7 +20,7 @@ import { defineCommand } from "citty";
  *   "target"  → main(target) — apply-rules' single mandatory positional. */
 export type InvocationKind = "none" | "dry-run" | "target";
 
-/** Command identity — the meta facet (typed carrier, 判定标准⑥). */
+/** Command identity — the meta facet (typed carrier, Criterion ⑥). */
 export interface CommandMeta {
   name: string;
   description: string;
@@ -70,7 +70,7 @@ export class Command {
     return INVOCATION_FACETS[this.meta.kind].argsDef;
   }
 
-  /** 装配 — the citty CommandDef the composition root mounts under mainCommand. */
+  /** The mount — the citty CommandDef the composition root mounts under mainCommand. */
   assemble(): CommandDef {
     return defineCommand({
       meta: { name: this.meta.name, description: this.meta.description },

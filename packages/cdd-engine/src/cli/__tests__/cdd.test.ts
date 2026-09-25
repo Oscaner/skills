@@ -384,8 +384,8 @@ describe("cdd CLI", () => {
       const ws = path.join(dir, ".osuperpowers", "cdd", "plan");
       const handoffPath = path.join(ws, "branch-review-eeee555..ffff666-r1.json");
       // fake claude：PATH 遮蔽 registry cli 名（cdd.mjs REG_PATH 无 registry override seam）。
-      // 非 dry-run 真实走 runReview（branch 通道并入组合根）：agent 写 warn-only CHANGES_REQUESTED
-      // → engine finalizeHandoff（三消费方共享定稿单点）rollup 派生覆写 REVIEW_FIX + writeOwnHandoff 持久化。
+      // Non-dry-run real runReview (branch channel merged into the composition root): the agent writes warn-only CHANGES_REQUESTED
+      // → the engine finalizeHandoff (the three consumers' shared single finalization point) rollups a derived overwrite to REVIEW_FIX, writeOwnHandoff persists it.
       writeFileSync(
         path.join(binDir, "claude"),
         "#!/usr/bin/env bash\n" +
@@ -406,7 +406,7 @@ describe("cdd CLI", () => {
       );
       expect(r.exitCode).toBe(0);
       const h = JSON.parse(readFileSync(handoffPath, "utf8"));
-      // warn/nit = 0 blocker → status 被 finalizeHandoff（applyDerivedStatus rollup）覆写为 REVIEW_FIX（收口态）
+      // warn/nit = 0 blockers → status is overwritten by finalizeHandoff (applyDerivedStatus rollup) to REVIEW_FIX (closure state)
       expect(h.status).toBe("REVIEW_FIX");
       expect(h.findings).toEqual([{ severity: "warn", summary: "w" }]);
     } finally {
@@ -453,7 +453,7 @@ function seedDocsReviewRound(repo, doc, fileName, { docHash, content = "" } = {}
   const ws = path.join(repo, ".osuperpowers", "cdd", "foo");
   mkdirSync(path.dirname(doc), { recursive: true });
   mkdirSync(ws, { recursive: true });
-  writeFileSync(doc, content); // hashFile 读实时文件——内容由用例显式控制
+  writeFileSync(doc, content); // hashFile reads the live file — the content is explicitly controlled by the case
   const handoff = {
     task: 0,
     phase: "review",
@@ -730,7 +730,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         seedDocsReviewRound(dir, doc, "spec-review-1.json", {
           docHash: sha256("v1"),
           content: "v2",
-        }); // 内容实为 v2，旧 review 验的是 v1
+        }); // the content is actually v2, the old review validated v1
         const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", doc], {
           cwd: dir,
           env: { CLAUDE_CODE_SESSION_ID: "1" },
@@ -747,7 +747,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
       const dir = tmpGitRepo();
       try {
         const doc = path.join(dir, "docs", "foo-design.md");
-        seedDocsReviewRound(dir, doc, "spec-review-1.json", { content: "v1" }); // 不传 docHash → legacy
+        seedDocsReviewRound(dir, doc, "spec-review-1.json", { content: "v1" }); // no docHash → legacy
         const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", doc], {
           cwd: dir,
           env: { CLAUDE_CODE_SESSION_ID: "1" },
@@ -755,8 +755,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         expect(r.exitCode).toBe(3);
         expect(r.stderr).toMatch(/content state unknown/);
         expect(r.stderr).toMatch(/open a new doc or remove the stale/);
-        expect(r.stderr).not.toMatch(/edit the doc content/); // legacy 不给不可达改动指引
-        expect(r.stderr).not.toMatch(/change ref to open a new review/); // §2.5 item 8 双场景禁用（与 case 1 对称）
+        expect(r.stderr).not.toMatch(/edit the doc content/); // legacy gives no unreachable-change guidance
+        expect(r.stderr).not.toMatch(/change ref to open a new review/); // §2.5 item 8 disables both scenarios (symmetric with case 1)
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -779,8 +779,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
           cwd: dir,
           env: { CLAUDE_CODE_SESSION_ID: "1" },
         });
-        expect(r.exitCode).toBe(0); // 放行（blocker>0 重审权 SP-4）
-        expect(r.stderr).not.toMatch(/CDD_INFO/); // 非 clean prev → 自文档化抑制（§2.3.2）
+        expect(r.exitCode).toBe(0); // allowed through (blocker>0 re-review right SP-4)
+        expect(r.stderr).not.toMatch(/CDD_INFO/); // non-clean prev → self-documenting suppression (§2.3.2)
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -803,8 +803,8 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
           cwd: dir,
           env: { CLAUDE_CODE_SESSION_ID: "1" },
         });
-        expect(r.exitCode).toBe(0); // 失败轮重派（SP-4）
-        expect(r.stderr).not.toMatch(/CDD_INFO/); // 非 clean prev → 自文档化抑制
+        expect(r.exitCode).toBe(0); // failed-round re-dispatch (SP-4)
+        expect(r.stderr).not.toMatch(/CDD_INFO/); // non-clean prev → self-documenting suppression
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -881,7 +881,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
           docHash: sha256("v1"),
           content: "v1",
         });
-        rmSync(doc); // 删除现档——T2 单一坐标系下已无法进入 gate
+        rmSync(doc); // deletes the existing archive — under the T2 single-coordinate system the gate is already unenterable
         const r = runCli(["--dry-run", "review", "--type", "spec", "--spec", doc], {
           cwd: dir,
           env: { CLAUDE_CODE_SESSION_ID: "1" },
@@ -890,7 +890,7 @@ describe("P6 T3: docs handoff 命名走派生层", () => {
         // hashFile 的空串哨兵分支因此在本 CLI 路径上不可达（无 ghost doc 能到 gate）。
         expect(r.exitCode).toBe(1);
         expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found/);
-        expect(r.stderr).not.toMatch(/CDD_INFO/); // 空串哨兵抑制「内容演进」误导消息（gate `&& docHash` 条款）
+        expect(r.stderr).not.toMatch(/CDD_INFO/); // the empty-string sentinel suppresses the "content evolution" misleading message (gate `&& docHash` clause)
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

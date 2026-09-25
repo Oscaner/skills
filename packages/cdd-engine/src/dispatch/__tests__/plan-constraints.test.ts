@@ -17,7 +17,7 @@ import {
 } from "../task.ts";
 
 // The plan-Constraints extractor is a DocumentsValidator instance method (the class face — no
-// bare export on dispatch/task.ts, 判定标准⑤); the extraction plane below consumes the instance.
+// bare export on dispatch/task.ts, Criterion ⑤); the extraction plane below consumes the instance.
 const validator = new DocumentsValidator();
 
 // Legacy prose-pointer plan: the four **bold** constraint paragraphs in the preamble. Neutral

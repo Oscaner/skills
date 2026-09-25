@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/rules/documents.ts — DocumentsValidator class (P2 T3: the single doc-chain
-// audit entry docContractValidate base-default hook's rules core; Task 7 OOP restructure 判定标准② —
+// audit entry docContractValidate base-default hook's rules core; Task 7 OOP restructure Criterion ② —
 // every document-contract judgment is an instance method, public judgments + private parse helpers
 // alike, zero bare function exports). validateDispatchDocuments is refactored into the ONE audit
 // entry with per-doc-type check surfaces; the four-table charter audit (faces ①-⑥) runs on the
@@ -312,13 +312,13 @@ function overallTokenVersions(filePath: string): string[] {
   return [...versions];
 }
 
-/** The explicit-claim window scan (P4.3 Task 8 #274 — 只认显式 claim 结构): a `；`-clause may carry a
+/** The explicit-claim window scan (P4.3 Task 8 #274 — only explicit claim structures count): a `；`-clause may carry a
  *  claim AND prose that happens to mention phases (dependency-graph refs, cross-references). Phase
  *  attribution reads the WINDOW — the span from after the previous claim's target (+ its closing
  *  parens) to the current claim match — so a prose-mentioned phase after a claim never becomes a
  *  target (a whole-clause scan was the P3.8 false-claim source). Ranges still expand inside a
- *  window. Phases outside every window are the `stray` set — the diagnosis-hint surface (同子句
- *  prose 提及 phase 亦成 target under the retired whole-clause scan). */
+ *  window. Phases outside every window are the `stray` set — the diagnosis-hint surface (same-clause
+ *  prose mentioning a phase also made it a target under the retired whole-clause scan). */
 function claimWindows(clause: string): {
   claims: Array<{ text: string; phases: string[] }>;
   stray: string[];
@@ -347,7 +347,7 @@ export interface ClaimExtraction {
   designClaims: Map<string, string>;
   /** Same-clause prose collision (Task 8 diagnosis): claim phase → the stray clause phases ITS
    *  clause mentions outside the explicit claim structure — the ids a whole-clause scan would have
-   *  made claim targets too. Forward-mismatch failures attach this as the 诊断提示. */
+   *  made claim targets too. Forward-mismatch failures attach this as the diagnosis hint. */
   proseHints: Map<string, string[]>;
 }
 
@@ -375,8 +375,8 @@ export interface OverallParse {
   versionProblems: string[];
 }
 
-/** The `[In-flight]` (已开工) state — a started-but-not-complete plan column: the plan-doc existence
- *  glob applies (非缺失 cell) but the phase owes no closeout claim (reverse-claim carve-out). */
+/** The `[In-flight]` (started-but-not-complete) state — a started-but-not-complete plan column: the plan-doc existence
+ *  glob applies (a non-missing cell) but the phase owes no closeout claim (reverse-claim carve-out). */
 function isInflightText(v: string): boolean {
   const t = (v ?? "").trim().toLowerCase();
   return t === "in-flight" || t === "[in-flight]";
@@ -477,7 +477,7 @@ function phaseIdFromSpecBasename(specPath: string): string | null {
   return m ? `P${m[1].slice(1)}` : null;
 }
 
-// ---- plan 契約 per-doc-type necessary surface ----
+// ---- plan contract per-doc-type necessary surface ----
 
 const PLACEHOLDER_RE = /{{\s*[^{}>\n]+\s*}}/g;
 
@@ -541,7 +541,7 @@ function resolveSpecFromPlan(
 
 /** Class B — the spec's Parent program → its `*-overall.md`. Chain truncation (no parent line /
  * placeholder / unresolvable / not an overall) yields { overallPath: null } and the FOUR-TABLE +
- * overall 契約 faces no-op (AC1: lineage 未 resolve → 四表 no-op、necessary-subset 恒跑) — the
+ * overall contract faces no-op (AC1: lineage not resolved → the four tables no-op, the necessary subset always runs) — the
  * overall is only ever audited against a reached parent doc. Pinned version tokens ride the
  * resolution for the merged version-lineage check. */
 function resolveParentOverall(
@@ -857,7 +857,7 @@ function fourTableAudit(
 }
 
 /** DocumentsValidator — the single doc-chain audit entry + the canonical plan/spec/overall
- *  extractors (判定标准②; every judgment and parse helper is an instance method; stateless —
+ *  extractors (Criterion ②; every judgment and parse helper is an instance method; stateless —
  *  construction is cheap; closeout/status/dispatch consume instances, never second declarations).
  */
 export class DocumentsValidator {
@@ -916,7 +916,7 @@ export class DocumentsValidator {
    * == the full plan task number set). The empty default (no `## Task Groups` section) yields the
    * per-task singletons [[1],[2],…,[N]] — exactly the pre-P4.3 per-task dispatch (zero migration); a
    * non-empty declaration replaces the singleton set only for the tasks it covers — an uncovered
-   * plan task still lands as its implicit singleton (按 task 号序: groups ordered by their lowest
+   * plan task still lands as its implicit singleton (by task-number order: groups ordered by their lowest
    * task number), so the EFFECTIVE partition always covers the full plan task set (the union ==
    * taskNumbersFromPlan guard asserted by the engine tests, unchanged). A length-1 declared line is
    * parse-tolerated and surfaces in effectiveGroups as declared — the parser never drops a declared
@@ -932,13 +932,13 @@ export class DocumentsValidator {
     for (const g of declared) for (const n of g) covered.add(n);
     const uncovered = all.filter((n) => !covered.has(n)).map((n) => TaskGroup.fromNumbers([n]));
     if (uncovered.length === 0) return declared;
-    // 按 task 号序: declared groups + implicit singletons, ordered by each group's lowest task number.
+    // by task-number order: declared groups + implicit singletons, ordered by each group's lowest task number.
     return [...declared, ...uncovered].sort((a, b) => (a.numbers[0] ?? 0) - (b.numbers[0] ?? 0));
   }
 
   /** Deterministic extraction from the plan's declared Constraints source: canonical Form A — a
    * literal top-level `## Constraints` section; legacy Form B — the prose-pointer headings
-   * (口径 / commit 边界机制 / Flow Atomicity / 顺序原则), extracted in canonical order. Returns the
+   * (measurement contract / commit boundary mechanism / Flow Atomicity / ordering principle), extracted in canonical order. Returns the
    * constraints body verbatim (single trailing newline) or null when the plan declares no constraint
    * source (the BLOCK face). */
   extractPlanConstraints(planContent: string): string | null {
@@ -947,9 +947,9 @@ export class DocumentsValidator {
     return extractProseConstraints(planContent);
   }
 
-  // ---- plan 契約 (per-doc-type necessary surface) ----
+  // ---- plan contract (per-doc-type necessary surface) ----
 
-  /** plan 契約: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
+  /** plan contract: `### Task N:` continuous extractability · `**Spec:**` exists + resolves ·
    * constraints source declaration extractable · no placeholders. Necessary subset — always runs. */
   validatePlanContract(planPath: string): DocValidationFailure[] {
     const failures: DocValidationFailure[] = [];
@@ -1026,8 +1026,8 @@ export class DocumentsValidator {
   }
 
   /** phaseIdForDispatch(planPath, root) — the dispatch phase id resolved through the canonical chain
-   * (④ identity, design §2.1 item 2 ④: phase 身份经 overall Phase inventory 解析、不依赖 basename P
-   * 编号命名): the plan's `**Spec:**` design spec → the parent overall's Phase-inventory row whose
+   * (④ identity, design §2.1 item 2 ④: a phase's identity resolves via the overall Phase inventory, not from basename
+   *  numbering): the plan's `**Spec:**` design spec → the parent overall's Phase-inventory row whose
    * Design-spec column carries that spec — by resolved link equality, or by an own
    * `P<digits>(.digits)*-design` token matching the spec filename's phase — and that row's REGISTERED
    * id (sub-phase ids preserved: a `P2.1` row yields `P2.1`, never the collapsed `P2` a base-only
@@ -1193,7 +1193,7 @@ export class DocumentsValidator {
   // ---- the spec doc-type face (own Version line + Class B parent resolution) ----
 
   /** The phase-spec doc-type surface: `**Version**` line (the spec's own structural face) then Class B
-   * → the parent overall's 契約 face + four tables (version-lineage merged in). phaseId is the
+   * → the parent overall's contract face + four tables (version-lineage merged in). phaseId is the
    * dispatch plan's phase (a spec-entry audit has none). */
   validatePhaseSpecContract(
     specPath: string,
@@ -1212,18 +1212,18 @@ export class DocumentsValidator {
       });
     }
     const parent = resolveParentOverall(specPath, root);
-    if (!parent.overallPath) return failures; // chain truncation — the four tables + overall 契約 no-op
+    if (!parent.overallPath) return failures; // chain truncation — the four tables + overall contract no-op
     failures.push(
       ...this.validateOverallContract(parent.overallPath, phaseId, parent.pinnedTokens),
     );
     return failures;
   }
 
-  // ---- the overall doc-type face (kernel 契約 + merged version-lineage + the four-table audit) ----
+  // ---- the overall doc-type face (kernel contract + merged version-lineage + the four-table audit) ----
 
-  /** overall 契約: canonical header · row-shape guard · change-history ascending/unique/dates — plus
+  /** overall contract: canonical header · row-shape guard · change-history ascending/unique/dates — plus
    * the merged version-lineage (the chain's pinned vX.Y tokens ∈ the overall's lineage, canonical
-   * change-history version rules承接) — plus the four-table audit faces ①-⑥. A phase-less plan
+   * change-history version rules carry over) — plus the four-table audit faces ①-⑥. A phase-less plan
    * (phaseId null) skips ④'s dispatch-phase registration; the structural faces still run fully. */
   validateOverallContract(
     overallPath: string,
@@ -1316,15 +1316,15 @@ export class DocumentsValidator {
   }
 
   /** validateDispatchDocuments — the audit entry: walk the entry doc-type's chain (plan → its
-   * `**Spec:**` spec → the spec's Parent program overall) and audit every reached face. Plan 契約 +
+   * `**Spec:**` spec → the spec's Parent program overall) and audit every reached face. Plan contract +
    * Class A are the necessary subset (always run for a plan entry); the spec's own face (Version
-   * line) runs once the spec is reached; the overall 契約 + four tables run only against a reached
+   * line) runs once the spec is reached; the overall contract + four tables run only against a reached
    * parent overall. Failures are ordered plan-first (the first thing to fix). */
   validateDispatchDocuments(options: DocValidationOptions): DocValidationFailure[] {
     const { entry, root } = options;
     const kind = docKindOf(entry);
     if (kind === "overall") {
-      // docs-lane self-audit: the overall is itself the review target — its own 契約 + four tables.
+      // docs-lane self-audit: the overall is itself the review target — its own contract + four tables.
       return this.validateOverallContract(entry, null, []);
     }
     if (kind === "spec") {

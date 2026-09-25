@@ -4,7 +4,7 @@
 // pair are instance methods, zero bare function exports). Replaces the progress.md-based
 // timeoutCount with structured JSON. Transparent migration: read auto-migrates progress.md →
 // progress.json.
-// 六 key 账本: plan / timeoutCount / contractViolationCount / engineSelfWrittenCount /
+// six-key ledger: plan / timeoutCount / contractViolationCount / engineSelfWrittenCount /
 // engineRecoveryCount / tasks — the fixed top-level key set (COUNTER_ZERO satisfies-checks the
 // counter arm; drift fails to compile, AC14). Write invariant: every write goes through #write —
 // the retired-field strip (dead top-level keys + the retired tasks[N].status) converges there, so
@@ -72,7 +72,7 @@ export type LedgerKey = number | string;
 // legacy prev.commits.base chain (zero behavior change for tasks without a ledger).
 export const SHA40_RE = /^[0-9a-f]{40}$/;
 
-/** ProgressLedger — the progress.json single owner (Task 6 ③ 六 key 账本). All reads/writes and the
+/** ProgressLedger — the progress.json single owner (Task 6 ③ six-key ledger). All reads/writes and the
  *  round/scope derivations are instance methods; the rowFor/entryFor pair is the ledger's single
  *  single/group row lookup source (the dispatch layer's ensure-row writeback consumes the same
  *  methods). Constructor-injected git seam (the scope-ledger ancestry judgment), defaulting to a

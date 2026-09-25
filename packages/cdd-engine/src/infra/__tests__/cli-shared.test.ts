@@ -42,7 +42,6 @@ describe("extractStreamJsonFinal via invokeCli", () => {
       stderr: "",
       timedOut: false,
     });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p --output-format stream-json",
@@ -83,7 +82,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       stderr: "",
       timedOut: false,
     });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
     await invoker.invokeCli(
       entry,
@@ -105,7 +103,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       stderr: "",
       timedOut: false,
     });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
     await invoker.invokeCli(
       entry,
@@ -122,7 +119,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
 
   it("review×spec（docs 族共享壳，无注入）→ prompt unchanged", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
     await invoker.invokeCli(
       entry,
@@ -143,7 +139,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
       stderr: "",
       timedOut: false,
     });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text", prefix, suffix: {} };
     await invoker.invokeCli(
       entry,
@@ -159,7 +154,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
 
   it("legacy 扁平 mode 键兜底：op=扁平米键 → 直接命 prefix 同键（未迁移 registry）", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p",
@@ -178,7 +172,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
 
   it("entry without prefix/suffix → prompt unchanged", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = { cli: "claude", invoke: "-p", output: "text" };
     await invoker.invokeCli(entry, "plain prompt", { op: "implement" }, {}, "/tmp", undefined);
     const promptArg = execa.mock.calls[0][1].at(-1);
@@ -187,7 +180,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
 
   it("suffix appended after prompt (newline separated)", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p",
@@ -202,7 +194,6 @@ describe("invokeCli prefix/suffix injection (operation×type)", () => {
 
   it("prefix+suffix together → `<prefix>\\n<prompt>\\n<suffix>`", async () => {
     execa.mockResolvedValue({ exitCode: 0, stdout: "ok", stderr: "", timedOut: false });
-    const { EngineInvoker } = await import("../invoke.ts");
     const entry = {
       cli: "claude",
       invoke: "-p",

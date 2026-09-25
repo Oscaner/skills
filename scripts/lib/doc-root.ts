@@ -1,5 +1,5 @@
 // scripts/lib/doc-root.ts — docs 根落点的**唯一真相**（P2 起：`docs/osuperpowers/`）。
-// read-only pure data (判定标准⑥: typed carrier, no empty-shell class) — consumers keep
+// read-only pure data (Criterion ⑥: typed carrier, no empty-shell class) — consumers keep
 // named-constant imports; segment arrays are readonly tuples so a second source of truth
 // cannot be written elsewhere.
 //

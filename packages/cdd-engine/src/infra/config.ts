@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/config.ts — ConfigLoader class (Task 5 single-point config
-// consumption D1.5 ⑤; Task 7 OOP restructure 判定标准② — the four loaders are instance methods,
+// consumption D1.5 ⑤; Task 7 OOP restructure Criterion ② — the four loaders are instance methods,
 // zero bare function exports): engine-config.json = the single runtime-config file
 // (context-contract + failure-categories + handoff-namespace merged into sections of one file).
 // This module is the plane's ONLY loader — consumers read via an instance's four methods; no

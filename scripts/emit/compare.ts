@@ -2,7 +2,7 @@
  * Emit drift check — compares a freshly generated tree against the committed
  * tree (`scripts/run.ts emit-check`). CompareService owns the emit product-root/file
  * constants and the osuperpowers `.version-bump.json` consistency guard (Task 9,
- * 判定标准②: stateless domain service, zero bare-function module).
+ * Criterion ②: stateless domain service, zero bare-function module).
  */
 
 import { existsSync, readFileSync } from "node:fs";

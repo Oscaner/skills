@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/domain/task-group.ts — TaskGroup: the group-identity value object
-// (P4.4 Task 3 ①, plan 「TaskGroup 组身份统一」). The dispatch group `--tasks <n|n,n,…>` normalizes
+// (P4.4 Task 3 ①, plan "TaskGroup group-identity unification"). The dispatch group `--tasks <n|n,n,…>` normalizes
 // to ONE value object; `key()` is the canonical serialization (comma-joined, no space — singleton
 // `"1"`, merged `"1,2"`): the repo's single group identity — the CLI argument string IS the key,
 // there is no second form. `GROUP_KEY_PATTERN` is the single key grammar source (consumed by the

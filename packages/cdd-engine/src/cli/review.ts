@@ -5,7 +5,7 @@
 // (spec §2.6 shared split, ownership by closure completeness), reused by the 3 consumers
 // (fix/parse/branch-review) and this file via shared (single host fact source).
 // Task 6/7: this file stays a COMPOSITE ROOT (argv-side guards + lifecycle construction + exit —
-// 判定标准⑤ — no forwarding shells): the branch channel constructs BranchReviewLifecycle inline
+// Criterion ⑤ — no forwarding shells): the branch channel constructs BranchReviewLifecycle inline
 // (cli/branch-review.ts deleted), the task channel delegates to TaskLifecycle.run, the spec/plan
 // channel to DocsLifecycle.run.
 import { existsSync, readFileSync } from "node:fs";
@@ -94,7 +94,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
     // initRoot()-initialized singleton. Every root consumer in this file uses it uniformly.
     const root = opts.root ?? getRoot();
     // type=branch: independent git-diff-level path (composite root inline — the former branch-review
-    // bin action + AC15 wiring; cli/branch-review.ts 已删 — 判定标准⑤).
+    // bin action + AC15 wiring; cli/branch-review.ts was deleted — Criterion ⑤).
     if (opts.type === "branch") {
       if (!opts.plan) {
         process.stderr.write("cdd review --type branch: missing required --plan <path>\n");
@@ -249,7 +249,7 @@ export async function runReview(opts: ReviewOpts): Promise<void> {
     }
     if (nextTaskRound > 1) {
       const prevR = nextTaskRound - 1;
-      // The review round's unique context (Task 6 ② RoundContext — 轮次锚): the same-family
+      // The review round's unique context (Task 6 ② RoundContext — round anchor): the same-family
       // round-(R-1) anchor derives the Convergence prev path (canonical review.task name →
       // tasks-{groupKey}-review-{prevR}.json). Must NOT use prevHandoffPath: that helper resolves
       // the cross-family prev table for this family (round1=implement / fix:R-1), which would read

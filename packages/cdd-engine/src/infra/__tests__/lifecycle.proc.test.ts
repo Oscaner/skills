@@ -21,7 +21,7 @@ async function loadModule() {
   proc = await import("../proc.ts");
 }
 
-const markerAlive = (m) => pgrepCount(m); // 括号技巧消除 pgrep -f 自匹配（helpers.ts，CI Linux 实测）
+const markerAlive = (m) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts, verified on CI Linux)
 const waitFor = async (fn, ms) => {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
@@ -64,14 +64,14 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
     expect(JSON.parse(readFileSync(DISK, "utf8")).length).toBe(1);
     expect(markerAlive("P1EMPTY")).toBeGreaterThan(0);
     await proc.teardownAll({ graceMs: 500 });
-    expect(markerAlive("P1EMPTY")).toBe(0); // 组内后代随 pgid 连根回收
+    expect(markerAlive("P1EMPTY")).toBe(0); // in-group descendants are reaped wholesale via pgid
     expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]); // registry 清空并落盘（不再有在册组）
   });
 
   it("reapStale 对已消失组 fail-open", async () => {
     await proc.spawnManaged("sleep", ["0.1"], {});
-    await new Promise((r) => setTimeout(r, 300)); // 组已自然退出
-    await expect(proc.reapStale()).resolves.toBeUndefined(); // 不抛
+    await new Promise((r) => setTimeout(r, 300)); // the group exited naturally
+    await expect(proc.reapStale()).resolves.toBeUndefined(); // does not throw
   });
 
   it("reapStale 对存活超时组执行回收（非仅 fail-open）", async () => {
@@ -86,10 +86,10 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
   it("reapDone 清 dispatch 已返回仍存活组（idle 监视语义）", async () => {
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1LLWC']).unref();process.exit(0)`;
     await proc.spawnManaged("node", ["-e", script], { termination: { budgetMs: 5000 } });
-    await proc.markAllDispatchesDone(); // dispatch 返回 → 组标 done
+    await proc.markAllDispatchesDone(); // dispatch returns → the group is marked done
     await proc.reapDone({ graceMs: 500 });
-    expect(markerAlive("P1LLWC")).toBe(0); // done + 存活的组被连根回收（可观测边界结果）
-    expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]); // 盘上 registry 同步注销该组
+    expect(markerAlive("P1LLWC")).toBe(0); // done + a still-alive group is reaped wholesale (observable boundary result)
+    expect(JSON.parse(readFileSync(DISK, "utf8"))).toEqual([]); // the on-disk registry deregisters the group in sync
   });
 
   it("跨 run 父死回收：外部引擎落盘 registry 被 SIGKILL → 新 proc 实例 reapStale 连根回收", async () => {
@@ -112,12 +112,12 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
       }
     }, 8000);
     expect(JSON.parse(readFileSync(disk, "utf8"))[0].ownerPid).toBe(engine.pid);
-    engine.kill("SIGKILL"); // 模拟引擎被杀：无 teardown 执行
+    engine.kill("SIGKILL"); // simulates the engine being killed: no teardown runs
     await new Promise((r) => setTimeout(r, 500));
     // 2) 本进程以新 proc 模块实例回收（ownerPid 异 → 命中 orphans 分支）
     await proc.initProcLifecycle({ diskPath: disk });
     await proc.reapStale({ graceMs: 500 });
-    expect(markerAlive("P1ORPHAN")).toBe(0); // 孤儿组（含孙代 session server）被连根收回
+    expect(markerAlive("P1ORPHAN")).toBe(0); // the orphan group (including the grandchild session server) is reaped wholesale
   });
 
   it("reapStale 排除并发引擎在途组：foreign owner 存活不回收、owner 已死才回收（branch-review warn 4）", async () => {
@@ -153,8 +153,8 @@ describe.skipIf(!GROUP_SUPPORTED)("proc-lifecycle spawnManaged", () => {
       ]),
     );
     await proc.reapStale({ graceMs: 300 });
-    expect(pgAlive(g2.pid)).toBe(false); // owner 确证已死 → 孤儿回收
-    expect(pgAlive(g1.pid)).toBe(true); // owner 存活 → 不误杀并发在途组
+    expect(pgAlive(g2.pid)).toBe(false); // owner confirmed dead → the orphan is reaped
+    expect(pgAlive(g1.pid)).toBe(true); // owner alive → no collateral kill of concurrent in-flight groups
     try {
       process.kill(-g1.pid, "SIGKILL");
     } catch {}

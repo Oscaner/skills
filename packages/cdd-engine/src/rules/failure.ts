@@ -1,9 +1,9 @@
 // packages/cdd-engine/src/rules/failure.ts — FailureResolver class (Task 5 rules-layer rebuild +
-// Task 7 OOP restructure 判定标准②: the failure-category judgment surface is one instance-method
+// Task 7 OOP restructure Criterion ②: the failure-category judgment surface is one instance-method
 // class — quota isolation, exhaustion terminal, the unified TIMEOUT blocker — zero bare function
 // exports; ex src/rules/failure.mjs + the increment/exhaustion machinery of src/dispatch/task.mjs#maybeExhaust).
 // Six category names and their semantics are declared once by templates/engine-config.json#failureCategories
-// (Task 5 单文件归并); this module is the unique read entry for every "category identity" reference
+// (Task 5: merged into a single module); this module is the unique read entry for every "category identity" reference
 // in the engine (failure_category assignment / Convergence guard / counter increment). If the
 // canonical is edited and a reference site falls out of sync (undefined / red assertions), it must
 // surface loudly — load-bearing, not decorative (AC14). Quota isolation: each counter-bearing
@@ -33,7 +33,7 @@ export const FAILURE_CATEGORIES: Record<string, FailureCategory> = Object.fromEn
   CAT.categories.map((c) => [c.id, c]),
 );
 
-/** FailureResolver — the failure-category judgment class (判定标准②; 构造注入 — the ledger instance
+/** FailureResolver — the failure-category judgment class (Criterion ②; constructor injection — the ledger instance
  *  that backs the per-category quota is injected, defaulting to a fresh ProgressLedger). */
 export class FailureResolver {
   readonly #cat: { categories: FailureCategory[] };

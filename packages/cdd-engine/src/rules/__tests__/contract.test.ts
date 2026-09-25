@@ -4,8 +4,8 @@
 //   clean-tree → pass；非 git / 无 repoRoot → fail-open ok:true；
 //   review 模式 → dirty-only（T8：跳过 head 校验 —— review handoff 的 commits 语义为被审 commit）。
 // 移植 cdd-severity-contract.test.sh（30 断言）的语义核心（非 grep 散文，而是可执行契约）：
-//   classifySeverity：blocker→CHANGES_REQUESTED；warn/nit→REVIEW_FIX（Task 8 收口态）；unverifiable/needs_context→STOP。
-//   rollupStatus：warn/nit→REVIEW_FIX（Task 8）；含 blocker→CHANGES_REQUESTED；unverifiable/plan_conflicts→BLOCKED。
+//   classifySeverity: blocker→CHANGES_REQUESTED; warn/nit→REVIEW_FIX (Task 8 closure state); unverifiable/needs_context→STOP.
+//   rollupStatus: warn/nit→REVIEW_FIX (Task 8); contains blocker→CHANGES_REQUESTED; unverifiable/plan_conflicts→BLOCKED.
 //   validateHandoffSchema：notes 可选字段被 schema 接受（AC10，Enh T）。
 // writeHandoff：按 packages/cdd-engine/templates/schema/task-handoff-schema.json（docs 族 docs-handoff-schema.json；命名/workspace 见 engine-config.json#handoffNamespace）写 + 合并已有（H6 链 update 语义）。
 
@@ -328,8 +328,8 @@ it("Task 23 task schema allOf: BLOCKED 必须 blocker 非空 或 failure_categor
     findings: [],
     ...extra,
   });
-  expect(schemaValidator.validateHandoffSchema(base({}), "task").valid).toBe(false); // 裸折 → 违规
-  expect(schemaValidator.validateHandoffSchema(base({ blocker: "" }), "task").valid).toBe(false); // 空字符串 blocker 不算数
+  expect(schemaValidator.validateHandoffSchema(base({}), "task").valid).toBe(false); // bare fold → violation
+  expect(schemaValidator.validateHandoffSchema(base({ blocker: "" }), "task").valid).toBe(false); // an empty-string blocker does not count
   expect(schemaValidator.validateHandoffSchema(base({ blocker: "真实原因" }), "task").valid).toBe(
     true,
   );

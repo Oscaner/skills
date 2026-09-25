@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/git.ts — GitClient: the simple-git single-point domain service
-// class (Task 7 OOP restructure; spec §2.13 git row + 判定标准② — every git operation is a method,
+// class (Task 7 OOP restructure; spec §2.13 git row + Criterion ② — every git operation is a method,
 // zero bare function exports). New dependency point for ALL git operations in rebuilt infra:
 // status / add / commit / head / log / toplevel / cat-file. Replaces the hand-written git
 // subprocess helpers that used to live in rules/commit.mjs (whose callers were re-pointed by

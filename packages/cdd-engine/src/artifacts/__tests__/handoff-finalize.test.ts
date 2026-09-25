@@ -56,7 +56,7 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   const taskBase = "9a4757b23b5f0634a8ef1d08e1d6c9d1c4f59c63";
   const brief = path.join(ws, "tasks-1-brief.md");
   writeFileSync(brief, `# task 1\nTASK_BASE: ${taskBase}\n`);
-  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}"); // behavior_change !== true → soft 空
+  writeFileSync(path.join(ws, "tasks-1-test-evidence.json"), "{}"); // behavior_change !== true → soft empty
   const actualHead = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: repo,
     encoding: "utf8",
@@ -76,11 +76,11 @@ it("finalizeHandoff implement 族：输入无 agentHandoff 槽位（通过类型
   });
   expect(r.handoff.phase).toBe("implement");
   expect(r.handoff.status).toBe("APPROVED");
-  expect(r.handoff.commits.base).toBe(taskBase); // brief TASK_BASE 权威（agent 行被忽略）
-  expect(r.handoff.commits.head).toBe(actualHead); // git HEAD 权威
+  expect(r.handoff.commits.base).toBe(taskBase); // brief TASK_BASE is authoritative (the agent line is ignored)
+  expect(r.handoff.commits.head).toBe(actualHead); // git HEAD is authoritative
   expect(r.handoff.findings).toEqual([]);
   expect(r.handoff.artifacts.report).toBe("r.md");
-  expect(r.handoff.blocker).toBeUndefined(); // blocker: none → 省略
+  expect(r.handoff.blocker).toBeUndefined(); // blocker: none → omitted
   expect(r.exitCode).toBe(0);
 });
 

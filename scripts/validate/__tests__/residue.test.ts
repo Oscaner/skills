@@ -97,7 +97,7 @@ describe("stale-lexicon：机制位置精确性", () => {
     expect(hasHit([".superpowers/docs-review/task-1.json"])).toBe(true);
     expect(hasHit([".superpowers/cdd/foo/spec-review-1.json"])).toBe(true); // 新 <cdd> 守卫命中
     expect(hasHit([".superpowers/standalone/x/base-branch.json"])).toBe(true); // standalone 守卫命中
-    expect(hasHit([".superpowers/sdd/foo/progress.json"])).toBe(false); // sdd 保留面放行
+    expect(hasHit([".superpowers/sdd/foo/progress.json"])).toBe(false); // the sdd preservation surface is allowed through
   });
 });
 
@@ -121,13 +121,13 @@ describe("stale-lexicon：removed cdd subcommand 守卫（Task 5）", () => {
     expect(hasHit([`Run \`${CDD} brief --tasks 1 --plan p --output o\``])).toBe(true);
     expect(hasHit(["/mattpocock-skills:research 会话调用"])).toBe(false);
     expect(hasHit(["brief-dependent plan sections"])).toBe(false);
-    expect(hasHit(["cddr research"])).toBe(false); // 词边界：非 `cdd ` 前缀
+    expect(hasHit(["cddr research"])).toBe(false); // word boundary: not a `cdd ` prefix
   });
   it("research timeout env 命中（单分支覆盖两种被删形态）；task/review timeout 放行", () => {
     // `RESEARCH_TIMEOUT` 为无锚定子串匹配 → `CDD_RESEARCH_TIMEOUT` 由其覆盖（T5 review-1 nit：
     // 原 alternation 的 `CDD_` 前缀分支为死分支，两行断言实际等价）。此处显式断言两形态同源覆盖。
     expect(hasHit([`${"CDD_RESEARCH"}_TIMEOUT=2700`])).toBe(true); // CDD_ 前缀形态（由后缀分支覆盖）
-    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true); // legacy 裸名形态
+    expect(hasHit([`${"RESEARCH"}_TIMEOUT=2700`])).toBe(true); // the legacy bare-name shape
     expect(hasHit(["CDD_TASK_TIMEOUT=60"])).toBe(false);
     expect(hasHit(["CDD_REVIEW_TIMEOUT=60"])).toBe(false);
   });
@@ -873,8 +873,8 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
     }
   });
   it("T14 白名单：liveness 探针页 runtime.ts 零残留命中 + 探针语汇仍在（白名单不空置）", () => {
-    // spec E3 的 stall 探针是 brief 强制的活体采样，⑪ 白名单按文件级枚举到 infra/runtime.ts
-    // （P4.4 Task 4: 生命周期实现随 CddRuntime 迁入 runtime.ts——proc.ts 已是 re-export）——
+    // spec E3's stall probe is the brief-mandated liveness sampling; the ⑪ whitelist enumerates infra/runtime.ts at file level
+    // (P4.4 Task 4: the lifecycle implementation moved into runtime.ts with CddRuntime — proc.ts is now a re-export) —
     // 扫真实仓储路径断言白名单有效（同 golden 测试证明的「探针外 mtime 照旧命中」互补）。
     const here = path.dirname(fileURLToPath(import.meta.url));
     const procAbs = path.join(
@@ -890,7 +890,7 @@ describe("channel audit：⑪ 零「最近一次」残留回读", () => {
     );
     expect(collectResidualRereadHits(["packages/cdd-engine/src/infra/runtime.ts"])).toEqual([]);
     const proc = readFileSync(procAbs, "utf8");
-    expect(proc).toMatch(/export function latestFileMtimeMs/); // 探针仍在地 → 白名单不放空
+    expect(proc).toMatch(/export function latestFileMtimeMs/); // the probe is still present → the whitelist is not vacuous
     expect(proc).toMatch(/mtimeAdvanced/);
   });
   it("T3 白名单：documents.ts 四表审计目录枚举零残留命中 + glob 语汇仍在（白名单不空置）", () => {

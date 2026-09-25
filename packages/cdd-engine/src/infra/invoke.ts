@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/invoke.ts — EngineInvoker class (TS port of invoke.mjs + Task 7 OOP
-// restructure 判定标准②: the CLI-invoke composition surface — dispatch-set assembly + termination
+// restructure Criterion ②: the CLI-invoke composition surface — dispatch-set assembly + termination
 // resolution + spawn + stream-json + retry — is one stateful-boundary class, zero bare function
 // exports; spec §2.13 invoke row). Same contract as the .mjs module (checked by
 // cli-shared.test.mjs): injection / timeout / retry / NDJSON parsing; spawn delegation converges
@@ -57,7 +57,7 @@ export interface DispatchSet {
   env: NodeJS.ProcessEnv;
 }
 
-/** EngineInvoker — the CLI-invoke composition-root service (判定标准②). Constructor-injected
+/** EngineInvoker — the CLI-invoke composition-root service (Criterion ②). Constructor-injected
  *  registry (the op×type injection resolver); the termination defaults ride the canonical config
  *  read once at module load (same semantics as the former module constants). Stateless beyond those
  *  inputs — construction is cheap and test-injectable. */

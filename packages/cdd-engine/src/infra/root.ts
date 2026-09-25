@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/infra/root.ts — repoRoot conversion point of the rebuilt infra layer.
 // Guard note: src/infra/root.mjs is validate's single cwd-read anchor (channel audit ①, §2.4.1).
-// P4.4 Task 4 「CddRuntime 模块态收编」: the `_root` singleton + initRoot/getRoot moved into
+// P4.4 Task 4 "CddRuntime module-state consolidation": the `_root` singleton + initRoot/getRoot moved into
 // infra/runtime.ts (the CddRuntime class owns the root state — the class is the single mutable
 // surface; this file re-exports the same identities so legacy imports keep resolving here).
 // resolveDocArg keeps the exact same single-coordinate contract as root.mjs (repo-root-relative

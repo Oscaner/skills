@@ -1,6 +1,6 @@
 /**
  * Generic first-party per-harness manifest builders — the ManifestService domain service
- * (Task 9, 判定标准②: stateless service, zero bare-function module). Given a plugin descriptor
+ * (Task 9, Criterion ②: stateless service, zero bare-function module). Given a plugin descriptor
  * (a row from marketplace/source.json) and a resolved version, they return the document for a
  * single harness. The unified emit dispatcher (`scripts/run.ts emit`) writes them into each
  * first-party plugin directory. "Thin manifest" means every harness manifest points at the

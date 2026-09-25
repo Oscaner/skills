@@ -129,7 +129,7 @@ it("docs review dry-run + dirty → 入口门降级：CDD_WARN + exit 0 + 零 sp
   expect(vi.mocked(execa)).not.toHaveBeenCalled(); // 不 spawn → 零 liveness 介入（T14）
   expect(existsSync(path.join(repo, ".osuperpowers", "cdd", "spec", "spec-review-1.json"))).toBe(
     false,
-  ); // 不写 handoff
+  ); // does not write the handoff
 });
 
 it("runDocsTask: 入口门 BLOCKED → CDD_BLOCKED stderr + ExitRequested(1)（CLI 面出口）", async () => {
@@ -233,7 +233,7 @@ it("docs review 出口门: clean tree 通过 + result 原样（exitCode = agent 
     dryRun: false,
   });
   expect(result.exitCode).toBe(0);
-  // clean-tree review 出口门通过；engine 定稿覆写（warn-only → REVIEW_FIX 收口态, Task 8 #278）
+  // clean-tree review exit gate passes; the engine finalization overwrites (warn-only → REVIEW_FIX closure state, Task 8 #278)
   expect(result.handoff?.status).toBe("REVIEW_FIX");
 });
 

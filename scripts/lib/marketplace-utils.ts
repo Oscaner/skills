@@ -1,4 +1,4 @@
-// scripts/lib/marketplace-utils.ts — the marketplace domain service (Task 9, 判定标准②: pure
+// scripts/lib/marketplace-utils.ts — the marketplace domain service (Task 9, Criterion ②: pure
 // computation rules → a stateless domain service class, zero bare-function module). Constructed
 // with the repo root; every method takes the remaining inputs as parameters — no module state,
 // no repo-root closure. Consumed by the emit toolchain (scripts/emit/marketplace.ts +

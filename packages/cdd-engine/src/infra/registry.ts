@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/registry.ts — Registry class (TS port of registry.mjs + Task 7 OOP
-// restructure 判定标准②: the CDD harness-registry domain rules — ship gate + op×type prefix/suffix
+// restructure Criterion ②: the CDD harness-registry domain rules — ship gate + op×type prefix/suffix
 // injection + CLI PATH preflight + cache profile — are instance methods, zero bare function exports).
 // Same behavior contract as the .mjs module (checked by registry.test.mjs); this is the
 // rebuilt-layer dependency point. The only env read here is the canonical whitelisted PATH key
@@ -40,7 +40,7 @@ export class CddBlockedError extends CddExitError {
   }
 }
 
-/** Registry — the harness-registry domain rules (判定标准②): reading a row, op×type prefix/suffix
+/** Registry — the harness-registry domain rules (Criterion ②): reading a row, op×type prefix/suffix
  *  injection resolution, the CLI PATH preflight, the ship gate and the cache-profile read are all
  *  instance methods. Stateless; construction is cheap. */
 export class Registry {

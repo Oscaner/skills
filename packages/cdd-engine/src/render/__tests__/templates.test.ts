@@ -108,12 +108,12 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
       "Return",
       "Round context",
     ]);
-    expect(contract.skeleton.segments.shell).toEqual(["Instructions", "Handoff"]); // 段级 → 槽级
+    expect(contract.skeleton.segments.shell).toEqual(["Instructions", "Handoff"]); // segment-level → slot-level
     expect(contract.skeleton.segments.return).toEqual(["Return"]);
     expect(contract.skeleton.segments["round-context"]).toEqual(["Round context"]);
-    expect(contract.skeleton.order).toEqual(["shell", "return", "round-context"]); // 段序恒为 壳 → Return → Round context
+    expect(contract.skeleton.order).toEqual(["shell", "return", "round-context"]); // the segment order is always shell → Return → Round context
     expect(contract.tokens).toHaveLength(18);
-    // zone 归属：16 round-context + 2 return，壳零槽（不得有 shell 归属 token）；
+    // zone attribution: 16 round-context + 2 return, the shell has zero slots (no shell-attributed token allowed);
     // P4.4 Task 3: FIXED_POINT — the collapsed dispatch-entry base slot (docs face shares the task family's FIXED_POINT)
     expect(contract.tokens.filter((t) => t.zone === "round-context")).toHaveLength(16);
     expect(contract.tokens.filter((t) => t.zone === "return")).toHaveLength(2);
@@ -123,7 +123,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
     expect(Object.keys(contract.clauses)).toEqual(CLAUSE_KEYS);
     for (const [key, body] of Object.entries(contract.clauses)) {
       expect(String(body).trim(), key).toBeTruthy();
-      expect(String(body), key).not.toContain("{{"); // 条文零 moustache（strict 编译安全 + 装配原子）
+      expect(String(body), key).not.toContain("{{"); // clauses have zero moustache (strict compile safety + assembly atomicity)
     }
     expect(Object.keys(contract.reviews)).toEqual(["task", "branch", "spec", "plan"]);
     // 与磁盘真身一致（单点）
@@ -319,7 +319,7 @@ describe("template-contract 单点消费 + zone-tagged token registry（Task 20 
     });
     expect(() => validateTemplateStructure(okRef as never)).not.toThrow();
     assembleClauses(okRef as never);
-    expect(hb.compile("{{> discipline}}")()).toBe("FIND-ALL-FINDINGS"); // 装配面：partial 已注册
+    expect(hb.compile("{{> discipline}}")()).toBe("FIND-ALL-FINDINGS"); // assembly surface: the partial is registered
   });
 
   it("validateShippedTemplates: 单文件数据面校验通过 → 返回 zone 键清单（原 TEMPLATE_FILES 逐文件扫退位）", async () => {
@@ -433,7 +433,7 @@ describe("D1.2/E2⑤ 纪律条款入库（Task 12）：clauses 单源 + 4 模板
       for (const key of CLAUSE_KEYS) {
         expect(prompt, `${mode}: ${key} 条款正文落渲染`).toContain(String(contract.clauses[key]));
       }
-      expect(prompt, mode).not.toContain("{{"); // 条款 refs 已 resolve —— 行为变更生效（零残留 moustache）
+      expect(prompt, mode).not.toContain("{{"); // clause refs resolved — the behavior change takes effect (zero residual moustache)
     }
   });
 });
@@ -489,12 +489,12 @@ describe("review type config (Task 4: 模板数据化)", () => {
       HANDOFF_TARGET: "/ws/tasks-1-review-1.json",
       FIXED_POINT: "7a7327b",
     });
-    expect(out).toContain("# CDD dispatch — CLI session"); // 统一壳字面头（跨模板字节恒等）
+    expect(out).toContain("# CDD dispatch — CLI session"); // the unified shell literal header (byte-identical across templates)
     expect(out).toContain("standards · spec"); // lensEnum joined
-    expect(out).toContain("7a7327b..HEAD"); // ref 具体化为 FIXED_POINT..HEAD
-    expect(out).toContain("code-review smell baseline"); // axesGuide → code-review 焦点
+    expect(out).toContain("7a7327b..HEAD"); // the ref concretizes to FIXED_POINT..HEAD
+    expect(out).toContain("code-review smell baseline"); // axesGuide → the code-review focus
     expect(out).toContain("/ws/tasks-1-review-1.json");
-    expect(out).toContain("WORKSPACE_SLUG"); // ⑦ canonical slug 槽（fallback = basename(WORKSPACE)）
+    expect(out).toContain("WORKSPACE_SLUG"); // ⑦ the canonical slug slot (fallback = basename(WORKSPACE))
     expect(out).toContain("- `WORKSPACE_SLUG`: ws");
     // 段序恒为 壳 → ## Return → ## Round context
     const handoffIdx = heading(out, "Handoff");
@@ -503,7 +503,7 @@ describe("review type config (Task 4: 模板数据化)", () => {
     expect(handoffIdx).toBeGreaterThan(-1);
     expect(retIdx).toBeGreaterThan(handoffIdx);
     expect(roundIdx).toBeGreaterThan(retIdx);
-    expect(out).not.toContain("{{"); // r2-r3 泄漏回归：渲染输出零残留 moustache
+    expect(out).not.toContain("{{"); // r2-r3 leak regression: the rendered output has zero residual moustache
   });
 });
 
@@ -559,8 +559,8 @@ describe("renderTemplate（唯一渲染器：壳 → Return 常数 → Round con
       RETURN_FORMAT: "DOCS_FIX",
       HANDOFF_WRITE_GATE: "> gate",
     };
-    expect(renderTemplate("spec-fix", params)).toBe(renderTemplate("fix", params)); // 旧名回归面等价
-    expect(renderTemplate("review", params)).toBe(renderTemplate("docs", params)); // 共享壳
+    expect(renderTemplate("spec-fix", params)).toBe(renderTemplate("fix", params)); // the legacy-name regression surface is equivalent
+    expect(renderTemplate("review", params)).toBe(renderTemplate("docs", params)); // the shared shell
   });
 });
 
@@ -572,8 +572,8 @@ describe("unified constant shell（Task 20：四个 .md 并入 sections 的阅�
       readFileSync(path.join(TEMPLATES, "template-contract.json"), "utf8"),
     );
     const shell = contract.sections.shell.join("\n");
-    expect(shell).not.toMatch(/\{\{(?!>\s*)/); // 壳零 token 槽（结构校验器同样断言；此处为数据面直读）
-    expect(shell).toContain("# CDD dispatch — CLI session"); // 字面头字节恒等载体
+    expect(shell).not.toMatch(/\{\{(?!>\s*)/); // the shell has zero token slots (the structure validator asserts the same; this is the data-plane direct read)
+    expect(shell).toContain("# CDD dispatch — CLI session"); // the carrier of the byte-identical literal header
     expect(shell).toMatch(/`## Round context` — the final section — is the only dynamic region/);
     expect(shell).toMatch(/byte-identical for every round and mode/); // C1-max 段序宣言
   });
@@ -621,7 +621,7 @@ describe("renderHandoffSchemaJson 紧凑注入（P5 E-8 省 tok + Task 5 rename:
       .renderHandoffSchemaJson(schema)
       .replace(/^```json\n/, "")
       .replace(/\n```$/, "");
-    expect(body).not.toContain("\n"); // JSON.stringify 无缩进 → body 恰一行
+    expect(body).not.toContain("\n"); // JSON.stringify without indentation → the body is exactly one line
     expect(JSON.parse(body)).toEqual(schema); // 既有 round-trip 断言在紧凑形态下保持
   });
 

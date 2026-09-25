@@ -63,7 +63,7 @@ describe("failure-categories canonical", () => {
     // isIncompleteDispatch：仅 ENGINE_SELF_WRITTEN / CONTRACT_VIOLATION（canonical dispatchIncomplete 派生）
     const incomplete = ids.filter((id) => failureResolver.isIncompleteDispatch(id)).sort();
     expect(incomplete).toEqual(["CONTRACT_VIOLATION", "ENGINE_SELF_WRITTEN"]);
-    // failureResolver.counters()：四计数器类目按表内序（T7 returnCountersLine 的取值面；标签不机械派生自字段名）
+    // failureResolver.counters(): the four counter categories follow in-table order (T7 returnCountersLine's value surface; labels are not mechanically derived from field names)
     expect(failureResolver.counters()).toEqual([
       { field: "timeoutCount", label: "timeout" },
       { field: "contractViolationCount", label: "contract-violation" },

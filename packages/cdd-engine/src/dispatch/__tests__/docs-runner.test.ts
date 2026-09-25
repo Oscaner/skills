@@ -202,7 +202,7 @@ describe("runDocsTask", () => {
       doc: SPEC_DOC,
       params: { REVIEW_TYPE: "spec" },
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
-      repoRoot: "/repo/root", // 注入缝：run-docs 真用该值（P4 §2.4.1 单根权威）
+      repoRoot: "/repo/root", // injection seam: run-docs really uses this value (P4 §2.4.1 single-root authority)
       dryRun: false,
     });
 
@@ -357,10 +357,10 @@ describe("runDocsTask", () => {
         dryRun: false,
       });
       expect(result.exitCode).toBe(0);
-      // 返回/读回后 status 已被派生覆写为 REVIEW_FIX（warn/nit = 0 blocker — Task 8 收口态）
+      // after run/read-back, the status has been derived-overwritten to REVIEW_FIX (warn/nit = 0 blockers — Task 8 closure state)
       expect(result.handoff.status).toBe("REVIEW_FIX");
       expect(result.handoff.findings).toHaveLength(2);
-      // 覆写持久化：writeOwnHandoff 收到 status=REVIEW_FIX 的完整 handoff（全量覆盖，非浅合并）
+      // overwrite persisted: writeOwnHandoff receives the full status=REVIEW_FIX handoff (full overwrite, not a shallow merge)
       const writeCall = writeOwnHandoff.mock.calls.find(([p]) =>
         String(p).endsWith("spec-review-1.json"),
       );
@@ -388,17 +388,17 @@ describe("runDocsTask", () => {
       mode: "review",
       template: "review",
       type: "spec",
-      doc: SPEC_DOC, // 不存在 → hashFile "" 哨兵
+      doc: SPEC_DOC, // does not exist → hashFile "" sentinel
       handoffPath: "/repo/root/.osuperpowers/cdd/foo/spec-review-1.json",
       repoRoot: "/repo/root",
       dryRun: false,
     });
     expect(result.handoff.status).toBe("APPROVED");
-    expect(result.handoff.doc_hash).toBe(""); // 内存返回值同步（§2.3.3）
+    expect(result.handoff.doc_hash).toBe(""); // in-memory return value in sync (§2.3.3)
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) =>
       String(p).endsWith("spec-review-1.json"),
     );
-    expect(writeCall[1].doc_hash).toBe(""); // 磁盘定稿含 doc_hash
+    expect(writeCall[1].doc_hash).toBe(""); // the on-disk finalization carries doc_hash
     expect(writeCall[1].status).toBe("APPROVED");
   });
 
@@ -448,7 +448,7 @@ describe("runDocsTask", () => {
       dryRun: false,
     });
     const fixCalls = writeOwnHandoff.mock.calls.filter(([p]) => String(p).includes("spec-fix-"));
-    expect(fixCalls).toHaveLength(0); // fix-mode 无注入写
+    expect(fixCalls).toHaveLength(0); // fix-mode has no injection write
     expect(writeOwnHandoff).not.toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ doc_hash: expect.anything() }),
@@ -466,7 +466,7 @@ describe("runDocsTask", () => {
     // JSON.parse(readFileSync(handoffPath)) 读回必 ENOENT（orphan 路径 node:fs mock 透传真实 fs）。
     // 注入真实写盘实现让读回成功（run-docs.mjs BLOCKED 分支强耦合同步读回，不可 stub 掉）。
     mockRealWriteBack(writeHandoff);
-    const orphanPath = join(dir, "ws", "spec-review-1.json"); // 非 .osuperpowers/cdd/foo 前缀 → existsSync mock 走真实 → 文件不存在 → BLOCKED 写盘
+    const orphanPath = join(dir, "ws", "spec-review-1.json"); // non-.osuperpowers/cdd/foo prefix → the existsSync mock falls through to real → the file does not exist → BLOCKED written to disk
     const result = await DocsLifecycle.run({
       harness: "claude",
       mode: "review",
@@ -603,7 +603,7 @@ describe("runDocsTask", () => {
     const dir = mkdtempSync(join(tmpdir(), "p5cv-"));
     const doc = join(dir, "spec.md");
     writeFileSync(doc, "- **Version**: v1.0 · 2026-09-21\n");
-    const handoffPath = join(dir, "ws", "spec-review-1.json"); // 非 `.osuperpowers/cdd/foo/` 前缀 → 真实 fs
+    const handoffPath = join(dir, "ws", "spec-review-1.json"); // non-`.osuperpowers/cdd/foo/` prefix → real fs
     mkdirSync(path.dirname(handoffPath), { recursive: true });
     // agent 手写违规 handoff：findings 非数组 + `notes: 5`（已声明键类型违规，normalize 无权修改其值）
     writeFileSync(
@@ -638,7 +638,7 @@ describe("runDocsTask", () => {
       preservedFindings: [],
     }));
     const { writeOwnHandoff } = await import("../../artifacts/handoff/write.ts");
-    mockRealWriteBack(writeOwnHandoff); // 恢复面不可救 → writeBlocked 带 baseHandoff → 全量覆盖写盘
+    mockRealWriteBack(writeOwnHandoff); // the resume surface is irrecoverable → writeBlocked carries baseHandoff → full-overwrite write to disk
 
     vi.resetModules();
     const { DocsLifecycle } = await import("../docs.ts");
@@ -664,9 +664,9 @@ describe("runDocsTask", () => {
       "phase",
       "status",
     ]);
-    expect(result.handoff.findings).toEqual([]); // 非数组 findings → 数组守卫成 []
+    expect(result.handoff.findings).toEqual([]); // non-array findings → the array guard yields []
     expect(result.handoff).not.toHaveProperty("notes");
-    expect(result.handoff.blocker).toMatch(/notes/); // 违规键名在 blocker 文案
+    expect(result.handoff.blocker).toMatch(/notes/); // the offending key name lands in the blocker copy
     // 写盘全量覆盖（writeOwnHandoff），磁盘上不再有 agent 的违规键
     const writeCall = writeOwnHandoff.mock.calls.find(([p]) =>
       String(p).endsWith("spec-review-1.json"),

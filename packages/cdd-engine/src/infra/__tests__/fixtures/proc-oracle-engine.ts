@@ -12,4 +12,4 @@ await spawnManaged(
   { termination: { budgetMs: 5000 } },
 );
 await persistRegistry();
-setInterval(() => {}, 60_000); // 引擎驻留——测试以 SIGKILL 模拟被杀（无 teardown 路径可走）
+setInterval(() => {}, 60_000); // the engine lingers — the test simulates being killed via SIGKILL (no teardown path available)

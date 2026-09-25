@@ -3,7 +3,7 @@
 // Extends DispatchLifecycle (dispatch/base.ts) and inherits BOTH commit gates — the pre-flight
 // entry gate (pre-commit clean tree) and the post-flight exit gate (validateCommitContract) are
 // the base's default hooks; this file only overrides the virtual hooks it cares about (spec §2.12
-// 「抽象基类继承覆写」; never touches the hookable registry).
+// "abstract-base-class inheritance override"; never touches the hookable registry).
 //
 //   pre-flight  resolveContext — steps 1/2/2.5/4/5: registry ship gate → plan → workspace → ctx
 //               (brief self-provision at plan finalization, F11) → template existence → progressDir
@@ -24,7 +24,7 @@
 // task-facing read-back atoms; the failure-carrier writes route through the writeBlockedCarrier
 // single terminal in finalize.ts; materializeWorkspace lives in naming.ts (workspace derivation
 // single point alongside resolveWorkspace). runTask keeps the legacy { exitCode, returnBlock }
-// surface ({ noExit } seam) as the static TaskLifecycle.run entry (Task 6/7 导出面重排:
+// surface ({ noExit } seam) as the static TaskLifecycle.run entry (Task 6/7 export-surface reshuffle:
 // `runTask` → `TaskLifecycle.run` — no bare forwarding shell).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -240,7 +240,7 @@ interface TaskSpawnResult {
 /** TaskLifecycle — the task-function lifecycle class. All 13.5 steps of the legacy run-task.mjs
  * relocate into the hook overrides; the entry/exit gates are inherited from the base. Results
  * surface via .result ({ exitCode, returnBlock }) + .diagnostic (stderr message) after run(). The
- * ctx assembly is the class's own public face (buildContext — 裸函数 buildCtx 迁入类公共面, Task 6 ①);
+ * ctx assembly is the class's own public face (buildContext — the bare function buildCtx moved into the class public face, Task 6 ①);
  * the static TaskLifecycle.run is the legacy runTask surface.
  * P4.3/P4.4: the dispatch unit is the task GROUP value object (TaskGroup) — handoff/brief/findings/
  * progress all key off the group (`tasks-{key}-*`; the scalar task number enters only where a
@@ -349,11 +349,11 @@ export class TaskLifecycle extends DispatchLifecycle {
   }
 
   /** buildContext(root, group, opts) — the engine-internal state (ctx) UNIQUE construction point
-   *  (Task 6 ①: the 裸函数 buildCtx 迁入 TaskLifecycle 类公共面 — ctx 装配随类构造经注入接管). ctx
+   *  (Task 6 ①: the bare function buildCtx moved into TaskLifecycle's public face — ctx assembly is owned via injection with the class construction). ctx
    *  always passes by return value, never through env: workspace / handoff / brief / ledger /
    *  constraints / findings all derive here in one pass. root is injected by the caller (TaskLifecycle.run
    *  passes `opts.root ?? getRoot()`, tests pass a real fixture root); the round anchor derives via
-   *  RoundContext (the review/fix round's unique context — 轮次锚) and the handoff path via the
+   *  RoundContext (the review/fix round's unique context — round anchor) and the handoff path via the
    *  Handoff typed carrier (Task 6 ②④). P4.3/P4.4: `group` is the dispatch GROUP value object
    *  (TaskGroup — the CLI `--tasks` string IS its key, no second form) — every task artifact is
    *  group-keyed (`tasks-{key}-*` with key `"1"` / `"1,2"`), per the canonical derived-grid channels. */
@@ -1130,7 +1130,7 @@ export class TaskLifecycle extends DispatchLifecycle {
   }
 
   /** runTask — legacy surface kept ({ exitCode, returnBlock }; noExit=true suppresses the stdout/stderr +
-   * exit-throw: the unit-test seam) as the class's STATIC entry (Task 6/7 导出面重排:
+   * exit-throw: the unit-test seam) as the class's STATIC entry (Task 6/7 export-surface reshuffle:
    * `runTask` → `TaskLifecycle.run` — the class public face, no bare forwarding shell). Builds the
    * injected ctx via buildContext, runs the lifecycle, converts an entry-gate DispatchBlocked into a
    * CDD_BLOCKED stderr + exit 1 (or a { exitCode: 1, returnBlock: [] } in noExit mode); on the normal
@@ -1229,7 +1229,7 @@ export function isTaskPending(
 // ---- plan-constraints materialization (T22/§T7.1; pure functions, unit-test seam) ----
 
 // The workspace-derived constraints artifact name (derive-only until T22 — the recurring
-// 「plan-constraints.md 不存在 → brief 唯一权威」note root cause: derived but never generated).
+// "plan-constraints.md missing → brief is the sole authority" note root cause: derived but never generated).
 const PLAN_CONSTRAINTS_FILE = "plan-constraints.md";
 // The actionable BLOCK face for an un-materializable constraints file — single module const for
 // the materializer catch fallback (findings 5: the generate-once post-check is gone because

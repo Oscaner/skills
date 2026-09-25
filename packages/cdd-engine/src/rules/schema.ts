@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/rules/schema.ts — HandoffSchemaValidator class (Task 5 rules-layer
-// rebuild; ex src/rules/schema.mjs; Task 7 OOP restructure 判定标准② — per-schema validation +
+// rebuild; ex src/rules/schema.mjs; Task 7 OOP restructure Criterion ② — per-schema validation +
 // the handoff-namespace canonical read are instance methods with instance-owned lazy caches, zero
 // bare function exports; the former module-level CACHE map becomes per-instance state — no
 // module-level mutable surface). The two handoff schemas ship in templates/schema/ (task —
@@ -11,7 +11,7 @@
 // finalize → schema is now one-way, schema holds no applyDerivedStatus reference). This module
 // keeps ONLY validation (+ the handoff-namespace canonical read) — consumers re-point normalize/
 // recover to finalize.ts. Schema enforcement stays on this face only — no second enforcement
-// implementation anywhere (Task 5 ② / Task 6 ④ 口径).
+// implementation anywhere (Task 5 ② / Task 6 ④ measurement contract).
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,7 +36,7 @@ const SCHEMA_PATHS: Record<string, string> = {
   docs: path.join(PKG_ROOT, "schema", "docs-handoff-schema.json"),
 };
 
-/** HandoffSchemaValidator — the handoff JSON-schema enforcement face (判定标准②; 构造注入 — the
+/** HandoffSchemaValidator — the handoff JSON-schema enforcement face (Criterion ②; constructor injection — the
  *  config source for the handoff-namespace canonical read, defaulting to a fresh ConfigLoader).
  *  Per-schema lazy ajv caches live on the instance ({ validator, schema } per schemaName) — the
  *  former module-level CACHE map is per-instance state, never shared mutable module state. */
@@ -87,9 +87,9 @@ export class HandoffSchemaValidator {
 
   // handoff-namespace canonical read point (spec §2.13 rules/schema.ts row): workspaceRoot +
   // family table (name / round semantics / prev) are declared once in templates/engine-config.json
-  // #handoffNamespace (Task 5 单文件归并); artifact/naming consumers (naming.ts in Task 8) read it
-  // here instead of a second literal copy. Public seam kept (rules.schema.test 仍测本导出) —
-  // 值源改为 config.ts 单点（D1.5 ⑤）。
+  // #handoffNamespace (Task 5: merged into a single module); artifact/naming consumers (naming.ts in Task 8) read it
+  // here instead of a second literal copy. Public seam kept (rules.schema.test still tests this export) —
+  // value source moved to the config.ts single point (D1.5 ⑤).
   loadHandoffNamespace(): unknown {
     return this.#config.handoffNamespace();
   }

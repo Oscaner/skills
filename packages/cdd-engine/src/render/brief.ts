@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/render/brief.ts — BriefRenderer class (Task 8 port of brief.mjs; ex
-// lib/brief.mjs; Task 7 OOP restructure 判定标准② — the task brief generator is an instance-method
-// class with 构造注入文件/git 判据; `generateBrief` 公开面 → `#render`, zero bare function exports).
+// lib/brief.mjs; Task 7 OOP restructure Criterion ② — the task brief generator is an instance-method
+// class with constructor-injected file/git judgments; `generateBrief` public face → `#render`, zero bare function exports).
 // render: mechanically extract the `### Task N:` sections from the plan (one per requested
 // task — the P4.3 group dispatch briefs the whole group in one file), append TASK_BASE,
 // write the file. The out-of-bounds guard (the invariant below) is GROUP-level: it runs after the
@@ -17,12 +17,12 @@ import { invariant } from "../infra/exit.ts";
 import { GitClient } from "../infra/git.ts";
 
 export interface BriefRendererDeps {
-  /** injected file/git judgments (determinism + test seam — 构造注入文件/git 判据). */
+  /** injected file/git judgments (determinism + test seam — the constructor-injected file/git judgments). */
   git?: GitClient;
   residue?: ResidueManager;
 }
 
-/** BriefRenderer — the task brief single generator (判定标准②; 构造注入 — the GitClient + the
+/** BriefRenderer — the task brief single generator (Criterion ②; constructor injection — the GitClient + the
  *  ResidueManager appendix renderer, both defaulting to fresh instances). */
 export class BriefRenderer {
   readonly #git: GitClient;

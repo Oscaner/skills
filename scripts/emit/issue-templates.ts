@@ -1,5 +1,5 @@
 // scripts/emit/issue-templates.ts — .github/ISSUE_TEMPLATE emitter. The IssueTemplatesEmitter
-// domain service (Task 9, 判定标准②: stateless, zero bare-function module).
+// domain service (Task 9, Criterion ②: stateless, zero bare-function module).
 //
 // Renders the two GitHub issue template forms (bug_report / enhancement) from
 // the canonical `finding-meta.json` via the emit-only YAML renderer

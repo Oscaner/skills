@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/artifacts/round-context.ts — RoundContext class (Task 6 ②): the review/fix
-// round's unique context — round 基准 / base token / 轮次锚. Wraps the canonical handoff-naming
+// round's unique context — the round base / base token / round anchor. Wraps the canonical handoff-naming
 // atoms (naming.ts single point) so every review/fix round derivation (task dispatch buildContext /
 // cli review type=task round scan) shares ONE anchor object: the op/type/workspace/round identity,
 // the per-family params ({tasks} for task, {base7,head7} for branch), the base token (the round's
@@ -17,11 +17,11 @@ export interface RoundContextInit {
   round: number;
   /** per-family round-identity params ({ tasks } for task; { base7, head7 } for branch). */
   params?: HandoffParams;
-  /** 基准 base token — the round's fixed-point / FIX_BASE anchor ("" = unset). */
+  /** The base token — the round's fixed-point / FIX_BASE anchor ("" = unset). */
   base?: string;
 }
 
-/** RoundContext — the review/fix round anchor (Task 6 ②; 审阅轮次唯一上下文). */
+/** RoundContext — the review/fix round anchor (Task 6 ②; the review round's unique context). */
 export class RoundContext {
   readonly workspace: string;
   readonly op: RoundOp;

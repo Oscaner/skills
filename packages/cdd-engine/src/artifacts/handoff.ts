@@ -2,7 +2,7 @@
 // name / persist / finalize — the engine's handoff identity+IO carrier, layered over the canonical
 // naming (naming.ts) + write (write.ts) + finalization (finalize.ts) single points. Schema
 // validation stays on the schema face (HandoffSchemaValidator — rules/schema.ts); this class never
-// adds a second enforcement implementation (Task 5 ② / Task 6 ④ 口径).
+// adds a second enforcement implementation (Task 5 ② / Task 6 ④ measurement contract).
 
 import { finalizeHandoff } from "./handoff/finalize.ts";
 import { type HandoffParams, handoffName } from "./handoff/naming.ts";

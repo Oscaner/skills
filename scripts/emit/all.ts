@@ -3,7 +3,7 @@
 /**
  * Unified emit — write mode (`scripts/run.ts emit`).
  *
- * The EmitService domain service (Task 9, 判定标准②: stateless service class) — the emit
+ * The EmitService domain service (Task 9, Criterion ②: stateless service class) — the emit
  * composition root that derives `marketplace/source.json` (package-as-source) and guides every
  * first-party artifact into the repo root: osuperpowers per-harness manifests, the repo-root
  * marketplace documents, wrappers, and the data-driven `.github/ISSUE_TEMPLATE` forms. It

@@ -1,8 +1,8 @@
 // packages/cdd-engine/src/render/templates.ts — TemplateLoader class (Task 20 C1-max byte-layout
-// layer spec D-3; Task 7 OOP restructure 判定标准② — the template-contract load/validate/render +
+// layer spec D-3; Task 7 OOP restructure Criterion ② — the template-contract load/validate/render +
 // review-config + gate atoms are ALL instance methods, zero bare function exports; the former
 // module-level CACHE state already lives in CddRuntime (Task 4 ①) and the loader receives it via
-// 构造注入). Single renderer + runtime assembly over template-contract.json#sections — the four
+// constructor injection). Single renderer + runtime assembly over template-contract.json#sections — the four
 // template .md files merged into the contract's zone storage (single-file rendering data plane),
 // zero handwritten templates:
 //   sections.shell      → one literal-constant shell (full shared frame; zero injection slots in the shell)
@@ -117,8 +117,8 @@ function scanTemplateTokens(src: string): string[] {
   return [...src.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)].map((m) => m[1]);
 }
 
-/** TemplateLoader — the template-contract plane's only loader/assembler/renderer (判定标准②;
- *  构造注入 — the render cache slots default to the CddRuntime-owned templateCache (Task 4 ①), the
+/** TemplateLoader — the template-contract plane's only loader/assembler/renderer (Criterion ②;
+ *  constructor injection — the render cache slots default to the CddRuntime-owned templateCache (Task 4 ①), the
  *  schema reader (HandoffSchemaValidator) defaults to a fresh instance). Every load / validate / render
  *  atom is an instance method; the memoized cache state lives on the injected slots, never a
  *  module-level mutable. */

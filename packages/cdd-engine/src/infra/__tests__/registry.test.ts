@@ -159,8 +159,8 @@ it("resolveInjection: 全 registry harness（claude/cursor-agent）同 claude se
 it("resolveInjection: 兜底 —— 缺省 prefix/op/type 回退空串，legacy 扁平 mode 键直接命中", () => {
   expect(registry.resolveInjection({}, "implement")).toBe("");
   expect(registry.resolveInjection({ prefix: {} }, "implement")).toBe("");
-  expect(registry.resolveInjection({ prefix: { review: { task: "/x" } } }, "review")).toBe(""); // 无 type → 空
-  expect(registry.resolveInjection({ prefix: { review: {} } }, "review", "task")).toBe(""); // type 缺该子键 → 空
+  expect(registry.resolveInjection({ prefix: { review: { task: "/x" } } }, "review")).toBe(""); // no type → empty
+  expect(registry.resolveInjection({ prefix: { review: {} } }, "review", "task")).toBe(""); // the type lacks that subkey → empty
   // legacy 扁平 mode 键兜底：未迁移 registry / CDD_REGISTRY_PATH 覆盖仍直接命中
   expect(
     registry.resolveInjection({ prefix: { "legacy-review": "/legacy-review" } }, "legacy-review"),

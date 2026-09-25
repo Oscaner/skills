@@ -81,7 +81,7 @@ export function resolveTargetDoc(
 // the GROUP is the dispatch unit: TaskListParser.parse returns the canonical TaskGroup
 // (single-data-model) and dispatch call sites thread the whole group — no per-task iteration exists.
 //
-// Task 7 OOP restructure: the parse face is a class (判定标准② — `parseTaskList` → `TaskListParser`).
+// Task 7 OOP restructure: the parse face is a class (Criterion ② — `parseTaskList` → `TaskListParser`).
 
 /** TaskListParser — the `--tasks` CLI parse face (Task 7; class surface for the formerly
  *  standalone parseTaskList). Stateless; parse() returns the canonical TaskGroup. */

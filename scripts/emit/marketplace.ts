@@ -1,6 +1,6 @@
 /**
  * Marketplace documents (repo root) + cursor wrappers — the MarketplaceDocsEmitter domain
- * service (Task 9, 判定标准②: stateless, 构造注入 — composes MarketplaceService + EmitOrchestrator).
+ * service (Task 9, Criterion ②: stateless, constructor injection — composes MarketplaceService + EmitOrchestrator).
  *
  * Non-plugin-root plugins get a cursor wrapper under `cursor-plugins/<name>`.
  * The wrapper roots this emitter produces are returned so the caller can fold

@@ -25,7 +25,6 @@ import { expect, it, vi } from "vitest";
 import { ReturnBlockParser } from "../../artifacts/return-block.ts";
 import { TaskGroup } from "../../domain/task-group.ts";
 import { captureStderr } from "../../infra/__tests__/helpers.ts";
-import { EngineInvoker } from "../../infra/invoke.ts";
 import { REG_PATH } from "../../infra/registry.ts";
 import { DRY_RUN_DIRTY_WARN } from "../../rules/commit.ts";
 import { DispatchBlocked } from "../base.ts";
@@ -293,8 +292,8 @@ it("dry-run 零 liveness 介入（T14 接口消歧）: 不 spawn / 不解析终�
   });
   expect(res.exitCode).toBe(0);
   expect(res.returnBlock[0]).toBe("status: APPROVED");
-  expect(invokeSpy).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight 早退，无 spawnManaged
-  expect(terminationSpy).not.toHaveBeenCalled(); // dry-run 无终止配置解析
+  expect(invokeSpy).not.toHaveBeenCalled(); // dry-run ≈ run() pre-flight early return, no spawnManaged
+  expect(terminationSpy).not.toHaveBeenCalled(); // dry-run resolves no termination config
   expect(res.returnBlock[4]).toMatch(/^counters: timeout=0 contract-violation=\d+/); // 无 TIMEOUT 计数递增
   // implement dry-run 不写 handoff（T6 实体化仅真实 dispatch）——也无 TIMEOUT 部分 handoff 可言
   const ws = path.join(repo, ".osuperpowers", "cdd", "plan");

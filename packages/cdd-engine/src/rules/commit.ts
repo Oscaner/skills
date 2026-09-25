@@ -1,7 +1,7 @@
 // packages/cdd-engine/src/rules/commit.ts — CommitChecker class (Task 5 rules-layer rebuild +
-// Task 7 OOP restructure 判定标准②: the commit-boundary double-gate judgment is ONE instance-method
-// class — 双层门判 entryGateCleanTree/validateCommitContract/rewriteHandoffBlocked 方法即规则,
-// 构造注入 — zero bare function exports; spec §2.12 第二部分). THE task 5 "API bottom-swap" owner:
+// Task 7 OOP restructure Criterion ②: the commit-boundary double-gate judgment is ONE instance-method
+// class — the double-gate judgment entryGateCleanTree/validateCommitContract/rewriteHandoffBlocked: methods are the rules,
+// constructor injection — zero bare function exports; spec §2.12 part two). THE task 5 "API bottom-swap" owner:
 // the legacy handwritten git subprocess helpers of rules/commit.mjs are gone — every git answer
 // here comes from the injected GitClient (simple-git single point, fail-open null/false on non-repo
 // or git error, no exception crosses this seam).
@@ -60,7 +60,7 @@ export const UNCOMMITTED_RETURN_MARKER = "uncommitted changes at return";
 // (no second gitTopLevel call).
 type CleanTreeResolution = { present: false } | { present: true; root: string; porcelain: string };
 
-/** CommitChecker — the commit-boundary double-gate judgment (判定标准②; 构造注入 — the GitClient
+/** CommitChecker — the commit-boundary double-gate judgment (Criterion ②; constructor injection — the GitClient
  *  seam, defaulting to a fresh instance). Entry gate + exit gate + the BLOCKED handoff rewrite are
  *  all instance methods. */
 export class CommitChecker {

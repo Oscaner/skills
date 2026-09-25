@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/rules/convergence.ts — ConvergenceChecker class (Task 5 rules-layer
-// rebuild + Task 7 OOP restructure 判定标准②: the Review Convergence guard cluster is one
+// rebuild + Task 7 OOP restructure Criterion ②: the Review Convergence guard cluster is one
 // instance-method class, zero bare function exports; ex the cluster that cli/shared.mjs hosted).
 // Self-contained per the closure-completeness ownership rule: reviewConvergenceGuard calls
 // convergedExit3 + blockerCount + reviewConvergedError, so all four methods move together (no rules
@@ -21,7 +21,7 @@ export interface HandoffLike {
   failure_category?: string;
 }
 
-/** ConvergenceChecker — the Review Convergence guard cluster (判定标准②; 构造注入 — the failure
+/** ConvergenceChecker — the Review Convergence guard cluster (Criterion ②; constructor injection — the failure
  *  resolver feeding the incomplete-dispatch judgment, defaulting to a fresh instance). */
 export class ConvergenceChecker {
   readonly #failure: FailureResolver;

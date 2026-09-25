@@ -66,7 +66,7 @@ export function normalizeHandoffStatus(status: string | undefined): string | und
 }
 
 /** severity → decision. Contract-pinned (spec D1/D4/D5a; Task 8 #278 three-value conclusion):
- *   "blocker" → "CHANGES_REQUESTED"; "warn"|"nit" → "REVIEW_FIX" (收口态 — warn/nit fully enter the
+ *   "blocker" -> "CHANGES_REQUESTED"; "warn"|"nit" -> "REVIEW_FIX" (closure state — warn/nit fully enter the
  *   fix loop, and the review closes on the warn/nit-only conclusion, never a re-review);
  *   "unverifiable" / "needs_context" → "STOP" (BLOCKED). Unknown → throw (contract violation). */
 export function classifySeverity(sev: unknown): string {
@@ -88,7 +88,7 @@ export function classifySeverity(sev: unknown): string {
 /** findings[] roll-up → handoff status (aligned with the status enum of
  * packages/cdd-engine/templates/schema/docs-handoff-schema.json; this rollup is the mapping;
  * Task 8 #278 — the three-value conclusion):
- *   empty → APPROVED; warn/nit only → REVIEW_FIX (收口态); blocker present → CHANGES_REQUESTED;
+ *   empty → APPROVED; warn/nit only → REVIEW_FIX (closure state); blocker present → CHANGES_REQUESTED;
  *   non-empty unverifiable[] / plan_conflicts[] → BLOCKED. */
 export function rollupStatus(
   findings: Array<{ severity?: string }> = [],
@@ -107,7 +107,7 @@ export function rollupStatus(
  * {BLOCKED, TIMEOUT}) are not overwritten.
  * Rollup triggers only when findings.length > 0; with empty findings CHANGES_REQUESTED /
  * REVIEW_FIX (0 findings) → APPROVED, APPROVED empty-load stays, default → APPROVED.
- * Task 8 #278 三段结案: findings that are warn/nit-only → REVIEW_FIX (收口态); blocker present →
+ * Task 8 #278 three-value conclusion: warn/nit-only findings → REVIEW_FIX (closure state); blocker present →
  * CHANGES_REQUESTED.
  * BRANCH NIT⑥: consult plan_conflicts/unverifiable BEFORE the empty-findings short-circuit — when
  * either is non-empty it is the BLOCKED channel even with empty findings (the rollup's
@@ -135,7 +135,7 @@ export function deriveReviewStatus(handoff: Record<string, unknown> = {}): strin
 
 /** Round conclusion → runner exit (Task 23 ③: BLOCKED → exit 1 on any channel — the T14
  * 「exit 0 + status BLOCKED」inversion). APPROVED / CHANGES_REQUESTED / REVIEW_FIX → 0 (terminal
- * review conclusions — Task 8: REVIEW_FIX is the 收口态 conclusion for warn/nit-only rounds, the
+ * review conclusions — Task 8: REVIEW_FIX is the closure-state conclusion for warn/nit-only rounds, the
  * fix loop continues on its own pass; the review dispatch itself completed); every other conclusion
  * (BLOCKED / TIMEOUT / absent) → 1. Single mapping point shared by dispatch/task.ts, dispatch/docs.ts
  * and the branch-review/fix CLIs. */

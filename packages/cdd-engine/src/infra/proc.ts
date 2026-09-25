@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/proc.ts — Process-Lifecycle Manager surface (TS port of proc.mjs;
-// spec §2.13 proc row, execa retained). P4.4 Task 4 「CddRuntime 模块态收编」: the lifecycle
+// spec §2.13 proc row, execa retained). P4.4 Task 4 "CddRuntime module-state consolidation": the lifecycle
 // implementation + all proc module-level state moved into infra/runtime.ts (the CddRuntime class
 // owns registry/diskPath/idleTimer — the engine's single mutable-state surface); this file is now
 // a thin re-export so every legacy `../infra/proc.ts` import (dispatch/CLI modules, tests) resolves

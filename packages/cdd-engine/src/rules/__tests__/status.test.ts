@@ -438,8 +438,8 @@ describe("deriveTaskState — six-state convergence", () => {
     expect(statusJudge.deriveTaskState(ws, 3)).toBe("needs-review");
   });
 
-  // ---- REVIEW_FIX 三段结案 (#278) — 自造 mkdtemp 链：S1 blocker 循环回归 · S2 收口态 → fix → complete
-  // 无 re-review · S3 零 finding fast path（零产物 fixture —— 链完全自建）----
+  // ---- REVIEW_FIX three-value conclusion (#278) — a self-built mkdtemp chain: S1 blocker loop regression · S2 closure state → fix → complete
+  // no re-review · S3 zero-finding fast path (zero-artifact fixture — the chain is fully self-built) ----
 
   function writeReview(dir: string, round: number, status: string, severities: string[]): void {
     writeHandoff(dir, `tasks-1-review-${round}.json`, {
@@ -479,23 +479,23 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    // review-1 blocker → needs-fix（fix 路由）。
+    // review-1 blocker → needs-fix (fix routing).
     setRounds(ws, { review: 1 });
     writeReview(ws, 1, "CHANGES_REQUESTED", ["blocker"]);
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
-    // fix-1 落地 → re-review 到期（blocker 循环持续路由，绝不 收口）。
+    // fix-1 landed → re-review due (the blocker loop keeps routing, never closes out).
     setRounds(ws, { review: 1, fix: 1 });
     writeFix(ws, 1);
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-re-review");
-    // re-review 仍 blocker → fix 再一轮（循环回归：无提前终态）。
+    // re-review still blocker → another fix round (loop regression: no early terminal state).
     setRounds(ws, { review: 2, fix: 1 });
     writeReview(ws, 2, "CHANGES_REQUESTED", ["blocker"]);
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
-    // addressing fix 2 → 再 re-review …
+    // addressing fix 2 → then re-review …
     setRounds(ws, { review: 2, fix: 2 });
     writeFix(ws, 2);
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-re-review");
-    // … 只有干净 review 关圈 → complete。
+    // … only a clean review closes the loop → complete.
     setRounds(ws, { review: 3, fix: 2 });
     writeReview(ws, 3, "APPROVED", []);
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
@@ -511,7 +511,7 @@ describe("deriveTaskState — six-state convergence", () => {
     const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
     writeReview(ws, 1, "REVIEW_FIX", ["warn", "nit"]);
     writeFix(ws, 1);
-    // 收口态 fix 路由到 complete —— 绝不 re-review（与 S1 needs-fix → needs-re-review 区分）。
+    // the closure-state fix routes to complete — never a re-review (distinct from S1 needs-fix → needs-re-review).
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
   });
 
@@ -540,13 +540,13 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    // 收口 fix 声明 BLOCKED（非 dead, 非 APPROVED）→ 未落地 → needs-fix（re-dispatch）, 绝不 complete 提前收口。
+    // the closure fix declares BLOCKED (not dead, not APPROVED) → has not landed → needs-fix (re-dispatch), never an early complete.
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
   });
 
   it("S2 收口态 discriminator: 收口 fix 先于最新 REVIEW_FIX review（fix 轮 < review 轮）→ 该 fix 不吞最新轮 → needs-fix", () => {
-    // reviews=2, fixes=1: review-2 收口态 dispatch 于 fix-1 收敛 review-1 之后 —— 最新 review
-    // 无自己的 addressing fix → needs-fix（dispatch fix-2），与 S1 needs-fix discriminator 同则。
+    // reviews=2, fixes=1: review-2's closure-state dispatch lands after fix-1 converged review-1 — the newest review
+    // has no addressing fix of its own → needs-fix (dispatch fix-2), same rule as the S1 needs-fix discriminator.
     const ws = workspace(ROUNDS({ review: 2, fix: 1 }));
     writeHandoff(ws, "tasks-1-review-1.json", {
       tasks: [1],
@@ -564,7 +564,7 @@ describe("deriveTaskState — six-state convergence", () => {
     const ws = workspace(ROUNDS({ review: 1 }));
     writeReview(ws, 1, "APPROVED", []);
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("complete");
-    // review APPROVED 后不要求 fix —— plan 级直通已由 derivePlanVerdict 的绿路径覆盖。
+    // no fix is required after an APPROVED review — the plan-level straight-through is already covered by derivePlanVerdict's green path.
   });
 
   it("S2 收口态 merged-group: 组载体的 REVIEW_FIX + 收口 fix → 组成员 complete（无 re-review）", () => {
@@ -592,7 +592,7 @@ describe("deriveTaskState — six-state convergence", () => {
       findings: [],
       artifacts: {},
     });
-    // 组载体的收口态 fix 使每个成员无 re-review 直达 complete（merged-group convergence, P4.3/P4.4）。
+    // the group carrier's closure-state fix takes every member to complete without a re-review (merged-group convergence, P4.3/P4.4).
     expect(statusJudge.deriveTaskState(ws, 1, [group])).toBe("complete");
     expect(statusJudge.deriveTaskState(ws, 2, [group])).toBe("complete");
   });

@@ -104,8 +104,8 @@ describe("unified constant shell（Task 20 ①）：字面头跨模式字节恒�
       const retIdx = heading(prompt, "Return");
       const roundIdx = heading(prompt, "Round context");
       expect(handoffIdx, mode).toBeGreaterThan(-1);
-      expect(retIdx, mode).toBeGreaterThan(handoffIdx); // Handoff 壳在 Return 前
-      expect(roundIdx, mode).toBeGreaterThan(retIdx); // 动态区绝对末尾
+      expect(retIdx, mode).toBeGreaterThan(handoffIdx); // the Handoff shell comes before Return
+      expect(roundIdx, mode).toBeGreaterThan(retIdx); // the dynamic zone is the absolute tail
       const after = prompt.slice(roundIdx);
       expect(after.startsWith("## Round context"), mode).toBe(true);
       expect(after.match(/\n## (?!#)/), mode).toBeNull(); // Round context 之后无其他二级段
@@ -121,13 +121,13 @@ describe("unified constant shell（Task 20 ①）：字面头跨模式字节恒�
     // 每种 returnFormat 自带 `## Return` 头 + 零 moustache（结构校验器同断言，此处为渲染面直读）
     expect(returnZoneOf(implement).startsWith("## Return")).toBe(true);
     expect(returnZoneOf(implement)).not.toContain("{{");
-    expect(returnZoneOf(docsReview)).toContain("RETURN_JSON"); // 格式标签自述
+    expect(returnZoneOf(docsReview)).toContain("RETURN_JSON"); // the format tag is self-describing
     expect(returnZoneOf(docsFix)).toContain("not your stdout");
   });
 
   it("壳 = 进程级无参常数：同一 family 的静态区（schema 注入块之前 + 之后）字节冻结；跨 family 仅 schema 块区异", () => {
     const { implement, fix, taskReview, docsReview, docsFix } = renders;
-    expect(staticZoneOf(implement)).toBe(staticZoneOf(fix)); // task 族
+    expect(staticZoneOf(implement)).toBe(staticZoneOf(fix)); // the task family
     expect(staticZoneOf(fix)).toBe(staticZoneOf(taskReview));
     expect(staticZoneOf(docsReview)).toBe(staticZoneOf(docsFix)); // docs 族
     expect(staticZoneOf(implement)).not.toBe(staticZoneOf(docsReview)); // 两族差异 = 注入 schema 块
@@ -170,16 +170,16 @@ describe("my-gate 门面去路径化（Task 20 ⑥）：壳散文字节常数，
     const out = fixtureRenders().docsFix;
     expect(out).toMatch(/HARD GATE[^\n]*BEFORE exiting/);
     expect(out).toContain("the engine reads the file, not your stdout");
-    expect(out).not.toContain("outputting the JSON return"); // fix stdout 无 JSON return
+    expect(out).not.toContain("outputting the JSON return"); // fix stdout has no JSON return
     expect(out).toContain("/ws/osuperpowers-overhaul-p6/spec-fix-1.json");
-    expect(out).toContain("Write/update `HANDOFF_TARGET` per the schema"); // DOCS_FIX 常量自述
+    expect(out).toContain("Write/update `HANDOFF_TARGET` per the schema"); // the DOCS_FIX constant is self-describing
   });
 
   it("implement 门：本模式不写 handoff —— runner 从 return block + TASK_BASE + git HEAD 实体化", () => {
     const out = fixtureRenders().implement;
     expect(out).toMatch(/This mode does not write `[^`]+tasks-7-implement\.json`/); // 槽实值
-    expect(out).toContain("does not write a handoff"); // 壳指令 3
-    expect(out).toContain("the runner materializes it from your return block four lines"); // 槽散文
+    expect(out).toContain("does not write a handoff"); // shell directive 3
+    expect(out).toContain("the runner materializes it from your return block four lines"); // the slot's prose
     expect(out).toContain("TASK_BASE");
   });
 });
@@ -210,8 +210,8 @@ describe("共享纪律散文（壳 Instructions，跨 mode 同一字节）：evi
     expect(out).toMatch(
       /declare `status` \(APPROVED once applied, or BLOCKED with the reason in `blocker`\)/,
     );
-    expect(out).toContain("fix-scope diff"); // fix 指令 4（FIX_BASE）
-    expect(out).toContain("`FIXED_POINT`"); // 指令 4 实值源在 Round context
+    expect(out).toContain("fix-scope diff"); // fix directive 4 (FIX_BASE)
+    expect(out).toContain("`FIXED_POINT`"); // directive 4's real value source is the Round context
   });
 
   it("渲染输出零残留 moustache（r2-r3 泄漏回归守卫，迁移：{{HANDOFF_SCHEMA_JSON}} 槽已消）", () => {

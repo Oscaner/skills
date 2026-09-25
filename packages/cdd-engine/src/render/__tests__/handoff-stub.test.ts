@@ -18,11 +18,11 @@ describe("renderHandoffSchemaJson — schema 原样注入", () => {
   it("stub = schema 本体的 ```json 块：解析后逐键相等、description 随附", () => {
     const schema = schemaValidator.loadHandoffSchema("task");
     const stub = templates.renderHandoffSchemaJson(schema);
-    expect(stub.startsWith("```json\n")).toBe(true); // 载体是 json（非 jsonc：schema 本体无注释行可复制）
+    expect(stub.startsWith("```json\n")).toBe(true); // the carrier is json (not jsonc: the schema itself has no comment lines to copy)
     expect(stub.endsWith("\n```")).toBe(true);
     const parsed = JSON.parse(stub.replace(/^```json\n/, "").replace(/\n```$/, ""));
     expect(parsed).toEqual(schema);
-    expect(stub).toContain('"description"'); // 写协议规则随 schema 注入
+    expect(stub).toContain('"description"'); // the write-protocol rules are injected with the schema
   });
 
   it("两份 schema 顶层 + 逐 property 均有 description（写协议规则迁入 schema）", () => {
@@ -73,8 +73,8 @@ describe("validateHandoffSchema — 失败形态与磁盘契约一致（不改�
       { tasks: [1], phase: "review", artifacts: {}, findings: [], review_notes: "x" },
       "task",
     );
-    expect(r.valid).toBe(false); // 既有键名不变（三个 lib 消费方 + 四个测试按 .valid 判定）
-    expect(r.property).toBe("review_notes"); // T5 新增键
+    expect(r.valid).toBe(false); // existing key names unchanged (three lib consumers + four tests judge via .valid)
+    expect(r.property).toBe("review_notes"); // the key added in T5
     expect(r.reason).toMatch(/review_notes/); // 报错文案含违规键名
   });
   it("通过时返回 `{ valid: true }`（形态不变）", () => {
@@ -132,8 +132,8 @@ describe("normalizeHandoff — 归一化 → 重校验单点（三个 runner 同
     // CONTRACT_VIOLATION 恢复路径上崩溃（runner 无 catch → exit 2、不写 BLOCKED handoff、findings 全丢）。
     const raw = { tasks: [1], phase: "review", artifacts: {}, findings: "none" };
     const out = normalizeHandoff(raw, "task");
-    expect(out.status).toBe("APPROVED"); // rollup 收到守卫后的 []
-    expect(schemaValidator.validateHandoffSchema(out, "task").valid).toBe(false); // 归一化不可救 → 调用方走 BLOCKED
+    expect(out.status).toBe("APPROVED"); // the rollup receives the guard's []
+    expect(schemaValidator.validateHandoffSchema(out, "task").valid).toBe(false); // normalization cannot save it → the caller goes BLOCKED
     for (const bad of ["x", {}, 7, null]) {
       expect(() =>
         normalizeHandoff({ ...raw, findings: bad, unverifiable: bad, plan_conflicts: bad }, "task"),
@@ -165,17 +165,17 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
       "task",
     );
     expect(rec.valid).toBe(false);
-    expect(rec.property).toBe("review_notes"); // 违规键名取自原对象那轮校验（归一化已剥除 → 重校验面看不到）
+    expect(rec.property).toBe("review_notes"); // the offending key name comes from the original object's validation round (normalization already stripped it → the re-validation surface cannot see it)
     expect(rec.reason).toMatch(/^ \(unexpected key: review_notes\): /);
-    expect(rec.reason).toMatch(/task/); // ajv 明细（缺 required）
-    expect(rec.preservedFindings).toEqual([]); // 非数组 findings → 守卫成 []（守卫只写在本单点）
+    expect(rec.reason).toMatch(/task/); // the ajv detail (missing required)
+    expect(rec.preservedFindings).toEqual([]); // non-array findings → the guard yields [] (the guard writes only at this single point)
     expect(rec.handoff).not.toHaveProperty("review_notes");
   });
   it("原对象无违规键名 → reason 无后缀（三处调用方不再各自拼串）", () => {
     const rec = recoverHandoff(
       { tasks: ["1"], phase: "review", artifacts: {}, findings: [] },
       "task",
-    ); // task 类型不符
+    ); // wrong task type
     expect(rec.valid).toBe(false);
     expect(rec.property).toBeUndefined();
     expect(rec.reason).toMatch(/^: /);
@@ -190,7 +190,7 @@ describe("recoverHandoff — CONTRACT_VIOLATION 恢复单点（三路 runner 同
     for (const bad of [[{ severity: "warn", summary: "x" }], "BLOCKED", 42, true]) {
       const rec = recoverHandoff(bad, "task");
       expect(rec.valid).toBe(false);
-      expect(Object.keys(rec.handoff)).not.toContain("0"); // 索引展开面
+      expect(Object.keys(rec.handoff)).not.toContain("0"); // the index-spread surface
       expect(Array.isArray(rec.preservedFindings)).toBe(true);
       // 按 run-task.mjs 8.8 的载荷形状原样组装 → 必须过校验
       const payload = {
@@ -310,7 +310,7 @@ describe("recoverHandoff 失败分支 → 三处 BLOCKED 载荷恒过校验（en
       "task",
     );
     expect(rec.valid).toBe(false);
-    expect(rec.handoff.notes).toBe(5); // 已声明键原值被归一化保留（缺陷的泄漏源）
+    expect(rec.handoff.notes).toBe(5); // a declared key's original value survives normalization (the defect's leakage source)
     const legacy = {
       ...rec.handoff,
       tasks: [1],

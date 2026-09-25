@@ -1,5 +1,5 @@
 // packages/cdd-engine/src/infra/__tests__/lifecycle.wiring.test.ts
-// spec §2.6：引擎全派生点全部经 spawnManaged（execa 直接 import 仅允许 src/infra/proc.ts / src/infra/runtime.ts —— P4.4 Task 4 将进程生命周期实现收编进 CddRuntime）；
+// spec §2.6: every engine spawn point goes through spawnManaged (direct execa imports are allowed only in src/infra/proc.ts / src/infra/runtime.ts — P4.4 Task 4 consolidated the process-lifecycle implementation into CddRuntime);
 // 全部派发出口（runTask / docs-runner / cli 层）接 idle 监视 + teardownAll；dist/cli.mjs 信号安全出口
 //（SIGINT/SIGTERM/SIGHUP → teardownAll 连根回收 → 128+signo 退出码）。CLI 信号用例以 PATH 遮蔽
 // harness（既有技术：cdd.test.mjs 以 PATH 遮蔽 registry cli 名）→ 真实 dispatch 经 spawnManaged 派生
@@ -25,7 +25,7 @@ const REPO_ROOT = path.resolve(LIB, "..", "..", "..");
 // spec §2.6「环境不允许时 skip 保护」：信号用例依赖真进程组回收（P1SIG 组随 teardownAll 连根退出），
 // CI 容器下组语义不可靠 → skipIf 门控；形构守卫（execa 收敛 / withLifecycle 接线）不受影响始终运行。
 const GROUP_SUPPORTED = processGroupReapingSupported();
-const alive = (m) => pgrepCount(m); // 括号技巧消 pgrep -f 自匹配（helpers.ts）
+const alive = (m) => pgrepCount(m); // the bracket trick removes pgrep -f self-matching (helpers.ts)
 const waitFor = async (fn, ms) => {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
@@ -107,18 +107,18 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     }
     // The branch thin shells (cli/branch-review.ts + cli/branch-fix.ts) merged into the
     // composition root (Task 6) — the branch lifecycles live in dispatch/branch.ts and route
-    // through review.ts / fix.ts's withLifecycle wrapper (判定标准⑤ — 无转发壳).
+    // through review.ts / fix.ts's withLifecycle wrapper (Criterion ⑤ — no forwarding shells).
     expect(branch).toMatch(/withLifecycle/);
     // The wrapper implementation moved with the lifecycle into infra/runtime.ts (P4.4 Task 4 —
     // the CddRuntime class; proc.ts is now a re-export); the guard pins the REAL home.
     const proc = readFileSync(path.join(LIB, "infra", "runtime.ts"), "utf8");
-    expect(proc).toMatch(/withLifecycle/); // 包装器本体驻 infra/runtime.ts
-    expect(proc).toMatch(/startIdleMonitor/); // 包装器内含 idle 监视
+    expect(proc).toMatch(/withLifecycle/); // the wrapper body lives in infra/runtime.ts
+    expect(proc).toMatch(/startIdleMonitor/); // the wrapper embeds the idle monitor
     expect(proc).toMatch(/stopIdleMonitor/);
     expect(proc).toMatch(/teardownAll/);
     const invoke = readFileSync(path.join(LIB, "infra", "invoke.ts"), "utf8");
-    expect(invoke).toMatch(/markAllDispatchesDone/); // dispatch 返回落 done
-    expect(invoke).not.toMatch(/^(?:export|const)[^\n]*spawnCapture/m); // §2.2 D 无死导出（注释提及不受影响）
+    expect(invoke).toMatch(/markAllDispatchesDone/); // dispatch return lands done
+    expect(invoke).not.toMatch(/^(?:export|const)[^\n]*spawnCapture/m); // §2.2 D has no dead exports (comment mentions are unaffected)
   });
 
   describe.skipIf(!GROUP_SUPPORTED)("CLI 信号安全出口（进程组依赖）", () => {
@@ -129,9 +129,9 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
     ])(
       "CLI 信号安全出口 %s → teardownAll 连根回收 + 退出码 %i（128+signo）",
       async (sig, expectCode) => {
-        // 真实 dispatch 隔离在 mkdtemp 干净仓（G4/Task 17）：cwd = temp repo，CLI 二进制 = 本仓
-        // dist/cli.mjs（绝对路径）→ 入口门解析 temp repo 的干净树，天然不受本仓脏树影响
-        //（pre-commit 提交时工作树必然 dirty —— 该硬 BLOCK 曾是 pre-commit 的结构性失败点）。
+        // real dispatches are isolated in a mkdtemp clean repo (G4/Task 17): cwd = the temp repo, the CLI binary = this repo's
+        // dist/cli.mjs (absolute path) → the entry gate resolves the temp repo's clean tree, naturally unaffected by this repo's dirty tree
+        // (the working tree is necessarily dirty at pre-commit time — that hard BLOCK used to be pre-commit's structural failure point).
         const repo = tmpDispatchRepo();
         const stubDir = mkdtempSync(path.join(os.tmpdir(), "p1-stub-"));
         try {
@@ -165,10 +165,10 @@ describe("架构违例守卫：引擎全部派生经 spawnManaged", () => {
           const [code, signal] = await new Promise((res) =>
             child.on("exit", (c, s) => res([c, s])),
           );
-          // handler 拦截后正常 exit（signal = null），退出码 = 128 + signo（SIGINT→130 / SIGTERM→143 / SIGHUP→129）；
-          // signal 非 null 仅容 handler 未装（注册失败/竞态）的退化路径。
+          // after the handler intercepts, exit is normal (signal = null); the exit code = 128 + signo (SIGINT→130 / SIGTERM→143 / SIGHUP→129);
+          // signal non-null only admits the degraded path where the handler was not installed (registration failure / race).
           expect(code === expectCode || signal === sig).toBe(true);
-          await waitFor(() => alive("P1SIG") === 0, 30_000); // 组随 teardownAll 连根退出（全套负载下给足预算）
+          await waitFor(() => alive("P1SIG") === 0, 30_000); // the group exits wholesale with teardownAll (ample budget under the full load)
         } finally {
           rmSync(stubDir, { recursive: true, force: true });
           rmSync(repo, { recursive: true, force: true });

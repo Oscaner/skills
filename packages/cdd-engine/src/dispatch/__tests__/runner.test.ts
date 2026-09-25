@@ -51,7 +51,7 @@ import {
   processGroupReapingSupported,
 } from "../../infra/__tests__/helpers.ts";
 
-const GROUP_SUPPORTED = processGroupReapingSupported(); // spec §2.6 skip 保护（CI 容器组语义不可靠）
+const GROUP_SUPPORTED = processGroupReapingSupported(); // spec §2.6 skip guard (CI container group semantics are unreliable)
 
 // gitInit + realpath normalization (macOS /tmp → /private/tmp).
 function gitInitReal(dir) {
@@ -145,7 +145,7 @@ async function capture(runFn) {
     } catch (e) {
       if (e instanceof ExitRequested) {
         code = e.code;
-      } // exit helpers 现 throw 哨兵（Task 3 review warn 修复）
+      } // exit helpers now throw the sentinel (Task 3 review-warn fix)
       else if (!/process\.exit/.test(e.message)) throw e;
     }
   } finally {
@@ -205,10 +205,10 @@ it.skipIf(!GROUP_SUPPORTED)(
     // exit helpers switched to throwing, the run-boundary finally (teardownAll) must reap the dispatch
     // residual group by the root first before the sentinel propagates outward (Task 3).
     const { repo, planFile } = setupWorkspace();
-    // 模拟 dispatch 留下的 session server：leader 触发孙进程 P1EXIT 后退出，孙进程驻留（组 pgid 存活语义）。
+    // mocks the session server left behind by dispatch: the leader exits after triggering grandchild P1EXIT, the grandchild lingers (group pgid liveness semantics).
     const script = `const{spawn}=require('child_process');spawn(process.execPath,['-e','setTimeout(()=>{},60000)','P1EXIT']).unref();process.exit(0)`;
     await spawnManaged("node", ["-e", script], { timeoutMs: 5000 });
-    const p1exitAlive = () => pgrepCount("P1EXIT"); // 括号技巧消 pgrep 自匹配（helpers.ts）
+    const p1exitAlive = () => pgrepCount("P1EXIT"); // the bracket trick removes pgrep self-matching (helpers.ts)
     expect(p1exitAlive()).toBeGreaterThan(0);
     let code = null;
     try {
@@ -222,8 +222,8 @@ it.skipIf(!GROUP_SUPPORTED)(
       if (e instanceof ExitRequested) code = e.code;
       else throw e;
     }
-    expect(code).toBe(0); // 出口码语义保留（0=OK）
-    expect(p1exitAlive()).toBe(0); // 驻留组已随 finally teardownAll 连根回收
+    expect(code).toBe(0); // exit-code semantics preserved (0=OK)
+    expect(p1exitAlive()).toBe(0); // the lingering group was already reaped wholesale by the finally teardownAll
   },
 );
 
@@ -797,7 +797,7 @@ it("runTask #218 (T7→review): step 8.8 unknown-property handoff → normalized
     expect(res.exitCode).toBe(0);
     const hp = path.join(ws, "tasks-1-review-1.json");
     const h = JSON.parse(readFileSync(hp, "utf8"));
-    expect(h).not.toHaveProperty("unknownField"); // 违规键被写侧同源剥除，不留盘
+    expect(h).not.toHaveProperty("unknownField"); // the offending key is stripped by the write-side single source — never left on disk
     expect(h.phase).toBe("review");
     expect(h.status).toBe("APPROVED");
     expect(res.returnBlock[0]).toBe("status: APPROVED");
@@ -832,8 +832,8 @@ it("runTask #218 (T7→review): step 8.8 归一化不可救（缺 required 'task
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
     expect(h.blocker).toMatch(/must have required property 'tasks'/);
-    expect(h.findings).toEqual([{ severity: "blocker", summary: "keep me" }]); // 全额保留
-    expect(h).not.toHaveProperty("unknownField"); // 归一化先剥违规键
+    expect(h.findings).toEqual([{ severity: "blocker", summary: "keep me" }]); // preserved in full
+    expect(h).not.toHaveProperty("unknownField"); // normalization strips the offending key first
   } finally {
     restore();
   }
@@ -862,13 +862,13 @@ it("runTask #218 (T7→review): step 8.8 findings 非数组 + review 族缺 stat
       registryPath: regPath,
       noExit: true,
     });
-    expect(res.exitCode).toBe(1); // 不是崩溃逃逸（exit 2）
+    expect(res.exitCode).toBe(1); // not a crash escape (exit 2)
     expect(res.returnBlock[0]).toBe("status: BLOCKED");
     const h = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
     expect(h.status).toBe("BLOCKED");
     expect(h.phase).toBe("review");
-    expect(h.findings).toEqual([]); // 非数组 → 数组守卫成 []
-    expect(h.blocker).toMatch(/unexpected key: unknownField/); // 违规键名进 blocker 文案
+    expect(h.findings).toEqual([]); // non-array → the array guard yields []
+    expect(h.blocker).toMatch(/unexpected key: unknownField/); // the offending key name enters the blocker copy
     expect(h).not.toHaveProperty("unknownField");
   } finally {
     restore();
@@ -1069,7 +1069,7 @@ it("runTask Task 5: review → invokeCli (op=review,type=task) → code-review p
   }
 });
 
-// ---- Status single-authority: review read-back overwrites (agent wrote warn-only CHANGES_REQUESTED → overwritten to REVIEW_FIX — Task 8 收口态) (T5) ----
+// ---- Status single-authority: review read-back overwrites (agent wrote warn-only CHANGES_REQUESTED → overwritten to REVIEW_FIX — Task 8 closure state) (T5) ----
 
 it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTED warn-only → 覆写 REVIEW_FIX", async () => {
   const { repo, planFile, ws } = setupWorkspace();
@@ -1095,7 +1095,7 @@ it("runner review 读回覆写：task-N-review-1.json agent 写 CHANGES_REQUESTE
     const hp = path.join(ws, "tasks-1-review-1.json");
     expect(existsSync(hp)).toBe(true);
     const h = JSON.parse(readFileSync(hp, "utf8"));
-    // warn/nit = 0 blocker → status 被引擎派生覆写为 REVIEW_FIX（收口态，findings 保留）
+    // warn/nit = 0 blockers → status is engine-derived-overwritten to REVIEW_FIX (closure state, findings kept)
     expect(h.status).toBe("REVIEW_FIX");
     expect(h.findings).toEqual([
       { severity: "warn", summary: "w" },
@@ -1158,7 +1158,7 @@ it("runTask Task 23 T14 复现场景: review 写 unverifiable → BLOCKED + UNVE
   }
 });
 
-// ---- §-term dev-measured acceptance items → accepted-noted (recorded in notes; zero unverifiable, zero BLOCK) (Task 23 ② / Task 8 — the warn finding closes as REVIEW_FIX 收口态) ----
+// ---- §-term dev-measured acceptance items → accepted-noted (recorded in notes; zero unverifiable, zero BLOCK) (Task 23 ② / Task 8 — the warn finding closes as the REVIEW_FIX closure state) ----
 
 it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes 记录, 零 unverifiable 零 BLOCK, warn finding 收口 REVIEW_FIX, exit 0", async () => {
   const { repo, planFile, ws } = setupWorkspace();
@@ -1182,7 +1182,7 @@ it("runTask Task 23 §口径: dev-measured 验收项 accepted-noted → notes �
     });
     expect(res.exitCode).toBe(0);
     const h = JSON.parse(readFileSync(path.join(ws, "tasks-1-review-1.json"), "utf8"));
-    // 零 unverifiable 零 BLOCK；warn finding 收口为 REVIEW_FIX（零 blocker 的三值结论，Task 8 #278）
+    // zero unverifiable, zero BLOCK; the warn finding closes out as REVIEW_FIX (the zero-blocker three-value conclusion, Task 8 #278)
     expect(h.status).toBe("REVIEW_FIX");
     expect(h.unverifiable).toBeUndefined();
     expect(h.blocker).toBeUndefined();
@@ -1403,11 +1403,11 @@ it("runTask T6: implement 成功路径 — runner 实体化 tasks-1-implement.js
   expect(h.tasks).toEqual([1]);
   expect(h.phase).toBe("implement");
   expect(h.status).toBe("APPROVED");
-  expect(h.commits.base).toBe(t6.taskBase); // brief TASK_BASE 权威（agent 行被忽略）
-  expect(h.commits.head).toBe(t6.actualHead); // git HEAD 权威
+  expect(h.commits.base).toBe(t6.taskBase); // brief TASK_BASE is authoritative (the agent line is ignored)
+  expect(h.commits.head).toBe(t6.actualHead); // git HEAD is authoritative
   expect(h.findings).toEqual([]);
   expect(h.artifacts.report).toBe(report);
-  expect(h.blocker).toBeUndefined(); // blocker: none → 省略（returnFromHandoff 按 APPROVED 缺省 none）
+  expect(h.blocker).toBeUndefined(); // blocker: none → omitted (returnFromHandoff defaults none under APPROVED)
   // return block 由实体化 handoff 重发（returnFromHandoff）
   expect(res.returnBlock[0]).toBe("status: APPROVED");
   expect(res.returnBlock[1]).toBe(`commits: base=${t6.taskBase} head=${t6.actualHead}`);
@@ -1484,7 +1484,7 @@ it("runTask T6: evidence-gate — behavior_change:true 缺 command/passed/exit_c
     t6,
     [
       "#!/usr/bin/env bash",
-      // 模拟 agent 写了 test-evidence：behavior_change:true 但缺必需三键
+      // mocks an agent writing test-evidence: behavior_change:true but missing the three required keys
       `printf '%s' '{"behavior_change":true,"warnings_count":0}' > "${path.join(t6.ws, "tasks-1-test-evidence.json")}"`,
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
@@ -1546,7 +1546,7 @@ it("runTask T7: implement 8.8 不读 existing handoff → schema-invalid 残留�
     t6,
     [
       "#!/usr/bin/env bash",
-      // 模拟旧 P1 agent 残留：schema-invalid（缺 findings）existing handoff
+      // mocks a legacy P1 agent residue: a schema-invalid (missing findings) existing handoff
       `printf '%s' '{"tasks":[1],"phase":"implement","status":"APPROVED","artifacts":{}}' > "${path.join(t6.ws, "tasks-1-implement.json")}"`,
       "printf '%s\\n' 'status: APPROVED'",
       "printf '%s\\n' 'commits: base=x head=y'",
@@ -1781,7 +1781,7 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
   );
   try {
     const cpPath = path.join(t22.ws, "plan-constraints.md");
-    expect(existsSync(cpPath)).toBe(false); // 前置：缺失
+    expect(existsSync(cpPath)).toBe(false); // precondition: missing
     const res = await TaskLifecycle.run("ghost", 1, {
       mode: "implement",
       planFile: t22.planFile,
@@ -1789,7 +1789,7 @@ it("runTask T22: implement pre-flight 缺失 constraints → 自 plan 声明源�
       registryPath: t22.regPath,
       noExit: true,
     });
-    expect(res.exitCode).toBe(0); // 门过 → 绿色走完 dispatch
+    expect(res.exitCode).toBe(0); // gate passes → the dispatch runs through green
     // 物料化：plan hash 锚 + 四段声明面 + 无绝对路径（可复算确定性字节）
     expect(existsSync(cpPath)).toBe(true);
     const text = readFileSync(cpPath, "utf8");
@@ -1827,9 +1827,9 @@ it("runTask T22: implement pre-flight 约束源未声明 → BLOCK exit 1（可�
     expect(code).toBe(1);
     expect(stderr).toMatch(/CDD_BLOCKED/);
     expect(stderr).toMatch(/Constraints source undeclared|plan-constraints\.md missing/);
-    expect(existsSync(path.join(t22.ws, "tasks-1-implement.json"))).toBe(false); // pre-flight 未达 dispatch
-    expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false); // 不写残缺产物
-    expect(existsSync(path.join(t22.ws, "tasks-1-brief.md"))).toBe(false); // 门先于 F11：BLOCK 零残留（brief 不落盘）
+    expect(existsSync(path.join(t22.ws, "tasks-1-implement.json"))).toBe(false); // pre-flight never reaches dispatch
+    expect(existsSync(path.join(t22.ws, "plan-constraints.md"))).toBe(false); // writes no partial artifacts
+    expect(existsSync(path.join(t22.ws, "tasks-1-brief.md"))).toBe(false); // the gate precedes F11: zero-residue BLOCK (the brief is not written to disk)
     expect(stdout).toBe("");
   } finally {
     restore();

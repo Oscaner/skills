@@ -1,6 +1,6 @@
 /**
  * osuperpowers emit — per-harness thin manifests (.claude-plugin / .cursor-plugin).
- * The OsuperpowersEmitter domain service (Task 9, 判定标准②: stateless, 构造注入 — composes
+ * The OsuperpowersEmitter domain service (Task 9, Criterion ②: stateless, constructor injection — composes
  * MarketplaceService + ManifestService + EmitOrchestrator). `generatedPaths` records every
  * repo-relative path produced (the emit-check drift diff input); no module-level state.
  *

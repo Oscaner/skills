@@ -84,8 +84,8 @@ describe("src/infra/root.ts — resolveDocArg 单一坐标系（仓根相对归�
         encoding: "utf8",
       },
     );
-    expect(r.exitCode).toBe(1); // §2.4.2：1 = 运行期不可继续（**不是** 2）
-    expect(r.stderr.trimEnd().split("\n").length).toBe(3); // 三行诊断（行数是可区分形态，非恒真断言）
+    expect(r.exitCode).toBe(1); // §2.4.2: 1 = runtime cannot continue (**not** 2)
+    expect(r.stderr.trimEnd().split("\n").length).toBe(3); // three-line diagnosis (the line count is a distinguishing shape, not a tautological assertion)
     expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: docs\/nope\.md/);
     expect(r.stderr).toMatch(/Tried \(against repo root .+\): /);
     expect(r.stderr).toMatch(
@@ -94,18 +94,18 @@ describe("src/infra/root.ts — resolveDocArg 单一坐标系（仓根相对归�
   });
 
   it("不存在的绝对路径 → exit 1 + BLOCKED 三行诊断（绝对路径形措辞；与相对形可区分）", () => {
-    const abs = path.join(REPO_ROOT, "docs/nope-abs.md"); // 绝对路径直用分支的负例（Global Constraints 的第二种形态）
+    const abs = path.join(REPO_ROOT, "docs/nope-abs.md"); // the negative case of the absolute-path direct-use branch (the second shape of Global Constraints)
     const r = execaSync(process.execPath, [CDD_MJS, "review", "--type", "spec", "--spec", abs], {
       cwd: REPO_ROOT,
       env: { PATH: process.env.PATH, CLAUDE_CODE_SESSION_ID: "1" },
       reject: false,
       encoding: "utf8",
     });
-    expect(r.exitCode).toBe(1); // 与相对形同码（§2.4.2：1，**不是** 2）
-    expect(r.stderr.trimEnd().split("\n").length).toBe(3); // 两形态同为三行（行数锚点）
-    expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: .*nope-abs\.md/); // ① 与相对形逐字同形
-    expect(r.stderr).toMatch(/Absolute path does not exist\./); // ② 绝对路径形
-    expect(r.stderr).toMatch(/Hint: pass a repo-root-relative path instead\./); // ③ 绝对路径形
-    expect(r.stderr).not.toMatch(/Tried \(against repo root/); // 绝对形不得出现仓根尝试行（可区分形态）
+    expect(r.exitCode).toBe(1); // same code as the relative shape (§2.4.2: 1, **not** 2)
+    expect(r.stderr.trimEnd().split("\n").length).toBe(3); // both shapes are identically three lines (line-count anchor)
+    expect(r.stderr).toMatch(/CDD_BLOCKED: --spec not found: .*nope-abs\.md/); // ① byte-identical to the relative shape
+    expect(r.stderr).toMatch(/Absolute path does not exist\./); // ② the absolute-path shape
+    expect(r.stderr).toMatch(/Hint: pass a repo-root-relative path instead\./); // ③ the absolute-path shape
+    expect(r.stderr).not.toMatch(/Tried \(against repo root/); // the absolute shape must not show a repo-root attempt line (distinguishing shape)
   });
 });

@@ -1,6 +1,6 @@
 // packages/cdd-engine/src/rules/write-boundary.ts — ChangedSurfaceAuditor class (writeBoundary;
-// 2026-09-20 ruling — pure-soft, NEVER BLOCK; Task 7 OOP restructure 判定标准② — reconcileChangedSurface
-// 收改动面审计类 + 构造注入, zero bare function exports). The agent's handoff `changes[]` is a
+// 2026-09-20 ruling — pure-soft, NEVER BLOCK; Task 7 OOP restructure Criterion ② — reconcileChangedSurface
+// changed-surface audit class + constructor injection, zero bare function exports). The agent's handoff `changes[]` is a
 // changed-file attribution ledger (each item {file, reason}); the mechanical reconcile below checks
 // the round's `git diff base..HEAD` fileset against it. A diff file NO ledger entry attributes is a
 // booking gap — visible as a stderr CDD_WARN + a notes record, never a hard block: the verdict
@@ -24,7 +24,7 @@ export interface ChangedSurface {
 
 const MODES = new Set(["implement", "fix"]);
 
-/** ChangedSurfaceAuditor — the changed-surface reconcile face (判定标准②; 构造注入 — the GitClient
+/** ChangedSurfaceAuditor — the changed-surface reconcile face (Criterion ②; constructor injection — the GitClient
  *  seam, defaulting to a fresh instance). */
 export class ChangedSurfaceAuditor {
   readonly #git: GitClient;

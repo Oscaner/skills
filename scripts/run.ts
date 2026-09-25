@@ -11,8 +11,8 @@
  *
  * This file is the composition root (Task 9): it declares the seven Command
  * instances as data (CommandMeta) and assembles mainCommand — no inline command
- * factory, no forwarding shell (转发壳 = 缺陷即删 — assembly/invoke/meta live in
- * the Command class, 判定标准⑤).
+ * factory, no forwarding shell (a forwarding shell = a defect — delete it; assembly/invoke/meta live in
+ * the Command class, Criterion ⑤).
  *
  * Exit-code table (P5 §2.4.2, engine parity): 0 = OK (incl. --help); 1 = command
  * failure; 2 = usage/parse error. `--help` is pre-screened (deepest matched

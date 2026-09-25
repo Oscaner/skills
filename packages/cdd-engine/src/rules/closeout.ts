@@ -1,8 +1,8 @@
 // packages/cdd-engine/src/rules/closeout.ts — CloseoutChecker class (P2 T4: the SINGLE closeout
-// mismatch inference module, Task 7 OOP restructure 判定标准② — engine rules single point, zero bare
+// mismatch inference module, Task 7 OOP restructure Criterion ② — engine rules single point, zero bare
 // function exports). Consumed by BOTH the pre-flight hard gate (base docContractValidate — structural
 // + terminal-debt surfaces) and the post-flight statusValidate highlight (the terminal-debt surface)
-// — changing the inference here changes both channels together (同源回归).
+// — changing the inference here changes both channels together (single-source regression).
 //
 // Input  = the parent-overall parse (four tables) + the declaration set (change-history backfill
 //          claims + Phase-inventory columns) + the engine-derived terminal state (plan-complete =
@@ -51,7 +51,7 @@ export interface CloseoutResult {
   overallPath: string | null;
 }
 
-/** CloseoutChecker — the single closeout mismatch inference face (判定标准②; 构造注入 — the
+/** CloseoutChecker — the single closeout mismatch inference face (Criterion ②; constructor injection — the
  *  DocumentsValidator + StatusJudge collaborators, defaulting to fresh instances; the plan-workspace
  *  resolution rides naming.ts resolveWorkspace, the naming single point). */
 export class CloseoutChecker {
@@ -93,8 +93,8 @@ export class CloseoutChecker {
 
   /** deriveTerminalDebt — the terminal-debt surface: for every Phase-inventory row whose plan
    *  workspace reports complete (engine terminal state) but whose backfill claim is absent from the
-   *  change history, one mismatch member (plan-complete 未回填). Enumerates EVERY plan workspace under
-   *  the parent overall — a sibling phase's unpaid completion contributes too (跨 phase 欠账). */
+   *  change history, one mismatch member (plan-complete left unbackfilled). Enumerates EVERY plan workspace under
+   *  the parent overall — a sibling phase's unpaid completion contributes too (cross-phase debt). */
   deriveTerminalDebt(overallPath: string, root: string): CloseoutMismatch[] {
     const o = this.#documents.parseOverall(overallPath);
     if (!o.kernelOk) return []; // an unparseable kernel is already a structural failure — no debt to add
@@ -113,7 +113,7 @@ export class CloseoutChecker {
           kind: "plan-complete-unbackfilled",
           column: (r.plan ?? "").replace(/\*\*/g, "").trim(),
           summary: `${r.id} plan complete (engine terminal state) but the parent overall carries no backfill claim for it`,
-          fix: `backfill-overall first (branch-review 前置义务): bump the overall version + add a change-history plan claim for ${r.id} + backfill its Phase-inventory columns (Implementation plan → Done), then re-dispatch`,
+          fix: `backfill-overall first (branch-review precondition): bump the overall version + add a change-history plan claim for ${r.id} + backfill its Phase-inventory columns (Implementation plan → Done), then re-dispatch`,
         });
       }
     }
@@ -138,7 +138,7 @@ export class CloseoutChecker {
    *  backfill-overall step + one line per unpaid phase with its current column state. */
   formatCloseoutDebtFailures(items: CloseoutMismatch[], overallPath: string): string {
     return [
-      `- [closeout] ${overallPath} — plan complete but overall unbackfilled → 先 backfill-overall: version bump + change-history claim + column backfill (branch-review 前置义务)`,
+      `- [closeout] ${overallPath} — plan complete but overall unbackfilled → backfill-overall first: version bump + change-history claim + column backfill (branch-review precondition)`,
       ...items.map(
         (m) =>
           `  - ${m.phase}: Implementation plan column ${JSON.stringify(m.column || "empty")} — no change-history claim → ${m.fix}`,

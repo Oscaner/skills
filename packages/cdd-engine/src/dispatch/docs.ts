@@ -381,7 +381,7 @@ export class DocsLifecycle extends DispatchLifecycle {
   }
 
   /** run — legacy surface kept ({ exitCode, handoff }) as the class's STATIC entry (Task 6/7
-   * 导出面重排: `runDocsTask` → `DocsLifecycle.run` — the class public face, no bare forwarding
+   * export-surface reshuffle: `runDocsTask` → `DocsLifecycle.run` — the class public face, no bare forwarding
    * shell): builds the injected ctx, runs the lifecycle, converts an entry-gate DispatchBlocked
    * into a CDD_BLOCKED stderr + ExitRequested(1) (the CLI needs the process exit — it discards the
    * return value). Root resolves eagerly for a real dispatch (entry gate must see it); dry-run

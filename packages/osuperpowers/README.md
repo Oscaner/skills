@@ -67,7 +67,7 @@ The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its
 
 ## Docs for maintainers
 
-Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. [program experience](../../docs/maintainers/05-program-experience.md), [skill authoring](../../docs/maintainers/06-skill-authoring.md), and the [data-driven templates](../../docs/maintainers/01-data-driven-templates.md) convention that governs emit-generated products.
+Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. [program experience](../../docs/maintainers/05-program-experience.md) and the [data-driven templates](../../docs/maintainers/01-data-driven-templates.md) convention that governs emit-generated products.
 
 ## License
 

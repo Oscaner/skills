@@ -84,7 +84,7 @@ describe("cdd schema get <type> (P4.3 Task 5 discovery)", () => {
     expect(r.stderr).toBe("");
   });
 
-  it("unknown doc-type → usage exit 2 + available-name enumeration (registry-sourced, four names)", () => {
+  it("unknown doc-type → usage exit 2 + available-name enumeration (registry-sourced, five names)", () => {
     const r = runCli(["schema", "get", "bogus-type"]);
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/^usage: cdd schema get <type>\n/m);

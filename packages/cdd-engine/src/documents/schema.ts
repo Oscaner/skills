@@ -1,18 +1,18 @@
 // packages/cdd-engine/src/documents/schema.ts — canonical doc-structure schema loader (P2 T1 ④;
 // design §2.3). Single-point loader for the canonical JSON Schemas (draft 2020-12 + descriptions)
-// that define the four CDD doc types (overall / plan / phase-spec / add-phase-protocol). The
-// canonical files live at src/documents/schema/ — the single source of truth; `pnpm build` copies
-// them to dist/documents/schema/ (build.config.ts copy entry) so the published package (files:
-// dist/) ships the addressable copy. Resolution is published-path-first (the consumer face), with
-// the source tree as the dev fallback (before a stub/build has materialized the copy). Pure read
-// layer — zero transactional behavior: no writes, no dispatch, no audit.
+// that define the five CDD doc types (overall / plan / phase-spec / add-phase-protocol /
+// skill-anatomy). The canonical files live at src/documents/schema/ — the single source of truth;
+// `pnpm build` copies them to dist/documents/schema/ (build.config.ts copy entry) so the published
+// package (files: dist/) ships the addressable copy. Resolution is published-path-first (the
+// consumer face), with the source tree as the dev fallback (before a stub/build has materialized
+// the copy). Pure read layer — zero transactional behavior: no writes, no dispatch, no audit.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { invariant } from "../infra/exit.ts";
 import { resolvePackageRoot } from "../infra/resource.ts";
 
-export const DOC_SCHEMA_NAMES = ["overall", "plan", "phase-spec", "add-phase-protocol"] as const;
+export const DOC_SCHEMA_NAMES = ["overall", "plan", "phase-spec", "add-phase-protocol", "skill-anatomy"] as const;
 export type DocSchemaName = (typeof DOC_SCHEMA_NAMES)[number];
 
 /** The canonical doc-structure schema directory — the published addressable path (dist copy, the

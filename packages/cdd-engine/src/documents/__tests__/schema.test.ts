@@ -65,8 +65,8 @@ function schemaNode(schema: unknown, jsonPath: string): unknown {
 }
 
 describe("canonical doc-structure schemas (P2 T1)", () => {
-  it("DOC_SCHEMA_NAMES = the four canonical files on disk (single source of truth)", () => {
-    const onDisk = ["add-phase-protocol", "overall", "phase-spec", "plan"]; // sorted dir listing
+  it("DOC_SCHEMA_NAMES = the five canonical files on disk (single source of truth)", () => {
+    const onDisk = ["add-phase-protocol", "overall", "phase-spec", "plan", "skill-anatomy"]; // sorted dir listing
     expect([...DOC_SCHEMA_NAMES].sort()).toEqual(onDisk);
     for (const name of DOC_SCHEMA_NAMES) {
       expect(existsSync(path.join(SRC_SCHEMA_DIR, `${name}.json`))).toBe(true);
@@ -202,6 +202,65 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
       );
       expect(get("$.properties.issueReferenceSyntax.properties.anchoredForm.pattern")).toBe("^#\\d+#issuecomment-\\d+$");
     }
+    if (name === "skill-anatomy") {
+      // Section-heading registry — the strict allowlist the osuperpowers machine check consumes:
+      // the four public + two conditional section keys, and the literal heading consts.
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.public.items.enum")).toEqual([
+        "flowDigraph",
+        "nodeDefinitions",
+        "invariants",
+        "failureModes",
+      ]);
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.conditional.items.enum")).toEqual([
+        "skeletonDeltas",
+        "pendingAcceptancePatch",
+      ]);
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.flowDigraph.properties.heading.const")).toBe(
+        "## Flow Digraph",
+      );
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.nodeDefinitions.properties.heading.const")).toBe(
+        "## Node Definitions",
+      );
+      // Conditional carriers — the spec-writer trio MUST carry Skeleton deltas; writing-plans carries
+      // the Pending Acceptance Patch zone under its single canonical heading (suffix variant retired).
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.requiredCarriers.items.enum"))
+        .toEqual(["writing-single-spec", "writing-phase-spec", "writing-overall-spec"]);
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.skeletonDeltas.properties.heading.const")).toBe(
+        "## Skeleton deltas",
+      );
+      expect(get("$.properties.sectionRegistry.properties.sections.properties.pendingAcceptancePatch.properties.heading.const")).toBe(
+        "## Pending Acceptance Patch",
+      );
+      expect(schemaNode(s, "$.properties.sectionRegistry.properties.sections.properties.pendingAcceptancePatch.properties.requiredCarriers.items.enum"))
+        .toEqual(["writing-plans"]);
+      // `### ` heading kinds — backticked node names + the pending-patch sample `Task N:` form.
+      expect(get("$.properties.sectionRegistry.properties.headingKinds.properties.nodeName.pattern")).toBe("^### `[^`]+`$");
+      expect(get("$.properties.sectionRegistry.properties.headingKinds.properties.pendingPatchTaskHeading.pattern")).toBe(
+        "^### Task \\d+:",
+      );
+      // Four-element node contract — same literal markers the machine check reads.
+      expect(get("$.properties.nodeElements.properties.do.pattern")).toBe("^- \\*\\*Do\\*\\*:");
+      expect(get("$.properties.nodeElements.properties.read.pattern")).toBe("^- \\*\\*Read\\*\\*:");
+      expect(get("$.properties.nodeElements.properties.exit.pattern")).toBe("^- \\*\\*Exit\\*\\*:");
+      expect(get("$.properties.nodeElements.properties.fail.pattern")).toBe("^- \\*\\*Fail\\*\\*:");
+      // Growth boundary — the numbers + the crossed-skill registry (the machine check reads them,
+      // never test literals: crossing means MORE than the limits, and every crossing skill must
+      // be registered here — consumer SKILL.md carries zero trace).
+      expect(schemaNode(s, "$.properties.growthBoundary.properties.nodeLimit.const")).toBe(15);
+      expect(schemaNode(s, "$.properties.growthBoundary.properties.edgeLimit.const")).toBe(17);
+      expect(schemaNode(s, "$.properties.growthBoundary.properties.registry.properties.crossings.items.enum")).toContain(
+        "cli-driven-development",
+      );
+      // Consumer-surface purity — the canonical forbidden narrative headings (regression pins; the
+      // allowlist blocks every other unregistered narrative heading too).
+      expect(schemaNode(s, "$.properties.consumerPurity.properties.forbiddenNarrativeHeads.items.enum")).toEqual([
+        "## Flow size note",
+        "## Full Flow Refactor Rationale",
+      ]);
+      // Digraph section — the content rule the machine check enforces: exactly one mermaid block,
+      // zero prose after it (mermaidOnly const true).
+      expect(schemaNode(s, "$.properties.digraph.properties.mermaidOnly.const")).toBe(true);
+    }
   });
 
   it("plan-cell enforcement predicates ↔ canonical cell enums (P4.3 Task 8 parity — enforcement and schema cannot drift)", () => {
@@ -290,7 +349,7 @@ describe("canonical doc-structure schemas (P2 T1)", () => {
   });
 
   it("loader resolves the source tree in the dev face and a fabricated install layout in the consumer face", () => {
-    // Dev face: from the repo's own module tree the resolved dir contains the four canonical files.
+    // Dev face: from the repo's own module tree the resolved dir contains the five canonical files.
     const dev = resolveDocSchemaDir(path.join(SRC_SCHEMA_DIR, "..")); // src/documents
     expect(existsSync(dev)).toBe(true);
     for (const name of DOC_SCHEMA_NAMES) expect(existsSync(path.join(dev, `${name}.json`))).toBe(true);

@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
-- **Version**: v1.8 · 2026-09-25
+- **Version**: v1.9 · 2026-09-25
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.42](2026-09-21-consumer-parity-overall.md)
@@ -40,7 +40,7 @@ Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall win
 | 面 | 类（承载面） | 来源 / 落点 |
 |---|---|---|
 | RuntimeContext | `CddRuntime`（唯一可变态面：构造注入 · 测试可替） | 收编 `dryRun`（cli/shared.ts:18-24）· `_root`（infra/root.ts:16-31）· proc 全局 `registry/diskPath/idleTimer`（infra/proc.ts:330-332）· `signalExitCode`（bin.ts:54）· memo `cacheProfileValidator`（infra/registry.ts:98） |
-| 值对象 | `TaskGroup`（静态工厂 · dedup · 排序 · `key()` · 成员断言） | `parseTaskList()`（cli/shared.ts:84）+ `tasksKey()`（handoff/naming.ts:37）双标量升级 |
+| 值对象 | `TaskGroup`（静态工厂 · dedup · 排序 · **规范序列化 `key()="1,2"`** —— comma-joined 无空格 · 递增去重，全仓唯一组身份 · 成员断言） | `parseTaskList()`（cli/shared.ts:84）+ `tasksKey()`（handoff/naming.ts:37）双标量升级；`key()` 单形逗号承载于六命名面 + 契约 token 面（2026-09-25 用户裁决：语义一致无歧义） |
 | 调度生命周期 | `DispatchLifecycle` 族（既有 template-method 基底扩展）：`TaskLifecycle`（13.5 步）· `DocsLifecycle` · `BranchLifecycle` | 长链 `runReview`（cli/review.ts:76-226）· `runFix`（cli/fix.ts:23-120）· `buildCtx`（task.ts:122-158）迁入类步骤；`cli/*.ts` 退化为**组合根**（argv 解析 + 构造 + dispatch + 出口） |
 | 调度产物面 | `RoundContext`（round 基准 · base token · 轮次锚）· `Handoff`（typed 载体：构建/命名/落盘/终态化）· `ProgressLedger`（六 key 账本 · `rowFor/entryFor` 单源 + 写入不变量）· `ResidueManager`（residue 检测/结算/恢复状态机） | `TaskLedgerRow`（progress.ts:25-63）· 裸 `Record` handoff + `templates/schema/task-handoff-schema.json`（16-prop 校验留在 engine schema 面，不做第二执法实现）· `RecoveryInfo/DeadCarrierRead`（residue.ts:141/277） |
 | 输出渲染面 | `BriefRenderer`（无状态域服务类：渲染方法即规则 · 构造注入文件/git 判据） | 类化 `generateBrief`（render/brief.ts:25，现导出异步纯函数模块）→ `BriefRenderer#render` |
@@ -133,7 +133,7 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 - 4 major deps 破坏行为逐项实证登记（execa@10 API 破坏面 · vitest@5 迁移面 · TS@7 编译/类型行为 · @types/node@26 类型面——engine 测试绿 + dispatch 实证 + 登记 changelog）
 - 全面 OOP 化按「零纯函数模块」口径实证：域规则服务类全类化（convergence / failure / status / closeout / documents / parse 零独立纯函数导出模块，grep 断言）；判定标准六条 sweep 实证（零模块级裸函数导出 · 零模块级可变态 · 零裸标量 裸 Record 域接口穿行 · 零转发壳 / 零空壳 class —— sweep + 代码评审）
 - `CddRuntime` 构造注入实证（dryRun / root / proc 状态 / exit signalling / memo 全收编；engine 测试注入替身绿）
-- `TaskGroup` 类化：五个历史散点派生统一收进 `TaskGroup` 单源（`--tasks` 解析 · `effectiveGroups` · progress ledger key · handoff 文件名 · `TaskLifecycle#tasks/#groupKey`）——与 §2.2 类自身能力面五枚举（静态工厂 · dedup · 排序 · `key()` · 成员断言）互补，零 `number[]` / 裸串穿行（sweep）
+- `TaskGroup` 类化：五个历史散点派生统一收进 `TaskGroup` 单源（`--tasks` 解析 · `effectiveGroups` · progress ledger key · handoff 文件名 · `TaskLifecycle#tasks/#groupKey`）——与 §2.2 类自身能力面五枚举（静态工厂 · dedup · 排序 · `key()` · 成员断言）互补，零 `number[]` / 裸串穿行（sweep）；**规范序列化 `#key()="1,2"` 单形（用户 2026-09-25 裁决：不用 `1-2`）**——六命名面（brief / implement·review·fix handoff / report / test-evidence）+ 契约 token 面 + roundPattern 扫描正则单源派生 + 描述/注释面全同步；`--tasks 1-2` 连字符形 exit 2 拒绝（双形歧义根除）
 - CLI 长链迁入 lifecycle 类步骤（`runReview` / `runFix` / `buildCtx` 主体逻辑入类；`cli/*.ts` 退化为组合根——argv 解析 + 构造 + dispatch + 出口；无转发壳实证）
 - progress / residue / handoff 载体类化（`ProgressLedger` 六 key + `rowFor/entryFor` 单源不变量 · `ResidueManager` 状态机 · `Handoff` typed 载体；schema 校验仍在 engine schema 面、无双实现实证）
 - engine 导出函数面破坏性重排到位 + engine 测试套件随类化全绿（breaking 允许、无薄壳）；CLI argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）不变——skills 与消费者调用面零回归（smoke 实证）

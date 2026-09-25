@@ -46,7 +46,7 @@ import { CddExitError, ExitRequested, exitWithCode } from "../infra/exit.ts";
 import { invokeCli, invokeCliWithRetry, resolveTerminationConfig } from "../infra/invoke.ts";
 import { withLifecycle, type TerminationConfig, type TerminationCause } from "../infra/proc.ts";
 import { getRoot, resolveDocArg } from "../infra/root.ts";
-import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, taskScopeBase, SHA40_RE } from "../artifacts/progress.ts";
+import { readProgressJSON, writeProgressJSON, getRound, incrementRound, incrementRecovery, taskScopeBase, rowFor, entryFor, SHA40_RE } from "../artifacts/progress.ts";
 import { briefPath } from "../artifacts/base-branch.ts";
 import {
   settleResidue,
@@ -906,12 +906,10 @@ export class TaskLifecycle extends DispatchLifecycle {
           const progressData2 = readProgressJSON(progressDir);
           // Group-key row lookup (P4.3): single-group keys resolve the per-task row (backward
           // compatible), multi-task groups the `{ group }` row — the group is the dispatch unit.
-          const single = /^\d+$/.test(this.#groupKey) ? Number(this.#groupKey) : null;
-          let taskEntry = single != null
-            ? progressData2.tasks.find((t) => "task" in t && t.task === single)
-            : progressData2.tasks.find((t) => "group" in t && t.group === this.#groupKey);
+          // Shared with progress.ts rowFor/entryFor — the single/group row dichotomy is single-source.
+          let taskEntry = rowFor(progressData2, this.#groupKey);
           if (!taskEntry) {
-            taskEntry = single != null ? { task: single, rounds: {} } : { group: this.#groupKey, rounds: {} };
+            taskEntry = entryFor(this.#groupKey);
             progressData2.tasks.push(taskEntry);
           }
           writeProgressJSON(progressDir, progressData2);

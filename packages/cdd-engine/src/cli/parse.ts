@@ -19,6 +19,7 @@ import { runFix } from "./fix.ts";
 import { runBaseBranchSet, runBaseBranchGet } from "./base-branch.ts";
 import { runSchemaGet } from "./schema.ts";
 import { requireHostHarness, guardArgs, parseTaskList, DRY_RUN } from "./shared.ts";
+import { DOC_SCHEMA_NAMES } from "../documents/schema.ts";
 
 // Per-subcommand usage lines (print on parse/usage errors in place of citty's own error text;
 // the commander-era wording is kept — the black-box face contracts pin it). Program-level
@@ -208,10 +209,14 @@ const baseBranchCmd = defineCommand({
 // the canonical argv channel / residue ⑨ guard are untouched by this surface. Unknown type →
 // cliUsageError → exit 2 + the registry enumeration (see cli/schema.ts); a missing type is citty's
 // required-positional rejection, both normalized to the schema usage line by the bin wrapper.
+// The help-face `<type>` enumeration is derived from DOC_SCHEMA_NAMES (never a second hand-written
+// list — same single source the runtime unknown-type error enumerates), so the `--help` / usage
+// face can never drift from the accepted set.
+const SCHEMA_TYPE_HINT = DOC_SCHEMA_NAMES.join(" | ");
 const schemaGetCmd = defineCommand({
-  meta: { name: "get", description: "print the canonical doc-structure schema for <type> (overall | plan | phase-spec | add-phase-protocol)" },
+  meta: { name: "get", description: `print the canonical doc-structure schema for <type> (${SCHEMA_TYPE_HINT})` },
   args: {
-    type: { type: "positional", required: true, description: "schema type — one of overall | plan | phase-spec | add-phase-protocol" },
+    type: { type: "positional", required: true, description: `schema type — one of ${SCHEMA_TYPE_HINT}` },
   },
   run: async ({ args, rawArgs }) => {
     guardArgs(rawArgs, argsOf(schemaGetCmd));

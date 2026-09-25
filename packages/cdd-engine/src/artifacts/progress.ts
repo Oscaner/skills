@@ -43,8 +43,10 @@ export type LedgerKey = number | string;
 
 /** rowFor(data, key) — the ledger row lookup single point: a number key or a single-task group key
  * (`"1"`) resolves the `{ task: N }` row (post-migration single groups keep the legacy row shape);
- * a multi-task group key (`"1-2"`) resolves the `{ group }` row. */
-function rowFor(data: ProgressData, key: LedgerKey): TaskLedgerRow | undefined {
+ * a multi-task group key (`"1-2"`) resolves the `{ group }` row. Exported as the shared single/group
+ * row lookup — dispatch/task.ts uses it for the APPROVED-review ensure-row writeback (single source,
+ * no inline re-implementation of the dichotomy). */
+export function rowFor(data: ProgressData, key: LedgerKey): TaskLedgerRow | undefined {
   if (typeof key === "number") return data.tasks.find((t) => "task" in t && t.task === key);
   const single = /^\d+$/.test(key) ? Number(key) : null;
   return single != null
@@ -53,8 +55,9 @@ function rowFor(data: ProgressData, key: LedgerKey): TaskLedgerRow | undefined {
 }
 
 /** entryFor(key) — constructs a fresh row for a key absent from the ledger (single key → task row;
- * multi group key → group row). */
-function entryFor(key: LedgerKey): TaskLedgerRow {
+ * multi group key → group row). Exported alongside rowFor — the single-source pair the dispatch
+ * layer shares for the ensure-row writeback. */
+export function entryFor(key: LedgerKey): TaskLedgerRow {
   const single = typeof key === "number" || /^\d+$/.test(key);
   return single ? { task: Number(key) } : { group: String(key) };
 }

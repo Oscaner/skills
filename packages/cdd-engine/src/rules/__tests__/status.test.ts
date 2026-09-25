@@ -529,6 +529,21 @@ describe("deriveTaskState — six-state convergence", () => {
     expect(statusJudge.deriveTaskState(ws, 1)).toBe("resume-pending");
   });
 
+  it("S2 收口态 discriminator: REVIEW_FIX review + addressing fix BLOCKED（非 dead 未落地）→ needs-fix（收口 fix 不吞终态, 与 S1 判别器同则）", () => {
+    const ws = workspace(ROUNDS({ review: 1, fix: 1 }));
+    writeReview(ws, 1, "REVIEW_FIX", ["warn"]);
+    writeHandoff(ws, "tasks-1-fix-1.json", {
+      tasks: [1],
+      phase: "fix",
+      status: "BLOCKED",
+      blocker: "handoff write failure — fix not landed",
+      findings: [],
+      artifacts: {},
+    });
+    // 收口 fix 声明 BLOCKED（非 dead, 非 APPROVED）→ 未落地 → needs-fix（re-dispatch）, 绝不 complete 提前收口。
+    expect(statusJudge.deriveTaskState(ws, 1)).toBe("needs-fix");
+  });
+
   it("S2 收口态 discriminator: 收口 fix 先于最新 REVIEW_FIX review（fix 轮 < review 轮）→ 该 fix 不吞最新轮 → needs-fix", () => {
     // reviews=2, fixes=1: review-2 收口态 dispatch 于 fix-1 收敛 review-1 之后 —— 最新 review
     // 无自己的 addressing fix → needs-fix（dispatch fix-2），与 S1 needs-fix discriminator 同则。

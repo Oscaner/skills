@@ -12,8 +12,9 @@
 // parameterless constant (C4: compiled once, reused forever; the per-dispatch shell cache key is
 // eliminated) —
 // renderTemplate renders only the Round-context tail (per dispatch params) on top of the frozen
-// shell + return bytes. renderModePrompt / docs.ts / branch-review.ts are consumers of this
-// single renderer (templatePath / TEMPLATE_FILES retired — no template files remain).
+// shell + return bytes. The living consumers of this single renderer: dispatch/branch.ts
+// BranchLifecycle (branch-review / branch-fix channels) + the cli/review.ts composite root
+// (templatePath / TEMPLATE_FILES retired — no template files remain).
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

@@ -30,7 +30,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { briefPath } from "../artifacts/base-branch.ts";
 import {
-  finalizeHandoff,
   normalizeHandoffStatus,
   persistFinalized,
   recoverHandoff,
@@ -267,7 +266,6 @@ export class TaskLifecycle extends DispatchLifecycle {
   readonly #briefRenderer: BriefRenderer;
   readonly #commit: CommitChecker;
   readonly #failure: FailureResolver;
-  readonly #documents: DocumentsValidator;
   readonly #schema: HandoffSchemaValidator;
   readonly #returnBlockParser: ReturnBlockParser;
 
@@ -308,7 +306,6 @@ export class TaskLifecycle extends DispatchLifecycle {
     this.#briefRenderer = new BriefRenderer();
     this.#commit = new CommitChecker();
     this.#failure = new FailureResolver();
-    this.#documents = new DocumentsValidator();
     this.#schema = new HandoffSchemaValidator();
     this.#returnBlockParser = new ReturnBlockParser();
   }
@@ -1281,7 +1278,7 @@ export function materializePlanConstraints(
 ): { path: string; generated: boolean } {
   const outPath = path.join(workspace, PLAN_CONSTRAINTS_FILE);
   if (existsSync(outPath)) return { path: outPath, generated: false };
-  const content = extractPlanConstraints(readFileSync(plan, "utf8"));
+  const content = new DocumentsValidator().extractPlanConstraints(readFileSync(plan, "utf8"));
   if (content === null) {
     throw new ConstraintsSourceUndeclared(
       `plan Constraints source undeclared — declare a literal “${DOC_TOKENS.constraintsHeading}” section (canonical) or the prose pointer headings (${PROSE_ANCHORS.join(" / ")}) so cdd implement can materialize ${PLAN_CONSTRAINTS_FILE}`,
@@ -1302,14 +1299,4 @@ export function isPlanConstraintsStale(constraintsFile: string, planPath: string
   } catch {
     return true;
   }
-}
-
-// ---- plan-constraints extractor (single source = rules/documents.ts) ----
-// materializePlanConstraints consumes the canonical extractor; this re-export keeps the legacy
-// import identity (a method on DocumentsValidator is the class face — no bare function export).
-
-/** extractPlanConstraints — the canonical plan-Constraints extractor (rules/documents.ts unique
- * source; re-exported for the materializer + legacy importers). */
-export function extractPlanConstraints(planContent: string): string | null {
-  return new DocumentsValidator().extractPlanConstraints(planContent);
 }

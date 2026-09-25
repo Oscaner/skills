@@ -21,7 +21,9 @@
 //                  (resume-pending) never applies to a fix following an APPROVED review.
 //     REVIEW_FIX → 收口态 — the review closed on warn/nit-only findings: its fix round routes the
 //                  task to complete (no re-review, S2); no fix on record yet → the fix is due
-//                  (needs-fix). Dead-round precedence still applies to the addressing fix.
+//                  (needs-fix). The addressing fix discriminates like the S1 lane: dead →
+//                  resume-pending, APPROVED → complete (收口 fix landed), BLOCKED / not landed →
+//                  needs-fix (re-dispatch the 收口 fix).
 //     not APPROVED / not REVIEW_FIX (CHANGES_REQUESTED / BLOCKED):
 //       no fix after it (fixes === 0, or the latest fix pre-dates the review) → needs-fix
 //       addressing fix APPROVED → needs-re-review (T14-class)
@@ -124,13 +126,17 @@ export class StatusJudge {
 
     // REVIEW_FIX 收口态 (warn/nit-only findings, #278): the fix round routes the task to
     // complete with no re-review (S2 — distinct from S1's needs-fix → fix → needs-re-review).
-    // No addressing fix on record yet → the fix is due; a dead addressing fix resumes; otherwise
-    // the 收口 fix landed → complete.
+    // No addressing fix on record yet → the fix is due; otherwise the addressing fix
+    // discriminates like the S1 lane: dead → resume-pending, APPROVED → complete (收口 fix
+    // landed — legal terminal), BLOCKED / not landed → needs-fix (re-dispatch the 收口 fix).
     if (this.#statusOf(lastRev) === "REVIEW_FIX") {
       if (fixes === 0 || fixes < reviews) return "needs-fix";
       const addressingFix = this.#readHandoff(workspace, "fix", key, fixes);
       if (this.#isDeadRound(addressingFix)) return "resume-pending";
-      return "complete"; // 收口 fix landed — legal terminal, no re-review
+      if (this.#statusOf(addressingFix) === "APPROVED") {
+        return "complete"; // 收口 fix landed — legal terminal, no re-review
+      }
+      return "needs-fix"; // 收口 fix 未落地（BLOCKED / not done）→ re-dispatch the fix
     }
 
     // Last review not approved (CHANGES_REQUESTED / BLOCKED) → the fix loop governs. The addressing

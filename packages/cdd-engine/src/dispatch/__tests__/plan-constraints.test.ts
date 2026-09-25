@@ -9,12 +9,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { hashFile } from "../../artifacts/hash.ts";
+import { DocumentsValidator } from "../../rules/documents.ts";
 import {
   ConstraintsSourceUndeclared,
-  extractPlanConstraints,
   isPlanConstraintsStale,
   materializePlanConstraints,
 } from "../task.ts";
+
+// The plan-Constraints extractor is a DocumentsValidator instance method (the class face — no
+// bare export on dispatch/task.ts, 判定标准⑤); the extraction plane below consumes the instance.
+const validator = new DocumentsValidator();
 
 // Legacy prose-pointer plan: the four **bold** constraint paragraphs in the preamble. Neutral
 // prose sits BEFORE the first anchor — unter-anchored preamble text must never be captured into a
@@ -147,13 +151,15 @@ function tmpPlan(content: string): string {
 
 describe("extractPlanConstraints — source extraction determinism", () => {
   it("prose-pointer form: the four anchored paragraphs, canonical order, verbatim bytes", () => {
-    expect(extractPlanConstraints(PROSE_PLAN)).toBe(PROSE_EXTRACTED);
+    expect(validator.extractPlanConstraints(PROSE_PLAN)).toBe(PROSE_EXTRACTED);
   });
 
   it("deterministic: identical input → identical output (recomputable baseline)", () => {
-    expect(extractPlanConstraints(PROSE_PLAN)).toBe(extractPlanConstraints(PROSE_PLAN));
-    const a = extractPlanConstraints(LITERAL_PLAN);
-    const b = extractPlanConstraints(LITERAL_PLAN);
+    expect(validator.extractPlanConstraints(PROSE_PLAN)).toBe(
+      validator.extractPlanConstraints(PROSE_PLAN),
+    );
+    const a = validator.extractPlanConstraints(LITERAL_PLAN);
+    const b = validator.extractPlanConstraints(LITERAL_PLAN);
     expect(a).toBe(b);
     expect(a).toBe(LITERAL_EXTRACTED);
   });
@@ -165,7 +171,7 @@ describe("extractPlanConstraints — source extraction determinism", () => {
       "**Flow Atomicity（本 phase 强化）**：flow-atomicity constraint\n\n",
       "",
     );
-    const out = extractPlanConstraints(partial);
+    const out = validator.extractPlanConstraints(partial);
     expect(out).not.toBeNull();
     expect(out!.includes("flow-atomicity constraint")).toBe(false);
     // canonical order: 口径 before commit, 顺序原则 last
@@ -174,17 +180,17 @@ describe("extractPlanConstraints — source extraction determinism", () => {
   });
 
   it("multi-paragraph prose body: blank-line-separated continuations are captured in full", () => {
-    expect(extractPlanConstraints(MULTI_PARA_PLAN)).toBe(MULTI_PARA_EXTRACTED);
+    expect(validator.extractPlanConstraints(MULTI_PARA_PLAN)).toBe(MULTI_PARA_EXTRACTED);
   });
 
   it("prose block stops at a structural boundary after the last continuation", () => {
-    expect(extractPlanConstraints(MULTI_PARA_BOUNDED)).toBe(
+    expect(validator.extractPlanConstraints(MULTI_PARA_BOUNDED)).toBe(
       "**commit 边界机制**：first paragraph of the commitment rule\n\ncontinuation paragraph\n",
     );
   });
 
   it("prefix-collision heading does not occupy the anchor's slot", () => {
-    const out = extractPlanConstraints(PREFIX_COLLISION_PLAN);
+    const out = validator.extractPlanConstraints(PREFIX_COLLISION_PLAN);
     expect(out).not.toBeNull();
     // the constricted anchor regex skips `**commit 边界机制 补充**：…` and lands on the real anchor
     expect(out).toContain("the real anchored paragraph");
@@ -195,23 +201,25 @@ describe("extractPlanConstraints — source extraction determinism", () => {
 
   it("canonical form: literal ## Constraints section wins over the prose pointer when both exist", () => {
     const both = `${LITERAL_PLAN}\n${PROSE_PLAN.slice(PROSE_PLAN.indexOf("**口径"))}`;
-    const out = extractPlanConstraints(both);
+    const out = validator.extractPlanConstraints(both);
     expect(out).toBe(LITERAL_EXTRACTED);
   });
 
   it("ASCII colon delimiter is accepted for prose anchors", () => {
     const ascii = PROSE_PLAN.replace("**口径**：", "**口径**:");
-    expect(extractPlanConstraints(ascii)).toContain("**口径**:");
+    expect(validator.extractPlanConstraints(ascii)).toContain("**口径**:");
   });
 });
 
 describe("extractPlanConstraints — missing source", () => {
   it("no ## Constraints and no prose anchors → null (source undeclared)", () => {
-    expect(extractPlanConstraints(NO_SOURCE_PLAN)).toBeNull();
+    expect(validator.extractPlanConstraints(NO_SOURCE_PLAN)).toBeNull();
   });
 
   it("empty literal section → null (a declared-but-empty section does not declare constraints)", () => {
-    expect(extractPlanConstraints("# Plan\n\n## Constraints\n\n### Task 1: x\nbody\n")).toBeNull();
+    expect(
+      validator.extractPlanConstraints("# Plan\n\n## Constraints\n\n### Task 1: x\nbody\n"),
+    ).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
 # 消费者面一致性（Consumer Parity）— P4.4 Phase Design Spec
 
-- **Version**: v1.7 · 2026-09-25
+- **Version**: v1.8 · 2026-09-25
 - **Status**: Draft
 - **Author**: [human] · Claude Opus 5 (1M context)（osuperpowers:brainstorming → writing-phase-spec）
 - **Parent program**: [consumer-parity overall v1.42](2026-09-21-consumer-parity-overall.md)
@@ -14,7 +14,7 @@
 
 Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall wins（此处不重复）。本 phase 生效的整体约定：
 
-- **允许破坏性变更**（charter bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking（OOP restructure + 4 major deps + Pending Acceptance Patch 移除）登记 changelog、1.0.0 收口
+- **允许破坏性变更**（charter bullet）：cdd-engine 0.1.0 基准，P4.2 1.0.0 首次稳定开版前为破口窗口；本 phase breaking（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX` + Pending Acceptance Patch 移除）登记 changelog、1.0.0 收口
 - 本仓文档合规判据面 = engine lifecycle（dispatch 运行时审计 + engine 套件），无 repo 侧 charter 守卫
 - 语言政策：spec/plan 中文（Strategy B）· SKILL.md / docs / README 英文主源
 - 不 commit 除非用户明确要求；spec/plan 交付除外（I2 立即提交）
@@ -78,7 +78,7 @@ Cross-phase 约定以 parent overall（v1.42）为准，conflict 时 overall win
 - **执行通道**：P4.4 工作树直接 `pnpm update --latest` 落地 → 4 个 dependabot PR（Oscaner/skills #238/#266/#267/#268，base=develop 已漂移）gh close（superseded by P4.4）
 - **先行独立 task group**（TG1）：major 兼容问题最早暴露，OOP 重构站在干净依赖上
 
-### 2.8 task groups 编排（writing-plans 裁定节点输入 · 建议分组）
+### 2.8 task groups 编排（writing-plans 非交互裁定输入 · 建议分组）
 
 **task groups 裁定节点迁移（2026-09-25 用户裁决：这是 writing-plans 的工作）**——Task Groups 裁定从 `cli-driven-development` 迁至 `writing-plans`（分组裁决 = plan 撰写期结构工作，非执行期）：
 
@@ -139,13 +139,13 @@ zone + `accepts pending-acceptance-patch` carry 约定 + `targets later task` �
 - engine 导出函数面破坏性重排到位 + engine 测试套件随类化全绿（breaking 允许、无薄壳）；CLI argv 契约（`--tasks` / `--type` / `--plan` / `--findings`）不变——skills 与消费者调用面零回归（smoke 实证）
 - scripts 侧同构实证：`Command` 类族 + `ValidateBlock` 类族落地；11 步名/序/`grepTargets`/`channelTargets` 域事实保持（`ci-validate.test.mjs` 断言全绿，或同域演化后对齐）；`run.test.ts` 命令树断言同域对齐
 - biomejs 全面接入实证：biome.json 随仓发布（recommended）· husky pre-commit 触发 `biome check --write` 零违规通过（pre-commit 输出断言）· 覆盖 src + scripts + 全仓 ts 面（配置断言）
-- `pnpm run validate` 11 块全绿；`emit:check` 无 drift；破坏面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX` + Pending Acceptance Patch 移除——plan.json/skill-anatomy 节点删 · 标签约定出技能文本）登记 changelog，1.0.0 收口就绪；本 spec Parent program v1.41 版本行 lineage 合法；P4.4 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前）
+- `pnpm run validate` 11 块全绿；`emit:check` 无 drift；破坏面（OOP restructure + 4 major deps + review 三段结案状态词汇新值 `REVIEW_FIX` + Pending Acceptance Patch 移除——plan.json/skill-anatomy 节点删 · 标签约定出技能文本）登记 changelog，1.0.0 收口就绪；本 spec Parent program v1.42 版本行 lineage 合法；P4.4 Design-spec / Implementation plan 列随 phase 推进正确回填（backfill-overall，branch-review 前）
 - review 状态词汇三值落地实证：S1 blocker 循环（现状回归）· S2 收口态（`REVIEW_FIX`）→ 复用现有 `cdd fix --findings` 一轮 → complete（无 re-review）· S3 零 finding fast path——engine 测试自造链 + 现场回归
 - S2 fix 轮复用现有 `cdd fix --findings`、零 per-finding disposition 新机制、零 tag 路由（`targets later task` 标签约定已整体移除，见 §2.10；当前 task 有 findings 即修全）实证
 - skills 五面 Review Convergence 文本改三段表述（writing-single-spec · writing-overall-spec · writing-phase-spec · writing-plans + cli-driven-development；`REVIEW_FIX` 同名入五面文本；emit 输入面，改后 `pnpm run emit` + `emit:check` 无 drift）；breaking = handoff `status` 词汇新值（`REVIEW_FIX`）登记 changelog、1.0.0 收口、历史终态不回滚
 - Pending Acceptance Patch 移除实证（zone / `accepts pending-acceptance-patch` / `targets later task` / `## Pending Acceptance Patch` 条件节 heading 零活面 grep（frozen 豁免）· `plan.json` schema 无 `pendingAcceptancePatch` 节点 · `skill-anatomy` 注册表无该条件节 · cli-development 无 I6 且 I7 改指 Plan Sole Writer（mid-flight 路由语义）· writing-plans I3 改述落地（Plan Sole Writer 保留）· writing-plans / cli SKILL.md fix 节点 tag 句删 · engine tests 断言随删）
 - 跨 task 裁决直写 Do/验收实证（orchestrator 直写目标 task `**Do**` 与 `**验收**` 后 brief 逐字携带——行为入 Do · 验证入 验收）
-- task groups 裁定迁移实证（writing-plans author-plan 内 tasks 写毕即**非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明 · 无 AskUserQuestion · 零分组无节；cli-driven-development digraph 无 `adjudicate-task-groups` 节点 / 无 `task-groups-undecided` 终端 · `C → D` 直连 · **loop 节点更名 group-*（`implement-group` / `run-group-review` / `fix-group`）** · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取；两件 skill `pnpm run emit` 后 `emit:check` 无 drift）
+- task groups 裁定迁移实证（writing-plans author-plan 内 tasks 写毕即**非交互**裁定分组落盘「Task Groups」节 + plan `taskGroups` 声明 · 无 AskUserQuestion · 零分组无节；cli-driven-development digraph 无 `adjudicate-task-groups` 节点 / 无 `task-groups-undecided` 终端 · `C → D` 直连 · **loop 节点更名 group-*（`implement-group` / `run-group-review` / `fix-group`）** · `{more-groups?}` 循环内保留 · 组列表自 plan 记录读取 · skill-anatomy growth 注册表不再携带 cli-driven-development 越界 rationale（移除后 13 节点/17 边落回边界内、注册条目删除）；两件 skill `pnpm run emit` 后 `emit:check` 无 drift）
 
 ## Section 3: Deviations from overall
 
